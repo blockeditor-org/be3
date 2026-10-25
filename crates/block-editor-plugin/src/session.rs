@@ -1,17 +1,19 @@
 use block_plugin_api::{
-    Direction, EditorInstanceId, EditorMessage, ErrorCode, Hello, Message, PluginIdentity,
-    ProtocolError, ScreenId, SurfaceSpec, SurfaceSupport,
+    EditorInstanceId, Hello, HelloAccepted, PluginIdentity, ScreenId, SurfaceSpec, SurfaceSupport,
 };
 use std::collections::HashSet;
+
+use crate::wire::Delivery;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum State {
     AwaitingHello,
     Running,
     Closed,
-    Failed,
 }
 
+/// What the host may ask of the plugin in each state: a delivery out of order
+/// is an error that stops the plugin.
 pub struct ClientSession {
     state: State,
     screens: HashSet<ScreenId>,
@@ -49,56 +51,35 @@ impl ClientSession {
         self.surface
     }
 
-    pub fn hello(&self) -> Message {
-        Message::Hello(Hello {
+    pub fn hello(&self) -> Hello {
+        Hello {
             plugin: self.plugin.clone(),
             surface: match cfg!(target_arch = "wasm32") {
                 true => SurfaceSupport::Texture,
                 false => SurfaceSupport::None,
             },
-        })
-    }
-
-    pub fn receive(&mut self, message: Message) -> Vec<Message> {
-        match self.dispatch(message) {
-            Ok(messages) => messages,
-            Err(message) => {
-                self.state = State::Failed;
-                vec![Message::Error(ProtocolError {
-                    request_id: None,
-                    code: ErrorCode::InvalidState,
-                    message,
-                })]
-            }
         }
     }
 
-    fn dispatch(&mut self, message: Message) -> Result<Vec<Message>, String> {
-        if matches!(self.state, State::Closed | State::Failed) {
-            return Ok(Vec::new());
-        }
-        if message.direction() == Direction::ToHost {
-            return Err(format!(
-                "the host sent {}, which only a plugin may send",
-                name(&message)
-            ));
-        }
-        match (self.state, message) {
-            (State::AwaitingHello, Message::HelloAccepted(accepted)) => {
-                self.surface = accepted.surface;
-                self.state = State::Running;
-                Ok(Vec::new())
+    pub(crate) fn receive(&mut self, delivery: &Delivery) -> Result<(), String> {
+        match (self.state, delivery) {
+            (State::Closed, _) => Ok(()),
+            (State::AwaitingHello, Delivery::Accepted(accepted)) => {
+                self.accept(accepted);
+                Ok(())
             }
-            (State::AwaitingHello, message) => Err(format!(
+            (State::AwaitingHello, delivery) => Err(format!(
                 "the host sent {} before accepting this plugin",
-                name(&message)
+                delivery.name()
             )),
-            (State::Running, Message::Screens(set)) => {
+            (State::Running, Delivery::Accepted(_)) => {
+                Err("the host accepted this plugin twice".into())
+            }
+            (State::Running, Delivery::Screens(screens)) => {
                 if self.surface.is_none() {
                     return Err("the host sent screens to a plugin it gave no surface".into());
                 }
-                if let Some(request) = set
-                    .screens
+                if let Some(request) = screens
                     .iter()
                     .find(|screen| !self.instances.contains(&screen.instance))
                 {
@@ -107,72 +88,45 @@ impl ClientSession {
                         request.instance.0
                     ));
                 }
-                self.screens = set.screens.iter().map(|screen| screen.screen).collect();
-                Ok(vec![Message::Acknowledged {
-                    request_id: set.request_id,
-                }])
+                self.screens = screens.iter().map(|screen| screen.screen).collect();
+                Ok(())
             }
-            (State::Running, Message::Input(input)) => match self.screens.contains(&input.screen) {
-                true => Ok(Vec::new()),
+            (State::Running, Delivery::Input(input)) => match self.screens.contains(&input.screen) {
+                true => Ok(()),
                 false => Err(format!(
                     "input arrived for screen {}, which this plugin was not given",
                     input.screen.0
                 )),
             },
-            (State::Running, Message::Editor(editor)) => self.editor(editor),
-            (State::Running, Message::DrawFrame { .. }) => match self.surface.is_some() {
-                true => Ok(Vec::new()),
-                false => Err("the host asked a plugin it gave no surface to draw a frame".into()),
-            },
-            (State::Running, Message::Shutdown) => {
-                self.state = State::Closed;
-                Ok(vec![Message::ShutdownAcknowledged])
+            (State::Running, Delivery::Open(opening)) => {
+                let instance = opening.instance();
+                match self.instances.insert(instance) {
+                    true => Ok(()),
+                    false => Err(format!("editor instance {} was opened twice", instance.0)),
+                }
             }
-            (State::Running, _) => Ok(Vec::new()),
-            (State::Closed | State::Failed, _) => Ok(Vec::new()),
-        }
-    }
-
-    fn editor(&mut self, message: EditorMessage) -> Result<Vec<Message>, String> {
-        let instance = message.instance();
-        match message {
-            EditorMessage::Open { .. }
-            | EditorMessage::OpenCreation { .. }
-            | EditorMessage::OpenArtifact { .. } => match self.instances.insert(instance) {
-                true => Ok(Vec::new()),
-                false => Err(format!("editor instance {} was opened twice", instance.0)),
-            },
-            EditorMessage::Close { .. } => match self.instances.remove(&instance) {
-                true => Ok(Vec::new()),
+            (State::Running, Delivery::Close(instance)) => match self.instances.remove(instance) {
+                true => Ok(()),
                 false => Err(format!(
                     "editor instance {} was closed without being open",
                     instance.0
                 )),
             },
+            (State::Running, Delivery::Draw { .. }) => match self.surface.is_some() {
+                true => Ok(()),
+                false => Err("the host asked a plugin it gave no surface to draw a frame".into()),
+            },
+            (State::Running, Delivery::Shutdown) => {
+                self.state = State::Closed;
+                Ok(())
+            }
+            (State::Running, _) => Ok(()),
         }
     }
-}
 
-fn name(message: &Message) -> &'static str {
-    match message {
-        Message::Hello(_) => "a hello",
-        Message::HelloAccepted(_) => "an accepted hello",
-        Message::Preferences(_) => "preferences",
-        Message::UtcOffset(_) => "a UTC offset",
-        Message::Fonts(_) => "fonts",
-        Message::MissingCharacters(_) => "missing characters",
-        Message::Screens(_) => "a screen set",
-        Message::Configure { .. } => "a configure",
-        Message::Layout(_) => "a layout",
-        Message::Input(_) => "input",
-        Message::DrawFrame { .. } => "a draw request",
-        Message::FrameNeeded => "a frame request",
-        Message::Frame(_) => "a frame",
-        Message::Acknowledged { .. } => "an acknowledgement",
-        Message::Error(_) => "an error",
-        Message::Shutdown => "a shutdown",
-        Message::ShutdownAcknowledged => "a shutdown acknowledgement",
-        Message::Editor(_) => "an editor message",
+    fn accept(&mut self, accepted: &HelloAccepted) {
+        self.surface = accepted.surface;
+        self.state = State::Running;
     }
 }
 

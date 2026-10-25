@@ -21,7 +21,7 @@ fn to_host(guest: &mut Connection, wire: &mut Wire) {
 }
 
 fn opened(wire: &mut Wire, guest: &mut Connection) -> OpId {
-    wire.send(Message::Editor(EditorMessage::Open {
+    wire.open(Opening::Block(OpenBlock {
         instance: INSTANCE,
         editor: [1; 16],
         block_id: [2; 16],
@@ -31,8 +31,7 @@ fn opened(wire: &mut Wire, guest: &mut Connection) -> OpId {
         organization_id: [5; 16],
         client_id: [6; 16],
         editable: true,
-    }))
-    .expect("the opening encodes");
+    }));
     match carry(wire.take_outbound(), guest).as_slice() {
         [Incoming::Started(started)] => started.op,
         heard => panic!("the plugin heard {heard:?} rather than its editor opening"),
@@ -72,8 +71,7 @@ fn closing_an_editor_cancels_the_pick_it_waits_on() {
         "the first pick is shown, the second waits"
     );
 
-    wire.send(Message::Editor(EditorMessage::Close { instance: INSTANCE }))
-        .expect("the close encodes");
+    wire.close(INSTANCE);
     let heard = carry(wire.take_outbound(), &mut guest);
     assert!(
         matches!(heard.as_slice(), [Incoming::Canceled { op }] if *op == editor),

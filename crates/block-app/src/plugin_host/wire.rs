@@ -4,9 +4,8 @@ use super::calls::{EditorAnswer, EditorCall, Heard, PluginCall};
 use block_plugin_api::Watch;
 
 use block_plugin_api::{
-    AudioStatus, BlockPick, Catalog, ChildStatus, DecodeError, EditorInstanceId, EditorMessage,
-    ErrorCode, Fonts, InputBatch, Message, Opening, Preferences, ProtocolError, WebViewEvent,
-    WebViewId, decode_frame,
+    AudioStatus, BlockPick, Catalog, ChildStatus, EditorInstanceId, Fonts, HelloAccepted,
+    InputBatch, Opening, Preferences, WebViewEvent, WebViewId,
     embed::{
         blocks,
         exports::plugin::{self, Editor},
@@ -14,7 +13,6 @@ use block_plugin_api::{
         host_services,
         shell::Call as ShellCall,
     },
-    encode_frame,
     ops::{Connection, Incoming, OpError, OpId, Outcome, Producer, Reply, Side, Started, Ticket},
 };
 
@@ -128,69 +126,53 @@ impl Default for Wire {
 }
 
 impl Wire {
-    pub(super) fn send(&mut self, message: Message) -> Result<Vec<Message>, DecodeError> {
-        let connection = &mut self.connection;
-        match message {
-            Message::HelloAccepted(accepted) => {
-                if let Some(reply) = self.connecting.take() {
-                    reply.send(connection, &accepted);
-                }
-            }
-            Message::Preferences(preferences) => {
-                self.preferences.change(connection, |_| preferences);
-            }
-            Message::UtcOffset(seconds) => self.utc_offset.change(connection, |_| seconds),
-            Message::Fonts(fonts) => self.fonts.change(connection, |held| merged(held, fonts)),
-            Message::Input(batch) => self.input.change(connection, |held| {
-                let mut batches = held.unwrap_or_default();
-                match batches.last_mut() {
-                    Some(last) if last.screen == batch.screen => last.merge(&batch),
-                    _ => batches.push(batch),
-                }
-                batches
-            }),
-            Message::Screens(set) => {
-                plugin::screens(connection, set.screens);
-                return Ok(vec![Message::Acknowledged {
-                    request_id: set.request_id,
-                }]);
-            }
-            Message::Configure { serial } => plugin::configure(connection, serial),
-            Message::DrawFrame { now_micros, seen } => {
-                let drawn = plugin::draw(connection, now_micros, seen);
-                self.draws.insert(drawn.op(), Awaited::Draw);
-            }
-            Message::Shutdown => {
-                let done = plugin::shutdown(connection);
-                self.draws.insert(done.op(), Awaited::Shutdown);
-            }
-            Message::Editor(EditorMessage::Close { instance }) => {
-                if let Some(editor) = self.editors.remove(&instance) {
-                    editor.resource_drop(connection);
-                }
-                self.child_statuses.remove(&instance);
-                self.audio.remove(&instance);
-            }
-            Message::Editor(message) => match Opening::of(message) {
-                Ok(opening) => {
-                    let instance = opening.instance();
-                    let editor = Editor::new(connection, opening);
-                    if let Some(earlier) = self.editors.insert(instance, editor) {
-                        earlier.resource_drop(connection);
-                    }
-                }
-                Err(message) => {
-                    plugin::legacy(connection, encode_frame(&Message::Editor(*message))?)
-                }
-            },
-            message => plugin::legacy(connection, encode_frame(&message)?),
+    /// Answers the plugin's `connect`.
+    pub(super) fn accept(&mut self, accepted: &HelloAccepted) {
+        if let Some(reply) = self.connecting.take() {
+            reply.send(&mut self.connection, accepted);
         }
-        Ok(Vec::new())
+    }
+
+    pub(super) fn shutdown(&mut self) {
+        let done = plugin::shutdown(&mut self.connection);
+        self.draws.insert(done.op(), Awaited::Shutdown);
+    }
+
+    pub(super) fn open(&mut self, opening: Opening) {
+        let instance = opening.instance();
+        let editor = Editor::new(&mut self.connection, opening);
+        if let Some(earlier) = self.editors.insert(instance, editor) {
+            earlier.resource_drop(&mut self.connection);
+        }
+    }
+
+    pub(super) fn close(&mut self, instance: EditorInstanceId) {
+        if let Some(editor) = self.editors.remove(&instance) {
+            editor.resource_drop(&mut self.connection);
+        }
+        self.child_statuses.remove(&instance);
+        self.audio.remove(&instance);
     }
 
     pub(super) fn plugin_call(&mut self, call: PluginCall) {
         let connection = &mut self.connection;
         match call {
+            PluginCall::Preferences(preferences) => {
+                self.preferences.change(connection, |_| preferences);
+            }
+            PluginCall::UtcOffset(seconds) => self.utc_offset.change(connection, |_| seconds),
+            PluginCall::Fonts(fonts) => self.fonts.change(connection, |held| merged(held, fonts)),
+            PluginCall::Input(batch) => self.input.change(connection, |held| {
+                let mut batches = held.unwrap_or_default();
+                InputBatch::queue(&mut batches, batch);
+                batches
+            }),
+            PluginCall::Screens(screens) => plugin::screens(connection, screens),
+            PluginCall::Configure(serial) => plugin::configure(connection, serial),
+            PluginCall::Draw { now_micros, seen } => {
+                let drawn = plugin::draw(connection, now_micros, seen);
+                self.draws.insert(drawn.op(), Awaited::Draw);
+            }
             PluginCall::BlockTypes(catalog) => self.block_types.change(connection, |_| catalog),
             PluginCall::Describe(on) => plugin::describe(connection, on),
             PluginCall::RunAction { screen, id } => plugin::run_action(connection, screen, id),
@@ -639,20 +621,19 @@ impl Wire {
                 }
                 match (self.draws.remove(&op), outcome) {
                     (Some(Awaited::Draw), Outcome::Ok(bytes)) => {
-                        let commit = block_plugin_api::ops::decode(&bytes)
-                            .ok_or("the plugin answered a draw with a frame that did not decode")?;
-                        heard.push(Heard::from(Message::Frame(commit)));
+                        let commit: block_plugin_api::FrameCommit =
+                            block_plugin_api::ops::decode(&bytes).ok_or(
+                                "the plugin answered a draw with a frame that did not decode",
+                            )?;
+                        commit.validate().map_err(|error| {
+                            format!("the plugin drew a frame it may not: {error}")
+                        })?;
+                        heard.push(Heard::Frame(Box::new(commit)));
                     }
-                    (Some(Awaited::Shutdown), Outcome::Ok(_)) => {
-                        heard.push(Heard::from(Message::ShutdownAcknowledged))
-                    }
-                    (Some(_), Outcome::Err(error)) => {
-                        heard.push(Heard::from(Message::Error(ProtocolError {
-                            request_id: None,
-                            code: ErrorCode::Internal,
-                            message: format!("the plugin did not answer: {error:?}"),
-                        })));
-                    }
+                    (Some(Awaited::Shutdown), Outcome::Ok(_)) => heard.push(Heard::ShutDown),
+                    (Some(_), Outcome::Err(error)) => heard.push(Heard::Unanswered(format!(
+                        "the plugin did not answer: {error:?}"
+                    ))),
                     (None, _) => {}
                 }
                 return Ok(());
@@ -692,12 +673,12 @@ impl Wire {
         match call {
             Call::Connect { reply, hello } => {
                 self.connecting = Some(reply);
-                heard.push(Heard::from(Message::Hello(hello)));
+                heard.push(Heard::Hello(hello));
             }
-            Call::Layout { layout } => heard.push(Heard::from(Message::Layout(layout))),
-            Call::FrameNeeded {} => heard.push(Heard::from(Message::FrameNeeded)),
+            Call::Layout { layout } => heard.push(Heard::Layout(layout)),
+            Call::FrameNeeded {} => heard.push(Heard::FrameNeeded),
             Call::MissingCharacters { characters } => {
-                heard.push(Heard::from(Message::MissingCharacters(characters)));
+                heard.push(Heard::MissingCharacters(characters));
             }
             Call::PreferencesWatchNew { resource } => self.preferences.opened(resource.op()),
             Call::PreferencesWatchNext { reply, .. } => self.preferences.next(connection, reply),
@@ -707,11 +688,6 @@ impl Wire {
             Call::FontsWatchNext { reply, .. } => self.fonts.next(connection, reply),
             Call::InputNew { resource } => self.input.opened(resource.op()),
             Call::InputNext { reply, .. } => self.input.next(connection, reply),
-            Call::Legacy { message } => {
-                heard.push(Heard::from(decode_frame(&message).map_err(|error| {
-                    format!("the plugin sent a message that did not decode: {error:?}")
-                })?))
-            }
         }
         Ok(())
     }

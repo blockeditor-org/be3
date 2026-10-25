@@ -2,7 +2,7 @@ use super::*;
 
 #[test]
 fn touch_moves_are_coalesced() {
-    let mut session = running_session();
+    let mut queued = Vec::new();
     let touch = |x: f32, y: f32, force: f32, time_micros: u64| {
         timed(
             Input::Touch {
@@ -17,12 +17,12 @@ fn touch_moves_are_coalesced() {
             time_micros,
         )
     };
-    session.enqueue(input(touch(10.0, 20.0, 0.4, 1))).unwrap();
-    session.enqueue(input(touch(30.0, 40.0, 0.8, 2))).unwrap();
+    InputBatch::queue(&mut queued, input(touch(10.0, 20.0, 0.4, 1)));
+    InputBatch::queue(&mut queued, input(touch(30.0, 40.0, 0.8, 2)));
 
-    assert_eq!(session.queued_message_count(), 1);
+    assert_eq!(queued.len(), 1);
     assert_eq!(
-        session.next_outbound(),
+        queued.first().cloned(),
         Some(input(touch(30.0, 40.0, 0.8, 2)))
     );
 }

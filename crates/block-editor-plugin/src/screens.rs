@@ -1,6 +1,6 @@
 use block_plugin_api::{
-    Catalog, EditorInstanceId, EditorMessage, EditorRegion, Edits, FrameCommit, Message, ScreenId,
-    ScreenLayout, ScreenRequest, SurfaceSpec, TemplateCategory,
+    Catalog, EditorInstanceId, EditorRegion, Edits, FrameCommit, Opening, ScreenId, ScreenLayout,
+    ScreenRequest, SurfaceSpec, TemplateCategory,
 };
 use block_ui::{BlockCatalog, BlockTypeEntry, EditorEntry, TemplateEntry};
 use lucide::Glyph;
@@ -14,6 +14,7 @@ use uuid::Uuid;
 use crate::{
     Waker,
     editor_session::{EditorSession, Open},
+    wire::Delivery,
 };
 
 pub(crate) type Opener = Open;
@@ -208,94 +209,45 @@ impl Screens {
         self.surface
     }
 
-    pub(crate) fn receive(&mut self, message: &Message) -> bool {
-        match message {
-            Message::HelloAccepted(accepted) => {
+    /// Applies what the host delivered; true when the screens it touched must
+    /// draw again.
+    pub(crate) fn deliver(&mut self, delivery: Delivery) -> bool {
+        match delivery {
+            Delivery::Accepted(accepted) => {
                 self.surface = accepted.surface;
                 crate::preferences::receive(accepted.preferences);
             }
-            Message::Preferences(preferences) => crate::preferences::receive(*preferences),
-            Message::Fonts(fonts) => crate::fonts::receive(fonts),
-            Message::UtcOffset(seconds) => crate::clock::receive(*seconds),
-            Message::Configure { serial } => {
-                self.serial = *serial;
+            Delivery::Preferences(preferences) => crate::preferences::receive(preferences),
+            Delivery::Fonts(fonts) => crate::fonts::receive(&fonts),
+            Delivery::UtcOffset(seconds) => crate::clock::receive(seconds),
+            Delivery::Configure(serial) => {
+                self.serial = serial;
                 return false;
             }
-            Message::DrawFrame { now_micros, seen } => {
-                crate::clock::set_frame_time(std::time::Duration::from_micros(*now_micros));
-                SEEN.store(*seen, std::sync::atomic::Ordering::Relaxed);
+            Delivery::Draw { now_micros, seen } => {
+                crate::clock::set_frame_time(std::time::Duration::from_micros(now_micros));
+                SEEN.store(seen, std::sync::atomic::Ordering::Relaxed);
                 return false;
             }
-            Message::Editor(EditorMessage::Open {
-                instance,
-                editor,
-                block_id,
-                block_type,
-                view_block,
-                account_id,
-                organization_id,
-                client_id,
-                editable,
-            }) => {
-                let block_types = Rc::clone(&self.block_types);
-                let session = self.open(*instance, Uuid::from_bytes(*editor));
-                session.set_block_types(block_types);
-                session.set_view_block(view_block.map(Uuid::from_bytes));
-                session.set_client_id(Uuid::from_bytes(*client_id));
-                session.set_account_id(Uuid::from_bytes(*account_id));
-                session.set_organization_id(Uuid::from_bytes(*organization_id));
-                session.set_editable(*editable);
-                session.connect(Uuid::from_bytes(*block_id), Uuid::from_bytes(*block_type));
+            Delivery::Open(opening) => {
+                let instance = opening.instance();
+                self.open_editor(opening);
+                if !self.sessions.contains_key(&instance) {
+                    return false;
+                }
+                self.mark(instance);
+                return true;
             }
-            Message::Editor(EditorMessage::OpenCreation {
-                instance,
-                editor,
-                template,
-                account_id,
-                organization_id,
-                client_id,
-            }) => {
-                let block_types = Rc::clone(&self.block_types);
-                let session = self.open(*instance, Uuid::from_bytes(*editor));
-                session.set_block_types(block_types);
-                session.set_client_id(Uuid::from_bytes(*client_id));
-                session.set_account_id(Uuid::from_bytes(*account_id));
-                session.set_organization_id(Uuid::from_bytes(*organization_id));
-                session.connect_creation(template.clone());
-            }
-            Message::Editor(EditorMessage::OpenArtifact {
-                instance,
-                editor,
-                block_id,
-                block_type,
-                account_id,
-                organization_id,
-                client_id,
-                data,
-            }) => {
-                let block_types = Rc::clone(&self.block_types);
-                let session = self.open(*instance, Uuid::from_bytes(*editor));
-                session.set_block_types(block_types);
-                session.set_client_id(Uuid::from_bytes(*client_id));
-                session.set_account_id(Uuid::from_bytes(*account_id));
-                session.set_organization_id(Uuid::from_bytes(*organization_id));
-                session.connect_artifact(
-                    Uuid::from_bytes(*block_id),
-                    Uuid::from_bytes(*block_type),
-                    data.clone(),
-                );
-            }
-            Message::Editor(EditorMessage::Close { instance }) => {
-                self.sessions.remove(instance);
-                self.requests
-                    .retain(|request| request.instance != *instance);
+            Delivery::Close(instance) => {
+                self.sessions.remove(&instance);
+                self.requests.retain(|request| request.instance != instance);
                 self.relayout();
             }
-            Message::Screens(set) => {
-                self.requests = set.screens.clone();
+            Delivery::Screens(screens) => {
+                self.requests = screens;
                 self.relayout();
             }
-            Message::Input(batch) => {
+            Delivery::Input(batch) => {
                 let Some((instance, region)) = self.screen(batch.screen) else {
                     return false;
                 };
@@ -305,26 +257,66 @@ impl Screens {
                 for event in &batch.events {
                     session.input(region, event);
                 }
+                self.mark(instance);
+                return true;
             }
-            _ => return false,
+            Delivery::Editor(instance, call) => return self.call(instance, call),
+            Delivery::Call(call) => {
+                call(self);
+                return true;
+            }
+            Delivery::Shutdown | Delivery::Paintings(_) => return false,
         }
-        match message {
-            Message::Input(batch) => match self.screen(batch.screen) {
-                Some((instance, _)) => self.mark(instance),
-                None => return false,
-            },
-            Message::Editor(EditorMessage::Close { .. }) | Message::Screens(_) => {
-                self.touch_everything();
-            }
-            Message::Editor(editor) => {
-                if !self.sessions.contains_key(&editor.instance()) {
-                    return false;
-                }
-                self.mark(editor.instance());
-            }
-            _ => self.touch_everything(),
-        }
+        self.touch_everything();
         true
+    }
+
+    fn open_editor(&mut self, opening: Opening) {
+        let block_types = Rc::clone(&self.block_types);
+        let (instance, editor, account_id, organization_id, client_id) = match &opening {
+            Opening::Block(open) => (
+                open.instance,
+                open.editor,
+                open.account_id,
+                open.organization_id,
+                open.client_id,
+            ),
+            Opening::Creation(open) => (
+                open.instance,
+                open.editor,
+                open.account_id,
+                open.organization_id,
+                open.client_id,
+            ),
+            Opening::Artifact(open) => (
+                open.instance,
+                open.editor,
+                open.account_id,
+                open.organization_id,
+                open.client_id,
+            ),
+        };
+        let session = self.open(instance, Uuid::from_bytes(editor));
+        session.set_block_types(block_types);
+        session.set_client_id(Uuid::from_bytes(client_id));
+        session.set_account_id(Uuid::from_bytes(account_id));
+        session.set_organization_id(Uuid::from_bytes(organization_id));
+        match opening {
+            Opening::Block(open) => {
+                session.set_view_block(open.view_block.map(Uuid::from_bytes));
+                session.set_editable(open.editable);
+                session.connect(
+                    Uuid::from_bytes(open.block_id),
+                    Uuid::from_bytes(open.block_type),
+                );
+            }
+            Opening::Creation(open) => session.connect_creation(open.template),
+            Opening::Artifact(open) => session.connect_artifact(
+                Uuid::from_bytes(open.block_id),
+                Uuid::from_bytes(open.block_type),
+                open.data,
+            ),
+        }
     }
 
     pub(crate) fn call(
@@ -348,8 +340,13 @@ impl Screens {
         self.touch_everything();
     }
 
-    pub(crate) fn outbound(&mut self) -> Vec<Message> {
-        let mut messages = Vec::from_iter(crate::fonts::take_missing());
+    /// Tells the host, through the world's imports, what changed in the
+    /// editors that ran or woke since the last step.
+    pub(crate) fn outbound(&mut self) {
+        let missing = crate::fonts::take_missing();
+        if !missing.is_empty() {
+            block_plugin_api::guest::host::missing_characters(missing);
+        }
         let woken = self
             .dirty
             .lock()
@@ -359,10 +356,9 @@ impl Screens {
         let reporting = std::mem::take(&mut self.reporting);
         for (instance, session) in &mut self.sessions {
             if everything || reporting.contains(instance) || woken.contains(instance) {
-                messages.extend(session.outbound());
+                session.outbound();
             }
         }
-        messages
     }
 
     pub(crate) fn get(&self, instance: EditorInstanceId) -> Option<&EditorSession> {

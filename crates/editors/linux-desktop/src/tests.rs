@@ -249,7 +249,7 @@ impl Fixture {
             fixture.test.set_host_value::<HostWindows>(&windows);
             fixture.settle();
         }
-        fixture.test.take_sent();
+        fixture.test.clear_calls();
         fixture
     }
 

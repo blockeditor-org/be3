@@ -9,11 +9,11 @@ use std::{
 use beui::reactive::EmbedPlacement;
 use beui::{Pos2, Rect, Vec2, pos2, vec2};
 use block_plugin_api::{
-    ArtifactDescription, BlockPick, ChildPlacements, ChildPreview, EditorInstanceId, EditorMessage,
-    EditorRegion, FrameCommit, FrameSpec, HostAction, HostPanel, HostSession, HostValue,
-    MAX_QUEUED_MESSAGES, Message, Monitor, PluginManifest, PresentedFrame, PreviewImage,
-    RegionSize, ScreenDamage, ScreenId, ScreenLayout, ScreenPlacement, ScreenRequest, ScreenWindow,
-    SessionState, SurfaceFormat, SurfaceSpec, ViewChange, decode_host, encode_host,
+    ArtifactDescription, BlockPick, ChildPlacements, ChildPreview, EditorInstanceId, EditorRegion,
+    FrameCommit, FrameSpec, HostAction, HostPanel, HostValue, Monitor, Opening, PluginManifest,
+    PresentedFrame, PreviewImage, RegionSize, ScreenDamage, ScreenId, ScreenLayout,
+    ScreenPlacement, ScreenRequest, ScreenWindow, SurfaceFormat, SurfaceSpec, ViewChange,
+    decode_host, encode_host,
 };
 use uuid::Uuid;
 
@@ -28,6 +28,7 @@ use super::{
     instances::{EditorView, Focus, Instances, Placement},
     presenter::{self, Blit, Piece, PresenterState, PresenterStatus, Quad, RegionDrawing, Shared},
     preview_scale, previews,
+    session::{Session, SessionFailure, SessionState},
 };
 
 const HOST_NAME: &str = "BE3";
@@ -134,7 +135,7 @@ impl Host {
 pub(super) struct Runtime {
     plugin: PluginManifest,
     pub(super) backend: Backend,
-    session: HostSession,
+    session: Session,
     queued: Vec<Outbound>,
     held: Vec<Answer>,
     taking_in: bool,
@@ -163,7 +164,9 @@ pub(super) struct Runtime {
 }
 
 enum Answer {
-    Message(Message),
+    Layout(ScreenLayout),
+    FrameNeeded,
+    MissingCharacters(Vec<char>),
     Shell(block_plugin_api::embed::shell::Call),
     Editor(EditorInstanceId, EditorAnswer),
     Paintings(Vec<u8>),
@@ -176,7 +179,13 @@ enum Answer {
 impl From<Heard> for Answer {
     fn from(heard: Heard) -> Self {
         match heard {
-            Heard::Message(message) => Self::Message(*message),
+            Heard::Layout(layout) => Self::Layout(layout),
+            Heard::FrameNeeded => Self::FrameNeeded,
+            Heard::MissingCharacters(missing) => Self::MissingCharacters(missing),
+            Heard::Frame(commit) => Self::Frame(*commit),
+            Heard::Hello(_) | Heard::ShutDown | Heard::Unanswered(_) => {
+                unreachable!("the session takes what it hears of its own")
+            }
             Heard::Shell(call) => Self::Shell(call),
             Heard::Answer(instance, answer) => Self::Editor(instance, answer),
             Heard::Paintings(payload) => Self::Paintings(payload),
@@ -334,8 +343,9 @@ impl Runtime {
     }
 
     fn stop(&mut self) {
-        self.session.shutdown(self.milliseconds());
-        self.drain();
+        if self.session.shutdown(self.milliseconds()) {
+            self.backend.ask_to_shut_down();
+        }
         self.backend.shutdown();
         previews::forget(&self.plugin.identity.id);
     }
@@ -371,24 +381,24 @@ impl Runtime {
         self.since = self.pass;
         self.pass = pass;
         let mut messages: Vec<Outbound> = Vec::new();
-        if !self.fonts_sent && *self.session.state() == SessionState::Running {
+        if !self.fonts_sent && self.session.running() {
             self.fonts_sent = true;
-            messages.push(Message::Fonts(super::fonts::bundled()).into());
+            messages.push(PluginCall::Fonts(super::fonts::bundled()).into());
         }
         let describing = super::description::describing();
-        if *self.session.state() == SessionState::Running && self.described != describing {
+        if self.session.running() && self.described != describing {
             self.described = describing;
             messages.push(Outbound::Plugin(PluginCall::Describe(describing)));
         }
         let preferences = host::preferences();
         if self.preferences != preferences {
             self.preferences = preferences;
-            messages.push(Message::Preferences(preferences).into());
+            messages.push(PluginCall::Preferences(preferences).into());
         }
         let utc_offset = crate::platform::utc_offset();
-        if *self.session.state() == SessionState::Running && self.utc_offset != Some(utc_offset) {
+        if self.session.running() && self.utc_offset != Some(utc_offset) {
             self.utc_offset = Some(utc_offset);
-            messages.push(Message::UtcOffset(utc_offset).into());
+            messages.push(PluginCall::UtcOffset(utc_offset).into());
         }
         self.update(messages);
     }
@@ -399,7 +409,7 @@ impl Runtime {
         messages.extend(next.opened);
         if drawing && self.sent != next.screens {
             self.sent.clone_from(&next.screens);
-            messages.push(self.instances.screen_set(next.screens).into());
+            messages.push(PluginCall::Screens(self.instances.screen_set(next.screens)).into());
         }
         messages.extend(self.instances.pending());
         self.serve();
@@ -407,9 +417,8 @@ impl Runtime {
         let awaited = messages.iter().any(|message| {
             matches!(
                 message,
-                Outbound::Message(Message::Editor(
-                    EditorMessage::Open { .. } | EditorMessage::OpenArtifact { .. }
-                ))
+                Outbound::Open(opening)
+                    if matches!(**opening, Opening::Block(_) | Opening::Artifact(_))
             )
         });
         self.pacing.needed |= !messages.is_empty();
@@ -508,7 +517,7 @@ impl Runtime {
     fn request_painting(&mut self) {
         if self.error.is_some()
             || !self.instances.has_mounted()
-            || *self.session.state() != SessionState::Running
+            || !self.session.running()
         {
             return;
         }
@@ -550,7 +559,7 @@ impl Runtime {
         if drawing && self.pacing.due(self.now(), host::pass()) {
             self.pacing.request(self.now(), host::pass());
             self.pacing.unseen = !seen;
-            self.send(vec![Message::DrawFrame {
+            self.send(vec![PluginCall::Draw {
                 now_micros: self.now().as_micros() as u64,
                 seen,
             }]);
@@ -640,9 +649,12 @@ impl Runtime {
         let mut forwarded = Vec::with_capacity(received.len());
         for heard in received {
             match heard {
-                Heard::Message(message) if message.is_session() => {
-                    self.session.receive(*message, now)
+                Heard::Hello(hello) => {
+                    let accepted = self.session.connect(&hello, self.preferences);
+                    self.backend.accept(&accepted);
                 }
+                Heard::ShutDown => self.session.shut_down(),
+                Heard::Unanswered(error) => self.session.fail(SessionFailure::Protocol(error)),
                 heard => forwarded.push(heard),
             }
         }
@@ -677,36 +689,21 @@ impl Runtime {
                 let mut drawing = Vec::with_capacity(forwarded.len());
                 let mut held = false;
                 for heard in forwarded {
-                    let message = match heard {
-                        Heard::Message(message) => *message,
-                        Heard::Paintings(payload) => {
-                            drawing.push(Answer::Paintings(payload));
-                            continue;
-                        }
-                        heard @ (Heard::Shell(_)
-                        | Heard::Answer(..)
-                        | Heard::Blocks(..)
-                        | Heard::Ended(_)) => {
-                            held = true;
-                            self.held.push(Answer::from(heard));
-                            continue;
-                        }
-                    };
-                    match message {
-                        Message::Frame(commit) => {
-                            let (now, later) = self.split(commit);
+                    match heard {
+                        Heard::Frame(commit) => {
+                            let (now, later) = self.split(*commit);
                             drawing.push(Answer::Frame(now));
                             if let Some(later) = later {
                                 held = true;
                                 self.held.push(Answer::Laid(later));
                             }
                         }
-                        message if self.draws_the_frame(&message) => {
-                            drawing.push(Answer::Message(message));
+                        heard @ (Heard::Paintings(_) | Heard::Layout(_) | Heard::FrameNeeded) => {
+                            drawing.push(Answer::from(heard));
                         }
-                        message => {
+                        heard => {
                             held = true;
-                            self.held.push(Answer::Message(message));
+                            self.held.push(Answer::from(heard));
                         }
                     }
                 }
@@ -823,16 +820,9 @@ impl Runtime {
         }
     }
 
-    fn draws_the_frame(&self, message: &Message) -> bool {
-        matches!(message, Message::Layout(_) | Message::FrameNeeded)
-    }
-
     fn split(&self, commit: FrameCommit) -> (FrameCommit, Option<Laid>) {
-        let mut message = Message::Frame(commit);
-        self.instances.translate(&mut message, true);
-        let Message::Frame(mut commit) = message else {
-            unreachable!("translating a frame leaves it a frame")
-        };
+        let mut commit = commit;
+        self.instances.translate(&mut commit, true);
         let (moving, coming) = std::mem::take(&mut commit.children)
             .into_iter()
             .partition(|placements| {
@@ -857,7 +847,9 @@ impl Runtime {
             .iter()
             .filter_map(|held| match held {
                 Answer::Laid(laid) => Some(laid.screens(&self.instances)),
-                Answer::Message(_)
+                Answer::Layout(_)
+                | Answer::FrameNeeded
+                | Answer::MissingCharacters(_)
                 | Answer::Shell(_)
                 | Answer::Editor(..)
                 | Answer::Paintings(_)
@@ -888,57 +880,45 @@ impl Runtime {
         let mut changed = false;
         mark(&self.plugin.identity.id);
         for answer in answers {
-            let mut message = match answer {
-                Answer::Message(message) => message,
+            changed |= match answer {
+                Answer::Layout(layout) => {
+                    self.laid_out(layout);
+                    true
+                }
+                Answer::FrameNeeded => {
+                    self.pacing.needed = true;
+                    true
+                }
+                Answer::MissingCharacters(missing) => {
+                    replies.extend(self.fallbacks.answer(&missing).map(PluginCall::Fonts));
+                    false
+                }
                 Answer::Shell(mut call) => {
                     self.instances.translate(&mut call, true);
-                    changed |= self.instances.shell_call(call);
-                    continue;
+                    self.instances.shell_call(call)
                 }
                 Answer::Paintings(payload) => {
                     self.painted(&payload);
-                    changed = true;
-                    continue;
+                    true
                 }
                 Answer::Editor(instance, answer) => {
                     let mut answered = (instance, answer);
                     self.instances.translate(&mut answered, true);
-                    changed |= self.instances.answered(answered.0, answered.1);
-                    continue;
+                    self.instances.answered(answered.0, answered.1)
                 }
                 Answer::Frame(commit) => {
-                    changed |= self.commit(commit);
-                    continue;
+                    self.commit(commit)
                 }
                 Answer::Laid(laid) => {
-                    changed |= self.lay(laid);
-                    continue;
+                    self.lay(laid)
                 }
                 Answer::Blocks(instance, call) => {
-                    changed |= self.instances.blocks_call(instance, call);
-                    continue;
+                    self.instances.blocks_call(instance, call)
                 }
                 Answer::Ended(op) => {
                     self.instances.ended(op);
-                    continue;
-                }
-            };
-            self.instances.translate(&mut message, true);
-            changed |= match message {
-                Message::Layout(layout) => {
-                    self.laid_out(layout);
-                    true
-                }
-                Message::FrameNeeded => {
-                    self.pacing.needed = true;
-                    true
-                }
-                Message::Frame(commit) => self.commit(commit),
-                Message::MissingCharacters(missing) => {
-                    replies.extend(self.fallbacks.answer(&missing).map(Message::Fonts));
                     false
                 }
-                _ => false,
             };
         }
         self.send(replies);
@@ -1011,46 +991,10 @@ impl Runtime {
     }
 
     fn deliver(&mut self) {
-        if self.session.state() != &SessionState::Running {
-            self.drain();
+        if !self.session.running() {
             return;
         }
-        let now = self.milliseconds();
-        let mut failure = None;
-        for message in std::mem::take(&mut self.queued) {
-            let message = match message {
-                Outbound::Message(message) => message,
-                Outbound::Editor(instance, call) => {
-                    self.drain();
-                    self.backend.call(instance, call);
-                    continue;
-                }
-                Outbound::Plugin(call) => {
-                    self.drain();
-                    self.backend.plugin_call(call);
-                    continue;
-                }
-            };
-            if self.session.queued_message_count() == MAX_QUEUED_MESSAGES {
-                self.drain();
-            }
-            if let Err(error) = self.session.send(message, now) {
-                failure = Some(format!("The plugin message queue failed: {error:?}"));
-                break;
-            }
-        }
-        self.drain();
-        if let Some(failure) = failure {
-            self.error.get_or_insert(failure);
-        }
-    }
-
-    fn drain(&mut self) {
-        let mut outbound = Vec::new();
-        while let Some(message) = self.session.next_outbound() {
-            outbound.push(message);
-        }
-        if !outbound.is_empty() {
+        for outbound in std::mem::take(&mut self.queued) {
             self.backend.send(outbound);
         }
     }
@@ -1700,7 +1644,7 @@ pub(crate) fn close(plugin_id: &str, instance: EditorInstanceId) {
         let messages = runtime
             .instances
             .remove(instance)
-            .then(|| vec![Message::Editor(EditorMessage::Close { instance })]);
+            .then(|| vec![Outbound::Close(instance)]);
         if let Some(messages) = messages {
             runtime.send(messages);
         }
@@ -1944,12 +1888,12 @@ pub(crate) fn running() -> Vec<RuntimeStatus> {
     })
 }
 
-fn session() -> HostSession {
+fn session() -> Session {
     let surface = SurfaceSpec {
         format: SurfaceFormat::Rgba8Unorm,
         render: presenter::rendered(),
     };
-    HostSession::new(HOST_NAME, Some(surface), host::preferences())
+    Session::new(HOST_NAME, Some(surface))
 }
 
 thread_local! {

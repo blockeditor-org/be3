@@ -96,9 +96,6 @@ interface plugin {
 
     /// Stops the plugin; it answers once it saved what it holds.
     shutdown: async func();
-
-    /// A message of the protocol this world replaces, until each moves here.
-    legacy: func(message: list<u8>);
 }
 
 world editor-plugin {

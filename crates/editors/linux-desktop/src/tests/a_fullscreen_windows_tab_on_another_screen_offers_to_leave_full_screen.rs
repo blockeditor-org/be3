@@ -19,7 +19,7 @@ fn a_fullscreen_windows_tab_on_another_screen_offers_to_leave_full_screen() {
         .test
         .set_host_value::<HostWindows>(&vec![fullscreen]);
     fixture.settle();
-    fixture.test.take_sent();
+    fixture.test.clear_calls();
     assert!(
         right.contains_rect(fixture.test.rect_of("dock.fullscreen")),
         "the window fills the screen it is fullscreen on"

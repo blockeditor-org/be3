@@ -43,7 +43,4 @@ interface host {
         constructor();
         next: async func() -> list<input-batch>;
     }
-
-    /// A message of the protocol this world replaces, until each moves here.
-    legacy: func(message: list<u8>);
 }

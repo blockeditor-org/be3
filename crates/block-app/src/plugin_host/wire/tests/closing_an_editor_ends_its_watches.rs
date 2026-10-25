@@ -15,8 +15,8 @@ use super::*;
 
 const INSTANCE: EditorInstanceId = EditorInstanceId(3);
 
-fn open() -> Message {
-    Message::Editor(EditorMessage::Open {
+fn open() -> Opening {
+    Opening::Block(block_plugin_api::OpenBlock {
         instance: INSTANCE,
         editor: [1; 16],
         block_id: [2; 16],
@@ -58,7 +58,7 @@ fn closing_an_editor_ends_its_watches() {
     }));
     let mut wire = Wire::default();
     let mut heard = Vec::new();
-    wire.send(open()).expect("an editor opens");
+    wire.open(open());
     exchange(&mut wire, &guest, &mut heard);
     let editor = editor.get().expect("the guest served the editor");
 
@@ -82,8 +82,7 @@ fn closing_an_editor_ends_its_watches() {
     assert_eq!(wire.waiting(), [watch], "the guest waits on the watch");
     heard.clear();
 
-    wire.send(Message::Editor(EditorMessage::Close { instance: INSTANCE }))
-        .expect("an editor closes");
+    wire.close(INSTANCE);
     exchange(&mut wire, &guest, &mut heard);
 
     assert!(

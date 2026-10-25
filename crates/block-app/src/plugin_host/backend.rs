@@ -1,8 +1,8 @@
 use std::{sync::Arc, time::Duration};
 
-use block_plugin_api::{Message, PluginManifest, ScreenDamage, ops::Outcome};
+use block_plugin_api::{HelloAccepted, PluginManifest, ScreenDamage, ops::Outcome};
 
-use super::calls::{EditorCall, Heard, PluginCall};
+use super::calls::{Heard, Outbound};
 use super::wire::{Services, Wire};
 use crate::{editors::plugin::discovery, host};
 use block_guest_host::Worker;
@@ -41,7 +41,6 @@ pub(super) struct Backend {
     worker: Option<Worker<platform::Channel>>,
     mailbox: Option<platform::Mailbox>,
     wire: Wire,
-    answered: Vec<Heard>,
     started: Duration,
     error: Option<String>,
 }
@@ -53,7 +52,6 @@ impl Backend {
             worker: None,
             mailbox: None,
             wire: Wire::default(),
-            answered: Vec::new(),
             started: host::now(),
             error: None,
         }
@@ -64,7 +62,6 @@ impl Backend {
         self.started = host::now();
         self.error = None;
         self.wire = Wire::default();
-        self.answered.clear();
         let Some(module) = self.module.clone() else {
             self.error = Some(NO_ENTRY_POINT.to_owned());
             return;
@@ -83,41 +80,31 @@ impl Backend {
         self.worker.as_ref().is_some_and(Worker::ready)
     }
 
-    pub(super) fn send(&mut self, messages: Vec<Message>) {
+    fn wired(&mut self, act: impl FnOnce(&mut Wire)) {
         let Some(worker) = &mut self.worker else {
             return;
         };
-        for message in messages {
-            match self.wire.send(message) {
-                Ok(answered) => self.answered.extend(answered.into_iter().map(Heard::from)),
-                Err(error) => {
-                    self.error.get_or_insert(error.to_string());
-                }
-            }
-        }
+        act(&mut self.wire);
         if let Some(failure) = worker.queue(self.wire.take_outbound()) {
             self.fail(failure);
         }
     }
 
-    pub(super) fn call(&mut self, instance: block_plugin_api::EditorInstanceId, call: EditorCall) {
-        let Some(worker) = &mut self.worker else {
-            return;
-        };
-        self.wire.call(instance, call);
-        if let Some(failure) = worker.queue(self.wire.take_outbound()) {
-            self.fail(failure);
-        }
+    pub(super) fn send(&mut self, outbound: Outbound) {
+        self.wired(|wire| match outbound {
+            Outbound::Open(opening) => wire.open(*opening),
+            Outbound::Close(instance) => wire.close(instance),
+            Outbound::Editor(instance, call) => wire.call(instance, call),
+            Outbound::Plugin(call) => wire.plugin_call(call),
+        });
     }
 
-    pub(super) fn plugin_call(&mut self, call: PluginCall) {
-        let Some(worker) = &mut self.worker else {
-            return;
-        };
-        self.wire.plugin_call(call);
-        if let Some(failure) = worker.queue(self.wire.take_outbound()) {
-            self.fail(failure);
-        }
+    pub(super) fn accept(&mut self, accepted: &HelloAccepted) {
+        self.wired(|wire| wire.accept(accepted));
+    }
+
+    pub(super) fn ask_to_shut_down(&mut self) {
+        self.wired(Wire::shutdown);
     }
 
     pub(super) fn receive(&mut self) -> Vec<Heard> {
@@ -125,7 +112,7 @@ impl Backend {
         let Some(worker) = &mut self.worker else {
             return Vec::new();
         };
-        let mut messages = std::mem::take(&mut self.answered);
+        let mut messages = Vec::new();
         for frame in worker.take_received() {
             if let Err(failure) = self.wire.receive(&frame, &mut messages) {
                 self.error.get_or_insert(failure);

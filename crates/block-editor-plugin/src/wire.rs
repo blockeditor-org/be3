@@ -1,8 +1,8 @@
 use std::{cell::RefCell, collections::VecDeque, future::Future, rc::Rc};
 
 use block_plugin_api::{
-    BarAction, ChildId, EditorInstanceId, EditorMessage, EditorRegion, FrameCommit, Message,
-    Opening, Rect, ScreenId, ScreenRequest, ScreenSet, ShellDialog, Size, encode_frame,
+    BarAction, ChildId, EditorInstanceId, EditorRegion, Fonts, FrameCommit, Hello, HelloAccepted,
+    InputBatch, Opening, Preferences, Rect, ScreenId, ScreenRequest, ShellDialog, Size,
     guest::{
         exports::plugin::{Guest, GuestEditor},
         host, shell,
@@ -18,11 +18,44 @@ use crate::editor_session::EditorSession;
 
 pub(crate) type EditorCall = Box<dyn FnOnce(&mut EditorSession)>;
 
+/// What the host's calls ask of the plugin, queued in the order they came so
+/// the runtime takes them in its next step.
 pub(crate) enum Delivery {
-    Message(Box<Message>),
+    Accepted(HelloAccepted),
+    Preferences(Preferences),
+    UtcOffset(i32),
+    Fonts(Fonts),
+    Screens(Vec<ScreenRequest>),
+    Configure(u64),
+    Input(InputBatch),
+    Draw { now_micros: u64, seen: bool },
+    Shutdown,
+    Open(Opening),
+    Close(EditorInstanceId),
     Editor(EditorInstanceId, EditorCall),
-    Screens(Box<dyn FnOnce(&mut crate::screens::Screens)>),
+    Call(Box<dyn FnOnce(&mut crate::screens::Screens)>),
     Paintings(Sender<Vec<u8>>),
+}
+
+impl Delivery {
+    pub(crate) fn name(&self) -> &'static str {
+        match self {
+            Self::Accepted(_) => "an acceptance",
+            Self::Preferences(_) => "preferences",
+            Self::UtcOffset(_) => "a UTC offset",
+            Self::Fonts(_) => "fonts",
+            Self::Screens(_) => "screens",
+            Self::Configure(_) => "a configure",
+            Self::Input(_) => "input",
+            Self::Draw { .. } => "a draw request",
+            Self::Shutdown => "a shutdown",
+            Self::Open(_) => "an editor instance",
+            Self::Close(_) => "a close",
+            Self::Editor(..) => "an editor call",
+            Self::Call(_) => "a call",
+            Self::Paintings(_) => "a paintings request",
+        }
+    }
 }
 
 #[derive(Default)]
@@ -44,25 +77,50 @@ impl Shared {
         std::mem::take(&mut self.0.borrow_mut().inbox)
     }
 
-    fn push(&self, message: Message) {
-        self.0
-            .borrow_mut()
-            .inbox
-            .push(Delivery::Message(Box::new(message)));
+    fn push(&self, delivery: Delivery) {
+        self.0.borrow_mut().inbox.push(delivery);
     }
 
     fn call(&self, instance: EditorInstanceId, call: impl FnOnce(&mut EditorSession) + 'static) {
-        self.0
-            .borrow_mut()
-            .inbox
-            .push(Delivery::Editor(instance, Box::new(call)));
+        self.push(Delivery::Editor(instance, Box::new(call)));
     }
 
     fn screens(&self, call: impl FnOnce(&mut crate::screens::Screens) + 'static) {
-        self.0
-            .borrow_mut()
-            .inbox
-            .push(Delivery::Screens(Box::new(call)));
+        self.push(Delivery::Call(Box::new(call)));
+    }
+
+    /// Whether a draw the host asked for waits for its frame.
+    #[cfg_attr(not(target_arch = "wasm32"), allow(dead_code))]
+    pub(crate) fn drawing(&self) -> bool {
+        !self.0.borrow().draws.is_empty()
+    }
+
+    /// Answers the oldest draw the host asked for with the frame drawn.
+    #[cfg_attr(not(target_arch = "wasm32"), allow(dead_code))]
+    pub(crate) fn drawn(&self, commit: FrameCommit) {
+        let draw = self.0.borrow_mut().draws.pop_front();
+        if let Some(draw) = draw {
+            draw.send(commit);
+        }
+    }
+
+    #[cfg_attr(not(target_arch = "wasm32"), allow(dead_code))]
+    pub(crate) fn shut_down(&self) {
+        let shutdowns = std::mem::take(&mut self.0.borrow_mut().shutdowns);
+        for shutdown in shutdowns {
+            shutdown.send(());
+        }
+    }
+
+    /// Introduces the plugin, which hears nothing else before the host's answer.
+    #[cfg_attr(not(target_arch = "wasm32"), allow(dead_code))]
+    pub(crate) fn connect(&self, hello: Hello) {
+        let wire = self.clone();
+        spawn(async move {
+            if let Ok(accepted) = host::connect(hello).await {
+                wire.push(Delivery::Accepted(accepted));
+            }
+        });
     }
 
     pub(crate) fn watch_shell(&self) {
@@ -81,21 +139,21 @@ impl Shared {
         spawn(async move {
             let watch = host::PreferencesWatch::new();
             while let Ok(preferences) = watch.next().await {
-                wire.push(Message::Preferences(preferences));
+                wire.push(Delivery::Preferences(preferences));
             }
         });
         let wire = self.clone();
         spawn(async move {
             let watch = host::UtcOffsetWatch::new();
             while let Ok(seconds) = watch.next().await {
-                wire.push(Message::UtcOffset(seconds));
+                wire.push(Delivery::UtcOffset(seconds));
             }
         });
         let wire = self.clone();
         spawn(async move {
             let watch = host::FontsWatch::new();
             while let Ok(fonts) = watch.next().await {
-                wire.push(Message::Fonts(fonts));
+                wire.push(Delivery::Fonts(fonts));
             }
         });
         let wire = self.clone();
@@ -103,51 +161,10 @@ impl Shared {
             let input = host::Input::new();
             while let Ok(batches) = input.next().await {
                 for batch in batches {
-                    wire.push(Message::Input(batch));
+                    wire.push(Delivery::Input(batch));
                 }
             }
         });
-    }
-
-    #[cfg_attr(not(target_arch = "wasm32"), allow(dead_code))]
-    pub(crate) fn route(&self, messages: Vec<Message>) {
-        for message in messages {
-            match message {
-                Message::Hello(hello) => {
-                    let wire = self.clone();
-                    spawn(async move {
-                        if let Ok(accepted) = host::connect(hello).await {
-                            wire.push(Message::HelloAccepted(accepted));
-                        }
-                    });
-                }
-                Message::Layout(layout) => host::layout(layout),
-                Message::FrameNeeded => host::frame_needed(),
-                Message::MissingCharacters(characters) => host::missing_characters(characters),
-                Message::Acknowledged { .. } => {}
-                Message::Frame(commit) => {
-                    let draw = self.0.borrow_mut().draws.pop_front();
-                    match draw {
-                        Some(draw) => draw.send(commit),
-                        None => legacy(&Message::Frame(commit)),
-                    }
-                }
-                Message::ShutdownAcknowledged => {
-                    let shutdowns = std::mem::take(&mut self.0.borrow_mut().shutdowns);
-                    for shutdown in shutdowns {
-                        shutdown.send(());
-                    }
-                }
-                message => legacy(&message),
-            }
-        }
-    }
-}
-
-fn legacy(message: &Message) {
-    match encode_frame(message) {
-        Ok(frame) => host::legacy(frame),
-        Err(error) => eprintln!("dropped a message the protocol refused to carry: {error}"),
     }
 }
 
@@ -164,7 +181,7 @@ impl Guest for Exports {
     fn new_editor(&self, op: OpId, opening: Opening) -> OpenEditor {
         let instance = opening.instance();
         crate::asked::opened(instance, op);
-        self.0.push(Message::Editor(opening.into()));
+        self.0.push(Delivery::Open(opening));
         let watch = with_parent(op, || shell::ChildStatusesWatch::new(instance));
         let wire = self.0.clone();
         spawn(async move {
@@ -181,10 +198,7 @@ impl Guest for Exports {
     }
 
     fn screens(&self, screens: Vec<ScreenRequest>) {
-        self.0.push(Message::Screens(ScreenSet {
-            request_id: 0,
-            screens,
-        }));
+        self.0.push(Delivery::Screens(screens));
     }
 
     fn describe(&self, on: bool) {
@@ -207,22 +221,18 @@ impl Guest for Exports {
 
     fn paintings(&self) -> impl Future<Output = Vec<u8>> + 'static {
         let (sender, painted) = oneshot();
-        self.0
-            .0
-            .borrow_mut()
-            .inbox
-            .push(Delivery::Paintings(sender));
+        self.0.push(Delivery::Paintings(sender));
         async move { painted.await.unwrap_or_default() }
     }
 
     fn configure(&self, serial: u64) {
-        self.0.push(Message::Configure { serial });
+        self.0.push(Delivery::Configure(serial));
     }
 
     fn draw(&self, now_micros: u64, seen: bool) -> impl Future<Output = FrameCommit> + 'static {
         let (sender, drawn) = oneshot();
         self.0.0.borrow_mut().draws.push_back(sender);
-        self.0.push(Message::DrawFrame { now_micros, seen });
+        self.0.push(Delivery::Draw { now_micros, seen });
         async move {
             match drawn.await {
                 Some(commit) => commit,
@@ -234,20 +244,9 @@ impl Guest for Exports {
     fn shutdown(&self) -> impl Future<Output = ()> + 'static {
         let (sender, done) = oneshot();
         self.0.0.borrow_mut().shutdowns.push(sender);
-        self.0.push(Message::Shutdown);
+        self.0.push(Delivery::Shutdown);
         async move {
             done.await;
-        }
-    }
-
-    fn legacy(&self, message: Vec<u8>) {
-        match block_plugin_api::decode_frame(&message) {
-            Ok(message) => self.0.push(message),
-            Err(error) => legacy(&Message::Error(block_plugin_api::ProtocolError {
-                request_id: None,
-                code: block_plugin_api::ErrorCode::InvalidMessage,
-                message: format!("the host sent a message that did not decode: {error:?}"),
-            })),
         }
     }
 }
@@ -443,9 +442,7 @@ impl GuestEditor for OpenEditor {
 
     fn on_drop(&self) -> impl Future<Output = ()> + 'static {
         crate::asked::closed(self.instance);
-        self.wire.push(Message::Editor(EditorMessage::Close {
-            instance: self.instance,
-        }));
+        self.wire.push(Delivery::Close(self.instance));
         async {}
     }
 }

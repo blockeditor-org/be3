@@ -2,7 +2,7 @@ use super::*;
 
 #[test]
 fn superseded_events_are_coalesced() {
-    let mut session = running_session();
+    let mut queued = Vec::new();
     let moved =
         |x: f32, y: f32, time_micros: u64| timed(Input::PointerMoved(Pos2::new(x, y)), time_micros);
     let pressed = timed(
@@ -27,11 +27,11 @@ fn superseded_events_are_coalesced() {
         held(),
         held(),
     ] {
-        session.enqueue(input(event)).unwrap();
+        InputBatch::queue(&mut queued, input(event));
     }
-    assert_eq!(session.queued_message_count(), 1);
+    assert_eq!(queued.len(), 1);
     assert_eq!(
-        session.next_outbound(),
+        queued.first().cloned(),
         Some(batch(
             vec![
                 moved(3.0, 4.0, 2),

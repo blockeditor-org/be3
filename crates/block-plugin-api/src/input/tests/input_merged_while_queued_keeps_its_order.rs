@@ -2,24 +2,22 @@ use super::*;
 
 #[test]
 fn input_merged_while_queued_keeps_its_order() {
-    let mut session = running_session();
+    let mut queued = Vec::new();
     let keys: Vec<_> = crate::Key::ALL
         .iter()
         .copied()
         .cycle()
-        .take(MAX_QUEUED_MESSAGES * 2)
+        .take(512)
         .collect();
     for key in &keys {
-        session
-            .enqueue(input(Input::Key(crate::Keystroke {
+        InputBatch::queue(&mut queued, input(Input::Key(crate::Keystroke {
                 key: Some(*key),
                 pressed: true,
                 ..crate::Keystroke::default()
-            })))
-            .unwrap();
+            })));
     }
-    assert_eq!(session.queued_message_count(), 1);
-    let Some(Message::Input(batch)) = session.next_outbound() else {
+    assert_eq!(queued.len(), 1);
+    let Some(batch) = queued.first().cloned() else {
         panic!()
     };
     let merged: Vec<_> = batch

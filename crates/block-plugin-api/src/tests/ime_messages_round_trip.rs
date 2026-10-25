@@ -2,8 +2,7 @@ use super::*;
 
 #[test]
 fn ime_messages_round_trip() {
-    for message in [
-        Message::Frame(FrameCommit {
+    round_trips(&FrameCommit {
             windows: vec![ScreenWindow {
                 screen: ScreenId(6),
                 window: WindowRequests {
@@ -22,8 +21,8 @@ fn ime_messages_round_trip() {
                 },
             }],
             ..frame(1)
-        }),
-        Message::Input(InputBatch {
+    });
+    round_trips(&InputBatch {
             screen: ScreenId(2),
             every_sample: false,
             events: vec![
@@ -49,11 +48,5 @@ fn ime_messages_round_trip() {
                 .into(),
                 Input::Ime(ImeEvent::Disabled).into(),
             ],
-        }),
-    ] {
-        assert_eq!(
-            decode_frame(&encode_frame(&message).unwrap()).unwrap(),
-            message
-        );
-    }
+    });
 }

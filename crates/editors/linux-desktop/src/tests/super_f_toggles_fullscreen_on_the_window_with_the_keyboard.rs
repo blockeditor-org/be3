@@ -27,7 +27,7 @@ fn super_f_toggles_fullscreen_on_the_window_with_the_keyboard() {
         }]
     );
 
-    fixture.test.take_sent();
+    fixture.test.clear_calls();
     let fullscreen = HostWindow {
         fullscreen: Some(Rect::from_min_size(
             Pos2::new(0.0, 0.0),
@@ -39,7 +39,7 @@ fn super_f_toggles_fullscreen_on_the_window_with_the_keyboard() {
         .test
         .set_host_value::<HostWindows>(&vec![host_window(1, false), fullscreen]);
     fixture.settle();
-    fixture.test.take_sent();
+    fixture.test.clear_calls();
     assert!(fixture.test.app_key(Modifiers::LOGO, Key::F));
     fixture.settle();
     assert_eq!(

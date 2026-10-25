@@ -2,7 +2,7 @@ use super::*;
 
 #[test]
 fn open_messages_round_trip() {
-    let message = Message::Editor(EditorMessage::Open {
+    let message = Opening::Block(OpenBlock {
         instance: EditorInstanceId(9),
         editor: [7; 16],
         block_id: [1; 16],
@@ -13,8 +13,5 @@ fn open_messages_round_trip() {
         client_id: [5; 16],
         editable: true,
     });
-    assert_eq!(
-        decode_frame(&encode_frame(&message).unwrap()).unwrap(),
-        message
-    );
+    round_trips(&message);
 }

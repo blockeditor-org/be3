@@ -2,7 +2,7 @@ use super::*;
 
 #[test]
 fn an_intercepted_key_round_trips() {
-    let message = Message::Input(InputBatch {
+    let message = InputBatch {
         screen: ScreenId(1),
         every_sample: false,
         events: vec![
@@ -19,9 +19,6 @@ fn an_intercepted_key_round_trips() {
             .into(),
             Input::InterceptedTap(Key::Logo).into(),
         ],
-    });
-    assert_eq!(
-        decode_frame(&encode_frame(&message).unwrap()).unwrap(),
-        message
-    );
+    };
+    round_trips(&message);
 }

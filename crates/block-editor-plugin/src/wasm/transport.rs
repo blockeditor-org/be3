@@ -1,5 +1,5 @@
 use block_guest_abi::Flow;
-use block_plugin_api::{ErrorCode, Message, ProtocolError, ops::guest::Executor};
+use block_plugin_api::ops::guest::Executor;
 
 use crate::wire::Shared;
 use crate::{Waker, runtime::Runtime};
@@ -33,7 +33,7 @@ impl Editor {
         let wire = Shared::default();
         let executor = wire.executor();
         executor.enter(|| {
-            wire.route(vec![runtime.hello()]);
+            wire.connect(runtime.hello());
             wire.watch();
             wire.watch_shell();
         });
@@ -55,28 +55,16 @@ impl Editor {
             .step(inbound, outbound)
             .map_err(|error| failed(format!("a frame did not decode: {error}")))?;
         let batch = self.wire.take_inbox();
-        let runtime = &mut self.runtime;
-        let stepped = self.executor.enter(|| runtime.step(batch, woken));
-        let (messages, flow) = match stepped {
-            Ok(step) => (
-                step.outbound,
-                match step.closed {
-                    true => Flow::Finished,
-                    false => Flow::Running,
-                },
-            ),
-            Err(error) => {
-                let wire = &self.wire;
-                self.executor
-                    .enter(|| wire.route(vec![protocol_error(error.clone())]));
-                self.executor.step(Vec::new(), outbound)?;
-                return Err(failed(error));
-            }
-        };
-        let wire = &self.wire;
-        self.executor.enter(|| wire.route(messages));
+        let (runtime, wire) = (&mut self.runtime, &self.wire);
+        let closed = self
+            .executor
+            .enter(|| runtime.step(batch, woken, wire))
+            .map_err(failed)?;
         self.executor.step(Vec::new(), outbound)?;
-        Ok(flow)
+        Ok(match closed {
+            true => Flow::Finished,
+            false => Flow::Running,
+        })
     }
 }
 
@@ -86,12 +74,4 @@ pub(crate) fn initialize_storage(size: usize, align: usize) {
 
 fn failed(error: String) -> String {
     format!("the plugin could not run a frame: {error}")
-}
-
-fn protocol_error(message: String) -> Message {
-    Message::Error(ProtocolError {
-        request_id: None,
-        code: ErrorCode::Internal,
-        message,
-    })
 }

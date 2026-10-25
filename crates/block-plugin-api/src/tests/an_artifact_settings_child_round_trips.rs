@@ -22,8 +22,5 @@ fn an_artifact_settings_child_round_trips() {
         }],
         occluders: Vec::new(),
     });
-    assert_eq!(
-        decode_frame(&encode_frame(&message).unwrap()).unwrap(),
-        message
-    );
+    round_trips(&message);
 }

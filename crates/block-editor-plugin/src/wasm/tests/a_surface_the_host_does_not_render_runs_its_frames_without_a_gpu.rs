@@ -1,11 +1,12 @@
 use block_plugin_api::{
-    EditorInstanceId, EditorMessage, EditorRegion, HelloAccepted, Message, ScreenId, ScreenRequest,
-    ScreenSet, Size, SurfaceFormat, SurfaceSpec, TimedInput, ViewportMetrics,
+    EditorInstanceId, EditorRegion, HelloAccepted, OpenBlock, Opening, ScreenId, ScreenRequest,
+    Size, SurfaceFormat, SurfaceSpec, TimedInput, ViewportMetrics,
 };
 use uuid::Uuid;
 
 use crate::editor_session::EditorSession;
 use crate::screens::Screens;
+use crate::wire::Delivery;
 use crate::wasm::{Surfaces, surface_gpu};
 use crate::{EditorHost, Frame, Instance, Region, Waker};
 
@@ -38,7 +39,7 @@ fn a_surface_the_host_does_not_render_runs_its_frames_without_a_gpu() {
         render: false,
     };
     let mut screens = Screens::new(Vec::new(), Waker::default());
-    screens.receive(&Message::HelloAccepted(HelloAccepted {
+    screens.deliver(Delivery::Accepted(HelloAccepted {
         host_name: "test host".into(),
         surface: Some(spec),
         preferences: block_plugin_api::Preferences::default(),
@@ -51,8 +52,8 @@ fn a_surface_the_host_does_not_render_runs_its_frames_without_a_gpu() {
             EditorHost::new(Waker::default()),
         ),
     );
-    for message in [
-        Message::Editor(EditorMessage::Open {
+    for delivery in [
+        Delivery::Open(Opening::Block(OpenBlock {
             instance: INSTANCE,
             editor: [6; 16],
             block_id: [1; 16],
@@ -62,10 +63,8 @@ fn a_surface_the_host_does_not_render_runs_its_frames_without_a_gpu() {
             organization_id: [4; 16],
             client_id: [5; 16],
             editable: true,
-        }),
-        Message::Screens(ScreenSet {
-            request_id: 1,
-            screens: vec![ScreenRequest {
+        })),
+        Delivery::Screens(vec![ScreenRequest {
                 screen: ScreenId(1),
                 instance: INSTANCE,
                 region: EditorRegion::Frame,
@@ -81,20 +80,18 @@ fn a_surface_the_host_does_not_render_runs_its_frames_without_a_gpu() {
                     scale_factor: 1.0,
                     monitors: Vec::new(),
                 },
-            }],
-        }),
-        Message::Configure { serial: 1 },
+        }]),
+        Delivery::Configure(1),
     ] {
-        screens.receive(&message);
+        screens.deliver(delivery);
     }
 
     let mut surfaces = Surfaces::new(spec).expect("surfaces need no gpu when not rendered");
     surfaces.place(screens.layout().clone());
-    let sent = surfaces.render(&mut screens).expect("the frame runs");
-
-    let [Message::Frame(commit)] = sent.as_slice() else {
-        panic!("the plugin sent {sent:?} rather than one frame");
-    };
+    let commit = surfaces
+        .render(&mut screens)
+        .expect("the frame runs")
+        .expect("the plugin drew one frame");
     assert_eq!(commit.reports.len(), 1, "the editor's frame ran");
     assert_eq!(commit.presented, None, "nothing was presented");
     assert!(surface_gpu().is_none(), "no gpu device was opened");

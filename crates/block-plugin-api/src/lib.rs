@@ -1,5 +1,4 @@
 pub use accesskit;
-use bincode::Options;
 use serde::{Deserialize, Serialize};
 pub use serde_bytes::ByteBuf;
 use std::fmt;
@@ -86,7 +85,7 @@ mod linux;
 mod manifest;
 mod nesting;
 mod opening;
-mod session;
+mod input;
 mod watch;
 pub use block_ids::BlockIdRole;
 pub use host_value::{
@@ -106,7 +105,6 @@ pub use linux::{
 pub use manifest::{
     EditorDocument, InOrder, ManifestDocument, TemplateDocument, manifest_from_json,
 };
-pub use session::{HostSession, QueueError, SessionFailure, SessionState};
 pub use ui_types::geometry::{Pos2, Rect, Vec2};
 pub use ui_types::{
     BackEdge, BackGesture, CursorIcon, FileFilter, FilePick, FileSave, ImeEvent, ImeText, Input,
@@ -126,11 +124,9 @@ pub const MAX_MENU_DEPTH: usize = 8;
 pub const MAX_TEXT_BYTES: usize = 64 * 1024 * 1024;
 pub const MAX_BLOB_BYTES: usize = 64 * 1024 * 1024;
 pub const MAX_OPAQUE_DESCRIPTOR_BYTES: usize = 64 * 1024;
-pub const MAX_QUEUED_MESSAGES: usize = 256;
 pub const MAX_CHILDREN: usize = 256;
 pub const MAX_ACCESSIBILITY_NODES: usize = 64 * 1024;
 pub const MAX_LISTED_BLOCKS: usize = 16 * 1024;
-pub const REQUEST_TIMEOUT_MILLISECONDS: u64 = 5_000;
 
 #[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub struct EditorInstanceId(pub u64);
@@ -269,12 +265,6 @@ pub struct Description {
     #[serde(with = "accesskit_mirror::tree")]
     pub tree: Option<accesskit::TreeUpdate>,
     pub actions: Vec<DescribedAction>,
-}
-
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-pub struct ScreenSet {
-    pub request_id: u64,
-    pub screens: Vec<ScreenRequest>,
 }
 
 impl ScreenPlacement {
@@ -722,55 +712,6 @@ fn manifest_string(field: &'static str, value: &str) -> Result<(), ManifestError
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-pub enum EditorMessage {
-    Open {
-        instance: EditorInstanceId,
-        editor: [u8; 16],
-        block_id: [u8; 16],
-        block_type: [u8; 16],
-        view_block: Option<[u8; 16]>,
-        account_id: [u8; 16],
-        organization_id: [u8; 16],
-        client_id: [u8; 16],
-        editable: bool,
-    },
-    Close {
-        instance: EditorInstanceId,
-    },
-
-    OpenCreation {
-        instance: EditorInstanceId,
-        editor: [u8; 16],
-        template: String,
-        account_id: [u8; 16],
-        organization_id: [u8; 16],
-        client_id: [u8; 16],
-    },
-    OpenArtifact {
-        instance: EditorInstanceId,
-        editor: [u8; 16],
-        block_id: [u8; 16],
-        block_type: [u8; 16],
-        account_id: [u8; 16],
-        organization_id: [u8; 16],
-        client_id: [u8; 16],
-        #[serde(with = "serde_bytes")]
-        data: Vec<u8>,
-    },
-}
-
-impl EditorMessage {
-    pub fn instance(&self) -> EditorInstanceId {
-        match self {
-            Self::Open { instance, .. }
-            | Self::Close { instance, .. }
-            | Self::OpenCreation { instance, .. }
-            | Self::OpenArtifact { instance, .. } => *instance,
-        }
-    }
-}
-
 pub type MetadataEntries = std::collections::BTreeMap<[u8; 16], serde_bytes::ByteBuf>;
 
 impl Default for AccessLevel {
@@ -811,85 +752,6 @@ pub enum WebViewCommand {
     Close,
 }
 
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-pub enum Message {
-    Hello(Hello),
-    HelloAccepted(HelloAccepted),
-    Preferences(Preferences),
-    UtcOffset(i32),
-    Fonts(Fonts),
-    MissingCharacters(Vec<char>),
-    Screens(ScreenSet),
-    Configure { serial: u64 },
-    Layout(ScreenLayout),
-    Input(InputBatch),
-    DrawFrame { now_micros: u64, seen: bool },
-    FrameNeeded,
-    Frame(FrameCommit),
-    Acknowledged { request_id: u64 },
-    Error(ProtocolError),
-    Shutdown,
-    ShutdownAcknowledged,
-    Editor(EditorMessage),
-}
-
-impl Message {
-    pub fn is_session(&self) -> bool {
-        matches!(
-            self,
-            Self::Hello(_)
-                | Self::HelloAccepted(_)
-                | Self::Acknowledged { .. }
-                | Self::Error(_)
-                | Self::Shutdown
-                | Self::ShutdownAcknowledged
-        )
-    }
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub enum Direction {
-    ToPlugin,
-    ToHost,
-    Either,
-}
-
-impl Message {
-    pub fn direction(&self) -> Direction {
-        match self {
-            Self::HelloAccepted(_)
-            | Self::Preferences(_)
-            | Self::UtcOffset(_)
-            | Self::Fonts(_)
-            | Self::Screens(_)
-            | Self::Configure { .. }
-            | Self::Input(_)
-            | Self::DrawFrame { .. }
-            | Self::Shutdown => Direction::ToPlugin,
-            Self::Hello(_)
-            | Self::Acknowledged { .. }
-            | Self::ShutdownAcknowledged
-            | Self::Layout(_)
-            | Self::MissingCharacters(_)
-            | Self::FrameNeeded
-            | Self::Frame(_) => Direction::ToHost,
-            Self::Error(_) => Direction::Either,
-            Self::Editor(editor) => editor.direction(),
-        }
-    }
-}
-
-impl EditorMessage {
-    pub fn direction(&self) -> Direction {
-        match self {
-            Self::Open { .. }
-            | Self::OpenCreation { .. }
-            | Self::OpenArtifact { .. }
-            | Self::Close { .. } => Direction::ToPlugin,
-        }
-    }
-}
-
 impl fmt::Debug for FontFace {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         formatter
@@ -925,23 +787,8 @@ impl From<Input> for TimedInput {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub struct ProtocolError {
-    pub request_id: Option<u64>,
-    pub code: ErrorCode,
-    pub message: String,
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub enum ErrorCode {
-    InvalidMessage,
-    InvalidState,
-    Internal,
-}
-
 #[derive(Debug, PartialEq, Eq)]
 pub enum DecodeError {
-    TruncatedFrame { expected: usize, available: usize },
     MalformedPayload,
     LimitExceeded(&'static str),
 }
@@ -954,152 +801,22 @@ impl fmt::Display for DecodeError {
 
 impl std::error::Error for DecodeError {}
 
-pub fn encode_frame(message: &Message) -> Result<Vec<u8>, DecodeError> {
-    validate(message)?;
-    let payload = codec()
-        .serialize(message)
-        .map_err(|_| DecodeError::MalformedPayload)?;
-    let mut frame = Vec::with_capacity(4 + payload.len());
-    frame.extend_from_slice(&(payload.len() as u32).to_be_bytes());
-    frame.extend_from_slice(&payload);
-    Ok(frame)
-}
-
-pub fn decode_frame(frame: &[u8]) -> Result<Message, DecodeError> {
-    if frame.len() < 4 {
-        return Err(DecodeError::TruncatedFrame {
-            expected: 4,
-            available: frame.len(),
-        });
-    }
-    let length = u32::from_be_bytes(frame[..4].try_into().unwrap()) as usize;
-    if frame.len() != length + 4 {
-        return Err(DecodeError::TruncatedFrame {
-            expected: length + 4,
-            available: frame.len(),
-        });
-    }
-    let message = codec()
-        .deserialize(&frame[4..])
-        .map_err(|error| match *error {
-            bincode::ErrorKind::Custom(message) if message == nesting::TOO_DEEP => {
-                DecodeError::LimitExceeded("menu depth")
-            }
-            _ => DecodeError::MalformedPayload,
-        })?;
-    validate(&message)?;
-    Ok(message)
-}
-
-fn validate(message: &Message) -> Result<(), DecodeError> {
-    match message {
-        Message::Hello(value) => {
-            strings([&value.plugin.id, &value.plugin.name, &value.plugin.version])
-        }
-        Message::HelloAccepted(value) => string(&value.host_name),
-        Message::Error(value) => string(&value.message),
-        Message::Input(value) => {
-            collection(value.events.len())?;
-            for event in &value.events {
-                match &event.input {
-                    Input::Paste(Pasted::Image(file)) => {
-                        string(&file.name)?;
-                        blob(&file.data)?;
-                    }
-                    Input::Text(value)
-                    | Input::Key(Keystroke {
-                        text: Some(value), ..
-                    })
-                    | Input::Paste(Pasted::Text(value))
-                    | Input::Ime(
-                        ImeEvent::SetComposingText(value)
-                        | ImeEvent::CommitText(value)
-                        | ImeEvent::ReplaceText { text: value, .. },
-                    ) => text(value)?,
-                    _ => {}
+impl FrameCommit {
+    /// Whether every child placement's occluders are in the order they cover
+    /// the children in, which is what `ChildPlacements::occluded` reads.
+    pub fn validate(&self) -> Result<(), DecodeError> {
+        for placements in &self.children {
+            let mut covered = 0;
+            for occluder in &placements.occluders {
+                let after = occluder.after as usize;
+                if after > placements.children.len() || after < covered {
+                    return Err(DecodeError::MalformedPayload);
                 }
+                covered = after;
             }
-            Ok(())
         }
-        Message::Screens(value) => collection(value.screens.len()),
-        Message::Frame(value) => {
-            collection(value.sizes.len())?;
-            collection(value.reports.len())?;
-            collection(value.windows.len())?;
-            collection(value.children.len())?;
-            if let Some(presented) = &value.presented {
-                collection(presented.damage.len())?;
-            }
-            for screen in &value.windows {
-                window(&screen.window)?;
-            }
-            for placements in &value.children {
-                validate_children(placements)?;
-            }
-            for report in &value.reports {
-                collection(report.painted.len())?;
-                collection(report.floating.len())?;
-                collection(report.drawing.len())?;
-                collection(report.claims.len())?;
-                if let Some(tree) = report
-                    .description
-                    .as_ref()
-                    .and_then(|description| description.tree.as_ref())
-                    && tree.nodes.len() > MAX_ACCESSIBILITY_NODES
-                {
-                    return Err(DecodeError::LimitExceeded("accessibility nodes"));
-                }
-            }
-            Ok(())
-        }
-        Message::Layout(value) => collection(value.screens.len()),
-        Message::Fonts(value) => {
-            collection(value.faces.len())?;
-            for face in &value.faces {
-                blob(&face.data)?;
-            }
-            Ok(())
-        }
-        Message::MissingCharacters(value) => collection(value.len()),
-        Message::Editor(value) => validate_editor(value),
-        _ => Ok(()),
+        Ok(())
     }
-}
-
-fn window(window: &WindowRequests) -> Result<(), DecodeError> {
-    collection(window.intercepted_keys.len())?;
-    collection(window.pastes.len())?;
-    match &window.ime {
-        Some(ImeArea {
-            text: Some(surrounding),
-            ..
-        }) => text(&surrounding.text),
-        _ => Ok(()),
-    }
-}
-
-fn validate_children(placements: &ChildPlacements) -> Result<(), DecodeError> {
-    if placements.children.len() > MAX_CHILDREN {
-        return Err(DecodeError::LimitExceeded("children"));
-    }
-    if placements.occluders.len() > MAX_COLLECTION_ITEMS {
-        return Err(DecodeError::LimitExceeded("occluders"));
-    }
-    let mut covered = 0;
-    for occluder in &placements.occluders {
-        if occluder.after as usize > placements.children.len()
-            || (occluder.after as usize) < covered
-        {
-            return Err(DecodeError::MalformedPayload);
-        }
-        covered = occluder.after as usize;
-    }
-    for child in &placements.children {
-        if let ChildContent::Creation { template, .. } = &child.content {
-            string(template)?;
-        }
-    }
-    Ok(())
 }
 
 impl embed::blocks::Call {
@@ -1133,14 +850,6 @@ impl embed::blocks::Call {
             },
             _ => Ok(()),
         }
-    }
-}
-
-fn validate_editor(message: &EditorMessage) -> Result<(), DecodeError> {
-    match message {
-        EditorMessage::OpenCreation { template, .. } => string(template),
-        EditorMessage::OpenArtifact { data, .. } => descriptor(data),
-        _ => Ok(()),
     }
 }
 
@@ -1195,12 +904,11 @@ fn text_pieces(text: &str, limit: usize) -> Vec<String> {
     pieces
 }
 
-fn text(value: &str) -> Result<(), DecodeError> {
-    if value.len() > MAX_TEXT_BYTES {
-        Err(DecodeError::LimitExceeded("text"))
-    } else {
-        Ok(())
+fn strings<'a>(values: impl IntoIterator<Item = &'a String>) -> Result<(), DecodeError> {
+    for value in values {
+        string(value)?;
     }
+    Ok(())
 }
 
 fn blob(value: &[u8]) -> Result<(), DecodeError> {
@@ -1209,19 +917,6 @@ fn blob(value: &[u8]) -> Result<(), DecodeError> {
     } else {
         Ok(())
     }
-}
-
-fn strings<'a>(values: impl IntoIterator<Item = &'a String>) -> Result<(), DecodeError> {
-    for value in values {
-        string(value)?;
-    }
-    Ok(())
-}
-
-fn codec() -> impl Options {
-    bincode::DefaultOptions::new()
-        .with_fixint_encoding()
-        .reject_trailing_bytes()
 }
 
 #[cfg(test)]

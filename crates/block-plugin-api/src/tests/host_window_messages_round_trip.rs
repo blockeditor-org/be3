@@ -59,9 +59,6 @@ fn host_window_messages_round_trip() {
             }],
             occluders: Vec::new(),
         });
-        assert_eq!(
-            decode_frame(&encode_frame(&message).unwrap()).unwrap(),
-            message
-        );
+        round_trips(&message);
     }
 }

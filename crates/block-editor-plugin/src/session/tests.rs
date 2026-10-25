@@ -1,22 +1,27 @@
 use super::*;
 use block_plugin_api::{
-    EditorRegion, HelloAccepted, InputBatch, ScreenRequest, ScreenSet, SurfaceFormat, SurfaceSpec,
-    ViewportMetrics,
+    EditorRegion, HelloAccepted, InputBatch, OpenBlock, Opening, ScreenRequest, SurfaceFormat,
+    SurfaceSpec, ViewportMetrics,
 };
 
-fn accept(session: &mut ClientSession) {
-    session.receive(Message::HelloAccepted(HelloAccepted {
+fn accepted(surface: Option<SurfaceSpec>) -> Delivery {
+    Delivery::Accepted(HelloAccepted {
         host_name: "test host".into(),
-        surface: Some(SurfaceSpec {
-            format: SurfaceFormat::Rgba8Unorm,
-            render: true,
-        }),
+        surface,
         preferences: block_plugin_api::Preferences::default(),
-    }));
+    })
 }
 
-fn open(session: &mut ClientSession, instance: EditorInstanceId) {
-    session.receive(Message::Editor(block_plugin_api::EditorMessage::Open {
+fn accept(session: &mut ClientSession) {
+    let surface = SurfaceSpec {
+        format: SurfaceFormat::Rgba8Unorm,
+        render: true,
+    };
+    session.receive(&accepted(Some(surface))).unwrap();
+}
+
+fn opening(instance: EditorInstanceId) -> Delivery {
+    Delivery::Open(Opening::Block(OpenBlock {
         instance,
         editor: [6; 16],
         block_id: [1; 16],
@@ -26,7 +31,15 @@ fn open(session: &mut ClientSession, instance: EditorInstanceId) {
         organization_id: [4; 16],
         client_id: [5; 16],
         editable: true,
-    }));
+    }))
+}
+
+fn input(screen: ScreenId) -> Delivery {
+    Delivery::Input(InputBatch {
+        screen,
+        every_sample: false,
+        events: Vec::new(),
+    })
 }
 
 fn screen(screen: ScreenId, instance: EditorInstanceId) -> ScreenRequest {
@@ -53,6 +66,5 @@ mod accepts_new_preferences_while_running;
 mod accepts_ordered_lifecycle;
 mod opens_and_closes_editor_instance;
 mod refuses_to_draw_without_a_surface;
-mod rejects_messages_only_a_plugin_may_send;
 mod rejects_out_of_order_messages;
 mod rejects_screens_for_unopened_instances;

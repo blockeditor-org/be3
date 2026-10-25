@@ -2,7 +2,7 @@ use super::*;
 
 #[test]
 fn artifact_messages_round_trip() {
-    let messages = [Message::Editor(EditorMessage::OpenArtifact {
+    let messages = [Opening::Artifact(OpenArtifact {
         instance: EditorInstanceId(3),
         editor: [6; 16],
         block_id: [1; 16],
@@ -13,7 +13,6 @@ fn artifact_messages_round_trip() {
         data: b"{\"scale\":2}".to_vec(),
     })];
     for message in messages {
-        let frame = encode_frame(&message).expect("the message encodes");
-        assert_eq!(decode_frame(&frame).expect("the frame decodes"), message);
+        round_trips(&message);
     }
 }

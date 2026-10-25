@@ -85,7 +85,7 @@ fn input_events<T: Clone + Into<Outbound>>(messages: &[T]) -> Vec<Input> {
         .cloned()
         .map(Into::into)
         .filter_map(|message| match message {
-            Outbound::Message(Message::Input(batch)) => {
+            Outbound::Plugin(PluginCall::Input(batch)) => {
                 Some(batch.events.into_iter().map(|event| event.input))
             }
             _ => None,
@@ -144,10 +144,10 @@ fn take_actions<A: block_plugin_api::HostAction>(instances: &mut Instances) -> V
         .collect()
 }
 
-fn configure(instances: &mut Instances) -> Option<Message> {
+fn configure(instances: &mut Instances) -> Option<PluginCall> {
     let next = instances.next_screens(PASS);
     let mut messages = next.opened;
-    messages.push(instances.screen_set(next.screens).into());
+    messages.push(PluginCall::Screens(instances.screen_set(next.screens)).into());
     instances.configure(&messages)
 }
 

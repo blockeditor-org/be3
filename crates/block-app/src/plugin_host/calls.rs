@@ -1,20 +1,32 @@
 use block_plugin_api::{
     ArtifactDescription, AudioStatus, BarAction, BlockIdRole, BlockLocation, BlockPick, Catalog,
-    ChildId, ChildStatus, EditorInstanceId, EditorMessage, EditorRegion, Message, Rect, ScreenId,
-    Size, WebViewEvent, WebViewId,
+    ChildId, ChildStatus, EditorInstanceId, EditorRegion, Fonts, FrameCommit, Hello, InputBatch,
+    Opening, Preferences, Rect, ScreenId, ScreenLayout, ScreenRequest, Size, WebViewEvent,
+    WebViewId,
     embed::shell::Call as ShellCall,
     shell_types::{DragOver, FileDrop, Focus, PickRequest},
 };
 
 #[derive(Clone, Debug, PartialEq)]
 pub(super) enum Outbound {
-    Message(Message),
+    Open(Box<Opening>),
+    Close(EditorInstanceId),
     Editor(EditorInstanceId, EditorCall),
     Plugin(PluginCall),
 }
 
 #[derive(Clone, Debug, PartialEq)]
 pub(super) enum PluginCall {
+    Preferences(Preferences),
+    UtcOffset(i32),
+    Fonts(Fonts),
+    Screens(Vec<ScreenRequest>),
+    Configure(u64),
+    Input(InputBatch),
+    Draw {
+        now_micros: u64,
+        seen: bool,
+    },
     BlockTypes(Catalog),
     Describe(bool),
     RunAction {
@@ -87,60 +99,40 @@ pub(super) enum EditorAnswer {
     Picked { pick: u64, answer: BlockPick },
 }
 
-impl From<Message> for Outbound {
-    fn from(message: Message) -> Self {
-        Self::Message(message)
-    }
-}
-
-impl From<EditorMessage> for Outbound {
-    fn from(message: EditorMessage) -> Self {
-        Self::Message(Message::Editor(message))
+impl From<PluginCall> for Outbound {
+    fn from(call: PluginCall) -> Self {
+        Self::Plugin(call)
     }
 }
 
 impl Outbound {
-    #[cfg(test)]
-    pub(super) fn messages(outbound: &[Self]) -> Vec<Message> {
-        outbound
-            .iter()
-            .filter_map(|outbound| match outbound {
-                Self::Message(message) => Some(message.clone()),
-                Self::Editor(..) | Self::Plugin(_) => None,
-            })
-            .collect()
-    }
-
     pub(super) fn instance(&self) -> Option<EditorInstanceId> {
         match self {
-            Self::Message(Message::Editor(message)) => Some(message.instance()),
-            Self::Message(_) | Self::Plugin(_) => None,
-            Self::Editor(instance, _) => Some(*instance),
+            Self::Open(opening) => Some(opening.instance()),
+            Self::Close(instance) | Self::Editor(instance, _) => Some(*instance),
+            Self::Plugin(_) => None,
         }
     }
 
     pub(super) fn closes(&self) -> bool {
-        matches!(
-            self,
-            Self::Message(Message::Editor(EditorMessage::Close { .. }))
-        )
+        matches!(self, Self::Close(_))
     }
 }
 
 #[derive(Debug)]
 pub(super) enum Heard {
-    Message(Box<Message>),
+    Hello(Hello),
+    Layout(ScreenLayout),
+    FrameNeeded,
+    MissingCharacters(Vec<char>),
+    Frame(Box<FrameCommit>),
+    ShutDown,
+    Unanswered(String),
     Shell(ShellCall),
     Answer(EditorInstanceId, EditorAnswer),
     Paintings(Vec<u8>),
     Blocks(EditorInstanceId, block_plugin_api::embed::blocks::Call),
     Ended(block_plugin_api::ops::OpId),
-}
-
-impl From<Message> for Heard {
-    fn from(message: Message) -> Self {
-        Self::Message(Box::new(message))
-    }
 }
 
 pub(super) fn instance_of(call: &ShellCall) -> Option<EditorInstanceId> {
@@ -189,9 +181,9 @@ pub(super) trait BlockIds {
     fn visit_block_ids(&mut self, visit: &mut Visit<'_>);
 }
 
-impl BlockIds for Message {
+impl BlockIds for FrameCommit {
     fn visit_block_ids(&mut self, visit: &mut Visit<'_>) {
-        Message::visit_block_ids(self, visit);
+        FrameCommit::visit_block_ids(self, visit);
     }
 }
 
@@ -207,7 +199,7 @@ fn focus_ids(instance: EditorInstanceId, focus: &mut Focus, visit: &mut Visit<'_
 impl BlockIds for Outbound {
     fn visit_block_ids(&mut self, visit: &mut Visit<'_>) {
         match self {
-            Self::Message(message) => message.visit_block_ids(visit),
+            Self::Open(opening) => opening.visit_block_ids(visit),
             Self::Editor(instance, EditorCall::FocusChanged(focus)) => {
                 focus_ids(*instance, focus, visit);
             }
@@ -229,7 +221,7 @@ impl BlockIds for Outbound {
                 visit(*instance, BlockIdRole::Existing, old);
                 visit(*instance, BlockIdRole::Existing, new);
             }
-            Self::Editor(..) | Self::Plugin(_) => {}
+            Self::Close(_) | Self::Editor(..) | Self::Plugin(_) => {}
         }
     }
 }

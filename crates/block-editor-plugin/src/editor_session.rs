@@ -6,7 +6,7 @@ use block_plugin_api::ops::guest::{Sender, spawn};
 use block_plugin_api::{
     ArtifactDescription, BarAction, ChildId, ChildPlacement, ChildPlacements, ChildStatus,
     EditorInstanceId, EditorRegion, FrameChrome, FrameCommit, FrameReport, MAX_CHILDREN,
-    MAX_COLLECTION_ITEMS, MenuEntry, Message, Occluder, RegionSize, ScreenPlacement, ScreenRequest,
+    MAX_COLLECTION_ITEMS, MenuEntry, Occluder, RegionSize, ScreenPlacement, ScreenRequest,
     ScreenWindow, Size, TimedInput, ViewportMetrics, WebViewId,
 };
 use block_ui::BlockCatalog;
@@ -322,8 +322,7 @@ impl EditorSession {
         self.retain_child_statuses();
     }
 
-    pub fn outbound(&mut self) -> Vec<Message> {
-        let messages = Vec::new();
+    pub fn outbound(&mut self) {
         let instance = self.instance;
         self.link.exchange(instance, &self.host);
         for (group, measurements) in self.host.take_performance() {
@@ -446,7 +445,6 @@ impl EditorSession {
                 }
             });
         }
-        messages
     }
 
     fn windows(&mut self) -> Vec<ScreenWindow> {

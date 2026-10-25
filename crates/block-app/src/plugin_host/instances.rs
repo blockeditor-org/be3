@@ -2,9 +2,9 @@ use beui::accessibility::Embedded;
 use beui::{ImeArea, Rect, Vec2, pos2, vec2};
 use block_plugin_api::{
     ArtifactDescription, AudioCommand, BlockCommand, BlockPick, ChildContent, ChildId, ChildMode,
-    ChildPlacement, ChildPlacements, ChildStatus, EditorInstanceId, EditorMessage, EditorRegion,
-    FrameReport, FrameSpec, MenuEntry, Message, Monitor, Occluder, PerformanceMeasurement,
-    RegionSize, ScreenId, ScreenLayout, ScreenRequest, ScreenSet, ScreenWindow, Size, Stopped,
+    ChildPlacement, ChildPlacements, ChildStatus, EditorInstanceId, EditorRegion,
+    FrameReport, FrameSpec, MenuEntry, Monitor, Occluder, OpenArtifact, OpenBlock, OpenCreation, Opening, PerformanceMeasurement,
+    RegionSize, ScreenId, ScreenLayout, ScreenRequest, ScreenWindow, Size, Stopped,
     ViewChange, WebViewEvent, WebViewId,
 };
 use block_plugin_api::{
@@ -57,7 +57,6 @@ pub(super) struct Instances {
     connection: Option<Connection>,
     next_screen: u64,
     announced: HashSet<ScreenId>,
-    request_id: u64,
     block_types: Option<Arc<block_plugin_api::Catalog>>,
     sent_block_types: Option<u64>,
     network: Vec<String>,
@@ -570,13 +569,6 @@ pub(super) struct NextScreens {
     pub(super) screens: Vec<ScreenRequest>,
 }
 
-#[cfg(test)]
-impl NextScreens {
-    pub(super) fn messages(&self) -> Vec<Message> {
-        Outbound::messages(&self.opened)
-    }
-}
-
 impl Instances {
     pub(super) fn translate(&self, message: &mut impl BlockIds, inward: bool) {
         let mut carries = false;
@@ -652,7 +644,7 @@ impl Instances {
                 continue;
             }
             match &message {
-                Outbound::Message(Message::Input(batch))
+                Outbound::Plugin(PluginCall::Input(batch))
                     if !self.announced.contains(&batch.screen) => {}
                 _ => allowed.push(message),
             }
@@ -941,7 +933,7 @@ impl Instances {
         instance: EditorInstanceId,
         region: EditorRegion,
         gesture: beui::BackGesture,
-    ) -> Vec<Message> {
+    ) -> Vec<PluginCall> {
         let announced = &self.announced;
         let Some(screen) = self
             .entries
@@ -951,7 +943,7 @@ impl Instances {
         else {
             return Vec::new();
         };
-        vec![Message::Input(block_plugin_api::InputBatch {
+        vec![PluginCall::Input(block_plugin_api::InputBatch {
             screen: screen.request.screen,
             every_sample: false,
             events: vec![block_plugin_api::Input::Back(gesture).into()],
@@ -964,7 +956,7 @@ impl Instances {
         region: EditorRegion,
         press: Option<beui::KeyPress>,
         modifiers: beui::Modifiers,
-    ) -> Vec<Message> {
+    ) -> Vec<PluginCall> {
         let announced = &self.announced;
         let Some(screen) = self
             .entries
@@ -978,7 +970,7 @@ impl Instances {
         if events.is_empty() {
             return Vec::new();
         }
-        vec![Message::Input(block_plugin_api::InputBatch {
+        vec![PluginCall::Input(block_plugin_api::InputBatch {
             screen: screen.request.screen,
             every_sample: false,
             events,
@@ -990,7 +982,7 @@ impl Instances {
         instance: EditorInstanceId,
         region: EditorRegion,
         key: beui::Key,
-    ) -> Vec<Message> {
+    ) -> Vec<PluginCall> {
         let announced = &self.announced;
         let Some(screen) = self
             .entries
@@ -1004,7 +996,7 @@ impl Instances {
         if key == beui::Key::Unidentified {
             return Vec::new();
         }
-        vec![Message::Input(block_plugin_api::InputBatch {
+        vec![PluginCall::Input(block_plugin_api::InputBatch {
             screen: screen.request.screen,
             every_sample: false,
             events: vec![block_plugin_api::Input::InterceptedTap(key).into()],
@@ -1391,8 +1383,8 @@ impl Instances {
                 entry.opened = true;
                 let account_id = account.into_bytes();
                 let organization_id = organization.into_bytes();
-                opened.push(Outbound::from(match entry.role {
-                    InstanceRole::Editor(editor, block) => Message::Editor(EditorMessage::Open {
+                opened.push(Outbound::Open(Box::new(match entry.role {
+                    InstanceRole::Editor(editor, block) => Opening::Block(OpenBlock {
                         instance,
                         editor: editor.into_bytes(),
                         block_id: block.id.into_bytes(),
@@ -1408,7 +1400,7 @@ impl Instances {
                         },
                     }),
                     InstanceRole::Creation(editor, template) => {
-                        Message::Editor(EditorMessage::OpenCreation {
+                        Opening::Creation(OpenCreation {
                             instance,
                             editor: editor.into_bytes(),
                             template: template.to_owned(),
@@ -1418,7 +1410,7 @@ impl Instances {
                         })
                     }
                     InstanceRole::Artifact(editor, block) => {
-                        Message::Editor(EditorMessage::OpenArtifact {
+                        Opening::Artifact(OpenArtifact {
                             instance,
                             editor: editor.into_bytes(),
                             block_id: block.id.into_bytes(),
@@ -1429,7 +1421,7 @@ impl Instances {
                             data: entry.artifact.data.clone(),
                         })
                     }
-                }));
+                })));
                 let mut statuses: Vec<_> = entry
                     .screens
                     .values()
@@ -1535,11 +1527,11 @@ impl Instances {
         NextScreens { opened, screens }
     }
 
-    pub(super) fn configure(&mut self, messages: &[Outbound]) -> Option<Message> {
+    pub(super) fn configure(&mut self, messages: &[Outbound]) -> Option<PluginCall> {
         let configures = messages.iter().any(|message| {
             matches!(
                 message,
-                Outbound::Message(Message::Screens(_))
+                Outbound::Plugin(PluginCall::Screens(_))
                     | Outbound::Editor(_, EditorCall::ViewChanged { .. })
             )
         });
@@ -1550,8 +1542,8 @@ impl Instances {
         let serial = self.serial;
         for message in messages {
             match message {
-                Outbound::Message(Message::Screens(set)) => {
-                    for request in &set.screens {
+                Outbound::Plugin(PluginCall::Screens(screens)) => {
+                    for request in screens {
                         if let Some(screen) = self.screen_by_id(request.screen) {
                             screen.scales.push(serial, request.metrics.scale_factor);
                         }
@@ -1571,7 +1563,7 @@ impl Instances {
                 _ => {}
             }
         }
-        Some(Message::Configure { serial })
+        Some(PluginCall::Configure(serial))
     }
 
     pub(super) fn serial(&self) -> u64 {
@@ -2448,13 +2440,9 @@ impl Instances {
         Some(screen.window.cursor)
     }
 
-    pub(super) fn screen_set(&mut self, screens: Vec<ScreenRequest>) -> Message {
+    pub(super) fn screen_set(&mut self, screens: Vec<ScreenRequest>) -> Vec<ScreenRequest> {
         self.announced = screens.iter().map(|screen| screen.screen).collect();
-        self.request_id += 1;
-        Message::Screens(ScreenSet {
-            request_id: self.request_id,
-            screens,
-        })
+        screens
     }
 
     pub(super) fn place(

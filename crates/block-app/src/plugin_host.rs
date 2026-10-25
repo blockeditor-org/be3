@@ -22,6 +22,7 @@ mod presenter;
 mod previews;
 mod runtime;
 mod sent;
+mod session;
 #[cfg(not(target_arch = "wasm32"))]
 mod surface;
 #[cfg(not(target_arch = "wasm32"))]

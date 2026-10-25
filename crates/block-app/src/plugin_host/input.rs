@@ -1,6 +1,6 @@
 use beui::{Event, Pos2, Rect, Replay, Replayed, Vec2};
 use block_plugin_api::{
-    DroppedFile, Input, InputBatch, Message, Monitor, Pasted, ScreenId, Size, TimedInput,
+    DroppedFile, Input, InputBatch, Monitor, Pasted, ScreenId, Size, TimedInput,
     ViewportMetrics,
 };
 use uuid::Uuid;
@@ -80,7 +80,7 @@ impl InputAdapter {
         screen: ScreenId,
         zoom: f32,
         every_sample: bool,
-    ) -> Vec<Message> {
+    ) -> Vec<super::calls::PluginCall> {
         let mut batch = InputBatch::new(screen, every_sample);
         for Replayed { input, time } in self.replay.replay(input, zoom) {
             match input {
@@ -97,7 +97,7 @@ impl InputAdapter {
         }
         match batch.events.is_empty() {
             true => Vec::new(),
-            false => vec![Message::Input(batch)],
+            false => vec![super::calls::PluginCall::Input(batch)],
         }
     }
 

@@ -1,6 +1,6 @@
 use crate::{
     ArtifactState, BlockCommand, BlockInfo, BlockLocation, BlockQuery, ChildContent,
-    ChildPlacements, EditorInstanceId, EditorMessage, Message, VersionCommand, blocks::OpenRequest,
+    ChildPlacements, EditorInstanceId, FrameCommit, Opening, VersionCommand, blocks::OpenRequest,
 };
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -11,31 +11,10 @@ pub enum BlockIdRole {
 
 type Visit<'a> = dyn FnMut(EditorInstanceId, BlockIdRole, &mut [u8; 16]) + 'a;
 
-impl Message {
+impl FrameCommit {
     pub fn visit_block_ids(&mut self, visit: &mut Visit<'_>) {
-        match self {
-            Self::Editor(message) => message.visit_block_ids(visit),
-            Self::Frame(commit) => {
-                for placements in &mut commit.children {
-                    placements.visit_block_ids(visit);
-                }
-            }
-            Self::Hello(_)
-            | Self::HelloAccepted(_)
-            | Self::Preferences(_)
-            | Self::UtcOffset(_)
-            | Self::Fonts(_)
-            | Self::MissingCharacters(_)
-            | Self::Screens(_)
-            | Self::Configure { .. }
-            | Self::Layout(_)
-            | Self::Input(_)
-            | Self::DrawFrame { .. }
-            | Self::FrameNeeded
-            | Self::Acknowledged { .. }
-            | Self::Error(_)
-            | Self::Shutdown
-            | Self::ShutdownAcknowledged => {}
+        for placements in &mut self.children {
+            placements.visit_block_ids(visit);
         }
     }
 }
@@ -66,21 +45,17 @@ impl ChildPlacements {
     }
 }
 
-impl EditorMessage {
+impl Opening {
     pub fn visit_block_ids(&mut self, visit: &mut Visit<'_>) {
         let instance = self.instance();
         let mut existing = |id: &mut [u8; 16]| visit(instance, BlockIdRole::Existing, id);
         match self {
-            Self::Open {
-                block_id,
-                view_block,
-                ..
-            } => {
-                existing(block_id);
-                view_block.iter_mut().for_each(existing);
+            Self::Block(open) => {
+                existing(&mut open.block_id);
+                open.view_block.iter_mut().for_each(existing);
             }
-            Self::OpenArtifact { block_id, .. } => existing(block_id),
-            Self::Close { .. } | Self::OpenCreation { .. } => {}
+            Self::Artifact(open) => existing(&mut open.block_id),
+            Self::Creation(_) => {}
         }
     }
 }

@@ -1,15 +1,22 @@
 use super::*;
 use std::collections::HashSet;
 
-fn hello() -> Message {
-    Message::Hello(Hello {
+fn round_trips<T>(value: &T)
+where
+    T: Serialize + serde::de::DeserializeOwned + PartialEq + std::fmt::Debug,
+{
+    assert_eq!(crate::ops::decode::<T>(&crate::ops::encode(value)).as_ref(), Some(value));
+}
+
+fn hello() -> Hello {
+    Hello {
         plugin: PluginIdentity {
             id: "demo".into(),
             name: "Plugin Demo".into(),
             version: "1.0".into(),
         },
         surface: SurfaceSupport::Texture,
-    })
+    }
 }
 
 fn frame(serial: u64) -> FrameCommit {
@@ -25,11 +32,11 @@ fn frame(serial: u64) -> FrameCommit {
     }
 }
 
-fn committed(children: ChildPlacements) -> Message {
-    Message::Frame(FrameCommit {
+fn committed(children: ChildPlacements) -> FrameCommit {
+    FrameCommit {
         children: vec![children],
         ..frame(1)
-    })
+    }
 }
 
 fn screen(
@@ -81,7 +88,7 @@ mod a_frame_says_which_host_state_it_was_laid_out_against;
 mod a_layout_gives_each_shown_screen_its_own_surface;
 mod a_menu_nested_too_deeply_is_refused_while_decoding;
 mod a_paste_over_the_text_limit_arrives_in_pieces;
-mod a_screen_readers_action_round_trips_and_a_huge_tree_is_refused;
+mod a_screen_readers_action_round_trips;
 mod an_artifact_settings_child_round_trips;
 mod an_intercepted_key_round_trips;
 mod artifact_messages_round_trip;
@@ -102,18 +109,12 @@ mod ime_messages_round_trip;
 mod manifest_validation;
 mod media_messages_round_trip;
 mod menus_and_their_picks_round_trip;
-mod multiplexed_messages_round_trip;
 mod notification_messages_round_trip;
 mod open_messages_round_trip;
 mod pointer_motion_round_trips;
 mod power_messages_round_trip;
 mod preference_messages_round_trip;
 mod region_sizes_round_trip;
-mod rejects_artifact_settings_over_limit;
-mod rejects_collection_over_limit;
-mod rejects_malformed_payload;
-mod rejects_truncated_frame;
-mod rejects_unknown_message_kind;
 mod rejects_unordered_occluders;
 mod touch_input_round_trips;
 mod tray_messages_round_trip;

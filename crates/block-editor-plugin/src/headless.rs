@@ -1,5 +1,6 @@
 use block_plugin_api::{
-    EditorInstanceId, Message, ScreenLayout, ScreenPlacement, ops::guest::Executor,
+    EditorInstanceId, Fonts, FrameCommit, Hello, HelloAccepted, InputBatch, Opening, Preferences,
+    ScreenLayout, ScreenPlacement, ScreenRequest, ops::guest::Executor,
 };
 
 use crate::{
@@ -35,28 +36,20 @@ impl HeadlessPlugin {
         }
     }
 
-    pub fn deliver(&mut self, frames: Vec<Vec<u8>>) -> Result<Vec<Message>, String> {
+    /// Takes the host's be-ops frames, as a runtime would.
+    pub fn deliver(&mut self, frames: Vec<Vec<u8>>) -> Result<(), String> {
         self.executor.step(frames, &mut self.frames)?;
-        let mut replies = Vec::new();
         for delivery in self.wire.take_inbox() {
-            match delivery {
-                Delivery::Message(message) => replies.extend(self.receive(*message)),
-                Delivery::Editor(instance, call) => {
-                    let screens = &mut self.screens;
-                    self.executor.enter(|| screens.call(instance, call));
-                }
-                Delivery::Screens(call) => call(&mut self.screens),
-                Delivery::Paintings(painted) => painted.send(self.screens.paintings()),
-            }
+            self.receive(delivery)?;
         }
-        Ok(replies)
+        Ok(())
     }
 
     pub fn take_frames(&mut self) -> Vec<Vec<u8>> {
         std::mem::take(&mut self.frames)
     }
 
-    pub fn hello(&self) -> Message {
+    pub fn hello(&self) -> Hello {
         self.session.hello()
     }
 
@@ -67,13 +60,56 @@ impl HeadlessPlugin {
         });
     }
 
-    pub fn receive(&mut self, message: Message) -> Vec<Message> {
-        if matches!(self.session.state(), State::Closed | State::Failed) {
-            return Vec::new();
+    pub fn accept(&mut self, accepted: HelloAccepted) -> Result<(), String> {
+        self.receive(Delivery::Accepted(accepted))
+    }
+
+    pub fn set_preferences(&mut self, preferences: Preferences) -> Result<(), String> {
+        self.receive(Delivery::Preferences(preferences))
+    }
+
+    pub fn set_fonts(&mut self, fonts: Fonts) -> Result<(), String> {
+        self.receive(Delivery::Fonts(fonts))
+    }
+
+    pub fn screens(&mut self, screens: Vec<ScreenRequest>) -> Result<(), String> {
+        self.receive(Delivery::Screens(screens))
+    }
+
+    pub fn configure(&mut self, serial: u64) -> Result<(), String> {
+        self.receive(Delivery::Configure(serial))
+    }
+
+    pub fn input(&mut self, batch: InputBatch) -> Result<(), String> {
+        self.receive(Delivery::Input(batch))
+    }
+
+    pub fn draw_frame(&mut self, now_micros: u64, seen: bool) -> Result<(), String> {
+        self.receive(Delivery::Draw { now_micros, seen })
+    }
+
+    pub fn open(&mut self, opening: Opening) -> Result<(), String> {
+        self.receive(Delivery::Open(opening))
+    }
+
+    pub fn close(&mut self, instance: EditorInstanceId) -> Result<(), String> {
+        self.receive(Delivery::Close(instance))
+    }
+
+    fn receive(&mut self, delivery: Delivery) -> Result<(), String> {
+        if self.session.state() == State::Closed {
+            return Ok(());
         }
-        let screens = &mut self.screens;
-        self.executor.enter(|| screens.receive(&message));
-        self.session.receive(message)
+        self.session.receive(&delivery)?;
+        match delivery {
+            Delivery::Paintings(painted) => painted.send(self.screens.paintings()),
+            Delivery::Shutdown => self.wire.shut_down(),
+            delivery => {
+                let screens = &mut self.screens;
+                self.executor.enter(|| screens.deliver(delivery));
+            }
+        }
+        Ok(())
     }
 
     pub fn draw(&mut self) -> Vec<(ScreenPlacement, Frame)> {
@@ -93,17 +129,16 @@ impl HeadlessPlugin {
         frames
     }
 
-    pub fn outbound(&mut self) -> Vec<Message> {
-        let mut messages = Vec::new();
-        if std::mem::take(&mut self.drawn) {
-            messages.push(Message::Frame(self.screens.commit()));
-        }
+    /// The frame drawn since the last call, if one was; what else changed
+    /// reaches the host through the world's imports, as `take_frames` gives them.
+    pub fn outbound(&mut self) -> Option<FrameCommit> {
+        let commit = std::mem::take(&mut self.drawn).then(|| self.screens.commit());
         let screens = &mut self.screens;
-        messages.extend(self.executor.enter(|| screens.outbound()));
+        self.executor.enter(|| screens.outbound());
         if let Err(error) = self.executor.step(Vec::new(), &mut self.frames) {
             panic!("the headless plugin's executor failed: {error}");
         }
-        messages
+        commit
     }
 
     pub fn layout(&self) -> &ScreenLayout {

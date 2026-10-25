@@ -3,7 +3,7 @@ use std::collections::HashSet;
 use std::rc::Rc;
 use std::sync::Arc;
 
-use block_plugin_api::{FontRole, Fonts, Message};
+use block_plugin_api::{FontRole, Fonts};
 
 #[derive(Clone)]
 pub struct HostFont {
@@ -71,9 +71,8 @@ pub(crate) fn receive(fonts: &Fonts) {
     }
 }
 
-pub(crate) fn take_missing() -> Option<Message> {
-    let missing = STATE.with(|state| std::mem::take(&mut state.borrow_mut().missing));
-    (!missing.is_empty()).then_some(Message::MissingCharacters(missing))
+pub(crate) fn take_missing() -> Vec<char> {
+    STATE.with(|state| std::mem::take(&mut state.borrow_mut().missing))
 }
 
 #[cfg(test)]

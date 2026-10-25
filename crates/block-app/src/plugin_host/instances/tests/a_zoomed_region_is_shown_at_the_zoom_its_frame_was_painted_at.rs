@@ -6,7 +6,7 @@ fn a_zoomed_region_is_shown_at_the_zoom_its_frame_was_painted_at() {
     resize(&mut instances, vec2(50.0, 50.0), 2.0);
     assert_eq!(
         configure(&mut instances),
-        Some(Message::Configure { serial: 1 })
+        Some(PluginCall::Configure(1))
     );
     instances.set_children(child(
         Rect::from_min_size(pos2(0.0, 25.0), vec2(10.0, 10.0)),
@@ -18,7 +18,7 @@ fn a_zoomed_region_is_shown_at_the_zoom_its_frame_was_painted_at() {
     resize(&mut instances, vec2(25.0, 25.0), 4.0);
     assert_eq!(
         configure(&mut instances),
-        Some(Message::Configure { serial: 2 })
+        Some(PluginCall::Configure(2))
     );
     let (children, _) = instances.host_children(INSTANCE, REGION, rect, rect, None);
     assert_eq!(

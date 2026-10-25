@@ -16,9 +16,10 @@ use block_plugin_api::embed::blocks::Call as BlocksCall;
 use block_plugin_api::embed::{exports::plugin::Editor, shell::Call as ShellCall};
 use block_plugin_api::ops::{Connection, Incoming, Side};
 use block_plugin_api::{
-    BarAction, BlockTypeDescriptor, Catalog, ChildId, EditorMessage, FitArea, FrameChrome,
-    FrameReport, HelloAccepted, InputBatch, MenuCommand, MenuEntry, Message, ScreenId,
-    ScreenRequest, ScreenSet, SurfaceFormat, SurfaceSpec, TimedInput, TopBar, ViewportMetrics,
+    BarAction, BlockTypeDescriptor, Catalog, ChildId, FitArea, FrameChrome, FrameCommit,
+    FrameReport, HelloAccepted, InputBatch, MenuCommand, MenuEntry, OpenArtifact, OpenBlock,
+    OpenCreation, ScreenId, ScreenRequest, SurfaceFormat, SurfaceSpec, TimedInput, TopBar,
+    ViewportMetrics,
 };
 use block_plugin_api::{
     embed::host_services::Call,
@@ -26,14 +27,18 @@ use block_plugin_api::{
 };
 use std::marker::PhantomData;
 
+type Delivered = Box<dyn FnOnce(&mut HeadlessPlugin) -> Result<(), String>>;
+
+/// What the test host sends the plugin, in order: be-ops frames of the world's
+/// calls, or a value the host pushes, delivered as the plugin's wire would.
 enum Inbound {
-    Message(Box<Message>),
+    Pushed(Delivered),
     Frames(Vec<Vec<u8>>),
 }
 
-impl From<Message> for Inbound {
-    fn from(message: Message) -> Self {
-        Self::Message(Box::new(message))
+impl Inbound {
+    fn pushed(deliver: impl FnOnce(&mut HeadlessPlugin) -> Result<(), String> + 'static) -> Self {
+        Self::Pushed(Box::new(deliver))
     }
 }
 
@@ -99,7 +104,6 @@ pub struct BeuiTest<A: BeuiApp> {
     block_types: block_plugin_api::Watch<Catalog>,
     completed:
         std::collections::HashMap<block_plugin_api::ops::OpId, block_plugin_api::ops::Outcome>,
-    sent: Vec<EditorMessage>,
     menu: Vec<MenuEntry>,
     output: Option<beui::FrameOutput>,
     drew: bool,
@@ -114,7 +118,6 @@ pub struct BeuiTest<A: BeuiApp> {
     exited: bool,
     draft: Vec<u8>,
     requests: Vec<(Option<OpId>, Call)>,
-    screens: u64,
     wakes: Arc<Wakes>,
     clock: std::time::Duration,
     app: PhantomData<A>,
@@ -221,7 +224,7 @@ impl<A: BeuiApp> BeuiTest<A> {
         let open = match kind {
             Kind::Frame(block) | Kind::Preview(block) => {
                 store.own(block, block_type);
-                EditorMessage::Open {
+                Opening::Block(OpenBlock {
                     instance: INSTANCE,
                     editor: ADOPTED_EDITOR,
                     block_id: block.into_bytes(),
@@ -231,17 +234,17 @@ impl<A: BeuiApp> BeuiTest<A> {
                     organization_id,
                     client_id,
                     editable: host.editable(),
-                }
+                })
             }
-            Kind::Creation => EditorMessage::OpenCreation {
+            Kind::Creation => Opening::Creation(OpenCreation {
                 instance: INSTANCE,
                 editor: ADOPTED_EDITOR,
                 template: template.clone(),
                 account_id,
                 organization_id,
                 client_id,
-            },
-            Kind::Settings => EditorMessage::OpenArtifact {
+            }),
+            Kind::Settings => Opening::Artifact(OpenArtifact {
                 instance: INSTANCE,
                 editor: ADOPTED_EDITOR,
                 block_id: artifact.unwrap_or_default().into_bytes(),
@@ -250,7 +253,7 @@ impl<A: BeuiApp> BeuiTest<A> {
                 organization_id,
                 client_id,
                 data: data.clone(),
-            },
+            }),
         };
         let frame = matches!(kind, Kind::Frame(_)).then(|| block_plugin_api::FrameSpec {
             chrome: FrameChrome::Drawn,
@@ -282,7 +285,6 @@ impl<A: BeuiApp> BeuiTest<A> {
             child_statuses: block_plugin_api::Watch::default(),
             block_types: block_plugin_api::Watch::default(),
             completed: std::collections::HashMap::new(),
-            sent: Vec::new(),
             menu: Vec::new(),
             output: None,
             drew: false,
@@ -297,23 +299,24 @@ impl<A: BeuiApp> BeuiTest<A> {
             exited: false,
             draft: data,
             requests: Vec::new(),
-            screens: 0,
             wakes,
             clock: std::time::Duration::ZERO,
             app: PhantomData,
         };
-        let hello = test.plugin.hello();
-        test.deliver(Inbound::from(roundtrip(hello, "the plugin's hello")));
-        test.deliver(Inbound::from(Message::HelloAccepted(HelloAccepted {
-            host_name: "block-ui-test".to_owned(),
-            surface: Some(SurfaceSpec {
-                format: SurfaceFormat::Rgba8UnormSrgb,
-                render: true,
-            }),
-            preferences: block_plugin_api::Preferences::default(),
-        })));
-        let opening = Opening::of(open).expect("the test opens an editor instance");
-        test.editor = Some(Editor::new(&mut test.connection, opening));
+        roundtrip(test.plugin.hello(), "the plugin's hello");
+        let accepted = roundtrip(
+            HelloAccepted {
+                host_name: "block-ui-test".to_owned(),
+                surface: Some(SurfaceSpec {
+                    format: SurfaceFormat::Rgba8UnormSrgb,
+                    render: true,
+                }),
+                preferences: block_plugin_api::Preferences::default(),
+            },
+            "the host's acceptance",
+        );
+        test.deliver(Inbound::pushed(move |plugin| plugin.accept(accepted)));
+        test.editor = Some(Editor::new(&mut test.connection, open));
         let frames = test.connection.take_outbound();
         test.deliver(Inbound::Frames(frames));
         test.place();
@@ -322,34 +325,16 @@ impl<A: BeuiApp> BeuiTest<A> {
     }
 
     fn deliver(&mut self, inbound: Inbound) {
-        let message = match inbound {
-            Inbound::Message(message) => *message,
-            Inbound::Frames(frames) => {
-                let replies = self
-                    .plugin
-                    .deliver(frames)
-                    .unwrap_or_else(|error| panic!("the plugin refused the host's call: {error}"));
-                for reply in replies {
-                    if let Message::Error(error) = reply {
-                        panic!("the plugin refused what the host sent: {}", error.message);
-                    }
-                }
-                return;
-            }
+        let delivered = match inbound {
+            Inbound::Pushed(deliver) => deliver(&mut self.plugin),
+            Inbound::Frames(frames) => self.plugin.deliver(frames),
         };
-        if matches!(message, Message::Hello(_)) {
-            return;
-        }
-        let message = roundtrip(message, "a message the host sent");
-        for reply in self.plugin.receive(message) {
-            if let Message::Error(error) = reply {
-                panic!("the plugin refused what the host sent: {}", error.message);
-            }
+        if let Err(error) = delivered {
+            panic!("the plugin refused what the host sent: {error}");
         }
     }
 
     fn place(&mut self) {
-        self.screens += 1;
         let region = self.region();
         let metrics = ViewportMetrics {
             logical: block_plugin_api::Size {
@@ -362,16 +347,16 @@ impl<A: BeuiApp> BeuiTest<A> {
             scale_factor: self.scale_factor,
             monitors: self.monitors.clone(),
         };
-        self.inbox.push(Inbound::from(Message::Screens(ScreenSet {
-            request_id: self.screens,
-            screens: vec![ScreenRequest {
-                screen: SCREEN,
-                instance: INSTANCE,
-                region,
-                metrics,
-                frame: self.frame,
-            }],
-        })));
+        let screens = vec![ScreenRequest {
+            screen: SCREEN,
+            instance: INSTANCE,
+            region,
+            metrics,
+            frame: self.frame,
+        }];
+        block_plugin_api::embed::exports::plugin::screens(&mut self.connection, screens);
+        let frames = self.connection.take_outbound();
+        self.inbox.push(Inbound::Frames(frames));
     }
 
     pub fn block_id(&self) -> Option<Uuid> {
@@ -712,8 +697,10 @@ impl<A: BeuiApp> BeuiTest<A> {
     }
 
     pub fn set_preferences(&mut self, preferences: block_plugin_api::Preferences) {
-        self.inbox
-            .push(Inbound::from(Message::Preferences(preferences)));
+        let preferences = roundtrip(preferences, "the host's preferences");
+        self.inbox.push(Inbound::pushed(move |plugin| {
+            plugin.set_preferences(preferences)
+        }));
     }
 
     pub fn set_host_value<T: block_plugin_api::HostValue>(&mut self, value: &T::Value) {
@@ -892,15 +879,19 @@ impl<A: BeuiApp> BeuiTest<A> {
                     }
                 })
                 .collect();
-            inbox.push(Inbound::from(Message::Input(InputBatch {
-                screen: SCREEN,
-                every_sample: false,
-                events,
-            })));
+            let batch = roundtrip(
+                InputBatch {
+                    screen: SCREEN,
+                    every_sample: false,
+                    events,
+                },
+                "the host's input",
+            );
+            inbox.push(Inbound::pushed(move |plugin| plugin.input(batch)));
         }
-        inbox.push(Inbound::from(Message::DrawFrame {
-            now_micros: self.clock.as_micros() as u64,
-            seen: true,
+        let now_micros = self.clock.as_micros() as u64;
+        inbox.push(Inbound::pushed(move |plugin| {
+            plugin.draw_frame(now_micros, true)
         }));
         for message in inbox {
             self.deliver(message);
@@ -916,8 +907,8 @@ impl<A: BeuiApp> BeuiTest<A> {
         if output.is_some() {
             self.output = output;
         }
-        for message in self.plugin.outbound() {
-            self.handle(roundtrip(message, "a message the plugin sent"));
+        if let Some(commit) = self.plugin.outbound() {
+            self.committed(roundtrip(commit, "the plugin's frame"));
         }
         self.hear();
         let intrinsic = self.intrinsic;
@@ -936,32 +927,25 @@ impl<A: BeuiApp> BeuiTest<A> {
         }
     }
 
-    fn handle(&mut self, message: Message) {
-        match message {
-            Message::Frame(commit) => {
-                if let Some(placements) = commit.children.into_iter().last() {
-                    self.children = placements.children;
-                    self.occluders = placements.occluders;
-                }
-                if let Some(report) = commit
-                    .reports
-                    .into_iter()
-                    .find(|report| report.screen == SCREEN)
-                {
-                    self.report = Some(report);
-                }
-                if let Some(window) = commit
-                    .windows
-                    .into_iter()
-                    .find(|window| window.screen == SCREEN)
-                    .filter(|_| self.region() == EditorRegion::Frame)
-                {
-                    self.window = window.window;
-                }
-            }
-            Message::Editor(message) => self.sent.push(message),
-            Message::Error(error) => panic!("the plugin reported an error: {}", error.message),
-            _ => {}
+    fn committed(&mut self, commit: FrameCommit) {
+        if let Some(placements) = commit.children.into_iter().last() {
+            self.children = placements.children;
+            self.occluders = placements.occluders;
+        }
+        if let Some(report) = commit
+            .reports
+            .into_iter()
+            .find(|report| report.screen == SCREEN)
+        {
+            self.report = Some(report);
+        }
+        if let Some(window) = commit
+            .windows
+            .into_iter()
+            .find(|window| window.screen == SCREEN)
+            .filter(|_| self.region() == EditorRegion::Frame)
+        {
+            self.window = window.window;
         }
     }
 
@@ -1136,13 +1120,8 @@ impl<A: BeuiApp> BeuiTest<A> {
         taken
     }
 
-    pub fn sent(&self) -> &[EditorMessage] {
-        &self.sent
-    }
-
-    pub fn take_sent(&mut self) -> Vec<EditorMessage> {
+    pub fn clear_calls(&mut self) {
         self.calls.clear();
-        std::mem::take(&mut self.sent)
     }
 
     pub fn take_copied_text(&mut self) -> Vec<String> {
@@ -1841,11 +1820,9 @@ impl<A: BeuiApp> BeuiTest<A> {
     }
 }
 
-fn roundtrip(message: Message, what: &str) -> Message {
-    let frame = block_plugin_api::encode_frame(&message)
-        .unwrap_or_else(|error| panic!("{what} could not be encoded: {error:?}"));
-    block_plugin_api::decode_frame(&frame)
-        .unwrap_or_else(|error| panic!("{what} could not be read back: {error:?}"))
+fn roundtrip<T: serde::Serialize + serde::de::DeserializeOwned>(value: T, what: &str) -> T {
+    block_plugin_api::ops::decode(&block_plugin_api::ops::encode(&value))
+        .unwrap_or_else(|| panic!("{what} could not be read back"))
 }
 
 fn collect_text(document: &Document, node: beui::NodeId, collected: &mut Vec<String>) {
