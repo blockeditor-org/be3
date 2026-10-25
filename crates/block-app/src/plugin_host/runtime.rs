@@ -172,6 +172,7 @@ enum Answer {
     Paintings(Vec<u8>),
     Blocks(EditorInstanceId, block_plugin_api::embed::blocks::Call),
     HostValues(EditorInstanceId, block_plugin_api::embed::host_values::Call),
+    Debug(EditorInstanceId, block_plugin_api::embed::debug::Call),
     Ended(block_plugin_api::ops::OpId),
     Service(super::wire::Service),
     Withdrawn(block_plugin_api::ops::OpId),
@@ -194,6 +195,7 @@ impl From<Heard> for Answer {
             Heard::Paintings(payload) => Self::Paintings(payload),
             Heard::Blocks(instance, call) => Self::Blocks(instance, call),
             Heard::HostValues(instance, call) => Self::HostValues(instance, call),
+            Heard::Debug(instance, call) => Self::Debug(instance, call),
             Heard::Ended(op) => Self::Ended(op),
             Heard::Service(service) => Self::Service(service),
             Heard::Withdrawn(op) => Self::Withdrawn(op),
@@ -854,6 +856,7 @@ impl Runtime {
                 | Answer::Paintings(_)
                 | Answer::Blocks(..)
                 | Answer::HostValues(..)
+                | Answer::Debug(..)
                 | Answer::Ended(_)
                 | Answer::Service(_)
                 | Answer::Withdrawn(_)
@@ -913,6 +916,11 @@ impl Runtime {
                 Answer::Blocks(instance, call) => self.instances.blocks_call(instance, call),
                 Answer::HostValues(instance, call) => {
                     self.instances.host_values_call(instance, call)
+                }
+                Answer::Debug(instance, call) => {
+                    let mut asked = (instance, call);
+                    self.instances.translate(&mut asked, true);
+                    self.instances.debug_call(asked.0, asked.1)
                 }
                 Answer::Ended(op) => {
                     self.instances.ended(op);
@@ -1935,7 +1943,7 @@ pub(crate) fn take_changed() -> Vec<String> {
 
 pub(crate) struct RegionSlot<'a> {
     pub(crate) plugin: &'a PluginManifest,
-    pub(crate) block_types: &'a Arc<block_plugin_api::Catalog>,
+    pub(crate) block_types: &'a Arc<crate::editors::PluginCatalog>,
     pub(crate) client_id: Uuid,
     pub(crate) role: InstanceRole,
     pub(crate) instance: EditorInstanceId,
@@ -2515,12 +2523,18 @@ pub(crate) fn take_region_actions(
             actions.push(EditorAction::OpenBlock(open));
         }
         while let Some((id, command)) = runtime.instances.take_block_command(instance) {
+            actions.push(EditorAction::Command { id, command });
+        }
+        for (id, command) in runtime.instances.take_shell_commands(instance) {
             actions.push(match command {
-                block_plugin_api::BlockCommand::AppMenu { anchor } => EditorAction::AppMenu {
+                block_plugin_api::ShellCommand::AppMenu { anchor } => EditorAction::AppMenu {
                     at: anchor.and_then(|anchor| in_host(runtime, instance, anchor)),
                 },
-                command => EditorAction::Command { id, command },
+                command => EditorAction::Shell { id, command },
             });
+        }
+        for (id, access) in runtime.instances.take_simulated_access(instance) {
+            actions.push(EditorAction::SimulateAccess { id, access });
         }
         actions
     })

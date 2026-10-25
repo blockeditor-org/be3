@@ -239,7 +239,7 @@ pub(crate) fn preview_scale(size: Vec2, scale_factor: f32) -> f32 {
 
 pub(crate) struct CreationSlot<'a> {
     pub(crate) plugin: &'a PluginManifest,
-    pub(crate) block_types: &'a Arc<block_plugin_api::Catalog>,
+    pub(crate) block_types: &'a Arc<crate::editors::PluginCatalog>,
     pub(crate) client_id: Uuid,
     pub(crate) instance: EditorInstanceId,
     pub(crate) role: InstanceRole,
@@ -276,7 +276,7 @@ impl InstanceRole {
 
 pub(crate) struct ArtifactSlot<'a> {
     pub(crate) plugin: &'a PluginManifest,
-    pub(crate) block_types: &'a Arc<block_plugin_api::Catalog>,
+    pub(crate) block_types: &'a Arc<crate::editors::PluginCatalog>,
     pub(crate) client_id: Uuid,
     pub(crate) instance: EditorInstanceId,
     pub(crate) editor: Uuid,

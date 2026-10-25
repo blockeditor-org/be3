@@ -1,5 +1,5 @@
 use block_plugin_api::{
-    Catalog, EditorInstanceId, EditorRegion, Edits, FrameCommit, Opening, ScreenId, ScreenLayout,
+    Catalog, DebugTemplate, EditorInstanceId, EditorRegion, Edits, FrameCommit, Opening, ScreenId, ScreenLayout,
     ScreenRequest, SurfaceSpec, TemplateCategory,
 };
 use block_ui::{BlockCatalog, BlockTypeEntry, EditorEntry, TemplateEntry};
@@ -26,6 +26,8 @@ pub(crate) struct Screens {
     requests: Vec<ScreenRequest>,
     layout: ScreenLayout,
     block_types: Rc<BlockCatalog>,
+    catalog: Catalog,
+    debug_templates: Vec<DebugTemplate>,
     surface: Option<SurfaceSpec>,
     next_surface: u32,
     dirty: Arc<Mutex<HashSet<EditorInstanceId>>>,
@@ -62,6 +64,8 @@ impl Screens {
             requests: Vec::new(),
             layout: ScreenLayout::default(),
             block_types: Rc::new(BlockCatalog::default()),
+            catalog: Catalog::default(),
+            debug_templates: Vec::new(),
             surface: None,
             next_surface: 0,
             dirty: Arc::default(),
@@ -330,8 +334,18 @@ impl Screens {
         true
     }
 
-    pub(crate) fn set_catalog(&mut self, catalog: &Catalog) {
-        self.block_types = Rc::new(self::catalog(catalog));
+    pub(crate) fn set_catalog(&mut self, catalog: Catalog) {
+        self.catalog = catalog;
+        self.catalogued();
+    }
+
+    pub(crate) fn set_debug_templates(&mut self, templates: Vec<DebugTemplate>) {
+        self.debug_templates = templates;
+        self.catalogued();
+    }
+
+    fn catalogued(&mut self) {
+        self.block_types = Rc::new(self::catalog(&self.catalog, &self.debug_templates));
         for session in self.sessions.values() {
             session.set_block_types(Rc::clone(&self.block_types));
         }
@@ -399,7 +413,7 @@ impl Screens {
     }
 }
 
-fn catalog(catalog: &Catalog) -> BlockCatalog {
+fn catalog(catalog: &Catalog, debug: &[DebugTemplate]) -> BlockCatalog {
     BlockCatalog::new(catalog.types.iter().map(|descriptor| {
         (
             Uuid::from_bytes(descriptor.block_type),
@@ -433,9 +447,14 @@ fn catalog(catalog: &Catalog) -> BlockCatalog {
             name: template.name.clone(),
             icon: Glyph::from_codepoint(&template.icon_codepoint),
             category: match template.category {
+                _ if debug.iter().any(|listed| {
+                    listed.editor == template.editor && listed.template == template.template
+                }) =>
+                {
+                    block_ui::TemplateCategory::Debug
+                }
                 TemplateCategory::Important => block_ui::TemplateCategory::Important,
                 TemplateCategory::Regular => block_ui::TemplateCategory::Regular,
-                TemplateCategory::Debug => block_ui::TemplateCategory::Debug,
                 TemplateCategory::Template => block_ui::TemplateCategory::Template,
             },
             dialog: template.dialog,

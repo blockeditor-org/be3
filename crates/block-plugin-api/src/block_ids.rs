@@ -161,16 +161,7 @@ impl BlockCommand {
                 visit(BlockIdRole::Existing, destination);
             }
             Self::Place { parent, .. } => visit(BlockIdRole::Existing, parent),
-            Self::Share
-            | Self::Leave
-            | Self::Rename { .. }
-            | Self::Undo
-            | Self::Redo
-            | Self::Artifact { .. }
-            | Self::SimulateAccess { .. }
-            | Self::CloseEditor
-            | Self::Restore
-            | Self::AppMenu { .. } => {}
+            Self::Undo | Self::Redo | Self::Artifact { .. } | Self::Restore => {}
         }
     }
 }

@@ -15,7 +15,7 @@ use block_plugin_api::{
     BlockCommand, BlockPick, ChildContent, ChildId, ChildLayer, ChildMode, ChildPlacement,
     ChildStatus, EditorInstanceId, EditorRegion, Failure, FilePick, FileSave, FitArea, HostAction,
     HostPanel, HostValue, HostWindowId, MenuEntry, Occluder, PerformanceMeasurement, Revision,
-    ShellDialog, Size, ViewChange, WebViewCommand, WebViewEvent, WebViewId, decode_host,
+    ShellCommand, ShellDialog, Size, ViewChange, WebViewCommand, WebViewEvent, WebViewId, decode_host,
     encode_host,
 };
 pub use block_plugin_api::{BlockFilter, FileFilter, SavedFile};
@@ -436,6 +436,8 @@ pub struct EditorHost {
     reported_heads: Rc<RefCell<Option<Vec<Uuid>>>>,
     block_drags: Rc<RefCell<Vec<(Uuid, Uuid)>>>,
     block_commands: Rc<RefCell<Vec<(Uuid, BlockCommand)>>>,
+    shell_commands: Rc<RefCell<Vec<(Uuid, ShellCommand)>>>,
+    simulated_access: Rc<RefCell<Vec<(Uuid, AccessLevel)>>>,
     version_commands: Rc<RefCell<Vec<(Uuid, block_plugin_api::VersionCommand)>>>,
     version_status: Rc<RefCell<Option<block_plugin_api::VersionStatus>>>,
     version_watched: Rc<Cell<bool>>,
@@ -847,15 +849,23 @@ impl EditorHost {
     }
 
     pub fn close_editor(&self, block_id: Uuid) {
-        self.block_commands
-            .borrow_mut()
-            .push((block_id, BlockCommand::CloseEditor));
+        self.shell_command(block_id, ShellCommand::CloseEditor);
     }
 
     pub fn simulate_access(&self, block_id: Uuid, access: AccessLevel) {
-        self.block_commands
-            .borrow_mut()
-            .push((block_id, BlockCommand::SimulateAccess { access }));
+        self.simulated_access.borrow_mut().push((block_id, access));
+    }
+
+    pub(crate) fn take_simulated_access(&self) -> Vec<(Uuid, AccessLevel)> {
+        std::mem::take(&mut self.simulated_access.borrow_mut())
+    }
+
+    fn shell_command(&self, block_id: Uuid, command: ShellCommand) {
+        self.shell_commands.borrow_mut().push((block_id, command));
+    }
+
+    pub fn take_shell_commands(&self) -> Vec<(Uuid, ShellCommand)> {
+        std::mem::take(&mut self.shell_commands.borrow_mut())
     }
 
     pub(crate) fn set_focused_block(&self, focused: FocusedBlock) {
@@ -872,31 +882,23 @@ impl EditorHost {
     }
 
     pub fn share_block(&self, block_id: Uuid) {
-        self.block_commands
-            .borrow_mut()
-            .push((block_id, BlockCommand::Share));
+        self.shell_command(block_id, ShellCommand::Share);
     }
 
     pub fn leave_block(&self, block_id: Uuid) {
-        self.block_commands
-            .borrow_mut()
-            .push((block_id, BlockCommand::Leave));
+        self.shell_command(block_id, ShellCommand::Leave);
     }
 
     pub fn show_app_menu(&self, block_id: Uuid, anchor: Option<Rect>) {
         let origin = self.region.get().origin;
         let anchor = anchor.map(|anchor| anchor.translate(-origin));
-        self.block_commands
-            .borrow_mut()
-            .push((block_id, BlockCommand::AppMenu { anchor }));
+        self.shell_command(block_id, ShellCommand::AppMenu { anchor });
     }
 
     pub fn rename_block(&self, block_id: Uuid, anchor: Option<Rect>) {
         let origin = self.region.get().origin;
         let anchor = anchor.map(|anchor| anchor.translate(-origin));
-        self.block_commands
-            .borrow_mut()
-            .push((block_id, BlockCommand::Rename { anchor }));
+        self.shell_command(block_id, ShellCommand::Rename { anchor });
     }
 
     pub fn unlink_block(&self, block_id: Uuid, container: Uuid) {

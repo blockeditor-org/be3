@@ -33,7 +33,7 @@ be_ops_bindgen::generate!({
         "editor-capabilities", "resize-mode", "child-operations", "press", "template-category",
     ],
     inline: [
-        "rename-command", "artifact-command", "simulate-access-command", "unlink-command",
+        "rename-command", "artifact-command", "unlink-command",
         "delete-command", "move-command", "place-command", "app-menu-command", "adopt-command",
         "finish-command", "branch-command", "create-branch-command", "resolve-command",
         "undo-operation-command", "performance-duration", "performance-count", "view-zoom",
@@ -47,6 +47,7 @@ be_ops_bindgen::generate!({
 
 pub use access::AccessLevel;
 pub use accessibility::DescribedAction;
+pub use debug::{DebugTemplate, PerformanceMeasurement};
 pub use be_ops as ops;
 pub use blocks::{
     ArtifactAction, ArtifactState, BlockCommand, BlockInfo, BlockLocation, BlockMetadata,
@@ -57,9 +58,9 @@ pub use host_services::{
     AccessGrant, BlockFilter, BlockPick, ImportedBlock, PickedBlock, Revision, ShellDialog,
 };
 pub use shell_types::{
-    ArtifactDescription, AudioCommand, AudioSource, AudioStatus, BarAction, Catalog, ChildPreview,
-    CreationProgress, DroppedFile, EditorDescriptor, FitArea, MenuCheck, MenuCommand, MenuHeading,
-    MenuItem, MenuItemKind, MenuPin, PerformanceMeasurement, PreviewImage, SettingsProgress,
+    ArtifactDescription, AudioCommand, AudioSource, AudioStatus, BarAction, Catalog,
+    ChildPreview, CreationProgress, DroppedFile, EditorDescriptor, FitArea, MenuCheck, MenuCommand,
+    MenuHeading, MenuItem, MenuItemKind, MenuPin, PreviewImage, SettingsProgress, ShellCommand,
     Stopped, TemplateDescriptor, ViewChange, WebViewEvent,
 };
 pub use shell_types::{
@@ -420,6 +421,7 @@ pub struct TemplateManifest {
     pub name: String,
     pub icon: String,
     pub category: TemplateCategory,
+    pub debug: bool,
     pub dialog: bool,
     pub block_type: [u8; 16],
 }

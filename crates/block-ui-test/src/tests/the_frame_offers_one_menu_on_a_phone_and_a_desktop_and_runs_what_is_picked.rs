@@ -1,7 +1,7 @@
 use beui::Vec2;
 use beui::icons::ICON_WAND_SPARKLES;
 use block_editor_beui::beui::styled::Root;
-use block_editor_beui::{BarAction, BlockCommand};
+use block_editor_beui::BarAction;
 use block_plugin_api::MenuCheck;
 
 use super::*;
@@ -102,8 +102,8 @@ fn the_frame_offers_one_menu_on_a_phone_and_a_desktop_and_runs_what_is_picked() 
 
     test.pick_menu("editor.rename");
     assert_eq!(
-        test.take_block_commands(),
-        [(block, BlockCommand::Rename { anchor: None })]
+        test.take_shell_commands(),
+        [(block, block_plugin_api::ShellCommand::Rename { anchor: None })]
     );
 
     test.pick_menu("editor.details");

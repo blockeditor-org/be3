@@ -29,6 +29,14 @@ pub enum EditorAction {
         id: Uuid,
         command: block_plugin_api::BlockCommand,
     },
+    Shell {
+        id: Uuid,
+        command: block_plugin_api::ShellCommand,
+    },
+    SimulateAccess {
+        id: Uuid,
+        access: block_plugin_api::AccessLevel,
+    },
     AppMenu {
         at: Option<beui::Rect>,
     },
@@ -120,6 +128,7 @@ pub(crate) struct TemplateEntry {
     pub(crate) target: plugin::CreationTarget,
     pub(crate) icon: &'static str,
     pub(crate) category: TemplateCategory,
+    pub(crate) debug: bool,
     create: CreateOptions,
 }
 
@@ -152,11 +161,19 @@ impl RegisteredEditor {
     }
 }
 
+/// What the host tells plugins of its block types and templates: the core
+/// protocol's catalog, and which templates the be3:debug extension lists apart.
+#[derive(Clone, Debug, Default)]
+pub(crate) struct PluginCatalog {
+    pub(crate) catalog: block_plugin_api::Catalog,
+    pub(crate) debug_templates: Vec<block_plugin_api::DebugTemplate>,
+}
+
 pub struct EditorRegistry {
     editors: Vec<RegisteredEditor>,
     templates: Vec<TemplateEntry>,
     types: HashMap<Uuid, block_plugin_api::BlockTypeDescriptor>,
-    plugin_block_types: Arc<block_plugin_api::Catalog>,
+    plugin_block_types: Arc<crate::editors::PluginCatalog>,
 }
 
 impl EditorRegistry {
@@ -176,7 +193,16 @@ impl EditorRegistry {
                 registry.register_editor(&manifest, editor);
             }
         }
-        registry.plugin_block_types = Arc::new(block_plugin_api::Catalog {
+        let debug_templates = registry
+            .templates
+            .iter()
+            .filter(|entry| entry.debug)
+            .map(|entry| block_plugin_api::DebugTemplate {
+                editor: entry.target.editor.into_bytes(),
+                template: entry.target.template.to_owned(),
+            })
+            .collect();
+        let catalog = block_plugin_api::Catalog {
             types: {
                 let mut types: Vec<_> = registry.types.values().cloned().collect();
                 types.sort_by_key(|descriptor| descriptor.block_type);
@@ -205,11 +231,15 @@ impl EditorRegistry {
                     icon_codepoint: editor.icon.clone(),
                 })
                 .collect(),
+        };
+        registry.plugin_block_types = Arc::new(PluginCatalog {
+            catalog,
+            debug_templates,
         });
         registry
     }
 
-    pub(super) fn plugin_block_types(&self) -> &Arc<block_plugin_api::Catalog> {
+    pub(super) fn plugin_block_types(&self) -> &Arc<crate::editors::PluginCatalog> {
         &self.plugin_block_types
     }
 
@@ -235,6 +265,7 @@ impl EditorRegistry {
                 target,
                 icon: Box::leak(template.icon.clone().into_boxed_str()),
                 category: template.category,
+                debug: template.debug,
                 create: Box::new(move || {
                     Box::new(plugin::PluginCreation::new(Arc::clone(&plugin), target))
                 }),

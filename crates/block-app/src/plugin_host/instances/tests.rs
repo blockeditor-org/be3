@@ -19,7 +19,7 @@ fn placed() -> Instances {
 fn placed_on(block: Uuid, block_type: Uuid) -> Instances {
     let rect = Rect::from_min_size(pos2(10.0, 10.0), SIZE);
     let mut instances = Instances::default();
-    let block_types = Arc::new(block_plugin_api::Catalog::default());
+    let block_types = Arc::new(crate::editors::PluginCatalog::default());
     let role = InstanceRole::Editor(
         Uuid::nil(),
         EditorBlock {
@@ -344,7 +344,7 @@ fn resize(instances: &mut Instances, size: Vec2, scale_factor: f32) {
         REGION,
         Uuid::nil(),
         role,
-        &Arc::new(block_plugin_api::Catalog::default()),
+        &Arc::new(crate::editors::PluginCatalog::default()),
         Some(block_plugin_api::FrameSpec::default()),
         size,
         Rect::from_min_size(Pos2::ZERO, size),

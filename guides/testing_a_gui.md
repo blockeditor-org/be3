@@ -82,7 +82,7 @@ editor's operations back until defer(false), for a test of what the editor shows
 host has taken an edit.
 
 Whatever else the plugin sends the host is kept for the test to read: take_view_changes(),
-take_requests(), take_opens(), take_block_commands() and the other take_ methods drain one
+take_requests(), take_opens(), take_block_commands() (blocks.act), take_shell_commands() (shell.act: share, leave, rename, close, the app menu) and the other take_ methods drain one
 kind, take_actions::<A>() the host actions it asked for, and clear_calls() drops what is kept. The host's side of a conversation goes in the same way the
 app sends it: set_view, set_chrome, with_top_bar, drag_block, answer, set_histories,
 set_peers, report_children, resize and presence_visible each queue the call the app

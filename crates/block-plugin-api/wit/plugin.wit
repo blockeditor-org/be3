@@ -82,10 +82,6 @@ interface plugin {
     /// Runs an action assistive technology asks of a node a screen described.
     node-action: func(screen: screen-id, request: action-request);
 
-    /// What the plugin's screens painted, in paint-format's encoding of
-    /// screen paintings, for the host's tests to compare.
-    paintings: async func() -> list<u8>;
-
     /// The screens the host shows, replacing the ones it showed before.
     screens: func(screens: list<screen-request>);
 
@@ -110,5 +106,7 @@ world editor-plugin {
     import shell;
     import host-services;
     import be3:host-values/host-values@0.1.0;
+    import be3:debug/debug@0.1.0;
     export plugin;
+    export be3:debug/paintings@0.1.0;
 }

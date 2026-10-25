@@ -4,7 +4,11 @@ use block_plugin_api::{
     BarAction, ChildId, EditorInstanceId, EditorRegion, Fonts, FrameCommit, Hello, HelloAccepted,
     InputBatch, Opening, Preferences, Rect, ScreenId, ScreenRequest, ShellDialog, Size,
     guest::{
-        exports::plugin::{Guest, GuestEditor},
+        debug,
+        exports::{
+            paintings,
+            plugin::{Guest, GuestEditor},
+        },
         host, shell,
     },
     ops::{
@@ -123,7 +127,14 @@ impl Shared {
         spawn(async move {
             let watch = shell::BlockTypesWatch::new();
             while let Ok(catalog) = watch.next().await {
-                wire.screens(move |screens| screens.set_catalog(&catalog));
+                wire.screens(move |screens| screens.set_catalog(catalog));
+            }
+        });
+        let wire = self.clone();
+        spawn(async move {
+            let watch = debug::DebugTemplatesWatch::new();
+            while let Ok(templates) = watch.next().await {
+                wire.screens(move |screens| screens.set_debug_templates(templates));
             }
         });
     }
@@ -170,6 +181,14 @@ pub(crate) struct OpenEditor {
     instance: EditorInstanceId,
 }
 
+impl paintings::Guest for Exports {
+    fn paintings(&self) -> impl Future<Output = Vec<u8>> + 'static {
+        let (sender, painted) = oneshot();
+        self.0.push(Delivery::Paintings(sender));
+        async move { painted.await.unwrap_or_default() }
+    }
+}
+
 impl Guest for Exports {
     type Editor = OpenEditor;
 
@@ -212,12 +231,6 @@ impl Guest for Exports {
     ) {
         self.0
             .screens(move |screens| screens.node_action(screen, request.into()));
-    }
-
-    fn paintings(&self) -> impl Future<Output = Vec<u8>> + 'static {
-        let (sender, painted) = oneshot();
-        self.0.push(Delivery::Paintings(sender));
-        async move { painted.await.unwrap_or_default() }
     }
 
     fn configure(&self, serial: u64) {

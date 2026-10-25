@@ -13,6 +13,7 @@ use block_editor_beui::{
 };
 use block_plugin_api::Opening;
 use block_plugin_api::embed::blocks::Call as BlocksCall;
+use block_plugin_api::embed::debug::Call as DebugCall;
 use block_plugin_api::embed::host_values::Call as HostValues;
 use block_plugin_api::embed::{exports::plugin::Editor, shell::Call as ShellCall};
 use block_plugin_api::ops::{Connection, Incoming, Side};
@@ -102,6 +103,7 @@ pub struct BeuiTest<A: BeuiApp> {
     )>,
     child_statuses: block_plugin_api::Watch<Vec<ChildStatus>>,
     block_types: block_plugin_api::Watch<Catalog>,
+    debug_templates: block_plugin_api::Watch<Vec<block_plugin_api::DebugTemplate>>,
     completed:
         std::collections::HashMap<block_plugin_api::ops::OpId, block_plugin_api::ops::Outcome>,
     menu: Vec<MenuEntry>,
@@ -285,6 +287,7 @@ impl<A: BeuiApp> BeuiTest<A> {
             asked_picks: Vec::new(),
             child_statuses: block_plugin_api::Watch::default(),
             block_types: block_plugin_api::Watch::default(),
+            debug_templates: block_plugin_api::Watch::default(),
             completed: std::collections::HashMap::new(),
             menu: Vec::new(),
             output: None,
@@ -1004,6 +1007,19 @@ impl<A: BeuiApp> BeuiTest<A> {
                         }
                         continue;
                     }
+                    Incoming::Started(started) if DebugCall::accepts(&started) => {
+                        let connection = &mut self.connection;
+                        match DebugCall::accept(connection, started) {
+                            Some(DebugCall::DebugTemplatesWatchNew { resource }) => {
+                                self.debug_templates.opened(resource.op())
+                            }
+                            Some(DebugCall::DebugTemplatesWatchNext { reply, .. }) => {
+                                self.debug_templates.next(connection, reply)
+                            }
+                            _ => {}
+                        }
+                        continue;
+                    }
                     Incoming::Started(started) if HostValues::accepts(&started) => {
                         let connection = &mut self.connection;
                         match HostValues::accept(connection, started) {
@@ -1067,6 +1083,9 @@ impl<A: BeuiApp> BeuiTest<A> {
             }
             if let Some(call) = BlocksCall::accept_direct(&called) {
                 self.link.call(call, &self.store, &mut self.connection);
+                continue;
+            }
+            if DebugCall::accept_direct(&called).is_some() {
                 continue;
             }
             if let Some(HostValues::Act { key, action }) = HostValues::accept_direct(&called) {
@@ -1135,6 +1154,13 @@ impl<A: BeuiApp> BeuiTest<A> {
     pub fn clear_calls(&mut self) {
         self.calls.clear();
         self.host_actions.clear();
+    }
+
+    pub fn take_shell_commands(&mut self) -> Vec<(Uuid, block_plugin_api::ShellCommand)> {
+        self.take_calls(|call| match call {
+            ShellCall::Act { block, command, .. } => Some((Uuid::from_bytes(*block), *command)),
+            _ => None,
+        })
     }
 
     pub fn take_copied_text(&mut self) -> Vec<String> {

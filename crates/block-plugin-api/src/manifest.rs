@@ -96,8 +96,7 @@ impl From<CategoryDocument> for TemplateCategory {
     fn from(category: CategoryDocument) -> Self {
         match category {
             CategoryDocument::Important => Self::Important,
-            CategoryDocument::Regular => Self::Regular,
-            CategoryDocument::Debug => Self::Debug,
+            CategoryDocument::Regular | CategoryDocument::Debug => Self::Regular,
             CategoryDocument::Template => Self::Template,
         }
     }
@@ -235,6 +234,7 @@ impl EditorDocument {
                     name: template.name.unwrap_or_else(|| self.display_name.clone()),
                     icon: template.icon.unwrap_or_else(|| self.icon.clone()),
                     category: template.category.into(),
+                    debug: template.category == CategoryDocument::Debug,
                     dialog: template.dialog,
                     block_type: match template.block_type {
                         Some(source) => block_type(&source)?,

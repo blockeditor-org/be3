@@ -32,7 +32,7 @@ pub use asked::{Asked, Task};
 pub use block_plugin_api::accesskit;
 pub use block_plugin_api::{
     AccessGrant, AccessLevel, Administrator, ArtifactAction, AudioCommand, AudioOutput,
-    AudioSource, AudioStatus, BarAction, BlockCommand, BlockFilter, BlockLocation, BlockPick,
+    AudioSource, AudioStatus, BarAction, BlockCommand, BlockFilter, BlockLocation, BlockPick, Failure, PickedBlock, ShellCommand,
     BlockTypeDescriptor, Catalog, ChildContent, ChildId, ChildLayer, ChildMode, ChildOperations,
     ChildPlacement, ChildPreview, ChildStatus, ConflictSide, Contacts, CreationProgress,
     CursorIcon, DescribedAction, Description, DisplayMode, Displays, EditorCapabilities,

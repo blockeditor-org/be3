@@ -2504,7 +2504,9 @@ impl BlockApp {
     fn handle_editor_action(&mut self, from: Option<Uuid>, action: EditorAction) {
         match action {
             EditorAction::OpenBlock(open) => self.show_block(from, open),
-            EditorAction::Command { id, command } => self.handle_block_command(from, id, command),
+            EditorAction::Command { id, command } => self.handle_block_command(id, command),
+            EditorAction::Shell { id, command } => self.handle_shell_command(from, id, command),
+            EditorAction::SimulateAccess { id, access } => self.simulate_access(id, access),
             EditorAction::AppMenu { at } => self.open_app_menu(at),
         }
     }
@@ -2514,36 +2516,48 @@ impl BlockApp {
         self.app_menu = Some(ui::AppMenuView { opened, at });
     }
 
-    fn handle_block_command(&mut self, from: Option<Uuid>, id: Uuid, command: BlockCommand) {
+    fn handle_shell_command(
+        &mut self,
+        from: Option<Uuid>,
+        id: Uuid,
+        command: block_plugin_api::ShellCommand,
+    ) {
+        use block_plugin_api::ShellCommand;
         match command {
-            BlockCommand::Share => self.show_dialog(from, id, ShellDialog::Share),
-            BlockCommand::Leave => self.leaving = Some(id),
-            BlockCommand::Rename { anchor } => self.show_rename(from, id, anchor),
+            ShellCommand::Share => self.show_dialog(from, id, ShellDialog::Share),
+            ShellCommand::Leave => self.leaving = Some(id),
+            ShellCommand::Rename { anchor } => self.show_rename(from, id, anchor),
+            ShellCommand::CloseEditor => self.close_editor(id),
+            ShellCommand::AppMenu { .. } => self.open_app_menu(None),
+        }
+    }
+
+    fn simulate_access(&mut self, id: Uuid, access: AccessLevel) {
+        let access = match access {
+            AccessLevel::None => Access::None,
+            AccessLevel::KnowExists => Access::KnowExists,
+            AccessLevel::View => Access::View,
+            AccessLevel::Edit => Access::Edit,
+        };
+        match access == Access::Edit {
+            true => self
+                .editors
+                .with_simulated(|simulated| simulated.remove(&id)),
+            false => self
+                .editors
+                .with_simulated(|simulated| simulated.insert(id, access)),
+        };
+    }
+
+    fn handle_block_command(&mut self, id: Uuid, command: BlockCommand) {
+        match command {
             BlockCommand::Undo if self.editor_access(id).can_edit() => be::undo(id),
             BlockCommand::Redo if self.editor_access(id).can_edit() => be::redo(id),
             BlockCommand::Undo | BlockCommand::Redo => {}
-            BlockCommand::AppMenu { .. } => self.open_app_menu(None),
             BlockCommand::Unlink { container } => {
                 self.queue_copy(id, Uuid::from_bytes(container));
             }
             BlockCommand::Artifact { action } => self.act_on_artifact(id, action),
-            BlockCommand::CloseEditor => self.close_editor(id),
-            BlockCommand::SimulateAccess { access } => {
-                let access = match access {
-                    AccessLevel::None => Access::None,
-                    AccessLevel::KnowExists => Access::KnowExists,
-                    AccessLevel::View => Access::View,
-                    AccessLevel::Edit => Access::Edit,
-                };
-                match access == Access::Edit {
-                    true => self
-                        .editors
-                        .with_simulated(|simulated| simulated.remove(&id)),
-                    false => self
-                        .editors
-                        .with_simulated(|simulated| simulated.insert(id, access)),
-                };
-            }
             BlockCommand::Delete { block_type, source } => {
                 self.queue_delete(id, Uuid::from_bytes(block_type), drag_source(source))
             }

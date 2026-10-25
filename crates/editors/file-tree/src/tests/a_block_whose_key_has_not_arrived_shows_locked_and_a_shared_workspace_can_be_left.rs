@@ -1,6 +1,6 @@
 use block_editor_beui::be_block::BlockContent;
 use block_editor_beui::{
-    AccessLevel, Administrator, BlockCommand, BlockInfo, BlockParent, BlockQuery,
+    AccessLevel, Administrator, ShellCommand, BlockInfo, BlockParent, BlockQuery,
 };
 use workspace_ui_types::WorkspaceContent;
 
@@ -43,8 +43,8 @@ fn a_block_whose_key_has_not_arrived_shows_locked_and_a_shared_workspace_can_be_
     assert!(
         fixture
             .test
-            .take_block_commands()
-            .contains(&(team, BlockCommand::Leave)),
+            .take_shell_commands()
+            .contains(&(team, ShellCommand::Leave)),
         "leaving a workspace someone shared asks the host to take this account off it"
     );
 

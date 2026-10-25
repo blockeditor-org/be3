@@ -2,7 +2,7 @@ use super::*;
 use block_plugin_api::blocks::ShowRequest;
 
 fn report(instances: &mut Instances) {
-    let block_types = Arc::new(block_plugin_api::Catalog::default());
+    let block_types = Arc::new(crate::editors::PluginCatalog::default());
     instances.report(
         INSTANCE,
         REGION,

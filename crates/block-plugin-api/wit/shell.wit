@@ -80,21 +80,6 @@ interface shell-types {
         dropped: bool,
     }
 
-    variant performance-measurement {
-        duration(performance-duration),
-        count(performance-count),
-    }
-
-    record performance-duration {
-        name: string,
-        nanoseconds: u64,
-    }
-
-    record performance-count {
-        name: string,
-        count: u64,
-    }
-
     variant stopped {
         closed,
         failed(string),
@@ -233,10 +218,11 @@ interface shell-types {
         plain-file: bool,
     }
 
+    /// Where a picker lists a template: among every block, among the ones
+    /// offered first, or as a template to start from.
     enum template-category {
         regular,
         important,
-        debug,
         template,
     }
 
@@ -312,6 +298,25 @@ interface shell-types {
         failed(string),
     }
 
+    record rename-command {
+        anchor: option<rect>,
+    }
+
+    record app-menu-command {
+        anchor: option<rect>,
+    }
+
+    /// What an editor asks of the app around it for a block it draws: to share
+    /// it, leave it, rename it (hung from `anchor`), close the editor, or show
+    /// the app's menu.
+    variant shell-command {
+        share,
+        leave,
+        rename(rename-command),
+        close-editor,
+        app-menu(app-menu-command),
+    }
+
     /// The block an editor's focus is in, and the blocks it is shown through.
     record focus {
         block-id: option<block-id>,
@@ -327,8 +332,7 @@ interface shell {
     use blocks.{block-location};
     use shell-types.{
         artifact-description, audio-command, audio-status, bar-action, catalog,
-        child-status, focus, menu-item, performance-measurement, stopped, view-change,
-        web-view-event,
+        child-status, focus, menu-item, shell-command, stopped, view-change, web-view-event,
     };
 
     /// The status of the audio the editor plays, watched like preferences once
@@ -393,12 +397,8 @@ interface shell {
     /// The size the editor's content wants, when it has one.
     intrinsic-size: func(instance: editor-instance-id, size: option<size>);
 
-    /// Measurements for the host's performance panel.
-    performance: func(
-        instance: editor-instance-id,
-        group: string,
-        measurements: list<performance-measurement>,
-    );
+    /// Asks the app around the editor to act for a block the editor draws.
+    act: func(instance: editor-instance-id, block: block-id, command: shell-command);
 
     /// The editor asks to leave the frame it is shown in.
     leave-frame: func(instance: editor-instance-id);

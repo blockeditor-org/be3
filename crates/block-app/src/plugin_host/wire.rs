@@ -4,11 +4,15 @@ use super::calls::{EditorAnswer, EditorCall, Heard, PluginCall};
 use block_plugin_api::{Encoded, Watch};
 
 use block_plugin_api::{
-    AudioStatus, BlockPick, Catalog, ChildStatus, EditorInstanceId, Failure, Fonts, HelloAccepted,
-    InputBatch, Opening, Preferences, WebViewEvent, WebViewId,
+    AudioStatus, BlockPick, Catalog, ChildStatus, DebugTemplate, EditorInstanceId, Failure, Fonts,
+    HelloAccepted, InputBatch, Opening, Preferences, WebViewEvent, WebViewId,
     embed::{
         blocks,
-        exports::plugin::{self, Editor},
+        debug::Call as DebugCall,
+        exports::{
+            paintings,
+            plugin::{self, Editor},
+        },
         host::Call,
         host_services,
         host_values::Call as HostValues,
@@ -50,6 +54,7 @@ pub(super) struct Wire {
     serving: HashMap<OpId, EditorInstanceId>,
     child_statuses: HashMap<EditorInstanceId, Watch<Vec<ChildStatus>>>,
     block_types: Watch<Catalog>,
+    debug_templates: Watch<Vec<DebugTemplate>>,
     held: Held,
 }
 
@@ -113,6 +118,7 @@ impl Default for Wire {
             serving: HashMap::new(),
             child_statuses: HashMap::new(),
             block_types: Watch::default(),
+            debug_templates: Watch::default(),
             held: Held::default(),
         }
     }
@@ -166,13 +172,16 @@ impl Wire {
                 self.draws.insert(drawn.op(), Awaited::Draw);
             }
             PluginCall::BlockTypes(catalog) => self.block_types.change(connection, |_| catalog),
+            PluginCall::DebugTemplates(templates) => {
+                self.debug_templates.change(connection, |_| templates)
+            }
             PluginCall::Describe(on) => plugin::describe(connection, on),
             PluginCall::RunAction { screen, id } => plugin::run_action(connection, screen, id),
             PluginCall::NodeAction { screen, request } => {
                 plugin::node_action(connection, screen, request)
             }
             PluginCall::Paintings => {
-                let painted = plugin::paintings(connection);
+                let painted = paintings::paintings(connection);
                 self.painting.insert(painted.op(), painted);
             }
         }
@@ -600,6 +609,19 @@ impl Wire {
                 }
                 return Ok(());
             }
+            Incoming::Started(started) if DebugCall::accepts(&started) => {
+                let connection = &mut self.connection;
+                match DebugCall::accept(connection, started) {
+                    Some(DebugCall::DebugTemplatesWatchNew { resource }) => {
+                        self.debug_templates.opened(resource.op())
+                    }
+                    Some(DebugCall::DebugTemplatesWatchNext { reply, .. }) => {
+                        self.debug_templates.next(connection, reply)
+                    }
+                    Some(_) | None => {}
+                }
+                return Ok(());
+            }
             Incoming::Started(started) if ShellCall::accepts(&started) => {
                 if let Some(call) = ShellCall::accept(&mut self.connection, started) {
                     self.watch_call(call, heard);
@@ -623,6 +645,12 @@ impl Wire {
                 }
                 if let Some(call) = HostValues::accept_direct(&called) {
                     self.host_values(None, called.parent, call, heard);
+                    return Ok(());
+                }
+                if let Some(call) = DebugCall::accept_direct(&called) {
+                    if let Some(instance) = self.editor_of(called.parent) {
+                        heard.push(Heard::Debug(instance, call));
+                    }
                     return Ok(());
                 }
                 if let Some(call) = ShellCall::accept_direct(&called) {
@@ -686,7 +714,8 @@ impl Wire {
                     || self.audio.values().any(|watch| watch.is(op))
                     || self.web_views.contains_key(&op)
                     || self.host_values.contains_key(&op)
-                    || self.block_types.is(op);
+                    || self.block_types.is(op)
+                    || self.debug_templates.is(op);
                 self.child_statuses.retain(|_, watch| !watch.is(op));
                 self.audio.retain(|_, watch| !watch.is(op));
                 self.web_views.remove(&op);
@@ -696,6 +725,7 @@ impl Wire {
                         .complete(op, Outcome::Err(OpError::Canceled));
                 }
                 self.block_types.closed(op);
+                self.debug_templates.closed(op);
                 self.preferences.closed(op);
                 self.utc_offset.closed(op);
                 self.fonts.closed(op);

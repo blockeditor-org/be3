@@ -8,7 +8,6 @@ interface blocks {
         account-id, block-id, block-type-id, commit-id, content-type-id, uuid,
     };
     use be3:shared/access@0.1.0.{access-level};
-    use be3:ui/types@0.1.0.{rect};
 
     /// Where a block is listed: at the root, detached from every parent, or
     /// inside a block.
@@ -69,16 +68,8 @@ interface blocks {
         bytes: list<u8>,
     }
 
-    record rename-command {
-        anchor: option<rect>,
-    }
-
     record artifact-command {
         action: artifact-action,
-    }
-
-    record simulate-access-command {
-        access: access-level,
     }
 
     record unlink-command {
@@ -103,26 +94,17 @@ interface blocks {
         linked: bool,
     }
 
-    record app-menu-command {
-        anchor: option<rect>,
-    }
-
-    /// What an editor asks the host to do with a block it draws.
+    /// What an editor asks the host to do with a block it draws: undo or redo
+    /// it, act on its artifact, unlink, delete, move, place or restore it.
     variant block-command {
-        share,
-        leave,
-        rename(rename-command),
         undo,
         redo,
         artifact(artifact-command),
-        simulate-access(simulate-access-command),
-        close-editor,
         unlink(unlink-command),
         delete(delete-command),
         move(move-command),
         place(place-command),
         restore,
-        app-menu(app-menu-command),
     }
 
     enum conflict-side {

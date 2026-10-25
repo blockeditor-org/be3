@@ -1,7 +1,7 @@
 use be_block::presence::{PresenceKind, UserActive, pick_free_color};
 use block_plugin_api::WebViewCommand;
 use block_plugin_api::accesskit::{ActionRequest, NodeId, TreeUpdate};
-use block_plugin_api::guest::shell;
+use block_plugin_api::guest::{debug, shell};
 use block_plugin_api::ops::guest::{Sender, spawn};
 use block_plugin_api::{
     ArtifactDescription, BarAction, ChildId, ChildPlacement, ChildPlacements, ChildStatus,
@@ -328,8 +328,16 @@ impl EditorSession {
     pub fn outbound(&mut self) {
         let instance = self.instance;
         self.link.exchange(instance, &self.host);
-        for (group, measurements) in self.host.take_performance() {
-            shell::performance(instance, group, measurements);
+        crate::asked::asking(Some(instance), || {
+            for (group, measurements) in self.host.take_performance() {
+                debug::performance(group, measurements);
+            }
+            for (block, access) in self.host.take_simulated_access() {
+                debug::simulate_access(block.into_bytes(), access);
+            }
+        });
+        for (block, command) in self.host.take_shell_commands() {
+            shell::act(instance, block.into_bytes(), command);
         }
         self.report_stopped();
         if let Some(accepted) = self.host.take_drag_accepted() {

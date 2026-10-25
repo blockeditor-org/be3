@@ -2,14 +2,16 @@ use beui::accessibility::Embedded;
 use beui::{ImeArea, Rect, Vec2, pos2, vec2};
 use block_plugin_api::embed::host_values::Call as HostValues;
 use block_plugin_api::{
-    ArtifactDescription, AudioCommand, BlockCommand, BlockPick, ChildContent, ChildId, ChildMode,
+    AccessLevel, ArtifactDescription, AudioCommand, BlockCommand, BlockPick, ChildContent, ChildId, ChildMode,
     ChildPlacement, ChildPlacements, ChildStatus, EditorInstanceId, EditorRegion, FrameReport,
     FrameSpec, MenuEntry, Monitor, Occluder, OpenArtifact, OpenBlock, OpenCreation, Opening,
     PerformanceMeasurement, RegionSize, ScreenId, ScreenLayout, ScreenRequest, ScreenWindow, Size,
-    Stopped, ViewChange, WebViewEvent, WebViewId,
+    ShellCommand, Stopped, ViewChange, WebViewEvent, WebViewId,
 };
 use block_plugin_api::{
-    DescribedAction, WindowRequests, embed::shell::Call as ShellCall, ops::OpId,
+    DescribedAction, WindowRequests,
+    embed::{debug::Call as DebugCall, shell::Call as ShellCall},
+    ops::OpId,
 };
 use block_type_guest::editor::{FromEditor, Gesture};
 use std::{
@@ -56,7 +58,7 @@ pub(super) struct Instances {
     connection: Option<Connection>,
     next_screen: u64,
     announced: HashSet<ScreenId>,
-    block_types: Option<Arc<block_plugin_api::Catalog>>,
+    block_types: Option<Arc<crate::editors::PluginCatalog>>,
     sent_block_types: Option<u64>,
     network: Vec<String>,
     plugin_id: String,
@@ -104,6 +106,8 @@ struct Instance {
     opens: Vec<OpenRequest>,
     block_drags: Vec<BlockDrag>,
     block_commands: Vec<(Uuid, BlockCommand)>,
+    shell_commands: Vec<(Uuid, ShellCommand)>,
+    simulated: Vec<(Uuid, AccessLevel)>,
     reported_focus: Option<Focus>,
     reported_editable: Option<bool>,
     focus_reports: Vec<Focus>,
@@ -250,6 +254,8 @@ impl Instance {
             opens: Vec::new(),
             block_drags: Vec::new(),
             block_commands: Vec::new(),
+            shell_commands: Vec::new(),
+            simulated: Vec::new(),
             reported_focus: None,
             reported_editable: None,
             focus_reports: Vec::new(),
@@ -783,7 +789,7 @@ impl Instances {
         region: EditorRegion,
         client_id: Uuid,
         role: InstanceRole,
-        block_types: &Arc<block_plugin_api::Catalog>,
+        block_types: &Arc<crate::editors::PluginCatalog>,
         frame: Option<FrameSpec>,
         size: Vec2,
         visible: Rect,
@@ -849,7 +855,7 @@ impl Instances {
         region: EditorRegion,
         client_id: Uuid,
         role: InstanceRole,
-        block_types: &Arc<block_plugin_api::Catalog>,
+        block_types: &Arc<crate::editors::PluginCatalog>,
     ) {
         self.report(
             instance,
@@ -1241,7 +1247,7 @@ impl Instances {
         &mut self,
         instance: EditorInstanceId,
         client_id: Uuid,
-        block_types: &Arc<block_plugin_api::Catalog>,
+        block_types: &Arc<crate::editors::PluginCatalog>,
         role: InstanceRole,
     ) -> bool {
         self.connect(client_id);
@@ -1258,7 +1264,7 @@ impl Instances {
         &mut self,
         instance: EditorInstanceId,
         client_id: Uuid,
-        block_types: &Arc<block_plugin_api::Catalog>,
+        block_types: &Arc<crate::editors::PluginCatalog>,
         editor: Uuid,
         block: EditorBlock,
         data: &[u8],
@@ -1380,13 +1386,15 @@ impl Instances {
             && let Some(block_types) = &self.block_types
         {
             self.sent_block_types = Some(plain_forms);
-            let mut block_types = block_types.as_ref().clone();
+            let debug_templates = block_types.debug_templates.clone();
+            let mut block_types = block_types.catalog.clone();
             for descriptor in &mut block_types.types {
                 descriptor.plain_file =
                     be_types_host::plain_of(Uuid::from_bytes(descriptor.block_type))
                         == be_types_host::Plain::File;
             }
             opened.push(Outbound::Plugin(PluginCall::BlockTypes(block_types)));
+            opened.push(Outbound::Plugin(PluginCall::DebugTemplates(debug_templates)));
         }
         for instance in instances {
             let scope = self.scope(instance);
@@ -2624,26 +2632,8 @@ impl Instances {
                 entry.intrinsic = intrinsic;
                 return changed;
             }
-            ShellCall::Performance {
-                group,
-                measurements,
-                ..
-            } => {
-                for measurement in measurements {
-                    match measurement {
-                        PerformanceMeasurement::Duration { name, nanoseconds } => {
-                            performance::record_group_duration(
-                                &group,
-                                &name,
-                                std::time::Duration::from_nanos(nanoseconds),
-                            );
-                        }
-                        PerformanceMeasurement::Count { name, count } => {
-                            performance::record_group_count(&group, &name, count);
-                        }
-                    }
-                }
-                return false;
+            ShellCall::Act { block, command, .. } => {
+                entry.shell_commands.push((Uuid::from_bytes(block), command))
             }
             ShellCall::LeaveFrame { .. } => entry.leaving = true,
             ShellCall::RegionStopped {
@@ -2767,6 +2757,61 @@ impl Instances {
         self.entries
             .get_mut(&instance)
             .map(|entry| std::mem::take(&mut entry.block_drags))
+            .unwrap_or_default()
+    }
+
+    pub(super) fn debug_call(&mut self, instance: EditorInstanceId, call: DebugCall) -> bool {
+        match call {
+            DebugCall::Performance {
+                group,
+                measurements,
+            } => {
+                for measurement in measurements {
+                    match measurement {
+                        PerformanceMeasurement::Duration { name, nanoseconds } => {
+                            performance::record_group_duration(
+                                &group,
+                                &name,
+                                std::time::Duration::from_nanos(nanoseconds),
+                            );
+                        }
+                        PerformanceMeasurement::Count { name, count } => {
+                            performance::record_group_count(&group, &name, count);
+                        }
+                    }
+                }
+                false
+            }
+            DebugCall::SimulateAccess { block, access } => {
+                let Some(entry) = self.entries.get_mut(&instance) else {
+                    return false;
+                };
+                entry.simulated.push((Uuid::from_bytes(block), access));
+                true
+            }
+            DebugCall::DebugTemplatesWatchNew { .. } | DebugCall::DebugTemplatesWatchNext { .. } => {
+                false
+            }
+        }
+    }
+
+    pub(super) fn take_shell_commands(
+        &mut self,
+        instance: EditorInstanceId,
+    ) -> Vec<(Uuid, ShellCommand)> {
+        self.entries
+            .get_mut(&instance)
+            .map(|entry| std::mem::take(&mut entry.shell_commands))
+            .unwrap_or_default()
+    }
+
+    pub(super) fn take_simulated_access(
+        &mut self,
+        instance: EditorInstanceId,
+    ) -> Vec<(Uuid, AccessLevel)> {
+        self.entries
+            .get_mut(&instance)
+            .map(|entry| std::mem::take(&mut entry.simulated))
             .unwrap_or_default()
     }
 

@@ -1,9 +1,9 @@
 use block_plugin_api::{
     ArtifactDescription, AudioStatus, BarAction, BlockIdRole, BlockLocation, BlockPick, Catalog,
-    ChildId, ChildStatus, EditorInstanceId, EditorRegion, Failure, Fonts, FrameCommit, Hello,
-    InputBatch, Opening, PickedBlock, Preferences, Rect, ScreenId, ScreenLayout, ScreenRequest,
-    Size, WebViewEvent, WebViewId,
-    embed::shell::Call as ShellCall,
+    ChildId, ChildStatus, EditorInstanceId, EditorRegion, Failure, Fonts, FrameCommit, Hello, InputBatch,
+    Opening, PickedBlock, Preferences, Rect, ScreenId, ScreenLayout, ScreenRequest, Size, WebViewEvent,
+    WebViewId,
+    embed::{debug::Call as DebugCall, shell::Call as ShellCall},
     shell_types::{DragOver, FileDrop, Focus, PickRequest},
 };
 
@@ -28,6 +28,7 @@ pub(super) enum PluginCall {
         seen: bool,
     },
     BlockTypes(Catalog),
+    DebugTemplates(Vec<block_plugin_api::DebugTemplate>),
     Describe(bool),
     RunAction {
         screen: ScreenId,
@@ -133,6 +134,7 @@ pub(super) enum Heard {
     Paintings(Vec<u8>),
     Blocks(EditorInstanceId, block_plugin_api::embed::blocks::Call),
     HostValues(EditorInstanceId, block_plugin_api::embed::host_values::Call),
+    Debug(EditorInstanceId, DebugCall),
     Ended(block_plugin_api::ops::OpId),
     Service(super::wire::Service),
     Withdrawn(block_plugin_api::ops::OpId),
@@ -150,7 +152,7 @@ pub(super) fn instance_of(call: &ShellCall) -> Option<EditorInstanceId> {
         | ShellCall::DragAccepted { instance, .. }
         | ShellCall::AspectRatio { instance, .. }
         | ShellCall::IntrinsicSize { instance, .. }
-        | ShellCall::Performance { instance, .. }
+        | ShellCall::Act { instance, .. }
         | ShellCall::LeaveFrame { instance }
         | ShellCall::RegionStopped { instance, .. }
         | ShellCall::Present { instance, .. }
@@ -226,13 +228,23 @@ impl BlockIds for Outbound {
     }
 }
 
+impl BlockIds for (EditorInstanceId, DebugCall) {
+    fn visit_block_ids(&mut self, visit: &mut Visit<'_>) {
+        if let (instance, DebugCall::SimulateAccess { block, .. }) = self {
+            visit(*instance, BlockIdRole::Existing, block);
+        }
+    }
+}
+
 impl BlockIds for ShellCall {
     fn visit_block_ids(&mut self, visit: &mut Visit<'_>) {
         let Some(instance) = instance_of(self) else {
             return;
         };
         match self {
-            Self::DragBlock { block_id, .. } => visit(instance, BlockIdRole::Existing, block_id),
+            Self::DragBlock { block_id, .. } | Self::Act { block: block_id, .. } => {
+                visit(instance, BlockIdRole::Existing, block_id)
+            }
             Self::Focused { focus, .. } => focus_ids(instance, focus, visit),
             Self::CommitChild {
                 parent: BlockLocation::Block(block_id),

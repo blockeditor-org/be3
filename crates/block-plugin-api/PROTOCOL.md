@@ -18,7 +18,12 @@ Rust on both sides is generated from it into this crate. The world imports:
   waits for, files, picks, revisions, access, fetches and staged data;
 - `be3:host-values/host-values` (`wit/deps/host-values`), an extension beside the
   core protocol: values and actions of a particular host under string keys, the
-  Linux desktop session's among them.
+  Linux desktop session's among them;
+- `be3:debug/debug` (`wit/deps/debug`), the debugging extension, beside the core
+  protocol too: performance measurements, simulating a lower access to a block,
+  and which catalog templates are for debugging (the picker's Debug group). The
+  world also exports its `paintings`, what the plugin painted for the host's
+  tests. A host without these tools answers and asks none of it.
 
 Ids and access levels come from `be3:shared` (crates/be-ops/wit), which the
 type-module world and `be3:gpu` use too, so an id has one shape everywhere: a
@@ -28,8 +33,11 @@ out is an alias named `<thing>-id` (`screen-id`, `child-id`, `pick-id`).
 
 It exports `plugin` (`plugin.wit`): `resource editor`, one open editor instance,
 whose methods are what the host says to that instance and whose drop closes it;
-the screens and their configure, `draw`, whose answer is the frame, the
-paintings tests compare, description, and shutdown. Shapes shared by several
+the screens and their configure, `draw`, whose answer is the frame,
+description, and shutdown. What an editor asks for a block it draws goes two ways: `blocks.act` with a
+`block-command` changes the block (undo, redo, its artifact, unlink, delete,
+move, place, restore), and `shell.act` with a `shell-command` asks the app
+around it (share, leave, rename, close the editor, the app menu). Shapes shared by several
 interfaces are in `types.wit` and `accessibility.wit`, which mirrors AccessKit.
 
 Every call a plugin makes about an editor instance is made under that editor's
@@ -598,7 +606,7 @@ with no chrome bands, so it draws its content the same way either way; only the
 size it is given changes.
 
 An editor instance may report named duration and count measurements under a
-named performance group. Durations are measured by the plugin and sent as
+named performance group, through the `be3:debug` extension's `performance`. Durations are measured by the plugin and sent as
 nanoseconds; the host only collects and displays the reported values. Reports
 are informational, require no response, and may arrive independently of a
 rendered frame.
