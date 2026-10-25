@@ -397,7 +397,7 @@ impl Runtime {
             self.sent.clone_from(&next.screens);
             messages.push(self.instances.screen_set(next.screens).into());
         }
-        messages.extend(self.instances.pending().into_iter().map(Outbound::from));
+        messages.extend(self.instances.pending());
         self.serve();
         messages.extend(self.instances.configure(&messages).map(Outbound::from));
         let awaited = messages.iter().any(|message| {

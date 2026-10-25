@@ -69,6 +69,14 @@ pub struct BeuiTest<A: BeuiApp> {
     connection: Connection,
     editor: Option<Editor>,
     calls: Vec<ShellCall>,
+    web_views: std::collections::HashMap<
+        block_plugin_api::ops::OpId,
+        (
+            WebViewId,
+            block_plugin_api::Watch<Vec<block_editor_beui::WebViewEvent>>,
+        ),
+    >,
+    web_view_commands: Vec<(WebViewId, WebViewCommand)>,
     asked_picks: Vec<(
         u64,
         block_plugin_api::ops::Ticket<block_plugin_api::BlockPick>,
@@ -251,6 +259,8 @@ impl<A: BeuiApp> BeuiTest<A> {
             connection: Connection::new(Side::Host),
             editor: None,
             calls: Vec::new(),
+            web_views: std::collections::HashMap::new(),
+            web_view_commands: Vec::new(),
             asked_picks: Vec::new(),
             child_statuses: block_plugin_api::Watch::default(),
             block_types: block_plugin_api::Watch::default(),
@@ -691,13 +701,15 @@ impl<A: BeuiApp> BeuiTest<A> {
     }
 
     pub fn web_view_event(&mut self, web_view: WebViewId, event: block_editor_beui::WebViewEvent) {
-        self.inbox.push(Inbound::Message(Message::Editor(
-            EditorMessage::WebViewEvent {
-                instance: INSTANCE,
-                web_view,
-                event,
-            },
-        )));
+        if let Some((_, watch)) = self.web_views.values_mut().find(|(id, _)| *id == web_view) {
+            watch.change(&mut self.connection, |held| {
+                let mut events = held.unwrap_or_default();
+                events.push(event);
+                events
+            });
+            let frames = self.connection.take_outbound();
+            self.inbox.push(Inbound::Frames(frames));
+        }
     }
 
     pub fn set_preferences(&mut self, preferences: block_plugin_api::Preferences) {
@@ -994,6 +1006,22 @@ impl<A: BeuiApp> BeuiTest<A> {
                         Some(ShellCall::BlockTypesWatchNext { reply, .. }) => {
                             self.block_types.next(connection, reply)
                         }
+                        Some(ShellCall::WebViewNew {
+                            resource, id, url, ..
+                        }) => {
+                            let mut watch = block_plugin_api::Watch::default();
+                            watch.opened(resource.op());
+                            self.web_views.insert(resource.op(), (id, watch));
+                            self.web_view_commands.push((id, WebViewCommand::Open(url)));
+                        }
+                        Some(ShellCall::WebViewNextEvents { this, reply }) => {
+                            match self.web_views.get_mut(&this.op()) {
+                                Some((_, watch)) => watch.next(connection, reply),
+                                None => {
+                                    reply.fail(connection, block_plugin_api::ops::OpError::Canceled)
+                                }
+                            }
+                        }
                         _ => {}
                     }
                     continue;
@@ -1013,6 +1041,9 @@ impl<A: BeuiApp> BeuiTest<A> {
                     continue;
                 }
                 Incoming::Canceled { op } => {
+                    if let Some((id, _)) = self.web_views.remove(&op) {
+                        self.web_view_commands.push((id, WebViewCommand::Close));
+                    }
                     self.requests.retain(|(asked, _)| *asked != Some(op));
                     self.connection
                         .complete(op, Outcome::Err(OpError::Canceled));
@@ -1030,6 +1061,25 @@ impl<A: BeuiApp> BeuiTest<A> {
                     called.name
                 );
             };
+            let shown = |this: &block_plugin_api::embed::shell::WebView| {
+                self.web_views.get(&this.op()).map(|(id, _)| *id)
+            };
+            let commanded = match &call {
+                ShellCall::WebViewLoad { this, url } => {
+                    shown(this).map(|id| (id, WebViewCommand::Load(url.clone())))
+                }
+                ShellCall::WebViewReload { this } => {
+                    shown(this).map(|id| (id, WebViewCommand::Reload))
+                }
+                ShellCall::WebViewFocusApp { this } => {
+                    shown(this).map(|id| (id, WebViewCommand::FocusApp))
+                }
+                _ => None,
+            };
+            if let Some(commanded) = commanded {
+                self.web_view_commands.push(commanded);
+                continue;
+            }
             match &call {
                 ShellCall::Menu { items, .. } => {
                     self.menu = MenuEntry::nest(items.clone()).unwrap_or_else(|error| {
@@ -1217,8 +1267,8 @@ impl<A: BeuiApp> BeuiTest<A> {
     }
 
     pub fn take_audio_commands(&mut self) -> Vec<block_plugin_api::AudioCommand> {
-        self.take_where(|message| match message {
-            EditorMessage::PlayAudio { command, .. } => Some(command.clone()),
+        self.take_calls(|call| match call {
+            ShellCall::PlayAudio { command, .. } => Some(command.clone()),
             _ => None,
         })
     }
@@ -1345,12 +1395,7 @@ impl<A: BeuiApp> BeuiTest<A> {
     }
 
     pub fn take_web_view_commands(&mut self) -> Vec<(WebViewId, WebViewCommand)> {
-        self.take_where(|message| match message {
-            EditorMessage::WebViewCommand {
-                web_view, command, ..
-            } => Some((*web_view, command.clone())),
-            _ => None,
-        })
+        std::mem::take(&mut self.web_view_commands)
     }
 
     pub fn take_drag_accepted(&mut self) -> Option<bool> {

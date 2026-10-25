@@ -4,8 +4,9 @@ use super::calls::{EditorAnswer, EditorCall, Heard, PluginCall};
 use block_plugin_api::Watch;
 
 use block_plugin_api::{
-    BlockPick, Catalog, ChildStatus, DecodeError, EditorInstanceId, EditorMessage, ErrorCode,
-    Fonts, InputBatch, Message, Opening, Preferences, ProtocolError, decode_frame,
+    AudioStatus, BlockPick, Catalog, ChildStatus, DecodeError, EditorInstanceId, EditorMessage,
+    ErrorCode, Fonts, InputBatch, Message, Opening, Preferences, ProtocolError, WebViewEvent,
+    WebViewId, decode_frame,
     embed::{
         exports::plugin::{self, Editor},
         host::Call,
@@ -36,6 +37,8 @@ pub(super) struct Wire {
     answering: BTreeMap<OpId, (EditorInstanceId, Answering)>,
     picks: HashMap<(EditorInstanceId, u64), OpId>,
     painting: HashMap<OpId, Ticket<Vec<u8>>>,
+    audio: HashMap<EditorInstanceId, Watch<AudioStatus>>,
+    web_views: HashMap<OpId, (EditorInstanceId, WebViewId, Watch<Vec<WebViewEvent>>)>,
     preferences: Watch<Preferences>,
     utc_offset: Watch<i32>,
     fonts: Watch<Fonts>,
@@ -94,6 +97,8 @@ impl Default for Wire {
             answering: BTreeMap::new(),
             picks: HashMap::new(),
             painting: HashMap::new(),
+            audio: HashMap::new(),
+            web_views: HashMap::new(),
             preferences: Watch::default(),
             utc_offset: Watch::default(),
             fonts: Watch::default(),
@@ -148,6 +153,7 @@ impl Wire {
                     editor.resource_drop(connection);
                 }
                 self.child_statuses.remove(&instance);
+                self.audio.remove(&instance);
             }
             Message::Editor(message) => match Opening::of(message) {
                 Ok(opening) => {
@@ -188,6 +194,25 @@ impl Wire {
         };
         let connection = &mut self.connection;
         match call {
+            EditorCall::AudioStatus(status) => {
+                self.audio
+                    .entry(instance)
+                    .or_default()
+                    .change(connection, |_| status);
+            }
+            EditorCall::WebViewEvent { web_view, event } => {
+                if let Some((_, _, watch)) = self
+                    .web_views
+                    .values_mut()
+                    .find(|(shown, id, _)| (*shown, *id) == (instance, web_view))
+                {
+                    watch.change(connection, |held| {
+                        let mut events = held.unwrap_or_default();
+                        events.push(event);
+                        events
+                    });
+                }
+            }
             EditorCall::ChildStatuses(statuses) => {
                 self.child_statuses
                     .entry(instance)
@@ -300,9 +325,42 @@ impl Wire {
         }
     }
 
-    fn watch_call(&mut self, call: ShellCall) {
+    fn watch_call(&mut self, call: ShellCall, heard: &mut Vec<Heard>) {
         let connection = &mut self.connection;
         match call {
+            ShellCall::AudioStatusWatchNew { resource, instance } => self
+                .audio
+                .entry(instance)
+                .or_default()
+                .opened(resource.op()),
+            ShellCall::AudioStatusWatchNext { this, reply } => {
+                match self.audio.values_mut().find(|watch| watch.is(this.op())) {
+                    Some(watch) => watch.next(connection, reply),
+                    None => reply.fail(connection, OpError::Canceled),
+                }
+            }
+            ShellCall::WebViewNew {
+                resource,
+                instance,
+                id,
+                url,
+            } => {
+                let mut watch = Watch::default();
+                watch.opened(resource.op());
+                self.web_views.insert(resource.op(), (instance, id, watch));
+                heard.push(Heard::Shell(ShellCall::WebViewNew {
+                    resource,
+                    instance,
+                    id,
+                    url,
+                }));
+            }
+            ShellCall::WebViewNextEvents { this, reply } => {
+                match self.web_views.get_mut(&this.op()) {
+                    Some((_, _, watch)) => watch.next(connection, reply),
+                    None => reply.fail(connection, OpError::Canceled),
+                }
+            }
             ShellCall::ChildStatusesWatchNew { resource, instance } => self
                 .child_statuses
                 .entry(instance)
@@ -349,7 +407,7 @@ impl Wire {
             }
             Incoming::Started(started) if ShellCall::accepts(&started) => {
                 if let Some(call) = ShellCall::accept(connection, started) {
-                    self.watch_call(call);
+                    self.watch_call(call, heard);
                 }
                 return Ok(());
             }
@@ -419,7 +477,16 @@ impl Wire {
                     connection.complete(op, Outcome::Err(OpError::Canceled));
                     self.services.withdrawn.push(op);
                 }
+                let watched = self.child_statuses.values().any(|watch| watch.is(op))
+                    || self.audio.values().any(|watch| watch.is(op))
+                    || self.web_views.contains_key(&op)
+                    || self.block_types.is(op);
                 self.child_statuses.retain(|_, watch| !watch.is(op));
+                self.audio.retain(|_, watch| !watch.is(op));
+                self.web_views.remove(&op);
+                if watched {
+                    connection.complete(op, Outcome::Err(OpError::Canceled));
+                }
                 self.block_types.closed(op);
                 self.preferences.closed(op);
                 self.utc_offset.closed(op);

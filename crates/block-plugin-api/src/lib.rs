@@ -18,6 +18,7 @@ be_ops_bindgen::generate!({
         "commit-id": [u8; 32],
         "metadata-entries": crate::MetadataEntries,
         "child-id": crate::ChildId,
+        "web-view-id": crate::WebViewId,
         "interaction-mode": crate::InteractionMode,
         "pan-mode": crate::PanMode,
         "editor-capabilities": crate::EditorCapabilities,
@@ -30,7 +31,7 @@ be_ops_bindgen::generate!({
         "edits": crate::Edits,
     },
     copy: [
-        "uuid", "editor-instance-id", "screen-id", "commit-id", "child-id", "interaction-mode",
+        "uuid", "editor-instance-id", "screen-id", "commit-id", "child-id", "web-view-id", "interaction-mode",
         "pan-mode", "editor-capabilities", "resize-mode", "child-operations", "press",
         "template-category", "edits",
     ],
@@ -38,7 +39,7 @@ be_ops_bindgen::generate!({
         "frame-chrome", "top-bar", "frame-spec", "size", "fonts", "screen-layout",
         "block-metadata", "artifact-state", "version-status",
         "menu-command", "menu-check", "menu-pin", "menu-heading", "block-filter", "child-preview",
-        "catalog",
+        "catalog", "audio-status",
     ],
     inline: [
         "rename-command", "artifact-command", "simulate-access-command", "unlink-command",
@@ -60,10 +61,10 @@ pub use host_services::{
     AccessGrant, BlockFilter, ImportedBlock, PickedBlock, Revision, ShellDialog,
 };
 pub use shell_types::{
-    ArtifactDescription, BarAction, BlockPick, Catalog, ChildPreview, CreationProgress,
-    DroppedFile, EditorDescriptor, FitArea, MenuCheck, MenuCommand, MenuHeading, MenuItem,
-    MenuItemKind, MenuPin, PerformanceMeasurement, PreviewImage, SettingsProgress, Stopped,
-    TemplateDescriptor, ViewChange,
+    ArtifactDescription, AudioCommand, AudioSource, AudioStatus, BarAction, BlockPick, Catalog,
+    ChildPreview, CreationProgress, DroppedFile, EditorDescriptor, FitArea, MenuCheck, MenuCommand,
+    MenuHeading, MenuItem, MenuItemKind, MenuPin, PerformanceMeasurement, PreviewImage,
+    SettingsProgress, Stopped, TemplateDescriptor, ViewChange, WebViewEvent,
 };
 pub use types::{
     EditorRegion, FontFace, FontRole, Fonts, FrameChrome, FrameCommit, FrameReport, FrameSpec,
@@ -875,24 +876,6 @@ pub enum EditorMessage {
         command: BlockCommand,
     },
 
-    PlayAudio {
-        instance: EditorInstanceId,
-        command: AudioCommand,
-    },
-    AudioStatus {
-        instance: EditorInstanceId,
-        status: AudioStatus,
-    },
-    WebViewCommand {
-        instance: EditorInstanceId,
-        web_view: WebViewId,
-        command: WebViewCommand,
-    },
-    WebViewEvent {
-        instance: EditorInstanceId,
-        web_view: WebViewId,
-        event: WebViewEvent,
-    },
     OpenCreation {
         instance: EditorInstanceId,
         editor: [u8; 16],
@@ -1004,10 +987,6 @@ impl EditorMessage {
             | Self::HostValue { instance, .. }
             | Self::HostAction { instance, .. }
             | Self::BlockCommand { instance, .. }
-            | Self::PlayAudio { instance, .. }
-            | Self::AudioStatus { instance, .. }
-            | Self::WebViewCommand { instance, .. }
-            | Self::WebViewEvent { instance, .. }
             | Self::OpenCreation { instance, .. }
             | Self::OpenArtifact { instance, .. }
             | Self::WatchArtifacts { instance, .. }
@@ -1081,41 +1060,6 @@ pub enum WebViewCommand {
     Reload,
     FocusApp,
     Close,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub enum WebViewEvent {
-    Navigate(String),
-    Finished(String),
-    Push(String),
-    Replace(String),
-    Title(String),
-    History(i32),
-    NewWindow(String),
-    Address(String),
-    Failed(String),
-}
-
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub enum AudioCommand {
-    Load(AudioSource),
-    Toggle,
-    Reset,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub struct AudioSource {
-    pub media_type: String,
-    #[serde(with = "serde_bytes")]
-    pub bytes: Vec<u8>,
-}
-
-#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
-pub struct AudioStatus {
-    pub playing: bool,
-    pub position_micros: u64,
-    pub duration_micros: Option<u64>,
-    pub error: Option<String>,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -1195,8 +1139,6 @@ impl EditorMessage {
             | Self::Close { .. }
             | Self::ShowBlock { .. }
             | Self::ShowPanel { .. }
-            | Self::AudioStatus { .. }
-            | Self::WebViewEvent { .. }
             | Self::ArtifactStates { .. }
             | Self::HistoryStates { .. }
             | Self::Head { .. }
@@ -1206,8 +1148,6 @@ impl EditorMessage {
             | Self::VersionStatus { .. } => Direction::ToPlugin,
             Self::OpenBlock { .. }
             | Self::BlockCommand { .. }
-            | Self::PlayAudio { .. }
-            | Self::WebViewCommand { .. }
             | Self::WatchArtifacts { .. }
             | Self::WatchHistory { .. }
             | Self::WatchHeads { .. }
@@ -1442,10 +1382,6 @@ fn validate_editor(message: &EditorMessage) -> Result<(), DecodeError> {
     match message {
         EditorMessage::OpenCreation { template, .. } => string(template),
         EditorMessage::OpenArtifact { data, .. } => descriptor(data),
-        EditorMessage::AudioStatus { status, .. } => match &status.error {
-            Some(message) => string(message),
-            None => Ok(()),
-        },
         EditorMessage::WatchArtifacts { blocks, .. }
         | EditorMessage::WatchHistory { blocks, .. } => collection(blocks.len()),
         EditorMessage::HistoryStates { states, .. } => collection(states.len()),
@@ -1455,13 +1391,6 @@ fn validate_editor(message: &EditorMessage) -> Result<(), DecodeError> {
             Ok(None) => Ok(()),
             Err(error) => string(error),
         },
-        EditorMessage::PlayAudio {
-            command: AudioCommand::Load(source),
-            ..
-        } => {
-            string(&source.media_type)?;
-            blob(&source.bytes)
-        }
         EditorMessage::Replica { frame, .. } => blob(frame),
         EditorMessage::WatchContent { blocks, .. } => collection(blocks.len()),
         EditorMessage::WatchBlocks { queries, .. } => collection(queries.len()),
@@ -1549,21 +1478,6 @@ fn validate_editor(message: &EditorMessage) -> Result<(), DecodeError> {
             string(key)?;
             blob(bytes)
         }
-        EditorMessage::WebViewCommand { command, .. } => match command {
-            WebViewCommand::Open(url) | WebViewCommand::Load(url) => string(url),
-            WebViewCommand::Reload | WebViewCommand::FocusApp | WebViewCommand::Close => Ok(()),
-        },
-        EditorMessage::WebViewEvent { event, .. } => match event {
-            WebViewEvent::Navigate(value)
-            | WebViewEvent::Finished(value)
-            | WebViewEvent::Push(value)
-            | WebViewEvent::Replace(value)
-            | WebViewEvent::Title(value)
-            | WebViewEvent::NewWindow(value)
-            | WebViewEvent::Address(value)
-            | WebViewEvent::Failed(value) => string(value),
-            WebViewEvent::History(_) => Ok(()),
-        },
         _ => Ok(()),
     }
 }

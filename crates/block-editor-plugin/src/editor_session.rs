@@ -1,13 +1,13 @@
 use be_block::presence::{PresenceKind, UserActive, pick_free_color};
+use block_plugin_api::WebViewCommand;
 use block_plugin_api::accesskit::{ActionRequest, NodeId, TreeUpdate};
 use block_plugin_api::guest::shell;
-use block_plugin_api::ops::guest::Sender;
+use block_plugin_api::ops::guest::{Sender, spawn};
 use block_plugin_api::{
     ArtifactDescription, BarAction, ChildId, ChildPlacement, ChildPlacements, ChildStatus,
     EditorInstanceId, EditorMessage, EditorRegion, FrameChrome, FrameCommit, FrameReport,
     HostPanel, MAX_CHILDREN, MAX_COLLECTION_ITEMS, MenuEntry, Message, Occluder, RegionSize,
-    ScreenPlacement, ScreenRequest, ScreenWindow, Size, TimedInput, ViewportMetrics, WebViewEvent,
-    WebViewId,
+    ScreenPlacement, ScreenRequest, ScreenWindow, Size, TimedInput, ViewportMetrics, WebViewId,
 };
 use block_ui::BlockCatalog;
 use geometry::{Rect, Vec2, pos2, vec2};
@@ -41,6 +41,8 @@ pub struct EditorSession {
     artifact: Option<ArtifactState>,
     sent_menu: Vec<MenuEntry>,
     picks: HashMap<u64, Sender<block_plugin_api::BlockPick>>,
+    audio_watched: bool,
+    web_views: HashMap<WebViewId, Rc<shell::WebView>>,
 }
 
 struct ArtifactState {
@@ -119,6 +121,8 @@ impl EditorSession {
             artifact: None,
             sent_menu: Vec::new(),
             picks: HashMap::new(),
+            audio_watched: false,
+            web_views: HashMap::new(),
         }
     }
 
@@ -136,10 +140,6 @@ impl EditorSession {
 
     pub fn instance_mut(&mut self) -> &mut dyn Instance {
         self.app.as_mut()
-    }
-
-    pub(crate) fn set_audio(&self, status: block_plugin_api::AudioStatus) {
-        self.host.set_audio(status);
     }
 
     pub(crate) fn set_view_block(&self, view_block: Option<Uuid>) {
@@ -576,17 +576,11 @@ impl EditorSession {
             shell::commit_child(instance, commit.child, commit.parent.encode(), commit.name);
         }
         for command in self.host.take_audio_commands() {
-            messages.push(Message::Editor(EditorMessage::PlayAudio {
-                instance,
-                command,
-            }));
+            self.watch_audio();
+            shell::play_audio(instance, command);
         }
         for (web_view, command) in self.host.take_web_view_commands() {
-            messages.push(Message::Editor(EditorMessage::WebViewCommand {
-                instance,
-                web_view,
-                command,
-            }));
+            self.command_web_view(web_view, command);
         }
         for presenting in self.host.take_present_requests() {
             shell::present(instance, presenting);
@@ -674,6 +668,64 @@ impl EditorSession {
         windows
     }
 
+    fn watch_audio(&mut self) {
+        if std::mem::replace(&mut self.audio_watched, true) {
+            return;
+        }
+        let instance = self.instance;
+        let watch = crate::asked::asking(Some(instance), || shell::AudioStatusWatch::new(instance));
+        let host = self.host.clone();
+        spawn(async move {
+            while let Ok(status) = watch.next().await {
+                host.set_audio(status);
+            }
+        });
+    }
+
+    fn command_web_view(&mut self, web_view: WebViewId, command: WebViewCommand) {
+        match command {
+            WebViewCommand::Open(url) => {
+                let instance = self.instance;
+                let shown = Rc::new(crate::asked::asking(Some(instance), || {
+                    shell::WebView::new(instance, web_view, url)
+                }));
+                let watched = Rc::downgrade(&shown);
+                let host = self.host.clone();
+                spawn(async move {
+                    while let Some(shown) = watched.upgrade() {
+                        let next = shown.next_events();
+                        drop(shown);
+                        let Ok(events) = next.await else {
+                            break;
+                        };
+                        for event in events {
+                            host.push_web_view_event(web_view, event);
+                        }
+                    }
+                });
+                self.web_views.insert(web_view, shown);
+            }
+            WebViewCommand::Load(url) => {
+                if let Some(shown) = self.web_views.get(&web_view) {
+                    shown.load(url);
+                }
+            }
+            WebViewCommand::Reload => {
+                if let Some(shown) = self.web_views.get(&web_view) {
+                    shown.reload();
+                }
+            }
+            WebViewCommand::FocusApp => {
+                if let Some(shown) = self.web_views.get(&web_view) {
+                    shown.focus_app();
+                }
+            }
+            WebViewCommand::Close => {
+                self.web_views.remove(&web_view);
+            }
+        }
+    }
+
     fn report_stopped(&mut self) {
         for (region, state) in &mut self.regions {
             if let Some(stopped) = &state.stopped
@@ -731,10 +783,6 @@ impl EditorSession {
         };
         let used = (content.max - origin).max(Vec2::ZERO);
         state.used = Some(vec2(used.x.round(), used.y.round()));
-    }
-
-    pub(crate) fn web_view_event(&self, web_view: WebViewId, event: WebViewEvent) {
-        self.host.push_web_view_event(web_view, event);
     }
 
     pub(crate) fn child_bar_action(&self, child: ChildId, action: BarAction) {

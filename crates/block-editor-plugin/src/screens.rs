@@ -285,11 +285,6 @@ impl Screens {
                     data.clone(),
                 );
             }
-            Message::Editor(EditorMessage::AudioStatus { instance, status }) => {
-                if let Some(session) = self.sessions.get(instance) {
-                    session.set_audio(status.clone());
-                }
-            }
             Message::Editor(EditorMessage::Replica {
                 instance,
                 block_id,
@@ -414,15 +409,6 @@ impl Screens {
                 };
                 for event in &batch.events {
                     session.input(region, event);
-                }
-            }
-            Message::Editor(EditorMessage::WebViewEvent {
-                instance,
-                web_view,
-                event,
-            }) => {
-                if let Some(session) = self.sessions.get(instance) {
-                    session.web_view_event(*web_view, event.clone());
                 }
             }
             _ => return false,

@@ -1,6 +1,7 @@
 use block_plugin_api::{
-    ArtifactDescription, BarAction, BlockIdRole, BlockLocation, BlockPick, Catalog, ChildId,
-    ChildStatus, EditorInstanceId, EditorMessage, EditorRegion, Message, Rect, ScreenId, Size,
+    ArtifactDescription, AudioStatus, BarAction, BlockIdRole, BlockLocation, BlockPick, Catalog,
+    ChildId, ChildStatus, EditorInstanceId, EditorMessage, EditorRegion, Message, Rect, ScreenId,
+    Size, WebViewEvent, WebViewId,
     embed::shell::Call as ShellCall,
     shell_types::{DragOver, FileDrop, Focus, PickRequest},
 };
@@ -54,6 +55,11 @@ pub(super) enum EditorCall {
     FileDropLeft,
     ChildStatuses(Vec<ChildStatus>),
     Pick(PickRequest),
+    AudioStatus(AudioStatus),
+    WebViewEvent {
+        web_view: WebViewId,
+        event: WebViewEvent,
+    },
     WithdrawPick(u64),
     ArtifactSettings(Vec<u8>),
     CommitCreation,
@@ -153,10 +159,18 @@ pub(super) fn instance_of(call: &ShellCall) -> Option<EditorInstanceId> {
         | ShellCall::CommitChild { instance, .. }
         | ShellCall::ArtifactDescribed { instance, .. }
         | ShellCall::ArtifactEdited { instance, .. }
-        | ShellCall::ChildStatusesWatchNew { instance, .. } => Some(*instance),
+        | ShellCall::ChildStatusesWatchNew { instance, .. }
+        | ShellCall::PlayAudio { instance, .. }
+        | ShellCall::AudioStatusWatchNew { instance, .. }
+        | ShellCall::WebViewNew { instance, .. } => Some(*instance),
         ShellCall::ChildStatusesWatchNext { .. }
         | ShellCall::BlockTypesWatchNew { .. }
-        | ShellCall::BlockTypesWatchNext { .. } => None,
+        | ShellCall::BlockTypesWatchNext { .. }
+        | ShellCall::AudioStatusWatchNext { .. }
+        | ShellCall::WebViewLoad { .. }
+        | ShellCall::WebViewReload { .. }
+        | ShellCall::WebViewFocusApp { .. }
+        | ShellCall::WebViewNextEvents { .. } => None,
     }
 }
 

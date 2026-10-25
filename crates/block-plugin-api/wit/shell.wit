@@ -293,6 +293,41 @@ interface shell-types {
         failed(string),
     }
 
+    record audio-source {
+        media-type: string,
+        bytes: list<u8>,
+    }
+
+    variant audio-command {
+        load(audio-source),
+        toggle,
+        reset,
+    }
+
+    record audio-status {
+        playing: bool,
+        position-micros: u64,
+        duration-micros: option<u64>,
+        error: option<string>,
+    }
+
+    /// A web view an editor shows, numbered by the editor.
+    record web-view-id {
+        value: u32,
+    }
+
+    variant web-view-event {
+        navigate(string),
+        finished(string),
+        push(string),
+        replace(string),
+        title(string),
+        history(s32),
+        new-window(string),
+        address(string),
+        failed(string),
+    }
+
     /// The block an editor's focus is in, and the blocks it is shown through.
     record focus {
         block-id: option<uuid>,
@@ -306,9 +341,27 @@ interface shell {
     use types.{editor-instance-id, editor-region, size, uuid};
     use blocks.{block-location};
     use shell-types.{
-        artifact-description, bar-action, catalog, child-id, child-status, focus, menu-item,
-        performance-measurement, stopped, view-change,
+        artifact-description, audio-command, audio-status, bar-action, catalog, child-id,
+        child-status, focus, menu-item, performance-measurement, stopped, view-change,
+        web-view-event, web-view-id,
     };
+
+    /// The status of the audio the editor plays, watched like preferences once
+    /// it plays any.
+    resource audio-status-watch {
+        constructor(instance: editor-instance-id);
+        next: async func() -> audio-status;
+    }
+
+    /// A web view the editor shows at a child it places; dropping it closes it.
+    resource web-view {
+        constructor(instance: editor-instance-id, id: web-view-id, url: string);
+        load: func(url: string);
+        reload: func();
+        focus-app: func();
+        /// The events since the last answer, in order.
+        next-events: async func() -> list<web-view-event>;
+    }
 
     /// The statuses of the children an editor placed. `next` answers with every
     /// status that changed since the last answer, the latest of each child.
@@ -371,6 +424,9 @@ interface shell {
 
     /// The editor asks the host to move its view.
     change-view: func(instance: editor-instance-id, change: view-change);
+
+    /// Loads, plays or pauses, or stops the editor's audio.
+    play-audio: func(instance: editor-instance-id, command: audio-command);
 
     /// Where the editor's focus is now.
     focused: func(instance: editor-instance-id, focus: focus);

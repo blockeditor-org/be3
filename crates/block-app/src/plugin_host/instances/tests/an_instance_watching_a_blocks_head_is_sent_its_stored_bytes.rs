@@ -20,7 +20,7 @@ fn saved_head(block: Uuid, after: Option<be_commit::CommitId>) -> be_commit::Com
 fn heads(instances: &mut Instances) -> Vec<Result<Option<StoredHead>, String>> {
     let mut messages = next_screens(instances).messages();
     crate::be::flush();
-    messages.extend(instances.pending());
+    messages.extend(Outbound::messages(&instances.pending()));
     messages
         .into_iter()
         .filter_map(|message| match message {

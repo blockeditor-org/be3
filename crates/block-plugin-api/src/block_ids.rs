@@ -189,14 +189,10 @@ impl EditorMessage {
                 }
             }
             Self::Close { .. }
-            | Self::AudioStatus { .. }
-            | Self::PlayAudio { .. }
-            | Self::WebViewCommand { .. }
             | Self::ShowPanel { .. }
             | Self::WatchHostValue { .. }
             | Self::HostValue { .. }
             | Self::HostAction { .. }
-            | Self::WebViewEvent { .. }
             | Self::OpenCreation { .. } => {}
         }
     }

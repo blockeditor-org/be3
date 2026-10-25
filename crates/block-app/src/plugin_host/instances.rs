@@ -5,8 +5,7 @@ use block_plugin_api::{
     ChildPlacement, ChildPlacements, ChildStatus, EditorInstanceId, EditorMessage, EditorRegion,
     FrameReport, FrameSpec, HostPanel, MenuEntry, Message, Monitor, Occluder,
     PerformanceMeasurement, RegionSize, ScreenId, ScreenLayout, ScreenRequest, ScreenSet,
-    ScreenWindow, Size, Stopped, ViewChange, WatchedContent, WebViewCommand, WebViewEvent,
-    WebViewId,
+    ScreenWindow, Size, Stopped, ViewChange, WatchedContent, WebViewEvent, WebViewId,
 };
 use block_plugin_api::{
     DescribedAction, WindowRequests, embed::shell::Call as ShellCall, ops::OpId,
@@ -2393,15 +2392,19 @@ impl Instances {
             .is_some_and(|screen| std::mem::take(&mut screen.focus_requested))
     }
 
-    pub(super) fn drive_web_views(&mut self) -> Vec<Message> {
+    pub(super) fn drive_web_views(&mut self) -> Vec<Outbound> {
         let mut messages = Vec::new();
         for (instance, entry) in &mut self.entries {
             for web_view in entry.unshown_web_views.drain(..) {
-                messages.push(Message::Editor(EditorMessage::WebViewEvent {
-                    instance: *instance,
-                    web_view,
-                    event: WebViewEvent::Failed("This app can't show web pages yet.".to_owned()),
-                }));
+                messages.push(Outbound::Editor(
+                    *instance,
+                    EditorCall::WebViewEvent {
+                        web_view,
+                        event: WebViewEvent::Failed(
+                            "This app can't show web pages yet.".to_owned(),
+                        ),
+                    },
+                ));
             }
         }
         messages
@@ -2560,8 +2563,8 @@ impl Instances {
         }
     }
 
-    pub(super) fn pending(&mut self) -> Vec<Message> {
-        let mut messages = Vec::new();
+    pub(super) fn pending(&mut self) -> Vec<Outbound> {
+        let mut arrived = Vec::new();
         let entries = &self.entries;
         self.head_reads.arrived(
             self.epoch,
@@ -2570,8 +2573,9 @@ impl Instances {
                     .get(&instance)
                     .is_some_and(|entry| entry.heads.wants(block, commit))
             },
-            &mut messages,
+            &mut arrived,
         );
+        let mut messages: Vec<Outbound> = arrived.into_iter().map(Outbound::from).collect();
         let mut played: Vec<_> = self.audio_changes.receiver.try_iter().collect();
         played.sort_by_key(|instance| instance.0);
         played.dedup();
@@ -2581,10 +2585,10 @@ impl Instances {
                 .get(&instance)
                 .and_then(|entry| entry.audio.as_ref())
             {
-                messages.push(Message::Editor(EditorMessage::AudioStatus {
+                messages.push(Outbound::Editor(
                     instance,
-                    status: player.status(),
-                }));
+                    EditorCall::AudioStatus(player.status()),
+                ));
             }
         }
         messages
@@ -2603,6 +2607,7 @@ impl Instances {
             && !matches!(
                 &call,
                 ShellCall::Menu { .. }
+                    | ShellCall::WebViewNew { .. }
                     | ShellCall::Focused { .. }
                     | ShellCall::ChangeView { .. }
                     | ShellCall::RegionStopped { .. }
@@ -2724,7 +2729,27 @@ impl Instances {
                 entry.artifact.draft = Some(data);
                 return changed;
             }
+            ShellCall::PlayAudio { command, .. } => {
+                let changes = self.audio_changes.sender.clone();
+                let player = entry.audio.get_or_insert_with(|| {
+                    AudioPlayer::new(move || {
+                        let _ = changes.send(instance);
+                    })
+                });
+                match command {
+                    AudioCommand::Load(source) => player.load(source),
+                    AudioCommand::Toggle => player.toggle(),
+                    AudioCommand::Reset => player.reset(),
+                }
+            }
+            ShellCall::WebViewNew { id, .. } => entry.unshown_web_views.push(id),
             ShellCall::Present { .. }
+            | ShellCall::AudioStatusWatchNew { .. }
+            | ShellCall::AudioStatusWatchNext { .. }
+            | ShellCall::WebViewLoad { .. }
+            | ShellCall::WebViewReload { .. }
+            | ShellCall::WebViewFocusApp { .. }
+            | ShellCall::WebViewNextEvents { .. }
             | ShellCall::ChildStatusesWatchNew { .. }
             | ShellCall::ChildStatusesWatchNext { .. }
             | ShellCall::BlockTypesWatchNew { .. }
@@ -2779,7 +2804,6 @@ impl Instances {
                     | EditorMessage::WatchHeads { .. }
                     | EditorMessage::WatchArtifacts { .. }
                     | EditorMessage::WatchHostValue { .. }
-                    | EditorMessage::WebViewCommand { .. }
             )
         {
             return false;
@@ -2979,36 +3003,6 @@ impl Instances {
                     crate::be::seed(block, content_type, bytes);
                 }
                 false
-            }
-            EditorMessage::PlayAudio { instance, command } => {
-                let Some(entry) = self.entries.get_mut(&instance) else {
-                    return false;
-                };
-                let changes = self.audio_changes.sender.clone();
-                let player = entry.audio.get_or_insert_with(|| {
-                    AudioPlayer::new(move || {
-                        let _ = changes.send(instance);
-                    })
-                });
-                match command {
-                    AudioCommand::Load(source) => player.load(source),
-                    AudioCommand::Toggle => player.toggle(),
-                    AudioCommand::Reset => player.reset(),
-                }
-                true
-            }
-            EditorMessage::WebViewCommand {
-                instance,
-                web_view,
-                command,
-            } => {
-                let Some(entry) = self.entries.get_mut(&instance) else {
-                    return false;
-                };
-                if let WebViewCommand::Open(_) = command {
-                    entry.unshown_web_views.push(web_view);
-                }
-                true
             }
             _ => false,
         }
