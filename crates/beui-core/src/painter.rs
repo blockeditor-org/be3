@@ -222,9 +222,7 @@ pub struct PainterState {
 
 impl PainterState {
     pub fn settles(self, other: Self) -> bool {
-        self.clip == other.clip
-            && self.space == other.space
-            && self.rotation == other.rotation
+        self.clip == other.clip && self.space == other.space && self.rotation == other.rotation
     }
 
     pub fn sees(self, other: Self) -> bool {
