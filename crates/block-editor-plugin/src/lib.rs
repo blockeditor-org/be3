@@ -59,8 +59,8 @@ pub use content::{ContentProjection, Objects, OwnedContentProjection, Projected}
 pub use geometry::{Pos2, Rect, Vec2, pos2, vec2};
 pub use graph::{BlockInfo, BlockList, BlockParent, BlockQuery, Blocks, GraphCommand};
 pub use host::{
-    Artifact, ArtifactState, BlockDrag, BlockHistory, BlockPicker, EditorHost,
-    FileDrop, FileFilter, FileSaver, FocusedBlock, HeadRead, HostContent, OpenRequest, PeerMessage,
+    Artifact, ArtifactState, BlockDrag, BlockHistory, BlockPicker, EditorHost, FileDrop,
+    FileFilter, FileSaver, FocusedBlock, HeadRead, HostContent, OpenRequest, PeerMessage,
     PeerPresence, PerformanceMeasurementGuard, PerformanceReporter, PickRequest, PickedBlock,
     PickedFile, Pushed, SavedFile, SeededContent, SentToPeers, ShowRequest, ShownPresence,
     StoredHead, Waker,

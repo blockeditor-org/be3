@@ -6,9 +6,7 @@ use std::marker::PhantomData;
 use std::rc::Rc;
 
 use beui_adapter_plugin::PluginSurface;
-use block_editor_plugin::{
-    Artifact, EditorHost, EditorRegion, Frame, Instance, Region,
-};
+use block_editor_plugin::{Artifact, EditorHost, EditorRegion, Frame, Instance, Region};
 #[cfg(target_arch = "wasm32")]
 use block_editor_plugin::{PaintTarget, SurfaceRect};
 use block_plugin_api::TimedInput;

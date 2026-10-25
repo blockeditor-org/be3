@@ -8,9 +8,7 @@ use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
 use block_editor_beui::beui::unstyled::Picture;
 use block_editor_beui::beui::{ImageFit, NodeId, Vec2};
-use block_editor_beui::{
-    Artifacts, BlockParent, Creation, Editor, Side, Sidebar,
-};
+use block_editor_beui::{Artifacts, BlockParent, Creation, Editor, Side, Sidebar};
 use pixel_art_types::PixelColor;
 use pixel_art_types::{PixelArtContent, PixelArtDocument};
 use pixel_art_types::{default_palette, size_of};

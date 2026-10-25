@@ -1,7 +1,7 @@
 use super::*;
 
-use be_block::{ARTIFACT, Artifact, BlockMetadata};
 use crate::transfer::{self, Saved, renumber};
+use be_block::{ARTIFACT, Artifact, BlockMetadata};
 
 #[tokio::test]
 async fn an_exported_artifact_imports_pointing_to_its_imported_source() {
@@ -38,7 +38,10 @@ async fn an_exported_artifact_imports_pointing_to_its_imported_source() {
     let (new_source, new_artifact) = (blocks[1].id, blocks[2].id);
     assert_ne!(new_source, source);
     let pointed = blocks[2].metadata.get(&ARTIFACT).unwrap();
-    assert_eq!(*pointed.source, new_source, "renumbering kept the old source");
+    assert_eq!(
+        *pointed.source, new_source,
+        "renumbering kept the old source"
+    );
     assert_eq!(pointed.settings, b"{}");
 
     let placed: Vec<_> = blocks

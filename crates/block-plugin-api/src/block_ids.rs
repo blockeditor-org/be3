@@ -1,7 +1,7 @@
 use crate::{
-    BlockCommand, BlockImport, BlockLocation, BlockPick, BlockQuery,
-    ChildContent, ChildPlacements, CreationOutcome, EditorInstanceId, EditorMessage, HostReply,
-    HostRequest, Message, ShellDialog, VersionCommand,
+    BlockCommand, BlockImport, BlockLocation, BlockPick, BlockQuery, ChildContent, ChildPlacements,
+    CreationOutcome, EditorInstanceId, EditorMessage, HostReply, HostRequest, Message, ShellDialog,
+    VersionCommand,
 };
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
