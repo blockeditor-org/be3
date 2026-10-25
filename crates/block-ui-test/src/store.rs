@@ -14,7 +14,7 @@ use block_type_guest::api::{
         host::Call,
     },
     ops::{
-        Connection, DeserializeOwned, Incoming, OpError, OpId, Outcome, Producer, Side, Ticket,
+        Connection, DeserializeOwned, Incoming, OpError, OpId, Outcome, Latest, Side, Ticket,
         guest::Executor,
     },
 };
@@ -70,7 +70,7 @@ struct Inner {
     module: Module,
     executor: Executor,
     host: Connection,
-    clock: Option<Producer<u64>>,
+    clock: Option<Latest<u64>>,
     now: u64,
     replicas: BTreeMap<OpId, Uuid>,
     commits: BTreeMap<CommitId, Vec<u8>>,
@@ -202,6 +202,11 @@ impl Inner {
                     self.act(block, call);
                 }
             }
+            Incoming::Credited { op } => {
+                if let Some(clock) = &mut self.clock {
+                    clock.credited(&mut self.host, op);
+                }
+            }
             Incoming::Yielded { .. } => {}
         }
     }
@@ -209,8 +214,9 @@ impl Inner {
     fn act(&mut self, block: Option<Uuid>, call: Call) {
         match call {
             Call::Clock { stream } => {
-                stream.send(&mut self.host, &self.now);
-                self.clock = Some(stream);
+                let mut clock = Latest::new(stream);
+                clock.send(&mut self.host, self.now);
+                self.clock = Some(clock);
             }
             Call::Send {
                 to: Recipients::One(Endpoint::Editor(editor)),
@@ -539,7 +545,6 @@ impl Inner {
 
 #[derive(Default)]
 pub(crate) struct Outgoing {
-    pub(crate) frames: Vec<(Uuid, Vec<u8>)>,
     pub(crate) heads: Vec<(Uuid, Result<Option<StoredHead>, String>)>,
     pub(crate) listings: Vec<(BlockQuery, Vec<block_plugin_api::BlockInfo>)>,
 }
@@ -618,8 +623,8 @@ impl ContentStore {
         let mut inner = self.0.borrow_mut();
         if now > inner.now {
             inner.now = now;
-            if let Some(clock) = inner.clock.take() {
-                clock.send(&mut inner.host, &now);
+            if let Some(mut clock) = inner.clock.take() {
+                clock.send(&mut inner.host, now);
                 inner.clock = Some(clock);
             }
             inner.run();
@@ -906,20 +911,28 @@ impl ContentStore {
         Some((content_type, bytes))
     }
 
-    pub(crate) fn outgoing(&self, instance: EditorInstanceId) -> Outgoing {
+    pub(crate) fn outgoing(
+        &self,
+        instance: EditorInstanceId,
+        mut relay: impl FnMut(Uuid, &Vec<u8>) -> bool,
+    ) -> Outgoing {
         let mut outgoing = Outgoing::default();
         {
             let mut inner = self.0.borrow_mut();
             let outbox = std::mem::take(&mut inner.outbox);
+            let mut blocked = BTreeSet::new();
             for (block, editor, frame) in outbox {
-                if editor != instance.0 {
+                if editor != instance.0 || blocked.contains(&block) {
                     inner.outbox.push((block, editor, frame));
                     continue;
                 }
                 let Some(message) = ToEditor::decode(&frame) else {
                     continue;
                 };
-                outgoing.frames.push((block, message.frame()));
+                if !relay(block, &message.frame()) {
+                    blocked.insert(block);
+                    inner.outbox.push((block, editor, frame));
+                }
             }
             let watched: Vec<Uuid> = inner.watched_heads.iter().copied().collect();
             for block in watched {

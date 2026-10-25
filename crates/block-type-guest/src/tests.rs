@@ -13,7 +13,7 @@ use block_type_api::{
     Change, Description, EditorId, Endpoint, Opening, PublishOutcome, Recipients, SessionTag,
     Status,
     embed::{exports::replicas::Replica, host::Call},
-    ops::{Connection, Incoming, OpId, Outcome, Producer, Reply, Side, guest::Executor},
+    ops::{Connection, Incoming, OpId, Latest, Outcome, Reply, Side, guest::Executor},
 };
 use uuid::Uuid;
 
@@ -292,7 +292,9 @@ impl Lone {
                 Incoming::Started(started) => calls.extend(Call::accept(&mut self.host, started)),
                 Incoming::Called(called) => calls.extend(Call::accept_direct(&called)),
                 Incoming::Completed { op, outcome } => completed.push((op, outcome)),
-                Incoming::Yielded { .. } | Incoming::Canceled { .. } => {}
+                Incoming::Yielded { .. }
+                | Incoming::Canceled { .. }
+                | Incoming::Credited { .. } => {}
             }
         }
         (calls, completed)
@@ -320,7 +322,7 @@ struct Device {
     module: Option<Module>,
     executor: Option<Executor>,
     host: Connection,
-    clock: Option<Producer<u64>>,
+    clock: Option<Latest<u64>>,
     replica: Option<Replica>,
     sleeping: Vec<(u64, Reply<()>)>,
     tag: SessionTag,
@@ -561,10 +563,10 @@ impl<C: LiveEdit + Clone + Default> Sim<C> {
         self.now += milliseconds;
         let now = self.now;
         for device in self.open_devices() {
-            let Some(clock) = self.devices[device].clock.take() else {
+            let Some(mut clock) = self.devices[device].clock.take() else {
                 continue;
             };
-            self.to(device, |host| clock.send(host, &now));
+            self.to(device, |host| clock.send(host, now));
             self.devices[device].clock = Some(clock);
             let held = std::mem::take(&mut self.devices[device].sleeping);
             let (due, waiting): (Vec<_>, Vec<_>) = held.into_iter().partition(|(at, _)| *at <= now);
@@ -673,6 +675,12 @@ impl<C: LiveEdit + Clone + Default> Sim<C> {
                     self.act(device, call);
                 }
             }
+            Incoming::Credited { op } => {
+                if let Some(mut clock) = self.devices[device].clock.take() {
+                    self.to(device, |host| clock.credited(host, op));
+                    self.devices[device].clock = Some(clock);
+                }
+            }
             Incoming::Yielded { .. } => {}
         }
     }
@@ -729,8 +737,9 @@ impl<C: LiveEdit + Clone + Default> Sim<C> {
         match call {
             Call::Clock { stream } => {
                 let now = self.now;
-                self.to(device, |host| stream.send(host, &now));
-                self.devices[device].clock = Some(stream);
+                let mut clock = Latest::new(stream);
+                self.to(device, |host| clock.send(host, now));
+                self.devices[device].clock = Some(clock);
             }
             Call::SleepUntil { reply, at } => {
                 self.devices[device].wake = Some(at);

@@ -1142,8 +1142,65 @@ impl EditorHost {
             .collect()
     }
 
-    pub(crate) fn take_all_content_operations(&self) -> Vec<ContentOperation> {
-        std::mem::take(&mut self.content_operations.borrow_mut())
+    pub(crate) fn take_outgoing(
+        &self,
+        mut send: impl FnMut(Option<Uuid>, FromEditor) -> Option<FromEditor>,
+    ) {
+        let resends = std::mem::take(&mut *self.resend_requests.borrow_mut());
+        let operations = std::mem::take(&mut *self.content_operations.borrow_mut());
+        let shown = std::mem::take(&mut *self.shown.borrow_mut());
+        let sent = std::mem::take(&mut self.peer_messages.borrow_mut().sent);
+        let outgoing = resends
+            .into_iter()
+            .map(|block| (block, FromEditor::Resend))
+            .chain(operations)
+            .chain(shown.into_iter().map(|shown| {
+                let message = FromEditor::ShowPresence {
+                    kind: shown.kind,
+                    value: shown.value,
+                };
+                (shown.block, message)
+            }))
+            .chain(sent.into_iter().map(|sent| {
+                let message = FromEditor::SendToPeers {
+                    to: sent.to,
+                    channel: sent.channel,
+                    payload: sent.payload,
+                };
+                (sent.block, message)
+            }));
+        for (block, message) in outgoing {
+            if let Some(kept) = send(block, message) {
+                self.keep_outgoing(block, kept);
+            }
+        }
+    }
+
+    fn keep_outgoing(&self, block: Option<Uuid>, message: FromEditor) {
+        match message {
+            FromEditor::Resend => {
+                let mut requests = self.resend_requests.borrow_mut();
+                if !requests.contains(&block) {
+                    requests.push(block);
+                }
+            }
+            FromEditor::ShowPresence { kind, value } => {
+                let mut shown = self.shown.borrow_mut();
+                shown.retain(|held| held.block != block || held.kind != kind);
+                shown.push(ShownPresence { block, kind, value });
+            }
+            FromEditor::SendToPeers {
+                to,
+                channel,
+                payload,
+            } => self.peer_messages.borrow_mut().sent.push(SentToPeers {
+                block,
+                to,
+                channel,
+                payload,
+            }),
+            message => self.content_operations.borrow_mut().push((block, message)),
+        }
     }
 
     pub fn request_content_resend(&self, block: Option<Uuid>) {
@@ -1155,6 +1212,7 @@ impl EditorHost {
         self.waker.wake();
     }
 
+    #[cfg(test)]
     pub(crate) fn take_content_resend_requests(&self) -> Vec<Option<Uuid>> {
         std::mem::take(&mut self.resend_requests.borrow_mut())
     }

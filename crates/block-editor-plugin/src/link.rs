@@ -1,4 +1,5 @@
 use std::{
+    cell::Cell,
     collections::{BTreeMap, HashMap},
     rc::{Rc, Weak},
 };
@@ -8,7 +9,7 @@ use block_plugin_api::{
     blocks::{OpenRequest as WireOpen, ShowRequest},
     guest::blocks,
     ops::{
-        DeserializeOwned, OpError,
+        DeserializeOwned, OpError, Window,
         guest::{Pending, spawn},
     },
 };
@@ -23,6 +24,7 @@ use crate::{
 struct Held {
     content_type: Uuid,
     replica: blocks::Replica,
+    window: Rc<Cell<Window>>,
 }
 
 #[derive(Default)]
@@ -308,55 +310,57 @@ impl Link {
             Held {
                 content_type,
                 replica,
+                window: Rc::default(),
             },
         );
     }
 
-    fn send(&mut self, host: &EditorHost, block: Option<Uuid>, message: FromEditor) {
+    fn send(
+        &mut self,
+        host: &EditorHost,
+        block: Option<Uuid>,
+        message: FromEditor,
+    ) -> Option<FromEditor> {
         let target = match (block, self.own) {
             (Some(block), _) => block,
             (None, Some((own, _))) => own,
-            (None, None) => return,
+            (None, None) => return None,
         };
         if let Some((own, block_type)) = self.own
             && own == target
         {
             self.hold(host, own, block_type);
         }
-        let Some(held) = self.replicas.get(&target) else {
-            return;
-        };
-        held.replica.send(message.frame());
+        let held = self.replicas.get(&target)?;
+        if !held.window.get().open() {
+            return Some(message);
+        }
+        let frame = message.frame();
+        let bytes = frame.len();
+        let mut window = held.window.get();
+        window.take(bytes);
+        held.window.set(window);
+        let accepted = held.replica.send(frame);
+        let room = Rc::downgrade(&held.window);
+        let waker = host.waker();
+        spawn(async move {
+            let _ = accepted.await;
+            let Some(room) = room.upgrade() else {
+                return;
+            };
+            let mut window = room.get();
+            let was_open = window.open();
+            window.grant(1, bytes as u64);
+            room.set(window);
+            if !was_open && window.open() {
+                waker.wake();
+            }
+        });
+        None
     }
 
     fn send_frames(&mut self, host: &EditorHost) {
-        for block in host.take_content_resend_requests() {
-            self.send(host, block, FromEditor::Resend);
-        }
-        for (block, message) in host.take_all_content_operations() {
-            self.send(host, block, message);
-        }
-        for shown in host.take_shown_presence() {
-            self.send(
-                host,
-                shown.block,
-                FromEditor::ShowPresence {
-                    kind: shown.kind,
-                    value: shown.value,
-                },
-            );
-        }
-        for sent in host.take_sent_to_peers() {
-            self.send(
-                host,
-                sent.block,
-                FromEditor::SendToPeers {
-                    to: sent.to,
-                    channel: sent.channel,
-                    payload: sent.payload,
-                },
-            );
-        }
+        host.take_outgoing(|block, message| self.send(host, block, message));
     }
 }
 
@@ -372,3 +376,6 @@ fn request_of(open: OpenRequest) -> WireOpen {
         editor: open.editor.map(Uuid::into_bytes),
     }
 }
+
+#[cfg(test)]
+mod tests;

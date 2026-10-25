@@ -22,18 +22,14 @@ struct Held {
     owners: HashMap<OpId, EditorInstanceId>,
     watches: BTreeMap<OpId, Watch<Encoded>>,
     producers: HashMap<OpId, Producer<Vec<u8>>>,
+    sends: HashMap<OpId, OpId>,
 }
 
+#[derive(Debug)]
 pub(super) struct Service {
     pub(super) instance: EditorInstanceId,
     pub(super) op: Option<OpId>,
     pub(super) call: host_services::Call,
-}
-
-#[derive(Default)]
-pub(super) struct Services {
-    pub(super) asked: Vec<Service>,
-    pub(super) withdrawn: Vec<OpId>,
 }
 
 pub(super) struct Wire {
@@ -51,7 +47,6 @@ pub(super) struct Wire {
     utc_offset: Watch<i32>,
     fonts: Watch<Fonts>,
     input: Watch<Vec<InputBatch>>,
-    services: Services,
     serving: HashMap<OpId, EditorInstanceId>,
     child_statuses: HashMap<EditorInstanceId, Watch<Vec<ChildStatus>>>,
     block_types: Watch<Catalog>,
@@ -115,7 +110,6 @@ impl Default for Wire {
             utc_offset: Watch::default(),
             fonts: Watch::default(),
             input: Watch::default(),
-            services: Services::default(),
             serving: HashMap::new(),
             child_statuses: HashMap::new(),
             block_types: Watch::default(),
@@ -213,7 +207,7 @@ impl Wire {
                 {
                     watch.change(connection, |held| {
                         let mut events = held.unwrap_or_default();
-                        events.push(event);
+                        WebViewEvent::queue(&mut events, event);
                         events
                     });
                 }
@@ -296,10 +290,6 @@ impl Wire {
         }
     }
 
-    pub(super) fn take_services(&mut self) -> Services {
-        std::mem::take(&mut self.services)
-    }
-
     pub(super) fn answer(&mut self, op: OpId, outcome: Outcome) {
         if self.serving.remove(&op).is_some() {
             self.connection.complete(op, outcome);
@@ -314,7 +304,7 @@ impl Wire {
             .map(|(instance, _)| *instance)
     }
 
-    fn serve(&mut self, started: Started) {
+    fn serve(&mut self, started: Started, heard: &mut Vec<Heard>) {
         let op = started.op;
         let Some(instance) = self.editor_of(started.parent) else {
             self.connection.complete(op, Outcome::Err(OpError::Denied));
@@ -322,11 +312,11 @@ impl Wire {
         };
         if let Some(call) = host_services::Call::accept(&mut self.connection, started) {
             self.serving.insert(op, instance);
-            self.services.asked.push(Service {
+            heard.push(Heard::Service(Service {
                 instance,
                 op: Some(op),
                 call,
-            });
+            }));
         }
     }
 
@@ -434,9 +424,16 @@ impl Wire {
         }
     }
 
-    pub(super) fn relay(&mut self, replica: OpId, frame: &Vec<u8>) {
-        if let Some(producer) = self.held.producers.get(&replica) {
-            producer.send(&mut self.connection, frame);
+    pub(super) fn relay(&mut self, replica: OpId, frame: &Vec<u8>) -> bool {
+        self.held
+            .producers
+            .get(&replica)
+            .is_none_or(|producer| producer.send(&mut self.connection, frame).is_ok())
+    }
+
+    pub(super) fn accepted(&mut self, send: OpId) {
+        if self.held.sends.remove(&send).is_some() {
+            self.connection.complete(send, Outcome::returned(&()));
         }
     }
 
@@ -491,6 +488,14 @@ impl Wire {
                 self.held.producers.insert(this.op(), stream);
                 return Ok(());
             }
+            Blocks::ReplicaSend {
+                ref this,
+                ref reply,
+                ..
+            } => {
+                self.held.sends.insert(reply.op(), this.op());
+                None
+            }
             Blocks::BlocksWatchNew { resource, .. } => {
                 self.held.owners.insert(resource.op(), instance)
             }
@@ -518,6 +523,11 @@ impl Wire {
 
     fn ended(&mut self, op: OpId, heard: &mut Vec<Heard>) -> bool {
         let held = &mut self.held;
+        if held.sends.remove(&op).is_some() {
+            self.connection
+                .complete(op, Outcome::Err(OpError::Canceled));
+            return true;
+        }
         if held.owners.remove(&op).is_some() {
             if let Some(producer) = held.producers.remove(&op) {
                 producer.fail(&mut self.connection, OpError::Canceled);
@@ -556,6 +566,10 @@ impl Wire {
         self.connection.take_outbound()
     }
 
+    pub(super) fn has_outbound(&self) -> bool {
+        self.connection.has_outbound()
+    }
+
     pub(super) fn receive(&mut self, frame: &[u8], heard: &mut Vec<Heard>) -> Result<(), String> {
         self.connection
             .receive(frame)
@@ -576,7 +590,7 @@ impl Wire {
                 };
             }
             Incoming::Started(started) if host_services::Call::accepts(&started) => {
-                self.serve(started);
+                self.serve(started, heard);
                 return Ok(());
             }
             Incoming::Started(started) if HostValues::accepts(&started) => {
@@ -599,11 +613,11 @@ impl Wire {
             Incoming::Called(called) => {
                 if let Some(call) = host_services::Call::accept_direct(&called) {
                     if let Some(instance) = self.editor_of(called.parent) {
-                        self.services.asked.push(Service {
+                        heard.push(Heard::Service(Service {
                             instance,
                             op: None,
                             call,
-                        });
+                        }));
                     }
                     return Ok(());
                 }
@@ -666,7 +680,7 @@ impl Wire {
                 if self.serving.remove(&op).is_some() {
                     self.connection
                         .complete(op, Outcome::Err(OpError::Canceled));
-                    self.services.withdrawn.push(op);
+                    heard.push(Heard::Withdrawn(op));
                 }
                 let watched = self.child_statuses.values().any(|watch| watch.is(op))
                     || self.audio.values().any(|watch| watch.is(op))
@@ -688,7 +702,7 @@ impl Wire {
                 self.input.closed(op);
                 return Ok(());
             }
-            Incoming::Yielded { .. } => return Ok(()),
+            Incoming::Yielded { .. } | Incoming::Credited { .. } => return Ok(()),
         };
         let connection = &mut self.connection;
         match call {

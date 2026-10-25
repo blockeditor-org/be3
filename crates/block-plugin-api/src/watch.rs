@@ -93,3 +93,28 @@ impl Watch<Encoded> {
         }
     }
 }
+
+pub const WAITING_WEB_VIEW_EVENTS: usize = 256;
+
+impl crate::WebViewEvent {
+    pub fn queue(events: &mut Vec<Self>, event: Self) {
+        use crate::WebViewEvent::{Address, Failed, Title};
+        if matches!(
+            (events.last(), &event),
+            (Some(Title(_)), Title(_)) | (Some(Address(_)), Address(_)) | (Some(Failed(_)), Failed(_))
+        ) {
+            events.pop();
+        }
+        events.push(event);
+        if events.len() > WAITING_WEB_VIEW_EVENTS {
+            events.remove(0);
+        }
+    }
+}
+
+impl crate::blocks::ShowRequest {
+    pub fn queue(requests: &mut Vec<Self>, request: Self) {
+        requests.retain(|waiting| *waiting != request);
+        requests.push(request);
+    }
+}

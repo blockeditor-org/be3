@@ -43,6 +43,7 @@ struct Call {
     outcome: Option<Outcome>,
     items: VecDeque<Vec<u8>>,
     taken: u32,
+    taken_bytes: u64,
     waker: Option<Waker>,
 }
 
@@ -274,6 +275,7 @@ impl Inner {
                     waker.wake();
                 }
             }
+            Incoming::Credited { .. } => {}
             Incoming::Canceled { op } => {
                 let serving = self.serving.borrow_mut().remove(&op);
                 match serving {
@@ -606,12 +608,21 @@ impl<T: DeserializeOwned> Stream<T> {
         };
         if let Some(item) = call.items.pop_front() {
             call.taken += 1;
-            let granted = match call.taken >= crate::STREAM_WINDOW / 2 {
-                true => std::mem::take(&mut call.taken),
-                false => 0,
+            call.taken_bytes += item.len() as u64;
+            let granted = match call.taken >= crate::STREAM_WINDOW / 2
+                || call.taken_bytes >= crate::STREAM_WINDOW_BYTES / 2
+            {
+                true => (
+                    std::mem::take(&mut call.taken),
+                    std::mem::take(&mut call.taken_bytes),
+                ),
+                false => (0, 0),
             };
             drop(calls);
-            self.inner.connection.borrow_mut().credit(self.op, granted);
+            self.inner
+                .connection
+                .borrow_mut()
+                .credit(self.op, granted.0, granted.1);
             return Poll::Ready(crate::decode(&item));
         }
         if call.outcome.is_some() {

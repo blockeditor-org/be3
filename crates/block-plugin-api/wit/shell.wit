@@ -344,7 +344,9 @@ interface shell {
         load: func(url: string);
         reload: func();
         focus-app: func();
-        /// The events since the last answer, in order.
+        /// The events since the last answer, in order. A title, address or
+        /// failure right after one of its own kind replaces it, and at most
+        /// 256 events wait: past that the oldest goes.
         next-events: async func() -> list<web-view-event>;
     }
 

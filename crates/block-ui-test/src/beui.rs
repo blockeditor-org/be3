@@ -689,7 +689,7 @@ impl<A: BeuiApp> BeuiTest<A> {
         if let Some((_, watch)) = self.web_views.values_mut().find(|(id, _)| *id == web_view) {
             watch.change(&mut self.connection, |held| {
                 let mut events = held.unwrap_or_default();
-                events.push(event);
+                block_editor_beui::WebViewEvent::queue(&mut events, event);
                 events
             });
             let frames = self.connection.take_outbound();
@@ -1028,7 +1028,7 @@ impl<A: BeuiApp> BeuiTest<A> {
                     }
                     Incoming::Started(started) if BlocksCall::accepts(&started) => {
                         if let Some(call) = BlocksCall::accept(&mut self.connection, started) {
-                            self.link.call(call, &self.store);
+                            self.link.call(call, &self.store, &mut self.connection);
                         }
                         continue;
                     }
@@ -1059,14 +1059,14 @@ impl<A: BeuiApp> BeuiTest<A> {
                             .complete(op, Outcome::Err(OpError::Canceled));
                         continue;
                     }
-                    Incoming::Yielded { .. } => continue,
+                    Incoming::Yielded { .. } | Incoming::Credited { .. } => continue,
                 };
             if let Some(call) = Call::accept_direct(&called) {
                 self.requests.push((None, call));
                 continue;
             }
             if let Some(call) = BlocksCall::accept_direct(&called) {
-                self.link.call(call, &self.store);
+                self.link.call(call, &self.store, &mut self.connection);
                 continue;
             }
             if let Some(HostValues::Act { key, action }) = HostValues::accept_direct(&called) {

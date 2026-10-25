@@ -113,6 +113,9 @@ impl Instances {
     }
 
     pub(crate) fn blocks_call(&mut self, instance: EditorInstanceId, mut call: Call) -> bool {
+        if let Call::ReplicaSend { reply, .. } = &call {
+            self.accepted.push(reply.op());
+        }
         let mut carries = false;
         call.visit_block_ids(&mut |_, _| carries = true);
         if carries {
@@ -255,7 +258,7 @@ impl Instances {
                 Uuid::from_bytes(block),
                 Uuid::from_bytes(content_type),
             ),
-            Call::ReplicaSend { this, frame } => {
+            Call::ReplicaSend { this, frame, .. } => {
                 let block = self.entries.get(&instance).and_then(|entry| {
                     entry
                         .replicas
@@ -425,8 +428,16 @@ impl Instances {
         answers
     }
 
-    pub(crate) fn take_frames(&mut self) -> Vec<(OpId, Vec<u8>)> {
-        std::mem::take(&mut self.frames)
+    pub(crate) fn relay(&mut self, mut send: impl FnMut(OpId, &Vec<u8>) -> bool) {
+        for instance in &self.relaying {
+            if let Some(entry) = self.entries.get_mut(instance) {
+                entry.relay_frames(*instance, &mut send);
+            }
+        }
+    }
+
+    pub(crate) fn take_accepted(&mut self) -> Vec<OpId> {
+        std::mem::take(&mut self.accepted)
     }
 
     pub(crate) fn show_panel(
@@ -435,7 +446,7 @@ impl Instances {
         panel: block_plugin_api::HostPanel,
     ) {
         if let Some(entry) = self.entries.get_mut(&instance) {
-            entry.shows.push(ShowRequest::Panel(panel));
+            ShowRequest::queue(&mut entry.shows, ShowRequest::Panel(panel));
         }
     }
 
@@ -447,9 +458,9 @@ impl Instances {
             editor: open.editor.map(Uuid::into_bytes),
         });
         match self.entries.get_mut(&instance) {
-            Some(entry) => entry.shows.push(request),
+            Some(entry) => ShowRequest::queue(&mut entry.shows, request),
             None if !self.gone.contains(&instance) => {
-                self.early_shows.entry(instance).or_default().push(request);
+                ShowRequest::queue(self.early_shows.entry(instance).or_default(), request);
             }
             None => {}
         }

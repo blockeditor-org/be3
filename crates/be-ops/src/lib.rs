@@ -21,6 +21,50 @@ pub const GUEST_BIT: OpId = 1 << 63;
 
 pub const STREAM_WINDOW: u32 = 16;
 
+pub const STREAM_WINDOW_BYTES: u64 = 1 << 20;
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct Window {
+    items: u32,
+    bytes: i64,
+}
+
+impl Default for Window {
+    fn default() -> Self {
+        Self {
+            items: STREAM_WINDOW,
+            bytes: STREAM_WINDOW_BYTES as i64,
+        }
+    }
+}
+
+impl Window {
+    pub fn open(&self) -> bool {
+        self.items > 0 && self.bytes > 0
+    }
+
+    pub fn take(&mut self, bytes: usize) {
+        self.items = self.items.saturating_sub(1);
+        self.bytes = self.bytes.saturating_sub(bytes as i64);
+    }
+
+    pub fn grant(&mut self, items: u32, bytes: u64) {
+        self.items = self.items.saturating_add(items);
+        self.bytes = self.bytes.saturating_add(bytes as i64);
+    }
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct WouldBlock;
+
+impl fmt::Display for WouldBlock {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter.write_str("the stream's consumer has granted no room for another item")
+    }
+}
+
+impl std::error::Error for WouldBlock {}
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum Side {
     Host,
@@ -64,6 +108,7 @@ pub enum Frame {
     Credit {
         op: OpId,
         items: u32,
+        bytes: u64,
     },
 }
 
@@ -202,14 +247,13 @@ pub enum Incoming {
     Yielded { op: OpId, item: Vec<u8> },
     Completed { op: OpId, outcome: Outcome },
     Canceled { op: OpId },
+    Credited { op: OpId },
 }
 
 struct Served {
     parent: Option<OpId>,
     canceled: bool,
-    credits: u32,
-    backlog: VecDeque<Vec<u8>>,
-    finished: Option<Outcome>,
+    window: Window,
 }
 
 impl Served {
@@ -217,9 +261,7 @@ impl Served {
         Self {
             parent,
             canceled: false,
-            credits: STREAM_WINDOW,
-            backlog: VecDeque::new(),
-            finished: None,
+            window: Window::default(),
         }
     }
 }
@@ -296,73 +338,50 @@ impl Connection {
         }
     }
 
-    pub fn yield_item(&mut self, op: OpId, item: Vec<u8>) {
+    pub fn ready(&self, op: OpId) -> bool {
+        self.served.get(&op).is_none_or(|served| served.window.open())
+    }
+
+    pub fn yield_item(&mut self, op: OpId, item: &[u8]) -> Result<(), WouldBlock> {
         let Some(served) = self.served.get_mut(&op) else {
-            return;
+            return Ok(());
         };
-        if served.finished.is_some() {
-            return;
+        if !served.window.open() {
+            return Err(WouldBlock);
         }
-        if served.credits == 0 {
-            served.backlog.push_back(item);
-            return;
-        }
-        served.credits -= 1;
-        self.send(&Frame::Yield { op, item });
+        served.window.take(item.len());
+        self.send(&Frame::Yield {
+            op,
+            item: item.to_vec(),
+        });
+        Ok(())
     }
 
-    pub fn backlog(&self, op: OpId) -> usize {
-        self.served
-            .get(&op)
-            .map_or(0, |served| served.backlog.len())
-    }
-
-    pub fn credit(&mut self, op: OpId, items: u32) {
-        if items > 0 && self.started.contains_key(&op) && !self.canceling.contains(&op) {
-            self.send(&Frame::Credit { op, items });
+    pub fn credit(&mut self, op: OpId, items: u32, bytes: u64) {
+        if (items > 0 || bytes > 0)
+            && self.started.contains_key(&op)
+            && !self.canceling.contains(&op)
+        {
+            self.send(&Frame::Credit { op, items, bytes });
         }
     }
 
     pub fn complete(&mut self, op: OpId, outcome: Outcome) {
-        let Some(served) = self.served.get_mut(&op) else {
-            return;
-        };
-        if served.finished.is_some() {
+        if self.served.remove(&op).is_none() {
             return;
         }
-        match (&outcome, served.backlog.is_empty()) {
-            (Outcome::Ok(_), false) if !served.canceled => served.finished = Some(outcome),
-            _ => {
-                self.served.remove(&op);
-                self.send(&Frame::Complete { op, outcome });
-                self.ended(op);
-            }
-        }
+        self.send(&Frame::Complete { op, outcome });
+        self.ended(op);
     }
 
-    fn granted(&mut self, op: OpId, items: u32) {
+    fn granted(&mut self, op: OpId, items: u32, bytes: u64) {
         let Some(served) = self.served.get_mut(&op) else {
             return;
         };
-        served.credits = served.credits.saturating_add(items);
-        let mut sent = Vec::new();
-        while served.credits > 0
-            && let Some(item) = served.backlog.pop_front()
-        {
-            served.credits -= 1;
-            sent.push(item);
-        }
-        let finished = match served.backlog.is_empty() {
-            true => served.finished.take(),
-            false => None,
-        };
-        for item in sent {
-            self.send(&Frame::Yield { op, item });
-        }
-        if let Some(outcome) = finished {
-            self.served.remove(&op);
-            self.send(&Frame::Complete { op, outcome });
-            self.ended(op);
+        let was_open = served.window.open();
+        served.window.grant(items, bytes);
+        if !was_open && served.window.open() && !served.canceled {
+            self.events.push_back(Incoming::Credited { op });
         }
     }
 
@@ -453,7 +472,7 @@ impl Connection {
                 }
             }
             Frame::Cancel { op } => self.request_cancel(op),
-            Frame::Credit { op, items } => self.granted(op, items),
+            Frame::Credit { op, items, bytes } => self.granted(op, items, bytes),
         }
         Ok(())
     }
@@ -578,12 +597,15 @@ impl<T: Serialize> Producer<T> {
         self.op
     }
 
-    pub fn send(&self, connection: &mut Connection, item: &T) {
-        connection.yield_item(self.op, encode(item));
+    pub fn send(&self, connection: &mut Connection, item: &T) -> Result<(), WouldBlock> {
+        if !connection.ready(self.op) {
+            return Err(WouldBlock);
+        }
+        connection.yield_item(self.op, &encode(item))
     }
 
-    pub fn waiting(&self, connection: &Connection) -> usize {
-        connection.backlog(self.op)
+    pub fn ready(&self, connection: &Connection) -> bool {
+        connection.ready(self.op)
     }
 
     pub fn finish(self, connection: &mut Connection) {
@@ -592,6 +614,51 @@ impl<T: Serialize> Producer<T> {
 
     pub fn fail(self, connection: &mut Connection, error: OpError) {
         connection.complete(self.op, Outcome::Err(error));
+    }
+}
+
+pub struct Latest<T> {
+    producer: Producer<T>,
+    behind: Option<T>,
+}
+
+impl<T> fmt::Debug for Latest<T> {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(formatter, "Latest({})", self.producer.op)
+    }
+}
+
+impl<T: Serialize> Latest<T> {
+    pub fn new(producer: Producer<T>) -> Self {
+        Self {
+            producer,
+            behind: None,
+        }
+    }
+
+    pub fn op(&self) -> OpId {
+        self.producer.op
+    }
+
+    pub fn send(&mut self, connection: &mut Connection, value: T) {
+        self.behind = match self.producer.send(connection, &value) {
+            Ok(()) => None,
+            Err(WouldBlock) => Some(value),
+        };
+    }
+
+    pub fn credited(&mut self, connection: &mut Connection, op: OpId) -> bool {
+        if op != self.op() {
+            return false;
+        }
+        if let Some(value) = self.behind.take() {
+            self.send(connection, value);
+        }
+        true
+    }
+
+    pub fn finish(self, connection: &mut Connection) {
+        self.producer.finish(connection);
     }
 }
 

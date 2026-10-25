@@ -97,7 +97,7 @@ impl Link {
         );
     }
 
-    pub(crate) fn call(&mut self, call: Call, store: &ContentStore) {
+    pub(crate) fn call(&mut self, call: Call, store: &ContentStore, connection: &mut Connection) {
         let block = Uuid::from_bytes;
         match call {
             Call::OpenBlock { request } => self.sent.push(Sent::Open(request)),
@@ -145,7 +145,8 @@ impl Link {
             Call::ReplicaFrames { this, stream } => {
                 self.producers.insert(this.op(), stream);
             }
-            Call::ReplicaSend { this, frame } => {
+            Call::ReplicaSend { this, frame, reply } => {
+                reply.send(connection, &());
                 let Some(id) = self.replicas.get(&this.op()).copied() else {
                     return;
                 };
@@ -227,17 +228,16 @@ impl Link {
 
     pub(crate) fn answer(&mut self, store: &ContentStore, connection: &mut Connection) {
         self.watch_store(store);
-        let outgoing = store.outgoing(self.instance);
-        for (block, frame) in outgoing.frames {
-            let replica = self
-                .replicas
+        let (replicas, producers) = (&self.replicas, &self.producers);
+        let outgoing = store.outgoing(self.instance, |block, frame| {
+            let replica = replicas
                 .iter()
                 .find(|(_, held)| **held == block)
                 .map(|(op, _)| *op);
-            if let Some(producer) = replica.and_then(|op| self.producers.get(&op)) {
-                producer.send(connection, &frame);
-            }
-        }
+            replica
+                .and_then(|op| producers.get(&op))
+                .is_none_or(|producer| producer.send(connection, frame).is_ok())
+        });
         for (block, head) in outgoing.heads {
             self.offer(Subject::Head(block), encode(&head));
         }

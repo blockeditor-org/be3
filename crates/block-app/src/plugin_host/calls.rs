@@ -134,6 +134,8 @@ pub(super) enum Heard {
     Blocks(EditorInstanceId, block_plugin_api::embed::blocks::Call),
     HostValues(EditorInstanceId, block_plugin_api::embed::host_values::Call),
     Ended(block_plugin_api::ops::OpId),
+    Service(super::wire::Service),
+    Withdrawn(block_plugin_api::ops::OpId),
 }
 
 pub(super) fn instance_of(call: &ShellCall) -> Option<EditorInstanceId> {

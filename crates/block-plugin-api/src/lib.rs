@@ -113,7 +113,7 @@ pub use ui_types::{
     Preferences, Rotation, ThemeKind,
 };
 pub use ui_types::{ImeArea, WindowRequests};
-pub use watch::{Encoded, Watch};
+pub use watch::{Encoded, WAITING_WEB_VIEW_EVENTS, Watch};
 
 pub const MAX_COLLECTION_ITEMS: usize = 1024;
 pub const MAX_STRING_BYTES: usize = 16 * 1024;

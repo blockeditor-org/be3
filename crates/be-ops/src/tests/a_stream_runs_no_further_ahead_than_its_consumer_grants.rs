@@ -18,27 +18,27 @@ fn a_stream_runs_no_further_ahead_than_its_consumer_grants() {
     deliver(&mut guest, &mut host);
     events(&mut host);
     let producer = Producer::<u32>::new(op);
-    let sent = STREAM_WINDOW + 3;
-    for item in 0..sent {
-        producer.send(&mut host, &item);
+    let mut sent = 0;
+    while producer.send(&mut host, &sent).is_ok() {
+        sent += 1;
     }
-    assert_eq!(producer.waiting(&host), 3);
-    producer.finish(&mut host);
-    deliver(&mut host, &mut guest);
-    let received = events(&mut guest);
-    assert_eq!(yielded(&received), (0..STREAM_WINDOW).collect::<Vec<_>>());
-    assert!(guest.is_pending(op), "the end waits behind the held items");
-    guest.credit(op, 2);
-    deliver(&mut guest, &mut host);
+    assert_eq!(sent, STREAM_WINDOW, "the producer is told to stop");
+    assert!(!producer.ready(&host));
     deliver(&mut host, &mut guest);
     assert_eq!(
         yielded(&events(&mut guest)),
-        vec![STREAM_WINDOW, STREAM_WINDOW + 1]
+        (0..STREAM_WINDOW).collect::<Vec<_>>()
     );
-    guest.credit(op, 5);
+    guest.credit(op, 2, 0);
     deliver(&mut guest, &mut host);
+    assert_eq!(events(&mut host), [Incoming::Credited { op }]);
+    for item in [sent, sent + 1] {
+        producer.send(&mut host, &item).unwrap();
+    }
+    assert_eq!(producer.send(&mut host, &(sent + 2)), Err(WouldBlock));
+    producer.finish(&mut host);
     deliver(&mut host, &mut guest);
     let received = events(&mut guest);
-    assert_eq!(yielded(&received), vec![STREAM_WINDOW + 2]);
+    assert_eq!(yielded(&received), vec![sent, sent + 1]);
     assert!(matches!(received.last(), Some(Incoming::Completed { op: ended, .. }) if *ended == op));
 }

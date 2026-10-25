@@ -353,6 +353,17 @@ pub(crate) fn take_editor_frames(editor: u64) -> Vec<(Uuid, Vec<u8>)> {
         .unwrap_or_default()
 }
 
+pub(crate) fn keep_editor_frames(editor: u64, mut kept: Vec<(Uuid, Vec<u8>)>) {
+    if kept.is_empty() {
+        return;
+    }
+    with_shared_mut(|shared| {
+        let held = shared.editor_frames.entry(editor).or_default();
+        kept.append(held);
+        *held = kept;
+    });
+}
+
 pub(crate) fn snapshot_frame(block: Uuid) -> Option<Vec<u8>> {
     with_shared(|shared| {
         let content = match shared.revision_previews.get(&block) {

@@ -74,7 +74,8 @@ pub(super) struct Instances {
     serial: u64,
     owners: HashMap<block_plugin_api::ops::OpId, EditorInstanceId>,
     early_shows: HashMap<EditorInstanceId, Vec<block_plugin_api::blocks::ShowRequest>>,
-    frames: Vec<(block_plugin_api::ops::OpId, Vec<u8>)>,
+    accepted: Vec<block_plugin_api::ops::OpId>,
+    relaying: HashSet<EditorInstanceId>,
 }
 
 struct AudioChanges {
@@ -409,34 +410,64 @@ impl Instance {
     fn relay_frames(
         &mut self,
         instance: EditorInstanceId,
-        out: &mut Vec<(block_plugin_api::ops::OpId, Vec<u8>)>,
+        send: &mut impl FnMut(block_plugin_api::ops::OpId, &Vec<u8>) -> bool,
     ) {
-        let mut frames = crate::be::take_editor_frames(instance.0);
-        let own = self.role.block().map(|block| block.id);
-        for (block, link) in self
-            .content
-            .iter_mut()
-            .filter_map(|link| own.map(|own| (own, link)))
-            .chain(self.watched.iter_mut().map(|(block, link)| (*block, link)))
-        {
-            if link.awaiting_preview
-                && let Some(frame) = crate::be::snapshot_frame(block)
-            {
-                link.awaiting_preview = false;
-                frames.push((block, frame));
+        let mut blocked = HashSet::new();
+        let mut kept = Vec::new();
+        for (block, frame) in crate::be::take_editor_frames(instance.0) {
+            if blocked.contains(&block) {
+                kept.push((block, frame));
+                continue;
+            }
+            match self.relay_frame(block, &frame, send) {
+                true => {}
+                false => {
+                    blocked.insert(block);
+                    kept.push((block, frame));
+                }
             }
         }
-        for (block, frame) in frames {
-            let Some(replica) = self.replicas.get(&block).copied() else {
+        crate::be::keep_editor_frames(instance.0, kept);
+        let own = self.role.block().map(|block| block.id);
+        let previews: Vec<Uuid> = self
+            .content
+            .iter()
+            .filter_map(|link| own.map(|own| (own, link)))
+            .chain(self.watched.iter().map(|(block, link)| (*block, link)))
+            .filter(|(block, link)| link.awaiting_preview && !blocked.contains(block))
+            .map(|(block, _)| block)
+            .collect();
+        for block in previews {
+            let Some(frame) = crate::be::snapshot_frame(block) else {
                 continue;
             };
-            if let Some(link) = self.link_mut(block) {
-                link.delivered = true;
-            } else {
-                continue;
+            if self.relay_frame(block, &frame, send)
+                && let Some(link) = self.link_mut(block)
+            {
+                link.awaiting_preview = false;
             }
-            out.push((replica, frame));
         }
+    }
+
+    fn relay_frame(
+        &mut self,
+        block: Uuid,
+        frame: &Vec<u8>,
+        send: &mut impl FnMut(block_plugin_api::ops::OpId, &Vec<u8>) -> bool,
+    ) -> bool {
+        let Some(replica) = self.replicas.get(&block).copied() else {
+            return true;
+        };
+        if self.link_mut(block).is_none() {
+            return true;
+        }
+        if !send(replica, frame) {
+            return false;
+        }
+        if let Some(link) = self.link_mut(block) {
+            link.delivered = true;
+        }
+        true
     }
 
     fn follows(&self, block: Uuid) -> bool {
@@ -769,7 +800,9 @@ impl Instances {
             .entry(instance)
             .or_insert_with(|| Instance::new(role));
         if let Some(shows) = self.early_shows.remove(&instance) {
-            entry.shows.extend(shows);
+            for show in shows {
+                block_plugin_api::blocks::ShowRequest::queue(&mut entry.shows, show);
+            }
         }
         let next_screen = &mut self.next_screen;
         let screen = entry.screens.entry(region).or_insert_with(|| {
@@ -1325,7 +1358,7 @@ impl Instances {
         }
         self.forget_services();
         self.owners.clear();
-        self.frames.clear();
+        self.accepted.clear();
         self.epoch += 1;
     }
 
@@ -1342,6 +1375,7 @@ impl Instances {
         let graph_moved = self.graph_seen.replace(graph) != Some(graph);
         let mut opened = Vec::new();
         let mut screens = Vec::new();
+        self.relaying.clear();
         let plain_forms = be_types_host::plain_forms_revision();
         if self.sent_block_types != Some(plain_forms)
             && let Some(block_types) = &self.block_types
@@ -1437,7 +1471,7 @@ impl Instances {
                 }
             }
             opened.append(&mut entry.deferred);
-            entry.relay_frames(instance, &mut self.frames);
+            self.relaying.insert(instance);
             let stale = std::mem::take(&mut entry.stale);
             if stale || graph_moved {
                 entry.reattach(instance);

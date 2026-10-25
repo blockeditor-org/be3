@@ -247,6 +247,7 @@ fn to_replica(instances: &mut Instances, block: Uuid, message: &FromEditor) -> b
         Call::ReplicaSend {
             this: wire::Replica(replica),
             frame: block_type_api::encode_frame(message),
+            reply: block_plugin_api::ops::Reply::new(next_op()),
         },
     )
 }
@@ -256,14 +257,14 @@ fn from_replica(instances: &mut Instances, block: Uuid) -> Vec<ToEditor> {
         .entries
         .get(&INSTANCE)
         .and_then(|entry| entry.replicas.get(&block).copied());
-    instances
-        .take_frames()
-        .into_iter()
-        .filter(|(op, _)| Some(*op) == replica)
-        .filter_map(|(_, frame)| {
-            crate::be::unframe(&frame).and_then(|bytes| ToEditor::decode(&bytes))
-        })
-        .collect()
+    let mut frames = Vec::new();
+    instances.relay(|op, frame| {
+        if Some(op) == replica {
+            frames.extend(crate::be::unframe(frame).and_then(|bytes| ToEditor::decode(&bytes)));
+        }
+        true
+    });
+    frames
 }
 
 fn replica_sends(instances: &mut Instances, block: Uuid) -> Vec<ToEditor> {

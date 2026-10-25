@@ -173,6 +173,8 @@ enum Answer {
     Blocks(EditorInstanceId, block_plugin_api::embed::blocks::Call),
     HostValues(EditorInstanceId, block_plugin_api::embed::host_values::Call),
     Ended(block_plugin_api::ops::OpId),
+    Service(super::wire::Service),
+    Withdrawn(block_plugin_api::ops::OpId),
     Frame(FrameCommit),
     Laid(Laid),
 }
@@ -193,6 +195,8 @@ impl From<Heard> for Answer {
             Heard::Blocks(instance, call) => Self::Blocks(instance, call),
             Heard::HostValues(instance, call) => Self::HostValues(instance, call),
             Heard::Ended(op) => Self::Ended(op),
+            Heard::Service(service) => Self::Service(service),
+            Heard::Withdrawn(op) => Self::Withdrawn(op),
         }
     }
 }
@@ -621,13 +625,6 @@ impl Runtime {
     }
 
     fn serve(&mut self) {
-        let services = self.backend.take_services();
-        for op in services.withdrawn {
-            self.instances.withdraw(op);
-        }
-        for service in services.asked {
-            self.instances.serve(service);
-        }
         let answers = self.instances.take_answers();
         if !answers.is_empty() {
             self.backend.answer(answers);
@@ -641,7 +638,6 @@ impl Runtime {
         let now = self.milliseconds();
         let before = self.session.state().clone();
         let received = self.backend.receive();
-        self.serve();
         if *self.session.state() == SessionState::Idle && self.backend.ready() {
             self.session.start(now);
         }
@@ -678,42 +674,7 @@ impl Runtime {
                 return;
             }
         }
-        let forwarded = match self.taking_in {
-            true => {
-                let mut taken = std::mem::take(&mut self.held);
-                taken.extend(forwarded.into_iter().map(Answer::from));
-                taken
-            }
-            false => {
-                let mut drawing = Vec::with_capacity(forwarded.len());
-                let mut held = false;
-                for heard in forwarded {
-                    match heard {
-                        Heard::Frame(commit) => {
-                            let (now, later) = self.split(*commit);
-                            drawing.push(Answer::Frame(now));
-                            if let Some(later) = later {
-                                held = true;
-                                self.held.push(Answer::Laid(later));
-                            }
-                        }
-                        heard @ (Heard::Paintings(_) | Heard::Layout(_) | Heard::FrameNeeded) => {
-                            drawing.push(Answer::from(heard));
-                        }
-                        heard => {
-                            held = true;
-                            self.held.push(Answer::from(heard));
-                        }
-                    }
-                }
-                if held {
-                    host::request_repaint();
-                }
-                drawing
-            }
-        };
-        self.apply(forwarded);
-        self.answer();
+        self.hear(forwarded);
         let (count, longest) = self.backend.stepped();
         if count > 0 {
             STEPS.with(|steps| {
@@ -755,6 +716,45 @@ impl Runtime {
             }
             mark(&self.plugin.identity.id);
         }
+    }
+
+    fn hear(&mut self, forwarded: Vec<Heard>) {
+        let forwarded = match self.taking_in {
+            true => {
+                let mut taken = std::mem::take(&mut self.held);
+                taken.extend(forwarded.into_iter().map(Answer::from));
+                taken
+            }
+            false => {
+                let mut drawing = Vec::with_capacity(forwarded.len());
+                let mut held = false;
+                for heard in forwarded {
+                    match heard {
+                        Heard::Frame(commit) => {
+                            let (now, later) = self.split(*commit);
+                            drawing.push(Answer::Frame(now));
+                            if let Some(later) = later {
+                                held = true;
+                                self.held.push(Answer::Laid(later));
+                            }
+                        }
+                        heard @ (Heard::Paintings(_) | Heard::Layout(_) | Heard::FrameNeeded) => {
+                            drawing.push(Answer::from(heard));
+                        }
+                        heard => {
+                            held = true;
+                            self.held.push(Answer::from(heard));
+                        }
+                    }
+                }
+                if held {
+                    host::request_repaint();
+                }
+                drawing
+            }
+        };
+        self.apply(forwarded);
+        self.answer();
     }
 
     fn export_previews(&mut self, frame: &Frame) {
@@ -855,6 +855,8 @@ impl Runtime {
                 | Answer::Blocks(..)
                 | Answer::HostValues(..)
                 | Answer::Ended(_)
+                | Answer::Service(_)
+                | Answer::Withdrawn(_)
                 | Answer::Frame(_) => None,
             })
             .flatten()
@@ -916,9 +918,18 @@ impl Runtime {
                     self.instances.ended(op);
                     false
                 }
+                Answer::Service(service) => {
+                    self.instances.serve(service);
+                    false
+                }
+                Answer::Withdrawn(op) => {
+                    self.instances.withdraw(op);
+                    false
+                }
             };
         }
         self.send(replies);
+        self.serve();
         self.answer();
         if changed {
             host::request_repaint();
@@ -928,8 +939,11 @@ impl Runtime {
     fn answer(&mut self) {
         let waiting = self.backend.waiting();
         let answers = self.instances.answers(&waiting);
-        let frames = self.instances.take_frames();
-        self.backend.answer_watches(answers, frames);
+        let accepted = self.instances.take_accepted();
+        let backend = &mut self.backend;
+        self.instances
+            .relay(|replica, frame| backend.relay(replica, frame));
+        self.backend.answer_watches(answers, accepted);
     }
 
     fn commit(&mut self, commit: FrameCommit) -> bool {

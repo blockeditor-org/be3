@@ -31,16 +31,26 @@ fn a_guest_stream_grants_credit_as_it_takes_items() {
     };
     let producer = Producer::<u32>::new(started.op);
     let sent = STREAM_WINDOW * 3;
-    for item in 0..sent {
-        producer.send(&mut host, &item);
-    }
-    producer.finish(&mut host);
-    while host.has_outbound() {
+    let mut next = 0;
+    let mut credited = 0;
+    loop {
+        while next < sent && producer.send(&mut host, &next).is_ok() {
+            next += 1;
+        }
+        if next == sent {
+            producer.finish(&mut host);
+            break;
+        }
         executor.step(host.take_outbound(), &mut outbound).unwrap();
         for frame in outbound.drain(..) {
             host.receive(&frame).unwrap();
         }
+        let events = events(&mut host);
+        assert_eq!(events, [Incoming::Credited { op: started.op }]);
+        credited += 1;
     }
+    executor.step(host.take_outbound(), &mut outbound).unwrap();
     assert_eq!(*taken.borrow(), (0..sent).collect::<Vec<_>>());
     assert!(!host.is_serving(started.op));
+    assert!(credited >= 2, "the producer waited for credit");
 }

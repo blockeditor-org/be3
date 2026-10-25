@@ -14,7 +14,7 @@ use block_type_api::ops::DeserializeOwned;
 use block_type_api::{
     Change, ClientId, Description, Failure, Plain, PlainFile, SessionTag, TypeInfo,
     embed::{exports::replicas, host::Call},
-    ops::{Connection, Incoming, OpError, OpId, Outcome, Producer, Reply, Side, Ticket},
+    ops::{Connection, Incoming, Latest, OpError, OpId, Outcome, Reply, Side, Ticket},
 };
 use tokio::sync::Notify;
 use uuid::Uuid;
@@ -158,7 +158,7 @@ struct Module {
     worker: Option<Worker<Boxed>>,
     connection: Connection,
     tag: SessionTag,
-    clock: Option<Producer<u64>>,
+    clock: Option<Latest<u64>>,
     ticked: Option<u64>,
     sleeping: Option<(u64, Reply<()>)>,
     started: Option<Ticket<Vec<TypeInfo>>>,
@@ -421,8 +421,8 @@ impl Modules {
             return;
         }
         held.ticked = Some(now);
-        if let Some(clock) = &held.clock {
-            clock.send(&mut held.connection, &now);
+        if let Some(clock) = &mut held.clock {
+            clock.send(&mut held.connection, now);
         }
         if held.sleeping.as_ref().is_some_and(|(at, _)| *at <= now)
             && let Some((_, reply)) = held.sleeping.take()
@@ -531,8 +531,9 @@ impl Modules {
                             Some(Call::Clock { stream }) => {
                                 let now = now_millis();
                                 held.ticked = Some(now);
-                                stream.send(&mut held.connection, &now);
-                                held.clock = Some(stream);
+                                let mut clock = Latest::new(stream);
+                                clock.send(&mut held.connection, now);
+                                held.clock = Some(clock);
                             }
                             Some(Call::SleepUntil { reply, at }) => {
                                 if let Some((_, before)) = held.sleeping.replace((at, reply)) {
@@ -586,6 +587,11 @@ impl Modules {
                                     call,
                                 },
                             ));
+                        }
+                    }
+                    Incoming::Credited { op } => {
+                        if let Some(clock) = &mut held.clock {
+                            clock.credited(&mut held.connection, op);
                         }
                     }
                     Incoming::Yielded { .. } => {}

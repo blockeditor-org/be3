@@ -277,10 +277,14 @@ interface blocks {
     /// or one it watches. Opening it holds the block; dropping it lets go.
     resource replica {
         constructor(block: block-id, content-type: content-type-id);
-        /// Every frame the replica sends the editor, in order.
+        /// Every frame the replica sends the editor, in order, no further
+        /// ahead than the editor's credit allows.
         frames: func() -> stream<list<u8>>;
-        /// A frame for the replica, in order with the editor's others.
-        send: func(frame: list<u8>);
+        /// A frame for the replica, in order with the editor's others. The
+        /// host answers once it has taken the frame in; an editor sends no
+        /// more than a stream window (items and bytes) of frames ahead of
+        /// those answers, and keeps the rest until they come.
+        send: async func(frame: list<u8>);
     }
 
     /// The blocks a query lists. `next` answers with the latest listing once
@@ -316,7 +320,8 @@ interface blocks {
     }
 
     /// What the host asks the editor to show. `next` answers with every
-    /// request since the last answer, in order.
+    /// request since the last answer, in order; a request already waiting
+    /// moves to the end instead of waiting twice.
     resource show-requests {
         constructor();
         next: async func() -> list<show-request>;

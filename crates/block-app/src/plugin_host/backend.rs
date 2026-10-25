@@ -3,7 +3,7 @@ use std::{sync::Arc, time::Duration};
 use block_plugin_api::{HelloAccepted, PluginManifest, ScreenDamage, ops::Outcome};
 
 use super::calls::{Heard, Outbound};
-use super::wire::{Services, Wire};
+use super::wire::Wire;
 use crate::{editors::plugin::discovery, host};
 use block_guest_host::Worker;
 pub(super) use block_guest_host::{Deadline, StepTime};
@@ -124,8 +124,9 @@ impl Backend {
         messages
     }
 
-    pub(super) fn take_services(&mut self) -> Services {
-        self.wire.take_services()
+    #[cfg(test)]
+    pub(super) fn wire_mut(&mut self) -> &mut Wire {
+        &mut self.wire
     }
 
     pub(super) fn waiting(&self) -> Vec<block_plugin_api::ops::OpId> {
@@ -135,23 +136,19 @@ impl Backend {
     pub(super) fn answer_watches(
         &mut self,
         answers: Vec<(block_plugin_api::ops::OpId, Vec<u8>)>,
-        frames: Vec<(block_plugin_api::ops::OpId, Vec<u8>)>,
+        accepted: Vec<block_plugin_api::ops::OpId>,
     ) {
-        if answers.is_empty() && frames.is_empty() {
-            return;
-        }
         for (watch, value) in answers {
             self.wire.answer_watch(watch, value);
         }
-        for (replica, frame) in &frames {
-            self.wire.relay(*replica, frame);
+        for send in accepted {
+            self.wire.accepted(send);
         }
-        let Some(worker) = &mut self.worker else {
-            return;
-        };
-        if let Some(failure) = worker.queue(self.wire.take_outbound()) {
-            self.fail(failure);
-        }
+        self.flush();
+    }
+
+    pub(super) fn relay(&mut self, replica: block_plugin_api::ops::OpId, frame: &Vec<u8>) -> bool {
+        self.wire.relay(replica, frame)
     }
 
     pub(super) fn answer(&mut self, answers: Vec<(block_plugin_api::ops::OpId, Outcome)>) {
@@ -165,6 +162,9 @@ impl Backend {
         let Some(worker) = &mut self.worker else {
             return;
         };
+        if !self.wire.has_outbound() {
+            return;
+        }
         if let Some(failure) = worker.queue(self.wire.take_outbound()) {
             self.fail(failure);
         }

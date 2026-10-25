@@ -1,5 +1,5 @@
 use super::*;
-use crate::plugin_host::wire::Wire;
+use crate::plugin_host::{calls::Heard, wire::Wire};
 use block_plugin_api::{
     BlockFilter, PickedBlock,
     ops::{Connection, Incoming, OpError, OpId, Outcome, Side},
@@ -12,12 +12,13 @@ fn carry(from: Vec<Vec<u8>>, to: &mut Connection) -> Vec<Incoming> {
     std::iter::from_fn(|| to.next_event()).collect()
 }
 
-fn to_host(guest: &mut Connection, wire: &mut Wire) {
+fn to_host(guest: &mut Connection, wire: &mut Wire) -> Vec<Heard> {
     let mut heard = Vec::new();
     for frame in guest.take_outbound() {
         wire.receive(&frame, &mut heard)
             .expect("the plugin's frame decodes");
     }
+    heard
 }
 
 fn opened(wire: &mut Wire, guest: &mut Connection) -> OpId {
@@ -58,10 +59,10 @@ fn closing_an_editor_cancels_the_pick_it_waits_on() {
 
     let shown = pick(&mut guest, editor);
     let asked = pick(&mut guest, editor);
-    to_host(&mut guest, &mut wire);
-    let services = wire.take_services();
-    assert!(services.withdrawn.is_empty());
-    for service in services.asked {
+    for heard in to_host(&mut guest, &mut wire) {
+        let Heard::Service(service) = heard else {
+            panic!("the host heard {heard:?} rather than the picks");
+        };
         assert_eq!(service.instance, INSTANCE, "the picks are the editor's");
         instances.serve(service);
     }
@@ -78,13 +79,17 @@ fn closing_an_editor_cancels_the_pick_it_waits_on() {
         "closing the editor cancels it: {heard:?}"
     );
     guest.complete(editor, Outcome::returned(&()));
-    to_host(&mut guest, &mut wire);
-
-    let services = wire.take_services();
-    let mut withdrawn = services.withdrawn.clone();
-    withdrawn.sort_unstable();
-    assert_eq!(withdrawn, vec![shown, asked]);
-    for op in services.withdrawn {
+    let withdrawn: Vec<OpId> = to_host(&mut guest, &mut wire)
+        .into_iter()
+        .filter_map(|heard| match heard {
+            Heard::Withdrawn(op) => Some(op),
+            _ => None,
+        })
+        .collect();
+    let mut sorted = withdrawn.clone();
+    sorted.sort_unstable();
+    assert_eq!(sorted, vec![shown, asked]);
+    for op in withdrawn {
         instances.withdraw(op);
     }
     assert!(
