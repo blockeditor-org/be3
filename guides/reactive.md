@@ -322,7 +322,7 @@ the host has sent it once, and `ready()` is that state on its own.
 
 An editor shows nothing it would have to correct a moment later: not an empty
 or editable view before its content arrives, and not a placeholder ("no rows")
-that the next answer replaces. Every `BeuiApp::view` and `preview_view` wraps
+that the next answer replaces. Every `BeuiApp::View` and `Preview` wraps
 its component in `<Loaded label="...">`, the editor's `Loading` boundary (see
 Loading, below): it waits for whatever its content reads. The sources that
 wait are the editor's own: a projection of a block's content

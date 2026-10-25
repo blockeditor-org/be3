@@ -108,7 +108,7 @@ impl<A: BeuiApp> Views<A> {
             beui::reactive::build(move || {
                 beui::reactive::view! {
                     <beui::styled::Root clear_color=beui::styled::ColorRole::None>
-                        {A::preview_view(editor)}
+                        <A::Preview editor />
                     </beui::styled::Root>
                 }
             })
@@ -146,7 +146,7 @@ impl<A: BeuiApp> Views<A> {
             beui::reactive::build(move || {
                 beui::reactive::view! {
                     <beui::styled::Root clear_color=beui::styled::ColorRole::None>
-                        {A::artifact_settings_view(built)}
+                        <A::ArtifactSettings artifacts={built} />
                     </beui::styled::Root>
                 }
             })
@@ -234,7 +234,9 @@ impl<A: BeuiApp> Views<A> {
         let view = self.view.take();
         self.chrome = Some(BeuiFrame::build(editor, move || match view {
             Some(view) => view(),
-            None => A::view(editor),
+            None => beui::reactive::view! {
+                <A::View editor />
+            },
         }));
     }
 }
@@ -350,7 +352,7 @@ impl<A: BeuiApp> Instance for BeuiInstance<A> {
         self.views.dialog = Some(beui::reactive::build(move || {
             beui::reactive::view! {
                 <beui::styled::Root clear_color=beui::styled::ColorRole::None>
-                    {A::creation_view(built)}
+                    <A::Creation creation={built} />
                 </beui::styled::Root>
             }
         }));

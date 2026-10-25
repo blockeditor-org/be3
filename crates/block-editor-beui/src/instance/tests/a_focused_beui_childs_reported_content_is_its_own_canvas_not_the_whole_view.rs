@@ -4,8 +4,10 @@ use beui::styled::*;
 
 struct SidebarApp;
 
+#[component]
 impl crate::BeuiApp for SidebarApp {
-    fn view(editor: crate::Editor) -> beui::styled::Root {
+    #[component]
+    fn View(editor: crate::Editor) -> beui::styled::Root {
         let node = {
             let canvas = NodeRef::new();
             editor.content(&canvas);

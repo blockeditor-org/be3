@@ -1,4 +1,6 @@
-use crate::reactive::{Child, ChildValue, Get, Prop, create_effect, with_document};
+use crate::reactive::{
+    Child, ChildValue, ComponentContext, Get, Prop, ScopeContext, create_effect, with_document,
+};
 use beui_core::color::Color32;
 use beui_core::node::NodeId;
 pub use beui_core::window::SystemBars;
@@ -8,7 +10,13 @@ pub struct Root {
     child: NodeId,
 }
 
-impl ChildValue for Root {}
+impl ChildValue for Root {
+    fn finish_component(&mut self, component: &ComponentContext, scope: &ScopeContext) {
+        if component.has_extensions() {
+            self.child.finish_component(component, scope);
+        }
+    }
+}
 
 impl Root {
     pub fn child(&self) -> NodeId {

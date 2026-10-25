@@ -14,8 +14,10 @@ const INTRINSIC_SIZE: Vec2 = Vec2::new(320.0, 120.0);
 
 pub struct GameModuleApp;
 
+#[component]
 impl block_editor_beui::BeuiApp for GameModuleApp {
-    fn view(editor: Editor) -> Root {
+    #[component]
+    fn View(editor: Editor) -> Root {
         view! {
             <Root>
                 <Loaded>
@@ -25,7 +27,8 @@ impl block_editor_beui::BeuiApp for GameModuleApp {
         }
     }
 
-    fn creation_view(creation: Creation) -> NodeId {
+    #[component]
+    fn Creation(creation: Creation) -> NodeId {
         view! {
             <ContentFileCreation
                 creation

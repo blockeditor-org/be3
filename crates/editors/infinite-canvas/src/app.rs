@@ -41,8 +41,10 @@ use crate::geometry::MIN_SIZE;
 
 pub struct CanvasApp;
 
+#[component]
 impl block_editor_beui::BeuiApp for CanvasApp {
-    fn view(editor: Editor) -> Root {
+    #[component]
+    fn View(editor: Editor) -> Root {
         let presented = editor.presenting();
         let editing = create_memo(move || !presented.get());
         view! {
@@ -61,7 +63,8 @@ impl block_editor_beui::BeuiApp for CanvasApp {
         }
     }
 
-    fn preview_view(editor: Editor) -> NodeId {
+    #[component]
+    fn Preview(editor: Editor) -> NodeId {
         view! {
             <Loaded>
                 <CanvasPreview editor={editor} />

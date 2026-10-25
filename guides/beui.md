@@ -149,8 +149,8 @@ formatter removes a redundant macro when the block has no setup statements.
 
 ### Call components from `view!`, never their builders
 
-`#[component] fn Button` also generates `ButtonBuilder` and a `Button()`
-constructor returning it. That is the machinery `view!` writes into; it is not
+`#[component] fn Button` also generates a hidden `__Button_Builder` and a
+`Button()` constructor returning it. That is the machinery `view!` writes into; it is not
 an API to call by hand. Write
 
 ```rust
@@ -168,6 +168,39 @@ diagnostics, are invisible to the `view!` formatter that `./scripts/verify`
 runs, and read nothing like the rest of the tree. The same applies to a
 component you want to pass around: hand over a `Render`/`RenderFn` closure that
 writes a `view!`, not a half-applied builder.
+
+### Components in traits and impls
+
+A trait or impl block marked `#[component]` turns the methods in it that are
+also marked `#[component]` into components, used as tags through the type:
+`<A::View editor />` for a type parameter `A: BeuiApp`, `<Shelf::Row />` for a
+method of `impl Shelf`. Without the mark on the block a method's `#[component]`
+fails to compile, and fix-rust-source names the block.
+
+```rust
+#[component]
+pub trait BeuiApp: 'static {
+    #[component]
+    fn View(editor: Editor) -> Root;
+    #[component]
+    fn Preview(editor: Editor) -> NodeId { view! { <Frame /> } }
+}
+
+#[component]
+impl BeuiApp for CounterApp {
+    #[component]
+    fn View(editor: Editor) -> Root { view! { ... } }
+}
+```
+
+The trait owns the props: `#[prop(...)]` is written on its declaration, and an
+impl writes the same signature without them. Each method becomes a hidden
+`__View` that holds the body, whichever side writes it, and a provided
+`View()` constructor that returns a builder generated next to the trait;
+an inherent impl gets the same, with the builder next to the impl. A body
+runs as a component named after the type that wrote it (`CounterApp::View`,
+or `BeuiApp::Preview` for a default), so the inspector tells each
+implementation apart. A component method takes no `self`.
 
 ### Use fine-grained reactivity
 
@@ -2555,7 +2588,7 @@ accessibility tree with its title and passes it to `Platform::show_window`.
 winit retitles the window and the web adapter retitles the browser tab and
 colours the page's body to match; Android follows `system_bars`; DRM, headless
 and plugins ignore the title. A plugin pane has no title of its own and the
-plugin protocol carries none: `BeuiApp::view` returns the editor's own `Root`,
+plugin protocol carries none: `BeuiApp::View` returns the editor's own `Root`,
 whose `clear_color` the plugin's surface is cleared to (the theme's background
 unless the editor names another role), and block-editor-beui puts the frame's
 chrome around that root's child. The pieces drawn over something of the host's
@@ -3394,8 +3427,10 @@ scope; a signal write never needs it.
 
 ## Use beui in a block editor plugin
 
-A beui editor is a `#[component]` function. It implements
-`block_editor_beui::BeuiApp` and uses `block_editor_beui::beui_plugin!`.
+A beui editor is a component. It implements
+`block_editor_beui::BeuiApp`, whose `View` and the other views the host asks for
+are trait components (see Components in traits and impls), and uses
+`block_editor_beui::beui_plugin!`.
 The type it names holds no state: the
 framework builds the view once, keeps the `Document` it produced, and shows it
 every frame.
@@ -3411,8 +3446,10 @@ pub fn Counter(editor: block_editor_beui::Editor) -> NodeId {
 
 pub struct CounterApp;
 
+#[component]
 impl block_editor_beui::BeuiApp for CounterApp {
-    fn view(editor: block_editor_beui::Editor) -> Root {
+    #[component]
+    fn View(editor: block_editor_beui::Editor) -> Root {
         view! {
             <Root>
                 <Counter editor={editor} />
@@ -3463,8 +3500,8 @@ The counter editor under `crates/editors/counter` is the reference integration.
 The [plugin editor guide](adding_a_plugin_editor.md) covers the manifest,
 creation flow, host connection, and current beui plugin capability limits.
 
-A template the manifest marks `"dialog": true` is made through `creation_view` instead, one
-more `#[component]` function that the framework builds a separate document of
+A template the manifest marks `"dialog": true` is made through `BeuiApp::Creation` instead, one
+more component that the framework builds a separate document of
 and shows in the picker's creation dialog. It says what the dialog makes with
 `creation.on_create(...)` and answers `creation.set_ready(true)` once it has been
 filled in. Asking the host works there too, through `creation.then(...)`.

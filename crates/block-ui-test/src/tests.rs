@@ -29,8 +29,10 @@ const SLIDE_TYPE: Uuid = Uuid::from_u128(0x0002);
 
 struct ChildApp;
 
+#[component]
 impl BeuiApp for ChildApp {
-    fn view(editor: Editor) -> Root {
+    #[component]
+    fn View(editor: Editor) -> Root {
         view! {
             <Root>
                 <Slide editor={editor} />

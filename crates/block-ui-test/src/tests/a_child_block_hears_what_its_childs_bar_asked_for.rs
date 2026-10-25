@@ -5,8 +5,10 @@ use super::*;
 
 struct BarApp;
 
+#[component]
 impl BeuiApp for BarApp {
-    fn view(editor: Editor) -> Root {
+    #[component]
+    fn View(editor: Editor) -> Root {
         view! {
             <Root>
                 <BarParent editor={editor} />

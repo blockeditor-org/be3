@@ -5,10 +5,12 @@ use syn::parenthesized;
 use syn::parse::{Parse, ParseStream};
 use syn::spanned::Spanned;
 use syn::{
-    Attribute, Expr, ExprCall, ExprLit, ExprPath, ExprReference, ExprUnary, FnArg, GenericArgument,
-    Ident, ItemFn, Lit, Pat, PatType, Path, PathArguments, ReturnType, Token, Type, UnOp,
-    parse_macro_input,
+    Attribute, Block, Expr, ExprCall, ExprLit, ExprPath, ExprReference, ExprUnary, FnArg,
+    GenericArgument, GenericParam, Ident, Item, ItemFn, Lit, Pat, PatType, Path, PathArguments,
+    ReturnType, Signature, Token, Type, UnOp, Visibility, WherePredicate, parse_macro_input,
 };
+
+mod associated;
 
 struct Prop {
     ident: Ident,
@@ -644,8 +646,17 @@ fn is_named_type(ty: &Type, name: &str) -> bool {
 #[proc_macro_attribute]
 pub fn component(attr: TokenStream, item: TokenStream) -> TokenStream {
     parse_macro_input!(attr as syn::parse::Nothing);
-    let item = parse_macro_input!(item as ItemFn);
-    match expand_component(item) {
+    let item = parse_macro_input!(item as Item);
+    let expanded = match item {
+        Item::Fn(item) => expand_component(item),
+        Item::Trait(item) => associated::expand_trait(item),
+        Item::Impl(item) => associated::expand_impl(item),
+        other => Err(syn::Error::new_spanned(
+            other,
+            "`#[component]` goes on a function, or on a trait or impl block whose component methods are also marked `#[component]`",
+        )),
+    };
+    match expanded {
         Ok(expanded) => resolve_tree(expanded).into(),
         Err(error) => error.to_compile_error().into(),
     }
@@ -655,12 +666,87 @@ fn expand_component(item: ItemFn) -> syn::Result<proc_macro2::TokenStream> {
     let ItemFn {
         attrs,
         vis,
-        mut sig,
+        sig,
         block,
     } = item;
-    let name = sig.ident.to_string();
-    let component_ident = sig.ident.clone();
-    let builder_ident = format_ident!("{}Builder", name);
+    let ident = sig.ident.clone();
+    let generics = sig.generics.clone();
+    let where_clause = &generics.where_clause;
+    let ExpandedComponent {
+        items,
+        constructor_ty,
+        constructor_body,
+    } = expand_builder(ComponentSpec {
+        attrs,
+        vis: vis.clone(),
+        label: ident.to_string(),
+        base: ident.to_string(),
+        sig,
+        outer: Vec::new(),
+        outer_where: Vec::new(),
+        finish: Finish::Body(block),
+    })?;
+    Ok(quote! {
+        #items
+
+        #[allow(non_snake_case)]
+        #vis fn #ident #generics () -> #constructor_ty #where_clause {
+            #constructor_body
+        }
+    })
+}
+
+struct ComponentSpec {
+    attrs: Vec<Attribute>,
+    vis: Visibility,
+    sig: Signature,
+    label: String,
+    base: String,
+    outer: Vec<(GenericParam, proc_macro2::TokenStream)>,
+    outer_where: Vec<WherePredicate>,
+    finish: Finish,
+}
+
+enum Finish {
+    Body(Box<Block>),
+    Call(proc_macro2::TokenStream),
+}
+
+struct ExpandedComponent {
+    items: proc_macro2::TokenStream,
+    constructor_ty: proc_macro2::TokenStream,
+    constructor_body: proc_macro2::TokenStream,
+}
+
+fn generic_arg(param: &GenericParam) -> proc_macro2::TokenStream {
+    match param {
+        GenericParam::Type(param) => {
+            let ident = &param.ident;
+            quote! { #ident }
+        }
+        GenericParam::Lifetime(param) => {
+            let lifetime = &param.lifetime;
+            quote! { #lifetime }
+        }
+        GenericParam::Const(param) => {
+            let ident = &param.ident;
+            quote! { #ident }
+        }
+    }
+}
+
+fn expand_builder(spec: ComponentSpec) -> syn::Result<ExpandedComponent> {
+    let ComponentSpec {
+        attrs,
+        vis,
+        mut sig,
+        label: name,
+        base,
+        outer,
+        outer_where,
+        finish,
+    } = spec;
+    let builder_ident = format_ident!("__{}_Builder", base);
     let output = sig.output.clone();
     let output_ty = match &sig.output {
         ReturnType::Type(_, ty) => quote! { #ty },
@@ -788,7 +874,7 @@ fn expand_component(item: ItemFn) -> syn::Result<proc_macro2::TokenStream> {
         .collect();
     let req_traits: Vec<Ident> = required
         .iter()
-        .map(|index| format_ident!("__{}_needs_{}", component_ident, props[*index].ident))
+        .map(|index| format_ident!("__{}_needs_{}", base, props[*index].ident))
         .collect();
     let req_slot_of: Vec<Option<usize>> = (0..props.len())
         .map(|index| required.iter().position(|slot| *slot == index))
@@ -835,15 +921,27 @@ fn expand_component(item: ItemFn) -> syn::Result<proc_macro2::TokenStream> {
         }
     });
 
-    let lifetimes: Vec<_> = sig
-        .generics
-        .lifetimes()
-        .map(|param| &param.lifetime)
+    let mut params: Vec<(GenericParam, proc_macro2::TokenStream)> = outer;
+    params.extend(
+        sig.generics
+            .params
+            .iter()
+            .map(|param| (param.clone(), generic_arg(param))),
+    );
+    params.sort_by_key(|(param, _)| !matches!(param, GenericParam::Lifetime(_)));
+    let lifetimes: Vec<_> = params
+        .iter()
+        .filter_map(|(param, _)| match param {
+            GenericParam::Lifetime(param) => Some(&param.lifetime),
+            _ => None,
+        })
         .collect();
-    let type_params: Vec<_> = sig
-        .generics
-        .type_params()
-        .map(|param| &param.ident)
+    let type_params: Vec<_> = params
+        .iter()
+        .filter_map(|(param, _)| match param {
+            GenericParam::Type(param) => Some(&param.ident),
+            _ => None,
+        })
         .collect();
     let phantom_ident = format_ident!("__generics");
     let phantom_field = (!lifetimes.is_empty() || !type_params.is_empty()).then(|| {
@@ -866,28 +964,20 @@ fn expand_component(item: ItemFn) -> syn::Result<proc_macro2::TokenStream> {
         .chain(phantom_field.is_some().then(|| phantom_ident.clone()))
         .collect();
 
-    let comp_params: Vec<&syn::GenericParam> = sig.generics.params.iter().collect();
-    let comp_args: Vec<proc_macro2::TokenStream> = sig
+    let comp_params: Vec<&GenericParam> = params.iter().map(|(param, _)| param).collect();
+    let comp_args: Vec<proc_macro2::TokenStream> =
+        params.iter().map(|(param, _)| generic_arg(param)).collect();
+    let constructor_args: Vec<proc_macro2::TokenStream> =
+        params.iter().map(|(_, arg)| arg.clone()).collect();
+    let where_predicates: Vec<WherePredicate> = sig
         .generics
-        .params
+        .where_clause
         .iter()
-        .map(|param| match param {
-            syn::GenericParam::Type(param) => {
-                let ident = &param.ident;
-                quote! { #ident }
-            }
-            syn::GenericParam::Lifetime(param) => {
-                let lifetime = &param.lifetime;
-                quote! { #lifetime }
-            }
-            syn::GenericParam::Const(param) => {
-                let ident = &param.ident;
-                quote! { #ident }
-            }
-        })
+        .flat_map(|clause| clause.predicates.iter().cloned())
+        .chain(outer_where)
         .collect();
-    let where_clause = sig.generics.where_clause.clone();
-
+    let where_clause =
+        (!where_predicates.is_empty()).then(|| quote! { where #(#where_predicates),* });
     let decl_params: Vec<proc_macro2::TokenStream> = comp_params
         .iter()
         .map(|param| quote! { #param })
@@ -898,12 +988,6 @@ fn expand_component(item: ItemFn) -> syn::Result<proc_macro2::TokenStream> {
         )
         .collect();
     let decl_generics = angle_bracketed(&decl_params);
-    let component_generics = angle_bracketed(
-        &comp_params
-            .iter()
-            .map(|param| quote! { #param })
-            .collect::<Vec<_>>(),
-    );
     let all_params: Vec<proc_macro2::TokenStream> = comp_params
         .iter()
         .map(|param| quote! { #param })
@@ -917,8 +1001,8 @@ fn expand_component(item: ItemFn) -> syn::Result<proc_macro2::TokenStream> {
         .collect();
     let all_args = angle_bracketed(&all_args);
     let builder_all = quote! { #builder_ident #all_args };
-    let default_args = angle_bracketed(&comp_args);
-    let builder_default = quote! { #builder_ident #default_args };
+    let constructor_args = angle_bracketed(&constructor_args);
+    let constructor_ty = quote! { #builder_ident #constructor_args };
 
     let init_fields = props.iter().enumerate().map(|(index, prop)| {
         let ident = &prop.ident;
@@ -1088,30 +1172,42 @@ fn expand_component(item: ItemFn) -> syn::Result<proc_macro2::TokenStream> {
                 });
             }
         });
-    let finish = quote! {
-        ::__beui_tree::reactive::component(&::__beui_tree::reactive::ComponentInfo { name: #name, module: module_path!() }, move || {
-            #(#owned_bindings)*
-            #block
-        })
+    let finish = match finish {
+        Finish::Body(block) => quote! {
+            ::__beui_tree::reactive::component(&::__beui_tree::reactive::ComponentInfo { name: #name, module: module_path!() }, move || {
+                #(#owned_bindings)*
+                #block
+            })
+        },
+        Finish::Call(call) => {
+            let idents = props.iter().map(|prop| &prop.ident);
+            quote! {
+                {
+                    #(#owned_bindings)*
+                    #call(#(#idents),*)
+                }
+            }
+        }
     };
 
-    Ok(quote! {
+    let constructor_body = quote! {
+        #builder_ident {
+            #(#init_fields,)*
+            with_built: ::std::vec::Vec::new(),
+            #phantom_init
+        }
+    };
+
+    let items = quote! {
         #(#req_trait_defs)*
 
         #(#attrs)*
+        #[doc(hidden)]
+        #[allow(non_camel_case_types)]
         #vis struct #builder_ident #decl_generics #where_clause {
             #(#fields,)*
             with_built: ::std::vec::Vec<::std::boxed::Box<dyn ::core::ops::FnOnce(&#output_ty)>>,
             #phantom_field
-        }
-
-        #[allow(non_snake_case)]
-        #vis fn #component_ident #component_generics () -> #builder_default #where_clause {
-            #builder_ident {
-                #(#init_fields,)*
-                with_built: ::std::vec::Vec::new(),
-                #phantom_init
-            }
         }
 
         impl #all_generics #builder_all #where_clause {
@@ -1145,6 +1241,11 @@ fn expand_component(item: ItemFn) -> syn::Result<proc_macro2::TokenStream> {
                 node
             }
         }
+    };
+    Ok(ExpandedComponent {
+        items,
+        constructor_ty,
+        constructor_body,
     })
 }
 

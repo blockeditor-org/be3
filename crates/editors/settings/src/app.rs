@@ -14,8 +14,10 @@ const INTRINSIC_HEIGHT: f32 = 240.0;
 
 pub struct SettingsApp;
 
+#[component]
 impl block_editor_beui::BeuiApp for SettingsApp {
-    fn view(editor: Editor) -> Root {
+    #[component]
+    fn View(editor: Editor) -> Root {
         view! {
             <Root>
                 <Loaded>
@@ -32,8 +34,10 @@ impl block_editor_beui::BeuiApp for SettingsApp {
 
 pub struct SettingsProfileApp;
 
+#[component]
 impl block_editor_beui::BeuiApp for SettingsProfileApp {
-    fn view(editor: Editor) -> Root {
+    #[component]
+    fn View(editor: Editor) -> Root {
         view! {
             <Root>
                 <Loaded>

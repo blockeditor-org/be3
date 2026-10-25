@@ -27,8 +27,10 @@ const PANEL_SPACING: f32 = 6.0;
 
 pub struct WorkspaceUiApp;
 
+#[component]
 impl block_editor_beui::BeuiApp for WorkspaceUiApp {
-    fn view(editor: Editor) -> Root {
+    #[component]
+    fn View(editor: Editor) -> Root {
         view! {
             <Root>
                 <WorkspaceShell editor={editor} />

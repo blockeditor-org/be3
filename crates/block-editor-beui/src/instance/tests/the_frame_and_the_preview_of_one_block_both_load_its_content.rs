@@ -19,15 +19,18 @@ fn count(editor: crate::Editor) -> beui::NodeId {
     Frame().build()
 }
 
+#[component]
 impl crate::BeuiApp for CountingApp {
-    fn view(editor: crate::Editor) -> beui::styled::Root {
+    #[component]
+    fn View(editor: crate::Editor) -> beui::styled::Root {
         let node = { count(editor) };
         view! {
             <beui::styled::Root>{node}</beui::styled::Root>
         }
     }
 
-    fn preview_view(editor: crate::Editor) -> beui::NodeId {
+    #[component]
+    fn Preview(editor: crate::Editor) -> beui::NodeId {
         count(editor)
     }
 }

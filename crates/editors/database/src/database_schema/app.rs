@@ -12,8 +12,10 @@ use ui::SchemaView;
 
 pub struct DatabaseSchemaApp;
 
+#[component]
 impl block_editor_beui::BeuiApp for DatabaseSchemaApp {
-    fn view(editor: Editor) -> Root {
+    #[component]
+    fn View(editor: Editor) -> Root {
         view! {
             <Root>
                 <Loaded>

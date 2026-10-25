@@ -12,8 +12,10 @@ const PANEL: f32 = 120.0;
 
 struct OverlaidApp;
 
+#[component]
 impl crate::BeuiApp for OverlaidApp {
-    fn view(editor: crate::Editor) -> beui::styled::Root {
+    #[component]
+    fn View(editor: crate::Editor) -> beui::styled::Root {
         let node = {
             let child = NodeRef::new();
             view! {

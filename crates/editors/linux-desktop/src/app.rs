@@ -42,8 +42,10 @@ const WINDOW_SIZE: Vec2 = vec2(960.0, 640.0);
 
 pub struct LinuxDesktopApp;
 
+#[component]
 impl block_editor_beui::BeuiApp for LinuxDesktopApp {
-    fn view(editor: Editor) -> Root {
+    #[component]
+    fn View(editor: Editor) -> Root {
         view! {
             <Root>
                 <DesktopShell editor={editor} />

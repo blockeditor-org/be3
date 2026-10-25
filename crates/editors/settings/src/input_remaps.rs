@@ -18,8 +18,10 @@ pub const MODULE: &str = "remapper.wasm";
 
 pub struct InputRemapsApp;
 
+#[component]
 impl block_editor_beui::BeuiApp for InputRemapsApp {
-    fn view(editor: Editor) -> Root {
+    #[component]
+    fn View(editor: Editor) -> Root {
         view! {
             <Root>
                 <Loaded>

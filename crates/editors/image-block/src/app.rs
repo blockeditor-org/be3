@@ -12,8 +12,10 @@ use ui::{ImageEditor, ImagePreview};
 
 pub struct ImageApp;
 
+#[component]
 impl block_editor_beui::BeuiApp for ImageApp {
-    fn view(editor: Editor) -> Root {
+    #[component]
+    fn View(editor: Editor) -> Root {
         view! {
             <Root>
                 <Loaded>
@@ -23,7 +25,8 @@ impl block_editor_beui::BeuiApp for ImageApp {
         }
     }
 
-    fn preview_view(editor: Editor) -> NodeId {
+    #[component]
+    fn Preview(editor: Editor) -> NodeId {
         view! {
             <Loaded>
                 <ImagePreview editor={editor} />
@@ -31,7 +34,8 @@ impl block_editor_beui::BeuiApp for ImageApp {
         }
     }
 
-    fn creation_view(creation: Creation) -> NodeId {
+    #[component]
+    fn Creation(creation: Creation) -> NodeId {
         view! {
             <ContentFileCreation creation id_prefix="image" filter={filter()} import={imported} />
         }

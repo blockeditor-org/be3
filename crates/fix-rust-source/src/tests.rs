@@ -12,6 +12,7 @@ fn formatted(source: &str) -> String {
     String::from_utf8(crate::format_views(source.as_bytes()).expect("source parses")).unwrap()
 }
 
+mod a_component_method_needs_a_component_block;
 mod fix_repository_accepts_tagged_unsafe;
 mod fix_repository_check_reports_without_changes;
 mod fix_repository_does_not_rewrite_compliant_repository;
