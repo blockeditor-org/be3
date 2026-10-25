@@ -29,6 +29,7 @@ use crate::{
 
 const CARRIED_BYTES: usize = be_protocol::MAX_FRAME_BYTES / 2;
 const CONTENTS_BLOCKS: usize = 256;
+const FETCHING: usize = 64;
 
 mod import;
 mod offline;
@@ -926,26 +927,30 @@ impl<S: ObjectStore> Peer<S> {
     }
 
     pub async fn fetch(&self, hashes: &[Hash]) -> Result<(), ClientError> {
+        use futures_util::StreamExt;
+        let store = self.commits.vault().store();
+        let mut seen = std::collections::HashSet::new();
         let mut missing = Vec::new();
         for hash in hashes {
-            if !self.commits.vault().store().has(*hash)? && !missing.contains(hash) {
+            if seen.insert(*hash) && !store.has(*hash)? {
                 missing.push(*hash);
             }
         }
         let connection = self.connection();
-        let responses = futures_util::future::join_all(missing.iter().map(|hash| {
-            connection.request(|request| ClientMessage::GetObject {
-                request,
-                hash: *hash,
-            })
+        let connection = &connection;
+        let mut answers = futures_util::stream::iter(missing.into_iter().map(|hash| async move {
+            let answer = connection
+                .request(|request| ClientMessage::GetObject { request, hash })
+                .await;
+            (hash, answer)
         }))
-        .await;
-        for (hash, response) in missing.into_iter().zip(responses) {
-            let ServerMessage::Object { bytes, .. } = response? else {
+        .buffered(FETCHING);
+        while let Some((hash, answer)) = answers.next().await {
+            let ServerMessage::Object { bytes, .. } = answer? else {
                 return Err(ClientError::Unexpected);
             };
             let bytes = bytes.ok_or(ClientError::MissingObject(hash))?;
-            if self.commits.vault().store().put(&bytes)? != hash {
+            if store.put(&bytes)? != hash {
                 return Err(ClientError::Tampered(hash));
             }
         }
