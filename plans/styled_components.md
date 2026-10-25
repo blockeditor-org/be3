@@ -3,17 +3,18 @@
 An audit of `beui-components-styled` against `beui-components-unstyled` found
 styled components that carry behaviour, components that don't belong in beui,
 and parallel components that should be one. This plan is the agreed list of
-changes. Not implemented yet. Items marked **(ask)** need a decision from the
-user before or during the work.
+changes. Not implemented yet.
 
 ## The rules this plan applies
 
 - **Unstyled has no appearance defaults.** Someone using only the unstyled layer
   can implement any style without inheriting ours. Colours, sizes, paddings,
   breakpoints and placeholder renderers are required props at the unstyled
-  layer and are chosen by the styled layer. **(ask)** Behaviour defaults (drag
-  threshold, tooltip delay, zoom limits, a slider's 0..1 range) stay allowed.
-  Confirm that line.
+  layer and are chosen by the styled layer. Behaviour defaults stay allowed:
+  the drag threshold, zoom limits and a slider's 0..1 range are what someone
+  uses unstyled for instead of building their own. The tooltip delay is
+  probably the same kind of thing. Leave it as a default unless doing §5
+  turns up a reason not to.
 - **Code outside beui depends only on the styled layer.** A crate that needs a
   face of its own is a sign of a missing styled component.
 - **Behaviour lives in unstyled.** Focus, keys, pointer, touch, timers,
@@ -92,10 +93,11 @@ into a new unstyled component, then rebuild the styled one on top of it.
 - **`Launcher`.** Its core joins the command palette (§4.2): a styled
   searchable palette with pluggable ranking and rows that show a picture or
   icon and a detail line. Also move `launcher_score` there as one of the
-  ranking functions. linux-desktop and be-launcher then build on that
-  palette and pass in their icons. The "Run 'query'" fallback row is the only
-  other extra. If a palette option for a fallback row covers it, neither crate
-  needs a shared launcher crate. **(ask)** if it turns out they share more.
+  ranking functions. Put everything else Launcher has in a new crate shared
+  by linux-desktop and be-launcher (they share no crate besides beui today).
+  That includes the program items, the "Run 'query'" row and the icons,
+  and the crate is where code both of them need from now on goes. Both
+  crates depend on it instead of on `styled::Launcher`.
   `plans/command_palette.md` also builds on `styled::CommandPalette`, so keep
   the two plans in step.
 - **`CrashNotice` and `StaleNotice` → block-app.** Only block-app uses them
@@ -156,18 +158,17 @@ fits too.
   (`panel.rs:405`) is the dock's phone layout with the app as a pane. Revisit
   it once the inspector is a dock.
 - **The block-app invite role is not tabs.** Editor/Administrator
-  (`block-app/src/ui/dialogs.rs:596`) is a form value. It tells screen readers
-  "tab" with no tab panel. Use a `RadioGroup` or a `Select`.
+  (`block-app/src/ui/dialogs.rs:596`) is a form value. It moves to the
+  segmented control below.
 - **Keep these as `Tabs`:** the input-remaps Editor/TOML views
   (`editors/settings/src/input_remaps/ui.rs`) and the `DateTimeField` paged
   Date/Time picker.
-- **A segmented control.** **(ask)** Calendar Day/Week/Month and be-launcher
-  Open/Closed pick a value; they don't switch panels, so they report the wrong
-  roles. A styled segmented look over `Choice`'s `Radio` kind would give them
-  radio semantics. The invite role could use it too. It's a separate concept
-  from tabs ("Tabs switches a panel, a segmented control picks a value"), so
-  it doesn't break "one obvious way". If it's added, the narrow-width collapse
-  applies to it too.
+- **Add a styled segmented control** over `Choice`'s `Radio` kind, so it has
+  radio semantics. Tabs switch a panel; a segmented control picks a value.
+  Move calendar's Day/Week/Month, be-launcher's Open/Closed and block-app's
+  invite role onto it. Today they use `Tabs` and report tab roles with no tab
+  panel. It collapses into a Select when narrow, as `Tabs` does. Add it to
+  beui-demo.
 
 ### 4.4 One Progress
 
