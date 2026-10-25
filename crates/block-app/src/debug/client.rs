@@ -18,10 +18,10 @@ pub(super) fn lines() -> Vec<Line> {
         &mut lines,
         1,
         "Connection",
-        if status.connected {
-            "Connected"
-        } else {
-            "Disconnected"
+        match (status.connected, status.syncing) {
+            (true, true) => "Connected, syncing",
+            (true, false) => "Connected",
+            (false, _) => "Disconnected",
         },
     );
     field(&mut lines, 1, "Graph", graph());
@@ -37,7 +37,12 @@ pub(super) fn lines() -> Vec<Line> {
             format!("{} block(s) unsealed", status.unsealed)
         },
     );
+    field(&mut lines, 1, "Waiting to sync", status.waiting);
+    field(&mut lines, 1, "Set aside", status.unsent);
     field(&mut lines, 1, "Merge conflicts", status.conflicts);
+    for block in &status.conflicted {
+        field(&mut lines, 2, "Conflicted", block);
+    }
     field(
         &mut lines,
         1,

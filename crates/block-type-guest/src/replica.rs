@@ -20,6 +20,8 @@ use crate::{
 
 pub const SEAL_INTERVAL: u64 = 750;
 
+pub const HEARTBEAT_INTERVAL: u64 = be_session::LEASE_MILLISECONDS as u64 / 2;
+
 const JOURNAL_LIMIT: usize = 1024;
 const LARGEST_RELAYED_OPERATION: usize = 1024 * 1024;
 const REPLACE_ATTEMPTS: u8 = 4;
@@ -302,6 +304,8 @@ pub(crate) struct Replica<C: LiveEdit, H> {
     tokens: Token,
     now: u64,
     owes_since: Option<u64>,
+    beaten: Option<u64>,
+    active: bool,
     sealing: bool,
     claimed: Option<u64>,
     replaced_at: u64,
@@ -358,14 +362,18 @@ where
                 reply: None,
             });
         }
+        if self.beat_at().is_some_and(|at| self.now >= at) {
+            self.heartbeat();
+        }
         self.run(out);
     }
 
     fn wake_at(&self) -> Option<u64> {
-        match self.sealing {
+        let seal = match self.sealing {
             true => None,
             false => self.owes_since.map(|since| since + SEAL_INTERVAL),
-        }
+        };
+        seal.into_iter().chain(self.beat_at()).min()
     }
 
     fn released(&self) -> bool {
@@ -419,6 +427,8 @@ where
             tokens: 0,
             now: opened.now,
             owes_since: None,
+            beaten: None,
+            active: false,
             sealing: false,
             claimed: None,
             replaced_at: 0,
@@ -446,8 +456,32 @@ where
             };
             self.job(job);
         }
+        match self.loaded && self.is_owner() && !self.released {
+            true => {
+                self.beaten.get_or_insert(self.now);
+            }
+            false => self.beaten = None,
+        }
         self.report();
         out.append(&mut self.out);
+    }
+
+    fn beat_at(&self) -> Option<u64> {
+        let busy = self.active || !self.is_clean();
+        self.beaten
+            .filter(|_| busy)
+            .map(|beaten| beaten + HEARTBEAT_INTERVAL)
+    }
+
+    fn heartbeat(&mut self) {
+        self.beaten = Some(self.now);
+        self.active = false;
+        let clean_at = self.base.filter(|_| self.is_clean());
+        self.out.push(Command::ReportClean {
+            replica: self.id,
+            generation: self.state.generation,
+            clean_at,
+        });
     }
 
     fn job(&mut self, job: Job<C>) {
@@ -1332,6 +1366,7 @@ where
     }
 
     fn edit(&mut self, operation: C::Op, origin: Option<EditorId>) -> bool {
+        self.active = true;
         if self.diverged {
             self.error(DIVERGED);
             return false;
@@ -2477,6 +2512,8 @@ where
             sequence,
             reload,
         });
+        self.beaten = Some(self.now);
+        self.active = false;
         self.out.push(Command::ReportClean {
             replica: self.id,
             generation: self.state.generation,

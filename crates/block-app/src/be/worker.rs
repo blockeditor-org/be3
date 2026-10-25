@@ -347,6 +347,7 @@ pub(crate) struct Shared {
     pub(crate) saves: u64,
     pub(crate) owing: usize,
     pub(crate) connected: bool,
+    pub(crate) draining: bool,
     pub(crate) error: Option<String>,
     pub(crate) conflicts: HashMap<Uuid, Vec<Conflict>>,
     pub(crate) pairing: Vec<PairingRequest>,
@@ -414,34 +415,80 @@ pub(super) async fn serve<S: Fn() -> Result<Store, String>>(
     let mut replicas = Replicas::new(Modules::new(types::sources().await));
     replicas.modules.ready().await;
     crate::host::wake();
-    let mut wanted = Wanted::default();
-    let mut uploads = Uploads::new(&shared);
+    let started = match cached(&config, &make_store) {
+        Some(peer) => Some((peer, None)),
+        None => first_connect(&config, &make_store, &mut nudged, &shared, &changed).await,
+    };
+    if let Some((peer, open)) = started {
+        resolve_through_graph(&peer, &shared);
+        let mut session = Session {
+            config: &config,
+            peer: &peer,
+            commands: &mut commands,
+            nudged: &mut nudged,
+            shared: &shared,
+            changed: &changed,
+            wanted: Wanted::default(),
+            replicas: &mut replicas,
+            uploads: Uploads::new(&shared),
+            versions: Versions::default(),
+            line: Line::down(&config, 0, Duration::ZERO),
+        };
+        session.run(open).await;
+    }
+    shared
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .connected = false;
+    changed.notify_all();
+}
+
+fn peer_config(config: &Config, refs: be_client::RefsDb) -> PeerConfig {
+    PeerConfig::new(
+        config.socket_url(),
+        be_keys::RecoverySecret::from_bytes(config.identity),
+        Credentials::Token(config.token.clone()),
+    )
+    .organization(Some(config.organization))
+    .refs(refs)
+}
+
+fn cached<S: Fn() -> Result<Store, String>>(
+    config: &Config,
+    make_store: &S,
+) -> Option<Arc<Peer<Store>>> {
+    let refs = platform::refs(config).ok()?;
+    if !refs
+        .knows(&config.socket_url(), config.account, config.organization)
+        .unwrap_or(false)
+    {
+        return None;
+    }
+    let store = make_store().ok()?;
+    Peer::cached(peer_config(config, refs), config.account, store)
+        .ok()
+        .map(Arc::new)
+}
+
+async fn first_connect<S: Fn() -> Result<Store, String>>(
+    config: &Config,
+    make_store: &S,
+    nudged: &mut tokio::sync::watch::Receiver<()>,
+    shared: &Arc<Mutex<Shared>>,
+    changed: &Arc<Condvar>,
+) -> Option<(Arc<Peer<Store>>, Option<Opened>)> {
     let mut failures = 0;
     loop {
-        match connected(
-            &config,
-            &make_store,
-            &mut commands,
-            &mut nudged,
-            &shared,
-            &changed,
-            &mut wanted,
-            &mut replicas,
-            &mut uploads,
-        )
-        .await
-        {
-            Outcome::Stopped => {
-                changed.notify_all();
-                return;
-            }
-            Outcome::Lost => failures = 0,
-            Outcome::Unreachable => {}
+        match make_store() {
+            Ok(store) => match unless_stopped(connect(config, store), nudged).await? {
+                Ok((peer, open)) => {
+                    nudged.mark_unchanged();
+                    return Some((Arc::new(peer), Some(open)));
+                }
+                Err(error) => fail(shared, error.to_string()),
+            },
+            Err(error) => fail(shared, error),
         }
-        shared
-            .lock()
-            .unwrap_or_else(PoisonError::into_inner)
-            .connected = false;
         changed.notify_all();
         crate::host::wake();
         let delay = reconnect_delay(failures, jitter());
@@ -449,10 +496,26 @@ pub(super) async fn serve<S: Fn() -> Result<Store, String>>(
         let waited = config.clock.sleep(delay);
         let nudge = std::pin::pin!(nudged.changed());
         if let Either::Right((Err(_), _)) = select(waited, nudge).await {
-            changed.notify_all();
-            return;
+            return None;
         }
     }
+}
+
+fn resolve_through_graph(peer: &Peer<Store>, shared: &Arc<Mutex<Shared>>) {
+    let resolving = Arc::clone(shared);
+    peer.set_resolver(Arc::new(move |block, references| {
+        let held = resolving.lock().unwrap_or_else(PoisonError::into_inner);
+        let Some(scope) = held.graph.scope_of(block) else {
+            return references;
+        };
+        references
+            .into_iter()
+            .map(|reference| {
+                held.graph
+                    .to_real(scope, reference, block_plugin_api::BlockIdRole::Existing)
+            })
+            .collect()
+    }));
 }
 
 async fn unless_stopped<T>(
@@ -468,6 +531,426 @@ async fn unless_stopped<T>(
             Either::Right((Err(_), _)) => return None,
         }
     }
+}
+
+type Opened = tokio::sync::OwnedMutexGuard<()>;
+
+type Reaching = std::pin::Pin<Box<dyn Future<Output = Result<crate::link::Link, ClientError>>>>;
+
+enum Line {
+    Up {
+        events: tokio::sync::broadcast::Receiver<ServerMessage>,
+        gone: tokio::sync::watch::Receiver<bool>,
+        _open: Opened,
+    },
+    Down {
+        failures: u32,
+        reaching: Reaching,
+    },
+}
+
+impl Line {
+    fn up(peer: &Peer<Store>, open: Opened) -> Self {
+        let connection = peer.connection();
+        Self::Up {
+            events: connection.subscribe(),
+            gone: connection.closed(),
+            _open: open,
+        }
+    }
+
+    fn down(config: &Config, failures: u32, delay: Duration) -> Self {
+        let clock = config.clock.clone();
+        let url = config.server_url.clone();
+        let token = config.token.clone();
+        Self::Down {
+            failures,
+            reaching: Box::pin(async move {
+                clock.sleep(delay).await;
+                crate::link::signed_in(&url, &token, &clock).await
+            }),
+        }
+    }
+
+    fn is_up(&self) -> bool {
+        matches!(self, Self::Up { .. })
+    }
+
+    fn quiet(&self) -> bool {
+        match self {
+            Self::Up { events, .. } => events.is_empty(),
+            Self::Down { .. } => true,
+        }
+    }
+
+    async fn next(&mut self) -> Woken {
+        match self {
+            Self::Up { events, gone, .. } => {
+                let event = std::pin::pin!(events.recv());
+                let closed = std::pin::pin!(gone.changed());
+                match select(event, closed).await {
+                    Either::Left((Ok(event), _)) => Woken::Event(Some(event)),
+                    Either::Left((Err(tokio::sync::broadcast::error::RecvError::Lagged(_)), _)) => {
+                        Woken::Event(None)
+                    }
+                    Either::Left((Err(_), _)) | Either::Right(_) => Woken::Disconnected,
+                }
+            }
+            Self::Down { reaching, .. } => Woken::Reached(reaching.as_mut().await),
+        }
+    }
+}
+
+struct Session<'a> {
+    config: &'a Config,
+    peer: &'a Arc<Peer<Store>>,
+    commands: &'a mut UnboundedReceiver<Command>,
+    nudged: &'a mut tokio::sync::watch::Receiver<()>,
+    shared: &'a Arc<Mutex<Shared>>,
+    changed: &'a Arc<Condvar>,
+    wanted: Wanted,
+    replicas: &'a mut Replicas,
+    uploads: Uploads,
+    versions: Versions,
+    line: Line,
+}
+
+impl Session<'_> {
+    async fn run(&mut self, open: Option<Opened>) {
+        let (peer, shared) = (self.peer, self.shared);
+        {
+            let mut held = shared.lock().unwrap_or_else(PoisonError::into_inner);
+            held.graph.want(Owner::Host, vec![Query::Roots]);
+        }
+        match open {
+            Some(open) => self.arrive(open).await,
+            None => {
+                self.depart(0);
+                want_open(shared, &self.wanted.blocks());
+                relist(shared);
+                fetch_listings(peer, shared).await;
+                self.versions
+                    .refresh(&mut Context {
+                        peer,
+                        shared,
+                        replicas: &mut *self.replicas,
+                    })
+                    .await;
+                report(peer, shared, false);
+                self.changed.notify_all();
+                crate::host::wake();
+            }
+        }
+        let mut flushes = Vec::new();
+        let mut keyed: HashMap<Uuid, Uuid> = HashMap::new();
+        let mut stopping = false;
+        loop {
+            if stopping && (self.uploads.is_empty() || !self.line.is_up()) {
+                self.replicas.seal_all((peer, shared)).await;
+                report(peer, shared, false);
+                return;
+            }
+            let deadline = self.replicas.modules.deadline();
+            let woken = {
+                let waited = std::pin::pin!(wait(
+                    self.commands,
+                    &mut self.line,
+                    self.nudged,
+                    &mut self.uploads,
+                    &mut *self.replicas,
+                    stopping
+                ));
+                match deadline {
+                    Some(remaining) => {
+                        let timer = std::pin::pin!(platform::sleep(remaining));
+                        match select(waited, timer).await {
+                            Either::Left((woken, _)) => woken,
+                            Either::Right(_) => Woken::Deadline,
+                        }
+                    }
+                    None => waited.await,
+                }
+            };
+            let handled = self.replicas.handled;
+            let pumped = matches!(woken, Woken::Module) && self.replicas.pump((peer, shared)).await;
+            if !matches!(woken, Woken::Module) || self.replicas.handled != handled {
+                shared.lock().unwrap_or_else(PoisonError::into_inner).wakes += 1;
+            }
+            let mut moved = match woken {
+                Woken::Stopped => {
+                    stopping = true;
+                    false
+                }
+                Woken::Nudged => {
+                    if let Line::Down { failures, .. } = self.line {
+                        self.line = Line::down(self.config, failures, Duration::ZERO);
+                    }
+                    false
+                }
+                Woken::Disconnected => {
+                    self.depart(0);
+                    true
+                }
+                Woken::Reached(Ok(link)) => {
+                    let open = link.open_organization().await;
+                    match peer
+                        .attach(link.connection, self.config.token.clone())
+                        .await
+                    {
+                        Ok(()) => {
+                            self.nudged.mark_unchanged();
+                            self.arrive(open).await;
+                        }
+                        Err(error) => {
+                            peer.detach();
+                            let failures = self.failures();
+                            fail(shared, error.to_string());
+                            self.depart(failures + 1);
+                        }
+                    }
+                    true
+                }
+                Woken::Reached(Err(error)) => {
+                    let failures = self.failures();
+                    fail(shared, error.to_string());
+                    self.depart(failures + 1);
+                    false
+                }
+                Woken::Command(command) => {
+                    let mut ran = Ran {
+                        peer,
+                        replicas: &mut *self.replicas,
+                        wanted: &mut self.wanted,
+                        shared,
+                        config: self.config,
+                        versions: &mut self.versions,
+                        flushes: &mut flushes,
+                    };
+                    let mut next = Some(command);
+                    let mut applied = false;
+                    while let Some(command) = next.take() {
+                        let quick = command.is_quick();
+                        match command {
+                            Command::Import(blocks) => {
+                                self.uploads.add(blocks);
+                                ran.done();
+                            }
+                            command => {
+                                if let Some(command) = self.uploads.defer(command) {
+                                    applied |= ran.run(command).await;
+                                }
+                            }
+                        }
+                        if quick {
+                            next = self.commands.try_recv().ok();
+                        }
+                    }
+                    applied
+                }
+                Woken::Uploaded => {
+                    let mut ran = Ran {
+                        peer,
+                        replicas: &mut *self.replicas,
+                        wanted: &mut self.wanted,
+                        shared,
+                        config: self.config,
+                        versions: &mut self.versions,
+                        flushes: &mut flushes,
+                    };
+                    let mut applied = false;
+                    for command in self.uploads.runnable() {
+                        applied |= ran.run(command).await;
+                    }
+                    crate::host::wake();
+                    applied
+                }
+                Woken::Event(event) => {
+                    let mut heard_all = vec![event];
+                    if let Line::Up { events, .. } = &mut self.line {
+                        loop {
+                            match events.try_recv() {
+                                Ok(event) => heard_all.push(Some(event)),
+                                Err(tokio::sync::broadcast::error::TryRecvError::Lagged(_)) => {
+                                    heard_all.push(None);
+                                }
+                                Err(_) => break,
+                            }
+                        }
+                    }
+                    for event in heard_all {
+                        match &event {
+                            Some(message) => self.replicas.heard((peer, shared), message).await,
+                            None => self.replicas.resynchronize((peer, shared)).await,
+                        }
+                        heard(peer, shared, event).await;
+                    }
+                    false
+                }
+                Woken::Module | Woken::Deadline => {
+                    self.replicas.modules.tick_due();
+                    false
+                }
+            };
+            moved |= pumped;
+            moved |= self.replicas.pump((peer, shared)).await;
+            rekey_changed(peer, self.replicas, &mut keyed, shared).await;
+            let before = version_revisions(shared);
+            self.versions
+                .refresh(&mut Context {
+                    peer,
+                    shared,
+                    replicas: &mut *self.replicas,
+                })
+                .await;
+            moved |= version_revisions(shared) != before;
+            want_open(shared, &self.wanted.blocks());
+            moved |= fetch_listings(peer, shared).await;
+            if self.line.quiet()
+                && (self.uploads.is_empty() || !self.line.is_up())
+                && !flushes.is_empty()
+            {
+                self.replicas.seal_all((peer, shared)).await;
+                for done in flushes.drain(..) {
+                    let _ = done.send(());
+                }
+            }
+            moved |= report(peer, shared, false);
+            let typing = !self.replicas.modules.settled();
+            let was_typing = std::mem::replace(
+                &mut shared.lock().unwrap_or_else(PoisonError::into_inner).typing,
+                typing,
+            );
+            self.changed.notify_all();
+            if moved || was_typing != typing {
+                crate::host::wake();
+            }
+        }
+    }
+
+    fn failures(&self) -> u32 {
+        match self.line {
+            Line::Down { failures, .. } => failures,
+            Line::Up { .. } => 0,
+        }
+    }
+
+    fn depart(&mut self, failures: u32) {
+        let was_up = self.line.is_up();
+        let delay = match failures {
+            0 if was_up => Duration::ZERO,
+            0 => Duration::ZERO,
+            failures => reconnect_delay(failures - 1, jitter()),
+        };
+        self.line = Line::down(self.config, failures, delay);
+        if was_up {
+            self.replicas.disconnected();
+        }
+        shared_offline(self.shared);
+        self.changed.notify_all();
+        crate::host::wake();
+    }
+
+    async fn arrive(&mut self, open: Opened) {
+        let (peer, shared) = (self.peer, self.shared);
+        self.line = Line::up(peer, open);
+        {
+            let mut held = shared.lock().unwrap_or_else(PoisonError::into_inner);
+            held.connected = true;
+            held.error = None;
+        }
+        self.changed.notify_all();
+        crate::host::wake();
+        sync_outbox(peer, self.replicas, shared).await;
+        want_open(shared, &self.wanted.blocks());
+        relist(shared);
+        fetch_listings(peer, shared).await;
+        sync_contacts(peer, shared).await;
+        self.replicas.reconnect((peer, shared)).await;
+        for (block, content_type) in self.wanted.blocks() {
+            open_wanted(
+                peer,
+                shared,
+                &self.wanted,
+                self.replicas,
+                block,
+                content_type,
+            )
+            .await;
+        }
+        self.replicas.pump((peer, shared)).await;
+        self.versions
+            .refresh(&mut Context {
+                peer,
+                shared,
+                replicas: &mut *self.replicas,
+            })
+            .await;
+        self.uploads.connect(peer);
+        report(peer, shared, false);
+        self.changed.notify_all();
+        crate::host::wake();
+    }
+}
+
+fn shared_offline(shared: &Arc<Mutex<Shared>>) {
+    shared
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .connected = false;
+}
+
+async fn sync_outbox(
+    peer: &Arc<Peer<Store>>,
+    replicas: &mut Replicas,
+    shared: &Arc<Mutex<Shared>>,
+) {
+    if peer.pending().operations == 0 {
+        return;
+    }
+    report(peer, shared, true);
+    crate::host::wake();
+    match peer.drain(|_| false).await {
+        Ok(drained) => {
+            for outcome in drained {
+                match outcome {
+                    be_client::Drained::Diverged {
+                        block,
+                        local,
+                        remote,
+                    } => {
+                        if let Err(error) = replicas
+                            .merge_diverged((peer, shared), block, local, remote)
+                            .await
+                        {
+                            record(shared, error);
+                        }
+                    }
+                    be_client::Drained::Refused { block, code } => record(
+                        shared,
+                        ClientError::Refused(
+                            code,
+                            format!("a change made offline to block {block} was refused"),
+                        ),
+                    ),
+                    _ => {}
+                }
+            }
+        }
+        Err(error) => record(shared, error),
+    }
+    report(peer, shared, false);
+}
+
+fn report(peer: &Peer<Store>, shared: &Arc<Mutex<Shared>>, syncing: bool) -> bool {
+    let counts = peer.pending();
+    let mut held = shared.lock().unwrap_or_else(PoisonError::into_inner);
+    let mut changed = (held.waiting, held.draining) != (counts.operations, syncing);
+    (held.waiting, held.draining) = (counts.operations, syncing);
+    if held.unsent.len() != counts.unsent {
+        held.unsent = peer.unsent();
+        changed = true;
+    }
+    changed
 }
 
 #[derive(Default)]
@@ -502,231 +985,6 @@ impl Wanted {
             }
         }
         blocks
-    }
-}
-
-enum Outcome {
-    Stopped,
-    Lost,
-    Unreachable,
-}
-
-#[allow(clippy::too_many_arguments)]
-async fn connected<S: Fn() -> Result<Store, String>>(
-    config: &Config,
-    make_store: &S,
-    commands: &mut UnboundedReceiver<Command>,
-    nudged: &mut tokio::sync::watch::Receiver<()>,
-    shared: &Arc<Mutex<Shared>>,
-    changed: &Arc<Condvar>,
-    wanted: &mut Wanted,
-    replicas: &mut Replicas,
-    uploads: &mut Uploads,
-) -> Outcome {
-    let store = match make_store() {
-        Ok(store) => store,
-        Err(error) => {
-            fail(shared, error);
-            return Outcome::Unreachable;
-        }
-    };
-    let Some(attempt) = unless_stopped(connect(config, store), nudged).await else {
-        return Outcome::Stopped;
-    };
-    let (peer, _open) = match attempt {
-        Ok((peer, open)) => {
-            nudged.mark_unchanged();
-            let resolving = Arc::clone(shared);
-            peer.set_resolver(Arc::new(move |block, references| {
-                let held = resolving.lock().unwrap_or_else(PoisonError::into_inner);
-                let Some(scope) = held.graph.scope_of(block) else {
-                    return references;
-                };
-                references
-                    .into_iter()
-                    .map(|reference| {
-                        held.graph.to_real(
-                            scope,
-                            reference,
-                            block_plugin_api::BlockIdRole::Existing,
-                        )
-                    })
-                    .collect()
-            }));
-            (Arc::new(peer), open)
-        }
-        Err(error) => {
-            fail(shared, error.to_string());
-            return Outcome::Unreachable;
-        }
-    };
-    {
-        let mut held = shared.lock().unwrap_or_else(PoisonError::into_inner);
-        held.connected = true;
-        held.error = None;
-    }
-    changed.notify_all();
-    crate::host::wake();
-    let mut events = peer.connection().subscribe();
-    let mut gone = peer.connection().closed();
-    {
-        let mut held = shared.lock().unwrap_or_else(PoisonError::into_inner);
-        held.graph.want(Owner::Host, vec![Query::Roots]);
-    }
-    want_open(shared, &wanted.blocks());
-    relist(shared);
-    fetch_listings(&peer, shared).await;
-    sync_contacts(&peer, shared).await;
-    replicas.reconnect((&peer, shared)).await;
-    for (block, content_type) in wanted.blocks() {
-        open_wanted(&peer, shared, wanted, replicas, block, content_type).await;
-    }
-    replicas.pump((&peer, shared)).await;
-    let mut versions = Versions::default();
-    versions
-        .refresh(&mut Context {
-            peer: &peer,
-            shared,
-            replicas: &mut *replicas,
-        })
-        .await;
-    changed.notify_all();
-    crate::host::wake();
-    let mut flushes = Vec::new();
-    let mut keyed: HashMap<Uuid, Uuid> = HashMap::new();
-    let mut stopping = false;
-    uploads.connect(&peer);
-    loop {
-        if stopping && uploads.is_empty() {
-            replicas.seal_all((&peer, shared)).await;
-            return Outcome::Stopped;
-        }
-        let deadline = replicas.modules.deadline();
-        let woken = {
-            let waited = std::pin::pin!(wait(
-                commands,
-                &mut events,
-                &mut gone,
-                uploads,
-                &mut *replicas,
-                stopping
-            ));
-            match deadline {
-                Some(remaining) => {
-                    let timer = std::pin::pin!(platform::sleep(remaining));
-                    match select(waited, timer).await {
-                        Either::Left((woken, _)) => woken,
-                        Either::Right(_) => Woken::Deadline,
-                    }
-                }
-                None => waited.await,
-            }
-        };
-        let handled = replicas.handled;
-        let pumped = matches!(woken, Woken::Module) && replicas.pump((&peer, shared)).await;
-        if !matches!(woken, Woken::Module) || replicas.handled != handled {
-            shared.lock().unwrap_or_else(PoisonError::into_inner).wakes += 1;
-        }
-        let mut ran = Ran {
-            peer: &peer,
-            replicas: &mut *replicas,
-            wanted: &mut *wanted,
-            shared,
-            config,
-            versions: &mut versions,
-            flushes: &mut flushes,
-        };
-        let mut moved = match woken {
-            Woken::Stopped => {
-                stopping = true;
-                false
-            }
-            Woken::Disconnected if stopping => return Outcome::Stopped,
-            Woken::Disconnected => return Outcome::Lost,
-            Woken::Command(command) => {
-                let mut next = Some(command);
-                let mut applied = false;
-                while let Some(command) = next.take() {
-                    let quick = command.is_quick();
-                    match command {
-                        Command::Import(blocks) => {
-                            uploads.add(blocks);
-                            ran.done();
-                        }
-                        command => {
-                            if let Some(command) = uploads.defer(command) {
-                                applied |= ran.run(command).await;
-                            }
-                        }
-                    }
-                    if quick {
-                        next = commands.try_recv().ok();
-                    }
-                }
-                applied
-            }
-            Woken::Uploaded => {
-                let mut applied = false;
-                for command in uploads.runnable() {
-                    applied |= ran.run(command).await;
-                }
-                crate::host::wake();
-                applied
-            }
-            Woken::Event(event) => {
-                let mut heard_all = vec![event];
-                loop {
-                    match events.try_recv() {
-                        Ok(event) => heard_all.push(Some(event)),
-                        Err(tokio::sync::broadcast::error::TryRecvError::Lagged(_)) => {
-                            heard_all.push(None);
-                        }
-                        Err(_) => break,
-                    }
-                }
-                for event in heard_all {
-                    match &event {
-                        Some(message) => replicas.heard((&peer, shared), message).await,
-                        None => replicas.resynchronize((&peer, shared)).await,
-                    }
-                    heard(&peer, shared, event).await;
-                }
-                false
-            }
-            Woken::Module | Woken::Deadline => {
-                replicas.modules.tick_due();
-                false
-            }
-        };
-        moved |= pumped;
-        moved |= replicas.pump((&peer, shared)).await;
-        rekey_changed(&peer, replicas, &mut keyed, shared).await;
-        let before = version_revisions(shared);
-        versions
-            .refresh(&mut Context {
-                peer: &peer,
-                shared,
-                replicas: &mut *replicas,
-            })
-            .await;
-        moved |= version_revisions(shared) != before;
-        want_open(shared, &wanted.blocks());
-        moved |= fetch_listings(&peer, shared).await;
-        if events.is_empty() && uploads.is_empty() && !flushes.is_empty() {
-            replicas.seal_all((&peer, shared)).await;
-            for done in flushes.drain(..) {
-                let _ = done.send(());
-            }
-        }
-        let typing = !replicas.modules.settled();
-        let was_typing = std::mem::replace(
-            &mut shared.lock().unwrap_or_else(PoisonError::into_inner).typing,
-            typing,
-        );
-        changed.notify_all();
-        if moved || was_typing != typing {
-            crate::host::wake();
-        }
     }
 }
 
@@ -777,13 +1035,15 @@ enum Woken {
     Module,
     Deadline,
     Disconnected,
+    Reached(Result<crate::link::Link, ClientError>),
+    Nudged,
     Stopped,
 }
 
 async fn wait(
     commands: &mut UnboundedReceiver<Command>,
-    events: &mut tokio::sync::broadcast::Receiver<be_protocol::ServerMessage>,
-    gone: &mut tokio::sync::watch::Receiver<bool>,
+    line: &mut Line,
+    nudged: &mut tokio::sync::watch::Receiver<()>,
     uploads: &mut Uploads,
     replicas: &mut Replicas,
     stopping: bool,
@@ -791,31 +1051,41 @@ async fn wait(
     let command = std::pin::pin!(async {
         match stopping {
             true => std::future::pending().await,
-            false => commands.recv().await,
+            false => match commands.recv().await {
+                Some(command) => Woken::Command(command),
+                None => Woken::Stopped,
+            },
         }
     });
-    let event = std::pin::pin!(events.recv());
-    let closed = std::pin::pin!(gone.changed());
-    let uploaded = std::pin::pin!(uploads.next());
-    let module = std::pin::pin!(replicas.woken());
-    match select(
-        select(select(select(command, event), closed), uploaded),
-        module,
-    )
-    .await
-    {
-        Either::Right(_) => Woken::Module,
-        Either::Left((Either::Right(_), _)) => Woken::Uploaded,
-        Either::Left((Either::Left((woken, _)), _)) => match woken {
-            Either::Left((Either::Left((Some(command), _)), _)) => Woken::Command(command),
-            Either::Left((Either::Left((None, _)), _)) => Woken::Stopped,
-            Either::Left((Either::Right((Ok(event), _)), _)) => Woken::Event(Some(event)),
-            Either::Left((Either::Right((Err(error), _)), _)) => match error {
-                tokio::sync::broadcast::error::RecvError::Lagged(_) => Woken::Event(None),
-                tokio::sync::broadcast::error::RecvError::Closed => Woken::Disconnected,
+    let nudge = std::pin::pin!(async {
+        match stopping {
+            true => std::future::pending().await,
+            false => match nudged.changed().await {
+                Ok(()) => Woken::Nudged,
+                Err(_) => Woken::Stopped,
             },
-            Either::Right(_) => Woken::Disconnected,
-        },
+        }
+    });
+    let heard = std::pin::pin!(line.next());
+    let uploaded = std::pin::pin!(async {
+        uploads.next().await;
+        Woken::Uploaded
+    });
+    let module = std::pin::pin!(async {
+        replicas.woken().await;
+        Woken::Module
+    });
+    let first = select(
+        select(command, nudge),
+        select(heard, select(uploaded, module)),
+    );
+    match first.await {
+        Either::Left((Either::Left((woken, _)) | Either::Right((woken, _)), _))
+        | Either::Right((
+            Either::Left((woken, _))
+            | Either::Right((Either::Left((woken, _)) | Either::Right((woken, _)), _)),
+            _,
+        )) => woken,
     }
 }
 
@@ -829,8 +1099,49 @@ struct Ran<'a> {
     flushes: &'a mut Vec<std::sync::mpsc::Sender<()>>,
 }
 
+const NEEDS_CONNECTION: &str =
+    "This needs a connection to the server. Try again once Block is back online.";
+
+fn refuse_offline(command: Command, shared: &Arc<Mutex<Shared>>) -> Option<Command> {
+    match command {
+        Command::SetAccess { .. } | Command::Leave(_) | Command::ApprovePairing { .. } => {
+            shared.lock().unwrap_or_else(PoisonError::into_inner).error =
+                Some(NEEDS_CONNECTION.to_owned());
+        }
+        Command::ListAccess { reply, .. } => reply(Err(NEEDS_CONNECTION.to_owned())),
+        Command::Members(
+            MembersCommand::List(reply)
+            | MembersCommand::SetRole { reply, .. }
+            | MembersCommand::Remove { reply, .. },
+        ) => reply(Err(NEEDS_CONNECTION.to_owned())),
+        Command::Invite { reply, .. } => reply(Err(NEEDS_CONNECTION.to_owned())),
+        Command::CreateAgent { reply, .. } => reply(Err(NEEDS_CONNECTION.to_owned())),
+        Command::Contact(ContactCommand::Link { reply, .. }) => {
+            reply(Err(NEEDS_CONNECTION.to_owned()))
+        }
+        Command::Contact(
+            ContactCommand::Open { reply, .. } | ContactCommand::Accept { reply, .. },
+        ) => reply(Err(NEEDS_CONNECTION.to_owned())),
+        Command::Contact(ContactCommand::Remove(_)) => {
+            shared.lock().unwrap_or_else(PoisonError::into_inner).error =
+                Some(NEEDS_CONNECTION.to_owned());
+        }
+        command => return Some(command),
+    }
+    crate::host::wake();
+    None
+}
+
 impl Ran<'_> {
     async fn run(&mut self, command: Command) -> bool {
+        let command = match self.peer.is_attached() {
+            true => Some(command),
+            false => refuse_offline(command, self.shared),
+        };
+        let Some(command) = command else {
+            self.done();
+            return false;
+        };
         let applied = match command {
             Command::Contact(command) => {
                 contact(self.peer, self.shared, self.config, command).await;
@@ -1579,7 +1890,7 @@ async fn apply(
                 .define(block, |metadata| metadata.define(&changes))
                 .await;
             if let Ok(summary) = &defined
-                && let Some(head) = summary.head
+                && let Some(head) = peer.local_head(block).or(summary.head)
             {
                 replicas.moved_here(block, head);
             }
@@ -1690,7 +2001,7 @@ async fn plain_file(
 }
 
 async fn stored(peer: &Peer<Store>, block: Uuid) -> Result<Option<Vec<u8>>, ClientError> {
-    let Some(head) = peer.remote_head(block).await? else {
+    let Some(head) = peer.newest_head(block).await? else {
         return Ok(None);
     };
     let commit = peer.load_commit(head).await?;
@@ -1710,7 +2021,7 @@ async fn seed(
     }
     peer.ensure_type(block, content_type, BlockParent::Detached)
         .await?;
-    if peer.remote_head(block).await?.is_some() {
+    if peer.newest_head(block).await?.is_some() {
         return Ok(());
     }
     publish_bytes(peer, replicas, shared, block, content_type, bytes, false).await
@@ -1731,7 +2042,7 @@ async fn publish_bytes(
     else {
         return Ok(());
     };
-    let mut expected = peer.remote_head(block).await?;
+    let mut expected = peer.newest_head(block).await?;
     for _ in 0..4 {
         match peer
             .publish_encoded(
@@ -2075,16 +2386,12 @@ async fn connect(
 ) -> Result<(Peer<Store>, tokio::sync::OwnedMutexGuard<()>), ClientError> {
     let link = crate::link::signed_in(&config.server_url, &config.token, &config.clock).await?;
     let open = link.open_organization().await;
+    let refs = platform::refs(config).unwrap_or_else(|_| be_client::RefsDb::memory());
     let peer = Peer::signed_in(
         link.connection,
         link.account,
         config.token.clone(),
-        PeerConfig::new(
-            config.socket_url(),
-            be_keys::RecoverySecret::from_bytes(config.identity),
-            Credentials::Token(config.token.clone()),
-        )
-        .organization(Some(config.organization)),
+        peer_config(config, refs),
         store,
     )
     .await?;
@@ -2092,6 +2399,9 @@ async fn connect(
 }
 
 pub(super) fn record(shared: &Arc<Mutex<Shared>>, error: ClientError) {
+    if error.is_unreachable() {
+        return;
+    }
     shared.lock().unwrap_or_else(PoisonError::into_inner).error = Some(error.to_string());
 }
 

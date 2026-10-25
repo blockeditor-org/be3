@@ -125,9 +125,10 @@ Content-addressed, encrypted object storage.
 - `Lease` is ownership. The first participant owns the session; a claim succeeds
   only against the generation the claimant last saw, and only when the lease has
   expired or the owner is gone. Generation numbers stop a stale claim from
-  stomping a newer owner. Only a seal's heartbeat (`ReportClean`) renews the
-  lease, so an owner that edits nothing (a viewer) loses it to the next claim
-  once it lapses. Its length is `ServerConfig::lease`; tests that claim pass zero
+  stomping a newer owner. A heartbeat (`ReportClean`) renews the lease: the
+  owner sends one after every seal and, while it holds the session, every
+  `HEARTBEAT_INTERVAL` (half of `LEASE_MILLISECONDS`) on its replica's own
+  timer (`wake_at`), with `clean_at` set only while it has nothing unsealed. Its length is `ServerConfig::lease`; tests that claim pass zero
   (block-app's `Harness::lapsing`, `Lease::lasting(0)` in the replica's `Sim`)
   so a claim never waits on the clock.
 - `clean_at` is the commit the owner last reported its state durable at. It
@@ -881,16 +882,16 @@ anyway shows the editor for the rest of the session (`be::try_anyway`). A block
 the app holds itself (`be::hold`: settings, the shell's session) is reset by
 the worker without asking, with a notice, since the app needs it to work: it
 publishes the type's blank content and opens the replica again. The
-app also deletes its local caches (`be-objects/`, `plugin-cache/`) whenever its
-build id changes; when the app becomes offline-first, those will have to stay.
+app deletes `plugin-cache/` whenever its build id changes; it keeps
+`be-objects/` (objects are content-addressed and frozen) and the refs database.
 
 `crates/block-app/src/be/worker.rs` is the peer's loop and
 `be_types_host::Replicas` (shared with `be`, guides/type_modules.md "Hosts";
 `be/replicas.rs` is the app's `Host`, where reports land in `Shared`) the host
 half of every open block's replica: it opens a replica (joins the session,
 watches the block, sends `Open` with the head and `Moved` for a later one), answers
-its commands with the real primitives (`Read`, `Publish` and `Stash` through
-`Peer::publish_encoded` and `stash_encoded`, `Resume`, the lease, relaying
+its commands with the real primitives (`Read`, `Publish` through
+`Peer::seal_encoded` then `publish_sealed`, `Stash` through `stash_encoded`, `Resume`, the lease, relaying
 sealed with the block key, `WakeAt` from the clock), and keeps what it reports
 (`Status`, `Described`, `History`, `Conflict`) in `Shared`. Natively the module
 runs on a thread of its own (`PureHost::spawn`), on the web in a web worker
@@ -929,14 +930,34 @@ While the connection is down, reads fall back to the cache: `summary`, the
 listings and `read_contents` answer from it on `ClientError::Disconnected`, and
 `open` reads the local head first while it has unpublished commits.
 
+The app keeps one refs database per device, `be-refs.sqlite3` beside
+`be-objects/` in the data directory (`be::refs_in`; the web keeps it in memory
+until it gets OPFS). The worker builds its `Peer` once per workspace: with
+`Peer::cached` when the database already holds a session for that server,
+account and workspace, so the graph, listings and open blocks come up with no
+network, and otherwise with `Peer::signed_in` on the first connection. Every
+later connection is handed to the same peer with `attach`. The workspace list is
+cached there too (`RefsDb::set_workspaces` after each load); when the list
+request fails the app shows the cached one and loads it again once the worker
+connects or the window gains focus.
+
 Saving is two steps: `Peer::seal_manifest` writes the commit, records it in the
 outbox and moves the local head, and `publish_sealed` sends it; `publish_manifest`
 does both, and on `Rejected` drops the commit from the outbox since its caller
 retries or merges. A commit whose publish fails offline stays in the outbox, as
 does a `create_block` made offline (`refs::Op::Create`). `Peer::drain` publishes
 the outbox in order once attached and reports, per block, `Drained::Published`,
-`Created`, `Diverged { local, remote }` (left in the outbox for the replica host to
-merge: a publish whose parents include the local commit settles it) or `Unsent`.
+`Created`, `Moved`, `Defined`, `Diverged { local, remote }` (left in the outbox for the replica host to
+merge: a publish whose parents include the local commit settles it), `Refused`
+(an operation the server turned down for another reason, dropped) or `Unsent`.
+Graph operations queue the same way while detached: `set_parent` (moving and
+deleting) queues `refs::Op::Move` and `define` on a block with no content
+`Op::Define`, and both rewrite the cached summary so listings show the change
+offline; while any of these wait for a block, later ones queue behind them.
+`define` on a block with content seals a local commit. `unlist` is a no-op
+offline. Sharing, access lists, members, invites, agents, contacts and pairing
+need the server, and the worker answers them offline with "This needs a
+connection to the server".
 An outbox entry is settled once a published head descends from it. A block
 whose access is refused (on a publish, a create or `summary`), or whose summary
 arrives without edit access, moves its entries to the unsent area
@@ -1573,17 +1594,37 @@ A connection that drops does not take the peer with it. `Connection::closed` is
 a watch the worker waits on beside its commands - the event broadcast outlives
 the socket, because the connection holds a sender of its own, so that is not the
 signal - and losing it leaves the last content on screen, backs off, connects
-again, reloads the graph and rejoins every block that was open. The wait
+again, reloads the graph and rejoins every block that was open. While it is
+down the worker keeps serving from the same `Peer` (the session loop holds a
+`Line`, `Up` with the connection's events or `Down` with the next attempt as a
+future), and every open replica is handed a session it owns
+(`Replicas::disconnected`), so a follower takes over what it had not confirmed
+and seals it locally. A block opened while down opens from its local head with
+`OFFLINE_CLIENT` owning a made-up session; the host answers `Publish` with
+`Peer::seal_encoded` (a local commit in the outbox) and reports it as the new
+head, `Resume` treats the local head as the remote one, and heartbeats, claims
+and relays are skipped. A publish whose connection dies after the commit was
+sealed keeps the commit the same way. On each connection the worker first
+drains the outbox (`Peer::drain`), merges every `Diverged` block with
+`Replicas::merge_diverged` (a three-way merge by the type module, published
+with the remote head expected and the local commit as an extra parent; a
+conflicted merge reaches `Host::conflict`), then reloads the graph and rejoins
+the open blocks, whose `Moved` to the merged head fast-forwards them. The wait
 before each attempt doubles from 0.5 s to at most 30 s with each failure in a
 row, randomly shortened by up to half so that clients a server dropped together
 do not come back together (`reconnect_delay`), and starts over once a connection
 succeeds. `be::retry_now()` cuts the wait short: the app calls it whenever its
 window gains focus, and it is the hook for network-change and foreground
 events. `be::stop` never waits for a connection: stopping while connecting or
-backing off returns at once. What a session
-had not sealed when the socket went is lost: recovering it wants the resume path
-(`clean_at`, `Peer::fetch_history`) that be-session already has and the app
-does not use yet.
+backing off returns at once, sealing what the open replicas hold into local
+commits first.
+
+`be::status()` reports `connected`, `syncing` (the outbox is being drained),
+`waiting` (outbox operations: local commits and queued graph changes not yet on
+the server), `unsent` (blocks set aside in the unsent area), `conflicts` and
+`conflicted` (blocks a merge left conflicting), and `unsealed`, which adds
+replicas with unsealed edits, `waiting`, queued commands and uploads, so the
+close and account-switch guards count anything not yet on the server.
 
 ### Reaching the server
 
@@ -1965,8 +2006,10 @@ pixel art export regenerate this way.
   and a tab that closes leaves whatever a session held since its last autosave
   behind: `flush()` cannot wait there. An `ObjectStore` over IndexedDB is what
   that wants.
-- Reconnecting rejoins from the server's head, so operations a session had not
-  sealed when the socket dropped are gone.
+- Uploads (`Command::Import`) wait for a connection; they are not queued in the
+  refs database, so an import still uploading when the app quits is lost.
+- Opening a block while connected still joins the session before `Open`, rather
+  than opening from the local head and joining in the background.
 - A move into another scope lists the moved subtree one level at a time
   (`ListChildren`), and the old data keys of a block this device cannot open
   are not rewrapped, so that block's history stays closed to its new scope.

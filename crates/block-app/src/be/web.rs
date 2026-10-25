@@ -32,6 +32,17 @@ pub(super) fn spawn(
     Running
 }
 
+pub(super) fn refs(_: &Config) -> Result<be_client::RefsDb, String> {
+    refs_in(std::path::Path::new(""))
+}
+
+pub(crate) fn refs_in(_: &std::path::Path) -> Result<be_client::RefsDb, String> {
+    thread_local! {
+        static MEMORY: be_client::RefsDb = be_client::RefsDb::memory();
+    }
+    Ok(MEMORY.with(Clone::clone))
+}
+
 pub(super) fn spawn_local(task: impl Future<Output = ()> + 'static) {
     wasm_bindgen_futures::spawn_local(task);
 }

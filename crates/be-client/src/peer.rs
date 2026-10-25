@@ -126,6 +126,16 @@ pub enum Drained {
     Unsent {
         block: Uuid,
     },
+    Moved {
+        block: Uuid,
+    },
+    Defined {
+        block: Uuid,
+    },
+    Refused {
+        block: Uuid,
+        code: ErrorCode,
+    },
 }
 
 pub struct Peer<S: ObjectStore> {
@@ -255,6 +265,10 @@ impl<S: ObjectStore> Peer<S> {
         *self.connection.lock().unwrap() = connection;
         *self.token.lock().unwrap() = token;
         self.open_session().await
+    }
+
+    pub fn detach(&self) {
+        *self.connection.lock().unwrap() = Connection::offline();
     }
 
     pub fn is_attached(&self) -> bool {
@@ -631,7 +645,11 @@ impl<S: ObjectStore> Peer<S> {
     ) -> Result<BlockSummary, ClientError> {
         for _ in 0..8 {
             let summary = self.summary(block).await?;
-            let current = match summary.head {
+            let head = match self.pending_commits(block).is_empty() {
+                true => summary.head,
+                false => self.local_head(block).or(summary.head),
+            };
+            let current = match head {
                 Some(head) => self.metadata_of(head).await?,
                 None => self.metadata_of_summary(&summary).await?,
             };
@@ -641,9 +659,12 @@ impl<S: ObjectStore> Peer<S> {
             if next == current {
                 return Ok(summary);
             }
-            let Some(head) = summary.head else {
+            let Some(head) = head else {
                 let sealed = self.seal_metadata(block, &next).await?;
                 let references = deduplicated(self.resolve(block, next.references()));
+                if !self.is_attached() || self.refs.has_structural(block) {
+                    return self.define_locally(summary, sealed, references);
+                }
                 let response = self
                     .connection()
                     .request(|request| ClientMessage::SetMetadata {
@@ -657,6 +678,9 @@ impl<S: ObjectStore> Peer<S> {
                     Ok(ServerMessage::Block { block, .. }) => return Ok(block),
                     Ok(_) => return Err(ClientError::Unexpected),
                     Err(ClientError::Refused(ErrorCode::BlockHasContent, _)) => continue,
+                    Err(error) if offline::unreachable(&error) => {
+                        return self.define_locally(summary, sealed, references);
+                    }
                     Err(error) => return Err(error),
                 }
             };
@@ -675,7 +699,15 @@ impl<S: ObjectStore> Peer<S> {
                     Vec::new(),
                     &next,
                 )
-                .await?;
+                .await;
+            let saved = match saved {
+                Err(error)
+                    if offline::unreachable(&error) && self.local_head(block) != Some(head) =>
+                {
+                    return Ok(self.refs.summary(block).unwrap_or(summary));
+                }
+                saved => saved?,
+            };
             if saved.published().is_some() {
                 return self.summary(block).await;
             }
@@ -746,6 +778,9 @@ impl<S: ObjectStore> Peer<S> {
         content_type: Uuid,
         parent: BlockParent,
     ) -> Result<(), ClientError> {
+        if !self.is_attached() && self.refs.summary(block).is_some() {
+            return Ok(());
+        }
         match self
             .create_block(block, content_type, parent, &BlockMetadata::default())
             .await
@@ -767,10 +802,10 @@ impl<S: ObjectStore> Peer<S> {
                 Ok(block)
             }
             Ok(_) => Err(ClientError::Unexpected),
-            Err(ClientError::Disconnected(reason)) => self
-                .refs
-                .summary(block)
-                .ok_or(ClientError::Disconnected(reason)),
+            Err(error) if error.is_unreachable() => match self.refs.summary(block) {
+                Some(summary) => Ok(self.refs.current(vec![summary]).remove(0)),
+                None => Err(error),
+            },
             Err(error) => {
                 if offline::lost_access(&error) {
                     let _ = self.refs.lose_access(block);
@@ -793,16 +828,25 @@ impl<S: ObjectStore> Peer<S> {
                 Ok(blocks)
             }
             Ok(_) => Err(ClientError::Unexpected),
-            Err(ClientError::Disconnected(reason)) => self
-                .refs
-                .listing(&listing)
-                .ok_or(ClientError::Disconnected(reason)),
+            Err(error) if error.is_unreachable() => match self.refs.listing(&listing) {
+                Some(blocks) => Ok(self.refs.current(blocks)),
+                None => Err(error),
+            },
             Err(error) => Err(error),
         }
     }
 
     pub async fn remote_head(&self, block: Uuid) -> Result<Option<CommitId>, ClientError> {
         Ok(self.summary(block).await?.head)
+    }
+
+    pub async fn newest_head(&self, block: Uuid) -> Result<Option<CommitId>, ClientError> {
+        if !self.pending_commits(block).is_empty()
+            && let Some(head) = self.local_head(block)
+        {
+            return Ok(Some(head));
+        }
+        self.remote_head(block).await
     }
 
     pub async fn fetch(&self, hashes: &[Hash]) -> Result<(), ClientError> {
@@ -1058,20 +1102,7 @@ impl<S: ObjectStore> Peer<S> {
         expected: Option<CommitId>,
         merging: Option<(Option<CommitId>, CommitId)>,
     ) -> Result<Saved, ClientError> {
-        let (parents, defined) = match merging {
-            Some((base, ours)) => {
-                let mut sides = Vec::new();
-                for commit in [base, Some(ours), expected] {
-                    sides.push(match commit {
-                        Some(commit) => self.metadata_of(commit).await?,
-                        None => BlockMetadata::default(),
-                    });
-                }
-                let defined = BlockMetadata::merge_defined(&sides[0], &sides[2], &sides[1]).0;
-                (vec![ours], Some(defined))
-            }
-            None => (Vec::new(), None),
-        };
+        let (parents, defined) = self.merging(expected, merging).await?;
         self.save_bytes(
             block,
             content_type,
@@ -1109,7 +1140,10 @@ impl<S: ObjectStore> Peer<S> {
         let id = self.commits.put(key, &commit)?;
         let mut objects = vec![id.hash()];
         objects.extend(commit.manifest.chunk_hashes());
-        self.push(&objects).await?;
+        match self.push(&objects).await {
+            Err(error) if offline::unreachable(&error) => self.commits.vault().store().sync()?,
+            pushed => pushed?,
+        }
         Ok(id)
     }
 
@@ -1151,13 +1185,17 @@ impl<S: ObjectStore> Peer<S> {
         extra_parents: Vec<CommitId>,
         defined: Option<Entries>,
     ) -> Result<Saved, ClientError> {
-        let references = self.resolve(block, references);
-        let manifest = self.write_content(block, content_type, bytes).await?;
-        let defined = match defined {
-            Some(defined) => defined,
-            None => self.metadata_at(block, expected).await?.defined,
-        };
-        let metadata = BlockMetadata { defined, derived };
+        let (manifest, references, metadata) = self
+            .prepare_bytes(
+                block,
+                content_type,
+                bytes,
+                references,
+                derived,
+                expected,
+                defined,
+            )
+            .await?;
         self.publish_manifest(
             block,
             manifest,
@@ -1169,6 +1207,81 @@ impl<S: ObjectStore> Peer<S> {
             &metadata,
         )
         .await
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    async fn prepare_bytes(
+        &self,
+        block: Uuid,
+        content_type: Uuid,
+        bytes: &[u8],
+        references: Vec<Uuid>,
+        derived: Entries,
+        expected: Option<CommitId>,
+        defined: Option<Entries>,
+    ) -> Result<(Manifest, Vec<Uuid>, BlockMetadata), ClientError> {
+        let references = self.resolve(block, references);
+        let manifest = self.write_content(block, content_type, bytes).await?;
+        let defined = match defined {
+            Some(defined) => defined,
+            None => self.metadata_at(block, expected).await?.defined,
+        };
+        Ok((manifest, references, BlockMetadata { defined, derived }))
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub async fn seal_encoded(
+        &self,
+        block: Uuid,
+        content_type: Uuid,
+        bytes: &[u8],
+        references: Vec<Uuid>,
+        derived: Entries,
+        expected: Option<CommitId>,
+        merging: Option<(Option<CommitId>, CommitId)>,
+    ) -> Result<Sealed, ClientError> {
+        let (parents, defined) = self.merging(expected, merging).await?;
+        let (manifest, references, metadata) = self
+            .prepare_bytes(
+                block,
+                content_type,
+                bytes,
+                references,
+                derived,
+                expected,
+                defined,
+            )
+            .await?;
+        self.seal_manifest(
+            block,
+            manifest,
+            references,
+            expected,
+            now_milliseconds(),
+            false,
+            parents,
+            &metadata,
+        )
+        .await
+    }
+
+    async fn merging(
+        &self,
+        expected: Option<CommitId>,
+        merging: Option<(Option<CommitId>, CommitId)>,
+    ) -> Result<(Vec<CommitId>, Option<Entries>), ClientError> {
+        let Some((base, ours)) = merging else {
+            return Ok((Vec::new(), None));
+        };
+        let mut sides = Vec::new();
+        for commit in [base, Some(ours), expected] {
+            sides.push(match commit {
+                Some(commit) => self.metadata_of(commit).await?,
+                None => BlockMetadata::default(),
+            });
+        }
+        let defined = BlockMetadata::merge_defined(&sides[0], &sides[2], &sides[1]).0;
+        Ok((vec![ours], Some(defined)))
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -1202,10 +1315,7 @@ impl<S: ObjectStore> Peer<S> {
         };
         let saved = self.publish_sealed(block, commit).await?;
         if let Saved::Rejected { .. } = saved {
-            self.abandon(block, commit)?;
-            if self.local_head(block) == Some(commit) {
-                self.refs.set_head_to(block, before)?;
-            }
+            self.withdraw(block, commit, before)?;
         }
         Ok(saved)
     }
@@ -1269,9 +1379,15 @@ impl<S: ObjectStore> Peer<S> {
             time,
             pinned,
             references,
-            metadata: sealed,
+            metadata: sealed.clone(),
         }))?;
         self.refs.set_head(block, id)?;
+        if !self.is_attached()
+            && let Some(mut summary) = self.refs.summary(block)
+        {
+            summary.metadata = sealed;
+            self.refs.revise(summary)?;
+        }
         Ok(Sealed::Sealed(id))
     }
 
@@ -1538,6 +1654,20 @@ impl<S: ObjectStore> Peer<S> {
     }
 
     pub async fn set_parent(&self, block: Uuid, parent: BlockParent) -> Result<(), ClientError> {
+        if !self.is_attached() || self.refs.has_structural(block) {
+            return self.move_locally(block, parent);
+        }
+        match self.send_parent(block, parent).await {
+            Err(error) if offline::unreachable(&error) => self.move_locally(block, parent),
+            moved => moved,
+        }
+    }
+
+    pub(crate) async fn send_parent(
+        &self,
+        block: Uuid,
+        parent: BlockParent,
+    ) -> Result<(), ClientError> {
         let keys = match parent {
             BlockParent::Detached => KeySet::default(),
             BlockParent::Root | BlockParent::Block(_) => self.rescope(block, parent, false).await?,
@@ -1743,10 +1873,15 @@ impl<S: ObjectStore> Peer<S> {
     }
 
     pub async fn unlist(&self, listing: Listing) -> Result<(), ClientError> {
-        self.connection()
+        match self
+            .connection()
             .request(|request| ClientMessage::Unlist { request, listing })
-            .await?;
-        Ok(())
+            .await
+        {
+            Ok(_) => Ok(()),
+            Err(error) if offline::unreachable(&error) => Ok(()),
+            Err(error) => Err(error),
+        }
     }
 
     pub async fn backrefs(&self, block: Uuid) -> Result<Vec<BlockSummary>, ClientError> {

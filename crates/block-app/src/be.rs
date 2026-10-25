@@ -25,7 +25,7 @@ use native as platform;
 #[cfg(target_arch = "wasm32")]
 use web as platform;
 
-pub(crate) use platform::sleep;
+pub(crate) use platform::{refs_in, sleep};
 
 pub(crate) use graph::{Graph, Node, Owner, Query, Scope};
 pub(crate) use worker::{History, PairingRequest, Shared};
@@ -81,6 +81,7 @@ pub(crate) struct Status {
     pub(crate) unsealed: usize,
     pub(crate) saves: u64,
     pub(crate) conflicts: usize,
+    pub(crate) conflicted: Vec<Uuid>,
     pub(crate) error: Option<String>,
     pub(crate) waiting: usize,
     pub(crate) syncing: bool,
@@ -614,12 +615,13 @@ pub(crate) fn status() -> Status {
         connected: shared.connected,
         blocks: shared.blocks.len(),
         wakes: shared.wakes,
-        unsealed: shared.unsealed,
+        unsealed: shared.unsealed + shared.waiting + shared.pending + shared.uploading,
         saves: shared.saves,
         conflicts: shared.conflicts.values().map(Vec::len).sum(),
+        conflicted: shared.conflicts.keys().copied().collect(),
         error: shared.error.clone(),
         waiting: shared.unsealed + shared.waiting,
-        syncing: shared.connected && shared.unsealed + shared.waiting > 0,
+        syncing: shared.draining || (shared.connected && shared.unsealed + shared.waiting > 0),
         unsent: shared.unsent.len(),
     })
     .unwrap_or_default()

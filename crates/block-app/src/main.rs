@@ -342,6 +342,7 @@ impl beui::App for Shell {
                 .any(|event| matches!(event, beui::Event::Focus(true)))
         }) {
             be::retry_now();
+            self.app.retry_organizations();
         }
         wayland::before(context, rect, &mut self.document);
         self.app.touched = self
@@ -462,6 +463,8 @@ struct BlockApp {
     joining: Option<Joining>,
     organizations_loaded: bool,
     organizations_load_failed: bool,
+    organizations_cached: bool,
+    be_connected: bool,
     resumed: bool,
     warmed: bool,
     plugins_in_use: Vec<String>,
@@ -577,6 +580,7 @@ enum OrganizationOperation {
 
 enum OrganizationResult {
     Loaded(Vec<Organization>, accounts::Keys),
+    Cached(Vec<Organization>),
     Created(Organization),
     Invitation(OrganizationInvitation),
     Joined(Uuid),
@@ -623,7 +627,7 @@ struct PendingCopy {
 }
 
 #[cfg(not(target_arch = "wasm32"))]
-const CACHES: [&str; 2] = ["be-objects", "plugin-cache"];
+const CACHES: [&str; 1] = ["plugin-cache"];
 
 #[cfg(not(target_arch = "wasm32"))]
 fn forget_caches_of_other_builds(data_dir: &Path) -> io::Result<()> {
@@ -724,6 +728,8 @@ impl BlockApp {
             joining: None,
             organizations_loaded: false,
             organizations_load_failed: false,
+            organizations_cached: false,
+            be_connected: false,
             resumed: false,
             warmed: false,
             plugins_in_use: Vec::new(),
@@ -1231,6 +1237,8 @@ impl BlockApp {
         let url = self.server_url.clone();
         let token = self.account.token.clone();
         let me = self.me();
+        let cache = self.workspace_cache();
+        let account = self.account.id;
         let receiver = platform::spawn_request(async move {
             let me = || {
                 me.clone().ok_or_else(|| AccountError {
@@ -1240,9 +1248,25 @@ impl BlockApp {
             };
             match operation {
                 OrganizationOperation::Load => {
-                    let organizations = accounts::organizations(url.clone(), token.clone()).await?;
-                    let keys = accounts::keys(url, token).await?;
-                    Ok(OrganizationResult::Loaded(organizations, keys))
+                    match accounts::organizations(url.clone(), token.clone()).await {
+                        Ok(organizations) => {
+                            if let Some(cache) = &cache {
+                                let _ = cache.set_workspaces(&url, account, &organizations);
+                            }
+                            let keys = accounts::keys(url, token).await?;
+                            Ok(OrganizationResult::Loaded(organizations, keys))
+                        }
+                        Err(error) if !error.invalid_token => {
+                            let cached = cache
+                                .and_then(|cache| cache.workspaces(&url, account).ok())
+                                .unwrap_or_default();
+                            match cached.is_empty() {
+                                true => Err(error),
+                                false => Ok(OrganizationResult::Cached(cached)),
+                            }
+                        }
+                        Err(error) => Err(error),
+                    }
                 }
                 OrganizationOperation::Create(name) => {
                     accounts::create_organization(url, token, name)
@@ -1301,10 +1325,30 @@ impl BlockApp {
         };
         self.pending_organization_request = None;
         match result {
+            Ok(OrganizationResult::Cached(organizations)) => {
+                self.organizations = organizations;
+                self.organizations_loaded = true;
+                self.organizations_load_failed = false;
+                self.organizations_cached = true;
+                if self.organization.is_some() || self.joining.is_some() {
+                    return;
+                }
+                if let Some(last_organization_id) = self.account.last_organization_id
+                    && let Some(organization) = self
+                        .organizations
+                        .iter()
+                        .find(|organization| organization.id == last_organization_id)
+                        .cloned()
+                {
+                    self.open_organization(organization);
+                }
+                self.open_any_organization();
+            }
             Ok(OrganizationResult::Loaded(organizations, keys)) => {
                 self.organizations = organizations;
                 self.organizations_loaded = true;
                 self.organizations_load_failed = false;
+                self.organizations_cached = false;
                 self.keys.loaded(keys);
                 if self.keys.needs_recovery() {
                     if self.dev_workspace {
@@ -1579,6 +1623,35 @@ impl BlockApp {
         self.identity.is_none() || self.keys.needs_unlock(self.identity)
     }
 
+    #[cfg(not(target_arch = "wasm32"))]
+    fn workspace_cache(&self) -> Option<be_client::RefsDb> {
+        be::refs_in(&self.data_dir).ok()
+    }
+
+    #[cfg(target_arch = "wasm32")]
+    fn workspace_cache(&self) -> Option<be_client::RefsDb> {
+        be::refs_in(std::path::Path::new("")).ok()
+    }
+
+    fn retry_organizations(&mut self) {
+        if self.pending_organization_request.is_some() || self.reauth.is_some() {
+            return;
+        }
+        if self.organizations_load_failed {
+            self.organizations_load_failed = false;
+        } else if self.organizations_cached {
+            self.begin_organization_request(OrganizationOperation::Load);
+        }
+    }
+
+    fn notice_reconnect(&mut self) {
+        let connected = be::status().connected;
+        if connected && !self.be_connected {
+            self.retry_organizations();
+        }
+        self.be_connected = connected;
+    }
+
     fn load_organizations_if_needed(&mut self) {
         if !self.organizations_loaded
             && !self.organizations_load_failed
@@ -1619,6 +1692,7 @@ impl BlockApp {
         self.resumed = false;
         self.organizations_loaded = false;
         self.organizations_load_failed = false;
+        self.organizations_cached = false;
         self.pending_organization_request = None;
         self.organization_error = None;
         self.reauth = None;
@@ -2703,6 +2777,7 @@ impl BlockApp {
         self.sync_local_settings();
         self.programs.frame();
         self.sync_be_stack();
+        self.notice_reconnect();
         let ready = self
             .organization
             .as_ref()
@@ -2790,7 +2865,7 @@ impl BlockApp {
             display_name: self.account.name.clone(),
             email: self.account.email.clone(),
             #[cfg(not(target_arch = "wasm32"))]
-            data_dir: self.data_dir.join("be-objects"),
+            data_dir: self.data_dir.clone(),
             clock: be_client::Clock::real(),
         });
     }

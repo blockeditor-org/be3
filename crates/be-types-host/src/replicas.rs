@@ -4,7 +4,7 @@ use std::{
     time::Instant,
 };
 
-use be_client::{ClientError, Peer, Saved, connection::Answer};
+use be_client::{ClientError, Peer, Saved, Sealed, connection::Answer};
 use be_commit::CommitId;
 use be_graph::BlockParent;
 use be_protocol::{ClientId, ServerMessage, SessionState};
@@ -23,6 +23,21 @@ use crate::{
 
 pub const HOST_EDITOR: EditorId = u64::MAX;
 
+pub const OFFLINE_CLIENT: ClientId = 0;
+
+fn offline_session(head: Option<CommitId>) -> SessionState {
+    SessionState {
+        generation: 0,
+        owner: Some(OFFLINE_CLIENT),
+        participants: vec![OFFLINE_CLIENT],
+        clean_at: head,
+    }
+}
+
+fn unreachable(error: &ClientError) -> bool {
+    error.is_unreachable()
+}
+
 pub enum Io {
     Answer {
         replica: ReplicaId,
@@ -34,6 +49,7 @@ pub enum Io {
         replica: ReplicaId,
     },
     Relayed,
+    Sealed,
 }
 
 struct Open {
@@ -100,13 +116,16 @@ impl<H: Host> Replicas<H> {
     fn relay(&mut self, shared: &Arc<Mutex<H>>, sent: Result<Answer, ClientError>) {
         let answer = match sent {
             Ok(answer) => answer,
+            Err(error) if unreachable(&error) => return,
             Err(error) => return H::record(shared, error),
         };
         self.relaying += 1;
         let shared = Arc::clone(shared);
         let io = self.io.clone();
         H::spawn(async move {
-            if let Err(error) = answer.await {
+            if let Err(error) = answer.await
+                && !unreachable(&error)
+            {
                 H::record(&shared, error);
             }
             let _ = io.send(Io::Relayed);
@@ -217,18 +236,36 @@ impl<H: Host> Replicas<H> {
         };
         let owned = !kind.frozen && H::owned(shared, block);
         let joined = async {
-            peer.ensure_type(block, content_type, BlockParent::Detached)
-                .await?;
+            if peer.known_summary(block).is_none() || peer.is_attached() {
+                peer.ensure_type(block, content_type, BlockParent::Detached)
+                    .await?;
+            }
+            if !peer.is_attached() {
+                return Ok((OFFLINE_CLIENT, offline_session(None), None, true));
+            }
             if owned && H::reshaped(shared, block, &kind.schema) {
                 reset::<H>(peer, block, &kind).await?;
             }
             let (client, session) = peer.join_session(block).await?;
             peer.watch(block).await?;
             let head = peer.remote_head(block).await?;
-            Ok::<_, ClientError>((client, session, head))
+            Ok::<_, ClientError>((client, session, head, false))
         }
         .await;
-        let (client, session, head) = match joined {
+        let joined = match joined {
+            Err(error) if unreachable(&error) && peer.known_summary(block).is_some() => {
+                Ok((OFFLINE_CLIENT, offline_session(None), None, true))
+            }
+            joined => joined,
+        };
+        let (client, session, head, offline) = match joined {
+            Ok((client, _, _, true)) => {
+                let head = peer
+                    .local_head(block)
+                    .or_else(|| peer.known_remote_head(block))
+                    .or_else(|| peer.known_summary(block).and_then(|summary| summary.head));
+                (client, offline_session(head), head, true)
+            }
             Ok(joined) => joined,
             Err(ClientError::Locked(_)) => {
                 H::set_locked(shared, block);
@@ -298,6 +335,7 @@ impl<H: Host> Replicas<H> {
         let current = H::known_head(shared, block);
         if let Some(current) = current
             && Some(current) != head
+            && !offline
         {
             self.moved(replica, current, false);
         }
@@ -497,7 +535,7 @@ impl<H: Host> Replicas<H> {
         base: Option<&[u8]>,
         ours: Option<&[u8]>,
         theirs: Option<&[u8]>,
-    ) -> Option<(Vec<u8>, bool)> {
+    ) -> Option<(Vec<u8>, usize)> {
         let module = self.modules.module_of(content_type)?;
         let request = Request::Merge3 {
             content_type,
@@ -506,9 +544,91 @@ impl<H: Host> Replicas<H> {
             theirs: theirs.map(<[u8]>::to_vec),
         };
         match self.ask(ctx, module, request).await {
-            Reply::Merged { bytes, conflicts } => Some((bytes, conflicts > 0)),
+            Reply::Merged { bytes, conflicts } => Some((bytes, conflicts)),
             _ => None,
         }
+    }
+
+    pub async fn merge_diverged(
+        &mut self,
+        (peer, shared): Ctx<'_, H>,
+        block: Uuid,
+        local: CommitId,
+        remote: Option<CommitId>,
+    ) -> Result<Option<CommitId>, ClientError> {
+        let Some(content_type) = peer
+            .known_summary(block)
+            .map(|summary| summary.content_type)
+        else {
+            return Ok(None);
+        };
+        let mut remote = remote;
+        for _ in 0..4 {
+            let Some(theirs) = remote else {
+                return Ok(None);
+            };
+            peer.fetch_history(theirs).await?;
+            let be_session::Resume::Merge { base, ours, theirs } =
+                be_session::resume(peer.commits(), Some(local), Some(theirs))?
+            else {
+                return Ok(None);
+            };
+            let mut sides = Vec::new();
+            for commit in [base, Some(ours), Some(theirs)] {
+                sides.push(match commit {
+                    Some(commit) => {
+                        let commit = peer.load_commit(commit).await?;
+                        Some(peer.read_manifest(&commit.manifest).await?)
+                    }
+                    None => None,
+                });
+            }
+            let Some((bytes, conflicts)) = self
+                .merge(
+                    (peer, shared),
+                    content_type,
+                    sides[0].as_deref(),
+                    sides[1].as_deref(),
+                    sides[2].as_deref(),
+                )
+                .await
+            else {
+                return Ok(None);
+            };
+            let description = self
+                .describe((peer, shared), content_type, &bytes)
+                .await
+                .unwrap_or_default();
+            let saved = peer
+                .publish_encoded(
+                    block,
+                    content_type,
+                    &bytes,
+                    description.references,
+                    description.derived,
+                    Some(theirs),
+                    Some((base, ours)),
+                )
+                .await?;
+            match saved {
+                Saved::Published(head) | Saved::Unchanged(head) => {
+                    if conflicts > 0 {
+                        H::conflict(
+                            shared,
+                            block,
+                            crate::Conflict {
+                                ours,
+                                theirs,
+                                count: conflicts,
+                            },
+                        );
+                    }
+                    return Ok(Some(head));
+                }
+                Saved::Rejected { head } => remote = head,
+            }
+        }
+        Err(ClientError::Contended)
     }
 
     pub async fn describe(
@@ -711,6 +831,26 @@ impl<H: Host> Replicas<H> {
                 }
             }
             Io::Relayed => self.relaying -= 1,
+            Io::Sealed => {}
+        }
+    }
+
+    pub fn disconnected(&mut self) {
+        for (replica, open) in &mut self.open {
+            open.session = SessionState {
+                generation: open.session.generation + 1,
+                owner: Some(open.client),
+                participants: vec![open.client],
+                clean_at: None,
+            };
+            self.modules.send(
+                open.module,
+                vec![Event::Lease {
+                    replica: *replica,
+                    session: open.session.clone(),
+                    resynchronize: false,
+                }],
+            );
         }
     }
 
@@ -916,17 +1056,19 @@ impl<H: Host> Replicas<H> {
                 let peer = Arc::clone(peer);
                 let io = self.io.clone();
                 H::spawn(async move {
-                    let saved = peer
-                        .publish_encoded(
-                            block,
-                            content_type,
-                            &content.bytes,
-                            content.references,
-                            content.derived,
-                            expected,
-                            merging.map(|merging| (merging.base, merging.ours)),
-                        )
-                        .await;
+                    let sealed = io.clone();
+                    let saved = commit::<H>(
+                        &peer,
+                        block,
+                        content_type,
+                        content,
+                        expected,
+                        merging.map(|merging| (merging.base, merging.ours)),
+                        move || {
+                            let _ = sealed.send(Io::Sealed);
+                        },
+                    )
+                    .await;
                     let (event, published) = match saved {
                         Ok(Saved::Published(head)) => {
                             (HeadEvent::Published { token, head }, Some(head))
@@ -1007,7 +1149,13 @@ impl<H: Host> Replicas<H> {
                 let io = self.io.clone();
                 H::spawn(async move {
                     let resumed = async {
-                        let remote = peer.remote_head(block).await?;
+                        let remote = match peer.is_attached() {
+                            true => peer.remote_head(block).await?,
+                            false => match peer.local_head(block) {
+                                Some(head) => Some(head),
+                                None => peer.remote_head(block).await?,
+                            },
+                        };
                         if let Some(remote) = remote {
                             peer.fetch_history(remote).await?;
                         }
@@ -1038,6 +1186,9 @@ impl<H: Host> Replicas<H> {
                 let Some((block, _, true)) = replica_of(replica, &self.open) else {
                     return false;
                 };
+                if !peer.is_attached() {
+                    return false;
+                }
                 match peer.claim_ownership(block, generation).await {
                     Ok(state) => {
                         if let Some(open) = self.open.get_mut(&replica) {
@@ -1051,6 +1202,7 @@ impl<H: Host> Replicas<H> {
                             self.modules.send(module, vec![event]);
                         }
                     }
+                    Err(error) if unreachable(&error) => {}
                     Err(error) => H::record(shared, error),
                 }
                 false
@@ -1063,7 +1215,12 @@ impl<H: Host> Replicas<H> {
                 let Some((block, _, true)) = replica_of(replica, &self.open) else {
                     return false;
                 };
-                if let Err(error) = peer.heartbeat(block, generation, clean_at).await {
+                if !peer.is_attached() {
+                    return false;
+                }
+                if let Err(error) = peer.heartbeat(block, generation, clean_at).await
+                    && !unreachable(&error)
+                {
                     H::record(shared, error);
                 }
                 false
@@ -1197,6 +1354,45 @@ impl<H: Host> Replicas<H> {
             .filter(|open| open.status.owes_seal)
             .count();
         H::counted(shared, unsealed, owing);
+    }
+}
+
+async fn commit<H: Host>(
+    peer: &Peer<H::Store>,
+    block: Uuid,
+    content_type: Uuid,
+    content: block_type_api::Written,
+    expected: Option<CommitId>,
+    merging: Option<(Option<CommitId>, CommitId)>,
+    sealed: impl FnOnce(),
+) -> Result<Saved, ClientError> {
+    let before = peer.local_head(block);
+    let commit = match peer
+        .seal_encoded(
+            block,
+            content_type,
+            &content.bytes,
+            content.references,
+            content.derived,
+            expected,
+            merging,
+        )
+        .await?
+    {
+        Sealed::Unchanged(head) => return Ok(Saved::Unchanged(head)),
+        Sealed::Sealed(commit) => commit,
+    };
+    sealed();
+    if !peer.is_attached() {
+        return Ok(Saved::Unchanged(commit));
+    }
+    match peer.publish_sealed(block, commit).await {
+        Ok(Saved::Rejected { head }) => {
+            peer.withdraw(block, commit, before)?;
+            Ok(Saved::Rejected { head })
+        }
+        Err(error) if unreachable(&error) => Ok(Saved::Unchanged(commit)),
+        saved => saved,
     }
 }
 

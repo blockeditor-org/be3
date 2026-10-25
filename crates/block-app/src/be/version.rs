@@ -2027,9 +2027,10 @@ async fn merge_content(
             sides[2].as_deref(),
         )
         .await;
-    let Some((bytes, conflicted)) = merged else {
+    let Some((bytes, conflicts)) = merged else {
         return Ok((merge.ours.clone(), Vec::new(), None, true));
     };
+    let conflicted = conflicts > 0;
     let manifest = context
         .peer
         .write_content(checkout, merge.content_type, &bytes)

@@ -51,6 +51,7 @@ mod an_abandoned_lease_is_claimed;
 mod an_edit_too_large_to_relay_is_published_as_a_commit;
 mod an_editor_joins_with_a_snapshot_and_follows_operations;
 mod an_external_publish_merges_into_a_live_replica;
+mod an_owner_renews_its_lease_while_it_holds_the_session;
 mod an_owner_whose_lease_lapsed_follows_whoever_claims_it;
 mod child_changes_become_edits_of_the_parent;
 mod closing_seals_and_releases;
@@ -290,6 +291,7 @@ struct Sim<C: LiveEdit + Clone + Default> {
     conflicts: Vec<(usize, CommitId, CommitId, usize)>,
     errors: Vec<(usize, String)>,
     quiet: bool,
+    stalled: bool,
     deaf: BTreeSet<usize>,
     largest_relay: usize,
     written: u64,
@@ -325,6 +327,7 @@ impl<C: LiveEdit + Clone + Default> Sim<C> {
             conflicts: Vec::new(),
             errors: Vec::new(),
             quiet: false,
+            stalled: false,
             deaf: BTreeSet::new(),
             largest_relay: 0,
             written: 0,
@@ -679,7 +682,7 @@ impl<C: LiveEdit + Clone + Default> Sim<C> {
                 merging,
                 content,
                 ..
-            } => {
+            } if !self.stalled => {
                 if expected != self.head {
                     self.rejections += 1;
                     return self.reply_to(
@@ -708,6 +711,7 @@ impl<C: LiveEdit + Clone + Default> Sim<C> {
                     self.moved(head, Some(device));
                 }
             }
+            Command::Publish { .. } => {}
             Command::Stash {
                 token,
                 parent,

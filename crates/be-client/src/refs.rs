@@ -218,9 +218,25 @@ pub struct Creation {
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub struct Moving {
+    pub block: Uuid,
+    pub parent: BlockParent,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub struct Defining {
+    pub block: Uuid,
+    #[serde(with = "serde_bytes")]
+    pub metadata: Vec<u8>,
+    pub references: Vec<Uuid>,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 pub enum Op {
     Create(Creation),
     Publish(Pending),
+    Move(Moving),
+    Define(Defining),
 }
 
 impl Op {
@@ -228,6 +244,8 @@ impl Op {
         match self {
             Self::Create(creation) => creation.block,
             Self::Publish(pending) => pending.block,
+            Self::Move(moving) => moving.block,
+            Self::Define(defining) => defining.block,
         }
     }
 }
@@ -429,6 +447,59 @@ impl Refs {
         self.set_listing(listing, &blocks)
     }
 
+    pub fn revise(&self, mut summary: BlockSummary) -> Result<(), StoreError> {
+        let block = summary.id;
+        let parent = summary.parent;
+        let listings: Vec<Listing> = {
+            let state = self.state.lock().unwrap();
+            summary.revision = state
+                .listings
+                .values()
+                .flatten()
+                .map(|held| held.revision)
+                .max()
+                .unwrap_or_default()
+                .max(summary.revision);
+            state
+                .listings
+                .iter()
+                .filter(|(_, blocks)| blocks.iter().any(|held| held.id == block))
+                .map(|(listing, _)| *listing)
+                .collect()
+        };
+        for listing in listings {
+            let mut blocks = self.listing(&listing).unwrap_or_default();
+            let leaves = match listing {
+                Listing::Children(under) => Some(under) != parent,
+                Listing::Deleted => parent != Some(BlockParent::Detached),
+                _ => false,
+            };
+            match leaves {
+                true => blocks.retain(|held| held.id != block),
+                false => {
+                    for held in blocks.iter_mut().filter(|held| held.id == block) {
+                        *held = summary.clone();
+                    }
+                }
+            }
+            self.set_listing(listing, &blocks)?;
+        }
+        self.set_listing(Listing::Block(block), std::slice::from_ref(&summary))?;
+        let mut joins = Vec::new();
+        if let Some(parent) = parent {
+            joins.push(Listing::Children(parent));
+            if parent == BlockParent::Detached {
+                joins.push(Listing::Deleted);
+            }
+        }
+        for listing in joins {
+            if self.listing(&listing).is_some() {
+                self.add_to_listing(listing, &summary)?;
+            }
+        }
+        Ok(())
+    }
+
     pub fn lose_access(&self, block: Uuid) -> Result<(), StoreError> {
         let Some(mut summary) = self.summary(block) else {
             return Ok(());
@@ -439,6 +510,25 @@ impl Refs {
 
     pub fn listing(&self, listing: &Listing) -> Option<Vec<BlockSummary>> {
         self.state.lock().unwrap().listings.get(listing).cloned()
+    }
+
+    pub fn newest_revision(&self) -> u64 {
+        let state = self.state.lock().unwrap();
+        state
+            .listings
+            .values()
+            .flatten()
+            .map(|summary| summary.revision)
+            .max()
+            .unwrap_or_default()
+    }
+
+    pub fn current(&self, mut blocks: Vec<BlockSummary>) -> Vec<BlockSummary> {
+        let newest = self.newest_revision();
+        for summary in &mut blocks {
+            summary.revision = newest;
+        }
+        blocks
     }
 
     pub fn summary(&self, block: Uuid) -> Option<BlockSummary> {
@@ -554,6 +644,14 @@ impl Refs {
 
     pub fn holds(&self, sequence: u64) -> bool {
         self.state.lock().unwrap().outbox.contains_key(&sequence)
+    }
+
+    pub fn has_structural(&self, block: Uuid) -> bool {
+        let state = self.state.lock().unwrap();
+        state
+            .outbox
+            .values()
+            .any(|op| op.block() == block && !matches!(op, Op::Publish(_)))
     }
 
     pub fn has_pending(&self, block: Uuid) -> bool {
