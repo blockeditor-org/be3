@@ -323,6 +323,75 @@ impl<K: Clone + Hash + Eq + 'static> VirtualListNode<K> {
             (window.0 - self.overscan).max(0.0),
             (window.1 + self.overscan).min(main.unwrap_or(f32::INFINITY)),
         );
+        let pinned = doc.pinned_to_end() == Some(self.direction);
+        let before = self.metrics.total();
+        let rows = match pinned {
+            true => self.rows_from_end(doc, list, painter, window, main.unwrap_or(before), cross),
+            false => self.rows_from_anchor(doc, list, painter, window, main, cross, at_start),
+        };
+        let mut held = self.holding(doc, &rows);
+        self.measure_held(doc, list, painter, &mut held, cross);
+        let shift = match rows.first() {
+            Some(row) => {
+                let wanted = self.metrics.position(row.index);
+                let shift = wanted - row.position;
+                self.origin = Some((row.key.clone(), wanted));
+                shift
+            }
+            None => {
+                self.origin = None;
+                0.0
+            }
+        };
+        for row in &mut held {
+            row.position = self.metrics.position(row.index) - shift;
+        }
+        self.keep(rows, held);
+        shift
+    }
+
+    fn rows_from_end(
+        &mut self,
+        doc: &mut Document,
+        list: NodeId,
+        painter: &Painter,
+        window: (f32, f32),
+        end: f32,
+        cross: f32,
+    ) -> Vec<Row<K>> {
+        let (first, last) = window;
+        let mut rows = Vec::new();
+        let (mut cursor, mut at, mut scanned) = (end, self.metrics.count, 0);
+        while at > 0 && cursor > first && scanned < ROW_LIMIT {
+            at -= 1;
+            scanned += 1;
+            let (key, node, length) = self.measured_row(doc, list, painter, at, cross);
+            cursor -= length;
+            if cursor < last {
+                rows.push(Row {
+                    index: at,
+                    key,
+                    node,
+                    position: cursor,
+                    length,
+                });
+            }
+        }
+        rows.reverse();
+        rows
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn rows_from_anchor(
+        &mut self,
+        doc: &mut Document,
+        list: NodeId,
+        painter: &Painter,
+        window: (f32, f32),
+        main: Option<f32>,
+        cross: f32,
+        at_start: bool,
+    ) -> Vec<Row<K>> {
         let (first, last) = window;
         let (index, position) = self.anchor(window, at_start);
         let before = self.metrics.total();
@@ -390,25 +459,7 @@ impl<K: Clone + Hash + Eq + 'static> VirtualListNode<K> {
                 row.position += shifted;
             }
         }
-        let mut held = self.holding(doc, &rows);
-        self.measure_held(doc, list, painter, &mut held, cross);
-        let shift = match rows.first() {
-            Some(row) => {
-                let wanted = self.metrics.position(row.index);
-                let shift = wanted - row.position;
-                self.origin = Some((row.key.clone(), wanted));
-                shift
-            }
-            None => {
-                self.origin = None;
-                0.0
-            }
-        };
-        for row in &mut held {
-            row.position = self.metrics.position(row.index) - shift;
-        }
-        self.keep(rows, held);
-        shift
+        rows
     }
 
     fn reach(&self, last: f32, main: Option<f32>) -> f32 {

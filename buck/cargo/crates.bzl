@@ -465,7 +465,7 @@ crates = {
                         "//crates/editors/database/types:database-types",
                         "//crates/editors/terminal/types:terminal-types",
                         "//crates/editors/text-block/types:text-block-types",
-                        "//crates/ghostty-vt:ghostty-vt",
+                        "//crates/terminal-emulator:terminal-emulator",
                         "//third-party/rust:futures-util-0.3.32",
                         "//third-party/rust:portable-pty-0.9.0",
                         "//third-party/rust:serde_json-1.0.150",
@@ -491,7 +491,7 @@ crates = {
                     "//crates/editors/database/types:database-types",
                     "//crates/editors/terminal/types:terminal-types",
                     "//crates/editors/text-block/types:text-block-types",
-                    "//crates/ghostty-vt:ghostty-vt",
+                    "//crates/terminal-emulator:terminal-emulator",
                     "//third-party/rust:futures-util-0.3.32",
                     "//third-party/rust:portable-pty-0.9.0",
                     "//third-party/rust:serde_json-1.0.150",
@@ -527,7 +527,7 @@ crates = {
                         "//crates/editors/database/types:database-types",
                         "//crates/editors/terminal/types:terminal-types",
                         "//crates/editors/text-block/types:text-block-types",
-                        "//crates/ghostty-vt:ghostty-vt",
+                        "//crates/terminal-emulator:terminal-emulator",
                         "//third-party/rust:futures-util-0.3.32",
                         "//third-party/rust:portable-pty-0.9.0",
                         "//third-party/rust:serde_json-1.0.150",
@@ -553,7 +553,7 @@ crates = {
                     "//crates/editors/database/types:database-types",
                     "//crates/editors/terminal/types:terminal-types",
                     "//crates/editors/text-block/types:text-block-types",
-                    "//crates/ghostty-vt:ghostty-vt",
+                    "//crates/terminal-emulator:terminal-emulator",
                     "//third-party/rust:futures-util-0.3.32",
                     "//third-party/rust:portable-pty-0.9.0",
                     "//third-party/rust:serde_json-1.0.150",
@@ -589,7 +589,7 @@ crates = {
                         "//crates/editors/database/types:database-types",
                         "//crates/editors/terminal/types:terminal-types",
                         "//crates/editors/text-block/types:text-block-types",
-                        "//crates/ghostty-vt:ghostty-vt",
+                        "//crates/terminal-emulator:terminal-emulator",
                         "//third-party/rust:futures-util-0.3.32",
                         "//third-party/rust:portable-pty-0.9.0",
                         "//third-party/rust:serde_json-1.0.150",
@@ -615,7 +615,7 @@ crates = {
                     "//crates/editors/database/types:database-types",
                     "//crates/editors/terminal/types:terminal-types",
                     "//crates/editors/text-block/types:text-block-types",
-                    "//crates/ghostty-vt:ghostty-vt",
+                    "//crates/terminal-emulator:terminal-emulator",
                     "//third-party/rust:futures-util-0.3.32",
                     "//third-party/rust:portable-pty-0.9.0",
                     "//third-party/rust:serde_json-1.0.150",
@@ -651,7 +651,7 @@ crates = {
                         "//crates/editors/database/types:database-types",
                         "//crates/editors/terminal/types:terminal-types",
                         "//crates/editors/text-block/types:text-block-types",
-                        "//crates/ghostty-vt:ghostty-vt",
+                        "//crates/terminal-emulator:terminal-emulator",
                         "//third-party/rust:futures-util-0.3.32",
                         "//third-party/rust:portable-pty-0.9.0",
                         "//third-party/rust:serde_json-1.0.150",
@@ -677,7 +677,7 @@ crates = {
                     "//crates/editors/database/types:database-types",
                     "//crates/editors/terminal/types:terminal-types",
                     "//crates/editors/text-block/types:text-block-types",
-                    "//crates/ghostty-vt:ghostty-vt",
+                    "//crates/terminal-emulator:terminal-emulator",
                     "//third-party/rust:futures-util-0.3.32",
                     "//third-party/rust:portable-pty-0.9.0",
                     "//third-party/rust:serde_json-1.0.150",
@@ -713,7 +713,7 @@ crates = {
                         "//crates/editors/database/types:database-types",
                         "//crates/editors/terminal/types:terminal-types",
                         "//crates/editors/text-block/types:text-block-types",
-                        "//crates/ghostty-vt:ghostty-vt",
+                        "//crates/terminal-emulator:terminal-emulator",
                         "//third-party/rust:futures-util-0.3.32",
                         "//third-party/rust:portable-pty-0.9.0",
                         "//third-party/rust:serde_json-1.0.150",
@@ -739,7 +739,7 @@ crates = {
                     "//crates/editors/database/types:database-types",
                     "//crates/editors/terminal/types:terminal-types",
                     "//crates/editors/text-block/types:text-block-types",
-                    "//crates/ghostty-vt:ghostty-vt",
+                    "//crates/terminal-emulator:terminal-emulator",
                     "//third-party/rust:futures-util-0.3.32",
                     "//third-party/rust:portable-pty-0.9.0",
                     "//third-party/rust:serde_json-1.0.150",
@@ -775,7 +775,7 @@ crates = {
                         "//crates/editors/database/types:database-types",
                         "//crates/editors/terminal/types:terminal-types",
                         "//crates/editors/text-block/types:text-block-types",
-                        "//crates/ghostty-vt:ghostty-vt",
+                        "//crates/terminal-emulator:terminal-emulator",
                         "//third-party/rust:futures-util-0.3.32",
                         "//third-party/rust:portable-pty-0.9.0",
                         "//third-party/rust:serde_json-1.0.150",
@@ -801,7 +801,7 @@ crates = {
                     "//crates/editors/database/types:database-types",
                     "//crates/editors/terminal/types:terminal-types",
                     "//crates/editors/text-block/types:text-block-types",
-                    "//crates/ghostty-vt:ghostty-vt",
+                    "//crates/terminal-emulator:terminal-emulator",
                     "//third-party/rust:futures-util-0.3.32",
                     "//third-party/rust:portable-pty-0.9.0",
                     "//third-party/rust:serde_json-1.0.150",
@@ -837,7 +837,7 @@ crates = {
                         "//crates/editors/database/types:database-types",
                         "//crates/editors/terminal/types:terminal-types",
                         "//crates/editors/text-block/types:text-block-types",
-                        "//crates/ghostty-vt:ghostty-vt",
+                        "//crates/terminal-emulator:terminal-emulator",
                         "//third-party/rust:futures-util-0.3.32",
                         "//third-party/rust:portable-pty-0.9.0",
                         "//third-party/rust:serde_json-1.0.150",
@@ -863,7 +863,7 @@ crates = {
                     "//crates/editors/database/types:database-types",
                     "//crates/editors/terminal/types:terminal-types",
                     "//crates/editors/text-block/types:text-block-types",
-                    "//crates/ghostty-vt:ghostty-vt",
+                    "//crates/terminal-emulator:terminal-emulator",
                     "//third-party/rust:futures-util-0.3.32",
                     "//third-party/rust:portable-pty-0.9.0",
                     "//third-party/rust:serde_json-1.0.150",
@@ -2567,7 +2567,10 @@ crates = {
             "android-arm64": {
                 "binaries": {
                     "be-launcher": [
+                        "//crates/be-block:be-block",
                         "//crates/beui:beui",
+                        "//crates/editors/terminal/types:terminal-types",
+                        "//crates/terminal-emulator:terminal-emulator",
                         "//crates/terminal-view:terminal-view",
                         "//third-party/rust:comrak-0.55.0",
                         "//third-party/rust:image-0.25.10",
@@ -2580,7 +2583,10 @@ crates = {
                     ],
                 },
                 "deps": [
+                    "//crates/be-block:be-block",
                     "//crates/beui:beui",
+                    "//crates/editors/terminal/types:terminal-types",
+                    "//crates/terminal-emulator:terminal-emulator",
                     "//crates/terminal-view:terminal-view",
                     "//third-party/rust:comrak-0.55.0",
                     "//third-party/rust:image-0.25.10",
@@ -2601,7 +2607,10 @@ crates = {
             "linux-arm64": {
                 "binaries": {
                     "be-launcher": [
+                        "//crates/be-block:be-block",
                         "//crates/beui:beui",
+                        "//crates/editors/terminal/types:terminal-types",
+                        "//crates/terminal-emulator:terminal-emulator",
                         "//crates/terminal-view:terminal-view",
                         "//third-party/rust:comrak-0.55.0",
                         "//third-party/rust:image-0.25.10",
@@ -2611,7 +2620,10 @@ crates = {
                     ],
                 },
                 "deps": [
+                    "//crates/be-block:be-block",
                     "//crates/beui:beui",
+                    "//crates/editors/terminal/types:terminal-types",
+                    "//crates/terminal-emulator:terminal-emulator",
                     "//crates/terminal-view:terminal-view",
                     "//third-party/rust:comrak-0.55.0",
                     "//third-party/rust:image-0.25.10",
@@ -2629,7 +2641,10 @@ crates = {
             "linux-x86_64": {
                 "binaries": {
                     "be-launcher": [
+                        "//crates/be-block:be-block",
                         "//crates/beui:beui",
+                        "//crates/editors/terminal/types:terminal-types",
+                        "//crates/terminal-emulator:terminal-emulator",
                         "//crates/terminal-view:terminal-view",
                         "//third-party/rust:comrak-0.55.0",
                         "//third-party/rust:image-0.25.10",
@@ -2639,7 +2654,10 @@ crates = {
                     ],
                 },
                 "deps": [
+                    "//crates/be-block:be-block",
                     "//crates/beui:beui",
+                    "//crates/editors/terminal/types:terminal-types",
+                    "//crates/terminal-emulator:terminal-emulator",
                     "//crates/terminal-view:terminal-view",
                     "//third-party/rust:comrak-0.55.0",
                     "//third-party/rust:image-0.25.10",
@@ -2657,7 +2675,10 @@ crates = {
             "macos-arm64": {
                 "binaries": {
                     "be-launcher": [
+                        "//crates/be-block:be-block",
                         "//crates/beui:beui",
+                        "//crates/editors/terminal/types:terminal-types",
+                        "//crates/terminal-emulator:terminal-emulator",
                         "//crates/terminal-view:terminal-view",
                         "//third-party/rust:comrak-0.55.0",
                         "//third-party/rust:image-0.25.10",
@@ -2667,7 +2688,10 @@ crates = {
                     ],
                 },
                 "deps": [
+                    "//crates/be-block:be-block",
                     "//crates/beui:beui",
+                    "//crates/editors/terminal/types:terminal-types",
+                    "//crates/terminal-emulator:terminal-emulator",
                     "//crates/terminal-view:terminal-view",
                     "//third-party/rust:comrak-0.55.0",
                     "//third-party/rust:image-0.25.10",
@@ -2685,7 +2709,10 @@ crates = {
             "macos-x86_64": {
                 "binaries": {
                     "be-launcher": [
+                        "//crates/be-block:be-block",
                         "//crates/beui:beui",
+                        "//crates/editors/terminal/types:terminal-types",
+                        "//crates/terminal-emulator:terminal-emulator",
                         "//crates/terminal-view:terminal-view",
                         "//third-party/rust:comrak-0.55.0",
                         "//third-party/rust:image-0.25.10",
@@ -2695,7 +2722,10 @@ crates = {
                     ],
                 },
                 "deps": [
+                    "//crates/be-block:be-block",
                     "//crates/beui:beui",
+                    "//crates/editors/terminal/types:terminal-types",
+                    "//crates/terminal-emulator:terminal-emulator",
                     "//crates/terminal-view:terminal-view",
                     "//third-party/rust:comrak-0.55.0",
                     "//third-party/rust:image-0.25.10",
@@ -2713,7 +2743,10 @@ crates = {
             "windows-arm64": {
                 "binaries": {
                     "be-launcher": [
+                        "//crates/be-block:be-block",
                         "//crates/beui:beui",
+                        "//crates/editors/terminal/types:terminal-types",
+                        "//crates/terminal-emulator:terminal-emulator",
                         "//crates/terminal-view:terminal-view",
                         "//third-party/rust:comrak-0.55.0",
                         "//third-party/rust:image-0.25.10",
@@ -2723,7 +2756,10 @@ crates = {
                     ],
                 },
                 "deps": [
+                    "//crates/be-block:be-block",
                     "//crates/beui:beui",
+                    "//crates/editors/terminal/types:terminal-types",
+                    "//crates/terminal-emulator:terminal-emulator",
                     "//crates/terminal-view:terminal-view",
                     "//third-party/rust:comrak-0.55.0",
                     "//third-party/rust:image-0.25.10",
@@ -2741,7 +2777,10 @@ crates = {
             "windows-x86_64": {
                 "binaries": {
                     "be-launcher": [
+                        "//crates/be-block:be-block",
                         "//crates/beui:beui",
+                        "//crates/editors/terminal/types:terminal-types",
+                        "//crates/terminal-emulator:terminal-emulator",
                         "//crates/terminal-view:terminal-view",
                         "//third-party/rust:comrak-0.55.0",
                         "//third-party/rust:image-0.25.10",
@@ -2751,7 +2790,10 @@ crates = {
                     ],
                 },
                 "deps": [
+                    "//crates/be-block:be-block",
                     "//crates/beui:beui",
+                    "//crates/editors/terminal/types:terminal-types",
+                    "//crates/terminal-emulator:terminal-emulator",
                     "//crates/terminal-view:terminal-view",
                     "//third-party/rust:comrak-0.55.0",
                     "//third-party/rust:image-0.25.10",
@@ -16968,6 +17010,7 @@ crates = {
                     "//crates/be-commit:be-commit",
                     "//crates/be-model:be-model",
                     "//crates/block-type-guest:block-type-guest",
+                    "//crates/ui-types:ui-types",
                     "//third-party/rust:serde-1.0.228",
                     "//third-party/rust:uuid-1.23.2",
                 ],
@@ -16983,6 +17026,7 @@ crates = {
                     "//crates/be-commit:be-commit",
                     "//crates/be-model:be-model",
                     "//crates/block-type-guest:block-type-guest",
+                    "//crates/ui-types:ui-types",
                     "//third-party/rust:serde-1.0.228",
                     "//third-party/rust:uuid-1.23.2",
                 ],
@@ -16998,6 +17042,7 @@ crates = {
                     "//crates/be-commit:be-commit",
                     "//crates/be-model:be-model",
                     "//crates/block-type-guest:block-type-guest",
+                    "//crates/ui-types:ui-types",
                     "//third-party/rust:serde-1.0.228",
                     "//third-party/rust:uuid-1.23.2",
                 ],
@@ -17013,6 +17058,7 @@ crates = {
                     "//crates/be-commit:be-commit",
                     "//crates/be-model:be-model",
                     "//crates/block-type-guest:block-type-guest",
+                    "//crates/ui-types:ui-types",
                     "//third-party/rust:serde-1.0.228",
                     "//third-party/rust:uuid-1.23.2",
                 ],
@@ -17028,6 +17074,7 @@ crates = {
                     "//crates/be-commit:be-commit",
                     "//crates/be-model:be-model",
                     "//crates/block-type-guest:block-type-guest",
+                    "//crates/ui-types:ui-types",
                     "//third-party/rust:serde-1.0.228",
                     "//third-party/rust:uuid-1.23.2",
                 ],
@@ -17043,6 +17090,7 @@ crates = {
                     "//crates/be-commit:be-commit",
                     "//crates/be-model:be-model",
                     "//crates/block-type-guest:block-type-guest",
+                    "//crates/ui-types:ui-types",
                     "//third-party/rust:serde-1.0.228",
                     "//third-party/rust:uuid-1.23.2",
                 ],
@@ -17058,6 +17106,7 @@ crates = {
                     "//crates/be-commit:be-commit",
                     "//crates/be-model:be-model",
                     "//crates/block-type-guest:block-type-guest",
+                    "//crates/ui-types:ui-types",
                     "//third-party/rust:serde-1.0.228",
                     "//third-party/rust:uuid-1.23.2",
                 ],
@@ -17073,6 +17122,7 @@ crates = {
                     "//crates/be-commit:be-commit",
                     "//crates/be-model:be-model",
                     "//crates/block-type-guest:block-type-guest",
+                    "//crates/ui-types:ui-types",
                     "//third-party/rust:serde-1.0.228",
                     "//third-party/rust:uuid-1.23.2",
                 ],
@@ -17088,6 +17138,7 @@ crates = {
                     "//crates/be-commit:be-commit",
                     "//crates/be-model:be-model",
                     "//crates/block-type-guest:block-type-guest",
+                    "//crates/ui-types:ui-types",
                     "//third-party/rust:serde-1.0.228",
                     "//third-party/rust:uuid-1.23.2",
                 ],
@@ -18469,14 +18520,6 @@ crates = {
                 "test_deps": [
                     "//third-party/rust:serde_json-1.0.150",
                 ],
-                "test_features": [],
-            },
-            "wasi-guest": {
-                "binaries": {},
-                "deps": [],
-                "examples": {},
-                "features": [],
-                "test_deps": [],
                 "test_features": [],
             },
             "windows-arm64": {
@@ -22191,6 +22234,98 @@ crates = {
         "profile_flags": [],
         "version": "0.1.0",
     },
+    "crates/terminal-emulator": {
+        "binaries": [],
+        "edition": "2024",
+        "examples": [],
+        "library": {
+            "crate": "terminal_emulator",
+            "crate_root": "src/lib.rs",
+            "proc_macro": False,
+        },
+        "name": "terminal-emulator",
+        "platforms": {
+            "android-arm64": {
+                "binaries": {},
+                "deps": [
+                    "//crates/editors/terminal/types:terminal-types",
+                    "//crates/ghostty-vt:ghostty-vt",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "linux-arm64": {
+                "binaries": {},
+                "deps": [
+                    "//crates/editors/terminal/types:terminal-types",
+                    "//crates/ghostty-vt:ghostty-vt",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "linux-x86_64": {
+                "binaries": {},
+                "deps": [
+                    "//crates/editors/terminal/types:terminal-types",
+                    "//crates/ghostty-vt:ghostty-vt",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "macos-arm64": {
+                "binaries": {},
+                "deps": [
+                    "//crates/editors/terminal/types:terminal-types",
+                    "//crates/ghostty-vt:ghostty-vt",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "macos-x86_64": {
+                "binaries": {},
+                "deps": [
+                    "//crates/editors/terminal/types:terminal-types",
+                    "//crates/ghostty-vt:ghostty-vt",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "windows-arm64": {
+                "binaries": {},
+                "deps": [
+                    "//crates/editors/terminal/types:terminal-types",
+                    "//crates/ghostty-vt:ghostty-vt",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "windows-x86_64": {
+                "binaries": {},
+                "deps": [
+                    "//crates/editors/terminal/types:terminal-types",
+                    "//crates/ghostty-vt:ghostty-vt",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+        },
+        "profile_flags": [],
+        "version": "0.1.0",
+    },
     "crates/terminal-view": {
         "binaries": [],
         "edition": "2024",
@@ -22205,8 +22340,9 @@ crates = {
             "android-arm64": {
                 "binaries": {},
                 "deps": [
+                    "//crates/be-block:be-block",
                     "//crates/beui:beui",
-                    "//crates/ghostty-vt:ghostty-vt",
+                    "//crates/editors/terminal/types:terminal-types",
                 ],
                 "examples": {},
                 "features": [],
@@ -22216,8 +22352,9 @@ crates = {
             "linux-arm64": {
                 "binaries": {},
                 "deps": [
+                    "//crates/be-block:be-block",
                     "//crates/beui:beui",
-                    "//crates/ghostty-vt:ghostty-vt",
+                    "//crates/editors/terminal/types:terminal-types",
                 ],
                 "examples": {},
                 "features": [],
@@ -22227,8 +22364,9 @@ crates = {
             "linux-x86_64": {
                 "binaries": {},
                 "deps": [
+                    "//crates/be-block:be-block",
                     "//crates/beui:beui",
-                    "//crates/ghostty-vt:ghostty-vt",
+                    "//crates/editors/terminal/types:terminal-types",
                 ],
                 "examples": {},
                 "features": [],
@@ -22238,8 +22376,9 @@ crates = {
             "macos-arm64": {
                 "binaries": {},
                 "deps": [
+                    "//crates/be-block:be-block",
                     "//crates/beui:beui",
-                    "//crates/ghostty-vt:ghostty-vt",
+                    "//crates/editors/terminal/types:terminal-types",
                 ],
                 "examples": {},
                 "features": [],
@@ -22249,8 +22388,9 @@ crates = {
             "macos-x86_64": {
                 "binaries": {},
                 "deps": [
+                    "//crates/be-block:be-block",
                     "//crates/beui:beui",
-                    "//crates/ghostty-vt:ghostty-vt",
+                    "//crates/editors/terminal/types:terminal-types",
                 ],
                 "examples": {},
                 "features": [],
@@ -22260,8 +22400,9 @@ crates = {
             "wasi-guest": {
                 "binaries": {},
                 "deps": [
+                    "//crates/be-block:be-block",
                     "//crates/beui:beui",
-                    "//crates/ghostty-vt:ghostty-vt",
+                    "//crates/editors/terminal/types:terminal-types",
                 ],
                 "examples": {},
                 "features": [],
@@ -22271,8 +22412,9 @@ crates = {
             "windows-arm64": {
                 "binaries": {},
                 "deps": [
+                    "//crates/be-block:be-block",
                     "//crates/beui:beui",
-                    "//crates/ghostty-vt:ghostty-vt",
+                    "//crates/editors/terminal/types:terminal-types",
                 ],
                 "examples": {},
                 "features": [],
@@ -22282,8 +22424,9 @@ crates = {
             "windows-x86_64": {
                 "binaries": {},
                 "deps": [
+                    "//crates/be-block:be-block",
                     "//crates/beui:beui",
-                    "//crates/ghostty-vt:ghostty-vt",
+                    "//crates/editors/terminal/types:terminal-types",
                 ],
                 "examples": {},
                 "features": [],

@@ -1,3 +1,4 @@
+use beui::Wrap;
 use beui::icons::{
     ICON_BOXES, ICON_CHECK, ICON_CHEVRON_DOWN, ICON_CLOUD, ICON_COPY, ICON_ELLIPSIS, ICON_MONITOR,
     ICON_PLUS, ICON_REFRESH_CW, ICON_USER_PLUS, ICON_USERS_ROUND,
@@ -23,7 +24,9 @@ pub(super) fn ErrorText(text: Memo<Option<String>>) -> NodeId {
     view! {
         <List spacing=0.0>
             <Show condition={shown}>
-                <Text style=TextStyle::PARAGRAPH color=TextColor::Danger wrap=true>{content}</Text>
+                <Text style=TextStyle::PARAGRAPH color=TextColor::Danger wrap=Wrap::Words>
+                    {content}
+                </Text>
             </Show>
         </List>
     }
@@ -78,7 +81,7 @@ pub(super) fn ErrorScreen(view: AppViewStore) -> NodeId {
             <Text style=TextStyle::TITLE align=TextAlign::Center>"Something went wrong"</Text>
             <Frame height=240.0>
                 <Scroll>
-                    <Text style=TextStyle::PARAGRAPH wrap=true>{message}</Text>
+                    <Text style=TextStyle::PARAGRAPH wrap=Wrap::Words>{message}</Text>
                 </Scroll>
             </Frame>
             <List direction=Direction::Horizontal spacing=8.0 wrap=true>
@@ -122,7 +125,7 @@ pub(super) fn ErrorScreen(view: AppViewStore) -> NodeId {
                 on_confirm={|| send(UiCommand::ConfirmErrorAction)}
                 on_dismiss={|| send(UiCommand::CancelErrorAction)}
             >
-                <Text style=TextStyle::PARAGRAPH wrap=true>{confirmation}</Text>
+                <Text style=TextStyle::PARAGRAPH wrap=Wrap::Words>{confirmation}</Text>
             </Dialog>
         </Column>
     }
@@ -411,7 +414,7 @@ pub(super) fn AddAccountDialog(
             <List spacing=20.0>
                 <Show condition={choosing}>
                     <List spacing=14.0>
-                        <Text style=TextStyle::PARAGRAPH wrap=true>
+                        <Text style=TextStyle::PARAGRAPH wrap=Wrap::Words>
                             "Choose where to keep your account."
                         </Text>
                         <Frame
@@ -454,7 +457,7 @@ pub(super) fn AddAccountDialog(
                     <List spacing=18.0>
                         <Show condition={local}>
                             <List spacing=16.0>
-                                <Text style=TextStyle::PARAGRAPH wrap=true>
+                                <Text style=TextStyle::PARAGRAPH wrap=Wrap::Words>
                                     "Your data stays on this device. You only need a display name."
                                 </Text>
                                 <List spacing=6.0>
@@ -472,7 +475,7 @@ pub(super) fn AddAccountDialog(
                         <Show condition={is_default}>
                             <List spacing=4.0>
                                 <Text style=TextStyle::HEADING>{default_name}</Text>
-                                <Text style=TextStyle::CAPTION wrap=true>{server_name}</Text>
+                                <Text style=TextStyle::CAPTION wrap=Wrap::Words>{server_name}</Text>
                             </List>
                         </Show>
                         <Show condition={custom}>
@@ -500,7 +503,7 @@ pub(super) fn AddAccountDialog(
                             </List>
                         </Show>
                         <Show condition={remote}>
-                            <Text style=TextStyle::CAPTION wrap=true>
+                            <Text style=TextStyle::CAPTION wrap=Wrap::Words>
                                 "Next, you’ll sign in or create an account in your browser."
                             </Text>
                         </Show>
@@ -508,7 +511,7 @@ pub(super) fn AddAccountDialog(
                 </Show>
                 <Show condition={waiting}>
                     <List spacing=16.0>
-                        <Text style=TextStyle::PARAGRAPH wrap=true>
+                        <Text style=TextStyle::PARAGRAPH wrap=Wrap::Words>
                             "Sign in and approve this code in your browser. You can also use a browser on another device."
                         </Text>
                         <Card>
@@ -554,7 +557,7 @@ pub(super) fn AddAccountDialog(
                                         >
                                             <Text
                                                 style=TextStyle::CAPTION
-                                                wrap=true
+                                                wrap=Wrap::Words
                                                 @test_id="account.browser-url"
                                             >
                                                 {browser_url}
@@ -571,7 +574,7 @@ pub(super) fn AddAccountDialog(
                                 </List>
                             </List>
                         </Card>
-                        <Text style=TextStyle::CAPTION wrap=true>
+                        <Text style=TextStyle::CAPTION wrap=Wrap::Words>
                             "Waiting for approval. This window will continue automatically."
                         </Text>
                     </List>
@@ -716,7 +719,7 @@ fn JoinOrganization(view: AppViewStore, busy: Memo<bool>) -> NodeId {
                 <Card>
                     <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
                         <List @sizing=ItemSize::Percent(100.0) spacing=2.0>
-                            <Text style=TextStyle::HEADING wrap=true>{title}</Text>
+                            <Text style=TextStyle::HEADING wrap=Wrap::Words>{title}</Text>
                             <Text style=TextStyle::CAPTION>{invited}</Text>
                         </List>
                         <Button
@@ -737,7 +740,7 @@ fn JoinOrganization(view: AppViewStore, busy: Memo<bool>) -> NodeId {
             </Show>
             <Show condition={pasting}>
                 <List spacing=8.0>
-                    <Text style=TextStyle::CAPTION wrap=true>
+                    <Text style=TextStyle::CAPTION wrap=Wrap::Words>
                         "Paste the invite link someone sent you."
                     </Text>
                     <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
@@ -996,7 +999,7 @@ pub(super) fn ReauthDialog(view: AppViewStore) -> NodeId {
             }}
         >
             <List spacing=20.0>
-                <Text style=TextStyle::PARAGRAPH wrap=true>{message}</Text>
+                <Text style=TextStyle::PARAGRAPH wrap=Wrap::Words>{message}</Text>
                 <Show condition={create_memo(move || error.get().is_some())}>
                     <ErrorText text={error} />
                 </Show>

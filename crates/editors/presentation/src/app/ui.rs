@@ -1,3 +1,4 @@
+use beui::Wrap;
 use std::cell::Cell;
 use std::rc::Rc;
 
@@ -161,7 +162,7 @@ fn SlideStatus(state: ReadSignal<ChildState>) -> NodeId {
     view! {
         <Layers>
             <Show condition={hidden}>
-                <Text size=TextSize::Sm color=TextColor::Muted wrap=true>{message}</Text>
+                <Text size=TextSize::Sm color=TextColor::Muted wrap=Wrap::Words>{message}</Text>
             </Show>
         </Layers>
     }

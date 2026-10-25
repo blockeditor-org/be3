@@ -38,6 +38,7 @@ mod a_tooltip_is_as_wide_as_its_label_up_to_a_cap;
 mod an_instant_level_display_keeps_its_duration_without_fading;
 mod animations_paint_their_progress_and_instant_targets;
 mod closing_the_rich_text_tab_disposes_its_editors;
+mod dragging_across_the_lines_of_a_long_list_selects_them;
 mod editing_a_tree_row_keeps_a_name_on_enter_or_a_click_away_and_escape_puts_it_back;
 mod every_demo_page_paints_as_accepted;
 mod every_demo_page_paints_as_accepted_on_a_phone;
@@ -49,6 +50,7 @@ mod replacing_a_page_closes_the_dialogs_it_opened;
 mod rich_text_styled_on_both_sides_converges_once_sent_both_ways;
 mod swiping_back_on_a_phone_shows_the_catalog_behind_the_page;
 mod tabbing_through_every_page_shows_each_focus_ring_whole;
+mod text_breaks_end_lines_and_breaking_anywhere_fills_them;
 mod the_arrow_keys_move_across_a_menu_grid_and_on_to_the_rows_below;
 mod the_catalog_shows_a_page_in_place_of_the_one_shown_unless_ctrl_is_held;
 mod the_code_of_a_sample_can_be_selected;
@@ -176,6 +178,13 @@ fn select_line(test: &mut DocumentTest, at: Pos2) {
     test.frame(Vec::new());
     press_key(test, beui::Key::Home);
     press_key_with(test, beui::Key::End, beui::Modifiers::SHIFT);
+}
+
+fn selected_text(test: &mut DocumentTest, region: beui::NodeId) -> String {
+    let state = test
+        .document()
+        .api::<beui::unstyled::SelectableState>(region);
+    beui::reactive::with_reactive_scope(test.document_mut(), || state.selected_text())
 }
 
 fn focused(test: &DocumentTest, test_id: &str) -> bool {

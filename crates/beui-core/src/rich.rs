@@ -10,6 +10,7 @@ const SPAN_UNDERLINE_OFFSET: f32 = 0.12;
 const SPAN_STRIKE_OFFSET: f32 = 0.32;
 const SPAN_LINE_THICKNESS: f32 = 1.0 / 16.0;
 pub const TAB_COLUMNS: f32 = 4.0;
+const WRAP_SLACK: f32 = 1.0 / 1024.0;
 
 #[derive(Clone, Copy, PartialEq, Debug)]
 pub struct SpanStyle {
@@ -45,6 +46,7 @@ pub enum Piece<'a> {
         text: &'a str,
     },
     Gap(f32),
+    Break,
     Icon {
         glyph: &'a str,
         style: SpanStyle,
@@ -66,7 +68,7 @@ impl<'a> Piece<'a> {
         match self {
             Piece::Text { text, .. } => text.len(),
             Piece::Inline { text, .. } => text.len(),
-            Piece::Gap(_) | Piece::Icon { .. } => 0,
+            Piece::Gap(_) | Piece::Break | Piece::Icon { .. } => 0,
         }
     }
 
@@ -80,6 +82,7 @@ pub enum SpanKind {
     Text,
     Inline(usize, Vec2),
     Gap(f32),
+    Break,
     Icon(f32),
     Tab,
 }
@@ -236,6 +239,7 @@ pub struct RichOptions {
     pub padding: (f32, f32),
     pub style: SpanStyle,
     pub hang: usize,
+    pub anywhere: bool,
 }
 
 #[derive(Clone)]
@@ -378,7 +382,47 @@ struct Builder<'a> {
     spans: &'a [TextSpan],
     shaper: &'a mut dyn Shaper,
     paragraph: Range<usize>,
+    segment: Range<usize>,
+    anywhere: bool,
     whole: Vec<Option<(Range<usize>, Galley)>>,
+}
+
+struct Segment {
+    bytes: Range<usize>,
+    spans: Range<usize>,
+}
+
+fn segments(text: &str, spans: &[TextSpan]) -> Vec<Segment> {
+    let mut breaks = spans
+        .iter()
+        .enumerate()
+        .filter(|(_, span)| span.kind == SpanKind::Break)
+        .map(|(index, span)| (span.range.start, index))
+        .peekable();
+    let mut segments = Vec::new();
+    let (mut start, mut lower) = (0, 0);
+    let mut newline = text.find('\n');
+    loop {
+        let end = newline.unwrap_or(text.len());
+        if let Some((byte, index)) = breaks.next_if(|(byte, _)| *byte <= end) {
+            segments.push(Segment {
+                bytes: start..byte,
+                spans: lower..index,
+            });
+            (start, lower) = (byte, index + 1);
+            continue;
+        }
+        segments.push(Segment {
+            bytes: start..end,
+            spans: lower..spans.len(),
+        });
+        let Some(at) = newline else {
+            break;
+        };
+        start = at + 1;
+        newline = text[start..].find('\n').map(|found| start + found);
+    }
+    segments
 }
 
 impl Builder<'_> {
@@ -395,9 +439,13 @@ impl Builder<'_> {
             .partition_point(|span| {
                 span.range.end < from || (span.range.end == from && !span.range.is_empty())
             })
+            .max(self.segment.start)
             .min(self.spans.len());
-        for index in first..self.spans.len() {
+        for index in first..self.segment.end {
             let span = &self.spans[index];
+            if span.kind == SpanKind::Break {
+                continue;
+            }
             if span.range.is_empty() {
                 let at = span.range.start;
                 let last = at == to && to == self.paragraph.end;
@@ -461,7 +509,7 @@ impl Builder<'_> {
                     style,
                     kind,
                     x,
-                    width: galley.size().x,
+                    width: galley.cursor_pos(pos2(0.0, 0.0), galley.text().len()).x,
                     height: galley.line_height(),
                     galley: Some(galley),
                     inner: Vec::new(),
@@ -485,13 +533,16 @@ impl Builder<'_> {
                 height: size.y,
                 galley: None,
             },
-            SpanKind::Gap(width) => RichRun {
+            SpanKind::Gap(_) | SpanKind::Break => RichRun {
                 piece,
                 range,
                 style,
                 kind,
                 x,
-                width,
+                width: match kind {
+                    SpanKind::Gap(width) => width,
+                    _ => 0.0,
+                },
                 height: 0.0,
                 galley: None,
                 inner: Vec::new(),
@@ -594,7 +645,8 @@ impl Builder<'_> {
     }
 
     fn good(&self, byte: usize) -> bool {
-        self.breaks_after(byte)
+        self.anywhere
+            || self.breaks_after(byte)
             || self
                 .text
                 .as_bytes()
@@ -661,11 +713,12 @@ fn spans_of(pieces: &[Piece], fallback: SpanStyle) -> (String, Vec<TextSpan>) {
                 (fallback, SpanKind::Inline(inline, size), false)
             }
             Piece::Gap(width) => (fallback, SpanKind::Gap(width), false),
+            Piece::Break => (fallback, SpanKind::Break, false),
             Piece::Icon { style, spacing, .. } => (style, SpanKind::Icon(spacing), false),
         };
         let shown = match *piece {
             Piece::Icon { glyph, .. } => !glyph.is_empty(),
-            Piece::Gap(_) => true,
+            Piece::Gap(_) | Piece::Break => true,
             _ => text.len() > start,
         };
         if shown {
@@ -712,10 +765,20 @@ impl RichLayout {
             spans: &spans,
             shaper,
             paragraph: 0..0,
+            segment: 0..0,
+            anywhere: options.anywhere,
             whole: vec![None; spans.len()],
         };
+        let segments = segments(text, &spans);
         let kept = previous.map_or(0, |(previous, changed)| {
-            previous.line_of(changed).saturating_sub(1)
+            let mut kept = previous.line_of(changed).saturating_sub(1);
+            while kept > 0
+                && (previous.lines[kept].range.start >= changed
+                    || previous.lines[kept - 1].range.start == previous.lines[kept].range.start)
+            {
+                kept -= 1;
+            }
+            kept
         });
         let mut lines: Vec<RichLine> = match previous {
             Some((previous, _)) => previous.lines[..kept].to_vec(),
@@ -726,14 +789,23 @@ impl RichLayout {
                 Some(line) if kept > 0 => (line.top, Some(line.range.start.min(text.len()))),
                 _ => (0.0, None),
             };
-        let mut start = resume.map_or(0, |at| text[..at].rfind('\n').map_or(0, |found| found + 1));
-        loop {
-            let end = text[start..].find('\n').map_or(text.len(), |at| start + at);
+        let first = resume.map_or(0, |at| {
+            segments
+                .iter()
+                .position(|segment| {
+                    segment.bytes.start <= at
+                        && (at < segment.bytes.end || segment.bytes.start == at)
+                })
+                .unwrap_or(segments.len() - 1)
+        });
+        for segment in &segments[first..] {
+            let (start, end) = (segment.bytes.start, segment.bytes.end);
             let mut from = resume.take().unwrap_or(start);
             builder.paragraph = start..end;
+            builder.segment = segment.spans.clone();
             let whole = builder.runs(start, end);
             let total = whole.last().map_or(0.0, |run| run.x + run.width);
-            let stops = match total > options.wrap_width || from != start {
+            let stops = match total > options.wrap_width + WRAP_SLACK || from != start {
                 true => builder.stops(&whole),
                 false => Vec::new(),
             };
@@ -749,7 +821,7 @@ impl RichLayout {
                         hang,
                     ),
                 };
-                let wrap = options.wrap_width - indent;
+                let wrap = options.wrap_width - indent + WRAP_SLACK;
                 let broke = match total - origin > wrap {
                     true => builder.breakpoint(&stops, from, end, origin, wrap),
                     false => None,
@@ -765,19 +837,15 @@ impl RichLayout {
                 let mut line = line(from..to, runs, top, strut, options.padding);
                 top += line.height;
                 let Some((_, reach, limit)) = broke else {
-                    line.reach = total - origin + indent;
+                    line.reach = total - origin + indent - WRAP_SLACK;
                     lines.push(line);
                     break;
                 };
-                line.reach = reach + indent;
-                line.limit = limit + indent;
+                line.reach = reach + indent - WRAP_SLACK;
+                line.limit = limit + indent - WRAP_SLACK;
                 lines.push(line);
                 from = to;
             }
-            if end == text.len() {
-                break;
-            }
-            start = end + 1;
         }
         let width = lines.iter().map(|line| line.width).fold(0.0, f32::max);
         let reach = lines.iter().map(|line| line.reach).fold(0.0, f32::max);

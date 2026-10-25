@@ -1,4 +1,5 @@
 use beui::NodeId;
+use beui::Wrap;
 use beui::icons::ICON_UNDO_2;
 use beui::reactive::*;
 use beui::styled::*;
@@ -95,7 +96,7 @@ pub fn VersionSteps(
                         spacing=8.0
                         @test_id=step_test_id
                     >
-                        <Text @sizing=ItemSize::Percent(100.0) wrap=true>{description}</Text>
+                        <Text @sizing=ItemSize::Percent(100.0) wrap=Wrap::Words>{description}</Text>
                         <beui::reactive::Show condition={undone}>
                             <Text style=TextStyle::CAPTION>"Undone"</Text>
                         </beui::reactive::Show>

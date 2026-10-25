@@ -26,6 +26,7 @@ mod a_follower_edit_goes_beneath_a_peer_edit_the_owner_ordered_first;
 mod a_follower_keeps_its_unconfirmed_edit_through_a_reload;
 mod a_follower_replaces_the_content_and_the_owner_takes_it;
 mod a_follower_takes_over_with_what_the_owner_had_not_sealed;
+mod a_follower_that_claims_as_it_joins_waits_until_it_has_caught_up;
 mod a_follower_that_missed_messages_catches_up_once_resynchronized;
 mod a_follower_that_takes_over_after_a_seal_publishes_on_top_of_it;
 mod a_follower_that_takes_over_saves_its_edit_too_large_to_relay;
@@ -50,6 +51,7 @@ mod an_abandoned_lease_is_claimed;
 mod an_edit_too_large_to_relay_is_published_as_a_commit;
 mod an_editor_joins_with_a_snapshot_and_follows_operations;
 mod an_external_publish_merges_into_a_live_replica;
+mod an_owner_whose_lease_lapsed_follows_whoever_claims_it;
 mod child_changes_become_edits_of_the_parent;
 mod closing_seals_and_releases;
 mod concurrent_edits_converge;
@@ -475,6 +477,11 @@ impl<C: LiveEdit + Clone + Default> Sim<C> {
             Some(head) => C::decode(&self.commits[&head].bytes).unwrap(),
             None => C::default(),
         }
+    }
+
+    fn claim(&mut self, device: usize) {
+        self.queue
+            .push_back((device, Event::Claim { replica: REPLICA }));
     }
 
     fn close(&mut self, device: usize) {

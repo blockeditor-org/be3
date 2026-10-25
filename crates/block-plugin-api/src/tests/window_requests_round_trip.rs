@@ -18,6 +18,7 @@ fn window_requests_round_trip() {
                         tap: true,
                     }],
                     pastes: vec![PasteKind::Image, PasteKind::Text],
+                    clipboard_keys: true,
                     keyboard_toggles: 3,
                 },
             }],

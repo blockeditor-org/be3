@@ -1,3 +1,4 @@
+use beui::Wrap;
 use std::any::Any;
 use std::cell::RefCell;
 use std::rc::Rc;
@@ -166,7 +167,7 @@ fn resize_paragraphs(frames: usize) -> Report {
                         <List spacing=8.0>
                             <ForEach keys={(0..20).collect::<Vec<usize>>()}>|_: usize| {
                                 let text = text.clone(); view! {
-                                    <Text wrap=true>{text}</Text>
+                                    <Text wrap=Wrap::Words>{text}</Text>
                                 }
                             }</ForEach>
                         </List>
@@ -234,7 +235,7 @@ fn edit_plain_paragraph(frames: usize) -> Report {
             *content.borrow_mut() = Some(read);
             view! {
                 <Root>
-                    <Text wrap=true>{read}</Text>
+                    <Text wrap=Wrap::Words>{read}</Text>
                 </Root>
             }
         }
@@ -277,7 +278,7 @@ fn edit_one_span(frames: usize) -> Report {
             let keys = (0..initial.len()).collect::<Vec<usize>>();
             view! {
                 <Root>
-                    <Text wrap=true>
+                    <Text wrap=Wrap::Words>
                         <ForEach keys={keys}>|index: usize| {
                             let word = create_memo(move || {
                                 read.get().get(index).cloned().unwrap_or_default()

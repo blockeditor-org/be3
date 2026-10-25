@@ -1,0 +1,12 @@
+[package]
+name = "terminal-emulator"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+
+[dependencies]
+terminal-types = { path = "../editors/terminal/types" }
+ghostty-vt = { path = "../ghostty-vt" }
+
+[lints]
+workspace = true

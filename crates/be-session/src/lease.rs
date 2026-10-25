@@ -9,15 +9,30 @@ pub enum Claim {
     Stale,
 }
 
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug)]
 pub struct Lease {
     state: SessionState,
     expires: i64,
+    length: i64,
+}
+
+impl Default for Lease {
+    fn default() -> Self {
+        Self::lasting(LEASE_MILLISECONDS)
+    }
 }
 
 impl Lease {
     pub fn new() -> Self {
         Self::default()
+    }
+
+    pub fn lasting(length: i64) -> Self {
+        Self {
+            state: SessionState::default(),
+            expires: 0,
+            length,
+        }
     }
 
     pub fn state(&self) -> &SessionState {
@@ -66,7 +81,7 @@ impl Lease {
             return Claim::Stale;
         }
         if self.state.owner == Some(client) {
-            self.expires = now + LEASE_MILLISECONDS;
+            self.expires = now.saturating_add(self.length);
             return Claim::Granted {
                 generation: self.state.generation,
             };
@@ -94,7 +109,7 @@ impl Lease {
         if self.state.owner != Some(client) || generation != self.state.generation {
             return false;
         }
-        self.expires = now + LEASE_MILLISECONDS;
+        self.expires = now.saturating_add(self.length);
         self.state.clean_at = clean_at;
         true
     }
@@ -113,6 +128,6 @@ impl Lease {
         }
         self.state.owner = Some(client);
         self.state.generation += 1;
-        self.expires = now + LEASE_MILLISECONDS;
+        self.expires = now.saturating_add(self.length);
     }
 }

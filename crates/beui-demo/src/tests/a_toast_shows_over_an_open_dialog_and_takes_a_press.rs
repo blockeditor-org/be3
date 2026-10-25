@@ -1,3 +1,4 @@
+use beui::Wrap;
 use beui::unstyled::Edge;
 
 use super::*;
@@ -31,7 +32,7 @@ fn a_toast_shows_over_an_open_dialog_and_takes_a_press() {
                             width=720.0
                             on_dismiss={move || dismissed.update(|dismissed| *dismissed += 1)}
                         >
-                            <Text style=TextStyle::PARAGRAPH wrap=true>
+                            <Text style=TextStyle::PARAGRAPH wrap=Wrap::Words>
                                 "The toast stays bright over the scrim of this dialog."
                             </Text>
                         </Dialog>
