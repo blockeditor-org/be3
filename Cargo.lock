@@ -1553,6 +1553,7 @@ dependencies = [
  "js-sys",
  "libc",
  "ndk-context",
+ "notify",
  "paint-snapshot",
  "pollster",
  "presentation-types",

@@ -35,12 +35,14 @@ fn showing_a_block_with_another_editor_switches_its_tab() {
             edits: block_editor_beui::Edits::Type(SHOWN_TYPE.into_bytes()),
             name: "Shown".to_owned(),
             icon_codepoint: String::new(),
+            extensions: Vec::new(),
         },
         block_editor_beui::EditorDescriptor {
             editor: DEBUG.into_bytes(),
             edits: block_editor_beui::Edits::Any,
             name: "Debug view".to_owned(),
             icon_codepoint: String::new(),
+            extensions: Vec::new(),
         },
     ];
     fixture.test.catalog(catalog);

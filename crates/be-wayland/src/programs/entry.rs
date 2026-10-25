@@ -19,6 +19,7 @@ pub struct DesktopEntry {
     pub only_show_in: Vec<String>,
     pub not_show_in: Vec<String>,
     pub startup_wm_class: Option<String>,
+    pub mime_types: Vec<String>,
 }
 
 impl DesktopEntry {
@@ -48,6 +49,7 @@ impl DesktopEntry {
             only_show_in: list("OnlyShowIn"),
             not_show_in: list("NotShowIn"),
             startup_wm_class: plain("StartupWMClass").filter(|class| !class.is_empty()),
+            mime_types: list("MimeType"),
         })
     }
 

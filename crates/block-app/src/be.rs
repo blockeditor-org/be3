@@ -1018,6 +1018,15 @@ pub(crate) fn plain_file(
     });
 }
 
+pub(crate) fn from_file(block: Uuid, content_type: Uuid, name: String, bytes: Vec<u8>) {
+    send(Command::FromFile {
+        block,
+        content_type,
+        name,
+        bytes,
+    });
+}
+
 pub(crate) fn import(bytes: &[u8], parent: be_graph::BlockParent) -> Result<(Uuid, Uuid), String> {
     let blocks = be_client::transfer::renumber(be_client::transfer::decode(bytes)?);
     let author = account().ok_or("Sign in to import blocks.")?;

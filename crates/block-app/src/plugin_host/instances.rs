@@ -56,7 +56,7 @@ pub(super) struct Instances {
     announced: HashSet<ScreenId>,
     request_id: u64,
     block_types: Option<Arc<block_plugin_api::Catalog>>,
-    sent_block_types: Option<u64>,
+    sent_block_types: Option<(u64, u64)>,
     network: Vec<String>,
     plugin_id: String,
     replies: Replies,
@@ -1441,12 +1441,14 @@ impl Instances {
         let graph_moved = self.graph_seen.replace(graph) != Some(graph);
         let mut opened = Vec::new();
         let mut screens = Vec::new();
-        let plain_forms = be_types_host::plain_forms_revision();
-        if self.sent_block_types != Some(plain_forms)
+        let (programs, program_editors) = crate::programs::editors();
+        let sent = (be_types_host::plain_forms_revision(), programs);
+        if self.sent_block_types != Some(sent)
             && let Some(block_types) = &self.block_types
         {
-            self.sent_block_types = Some(plain_forms);
+            self.sent_block_types = Some(sent);
             let mut block_types = block_types.as_ref().clone();
+            block_types.editors.extend(program_editors);
             for descriptor in &mut block_types.types {
                 descriptor.plain_file =
                     be_types_host::plain_of(Uuid::from_bytes(descriptor.block_type))

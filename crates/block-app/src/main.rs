@@ -470,7 +470,7 @@ struct BlockApp {
     choosing_session: bool,
     every_session_type: bool,
     shell: Option<Uuid>,
-    windows_sent: Option<u64>,
+    windows_sent: Option<(u64, Vec<block_plugin_api::HostWindowId>)>,
     forwarded_picks: HashMap<u64, (PickSource, u64)>,
     next_pick: u64,
     focus_reports: HashMap<Uuid, editors::FocusReport>,
@@ -642,6 +642,7 @@ impl BlockApp {
         let url = embedded_server.url.clone();
         let app_state = AppStateStore::open(data_dir.join("app.sqlite3"))?;
         let mut app = Self::with_state(app_state, url)?;
+        app.programs.keep_files_in(data_dir.join("files"));
         app.data_dir = data_dir;
         app.embedded_server = Some(embedded_server);
         Ok(app)
@@ -2084,6 +2085,7 @@ impl BlockApp {
         if self.shell == Some(id) {
             return;
         }
+        programs::close(id);
         self.editors.forget_parent(id);
         self.focus_reports.remove(&id);
         if self.artifact_watches.remove(&id).is_some() {
@@ -2152,9 +2154,10 @@ impl BlockApp {
                 },
             );
         }
-        if Some(wayland::revision()) != self.windows_sent {
-            self.windows_sent = Some(wayland::revision());
-            plugin_host::publish::<block_plugin_api::HostWindows>(&wayland::listed());
+        let hidden = programs::bound_windows();
+        if Some((wayland::revision(), hidden.clone())) != self.windows_sent {
+            plugin_host::publish::<block_plugin_api::HostWindows>(&wayland::listed(&hidden));
+            self.windows_sent = Some((wayland::revision(), hidden));
         }
         for action in plugin_host::take_actions::<block_plugin_api::WindowAction>() {
             match action {

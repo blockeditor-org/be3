@@ -928,6 +928,68 @@ enum Resolution {
 }
 
 #[component]
+fn ProgramSurface(block: Uuid) -> NodeId {
+    let any = super::any();
+    let shown = create_memo(move || {
+        any.get();
+        crate::programs::shown(block)
+    });
+    view! {
+        <Layers>
+        <Dynamic value={shown}>|shown: Option<crate::programs::Shown>| {
+            match shown {
+                Some(crate::programs::Shown::Window(window)) => view! {
+                    <WindowSurface window={window} />
+                },
+                Some(crate::programs::Shown::Closed(name)) => view! {
+                    <ProgramClosed name block />
+                },
+                Some(crate::programs::Shown::Failed(problem)) => view! {
+                    <Notice item={HostItem::Notice {
+                        text: problem,
+                        spinner: false,
+                        icon: Some(beui::icons::ICON_APP_WINDOW),
+                    }} />
+                },
+                Some(crate::programs::Shown::Opening(name)) => view! {
+                    <Notice item={HostItem::Notice {
+                        text: format!("Opening in {name}…"),
+                        spinner: true,
+                        icon: Some(beui::icons::ICON_APP_WINDOW),
+                    }} />
+                },
+                None => view! {
+                    <Frame />
+                },
+            }
+        }</Dynamic>
+        </Layers>
+    }
+}
+
+#[component]
+fn ProgramClosed(name: String, block: Uuid) -> NodeId {
+    let content = create_memo(move || HostItem::Notice {
+        text: format!("{name} is closed."),
+        spinner: false,
+        icon: Some(beui::icons::ICON_APP_WINDOW),
+    });
+    view! {
+        <Frame align=beui::Align::Center>
+            <List spacing=8.0 align=Align::Center>
+                <HostItemFace content />
+                <Button
+                    label="Open again"
+                    variant=ButtonVariant::Primary
+                    @test_id={"program.reopen"}
+                    on_click={move || crate::programs::reopen(block)}
+                />
+            </List>
+        </Frame>
+    }
+}
+
+#[component]
 fn Notice(item: HostItem) -> NodeId {
     let content = create_memo(move || item.clone());
     view! {
@@ -1340,6 +1402,7 @@ enum Kind {
     Embedded,
     Panel(HostPanel),
     Window(HostWindowId),
+    Program(Uuid),
     Creation,
     ArtifactSettings(Uuid),
 }
@@ -1409,6 +1472,10 @@ fn HostedChild(
         }
         if nesting.above.with(|above| above.contains(&id)) {
             return Kind::Unavailable;
+        }
+        if let Some(program) = editor.filter(|editor| crate::programs::opens(*editor)) {
+            crate::programs::show(id, block_type, program);
+            return Kind::Program(id);
         }
         editors.ensure(id, block_type, view_block, editor, parent);
         let Some(child) = child.get() else {
@@ -1514,6 +1581,9 @@ fn HostedChild(
                             },
                             Kind::Window(window) => view! {
                                 <WindowSurface window={window} />
+                            },
+                            Kind::Program(block) => view! {
+                                <ProgramSurface block />
                             },
                             Kind::ArtifactSettings(_) => view! {
                                 <HostedSurface id=SurfaceId::ArtifactSettings />

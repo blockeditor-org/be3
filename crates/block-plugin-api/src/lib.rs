@@ -684,6 +684,7 @@ pub struct EditorDescriptor {
     pub edits: Edits,
     pub name: String,
     pub icon_codepoint: String,
+    pub extensions: Vec<String>,
 }
 
 #[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, Serialize, Deserialize)]

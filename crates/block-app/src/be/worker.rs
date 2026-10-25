@@ -60,6 +60,12 @@ pub(super) enum Command {
         content_type: Uuid,
         change: block_type_api::ChildChange,
     },
+    FromFile {
+        block: Uuid,
+        content_type: Uuid,
+        name: String,
+        bytes: Vec<u8>,
+    },
     Attach {
         block: Uuid,
         content_type: Uuid,
@@ -210,6 +216,7 @@ impl Command {
             | Command::History { block, .. }
             | Command::Attach { block, .. }
             | Command::ChangeChild { block, .. }
+            | Command::FromFile { block, .. }
             | Command::Detach { block, .. }
             | Command::FromEditor { block, .. }
             | Command::Create { block, .. }
@@ -1314,6 +1321,21 @@ async fn apply(
                 open_wanted(peer, shared, wanted, replicas, block, content_type).await;
             }
             let change = Change::Child(change);
+            let _ = replicas.request_later(block, |replica| Request::Change { replica, change });
+            false
+        }
+        Command::FromFile {
+            block,
+            content_type,
+            name,
+            bytes,
+        } => {
+            if !replicas.is_open(block) {
+                wanted.open.entry(block).or_insert(content_type);
+                want_open(shared, &wanted.blocks());
+                open_wanted(peer, shared, wanted, replicas, block, content_type).await;
+            }
+            let change = Change::FromFile { name, bytes };
             let _ = replicas.request_later(block, |replica| Request::Change { replica, change });
             false
         }
