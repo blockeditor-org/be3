@@ -24,6 +24,7 @@ impl HeadlessPlugin {
         crate::clock::restart();
         let wire = Shared::default();
         let executor = wire.executor();
+        executor.enter(|| wire.watch_shell());
         Self {
             session: ClientSession::new(id, name, version),
             screens: Screens::new(Vec::new(), Waker::default()),
@@ -44,6 +45,7 @@ impl HeadlessPlugin {
                     let screens = &mut self.screens;
                     self.executor.enter(|| screens.call(instance, call));
                 }
+                Delivery::Screens(call) => call(&mut self.screens),
             }
         }
         Ok(replies)

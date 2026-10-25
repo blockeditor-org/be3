@@ -54,6 +54,11 @@ impl Runtime {
                     changed |= self.screens.call(instance, call);
                     continue;
                 }
+                Delivery::Screens(call) => {
+                    call(&mut self.screens);
+                    changed = true;
+                    continue;
+                }
             };
             if matches!(message, Message::DrawFrame { .. }) {
                 draw = true;

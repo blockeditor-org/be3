@@ -119,15 +119,6 @@ impl ClientSession {
                     input.screen.0
                 )),
             },
-            (State::Running, Message::ChildStatuses(statuses)) => {
-                match statuses
-                    .iter()
-                    .all(|status| self.instances.contains(&status.instance))
-                {
-                    true => Ok(Vec::new()),
-                    false => Err("a child status named an editor instance that is not open".into()),
-                }
-            }
             (State::Running, Message::Editor(editor)) => self.editor(editor),
             (State::Running, Message::DrawFrame { .. }) => match self.surface.is_some() {
                 true => Ok(Vec::new()),
@@ -189,8 +180,6 @@ fn name(message: &Message) -> &'static str {
         Message::Shutdown => "a shutdown",
         Message::ShutdownAcknowledged => "a shutdown acknowledgement",
         Message::Editor(_) => "an editor message",
-        Message::BlockTypes(_) => "block types",
-        Message::ChildStatuses(_) => "child statuses",
         Message::Describe(_) => "a description request",
         Message::RunAction { .. } => "an action to run",
         Message::NodeAction { .. } => "an action on a described node",

@@ -1,6 +1,6 @@
 use block_plugin_api::{
-    ArtifactDescription, BarAction, BlockIdRole, BlockLocation, ChildId, EditorInstanceId,
-    EditorMessage, EditorRegion, Message, Rect, Size,
+    ArtifactDescription, BarAction, BlockIdRole, BlockLocation, Catalog, ChildId, ChildStatus,
+    EditorInstanceId, EditorMessage, EditorRegion, Message, Rect, Size,
     embed::shell::Call as ShellCall,
     shell_types::{DragOver, FileDrop, Focus},
 };
@@ -9,6 +9,12 @@ use block_plugin_api::{
 pub(super) enum Outbound {
     Message(Message),
     Editor(EditorInstanceId, EditorCall),
+    Plugin(PluginCall),
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub(super) enum PluginCall {
+    BlockTypes(Catalog),
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -36,6 +42,7 @@ pub(super) enum EditorCall {
     DragLeft,
     FileDrop(FileDrop),
     FileDropLeft,
+    ChildStatuses(Vec<ChildStatus>),
     ArtifactSettings(Vec<u8>),
     CommitCreation,
     RegenerateArtifact(Vec<u8>),
@@ -76,7 +83,7 @@ impl Outbound {
             .iter()
             .filter_map(|outbound| match outbound {
                 Self::Message(message) => Some(message.clone()),
-                Self::Editor(..) => None,
+                Self::Editor(..) | Self::Plugin(_) => None,
             })
             .collect()
     }
@@ -84,7 +91,7 @@ impl Outbound {
     pub(super) fn instance(&self) -> Option<EditorInstanceId> {
         match self {
             Self::Message(Message::Editor(message)) => Some(message.instance()),
-            Self::Message(_) => None,
+            Self::Message(_) | Self::Plugin(_) => None,
             Self::Editor(instance, _) => Some(*instance),
         }
     }
@@ -110,7 +117,7 @@ impl From<Message> for Heard {
     }
 }
 
-pub(super) fn instance_of(call: &ShellCall) -> EditorInstanceId {
+pub(super) fn instance_of(call: &ShellCall) -> Option<EditorInstanceId> {
     match call {
         ShellCall::Menu { instance, .. }
         | ShellCall::RunBarAction { instance, .. }
@@ -131,7 +138,11 @@ pub(super) fn instance_of(call: &ShellCall) -> EditorInstanceId {
         | ShellCall::CreationReady { instance, .. }
         | ShellCall::CommitChild { instance, .. }
         | ShellCall::ArtifactDescribed { instance, .. }
-        | ShellCall::ArtifactEdited { instance, .. } => *instance,
+        | ShellCall::ArtifactEdited { instance, .. }
+        | ShellCall::ChildStatusesWatchNew { instance, .. } => Some(*instance),
+        ShellCall::ChildStatusesWatchNext { .. }
+        | ShellCall::BlockTypesWatchNew { .. }
+        | ShellCall::BlockTypesWatchNext { .. } => None,
     }
 }
 
@@ -170,14 +181,16 @@ impl BlockIds for Outbound {
                 visit(*instance, BlockIdRole::Existing, old);
                 visit(*instance, BlockIdRole::Existing, new);
             }
-            Self::Editor(..) => {}
+            Self::Editor(..) | Self::Plugin(_) => {}
         }
     }
 }
 
 impl BlockIds for ShellCall {
     fn visit_block_ids(&mut self, visit: &mut Visit<'_>) {
-        let instance = instance_of(self);
+        let Some(instance) = instance_of(self) else {
+            return;
+        };
         match self {
             Self::DragBlock { block_id, .. } => visit(instance, BlockIdRole::Existing, block_id),
             Self::Focused { focus, .. } => focus_ids(instance, focus, visit),

@@ -5,11 +5,11 @@ use block_plugin_api::{
     Opening, Rect, ScreenRequest, ScreenSet, ShellDialog, Size, encode_frame,
     guest::{
         exports::plugin::{Guest, GuestEditor},
-        host,
+        host, shell,
     },
     ops::{
         OpId,
-        guest::{Executor, Sender, oneshot, spawn},
+        guest::{Executor, Sender, oneshot, spawn, with_parent},
     },
     shell_types::{DragOver, FileDrop, Focus},
 };
@@ -21,6 +21,7 @@ pub(crate) type EditorCall = Box<dyn FnOnce(&mut EditorSession)>;
 pub(crate) enum Delivery {
     Message(Message),
     Editor(EditorInstanceId, EditorCall),
+    Screens(Box<dyn FnOnce(&mut crate::screens::Screens)>),
 }
 
 #[derive(Default)]
@@ -51,6 +52,23 @@ impl Shared {
             .borrow_mut()
             .inbox
             .push(Delivery::Editor(instance, Box::new(call)));
+    }
+
+    fn screens(&self, call: impl FnOnce(&mut crate::screens::Screens) + 'static) {
+        self.0
+            .borrow_mut()
+            .inbox
+            .push(Delivery::Screens(Box::new(call)));
+    }
+
+    pub(crate) fn watch_shell(&self) {
+        let wire = self.clone();
+        spawn(async move {
+            let watch = shell::BlockTypesWatch::new();
+            while let Ok(catalog) = watch.next().await {
+                wire.screens(move |screens| screens.set_catalog(&catalog));
+            }
+        });
     }
 
     #[cfg_attr(not(target_arch = "wasm32"), allow(dead_code))]
@@ -143,6 +161,15 @@ impl Guest for Exports {
         let instance = opening.instance();
         crate::asked::opened(instance, op);
         self.0.push(Message::Editor(opening.into()));
+        let watch = with_parent(op, || shell::ChildStatusesWatch::new(instance));
+        let wire = self.0.clone();
+        spawn(async move {
+            while let Ok(statuses) = watch.next().await {
+                wire.call(instance, move |session| {
+                    session.set_child_statuses(statuses)
+                });
+            }
+        });
         OpenEditor {
             wire: self.0.clone(),
             instance,

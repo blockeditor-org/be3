@@ -20,7 +20,7 @@ use super::{
     BlockPickRequest, ChildCommit, EditorBlock, HostChild, HostChildStatus, InstanceRole,
     MAX_LIVE_CHILDREN,
     audio::AudioPlayer,
-    calls::{self, BlockIds, EditorAnswer, EditorCall, Outbound},
+    calls::{self, BlockIds, EditorAnswer, EditorCall, Outbound, PluginCall},
     heads::{HeadReads, Heads},
     host_values::{Published, Watched},
     input::{BlockDrag, BlockDragEvent, FileDropEvent, InputAdapter, viewport_metrics},
@@ -676,16 +676,6 @@ impl Instances {
                 continue;
             }
             match &message {
-                Outbound::Message(Message::ChildStatuses(statuses)) => {
-                    let opened: Vec<_> = statuses
-                        .iter()
-                        .filter(|status| self.is_opened(status.instance))
-                        .cloned()
-                        .collect();
-                    if !opened.is_empty() {
-                        allowed.push(Message::ChildStatuses(opened).into());
-                    }
-                }
                 Outbound::Message(Message::Input(batch))
                     if !self.announced.contains(&batch.screen) => {}
                 _ => allowed.push(message),
@@ -696,12 +686,6 @@ impl Instances {
 
     pub(super) fn is_empty(&self) -> bool {
         self.entries.is_empty()
-    }
-
-    fn is_opened(&self, instance: EditorInstanceId) -> bool {
-        self.entries
-            .get(&instance)
-            .is_some_and(|entry| entry.opened)
     }
 
     pub(super) fn remove(&mut self, instance: EditorInstanceId) -> bool {
@@ -1444,7 +1428,7 @@ impl Instances {
                     be_types_host::plain_of(Uuid::from_bytes(descriptor.block_type))
                         == be_types_host::Plain::File;
             }
-            opened.push(Outbound::from(Message::BlockTypes(block_types)));
+            opened.push(Outbound::Plugin(PluginCall::BlockTypes(block_types)));
         }
         for instance in instances {
             let Some(entry) = self.entries.get_mut(&instance) else {
@@ -1519,7 +1503,10 @@ impl Instances {
                     .collect();
                 statuses.sort_by_key(|status| status.child.0);
                 if !statuses.is_empty() {
-                    opened.push(Outbound::from(Message::ChildStatuses(statuses)));
+                    opened.push(Outbound::Editor(
+                        instance,
+                        EditorCall::ChildStatuses(statuses),
+                    ));
                 }
                 let visible = presence_wanted(instance);
                 if visible && entry.presence_visible != Some(true) {
@@ -2115,7 +2102,7 @@ impl Instances {
         instance: EditorInstanceId,
         region: EditorRegion,
         statuses: Vec<HostChildStatus>,
-    ) -> Vec<Message> {
+    ) -> Vec<Outbound> {
         let Some(screen) = self
             .entries
             .get_mut(&instance)
@@ -2159,7 +2146,10 @@ impl Instances {
             .retain(|child, _| live.contains(child));
         match changed.is_empty() {
             true => Vec::new(),
-            false => vec![Message::ChildStatuses(changed)],
+            false => vec![Outbound::Editor(
+                instance,
+                EditorCall::ChildStatuses(changed),
+            )],
         }
     }
 
@@ -2585,7 +2575,9 @@ impl Instances {
     }
 
     pub(super) fn shell_call(&mut self, call: ShellCall) -> bool {
-        let instance = calls::instance_of(&call);
+        let Some(instance) = calls::instance_of(&call) else {
+            return false;
+        };
         let preview = self
             .entries
             .get(&instance)
@@ -2716,7 +2708,11 @@ impl Instances {
                 entry.artifact.draft = Some(data);
                 return changed;
             }
-            ShellCall::Present { .. } => return false,
+            ShellCall::Present { .. }
+            | ShellCall::ChildStatusesWatchNew { .. }
+            | ShellCall::ChildStatusesWatchNext { .. }
+            | ShellCall::BlockTypesWatchNew { .. }
+            | ShellCall::BlockTypesWatchNext { .. } => return false,
         }
         true
     }

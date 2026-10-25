@@ -69,6 +69,8 @@ pub struct BeuiTest<A: BeuiApp> {
     connection: Connection,
     editor: Option<Editor>,
     calls: Vec<ShellCall>,
+    child_statuses: block_plugin_api::Watch<Vec<ChildStatus>>,
+    block_types: block_plugin_api::Watch<Catalog>,
     completed:
         std::collections::HashMap<block_plugin_api::ops::OpId, block_plugin_api::ops::Outcome>,
     sent: Vec<EditorMessage>,
@@ -245,6 +247,8 @@ impl<A: BeuiApp> BeuiTest<A> {
             connection: Connection::new(Side::Host),
             editor: None,
             calls: Vec::new(),
+            child_statuses: block_plugin_api::Watch::default(),
+            block_types: block_plugin_api::Watch::default(),
             completed: std::collections::HashMap::new(),
             sent: Vec::new(),
             menu: Vec::new(),
@@ -535,8 +539,9 @@ impl<A: BeuiApp> BeuiTest<A> {
     }
 
     pub fn catalog(&mut self, catalog: Catalog) {
-        self.inbox
-            .push(Inbound::Message(Message::BlockTypes(catalog)));
+        self.block_types.change(&mut self.connection, |_| catalog);
+        let frames = self.connection.take_outbound();
+        self.inbox.push(Inbound::Frames(frames));
         self.run();
     }
 
@@ -727,8 +732,13 @@ impl<A: BeuiApp> BeuiTest<A> {
                 ..status
             })
             .collect();
-        self.inbox
-            .push(Inbound::Message(Message::ChildStatuses(statuses)));
+        self.child_statuses.change(&mut self.connection, |held| {
+            let mut held = held.unwrap_or_default();
+            held.extend(statuses);
+            held
+        });
+        let frames = self.connection.take_outbound();
+        self.inbox.push(Inbound::Frames(frames));
     }
 
     pub fn available_children(&mut self) {
@@ -964,6 +974,25 @@ impl<A: BeuiApp> BeuiTest<A> {
         }
         while let Some(event) = self.connection.next_event() {
             let called = match event {
+                Incoming::Started(started) if ShellCall::accepts(&started) => {
+                    let connection = &mut self.connection;
+                    match ShellCall::accept(connection, started) {
+                        Some(ShellCall::ChildStatusesWatchNew { resource, .. }) => {
+                            self.child_statuses.opened(resource.op())
+                        }
+                        Some(ShellCall::ChildStatusesWatchNext { reply, .. }) => {
+                            self.child_statuses.next(connection, reply)
+                        }
+                        Some(ShellCall::BlockTypesWatchNew { resource }) => {
+                            self.block_types.opened(resource.op())
+                        }
+                        Some(ShellCall::BlockTypesWatchNext { reply, .. }) => {
+                            self.block_types.next(connection, reply)
+                        }
+                        _ => {}
+                    }
+                    continue;
+                }
                 Incoming::Called(called) => called,
                 Incoming::Completed { op, outcome } => {
                     self.completed.insert(op, outcome);

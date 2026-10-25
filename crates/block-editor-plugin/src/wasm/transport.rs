@@ -35,6 +35,7 @@ impl Editor {
         executor.enter(|| {
             wire.route(vec![runtime.hello()]);
             wire.watch();
+            wire.watch_shell();
         });
         executor.step(Vec::new(), outbound)?;
         Ok(Self {

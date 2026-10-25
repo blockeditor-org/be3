@@ -18,8 +18,22 @@ be_ops_bindgen::generate!({
         "commit-id": [u8; 32],
         "metadata-entries": crate::MetadataEntries,
         "child-id": crate::ChildId,
+        "interaction-mode": crate::InteractionMode,
+        "pan-mode": crate::PanMode,
+        "editor-capabilities": crate::EditorCapabilities,
+        "resize-mode": crate::ResizeMode,
+        "child-status": crate::ChildStatus,
+        "child-operations": crate::ChildOperations,
+        "press": crate::Press,
+        "block-type-descriptor": crate::BlockTypeDescriptor,
+        "template-category": crate::TemplateCategory,
+        "edits": crate::Edits,
     },
-    copy: ["uuid", "editor-instance-id", "screen-id", "commit-id", "child-id"],
+    copy: [
+        "uuid", "editor-instance-id", "screen-id", "commit-id", "child-id", "interaction-mode",
+        "pan-mode", "editor-capabilities", "resize-mode", "child-operations", "press",
+        "template-category", "edits",
+    ],
     default: [
         "frame-chrome", "top-bar", "frame-spec", "size", "fonts", "screen-layout",
         "block-metadata", "artifact-state", "version-status",
@@ -45,8 +59,10 @@ pub use host_services::{
     AccessGrant, BlockFilter, ImportedBlock, PickedBlock, Revision, ShellDialog,
 };
 pub use shell_types::{
-    ArtifactDescription, BarAction, DroppedFile, FitArea, MenuCheck, MenuCommand, MenuHeading,
-    MenuItem, MenuItemKind, MenuPin, PerformanceMeasurement, Stopped, ViewChange,
+    ArtifactDescription, BarAction, Catalog, ChildPreview, CreationProgress, DroppedFile,
+    EditorDescriptor, FitArea, MenuCheck, MenuCommand, MenuHeading, MenuItem, MenuItemKind,
+    MenuPin, PerformanceMeasurement, PreviewImage, SettingsProgress, Stopped, TemplateDescriptor,
+    ViewChange,
 };
 pub use types::{
     EditorRegion, FontFace, FontRole, Fonts, FrameChrome, FrameCommit, FrameReport, FrameSpec,
@@ -63,6 +79,7 @@ mod manifest;
 mod nesting;
 mod opening;
 mod session;
+mod watch;
 pub use block_ids::BlockIdRole;
 pub use host_value::{
     Administrator, Contacts, HostAction, HostContact, HostImage, HostPreferenceSources, HostValue,
@@ -93,6 +110,7 @@ pub use ui_types::{
     Preferences, Rotation, ThemeKind,
 };
 pub use ui_types::{ImeArea, WindowRequests};
+pub use watch::Watch;
 
 pub const MAX_COLLECTION_ITEMS: usize = 1024;
 pub const MAX_STRING_BYTES: usize = 16 * 1024;
@@ -122,19 +140,18 @@ impl TopBar {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub enum MenuEntry {
     Command(MenuCommand),
     Submenu(MenuSubmenu),
     Separator,
 }
 
-#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct MenuSubmenu {
     pub id: String,
     pub label: String,
     pub glyph: String,
-    #[serde(deserialize_with = "nesting::submenu")]
     pub entries: Vec<MenuEntry>,
 }
 
@@ -203,6 +220,24 @@ impl MenuEntry {
             close_submenu(&mut open, &mut headings);
         }
         Ok(open.pop().unwrap_or_default())
+    }
+}
+
+mod menu_items {
+    use super::{MenuEntry, MenuItem};
+    use serde::{Deserialize, Deserializer, Serialize, Serializer, de::Error};
+
+    pub(super) fn serialize<S: Serializer>(
+        entries: &[MenuEntry],
+        serializer: S,
+    ) -> Result<S::Ok, S::Error> {
+        MenuEntry::flatten(entries).serialize(serializer)
+    }
+
+    pub(super) fn deserialize<'de, D: Deserializer<'de>>(
+        deserializer: D,
+    ) -> Result<Vec<MenuEntry>, D::Error> {
+        MenuEntry::nest(Vec::<MenuItem>::deserialize(deserializer)?).map_err(D::Error::custom)
     }
 }
 
@@ -408,40 +443,11 @@ pub struct ChildStatus {
     pub capabilities: EditorCapabilities,
     pub resize: ResizeMode,
     pub error: Option<String>,
+    #[serde(with = "menu_items")]
     pub menu: Vec<MenuEntry>,
     pub creation: Option<CreationProgress>,
     pub settings: Option<SettingsProgress>,
     pub preview: ChildPreview,
-}
-
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
-pub enum ChildPreview {
-    #[default]
-    Hosted,
-    Waiting,
-    Label,
-    Image(PreviewImage),
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
-pub struct PreviewImage {
-    pub image: u64,
-    pub width: u32,
-    pub height: u32,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub struct SettingsProgress {
-    pub changed: bool,
-    pub summary: Option<String>,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub enum CreationProgress {
-    Options { ready: bool },
-    Working,
-    Created([u8; 16]),
-    Failed(String),
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -634,32 +640,6 @@ pub enum Press {
     #[default]
     Open,
     Zoom,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub struct TemplateDescriptor {
-    pub editor: [u8; 16],
-    pub template: String,
-    pub block_type: [u8; 16],
-    pub name: String,
-    pub icon_codepoint: String,
-    pub category: TemplateCategory,
-    pub dialog: bool,
-}
-
-#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
-pub struct Catalog {
-    pub types: Vec<BlockTypeDescriptor>,
-    pub templates: Vec<TemplateDescriptor>,
-    pub editors: Vec<EditorDescriptor>,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub struct EditorDescriptor {
-    pub editor: [u8; 16],
-    pub edits: Edits,
-    pub name: String,
-    pub icon_codepoint: String,
 }
 
 impl EditorRegion {
@@ -1190,8 +1170,6 @@ pub enum Message {
     Shutdown,
     ShutdownAcknowledged,
     Editor(EditorMessage),
-    BlockTypes(Catalog),
-    ChildStatuses(Vec<ChildStatus>),
     Describe(bool),
     RunAction {
         screen: ScreenId,
@@ -1241,8 +1219,6 @@ impl Message {
             | Self::Input(_)
             | Self::DrawFrame { .. }
             | Self::Shutdown
-            | Self::BlockTypes(_)
-            | Self::ChildStatuses(_)
             | Self::Describe(_)
             | Self::RunAction { .. }
             | Self::NodeAction { .. } => Direction::ToPlugin,
@@ -1473,51 +1449,12 @@ fn validate(message: &Message) -> Result<(), DecodeError> {
         }
         Message::MissingCharacters(value) => collection(value.len()),
         Message::Editor(value) => validate_editor(value),
-        Message::BlockTypes(value) => {
-            collection(value.types.len())?;
-            collection(value.templates.len())?;
-            for descriptor in &value.types {
-                string(&descriptor.display_name)?;
-                string(&descriptor.icon_codepoint)?;
-            }
-            for template in &value.templates {
-                string(&template.template)?;
-                string(&template.name)?;
-                string(&template.icon_codepoint)?;
-            }
-            collection(value.editors.len())?;
-            for editor in &value.editors {
-                string(&editor.name)?;
-                string(&editor.icon_codepoint)?;
-            }
-            Ok(())
-        }
         Message::RunAction { id, .. } => string(id),
         Message::Extension { payload, .. } => blob(payload),
         Message::NodeAction { request, .. } => match &request.data {
             Some(accesskit::ActionData::Value(value)) => text(value),
             _ => Ok(()),
         },
-        Message::ChildStatuses(value) => {
-            collection(value.len())?;
-            for status in value {
-                if let Some(error) = &status.error {
-                    string(error)?;
-                }
-                menu(&status.menu)?;
-                if let Some(CreationProgress::Failed(error)) = &status.creation {
-                    string(error)?;
-                }
-                if let Some(summary) = status
-                    .settings
-                    .as_ref()
-                    .and_then(|settings| settings.summary.as_ref())
-                {
-                    string(summary)?;
-                }
-            }
-            Ok(())
-        }
         _ => Ok(()),
     }
 }
@@ -1710,32 +1647,6 @@ fn descriptor(data: &[u8]) -> Result<(), DecodeError> {
 fn metadata(entries: &MetadataEntries) -> Result<(), DecodeError> {
     collection(entries.len())?;
     entries.values().try_for_each(|value| descriptor(value))
-}
-
-fn menu(entries: &[MenuEntry]) -> Result<(), DecodeError> {
-    let mut count = 0;
-    menu_level(entries, 0, &mut count)
-}
-
-fn menu_level(entries: &[MenuEntry], depth: usize, count: &mut usize) -> Result<(), DecodeError> {
-    if depth > MAX_MENU_DEPTH {
-        return Err(DecodeError::LimitExceeded("menu depth"));
-    }
-    *count += entries.len();
-    collection(*count)?;
-    for entry in entries {
-        match entry {
-            MenuEntry::Command(command) => {
-                strings([&command.id, &command.label, &command.glyph])?;
-            }
-            MenuEntry::Submenu(submenu) => {
-                strings([&submenu.id, &submenu.label, &submenu.glyph])?;
-                menu_level(&submenu.entries, depth + 1, count)?;
-            }
-            MenuEntry::Separator => {}
-        }
-    }
-    Ok(())
 }
 
 fn collection(length: usize) -> Result<(), DecodeError> {

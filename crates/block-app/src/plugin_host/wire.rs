@@ -1,10 +1,11 @@
 use std::collections::{BTreeMap, HashMap};
 
-use super::calls::{EditorAnswer, EditorCall, Heard};
+use super::calls::{EditorAnswer, EditorCall, Heard, PluginCall};
+use block_plugin_api::Watch;
 
 use block_plugin_api::{
-    DecodeError, EditorInstanceId, EditorMessage, ErrorCode, Fonts, InputBatch, Message, Opening,
-    Preferences, ProtocolError, decode_frame,
+    Catalog, ChildStatus, DecodeError, EditorInstanceId, EditorMessage, ErrorCode, Fonts,
+    InputBatch, Message, Opening, Preferences, ProtocolError, decode_frame,
     embed::{
         exports::plugin::{self, Editor},
         host::Call,
@@ -39,6 +40,8 @@ pub(super) struct Wire {
     input: Watch<Vec<InputBatch>>,
     services: Services,
     serving: HashMap<OpId, EditorInstanceId>,
+    child_statuses: HashMap<EditorInstanceId, Watch<Vec<ChildStatus>>>,
+    block_types: Watch<Catalog>,
 }
 
 enum Answering {
@@ -74,50 +77,6 @@ enum Awaited {
     Shutdown,
 }
 
-struct Watch<T> {
-    open: Option<OpId>,
-    waiting: Option<Reply<T>>,
-    held: Option<T>,
-}
-
-impl<T> Default for Watch<T> {
-    fn default() -> Self {
-        Self {
-            open: None,
-            waiting: None,
-            held: None,
-        }
-    }
-}
-
-impl<T: serde::Serialize> Watch<T> {
-    fn change(&mut self, connection: &mut Connection, change: impl FnOnce(Option<T>) -> T) {
-        let changed = change(self.held.take());
-        match self.waiting.take() {
-            Some(reply) => reply.send(connection, &changed),
-            None => self.held = Some(changed),
-        }
-    }
-
-    fn next(&mut self, connection: &mut Connection, reply: Reply<T>) {
-        match self.held.take() {
-            Some(held) => reply.send(connection, &held),
-            None => self.waiting = Some(reply),
-        }
-    }
-
-    fn opened(&mut self, op: OpId) {
-        self.open = Some(op);
-        self.waiting = None;
-    }
-
-    fn closed(&mut self, op: OpId) {
-        if self.open == Some(op) {
-            *self = Self::default();
-        }
-    }
-}
-
 impl Default for Wire {
     fn default() -> Self {
         Self {
@@ -132,6 +91,8 @@ impl Default for Wire {
             input: Watch::default(),
             services: Services::default(),
             serving: HashMap::new(),
+            child_statuses: HashMap::new(),
+            block_types: Watch::default(),
         }
     }
 }
@@ -177,6 +138,7 @@ impl Wire {
                 if let Some(editor) = self.editors.remove(&instance) {
                     editor.resource_drop(connection);
                 }
+                self.child_statuses.remove(&instance);
             }
             Message::Editor(message) => match Opening::of(message) {
                 Ok(opening) => {
@@ -195,12 +157,36 @@ impl Wire {
         Ok(Vec::new())
     }
 
+    pub(super) fn plugin_call(&mut self, call: PluginCall) {
+        let connection = &mut self.connection;
+        match call {
+            PluginCall::BlockTypes(catalog) => self.block_types.change(connection, |_| catalog),
+        }
+    }
+
     pub(super) fn call(&mut self, instance: EditorInstanceId, call: EditorCall) {
         let Some(editor) = self.editors.get(&instance).copied() else {
             return;
         };
         let connection = &mut self.connection;
         match call {
+            EditorCall::ChildStatuses(statuses) => {
+                self.child_statuses
+                    .entry(instance)
+                    .or_default()
+                    .change(connection, |held| {
+                        let mut merged = held.unwrap_or_default();
+                        for status in statuses {
+                            match merged.iter_mut().find(|held| {
+                                (held.region, held.child) == (status.region, status.child)
+                            }) {
+                                Some(held) => *held = status,
+                                None => merged.push(status),
+                            }
+                        }
+                        merged
+                    });
+            }
             EditorCall::MenuPick(id) => editor.menu_pick(connection, id),
             EditorCall::ChildBar {
                 region,
@@ -284,6 +270,32 @@ impl Wire {
         }
     }
 
+    fn watch_call(&mut self, call: ShellCall) {
+        let connection = &mut self.connection;
+        match call {
+            ShellCall::ChildStatusesWatchNew { resource, instance } => self
+                .child_statuses
+                .entry(instance)
+                .or_default()
+                .opened(resource.op()),
+            ShellCall::ChildStatusesWatchNext { this, reply } => {
+                match self
+                    .child_statuses
+                    .values_mut()
+                    .find(|watch| watch.is(this.op()))
+                {
+                    Some(watch) => watch.next(connection, reply),
+                    None => reply.fail(connection, OpError::Canceled),
+                }
+            }
+            ShellCall::BlockTypesWatchNew { resource } => self.block_types.opened(resource.op()),
+            ShellCall::BlockTypesWatchNext { reply, .. } => {
+                self.block_types.next(connection, reply)
+            }
+            _ => {}
+        }
+    }
+
     pub(super) fn take_outbound(&mut self) -> Vec<Vec<u8>> {
         self.connection.take_outbound()
     }
@@ -303,6 +315,12 @@ impl Wire {
         let call = match event {
             Incoming::Started(started) if host_services::Call::accepts(&started) => {
                 self.serve(started);
+                return Ok(());
+            }
+            Incoming::Started(started) if ShellCall::accepts(&started) => {
+                if let Some(call) = ShellCall::accept(connection, started) {
+                    self.watch_call(call);
+                }
                 return Ok(());
             }
             Incoming::Started(started) => match Call::accept(connection, started) {
@@ -364,6 +382,8 @@ impl Wire {
                     connection.complete(op, Outcome::Err(OpError::Canceled));
                     self.services.withdrawn.push(op);
                 }
+                self.child_statuses.retain(|_, watch| !watch.is(op));
+                self.block_types.closed(op);
                 self.preferences.closed(op);
                 self.utc_offset.closed(op);
                 self.fonts.closed(op);

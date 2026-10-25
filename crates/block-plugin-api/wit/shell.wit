@@ -3,7 +3,7 @@ package be3:plugin@0.1.0;
 /// What the shell around an editor and the editor share: its menus, the
 /// actions of its bar and the children it places.
 interface shell-types {
-    use types.{editor-region, uuid};
+    use types.{editor-instance-id, editor-region, size, uuid};
     use be3:ui/types@0.1.0.{key-chord, pos2, rect, vec2};
 
     /// A child an editor placed, numbered by the editor.
@@ -132,6 +132,143 @@ interface shell-types {
         unreadable(string),
     }
 
+    /// How an editor takes input where it is shown.
+    enum interaction-mode {
+        preview,
+        live,
+        playback,
+    }
+
+    enum pan-mode {
+        none,
+        one-finger,
+        two-finger,
+    }
+
+    record editor-capabilities {
+        rotation: bool,
+        preserve-aspect-ratio: bool,
+        pan-and-zoom: bool,
+        max-zoom: option<u32>,
+        pan: pan-mode,
+    }
+
+    enum resize-mode {
+        none,
+        horizontal,
+        vertical,
+        both,
+    }
+
+    record creation-options {
+        ready: bool,
+    }
+
+    /// How far a creation dialog shown as a child got.
+    variant creation-progress {
+        options(creation-options),
+        working,
+        created(uuid),
+        failed(string),
+    }
+
+    record settings-progress {
+        changed: bool,
+        summary: option<string>,
+    }
+
+    /// A picture of a child the host painted, offered to the plugin as a texture.
+    record preview-image {
+        image: u64,
+        width: u32,
+        height: u32,
+    }
+
+    variant child-preview {
+        hosted,
+        waiting,
+        label,
+        image(preview-image),
+    }
+
+    /// What the host knows of a child an editor placed.
+    record child-status {
+        instance: editor-instance-id,
+        region: editor-region,
+        child: child-id,
+        available: bool,
+        intrinsic: option<size>,
+        aspect-ratio: option<f32>,
+        active: bool,
+        interaction: interaction-mode,
+        capabilities: editor-capabilities,
+        resize: resize-mode,
+        error: option<string>,
+        menu: list<menu-item>,
+        creation: option<creation-progress>,
+        settings: option<settings-progress>,
+        preview: child-preview,
+    }
+
+    record child-operations {
+        add: bool,
+        delete: bool,
+        replace: bool,
+    }
+
+    /// What pressing a block in a container does.
+    enum press {
+        open,
+        zoom,
+    }
+
+    record block-type-descriptor {
+        block-type: uuid,
+        display-name: string,
+        color: option<tuple<u8, u8, u8>>,
+        icon-codepoint: string,
+        children: child-operations,
+        press: press,
+        plain-file: bool,
+    }
+
+    enum template-category {
+        important,
+        regular,
+        debug,
+        template,
+    }
+
+    record template-descriptor {
+        editor: uuid,
+        template: string,
+        block-type: uuid,
+        name: string,
+        icon-codepoint: string,
+        category: template-category,
+        dialog: bool,
+    }
+
+    variant edits {
+        %type(uuid),
+        any,
+        nothing,
+    }
+
+    record editor-descriptor {
+        editor: uuid,
+        edits: edits,
+        name: string,
+        icon-codepoint: string,
+    }
+
+    /// The block types, templates and editors the host has.
+    record catalog {
+        types: list<block-type-descriptor>,
+        templates: list<template-descriptor>,
+        editors: list<editor-descriptor>,
+    }
+
     /// The block an editor's focus is in, and the blocks it is shown through.
     record focus {
         block-id: option<uuid>,
@@ -145,9 +282,23 @@ interface shell {
     use types.{editor-instance-id, editor-region, size, uuid};
     use blocks.{block-location};
     use shell-types.{
-        artifact-description, bar-action, child-id, focus, menu-item, performance-measurement,
-        stopped, view-change,
+        artifact-description, bar-action, catalog, child-id, child-status, focus, menu-item,
+        performance-measurement, stopped, view-change,
     };
+
+    /// The statuses of the children an editor placed. `next` answers with every
+    /// status that changed since the last answer, the latest of each child.
+    resource child-statuses-watch {
+        constructor(instance: editor-instance-id);
+        next: async func() -> list<child-status>;
+    }
+
+    /// The host's catalog of block types, templates and editors, watched like
+    /// preferences.
+    resource block-types-watch {
+        constructor();
+        next: async func() -> catalog;
+    }
 
     /// The editor's menu, replacing the one it sent before.
     menu: func(instance: editor-instance-id, items: list<menu-item>);

@@ -1,6 +1,6 @@
 use block_plugin_api::{
-    Catalog, ChildStatus, EditorInstanceId, EditorMessage, EditorRegion, Edits, FrameCommit,
-    Message, ScreenId, ScreenLayout, ScreenRequest, SurfaceSpec, TemplateCategory,
+    Catalog, EditorInstanceId, EditorMessage, EditorRegion, Edits, FrameCommit, Message, ScreenId,
+    ScreenLayout, ScreenRequest, SurfaceSpec, TemplateCategory,
 };
 use block_ui::{BlockCatalog, BlockTypeEntry, EditorEntry, TemplateEntry};
 use lucide::Glyph;
@@ -427,12 +427,6 @@ impl Screens {
                     session.input(region, event);
                 }
             }
-            Message::BlockTypes(descriptors) => {
-                self.block_types = Rc::new(catalog(descriptors));
-                for session in self.sessions.values() {
-                    session.set_block_types(Rc::clone(&self.block_types));
-                }
-            }
             Message::Editor(EditorMessage::WebViewEvent {
                 instance,
                 web_view,
@@ -440,20 +434,6 @@ impl Screens {
             }) => {
                 if let Some(session) = self.sessions.get(instance) {
                     session.web_view_event(*web_view, event.clone());
-                }
-            }
-            Message::ChildStatuses(statuses) => {
-                let mut grouped: HashMap<EditorInstanceId, Vec<ChildStatus>> = HashMap::new();
-                for status in statuses {
-                    grouped
-                        .entry(status.instance)
-                        .or_default()
-                        .push(status.clone());
-                }
-                for (instance, statuses) in grouped {
-                    if let Some(session) = self.sessions.get(&instance) {
-                        session.set_child_statuses(statuses);
-                    }
                 }
             }
             _ => return false,
@@ -467,11 +447,6 @@ impl Screens {
                 match self.screen(*screen) {
                     Some((instance, _)) => self.mark(instance),
                     None => return false,
-                }
-            }
-            Message::ChildStatuses(statuses) => {
-                for status in statuses {
-                    self.mark(status.instance);
                 }
             }
             Message::Editor(EditorMessage::Close { .. }) | Message::Screens(_) => {
@@ -499,6 +474,14 @@ impl Screens {
         call(session);
         self.mark(instance);
         true
+    }
+
+    pub(crate) fn set_catalog(&mut self, catalog: &Catalog) {
+        self.block_types = Rc::new(self::catalog(catalog));
+        for session in self.sessions.values() {
+            session.set_block_types(Rc::clone(&self.block_types));
+        }
+        self.touch_everything();
     }
 
     pub(crate) fn outbound(&mut self) -> Vec<Message> {

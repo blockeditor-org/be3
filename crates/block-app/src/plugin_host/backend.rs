@@ -2,7 +2,7 @@ use std::{sync::Arc, time::Duration};
 
 use block_plugin_api::{Message, PluginManifest, ScreenDamage, ops::Outcome};
 
-use super::calls::{EditorCall, Heard};
+use super::calls::{EditorCall, Heard, PluginCall};
 use super::wire::{Services, Wire};
 use crate::{editors::plugin::discovery, host};
 use block_guest_host::Worker;
@@ -107,6 +107,16 @@ impl Backend {
             return;
         };
         self.wire.call(instance, call);
+        if let Some(failure) = worker.queue(self.wire.take_outbound()) {
+            self.fail(failure);
+        }
+    }
+
+    pub(super) fn plugin_call(&mut self, call: PluginCall) {
+        let Some(worker) = &mut self.worker else {
+            return;
+        };
+        self.wire.plugin_call(call);
         if let Some(failure) = worker.queue(self.wire.take_outbound()) {
             self.fail(failure);
         }

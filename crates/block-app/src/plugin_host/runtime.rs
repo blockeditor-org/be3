@@ -795,7 +795,7 @@ impl Runtime {
 
     fn offer_previews(&mut self, messages: &[Outbound]) {
         for message in messages {
-            let Outbound::Message(Message::ChildStatuses(statuses)) = message else {
+            let Outbound::Editor(_, EditorCall::ChildStatuses(statuses)) = message else {
                 continue;
             };
             for status in statuses {
@@ -995,6 +995,11 @@ impl Runtime {
                 Outbound::Editor(instance, call) => {
                     self.drain();
                     self.backend.call(instance, call);
+                    continue;
+                }
+                Outbound::Plugin(call) => {
+                    self.drain();
+                    self.backend.plugin_call(call);
                     continue;
                 }
             };
