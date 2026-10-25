@@ -62,7 +62,9 @@ fn form_value(value: &str) -> String {
     value.bytes().map(|byte| format!("%{byte:02X}")).collect()
 }
 async fn sign_in(server: &Server, email: &str, password: &str) -> (Arc<Connection>, String) {
-    let connection = Connection::connect(&socket(server), &be_client::Clock::real()).await.unwrap();
+    let connection = Connection::connect(&socket(server), &be_client::Clock::real())
+        .await
+        .unwrap();
     let ServerMessage::BrowserLogin { code, secret, .. } = request(&connection, |request| {
         ClientMessage::BeginBrowserLogin { request }
     })

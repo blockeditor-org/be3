@@ -71,7 +71,10 @@ pub struct Sleep(Wait);
 
 enum Wait {
     Real(real::Sleep),
-    Manual { hand: Arc<Mutex<Hand>>, at: Duration },
+    Manual {
+        hand: Arc<Mutex<Hand>>,
+        at: Duration,
+    },
 }
 
 impl Future for Sleep {

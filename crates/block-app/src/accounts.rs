@@ -185,7 +185,11 @@ async fn authenticated(
     server_url: &str,
     token: String,
 ) -> Result<std::sync::Arc<Connection>, AccountError> {
-    Ok(crate::link::signed_in(server_url, &token, &be_client::Clock::real()).await?.connection)
+    Ok(
+        crate::link::signed_in(server_url, &token, &be_client::Clock::real())
+            .await?
+            .connection,
+    )
 }
 
 pub(crate) async fn logout(server_url: String, token: String) -> Result<(), AccountError> {
