@@ -54,7 +54,10 @@ impl<T> Watch<T> {
     }
 
     fn answer(&mut self, connection: &mut Connection, outcome: impl FnOnce(T) -> Outcome) {
-        if let (Some(next), Some(held)) = (self.waiting, self.held.take()) {
+        let Some(next) = self.waiting else {
+            return;
+        };
+        if let Some(held) = self.held.take() {
             self.waiting = None;
             connection.complete(next, outcome(held));
         }
