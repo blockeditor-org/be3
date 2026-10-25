@@ -2,10 +2,10 @@ use std::cell::RefCell;
 use std::rc::Rc;
 
 use be_block::ObjectId;
-use terminal_types::{HISTORY_LINES, TerminalColors, TerminalLine, TerminalSize};
 use beui::NodeId;
 use beui::reactive::*;
 use terminal_emulator::Emulator;
+use terminal_types::{HISTORY_LINES, TerminalColors, TerminalLine, TerminalSize};
 use terminal_view::{Fit, Lines, TerminalInput, TerminalView};
 
 const FIRST_SIZE: TerminalSize = TerminalSize {

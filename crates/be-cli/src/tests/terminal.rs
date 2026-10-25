@@ -3,13 +3,13 @@ use std::time::Duration;
 
 use be_block::ObjectId;
 use be_block::presence::{ChannelKind, PresenceKind};
+use be_client::Peer;
+use be_graph::Access;
+use be_store::FileStore;
 use terminal_types::{
     Key, Modifiers, Terminal, TerminalContent, TerminalHost, TerminalKey, TerminalLine,
     TerminalMessage, TerminalSize,
 };
-use be_client::Peer;
-use be_graph::Access;
-use be_store::FileStore;
 
 use super::*;
 use crate::replica::Session;

@@ -1,13 +1,13 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use terminal_types::{
-    HISTORY_LINES, TerminalColor, TerminalColors, TerminalCursor, TerminalCursorStyle, TerminalKey,
-    TerminalLine, TerminalSize, TerminalStyle, TerminalWheel,
-};
 use ghostty_vt::{
     ActiveScreen, Anchor, AnchorPlace, Cell, Colors, CursorStyle, KeyEncoder, Mode, Mods,
     MouseEncoder, Renderer, Rgb, Row, Terminal,
+};
+use terminal_types::{
+    HISTORY_LINES, TerminalColor, TerminalColors, TerminalCursor, TerminalCursorStyle, TerminalKey,
+    TerminalLine, TerminalSize, TerminalStyle, TerminalWheel,
 };
 
 use super::keys::key_input;

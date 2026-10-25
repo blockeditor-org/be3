@@ -1,13 +1,13 @@
 use block_editor_beui::be_block::ObjectId;
 use block_editor_beui::be_block::be_model::{Anchor, FieldRef, List};
 use block_editor_beui::be_block::presence::PresenceKind;
+use block_editor_beui::beui::{Document, Key, Modifiers, NodeId, PointerButton, Pos2, Rect, Vec2};
+use block_editor_beui::{EditorHost, OwnedEditor, PeerPresence};
+use block_ui_test::BeuiTest;
 use terminal_types::{
     Terminal, TerminalColor, TerminalColors, TerminalContent, TerminalCursor, TerminalHost,
     TerminalLine, TerminalMessage, TerminalShell, TerminalSize, TerminalStyle,
 };
-use block_editor_beui::beui::{Document, Key, Modifiers, NodeId, PointerButton, Pos2, Rect, Vec2};
-use block_editor_beui::{EditorHost, OwnedEditor, PeerPresence};
-use block_ui_test::BeuiTest;
 use uuid::Uuid;
 
 use crate::app::{TerminalApp, setup_command};

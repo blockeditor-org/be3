@@ -1,10 +1,8 @@
 use super::*;
 
 use be_block::presence::ChannelKind;
-use terminal_types::{
-    Key, Modifiers, TerminalContent, TerminalKey, TerminalMessage, TerminalSize,
-};
 use be_cli::terminal_host::{Host, HostOptions};
+use terminal_types::{Key, Modifiers, TerminalContent, TerminalKey, TerminalMessage, TerminalSize};
 
 fn writer_of(shared: &Shared, block: Uuid) -> Option<u64> {
     let held = shared.blocks.get(&block)?;

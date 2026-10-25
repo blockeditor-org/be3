@@ -1,8 +1,8 @@
 use block_editor_beui::Editor;
-use terminal_types::TerminalWheel;
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
 use block_editor_beui::beui::{NodeId, icons::*};
+use terminal_types::TerminalWheel;
 use terminal_view::{Fit, Lines, TerminalInput, TerminalView};
 
 use super::offline::{Offline, SetupSteps};

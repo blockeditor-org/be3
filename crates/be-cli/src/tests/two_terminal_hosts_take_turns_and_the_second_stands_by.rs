@@ -32,7 +32,9 @@ async fn hosted() {
             let viewer = setup.viewer().await;
             let mut viewer = viewer;
             viewer
-                .until("saw both hosts arrive", |viewer| viewer.hosts_present() == 2)
+                .until("saw both hosts arrive", |viewer| {
+                    viewer.hosts_present() == 2
+                })
                 .await;
             viewer.leave().await;
             let mut viewer = setup.viewer().await;

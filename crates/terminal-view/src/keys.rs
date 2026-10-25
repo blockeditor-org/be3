@@ -1,5 +1,5 @@
-use terminal_types::TerminalKey;
 use beui::{Key, KeyPress};
+use terminal_types::TerminalKey;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum TerminalInput {

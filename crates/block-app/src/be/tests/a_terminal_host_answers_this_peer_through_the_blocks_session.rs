@@ -1,10 +1,10 @@
 use super::*;
 
 use be_block::presence::{ChannelKind, PresenceKind};
+use be_cli::terminal_host::{Host, HostOptions};
 use terminal_types::{
     Key, Modifiers, TerminalContent, TerminalHost, TerminalKey, TerminalMessage, TerminalSize,
 };
-use be_cli::terminal_host::{Host, HostOptions};
 
 fn host_of(shared: &Shared, block: Uuid) -> Option<u64> {
     shared.presence.get(&block).and_then(|(_, peers)| {

@@ -2,10 +2,10 @@ use std::collections::VecDeque;
 
 use be_block::LiveEdit;
 use be_block::be_model::{Anchor, Change, Field, FieldRef, List};
+use be_block::{Edit, ObjectId};
 use terminal_types::{
     HISTORY_LINES, Terminal, TerminalContent, TerminalLine, TerminalShell, TerminalStyle,
 };
-use be_block::{Edit, ObjectId};
 
 use terminal_emulator::Shown;
 

@@ -2,10 +2,10 @@ use std::collections::HashMap;
 use std::rc::Rc;
 
 use be_block::ObjectId;
+use beui::{Color32, Wrap};
 use terminal_types::{
     TerminalColor, TerminalColors, TerminalCursor, TerminalLine, TerminalStyle, logical_lines,
 };
-use beui::{Color32, Wrap};
 
 #[derive(Clone, Default)]
 pub struct Lines(Rc<Vec<(ObjectId, Rc<TerminalLine>)>>);

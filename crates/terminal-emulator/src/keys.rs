@@ -1,5 +1,5 @@
-use terminal_types::{Key, TerminalKey};
 use ghostty_vt::{Key as Code, KeyInput, Mods};
+use terminal_types::{Key, TerminalKey};
 
 pub(super) fn key_input(key: &TerminalKey) -> KeyInput<'_> {
     let (code, unshifted) = code(key.key);

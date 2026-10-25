@@ -2,12 +2,12 @@ use std::marker::PhantomData;
 use std::sync::{Arc, Mutex, PoisonError};
 use std::time::Instant;
 
+use be_block::LiveEdit;
 use be_client::{ClientError, Peer};
 use be_commit::CommitId;
 use be_protocol::{ClientId, ServerMessage, SessionState};
 use be_store::ObjectStore;
 use be_types_host::{Conflict, HOST_EDITOR, Replicas, Source};
-use be_block::LiveEdit;
 use block_type_api::{Description, EditorId, Status};
 use block_type_guest::editor::{EditorMirror, FromEditor, PeerMessage, PeerPresence, ToEditor};
 use tokio::sync::{broadcast, watch};

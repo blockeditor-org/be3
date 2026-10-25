@@ -3,7 +3,6 @@ use std::collections::HashMap;
 use std::rc::Rc;
 
 use be_block::ObjectId;
-use terminal_types::{TerminalColors, TerminalCursor, TerminalLine, TerminalWheel};
 use beui::reactive::*;
 use beui::rich::{SpanBackground, TextCaret};
 use beui::styled::*;
@@ -11,6 +10,7 @@ use beui::{
     Key, KeyPress, NodeId, PasteKind, Pasted, PointerPress, Pos2, ScrollGesture, TextLayout, Vec2,
     Wrap, primitives,
 };
+use terminal_types::{TerminalColors, TerminalCursor, TerminalLine, TerminalWheel};
 
 use crate::keys::{TerminalInput, key_event, text_event};
 use crate::lines::{Lines, Look, Piece, Shown, color, screen};

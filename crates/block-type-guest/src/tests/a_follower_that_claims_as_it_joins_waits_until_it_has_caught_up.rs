@@ -29,7 +29,10 @@ fn a_follower_that_claims_as_it_joins_waits_until_it_has_caught_up() {
     assert_eq!(count(sim.mirror(1, 1)), 3);
     sim.claim(1);
     sim.settle();
-    assert!(sim.devices[1].status.owner, "the laptop never took the session");
+    assert!(
+        sim.devices[1].status.owner,
+        "the laptop never took the session"
+    );
 
     sim.operate(1, 1, Counter::add(10));
     sim.operate(2, 1, Counter::add(100));
