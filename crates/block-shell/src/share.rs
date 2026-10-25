@@ -2,7 +2,8 @@ use block_editor_beui::beui::reactive::{Pending, Ready};
 use block_editor_beui::{AccessGrant, AccessLevel, AccessListing};
 use uuid::Uuid;
 
-pub(crate) const GRANTABLE: [AccessLevel; 3] = [
+pub(crate) const GRANTABLE: [AccessLevel; 4] = [
+    AccessLevel::Manage,
     AccessLevel::Edit,
     AccessLevel::View,
     AccessLevel::KnowExists,

@@ -26,7 +26,7 @@ fn a_block_tabs_menu_previews_its_access_and_comes_back() {
 
     fixture.test.click("dock.menu");
     fixture.settle();
-    choose(&mut fixture, "Access: Editing");
+    choose(&mut fixture, "Access: Managing");
     choose(&mut fixture, "No access");
     assert!(
         shows_text(
@@ -39,7 +39,7 @@ fn a_block_tabs_menu_previews_its_access_and_comes_back() {
     fixture.test.click("dock.menu");
     fixture.settle();
     choose(&mut fixture, "Access: No access");
-    choose(&mut fixture, "Editing");
+    choose(&mut fixture, "Managing");
     assert!(
         !shows_text(
             &fixture,

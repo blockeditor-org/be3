@@ -725,6 +725,7 @@ name = "be-block"
 version = "0.1.0"
 dependencies = [
  "be-commit",
+ "be-graph",
  "be-model",
  "be-store",
  "memchr",

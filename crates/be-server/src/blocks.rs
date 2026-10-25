@@ -1,5 +1,5 @@
 use be_commit::CommitId;
-use be_graph::{Access, BlockGraph, BlockNode, BlockParent, ObjectRefs};
+use be_graph::{Access, BlockGraph, BlockNode, BlockParent, ObjectRefs, SETTINGS_TYPE};
 use be_protocol::{
     AccessEntry, BlockSummary, ErrorCode, HistoryEntry, KeyKind, KeySet, OrganizationRole,
 };
@@ -37,7 +37,7 @@ impl Visibility {
     fn inherited(&self, graph: &BlockGraph, block: Uuid) -> Access {
         match (graph.contains(block), self.administrator) {
             (false, _) => Access::None,
-            (true, true) => Access::Edit,
+            (true, true) => Access::Manage,
             (true, false) => graph.inherited(block, self.account),
         }
     }
@@ -48,6 +48,10 @@ impl Visibility {
 
     pub(crate) fn can_edit(&self, graph: &BlockGraph, block: Uuid) -> bool {
         self.inherited(graph, block).can_edit()
+    }
+
+    pub(crate) fn can_manage(&self, graph: &BlockGraph, block: Uuid) -> bool {
+        self.inherited(graph, block).can_manage()
     }
 
     pub(crate) fn administrator(&self) -> bool {
@@ -72,19 +76,45 @@ pub(crate) fn visibility(identity: Identity) -> Visibility {
 }
 
 fn require_edit(graph: &BlockGraph, seen: &Visibility, block: Uuid) -> Result<(), ServerError> {
+    require(graph, seen, block, Access::Edit, "editable")
+}
+
+fn require_manage(graph: &BlockGraph, seen: &Visibility, block: Uuid) -> Result<(), ServerError> {
+    require(graph, seen, block, Access::Manage, "managed")
+}
+
+fn require(
+    graph: &BlockGraph,
+    seen: &Visibility,
+    block: Uuid,
+    level: Access,
+    verb: &str,
+) -> Result<(), ServerError> {
     if graph.get(block).is_none() {
         return Err(ServerError::Refused(
             ErrorCode::BlockNotFound,
             format!("block {block} does not exist"),
         ));
     }
-    if seen.inherited(graph, block).can_edit() {
+    if seen.inherited(graph, block) >= level {
         return Ok(());
     }
     Err(ServerError::Refused(
         ErrorCode::PermissionDenied,
-        format!("block {block} is not editable by this account"),
+        format!("block {block} is not {verb} by this account"),
     ))
+}
+
+fn require_parent_of(
+    graph: &BlockGraph,
+    seen: &Visibility,
+    content_type: Uuid,
+    parent: Uuid,
+) -> Result<(), ServerError> {
+    match content_type == SETTINGS_TYPE {
+        true => require_manage(graph, seen, parent),
+        false => require_edit(graph, seen, parent),
+    }
 }
 
 fn summary(graph: &BlockGraph, identity: Identity, block: Uuid) -> Option<BlockSummary> {
@@ -132,7 +162,7 @@ impl ServerStore {
     ) -> Result<BlockSummary, ServerError> {
         self.with_graph(identity.organization, move |graph, database| {
             if let BlockParent::Block(target) = parent {
-                require_edit(graph, &visibility(identity), target)?;
+                require_parent_of(graph, &visibility(identity), content_type, target)?;
             }
             if !keys
                 .keys
@@ -566,7 +596,8 @@ impl ServerStore {
             let seen = visibility(identity);
             require_edit(graph, &seen, block)?;
             if let BlockParent::Block(target) = parent {
-                require_edit(graph, &seen, target)?;
+                let content_type = graph.get(block).ok_or(ServerError::Corrupt)?.content_type;
+                require_parent_of(graph, &seen, content_type, target)?;
             }
             let before = graph.audience(block);
             let transaction = database.unchecked_transaction()?;
@@ -822,7 +853,7 @@ impl ServerStore {
                     ));
                 }
                 true => {}
-                false => require_edit(graph, &visibility(identity), block)?,
+                false => require_manage(graph, &visibility(identity), block)?,
             }
             if access > Access::None && account != identity.account {
                 if !crate::store::is_member_of(database, account, identity.organization)? {
@@ -860,7 +891,7 @@ impl ServerStore {
         block: Uuid,
     ) -> Result<Vec<AccessEntry>, ServerError> {
         self.with_graph(identity.organization, move |graph, database| {
-            require_edit(graph, &visibility(identity), block)?;
+            require_manage(graph, &visibility(identity), block)?;
             let node = graph.get(block).ok_or(ServerError::Corrupt)?;
             let contacts = crate::contacts::contacts_of(database, identity.account)?;
             let mut listed: BTreeSet<Uuid> = node.grants.keys().copied().collect();
@@ -905,7 +936,7 @@ impl ServerStore {
                     author: node.author == account,
                     granted: node.grants.get(&account).copied(),
                     effective: match role {
-                        OrganizationRole::Administrator => Access::Edit,
+                        OrganizationRole::Administrator => Access::Manage,
                         OrganizationRole::Editor => graph.effective_access(block, account),
                     },
                     contact: contacts.contains(&account),

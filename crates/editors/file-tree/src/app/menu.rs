@@ -85,6 +85,7 @@ fn SectionMenu<F: Fn() + 'static>(
     } = tools;
     let unaddable = create_memo(move || !row.get().is_some_and(|row| row.can_add));
     let edit = create_memo(move || !row.get().is_some_and(|row| row.can_edit));
+    let unshareable = create_memo(move || !row.get().is_some_and(|row| row.access.can_manage()));
     let deletable = create_memo(move || !row.get().is_some_and(|row| row.can_delete));
     let leavable = leavable(editor, row);
     let leave = move || {
@@ -128,7 +129,7 @@ fn SectionMenu<F: Fn() + 'static>(
             <MenuItem
                 label="Share"
                 glyph=ICON_SHARE_2
-                disabled={edit}
+                disabled={unshareable}
                 row_test_id={"file-tree.section.share".to_owned()}
             />
             <MenuItem
@@ -183,6 +184,7 @@ fn BlockMenu<F: Fn() + 'static>(
     };
     let add = create_memo(move || !row.get().is_some_and(|row| row.can_add));
     let edit = create_memo(move || !row.get().is_some_and(|row| row.can_edit));
+    let unshareable = create_memo(move || !row.get().is_some_and(|row| row.access.can_manage()));
     let unlinkable = create_memo(move || {
         !row.get()
             .is_some_and(|row| row.is_reference && row.unlink.is_ok())
@@ -282,7 +284,7 @@ fn BlockMenu<F: Fn() + 'static>(
                 }</ForEach>
             </MenuItem>
             <MenuItem label="Rename" glyph=ICON_PENCIL_LINE disabled={edit} />
-            <MenuItem label="Share" glyph=ICON_SHARE_2 disabled={edit} />
+            <MenuItem label="Share" glyph=ICON_SHARE_2 disabled={unshareable} />
             <MenuItem label="Unlink" glyph=ICON_UNLINK disabled={unlinkable} />
             <MenuItem label={delete_label} glyph=ICON_TRASH disabled={deletable} danger=true />
             <MenuItem label="Inspect" glyph=ICON_INFO disabled={uninspectable} />

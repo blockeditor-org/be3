@@ -280,6 +280,7 @@ crates = {
                 "binaries": {},
                 "deps": [
                     "//crates/be-commit:be-commit",
+                    "//crates/be-graph:be-graph",
                     "//crates/be-model:be-model",
                     "//crates/be-store:be-store",
                     "//crates/ui-types:ui-types",
@@ -297,6 +298,7 @@ crates = {
                 "binaries": {},
                 "deps": [
                     "//crates/be-commit:be-commit",
+                    "//crates/be-graph:be-graph",
                     "//crates/be-model:be-model",
                     "//crates/be-store:be-store",
                     "//crates/ui-types:ui-types",
@@ -314,6 +316,7 @@ crates = {
                 "binaries": {},
                 "deps": [
                     "//crates/be-commit:be-commit",
+                    "//crates/be-graph:be-graph",
                     "//crates/be-model:be-model",
                     "//crates/be-store:be-store",
                     "//crates/ui-types:ui-types",
@@ -331,6 +334,7 @@ crates = {
                 "binaries": {},
                 "deps": [
                     "//crates/be-commit:be-commit",
+                    "//crates/be-graph:be-graph",
                     "//crates/be-model:be-model",
                     "//crates/be-store:be-store",
                     "//crates/ui-types:ui-types",
@@ -348,6 +352,7 @@ crates = {
                 "binaries": {},
                 "deps": [
                     "//crates/be-commit:be-commit",
+                    "//crates/be-graph:be-graph",
                     "//crates/be-model:be-model",
                     "//crates/be-store:be-store",
                     "//crates/ui-types:ui-types",
@@ -365,6 +370,7 @@ crates = {
                 "binaries": {},
                 "deps": [
                     "//crates/be-commit:be-commit",
+                    "//crates/be-graph:be-graph",
                     "//crates/be-model:be-model",
                     "//crates/be-store:be-store",
                     "//crates/ui-types:ui-types",
@@ -382,6 +388,7 @@ crates = {
                 "binaries": {},
                 "deps": [
                     "//crates/be-commit:be-commit",
+                    "//crates/be-graph:be-graph",
                     "//crates/be-model:be-model",
                     "//crates/be-store:be-store",
                     "//crates/ui-types:ui-types",
@@ -399,6 +406,7 @@ crates = {
                 "binaries": {},
                 "deps": [
                     "//crates/be-commit:be-commit",
+                    "//crates/be-graph:be-graph",
                     "//crates/be-model:be-model",
                     "//crates/be-store:be-store",
                     "//crates/ui-types:ui-types",
@@ -416,6 +424,7 @@ crates = {
                 "binaries": {},
                 "deps": [
                     "//crates/be-commit:be-commit",
+                    "//crates/be-graph:be-graph",
                     "//crates/be-model:be-model",
                     "//crates/be-store:be-store",
                     "//crates/ui-types:ui-types",
@@ -433,6 +442,7 @@ crates = {
                 "binaries": {},
                 "deps": [
                     "//crates/be-commit:be-commit",
+                    "//crates/be-graph:be-graph",
                     "//crates/be-model:be-model",
                     "//crates/be-store:be-store",
                     "//crates/ui-types:ui-types",

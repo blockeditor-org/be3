@@ -13,6 +13,8 @@ pub mod access;
 
 pub use access::Access;
 
+pub const SETTINGS_TYPE: Uuid = Uuid::from_u128(0x7365_7474_696e_6773_2d62_6c6f_636b_3032);
+
 #[derive(Clone, Copy, Debug, Default, Deserialize, Eq, Hash, PartialEq, Serialize)]
 pub enum BlockParent {
     #[default]
@@ -89,14 +91,24 @@ pub struct BlockGraph {
     revision: u64,
 }
 
-fn level_below(node: &BlockNode, account: Uuid, parent: Access, parent_viewable: bool) -> Access {
-    if node.author == account && parent_viewable {
-        return Access::Edit;
+impl BlockNode {
+    pub fn is_block_settings(&self) -> bool {
+        self.content_type == SETTINGS_TYPE && matches!(self.parent, BlockParent::Block(_))
     }
+}
+
+fn level_below(node: &BlockNode, account: Uuid, parent: Access, parent_viewable: bool) -> Access {
     let granted = node.grants.get(&account).copied().unwrap_or_default();
-    match parent.can_view() {
-        true => granted.max(parent),
-        false => granted,
+    let level = match (node.author == account && parent_viewable, parent.can_view()) {
+        (true, _) => Access::Manage,
+        (false, true) => granted.max(parent),
+        (false, false) => granted,
+    };
+    match node.is_block_settings() {
+        false => level,
+        true if parent.can_manage() => Access::Manage,
+        true if parent.can_view() => level.min(Access::View),
+        true => level.min(Access::KnowExists),
     }
 }
 
@@ -417,7 +429,7 @@ impl BlockGraph {
                 break;
             };
             best = best.max(node.grants.get(&account).copied().unwrap_or_default());
-            if best == Access::Edit {
+            if best == Access::Manage {
                 return best;
             }
             current = node.parent.block();
@@ -546,6 +558,9 @@ impl BlockGraph {
             let Some(node) = self.blocks.get(&block) else {
                 break;
             };
+            if node.is_block_settings() {
+                continue;
+            }
             viewers.insert(node.author);
             viewers.extend(
                 node.grants

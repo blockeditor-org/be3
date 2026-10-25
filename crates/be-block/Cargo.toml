@@ -6,6 +6,7 @@ license.workspace = true
 
 [dependencies]
 be-commit = { path = "../be-commit", default-features = false }
+be-graph = { path = "../be-graph" }
 be-model = { path = "../be-model" }
 be-store = { path = "../be-store", default-features = false }
 memchr = "2"

@@ -169,7 +169,7 @@ impl Editors {
             .borrow()
             .get(&id)
             .copied()
-            .unwrap_or(Access::Edit);
+            .unwrap_or(Access::Manage);
         above.min(editor_access_ceiling(id)).min(simulated)
     }
 
@@ -469,7 +469,7 @@ impl Nesting {
     fn root() -> Self {
         Self {
             above: store(Vec::new()),
-            access: Access::Edit,
+            access: Access::Manage,
         }
     }
 

@@ -1418,8 +1418,9 @@ pub enum AccessLevel {
     None,
     KnowExists,
     View,
-    #[default]
     Edit,
+    #[default]
+    Manage,
 }
 
 impl AccessLevel {
@@ -1432,7 +1433,11 @@ impl AccessLevel {
     }
 
     pub fn can_edit(self) -> bool {
-        self == Self::Edit
+        self >= Self::Edit
+    }
+
+    pub fn can_manage(self) -> bool {
+        self >= Self::Manage
     }
 
     pub fn label(self) -> &'static str {
@@ -1441,6 +1446,7 @@ impl AccessLevel {
             Self::KnowExists => "Knows it exists",
             Self::View => "Can view",
             Self::Edit => "Can edit",
+            Self::Manage => "Can manage",
         }
     }
 }

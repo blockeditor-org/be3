@@ -23,6 +23,7 @@ pub(crate) enum Action {
 pub(crate) struct Permissions {
     pub(crate) add: bool,
     pub(crate) edit: bool,
+    pub(crate) share: bool,
     pub(crate) delete: bool,
     pub(crate) unlink: Result<(), &'static str>,
     pub(crate) is_reference: bool,
@@ -87,6 +88,7 @@ pub(crate) fn permissions(
     Permissions {
         add: types.child_edits(reference.block_type).add && can_edit,
         edit: can_edit,
+        share: workspace.can_manage(reference.id),
         delete: source.is_some_and(|source| {
             source != BlockParent::Detached && can_delete_from(workspace, source)
         }) && (is_reference || can_edit),
@@ -165,6 +167,7 @@ pub(crate) fn ReferenceMenuItem(
                     !(permissions.is_reference && permissions.unlink.is_ok()),
                     reference.parent,
                     permissions.is_reference,
+                    !permissions.share,
                 )
             })
         })
@@ -173,6 +176,7 @@ pub(crate) fn ReferenceMenuItem(
     let edit = create_memo(move || rights.get().is_none_or(|rights| rights.1));
     let delete = create_memo(move || rights.get().is_none_or(|rights| rights.2));
     let unlink = create_memo(move || rights.get().is_none_or(|rights| rights.3));
+    let share = create_memo(move || rights.get().is_none_or(|rights| rights.6));
     let files = create_memo(move || workspace.my_files());
     let rooted = create_memo(move || {
         let files = files.get();
@@ -215,7 +219,7 @@ pub(crate) fn ReferenceMenuItem(
                 <MenuItem label="My files" disabled={rooted} />
             </MenuItem>
             <MenuItem label="Rename" disabled={edit} />
-            <MenuItem label="Share" disabled={edit} />
+            <MenuItem label="Share" disabled={share} />
             <MenuItem label="Unlink" disabled={unlink} />
             <MenuItem label={delete_label} disabled={delete} />
             <MenuItem label="Restore" disabled={restore} />

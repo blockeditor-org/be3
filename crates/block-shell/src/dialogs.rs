@@ -224,7 +224,7 @@ fn ShareDialog(workspace: Workspace) -> NodeId {
     let has_pending = create_memo(move || !pending_keys.get().is_empty());
     let pending_access = create_memo(move || {
         state.with(|share| {
-            share.as_ref().map_or(Some(0), |share| {
+            share.as_ref().map_or(Some(1), |share| {
                 GRANTABLE
                     .iter()
                     .position(|access| *access == share.pending_access)
@@ -347,6 +347,7 @@ fn ShareDialog(workspace: Workspace) -> NodeId {
                                 })}
                                 label="Access to grant"
                                 options={view! {
+                                    <ChoiceOption label={AccessLevel::Manage.label()} />
                                     <ChoiceOption label={AccessLevel::Edit.label()} />
                                     <ChoiceOption label={AccessLevel::View.label()} />
                                     <ChoiceOption label={AccessLevel::KnowExists.label()} />
@@ -512,6 +513,7 @@ fn MemberRow(member: Memo<Option<Member>>, act: ShareAct) -> NodeId {
                             })}
                             label="Access"
                             options={view! {
+                                <ChoiceOption label={AccessLevel::Manage.label()} />
                                 <ChoiceOption label={AccessLevel::Edit.label()} />
                                 <ChoiceOption label={AccessLevel::View.label()} />
                                 <ChoiceOption label={AccessLevel::KnowExists.label()} />

@@ -156,7 +156,7 @@ impl Settings {
 }
 
 impl Root for Settings {
-    const CONTENT_TYPE: Uuid = Uuid::from_u128(0x7365_7474_696e_6773_2d62_6c6f_636b_3032);
+    const CONTENT_TYPE: Uuid = be_graph::SETTINGS_TYPE;
 
     fn references(&self) -> Vec<Uuid> {
         let mut references: Vec<Uuid> = self

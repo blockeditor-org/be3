@@ -852,7 +852,7 @@ impl ContentStore {
                     author: Some(Uuid::nil().into_bytes()),
                     parent: Some(*parent),
                     references: Vec::new(),
-                    access: block_plugin_api::AccessLevel::Edit,
+                    access: block_plugin_api::AccessLevel::Manage,
                     metadata: block_plugin_api::BlockMetadata {
                         defined: defined.clone(),
                         ..block_plugin_api::BlockMetadata::default()

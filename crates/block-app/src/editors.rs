@@ -60,7 +60,7 @@ pub enum DirectEditorResize {
 
 pub fn editor_access_ceiling(id: Uuid) -> Access {
     let Some(node) = crate::be::node(id) else {
-        return Access::Edit;
+        return Access::Manage;
     };
     match node.metadata.contains(&be_block::ARTIFACT) {
         true => node.access.min(Access::View),

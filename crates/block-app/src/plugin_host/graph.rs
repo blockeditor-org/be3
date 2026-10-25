@@ -38,6 +38,7 @@ pub(crate) fn access_of(level: AccessLevel) -> be_graph::Access {
         AccessLevel::KnowExists => be_graph::Access::KnowExists,
         AccessLevel::View => be_graph::Access::View,
         AccessLevel::Edit => be_graph::Access::Edit,
+        AccessLevel::Manage => be_graph::Access::Manage,
     }
 }
 
@@ -73,6 +74,7 @@ pub(crate) fn level_of(access: be_graph::Access) -> AccessLevel {
         be_graph::Access::KnowExists => AccessLevel::KnowExists,
         be_graph::Access::View => AccessLevel::View,
         be_graph::Access::Edit => AccessLevel::Edit,
+        be_graph::Access::Manage => AccessLevel::Manage,
     }
 }
 

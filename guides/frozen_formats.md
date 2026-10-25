@@ -8,7 +8,7 @@ else may still change freely.
 
 - **The server's data directory**: `metadata.sqlite` (its tables and columns,
   and how each value is written: ids as text, hashes as hex, kinds, roles,
-  access levels, parent kinds, `wrapped_by` as a key id or `account:{uuid}`,
+  access levels (`know_exists`, `view`, `edit`, `manage`), parent kinds, `wrapped_by` as a key id or `account:{uuid}`,
   password and token hashes) and `objects/`, each object in `objects/ab/cdef…`
   named by the SHA-256 of its bytes. That covers organizations (company or
   personal) and memberships, workspace and other blocks with their sealed

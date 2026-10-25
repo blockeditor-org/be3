@@ -208,11 +208,17 @@ time, so notifications wait for the next post.
   or `personal`, the server's one organization everyone may share, which
   `ServerStore::personal_organization` makes on demand; registering joins it
   as an editor, and nobody administers it.
-- Access is computed per member (`Visibility` in `blocks.rs`). An organization
-  administrator edits everything. Anyone else gets the best grant on the block
-  or an ancestor (a grant that can view is inherited down), and `Edit` on what
-  they authored when its parent is `Root` or `Detached` or they can view its
-  parent, so a member taken off a workspace loses what they wrote inside it.
+- Access is computed per member (`Visibility` in `blocks.rs`), as
+  `None < KnowExists < View < Edit < Manage`. An organization administrator
+  manages everything. Anyone else gets the best grant on the block or an
+  ancestor (a grant that can view is inherited down, and a lower grant never
+  reduces it), and `Manage` on what they authored when its parent is `Root` or
+  `Detached` or they can view its parent, so a member taken off a workspace
+  loses what they wrote inside it. A settings block (`be_graph::SETTINGS_TYPE`)
+  whose parent is a block is the exception: it is `Manage` to whoever manages
+  its parent, at most `View` to whoever can view the parent, and its own
+  grants never raise that, so changing, adding or moving in a block's
+  settings needs `Manage` on the block.
   A block they can view references gives them `KnowExists` on it, and on
   nothing that block references in turn. Of a block they may only know exists
   they are told its id, content type and access and nothing else
@@ -220,7 +226,7 @@ time, so notifications wait for the next post.
   metadata, key or scope), and are served none of its keys or objects. Ancestors
   are not shown: a block someone can see whose parent they cannot is an entry
   point, which the app lists under Shared with me. `SetAccess` grants, and only
-  someone who may edit a block may grant on it; a grant above `None` must also
+  someone who manages a block may grant on it or list its access; a grant above `None` must also
   name a member of the organization who is a contact of the granter (see
   Contacts). Anyone may revoke their own grant (leaving a block). `ListAccess`
   lists the block's author, grantees and viewers and the caller's contacts who

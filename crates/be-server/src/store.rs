@@ -1035,6 +1035,7 @@ pub fn encode_access(access: Access) -> Option<&'static str> {
         Access::KnowExists => Some("know_exists"),
         Access::View => Some("view"),
         Access::Edit => Some("edit"),
+        Access::Manage => Some("manage"),
     }
 }
 
@@ -1043,6 +1044,7 @@ pub fn decode_access(value: &str) -> Result<Access, ServerError> {
         "know_exists" => Ok(Access::KnowExists),
         "view" => Ok(Access::View),
         "edit" => Ok(Access::Edit),
+        "manage" => Ok(Access::Manage),
         _ => Err(ServerError::Corrupt),
     }
 }

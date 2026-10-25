@@ -1221,9 +1221,13 @@ impl Workspace {
         self.info(id).is_none_or(|info| info.access.can_edit())
     }
 
+    pub(crate) fn can_manage(&self, id: Uuid) -> bool {
+        self.info(id).is_none_or(|info| info.access.can_manage())
+    }
+
     pub(crate) fn ceiling(&self, id: Uuid) -> AccessLevel {
         let Some(info) = self.info(id) else {
-            return AccessLevel::Edit;
+            return AccessLevel::Manage;
         };
         match info.is_artifact() {
             true => info.access.min(AccessLevel::View),
@@ -1237,7 +1241,8 @@ impl Workspace {
             Some(AccessLevel::None) => AccessLevel::None.min(ceiling),
             Some(AccessLevel::KnowExists) => AccessLevel::KnowExists.min(ceiling),
             Some(AccessLevel::View) => AccessLevel::View.min(ceiling),
-            Some(AccessLevel::Edit) | None => ceiling,
+            Some(AccessLevel::Edit) => AccessLevel::Edit.min(ceiling),
+            Some(AccessLevel::Manage) | None => ceiling,
         }
     }
 

@@ -91,12 +91,14 @@ fn DetailsBody(workspace: Workspace, tab: TabId) -> NodeId {
                     allowed.delete,
                     allowed.is_reference && allowed.unlink.is_ok(),
                     allowed.is_reference,
+                    allowed.share,
                 ))
             })
         })
     });
     let rename_off = create_memo(move || !rights.get().is_some_and(|r| r.0));
     let delete_off = create_memo(move || !rights.get().is_some_and(|r| r.1));
+    let share_off = create_memo(move || !rights.get().is_some_and(|r| r.4));
     let unlinkable = create_memo(move || rights.get().is_some_and(|r| r.2));
     let delete_label = create_memo(move || match rights.get().is_some_and(|r| r.3) {
         true => "Remove link".to_owned(),
@@ -165,7 +167,7 @@ fn DetailsBody(workspace: Workspace, tab: TabId) -> NodeId {
                     @test_id={"workspace.details.share"}
                     label="Share"
                     glyph=ICON_SHARE_2
-                    disabled={rename_off}
+                    disabled={share_off}
                     on_click={move || act(Action::Share)}
                 />
                 <Show condition={unlinkable}>

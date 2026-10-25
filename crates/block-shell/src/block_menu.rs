@@ -76,6 +76,7 @@ fn related(
 fn access(workspace: Workspace, info: &Info) -> MenuNode {
     let id = info.item.id;
     let levels = [
+        (AccessLevel::Manage, "manage", "Managing"),
         (AccessLevel::Edit, "edit", "Editing"),
         (AccessLevel::View, "view", "Viewing"),
         (AccessLevel::KnowExists, "none", "No access"),
@@ -111,6 +112,7 @@ fn chosen(access: AccessLevel) -> AccessLevel {
 
 fn wording(access: AccessLevel) -> &'static str {
     match access {
+        AccessLevel::Manage => "Managing",
         AccessLevel::Edit => "Editing",
         AccessLevel::View => "Viewing",
         AccessLevel::KnowExists | AccessLevel::None => "No access",

@@ -2511,8 +2511,9 @@ impl BlockApp {
                     AccessLevel::KnowExists => Access::KnowExists,
                     AccessLevel::View => Access::View,
                     AccessLevel::Edit => Access::Edit,
+                    AccessLevel::Manage => Access::Manage,
                 };
-                match access == Access::Edit {
+                match access == Access::Manage {
                     true => self
                         .editors
                         .with_simulated(|simulated| simulated.remove(&id)),

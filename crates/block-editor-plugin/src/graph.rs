@@ -109,7 +109,7 @@ impl BlockInfo {
             author: Some(Uuid::nil()),
             parent: Some(parent),
             references: Vec::new(),
-            access: AccessLevel::Edit,
+            access: AccessLevel::Manage,
             metadata: BlockMetadata::default(),
             locked: false,
             deleted: false,

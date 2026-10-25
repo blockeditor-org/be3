@@ -17,11 +17,11 @@ user during the work.
 - A `Workspace` block holds only `entries` (`be-block/src/workspace.rs`). There
   is no organization block; organizations, memberships and roles
   (`Administrator`, `Editor`) are server tables (`be-server/src/schema.rs`).
-- Access is `None < KnowExists < View < Edit` (`be-graph/src/access.rs`). A
-  block's access is the higher of its own grant and its parent's
-  (`level_below`, `be-graph/src/lib.rs`), so a grant lower down can never take
-  access away. Anyone with Edit can share. Organization administrators get
-  Edit on every block (`be-server/src/blocks.rs`).
+- Access is `None < KnowExists < View < Edit < Manage`
+  (`be-graph/src/access.rs`). A block's access is the higher of its own grant
+  and its parent's (`level_below`, `be-graph/src/lib.rs`), so a grant lower
+  down can never take access away. Only Manage shares. Organization
+  administrators get Manage on every block (`be-server/src/blocks.rs`).
 - Since #603 no client lists every block, so nothing can enumerate every
   database prefix. `Tracker::find` searches breadth-first from the roots and
   what is shared (`be-cli/src/tracker.rs`). Since #600 a prefix is a label and
@@ -40,10 +40,10 @@ user during the work.
   own offline choice resolve from the viewer, whatever they are looking at.
   When an owner's and a viewer's organization policies conflict, the stricter
   wins.
-- **Access comes from the nearest grant on the path up, and Manage covers the
-  whole tree below it.** A lower grant can reduce Edit or View, never Manage,
-  so nobody can be locked out of what they manage, and nobody can keep
-  personal files in someone else's workspace out of its owner's reach.
+- **Access is the highest grant on the path up.** A lower grant never
+  reduces what is inherited, so nobody can be locked out of what they manage,
+  and nobody can keep personal files in someone else's workspace out of its
+  owner's reach.
 - **A setting the server enforces is shared with the server**, and the server
   refuses the action when it can't read the policy. Storing a setting
   unencrypted is only for data that doesn't matter.
@@ -63,28 +63,28 @@ re-import once, and say so in `guides/frozen_formats.md`.
    it. `ARTIFACT` points to a block instead of holding its source inline.
    Done: an artifact block is a backref of the block it describes, and
    `be-client/src/transfer.rs` exports and imports it.
-2. **The access model.** In `be-graph` and `be-server`:
-   - Add `Manage` above `Edit`. Manage shares and changes settings; Edit no
-     longer shares. Authors get Manage on what they create.
-   - The nearest grant on the path up wins for View and Edit, so a lower
-     grant can reduce them. Manage on any ancestor is Manage on the whole tree
-     below it and can't be reduced.
-   - Removing someone's View on a subtree rotates that subtree's keys, as
-     removing a reader does today.
-   - Organization administrators keep Manage on everything in their
-     organization.
-
-   Done: tests for reducing a grant below an inherited one, for Manage
-   surviving a lower grant, and for Edit no longer sharing.
-3. **The settings block.** Any block can hold a child settings block with a
-   `kinds` map, the same shape as the user's `Settings`. It never shows as an
-   entry in the file tree. **(ask)** How editing it is restricted: either a
-   built-in rule ("a settings block needs Manage on its parent to change, and
-   View on its parent to read") or a general ceiling grant ("at most View for
-   anyone without Manage") that the settings block happens to use. The
-   built-in rule is the smaller change and probably enough unless a ceiling
-   finds other uses. Done: a workspace and a folder each hold one, and the
-   server refuses an edit from someone with Edit but not Manage.
+2. **The access model.** Done (server and model). `Manage` is above `Edit`
+   in `be_graph::Access` and `AccessLevel`, stored as `manage`. Manage shares
+   (`set_access`, `list_access`, pending grants on contact links) and changes
+   settings; Edit no longer shares. Authors and organization administrators get
+   Manage. Decided instead of the nearest grant: a block's access is the
+   highest of its own grant and every ancestor's, so a lower grant never
+   reduces View, Edit or Manage (`level_below`). Removing someone's View
+   queues a rotation, as before. Key work (sealing, rotation) still needs only
+   Edit, since it carries out access already decided. Tests: be-graph
+   `a_lower_grant_never_reduces_inherited_access`, be-server
+   `only_a_manager_shares_and_a_lower_grant_reduces_nothing`,
+   `an_editor_sees_only_the_blocks_it_made_or_was_given`.
+3. **The settings block.** Done (server and model), with the built-in rule: a
+   block of type `be_graph::SETTINGS_TYPE` (`Settings::CONTENT_TYPE`) whose
+   parent is a block has Manage when its parent does, at most View when its
+   parent is viewable, and at most KnowExists otherwise; its own grants never
+   raise that (`BlockNode::is_block_settings`, `level_below`). Creating one, or
+   moving one under a block, needs Manage on that block. The file tree skips a
+   settings child of the block it lists. Tests: be-graph
+   `a_settings_block_needs_manage_on_its_parent_to_change`, be-server
+   `a_settings_block_changes_only_with_manage_on_its_parent`. Left for later
+   steps: resolving and editing these settings in the client.
 
 ## 2. Access UI
 

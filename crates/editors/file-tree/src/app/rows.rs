@@ -6,6 +6,7 @@ use std::time::{Duration, Instant};
 use workspace_ui_types::ViewState;
 
 use block_editor_beui::be_block::metadata::ICON_COLOR;
+use block_editor_beui::be_block::{Root, settings::Settings};
 use block_editor_beui::beui::icons::{
     ICON_BOXES, ICON_DATABASE, ICON_ROTATE_CCW_CLOCK, ICON_USERS, named,
 };
@@ -630,6 +631,12 @@ impl Builder<'_> {
         path: &mut Vec<Uuid>,
         trashed: bool,
     ) {
+        if reference.block_type == <Settings as Root>::CONTENT_TYPE
+            && container
+                .is_some_and(|container| reference.parent == Some(BlockParent::Block(container)))
+        {
+            return;
+        }
         self.watched
             .block_types
             .insert(reference.id, reference.block_type);
@@ -873,6 +880,7 @@ pub(crate) fn unlink_permission(
 
 pub(crate) fn access_name(access: AccessLevel) -> &'static str {
     match access {
+        AccessLevel::Manage => "Can manage",
         AccessLevel::Edit => "Can edit",
         AccessLevel::View => "Can view",
         AccessLevel::KnowExists => "Can see that it exists",
@@ -882,7 +890,7 @@ pub(crate) fn access_name(access: AccessLevel) -> &'static str {
 
 pub(crate) fn access_hint(access: AccessLevel) -> &'static str {
     match access {
-        AccessLevel::Edit => "",
+        AccessLevel::Manage | AccessLevel::Edit => "",
         AccessLevel::View => "You can view this block, but not change it.",
         AccessLevel::KnowExists | AccessLevel::None => {
             "You can see that this block exists, but not open it."
@@ -892,7 +900,7 @@ pub(crate) fn access_hint(access: AccessLevel) -> &'static str {
 
 pub(crate) fn access_marker(access: AccessLevel) -> Option<Glyph> {
     match access {
-        AccessLevel::Edit => None,
+        AccessLevel::Manage | AccessLevel::Edit => None,
         AccessLevel::View => Some(block_editor_beui::beui::icons::ICON_EYE),
         AccessLevel::KnowExists | AccessLevel::None => {
             Some(block_editor_beui::beui::icons::ICON_LOCK)

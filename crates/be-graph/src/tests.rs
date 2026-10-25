@@ -2,8 +2,10 @@ use super::*;
 
 mod a_cycle_is_refused_when_reparenting;
 mod a_detached_subtree_is_pending_deletion;
+mod a_lower_grant_never_reduces_inherited_access;
 mod a_parent_holds_a_child_only_while_it_references_it;
 mod a_parent_knows_its_children_as_the_graph_changes;
+mod a_settings_block_needs_manage_on_its_parent_to_change;
 mod access_is_inherited_through_parents;
 mod access_to_one_block_agrees_with_mapping_the_whole_graph;
 mod an_account_sees_what_lies_below_its_entry_points;
@@ -60,7 +62,12 @@ impl Random {
     }
 
     fn level(&mut self) -> Access {
-        [Access::KnowExists, Access::View, Access::Edit][self.below(3)]
+        [
+            Access::KnowExists,
+            Access::View,
+            Access::Edit,
+            Access::Manage,
+        ][self.below(4)]
     }
 
     fn block(&mut self, graph: &BlockGraph) -> Option<Uuid> {
@@ -80,7 +87,11 @@ fn random_graph(seed: u64, size: u128) -> (BlockGraph, Random) {
                 .block(&graph)
                 .map_or(BlockParent::Root, BlockParent::Block),
         };
-        let mut node = BlockNode::new(TYPE, random.account(), parent);
+        let content_type = match random.chance(15) {
+            true => SETTINGS_TYPE,
+            false => TYPE,
+        };
+        let mut node = BlockNode::new(content_type, random.account(), parent);
         if random.chance(25) {
             node.grants.insert(random.account(), random.level());
         }
@@ -180,7 +191,14 @@ fn whole_graph_access_map(graph: &BlockGraph, account: Uuid) -> BTreeMap<Uuid, A
             best = best.max(parent);
         }
         if node.author == account && parent_viewable {
-            best = Access::Edit;
+            best = Access::Manage;
+        }
+        if node.content_type == SETTINGS_TYPE && matches!(node.parent, BlockParent::Block(_)) {
+            best = match parent {
+                Access::Manage => Access::Manage,
+                above if above.can_view() => best.min(Access::View),
+                _ => best.min(Access::KnowExists),
+            };
         }
         memo.insert(id, best);
         best
