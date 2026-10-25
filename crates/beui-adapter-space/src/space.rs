@@ -135,9 +135,7 @@ impl Space {
     }
 
     pub fn lifted(&self) -> Option<WindowId> {
-        self.carry
-            .filter(Carry::lifted)
-            .map(|carry| carry.window)
+        self.carry.filter(Carry::lifted).map(|carry| carry.window)
     }
 
     pub fn pick(&self, ray: Ray) -> Option<Hit> {
@@ -162,9 +160,9 @@ impl Space {
 
     pub fn cursor_point(&self) -> Option<Vec3> {
         match self.cursor? {
-            Cursor::Platform(at) => {
-                self.pick(self.head.ray(self.platform, at.to_vec2())).map(|hit| hit.point)
-            }
+            Cursor::Platform(at) => self
+                .pick(self.head.ray(self.platform, at.to_vec2()))
+                .map(|hit| hit.point),
             Cursor::Window(window, pos) => self.panel(window).map(|panel| panel.world(pos)),
         }
     }

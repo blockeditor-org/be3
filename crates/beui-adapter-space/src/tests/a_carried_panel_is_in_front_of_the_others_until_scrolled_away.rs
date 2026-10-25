@@ -28,7 +28,11 @@ fn a_carried_panel_is_in_front_of_the_others_until_scrolled_away() {
     );
 
     send(&mut space, now, [scroll(-1.0)]);
-    assert_eq!(space.lifted(), Some(behind), "pulled nearer, it stays in front");
+    assert_eq!(
+        space.lifted(),
+        Some(behind),
+        "pulled nearer, it stays in front"
+    );
     send(&mut space, now, [scroll(2.0)]);
     assert_eq!(
         space.lifted(),
@@ -38,9 +42,17 @@ fn a_carried_panel_is_in_front_of_the_others_until_scrolled_away() {
     assert_eq!(hit(&space), Some(WindowId::MAIN));
 
     send(&mut space, now, [scroll(-1.0)]);
-    assert_eq!(space.lifted(), Some(behind), "pulled back, it is in front again");
+    assert_eq!(
+        space.lifted(),
+        Some(behind),
+        "pulled back, it is in front again"
+    );
 
-    send(&mut space, now, [button(centre(), true), button(centre(), false)]);
+    send(
+        &mut space,
+        now,
+        [button(centre(), true), button(centre(), false)],
+    );
     assert_eq!(space.lifted(), None, "once let go, depth decides again");
     assert_eq!(hit(&space), Some(WindowId::MAIN));
 }
