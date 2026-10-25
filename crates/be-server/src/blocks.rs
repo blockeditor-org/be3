@@ -623,6 +623,13 @@ impl ServerStore {
                         .into(),
                 ));
             }
+            let access = seen.inherited(graph, block);
+            if let Some(refusal) = graph.move_refusal(block, parent, identity.account, access) {
+                return Err(ServerError::Refused(
+                    ErrorCode::PermissionDenied,
+                    refusal.to_string(),
+                ));
+            }
             let node = graph.get(block).ok_or(ServerError::Corrupt)?;
             match parent {
                 BlockParent::Block(target) => {

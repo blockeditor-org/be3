@@ -70,6 +70,25 @@ impl BlockNode {
     }
 }
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum MoveRefusal {
+    MovesWorkspace,
+    RaisesOwnAccess,
+}
+
+impl fmt::Display for MoveRefusal {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter.write_str(match self {
+            Self::MovesWorkspace => {
+                "moving a workspace, or a block to another workspace, needs Manage on the block"
+            }
+            Self::RaisesOwnAccess => {
+                "this move would give you more access to the block than you have, which needs Manage on it"
+            }
+        })
+    }
+}
+
 #[derive(Debug, Eq, PartialEq)]
 pub enum GraphError {
     NotFound(Uuid),
@@ -565,6 +584,60 @@ impl BlockGraph {
             .skip(1)
             .filter(|block| self.blocks.get(block).is_some_and(BlockNode::sets_access))
             .count()
+    }
+
+    pub fn workspace_of(&self, id: Uuid) -> Option<Uuid> {
+        let top = std::iter::once(id).chain(self.ancestors(id)).last()?;
+        match self.blocks.get(&top)?.parent {
+            BlockParent::Root => Some(top),
+            BlockParent::Detached | BlockParent::Block(_) => None,
+        }
+    }
+
+    pub fn inherited_under(&self, id: Uuid, parent: BlockParent, account: Uuid) -> Access {
+        let Some(node) = self.blocks.get(&id) else {
+            return Access::None;
+        };
+        let (above, parent_viewable, in_settings) = match parent {
+            BlockParent::Block(parent) => {
+                let level = self.inherited(parent, account);
+                (level, level.can_view(), self.in_settings(parent))
+            }
+            BlockParent::Root | BlockParent::Detached => (Access::None, true, false),
+        };
+        let mut moved = node.clone();
+        moved.parent = parent;
+        level_below(&moved, account, above, parent_viewable, in_settings)
+    }
+
+    pub fn move_refusal(
+        &self,
+        id: Uuid,
+        parent: BlockParent,
+        account: Uuid,
+        access: Access,
+    ) -> Option<MoveRefusal> {
+        let node = self.blocks.get(&id)?;
+        if access.can_manage() {
+            return None;
+        }
+        if node.parent == BlockParent::Root && parent != BlockParent::Root {
+            return Some(MoveRefusal::MovesWorkspace);
+        }
+        let to = match parent {
+            BlockParent::Block(target) => self.workspace_of(target),
+            BlockParent::Root => Some(id),
+            BlockParent::Detached => None,
+        };
+        if let (Some(from), Some(to)) = (self.workspace_of(id), to)
+            && from != to
+        {
+            return Some(MoveRefusal::MovesWorkspace);
+        }
+        match self.inherited_under(id, parent, account) > access {
+            true => Some(MoveRefusal::RaisesOwnAccess),
+            false => None,
+        }
     }
 
     fn in_settings(&self, id: Uuid) -> bool {

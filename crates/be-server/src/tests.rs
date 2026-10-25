@@ -31,6 +31,7 @@ mod a_detached_subtree_is_collected_and_its_objects_freed;
 mod a_grant_or_a_key_for_someone_not_a_contact_is_refused;
 mod a_graph_change_reaches_only_the_members_who_may_see_it;
 mod a_kind_open_inside_passes_from_one_viewer_inside_to_another;
+mod a_move_never_takes_a_workspace_or_more_access_without_manage;
 mod a_new_recovery_key_reseals_every_key_sealed_to_the_account;
 mod a_pending_grant_is_applied_when_its_link_is_accepted;
 mod a_remembered_account_approves_a_manually_entered_code_and_can_switch_accounts;
@@ -653,6 +654,16 @@ impl TestClient {
             panic!("listing contacts failed: {response:?}");
         };
         contacts
+    }
+
+    async fn move_to(&mut self, block: Uuid, parent: BlockParent) -> ServerMessage {
+        self.send(|request| ClientMessage::SetParent {
+            request,
+            block,
+            parent,
+            keys: KeySet::default(),
+        })
+        .await
     }
 
     async fn grant(

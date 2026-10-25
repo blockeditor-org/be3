@@ -2,6 +2,7 @@ use super::*;
 
 mod a_cycle_is_refused_when_reparenting;
 mod a_detached_subtree_is_pending_deletion;
+mod a_move_without_manage_stays_in_its_workspace_and_raises_nothing;
 mod a_kind_an_editor_changes_hangs_from_its_owner;
 mod a_kind_open_inside_is_read_by_anyone_who_views_a_block_inside;
 mod a_lower_grant_never_reduces_inherited_access;

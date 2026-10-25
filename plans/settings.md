@@ -76,7 +76,12 @@ re-import once, and say so in `guides/frozen_formats.md`.
    Manage. Decided instead of the nearest grant: a block's access is the
    highest of its own grant and every ancestor's, so a lower grant never
    reduces View, Edit or Manage (`level_below`). Removing someone's View
-   queues a rotation, as before. Key work (sealing, rotation) still needs only
+   queues a rotation, as before. A move (`SetParent`) needs Edit on the block and
+   its destination, and Manage on the block to move a workspace or to move it
+   into another workspace; without Manage it may not raise the mover's own
+   access to the block (`BlockGraph::move_refusal`; be-graph
+   `a_move_without_manage_stays_in_its_workspace_and_raises_nothing`, be-server
+   `a_move_never_takes_a_workspace_or_more_access_without_manage`). Key work (sealing, rotation) still needs only
    Edit, since it carries out access already decided. Tests: be-graph
    `a_lower_grant_never_reduces_inherited_access`, be-server
    `only_a_manager_shares_and_a_lower_grant_reduces_nothing`,

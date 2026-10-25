@@ -227,6 +227,12 @@ time, so notifications wait for the next post.
   the access of its parent: neither authorship nor a grant raises it. Who
   reads a kind is a manager's choice; the editor who made an edit kind may
   only open it to anyone inside once, as it is made (its default).
+  Moving a block (`SetParent`) needs `Edit` on it and on the new parent, and
+  `Manage` on it to move a workspace (a root block) or to move it into another
+  workspace (`BlockGraph::move_refusal`); without `Manage` a move is also
+  refused if it would raise the mover's own access to the block (into a folder
+  they manage, say). An author manages what they made, so moving one's own
+  block anywhere one may edit is fine.
   A block they can view references gives them `KnowExists` on it, and on
   nothing that block references in turn. Of a block they may only know exists
   they are told its id, content type and access and nothing else
