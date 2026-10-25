@@ -211,9 +211,9 @@ fn BlockMenu<F: Fn() + 'static>(
         row.get().is_some_and(|row| {
             !row.deleted
                 && row.id.is_some_and(|id| {
-                    editor
-                        .workspace_of(id)
-                        .is_some_and(|workspace| workspace != id && editor.blocks().access(workspace).can_manage())
+                    editor.workspace_of(id).is_some_and(|workspace| {
+                        workspace != id && editor.blocks().access(workspace).can_manage()
+                    })
                 })
         })
     });

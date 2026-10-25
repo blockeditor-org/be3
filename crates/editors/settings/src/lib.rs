@@ -1,7 +1,7 @@
 pub mod app;
 pub mod default_editors;
-pub mod home;
 pub mod display;
+pub mod home;
 pub mod input;
 pub mod input_remaps;
 pub mod prefixes;

@@ -20,7 +20,11 @@ fn a_prefix_is_listed_in_the_workspaces_prefixes_and_a_shared_one_says_so() {
         PrefixRegistryContent::CONTENT_TYPE,
         BlockParent::Block(workspace),
     ));
-    let mut other = BlockInfo::new(bugs, DatabaseContent::CONTENT_TYPE, BlockParent::Block(workspace));
+    let mut other = BlockInfo::new(
+        bugs,
+        DatabaseContent::CONTENT_TYPE,
+        BlockParent::Block(workspace),
+    );
     other.set_name("Bugs".to_owned());
     store.add_block(other);
     store.add_block(BlockInfo::new(

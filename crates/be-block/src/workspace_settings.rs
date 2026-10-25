@@ -22,8 +22,10 @@ pub const TAGGED: MetaKey<Vec<BlockRef>> =
 pub const TAG_COLOR: MetaKey<TagColor> =
     MetaKey::derived(0x6be3_6d65_7461_5400_8a1e_7461_6763_0001, "tag_color");
 
-pub const PREFERRED_EDITOR: MetaKey<Uuid> =
-    MetaKey::defined(0x6be3_6d65_7461_4500_8a1e_6564_6974_0001, "preferred_editor");
+pub const PREFERRED_EDITOR: MetaKey<Uuid> = MetaKey::defined(
+    0x6be3_6d65_7461_4500_8a1e_6564_6974_0001,
+    "preferred_editor",
+);
 
 pub fn normal_prefix(prefix: &str) -> String {
     prefix.trim().to_ascii_uppercase()
@@ -61,7 +63,9 @@ impl PrefixRegistry {
     }
 
     pub fn register(database: Uuid, prefix: Option<&str>) -> Edit {
-        let prefix = prefix.map(normal_prefix).filter(|prefix| !prefix.is_empty());
+        let prefix = prefix
+            .map(normal_prefix)
+            .filter(|prefix| !prefix.is_empty());
         Self::DATABASES
             .put(ObjectId::ROOT, &database, prefix.as_ref())
             .into()
@@ -91,7 +95,9 @@ impl Layered for PrefixRegistry {
 
 pub type PrefixRegistryContent = Document<PrefixRegistry>;
 
-#[derive(Clone, Copy, Debug, Default, Deserialize, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize)]
+#[derive(
+    Clone, Copy, Debug, Default, Deserialize, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize,
+)]
 pub enum TagColor {
     #[default]
     Gray,
@@ -193,16 +199,14 @@ impl Root for Tags {
         match change {
             ChildChange::Add(tag) => Some(Self::add(tag)),
             ChildChange::Delete(tag) => Some(Self::remove(tag)),
-            ChildChange::Replace { old, new } => {
-                Some(
-                    [
-                        Self::TAGS.put(ObjectId::ROOT, &old, None),
-                        Self::TAGS.put(ObjectId::ROOT, &new, Some(&())),
-                    ]
-                    .into_iter()
-                    .collect(),
-                )
-            }
+            ChildChange::Replace { old, new } => Some(
+                [
+                    Self::TAGS.put(ObjectId::ROOT, &old, None),
+                    Self::TAGS.put(ObjectId::ROOT, &new, Some(&())),
+                ]
+                .into_iter()
+                .collect(),
+            ),
         }
     }
 }

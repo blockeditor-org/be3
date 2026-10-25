@@ -46,7 +46,9 @@ async fn a_row_id_resolves_through_the_workspaces_prefixes() {
         ambiguous.contains("more than one database") && ambiguous.contains("Issues"),
         "{ambiguous}"
     );
-    let named = run(&tracker, &format!("Bugs row {}", row.id)).await.unwrap();
+    let named = run(&tracker, &format!("Bugs row {}", row.id))
+        .await
+        .unwrap();
     assert!(named.contains("Bugs row"), "{named}");
     harness.stop().await;
 }

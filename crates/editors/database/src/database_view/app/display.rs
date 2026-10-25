@@ -1,4 +1,4 @@
-use block_editor_beui::beui::{NodeId, Wrap};
+use block_editor_beui::BlockQuery;
 use block_editor_beui::beui::icons::Glyph;
 use block_editor_beui::beui::icons::{
     ICON_ARROW_DOWN, ICON_ARROW_UP, ICON_CHART_SCATTER, ICON_GRID_3X3, ICON_KANBAN, ICON_LIST,
@@ -7,11 +7,11 @@ use block_editor_beui::beui::icons::{
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
 use block_editor_beui::beui::unstyled::ChoiceOption;
+use block_editor_beui::beui::{NodeId, Wrap};
 use database_types::database_schema::{DatabaseField, DatabaseFieldType};
 use database_types::database_view::{
     DatabaseView, DatabaseViewKind, DatabaseViewSort, SortDirection,
 };
-use block_editor_beui::BlockQuery;
 use uuid::Uuid;
 
 use crate::database_view::app::data::Data;
@@ -86,7 +86,9 @@ pub fn DisplayOptions(data: Data) -> NodeId {
             </List>
             <Show condition={shared}>
                 <List spacing=2.0 @test_id={"database-view.prefix-shared"}>
-                    <Text style=TextStyle::CAPTION color=TextColor::Muted wrap=Wrap::Words>{sharing}</Text>
+                    <Text style=TextStyle::CAPTION color=TextColor::Muted wrap=Wrap::Words>
+                        {sharing}
+                    </Text>
                     <ForEach keys={others}>|other: Uuid| {
                         let editor = data.editor();
                         let found = editor.watch_blocks(BlockQuery::Block(other));

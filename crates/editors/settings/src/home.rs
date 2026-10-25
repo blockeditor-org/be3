@@ -57,9 +57,9 @@ fn HomeView(editor: Editor) -> NodeId {
                 <Show condition={no_landing}>
                     <SettingsRow label="None" compact=true />
                 </Show>
-                <ForEach keys={landing}>|block: Uuid| {
-                    view! { <Placed editor={editor} block={block} place=Place::Landing /> }
-                }</ForEach>
+                <ForEach keys={landing}>|block: Uuid|
+                    <Placed editor={editor} block={block} place=Place::Landing />
+                </ForEach>
             </SettingsSection>
             <SettingsSection
                 title="Pinned"
@@ -68,9 +68,9 @@ fn HomeView(editor: Editor) -> NodeId {
                 <Show condition={no_pins}>
                     <SettingsRow label="Nothing is pinned" compact=true />
                 </Show>
-                <ForEach keys={pinned}>|block: Uuid| {
-                    view! { <Placed editor={editor} block={block} place=Place::Pinned /> }
-                }</ForEach>
+                <ForEach keys={pinned}>|block: Uuid|
+                    <Placed editor={editor} block={block} place=Place::Pinned />
+                </ForEach>
             </SettingsSection>
             <SettingsSection
                 title="Templates"
@@ -79,9 +79,9 @@ fn HomeView(editor: Editor) -> NodeId {
                 <Show condition={no_templates}>
                     <SettingsRow label="No templates" compact=true />
                 </Show>
-                <ForEach keys={templates}>|block: Uuid| {
-                    view! { <Placed editor={editor} block={block} place=Place::Template /> }
-                }</ForEach>
+                <ForEach keys={templates}>|block: Uuid|
+                    <Placed editor={editor} block={block} place=Place::Template />
+                </ForEach>
             </SettingsSection>
         </SettingsPage>
     }

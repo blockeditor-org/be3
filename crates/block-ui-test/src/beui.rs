@@ -164,6 +164,8 @@ impl<A: BeuiApp> BeuiTest<A> {
         let mut plugin = HeadlessPlugin::new("block-ui-test", "block-ui-test", "0");
         plugin.adopt::<A>(INSTANCE, adopted);
         let store = ContentStore::new(host.organization_id());
+        let blocks = host.blocks();
+        store.know_elsewhere(move |block| blocks.info(block).is_some());
         let block_type = host.block_type().unwrap_or_default();
         let (account_id, organization_id, client_id) = (
             host.account_id().into_bytes(),

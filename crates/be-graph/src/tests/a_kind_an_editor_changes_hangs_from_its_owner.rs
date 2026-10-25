@@ -16,7 +16,10 @@ fn a_kind_an_editor_changes_hangs_from_its_owner() {
         .insert(workspace, BlockNode::new(TYPE, owner, BlockParent::Root))
         .unwrap();
     graph
-        .insert(note, BlockNode::new(TYPE, owner, BlockParent::Block(workspace)))
+        .insert(
+            note,
+            BlockNode::new(TYPE, owner, BlockParent::Block(workspace)),
+        )
         .unwrap();
     graph
         .insert(
@@ -25,7 +28,10 @@ fn a_kind_an_editor_changes_hangs_from_its_owner() {
         )
         .unwrap();
     graph
-        .insert(home, BlockNode::new(TYPE, owner, BlockParent::Block(settings)))
+        .insert(
+            home,
+            BlockNode::new(TYPE, owner, BlockParent::Block(settings)),
+        )
         .unwrap();
     graph
         .insert(

@@ -26,7 +26,11 @@ fn a_workspace_opens_on_its_landing_page() {
         HomeContent::CONTENT_TYPE,
         BlockParent::Block(settings),
     ));
-    store.add_block(BlockInfo::new(landing, SHOWN_TYPE, BlockParent::Block(workspace)));
+    store.add_block(BlockInfo::new(
+        landing,
+        SHOWN_TYPE,
+        BlockParent::Block(workspace),
+    ));
     let mut kinds = SettingsContent::default();
     kinds.apply(&Settings::set_kind(HomeContent::CONTENT_TYPE, home));
     fixture.test.hold(Some(settings), kinds);

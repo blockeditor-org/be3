@@ -13,10 +13,10 @@ use block_editor_beui::beui::styled::*;
 use block_editor_beui::beui::unstyled::{self, BackSlide, ButtonHandle, MenuItem, TreeItem};
 use block_editor_beui::beui::{Color32, NodeId, Rect};
 use block_editor_beui::block_ui::BlockTypes;
+use block_editor_beui::tags::{ShownTag, TagChip};
 use block_editor_beui::{
     Administrator, BlockFilter, BlockPicker, Drag, Editor, Toolbar, node_anchor, phone_layout,
 };
-use block_editor_beui::tags::{ShownTag, TagChip};
 use uuid::Uuid;
 
 use super::export::{Export, ExportFormat, Exporter};
@@ -516,7 +516,9 @@ fn TreeRow(
                         .and_then(|row| row.tags.into_iter().find(|held| held.id == tag))
                         .unwrap_or(ShownTag { id: tag, name: String::new(), color: Default::default() })
                 });
-                view! { <TagChip tag={shown} size=TextSize::Xs /> }
+                view! {
+                    <TagChip tag={shown} size=TextSize::Xs />
+                }
             }</ForEach>
             <Show condition={generated}>
                 <Tooltip label="Generated from another block">

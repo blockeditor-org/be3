@@ -11,10 +11,10 @@ use block_editor_beui::be_block::{BlockContent, HomeContent, SettingsContent};
 use block_editor_beui::beui::icons::{
     ICON_BOXES, ICON_DATABASE, ICON_PIN, ICON_ROTATE_CCW_CLOCK, ICON_USERS, named,
 };
-use block_editor_beui::tags::{ShownTag, tags_of};
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::block_ui::{BlockTypes, Press};
 pub(crate) use block_editor_beui::sections::{own_system, shared_with_me, workspaces};
+use block_editor_beui::tags::{ShownTag, tags_of};
 use block_editor_beui::{AccessLevel, BlockInfo, BlockList, BlockParent, BlockQuery, Blocks};
 use block_editor_beui::{Editor, label_glyph};
 use serde::{Deserialize, Serialize};

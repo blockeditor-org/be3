@@ -691,7 +691,8 @@ fn keep_registered(
                 };
                 let owner = untrack(|| nearest.get().map(|set| set.owner));
                 if registered.unwrap_or_default() != wanted
-                    && owner.is_some_and(|owner| untrack(|| editor.blocks().access(owner)).can_edit())
+                    && owner
+                        .is_some_and(|owner| untrack(|| editor.blocks().access(owner)).can_edit())
                 {
                     untrack(|| held.operate(PrefixRegistry::register(database, Some(&wanted))));
                 }

@@ -82,6 +82,7 @@ struct Inner {
     watched_queries: Vec<BlockQuery>,
     answered: BTreeMap<BlockQuery, Vec<BlockInfo>>,
     deferred: Option<Vec<(Uuid, EditorId, FromEditor)>>,
+    known_elsewhere: Option<Rc<dyn Fn(Uuid) -> bool>>,
 }
 
 impl Default for Inner {
@@ -112,6 +113,7 @@ impl Default for Inner {
             watched_queries: Vec::new(),
             answered: BTreeMap::new(),
             deferred: None,
+            known_elsewhere: None,
         }
     }
 }
@@ -1015,13 +1017,21 @@ impl ContentStore {
         }
     }
 
+    pub(crate) fn know_elsewhere(&self, known: impl Fn(Uuid) -> bool + 'static) {
+        self.0.borrow_mut().known_elsewhere = Some(Rc::new(known));
+    }
+
     fn leaves_to_the_test(&self, query: BlockQuery) -> bool {
-        match query {
-            BlockQuery::Block(block) | BlockQuery::Parents(block) => {
-                !self.0.borrow().graph.contains_key(&block)
-            }
-            _ => false,
+        let (BlockQuery::Block(block) | BlockQuery::Parents(block)) = query else {
+            return false;
+        };
+        let inner = self.0.borrow();
+        if inner.graph.contains_key(&block) {
+            return false;
         }
+        let known = inner.known_elsewhere.clone();
+        drop(inner);
+        known.is_some_and(|known| known(block))
     }
 
     fn held(&self, nodes: &[BlockInfo], node: &BlockInfo) -> bool {

@@ -1,5 +1,5 @@
-use block_editor_beui::be_block::be_model::from_cbor;
 use block_editor_beui::be_block::PREFERRED_EDITOR;
+use block_editor_beui::be_block::be_model::from_cbor;
 use block_editor_beui::{
     BlockInfo, BlockParent, BlockTypeDescriptor, Catalog, ChildOperations, EditorDescriptor,
 };

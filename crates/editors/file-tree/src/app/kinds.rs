@@ -1,6 +1,4 @@
-use block_editor_beui::be_block::{
-    BlockContent, Home, PREFERRED_EDITOR, TAG_COLOR, TagsContent,
-};
+use block_editor_beui::be_block::{BlockContent, Home, PREFERRED_EDITOR, TAG_COLOR, TagsContent};
 use block_editor_beui::beui::icons::{
     ICON_APP_WINDOW, ICON_HOUSE, ICON_LAYOUT_TEMPLATE, ICON_PIN, ICON_SETTINGS, ICON_TAG,
 };
@@ -34,9 +32,7 @@ pub(crate) fn TagsMenu(editor: Editor, row: Memo<Option<Row>>) -> MenuItem {
             .workspace_tags(block)
             .or_else(|| editor.personal_tags());
         if let Some(tags) = tags {
-            editor
-                .host()
-                .open_block(tags, TagsContent::CONTENT_TYPE);
+            editor.host().open_block(tags, TagsContent::CONTENT_TYPE);
         }
     };
     view! {
@@ -158,12 +154,24 @@ pub(crate) fn HomeItems(editor: Editor, row: Memo<Option<Row>>) -> MenuItem {
     let workspace = block.and_then(|block| untrack(|| editor.workspace_of(block)));
     let held = create_memo(move || {
         workspace
-            .map(|workspace| editor.resolved_settings::<Home>(workspace).with(|home| home.value()))
+            .map(|workspace| {
+                editor
+                    .resolved_settings::<Home>(workspace)
+                    .with(|home| home.value())
+            })
             .unwrap_or_default()
     });
-    let pinned = create_memo(move || block.is_some_and(|block| held.with(|held| held.pinned.contains_key(&block))));
-    let landing = create_memo(move || block.is_some_and(|block| held.with(|held| held.landing.map(|landing| landing.0) == Some(block))));
-    let template = create_memo(move || block.is_some_and(|block| held.with(|held| held.templates.contains_key(&block))));
+    let pinned = create_memo(move || {
+        block.is_some_and(|block| held.with(|held| held.pinned.contains_key(&block)))
+    });
+    let landing = create_memo(move || {
+        block.is_some_and(|block| {
+            held.with(|held| held.landing.map(|landing| landing.0) == Some(block))
+        })
+    });
+    let template = create_memo(move || {
+        block.is_some_and(|block| held.with(|held| held.templates.contains_key(&block)))
+    });
     let change = move |edit: block_editor_beui::be_block::Edit| {
         if let Some(workspace) = workspace {
             editor.change_block_kind::<Home>(workspace, edit);
@@ -182,11 +190,7 @@ pub(crate) fn HomeItems(editor: Editor, row: Memo<Option<Row>>) -> MenuItem {
         false => "Use it as a template".to_owned(),
     });
     view! {
-        <MenuItem
-            label="Workspace home"
-            glyph=ICON_HOUSE
-            row_test_id={"file-tree.home".to_owned()}
-        >
+        <MenuItem label="Workspace home" glyph=ICON_HOUSE row_test_id={"file-tree.home".to_owned()}>
             <MenuItem
                 label={pin_label}
                 glyph=ICON_PIN

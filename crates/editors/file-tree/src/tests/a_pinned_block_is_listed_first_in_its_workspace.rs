@@ -21,11 +21,14 @@ fn a_pinned_block_is_listed_first_in_its_workspace() {
     pinned.set_name("Plans");
     let mut files = files_workspace(&fixture.host, &[listed.clone(), pinned.clone()]);
     files.metadata.insert(&SETTINGS, &BlockRef(settings));
-    fixture.host.set_blocks(BlockQuery::Roots, vec![files.clone()]);
-    fixture.settle();
     fixture
         .host
-        .set_blocks(BlockQuery::References(MY_FILES), vec![listed, pinned.clone()]);
+        .set_blocks(BlockQuery::Roots, vec![files.clone()]);
+    fixture.settle();
+    fixture.host.set_blocks(
+        BlockQuery::References(MY_FILES),
+        vec![listed, pinned.clone()],
+    );
     fixture
         .host
         .set_blocks(BlockQuery::Block(plans), vec![pinned]);
@@ -37,7 +40,10 @@ fn a_pinned_block_is_listed_first_in_its_workspace() {
     fixture.test.hold(Some(home), kept);
     fixture.settle();
 
-    assert!(fixture.says("Pinned"), "the workspace lists what is pinned first");
+    assert!(
+        fixture.says("Pinned"),
+        "the workspace lists what is pinned first"
+    );
     assert!(
         fixture.test.shown(&format!("file-tree.pinned.{plans}.row")),
         "the pinned block has a row of its own under Pinned"

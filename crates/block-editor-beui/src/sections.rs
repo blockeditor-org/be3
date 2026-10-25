@@ -12,7 +12,8 @@ const SYSTEM_TYPES: [Uuid; 2] = [
 ];
 
 pub fn is_settings_part(block: &BlockInfo, container: Option<Uuid>) -> bool {
-    let held = container.is_some_and(|container| block.parent == Some(BlockParent::Block(container)));
+    let held =
+        container.is_some_and(|container| block.parent == Some(BlockParent::Block(container)));
     let kind =
         block.block_type == SettingsContent::CONTENT_TYPE || EDIT_KINDS.contains(&block.block_type);
     (held && kind) || block.block_type == TagContent::CONTENT_TYPE

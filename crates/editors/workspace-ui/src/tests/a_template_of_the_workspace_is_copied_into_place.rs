@@ -2,9 +2,7 @@ use block_editor_beui::be_block::be_model::BlockRef;
 use block_editor_beui::be_block::{
     BlockContent, Home, HomeContent, SETTINGS, Settings, SettingsContent, WORKSPACE_TYPE,
 };
-use block_editor_beui::{
-    BlockImport, BlockInfo, BlockLocation, BlockPick, HostReply, HostRequest,
-};
+use block_editor_beui::{BlockImport, BlockInfo, BlockLocation, BlockPick, HostReply, HostRequest};
 
 use super::*;
 

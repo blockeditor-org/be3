@@ -60,7 +60,9 @@ async fn an_editor_changes_the_prefixes_and_tags_but_no_other_kind() {
         );
         let opened = editor.grant(kind, ANYONE_INSIDE, Access::View).await;
         assert!(matches!(opened, ServerMessage::Ok { .. }), "{opened:?}");
-        let shared = editor.grant(kind, Uuid::from_u128(0x5e), Access::View).await;
+        let shared = editor
+            .grant(kind, Uuid::from_u128(0x5e), Access::View)
+            .await;
         assert!(
             refused_as(&shared, ErrorCode::PermissionDenied),
             "an editor shared a kind: {shared:?}"

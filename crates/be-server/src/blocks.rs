@@ -725,8 +725,8 @@ impl ServerStore {
                     if !node.is_open_inside() || found.contains_key(&node.content_type) {
                         continue;
                     }
-                    if let Some(summary) = summary_with(graph, &seen, kind)
-                        .filter(|summary| summary.access.can_view())
+                    if let Some(summary) =
+                        summary_with(graph, &seen, kind).filter(|summary| summary.access.can_view())
                     {
                         found.insert(node.content_type, summary);
                     }

@@ -22,7 +22,11 @@ fn a_workspaces_home_and_prefixes_list_what_they_hold() {
     let mut prefixes = BeuiTest::<PrefixesApp>::new(OwnedEditor::new(host, kind));
     let store = prefixes.store();
     store.add_block(BlockInfo::new(workspace, WORKSPACE_TYPE, BlockParent::Root));
-    for (id, name) in [(issues, "Issues"), (bugs, "Bugs"), (milestones, "Milestones")] {
+    for (id, name) in [
+        (issues, "Issues"),
+        (bugs, "Bugs"),
+        (milestones, "Milestones"),
+    ] {
         store.add_block(named(id, name, workspace));
     }
     let mut listed = PrefixRegistryContent::default();

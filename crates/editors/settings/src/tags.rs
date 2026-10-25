@@ -1,5 +1,5 @@
 use block_editor_beui::be_block::{
-    BlockContent, SettingsContent, Tag, TagColor, TagContent, TagsContent, TAGS_TYPE,
+    BlockContent, SettingsContent, TAGS_TYPE, Tag, TagColor, TagContent, TagsContent,
 };
 use block_editor_beui::beui::icons::{ICON_PLUS, ICON_TRASH};
 use block_editor_beui::beui::reactive::*;
@@ -79,9 +79,9 @@ pub fn TagsView(editor: Editor) -> NodeId {
                 <Show condition={empty}>
                     <SettingsRow label="No tags yet." compact=true />
                 </Show>
-                <ForEach keys={ids}>|tag: Uuid| {
-                    view! { <TagRow editor={editor} tag={tag} /> }
-                }</ForEach>
+                <ForEach keys={ids}>|tag: Uuid|
+                    <TagRow editor={editor} tag={tag} />
+                </ForEach>
                 <SettingsRow label="New tag">
                     <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
                         <TextInput
@@ -138,41 +138,43 @@ fn TagRow(editor: Editor, tag: Uuid) -> NodeId {
     });
     view! {
         <List spacing=0.0>
-        <SettingsRow label={name} description={count}>
-            <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
-                <TagDot color={color} size=TextSize::Base />
-                <Frame width=110.0>
-                    <TextInput
-                        value={Binding::new(name, rename)}
+            <SettingsRow label={name} description={count}>
+                <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
+                    <TagDot color={color} size=TextSize::Base />
+                    <Frame width=110.0>
+                        <TextInput
+                            value={Binding::new(name, rename)}
+                            disabled={locked}
+                            @test_id={format!("tags.tag.{tag}.name")}
+                        />
+                    </Frame>
+                    <Frame width=100.0>
+                        <Select
+                            label="Color"
+                            options={view! {
+                                <ForEach
+                                    keys={create_memo(|| (0..TagColor::ALL.len()).collect::<Vec<usize>>())}
+                                >|index: usize|
+                                    <ChoiceOption label={TagColor::ALL[index].label().to_owned()} />
+                                </ForEach>
+                            }}
+                            selected={Binding::new(selected, recolor)}
+                            disabled={locked}
+                            @test_id={format!("tags.tag.{tag}.color")}
+                        />
+                    </Frame>
+                    <IconButton
+                        glyph=ICON_TRASH
+                        label="Remove tag"
                         disabled={locked}
-                        @test_id={format!("tags.tag.{tag}.name")}
+                        @test_id={format!("tags.tag.{tag}.remove")}
+                        on_click={remove}
                     />
-                </Frame>
-                <Frame width=100.0>
-                <Select
-                    label="Color"
-                    options={view! {
-                        <ForEach keys={create_memo(|| (0..TagColor::ALL.len()).collect::<Vec<usize>>())}>|index: usize| {
-                            view! { <ChoiceOption label={TagColor::ALL[index].label().to_owned()} /> }
-                        }</ForEach>
-                    }}
-                    selected={Binding::new(selected, recolor)}
-                    disabled={locked}
-                    @test_id={format!("tags.tag.{tag}.color")}
-                />
-                </Frame>
-                <IconButton
-                    glyph=ICON_TRASH
-                    label="Remove tag"
-                    disabled={locked}
-                    @test_id={format!("tags.tag.{tag}.remove")}
-                    on_click={remove}
-                />
-            </List>
-        </SettingsRow>
-        <ForEach keys={tagged}>|block: Uuid| {
-            view! { <TaggedBlock editor={editor} block={block} /> }
-        }</ForEach>
+                </List>
+            </SettingsRow>
+            <ForEach keys={tagged}>|block: Uuid|
+                <TaggedBlock editor={editor} block={block} />
+            </ForEach>
         </List>
     }
 }

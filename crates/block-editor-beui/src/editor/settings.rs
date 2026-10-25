@@ -374,7 +374,10 @@ impl Editor {
             BlockParent::Block(owner),
             be_block::BlockMetadata::default(),
         );
-        blocks.define(owner, edit_kind_key(kind).definition(Some(&BlockRef(block))));
+        blocks.define(
+            owner,
+            edit_kind_key(kind).definition(Some(&BlockRef(block))),
+        );
         if R::VISIBILITY == KindVisibility::Inside {
             self.host()
                 .set_access(block, ANYONE_INSIDE, AccessLevel::View);
@@ -430,8 +433,10 @@ impl Editor {
                 .borrow_mut()
                 .created_kinds
                 .remove(&(owner, kind));
-            self.blocks().define(owner, edit_kind_key(kind).definition(None));
-            self.host().delete_block(block, kind, BlockParent::Block(owner));
+            self.blocks()
+                .define(owner, edit_kind_key(kind).definition(None));
+            self.host()
+                .delete_block(block, kind, BlockParent::Block(owner));
             return;
         }
         let held = self.content_of::<SettingsContent>(settings);

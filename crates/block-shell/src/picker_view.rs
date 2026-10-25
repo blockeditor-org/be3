@@ -1,11 +1,10 @@
 use beui::Wrap;
 use block_editor_beui::beui::icons::Glyph;
 use block_editor_beui::beui::icons::{
-    ICON_ARROW_LEFT, ICON_BLOCKS, ICON_CHEVRON_RIGHT, ICON_FILE_UP, ICON_FOLDER, ICON_LAYOUT_TEMPLATE, ICON_LINK,
-    ICON_SEARCH,
+    ICON_ARROW_LEFT, ICON_BLOCKS, ICON_CHEVRON_RIGHT, ICON_FILE_UP, ICON_FOLDER,
+    ICON_LAYOUT_TEMPLATE, ICON_LINK, ICON_SEARCH,
 };
 use block_editor_beui::beui::reactive::*;
-use uuid::Uuid;
 use block_editor_beui::beui::styled::*;
 use block_editor_beui::beui::unstyled::{
     self, ButtonHandle, DockDialog, DockDialogPresentation, DockNode, MenuThen, TabId, TreeItem,
@@ -15,6 +14,7 @@ use block_editor_beui::block_ui::TemplateEntry;
 use block_editor_beui::{
     BlockParent, ChildMode, ChildState, CreationProgress, Subregion, SubregionContent, label_glyph,
 };
+use uuid::Uuid;
 
 use super::picker::{
     Creating, Pick, PickAction, PickTree, Stage, TreeKey, TreeRow, TypeGroup, common, groups,

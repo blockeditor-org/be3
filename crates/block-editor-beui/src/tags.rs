@@ -55,7 +55,12 @@ pub fn TagDot(color: Prop<TagColor>, #[prop(default = TextSize::Sm)] size: TextS
     let fill = create_memo(move || tag_color(color.get(), theme.kind.get()));
     let dot = (size.icon_px() * 0.6).round();
     view! {
-        <Frame width=dot height=dot radius={Radius::custom((dot / 2.0).floor())} fill={ColorRole::custom(fill)} />
+        <Frame
+            width=dot
+            height=dot
+            radius={Radius::custom((dot / 2.0).floor())}
+            fill={ColorRole::custom(fill)}
+        />
     }
 }
 
@@ -84,7 +89,8 @@ impl Editor {
         };
         let tags = retagged(&info.metadata, tag, on);
         let value = (!tags.is_empty()).then_some(tags);
-        self.blocks().define(block, TAGGED.definition(value.as_ref()));
+        self.blocks()
+            .define(block, TAGGED.definition(value.as_ref()));
     }
 
     pub fn workspace_tags(&self, block: Uuid) -> Option<Uuid> {
@@ -117,7 +123,10 @@ impl Editor {
     pub fn remove_tag(&self, tags: Uuid, tag: Uuid) {
         self.content_of::<TagsContent>(tags)
             .operate(Tags::remove(tag));
-        self.host()
-            .delete_block(tag, <TagContent as be_block::BlockContent>::CONTENT_TYPE, BlockParent::Block(tags));
+        self.host().delete_block(
+            tag,
+            <TagContent as be_block::BlockContent>::CONTENT_TYPE,
+            BlockParent::Block(tags),
+        );
     }
 }

@@ -70,5 +70,8 @@ fn a_workspaces_tags_are_added_named_and_list_the_blocks_they_are_on() {
         "a tag lives under the tags it is one of"
     );
     editor.snapshot("a_workspaces_tags_are_added_named_and_list_the_blocks_they_are_on");
-    assert!(editor.shown(&format!("tags.block.{notes}")), "a tag lists the blocks it is on");
+    assert!(
+        editor.shown(&format!("tags.block.{notes}")),
+        "a tag lists the blocks it is on"
+    );
 }

@@ -20,7 +20,10 @@ fn a_tag_from_the_workspace_marks_a_block_and_shows_on_its_row() {
         let mut info = BlockInfo::new(id, TagsContent::CONTENT_TYPE, BlockParent::Block(tags));
         info.block_type = block_editor_beui::be_block::TagContent::CONTENT_TYPE;
         info.set_name(name);
-        info.metadata.derived.insert(TAG_COLOR.id, block_editor_beui::be_block::be_model::to_cbor(&color));
+        info.metadata.derived.insert(
+            TAG_COLOR.id,
+            block_editor_beui::be_block::be_model::to_cbor(&color),
+        );
         fixture.host.set_blocks(BlockQuery::Block(id), vec![info]);
     };
     tag(urgent, "Urgent", TagColor::Red);
@@ -32,13 +35,17 @@ fn a_tag_from_the_workspace_marks_a_block_and_shows_on_its_row() {
     other.metadata.insert(&TAGGED, &vec![BlockRef(later)]);
     let mut files = files_workspace(&fixture.host, &[listed.clone(), other.clone()]);
     files.metadata.insert(&TAG_DEFINITIONS, &BlockRef(tags));
-    fixture.host.set_blocks(BlockQuery::Roots, vec![files.clone()]);
+    fixture
+        .host
+        .set_blocks(BlockQuery::Roots, vec![files.clone()]);
     fixture.settle();
     fixture
         .host
         .set_blocks(BlockQuery::References(MY_FILES), vec![listed, other]);
     for block in [notes, plans] {
-        fixture.host.set_blocks(BlockQuery::Parents(block), vec![files.clone()]);
+        fixture
+            .host
+            .set_blocks(BlockQuery::Parents(block), vec![files.clone()]);
     }
     let mut defined = TagsContent::default();
     defined.apply(&Tags::add(urgent));
@@ -48,16 +55,28 @@ fn a_tag_from_the_workspace_marks_a_block_and_shows_on_its_row() {
 
     fixture.open_menu(notes);
     fixture.click_item("Tags");
-    assert!(fixture.offers("Urgent"), "the menu offers the workspace's tags");
+    assert!(
+        fixture.offers("Urgent"),
+        "the menu offers the workspace's tags"
+    );
     fixture.click_item("Urgent");
     let tagged: Vec<(Uuid, Vec<BlockRef>)> = fixture
         .test
         .take_definitions(TAGGED.id)
         .into_iter()
-        .map(|(block, value)| (block, value.and_then(|value| from_cbor(&value)).unwrap_or_default()))
+        .map(|(block, value)| {
+            (
+                block,
+                value
+                    .and_then(|value| from_cbor(&value))
+                    .unwrap_or_default(),
+            )
+        })
         .collect();
     assert_eq!(tagged, vec![(notes, vec![BlockRef(urgent)])]);
-    fixture.test.key(block_editor_beui::beui::Key::Escape, Modifiers::NONE);
+    fixture
+        .test
+        .key(block_editor_beui::beui::Key::Escape, Modifiers::NONE);
     fixture.settle();
 
     assert!(fixture.says("Later"), "a row shows the tags on its block");

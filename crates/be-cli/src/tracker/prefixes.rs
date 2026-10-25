@@ -1,7 +1,7 @@
+use be_block::be_model::BlockRef;
 use be_block::{BlockContent, PREFIXES, PrefixRegistry, PrefixRegistryContent};
 use be_client::Saved;
 use be_graph::{Access, BlockParent};
-use be_block::be_model::BlockRef;
 use be_store::ObjectStore;
 use database_types::database::DatabaseContent;
 use uuid::Uuid;
@@ -45,12 +45,16 @@ impl<S: ObjectStore> Tracker<S> {
             if summary.content_type == be_block::WORKSPACE_TYPE && workspace.is_none() {
                 workspace = Some(block);
             }
-            if summary.content_type != database_types::database_view::DatabaseViewContent::CONTENT_TYPE {
+            if summary.content_type
+                != database_types::database_view::DatabaseViewContent::CONTENT_TYPE
+            {
                 outermost = Some(block);
             }
             current = summary.parent;
         }
-        Ok(workspace.or(outermost).map(|owner| Registry { owner, kind: None }))
+        Ok(workspace
+            .or(outermost)
+            .map(|owner| Registry { owner, kind: None }))
     }
 
     async fn change_registry(&self, kind: Uuid, edit: &be_block::Edit) -> Result<(), String> {
@@ -70,7 +74,12 @@ impl<S: ObjectStore> Tracker<S> {
             if content.root() == before {
                 return Ok(());
             }
-            match self.peer.save(kind, &content, head).await.map_err(explain)? {
+            match self
+                .peer
+                .save(kind, &content, head)
+                .await
+                .map_err(explain)?
+            {
                 Saved::Rejected { .. } => continue,
                 Saved::Published(_) | Saved::Unchanged(_) => return Ok(()),
             }
@@ -114,7 +123,10 @@ impl<S: ObjectStore> Tracker<S> {
         Ok(())
     }
 
-    pub async fn register_uploaded(&self, blocks: &[be_client::transfer::Saved]) -> Result<(), String> {
+    pub async fn register_uploaded(
+        &self,
+        blocks: &[be_client::transfer::Saved],
+    ) -> Result<(), String> {
         for block in blocks {
             if block.block_type != DatabaseContent::CONTENT_TYPE {
                 continue;
