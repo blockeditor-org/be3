@@ -42,8 +42,10 @@ through a layer gets that layer's guarantees, and nothing else does.
    the join, and the game talks over a channel of its own.
 3. **Storage and history.** Encrypted, content-addressed bytes, commits, and
    three-way merge of offline edits. The server stores objects it can't read.
-4. **Live sync.** Today every block goes through a session owner that puts each
-   operation in one order, so nothing has to be a CRDT. Once plugins can
+4. **Live sync.** Today the server puts each block's operations in one order,
+   still sealed, and every client applies that order the same way, so nothing
+   has to be a CRDT and an edit reaches the others in one trip through the
+   server. Once plugins can
    provide block types, a plugin should be able to bring its own instead: a
    CRDT that needs no true order, OT, or a game's own netcode that has no
    operations at all, while still using the layers below.
@@ -151,11 +153,18 @@ iced) do put one in the shell. What matters is that client windows stay
 textures passed straight through, so the framework costs only what the shell
 itself draws.
 
-**Why a session owner instead of a CRDT.** A single order makes merging, undo
-and the wire protocol simple, and lets an editor use plain data. Offline edits
-merge three ways over the stored bytes, so a wholesale rewrite conflicts
-visibly instead of interleaving. A block that is better as a CRDT can still be
-one (layer 4).
+**Why a server-ordered session instead of a CRDT.** A single order makes
+merging, undo and the wire protocol simple, and lets an editor use plain data.
+The server can give that order without reading anything: it numbers sealed
+operations, and each client rebases and applies them itself, which is
+deterministic because every client in a session runs the same build of the
+block's type. The order once came from one client, the session's owner, which
+put a phone somewhere else on the path between two people at the same desk;
+the server is on every path already. One client still holds the session's
+lease, but only to save (seal) what the order produced. Offline edits merge
+three ways over the stored bytes, so a wholesale rewrite conflicts visibly
+instead of interleaving. A block that is better as a CRDT can still be one
+(layer 4).
 
 ## Editors
 

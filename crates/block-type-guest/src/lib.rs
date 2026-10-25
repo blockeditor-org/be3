@@ -288,16 +288,26 @@ impl Module {
             Event::Head { replica, event } => self.input(replica, Input::Head(event), &mut out),
             Event::Lease {
                 replica,
+                client,
                 session,
                 resynchronize,
             } => self.input(
                 replica,
                 Input::Lease {
+                    client,
                     session,
                     resynchronize,
                 },
                 &mut out,
             ),
+            Event::Sequenced { replica, op } => {
+                self.input(replica, Input::Sequenced(op), &mut out);
+            }
+            Event::Caught {
+                replica,
+                token,
+                result,
+            } => self.input(replica, Input::Caught { token, result }, &mut out),
             Event::Read {
                 replica,
                 token,

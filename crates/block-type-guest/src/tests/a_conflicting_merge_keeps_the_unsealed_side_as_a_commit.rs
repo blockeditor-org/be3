@@ -7,6 +7,7 @@ fn a_conflicting_merge_keeps_the_unsealed_side_as_a_commit() {
     sim.attach(0, 1, true);
     let (item, created) = Checklist::add("base");
     sim.operate(0, 1, created);
+    sim.settle();
     sim.advance(crate::SEAL_INTERVAL);
     let base = sim.head.expect("the base was sealed");
     sim.operate(0, 1, Checklist::set_text(item, "ours"));

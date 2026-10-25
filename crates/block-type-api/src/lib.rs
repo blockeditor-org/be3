@@ -1,7 +1,7 @@
 use std::{collections::BTreeMap, fmt};
 
 pub use be_commit::CommitId;
-pub use be_protocol::{ClientId, SessionState};
+pub use be_protocol::{ClientId, OpId, SessionLog, SessionOp, SessionSeal, SessionState};
 pub use be_session::Resume;
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use uuid::Uuid;
@@ -72,8 +72,18 @@ pub enum Event {
     },
     Lease {
         replica: ReplicaId,
+        client: ClientId,
         session: SessionState,
         resynchronize: bool,
+    },
+    Sequenced {
+        replica: ReplicaId,
+        op: SessionOp,
+    },
+    Caught {
+        replica: ReplicaId,
+        token: Token,
+        result: Result<SessionLog, String>,
     },
     Read {
         replica: ReplicaId,
@@ -251,6 +261,7 @@ pub enum Plain {
 pub struct Status {
     pub head: Option<CommitId>,
     pub owner: bool,
+    pub submitted: bool,
     pub clean: bool,
     pub owes_seal: bool,
     pub incompatible: bool,
@@ -299,7 +310,19 @@ pub enum Command {
     ReportClean {
         replica: ReplicaId,
         generation: u64,
-        clean_at: Option<CommitId>,
+        seal: SessionSeal,
+    },
+    Submit {
+        replica: ReplicaId,
+        id: OpId,
+        base: u64,
+        barrier: bool,
+        payload: Vec<u8>,
+    },
+    Catchup {
+        replica: ReplicaId,
+        token: Token,
+        origin: u64,
     },
     Release {
         replica: ReplicaId,

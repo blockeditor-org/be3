@@ -192,13 +192,17 @@ impl<H: Host> Replicas<H> {
             return;
         };
         let owned = !kind.frozen && H::owned(shared, block);
+        let Some(module) = self.modules.module_of(content_type) else {
+            return;
+        };
+        let tag = self.modules.tag(module);
         let joined = async {
             peer.ensure_type(block, content_type, BlockParent::Detached)
                 .await?;
             if owned && H::reshaped(shared, block, &kind.schema) {
                 reset::<H>(peer, block, &kind).await?;
             }
-            let (client, session) = peer.join_session(block).await?;
+            let (client, session) = peer.join_session(block, tag.0).await?;
             peer.watch(block).await?;
             let head = peer.remote_head(block).await?;
             Ok::<_, ClientError>((client, session, head))
@@ -220,9 +224,6 @@ impl<H: Host> Replicas<H> {
         }
         self.next += 1;
         let replica = self.next;
-        let Some(module) = self.modules.module_of(content_type) else {
-            return;
-        };
         let organization = peer.organization();
         self.blocks.insert(block, replica);
         self.open.insert(
@@ -249,7 +250,6 @@ impl<H: Host> Replicas<H> {
                 epoch: 0,
             },
         );
-        let tag = self.modules.tag(module);
         let mut events = vec![Event::Open {
             replica,
             block,
@@ -581,11 +581,26 @@ impl<H: Host> Replicas<H> {
                 let module = open.module;
                 let event = Event::Lease {
                     replica,
+                    client: open.client,
                     session: state.clone(),
                     resynchronize: false,
                 };
                 open.replay.push(event.clone());
                 self.modules.send(module, vec![event]);
+            }
+            ServerMessage::Sequenced { block, op } => {
+                let Some(replica) = self.blocks.get(block).copied() else {
+                    return;
+                };
+                let op = match peer.unseal_op(op.clone()).await {
+                    Ok(op) => op,
+                    Err(error) => return H::record(shared, error),
+                };
+                let Some(open) = self.open.get(&replica) else {
+                    return;
+                };
+                self.modules
+                    .send(open.module, vec![Event::Sequenced { replica, op }]);
             }
             ServerMessage::Relayed {
                 block,
@@ -627,7 +642,14 @@ impl<H: Host> Replicas<H> {
             .map(|(replica, open)| (*replica, open.block))
             .collect::<Vec<_>>()
         {
-            let session = match peer.join_session(block).await {
+            let Some(tag) = self
+                .open
+                .get(&replica)
+                .map(|open| self.modules.tag(open.module))
+            else {
+                continue;
+            };
+            let session = match peer.join_session(block, tag.0).await {
                 Ok((_, session)) => session,
                 Err(error) => {
                     H::record(shared, error);
@@ -643,6 +665,7 @@ impl<H: Host> Replicas<H> {
                 module,
                 vec![Event::Lease {
                     replica,
+                    client: open.client,
                     session,
                     resynchronize: true,
                 }],
@@ -692,11 +715,15 @@ impl<H: Host> Replicas<H> {
     pub async fn reconnect(&mut self, (peer, shared): Ctx<'_, H>) {
         let replicas: Vec<ReplicaId> = self.open.keys().copied().collect();
         for replica in replicas {
-            let Some(block) = self.open.get(&replica).map(|open| open.block) else {
+            let Some((block, tag)) = self
+                .open
+                .get(&replica)
+                .map(|open| (open.block, self.modules.tag(open.module)))
+            else {
                 continue;
             };
             let joined = async {
-                let (client, session) = peer.join_session(block).await?;
+                let (client, session) = peer.join_session(block, tag.0).await?;
                 peer.watch(block).await?;
                 let head = peer.remote_head(block).await?;
                 Ok::<_, ClientError>((client, session, head))
@@ -714,40 +741,17 @@ impl<H: Host> Replicas<H> {
             };
             open.client = client;
             open.session = session.clone();
-            open.epoch += 1;
-            open.publishing = 0;
-            open.moved.clear();
-            open.published.clear();
-            open.replay.retain(|event| {
-                matches!(
-                    event,
-                    Event::Message {
-                        from: Endpoint::Editor(_),
-                        ..
-                    }
-                )
-            });
             let module = open.module;
-            let mut events = vec![Event::Open {
-                replica,
-                block,
-                content_type: open.content_type,
-                organization: open.organization,
-                client,
-                tag: self.modules.tag(module),
-                head: open.status.head,
-                session,
-            }];
-            for (editor, editable) in &open.editors {
-                events.push(Event::Attach {
-                    replica,
-                    editor: *editor,
-                    editable: *editable,
-                });
-            }
-            events.extend(open.replay.iter().cloned());
             let known = open.status.head;
-            self.modules.send(module, events);
+            self.modules.send(
+                module,
+                vec![Event::Lease {
+                    replica,
+                    client,
+                    session,
+                    resynchronize: true,
+                }],
+            );
             if let Some(head) = head
                 && Some(head) != known
             {
@@ -1023,6 +1027,7 @@ impl<H: Host> Replicas<H> {
                             open.session = state.clone();
                             let event = Event::Lease {
                                 replica,
+                                client: open.client,
                                 session: state,
                                 resynchronize: false,
                             };
@@ -1037,14 +1042,59 @@ impl<H: Host> Replicas<H> {
             Command::ReportClean {
                 replica,
                 generation,
-                clean_at,
+                seal,
             } => {
                 let Some((block, _, true)) = replica_of(replica, &self.open) else {
                     return false;
                 };
-                if let Err(error) = peer.heartbeat(block, generation, clean_at).await {
+                if let Err(error) = peer.heartbeat(block, generation, seal).await {
                     H::record(shared, error);
                 }
+                false
+            }
+            Command::Submit {
+                replica,
+                id,
+                base,
+                barrier,
+                payload,
+            } => {
+                let Some((block, _, true)) = replica_of(replica, &self.open) else {
+                    return false;
+                };
+                if let Err(error) = peer.submit(block, id, base, barrier, &payload).await {
+                    H::record(shared, error);
+                }
+                false
+            }
+            Command::Catchup {
+                replica,
+                token,
+                origin,
+            } => {
+                let Some((block, _, true)) = replica_of(replica, &self.open) else {
+                    return false;
+                };
+                let epoch = self.open.get(&replica).map_or(0, |open| open.epoch);
+                let peer = Arc::clone(peer);
+                let io = self.io.clone();
+                H::spawn(async move {
+                    let result = peer
+                        .catch_up(block, origin)
+                        .await
+                        .map_err(|error| error.to_string());
+                    let _ = io.send(Io::Answer {
+                        replica,
+                        epoch,
+                        event: Box::new(Event::Caught {
+                            replica,
+                            token,
+                            result,
+                        }),
+                        published: None,
+                    });
+                    H::wake();
+                });
                 false
             }
             Command::Release { replica } => {
@@ -1071,7 +1121,7 @@ impl<H: Host> Replicas<H> {
                     return false;
                 }
                 let block = open.block;
-                if status.clean && status.head.is_some() && !status.owes_seal {
+                if status.submitted && status.head.is_some() {
                     open.replay.clear();
                 }
                 let became_unreadable =

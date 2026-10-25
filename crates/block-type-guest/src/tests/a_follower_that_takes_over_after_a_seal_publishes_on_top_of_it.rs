@@ -21,6 +21,7 @@ fn a_follower_that_takes_over_after_a_seal_publishes_on_top_of_it() {
     );
     assert!(sim.devices[1].status.owner);
     sim.operate(1, 1, Counter::add(100));
+    sim.settle();
     sim.advance(crate::SEAL_INTERVAL);
     assert_eq!(sim.publishes, 2);
     assert_eq!(

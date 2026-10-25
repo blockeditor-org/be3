@@ -61,8 +61,8 @@ touched once they have been asked for (the test host asks after every edit, the 
 worker on every publish), the app's worker publishes a block's operations and encodes a
 snapshot only every few hundred of them (`Content` folds the operations since its snapshot
 when something reads it), and an editor holding edits the host has not acknowledged, or a
-follower holding edits the owner has not accepted, rebases them under a peer's edit by what
-either touched (`Document::rebase`) instead of rebuilding; the follower's app tells its
+replica holding edits the server has not ordered yet, rebases them under a peer's edit by what
+either touched (`Document::rebase`) instead of rebuilding; the replica tells its
 editors with a `Beneath` operation rather than a snapshot (guides/the_new_block_stack.md).
 
 Accessibility follows the camera the way placement does. Each space a node lays children

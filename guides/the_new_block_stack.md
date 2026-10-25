@@ -39,9 +39,9 @@ each of these is something not to bring back.
 
 1. Durable state is bytes. A block's persistent form is a byte string, stored as
    an ordered list of chunks. Backups are a commit chain over those bytes.
-2. Live editing converges through a session owner, not through a CRDT. A block
-   type may still be a CRDT where that is genuinely better, but nothing depends
-   on it.
+2. Live editing converges through one order the server gives a session's
+   sealed operations, not through a CRDT. A block type may still be a CRDT
+   where that is genuinely better, but nothing depends on it.
 3. Offline divergence resolves by three-way merge over the persistent bytes, so
    a wholesale rewrite conflicts visibly instead of interleaving.
 4. Partial reads. A ten gigabyte video streams; it is not loaded to be shown.
@@ -54,7 +54,7 @@ each of these is something not to bring back.
 ```
 be-store     objects, chunking, encryption        client + server
 be-commit    commit DAG, retention, merge         client + server
-be-session   ownership lease, sequencer, resume   client + server
+be-session   lease, sequencer, follower, resume  client + server
 be-graph     parents, edges, access, refcounts    server
 be-protocol  the wire format                      client + server
 be-model     objects with ids, merge, undo, derive client
@@ -122,23 +122,42 @@ Content-addressed, encrypted object storage.
 
 ### be-session
 
-- `Lease` is ownership. The first participant owns the session; a claim succeeds
-  only against the generation the claimant last saw, and only when the lease has
-  expired or the owner is gone. Generation numbers stop a stale claim from
-  stomping a newer owner. Only a seal's heartbeat (`ReportClean`) renews the
-  lease, so an owner that edits nothing (a viewer) loses it to the next claim
-  once it lapses. Its length is `ServerConfig::lease`; tests that claim pass zero
-  (block-app's `Harness::lapsing`, `Lease::lasting(0)` in the replica's `Sim`)
-  so a claim never waits on the clock.
-- `clean_at` is the commit the owner last reported its state durable at. It
-  outlives the session going empty (see `sessions::forgettable`), so a peer
-  taking over an abandoned session can tell whether anything was unpublished.
+- `Sequencer` is the server's half of a live session: it numbers each sealed
+  submission (`SessionOp`: an `OpId` of the submitting replica's `origin` and a
+  counter, the `base` sequence it was made on, and the payload, which it never
+  opens), keeps the log since the last seal, and drops a submission whose
+  counter it has already numbered, so work resubmitted after a lost answer or
+  a reconnect lands once. Each op carries a `floor`: the start of the log, or
+  the last barrier (a submission marked `barrier`, which a replacement is)
+  when that is later. Every replica drops an operation based below its floor,
+  so all of them decide alike. `sealed` takes the lease holder's
+  `SessionSeal` (head, sequence, the content's sealed `session_state`) and
+  trims the log, keeping the operations later ones were based on so a late
+  joiner can rebase them too (`SessionLog`: the seal, the log, and the
+  caller's highest numbered counter).
+- `Follower` is a replica's half: its origin and counter, the sequence it has
+  applied (the `base` of what it submits) and the operations it submitted that
+  have not come back numbered.
+- `Lease` is who seals. The first participant holds it; a claim succeeds only
+  against the generation the claimant last saw, and only when the lease has
+  expired or the holder is gone. Generation numbers stop a stale claim from
+  stomping a newer holder. Only a seal's heartbeat (`ReportClean`) renews the
+  lease, so a holder that edits nothing (a viewer) loses it to the next claim
+  once it lapses. Its length is `ServerConfig::lease`; tests that claim pass
+  zero (block-app's `Harness::lapsing`, `Lease::lasting(0)` in the replica's
+  `Sim`) so a claim never waits on the clock. The first participant also
+  names the session's build (`SessionState::tag`, the type module's hash);
+  `speaks` is false for a participant running another, whose submissions the
+  server refuses. The lease orders nothing: who holds it changes only who
+  seals, so taking it over moves no state.
+- `clean_at` is the commit the holder last reported its state durable at. It
+  outlives the session going empty (see `sessions::forgettable`).
 - `resume` decides whether a returning peer merges, and the answer comes from
   history, not from having been away: an ancestor head fast-forwards, a
   descendant head publishes, and only genuine divergence merges.
-- `Sequencer` and `Follower` are the two ends of the ordering. Operations carry
-  an `OpId`, so work a peer submitted before losing its connection is
-  deduplicated on the way back in rather than applied twice.
+- `SessionMessage` is what replicas relay to each other outside the order:
+  `Sealed` (the holder's latest seal, so the others know the head and what it
+  holds), `Presence` and `Channel`.
 
 ### be-graph
 
@@ -294,6 +313,14 @@ time, so notifications wait for the next post.
   was never a head stays readable.
 - The graph is cached per organization in memory and dropped on any error so it
   reloads from the database rather than drifting.
+- `SessionRegistry` (`sessions.rs`) holds each live session's lease and
+  sequencer. `JoinSession` names the joiner's build and starts the sequencer at
+  the block's head when the session is new; `Submit` numbers a sealed
+  operation and sends `Sequenced` to every participant, the submitter too,
+  under the registry's lock so each participant hears them in order;
+  `Catchup` answers the `SessionLog`; a `Heartbeat` from the holder carries
+  its `SessionSeal` and trims the log. A session that empties drops its log
+  and keeps only `clean_at`.
 
 ### be-block
 
@@ -391,48 +418,43 @@ polling either.
 
 A block being edited is in a session, which each device holds in its type
 module's replica (`block-type-guest`, guides/type_modules.md); the peer only
-relays, seals and stores for it. The owner sequences and broadcasts; a follower
-applies its own edit immediately, rebases it against operations that arrive in
-between, and reconciles against the owner's echo. A replica keeps `confirmed`
-(server-ordered) and `visible` (`confirmed` plus pending). A seal writes a
-commit, heartbeats `clean_at`, and tells the followers with
-`SessionMessage::Sealed` which commit now holds which sequence number. A
-reconcile runs the resume decision and merges when it has to.
+relays, seals and stores for it. Every replica works the same way: it applies
+its own edit at once and submits it to the server, which numbers it and sends
+it to every participant; each replica applies that order, rebasing each
+operation onto the ones numbered between its `base` and itself, and rebases
+its own unconfirmed edits beneath what arrives first. An edit therefore goes
+author, server, everyone, and no participant waits on another. A replica keeps
+`confirmed` (the order applied so far) and `visible` (`confirmed` plus its own
+unconfirmed edits).
 
-A follower's `head` is only right because of `Sealed`, and ownership depends on
-it being right. A follower that takes over carries on from the head the last
-owner sealed: it keeps the old sequence numbering so the other followers keep
-applying what it accepts, it accepts the operations it had pending as its own,
-and it owes a seal for whatever the old owner accepted after its last one.
-Get the head wrong and the new owner's first save is refused, and the resume
-decision reads its unsaved work as something to fast-forward over. A reconcile
-merges unsaved work into anything it fast-forwards or merges onto, and when
-it changes the owner's content outside the operation stream, the next `Sealed`
-tells the followers to reload the head. Only an owner ever seals or reconciles:
-a follower's edits are the owner's to save.
+The lease holder (`Status::owner`) seals: it writes `confirmed` as a commit,
+heartbeats it with the sequence it holds (which lets the server trim its log),
+and tells the others with `SessionMessage::Sealed`, so every replica knows the
+head and what it holds. It also reconciles when the head moves from elsewhere,
+merging what is unsealed. Anything that changes the content outside the order
+(a reconcile, a replacement, an edit too large to submit) enters it as a
+`Reload` entry naming a commit: every replica reads it at that point in the
+order and replays the operations numbered after the commit's base on top, or,
+for a replacement, none. Taking the lease over moves no state: the new holder
+already has the order and the head of the last seal, and owes a seal for
+whatever was ordered since. A host's `Event::Claim` takes a lapsed lease (a
+terminal host takes the block from the viewer that opened it first; a replica
+only claims on its own when the holder has left); a replica ignores it until
+it has caught up.
 
-Ownership also moves while the old owner is still there: a host's
-`Event::Claim` takes a lapsed lease (a terminal host takes the block from the
-viewer that opened it first; a replica only claims on its own when the owner
-has left). The old owner learns of it from the next `Lease` and becomes a
-follower that has applied everything it sequenced, so its status stops saying
-owner and it stops sealing. What it accepted before it heard reaches the new
-owner as `Accepted` from a non-owner: `Sequencer::inherit` keeps it when it
-continues the new owner's numbering, and otherwise the new owner applies it,
-owes a seal and makes that seal reload every follower, which is what reconciles
-the two numberings. A follower is catching up from loading until the owner's
-`Snapshot` arrives, and re-sends its `Catchup` to each new owner meanwhile; a
-replica ignores `Event::Claim` while it is catching up, because an owner that
-never heard the snapshot would number from where it joined and lose the old
-owner's unsaved operations. A follower promoted while catching up, by the owner
-leaving, makes its first seal a reload for the same reason.
+A replica catches up from the server, not from another client: on opening, and
+again on `Lease { resynchronize }` (after a reconnect or when the host fell
+behind the broadcast), it asks for the `SessionLog`, reads the seal's head when
+it is behind it, applies the log after that, drops what it submitted that the
+log shows numbered, and resubmits the rest under the same ids.
 
-A merge that conflicts first writes the owner's unsaved side as a commit of its
-own (`Command::Stash`), so the merge commit has both sides as parents and neither
-is lost, and reports a `be_types_host::Conflict` to its host. A session message
-or operation this version cannot decode marks the session incompatible. On a
-follower that also marks it diverged, because its copy may now be wrong, and a
-diverged session refuses to edit or seal.
+A merge that conflicts first writes the holder's unsaved side as a commit of
+its own (`Command::Stash`), so the merge commit has both sides as parents and
+neither is lost, and reports a `be_types_host::Conflict` to its host. An entry
+or message this version cannot decode marks the session incompatible; every
+replica of the build passes over the same entry, so their copies still agree.
+A replica whose build differs from the session's (`SessionState::tag`) is
+diverged: it refuses to edit or seal, and the server refuses its submissions.
 
 ## Adding a content type
 
@@ -597,12 +619,13 @@ values, and every algorithm is written once against that table:
   lands where it was, and an object that comes back to a list reuses its slot.
   A move within a list keeps the slot; a move to another list leaves a tombstone
   behind. Tombstones and text positions live only
-  in the session: they are never saved, the owner hands them to a joining
-  follower in `Snapshot` and to reloading followers in `Sealed`
-  (`LiveEdit::session_state`), and they go when the session ends. A `Snapshot` carries the state as of the
-  owner's last seal, because the follower opens the sealed head and applies the
-  operations since onto it; adopting state rebuilds a follower's view from
-  `confirmed` and its pending edits rather than adopting into it. Anything two peers may
+  in the session: they are never saved, the lease holder reports them sealed
+  with each seal (`SessionSeal::state`, `LiveEdit::session_state`) and the
+  server hands them to a replica that catches up, and a `Reload` carries the
+  state of the commit it names; they go when the session ends. The state is as
+  of the seal, because a replica that catches up opens the sealed head and
+  applies the operations since onto it; adopting state rebuilds a replica's
+  view from `confirmed` and its unconfirmed edits rather than adopting into it. Anything two peers may
   create at once for the same purpose (a database row past the end, a canvas
   component for a schema, a logic game solution) takes an id derived from what
   it is for, so the second insert is refused and its edits land on the first.
@@ -862,8 +885,11 @@ runs on a thread of its own (`PureHost::spawn`), on the web in a web worker
 (`WebGuest`), and in the unit tests in process (`InProcess`); the worker never
 waits on one, since every module command and IO answer is an event in its loop.
 A module that stops (a panic, or a step past `STEP_TIMEOUT`) is started again,
-and every replica it held is opened again from its last head, with the editors
-attached and the messages relayed since its last seal replayed. `be/native.rs` runs the loop on a thread of its own with a `FileStore` under it,
+and every replica it held is opened again from its last head, catches up from
+the server, and has its editors attached and the editor messages it had not
+submitted (everything since its last `Status::submitted`) replayed; the server
+already has what it submitted. A restart while an edit is queued behind one
+still in flight replays both, so the one in flight can land twice. `be/native.rs` runs the loop on a thread of its own with a `FileStore` under it,
 and `be/web.rs` runs it on the browser's own executor with a `MemoryStore`,
 because there is no file system to keep objects in there and every open fetches
 what it needs.
@@ -1019,9 +1045,9 @@ whichever block that currently names. A database view follows its database and
 the database's schema this way.
 
 Operations, not snapshots, are the normal case, and how they settle (a
-follower's own edits stay unsettled until the owner accepts them, a peer's
-operation the owner sequenced first goes beneath them) is the replica's:
-guides/type_modules.md.
+replica's own edits stay unsettled until the server's order brings them back,
+a peer's operation the server ordered first goes beneath them) is the
+replica's: guides/type_modules.md.
 
 On the plugin side that is `editor.block_content::<C>()`, one `ContentProjection`
 per editor, built on `block_type_guest::editor::EditorMirror<C>` (which keeps the
@@ -1113,15 +1139,14 @@ Replacing a block's whole content is `editor.replace_content(block, &content)`,
 which sends `EditorMessage::ReplaceContent`; the host takes it only for a block
 the account may edit. The worker hands it to the open replica as
 `Change::Replace`, or publishes it straight to the server when nothing has the
-block open. The replica publishes the new content as a commit based on the head it
-knows, retrying on the newer head a rejection names, so the bytes go through the
-chunked upload rather than the session. An owner that replaces settles on that
-commit and tells its followers to reload; a follower sends the owner
-`SessionMessage::Replaced { head }`, and the owner takes that content. The
-replacement wins outright: whatever a replica had not saved when the replacement
-reached it is written as a stash commit that becomes a parent of a later head, so
-it stays in the block's history, and nothing is replayed on top
-(guides/type_modules.md, "Peers"). The image, audio and PDF
+block open. The replica stashes the new content as a commit, so the bytes go
+through the chunked upload rather than the session, and submits a barrier
+`Reload` naming it; every replica takes it at that point in the order and the
+lease holder's next seal makes it the head. The replacement wins outright:
+whatever a replica had not saved when the replacement reached it is written as
+a stash commit that becomes a parent of a later head, so it stays in the
+block's history, and nothing is replayed on top (guides/type_modules.md,
+"Peers"). The image, audio and PDF
 editors' "replace" buttons and the pixel art export's regeneration all go this
 way. `content_file_creation::<C>` is the creation view that makes a block of a
 file type from the file the user picks.
@@ -1713,8 +1738,10 @@ public key it verified this way, never to one the server hands it.
 
 The server stores and relays everything, so it can withhold, delay, replay
 or delete rows, refuse requests, and see who shares with whom, block shapes,
-sizes and timing. It cannot read content or metadata, and it cannot choose a
-key a device will seal with:
+sizes and timing. It orders live sessions too, so it can drop, hold back or
+replay a sealed operation, or number it differently for different clients,
+which would leave their copies different. It cannot
+read content or metadata, and it cannot choose a key a device will seal with:
 
 - every key sealed to an account is authenticated by its sender, and a device
   takes it only from itself or a contact it verified through a link;
@@ -1824,8 +1851,8 @@ pixel art export regenerate this way.
 
 - A commit is made from each block's head after this peer seals what it owns,
   so an edit another peer is holding in a session it has not sealed yet is left
-  out. A seal barrier would close that: the server asks the owner of every
-  session in the checkout to seal, and the commit waits for them.
+  out. A seal barrier would close that: the server asks the lease holder of
+  every session in the checkout to seal, and the commit waits for them.
 - Conflicts are resolved a block at a time by taking one side; nothing merges
   inside a block by hand yet, and the three sides are linked, not shown side by
   side.
@@ -1841,8 +1868,8 @@ pixel art export regenerate this way.
   what they name changes with the scope it lands in.
 - Nothing vouches for who wrote an item. The deterministic game stores the
   account behind each move as a field the sender fills in, so a player can move
-  as someone else. Signing operations would not be enough, because the session
-  owner sequences and relays everything: the items a block stores have to carry
+  as someone else. Signing operations would not be enough, because the server
+  orders and relays everything: the items a block stores have to carry
   their own signatures, checked by whoever reads them. That wants doing when a
   chat block makes it matter.
 - Nothing reads content but the editor holding it: there is no preview built
@@ -1860,13 +1887,16 @@ pixel art export regenerate this way.
   and a tab that closes leaves whatever a session held since its last autosave
   behind: `flush()` cannot wait there. An `ObjectStore` over IndexedDB is what
   that wants.
-- Reconnecting rejoins from the server's head, so operations a session had not
-  sealed when the socket dropped are gone.
+- A session that empties drops the server's log, so operations nobody sealed
+  before the last participant left are gone. Nothing moves the lease toward a
+  client that seals well (a desktop rather than a phone on a weak link); the
+  first participant holds it.
 - A move into another scope lists the moved subtree one level at a time
   (`ListChildren`), and the old data keys of a block this device cannot open
   are not rewrapped, so that block's history stays closed to its new scope.
-- Sessions relay through the server. Direct peer connections are a latency
-  optimisation on the same protocol and can come later.
+- Sessions relay through the server, which also orders them. Direct peer
+  connections could carry presence and channel messages sooner, but the order
+  stays the server's.
 - The server learns the shape of the graph, object sizes and timings. It never
   learns content. If graph privacy matters later, block ids can be blinded per
   organization, but the server still needs some graph to do access inheritance.

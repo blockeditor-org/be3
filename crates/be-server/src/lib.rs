@@ -47,6 +47,7 @@ pub mod watch;
 
 pub use blocks::PublishOutcome;
 pub use sessions::SessionRegistry;
+use sessions::Submitted;
 pub use store::{Identity, ServerStore};
 pub use watch::WatchHub;
 
@@ -1033,10 +1034,14 @@ impl Connection {
                 Ok(ServerMessage::Ok { request })
             }
 
-            ClientMessage::JoinSession { request, block } => {
+            ClientMessage::JoinSession {
+                request,
+                block,
+                tag,
+            } => {
                 let identity = self.identity()?;
-                self.store.read_block(identity, block).await?;
-                let state = self.registry.join(block, self.client).await;
+                let head = self.store.read_block(identity, block).await?.head;
+                let state = self.registry.join(block, self.client, tag, head).await;
                 self.announce(block, &state).await;
                 Ok(ServerMessage::Session {
                     request,
@@ -1073,12 +1078,12 @@ impl Connection {
                 request,
                 block,
                 generation,
-                clean_at,
+                seal,
             } => {
                 self.identity()?;
                 match self
                     .registry
-                    .heartbeat(block, self.client, generation, clean_at)
+                    .heartbeat(block, self.client, generation, seal)
                     .await
                 {
                     Some(state) => Ok(ServerMessage::Session {
@@ -1094,6 +1099,52 @@ impl Connection {
                         state: self.registry.state(block).await,
                     }),
                 }
+            }
+            ClientMessage::Submit {
+                request,
+                block,
+                id,
+                base,
+                barrier,
+                payload,
+            } => {
+                self.identity()?;
+                let submission = be_session::Submission { id, base, payload };
+                match self
+                    .registry
+                    .submit(&self.hub, block, self.client, submission, barrier)
+                    .await
+                {
+                    Submitted::Sequenced | Submitted::Duplicate => {
+                        Ok(ServerMessage::Ok { request })
+                    }
+                    Submitted::Refused => Err(ServerError::Refused(
+                        ErrorCode::PermissionDenied,
+                        "only a participant running the session's build may edit in it".into(),
+                    )),
+                }
+            }
+            ClientMessage::Catchup {
+                request,
+                block,
+                origin,
+            } => {
+                self.identity()?;
+                let log = self
+                    .registry
+                    .log(block, self.client, origin)
+                    .await
+                    .ok_or_else(|| {
+                        ServerError::Refused(
+                            ErrorCode::PermissionDenied,
+                            "join the session before catching up with it".into(),
+                        )
+                    })?;
+                Ok(ServerMessage::SessionLog {
+                    request,
+                    block,
+                    log,
+                })
             }
             ClientMessage::Relay {
                 request,

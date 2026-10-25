@@ -1,7 +1,7 @@
 use super::*;
 
 #[test]
-fn a_follower_typing_while_the_owner_types_keeps_both_runs_whole() {
+fn two_peers_typing_at_once_keep_both_runs_whole() {
     let mut sim = Sim::<ProseContent>::new(2, prose_module);
     sim.publish_elsewhere(&prose_of("base"));
     sim.open(0);

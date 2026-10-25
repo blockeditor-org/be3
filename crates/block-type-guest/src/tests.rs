@@ -7,7 +7,7 @@ use be_model::{
     Anchor, BlockRef, Change as ModelChange, Count, Document, Edit, List, Model, ObjectId, Text,
 };
 use be_protocol::ClientId;
-use be_session::{Lease, Resume};
+use be_session::{Lease, Resume, Sequencer};
 use be_store::Hash;
 use block_type_api::{
     Change, Command, Description, EditorId, Endpoint, Event, HeadEvent, Recipients, ReplicaId,
@@ -22,42 +22,49 @@ use crate::{
 
 mod a_conflicting_merge_keeps_the_unsealed_side_as_a_commit;
 mod a_file_maps_to_a_block_and_back;
-mod a_follower_edit_goes_beneath_a_peer_edit_the_owner_ordered_first;
 mod a_follower_keeps_its_unconfirmed_edit_through_a_reload;
 mod a_follower_replaces_the_content_and_the_owner_takes_it;
 mod a_follower_takes_over_with_what_the_owner_had_not_sealed;
-mod a_follower_that_claims_as_it_joins_waits_until_it_has_caught_up;
 mod a_follower_that_missed_messages_catches_up_once_resynchronized;
 mod a_follower_that_takes_over_after_a_seal_publishes_on_top_of_it;
 mod a_follower_that_takes_over_saves_its_edit_too_large_to_relay;
-mod a_follower_typing_while_the_owner_types_keeps_both_runs_whole;
 mod a_followers_edit_too_large_to_relay_lands_once;
 mod a_followers_edit_too_large_to_relay_lands_once_when_the_owner_leaves;
 mod a_followers_kept_edits_reach_the_owner_that_takes_over;
 mod a_followers_kept_edits_survive_the_owner_leaving_before_saving_them;
 mod a_gesture_is_one_undo_step_and_quick_edits_absorb;
 mod a_head_written_offline_merges_once_its_replica_opens;
+mod a_holder_whose_lease_lapsed_stops_sealing_once_another_claims_it;
+mod a_late_joiner_catches_up_from_the_server_without_the_lease_holder;
 mod a_late_joiner_places_an_insert_after_an_item_removed_before_it_joined;
 mod a_late_joiner_types_where_it_sees_the_caret;
-mod a_message_no_build_can_read_stops_a_follower_saving;
+mod a_message_no_build_can_read_is_passed_over_by_every_replica;
 mod a_module_answers_stateless_requests;
+mod a_peer_edit_sequenced_first_goes_beneath_an_unconfirmed_edit;
 mod a_peer_running_another_build_is_refused;
 mod a_rejected_seal_merges_the_newer_head_and_publishes_again;
 mod a_replaced_file_takes_none_of_the_old_files_header;
 mod a_replacement_keeps_a_followers_unconfirmed_edits_in_history;
 mod a_replacement_made_while_the_owner_is_gone_reaches_every_peer;
 mod a_replacement_made_while_the_owner_is_gone_reaches_the_owner_that_takes_over;
+mod a_replica_that_claims_as_it_joins_waits_until_it_has_caught_up;
+mod a_requested_seal_saves_edits_still_on_their_way;
 mod an_abandoned_lease_is_claimed;
+mod an_edit_resubmitted_after_a_reconnect_lands_once;
 mod an_edit_too_large_to_relay_is_published_as_a_commit;
 mod an_editor_joins_with_a_snapshot_and_follows_operations;
 mod an_external_publish_merges_into_a_live_replica;
-mod an_owner_whose_lease_lapsed_follows_whoever_claims_it;
+mod an_operation_that_no_longer_applies_is_dropped_everywhere;
 mod child_changes_become_edits_of_the_parent;
 mod closing_seals_and_releases;
 mod concurrent_edits_converge;
+mod concurrent_typing_converges_on_every_replica;
 mod edits_are_sealed_once_they_rest_for_the_seal_interval;
 mod peer_messages_reach_one_peer_or_all_of_them;
 mod presence_reaches_late_joiners_and_leaves_with_its_client;
+mod sealing_trims_the_servers_log;
+mod two_peers_converge_while_the_lease_holder_hears_nothing;
+mod two_peers_typing_at_once_keep_both_runs_whole;
 mod typing_behind_an_unconfirmed_edit_goes_out_as_one_edit;
 mod undo_reverts_only_this_devices_edit;
 
@@ -212,6 +219,51 @@ impl Root for Folder {
 
 type FolderContent = Document<Folder>;
 
+#[derive(Clone, Debug, Default, PartialEq)]
+struct Tally(Vec<u64>);
+
+#[derive(Clone, Debug, serde::Deserialize, serde::Serialize)]
+struct Mark {
+    value: u64,
+    alone: bool,
+}
+
+impl BlockContent for Tally {
+    const CONTENT_TYPE: Uuid = Uuid::from_u128(0x7461_6c6c_792d_6669_7874_7572_6500_0001);
+
+    fn encode(&self) -> Vec<u8> {
+        postcard::to_stdvec(&self.0).unwrap_or_default()
+    }
+
+    fn decode(bytes: &[u8]) -> Result<Self, be_block::ContentError> {
+        postcard::from_bytes(bytes)
+            .map(Self)
+            .map_err(|_| be_block::ContentError::Malformed("tally"))
+    }
+}
+
+impl LiveEdit for Tally {
+    type Op = Mark;
+
+    fn apply(&mut self, operation: &Mark) {
+        self.0.push(operation.value);
+    }
+
+    fn rebase(operation: Mark, onto: &[Mark]) -> Option<Mark> {
+        (!operation.alone || onto.is_empty()).then_some(operation)
+    }
+}
+
+impl be_block::Merge for Tally {
+    fn merge3(_: &Self, ours: &Self, _: &Self) -> be_commit::MergeResult<Self> {
+        be_commit::MergeResult::Clean(ours.clone())
+    }
+}
+
+fn tally_module() -> Module {
+    Module::new(vec![Registration::of::<Tally>()])
+}
+
 const BLOCK: Uuid = Uuid::from_u128(0xb10c);
 const ORGANIZATION: Uuid = Uuid::from_u128(0x0e9);
 const REPLICA: ReplicaId = 1;
@@ -279,6 +331,8 @@ struct Sim<C: LiveEdit + Clone + Default> {
     commits: BTreeMap<CommitId, Stored>,
     head: Option<CommitId>,
     lease: Lease,
+    sequencer: Option<Sequencer>,
+    clients: ClientId,
     devices: Vec<Device>,
     editors: BTreeMap<(usize, EditorId), EditorMirror<C>>,
     received: BTreeMap<(usize, EditorId), Vec<ToEditor>>,
@@ -291,6 +345,8 @@ struct Sim<C: LiveEdit + Clone + Default> {
     errors: Vec<(usize, String)>,
     quiet: bool,
     deaf: BTreeSet<usize>,
+    stalled: BTreeSet<usize>,
+    held_back: VecDeque<(usize, Command)>,
     largest_relay: usize,
     written: u64,
     make: fn() -> Module,
@@ -303,6 +359,8 @@ impl<C: LiveEdit + Clone + Default> Sim<C> {
             commits: BTreeMap::new(),
             head: None,
             lease: Lease::new(),
+            sequencer: None,
+            clients: devices as ClientId,
             devices: (0..devices)
                 .map(|index| Device {
                     client: index as ClientId + 1,
@@ -326,6 +384,8 @@ impl<C: LiveEdit + Clone + Default> Sim<C> {
             errors: Vec::new(),
             quiet: false,
             deaf: BTreeSet::new(),
+            stalled: BTreeSet::new(),
+            held_back: VecDeque::new(),
             largest_relay: 0,
             written: 0,
             make,
@@ -352,7 +412,11 @@ impl<C: LiveEdit + Clone + Default> Sim<C> {
         let client = self.devices[device].client;
         self.devices[device].module = Some((self.make)());
         self.devices[device].released = false;
-        self.lease.join(client, self.now as i64);
+        self.lease
+            .join(client, self.devices[device].tag.0, self.now as i64);
+        if self.sequencer.is_none() {
+            self.sequencer = Some(Sequencer::new(self.head));
+        }
         self.queue
             .push_back((device, Event::Tick { now: self.now }));
         self.queue.push_back((
@@ -391,11 +455,24 @@ impl<C: LiveEdit + Clone + Default> Sim<C> {
             device,
             Event::Lease {
                 replica: REPLICA,
+                client: self.devices[device].client,
                 session: self.lease.state().clone(),
                 resynchronize: true,
             },
         ));
         self.settle();
+    }
+
+    fn reconnect(&mut self, device: usize) {
+        let old = self.devices[device].client;
+        self.clients += 1;
+        let client = self.clients;
+        self.devices[device].client = client;
+        self.lease.leave(old, self.now as i64);
+        self.lease
+            .join(client, self.devices[device].tag.0, self.now as i64);
+        self.lease_changed(Some(device));
+        self.resynchronize(device);
     }
 
     fn attach(&mut self, device: usize, editor: EditorId, editable: bool) {
@@ -493,10 +570,33 @@ impl<C: LiveEdit + Clone + Default> Sim<C> {
     fn crash(&mut self, device: usize) {
         self.devices[device].module = None;
         self.queue.retain(|(to, _)| *to != device);
+        self.leave(device);
+        self.settle();
+    }
+
+    fn leave(&mut self, device: usize) {
         let client = self.devices[device].client;
         self.lease.leave(client, self.now as i64);
+        if self.lease.is_empty() {
+            self.sequencer = None;
+        }
         self.lease_changed(Some(device));
+    }
+
+    fn unstall(&mut self, device: usize) {
+        self.stalled.remove(&device);
+        let (released, kept) = std::mem::take(&mut self.held_back)
+            .into_iter()
+            .partition(|(from, _)| *from == device);
+        self.held_back = kept;
+        for (from, command) in released {
+            self.act(from, command);
+        }
         self.settle();
+    }
+
+    fn held(&self) -> usize {
+        self.sequencer.as_ref().map_or(0, Sequencer::held)
     }
 
     fn advance(&mut self, milliseconds: u64) {
@@ -553,6 +653,7 @@ impl<C: LiveEdit + Clone + Default> Sim<C> {
                 device,
                 Event::Lease {
                     replica: REPLICA,
+                    client: self.devices[device].client,
                     session: session.clone(),
                     resynchronize: false,
                 },
@@ -573,9 +674,7 @@ impl<C: LiveEdit + Clone + Default> Sim<C> {
             }
             if self.devices[device].released {
                 self.devices[device].module = None;
-                let client = self.devices[device].client;
-                self.lease.leave(client, self.now as i64);
-                self.lease_changed(Some(device));
+                self.leave(device);
             }
         }
     }
@@ -638,6 +737,9 @@ impl<C: LiveEdit + Clone + Default> Sim<C> {
     }
 
     fn act(&mut self, device: usize, command: Command) {
+        if self.stalled.contains(&device) && matches!(command, Command::Submit { .. }) {
+            return self.held_back.push_back((device, command));
+        }
         let client = self.devices[device].client;
         match command {
             Command::Hello { .. } => {}
@@ -748,12 +850,65 @@ impl<C: LiveEdit + Clone + Default> Sim<C> {
                 self.lease_changed(None);
             }
             Command::ReportClean {
-                generation,
-                clean_at,
+                generation, seal, ..
+            } => {
+                if self
+                    .lease
+                    .heartbeat(client, generation, seal.head, self.now as i64)
+                    && let Some(sequencer) = &mut self.sequencer
+                {
+                    sequencer.sealed(seal);
+                }
+            }
+            Command::Submit {
+                id,
+                base,
+                barrier,
+                payload,
                 ..
             } => {
-                self.lease
-                    .heartbeat(client, generation, clean_at, self.now as i64);
+                self.largest_relay = self.largest_relay.max(payload.len());
+                if !self.lease.speaks(client) {
+                    return;
+                }
+                let Some(op) = self
+                    .sequencer
+                    .as_mut()
+                    .and_then(|sequencer| sequencer.submit(id, base, barrier, payload))
+                else {
+                    return;
+                };
+                for peer in self.lease.state().participants.clone() {
+                    if let Some(to) = self.device_of(peer)
+                        && !self.deaf.contains(&to)
+                    {
+                        self.queue.push_back((
+                            to,
+                            Event::Sequenced {
+                                replica: REPLICA,
+                                op: op.clone(),
+                            },
+                        ));
+                    }
+                }
+            }
+            Command::Catchup { token, origin, .. } => {
+                if self.deaf.contains(&device) {
+                    return;
+                }
+                let log = self
+                    .sequencer
+                    .as_ref()
+                    .map(|sequencer| sequencer.log(origin))
+                    .ok_or_else(|| "the session is gone".to_owned());
+                self.queue.push_back((
+                    device,
+                    Event::Caught {
+                        replica: REPLICA,
+                        token,
+                        result: log,
+                    },
+                ));
             }
             Command::Release { .. } => self.devices[device].released = true,
             Command::WakeAt { at } => self.devices[device].wake = Some(at),

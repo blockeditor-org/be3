@@ -11,7 +11,8 @@ use be_graph::{Access, BlockParent};
 use be_keys::RecoverySecret;
 use be_protocol::{
     AccessEntry, BlockSummary, ByteBuf, ClientId, ClientMessage, ErrorCode, HistoryEntry, KeyKind,
-    KeySet, Listing, OrganizationRole, ServerMessage, SessionState, WrappedBy,
+    KeySet, Listing, OpId, OrganizationRole, ServerMessage, SessionLog, SessionOp, SessionSeal,
+    SessionState, WrappedBy,
 };
 use be_store::{ChunkerConfig, Hash, Keyring, Manifest, ObjectStore, StoreError, Vault};
 use uuid::Uuid;
@@ -882,7 +883,7 @@ impl<S: ObjectStore> Peer<S> {
         let id = self.commits.put(key, &commit)?;
         let mut objects = vec![id.hash()];
         objects.extend(commit.manifest.chunk_hashes());
-        self.push(&objects).await?;
+        self.hold(block, &objects).await?;
         Ok(id)
     }
 
@@ -1502,10 +1503,18 @@ impl<S: ObjectStore> Peer<S> {
         }
     }
 
-    pub async fn join_session(&self, block: Uuid) -> Result<(ClientId, SessionState), ClientError> {
+    pub async fn join_session(
+        &self,
+        block: Uuid,
+        tag: [u8; 32],
+    ) -> Result<(ClientId, SessionState), ClientError> {
         let response = self
             .connection
-            .request(|request| ClientMessage::JoinSession { request, block })
+            .request(|request| ClientMessage::JoinSession {
+                request,
+                block,
+                tag,
+            })
             .await?;
         match response {
             ServerMessage::Session { client, state, .. } => Ok((client, state)),
@@ -1543,21 +1552,84 @@ impl<S: ObjectStore> Peer<S> {
         &self,
         block: Uuid,
         generation: u64,
-        clean_at: Option<CommitId>,
+        seal: SessionSeal,
     ) -> Result<SessionState, ClientError> {
+        let state = match &seal.state {
+            Some(state) => {
+                let key = self.sealing_key(block).await?;
+                Some(self.commits.vault().seal(key, state)?)
+            }
+            None => None,
+        };
+        let seal = SessionSeal { state, ..seal };
         let response = self
             .connection
             .request(|request| ClientMessage::Heartbeat {
                 request,
                 block,
                 generation,
-                clean_at,
+                seal: seal.clone(),
             })
             .await?;
         match response {
             ServerMessage::Session { state, .. } => Ok(state),
             _ => Err(ClientError::Unexpected),
         }
+    }
+
+    pub async fn submit(
+        &self,
+        block: Uuid,
+        id: OpId,
+        base: u64,
+        barrier: bool,
+        payload: &[u8],
+    ) -> Result<(), ClientError> {
+        let key = self.sealing_key(block).await?;
+        let sealed = self.commits.vault().seal(key, payload)?;
+        self.connection
+            .request(|request| ClientMessage::Submit {
+                request,
+                block,
+                id,
+                base,
+                barrier,
+                payload: sealed.clone(),
+            })
+            .await?;
+        Ok(())
+    }
+
+    pub async fn catch_up(&self, block: Uuid, origin: u64) -> Result<SessionLog, ClientError> {
+        let response = self
+            .connection
+            .request(|request| ClientMessage::Catchup {
+                request,
+                block,
+                origin,
+            })
+            .await?;
+        let ServerMessage::SessionLog { log, .. } = response else {
+            return Err(ClientError::Unexpected);
+        };
+        let state = match &log.seal.state {
+            Some(state) => Some(self.unseal(state).await?),
+            None => None,
+        };
+        let mut ops = Vec::with_capacity(log.ops.len());
+        for op in log.ops {
+            ops.push(self.unseal_op(op).await?);
+        }
+        Ok(SessionLog {
+            seal: SessionSeal { state, ..log.seal },
+            ops,
+            counter: log.counter,
+        })
+    }
+
+    pub async fn unseal_op(&self, op: SessionOp) -> Result<SessionOp, ClientError> {
+        let payload = self.unseal(&op.payload).await?;
+        Ok(SessionOp { payload, ..op })
     }
 
     pub async fn relay(

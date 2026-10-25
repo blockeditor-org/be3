@@ -22,7 +22,8 @@ from inside block-app.
   document.
 - `be_cli::replica::Session<S, C>`: one block's replica as `be` holds it, the
   same `be_types_host::Replicas` the app's peer runs, attached as the host's own
-  editor (`HOST_EDITOR`) through an `EditorMirror<C>`. `content` is the mirror's
+  editor (`HOST_EDITOR`) through an `EditorMirror<C>`; `open` returns once the
+  replica has caught up and the mirror holds the content. `content` is the mirror's
   content and `edit` operates on it; `show` and `send` are
   `FromEditor::ShowPresence` and `SendToPeers`, `presence` and `take_messages`
   what came back as `ToEditor::Presence` and `PeerMessages`; `is_owner`,
@@ -84,7 +85,7 @@ the difference as ordinary edits through its `Session`, split under 256 KiB:
   sets the cursor, size, colours, title, shell and alternate screen.
 
 The replica seals it on its own schedule, `SEAL_INTERVAL` (750 ms) after its
-first unsealed edit, as every owner does (guides/type_modules.md).
+first unsealed edit, as every lease holder does (guides/type_modules.md).
 
 ## Who writes
 
@@ -93,8 +94,9 @@ while its replica owns the session. When another client that shows
 `TerminalHost` owns the session it stands by; otherwise it calls `claim()` every
 3 seconds until it is granted (a viewer that owns the session seals nothing, so
 its 30 second lease lapses). The replica ignores a claim until it has caught up
-after joining, so the host never numbers the session from zero. The viewer then
-follows the host like any old owner (guides/type_modules.md). The host's
+after joining, so the host never writes over a screen it has not read. The
+viewer then stops sealing, and goes on applying the server's order like every
+replica (guides/type_modules.md). The host's
 replica heartbeats only when it seals; nothing claims from an owner that shows
 `TerminalHost`, so a quiet shell's lapsed lease is not taken while it is
 connected.

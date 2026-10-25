@@ -6,7 +6,7 @@ use be_protocol::{
     BlockSummary, ClientMessage, ErrorCode, HistoryEntry, KeyKind, KeyRow, KeySet,
     OrganizationRole, ServerMessage, SessionState, WrappedBy, WrappedKey, encode as encode_message,
 };
-use be_session::{Resume, resume, takeover_needs_merge};
+use be_session::{OpId, Resume, SessionSeal, resume};
 use be_store::{ChunkerConfig, ContentKey, Hash, Keyring, MemoryStore, ObjectStore, Vault};
 use futures_util::{SinkExt, StreamExt};
 use tokio::{net::TcpListener, sync::oneshot};
@@ -34,7 +34,7 @@ mod a_new_recovery_key_reseals_every_key_sealed_to_the_account;
 mod a_pending_grant_is_applied_when_its_link_is_accepted;
 mod a_remembered_account_approves_a_manually_entered_code_and_can_switch_accounts;
 mod a_rotation_gives_every_block_below_it_a_new_key_or_nothing;
-mod a_session_hands_ownership_over_without_a_merge;
+mod a_session_hands_its_lease_on_and_keeps_where_it_was_sealed;
 mod a_stale_publish_is_rejected_with_the_current_head;
 mod a_watcher_is_told_when_the_head_moves;
 mod an_agent_signs_in_with_its_token_until_it_is_removed;
@@ -77,11 +77,13 @@ mod revoking_an_http_session_removes_its_access;
 mod sessions_are_scoped_to_the_account_and_form_tokens_to_the_browser;
 mod shared_chunks_survive_until_the_last_commit_releases_them;
 mod the_browser_authorization_requires_the_private_secret_and_works_once;
+mod the_server_orders_sealed_edits_and_forgets_them_once_sealed;
 
 const CONTENT: Uuid = Uuid::from_u128(0x7465_7874);
 const KEY: Uuid = Uuid::from_u128(0x006b_6579);
 
 const BUILD: &str = "a test build";
+const SESSION_TAG: [u8; 32] = [7; 32];
 
 struct Harness {
     mail: Arc<CapturedMail>,
@@ -423,8 +425,20 @@ impl TestClient {
     }
 
     async fn join_session(&mut self, block: Uuid) -> (be_protocol::ClientId, SessionState) {
+        self.join_session_as(block, SESSION_TAG).await
+    }
+
+    async fn join_session_as(
+        &mut self,
+        block: Uuid,
+        tag: [u8; 32],
+    ) -> (be_protocol::ClientId, SessionState) {
         let response = self
-            .send(|request| ClientMessage::JoinSession { request, block })
+            .send(|request| ClientMessage::JoinSession {
+                request,
+                block,
+                tag,
+            })
             .await;
         let ServerMessage::Session { client, state, .. } = response else {
             panic!("joining failed: {response:?}");

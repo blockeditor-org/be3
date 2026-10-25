@@ -1,7 +1,7 @@
 use super::*;
 
 #[test]
-fn a_follower_that_claims_as_it_joins_waits_until_it_has_caught_up() {
+fn a_replica_that_claims_as_it_joins_waits_until_it_has_caught_up() {
     let mut sim = Sim::<CounterContent>::new(3, counter_module);
     sim.lease = Lease::lasting(0);
     sim.open(0);
@@ -21,7 +21,7 @@ fn a_follower_that_claims_as_it_joins_waits_until_it_has_caught_up() {
     assert_eq!(
         sim.lease.owner(),
         Some(sim.devices[0].client),
-        "claimed before hearing what the owner had not saved"
+        "claimed before it caught up"
     );
 
     sim.deaf.remove(&1);

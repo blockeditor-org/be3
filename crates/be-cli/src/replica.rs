@@ -15,6 +15,7 @@ use uuid::Uuid;
 
 use crate::session::explain;
 
+const OPENING: std::time::Duration = std::time::Duration::from_secs(30);
 const CLOSING: std::time::Duration = std::time::Duration::from_secs(5);
 
 pub struct Held<S> {
@@ -153,7 +154,19 @@ impl<S: ObjectStore + 'static, C: LiveEdit + Clone + Default> Session<S, C> {
             });
         }
         session.settle().await;
-        Ok(session)
+        let arrived = tokio::time::timeout(OPENING, async {
+            while session.mirror.content().is_none() {
+                let woken = session.next().await;
+                session.handle(woken).await?;
+            }
+            Ok::<_, String>(())
+        })
+        .await;
+        match arrived {
+            Ok(Ok(())) => Ok(session),
+            Ok(Err(error)) => Err(error),
+            Err(_) => Err(format!("the content of block {block} never arrived")),
+        }
     }
 
     pub fn peer(&self) -> &Arc<Peer<S>> {

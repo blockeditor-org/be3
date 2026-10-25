@@ -3,9 +3,9 @@ use super::*;
 #[test]
 fn ownership_moves_on_when_the_owner_leaves() {
     let mut lease = Lease::new();
-    lease.join(1, 0);
-    lease.join(2, 0);
-    lease.join(3, 0);
+    lease.join(1, BUILD, 0);
+    lease.join(2, BUILD, 0);
+    lease.join(3, BUILD, 0);
     assert_eq!(lease.owner(), Some(1));
     assert_eq!(lease.state().participants, vec![1, 2, 3]);
 
@@ -22,6 +22,6 @@ fn ownership_moves_on_when_the_owner_leaves() {
     assert_eq!(lease.owner(), None);
     assert!(lease.is_empty());
 
-    lease.join(4, 400);
+    lease.join(4, BUILD, 400);
     assert_eq!(lease.owner(), Some(4));
 }

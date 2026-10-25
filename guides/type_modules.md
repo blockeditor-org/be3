@@ -11,8 +11,9 @@ block through them (guides/the_new_block_stack.md, "How the app hosts content";
 
 - `crates/block-type-api`: the messages between a host and a type module. No GUI types.
 - `crates/block-type-guest`: the replica library a be-model-based type module links.
-  It holds a block's live session (owner sequencing, follower rebase, takeover, seal
-  timing, `seal`/`rekey`) and its undo stack (`be_block::history::History`) as one
+  It holds a block's live session (applying the server's order, rebasing its own
+  unconfirmed edits, catching up, sealing as the lease holder, `seal`/`rekey`)
+  and its undo stack (`be_block::history::History`) as one
   deterministic state machine, and every `Document<R>` and `Blob<K>` works with it
   unchanged. Its `Sim` tests (`src/tests.rs`) are where session behaviour is tested:
   a simulated host with any number of devices, a lease, commits and editors.
@@ -72,76 +73,88 @@ What the host owes a replica:
   metadata comes from `expected`. `Stash { parent }` writes a commit that moves no
   head. `Written` carries references unresolved and derived metadata; the host
   resolves, seals and uploads.
-- **The lease.** `Lease { session, resynchronize }` whenever the server's session
-  state changes (`resynchronize` after the host fell behind the broadcast).
-  `ReportClean` is the heartbeat with `clean_at`; `ClaimLease` is sent once per
-  generation when the owner is gone from the participants, and when the host
-  sends `Claim` (a lapsed lease, taken by a terminal host) once the replica has
-  caught up. An owner told another client holds the lease becomes a follower. On `Close` the replica
-  seals what it owes and answers `Release`, after which the host leaves the session;
-  events for it until then still go to it.
+- **The order.** `Submit { id, base, barrier, payload }` goes to the server
+  sealed (`Peer::submit`); the server's `Sequenced` comes back as
+  `Event::Sequenced` for every submission, this replica's own included.
+  `Catchup { origin }` is answered `Caught` with the server's `SessionLog`
+  (`Peer::catch_up`, which opens the payloads and the seal's state).
+- **The lease.** `Lease { client, session, resynchronize }` whenever the
+  server's session state changes; `resynchronize` after the host fell behind
+  the broadcast or reconnected (a reconnect keeps the replica and gives it its
+  new `client`), and the replica catches up again. `ReportClean` is the
+  heartbeat with the `SessionSeal`; `ClaimLease` is sent once per generation
+  when the holder is gone from the participants, and when the host sends
+  `Claim` (a lapsed lease, taken by a terminal host) once the replica has
+  caught up. On `Close` the replica waits (up to 5 s) for its own edits to come
+  back ordered, seals what it owes and answers `Release`, after which the host
+  leaves the session; events for it until then still go to it. A `Seal`
+  request is answered without waiting on the server (a host may block on it):
+  a holder with edits not yet ordered publishes what it shows, edits and all,
+  without reporting that as a seal, and seals the order on top later.
 - **Relaying.** `Send { to }` is opaque bytes for `One(Peer)`, `Peers` (every other
   participant), `One(Editor)` or `One(Host)`. The host seals and relays peer bytes
   and delivers them as `Message { from: Peer(client) }`.
-- **Reports.** `Status` (head, owner, clean, owes a seal, incompatible, diverged,
-  unreadable), `Described` (after the visible content changed, for the graph mirror),
+- **Reports.** `Status` (head, owner: holds the lease, submitted: every edit
+  made here has gone to the server, clean: every edit made here has come back
+  ordered and nothing is owed, owes a seal,
+  incompatible, diverged, unreadable), `Described` (after the visible content changed, for the graph mirror),
   `History` (can undo or redo), `Conflict` (a merge kept both sides), `Error`. Each is
   sent when it changes.
 
 ## Peers
 
-Peers exchange `wire::Wire`: be-session's `SessionMessage`, `Tag` and
-`Incompatible`. A follower sends `Tag` (its `SessionTag`) ahead of each `Catchup`;
-an owner answers another tag with `Incompatible` and then ignores that peer's
-submits and catch-ups, and the follower marks itself incompatible and diverged, so
-two builds of a type never edit one session. The session itself is owner
-sequencing, follower rebase and `apply_beneath`, the 1 MiB relay limit (a follower's
-queued edits are absorbed into pieces no larger), `Snapshot`/`Sealed`/`reload`,
-`Replaced`, `Moved`, `Kept`/`Saved`, takeover with `Sequencer::continuing`, presence
-and channel messages. Its rules: an owner that owes a seal seals `SEAL_INTERVAL`
-(750 ms) after it started owing; a rejected seal reconciles and seals once more;
-reconcile merges unsaved work into whatever it fast-forwards or merges onto and
-stashes our side when the merge conflicts; a head moved from elsewhere reconciles an
-owner, and one this device published outside the session (`from_this_device`) sends
-a follower's owner `Moved`, which it reloads with its unsealed operations on top.
+The session is the server's order (guides/the_new_block_stack.md,
+"be-session"). A replica submits each edit once nothing of its own is in
+flight, and queues what it types meanwhile in `unsent`, absorbed into pieces no
+larger than the 1 MiB submission limit, which it submits as one edit once the
+first comes back. Each sequenced entry is a `wire::Entry`:
 
-A follower hands the owner a commit with `Kept { commit, base, edits }`: `commit` is
-a stash, and `edits` (`KeptEdits`) says whether its content is to be merged in. The
-follower stays responsible for every stash it sent until the owner answers `Saved`:
-after a takeover it sends them again to the new owner, or as the new owner publishes
-them itself. An owner remembers what it saved, so a repeated `Kept` is only answered.
+- `Operation`: decoded and rebased onto the operations numbered between its
+  `base` and itself, then applied; the author compares it with its own copy and
+  takes the order's version when they differ. One based below its `floor`, one
+  that no longer decodes, and one `LiveEdit::rebase` returns `None` for are
+  passed over by every replica alike; an author whose edit fell below the floor
+  of a trim submits it again, and one that was dropped otherwise loses it.
+- `Reload { commit, head, replace, state }`: the content becomes the commit (read
+  through the host) with `state` adopted. Without `replace` every replica then
+  replays the operations numbered after the entry's `base`; with it, none, and
+  the entry is a barrier: every replica drops its own unconfirmed edits, and
+  the server drops whatever was based before it. `head` says the commit is the
+  block's head; otherwise it is a stash that every replica remembers
+  (`keep`) until the holder seals it as a second parent, so its history stays.
+- `Keep { commit }`: a stash to keep the same way.
 
-An edit too large to relay never goes through the session. An owner publishes it as
-a commit. A follower queues it behind whatever it has in flight, and once nothing
-is, stashes its content (on top of a stash of its content as of its last applied
-sequence, unless that is its sealed head) and sends `Kept` with `edits`: that
-sequence and its sealed head. When the owner's log still holds every operation after
-that sequence and that head is one of its seals since its last reload, it takes the
-stash and replays those operations except the follower's own; otherwise it merges
-the stash with the follower's ancestor as base. Either way it publishes the result
-with the stash as second parent, so each edit lands once. Until `Saved` the follower
-skips reloads, sending its `Kept` again each time.
+What changes content outside the order goes in as a `Reload`. The holder's
+reconcile publishes the merge and submits it with `head`; while that reload is
+outstanding it does not seal. An edit too large to submit is stashed with the
+replica's other queued edits on top of `confirmed` and submitted as a
+`Reload`; the replica drops those edits from `unsent` when the entry comes
+back. A whole-content replacement (`Change::Replace`, `FromFile`,
+`FromEditor::Replace`) from any replica stashes what that replica has not seen
+sealed, stashes the replacement on top of it and submits it as a barrier
+`Reload`, so the replacement wins outright; a replica that loses its own work
+to the barrier (edits not yet ordered, or ordered after the replacer's base)
+stashes what it showed and submits a `Keep`. Every editor is sent a snapshot
+after a reload.
 
-A whole-content replacement (`Change::Replace`, `FromFile`, `FromEditor::Replace`)
-wins outright. The replica that does it first stashes what it has not saved (an
-owner's unsealed content; a follower's unconfirmed edits and the operations it
-applied since its last seal, which only it may hold if the owner is gone) and
-publishes the replacement with that stash as a second parent. An owner that replaced
-moves its sequence on by one and drops any `Submit` based before it, and sends its
-followers `Replaced`; a follower with anything unsaved stashes it and hands it to
-the owner with `Kept`, which the owner publishes as the second parent of a seal. A
-follower that replaced sends the owner `Replaced`, and the owner, unless it already
-took that head with nothing unsaved, publishes the replacement's content again on
-top of whatever it holds, the same way, so a reconcile that merged its unsaved work
-into the replacement first is overruled. If the owner changes before answering, the
-follower sends the new owner `Replaced` again, or as the new owner publishes its
-content as an owner's replacement. A follower waiting on a replacement holds its
-edits back and ignores operations and seals until the owner's `Sealed` for that
-head. Every editor is sent a snapshot of the replacement.
+A seal is the holder's: `SEAL_INTERVAL` (750 ms) after it started owing, or at
+once after a reload or a `Keep`, it publishes `confirmed` on the head it last
+sealed, with the first remembered stash as a second parent, reports the
+`SessionSeal` and relays `SessionMessage::Sealed`. A rejected seal reconciles
+and seals once more; a head moved from elsewhere reconciles the holder, which
+merges unsaved work into whatever it fast-forwards or merges onto and stashes
+its side when the merge conflicts. A head `Open` named that the session's seal
+does not hold (written offline) is merged in the same way once the replica
+holds the lease.
+
+The first participant's `SessionTag` is the session's: a replica whose tag
+differs is incompatible and diverged and refuses to edit or seal, and the
+server refuses its submissions, so two builds of a type never edit one
+session.
 
 ## Editors are endpoints
 
-A local editor follows the local replica as a peer follows an owner. The host sends
+A local editor follows the local replica as a replica follows the server's order. The host sends
 `Attach { editor, editable }` when an editor instance starts following a block
 (again to change `editable`) and `Detach` when it stops; the editor's messages arrive
 as `Message { from: Editor(instance) }` and are `editor::FromEditor`: `Operate`,
@@ -151,7 +164,7 @@ as `Message { from: Editor(instance) }` and are `editor::FromEditor`: `Operate`,
 
 - `Snapshot { bytes, session, unsettled, applied }` on attach, on `Resend`, and to
   every editor after the content was replaced outright. `bytes` and `session` are the
-  settled content, `unsettled` the follower's operations on top of it, and `applied`
+  settled content, `unsettled` the replica's own unconfirmed operations on top of it, and `applied`
   how many of that editor's own operations the snapshot already holds.
 - `Operations`, every operation since the last message, each with `mine`, the number
   of operations still unsettled after it, and for a peer's operation that goes beneath
@@ -222,10 +235,13 @@ over its clock (`history::Moment`, for `Instant` and frame-clock milliseconds), 
 `crates/block-type-guest/src/tests.rs` is a simulated host: `Sim<C>` runs several
 devices, each with its own `Module`, relays between them in order, keeps commits and
 the head with compare-and-swap, answers `Resume` from the commit graph, runs a
-be-session `Lease`, follows each attached editor with an `EditorMirror`, and moves
-time only through `advance`. `quiet` holds back `Moved` so a seal is rejected;
-`crash` drops a device without its seal; `publish_elsewhere` is a publish from
-outside the session, as be sync makes.
+be-session `Lease` and `Sequencer` as the server does, follows each attached
+editor with an `EditorMirror`, and moves time only through `advance`. `quiet`
+holds back `Moved` so a seal is rejected; `deaf` devices hear nothing from the
+server or their peers; `stalled` devices' submissions wait for `unstall`;
+`reconnect` gives a device a new client and resynchronizes it; `crash` drops a
+device without its seal; `publish_elsewhere` is a publish from outside the
+session, as be sync makes.
 
 ## Hosts
 

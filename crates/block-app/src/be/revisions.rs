@@ -286,12 +286,6 @@ async fn perform(
         return Err("Open this file before restoring a revision.".into());
     }
     replicas.seal((peer, shared), block, false).await;
-    if !replicas.status(block).is_some_and(|status| status.clean) {
-        return Err(
-            "The current edits are still being saved. Try restoring again once they are saved."
-                .into(),
-        );
-    }
     replicas
         .change((peer, shared), block, Change::Replace(bytes))
         .await;

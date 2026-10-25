@@ -1,3 +1,5 @@
+use std::collections::BTreeMap;
+
 use be_protocol::{ClientId, SessionState};
 
 pub const LEASE_MILLISECONDS: i64 = 30_000;
@@ -12,6 +14,7 @@ pub enum Claim {
 #[derive(Clone, Debug)]
 pub struct Lease {
     state: SessionState,
+    tags: BTreeMap<ClientId, [u8; 32]>,
     expires: i64,
     length: i64,
 }
@@ -30,6 +33,7 @@ impl Lease {
     pub fn lasting(length: i64) -> Self {
         Self {
             state: SessionState::default(),
+            tags: BTreeMap::new(),
             expires: 0,
             length,
         }
@@ -51,7 +55,11 @@ impl Lease {
         self.expires
     }
 
-    pub fn join(&mut self, client: ClientId, now: i64) {
+    pub fn join(&mut self, client: ClientId, tag: [u8; 32], now: i64) {
+        if self.state.participants.is_empty() {
+            self.state.tag = Some(tag);
+        }
+        self.tags.insert(client, tag);
         if !self.state.participants.contains(&client) {
             self.state.participants.push(client);
         }
@@ -62,6 +70,7 @@ impl Lease {
 
     pub fn leave(&mut self, client: ClientId, now: i64) {
         self.state.participants.retain(|held| *held != client);
+        self.tags.remove(&client);
         if self.state.owner == Some(client) {
             self.state.owner = None;
             self.state.generation += 1;
@@ -70,6 +79,12 @@ impl Lease {
                 self.grant(next, now);
             }
         }
+    }
+
+    pub fn speaks(&self, client: ClientId) -> bool {
+        self.state.participants.contains(&client)
+            && self.state.tag.is_some()
+            && self.tags.get(&client) == self.state.tag.as_ref()
     }
 
     pub fn clean_at(&self) -> Option<be_commit::CommitId> {

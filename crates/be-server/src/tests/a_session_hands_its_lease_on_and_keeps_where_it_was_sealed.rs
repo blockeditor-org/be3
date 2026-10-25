@@ -1,7 +1,7 @@
 use super::*;
 
 #[tokio::test]
-async fn a_session_hands_ownership_over_without_a_merge() {
+async fn a_session_hands_its_lease_on_and_keeps_where_it_was_sealed() {
     let harness = Harness::start().await;
     let mut phone = harness.client().await;
     let account = phone.register("phone@example.com").await;
@@ -10,8 +10,9 @@ async fn a_session_hands_ownership_over_without_a_merge() {
     let author = Author::new(account);
 
     let (_, state) = phone.join_session(block).await;
-    let owner = state.owner.expect("the first participant owns the session");
+    let owner = state.owner.expect("the first participant holds the lease");
     assert!(state.is_owner(owner));
+    assert_eq!(state.tag, Some(SESSION_TAG));
 
     let first = author.compose(b"typed on the phone\n", 1_000, None);
     phone
@@ -22,7 +23,11 @@ async fn a_session_hands_ownership_over_without_a_merge() {
             request,
             block,
             generation: state.generation,
-            clean_at: Some(first.0),
+            seal: SessionSeal {
+                head: Some(first.0),
+                sequence: 0,
+                state: None,
+            },
         })
         .await;
     let ServerMessage::Session { state: beating, .. } = response else {
@@ -38,15 +43,9 @@ async fn a_session_hands_ownership_over_without_a_merge() {
     let (_, taken) = laptop.join_session(block).await;
     assert!(
         taken.owner.is_some() && taken.owner != Some(owner),
-        "the session kept a disconnected owner: {taken:?}"
+        "the session kept a disconnected lease holder: {taken:?}"
     );
     assert_eq!(taken.clean_at, Some(first.0));
-
-    let head = laptop.read_block(block).await.head;
-    assert!(
-        !takeover_needs_merge(taken.clean_at, head),
-        "a session that was durable at the head demanded a merge on takeover"
-    );
 
     let second = author.compose(b"continued on the laptop\n", 2_000, Some(first.0));
     let response = laptop
@@ -54,7 +53,7 @@ async fn a_session_hands_ownership_over_without_a_merge() {
         .await;
     assert!(
         matches!(response, ServerMessage::Published { .. }),
-        "the new owner could not continue from the head: {response:?}"
+        "the new holder could not continue from the head: {response:?}"
     );
 
     let mut returned = harness.second_connection(&token, organization).await;

@@ -1,7 +1,7 @@
 use super::*;
 
 #[test]
-fn an_owner_whose_lease_lapsed_follows_whoever_claims_it() {
+fn a_holder_whose_lease_lapsed_stops_sealing_once_another_claims_it() {
     let mut sim = Sim::<CounterContent>::new(2, counter_module);
     sim.lease = Lease::lasting(0);
     for device in 0..2 {
@@ -19,7 +19,7 @@ fn an_owner_whose_lease_lapsed_follows_whoever_claims_it() {
     sim.settle();
     assert!(
         !sim.devices[0].status.owner,
-        "the old owner kept sequencing"
+        "the old holder kept the lease"
     );
     assert!(
         sim.devices[1].status.owner,
@@ -28,7 +28,7 @@ fn an_owner_whose_lease_lapsed_follows_whoever_claims_it() {
     assert_eq!(sim.publishes, 0);
 
     sim.advance(crate::SEAL_INTERVAL);
-    assert_eq!(sim.publishes, 1, "only the new owner saves");
+    assert_eq!(sim.publishes, 1, "only the new holder saves");
     assert_eq!(count(&sim.head_content()), 111);
     for device in 0..2 {
         assert_eq!(count(&sim.content(device)), 111);

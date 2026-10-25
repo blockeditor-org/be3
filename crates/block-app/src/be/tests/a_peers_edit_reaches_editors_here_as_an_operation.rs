@@ -1,7 +1,7 @@
 use super::*;
 
 #[test]
-fn a_peers_edit_during_a_gesture_here_reaches_editors_beneath_it() {
+fn a_peers_edit_reaches_editors_here_as_an_operation() {
     let harness = Harness::start();
     let block = Uuid::new_v4();
     let mut owner = Outside::counter(&harness, block);
@@ -20,10 +20,8 @@ fn a_peers_edit_during_a_gesture_here_reaches_editors_beneath_it() {
     wait_for_count(block, 3);
 
     owner.add(10);
-    owner.until("took this peer's adds after its own", |seen| {
-        seen.count == Some(13)
-    });
-    wait_until("took the owner's add beneath its own", |shared| {
+    owner.until("took this peer's adds", |seen| seen.count == Some(13));
+    wait_until("took the owner's add", |shared| {
         counted(shared, block) == Some(13) && shared.unsealed == 0
     });
     editor.wait("followed the owner's add", |counter| {
@@ -42,10 +40,8 @@ fn a_peers_edit_during_a_gesture_here_reaches_editors_beneath_it() {
         })
         .collect();
     assert!(
-        operations
-            .iter()
-            .any(|operation| operation.beneath.is_some()),
-        "the owner's add goes beneath this peer's adds: {operations:?}"
+        operations.iter().any(|operation| !operation.mine),
+        "the peer's add reached the editor as an operation: {operations:?}"
     );
     assert_eq!(editor.mirror.pending(), 0);
 }

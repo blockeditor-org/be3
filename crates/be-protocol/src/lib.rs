@@ -277,6 +277,37 @@ pub struct SessionState {
     pub owner: Option<ClientId>,
     pub participants: Vec<ClientId>,
     pub clean_at: Option<CommitId>,
+    pub tag: Option<[u8; 32]>,
+}
+
+#[derive(Clone, Copy, Debug, Deserialize, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize)]
+pub struct OpId {
+    pub origin: u64,
+    pub counter: u64,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub struct SessionOp {
+    pub id: OpId,
+    pub sequence: u64,
+    pub base: u64,
+    pub floor: u64,
+    #[serde(with = "serde_bytes")]
+    pub payload: Vec<u8>,
+}
+
+#[derive(Clone, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
+pub struct SessionSeal {
+    pub head: Option<CommitId>,
+    pub sequence: u64,
+    pub state: Option<Vec<u8>>,
+}
+
+#[derive(Clone, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
+pub struct SessionLog {
+    pub seal: SessionSeal,
+    pub ops: Vec<SessionOp>,
+    pub counter: u64,
 }
 
 impl SessionState {
@@ -556,6 +587,7 @@ pub enum ClientMessage {
     JoinSession {
         request: u64,
         block: Uuid,
+        tag: [u8; 32],
     },
     LeaveSession {
         request: u64,
@@ -570,7 +602,21 @@ pub enum ClientMessage {
         request: u64,
         block: Uuid,
         generation: u64,
-        clean_at: Option<CommitId>,
+        seal: SessionSeal,
+    },
+    Submit {
+        request: u64,
+        block: Uuid,
+        id: OpId,
+        base: u64,
+        barrier: bool,
+        #[serde(with = "serde_bytes")]
+        payload: Vec<u8>,
+    },
+    Catchup {
+        request: u64,
+        block: Uuid,
+        origin: u64,
     },
     Relay {
         request: u64,
@@ -725,6 +771,8 @@ impl ClientMessage {
             | Self::LeaveSession { request, .. }
             | Self::ClaimOwnership { request, .. }
             | Self::Heartbeat { request, .. }
+            | Self::Submit { request, .. }
+            | Self::Catchup { request, .. }
             | Self::Relay { request, .. }
             | Self::GetKeys { request, .. }
             | Self::PutKeys { request, .. }
@@ -864,6 +912,15 @@ pub enum ServerMessage {
         block: Uuid,
         state: SessionState,
     },
+    SessionLog {
+        request: u64,
+        block: Uuid,
+        log: SessionLog,
+    },
+    Sequenced {
+        block: Uuid,
+        op: SessionOp,
+    },
     Relayed {
         block: Uuid,
         from: ClientId,
@@ -945,6 +1002,7 @@ impl ServerMessage {
             | Self::Collected { request, .. }
             | Self::AccessList { request, .. }
             | Self::Session { request, .. }
+            | Self::SessionLog { request, .. }
             | Self::Keys { request, .. }
             | Self::RecoveryKey { request, .. }
             | Self::ContactLink { request, .. }
@@ -959,6 +1017,7 @@ impl ServerMessage {
             | Self::BlockChanged { .. }
             | Self::BlockRemoved { .. }
             | Self::SessionChanged { .. }
+            | Self::Sequenced { .. }
             | Self::Relayed { .. }
             | Self::Paired { .. }
             | Self::ContactsChanged

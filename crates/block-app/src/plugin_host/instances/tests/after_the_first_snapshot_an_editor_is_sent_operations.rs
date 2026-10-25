@@ -58,7 +58,7 @@ fn after_the_first_snapshot_an_editor_is_sent_operations() {
         [EditorOperation {
             operation: own,
             mine: true,
-            unsettled: 0,
+            unsettled: 1,
             beneath: None,
         }]
     );
@@ -67,14 +67,16 @@ fn after_the_first_snapshot_an_editor_is_sent_operations() {
     crate::be::operate(block, elsewhere.clone());
     counted(block, 7);
     let sent = replica_sent_until(&mut instances, block, |sent| !operations(sent).is_empty());
+    let [sent] = operations(&sent)
+        .try_into()
+        .expect("one operation was sent");
     assert_eq!(
-        operations(&sent),
-        [EditorOperation {
-            operation: elsewhere,
-            mine: false,
-            unsettled: 0,
-            beneath: None,
-        }]
+        (sent.operation, sent.mine, sent.beneath),
+        (elsewhere, false, None)
+    );
+    assert!(
+        sent.unsettled > 0,
+        "the operation is unsettled until the server orders it"
     );
     assert!(replica_sends(&mut instances, block).is_empty());
 }

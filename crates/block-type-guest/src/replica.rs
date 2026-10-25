@@ -4,7 +4,7 @@ use be_block::{Landed, LiveEdit, Merge, Settling};
 use be_commit::{CommitId, MergeResult};
 use be_protocol::{ClientId, SessionState};
 use be_session::{
-    Follower, Inherited, KeptEdits, OpId, Resume, Sequencer, SessionMessage, SessionOp,
+    Follower, OpId, Resume, SessionLog, SessionMessage, SessionOp, SessionSeal, Submission,
 };
 use block_type_api::{
     Change, Command, EditorId, Endpoint, HeadEvent, Merging, Recipients, ReplicaId, Reply,
@@ -15,16 +15,16 @@ use uuid::Uuid;
 use crate::{
     FromFileFn, Recorder,
     editor::{EditorOperation, FromEditor, Gesture, PeerMessage, PeerPresence, Snapshot, ToEditor},
-    wire::Wire,
+    wire::Entry,
 };
 
 pub const SEAL_INTERVAL: u64 = 750;
 
+const SETTLING_PATIENCE: u64 = 5_000;
 const JOURNAL_LIMIT: usize = 1024;
 const LARGEST_RELAYED_OPERATION: usize = 1024 * 1024;
-const REPLACE_ATTEMPTS: u8 = 4;
-const OP_HEADS: usize = 64;
-const DIVERGED: &str = "an edit from a peer running a different version";
+const RELOAD_ATTEMPTS: u8 = 3;
+const DIVERGED: &str = "this session is held by another build of the block's type";
 
 pub(crate) struct Opened {
     pub(crate) replica: ReplicaId,
@@ -64,8 +64,14 @@ pub(crate) enum Input {
     },
     Head(HeadEvent),
     Lease {
+        client: ClientId,
         session: SessionState,
         resynchronize: bool,
+    },
+    Sequenced(SessionOp),
+    Caught {
+        token: Token,
+        result: Result<SessionLog, String>,
     },
     Read {
         token: Token,
@@ -104,11 +110,6 @@ enum Journaled<Op> {
     Replaced,
 }
 
-enum Role {
-    Owner(Sequencer),
-    Follower(Follower),
-}
-
 #[derive(Clone, Copy, Eq, PartialEq)]
 enum Sealing {
     Due,
@@ -126,27 +127,9 @@ enum Job<C> {
     Replace {
         content: C,
         reply: Option<RequestId>,
-        outright: bool,
     },
-    Keep(Keeping),
     Oversized,
     Release,
-}
-
-#[derive(Clone, Copy)]
-struct Handed {
-    commit: CommitId,
-    base: Option<CommitId>,
-    edits: Option<KeptEdits>,
-}
-
-#[derive(Clone, Copy)]
-struct Keeping {
-    commit: CommitId,
-    base: Option<CommitId>,
-    edits: Option<KeptEdits>,
-    from: ClientId,
-    attempts: u8,
 }
 
 enum Slot<C> {
@@ -154,41 +137,46 @@ enum Slot<C> {
     Ready(C),
 }
 
-impl Handed {
-    fn message(&self) -> SessionMessage {
-        SessionMessage::Kept {
-            commit: self.commit,
-            base: self.base,
-            edits: self.edits,
-        }
-    }
+struct Logged<Op> {
+    sequence: u64,
+    origin: u64,
+    op: Option<Op>,
+}
+
+#[derive(Clone, Copy, Eq, PartialEq)]
+enum Dropped {
+    Floor,
+    Rebase,
+    Unreadable,
+}
+
+struct Reloading {
+    id: OpId,
+    head: bool,
+    folded: usize,
+    before: Option<CommitId>,
+}
+
+struct Catching {
+    through: u64,
+    counter: u64,
+}
+
+struct Sent {
+    submission: Submission,
+    barrier: bool,
 }
 
 enum Then {
-    Load,
-    Snapshot {
-        head: Option<CommitId>,
-        sealed: u64,
-        sequence: u64,
-        ops: Vec<SessionOp>,
-        state: Vec<u8>,
-        applied: u64,
+    Caught {
+        log: SessionLog,
     },
-    SealedReload {
-        head: CommitId,
-        sequence: u64,
-        state: Vec<u8>,
-    },
-    Absorb {
-        head: CommitId,
-    },
-    Replacement,
-    Handed {
-        keeping: Keeping,
-        replay: bool,
-    },
-    FastForward {
-        to: CommitId,
+    Reload {
+        op: SessionOp,
+        commit: CommitId,
+        head: bool,
+        replace: bool,
+        state: Option<Vec<u8>>,
     },
     FastForwardMerge {
         to: CommitId,
@@ -199,26 +187,23 @@ enum Then {
         theirs: CommitId,
         unsealed: bool,
     },
+    Offline {
+        base: Option<CommitId>,
+        ours: CommitId,
+    },
 }
 
 enum AfterPublish<C> {
     Seal {
         retry: bool,
         reply: Option<RequestId>,
-    },
-    Replace {
-        content: C,
-        attempts: u8,
-        reply: Option<RequestId>,
-        outright: bool,
-        merging: Option<Merging>,
+        kept: Option<CommitId>,
     },
     Merged {
         value: C,
     },
-    Kept {
-        keeping: Keeping,
-        merged: Option<C>,
+    Provisional {
+        reply: Option<RequestId>,
     },
 }
 
@@ -229,32 +214,27 @@ enum AfterStash<C> {
         base: Option<CommitId>,
         count: usize,
     },
-    Replace {
+    Unsaved {
         content: C,
         reply: Option<RequestId>,
     },
+    Replacement {
+        state: Vec<u8>,
+        reply: Option<RequestId>,
+    },
+    Fold {
+        folded: usize,
+        state: Vec<u8>,
+    },
     Keep,
-    Ancestor {
-        content: C,
-        applied: u64,
-    },
-    Hand {
-        content: C,
-        applied: u64,
-        ancestor: Option<CommitId>,
-    },
-    Handed {
-        keeping: Keeping,
-        value: C,
-        count: usize,
-    },
 }
 
 enum Wait<C> {
     Reads { slots: Vec<Slot<C>>, then: Then },
-    Resume { token: Token },
+    Resume { token: Token, offline: bool },
     Publish { token: Token, then: AfterPublish<C> },
     Stash { token: Token, then: AfterStash<C> },
+    Catchup { token: Token },
 }
 
 #[derive(Default)]
@@ -271,7 +251,7 @@ pub(crate) struct Replica<C: LiveEdit, H> {
     tag: SessionTag,
     from_file: Option<FromFileFn>,
     state: SessionState,
-    role: Role,
+    follower: Follower,
     confirmed: C,
     visible: C,
     unsent: VecDeque<(C::Op, usize, u64)>,
@@ -279,15 +259,22 @@ pub(crate) struct Replica<C: LiveEdit, H> {
     covered: bool,
     base: Option<CommitId>,
     sealed: u64,
-    sealed_state: Vec<u8>,
-    reload: bool,
+    log: VecDeque<Logged<C::Op>>,
+    ahead: BTreeMap<u64, SessionOp>,
+    keep: Vec<CommitId>,
+    sent: Vec<Sent>,
+    reloading: Vec<Reloading>,
+    replaced_at: u64,
+    unreadable_reloads: u8,
     catching_up: bool,
+    catching: Option<Catching>,
+    offline: Option<CommitId>,
+    latest: Option<CommitId>,
     presence: BTreeMap<(ClientId, Uuid), Vec<u8>>,
     shown: BTreeMap<Uuid, Vec<u8>>,
     presence_changed: bool,
     channel: Vec<PeerMessage>,
     incompatible: bool,
-    other_builds: BTreeSet<ClientId>,
     diverged: bool,
     unreadable: Option<String>,
     history: H,
@@ -304,13 +291,8 @@ pub(crate) struct Replica<C: LiveEdit, H> {
     owes_since: Option<u64>,
     sealing: bool,
     claimed: Option<u64>,
-    replaced_at: u64,
-    reached: Option<CommitId>,
-    awaiting: Option<CommitId>,
-    replacing: bool,
-    handed: Vec<Handed>,
-    op_heads: Vec<Option<CommitId>>,
-    saved: VecDeque<CommitId>,
+    closing: bool,
+    after_settling: Vec<(u64, Job<C>)>,
     loaded: bool,
     released: bool,
     reported: Reported,
@@ -323,10 +305,8 @@ where
     H: Recorder<C>,
 {
     fn start(&mut self, out: &mut Vec<Command>) {
-        match self.base {
-            Some(head) => self.read(vec![Some(head)], Then::Load),
-            None => self.loaded(C::default()),
-        }
+        self.check_build();
+        self.catch_up();
         self.run(out);
     }
 
@@ -335,12 +315,24 @@ where
         match input {
             Input::Read { token, result } => self.answer_read(token, result),
             Input::Resumed { token, result } => self.answer_resume(token, result),
+            Input::Caught { token, result } => self.answer_caught(token, result),
             Input::Head(
                 event @ (HeadEvent::Published { .. }
                 | HeadEvent::Rejected { .. }
                 | HeadEvent::Stashed { .. }
                 | HeadEvent::Failed { .. }),
             ) => self.answer_head(event),
+            Input::Close if !self.loaded => {
+                self.waiting = None;
+                self.release();
+            }
+            input @ Input::Lease {
+                resynchronize: true,
+                ..
+            } if matches!(self.waiting, Some(Wait::Catchup { .. })) => {
+                self.waiting = None;
+                self.jobs.push_front(Job::Input(input));
+            }
             input => self.jobs.push_back(Job::Input(input)),
         }
         self.run(out);
@@ -362,10 +354,15 @@ where
     }
 
     fn wake_at(&self) -> Option<u64> {
-        match self.sealing {
+        let seal = match self.sealing {
             true => None,
             false => self.owes_since.map(|since| since + SEAL_INTERVAL),
-        }
+        };
+        let settling = self
+            .after_settling
+            .first()
+            .map(|(since, _)| since + SETTLING_PATIENCE);
+        seal.into_iter().chain(settling).min()
     }
 
     fn released(&self) -> bool {
@@ -380,6 +377,7 @@ where
 {
     pub(crate) fn new(opened: Opened) -> Self {
         let empty = C::default();
+        let origin = Uuid::new_v4().as_u64_pair().0;
         Self {
             id: opened.replica,
             content_type: opened.content_type,
@@ -388,9 +386,8 @@ where
             tag: opened.tag,
             from_file: opened.from_file,
             state: opened.session,
-            role: Role::Follower(Follower::new(opened.client)),
+            follower: Follower::new(origin),
             projected: Settling::new(empty.clone(), Vec::new()),
-            sealed_state: Vec::new(),
             visible: empty.clone(),
             confirmed: empty,
             unsent: VecDeque::new(),
@@ -398,14 +395,22 @@ where
             covered: true,
             base: opened.head,
             sealed: 0,
-            reload: false,
-            catching_up: false,
+            log: VecDeque::new(),
+            ahead: BTreeMap::new(),
+            keep: Vec::new(),
+            sent: Vec::new(),
+            reloading: Vec::new(),
+            replaced_at: 0,
+            unreadable_reloads: 0,
+            catching_up: true,
+            catching: None,
+            offline: opened.head,
+            latest: None,
             presence: BTreeMap::new(),
             shown: BTreeMap::new(),
             presence_changed: false,
             channel: Vec::new(),
             incompatible: false,
-            other_builds: BTreeSet::new(),
             diverged: false,
             unreadable: None,
             history: H::default(),
@@ -421,13 +426,8 @@ where
             owes_since: None,
             sealing: false,
             claimed: None,
-            replaced_at: 0,
-            reached: None,
-            awaiting: None,
-            replacing: false,
-            handed: Vec::new(),
-            op_heads: Vec::new(),
-            saved: VecDeque::new(),
+            closing: false,
+            after_settling: Vec::new(),
             loaded: false,
             released: false,
             reported: Reported::default(),
@@ -441,10 +441,17 @@ where
             if self.waiting.is_some() || self.released {
                 break;
             }
-            let Some(job) = self.jobs.pop_front() else {
-                break;
-            };
-            self.job(job);
+            if self.drain() {
+                continue;
+            }
+            if let Some(job) = self.jobs.pop_front() {
+                self.job(job);
+                continue;
+            }
+            if self.run_settled() {
+                continue;
+            }
+            break;
         }
         self.report();
         out.append(&mut self.out);
@@ -458,12 +465,7 @@ where
             Job::Input(input) => self.handle(input),
             Job::Seal { sealing, reply } => self.seal(sealing, reply),
             Job::Reconcile => self.reconcile(),
-            Job::Replace {
-                content,
-                reply,
-                outright,
-            } => self.replace(content, reply, outright),
-            Job::Keep(keeping) => self.keep(keeping),
+            Job::Replace { content, reply } => self.replace(content, reply),
             Job::Oversized => self.oversized(),
             Job::Release => self.release(),
         }
@@ -492,9 +494,31 @@ where
         }
         self.out.push(Command::Release { replica: self.id });
         self.released = true;
-        for job in std::mem::take(&mut self.jobs) {
+        let settling = std::mem::take(&mut self.after_settling)
+            .into_iter()
+            .map(|(_, job)| job);
+        for job in std::mem::take(&mut self.jobs).into_iter().chain(settling) {
             self.job_while_unreadable(job);
         }
+    }
+
+    fn run_settled(&mut self) -> bool {
+        let Some((since, _)) = self.after_settling.first() else {
+            return false;
+        };
+        let settled = self.unreadable.is_some()
+            || (self.loaded
+                && !self.catching_up
+                && self.follower.pending() == 0
+                && self.unsent.is_empty()
+                && self.reloading.is_empty());
+        if !settled && self.now < since + SETTLING_PATIENCE {
+            return false;
+        }
+        for (_, job) in std::mem::take(&mut self.after_settling) {
+            self.jobs.push_back(job);
+        }
+        true
     }
 
     fn handle(&mut self, input: Input) {
@@ -502,15 +526,10 @@ where
             Input::Message {
                 from: Endpoint::Peer(from),
                 bytes,
-            } => {
-                match Wire::decode(&bytes) {
-                    Some(wire) => self.receive(from, wire),
-                    None => self.unreadable_message(),
-                }
-                if self.waiting.is_none() {
-                    self.flush();
-                }
-            }
+            } => match SessionMessage::decode(&bytes) {
+                Some(message) => self.receive(from, message),
+                None => self.incompatible = true,
+            },
             Input::Message {
                 from: Endpoint::Editor(editor),
                 bytes,
@@ -527,42 +546,60 @@ where
             Input::Detach { editor } => {
                 self.editors.remove(&editor);
             }
-            Input::Head(HeadEvent::Moved {
-                head,
-                from_this_device,
-            }) => self.moved(head, from_this_device),
-            Input::Head(_) | Input::Read { .. } | Input::Resumed { .. } => {}
+            Input::Head(HeadEvent::Moved { head, .. }) => self.moved(head),
+            Input::Head(_) | Input::Read { .. } | Input::Resumed { .. } | Input::Caught { .. } => {}
             Input::Lease {
+                client,
                 session,
                 resynchronize,
             } => {
+                let rejoined = client != self.client;
+                self.client = client;
                 self.adopt(session);
-                if resynchronize && let Role::Follower(_) = &self.role {
-                    self.catching_up = true;
-                    self.greet();
+                if rejoined {
+                    for (kind, value) in self.shown.clone() {
+                        self.broadcast(&SessionMessage::Presence {
+                            kind,
+                            value: Some(value),
+                        });
+                    }
                 }
-                self.flush();
+                match resynchronize {
+                    true => self.catch_up(),
+                    false => self.flush(),
+                }
+            }
+            Input::Sequenced(op) => {
+                if op.sequence > self.follower.applied() {
+                    self.ahead.insert(op.sequence, op);
+                }
             }
             Input::Claim => self.claim(),
             Input::Close => {
-                self.jobs.push_front(Job::Release);
-                self.jobs.push_front(Job::Seal {
-                    sealing: Sealing::Due,
-                    reply: None,
-                });
+                if !std::mem::replace(&mut self.closing, true) {
+                    let sealing = Job::Seal {
+                        sealing: Sealing::Due,
+                        reply: None,
+                    };
+                    self.after_settling.push((self.now, sealing));
+                    self.after_settling.push((self.now, Job::Release));
+                }
             }
             Input::Change { id, change } => self.change(id, change),
             Input::Content { id } => {
                 let bytes = self.visible.encode();
                 self.reply(id, Reply::Content(bytes));
             }
-            Input::Seal { id, force } => self.jobs.push_front(Job::Seal {
-                sealing: match force {
-                    true => Sealing::Rekey,
-                    false => Sealing::Due,
-                },
-                reply: Some(id),
-            }),
+            Input::Seal { id, force } => {
+                let sealing = Job::Seal {
+                    sealing: match force {
+                        true => Sealing::Rekey,
+                        false => Sealing::Due,
+                    },
+                    reply: Some(id),
+                };
+                self.jobs.push_front(sealing);
+            }
         }
     }
 
@@ -588,6 +625,494 @@ where
             references: content.references_in(self.organization),
             derived: be_block::derived_metadata(content),
         }
+    }
+
+    fn is_holder(&self) -> bool {
+        self.state.is_owner(self.client)
+    }
+
+    fn owes(&self) -> bool {
+        self.loaded
+            && !self.catching_up
+            && self.is_holder()
+            && (self.follower.applied() > self.sealed || !self.keep.is_empty())
+    }
+
+    fn is_clean(&self) -> bool {
+        self.follower.pending() == 0 && self.unsent.is_empty() && !self.owes()
+    }
+
+    fn has_unsaved(&self) -> bool {
+        self.follower.pending() > 0
+            || !self.unsent.is_empty()
+            || self.follower.applied() > self.sealed
+    }
+
+    fn check_build(&mut self) {
+        if self.state.tag.is_some_and(|tag| tag != self.tag.0) {
+            self.incompatible = true;
+            self.diverged = true;
+        }
+    }
+
+    fn catch_up(&mut self) {
+        self.catching_up = true;
+        self.catching = None;
+        let token = self.token();
+        self.out.push(Command::Catchup {
+            replica: self.id,
+            token,
+            origin: self.follower.origin(),
+        });
+        self.waiting = Some(Wait::Catchup { token });
+    }
+
+    fn answer_caught(&mut self, token: Token, result: Result<SessionLog, String>) {
+        if !matches!(&self.waiting, Some(Wait::Catchup { token: waiting }) if *waiting == token) {
+            return;
+        }
+        self.waiting = None;
+        match result {
+            Ok(log) => self.caught(log),
+            Err(error) => self.error(error),
+        }
+    }
+
+    fn caught(&mut self, log: SessionLog) {
+        if !self.loaded || self.follower.applied() < log.seal.sequence {
+            let head = log.seal.head;
+            return self.read(vec![head], Then::Caught { log });
+        }
+        self.take_log(log, false);
+    }
+
+    fn take_log(&mut self, log: SessionLog, context: bool) {
+        let applied = self.follower.applied();
+        let through = log
+            .ops
+            .last()
+            .map_or(applied, |op| op.sequence)
+            .max(applied);
+        self.catching = Some(Catching {
+            through,
+            counter: log.counter,
+        });
+        for op in log.ops {
+            match op.sequence <= applied {
+                true if context => self.context(op),
+                true => {}
+                false => {
+                    self.ahead.insert(op.sequence, op);
+                }
+            }
+        }
+    }
+
+    fn context(&mut self, op: SessionOp) {
+        self.trim_log(op.floor);
+        let rebased = match Entry::decode(&op.payload) {
+            Some(Entry::Operation(bytes)) if op.base >= op.floor => C::decode_operation(&bytes)
+                .ok()
+                .and_then(|operation| self.rebased(operation, op.base, op.sequence)),
+            _ => None,
+        };
+        self.log.push_back(Logged {
+            sequence: op.sequence,
+            origin: op.id.origin,
+            op: rebased,
+        });
+    }
+
+    fn finish_catchup(&mut self) {
+        let Some(catching) = self.catching.take() else {
+            return;
+        };
+        self.catching_up = false;
+        let counter = catching.counter;
+        let pending = self.follower.pending();
+        self.follower.sequenced_through(counter);
+        self.sent
+            .retain(|sent| sent.submission.id.counter > counter);
+        let (trimmed, reloading): (Vec<Reloading>, Vec<Reloading>) =
+            std::mem::take(&mut self.reloading)
+                .into_iter()
+                .partition(|reloading| reloading.id.counter <= counter);
+        self.reloading = reloading;
+        for reloading in trimmed {
+            for _ in 0..reloading.folded {
+                self.unsent.pop_front();
+            }
+        }
+        if self.follower.pending() == 0 {
+            self.in_flight = 0;
+        }
+        let mut resubmit: Vec<(Submission, bool)> = self
+            .follower
+            .resynchronize()
+            .into_iter()
+            .map(|submission| Submission {
+                payload: Entry::Operation(submission.payload).encode(),
+                ..submission
+            })
+            .map(|submission| (submission, false))
+            .chain(
+                self.sent
+                    .iter()
+                    .map(|sent| (sent.submission.clone(), sent.barrier)),
+            )
+            .collect();
+        resubmit.sort_by_key(|(submission, _)| submission.id.counter);
+        for (submission, barrier) in resubmit {
+            self.submit(submission, barrier);
+        }
+        if self.follower.pending() != pending {
+            self.rebuild_visible();
+        }
+        self.cover_if_settled();
+        self.claim_if_abandoned();
+        self.reconcile_if_behind();
+        self.flush();
+    }
+
+    fn trim_log(&mut self, floor: u64) {
+        while self.log.front().is_some_and(|held| held.sequence <= floor) {
+            self.log.pop_front();
+        }
+    }
+
+    fn rebased(&self, operation: C::Op, base: u64, sequence: u64) -> Option<C::Op> {
+        let onto: Vec<C::Op> = self
+            .log
+            .iter()
+            .filter(|held| held.sequence > base && held.sequence < sequence)
+            .filter_map(|held| held.op.clone())
+            .collect();
+        match onto.is_empty() {
+            true => Some(operation),
+            false => C::rebase(operation, &onto),
+        }
+    }
+
+    fn drain(&mut self) -> bool {
+        if self.waiting.is_some() || self.unreadable.is_some() || !self.loaded {
+            return false;
+        }
+        let applied = self.follower.applied();
+        if let Some(op) = self.ahead.remove(&(applied + 1)) {
+            self.sequenced(op);
+            if self.waiting.is_none() {
+                self.flush();
+            }
+            return true;
+        }
+        self.ahead.retain(|sequence, _| *sequence > applied);
+        if self
+            .catching
+            .as_ref()
+            .is_some_and(|catching| applied >= catching.through)
+        {
+            self.finish_catchup();
+            return true;
+        }
+        false
+    }
+
+    fn passed(&mut self, op: &SessionOp) {
+        self.log.push_back(Logged {
+            sequence: op.sequence,
+            origin: op.id.origin,
+            op: None,
+        });
+        self.follower.set_applied(op.sequence);
+    }
+
+    fn sequenced(&mut self, op: SessionOp) {
+        self.trim_log(op.floor);
+        let mine = self.follower.is_mine(op.id);
+        if mine {
+            self.sent.retain(|sent| sent.submission.id != op.id);
+        }
+        match Entry::decode(&op.payload) {
+            Some(Entry::Operation(bytes)) => self.sequenced_operation(op, &bytes),
+            Some(Entry::Reload {
+                commit,
+                head,
+                replace,
+                state,
+            }) => {
+                if replace || op.base >= op.floor {
+                    return self.read(
+                        vec![Some(commit)],
+                        Then::Reload {
+                            op,
+                            commit,
+                            head,
+                            replace,
+                            state,
+                        },
+                    );
+                }
+                self.passed(&op);
+                if mine {
+                    self.reload_dropped(op.id);
+                }
+            }
+            Some(Entry::Keep { commit }) => {
+                self.passed(&op);
+                if !self.keep.contains(&commit) {
+                    self.keep.push(commit);
+                }
+                self.seal_if_owed();
+            }
+            None => {
+                self.passed(&op);
+                self.incompatible = true;
+                if mine && self.follower.forget(op.id).is_some() {
+                    self.in_flight = 0;
+                    self.rebuild_visible();
+                    self.cover_if_settled();
+                }
+            }
+        }
+    }
+
+    fn sequenced_operation(&mut self, op: SessionOp, bytes: &[u8]) {
+        let outcome = match op.base < op.floor {
+            true => Err(Dropped::Floor),
+            false => match C::decode_operation(bytes) {
+                Err(_) => Err(Dropped::Unreadable),
+                Ok(operation) => self
+                    .rebased(operation, op.base, op.sequence)
+                    .ok_or(Dropped::Rebase),
+            },
+        };
+        self.log.push_back(Logged {
+            sequence: op.sequence,
+            origin: op.id.origin,
+            op: outcome.as_ref().ok().cloned(),
+        });
+        let dropped = match outcome {
+            Ok(operation) => return self.apply_sequenced(op.id, op.sequence, operation),
+            Err(dropped) => dropped,
+        };
+        self.follower.set_applied(op.sequence);
+        if dropped == Dropped::Unreadable {
+            self.incompatible = true;
+        }
+        let Some(payload) = self.follower.forget(op.id) else {
+            return;
+        };
+        let weight = std::mem::take(&mut self.in_flight).max(1);
+        if dropped == Dropped::Floor
+            && op.base >= self.replaced_at
+            && let Ok(operation) = C::decode_operation(&payload)
+        {
+            self.unsent.push_front((operation, payload.len(), weight));
+            return;
+        }
+        self.rebuild_visible();
+        self.cover_if_settled();
+    }
+
+    fn apply_sequenced(&mut self, id: OpId, sequence: u64, operation: C::Op) {
+        let mine = self.follower.is_mine(id);
+        let unchanged = mine
+            && self.follower.front() == Some(id)
+            && self
+                .follower
+                .payloads()
+                .first()
+                .is_some_and(|payload| *payload == C::encode_operation(&operation));
+        if unchanged {
+            self.follower.accepted(id, sequence);
+            self.confirmed.apply(&operation);
+            self.in_flight = 0;
+            self.cover_if_settled();
+            return;
+        }
+        if !mine && self.follower.pending() == 0 && self.unsent.is_empty() {
+            self.follower.accepted(id, sequence);
+            self.confirmed.apply(&operation);
+            self.visible.apply(&operation);
+            self.journal(Journaled::Applied(operation), None);
+            return;
+        }
+        if mine {
+            self.follower.accepted(id, sequence);
+            self.confirmed.apply(&operation);
+            self.in_flight = 0;
+            self.rebuild_visible();
+            self.cover_if_settled();
+            return;
+        }
+        let unsettled = self.unsettled();
+        self.follower.accepted(id, sequence);
+        self.follower.rewrite_pending(|payload| {
+            let pending = C::decode_operation(payload).ok()?;
+            C::rebase(pending, std::slice::from_ref(&operation))
+                .map(|rebased| C::encode_operation(&rebased))
+        });
+        if !self.covered {
+            self.confirmed.apply(&operation);
+            self.rebuild_visible();
+            return;
+        }
+        let mut local: Vec<C::Op> = self
+            .follower
+            .payloads()
+            .iter()
+            .filter_map(|payload| C::decode_operation(payload).ok())
+            .collect();
+        self.in_flight = local.len() as u64;
+        for (pending, _, weight) in &mut self.unsent {
+            local.push(pending.clone());
+            *weight = 1;
+        }
+        self.visible
+            .apply_beneath(&mut self.confirmed, &operation, &local, &mut Vec::new());
+        self.journal(
+            Journaled::Beneath {
+                operation,
+                unsettled,
+                local,
+            },
+            None,
+        );
+    }
+
+    fn loses_work_after(&self, base: u64) -> bool {
+        let origin = self.follower.origin();
+        self.follower.pending() > 0
+            || !self.unsent.is_empty()
+            || self
+                .log
+                .iter()
+                .any(|held| held.sequence > base && held.origin == origin && held.op.is_some())
+    }
+
+    fn reloaded(&mut self, op: SessionOp, commit: CommitId, head: bool, replace: bool, content: C) {
+        let mut content = content;
+        let mine = self.follower.is_mine(op.id);
+        let before =
+            (replace && !mine && self.loses_work_after(op.base)).then(|| self.visible.clone());
+        let mut reapplied = false;
+        if !replace {
+            for held in self.log.iter().filter(|held| held.sequence > op.base) {
+                if let Some(operation) = &held.op {
+                    content.apply(operation);
+                    reapplied = true;
+                }
+            }
+        }
+        self.passed(&op);
+        self.confirmed = content;
+        if replace {
+            self.replaced_at = op.sequence;
+            self.history.clear();
+            self.unsent.clear();
+            self.follower.take_pending();
+            self.in_flight = 0;
+            self.covered = true;
+            for reloading in &mut self.reloading {
+                reloading.folded = 0;
+            }
+        }
+        if mine && let Some(index) = self.reloading.iter().position(|held| held.id == op.id) {
+            let reloading = self.reloading.remove(index);
+            for _ in 0..reloading.folded {
+                self.unsent.pop_front();
+            }
+        }
+        match head {
+            true => {
+                self.base = Some(commit);
+                if !reapplied {
+                    self.sealed = op.sequence;
+                }
+            }
+            false => {
+                if !self.keep.contains(&commit) {
+                    self.keep.push(commit);
+                }
+            }
+        }
+        self.rebuild_visible();
+        self.cover_if_settled();
+        if mine && head {
+            self.reconcile_if_behind();
+        }
+        self.seal_if_owed();
+        if let Some(before) = before {
+            let written = self.written(&before);
+            self.stash(self.base, written, AfterStash::Keep);
+        }
+    }
+
+    fn reload_dropped(&mut self, id: OpId) {
+        let Some(index) = self.reloading.iter().position(|held| held.id == id) else {
+            return;
+        };
+        let reloading = self.reloading.remove(index);
+        if reloading.head {
+            self.base = reloading.before;
+            self.jobs.push_back(Job::Reconcile);
+        } else if reloading.folded > 0 {
+            self.hand_over_oversized();
+        }
+    }
+
+    fn seal_if_owed(&mut self) {
+        let queued = self.jobs.iter().any(|job| {
+            matches!(
+                job,
+                Job::Seal {
+                    sealing: Sealing::Once,
+                    ..
+                }
+            )
+        });
+        if self.owes() && !queued {
+            self.jobs.push_front(Job::Seal {
+                sealing: Sealing::Once,
+                reply: None,
+            });
+        }
+    }
+
+    fn submit_operation(&mut self, submission: Submission) {
+        let payload = Entry::Operation(submission.payload).encode();
+        self.submit(
+            Submission {
+                payload,
+                ..submission
+            },
+            false,
+        );
+    }
+
+    fn submit(&mut self, submission: Submission, barrier: bool) {
+        self.out.push(Command::Submit {
+            replica: self.id,
+            id: submission.id,
+            base: submission.base,
+            barrier,
+            payload: submission.payload,
+        });
+    }
+
+    fn submit_entry(&mut self, entry: Entry, barrier: bool) -> OpId {
+        let submission = Submission {
+            id: self.follower.next_id(),
+            base: self.follower.applied(),
+            payload: entry.encode(),
+        };
+        let id = submission.id;
+        self.sent.push(Sent {
+            submission: submission.clone(),
+            barrier,
+        });
+        self.submit(submission, barrier);
+        id
     }
 
     fn read(&mut self, commits: Vec<Option<CommitId>>, then: Then) {
@@ -632,7 +1157,17 @@ where
                     return;
                 };
                 match then {
-                    Then::Load => self.unreadable = Some(error),
+                    Then::Caught { .. } if !self.loaded => self.unreadable = Some(error),
+                    Then::Reload { op, .. } if self.unreadable_reloads < RELOAD_ATTEMPTS => {
+                        self.unreadable_reloads += 1;
+                        self.ahead.insert(op.sequence, op);
+                        self.catch_up();
+                    }
+                    Then::Reload { op, .. } => {
+                        self.error(error);
+                        self.passed(&op);
+                        self.diverged = true;
+                    }
                     _ => self.error(error),
                 }
             }
@@ -663,90 +1198,41 @@ where
         let mut contents = contents.into_iter();
         let mut next = || contents.next().unwrap_or_default();
         match then {
-            Then::Load => self.loaded(next()),
-            Then::Snapshot {
+            Then::Caught { log } => {
+                let mut content = next();
+                if let Some(state) = &log.seal.state
+                    && content.adopt_session_state(state).is_err()
+                {
+                    self.incompatible = true;
+                }
+                self.confirmed = content;
+                self.base = log.seal.head;
+                self.sealed = log.seal.sequence;
+                self.follower.set_applied(log.seal.sequence);
+                self.log.clear();
+                let sealed = log.seal.sequence;
+                self.ahead.retain(|sequence, _| *sequence > sealed);
+                match self.loaded {
+                    true => self.rebuild_visible(),
+                    false => self.loaded(),
+                }
+                self.take_log(log, true);
+            }
+            Then::Reload {
+                op,
+                commit,
                 head,
-                sealed,
-                sequence,
-                ops,
-                state,
-                applied,
-            } => {
-                self.confirmed = next();
-                self.base = head;
-                if self.confirmed.adopt_session_state(&state).is_err() {
-                    return self.unreadable_message();
-                }
-                self.sealed_state = state;
-                if let Role::Follower(follower) = &mut self.role {
-                    follower.set_applied(sealed);
-                }
-                self.rebuild_visible();
-                self.snapshot_ops(sealed, sequence, ops, applied);
-                self.flush();
-            }
-            Then::SealedReload {
-                head,
-                sequence,
+                replace,
                 state,
             } => {
-                self.confirmed = next();
-                if self.confirmed.adopt_session_state(&state).is_err() {
-                    self.unreadable_message();
+                self.unreadable_reloads = 0;
+                let mut content = next();
+                if let Some(state) = &state
+                    && content.adopt_session_state(state).is_err()
+                {
+                    self.incompatible = true;
                 }
-                self.sealed_state = state;
-                if let Role::Follower(follower) = &mut self.role {
-                    follower.set_applied(sequence);
-                }
-                self.rebuild_visible();
-                self.base = Some(head);
-                self.sealed = sequence;
-                self.flush();
-            }
-            Then::Absorb { head } => {
-                self.replacement(head, next());
-                self.flush();
-            }
-            Then::Replacement => {
-                self.history.clear();
-                self.replace(next(), None, true);
-            }
-            Then::Handed { keeping, replay } => {
-                let (value, conflicts) = match replay {
-                    true => (self.replayed(next(), &keeping), None),
-                    false => {
-                        let ancestor = next();
-                        let theirs = next();
-                        match C::merge3(&ancestor, &self.confirmed, &theirs) {
-                            MergeResult::Clean(value) => (value, None),
-                            MergeResult::Conflicted { value, conflicts } => {
-                                (value, Some(conflicts))
-                            }
-                        }
-                    }
-                };
-                match conflicts {
-                    None => self.publish_kept(keeping, Some(value)),
-                    Some(count) => {
-                        let content = self.written(&self.confirmed);
-                        self.stash(
-                            self.base,
-                            content,
-                            AfterStash::Handed {
-                                keeping,
-                                value,
-                                count,
-                            },
-                        );
-                    }
-                }
-            }
-            Then::FastForward { to } => {
-                self.reached = Some(to);
-                self.confirmed = next();
-                self.replace_visible(self.confirmed.clone());
-                self.reload = true;
-                self.settle_at(to);
+                self.reloaded(op, commit, head, replace, content);
             }
             Then::FastForwardMerge { to } => {
                 let ancestor = next();
@@ -817,6 +1303,25 @@ where
                     }
                 }
             }
+            Then::Offline { base, ours } => {
+                let ancestor = next();
+                let ours_content = next();
+                let (value, conflicts) = match C::merge3(&ancestor, &ours_content, &self.confirmed)
+                {
+                    MergeResult::Clean(value) => (value, None),
+                    MergeResult::Conflicted { value, conflicts } => (value, Some(conflicts)),
+                };
+                if let (Some(count), Some(theirs)) = (conflicts, self.base) {
+                    self.conflict(ours, theirs, count);
+                }
+                let content = self.written(&value);
+                self.publish(
+                    self.base,
+                    Some(Merging { base, ours }),
+                    content,
+                    AfterPublish::Merged { value },
+                );
+            }
         }
     }
 
@@ -859,20 +1364,35 @@ where
     }
 
     fn answer_resume(&mut self, token: Token, result: Result<Resume, String>) {
-        if !matches!(&self.waiting, Some(Wait::Resume { token: waiting }) if *waiting == token) {
-            return;
-        }
+        let offline = match &self.waiting {
+            Some(Wait::Resume {
+                token: waiting,
+                offline,
+            }) if *waiting == token => *offline,
+            _ => return,
+        };
         self.waiting = None;
         let resume = match result {
             Ok(resume) => resume,
             Err(error) => return self.error(error),
         };
-        let unsealed = self.has_unsealed_work();
+        if offline {
+            match resume {
+                Resume::Merge { base, ours, .. } => {
+                    self.read(vec![base, Some(ours)], Then::Offline { base, ours });
+                }
+                Resume::Publish { from } => {
+                    let base = self.base;
+                    self.read(vec![base, Some(from)], Then::Offline { base, ours: from });
+                }
+                Resume::Empty | Resume::UpToDate | Resume::FastForward { .. } => {}
+            }
+            return;
+        }
+        let unsealed = self.follower.applied() > self.sealed;
         match resume {
             Resume::Empty | Resume::UpToDate | Resume::Publish { .. } => {}
-            Resume::FastForward { to } if !unsealed => {
-                self.read(vec![Some(to)], Then::FastForward { to });
-            }
+            Resume::FastForward { to } if !unsealed => self.reload_head(to, None),
             Resume::FastForward { to } => {
                 self.read(vec![self.base, Some(to)], Then::FastForwardMerge { to });
             }
@@ -913,7 +1433,7 @@ where
         }
         match (self.waiting.take(), event) {
             (Some(Wait::Publish { then, .. }), HeadEvent::Published { head, .. }) => {
-                self.published(then, Some(head));
+                self.published(then, head);
             }
             (Some(Wait::Publish { then, .. }), HeadEvent::Rejected { head, .. }) => {
                 self.rejected(then, head);
@@ -924,18 +1444,15 @@ where
             (waiting, HeadEvent::Failed { error, .. }) => {
                 let reply = match waiting {
                     Some(Wait::Publish {
-                        then: AfterPublish::Seal { reply, .. },
+                        then: AfterPublish::Seal { reply, .. } | AfterPublish::Provisional { reply },
                         ..
                     }) => {
                         self.sealing = false;
                         reply.map(|id| (id, Reply::Sealed))
                     }
-                    Some(Wait::Publish {
-                        then: AfterPublish::Replace { reply, .. },
-                        ..
-                    })
-                    | Some(Wait::Stash {
-                        then: AfterStash::Replace { reply, .. },
+                    Some(Wait::Stash {
+                        then:
+                            AfterStash::Unsaved { reply, .. } | AfterStash::Replacement { reply, .. },
                         ..
                     }) => reply.map(|id| (id, Reply::Changed(false))),
                     _ => None,
@@ -949,82 +1466,58 @@ where
         }
     }
 
-    fn published(&mut self, then: AfterPublish<C>, head: Option<CommitId>) {
+    fn published(&mut self, then: AfterPublish<C>, head: CommitId) {
         match then {
-            AfterPublish::Seal { reply, .. } => {
-                if let Some(head) = head {
-                    self.settle_at(head);
-                }
+            AfterPublish::Seal { reply, kept, .. } => {
+                self.settle_at(head, kept);
                 self.sealing = false;
                 if let Some(id) = reply {
                     self.reply(id, Reply::Sealed);
                 }
             }
-            AfterPublish::Replace {
-                content,
-                reply,
-                outright,
-                ..
-            } => {
-                let Some(head) = head else {
-                    return;
-                };
-                match (&mut self.role, outright) {
-                    (Role::Owner(sequencer), true) => {
-                        let sequence = sequencer.sequence() + 1;
-                        self.role = Role::Owner(Sequencer::continuing(Some(head), sequence, 0));
-                        self.replaced_at = sequence;
-                        self.confirmed = content;
-                        self.replace_visible(self.confirmed.clone());
-                        self.reload = true;
-                        self.broadcast(&SessionMessage::Replaced { head });
-                        self.settle_at(head);
-                    }
-                    (Role::Owner(_), false) => {
-                        self.confirmed = content;
-                        self.replace_visible(self.confirmed.clone());
-                        self.reload = true;
-                        self.settle_at(head);
-                    }
-                    (Role::Follower(follower), true) => {
-                        follower.take_pending();
-                        self.unsent.clear();
-                        self.in_flight = 0;
-                        self.covered = true;
-                        self.awaiting = Some(head);
-                        self.replacing = true;
-                        self.confirmed = content.clone();
-                        self.replace_visible(content);
-                        let owner = self.state.owner;
-                        self.send(owner, &SessionMessage::Replaced { head });
-                    }
-                    (Role::Follower(_), false) => {
-                        self.unsent.clear();
-                        self.replace_visible(content);
-                        let owner = self.state.owner;
-                        self.send(owner, &SessionMessage::Moved { head });
-                    }
-                }
+            AfterPublish::Merged { value } => {
+                let state = value.session_state();
+                self.reload_head(head, Some(state));
+            }
+            AfterPublish::Provisional { reply } => {
+                self.base = Some(head);
+                self.sealing = false;
                 if let Some(id) = reply {
-                    self.reply(id, Reply::Changed(true));
+                    self.reply(id, Reply::Sealed);
                 }
             }
-            AfterPublish::Merged { value } => self.take_merged(value, head),
-            AfterPublish::Kept { keeping, merged } => {
-                let Some(head) = head else {
-                    return;
-                };
-                if let Some(value) = merged {
-                    self.confirmed = value;
-                    self.replace_visible(self.confirmed.clone());
-                    self.reload = true;
+        }
+    }
+
+    fn rejected(&mut self, then: AfterPublish<C>, head: Option<CommitId>) {
+        self.latest = head;
+        match then {
+            AfterPublish::Seal {
+                retry: true, reply, ..
+            } => {
+                self.jobs.push_front(Job::Seal {
+                    sealing: Sealing::Once,
+                    reply,
+                });
+                self.jobs.push_front(Job::Reconcile);
+            }
+            AfterPublish::Seal {
+                retry: false,
+                reply,
+                ..
+            } => {
+                self.sealing = false;
+                if let Some(id) = reply {
+                    self.reply(id, Reply::Sealed);
                 }
-                if self.saved.len() >= OP_HEADS {
-                    self.saved.pop_front();
+            }
+            AfterPublish::Merged { .. } => {}
+            AfterPublish::Provisional { reply } => {
+                self.sealing = false;
+                if let Some(id) = reply {
+                    self.reply(id, Reply::Sealed);
                 }
-                self.saved.push_back(keeping.commit);
-                self.acknowledge(&keeping);
-                self.settle_at(head);
+                self.jobs.push_front(Job::Reconcile);
             }
         }
     }
@@ -1046,219 +1539,87 @@ where
                     AfterPublish::Merged { value },
                 );
             }
-            AfterStash::Replace { content, reply } => {
-                let merging = Merging {
-                    base: self.base,
-                    ours: commit,
-                };
-                self.publish_replacement(content, reply, true, Some(merging), self.base, 0);
-            }
-            AfterStash::Keep => {
-                self.drop_unconfirmed();
-                self.rebuild_visible();
-                self.hand(Handed {
-                    commit,
-                    base: self.base,
-                    edits: None,
-                });
-            }
-            AfterStash::Ancestor { content, applied } => {
+            AfterStash::Unsaved { content, reply } => {
                 let written = self.written(&content);
+                let state = content.session_state();
                 self.stash(
                     Some(commit),
                     written,
-                    AfterStash::Hand {
-                        content,
-                        applied,
-                        ancestor: Some(commit),
-                    },
+                    AfterStash::Replacement { state, reply },
                 );
             }
-            AfterStash::Hand {
-                content,
-                applied,
-                ancestor,
-            } => {
-                self.drop_unconfirmed();
-                self.confirmed = content;
-                self.rebuild_visible();
-                let sealed = self.base;
-                self.hand(Handed {
-                    commit,
-                    base: ancestor,
-                    edits: Some(KeptEdits { applied, sealed }),
-                });
-            }
-            AfterStash::Handed {
-                keeping,
-                value,
-                count,
-            } => {
-                self.conflict(commit, keeping.commit, count);
-                self.jobs.push_front(Job::Keep(Keeping {
-                    commit,
-                    base: self.base,
-                    edits: None,
-                    from: self.client,
-                    attempts: 0,
-                }));
-                self.publish_kept(keeping, Some(value));
-            }
-        }
-    }
-
-    fn acknowledge(&mut self, keeping: &Keeping) {
-        match keeping.from == self.client {
-            true => self.handed.retain(|handed| handed.commit != keeping.commit),
-            false => self.send(
-                Some(keeping.from),
-                &SessionMessage::Saved {
-                    commit: keeping.commit,
-                },
-            ),
-        }
-    }
-
-    fn drop_unconfirmed(&mut self) {
-        if let Role::Follower(follower) = &mut self.role {
-            follower.take_pending();
-        }
-        self.unsent.clear();
-        self.in_flight = 0;
-        self.covered = true;
-    }
-
-    fn hand(&mut self, handed: Handed) {
-        self.handed.push(handed);
-        let owner = self.state.owner;
-        self.send(owner, &handed.message());
-    }
-
-    fn handing_edits(&self) -> bool {
-        self.handed.iter().any(|handed| handed.edits.is_some())
-    }
-
-    fn publish_kept(&mut self, keeping: Keeping, merged: Option<C>) {
-        let content = self.written(merged.as_ref().unwrap_or(&self.confirmed));
-        self.publish(
-            self.base,
-            Some(Merging {
-                base: keeping.base,
-                ours: keeping.commit,
-            }),
-            content,
-            AfterPublish::Kept { keeping, merged },
-        );
-    }
-
-    fn replayed(&self, mut value: C, keeping: &Keeping) -> C {
-        let (Role::Owner(sequencer), Some(edits)) = (&self.role, keeping.edits) else {
-            return value;
-        };
-        for op in sequencer.since(edits.applied) {
-            if op.id.client == keeping.from {
-                continue;
-            }
-            if let Ok(operation) = C::decode_operation(&op.payload) {
-                value.apply(&operation);
-            }
-        }
-        value
-    }
-
-    fn rejected(&mut self, then: AfterPublish<C>, head: Option<CommitId>) {
-        match then {
-            AfterPublish::Seal { retry: true, reply } => {
-                self.jobs.push_front(Job::Seal {
-                    sealing: Sealing::Once,
-                    reply,
-                });
-                self.jobs.push_front(Job::Reconcile);
-            }
-            AfterPublish::Seal {
-                retry: false,
-                reply,
-            } => {
-                self.sealing = false;
+            AfterStash::Replacement { state, reply } => {
+                self.submit_entry(
+                    Entry::Reload {
+                        commit,
+                        head: false,
+                        replace: true,
+                        state: Some(state),
+                    },
+                    true,
+                );
                 if let Some(id) = reply {
-                    self.reply(id, Reply::Sealed);
+                    self.reply(id, Reply::Changed(true));
                 }
             }
-            AfterPublish::Replace {
-                content,
-                attempts,
-                reply,
-                outright,
-                merging,
-            } => {
-                if attempts + 1 >= REPLACE_ATTEMPTS {
-                    self.error(
-                        "a replacement could not be saved; the block kept changing under it",
-                    );
-                    if let Some(id) = reply {
-                        self.reply(id, Reply::Changed(false));
-                    }
-                    return;
-                }
-                self.publish_replacement(content, reply, outright, merging, head, attempts + 1);
+            AfterStash::Fold { folded, state } => {
+                let id = self.submit_entry(
+                    Entry::Reload {
+                        commit,
+                        head: false,
+                        replace: false,
+                        state: Some(state),
+                    },
+                    false,
+                );
+                self.reloading.push(Reloading {
+                    id,
+                    head: false,
+                    folded,
+                    before: None,
+                });
             }
-            AfterPublish::Merged { value } => self.take_merged(value, None),
-            AfterPublish::Kept { keeping, .. } => {
-                if keeping.attempts + 1 >= REPLACE_ATTEMPTS {
-                    return self.error("an edit a follower kept could not be saved");
-                }
-                self.jobs.push_front(Job::Keep(Keeping {
-                    attempts: keeping.attempts + 1,
-                    ..keeping
-                }));
-                self.jobs.push_front(Job::Reconcile);
+            AfterStash::Keep => {
+                self.submit_entry(Entry::Keep { commit }, false);
             }
         }
     }
 
-    fn loaded(&mut self, content: C) {
-        self.confirmed = content;
+    fn reload_head(&mut self, head: CommitId, state: Option<Vec<u8>>) {
+        let before = self.base;
+        self.base = Some(head);
+        let id = self.submit_entry(
+            Entry::Reload {
+                commit: head,
+                head: true,
+                replace: false,
+                state,
+            },
+            false,
+        );
+        self.reloading.push(Reloading {
+            id,
+            head: true,
+            folded: 0,
+            before,
+        });
+    }
+
+    fn loaded(&mut self) {
         self.visible = self.confirmed.clone();
-        self.sealed_state = self.confirmed.session_state();
+        for (operation, ..) in &self.unsent {
+            self.visible.apply(operation);
+        }
         self.projected = Settling::new(self.visible.clone(), Vec::new());
-        self.role = match self.state.is_owner(self.client) {
-            true => Role::Owner(Sequencer::new(self.base)),
-            false => Role::Follower(Follower::new(self.client)),
-        };
         self.loaded = true;
         self.described = true;
-        if self.is_owner() {
-            self.op_heads = vec![self.base];
+        if self.offline == self.base {
+            self.offline = None;
         }
-        if let Role::Follower(_) = &self.role {
-            self.catching_up = true;
-            self.greet();
-        }
-        self.claim_if_abandoned();
-    }
-
-    fn is_owner(&self) -> bool {
-        matches!(self.role, Role::Owner(_))
-    }
-
-    fn is_clean(&self) -> bool {
-        match &self.role {
-            Role::Owner(sequencer) => sequencer.is_clean(),
-            Role::Follower(follower) => follower.pending() == 0 && self.unsent.is_empty(),
-        }
-    }
-
-    fn has_unsealed_work(&self) -> bool {
-        matches!(&self.role, Role::Owner(sequencer) if !sequencer.is_clean())
     }
 
     fn unsettled(&self) -> u64 {
-        match &self.role {
-            Role::Owner(_) => 0,
-            Role::Follower(_) => {
-                self.in_flight + self.unsent.iter().map(|(.., weight)| weight).sum::<u64>()
-            }
-        }
+        self.in_flight + self.unsent.iter().map(|(.., weight)| weight).sum::<u64>()
     }
 
     fn cover_if_settled(&mut self) {
@@ -1324,11 +1685,24 @@ where
         self.journal(Journaled::Replaced, None);
     }
 
-    fn unreadable_message(&mut self) {
-        self.incompatible = true;
-        if !self.is_owner() {
-            self.diverged = true;
+    fn rebuild_visible(&mut self) {
+        let mut visible = self.confirmed.clone();
+        for payload in self.follower.payloads() {
+            if let Ok(pending) = C::decode_operation(&payload) {
+                visible.apply(&pending);
+            }
         }
+        for (operation, ..) in &self.unsent {
+            visible.apply(operation);
+        }
+        self.replace_visible(visible);
+    }
+
+    fn folded(&self) -> usize {
+        self.reloading
+            .iter()
+            .map(|reloading| reloading.folded)
+            .sum()
     }
 
     fn edit(&mut self, operation: C::Op, origin: Option<EditorId>) -> bool {
@@ -1337,10 +1711,7 @@ where
             return false;
         }
         self.visible.apply(&operation);
-        let unsettled = match self.role {
-            Role::Owner(_) => 0,
-            Role::Follower(_) => self.unsettled() + 1,
-        };
+        let unsettled = self.unsettled() + 1;
         self.journal(
             Journaled::Edited {
                 operation: operation.clone(),
@@ -1351,53 +1722,368 @@ where
         let payload = C::encode_operation(&operation);
         let size = payload.len();
         let oversized = size > LARGEST_RELAYED_OPERATION;
-        if oversized && self.is_owner() {
-            self.hand_over_oversized();
+        let held = oversized
+            || self.follower.pending() > 0
+            || !self.unsent.is_empty()
+            || !self.reloading.is_empty()
+            || self.catching_up;
+        if !held {
+            let submission = self.follower.submit(payload);
+            self.in_flight = 1;
+            self.submit_operation(submission);
             return true;
         }
-        match &mut self.role {
-            Role::Owner(sequencer) => {
-                let id = OpId {
-                    client: self.client,
-                    counter: sequencer.sequence() + 1,
-                };
-                let Some(op) = sequencer.accept(id, payload) else {
-                    return true;
-                };
-                self.confirmed.apply(&operation);
-                self.broadcast(&SessionMessage::Accepted { op });
-            }
-            Role::Follower(follower)
-                if oversized
-                    || follower.pending() > 0
-                    || !self.unsent.is_empty()
-                    || self.awaiting.is_some() =>
+        let absorbable = self.unsent.len() > self.folded();
+        let leftover = match self.unsent.back_mut() {
+            Some((last, bound, weight))
+                if absorbable && *bound + size <= LARGEST_RELAYED_OPERATION =>
             {
-                let leftover = match self.unsent.back_mut() {
-                    Some((last, bound, weight)) if *bound + size <= LARGEST_RELAYED_OPERATION => {
-                        let leftover = C::absorb_operation(last, operation);
-                        if leftover.is_none() {
-                            *bound += size;
-                            *weight += 1;
-                        }
-                        leftover
-                    }
-                    _ => Some(operation),
-                };
-                self.unsent
-                    .extend(leftover.map(|operation| (operation, size, 1)));
-                if oversized {
-                    self.flush();
+                let leftover = C::absorb_operation(last, operation);
+                if leftover.is_none() {
+                    *bound += size;
+                    *weight += 1;
                 }
+                leftover
             }
-            Role::Follower(follower) => {
-                let message = follower.submit(payload);
-                self.in_flight = 1;
-                let owner = self.state.owner;
-                self.send(owner, &message);
-            }
+            _ => Some(operation),
+        };
+        self.unsent
+            .extend(leftover.map(|operation| (operation, size, 1)));
+        if oversized {
+            self.flush();
         }
         true
+    }
+
+    fn flush(&mut self) {
+        if self.follower.pending() > 0
+            || !self.reloading.is_empty()
+            || self.catching_up
+            || !self.loaded
+        {
+            return;
+        }
+        if self
+            .unsent
+            .front()
+            .is_some_and(|(_, bound, _)| *bound > LARGEST_RELAYED_OPERATION)
+        {
+            return self.hand_over_oversized();
+        }
+        let Some((operation, _, weight)) = self.unsent.pop_front() else {
+            return;
+        };
+        let submission = self.follower.submit(C::encode_operation(&operation));
+        self.in_flight = weight;
+        self.submit_operation(submission);
+    }
+
+    fn hand_over_oversized(&mut self) {
+        if !self.jobs.iter().any(|job| matches!(job, Job::Oversized)) {
+            self.jobs.push_front(Job::Oversized);
+        }
+    }
+
+    fn oversized(&mut self) {
+        if self.follower.pending() > 0
+            || !self.reloading.is_empty()
+            || self.unsent.is_empty()
+            || !self.loaded
+        {
+            return;
+        }
+        if self.diverged {
+            return self.error(DIVERGED);
+        }
+        let content = self.visible.clone();
+        let folded = self.unsent.len();
+        let written = self.written(&content);
+        let state = content.session_state();
+        self.stash(self.base, written, AfterStash::Fold { folded, state });
+    }
+
+    fn replace(&mut self, content: C, reply: Option<RequestId>) {
+        if self.diverged || !self.loaded {
+            if self.diverged {
+                self.error(DIVERGED);
+            }
+            if let Some(id) = reply {
+                self.reply(id, Reply::Changed(false));
+            }
+            return;
+        }
+        if self.has_unsaved() {
+            let kept = self.written(&self.visible);
+            return self.stash(self.base, kept, AfterStash::Unsaved { content, reply });
+        }
+        let written = self.written(&content);
+        let state = content.session_state();
+        self.stash(self.base, written, AfterStash::Replacement { state, reply });
+    }
+
+    fn seal(&mut self, sealing: Sealing, reply: Option<RequestId>) {
+        let able = self.is_holder()
+            && self.loaded
+            && !self.catching_up
+            && !self.reloading.iter().any(|reloading| reloading.head);
+        let provisional =
+            reply.is_some() && (self.follower.pending() > 0 || !self.unsent.is_empty());
+        let wanted = match sealing {
+            Sealing::Rekey => !self.diverged,
+            Sealing::Due | Sealing::Once => self.owes() || provisional,
+        };
+        if !able || !wanted || self.diverged {
+            if able && wanted {
+                self.error(DIVERGED);
+            }
+            self.sealing = false;
+            if let Some(id) = reply {
+                self.reply(id, Reply::Sealed);
+            }
+            return;
+        }
+        if provisional {
+            let content = self.written(&self.visible);
+            return self.publish(
+                self.base,
+                None,
+                content,
+                AfterPublish::Provisional { reply },
+            );
+        }
+        let kept = self.keep.first().copied();
+        let merging = kept.map(|ours| Merging {
+            base: self.base,
+            ours,
+        });
+        let content = self.written(&self.confirmed);
+        self.publish(
+            self.base,
+            merging,
+            content,
+            AfterPublish::Seal {
+                retry: sealing != Sealing::Once,
+                reply,
+                kept,
+            },
+        );
+    }
+
+    fn settle_at(&mut self, head: CommitId, kept: Option<CommitId>) {
+        let sequence = self.follower.applied();
+        self.base = Some(head);
+        self.sealed = sequence;
+        self.owes_since = None;
+        if self.latest == Some(head) {
+            self.latest = None;
+        }
+        if let Some(kept) = kept {
+            self.keep.retain(|held| *held != kept);
+        }
+        self.broadcast(&SessionMessage::Sealed {
+            head,
+            sequence,
+            kept,
+        });
+        self.out.push(Command::ReportClean {
+            replica: self.id,
+            generation: self.state.generation,
+            seal: SessionSeal {
+                head: Some(head),
+                sequence,
+                state: Some(self.confirmed.session_state()),
+            },
+        });
+        if !self.keep.is_empty() {
+            self.jobs.push_front(Job::Seal {
+                sealing: Sealing::Once,
+                reply: None,
+            });
+        }
+    }
+
+    fn reconcile(&mut self) {
+        if !self.is_holder() || !self.loaded || self.catching_up {
+            return;
+        }
+        let (local, offline) = match self.offline.take() {
+            Some(offline) if Some(offline) != self.base => (Some(offline), true),
+            _ => (self.base, false),
+        };
+        self.latest = None;
+        let token = self.token();
+        self.out.push(Command::Resume {
+            replica: self.id,
+            token,
+            local,
+        });
+        self.waiting = Some(Wait::Resume { token, offline });
+    }
+
+    fn reconcile_if_behind(&mut self) {
+        let behind =
+            self.offline.is_some() || self.latest.is_some_and(|latest| Some(latest) != self.base);
+        let queued = self.jobs.iter().any(|job| matches!(job, Job::Reconcile));
+        if behind && !queued && self.is_holder() && self.loaded && !self.catching_up {
+            self.jobs.push_back(Job::Reconcile);
+        }
+    }
+
+    fn moved(&mut self, head: CommitId) {
+        if self.base == Some(head) {
+            return;
+        }
+        self.latest = Some(head);
+        let reconciling = self.reloading.iter().any(|reloading| reloading.head);
+        if self.is_holder() && self.loaded && !self.catching_up && !reconciling {
+            self.jobs.push_front(Job::Reconcile);
+        }
+    }
+
+    fn adopt(&mut self, state: SessionState) {
+        let known: BTreeSet<ClientId> = self.state.participants.iter().copied().collect();
+        let joined: Vec<ClientId> = state
+            .participants
+            .iter()
+            .copied()
+            .filter(|client| *client != self.client && !known.contains(client))
+            .collect();
+        let before = self.presence.len();
+        self.presence
+            .retain(|(client, _), _| state.participants.contains(client));
+        self.presence_changed |= self.presence.len() != before;
+        let held = self.is_holder();
+        self.state = state;
+        self.check_build();
+        for client in joined {
+            self.show_presence_to(client);
+        }
+        self.claim_if_abandoned();
+        if !held && self.is_holder() {
+            self.reconcile_if_behind();
+        }
+    }
+
+    fn claim(&mut self) {
+        if !self.loaded || self.catching_up || self.is_holder() {
+            return;
+        }
+        self.claimed = Some(self.state.generation);
+        self.out.push(Command::ClaimLease {
+            replica: self.id,
+            generation: self.state.generation,
+        });
+    }
+
+    fn claim_if_abandoned(&mut self) {
+        if !self.loaded || self.catching_up {
+            return;
+        }
+        let held = self
+            .state
+            .owner
+            .is_some_and(|owner| self.state.participants.contains(&owner));
+        if held || self.claimed == Some(self.state.generation) {
+            return;
+        }
+        self.claimed = Some(self.state.generation);
+        self.out.push(Command::ClaimLease {
+            replica: self.id,
+            generation: self.state.generation,
+        });
+    }
+
+    fn receive(&mut self, from: ClientId, message: SessionMessage) {
+        match message {
+            SessionMessage::Sealed {
+                head,
+                sequence,
+                kept,
+            } => {
+                if let Some(kept) = kept {
+                    self.keep.retain(|held| *held != kept);
+                }
+                if sequence >= self.sealed {
+                    self.base = Some(head);
+                    self.sealed = sequence;
+                    if self.latest == Some(head) {
+                        self.latest = None;
+                    }
+                }
+            }
+            SessionMessage::Presence { kind, value } => {
+                if from == self.client {
+                    return;
+                }
+                let changed = match value {
+                    Some(value) => self.presence.insert((from, kind), value.clone()) != Some(value),
+                    None => self.presence.remove(&(from, kind)).is_some(),
+                };
+                self.presence_changed |= changed;
+            }
+            SessionMessage::Channel { channel, payload } => {
+                if from != self.client {
+                    self.channel.push(PeerMessage {
+                        from,
+                        channel,
+                        payload,
+                    });
+                }
+            }
+        }
+    }
+
+    fn report(&mut self) {
+        let status = Status {
+            head: self.base,
+            owner: self.is_holder(),
+            submitted: self.unsent.is_empty(),
+            clean: self.is_clean(),
+            owes_seal: self.owes(),
+            incompatible: self.incompatible,
+            diverged: self.diverged,
+            unreadable: self.unreadable.clone(),
+        };
+        self.owes_since = match status.owes_seal {
+            true => self.owes_since.or(Some(self.now)),
+            false => None,
+        };
+        if self.reported.status.as_ref() != Some(&status) {
+            self.reported.status = Some(status.clone());
+            self.out.push(Command::Status {
+                replica: self.id,
+                status,
+            });
+        }
+        if !self.loaded || self.released {
+            return;
+        }
+        let history = (self.history.can_undo(), self.history.can_redo());
+        if self.reported.history != Some(history) {
+            self.reported.history = Some(history);
+            self.out.push(Command::History {
+                replica: self.id,
+                can_undo: history.0,
+                can_redo: history.1,
+            });
+        }
+        if std::mem::take(&mut self.described) {
+            self.out.push(Command::Described {
+                replica: self.id,
+                description: crate::describe(&self.visible, self.organization),
+            });
+        }
+    }
+
+    fn send(&mut self, to: Option<ClientId>, message: &SessionMessage) {
+        self.out.push(Command::Send {
+            replica: self.id,
+            to: match to {
+                Some(client) => Recipients::One(Endpoint::Peer(client)),
+                None => Recipients::Peers,
+            },
+            bytes: message.encode(),
+        });
     }
 
     fn record_and_edit(&mut self, operation: C::Op, origin: Option<EditorId>) -> bool {
@@ -1441,7 +2127,6 @@ where
                     self.jobs.push_front(Job::Replace {
                         content,
                         reply: None,
-                        outright: true,
                     });
                 }
             }
@@ -1507,7 +2192,6 @@ where
         self.jobs.push_front(Job::Replace {
             content,
             reply: Some(id),
-            outright: true,
         });
     }
 
@@ -1621,47 +2305,6 @@ where
         }
     }
 
-    fn report(&mut self) {
-        let status = Status {
-            head: self.base,
-            owner: self.is_owner(),
-            clean: self.is_clean(),
-            owes_seal: self.loaded && self.is_owner() && !self.is_clean(),
-            incompatible: self.incompatible,
-            diverged: self.diverged,
-            unreadable: self.unreadable.clone(),
-        };
-        self.owes_since = match status.owes_seal {
-            true => self.owes_since.or(Some(self.now)),
-            false => None,
-        };
-        if self.reported.status.as_ref() != Some(&status) {
-            self.reported.status = Some(status.clone());
-            self.out.push(Command::Status {
-                replica: self.id,
-                status,
-            });
-        }
-        if !self.loaded || self.released {
-            return;
-        }
-        let history = (self.history.can_undo(), self.history.can_redo());
-        if self.reported.history != Some(history) {
-            self.reported.history = Some(history);
-            self.out.push(Command::History {
-                replica: self.id,
-                can_undo: history.0,
-                can_redo: history.1,
-            });
-        }
-        if std::mem::take(&mut self.described) {
-            self.out.push(Command::Described {
-                replica: self.id,
-                description: crate::describe(&self.visible, self.organization),
-            });
-        }
-    }
-
     fn set_presence(&mut self, kind: Uuid, value: Option<Vec<u8>>) {
         let unchanged = match &value {
             Some(value) => self.shown.get(&kind) == Some(value),
@@ -1696,791 +2339,5 @@ where
 
     fn broadcast(&mut self, message: &SessionMessage) {
         self.send(None, message);
-    }
-
-    fn send(&mut self, to: Option<ClientId>, message: &SessionMessage) {
-        self.send_wire(to, &Wire::Session(message.clone()));
-    }
-
-    fn send_wire(&mut self, to: Option<ClientId>, wire: &Wire) {
-        self.out.push(Command::Send {
-            replica: self.id,
-            to: match to {
-                Some(client) => Recipients::One(Endpoint::Peer(client)),
-                None => Recipients::Peers,
-            },
-            bytes: wire.encode(),
-        });
-    }
-
-    fn greet(&mut self) {
-        let Role::Follower(follower) = &self.role else {
-            return;
-        };
-        let since = follower.applied();
-        let owner = self.state.owner;
-        self.send_wire(owner, &Wire::Tag(self.tag));
-        self.send_wire(owner, &Wire::Session(SessionMessage::Catchup { since }));
-    }
-
-    fn receive(&mut self, from: ClientId, wire: Wire) {
-        let message = match wire {
-            Wire::Session(message) => message,
-            Wire::Tag(tag) => {
-                if !self.is_owner() {
-                    return;
-                }
-                if tag == self.tag {
-                    self.other_builds.remove(&from);
-                    return;
-                }
-                self.other_builds.insert(from);
-                return self.send_wire(Some(from), &Wire::Incompatible);
-            }
-            Wire::Incompatible => {
-                self.unreadable_message();
-                return;
-            }
-        };
-        if self.other_builds.contains(&from)
-            && matches!(
-                message,
-                SessionMessage::Submit { .. }
-                    | SessionMessage::Catchup { .. }
-                    | SessionMessage::Replaced { .. }
-                    | SessionMessage::Moved { .. }
-                    | SessionMessage::Kept { .. }
-            )
-        {
-            return;
-        }
-        match message {
-            SessionMessage::Submit { id, base, payload } => {
-                let Role::Owner(sequencer) = &mut self.role else {
-                    return;
-                };
-                if base < self.replaced_at {
-                    return;
-                }
-                let Ok(operation) = C::decode_operation(&payload) else {
-                    return self.unreadable_message();
-                };
-                let onto: Vec<_> = sequencer
-                    .since(base)
-                    .iter()
-                    .filter_map(|op| C::decode_operation(&op.payload).ok())
-                    .collect();
-                let Some(operation) = C::rebase(operation, &onto) else {
-                    return;
-                };
-                let Some(op) = sequencer.accept(id, C::encode_operation(&operation)) else {
-                    return;
-                };
-                self.confirmed.apply(&operation);
-                self.visible.apply(&operation);
-                self.journal(Journaled::Applied(operation), None);
-                self.broadcast(&SessionMessage::Accepted { op });
-            }
-            SessionMessage::Accepted { op } => match self.role {
-                Role::Owner(_) => self.inherit_accepted(&op),
-                Role::Follower(_) if !self.catching_up => self.apply_accepted(&op),
-                Role::Follower(_) => {}
-            },
-            SessionMessage::Catchup { since } => {
-                let Role::Owner(sequencer) = &self.role else {
-                    return;
-                };
-                if sequencer.inherited() > 0 {
-                    self.reload = true;
-                }
-                let message = SessionMessage::Snapshot {
-                    head: sequencer.head(),
-                    sealed: self.sealed,
-                    sequence: sequencer.sequence(),
-                    ops: sequencer.since(since.min(self.sealed)),
-                    state: self.sealed_state.clone(),
-                };
-                self.send(Some(from), &message);
-            }
-            SessionMessage::Snapshot {
-                head,
-                sealed,
-                sequence,
-                ops,
-                state,
-            } => {
-                let Role::Follower(follower) = &self.role else {
-                    return;
-                };
-                self.catching_up = false;
-                let applied = follower.applied();
-                if head != self.base || applied < sealed {
-                    return self.read(
-                        vec![head],
-                        Then::Snapshot {
-                            head,
-                            sealed,
-                            sequence,
-                            ops,
-                            state,
-                            applied,
-                        },
-                    );
-                }
-                self.snapshot_ops(sealed, sequence, ops, applied);
-            }
-            SessionMessage::Replaced { head } => self.replaced(head),
-            SessionMessage::Moved { head } => {
-                if !self.is_owner() || self.base == Some(head) {
-                    return;
-                }
-                self.read(vec![Some(head)], Then::Absorb { head });
-            }
-            SessionMessage::Kept {
-                commit,
-                base,
-                edits,
-            } => {
-                if self.is_owner() {
-                    self.jobs.push_front(Job::Keep(Keeping {
-                        commit,
-                        base,
-                        edits,
-                        from,
-                        attempts: 0,
-                    }));
-                }
-            }
-            SessionMessage::Saved { commit } => {
-                self.handed.retain(|handed| handed.commit != commit);
-            }
-            SessionMessage::Presence { kind, value } => {
-                if from == self.client {
-                    return;
-                }
-                let changed = match value {
-                    Some(value) => self.presence.insert((from, kind), value.clone()) != Some(value),
-                    None => self.presence.remove(&(from, kind)).is_some(),
-                };
-                self.presence_changed |= changed;
-            }
-            SessionMessage::Channel { channel, payload } => {
-                if from != self.client {
-                    self.channel.push(PeerMessage {
-                        from,
-                        channel,
-                        payload,
-                    });
-                }
-            }
-            SessionMessage::Sealed {
-                head,
-                sequence,
-                reload,
-            } => {
-                let Role::Follower(follower) = &self.role else {
-                    return;
-                };
-                if let Some(awaiting) = self.awaiting {
-                    if awaiting != head {
-                        return;
-                    }
-                    self.awaiting = None;
-                    self.replacing = false;
-                }
-                if reload.is_some() && self.handing_edits() {
-                    let owner = self.state.owner;
-                    for handed in self.handed.clone() {
-                        self.send(owner, &handed.message());
-                    }
-                    return;
-                }
-                if reload.is_none() && follower.applied() != sequence {
-                    return self.greet();
-                }
-                match reload {
-                    Some(state) => {
-                        return self.read(
-                            vec![Some(head)],
-                            Then::SealedReload {
-                                head,
-                                sequence,
-                                state,
-                            },
-                        );
-                    }
-                    None => self.sealed_state = self.confirmed.session_state(),
-                }
-                self.base = Some(head);
-                self.sealed = sequence;
-            }
-        }
-    }
-
-    fn snapshot_ops(&mut self, sealed: u64, sequence: u64, ops: Vec<SessionOp>, applied: u64) {
-        self.sealed = sealed;
-        for op in &ops {
-            self.apply_accepted(op);
-        }
-        let Role::Follower(follower) = &mut self.role else {
-            return;
-        };
-        if ops.iter().all(|op| op.sequence <= applied) {
-            let resubmit = follower.resynchronize(sequence);
-            let owner = self.state.owner;
-            for message in resubmit {
-                self.send(owner, &message);
-            }
-        }
-    }
-
-    fn replacement(&mut self, head: CommitId, mut replaced: C) {
-        let Role::Owner(sequencer) = &self.role else {
-            return;
-        };
-        let unsealed: Vec<C::Op> = sequencer
-            .since(0)
-            .iter()
-            .filter_map(|op| C::decode_operation(&op.payload).ok())
-            .collect();
-        for operation in &unsealed {
-            replaced.apply(operation);
-        }
-        self.confirmed = replaced;
-        self.replace_visible(self.confirmed.clone());
-        self.base = Some(head);
-        self.reload = true;
-        self.op_heads.clear();
-        match unsealed.is_empty() {
-            true => self.settle_at(head),
-            false => self.jobs.push_front(Job::Seal {
-                sealing: Sealing::Once,
-                reply: None,
-            }),
-        }
-    }
-
-    fn rebuild_visible(&mut self) {
-        let mut visible = self.confirmed.clone();
-        if let Role::Follower(follower) = &self.role {
-            for payload in follower.payloads() {
-                if let Ok(pending) = C::decode_operation(&payload) {
-                    visible.apply(&pending);
-                }
-            }
-        }
-        for (operation, ..) in &self.unsent {
-            visible.apply(operation);
-        }
-        self.replace_visible(visible);
-    }
-
-    fn flush(&mut self) {
-        let Role::Follower(follower) = &mut self.role else {
-            return;
-        };
-        if follower.pending() > 0 || self.awaiting.is_some() {
-            return;
-        }
-        if self
-            .unsent
-            .front()
-            .is_some_and(|(_, bound, _)| *bound > LARGEST_RELAYED_OPERATION)
-        {
-            return self.hand_over_oversized();
-        }
-        let Some((operation, _, weight)) = self.unsent.pop_front() else {
-            return;
-        };
-        let message = follower.submit(C::encode_operation(&operation));
-        self.in_flight = weight;
-        let owner = self.state.owner;
-        self.send(owner, &message);
-    }
-
-    fn inherit_accepted(&mut self, op: &SessionOp) {
-        let Role::Owner(sequencer) = &mut self.role else {
-            return;
-        };
-        let inherited = sequencer.inherit(op);
-        if matches!(inherited, Inherited::Renumbered | Inherited::Unnumbered) {
-            sequencer.carry_unsealed();
-            self.reload = true;
-        }
-        if matches!(inherited, Inherited::Duplicate | Inherited::Renumbered) {
-            return;
-        }
-        let Ok(operation) = C::decode_operation(&op.payload) else {
-            return self.unreadable_message();
-        };
-        self.confirmed.apply(&operation);
-        self.visible.apply(&operation);
-        self.journal(Journaled::Applied(operation), None);
-    }
-
-    fn apply_accepted(&mut self, op: &SessionOp) {
-        let Role::Follower(follower) = &self.role else {
-            return;
-        };
-        if op.sequence <= follower.applied() || self.awaiting.is_some() {
-            return;
-        }
-        let Ok(operation) = C::decode_operation(&op.payload) else {
-            return self.unreadable_message();
-        };
-        let Role::Follower(follower) = &mut self.role else {
-            return;
-        };
-        let unchanged = follower.is_mine(op.id)
-            && follower.front() == Some(op.id)
-            && follower
-                .payloads()
-                .first()
-                .is_some_and(|payload| *payload == op.payload);
-        if unchanged {
-            follower.accepted(op);
-            self.confirmed.apply(&operation);
-            self.in_flight = 0;
-            self.cover_if_settled();
-            return;
-        }
-        if !follower.is_mine(op.id) && follower.pending() == 0 && self.unsent.is_empty() {
-            follower.accepted(op);
-            self.confirmed.apply(&operation);
-            self.visible.apply(&operation);
-            self.journal(Journaled::Applied(operation), None);
-            return;
-        }
-        if follower.is_mine(op.id) {
-            follower.accepted(op);
-            self.confirmed.apply(&operation);
-            self.in_flight = 0;
-            self.rebuild_visible();
-            self.cover_if_settled();
-            return;
-        }
-        let unsettled = self.unsettled();
-        let Role::Follower(follower) = &mut self.role else {
-            return;
-        };
-        follower.accepted(op);
-        follower.rewrite_pending(|payload| {
-            let pending = C::decode_operation(payload).ok()?;
-            C::rebase(pending, std::slice::from_ref(&operation))
-                .map(|rebased| C::encode_operation(&rebased))
-        });
-        if !self.covered {
-            self.confirmed.apply(&operation);
-            self.rebuild_visible();
-            return;
-        }
-        let mut local: Vec<C::Op> = follower
-            .payloads()
-            .iter()
-            .filter_map(|payload| C::decode_operation(payload).ok())
-            .collect();
-        self.in_flight = local.len() as u64;
-        for (pending, _, weight) in &mut self.unsent {
-            local.push(pending.clone());
-            *weight = 1;
-        }
-        self.visible
-            .apply_beneath(&mut self.confirmed, &operation, &local, &mut Vec::new());
-        self.journal(
-            Journaled::Beneath {
-                operation,
-                unsettled,
-                local,
-            },
-            None,
-        );
-    }
-
-    fn adopt(&mut self, state: SessionState) {
-        let owner_changed = state.owner != self.state.owner;
-        let known: BTreeSet<ClientId> = self.state.participants.iter().copied().collect();
-        let joined: Vec<ClientId> = state
-            .participants
-            .iter()
-            .copied()
-            .filter(|client| *client != self.client && !known.contains(client))
-            .collect();
-        let before = self.presence.len();
-        self.presence
-            .retain(|(client, _), _| state.participants.contains(client));
-        self.presence_changed |= self.presence.len() != before;
-        self.state = state;
-        for client in joined {
-            self.show_presence_to(client);
-        }
-        self.claim_if_abandoned();
-        if !owner_changed {
-            return;
-        }
-        let follower = match &mut self.role {
-            Role::Owner(_) if self.state.is_owner(self.client) => return,
-            Role::Owner(sequencer) => {
-                let sequence = sequencer.sequence();
-                self.role = Role::Follower(Follower::continuing(self.client, sequence));
-                self.reload = false;
-                return;
-            }
-            Role::Follower(follower) => follower,
-        };
-        let replacement = self.awaiting.take().filter(|_| self.replacing);
-        self.replacing = false;
-        if !self.state.is_owner(self.client) {
-            let applied = follower.applied();
-            let resubmit = follower.resynchronize(applied);
-            let owner = self.state.owner;
-            for message in resubmit {
-                self.send(owner, &message);
-            }
-            if let Some(head) = replacement {
-                self.awaiting = Some(head);
-                self.replacing = true;
-                self.send(owner, &SessionMessage::Replaced { head });
-            }
-            for handed in self.handed.clone() {
-                self.send(owner, &handed.message());
-            }
-            if self.catching_up {
-                self.greet();
-            }
-            return;
-        }
-        let applied = follower.applied();
-        let pending = follower.take_pending();
-        let mut sequencer =
-            Sequencer::continuing(self.base, applied, applied.saturating_sub(self.sealed));
-        if std::mem::take(&mut self.catching_up) {
-            sequencer.carry_unsealed();
-            self.reload = true;
-        }
-        let mut accepted = Vec::new();
-        for (id, payload) in pending {
-            let Ok(operation) = C::decode_operation(&payload) else {
-                continue;
-            };
-            if let Some(op) = sequencer.accept(id, payload) {
-                self.confirmed.apply(&operation);
-                accepted.push(op);
-            }
-        }
-        self.in_flight = 0;
-        let mut oversized = false;
-        for (operation, bound, _) in std::mem::take(&mut self.unsent) {
-            if bound > LARGEST_RELAYED_OPERATION {
-                self.confirmed.apply(&operation);
-                oversized = true;
-                continue;
-            }
-            let id = OpId {
-                client: self.client,
-                counter: sequencer.sequence() + 1,
-            };
-            if let Some(op) = sequencer.accept(id, C::encode_operation(&operation)) {
-                self.confirmed.apply(&operation);
-                accepted.push(op);
-            }
-        }
-        if oversized {
-            self.hand_over_oversized();
-        }
-        let replays = sequencer.inherited() == 0 && !self.handing_edits() && !oversized;
-        self.op_heads = match replays {
-            true => vec![self.base],
-            false => Vec::new(),
-        };
-        self.role = Role::Owner(sequencer);
-        self.replace_visible(self.confirmed.clone());
-        for handed in self.handed.clone() {
-            self.jobs.push_back(Job::Keep(Keeping {
-                commit: handed.commit,
-                base: handed.base,
-                edits: None,
-                from: self.client,
-                attempts: 0,
-            }));
-        }
-        match replacement {
-            Some(head) => {
-                let content = self.confirmed.clone();
-                self.publish_replacement(content, None, true, None, Some(head), 0);
-            }
-            None => {
-                for op in accepted {
-                    self.broadcast(&SessionMessage::Accepted { op });
-                }
-            }
-        }
-    }
-
-    fn claim(&mut self) {
-        if !self.loaded || self.catching_up || self.is_owner() {
-            return;
-        }
-        self.claimed = Some(self.state.generation);
-        self.out.push(Command::ClaimLease {
-            replica: self.id,
-            generation: self.state.generation,
-        });
-    }
-
-    fn claim_if_abandoned(&mut self) {
-        if !self.loaded {
-            return;
-        }
-        let held = self
-            .state
-            .owner
-            .is_some_and(|owner| self.state.participants.contains(&owner));
-        if held || self.claimed == Some(self.state.generation) {
-            return;
-        }
-        self.claimed = Some(self.state.generation);
-        self.out.push(Command::ClaimLease {
-            replica: self.id,
-            generation: self.state.generation,
-        });
-    }
-
-    fn moved(&mut self, head: CommitId, from_this_device: bool) {
-        if self.base == Some(head) {
-            return;
-        }
-        if self.is_owner() {
-            return self.jobs.push_front(Job::Reconcile);
-        }
-        if from_this_device {
-            let owner = self.state.owner;
-            self.send(owner, &SessionMessage::Moved { head });
-        }
-    }
-
-    fn replaced(&mut self, head: CommitId) {
-        if self.is_owner() {
-            let taken = self.base == Some(head) && self.is_clean();
-            let reached =
-                self.reached == Some(head) && (self.base != Some(head) || self.is_clean());
-            if !taken && !reached {
-                self.read(vec![Some(head)], Then::Replacement);
-            }
-            return;
-        }
-        let awaited = self.awaiting.replace(head).is_some();
-        self.replacing = false;
-        self.history.clear();
-        if !awaited && self.has_unsaved() {
-            let content = self.written(&self.visible);
-            self.stash(self.base, content, AfterStash::Keep);
-        }
-    }
-
-    fn keep(&mut self, keeping: Keeping) {
-        let Role::Owner(sequencer) = &self.role else {
-            return;
-        };
-        if self.saved.contains(&keeping.commit) {
-            return self.acknowledge(&keeping);
-        }
-        let Some(edits) = keeping
-            .edits
-            .filter(|edits| edits.applied >= self.replaced_at)
-        else {
-            return self.publish_kept(keeping, None);
-        };
-        let replay = sequencer.inherited() == 0
-            && edits.applied <= sequencer.sequence()
-            && sequencer.sequence() - sequencer.pending_operations() as u64 <= edits.applied
-            && self.op_heads.contains(&edits.sealed);
-        let commits = match replay {
-            true => vec![Some(keeping.commit)],
-            false => vec![keeping.base, Some(keeping.commit)],
-        };
-        self.read(commits, Then::Handed { keeping, replay });
-    }
-
-    fn hand_over_oversized(&mut self) {
-        if !self.jobs.iter().any(|job| matches!(job, Job::Oversized)) {
-            self.jobs.push_front(Job::Oversized);
-        }
-    }
-
-    fn oversized(&mut self) {
-        let Role::Follower(follower) = &self.role else {
-            return self.replace(self.visible.clone(), None, false);
-        };
-        if follower.pending() > 0 || self.awaiting.is_some() || self.unsent.is_empty() {
-            return;
-        }
-        if self.diverged {
-            return self.error(DIVERGED);
-        }
-        let applied = follower.applied();
-        let content = self.visible.clone();
-        if applied == self.sealed && !self.handing_edits() {
-            let written = self.written(&content);
-            return self.stash(
-                self.base,
-                written,
-                AfterStash::Hand {
-                    content,
-                    applied,
-                    ancestor: self.base,
-                },
-            );
-        }
-        let ancestor = self.written(&self.confirmed);
-        self.stash(
-            self.base,
-            ancestor,
-            AfterStash::Ancestor { content, applied },
-        );
-    }
-
-    fn has_unsaved(&self) -> bool {
-        match &self.role {
-            Role::Owner(sequencer) => !sequencer.is_clean(),
-            Role::Follower(follower) => !self.is_clean() || follower.applied() > self.sealed,
-        }
-    }
-
-    fn reconcile(&mut self) {
-        let token = self.token();
-        self.out.push(Command::Resume {
-            replica: self.id,
-            token,
-            local: self.base,
-        });
-        self.waiting = Some(Wait::Resume { token });
-    }
-
-    fn take_merged(&mut self, value: C, published: Option<CommitId>) {
-        self.confirmed = value;
-        self.replace_visible(self.confirmed.clone());
-        self.reload = true;
-        match published {
-            Some(head) => self.settle_at(head),
-            None => {
-                if let Role::Owner(sequencer) = &mut self.role {
-                    sequencer.carry_unsealed();
-                }
-            }
-        }
-    }
-
-    fn seal(&mut self, sealing: Sealing, reply: Option<RequestId>) {
-        let skip = match sealing {
-            Sealing::Due => !self.is_owner() || self.is_clean(),
-            Sealing::Rekey => !self.is_owner() || self.diverged,
-            Sealing::Once => false,
-        };
-        if skip {
-            self.sealing = false;
-            if let Some(id) = reply {
-                self.reply(id, Reply::Sealed);
-            }
-            return;
-        }
-        if self.diverged {
-            self.sealing = false;
-            self.error(DIVERGED);
-            if let Some(id) = reply {
-                self.reply(id, Reply::Sealed);
-            }
-            return;
-        }
-        if !self.is_owner() {
-            return self.rejected(
-                AfterPublish::Seal {
-                    retry: false,
-                    reply,
-                },
-                self.base,
-            );
-        }
-        let content = self.written(&self.confirmed);
-        self.publish(
-            self.base,
-            None,
-            content,
-            AfterPublish::Seal {
-                retry: sealing != Sealing::Once,
-                reply,
-            },
-        );
-    }
-
-    fn replace(&mut self, content: C, reply: Option<RequestId>, outright: bool) {
-        if self.diverged {
-            self.error(DIVERGED);
-            if let Some(id) = reply {
-                self.reply(id, Reply::Changed(false));
-            }
-            return;
-        }
-        if outright && self.has_unsaved() {
-            let kept = match self.role {
-                Role::Owner(_) => self.written(&self.confirmed),
-                Role::Follower(_) => self.written(&self.visible),
-            };
-            return self.stash(self.base, kept, AfterStash::Replace { content, reply });
-        }
-        self.publish_replacement(content, reply, outright, None, self.base, 0);
-    }
-
-    fn publish_replacement(
-        &mut self,
-        content: C,
-        reply: Option<RequestId>,
-        outright: bool,
-        merging: Option<Merging>,
-        expected: Option<CommitId>,
-        attempts: u8,
-    ) {
-        let written = self.written(&content);
-        self.publish(
-            expected,
-            merging,
-            written,
-            AfterPublish::Replace {
-                content,
-                attempts,
-                reply,
-                outright,
-                merging,
-            },
-        );
-    }
-
-    fn settle_at(&mut self, head: CommitId) {
-        self.base = Some(head);
-        let Role::Owner(sequencer) = &mut self.role else {
-            return;
-        };
-        sequencer.sealed(head);
-        let sequence = sequencer.sequence();
-        self.sealed = sequence;
-        self.sealed_state = self.confirmed.session_state();
-        self.owes_since = None;
-        let reload = std::mem::take(&mut self.reload).then(|| self.sealed_state.clone());
-        if reload.is_some() {
-            self.op_heads.clear();
-        }
-        if self.op_heads.len() >= OP_HEADS {
-            self.op_heads.remove(0);
-        }
-        self.op_heads.push(Some(head));
-        self.broadcast(&SessionMessage::Sealed {
-            head,
-            sequence,
-            reload,
-        });
-        self.out.push(Command::ReportClean {
-            replica: self.id,
-            generation: self.state.generation,
-            clean_at: Some(head),
-        });
     }
 }

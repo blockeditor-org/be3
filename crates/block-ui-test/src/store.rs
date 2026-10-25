@@ -11,7 +11,7 @@ use block_type_guest::api::{
     ReplicaId, Reply, Request, RequestId, Resume, SessionState, SessionTag,
 };
 use block_type_guest::editor::{EditorMirror, FromEditor, Gesture, ToEditor};
-use block_type_guest::wire::Wire;
+use block_type_guest::wire::Entry;
 use block_type_guest::{Module, Registration};
 use uuid::Uuid;
 
@@ -32,6 +32,7 @@ struct Block {
     content_type: Uuid,
     head: Option<CommitId>,
     replica: Option<ReplicaId>,
+    sequencer: be_session::Sequencer,
     written: Vec<Vec<u8>>,
     unapplied: Vec<Vec<u8>>,
     followed: Vec<ToEditor>,
@@ -46,6 +47,7 @@ impl Block {
             content_type,
             head: Some(head),
             replica: None,
+            sequencer: be_session::Sequencer::new(Some(head)),
             written: Vec::new(),
             unapplied: Vec::new(),
             followed: Vec::new(),
@@ -122,6 +124,7 @@ fn session() -> SessionState {
         owner: Some(THIS_DEVICE),
         participants: vec![THIS_DEVICE],
         clean_at: None,
+        tag: Some(TAG.0),
     }
 }
 
@@ -283,9 +286,50 @@ impl Inner {
                     held.replica = None;
                 }
             }
+            Command::Submit {
+                replica,
+                id,
+                base,
+                barrier,
+                payload,
+            } => {
+                if let Some(op) = self
+                    .replicas
+                    .get(&replica)
+                    .and_then(|block| self.blocks.get_mut(block))
+                    .and_then(|held| held.sequencer.submit(id, base, barrier, payload))
+                {
+                    queue.push_back(Event::Sequenced { replica, op });
+                }
+            }
+            Command::Catchup {
+                replica,
+                token,
+                origin,
+            } => {
+                let result = self
+                    .replicas
+                    .get(&replica)
+                    .and_then(|block| self.blocks.get(block))
+                    .map(|held| held.sequencer.log(origin))
+                    .ok_or_else(|| "no such block".to_owned());
+                queue.push_back(Event::Caught {
+                    replica,
+                    token,
+                    result,
+                });
+            }
+            Command::ReportClean { replica, seal, .. } => {
+                if let Some(held) = self
+                    .replicas
+                    .get(&replica)
+                    .and_then(|block| self.blocks.get_mut(block))
+                {
+                    held.sequencer.sealed(seal);
+                }
+            }
             Command::Hello { .. }
             | Command::ClaimLease { .. }
-            | Command::ReportClean { .. }
             | Command::WakeAt { .. }
             | Command::Status { .. }
             | Command::History { .. }
@@ -313,6 +357,7 @@ impl Inner {
         self.next_replica += 1;
         held.replica = Some(replica);
         let (content_type, head) = (held.content_type, held.head);
+        held.sequencer = be_session::Sequencer::new(head);
         let unapplied = std::mem::take(&mut held.unapplied);
         held.followed.clear();
         self.replicas.insert(replica, block);
@@ -387,7 +432,7 @@ impl Inner {
         self.run(Event::Message {
             replica,
             from: Endpoint::Peer(client),
-            bytes: Wire::Session(message).encode(),
+            bytes: message.encode(),
         });
     }
 
@@ -402,18 +447,14 @@ impl Inner {
         };
         self.elsewhere += 1;
         let id = be_session::OpId {
-            client: ELSEWHERE,
+            origin: ELSEWHERE,
             counter: self.elsewhere,
         };
-        self.peer_said(
-            replica,
-            ELSEWHERE,
-            be_session::SessionMessage::Submit {
-                id,
-                base: u64::MAX,
-                payload: operation,
-            },
-        );
+        let base = held.sequencer.sequence();
+        let payload = Entry::Operation(operation).encode();
+        if let Some(op) = held.sequencer.submit(id, base, false, payload) {
+            self.run(Event::Sequenced { replica, op });
+        }
     }
 
     fn reverting(&mut self, block: Uuid, run: impl FnOnce(&mut Self)) {

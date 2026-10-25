@@ -3,11 +3,11 @@ use super::*;
 #[test]
 fn an_expired_lease_can_be_claimed_but_a_held_one_cannot() {
     let mut lease = Lease::new();
-    lease.join(1, 0);
+    lease.join(1, BUILD, 0);
     assert_eq!(lease.owner(), Some(1));
     let generation = lease.generation();
 
-    lease.join(2, 100);
+    lease.join(2, BUILD, 100);
     assert_eq!(lease.owner(), Some(1));
     assert_eq!(lease.generation(), generation);
 

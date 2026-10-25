@@ -19,7 +19,34 @@ fn events_and_commands_round_trip() {
                 owner: Some(5),
                 participants: vec![5],
                 clean_at: None,
+                tag: Some([6; 32]),
             },
+        },
+        Event::Sequenced {
+            replica: 1,
+            op: SessionOp {
+                id: OpId {
+                    origin: 8,
+                    counter: 2,
+                },
+                sequence: 3,
+                base: 1,
+                floor: 0,
+                payload: vec![7],
+            },
+        },
+        Event::Caught {
+            replica: 1,
+            token: 5,
+            result: Ok(SessionLog {
+                seal: SessionSeal {
+                    head: Some(head),
+                    sequence: 1,
+                    state: Some(vec![2]),
+                },
+                ops: Vec::new(),
+                counter: 4,
+            }),
         },
         Event::Message {
             replica: 1,
@@ -75,6 +102,25 @@ fn events_and_commands_round_trip() {
             replica: 1,
             to: Recipients::Peers,
             bytes: vec![0; 3],
+        },
+        Command::Submit {
+            replica: 1,
+            id: OpId {
+                origin: 8,
+                counter: 3,
+            },
+            base: 2,
+            barrier: true,
+            payload: vec![5],
+        },
+        Command::ReportClean {
+            replica: 1,
+            generation: 2,
+            seal: SessionSeal {
+                head: Some(head),
+                sequence: 3,
+                state: None,
+            },
         },
         Command::Reply {
             id: 7,
