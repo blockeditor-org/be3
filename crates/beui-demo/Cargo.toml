@@ -22,6 +22,7 @@ beui-inspector = { path = "../beui-inspector" }
 block-ui-test = { path = "../block-ui-test" }
 
 [target.'cfg(not(target_arch = "wasm32"))'.dev-dependencies]
+beui-adapter-space = { path = "../beui-adapter-space" }
 beui-core = { path = "../beui-core" }
 beui-renderer-wgpu = { path = "../beui-renderer-wgpu" }
 pollster = "0.4"
@@ -31,3 +32,6 @@ workspace = true
 
 [[example]]
 name = "open-bench"
+
+[[example]]
+name = "space-resize-bench"

@@ -21,3 +21,6 @@ headless(
 
 # Times opening each page: `./scripts/buck run -m release //crates/beui-demo:example-open-bench`.
 cargo_example("open-bench")
+
+# Times resizing a space panel: `./scripts/buck run -m release //crates/beui-demo:example-space-resize-bench`.
+cargo_example("space-resize-bench")
