@@ -57,23 +57,28 @@ impl Turn {
     }
 }
 
-pub fn facing(eye: Vec3, grab: Vec3, offset: Vec3, roll: f32) -> Option<Quat> {
-    let rolled = Quat::from_rotation_z(roll);
-    let offset = rolled * offset;
+pub fn facing(eye: Vec3, grab: Vec3, offset: Vec3, up: Vec3) -> Option<Quat> {
     let toward = eye - grab;
     let level = toward.length_squared() - offset.x * offset.x - offset.y * offset.y;
     if level < 1e-8 {
         return None;
     }
-    let (y, z) = (-offset.y, level.sqrt());
-    let reach = y.hypot(z);
-    let tilt = (toward.y / reach).clamp(-1.0, 1.0).acos() - z.atan2(y);
-    let ahead = y * tilt.sin() + z * tilt.cos();
-    if toward.x.hypot(toward.z) < 1e-4 {
+    let from = Vec3::new(-offset.x, -offset.y, level.sqrt()).normalize();
+    let to = toward.normalize();
+    let base = Quat::from_rotation_arc(from, to);
+    let across = base * Vec3::X;
+    let along = to * across.dot(to);
+    let around = across - along;
+    let (a, b, c) = (around.dot(up), to.cross(around).dot(up), along.dot(up));
+    let reach = a.hypot(b);
+    if reach < 1e-6 {
         return None;
     }
-    let turn = toward.x.atan2(toward.z) - (-offset.x).atan2(ahead);
-    Some(Quat::from_rotation_y(turn) * Quat::from_rotation_x(tilt) * rolled)
+    let (middle, spread) = (b.atan2(a), (-c / reach).clamp(-1.0, 1.0).acos());
+    [middle + spread, middle - spread]
+        .map(|angle| (Quat::from_axis_angle(to, angle) * base).normalize())
+        .into_iter()
+        .max_by(|x, y| (*x * Vec3::Y).dot(up).total_cmp(&(*y * Vec3::Y).dot(up)))
 }
 
 impl Carry {
@@ -209,7 +214,7 @@ impl Carry {
         let grab = head.position + rotation * self.direction * distance;
         let carried = rotation * self.rotation;
         let mut panel = *panel;
-        panel.pose.rotation = facing(head.position, grab, self.grab, head.roll)
+        panel.pose.rotation = facing(head.position, grab, self.grab, head.up())
             .map_or(carried, |target| self.turn.toward(carried, target, now));
         panel.pose.position = grab - panel.pose.rotation * self.grab;
         panel

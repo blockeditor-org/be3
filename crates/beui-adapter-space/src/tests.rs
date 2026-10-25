@@ -30,6 +30,7 @@ mod a_miss_while_a_button_is_held_leaves_the_window_and_keeps_the_drag;
 mod a_nearer_panel_is_drawn_at_more_pixels_per_point;
 mod a_new_pixels_per_point_waits_for_the_panel_to_settle_and_not_while_it_is_resized;
 mod a_panel_carried_above_eye_level_tilts_to_face_the_eye;
+mod a_panel_carried_to_each_corner_with_the_head_rolled_and_pitched_stays_upright_to_the_view;
 mod a_panel_carried_with_the_head_rolled_rolls_to_match;
 mod a_panel_keeps_its_pixels_per_point_until_its_size_on_screen_changes_a_step;
 mod a_ray_hits_a_curved_panel_on_its_bent_surface;
@@ -49,7 +50,9 @@ mod closing_a_window_removes_its_panel;
 mod dragging_a_corner_handle_scales_the_panel_and_keeps_its_points;
 mod dragging_the_move_control_carries_the_panel;
 mod dragging_the_roll_control_rolls_the_panel_and_the_rotate_control_never_does;
+mod dragging_the_roll_control_with_the_head_rolled_rolls_the_panel_about_its_normal;
 mod dragging_the_rotate_control_turns_the_panel_until_it_is_carried;
+mod dragging_the_rotate_control_with_the_head_rolled_turns_the_panel_along_the_view;
 mod holding_ctrl_and_shift_steers_the_head;
 mod holding_escape_lets_the_pointer_go_until_the_next_click;
 mod input_reaches_the_window_whose_panel_the_ray_hits_in_its_points;
@@ -323,6 +326,21 @@ fn facing_eye(space: &Space, panel: &Panel) -> f32 {
     panel
         .normal()
         .angle_between(space.head.position - panel.pose.position)
+}
+
+fn roll_and_look_down(space: &mut Space) {
+    space.head.roll = std::f32::consts::FRAC_PI_2;
+    space.head.pitch = -0.5;
+    let head = space.head;
+    let panel = &mut space.panels[0];
+    panel.pose.position = head.position + head.rotation() * Vec3::new(0.0, 0.0, -1.5);
+    panel.face(head.position, head.up());
+}
+
+fn upright_to(space: &Space, panel: &Panel) -> f32 {
+    let normal = panel.normal();
+    let up = space.head.up();
+    (panel.pose.rotation * Vec3::Y).angle_between(up - normal * up.dot(normal))
 }
 
 fn level(panel: &Panel) -> f32 {

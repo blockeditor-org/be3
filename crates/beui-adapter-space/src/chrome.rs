@@ -300,7 +300,8 @@ pub fn scaled(original: &Panel, anchor: Pos2, grab: Pos2, pos: Pos2) -> Panel {
     panel
 }
 
-pub fn turned(rotation: Quat, from: Vec3, to: Vec3) -> Quat {
+pub fn turned(rotation: Quat, from: Vec3, to: Vec3, head: Quat) -> Quat {
+    let (from, to) = (head.inverse() * from, head.inverse() * to);
     let yaw = |direction: Vec3| direction.x.atan2(-direction.z);
     let pitch = |direction: Vec3| direction.normalize_or_zero().y.clamp(-1.0, 1.0).asin();
     let mut yawed = yaw(to) - yaw(from);
@@ -310,10 +311,8 @@ pub fn turned(rotation: Quat, from: Vec3, to: Vec3) -> Quat {
         yawed += TAU;
     }
     let pitched = pitch(to) - pitch(from);
-    (Quat::from_rotation_y(yawed * TURN_GAIN)
-        * rotation
-        * Quat::from_rotation_x(-pitched * TURN_GAIN))
-    .normalize()
+    let turn = Quat::from_rotation_y(yawed * TURN_GAIN) * Quat::from_rotation_x(-pitched * TURN_GAIN);
+    (head * turn * head.inverse() * rotation).normalize()
 }
 
 pub fn roll_angle(original: &Panel, ray: Ray) -> Option<f32> {

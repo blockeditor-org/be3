@@ -48,6 +48,10 @@ impl Head {
             * Quat::from_rotation_z(self.roll)
     }
 
+    pub fn up(&self) -> Vec3 {
+        self.rotation() * Vec3::Y
+    }
+
     pub fn facing(&self) -> Quat {
         Quat::from_rotation_y(-self.yaw)
     }

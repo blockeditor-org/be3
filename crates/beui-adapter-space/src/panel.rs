@@ -189,8 +189,8 @@ impl Panel {
         self.intersect(ray).filter(|hit| self.contains(hit.pos))
     }
 
-    pub fn face(&mut self, eye: Vec3, roll: f32) {
-        if let Some(rotation) = crate::carry::facing(eye, self.pose.position, Vec3::ZERO, roll) {
+    pub fn face(&mut self, eye: Vec3, up: Vec3) {
+        if let Some(rotation) = crate::carry::facing(eye, self.pose.position, Vec3::ZERO, up) {
             self.pose.rotation = rotation;
         }
     }

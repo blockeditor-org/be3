@@ -3072,10 +3072,14 @@ all its 3D (`glam`) stays in the crate.
   grabbed point (`Carry::aim`); steering turns it with the head instead. From
   the moment it is grabbed it also turns, over `TURN_SECONDS` of
   `HostView::now` (smoothstep, `carry::Turn`), from that carried rotation
-  to facing the viewer: its normal through its centre points at the eye (yaw
-  and pitch), rolled about it by the head's roll so its up matches the
-  head's up (level edges when the head is level), turned about the grabbed
-  point so that stays on the ray (`carry::facing`, closed form), and then
+  to facing the viewer: a look-at basis whose normal through its centre
+  points at the eye and whose up is the head's up (`Head::up`, `Head::rotation`
+  times Y) made perpendicular to that normal, so it shows upright to the view
+  anywhere on screen however the head is rolled or pitched (level edges when
+  the head is level), with the grabbed point kept on the ray (`carry::facing`,
+  closed form: the eye's direction in the panel's frame is known from the
+  grab offset, and the one turn left about the line to the eye is the one
+  that keeps the panel's right perpendicular to the head's up), and then
   keeps facing them, so letting go turns it no further.
   The carry keeps the panel really in front of what it is carried over:
   `Carry::distance` is the wanted distance (where it was picked up, changed
@@ -3206,16 +3210,18 @@ all its 3D (`glam`) stays in the crate.
   the move button starts the carry a title bar's `BeginMove` starts
   (`Space::begin_carry`, `Gesture::Move` while it lasts, for the cursor and
   the held look), ended by letting go. Dragging the rotate button turns the
-  panel about its centre (`Gesture::Turn`, `chrome::turned`): the ray's change
-  of yaw times `TURN_GAIN` about the vertical, of pitch about the panel's own
-  horizontal, measured from where the drag began, so it never rolls the panel
-  however the cursor circles. Dragging the roll button rolls it about its
+  panel about its centre (`Gesture::Turn`, `chrome::turned`) in the head's
+  frame: the ray's change of yaw in the view times `TURN_GAIN` about the
+  head's up, of pitch about the head's right, measured from where the drag
+  began, so dragging along the screen turns it along the screen however the
+  head is rolled or pitched, and it never rolls the panel however the cursor
+  circles. Dragging the roll button rolls it about its
   normal through its centre (`Gesture::Roll`, `chrome::roll_angle`,
   `chrome::rolled`) by the change in the cursor's angle around the centre on
   the panel's surface as it was, so the button, below the centre, stays under
-  the cursor like a dial's knob. Scale, turn, roll and slider drags report
-  `Placed` when let go. A carry later turns the panel back to face the viewer with
-  its roll matching the head's (`carry::facing`), so it overrides rotation and roll. The curvature button
+  the cursor like a dial's knob, with the head rolled too. Scale, turn, roll and slider drags report
+  `Placed` when let go. A carry later turns the panel back to face the viewer
+  upright to the view (`carry::facing`), so it overrides rotation and roll. The curvature button
   opens a slider in the pill (`Chrome::slider`), and clicking or dragging
   along it sets `bend` from 0 to `MOST_BEND` about the panel's centre. Scale,
   roll and slider drags map the ray onto the panel as it was when they began.

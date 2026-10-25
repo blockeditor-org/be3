@@ -1004,7 +1004,7 @@ impl Space {
             },
             size,
         );
-        panel.face(self.head.position, self.head.roll);
+        panel.face(self.head.position, self.head.up());
         let grab = pos2(OPEN_GRAB.x.min(size.x / 2.0), OPEN_GRAB.y.min(size.y / 2.0));
         panel.pose.position = point - panel.pose.rotation * panel.offset(grab);
         panel.pose
@@ -1099,7 +1099,7 @@ impl Space {
             return;
         };
         carry.place(&head, panel, &others, now);
-        panel.face(head.position, head.roll);
+        panel.face(head.position, head.up());
         out.push(Incoming::Window(WindowReport::Placed {
             window: carry.window,
             placement: panel.placement(),
@@ -1419,6 +1419,7 @@ impl Space {
         let (Some(gesture), Some(ray)) = (self.chrome.gesture, self.cursor_ray()) else {
             return;
         };
+        let head = self.head.rotation();
         let Some(panel) = self.panel_mut(gesture.window()) else {
             return;
         };
@@ -1436,7 +1437,10 @@ impl Space {
             }
             Gesture::Turn {
                 rotation, start, ..
-            } => panel.pose.rotation = chrome::turned(rotation, start.direction, ray.direction),
+            } => {
+                panel.pose.rotation =
+                    chrome::turned(rotation, start.direction, ray.direction, head)
+            }
             Gesture::Roll { original, start } => {
                 if let Some(angle) = chrome::roll_angle(&original, ray) {
                     panel.pose.rotation = chrome::rolled(&original, start, angle);
