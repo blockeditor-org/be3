@@ -30,8 +30,8 @@ Landed. What it left open:
   hold them before any collection runs.
 - A corrupt object on the server is only noticed when it is read, because
   `has` checks that the file exists, not that it is intact.
-- Conflicts and diverged sessions are reported only through the status
-  error and the debug window. Phase 5 adds the UI.
+- Diverged sessions are reported only through the status error and the
+  debug window. (Conflicted merges now show on the block: phase 5.)
 
 ## Phase 2: Version the formats
 
@@ -125,7 +125,8 @@ Today:
 - queued commands live only in an in-memory channel;
 - no request has a timeout and no side sends pings, so a half-open socket
   hangs the worker;
-- the status bar can say "All changes saved" while offline.
+- the status bar can say "All changes saved" while offline (fixed: it says
+  Offline).
 
 ### Local-first client
 
@@ -158,17 +159,30 @@ Today:
 
 ### Durability
 
-- Seal locally on Android `onPause` and on desktop backgrounding, not only on
-  Destroy.
+- Done: seal locally on Android `onPause`, on desktop occlusion and on a
+  hidden or left browser tab (`beui::App::lifecycle`, `Lifecycle::Background`,
+  which block-app answers with the non-blocking `be::backgrounded`), and
+  `be::retry_now` on foreground, focus and network changes (browser `online`,
+  Android's default network callback).
 - `status().unsealed` counts the outbox and local-only commits, so the
   close and account-switch guard tells the truth.
 
 ### Status UI
 
-- The status bar shows one of: offline (n changes waiting), syncing, saved,
-  or error.
-- A conflicted merge (from phase 1) shows on the block, with a way to see
-  both versions.
+- Done: the app menu's status (`app.menu.status`, `ui::SyncState`) shows one
+  of offline (n changes waiting), syncing, saved, or error, from
+  `be::Status { connected, waiting, syncing, error }`. `Status.waiting`
+  counts `Shared.unsealed` plus `Shared.waiting`, which the worker must set to
+  the outbox and local-only commits (`Peer::pending`).
+- Done: a conflicted merge shows on the block (`surfaces::ConflictNotice`),
+  and "See both versions" opens both sides as revision previews side by side
+  (`be::conflicts`, `compositor::ConflictSurface`) to keep the merge or go
+  back to either side; either clears the block's conflicts.
+- Done: unsent edits (settings step 16) are listed from the app menu
+  ("Unsent edits", `app.unsent`) with Restore, when offerable, and Discard
+  after a confirmation (`be::unsent`, `restore_unsent`, `discard_unsent`).
+  The worker must refresh `Shared.unsent` from `Peer::unsent()` after a
+  drain.
 
 ### Testing
 

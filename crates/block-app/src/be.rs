@@ -7,6 +7,7 @@ use beui::reactive::now;
 use tokio::sync::mpsc::{UnboundedSender, unbounded_channel};
 use uuid::Uuid;
 
+pub(crate) mod conflicts;
 mod graph;
 mod replicas;
 pub(crate) mod revisions;
@@ -81,6 +82,17 @@ pub(crate) struct Status {
     pub(crate) saves: u64,
     pub(crate) conflicts: usize,
     pub(crate) error: Option<String>,
+    pub(crate) waiting: usize,
+    pub(crate) syncing: bool,
+    pub(crate) unsent: usize,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) struct UnsentEdit {
+    pub(crate) block: Uuid,
+    pub(crate) name: Option<String>,
+    pub(crate) since: i64,
+    pub(crate) offerable: bool,
 }
 
 pub(crate) use types::{host_block_types, is_known, kind_of, provided};
@@ -606,8 +618,44 @@ pub(crate) fn status() -> Status {
         saves: shared.saves,
         conflicts: shared.conflicts.values().map(Vec::len).sum(),
         error: shared.error.clone(),
+        waiting: shared.unsealed + shared.waiting,
+        syncing: shared.connected && shared.unsealed + shared.waiting > 0,
+        unsent: shared.unsent.len(),
     })
     .unwrap_or_default()
+}
+
+pub(crate) fn unsent() -> Vec<UnsentEdit> {
+    with_shared(|shared| {
+        shared
+            .unsent
+            .iter()
+            .map(|unsent| UnsentEdit {
+                block: unsent.block,
+                name: shared
+                    .graph
+                    .get(unsent.block)
+                    .and_then(|node| node.metadata.name()),
+                since: unsent.since,
+                offerable: unsent.offerable,
+            })
+            .collect()
+    })
+    .unwrap_or_default()
+}
+
+pub(crate) fn restore_unsent(block: Uuid) {
+    send(Command::Unsent {
+        block,
+        restore: true,
+    });
+}
+
+pub(crate) fn discard_unsent(block: Uuid) {
+    send(Command::Unsent {
+        block,
+        restore: false,
+    });
 }
 
 fn send(command: Command) {
@@ -645,6 +693,13 @@ pub(crate) fn busy() -> bool {
 
 pub(crate) fn seal_owed() {
     if with_shared(|shared| shared.owing > 0 && shared.pending == 0).unwrap_or_default() {
+        let (done, _) = std::sync::mpsc::channel();
+        send(Command::Flush(done));
+    }
+}
+
+pub(crate) fn backgrounded() {
+    if with_shared(|shared| shared.owing > 0).unwrap_or_default() {
         let (done, _) = std::sync::mpsc::channel();
         send(Command::Flush(done));
     }

@@ -137,11 +137,9 @@ impl be_types_host::Host for Shared {
 
     fn conflict(shared: &Arc<Mutex<Self>>, block: Uuid, conflict: Conflict) {
         let mut held = shared.lock().unwrap_or_else(PoisonError::into_inner);
-        held.error = Some(format!(
-            "block {block} merged with {} conflicting change(s); both versions are kept in its history",
-            conflict.count
-        ));
         held.conflicts.entry(block).or_default().push(conflict);
+        held.stale_revision += 1;
+        held.touch(block);
     }
 
     fn counted(shared: &Arc<Mutex<Self>>, unsealed: usize, owing: usize) {

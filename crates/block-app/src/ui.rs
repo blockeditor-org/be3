@@ -150,8 +150,33 @@ pub(crate) struct ReauthView {
 }
 
 #[derive(Clone, Debug, Default, PartialEq)]
+pub(crate) enum SyncState {
+    #[default]
+    Saved,
+    Syncing,
+    Offline {
+        waiting: usize,
+    },
+    Error(String),
+}
+
+#[derive(Clone, Debug, Default, PartialEq)]
+pub(crate) struct UnsentRow {
+    pub(crate) block: Uuid,
+    pub(crate) name: String,
+    pub(crate) offerable: bool,
+}
+
+#[derive(Clone, Debug, Default, PartialEq)]
+pub(crate) struct UnsentView {
+    pub(crate) rows: Vec<UnsentRow>,
+    pub(crate) discarding: Option<Uuid>,
+}
+
+#[derive(Clone, Debug, Default, PartialEq)]
 pub(crate) struct StatusView {
-    pub(crate) changes_saved: bool,
+    pub(crate) sync: SyncState,
+    pub(crate) unsent: usize,
     pub(crate) saves: u64,
     pub(crate) organization: String,
     pub(crate) signed_in_as: String,
@@ -293,6 +318,7 @@ pub(crate) struct AppView {
     pub(crate) contacts: Option<ContactsView>,
     pub(crate) members: Option<MembersView>,
     pub(crate) about: bool,
+    pub(crate) unsent: Option<UnsentView>,
     pub(crate) app_menu: Option<AppMenuView>,
     pub(crate) discard: Option<DiscardView>,
     pub(crate) leaving: bool,
@@ -342,6 +368,11 @@ pub(crate) enum UiCommand {
     SwitchOrganization,
     ManageAccounts,
     About(bool),
+    Unsent(bool),
+    RestoreUnsent(Uuid),
+    DiscardUnsent(Uuid),
+    ConfirmDiscardUnsent,
+    CancelDiscardUnsent,
     CloseApp,
     AppMenu(bool),
     SendInvite(String, OrganizationRole),

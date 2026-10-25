@@ -1,8 +1,9 @@
 use beui::icons::Glyph;
 use beui::icons::{
-    ICON_ARROW_LEFT_RIGHT, ICON_BOT, ICON_BUG, ICON_CHECK, ICON_CONTACT, ICON_INFO, ICON_KEY,
-    ICON_LAYOUT_PANEL_LEFT, ICON_POWER, ICON_REFRESH_CCW, ICON_SHIELD_ALERT, ICON_USER_COG,
-    ICON_USER_PLUS, ICON_USERS,
+    ICON_ARCHIVE_RESTORE, ICON_ARROW_LEFT_RIGHT, ICON_BOT, ICON_BUG, ICON_CLOUD_ALERT,
+    ICON_CLOUD_CHECK, ICON_CLOUD_OFF, ICON_CLOUD_SYNC, ICON_CONTACT, ICON_INFO, ICON_KEY,
+    ICON_LAYOUT_PANEL_LEFT, ICON_POWER, ICON_SHIELD_ALERT, ICON_USER_COG, ICON_USER_PLUS,
+    ICON_USERS,
 };
 use beui::reactive::*;
 use beui::styled::*;
@@ -13,8 +14,8 @@ use block_plugin_api::HostPanel;
 use super::debug::DebugPanels;
 use super::dialogs::Dialogs;
 use super::keys::PairingDialog;
-use super::{AppMenuView, AppViewStore, StatusView, UiCommand, send};
-use crate::compositor::PresentingSurface;
+use super::{AppMenuView, AppViewStore, StatusView, SyncState, UiCommand, send};
+use crate::compositor::{ConflictSurface, PresentingSurface};
 use crate::surfaces::MainSurface;
 
 #[component]
@@ -41,9 +42,38 @@ fn OrganizationBody(view: AppViewStore) -> NodeId {
             </Show>
             <AppMenu status={status} menu={menu} />
             <PresentingSurface />
+            <ConflictSurface />
             <Dialogs view={view} />
             <PairingDialog view={view} />
         </List>
+    }
+}
+
+fn sync_label(sync: &SyncState) -> &'static str {
+    match sync {
+        SyncState::Saved => "All changes saved",
+        SyncState::Syncing => "Syncing changes…",
+        SyncState::Offline { .. } => "Offline",
+        SyncState::Error(_) => "Changes could not sync",
+    }
+}
+
+fn sync_detail(sync: &SyncState) -> String {
+    match sync {
+        SyncState::Saved | SyncState::Syncing => String::new(),
+        SyncState::Offline { waiting: 0 } => "Nothing waiting to sync".to_owned(),
+        SyncState::Offline { waiting: 1 } => "1 change waiting".to_owned(),
+        SyncState::Offline { waiting } => format!("{waiting} changes waiting"),
+        SyncState::Error(error) => error.clone(),
+    }
+}
+
+fn sync_glyph(sync: &SyncState) -> Glyph {
+    match sync {
+        SyncState::Saved => ICON_CLOUD_CHECK,
+        SyncState::Syncing => ICON_CLOUD_SYNC,
+        SyncState::Offline { .. } => ICON_CLOUD_OFF,
+        SyncState::Error(_) => ICON_CLOUD_ALERT,
     }
 }
 
@@ -71,15 +101,20 @@ fn AppMenu(status: Memo<StatusView>, menu: Prop<Option<AppMenuView>>) -> NodeId 
             .map_or(OverlayAnchor::Point(Pos2::ZERO), |(anchor, _)| anchor)
     });
     let sheet = create_memo(move || placed.get().is_some_and(|(_, touch)| touch));
-    let saved = create_memo(move || status.get().changes_saved);
-    let unsaved = create_memo(move || !saved.get());
-    let saved_label = create_memo(move || match saved.get() {
-        true => "All changes saved".to_owned(),
-        false => "Submitting changes…".to_owned(),
+    let sync = create_memo(move || status.get().sync);
+    let sync_label = create_memo(move || sync_label(&sync.get()).to_owned());
+    let sync_detail = create_memo(move || sync_detail(&sync.get()));
+    let sync_glyph = create_memo(move || sync_glyph(&sync.get()));
+    let unsaved = create_memo(move || match sync.get() {
+        SyncState::Saved | SyncState::Error(_) => false,
+        SyncState::Syncing => true,
+        SyncState::Offline { waiting } => waiting > 0,
     });
-    let saved_glyph = create_memo(move || match saved.get() {
-        true => ICON_CHECK,
-        false => ICON_REFRESH_CCW,
+    let unsent = create_memo(move || status.get().unsent);
+    let has_unsent = create_memo(move || unsent.get() > 0);
+    let unsent_detail = create_memo(move || match unsent.get() {
+        1 => "1 block".to_owned(),
+        count => format!("{count} blocks"),
     });
     let organization = create_memo(move || status.get().organization);
     let signed_in_as = create_memo(move || status.get().signed_in_as);
@@ -98,10 +133,20 @@ fn AppMenu(status: Memo<StatusView>, menu: Prop<Option<AppMenuView>>) -> NodeId 
             items={view! {
                 <MenuItem
                     row_test_id={"app.menu.status".to_owned()}
-                    label={saved_label}
-                    glyph={saved_glyph}
+                    label={sync_label}
+                    glyph={sync_glyph}
+                    detail={sync_detail}
                     disabled=true
                 />
+                <Show condition={has_unsent}>
+                    <MenuItem
+                        row_test_id={"app.menu.unsent".to_owned()}
+                        label="Unsent edits"
+                        glyph=ICON_ARCHIVE_RESTORE
+                        detail={unsent_detail}
+                        on_click={|| pick(UiCommand::Unsent(true))}
+                    />
+                </Show>
                 <Show condition={warned}>
                     <MenuItem
                         row_test_id={"app.menu.escrow-warning".to_owned()}
@@ -206,3 +251,6 @@ fn panel_icon(panel: HostPanel) -> Glyph {
         HostPanel::Plugins => beui::icons::ICON_PUZZLE,
     }
 }
+
+#[cfg(test)]
+mod tests;

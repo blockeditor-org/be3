@@ -26,7 +26,9 @@ use crate::editors::{
 };
 use crate::host::HostItem;
 use crate::plugin_host::{self, ChildCommit, EditorView, HostChild, HostChildStatus, HostContent};
-use crate::surfaces::{HostItemFace, HostedRegion, HostedSurface, StaleBlock, SurfaceId};
+use crate::surfaces::{
+    ConflictNotice, HostItemFace, HostedRegion, HostedSurface, StaleBlock, SurfaceId,
+};
 use crate::ui::HostPanelSurface;
 
 const MIN_ZOOM: f32 = 1.0 / 64.0;
@@ -583,6 +585,165 @@ pub(crate) fn PresentingSurface() -> NodeId {
     }
 }
 
+#[component]
+pub(crate) fn ConflictSurface() -> NodeId {
+    let any = super::any();
+    let comparison = create_memo(move || {
+        any.get();
+        crate::be::conflicts::comparing()
+    });
+    view! {
+        <ConflictDialog comparison />
+    }
+}
+
+#[component]
+fn ConflictDialog(comparison: Memo<Option<crate::be::conflicts::Comparison>>) -> NodeId {
+    let open = create_memo(move || comparison.with(Option::is_some));
+    let error = create_memo(move || {
+        comparison
+            .get()
+            .and_then(|comparison| comparison.error)
+            .unwrap_or_default()
+    });
+    let failed = create_memo(move || !error.get().is_empty());
+    view! {
+        <Dialog
+            open={open}
+            title="Both versions"
+            width=960.0
+            id="conflict.compare"
+            confirm="Keep merged"
+            cancel="Close"
+            on_confirm={move || {
+                if let Some(comparison) = comparison.get_untracked() {
+                    crate::be::conflicts::dismiss(comparison.block);
+                }
+            }}
+            on_dismiss={crate::be::conflicts::stop_comparing}
+        >
+            <List spacing=12.0>
+                <Text style=TextStyle::CAPTION wrap=beui::Wrap::Words>
+                    "Both devices changed this block while apart, and the block now holds both changes merged. Keep the merge, or go back to one of the versions."
+                </Text>
+                <List direction=Direction::Horizontal spacing=12.0>
+                    <ConflictSide
+                        @sizing=ItemSize::Percent(50.0)
+                        comparison
+                        side=crate::be::conflicts::Side::Ours
+                    />
+                    <ConflictSide
+                        @sizing=ItemSize::Percent(50.0)
+                        comparison
+                        side=crate::be::conflicts::Side::Theirs
+                    />
+                </List>
+                <Show condition={failed}>
+                    <Text color=TextColor::Danger wrap=beui::Wrap::Words>{error}</Text>
+                </Show>
+            </List>
+        </Dialog>
+    }
+}
+
+#[component]
+fn ConflictSide(
+    comparison: Memo<Option<crate::be::conflicts::Comparison>>,
+    side: crate::be::conflicts::Side,
+) -> NodeId {
+    use crate::be::conflicts::Side;
+    let title = match side {
+        Side::Ours => "On this device",
+        Side::Theirs => "From another device",
+    };
+    let side_id = match side {
+        Side::Ours => "conflict.compare.ours",
+        Side::Theirs => "conflict.compare.theirs",
+    };
+    let shown = create_memo(move || {
+        let comparison = comparison.get()?;
+        let preview = match side {
+            Side::Ours => comparison.ours,
+            Side::Theirs => comparison.theirs,
+        };
+        Some((comparison.block, preview))
+    });
+    let block = create_memo(move || shown.get().map(|(block, _)| block));
+    let ready = create_memo(move || {
+        shown
+            .get()
+            .is_some_and(|(_, preview)| matches!(preview, Some(Ok(_))))
+    });
+    view! {
+        <List @test_id={side_id} spacing=8.0>
+            <Text style=TextStyle::HEADING>{title}</Text>
+            <Frame
+                height=360.0
+                fill=ColorRole::Background
+                border={Border::DEFAULT}
+                radius=Radius::Md
+            >
+                <Layers>
+                    <Dynamic value={shown}>|shown: Option<(Uuid, Option<Result<Uuid, String>>)>| {
+                        match shown.and_then(|(_, preview)| preview) {
+                            None => view! {
+                                <Frame align=beui::Align::Center>
+                                    <Spinner />
+                                </Frame>
+                            },
+                            Some(Err(error)) => view! {
+                                <Frame align=beui::Align::Center padding=12.0>
+                                    <Text color=TextColor::Muted wrap=beui::Wrap::Words>
+                                        {error}
+                                    </Text>
+                                </Frame>
+                            },
+                            Some(Ok(preview)) => view! {
+                                <ConflictPreview preview />
+                            },
+                        }
+                    }</Dynamic>
+                </Layers>
+            </Frame>
+            <List direction=Direction::Horizontal spacing=8.0>
+                <Button
+                    @test_id={format!("{side_id}.keep")}
+                    label="Use this version"
+                    variant=ButtonVariant::Secondary
+                    disabled={create_memo(move || !ready.get())}
+                    on_click={move || {
+                        if let Some(block) = block.get_untracked() {
+                            crate::be::conflicts::keep(block, side);
+                        }
+                    }}
+                />
+            </List>
+        </List>
+    }
+}
+
+#[component]
+fn ConflictPreview(preview: Uuid) -> NodeId {
+    let editors = editors();
+    if let Some(node) = crate::be::node(preview) {
+        editors.ensure(preview, node.content_type, None, None, preview);
+    }
+    provide_context(Nesting {
+        above: store(Vec::new()),
+        access: Access::View,
+    });
+    view! {
+        <BlockFrame
+            block=preview
+            chrome=Chrome::None
+            content=None
+            top_bar=TopBar::Hidden
+            embedded=true
+            passive=false
+        />
+    }
+}
+
 fn stop_on_escape(overlay: NodeRef) {
     on_global_key(move |event: KeyEvent| {
         if event.held() {
@@ -970,6 +1131,16 @@ fn BlockFrameBody(
             None => Resolution::Unsupported(handle.block_type),
         }
     });
+    let conflicted = create_memo(move || {
+        any.get();
+        match resolution.get() {
+            Resolution::Ready { .. } => crate::be::conflicts::conflicted(block)
+                .map(|conflicted| conflicted.count)
+                .into_iter()
+                .collect::<Vec<_>>(),
+            _ => Vec::new(),
+        }
+    });
     view! {
         <Layers>
             <Dynamic value={resolution}>|resolution: Resolution| {
@@ -1036,6 +1207,9 @@ fn BlockFrameBody(
                     }
                 }
             }</Dynamic>
+            <ForEach keys={conflicted}>|count: usize|
+                <ConflictNotice block count />
+            </ForEach>
         </Layers>
     }
 }

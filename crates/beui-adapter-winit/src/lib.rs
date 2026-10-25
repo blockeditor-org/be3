@@ -39,7 +39,7 @@ use winit::window::{
 
 use accessibility::{Accessibility, Request};
 use accesskit::TreeUpdate;
-use beui_core::app::{SafeArea, Setup, Waker};
+use beui_core::app::{Lifecycle, SafeArea, Setup, Waker};
 use beui_core::clipboard::{PasteAnswer, PasteKind, Pasted};
 use beui_core::file_picker::{FilePickAnswer, FilePickRequest};
 use beui_core::file_saver::{FileSaveAnswer, FileSaveRequest};
@@ -652,6 +652,15 @@ impl ApplicationHandler for Runner {
                     self.push(Input::PointersCancelled);
                 }
                 self.push(Input::Focus(focused));
+                if focused {
+                    self.runner.lifecycle(Lifecycle::Focused);
+                }
+            }
+            WindowEvent::Occluded(occluded) => {
+                self.runner.lifecycle(match occluded {
+                    true => Lifecycle::Background,
+                    false => Lifecycle::Foreground,
+                });
             }
             WindowEvent::ThemeChanged(theme) => {
                 self.preferences.window_theme(Some(theme));

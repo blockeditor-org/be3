@@ -54,6 +54,10 @@ type HeadReply = Box<dyn FnOnce(Result<Vec<u8>, String>) + Send>;
 type PlainReply = Box<dyn FnOnce(Result<be_types_host::PlainFile, String>) + Send>;
 
 pub(super) enum Command {
+    Unsent {
+        block: Uuid,
+        restore: bool,
+    },
     PreviewChild {
         alias: Uuid,
         source: Uuid,
@@ -249,6 +253,7 @@ impl Command {
             | Command::Presence { block, .. }
             | Command::SendToPeers { block, .. } => Some(*block),
             Command::Export { .. }
+            | Command::Unsent { .. }
             | Command::Import(_)
             | Command::Flush(_)
             | Command::ApprovePairing { .. }
@@ -360,6 +365,9 @@ pub(crate) struct Shared {
     pub(crate) owned: std::collections::HashSet<Uuid>,
     pub(crate) unreadable: HashMap<Uuid, String>,
     pub(crate) stale_revision: u64,
+    pub(crate) waiting: usize,
+    pub(crate) unsent: Vec<be_client::UnsentBlock>,
+    pub(crate) comparison: Option<super::conflicts::Comparison>,
 }
 
 impl Shared {
@@ -1274,6 +1282,21 @@ async fn apply(
             content_type,
         } => {
             super::revisions::load_child(peer, shared, alias, source, content_type).await;
+            true
+        }
+        Command::Unsent { block, restore } => {
+            let done = match restore {
+                true => peer.restore_unsent(block),
+                false => peer.discard_unsent(block),
+            };
+            let mut held = shared.lock().unwrap_or_else(PoisonError::into_inner);
+            if let Err(error) = done {
+                held.error = Some(error.to_string());
+            }
+            held.unsent = peer.unsent();
+            held.stale_revision += 1;
+            drop(held);
+            crate::host::wake();
             true
         }
         Command::Revision {

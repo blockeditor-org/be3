@@ -2677,6 +2677,16 @@ focused field into what is left, through every scroll it sits in.
   reactive state there aborts or crashes the process (block-app's
   `Shell::exiting` takes down the Wayland compositor, the plugin runtimes and
   their worker threads, and the screens this way).
+- `lifecycle(Lifecycle)` hears the app leave and come back to the screen, not
+  the keyboard: `Background` when the window is occluded or minimised (winit),
+  the activity pauses (Android `onPause`) or the tab is hidden or the page is
+  left (`visibilitychange`, `pagehide`), and `Foreground` when it returns;
+  `Focused` when the window gains focus; `NetworkChanged` when the browser goes
+  `online` or Android's default network becomes available. The process may be
+  killed without another frame after `Background`, so that is where unsaved work
+  is put somewhere durable, without blocking (Android gives `onPause` little
+  time). Adapters call `Runner::lifecycle`; the document's own focus still
+  comes as `Event::Focus`.
 - `busy` says whether work the app is waiting on, such as a server request or a
   plugin's frame, will still change what it shows. Only a driver reads it.
 - `environment` is the variables a program needs to open its windows inside an app

@@ -419,6 +419,15 @@ impl beui::App for Shell {
         self.app.close_requested()
     }
 
+    fn lifecycle(&mut self, change: beui::Lifecycle) {
+        match change {
+            beui::Lifecycle::Background => be::backgrounded(),
+            beui::Lifecycle::Foreground
+            | beui::Lifecycle::Focused
+            | beui::Lifecycle::NetworkChanged => be::retry_now(),
+        }
+    }
+
     fn exiting(&mut self) {
         wayland::exiting();
         plugin_host::exiting();
@@ -506,6 +515,8 @@ struct BlockApp {
     pending_transfers: Vec<PendingTransfer>,
     pending_copies: Vec<PendingCopy>,
     about_open: bool,
+    unsent_open: bool,
+    discarding_unsent: Option<Uuid>,
     programs: programs::Programs,
     app_menu: Option<ui::AppMenuView>,
     pending_destructive_action: Option<PendingDestructiveAction>,
@@ -760,6 +771,8 @@ impl BlockApp {
             pending_transfers: Vec::new(),
             pending_copies: Vec::new(),
             about_open: false,
+            unsent_open: false,
+            discarding_unsent: None,
             programs: programs::Programs::default(),
             app_menu: None,
             pending_destructive_action: None,
@@ -1596,6 +1609,8 @@ impl BlockApp {
         self.dynamic_artifact_settings_open = None;
         self.pending_transfers.clear();
         self.about_open = false;
+        self.unsent_open = false;
+        self.discarding_unsent = None;
         self.app_menu = None;
         self.pending_destructive_action = None;
         self.allow_close = false;
@@ -2970,6 +2985,18 @@ impl BlockApp {
                 }
             }
             UiCommand::About(open) => self.about_open = open,
+            UiCommand::Unsent(open) => {
+                self.unsent_open = open;
+                self.discarding_unsent = None;
+            }
+            UiCommand::RestoreUnsent(block) => be::restore_unsent(block),
+            UiCommand::DiscardUnsent(block) => self.discarding_unsent = Some(block),
+            UiCommand::ConfirmDiscardUnsent => {
+                if let Some(block) = self.discarding_unsent.take() {
+                    be::discard_unsent(block);
+                }
+            }
+            UiCommand::CancelDiscardUnsent => self.discarding_unsent = None,
             UiCommand::AppMenu(false) => self.app_menu = None,
             UiCommand::AppMenu(true) => self.open_app_menu(None),
             UiCommand::DismissToast(id) => notices::dismiss(id),
@@ -3111,9 +3138,9 @@ impl BlockApp {
             (None, true, Some(_)) => ui::Screen::Organization,
         };
         let be_status = be::status();
-        let changes_saved = match screen {
-            ui::Screen::Organization => be_status.unsealed == 0,
-            _ => true,
+        let sync = match screen {
+            ui::Screen::Organization => sync_state(&be_status),
+            _ => ui::SyncState::Saved,
         };
         let accounts: Vec<_> = self
             .accounts
@@ -3195,7 +3222,8 @@ impl BlockApp {
                 error: reauth.error.clone(),
             }),
             status: ui::StatusView {
-                changes_saved,
+                sync,
+                unsent: be_status.unsent,
                 saves: be_status.saves,
                 organization: organization_name.clone(),
                 signed_in_as: format!("Signed in as {}", self.account.name),
@@ -3264,6 +3292,17 @@ impl BlockApp {
                 link: self.invite_link.clone(),
             }),
             about: self.about_open,
+            unsent: self.unsent_open.then(|| ui::UnsentView {
+                rows: be::unsent()
+                    .into_iter()
+                    .map(|unsent| ui::UnsentRow {
+                        block: unsent.block,
+                        name: unsent.name.unwrap_or_else(|| "Untitled".to_owned()),
+                        offerable: unsent.offerable,
+                    })
+                    .collect(),
+                discarding: self.discarding_unsent,
+            }),
             app_menu: self.app_menu.clone(),
             discard: self.pending_destructive_action.as_ref().map(discard_view),
             leaving: self.leaving.is_some(),
@@ -3344,6 +3383,17 @@ impl BlockApp {
             return;
         }
         self.restart();
+    }
+}
+
+fn sync_state(status: &be::Status) -> ui::SyncState {
+    match (&status.error, status.connected) {
+        (_, false) => ui::SyncState::Offline {
+            waiting: status.waiting,
+        },
+        (Some(error), true) => ui::SyncState::Error(error.clone()),
+        (None, true) if status.syncing || status.waiting > 0 => ui::SyncState::Syncing,
+        (None, true) => ui::SyncState::Saved,
     }
 }
 

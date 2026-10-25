@@ -461,7 +461,10 @@ leaving, makes its first seal a reload for the same reason.
 
 A merge that conflicts first writes the owner's unsaved side as a commit of its
 own (`Command::Stash`), so the merge commit has both sides as parents and neither
-is lost, and reports a `be_types_host::Conflict` to its host. A session message
+is lost, and reports a `be_types_host::Conflict` to its host. block-app keeps
+it per block (`be::conflicts`) and shows a notice on the block whose "See both
+versions" previews the two sides as revision previews; keeping the merge or
+restoring one side clears it. A session message
 or operation this version cannot decode marks the session incompatible. On a
 follower that also marks it diverged, because its copy may now be wrong, and a
 diverged session refuses to edit or seal.

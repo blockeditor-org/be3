@@ -17,7 +17,7 @@ pub(super) struct SlowSave {
 impl SlowSave {
     pub(super) fn new(view: AppViewStore) -> Self {
         let status = view.status;
-        let saved = create_memo(move || status.get().changes_saved);
+        let saved = create_memo(move || status.get().sync != super::SyncState::Syncing);
         let saves = create_memo(move || status.get().saves);
         let slow = create_signal(false);
         let dismissed = create_signal(false);

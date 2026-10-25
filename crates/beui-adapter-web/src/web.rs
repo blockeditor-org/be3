@@ -12,7 +12,7 @@ use wasm_bindgen::JsCast;
 use wasm_bindgen::prelude::Closure;
 
 use beui_core::app::ime_mirror::{ImeInput, ImeMirror};
-use beui_core::app::{SafeArea, Setup, Waker};
+use beui_core::app::{Lifecycle, SafeArea, Setup, Waker};
 use beui_core::clipboard::{PasteAnswer, PasteKind, Pasted};
 use beui_core::file_picker::{FilePickAnswer, FilePickRequest, PickedFile};
 use beui_core::file_saver::{FileSaveAnswer, FileSaveRequest};
@@ -423,6 +423,18 @@ impl Runner {
         }
         let _ = window.close();
     }
+}
+
+fn lifecycle(change: Lifecycle) {
+    let runner = RUNNER.with(|runner| runner.borrow().clone());
+    let Some(runner) = runner else {
+        return;
+    };
+    let Ok(mut runner) = runner.try_borrow_mut() else {
+        return;
+    };
+    runner.runner.lifecycle(change);
+    schedule();
 }
 
 fn close_requested(event: &web_sys::Event) {
@@ -1029,6 +1041,24 @@ fn listen(
     on(window_target, "resize", |_event: web_sys::Event| schedule())?;
     on(window_target, "blur", |_event: web_sys::FocusEvent| {
         push(Input::PointersCancelled);
+    })?;
+    on(window_target, "focus", |_event: web_sys::FocusEvent| {
+        lifecycle(Lifecycle::Focused);
+    })?;
+    on(window_target, "online", |_event: web_sys::Event| {
+        lifecycle(Lifecycle::NetworkChanged);
+    })?;
+    on(window_target, "pagehide", |_event: web_sys::Event| {
+        lifecycle(Lifecycle::Background);
+    })?;
+    on(document_target, "visibilitychange", {
+        let document = document.clone();
+        move |_event: web_sys::Event| {
+            lifecycle(match document.hidden() {
+                true => Lifecycle::Background,
+                false => Lifecycle::Foreground,
+            });
+        }
     })?;
     on(window_target, "beforeunload", |event: web_sys::Event| {
         close_requested(&event);
