@@ -1,4 +1,7 @@
-pub use crate::types::{Key, Modifiers, KeyPress, KeyChord, PointerButton, PenPhase, TouchPhase, BackGesture, BackEdge, ImeEvent, ImeText, Keyboard, CursorIcon, TouchId, Pen, Keystroke, ScrollDelta, Input};
+pub use crate::types::{
+    BackEdge, BackGesture, CursorIcon, ImeEvent, ImeText, Input, Key, KeyChord, KeyPress, Keyboard,
+    Keystroke, Modifiers, Pen, PenPhase, PointerButton, ScrollDelta, TouchId, TouchPhase,
+};
 
 use geometry::Vec2;
 

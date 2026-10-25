@@ -1,4 +1,4 @@
-pub use crate::types::{ThemeKind, Motion, CanvasTouch, Preferences, PreferenceLayer};
+pub use crate::types::{CanvasTouch, Motion, PreferenceLayer, Preferences, ThemeKind};
 
 impl ThemeKind {
     pub const ALL: [Self; 4] = [Self::Light, Self::Dark, Self::OledDark, Self::EPaper];

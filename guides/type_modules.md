@@ -54,13 +54,23 @@ operations ("ops") of the be-ops kernel, which can be awaited and canceled.
   A guest calls an import inside `guest::with_parent(op, ...)` to make the call (op or
   direct) about `op`; dropping a pending call or stream cancels it.
 - `crates/be-ops-bindgen`: the generator, a proc macro over `wit-parser`
-  (`generate!({ path, world, with, copy, default })`, expanded at the crate root). Its
+  (`generate!({ path, world, ... })`, expanded at the crate root). Its
   `path` is read at `CARGO_MANIFEST_DIR`, so the crate passes the files to buck as
-  `resources` (guides/buck2.md). It emits a module per interface with its types
+  `resources` (guides/buck2.md), and WIT of another crate's package as
+  `foreign_resources` (`{"//crates/ui-types:wit": "crates/ui-types"}`) named in
+  `deps: ["../ui-types/wit"]`. It emits a module per interface with its types
   (records as structs, variants and enums as enums, flags, `list<u8>` as `Vec<u8>`
-  with serde_bytes), `with` maps a WIT type onto an existing Rust type of the same
-  shape (uuids, commit ids, the session state), `copy` names the mapped types that
-  are `Copy` and `default` the types that derive `Default`. For the guest:
+  with serde_bytes), deriving `Copy`, `Eq`, `Hash` and `Ord` where every field allows
+  (no floats, nothing owned). The options, each a list of WIT type names unless said:
+  `with` (a map) puts an existing Rust type in place of a WIT type of the same shape
+  (uuids, commit ids, newtype ids), which the interface's module still names as an
+  alias; `uses` (a map) takes a whole interface of another package from the crate
+  generated from it (`{"be3:ui/types@0.1.0": ::ui_types::types}`); `copy` names the
+  mapped types that are `Copy`; `default` the types that derive `Default` (a variant's
+  or enum's first case is the default); `inline` records that are a variant case's
+  fields, so `case(record)` becomes a struct variant; `lenient` records that take
+  `#[serde(default)]`; `ordered` types that derive `Ord` and `Hash` although not
+  `Copy`; `own_debug` types whose crate writes `Debug` itself. For the guest:
   `guest::<import>` functions (a `func` returns nothing and goes through a wasm import
   on wasm32-unknown-unknown and through the executor in process; an `async func` returns
   `Pending<T>`; a `stream<T>` returns `Stream<T>`), and for each export a `Guest`

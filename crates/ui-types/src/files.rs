@@ -1,4 +1,4 @@
-pub use crate::types::{FileFilter, PickedFile, FilePick, SavedFile, FileSave};
+pub use crate::types::{FileFilter, FilePick, FileSave, PickedFile, SavedFile};
 
 impl FileFilter {
     pub fn new(name: &str, extensions: &[&str], mime_types: &[&str]) -> Self {
@@ -10,4 +10,3 @@ impl FileFilter {
         }
     }
 }
-

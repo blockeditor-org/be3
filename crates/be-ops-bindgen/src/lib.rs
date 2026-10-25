@@ -18,7 +18,9 @@ use wit_parser::{
 struct Options {
     path: String,
     world: String,
-    with: BTreeMap<String, syn::Path>,
+    with: BTreeMap<String, syn::Type>,
+    uses: BTreeMap<String, syn::Path>,
+    own_debug: BTreeSet<String>,
     copy: BTreeSet<String>,
     default: BTreeSet<String>,
     inline: BTreeSet<String>,
@@ -35,6 +37,8 @@ impl Parse for Options {
             path: String::new(),
             world: String::new(),
             with: BTreeMap::new(),
+            uses: BTreeMap::new(),
+            own_debug: BTreeSet::new(),
             copy: BTreeSet::new(),
             default: BTreeSet::new(),
             inline: BTreeSet::new(),
@@ -54,14 +58,27 @@ impl Parse for Options {
                     while !mapped.is_empty() {
                         let name: LitStr = mapped.parse()?;
                         mapped.parse::<Token![:]>()?;
-                        let path: syn::Path = mapped.parse()?;
+                        let path: syn::Type = mapped.parse()?;
                         options.with.insert(name.value(), path);
                         if !mapped.is_empty() {
                             mapped.parse::<Token![,]>()?;
                         }
                     }
                 }
-                "copy" | "default" | "inline" | "lenient" | "ordered" | "deps" => {
+                "uses" => {
+                    let mapped;
+                    braced!(mapped in content);
+                    while !mapped.is_empty() {
+                        let name: LitStr = mapped.parse()?;
+                        mapped.parse::<Token![:]>()?;
+                        let path: syn::Path = mapped.parse()?;
+                        options.uses.insert(name.value(), path);
+                        if !mapped.is_empty() {
+                            mapped.parse::<Token![,]>()?;
+                        }
+                    }
+                }
+                "copy" | "default" | "inline" | "lenient" | "ordered" | "deps" | "own_debug" => {
                     let names;
                     bracketed!(names in content);
                     let names: Punctuated<LitStr, Token![,]> =
@@ -73,6 +90,7 @@ impl Parse for Options {
                         "lenient" => options.lenient = names,
                         "ordered" => options.ordered = names,
                         "deps" => options.deps = names.into_iter().collect(),
+                        "own_debug" => options.own_debug = names,
                         _ => options.default = names,
                     }
                 }
@@ -367,7 +385,11 @@ impl Generator {
         )
     }
 
-    fn mapped(&self, id: TypeId) -> Option<&syn::Path> {
+    fn used(&self, interface: InterfaceId) -> Option<&syn::Path> {
+        self.options.uses.get(&self.resolve.id_of(interface)?)
+    }
+
+    fn mapped(&self, id: TypeId) -> Option<&syn::Type> {
         let name = self.resolve.types[id].name.as_ref()?;
         self.options.with.get(name)
     }
@@ -402,10 +424,16 @@ impl Generator {
             }
             Type::Id(id) => {
                 let id = self.target(*id);
+                let def = &self.resolve.types[id];
+                if let (Some(name), TypeOwner::Interface(owner)) = (&def.name, def.owner)
+                    && let Some(path) = self.used(owner)
+                {
+                    let name = camel(name);
+                    return Ok(quote!(#path::#name));
+                }
                 if let Some(path) = self.mapped(id) {
                     return Ok(quote!(#path));
                 }
-                let def = &self.resolve.types[id];
                 if let (Some(name), TypeOwner::Interface(owner)) = (&def.name, def.owner) {
                     let module = self.module_name(owner);
                     let name = camel(name);
@@ -533,26 +561,29 @@ impl Generator {
 
     fn derives(&self, id: TypeId) -> TokenStream {
         let name = self.type_name(id);
-        let default = match &name {
-            Some(name) if self.options.default.contains(name) => quote!(Default,),
-            _ => TokenStream::new(),
+        let listed =
+            |list: &BTreeSet<String>| name.as_ref().is_some_and(|name| list.contains(name));
+        let lenient = match listed(&self.options.lenient) {
+            true => quote!(#[serde(default)]),
+            false => TokenStream::new(),
         };
-        let lenient = match &name {
-            Some(name) if self.options.lenient.contains(name) => quote!(#[serde(default)]),
-            _ => TokenStream::new(),
-        };
-        let floating = self.floating(&Type::Id(id));
-        let derives = match (self.copyable(&Type::Id(id)), floating) {
-            (true, false) => quote!(Clone, Copy, Debug, #default Eq, Hash, Ord, PartialEq, PartialOrd,),
-            (true, true) => quote!(Clone, Copy, Debug, #default PartialEq,),
-            (false, false) if name.as_ref().is_some_and(|name| self.options.ordered.contains(name)) => {
-                quote!(Clone, Debug, #default Eq, Hash, Ord, PartialEq, PartialOrd,)
-            }
-            (false, false) => quote!(Clone, Debug, #default Eq, PartialEq,),
-            (false, true) => quote!(Clone, Debug, #default PartialEq,),
-        };
+        let copy = self.copyable(&Type::Id(id));
+        let exact = !self.floating(&Type::Id(id));
+        let ordered = exact && (copy || listed(&self.options.ordered));
+        let mut derives = vec!["Clone"];
+        derives.extend(copy.then_some("Copy"));
+        derives.extend((!listed(&self.options.own_debug)).then_some("Debug"));
+        derives.extend(listed(&self.options.default).then_some("Default"));
+        derives.extend(exact.then_some("Eq"));
+        derives.extend(ordered.then_some("Hash"));
+        derives.extend(ordered.then_some("Ord"));
+        derives.push("PartialEq");
+        derives.extend(ordered.then_some("PartialOrd"));
+        let derives = derives
+            .into_iter()
+            .map(|derive| Ident::new(derive, Span::call_site()));
         quote! {
-            #[derive(#derives ::serde::Serialize, ::serde::Deserialize)]
+            #[derive(#(#derives,)* ::serde::Serialize, ::serde::Deserialize)]
             #lenient
         }
     }
@@ -572,7 +603,11 @@ impl Generator {
         }
     }
 
-    fn fields(&self, record: &wit_parser::Record, public: bool) -> Result<Vec<TokenStream>, String> {
+    fn fields(
+        &self,
+        record: &wit_parser::Record,
+        public: bool,
+    ) -> Result<Vec<TokenStream>, String> {
         record
             .fields
             .iter()
@@ -598,7 +633,7 @@ impl Generator {
         defined: &mut BTreeSet<InterfaceId>,
         out: &mut TokenStream,
     ) -> Result<(), String> {
-        if !defined.insert(interface) {
+        if !defined.insert(interface) || self.used(interface).is_some() {
             return Ok(());
         }
         let mut items = TokenStream::new();
@@ -612,7 +647,12 @@ impl Generator {
                 self.types_of(other, defined, out)?;
                 continue;
             }
-            if self.options.with.contains_key(&name) || self.options.inline.contains(&name) {
+            if let Some(mapped) = self.options.with.get(&name) {
+                let ident = camel(&name);
+                items.extend(quote! { pub type #ident = #mapped; });
+                continue;
+            }
+            if self.options.inline.contains(&name) {
                 continue;
             }
             let ident = camel(&name);
@@ -901,7 +941,10 @@ impl Generator {
             let args = Self::construct(method);
             let named = &method.named;
             if let Some(resource) = method.function.kind.resource() {
-                let resource = self.resolve.types[resource].name.clone().unwrap_or_default();
+                let resource = self.resolve.types[resource]
+                    .name
+                    .clone()
+                    .unwrap_or_default();
                 let item = match (&method.function.kind, &method.shape) {
                     (FunctionKind::Constructor(_), _) => quote! {
                         pub fn new(#(#params),*) -> Self {
@@ -992,14 +1035,19 @@ impl Generator {
         let mut direct_arms = Vec::new();
         let mut handles = BTreeSet::new();
         for method in methods {
-            let resource = method
-                .function
-                .kind
-                .resource()
-                .map(|resource| camel(&self.resolve.types[resource].name.clone().unwrap_or_default()));
+            let resource = method.function.kind.resource().map(|resource| {
+                camel(
+                    &self.resolve.types[resource]
+                        .name
+                        .clone()
+                        .unwrap_or_default(),
+                )
+            });
             let case = match (&resource, &method.function.kind) {
                 (Some(resource), FunctionKind::Constructor(_)) => format_ident!("{resource}New"),
-                (Some(resource), _) => format_ident!("{resource}{}", camel(method.function.item_name())),
+                (Some(resource), _) => {
+                    format_ident!("{resource}{}", camel(method.function.item_name()))
+                }
                 (None, _) => camel(method.function.item_name()),
             };
             if let Some(resource) = &resource {
