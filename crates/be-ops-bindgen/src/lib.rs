@@ -188,6 +188,8 @@ impl Generator {
         let mut guest_imports = TokenStream::new();
         let mut embed_imports = TokenStream::new();
         let mut direct_imports = Vec::new();
+        let mut import_shims = Vec::new();
+        let mut import_arms = Vec::new();
         let mut shims = Vec::new();
         let dollar = proc_macro2::Punct::new('$', proc_macro2::Spacing::Alone);
         let callable = |interface: &&InterfaceId| {
@@ -203,8 +205,20 @@ impl Generator {
             let embed = generator.embed_import(&module, &methods);
             for method in &methods {
                 if let Shape::Direct(_) = method.shape {
-                    let (interface, key) = (&method.interface, &method.key);
+                    let (interface, key, name) = (&method.interface, &method.key, &method.name);
+                    let index = direct_imports.len();
+                    let import = format_ident!("__import_{index}");
                     direct_imports.push(quote!((#interface, #key)));
+                    import_shims.push(quote! {
+                        #[link(wasm_import_module = #interface)]
+                        unsafe extern "C" {
+                            #[link_name = #key]
+                            fn #import(has_parent: i32, parent: i64, pointer: u32, length: u32);
+                        }
+                    });
+                    import_arms.push(quote! {
+                        #name => unsafe { #import(has_parent, parent, pointer, length) },
+                    });
                 }
             }
             guest_imports.extend(quote! { pub mod #module { #guest } });
@@ -244,6 +258,7 @@ impl Generator {
             });
         }
         let exporter = format_ident!("export_{}", generator.options.world.to_snake_case());
+        let registrar = format_ident!("__register_{}", generator.options.world.to_snake_case());
         Ok(quote! {
             #types
 
@@ -253,7 +268,7 @@ impl Generator {
             #[macro_export]
             macro_rules! #exporter {
                 () => {
-                    #[cfg(all(target_arch = "wasm32", target_os = "unknown"))]
+                    #[cfg(target_arch = "wasm32")]
                     const _: () = {
                         #(#shims)*
 
@@ -262,6 +277,26 @@ impl Generator {
                             #dollar crate::__be_ops::guest::alloc(length)
                         }
                     };
+
+                    #[cfg(target_arch = "wasm32")]
+                    fn #registrar() {
+                        #(#import_shims)*
+
+                        fn call(name: &str, has_parent: i32, parent: i64, pointer: u32, length: u32) {
+                            let _ = (has_parent, parent, pointer, length);
+                            match name {
+                                #(#import_arms)*
+                                _ => {}
+                            }
+                        }
+
+                        #dollar crate::__be_ops::guest::register_imports(
+                            #dollar crate::__be_ops::guest::Imports {
+                                call,
+                                send: #dollar crate::__be_ops::__abi::wasm::send,
+                            },
+                        );
+                    }
                 };
             }
 
@@ -779,30 +814,11 @@ impl Generator {
             let constant = &method.constant;
             let args = Self::construct(method);
             let named = &method.named;
-            let (interface, key) = (&method.interface, &method.key);
             out.extend(match &method.shape {
                 Shape::Direct(_) => {
                     quote! {
                         pub fn #name(#(#params),*) {
-                            let args = ::be_ops::encode(&#args);
-                            #[cfg(all(target_arch = "wasm32", target_os = "unknown"))]
-                            {
-                                #[link(wasm_import_module = #interface)]
-                                unsafe extern "C" {
-                                    #[link_name = #key]
-                                    fn import(
-                                        has_parent: i32,
-                                        parent: i64,
-                                        pointer: u32,
-                                        length: u32,
-                                    );
-                                }
-                                ::be_ops::guest::direct(&args, |has_parent, parent, pointer, length| {
-                                    unsafe { import(has_parent, parent, pointer, length) }
-                                });
-                            }
-                            #[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
-                            ::be_ops::guest::direct(crate::__args::#named, &args);
+                            ::be_ops::guest::direct(crate::__args::#named, &::be_ops::encode(&#args));
                         }
                     }
                 }

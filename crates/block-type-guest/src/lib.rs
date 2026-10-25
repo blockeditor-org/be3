@@ -777,8 +777,8 @@ impl Serving {
 #[macro_export]
 macro_rules! type_module {
     ($guest:ty) => {
-        $crate::abi::guest!($guest);
         $crate::api::export_type_module!();
+        $crate::abi::guest!($guest, __register_type_module);
     };
 }
 

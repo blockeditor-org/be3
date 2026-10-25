@@ -59,6 +59,9 @@ pub trait Guest: Sized + 'static {
 #[macro_export]
 macro_rules! guest {
     ($guest:ty) => {
+        $crate::guest!($guest, || {});
+    };
+    ($guest:ty, $before:expr) => {
         #[cfg(target_arch = "wasm32")]
         const _: () = {
             ::std::thread_local! {
@@ -68,6 +71,7 @@ macro_rules! guest {
 
             #[unsafe(no_mangle)]
             pub extern "C" fn plugin_start() {
+                ($before)();
                 $crate::wasm::start(&GUEST);
             }
 

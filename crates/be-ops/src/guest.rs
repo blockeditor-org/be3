@@ -135,8 +135,7 @@ impl Executor {
                 dispatch: RefCell::new(Some(dispatch)),
             }),
         };
-        #[cfg(all(target_arch = "wasm32", target_os = "unknown"))]
-        SERVED.with(|served| *served.borrow_mut() = Some(Rc::clone(&executor.inner)));
+        SERVED.with(|served| *served.borrow_mut() = Rc::downgrade(&executor.inner));
         executor
     }
 
@@ -396,86 +395,83 @@ pub fn end(resource: OpId) {
     }
 }
 
-#[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
+#[derive(Clone, Copy)]
+pub struct Imports {
+    pub call: fn(&str, i32, i64, u32, u32),
+    pub send: fn(&[u8]),
+}
+
+thread_local! {
+    static IMPORTS: Cell<Option<Imports>> = const { Cell::new(None) };
+    static SERVED: RefCell<std::rc::Weak<Inner>> = const { RefCell::new(std::rc::Weak::new()) };
+    static RESULT: RefCell<Vec<u8>> = const { RefCell::new(Vec::new()) };
+}
+
+pub fn register_imports(imports: Imports) {
+    IMPORTS.with(|held| held.set(Some(imports)));
+}
+
+fn flush(inner: &Inner) {
+    if let Some(imports) = IMPORTS.with(Cell::get) {
+        for frame in inner.connection.borrow_mut().take_outbound() {
+            (imports.send)(&frame);
+        }
+    }
+}
+
 pub fn direct(name: &str, args: &[u8]) {
     let inner = current();
     let parent = inner.parent.get();
-    inner
-        .connection
-        .borrow_mut()
-        .notify_direct(parent, name, args);
-}
-
-#[cfg(all(target_arch = "wasm32", target_os = "unknown"))]
-mod wasm {
-    use std::{cell::RefCell, rc::Rc};
-
-    use block_guest_abi::direct::pack;
-
-    use super::{Called, Entered, Inner, current};
-    use crate::encode;
-
-    thread_local! {
-        pub(super) static SERVED: RefCell<Option<Rc<Inner>>> = const { RefCell::new(None) };
-        static RESULT: RefCell<Vec<u8>> = const { RefCell::new(Vec::new()) };
-    }
-
-    fn flush(inner: &Inner) {
-        for frame in inner.connection.borrow_mut().take_outbound() {
-            block_guest_abi::wasm::send(&frame);
+    match IMPORTS.with(Cell::get) {
+        Some(imports) => {
+            flush(&inner);
+            (imports.call)(
+                name,
+                parent.is_some() as i32,
+                parent.unwrap_or_default() as i64,
+                args.as_ptr() as u32,
+                args.len() as u32,
+            );
         }
-    }
-
-    pub fn direct(args: &[u8], import: impl FnOnce(i32, i64, u32, u32)) {
-        let inner = current();
-        flush(&inner);
-        let parent = inner.parent.get();
-        import(
-            parent.is_some() as i32,
-            parent.unwrap_or_default() as i64,
-            args.as_ptr() as u32,
-            args.len() as u32,
-        );
-    }
-
-    pub fn alloc(length: u32) -> u32 {
-        let buffer = vec![0u8; length as usize].into_boxed_slice();
-        Box::into_raw(buffer) as *mut u8 as u32
-    }
-
-    // unsafe(ffi)
-    pub fn export(name: &str, has_parent: i32, parent: i64, pointer: u32, length: u32) -> i64 {
-        let args = unsafe {
-            Box::from_raw(std::ptr::slice_from_raw_parts_mut(
-                pointer as *mut u8,
-                length as usize,
-            ))
-        };
-        let Some(inner) = SERVED.with(|served| served.borrow().clone()) else {
-            return pack(0, 0);
-        };
-        let _entered = Entered::enter(&inner);
-        let called = Called {
-            name: name.to_owned(),
-            parent: (has_parent != 0).then_some(parent as u64),
-            answered: true,
-            args: args.into_vec(),
-        };
-        let outcome = inner.call_direct(called);
-        inner.settle();
-        flush(&inner);
-        RESULT.with(|result| {
-            let mut result = result.borrow_mut();
-            *result = encode(&outcome);
-            pack(result.as_ptr() as u32, result.len() as u32)
-        })
+        None => inner
+            .connection
+            .borrow_mut()
+            .notify_direct(parent, name, args),
     }
 }
 
-#[cfg(all(target_arch = "wasm32", target_os = "unknown"))]
-use wasm::SERVED;
-#[cfg(all(target_arch = "wasm32", target_os = "unknown"))]
-pub use wasm::{alloc, direct, export};
+pub fn alloc(length: u32) -> u32 {
+    let buffer = vec![0u8; length as usize].into_boxed_slice();
+    Box::into_raw(buffer) as *mut u8 as usize as u32
+}
+
+// unsafe(ffi)
+pub fn export(name: &str, has_parent: i32, parent: i64, pointer: u32, length: u32) -> i64 {
+    let args = unsafe {
+        Box::from_raw(std::ptr::slice_from_raw_parts_mut(
+            pointer as usize as *mut u8,
+            length as usize,
+        ))
+    };
+    let Some(inner) = SERVED.with(|served| served.borrow().upgrade()) else {
+        return block_guest_abi::direct::pack(0, 0);
+    };
+    let _entered = Entered::enter(&inner);
+    let called = Called {
+        name: name.to_owned(),
+        parent: (has_parent != 0).then_some(parent as u64),
+        answered: true,
+        args: args.into_vec(),
+    };
+    let outcome = inner.call_direct(called);
+    inner.settle();
+    flush(&inner);
+    RESULT.with(|result| {
+        let mut result = result.borrow_mut();
+        *result = encode(&outcome);
+        block_guest_abi::direct::pack(result.as_ptr() as usize as u32, result.len() as u32)
+    })
+}
 
 pub fn call<T: DeserializeOwned, A: Serialize>(method: MethodId, args: &A) -> Pending<T> {
     let inner = current();

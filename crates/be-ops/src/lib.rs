@@ -10,6 +10,9 @@ pub use serde::{Serialize, de::DeserializeOwned};
 
 pub mod guest;
 
+#[doc(hidden)]
+pub use block_guest_abi as __abi;
+
 pub type OpId = u64;
 
 pub type MethodId = u32;
