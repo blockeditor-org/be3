@@ -4,10 +4,6 @@ use super::*;
 fn host_panel_messages_round_trip() {
     for panel in HostPanel::ALL {
         for message in [
-            Message::Editor(EditorMessage::ShowPanel {
-                instance: EditorInstanceId(3),
-                panel,
-            }),
             committed(ChildPlacements {
                 instance: EditorInstanceId(3),
                 region: EditorRegion::Frame,

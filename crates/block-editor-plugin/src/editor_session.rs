@@ -5,8 +5,8 @@ use block_plugin_api::guest::shell;
 use block_plugin_api::ops::guest::{Sender, spawn};
 use block_plugin_api::{
     ArtifactDescription, BarAction, ChildId, ChildPlacement, ChildPlacements, ChildStatus,
-    EditorInstanceId, EditorMessage, EditorRegion, FrameChrome, FrameCommit, FrameReport,
-    HostPanel, MAX_CHILDREN, MAX_COLLECTION_ITEMS, MenuEntry, Message, Occluder, RegionSize,
+    EditorInstanceId, EditorRegion, FrameChrome, FrameCommit, FrameReport,
+    MAX_CHILDREN, MAX_COLLECTION_ITEMS, MenuEntry, Message, Occluder, RegionSize,
     ScreenPlacement, ScreenRequest, ScreenWindow, Size, TimedInput, ViewportMetrics, WebViewId,
 };
 use block_ui::BlockCatalog;
@@ -22,7 +22,6 @@ use uuid::Uuid;
 use crate::plugin::PaintTarget;
 use crate::plugin::{Frame, Instance, Region, RegionMonitor};
 use crate::{EditorHost, Waker, host::BlockDrag};
-use block_type_guest::editor::FromEditor;
 
 pub type Open = fn(EditorHost) -> Box<dyn Instance>;
 
@@ -43,6 +42,7 @@ pub struct EditorSession {
     picks: HashMap<u64, Sender<block_plugin_api::BlockPick>>,
     audio_watched: bool,
     web_views: HashMap<WebViewId, Rc<shell::WebView>>,
+    link: crate::link::Link,
 }
 
 struct ArtifactState {
@@ -123,6 +123,7 @@ impl EditorSession {
             picks: HashMap::new(),
             audio_watched: false,
             web_views: HashMap::new(),
+            link: crate::link::Link::default(),
         }
     }
 
@@ -158,24 +159,8 @@ impl EditorSession {
         self.host.set_organization_id(organization);
     }
 
-    pub(crate) fn set_blocks(&self, query: crate::BlockQuery, blocks: Vec<crate::BlockInfo>) {
-        self.host.set_blocks(query, blocks);
-    }
-
-    pub(crate) fn fail_blocks(&self, query: crate::BlockQuery, error: String) {
-        self.host.fail_blocks(query, error);
-    }
-
     pub(crate) fn set_editable(&self, editable: bool) {
         self.host.set_editable(editable);
-    }
-
-    pub(crate) fn receive_from_replica(&self, block: Uuid, frame: &[u8]) {
-        let Some(message) = block_type_guest::editor::ToEditor::from_frame(frame) else {
-            return;
-        };
-        let block = (self.own_block != Some(block)).then_some(block);
-        self.host.receive_from_replica(block, message);
     }
 
     pub(crate) fn set_focused_block(&self, focused: crate::host::FocusedBlock) {
@@ -217,50 +202,6 @@ impl EditorSession {
         if self.picks.remove(&pick).is_some() {
             self.host.withdraw_pick(pick);
         }
-    }
-
-    pub(crate) fn show_panel(&self, panel: HostPanel) {
-        self.host.show_panel(panel);
-    }
-
-    pub(crate) fn show_block(&self, request: crate::ShowRequest) {
-        self.host.show_block(request);
-    }
-
-    pub(crate) fn set_artifacts(&self, states: Vec<crate::host::ArtifactState>) {
-        self.host.set_artifacts(states);
-    }
-
-    pub(crate) fn set_version_status(&self, status: &block_plugin_api::VersionStatus) {
-        self.host.set_version_status(status.clone());
-    }
-
-    pub(crate) fn set_histories(&self, states: &[block_plugin_api::HistoryState]) {
-        self.host.set_histories(states.iter().map(|state| {
-            (
-                Uuid::from_bytes(state.block_id),
-                crate::host::BlockHistory {
-                    head: state.head,
-                    can_undo: state.can_undo,
-                    can_redo: state.can_redo,
-                },
-            )
-        }));
-    }
-
-    pub(crate) fn set_head(
-        &self,
-        block_id: [u8; 16],
-        head: &Result<Option<block_plugin_api::StoredHead>, String>,
-    ) {
-        let head = head.clone().map(|head| {
-            head.map(|head| crate::host::StoredHead {
-                commit: head.commit,
-                content_type: Uuid::from_bytes(head.content_type),
-                bytes: head.bytes,
-            })
-        });
-        self.host.set_head(Uuid::from_bytes(block_id), head);
     }
 
     pub(crate) fn set_view(&self, view: Rect, scale: f32) {
@@ -311,6 +252,7 @@ impl EditorSession {
     pub fn connect(&mut self, block_id: Uuid, block_type: Uuid) {
         self.host.set_block_type(block_type);
         self.own_block = Some(block_id);
+        self.link.connect(block_id, block_type);
         self.app.connect(block_id);
     }
 
@@ -381,73 +323,13 @@ impl EditorSession {
     }
 
     pub fn outbound(&mut self) -> Vec<Message> {
-        let mut messages = Vec::new();
+        let messages = Vec::new();
         let instance = self.instance;
+        self.link.exchange(instance, &self.host);
         for (group, measurements) in self.host.take_performance() {
             shell::performance(instance, group, measurements);
         }
         self.report_stopped();
-        for command in self.host.take_graph_commands() {
-            messages.push(Message::Editor(match command {
-                crate::GraphCommand::Create {
-                    id,
-                    block_type,
-                    parent,
-                    defined,
-                    content,
-                } => EditorMessage::CreateBlock {
-                    instance,
-                    block_id: id.into_bytes(),
-                    content_type: block_type.into_bytes(),
-                    parent: parent.encode(),
-                    defined: crate::graph::wire_entries(&defined),
-                    content: content.map(serde_bytes::ByteBuf::from),
-                },
-                crate::GraphCommand::SetParent { id, parent } => EditorMessage::SetParent {
-                    instance,
-                    block_id: id.into_bytes(),
-                    parent: parent.encode(),
-                },
-                crate::GraphCommand::Define { id, key, value } => EditorMessage::Define {
-                    instance,
-                    block_id: id.into_bytes(),
-                    key: key.into_bytes(),
-                    value: value.map(serde_bytes::ByteBuf::from),
-                },
-            }));
-        }
-        if let Some(queries) = self.host.take_block_watch() {
-            messages.push(Message::Editor(EditorMessage::WatchBlocks {
-                instance,
-                queries: queries.into_iter().map(crate::BlockQuery::encode).collect(),
-            }));
-        }
-        let replica = |block: Option<Uuid>, message: FromEditor| {
-            let block = block.or(self.own_block)?;
-            Some(Message::Editor(EditorMessage::Replica {
-                instance,
-                block_id: block.into_bytes(),
-                frame: message.frame(),
-            }))
-        };
-        for block in self.host.take_content_resend_requests() {
-            messages.extend(replica(block, FromEditor::Resend));
-        }
-        for (block, message) in self.host.take_all_content_operations() {
-            messages.extend(replica(block, message));
-        }
-        if let Some(watched) = self.host.take_content_watch() {
-            messages.push(Message::Editor(EditorMessage::WatchContent {
-                instance,
-                blocks: watched
-                    .into_iter()
-                    .map(|(block, content_type)| block_plugin_api::WatchedContent {
-                        block_id: block.into_bytes(),
-                        content_type: content_type.into_bytes(),
-                    })
-                    .collect(),
-            }));
-        }
         if let Some(accepted) = self.host.take_drag_accepted() {
             shell::drag_accepted(instance, accepted);
         }
@@ -507,46 +389,6 @@ impl EditorSession {
         for (child, id) in self.host.take_child_menu_picks() {
             shell::child_menu_pick(instance, child, id);
         }
-        for shown in self.host.take_shown_presence() {
-            messages.extend(replica(
-                shown.block,
-                FromEditor::ShowPresence {
-                    kind: shown.kind,
-                    value: shown.value,
-                },
-            ));
-        }
-        for sent in self.host.take_sent_to_peers() {
-            messages.extend(replica(
-                sent.block,
-                FromEditor::SendToPeers {
-                    to: sent.to,
-                    channel: sent.channel,
-                    payload: sent.payload,
-                },
-            ));
-        }
-        for seeded in self.host.take_seeded_content() {
-            let (block_id, content_type, bytes) = (
-                seeded.block.into_bytes(),
-                seeded.content_type.into_bytes(),
-                seeded.bytes,
-            );
-            messages.push(Message::Editor(match seeded.replace {
-                true => EditorMessage::ReplaceContent {
-                    instance,
-                    block_id,
-                    content_type,
-                    bytes,
-                },
-                false => EditorMessage::SeedContent {
-                    instance,
-                    block_id,
-                    content_type,
-                    bytes,
-                },
-            }));
-        }
         for text in self.host.take_copied_text() {
             shell::copy_text(instance, text);
         }
@@ -580,31 +422,8 @@ impl EditorSession {
         for change in self.host.take_view_changes() {
             shell::change_view(instance, change);
         }
-        for open in self.host.take_opens() {
-            messages.push(Message::Editor(EditorMessage::OpenBlock {
-                instance,
-                block_id: open.block_id.into_bytes(),
-                block_type: open.block_type.into_bytes(),
-                via: open.via.map(Uuid::into_bytes),
-                editor: open.editor.map(Uuid::into_bytes),
-            }));
-        }
         for (block_id, block_type) in self.host.take_block_drags() {
             shell::drag_block(instance, block_id.into_bytes(), block_type.into_bytes());
-        }
-        for (block_id, command) in self.host.take_block_commands() {
-            messages.push(Message::Editor(EditorMessage::BlockCommand {
-                instance,
-                block_id: block_id.into_bytes(),
-                command,
-            }));
-        }
-        for (block_id, command) in self.host.take_version_commands() {
-            messages.push(Message::Editor(EditorMessage::VersionControl {
-                instance,
-                block_id: block_id.into_bytes(),
-                command,
-            }));
         }
         if let Some(focused) = self.host.take_focus_report() {
             shell::focused(
@@ -616,12 +435,6 @@ impl EditorSession {
                 },
             );
         }
-        if let Some(blocks) = self.host.take_artifact_watch() {
-            messages.push(Message::Editor(EditorMessage::WatchArtifacts {
-                instance,
-                blocks: blocks.into_iter().map(Uuid::into_bytes).collect(),
-            }));
-        }
         for key in self.host.take_host_watches() {
             let watch = crate::asked::asking(Some(instance), || {
                 shell::HostValueWatch::new(instance, key.clone())
@@ -632,18 +445,6 @@ impl EditorSession {
                     host.receive_host_value(key.clone(), value);
                 }
             });
-        }
-        if let Some(blocks) = self.host.take_history_watch() {
-            messages.push(Message::Editor(EditorMessage::WatchHistory {
-                instance,
-                blocks: blocks.into_iter().map(Uuid::into_bytes).collect(),
-            }));
-        }
-        if let Some(blocks) = self.host.take_head_watch() {
-            messages.push(Message::Editor(EditorMessage::WatchHeads {
-                instance,
-                blocks: blocks.into_iter().map(Uuid::into_bytes).collect(),
-            }));
         }
         messages
     }

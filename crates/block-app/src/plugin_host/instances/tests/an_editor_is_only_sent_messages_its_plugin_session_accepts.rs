@@ -34,11 +34,7 @@ fn an_editor_is_only_sent_messages_its_plugin_session_accepts() {
     for message in opened {
         session.receive(message);
     }
-    instances.editor_message(EditorMessage::Replica {
-        instance: INSTANCE,
-        block_id: block.into_bytes(),
-        frame: block_type_api::encode_frame(&FromEditor::Resend),
-    });
+    to_replica(&mut instances, block, &FromEditor::Resend);
     crate::be::wait_for(Duration::from_secs(20), |shared| {
         shared.blocks.contains_key(&block).then_some(())
     })
@@ -51,9 +47,7 @@ fn an_editor_is_only_sent_messages_its_plugin_session_accepts() {
     let carried = next_screens(&mut instances).messages();
 
     assert!(
-        carried
-            .iter()
-            .any(|message| matches!(message, Message::Editor(EditorMessage::Replica { .. }))),
+        !from_replica(&mut instances, block).is_empty(),
         "the host never sent the block's content"
     );
     for message in carried {

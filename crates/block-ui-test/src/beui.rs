@@ -14,6 +14,7 @@ use block_editor_beui::{
 use block_plugin_api::Opening;
 use block_plugin_api::embed::{exports::plugin::Editor, shell::Call as ShellCall};
 use block_plugin_api::ops::{Connection, Incoming, Side};
+use block_plugin_api::embed::blocks::Call as BlocksCall;
 use block_plugin_api::{
     BarAction, BlockTypeDescriptor, Catalog, ChildId, EditorMessage, FitArea, FrameChrome,
     FrameReport, HelloAccepted, InputBatch, MenuCommand, MenuEntry, Message, ScreenId,
@@ -36,6 +37,7 @@ use std::sync::{Arc, Condvar, Mutex, PoisonError};
 use uuid::Uuid;
 
 use crate::document::FRAME_INTERVAL;
+use crate::link::Sent;
 use crate::{ContentStore, overflow, snapshot};
 use beui::automation::gestures::{Frames, Gestures};
 
@@ -67,6 +69,7 @@ pub struct BeuiTest<A: BeuiApp> {
     frames: Vec<Vec<Input>>,
     inbox: Vec<Inbound>,
     connection: Connection,
+    link: crate::link::Link,
     editor: Option<Editor>,
     calls: Vec<ShellCall>,
     web_views: std::collections::HashMap<
@@ -262,6 +265,7 @@ impl<A: BeuiApp> BeuiTest<A> {
             frames: Vec::new(),
             inbox: Vec::new(),
             connection: Connection::new(Side::Host),
+            link: crate::link::Link::new(INSTANCE),
             editor: None,
             calls: Vec::new(),
             web_views: std::collections::HashMap::new(),
@@ -657,33 +661,16 @@ impl<A: BeuiApp> BeuiTest<A> {
         &mut self,
         states: impl IntoIterator<Item = (Uuid, block_editor_beui::BlockHistory)>,
     ) {
-        self.inbox.push(Inbound::Message(Message::Editor(
-            EditorMessage::HistoryStates {
-                instance: INSTANCE,
-                states: states
-                    .into_iter()
-                    .map(|(block, history)| block_plugin_api::HistoryState {
-                        head: history.head,
-                        block_id: block.into_bytes(),
-                        can_undo: history.can_undo,
-                        can_redo: history.can_redo,
-                    })
-                    .collect(),
-            },
-        )));
+        for (block, history) in states {
+            self.link
+                .offer_history(block, &crate::link::history(history));
+        }
     }
 
     pub fn set_version_status(&mut self, status: block_editor_beui::VersionStatus) {
-        let block = self
-            .block_id()
+        self.block_id()
             .expect("a version status is about the editor's own block");
-        self.inbox.push(Inbound::Message(Message::Editor(
-            EditorMessage::VersionStatus {
-                instance: INSTANCE,
-                block_id: block.into_bytes(),
-                status,
-            },
-        )));
+        self.link.offer_version(&status);
     }
 
     pub fn set_peers(&mut self, block: Option<Uuid>, peers: Vec<PeerPresence>) {
@@ -865,12 +852,10 @@ impl<A: BeuiApp> BeuiTest<A> {
     pub fn step(&mut self, events: Vec<Input>) {
         self.store.tick(self.clock.as_millis() as u64);
         let mut inbox = std::mem::take(&mut self.inbox);
-        inbox.extend(
-            self.store
-                .outgoing(INSTANCE)
-                .into_iter()
-                .map(Inbound::Message),
-        );
+        self.link.answer(&self.store, &mut self.connection);
+        if self.connection.has_outbound() {
+            inbox.push(Inbound::Frames(self.connection.take_outbound()));
+        }
         let rect = self.rect();
         let band = self.band(rect);
         let intrinsic = self.intrinsic;
@@ -970,7 +955,6 @@ impl<A: BeuiApp> BeuiTest<A> {
                 }
             }
             Message::Editor(message) => {
-                self.store.receive(&message);
                 match &message {
                     _ => {}
                 }
@@ -1050,6 +1034,16 @@ impl<A: BeuiApp> BeuiTest<A> {
                         }
                         continue;
                     }
+                    Incoming::Started(started) if BlocksCall::accepts(&started) => {
+                        if let Some(call) = BlocksCall::accept(&mut self.connection, started) {
+                            self.link.call(call, &self.store);
+                        }
+                        continue;
+                    }
+                    Incoming::Canceled { op } if self.link.holds(op) => {
+                        self.link.ended(op, &self.store, &mut self.connection);
+                        continue;
+                    }
                     Incoming::Called(called) => called,
                     Incoming::Completed { op, outcome } => {
                         self.completed.insert(op, outcome);
@@ -1077,6 +1071,10 @@ impl<A: BeuiApp> BeuiTest<A> {
                 };
             if let Some(call) = Call::accept_direct(&called) {
                 self.requests.push((None, call));
+                continue;
+            }
+            if let Some(call) = BlocksCall::accept_direct(&called) {
+                self.link.call(call, &self.store);
                 continue;
             }
             let Some(call) = ShellCall::accept_direct(&called) else {
@@ -1119,6 +1117,7 @@ impl<A: BeuiApp> BeuiTest<A> {
             }
             self.calls.push(call);
         }
+        self.link.answer(&self.store, &mut self.connection);
         if self.connection.has_outbound() {
             let frames = self.connection.take_outbound();
             self.inbox.push(Inbound::Frames(frames));
@@ -1158,18 +1157,6 @@ impl<A: BeuiApp> BeuiTest<A> {
             ShellCall::CopyImage { png, .. } => Some(png.clone()),
             _ => None,
         })
-    }
-
-    fn take_where<T>(&mut self, pick: impl Fn(&EditorMessage) -> Option<T>) -> Vec<T> {
-        let mut taken = Vec::new();
-        self.sent.retain(|message| match pick(message) {
-            Some(value) => {
-                taken.push(value);
-                false
-            }
-            None => true,
-        });
-        taken
     }
 
     pub fn request_pick(
@@ -1217,20 +1204,31 @@ impl<A: BeuiApp> BeuiTest<A> {
     }
 
     pub fn take_renames(&mut self) -> Vec<(Uuid, Option<String>)> {
-        self.take_where(|message| match message {
-            EditorMessage::Define {
-                block_id,
-                key,
-                value,
-                ..
-            } if *key == block_editor_beui::be_block::NAME.id.into_bytes() => Some((
-                Uuid::from_bytes(*block_id),
-                value
-                    .as_ref()
-                    .and_then(|value| block_editor_beui::be_block::be_model::from_cbor(value)),
-            )),
+        self.take_sent_calls(|sent| match sent {
+            Sent::Define(block, key, value)
+                if *key == block_editor_beui::be_block::NAME.id =>
+            {
+                Some((
+                    *block,
+                    value
+                        .as_ref()
+                        .and_then(|value| block_editor_beui::be_block::be_model::from_cbor(value)),
+                ))
+            }
             _ => None,
         })
+    }
+
+    fn take_sent_calls<T>(&mut self, pick: impl Fn(&Sent) -> Option<T>) -> Vec<T> {
+        let mut taken = Vec::new();
+        self.link.sent.retain(|sent| match pick(sent) {
+            Some(value) => {
+                taken.push(value);
+                false
+            }
+            None => true,
+        });
+        taken
     }
 
     pub fn take_access_changes(&mut self) -> Vec<(Uuid, Uuid, block_plugin_api::AccessLevel)> {
@@ -1341,28 +1339,20 @@ impl<A: BeuiApp> BeuiTest<A> {
     }
 
     pub fn take_opens(&mut self) -> Vec<block_editor_beui::OpenRequest> {
-        self.take_where(|message| match message {
-            EditorMessage::OpenBlock {
-                block_id,
-                block_type,
-                via,
-                editor,
-                ..
-            } => Some(block_editor_beui::OpenRequest {
-                block_id: Uuid::from_bytes(*block_id),
-                block_type: Uuid::from_bytes(*block_type),
-                via: via.map(Uuid::from_bytes),
-                editor: editor.map(Uuid::from_bytes),
+        self.take_sent_calls(|sent| match sent {
+            Sent::Open(open) => Some(block_editor_beui::OpenRequest {
+                block_id: Uuid::from_bytes(open.block_id),
+                block_type: Uuid::from_bytes(open.block_type),
+                via: open.via.map(Uuid::from_bytes),
+                editor: open.editor.map(Uuid::from_bytes),
             }),
             _ => None,
         })
     }
 
     pub fn take_block_commands(&mut self) -> Vec<(Uuid, block_editor_beui::BlockCommand)> {
-        self.take_where(|message| match message {
-            EditorMessage::BlockCommand {
-                block_id, command, ..
-            } => Some((Uuid::from_bytes(*block_id), *command)),
+        self.take_sent_calls(|sent| match sent {
+            Sent::Command(block, command) => Some((*block, *command)),
             _ => None,
         })
     }
@@ -1376,20 +1366,15 @@ impl<A: BeuiApp> BeuiTest<A> {
     }
 
     pub fn take_version_commands(&mut self) -> Vec<(Uuid, block_editor_beui::VersionCommand)> {
-        self.take_where(|message| match message {
-            EditorMessage::VersionControl {
-                block_id, command, ..
-            } => Some((Uuid::from_bytes(*block_id), command.clone())),
+        self.take_sent_calls(|sent| match sent {
+            Sent::Version(block, command) => Some((*block, command.clone())),
             _ => None,
         })
     }
 
     fn take_frames<T>(&mut self, pick: impl Fn(Uuid, FromEditor) -> Option<T>) -> Vec<T> {
-        self.take_where(|message| match message {
-            EditorMessage::Replica {
-                block_id, frame, ..
-            } => FromEditor::from_frame(frame)
-                .and_then(|frame| pick(Uuid::from_bytes(*block_id), frame)),
+        self.take_sent_calls(|sent| match sent {
+            Sent::Frame(block, frame) => pick(*block, frame.clone()),
             _ => None,
         })
     }

@@ -3,6 +3,8 @@ use crate::plugin_host::EditorBlock;
 use be_block::BlockContent as _;
 use beui::Pos2;
 use block_plugin_api::Input;
+use block_plugin_api::embed::blocks::{self as wire, Call};
+use block_plugin_api::ops::OpId;
 use block_type_guest::editor::{FromEditor, ToEditor};
 
 const INSTANCE: EditorInstanceId = EditorInstanceId(1);
@@ -182,31 +184,87 @@ fn next_screens(instances: &mut Instances) -> NextScreens {
     instances.next_screens(PASS)
 }
 
-fn to_replica(instances: &mut Instances, block: Uuid, message: &FromEditor) -> bool {
-    instances.editor_message(EditorMessage::Replica {
-        instance: INSTANCE,
-        block_id: block.into_bytes(),
-        frame: block_type_api::encode_frame(message),
-    })
+static NEXT_OP: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(1);
+
+fn next_op() -> OpId {
+    NEXT_OP.fetch_add(1, std::sync::atomic::Ordering::Relaxed)
 }
 
-fn from_replica(messages: &[Message], block: Uuid) -> Vec<ToEditor> {
-    messages
-        .iter()
-        .filter_map(|message| match message {
-            Message::Editor(EditorMessage::Replica {
-                block_id, frame, ..
-            }) if *block_id == block.into_bytes() => {
-                crate::be::unframe(frame).and_then(|bytes| ToEditor::decode(&bytes))
-            }
-            _ => None,
+fn call(instances: &mut Instances, call: Call) -> bool {
+    instances.blocks_call(INSTANCE, call)
+}
+
+fn hold(instances: &mut Instances, block: Uuid, content_type: Uuid) -> OpId {
+    let op = next_op();
+    assert!(call(
+        instances,
+        Call::ReplicaNew {
+            resource: wire::Replica(op),
+            block: block.into_bytes(),
+            content_type: content_type.into_bytes(),
+        }
+    ));
+    op
+}
+
+fn open_watch(instances: &mut Instances, open: impl FnOnce(OpId) -> Call) -> OpId {
+    let op = next_op();
+    assert!(call(instances, open(op)));
+    op
+}
+
+fn answered<T: block_plugin_api::ops::DeserializeOwned>(
+    instances: &mut Instances,
+    watch: OpId,
+) -> Option<T> {
+    let (_, bytes) = instances.answers(&[watch]).pop()?;
+    Some(block_plugin_api::ops::decode(&bytes).expect("an answer decodes"))
+}
+
+fn replica_of(instances: &mut Instances, block: Uuid) -> Option<OpId> {
+    let entry = instances.entries.get(&INSTANCE)?;
+    if let Some(op) = entry.replicas.get(&block) {
+        return Some(*op);
+    }
+    let own = entry.role.block().filter(|own| own.id == block)?;
+    let content_type = entry
+        .content
+        .as_ref()
+        .map_or(own.block_type, |link| link.content_type);
+    Some(hold(instances, block, content_type))
+}
+
+fn to_replica(instances: &mut Instances, block: Uuid, message: &FromEditor) -> bool {
+    let Some(replica) = replica_of(instances, block) else {
+        return false;
+    };
+    call(
+        instances,
+        Call::ReplicaSend {
+            this: wire::Replica(replica),
+            frame: block_type_api::encode_frame(message),
+        },
+    )
+}
+
+fn from_replica(instances: &mut Instances, block: Uuid) -> Vec<ToEditor> {
+    let replica = instances
+        .entries
+        .get(&INSTANCE)
+        .and_then(|entry| entry.replicas.get(&block).copied());
+    instances
+        .take_frames()
+        .into_iter()
+        .filter(|(op, _)| Some(*op) == replica)
+        .filter_map(|(_, frame)| {
+            crate::be::unframe(&frame).and_then(|bytes| ToEditor::decode(&bytes))
         })
         .collect()
 }
 
 fn replica_sends(instances: &mut Instances, block: Uuid) -> Vec<ToEditor> {
-    let opened = next_screens(instances).messages();
-    from_replica(&opened, block)
+    next_screens(instances);
+    from_replica(instances, block)
 }
 
 fn replica_sent_until(

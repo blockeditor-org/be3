@@ -49,20 +49,11 @@ fn screen(screen: ScreenId, instance: EditorInstanceId) -> ScreenRequest {
     }
 }
 
-mod accepts_content_for_an_open_instance;
 mod accepts_new_preferences_while_running;
 mod accepts_ordered_lifecycle;
 mod opens_and_closes_editor_instance;
 mod refuses_to_draw_without_a_surface;
-mod rejects_content_for_an_instance_that_was_never_opened;
 mod rejects_messages_only_a_plugin_may_send;
 mod rejects_out_of_order_messages;
 mod rejects_screens_for_unopened_instances;
 
-fn content(instance: EditorInstanceId) -> Message {
-    Message::Editor(block_plugin_api::EditorMessage::Replica {
-        instance,
-        block_id: [1; 16],
-        frame: vec![0; 4],
-    })
-}

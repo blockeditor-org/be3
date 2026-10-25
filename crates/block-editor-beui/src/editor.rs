@@ -714,6 +714,7 @@ impl Editor {
 
     pub fn version_status(&self) -> Memo<block_editor_plugin::VersionStatus> {
         let host = self.state().host.clone();
+        host.watch_version();
         let revision = self.pushed(Pushed::Version);
         let known = create_memo({
             let host = host.clone();

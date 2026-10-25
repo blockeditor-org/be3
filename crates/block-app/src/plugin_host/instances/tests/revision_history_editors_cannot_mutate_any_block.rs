@@ -45,17 +45,21 @@ fn revision_history_editors_cannot_mutate_any_block() {
                 &counter_types::Counter::add(99)
             ))
         ));
-        assert!(!instances.editor_message(EditorMessage::ReplaceContent {
-            instance: INSTANCE,
-            block_id: target.into_bytes(),
-            content_type: CounterContent::CONTENT_TYPE.into_bytes(),
-            bytes: CounterContent::default().encode()
-        }));
-        assert!(!instances.editor_message(EditorMessage::BlockCommand {
-            instance: INSTANCE,
-            block_id: target.into_bytes(),
-            command: BlockCommand::Undo
-        }));
+        assert!(!call(
+            &mut instances,
+            wire::Call::ReplaceContent {
+                block: target.into_bytes(),
+                content_type: CounterContent::CONTENT_TYPE.into_bytes(),
+                bytes: CounterContent::default().encode()
+            }
+        ));
+        assert!(!call(
+            &mut instances,
+            wire::Call::Act {
+                block: target.into_bytes(),
+                command: BlockCommand::Undo
+            }
+        ));
         instances.serve(crate::plugin_host::wire::Service {
             instance: INSTANCE,
             op: Some(1),

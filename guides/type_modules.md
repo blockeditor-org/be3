@@ -264,7 +264,7 @@ as `message(editor(instance), bytes)` and are `editor::FromEditor`: `Operate`,
   them, the unsettled operations as rebased (`beneath`).
 - `Presence` and `PeerMessages` from the peers.
 
-On the plugin protocol both directions travel in `EditorMessage::Replica` frames
+On the plugin protocol both directions travel through the editor's `replica` resource
 (guides/the_new_block_stack.md, "Content on the plugin protocol"). The replica keeps no log either:
 the replica keeps `projected`, a `Settling` of what its editors hold, lands every
 journaled change in it and snapshots when one cannot land. `editor::EditorMirror` is

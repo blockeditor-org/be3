@@ -149,13 +149,6 @@ impl ClientSession {
                     instance.0
                 )),
             },
-            _ => match self.instances.contains(&instance) {
-                true => Ok(Vec::new()),
-                false => Err(format!(
-                    "a message named editor instance {}, which is not open",
-                    instance.0
-                )),
-            },
         }
     }
 }

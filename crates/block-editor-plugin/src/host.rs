@@ -446,6 +446,8 @@ pub struct EditorHost {
     block_commands: Rc<RefCell<Vec<(Uuid, BlockCommand)>>>,
     version_commands: Rc<RefCell<Vec<(Uuid, block_plugin_api::VersionCommand)>>>,
     version_status: Rc<RefCell<Option<block_plugin_api::VersionStatus>>>,
+    version_watched: Rc<Cell<bool>>,
+    shows_watched: Rc<Cell<bool>>,
     block_types: Rc<RefCell<Rc<BlockCatalog>>>,
     block_types_known: Rc<Cell<bool>>,
     drag: Rc<Cell<Option<BlockDrag>>>,
@@ -569,7 +571,12 @@ impl EditorHost {
     }
 
     pub fn take_show_requests(&self) -> Vec<ShowRequest> {
+        self.shows_watched.set(true);
         std::mem::take(&mut self.shows.borrow_mut())
+    }
+
+    pub(crate) fn wants_shows(&self) -> bool {
+        self.shows_watched.get()
     }
 
     pub fn take_dialog_requests(&self) -> Vec<(Uuid, ShellDialog)> {
@@ -625,6 +632,7 @@ impl EditorHost {
     }
 
     pub fn take_panel_requests(&self) -> Vec<HostPanel> {
+        self.shows_watched.set(true);
         std::mem::take(&mut self.shown_panels.borrow_mut())
     }
 
@@ -775,6 +783,11 @@ impl EditorHost {
         self.push(Pushed::Histories);
     }
 
+    pub fn set_history(&self, block_id: Uuid, history: BlockHistory) {
+        self.histories.borrow_mut().insert(block_id, history);
+        self.push(Pushed::Histories);
+    }
+
     pub fn watch_head(&self, block: Uuid) {
         let mut watched = self.watched_heads.borrow_mut();
         if !watched.contains(&block) {
@@ -817,11 +830,13 @@ impl EditorHost {
             .push((block_id, BlockCommand::Redo));
     }
 
-    pub fn set_artifacts(&self, states: Vec<ArtifactState>) {
-        *self.artifacts.borrow_mut() = states
-            .into_iter()
-            .map(|state| (state.block_id, state))
-            .collect();
+    pub fn set_artifact(&self, block_id: Uuid, state: Option<ArtifactState>) {
+        let mut artifacts = self.artifacts.borrow_mut();
+        match state {
+            Some(state) => artifacts.insert(block_id, state),
+            None => artifacts.remove(&block_id),
+        };
+        drop(artifacts);
         self.push(Pushed::Artifacts);
     }
 
@@ -958,6 +973,14 @@ impl EditorHost {
     pub fn set_version_status(&self, status: block_plugin_api::VersionStatus) {
         *self.version_status.borrow_mut() = Some(status);
         self.push(Pushed::Version);
+    }
+
+    pub fn watch_version(&self) {
+        self.version_watched.set(true);
+    }
+
+    pub(crate) fn wants_version(&self) -> bool {
+        self.version_watched.get()
     }
 
     pub fn version_status(&self) -> block_plugin_api::VersionStatus {

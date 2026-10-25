@@ -12,6 +12,7 @@ pub mod fonts;
 mod graph;
 pub mod headless;
 mod host;
+mod link;
 #[cfg(target_arch = "wasm32")]
 mod panes;
 mod plugin;

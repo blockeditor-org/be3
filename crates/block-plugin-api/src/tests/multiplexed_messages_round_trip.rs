@@ -5,23 +5,13 @@ fn multiplexed_messages_round_trip() {
     let editor = Message::Editor(EditorMessage::Close {
         instance: EditorInstanceId(7),
     });
-    let client = Message::Editor(EditorMessage::Blocks {
+    let client = Message::Editor(EditorMessage::OpenCreation {
         instance: EditorInstanceId(7),
-        query: BlockQuery::Roots,
-        blocks: vec![BlockInfo {
-            block_id: [1; 16],
-            block_type: [2; 16],
-            author: Some([3; 16]),
-            parent: Some(BlockLocation::Root),
-            references: vec![[4; 16]],
-            access: AccessLevel::Edit,
-            metadata: BlockMetadata {
-                defined: [([8; 16], ByteBuf::from(b"Notes".to_vec()))].into(),
-                derived: [([9; 16], ByteBuf::from(vec![5, 6, 7]))].into(),
-            },
-            locked: false,
-            deleted: false,
-        }],
+        editor: [1; 16],
+        template: "main".to_owned(),
+        account_id: [2; 16],
+        organization_id: [3; 16],
+        client_id: [4; 16],
     });
     assert_eq!(
         decode_frame(&encode_frame(&editor).unwrap()).unwrap(),

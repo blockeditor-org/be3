@@ -8,14 +8,22 @@ use block_plugin_api::{
     ErrorCode, Fonts, InputBatch, Message, Opening, Preferences, ProtocolError, WebViewEvent,
     WebViewId, decode_frame,
     embed::{
+        blocks,
         exports::plugin::{self, Editor},
         host::Call,
         host_services,
         shell::Call as ShellCall,
     },
     encode_frame,
-    ops::{Connection, Incoming, OpError, OpId, Outcome, Reply, Side, Started, Ticket},
+    ops::{Connection, Incoming, OpError, OpId, Outcome, Producer, Reply, Side, Started, Ticket},
 };
+
+#[derive(Default)]
+struct Held {
+    owners: HashMap<OpId, EditorInstanceId>,
+    waiting: BTreeMap<OpId, OpId>,
+    producers: HashMap<OpId, Producer<Vec<u8>>>,
+}
 
 pub(super) struct Service {
     pub(super) instance: EditorInstanceId,
@@ -48,6 +56,7 @@ pub(super) struct Wire {
     serving: HashMap<OpId, EditorInstanceId>,
     child_statuses: HashMap<EditorInstanceId, Watch<Vec<ChildStatus>>>,
     block_types: Watch<Catalog>,
+    held: Held,
 }
 
 enum Answering {
@@ -109,6 +118,7 @@ impl Default for Wire {
             serving: HashMap::new(),
             child_statuses: HashMap::new(),
             block_types: Watch::default(),
+            held: Held::default(),
         }
     }
 }
@@ -416,6 +426,122 @@ impl Wire {
         }
     }
 
+    pub(super) fn waiting(&self) -> Vec<OpId> {
+        self.held.waiting.keys().copied().collect()
+    }
+
+    pub(super) fn answer_watch(&mut self, watch: OpId, value: Vec<u8>) {
+        if let Some(next) = self.held.waiting.remove(&watch) {
+            self.connection.complete(next, Outcome::Ok(value));
+        }
+    }
+
+    pub(super) fn relay(&mut self, replica: OpId, frame: &Vec<u8>) {
+        if let Some(producer) = self.held.producers.get(&replica) {
+            producer.send(&mut self.connection, frame);
+        }
+    }
+
+    fn blocks(
+        &mut self,
+        op: Option<OpId>,
+        parent: Option<OpId>,
+        call: blocks::Call,
+        heard: &mut Vec<Heard>,
+    ) -> Result<(), String> {
+        use blocks::Call as Blocks;
+        call.validate()
+            .map_err(|error| format!("the plugin asked for something it may not: {error:?}"))?;
+        let owner = |this: OpId| self.held.owners.get(&this).copied();
+        let instance = match &call {
+            Blocks::BlocksWatchNext { this, .. } => owner(this.op()),
+            Blocks::HistoryWatchNext { this, .. } => owner(this.op()),
+            Blocks::HeadWatchNext { this, .. } => owner(this.op()),
+            Blocks::ArtifactWatchNext { this, .. } => owner(this.op()),
+            Blocks::VersionWatchNext { this, .. } => owner(this.op()),
+            Blocks::ShowRequestsNext { this, .. } => owner(this.op()),
+            Blocks::ReplicaFrames { this, .. } | Blocks::ReplicaSend { this, .. } => {
+                owner(this.op())
+            }
+            _ => self.editor_of(parent),
+        };
+        let Some(instance) = instance else {
+            if let Some(op) = op {
+                self.connection.complete(op, Outcome::Err(OpError::Denied));
+            }
+            return Ok(());
+        };
+        let next = match &call {
+            Blocks::BlocksWatchNext { this, reply } => Some((this.op(), reply.op())),
+            Blocks::HistoryWatchNext { this, reply } => Some((this.op(), reply.op())),
+            Blocks::HeadWatchNext { this, reply } => Some((this.op(), reply.op())),
+            Blocks::ArtifactWatchNext { this, reply } => Some((this.op(), reply.op())),
+            Blocks::VersionWatchNext { this, reply } => Some((this.op(), reply.op())),
+            Blocks::ShowRequestsNext { this, reply } => Some((this.op(), reply.op())),
+            _ => None,
+        };
+        if let Some((watch, next)) = next {
+            if let Some(earlier) = self.held.waiting.insert(watch, next) {
+                self.connection
+                    .complete(earlier, Outcome::Err(OpError::Canceled));
+            }
+            return Ok(());
+        }
+        match call {
+            Blocks::ReplicaFrames { this, stream } => {
+                self.held.producers.insert(this.op(), stream);
+                return Ok(());
+            }
+            Blocks::BlocksWatchNew { resource, .. } => self.held.owners.insert(resource.op(), instance),
+            Blocks::HistoryWatchNew { resource, .. } => self.held.owners.insert(resource.op(), instance),
+            Blocks::HeadWatchNew { resource, .. } => self.held.owners.insert(resource.op(), instance),
+            Blocks::ArtifactWatchNew { resource, .. } => self.held.owners.insert(resource.op(), instance),
+            Blocks::VersionWatchNew { resource } => self.held.owners.insert(resource.op(), instance),
+            Blocks::ShowRequestsNew { resource } => self.held.owners.insert(resource.op(), instance),
+            Blocks::ReplicaNew { resource, .. } => self.held.owners.insert(resource.op(), instance),
+            _ => None,
+        };
+        heard.push(Heard::Blocks(instance, call));
+        Ok(())
+    }
+
+    fn ended(&mut self, op: OpId, heard: &mut Vec<Heard>) -> bool {
+        let held = &mut self.held;
+        if held.owners.remove(&op).is_some() {
+            if let Some(producer) = held.producers.remove(&op) {
+                producer.fail(&mut self.connection, OpError::Canceled);
+            }
+            if let Some(next) = held.waiting.remove(&op) {
+                self.connection
+                    .complete(next, Outcome::Err(OpError::Canceled));
+            }
+            self.connection.complete(op, Outcome::Err(OpError::Canceled));
+            heard.push(Heard::Ended(op));
+            return true;
+        }
+        let waited = held
+            .waiting
+            .iter()
+            .find(|(_, next)| **next == op)
+            .map(|(watch, _)| *watch);
+        let streamed = held
+            .producers
+            .iter()
+            .find(|(_, producer)| producer.op() == op)
+            .map(|(replica, _)| *replica);
+        if let Some(watch) = waited {
+            held.waiting.remove(&watch);
+        }
+        if let Some(replica) = streamed {
+            held.producers.remove(&replica);
+        }
+        if waited.is_some() || streamed.is_some() {
+            self.connection.complete(op, Outcome::Err(OpError::Canceled));
+            return true;
+        }
+        false
+    }
+
     pub(super) fn take_outbound(&mut self) -> Vec<Vec<u8>> {
         self.connection.take_outbound()
     }
@@ -431,19 +557,25 @@ impl Wire {
     }
 
     fn heard(&mut self, event: Incoming, heard: &mut Vec<Heard>) -> Result<(), String> {
-        let connection = &mut self.connection;
         let call = match event {
+            Incoming::Started(started) if blocks::Call::accepts(&started) => {
+                let (op, parent) = (started.op, started.parent);
+                return match blocks::Call::accept(&mut self.connection, started) {
+                    Some(call) => self.blocks(Some(op), parent, call, heard),
+                    None => Ok(()),
+                };
+            }
             Incoming::Started(started) if host_services::Call::accepts(&started) => {
                 self.serve(started);
                 return Ok(());
             }
             Incoming::Started(started) if ShellCall::accepts(&started) => {
-                if let Some(call) = ShellCall::accept(connection, started) {
+                if let Some(call) = ShellCall::accept(&mut self.connection, started) {
                     self.watch_call(call, heard);
                 }
                 return Ok(());
             }
-            Incoming::Started(started) => match Call::accept(connection, started) {
+            Incoming::Started(started) => match Call::accept(&mut self.connection, started) {
                 Some(call) => call,
                 None => return Ok(()),
             },
@@ -461,6 +593,9 @@ impl Wire {
                 if let Some(call) = ShellCall::accept_direct(&called) {
                     heard.push(Heard::Shell(call));
                     return Ok(());
+                }
+                if let Some(call) = blocks::Call::accept_direct(&called) {
+                    return self.blocks(None, called.parent, call, heard);
                 }
                 match Call::accept_direct(&called) {
                     Some(call) => call,
@@ -505,8 +640,11 @@ impl Wire {
                 return Ok(());
             }
             Incoming::Canceled { op } => {
+                if self.ended(op, heard) {
+                    return Ok(());
+                }
                 if self.serving.remove(&op).is_some() {
-                    connection.complete(op, Outcome::Err(OpError::Canceled));
+                    self.connection.complete(op, Outcome::Err(OpError::Canceled));
                     self.services.withdrawn.push(op);
                 }
                 let watched = self.child_statuses.values().any(|watch| watch.is(op))
@@ -519,7 +657,7 @@ impl Wire {
                 self.web_views.remove(&op);
                 self.host_values.remove(&op);
                 if watched {
-                    connection.complete(op, Outcome::Err(OpError::Canceled));
+                    self.connection.complete(op, Outcome::Err(OpError::Canceled));
                 }
                 self.block_types.closed(op);
                 self.preferences.closed(op);
@@ -530,6 +668,7 @@ impl Wire {
             }
             Incoming::Yielded { .. } => return Ok(()),
         };
+        let connection = &mut self.connection;
         match call {
             Call::Connect { reply, hello } => {
                 self.connecting = Some(reply);
@@ -567,3 +706,6 @@ fn merged(held: Option<Fonts>, fonts: Fonts) -> Fonts {
         _ => fonts,
     }
 }
+
+#[cfg(test)]
+mod tests;

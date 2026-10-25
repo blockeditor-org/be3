@@ -232,4 +232,104 @@ interface blocks {
         log: list<version-commit>,
         operations: list<version-operation>,
     }
+
+    record block-history {
+        head: option<commit-id>,
+        can-undo: bool,
+        can-redo: bool,
+    }
+
+    /// A block to open or show, and through which block and with which
+    /// editor when the request names them.
+    record open-request {
+        block-id: uuid,
+        block-type: uuid,
+        via: option<uuid>,
+        editor: option<uuid>,
+    }
+
+    /// What the host asks a shell editor to show.
+    variant show-request {
+        block(open-request),
+        panel(host-panel),
+    }
+
+    /// Asks the host to open a block for the user.
+    open-block: func(request: open-request);
+
+    /// Asks the host to act on a block the editor draws.
+    act: func(block: uuid, command: block-command);
+
+    /// Asks the host to act on the checkout or repository the editor shows.
+    version: func(block: uuid, command: version-command);
+
+    /// Creates a block with the id the editor chose, so it can name the block
+    /// before the host has seen it.
+    create-block: func(
+        block: uuid,
+        block-type: uuid,
+        parent: block-location,
+        defined: metadata-entries,
+        content: option<list<u8>>,
+    );
+
+    set-parent: func(block: uuid, parent: block-location);
+
+    /// Sets or, with no value, clears one metadata entry the block defines.
+    define: func(block: uuid, key: uuid, value: option<list<u8>>);
+
+    /// Gives a block the editor holds content, unless it already has some.
+    seed-content: func(block: uuid, content-type: uuid, bytes: list<u8>);
+
+    /// Replaces the content of a block the editor may edit.
+    replace-content: func(block: uuid, content-type: uuid, bytes: list<u8>);
+
+    /// The editor's link to the replica of a block's content: its own block's,
+    /// or one it watches. Opening it holds the block; dropping it lets go.
+    resource replica {
+        constructor(block: uuid, content-type: uuid);
+        /// Every frame the replica sends the editor, in order.
+        frames: func() -> stream<list<u8>>;
+        /// A frame for the replica, in order with the editor's others.
+        send: func(frame: list<u8>);
+    }
+
+    /// The blocks a query lists. `next` answers with the latest listing once
+    /// it differs from what it last answered, so the first answer is the
+    /// current one; so do the other watches here.
+    resource blocks-watch {
+        constructor(query: block-query);
+        next: async func() -> result<list<block-info>, string>;
+    }
+
+    resource history-watch {
+        constructor(block: uuid);
+        next: async func() -> block-history;
+    }
+
+    /// The content stored at a block's head, or none for a block without one.
+    resource head-watch {
+        constructor(block: uuid);
+        next: async func() -> result<option<stored-head>, string>;
+    }
+
+    /// The state of an artifact block, or none while the host knows none.
+    resource artifact-watch {
+        constructor(block: uuid);
+        next: async func() -> option<artifact-state>;
+    }
+
+    /// The version control status of the editor's own block, for a block that
+    /// has one.
+    resource version-watch {
+        constructor();
+        next: async func() -> version-status;
+    }
+
+    /// What the host asks the editor to show. `next` answers with every
+    /// request since the last answer, in order.
+    resource show-requests {
+        constructor();
+        next: async func() -> list<show-request>;
+    }
 }

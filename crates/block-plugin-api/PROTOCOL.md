@@ -6,7 +6,12 @@ the messages below group by group: the handshake (`host.connect`), the screens,
 configure and draw (`plugin.screens`, `plugin.configure`, `plugin.draw`, whose
 answer is the frame commit), layout, frame-needed and missing characters, the
 watched preferences, UTC offset and fonts, input, editor instances
-(`resource editor`, dropped to close one) and shutdown. Until every message has
+(`resource editor`, dropped to close one) and shutdown, and the blocks an editor
+reads and changes (`wit/blocks.wit`): its replicas, the graph, history, heads,
+artifact states, version control, opening and showing blocks and acting on them.
+Every call of that interface is made under the editor's resource, and its watches
+are resources whose `next` answers with the latest value, so closing an editor
+ends everything it watched. Until every message has
 moved, one the world does not name travels whole, framed as below, through
 the world's `legacy` functions, and each side turns the world's calls back
 into the messages they replace.
@@ -132,8 +137,8 @@ version, saving the working change with a description, bringing the branch's
 changes in, switching, making a branch or a checkout, combining another branch
 in, resolving a conflict by taking one side or keeping the block as it is,
 undoing any recorded operation, and forking, pulling or pushing an upstream in
-the same organization. The host answers every instance whose block is a
-repository or a checkout with that block's status whenever it changes: whether
+the same organization. The host answers an instance watching the status of
+its block, when that block is a repository or a checkout, whenever it changes: whether
 it is busy, the last error, the branches, the working change and what it
 changed since its parent, whether the branch has moved past that parent, the
 history, and the operation log.
@@ -244,8 +249,8 @@ changes: for each of those blocks, the block it was generated from, the block
 type that generated it, what its settings currently produce, why they cannot
 be read, and whether it is being rebuilt. Only the plugin that made an
 artifact can describe it, so the host keeps that instance open for as long as
-a block is named and answers on its behalf. Naming a block again leaves it
-where it is; leaving one out closes the instance describing it. That instance
+a block is watched and answers on its behalf. Each watched block is a watch of
+its own; dropping the last watch on a block closes the instance describing it. That instance
 also shows a block's artifact settings: an instance places a child showing
 them, whose status says whether the copy being edited differs from the stored
 settings and summarises what it would produce, and committing that child

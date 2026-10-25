@@ -143,6 +143,32 @@ impl Backend {
         self.wire.take_services()
     }
 
+    pub(super) fn waiting(&self) -> Vec<block_plugin_api::ops::OpId> {
+        self.wire.waiting()
+    }
+
+    pub(super) fn answer_watches(
+        &mut self,
+        answers: Vec<(block_plugin_api::ops::OpId, Vec<u8>)>,
+        frames: Vec<(block_plugin_api::ops::OpId, Vec<u8>)>,
+    ) {
+        if answers.is_empty() && frames.is_empty() {
+            return;
+        }
+        for (watch, value) in answers {
+            self.wire.answer_watch(watch, value);
+        }
+        for (replica, frame) in &frames {
+            self.wire.relay(*replica, frame);
+        }
+        let Some(worker) = &mut self.worker else {
+            return;
+        };
+        if let Some(failure) = worker.queue(self.wire.take_outbound()) {
+            self.fail(failure);
+        }
+    }
+
     pub(super) fn answer(&mut self, answers: Vec<(block_plugin_api::ops::OpId, Outcome)>) {
         for (op, outcome) in answers {
             self.wire.answer(op, outcome);

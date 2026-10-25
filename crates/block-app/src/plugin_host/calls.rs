@@ -133,6 +133,8 @@ pub(super) enum Heard {
     Shell(ShellCall),
     Answer(EditorInstanceId, EditorAnswer),
     Paintings(Vec<u8>),
+    Blocks(EditorInstanceId, block_plugin_api::embed::blocks::Call),
+    Ended(block_plugin_api::ops::OpId),
 }
 
 impl From<Message> for Heard {

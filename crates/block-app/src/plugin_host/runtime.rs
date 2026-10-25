@@ -167,6 +167,8 @@ enum Answer {
     Shell(block_plugin_api::embed::shell::Call),
     Editor(EditorInstanceId, EditorAnswer),
     Paintings(Vec<u8>),
+    Blocks(EditorInstanceId, block_plugin_api::embed::blocks::Call),
+    Ended(block_plugin_api::ops::OpId),
     Frame(FrameCommit),
     Laid(Laid),
 }
@@ -178,6 +180,8 @@ impl From<Heard> for Answer {
             Heard::Shell(call) => Self::Shell(call),
             Heard::Answer(instance, answer) => Self::Editor(instance, answer),
             Heard::Paintings(payload) => Self::Paintings(payload),
+            Heard::Blocks(instance, call) => Self::Blocks(instance, call),
+            Heard::Ended(op) => Self::Ended(op),
         }
     }
 }
@@ -410,6 +414,7 @@ impl Runtime {
         });
         self.pacing.needed |= !messages.is_empty();
         self.send(messages);
+        self.answer();
         if awaited {
             host::request_repaint();
         }
@@ -678,7 +683,10 @@ impl Runtime {
                             drawing.push(Answer::Paintings(payload));
                             continue;
                         }
-                        heard @ (Heard::Shell(_) | Heard::Answer(..)) => {
+                        heard @ (Heard::Shell(_)
+                        | Heard::Answer(..)
+                        | Heard::Blocks(..)
+                        | Heard::Ended(_)) => {
                             held = true;
                             self.held.push(Answer::from(heard));
                             continue;
@@ -709,6 +717,7 @@ impl Runtime {
             }
         };
         self.apply(forwarded);
+        self.answer();
         let (count, longest) = self.backend.stepped();
         if count > 0 {
             STEPS.with(|steps| {
@@ -855,6 +864,8 @@ impl Runtime {
                 | Answer::Shell(_)
                 | Answer::Editor(..)
                 | Answer::Paintings(_)
+                | Answer::Blocks(..)
+                | Answer::Ended(_)
                 | Answer::Frame(_) => None,
             })
             .flatten()
@@ -906,6 +917,14 @@ impl Runtime {
                     changed |= self.lay(laid);
                     continue;
                 }
+                Answer::Blocks(instance, call) => {
+                    changed |= self.instances.blocks_call(instance, call);
+                    continue;
+                }
+                Answer::Ended(op) => {
+                    self.instances.ended(op);
+                    continue;
+                }
             };
             self.instances.translate(&mut message, true);
             changed |= match message {
@@ -913,7 +932,6 @@ impl Runtime {
                     self.laid_out(layout);
                     true
                 }
-                Message::Editor(message) => self.instances.editor_message(message),
                 Message::FrameNeeded => {
                     self.pacing.needed = true;
                     true
@@ -927,9 +945,17 @@ impl Runtime {
             };
         }
         self.send(replies);
+        self.answer();
         if changed {
             host::request_repaint();
         }
+    }
+
+    fn answer(&mut self) {
+        let waiting = self.backend.waiting();
+        let answers = self.instances.answers(&waiting);
+        let frames = self.instances.take_frames();
+        self.backend.answer_watches(answers, frames);
     }
 
     fn commit(&mut self, commit: FrameCommit) -> bool {
@@ -1630,8 +1656,8 @@ pub(crate) fn show_dialog(
 
 pub(crate) fn show_panel(plugin_id: &str, instance: EditorInstanceId, panel: HostPanel) {
     with(plugin_id, |runtime| {
-        let messages = runtime.instances.show_panel(instance, panel);
-        runtime.send(messages);
+        runtime.instances.show_panel(instance, panel);
+        runtime.answer();
     });
 }
 
@@ -1646,8 +1672,8 @@ pub(crate) fn show_block(
             return;
         };
         runtime.contain(|runtime| {
-            let messages = runtime.instances.show_block(instance, open);
-            runtime.send(messages);
+            runtime.instances.show_block(instance, open);
+            runtime.answer();
         });
     });
     mark(&plugin.identity.id);
@@ -1659,8 +1685,8 @@ pub(crate) fn set_artifact_states(
     states: Vec<block_plugin_api::ArtifactState>,
 ) {
     with(plugin_id, |runtime| {
-        let messages = runtime.instances.set_artifact_states(instance, states);
-        runtime.send(messages);
+        runtime.instances.set_artifact_states(instance, states);
+        runtime.answer();
     });
 }
 

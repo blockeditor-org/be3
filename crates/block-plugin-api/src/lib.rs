@@ -735,54 +735,8 @@ pub enum EditorMessage {
         client_id: [u8; 16],
         editable: bool,
     },
-
-    WatchContent {
-        instance: EditorInstanceId,
-        blocks: Vec<WatchedContent>,
-    },
-    SeedContent {
-        instance: EditorInstanceId,
-        block_id: [u8; 16],
-        content_type: [u8; 16],
-        #[serde(with = "serde_bytes")]
-        bytes: Vec<u8>,
-    },
-    ReplaceContent {
-        instance: EditorInstanceId,
-        block_id: [u8; 16],
-        content_type: [u8; 16],
-        #[serde(with = "serde_bytes")]
-        bytes: Vec<u8>,
-    },
     Close {
         instance: EditorInstanceId,
-    },
-
-    OpenBlock {
-        instance: EditorInstanceId,
-        block_id: [u8; 16],
-        block_type: [u8; 16],
-        via: Option<[u8; 16]>,
-        editor: Option<[u8; 16]>,
-    },
-
-    ShowBlock {
-        instance: EditorInstanceId,
-        block_id: [u8; 16],
-        block_type: [u8; 16],
-        via: Option<[u8; 16]>,
-        editor: Option<[u8; 16]>,
-    },
-
-    ShowPanel {
-        instance: EditorInstanceId,
-        panel: HostPanel,
-    },
-
-    BlockCommand {
-        instance: EditorInstanceId,
-        block_id: [u8; 16],
-        command: BlockCommand,
     },
 
     OpenCreation {
@@ -804,112 +758,15 @@ pub enum EditorMessage {
         #[serde(with = "serde_bytes")]
         data: Vec<u8>,
     },
-    WatchArtifacts {
-        instance: EditorInstanceId,
-        blocks: Vec<[u8; 16]>,
-    },
-    ArtifactStates {
-        instance: EditorInstanceId,
-        states: Vec<ArtifactState>,
-    },
-    WatchHistory {
-        instance: EditorInstanceId,
-        blocks: Vec<[u8; 16]>,
-    },
-    HistoryStates {
-        instance: EditorInstanceId,
-        states: Vec<HistoryState>,
-    },
-    WatchHeads {
-        instance: EditorInstanceId,
-        blocks: Vec<[u8; 16]>,
-    },
-    Head {
-        instance: EditorInstanceId,
-        block_id: [u8; 16],
-        head: Result<Option<StoredHead>, String>,
-    },
-
-    WatchBlocks {
-        instance: EditorInstanceId,
-        queries: Vec<BlockQuery>,
-    },
-    Blocks {
-        instance: EditorInstanceId,
-        query: BlockQuery,
-        blocks: Vec<BlockInfo>,
-    },
-    BlocksFailed {
-        instance: EditorInstanceId,
-        query: BlockQuery,
-        error: String,
-    },
-    CreateBlock {
-        instance: EditorInstanceId,
-        block_id: [u8; 16],
-        content_type: [u8; 16],
-        parent: BlockLocation,
-        defined: MetadataEntries,
-        content: Option<serde_bytes::ByteBuf>,
-    },
-    SetParent {
-        instance: EditorInstanceId,
-        block_id: [u8; 16],
-        parent: BlockLocation,
-    },
-    Define {
-        instance: EditorInstanceId,
-        block_id: [u8; 16],
-        key: [u8; 16],
-        value: Option<serde_bytes::ByteBuf>,
-    },
-    VersionControl {
-        instance: EditorInstanceId,
-        block_id: [u8; 16],
-        command: VersionCommand,
-    },
-    VersionStatus {
-        instance: EditorInstanceId,
-        block_id: [u8; 16],
-        status: VersionStatus,
-    },
-    Replica {
-        instance: EditorInstanceId,
-        block_id: [u8; 16],
-        #[serde(with = "serde_bytes")]
-        frame: Vec<u8>,
-    },
 }
 
 impl EditorMessage {
     pub fn instance(&self) -> EditorInstanceId {
         match self {
             Self::Open { instance, .. }
-            | Self::WatchContent { instance, .. }
-            | Self::SeedContent { instance, .. }
-            | Self::ReplaceContent { instance, .. }
             | Self::Close { instance, .. }
-            | Self::OpenBlock { instance, .. }
-            | Self::ShowBlock { instance, .. }
-            | Self::ShowPanel { instance, .. }
-            | Self::BlockCommand { instance, .. }
             | Self::OpenCreation { instance, .. }
-            | Self::OpenArtifact { instance, .. }
-            | Self::WatchArtifacts { instance, .. }
-            | Self::ArtifactStates { instance, .. }
-            | Self::WatchHistory { instance, .. }
-            | Self::HistoryStates { instance, .. }
-            | Self::WatchHeads { instance, .. }
-            | Self::Head { instance, .. }
-            | Self::WatchBlocks { instance, .. }
-            | Self::Blocks { instance, .. }
-            | Self::BlocksFailed { instance, .. }
-            | Self::CreateBlock { instance, .. }
-            | Self::SetParent { instance, .. }
-            | Self::Define { instance, .. }
-            | Self::VersionControl { instance, .. }
-            | Self::VersionStatus { instance, .. }
-            | Self::Replica { instance, .. } => *instance,
+            | Self::OpenArtifact { instance, .. } => *instance,
         }
     }
 }
@@ -943,20 +800,6 @@ impl AccessLevel {
             Self::Edit => "Can edit",
         }
     }
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub struct WatchedContent {
-    pub block_id: [u8; 16],
-    pub content_type: [u8; 16],
-}
-
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
-pub struct HistoryState {
-    pub head: Option<[u8; 32]>,
-    pub block_id: [u8; 16],
-    pub can_undo: bool,
-    pub can_redo: bool,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -1042,29 +885,7 @@ impl EditorMessage {
             Self::Open { .. }
             | Self::OpenCreation { .. }
             | Self::OpenArtifact { .. }
-            | Self::Close { .. }
-            | Self::ShowBlock { .. }
-            | Self::ShowPanel { .. }
-            | Self::ArtifactStates { .. }
-            | Self::HistoryStates { .. }
-            | Self::Head { .. }
-            | Self::Blocks { .. }
-            | Self::BlocksFailed { .. }
-            | Self::VersionStatus { .. } => Direction::ToPlugin,
-            Self::OpenBlock { .. }
-            | Self::BlockCommand { .. }
-            | Self::WatchArtifacts { .. }
-            | Self::WatchHistory { .. }
-            | Self::WatchHeads { .. }
-            | Self::WatchContent { .. }
-            | Self::SeedContent { .. }
-            | Self::ReplaceContent { .. }
-            | Self::WatchBlocks { .. }
-            | Self::VersionControl { .. }
-            | Self::CreateBlock { .. }
-            | Self::SetParent { .. }
-            | Self::Define { .. } => Direction::ToHost,
-            Self::Replica { .. } => Direction::Either,
+            | Self::Close { .. } => Direction::ToPlugin,
         }
     }
 }
@@ -1281,96 +1102,44 @@ fn validate_children(placements: &ChildPlacements) -> Result<(), DecodeError> {
     Ok(())
 }
 
+impl embed::blocks::Call {
+    pub fn validate(&self) -> Result<(), DecodeError> {
+        use embed::blocks::Call;
+        match self {
+            Call::CreateBlock {
+                defined, content, ..
+            } => {
+                metadata(defined)?;
+                content.as_ref().map_or(Ok(()), |content| blob(content))
+            }
+            Call::Define {
+                value: Some(value), ..
+            } => descriptor(value),
+            Call::SeedContent { bytes, .. } | Call::ReplaceContent { bytes, .. } => blob(bytes),
+            Call::ReplicaSend { frame, .. } => blob(frame),
+            Call::Version { command, .. } => match command {
+                VersionCommand::Finish { description: value }
+                | VersionCommand::Switch { branch: value }
+                | VersionCommand::CreateBranch { name: value }
+                | VersionCommand::Merge { branch: value }
+                | VersionCommand::NewCheckout { branch: value } => string(value),
+                VersionCommand::Adopt { .. }
+                | VersionCommand::Update
+                | VersionCommand::Resolve { .. }
+                | VersionCommand::Undo { .. }
+                | VersionCommand::Fork
+                | VersionCommand::PullUpstream
+                | VersionCommand::PushUpstream => Ok(()),
+            },
+            _ => Ok(()),
+        }
+    }
+}
+
 fn validate_editor(message: &EditorMessage) -> Result<(), DecodeError> {
     match message {
         EditorMessage::OpenCreation { template, .. } => string(template),
         EditorMessage::OpenArtifact { data, .. } => descriptor(data),
-        EditorMessage::WatchArtifacts { blocks, .. }
-        | EditorMessage::WatchHistory { blocks, .. } => collection(blocks.len()),
-        EditorMessage::HistoryStates { states, .. } => collection(states.len()),
-        EditorMessage::WatchHeads { blocks, .. } => collection(blocks.len()),
-        EditorMessage::Head { head, .. } => match head {
-            Ok(Some(head)) => blob(&head.bytes),
-            Ok(None) => Ok(()),
-            Err(error) => string(error),
-        },
-        EditorMessage::Replica { frame, .. } => blob(frame),
-        EditorMessage::WatchContent { blocks, .. } => collection(blocks.len()),
-        EditorMessage::WatchBlocks { queries, .. } => collection(queries.len()),
-        EditorMessage::BlocksFailed { error, .. } => string(error),
-        EditorMessage::Blocks { blocks, .. } => {
-            if blocks.len() > MAX_LISTED_BLOCKS {
-                return Err(DecodeError::LimitExceeded("block list"));
-            }
-            for block in blocks {
-                collection(block.references.len())?;
-                metadata(&block.metadata.defined)?;
-                metadata(&block.metadata.derived)?;
-            }
-            Ok(())
-        }
-        EditorMessage::CreateBlock {
-            defined, content, ..
-        } => {
-            metadata(defined)?;
-            content.as_ref().map_or(Ok(()), |content| blob(content))
-        }
-        EditorMessage::Define {
-            value: Some(value), ..
-        } => descriptor(value),
-        EditorMessage::VersionControl { command, .. } => match command {
-            VersionCommand::Finish { description: value }
-            | VersionCommand::Switch { branch: value }
-            | VersionCommand::CreateBranch { name: value }
-            | VersionCommand::Merge { branch: value }
-            | VersionCommand::NewCheckout { branch: value } => string(value),
-            VersionCommand::Adopt { .. }
-            | VersionCommand::Update
-            | VersionCommand::Resolve { .. }
-            | VersionCommand::Undo { .. }
-            | VersionCommand::Fork
-            | VersionCommand::PullUpstream
-            | VersionCommand::PushUpstream => Ok(()),
-        },
-        EditorMessage::VersionStatus { status, .. } => {
-            if let Some(error) = &status.error {
-                string(error)?;
-            }
-            collection(status.branches.len())?;
-            strings(status.branches.iter().map(|branch| &branch.name))?;
-            if status.changes.len() > MAX_LISTED_BLOCKS {
-                return Err(DecodeError::LimitExceeded("changes"));
-            }
-            strings(
-                status
-                    .changes
-                    .iter()
-                    .filter_map(|change| change.name.as_ref()),
-            )?;
-            collection(status.log.len())?;
-            for commit in status.log.iter().chain(&status.working) {
-                collection(commit.parents.len())?;
-                string(&commit.message)?;
-            }
-            collection(status.operations.len())?;
-            strings(
-                status
-                    .operations
-                    .iter()
-                    .map(|operation| &operation.description),
-            )?;
-            Ok(())
-        }
-        EditorMessage::ArtifactStates { states, .. } => {
-            collection(states.len())?;
-            for state in states {
-                string(&state.summary)?;
-                if let Some(error) = &state.error {
-                    string(error)?;
-                }
-            }
-            Ok(())
-        }
         _ => Ok(()),
     }
 }
