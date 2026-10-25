@@ -58,7 +58,10 @@ async fn requests_sent_before_a_close_are_still_carried_out() {
             moved.push((block, head));
         }
     }
-    let expected: Vec<_> = heads.iter().map(|(block, head, _)| (*block, *head)).collect();
+    let expected: Vec<_> = heads
+        .iter()
+        .map(|(block, head, _)| (*block, *head))
+        .collect();
     assert_eq!(moved, expected);
 
     harness.stop().await;
