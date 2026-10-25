@@ -27,11 +27,9 @@ fn the_terminal_shows_history_and_a_wrapped_line_and_scrolls_back() {
     assert!(harness.sent().is_empty(), "the screen follows the document");
     harness.editor.snapshot("a_running_terminal");
 
-    let screen = harness.editor.rect_of("terminal.screen");
+    let line = harness.text_rect("crate number 39 ");
     for _ in 0..4 {
-        harness
-            .editor
-            .scroll(screen.center(), Vec2::new(0.0, -120.0));
+        harness.editor.scroll(line.center(), Vec2::new(0.0, -120.0));
     }
     harness.editor.settle();
     assert!(harness.says("crate number 0 "), "the wheel scrolls back");
