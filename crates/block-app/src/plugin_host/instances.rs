@@ -2,12 +2,11 @@ use beui::accessibility::Embedded;
 use beui::{ImeArea, Rect, Vec2, pos2, vec2};
 use block_plugin_api::{
     ArtifactDescription, AudioCommand, BlockCommand, BlockImport, BlockPick, ChildContent, ChildId,
-    ChildMode, ChildPlacement, ChildPlacements, ChildStatus, CreationOutcome, DataListing,
-    EditorInstanceId, EditorMessage, EditorRegion, FetchResult, FileSave, FrameReport, FrameSpec,
-    HostPanel, HostReply, HostRequest, MenuEntry, Message, Monitor, Occluder,
-    PerformanceMeasurement, RegenerationOutcome, RegionSize, ScreenId, ScreenLayout, ScreenRequest,
-    ScreenSet, ScreenWindow, Size, Stopped, ViewChange, WatchedContent, WebViewCommand,
-    WebViewEvent, WebViewId,
+    ChildMode, ChildPlacement, ChildPlacements, ChildStatus, DataListing, EditorInstanceId,
+    EditorMessage, EditorRegion, FetchResult, FileSave, FrameReport, FrameSpec, HostPanel,
+    HostReply, HostRequest, MenuEntry, Message, Monitor, Occluder, PerformanceMeasurement,
+    RegionSize, ScreenId, ScreenLayout, ScreenRequest, ScreenSet, ScreenWindow, Size, Stopped,
+    ViewChange, WatchedContent, WebViewCommand, WebViewEvent, WebViewId,
 };
 use block_plugin_api::{DescribedAction, WindowRequests, embed::shell::Call as ShellCall};
 use block_type_guest::editor::{FromEditor, Gesture};
@@ -21,7 +20,7 @@ use super::{
     BlockPickRequest, ChildCommit, EditorBlock, HostChild, HostChildStatus, InstanceRole,
     MAX_LIVE_CHILDREN,
     audio::AudioPlayer,
-    calls::{self, BlockIds, EditorCall, Outbound},
+    calls::{self, BlockIds, EditorAnswer, EditorCall, Outbound},
     heads::{HeadReads, Heads},
     host_values::{Published, Watched},
     input::{BlockDrag, BlockDragEvent, FileDropEvent, InputAdapter, viewport_metrics},
@@ -1342,7 +1341,7 @@ impl Instances {
         block: EditorBlock,
         data: &[u8],
         resync: bool,
-    ) -> Vec<Message> {
+    ) -> Vec<Outbound> {
         self.connect(client_id);
         if self.block_types.is_none() {
             self.block_types = Some(Arc::clone(block_types));
@@ -1360,10 +1359,10 @@ impl Instances {
         if !entry.opened {
             return Vec::new();
         }
-        vec![Message::Editor(EditorMessage::ArtifactSettings {
+        vec![Outbound::Editor(
             instance,
-            data: data.to_vec(),
-        })]
+            EditorCall::ArtifactSettings(data.to_vec()),
+        )]
     }
 
     pub(super) fn artifact_description(
@@ -1381,15 +1380,15 @@ impl Instances {
         &mut self,
         instance: EditorInstanceId,
         data: &[u8],
-    ) -> Vec<Message> {
+    ) -> Vec<Outbound> {
         let Some(entry) = self.entries.get_mut(&instance) else {
             return Vec::new();
         };
         entry.artifact.outcome = None;
-        vec![Message::Editor(EditorMessage::RegenerateArtifact {
+        vec![Outbound::Editor(
             instance,
-            data: data.to_vec(),
-        })]
+            EditorCall::RegenerateArtifact(data.to_vec()),
+        )]
     }
 
     pub(super) fn take_artifact_outcome(
@@ -2315,11 +2314,11 @@ impl Instances {
             .is_some_and(|entry| entry.creation_ready)
     }
 
-    pub(super) fn commit_creation(&self, instance: EditorInstanceId) -> Vec<Message> {
+    pub(super) fn commit_creation(&self, instance: EditorInstanceId) -> Vec<Outbound> {
         if !self.entries.contains_key(&instance) {
             return Vec::new();
         }
-        vec![Message::Editor(EditorMessage::CommitCreation { instance })]
+        vec![Outbound::Editor(instance, EditorCall::CommitCreation)]
     }
 
     pub(super) fn take_created(
@@ -2474,7 +2473,7 @@ impl Instances {
         instance: EditorInstanceId,
         old: Uuid,
         new: Uuid,
-    ) -> (Vec<Message>, Option<bool>) {
+    ) -> (Vec<Outbound>, Option<bool>) {
         let Some(entry) = self.entries.get_mut(&instance) else {
             return (Vec::new(), None);
         };
@@ -2494,12 +2493,14 @@ impl Instances {
                     .replacements
                     .insert((old, new), Replacement::Pending(request_id));
                 (
-                    vec![Message::Editor(EditorMessage::ReplaceChild {
+                    vec![Outbound::Editor(
                         instance,
-                        request_id,
-                        old: old.into_bytes(),
-                        new: new.into_bytes(),
-                    })],
+                        EditorCall::ReplaceChild {
+                            request_id,
+                            old: old.into_bytes(),
+                            new: new.into_bytes(),
+                        },
+                    )],
                     None,
                 )
             }
@@ -2894,7 +2895,59 @@ impl Instances {
                 }),
                 via: focus.via.into_iter().map(Uuid::from_bytes).collect(),
             }),
+            ShellCall::CreationReady { ready, .. } => {
+                let changed = entry.creation_ready != ready;
+                entry.creation_ready = ready;
+                return changed;
+            }
+            ShellCall::CommitChild {
+                child,
+                parent,
+                name,
+                ..
+            } => entry.child_commits.push(ChildCommit {
+                child,
+                parent: super::graph::parent_of(parent),
+                name,
+            }),
+            ShellCall::ArtifactDescribed { description, .. } => {
+                entry.artifact.description = Some(description);
+            }
+            ShellCall::ArtifactEdited { data, .. } => {
+                let changed = entry.artifact.draft.as_ref() != Some(&data);
+                entry.artifact.draft = Some(data);
+                return changed;
+            }
             ShellCall::Present { .. } => return false,
+        }
+        true
+    }
+
+    pub(super) fn answered(&mut self, instance: EditorInstanceId, answer: EditorAnswer) -> bool {
+        let Some(entry) = self.entries.get_mut(&instance) else {
+            return false;
+        };
+        match answer {
+            EditorAnswer::Created(created) => entry.created = Some(created.map(Uuid::from_bytes)),
+            EditorAnswer::Regenerated(outcome) => entry.artifact.outcome = Some(outcome),
+            EditorAnswer::Replaced {
+                request_id,
+                replaced,
+            } => {
+                let Some(key) = entry
+                    .replacements
+                    .iter()
+                    .find(
+                        |(_, state)| matches!(state, Replacement::Pending(id) if *id == request_id),
+                    )
+                    .map(|(key, _)| *key)
+                else {
+                    return false;
+                };
+                entry
+                    .replacements
+                    .insert(key, Replacement::Answered(replaced));
+            }
         }
         true
     }
@@ -2963,22 +3016,6 @@ impl Instances {
                     Uuid::from_bytes(account),
                     super::graph::access_of(access),
                 );
-                true
-            }
-            EditorMessage::CommitChild {
-                instance,
-                child,
-                parent,
-                name,
-            } => {
-                let Some(entry) = self.entries.get_mut(&instance) else {
-                    return false;
-                };
-                entry.child_commits.push(ChildCommit {
-                    child,
-                    parent: super::graph::parent_of(parent),
-                    name,
-                });
                 true
             }
             EditorMessage::OpenBlock {
@@ -3195,75 +3232,6 @@ impl Instances {
                 if let WebViewCommand::Open(_) = command {
                     entry.unshown_web_views.push(web_view);
                 }
-                true
-            }
-            EditorMessage::CreationReady { instance, ready } => {
-                let Some(entry) = self.entries.get_mut(&instance) else {
-                    return false;
-                };
-                let changed = entry.creation_ready != ready;
-                entry.creation_ready = ready;
-                changed
-            }
-            EditorMessage::CreationBlock { instance, outcome } => {
-                let Some(entry) = self.entries.get_mut(&instance) else {
-                    return false;
-                };
-                entry.created = Some(match outcome {
-                    CreationOutcome::Created(block_id) => Ok(Uuid::from_bytes(block_id)),
-                    CreationOutcome::Failed(error) => Err(error),
-                });
-                true
-            }
-            EditorMessage::ChildReplaced {
-                instance,
-                request_id,
-                replaced,
-            } => {
-                let Some(entry) = self.entries.get_mut(&instance) else {
-                    return false;
-                };
-                let Some(key) = entry
-                    .replacements
-                    .iter()
-                    .find(
-                        |(_, state)| matches!(state, Replacement::Pending(id) if *id == request_id),
-                    )
-                    .map(|(key, _)| *key)
-                else {
-                    return false;
-                };
-                entry
-                    .replacements
-                    .insert(key, Replacement::Answered(replaced));
-                true
-            }
-            EditorMessage::ArtifactDescribed {
-                instance,
-                description,
-            } => {
-                let Some(entry) = self.entries.get_mut(&instance) else {
-                    return false;
-                };
-                entry.artifact.description = Some(description);
-                true
-            }
-            EditorMessage::ArtifactEdited { instance, data } => {
-                let Some(entry) = self.entries.get_mut(&instance) else {
-                    return false;
-                };
-                let changed = entry.artifact.draft.as_ref() != Some(&data);
-                entry.artifact.draft = Some(data);
-                changed
-            }
-            EditorMessage::ArtifactRegenerated { instance, outcome } => {
-                let Some(entry) = self.entries.get_mut(&instance) else {
-                    return false;
-                };
-                entry.artifact.outcome = Some(match outcome {
-                    RegenerationOutcome::Done => Ok(()),
-                    RegenerationOutcome::Failed(error) => Err(error),
-                });
                 true
             }
             _ => false,

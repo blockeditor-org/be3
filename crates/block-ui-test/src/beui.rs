@@ -62,6 +62,8 @@ pub struct BeuiTest<A: BeuiApp> {
     connection: Connection,
     editor: Option<Editor>,
     calls: Vec<ShellCall>,
+    completed:
+        std::collections::HashMap<block_plugin_api::ops::OpId, block_plugin_api::ops::Outcome>,
     sent: Vec<EditorMessage>,
     menu: Vec<MenuEntry>,
     output: Option<beui::FrameOutput>,
@@ -76,7 +78,6 @@ pub struct BeuiTest<A: BeuiApp> {
     intrinsic: Option<Vec2>,
     exited: bool,
     draft: Vec<u8>,
-    next_request: u64,
     screens: u64,
     wakes: Arc<Wakes>,
     clock: std::time::Duration,
@@ -236,6 +237,7 @@ impl<A: BeuiApp> BeuiTest<A> {
             connection: Connection::new(Side::Host),
             editor: None,
             calls: Vec::new(),
+            completed: std::collections::HashMap::new(),
             sent: Vec::new(),
             menu: Vec::new(),
             output: None,
@@ -250,7 +252,6 @@ impl<A: BeuiApp> BeuiTest<A> {
             intrinsic: None,
             exited: false,
             draft: data,
-            next_request: 0,
             screens: 0,
             wakes,
             clock: std::time::Duration::ZERO,
@@ -379,12 +380,7 @@ impl<A: BeuiApp> BeuiTest<A> {
 
     pub fn set_draft(&mut self, data: Vec<u8>) {
         self.draft.clone_from(&data);
-        self.inbox.push(Inbound::Message(Message::Editor(
-            EditorMessage::ArtifactSettings {
-                instance: INSTANCE,
-                data,
-            },
-        )));
+        self.call(|editor, connection| editor.artifact_settings(connection, data));
     }
 
     pub fn with_top_bar(self, closable: bool) -> Self {
@@ -592,30 +588,19 @@ impl<A: BeuiApp> BeuiTest<A> {
     }
 
     pub fn replace_child(&mut self, old: Uuid, new: Uuid) -> bool {
-        self.next_request += 1;
-        let request_id = self.next_request;
-        self.inbox.push(Inbound::Message(Message::Editor(
-            EditorMessage::ReplaceChild {
-                instance: INSTANCE,
-                request_id,
-                old: old.into_bytes(),
-                new: new.into_bytes(),
-            },
-        )));
-        self.step(Vec::new());
-        let mut replaced = None;
-        self.sent.retain(|message| match message {
-            EditorMessage::ChildReplaced {
-                request_id: answered,
-                replaced: outcome,
-                ..
-            } if *answered == request_id => {
-                replaced = Some(*outcome);
-                false
-            }
-            _ => true,
+        let mut ticket = None;
+        self.call(|editor, connection| {
+            ticket = Some(editor.replace_child(connection, old.into_bytes(), new.into_bytes()));
         });
-        replaced.expect("the plugin never answered the replacement")
+        let ticket = ticket.expect("the call was made");
+        self.step(Vec::new());
+        let outcome = self
+            .completed
+            .remove(&ticket.op())
+            .expect("the plugin never answered the replacement");
+        ticket
+            .decode(outcome)
+            .expect("the plugin answered the replacement")
     }
 
     pub fn presence_visible(&mut self, visible: bool) {
@@ -943,7 +928,6 @@ impl<A: BeuiApp> BeuiTest<A> {
             Message::Editor(message) => {
                 self.store.receive(&message);
                 match &message {
-                    EditorMessage::ArtifactEdited { data, .. } => self.draft.clone_from(data),
                     _ => {}
                 }
                 self.sent.push(message);
@@ -971,8 +955,13 @@ impl<A: BeuiApp> BeuiTest<A> {
             });
         }
         while let Some(event) = self.connection.next_event() {
-            let Incoming::Called(called) = event else {
-                continue;
+            let called = match event {
+                Incoming::Called(called) => called,
+                Incoming::Completed { op, outcome } => {
+                    self.completed.insert(op, outcome);
+                    continue;
+                }
+                _ => continue,
             };
             let Some(call) = ShellCall::accept_direct(&called) else {
                 panic!(
@@ -987,6 +976,7 @@ impl<A: BeuiApp> BeuiTest<A> {
                     });
                 }
                 ShellCall::LeaveFrame { .. } => self.exited = true,
+                ShellCall::ArtifactEdited { data, .. } => self.draft.clone_from(data),
                 ShellCall::IntrinsicSize { size, .. } => {
                     self.intrinsic = size.map(|size| Vec2::new(size.width, size.height));
                 }
@@ -1136,8 +1126,8 @@ impl<A: BeuiApp> BeuiTest<A> {
     pub fn take_child_commits(
         &mut self,
     ) -> Vec<(ChildId, block_plugin_api::BlockLocation, Option<String>)> {
-        self.take_where(|message| match message {
-            EditorMessage::CommitChild {
+        self.take_calls(|call| match call {
+            ShellCall::CommitChild {
                 child,
                 parent,
                 name,

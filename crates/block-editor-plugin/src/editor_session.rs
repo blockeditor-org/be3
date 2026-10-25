@@ -1,12 +1,13 @@
 use be_block::presence::{PresenceKind, UserActive, pick_free_color};
 use block_plugin_api::accesskit::{ActionRequest, NodeId, TreeUpdate};
 use block_plugin_api::guest::shell;
+use block_plugin_api::ops::guest::Sender;
 use block_plugin_api::{
     ArtifactDescription, BarAction, ChildId, ChildPlacement, ChildPlacements, ChildStatus,
-    CreationOutcome, EditorInstanceId, EditorMessage, EditorRegion, FrameChrome, FrameCommit,
-    FrameReport, HostPanel, HostReply, MAX_CHILDREN, MAX_COLLECTION_ITEMS, MenuEntry, Message,
-    Occluder, RegionSize, ScreenPlacement, ScreenRequest, ScreenWindow, Size, TimedInput,
-    ViewportMetrics, WebViewEvent, WebViewId,
+    EditorInstanceId, EditorMessage, EditorRegion, FrameChrome, FrameCommit, FrameReport,
+    HostPanel, HostReply, MAX_CHILDREN, MAX_COLLECTION_ITEMS, MenuEntry, Message, Occluder,
+    RegionSize, ScreenPlacement, ScreenRequest, ScreenWindow, Size, TimedInput, ViewportMetrics,
+    WebViewEvent, WebViewId,
 };
 use block_ui::BlockCatalog;
 use geometry::{Rect, Vec2, pos2, vec2};
@@ -37,9 +38,7 @@ pub struct EditorSession {
     files: Option<(EditorRegion, crate::host::FileDrop)>,
     intrinsic: Option<Vec2>,
     aspect_ratio: Option<f32>,
-    created: Option<CreationOutcome>,
     artifact: Option<ArtifactState>,
-    replacements: Vec<(u64, bool)>,
     sent_menu: Vec<MenuEntry>,
 }
 
@@ -48,7 +47,7 @@ struct ArtifactState {
     draft: Vec<u8>,
     described: Option<Vec<u8>>,
     edited: bool,
-    regenerating: bool,
+    regenerating: Option<Sender<Result<(), String>>>,
 }
 
 impl ArtifactState {
@@ -58,7 +57,7 @@ impl ArtifactState {
             data,
             described: None,
             edited: false,
-            regenerating: false,
+            regenerating: None,
         }
     }
 
@@ -109,9 +108,7 @@ impl EditorSession {
             files: None,
             intrinsic: None,
             aspect_ratio: None,
-            created: None,
             artifact: None,
-            replacements: Vec::new(),
             sent_menu: Vec::new(),
         }
     }
@@ -277,9 +274,8 @@ impl EditorSession {
         self.app.presence_visible(visible);
     }
 
-    pub(crate) fn replace_child(&mut self, request_id: u64, old: Uuid, new: Uuid) {
-        let replaced = self.app.replace_child(old, new);
-        self.replacements.push((request_id, replaced));
+    pub(crate) fn replace_child(&mut self, old: Uuid, new: Uuid) -> bool {
+        self.app.replace_child(old, new)
     }
 
     pub(crate) fn set_presenting(&self, presenting: bool) {
@@ -320,19 +316,21 @@ impl EditorSession {
         }
     }
 
-    pub(crate) fn regenerate_artifact(&mut self, data: &[u8]) {
+    pub(crate) fn regenerate_artifact(
+        &mut self,
+        data: &[u8],
+        regenerated: Sender<Result<(), String>>,
+    ) {
         let Some(artifact) = &mut self.artifact else {
+            regenerated.send(Err("this editor shows no artifact".to_owned()));
             return;
         };
-        artifact.regenerating = true;
+        artifact.regenerating = Some(regenerated);
         self.app.regenerate_artifact(data);
     }
 
-    pub(crate) fn commit_creation(&mut self) {
-        self.created = Some(match self.app.create_block() {
-            Ok(block_id) => CreationOutcome::Created(block_id.into_bytes()),
-            Err(error) => CreationOutcome::Failed(error),
-        });
+    pub(crate) fn commit_creation(&mut self) -> Result<[u8; 16], String> {
+        self.app.create_block().map(Uuid::into_bytes)
     }
 
     pub fn place(&mut self, placements: &[ScreenPlacement], requests: &[ScreenRequest]) {
@@ -452,10 +450,7 @@ impl EditorSession {
             shell::aspect_ratio(instance, aspect_ratio);
         }
         if let Some(ready) = self.host.take_creation_ready() {
-            messages.push(Message::Editor(EditorMessage::CreationReady {
-                instance,
-                ready,
-            }));
+            shell::creation_ready(instance, ready);
         }
         if let Some(artifact) = &mut self.artifact {
             if artifact.described.as_deref() != Some(artifact.data.as_slice()) {
@@ -467,29 +462,17 @@ impl EditorSession {
                     },
                     Err(error) => ArtifactDescription::Unreadable(error),
                 };
-                messages.push(Message::Editor(EditorMessage::ArtifactDescribed {
-                    instance,
-                    description,
-                }));
+                shell::artifact_described(instance, description);
             }
             if artifact.edited {
                 artifact.edited = false;
-                messages.push(Message::Editor(EditorMessage::ArtifactEdited {
-                    instance,
-                    data: artifact.draft.clone(),
-                }));
+                shell::artifact_edited(instance, artifact.draft.clone());
             }
-            if artifact.regenerating
+            if artifact.regenerating.is_some()
                 && let Some(result) = self.app.poll_artifact()
+                && let Some(regenerated) = artifact.regenerating.take()
             {
-                artifact.regenerating = false;
-                messages.push(Message::Editor(EditorMessage::ArtifactRegenerated {
-                    instance,
-                    outcome: match result {
-                        Ok(()) => block_plugin_api::RegenerationOutcome::Done,
-                        Err(error) => block_plugin_api::RegenerationOutcome::Failed(error),
-                    },
-                }));
+                regenerated.send(result);
             }
         }
         if self.host.take_leave_frame() {
@@ -546,12 +529,6 @@ impl EditorSession {
                 },
             }));
         }
-        if let Some(outcome) = self.created.take() {
-            messages.push(Message::Editor(EditorMessage::CreationBlock {
-                instance,
-                outcome,
-            }));
-        }
         for text in self.host.take_copied_text() {
             shell::copy_text(instance, text);
         }
@@ -560,13 +537,6 @@ impl EditorSession {
         }
         if self.host.take_paste_request() {
             shell::paste(instance);
-        }
-        for (request_id, replaced) in std::mem::take(&mut self.replacements) {
-            messages.push(Message::Editor(EditorMessage::ChildReplaced {
-                instance,
-                request_id,
-                replaced,
-            }));
         }
         for (block_id, account, access) in self.host.take_access_changes() {
             messages.push(Message::Editor(EditorMessage::SetAccess {
@@ -598,12 +568,7 @@ impl EditorSession {
             }));
         }
         for commit in self.host.take_child_commits() {
-            messages.push(Message::Editor(EditorMessage::CommitChild {
-                instance,
-                child: commit.child,
-                parent: commit.parent.encode(),
-                name: commit.name,
-            }));
+            shell::commit_child(instance, commit.child, commit.parent.encode(), commit.name);
         }
         for command in self.host.take_audio_commands() {
             messages.push(Message::Editor(EditorMessage::PlayAudio {

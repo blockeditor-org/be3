@@ -265,21 +265,6 @@ impl Screens {
                     session.set_audio(status.clone());
                 }
             }
-            Message::Editor(EditorMessage::ArtifactSettings { instance, data }) => {
-                if let Some(session) = self.sessions.get_mut(instance) {
-                    session.artifact_settings(data.clone());
-                }
-            }
-            Message::Editor(EditorMessage::RegenerateArtifact { instance, data }) => {
-                if let Some(session) = self.sessions.get_mut(instance) {
-                    session.regenerate_artifact(data);
-                }
-            }
-            Message::Editor(EditorMessage::CommitCreation { instance }) => {
-                if let Some(session) = self.sessions.get_mut(instance) {
-                    session.commit_creation();
-                }
-            }
             Message::Editor(EditorMessage::Replica {
                 instance,
                 block_id,
@@ -368,20 +353,6 @@ impl Screens {
                                 regenerating: state.regenerating,
                             })
                             .collect(),
-                    );
-                }
-            }
-            Message::Editor(EditorMessage::ReplaceChild {
-                instance,
-                request_id,
-                old,
-                new,
-            }) => {
-                if let Some(session) = self.sessions.get_mut(instance) {
-                    session.replace_child(
-                        *request_id,
-                        Uuid::from_bytes(*old),
-                        Uuid::from_bytes(*new),
                     );
                 }
             }

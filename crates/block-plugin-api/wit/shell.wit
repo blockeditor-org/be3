@@ -121,6 +121,17 @@ interface shell-types {
         pan-drag,
     }
 
+    record artifact-described {
+        source: uuid,
+        summary: string,
+    }
+
+    /// What an artifact's settings say it is made from, or why they cannot be read.
+    variant artifact-description {
+        described(artifact-described),
+        unreadable(string),
+    }
+
     /// The block an editor's focus is in, and the blocks it is shown through.
     record focus {
         block-id: option<uuid>,
@@ -132,8 +143,10 @@ interface shell-types {
 /// What an editor tells the shell around it.
 interface shell {
     use types.{editor-instance-id, editor-region, size, uuid};
+    use blocks.{block-location};
     use shell-types.{
-        bar-action, child-id, focus, menu-item, performance-measurement, stopped, view-change,
+        artifact-description, bar-action, child-id, focus, menu-item, performance-measurement,
+        stopped, view-change,
     };
 
     /// The editor's menu, replacing the one it sent before.
@@ -186,4 +199,21 @@ interface shell {
 
     /// Where the editor's focus is now.
     focused: func(instance: editor-instance-id, focus: focus);
+
+    /// Whether the creation dialog the editor shows can create its block.
+    creation-ready: func(instance: editor-instance-id, ready: bool);
+
+    /// The user created the block of a creation dialog the editor placed as a child.
+    commit-child: func(
+        instance: editor-instance-id,
+        child: child-id,
+        parent: block-location,
+        name: option<string>,
+    );
+
+    /// What the artifact settings the editor was opened on say.
+    artifact-described: func(instance: editor-instance-id, description: artifact-description);
+
+    /// The user changed the artifact settings the editor shows.
+    artifact-edited: func(instance: editor-instance-id, data: list<u8>);
 }

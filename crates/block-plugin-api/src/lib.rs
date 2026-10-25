@@ -29,7 +29,7 @@ be_ops_bindgen::generate!({
         "rename-command", "artifact-command", "simulate-access-command", "unlink-command",
         "delete-command", "move-command", "place-command", "app-menu-command", "adopt-command",
         "finish-command", "branch-command", "create-branch-command", "resolve-command",
-        "undo-operation-command", "performance-duration", "performance-count", "view-zoom",
+        "undo-operation-command", "performance-duration", "performance-count", "view-zoom", "artifact-described",
     ],
     own_debug: ["font-face"],
 });
@@ -41,8 +41,8 @@ pub use blocks::{
     VersionChangeKind, VersionCommand, VersionCommit, VersionOperation, VersionStatus,
 };
 pub use shell_types::{
-    BarAction, DroppedFile, FitArea, MenuCheck, MenuCommand, MenuHeading, MenuItem, MenuItemKind,
-    MenuPin, PerformanceMeasurement, Stopped, ViewChange,
+    ArtifactDescription, BarAction, DroppedFile, FitArea, MenuCheck, MenuCommand, MenuHeading,
+    MenuItem, MenuItemKind, MenuPin, PerformanceMeasurement, Stopped, ViewChange,
 };
 pub use types::{
     EditorRegion, FontFace, FontRole, Fonts, FrameChrome, FrameCommit, FrameReport, FrameSpec,
@@ -971,19 +971,6 @@ pub enum EditorMessage {
         organization_id: [u8; 16],
         client_id: [u8; 16],
     },
-    CreationReady {
-        instance: EditorInstanceId,
-        ready: bool,
-    },
-    CommitCreation {
-        instance: EditorInstanceId,
-    },
-    CommitChild {
-        instance: EditorInstanceId,
-        child: ChildId,
-        parent: BlockLocation,
-        name: Option<String>,
-    },
     PickRequested {
         instance: EditorInstanceId,
         pick: u64,
@@ -997,10 +984,6 @@ pub enum EditorMessage {
         pick: u64,
         answer: BlockPick,
     },
-    CreationBlock {
-        instance: EditorInstanceId,
-        outcome: CreationOutcome,
-    },
     OpenArtifact {
         instance: EditorInstanceId,
         editor: [u8; 16],
@@ -1011,29 +994,6 @@ pub enum EditorMessage {
         client_id: [u8; 16],
         #[serde(with = "serde_bytes")]
         data: Vec<u8>,
-    },
-    ArtifactSettings {
-        instance: EditorInstanceId,
-        #[serde(with = "serde_bytes")]
-        data: Vec<u8>,
-    },
-    ArtifactDescribed {
-        instance: EditorInstanceId,
-        description: ArtifactDescription,
-    },
-    ArtifactEdited {
-        instance: EditorInstanceId,
-        #[serde(with = "serde_bytes")]
-        data: Vec<u8>,
-    },
-    RegenerateArtifact {
-        instance: EditorInstanceId,
-        #[serde(with = "serde_bytes")]
-        data: Vec<u8>,
-    },
-    ArtifactRegenerated {
-        instance: EditorInstanceId,
-        outcome: RegenerationOutcome,
     },
     WatchArtifacts {
         instance: EditorInstanceId,
@@ -1059,17 +1019,6 @@ pub enum EditorMessage {
         instance: EditorInstanceId,
         block_id: [u8; 16],
         head: Result<Option<StoredHead>, String>,
-    },
-    ReplaceChild {
-        instance: EditorInstanceId,
-        request_id: u64,
-        old: [u8; 16],
-        new: [u8; 16],
-    },
-    ChildReplaced {
-        instance: EditorInstanceId,
-        request_id: u64,
-        replaced: bool,
     },
 
     WatchBlocks {
@@ -1147,26 +1096,15 @@ impl EditorMessage {
             | Self::WebViewCommand { instance, .. }
             | Self::WebViewEvent { instance, .. }
             | Self::OpenCreation { instance, .. }
-            | Self::CreationReady { instance, .. }
-            | Self::CommitCreation { instance, .. }
-            | Self::CommitChild { instance, .. }
             | Self::PickRequested { instance, .. }
             | Self::PickAnswered { instance, .. }
-            | Self::CreationBlock { instance, .. }
             | Self::OpenArtifact { instance, .. }
-            | Self::ArtifactSettings { instance, .. }
-            | Self::ArtifactDescribed { instance, .. }
-            | Self::ArtifactEdited { instance, .. }
-            | Self::RegenerateArtifact { instance, .. }
-            | Self::ArtifactRegenerated { instance, .. }
             | Self::WatchArtifacts { instance, .. }
             | Self::ArtifactStates { instance, .. }
             | Self::WatchHistory { instance, .. }
             | Self::HistoryStates { instance, .. }
             | Self::WatchHeads { instance, .. }
             | Self::Head { instance, .. }
-            | Self::ReplaceChild { instance, .. }
-            | Self::ChildReplaced { instance, .. }
             | Self::WatchBlocks { instance, .. }
             | Self::Blocks { instance, .. }
             | Self::BlocksFailed { instance, .. }
@@ -1178,24 +1116,6 @@ impl EditorMessage {
             | Self::Replica { instance, .. } => *instance,
         }
     }
-}
-
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub enum ArtifactDescription {
-    Described { source: [u8; 16], summary: String },
-    Unreadable(String),
-}
-
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub enum RegenerationOutcome {
-    Done,
-    Failed(String),
-}
-
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub enum CreationOutcome {
-    Created([u8; 16]),
-    Failed(String),
 }
 
 pub type MetadataEntries = std::collections::BTreeMap<[u8; 16], serde_bytes::ByteBuf>;
@@ -1494,14 +1414,10 @@ impl EditorMessage {
             | Self::Replied { .. }
             | Self::AudioStatus { .. }
             | Self::WebViewEvent { .. }
-            | Self::CommitCreation { .. }
             | Self::PickRequested { .. }
-            | Self::ArtifactSettings { .. }
-            | Self::RegenerateArtifact { .. }
             | Self::ArtifactStates { .. }
             | Self::HistoryStates { .. }
             | Self::Head { .. }
-            | Self::ReplaceChild { .. }
             | Self::Blocks { .. }
             | Self::BlocksFailed { .. }
             | Self::HostValue { .. }
@@ -1510,19 +1426,12 @@ impl EditorMessage {
             | Self::BlockCommand { .. }
             | Self::Request { .. }
             | Self::PlayAudio { .. }
-            | Self::CommitChild { .. }
             | Self::SetAccess { .. }
             | Self::PickAnswered { .. }
             | Self::WebViewCommand { .. }
-            | Self::CreationReady { .. }
-            | Self::CreationBlock { .. }
-            | Self::ArtifactDescribed { .. }
-            | Self::ArtifactEdited { .. }
-            | Self::ArtifactRegenerated { .. }
             | Self::WatchArtifacts { .. }
             | Self::WatchHistory { .. }
             | Self::WatchHeads { .. }
-            | Self::ChildReplaced { .. }
             | Self::WatchContent { .. }
             | Self::SeedContent { .. }
             | Self::ReplaceContent { .. }
@@ -1806,30 +1715,12 @@ fn validate_editor(message: &EditorMessage) -> Result<(), DecodeError> {
         EditorMessage::Request { request, .. } => validate_request(request),
         EditorMessage::Replied { reply, .. } => validate_reply(reply),
         EditorMessage::PickRequested { filter, .. } => block_filter(filter),
-        EditorMessage::CommitChild {
-            name: Some(name), ..
-        } => string(name),
         EditorMessage::PickAnswered { answer, .. } => match answer {
             BlockPick::Failed(error) => string(error),
             BlockPick::Chosen { .. } | BlockPick::Cancelled => Ok(()),
         },
-        EditorMessage::CreationBlock { outcome, .. } => match outcome {
-            CreationOutcome::Created(_) => Ok(()),
-            CreationOutcome::Failed(message) => string(message),
-        },
-        EditorMessage::ArtifactDescribed { description, .. } => match description {
-            ArtifactDescription::Described { summary, .. } => string(summary),
-            ArtifactDescription::Unreadable(message) => string(message),
-        },
-        EditorMessage::ArtifactRegenerated { outcome, .. } => match outcome {
-            RegenerationOutcome::Done => Ok(()),
-            RegenerationOutcome::Failed(message) => string(message),
-        },
         EditorMessage::OpenCreation { template, .. } => string(template),
-        EditorMessage::OpenArtifact { data, .. }
-        | EditorMessage::ArtifactSettings { data, .. }
-        | EditorMessage::ArtifactEdited { data, .. }
-        | EditorMessage::RegenerateArtifact { data, .. } => descriptor(data),
+        EditorMessage::OpenArtifact { data, .. } => descriptor(data),
         EditorMessage::AudioStatus { status, .. } => match &status.error {
             Some(message) => string(message),
             None => Ok(()),

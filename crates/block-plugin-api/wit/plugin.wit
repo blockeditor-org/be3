@@ -2,7 +2,7 @@ package be3:plugin@0.1.0;
 
 /// What an editor plugin offers its host.
 interface plugin {
-    use types.{editor-region, frame-commit, opening, screen-request, size};
+    use types.{editor-region, frame-commit, opening, screen-request, size, uuid};
     use shell-types.{bar-action, child-id, drag-over, file-drop, focus};
     use be3:ui/types@0.1.0.{rect};
 
@@ -48,6 +48,18 @@ interface plugin {
 
         /// The files dragged over the editor left it.
         file-drop-left: func();
+
+        /// The artifact settings the editor shows, saved.
+        artifact-settings: func(data: list<u8>);
+
+        /// Creates the block of the creation dialog the editor shows.
+        commit-creation: async func() -> result<uuid, string>;
+
+        /// Generates the artifact the settings describe again.
+        regenerate-artifact: async func(data: list<u8>) -> result<_, string>;
+
+        /// Puts a block in place of a child block; false when the editor cannot.
+        replace-child: async func(old: uuid, new: uuid) -> bool;
     }
 
     /// The screens the host shows, replacing the ones it showed before.

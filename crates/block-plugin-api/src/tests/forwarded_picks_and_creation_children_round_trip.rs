@@ -32,12 +32,6 @@ fn forwarded_picks_and_creation_children_round_trip() {
                 placed: true,
             },
         }),
-        Message::Editor(EditorMessage::CommitChild {
-            instance: EditorInstanceId(1),
-            child: ChildId(6),
-            parent: BlockLocation::Root,
-            name: Some("Minutes".into()),
-        }),
         committed(ChildPlacements {
             instance: EditorInstanceId(1),
             region: EditorRegion::Frame,

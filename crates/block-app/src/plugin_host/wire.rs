@@ -1,6 +1,6 @@
 use std::collections::{BTreeMap, HashMap};
 
-use super::calls::{EditorCall, Heard};
+use super::calls::{EditorAnswer, EditorCall, Heard};
 
 use block_plugin_api::{
     DecodeError, EditorInstanceId, EditorMessage, ErrorCode, Fonts, InputBatch, Message, Opening,
@@ -11,7 +11,7 @@ use block_plugin_api::{
         shell::Call as ShellCall,
     },
     encode_frame,
-    ops::{Connection, Incoming, OpId, Outcome, Reply, Side},
+    ops::{Connection, Incoming, OpError, OpId, Outcome, Reply, Side, Ticket},
 };
 
 pub(super) struct Wire {
@@ -19,10 +19,39 @@ pub(super) struct Wire {
     connecting: Option<Reply<block_plugin_api::HelloAccepted>>,
     editors: HashMap<EditorInstanceId, Editor>,
     draws: BTreeMap<OpId, Awaited>,
+    answering: BTreeMap<OpId, (EditorInstanceId, Answering)>,
     preferences: Watch<Preferences>,
     utc_offset: Watch<i32>,
     fonts: Watch<Fonts>,
     input: Watch<Vec<InputBatch>>,
+}
+
+enum Answering {
+    Created(Ticket<Result<[u8; 16], String>>),
+    Regenerated(Ticket<Result<(), String>>),
+    Replaced(u64, Ticket<bool>),
+}
+
+impl Answering {
+    fn answer(self, outcome: Outcome) -> EditorAnswer {
+        let failed = |error: OpError| format!("the editor did not answer: {error:?}");
+        match self {
+            Self::Created(ticket) => EditorAnswer::Created(
+                ticket
+                    .decode(outcome)
+                    .unwrap_or_else(|error| Err(failed(error))),
+            ),
+            Self::Regenerated(ticket) => EditorAnswer::Regenerated(
+                ticket
+                    .decode(outcome)
+                    .unwrap_or_else(|error| Err(failed(error))),
+            ),
+            Self::Replaced(request_id, ticket) => EditorAnswer::Replaced {
+                request_id,
+                replaced: ticket.decode(outcome).unwrap_or(false),
+            },
+        }
+    }
 }
 
 enum Awaited {
@@ -81,6 +110,7 @@ impl Default for Wire {
             connecting: None,
             editors: HashMap::new(),
             draws: BTreeMap::new(),
+            answering: BTreeMap::new(),
             preferences: Watch::default(),
             utc_offset: Watch::default(),
             fonts: Watch::default(),
@@ -175,6 +205,28 @@ impl Wire {
             EditorCall::DragLeft => editor.drag_left(connection),
             EditorCall::FileDrop(drop) => editor.file_drop(connection, drop),
             EditorCall::FileDropLeft => editor.file_drop_left(connection),
+            EditorCall::ArtifactSettings(data) => editor.artifact_settings(connection, data),
+            EditorCall::CommitCreation => {
+                let ticket = editor.commit_creation(connection);
+                self.answering
+                    .insert(ticket.op(), (instance, Answering::Created(ticket)));
+            }
+            EditorCall::RegenerateArtifact(data) => {
+                let ticket = editor.regenerate_artifact(connection, data);
+                self.answering
+                    .insert(ticket.op(), (instance, Answering::Regenerated(ticket)));
+            }
+            EditorCall::ReplaceChild {
+                request_id,
+                old,
+                new,
+            } => {
+                let ticket = editor.replace_child(connection, old, new);
+                self.answering.insert(
+                    ticket.op(),
+                    (instance, Answering::Replaced(request_id, ticket)),
+                );
+            }
         }
     }
 
@@ -215,6 +267,10 @@ impl Wire {
                 }
             }
             Incoming::Completed { op, outcome } => {
+                if let Some((instance, answering)) = self.answering.remove(&op) {
+                    heard.push(Heard::Answer(instance, answering.answer(outcome)));
+                    return Ok(());
+                }
                 match (self.draws.remove(&op), outcome) {
                     (Some(Awaited::Draw), Outcome::Ok(bytes)) => {
                         let commit = block_plugin_api::ops::decode(&bytes)

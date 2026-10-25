@@ -291,6 +291,49 @@ impl GuestEditor for OpenEditor {
             .call(self.instance, move |session| session.set_files(None));
     }
 
+    fn artifact_settings(&self, data: Vec<u8>) {
+        self.wire.call(self.instance, move |session| {
+            session.artifact_settings(data)
+        });
+    }
+
+    fn commit_creation(&self) -> impl Future<Output = Result<[u8; 16], String>> + 'static {
+        let (sender, created) = oneshot();
+        self.wire.call(self.instance, move |session| {
+            sender.send(session.commit_creation())
+        });
+        async move {
+            created
+                .await
+                .unwrap_or_else(|| Err("the editor closed".to_owned()))
+        }
+    }
+
+    fn regenerate_artifact(
+        &self,
+        data: Vec<u8>,
+    ) -> impl Future<Output = Result<(), String>> + 'static {
+        let (sender, regenerated) = oneshot();
+        self.wire.call(self.instance, move |session| {
+            session.regenerate_artifact(&data, sender)
+        });
+        async move {
+            regenerated
+                .await
+                .unwrap_or_else(|| Err("the editor stopped regenerating the artifact".to_owned()))
+        }
+    }
+
+    fn replace_child(&self, old: [u8; 16], new: [u8; 16]) -> impl Future<Output = bool> + 'static {
+        let (sender, replaced) = oneshot();
+        self.wire.call(self.instance, move |session| {
+            sender.send(
+                session.replace_child(uuid::Uuid::from_bytes(old), uuid::Uuid::from_bytes(new)),
+            )
+        });
+        async move { replaced.await.unwrap_or(false) }
+    }
+
     fn on_drop(&self) -> impl Future<Output = ()> + 'static {
         self.wire.push(Message::Editor(EditorMessage::Close {
             instance: self.instance,

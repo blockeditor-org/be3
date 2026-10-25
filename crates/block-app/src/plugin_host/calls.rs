@@ -1,6 +1,6 @@
 use block_plugin_api::{
-    BarAction, BlockIdRole, ChildId, EditorInstanceId, EditorMessage, EditorRegion, Message, Rect,
-    Size,
+    ArtifactDescription, BarAction, BlockIdRole, BlockLocation, ChildId, EditorInstanceId,
+    EditorMessage, EditorRegion, Message, Rect, Size,
     embed::shell::Call as ShellCall,
     shell_types::{DragOver, FileDrop, Focus},
 };
@@ -36,6 +36,21 @@ pub(super) enum EditorCall {
     DragLeft,
     FileDrop(FileDrop),
     FileDropLeft,
+    ArtifactSettings(Vec<u8>),
+    CommitCreation,
+    RegenerateArtifact(Vec<u8>),
+    ReplaceChild {
+        request_id: u64,
+        old: [u8; 16],
+        new: [u8; 16],
+    },
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub(super) enum EditorAnswer {
+    Created(Result<[u8; 16], String>),
+    Regenerated(Result<(), String>),
+    Replaced { request_id: u64, replaced: bool },
 }
 
 impl From<Message> for Outbound {
@@ -82,6 +97,7 @@ impl Outbound {
 pub(super) enum Heard {
     Message(Message),
     Shell(ShellCall),
+    Answer(EditorInstanceId, EditorAnswer),
 }
 
 impl From<Message> for Heard {
@@ -107,7 +123,11 @@ pub(super) fn instance_of(call: &ShellCall) -> EditorInstanceId {
         | ShellCall::RegionStopped { instance, .. }
         | ShellCall::Present { instance, .. }
         | ShellCall::ChangeView { instance, .. }
-        | ShellCall::Focused { instance, .. } => *instance,
+        | ShellCall::Focused { instance, .. }
+        | ShellCall::CreationReady { instance, .. }
+        | ShellCall::CommitChild { instance, .. }
+        | ShellCall::ArtifactDescribed { instance, .. }
+        | ShellCall::ArtifactEdited { instance, .. } => *instance,
     }
 }
 
@@ -142,6 +162,10 @@ impl BlockIds for Outbound {
             Self::Editor(instance, EditorCall::DragOver(drag)) => {
                 visit(*instance, BlockIdRole::Existing, &mut drag.block_id);
             }
+            Self::Editor(instance, EditorCall::ReplaceChild { old, new, .. }) => {
+                visit(*instance, BlockIdRole::Existing, old);
+                visit(*instance, BlockIdRole::Existing, new);
+            }
             Self::Editor(..) => {}
         }
     }
@@ -153,7 +177,23 @@ impl BlockIds for ShellCall {
         match self {
             Self::DragBlock { block_id, .. } => visit(instance, BlockIdRole::Existing, block_id),
             Self::Focused { focus, .. } => focus_ids(instance, focus, visit),
+            Self::CommitChild {
+                parent: BlockLocation::Block(block_id),
+                ..
+            } => visit(instance, BlockIdRole::Existing, block_id),
+            Self::ArtifactDescribed {
+                description: ArtifactDescription::Described { source, .. },
+                ..
+            } => visit(instance, BlockIdRole::Existing, source),
             _ => {}
+        }
+    }
+}
+
+impl BlockIds for (EditorInstanceId, EditorAnswer) {
+    fn visit_block_ids(&mut self, visit: &mut Visit<'_>) {
+        if let (instance, EditorAnswer::Created(Ok(block_id))) = self {
+            visit(*instance, BlockIdRole::Existing, block_id);
         }
     }
 }

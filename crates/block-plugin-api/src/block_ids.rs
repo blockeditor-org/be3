@@ -1,7 +1,6 @@
 use crate::{
-    ArtifactDescription, BlockCommand, BlockImport, BlockLocation, BlockPick, BlockQuery,
-    ChildContent, ChildPlacements, CreationOutcome, EditorInstanceId, EditorMessage, HostReply,
-    HostRequest, Message, ShellDialog, VersionCommand,
+    BlockCommand, BlockImport, BlockLocation, BlockPick, BlockQuery, ChildContent, ChildPlacements,
+    EditorInstanceId, EditorMessage, HostReply, HostRequest, Message, ShellDialog, VersionCommand,
 };
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -158,7 +157,6 @@ impl EditorMessage {
                     existing(within);
                 }
             }
-            Self::CommitChild { parent, .. } => location(parent, &mut existing),
             Self::PickAnswered { answer, .. } => match answer {
                 BlockPick::Chosen { block_id, .. } => existing(block_id),
                 BlockPick::Cancelled | BlockPick::Failed(_) => {}
@@ -206,14 +204,6 @@ impl EditorMessage {
                 | HostReply::ContactLinkMade(_)
                 | HostReply::BlocksImported(BlockImport::Cancelled | BlockImport::Failed(_)) => {}
             },
-            Self::CreationBlock { outcome, .. } => match outcome {
-                CreationOutcome::Created(block_id) => existing(block_id),
-                CreationOutcome::Failed(_) => {}
-            },
-            Self::ArtifactDescribed { description, .. } => match description {
-                ArtifactDescription::Described { source, .. } => existing(source),
-                ArtifactDescription::Unreadable(_) => {}
-            },
             Self::WatchArtifacts { blocks, .. }
             | Self::WatchHistory { blocks, .. }
             | Self::WatchHeads { blocks, .. } => {
@@ -229,10 +219,6 @@ impl EditorMessage {
                 for state in states {
                     existing(&mut state.block_id);
                 }
-            }
-            Self::ReplaceChild { old, new, .. } => {
-                existing(old);
-                existing(new);
             }
             Self::WatchBlocks { queries, .. } => {
                 for query in queries {
@@ -292,14 +278,7 @@ impl EditorMessage {
             | Self::HostValue { .. }
             | Self::HostAction { .. }
             | Self::WebViewEvent { .. }
-            | Self::OpenCreation { .. }
-            | Self::CreationReady { .. }
-            | Self::CommitCreation { .. }
-            | Self::ArtifactSettings { .. }
-            | Self::ArtifactEdited { .. }
-            | Self::RegenerateArtifact { .. }
-            | Self::ArtifactRegenerated { .. }
-            | Self::ChildReplaced { .. } => {}
+            | Self::OpenCreation { .. } => {}
         }
     }
 }

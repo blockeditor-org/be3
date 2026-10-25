@@ -23,7 +23,7 @@ use super::{
     ArtifactSlot, ArtifactState, BlockPickRequest, CreationSlot, CreationState, HostChild,
     HostChildStatus, InstanceRole, RuntimeStatus, SurfaceStatus,
     backend::{Availability, Backend, Deadline, Frame, ShownFrame},
-    calls::{EditorCall, Heard, Outbound},
+    calls::{EditorAnswer, EditorCall, Heard, Outbound},
     input::{BlockDrag, BlockDragEvent},
     instances::{EditorView, Focus, Instances, Placement},
     presenter::{self, Blit, Piece, PresenterState, PresenterStatus, Quad, RegionDrawing, Shared},
@@ -165,6 +165,7 @@ pub(super) struct Runtime {
 enum Answer {
     Message(Message),
     Shell(block_plugin_api::embed::shell::Call),
+    Editor(EditorInstanceId, EditorAnswer),
     Frame(FrameCommit),
     Laid(Laid),
 }
@@ -174,6 +175,7 @@ impl From<Heard> for Answer {
         match heard {
             Heard::Message(message) => Self::Message(message),
             Heard::Shell(call) => Self::Shell(call),
+            Heard::Answer(instance, answer) => Self::Editor(instance, answer),
         }
     }
 }
@@ -655,9 +657,9 @@ impl Runtime {
                 for heard in forwarded {
                     let message = match heard {
                         Heard::Message(message) => message,
-                        Heard::Shell(call) => {
+                        heard @ (Heard::Shell(_) | Heard::Answer(..)) => {
                             held = true;
-                            self.held.push(Answer::Shell(call));
+                            self.held.push(Answer::from(heard));
                             continue;
                         }
                     };
@@ -829,7 +831,9 @@ impl Runtime {
             .iter()
             .filter_map(|held| match held {
                 Answer::Laid(laid) => Some(laid.screens(&self.instances)),
-                Answer::Message(_) | Answer::Shell(_) | Answer::Frame(_) => None,
+                Answer::Message(_) | Answer::Shell(_) | Answer::Editor(..) | Answer::Frame(_) => {
+                    None
+                }
             })
             .flatten()
             .collect()
@@ -859,6 +863,12 @@ impl Runtime {
                 Answer::Shell(mut call) => {
                     self.instances.translate(&mut call, true);
                     changed |= self.instances.shell_call(call);
+                    continue;
+                }
+                Answer::Editor(instance, answer) => {
+                    let mut answered = (instance, answer);
+                    self.instances.translate(&mut answered, true);
+                    changed |= self.instances.answered(answered.0, answered.1);
                     continue;
                 }
                 Answer::Frame(commit) => {
