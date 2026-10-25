@@ -905,7 +905,7 @@ pub(crate) fn pen_entity(
         seed: entity.style.seed,
         ..style
     };
-    entity.set_world_points(points.into_iter().map(CanvasPathPoint::new).collect());
+    entity.set_drawn_points(points.into_iter().map(CanvasPathPoint::new).collect());
     entity.pressures = pressures;
     entity
 }
