@@ -25,7 +25,12 @@ fn the_cursor_shows_the_icon_the_window_under_it_asks_for_and_hides_the_platform
         "off every panel it is an arrow"
     );
     assert_eq!(
-        space.frame(&output, &view(now)).window.window.requests.cursor,
+        space
+            .frame(&output, &view(now))
+            .window
+            .window
+            .requests
+            .cursor,
         CursorIcon::None
     );
 }

@@ -21,10 +21,7 @@ fn a_miss_keeps_the_cursor_as_far_away_as_it_last_hit() {
     );
     let ray = space.head.ray(PLATFORM, corner.to_vec2());
     assert!(
-        (at - space.head.position)
-            .normalize()
-            .dot(ray.direction)
-            > 0.9999,
+        (at - space.head.position).normalize().dot(ray.direction) > 0.9999,
         "the cursor stays on the pointer's ray"
     );
 

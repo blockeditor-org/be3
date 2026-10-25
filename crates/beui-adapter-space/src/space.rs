@@ -217,7 +217,12 @@ impl Space {
     }
 
     pub fn cursor_icon(&self, output: &FrameOutput) -> CursorIcon {
-        self.hovered
+        let driven = match self.cursor {
+            Some(Cursor::Window(window, _)) => Some(window),
+            _ => None,
+        };
+        driven
+            .or(self.hovered)
             .or(self.captured)
             .or(self.gripped())
             .and_then(|window| output.window(window))
