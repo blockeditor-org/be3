@@ -1,4 +1,4 @@
-use block_gpu_host::calls::Guest;
+use block_gpu_host::{block_gpu_abi::embed::device::Caller as _, transport::Transported};
 use block_guest_abi::direct;
 use wasmtime::{Caller, Instance, Linker, Store};
 
@@ -49,9 +49,10 @@ pub(crate) fn call(
     };
     let length = call.args.len() as u32;
     let pointer = alloc.call(&mut *store, length).map_err(failed)?;
-    if store.data_mut().write(pointer, length, call.args) != length {
-        return Err("the plugin's argument buffer is outside its memory".to_owned());
-    }
+    store
+        .data_mut()
+        .write(pointer, call.args)
+        .map_err(|error| format!("the plugin's argument buffer is outside its memory: {error}"))?;
     let packed = export
         .call(
             &mut *store,
