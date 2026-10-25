@@ -19,7 +19,7 @@ use crate::editor_session::EditorSession;
 pub(crate) type EditorCall = Box<dyn FnOnce(&mut EditorSession)>;
 
 pub(crate) enum Delivery {
-    Message(Message),
+    Message(Box<Message>),
     Editor(EditorInstanceId, EditorCall),
     Screens(Box<dyn FnOnce(&mut crate::screens::Screens)>),
     Paintings(Sender<Vec<u8>>),
@@ -45,7 +45,10 @@ impl Shared {
     }
 
     fn push(&self, message: Message) {
-        self.0.borrow_mut().inbox.push(Delivery::Message(message));
+        self.0
+            .borrow_mut()
+            .inbox
+            .push(Delivery::Message(Box::new(message)));
     }
 
     fn call(&self, instance: EditorInstanceId, call: impl FnOnce(&mut EditorSession) + 'static) {

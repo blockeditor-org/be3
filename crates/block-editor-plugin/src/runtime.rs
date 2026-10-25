@@ -49,7 +49,7 @@ impl Runtime {
         let mut outbound = Vec::new();
         for delivery in batch {
             let message = match delivery {
-                Delivery::Message(message) => message,
+                Delivery::Message(message) => *message,
                 Delivery::Editor(instance, call) => {
                     changed |= self.screens.call(instance, call);
                     continue;

@@ -40,7 +40,7 @@ impl HeadlessPlugin {
         let mut replies = Vec::new();
         for delivery in self.wire.take_inbox() {
             match delivery {
-                Delivery::Message(message) => replies.extend(self.receive(message)),
+                Delivery::Message(message) => replies.extend(self.receive(*message)),
                 Delivery::Editor(instance, call) => {
                     let screens = &mut self.screens;
                     self.executor.enter(|| screens.call(instance, call));

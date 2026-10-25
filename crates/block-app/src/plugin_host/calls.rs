@@ -129,7 +129,7 @@ impl Outbound {
 
 #[derive(Debug)]
 pub(super) enum Heard {
-    Message(Message),
+    Message(Box<Message>),
     Shell(ShellCall),
     Answer(EditorInstanceId, EditorAnswer),
     Paintings(Vec<u8>),
@@ -139,7 +139,7 @@ pub(super) enum Heard {
 
 impl From<Message> for Heard {
     fn from(message: Message) -> Self {
-        Self::Message(message)
+        Self::Message(Box::new(message))
     }
 }
 

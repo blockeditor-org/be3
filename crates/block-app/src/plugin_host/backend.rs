@@ -91,7 +91,7 @@ impl Backend {
             match self.wire.send(message) {
                 Ok(answered) => self
                     .answered
-                    .extend(answered.into_iter().map(Heard::Message)),
+                    .extend(answered.into_iter().map(Heard::from)),
                 Err(error) => {
                     self.error.get_or_insert(error.to_string());
                 }

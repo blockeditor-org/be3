@@ -2,7 +2,7 @@ use super::*;
 
 #[test]
 fn creation_children_round_trip() {
-    for message in [committed(ChildPlacements {
+    let message = committed(ChildPlacements {
         instance: EditorInstanceId(1),
         region: EditorRegion::Frame,
         children: vec![ChildPlacement {
@@ -24,10 +24,9 @@ fn creation_children_round_trip() {
             follows_view: false,
         }],
         occluders: Vec::new(),
-    })] {
-        assert_eq!(
-            decode_frame(&encode_frame(&message).unwrap()).unwrap(),
-            message
-        );
-    }
+    });
+    assert_eq!(
+        decode_frame(&encode_frame(&message).unwrap()).unwrap(),
+        message
+    );
 }

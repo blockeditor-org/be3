@@ -176,7 +176,7 @@ enum Answer {
 impl From<Heard> for Answer {
     fn from(heard: Heard) -> Self {
         match heard {
-            Heard::Message(message) => Self::Message(message),
+            Heard::Message(message) => Self::Message(*message),
             Heard::Shell(call) => Self::Shell(call),
             Heard::Answer(instance, answer) => Self::Editor(instance, answer),
             Heard::Paintings(payload) => Self::Paintings(payload),
@@ -641,7 +641,7 @@ impl Runtime {
         for heard in received {
             match heard {
                 Heard::Message(message) if message.is_session() => {
-                    self.session.receive(message, now)
+                    self.session.receive(*message, now)
                 }
                 heard => forwarded.push(heard),
             }
@@ -678,7 +678,7 @@ impl Runtime {
                 let mut held = false;
                 for heard in forwarded {
                     let message = match heard {
-                        Heard::Message(message) => message,
+                        Heard::Message(message) => *message,
                         Heard::Paintings(payload) => {
                             drawing.push(Answer::Paintings(payload));
                             continue;
@@ -824,10 +824,7 @@ impl Runtime {
     }
 
     fn draws_the_frame(&self, message: &Message) -> bool {
-        match message {
-            Message::Layout(_) | Message::FrameNeeded => true,
-            _ => false,
-        }
+        matches!(message, Message::Layout(_) | Message::FrameNeeded)
     }
 
     fn split(&self, commit: FrameCommit) -> (FrameCommit, Option<Laid>) {

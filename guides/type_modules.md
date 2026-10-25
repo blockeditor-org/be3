@@ -87,7 +87,8 @@ operations ("ops") of the be-ops kernel, which can be awaited and canceled.
   the world's sync imports as `(module, name)`, which a runtime links and nothing else;
   `embed::<import>::Call`, one case per import, accepted from an op
   (`Call::accept`, with a `Reply<T>` or `Producer<T>` to answer it) or a sync call
-  (`Call::accept_direct`); and `embed::exports::<export>`
+  (`Call::accept_direct`); `accept` answers a method it does not know `Unsupported`, so a host
+  with several imported interfaces asks `Call::accepts(&started)` of each first; and `embed::exports::<export>`
   functions and resource handles that return `Ticket<T>`s to decode the completion
   with. A resource's constructor is a long-lived op whose id is the handle; its async
   methods are ops with it as parent, its sync ones direct calls naming it, and

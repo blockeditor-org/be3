@@ -27,8 +27,14 @@ use block_plugin_api::{
 use std::marker::PhantomData;
 
 enum Inbound {
-    Message(Message),
+    Message(Box<Message>),
     Frames(Vec<Vec<u8>>),
+}
+
+impl From<Message> for Inbound {
+    fn from(message: Message) -> Self {
+        Self::Message(Box::new(message))
+    }
 }
 
 pub type HostCall = Call;
@@ -297,8 +303,8 @@ impl<A: BeuiApp> BeuiTest<A> {
             app: PhantomData,
         };
         let hello = test.plugin.hello();
-        test.deliver(Inbound::Message(roundtrip(hello, "the plugin's hello")));
-        test.deliver(Inbound::Message(Message::HelloAccepted(HelloAccepted {
+        test.deliver(Inbound::from(roundtrip(hello, "the plugin's hello")));
+        test.deliver(Inbound::from(Message::HelloAccepted(HelloAccepted {
             host_name: "block-ui-test".to_owned(),
             surface: Some(SurfaceSpec {
                 format: SurfaceFormat::Rgba8UnormSrgb,
@@ -317,7 +323,7 @@ impl<A: BeuiApp> BeuiTest<A> {
 
     fn deliver(&mut self, inbound: Inbound) {
         let message = match inbound {
-            Inbound::Message(message) => message,
+            Inbound::Message(message) => *message,
             Inbound::Frames(frames) => {
                 let replies = self
                     .plugin
@@ -357,7 +363,7 @@ impl<A: BeuiApp> BeuiTest<A> {
             monitors: self.monitors.clone(),
         };
         self.inbox
-            .push(Inbound::Message(Message::Screens(ScreenSet {
+            .push(Inbound::from(Message::Screens(ScreenSet {
                 request_id: self.screens,
                 screens: vec![ScreenRequest {
                     screen: SCREEN,
@@ -708,12 +714,12 @@ impl<A: BeuiApp> BeuiTest<A> {
 
     pub fn set_preferences(&mut self, preferences: block_plugin_api::Preferences) {
         self.inbox
-            .push(Inbound::Message(Message::Preferences(preferences)));
+            .push(Inbound::from(Message::Preferences(preferences)));
     }
 
     pub fn set_host_value<T: block_plugin_api::HostValue>(&mut self, value: &T::Value) {
         let value = block_plugin_api::encode_host(value);
-        for (_, (key, watch)) in self.host_value_watches.iter_mut() {
+        for (key, watch) in self.host_value_watches.values_mut() {
             if key == T::KEY {
                 watch.change(&mut self.connection, |_| value.clone());
             }
@@ -887,13 +893,13 @@ impl<A: BeuiApp> BeuiTest<A> {
                     }
                 })
                 .collect();
-            inbox.push(Inbound::Message(Message::Input(InputBatch {
+            inbox.push(Inbound::from(Message::Input(InputBatch {
                 screen: SCREEN,
                 every_sample: false,
                 events,
             })));
         }
-        inbox.push(Inbound::Message(Message::DrawFrame {
+        inbox.push(Inbound::from(Message::DrawFrame {
             now_micros: self.clock.as_micros() as u64,
             seen: true,
         }));

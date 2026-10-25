@@ -46,8 +46,8 @@ pub(super) struct Wire {
     picks: HashMap<(EditorInstanceId, u64), OpId>,
     painting: HashMap<OpId, Ticket<Vec<u8>>>,
     audio: HashMap<EditorInstanceId, Watch<AudioStatus>>,
-    host_values: HashMap<OpId, ((EditorInstanceId, String), Watch<Vec<u8>>)>,
-    web_views: HashMap<OpId, (EditorInstanceId, WebViewId, Watch<Vec<WebViewEvent>>)>,
+    host_values: HashMap<OpId, WatchedHostValue>,
+    web_views: HashMap<OpId, ShownWebView>,
     preferences: Watch<Preferences>,
     utc_offset: Watch<i32>,
     fonts: Watch<Fonts>,
@@ -58,6 +58,10 @@ pub(super) struct Wire {
     block_types: Watch<Catalog>,
     held: Held,
 }
+
+type WatchedHostValue = ((EditorInstanceId, String), Watch<Vec<u8>>);
+
+type ShownWebView = (EditorInstanceId, WebViewId, Watch<Vec<WebViewEvent>>);
 
 enum Answering {
     Created(Ticket<Result<[u8; 16], String>>),
@@ -637,13 +641,13 @@ impl Wire {
                     (Some(Awaited::Draw), Outcome::Ok(bytes)) => {
                         let commit = block_plugin_api::ops::decode(&bytes)
                             .ok_or("the plugin answered a draw with a frame that did not decode")?;
-                        heard.push(Heard::Message(Message::Frame(commit)));
+                        heard.push(Heard::from(Message::Frame(commit)));
                     }
                     (Some(Awaited::Shutdown), Outcome::Ok(_)) => {
-                        heard.push(Heard::Message(Message::ShutdownAcknowledged))
+                        heard.push(Heard::from(Message::ShutdownAcknowledged))
                     }
                     (Some(_), Outcome::Err(error)) => {
-                        heard.push(Heard::Message(Message::Error(ProtocolError {
+                        heard.push(Heard::from(Message::Error(ProtocolError {
                             request_id: None,
                             code: ErrorCode::Internal,
                             message: format!("the plugin did not answer: {error:?}"),
@@ -688,12 +692,12 @@ impl Wire {
         match call {
             Call::Connect { reply, hello } => {
                 self.connecting = Some(reply);
-                heard.push(Heard::Message(Message::Hello(hello)));
+                heard.push(Heard::from(Message::Hello(hello)));
             }
-            Call::Layout { layout } => heard.push(Heard::Message(Message::Layout(layout))),
-            Call::FrameNeeded {} => heard.push(Heard::Message(Message::FrameNeeded)),
+            Call::Layout { layout } => heard.push(Heard::from(Message::Layout(layout))),
+            Call::FrameNeeded {} => heard.push(Heard::from(Message::FrameNeeded)),
             Call::MissingCharacters { characters } => {
-                heard.push(Heard::Message(Message::MissingCharacters(characters)));
+                heard.push(Heard::from(Message::MissingCharacters(characters)));
             }
             Call::PreferencesWatchNew { resource } => self.preferences.opened(resource.op()),
             Call::PreferencesWatchNext { reply, .. } => self.preferences.next(connection, reply),
@@ -704,7 +708,7 @@ impl Wire {
             Call::InputNew { resource } => self.input.opened(resource.op()),
             Call::InputNext { reply, .. } => self.input.next(connection, reply),
             Call::Legacy { message } => {
-                heard.push(Heard::Message(decode_frame(&message).map_err(|error| {
+                heard.push(Heard::from(decode_frame(&message).map_err(|error| {
                     format!("the plugin sent a message that did not decode: {error:?}")
                 })?))
             }

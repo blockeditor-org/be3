@@ -349,7 +349,7 @@ hooks the higher crates fill in:
   The clipboard is the platform's: `Context::copy_text` writes it, and
   `Context::copy_image` (`reactive::copy_image`) writes a PNG in its place
   (`Platform::copy_image`: winit through arboard, the web as a `ClipboardItem`,
-  a plugin through its host's `EditorMessage::CopyImage`, the headless
+  a plugin through the shell interface's `copy-image`, the headless
   `Simulation`, which pastes it back as `Pasted::Image`; Android and DRM drop
   it). `Context::watch_copies` hears every text copy (which is how be-wayland hands the
   app's copies to Wayland programs), and a paste is the only way to read it.
