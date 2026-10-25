@@ -9,15 +9,15 @@ use crate::tags::TagsApp;
 #[test]
 fn a_workspaces_tags_are_added_named_and_list_the_blocks_they_are_on() {
     let (workspace, tags, urgent, notes) = (
-        Uuid::new_v4(),
-        Uuid::new_v4(),
-        Uuid::new_v4(),
-        Uuid::new_v4(),
+        Uuid::from_u128(0x10),
+        Uuid::from_u128(0x11),
+        Uuid::from_u128(0x12),
+        Uuid::from_u128(0x13),
     );
     let host = EditorHost::default();
     host.set_block_type(TagsContent::CONTENT_TYPE);
     host.set_editable(true);
-    host.set_client_id(Uuid::new_v4());
+    host.set_client_id(Uuid::from_u128(0x14));
     let mut editor = BeuiTest::<TagsApp>::new(OwnedEditor::new(host, tags));
     let store = editor.store();
     let mut team = BlockInfo::new(workspace, WORKSPACE_TYPE, BlockParent::Root);

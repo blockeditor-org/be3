@@ -14,8 +14,12 @@ fn named(id: Uuid, name: &str, parent: Uuid) -> BlockInfo {
 
 #[test]
 fn a_workspaces_home_and_prefixes_list_what_they_hold() {
-    let (workspace, kind) = (Uuid::new_v4(), Uuid::new_v4());
-    let (issues, bugs, milestones) = (Uuid::new_v4(), Uuid::new_v4(), Uuid::new_v4());
+    let (workspace, kind) = (Uuid::from_u128(0x10), Uuid::from_u128(0x11));
+    let (issues, bugs, milestones) = (
+        Uuid::from_u128(0x20),
+        Uuid::from_u128(0x21),
+        Uuid::from_u128(0x22),
+    );
     let host = EditorHost::default();
     host.set_block_type(PrefixRegistryContent::CONTENT_TYPE);
     host.set_editable(true);
@@ -37,7 +41,11 @@ fn a_workspaces_home_and_prefixes_list_what_they_hold() {
     prefixes.run();
     prefixes.snapshot("a_workspaces_prefixes_say_which_one_two_databases_share");
 
-    let (home, plan, guide) = (Uuid::new_v4(), Uuid::new_v4(), Uuid::new_v4());
+    let (home, plan, guide) = (
+        Uuid::from_u128(0x30),
+        Uuid::from_u128(0x31),
+        Uuid::from_u128(0x32),
+    );
     let host = EditorHost::default();
     host.set_block_type(HomeContent::CONTENT_TYPE);
     host.set_editable(true);
