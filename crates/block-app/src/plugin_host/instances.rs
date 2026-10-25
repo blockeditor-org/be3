@@ -2750,9 +2750,11 @@ impl Instances {
                             &file.data, parent,
                         ))));
                     }
-                    Ok(Some(file)) => crate::be::import_file(file.name, file.data, parent, move |file| {
-                        reply(HostReply::BlocksImported(imported(file)));
-                    }),
+                    Ok(Some(file)) => {
+                        crate::be::import_file(file.name, file.data, parent, move |file| {
+                            reply(HostReply::BlocksImported(imported(file)));
+                        })
+                    }
                     Ok(None) => reply(HostReply::BlocksImported(BlockImport::Cancelled)),
                     Err(error) => reply(HostReply::BlocksImported(BlockImport::Failed(error))),
                 });
