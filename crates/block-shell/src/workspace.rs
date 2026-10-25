@@ -415,6 +415,14 @@ impl Workspace {
         if !requested.is_empty() {
             self.picks.update(|picks| picks.extend(requested));
         }
+        let withdrawn = self.host().take_withdrawn_picks();
+        if !withdrawn.is_empty() {
+            self.picks
+                .update(|picks| picks.retain(|held| !withdrawn.contains(&held.pick)));
+            if self.picks.with_untracked(Vec::is_empty) {
+                self.forget_trees();
+            }
+        }
         for (block, dialog) in self.host().take_dialog_requests() {
             match dialog {
                 ShellDialog::Rename { anchor, within } => {

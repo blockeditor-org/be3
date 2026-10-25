@@ -380,8 +380,13 @@ impl Instances {
             return;
         };
         work.aborted.abort();
-        if let Some(entry) = self.entries.get_mut(&work.instance) {
+        let waiting = self.entries.get_mut(&work.instance).is_some_and(|entry| {
+            let waiting = entry.block_picks.len();
             entry.block_picks.retain(|pick| pick.op != op);
+            entry.block_picks.len() < waiting
+        });
+        if !waiting {
+            self.withdrawn_picks.push((work.instance, op));
         }
     }
 

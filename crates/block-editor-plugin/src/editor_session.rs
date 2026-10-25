@@ -40,6 +40,7 @@ pub struct EditorSession {
     aspect_ratio: Option<f32>,
     artifact: Option<ArtifactState>,
     sent_menu: Vec<MenuEntry>,
+    picks: HashMap<u64, Sender<block_plugin_api::BlockPick>>,
 }
 
 struct ArtifactState {
@@ -117,6 +118,7 @@ impl EditorSession {
             aspect_ratio: None,
             artifact: None,
             sent_menu: Vec::new(),
+            picks: HashMap::new(),
         }
     }
 
@@ -185,13 +187,20 @@ impl EditorSession {
     }
 
     pub(crate) fn pick_requested(
-        &self,
-        pick: u64,
-        filter: block_plugin_api::BlockFilter,
-        parent: crate::graph::BlockParent,
-        within: Option<Uuid>,
-        touch: bool,
+        &mut self,
+        request: block_plugin_api::shell_types::PickRequest,
+        answer: Sender<block_plugin_api::BlockPick>,
     ) {
+        let block_plugin_api::shell_types::PickRequest {
+            pick,
+            filter,
+            parent,
+            within,
+            touch,
+        } = request;
+        let parent = crate::graph::BlockParent::decode(parent);
+        let within = within.map(Uuid::from_bytes);
+        self.picks.insert(pick, answer);
         let origin = self.rect(EditorRegion::Frame).min.to_vec2();
         let anchor = filter.anchor.map(|anchor| anchor.translate(origin));
         self.host.request_pick(crate::host::PickRequest {
@@ -202,6 +211,12 @@ impl EditorSession {
             anchor,
             touch,
         });
+    }
+
+    pub(crate) fn withdraw_pick(&mut self, pick: u64) {
+        if self.picks.remove(&pick).is_some() {
+            self.host.withdraw_pick(pick);
+        }
     }
 
     pub(crate) fn show_panel(&self, panel: HostPanel) {
@@ -546,11 +561,9 @@ impl EditorSession {
             shell::paste(instance);
         }
         for (pick, answer) in self.host.take_pick_answers() {
-            messages.push(Message::Editor(EditorMessage::PickAnswered {
-                instance,
-                pick,
-                answer,
-            }));
+            if let Some(asked) = self.picks.remove(&pick) {
+                asked.send(answer);
+            }
         }
         for (key, action) in self.host.take_host_actions() {
             messages.push(Message::Editor(EditorMessage::HostAction {

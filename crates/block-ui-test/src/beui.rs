@@ -69,6 +69,10 @@ pub struct BeuiTest<A: BeuiApp> {
     connection: Connection,
     editor: Option<Editor>,
     calls: Vec<ShellCall>,
+    asked_picks: Vec<(
+        u64,
+        block_plugin_api::ops::Ticket<block_plugin_api::BlockPick>,
+    )>,
     child_statuses: block_plugin_api::Watch<Vec<ChildStatus>>,
     block_types: block_plugin_api::Watch<Catalog>,
     completed:
@@ -247,6 +251,7 @@ impl<A: BeuiApp> BeuiTest<A> {
             connection: Connection::new(Side::Host),
             editor: None,
             calls: Vec::new(),
+            asked_picks: Vec::new(),
             child_statuses: block_plugin_api::Watch::default(),
             block_types: block_plugin_api::Watch::default(),
             completed: std::collections::HashMap::new(),
@@ -1121,16 +1126,16 @@ impl<A: BeuiApp> BeuiTest<A> {
         within: Option<Uuid>,
         touch: bool,
     ) {
-        self.inbox.push(Inbound::Message(Message::Editor(
-            EditorMessage::PickRequested {
-                instance: INSTANCE,
-                pick,
-                filter,
-                parent,
-                within: within.map(Uuid::into_bytes),
-                touch,
-            },
-        )));
+        let request = block_plugin_api::shell_types::PickRequest {
+            pick,
+            filter,
+            parent,
+            within: within.map(Uuid::into_bytes),
+            touch,
+        };
+        let mut asked = None;
+        self.call(|editor, connection| asked = Some(editor.pick(connection, request)));
+        self.asked_picks.extend(asked.map(|ticket| (pick, ticket)));
     }
 
     pub fn show_dialog(&mut self, block: Uuid, dialog: block_plugin_api::ShellDialog) {
@@ -1165,11 +1170,36 @@ impl<A: BeuiApp> BeuiTest<A> {
         })
     }
 
+    pub fn withdraw_pick(&mut self, pick: u64) {
+        let asked = self
+            .asked_picks
+            .iter()
+            .find(|(asked, _)| *asked == pick)
+            .map(|(_, ticket)| ticket.op())
+            .expect("the test asked for this pick");
+        self.connection.cancel(asked);
+        let frames = self.connection.take_outbound();
+        self.inbox.push(Inbound::Frames(frames));
+        self.run();
+    }
+
     pub fn take_pick_answers(&mut self) -> Vec<(u64, block_editor_beui::BlockPick)> {
-        self.take_where(|message| match message {
-            EditorMessage::PickAnswered { pick, answer, .. } => Some((*pick, answer.clone())),
-            _ => None,
-        })
+        let mut answers = Vec::new();
+        let completed = &mut self.completed;
+        self.asked_picks
+            .retain(|(pick, ticket)| match completed.remove(&ticket.op()) {
+                Some(outcome) => {
+                    answers.push((
+                        *pick,
+                        ticket
+                            .decode(outcome)
+                            .unwrap_or(block_editor_beui::BlockPick::Cancelled),
+                    ));
+                    false
+                }
+                None => true,
+            });
+        answers
     }
 
     pub fn take_child_commits(

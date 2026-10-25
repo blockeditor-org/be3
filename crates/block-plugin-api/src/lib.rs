@@ -45,7 +45,7 @@ be_ops_bindgen::generate!({
         "delete-command", "move-command", "place-command", "app-menu-command", "adopt-command",
         "finish-command", "branch-command", "create-branch-command", "resolve-command",
         "undo-operation-command", "performance-duration", "performance-count", "view-zoom",
-        "artifact-described", "rename-dialog", "creation-options",
+        "artifact-described", "rename-dialog", "creation-options", "chosen-block",
     ],
     own_debug: ["font-face"],
 });
@@ -60,10 +60,10 @@ pub use host_services::{
     AccessGrant, BlockFilter, ImportedBlock, PickedBlock, Revision, ShellDialog,
 };
 pub use shell_types::{
-    ArtifactDescription, BarAction, Catalog, ChildPreview, CreationProgress, DroppedFile,
-    EditorDescriptor, FitArea, MenuCheck, MenuCommand, MenuHeading, MenuItem, MenuItemKind,
-    MenuPin, PerformanceMeasurement, PreviewImage, SettingsProgress, Stopped, TemplateDescriptor,
-    ViewChange,
+    ArtifactDescription, BarAction, BlockPick, Catalog, ChildPreview, CreationProgress,
+    DroppedFile, EditorDescriptor, FitArea, MenuCheck, MenuCommand, MenuHeading, MenuItem,
+    MenuItemKind, MenuPin, PerformanceMeasurement, PreviewImage, SettingsProgress, Stopped,
+    TemplateDescriptor, ViewChange,
 };
 pub use types::{
     EditorRegion, FontFace, FontRole, Fonts, FrameChrome, FrameCommit, FrameReport, FrameSpec,
@@ -900,19 +900,6 @@ pub enum EditorMessage {
         organization_id: [u8; 16],
         client_id: [u8; 16],
     },
-    PickRequested {
-        instance: EditorInstanceId,
-        pick: u64,
-        filter: BlockFilter,
-        parent: BlockLocation,
-        within: Option<[u8; 16]>,
-        touch: bool,
-    },
-    PickAnswered {
-        instance: EditorInstanceId,
-        pick: u64,
-        answer: BlockPick,
-    },
     OpenArtifact {
         instance: EditorInstanceId,
         editor: [u8; 16],
@@ -1021,8 +1008,6 @@ impl EditorMessage {
             | Self::WebViewCommand { instance, .. }
             | Self::WebViewEvent { instance, .. }
             | Self::OpenCreation { instance, .. }
-            | Self::PickRequested { instance, .. }
-            | Self::PickAnswered { instance, .. }
             | Self::OpenArtifact { instance, .. }
             | Self::WatchArtifacts { instance, .. }
             | Self::ArtifactStates { instance, .. }
@@ -1086,18 +1071,6 @@ pub struct HistoryState {
     pub block_id: [u8; 16],
     pub can_undo: bool,
     pub can_redo: bool,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub enum BlockPick {
-    Chosen {
-        block_id: [u8; 16],
-        block_type: [u8; 16],
-        linked: bool,
-        placed: bool,
-    },
-    Cancelled,
-    Failed(String),
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -1247,7 +1220,6 @@ impl EditorMessage {
             | Self::ShowPanel { .. }
             | Self::AudioStatus { .. }
             | Self::WebViewEvent { .. }
-            | Self::PickRequested { .. }
             | Self::ArtifactStates { .. }
             | Self::HistoryStates { .. }
             | Self::Head { .. }
@@ -1258,7 +1230,6 @@ impl EditorMessage {
             Self::OpenBlock { .. }
             | Self::BlockCommand { .. }
             | Self::PlayAudio { .. }
-            | Self::PickAnswered { .. }
             | Self::WebViewCommand { .. }
             | Self::WatchArtifacts { .. }
             | Self::WatchHistory { .. }
@@ -1472,12 +1443,6 @@ fn window(window: &WindowRequests) -> Result<(), DecodeError> {
     }
 }
 
-fn block_filter(filter: &BlockFilter) -> Result<(), DecodeError> {
-    string(&filter.name)?;
-    collection(filter.block_types.len())?;
-    collection(filter.excluded.len())
-}
-
 fn validate_children(placements: &ChildPlacements) -> Result<(), DecodeError> {
     if placements.children.len() > MAX_CHILDREN {
         return Err(DecodeError::LimitExceeded("children"));
@@ -1504,11 +1469,6 @@ fn validate_children(placements: &ChildPlacements) -> Result<(), DecodeError> {
 
 fn validate_editor(message: &EditorMessage) -> Result<(), DecodeError> {
     match message {
-        EditorMessage::PickRequested { filter, .. } => block_filter(filter),
-        EditorMessage::PickAnswered { answer, .. } => match answer {
-            BlockPick::Failed(error) => string(error),
-            BlockPick::Chosen { .. } | BlockPick::Cancelled => Ok(()),
-        },
         EditorMessage::OpenCreation { template, .. } => string(template),
         EditorMessage::OpenArtifact { data, .. } => descriptor(data),
         EditorMessage::AudioStatus { status, .. } => match &status.error {

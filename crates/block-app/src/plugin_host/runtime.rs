@@ -1209,6 +1209,22 @@ pub(crate) struct Pick {
     pub(crate) touch: bool,
 }
 
+pub(crate) fn take_withdrawn_picks(
+    plugin_id: &str,
+) -> Vec<(EditorInstanceId, block_plugin_api::ops::OpId)> {
+    with(plugin_id, |runtime| {
+        runtime.instances.take_withdrawn_picks()
+    })
+    .unwrap_or_default()
+}
+
+pub(crate) fn withdraw_pick(plugin_id: &str, instance: EditorInstanceId, pick: u64) {
+    with(plugin_id, |runtime| {
+        let messages = runtime.instances.withdraw_pick(instance, pick);
+        runtime.send(messages);
+    });
+}
+
 pub(crate) fn request_pick(plugin_id: &str, instance: EditorInstanceId, pick: Pick) {
     with(plugin_id, |runtime| {
         let messages = runtime.instances.request_pick(instance, pick);

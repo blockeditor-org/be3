@@ -356,24 +356,6 @@ impl Screens {
                     );
                 }
             }
-            Message::Editor(EditorMessage::PickRequested {
-                instance,
-                pick,
-                filter,
-                parent,
-                within,
-                touch,
-            }) => {
-                if let Some(session) = self.sessions.get(instance) {
-                    session.pick_requested(
-                        *pick,
-                        filter.clone(),
-                        crate::graph::BlockParent::decode(*parent),
-                        within.map(Uuid::from_bytes),
-                        *touch,
-                    );
-                }
-            }
             Message::Editor(EditorMessage::ShowPanel { instance, panel }) => {
                 if let Some(session) = self.sessions.get(instance) {
                     session.show_panel(*panel);

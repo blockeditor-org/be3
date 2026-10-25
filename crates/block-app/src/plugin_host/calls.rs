@@ -1,8 +1,8 @@
 use block_plugin_api::{
-    ArtifactDescription, BarAction, BlockIdRole, BlockLocation, Catalog, ChildId, ChildStatus,
-    EditorInstanceId, EditorMessage, EditorRegion, Message, Rect, Size,
+    ArtifactDescription, BarAction, BlockIdRole, BlockLocation, BlockPick, Catalog, ChildId,
+    ChildStatus, EditorInstanceId, EditorMessage, EditorRegion, Message, Rect, Size,
     embed::shell::Call as ShellCall,
-    shell_types::{DragOver, FileDrop, Focus},
+    shell_types::{DragOver, FileDrop, Focus, PickRequest},
 };
 
 #[derive(Clone, Debug, PartialEq)]
@@ -43,6 +43,8 @@ pub(super) enum EditorCall {
     FileDrop(FileDrop),
     FileDropLeft,
     ChildStatuses(Vec<ChildStatus>),
+    Pick(PickRequest),
+    WithdrawPick(u64),
     ArtifactSettings(Vec<u8>),
     CommitCreation,
     RegenerateArtifact(Vec<u8>),
@@ -62,6 +64,7 @@ pub(super) enum EditorAnswer {
     Created(Result<[u8; 16], String>),
     Regenerated(Result<(), String>),
     Replaced { request_id: u64, replaced: bool },
+    Picked { pick: u64, answer: BlockPick },
 }
 
 impl From<Message> for Outbound {
@@ -177,6 +180,17 @@ impl BlockIds for Outbound {
             Self::Editor(instance, EditorCall::DragOver(drag)) => {
                 visit(*instance, BlockIdRole::Existing, &mut drag.block_id);
             }
+            Self::Editor(instance, EditorCall::Pick(request)) => {
+                let mut existing = |id: &mut [u8; 16]| visit(*instance, BlockIdRole::Existing, id);
+                request.filter.excluded.iter_mut().for_each(&mut existing);
+                if let Some(BlockLocation::Block(place)) = &mut request.filter.place {
+                    existing(place);
+                }
+                if let BlockLocation::Block(parent) = &mut request.parent {
+                    existing(parent);
+                }
+                request.within.iter_mut().for_each(existing);
+            }
             Self::Editor(instance, EditorCall::ReplaceChild { old, new, .. }) => {
                 visit(*instance, BlockIdRole::Existing, old);
                 visit(*instance, BlockIdRole::Existing, new);
@@ -209,8 +223,16 @@ impl BlockIds for ShellCall {
 
 impl BlockIds for (EditorInstanceId, EditorAnswer) {
     fn visit_block_ids(&mut self, visit: &mut Visit<'_>) {
-        if let (instance, EditorAnswer::Created(Ok(block_id))) = self {
-            visit(*instance, BlockIdRole::Existing, block_id);
+        match self {
+            (instance, EditorAnswer::Created(Ok(block_id)))
+            | (
+                instance,
+                EditorAnswer::Picked {
+                    answer: BlockPick::Chosen { block_id, .. },
+                    ..
+                },
+            ) => visit(*instance, BlockIdRole::Existing, block_id),
+            _ => {}
         }
     }
 }

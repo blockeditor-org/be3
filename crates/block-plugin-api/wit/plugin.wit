@@ -3,7 +3,7 @@ package be3:plugin@0.1.0;
 /// What an editor plugin offers its host.
 interface plugin {
     use types.{editor-region, frame-commit, opening, screen-request, size, uuid};
-    use shell-types.{bar-action, child-id, drag-over, file-drop, focus};
+    use shell-types.{bar-action, block-pick, child-id, drag-over, file-drop, focus, pick-request};
     use be3:ui/types@0.1.0.{rect};
     use host-services.{shell-dialog};
 
@@ -58,6 +58,10 @@ interface plugin {
 
         /// Generates the artifact the settings describe again.
         regenerate-artifact: async func(data: list<u8>) -> result<_, string>;
+
+        /// Shows the user a picker for a pick another editor asked for; dropping
+        /// the call closes it.
+        pick: async func(request: pick-request) -> block-pick;
 
         /// Puts a block in place of a child block; false when the editor cannot.
         replace-child: async func(old: uuid, new: uuid) -> bool;

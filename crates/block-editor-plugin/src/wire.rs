@@ -220,6 +220,23 @@ impl Guest for Exports {
     }
 }
 
+struct AskedPick {
+    wire: Shared,
+    instance: EditorInstanceId,
+    pick: u64,
+    answered: bool,
+}
+
+impl Drop for AskedPick {
+    fn drop(&mut self) {
+        if !self.answered {
+            let pick = self.pick;
+            self.wire
+                .call(self.instance, move |session| session.withdraw_pick(pick));
+        }
+    }
+}
+
 impl GuestEditor for OpenEditor {
     fn menu_pick(&self, id: String) {
         self.wire
@@ -349,6 +366,29 @@ impl GuestEditor for OpenEditor {
             regenerated
                 .await
                 .unwrap_or_else(|| Err("the editor stopped regenerating the artifact".to_owned()))
+        }
+    }
+
+    fn pick(
+        &self,
+        request: block_plugin_api::shell_types::PickRequest,
+    ) -> impl Future<Output = block_plugin_api::BlockPick> + 'static {
+        let (sender, answer) = oneshot();
+        let pick = request.pick;
+        self.wire.call(self.instance, move |session| {
+            session.pick_requested(request, sender)
+        });
+        let asked = AskedPick {
+            wire: self.wire.clone(),
+            instance: self.instance,
+            pick,
+            answered: false,
+        };
+        async move {
+            let mut asked = asked;
+            let answer = answer.await;
+            asked.answered = true;
+            answer.unwrap_or(block_plugin_api::BlockPick::Cancelled)
         }
     }
 

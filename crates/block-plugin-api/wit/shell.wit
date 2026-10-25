@@ -4,6 +4,8 @@ package be3:plugin@0.1.0;
 /// actions of its bar and the children it places.
 interface shell-types {
     use types.{editor-instance-id, editor-region, size, uuid};
+    use blocks.{block-location};
+    use host-services.{block-filter};
     use be3:ui/types@0.1.0.{key-chord, pos2, rect, vec2};
 
     /// A child an editor placed, numbered by the editor.
@@ -267,6 +269,28 @@ interface shell-types {
         types: list<block-type-descriptor>,
         templates: list<template-descriptor>,
         editors: list<editor-descriptor>,
+    }
+
+    /// A pick the host forwards to the editor that shows its picker.
+    record pick-request {
+        pick: u64,
+        filter: block-filter,
+        parent: block-location,
+        within: option<uuid>,
+        touch: bool,
+    }
+
+    record chosen-block {
+        block-id: uuid,
+        block-type: uuid,
+        linked: bool,
+        placed: bool,
+    }
+
+    variant block-pick {
+        chosen(chosen-block),
+        cancelled,
+        failed(string),
     }
 
     /// The block an editor's focus is in, and the blocks it is shown through.

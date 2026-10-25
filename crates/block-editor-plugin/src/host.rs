@@ -423,6 +423,7 @@ pub struct EditorHost {
     shown_panels: Rc<RefCell<Vec<HostPanel>>>,
     host_values: Rc<RefCell<HostValues>>,
     pick_requests: Rc<RefCell<Vec<PickRequest>>>,
+    withdrawn_picks: Rc<RefCell<Vec<u64>>>,
     dialog_requests: Rc<RefCell<Vec<(Uuid, ShellDialog)>>>,
     pick_answers: Rc<RefCell<Vec<(u64, BlockPick)>>>,
     child_commits: Rc<RefCell<Vec<ChildCommit>>>,
@@ -577,6 +578,18 @@ impl EditorHost {
 
     pub fn show_dialog(&self, block_id: Uuid, dialog: ShellDialog) {
         self.dialog_requests.borrow_mut().push((block_id, dialog));
+        self.push(Pushed::Shows);
+    }
+
+    pub fn take_withdrawn_picks(&self) -> Vec<u64> {
+        std::mem::take(&mut self.withdrawn_picks.borrow_mut())
+    }
+
+    pub(crate) fn withdraw_pick(&self, pick: u64) {
+        self.pick_requests
+            .borrow_mut()
+            .retain(|request| request.pick != pick);
+        self.withdrawn_picks.borrow_mut().push(pick);
         self.push(Pushed::Shows);
     }
 

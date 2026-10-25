@@ -1,6 +1,6 @@
 use crate::{
-    BlockCommand, BlockLocation, BlockPick, BlockQuery, ChildContent, ChildPlacements,
-    EditorInstanceId, EditorMessage, Message, VersionCommand,
+    BlockCommand, BlockLocation, BlockQuery, ChildContent, ChildPlacements, EditorInstanceId,
+    EditorMessage, Message, VersionCommand,
 };
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -127,25 +127,6 @@ impl EditorMessage {
                     | BlockCommand::AppMenu { .. } => {}
                 }
             }
-            Self::PickRequested {
-                filter,
-                parent,
-                within,
-                ..
-            } => {
-                filter.excluded.iter_mut().for_each(&mut existing);
-                if let Some(place) = &mut filter.place {
-                    location(place, &mut existing);
-                }
-                location(parent, &mut existing);
-                if let Some(within) = within {
-                    existing(within);
-                }
-            }
-            Self::PickAnswered { answer, .. } => match answer {
-                BlockPick::Chosen { block_id, .. } => existing(block_id),
-                BlockPick::Cancelled | BlockPick::Failed(_) => {}
-            },
             Self::WatchArtifacts { blocks, .. }
             | Self::WatchHistory { blocks, .. }
             | Self::WatchHeads { blocks, .. } => {

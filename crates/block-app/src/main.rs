@@ -471,7 +471,7 @@ struct BlockApp {
     every_session_type: bool,
     shell: Option<Uuid>,
     windows_sent: Option<u64>,
-    forwarded_picks: HashMap<u64, (PickSource, u64)>,
+    forwarded_picks: HashMap<u64, (PickSource, block_plugin_api::ops::OpId, PickSource)>,
     next_pick: u64,
     focus_reports: HashMap<Uuid, editors::FocusReport>,
     artifact_watches: HashMap<Uuid, Vec<Uuid>>,
@@ -2226,7 +2226,7 @@ impl BlockApp {
     }
 
     fn cancel_forwarded_picks(&mut self) {
-        for (_, (source, request_id)) in self.forwarded_picks.drain() {
+        for (_, (source, request_id, _)) in self.forwarded_picks.drain() {
             source.answer(request_id, block_plugin_api::BlockPick::Cancelled);
         }
     }
@@ -2247,9 +2247,32 @@ impl BlockApp {
             for (pick, answer) in
                 crate::plugin_host::take_pick_answers(&picker.plugin_id, picker.instance)
             {
-                if let Some((source, request_id)) = self.forwarded_picks.remove(&pick) {
+                if let Some((source, request_id, _)) = self.forwarded_picks.remove(&pick) {
                     source.answer(request_id, answer);
                 }
+            }
+        }
+        let sources: std::collections::HashSet<String> = self
+            .forwarded_picks
+            .values()
+            .map(|(source, _, _)| source.plugin_id.clone())
+            .collect();
+        for plugin_id in sources {
+            for (instance, op) in crate::plugin_host::take_withdrawn_picks(&plugin_id) {
+                self.forwarded_picks
+                    .retain(|pick, (source, asked, picker)| {
+                        let withdrawn = source.plugin_id == plugin_id
+                            && source.instance == instance
+                            && *asked == op;
+                        if withdrawn {
+                            crate::plugin_host::withdraw_pick(
+                                &picker.plugin_id,
+                                picker.instance,
+                                *pick,
+                            );
+                        }
+                        !withdrawn
+                    });
             }
         }
         let pickers: HashMap<Uuid, PickSource> = editors
@@ -2308,7 +2331,7 @@ impl BlockApp {
                 });
                 let within = block.and_then(|block| self.child_within(picker_id, block));
                 self.forwarded_picks
-                    .insert(pick, (source.clone(), request.op));
+                    .insert(pick, (source.clone(), request.op, picker.clone()));
                 crate::plugin_host::request_pick(
                     &picker.plugin_id,
                     picker.instance,

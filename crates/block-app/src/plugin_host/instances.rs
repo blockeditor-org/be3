@@ -8,7 +8,9 @@ use block_plugin_api::{
     ScreenWindow, Size, Stopped, ViewChange, WatchedContent, WebViewCommand, WebViewEvent,
     WebViewId,
 };
-use block_plugin_api::{DescribedAction, WindowRequests, embed::shell::Call as ShellCall};
+use block_plugin_api::{
+    DescribedAction, WindowRequests, embed::shell::Call as ShellCall, ops::OpId,
+};
 use block_type_guest::editor::{FromEditor, Gesture};
 use std::{
     collections::{HashMap, HashSet},
@@ -69,6 +71,7 @@ pub(super) struct Instances {
     published: Published,
     shell: Option<EditorInstanceId>,
     waiting: HashMap<EditorInstanceId, Vec<Outbound>>,
+    withdrawn_picks: Vec<(EditorInstanceId, OpId)>,
     gone: HashSet<EditorInstanceId>,
     serial: u64,
 }
@@ -2185,18 +2188,31 @@ impl Instances {
         &self,
         instance: EditorInstanceId,
         pick: super::runtime::Pick,
-    ) -> Vec<Message> {
+    ) -> Vec<Outbound> {
         if !self.entries.contains_key(&instance) {
             return Vec::new();
         }
-        vec![Message::Editor(EditorMessage::PickRequested {
+        vec![Outbound::Editor(
             instance,
-            pick: pick.pick,
-            filter: pick.filter,
-            parent: pick.parent,
-            within: pick.within.map(Uuid::into_bytes),
-            touch: pick.touch,
-        })]
+            EditorCall::Pick(block_plugin_api::shell_types::PickRequest {
+                pick: pick.pick,
+                filter: pick.filter,
+                parent: pick.parent,
+                within: pick.within.map(Uuid::into_bytes),
+                touch: pick.touch,
+            }),
+        )]
+    }
+
+    pub(super) fn withdraw_pick(&self, instance: EditorInstanceId, pick: u64) -> Vec<Outbound> {
+        if !self.entries.contains_key(&instance) {
+            return Vec::new();
+        }
+        vec![Outbound::Editor(instance, EditorCall::WithdrawPick(pick))]
+    }
+
+    pub(super) fn take_withdrawn_picks(&mut self) -> Vec<(EditorInstanceId, OpId)> {
+        std::mem::take(&mut self.withdrawn_picks)
     }
 
     pub(super) fn statuses(&self, layout: &ScreenLayout, pass: u64) -> Vec<super::InstanceStatus> {
@@ -2724,6 +2740,7 @@ impl Instances {
         match answer {
             EditorAnswer::Created(created) => entry.created = Some(created.map(Uuid::from_bytes)),
             EditorAnswer::Regenerated(outcome) => entry.artifact.outcome = Some(outcome),
+            EditorAnswer::Picked { pick, answer } => entry.pick_answers.push((pick, answer)),
             EditorAnswer::Replaced {
                 request_id,
                 replaced,
@@ -2768,17 +2785,6 @@ impl Instances {
             return false;
         }
         match message {
-            EditorMessage::PickAnswered {
-                instance,
-                pick,
-                answer,
-            } => {
-                let Some(entry) = self.entries.get_mut(&instance) else {
-                    return false;
-                };
-                entry.pick_answers.push((pick, answer));
-                true
-            }
             EditorMessage::WatchHostValue { instance, key } => self
                 .entries
                 .get_mut(&instance)

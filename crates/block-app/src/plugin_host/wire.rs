@@ -4,8 +4,8 @@ use super::calls::{EditorAnswer, EditorCall, Heard, PluginCall};
 use block_plugin_api::Watch;
 
 use block_plugin_api::{
-    Catalog, ChildStatus, DecodeError, EditorInstanceId, EditorMessage, ErrorCode, Fonts,
-    InputBatch, Message, Opening, Preferences, ProtocolError, decode_frame,
+    BlockPick, Catalog, ChildStatus, DecodeError, EditorInstanceId, EditorMessage, ErrorCode,
+    Fonts, InputBatch, Message, Opening, Preferences, ProtocolError, decode_frame,
     embed::{
         exports::plugin::{self, Editor},
         host::Call,
@@ -34,6 +34,7 @@ pub(super) struct Wire {
     editors: HashMap<EditorInstanceId, Editor>,
     draws: BTreeMap<OpId, Awaited>,
     answering: BTreeMap<OpId, (EditorInstanceId, Answering)>,
+    picks: HashMap<(EditorInstanceId, u64), OpId>,
     preferences: Watch<Preferences>,
     utc_offset: Watch<i32>,
     fonts: Watch<Fonts>,
@@ -48,6 +49,7 @@ enum Answering {
     Created(Ticket<Result<[u8; 16], String>>),
     Regenerated(Ticket<Result<(), String>>),
     Replaced(u64, Ticket<bool>),
+    Picked(u64, Ticket<BlockPick>),
 }
 
 impl Answering {
@@ -64,6 +66,10 @@ impl Answering {
                     .decode(outcome)
                     .unwrap_or_else(|error| Err(failed(error))),
             ),
+            Self::Picked(pick, ticket) => EditorAnswer::Picked {
+                pick,
+                answer: ticket.decode(outcome).unwrap_or(BlockPick::Cancelled),
+            },
             Self::Replaced(request_id, ticket) => EditorAnswer::Replaced {
                 request_id,
                 replaced: ticket.decode(outcome).unwrap_or(false),
@@ -85,6 +91,7 @@ impl Default for Wire {
             editors: HashMap::new(),
             draws: BTreeMap::new(),
             answering: BTreeMap::new(),
+            picks: HashMap::new(),
             preferences: Watch::default(),
             utc_offset: Watch::default(),
             fonts: Watch::default(),
@@ -218,6 +225,18 @@ impl Wire {
                 let ticket = editor.regenerate_artifact(connection, data);
                 self.answering
                     .insert(ticket.op(), (instance, Answering::Regenerated(ticket)));
+            }
+            EditorCall::Pick(request) => {
+                let pick = request.pick;
+                let ticket = editor.pick(connection, request);
+                self.picks.insert((instance, pick), ticket.op());
+                self.answering
+                    .insert(ticket.op(), (instance, Answering::Picked(pick, ticket)));
+            }
+            EditorCall::WithdrawPick(pick) => {
+                if let Some(op) = self.picks.remove(&(instance, pick)) {
+                    connection.cancel(op);
+                }
             }
             EditorCall::ReplaceChild {
                 request_id,
@@ -354,6 +373,7 @@ impl Wire {
             }
             Incoming::Completed { op, outcome } => {
                 if let Some((instance, answering)) = self.answering.remove(&op) {
+                    self.picks.retain(|_, pick| *pick != op);
                     heard.push(Heard::Answer(instance, answering.answer(outcome)));
                     return Ok(());
                 }
