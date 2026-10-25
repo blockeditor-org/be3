@@ -201,7 +201,6 @@ mod a_horizontal_scroll_lays_its_items_out_in_a_row;
 mod a_host_sees_the_time_of_the_frame_it_hosts;
 mod a_hosted_dock_window_keeps_the_size_and_place_its_host_reports_and_reopens_there;
 mod a_hosted_dock_window_opens_over_the_spot_it_has_in_the_dock;
-mod a_hosted_dock_window_reopens_where_its_host_placed_it_after_the_layout_is_restored;
 mod a_hosted_dock_window_resized_by_its_tab_asks_its_host_and_takes_the_size_it_reports;
 mod a_hosted_dock_windows_grip_asks_its_host_to_resize_it;
 mod a_hosted_window_asks_to_open_where_it_is_placed_and_paints_on_its_own;
@@ -1899,16 +1898,9 @@ pub(crate) fn dock_of(tabs: usize) -> (Document, NodeId) {
 }
 
 pub(crate) fn windowed_dock(drag_modifier: Option<Modifiers>) -> (Document, NodeId) {
-    windowed_dock_in(None, drag_modifier)
-}
-
-pub(crate) fn windowed_dock_in(
-    layout: Option<unstyled::DockingLayout<u64>>,
-    drag_modifier: Option<Modifiers>,
-) -> (Document, NodeId) {
     let dock = NodeRef::new();
     let document = build_node(move || {
-        let layout = layout.unwrap_or_default();
+        let layout = unstyled::DockingLayout::new();
         view! {
             <styled::Docking @node_ref=&dock layout drag_modifier>
                 <unstyled::DockSplit id="split">

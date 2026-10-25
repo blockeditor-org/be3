@@ -1,4 +1,3 @@
-use std::path::PathBuf;
 use std::rc::Rc;
 use std::time::{Duration, Instant};
 
@@ -12,7 +11,7 @@ use beui_core::input::{CursorIcon, Input, Key, Keystroke, Modifiers, PointerButt
 use beui_core::painter::Shape;
 use beui_core::runner::{HostView, Hosted, Incoming, SCROLL_LINE, Units, WindowHost, scrolled};
 use beui_core::window::{
-    HostPlacement, WindowEdge, WindowId, WindowPlacement, WindowReport, WindowRequest, WindowState,
+    WindowEdge, WindowId, WindowPlacement, WindowReport, WindowRequest, WindowState,
 };
 use beui_renderer_wgpu::present::GpuSetup;
 use glam::{Mat4, Quat, Vec3};
@@ -61,41 +60,6 @@ struct Shown {
     chrome: Vec<(WindowId, Look, f32)>,
 }
 
-struct KeptMain {
-    path: PathBuf,
-    written: Option<(Pose, f32, f32)>,
-}
-
-impl KeptMain {
-    fn shape(panel: &Panel) -> (Pose, f32, f32) {
-        (panel.pose, panel.metres_per_point, panel.bend)
-    }
-
-    fn read(&self) -> Option<HostPlacement> {
-        let text = std::fs::read_to_string(&self.path).ok()?;
-        Some(HostPlacement(text.trim().to_owned()))
-    }
-
-    fn write(&mut self, panel: &Panel) {
-        let shape = Self::shape(panel);
-        if self.written == Some(shape) {
-            return;
-        }
-        self.written = Some(shape);
-        let written = self
-            .path
-            .parent()
-            .map_or(Ok(()), std::fs::create_dir_all)
-            .and_then(|()| std::fs::write(&self.path, panel.placement().0));
-        if let Err(error) = written {
-            eprintln!(
-                "space: the main panel's placement could not be saved to {}: {error}",
-                self.path.display()
-            );
-        }
-    }
-}
-
 pub struct Space {
     pub head: Head,
     pub panels: Vec<Panel>,
@@ -132,7 +96,6 @@ pub struct Space {
     shown: Option<(Shown, WindowOutput)>,
     scales: Vec<(WindowId, f32)>,
     rescaling: Vec<(WindowId, f32, Instant)>,
-    kept_main: Option<KeptMain>,
 }
 
 impl Default for Space {
@@ -179,33 +142,6 @@ impl Space {
             shown: None,
             scales: Vec::new(),
             rescaling: Vec::new(),
-            kept_main: None,
-        }
-    }
-
-    pub fn keeping_main(path: PathBuf) -> Self {
-        Self {
-            kept_main: Some(KeptMain {
-                path,
-                written: None,
-            }),
-            ..Self::new()
-        }
-    }
-
-    fn keep_main(&mut self) {
-        let busy = [
-            self.gripped(),
-            self.chrome.gesture.as_ref().map(Gesture::window),
-        ];
-        if busy.contains(&Some(WindowId::MAIN)) {
-            return;
-        }
-        let Some(panel) = self.panel(WindowId::MAIN).copied() else {
-            return;
-        };
-        if let Some(kept) = &mut self.kept_main {
-            kept.write(&panel);
         }
     }
 
@@ -463,12 +399,6 @@ impl Space {
         let half_width = (crate::head::FOV_Y / 2.0).tan() * self.platform.x / self.platform.y;
         let distance = panel.metres().x / 2.0 / (FILLED * half_width);
         panel.pose.position = self.head.position + Vec3::new(0.0, 0.0, -distance);
-        if let Some(kept) = &mut self.kept_main {
-            if let Some(placement) = kept.read() {
-                panel.placed(&placement);
-            }
-            kept.written = Some(KeptMain::shape(&panel));
-        }
         self.panels.push(panel);
         self.focused = Some(WindowId::MAIN);
         incoming.push(Incoming::Window(WindowReport::Resized {
@@ -1159,7 +1089,6 @@ impl WindowHost for Space {
         for item in incoming.drain(..) {
             self.take(item, &mut out);
         }
-        self.keep_main();
         self.place_carried();
         self.rescale();
         self.remember_cursor();

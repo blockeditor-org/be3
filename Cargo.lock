@@ -1255,7 +1255,6 @@ dependencies = [
  "emojis",
  "foldhash 0.2.0",
  "memchr",
- "postcard",
  "reactive",
  "serde",
  "text-editor-core",

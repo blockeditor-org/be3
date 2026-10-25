@@ -11,7 +11,8 @@ work.
 Space already shows every window as a panel the viewer can carry, face, roll,
 scale, bend and resize through host chrome, with a drawn 3D cursor, a held
 pointer, per-window rasters that change without relayout, and placements
-(scale and bend included) saved and restored (PR #691). It draws through one
+(scale and bend included) that reopen a window where it was within a run
+(PR #691); nothing keeps them across restarts yet. It draws through one
 eye: `Head` has a single pose and a fixed symmetric projection
 (`head::FOV_Y`, `Head::view_projection`), and `scale::wanted` sizes rasters
 from that one view. Input is one mouse pointer and a keyboard.
@@ -111,6 +112,8 @@ dock, linux-desktop) is an overlay inside block-app's one panel.
   protocol.
 - block-app opens a beui `Window` holding a `PluginRegion` for each plugin
   window.
+- Plugin windows' host placements then reach the dock, which can keep them
+  across restarts (see "Placements across restarts").
 
 About 3-4k lines. Independent of XR. **(ask)** whether plugin windows also
 become real OS windows outside VR.
@@ -155,6 +158,17 @@ The riskiest: wgpu has no WebXR binding, the WebGL route needs an
 M0, M1, M3, M5, M8, M6, M7, M9, M10, M11.
 
 ## Smaller follow-ups
+
+- **Placements across restarts.** Panels reopen in place only within a run.
+  Keeping placements must live in block-app's session (the shell's view
+  block, `RootSettings::ensure_session`), not in beui or the space host: no
+  file under the config folder, so a plain beui app such as beui-demo keeps
+  nothing. block-app has only its main panel in space today, so it needs the
+  `Placed` reports for `WindowId::MAIN` (`Context::window_placement`) saved in
+  the session, and a canonical way to hand a placement back for the main
+  window, which space opens on its own before the session is known (a
+  `WindowRequest` that places `MAIN`, say). Floating dock windows' placements
+  join the shell's saved `DockState` once plugin windows are real (M6).
 
 - **Plugin editors aren't raster-aware.** A plugin region carries one scale
   (`ScreenPlacement::scale_factor_millis`), so plugin content in space is as

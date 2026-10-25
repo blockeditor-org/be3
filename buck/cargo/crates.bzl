@@ -7073,9 +7073,7 @@ crates = {
                 ],
                 "examples": {},
                 "features": [],
-                "test_deps": [
-                    "//third-party/rust:postcard-1.1.3",
-                ],
+                "test_deps": [],
                 "test_features": [],
             },
             "linux-arm64": {
@@ -7094,9 +7092,7 @@ crates = {
                 ],
                 "examples": {},
                 "features": [],
-                "test_deps": [
-                    "//third-party/rust:postcard-1.1.3",
-                ],
+                "test_deps": [],
                 "test_features": [],
             },
             "linux-x86_64": {
@@ -7115,9 +7111,7 @@ crates = {
                 ],
                 "examples": {},
                 "features": [],
-                "test_deps": [
-                    "//third-party/rust:postcard-1.1.3",
-                ],
+                "test_deps": [],
                 "test_features": [],
             },
             "macos-arm64": {
@@ -7136,9 +7130,7 @@ crates = {
                 ],
                 "examples": {},
                 "features": [],
-                "test_deps": [
-                    "//third-party/rust:postcard-1.1.3",
-                ],
+                "test_deps": [],
                 "test_features": [],
             },
             "macos-x86_64": {
@@ -7157,9 +7149,7 @@ crates = {
                 ],
                 "examples": {},
                 "features": [],
-                "test_deps": [
-                    "//third-party/rust:postcard-1.1.3",
-                ],
+                "test_deps": [],
                 "test_features": [],
             },
             "wasi": {
@@ -7216,9 +7206,7 @@ crates = {
                 ],
                 "examples": {},
                 "features": [],
-                "test_deps": [
-                    "//third-party/rust:postcard-1.1.3",
-                ],
+                "test_deps": [],
                 "test_features": [],
             },
             "windows-x86_64": {
@@ -7237,9 +7225,7 @@ crates = {
                 ],
                 "examples": {},
                 "features": [],
-                "test_deps": [
-                    "//third-party/rust:postcard-1.1.3",
-                ],
+                "test_deps": [],
                 "test_features": [],
             },
         },

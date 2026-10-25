@@ -16,8 +16,5 @@ reactive = { path = "../reactive" }
 serde = { version = "1", features = ["derive"] }
 text-editor-core = { path = "../text-editor-core" }
 
-[dev-dependencies]
-postcard = { version = "1", features = ["use-std"] }
-
 [lints]
 workspace = true

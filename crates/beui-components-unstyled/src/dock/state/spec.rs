@@ -318,7 +318,6 @@ impl DockState {
             root,
             window: Some(rect),
             key,
-            placement: None,
         });
         id
     }

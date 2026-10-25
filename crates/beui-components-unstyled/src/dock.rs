@@ -12,7 +12,7 @@ mod tests;
 
 use beui_core::layer::LayerPolicy;
 use std::cell::{Cell, RefCell};
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 use std::rc::Rc;
 
 use accesskit::{Node, Role};
@@ -375,7 +375,7 @@ struct State {
     icon_sidebar_width: f32,
     rect: ReadSignal<Rect>,
     opens: ReadSignal<bool>,
-    at_pointer: Signal<HashSet<SurfaceId>>,
+    placements: Signal<HashMap<SurfaceId, WindowPlacement>>,
     panes: Stored<RefCell<HashMap<Tree, NodeRef>>>,
     windows: Stored<RefCell<HashMap<SurfaceId, NodeRef>>>,
     fullscreen_layer: NodeRef,
@@ -799,26 +799,24 @@ impl State {
             .into_iter()
             .filter(|surface| !before.contains(surface))
             .collect();
-        self.at_pointer
-            .update(|at_pointer| at_pointer.extend(opened));
+        self.placements.update(|placements| {
+            for surface in opened {
+                placements.insert(surface, WindowPlacement::AtPointer);
+            }
+        });
     }
 
     fn placement(&self, surface: SurfaceId, parent: WindowId) -> WindowPlacement {
-        let (kept, rect) = self.state.with(|state| {
-            (
-                state.window_placement(surface),
-                state.window_rect(surface).unwrap_or(Rect::ZERO),
-            )
-        });
-        if let Some(placement) = kept {
-            return WindowPlacement::Host(placement);
-        }
-        if self
-            .at_pointer
-            .with(|at_pointer| at_pointer.contains(&surface))
+        if let Some(placement) = self
+            .placements
+            .with(|placements| placements.get(&surface).cloned())
         {
-            return WindowPlacement::AtPointer;
+            return placement;
         }
+        let rect = self
+            .state
+            .with(|state| state.window_rect(surface))
+            .unwrap_or(Rect::ZERO);
         WindowPlacement::Over {
             window: parent,
             at: self.rect.get().min + rect.min.to_vec2() - Vec2::splat(HANDLE_REACH),
@@ -833,9 +831,9 @@ impl State {
                     state.set_window_rect(surface, Rect::from_min_size(rect.min, inner));
                 }
             }),
-            WindowReport::Placed { placement, .. } => {
-                self.edit(|state| state.set_window_placement(surface, placement));
-            }
+            WindowReport::Placed { placement, .. } => self.placements.update(|placements| {
+                placements.insert(surface, WindowPlacement::Host(placement));
+            }),
             WindowReport::Focused { focused: true, .. } => self.window_focused(surface),
             WindowReport::Scaled { .. } | WindowReport::Focused { .. } => {}
             WindowReport::Closed(_) => {
@@ -1451,7 +1449,7 @@ pub(crate) fn Dock(config: DockConfig) -> NodeId {
                 icon_sidebar_width,
                 rect: dock_rect,
                 opens: opens_windows(),
-                at_pointer: create_signal(HashSet::new()),
+                placements: create_signal(HashMap::new()),
                 panes: store(RefCell::default()),
                 bars: store(RefCell::default()),
                 tab,
