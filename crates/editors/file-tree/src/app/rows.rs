@@ -5,6 +5,7 @@ use std::rc::Rc;
 use std::time::{Duration, Instant};
 use workspace_ui_types::ViewState;
 
+use block_editor_beui::be_block::SETTINGS;
 use block_editor_beui::be_block::metadata::ICON_COLOR;
 use block_editor_beui::be_block::{Root, settings::Settings};
 use block_editor_beui::beui::icons::{
@@ -58,6 +59,8 @@ pub(crate) struct Row {
     pub(crate) inspection: Option<Inspection>,
     pub(crate) deleted: bool,
     pub(crate) marked_deleted: bool,
+    pub(crate) sets_access: bool,
+    pub(crate) settings: Option<Uuid>,
 }
 
 #[derive(Clone, PartialEq, Default)]
@@ -106,6 +109,8 @@ impl Row {
             inspection: None,
             deleted: false,
             marked_deleted: false,
+            sets_access: false,
+            settings: None,
         }
     }
 
@@ -782,6 +787,12 @@ pub(crate) fn describe(
         inspection: Some(inspection),
         deleted: reference.deleted,
         marked_deleted: label.deleted,
+        sets_access: ordinary && reference.sets_access,
+        settings: reference
+            .metadata
+            .get(&SETTINGS)
+            .map(|settings| settings.0)
+            .filter(|_| ordinary && access.can_view()),
     }
 }
 

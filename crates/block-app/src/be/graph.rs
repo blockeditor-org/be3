@@ -22,6 +22,7 @@ pub(crate) struct Node {
     pub(crate) head: Option<CommitId>,
     pub(crate) locked: bool,
     pub(crate) held: bool,
+    pub(crate) sets_access: bool,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]

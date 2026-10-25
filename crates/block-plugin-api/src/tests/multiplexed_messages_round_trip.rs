@@ -21,6 +21,7 @@ fn multiplexed_messages_round_trip() {
             },
             locked: false,
             deleted: false,
+            sets_access: false,
         }],
     });
     assert_eq!(

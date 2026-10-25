@@ -104,6 +104,10 @@ impl BlockNode {
             .get(&ANYONE_INSIDE)
             .is_some_and(|level| level.can_view())
     }
+
+    pub fn sets_access(&self) -> bool {
+        !self.is_block_settings() && self.grants.keys().any(|account| *account != ANYONE_INSIDE)
+    }
 }
 
 fn level_below(node: &BlockNode, account: Uuid, parent: Access, parent_viewable: bool) -> Access {
@@ -474,24 +478,40 @@ impl BlockGraph {
     }
 
     pub fn inherited(&self, id: Uuid, account: Uuid) -> Access {
-        let chain: Vec<&BlockNode> = std::iter::once(id)
+        self.inherited_from(id, account).0
+    }
+
+    pub fn inherited_from(&self, id: Uuid, account: Uuid) -> (Access, Option<Uuid>) {
+        let chain: Vec<(Uuid, &BlockNode)> = std::iter::once(id)
             .chain(self.ancestors(id))
-            .map_while(|block| self.blocks.get(&block))
+            .map_while(|block| Some((block, self.blocks.get(&block)?)))
             .collect();
-        let Some(top) = chain.last() else {
-            return Access::None;
+        let Some((_, top)) = chain.last() else {
+            return (Access::None, None);
         };
         let mut above = Access::None;
+        let mut source = None;
         let mut parent_viewable = matches!(top.parent, BlockParent::Root | BlockParent::Detached);
-        let ids: Vec<Uuid> = std::iter::once(id).chain(self.ancestors(id)).collect();
-        for (block, node) in ids.into_iter().zip(chain).rev() {
-            above = level_below(node, account, above, parent_viewable);
-            if !above.can_view() && self.opens_to(block, account) {
-                above = Access::View;
+        for (block, node) in chain.into_iter().rev() {
+            let mut level = level_below(node, account, above, parent_viewable);
+            if !level.can_view() && self.opens_to(block, account) {
+                level = Access::View;
             }
+            if level > above {
+                source = Some(block);
+            }
+            above = level;
             parent_viewable = above.can_view();
         }
-        above
+        (above, source.filter(|_| above > Access::None))
+    }
+
+    pub fn set_inside(&self, id: Uuid) -> usize {
+        self.subtree(id)
+            .into_iter()
+            .skip(1)
+            .filter(|block| self.blocks.get(block).is_some_and(BlockNode::sets_access))
+            .count()
     }
 
     pub fn settings_of(&self, owner: Uuid) -> Vec<Uuid> {

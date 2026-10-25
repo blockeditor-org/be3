@@ -67,6 +67,7 @@ mod the_location_page_shows_the_folders_as_a_tree_with_the_chosen_one_checked;
 mod the_picker_never_offers_a_deleted_block_to_link;
 mod the_rename_card_sets_a_blocks_name_icon_and_color;
 mod the_share_dialog_lists_again_when_a_contact_is_made;
+mod the_share_dialog_says_where_each_persons_access_comes_from;
 mod widening_the_phone_with_its_switcher_open_keeps_the_workspace;
 
 const MAX_TAB: u64 = 64;

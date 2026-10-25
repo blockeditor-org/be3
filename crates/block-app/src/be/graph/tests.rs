@@ -18,6 +18,7 @@ fn node(id: Uuid) -> Node {
         head: None,
         locked: false,
         held: true,
+        sets_access: false,
     }
 }
 

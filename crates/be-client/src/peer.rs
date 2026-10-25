@@ -10,9 +10,9 @@ use be_commit::{
 use be_graph::{Access, BlockParent};
 use be_keys::{RecoveryPublic, RecoverySecret};
 use be_protocol::{
-    AccessEntry, BlockSummary, ByteBuf, ClientId, ClientMessage, ErrorCode, EscrowKey,
-    HistoryEntry, KeyKind, KeySet, Listing, OrganizationKind, OrganizationRole, ServerMessage,
-    SessionState, WrappedBy,
+    AccessList, BlockSummary, ByteBuf, ClientId, ClientMessage, ErrorCode, EscrowKey, HistoryEntry,
+    KeyKind, KeySet, Listing, OrganizationKind, OrganizationRole, ServerMessage, SessionState,
+    WrappedBy,
 };
 use be_store::{ChunkerConfig, Hash, Keyring, Manifest, ObjectStore, StoreError, Vault};
 use uuid::Uuid;
@@ -1805,13 +1805,13 @@ impl<S: ObjectStore> Peer<S> {
         Ok(())
     }
 
-    pub async fn list_access(&self, block: Uuid) -> Result<Vec<AccessEntry>, ClientError> {
+    pub async fn list_access(&self, block: Uuid) -> Result<AccessList, ClientError> {
         let response = self
             .connection()
             .request(|request| ClientMessage::ListAccess { request, block })
             .await?;
         match response {
-            ServerMessage::AccessList { entries, .. } => Ok(entries),
+            ServerMessage::AccessList { list, .. } => Ok(list),
             _ => Err(ClientError::Unexpected),
         }
     }

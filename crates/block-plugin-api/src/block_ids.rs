@@ -1,7 +1,7 @@
 use crate::{
-    BlockCommand, BlockImport, BlockLocation, BlockPick, BlockQuery, ChildContent, ChildPlacements,
-    CreationOutcome, EditorInstanceId, EditorMessage, HostReply, HostRequest, Message, ShellDialog,
-    VersionCommand,
+    AccessListing, BlockCommand, BlockImport, BlockLocation, BlockPick, BlockQuery, ChildContent,
+    ChildPlacements, CreationOutcome, EditorInstanceId, EditorMessage, HostReply, HostRequest,
+    Message, ShellDialog, VersionCommand,
 };
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -197,6 +197,11 @@ impl EditorMessage {
                 | HostRequest::ReadData(_) => {}
             },
             Self::Replied { reply, .. } => match reply {
+                HostReply::AccessListed(AccessListing::Listed { grants, .. }) => {
+                    for grant in grants {
+                        grant.source.iter_mut().for_each(&mut existing);
+                    }
+                }
                 HostReply::RevisionPreviewed(Ok(block_id))
                 | HostReply::BlockPicked(BlockPick::Chosen { block_id, .. })
                 | HostReply::BlocksImported(BlockImport::Imported { block_id, .. }) => {
@@ -213,7 +218,7 @@ impl EditorMessage {
                 | HostReply::Fetched(_)
                 | HostReply::DataListed(_)
                 | HostReply::DataRead(_)
-                | HostReply::AccessListed(_)
+                | HostReply::AccessListed(AccessListing::Failed(_))
                 | HostReply::ContactLinkMade(_)
                 | HostReply::BlocksImported(BlockImport::Cancelled | BlockImport::Failed(_)) => {}
             },

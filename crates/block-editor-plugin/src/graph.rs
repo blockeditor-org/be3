@@ -102,6 +102,7 @@ pub struct BlockInfo {
     pub metadata: BlockMetadata,
     pub locked: bool,
     pub deleted: bool,
+    pub sets_access: bool,
 }
 
 impl BlockInfo {
@@ -116,6 +117,7 @@ impl BlockInfo {
             metadata: BlockMetadata::default(),
             locked: false,
             deleted: false,
+            sets_access: false,
         }
     }
 
@@ -189,6 +191,7 @@ impl BlockInfo {
             },
             locked: self.locked,
             deleted: self.deleted,
+            sets_access: self.sets_access,
         }
     }
 
@@ -206,6 +209,7 @@ impl BlockInfo {
             },
             locked: info.locked,
             deleted: info.deleted,
+            sets_access: info.sets_access,
         }
     }
 }

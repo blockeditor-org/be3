@@ -13,8 +13,7 @@ use argon2::{
 use be_commit::CommitId;
 use be_graph::{Access, BlockGraph, BlockNode, BlockParent, GraphError, ObjectRefs};
 use be_protocol::{
-    AccessEntry, Agent, ErrorCode, Organization, OrganizationInvitation, OrganizationKind,
-    OrganizationRole,
+    Agent, ErrorCode, Organization, OrganizationInvitation, OrganizationKind, OrganizationRole,
 };
 use be_store::{FileStore, Hash, ObjectStore};
 use rand::TryRngCore;
@@ -1089,10 +1088,6 @@ pub struct Collected {
     pub blocks: Vec<Uuid>,
     pub objects: usize,
     pub revision: u64,
-}
-
-pub struct AccessList {
-    pub entries: Vec<AccessEntry>,
 }
 
 impl ServerStore {

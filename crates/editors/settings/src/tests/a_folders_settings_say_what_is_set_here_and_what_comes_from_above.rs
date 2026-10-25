@@ -90,16 +90,21 @@ fn a_folders_settings_say_what_is_set_here_and_what_comes_from_above() {
         .expect("a manager is shown who can read the hotbar");
     editor.reply(
         asked,
-        HostReply::AccessListed(AccessListing::Listed(vec![AccessGrant {
-            account: ANYONE_INSIDE.into_bytes(),
-            email: String::new(),
-            display_name: "Anyone who can view a block inside".to_owned(),
-            administrator: false,
-            author: false,
-            granted: Some(AccessLevel::View),
-            effective: AccessLevel::View,
-            waiting: false,
-        }])),
+        HostReply::AccessListed(AccessListing::Listed {
+            grants: vec![AccessGrant {
+                account: ANYONE_INSIDE.into_bytes(),
+                email: String::new(),
+                display_name: "Anyone who can view a block inside".to_owned(),
+                administrator: false,
+                author: false,
+                granted: Some(AccessLevel::View),
+                effective: AccessLevel::View,
+                source: Some(hotbar.into_bytes()),
+                waiting: false,
+            }],
+            company: false,
+            set_inside: 0,
+        }),
     );
     editor.run();
     assert!(

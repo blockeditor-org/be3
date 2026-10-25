@@ -44,11 +44,12 @@ pub(crate) fn access_of(level: AccessLevel) -> be_graph::Access {
 }
 
 pub(crate) fn grants_of(
-    listed: Result<Vec<be_protocol::AccessEntry>, String>,
+    listed: Result<be_protocol::AccessList, String>,
 ) -> block_plugin_api::AccessListing {
     match listed {
-        Ok(entries) => block_plugin_api::AccessListing::Listed(
-            entries
+        Ok(list) => block_plugin_api::AccessListing::Listed {
+            grants: list
+                .entries
                 .into_iter()
                 .map(|entry| block_plugin_api::AccessGrant {
                     account: entry.account.into_bytes(),
@@ -61,10 +62,13 @@ pub(crate) fn grants_of(
                     author: entry.author,
                     granted: entry.granted.map(level_of),
                     effective: level_of(entry.effective),
+                    source: entry.source.map(Uuid::into_bytes),
                     waiting: entry.waiting,
                 })
                 .collect(),
-        ),
+            company: list.company,
+            set_inside: list.set_inside,
+        },
         Err(error) => block_plugin_api::AccessListing::Failed(error),
     }
 }
@@ -93,6 +97,7 @@ pub(crate) fn info_of(node: &Node, deleted: bool) -> BlockInfo {
         },
         locked: node.locked,
         deleted,
+        sets_access: node.sets_access,
     }
 }
 

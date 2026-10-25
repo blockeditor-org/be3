@@ -859,6 +859,7 @@ impl ContentStore {
                     },
                     locked: false,
                     deleted: false,
+                    sets_access: false,
                 });
                 {
                     let mut inner = self.0.borrow_mut();

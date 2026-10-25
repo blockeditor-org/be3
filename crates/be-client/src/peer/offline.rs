@@ -147,6 +147,7 @@ impl<S: ObjectStore> Peer<S> {
             revision: 0,
             held: true,
             opens_inside: false,
+            sets_access: false,
         };
         self.refs.add_keys(&creation.keys)?;
         self.recorded(&creation.keys);

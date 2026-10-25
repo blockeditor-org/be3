@@ -450,6 +450,7 @@ pub(crate) fn duplicate(from: Uuid) -> Option<(Uuid, Uuid)> {
             head: None,
             locked: false,
             held: true,
+            sets_access: false,
         });
     });
     send(Command::Duplicate {
@@ -859,6 +860,7 @@ pub(crate) fn create(
             head: None,
             locked: false,
             held: true,
+            sets_access: false,
         });
     });
     send(Command::Create {
@@ -1011,7 +1013,7 @@ const NOT_OPEN: &str = "Open the organization first.";
 
 pub(crate) fn list_access(
     block: Uuid,
-    reply: impl FnOnce(Result<Vec<be_protocol::AccessEntry>, String>) + Send + 'static,
+    reply: impl FnOnce(Result<be_protocol::AccessList, String>) + Send + 'static,
 ) {
     send(Command::ListAccess {
         block,
@@ -1072,6 +1074,7 @@ pub(crate) fn import(bytes: &[u8], parent: be_graph::BlockParent) -> Result<(Uui
                 head: None,
                 locked: false,
                 held: true,
+                sets_access: false,
             });
         });
         if let Some(bytes) = &block.content {

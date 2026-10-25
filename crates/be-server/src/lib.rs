@@ -1043,7 +1043,7 @@ impl Connection {
             }
             ClientMessage::ListAccess { request, block } => Ok(ServerMessage::AccessList {
                 request,
-                entries: self.store.list_access(self.identity()?, block).await?,
+                list: self.store.list_access(self.identity()?, block).await?,
             }),
             ClientMessage::Watch { request, block } => {
                 self.identity()?;

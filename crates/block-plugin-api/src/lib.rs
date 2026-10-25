@@ -445,12 +445,17 @@ pub struct AccessGrant {
     pub author: bool,
     pub granted: Option<AccessLevel>,
     pub effective: AccessLevel,
+    pub source: Option<[u8; 16]>,
     pub waiting: bool,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum AccessListing {
-    Listed(Vec<AccessGrant>),
+    Listed {
+        grants: Vec<AccessGrant>,
+        company: bool,
+        set_inside: u32,
+    },
     Failed(String),
 }
 
@@ -1413,6 +1418,7 @@ pub struct BlockInfo {
     pub metadata: BlockMetadata,
     pub locked: bool,
     pub deleted: bool,
+    pub sets_access: bool,
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
@@ -2618,7 +2624,7 @@ fn validate_reply(reply: &HostReply) -> Result<(), DecodeError> {
         | HostReply::ContactLinkMade(
             ContactLinkResult::Made(message) | ContactLinkResult::Failed(message),
         ) => string(message),
-        HostReply::AccessListed(AccessListing::Listed(grants)) => {
+        HostReply::AccessListed(AccessListing::Listed { grants, .. }) => {
             collection(grants.len())?;
             for grant in grants {
                 string(&grant.email)?;

@@ -30,24 +30,30 @@ fn sharing_a_block_grants_the_people_added_and_lists_them_again() {
         author: false,
         granted,
         effective: granted.unwrap_or(AccessLevel::None),
+        source: granted.map(|_| block.into_bytes()),
         waiting: false,
     };
     fixture.test.reply(
         listing,
-        HostReply::AccessListed(AccessListing::Listed(vec![
-            grant(me, "Me", Some(AccessLevel::Edit)),
-            grant(friend, "Friend", None),
-            AccessGrant {
-                author: true,
-                effective: AccessLevel::Edit,
-                ..grant(maker, "Maker", None)
-            },
-        ])),
+        HostReply::AccessListed(AccessListing::Listed {
+            grants: vec![
+                grant(me, "Me", Some(AccessLevel::Edit)),
+                grant(friend, "Friend", None),
+                AccessGrant {
+                    author: true,
+                    effective: AccessLevel::Manage,
+                    source: Some(block.into_bytes()),
+                    ..grant(maker, "Maker", None)
+                },
+            ],
+            company: false,
+            set_inside: 0,
+        }),
     );
     fixture.settle();
     assert!(fixture.says("This is you"));
     assert!(
-        fixture.says("Made this block") && !fixture.says("Inherited"),
+        fixture.says("Made this block") && !fixture.says("Can manage, set here"),
         "the block's author is listed as its author, not as inheriting access"
     );
     assert!(

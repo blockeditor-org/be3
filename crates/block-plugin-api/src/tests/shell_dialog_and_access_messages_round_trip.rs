@@ -33,16 +33,21 @@ fn shell_dialog_and_access_messages_round_trip() {
         Message::Editor(EditorMessage::Replied {
             instance: EditorInstanceId(2),
             request_id: 7,
-            reply: HostReply::AccessListed(AccessListing::Listed(vec![AccessGrant {
-                account: [4; 16],
-                email: "friend@example.org".into(),
-                display_name: "Friend".into(),
-                administrator: false,
-                author: false,
-                granted: Some(AccessLevel::View),
-                effective: AccessLevel::View,
-                waiting: true,
-            }])),
+            reply: HostReply::AccessListed(AccessListing::Listed {
+                grants: vec![AccessGrant {
+                    account: [4; 16],
+                    email: "friend@example.org".into(),
+                    display_name: "Friend".into(),
+                    administrator: false,
+                    author: false,
+                    granted: Some(AccessLevel::View),
+                    effective: AccessLevel::Edit,
+                    source: Some([5; 16]),
+                    waiting: true,
+                }],
+                company: true,
+                set_inside: 3,
+            }),
         }),
         committed(ChildPlacements {
             instance: EditorInstanceId(1),

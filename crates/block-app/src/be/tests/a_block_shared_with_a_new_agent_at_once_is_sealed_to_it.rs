@@ -33,6 +33,7 @@ fn a_block_shared_with_a_new_agent_at_once_is_sealed_to_it() {
         .expect("the access is listed")
         .expect("the access list loads");
     let entry = entries
+        .entries
         .iter()
         .find(|entry| entry.account == agent)
         .expect("the agent has access");

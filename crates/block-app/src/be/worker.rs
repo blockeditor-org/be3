@@ -8,7 +8,7 @@ use be_block::BlockMetadata;
 use be_client::{ClientError, Credentials, Peer, PeerConfig};
 use be_commit::CommitId;
 use be_graph::{Access, BlockParent};
-use be_protocol::{AccessEntry, BlockSummary, ClientMessage, ServerMessage};
+use be_protocol::{AccessList, BlockSummary, ClientMessage, ServerMessage};
 use be_types_host::Conflict;
 use block_type_api::{Change, Description, EditorId, Request};
 use block_type_guest::editor::FromEditor;
@@ -45,7 +45,7 @@ pub(super) struct Inbox {
     pub(super) nudged: tokio::sync::watch::Receiver<()>,
 }
 
-type AccessReply = Box<dyn FnOnce(Result<Vec<AccessEntry>, String>) + Send>;
+type AccessReply = Box<dyn FnOnce(Result<AccessList, String>) + Send>;
 
 type ExportReply = Box<dyn FnOnce(Result<(String, Vec<u8>), String>) + Send>;
 
@@ -2042,6 +2042,7 @@ pub(super) fn node_of(peer: &Peer<Store>, summary: &BlockSummary) -> Node {
         metadata: metadata.unwrap_or_default(),
         head: summary.head,
         held: summary.held,
+        sets_access: summary.sets_access,
     }
 }
 

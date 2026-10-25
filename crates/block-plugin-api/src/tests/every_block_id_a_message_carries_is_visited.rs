@@ -18,7 +18,27 @@ fn every_block_id_a_message_carries_is_visited() {
                 metadata: crate::BlockMetadata::default(),
                 locked: false,
                 deleted: false,
+                sets_access: false,
             }],
+        }),
+        Message::Editor(EditorMessage::Replied {
+            instance: EditorInstanceId(2),
+            request_id: 3,
+            reply: crate::HostReply::AccessListed(crate::AccessListing::Listed {
+                grants: vec![crate::AccessGrant {
+                    account: [9; 16],
+                    email: String::new(),
+                    display_name: String::new(),
+                    administrator: false,
+                    author: false,
+                    granted: None,
+                    effective: AccessLevel::Edit,
+                    source: Some([1; 16]),
+                    waiting: false,
+                }],
+                company: false,
+                set_inside: 0,
+            }),
         }),
         Message::Editor(EditorMessage::VersionControl {
             instance: EditorInstanceId(2),

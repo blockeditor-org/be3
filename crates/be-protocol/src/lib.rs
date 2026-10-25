@@ -145,6 +145,7 @@ pub struct BlockSummary {
     pub held: bool,
     #[serde(default)]
     pub opens_inside: bool,
+    pub sets_access: bool,
 }
 
 impl BlockSummary {
@@ -164,6 +165,7 @@ impl BlockSummary {
             revision: 0,
             held: true,
             opens_inside: false,
+            sets_access: false,
         }
     }
 }
@@ -298,8 +300,16 @@ pub struct AccessEntry {
     pub author: bool,
     pub granted: Option<Access>,
     pub effective: Access,
+    pub source: Option<Uuid>,
     pub contact: bool,
     pub waiting: bool,
+}
+
+#[derive(Clone, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
+pub struct AccessList {
+    pub entries: Vec<AccessEntry>,
+    pub company: bool,
+    pub set_inside: u32,
 }
 
 #[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -852,7 +862,7 @@ pub enum ServerMessage {
     },
     AccessList {
         request: u64,
-        entries: Vec<AccessEntry>,
+        list: AccessList,
     },
     Session {
         request: u64,

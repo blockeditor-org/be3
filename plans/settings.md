@@ -89,15 +89,22 @@ re-import once, and say so in `guides/frozen_formats.md`.
 
 ## 2. Access UI
 
-4. **Share dialog.** Each person's effective access and where it comes from
+4. **Share dialog.** (Done.) Each person's effective access and where it comes from
    ("Can edit, from *Team*", "Can view, set here"). In an organization, a line
    saying the organization's administrators have access, which can't be
    changed. When sharing a folder, a warning if items inside it have their own
-   access ("3 items inside have different access").
-5. **File tree icons.** A clickable share icon on a block whose access is set
+   access ("3 items inside have different access"). The source is the block
+   whose grant (or authorship) first reached the effective level going down
+   (`BlockGraph::inherited_from`); `AccessEntry::source`, `AccessList { company,
+   set_inside }` (`BlockGraph::set_inside` counts blocks below with grants of
+   their own).
+5. **File tree icons.** (Done.) A clickable share icon on a block whose access is set
    on it, opening the share dialog; a clickable settings icon on a block that
    has settings, opening them. Icons come from `beui_core::icons`. Done: a
-   painting of a tree showing both.
+   painting of a tree showing both. `BlockSummary` (and `BlockInfo`) carry
+   `sets_access` (`BlockNode::sets_access`: a grant to an account, not on a
+   settings block). The settings icon shows when the block's `SETTINGS`
+   metadata points to its settings, and opens them as the menu's Settings does.
 
 ## 3. Resolving settings
 

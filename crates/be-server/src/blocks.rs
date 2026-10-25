@@ -3,7 +3,8 @@ use be_graph::{
     ANYONE_INSIDE, Access, BlockGraph, BlockNode, BlockParent, ObjectRefs, SETTINGS_TYPE,
 };
 use be_protocol::{
-    AccessEntry, BlockSummary, ErrorCode, HistoryEntry, KeyKind, KeySet, OrganizationRole,
+    AccessEntry, AccessList, BlockSummary, ErrorCode, HistoryEntry, KeyKind, KeySet,
+    OrganizationRole,
 };
 use be_store::{Hash, ObjectStore};
 use rusqlite::{Connection, OptionalExtension, params};
@@ -163,6 +164,7 @@ fn summary_with(graph: &BlockGraph, seen: &Visibility, block: Uuid) -> Option<Bl
         revision,
         held: graph.holds(block),
         opens_inside: node.is_open_inside() && graph.settings_owner(block).is_some(),
+        sets_access: node.sets_access(),
     })
 }
 
@@ -939,9 +941,11 @@ impl ServerStore {
         &self,
         identity: Identity,
         block: Uuid,
-    ) -> Result<Vec<AccessEntry>, ServerError> {
+    ) -> Result<AccessList, ServerError> {
         self.with_graph(identity.organization, move |graph, database| {
             require_manage(graph, &visibility(identity), block)?;
+            let company = crate::keys::organization_kind(database, identity.organization)?
+                == be_protocol::OrganizationKind::Company;
             let node = graph.get(block).ok_or(ServerError::Corrupt)?;
             let contacts = crate::contacts::contacts_of(database, identity.account)?;
             let mut listed: BTreeSet<Uuid> = node.grants.keys().copied().collect();
@@ -983,6 +987,7 @@ impl ServerStore {
                         author: false,
                         granted: node.grants.get(&account).copied(),
                         effective: node.grants.get(&account).copied().unwrap_or_default(),
+                        source: node.grants.contains_key(&account).then_some(block),
                         contact: false,
                         waiting: false,
                     });
@@ -992,6 +997,13 @@ impl ServerStore {
                     continue;
                 };
                 let role = crate::store::decode_role(&role)?;
+                let (effective, source) = match role {
+                    OrganizationRole::Administrator => (Access::Manage, None),
+                    OrganizationRole::Editor => match graph.inherited_from(block, account) {
+                        (level, source) if level.can_know_exists() => (level, source),
+                        _ => (graph.effective_access(block, account), None),
+                    },
+                };
                 entries.push(AccessEntry {
                     account,
                     email,
@@ -999,10 +1011,8 @@ impl ServerStore {
                     role,
                     author: node.author == account,
                     granted: node.grants.get(&account).copied(),
-                    effective: match role {
-                        OrganizationRole::Administrator => Access::Manage,
-                        OrganizationRole::Editor => graph.effective_access(block, account),
-                    },
+                    effective,
+                    source,
                     contact: contacts.contains(&account),
                     waiting: node
                         .grants
@@ -1016,7 +1026,11 @@ impl ServerStore {
                         )?,
                 });
             }
-            Ok(entries)
+            Ok(AccessList {
+                entries,
+                company,
+                set_inside: u32::try_from(graph.set_inside(block)).unwrap_or(u32::MAX),
+            })
         })
         .await
     }

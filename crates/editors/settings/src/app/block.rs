@@ -157,7 +157,7 @@ fn KindHere(editor: Editor, kind: Uuid, block: Memo<Option<Uuid>>, manages: Memo
         let Some(request) = asked.get_untracked() else {
             return;
         };
-        if let Some(AccessListing::Listed(grants)) = host.take_access_listing(request) {
+        if let Some(AccessListing::Listed { grants, .. }) = host.take_access_listing(request) {
             let open = grants.iter().any(|grant| {
                 Uuid::from_bytes(grant.account) == ANYONE_INSIDE
                     && grant.granted.is_some_and(|level| level.can_view())

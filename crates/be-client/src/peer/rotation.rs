@@ -177,6 +177,7 @@ impl<S: ObjectStore> Peer<S> {
         Ok(self
             .list_access(node.id)
             .await?
+            .entries
             .into_iter()
             .filter(|entry| entry.account != self.account && entry.effective.can_view())
             .filter(|entry| {
