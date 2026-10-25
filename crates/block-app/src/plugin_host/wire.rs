@@ -38,6 +38,7 @@ pub(super) struct Wire {
     picks: HashMap<(EditorInstanceId, u64), OpId>,
     painting: HashMap<OpId, Ticket<Vec<u8>>>,
     audio: HashMap<EditorInstanceId, Watch<AudioStatus>>,
+    host_values: HashMap<OpId, ((EditorInstanceId, String), Watch<Vec<u8>>)>,
     web_views: HashMap<OpId, (EditorInstanceId, WebViewId, Watch<Vec<WebViewEvent>>)>,
     preferences: Watch<Preferences>,
     utc_offset: Watch<i32>,
@@ -98,6 +99,7 @@ impl Default for Wire {
             picks: HashMap::new(),
             painting: HashMap::new(),
             audio: HashMap::new(),
+            host_values: HashMap::new(),
             web_views: HashMap::new(),
             preferences: Watch::default(),
             utc_offset: Watch::default(),
@@ -194,6 +196,15 @@ impl Wire {
         };
         let connection = &mut self.connection;
         match call {
+            EditorCall::HostValue { key, value } => {
+                for (_, watch) in self
+                    .host_values
+                    .values_mut()
+                    .filter(|(watched, _)| *watched == (instance, key.clone()))
+                {
+                    watch.change(connection, |_| value.clone());
+                }
+            }
             EditorCall::AudioStatus(status) => {
                 self.audio
                     .entry(instance)
@@ -355,6 +366,27 @@ impl Wire {
                     url,
                 }));
             }
+            ShellCall::HostValueWatchNew {
+                resource,
+                instance,
+                key,
+            } => {
+                let mut watch = Watch::default();
+                watch.opened(resource.op());
+                self.host_values
+                    .insert(resource.op(), ((instance, key.clone()), watch));
+                heard.push(Heard::Shell(ShellCall::HostValueWatchNew {
+                    resource,
+                    instance,
+                    key,
+                }));
+            }
+            ShellCall::HostValueWatchNext { this, reply } => {
+                match self.host_values.get_mut(&this.op()) {
+                    Some((_, watch)) => watch.next(connection, reply),
+                    None => reply.fail(connection, OpError::Canceled),
+                }
+            }
             ShellCall::WebViewNextEvents { this, reply } => {
                 match self.web_views.get_mut(&this.op()) {
                     Some((_, _, watch)) => watch.next(connection, reply),
@@ -480,10 +512,12 @@ impl Wire {
                 let watched = self.child_statuses.values().any(|watch| watch.is(op))
                     || self.audio.values().any(|watch| watch.is(op))
                     || self.web_views.contains_key(&op)
+                    || self.host_values.contains_key(&op)
                     || self.block_types.is(op);
                 self.child_statuses.retain(|_, watch| !watch.is(op));
                 self.audio.retain(|_, watch| !watch.is(op));
                 self.web_views.remove(&op);
+                self.host_values.remove(&op);
                 if watched {
                     connection.complete(op, Outcome::Err(OpError::Canceled));
                 }

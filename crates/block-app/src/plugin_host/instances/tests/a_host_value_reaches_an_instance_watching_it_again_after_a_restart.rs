@@ -29,46 +29,35 @@ fn a_host_value_reaches_an_instance_watching_it_again_after_a_restart() {
         !publish::<Displays>(&mut instances, &first),
         "nobody is watching yet"
     );
-    assert!(host_values_sent::<Displays>(&instances.next_screens(PASS).messages()).is_empty());
+    assert!(host_values_sent::<Displays>(&instances.next_screens(PASS).opened).is_empty());
 
     assert!(watch::<Displays>(&mut instances));
     assert!(instances.watches_host_value(Displays::KEY));
     assert_eq!(
-        host_values_sent::<Displays>(&instances.next_screens(PASS).messages()),
+        host_values_sent::<Displays>(&instances.next_screens(PASS).opened),
         vec![first.clone()]
     );
     assert!(
-        host_values_sent::<Displays>(&instances.next_screens(PASS).messages()).is_empty(),
+        host_values_sent::<Displays>(&instances.next_screens(PASS).opened).is_empty(),
         "a value is told once"
     );
 
     let second = vec![monitor(1920)];
     assert!(publish::<Displays>(&mut instances, &second));
     assert_eq!(
-        host_values_sent::<Displays>(&instances.next_screens(PASS).messages()),
+        host_values_sent::<Displays>(&instances.next_screens(PASS).opened),
         vec![second.clone()]
     );
 
     instances.reopen();
     assert_eq!(
-        host_values_sent::<Displays>(&instances.next_screens(PASS).messages()),
+        host_values_sent::<Displays>(&instances.next_screens(PASS).opened),
         vec![second.clone()],
         "a restarted plugin is told again"
     );
 
     assert!(
-        !instances.editor_message(EditorMessage::WatchHostValue {
-            instance: INSTANCE,
-            key: "nothing the host keeps".to_owned(),
-        }),
+        !watch_key(&mut instances, "nothing the host keeps"),
         "a value the host does not keep cannot be watched"
-    );
-    assert!(
-        !instances.editor_message(EditorMessage::HostValue {
-            instance: INSTANCE,
-            key: Displays::KEY.to_owned(),
-            value: block_plugin_api::encode_host(&first),
-        }),
-        "only the host says what a value is"
     );
 }

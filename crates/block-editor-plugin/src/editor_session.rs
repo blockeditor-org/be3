@@ -223,10 +223,6 @@ impl EditorSession {
         self.host.show_panel(panel);
     }
 
-    pub(crate) fn host_value(&self, key: String, value: Vec<u8>) {
-        self.host.receive_host_value(key, value);
-    }
-
     pub(crate) fn show_block(&self, request: crate::ShowRequest) {
         self.host.show_block(request);
     }
@@ -566,11 +562,7 @@ impl EditorSession {
             }
         }
         for (key, action) in self.host.take_host_actions() {
-            messages.push(Message::Editor(EditorMessage::HostAction {
-                instance,
-                key,
-                action,
-            }));
+            shell::host_action(instance, key, action);
         }
         for commit in self.host.take_child_commits() {
             shell::commit_child(instance, commit.child, commit.parent.encode(), commit.name);
@@ -631,10 +623,15 @@ impl EditorSession {
             }));
         }
         for key in self.host.take_host_watches() {
-            messages.push(Message::Editor(EditorMessage::WatchHostValue {
-                instance,
-                key,
-            }));
+            let watch = crate::asked::asking(Some(instance), || {
+                shell::HostValueWatch::new(instance, key.clone())
+            });
+            let host = self.host.clone();
+            spawn(async move {
+                while let Ok(value) = watch.next().await {
+                    host.receive_host_value(key.clone(), value);
+                }
+            });
         }
         if let Some(blocks) = self.host.take_history_watch() {
             messages.push(Message::Editor(EditorMessage::WatchHistory {

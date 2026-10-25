@@ -68,11 +68,7 @@ fn host_actions_reach_the_host_only_from_the_shell() {
         "actions nobody takes are held only up to a limit"
     );
     assert!(
-        !instances.editor_message(EditorMessage::HostAction {
-            instance: INSTANCE,
-            key: "nothing the host does".to_owned(),
-            action: Vec::new(),
-        }),
+        !act_on(&mut instances, "nothing the host does", Vec::new()),
         "an action the host does not know is refused"
     );
 }

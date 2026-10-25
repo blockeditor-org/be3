@@ -381,15 +381,6 @@ impl Screens {
                     session.show_panel(*panel);
                 }
             }
-            Message::Editor(EditorMessage::HostValue {
-                instance,
-                key,
-                value,
-            }) => {
-                if let Some(session) = self.sessions.get(instance) {
-                    session.host_value(key.clone(), value.clone());
-                }
-            }
             Message::Editor(EditorMessage::Close { instance }) => {
                 self.sessions.remove(instance);
                 self.requests

@@ -1597,7 +1597,7 @@ impl Instances {
                 &self.published,
                 &mut reported,
             );
-            opened.extend(reported.into_iter().map(Outbound::from));
+            opened.extend(reported);
             if entry.view != entry.reported_view {
                 entry.reported_view = entry.view;
                 if let Some(view) = entry.view {
@@ -2608,6 +2608,7 @@ impl Instances {
                 &call,
                 ShellCall::Menu { .. }
                     | ShellCall::WebViewNew { .. }
+                    | ShellCall::HostValueWatchNew { .. }
                     | ShellCall::Focused { .. }
                     | ShellCall::ChangeView { .. }
                     | ShellCall::RegionStopped { .. }
@@ -2743,6 +2744,12 @@ impl Instances {
                 }
             }
             ShellCall::WebViewNew { id, .. } => entry.unshown_web_views.push(id),
+            ShellCall::HostValueWatchNew { key, .. } => return entry.host_values.watch(key),
+            ShellCall::HostAction { key, action, .. } => {
+                return entry
+                    .host_values
+                    .act(key, action, self.shell == Some(instance));
+            }
             ShellCall::Present { .. }
             | ShellCall::AudioStatusWatchNew { .. }
             | ShellCall::AudioStatusWatchNext { .. }
@@ -2750,6 +2757,7 @@ impl Instances {
             | ShellCall::WebViewReload { .. }
             | ShellCall::WebViewFocusApp { .. }
             | ShellCall::WebViewNextEvents { .. }
+            | ShellCall::HostValueWatchNext { .. }
             | ShellCall::ChildStatusesWatchNew { .. }
             | ShellCall::ChildStatusesWatchNext { .. }
             | ShellCall::BlockTypesWatchNew { .. }
@@ -2803,26 +2811,11 @@ impl Instances {
                     | EditorMessage::WatchHistory { .. }
                     | EditorMessage::WatchHeads { .. }
                     | EditorMessage::WatchArtifacts { .. }
-                    | EditorMessage::WatchHostValue { .. }
             )
         {
             return false;
         }
         match message {
-            EditorMessage::WatchHostValue { instance, key } => self
-                .entries
-                .get_mut(&instance)
-                .is_some_and(|entry| entry.host_values.watch(key)),
-            EditorMessage::HostAction {
-                instance,
-                key,
-                action,
-            } => {
-                let shell = self.shell == Some(instance);
-                self.entries
-                    .get_mut(&instance)
-                    .is_some_and(|entry| entry.host_values.act(key, action, shell))
-            }
             EditorMessage::OpenBlock {
                 instance,
                 block_id,

@@ -1,9 +1,11 @@
 use std::{collections::HashMap, sync::Arc};
 
 use block_plugin_api::{
-    Administrator, Contacts, EditorInstanceId, EditorMessage, HostAction, HostValue, HostWindows,
-    LinkBase, Message, WindowAction,
+    Administrator, Contacts, EditorInstanceId, HostAction, HostValue, HostWindows, LinkBase,
+    WindowAction,
 };
+
+use super::calls::{EditorCall, Outbound};
 #[cfg(target_os = "linux")]
 use block_plugin_api::{
     Displays, Epaper, EpaperRequest, InputDevices, Media, MediaRequest, NotificationReport,
@@ -129,7 +131,7 @@ impl Watched {
         instance: EditorInstanceId,
         shell: bool,
         published: &Published,
-        messages: &mut Vec<Message>,
+        messages: &mut Vec<Outbound>,
     ) {
         let mut keys: Vec<_> = self.reported.keys().cloned().collect();
         keys.sort();
@@ -148,11 +150,13 @@ impl Watched {
                 continue;
             }
             *reported = Some(Arc::clone(value));
-            messages.push(Message::Editor(EditorMessage::HostValue {
+            messages.push(Outbound::Editor(
                 instance,
-                key,
-                value: value.to_vec(),
-            }));
+                EditorCall::HostValue {
+                    key,
+                    value: value.to_vec(),
+                },
+            ));
         }
     }
 }

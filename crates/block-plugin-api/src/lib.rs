@@ -851,25 +851,6 @@ pub enum EditorMessage {
         panel: HostPanel,
     },
 
-    WatchHostValue {
-        instance: EditorInstanceId,
-        key: String,
-    },
-
-    HostValue {
-        instance: EditorInstanceId,
-        key: String,
-        #[serde(with = "serde_bytes")]
-        value: Vec<u8>,
-    },
-
-    HostAction {
-        instance: EditorInstanceId,
-        key: String,
-        #[serde(with = "serde_bytes")]
-        action: Vec<u8>,
-    },
-
     BlockCommand {
         instance: EditorInstanceId,
         block_id: [u8; 16],
@@ -983,9 +964,6 @@ impl EditorMessage {
             | Self::OpenBlock { instance, .. }
             | Self::ShowBlock { instance, .. }
             | Self::ShowPanel { instance, .. }
-            | Self::WatchHostValue { instance, .. }
-            | Self::HostValue { instance, .. }
-            | Self::HostAction { instance, .. }
             | Self::BlockCommand { instance, .. }
             | Self::OpenCreation { instance, .. }
             | Self::OpenArtifact { instance, .. }
@@ -1144,7 +1122,6 @@ impl EditorMessage {
             | Self::Head { .. }
             | Self::Blocks { .. }
             | Self::BlocksFailed { .. }
-            | Self::HostValue { .. }
             | Self::VersionStatus { .. } => Direction::ToPlugin,
             Self::OpenBlock { .. }
             | Self::BlockCommand { .. }
@@ -1158,8 +1135,6 @@ impl EditorMessage {
             | Self::VersionControl { .. }
             | Self::CreateBlock { .. }
             | Self::SetParent { .. }
-            | Self::WatchHostValue { .. }
-            | Self::HostAction { .. }
             | Self::Define { .. } => Direction::ToHost,
             Self::Replica { .. } => Direction::Either,
         }
@@ -1467,16 +1442,6 @@ fn validate_editor(message: &EditorMessage) -> Result<(), DecodeError> {
                 }
             }
             Ok(())
-        }
-        EditorMessage::WatchHostValue { key, .. } => string(key),
-        EditorMessage::HostValue {
-            key, value: bytes, ..
-        }
-        | EditorMessage::HostAction {
-            key, action: bytes, ..
-        } => {
-            string(key)?;
-            blob(bytes)
         }
         _ => Ok(()),
     }

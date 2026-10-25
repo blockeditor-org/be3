@@ -55,6 +55,10 @@ pub(super) enum EditorCall {
     FileDropLeft,
     ChildStatuses(Vec<ChildStatus>),
     Pick(PickRequest),
+    HostValue {
+        key: String,
+        value: Vec<u8>,
+    },
     AudioStatus(AudioStatus),
     WebViewEvent {
         web_view: WebViewId,
@@ -162,7 +166,9 @@ pub(super) fn instance_of(call: &ShellCall) -> Option<EditorInstanceId> {
         | ShellCall::ChildStatusesWatchNew { instance, .. }
         | ShellCall::PlayAudio { instance, .. }
         | ShellCall::AudioStatusWatchNew { instance, .. }
-        | ShellCall::WebViewNew { instance, .. } => Some(*instance),
+        | ShellCall::WebViewNew { instance, .. }
+        | ShellCall::HostValueWatchNew { instance, .. }
+        | ShellCall::HostAction { instance, .. } => Some(*instance),
         ShellCall::ChildStatusesWatchNext { .. }
         | ShellCall::BlockTypesWatchNew { .. }
         | ShellCall::BlockTypesWatchNext { .. }
@@ -170,7 +176,8 @@ pub(super) fn instance_of(call: &ShellCall) -> Option<EditorInstanceId> {
         | ShellCall::WebViewLoad { .. }
         | ShellCall::WebViewReload { .. }
         | ShellCall::WebViewFocusApp { .. }
-        | ShellCall::WebViewNextEvents { .. } => None,
+        | ShellCall::WebViewNextEvents { .. }
+        | ShellCall::HostValueWatchNext { .. } => None,
     }
 }
 

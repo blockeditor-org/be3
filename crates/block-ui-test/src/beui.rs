@@ -77,6 +77,11 @@ pub struct BeuiTest<A: BeuiApp> {
         ),
     >,
     web_view_commands: Vec<(WebViewId, WebViewCommand)>,
+    host_values: std::collections::HashMap<String, Vec<u8>>,
+    host_value_watches: std::collections::HashMap<
+        block_plugin_api::ops::OpId,
+        (String, block_plugin_api::Watch<Vec<u8>>),
+    >,
     asked_picks: Vec<(
         u64,
         block_plugin_api::ops::Ticket<block_plugin_api::BlockPick>,
@@ -261,6 +266,8 @@ impl<A: BeuiApp> BeuiTest<A> {
             calls: Vec::new(),
             web_views: std::collections::HashMap::new(),
             web_view_commands: Vec::new(),
+            host_values: std::collections::HashMap::new(),
+            host_value_watches: std::collections::HashMap::new(),
             asked_picks: Vec::new(),
             child_statuses: block_plugin_api::Watch::default(),
             block_types: block_plugin_api::Watch::default(),
@@ -718,19 +725,21 @@ impl<A: BeuiApp> BeuiTest<A> {
     }
 
     pub fn set_host_value<T: block_plugin_api::HostValue>(&mut self, value: &T::Value) {
-        self.inbox.push(Inbound::Message(Message::Editor(
-            EditorMessage::HostValue {
-                instance: INSTANCE,
-                key: T::KEY.to_owned(),
-                value: block_plugin_api::encode_host(value),
-            },
-        )));
+        let value = block_plugin_api::encode_host(value);
+        for (_, (key, watch)) in self.host_value_watches.iter_mut() {
+            if key == T::KEY {
+                watch.change(&mut self.connection, |_| value.clone());
+            }
+        }
+        self.host_values.insert(T::KEY.to_owned(), value);
+        let frames = self.connection.take_outbound();
+        self.inbox.push(Inbound::Frames(frames));
     }
 
     pub fn watches<T: block_plugin_api::HostValue>(&self) -> bool {
-        self.sent.iter().any(
-            |message| matches!(message, EditorMessage::WatchHostValue { key, .. } if key == T::KEY),
-        )
+        self.host_value_watches
+            .values()
+            .any(|(key, _)| key == T::KEY)
     }
 
     pub fn answer<T: serde::Serialize>(&mut self, reply: Reply<T>, answer: T) {
@@ -990,67 +999,82 @@ impl<A: BeuiApp> BeuiTest<A> {
             });
         }
         while let Some(event) = self.connection.next_event() {
-            let called = match event {
-                Incoming::Started(started) if ShellCall::accepts(&started) => {
-                    let connection = &mut self.connection;
-                    match ShellCall::accept(connection, started) {
-                        Some(ShellCall::ChildStatusesWatchNew { resource, .. }) => {
-                            self.child_statuses.opened(resource.op())
-                        }
-                        Some(ShellCall::ChildStatusesWatchNext { reply, .. }) => {
-                            self.child_statuses.next(connection, reply)
-                        }
-                        Some(ShellCall::BlockTypesWatchNew { resource }) => {
-                            self.block_types.opened(resource.op())
-                        }
-                        Some(ShellCall::BlockTypesWatchNext { reply, .. }) => {
-                            self.block_types.next(connection, reply)
-                        }
-                        Some(ShellCall::WebViewNew {
-                            resource, id, url, ..
-                        }) => {
-                            let mut watch = block_plugin_api::Watch::default();
-                            watch.opened(resource.op());
-                            self.web_views.insert(resource.op(), (id, watch));
-                            self.web_view_commands.push((id, WebViewCommand::Open(url)));
-                        }
-                        Some(ShellCall::WebViewNextEvents { this, reply }) => {
-                            match self.web_views.get_mut(&this.op()) {
-                                Some((_, watch)) => watch.next(connection, reply),
-                                None => {
-                                    reply.fail(connection, block_plugin_api::ops::OpError::Canceled)
+            let called =
+                match event {
+                    Incoming::Started(started) if ShellCall::accepts(&started) => {
+                        let connection = &mut self.connection;
+                        match ShellCall::accept(connection, started) {
+                            Some(ShellCall::ChildStatusesWatchNew { resource, .. }) => {
+                                self.child_statuses.opened(resource.op())
+                            }
+                            Some(ShellCall::ChildStatusesWatchNext { reply, .. }) => {
+                                self.child_statuses.next(connection, reply)
+                            }
+                            Some(ShellCall::BlockTypesWatchNew { resource }) => {
+                                self.block_types.opened(resource.op())
+                            }
+                            Some(ShellCall::BlockTypesWatchNext { reply, .. }) => {
+                                self.block_types.next(connection, reply)
+                            }
+                            Some(ShellCall::WebViewNew {
+                                resource, id, url, ..
+                            }) => {
+                                let mut watch = block_plugin_api::Watch::default();
+                                watch.opened(resource.op());
+                                self.web_views.insert(resource.op(), (id, watch));
+                                self.web_view_commands.push((id, WebViewCommand::Open(url)));
+                            }
+                            Some(ShellCall::HostValueWatchNew { resource, key, .. }) => {
+                                let mut watch = block_plugin_api::Watch::default();
+                                watch.opened(resource.op());
+                                if let Some(value) = self.host_values.get(&key) {
+                                    watch.change(connection, |_| value.clone());
+                                }
+                                self.host_value_watches.insert(resource.op(), (key, watch));
+                            }
+                            Some(ShellCall::HostValueWatchNext { this, reply }) => {
+                                match self.host_value_watches.get_mut(&this.op()) {
+                                    Some((_, watch)) => watch.next(connection, reply),
+                                    None => reply
+                                        .fail(connection, block_plugin_api::ops::OpError::Canceled),
                                 }
                             }
+                            Some(ShellCall::WebViewNextEvents { this, reply }) => {
+                                match self.web_views.get_mut(&this.op()) {
+                                    Some((_, watch)) => watch.next(connection, reply),
+                                    None => reply
+                                        .fail(connection, block_plugin_api::ops::OpError::Canceled),
+                                }
+                            }
+                            _ => {}
                         }
-                        _ => {}
+                        continue;
                     }
-                    continue;
-                }
-                Incoming::Called(called) => called,
-                Incoming::Completed { op, outcome } => {
-                    self.completed.insert(op, outcome);
-                    continue;
-                }
-                Incoming::Started(started) => {
-                    let op = started.op;
-                    if Call::accepts(&started)
-                        && let Some(call) = Call::accept(&mut self.connection, started)
-                    {
-                        self.requests.push((Some(op), call));
+                    Incoming::Called(called) => called,
+                    Incoming::Completed { op, outcome } => {
+                        self.completed.insert(op, outcome);
+                        continue;
                     }
-                    continue;
-                }
-                Incoming::Canceled { op } => {
-                    if let Some((id, _)) = self.web_views.remove(&op) {
-                        self.web_view_commands.push((id, WebViewCommand::Close));
+                    Incoming::Started(started) => {
+                        let op = started.op;
+                        if Call::accepts(&started)
+                            && let Some(call) = Call::accept(&mut self.connection, started)
+                        {
+                            self.requests.push((Some(op), call));
+                        }
+                        continue;
                     }
-                    self.requests.retain(|(asked, _)| *asked != Some(op));
-                    self.connection
-                        .complete(op, Outcome::Err(OpError::Canceled));
-                    continue;
-                }
-                Incoming::Yielded { .. } => continue,
-            };
+                    Incoming::Canceled { op } => {
+                        if let Some((id, _)) = self.web_views.remove(&op) {
+                            self.web_view_commands.push((id, WebViewCommand::Close));
+                        }
+                        self.requests.retain(|(asked, _)| *asked != Some(op));
+                        self.connection
+                            .complete(op, Outcome::Err(OpError::Canceled));
+                        continue;
+                    }
+                    Incoming::Yielded { .. } => continue,
+                };
             if let Some(call) = Call::accept_direct(&called) {
                 self.requests.push((None, call));
                 continue;
@@ -1344,11 +1368,11 @@ impl<A: BeuiApp> BeuiTest<A> {
     }
 
     pub fn actions<Act: block_plugin_api::HostAction>(&self) -> Vec<Act> {
-        self.sent.iter().filter_map(host_action::<Act>).collect()
+        self.calls.iter().filter_map(host_action::<Act>).collect()
     }
 
     pub fn take_actions<Act: block_plugin_api::HostAction>(&mut self) -> Vec<Act> {
-        self.take_where(host_action::<Act>)
+        self.take_calls(host_action::<Act>)
     }
 
     pub fn take_version_commands(&mut self) -> Vec<(Uuid, block_editor_beui::VersionCommand)> {
@@ -1974,9 +1998,9 @@ impl Viewport {
     }
 }
 
-fn host_action<A: block_plugin_api::HostAction>(message: &EditorMessage) -> Option<A> {
-    match message {
-        EditorMessage::HostAction { key, action, .. } if key == A::KEY => {
+fn host_action<A: block_plugin_api::HostAction>(call: &ShellCall) -> Option<A> {
+    match call {
+        ShellCall::HostAction { key, action, .. } if key == A::KEY => {
             block_plugin_api::decode_host(action)
         }
         _ => None,

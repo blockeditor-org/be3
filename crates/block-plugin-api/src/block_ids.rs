@@ -188,12 +188,7 @@ impl EditorMessage {
                     | VersionCommand::PushUpstream => {}
                 }
             }
-            Self::Close { .. }
-            | Self::ShowPanel { .. }
-            | Self::WatchHostValue { .. }
-            | Self::HostValue { .. }
-            | Self::HostAction { .. }
-            | Self::OpenCreation { .. } => {}
+            Self::Close { .. } | Self::ShowPanel { .. } | Self::OpenCreation { .. } => {}
         }
     }
 }

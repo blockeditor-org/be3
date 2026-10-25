@@ -96,33 +96,42 @@ fn publish<T: block_plugin_api::HostValue>(instances: &mut Instances, value: &T:
     instances.set_host_value(T::KEY, Arc::new(block_plugin_api::encode_host(value)))
 }
 
-fn host_values_sent<T: block_plugin_api::HostValue>(messages: &[Message]) -> Vec<T::Value> {
+fn host_values_sent<T: block_plugin_api::HostValue>(messages: &[Outbound]) -> Vec<T::Value> {
     messages
         .iter()
         .filter_map(|message| match message {
-            Message::Editor(EditorMessage::HostValue {
-                instance,
-                key,
-                value,
-            }) if *instance == INSTANCE && key == T::KEY => block_plugin_api::decode_host(value),
+            Outbound::Editor(instance, EditorCall::HostValue { key, value })
+                if *instance == INSTANCE && key == T::KEY =>
+            {
+                block_plugin_api::decode_host(value)
+            }
             _ => None,
         })
         .collect()
 }
 
-fn watch<T: block_plugin_api::HostValue>(instances: &mut Instances) -> bool {
-    instances.editor_message(EditorMessage::WatchHostValue {
+fn watch_key(instances: &mut Instances, key: &str) -> bool {
+    instances.shell_call(ShellCall::HostValueWatchNew {
+        resource: block_plugin_api::embed::shell::HostValueWatch(0),
         instance: INSTANCE,
-        key: T::KEY.to_owned(),
+        key: key.to_owned(),
+    })
+}
+
+fn watch<T: block_plugin_api::HostValue>(instances: &mut Instances) -> bool {
+    watch_key(instances, T::KEY)
+}
+
+fn act_on(instances: &mut Instances, key: &str, action: Vec<u8>) -> bool {
+    instances.shell_call(ShellCall::HostAction {
+        instance: INSTANCE,
+        key: key.to_owned(),
+        action,
     })
 }
 
 fn act<A: block_plugin_api::HostAction>(instances: &mut Instances, action: &A) -> bool {
-    instances.editor_message(EditorMessage::HostAction {
-        instance: INSTANCE,
-        key: A::KEY.to_owned(),
-        action: block_plugin_api::encode_host(action),
-    })
+    act_on(instances, A::KEY, block_plugin_api::encode_host(action))
 }
 
 fn take_actions<A: block_plugin_api::HostAction>(instances: &mut Instances) -> Vec<A> {

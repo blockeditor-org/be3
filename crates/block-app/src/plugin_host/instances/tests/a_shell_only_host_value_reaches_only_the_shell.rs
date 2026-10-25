@@ -29,12 +29,12 @@ fn a_shell_only_host_value_reaches_only_the_shell() {
         !publish::<HostWindows>(&mut instances, &windows),
         "only the shell may see the windows"
     );
-    assert!(host_values_sent::<HostWindows>(&instances.next_screens(PASS).messages()).is_empty());
+    assert!(host_values_sent::<HostWindows>(&instances.next_screens(PASS).opened).is_empty());
 
     assert!(instances.set_shell(Some(INSTANCE)));
     assert!(instances.watches_host_value(HostWindows::KEY));
     assert_eq!(
-        host_values_sent::<HostWindows>(&instances.next_screens(PASS).messages()),
+        host_values_sent::<HostWindows>(&instances.next_screens(PASS).opened),
         vec![windows.clone()],
         "an instance that becomes the shell is told what it was waiting for"
     );
@@ -44,5 +44,5 @@ fn a_shell_only_host_value_reaches_only_the_shell() {
         !publish::<HostWindows>(&mut instances, &Vec::new()),
         "nor does an instance that is no longer the shell"
     );
-    assert!(host_values_sent::<HostWindows>(&instances.next_screens(PASS).messages()).is_empty());
+    assert!(host_values_sent::<HostWindows>(&instances.next_screens(PASS).opened).is_empty());
 }
