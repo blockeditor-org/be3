@@ -22956,6 +22956,7 @@ crates = {
             "android-arm64": {
                 "binaries": {},
                 "deps": [
+                    "//crates/be-ops-bindgen:be-ops-bindgen",
                     "//crates/geometry:geometry",
                     "//third-party/rust:serde-1.0.228",
                     "//third-party/rust:serde_bytes-0.11.19",
@@ -22968,6 +22969,7 @@ crates = {
             "linux-arm64": {
                 "binaries": {},
                 "deps": [
+                    "//crates/be-ops-bindgen:be-ops-bindgen",
                     "//crates/geometry:geometry",
                     "//third-party/rust:serde-1.0.228",
                     "//third-party/rust:serde_bytes-0.11.19",
@@ -22980,6 +22982,7 @@ crates = {
             "linux-x86_64": {
                 "binaries": {},
                 "deps": [
+                    "//crates/be-ops-bindgen:be-ops-bindgen",
                     "//crates/geometry:geometry",
                     "//third-party/rust:serde-1.0.228",
                     "//third-party/rust:serde_bytes-0.11.19",
@@ -22992,6 +22995,7 @@ crates = {
             "macos-arm64": {
                 "binaries": {},
                 "deps": [
+                    "//crates/be-ops-bindgen:be-ops-bindgen",
                     "//crates/geometry:geometry",
                     "//third-party/rust:serde-1.0.228",
                     "//third-party/rust:serde_bytes-0.11.19",
@@ -23004,6 +23008,7 @@ crates = {
             "macos-x86_64": {
                 "binaries": {},
                 "deps": [
+                    "//crates/be-ops-bindgen:be-ops-bindgen",
                     "//crates/geometry:geometry",
                     "//third-party/rust:serde-1.0.228",
                     "//third-party/rust:serde_bytes-0.11.19",
@@ -23016,6 +23021,7 @@ crates = {
             "wasi": {
                 "binaries": {},
                 "deps": [
+                    "//crates/be-ops-bindgen:be-ops-bindgen",
                     "//crates/geometry:geometry",
                     "//third-party/rust:serde-1.0.228",
                     "//third-party/rust:serde_bytes-0.11.19",
@@ -23028,6 +23034,7 @@ crates = {
             "wasi-guest": {
                 "binaries": {},
                 "deps": [
+                    "//crates/be-ops-bindgen:be-ops-bindgen",
                     "//crates/geometry:geometry",
                     "//third-party/rust:serde-1.0.228",
                     "//third-party/rust:serde_bytes-0.11.19",
@@ -23040,6 +23047,7 @@ crates = {
             "wasm32": {
                 "binaries": {},
                 "deps": [
+                    "//crates/be-ops-bindgen:be-ops-bindgen",
                     "//crates/geometry:geometry",
                     "//third-party/rust:serde-1.0.228",
                     "//third-party/rust:serde_bytes-0.11.19",
@@ -23052,6 +23060,7 @@ crates = {
             "windows-arm64": {
                 "binaries": {},
                 "deps": [
+                    "//crates/be-ops-bindgen:be-ops-bindgen",
                     "//crates/geometry:geometry",
                     "//third-party/rust:serde-1.0.228",
                     "//third-party/rust:serde_bytes-0.11.19",
@@ -23064,6 +23073,7 @@ crates = {
             "windows-x86_64": {
                 "binaries": {},
                 "deps": [
+                    "//crates/be-ops-bindgen:be-ops-bindgen",
                     "//crates/geometry:geometry",
                     "//third-party/rust:serde-1.0.228",
                     "//third-party/rust:serde_bytes-0.11.19",

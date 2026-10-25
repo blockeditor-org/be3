@@ -1,14 +1,8 @@
+pub use crate::types::{InputDevice, PointerSettings};
 use serde::{Deserialize, Serialize};
 
 pub const MIN_POINTER_SPEED: f32 = -1.0;
 pub const MAX_POINTER_SPEED: f32 = 1.0;
-
-#[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize, Deserialize)]
-pub struct InputDevice {
-    pub name: String,
-    pub vendor: u32,
-    pub product: u32,
-}
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Serialize, Deserialize)]
 pub struct PointerSpeed(f32);
@@ -24,13 +18,6 @@ impl PointerSpeed {
     pub fn get(self) -> f32 {
         Self::new(self.0).0
     }
-}
-
-#[derive(Clone, Copy, Debug, Default, PartialEq, Serialize, Deserialize)]
-pub struct PointerSettings {
-    pub speed: Option<PointerSpeed>,
-    pub tap_to_click: Option<bool>,
-    pub natural_scroll: Option<bool>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]

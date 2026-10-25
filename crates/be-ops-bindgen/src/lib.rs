@@ -21,6 +21,10 @@ struct Options {
     with: BTreeMap<String, syn::Path>,
     copy: BTreeSet<String>,
     default: BTreeSet<String>,
+    inline: BTreeSet<String>,
+    lenient: BTreeSet<String>,
+    ordered: BTreeSet<String>,
+    deps: Vec<String>,
 }
 
 impl Parse for Options {
@@ -33,6 +37,10 @@ impl Parse for Options {
             with: BTreeMap::new(),
             copy: BTreeSet::new(),
             default: BTreeSet::new(),
+            inline: BTreeSet::new(),
+            lenient: BTreeSet::new(),
+            ordered: BTreeSet::new(),
+            deps: Vec::new(),
         };
         while !content.is_empty() {
             let key: Ident = content.parse()?;
@@ -53,7 +61,7 @@ impl Parse for Options {
                         }
                     }
                 }
-                "copy" | "default" => {
+                "copy" | "default" | "inline" | "lenient" | "ordered" | "deps" => {
                     let names;
                     bracketed!(names in content);
                     let names: Punctuated<LitStr, Token![,]> =
@@ -61,6 +69,10 @@ impl Parse for Options {
                     let names = names.iter().map(LitStr::value).collect();
                     match key.to_string().as_str() {
                         "copy" => options.copy = names,
+                        "inline" => options.inline = names,
+                        "lenient" => options.lenient = names,
+                        "ordered" => options.ordered = names,
+                        "deps" => options.deps = names.into_iter().collect(),
                         _ => options.default = names,
                     }
                 }
@@ -150,8 +162,14 @@ impl Generator {
     fn run(options: Options) -> Result<TokenStream, String> {
         let root = std::env::var("CARGO_MANIFEST_DIR")
             .map_err(|_| "CARGO_MANIFEST_DIR is not set".to_owned())?;
-        let path = PathBuf::from(root).join(&options.path);
+        let path = PathBuf::from(&root).join(&options.path);
         let mut resolve = Resolve::new();
+        for dep in &options.deps {
+            let dep = PathBuf::from(&root).join(dep);
+            resolve
+                .push_dir(&dep)
+                .map_err(|error| format!("{}: {error:#}", dep.display()))?;
+        }
         let (package, _) = resolve
             .push_dir(&path)
             .map_err(|error| format!("{}: {error:#}", path.display()))?;
@@ -256,6 +274,9 @@ impl Generator {
                     return served;
                 }
             });
+        }
+        if bounds.is_empty() && direct_imports.is_empty() && args.is_empty() {
+            return Ok(types);
         }
         let exporter = format_ident!("export_{}", generator.options.world.to_snake_case());
         let registrar = format_ident!("__register_{}", generator.options.world.to_snake_case());
@@ -374,7 +395,9 @@ impl Generator {
             Type::S64 => quote!(i64),
             Type::Char => quote!(char),
             Type::String => quote!(::std::string::String),
-            Type::F32 | Type::F64 | Type::ErrorContext => {
+            Type::F32 => quote!(f32),
+            Type::F64 => quote!(f64),
+            Type::ErrorContext => {
                 return Err(format!("{ty:?} is not supported over be-ops"));
             }
             Type::Id(id) => {
@@ -480,24 +503,89 @@ impl Generator {
         }
     }
 
+    fn floating(&self, ty: &Type) -> bool {
+        match ty {
+            Type::F32 | Type::F64 => true,
+            Type::Id(id) => {
+                let id = self.target(*id);
+                match &self.resolve.types[id].kind {
+                    TypeDefKind::Record(record) => {
+                        record.fields.iter().any(|field| self.floating(&field.ty))
+                    }
+                    TypeDefKind::Variant(variant) => variant
+                        .cases
+                        .iter()
+                        .any(|case| case.ty.as_ref().is_some_and(|ty| self.floating(ty))),
+                    TypeDefKind::Tuple(tuple) => tuple.types.iter().any(|ty| self.floating(ty)),
+                    TypeDefKind::Option(inner)
+                    | TypeDefKind::Type(inner)
+                    | TypeDefKind::List(inner) => self.floating(inner),
+                    TypeDefKind::Result(result) => {
+                        result.ok.as_ref().is_some_and(|ty| self.floating(ty))
+                            || result.err.as_ref().is_some_and(|ty| self.floating(ty))
+                    }
+                    _ => false,
+                }
+            }
+            _ => false,
+        }
+    }
+
     fn derives(&self, id: TypeId) -> TokenStream {
-        let default = match self.type_name(id) {
-            Some(name) if self.options.default.contains(&name) => quote!(Default,),
+        let name = self.type_name(id);
+        let default = match &name {
+            Some(name) if self.options.default.contains(name) => quote!(Default,),
             _ => TokenStream::new(),
         };
-        match self.copyable(&Type::Id(id)) {
-            true => quote! {
-                #[derive(
-                    Clone, Copy, Debug, #default Eq, Hash, Ord, PartialEq, PartialOrd,
-                    ::serde::Serialize, ::serde::Deserialize,
-                )]
-            },
-            false => quote! {
-                #[derive(
-                    Clone, Debug, #default Eq, PartialEq, ::serde::Serialize, ::serde::Deserialize,
-                )]
-            },
+        let lenient = match &name {
+            Some(name) if self.options.lenient.contains(name) => quote!(#[serde(default)]),
+            _ => TokenStream::new(),
+        };
+        let floating = self.floating(&Type::Id(id));
+        let derives = match (self.copyable(&Type::Id(id)), floating) {
+            (true, false) => quote!(Clone, Copy, Debug, #default Eq, Hash, Ord, PartialEq, PartialOrd,),
+            (true, true) => quote!(Clone, Copy, Debug, #default PartialEq,),
+            (false, false) if name.as_ref().is_some_and(|name| self.options.ordered.contains(name)) => {
+                quote!(Clone, Debug, #default Eq, Hash, Ord, PartialEq, PartialOrd,)
+            }
+            (false, false) => quote!(Clone, Debug, #default Eq, PartialEq,),
+            (false, true) => quote!(Clone, Debug, #default PartialEq,),
+        };
+        quote! {
+            #[derive(#derives ::serde::Serialize, ::serde::Deserialize)]
+            #lenient
         }
+    }
+
+    fn inlined(&self, ty: &Type) -> Option<&wit_parser::Record> {
+        let Type::Id(id) = ty else {
+            return None;
+        };
+        let def = &self.resolve.types[*id];
+        let name = def.name.as_ref()?;
+        if !self.options.inline.contains(name) {
+            return None;
+        }
+        match &def.kind {
+            TypeDefKind::Record(record) => Some(record),
+            _ => None,
+        }
+    }
+
+    fn fields(&self, record: &wit_parser::Record, public: bool) -> Result<Vec<TokenStream>, String> {
+        record
+            .fields
+            .iter()
+            .map(|field| {
+                let name = snake(&field.name);
+                let ty = self.ty(&field.ty)?;
+                let bytes = self.bytes_attribute(&field.ty);
+                Ok(match public {
+                    true => quote! { #bytes pub #name: #ty, },
+                    false => quote! { #bytes #name: #ty, },
+                })
+            })
+            .collect()
     }
 
     fn type_name(&self, id: TypeId) -> Option<String> {
@@ -524,38 +612,41 @@ impl Generator {
                 self.types_of(other, defined, out)?;
                 continue;
             }
-            if self.options.with.contains_key(&name) {
+            if self.options.with.contains_key(&name) || self.options.inline.contains(&name) {
                 continue;
             }
             let ident = camel(&name);
             let derives = self.derives(id);
             items.extend(match &def.kind {
                 TypeDefKind::Record(record) => {
-                    let fields = record
-                        .fields
-                        .iter()
-                        .map(|field| {
-                            let name = snake(&field.name);
-                            let ty = self.ty(&field.ty)?;
-                            let bytes = self.bytes_attribute(&field.ty);
-                            Ok(quote! { #bytes pub #name: #ty, })
-                        })
-                        .collect::<Result<Vec<_>, String>>()?;
+                    let fields = self.fields(record, true)?;
                     quote! { #derives pub struct #ident { #(#fields)* } }
                 }
                 TypeDefKind::Variant(variant) => {
+                    let defaulted = self.options.default.contains(&name);
                     let cases = variant
                         .cases
                         .iter()
-                        .map(|case| {
+                        .enumerate()
+                        .map(|(index, case)| {
                             let name = camel(&case.name);
+                            let first = match defaulted && index == 0 {
+                                true => quote!(#[default]),
+                                false => TokenStream::new(),
+                            };
                             Ok(match &case.ty {
-                                Some(ty) => {
-                                    let bytes = self.bytes_attribute(ty);
-                                    let ty = self.ty(ty)?;
-                                    quote! { #name(#bytes #ty), }
-                                }
-                                None => quote! { #name, },
+                                Some(ty) => match self.inlined(ty) {
+                                    Some(record) => {
+                                        let fields = self.fields(record, false)?;
+                                        quote! { #name { #(#fields)* }, }
+                                    }
+                                    None => {
+                                        let bytes = self.bytes_attribute(ty);
+                                        let ty = self.ty(ty)?;
+                                        quote! { #name(#bytes #ty), }
+                                    }
+                                },
+                                None => quote! { #first #name, },
                             })
                         })
                         .collect::<Result<Vec<_>, String>>()?;
@@ -795,13 +886,8 @@ impl Generator {
 
     fn guest_import(&self, _module: &Ident, methods: &[Method<'_>]) -> Result<TokenStream, String> {
         let mut out = TokenStream::new();
+        let mut resources = BTreeMap::<String, Vec<TokenStream>>::new();
         for method in methods {
-            if method.function.kind.resource().is_some() {
-                return Err(format!(
-                    "{}: imported resources are not supported",
-                    method.name
-                ));
-            }
             if let Shape::Direct(Some(_)) = method.shape {
                 return Err(format!(
                     "{}: a sync import cannot return a value, since the host that answers it is \
@@ -814,6 +900,45 @@ impl Generator {
             let constant = &method.constant;
             let args = Self::construct(method);
             let named = &method.named;
+            if let Some(resource) = method.function.kind.resource() {
+                let resource = self.resolve.types[resource].name.clone().unwrap_or_default();
+                let item = match (&method.function.kind, &method.shape) {
+                    (FunctionKind::Constructor(_), _) => quote! {
+                        pub fn new(#(#params),*) -> Self {
+                            Self(::be_ops::guest::open(crate::__args::#constant, &#args))
+                        }
+                    },
+                    (_, Shape::Direct(_)) => quote! {
+                        pub fn #name(&self, #(#params),*) {
+                            ::be_ops::guest::with_parent(self.0.op(), || {
+                                ::be_ops::guest::direct(crate::__args::#named, &::be_ops::encode(&#args))
+                            });
+                        }
+                    },
+                    (_, Shape::Call(result)) => {
+                        let result = self.optional(result.as_ref())?;
+                        quote! {
+                            pub fn #name(&self, #(#params),*) -> ::be_ops::guest::Pending<#result> {
+                                ::be_ops::guest::with_parent(self.0.op(), || {
+                                    ::be_ops::guest::call(crate::__args::#constant, &#args)
+                                })
+                            }
+                        }
+                    }
+                    (_, Shape::Stream(item)) => {
+                        let item = self.optional(item.as_ref())?;
+                        quote! {
+                            pub fn #name(&self, #(#params),*) -> ::be_ops::guest::Stream<#item> {
+                                ::be_ops::guest::with_parent(self.0.op(), || {
+                                    ::be_ops::guest::stream(crate::__args::#constant, &#args)
+                                })
+                            }
+                        }
+                    }
+                };
+                resources.entry(resource).or_default().push(item);
+                continue;
+            }
             out.extend(match &method.shape {
                 Shape::Direct(_) => {
                     quote! {
@@ -840,6 +965,24 @@ impl Generator {
                 }
             });
         }
+        for (resource, items) in resources {
+            let name = camel(&resource);
+            out.extend(quote! {
+                pub struct #name(::be_ops::guest::Resource);
+
+                impl #name {
+                    #(#items)*
+
+                    pub fn op(&self) -> ::be_ops::OpId {
+                        self.0.op()
+                    }
+
+                    pub fn ended(&self) -> bool {
+                        self.0.ended()
+                    }
+                }
+            });
+        }
         Ok(out)
     }
 
@@ -847,8 +990,21 @@ impl Generator {
         let mut cases = Vec::new();
         let mut arms = Vec::new();
         let mut direct_arms = Vec::new();
+        let mut handles = BTreeSet::new();
         for method in methods {
-            let case = camel(method.function.item_name());
+            let resource = method
+                .function
+                .kind
+                .resource()
+                .map(|resource| camel(&self.resolve.types[resource].name.clone().unwrap_or_default()));
+            let case = match (&resource, &method.function.kind) {
+                (Some(resource), FunctionKind::Constructor(_)) => format_ident!("{resource}New"),
+                (Some(resource), _) => format_ident!("{resource}{}", camel(method.function.item_name())),
+                (None, _) => camel(method.function.item_name()),
+            };
+            if let Some(resource) = &resource {
+                handles.insert(resource.to_string());
+            }
             let constant = &method.constant;
             let args = &method.args;
             let fields: Vec<TokenStream> = method
@@ -862,9 +1018,14 @@ impl Generator {
                 })
                 .collect();
             let names: Vec<&Ident> = method.params.iter().map(|(name, _)| name).collect();
-            let (field, value, notify) = match &method.shape {
-                Shape::Direct(_) => (None, None, true),
-                Shape::Call(result) => {
+            let (field, value, notify) = match (&method.shape, &resource, &method.function.kind) {
+                (_, Some(resource), FunctionKind::Constructor(_)) => (
+                    Some(quote!(resource: #resource)),
+                    Some(quote!(resource: #resource(op))),
+                    false,
+                ),
+                (Shape::Direct(_), _, _) => (None, None, true),
+                (Shape::Call(result), _, _) => {
                     let result = self.optional(result.as_ref()).unwrap_or_else(|error| {
                         syn::Error::new(Span::call_site(), error).to_compile_error()
                     });
@@ -874,7 +1035,7 @@ impl Generator {
                         false,
                     )
                 }
-                Shape::Stream(item) => {
+                (Shape::Stream(item), _, _) => {
                     let item = self.optional(item.as_ref()).unwrap_or_else(|error| {
                         syn::Error::new(Span::call_site(), error).to_compile_error()
                     });
@@ -885,15 +1046,32 @@ impl Generator {
                     )
                 }
             };
+            let method_of = matches!(
+                method.function.kind,
+                FunctionKind::Method(_) | FunctionKind::AsyncMethod(_)
+            );
+            let (this, this_started, this_called) = match (&resource, method_of) {
+                (Some(resource), true) => (
+                    Some(quote!(this: #resource)),
+                    Some(quote!(this: #resource(started.parent?))),
+                    Some(quote!(this: #resource(called.parent?))),
+                ),
+                _ => (None, None, None),
+            };
+            let (this, this_started, this_called) = (
+                this.into_iter(),
+                this_started.into_iter(),
+                this_called.into_iter(),
+            );
             let field = field.into_iter();
             let value = value.into_iter();
-            cases.push(quote! { #case { #(#field,)* #(#fields,)* } });
+            cases.push(quote! { #case { #(#this,)* #(#field,)* #(#fields,)* } });
             if notify {
                 direct_arms.push(quote! {
                     crate::__args::#constant => {
                         let crate::__args::#args { #(#names),* } =
                             ::be_ops::decode::<crate::__args::#args>(&called.args)?;
-                        Call::#case { #(#names,)* }
+                        Call::#case { #(#this_called,)* #(#names,)* }
                     }
                 });
                 continue;
@@ -902,7 +1080,7 @@ impl Generator {
                 crate::__args::#constant => {
                     match ::be_ops::decode::<crate::__args::#args>(&started.args) {
                         ::core::option::Option::Some(crate::__args::#args { #(#names),* }) => {
-                            Call::#case { #(#value,)* #(#names,)* }
+                            Call::#case { #(#this_started,)* #(#value,)* #(#names,)* }
                         }
                         ::core::option::Option::None => {
                             connection.complete(
@@ -915,7 +1093,26 @@ impl Generator {
                 }
             });
         }
+        let handles = handles.into_iter().map(|name| {
+            let name = Ident::new(&name, Span::call_site());
+            quote! {
+                #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+                pub struct #name(pub ::be_ops::OpId);
+
+                impl #name {
+                    pub fn op(self) -> ::be_ops::OpId {
+                        self.0
+                    }
+
+                    pub fn end(self, connection: &mut ::be_ops::Connection) {
+                        connection.complete(self.0, ::be_ops::Outcome::returned(&()));
+                    }
+                }
+            }
+        });
         quote! {
+            #(#handles)*
+
             #[derive(Debug)]
             pub enum Call {
                 #(#cases,)*

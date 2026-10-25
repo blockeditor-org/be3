@@ -8242,6 +8242,7 @@ dependencies = [
 name = "ui-types"
 version = "0.1.0"
 dependencies = [
+ "be-ops-bindgen",
  "geometry",
  "serde",
  "serde_bytes",

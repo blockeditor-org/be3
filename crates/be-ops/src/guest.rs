@@ -495,6 +495,37 @@ pub fn stream<T: DeserializeOwned, A: Serialize>(method: MethodId, args: &A) -> 
     }
 }
 
+pub fn open<A: Serialize>(method: MethodId, args: &A) -> Resource {
+    let inner = current();
+    let op = inner.start(method, encode(args));
+    Resource { op, inner }
+}
+
+pub struct Resource {
+    op: OpId,
+    inner: Rc<Inner>,
+}
+
+impl Resource {
+    pub fn op(&self) -> OpId {
+        self.op
+    }
+
+    pub fn ended(&self) -> bool {
+        self.inner
+            .calls
+            .borrow()
+            .get(&self.op)
+            .is_none_or(|call| call.outcome.is_some())
+    }
+}
+
+impl Drop for Resource {
+    fn drop(&mut self) {
+        self.inner.forget(self.op);
+    }
+}
+
 pub struct Pending<T> {
     op: OpId,
     inner: Rc<Inner>,

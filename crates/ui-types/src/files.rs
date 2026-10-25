@@ -1,11 +1,4 @@
-use serde::{Deserialize, Serialize};
-
-#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
-pub struct FileFilter {
-    pub name: String,
-    pub extensions: Vec<String>,
-    pub mime_types: Vec<String>,
-}
+pub use crate::types::{FileFilter, PickedFile, FilePick, SavedFile, FileSave};
 
 impl FileFilter {
     pub fn new(name: &str, extensions: &[&str], mime_types: &[&str]) -> Self {
@@ -18,25 +11,3 @@ impl FileFilter {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub struct PickedFile {
-    pub name: String,
-    #[serde(with = "serde_bytes")]
-    pub data: Vec<u8>,
-}
-
-pub type FilePick = Result<Option<PickedFile>, String>;
-
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub struct SavedFile {
-    pub name: String,
-    pub mime_type: String,
-    pub data: Vec<u8>,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub enum FileSave {
-    Saved,
-    Cancelled,
-    Failed(String),
-}

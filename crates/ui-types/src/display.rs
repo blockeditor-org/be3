@@ -1,20 +1,4 @@
-use serde::{Deserialize, Serialize};
-
-#[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize, Deserialize)]
-pub struct DisplayMode {
-    pub width: u32,
-    pub height: u32,
-    pub refresh_millihertz: u32,
-}
-
-#[derive(Clone, Copy, Debug, Default, Eq, Hash, PartialEq, Serialize, Deserialize)]
-pub enum Rotation {
-    #[default]
-    Normal,
-    Clockwise90,
-    Clockwise180,
-    Clockwise270,
-}
+pub use crate::types::{DisplayMode, Rotation};
 
 impl Rotation {
     pub const ALL: [Self; 4] = [
