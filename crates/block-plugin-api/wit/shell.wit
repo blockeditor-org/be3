@@ -336,14 +336,6 @@ interface shell {
         web-view-event,
     };
 
-    /// A value the host publishes under a key, such as its windows or its
-    /// power state, encoded as block-plugin-api's `HostValue` for that key
-    /// says. `next` answers with the latest once it changed.
-    resource host-value-watch {
-        constructor(instance: editor-instance-id, key: string);
-        next: async func() -> list<u8>;
-    }
-
     /// The status of the audio the editor plays, watched like preferences once
     /// it plays any.
     resource audio-status-watch {
@@ -422,10 +414,6 @@ interface shell {
 
     /// The editor asks the host to move its view.
     change-view: func(instance: editor-instance-id, change: view-change);
-
-    /// Asks the host to act under a key, the action encoded as
-    /// block-plugin-api's `HostAction` for that key says.
-    host-action: func(instance: editor-instance-id, key: string, action: list<u8>);
 
     /// Loads, plays or pauses, or stops the editor's audio.
     play-audio: func(instance: editor-instance-id, command: audio-command);

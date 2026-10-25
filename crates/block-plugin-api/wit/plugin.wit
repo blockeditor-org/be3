@@ -107,5 +107,6 @@ world editor-plugin {
     import blocks;
     import shell;
     import host-services;
+    import be3:host-values/host-values@0.1.0;
     export plugin;
 }

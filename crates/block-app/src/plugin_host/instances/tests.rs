@@ -113,11 +113,13 @@ fn host_values_sent<T: block_plugin_api::HostValue>(messages: &[Outbound]) -> Ve
 }
 
 fn watch_key(instances: &mut Instances, key: &str) -> bool {
-    instances.shell_call(ShellCall::HostValueWatchNew {
-        resource: block_plugin_api::embed::shell::HostValueWatch(0),
-        instance: INSTANCE,
-        key: key.to_owned(),
-    })
+    instances.host_values_call(
+        INSTANCE,
+        HostValues::WatchNew {
+            resource: block_plugin_api::embed::host_values::Watch(0),
+            key: key.to_owned(),
+        },
+    )
 }
 
 fn watch<T: block_plugin_api::HostValue>(instances: &mut Instances) -> bool {
@@ -125,11 +127,13 @@ fn watch<T: block_plugin_api::HostValue>(instances: &mut Instances) -> bool {
 }
 
 fn act_on(instances: &mut Instances, key: &str, action: Vec<u8>) -> bool {
-    instances.shell_call(ShellCall::HostAction {
-        instance: INSTANCE,
-        key: key.to_owned(),
-        action,
-    })
+    instances.host_values_call(
+        INSTANCE,
+        HostValues::Act {
+            key: key.to_owned(),
+            action,
+        },
+    )
 }
 
 fn act<A: block_plugin_api::HostAction>(instances: &mut Instances, action: &A) -> bool {

@@ -132,6 +132,7 @@ pub(super) enum Heard {
     Answer(EditorInstanceId, EditorAnswer),
     Paintings(Vec<u8>),
     Blocks(EditorInstanceId, block_plugin_api::embed::blocks::Call),
+    HostValues(EditorInstanceId, block_plugin_api::embed::host_values::Call),
     Ended(block_plugin_api::ops::OpId),
 }
 
@@ -160,9 +161,7 @@ pub(super) fn instance_of(call: &ShellCall) -> Option<EditorInstanceId> {
         | ShellCall::ChildStatusesWatchNew { instance, .. }
         | ShellCall::PlayAudio { instance, .. }
         | ShellCall::AudioStatusWatchNew { instance, .. }
-        | ShellCall::WebViewNew { instance, .. }
-        | ShellCall::HostValueWatchNew { instance, .. }
-        | ShellCall::HostAction { instance, .. } => Some(*instance),
+        | ShellCall::WebViewNew { instance, .. } => Some(*instance),
         ShellCall::ChildStatusesWatchNext { .. }
         | ShellCall::BlockTypesWatchNew { .. }
         | ShellCall::BlockTypesWatchNext { .. }
@@ -170,8 +169,7 @@ pub(super) fn instance_of(call: &ShellCall) -> Option<EditorInstanceId> {
         | ShellCall::WebViewLoad { .. }
         | ShellCall::WebViewReload { .. }
         | ShellCall::WebViewFocusApp { .. }
-        | ShellCall::WebViewNextEvents { .. }
-        | ShellCall::HostValueWatchNext { .. } => None,
+        | ShellCall::WebViewNextEvents { .. } => None,
     }
 }
 

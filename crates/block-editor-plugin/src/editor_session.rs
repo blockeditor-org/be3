@@ -403,7 +403,9 @@ impl EditorSession {
             }
         }
         for (key, action) in self.host.take_host_actions() {
-            shell::host_action(instance, key, action);
+            crate::asked::asking(Some(instance), || {
+                block_plugin_api::guest::host_values::act(key, action)
+            });
         }
         for commit in self.host.take_child_commits() {
             shell::commit_child(instance, commit.child, commit.parent.encode(), commit.name);
@@ -436,7 +438,7 @@ impl EditorSession {
         }
         for key in self.host.take_host_watches() {
             let watch = crate::asked::asking(Some(instance), || {
-                shell::HostValueWatch::new(instance, key.clone())
+                block_plugin_api::guest::host_values::Watch::new(key.clone())
             });
             let host = self.host.clone();
             spawn(async move {

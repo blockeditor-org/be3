@@ -171,6 +171,7 @@ enum Answer {
     Editor(EditorInstanceId, EditorAnswer),
     Paintings(Vec<u8>),
     Blocks(EditorInstanceId, block_plugin_api::embed::blocks::Call),
+    HostValues(EditorInstanceId, block_plugin_api::embed::host_values::Call),
     Ended(block_plugin_api::ops::OpId),
     Frame(FrameCommit),
     Laid(Laid),
@@ -190,6 +191,7 @@ impl From<Heard> for Answer {
             Heard::Answer(instance, answer) => Self::Editor(instance, answer),
             Heard::Paintings(payload) => Self::Paintings(payload),
             Heard::Blocks(instance, call) => Self::Blocks(instance, call),
+            Heard::HostValues(instance, call) => Self::HostValues(instance, call),
             Heard::Ended(op) => Self::Ended(op),
         }
     }
@@ -854,6 +856,7 @@ impl Runtime {
                 | Answer::Editor(..)
                 | Answer::Paintings(_)
                 | Answer::Blocks(..)
+                | Answer::HostValues(..)
                 | Answer::Ended(_)
                 | Answer::Frame(_) => None,
             })
@@ -914,6 +917,9 @@ impl Runtime {
                 }
                 Answer::Blocks(instance, call) => {
                     self.instances.blocks_call(instance, call)
+                }
+                Answer::HostValues(instance, call) => {
+                    self.instances.host_values_call(instance, call)
                 }
                 Answer::Ended(op) => {
                     self.instances.ended(op);

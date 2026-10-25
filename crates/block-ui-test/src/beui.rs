@@ -13,6 +13,7 @@ use block_editor_beui::{
 };
 use block_plugin_api::Opening;
 use block_plugin_api::embed::blocks::Call as BlocksCall;
+use block_plugin_api::embed::host_values::Call as HostValues;
 use block_plugin_api::embed::{exports::plugin::Editor, shell::Call as ShellCall};
 use block_plugin_api::ops::{Connection, Incoming, Side};
 use block_plugin_api::{
@@ -83,6 +84,7 @@ pub struct BeuiTest<A: BeuiApp> {
     link: crate::link::Link,
     editor: Option<Editor>,
     calls: Vec<ShellCall>,
+    host_actions: Vec<(String, Vec<u8>)>,
     web_views: std::collections::HashMap<
         block_plugin_api::ops::OpId,
         (
@@ -277,6 +279,7 @@ impl<A: BeuiApp> BeuiTest<A> {
             link: crate::link::Link::new(INSTANCE),
             editor: None,
             calls: Vec::new(),
+            host_actions: Vec::new(),
             web_views: std::collections::HashMap::new(),
             web_view_commands: Vec::new(),
             host_values: std::collections::HashMap::new(),
@@ -992,7 +995,21 @@ impl<A: BeuiApp> BeuiTest<A> {
                                 self.web_views.insert(resource.op(), (id, watch));
                                 self.web_view_commands.push((id, WebViewCommand::Open(url)));
                             }
-                            Some(ShellCall::HostValueWatchNew { resource, key, .. }) => {
+                            Some(ShellCall::WebViewNextEvents { this, reply }) => {
+                                match self.web_views.get_mut(&this.op()) {
+                                    Some((_, watch)) => watch.next(connection, reply),
+                                    None => reply
+                                        .fail(connection, block_plugin_api::ops::OpError::Canceled),
+                                }
+                            }
+                            _ => {}
+                        }
+                        continue;
+                    }
+                    Incoming::Started(started) if HostValues::accepts(&started) => {
+                        let connection = &mut self.connection;
+                        match HostValues::accept(connection, started) {
+                            Some(HostValues::WatchNew { resource, key }) => {
                                 let mut watch = block_plugin_api::Watch::default();
                                 watch.opened(resource.op());
                                 if let Some(value) = self.host_values.get(&key) {
@@ -1000,15 +1017,8 @@ impl<A: BeuiApp> BeuiTest<A> {
                                 }
                                 self.host_value_watches.insert(resource.op(), (key, watch));
                             }
-                            Some(ShellCall::HostValueWatchNext { this, reply }) => {
+                            Some(HostValues::WatchNext { this, reply }) => {
                                 match self.host_value_watches.get_mut(&this.op()) {
-                                    Some((_, watch)) => watch.next(connection, reply),
-                                    None => reply
-                                        .fail(connection, block_plugin_api::ops::OpError::Canceled),
-                                }
-                            }
-                            Some(ShellCall::WebViewNextEvents { this, reply }) => {
-                                match self.web_views.get_mut(&this.op()) {
                                     Some((_, watch)) => watch.next(connection, reply),
                                     None => reply
                                         .fail(connection, block_plugin_api::ops::OpError::Canceled),
@@ -1059,6 +1069,10 @@ impl<A: BeuiApp> BeuiTest<A> {
             }
             if let Some(call) = BlocksCall::accept_direct(&called) {
                 self.link.call(call, &self.store);
+                continue;
+            }
+            if let Some(HostValues::Act { key, action }) = HostValues::accept_direct(&called) {
+                self.host_actions.push((key, action));
                 continue;
             }
             let Some(call) = ShellCall::accept_direct(&called) else {
@@ -1122,6 +1136,7 @@ impl<A: BeuiApp> BeuiTest<A> {
 
     pub fn clear_calls(&mut self) {
         self.calls.clear();
+        self.host_actions.clear();
     }
 
     pub fn take_copied_text(&mut self) -> Vec<String> {
@@ -1335,11 +1350,23 @@ impl<A: BeuiApp> BeuiTest<A> {
     }
 
     pub fn actions<Act: block_plugin_api::HostAction>(&self) -> Vec<Act> {
-        self.calls.iter().filter_map(host_action::<Act>).collect()
+        self.host_actions
+            .iter()
+            .filter_map(host_action::<Act>)
+            .collect()
     }
 
     pub fn take_actions<Act: block_plugin_api::HostAction>(&mut self) -> Vec<Act> {
-        self.take_calls(host_action::<Act>)
+        let mut taken = Vec::new();
+        self.host_actions
+            .retain(|asked| match host_action::<Act>(asked) {
+                Some(action) => {
+                    taken.push(action);
+                    false
+                }
+                None => true,
+            });
+        taken
     }
 
     pub fn take_version_commands(&mut self) -> Vec<(Uuid, block_editor_beui::VersionCommand)> {
@@ -1958,11 +1985,8 @@ impl Viewport {
     }
 }
 
-fn host_action<A: block_plugin_api::HostAction>(call: &ShellCall) -> Option<A> {
-    match call {
-        ShellCall::HostAction { key, action, .. } if key == A::KEY => {
-            block_plugin_api::decode_host(action)
-        }
-        _ => None,
-    }
+fn host_action<A: block_plugin_api::HostAction>((key, action): &(String, Vec<u8>)) -> Option<A> {
+    (key == A::KEY)
+        .then(|| block_plugin_api::decode_host(action))
+        .flatten()
 }

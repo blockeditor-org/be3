@@ -11,6 +11,7 @@ use block_plugin_api::{
         exports::plugin::{self, Editor},
         host::Call,
         host_services,
+        host_values::Call as HostValues,
         shell::Call as ShellCall,
     },
     ops::{Connection, Incoming, OpError, OpId, Outcome, Producer, Reply, Side, Started, Ticket},
@@ -332,6 +333,36 @@ impl Wire {
         }
     }
 
+    fn host_values(
+        &mut self,
+        op: Option<OpId>,
+        parent: Option<OpId>,
+        call: HostValues,
+        heard: &mut Vec<Heard>,
+    ) {
+        if let HostValues::WatchNext { this, reply } = call {
+            let connection = &mut self.connection;
+            match self.host_values.get_mut(&this.op()) {
+                Some((_, watch)) => watch.next(connection, reply),
+                None => reply.fail(connection, OpError::Canceled),
+            }
+            return;
+        }
+        let Some(instance) = self.editor_of(parent) else {
+            if let Some(op) = op {
+                self.connection.complete(op, Outcome::Err(OpError::Denied));
+            }
+            return;
+        };
+        if let HostValues::WatchNew { resource, key } = &call {
+            let mut watch = Watch::default();
+            watch.opened(resource.op());
+            self.host_values
+                .insert(resource.op(), ((instance, key.clone()), watch));
+        }
+        heard.push(Heard::HostValues(instance, call));
+    }
+
     fn watch_call(&mut self, call: ShellCall, heard: &mut Vec<Heard>) {
         let connection = &mut self.connection;
         match call {
@@ -361,27 +392,6 @@ impl Wire {
                     id,
                     url,
                 }));
-            }
-            ShellCall::HostValueWatchNew {
-                resource,
-                instance,
-                key,
-            } => {
-                let mut watch = Watch::default();
-                watch.opened(resource.op());
-                self.host_values
-                    .insert(resource.op(), ((instance, key.clone()), watch));
-                heard.push(Heard::Shell(ShellCall::HostValueWatchNew {
-                    resource,
-                    instance,
-                    key,
-                }));
-            }
-            ShellCall::HostValueWatchNext { this, reply } => {
-                match self.host_values.get_mut(&this.op()) {
-                    Some((_, watch)) => watch.next(connection, reply),
-                    None => reply.fail(connection, OpError::Canceled),
-                }
             }
             ShellCall::WebViewNextEvents { this, reply } => {
                 match self.web_views.get_mut(&this.op()) {
@@ -572,6 +582,13 @@ impl Wire {
                 self.serve(started);
                 return Ok(());
             }
+            Incoming::Started(started) if HostValues::accepts(&started) => {
+                let (op, parent) = (started.op, started.parent);
+                if let Some(call) = HostValues::accept(&mut self.connection, started) {
+                    self.host_values(Some(op), parent, call, heard);
+                }
+                return Ok(());
+            }
             Incoming::Started(started) if ShellCall::accepts(&started) => {
                 if let Some(call) = ShellCall::accept(&mut self.connection, started) {
                     self.watch_call(call, heard);
@@ -591,6 +608,10 @@ impl Wire {
                             call,
                         });
                     }
+                    return Ok(());
+                }
+                if let Some(call) = HostValues::accept_direct(&called) {
+                    self.host_values(None, called.parent, call, heard);
                     return Ok(());
                 }
                 if let Some(call) = ShellCall::accept_direct(&called) {

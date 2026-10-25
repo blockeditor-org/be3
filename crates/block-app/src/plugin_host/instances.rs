@@ -10,6 +10,7 @@ use block_plugin_api::{
 use block_plugin_api::{
     DescribedAction, WindowRequests, embed::shell::Call as ShellCall, ops::OpId,
 };
+use block_plugin_api::embed::host_values::Call as HostValues;
 use block_type_guest::editor::{FromEditor, Gesture};
 use std::{
     collections::{HashMap, HashSet},
@@ -2500,6 +2501,23 @@ impl Instances {
         messages
     }
 
+    /// A watch of a host value an editor opened, or an action it asked for.
+    pub(super) fn host_values_call(&mut self, instance: EditorInstanceId, call: HostValues) -> bool {
+        let shell = self.shell == Some(instance);
+        let Some(entry) = self.entries.get_mut(&instance) else {
+            return false;
+        };
+        let preview = entry
+            .role
+            .block()
+            .is_some_and(|block| crate::be::revisions::source(block.id).is_some());
+        match call {
+            HostValues::WatchNew { key, .. } => entry.host_values.watch(key),
+            HostValues::Act { key, action } if !preview => entry.host_values.act(key, action, shell),
+            HostValues::Act { .. } | HostValues::WatchNext { .. } => false,
+        }
+    }
+
     pub(super) fn shell_call(&mut self, call: ShellCall) -> bool {
         let Some(instance) = calls::instance_of(&call) else {
             return false;
@@ -2514,7 +2532,6 @@ impl Instances {
                 &call,
                 ShellCall::Menu { .. }
                     | ShellCall::WebViewNew { .. }
-                    | ShellCall::HostValueWatchNew { .. }
                     | ShellCall::Focused { .. }
                     | ShellCall::ChangeView { .. }
                     | ShellCall::RegionStopped { .. }
@@ -2650,12 +2667,6 @@ impl Instances {
                 }
             }
             ShellCall::WebViewNew { id, .. } => entry.unshown_web_views.push(id),
-            ShellCall::HostValueWatchNew { key, .. } => return entry.host_values.watch(key),
-            ShellCall::HostAction { key, action, .. } => {
-                return entry
-                    .host_values
-                    .act(key, action, self.shell == Some(instance));
-            }
             ShellCall::Present { .. }
             | ShellCall::AudioStatusWatchNew { .. }
             | ShellCall::AudioStatusWatchNext { .. }
@@ -2663,7 +2674,6 @@ impl Instances {
             | ShellCall::WebViewReload { .. }
             | ShellCall::WebViewFocusApp { .. }
             | ShellCall::WebViewNextEvents { .. }
-            | ShellCall::HostValueWatchNext { .. }
             | ShellCall::ChildStatusesWatchNew { .. }
             | ShellCall::ChildStatusesWatchNext { .. }
             | ShellCall::BlockTypesWatchNew { .. }
