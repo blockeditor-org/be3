@@ -46,11 +46,13 @@ async fn relayed_messages_reach_one_peer_or_all_of_them_sealed() {
     let (laptop_id, _) = laptop.join_session(block).await.unwrap();
     tablet.join_session(block).await.unwrap();
 
-    phone
+    let to_laptop = phone
         .relay(block, Some(laptop_id), b"to the laptop")
         .await
         .unwrap();
-    phone.relay(block, None, b"to everyone").await.unwrap();
+    let to_everyone = phone.relay(block, None, b"to everyone").await.unwrap();
+    to_laptop.await.unwrap();
+    to_everyone.await.unwrap();
 
     let laptop_heard = heard(&laptop, &mut on_laptop, block, 2).await;
     let tablet_heard = heard(&tablet, &mut on_tablet, block, 1).await;

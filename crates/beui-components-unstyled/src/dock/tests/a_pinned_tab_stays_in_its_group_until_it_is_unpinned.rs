@@ -11,6 +11,7 @@ fn a_pinned_tab_stays_in_its_group_until_it_is_unpinned() {
         ],
         active: 0,
         vertical: false,
+        icons_only: false,
         sidebar: SIDEBAR_WIDTH,
     };
     let group = state.insert_pinned_group(leaf, 1, &layout);

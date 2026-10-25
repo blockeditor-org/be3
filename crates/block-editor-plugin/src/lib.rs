@@ -4,6 +4,8 @@ pub use reactive;
 
 mod clock;
 mod content;
+#[cfg_attr(not(target_arch = "wasm32"), allow(dead_code))]
+mod cooldown;
 pub mod editor_session;
 pub mod fonts;
 mod graph;
@@ -13,6 +15,8 @@ mod host;
 mod panes;
 mod plugin;
 mod preferences;
+#[cfg(target_arch = "wasm32")]
+mod previews;
 pub mod root_settings;
 #[cfg(target_arch = "wasm32")]
 mod runtime;
@@ -26,24 +30,24 @@ pub use block_plugin_api::{
     AccessGrant, AccessLevel, AccessListing, Administrator, ArtifactAction, AudioCommand,
     AudioOutput, AudioSource, AudioStatus, BarAction, BlockCommand, BlockFilter, BlockImport,
     BlockLocation, BlockPick, BlockTypeDescriptor, Catalog, ChildContent, ChildId, ChildLayer,
-    ChildMode, ChildOperations, ChildPlacement, ChildStatus, ConflictSide, ContactLinkResult,
-    Contacts, CreationProgress, CursorIcon, DataListing, DescribedAction, Description, DisplayMode,
-    Displays, EditorCapabilities, EditorDescriptor, EditorInstanceId, EditorRegion, Edits, Epaper,
-    EpaperRequest, FetchResult, FileSave, FrameChrome, FrameSpec, HostAction, HostContact,
-    HostDisplay, HostImage, HostInputDevice, HostNotificationAction, HostPanel, HostProgram,
-    HostReply, HostRequest, HostTrayItem, HostValue, HostWindow, HostWindowId, HostWindows,
-    ImeArea, IncomingNotification, Input, InputDevices, InteractionMode, Key, KeyChord, LinkBase,
-    Media, MediaLevel, MediaLevels, MediaRequest, MenuCheck, MenuCommand, MenuEntry, MenuPin,
-    MenuSubmenu, Modifiers, NotificationCloseReason, NotificationInbox, NotificationReport,
-    NotificationRequest, NotificationSignal, NotificationUrgency, Notifications, Occluder,
-    PenPhase, PlayerCommand, PointerButton, Power, PowerAction, PowerAvailability, Press,
-    ProgramAction, Programs, RemapState, Remaps, ResizeMode, Revision, Rotation, ScreenLocked,
-    ScreenPlacement, ScrollDelta, SettingsProgress, ShellDialog, Size, Stopped, SurfaceRect,
-    TemplateCategory, TemplateDescriptor, TimedInput, TopBar, TouchPhase, Tray, TrayMenuEntry,
-    TrayRequest, TrayStatus, TrayToggle, VersionBranch, VersionChange, VersionChangeKind,
-    VersionCommand, VersionCommit, VersionOperation, VersionStatus, ViewChange, WebViewCommand,
-    WebViewEvent, WebViewId, Wifi, WifiLink, WifiNetwork, WifiRequest, WifiSecurity, WifiStatus,
-    WindowAction, WindowOrigin, WindowRequests,
+    ChildMode, ChildOperations, ChildPlacement, ChildPreview, ChildStatus, ConflictSide,
+    ContactLinkResult, Contacts, CreationProgress, CursorIcon, DataListing, DescribedAction,
+    Description, DisplayMode, Displays, EditorCapabilities, EditorDescriptor, EditorInstanceId,
+    EditorRegion, Edits, Epaper, EpaperRequest, FetchResult, FileSave, FrameChrome, FrameSpec,
+    HostAction, HostContact, HostDisplay, HostImage, HostInputDevice, HostNotificationAction,
+    HostPanel, HostProgram, HostReply, HostRequest, HostTrayItem, HostValue, HostWindow,
+    HostWindowId, HostWindows, ImeArea, IncomingNotification, Input, InputDevices, InteractionMode,
+    Key, KeyChord, LinkBase, Media, MediaLevel, MediaLevels, MediaRequest, MenuCheck, MenuCommand,
+    MenuEntry, MenuPin, MenuSubmenu, Modifiers, NotificationCloseReason, NotificationInbox,
+    NotificationReport, NotificationRequest, NotificationSignal, NotificationUrgency,
+    Notifications, Occluder, PenPhase, PlayerCommand, PointerButton, Power, PowerAction,
+    PowerAvailability, Press, PreviewImage, ProgramAction, Programs, RemapState, Remaps,
+    ResizeMode, Revision, Rotation, ScreenLocked, ScreenPlacement, ScrollDelta, SettingsProgress,
+    ShellDialog, Size, Stopped, SurfaceRect, TemplateCategory, TemplateDescriptor, TimedInput,
+    TopBar, TouchPhase, Tray, TrayMenuEntry, TrayRequest, TrayStatus, TrayToggle, VersionBranch,
+    VersionChange, VersionChangeKind, VersionCommand, VersionCommit, VersionOperation,
+    VersionStatus, ViewChange, WebViewCommand, WebViewEvent, WebViewId, Wifi, WifiLink,
+    WifiNetwork, WifiRequest, WifiSecurity, WifiStatus, WindowAction, WindowOrigin, WindowRequests,
 };
 pub use block_plugin_api::{
     HostPreferenceSources, Motion, PreferenceLayer, PreferenceSources, Preferences, ThemeKind,
@@ -65,6 +69,8 @@ pub use plugin::{Claim, Frame, Instance, Plugin, Region, RegionMonitor};
 #[cfg(target_arch = "wasm32")]
 pub use plugin::{PaintTarget, SurfaceGpu, surface_gpu};
 pub use preferences::host_preferences;
+#[cfg(target_arch = "wasm32")]
+pub use previews::preview_texture;
 #[cfg(target_arch = "wasm32")]
 pub use wgpu;
 

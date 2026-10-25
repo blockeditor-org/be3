@@ -13,6 +13,7 @@ use crate::clipboard::{PasteKind, PasteRequest};
 use crate::damage::{self, Region};
 use crate::display::{Display, Group, Layer};
 use crate::file_picker::{FileFilter, FilePick, FilePickId, FilePickRequest};
+use crate::file_saver::{FileSave, FileSaveId, FileSaveRequest, SavedFile};
 use crate::filter::Filter;
 use crate::font::{FontBackend, FontId, Fonts, Galley, TextLayout};
 use crate::geometry::Vec2;
@@ -72,6 +73,9 @@ struct Inner {
     file_pick_requests: RefCell<Vec<FilePickRequest>>,
     file_picks: RefCell<Vec<(FilePickId, FilePick)>>,
     next_file_pick: Cell<u64>,
+    file_save_requests: RefCell<Vec<FileSaveRequest>>,
+    file_saves: RefCell<Vec<(FileSaveId, FileSave)>>,
+    next_file_save: Cell<u64>,
     window: RefCell<WindowState>,
     window_requests: RefCell<Vec<WindowRequest>>,
     windows: RefCell<foldhash::HashMap<WindowId, KnownWindow>>,
@@ -258,6 +262,7 @@ pub struct FrameOutput {
     pub copied_image: Option<Vec<u8>>,
     pub paste: Option<PasteRequest>,
     pub file_picks: Vec<FilePickRequest>,
+    pub file_saves: Vec<FileSaveRequest>,
     pub repaint: bool,
     pub repaint_after: Duration,
     pub animating: bool,
@@ -337,6 +342,9 @@ impl Context {
                 file_pick_requests: RefCell::new(Vec::new()),
                 file_picks: RefCell::new(Vec::new()),
                 next_file_pick: Cell::new(0),
+                file_save_requests: RefCell::new(Vec::new()),
+                file_saves: RefCell::new(Vec::new()),
+                next_file_save: Cell::new(0),
                 window: RefCell::new(WindowState::default()),
                 window_requests: RefCell::new(Vec::new()),
                 windows: RefCell::new(foldhash::HashMap::default()),
@@ -734,6 +742,7 @@ impl Context {
             copied_image: self.inner.copied_image.borrow_mut().take(),
             paste: self.inner.paste.take(),
             file_picks: std::mem::take(&mut *self.inner.file_pick_requests.borrow_mut()),
+            file_saves: std::mem::take(&mut *self.inner.file_save_requests.borrow_mut()),
             repaint_after: self.inner.repaint_after.get(),
             animating: self.inner.animating.get(),
             fullscreen: self.inner.fullscreen.get(),
@@ -847,6 +856,10 @@ impl Context {
         self.inner.window.borrow_mut().requests.pastes = kinds.to_vec();
     }
 
+    pub fn take_clipboard_keys(&self, keys: bool) {
+        self.inner.window.borrow_mut().requests.clipboard_keys = keys;
+    }
+
     pub fn watch_copies(&self, watcher: impl Fn(&str) + 'static) {
         self.inner.copy_watchers.borrow_mut().push(Rc::new(watcher));
     }
@@ -869,6 +882,26 @@ impl Context {
         let mut picks = self.inner.file_picks.borrow_mut();
         let index = picks.iter().position(|(picked, _)| *picked == id)?;
         Some(picks.remove(index).1)
+    }
+
+    pub fn save_file(&self, file: SavedFile) -> FileSaveId {
+        let id = FileSaveId(self.inner.next_file_save.get() + 1);
+        self.inner.next_file_save.set(id.0);
+        self.inner
+            .file_save_requests
+            .borrow_mut()
+            .push(FileSaveRequest { id, file });
+        id
+    }
+
+    pub fn file_saved(&self, id: FileSaveId, save: FileSave) {
+        self.inner.file_saves.borrow_mut().push((id, save));
+    }
+
+    pub fn take_file_save(&self, id: FileSaveId) -> Option<FileSave> {
+        let mut saves = self.inner.file_saves.borrow_mut();
+        let index = saves.iter().position(|(saved, _)| *saved == id)?;
+        Some(saves.remove(index).1)
     }
 
     pub fn set_pointer_locked(&self, locked: bool) {

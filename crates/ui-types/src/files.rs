@@ -26,3 +26,17 @@ pub struct PickedFile {
 }
 
 pub type FilePick = Result<Option<PickedFile>, String>;
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SavedFile {
+    pub name: String,
+    pub mime_type: String,
+    pub data: Vec<u8>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub enum FileSave {
+    Saved,
+    Cancelled,
+    Failed(String),
+}

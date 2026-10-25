@@ -1,3 +1,4 @@
+use beui_core::font::Wrap;
 use beui_core::layer::LayerPolicy;
 use std::collections::HashMap;
 use std::rc::Rc;
@@ -574,7 +575,12 @@ fn RowText(
         (false, Some(prose)) => prose.line_padding,
         (false, None) => LINE_PADDING,
     });
-    let wraps = create_memo(move || wrap && cx.prose.get().is_none_or(|prose| prose.wrap));
+    let wraps = create_memo(
+        move || match wrap && cx.prose.get().is_none_or(|prose| prose.wrap) {
+            true => Wrap::Words,
+            false => Wrap::Off,
+        },
+    );
     let align = create_memo(move || cx.prose.get().map(|prose| prose.align));
     let hang = create_memo(move || model.get().hang);
     let marks = create_memo(move || {

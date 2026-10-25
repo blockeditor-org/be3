@@ -77,6 +77,7 @@ pub(crate) struct Status {
     pub(crate) blocks: usize,
     pub(crate) wakes: u64,
     pub(crate) unsealed: usize,
+    pub(crate) saves: u64,
     pub(crate) conflicts: usize,
     pub(crate) error: Option<String>,
 }
@@ -570,6 +571,7 @@ pub(crate) fn status() -> Status {
         blocks: shared.blocks.len(),
         wakes: shared.wakes,
         unsealed: shared.unsealed,
+        saves: shared.saves,
         conflicts: shared.conflicts.values().map(Vec::len).sum(),
         error: shared.error.clone(),
     })

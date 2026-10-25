@@ -8,8 +8,10 @@ that build on it. VISION.md says why each part exists.
 - The block stack (`be-*`), beui (`beui*`), block-app, and the plugin API and
   SDK (`block-*`).
 - `lucide`: the icon set beui and the block catalog draw from.
-- `ghostty-vt` and `terminal-view`: the terminal emulator and its beui view,
-  which the terminal editor and be-launcher's build output share.
+- `ghostty-vt`, `terminal-emulator` and `terminal-view`: the terminal emulator's
+  bindings, the emulator read back as terminal lines (the terminal host and
+  be-launcher's build output), and the beui view that draws lines (the terminal
+  editor and be-launcher).
 - The editors under `crates/editors`, except the debug and example ones below.
 - The desktop: the linux-desktop editor, `be-wayland` and `beui-adapter-drm`.
 

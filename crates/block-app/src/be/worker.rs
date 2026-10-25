@@ -322,6 +322,7 @@ pub(crate) struct Shared {
     pub(crate) peer_message_count: u64,
     pub(crate) wakes: u64,
     pub(crate) unsealed: usize,
+    pub(crate) saves: u64,
     pub(crate) owing: usize,
     pub(crate) connected: bool,
     pub(crate) error: Option<String>,
@@ -560,9 +561,7 @@ async fn connected<S: Fn() -> Result<Store, String>>(
             }
         };
         let handled = replicas.handled;
-        if matches!(woken, Woken::Module) {
-            replicas.pump((&peer, shared)).await;
-        }
+        let pumped = matches!(woken, Woken::Module) && replicas.pump((&peer, shared)).await;
         if !matches!(woken, Woken::Module) || replicas.handled != handled {
             shared.lock().unwrap_or_else(PoisonError::into_inner).wakes += 1;
         }
@@ -637,6 +636,7 @@ async fn connected<S: Fn() -> Result<Store, String>>(
                 false
             }
         };
+        moved |= pumped;
         moved |= replicas.pump((&peer, shared)).await;
         rekey_changed(&peer, replicas, &mut keyed, shared).await;
         let before = version_revisions(shared);

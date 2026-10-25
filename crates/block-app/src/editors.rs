@@ -6,7 +6,6 @@ use be_graph::Access;
 use block_plugin_api::{EditorManifest, Edits, PluginManifest, TemplateCategory};
 use uuid::Uuid;
 
-pub(crate) use crate::block_label::BlockLabel;
 use crate::surfaces::HostedRegion;
 
 pub(crate) use self::plugin::PluginEditor;
@@ -247,12 +246,6 @@ impl EditorRegistry {
         self.types
             .get(&block_type)
             .map(|block_type| block_type.display_name.as_str())
-    }
-
-    pub fn icon(&self, block_type: Uuid) -> Option<&str> {
-        self.types
-            .get(&block_type)
-            .map(|block_type| block_type.icon_codepoint.as_str())
     }
 
     fn default_editor(&self, block_type: Uuid) -> Option<&RegisteredEditor> {

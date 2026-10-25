@@ -1,3 +1,4 @@
+use beui::Wrap;
 use std::rc::Rc;
 
 use block_editor_beui::Fit;
@@ -240,7 +241,9 @@ fn GameError(snapshot: ReadSignal<GameSnapshot>) -> NodeId {
         <Card>
             <List spacing=8.0>
                 <Text style=TextStyle::HEADING>"Game unavailable"</Text>
-                <Text style=TextStyle::PARAGRAPH @test_id={"game.error"} wrap=true>{error}</Text>
+                <Text style=TextStyle::PARAGRAPH @test_id={"game.error"} wrap=Wrap::Words>
+                    {error}
+                </Text>
             </List>
         </Card>
     }
@@ -661,7 +664,7 @@ pub(crate) fn GameCreation(
                                     <Text
                                         style=TextStyle::CAPTION
                                         color=TextColor::Danger
-                                        wrap=true
+                                        wrap=Wrap::Words
                                     >
                                         {caption}
                                     </Text>

@@ -41,6 +41,9 @@ interface replicas {
         /// The session's state changed, or the host fell behind the broadcast.
         lease: func(session: session-state, resynchronize: bool);
 
+        /// Claim a lapsed lease once the replica has caught up, as a terminal host does.
+        claim: func();
+
         /// False when it did not apply.
         change: async func(change: change) -> bool;
 

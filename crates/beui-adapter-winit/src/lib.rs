@@ -3,6 +3,7 @@
 mod accessibility;
 mod clipboard;
 mod file_picker;
+mod file_saver;
 mod preferences;
 #[cfg(test)]
 mod tests;
@@ -41,6 +42,7 @@ use accesskit::TreeUpdate;
 use beui_core::app::{SafeArea, Setup, Waker};
 use beui_core::clipboard::{PasteAnswer, PasteKind, Pasted};
 use beui_core::file_picker::{FilePickAnswer, FilePickRequest};
+use beui_core::file_saver::{FileSaveAnswer, FileSaveRequest};
 use beui_core::geometry::{Pos2, Vec2, pos2, vec2};
 use beui_core::input::{
     CursorIcon, DroppedFile, FileDrag, ImeArea, ImeEvent, Input, Key, Keystroke, Modifiers, Pen,
@@ -185,6 +187,10 @@ impl Platform for WinitPlatform<'_> {
 
     fn pick_file(&mut self, request: FilePickRequest, answer: FilePickAnswer) {
         file_picker::open(request, answer);
+    }
+
+    fn save_file(&mut self, request: FileSaveRequest, answer: FileSaveAnswer) {
+        file_saver::open(request, answer);
     }
 
     fn show_window(&mut self, window: &WindowState, shown: &WindowState) {

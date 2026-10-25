@@ -1,3 +1,4 @@
+use beui::Wrap;
 use std::any::Any;
 use std::cell::RefCell;
 use std::rc::Rc;
@@ -109,6 +110,9 @@ impl Report {
         let count = self.frames.len();
         let total: Duration = self.frames.iter().sum();
         let at = |share: f64| self.frames[((count - 1) as f64 * share) as usize];
+        bench::time(&format!("{}.first", self.name), self.first);
+        bench::time(&format!("{}.median", self.name), at(0.5));
+        bench::time(&format!("{}.p90", self.name), at(0.9));
         println!(
             "{:<24} first {:>9.1?}  mean {:>9.1?}  median {:>9.1?}  p90 {:>9.1?}  ({count} frames)",
             self.name,
@@ -163,7 +167,7 @@ fn resize_paragraphs(frames: usize) -> Report {
                         <List spacing=8.0>
                             <ForEach keys={(0..20).collect::<Vec<usize>>()}>|_: usize| {
                                 let text = text.clone(); view! {
-                                    <Text wrap=true>{text}</Text>
+                                    <Text wrap=Wrap::Words>{text}</Text>
                                 }
                             }</ForEach>
                         </List>
@@ -231,7 +235,7 @@ fn edit_plain_paragraph(frames: usize) -> Report {
             *content.borrow_mut() = Some(read);
             view! {
                 <Root>
-                    <Text wrap=true>{read}</Text>
+                    <Text wrap=Wrap::Words>{read}</Text>
                 </Root>
             }
         }
@@ -274,7 +278,7 @@ fn edit_one_span(frames: usize) -> Report {
             let keys = (0..initial.len()).collect::<Vec<usize>>();
             view! {
                 <Root>
-                    <Text wrap=true>
+                    <Text wrap=Wrap::Words>
                         <ForEach keys={keys}>|index: usize| {
                             let word = create_memo(move || {
                                 read.get().get(index).cloned().unwrap_or_default()

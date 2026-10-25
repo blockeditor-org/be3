@@ -366,6 +366,19 @@ hooks the higher crates fill in:
   browser, from its paste event's data and the window's `paste_kinds`, and a
   plugin's host) is not asked again for the shortcut. The winit
   adapter reads images too; Android and DRM read text only.
+  An `Interactive` with `clipboard_keys` (a terminal) takes Ctrl+C, Ctrl+V,
+  Ctrl+X and Ctrl+A as plain keys while it or a node inside it has the focus
+  (`Document::clipboard_keys`, sent as `WindowRequests::clipboard_keys`, which a
+  plugin's region passes on to its own catcher). Natively that changes nothing,
+  since those arrive as keys anyway; the web adapter, which decides in `keydown`
+  before the app has seen the key, keeps the last flag it was shown and stops
+  the browser's copy, paste and cut for them, and its inspector for Ctrl+Shift+C,
+  but leaves Ctrl+Shift+V to make the browser's `paste` event, so a node that
+  lets that key go gets its paste as everywhere else. beui's inspector leaves
+  Ctrl+Shift+C alone too. A copy the node makes on a key, through `copy_text`,
+  still reaches the web clipboard, since it is written within the key's user
+  gesture. A node that takes these keys and leaves Ctrl+V unanswered gets no
+  paste on the web.
   `Platform`'s methods all have defaults (no clipboard, no file picker), so a
   platform implements only what it has.
   A new platform implements those two traits and hands its window or element
@@ -589,8 +602,9 @@ as the demo's Paths page does) rather than spilling past it.
 Text is never one of those. A base `Text` takes concrete values and knows
 nothing about the theme: a `font` (a `FontId`, 14 points proportional unless
 given), a `color` and `underline`, and the props that shape the paragraph -
-alignment, `wrap`, `ellipsis`, `clip`, `line_height`, `line_padding`, `marks`,
-`glyphs` and `carets`. Its content is its children: string literals and
+alignment, `wrap` (a `Wrap`: `Off`, the default, lays each line out
+unbroken; `Words` and `Anywhere` below), `ellipsis`, `clip`, `line_height`,
+`line_padding`, `marks`, `glyphs` and `carets`. Its content is its children: string literals and
 `Prop<String>`s in its own style, `Span`s - value children with no node, each
 overriding its Text's `font` whole or any of its `size`, `family`, `bold` and
 `italic`, and its `color`, `underline` or `strikethrough`, giving it a
@@ -598,7 +612,11 @@ overriding its Text's `font` whole or any of its `size`, `family`, `bold` and
 marking a wrap opportunity with `break_after` - `Icon`s, `TextItem`s, whose child is laid
 inline as if it were one character (U+FFFC in the text), and `Gap`s, room of a
 given width that holds no bytes, so the indices on either side of one are the
-same. A tab in a span's text is laid out as its own run that reaches the next
+same, and `Break`s, which end the visual line wrapped or not and likewise hold
+no bytes: the index at a break starts the next line, the caret steps over it,
+and a selection or copy across one carries no newline, so a soft-wrapped
+terminal row drawn with `wrap=Wrap::Off` copies as one line. A newline in a
+span's text is a real line break that a copy keeps. A tab in a span's text is laid out as its own run that reaches the next
 tab stop, every `TAB_COLUMNS` (4) spaces of its span's font from the start of
 its line. An unset span prop takes its Text's. A Text whose only child is a
 string or `Prop<String>` keeps it as its own content rather than as a span,
@@ -616,9 +634,14 @@ icon and its label is layout rather than a space a selection could take, and
 an icon alone keeps none; an icon whose glyph is empty takes no room at all.
 Underline and strikethrough never cross one. Computed runs are a
 `ForEach` of `Span`s over the caller's own tokens. The Text lays the runs out
-and wraps them itself, breaking after whitespace, `-`, `/` or `\`, or after a
-`break_after` span, and between letters when no such break fits,
-with `line_padding` above and below each line, and aligns, truncates with an
+and wraps them itself: `Wrap::Words` breaks after whitespace, `-`, `/` or `\`,
+or after a `break_after` span, and between letters when no such break fits;
+`Wrap::Anywhere` breaks between any two grapheme clusters, so each line holds
+as many as fit (in a monospace font at a width of `cols` advances, exactly
+`cols` characters; measure the advance as `cursor_pos(_, 1).x` of one
+character, since a galley's `size()` is rounded up to a pixel). Each run is as
+wide as its text's advance, so spans in a monospace font stay on its grid.
+It lays text out with `line_padding` above and below each line, and aligns, truncates with an
 ellipsis and spaces lines by `line_height` whatever its content. It caches each
 span's shaping, so a span whose props change is the only one shaped again, and
 line breaking resumes from the line that span is on; a colour or decoration
@@ -1036,7 +1059,22 @@ past the frame. `on_change` still reports the position for anything else that wa
 With `fit` it measures as long as its content, so a box sized by what it holds
 can still scroll once it is squeezed.
 With `max_length` the scroll is as long as what it holds, up to that length, and
-scrolls from there on, which is what a popup listing a few rows or many wants. A
+scrolls from there on, which is what a popup listing a few rows or many wants.
+With `follow_end` (a log, a terminal) the scroll starts at its end and stays
+there while what it holds grows, as long as it was at the end: scrolling away
+leaves it where it was put, and scrolling back to within a point of the end
+follows again. `ScrollApi::scroll_to_end()` (from the `api` prop) puts it at the
+end on demand and, if it follows, follows again, which is what a terminal does
+when you type. Both are the base `Offset`'s (its `follow_end` prop and
+`Document::offset_to_end`): while it is pinned to the end it lays its content
+out from the end it measured, skipping the anchor and any shift its content
+reports. It tells the content so through `Document::pinned_to_end` while it
+places it, and a `VirtualList` along that direction then builds its rows from
+its last one upwards, measuring each, and lines the last up with its own end
+rather than walking down from the row it drew from last: rows that measure
+differently from the estimate change only the length above them, so the next
+layout of the frame, at the end of the corrected length, finds the same rows and
+settles. A
 `Frame` with `max_height` around a scroll does not do this: a `Frame` with a
 maximum fills the space it is offered up to it.
 
@@ -1132,6 +1170,29 @@ signals rather than reading them once while it is built. Changing `item_size`
 keeps the rows too, but forgets the sizes the list measured, on the assumption
 that the rows changed size with it; the rows in view are measured again as they
 are laid out.
+
+`Selectable` (and `SelectableText` over it) selects across the plain `Text`s
+under it and across any `VirtualList` under it with the same component. Each
+`VirtualList` registers its rows (`beui_view::selection::SelectableRows`: its
+keys, which key each built row shows, and its optional `text` prop, a
+`Callback<K, String>` used only for selection), and the selection walks the
+region in tree order, taking a list as one item rather than its built rows.
+A caret inside a list is a key, the index of the `Text` within that row and a
+byte index, never a node, so a recycled row cannot carry a selection to
+another key. A press maps the built `Text` under it to its row's key and
+forgets the node; every built row paints which of its bytes the selection
+covers, and a row built later (scrolled into view, or recycled for another key)
+paints from the same selection as it is built. Select All goes from the first
+key's start to the last key's end without building anything, and copying walks
+the keys between the ends, reading built rows from their `Text`s and the rest
+from `text`, one line each (a row's several `Text`s are joined by line breaks;
+a list given no `text` copies its unbuilt rows as empty lines). A key removed
+under the selection moves that end to the nearest row that remains, the start
+forward and the end backward, and a row whose text shrank is clamped to it.
+Dragging past the top or bottom of the nearest vertical scroll around the
+region scrolls it while the pointer is held there (`repeat_drag`).
+`selected_text` reads the document, so call it from a handler or inside
+`with_reactive_scope`.
 
 A list the layout stops reaching - scrolled out of view beside other content, or
 inside a scroll that collapsed - is told so through `Element::unplaced`, which
@@ -2013,7 +2074,19 @@ anywhere on it that is not a tab drags the window. Right-clicking a grip moves
 that pane's tabs into a sidebar beside its body (`DockState::set_vertical`),
 whose edge drags or arrows to a new width (`set_sidebar_width`); a window in
 that mode has no title bar, only the sidebar with the grip and the close button
-at its top. Windows resize from any of
+at its top. The grip's menu also closes every tab in the pane, offers the
+menu of the tab the pane shows below its own rows, and turns on icons only (`set_icons_only`, or
+`icons_only` on a `DockPane`): `DockTabHandle::icons_only` asks the tab face for
+its icon alone, which the styled dock draws as a square with the title in a
+tooltip (the title's first letter where a tab has no icon); a sidebar of
+icons moves its More menu and close button below its tabs, in a column. A sidebar's edge
+goes by the way the pointer moves as well as where it is
+(`DockState::drag_sidebar`): dragged left past `MIN_SIDEBAR_WIDTH` it turns icons
+only on at once, and while icons only, any move to the right turns it off at
+`MIN_SIDEBAR_WIDTH`, growing past that only once the pointer passes that edge. The drag
+carries on either way, and the sidebar slides to its new width (the dock's
+`icon_sidebar_width`, or the width under the pointer), following the pointer
+until it catches up. Windows resize from any of
 their eight grips and are raised by whatever takes the focus inside them. The grips lie
 wholly outside the window, in a ring `HANDLE_REACH` points wide (a window's overlay is that
 much larger than the window on every side), with each corner's grip running `GRIP_CORNER`
@@ -2623,7 +2696,8 @@ draws only for a driver's `shot`.
 first frame whose app says through `App::drawing` that it has nothing still to
 draw. block-app answers with its plugins: each `DrawFrame` carries `seen`, an
 unseen plugin runs its frames (layout, its description, children) without
-encoding or presenting them, and keeps what they damaged; when the host is seen
+encoding or presenting them, and keeps what they damaged, except its previews,
+which another editor shows as pictures and which it paints either way; when the host is seen
 again it asks each plugin that drew unseen for a frame, which paints all of it,
 and `drawing` holds the shot until those frames have arrived.
 
@@ -3579,7 +3653,7 @@ resolve their tokens into a base `Text`'s `font` and `color`:
   returns a `TextColor`.
 - `style`, a `TextStyle` preset: `BODY`, `CAPTION` (small and muted),
   `HEADING`, `TITLE`, `DISPLAY`, `CODE` (small and monospace) and `PARAGRAPH`
-  (muted); give a paragraph `wrap=true` as well. A prop given beside a preset
+  (muted); give a paragraph `wrap=Wrap::Words` as well. A prop given beside a preset
   wins over it.
 
 A styled `Icon` is sized from the text it sits in, `ICON_SCALE` times its font

@@ -20,6 +20,7 @@ fn an_editor_is_only_sent_messages_its_plugin_session_accepts() {
         host_name: "test host".into(),
         surface: Some(SurfaceSpec {
             format: SurfaceFormat::Rgba8Unorm,
+            render: true,
         }),
         preferences: block_plugin_api::Preferences::default(),
     }));

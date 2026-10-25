@@ -154,7 +154,9 @@ What the host owes a replica:
 - **The lease.** `lease(session, resynchronize)` whenever the server's session state
   changes (`resynchronize` after the host fell behind the broadcast). `report-clean`
   is the heartbeat with `clean-at`; `claim-lease` is called once per generation when
-  the owner is gone from the participants. Dropping the replica closes it: it seals
+  the owner is gone from the participants, and when the host calls `claim` (a
+  lapsed lease, taken by a terminal host) once the replica has caught up. An owner
+  told another client holds the lease becomes a follower. Dropping the replica closes it: it seals
   what it owes and then completes its constructor op, after which the host leaves the
   session; calls for it until then still reach it.
 - **Relaying.** `send(to, bytes)` is opaque bytes for `one(peer)`, `peers` (every

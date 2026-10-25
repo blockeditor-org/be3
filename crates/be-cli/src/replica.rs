@@ -1,15 +1,15 @@
-use std::collections::VecDeque;
 use std::marker::PhantomData;
 use std::sync::{Arc, Mutex, PoisonError};
 use std::time::Instant;
 
+use be_block::LiveEdit;
 use be_client::{ClientError, Peer};
 use be_commit::CommitId;
-use be_protocol::{ClientId, ServerMessage};
+use be_protocol::{ClientId, ServerMessage, SessionState};
 use be_store::ObjectStore;
 use be_types_host::{Conflict, HOST_EDITOR, Replicas, Source};
 use block_type_api::{Description, EditorId, Status};
-use block_type_guest::editor::{FromEditor, PeerMessage, PeerPresence, ToEditor};
+use block_type_guest::editor::{EditorMirror, FromEditor, PeerMessage, PeerPresence, ToEditor};
 use tokio::sync::{broadcast, watch};
 use uuid::Uuid;
 
@@ -109,24 +109,23 @@ pub enum Woken {
     Closed,
 }
 
-pub struct Session<S: ObjectStore + 'static> {
+pub struct Session<S: ObjectStore + 'static, C: LiveEdit + Clone + Default> {
     peer: Arc<Peer<S>>,
     block: Uuid,
     shared: Arc<Mutex<Held<S>>>,
     replicas: Replicas<Held<S>>,
     events: broadcast::Receiver<ServerMessage>,
     closed: watch::Receiver<bool>,
-    presence: Vec<PeerPresence>,
-    messages: VecDeque<PeerMessage>,
+    mirror: EditorMirror<C>,
 }
 
-impl<S: ObjectStore + 'static> Session<S> {
+impl<S: ObjectStore + 'static, C: LiveEdit + Clone + Default> Session<S, C> {
     pub async fn open(
         peer: Arc<Peer<S>>,
         block: Uuid,
-        content_type: Uuid,
         sources: Vec<Source>,
     ) -> Result<Self, String> {
+        let content_type = C::CONTENT_TYPE;
         let replicas = Replicas::new(be_types_host::started(sources).await);
         let events = peer.connection().subscribe();
         let closed = peer.connection().closed();
@@ -137,8 +136,7 @@ impl<S: ObjectStore + 'static> Session<S> {
             replicas,
             events,
             closed,
-            presence: Vec::new(),
-            messages: VecDeque::new(),
+            mirror: EditorMirror::default(),
         };
         if !be_types_host::is_known(content_type) {
             return Err(format!("no type module has the block type {content_type}"));
@@ -174,21 +172,34 @@ impl<S: ObjectStore + 'static> Session<S> {
         });
     }
 
-    pub fn operate(&mut self, operation: Vec<u8>) {
-        self.say(FromEditor::Operate(operation));
+    pub fn edit(&mut self, operation: C::Op) {
+        if let Some(message) = self.mirror.operate(operation) {
+            self.say(message);
+        }
+    }
+
+    pub fn content(&self) -> Option<&C> {
+        self.mirror.content()
     }
 
     pub fn status(&self) -> Option<Status> {
         self.replicas.status(self.block)
     }
 
-    pub async fn content(&mut self) -> Option<Vec<u8>> {
-        let content = self
-            .replicas
-            .content((&self.peer, &self.shared), self.block)
-            .await;
-        self.settle().await;
-        content
+    pub fn is_owner(&self) -> bool {
+        self.status().is_some_and(|status| status.owner)
+    }
+
+    pub fn client(&self) -> Option<ClientId> {
+        self.replicas.session(self.block).map(|(client, _)| client)
+    }
+
+    pub fn state(&self) -> Option<&SessionState> {
+        self.replicas.session(self.block).map(|(_, state)| state)
+    }
+
+    pub fn claim(&mut self) {
+        self.replicas.claim(self.block);
     }
 
     pub async fn seal(&mut self) {
@@ -204,11 +215,11 @@ impl<S: ObjectStore + 'static> Session<S> {
     }
 
     pub fn presence(&self) -> &[PeerPresence] {
-        &self.presence
+        self.mirror.presence()
     }
 
     pub fn take_messages(&mut self) -> Vec<PeerMessage> {
-        self.messages.drain(..).collect()
+        self.mirror.take_peer_messages()
     }
 
     pub async fn next(&mut self) -> Woken {
@@ -249,22 +260,31 @@ impl<S: ObjectStore + 'static> Session<S> {
     }
 
     pub async fn settle(&mut self) {
-        self.replicas.pump((&self.peer, &self.shared)).await;
-        let (frames, errors) = {
-            let mut held = held(&self.shared);
-            (
-                std::mem::take(&mut held.frames),
-                std::mem::take(&mut held.errors),
-            )
-        };
-        for error in errors {
-            eprintln!("be: {error}");
-        }
-        for frame in frames {
-            match frame {
-                ToEditor::Presence(presence) => self.presence = presence,
-                ToEditor::PeerMessages(messages) => self.messages.extend(messages),
-                ToEditor::Snapshot(_) | ToEditor::Operations(_) => {}
+        loop {
+            self.replicas.pump((&self.peer, &self.shared)).await;
+            while self.replicas.relaying() {
+                self.replicas.woken().await;
+                self.replicas.pump((&self.peer, &self.shared)).await;
+            }
+            let (frames, errors) = {
+                let mut held = held(&self.shared);
+                (
+                    std::mem::take(&mut held.frames),
+                    std::mem::take(&mut held.errors),
+                )
+            };
+            for error in errors {
+                eprintln!("be: {error}");
+            }
+            let answers: Vec<FromEditor> = frames
+                .into_iter()
+                .filter_map(|frame| self.mirror.receive(frame))
+                .collect();
+            if answers.is_empty() {
+                return;
+            }
+            for answer in answers {
+                self.say(answer);
             }
         }
     }

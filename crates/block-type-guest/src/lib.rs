@@ -686,6 +686,10 @@ impl replicas::GuestReplica for OpenReplica {
         );
     }
 
+    fn claim(&self) {
+        self.module.input(self.id, Input::Claim);
+    }
+
     fn change(&self, change: Change) -> impl Future<Output = bool> + 'static {
         let answered = self.module.ask(self.id, |id| Input::Change { id, change });
         async move { changed(answered.await) }

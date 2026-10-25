@@ -33,6 +33,7 @@ use state::Device;
 use threads::Spawner;
 use wake::Wake;
 
+pub use block_gpu_host::Imports;
 pub use interrupt::Interrupter;
 pub use precompile::{precompile, precompile_to};
 pub use pure::{MEMORY_LIMIT, PureGuest, PureHost};
@@ -54,6 +55,7 @@ pub struct Host {
     engine: Engine,
     sdks: Sdks,
     devices: Devices,
+    imports: Imports,
     interrupt: Arc<Interrupt>,
 }
 
@@ -64,11 +66,11 @@ enum Devices {
 }
 
 impl Devices {
-    fn open(&self) -> Device {
+    fn open(&self, imports: &Imports) -> Device {
         match self {
-            Self::Given(device, queue) => {
-                Device::Ready(Box::new(Gpu::new(device.clone(), queue.clone())))
-            }
+            Self::Given(device, queue) => Device::Ready(Box::new(
+                Gpu::new(device.clone(), queue.clone()).sharing(Arc::clone(imports)),
+            )),
             Self::OnDemand(connect) => Device::Unconnected(Arc::clone(connect)),
         }
     }
@@ -86,6 +88,7 @@ impl Host {
             engine,
             sdks,
             devices: Devices::Given(device, queue),
+            imports: Imports::default(),
         })
     }
 
@@ -99,7 +102,12 @@ impl Host {
             engine,
             sdks,
             devices: Devices::OnDemand(Arc::new(connect)),
+            imports: Imports::default(),
         })
+    }
+
+    pub fn imports(&self) -> Imports {
+        Arc::clone(&self.imports)
     }
 
     pub fn interrupter(&self) -> Interrupter {
@@ -233,7 +241,8 @@ impl Plugin {
         let state = State {
             wasi,
             memory: memory.clone(),
-            device: host.devices.open(),
+            device: host.devices.open(&host.imports),
+            imports: Arc::clone(&host.imports),
             error: None,
             transport: Default::default(),
             gpu_time: Duration::ZERO,

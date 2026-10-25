@@ -1,3 +1,4 @@
+use beui::Wrap;
 use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::icons::{ICON_LINK, ICON_LOCK, ICON_USER, ICON_USER_PLUS, ICON_X};
 use block_editor_beui::beui::reactive::*;
@@ -64,10 +65,10 @@ fn UnlinkDialog(workspace: Workspace) -> NodeId {
             }}
             on_dismiss={move || workspace.close_dialog()}
         >
-            <Text style=TextStyle::PARAGRAPH wrap=true>
+            <Text style=TextStyle::PARAGRAPH wrap=Wrap::Words>
                 "This block keeps what was generated for it, but stops being rebuilt from its source and becomes editable."
             </Text>
-            <Text style=TextStyle::PARAGRAPH wrap=true>
+            <Text style=TextStyle::PARAGRAPH wrap=Wrap::Words>
                 "The link and its settings cannot be restored."
             </Text>
         </Dialog>
@@ -377,7 +378,11 @@ fn ShareDialog(workspace: Workspace) -> NodeId {
                 </List>
                 <Show condition={invited}>
                     <List spacing=6.0>
-                        <Text style=TextStyle::CAPTION @test_id={"share.invite.help"} wrap=true>
+                        <Text
+                            style=TextStyle::CAPTION
+                            @test_id={"share.invite.help"}
+                            wrap=Wrap::Words
+                        >
                             "Send this link yourself, through an app you trust. Whoever opens it first becomes your contact and can open this block. It works once, and it is shown only once."
                         </Text>
                         <TextInput

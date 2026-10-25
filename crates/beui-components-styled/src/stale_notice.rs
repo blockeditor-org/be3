@@ -1,4 +1,5 @@
 use crate::frame::Frame;
+use beui_core::font::Wrap;
 use beui_macros::{component, view};
 
 use crate::button::{Button, ButtonVariant};
@@ -34,7 +35,12 @@ pub fn StaleNotice(
                     <Icon glyph=ICON_ROTATE_CCW_CLOCK />
                 </Text>
                 <Text style=TextStyle::HEADING align=TextAlign::Center>{title}</Text>
-                <Text size=TextSize::Sm color=TextColor::Muted align=TextAlign::Center wrap=true>
+                <Text
+                    size=TextSize::Sm
+                    color=TextColor::Muted
+                    align=TextAlign::Center
+                    wrap=Wrap::Words
+                >
                     {create_memo(move || detail.get())}
                 </Text>
                 <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>

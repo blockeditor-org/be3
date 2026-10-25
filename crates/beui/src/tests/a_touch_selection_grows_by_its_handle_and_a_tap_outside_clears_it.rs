@@ -33,10 +33,7 @@ fn a_touch_selection_grows_by_its_handle_and_a_tap_outside_clears_it() {
     harness.touch(TouchPhase::Start, on_hello);
     harness.touch(TouchPhase::End, on_hello);
     assert_eq!(
-        harness
-            .document()
-            .api::<unstyled::SelectableState>(region)
-            .selected_text(),
+        selected_text(&mut harness, region),
         "hello",
         "a double tap selects the word"
     );
@@ -46,10 +43,7 @@ fn a_touch_selection_grows_by_its_handle_and_a_tap_outside_clears_it() {
     harness.touch(TouchPhase::Start, on_world);
     harness.touch(TouchPhase::End, on_world);
     assert_eq!(
-        harness
-            .document()
-            .api::<unstyled::SelectableState>(region)
-            .selected_text(),
+        selected_text(&mut harness, region),
         "",
         "a tap away from the selection clears it"
     );
@@ -72,10 +66,7 @@ fn a_touch_selection_grows_by_its_handle_and_a_tap_outside_clears_it() {
     harness.touch(TouchPhase::Move, target);
     harness.touch(TouchPhase::End, target);
     assert_eq!(
-        harness
-            .document()
-            .api::<unstyled::SelectableState>(region)
-            .selected_text(),
+        selected_text(&mut harness, region),
         "hello world\nsecond line",
         "dragging the end handle carries the selection into the next text"
     );

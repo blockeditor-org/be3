@@ -21,7 +21,10 @@ variables, so a program needs nothing of its own to be driven:
 
 - `BEUI_HEADLESS=WIDTHxHEIGHT[@SCALE]` runs it on `beui::Headless` (crates/beui-adapter-headless),
   which draws offscreen with wgpu and needs no display server. `BEUI_HEADLESS_SCREEN=WIDTHxHEIGHT`
-  is the screen a fullscreen window grows to.
+  is the screen a fullscreen window grows to. `BEUI_RENDERER=none` runs it headless with no GPU
+  at all (`beui_core::renderer::NoRenderer`): every frame is laid out and painted as usual, but
+  nothing draws the painting, so `drive paint` works and `drive shot` does not. block-app then
+  gives its plugins surfaces it does not render, so they run their frames without a GPU either.
 - `BEUI_AUTOMATION=PATH` answers `drive` on the Unix socket PATH. It works in a window too.
 - `BEUI_SPACE=1` shows it as a panel in the VR simulator (guides/beui.md, "Space: the VR simulator
   host"), headless or in a window; `drive shot` takes the 3D view, every other command the app.
@@ -103,6 +106,13 @@ so dialogs, the file tree and every editor read like the host's own controls.
   method's composition or where the app asks for one and whether it shows the on-screen
   keyboard or holds it back, a back gesture under way, files being dragged in, and any open file
   dialog.
+- `drive frames` says how many frames ran since the last `drive frames` (or the start) and the
+  longest one's wall time: the window's own, from taking its input to painting, and on a line
+  each what the app ran elsewhere and reports through `App::other_frames`, which in block-app is
+  each plugin's steps by its id (a step takes the plugin's input, makes its edits and draws its
+  frame). A block-app frame waits at most 8 ms for its plugins, so a slower plugin step shows
+  only on the plugin's line. It is wall time, not the app's clock, so it is for benchmarks
+  (guides/performance.md), not tests that compare.
 - `drive actions` lists the actions the command palette would offer where the focus is
   (guides/beui_keyboard.md), with their shortcuts, and each plugin's under its `Pane`;
   `drive actions all` lists every registered one.
@@ -149,7 +159,8 @@ A command that acts on something takes a TARGET:
     drive swipe FROM TO
     drive pinch TARGET 2                      two fingers spreading apart
     drive touch down 0=TARGET 1=TARGET; drive touch move 0=... 1=...; drive touch up
-    drive pen draw FROM TO [STEPS]            a stylus stroke, its pressure rising and falling
+    drive pen draw FROM TO [STEPS [PER_FRAME]]   a stylus stroke of STEPS samples (8), its pressure
+                                              rising and falling, PER_FRAME (1) in each frame
     drive pen move TARGET; drive pen down TARGET 0.8; drive pen move TARGET 0.3; drive pen up
     drive pen leave                           the pen goes out of range
     drive back                                the system back gesture; back 0.4 holds it part way,
@@ -162,6 +173,8 @@ A command that acts on something takes a TARGET:
     drive a11y TARGET [ACTION [VALUE]]        what a screen reader does: click, focus, increment,
                                               set VALUE, expand, scroll-down, ...
 
+`pen draw` presses in a frame of its own and lifts in another; PER_FRAME packs that many of
+the samples between into each frame, as a fast stylus or a backed-up app delivers them.
 `touch` names each finger (`0=TARGET`, `1=TARGET`) so several move in one frame, which is how
 to make a pinch of your own; `touch up` with no finger lifts them all, and `touch cancel` takes
 them back the way the system does when it claims a gesture. `keydown` on a key that
@@ -233,7 +246,10 @@ real one:
   the clipboard is the window's own; in a real one it is the system's.
 - A file dialog the app opens waits for drive, in any window while drive is attached:
   `drive upload FILE TARGET` clicks TARGET and answers the dialog it opens with FILE
-  (without TARGET it answers one already open), and `drive dismiss` cancels it.
+  (without TARGET it answers one already open), and `drive dismiss` cancels it. A save
+  dialog waits the same way: `drive save FILE TARGET` clicks TARGET and writes what the
+  dialog saves to FILE, and the app hears it was saved. `drive dismiss` cancels the oldest
+  dialog of either kind, and `drive state` lists the ones open.
 - `drive grab FILE...` drags files in from outside, over the pointer; `drive move` carries
   them, to try what hovering with them shows, `drive drop [TARGET]` drops them and
   `drive ungrab` takes them away again.

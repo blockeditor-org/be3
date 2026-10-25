@@ -414,6 +414,7 @@ fn report_creation(fixture: &mut Fixture, progress: block_editor_beui::CreationP
             )
             .then(|| progress.clone()),
             settings: None,
+            preview: Default::default(),
         });
     fixture.settle();
 }

@@ -1,9 +1,6 @@
 load("@root//buck/wasm:defs.bzl", "editor")
 
-# libghostty-vt is a Zig archive that is not position-independent, so the
-# plugin is linked whole rather than against the plugin SDK.
 editor(
     module = "terminal",
-    shared_sdk = False,
     types = "//crates/editors/terminal/types:module",
 )

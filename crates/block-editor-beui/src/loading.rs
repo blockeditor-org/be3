@@ -1,3 +1,4 @@
+use beui::Wrap;
 use std::time::Duration;
 
 use beui::NodeId;
@@ -34,7 +35,7 @@ pub fn FailedPane(error: String) -> NodeId {
         <Frame @test_id={"editor.failed"}>
             <List spacing=0.0 align=Align::Center>
                 <Spacer @sizing=ItemSize::Percent(100.0) />
-                <Text color=TextColor::Muted wrap=true>{error}</Text>
+                <Text color=TextColor::Muted wrap=Wrap::Words>{error}</Text>
                 <Spacer @sizing=ItemSize::Percent(100.0) />
             </List>
         </Frame>

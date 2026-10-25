@@ -15,6 +15,7 @@ use crate::app::{App, SafeArea, Setup, Waker, next_batch, safe_rect};
 use crate::clipboard::{PasteAnswer, PasteKind, PasteRequest, Pasted};
 use crate::context::{ActionGroup, Context, FrameOutput};
 use crate::file_picker::{FilePick, FilePickAnswer, FilePickId, FilePickRequest};
+use crate::file_saver::{FileSave, FileSaveAnswer, FileSaveId, FileSaveRequest};
 use crate::geometry::Vec2;
 use crate::input::{Event, Input};
 use crate::renderer::{Loaded, Renderers};
@@ -28,6 +29,7 @@ use intake::{Drain, Intake};
 pub use intake::{Incoming, PINCH_SPEED, SCROLL_LINE, SCROLL_PAGE, Units, scrolled};
 
 type Answered = (FilePickId, FilePick);
+type Saved = (FileSaveId, FileSave);
 
 pub struct RunOptions {
     pub app_id: Option<String>,
@@ -102,6 +104,13 @@ pub trait Platform {
         answer.send(Err("Choosing a file is unavailable here".to_owned()));
     }
 
+    fn save_file(&mut self, request: FileSaveRequest, answer: FileSaveAnswer) {
+        let _ = request;
+        answer.send(FileSave::Failed(
+            "Saving a file is unavailable here".to_owned(),
+        ));
+    }
+
     fn delivers_paste_shortcut(&self) -> bool {
         false
     }
@@ -164,6 +173,7 @@ pub struct Runner {
     events: Vec<Event>,
     intake: Intake,
     picks: (Sender<Answered>, Receiver<Answered>),
+    saves: (Sender<Saved>, Receiver<Saved>),
     pastes: (Sender<Pasted>, Receiver<Pasted>),
     typed_pastes: (Sender<Pasted>, Receiver<Pasted>),
     keyboard_chosen: bool,
@@ -221,6 +231,7 @@ impl Runner {
             events: Vec::new(),
             intake: Intake::default(),
             picks: mpsc::channel(),
+            saves: mpsc::channel(),
             pastes: mpsc::channel(),
             typed_pastes: mpsc::channel(),
             keyboard_chosen: false,
@@ -400,6 +411,7 @@ impl Runner {
     }
 
     fn run_frame(&mut self, platform: &mut dyn Platform, safe_area: SafeArea) -> Option<Frame> {
+        let started = std::time::Instant::now();
         let renderers = self.renderers.as_mut()?;
         match renderers.recover() {
             Ok(false) => {}
@@ -460,6 +472,9 @@ impl Runner {
         }
         while let Ok((id, pick)) = self.picks.1.try_recv() {
             self.context.file_picked(id, pick);
+        }
+        while let Ok((id, save)) = self.saves.1.try_recv() {
+            self.context.file_saved(id, save);
         }
         if let Some(fullscreen) = self.reports.take_fullscreen() {
             self.context.fullscreen_changed(fullscreen);
@@ -578,6 +593,15 @@ impl Runner {
                 _ => platform.pick_file(request, answer),
             }
         }
+        for request in std::mem::take(&mut output.file_saves) {
+            let answer = FileSaveAnswer::new(request.id, self.saves.0.clone(), self.waker.clone());
+            match &mut self.automation {
+                Some(automation) if !cfg!(target_arch = "wasm32") => {
+                    automation.save_file(request, answer);
+                }
+                _ => platform.save_file(request, answer),
+            }
+        }
         self.intake
             .incoming
             .extend(output.typed.drain(..).map(Incoming::from));
@@ -644,6 +668,8 @@ impl Runner {
         if let Some(automation) = &mut self.automation
             && let Some(dump) = self.context.kept_accessibility()
         {
+            let took = started.elapsed();
+            let others = self.app.other_frames();
             self.actions = std::mem::take(&mut output.actions);
             let rendered = dump.rendered();
             let view = View {
@@ -665,6 +691,7 @@ impl Runner {
                     false => frame.again(),
                 },
             };
+            automation.framed(took, others);
             automation.end(
                 &view,
                 settled,

@@ -25,7 +25,8 @@ use super::state::{
 use super::{
     Dock, DockApi, DockAwayHandle, DockBarHandle, DockChromeHandle, DockConfig, DockGripHandle,
     DockMode, DockPreviewHandle, DockSplitterHandle, DockStackHandle, DockState, DockSwitchHandle,
-    DockSwitcherHandle, DockTabHandle, GroupId, LeafId, SIDEBAR_WIDTH, SPLITTER_THICKNESS, TabId,
+    DockSwitcherHandle, DockTabHandle, GroupId, ICON_SIDEBAR_WIDTH, LeafId, SIDEBAR_WIDTH,
+    SPLITTER_THICKNESS, TabId,
 };
 use crate::menu_popup::MenuStyle;
 
@@ -48,6 +49,7 @@ enum NodeKind<K: 'static> {
         key: String,
         active: Option<K>,
         vertical: bool,
+        icons_only: bool,
         sidebar: f32,
         empty: Option<RenderFn<()>>,
         entries: Run<DockEntry<K>>,
@@ -113,6 +115,7 @@ pub fn DockPane<K>(
     id: String,
     active: Option<K>,
     #[prop(default = false)] vertical: bool,
+    #[prop(default = false)] icons_only: bool,
     #[prop(default = SIDEBAR_WIDTH)] sidebar_width: f32,
     empty: Option<RenderFn<()>>,
     children: Children<DockEntry<K>>,
@@ -125,6 +128,7 @@ where
             key: id,
             active,
             vertical,
+            icons_only,
             sidebar: sidebar_width,
             empty,
             entries: children.into_run(),
@@ -563,6 +567,7 @@ impl<K: DockKey> DockingLayout<K> {
                 key,
                 active,
                 vertical,
+                icons_only,
                 sidebar,
                 empty,
                 entries,
@@ -580,6 +585,7 @@ impl<K: DockKey> DockingLayout<K> {
                     entries,
                     active: active.as_ref().map(|key| self.mint(key)),
                     vertical: *vertical,
+                    icons_only: *icons_only,
                     sidebar: *sidebar,
                     keep: empty.is_some(),
                 }))
@@ -700,6 +706,7 @@ pub fn Docking<K>(
     #[prop(default = SPLITTER_THICKNESS)] splitter_thickness: f32,
     #[prop(default = 0.0)] splitter_reach: f32,
     #[prop(default = 0.0)] group_inset: f32,
+    #[prop(default = ICON_SIDEBAR_WIDTH)] icon_sidebar_width: f32,
     #[prop(default = 0.0)] inset: Prop<f32>,
     tab: RenderFn<DockTabHandle>,
     frame: Option<RenderFn<NodeId>>,
@@ -815,6 +822,7 @@ where
                 splitter_thickness,
                 splitter_reach,
                 group_inset,
+                icon_sidebar_width,
                 inset,
                 tab,
                 content,

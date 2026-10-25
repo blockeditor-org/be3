@@ -1,3 +1,4 @@
+use beui::Wrap;
 use beui::icons::Glyph;
 use beui::icons::{ICON_CIRCLE_MINUS, ICON_CIRCLE_PLUS, ICON_DIFF, ICON_IMAGE_OFF};
 use beui::reactive::*;
@@ -68,7 +69,11 @@ pub(crate) fn PaintingList(review: Review) -> NodeId {
             <Frame padding={Sides::all(PADDING)}>
                 <List spacing=ROW_SPACING>
                     <Text style=TextStyle::HEADING>"Paintings"</Text>
-                    <Text style=TextStyle::CAPTION wrap=true @test_id={"paint_review.summary"}>
+                    <Text
+                        style=TextStyle::CAPTION
+                        wrap=Wrap::Words
+                        @test_id={"paint_review.summary"}
+                    >
                         {summary}
                     </Text>
                 </List>

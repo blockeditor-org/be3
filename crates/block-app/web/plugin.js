@@ -9,7 +9,9 @@
 // the canvases the page transferred to the worker. The two modules have
 // separate memories, so the shim is handed the plugin's and every import is
 // bound straight to the shim's export of the same name, which reads and writes
-// what a pointer points at in the plugin's memory itself.
+// what a pointer points at in the plugin's memory itself. A preview the plugin
+// paints leaves the worker as a bitmap of each surface the page exports, and a
+// bitmap another worker painted arrives as a texture the plugin imports.
 
 import * as dylink from "./dylink.js";
 import * as wasi from "./wasi.js";
@@ -165,6 +167,10 @@ export async function boot(shimUrl, moduleUrl, wake) {
         show: (id, canvas, surface) => shimModule.show(id, canvas, surface),
         forget: (id) => shimModule.forget(id),
         paint: () => shimModule.paint(),
+        exportSurfaces: (surfaces) => shimModule.export_surfaces(Uint32Array.from(surfaces)),
+        exported: () => shimModule.exported(),
+        importImage: (image, bitmap) => shimModule.import_image(BigInt(image), bitmap),
+        forgetImage: (image) => shimModule.forget_image(BigInt(image)),
         took: () => shimModule.took(),
         failure: () => shimModule.failure(),
         woken: () => shimModule.woken(),

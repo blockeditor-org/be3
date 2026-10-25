@@ -1,4 +1,4 @@
-use std::collections::VecDeque;
+use std::collections::{BTreeMap, VecDeque};
 use std::path::PathBuf;
 use std::sync::atomic::Ordering;
 use std::time::{Duration, Instant};
@@ -7,10 +7,12 @@ use super::gestures::{Frames, Gestures};
 use super::target::{describe, locate, node, point, scaled};
 use super::window::{Resize, WindowSize};
 use super::{Capture, Inbox, Reply, Request, changes};
+use crate::app::FrameTimes;
 use crate::app::accessibility_dump::{ACTIONS, Line};
 use crate::clipboard::{PasteAnswer, PasteKind, Pasted};
 use crate::context::{ActionGroup, Context};
 use crate::file_picker::{FilePickAnswer, FilePickRequest, PickedFile};
+use crate::file_saver::{FileSave, FileSaveAnswer, FileSaveRequest};
 use crate::geometry::{Rect, Vec2, vec2};
 use crate::input::Keyboard;
 use crate::input::{BackEdge, DroppedFile, FileDrag, Input, Key, PointerButton, TouchPhase};
@@ -29,6 +31,8 @@ pub const USAGE: &str = "Reading:
   hit TARGET                what a press at TARGET would reach: the Interactives along its path,
                             the components that made them and what each handles
   state                     window, cursor, pointer, fingers, held keys, input method, clipboard, dialogs
+  frames                    how many frames ran since the last frames, and the longest one's wall time:
+                            the window's, and those the app ran elsewhere, such as a plugin's
   actions [all]             the actions the command palette would list (all: every one)
   env                       NAME=VALUE lines a program needs to show its windows inside the app,
                             such as WAYLAND_DISPLAY; empty when the app hosts no programs
@@ -62,8 +66,9 @@ Pen:
   pen move TARGET [PRESSURE]   the pen hovers over TARGET, or moves there pressed down with PRESSURE
   pen down TARGET [PRESSURE]   the tip touches TARGET, PRESSURE from 0 to 1 (0.5)
   pen up [TARGET]           the tip lifts; the pen stays in range
-  pen draw FROM TO [STEPS]  the tip down at FROM, along in STEPS (8) with the pressure rising and
-                            falling, and up at TO
+  pen draw FROM TO [STEPS [PER_FRAME]]   the tip down at FROM, along in STEPS (8) with the
+                            pressure rising and falling, PER_FRAME (1) samples in each frame, and
+                            up at TO
   pen leave                 the pen goes out of range
   back                      the system back gesture, whole
   back [left|right] / back PROGRESS / back commit|cancel   step by step, PROGRESS from 0 to 1
@@ -81,7 +86,9 @@ Files:
   grab FILE...              drag FILEs in from outside, over where the pointer is; move carries them
   drop [TARGET]             drop the grabbed files; ungrab takes them away again
   upload FILE [TARGET]      answer the file dialog with FILE, clicking TARGET first to open it
-  dismiss                   cancel the open file dialog
+  save FILE [TARGET]        answer the save dialog by writing what it saves to FILE, clicking
+                            TARGET first to open it
+  dismiss                   cancel the oldest open file or save dialog
 Window (headless only, except focus, blur, leave and close):
   resize WIDTHxHEIGHT[@SCALE]   resize the window, and its scale when given
   resize screen WIDTHxHEIGHT    the screen a fullscreen window fills
@@ -156,6 +163,10 @@ enum Phase {
         file: PathBuf,
         before: String,
     },
+    Saving {
+        file: PathBuf,
+        before: String,
+    },
     Capturing {
         target: Option<String>,
         crop: Option<Rect>,
@@ -195,7 +206,11 @@ pub struct Automation {
     unhurried: bool,
     closing: bool,
     focused: bool,
-    picks: Vec<(FilePickRequest, FilePickAnswer)>,
+    picks: Vec<(u64, FilePickRequest, FilePickAnswer)>,
+    saves: Vec<(u64, FileSaveRequest, FileSaveAnswer)>,
+    dialogs: u64,
+    frames: FrameTimes,
+    other_frames: BTreeMap<String, FrameTimes>,
 }
 
 impl Automation {
@@ -210,7 +225,33 @@ impl Automation {
             closing: false,
             focused: true,
             picks: Vec::new(),
+            saves: Vec::new(),
+            dialogs: 0,
+            frames: FrameTimes::default(),
+            other_frames: BTreeMap::new(),
         }
+    }
+
+    pub fn framed(&mut self, took: Duration, others: Vec<(String, FrameTimes)>) {
+        self.frames.add(took);
+        for (name, times) in others {
+            self.other_frames.entry(name).or_default().merge(times);
+        }
+    }
+
+    fn take_frames(&mut self) -> String {
+        let window = std::mem::take(&mut self.frames);
+        let others = std::mem::take(&mut self.other_frames);
+        std::iter::once(("window".to_owned(), window))
+            .chain(others)
+            .map(|(name, times)| {
+                format!(
+                    "{name}: {} frames, the longest {:.3} ms\n",
+                    times.count,
+                    times.longest.as_secs_f64() * 1000.0
+                )
+            })
+            .collect()
     }
 
     pub fn clock_stopped(&self) -> bool {
@@ -312,7 +353,13 @@ impl Automation {
     }
 
     pub fn pick_file(&mut self, request: FilePickRequest, answer: FilePickAnswer) {
-        self.picks.push((request, answer));
+        self.dialogs += 1;
+        self.picks.push((self.dialogs, request, answer));
+    }
+
+    pub fn save_file(&mut self, request: FileSaveRequest, answer: FileSaveAnswer) {
+        self.dialogs += 1;
+        self.saves.push((self.dialogs, request, answer));
     }
 
     pub fn closed(&mut self, accepted: bool) {
@@ -404,7 +451,7 @@ impl Automation {
         if let Phase::Uploading { file, before } = &mut active.phase {
             let picked = (!self.picks.is_empty()).then(|| self.picks.remove(0));
             match picked {
-                Some((_, answer)) => match std::fs::read(&*file) {
+                Some((_, _, answer)) => match std::fs::read(&*file) {
                     Ok(data) => {
                         let name = file
                             .file_name()
@@ -423,6 +470,28 @@ impl Automation {
                     failed = Some(
                         "no file dialog opened; give upload a TARGET that opens one".to_owned(),
                     );
+                }
+                None => {}
+            }
+        }
+        if let Phase::Saving { file, before } = &mut active.phase {
+            let saved = (!self.saves.is_empty()).then(|| self.saves.remove(0));
+            match saved {
+                Some((_, request, answer)) => match std::fs::write(&*file, &request.file.data) {
+                    Ok(()) => {
+                        answer.send(FileSave::Saved);
+                        active.phase = settling(before);
+                        return;
+                    }
+                    Err(error) => {
+                        let error = format!("could not write {}: {error}", file.display());
+                        answer.send(FileSave::Failed(error.clone()));
+                        failed = Some(error);
+                    }
+                },
+                None if quiet => {
+                    failed =
+                        Some("no save dialog opened; give save a TARGET that opens one".to_owned());
                 }
                 None => {}
             }
@@ -561,7 +630,7 @@ impl Automation {
         let reply = match capture {
             Some(capture) => cropped(capture, *crop),
             None => Reply::Error(
-                "this renderer cannot take screenshots; run the app headless".to_owned(),
+                "this renderer cannot take screenshots; run the app headless with the wgpu renderer, or use paint".to_owned(),
             ),
         };
         self.finish(reply);
@@ -598,6 +667,7 @@ impl Automation {
         match command.as_str() {
             "help" => Ok(Started::Done(Reply::Text(format!("{USAGE}\n")))),
             "tree" => Ok(Started::Done(Reply::Text(view.tree.to_owned()))),
+            "frames" => Ok(Started::Done(Reply::Text(self.take_frames()))),
             "ids" => {
                 let mut ids: Vec<(&str, &Line)> = view
                     .lines
@@ -767,13 +837,21 @@ impl Automation {
                     "draw" => {
                         let from = at(argument(1)?)?;
                         let to = at(argument(2)?)?;
-                        let steps: usize = match arguments.get(3) {
-                            Some(steps) => steps
-                                .parse()
-                                .map_err(|_| format!("{steps} is not a number of steps"))?,
-                            None => 8,
-                        };
-                        self.gestures.pen_draw(from, to, steps)?
+                        let count =
+                            |index: usize, default: usize, what: &str| match arguments.get(index) {
+                                Some(text) => text
+                                    .parse::<usize>()
+                                    .map_err(|_| format!("{text} is not a number of {what}")),
+                                None => Ok(default),
+                            };
+                        let steps = count(3, 8, "steps")?;
+                        let per_frame = count(4, 1, "samples a frame")?;
+                        if per_frame == 0 {
+                            return Err(
+                                "pen draw puts at least one sample in each frame".to_owned()
+                            );
+                        }
+                        self.gestures.pen_draw(from, to, steps, per_frame)?
                     }
                     "leave" => self.gestures.pen_leave()?,
                     other => {
@@ -908,12 +986,39 @@ impl Automation {
                     None => Ok(Started::Phase(Phase::Uploading { file, before })),
                 }
             }
-            "dismiss" => {
-                if self.picks.is_empty() {
-                    return Err("no file dialog is open".to_owned());
+            "save" => {
+                let file = PathBuf::from(argument(0)?);
+                let before = view.tree.to_owned();
+                match arguments.get(1) {
+                    Some(target) => {
+                        let at = at(target)?;
+                        Ok(Started::Phase(Phase::Input {
+                            steps: points(self.gestures.click(at, PointerButton::Primary, 1))
+                                .into(),
+                            before: before.clone(),
+                            then: Some(Box::new(Phase::Saving { file, before })),
+                        }))
+                    }
+                    None if self.saves.is_empty() => {
+                        Err("no save dialog is open; give save a TARGET that opens one".to_owned())
+                    }
+                    None => Ok(Started::Phase(Phase::Saving { file, before })),
                 }
-                let (_, answer) = self.picks.remove(0);
-                answer.send(Ok(None));
+            }
+            "dismiss" => {
+                let pick = self.picks.first().map(|(opened, ..)| *opened);
+                let save = self.saves.first().map(|(opened, ..)| *opened);
+                match (pick, save) {
+                    (None, None) => return Err("no file or save dialog is open".to_owned()),
+                    (Some(pick), save) if save.is_none_or(|save| pick < save) => {
+                        let (_, _, answer) = self.picks.remove(0);
+                        answer.send(Ok(None));
+                    }
+                    _ => {
+                        let (_, _, answer) = self.saves.remove(0);
+                        answer.send(FileSave::Cancelled);
+                    }
+                }
                 input(vec![Vec::new()])
             }
             "grab" => {
@@ -1179,7 +1284,7 @@ impl Automation {
             yes(view.window.requests.wants_keyboard),
             yes(view.window.requests.pointer_locked)
         ));
-        for (pick, _) in &self.picks {
+        for (_, pick, _) in &self.picks {
             let filter = &pick.filter;
             text.push_str(&format!(
                 "file dialog open for {} ({})\n",
@@ -1188,6 +1293,14 @@ impl Automation {
                     false => &filter.name,
                 },
                 filter.extensions.join(", ")
+            ));
+        }
+        for (_, save, _) in &self.saves {
+            text.push_str(&format!(
+                "save dialog open for {} ({}, {} bytes)\n",
+                save.file.name,
+                save.file.mime_type,
+                save.file.data.len()
             ));
         }
         text

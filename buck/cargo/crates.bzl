@@ -3,6 +3,169 @@
 # and buck/cargo/defs.bzl and buck/cargo/third_party.bzl read it.
 
 crates = {
+    "crates/app-bench": {
+        "binaries": [
+            {
+                "crate_root": "src/main.rs",
+                "name": "app-bench",
+            },
+        ],
+        "edition": "2024",
+        "examples": [],
+        "library": None,
+        "name": "app-bench",
+        "platforms": {
+            "android-arm64": {
+                "binaries": {
+                    "app-bench": [
+                        "//crates/be-block:be-block",
+                        "//crates/be-client:be-client",
+                        "//crates/be-drive:be-drive",
+                        "//crates/be-server:be-server",
+                        "//crates/bench:bench",
+                        "//crates/beui-core:beui-core",
+                        "//crates/build-id:build-id",
+                        "//crates/editors/infinite-canvas/types:infinite-canvas-types",
+                        "//crates/paint-snapshot:paint-snapshot",
+                        "//third-party/rust:tokio-1.52.3",
+                    ],
+                },
+                "deps": [],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "linux-arm64": {
+                "binaries": {
+                    "app-bench": [
+                        "//crates/be-block:be-block",
+                        "//crates/be-client:be-client",
+                        "//crates/be-drive:be-drive",
+                        "//crates/be-server:be-server",
+                        "//crates/bench:bench",
+                        "//crates/beui-core:beui-core",
+                        "//crates/build-id:build-id",
+                        "//crates/editors/infinite-canvas/types:infinite-canvas-types",
+                        "//crates/paint-snapshot:paint-snapshot",
+                        "//third-party/rust:tokio-1.52.3",
+                    ],
+                },
+                "deps": [],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "linux-x86_64": {
+                "binaries": {
+                    "app-bench": [
+                        "//crates/be-block:be-block",
+                        "//crates/be-client:be-client",
+                        "//crates/be-drive:be-drive",
+                        "//crates/be-server:be-server",
+                        "//crates/bench:bench",
+                        "//crates/beui-core:beui-core",
+                        "//crates/build-id:build-id",
+                        "//crates/editors/infinite-canvas/types:infinite-canvas-types",
+                        "//crates/paint-snapshot:paint-snapshot",
+                        "//third-party/rust:tokio-1.52.3",
+                    ],
+                },
+                "deps": [],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "macos-arm64": {
+                "binaries": {
+                    "app-bench": [
+                        "//crates/be-block:be-block",
+                        "//crates/be-client:be-client",
+                        "//crates/be-drive:be-drive",
+                        "//crates/be-server:be-server",
+                        "//crates/bench:bench",
+                        "//crates/beui-core:beui-core",
+                        "//crates/build-id:build-id",
+                        "//crates/editors/infinite-canvas/types:infinite-canvas-types",
+                        "//crates/paint-snapshot:paint-snapshot",
+                        "//third-party/rust:tokio-1.52.3",
+                    ],
+                },
+                "deps": [],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "macos-x86_64": {
+                "binaries": {
+                    "app-bench": [
+                        "//crates/be-block:be-block",
+                        "//crates/be-client:be-client",
+                        "//crates/be-drive:be-drive",
+                        "//crates/be-server:be-server",
+                        "//crates/bench:bench",
+                        "//crates/beui-core:beui-core",
+                        "//crates/build-id:build-id",
+                        "//crates/editors/infinite-canvas/types:infinite-canvas-types",
+                        "//crates/paint-snapshot:paint-snapshot",
+                        "//third-party/rust:tokio-1.52.3",
+                    ],
+                },
+                "deps": [],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "windows-arm64": {
+                "binaries": {
+                    "app-bench": [
+                        "//crates/be-block:be-block",
+                        "//crates/be-client:be-client",
+                        "//crates/be-drive:be-drive",
+                        "//crates/be-server:be-server",
+                        "//crates/bench:bench",
+                        "//crates/beui-core:beui-core",
+                        "//crates/build-id:build-id",
+                        "//crates/editors/infinite-canvas/types:infinite-canvas-types",
+                        "//crates/paint-snapshot:paint-snapshot",
+                        "//third-party/rust:tokio-1.52.3",
+                    ],
+                },
+                "deps": [],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "windows-x86_64": {
+                "binaries": {
+                    "app-bench": [
+                        "//crates/be-block:be-block",
+                        "//crates/be-client:be-client",
+                        "//crates/be-drive:be-drive",
+                        "//crates/be-server:be-server",
+                        "//crates/bench:bench",
+                        "//crates/beui-core:beui-core",
+                        "//crates/build-id:build-id",
+                        "//crates/editors/infinite-canvas/types:infinite-canvas-types",
+                        "//crates/paint-snapshot:paint-snapshot",
+                        "//third-party/rust:tokio-1.52.3",
+                    ],
+                },
+                "deps": [],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+        },
+        "profile_flags": [],
+        "version": "0.1.0",
+    },
     "crates/app-tests": {
         "binaries": [],
         "edition": "2024",
@@ -323,7 +486,7 @@ crates = {
                         "//crates/editors/database/types:database-types",
                         "//crates/editors/terminal/types:terminal-types",
                         "//crates/editors/text-block/types:text-block-types",
-                        "//crates/ghostty-vt:ghostty-vt",
+                        "//crates/terminal-emulator:terminal-emulator",
                         "//third-party/rust:futures-util-0.3.32",
                         "//third-party/rust:portable-pty-0.9.0",
                         "//third-party/rust:serde_json-1.0.150",
@@ -349,7 +512,7 @@ crates = {
                     "//crates/editors/database/types:database-types",
                     "//crates/editors/terminal/types:terminal-types",
                     "//crates/editors/text-block/types:text-block-types",
-                    "//crates/ghostty-vt:ghostty-vt",
+                    "//crates/terminal-emulator:terminal-emulator",
                     "//third-party/rust:futures-util-0.3.32",
                     "//third-party/rust:portable-pty-0.9.0",
                     "//third-party/rust:serde_json-1.0.150",
@@ -385,7 +548,7 @@ crates = {
                         "//crates/editors/database/types:database-types",
                         "//crates/editors/terminal/types:terminal-types",
                         "//crates/editors/text-block/types:text-block-types",
-                        "//crates/ghostty-vt:ghostty-vt",
+                        "//crates/terminal-emulator:terminal-emulator",
                         "//third-party/rust:futures-util-0.3.32",
                         "//third-party/rust:portable-pty-0.9.0",
                         "//third-party/rust:serde_json-1.0.150",
@@ -411,7 +574,7 @@ crates = {
                     "//crates/editors/database/types:database-types",
                     "//crates/editors/terminal/types:terminal-types",
                     "//crates/editors/text-block/types:text-block-types",
-                    "//crates/ghostty-vt:ghostty-vt",
+                    "//crates/terminal-emulator:terminal-emulator",
                     "//third-party/rust:futures-util-0.3.32",
                     "//third-party/rust:portable-pty-0.9.0",
                     "//third-party/rust:serde_json-1.0.150",
@@ -447,7 +610,7 @@ crates = {
                         "//crates/editors/database/types:database-types",
                         "//crates/editors/terminal/types:terminal-types",
                         "//crates/editors/text-block/types:text-block-types",
-                        "//crates/ghostty-vt:ghostty-vt",
+                        "//crates/terminal-emulator:terminal-emulator",
                         "//third-party/rust:futures-util-0.3.32",
                         "//third-party/rust:portable-pty-0.9.0",
                         "//third-party/rust:serde_json-1.0.150",
@@ -473,7 +636,7 @@ crates = {
                     "//crates/editors/database/types:database-types",
                     "//crates/editors/terminal/types:terminal-types",
                     "//crates/editors/text-block/types:text-block-types",
-                    "//crates/ghostty-vt:ghostty-vt",
+                    "//crates/terminal-emulator:terminal-emulator",
                     "//third-party/rust:futures-util-0.3.32",
                     "//third-party/rust:portable-pty-0.9.0",
                     "//third-party/rust:serde_json-1.0.150",
@@ -509,7 +672,7 @@ crates = {
                         "//crates/editors/database/types:database-types",
                         "//crates/editors/terminal/types:terminal-types",
                         "//crates/editors/text-block/types:text-block-types",
-                        "//crates/ghostty-vt:ghostty-vt",
+                        "//crates/terminal-emulator:terminal-emulator",
                         "//third-party/rust:futures-util-0.3.32",
                         "//third-party/rust:portable-pty-0.9.0",
                         "//third-party/rust:serde_json-1.0.150",
@@ -535,7 +698,7 @@ crates = {
                     "//crates/editors/database/types:database-types",
                     "//crates/editors/terminal/types:terminal-types",
                     "//crates/editors/text-block/types:text-block-types",
-                    "//crates/ghostty-vt:ghostty-vt",
+                    "//crates/terminal-emulator:terminal-emulator",
                     "//third-party/rust:futures-util-0.3.32",
                     "//third-party/rust:portable-pty-0.9.0",
                     "//third-party/rust:serde_json-1.0.150",
@@ -571,7 +734,7 @@ crates = {
                         "//crates/editors/database/types:database-types",
                         "//crates/editors/terminal/types:terminal-types",
                         "//crates/editors/text-block/types:text-block-types",
-                        "//crates/ghostty-vt:ghostty-vt",
+                        "//crates/terminal-emulator:terminal-emulator",
                         "//third-party/rust:futures-util-0.3.32",
                         "//third-party/rust:portable-pty-0.9.0",
                         "//third-party/rust:serde_json-1.0.150",
@@ -597,7 +760,7 @@ crates = {
                     "//crates/editors/database/types:database-types",
                     "//crates/editors/terminal/types:terminal-types",
                     "//crates/editors/text-block/types:text-block-types",
-                    "//crates/ghostty-vt:ghostty-vt",
+                    "//crates/terminal-emulator:terminal-emulator",
                     "//third-party/rust:futures-util-0.3.32",
                     "//third-party/rust:portable-pty-0.9.0",
                     "//third-party/rust:serde_json-1.0.150",
@@ -633,7 +796,7 @@ crates = {
                         "//crates/editors/database/types:database-types",
                         "//crates/editors/terminal/types:terminal-types",
                         "//crates/editors/text-block/types:text-block-types",
-                        "//crates/ghostty-vt:ghostty-vt",
+                        "//crates/terminal-emulator:terminal-emulator",
                         "//third-party/rust:futures-util-0.3.32",
                         "//third-party/rust:portable-pty-0.9.0",
                         "//third-party/rust:serde_json-1.0.150",
@@ -659,7 +822,7 @@ crates = {
                     "//crates/editors/database/types:database-types",
                     "//crates/editors/terminal/types:terminal-types",
                     "//crates/editors/text-block/types:text-block-types",
-                    "//crates/ghostty-vt:ghostty-vt",
+                    "//crates/terminal-emulator:terminal-emulator",
                     "//third-party/rust:futures-util-0.3.32",
                     "//third-party/rust:portable-pty-0.9.0",
                     "//third-party/rust:serde_json-1.0.150",
@@ -695,7 +858,7 @@ crates = {
                         "//crates/editors/database/types:database-types",
                         "//crates/editors/terminal/types:terminal-types",
                         "//crates/editors/text-block/types:text-block-types",
-                        "//crates/ghostty-vt:ghostty-vt",
+                        "//crates/terminal-emulator:terminal-emulator",
                         "//third-party/rust:futures-util-0.3.32",
                         "//third-party/rust:portable-pty-0.9.0",
                         "//third-party/rust:serde_json-1.0.150",
@@ -721,7 +884,7 @@ crates = {
                     "//crates/editors/database/types:database-types",
                     "//crates/editors/terminal/types:terminal-types",
                     "//crates/editors/text-block/types:text-block-types",
-                    "//crates/ghostty-vt:ghostty-vt",
+                    "//crates/terminal-emulator:terminal-emulator",
                     "//third-party/rust:futures-util-0.3.32",
                     "//third-party/rust:portable-pty-0.9.0",
                     "//third-party/rust:serde_json-1.0.150",
@@ -2019,6 +2182,7 @@ crates = {
                         "deps": [
                             "//crates/be-commit:be-commit",
                             "//crates/be-store:be-store",
+                            "//crates/bench:bench",
                             "//third-party/rust:serde-1.0.228",
                             "//third-party/rust:uuid-1.23.2",
                         ],
@@ -2026,7 +2190,9 @@ crates = {
                     },
                 },
                 "features": [],
-                "test_deps": [],
+                "test_deps": [
+                    "//crates/bench:bench",
+                ],
                 "test_features": [],
             },
             "linux-arm64": {
@@ -2042,6 +2208,7 @@ crates = {
                         "deps": [
                             "//crates/be-commit:be-commit",
                             "//crates/be-store:be-store",
+                            "//crates/bench:bench",
                             "//third-party/rust:serde-1.0.228",
                             "//third-party/rust:uuid-1.23.2",
                         ],
@@ -2049,7 +2216,9 @@ crates = {
                     },
                 },
                 "features": [],
-                "test_deps": [],
+                "test_deps": [
+                    "//crates/bench:bench",
+                ],
                 "test_features": [],
             },
             "linux-x86_64": {
@@ -2065,6 +2234,7 @@ crates = {
                         "deps": [
                             "//crates/be-commit:be-commit",
                             "//crates/be-store:be-store",
+                            "//crates/bench:bench",
                             "//third-party/rust:serde-1.0.228",
                             "//third-party/rust:uuid-1.23.2",
                         ],
@@ -2072,7 +2242,9 @@ crates = {
                     },
                 },
                 "features": [],
-                "test_deps": [],
+                "test_deps": [
+                    "//crates/bench:bench",
+                ],
                 "test_features": [],
             },
             "macos-arm64": {
@@ -2088,6 +2260,7 @@ crates = {
                         "deps": [
                             "//crates/be-commit:be-commit",
                             "//crates/be-store:be-store",
+                            "//crates/bench:bench",
                             "//third-party/rust:serde-1.0.228",
                             "//third-party/rust:uuid-1.23.2",
                         ],
@@ -2095,7 +2268,9 @@ crates = {
                     },
                 },
                 "features": [],
-                "test_deps": [],
+                "test_deps": [
+                    "//crates/bench:bench",
+                ],
                 "test_features": [],
             },
             "macos-x86_64": {
@@ -2111,6 +2286,7 @@ crates = {
                         "deps": [
                             "//crates/be-commit:be-commit",
                             "//crates/be-store:be-store",
+                            "//crates/bench:bench",
                             "//third-party/rust:serde-1.0.228",
                             "//third-party/rust:uuid-1.23.2",
                         ],
@@ -2118,7 +2294,9 @@ crates = {
                     },
                 },
                 "features": [],
-                "test_deps": [],
+                "test_deps": [
+                    "//crates/bench:bench",
+                ],
                 "test_features": [],
             },
             "wasi": {
@@ -2173,6 +2351,7 @@ crates = {
                         "deps": [
                             "//crates/be-commit:be-commit",
                             "//crates/be-store:be-store",
+                            "//crates/bench:bench",
                             "//third-party/rust:serde-1.0.228",
                             "//third-party/rust:uuid-1.23.2",
                         ],
@@ -2180,7 +2359,9 @@ crates = {
                     },
                 },
                 "features": [],
-                "test_deps": [],
+                "test_deps": [
+                    "//crates/bench:bench",
+                ],
                 "test_features": [],
             },
             "windows-x86_64": {
@@ -2196,6 +2377,7 @@ crates = {
                         "deps": [
                             "//crates/be-commit:be-commit",
                             "//crates/be-store:be-store",
+                            "//crates/bench:bench",
                             "//third-party/rust:serde-1.0.228",
                             "//third-party/rust:uuid-1.23.2",
                         ],
@@ -2203,7 +2385,9 @@ crates = {
                     },
                 },
                 "features": [],
-                "test_deps": [],
+                "test_deps": [
+                    "//crates/bench:bench",
+                ],
                 "test_features": [],
             },
         },
@@ -2404,7 +2588,10 @@ crates = {
             "android-arm64": {
                 "binaries": {
                     "be-launcher": [
+                        "//crates/be-block:be-block",
                         "//crates/beui:beui",
+                        "//crates/editors/terminal/types:terminal-types",
+                        "//crates/terminal-emulator:terminal-emulator",
                         "//crates/terminal-view:terminal-view",
                         "//third-party/rust:comrak-0.55.0",
                         "//third-party/rust:image-0.25.10",
@@ -2417,7 +2604,10 @@ crates = {
                     ],
                 },
                 "deps": [
+                    "//crates/be-block:be-block",
                     "//crates/beui:beui",
+                    "//crates/editors/terminal/types:terminal-types",
+                    "//crates/terminal-emulator:terminal-emulator",
                     "//crates/terminal-view:terminal-view",
                     "//third-party/rust:comrak-0.55.0",
                     "//third-party/rust:image-0.25.10",
@@ -2438,7 +2628,10 @@ crates = {
             "linux-arm64": {
                 "binaries": {
                     "be-launcher": [
+                        "//crates/be-block:be-block",
                         "//crates/beui:beui",
+                        "//crates/editors/terminal/types:terminal-types",
+                        "//crates/terminal-emulator:terminal-emulator",
                         "//crates/terminal-view:terminal-view",
                         "//third-party/rust:comrak-0.55.0",
                         "//third-party/rust:image-0.25.10",
@@ -2448,7 +2641,10 @@ crates = {
                     ],
                 },
                 "deps": [
+                    "//crates/be-block:be-block",
                     "//crates/beui:beui",
+                    "//crates/editors/terminal/types:terminal-types",
+                    "//crates/terminal-emulator:terminal-emulator",
                     "//crates/terminal-view:terminal-view",
                     "//third-party/rust:comrak-0.55.0",
                     "//third-party/rust:image-0.25.10",
@@ -2466,7 +2662,10 @@ crates = {
             "linux-x86_64": {
                 "binaries": {
                     "be-launcher": [
+                        "//crates/be-block:be-block",
                         "//crates/beui:beui",
+                        "//crates/editors/terminal/types:terminal-types",
+                        "//crates/terminal-emulator:terminal-emulator",
                         "//crates/terminal-view:terminal-view",
                         "//third-party/rust:comrak-0.55.0",
                         "//third-party/rust:image-0.25.10",
@@ -2476,7 +2675,10 @@ crates = {
                     ],
                 },
                 "deps": [
+                    "//crates/be-block:be-block",
                     "//crates/beui:beui",
+                    "//crates/editors/terminal/types:terminal-types",
+                    "//crates/terminal-emulator:terminal-emulator",
                     "//crates/terminal-view:terminal-view",
                     "//third-party/rust:comrak-0.55.0",
                     "//third-party/rust:image-0.25.10",
@@ -2494,7 +2696,10 @@ crates = {
             "macos-arm64": {
                 "binaries": {
                     "be-launcher": [
+                        "//crates/be-block:be-block",
                         "//crates/beui:beui",
+                        "//crates/editors/terminal/types:terminal-types",
+                        "//crates/terminal-emulator:terminal-emulator",
                         "//crates/terminal-view:terminal-view",
                         "//third-party/rust:comrak-0.55.0",
                         "//third-party/rust:image-0.25.10",
@@ -2504,7 +2709,10 @@ crates = {
                     ],
                 },
                 "deps": [
+                    "//crates/be-block:be-block",
                     "//crates/beui:beui",
+                    "//crates/editors/terminal/types:terminal-types",
+                    "//crates/terminal-emulator:terminal-emulator",
                     "//crates/terminal-view:terminal-view",
                     "//third-party/rust:comrak-0.55.0",
                     "//third-party/rust:image-0.25.10",
@@ -2522,7 +2730,10 @@ crates = {
             "macos-x86_64": {
                 "binaries": {
                     "be-launcher": [
+                        "//crates/be-block:be-block",
                         "//crates/beui:beui",
+                        "//crates/editors/terminal/types:terminal-types",
+                        "//crates/terminal-emulator:terminal-emulator",
                         "//crates/terminal-view:terminal-view",
                         "//third-party/rust:comrak-0.55.0",
                         "//third-party/rust:image-0.25.10",
@@ -2532,7 +2743,10 @@ crates = {
                     ],
                 },
                 "deps": [
+                    "//crates/be-block:be-block",
                     "//crates/beui:beui",
+                    "//crates/editors/terminal/types:terminal-types",
+                    "//crates/terminal-emulator:terminal-emulator",
                     "//crates/terminal-view:terminal-view",
                     "//third-party/rust:comrak-0.55.0",
                     "//third-party/rust:image-0.25.10",
@@ -2550,7 +2764,10 @@ crates = {
             "windows-arm64": {
                 "binaries": {
                     "be-launcher": [
+                        "//crates/be-block:be-block",
                         "//crates/beui:beui",
+                        "//crates/editors/terminal/types:terminal-types",
+                        "//crates/terminal-emulator:terminal-emulator",
                         "//crates/terminal-view:terminal-view",
                         "//third-party/rust:comrak-0.55.0",
                         "//third-party/rust:image-0.25.10",
@@ -2560,7 +2777,10 @@ crates = {
                     ],
                 },
                 "deps": [
+                    "//crates/be-block:be-block",
                     "//crates/beui:beui",
+                    "//crates/editors/terminal/types:terminal-types",
+                    "//crates/terminal-emulator:terminal-emulator",
                     "//crates/terminal-view:terminal-view",
                     "//third-party/rust:comrak-0.55.0",
                     "//third-party/rust:image-0.25.10",
@@ -2578,7 +2798,10 @@ crates = {
             "windows-x86_64": {
                 "binaries": {
                     "be-launcher": [
+                        "//crates/be-block:be-block",
                         "//crates/beui:beui",
+                        "//crates/editors/terminal/types:terminal-types",
+                        "//crates/terminal-emulator:terminal-emulator",
                         "//crates/terminal-view:terminal-view",
                         "//third-party/rust:comrak-0.55.0",
                         "//third-party/rust:image-0.25.10",
@@ -2588,7 +2811,10 @@ crates = {
                     ],
                 },
                 "deps": [
+                    "//crates/be-block:be-block",
                     "//crates/beui:beui",
+                    "//crates/editors/terminal/types:terminal-types",
+                    "//crates/terminal-emulator:terminal-emulator",
                     "//crates/terminal-view:terminal-view",
                     "//third-party/rust:comrak-0.55.0",
                     "//third-party/rust:image-0.25.10",
@@ -5261,6 +5487,104 @@ crates = {
         "profile_flags": [],
         "version": "0.1.0",
     },
+    "crates/bench": {
+        "binaries": [
+            {
+                "crate_root": "src/main.rs",
+                "name": "bench",
+            },
+        ],
+        "edition": "2024",
+        "examples": [],
+        "library": {
+            "crate": "bench",
+            "crate_root": "src/lib.rs",
+            "proc_macro": False,
+        },
+        "name": "bench",
+        "platforms": {
+            "android-arm64": {
+                "binaries": {
+                    "bench": [],
+                },
+                "deps": [],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "linux-arm64": {
+                "binaries": {
+                    "bench": [],
+                },
+                "deps": [],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "linux-x86_64": {
+                "binaries": {
+                    "bench": [],
+                },
+                "deps": [],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "macos-arm64": {
+                "binaries": {
+                    "bench": [],
+                },
+                "deps": [],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "macos-x86_64": {
+                "binaries": {
+                    "bench": [],
+                },
+                "deps": [],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "wasi-guest": {
+                "binaries": {},
+                "deps": [],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "windows-arm64": {
+                "binaries": {
+                    "bench": [],
+                },
+                "deps": [],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "windows-x86_64": {
+                "binaries": {
+                    "bench": [],
+                },
+                "deps": [],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+        },
+        "profile_flags": [],
+        "version": "0.1.0",
+    },
     "crates/beui": {
         "binaries": [],
         "edition": "2024",
@@ -5302,6 +5626,7 @@ crates = {
                 "examples": {
                     "survey": {
                         "deps": [
+                            "//crates/bench:bench",
                             "//crates/beui-adapter-android:beui-adapter-android",
                             "//crates/beui-adapter-space:beui-adapter-space",
                             "//crates/beui-components-styled:beui-components-styled",
@@ -5328,6 +5653,7 @@ crates = {
                     },
                     "text-bench": {
                         "deps": [
+                            "//crates/bench:bench",
                             "//crates/beui-adapter-android:beui-adapter-android",
                             "//crates/beui-adapter-space:beui-adapter-space",
                             "//crates/beui-components-styled:beui-components-styled",
@@ -5359,6 +5685,7 @@ crates = {
                     "window",
                 ],
                 "test_deps": [
+                    "//crates/bench:bench",
                     "//crates/text-editor-core:text-editor-core",
                     "//third-party/rust:raw-window-handle-0.6.2",
                     "//third-party/rust:wgpu-29.0.3",
@@ -5391,6 +5718,7 @@ crates = {
                 "examples": {
                     "survey": {
                         "deps": [
+                            "//crates/bench:bench",
                             "//crates/beui-adapter-headless:beui-adapter-headless",
                             "//crates/beui-adapter-space:beui-adapter-space",
                             "//crates/beui-adapter-winit:beui-adapter-winit",
@@ -5418,6 +5746,7 @@ crates = {
                     },
                     "text-bench": {
                         "deps": [
+                            "//crates/bench:bench",
                             "//crates/beui-adapter-headless:beui-adapter-headless",
                             "//crates/beui-adapter-space:beui-adapter-space",
                             "//crates/beui-adapter-winit:beui-adapter-winit",
@@ -5450,6 +5779,7 @@ crates = {
                     "window",
                 ],
                 "test_deps": [
+                    "//crates/bench:bench",
                     "//crates/text-editor-core:text-editor-core",
                     "//third-party/rust:raw-window-handle-0.6.2",
                     "//third-party/rust:wgpu-29.0.3",
@@ -5482,6 +5812,7 @@ crates = {
                 "examples": {
                     "survey": {
                         "deps": [
+                            "//crates/bench:bench",
                             "//crates/beui-adapter-headless:beui-adapter-headless",
                             "//crates/beui-adapter-space:beui-adapter-space",
                             "//crates/beui-adapter-winit:beui-adapter-winit",
@@ -5509,6 +5840,7 @@ crates = {
                     },
                     "text-bench": {
                         "deps": [
+                            "//crates/bench:bench",
                             "//crates/beui-adapter-headless:beui-adapter-headless",
                             "//crates/beui-adapter-space:beui-adapter-space",
                             "//crates/beui-adapter-winit:beui-adapter-winit",
@@ -5541,6 +5873,7 @@ crates = {
                     "window",
                 ],
                 "test_deps": [
+                    "//crates/bench:bench",
                     "//crates/text-editor-core:text-editor-core",
                     "//third-party/rust:raw-window-handle-0.6.2",
                     "//third-party/rust:wgpu-29.0.3",
@@ -5573,6 +5906,7 @@ crates = {
                 "examples": {
                     "survey": {
                         "deps": [
+                            "//crates/bench:bench",
                             "//crates/beui-adapter-headless:beui-adapter-headless",
                             "//crates/beui-adapter-space:beui-adapter-space",
                             "//crates/beui-adapter-winit:beui-adapter-winit",
@@ -5600,6 +5934,7 @@ crates = {
                     },
                     "text-bench": {
                         "deps": [
+                            "//crates/bench:bench",
                             "//crates/beui-adapter-headless:beui-adapter-headless",
                             "//crates/beui-adapter-space:beui-adapter-space",
                             "//crates/beui-adapter-winit:beui-adapter-winit",
@@ -5632,6 +5967,7 @@ crates = {
                     "window",
                 ],
                 "test_deps": [
+                    "//crates/bench:bench",
                     "//crates/text-editor-core:text-editor-core",
                     "//third-party/rust:raw-window-handle-0.6.2",
                     "//third-party/rust:wgpu-29.0.3",
@@ -5664,6 +6000,7 @@ crates = {
                 "examples": {
                     "survey": {
                         "deps": [
+                            "//crates/bench:bench",
                             "//crates/beui-adapter-headless:beui-adapter-headless",
                             "//crates/beui-adapter-space:beui-adapter-space",
                             "//crates/beui-adapter-winit:beui-adapter-winit",
@@ -5691,6 +6028,7 @@ crates = {
                     },
                     "text-bench": {
                         "deps": [
+                            "//crates/bench:bench",
                             "//crates/beui-adapter-headless:beui-adapter-headless",
                             "//crates/beui-adapter-space:beui-adapter-space",
                             "//crates/beui-adapter-winit:beui-adapter-winit",
@@ -5723,6 +6061,7 @@ crates = {
                     "window",
                 ],
                 "test_deps": [
+                    "//crates/bench:bench",
                     "//crates/text-editor-core:text-editor-core",
                     "//third-party/rust:raw-window-handle-0.6.2",
                     "//third-party/rust:wgpu-29.0.3",
@@ -5804,6 +6143,7 @@ crates = {
                 "examples": {
                     "survey": {
                         "deps": [
+                            "//crates/bench:bench",
                             "//crates/beui-adapter-headless:beui-adapter-headless",
                             "//crates/beui-adapter-space:beui-adapter-space",
                             "//crates/beui-adapter-winit:beui-adapter-winit",
@@ -5831,6 +6171,7 @@ crates = {
                     },
                     "text-bench": {
                         "deps": [
+                            "//crates/bench:bench",
                             "//crates/beui-adapter-headless:beui-adapter-headless",
                             "//crates/beui-adapter-space:beui-adapter-space",
                             "//crates/beui-adapter-winit:beui-adapter-winit",
@@ -5863,6 +6204,7 @@ crates = {
                     "window",
                 ],
                 "test_deps": [
+                    "//crates/bench:bench",
                     "//crates/text-editor-core:text-editor-core",
                     "//third-party/rust:raw-window-handle-0.6.2",
                     "//third-party/rust:wgpu-29.0.3",
@@ -5895,6 +6237,7 @@ crates = {
                 "examples": {
                     "survey": {
                         "deps": [
+                            "//crates/bench:bench",
                             "//crates/beui-adapter-headless:beui-adapter-headless",
                             "//crates/beui-adapter-space:beui-adapter-space",
                             "//crates/beui-adapter-winit:beui-adapter-winit",
@@ -5922,6 +6265,7 @@ crates = {
                     },
                     "text-bench": {
                         "deps": [
+                            "//crates/bench:bench",
                             "//crates/beui-adapter-headless:beui-adapter-headless",
                             "//crates/beui-adapter-space:beui-adapter-space",
                             "//crates/beui-adapter-winit:beui-adapter-winit",
@@ -5954,6 +6298,7 @@ crates = {
                     "window",
                 ],
                 "test_deps": [
+                    "//crates/bench:bench",
                     "//crates/text-editor-core:text-editor-core",
                     "//third-party/rust:raw-window-handle-0.6.2",
                     "//third-party/rust:wgpu-29.0.3",
@@ -7409,6 +7754,7 @@ crates = {
                 "examples": {
                     "open-bench": {
                         "deps": [
+                            "//crates/bench:bench",
                             "//crates/beui-core:beui-core",
                             "//crates/beui-inspector:beui-inspector",
                             "//crates/beui-macros:beui_macros",
@@ -7423,6 +7769,7 @@ crates = {
                 },
                 "features": [],
                 "test_deps": [
+                    "//crates/bench:bench",
                     "//crates/beui-core:beui-core",
                     "//crates/beui-inspector:beui-inspector",
                     "//crates/beui-renderer-wgpu:beui-renderer-wgpu",
@@ -7447,6 +7794,7 @@ crates = {
                 "examples": {
                     "open-bench": {
                         "deps": [
+                            "//crates/bench:bench",
                             "//crates/beui-core:beui-core",
                             "//crates/beui-inspector:beui-inspector",
                             "//crates/beui-macros:beui_macros",
@@ -7461,6 +7809,7 @@ crates = {
                 },
                 "features": [],
                 "test_deps": [
+                    "//crates/bench:bench",
                     "//crates/beui-core:beui-core",
                     "//crates/beui-inspector:beui-inspector",
                     "//crates/beui-renderer-wgpu:beui-renderer-wgpu",
@@ -7485,6 +7834,7 @@ crates = {
                 "examples": {
                     "open-bench": {
                         "deps": [
+                            "//crates/bench:bench",
                             "//crates/beui-core:beui-core",
                             "//crates/beui-inspector:beui-inspector",
                             "//crates/beui-macros:beui_macros",
@@ -7499,6 +7849,7 @@ crates = {
                 },
                 "features": [],
                 "test_deps": [
+                    "//crates/bench:bench",
                     "//crates/beui-core:beui-core",
                     "//crates/beui-inspector:beui-inspector",
                     "//crates/beui-renderer-wgpu:beui-renderer-wgpu",
@@ -7523,6 +7874,7 @@ crates = {
                 "examples": {
                     "open-bench": {
                         "deps": [
+                            "//crates/bench:bench",
                             "//crates/beui-core:beui-core",
                             "//crates/beui-inspector:beui-inspector",
                             "//crates/beui-macros:beui_macros",
@@ -7537,6 +7889,7 @@ crates = {
                 },
                 "features": [],
                 "test_deps": [
+                    "//crates/bench:bench",
                     "//crates/beui-core:beui-core",
                     "//crates/beui-inspector:beui-inspector",
                     "//crates/beui-renderer-wgpu:beui-renderer-wgpu",
@@ -7561,6 +7914,7 @@ crates = {
                 "examples": {
                     "open-bench": {
                         "deps": [
+                            "//crates/bench:bench",
                             "//crates/beui-core:beui-core",
                             "//crates/beui-inspector:beui-inspector",
                             "//crates/beui-macros:beui_macros",
@@ -7575,6 +7929,7 @@ crates = {
                 },
                 "features": [],
                 "test_deps": [
+                    "//crates/bench:bench",
                     "//crates/beui-core:beui-core",
                     "//crates/beui-inspector:beui-inspector",
                     "//crates/beui-renderer-wgpu:beui-renderer-wgpu",
@@ -7611,6 +7966,7 @@ crates = {
                 "examples": {
                     "open-bench": {
                         "deps": [
+                            "//crates/bench:bench",
                             "//crates/beui-inspector:beui-inspector",
                             "//crates/beui-macros:beui_macros",
                             "//crates/beui:beui",
@@ -7622,6 +7978,7 @@ crates = {
                 },
                 "features": [],
                 "test_deps": [
+                    "//crates/bench:bench",
                     "//crates/beui-inspector:beui-inspector",
                     "//crates/block-ui-test:block-ui-test",
                 ],
@@ -7643,6 +8000,7 @@ crates = {
                 "examples": {
                     "open-bench": {
                         "deps": [
+                            "//crates/bench:bench",
                             "//crates/beui-core:beui-core",
                             "//crates/beui-inspector:beui-inspector",
                             "//crates/beui-macros:beui_macros",
@@ -7657,6 +8015,7 @@ crates = {
                 },
                 "features": [],
                 "test_deps": [
+                    "//crates/bench:bench",
                     "//crates/beui-core:beui-core",
                     "//crates/beui-inspector:beui-inspector",
                     "//crates/beui-renderer-wgpu:beui-renderer-wgpu",
@@ -7681,6 +8040,7 @@ crates = {
                 "examples": {
                     "open-bench": {
                         "deps": [
+                            "//crates/bench:bench",
                             "//crates/beui-core:beui-core",
                             "//crates/beui-inspector:beui-inspector",
                             "//crates/beui-macros:beui_macros",
@@ -7695,6 +8055,7 @@ crates = {
                 },
                 "features": [],
                 "test_deps": [
+                    "//crates/bench:bench",
                     "//crates/beui-core:beui-core",
                     "//crates/beui-inspector:beui-inspector",
                     "//crates/beui-renderer-wgpu:beui-renderer-wgpu",
@@ -9064,7 +9425,6 @@ crates = {
                         "//crates/remap/host:be-remap-host",
                         "//crates/sqlite-schema:sqlite-schema",
                         "//crates/wasi-threads:wasi-threads",
-                        "//third-party/rust:ashpd-0.11.1",
                         "//third-party/rust:async-executor-1.14.0",
                         "//third-party/rust:async-io-2.6.0",
                         "//third-party/rust:async-lock-3.4.2",
@@ -9114,7 +9474,6 @@ crates = {
                     "//crates/remap/host:be-remap-host",
                     "//crates/sqlite-schema:sqlite-schema",
                     "//crates/wasi-threads:wasi-threads",
-                    "//third-party/rust:ashpd-0.11.1",
                     "//third-party/rust:async-executor-1.14.0",
                     "//third-party/rust:async-io-2.6.0",
                     "//third-party/rust:async-lock-3.4.2",
@@ -9185,7 +9544,6 @@ crates = {
                         "//crates/remap/host:be-remap-host",
                         "//crates/sqlite-schema:sqlite-schema",
                         "//crates/wasi-threads:wasi-threads",
-                        "//third-party/rust:ashpd-0.11.1",
                         "//third-party/rust:async-executor-1.14.0",
                         "//third-party/rust:async-io-2.6.0",
                         "//third-party/rust:async-lock-3.4.2",
@@ -9235,7 +9593,6 @@ crates = {
                     "//crates/remap/host:be-remap-host",
                     "//crates/sqlite-schema:sqlite-schema",
                     "//crates/wasi-threads:wasi-threads",
-                    "//third-party/rust:ashpd-0.11.1",
                     "//third-party/rust:async-executor-1.14.0",
                     "//third-party/rust:async-io-2.6.0",
                     "//third-party/rust:async-lock-3.4.2",
@@ -9307,8 +9664,6 @@ crates = {
                         "//third-party/rust:futures-util-0.3.32",
                         "//third-party/rust:image-0.25.10",
                         "//third-party/rust:libc-0.2.186",
-                        "//third-party/rust:pollster-0.4.0",
-                        "//third-party/rust:rfd-0.15.4",
                         "//third-party/rust:rodio-0.20.1",
                         "//third-party/rust:rusqlite-0.32.1",
                         "//third-party/rust:serde-1.0.228",
@@ -9348,8 +9703,6 @@ crates = {
                     "//third-party/rust:futures-util-0.3.32",
                     "//third-party/rust:image-0.25.10",
                     "//third-party/rust:libc-0.2.186",
-                    "//third-party/rust:pollster-0.4.0",
-                    "//third-party/rust:rfd-0.15.4",
                     "//third-party/rust:rodio-0.20.1",
                     "//third-party/rust:rusqlite-0.32.1",
                     "//third-party/rust:serde-1.0.228",
@@ -9376,6 +9729,7 @@ crates = {
                     "//crates/editors/workspace-ui/types:workspace-ui-types",
                     "//crates/first-party-types:first-party-types",
                     "//crates/paint-snapshot:paint-snapshot",
+                    "//third-party/rust:pollster-0.4.0",
                 ],
                 "test_features": [],
             },
@@ -9410,8 +9764,6 @@ crates = {
                         "//third-party/rust:futures-util-0.3.32",
                         "//third-party/rust:image-0.25.10",
                         "//third-party/rust:libc-0.2.186",
-                        "//third-party/rust:pollster-0.4.0",
-                        "//third-party/rust:rfd-0.15.4",
                         "//third-party/rust:rodio-0.20.1",
                         "//third-party/rust:rusqlite-0.32.1",
                         "//third-party/rust:serde-1.0.228",
@@ -9451,8 +9803,6 @@ crates = {
                     "//third-party/rust:futures-util-0.3.32",
                     "//third-party/rust:image-0.25.10",
                     "//third-party/rust:libc-0.2.186",
-                    "//third-party/rust:pollster-0.4.0",
-                    "//third-party/rust:rfd-0.15.4",
                     "//third-party/rust:rodio-0.20.1",
                     "//third-party/rust:rusqlite-0.32.1",
                     "//third-party/rust:serde-1.0.228",
@@ -9479,6 +9829,7 @@ crates = {
                     "//crates/editors/workspace-ui/types:workspace-ui-types",
                     "//crates/first-party-types:first-party-types",
                     "//crates/paint-snapshot:paint-snapshot",
+                    "//third-party/rust:pollster-0.4.0",
                 ],
                 "test_features": [],
             },
@@ -9553,8 +9904,6 @@ crates = {
                         "//third-party/rust:directories-next-2.0.0",
                         "//third-party/rust:futures-util-0.3.32",
                         "//third-party/rust:image-0.25.10",
-                        "//third-party/rust:pollster-0.4.0",
-                        "//third-party/rust:rfd-0.15.4",
                         "//third-party/rust:rodio-0.20.1",
                         "//third-party/rust:rusqlite-0.32.1",
                         "//third-party/rust:serde-1.0.228",
@@ -9593,8 +9942,6 @@ crates = {
                     "//third-party/rust:directories-next-2.0.0",
                     "//third-party/rust:futures-util-0.3.32",
                     "//third-party/rust:image-0.25.10",
-                    "//third-party/rust:pollster-0.4.0",
-                    "//third-party/rust:rfd-0.15.4",
                     "//third-party/rust:rodio-0.20.1",
                     "//third-party/rust:rusqlite-0.32.1",
                     "//third-party/rust:serde-1.0.228",
@@ -9621,6 +9968,7 @@ crates = {
                     "//crates/editors/workspace-ui/types:workspace-ui-types",
                     "//crates/first-party-types:first-party-types",
                     "//crates/paint-snapshot:paint-snapshot",
+                    "//third-party/rust:pollster-0.4.0",
                 ],
                 "test_features": [],
             },
@@ -9654,8 +10002,6 @@ crates = {
                         "//third-party/rust:directories-next-2.0.0",
                         "//third-party/rust:futures-util-0.3.32",
                         "//third-party/rust:image-0.25.10",
-                        "//third-party/rust:pollster-0.4.0",
-                        "//third-party/rust:rfd-0.15.4",
                         "//third-party/rust:rodio-0.20.1",
                         "//third-party/rust:rusqlite-0.32.1",
                         "//third-party/rust:serde-1.0.228",
@@ -9694,8 +10040,6 @@ crates = {
                     "//third-party/rust:directories-next-2.0.0",
                     "//third-party/rust:futures-util-0.3.32",
                     "//third-party/rust:image-0.25.10",
-                    "//third-party/rust:pollster-0.4.0",
-                    "//third-party/rust:rfd-0.15.4",
                     "//third-party/rust:rodio-0.20.1",
                     "//third-party/rust:rusqlite-0.32.1",
                     "//third-party/rust:serde-1.0.228",
@@ -9722,6 +10066,7 @@ crates = {
                     "//crates/editors/workspace-ui/types:workspace-ui-types",
                     "//crates/first-party-types:first-party-types",
                     "//crates/paint-snapshot:paint-snapshot",
+                    "//third-party/rust:pollster-0.4.0",
                 ],
                 "test_features": [],
             },
@@ -9850,6 +10195,7 @@ crates = {
                 "deps": [
                     "//crates/be-block:be-block",
                     "//crates/beui-adapter-plugin:beui-adapter-plugin",
+                    "//crates/beui-renderer-wgpu:beui-renderer-wgpu",
                     "//crates/beui:beui",
                     "//crates/block-editor-plugin:block-editor-plugin",
                     "//crates/block-plugin-api:block-plugin-api",
@@ -14835,6 +15181,7 @@ crates = {
                 "examples": {
                     "canvas-bench": {
                         "deps": [
+                            "//crates/bench:bench",
                             "//crates/beui:beui",
                             "//crates/block-editor-beui:block-editor-beui",
                             "//crates/block-ui-test:block-ui-test",
@@ -14853,6 +15200,7 @@ crates = {
                 },
                 "features": [],
                 "test_deps": [
+                    "//crates/bench:bench",
                     "//crates/block-ui-test:block-ui-test",
                     "//crates/editors/counter/types:counter-types",
                 ],
@@ -14875,6 +15223,7 @@ crates = {
                 "examples": {
                     "canvas-bench": {
                         "deps": [
+                            "//crates/bench:bench",
                             "//crates/beui:beui",
                             "//crates/block-editor-beui:block-editor-beui",
                             "//crates/block-ui-test:block-ui-test",
@@ -14893,6 +15242,7 @@ crates = {
                 },
                 "features": [],
                 "test_deps": [
+                    "//crates/bench:bench",
                     "//crates/block-ui-test:block-ui-test",
                     "//crates/editors/counter/types:counter-types",
                 ],
@@ -14915,6 +15265,7 @@ crates = {
                 "examples": {
                     "canvas-bench": {
                         "deps": [
+                            "//crates/bench:bench",
                             "//crates/beui:beui",
                             "//crates/block-editor-beui:block-editor-beui",
                             "//crates/block-ui-test:block-ui-test",
@@ -14933,6 +15284,7 @@ crates = {
                 },
                 "features": [],
                 "test_deps": [
+                    "//crates/bench:bench",
                     "//crates/block-ui-test:block-ui-test",
                     "//crates/editors/counter/types:counter-types",
                 ],
@@ -14955,6 +15307,7 @@ crates = {
                 "examples": {
                     "canvas-bench": {
                         "deps": [
+                            "//crates/bench:bench",
                             "//crates/beui:beui",
                             "//crates/block-editor-beui:block-editor-beui",
                             "//crates/block-ui-test:block-ui-test",
@@ -14973,6 +15326,7 @@ crates = {
                 },
                 "features": [],
                 "test_deps": [
+                    "//crates/bench:bench",
                     "//crates/block-ui-test:block-ui-test",
                     "//crates/editors/counter/types:counter-types",
                 ],
@@ -14995,6 +15349,7 @@ crates = {
                 "examples": {
                     "canvas-bench": {
                         "deps": [
+                            "//crates/bench:bench",
                             "//crates/beui:beui",
                             "//crates/block-editor-beui:block-editor-beui",
                             "//crates/block-ui-test:block-ui-test",
@@ -15013,6 +15368,7 @@ crates = {
                 },
                 "features": [],
                 "test_deps": [
+                    "//crates/bench:bench",
                     "//crates/block-ui-test:block-ui-test",
                     "//crates/editors/counter/types:counter-types",
                 ],
@@ -15035,6 +15391,7 @@ crates = {
                 "examples": {
                     "canvas-bench": {
                         "deps": [
+                            "//crates/bench:bench",
                             "//crates/beui:beui",
                             "//crates/block-editor-beui:block-editor-beui",
                             "//crates/block-ui-test:block-ui-test",
@@ -15053,6 +15410,7 @@ crates = {
                 },
                 "features": [],
                 "test_deps": [
+                    "//crates/bench:bench",
                     "//crates/block-ui-test:block-ui-test",
                     "//crates/editors/counter/types:counter-types",
                 ],
@@ -15075,6 +15433,7 @@ crates = {
                 "examples": {
                     "canvas-bench": {
                         "deps": [
+                            "//crates/bench:bench",
                             "//crates/beui:beui",
                             "//crates/block-editor-beui:block-editor-beui",
                             "//crates/block-ui-test:block-ui-test",
@@ -15093,6 +15452,7 @@ crates = {
                 },
                 "features": [],
                 "test_deps": [
+                    "//crates/bench:bench",
                     "//crates/block-ui-test:block-ui-test",
                     "//crates/editors/counter/types:counter-types",
                 ],
@@ -15115,6 +15475,7 @@ crates = {
                 "examples": {
                     "canvas-bench": {
                         "deps": [
+                            "//crates/bench:bench",
                             "//crates/beui:beui",
                             "//crates/block-editor-beui:block-editor-beui",
                             "//crates/block-ui-test:block-ui-test",
@@ -15133,6 +15494,7 @@ crates = {
                 },
                 "features": [],
                 "test_deps": [
+                    "//crates/bench:bench",
                     "//crates/block-ui-test:block-ui-test",
                     "//crates/editors/counter/types:counter-types",
                 ],
@@ -16976,6 +17338,7 @@ crates = {
                     "//crates/be-commit:be-commit",
                     "//crates/be-model:be-model",
                     "//crates/block-type-guest:block-type-guest",
+                    "//crates/ui-types:ui-types",
                     "//third-party/rust:serde-1.0.228",
                     "//third-party/rust:uuid-1.23.2",
                 ],
@@ -16991,6 +17354,7 @@ crates = {
                     "//crates/be-commit:be-commit",
                     "//crates/be-model:be-model",
                     "//crates/block-type-guest:block-type-guest",
+                    "//crates/ui-types:ui-types",
                     "//third-party/rust:serde-1.0.228",
                     "//third-party/rust:uuid-1.23.2",
                 ],
@@ -17006,6 +17370,7 @@ crates = {
                     "//crates/be-commit:be-commit",
                     "//crates/be-model:be-model",
                     "//crates/block-type-guest:block-type-guest",
+                    "//crates/ui-types:ui-types",
                     "//third-party/rust:serde-1.0.228",
                     "//third-party/rust:uuid-1.23.2",
                 ],
@@ -17021,6 +17386,7 @@ crates = {
                     "//crates/be-commit:be-commit",
                     "//crates/be-model:be-model",
                     "//crates/block-type-guest:block-type-guest",
+                    "//crates/ui-types:ui-types",
                     "//third-party/rust:serde-1.0.228",
                     "//third-party/rust:uuid-1.23.2",
                 ],
@@ -17036,6 +17402,7 @@ crates = {
                     "//crates/be-commit:be-commit",
                     "//crates/be-model:be-model",
                     "//crates/block-type-guest:block-type-guest",
+                    "//crates/ui-types:ui-types",
                     "//third-party/rust:serde-1.0.228",
                     "//third-party/rust:uuid-1.23.2",
                 ],
@@ -17051,6 +17418,7 @@ crates = {
                     "//crates/be-commit:be-commit",
                     "//crates/be-model:be-model",
                     "//crates/block-type-guest:block-type-guest",
+                    "//crates/ui-types:ui-types",
                     "//third-party/rust:serde-1.0.228",
                     "//third-party/rust:uuid-1.23.2",
                 ],
@@ -17066,6 +17434,7 @@ crates = {
                     "//crates/be-commit:be-commit",
                     "//crates/be-model:be-model",
                     "//crates/block-type-guest:block-type-guest",
+                    "//crates/ui-types:ui-types",
                     "//third-party/rust:serde-1.0.228",
                     "//third-party/rust:uuid-1.23.2",
                 ],
@@ -17081,6 +17450,7 @@ crates = {
                     "//crates/be-commit:be-commit",
                     "//crates/be-model:be-model",
                     "//crates/block-type-guest:block-type-guest",
+                    "//crates/ui-types:ui-types",
                     "//third-party/rust:serde-1.0.228",
                     "//third-party/rust:uuid-1.23.2",
                 ],
@@ -17096,6 +17466,7 @@ crates = {
                     "//crates/be-commit:be-commit",
                     "//crates/be-model:be-model",
                     "//crates/block-type-guest:block-type-guest",
+                    "//crates/ui-types:ui-types",
                     "//third-party/rust:serde-1.0.228",
                     "//third-party/rust:uuid-1.23.2",
                 ],
@@ -18477,14 +18848,6 @@ crates = {
                 "test_deps": [
                     "//third-party/rust:serde_json-1.0.150",
                 ],
-                "test_features": [],
-            },
-            "wasi-guest": {
-                "binaries": {},
-                "deps": [],
-                "examples": {},
-                "features": [],
-                "test_deps": [],
                 "test_features": [],
             },
             "windows-arm64": {
@@ -22199,6 +22562,98 @@ crates = {
         "profile_flags": [],
         "version": "0.1.0",
     },
+    "crates/terminal-emulator": {
+        "binaries": [],
+        "edition": "2024",
+        "examples": [],
+        "library": {
+            "crate": "terminal_emulator",
+            "crate_root": "src/lib.rs",
+            "proc_macro": False,
+        },
+        "name": "terminal-emulator",
+        "platforms": {
+            "android-arm64": {
+                "binaries": {},
+                "deps": [
+                    "//crates/editors/terminal/types:terminal-types",
+                    "//crates/ghostty-vt:ghostty-vt",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "linux-arm64": {
+                "binaries": {},
+                "deps": [
+                    "//crates/editors/terminal/types:terminal-types",
+                    "//crates/ghostty-vt:ghostty-vt",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "linux-x86_64": {
+                "binaries": {},
+                "deps": [
+                    "//crates/editors/terminal/types:terminal-types",
+                    "//crates/ghostty-vt:ghostty-vt",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "macos-arm64": {
+                "binaries": {},
+                "deps": [
+                    "//crates/editors/terminal/types:terminal-types",
+                    "//crates/ghostty-vt:ghostty-vt",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "macos-x86_64": {
+                "binaries": {},
+                "deps": [
+                    "//crates/editors/terminal/types:terminal-types",
+                    "//crates/ghostty-vt:ghostty-vt",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "windows-arm64": {
+                "binaries": {},
+                "deps": [
+                    "//crates/editors/terminal/types:terminal-types",
+                    "//crates/ghostty-vt:ghostty-vt",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "windows-x86_64": {
+                "binaries": {},
+                "deps": [
+                    "//crates/editors/terminal/types:terminal-types",
+                    "//crates/ghostty-vt:ghostty-vt",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+        },
+        "profile_flags": [],
+        "version": "0.1.0",
+    },
     "crates/terminal-view": {
         "binaries": [],
         "edition": "2024",
@@ -22213,8 +22668,9 @@ crates = {
             "android-arm64": {
                 "binaries": {},
                 "deps": [
+                    "//crates/be-block:be-block",
                     "//crates/beui:beui",
-                    "//crates/ghostty-vt:ghostty-vt",
+                    "//crates/editors/terminal/types:terminal-types",
                 ],
                 "examples": {},
                 "features": [],
@@ -22224,8 +22680,9 @@ crates = {
             "linux-arm64": {
                 "binaries": {},
                 "deps": [
+                    "//crates/be-block:be-block",
                     "//crates/beui:beui",
-                    "//crates/ghostty-vt:ghostty-vt",
+                    "//crates/editors/terminal/types:terminal-types",
                 ],
                 "examples": {},
                 "features": [],
@@ -22235,8 +22692,9 @@ crates = {
             "linux-x86_64": {
                 "binaries": {},
                 "deps": [
+                    "//crates/be-block:be-block",
                     "//crates/beui:beui",
-                    "//crates/ghostty-vt:ghostty-vt",
+                    "//crates/editors/terminal/types:terminal-types",
                 ],
                 "examples": {},
                 "features": [],
@@ -22246,8 +22704,9 @@ crates = {
             "macos-arm64": {
                 "binaries": {},
                 "deps": [
+                    "//crates/be-block:be-block",
                     "//crates/beui:beui",
-                    "//crates/ghostty-vt:ghostty-vt",
+                    "//crates/editors/terminal/types:terminal-types",
                 ],
                 "examples": {},
                 "features": [],
@@ -22257,8 +22716,9 @@ crates = {
             "macos-x86_64": {
                 "binaries": {},
                 "deps": [
+                    "//crates/be-block:be-block",
                     "//crates/beui:beui",
-                    "//crates/ghostty-vt:ghostty-vt",
+                    "//crates/editors/terminal/types:terminal-types",
                 ],
                 "examples": {},
                 "features": [],
@@ -22268,8 +22728,9 @@ crates = {
             "wasi-guest": {
                 "binaries": {},
                 "deps": [
+                    "//crates/be-block:be-block",
                     "//crates/beui:beui",
-                    "//crates/ghostty-vt:ghostty-vt",
+                    "//crates/editors/terminal/types:terminal-types",
                 ],
                 "examples": {},
                 "features": [],
@@ -22279,8 +22740,9 @@ crates = {
             "windows-arm64": {
                 "binaries": {},
                 "deps": [
+                    "//crates/be-block:be-block",
                     "//crates/beui:beui",
-                    "//crates/ghostty-vt:ghostty-vt",
+                    "//crates/editors/terminal/types:terminal-types",
                 ],
                 "examples": {},
                 "features": [],
@@ -22290,8 +22752,9 @@ crates = {
             "windows-x86_64": {
                 "binaries": {},
                 "deps": [
+                    "//crates/be-block:be-block",
                     "//crates/beui:beui",
-                    "//crates/ghostty-vt:ghostty-vt",
+                    "//crates/editors/terminal/types:terminal-types",
                 ],
                 "examples": {},
                 "features": [],

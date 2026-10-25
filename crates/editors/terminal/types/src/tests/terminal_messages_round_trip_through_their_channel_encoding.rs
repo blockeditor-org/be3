@@ -1,28 +1,31 @@
-use crate::terminal::{TerminalMessage, TerminalSize};
+use crate::terminal::{Key, Modifiers, TerminalKey, TerminalMessage, TerminalSize, TerminalWheel};
 use be_block::presence::ChannelKind;
 
 #[test]
 fn terminal_messages_round_trip_through_their_channel_encoding() {
-    let size = TerminalSize { cols: 80, rows: 24 };
     for message in [
-        TerminalMessage::Attach(size),
-        TerminalMessage::Resize(size),
-        TerminalMessage::Input(b"ls\r".to_vec()),
-        TerminalMessage::Snapshot {
-            shell: 2,
-            sequence: 9,
-            size,
-            screen: b"\x1b[2J\x1b[Hhello".to_vec(),
-        },
-        TerminalMessage::Output {
-            shell: 2,
-            sequence: 10,
-            bytes: vec![0, 255, 27],
-        },
-        TerminalMessage::Exited {
-            shell: 2,
-            status: Some(1),
-        },
+        TerminalMessage::Resize(TerminalSize { cols: 80, rows: 24 }),
+        TerminalMessage::Key(TerminalKey {
+            key: Key::ArrowUp,
+            modifiers: Modifiers {
+                ctrl: true,
+                ..Modifiers::default()
+            },
+            text: String::new(),
+            pressed: true,
+        }),
+        TerminalMessage::Key(TerminalKey {
+            key: Key::Unidentified,
+            modifiers: Modifiers::default(),
+            text: "é".to_owned(),
+            pressed: false,
+        }),
+        TerminalMessage::Paste("one\ntwo".to_owned()),
+        TerminalMessage::Wheel(TerminalWheel {
+            lines: -3,
+            col: 4,
+            row: 7,
+        }),
     ] {
         assert_eq!(TerminalMessage::decode(&message.encode()), Some(message));
     }

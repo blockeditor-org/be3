@@ -27,11 +27,7 @@ use super::{
     pieces,
     sent::Sent,
 };
-use crate::{
-    editors::plugin::discovery,
-    host, performance,
-    platform::{SavedFile, http, save_file},
-};
+use crate::{editors::plugin::discovery, host, performance, platform::http};
 
 thread_local! {
     static PRESENCE_WANTED: std::cell::RefCell<std::collections::HashSet<EditorInstanceId>> =
@@ -146,6 +142,7 @@ struct Instance {
     menu: Vec<block_plugin_api::MenuEntry>,
     child_menu_picks: Vec<(ChildId, String)>,
     presenting: bool,
+    presented: bool,
     reported_presenting: bool,
     host_values: Watched,
     unshown_web_views: Vec<WebViewId>,
@@ -295,6 +292,7 @@ impl Instance {
             menu: Vec::new(),
             child_menu_picks: Vec::new(),
             presenting: false,
+            presented: false,
             reported_presenting: false,
             host_values: Watched::default(),
             unshown_web_views: Vec::new(),
@@ -1232,6 +1230,15 @@ impl Instances {
         changed
     }
 
+    pub(super) fn set_presented(&mut self, instance: EditorInstanceId, presented: bool) -> bool {
+        let Some(entry) = self.entries.get_mut(&instance) else {
+            return false;
+        };
+        let changed = entry.presented != presented;
+        entry.presented = presented;
+        changed
+    }
+
     pub(super) fn assigned_size(&self, instance: EditorInstanceId) -> Option<Vec2> {
         self.entries.get(&instance)?.reported_size
     }
@@ -1581,11 +1588,12 @@ impl Instances {
                     via: focus.via.iter().map(|id| id.into_bytes()).collect(),
                 }));
             }
-            if entry.presenting != entry.reported_presenting {
-                entry.reported_presenting = entry.presenting;
+            let presenting = entry.presenting || entry.presented;
+            if presenting != entry.reported_presenting {
+                entry.reported_presenting = presenting;
                 opened.push(Message::Editor(EditorMessage::PresentingChanged {
                     instance,
-                    presenting: entry.presenting,
+                    presenting,
                 }));
             }
             entry.host_values.report(
@@ -2126,6 +2134,7 @@ impl Instances {
                 menu: status.menu,
                 creation: status.creation,
                 settings: status.settings,
+                preview: status.preview,
             };
             if screen.reported_statuses.get(&status.child) == Some(&status) {
                 continue;
@@ -2640,18 +2649,7 @@ impl Instances {
                 host::pick_file(filter, move |picked| reply(HostReply::FilePicked(picked)));
             }
             HostRequest::SaveFile(file) => {
-                let file = SavedFile {
-                    name: file.name,
-                    mime_type: file.mime_type,
-                    data: file.data,
-                };
-                save_file(file, move |saved| {
-                    reply(HostReply::FileSaved(match saved {
-                        Ok(true) => FileSave::Saved,
-                        Ok(false) => FileSave::Cancelled,
-                        Err(error) => FileSave::Failed(error),
-                    }));
-                });
+                host::save_file(file, move |saved| reply(HostReply::FileSaved(saved)));
             }
             HostRequest::Fetch(url) => {
                 let fetched = move |body: Result<Vec<u8>, String>| {
@@ -2698,18 +2696,12 @@ impl Instances {
                 }
                 crate::be::export(block, move |exported| match exported {
                     Ok((name, data)) => {
-                        let file = SavedFile {
+                        let file = block_plugin_api::SavedFile {
                             name,
                             mime_type: be_client::transfer::MIME_TYPE.to_owned(),
                             data,
                         };
-                        save_file(file, move |saved| {
-                            reply(HostReply::FileSaved(match saved {
-                                Ok(true) => FileSave::Saved,
-                                Ok(false) => FileSave::Cancelled,
-                                Err(error) => FileSave::Failed(error),
-                            }));
-                        });
+                        host::save_file(file, move |saved| reply(HostReply::FileSaved(saved)));
                     }
                     Err(error) => reply(HostReply::FileSaved(FileSave::Failed(error))),
                 });

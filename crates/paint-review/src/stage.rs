@@ -1,3 +1,4 @@
+use beui::Wrap;
 use beui::reactive::*;
 use beui::styled::*;
 use beui::unstyled::{Container, PanZoom, PanZoomHandle, PanZoomView, Picture};
@@ -165,7 +166,7 @@ pub(crate) fn Stage(review: Review) -> NodeId {
                                 <Show condition={failed}>
                                     <Text
                                         color=TextColor::Danger
-                                        wrap=true
+                                        wrap=Wrap::Words
                                         @test_id={"paint_review.image.failed"}
                                     >
                                         {reason}
