@@ -219,7 +219,11 @@ time, so notifications wait for the next post.
   whose parent is a block is the exception: it is `Manage` to whoever manages
   its parent, at most `View` to whoever can view the parent, and its own
   grants never raise that, so changing, adding or moving in a block's
-  settings needs `Manage` on the block.
+  settings needs `Manage` on the block. The kinds an editor changes
+  (`be_graph::EDIT_KINDS`: the prefix registry and tag definitions) are not in
+  the settings block but are children of the block itself, so they inherit
+  `Edit` like any child, though a grant on one never raises it above its
+  parent's; an editor may also open such a kind to anyone inside.
   A block they can view references gives them `KnowExists` on it, and on
   nothing that block references in turn. Of a block they may only know exists
   they are told its id, content type and access and nothing else
@@ -1461,6 +1465,25 @@ settings editor switches that grant per kind. Past the first ancestor the viewer
 view, the walk takes those from `BlockQuery::OpenSettings(block)` (the server's
 `Listing::OpenSettings`: the nearest open kind of each type above), and a `SetKind`
 found there names its settings block as its owner, since the owner is hidden.
+
+Two kinds change with `Edit` on their block rather than `Manage`, since anyone who
+adds a database or tags a block in a workspace changes them: `PrefixRegistry` (which
+databases use each row id prefix) and `Tags` (the tag definitions). A settings block's
+`kinds` only a manager writes, so these are children of the block itself instead,
+each pointed to by a metadata key of its own (`be_block::edit_kind_key(kind)`:
+`PREFIXES`, `TAG_DEFINITIONS`), which holds it; `kinds_above` reads both places, the
+file tree and the picker hide them like a settings block (`sections::is_settings_part`),
+and `Editor::ensure_block_kind` makes either. Both default to anyone inside. A tag is
+a block of its own (`Tag`: a name and a `TagColor`) listed by `Tags`; a block carries
+the tags put on it as `TAGGED` metadata (references, so "every block with this tag" is
+`BlockQuery::Backrefs` on the tag), and the user's own tags are a `Tags` kind in their
+settings, resolved together with the workspace's (`Editor::available_tags`). `Home`
+(a manager's kind) holds a workspace's landing page, which workspace-ui opens when the
+workspace is shown, its pinned blocks, which the file tree lists first, and its
+templates, which the new-block menu copies (`HostRequest::CopyBlocks`). Which editor
+opens a block stays the viewer's choice (`EditorSettings`, no workspace layer), except
+that a block may keep its own (`PREFERRED_EDITOR` metadata, from Opens in in Files),
+which wins over the viewer's default.
 
 A change syncs by default: it is written to the every-device block. A setting is
 kept on this device exactly when this device's profile block sets it; then changes

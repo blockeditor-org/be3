@@ -125,10 +125,12 @@ re-import once, and say so in `guides/frozen_formats.md`.
    which layer set a field (`source_of`, `locked_by`); `Editor::kinds_above`
    walks and caches the nearest kind blocks per block, `Editor::resolved_settings`
    caches the resolution per block and kind, and `Editor::organization_layers`
-   is the slot steps 14 and 15 fill. Every kind is Manage for now: the server
-   checks a kind only through its settings block, whose `kinds` pointers it
-   can't read, so an Edit kind (prefix registry, tags) needs its own rule in
-   `level_below` and `require_parent_of` once its type exists. Dropping the
+   is the slot steps 14 and 15 fill. The Edit kinds (prefix registry, tags,
+   `be_graph::EDIT_KINDS`) are children of the owner block itself, held by a
+   metadata key each (`be_block::edit_kind_key`), so they inherit Edit like
+   any child and the server needs no pointer it can't read; `level_below`
+   caps one at its parent's access, and an editor may open one inside. Test:
+   be-server `an_editor_changes_the_prefixes_and_tags_but_no_other_kind`. Dropping the
    reference to a block's settings block (its `SETTINGS` metadata) needs Manage
    (`require_keeping_settings`). Tests: be-block
    `settings_resolve_from_the_organization_the_nearest_block_and_the_viewer`,
@@ -169,17 +171,39 @@ re-import once, and say so in `guides/frozen_formats.md`.
    into another workspace updates the registries. An ambiguous prefix says so
    instead of picking one. `be` and the app both read it; naming a database by
    its name (`be Issues row ...`) is unchanged. Update `guides/tracker.md`.
+   Done: `be_block::PrefixRegistry` (database -> prefix, read as prefix ->
+   databases), visible to anyone inside by default. `be ROW-ID` resolves
+   through the registries of the workspaces at the top and the open ones above
+   what is shared, keeping databases still inside the registry's workspace;
+   `new-database` and `upload` register, and the database editor registers
+   itself where it is (so a moved database is listed in its new workspace when
+   opened there) and says when another database shares its prefix. Tests:
+   be-cli `a_row_id_resolves_through_the_workspaces_prefixes`, database
+   `a_prefix_is_listed_in_the_workspaces_prefixes_and_a_shared_one_says_so`.
+   Left: a move by `be` or the file tree does not take the database out of the
+   old registry (lookups skip it, since it no longer lies inside).
 10. **Tags.** Definitions (name, color) in the workspace's settings. Applying a
     tag is metadata on the block that points to the tag (step 1), so it needs
     Edit on the block. "Every block with tag X" is a `Query::Backrefs` on the
-    tag. Personal tags are the same type in the user's settings.
+    tag. Personal tags are the same type in the user's settings. Done: a tag is
+    a `Tag` block (name, `TagColor`) listed by the `Tags` kind; `TAGGED`
+    metadata on a block points to its tags. The Tags editor (settings plugin)
+    adds, renames, recolors and removes tags and lists each one's blocks; a
+    block's menu in Files puts tags on and takes them off and opens Manage
+    tags; file tree rows show their tags; the user's settings open Your tags.
+    Paintings: `a_workspaces_tags_are_added_named_and_list_the_blocks_they_are_on`,
+    `a_tag_from_the_workspace_marks_a_block_and_shows_on_its_row`.
 11. **Hotbar.** A workspace or game world can set a default hotbar, and the
     user's own hotbar overrides it. Done: `Hotbar` follows the block, a
     manager of a game world gives it a hotbar from their own ("Give this world
     a hotbar"), and a grid starts from the nearest one until its player
     changes theirs; resetting the hotbar returns to it. Painting:
     `a_manager_gives_the_world_a_hotbar_that_players_start_from`.
-12. **Default editors (ask).** Whether these have a workspace layer at all.
+12. **Default editors.** Decided and done: no workspace layer; a block keeps
+    its own preferred editor (`PREFERRED_EDITOR` metadata, chosen from Opens in
+    in a block's menu in Files), which wins over the user's default. Tests:
+    workspace-ui `a_block_opens_in_the_editor_it_keeps_for_itself`, file-tree
+    `opens_in_keeps_an_editor_for_one_block`. Whether these have a workspace layer at all.
     Editors for one block type are views over the same data, so which one opens
     a block is a viewer preference, and a workspace layer adds a second place
     to look. Where an author's intent matters ("this database is a board"), it
@@ -187,7 +211,15 @@ re-import once, and say so in `guides/frozen_formats.md`.
     profile on the document, not to the workspace. Proposal: keep default
     editors user-only, and let a block store its own preferred editor.
 13. **Home.** A landing page and pinned blocks for the workspace, and
-    templates for new blocks.
+    templates for new blocks. Done: the `Home` kind (a manager's), set from
+    Workspace home in a block's menu in Files and shown in its own editor; the
+    landing page opens when the workspace is shown, pinned blocks lead the
+    workspace in Files, and New from template in the new-block menu copies a
+    template with what is inside it (`HostRequest::CopyBlocks`). Paintings:
+    `a_pinned_block_is_listed_first_in_its_workspace`,
+    `a_template_of_the_workspace_is_copied_into_place`,
+    `a_workspaces_home_lists_its_landing_page_pins_and_templates`; test
+    `a_workspace_opens_on_its_landing_page`.
 
 ## 5. Organization settings
 
