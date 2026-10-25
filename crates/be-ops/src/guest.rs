@@ -42,6 +42,7 @@ impl Resources<'_> {
 struct Call {
     outcome: Option<Outcome>,
     items: VecDeque<Vec<u8>>,
+    taken: u32,
     waker: Option<Waker>,
 }
 
@@ -604,6 +605,13 @@ impl<T: DeserializeOwned> Stream<T> {
             return Poll::Ready(None);
         };
         if let Some(item) = call.items.pop_front() {
+            call.taken += 1;
+            let granted = match call.taken >= crate::STREAM_WINDOW / 2 {
+                true => std::mem::take(&mut call.taken),
+                false => 0,
+            };
+            drop(calls);
+            self.inner.connection.borrow_mut().credit(self.op, granted);
             return Poll::Ready(crate::decode(&item));
         }
         if call.outcome.is_some() {

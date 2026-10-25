@@ -19,6 +19,8 @@ pub type MethodId = u32;
 
 pub const GUEST_BIT: OpId = 1 << 63;
 
+pub const STREAM_WINDOW: u32 = 16;
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum Side {
     Host,
@@ -58,6 +60,10 @@ pub enum Frame {
     },
     Cancel {
         op: OpId,
+    },
+    Credit {
+        op: OpId,
+        items: u32,
     },
 }
 
@@ -201,6 +207,21 @@ pub enum Incoming {
 struct Served {
     parent: Option<OpId>,
     canceled: bool,
+    credits: u32,
+    backlog: VecDeque<Vec<u8>>,
+    finished: Option<Outcome>,
+}
+
+impl Served {
+    fn new(parent: Option<OpId>) -> Self {
+        Self {
+            parent,
+            canceled: false,
+            credits: STREAM_WINDOW,
+            backlog: VecDeque::new(),
+            finished: None,
+        }
+    }
 }
 
 pub struct Connection {
@@ -276,13 +297,70 @@ impl Connection {
     }
 
     pub fn yield_item(&mut self, op: OpId, item: Vec<u8>) {
-        if self.served.contains_key(&op) {
-            self.send(&Frame::Yield { op, item });
+        let Some(served) = self.served.get_mut(&op) else {
+            return;
+        };
+        if served.finished.is_some() {
+            return;
+        }
+        if served.credits == 0 {
+            served.backlog.push_back(item);
+            return;
+        }
+        served.credits -= 1;
+        self.send(&Frame::Yield { op, item });
+    }
+
+    pub fn backlog(&self, op: OpId) -> usize {
+        self.served
+            .get(&op)
+            .map_or(0, |served| served.backlog.len())
+    }
+
+    pub fn credit(&mut self, op: OpId, items: u32) {
+        if items > 0 && self.started.contains_key(&op) && !self.canceling.contains(&op) {
+            self.send(&Frame::Credit { op, items });
         }
     }
 
     pub fn complete(&mut self, op: OpId, outcome: Outcome) {
-        if self.served.remove(&op).is_some() {
+        let Some(served) = self.served.get_mut(&op) else {
+            return;
+        };
+        if served.finished.is_some() {
+            return;
+        }
+        match (&outcome, served.backlog.is_empty()) {
+            (Outcome::Ok(_), false) if !served.canceled => served.finished = Some(outcome),
+            _ => {
+                self.served.remove(&op);
+                self.send(&Frame::Complete { op, outcome });
+                self.ended(op);
+            }
+        }
+    }
+
+    fn granted(&mut self, op: OpId, items: u32) {
+        let Some(served) = self.served.get_mut(&op) else {
+            return;
+        };
+        served.credits = served.credits.saturating_add(items);
+        let mut sent = Vec::new();
+        while served.credits > 0
+            && let Some(item) = served.backlog.pop_front()
+        {
+            served.credits -= 1;
+            sent.push(item);
+        }
+        let finished = match served.backlog.is_empty() {
+            true => served.finished.take(),
+            false => None,
+        };
+        for item in sent {
+            self.send(&Frame::Yield { op, item });
+        }
+        if let Some(outcome) = finished {
+            self.served.remove(&op);
             self.send(&Frame::Complete { op, outcome });
             self.ended(op);
         }
@@ -350,13 +428,7 @@ impl Connection {
                 if self.side.started(op) || self.live(op) {
                     return Ok(());
                 }
-                self.served.insert(
-                    op,
-                    Served {
-                        parent,
-                        canceled: false,
-                    },
-                );
+                self.served.insert(op, Served::new(parent));
                 if parent.is_some_and(|parent| !self.live(parent)) {
                     self.complete(op, Outcome::Err(OpError::Canceled));
                     return Ok(());
@@ -381,6 +453,7 @@ impl Connection {
                 }
             }
             Frame::Cancel { op } => self.request_cancel(op),
+            Frame::Credit { op, items } => self.granted(op, items),
         }
         Ok(())
     }
@@ -507,6 +580,10 @@ impl<T: Serialize> Producer<T> {
 
     pub fn send(&self, connection: &mut Connection, item: &T) {
         connection.yield_item(self.op, encode(item));
+    }
+
+    pub fn waiting(&self, connection: &Connection) -> usize {
+        connection.backlog(self.op)
     }
 
     pub fn finish(self, connection: &mut Connection) {
