@@ -302,7 +302,6 @@ and `styled::Text` with one prop:
 overflow: Overflow {
     Wrap { at: WrapAt, max_lines: Option<u32> }, // WrapAt: Words | Anywhere
     Ellipsis,
-    Clip,
     Visible,
 }
 ```
@@ -312,7 +311,7 @@ It defaults to `Wrap { at: Words, max_lines: None }`.
 - **`Wrap`** breaks lines to the width. With `max_lines`, the last line ends
   in an ellipsis. `Anywhere` stays for monospace text laid out to a column
   count (terminal lines, `beui-demo/src/base_pages.rs`).
-- **`Ellipsis` and `Clip`** are for one-line labels.
+- **`Ellipsis`** is for one-line labels.
   - A hard line break in the content (a newline or a `Break`) still starts a
     new line, and each line is cut on its own.
   - Check whether that's right for the terminal before relying on it.
@@ -333,8 +332,12 @@ Convert every use:
   - `select.rs`, `action_row.rs`, `context_menu.rs`
   - `launcher.rs`, `dock/stack.rs`, `dock/switch.rs`
   - `software_keyboard.rs`
-- `clip=true` becomes `Clip`: `dock.rs` (twice), `number_input.rs` and
-  `editors/text-block/src/app/large_embed.rs`.
+- `clip=true` becomes `Ellipsis`: `dock.rs` (twice), `number_input.rs` and
+  `editors/text-block/src/app/large_embed.rs`. There is no `Clip` mode. All
+  four are titles or a value where text cut off mid-letter reads as the
+  whole thing; an ellipsis says something is missing. Text that genuinely
+  needs clipping is `Visible` inside something that clips, such as a
+  scroll.
 - `wrap=Wrap::Words` (about 222) is the new default, so delete it.
 - `wrap=Wrap::Off` becomes `Visible`, and `Wrap::Anywhere` becomes
   `Wrap { at: Anywhere, .. }`.
@@ -344,7 +347,7 @@ Convert every use:
   don't convert them blindly.
 
 Add paintings for wrap, for wrap with a maximum number of lines, for
-ellipsis and for clip. Update guides/beui.md, which says to give paragraphs
+and for ellipsis. Update guides/beui.md, which says to give paragraphs
 `wrap=Wrap::Words` (around line 3693) and describes the base `Text` props
 (around line 640).
 
