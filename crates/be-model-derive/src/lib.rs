@@ -173,7 +173,15 @@ fn derive(input: &DeriveInput) -> syn::Result<proc_macro2::TokenStream> {
                 let fields = tree.fields::<Self>(id);
                 let _ = &fields;
                 Self {
-                    #(#idents: <#types as ::be_model::Field>::read(tree, &fields[#positions]),)*
+                    #(#idents: <#types as ::be_model::Field>::read(tree, &*fields[#positions]),)*
+                }
+            }
+
+            fn reread(self, tree: &::be_model::Tree, id: ::be_model::ObjectId) -> Self {
+                let fields = tree.fields::<Self>(id);
+                let _ = &fields;
+                Self {
+                    #(#idents: <#types as ::be_model::Field>::reread(self.#idents, tree, &*fields[#positions]),)*
                 }
             }
 

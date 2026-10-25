@@ -64,6 +64,7 @@ pub struct Replicas<H: Host> {
     contents: HashMap<RequestId, ReplicaId>,
     replies: HashMap<RequestId, tokio::sync::oneshot::Sender<Reply>>,
     pending: Vec<Io>,
+    changed: bool,
     pub handled: u64,
     host: std::marker::PhantomData<fn() -> H>,
 }
@@ -83,6 +84,7 @@ impl<H: Host> Replicas<H> {
             contents: HashMap::new(),
             replies: HashMap::new(),
             pending: Vec::new(),
+            changed: false,
             handled: 0,
             host: std::marker::PhantomData,
         }
@@ -99,7 +101,11 @@ impl<H: Host> Replicas<H> {
     }
 
     pub async fn pump(&mut self, ctx: Ctx<'_, H>) -> bool {
-        let mut changed = false;
+        self.drain(ctx).await;
+        std::mem::take(&mut self.changed)
+    }
+
+    async fn drain(&mut self, ctx: Ctx<'_, H>) {
         loop {
             while let Ok(io) = self.answers.try_recv() {
                 self.pending.push(io);
@@ -108,17 +114,17 @@ impl<H: Host> Replicas<H> {
             let commands = self.modules.take();
             for module in self.modules.take_restarted() {
                 self.restart(module).await;
-                changed = true;
+                self.changed = true;
             }
             if answers.is_empty() && commands.is_empty() {
-                return changed;
+                return;
             }
             self.handled += (answers.len() + commands.len()) as u64;
             for io in answers {
                 self.answered(io, ctx.1);
             }
             for (module, command) in commands {
-                changed |= self.act(ctx, module, command).await;
+                self.changed |= self.act(ctx, module, command).await;
             }
         }
     }
@@ -129,7 +135,7 @@ impl<H: Host> Replicas<H> {
         };
         let mut answered = std::pin::pin!(answered);
         loop {
-            self.pump(ctx).await;
+            self.drain(ctx).await;
             if let Some(reply) = futures_util::FutureExt::now_or_never(answered.as_mut()) {
                 return reply.unwrap_or(Reply::Unknown);
             }

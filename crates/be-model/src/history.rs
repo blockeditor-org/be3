@@ -209,10 +209,26 @@ fn follows(done: &Change, following: &Change) -> bool {
 }
 
 fn independent(changes: &[Change]) -> bool {
-    let mut registers = std::collections::HashSet::new();
+    let mut slots = std::collections::HashSet::new();
     changes
         .iter()
-        .all(|change| register(change).is_some_and(|register| registers.insert(register)))
+        .all(|change| slot(change).is_some_and(|slot| slots.insert(slot)))
+}
+
+fn slot(change: &Change) -> Option<(ObjectId, u16, Option<&[u8]>)> {
+    match change {
+        Change::Add { object, field, .. }
+        | Change::Paint { object, field, .. }
+        | Change::Reshape { object, field, .. }
+        | Change::Text { object, field, .. }
+        | Change::Mark { object, field, .. }
+        | Change::Unmark { object, field, .. }
+        | Change::Series { object, field, .. } => Some((*object, *field, None)),
+        Change::Stamp {
+            object, field, key, ..
+        } => Some((*object, *field, Some(key))),
+        _ => register(change),
+    }
 }
 
 pub(crate) fn step(tree: &Tree, root: fn() -> Kind, edit: &Edit) -> Option<Step> {

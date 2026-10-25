@@ -680,6 +680,11 @@ fn svg_entity(
                 path_data(path),
                 paint("fill", color)
             )),
+            Mark::Painted(painted, offset) => out.push_str(&format!(
+                "<path d=\"{}\"{}/>\n",
+                path_data(&painted.path().translated(*offset)),
+                paint("fill", color)
+            )),
             Mark::Stroke(path, stroke) => out.push_str(&format!(
                 "<path d=\"{}\" fill=\"none\"{}{}/>\n",
                 path_data(path),

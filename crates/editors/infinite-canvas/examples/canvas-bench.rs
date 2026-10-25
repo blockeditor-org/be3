@@ -21,6 +21,8 @@ const FRAMES: usize = 240;
 const WARMUP: usize = 20;
 const STROKES: usize = 8;
 const STROKE_MOVES: usize = 60;
+const LONG_STROKE_MOVES: usize = 2000;
+const LONG_STROKE_ENDS: usize = 200;
 const MOST_FRAMES_TO_INK: usize = 8;
 
 fn shape(index: usize) -> CanvasEntity {
@@ -283,6 +285,46 @@ fn ink(count: usize) -> Ink {
     ink
 }
 
+#[inline(never)]
+fn long_move(test: &mut BeuiTest<CanvasApp>, at: Pos2) -> Frame {
+    frame(test, vec![pen(PenPhase::Move, at, 0.6)])
+}
+
+fn long_ink(count: usize) -> (Vec<Frame>, Vec<Frame>) {
+    let mut test = open(count);
+    let shown = shown(&test);
+    let world = world_size(count);
+    camera(
+        &mut test,
+        shown,
+        Pos2::new(world.x * 0.5, world.y * 0.5),
+        1.0,
+    );
+    test.run();
+    test.click("infinite-canvas.dock.tool.Pen");
+    test.run();
+    test.settle();
+    let canvas = test.rect_of("infinite-canvas.canvas");
+    let from = canvas.center() - Vec2::new(200.0, 0.0);
+    let at = |step: usize| {
+        let along = step as f32 / LONG_STROKE_MOVES as f32;
+        from + Vec2::new(400.0 * along, 150.0 * (along * 40.0).sin())
+    };
+    frame(&mut test, vec![pen(PenPhase::Move, from, 0.0)]);
+    frame(
+        &mut test,
+        vec![pen(PenPhase::Down(PointerButton::Primary), from, 0.6)],
+    );
+    let moves: Vec<Frame> = (1..=LONG_STROKE_MOVES)
+        .map(|step| long_move(&mut test, at(step)))
+        .collect();
+    lift(&mut test, at(LONG_STROKE_MOVES));
+    (
+        moves[..LONG_STROKE_ENDS].to_vec(),
+        moves[moves.len() - LONG_STROKE_ENDS..].to_vec(),
+    )
+}
+
 fn button(pos: Pos2, pressed: bool) -> Input {
     Input::PointerButton {
         pos,
@@ -338,7 +380,11 @@ fn drag(count: usize) -> Vec<Frame> {
 fn main() {
     let only = std::env::args().nth(1);
     let wanted = |name: &str| only.as_deref().is_none_or(|only| name.contains(only));
-    for count in [FEW, SHAPES] {
+    let counts: Vec<usize> = match std::env::args().nth(2).and_then(|count| count.parse().ok()) {
+        Some(count) => vec![count],
+        None => vec![FEW, SHAPES],
+    };
+    for count in counts {
         if wanted("open") {
             let started = Instant::now();
             drop(open(count));
@@ -350,6 +396,11 @@ fn main() {
         }
         if wanted("zoom") {
             report(&format!("zoom {count}"), &zoom(count));
+        }
+        if wanted("long") {
+            let (first, last) = long_ink(count);
+            report(&format!("long ink first {count}"), &first);
+            report(&format!("long ink last {count}"), &last);
         }
         if wanted("drag") {
             report(&format!("drag {count}"), &drag(count));
