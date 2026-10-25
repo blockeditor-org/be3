@@ -5,6 +5,7 @@ fn the_status_says_whether_changes_are_saved_syncing_offline_or_failed() {
     for (sync, unsent, name) in [
         (SyncState::Saved, 0, "the_status_says_changes_are_saved"),
         (SyncState::Syncing, 0, "the_status_says_changes_are_syncing"),
+        (SyncState::Connecting, 0, "the_status_says_it_is_connecting"),
         (
             SyncState::Offline { waiting: 3 },
             1,

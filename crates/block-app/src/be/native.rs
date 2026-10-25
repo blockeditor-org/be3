@@ -61,10 +61,6 @@ pub(super) fn spawn_local(task: impl Future<Output = ()> + 'static) {
     tokio::task::spawn_local(task);
 }
 
-pub(crate) async fn sleep(duration: Duration) {
-    tokio::time::sleep(duration).await;
-}
-
 pub(super) fn await_flush(sealed: std::sync::mpsc::Receiver<()>) {
     let _ = sealed.recv_timeout(FLUSH_TIMEOUT);
 }

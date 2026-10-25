@@ -15,6 +15,10 @@ fn a_seal_the_connection_loses_is_kept_and_published_after_reconnect() {
 
     harness.relay().stall();
     add(block, 3);
+    wait_until("owes a seal for the edit", |shared| shared.owing > 0);
+    harness
+        .clock
+        .advance(Duration::from_millis(block_type_guest::SEAL_INTERVAL));
     wait_until("sealed the edit while the connection hung", |shared| {
         shared.waiting > 0
     });

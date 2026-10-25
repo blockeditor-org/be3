@@ -10,6 +10,7 @@ use uuid::Uuid;
 
 pub(crate) mod conflicts;
 mod graph;
+mod nudge;
 mod replicas;
 pub(crate) mod revisions;
 pub(crate) mod types;
@@ -25,8 +26,6 @@ mod web;
 use native as platform;
 #[cfg(target_arch = "wasm32")]
 use web as platform;
-
-pub(crate) use platform::sleep;
 
 pub(crate) use graph::{Graph, Node, Owner, Query, Scope};
 pub(crate) use worker::{History, PairingRequest, Shared};
@@ -93,9 +92,11 @@ impl Content {
 pub(crate) struct Status {
     pub(crate) running: bool,
     pub(crate) connected: bool,
+    pub(crate) connecting: bool,
     pub(crate) blocks: usize,
     pub(crate) wakes: u64,
-    pub(crate) unsealed: usize,
+    pub(crate) unsaved: usize,
+    pub(crate) kept: usize,
     pub(crate) saves: u64,
     pub(crate) conflicts: usize,
     pub(crate) conflicted: Vec<Uuid>,
@@ -182,7 +183,7 @@ struct Stack {
     account: Uuid,
     organization: Uuid,
     commands: Option<UnboundedSender<Command>>,
-    nudges: Option<tokio::sync::watch::Sender<()>>,
+    nudges: Option<nudge::Nudges>,
     held: std::collections::HashSet<Uuid>,
     versioned: std::collections::HashSet<Uuid>,
     tried: std::collections::HashSet<Uuid>,
@@ -208,7 +209,7 @@ fn stack() -> &'static Mutex<Option<Stack>> {
 pub(crate) fn start(config: Config) {
     stop();
     let (commands, receiver) = unbounded_channel();
-    let (nudges, nudged) = tokio::sync::watch::channel(());
+    let (nudges, nudged) = nudge::channel();
     let shared = Arc::new(Mutex::new(Shared {
         wall: worker::Wall::new(config.clock.clone()),
         ..Shared::default()
@@ -262,7 +263,7 @@ pub(crate) fn retry_now() {
         .as_ref()
         && let Some(nudges) = &stack.nudges
     {
-        nudges.send_replace(());
+        nudges.nudge();
     }
 }
 
@@ -627,9 +628,11 @@ pub(crate) fn status() -> Status {
     with_shared(|shared| Status {
         running: true,
         connected: shared.connected,
+        connecting: !shared.connected && !shared.reached,
         blocks: shared.blocks.len(),
         wakes: shared.wakes,
-        unsealed: shared.unsealed + shared.waiting + shared.pending + shared.uploading,
+        unsaved: shared.unsealed + shared.pending + shared.importing,
+        kept: shared.waiting,
         saves: shared.saves,
         conflicts: shared.conflicts.values().map(Vec::len).sum(),
         conflicted: shared.conflicts.keys().copied().collect(),
@@ -715,10 +718,8 @@ pub(crate) fn seal_owed() {
 }
 
 pub(crate) fn backgrounded() {
-    if with_shared(|shared| shared.owing > 0).unwrap_or_default() {
-        let (done, _) = std::sync::mpsc::channel();
-        send(Command::Flush(done));
-    }
+    let (done, _) = std::sync::mpsc::channel();
+    send(Command::Flush(done));
 }
 
 #[cfg(all(test, not(target_arch = "wasm32")))]

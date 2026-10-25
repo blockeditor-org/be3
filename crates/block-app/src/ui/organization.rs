@@ -52,6 +52,7 @@ fn OrganizationBody(view: AppViewStore) -> NodeId {
 fn sync_label(sync: &SyncState) -> &'static str {
     match sync {
         SyncState::Saved => "All changes saved",
+        SyncState::Connecting => "Connecting…",
         SyncState::Syncing => "Syncing changes…",
         SyncState::Offline { .. } => "Offline",
         SyncState::Error(_) => "Changes could not sync",
@@ -60,10 +61,10 @@ fn sync_label(sync: &SyncState) -> &'static str {
 
 fn sync_detail(sync: &SyncState) -> String {
     match sync {
-        SyncState::Saved | SyncState::Syncing => String::new(),
+        SyncState::Saved | SyncState::Connecting | SyncState::Syncing => String::new(),
         SyncState::Offline { waiting: 0 } => "Nothing waiting to sync".to_owned(),
-        SyncState::Offline { waiting: 1 } => "1 change waiting".to_owned(),
-        SyncState::Offline { waiting } => format!("{waiting} changes waiting"),
+        SyncState::Offline { waiting: 1 } => "1 change kept on this device to sync".to_owned(),
+        SyncState::Offline { waiting } => format!("{waiting} changes kept on this device to sync"),
         SyncState::Error(error) => error.clone(),
     }
 }
@@ -71,7 +72,7 @@ fn sync_detail(sync: &SyncState) -> String {
 fn sync_glyph(sync: &SyncState) -> Glyph {
     match sync {
         SyncState::Saved => ICON_CLOUD_CHECK,
-        SyncState::Syncing => ICON_CLOUD_SYNC,
+        SyncState::Connecting | SyncState::Syncing => ICON_CLOUD_SYNC,
         SyncState::Offline { .. } => ICON_CLOUD_OFF,
         SyncState::Error(_) => ICON_CLOUD_ALERT,
     }
@@ -105,11 +106,7 @@ fn AppMenu(status: Memo<StatusView>, menu: Prop<Option<AppMenuView>>) -> NodeId 
     let sync_label = create_memo(move || sync_label(&sync.get()).to_owned());
     let sync_detail = create_memo(move || sync_detail(&sync.get()));
     let sync_glyph = create_memo(move || sync_glyph(&sync.get()));
-    let unsaved = create_memo(move || match sync.get() {
-        SyncState::Saved | SyncState::Error(_) => false,
-        SyncState::Syncing => true,
-        SyncState::Offline { waiting } => waiting > 0,
-    });
+    let unsaved = create_memo(move || status.get().unsaved);
     let unsent = create_memo(move || status.get().unsent);
     let has_unsent = create_memo(move || unsent.get() > 0);
     let unsent_detail = create_memo(move || match unsent.get() {

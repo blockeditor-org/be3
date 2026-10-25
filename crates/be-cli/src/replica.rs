@@ -54,7 +54,7 @@ impl<S: ObjectStore + 'static> be_types_host::Host for Held<S> {
         held(shared).errors.push(explain(error));
     }
 
-    fn report(shared: &Arc<Mutex<Self>>, message: String) {
+    fn report(shared: &Arc<Mutex<Self>>, _: Option<Uuid>, message: String) {
         held(shared).errors.push(message);
     }
 
@@ -128,7 +128,8 @@ impl<S: ObjectStore + 'static, C: LiveEdit + Clone + Default> Session<S, C> {
         sources: Vec<Source>,
     ) -> Result<Self, String> {
         let content_type = C::CONTENT_TYPE;
-        let replicas = Replicas::new(be_types_host::started(sources).await);
+        let replicas =
+            Replicas::new(be_types_host::started(sources, be_client::Clock::real()).await);
         let events = peer.connection().subscribe();
         let closed = peer.connection().closed();
         let mut session = Self {
@@ -228,10 +229,11 @@ impl<S: ObjectStore + 'static, C: LiveEdit + Clone + Default> Session<S, C> {
         if *self.closed.borrow() {
             return Woken::Closed;
         }
-        let deadline = self.replicas.modules.deadline();
+        let wake_at = self.replicas.modules.wake_at();
+        let clock = self.replicas.modules.clock().clone();
         let sleeping = async {
-            match deadline {
-                Some(deadline) => tokio::time::sleep(deadline).await,
+            match wake_at {
+                Some(at) => clock.sleep_until(at).await,
                 None => std::future::pending().await,
             }
         };
@@ -264,7 +266,7 @@ impl<S: ObjectStore + 'static, C: LiveEdit + Clone + Default> Session<S, C> {
     pub async fn settle(&mut self) {
         loop {
             self.replicas.pump((&self.peer, &self.shared)).await;
-            while self.replicas.relaying() {
+            while self.replicas.relaying() || (self.replicas.joining() && !*self.closed.borrow()) {
                 self.replicas.woken().await;
                 self.replicas.pump((&self.peer, &self.shared)).await;
             }

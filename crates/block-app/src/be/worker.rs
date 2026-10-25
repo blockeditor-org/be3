@@ -44,7 +44,7 @@ fn jitter() -> f64 {
 
 pub(super) struct Inbox {
     pub(super) commands: UnboundedReceiver<Command>,
-    pub(super) nudged: tokio::sync::watch::Receiver<()>,
+    pub(super) nudged: super::nudge::Nudged,
 }
 
 type AccessReply = Box<dyn FnOnce(Result<AccessList, String>) + Send>;
@@ -349,8 +349,10 @@ pub(crate) struct Shared {
     pub(crate) saves: u64,
     pub(crate) owing: usize,
     pub(crate) connected: bool,
+    pub(crate) reached: bool,
     pub(crate) draining: bool,
     pub(crate) error: Option<String>,
+    pub(crate) module_error: Option<(Uuid, String)>,
     pub(crate) conflicts: HashMap<Uuid, Vec<Conflict>>,
     pub(crate) pairing: Vec<PairingRequest>,
     pub(crate) contacts: Vec<be_client::Contact>,
@@ -363,6 +365,7 @@ pub(crate) struct Shared {
     pub(crate) pending: usize,
     pub(crate) typing: bool,
     pub(crate) uploading: usize,
+    pub(crate) importing: usize,
     pub(crate) previewed: std::collections::HashSet<Uuid>,
     pub(crate) staged: HashMap<Uuid, (Uuid, Vec<u8>)>,
     pub(crate) owned: std::collections::HashSet<Uuid>,
@@ -433,7 +436,7 @@ pub(super) async fn serve<S: Fn() -> Result<Store, String>>(
     shared: Arc<Mutex<Shared>>,
     changed: Arc<Condvar>,
 ) {
-    let mut replicas = Replicas::new(Modules::new(types::sources().await));
+    let mut replicas = Replicas::new(Modules::new(types::sources().await, config.clock.clone()));
     replicas.modules.ready().await;
     crate::host::wake();
     let started = match cached(&config, &make_store) {
@@ -500,7 +503,7 @@ fn cached<S: Fn() -> Result<Store, String>>(
 async fn first_connect<S: Fn() -> Result<Store, String>>(
     config: &Config,
     make_store: &S,
-    nudged: &mut tokio::sync::watch::Receiver<()>,
+    nudged: &mut super::nudge::Nudged,
     shared: &Arc<Mutex<Shared>>,
     changed: &Arc<Condvar>,
 ) -> Option<(Arc<Peer<Store>>, Option<Opened>)> {
@@ -547,7 +550,7 @@ fn resolve_through_graph(peer: &Peer<Store>, shared: &Arc<Mutex<Shared>>) {
 
 async fn unless_stopped<T>(
     work: impl Future<Output = T>,
-    nudged: &mut tokio::sync::watch::Receiver<()>,
+    nudged: &mut super::nudge::Nudged,
 ) -> Option<T> {
     let mut work = std::pin::pin!(work);
     loop {
@@ -632,7 +635,7 @@ struct Session<'a> {
     config: &'a Config,
     peer: &'a Arc<Peer<Store>>,
     commands: &'a mut UnboundedReceiver<Command>,
-    nudged: &'a mut tokio::sync::watch::Receiver<()>,
+    nudged: &'a mut super::nudge::Nudged,
     shared: &'a Arc<Mutex<Shared>>,
     changed: &'a Arc<Condvar>,
     wanted: Wanted,
@@ -645,6 +648,7 @@ struct Session<'a> {
 impl Session<'_> {
     async fn run(&mut self, open: Option<Opened>) {
         let (peer, shared) = (self.peer, self.shared);
+        self.uploads.connect(peer);
         {
             let mut held = shared.lock().unwrap_or_else(PoisonError::into_inner);
             held.graph.want(Owner::Host, vec![Query::Roots]);
@@ -677,7 +681,7 @@ impl Session<'_> {
                 report(peer, shared, false);
                 return;
             }
-            let deadline = self.replicas.modules.deadline();
+            let wake_at = self.replicas.modules.wake_at();
             let woken = {
                 let waited = std::pin::pin!(wait(
                     self.commands,
@@ -687,9 +691,9 @@ impl Session<'_> {
                     &mut *self.replicas,
                     stopping
                 ));
-                match deadline {
-                    Some(remaining) => {
-                        let timer = std::pin::pin!(platform::sleep(remaining));
+                match wake_at {
+                    Some(at) => {
+                        let timer = self.config.clock.sleep_until(at);
                         match select(waited, timer).await {
                             Either::Left((woken, _)) => woken,
                             Either::Right(_) => Woken::Deadline,
@@ -883,6 +887,7 @@ impl Session<'_> {
         {
             let mut held = shared.lock().unwrap_or_else(PoisonError::into_inner);
             held.connected = true;
+            held.reached = true;
             held.error = None;
         }
         self.changed.notify_all();
@@ -912,7 +917,6 @@ impl Session<'_> {
                 replicas: &mut *self.replicas,
             })
             .await;
-        self.uploads.connect(peer);
         report(peer, shared, false);
         self.changed.notify_all();
         crate::host::wake();
@@ -1102,7 +1106,7 @@ enum Woken {
 async fn wait(
     commands: &mut UnboundedReceiver<Command>,
     line: &mut Line,
-    nudged: &mut tokio::sync::watch::Receiver<()>,
+    nudged: &mut super::nudge::Nudged,
     uploads: &mut Uploads,
     replicas: &mut Replicas,
     stopping: bool,
@@ -2467,5 +2471,6 @@ pub(super) fn record(shared: &Arc<Mutex<Shared>>, error: ClientError) {
 fn fail(shared: &Arc<Mutex<Shared>>, error: String) {
     let mut held = shared.lock().unwrap_or_else(PoisonError::into_inner);
     held.connected = false;
+    held.reached = true;
     held.error = Some(error);
 }

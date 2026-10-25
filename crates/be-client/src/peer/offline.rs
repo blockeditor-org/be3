@@ -171,6 +171,12 @@ impl<S: ObjectStore> Peer<S> {
     }
 
     pub(super) fn create_locally(&self, creation: Creation) -> Result<BlockSummary, ClientError> {
+        let summary = self.record_creation(&creation)?;
+        self.refs.push(Op::Create(creation))?;
+        Ok(summary)
+    }
+
+    pub(super) fn record_creation(&self, creation: &Creation) -> Result<BlockSummary, ClientError> {
         let scope = match creation.parent {
             BlockParent::Block(parent) => {
                 self.refs.summary(parent).and_then(|summary| summary.scope)
@@ -196,10 +202,8 @@ impl<S: ObjectStore> Peer<S> {
         };
         self.refs.add_keys(&creation.keys)?;
         self.recorded(&creation.keys);
-        let parent = creation.parent;
-        self.refs.push(Op::Create(creation))?;
         self.refs
-            .add_to_listing(Listing::Children(parent), &summary)?;
+            .add_to_listing(Listing::Children(creation.parent), &summary)?;
         self.note(&summary);
         Ok(summary)
     }

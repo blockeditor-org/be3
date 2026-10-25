@@ -33,8 +33,10 @@ impl be_types_host::Host for Shared {
         super::worker::record(shared, error);
     }
 
-    fn report(shared: &Arc<Mutex<Self>>, message: String) {
-        shared.lock().unwrap_or_else(PoisonError::into_inner).error = Some(message);
+    fn report(shared: &Arc<Mutex<Self>>, block: Option<Uuid>, message: String) {
+        let mut held = shared.lock().unwrap_or_else(PoisonError::into_inner);
+        held.module_error = block.map(|block| (block, message.clone()));
+        held.error = Some(message);
     }
 
     fn set_locked(shared: &Arc<Mutex<Self>>, block: Uuid) {
@@ -109,6 +111,12 @@ impl be_types_host::Host for Shared {
             if before != status.head {
                 held.saves += 1;
                 held.touch(block);
+                if let Some((from, message)) = held.module_error.take() {
+                    match from == block && held.error.as_ref() == Some(&message) {
+                        true => held.error = None,
+                        false => held.module_error = Some((from, message)),
+                    }
+                }
             }
             held.graph.set_head(block, status.head);
             held.locked.contains(&block)

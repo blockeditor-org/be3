@@ -2,13 +2,8 @@ mod browser_auth;
 pub mod mail;
 mod portal;
 use std::{
-    collections::BTreeSet,
-    error::Error,
-    fmt, io,
-    net::SocketAddr,
-    path::PathBuf,
-    sync::Arc,
-    time::{Duration, Instant},
+    collections::BTreeSet, error::Error, fmt, io, net::SocketAddr, path::PathBuf, sync::Arc,
+    time::Duration,
 };
 
 use be_protocol::{
@@ -156,6 +151,19 @@ const MAX_CONNECTIONS: usize = 1024;
 pub(crate) const HANDSHAKE_TIMEOUT: Duration = Duration::from_secs(10);
 const PING_INTERVAL: Duration = Duration::from_secs(30);
 pub(crate) const IDLE_TIMEOUT: Duration = Duration::from_secs(90);
+const OUTBOUND_FRAMES: usize = 64;
+const INBOUND_FRAMES: usize = 16;
+const PING_FRAME_BYTES: usize = 64;
+
+fn pong_for(bytes: &[u8]) -> Option<Vec<u8>> {
+    if bytes.len() > PING_FRAME_BYTES {
+        return None;
+    }
+    match decode::<ClientMessage>(bytes) {
+        Ok(ClientMessage::Ping { request }) => encode(&ServerMessage::Pong { request }).ok(),
+        _ => None,
+    }
+}
 const OUTBOUND_LIMIT: usize = 4096;
 const ACCEPT_RETRY: Duration = Duration::from_millis(100);
 const CONTENTS_BYTES: usize = MAX_FRAME_BYTES / 2;
@@ -444,56 +452,92 @@ where
         return Ok(());
     }
     let mut pings = tokio::time::interval(PING_INTERVAL);
-    let mut heard = Instant::now();
     let mut client = Client::open(services).await;
     let mut session_changes = services.store.session_changes.subscribe();
     client.connection.header_token = bearer(authorization.as_deref());
+    let (outgoing, mut sending) = mpsc::channel::<Message>(OUTBOUND_FRAMES);
+    let (arrived, mut arriving) = mpsc::channel::<Vec<u8>>(INBOUND_FRAMES);
 
-    let outcome = async {
-        loop {
-            let frame = tokio::select! {
-                _ = session_changes.changed() => {
-                    if let Some(token) = &client.connection.token
-                        && services.store.resolve_token(token).await.is_err() { sink.send(Message::Close(None)).await?; return Ok(()); }
-                    continue;
+    let writing = async move {
+        while let Some(message) = sending.recv().await {
+            sink.send(message).await?;
+        }
+        Ok::<_, ServerError>(())
+    };
+    let reading = {
+        let outgoing = outgoing.clone();
+        async move {
+            loop {
+                let Ok(frame) = tokio::time::timeout(IDLE_TIMEOUT, source.next()).await else {
+                    return Ok(());
+                };
+                let Some(frame) = frame else { return Ok(()) };
+                let sent = match frame? {
+                    Message::Binary(bytes) => match pong_for(&bytes) {
+                        Some(pong) => outgoing.send(Message::Binary(pong)).await.is_ok(),
+                        None => arrived.send(bytes).await.is_ok(),
+                    },
+                    Message::Ping(payload) => outgoing.send(Message::Pong(payload)).await.is_ok(),
+                    Message::Close(_) => return Ok(()),
+                    Message::Text(_) | Message::Pong(_) | Message::Frame(_) => true,
+                };
+                if !sent {
+                    return Ok::<_, ServerError>(());
                 }
-                notification = client.outbound.recv() => {
-                    if let Some(token) = &client.connection.token
-                        && services.store.resolve_token(token).await.is_err() { sink.send(Message::Close(None)).await?; return Ok(()); }
-                    let Some(notification) = notification else { return Ok(()) };
-                    sink.send(Message::Binary(
-                        encode(&notification).map_err(|_| ServerError::Corrupt)?,
-                    ))
-                    .await?;
-                    continue;
-                }
-                _ = pings.tick() => {
-                    if heard.elapsed() > IDLE_TIMEOUT {
-                        return Ok(());
-                    }
-                    sink.send(Message::Ping(Vec::new())).await?;
-                    continue;
-                }
-                message = source.next() => message,
-            };
-            let Some(frame) = frame else { return Ok(()) };
-            heard = Instant::now();
-            match frame? {
-                Message::Binary(bytes) => {
-                    for message in client.answer(&bytes).await {
-                        sink.send(Message::Binary(
-                            encode(&message).map_err(|_| ServerError::Corrupt)?,
-                        ))
-                        .await?;
-                    }
-                }
-                Message::Close(_) => return Ok(()),
-                Message::Ping(payload) => sink.send(Message::Pong(payload)).await?,
-                Message::Text(_) | Message::Pong(_) | Message::Frame(_) => {}
             }
         }
-    }
-    .await;
+    };
+    let answering = {
+        let client = &mut client;
+        async move {
+            let send = |message: Message| outgoing.send(message);
+            loop {
+                tokio::select! {
+                    _ = session_changes.changed() => {
+                        if let Some(token) = &client.connection.token
+                            && services.store.resolve_token(token).await.is_err() {
+                            let _ = send(Message::Close(None)).await;
+                            return Ok(());
+                        }
+                    }
+                    notification = client.outbound.recv() => {
+                        if let Some(token) = &client.connection.token
+                            && services.store.resolve_token(token).await.is_err() {
+                            let _ = send(Message::Close(None)).await;
+                            return Ok(());
+                        }
+                        let Some(notification) = notification else { return Ok(()) };
+                        let frame = encode(&notification).map_err(|_| ServerError::Corrupt)?;
+                        if send(Message::Binary(frame)).await.is_err() {
+                            return Ok(());
+                        }
+                    }
+                    _ = pings.tick() => {
+                        if send(Message::Ping(Vec::new())).await.is_err() {
+                            return Ok(());
+                        }
+                    }
+                    bytes = arriving.recv() => {
+                        let Some(bytes) = bytes else { return Ok(()) };
+                        for message in client.answer(&bytes).await {
+                            let frame = encode(&message).map_err(|_| ServerError::Corrupt)?;
+                            if send(Message::Binary(frame)).await.is_err() {
+                                return Ok(());
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    };
+    let served = async {
+        tokio::select! {
+            outcome = answering => outcome,
+            outcome = reading => outcome,
+        }
+    };
+    let (outcome, written) = tokio::join!(served, writing);
+    let outcome = outcome.and(written);
 
     client.close().await;
     outcome

@@ -131,10 +131,13 @@ is left is marked below.
   - the graph, with its metadata;
   - the workspace list;
   - the outbox of graph operations that are not yet acknowledged.
-- **Opening a block reads the local head first.** Done while offline (an
-  offline session this client owns). Still to do: while connected, open from
-  the local head and join the session and fetch the remote head in the
-  background, instead of joining first.
+- **Opening a block reads the local head first.** Done: offline with an
+  offline session this client owns; while connected, a known block whose join
+  takes over 250 ms opens from its local head as a follower of a placeholder
+  owner and joins in the background (`Io::Joined`), then reopens with the real
+  session, keeping edits made meanwhile. Still to do: the worker's loop waits on a stalled request
+  (listings), so on a server that has stopped answering the content shows only
+  once the connection is declared lost.
 - **Editing offline seals local commits.**
   - Done: the replica host seals with `Peer::seal_encoded` and publishes
     only while attached; a replica that loses its connection is handed a
@@ -151,12 +154,14 @@ is left is marked below.
 
 - Done: a request timeout, and a connect timeout so `be::stop` never hangs.
 - Done: client pings every ~15 s; a missing pong marks the connection lost.
+  The server answers pings out of order, so a slow request does not delay
+  them, and the client reads waiting frames before judging silence.
 - Done: reconnect with exponential backoff and jitter, plus an immediate retry
   (`be::retry_now`) on window focus. Still to call it: OS network-change and
   foreground events.
 - Done: lease heartbeats on the replica's timer (`HEARTBEAT_INTERVAL`), not
-  only on seal. Still to do: type modules read real time, so the relayed
-  harness's manual clock does not drive them.
+  only on seal. Type modules read time from the stack's `Clock`, so the relayed
+  harness's manual clock drives seals and heartbeats.
 
 ### Durability
 
@@ -165,15 +170,23 @@ is left is marked below.
   which block-app answers with the non-blocking `be::backgrounded`), and
   `be::retry_now` on foreground, focus and network changes (browser `online`,
   Android's default network callback).
-- Done: `status().unsealed` counts the outbox and local-only commits, queued
-  commands and uploads; `Status` also has `connected`, `syncing`, `waiting`,
-  `unsent`, `conflicts` and `conflicted` for the status bar.
-- Imports still upload only while connected and are not kept across a quit.
+- Done: `status().unsaved` counts what closing would lose (unsealed replicas,
+  queued commands, imports not yet in the outbox), and `kept` the outbox; the
+  close and organization-switch guards ask only about `unsaved`. `Status`
+  also has `connected`, `connecting`, `syncing`, `waiting`, `unsent`,
+  `conflicts` and `conflicted` for the status bar.
+- Done: imports are kept in the outbox before they upload, so one made offline
+  or cut short by a quit is sent by the next drain.
+- Web: text typed offline was reported gone after an offline reload. The
+  native path keeps it (`an_edit_made_offline_survives_a_restart_...`), and
+  `be::backgrounded` now always flushes; still to check in the browser whether
+  the page unloads before the be worker seals.
 
 ### Status UI
 
 - Done: the app menu's status (`app.menu.status`, `ui::SyncState`) shows one
-  of offline (n changes waiting), syncing, saved, or error, from
+  of connecting (until the first attempt resolves), offline (n changes kept on
+  this device), syncing, saved, or error, from
   `be::Status { connected, waiting, syncing, error }`. `Status.waiting`
   counts `Shared.unsealed` plus `Shared.waiting`, which the worker must set to
   the outbox and local-only commits (`Peer::pending`).

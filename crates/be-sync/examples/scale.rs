@@ -63,7 +63,8 @@ async fn main() {
     .await
     .unwrap();
     let target = Target { root: Some(root) };
-    let mut types = be_types_host::started(first_party_types::sources()).await;
+    let mut types =
+        be_types_host::started(first_party_types::sources(), be_client::Clock::real()).await;
     let mut time = async |label: &str, peer: &Peer<FileStore>, directory: &Path| {
         let started = Instant::now();
         let report = be_sync::sync(peer, &mut types, directory, &target)

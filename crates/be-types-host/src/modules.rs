@@ -8,6 +8,8 @@ use std::{
     time::{Duration, Instant},
 };
 
+use be_client::Clock;
+
 use block_guest_abi::Guest;
 use block_guest_host::{Channel, InProcess, Wake, Worker};
 use block_type_api::{
@@ -60,16 +62,6 @@ pub fn register(kind: Kind) {
 
 pub fn plain_forms_revision() -> u64 {
     PLAIN_FORMS.load(Ordering::Relaxed)
-}
-
-static EPOCH: LazyLock<Instant> = LazyLock::new(Instant::now);
-
-pub fn millis(at: Instant) -> u64 {
-    at.saturating_duration_since(*EPOCH).as_millis() as u64
-}
-
-pub fn now_millis() -> u64 {
-    millis(Instant::now())
 }
 
 pub type Boxed = Box<dyn Channel<Presented = Infallible>>;
@@ -164,12 +156,13 @@ pub struct Modules {
     backlog: VecDeque<(usize, Command)>,
     restarted: Vec<usize>,
     routes: HashMap<Uuid, usize>,
+    clock: Clock,
 }
 
 const RESTART_LIMIT: usize = 8;
 
 impl Modules {
-    pub fn new(sources: Vec<Source>) -> Self {
+    pub fn new(sources: Vec<Source>, clock: Clock) -> Self {
         let mut modules = Self {
             modules: sources
                 .into_iter()
@@ -190,6 +183,7 @@ impl Modules {
             backlog: VecDeque::new(),
             restarted: Vec::new(),
             routes: HashMap::new(),
+            clock,
         };
         for module in 0..modules.modules.len() {
             modules.launch(module);
@@ -358,8 +352,12 @@ impl Modules {
         }
     }
 
+    pub fn now(&self) -> u64 {
+        self.clock.now().as_millis() as u64
+    }
+
     pub fn send(&mut self, module: usize, events: Vec<Event>) {
-        let now = now_millis();
+        let now = self.now();
         let held = &mut self.modules[module];
         let Some(worker) = held.worker.as_mut() else {
             return;
@@ -377,7 +375,7 @@ impl Modules {
     }
 
     pub fn tick_at(&mut self, module: usize, at: Instant) {
-        let now = millis(at);
+        let now = self.clock.at(at).as_millis() as u64;
         let held = &mut self.modules[module];
         if held.ticked.is_some_and(|ticked| ticked >= now) {
             return;
@@ -412,18 +410,24 @@ impl Modules {
         std::mem::take(&mut self.restarted)
     }
 
-    pub fn deadline(&mut self) -> Option<Duration> {
-        let now = now_millis();
+    pub fn clock(&self) -> &Clock {
+        &self.clock
+    }
+
+    pub fn wake_at(&mut self) -> Option<Duration> {
+        let now = self.clock.now();
         let mut soonest: Option<Duration> = None;
         let mut hung = Vec::new();
         for (index, module) in self.modules.iter_mut().enumerate() {
             if let Some(wake) = module.wake {
-                let due = Duration::from_millis(wake.saturating_sub(now));
+                let due = Duration::from_millis(wake);
                 soonest = Some(soonest.map_or(due, |held| held.min(due)));
             }
             if let Some(worker) = module.worker.as_mut() {
-                match worker.hung(Instant::now().saturating_duration_since(*EPOCH)) {
-                    Ok(Some(left)) => soonest = Some(soonest.map_or(left, |held| held.min(left))),
+                match worker.hung(now) {
+                    Ok(Some(left)) => {
+                        soonest = Some(soonest.map_or(now + left, |held| held.min(now + left)));
+                    }
                     Ok(None) => {}
                     Err(failure) => hung.push((index, failure)),
                 }
@@ -432,13 +436,13 @@ impl Modules {
         for (module, failure) in hung {
             self.fail(module, failure);
             self.restart(module);
-            soonest = Some(Duration::ZERO);
+            soonest = Some(now);
         }
         soonest
     }
 
     pub fn tick_due(&mut self) {
-        let now = now_millis();
+        let now = self.now();
         for module in 0..self.modules.len() {
             if self.modules[module].wake.is_some_and(|wake| wake <= now) {
                 self.modules[module].wake = None;
@@ -626,8 +630,8 @@ pub fn plain_of(content_type: Uuid) -> Plain {
     kind_of(content_type).map_or(Plain::None, |kind| kind.plain)
 }
 
-pub async fn started(sources: Vec<Source>) -> Modules {
-    let mut modules = Modules::new(sources);
+pub async fn started(sources: Vec<Source>, clock: Clock) -> Modules {
+    let mut modules = Modules::new(sources, clock);
     modules.ready().await;
     modules
 }

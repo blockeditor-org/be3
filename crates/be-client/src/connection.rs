@@ -219,22 +219,9 @@ async fn carry(
     let mut heard = clock.now();
     let mut pinged = false;
     loop {
-        let now = clock.now();
-        let deadline = |written: Duration| written.max(heard) + REQUEST_TIMEOUT;
-        let expired: Vec<u64> = pending
-            .iter()
-            .filter(|(_, (written, reply))| reply.is_closed() || deadline(*written) <= now)
-            .map(|(request, _)| *request)
-            .collect();
-        for request in expired {
-            if let Some((_, reply)) = pending.remove(&request) {
-                let _ = reply.send(Err(ClientError::TimedOut("a request to the server")));
-            }
-        }
-        if now >= heard + PING_INTERVAL + PONG_WAIT {
-            return;
-        }
-        if !pinged && now >= heard + PING_INTERVAL {
+        let deadline = |written: Duration, heard: Duration| written.max(heard) + REQUEST_TIMEOUT;
+        pending.retain(|_, (_, reply)| !reply.is_closed());
+        if !pinged && clock.now() >= heard + PING_INTERVAL {
             let Ok(ping) = encode(&ClientMessage::Ping {
                 request: PING_REQUEST,
             }) else {
@@ -252,7 +239,7 @@ async fn carry(
         };
         let next = pending
             .values()
-            .map(|(written, _)| deadline(*written))
+            .map(|(written, _)| deadline(*written, heard))
             .fold(next, Duration::min);
         let woke = {
             let command = std::pin::pin!(commands.recv());
@@ -265,13 +252,30 @@ async fn carry(
             }
         };
         match woke {
-            Woke::Timer => {}
+            Woke::Timer => {
+                let now = clock.now();
+                let expired: Vec<u64> = pending
+                    .iter()
+                    .filter(|(_, (written, _))| deadline(*written, heard) <= now)
+                    .map(|(request, _)| *request)
+                    .collect();
+                for request in expired {
+                    if let Some((_, reply)) = pending.remove(&request) {
+                        let _ = reply.send(Err(ClientError::TimedOut("a request to the server")));
+                    }
+                }
+                if now >= heard + PING_INTERVAL + PONG_WAIT {
+                    return;
+                }
+            }
             Woke::Command(None) => return,
             Woke::Command(Some(command)) => {
-                pending.insert(command.request, (clock.now(), command.reply));
+                let started = clock.now();
+                pending.insert(command.request, (started, command.reply));
                 if writer.send(command.bytes).await.is_err() {
                     return;
                 }
+                heard += clock.now().saturating_sub(started);
             }
             Woke::Frame(frame) => {
                 heard = clock.now();

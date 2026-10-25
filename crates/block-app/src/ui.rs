@@ -160,6 +160,7 @@ pub(crate) struct ReauthView {
 pub(crate) enum SyncState {
     #[default]
     Saved,
+    Connecting,
     Syncing,
     Offline {
         waiting: usize,
@@ -183,6 +184,7 @@ pub(crate) struct UnsentView {
 #[derive(Clone, Debug, Default, PartialEq)]
 pub(crate) struct StatusView {
     pub(crate) sync: SyncState,
+    pub(crate) unsaved: bool,
     pub(crate) unsent: usize,
     pub(crate) saves: u64,
     pub(crate) organization: String,

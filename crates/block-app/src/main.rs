@@ -1724,7 +1724,7 @@ impl BlockApp {
 
     fn close_requested(&mut self) -> bool {
         be::flush();
-        if self.allow_close || be::status().unsealed == 0 {
+        if self.allow_close || be::status().unsaved == 0 {
             return true;
         }
         self.pending_destructive_action = Some(PendingDestructiveAction::Close);
@@ -3062,7 +3062,8 @@ impl BlockApp {
                 self.invite_link = None;
             }
             UiCommand::SwitchOrganization => {
-                if be::status().unsealed == 0 {
+                be::flush();
+                if be::status().unsaved == 0 {
                     self.scheduled_organization_list = true;
                 } else {
                     self.pending_destructive_action =
@@ -3266,7 +3267,7 @@ impl BlockApp {
             error: ui::ErrorView {
                 message: self.error.clone().unwrap_or_default(),
                 pending: self.pending_error_action,
-                unsaved: be_status.unsealed,
+                unsaved: be_status.unsaved + be_status.kept,
             },
             accounts,
             account_error: self.account_error.clone(),
@@ -3327,6 +3328,7 @@ impl BlockApp {
             }),
             status: ui::StatusView {
                 sync,
+                unsaved: be_status.unsaved > 0,
                 unsent: be_status.unsent,
                 saves: be_status.saves,
                 organization: organization_name.clone(),
@@ -3483,6 +3485,7 @@ impl BlockApp {
 
 fn sync_state(status: &be::Status) -> ui::SyncState {
     match (&status.error, status.connected) {
+        (_, false) if status.connecting => ui::SyncState::Connecting,
         (_, false) => ui::SyncState::Offline {
             waiting: status.waiting,
         },
@@ -3495,12 +3498,12 @@ fn sync_state(status: &be::Status) -> ui::SyncState {
 fn discard_view(action: &PendingDestructiveAction) -> ui::DiscardView {
     let (message, button) = match action {
         PendingDestructiveAction::ChooseOrganization => (
-            "Switching organizations will discard changes that have not reached the server."
+            "Switching organizations will discard changes that are not saved on this device yet. Changes waiting to sync are kept."
                 .to_owned(),
             "Discard and switch",
         ),
         PendingDestructiveAction::Close => (
-            "Closing Block Editor will discard changes that have not reached the server."
+            "Closing Block Editor will discard changes that are not saved on this device yet. Changes waiting to sync are kept."
                 .to_owned(),
             "Discard and close",
         ),

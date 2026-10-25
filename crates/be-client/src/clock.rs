@@ -38,6 +38,16 @@ impl Clock {
         }
     }
 
+    pub fn at(&self, instant: std::time::Instant) -> Duration {
+        match &self.0 {
+            Kind::Real => {
+                let ago = std::time::Instant::now().saturating_duration_since(instant);
+                real::now().saturating_sub(ago)
+            }
+            Kind::Manual(_) => self.now(),
+        }
+    }
+
     pub fn advance(&self, by: Duration) {
         let Kind::Manual(hand) = &self.0 else {
             panic!("only a manual clock can be moved on");

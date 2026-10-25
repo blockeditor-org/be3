@@ -852,7 +852,9 @@ impl<S: ObjectStore> Peer<S> {
         content_type: Uuid,
         parent: BlockParent,
     ) -> Result<(), ClientError> {
-        if !self.is_attached() && self.refs.summary(block).is_some() {
+        let known = self.refs.summary(block);
+        if known.is_some_and(|summary| summary.content_type == content_type || !self.is_attached())
+        {
             return Ok(());
         }
         match self

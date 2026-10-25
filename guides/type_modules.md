@@ -50,7 +50,9 @@ clean). A request for a replica that is not open is answered `Unknown`.
 
 What the host owes a replica:
 
-- **Time.** `Tick { now }` (milliseconds of the frame clock) before any event once
+- **Time.** `Tick { now }` (milliseconds of the host's `be_client::Clock`, which
+  `Modules::new` takes; an editor's frames are stamped with the frame clock's
+  instant, `Clock::at` places it on that clock) before any event once
   the clock has moved, and again at or after the latest `WakeAt { at }`. The replica
   never reads a clock, so a test advances time by sending ticks.
 - **Opening.** `Open` carries the head the host just read, the session's lease

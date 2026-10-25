@@ -2,7 +2,6 @@ use std::{
     future::Future,
     pin::Pin,
     sync::{Arc, Condvar},
-    time::Duration,
 };
 
 use wasi_threads::Mutex;
@@ -65,19 +64,6 @@ pub fn be_worker_run(entry: usize) -> js_sys::Promise {
 
 pub(super) fn spawn_local(task: impl Future<Output = ()> + 'static) {
     wasm_bindgen_futures::spawn_local(task);
-}
-
-#[wasm_bindgen]
-extern "C" {
-    #[wasm_bindgen(js_name = setTimeout)]
-    fn set_timeout(handler: &js_sys::Function, milliseconds: f64) -> JsValue;
-}
-
-pub(crate) async fn sleep(duration: Duration) {
-    let promise = js_sys::Promise::new(&mut |resolve, _| {
-        set_timeout(&resolve, duration.as_secs_f64() * 1000.0);
-    });
-    let _ = wasm_bindgen_futures::JsFuture::from(promise).await;
 }
 
 pub(super) fn await_flush(sealed: std::sync::mpsc::Receiver<()>) {

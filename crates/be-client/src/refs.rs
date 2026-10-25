@@ -598,15 +598,25 @@ impl Refs {
     }
 
     pub fn push(&self, op: Op) -> Result<u64, StoreError> {
-        let (sequence, row) = {
+        Ok(self.push_all(vec![op])?[0])
+    }
+
+    pub fn push_all(&self, ops: Vec<Op>) -> Result<Vec<u64>, StoreError> {
+        let mut sequences = Vec::with_capacity(ops.len());
+        let rows = {
             let mut state = self.state.lock().unwrap();
-            let sequence = state.take();
-            let row = row(Table::Outbox, sequence.to_be_bytes().to_vec(), &op);
-            state.outbox.insert(sequence, op);
-            (sequence, row)
+            ops.into_iter()
+                .map(|op| {
+                    let sequence = state.take();
+                    let row = row(Table::Outbox, sequence.to_be_bytes().to_vec(), &op);
+                    state.outbox.insert(sequence, op);
+                    sequences.push(sequence);
+                    row
+                })
+                .collect()
         };
-        self.write(vec![row])?;
-        Ok(sequence)
+        self.write(rows)?;
+        Ok(sequences)
     }
 
     pub fn outbox(&self) -> Vec<(u64, Op)> {

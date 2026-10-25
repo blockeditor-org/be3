@@ -123,7 +123,9 @@ pub(crate) async fn browser_login(
         loop {
             if !approval_pushed(&mut events, connection.closed()).await {
                 connection = loop {
-                    crate::be::sleep(std::time::Duration::from_secs(2)).await;
+                    be_client::Clock::real()
+                        .sleep(std::time::Duration::from_secs(2))
+                        .await;
                     match crate::link::connect(&server_url).await {
                         Ok(connection) => break connection,
                         Err(error) if error.is_unreachable() => {}

@@ -306,7 +306,7 @@ impl<S: ObjectStore> Tracker<S> {
     pub async fn types(&self) -> MappedMutexGuard<'_, Modules> {
         let mut held = self.types.lock().await;
         if held.is_none() {
-            *held = Some(be_types_host::started((self.sources)()).await);
+            *held = Some(be_types_host::started((self.sources)(), be_client::Clock::real()).await);
         }
         MutexGuard::map(held, |held| {
             held.as_mut().expect("the type modules started")

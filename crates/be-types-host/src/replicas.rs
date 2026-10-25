@@ -27,6 +27,8 @@ pub const HOST_EDITOR: EditorId = u64::MAX;
 
 pub const OFFLINE_CLIENT: ClientId = 0;
 
+const JOINING_OWNER: ClientId = ClientId::MAX;
+
 fn offline_session(head: Option<CommitId>) -> SessionState {
     SessionState {
         generation: 0,
@@ -34,6 +36,47 @@ fn offline_session(head: Option<CommitId>) -> SessionState {
         participants: vec![OFFLINE_CLIENT],
         clean_at: head,
     }
+}
+
+fn joining_session(head: Option<CommitId>) -> SessionState {
+    SessionState {
+        generation: 0,
+        owner: Some(JOINING_OWNER),
+        participants: vec![JOINING_OWNER, OFFLINE_CLIENT],
+        clean_at: head,
+    }
+}
+
+type Joined = Result<(ClientId, SessionState, Option<CommitId>), ClientError>;
+
+type Pending<T> = std::pin::Pin<Box<dyn Future<Output = T>>>;
+
+const EARLY_OPEN: std::time::Duration = std::time::Duration::from_millis(250);
+
+fn asked_of(asked: &HashMap<RequestId, (ReplicaId, Request)>, replica: ReplicaId) -> Vec<Event> {
+    let mut asked: Vec<_> = asked
+        .iter()
+        .filter(|(_, (to, _))| *to == replica)
+        .map(|(id, (_, request))| (*id, request.clone()))
+        .collect();
+    asked.sort_by_key(|(id, _)| *id);
+    asked
+        .into_iter()
+        .map(|(id, request)| Event::Request { id, request })
+        .collect()
+}
+
+fn local_edit(event: &Event) -> bool {
+    matches!(
+        event,
+        Event::Message {
+            from: Endpoint::Editor(_),
+            ..
+        } | Event::Request {
+            request: Request::Change { .. },
+            ..
+        }
+    )
 }
 
 fn unreachable(error: &ClientError) -> bool {
@@ -52,6 +95,11 @@ pub enum Io {
     },
     Relayed,
     Sealed,
+    Joined {
+        replica: ReplicaId,
+        block: Uuid,
+        joined: Box<Joined>,
+    },
 }
 
 struct Open {
@@ -71,6 +119,9 @@ struct Open {
     closing: bool,
     reopen: bool,
     epoch: u64,
+    joining: bool,
+    made_up: bool,
+    early: Vec<Event>,
 }
 
 pub struct Replicas<H: Host> {
@@ -84,6 +135,8 @@ pub struct Replicas<H: Host> {
     replies: HashMap<RequestId, tokio::sync::oneshot::Sender<Reply>>,
     pending: Vec<Io>,
     relaying: usize,
+    leaving: Vec<Uuid>,
+    asked: HashMap<RequestId, (ReplicaId, Request)>,
     changed: bool,
     pub handled: u64,
     host: std::marker::PhantomData<fn() -> H>,
@@ -105,6 +158,8 @@ impl<H: Host> Replicas<H> {
             replies: HashMap::new(),
             pending: Vec::new(),
             relaying: 0,
+            leaving: Vec::new(),
+            asked: HashMap::new(),
             changed: false,
             handled: 0,
             host: std::marker::PhantomData,
@@ -168,6 +223,10 @@ impl<H: Host> Replicas<H> {
             for io in answers {
                 self.answered(io, ctx.1);
             }
+            for block in std::mem::take(&mut self.leaving) {
+                let _ = ctx.0.leave_session(block).await;
+                let _ = ctx.0.unwatch(block).await;
+            }
             for (module, command) in commands {
                 self.changed |= self.act(ctx, module, command).await;
             }
@@ -196,6 +255,20 @@ impl<H: Host> Replicas<H> {
         let id = self.modules.next_request();
         let (answer, answered) = tokio::sync::oneshot::channel();
         self.replies.insert(id, answer);
+        match &request {
+            Request::Change { replica, .. } => {
+                if let Some(open) = self.open.get_mut(replica) {
+                    open.replay.push(Event::Request {
+                        id,
+                        request: request.clone(),
+                    });
+                }
+            }
+            Request::Content { replica } | Request::Seal { replica, .. } => {
+                self.asked.insert(id, (*replica, request.clone()));
+            }
+            _ => {}
+        }
         self.modules
             .send(module, vec![Event::Request { id, request }]);
         Some(answered)
@@ -237,23 +310,67 @@ impl<H: Host> Replicas<H> {
             return;
         };
         let owned = !kind.frozen && H::owned(shared, block);
-        let joined = async {
-            if peer.known_summary(block).is_none() || peer.is_attached() {
-                peer.ensure_type(block, content_type, BlockParent::Detached)
-                    .await?;
+        let known = peer
+            .known_summary(block)
+            .is_some_and(|summary| summary.content_type == content_type);
+        let joined = if known
+            && peer.is_attached()
+            && !(owned && H::reshaped(shared, block, &kind.schema))
+        {
+            let joining: Pending<Joined> = Box::pin({
+                let peer = Arc::clone(peer);
+                async move {
+                    peer.ensure_type(block, content_type, BlockParent::Detached)
+                        .await?;
+                    let (client, session) = peer.join_session(block).await?;
+                    peer.watch(block).await?;
+                    let head = peer.remote_head(block).await?;
+                    Ok((client, session, head))
+                }
+            });
+            let waited = self.modules.clock().sleep(EARLY_OPEN);
+            match futures_util::future::select(joining, waited).await {
+                futures_util::future::Either::Left((joined, _)) => {
+                    joined.map(|(client, session, head)| (client, session, head, false))
+                }
+                futures_util::future::Either::Right((_, joining)) => {
+                    let head = peer
+                        .local_head(block)
+                        .or_else(|| peer.known_remote_head(block))
+                        .or_else(|| peer.known_summary(block).and_then(|summary| summary.head));
+                    if let Some(replica) = self.start(
+                        peer,
+                        block,
+                        content_type,
+                        reader,
+                        OFFLINE_CLIENT,
+                        joining_session(head),
+                        head,
+                    ) {
+                        self.join_later(replica, block, joining);
+                    }
+                    return;
+                }
             }
-            if !peer.is_attached() {
-                return Ok((OFFLINE_CLIENT, offline_session(None), None, true));
+        } else {
+            async {
+                if peer.known_summary(block).is_none() || peer.is_attached() {
+                    peer.ensure_type(block, content_type, BlockParent::Detached)
+                        .await?;
+                }
+                if !peer.is_attached() {
+                    return Ok((OFFLINE_CLIENT, offline_session(None), None, true));
+                }
+                if owned && H::reshaped(shared, block, &kind.schema) {
+                    reset::<H>(peer, block, &kind).await?;
+                }
+                let (client, session) = peer.join_session(block).await?;
+                peer.watch(block).await?;
+                let head = peer.remote_head(block).await?;
+                Ok::<_, ClientError>((client, session, head, false))
             }
-            if owned && H::reshaped(shared, block, &kind.schema) {
-                reset::<H>(peer, block, &kind).await?;
-            }
-            let (client, session) = peer.join_session(block).await?;
-            peer.watch(block).await?;
-            let head = peer.remote_head(block).await?;
-            Ok::<_, ClientError>((client, session, head, false))
-        }
-        .await;
+            .await
+        };
         let joined = match joined {
             Err(error) if unreachable(&error) && peer.known_summary(block).is_some() => {
                 Ok((OFFLINE_CLIENT, offline_session(None), None, true))
@@ -278,15 +395,41 @@ impl<H: Host> Replicas<H> {
                 return;
             }
         };
-        if self.blocks.contains_key(&block) {
-            return;
-        }
-        self.next += 1;
-        let replica = self.next;
-        let Some(module) = self.modules.module_of(content_type) else {
+        let Some(replica) = self.start(peer, block, content_type, reader, client, session, head)
+        else {
             return;
         };
+        if let Some(open) = self.open.get_mut(&replica) {
+            open.made_up = offline;
+        }
+        let current = H::known_head(shared, block);
+        if let Some(current) = current
+            && Some(current) != head
+            && !offline
+        {
+            self.moved(replica, current, false);
+        }
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn start(
+        &mut self,
+        peer: &Arc<Peer<H::Store>>,
+        block: Uuid,
+        content_type: Uuid,
+        reader: bool,
+        client: ClientId,
+        session: SessionState,
+        head: Option<CommitId>,
+    ) -> Option<ReplicaId> {
+        if self.blocks.contains_key(&block) {
+            return None;
+        }
+        let module = self.modules.module_of(content_type)?;
+        self.next += 1;
+        let replica = self.next;
         let organization = peer.organization();
+        let joining = session.owner == Some(JOINING_OWNER);
         self.blocks.insert(block, replica);
         self.open.insert(
             replica,
@@ -310,6 +453,9 @@ impl<H: Host> Replicas<H> {
                 closing: false,
                 reopen: false,
                 epoch: 0,
+                joining,
+                made_up: joining,
+                early: Vec::new(),
             },
         );
         let tag = self.modules.tag(module);
@@ -334,12 +480,153 @@ impl<H: Host> Replicas<H> {
             }
         }
         self.modules.send(module, events);
-        let current = H::known_head(shared, block);
-        if let Some(current) = current
-            && Some(current) != head
-            && !offline
-        {
-            self.moved(replica, current, false);
+        Some(replica)
+    }
+
+    fn join_later(&mut self, replica: ReplicaId, block: Uuid, joining: Pending<Joined>) {
+        let io = self.io.clone();
+        H::spawn(async move {
+            let joined = joining.await;
+            let _ = io.send(Io::Joined {
+                replica,
+                block,
+                joined: Box::new(joined),
+            });
+            H::wake();
+        });
+    }
+
+    pub fn joining(&self) -> bool {
+        self.open.values().any(|open| open.joining)
+    }
+
+    fn joined(&mut self, shared: &Arc<Mutex<H>>, replica: ReplicaId, block: Uuid, joined: Joined) {
+        let Some(open) = self.open.get_mut(&replica) else {
+            if joined.is_ok() && !self.blocks.contains_key(&block) {
+                self.leaving.push(block);
+            }
+            return;
+        };
+        if !open.joining {
+            return;
+        }
+        let block = open.block;
+        let (client, session, head) = match joined {
+            Ok(joined) => joined,
+            Err(error) if unreachable(&error) => return,
+            Err(error) => {
+                if let ClientError::Locked(_) = &error {
+                    H::set_locked(shared, block);
+                } else {
+                    H::record(shared, error);
+                }
+                open.joining = false;
+                self.make_up_session(replica);
+                self.close_if_asked(replica);
+                return;
+            }
+        };
+        open.joining = false;
+        open.made_up = false;
+        let edited = open.replay.iter().any(local_edit);
+        let generation = session.generation;
+        let early: Vec<Event> = std::mem::take(&mut open.early)
+            .into_iter()
+            .filter(|event| match event {
+                Event::Lease { session, .. } => session.generation >= generation,
+                _ => true,
+            })
+            .collect();
+        let from = match edited {
+            true => open.status.head,
+            false => head,
+        };
+        self.reopen_joined(replica, client, session, from);
+        let Some(open) = self.open.get_mut(&replica) else {
+            return;
+        };
+        let module = open.module;
+        open.replay.extend(early.iter().cloned());
+        self.modules.send(module, early);
+        let mut heads = vec![head, H::known_head(shared, block)];
+        heads.dedup();
+        for moved in heads.into_iter().flatten() {
+            if Some(moved) != from {
+                self.moved(replica, moved, false);
+            }
+        }
+        self.close_if_asked(replica);
+    }
+
+    fn reopen_joined(
+        &mut self,
+        replica: ReplicaId,
+        client: ClientId,
+        session: SessionState,
+        head: Option<CommitId>,
+    ) {
+        let Some(open) = self.open.get_mut(&replica) else {
+            return;
+        };
+        open.client = client;
+        open.session = session.clone();
+        open.epoch += 1;
+        open.publishing = 0;
+        open.moved.clear();
+        open.published.clear();
+        open.status.head = head;
+        open.replay.retain(local_edit);
+        let module = open.module;
+        let mut events = vec![Event::Open {
+            replica,
+            block: open.block,
+            content_type: open.content_type,
+            organization: open.organization,
+            client,
+            tag: self.modules.tag(module),
+            head,
+            session,
+        }];
+        for (editor, editable) in &open.editors {
+            events.push(Event::Attach {
+                replica,
+                editor: *editor,
+                editable: *editable,
+            });
+        }
+        events.extend(open.replay.iter().cloned());
+        events.extend(asked_of(&self.asked, replica));
+        self.modules.send(module, events);
+    }
+
+    fn make_up_session(&mut self, replica: ReplicaId) {
+        let Some(open) = self.open.get_mut(&replica) else {
+            return;
+        };
+        open.made_up = true;
+        open.session = SessionState {
+            generation: open.session.generation + 1,
+            owner: Some(open.client),
+            participants: vec![open.client],
+            clean_at: None,
+        };
+        self.modules.send(
+            open.module,
+            vec![Event::Lease {
+                replica,
+                session: open.session.clone(),
+                resynchronize: false,
+            }],
+        );
+    }
+
+    fn close_if_asked(&mut self, replica: ReplicaId) {
+        let Some(open) = self.open.get(&replica) else {
+            return;
+        };
+        if open.closing && !open.joining {
+            let module = open.module;
+            self.modules.send(module, vec![Event::Close { replica }]);
         }
     }
 
@@ -426,7 +713,7 @@ impl<H: Host> Replicas<H> {
         let Some(open) = self.open.get_mut(&replica) else {
             return;
         };
-        if std::mem::replace(&mut open.closing, true) {
+        if std::mem::replace(&mut open.closing, true) || open.joining {
             return;
         }
         let module = open.module;
@@ -441,7 +728,7 @@ impl<H: Host> Replicas<H> {
             return;
         };
         open.reopen = true;
-        if std::mem::replace(&mut open.closing, true) {
+        if std::mem::replace(&mut open.closing, true) || open.joining {
             return;
         }
         let module = open.module;
@@ -520,6 +807,15 @@ impl<H: Host> Replicas<H> {
     }
 
     pub async fn seal(&mut self, ctx: Ctx<'_, H>, block: Uuid, force: bool) {
+        if let Some((replica, open)) = self.replica_of(block)
+            && open.joining
+            && open.session.owner == Some(JOINING_OWNER)
+        {
+            if open.status.clean {
+                return;
+            }
+            self.make_up_session(replica);
+        }
         self.request(ctx, block, |replica| Request::Seal { replica, force })
             .await;
     }
@@ -723,13 +1019,16 @@ impl<H: Host> Replicas<H> {
                 let Some(open) = self.open.get_mut(&replica) else {
                     return;
                 };
-                open.session = state.clone();
-                let module = open.module;
                 let event = Event::Lease {
                     replica,
                     session: state.clone(),
                     resynchronize: false,
                 };
+                if open.joining {
+                    return open.early.push(event);
+                }
+                open.session = state.clone();
+                let module = open.module;
                 open.replay.push(event.clone());
                 self.modules.send(module, vec![event]);
             }
@@ -754,13 +1053,28 @@ impl<H: Host> Replicas<H> {
                     from: Endpoint::Peer(*from),
                     bytes,
                 };
+                if open.joining {
+                    return open.early.push(event);
+                }
                 open.replay.push(event.clone());
                 self.modules.send(module, vec![event]);
             }
             ServerMessage::HeadChanged { block, head, .. } => {
-                if let Some(replica) = self.blocks.get(block).copied() {
-                    self.moved(replica, *head, false);
+                let Some(replica) = self.blocks.get(block).copied() else {
+                    return;
+                };
+                if let Some(open) = self.open.get_mut(&replica)
+                    && open.joining
+                {
+                    return open.early.push(Event::Head {
+                        replica,
+                        event: HeadEvent::Moved {
+                            head: *head,
+                            from_this_device: false,
+                        },
+                    });
                 }
+                self.moved(replica, *head, false);
             }
             _ => {}
         }
@@ -770,6 +1084,7 @@ impl<H: Host> Replicas<H> {
         for (replica, block) in self
             .open
             .iter()
+            .filter(|(_, open)| !open.joining)
             .map(|(replica, open)| (*replica, open.block))
             .collect::<Vec<_>>()
         {
@@ -834,25 +1149,26 @@ impl<H: Host> Replicas<H> {
             }
             Io::Relayed => self.relaying -= 1,
             Io::Sealed => {}
+            Io::Joined {
+                replica,
+                block,
+                joined,
+            } => self.joined(shared, replica, block, *joined),
         }
     }
 
     pub fn disconnected(&mut self) {
-        for (replica, open) in &mut self.open {
-            open.session = SessionState {
-                generation: open.session.generation + 1,
-                owner: Some(open.client),
-                participants: vec![open.client],
-                clean_at: None,
+        let replicas: Vec<ReplicaId> = self.open.keys().copied().collect();
+        for replica in replicas {
+            let Some(open) = self.open.get_mut(&replica) else {
+                continue;
             };
-            self.modules.send(
-                open.module,
-                vec![Event::Lease {
-                    replica: *replica,
-                    session: open.session.clone(),
-                    resynchronize: false,
-                }],
-            );
+            let joining = std::mem::replace(&mut open.joining, false);
+            open.early.clear();
+            self.make_up_session(replica);
+            if joining {
+                self.close_if_asked(replica);
+            }
         }
     }
 
@@ -879,46 +1195,18 @@ impl<H: Host> Replicas<H> {
             let Some(open) = self.open.get_mut(&replica) else {
                 continue;
             };
-            open.client = client;
-            open.session = session.clone();
-            open.epoch += 1;
-            open.publishing = 0;
-            open.moved.clear();
-            open.published.clear();
-            open.replay.retain(|event| {
-                matches!(
-                    event,
-                    Event::Message {
-                        from: Endpoint::Editor(_),
-                        ..
-                    }
-                )
-            });
-            let module = open.module;
-            let mut events = vec![Event::Open {
-                replica,
-                block,
-                content_type: open.content_type,
-                organization: open.organization,
-                client,
-                tag: self.modules.tag(module),
-                head: open.status.head,
-                session,
-            }];
-            for (editor, editable) in &open.editors {
-                events.push(Event::Attach {
-                    replica,
-                    editor: *editor,
-                    editable: *editable,
-                });
-            }
-            events.extend(open.replay.iter().cloned());
+            let joining = std::mem::replace(&mut open.joining, false);
+            open.made_up = false;
+            open.early.clear();
             let known = open.status.head;
-            self.modules.send(module, events);
+            self.reopen_joined(replica, client, session, known);
             if let Some(head) = head
                 && Some(head) != known
             {
                 self.moved(replica, head, false);
+            }
+            if joining {
+                self.close_if_asked(replica);
             }
         }
     }
@@ -948,10 +1236,11 @@ impl<H: Host> Replicas<H> {
                 });
             }
             events.extend(open.replay.iter().cloned());
+            events.extend(asked_of(&self.asked, *replica));
             open.publishing = 0;
             open.moved.clear();
             self.modules.send(module, events);
-            if open.closing {
+            if open.closing && !open.joining {
                 self.modules
                     .send(module, vec![Event::Close { replica: *replica }]);
             }
@@ -968,9 +1257,13 @@ impl<H: Host> Replicas<H> {
             open.get(&replica)
                 .map(|open| (open.block, open.content_type, open.module == module))
         };
+        let made_up = |replica: ReplicaId, open: &HashMap<ReplicaId, Open>| {
+            open.get(&replica).is_some_and(|open| open.made_up)
+        };
         match command {
             Command::Hello { .. } | Command::WakeAt { .. } => false,
             Command::Reply { id, reply } => {
+                self.asked.remove(&id);
                 if let Some(answer) = self.replies.remove(&id) {
                     let _ = answer.send(reply);
                     return false;
@@ -988,6 +1281,10 @@ impl<H: Host> Replicas<H> {
                 let Some((block, _, true)) = replica_of(replica, &self.open) else {
                     return false;
                 };
+                let to_peers = !matches!(to, Recipients::One(Endpoint::Editor(_) | Endpoint::Host));
+                if to_peers && made_up(replica, &self.open) {
+                    return false;
+                }
                 match to {
                     Recipients::One(Endpoint::Editor(editor)) => {
                         H::to_editor(shared, block, editor, bytes)
@@ -1147,11 +1444,12 @@ impl<H: Host> Replicas<H> {
                     return false;
                 };
                 let epoch = self.open.get(&replica).map_or(0, |open| open.epoch);
+                let joining = self.open.get(&replica).is_some_and(|open| open.joining);
                 let peer = Arc::clone(peer);
                 let io = self.io.clone();
                 H::spawn(async move {
                     let resumed = async {
-                        let remote = match peer.is_attached() {
+                        let remote = match peer.is_attached() && !joining {
                             true => peer.remote_head(block).await?,
                             false => match peer.local_head(block) {
                                 Some(head) => Some(head),
@@ -1188,7 +1486,7 @@ impl<H: Host> Replicas<H> {
                 let Some((block, _, true)) = replica_of(replica, &self.open) else {
                     return false;
                 };
-                if !peer.is_attached() {
+                if !peer.is_attached() || made_up(replica, &self.open) {
                     return false;
                 }
                 match peer.claim_ownership(block, generation).await {
@@ -1217,7 +1515,7 @@ impl<H: Host> Replicas<H> {
                 let Some((block, _, true)) = replica_of(replica, &self.open) else {
                     return false;
                 };
-                if !peer.is_attached() {
+                if !peer.is_attached() || made_up(replica, &self.open) {
                     return false;
                 }
                 if let Err(error) = peer.heartbeat(block, generation, clean_at).await
@@ -1231,9 +1529,12 @@ impl<H: Host> Replicas<H> {
                 let Some(open) = self.open.remove(&replica) else {
                     return false;
                 };
+                self.asked.retain(|_, (to, _)| *to != replica);
                 self.blocks.remove(&open.block);
-                let _ = peer.leave_session(open.block).await;
-                let _ = peer.unwatch(open.block).await;
+                if !open.joining {
+                    let _ = peer.leave_session(open.block).await;
+                    let _ = peer.unwatch(open.block).await;
+                }
                 if open.reopen {
                     self.open((peer, shared), open.block, open.content_type, open.reader)
                         .await;
@@ -1337,12 +1638,10 @@ impl<H: Host> Replicas<H> {
                 true
             }
             Command::Error { replica, message } => {
-                let name = self
-                    .open
-                    .get(&replica)
-                    .map(|open| open.block.to_string())
-                    .unwrap_or_else(|| "a type module".to_owned());
-                H::report(shared, format!("{name}: {message}"));
+                let block = self.open.get(&replica).map(|open| open.block);
+                let name =
+                    block.map_or_else(|| "a type module".to_owned(), |block| block.to_string());
+                H::report(shared, block, format!("{name}: {message}"));
                 false
             }
         }

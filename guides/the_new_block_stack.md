@@ -392,11 +392,16 @@ stopped forwarding) and the transport never says so:
   timed out while their answers keep coming. `ClientError::is_unreachable`
   covers it and `Disconnected` both.
 - After `PING_INTERVAL` (15 s) with no frame of any kind from the server, it
-  sends `ClientMessage::Ping`, which the server answers with `Pong` inline. A
-  browser cannot send websocket pings, so this is a protocol message, and
-  since the server answers requests in order, any frame proves it is alive.
+  sends `ClientMessage::Ping`. A browser cannot send websocket pings, so this
+  is a protocol message, and any frame proves the server is alive. The server
+  reads frames in a task of its own (`serve_socket`) and answers a `Ping` (and
+  a websocket ping) at once, ahead of the requests queued for its answering
+  loop, so a slow request does not make the client think the server is gone.
   `PONG_WAIT` (20 s) later with still nothing heard, the connection closes
-  itself, and everything waiting on it sees a disconnect.
+  itself, and everything waiting on it sees a disconnect. Silence and request
+  deadlines are only judged when the timer fires and no frame is waiting to be
+  read, so a client whose thread was busy reads what arrived before deciding,
+  and time spent writing a large frame does not count as silence.
 - Each deadline is read from a `be_client::Clock`, passed to
   `Connection::connect`: `Clock::real()` everywhere but tests, which pass
   `Clock::manual()` and `advance` it, so none of this needs sleeping in a test.
@@ -1242,8 +1247,13 @@ swapped for the new ones, and each block is created and given its bytes as its f
 reply, `BlocksImported`, names the outermost block. The tree is in the mirror
 at once and uploads in the background, as a task beside the worker's loop
 (`worker/uploads.rs`), so commands for other blocks are not held up.
-`Peer::import_blocks` mints every block's keys and writes its commit locally,
-needing the server only for the scope of the folder it goes into, then sends
+`Peer::import_blocks` is `queue_import` then `upload_import`. `queue_import`
+mints every block's keys and writes its commit locally, needing the server only
+for the scope of the folder it goes into, and keeps each block in the outbox
+(`Op::Create` and `Op::Publish`, with the commit as its local head), so an
+import made offline or cut short by a quit is sent by the next drain;
+`upload_import` then removes each block's entries once the server answers, and
+sends
 the objects as `PutObjects` and every create and publish without waiting for
 the ones before: a tree costs a few round trips, not a few per block. `be
 upload` and the pages of `be import` go through it too. A
@@ -1607,7 +1617,7 @@ The peer writes out what its sessions hold before it goes away: `flush()` seals
 and waits, `stop()` does the same and then joins the worker, and the close
 handler and every organization change go through one of them, because a session
 that is merely dropped loses everything since the last autosave
-(`status().unsealed` is what says whether anything is outstanding). The host
+(`status().unsaved` is what says whether anything would be lost). The host
 refuses an `Operate`, a `ReplaceContent` and a graph command for a block the
 account may only read: the plugin holds its own edits behind `editable()`, but
 the host does not trust it to, so `Instances::editable` asks the mirror's
@@ -1626,8 +1636,22 @@ down the worker keeps serving from the same `Peer` (the session loop holds a
 `Line`, `Up` with the connection's events or `Down` with the next attempt as a
 future), and every open replica is handed a session it owns
 (`Replicas::disconnected`), so a follower takes over what it had not confirmed
-and seals it locally. A block opened while down opens from its local head with
-`OFFLINE_CLIENT` owning a made-up session; the host answers `Publish` with
+and seals it locally. A block this device already knows does not wait long for
+its session while connected: if `join_session`, `watch` and `remote_head` take
+longer than `EARLY_OPEN` (250 ms on the modules' clock), the replica starts
+from the local head as a follower of a placeholder owner (`JOINING_OWNER`, so it
+shows the content and holds edits without relaying them) and the join goes on
+in a spawned task (`Io::Joined`). When it lands the host opens the replica again
+with the real client and session, replaying the editor messages and host
+`Change` requests since it was clean (as reconnecting and restarting a module
+do), resending requests it had not answered, then the session changes, relays
+and heads heard meanwhile, and moves it to the remote head; a close asked for
+meanwhile waits for that. A seal asked of a
+joining replica with unconfirmed edits first hands it a session it owns, so a
+flush or a stop never waits for the join, and a join that fails for a reason
+other than the connection leaves it on that session. A block opened while down opens from its local head with
+`OFFLINE_CLIENT` owning a made-up session (`Open::made_up`, set also while
+joining); the host answers `Publish` with
 `Peer::seal_encoded` (a local commit in the outbox) and reports it as the new
 head, `Resume` treats the local head as the remote one, and heartbeats, claims
 and relays are skipped. A publish whose connection dies after the commit was
@@ -1649,9 +1673,13 @@ commits first.
 `be::status()` reports `connected`, `syncing` (the outbox is being drained),
 `waiting` (outbox operations: local commits and queued graph changes not yet on
 the server), `unsent` (blocks set aside in the unsent area), `conflicts` and
-`conflicted` (blocks a merge left conflicting), and `unsealed`, which adds
-replicas with unsealed edits, `waiting`, queued commands and uploads, so the
-close and account-switch guards count anything not yet on the server.
+`conflicted` (blocks a merge left conflicting), `kept` (outbox operations, safe
+on this device), `connecting` (no connection attempt has resolved yet), and
+`unsaved`: replicas with unsealed edits, queued commands and imports not yet in
+the outbox, which is what closing or switching would lose. The close and
+organization-switch guards flush and then ask only while `unsaved` is above
+zero; what waits in the outbox is kept and sent later. A type module's error
+(`Host::report` with its block) clears once that block saves again.
 
 ### Reaching the server
 
@@ -2042,10 +2070,9 @@ pixel art export regenerate this way.
   a new child its parent has not listed yet.
 - A tab that closes leaves whatever a session held since its last autosave
   behind: `flush()` cannot wait there.
-- Uploads (`Command::Import`) wait for a connection; they are not queued in the
-  refs database, so an import still uploading when the app quits is lost.
-- Opening a block while connected still joins the session before `Open`, rather
-  than opening from the local head and joining in the background.
+- While a request waits on a server that has stopped answering, the worker's
+  loop waits with it (listings, summaries), so a block opened from its local
+  head shows only once the connection is declared lost.
 - A move into another scope lists the moved subtree one level at a time
   (`ListChildren`), and the old data keys of a block this device cannot open
   are not rewrapped, so that block's history stays closed to its new scope.
