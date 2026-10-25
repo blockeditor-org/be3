@@ -3,7 +3,7 @@ use super::*;
 #[tokio::test]
 async fn an_edited_page_keeps_what_someone_else_changed_meanwhile() {
     let harness = Harness::start().await;
-    let tracker = Tracker::new(harness.owner().await);
+    let tracker = Tracker::new(harness.owner().await, sources());
     let board = board(&tracker).await;
     let made = tracker
         .create(

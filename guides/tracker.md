@@ -158,13 +158,22 @@ them in the handoff.
   to the agent (the stack guide's Keys), and `be` opens that key with the
   phrase, refusing a phrase that is not the account's. Removing the agent
   deletes its account, its tokens and what was sealed to it.
-- **Writes.** `be` opens the block, applies the same `Edit` the editor would
-  and publishes against the head it read, retrying on the new head when the
-  publish is rejected, so it never overwrites a save it did not see. An editor
-  with the block open takes the new head the way it takes any outside publish,
-  merging it with what it has not saved yet. A text write changes
-  only the span that differs. Deleting a row also removes the links to it from
-  the rows of its own database.
+- **Writes.** `be` reads the block's head bytes, makes the new content and
+  publishes it against the head it read (`Tracker::edit`), retrying on the new
+  head when the publish is rejected, so it never overwrites a save it did not
+  see. Every publish takes its references and derived metadata from the type
+  module's `Describe`. An editor with the block open takes the new head the way
+  it takes any outside publish, merging it with what it has not saved yet.
+  Only databases, their schemas and views are edited as types: `be` links the
+  database plugin's types crate (`database_types`) the way the database editor
+  does, decodes rows, applies the same `Edit` the editor would and encodes
+  them, since a tracker is an editor of rows with a command line rather than a
+  host. Everything else goes through the type module as bytes: a page is read
+  with `ToFile` and written with `Apply` of `Change::FromFile` (a text write
+  changes only the span that differs), and a folder or workspace lists a child
+  with `Change::Child`. The modules start on first use
+  (`Tracker::types`), so `be ls` never compiles one. Deleting a row also
+  removes the links to it from the rows of its own database.
 - **GitHub.** `.github/workflows/tracker.yml` runs `be DATABASE pull-request`
   on the event, with the database's full id from the `BE3_TRACKER_DATABASE`
   variable: ids with that database's prefix in the branch, title or body move to `BE3_REVIEW_STATUS` (In

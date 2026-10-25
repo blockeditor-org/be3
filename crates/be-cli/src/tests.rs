@@ -1,13 +1,13 @@
 use std::path::PathBuf;
 
-use be_block::database::{Database, DatabaseContent};
-use be_block::database_schema::{
-    DatabaseFieldType, DatabaseRelationOptions, DatabaseSchema, DatabaseSchemaContent,
-};
 use be_block::{BlockContent, BlockMetadata};
 use be_client::{Credentials, Peer, PeerConfig};
 use be_graph::BlockParent;
 use be_store::MemoryStore;
+use database_types::database::{Database, DatabaseContent};
+use database_types::database_schema::{
+    DatabaseFieldType, DatabaseRelationOptions, DatabaseSchema, DatabaseSchemaContent,
+};
 use tokio::{net::TcpListener, sync::oneshot};
 use uuid::Uuid;
 
@@ -37,7 +37,36 @@ mod blocks_are_listed_and_found_by_short_id_or_name;
 mod malformed_agent_credentials_do_not_disclose_secrets;
 mod proxy_credentials_do_not_need_an_account_token;
 mod rows_are_added_filtered_changed_and_given_pages;
+mod the_plugin_bundle_holds_each_manifest_and_its_type_module;
 mod two_databases_may_share_a_prefix_and_each_resolves_its_own_rows;
+
+fn manifests() {
+    if !crate::plugins::installed().is_empty() {
+        return;
+    }
+    let editors = std::env::var_os("EDITOR_MANIFESTS")
+        .map(PathBuf::from)
+        .expect("EDITOR_MANIFESTS names the editors' manifests");
+    let mut plugins = Vec::new();
+    for entry in std::fs::read_dir(&editors).expect("EDITOR_MANIFESTS is a directory") {
+        let path = entry
+            .expect("the entry is readable")
+            .path()
+            .join("manifest.json");
+        let document = std::fs::read_to_string(&path).expect("the manifest is readable");
+        plugins.push(crate::plugins::Plugin {
+            manifest: block_plugin_api::manifest_from_json(&document)
+                .unwrap_or_else(|error| panic!("{}: {error}", path.display())),
+            module: &[],
+        });
+    }
+    crate::plugins::install(plugins);
+}
+
+fn sources() -> crate::tracker::Sources {
+    manifests();
+    Box::new(first_party_types::sources)
+}
 
 struct Harness {
     url: String,
@@ -49,6 +78,7 @@ struct Harness {
 impl Harness {
     async fn start() -> Self {
         build_id::install("test");
+        manifests();
         let directory = std::env::temp_dir().join(format!("be-cli-test-{}", Uuid::new_v4()));
         let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
         let address = listener.local_addr().unwrap();
@@ -157,7 +187,7 @@ async fn workspace(peer: &Peer<MemoryStore>, name: &str) -> Uuid {
     let id = Uuid::now_v7();
     peer.create_block(
         id,
-        be_block::WorkspaceContent::CONTENT_TYPE,
+        workspace_ui_types::WorkspaceContent::CONTENT_TYPE,
         BlockParent::Root,
         &BlockMetadata::named(name),
     )
@@ -190,10 +220,18 @@ async fn database(
     }
     let database = Uuid::new_v4();
     let schema_id = Uuid::new_v4();
+    let parent = peer
+        .children(BlockParent::Root)
+        .await
+        .unwrap()
+        .first()
+        .map_or(BlockParent::Root, |workspace| {
+            BlockParent::Block(workspace.id)
+        });
     peer.create_block(
         database,
         DatabaseContent::CONTENT_TYPE,
-        BlockParent::Root,
+        parent,
         &BlockMetadata::named(name),
     )
     .await

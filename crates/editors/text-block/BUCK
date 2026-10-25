@@ -2,4 +2,5 @@ load("@root//buck/wasm:defs.bzl", "editor")
 
 editor(
     module = "text_block",
+    types = "//crates/editors/text-block/types:module",
 )

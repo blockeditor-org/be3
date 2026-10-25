@@ -1,10 +1,10 @@
-use block_editor_beui::be_block::CanvasContent;
-use block_editor_beui::be_block::canvas::Canvas;
-use block_editor_beui::be_block::canvas::{
+use block_editor_beui::beui::{Vec2, vec2};
+use infinite_canvas_types::Canvas;
+use infinite_canvas_types::CanvasContent;
+use infinite_canvas_types::{
     CanvasEntity, CanvasPoint, CanvasShape, CanvasTextAlign, CanvasTextSize, CanvasTextStyle,
     CanvasTextVerticalAlign, CanvasTextWeight, CanvasTransform,
 };
-use block_editor_beui::beui::{Vec2, vec2};
 
 const DEFAULT_SLIDE_SIZE: Vec2 = vec2(960.0, 540.0);
 

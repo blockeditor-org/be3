@@ -31,11 +31,11 @@ fn dragging_the_middle_of_a_line_bends_it_at_a_new_point() {
     );
     arrow.style.end_arrowhead = CanvasArrowhead::Arrow;
     arrow.bindings = [
-        Some(block_editor_beui::be_block::canvas::CanvasBinding {
+        Some(infinite_canvas_types::CanvasBinding {
             entity: from.id,
             anchor: CanvasPoint::default(),
         }),
-        Some(block_editor_beui::be_block::canvas::CanvasBinding {
+        Some(infinite_canvas_types::CanvasBinding {
             entity: to.id,
             anchor: CanvasPoint::default(),
         }),

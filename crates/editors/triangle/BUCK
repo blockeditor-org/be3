@@ -2,4 +2,5 @@ load("@root//buck/wasm:defs.bzl", "editor")
 
 editor(
     module = "triangle",
+    types = "//crates/editors/triangle/types:module",
 )

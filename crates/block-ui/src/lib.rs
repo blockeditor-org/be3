@@ -30,6 +30,16 @@ pub trait BlockTypes {
     fn child_edits(&self, _block_type: Uuid) -> ChildEdits {
         ChildEdits::default()
     }
+    fn press(&self, _block_type: Uuid) -> Press {
+        Press::Open
+    }
+}
+
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+pub enum Press {
+    #[default]
+    Open,
+    Zoom,
 }
 
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
@@ -44,6 +54,8 @@ pub struct BlockTypeEntry {
     pub color: Option<[u8; 3]>,
     pub icon: Option<Glyph>,
     pub child_edits: ChildEdits,
+    pub press: Press,
+    pub plain_file: bool,
 }
 
 #[derive(Clone, Copy, Debug, Default, Eq, Hash, PartialEq)]
@@ -87,9 +99,7 @@ impl EditorEntry {
         match self.edits {
             Edits::Type(edited) => edited == block_type,
             Edits::Any => true,
-            Edits::Nothing => {
-                block_type == <be_block::EditorViewContent as be_block::BlockContent>::CONTENT_TYPE
-            }
+            Edits::Nothing => false,
         }
     }
 }
@@ -125,6 +135,12 @@ impl BlockCatalog {
             .iter()
             .filter(|editor| editor.edits == Edits::Any);
         specific.chain(any).collect()
+    }
+
+    pub fn plain_file(&self, block_type: Uuid) -> bool {
+        self.types
+            .get(&block_type)
+            .is_some_and(|entry| entry.plain_file)
     }
 
     pub fn editor(&self, editor: Uuid) -> Option<&EditorEntry> {
@@ -171,6 +187,12 @@ impl BlockTypes for BlockCatalog {
         self.types
             .get(&block_type)
             .map_or_else(ChildEdits::default, |entry| entry.child_edits)
+    }
+
+    fn press(&self, block_type: Uuid) -> Press {
+        self.types
+            .get(&block_type)
+            .map_or(Press::Open, |entry| entry.press)
     }
 }
 #[derive(Clone, Copy, Debug, Default, Eq, Hash, PartialEq)]

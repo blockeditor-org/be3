@@ -64,6 +64,9 @@ pub const EXECUTABLE: MetaKey<bool> =
 pub const DELETED_FROM: MetaKey<DeletedFrom> =
     MetaKey::defined(0x6be3_6d65_7461_4400_8a1e_6465_6c66_0001, "deleted_from");
 
+pub const VIEW_EDITOR: MetaKey<Uuid> =
+    MetaKey::defined(0x6be3_6d65_7461_5600_8a1e_7669_6577_0001, "view_editor");
+
 const DEFINED: &str = "defined";
 const DERIVED: &str = "derived";
 const UUID_TAG: u64 = 37;
@@ -155,6 +158,13 @@ impl BlockMetadata {
     pub fn named(name: impl Into<String>) -> Self {
         let mut metadata = Self::default();
         metadata.insert(&NAME, &name.into());
+        metadata
+    }
+
+    pub fn view(editor: Uuid, name: Option<String>) -> Self {
+        let mut metadata = Self::default();
+        metadata.put(&NAME, name.as_ref());
+        metadata.insert(&VIEW_EDITOR, &editor);
         metadata
     }
 

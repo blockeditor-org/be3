@@ -2,4 +2,5 @@ load("@root//buck/wasm:defs.bzl", "editor")
 
 editor(
     module = "checklist",
+    types = "//crates/editors/checklist/types:module",
 )

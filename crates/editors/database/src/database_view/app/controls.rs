@@ -1,10 +1,10 @@
-use block_editor_beui::be_block::database_schema::DatabaseField;
 use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::context_menu::menu_style;
 use block_editor_beui::beui::styled::*;
 use block_editor_beui::beui::unstyled::{self, ButtonHandle, MenuButtonHandle, MenuItem};
 use block_editor_beui::database::{ChoiceMark, choice_glyph};
+use database_types::database_schema::DatabaseField;
 use uuid::Uuid;
 
 pub const MARK: TextSize = TextSize::Sm;

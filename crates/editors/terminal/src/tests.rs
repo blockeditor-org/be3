@@ -1,10 +1,8 @@
 use block_editor_beui::be_block::presence::PresenceKind;
-use block_editor_beui::be_block::terminal::{
-    TerminalContent, TerminalHost, TerminalMessage, TerminalSize,
-};
 use block_editor_beui::beui::{Key, Modifiers, Vec2};
 use block_editor_beui::{EditorHost, OwnedEditor, PeerPresence};
 use block_ui_test::BeuiTest;
+use terminal_types::{TerminalContent, TerminalHost, TerminalMessage, TerminalSize};
 use uuid::Uuid;
 
 use crate::app::{TerminalApp, setup_command};

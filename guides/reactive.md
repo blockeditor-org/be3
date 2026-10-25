@@ -313,7 +313,8 @@ with `field` rather than through `root()`, which decodes the whole document. A w
 Keep a projection cheap and pure; it must not operate. Write through
 `ContentProjection::operate`, which applies the operation to what the view
 sees straight away, so a local edit is visible in the frame that made it, and
-queues it for the host. It is already held behind whether the host says the
+queues it for the block's replica (a `FromEditor::Operate` frame; the projection is
+`block_type_guest::editor::EditorMirror` plus the watchers). It is already held behind whether the host says the
 block may be edited, and dropped until the host has sent the content once, since
 an edit made against content that has not arrived would land in the wrong place.
 `read` answers the content outside a projection, `Err(Pending::Loading)` until

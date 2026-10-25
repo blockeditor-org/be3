@@ -1,6 +1,6 @@
-use block_editor_beui::be_block::GameModuleContent;
 use block_editor_beui::{Editor, EditorHost, OwnedEditor, PickedFile};
 use block_ui_test::BeuiTest;
+use deterministic_game_types::GameModuleFile;
 use uuid::Uuid;
 
 use crate::game_module::app::{GameModuleApp, imported};
@@ -19,7 +19,7 @@ fn editor(module: Vec<u8>) -> (BeuiTest<GameModuleApp>, Editor) {
     let owner = OwnedEditor::new(host.clone(), block);
     let editor = *owner;
     let mut test = BeuiTest::new(owner);
-    test.hold(None, GameModuleContent::from_file("game.wasm", module));
+    test.hold(None, GameModuleFile::from_file("game.wasm", module));
     test.run();
     (test, editor)
 }

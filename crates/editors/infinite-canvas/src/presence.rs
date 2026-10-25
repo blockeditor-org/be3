@@ -1,6 +1,6 @@
 use block_editor_beui::SharedCaret;
-use block_editor_beui::be_block::canvas::CanvasPoint;
 use block_editor_beui::be_block::presence::{PresenceColor, PresenceKind};
+use infinite_canvas_types::CanvasPoint;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 

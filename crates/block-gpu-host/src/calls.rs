@@ -229,7 +229,7 @@ pub fn host_send(guest: &mut impl Guest, pointer: u32, length: u32) {
 
 pub fn host_receive(guest: &mut impl Guest, pointer: u32, capacity: u32) -> i64 {
     let Some(needed) = guest.transport().inbox.front().map(Vec::len) else {
-        return abi::NO_MESSAGE;
+        return block_guest_abi::NO_MESSAGE;
     };
     if needed as u32 > capacity {
         return needed as i64;

@@ -11,6 +11,8 @@ be-commit = { path = "../be-commit" }
 be-graph = { path = "../be-graph" }
 be-protocol = { path = "../be-protocol" }
 be-store = { path = "../be-store" }
+be-types-host = { path = "../be-types-host" }
+block-type-api = { path = "../block-type-api" }
 be-vcs = { path = "../be-vcs" }
 futures-util = "0.3"
 ignore = "0.4"
@@ -21,10 +23,15 @@ tokio = { version = "1", features = ["macros", "rt-multi-thread", "sync", "time"
 uuid = { version = "1", features = ["serde", "v4", "v7"] }
 
 [dev-dependencies]
+first-party-types = { path = "../first-party-types" }
 be-keys = { path = "../be-keys" }
 be-server = { path = "../be-server" }
 build-id = { path = "../build-id" }
+image-block-types = { path = "../editors/image-block/types" }
+infinite-canvas-types = { path = "../editors/infinite-canvas/types" }
+text-block-types = { path = "../editors/text-block/types" }
 tokio = { version = "1", features = ["macros", "net", "rt-multi-thread", "sync"] }
+workspace-ui-types = { path = "../editors/workspace-ui/types" }
 
 [lints]
 workspace = true

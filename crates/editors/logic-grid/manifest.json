@@ -54,5 +54,35 @@
       ]
     }
   },
+  "block_types": {
+    "grid": {
+      "id": "6c6f6769-632d-6772-6964-2d626c6b0101",
+      "display_name": "Logic Grid",
+      "icon": "\ue425",
+      "color": [44, 158, 128],
+      "module": "logic_grid_types.wasm"
+    },
+    "game": {
+      "id": "6c6f6769-632d-6761-6d65-2d626c6b0101",
+      "display_name": "Logic Game",
+      "icon": "\ue0df",
+      "color": [155, 112, 211],
+      "module": "logic_grid_types.wasm"
+    },
+    "hotbar": {
+      "id": "6c6f6769-632d-686f-7462-617201010101",
+      "display_name": "Hotbar",
+      "icon": "\ue4fa",
+      "color": [211, 126, 59],
+      "module": "logic_grid_types.wasm"
+    },
+    "compiled": {
+      "id": "636f6d70-696c-6564-2d6c-6f6769630101",
+      "display_name": "Compiled Logic",
+      "icon": "\ue0a9",
+      "color": [203, 91, 125],
+      "module": "logic_grid_types.wasm"
+    }
+  },
   "entry_point": "logic_grid.wasm"
 }

@@ -1,5 +1,6 @@
-use block_editor_beui::be_block::AudioContent;
 use block_editor_beui::beui::icons::{ICON_FILE_HEADPHONE, ICON_PAUSE, ICON_PLAY};
+use std::cell::Cell;
+use std::rc::Rc;
 use std::time::Duration;
 
 use block_editor_beui::beui::reactive::*;
@@ -8,6 +9,7 @@ use block_editor_beui::beui::{NodeId, TextAlign};
 use block_editor_beui::{AudioStatus, Editor, FileChooser, Sidebar};
 
 use super::{decode, filter, format_micros};
+use audio_block_types::AudioContent;
 
 const PADDING: f32 = 12.0;
 const SPACING: f32 = 8.0;
@@ -80,9 +82,34 @@ pub fn AudioView(editor: Editor) -> NodeId {
     let reason =
         create_memo(move || status.with(|status| status.error.clone().unwrap_or_default()));
 
-    let played = editor.host();
-    let block = editor.block_id();
-    let toggle = move || played.play_audio(block);
+    let host = editor.host();
+    let loaded = Rc::new(Cell::new(None::<u64>));
+    create_effect({
+        let host = host.clone();
+        let loaded = Rc::clone(&loaded);
+        move || {
+            let revision = audio.revision().ok();
+            if loaded.get().is_some_and(|held| Some(held) != revision) {
+                loaded.set(None);
+                host.reset_audio();
+            }
+        }
+    });
+    let toggle = move || {
+        let Ok(revision) = audio.revision() else {
+            return;
+        };
+        if loaded.get() != Some(revision) {
+            let Ok((media_type, bytes)) =
+                audio.read(|audio| (audio.header().media_type.clone(), audio.data().to_vec()))
+            else {
+                return;
+            };
+            host.load_audio(media_type, bytes);
+            loaded.set(Some(revision));
+        }
+        host.play_audio();
+    };
 
     let chrome = editor.chrome_shown();
     let content = NodeRef::new();
@@ -130,12 +157,10 @@ pub fn AudioView(editor: Editor) -> NodeId {
 #[component]
 fn AudioPanel(editor: Editor) -> NodeId {
     let chooser = FileChooser::new(filter(), decode);
-    let host = editor.host();
     let block = editor.block_id();
     chooser.on_chosen(move |chooser| {
         if let Some(replacement) = chooser.take() {
             editor.replace_content(block, &replacement);
-            host.reset_audio(block);
         }
     });
 

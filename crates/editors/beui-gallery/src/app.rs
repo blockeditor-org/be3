@@ -1,5 +1,5 @@
 use beui_demo::Demo;
-use block_editor_beui::be_block::BeuiDemoContent;
+use beui_gallery_types::BeuiDemoContent;
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::Root;
 use block_editor_beui::{Creation, Editor};

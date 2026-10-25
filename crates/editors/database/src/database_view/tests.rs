@@ -1,21 +1,17 @@
 use std::{cmp::Ordering, collections::HashMap};
 
 use block_editor_beui::be_block::Edit;
-use block_editor_beui::be_block::database::{
-    Database, DatabaseColor, DatabaseContent, DatabaseValue,
-};
-use block_editor_beui::be_block::database_schema::{
-    DatabaseField, DatabaseFieldType, DatabaseSchema, DatabaseSchemaContent,
-};
-use block_editor_beui::be_block::database_view::{
-    DatabaseView, DatabaseViewContent, DatabaseViewKind,
-};
 use block_editor_beui::beui::Key;
 use block_editor_beui::{
     BeuiApp, Creation, EditorHost, OwnedEditor, block_ui::BlockLabel,
     database::DatabaseBlockPickRequest,
 };
 use block_ui_test::BeuiTest;
+use database_types::database::{Database, DatabaseColor, DatabaseContent, DatabaseValue};
+use database_types::database_schema::{
+    DatabaseField, DatabaseFieldType, DatabaseSchema, DatabaseSchemaContent,
+};
+use database_types::database_view::{DatabaseView, DatabaseViewContent, DatabaseViewKind};
 use uuid::Uuid;
 
 use crate::database_view::app::{DatabaseViewApp, value_block_filter};
@@ -161,7 +157,7 @@ impl Tracker {
 }
 
 fn tracker() -> Tracker {
-    use block_editor_beui::be_block::database_schema::{ChoiceColor, ChoiceIcon};
+    use database_types::database_schema::{ChoiceColor, ChoiceIcon};
 
     let mut fixture = editor(&[
         ("Title", DatabaseFieldType::String),

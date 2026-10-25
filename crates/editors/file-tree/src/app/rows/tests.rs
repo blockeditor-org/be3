@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use block_editor_beui::EditorHost;
-use block_editor_beui::block_ui::{BlockCatalog, BlockTypeEntry, ChildEdits};
+use block_editor_beui::block_ui::{BlockCatalog, BlockTypeEntry, ChildEdits, Press};
 
 use super::*;
 
@@ -22,6 +22,8 @@ fn catalog(edits: ChildEdits) -> BlockCatalog {
             color: None,
             icon: None,
             child_edits: edits,
+            press: Press::Open,
+            plain_file: false,
         },
     )])
 }

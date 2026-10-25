@@ -3,7 +3,7 @@ use std::sync::{
     atomic::{AtomicBool, Ordering},
 };
 
-use block_gpu_abi as abi;
+use block_guest_abi as abi;
 use wasmtime::{Caller, Linker};
 
 pub(crate) trait Wakes {

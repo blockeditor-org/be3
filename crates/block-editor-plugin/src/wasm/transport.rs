@@ -1,60 +1,57 @@
-use std::cell::RefCell;
-use std::sync::atomic::{AtomicBool, Ordering};
-
+use block_guest_abi::Flow;
 use block_plugin_api::{ErrorCode, Message, ProtocolError, decode_frame, encode_frame};
 
-use crate::{Waker, runtime::Runtime, wasm::host, wasm::surface};
+use crate::{Waker, runtime::Runtime, wasm::surface};
 
-thread_local! {
-    static PLUGIN: RefCell<Option<Runtime>> = const { RefCell::new(None) };
+pub struct Editor(Runtime);
+
+pub(crate) struct Started {
+    pub(crate) apps: Vec<(uuid::Uuid, crate::screens::Opener)>,
+    pub(crate) id: String,
+    pub(crate) name: String,
+    pub(crate) version: String,
 }
 
-static WOKEN: AtomicBool = AtomicBool::new(false);
-
-pub(crate) fn start(
-    apps: Vec<(uuid::Uuid, crate::screens::Opener)>,
-    id: &str,
-    name: &str,
-    version: &str,
-) -> Result<(), String> {
-    let runtime = Runtime::new(apps, id, name, version, waker());
-    surface::initialize()?;
-    post(vec![runtime.hello()]);
-    PLUGIN.with(|plugin| *plugin.borrow_mut() = Some(runtime));
-    Ok(())
-}
-
-pub(crate) fn step() -> Result<(), String> {
-    let mut batch = Vec::new();
-    while let Some(frame) = host::receive() {
-        batch.push(decode_frame(&frame).map_err(|error| format!("{error:?}"))?);
+impl Editor {
+    pub(crate) fn start(
+        started: Started,
+        waker: block_guest_abi::Waker,
+        outbound: &mut Vec<Vec<u8>>,
+    ) -> Result<Self, String> {
+        let Started {
+            apps,
+            id,
+            name,
+            version,
+        } = started;
+        let runtime = Runtime::new(apps, &id, &name, &version, Waker::new(move || waker.wake()));
+        surface::initialize().map_err(|error| format!("{name} could not start: {error}"))?;
+        post(outbound, vec![runtime.hello()]);
+        Ok(Self(runtime))
     }
-    let woken = WOKEN.swap(false, Ordering::AcqRel);
-    let outcome = PLUGIN.with(|plugin| {
-        let mut plugin = plugin.borrow_mut();
-        let Some(runtime) = plugin.as_mut() else {
-            return Ok(false);
-        };
-        match runtime.step(batch, woken) {
+
+    pub fn step(
+        &mut self,
+        inbound: Vec<Vec<u8>>,
+        woken: bool,
+        outbound: &mut Vec<Vec<u8>>,
+    ) -> Result<Flow, String> {
+        let mut batch = Vec::with_capacity(inbound.len());
+        for frame in inbound {
+            batch.push(decode_frame(&frame).map_err(|error| failed(format!("{error:?}")))?);
+        }
+        match self.0.step(batch, woken) {
             Ok(step) => {
-                post(step.outbound);
-                Ok(step.closed)
+                post(outbound, step.outbound);
+                Ok(match step.closed {
+                    true => Flow::Finished,
+                    false => Flow::Running,
+                })
             }
             Err(error) => {
-                post(vec![protocol_error(error.clone())]);
-                Err(error)
+                post(outbound, vec![protocol_error(error.clone())]);
+                Err(failed(error))
             }
-        }
-    });
-    match outcome {
-        Ok(true) => {
-            shutdown();
-            Ok(())
-        }
-        Ok(false) => Ok(()),
-        Err(error) => {
-            shutdown();
-            Err(error)
         }
     }
 }
@@ -63,21 +60,14 @@ pub(crate) fn initialize_storage(size: usize, align: usize) {
     wasi_threads::initialize_main_thread_storage(size, align);
 }
 
-pub(crate) fn shutdown() {
-    PLUGIN.with(|plugin| plugin.borrow_mut().take());
+fn failed(error: String) -> String {
+    format!("the plugin could not run a frame: {error}")
 }
 
-fn waker() -> Waker {
-    Waker::new(|| {
-        WOKEN.store(true, Ordering::Release);
-        host::wake();
-    })
-}
-
-fn post(messages: Vec<Message>) {
+fn post(outbound: &mut Vec<Vec<u8>>, messages: Vec<Message>) {
     for message in messages {
         match encode_frame(&message) {
-            Ok(frame) => host::send(&frame),
+            Ok(frame) => outbound.push(frame),
             Err(error) => eprintln!("dropped a message the protocol refused to carry: {error}"),
         }
     }

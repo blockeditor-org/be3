@@ -1,7 +1,7 @@
-use block_editor_beui::be_block::Scene3dContent;
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::Root;
 use block_editor_beui::{Creation, Editor};
+use scene_3d_types::Scene3dContent;
 use uuid::Uuid;
 
 mod ui;

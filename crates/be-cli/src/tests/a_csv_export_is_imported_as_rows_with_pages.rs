@@ -12,7 +12,7 @@ async fn a_csv_export_is_imported_as_rows_with_pages() {
     assert_eq!(records[1][2], "It fails\non a \"slow\" network.");
 
     let harness = Harness::start().await;
-    let tracker = Tracker::new(harness.owner().await);
+    let tracker = Tracker::new(harness.owner().await, sources());
     let board = board(&tracker).await;
     let imported = tracker
         .import(board.database, records, "Description")

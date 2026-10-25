@@ -1,11 +1,12 @@
-use block_editor_beui::be_block::AudioContent;
 use block_editor_beui::{AudioStatus, Editor, EditorHost, OwnedEditor};
 use block_ui_test::BeuiTest;
 use uuid::Uuid;
 
 use crate::app::{AudioApp, guess_media_type};
+use audio_block_types::AudioFile;
 
 mod a_playing_track_shows_its_position;
+mod play_hands_the_host_the_tracks_bytes_once;
 mod the_media_type_follows_the_file_name;
 mod the_replace_panel_goes_away_with_the_chrome;
 
@@ -18,7 +19,7 @@ fn editor() -> (BeuiTest<AudioApp>, Editor) {
     let mut test = BeuiTest::new(owner);
     test.hold(
         None,
-        AudioContent::from_file("song.flac", "audio/flac", vec![1, 2, 3]).unwrap(),
+        AudioFile::from_file("song.flac", "audio/flac", vec![1, 2, 3]).unwrap(),
     );
     test.run();
     (test, editor)

@@ -1,16 +1,16 @@
 use std::time::{Duration, Instant};
 
-use block_editor_beui::be_block::CanvasContent;
-use block_editor_beui::be_block::canvas::{
-    Canvas, CanvasColor, CanvasEntity, CanvasFill, CanvasPathPoint, CanvasPoint, CanvasShape,
-    CanvasTransform,
-};
 use block_editor_beui::beui::{
     self, FramePerformance, Input, Pen, PenPhase, PointerButton, Pos2, Rect, Vec2,
 };
 use block_editor_beui::{EditorHost, OwnedEditor};
 use block_ui_test::BeuiTest;
 use infinite_canvas::app::CanvasApp;
+use infinite_canvas_types::CanvasContent;
+use infinite_canvas_types::{
+    Canvas, CanvasColor, CanvasEntity, CanvasFill, CanvasPathPoint, CanvasPoint, CanvasShape,
+    CanvasTransform,
+};
 use uuid::Uuid;
 
 const SHAPES: usize = 10_000;

@@ -1,14 +1,15 @@
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
+use workspace_ui_types::ViewState;
 
 use block_editor_beui::Editor;
-use block_editor_beui::be_block::{BlockContent, FolderContent, ViewState};
 use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::icons::{ICON_ARROW_UP, ICON_PLUS};
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
+use block_editor_beui::block_ui::Press;
 
-use super::rows::{Row, RowKey, Tree as FileTree, is_workspace};
+use super::rows::{Row, RowKey, Tree as FileTree};
 
 const PADDING: f32 = 8.0;
 const ZOOMED: &str = "zoomed";
@@ -31,10 +32,7 @@ pub(crate) struct Zoom {
 pub(crate) fn zooms(row: &Row) -> bool {
     match row.id {
         None => row.section,
-        Some(_) => {
-            !row.is_reference
-                && (row.block_type == FolderContent::CONTENT_TYPE || is_workspace(row.block_type))
-        }
+        Some(_) => !row.is_reference && (row.is_workspace() || row.press == Press::Zoom),
     }
 }
 

@@ -2,11 +2,11 @@ use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 
 use block_editor_beui::Fit;
-use block_editor_beui::be_block::PixelArtContent;
-use block_editor_beui::be_block::pixel_art::Artwork;
-use block_editor_beui::be_block::pixel_art::{PixelArtAnchor, PixelArtOperation, PixelColor};
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::{ContentProjection, Editor, Fitting};
+use pixel_art_types::Artwork;
+use pixel_art_types::PixelArtContent;
+use pixel_art_types::{PixelArtAnchor, PixelArtOperation, PixelColor};
 
 pub(crate) type ArtBlock = ContentProjection<PixelArtContent>;
 

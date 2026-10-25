@@ -1,5 +1,5 @@
 use block_editor_beui::Fit;
-use block_editor_beui::be_block::CanvasContent;
+use infinite_canvas_types::CanvasContent;
 
 use block_editor_beui::Loaded;
 use block_editor_beui::beui::NodeId;
@@ -81,8 +81,7 @@ fn CanvasEditor(editor: Editor) -> NodeId {
     editor.keep_fitted(|| Some(Fit::Centre));
     let chrome = editor.chrome_shown();
     let inspected = create_memo(move || {
-        chrome.get()
-            && state.profile.get() == block_editor_beui::be_block::canvas::CanvasProfile::Vector
+        chrome.get() && state.profile.get() == infinite_canvas_types::CanvasProfile::Vector
     });
     let scope = NodeRef::new();
     action_scope(&scope);

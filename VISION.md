@@ -65,7 +65,7 @@ Some blocks stop early:
   - "This file was edited offline. Keep your version or theirs?", with a preview
     of both, so the choice isn't blind. Both versions stay in history, so a
     wrong choice can be undone. The stack already keeps the losing side of a
-    conflicted merge as a commit (`Peer::stash`).
+    conflicted merge as a commit (a replica's `Command::Stash`).
 
 The guarantees follow the layers. "The server can't read it" and "every later
 version can open it" hold only for what is stored in layer 3. A link or a game's

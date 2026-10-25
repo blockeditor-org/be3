@@ -5,19 +5,21 @@ use std::rc::Rc;
 use std::sync::Arc;
 use std::time::Duration;
 
+use be_block::BlockContent;
 use be_block::presence::{ChannelKind, PresenceKind};
-use be_block::terminal::{
-    LARGEST_OUTPUT, TerminalContent, TerminalHost, TerminalMessage, TerminalSize,
-};
-use be_client::{ClientError, Live, Peer};
+use be_client::Peer;
 use be_protocol::ClientId;
 use be_store::ObjectStore;
 use ghostty_vt::{Renderer, Terminal};
 use portable_pty::{Child, CommandBuilder, MasterPty, PtySize, native_pty_system};
-use tokio::sync::{broadcast::error::RecvError, mpsc};
+use terminal_types::{
+    LARGEST_OUTPUT, TerminalContent, TerminalHost, TerminalMessage, TerminalSize,
+};
+use tokio::sync::mpsc;
 use uuid::Uuid;
 
-use crate::session::explain;
+use crate::replica::Session;
+use crate::tracker::Sources;
 
 const DEFAULT_SIZE: TerminalSize = TerminalSize { cols: 80, rows: 24 };
 const MAX_SCROLLBACK: usize = 1_000;
@@ -109,9 +111,10 @@ impl Host {
         })
     }
 
-    pub async fn run<S: ObjectStore>(
+    pub async fn run<S: ObjectStore + 'static>(
         &mut self,
         connect: impl AsyncFn() -> Result<(Arc<Peer<S>>, Uuid), String>,
+        sources: &Sources,
         shutdown: impl Future<Output = ()>,
     ) -> Result<(), String> {
         let mut shutdown = std::pin::pin!(shutdown);
@@ -121,7 +124,7 @@ impl Host {
             let ended = match connect().await {
                 Ok((peer, block)) => {
                     connected = true;
-                    self.serve(peer, block, shutdown.as_mut()).await
+                    self.serve(peer, block, sources(), shutdown.as_mut()).await
                 }
                 Err(error) if !connected => return Err(error),
                 Err(error) => Ended::Refused(error),
@@ -153,91 +156,90 @@ impl Host {
         }
     }
 
-    pub async fn serve_until<S: ObjectStore>(
+    pub async fn serve_until<S: ObjectStore + 'static>(
         &mut self,
         peer: Arc<Peer<S>>,
         block: Uuid,
+        sources: Vec<be_types_host::Source>,
         shutdown: impl Future<Output = ()>,
     ) -> Result<(), String> {
         let shutdown = std::pin::pin!(shutdown);
-        match self.serve(peer, block, shutdown).await {
+        match self.serve(peer, block, sources, shutdown).await {
             Ended::Shutdown => Ok(()),
             Ended::Refused(error) | Ended::Disconnected(error) => Err(error),
         }
     }
 
-    async fn serve<S: ObjectStore>(
+    async fn serve<S: ObjectStore + 'static>(
         &mut self,
         peer: Arc<Peer<S>>,
         block: Uuid,
+        sources: Vec<be_types_host::Source>,
         mut shutdown: std::pin::Pin<&mut impl Future<Output = ()>>,
     ) -> Ended {
-        let mut doorbell = peer.connection().subscribe();
-        let mut live = match Live::<S, TerminalContent>::join(Arc::clone(&peer), block).await {
-            Ok(live) => live,
-            Err(error) => return Ended::Refused(explain(error)),
-        };
+        let mut session =
+            match Session::open(peer, block, TerminalContent::CONTENT_TYPE, sources).await {
+                Ok(session) => session,
+                Err(error) => return Ended::Refused(error),
+            };
         let shown = TerminalHost {
             machine: self.options.machine.clone(),
             user: self.options.user.clone(),
         };
         let presence = serde_json::to_vec(&shown).unwrap_or_default();
-        if let Err(error) = live.set_presence(TerminalHost::ID, Some(presence)).await {
-            return Ended::Refused(explain(error));
-        }
+        session.show(TerminalHost::ID, Some(presence));
+        session.settle().await;
         eprintln!("be: hosting a terminal for block {block}");
         let outcome = loop {
             tokio::select! {
-                () = shutdown.as_mut() => break Ok(true),
-                rung = doorbell.recv() => match rung {
-                    Ok(_) | Err(RecvError::Lagged(_)) => {
-                        if let Err(error) = self.answer(&mut live).await {
-                            break Err(error);
-                        }
-                    }
-                    Err(RecvError::Closed) => break Err("the connection to the server closed".to_owned()),
-                },
-                Some(event) = self.events.recv() => {
-                    if let Err(error) = self.forward(&live, event).await {
+                () = shutdown.as_mut() => break Ok(()),
+                woken = session.next() => {
+                    if let Err(error) = session.handle(woken).await {
                         break Err(error);
                     }
+                    if let Err(error) = self.answer(&mut session).await {
+                        break Err(error);
+                    }
+                }
+                Some(event) = self.events.recv() => {
+                    if let Err(error) = self.forward(&mut session, event) {
+                        break Err(error);
+                    }
+                    session.settle().await;
                 }
             }
         };
         match outcome {
-            Ok(_) => {
-                let _ = live.set_presence(TerminalHost::ID, None).await;
-                let _ = peer.leave_session(block).await;
+            Ok(()) => {
+                session.show(TerminalHost::ID, None);
+                session.settle().await;
+                session.close().await;
                 Ended::Shutdown
             }
             Err(error) => Ended::Disconnected(error),
         }
     }
 
-    async fn answer<S: ObjectStore>(
+    async fn answer<S: ObjectStore + 'static>(
         &mut self,
-        live: &mut Live<S, TerminalContent>,
+        session: &mut Session<S>,
     ) -> Result<(), String> {
-        live.poll().await.map_err(explain)?;
-        live.catch_up().await.map_err(explain)?;
-        if live.is_owner() && !live.is_clean() {
-            live.seal().await.map_err(explain)?;
-        }
-        for message in live.take_channel() {
+        for message in session.take_messages() {
             if message.channel != TerminalMessage::ID {
                 continue;
             }
             let Some(decoded) = TerminalMessage::decode(&message.payload) else {
                 continue;
             };
-            self.receive(live, message.from, decoded).await?;
+            self.receive(session, message.from, decoded)?;
         }
+        session.settle().await;
         Ok(())
     }
 
-    async fn receive<S: ObjectStore>(
+    fn receive<S: ObjectStore + 'static>(
         &mut self,
-        live: &Live<S, TerminalContent>,
+        session: &mut Session<S>,
         from: ClientId,
         message: TerminalMessage,
     ) -> Result<(), String> {
@@ -249,17 +251,19 @@ impl Host {
                     true => None,
                     false => Some(from),
                 };
-                send(live, to, &self.snapshot()).await
+                send(session, to, &self.snapshot());
+                Ok(())
             }
             TerminalMessage::Resize(size) => {
                 if self.resize(size) {
-                    send(live, None, &self.snapshot()).await?;
+                    send(session, None, &self.snapshot());
                 }
                 Ok(())
             }
             TerminalMessage::Input(bytes) => {
                 if self.ensure_shell()? {
-                    return send(live, None, &self.snapshot()).await;
+                    send(session, None, &self.snapshot());
+                    return Ok(());
                 }
                 if let Some(shell) = &mut self.shell {
                     let _ = shell.writer.write_all(&bytes);
@@ -273,9 +277,9 @@ impl Host {
         }
     }
 
-    async fn forward<S: ObjectStore>(
+    fn forward<S: ObjectStore + 'static>(
         &mut self,
-        live: &Live<S, TerminalContent>,
+        session: &mut Session<S>,
         event: Event,
     ) -> Result<(), String> {
         let Some(message) = self.take(event) else {
@@ -301,7 +305,7 @@ impl Host {
             other => vec![other],
         };
         for message in &messages {
-            send(live, None, message).await?;
+            send(session, None, message);
         }
         Ok(())
     }
@@ -414,19 +418,12 @@ impl Host {
     }
 }
 
-async fn send<S: ObjectStore>(
-    live: &Live<S, TerminalContent>,
+fn send<S: ObjectStore + 'static>(
+    session: &mut Session<S>,
     to: Option<ClientId>,
     message: &TerminalMessage,
-) -> Result<(), String> {
-    match live
-        .send_channel(to, TerminalMessage::ID, message.encode())
-        .await
-    {
-        Ok(()) => Ok(()),
-        Err(ClientError::Refused(..)) if to.is_some() => Ok(()),
-        Err(error) => Err(explain(error)),
-    }
+) {
+    session.send(to, TerminalMessage::ID, message.encode());
 }
 
 impl Drop for Host {

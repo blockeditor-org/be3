@@ -1,6 +1,6 @@
 use super::*;
-use block_editor_beui::be_block::canvas::{CanvasHue, CanvasLook, CanvasTone};
 use block_editor_beui::beui::Vec2;
+use infinite_canvas_types::{CanvasHue, CanvasLook, CanvasTone};
 
 #[test]
 fn a_new_shape_takes_the_last_style_used() {

@@ -29,6 +29,7 @@ fn manifest_validation() {
             version: "1".into(),
         },
         editors: vec![editor.clone()],
+        block_types: Vec::new(),
         entry_point: "counter.wasm".into(),
         network: vec!["api.github.com".into()],
     };

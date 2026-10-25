@@ -3,7 +3,7 @@ use super::*;
 #[tokio::test]
 async fn rows_are_added_filtered_changed_and_given_pages() {
     let harness = Harness::start().await;
-    let tracker = Tracker::new(harness.owner().await);
+    let tracker = Tracker::new(harness.owner().await, sources());
     let board = board(&tracker).await;
 
     let made = tracker

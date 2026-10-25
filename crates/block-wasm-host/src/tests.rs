@@ -179,6 +179,28 @@ fn settled(plugin: &mut Plugin, wanted: u8) -> Result<bool, String> {
     Ok(false)
 }
 
+const ECHO: &[u8] = include_bytes!(env!("GUEST_ECHO_WASM"));
+
+fn echo_frames(
+    worker: &mut block_guest_host::Worker<
+        block_guest_host::thread::Threaded<std::convert::Infallible>,
+    >,
+    wanted: &[&[u8]],
+) -> Result<Vec<Vec<u8>>, String> {
+    let mut received = Vec::new();
+    while !wanted
+        .iter()
+        .all(|frame| received.iter().any(|got: &Vec<u8>| got == frame))
+    {
+        let deadline = block_guest_host::Deadline::after(std::time::Duration::from_secs(60));
+        if !worker.wait(deadline)? {
+            return Err(format!("the guest sent only {received:?}"));
+        }
+        received.extend(worker.take_received());
+    }
+    Ok(received)
+}
+
 mod a_dropped_plugin_ends_its_threads;
 mod a_guest_creates_a_buffer_and_reports_its_handle;
 mod a_guest_pointer_past_its_memory_is_refused;
@@ -191,9 +213,16 @@ mod a_plugin_runs_on_a_thread_of_its_own;
 mod a_plugin_runs_on_when_another_is_interrupted;
 mod a_plugin_sdk_that_is_not_what_it_is_named_is_refused;
 mod a_plugin_that_panics_reports_its_panic_message;
+mod a_pure_guest_echoes_and_wakes_on_a_thread_of_its_own;
+mod a_pure_guest_is_loaded_from_its_precompiled_module;
+mod a_pure_guest_may_not_import_wasi;
+mod a_pure_guest_may_not_outgrow_its_memory_limit;
+mod a_pure_guest_that_hangs_is_interrupted;
+mod a_pure_guest_that_panics_reports_its_panic_message;
 mod a_spawned_guest_thread_may_not_reach_the_gpu;
 mod a_spawned_guest_thread_shares_the_memory_it_was_given;
 mod a_spawned_guest_thread_wakes_the_host;
 mod a_thread_that_trapped_wakes_the_host_to_be_told;
+mod a_type_module_says_hello_on_a_thread_of_its_own;
 mod an_interrupted_host_loads_no_plugin;
 mod an_interrupted_plugin_stops_on_every_thread;

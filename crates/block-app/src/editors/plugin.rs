@@ -347,7 +347,7 @@ impl PluginEditor {
         let Some(plugin) = self.plugin() else {
             return self.change_child(replace);
         };
-        if !be_block::block_type(self.block_type)
+        if !discovery::block_type(self.block_type)
             .is_some_and(|block_type| block_type.children.replace)
         {
             return None;

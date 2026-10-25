@@ -1,8 +1,8 @@
-use block_editor_beui::be_block::canvas::{
-    CanvasArrowhead, CanvasEntity, CanvasPoint, CanvasShape, CanvasTransform,
-};
 use block_editor_beui::beui::{CursorIcon, Key, KeyPress, Modifiers, PointerPress};
 use block_editor_beui::reactive::{Get, untrack};
+use infinite_canvas_types::{
+    CanvasArrowhead, CanvasEntity, CanvasPoint, CanvasShape, CanvasTransform,
+};
 use uuid::Uuid;
 
 use crate::freehand::Ink;

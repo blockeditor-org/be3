@@ -1,8 +1,8 @@
 use block_editor_beui::be_block::ObjectId;
-use block_editor_beui::be_block::presentation::PresentationContent;
 use block_editor_beui::beui::Key;
 use block_editor_beui::{Editor, EditorHost, OwnedEditor};
 use block_ui_test::BeuiTest;
+use presentation_types::PresentationContent;
 use uuid::Uuid;
 
 use crate::app::PresentationApp;

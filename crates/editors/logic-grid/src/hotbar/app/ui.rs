@@ -1,13 +1,14 @@
-use block_editor_beui::be_block::{BlockContent, CompiledLogicContent};
+use block_editor_beui::be_block::BlockContent;
+use logic_grid_types::CompiledLogicContent;
 
 use block_editor_beui::be_block::Item;
-use block_editor_beui::be_block::hotbar::{HotbarContent, HotbarSlot, SlotKind};
 use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::TextAlign;
 use block_editor_beui::beui::icons::{ICON_FOLDER, ICON_TRASH};
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
 use block_editor_beui::{BlockLink, ChildTarget, ContentProjection, Editor};
+use logic_grid_types::hotbar::{HotbarContent, HotbarSlot, SlotKind};
 use uuid::Uuid;
 
 const PADDING: f32 = 16.0;

@@ -1,8 +1,8 @@
 use super::*;
 
 use be_block::presence::{ChannelKind, PresenceKind};
-use be_block::terminal::{TerminalContent, TerminalHost, TerminalMessage, TerminalSize};
 use be_cli::terminal_host::{Host, HostOptions};
+use terminal_types::{TerminalContent, TerminalHost, TerminalMessage, TerminalSize};
 
 fn host_of(shared: &Shared, block: Uuid) -> Option<u64> {
     shared.presence.get(&block).and_then(|(_, peers)| {
@@ -48,7 +48,8 @@ fn a_terminal_host_answers_this_peer_through_the_blocks_session() {
             .enable_all()
             .build()
             .expect("the host's runtime starts");
-        runtime.block_on(async move {
+        let local = tokio::task::LocalSet::new();
+        local.block_on(&runtime, async move {
             let peer = outside_peer(config).await;
             peer.ensure::<TerminalContent>(block, be_graph::BlockParent::Root)
                 .await
@@ -60,7 +61,8 @@ fn a_terminal_host_answers_this_peer_through_the_blocks_session() {
             })
             .expect("the host starts");
             ready.send(()).expect("the test waits for the host");
-            host.serve_until(peer, block, async {
+            let sources = super::super::types::sources().await;
+            host.serve_until(peer, block, sources, async {
                 let _ = stopped.await;
             })
             .await

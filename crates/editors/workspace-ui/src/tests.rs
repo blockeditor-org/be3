@@ -1,4 +1,5 @@
-use block_editor_beui::be_block::{EditorView, EditorViewContent, ViewState, WORKSPACE_EDITOR};
+use workspace_ui_types::{EditorView, EditorViewContent, ViewState};
+use workspace_ui_types::{FolderContent, WorkspaceContent};
 
 use block_editor_beui::beui::{Document, NodeId, Rect, ScrollDelta, Vec2};
 use block_editor_beui::{
@@ -219,7 +220,7 @@ fn profiled(layout: Option<ViewState>) -> (Fixture, Uuid) {
 }
 
 fn profiled_sized(size: Option<Vec2>, layout: Option<ViewState>) -> (Fixture, Uuid) {
-    let mut profile = EditorView::document(WORKSPACE_EDITOR, None);
+    let mut profile = EditorView::document(None);
     if let Some(layout) = layout {
         let edit = profile
             .root()
@@ -279,17 +280,23 @@ fn filter() -> block_editor_beui::BlockFilter {
 }
 
 fn catalog() -> block_editor_beui::Catalog {
-    use block_editor_beui::be_block::{BlockContent, FolderContent, WorkspaceContent};
-    let kind = |block_type: Uuid, name: &str, icon: &str| block_editor_beui::BlockTypeDescriptor {
-        block_type: block_type.into_bytes(),
-        display_name: name.to_owned(),
-        color: None,
-        icon_codepoint: icon.to_owned(),
-        children: block_plugin_api::ChildOperations {
-            add: true,
-            delete: true,
-            replace: true,
-        },
+    use block_editor_beui::be_block::BlockContent;
+    let kind = |block_type: Uuid, name: &str, icon: &str| {
+        let holds =
+            [FolderContent::CONTENT_TYPE, WorkspaceContent::CONTENT_TYPE].contains(&block_type);
+        block_editor_beui::BlockTypeDescriptor {
+            block_type: block_type.into_bytes(),
+            display_name: name.to_owned(),
+            color: None,
+            icon_codepoint: icon.to_owned(),
+            children: block_plugin_api::ChildOperations {
+                add: holds,
+                delete: holds,
+                replace: holds,
+            },
+            press: block_plugin_api::Press::Open,
+            plain_file: false,
+        }
     };
     block_editor_beui::Catalog {
         types: vec![
@@ -322,7 +329,7 @@ struct Places {
 
 fn places(fixture: &mut Fixture) -> Places {
     use block_editor_beui::BlockInfo;
-    use block_editor_beui::be_block::{BlockContent, FolderContent, WorkspaceContent};
+    use block_editor_beui::be_block::BlockContent;
     let places = Places {
         space: Uuid::new_v4(),
         trips: Uuid::new_v4(),

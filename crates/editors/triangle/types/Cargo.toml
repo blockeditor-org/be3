@@ -1,0 +1,21 @@
+[package]
+name = "triangle-types"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+be-block = { path = "../../../be-block" }
+be-commit = { path = "../../../be-commit", default-features = false }
+be-model = { path = "../../../be-model" }
+block-type-guest = { path = "../../../block-type-guest" }
+uuid = "1"
+
+[features]
+module = []
+
+[lints]
+workspace = true

@@ -1,13 +1,13 @@
 use be_block::BlockContent;
-use be_block::database::DatabaseContent;
-use be_block::text::TextContent;
 use be_graph::BlockParent;
 use be_store::ObjectStore;
+use database_types::database::DatabaseContent;
 use serde_json::{Value, json};
 use uuid::Uuid;
 
 use crate::blocks::Entry;
 use crate::tracker::{Assignment, Body, Filter, NewColumn, RowView, Tracker};
+use text_block_types::TextContent;
 
 pub const USAGE: &str = "\
 Usage: be TARGET [VERB] [ARGUMENTS]   or   be COMMAND
@@ -343,7 +343,13 @@ async fn sync<S: ObjectStore>(
             every: std::time::Duration::from_secs(seconds),
         });
     }
-    let report = be_sync::sync(tracker.peer(), &directory, &be_sync::Target { root }).await?;
+    let report = be_sync::sync(
+        tracker.peer(),
+        &mut *tracker.types().await,
+        &directory,
+        &be_sync::Target { root },
+    )
+    .await?;
     tracker.invalidate().await;
     Ok(Outcome::Print(report.to_string()))
 }

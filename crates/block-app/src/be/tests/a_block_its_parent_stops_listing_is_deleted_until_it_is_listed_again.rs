@@ -1,6 +1,7 @@
 use super::*;
+use workspace_ui_types::FolderContent;
 
-use be_block::{ChildChange, FolderContent};
+use be_block::ChildChange;
 use be_graph::BlockParent;
 
 #[test]
@@ -10,7 +11,7 @@ fn a_block_its_parent_stops_listing_is_deleted_until_it_is_listed_again() {
     let (folder, note) = (Uuid::new_v4(), Uuid::new_v4());
     ask_for(vec![Query::Roots, Query::Children(folder)]);
     let mut listing = FolderContent::default();
-    listing.apply(&be_block::Folder::default().add(note));
+    listing.apply(&workspace_ui_types::Folder::default().add(note));
     create(
         folder,
         FolderContent::CONTENT_TYPE,

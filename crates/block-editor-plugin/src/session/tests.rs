@@ -60,13 +60,9 @@ mod rejects_out_of_order_messages;
 mod rejects_screens_for_unopened_instances;
 
 fn content(instance: EditorInstanceId) -> Message {
-    Message::Editor(block_plugin_api::EditorMessage::Content {
+    Message::Editor(block_plugin_api::EditorMessage::Replica {
         instance,
         block_id: [1; 16],
-        content_type: [7; 16],
-        bytes: vec![0; 8],
-        session: Vec::new(),
-        unsettled: Vec::new(),
-        applied: 0,
+        frame: vec![0; 4],
     })
 }

@@ -16,5 +16,14 @@
       ]
     }
   },
+  "block_types": {
+    "scene": {
+      "id": "33642d73-6365-6e65-2d62-6c6f636b3031",
+      "display_name": "3D scene",
+      "icon": "\ue061",
+      "color": [203, 91, 125],
+      "module": "scene_3d_types.wasm"
+    }
+  },
   "entry_point": "scene_3d.wasm"
 }

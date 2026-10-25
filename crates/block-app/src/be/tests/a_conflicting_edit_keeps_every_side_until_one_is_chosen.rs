@@ -15,8 +15,8 @@ fn a_conflicting_edit_keeps_every_side_until_one_is_chosen() {
         None,
     );
     version_since(second, be_block::CheckoutContent::CONTENT_TYPE, None);
-    hold(versioned.note, be_block::TextContent::CONTENT_TYPE);
-    hold(note, be_block::TextContent::CONTENT_TYPE);
+    hold(versioned.note, text_block_types::TextContent::CONTENT_TYPE);
+    hold(note, text_block_types::TextContent::CONTENT_TYPE);
     wait_until("opened both notes", |shared| {
         text_of(shared, versioned.note).is_some() && text_of(shared, note).is_some()
     });
@@ -48,7 +48,7 @@ fn a_conflicting_edit_keeps_every_side_until_one_is_chosen() {
     let sides = [conflict.base, conflict.ours, conflict.theirs]
         .map(|side| side.expect("every side was kept"));
     for side in sides {
-        hold(side, be_block::TextContent::CONTENT_TYPE);
+        hold(side, text_block_types::TextContent::CONTENT_TYPE);
     }
     wait_until("opened every side", |shared| {
         sides.iter().all(|side| text_of(shared, *side).is_some())
