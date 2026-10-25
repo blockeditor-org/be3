@@ -245,11 +245,18 @@ impl Gestures {
         ]])
     }
 
-    pub fn pen_draw(&mut self, from: Pos2, to: Pos2, steps: usize) -> Result<Frames, String> {
+    pub fn pen_draw(
+        &mut self,
+        from: Pos2,
+        to: Pos2,
+        steps: usize,
+        per_frame: usize,
+    ) -> Result<Frames, String> {
         if self.pen.is_some_and(|(_, down)| down) {
             return Err("the pen is already down".to_owned());
         }
         let steps = steps.max(1);
+        let per_frame = per_frame.max(1);
         let along = |step: usize| {
             let fraction = step as f32 / steps as f32;
             let pressure = 0.2 + 0.8 * (fraction * std::f32::consts::PI).sin();
@@ -259,10 +266,13 @@ impl Gestures {
             pen(PenPhase::Move, from, 0.0),
             pen(PenPhase::Down(PointerButton::Primary), from, 0.2),
         ]];
-        for step in 1..=steps {
-            let (at, pressure) = along(step);
-            frames.push(vec![pen(PenPhase::Move, at, pressure)]);
-        }
+        let samples: Vec<Input> = (1..=steps)
+            .map(|step| {
+                let (at, pressure) = along(step);
+                pen(PenPhase::Move, at, pressure)
+            })
+            .collect();
+        frames.extend(samples.chunks(per_frame).map(<[Input]>::to_vec));
         frames.push(vec![pen(PenPhase::Up(PointerButton::Primary), to, 0.0)]);
         self.pen = Some((to, false));
         Ok(frames)

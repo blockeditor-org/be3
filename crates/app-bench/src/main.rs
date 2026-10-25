@@ -2,8 +2,10 @@ use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 use std::time::{Duration, Instant};
 
+use be_block::BlockContent;
 use be_drive::Driven;
 use beui_core::app::automation::Reply;
+use infinite_canvas_types::{CanvasContent, CanvasEntity, CanvasShape};
 use paint_snapshot::{Painting, Snapshot};
 
 mod latency;
@@ -12,6 +14,8 @@ mod server;
 const SIZE: &str = "1100x720";
 const ONE_WAY: Duration = Duration::from_millis(15);
 const POINTS: usize = 10_000;
+const SAMPLES_PER_FRAME: usize = 1_000;
+const CANVAS_PLUGIN: &str = "be3.infinite-canvas";
 const TEXT_BYTES: usize = 50 * 1024 * 1024;
 const LONG: Duration = Duration::from_secs(600);
 const BLOCK: &str = "#workspace.block";
@@ -80,9 +84,10 @@ fn measure(settings: &Settings) -> Result<(), String> {
     let proxy = latency::start(server.address, ONE_WAY)
         .map_err(|error| format!("could not start the latency proxy: {error}"))?;
     let url = format!("http://{proxy}");
-    let first = first_device(settings, &server, &url)?;
+    let (first, stroke) = first_device(settings, &server, &url)?;
     let second = second_device(settings, &server, &url, &first.phrase)?;
-    validate(&first, &second)
+    validate(&first, &second)?;
+    stroke.check(&first.export)
 }
 
 struct Device {
@@ -92,7 +97,11 @@ struct Device {
     text: Snapshot,
 }
 
-fn first_device(settings: &Settings, server: &server::Server, url: &str) -> Result<Device, String> {
+fn first_device(
+    settings: &Settings,
+    server: &server::Server,
+    url: &str,
+) -> Result<(Device, Stroke), String> {
     let started = Instant::now();
     let mut app = App::start(settings)?;
     bench::time("first.start", started.elapsed());
@@ -128,6 +137,9 @@ fn first_device(settings: &Settings, server: &server::Server, url: &str) -> Resu
     app.until("the rectangle", |tree| tree.matches(SHAPE).count() == 1)?;
     app.save("canvas.rectangle-save")?;
     app.click("#infinite-canvas.dock.tool.Pen")?;
+    let (from, to) = (at(0.1, 0.6), at(0.9, 0.7));
+    let stroke = Stroke::sent(&from, &to, settings.points, app.scale()?)?;
+    app.run(&["frames"])?;
     let drawing = Instant::now();
     app.within(
         LONG,
@@ -135,9 +147,10 @@ fn first_device(settings: &Settings, server: &server::Server, url: &str) -> Resu
             "--no-settle",
             "pen",
             "draw",
-            &at(0.1, 0.6),
-            &at(0.9, 0.7),
+            &from,
+            &to,
             &settings.points.to_string(),
+            &SAMPLES_PER_FRAME.to_string(),
         ],
     )?;
     let end = canvas.0 + canvas.2 * 0.9 - 2.0;
@@ -148,6 +161,12 @@ fn first_device(settings: &Settings, server: &server::Server, url: &str) -> Resu
             .any(|right| right >= end)
     })?;
     bench::time("canvas.line-draw", drawing.elapsed());
+    let frames = app.run(&["frames"])?;
+    bench::time("canvas.line-longest-frame", longest(&frames, "window")?);
+    bench::time(
+        "canvas.line-longest-plugin-frame",
+        longest(&frames, CANVAS_PLUGIN)?,
+    );
     app.save("canvas.line-save")?;
     app.run(&["pen", "leave"])?;
     app.click("#infinite-canvas.dock.tool.Select")?;
@@ -183,12 +202,15 @@ fn first_device(settings: &Settings, server: &server::Server, url: &str) -> Resu
     let closing = Instant::now();
     app.close()?;
     bench::time("first.close", closing.elapsed());
-    Ok(Device {
-        phrase,
-        export,
-        canvas,
-        text,
-    })
+    Ok((
+        Device {
+            phrase,
+            export,
+            canvas,
+            text,
+        },
+        stroke,
+    ))
 }
 
 fn second_device(
@@ -333,6 +355,14 @@ impl App {
             }
             std::thread::sleep(POLL);
         }
+    }
+
+    fn scale(&mut self) -> Result<f32, String> {
+        let state = self.run(&["state"])?;
+        state
+            .split_once(" at scale ")
+            .and_then(|(_, rest)| rest.split(',').next()?.parse().ok())
+            .ok_or_else(|| format!("the state names no scale:\n{state}"))
     }
 
     fn shown(&mut self, text: &str) -> Result<bool, String> {
@@ -518,6 +548,123 @@ fn right_edge(line: &str) -> Option<f32> {
     let x: f32 = at.split(',').next()?.parse().ok()?;
     let width: f32 = size.split(['x', ' ']).next()?.parse().ok()?;
     Some(x + width)
+}
+
+fn longest(frames: &str, name: &str) -> Result<Duration, String> {
+    frames
+        .lines()
+        .find_map(|line| {
+            let rest = line.strip_prefix(name)?.strip_prefix(": ")?;
+            let (_, longest) = rest.split_once(", the longest ")?;
+            longest.strip_suffix(" ms")?.parse::<f64>().ok()
+        })
+        .map(|milliseconds| Duration::from_secs_f64(milliseconds / 1000.0))
+        .ok_or_else(|| format!("frames names no frames of {name}:\n{frames}"))
+}
+
+struct Stroke {
+    kept: Vec<(f32, f32)>,
+    sent: usize,
+    spacing: f32,
+}
+
+impl Stroke {
+    fn sent(from: &str, to: &str, steps: usize, scale: f32) -> Result<Self, String> {
+        let place = |target: &str| -> Result<(f32, f32), String> {
+            let (x, y) = target
+                .split_once(',')
+                .ok_or_else(|| format!("{target} is not a point"))?;
+            let number = |text: &str| {
+                text.parse::<f32>()
+                    .map(|pixels| pixels / scale)
+                    .map_err(|_| format!("{target} is not a point"))
+            };
+            Ok((number(x)?, number(y)?))
+        };
+        let (from, to) = (place(from)?, place(to)?);
+        let steps = steps.max(1);
+        let mut kept = vec![from];
+        for step in 1..=steps {
+            let fraction = step as f32 / steps as f32;
+            let at = (
+                from.0 + (to.0 - from.0) * fraction,
+                from.1 + (to.1 - from.1) * fraction,
+            );
+            let last = kept[kept.len() - 1];
+            if (at.0 - last.0).hypot(at.1 - last.1) > 1.0 {
+                kept.push(at);
+            }
+        }
+        Ok(Self {
+            kept,
+            sent: steps + 1,
+            spacing: (to.0 - from.0).hypot(to.1 - from.1) / steps as f32,
+        })
+    }
+
+    fn check(&self, export: &[u8]) -> Result<(), String> {
+        let drawn = drawn_stroke(export)?;
+        if drawn.len() != self.kept.len() {
+            return Err(format!(
+                "the stroke holds {} points, but the canvas keeps {} of the {} samples drawn: each one more than a point from the last it kept",
+                drawn.len(),
+                self.kept.len(),
+                self.sent
+            ));
+        }
+        bench::count("canvas.line-points", drawn.len() as u64);
+        let (first, last) = (self.kept[0], self.kept[self.kept.len() - 1]);
+        let (start, end) = (drawn[0], drawn[drawn.len() - 1]);
+        let scale = (end.0 - start.0) / (last.0 - first.0);
+        let reach = scale * self.spacing / 2.0;
+        for (index, (kept, drawn)) in self.kept.iter().zip(&drawn).enumerate() {
+            let expected = (
+                start.0 + (kept.0 - first.0) * scale,
+                start.1 + (kept.1 - first.1) * scale,
+            );
+            if (drawn.0 - expected.0).hypot(drawn.1 - expected.1) > reach {
+                return Err(format!(
+                    "point {index} of the stroke is at {drawn:?}, not at {expected:?} where the sample the canvas should have kept was"
+                ));
+            }
+        }
+        Ok(())
+    }
+}
+
+fn drawn_stroke(export: &[u8]) -> Result<Vec<(f32, f32)>, String> {
+    let blocks = be_client::transfer::decode(export)?;
+    let content = blocks
+        .iter()
+        .filter(|block| block.block_type == <CanvasContent as BlockContent>::CONTENT_TYPE)
+        .find_map(|block| block.content.as_deref())
+        .ok_or("the export holds no canvas")?;
+    let canvas = CanvasContent::decode(content)
+        .map_err(|error| format!("the exported canvas does not decode: {error:?}"))?;
+    let strokes: Vec<CanvasEntity> = canvas
+        .root()
+        .entities()
+        .into_iter()
+        .filter(|entity| entity.shape == CanvasShape::Freehand)
+        .collect();
+    let [stroke] = &strokes[..] else {
+        return Err(format!(
+            "the exported canvas holds {} strokes, not one",
+            strokes.len()
+        ));
+    };
+    if stroke.pressures.len() != stroke.points.len() {
+        return Err(format!(
+            "the stroke holds {} points but {} pressures",
+            stroke.points.len(),
+            stroke.pressures.len()
+        ));
+    }
+    Ok(stroke
+        .world_points()
+        .iter()
+        .map(|point| (point.x, point.y))
+        .collect())
 }
 
 fn value(line: &str) -> Option<String> {

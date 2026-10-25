@@ -1,6 +1,6 @@
 use std::path::{Path, PathBuf};
 
-use beui_core::app::{App, Setup};
+use beui_core::app::{App, FrameTimes, Setup};
 use beui_core::context::Context;
 use beui_core::geometry::Rect;
 use beui_core::preferences::{PreferenceLayer, PreferenceSource};
@@ -71,6 +71,10 @@ impl<A: App> App for SavedPreferences<A> {
 
     fn request_painting(&mut self) {
         self.app.request_painting();
+    }
+
+    fn other_frames(&mut self) -> Vec<(String, FrameTimes)> {
+        self.app.other_frames()
     }
 }
 

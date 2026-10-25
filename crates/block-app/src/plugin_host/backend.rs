@@ -136,6 +136,12 @@ impl Backend {
         self.worker.as_mut()?.take_took()
     }
 
+    pub(super) fn stepped(&mut self) -> (u64, Duration) {
+        self.worker
+            .as_mut()
+            .map_or((0, Duration::ZERO), |worker| worker.take_stepped())
+    }
+
     pub(super) fn take_error(&mut self) -> Option<String> {
         self.error.take()
     }

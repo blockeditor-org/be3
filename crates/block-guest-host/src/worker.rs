@@ -133,6 +133,7 @@ pub struct Worker<C: Channel> {
     presented: Vec<C::Presented>,
     presents: u64,
     took: Option<StepTime>,
+    stepped: (u64, Duration),
     steps: u64,
     watched: Option<(u64, Duration)>,
 }
@@ -150,6 +151,7 @@ impl<C: Channel> Worker<C> {
             presented: Vec::new(),
             presents: 0,
             took: None,
+            stepped: (0, Duration::ZERO),
             steps: 0,
             watched: None,
         }
@@ -248,6 +250,10 @@ impl<C: Channel> Worker<C> {
         self.took.take()
     }
 
+    pub fn take_stepped(&mut self) -> (u64, Duration) {
+        std::mem::replace(&mut self.stepped, (0, Duration::ZERO))
+    }
+
     fn handle(&mut self, event: Event<C::Presented>) -> Option<String> {
         match event {
             Event::Ready(produced) => {
@@ -256,6 +262,8 @@ impl<C: Channel> Worker<C> {
             }
             Event::Stepped(produced) => {
                 self.stepping = false;
+                self.stepped.0 += 1;
+                self.stepped.1 = self.stepped.1.max(produced.took.step);
                 self.absorb(produced);
             }
             Event::Failed(error) => return Some(error),
