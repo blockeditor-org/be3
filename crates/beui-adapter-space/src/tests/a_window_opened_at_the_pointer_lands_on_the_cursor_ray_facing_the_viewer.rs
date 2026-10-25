@@ -33,7 +33,7 @@ fn a_window_opened_at_the_pointer_lands_on_the_cursor_ray_facing_the_viewer() {
             },
             WindowReport::Placed {
                 window,
-                placement: panel.pose.placement()
+                placement: panel.placement()
             },
         ],
         "the host reports where it put the window"

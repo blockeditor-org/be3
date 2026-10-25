@@ -46,8 +46,5 @@ fn moving_a_window_carries_its_panel() {
         panic!("the new place is reported, not {reports:?}");
     };
     assert_eq!(*placed, window);
-    assert_eq!(
-        Pose::from_placement(placement),
-        Some(space.panel(window).unwrap().pose)
-    );
+    assert_eq!(*placement, space.panel(window).unwrap().placement());
 }

@@ -107,7 +107,12 @@ fn the_chrome_around_a_curved_panel() {
         position: main(&space).world(pos2(PLATFORM.x, 0.0)) + Vec3::new(0.18, -0.2, 0.15),
         rotation: Quat::from_rotation_y(-0.5),
     };
-    let other = open(&mut space, now, WindowPlacement::Host(side.placement())).0;
+    let other = open(
+        &mut space,
+        now,
+        WindowPlacement::Host(panel(WindowId::MAIN, side).placement()),
+    )
+    .0;
 
     let bend = on_part(&space, WindowId::MAIN, Part::Bend);
     send(

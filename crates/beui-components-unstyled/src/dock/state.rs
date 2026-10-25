@@ -5,6 +5,7 @@ use std::rc::Rc;
 
 use beui_core::base::Direction;
 use beui_core::geometry::{Pos2, Rect, Vec2};
+use beui_core::window::HostPlacement;
 use serde::{Deserialize, Serialize};
 
 mod history;
@@ -279,6 +280,7 @@ struct Surface {
     #[serde(with = "window")]
     window: Option<Rect>,
     key: Option<String>,
+    placement: Option<String>,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -532,6 +534,7 @@ impl DockState {
             root: Node::Leaf(leaf),
             window: None,
             key: None,
+            placement: None,
         });
         state.focus = Some(focus);
         state.remember_focus();
@@ -648,6 +651,21 @@ impl DockState {
         }
     }
 
+    pub fn window_placement(&self, surface: SurfaceId) -> Option<HostPlacement> {
+        let surface = self
+            .surface(surface)
+            .filter(|surface| surface.window.is_some())?;
+        surface.placement.clone().map(HostPlacement)
+    }
+
+    pub fn set_window_placement(&mut self, surface: SurfaceId, placement: HostPlacement) {
+        if let Some(surface) = self.surface_mut(surface)
+            && surface.window.is_some()
+        {
+            surface.placement = Some(placement.0);
+        }
+    }
+
     pub fn open_window(&mut self, rect: Rect, tabs: Vec<TabId>) -> SurfaceId {
         self.open_window_with(rect, tabs.into_iter().map(Entry::Tab).collect())
     }
@@ -662,6 +680,7 @@ impl DockState {
             root: Node::Leaf(leaf),
             window: Some(rect),
             key: None,
+            placement: None,
         });
         self.focus = Some(focus);
         id

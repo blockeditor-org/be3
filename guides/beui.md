@@ -1571,7 +1571,9 @@ write a layer through `use_preference_layer(source)`. `styled::PreferencesSectio
 `styled::ThemeSelect` and `styled::MotionSelect` whose first option is the value inherited from
 below, and notes a developer override. An app that keeps its own choices passes
 `RunOptions::saving_preferences(name)`, which loads and saves the app layer in the platform's
-config folder (beui-demo does); one that does not still follows the system. block-app stores
+config folder (beui-demo does); one that does not still follows the system.
+`RunOptions::config_directory()` is the folder an app's own files go in: the saved
+preferences' folder, else the platform's config folder joined with `app_id`, else none. block-app stores
 them in its display settings instead (guides/the_new_block_stack.md).
 
 `pixels_per_point()` is the document's scale as a signal, for layout that
@@ -2098,9 +2100,10 @@ corner), so the host moves and resizes it. A size set from inside, such as
 `DockTabControl::resize_window`, changes the rect and so the `Window`'s `size`,
 which asks the host with `WindowRequest::Resize`; either way the dock writes the size of the host's
 `Resized` reports into the window's rect (less the grips) and keeps each
-`Placed` report's `HostPlacement` in memory, handing it back as
-`WindowPlacement::Host` when the window opens again (after the dock was
-stacked, say). A window opened with no placement kept (floated from a tab's
+`Placed` report's `HostPlacement` in the `DockState`
+(`window_placement`, `set_window_placement`), so it is saved with the layout,
+handing it back as `WindowPlacement::Host` when the window opens again (after
+the dock was stacked, say, or when a restored layout reopens it). A window opened with no placement kept (floated from a tab's
 menu, or dropped on the main window where no pane takes it) opens `Over` the
 window the dock is in, at the corner it would be drawn at there, grips
 included, so a host can put it where it sits in the dock. Each window holds its own drop target, and drop targets are resolved
@@ -2986,13 +2989,21 @@ all its 3D (`glam`) stays in the crate.
   on a bent panel too. On the first
   frame it opens the main window's panel at the platform window's size in
   points, at eye height straight ahead, far enough that it fills 80% of the
-  view's width, and reports that size (`WindowReport::Resized`).
+  view's width, and reports that size (`WindowReport::Resized`). A host made
+  with `Space::keeping_main(path)` keeps the main panel's placement in that
+  file instead of reporting it: it opens the panel there when the file holds
+  one it can read, and writes the file whenever the panel's pose, scale or
+  bend differ from what it last wrote while no carry, resize or chrome gesture
+  holds it, so a gesture writes once, when it ends. `adapt` keeps it in
+  `space-main-panel.txt` under `RunOptions::config_directory()`, and only on
+  the platform's own adapter, so headless runs and tests never touch it.
 - Windows: the runner sets `Context::opens_windows` under any host, so every
   `Window` is a real window here. `Space::request` handles each of the frame's
   `WindowRequest`s. `Open` adds a panel at the size asked for and reports
-  `Resized` and `Placed` the next frame: `Host` decodes the pose (a placement
-  another host wrote opens at the pointer instead), `Over { window, at }` puts
-  its top-left corner on that panel's point `at` (in its points) and
+  `Resized` and `Placed` the next frame: `Host` decodes the pose, scale and
+  bend (`Panel::placed`; a placement another host wrote, or one it cannot
+  read, opens at the pointer instead), `Over { window, at }` puts
+  its top-left corner on that panel's point `at` (in its points), at that panel's scale, and
   `OVER_NEARER` (3 cm) in front of it, facing the same way, a further
   `OVER_NEARER` nearer for each panel already there, and `AtPointer` puts the
   point `OPEN_GRAB` (24, 16) of the window on the cursor's ray, `OPEN_NEARER`
@@ -3066,9 +3077,11 @@ all its 3D (`glam`) stays in the crate.
   Letting go of the
   button that was down when it began (or, if none was, the next click) ends it:
   the app gets that release where it grabbed, the panel faces the viewer
-  (yaw only; only a carry let go mid-turn still turns), and the host reports `WindowReport::Placed` with the pose as
-  `space X Y Z QX QY QZ QW` (`Pose::placement`, `Pose::from_placement`). Poses
-  live in memory.
+  (yaw only; only a carry let go mid-turn still turns), and the host reports `WindowReport::Placed` with the panel's placement,
+  `space X Y Z QX QY QZ QW S B`: its position, rotation, `metres_per_point`
+  and `bend` (`Panel::placement`, read back by `Panel::placed`). The app keeps
+  it (the dock in its saved layout) and hands it back when it opens the
+  window again.
 - Resize: on `WindowRequest::BeginResize(window, edge)` (`resize::Resize`)
   the cursor's ray meets the panel's surface as it was, and that edge or corner
   follows it while the opposite one stays put, no smaller than
@@ -3177,8 +3190,7 @@ all its 3D (`glam`) stays in the crate.
   `chrome::rolled`) by the change in the cursor's angle around the centre on
   the panel's surface as it was, so the button, below the centre, stays under
   the cursor like a dial's knob. Scale, turn, roll and slider drags report
-  `Placed` when let go (the placement holds only the pose so far, not the
-  scale or bend). A carry later turns the panel back to face the viewer upright
+  `Placed` when let go. A carry later turns the panel back to face the viewer upright
   (`carry::facing`), so it overrides rotation and roll. The curvature button
   opens a slider in the pill (`Chrome::slider`), and clicking or dragging
   along it sets `bend` from 0 to `MOST_BEND` about the panel's centre. Scale,

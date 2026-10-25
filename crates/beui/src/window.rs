@@ -44,7 +44,10 @@ pub fn run_with_renderers(
         ) => Box::new(crate::saved_preferences::SavedPreferences::new(app, path)),
         _ => Box::new(app),
     };
-    let adapter = adapt(choice, open_device, || window_adapter(renderers));
+    let kept_main = options
+        .config_directory()
+        .map(|directory| directory.join(MAIN_PANEL_FILE));
+    let adapter = adapt(choice, open_device, kept_main, || window_adapter(renderers));
     let launch = Launch {
         options,
         context: crate::system_context(),
@@ -81,14 +84,18 @@ fn from_environment(
     Ok(None)
 }
 
+const MAIN_PANEL_FILE: &str = "space-main-panel.txt";
+
 fn adapt(
     choice: Option<Choice>,
     open_device: Option<OpenDevice>,
+    kept_main: Option<std::path::PathBuf>,
     native: impl FnOnce() -> Box<dyn Adapter>,
 ) -> Box<dyn Adapter> {
     let Some(choice) = choice else {
         return native();
     };
+    let kept_main = kept_main.filter(|_| matches!(choice.adapter, Base::Native));
     let adapter = match choice.adapter {
         Base::Native => native(),
         #[cfg(not(target_os = "android"))]
@@ -107,9 +114,13 @@ fn adapt(
     if !choice.space {
         return adapter;
     }
+    let space = match kept_main {
+        Some(path) => beui_adapter_space::Space::keeping_main(path),
+        None => beui_adapter_space::Space::new(),
+    };
     Box::new(beui_core::runner::HostedAdapter {
         adapter,
-        host: Box::new(beui_adapter_space::Space::new()),
+        host: Box::new(space),
     })
 }
 
@@ -161,7 +172,7 @@ pub fn run_on(
     app: impl App + 'static,
 ) -> Result<(), Box<dyn Error>> {
     let choice = from_environment(&mut options, adapter.name())?;
-    let adapter = adapt(choice, None, || adapter);
+    let adapter = adapt(choice, None, None, || adapter);
     let launch = Launch {
         options,
         context: crate::system_context(),

@@ -50,7 +50,7 @@ fn the_curve_slider_bends_the_panel_and_clicks_land_on_the_curve() {
         reports(&sent),
         [WindowReport::Placed {
             window: WindowId::MAIN,
-            placement: panel.pose.placement(),
+            placement: panel.placement(),
         }],
         "letting go of the slider reports the placement, as the other controls do"
     );

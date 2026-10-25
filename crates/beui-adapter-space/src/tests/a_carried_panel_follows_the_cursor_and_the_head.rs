@@ -85,5 +85,5 @@ fn a_carried_panel_follows_the_cursor_and_the_head() {
         panic!("the new place is reported, not {reports:?}");
     };
     assert_eq!(*window, WindowId::MAIN);
-    assert_eq!(Pose::from_placement(placement), Some(main(&space).pose));
+    assert_eq!(*placement, main(&space).placement());
 }

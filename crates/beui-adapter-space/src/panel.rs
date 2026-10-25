@@ -8,35 +8,10 @@ pub const POINTS_PER_METRE: f32 = 1000.0;
 pub const MOST_BEND: f32 = std::f32::consts::PI;
 const FLAT: f32 = 1e-4;
 
-#[derive(Clone, Copy, PartialEq, Debug)]
+#[derive(Clone, Copy, Default, PartialEq, Debug)]
 pub struct Pose {
     pub position: Vec3,
     pub rotation: Quat,
-}
-
-impl Pose {
-    pub fn placement(&self) -> HostPlacement {
-        let Vec3 { x, y, z } = self.position;
-        let [qx, qy, qz, qw] = self.rotation.to_array();
-        HostPlacement(format!("space {x} {y} {z} {qx} {qy} {qz} {qw}"))
-    }
-
-    pub fn from_placement(placement: &HostPlacement) -> Option<Self> {
-        let mut words = placement.0.split(' ');
-        if words.next()? != "space" {
-            return None;
-        }
-        let numbers: Vec<f32> = words.map(str::parse).collect::<Result<_, _>>().ok()?;
-        let [x, y, z, qx, qy, qz, qw] = numbers.try_into().ok()?;
-        let rotation = Quat::from_xyzw(qx, qy, qz, qw);
-        Some(Self {
-            position: Vec3::new(x, y, z),
-            rotation: match rotation.is_normalized() {
-                true => rotation,
-                false => rotation.normalize(),
-            },
-        })
-    }
 }
 
 #[derive(Clone, Copy, PartialEq, Debug)]
@@ -65,6 +40,47 @@ impl Panel {
             metres_per_point: 1.0 / POINTS_PER_METRE,
             bend: 0.0,
         }
+    }
+
+    pub fn placement(&self) -> HostPlacement {
+        let Vec3 { x, y, z } = self.pose.position;
+        let [qx, qy, qz, qw] = self.pose.rotation.to_array();
+        let (scale, bend) = (self.metres_per_point, self.bend);
+        HostPlacement(format!(
+            "space {x} {y} {z} {qx} {qy} {qz} {qw} {scale} {bend}"
+        ))
+    }
+
+    pub fn placed(&mut self, placement: &HostPlacement) -> bool {
+        let Some(numbers) = placement.0.strip_prefix("space ").and_then(|rest| {
+            rest.split(' ')
+                .map(str::parse::<f32>)
+                .collect::<Result<Vec<f32>, _>>()
+                .ok()
+        }) else {
+            return false;
+        };
+        let Ok([x, y, z, qx, qy, qz, qw, scale, bend]) = <[f32; 9]>::try_from(numbers) else {
+            return false;
+        };
+        let rotation = Quat::from_xyzw(qx, qy, qz, qw);
+        if ![x, y, z, scale, bend].iter().all(|value| value.is_finite())
+            || !rotation.is_finite()
+            || rotation.length() < 1e-6
+            || scale <= 0.0
+        {
+            return false;
+        }
+        self.pose = Pose {
+            position: Vec3::new(x, y, z),
+            rotation: match rotation.is_normalized() {
+                true => rotation,
+                false => rotation.normalize(),
+            },
+        };
+        self.metres_per_point = scale;
+        self.bend = bend.clamp(0.0, MOST_BEND);
+        true
     }
 
     pub fn metres(&self) -> glam::Vec2 {

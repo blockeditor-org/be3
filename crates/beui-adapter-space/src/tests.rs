@@ -62,6 +62,7 @@ mod the_cursor_shows_the_icon_the_window_under_it_asks_for_and_hides_the_platfor
 mod the_cursor_sits_just_in_front_of_the_panel_at_the_same_size_to_the_eye;
 mod the_cursor_sprite_draws_the_icon_around_its_hotspot;
 mod the_curve_slider_bends_the_panel_and_clicks_land_on_the_curve;
+mod the_main_panel_keeps_its_place_scale_and_bend_in_a_file;
 mod the_platform_dropping_the_lock_lets_the_pointer_go;
 mod turning_away_and_back_leaves_the_cursor_where_it_was;
 mod walking_keeps_the_cursor_at_its_world_point;
@@ -205,7 +206,7 @@ fn open_ahead(space: &mut Space, now: Instant, distance: f32) -> WindowId {
     open(
         space,
         now,
-        WindowPlacement::Host(ahead(distance).placement()),
+        WindowPlacement::Host(panel(WindowId::MAIN, ahead(distance)).placement()),
     )
     .0
 }

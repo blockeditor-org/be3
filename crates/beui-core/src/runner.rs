@@ -58,6 +58,14 @@ impl RunOptions {
             config_directory().map(|directory| directory.join(app).join("preferences.json"));
         self
     }
+
+    pub fn config_directory(&self) -> Option<std::path::PathBuf> {
+        match (&self.saved_preferences, &self.app_id) {
+            (Some(preferences), _) => preferences.parent().map(std::path::Path::to_path_buf),
+            (None, Some(app)) => config_directory().map(|directory| directory.join(app)),
+            (None, None) => None,
+        }
+    }
 }
 
 fn config_directory() -> Option<std::path::PathBuf> {

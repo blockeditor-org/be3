@@ -1,3 +1,4 @@
+use std::path::PathBuf;
 use std::rc::Rc;
 use std::time::{Duration, Instant};
 
@@ -11,7 +12,7 @@ use beui_core::input::{CursorIcon, Input, Key, Keystroke, Modifiers, PointerButt
 use beui_core::painter::Shape;
 use beui_core::runner::{HostView, Hosted, Incoming, SCROLL_LINE, Units, WindowHost, scrolled};
 use beui_core::window::{
-    WindowEdge, WindowId, WindowPlacement, WindowReport, WindowRequest, WindowState,
+    HostPlacement, WindowEdge, WindowId, WindowPlacement, WindowReport, WindowRequest, WindowState,
 };
 use beui_renderer_wgpu::present::GpuSetup;
 use glam::{Mat4, Quat, Vec3};
@@ -61,6 +62,41 @@ struct Shown {
     chrome: Vec<(WindowId, Look, f32)>,
 }
 
+struct KeptMain {
+    path: PathBuf,
+    written: Option<(Pose, f32, f32)>,
+}
+
+impl KeptMain {
+    fn shape(panel: &Panel) -> (Pose, f32, f32) {
+        (panel.pose, panel.metres_per_point, panel.bend)
+    }
+
+    fn read(&self) -> Option<HostPlacement> {
+        let text = std::fs::read_to_string(&self.path).ok()?;
+        Some(HostPlacement(text.trim().to_owned()))
+    }
+
+    fn write(&mut self, panel: &Panel) {
+        let shape = Self::shape(panel);
+        if self.written == Some(shape) {
+            return;
+        }
+        self.written = Some(shape);
+        let written = self
+            .path
+            .parent()
+            .map_or(Ok(()), std::fs::create_dir_all)
+            .and_then(|()| std::fs::write(&self.path, panel.placement().0));
+        if let Err(error) = written {
+            eprintln!(
+                "space: the main panel's placement could not be saved to {}: {error}",
+                self.path.display()
+            );
+        }
+    }
+}
+
 pub struct Space {
     pub head: Head,
     pub panels: Vec<Panel>,
@@ -97,6 +133,7 @@ pub struct Space {
     shown: Option<(Shown, WindowOutput)>,
     scales: Vec<(WindowId, f32)>,
     rescaling: Vec<(WindowId, f32, Instant)>,
+    kept_main: Option<KeptMain>,
 }
 
 impl Default for Space {
@@ -143,6 +180,33 @@ impl Space {
             shown: None,
             scales: Vec::new(),
             rescaling: Vec::new(),
+            kept_main: None,
+        }
+    }
+
+    pub fn keeping_main(path: PathBuf) -> Self {
+        Self {
+            kept_main: Some(KeptMain {
+                path,
+                written: None,
+            }),
+            ..Self::new()
+        }
+    }
+
+    fn keep_main(&mut self) {
+        let busy = [
+            self.gripped(),
+            self.chrome.gesture.as_ref().map(Gesture::window),
+        ];
+        if busy.contains(&Some(WindowId::MAIN)) {
+            return;
+        }
+        let Some(panel) = self.panel(WindowId::MAIN).copied() else {
+            return;
+        };
+        if let Some(kept) = &mut self.kept_main {
+            kept.write(&panel);
         }
     }
 
@@ -407,6 +471,12 @@ impl Space {
         let half_width = (crate::head::FOV_Y / 2.0).tan() * self.platform.x / self.platform.y;
         let distance = panel.metres().x / 2.0 / (FILLED * half_width);
         panel.pose.position = self.head.position + Vec3::new(0.0, 0.0, -distance);
+        if let Some(kept) = &mut self.kept_main {
+            if let Some(placement) = kept.read() {
+                panel.placed(&placement);
+            }
+            kept.written = Some(KeptMain::shape(&panel));
+        }
         self.panels.push(panel);
         self.focused = Some(WindowId::MAIN);
         incoming.push(Incoming::Window(WindowReport::Resized {
@@ -845,7 +915,7 @@ impl Space {
         if let Some(panel) = self.panel(resize.window) {
             out.push(Incoming::Window(WindowReport::Placed {
                 window: resize.window,
-                placement: panel.pose.placement(),
+                placement: panel.placement(),
             }));
         }
     }
@@ -867,13 +937,22 @@ impl Space {
     pub fn open(&mut self, window: WindowId, placement: &WindowPlacement, size: Vec2) {
         let opening = self.panel(window).is_none();
         if opening {
-            let pose = match placement {
-                WindowPlacement::Host(placement) => Pose::from_placement(placement),
-                WindowPlacement::Over { window: other, at } => self.over(*other, *at, size),
-                WindowPlacement::AtPointer => None,
+            let mut panel = Panel::new(window, Pose::default(), size);
+            let placed = match placement {
+                WindowPlacement::Host(placement) => panel.placed(placement),
+                WindowPlacement::Over { window: other, at } => self
+                    .over(*other, *at, size)
+                    .map(|(pose, metres_per_point)| {
+                        panel.pose = pose;
+                        panel.metres_per_point = metres_per_point;
+                    })
+                    .is_some(),
+                WindowPlacement::AtPointer => false,
+            };
+            if !placed {
+                panel.pose = self.at_pointer(size);
             }
-            .unwrap_or_else(|| self.at_pointer(size));
-            self.panels.push(Panel::new(window, pose, size));
+            self.panels.push(panel);
         }
         let Some(panel) = self.panel(window) else {
             return;
@@ -885,7 +964,7 @@ impl Space {
             },
             WindowReport::Placed {
                 window,
-                placement: panel.pose.placement(),
+                placement: panel.placement(),
             },
         ];
         self.reports.extend(reports.map(Incoming::Window));
@@ -931,7 +1010,7 @@ impl Space {
         panel.pose
     }
 
-    fn over(&self, other: WindowId, at: Pos2, size: Vec2) -> Option<Pose> {
+    fn over(&self, other: WindowId, at: Pos2, size: Vec2) -> Option<(Pose, f32)> {
         let other = self.panel(other)?;
         let mut panel = Panel::new(WindowId::MAIN, other.pose, size);
         panel.metres_per_point = other.metres_per_point;
@@ -957,7 +1036,7 @@ impl Space {
         }
         panel.pose.position =
             other.pose.position + other.pose.rotation * (centre + Vec3::Z * depth);
-        Some(panel.pose)
+        Some((panel.pose, panel.metres_per_point))
     }
 
     pub fn close(&mut self, window: WindowId) {
@@ -1019,7 +1098,7 @@ impl Space {
         panel.face(head.position);
         out.push(Incoming::Window(WindowReport::Placed {
             window: carry.window,
-            placement: panel.pose.placement(),
+            placement: panel.placement(),
         }));
     }
 
@@ -1074,6 +1153,7 @@ impl WindowHost for Space {
         for item in incoming.drain(..) {
             self.take(item, &mut out);
         }
+        self.keep_main();
         self.place_carried();
         self.rescale();
         self.remember_cursor();
@@ -1381,7 +1461,7 @@ impl Space {
         {
             out.push(Incoming::Window(WindowReport::Placed {
                 window: panel.window,
-                placement: panel.pose.placement(),
+                placement: panel.placement(),
             }));
         }
         self.chrome.hovered = self.on_chrome();
