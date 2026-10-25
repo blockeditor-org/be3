@@ -11,6 +11,7 @@ fn acceptance_carries_the_initial_preferences() {
         "BE3",
         Some(SurfaceSpec {
             format: SurfaceFormat::Rgba8Unorm,
+            render: true,
         }),
         preferences,
     );

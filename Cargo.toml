@@ -1,5 +1,6 @@
 [workspace]
 members = [
+    "crates/app-bench",
     "crates/app-tests",
     "crates/be-block",
     "crates/be-cli",
@@ -21,6 +22,7 @@ members = [
     "crates/be-store",
     "crates/be-vcs",
     "crates/be-wayland",
+    "crates/bench",
     "crates/beui",
     "crates/beui-adapter-android",
     "crates/beui-adapter-drm",
@@ -152,6 +154,7 @@ members = [
     "crates/tabletop-games/rules/connect-four",
     "crates/tabletop-games/rules/crazy-8s",
     "crates/tabletop-games/rules/tic-tac-toe",
+    "crates/terminal-emulator",
     "crates/terminal-view",
     "crates/text-editor-core",
     "crates/ui-types",

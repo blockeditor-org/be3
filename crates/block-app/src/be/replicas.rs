@@ -105,6 +105,7 @@ impl be_types_host::Host for Shared {
             let mut held = shared.lock().unwrap_or_else(PoisonError::into_inner);
             let before = held.graph.get(block).and_then(|node| node.head);
             if before != status.head {
+                held.saves += 1;
                 held.touch(block);
             }
             held.graph.set_head(block, status.head);

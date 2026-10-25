@@ -1,3 +1,4 @@
+use std::borrow::Cow;
 use std::collections::BTreeMap;
 
 use serde::{Deserialize, Serialize};
@@ -16,6 +17,7 @@ struct Session {
     texts: BTreeMap<Place, State>,
     lists: BTreeMap<Place, ItemsState>,
     riches: BTreeMap<Place, RichState>,
+    series: BTreeMap<Place, State>,
 }
 
 #[derive(Clone, Debug, Default, Deserialize, Serialize)]
@@ -55,10 +57,17 @@ impl Tree {
                 Value::Rich(rich) if !rich.is_fresh() => {
                     session.riches.insert(place, rich.state());
                 }
+                Value::Series(sequence) if !sequence.is_fresh() => {
+                    session.series.insert(place, sequence.state());
+                }
                 _ => {}
             }
         }
-        if session.texts.is_empty() && session.lists.is_empty() && session.riches.is_empty() {
+        if session.texts.is_empty()
+            && session.lists.is_empty()
+            && session.riches.is_empty()
+            && session.series.is_empty()
+        {
             return Vec::new();
         }
         postcard::to_stdvec(&session).unwrap_or_default()
@@ -69,6 +78,7 @@ impl Tree {
             texts,
             lists,
             riches,
+            series,
         } = match bytes.is_empty() {
             true => Session::default(),
             false => postcard::from_bytes(bytes).map_err(|_| Malformed)?,
@@ -94,6 +104,13 @@ impl Tree {
             };
             let rich = Rich::from_state(state, &held.text.items()).map_err(|_| Malformed)?;
             adopted.push((place, Value::Rich(rich)));
+        }
+        for (place, state) in series {
+            let Some(Value::Series(held)) = self.value(place.object, place.field) else {
+                return Err(Malformed);
+            };
+            let sequence = Sequence::from_state(state, &held.items()).map_err(|_| Malformed)?;
+            adopted.push((place, Value::Series(sequence)));
         }
         self.refresh_sequences();
         for (place, value) in adopted {
@@ -136,16 +153,21 @@ impl Tree {
         self.objects.get(&id)
     }
 
-    pub fn fields<M: Model>(&self, id: ObjectId) -> Vec<Value> {
-        let mut fields = M::blank();
-        if let Some(object) = self.objects.get(&id) {
-            for (slot, stored) in fields.iter_mut().zip(&object.fields) {
-                if std::mem::discriminant(slot) == std::mem::discriminant(stored) {
-                    slot.clone_from(stored);
+    pub fn fields<M: Model>(&self, id: ObjectId) -> Vec<Cow<'_, Value>> {
+        let stored = self
+            .objects
+            .get(&id)
+            .map_or(&[][..], |object| &object.fields[..]);
+        M::blank()
+            .into_iter()
+            .enumerate()
+            .map(|(index, blank)| match stored.get(index) {
+                Some(held) if std::mem::discriminant(held) == std::mem::discriminant(&blank) => {
+                    Cow::Borrowed(held)
                 }
-            }
-        }
-        fields
+                _ => Cow::Owned(blank),
+            })
+            .collect()
     }
 
     fn permits(&self, root: fn() -> Kind, change: &Change) -> bool {
@@ -167,7 +189,8 @@ impl Tree {
             | Change::Stamp { object, .. }
             | Change::Text { object, .. }
             | Change::Mark { object, .. }
-            | Change::Unmark { object, .. } => !locked(object),
+            | Change::Unmark { object, .. }
+            | Change::Series { object, .. } => !locked(object),
             Change::Insert { place, .. } => !locked(&place.object),
             Change::Remove { object } | Change::RemoveIf { object, .. } => !parent_locked(object),
             Change::Move { object, place, .. } => {
@@ -316,6 +339,10 @@ impl Tree {
             },
             Change::Unmark { object, field, id } => match self.value_mut(*object, *field) {
                 Some(Value::Rich(rich)) => rich.unmark(*id).is_some(),
+                _ => false,
+            },
+            Change::Series { object, field, op } => match self.value_mut(*object, *field) {
+                Some(Value::Series(sequence)) => sequence.apply(op).is_some(),
                 _ => false,
             },
             Change::Remove { object } => self.remove(*object),
@@ -517,6 +544,24 @@ impl Tree {
                     change.clone(),
                 ))
             }
+            Change::Series { object, field, op } => {
+                let Some(Value::Series(sequence)) = self.value(*object, *field) else {
+                    return None;
+                };
+                let (back, forward) = sequence.inverse(op)?;
+                Some((
+                    Change::Series {
+                        object: *object,
+                        field: *field,
+                        op: back,
+                    },
+                    Change::Series {
+                        object: *object,
+                        field: *field,
+                        op: forward,
+                    },
+                ))
+            }
             Change::Insert { place, objects, .. } => {
                 let (top, _) = objects.first()?;
                 (objects.iter().all(|(id, _)| !self.contains(*id)) && self.list(*place).is_some())
@@ -592,7 +637,8 @@ impl Tree {
             | Change::Stamp { object, field, .. }
             | Change::Text { object, field, .. }
             | Change::Mark { object, field, .. }
-            | Change::Unmark { object, field, .. } => {
+            | Change::Unmark { object, field, .. }
+            | Change::Series { object, field, .. } => {
                 out.push(Touched::Field(*object, *field));
                 self.touch_up(*object, out);
             }
@@ -964,6 +1010,7 @@ fn refresh(fields: &mut [Value]) {
             Value::Text(sequence) if !sequence.is_fresh() => *sequence = sequence.refreshed(),
             Value::List(items) if !items.is_fresh() => *items = items.refreshed(),
             Value::Rich(rich) if !rich.is_fresh() => *rich = rich.refreshed(),
+            Value::Series(sequence) if !sequence.is_fresh() => *sequence = sequence.refreshed(),
             _ => {}
         }
     }

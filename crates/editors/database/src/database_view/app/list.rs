@@ -1,3 +1,4 @@
+use beui::Wrap;
 use block_editor_beui::be_block::ObjectId;
 use block_editor_beui::beui::icons::{ICON_CHEVRON_DOWN, ICON_FILE_TEXT, ICON_LINK, ICON_PLUS};
 use block_editor_beui::beui::reactive::*;
@@ -382,7 +383,7 @@ fn RowLine(data: Data, row: Memo<Option<ObjectId>>) -> NodeId {
                     <List spacing=4.0>
                         <List direction=Direction::Horizontal align=Align::Start spacing=SPACING>
                             <Marks data={data} entry={entry} marks={marks} />
-                            <Text @sizing=ItemSize::Percent(100.0) wrap=true>{title}</Text>
+                            <Text @sizing=ItemSize::Percent(100.0) wrap=Wrap::Words>{title}</Text>
                         </List>
                         <List
                             direction=Direction::Horizontal

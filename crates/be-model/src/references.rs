@@ -1,5 +1,5 @@
 use std::{
-    collections::{HashMap, HashSet},
+    collections::{BTreeMap, HashMap, HashSet},
     ops::Deref,
 };
 
@@ -7,7 +7,7 @@ use ciborium::tag::Required;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use uuid::Uuid;
 
-use crate::{Object, ObjectId, Stored, Tree, Value, stored};
+use crate::{ObjectId, Stored, Tree, Value, stored};
 
 #[derive(Clone, Copy, Debug, Default, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub struct BlockRef(pub Uuid);
@@ -75,10 +75,12 @@ pub mod block_ref {
 
 #[derive(Clone, Debug, Default)]
 pub(crate) struct Index {
-    held: HashMap<ObjectId, Vec<Uuid>>,
+    held: HashMap<ObjectId, BTreeMap<u16, Vec<Uuid>>>,
     counts: HashMap<Uuid, usize>,
     order: Vec<Uuid>,
 }
+
+const KEPT: u16 = u16::MAX;
 
 impl Index {
     pub(crate) fn build(tree: &Tree) -> Self {
@@ -94,9 +96,9 @@ impl Index {
         let Some(object) = tree.object(id) else {
             return;
         };
-        let mut own = Vec::new();
+        let mut slots = BTreeMap::new();
         if object.kept.kind.is_none() {
-            for value in &object.fields {
+            for (slot, value) in object.fields.iter().enumerate() {
                 match value {
                     Value::List(items) => {
                         for child in items.iter() {
@@ -104,25 +106,30 @@ impl Index {
                         }
                     }
                     value => {
-                        let start = own.len();
+                        let mut own = Vec::new();
                         walk_value(value, &mut own);
-                        found.extend_from_slice(&own[start..]);
+                        found.extend_from_slice(&own);
+                        if let Ok(slot) = u16::try_from(slot) {
+                            slots.insert(slot, own);
+                        }
                     }
                 }
             }
         }
-        let start = own.len();
+        let mut kept = Vec::new();
         for held in object.kept.properties.values() {
-            walk_bytes(held, &mut own);
+            walk_bytes(held, &mut kept);
         }
-        found.extend_from_slice(&own[start..]);
-        let mut seen = HashSet::new();
-        own.retain(|held| seen.insert(*held));
-        for held in &own {
-            *self.counts.entry(*held).or_default() += 1;
-        }
-        if !own.is_empty() {
-            self.held.insert(id, own);
+        found.extend_from_slice(&kept);
+        slots.insert(KEPT, kept);
+        for (slot, own) in slots {
+            let own = distinct(own);
+            for held in &own {
+                *self.counts.entry(*held).or_default() += 1;
+            }
+            if !own.is_empty() {
+                self.held.entry(id).or_default().insert(slot, own);
+            }
         }
     }
 
@@ -131,15 +138,76 @@ impl Index {
     }
 
     pub(crate) fn refresh(&mut self, tree: &Tree, id: ObjectId) {
-        let found = tree.object(id).map(held_by).unwrap_or_default();
-        self.set(id, found);
+        let slots: Vec<u16> = self
+            .held
+            .get(&id)
+            .map(|slots| slots.keys().copied().collect())
+            .unwrap_or_default();
+        for slot in slots {
+            self.set(id, slot, Vec::new());
+        }
+        let Some(object) = tree.object(id) else {
+            return;
+        };
+        let count = u16::try_from(object.fields.len()).unwrap_or(KEPT);
+        for slot in 0..count {
+            self.refresh_field(tree, id, slot);
+        }
+        let mut kept = Vec::new();
+        for held in object.kept.properties.values() {
+            walk_bytes(held, &mut kept);
+        }
+        self.set(id, KEPT, kept);
     }
 
-    fn set(&mut self, id: ObjectId, found: Vec<Uuid>) {
-        if found.is_empty() && !self.held.contains_key(&id) {
+    pub(crate) fn refresh_field(&mut self, tree: &Tree, id: ObjectId, field: u16) {
+        let mut found = Vec::new();
+        if let Some(object) = tree.object(id)
+            && object.kept.kind.is_none()
+            && let Some(value) = object.fields.get(usize::from(field))
+        {
+            walk_value(value, &mut found);
+        }
+        self.set(id, field, found);
+    }
+
+    pub(crate) fn add(&mut self, tree: &Tree, id: ObjectId, field: u16, items: &[Vec<u8>]) {
+        if tree
+            .object(id)
+            .is_none_or(|object| object.kept.kind.is_some())
+        {
             return;
         }
-        for gone in self.held.remove(&id).unwrap_or_default() {
+        let mut found = Vec::new();
+        for item in items {
+            walk_bytes(item, &mut found);
+        }
+        if found.is_empty() {
+            return;
+        }
+        let mut held = self
+            .held
+            .get(&id)
+            .and_then(|slots| slots.get(&field))
+            .cloned()
+            .unwrap_or_default();
+        held.extend(found);
+        self.set(id, field, held);
+    }
+
+    fn set(&mut self, id: ObjectId, slot: u16, found: Vec<Uuid>) {
+        let gone = self
+            .held
+            .get_mut(&id)
+            .and_then(|slots| slots.remove(&slot))
+            .unwrap_or_default();
+        if self.held.get(&id).is_some_and(BTreeMap::is_empty) {
+            self.held.remove(&id);
+        }
+        if found.is_empty() && gone.is_empty() {
+            return;
+        }
+        for gone in gone {
             let Some(count) = self.counts.get_mut(&gone) else {
                 continue;
             };
@@ -149,8 +217,7 @@ impl Index {
                 self.order.retain(|held| *held != gone);
             }
         }
-        let mut seen = HashSet::new();
-        let found: Vec<Uuid> = found.into_iter().filter(|id| seen.insert(*id)).collect();
+        let found = distinct(found);
         for added in &found {
             let count = self.counts.entry(*added).or_default();
             if *count == 0 {
@@ -159,22 +226,14 @@ impl Index {
             *count += 1;
         }
         if !found.is_empty() {
-            self.held.insert(id, found);
+            self.held.entry(id).or_default().insert(slot, found);
         }
     }
 }
 
-fn held_by(object: &Object) -> Vec<Uuid> {
-    let mut found = Vec::new();
-    if object.kept.kind.is_none() {
-        for value in &object.fields {
-            walk_value(value, &mut found);
-        }
-    }
-    for held in object.kept.properties.values() {
-        walk_bytes(held, &mut found);
-    }
-    found
+fn distinct(found: Vec<Uuid>) -> Vec<Uuid> {
+    let mut seen = HashSet::new();
+    found.into_iter().filter(|id| seen.insert(*id)).collect()
 }
 
 fn walk_value(value: &Value, found: &mut Vec<Uuid>) {
@@ -192,6 +251,11 @@ fn walk_value(value: &Value, found: &mut Vec<Uuid>) {
                 if let Some(value) = &stamped.value {
                     walk_bytes(value, found);
                 }
+            }
+        }
+        Value::Series(items) => {
+            for item in items.iter() {
+                walk_bytes(item, found);
             }
         }
         Value::List(_) | Value::Count(_) | Value::Grid(_) | Value::Text(_) | Value::Rich(_) => {}

@@ -9,6 +9,7 @@ fn accept(session: &mut ClientSession) {
         host_name: "test host".into(),
         surface: Some(SurfaceSpec {
             format: SurfaceFormat::Rgba8Unorm,
+            render: true,
         }),
         preferences: block_plugin_api::Preferences::default(),
     }));

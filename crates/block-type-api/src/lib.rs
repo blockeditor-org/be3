@@ -92,6 +92,9 @@ pub enum Event {
         id: RequestId,
         request: Request,
     },
+    Claim {
+        replica: ReplicaId,
+    },
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]

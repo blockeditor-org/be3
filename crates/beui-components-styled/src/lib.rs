@@ -64,8 +64,8 @@ pub use beui_components_unstyled::NumberDrag;
 pub use beui_components_unstyled::SHEET_STOPS;
 pub use beui_components_unstyled::{emoji_completer, search_emoji};
 pub use beui_view::primitives::{
-    BackHandler, Canvas, CanvasItem, Drawing, Embed, Fade, Gap, Grid, GridCell, Interactive, Layer,
-    Layers, LayoutBuilder, List, Offset, Overlay, PlacementBuilder, Portal, Shift, Spacer,
+    BackHandler, Break, Canvas, CanvasItem, Drawing, Embed, Fade, Gap, Grid, GridCell, Interactive,
+    Layer, Layers, LayoutBuilder, List, Offset, Overlay, PlacementBuilder, Portal, Shift, Spacer,
     SystemBars, TextItem, Turn, VirtualList,
 };
 pub use border::{Bordered, Separator};

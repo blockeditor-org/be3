@@ -5,6 +5,7 @@ fn events_and_commands_round_trip() {
     let head = CommitId::from_hash(be_store::Hash::of(b"head"));
     let events = vec![
         Event::Tick { now: 750 },
+        Event::Claim { replica: 1 },
         Event::Open {
             replica: 1,
             block: Uuid::from_u128(2),

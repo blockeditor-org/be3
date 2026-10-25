@@ -467,7 +467,19 @@ where
     where
         T: Model + Clone + PartialEq + 'static,
     {
-        self.project_on(Touched::Subtree(id), move |content| content.read::<T>(id))
+        let projection = self.inner();
+        let read = create_signal(projection.mirror.borrow().visible().read::<T>(id));
+        projection.register(
+            Some(Touched::Subtree(id)),
+            Rc::new(move |content: &Document<R>, _: &[Touched]| {
+                let next = match read.get_untracked() {
+                    Some(held) => content.reread(id, held),
+                    None => content.read(id),
+                };
+                read.set(next);
+            }),
+        );
+        read.read_only()
     }
 }
 

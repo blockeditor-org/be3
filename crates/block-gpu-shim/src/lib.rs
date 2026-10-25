@@ -93,11 +93,67 @@ pub fn paint() -> bool {
             shim.screens.presented(&presented);
             let gpu = &shim.gpu;
             let painted = shim.screens.paint(|surface| gpu.surface(surface));
+            let exported = shim
+                .screens
+                .paint_exports(&presented, |surface| gpu.surface(surface));
             shim.fail(painted);
+            shim.fail(exported);
             !presented.is_empty()
         },
         false,
     )
+}
+
+#[wasm_bindgen]
+pub fn export_surfaces(surfaces: Vec<u32>) {
+    with(|shim| shim.screens.export(surfaces), ());
+}
+
+#[wasm_bindgen]
+pub fn exported() -> js_sys::Array {
+    let pictures = js_sys::Array::new();
+    with(
+        |shim| {
+            for (surface, bitmap) in shim.screens.take_exported() {
+                let picture = js_sys::Object::new();
+                let _ = js_sys::Reflect::set(&picture, &"surface".into(), &surface.into());
+                let _ = js_sys::Reflect::set(&picture, &"bitmap".into(), &bitmap);
+                pictures.push(&picture);
+            }
+        },
+        (),
+    );
+    pictures
+}
+
+#[wasm_bindgen]
+pub fn import_image(image: u64, bitmap: web_sys::ImageBitmap) {
+    with(
+        |shim| {
+            let texture = shim.screens.import(&bitmap);
+            bitmap.close();
+            shim.gpu
+                .imports()
+                .lock()
+                .unwrap_or_else(|held| held.into_inner())
+                .insert(image, texture);
+        },
+        (),
+    );
+}
+
+#[wasm_bindgen]
+pub fn forget_image(image: u64) {
+    with(
+        |shim| {
+            shim.gpu
+                .imports()
+                .lock()
+                .unwrap_or_else(|held| held.into_inner())
+                .remove(&image);
+        },
+        (),
+    );
 }
 
 #[wasm_bindgen]

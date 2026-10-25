@@ -1,16 +1,17 @@
 use std::{
     cell::RefCell,
     sync::{
-        OnceLock,
+        Mutex, OnceLock, PoisonError,
         mpsc::{self, Receiver, SendError},
     },
     time::{Duration, Instant},
 };
 
-use beui::{FileFilter, FilePick, FilePickId, Waker};
+use beui::{FileFilter, FilePick, FilePickId, FileSave, FileSaveId, SavedFile, Waker};
 use uuid::Uuid;
 
 static WAKER: OnceLock<Waker> = OnceLock::new();
+static UNSENT_SAVES: Mutex<Vec<(SavedFile, SaveSlot)>> = Mutex::new(Vec::new());
 
 thread_local! {
     static HOST: RefCell<Host> = RefCell::new(Host::default());
@@ -76,6 +77,7 @@ struct Host {
     preferences: block_plugin_api::Preferences,
     commands: Vec<HostCommand>,
     waiting_picks: Vec<(FilePickId, PickSlot)>,
+    waiting_saves: Vec<(FileSaveId, SaveSlot)>,
     output: Output,
 }
 
@@ -92,6 +94,7 @@ impl Default for Host {
             preferences: block_plugin_api::Preferences::default(),
             commands: Vec::new(),
             waiting_picks: Vec::new(),
+            waiting_saves: Vec::new(),
             output: Output::default(),
         }
     }
@@ -125,6 +128,7 @@ impl Default for Frame {
 
 pub(crate) fn begin(context: &beui::Context) {
     let mut picked = Vec::new();
+    let mut saved = Vec::new();
     with(|host| {
         host.waiting_picks
             .retain_mut(|(id, slot)| match context.take_file_pick(*id) {
@@ -134,9 +138,18 @@ pub(crate) fn begin(context: &beui::Context) {
                 }
                 None => true,
             });
+        for (id, deliver) in std::mem::take(&mut host.waiting_saves) {
+            match context.take_file_save(id) {
+                Some(save) => saved.push((deliver, save)),
+                None => host.waiting_saves.push((id, deliver)),
+            }
+        }
     });
     for (deliver, pick) in picked {
         deliver(pick);
+    }
+    for (deliver, save) in saved {
+        deliver(save);
     }
     let mut frame = Frame {
         now: Some(context.now()),
@@ -191,6 +204,11 @@ pub(crate) fn end(context: &beui::Context) {
     for (filter, slot) in output.file_picks {
         let id = context.pick_file(filter);
         with(|host| host.waiting_picks.push((id, slot)));
+    }
+    let saves = std::mem::take(&mut *UNSENT_SAVES.lock().unwrap_or_else(PoisonError::into_inner));
+    for (file, deliver) in saves {
+        let id = context.save_file(file);
+        with(|host| host.waiting_saves.push((id, deliver)));
     }
     if output.paste {
         context.request_paste();
@@ -268,6 +286,7 @@ pub(crate) fn copy_image(png: Vec<u8>) {
 }
 
 type PickSlot = Option<Box<dyn FnOnce(FilePick)>>;
+type SaveSlot = Box<dyn FnOnce(FileSave) + Send>;
 
 pub(crate) fn request_paste() {
     with(|host| host.output.paste = true);
@@ -279,6 +298,14 @@ pub(crate) fn pick_file(filter: FileFilter, deliver: impl FnOnce(FilePick) + 'st
             .file_picks
             .push((filter, Some(Box::new(deliver))))
     });
+}
+
+pub(crate) fn save_file(file: SavedFile, deliver: impl FnOnce(FileSave) + Send + 'static) {
+    UNSENT_SAVES
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .push((file, Box::new(deliver)));
+    wake();
 }
 
 pub(crate) fn request_repaint() {
@@ -312,11 +339,6 @@ pub(crate) enum HostItem {
     Notice {
         text: String,
         spinner: bool,
-        icon: Option<beui::icons::Glyph>,
-    },
-    Fallback {
-        name: String,
-        automatic: bool,
         icon: Option<beui::icons::Glyph>,
     },
     Unsupported {

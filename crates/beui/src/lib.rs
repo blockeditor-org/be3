@@ -34,10 +34,11 @@ pub use beui_core::drawing::Drawing;
 pub use beui_core::file_picker::{
     FileFilter, FilePick, FilePickAnswer, FilePickId, FilePickRequest, PickedFile,
 };
+pub use beui_core::file_saver::{FileSave, FileSaveAnswer, FileSaveId, FileSaveRequest, SavedFile};
 pub use beui_core::filter::{ColorVision, Filter, MAX_BLUR};
 pub use beui_core::font::{
     FontBackend, FontFamily, FontId, Galley, GalleyLine, Glyph, GlyphId, GlyphImage, Shaping,
-    TextAlign, TextLayout, Wraps, line_height,
+    TextAlign, TextLayout, Wrap, Wraps, line_height,
 };
 pub use beui_core::geometry::{Pos2, Rect, Rotation, Vec2, pos2, vec2};
 pub use beui_core::icons;
@@ -56,7 +57,9 @@ pub use beui_core::overflow;
 pub use beui_core::page::{Page, PageShape};
 pub use beui_core::painter::{Corners, Painter, Shape};
 pub use beui_core::painting;
-pub use beui_core::path::{FillRule, LineCap, LineJoin, Path, PathElement, Stroke};
+pub use beui_core::path::{
+    FillRule, LineCap, LineJoin, Path, PathElement, PathPaint, PathStyle, Stroke,
+};
 pub use beui_core::performance::{
     FramePerformance, FrameWork, PerformanceSnapshot, PerformanceTimings,
 };

@@ -29,6 +29,7 @@ use raw_window_handle as rwh;
 use beui_core::app::{SafeArea, Setup, Waker};
 use beui_core::clipboard::{PasteAnswer, PasteKind, Pasted};
 use beui_core::file_picker::{FilePick, FilePickAnswer, FilePickId, FilePickRequest, PickedFile};
+use beui_core::file_saver::{FileSave, FileSaveAnswer, FileSaveId, FileSaveRequest};
 use beui_core::geometry::{Vec2, pos2, vec2};
 use beui_core::input::{
     BackEdge, BackGesture, ImeArea, ImeEvent, ImeText, Input, Key, Keyboard, Keystroke, Modifiers,
@@ -136,6 +137,7 @@ static SHARED: OnceLock<Shared> = OnceLock::new();
 static STARTED: AtomicBool = AtomicBool::new(false);
 static ACTIVITY: Mutex<Option<Global<JObject<'static>>>> = Mutex::new(None);
 static PICKS: Mutex<Vec<FilePickAnswer>> = Mutex::new(Vec::new());
+static SAVES: Mutex<Vec<FileSaveAnswer>> = Mutex::new(Vec::new());
 
 fn shared() -> &'static Shared {
     SHARED.get_or_init(|| {
@@ -247,6 +249,10 @@ impl Platform for AndroidPlatform {
 
     fn pick_file(&mut self, request: FilePickRequest, answer: FilePickAnswer) {
         AndroidPlatform::pick_file(self, request, answer);
+    }
+
+    fn save_file(&mut self, request: FileSaveRequest, answer: FileSaveAnswer) {
+        AndroidPlatform::save_file(self, request, answer);
     }
 
     fn show_window(&mut self, window: &WindowState, shown: &WindowState) {
@@ -428,6 +434,47 @@ impl AndroidPlatform {
             && let Some(answer) = take_pick(id)
         {
             answer.send(Err(format!("Could not open a file picker: {error}")));
+        }
+    }
+
+    fn save_file(&self, request: FileSaveRequest, answer: FileSaveAnswer) {
+        let Some(view) = &self.view else {
+            answer.send(FileSave::Failed(
+                "Saving a file is unavailable right now".into(),
+            ));
+            return;
+        };
+        let id = request.id;
+        SAVES
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .push(answer);
+        let file = request.file;
+        let started = self
+            .vm
+            .attach_current_thread(|env| -> Result<(), JniError> {
+                let name = env.new_string(&file.name)?;
+                let mime_type = env.new_string(&file.mime_type)?;
+                let data = env.byte_array_from_slice(&file.data)?;
+                env.call_method(
+                    view.as_obj(),
+                    jni_str!("saveFile"),
+                    jni_sig!("(JLjava/lang/String;Ljava/lang/String;[B)V"),
+                    &[
+                        JValue::Long(id.0.cast_signed()),
+                        JValue::Object(&name),
+                        JValue::Object(&mime_type),
+                        JValue::Object(&data),
+                    ],
+                )?;
+                Ok(())
+            });
+        if let Err(error) = started
+            && let Some(answer) = take_save(id)
+        {
+            answer.send(FileSave::Failed(format!(
+                "Could not open a save dialog: {error}"
+            )));
         }
     }
 
@@ -1240,6 +1287,43 @@ pub extern "system" fn Java_com_be3_beui_BeuiView_nativeFilePicked<'local>(
     if let Some(answer) = take_pick(FilePickId(id.cast_unsigned())) {
         answer.send(pick);
     }
+}
+
+// unsafe(ffi)
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_com_be3_beui_BeuiView_nativeFileSaved<'local>(
+    mut env: EnvUnowned<'local>,
+    _: JClass<'local>,
+    id: jlong,
+    saved: jboolean,
+    error: JString<'local>,
+) {
+    let save = env
+        .with_env(|env| -> Result<FileSave, JniError> {
+            if !error.is_null() {
+                return Ok(FileSave::Failed(error.try_to_string(env)?));
+            }
+            Ok(match saved {
+                true => FileSave::Saved,
+                false => FileSave::Cancelled,
+            })
+        })
+        .into_outcome();
+    let save = match save {
+        jni::Outcome::Ok(save) => save,
+        jni::Outcome::Err(_) | jni::Outcome::Panic(_) => {
+            FileSave::Failed("The file could not be saved".to_owned())
+        }
+    };
+    if let Some(answer) = take_save(FileSaveId(id.cast_unsigned())) {
+        answer.send(save);
+    }
+}
+
+fn take_save(id: FileSaveId) -> Option<FileSaveAnswer> {
+    let mut saves = SAVES.lock().unwrap_or_else(PoisonError::into_inner);
+    let index = saves.iter().position(|answer| answer.id() == id)?;
+    Some(saves.swap_remove(index))
 }
 
 fn take_pick(id: FilePickId) -> Option<FilePickAnswer> {

@@ -121,17 +121,9 @@ paint-snapshot = { path = "../paint-snapshot" }
 [target.'cfg(not(any(target_arch = "wasm32", target_os = "android")))'.dev-dependencies]
 be-cli = { path = "../be-cli" }
 
-# The native file dialog. Android and the browser reach their own pickers
-# instead, from platform/file_picker.rs, and Linux asks xdg-desktop-portal and
-# then zenity itself, so it can say when neither is there.
-[target.'cfg(all(not(target_os = "android"), not(target_os = "linux"), not(target_arch = "wasm32")))'.dependencies]
-pollster = "0.4"
-rfd = "0.15"
-
 # Linux runs the app as a Wayland compositor, and --session runs it on the
 # displays and input devices themselves rather than in a window.
 [target.'cfg(target_os = "linux")'.dependencies]
-ashpd = { version = "0.11", default-features = false, features = ["async-std"] }
 async-executor = "1"
 async-io = "2"
 async-lock = "3"
@@ -171,12 +163,12 @@ web-sys = { version = "0.3", features = [
     "File",
     "FileList",
     "Headers",
-    "HtmlAnchorElement",
     "HtmlAudioElement",
     "HtmlCanvasElement",
     "HtmlElement",
     "HtmlInputElement",
     "HtmlMediaElement",
+    "ImageBitmap",
     "Location",
     "MessageEvent",
     "Node",

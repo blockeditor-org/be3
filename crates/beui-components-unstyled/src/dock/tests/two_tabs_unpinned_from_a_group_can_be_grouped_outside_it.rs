@@ -12,6 +12,7 @@ fn two_tabs_unpinned_from_a_group_can_be_grouped_outside_it() {
         ],
         active: 0,
         vertical: false,
+        icons_only: false,
         sidebar: SIDEBAR_WIDTH,
     };
     let group = state.insert_pinned_group(leaf, 1, &layout);

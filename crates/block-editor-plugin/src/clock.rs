@@ -24,6 +24,11 @@ pub(crate) fn restart() {
     FRAME.with(|frame| frame.set(None));
 }
 
+#[cfg_attr(not(target_arch = "wasm32"), allow(dead_code))]
+pub(crate) fn frame_now() -> Duration {
+    FRAME.with(|frame| frame.get().map_or(Duration::ZERO, |(_, now)| now))
+}
+
 pub fn frame_time() -> Option<Instant> {
     FRAME.with(|frame| frame.get().map(|(epoch, now)| epoch + now))
 }

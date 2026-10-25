@@ -267,6 +267,19 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "330a5ed07fa54e4702c9d6c4174f74427fc0ef6e214bbd677ae50a5099946470"
 
 [[package]]
+name = "app-bench"
+version = "0.1.0"
+dependencies = [
+ "be-drive",
+ "be-server",
+ "bench",
+ "beui-core",
+ "build-id",
+ "paint-snapshot",
+ "tokio",
+]
+
+[[package]]
 name = "app-tests"
 version = "0.1.0"
 dependencies = [
@@ -740,9 +753,9 @@ dependencies = [
  "database-types",
  "first-party-types",
  "futures-util",
- "ghostty-vt",
  "portable-pty",
  "serde_json",
+ "terminal-emulator",
  "terminal-types",
  "text-block-types",
  "tokio",
@@ -842,6 +855,7 @@ version = "0.1.0"
 dependencies = [
  "be-commit",
  "be-store",
+ "bench",
  "serde",
  "uuid",
 ]
@@ -867,6 +881,7 @@ dependencies = [
 name = "be-launcher"
 version = "0.1.0"
 dependencies = [
+ "be-block",
  "beui",
  "block-ui-test",
  "comrak",
@@ -876,6 +891,8 @@ dependencies = [
  "serde",
  "serde_json",
  "sha2 0.10.9",
+ "terminal-emulator",
+ "terminal-types",
  "terminal-view",
  "ureq",
 ]
@@ -1080,10 +1097,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "bench"
+version = "0.1.0"
+
+[[package]]
 name = "beui"
 version = "0.1.0"
 dependencies = [
  "accesskit",
+ "bench",
  "beui-adapter-android",
  "beui-adapter-headless",
  "beui-adapter-space",
@@ -1255,6 +1277,7 @@ dependencies = [
 name = "beui-demo"
 version = "0.1.0"
 dependencies = [
+ "bench",
  "beui",
  "beui-core",
  "beui-inspector",
@@ -1483,7 +1506,6 @@ dependencies = [
 name = "block-app"
 version = "0.1.0"
 dependencies = [
- "ashpd",
  "async-executor",
  "async-io",
  "async-lock",
@@ -1533,7 +1555,6 @@ dependencies = [
  "presentation-types",
  "pulseaudio",
  "reactive",
- "rfd",
  "rodio",
  "rusqlite",
  "serde",
@@ -1580,6 +1601,7 @@ dependencies = [
  "be-model",
  "beui",
  "beui-adapter-plugin",
+ "beui-renderer-wgpu",
  "block-editor-plugin",
  "block-plugin-api",
  "block-ui",
@@ -4327,6 +4349,7 @@ dependencies = [
 name = "infinite_canvas"
 version = "0.1.0"
 dependencies = [
+ "bench",
  "beui",
  "block-editor-beui",
  "block-ui-test",
@@ -7612,6 +7635,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "terminal-emulator"
+version = "0.1.0"
+dependencies = [
+ "ghostty-vt",
+ "terminal-types",
+]
+
+[[package]]
 name = "terminal-types"
 version = "0.1.0"
 dependencies = [
@@ -7620,6 +7651,7 @@ dependencies = [
  "be-model",
  "block-type-guest",
  "serde",
+ "ui-types",
  "uuid",
 ]
 
@@ -7627,8 +7659,9 @@ dependencies = [
 name = "terminal-view"
 version = "0.1.0"
 dependencies = [
+ "be-block",
  "beui",
- "ghostty-vt",
+ "terminal-types",
 ]
 
 [[package]]

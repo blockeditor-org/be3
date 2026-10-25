@@ -4,7 +4,7 @@ use std::{
     time::Instant,
 };
 
-use be_client::{ClientError, Peer, Saved};
+use be_client::{ClientError, Peer, Saved, connection::Answer};
 use be_commit::CommitId;
 use be_graph::BlockParent;
 use be_protocol::{ClientId, ServerMessage, SessionState};
@@ -33,6 +33,7 @@ pub enum Io {
     Locked {
         replica: ReplicaId,
     },
+    Relayed,
 }
 
 struct Open {
@@ -64,6 +65,8 @@ pub struct Replicas<H: Host> {
     contents: HashMap<RequestId, ReplicaId>,
     replies: HashMap<RequestId, tokio::sync::oneshot::Sender<Reply>>,
     pending: Vec<Io>,
+    relaying: usize,
+    changed: bool,
     pub handled: u64,
     host: std::marker::PhantomData<fn() -> H>,
 }
@@ -83,9 +86,32 @@ impl<H: Host> Replicas<H> {
             contents: HashMap::new(),
             replies: HashMap::new(),
             pending: Vec::new(),
+            relaying: 0,
+            changed: false,
             handled: 0,
             host: std::marker::PhantomData,
         }
+    }
+
+    pub fn relaying(&self) -> bool {
+        self.relaying > 0
+    }
+
+    fn relay(&mut self, shared: &Arc<Mutex<H>>, sent: Result<Answer, ClientError>) {
+        let answer = match sent {
+            Ok(answer) => answer,
+            Err(error) => return H::record(shared, error),
+        };
+        self.relaying += 1;
+        let shared = Arc::clone(shared);
+        let io = self.io.clone();
+        H::spawn(async move {
+            if let Err(error) = answer.await {
+                H::record(&shared, error);
+            }
+            let _ = io.send(Io::Relayed);
+            H::wake();
+        });
     }
 
     pub async fn woken(&mut self) {
@@ -99,7 +125,11 @@ impl<H: Host> Replicas<H> {
     }
 
     pub async fn pump(&mut self, ctx: Ctx<'_, H>) -> bool {
-        let mut changed = false;
+        self.drain(ctx).await;
+        std::mem::take(&mut self.changed)
+    }
+
+    async fn drain(&mut self, ctx: Ctx<'_, H>) {
         loop {
             while let Ok(io) = self.answers.try_recv() {
                 self.pending.push(io);
@@ -108,17 +138,17 @@ impl<H: Host> Replicas<H> {
             let commands = self.modules.take();
             for module in self.modules.take_restarted() {
                 self.restart(module).await;
-                changed = true;
+                self.changed = true;
             }
             if answers.is_empty() && commands.is_empty() {
-                return changed;
+                return;
             }
             self.handled += (answers.len() + commands.len()) as u64;
             for io in answers {
                 self.answered(io, ctx.1);
             }
             for (module, command) in commands {
-                changed |= self.act(ctx, module, command).await;
+                self.changed |= self.act(ctx, module, command).await;
             }
         }
     }
@@ -129,7 +159,7 @@ impl<H: Host> Replicas<H> {
         };
         let mut answered = std::pin::pin!(answered);
         loop {
-            self.pump(ctx).await;
+            self.drain(ctx).await;
             if let Some(reply) = futures_util::FutureExt::now_or_never(answered.as_mut()) {
                 return reply.unwrap_or(Reply::Unknown);
             }
@@ -550,6 +580,18 @@ impl<H: Host> Replicas<H> {
         self.replica_of(block).map(|(_, open)| open.status.clone())
     }
 
+    pub fn session(&self, block: Uuid) -> Option<(ClientId, &SessionState)> {
+        self.replica_of(block)
+            .map(|(_, open)| (open.client, &open.session))
+    }
+
+    pub fn claim(&mut self, block: Uuid) {
+        if let Some((replica, open)) = self.replica_of(block) {
+            let module = open.module;
+            self.modules.send(module, vec![Event::Claim { replica }]);
+        }
+    }
+
     pub async fn heard(&mut self, (peer, shared): Ctx<'_, H>, event: &ServerMessage) {
         match event {
             ServerMessage::SessionChanged { block, state } => {
@@ -668,6 +710,7 @@ impl<H: Host> Replicas<H> {
                     H::set_locked(shared, open.block);
                 }
             }
+            Io::Relayed => self.relaying -= 1,
         }
     }
 
@@ -809,15 +852,11 @@ impl<H: Host> Replicas<H> {
                     }
                     Recipients::One(Endpoint::Host) => false,
                     Recipients::One(Endpoint::Peer(client)) => {
-                        if let Err(error) = peer.relay(block, Some(client), &bytes).await {
-                            H::record(shared, error);
-                        }
+                        self.relay(shared, peer.relay(block, Some(client), &bytes).await);
                         false
                     }
                     Recipients::Peers => {
-                        if let Err(error) = peer.relay(block, None, &bytes).await {
-                            H::record(shared, error);
-                        }
+                        self.relay(shared, peer.relay(block, None, &bytes).await);
                         false
                     }
                 }

@@ -16,7 +16,11 @@ use be_protocol::{
 use be_store::{ChunkerConfig, Hash, Keyring, Manifest, ObjectStore, StoreError, Vault};
 use uuid::Uuid;
 
-use crate::{ClientError, connection::Connection, keys::KeyBook};
+use crate::{
+    ClientError,
+    connection::{Answer, Connection},
+    keys::KeyBook,
+};
 
 const CARRIED_BYTES: usize = be_protocol::MAX_FRAME_BYTES / 2;
 const CONTENTS_BLOCKS: usize = 256;
@@ -1565,18 +1569,15 @@ impl<S: ObjectStore> Peer<S> {
         block: Uuid,
         to: Option<ClientId>,
         payload: &[u8],
-    ) -> Result<(), ClientError> {
+    ) -> Result<Answer, ClientError> {
         let key = self.sealing_key(block).await?;
         let sealed = self.commits.vault().seal(key, payload)?;
-        self.connection
-            .request(|request| ClientMessage::Relay {
-                request,
-                block,
-                to,
-                payload: sealed.clone(),
-            })
-            .await?;
-        Ok(())
+        self.connection.send(|request| ClientMessage::Relay {
+            request,
+            block,
+            to,
+            payload: sealed,
+        })
     }
 
     pub async fn unseal(&self, payload: &[u8]) -> Result<Vec<u8>, ClientError> {

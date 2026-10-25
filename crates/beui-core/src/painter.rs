@@ -596,8 +596,15 @@ impl Painter {
         if color.alpha() == 0 || path.is_empty() {
             return;
         }
+        self.paint_path(&Rc::new(PathPaint::new(path.clone(), style)), color);
+    }
+
+    pub fn paint_path(&self, path: &Rc<PathPaint>, color: Color32) {
+        if color.alpha() == 0 || path.path().is_empty() {
+            return;
+        }
         self.push(Shape::Path {
-            path: Rc::new(PathPaint::new(path.clone(), style)),
+            path: Rc::clone(path),
             scale: 1.0,
             offset: Vec2::ZERO,
             color,

@@ -1,3 +1,4 @@
+use beui::Wrap;
 use block_editor_beui::Editor;
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
@@ -12,8 +13,6 @@ pub fn setup_command(block: Uuid) -> String {
 
 #[component]
 pub(crate) fn Offline(editor: Editor) -> NodeId {
-    let command = setup_command(editor.block_id());
-    let copied = command.clone();
     view! {
         <Scroll>
             <Frame padding=PADDING>
@@ -26,45 +25,56 @@ pub(crate) fn Offline(editor: Editor) -> NodeId {
                             "No machine is running this terminal"
                         </Text>
                     </List>
-                    <Text style=TextStyle::PARAGRAPH wrap=true>
-                        "A terminal block's shell runs on a machine you choose, which stays connected through the server. Nothing is running it now. To start one:"
-                    </Text>
-                    <List spacing=8.0>
-                        <Text wrap=true>
-                            "1. Make an agent: open the app menu, choose Agents, and add one. Keep the credentials it shows."
-                        </Text>
-                        <Text wrap=true>"2. Share this terminal with the agent."</Text>
-                        <Text wrap=true>
-                            "3. On the machine that should run the shell, run this with the agent's credentials in place of the placeholder:"
-                        </Text>
-                    </List>
-                    <Card>
-                        <List direction=Direction::Horizontal align=Align::Center spacing=12.0>
-                            <SelectableText
-                                @sizing=ItemSize::Percent(100.0)
-                                child_size=ItemSize::Percent(100.0)
-                            >
-                                <Text family=Family::Mono wrap=true @test_id={"terminal.command"}>
-                                    {command}
-                                </Text>
-                            </SelectableText>
-                            <IconButton
-                                label="Copy command"
-                                glyph={ICON_COPY.to_owned()}
-                                variant=ButtonVariant::Ghost
-                                @test_id={"terminal.copy-command"}
-                                on_click={move || copy_text(copied.clone())}
-                            />
-                        </List>
-                    </Card>
-                    <Text style=TextStyle::CAPTION wrap=true>
-                        "The shell runs as that machine's user, with everything it can reach. Anyone who can edit this block can type into it."
-                    </Text>
-                    <Text style=TextStyle::CAPTION wrap=true>
+                    <SetupSteps editor={editor} />
+                    <Text style=TextStyle::CAPTION wrap=Wrap::Words>
                         "This page changes to the terminal as soon as the machine connects."
                     </Text>
                 </List>
             </Frame>
         </Scroll>
+    }
+}
+
+#[component]
+pub(crate) fn SetupSteps(editor: Editor) -> NodeId {
+    let command = setup_command(editor.block_id());
+    let copied = command.clone();
+    view! {
+        <List spacing=16.0>
+            <Text style=TextStyle::PARAGRAPH wrap=Wrap::Words>
+                "A terminal block's shell runs on a machine you choose, which stays connected through the server. Nothing is running it now. To start one:"
+            </Text>
+            <List spacing=8.0>
+                <Text wrap=Wrap::Words>
+                    "1. Make an agent: open the app menu, choose Agents, and add one. Keep the credentials it shows."
+                </Text>
+                <Text wrap=Wrap::Words>"2. Share this terminal with the agent."</Text>
+                <Text wrap=Wrap::Words>
+                    "3. On the machine that should run the shell, run this with the agent's credentials in place of the placeholder:"
+                </Text>
+            </List>
+            <Card>
+                <List direction=Direction::Horizontal align=Align::Center spacing=12.0>
+                    <SelectableText
+                        @sizing=ItemSize::Percent(100.0)
+                        child_size=ItemSize::Percent(100.0)
+                    >
+                        <Text family=Family::Mono wrap=Wrap::Words @test_id={"terminal.command"}>
+                            {command}
+                        </Text>
+                    </SelectableText>
+                    <IconButton
+                        label="Copy command"
+                        glyph={ICON_COPY.to_owned()}
+                        variant=ButtonVariant::Ghost
+                        @test_id={"terminal.copy-command"}
+                        on_click={move || copy_text(copied.clone())}
+                    />
+                </List>
+            </Card>
+            <Text style=TextStyle::CAPTION wrap=Wrap::Words>
+                "The shell runs as that machine's user, with everything it can reach. Anyone who can edit this block can type into it."
+            </Text>
+        </List>
     }
 }

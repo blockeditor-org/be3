@@ -2,7 +2,32 @@ Measuring and profiling beui's performance, and the ideas already tried.
 
 1. Benchmarks
 
-Benchmarks run in release, on this machine, with `./scripts/buck run -m release`:
+`//crates/bench:suite` is every benchmark in one directory, built in release whatever the
+command asks: the runner `bench`, each benchmark program under `programs/`, and block-app
+with its plugins for the end-to-end ones. `./scripts/buck run //crates/bench:suite -- list`
+lists them; `-- run [--rounds=N] [NAME...]` runs the benchmark each NAME names, or else those
+whose name contains it (all by default), N times (3) and prints each metric's fastest, median and slowest. A benchmark is
+a program that reports its metrics through the `bench` crate (`bench::time`, `count`,
+`record`), which appends them to the file `BENCH_METRICS` names and does nothing without
+it; adding one is a line in `BENCHMARKS` (crates/bench/src/suite.rs) and an entry in the
+suite's `programs` (crates/bench/BUCK). Each can also run alone, with
+`./scripts/buck run -m release`:
+
+- `//crates/app-bench:bin` (the suite's `app-canvas-and-text`) runs block-app headless,
+  driven as `drive` drives it (crates/be-drive's `Driven`, guides/running/drive.md), against
+  a be-server in its own process behind a proxy that delays each direction 15 ms, so every
+  round trip takes 30 ms more, with `BEUI_RENDERER=none`, so it measures the app's own work and
+  not a software GPU drawing it (guides/running/drive.md). It signs a first device in through the portal, as a person's
+  browser would, makes a folder and zooms the files into it, then with `hurry off` adds a
+  canvas and a text block from the files' New menu, draws a rectangle and a pen line of
+  `APP_BENCH_POINTS` samples (10,000), pastes `APP_BENCH_TEXT_BYTES` of text (50 MB), paints
+  and closes each, exports the folder as a .block file and closes the app. A second device,
+  with data of its own, signs in, unlocks with the recovery phrase, reopens both blocks,
+  paints them and exports the folder again. It fails unless both exports are identical and
+  each block paints the same on both devices. "Save" is how long `hurry on` takes to settle
+  after the edit shows: the seal the app would wait 750 ms for, published to the server.
+  It takes about three minutes; set the two sizes lower while working on it. It needs
+  `BLOCK_APP`, and `APP_LIBRARIES` for the libraries the app loads, which the suite sets.
 
 - `//crates/beui-demo:example-open-bench -- [PAGE]` opens each beui-demo page from its
   catalog row, once first in the process (cold) and then `REPEAT` more times (10 by default)
@@ -23,9 +48,10 @@ Benchmarks run in release, on this machine, with `./scripts/buck run -m release`
   around the app's update; the open bench takes the renderer's `prepare` out of it.
 - `//crates/be-graph:example-access-bench` times the server's access queries (one block,
   what one account sees, a block's audience) on an organization of 100,000 blocks.
-- `//crates/editors/infinite-canvas:example-canvas-bench -- [open|pan|zoom|drag|ink]` opens the
-  canvas editor through block-ui-test, the way its tests do, on 100 and on 10,000 shapes. It
-  pans and zooms by the host's view, drags a shape back and forth, and draws pen strokes, and
+- `//crates/editors/infinite-canvas:example-canvas-bench -- [open|pan|zoom|drag|ink|long] [COUNT]`
+  opens the canvas editor through block-ui-test, the way its tests do, on 100 and on 10,000 shapes
+  (or only COUNT). It pans and zooms by the host's view, drags a shape back and forth, draws pen
+  strokes, and draws one stroke of 2,000 samples (`long`, timing its first and last 200), and
   prints each frame's wall time (the whole host round trip, including the test host applying
   each edit, keeping its undo history and answering the canvas's references query), beui's
   layout, paint, interaction and accessibility, and the most nodes one frame measured, placed,
@@ -47,6 +73,7 @@ The target for opening a page is under 2 ms warm. The canvas bench measured, in 
 | drag, p50 wall | 0.17 ms (interaction 0.09 ms) | 0.54 ms (interaction 0.31 ms) |
 | pen move, p50 wall | 0.21 ms (interaction 0.12 ms) | 0.42 ms (interaction 0.22 ms) |
 | pen lift, p50 wall | 0.13 ms | 0.24 ms (interaction 0.13 ms) |
+| long stroke, p50 wall of its first and last 200 samples | 0.37 ms, 0.53 ms | 5 to 7 ms, 5 to 7 ms |
 | frames from pen event to ink | 0 | 0 |
 
 `camera()` centres a world point in the canvas: a view is where the content sits on
@@ -72,6 +99,14 @@ transform and sends nothing else. A pan at scale 0.1 still walks the canvas's sh
 host's accessibility dump renders its text and test id rects only when something reads them,
 so the bench reads the canvas's rect once rather than every frame.
 
+A pen move costs the same at the end of a long stroke as at its start. The pen writes only
+the new points (`InfiniteCanvasOperation::Extend`, a `Series` append, a stroke keeping its points
+as drawn in a `points_frame`), the projection re-reads only what was appended
+(`Model::reread`), the block-ref index re-walks only the changed field, and the canvas draws a
+stroke being drawn with `freehand::LiveStroke`: it keeps the settled outline, recomputes only
+the end, and paints the settled part as pieces whose meshes are kept (`Painter::paint_path`),
+joined on seams that are not antialiased (`PathPaint::with_seams`) so they paint as one fill.
+
 A pan, zoom or pen move places and paints only what is in view. A canvas
 finds the items near its view through a grid of world cells, so only what is in view costs
 anything. A pen lift reads only the new stroke:
@@ -90,9 +125,13 @@ take as long as building the items.
 
 Time on a shared VM drifts by 10% or more between runs, which hides most single changes:
 
-- Build both binaries first, then run them alternately, several times each:
-  `./scripts/buck build -m release //crates/beui-demo:example-open-bench --out DIR/base`
-  on the base and again with `--out DIR/change`.
+- Build the suite of each build first, then run them alternately, several times each:
+  `./scripts/buck build //crates/bench:suite --out DIR/base` on the base and again with
+  `--out DIR/change`, then `DIR/change/bench compare DIR/base [--rounds=N] [NAME...]`, which
+  runs each benchmark from one suite and then the other, swapping which goes first every
+  round, and prints both suites' fastest and median of each metric and how much the
+  change's fastest differs. A suite copies everything it runs, so a later build or
+  checkout does not change it.
 - Compare each page's fastest warm open, never one run's median.
 - Allocation counts don't drift: the same build gives the same count to within one or two.
   A change meant to allocate less shows up there even when its time is lost in noise. They

@@ -1,4 +1,5 @@
 use beui::NodeId;
+use beui::Wrap;
 use beui::reactive::*;
 use beui::styled::*;
 use block_plugin_api::HostPanel;
@@ -156,7 +157,7 @@ fn LineView(line: Memo<Option<Line>>) -> NodeId {
     });
     view! {
         <Frame padding=indent>
-            <Text size color weight family wrap=true>{text}</Text>
+            <Text size color weight family wrap=Wrap::Words>{text}</Text>
         </Frame>
     }
 }

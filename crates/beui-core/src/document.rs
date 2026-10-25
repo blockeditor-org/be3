@@ -13,6 +13,7 @@ use crate::base::child_list::{ChildHost, NodeChildren, SlotId};
 use crate::context::{Context, Moved};
 use crate::damage::{Damage, Region};
 use crate::file_picker::{FileFilter, FilePick, FilePickId};
+use crate::file_saver::{FileSave, FileSaveId, SavedFile};
 use crate::flash::FlashLog;
 use crate::font::{FontId, Galley, TextLayout};
 use crate::geometry::{Pos2, Rect, Vec2, pos2};
@@ -34,6 +35,7 @@ use crate::screens::Screen;
 use crate::sight::Sight;
 
 type PickedCallback = Box<dyn FnOnce(FilePick)>;
+type SavedCallback = Box<dyn FnOnce(FileSave)>;
 pub type FingerTap = dyn Fn(usize) -> bool;
 
 pub type ActionsHook = dyn Fn(&Context, &[NodeId]);
@@ -113,6 +115,8 @@ pub struct Document {
     paste_requested: bool,
     unsent_file_picks: Vec<(FileFilter, PickedCallback)>,
     waiting_file_picks: Vec<(FilePickId, PickedCallback)>,
+    unsent_file_saves: Vec<(SavedFile, SavedCallback)>,
+    waiting_file_saves: Vec<(FileSaveId, SavedCallback)>,
     test_ids: HashMap<String, Vec<NodeId>>,
     node_test_ids: HashMap<NodeId, Vec<String>>,
     layout_revision: u64,
@@ -134,6 +138,7 @@ pub struct Document {
     layout_pass: u64,
     focus_line: FocusLine,
     anchor_shift: f32,
+    pinned_to_end: Option<crate::base::list::Direction>,
     pub(crate) reveals: NodeMap<NodeId>,
     viewport: Option<(Context, Rect, f32)>,
     pub(crate) hidden: bool,
@@ -337,6 +342,8 @@ impl Document {
             paste_requested: false,
             unsent_file_picks: Vec::new(),
             waiting_file_picks: Vec::new(),
+            unsent_file_saves: Vec::new(),
+            waiting_file_saves: Vec::new(),
             test_ids: HashMap::default(),
             node_test_ids: HashMap::default(),
             layout_revision: 0,
@@ -358,6 +365,7 @@ impl Document {
             layout_pass: 0,
             focus_line: FocusLine::default(),
             anchor_shift: 0.0,
+            pinned_to_end: None,
             reveals: NodeMap::default(),
             viewport: None,
             hidden: false,
@@ -929,22 +937,36 @@ impl Document {
         self.unsent_file_picks.push((filter, Box::new(picked)));
     }
 
-    fn send_file_picks(&mut self, ctx: &Context) {
+    pub fn save_file(&mut self, file: SavedFile, saved: impl FnOnce(FileSave) + 'static) {
+        self.unsent_file_saves.push((file, Box::new(saved)));
+    }
+
+    fn send_file_dialogs(&mut self, ctx: &Context) {
         for (filter, picked) in std::mem::take(&mut self.unsent_file_picks) {
             let id = ctx.pick_file(filter);
             self.waiting_file_picks.push((id, picked));
         }
+        for (file, saved) in std::mem::take(&mut self.unsent_file_saves) {
+            let id = ctx.save_file(file);
+            self.waiting_file_saves.push((id, saved));
+        }
     }
 
-    fn deliver_file_picks(&mut self, ctx: &Context) {
-        if self.waiting_file_picks.is_empty() {
+    fn deliver_file_dialogs(&mut self, ctx: &Context) {
+        if self.waiting_file_picks.is_empty() && self.waiting_file_saves.is_empty() {
             return;
         }
-        let mut delivered = Vec::new();
+        let mut delivered: Vec<Box<dyn FnOnce()>> = Vec::new();
         for (id, picked) in std::mem::take(&mut self.waiting_file_picks) {
             match ctx.take_file_pick(id) {
-                Some(pick) => delivered.push((picked, pick)),
+                Some(pick) => delivered.push(Box::new(move || picked(pick))),
                 None => self.waiting_file_picks.push((id, picked)),
+            }
+        }
+        for (id, saved) in std::mem::take(&mut self.waiting_file_saves) {
+            match ctx.take_file_save(id) {
+                Some(save) => delivered.push(Box::new(move || saved(save))),
+                None => self.waiting_file_saves.push((id, saved)),
             }
         }
         if delivered.is_empty() {
@@ -953,8 +975,8 @@ impl Document {
         let context = self.reactive_scope().context();
         let _guard = crate::current::install(self);
         context.run(|| {
-            for (picked, pick) in delivered {
-                picked(pick);
+            for deliver in delivered {
+                deliver();
             }
         });
     }
@@ -1331,7 +1353,7 @@ impl Document {
         if ctx.automated() {
             crate::current::run_in(self, |document| document.describe_actions(ctx));
         }
-        self.deliver_file_picks(ctx);
+        self.deliver_file_dialogs(ctx);
 
         {
             FrameMeasurement::measure(&mut measurement.timings.interaction, || {
@@ -1371,6 +1393,7 @@ impl Document {
             ctx.request_paste();
         }
         ctx.accept_pastes(&self.paste_kinds());
+        ctx.take_clipboard_keys(self.clipboard_keys());
         if resized && self.focus_takes_text() {
             self.reveal_focus();
         }
@@ -1468,7 +1491,7 @@ impl Document {
             }
             ctx.report_overflows(self.out_of_bounds.as_deref().unwrap_or_default());
         }
-        self.send_file_picks(ctx);
+        self.send_file_dialogs(ctx);
         FrameMeasurement::measure(&mut measurement.timings.accessibility, || {
             if !ctx.accessibility_active() {
                 let mut tree = self.accessibility_tree.borrow_mut();
@@ -1763,6 +1786,10 @@ impl Document {
         self.invalidated.push(id);
     }
 
+    pub(crate) fn invalidated_after_layout(&self) -> usize {
+        self.invalidated.len()
+    }
+
     pub fn measured(&mut self, id: NodeId, available: Vec2) -> Option<Vec2> {
         if self.arena.stale(id) {
             self.measurements.remove(&id);
@@ -1968,6 +1995,17 @@ impl Document {
 
     pub fn report_anchor_shift(&mut self, shift: f32) {
         self.anchor_shift += shift;
+    }
+
+    pub(crate) fn replace_pinned_to_end(
+        &mut self,
+        pinned: Option<crate::base::list::Direction>,
+    ) -> Option<crate::base::list::Direction> {
+        std::mem::replace(&mut self.pinned_to_end, pinned)
+    }
+
+    pub fn pinned_to_end(&self) -> Option<crate::base::list::Direction> {
+        self.pinned_to_end
     }
 
     pub(crate) fn take_anchor_shift(&mut self) -> f32 {

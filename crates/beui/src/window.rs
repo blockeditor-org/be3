@@ -88,10 +88,18 @@ fn from_environment(
         )
         .into());
     }
+    let render = match std::env::var("BEUI_RENDERER").as_deref() {
+        Ok("none") => false,
+        Ok("wgpu") | Err(_) => true,
+        Ok(other) => {
+            return Err(format!("BEUI_RENDERER takes wgpu or none, not {other}").into());
+        }
+    };
     Ok(Some(Box::new(beui_adapter_headless::Headless {
         window,
         screen,
         open_device,
+        render,
     })))
 }
 

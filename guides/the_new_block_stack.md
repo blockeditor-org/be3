@@ -125,7 +125,11 @@ Content-addressed, encrypted object storage.
 - `Lease` is ownership. The first participant owns the session; a claim succeeds
   only against the generation the claimant last saw, and only when the lease has
   expired or the owner is gone. Generation numbers stop a stale claim from
-  stomping a newer owner.
+  stomping a newer owner. Only a seal's heartbeat (`ReportClean`) renews the
+  lease, so an owner that edits nothing (a viewer) loses it to the next claim
+  once it lapses. Its length is `ServerConfig::lease`; tests that claim pass zero
+  (block-app's `Harness::lapsing`, `Lease::lasting(0)` in the replica's `Sim`)
+  so a claim never waits on the clock.
 - `clean_at` is the commit the owner last reported its state durable at. It
   outlives the session going empty (see `sessions::forgettable`), so a peer
   taking over an abandoned session can tell whether anything was unpublished.
@@ -387,7 +391,10 @@ polling either.
 
 A block being edited is in a session, which each device holds in its type
 module's replica (`block-type-guest`, guides/type_modules.md); the peer only
-relays, seals and stores for it. The owner sequences and broadcasts; a follower
+relays, seals and stores for it. A relay goes on the connection in order without
+waiting for the server's answer to the one before (`Peer::relay` returns it, and
+be-types-host waits for it apart), so a pen stroke's thousands of operations cost no more
+round trips before the seal than one does. The owner sequences and broadcasts; a follower
 applies its own edit immediately, rebases it against operations that arrive in
 between, and reconciles against the owner's echo. A replica keeps `confirmed`
 (server-ordered) and `visible` (`confirmed` plus pending). A seal writes a
@@ -406,6 +413,22 @@ merges unsaved work into anything it fast-forwards or merges onto, and when
 it changes the owner's content outside the operation stream, the next `Sealed`
 tells the followers to reload the head. Only an owner ever seals or reconciles:
 a follower's edits are the owner's to save.
+
+Ownership also moves while the old owner is still there: a host's
+`Event::Claim` takes a lapsed lease (a terminal host takes the block from the
+viewer that opened it first; a replica only claims on its own when the owner
+has left). The old owner learns of it from the next `Lease` and becomes a
+follower that has applied everything it sequenced, so its status stops saying
+owner and it stops sealing. What it accepted before it heard reaches the new
+owner as `Accepted` from a non-owner: `Sequencer::inherit` keeps it when it
+continues the new owner's numbering, and otherwise the new owner applies it,
+owes a seal and makes that seal reload every follower, which is what reconciles
+the two numberings. A follower is catching up from loading until the owner's
+`Snapshot` arrives, and re-sends its `Catchup` to each new owner meanwhile; a
+replica ignores `Event::Claim` while it is catching up, because an owner that
+never heard the snapshot would number from where it joined and lose the old
+owner's unsaved operations. A follower promoted while catching up, by the owner
+leaving, makes its first seal a reload for the same reason.
 
 A merge that conflicts first writes the owner's unsaved side as a commit of its
 own (`Command::Stash`), so the merge commit has both sides as parents and neither
@@ -439,7 +462,7 @@ impl Root for Calendar {
 pub type CalendarContent = Document<Calendar>;
 ```
 
-A field is one of nine things. A `Count` is a counter whose concurrent changes
+A field is one of ten things. A `Count` is a counter whose concurrent changes
 add up. A `Grid<T>` is a dense block of fixed-size cells addressed by
 coordinates, for pixel data: its bounds are part of its value, so a resize moves
 the bounds and keeps every cell at its coordinates, `paint` sets cells and
@@ -471,6 +494,15 @@ live marks with the positions. Undoing a format removes that mark only. An
 offline merge is a line diff3 where a line is its bytes and its formatting
 together, so formatting a line on one side and typing in it on the other
 conflicts and is rendered with the same markers as text.
+A `Series<T>` is a list of register values on the same `Sequence`, for data
+that grows at its end, like a stroke's points: `update` diffs what is wanted
+against what is held and sends only what changed after the common start
+(`Change::Series`), so appending costs the new items, not the whole list. It
+saves as an array of its values, the same as a `Vec<T>` register, so a
+register that becomes a series keeps reading what was saved; an offline merge
+keeps both sides' appends and otherwise picks one side as a register does.
+An object projection re-reads with `Model::reread`, which hands a `Series`
+what it read last: it decodes only past the fragments that are unchanged.
 
 Client `0` (`sequence::LOADED`) belongs to the initial buffer; edits cannot
 allocate positions under it. The text editor anchors each boundary before one

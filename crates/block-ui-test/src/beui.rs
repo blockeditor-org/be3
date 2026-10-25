@@ -248,6 +248,7 @@ impl<A: BeuiApp> BeuiTest<A> {
             host_name: "block-ui-test".to_owned(),
             surface: Some(SurfaceSpec {
                 format: SurfaceFormat::Rgba8UnormSrgb,
+                render: true,
             }),
             preferences: block_plugin_api::Preferences::default(),
         }));
@@ -726,6 +727,7 @@ impl<A: BeuiApp> BeuiTest<A> {
             menu: Vec::new(),
             creation: None,
             settings: None,
+            preview: Default::default(),
         });
     }
 

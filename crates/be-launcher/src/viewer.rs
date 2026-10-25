@@ -1,3 +1,4 @@
+use beui::Wrap;
 use beui::icons::{ICON_CHEVRON_LEFT, ICON_CHEVRON_RIGHT, ICON_EXTERNAL_LINK, ICON_X};
 use beui::reactive::*;
 use beui::styled::*;
@@ -105,7 +106,7 @@ pub(crate) fn ViewerBar(
 ) -> NodeId {
     view! {
         <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
-            <Text style=TextStyle::CAPTION @sizing=ItemSize::Percent(100.0) wrap=true>
+            <Text style=TextStyle::CAPTION @sizing=ItemSize::Percent(100.0) wrap=Wrap::Words>
                 {position}
             </Text>
             <IconButton

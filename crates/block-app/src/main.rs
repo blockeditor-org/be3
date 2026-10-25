@@ -4,7 +4,6 @@ mod app_state;
 #[cfg(all(not(target_os = "android"), not(target_arch = "wasm32")))]
 mod arguments;
 mod be;
-mod block_label;
 mod compositor;
 mod contacts;
 #[cfg(target_os = "linux")]
@@ -361,7 +360,7 @@ impl beui::App for Shell {
         wayland::set_owned(view.screen == ui::Screen::Organization && self.app.shell.is_some());
         let store = self.view;
         compositor::notify();
-        store.set(view);
+        beui::reactive::enter(&mut self.document, || store.set(view));
         #[cfg(target_arch = "wasm32")]
         plugin_host::place_screens(
             &plugin_host::shown_blits(),
@@ -3097,8 +3096,9 @@ impl BlockApp {
             (None, true, Some(_)) if self.choosing_session => ui::Screen::Sessions,
             (None, true, Some(_)) => ui::Screen::Organization,
         };
+        let be_status = be::status();
         let changes_saved = match screen {
-            ui::Screen::Organization => be::status().unsealed == 0,
+            ui::Screen::Organization => be_status.unsealed == 0,
             _ => true,
         };
         let accounts: Vec<_> = self
@@ -3121,7 +3121,7 @@ impl BlockApp {
             error: ui::ErrorView {
                 message: self.error.clone().unwrap_or_default(),
                 pending: self.pending_error_action,
-                unsaved: be::status().unsealed,
+                unsaved: be_status.unsealed,
             },
             accounts,
             account_error: self.account_error.clone(),
@@ -3182,6 +3182,7 @@ impl BlockApp {
             }),
             status: ui::StatusView {
                 changes_saved,
+                saves: be_status.saves,
                 organization: organization_name.clone(),
                 signed_in_as: format!("Signed in as {}", self.account.name),
                 sessions: self
