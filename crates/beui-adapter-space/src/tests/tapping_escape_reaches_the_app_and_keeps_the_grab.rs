@@ -11,7 +11,10 @@ fn tapping_escape_reaches_the_app_and_keeps_the_grab() {
     let tapped = send(
         &mut space,
         now,
-        [key(Key::Escape, ESCAPE, true), key(Key::Escape, ESCAPE, false)],
+        [
+            key(Key::Escape, ESCAPE, true),
+            key(Key::Escape, ESCAPE, false),
+        ],
     );
     assert_eq!(
         delivered(&tapped),
@@ -28,10 +31,17 @@ fn tapping_escape_reaches_the_app_and_keeps_the_grab() {
     let escaped = send(
         &mut space,
         now,
-        [key(Key::Escape, ESCAPE, true), key(Key::Escape, ESCAPE, false)],
+        [
+            key(Key::Escape, ESCAPE, true),
+            key(Key::Escape, ESCAPE, false),
+        ],
     );
     send(&mut space, now + LET_GO_AFTER * 2, []);
     send(&mut space, now, steer(false));
-    assert_eq!(delivered(&escaped), [], "keys while steering stay with space");
+    assert_eq!(
+        delivered(&escaped),
+        [],
+        "keys while steering stay with space"
+    );
     assert!(space.grabbed(), "Ctrl+Shift+Escape no longer lets go");
 }
