@@ -34,9 +34,14 @@ pub fn run_with_renderers(
     });
     let choice = from_environment(&mut options, NATIVE)?;
     let app: Box<dyn App> = match (&choice, options.saved_preferences.clone()) {
-        (Some(Choice { adapter: Base::Native, .. }) | None, Some(path)) => {
-            Box::new(crate::saved_preferences::SavedPreferences::new(app, path))
-        }
+        (
+            Some(Choice {
+                adapter: Base::Native,
+                ..
+            })
+            | None,
+            Some(path),
+        ) => Box::new(crate::saved_preferences::SavedPreferences::new(app, path)),
         _ => Box::new(app),
     };
     let adapter = adapt(choice, open_device, || window_adapter(renderers));

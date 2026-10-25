@@ -114,7 +114,9 @@ impl Launch {
             .env(slot, "headless")
             .env(
                 environment::HEADLESS_WINDOW,
-                self.size.as_deref().unwrap_or(environment::HEADLESS_WINDOW_SIZE),
+                self.size
+                    .as_deref()
+                    .unwrap_or(environment::HEADLESS_WINDOW_SIZE),
             )
             .env(
                 environment::HEADLESS_SCREEN,

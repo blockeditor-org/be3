@@ -23,7 +23,10 @@ fn the_headless_adapter_takes_its_window_and_screen() {
         })
     );
     assert_eq!(
-        choose("winit", with(&[(ADAPTER, "headless"), (HEADLESS_WINDOW, "big")])),
+        choose(
+            "winit",
+            with(&[(ADAPTER, "headless"), (HEADLESS_WINDOW, "big")])
+        ),
         Err("BEUI_HEADLESS_WINDOW takes WIDTHxHEIGHT[@SCALE], not big".to_owned())
     );
     assert_eq!(

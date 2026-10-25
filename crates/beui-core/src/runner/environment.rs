@@ -66,9 +66,8 @@ pub fn choose(native: &str, var: impl Fn(&str) -> Option<String>) -> Result<Choi
     };
     let adapter = if headless {
         let window = var(HEADLESS_WINDOW).unwrap_or_else(|| HEADLESS_WINDOW_SIZE.to_owned());
-        let window = WindowSize::parse(&window).ok_or_else(|| {
-            format!("{HEADLESS_WINDOW} takes WIDTHxHEIGHT[@SCALE], not {window}")
-        })?;
+        let window = WindowSize::parse(&window)
+            .ok_or_else(|| format!("{HEADLESS_WINDOW} takes WIDTHxHEIGHT[@SCALE], not {window}"))?;
         let screen = match var(HEADLESS_SCREEN) {
             Some(screen) => Some(
                 WindowSize::parse(&screen)

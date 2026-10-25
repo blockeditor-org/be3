@@ -6,7 +6,10 @@ fn space_wraps_the_native_adapter_unless_given_another() {
         space: true,
         ..NATIVE
     };
-    assert_eq!(choose("winit", with(&[(ADAPTER, "space")])), Ok(space.clone()));
+    assert_eq!(
+        choose("winit", with(&[(ADAPTER, "space")])),
+        Ok(space.clone())
+    );
     assert_eq!(
         choose(
             "winit",

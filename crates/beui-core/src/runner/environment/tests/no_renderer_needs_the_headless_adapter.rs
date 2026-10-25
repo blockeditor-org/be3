@@ -3,7 +3,8 @@ use super::*;
 #[test]
 fn no_renderer_needs_the_headless_adapter() {
     assert_eq!(
-        choose("winit", with(&[(ADAPTER, "headless"), (RENDERER, "none")])).map(|choice| choice.render),
+        choose("winit", with(&[(ADAPTER, "headless"), (RENDERER, "none")]))
+            .map(|choice| choice.render),
         Ok(false)
     );
     assert_eq!(
