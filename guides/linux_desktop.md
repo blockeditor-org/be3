@@ -431,6 +431,19 @@ click, decided when the pen comes over it and kept while the tip is down. Under 
 DRM adapter reads libinput's tablet tools over the area of every display, as it does an absolute
 pointer, and moves the cursor with them; with one display both turn with its rotation (below).
 
+A finger (`Event::Touch`) reaches a window as a `wl_touch` point (`src/touch.rs`), in the
+coordinates of the surface, sub-surface or popup it went down on, where it stays until it lifts,
+as a press does; each finger goes down on the window under it, so two windows can each hold
+one. A cancelled finger cancels the client's whole touch sequence, as `wl_touch.cancel` means.
+A client with no `wl_touch` gets its first finger as its pointer instead, a left click, and its
+other fingers not at all, decided when the finger goes down. The seat offers touch only while a
+touchscreen is attached (the DRM adapter's `WindowReports::touchscreen_attached`, read as
+`Context::touchscreen_attached`) or once a finger has been seen, since GTK, SDL and browsers
+take the capability as a touchscreen and change their interfaces for it (a browser tells pages
+it has touch). be-wayland's own default touch grab gives each point its own surface, where
+smithay's would send every later finger to the first one's, so a client's touch drag and drop
+(`wl_data_device.start_drag` from a touch serial) is not taken.
+
 A screen's rotation (`ScreenSettings::rotation`, through `DisplayConfig::rotations`) turns its
 picture clockwise on the panel: `Clockwise90` puts the picture's top along the panel's right
 edge, so the device is held with that edge up. The adapter's `Screen` lays out and draws the
@@ -441,7 +454,7 @@ an unturned screen copies), the software pointer and the damage clips with it
 (`rotation.rs`). It never asks the plane to rotate, which most display devices, the e-paper
 panel's included, cannot do. Absolute input arrives in the panel's own orientation
 (libinput's calibration matrix lines a touchscreen up with the panel unturned) and is turned
-back (`layout::absolute`): touch onto the first screen, an absolute pointer or a pen onto the
+back (`layout::absolute`), before beui or a window sees it: touch onto the first screen, an absolute pointer or a pen onto the
 one screen when there is one and across all of them unturned otherwise, and a pen's tilt
 with it. A relative pointer is already in the picture's terms. A rotation applies live, rebuilding
 the output's `Screen` as a mode change does, and never asks to be kept.

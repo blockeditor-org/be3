@@ -1,4 +1,6 @@
-use wayland_client::protocol::{wl_buffer, wl_subcompositor, wl_subsurface, wl_surface};
+use wayland_client::protocol::{
+    wl_buffer, wl_seat, wl_subcompositor, wl_subsurface, wl_surface, wl_touch,
+};
 use wayland_client::{Connection, Dispatch, QueueHandle};
 use wayland_protocols::wp::content_type::v1::client::{
     wp_content_type_manager_v1, wp_content_type_v1,
@@ -35,6 +37,17 @@ pub(crate) struct Protocols {
     pub(crate) text_entered: bool,
     pub(crate) text_committed: Vec<String>,
     pub(crate) pen: Vec<PenSeen>,
+    pub(crate) touch: Vec<TouchSeen>,
+    pub(crate) seat_capabilities: Option<wl_seat::Capability>,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub(crate) enum TouchSeen {
+    Down(wl_surface::WlSurface, i32, f64, f64),
+    Motion(i32, f64, f64),
+    Up(i32),
+    Frame,
+    Cancel,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -101,6 +114,10 @@ impl TestClient {
         let manager: zwp_tablet_manager_v2::ZwpTabletManagerV2 =
             self.bind("zwp_tablet_manager_v2", 1);
         manager.get_tablet_seat(self.seat.as_ref().unwrap(), &self.handle, ())
+    }
+
+    pub(crate) fn touch(&self) -> wl_touch::WlTouch {
+        self.seat.as_ref().unwrap().get_touch(&self.handle, ())
     }
 
     pub(crate) fn viewport(&self, surface: &wl_surface::WlSurface) -> wp_viewport::WpViewport {
@@ -301,3 +318,44 @@ impl Dispatch<zwp_tablet_tool_v2::ZwpTabletToolV2, ()> for Received {
 
 wayland_client::delegate_noop!(Received: ignore zwp_tablet_manager_v2::ZwpTabletManagerV2);
 wayland_client::delegate_noop!(Received: ignore zwp_tablet_v2::ZwpTabletV2);
+
+impl Dispatch<wl_seat::WlSeat, ()> for Received {
+    fn event(
+        state: &mut Self,
+        _: &wl_seat::WlSeat,
+        event: wl_seat::Event,
+        _: &(),
+        _: &Connection,
+        _: &QueueHandle<Self>,
+    ) {
+        if let wl_seat::Event::Capabilities {
+            capabilities: wayland_client::WEnum::Value(capabilities),
+        } = event
+        {
+            state.protocols.seat_capabilities = Some(capabilities);
+        }
+    }
+}
+
+impl Dispatch<wl_touch::WlTouch, ()> for Received {
+    fn event(
+        state: &mut Self,
+        _: &wl_touch::WlTouch,
+        event: wl_touch::Event,
+        _: &(),
+        _: &Connection,
+        _: &QueueHandle<Self>,
+    ) {
+        let seen = match event {
+            wl_touch::Event::Down {
+                surface, id, x, y, ..
+            } => TouchSeen::Down(surface, id, x, y),
+            wl_touch::Event::Motion { id, x, y, .. } => TouchSeen::Motion(id, x, y),
+            wl_touch::Event::Up { id, .. } => TouchSeen::Up(id),
+            wl_touch::Event::Frame => TouchSeen::Frame,
+            wl_touch::Event::Cancel => TouchSeen::Cancel,
+            _ => return,
+        };
+        state.protocols.touch.push(seen);
+    }
+}

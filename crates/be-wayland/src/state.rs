@@ -35,7 +35,6 @@ use crate::xwayland::XWaylandState;
 use smithay::delegate_cursor_shape;
 use smithay::delegate_data_device;
 use smithay::delegate_output;
-use smithay::delegate_seat;
 use smithay::delegate_shm;
 use smithay::delegate_viewporter;
 use smithay::delegate_xdg_shell;
@@ -171,6 +170,7 @@ pub struct State {
     disconnected: Vec<ClientId>,
     pub(crate) xwayland: XWaylandState,
     pub(crate) tablet: crate::tablet::Tablet,
+    pub(crate) touch: crate::touch::Touch,
 }
 
 pub(crate) type SurfaceAt = (WlSurface, Point<f64, Logical>);
@@ -274,6 +274,7 @@ impl State {
             disconnected: Vec::new(),
             xwayland,
             tablet: crate::tablet::Tablet::new(handle),
+            touch: crate::touch::Touch::default(),
         };
         state.set_output(state.size, state.scale);
         state
@@ -1521,7 +1522,9 @@ impl OutputHandler for State {}
 delegate_compositor!(State);
 delegate_xdg_shell!(State);
 delegate_shm!(State);
-delegate_seat!(State);
+smithay::reexports::wayland_server::delegate_global_dispatch!(State: [WlSeat: smithay::wayland::seat::SeatGlobalData<State>] => SeatState<State>);
+smithay::reexports::wayland_server::delegate_dispatch!(State: [smithay::reexports::wayland_server::protocol::wl_pointer::WlPointer: smithay::wayland::seat::PointerUserData<State>] => SeatState<State>);
+smithay::reexports::wayland_server::delegate_dispatch!(State: [smithay::reexports::wayland_server::protocol::wl_keyboard::WlKeyboard: smithay::wayland::seat::KeyboardUserData<State>] => SeatState<State>);
 delegate_data_device!(State);
 delegate_output!(State);
 delegate_cursor_shape!(State);
