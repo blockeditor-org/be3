@@ -1,7 +1,9 @@
 use super::*;
 use crate::plugin_host::EditorBlock;
+use be_block::BlockContent as _;
 use beui::Pos2;
 use block_plugin_api::Input;
+use block_type_guest::editor::{FromEditor, ToEditor};
 
 const INSTANCE: EditorInstanceId = EditorInstanceId(1);
 const REGION: EditorRegion = EditorRegion::Frame;
@@ -167,6 +169,55 @@ fn next_screens(instances: &mut Instances) -> NextScreens {
     instances.next_screens(PASS)
 }
 
+fn to_replica(instances: &mut Instances, block: Uuid, message: &FromEditor) -> bool {
+    instances.editor_message(EditorMessage::Replica {
+        instance: INSTANCE,
+        block_id: block.into_bytes(),
+        frame: block_type_api::encode_frame(message),
+    })
+}
+
+fn from_replica(messages: &[Message], block: Uuid) -> Vec<ToEditor> {
+    messages
+        .iter()
+        .filter_map(|message| match message {
+            Message::Editor(EditorMessage::Replica {
+                block_id, frame, ..
+            }) if *block_id == block.into_bytes() => {
+                crate::be::unframe(frame).and_then(|bytes| ToEditor::decode(&bytes))
+            }
+            _ => None,
+        })
+        .collect()
+}
+
+fn replica_sends(instances: &mut Instances, block: Uuid) -> Vec<ToEditor> {
+    let opened = next_screens(instances).opened;
+    from_replica(&opened, block)
+}
+
+fn replica_sent_until(
+    instances: &mut Instances,
+    block: Uuid,
+    done: impl Fn(&[ToEditor]) -> bool,
+) -> Vec<ToEditor> {
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(20);
+    let mut sent = Vec::new();
+    loop {
+        sent.extend(replica_sends(instances, block));
+        if done(&sent) {
+            return sent;
+        }
+        assert!(
+            std::time::Instant::now() < deadline,
+            "the replica never sent what was expected: {sent:?}"
+        );
+        crate::be::wait_for(std::time::Duration::from_millis(100), |shared| {
+            shared.editor_frames.contains_key(&INSTANCE.0).then_some(())
+        });
+    }
+}
+
 mod a_block_is_named_after_its_content_until_someone_names_it;
 mod a_block_shown_before_its_instance_reports_reaches_it_once_it_does;
 mod a_click_outside_a_frame_child_hands_the_frame_back;
@@ -192,6 +243,7 @@ mod an_editor_can_read_and_edit_a_block_it_watches;
 mod an_editor_is_only_sent_messages_its_plugin_session_accepts;
 mod an_instance_inside_a_checkout_speaks_in_its_local_ids;
 mod an_instance_the_plugin_never_opened_is_not_closed;
+mod an_instance_watching_a_blocks_head_is_sent_its_stored_bytes;
 mod an_instance_watching_a_blocks_history_is_told_when_it_changes;
 mod children_laid_out_against_an_older_view_are_moved_to_the_current_one;
 mod clearing_a_name_names_the_block_after_its_content_at_once;

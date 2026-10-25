@@ -1,4 +1,3 @@
-use block_editor_beui::be_block::{Calendar, CalendarContent};
 use block_editor_beui::beui::datetime::DateTime;
 use block_editor_beui::beui::icons::{ICON_CHEVRON_LEFT, ICON_CHEVRON_RIGHT, ICON_PLUS};
 use block_editor_beui::beui::reactive::*;
@@ -6,6 +5,7 @@ use block_editor_beui::beui::styled::*;
 use block_editor_beui::beui::unstyled::ChoiceOption;
 use block_editor_beui::beui::{NodeId, Vec2};
 use block_editor_beui::{Editor, Toolbar};
+use calendar_types::{Calendar, CalendarContent};
 
 use super::model::{
     CalendarView, EventForm, FormAction, Shown, today_days_since_epoch, week_start,

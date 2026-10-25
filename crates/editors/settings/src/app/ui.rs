@@ -1,7 +1,7 @@
 use block_editor_beui::be_block::settings::{Settings, SettingsProfile};
 use block_editor_beui::be_block::{
-    BlockContent, DisplaySettingsContent, EditorSettingsContent, InputSettingsContent, LiveEdit,
-    SettingsContent, SettingsProfileContent,
+    BlockContent, DisplaySettingsContent, InputSettingsContent, LiveEdit, SettingsContent,
+    SettingsProfileContent,
 };
 use block_editor_beui::beui::icons::Glyph;
 use block_editor_beui::beui::icons::{
@@ -13,6 +13,7 @@ use block_editor_beui::beui::styled::*;
 use block_editor_beui::beui::{NodeId, TextAlign};
 use block_editor_beui::root_settings::is_own_settings;
 use block_editor_beui::{BlockParent, BlockQuery, ContentProjection, Editor};
+use settings_types::EditorSettingsContent;
 use uuid::Uuid;
 
 use super::devices::DevicesTable;

@@ -1,5 +1,5 @@
 use super::*;
-use block_editor_beui::be_block::canvas::CanvasColor;
+use infinite_canvas_types::CanvasColor;
 
 #[test]
 fn clicking_an_entity_selects_it_and_shows_its_handles() {

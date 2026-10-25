@@ -10,10 +10,7 @@ use std::{
 use wasm_bindgen::{JsCast, prelude::*};
 
 use super::canvases::{Canvases, Placement};
-use crate::plugin_host::{
-    backend::StepTime,
-    worker::{self, Event, Produced, Received},
-};
+use block_guest_host::{Channel, Event, Produced, Received, StepTime};
 
 const WORKER_SOURCE: &str = r#"
 // The worker one plugin runs in.
@@ -93,6 +90,7 @@ self.onmessage = async (event) => {
 struct Inbox {
     events: VecDeque<Event<Infallible>>,
     stopped: bool,
+    woken: bool,
 }
 
 pub(in crate::plugin_host) struct WebProtocolAdapter {
@@ -170,7 +168,7 @@ impl Drop for WebProtocolAdapter {
     }
 }
 
-impl worker::Channel for WebProtocolAdapter {
+impl Channel for WebProtocolAdapter {
     type Presented = Infallible;
 
     fn step(&mut self, frames: Vec<Vec<u8>>) -> bool {
@@ -182,6 +180,10 @@ impl worker::Channel for WebProtocolAdapter {
         set(&message, "kind", &"step".into());
         set(&message, "frames", &posted);
         self.worker.post_message(&message).is_ok()
+    }
+
+    fn take_woken(&mut self) -> bool {
+        std::mem::take(&mut self.inbox.borrow_mut().woken)
     }
 
     fn receive(&mut self) -> Received<Infallible> {
@@ -224,6 +226,7 @@ fn listen(
         let kind = get(&data, "kind").as_string().unwrap_or_default();
         let event = match kind.as_str() {
             "wake" => {
+                inbox.borrow_mut().woken = true;
                 crate::host::wake();
                 return;
             }
@@ -235,9 +238,13 @@ fn listen(
                     .unwrap_or_else(|| "The plugin worker failed.".to_owned()),
             ),
         };
-        let wakes = event.wakes(get(&data, "woken").is_truthy(), &waiting);
-        inbox.borrow_mut().events.push_back(event);
-        if wakes {
+        let woken = get(&data, "woken").is_truthy();
+        let quiet = event.quiet(woken);
+        let mut held = inbox.borrow_mut();
+        held.woken |= woken;
+        held.events.push_back(event);
+        drop(held);
+        if block_guest_host::wakes(quiet, &waiting) {
             crate::host::wake();
         }
     }) as Box<dyn FnMut(web_sys::MessageEvent)>);

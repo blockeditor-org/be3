@@ -1,17 +1,17 @@
 use block_editor_beui::be_block::BlockContent;
 use block_editor_beui::be_block::Edit;
-use block_editor_beui::be_block::database::DatabaseContent;
-use block_editor_beui::be_block::database_schema::{
-    ChoiceColor, ChoiceIcon, DatabaseBlockOptions, DatabaseEnumOption, DatabaseField,
-    DatabaseFieldType, DatabaseNumberOptions, DatabaseNumberScale, DatabaseRelationOptions,
-    DatabaseSchema, DatabaseSchemaContent,
-};
 use block_editor_beui::beui::icons::Glyph;
 use block_editor_beui::beui::styled::context_menu::menu_style;
 use block_editor_beui::beui::styled::*;
 use block_editor_beui::beui::unstyled::{self, MenuButtonHandle, MenuItem};
 use block_editor_beui::database::{
     ChoiceMark, choice_color_label, choice_glyph, choice_icon_label,
+};
+use database_types::database::DatabaseContent;
+use database_types::database_schema::{
+    ChoiceColor, ChoiceIcon, DatabaseBlockOptions, DatabaseEnumOption, DatabaseField,
+    DatabaseFieldType, DatabaseNumberOptions, DatabaseNumberScale, DatabaseRelationOptions,
+    DatabaseSchema, DatabaseSchemaContent,
 };
 
 use crate::database_view::app::controls::ControlFace;

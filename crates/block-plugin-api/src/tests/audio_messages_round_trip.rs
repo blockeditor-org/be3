@@ -5,7 +5,13 @@ fn audio_messages_round_trip() {
     let messages = [
         Message::Editor(EditorMessage::PlayAudio {
             instance: EditorInstanceId(5),
-            block_id: [6; 16],
+            command: AudioCommand::Load(crate::AudioSource {
+                media_type: "audio/flac".into(),
+                bytes: vec![1, 2, 3],
+            }),
+        }),
+        Message::Editor(EditorMessage::PlayAudio {
+            instance: EditorInstanceId(5),
             command: AudioCommand::Toggle,
         }),
         Message::Editor(EditorMessage::AudioStatus {

@@ -1,15 +1,21 @@
-use block_editor_beui::be_block::{BlockContent, FolderContent};
-use block_editor_beui::{BlockInfo, BlockParent, BlockQuery, FileSave, HostReply, HostRequest};
+use block_editor_beui::be_block::BlockContent;
+use block_editor_beui::{BlockInfo, BlockParent, FileSave, HostReply, HostRequest};
+use workspace_ui_types::FolderContent;
 
 use super::*;
 
 #[test]
 fn exporting_any_block_as_a_block_file_asks_the_host_for_it() {
     let mut fixture = editor();
+    folders_zoom(&mut fixture);
     let folder = Uuid::from_u128(2);
-    let mut info = BlockInfo::new(folder, FolderContent::CONTENT_TYPE, BlockParent::Root);
+    let mut info = BlockInfo::new(
+        folder,
+        FolderContent::CONTENT_TYPE,
+        BlockParent::Block(MY_FILES),
+    );
     info.set_name("Trips".to_owned());
-    fixture.host.set_blocks(BlockQuery::Roots, vec![info]);
+    my_files(&mut fixture, vec![info]);
     fixture.settle();
     fixture.test.take_requests();
 

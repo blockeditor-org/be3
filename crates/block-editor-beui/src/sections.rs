@@ -1,16 +1,16 @@
-use be_block::{BlockContent, MY_FILES, SettingsContent, SettingsProfileContent, WorkspaceContent};
+use be_block::{BlockContent, MY_FILES, SettingsContent, SettingsProfileContent};
 use block_ui::BlockTypes;
 use uuid::Uuid;
 
-use crate::BlockInfo;
+use crate::{BlockInfo, BlockParent};
 
 const SYSTEM_TYPES: [Uuid; 2] = [
     SettingsContent::CONTENT_TYPE,
     SettingsProfileContent::CONTENT_TYPE,
 ];
 
-pub fn is_workspace(block_type: Uuid) -> bool {
-    block_type == WorkspaceContent::CONTENT_TYPE
+pub fn is_workspace(block: &BlockInfo) -> bool {
+    block.parent == Some(BlockParent::Root) && !is_system(block.block_type)
 }
 
 pub fn is_system(block_type: Uuid) -> bool {
@@ -18,7 +18,7 @@ pub fn is_system(block_type: Uuid) -> bool {
 }
 
 pub fn is_my_files(block: &BlockInfo, account: Uuid) -> bool {
-    is_workspace(block.block_type)
+    is_workspace(block)
         && block.author == Some(account)
         && block.metadata.get(&MY_FILES) == Some(true)
 }
@@ -26,7 +26,7 @@ pub fn is_my_files(block: &BlockInfo, account: Uuid) -> bool {
 pub fn workspaces(roots: Vec<BlockInfo>, account: Uuid, types: &dyn BlockTypes) -> Vec<BlockInfo> {
     let mut found: Vec<(bool, String, BlockInfo)> = roots
         .into_iter()
-        .filter(|block| is_workspace(block.block_type))
+        .filter(is_workspace)
         .filter(|block| {
             block.metadata.get(&MY_FILES) != Some(true) || block.author == Some(account)
         })
@@ -39,14 +39,9 @@ pub fn workspaces(roots: Vec<BlockInfo>, account: Uuid, types: &dyn BlockTypes) 
     found.into_iter().map(|(_, _, block)| block).collect()
 }
 
-pub fn shared_with_me(roots: Vec<BlockInfo>, shared: Vec<BlockInfo>) -> Vec<BlockInfo> {
+pub fn shared_with_me(shared: Vec<BlockInfo>) -> Vec<BlockInfo> {
     shared
         .into_iter()
-        .chain(
-            roots
-                .into_iter()
-                .filter(|block| !is_workspace(block.block_type)),
-        )
         .filter(|block| !is_system(block.block_type))
         .collect()
 }

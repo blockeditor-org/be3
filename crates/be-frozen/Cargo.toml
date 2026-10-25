@@ -7,6 +7,7 @@ license.workspace = true
 [dependencies]
 
 [dev-dependencies]
+first-party-types = { path = "../first-party-types" }
 be-block = { path = "../be-block" }
 be-cli = { path = "../be-cli" }
 be-client = { path = "../be-client" }
@@ -15,10 +16,14 @@ be-keys = { path = "../be-keys" }
 be-protocol = { path = "../be-protocol" }
 be-server = { path = "../be-server" }
 be-store = { path = "../be-store" }
+be-types-host = { path = "../be-types-host" }
 build-id = { path = "../build-id" }
+database-types = { path = "../editors/database/types" }
 rusqlite = { version = "0.32", features = ["bundled"] }
+text-block-types = { path = "../editors/text-block/types" }
 tokio = { version = "1", features = ["macros", "net", "rt-multi-thread", "sync", "time"] }
 uuid = { version = "1", features = ["v4"] }
+workspace-ui-types = { path = "../editors/workspace-ui/types" }
 zip = { version = "8", default-features = false, features = ["deflate"] }
 
 [lints]

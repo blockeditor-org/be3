@@ -1,5 +1,5 @@
 load("@prelude//test/inject_test_run_info.bzl", "inject_test_run_info")
-load("@root//buck/app:defs.bzl", "plugin_data")
+load("@root//buck/app:defs.bzl", "plugin_data", "plugin_types")
 load(
     "@root//buck/cargo:defs.bzl",
     "RemoteTestInfo",
@@ -150,7 +150,10 @@ def plugin_sdk():
 # extra_deps are what cargo cannot name, such as a C library the plugin links.
 # A plugin is linked against the plugin SDK unless shared_sdk is False, which a
 # plugin needs when it links a library that is not position-independent (the
-# PDF plugin's PDFium): it then carries everything it uses itself.
+# PDF plugin's PDFium): it then carries everything it uses itself. types is the
+# plugin's type module (a wasm32_module, such as checklist's
+# //crates/editors/checklist/types:module), which :types names for the app to
+# stage beside :module.
 #
 # Outside a release build the plugin crate itself is compiled at opt-level 0,
 # like its tests below, while its dependencies keep the plugin profile's 2.
@@ -165,7 +168,7 @@ def plugin_sdk():
 # plans it there), as the library named after its package, and each
 # examples/NAME.rs is :example-NAME on the host, such as a benchmark that
 # drives the editor through block-ui-test.
-def editor(module, visibility = ["PUBLIC"], test_env = {}, data = {}, extra_deps = [], shared_sdk = True):
+def editor(module, visibility = ["PUBLIC"], test_env = {}, data = {}, extra_deps = [], shared_sdk = True, types = None):
     facts = cargo_wasm_facts()
     native.rust_library(
         name = "wasm",
@@ -197,6 +200,11 @@ def editor(module, visibility = ["PUBLIC"], test_env = {}, data = {}, extra_deps
     plugin_data(
         name = "data",
         files = data,
+        visibility = visibility,
+    )
+    plugin_types(
+        name = "types",
+        module = types,
         visibility = visibility,
     )
     plugin_tests(

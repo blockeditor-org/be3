@@ -10,6 +10,7 @@ crate-type = ["cdylib", "rlib"]
 [dependencies]
 beui = { path = "../../beui", default-features = false, features = ["render"] }
 block-editor-beui = { path = "../../block-editor-beui" }
+pixel-ray-tracer-types = { path = "types" }
 uuid = "1"
 
 [dev-dependencies]

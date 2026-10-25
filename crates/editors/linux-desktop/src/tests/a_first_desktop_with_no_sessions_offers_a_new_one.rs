@@ -42,8 +42,7 @@ fn a_first_desktop_with_no_sessions_offers_a_new_one() {
         settings.root().sessions().contains(&session),
         "the session is one of the account's sessions"
     );
-    let shown: EditorViewContent = fixture.test.content(Some(session));
-    assert_eq!(shown.root().editor, WORKSPACE_EDITOR);
+    assert_eq!(info.metadata.get(&VIEW_EDITOR), Some(WORKSPACE_EDITOR));
 
     fixture.close_a_tab();
     fixture.test.click("desktop.sessions");

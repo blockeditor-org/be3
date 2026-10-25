@@ -1,9 +1,9 @@
 use block_editor_beui::Loaded;
-use block_editor_beui::be_block::PdfContent;
 use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::Root;
 use block_editor_beui::{ContentFileCreation, Creation, Editor, FileFilter, PickedFile};
+use pdf_types::{PdfContent, PdfFile};
 
 mod pages;
 mod ui;
@@ -47,6 +47,6 @@ pub(crate) fn filter() -> FileFilter {
 
 pub(crate) fn imported(file: PickedFile) -> Result<PdfContent, String> {
     let PickedFile { name, data } = file;
-    PdfContent::from_file(name.clone(), data)
+    PdfFile::from_file(name.clone(), data)
         .map_err(|error| format!("Could not import {name}: {error}"))
 }

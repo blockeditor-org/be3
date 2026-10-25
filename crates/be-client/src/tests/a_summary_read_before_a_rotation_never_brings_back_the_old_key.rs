@@ -1,7 +1,7 @@
 use super::*;
 
-use be_block::{TextBlock, TextContent};
 use be_graph::Access;
+use text_block_types::{TextBlock, TextContent};
 
 #[tokio::test]
 async fn a_summary_read_before_a_rotation_never_brings_back_the_old_key() {

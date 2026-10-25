@@ -2,7 +2,8 @@ use super::*;
 
 use std::time::Duration;
 
-use be_block::{BlockContent, Counter, CounterContent};
+use be_block::BlockContent;
+use counter_types::{Counter, CounterContent};
 
 fn seed(instances: &mut Instances, block: Uuid) {
     let mut seeded = CounterContent::default();

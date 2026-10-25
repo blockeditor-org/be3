@@ -1,10 +1,9 @@
-use block_editor_beui::be_block::{
-    Checklist as ChecklistModel, ChecklistContent, ChecklistItem, ObjectId,
-};
+use block_editor_beui::be_block::ObjectId;
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
 use block_editor_beui::beui::{NodeId, TextAlign};
 use block_editor_beui::{ContentProjection, Editor};
+use checklist_types::{Checklist as ChecklistModel, ChecklistContent, ChecklistItem};
 
 const PAGE_PADDING: f32 = 24.0;
 const SECTION_SPACING: f32 = 18.0;

@@ -1,6 +1,6 @@
 use std::rc::Rc;
 
-use block_editor_beui::be_block::canvas::{CanvasColor, CanvasEntity, CanvasShape};
+use infinite_canvas_types::{CanvasColor, CanvasEntity, CanvasShape};
 use std::cell::RefCell;
 
 use block_editor_beui::beui::reactive::*;

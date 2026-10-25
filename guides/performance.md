@@ -48,7 +48,7 @@ The target for opening a page is under 2 ms warm. The canvas bench measured, in 
 | drag, p50 wall | 0.17 ms (interaction 0.09 ms) | 0.54 ms (interaction 0.31 ms) |
 | pen move, p50 wall | 0.21 ms (interaction 0.12 ms) | 0.42 ms (interaction 0.22 ms) |
 | pen lift, p50 wall | 0.13 ms | 0.24 ms (interaction 0.13 ms) |
-| long stroke, p50 wall of its first and last 200 samples | 0.22 ms, 0.47 ms | 2.7 ms, 3.2 ms |
+| long stroke, p50 wall of its first and last 200 samples | 0.37 ms, 0.53 ms | 5 to 7 ms, 5 to 7 ms |
 | frames from pen event to ink | 0 | 0 |
 
 `camera()` centres a world point in the canvas: a view is where the content sits on

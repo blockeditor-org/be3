@@ -1,7 +1,7 @@
 use super::*;
 
-use be_block::{TextBlock, TextContent};
 use be_graph::Access;
+use text_block_types::{TextBlock, TextContent};
 
 #[tokio::test]
 async fn a_reader_taken_off_a_workspace_cannot_read_what_is_written_after() {

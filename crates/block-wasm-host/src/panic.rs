@@ -1,6 +1,6 @@
 use std::fmt;
 
-use block_gpu_abi as abi;
+use block_guest_abi as abi;
 use wasmtime::{Caller, Linker};
 
 use crate::threads::Spawns;
@@ -26,11 +26,15 @@ pub(crate) fn link<T: Spawns + 'static>(linker: &mut Linker<T>) -> Result<(), St
                     Ok(bytes) => String::from_utf8_lossy(&bytes).into_owned(),
                     Err(error) => format!("the plugin panicked, and its message was lost: {error}"),
                 };
-                Err(wasmtime::Error::new(GuestPanic(message)))
+                Err(panicked(message))
             },
         )
         .map(|_| ())
         .map_err(|error| format!("{} could not be linked: {error}", abi::HOST_PANIC))
+}
+
+pub(crate) fn panicked(message: String) -> wasmtime::Error {
+    wasmtime::Error::new(GuestPanic(message))
 }
 
 pub(crate) fn message(error: &wasmtime::Error) -> Option<String> {

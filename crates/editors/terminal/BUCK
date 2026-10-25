@@ -5,4 +5,5 @@ load("@root//buck/wasm:defs.bzl", "editor")
 editor(
     module = "terminal",
     shared_sdk = False,
+    types = "//crates/editors/terminal/types:module",
 )

@@ -6,9 +6,9 @@ version.workspace = true
 license.workspace = true
 
 [dependencies]
-be-commit = { path = "../be-commit" }
+be-commit = { path = "../be-commit", default-features = false }
 be-model-derive = { path = "../be-model-derive" }
-be-store = { path = "../be-store" }
+be-store = { path = "../be-store", default-features = false }
 ciborium = "0.2"
 postcard = { version = "1", features = ["use-std"] }
 sequence = { path = "../sequence" }

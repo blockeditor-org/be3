@@ -2,8 +2,9 @@ use super::*;
 
 use std::time::Duration;
 
-use be_block::{BlockContent, Calendar, CalendarContent, CalendarEvent, LiveEdit};
+use be_block::{BlockContent, LiveEdit};
 use block_plugin_api::HistoryState;
+use calendar_types::{Calendar, CalendarContent, CalendarEvent};
 
 fn history_states(instances: &mut Instances) -> Vec<Vec<HistoryState>> {
     next_screens(instances)
@@ -37,9 +38,8 @@ fn an_instance_watching_a_blocks_history_is_told_when_it_changes() {
     assert!(history_states(&mut instances).is_empty());
 
     crate::be::open(block, CalendarContent::CONTENT_TYPE);
-    crate::be::operate_from(
+    crate::be::operate(
         block,
-        0,
         CalendarContent::encode_operation(
             &Calendar::add(&CalendarEvent::new("Standup", 540, 555)).1,
         ),

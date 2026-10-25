@@ -2,7 +2,8 @@ use super::*;
 
 use std::time::Duration;
 
-use be_block::{BlockContent, BrowserTabContent, HistoryItem, LiveEdit};
+use be_block::{BlockContent, LiveEdit};
+use browser_tab_types::{BrowserTabContent, HistoryItem};
 
 fn name_of(block: Uuid) -> Option<String> {
     crate::be::node(block).and_then(|node| node.metadata.name())
@@ -15,6 +16,11 @@ fn clearing_a_name_names_the_block_after_its_content_at_once() {
     let block = Uuid::new_v4();
     let mut instances = placed_on(block, BrowserTabContent::CONTENT_TYPE);
     instances.next_screens(PASS);
+    to_replica(
+        &mut instances,
+        block,
+        &block_type_guest::editor::FromEditor::Resend,
+    );
     crate::be::wait_for(Duration::from_secs(20), |shared| {
         (shared.blocks.contains_key(&block) && shared.graph.get(block).is_some()).then_some(())
     })
@@ -27,7 +33,7 @@ fn clearing_a_name_names_the_block_after_its_content_at_once() {
     let edit = shown
         .root()
         .replace(&HistoryItem::new("https://example.com/", "Example Domain"));
-    crate::be::operate_from(block, 0, BrowserTabContent::encode_operation(&edit));
+    crate::be::operate(block, BrowserTabContent::encode_operation(&edit));
     crate::be::wait_for(Duration::from_secs(20), |shared| {
         let held = shared.blocks.get(&block)?;
         let tab = BrowserTabContent::decode(held.bytes()).ok()?;

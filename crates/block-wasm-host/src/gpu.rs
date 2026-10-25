@@ -31,12 +31,12 @@ macro_rules! gpu {
 
 macro_rules! transport {
     ($($functions:tt)+) => {
-        linker!(link_transport, abi::HOST_MODULE; $($functions)+);
+        linker!(link_transport, block_guest_abi::HOST_MODULE; $($functions)+);
     };
 }
 
 abi::gpu_functions!(gpu);
-abi::transport_functions!(transport);
+block_guest_abi::transport_functions!(transport);
 
 pub(super) fn link(linker: &mut Linker<State>) -> Result<(), String> {
     link_gpu(linker)?;

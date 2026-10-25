@@ -32,6 +32,7 @@ Guides:
 - guides/testing_a_gui.md
 - guides/the_new_block_stack.md: the `be-*` crates every block lives in
 - guides/tracker.md: the issue tracker in block-app, and `be`, the command line tool agents use to read and change it
+- guides/type_modules.md: block types as plugin wasm modules: the host-to-type protocol (`block-type-api`) and the replica library types link (`block-type-guest`)
 
 Commands (builds run on the build server; see guides/buck2.md and guides/build_server.md):
 - `./scripts/buck run //:check`: fast compile check of every first-party target, native and wasm. Use this instead of cargo, which no longer builds the workspace.

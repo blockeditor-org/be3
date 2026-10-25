@@ -1,7 +1,7 @@
-use block_editor_beui::be_block::map::MapRegion;
-use block_editor_beui::be_block::{Map, MapContent};
 use block_editor_beui::{EditorHost, FetchResult, HostReply, HostRequest, OwnedEditor};
 use block_ui_test::BeuiTest;
+use map_types::MapRegion;
+use map_types::{Map, MapContent};
 use uuid::Uuid;
 
 use crate::app::MapApp;
@@ -22,6 +22,7 @@ fn editor() -> BeuiTest<MapApp> {
     host.set_editable(true);
     let editor = OwnedEditor::new(host.clone(), block);
     let mut editor = BeuiTest::new(editor).in_viewport();
+    editor.store().register(map_types::registrations());
     editor.hold(None, MapContent::default());
     editor.run();
     editor

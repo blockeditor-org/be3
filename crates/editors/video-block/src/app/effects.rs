@@ -1,10 +1,8 @@
-use block_editor_beui::be_block::video::{
-    MAX_CLIP_LENGTH, VideoAttachment, VideoClip, VideoEffect,
-};
 use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::icons::ICON_UNLINK;
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
+use video_block_types::{MAX_CLIP_LENGTH, VideoAttachment, VideoClip, VideoEffect};
 
 use crate::timeline::timecode;
 use uuid::Uuid;

@@ -1,8 +1,9 @@
-use block_editor_beui::be_block::EditorViewContent;
 use block_editor_beui::beui::{Document, Input, Modifiers, NodeId, PointerButton, Pos2, Vec2};
 use block_editor_beui::{EditorHost, OwnedEditor};
 use block_ui_test::BeuiTest;
 use uuid::Uuid;
+use workspace_ui_types::EditorViewContent;
+use workspace_ui_types::{FolderContent, WorkspaceContent};
 
 use crate::app::FileTreeApp;
 
@@ -22,7 +23,7 @@ mod a_workspace_is_shown_with_what_it_holds_already_listed;
 mod an_opened_folder_is_kept_open_in_the_view_and_reopens_open;
 mod clicking_the_chevron_opens_and_closes_its_own_row;
 mod expanding_a_folder_shows_its_children_without_more_input;
-mod exporting_a_text_block_saves_it_as_a_markdown_file;
+mod exporting_a_block_as_its_own_file_reads_it_from_the_host_and_saves_it;
 mod exporting_any_block_as_a_block_file_asks_the_host_for_it;
 mod icon_and_color_asks_the_host_from_the_row_and_the_row_shows_what_is_chosen;
 mod inspecting_a_row_shows_what_is_known_about_its_block;
@@ -119,7 +120,7 @@ fn files_workspace(
     host: &EditorHost,
     inside: &[block_editor_beui::BlockInfo],
 ) -> block_editor_beui::BlockInfo {
-    use block_editor_beui::be_block::{BlockContent, WorkspaceContent};
+    use block_editor_beui::be_block::BlockContent;
     use block_editor_beui::{BlockInfo, BlockParent};
     let mut files = BlockInfo::new(MY_FILES, WorkspaceContent::CONTENT_TYPE, BlockParent::Root);
     files.author = Some(host.account_id());
@@ -143,18 +144,31 @@ fn my_files(fixture: &mut Fixture, inside: Vec<block_editor_beui::BlockInfo>) ->
 }
 
 fn containers_hold_blocks(fixture: &mut Fixture) {
-    use block_editor_beui::be_block::{BlockContent, FolderContent, WorkspaceContent};
-    use block_editor_beui::{BlockTypeDescriptor, Catalog, ChildOperations};
+    containers(
+        fixture,
+        block_editor_beui::ChildOperations {
+            add: true,
+            delete: true,
+            replace: true,
+        },
+    );
+}
+
+fn folders_zoom(fixture: &mut Fixture) {
+    containers(fixture, block_editor_beui::ChildOperations::default());
+}
+
+fn containers(fixture: &mut Fixture, children: block_editor_beui::ChildOperations) {
+    use block_editor_beui::be_block::BlockContent;
+    use block_editor_beui::{BlockTypeDescriptor, Catalog, Press};
     let holding = |block_type: Uuid, name: &str| BlockTypeDescriptor {
         block_type: block_type.into_bytes(),
         display_name: name.to_owned(),
         color: None,
         icon_codepoint: String::new(),
-        children: ChildOperations {
-            add: true,
-            delete: true,
-            replace: true,
-        },
+        children,
+        press: Press::Zoom,
+        plain_file: false,
     };
     fixture.test.catalog(Catalog {
         types: vec![

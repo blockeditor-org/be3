@@ -1,7 +1,8 @@
+use block_editor_beui::be_block::BlockMetadata;
 use block_editor_beui::be_block::display_settings::{DisplayMode, Rotation};
 use block_editor_beui::be_block::{
-    DisplaySettings, DisplaySettingsContent, EditorView, EditorViewContent, LINUX_DESKTOP_EDITOR,
-    Root, Settings, SettingsContent, SettingsProfile, SettingsProfileContent, WORKSPACE_EDITOR,
+    DisplaySettings, DisplaySettingsContent, LINUX_DESKTOP_EDITOR, Root, Settings, SettingsContent,
+    SettingsProfile, SettingsProfileContent, VIEW_EDITOR, WORKSPACE_EDITOR,
 };
 use block_editor_beui::beui::{Document, Key, KeyChord, Modifiers, NodeId, Rect};
 use block_editor_beui::{
@@ -16,6 +17,7 @@ use block_plugin_api::Size;
 use block_shell::{KeptWindow, saved_windows};
 use block_ui_test::BeuiTest;
 use uuid::Uuid;
+use workspace_ui_types::{EditorView, EditorViewContent};
 
 use crate::app::LinuxDesktopApp;
 use crate::app::media::{BINDINGS, BRIGHTNESS_STEP, VOLUME_STEP};
@@ -95,11 +97,11 @@ struct Fixture {
 
 impl Fixture {
     fn new() -> Self {
-        Self::holding(EditorView::document(LINUX_DESKTOP_EDITOR, None))
+        Self::holding(EditorView::document(None))
     }
 
     fn away_from_linux() -> Self {
-        Self::unserved(EditorView::document(LINUX_DESKTOP_EDITOR, None))
+        Self::unserved(EditorView::document(None))
     }
 
     fn resumed(saved: EditorViewContent) -> Self {
@@ -189,9 +191,9 @@ impl Fixture {
                 EditorView::CONTENT_TYPE,
                 BlockParent::Block(self.settings),
             );
-            info.set_name(*name);
+            info.metadata = BlockMetadata::view(*editor, Some((*name).to_owned()));
             store.add_block(info);
-            store.hold(Some(session), EditorView::document(*editor, None));
+            store.hold(Some(session), EditorView::document(None));
             settings.apply(&Settings::add_session(*editor, self.client, session));
             blocks.push(session);
         }

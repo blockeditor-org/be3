@@ -18,10 +18,45 @@ plugin_data = rule(
     impl = _plugin_data_impl,
 )
 
+# A plugin's type module (guides/type_modules.md), or nothing for a plugin
+# that brings no block type: what editor()'s :types is, so the app can stage
+# every plugin's the same way.
+def _plugin_types_impl(ctx: AnalysisContext) -> list[Provider]:
+    if ctx.attrs.module:
+        return [DefaultInfo(default_outputs = ctx.attrs.module[DefaultInfo].default_outputs)]
+    return [DefaultInfo()]
+
+plugin_types = rule(
+    attrs = {
+        "module": attrs.option(attrs.dep(), default = None),
+    },
+    impl = _plugin_types_impl,
+)
+
+# Every plugin's manifest and type module in one file (buck/app/bundle.sh), which
+# an executable that is its whole release, `be`, carries with include_bytes!.
+def _type_bundle_impl(ctx: AnalysisContext) -> list[Provider]:
+    out = ctx.actions.declare_output(ctx.label.name + ".bundle")
+    command = cmd_args("sh", ctx.attrs._bundle, out.as_output())
+    for manifest, types in zip(ctx.attrs.manifests, ctx.attrs.plugin_types):
+        modules = types[DefaultInfo].default_outputs
+        command.add(cmd_args(manifest, modules[0] if modules else "", delimiter = "="))
+    ctx.actions.run(command, category = "type_bundle")
+    return [DefaultInfo(default_output = out)]
+
+type_bundle = rule(
+    attrs = {
+        "manifests": attrs.list(attrs.source()),
+        "plugin_types": attrs.list(attrs.dep()),
+        "_bundle": attrs.default_only(attrs.source(default = "root//buck/app:bundle.sh")),
+    },
+    impl = _type_bundle_impl,
+)
+
 # One action a module, so that the thirty-odd compiles run side by side on as
 # many workers rather than one after another.
-def _precompile(ctx: AnalysisContext, wasm: Artifact) -> Artifact:
-    artifact = ctx.actions.declare_output(wasm.basename.removesuffix(".wasm") + ".cwasm")
+def _precompile(ctx: AnalysisContext, wasm: Artifact, name: [str, None] = None) -> Artifact:
+    artifact = ctx.actions.declare_output((name or wasm.basename.removesuffix(".wasm")) + ".cwasm")
     ctx.actions.run(
         cmd_args(
             ctx.attrs.precompiler[RunInfo],
@@ -32,7 +67,7 @@ def _precompile(ctx: AnalysisContext, wasm: Artifact) -> Artifact:
             wasm,
         ),
         category = "wasm_precompile",
-        identifier = wasm.basename,
+        identifier = name or wasm.basename,
     )
     return artifact
 
@@ -40,7 +75,7 @@ def _precompile(ctx: AnalysisContext, wasm: Artifact) -> Artifact:
 # beside it every plugin, each module precompiled for precompile_target in an
 # action of its own by the precompiler, plugin-test-runner as the workers run
 # it, whatever the app is built for, and the plugin SDK they are linked against
-# (guides/plugin_sdk.md), with its .cwasm; with no precompiler, each plugin is
+# (guides/plugin_sdk.md), with its .cwasm, and the type modules; with no precompiler, each plugin is
 # its module alone. With no binary it
 # is the plugins alone. `index` writes the plugins.json the app finds the
 # plugins through. The web bundle is this rule too: `bindgen` runs
@@ -65,13 +100,18 @@ def _app_impl(ctx: AnalysisContext) -> list[Provider]:
         if ctx.attrs.precompiler:
             command.add(cmd_args("--sdk-artifact=", _precompile(ctx, sdk), delimiter = ""))
     data = ctx.attrs.data or [None] * len(ctx.attrs.manifests)
-    for manifest, module, files in zip(ctx.attrs.manifests, ctx.attrs.modules, data):
+    plugin_types = ctx.attrs.plugin_types or [None] * len(ctx.attrs.manifests)
+    for manifest, module, files, types in zip(ctx.attrs.manifests, ctx.attrs.modules, data, plugin_types):
         wasm = module[DefaultInfo].default_outputs[0]
         command.add(cmd_args(manifest, wasm, delimiter = "="))
         if files:
             command.add(cmd_args("--data=", files, delimiter = ""))
         if ctx.attrs.precompiler:
             command.add(cmd_args("--artifact=", _precompile(ctx, wasm), delimiter = ""))
+        for type_module in types[DefaultInfo].default_outputs if types else []:
+            command.add(cmd_args("--plugin-type=", type_module, delimiter = ""))
+            if ctx.attrs.precompiler:
+                command.add(cmd_args("--type-artifact=", _precompile(ctx, type_module), delimiter = ""))
     for module in ctx.attrs.bindgen:
         wasm = module[DefaultInfo].default_outputs[0]
         bindings = ctx.actions.declare_output(wasm.basename.removesuffix(".wasm") + "-bindings", dir = True)
@@ -113,6 +153,10 @@ app = rule(
         "index": attrs.bool(default = False),
         "manifests": attrs.list(attrs.source()),
         "modules": attrs.list(attrs.dep()),
+        # Each plugin's type module (plugin_types), in the order of manifests:
+        # staged beside its editor module under the name its manifest's
+        # block_types give it.
+        "plugin_types": attrs.list(attrs.dep(), default = []),
         "precompile_target": attrs.string(default = "x86_64-unknown-linux-gnu"),
         "precompiler": attrs.option(attrs.dep(providers = [RunInfo]), default = None),
         # What `buck2 run` runs a bundle without an executable with, followed

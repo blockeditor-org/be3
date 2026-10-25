@@ -24,6 +24,16 @@
       ]
     }
   },
+  "block_types": {
+    "map": {
+      "id": "6d617076-6965-7762-6c6f-636b00000001",
+      "display_name": "Map",
+      "icon": "\ue110",
+      "color": [64, 155, 173],
+      "children": {"add": true, "delete": true, "replace": true},
+      "module": "map_types.wasm"
+    }
+  },
   "entry_point": "map.wasm",
   "network": [
     "vector.openstreetmap.org"

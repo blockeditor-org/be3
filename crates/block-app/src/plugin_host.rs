@@ -12,6 +12,7 @@ mod backend;
 mod description;
 mod fonts;
 pub(crate) mod graph;
+mod heads;
 mod host_values;
 mod input;
 mod instances;
@@ -25,7 +26,6 @@ mod surface;
 mod wasm;
 #[cfg(target_arch = "wasm32")]
 mod web;
-mod worker;
 
 pub(crate) use description::describe;
 pub(crate) use input::BlockDrag;

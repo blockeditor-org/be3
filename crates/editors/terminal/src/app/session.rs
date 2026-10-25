@@ -1,6 +1,6 @@
 use block_editor_beui::Editor;
-use block_editor_beui::be_block::terminal::{TerminalHost, TerminalMessage, TerminalSize};
 use block_editor_beui::beui::reactive::*;
+use terminal_types::{TerminalHost, TerminalMessage, TerminalSize};
 use terminal_view::{Emulator, Fit, TerminalScreen};
 
 const SCROLLBACK: usize = 1_000;

@@ -1,14 +1,14 @@
-use block_editor_beui::be_block::canvas::{
-    CanvasArrowhead, CanvasColor, CanvasEntity, CanvasFill, CanvasLayerMove, CanvasShape,
-    CanvasStrokeStyle, CanvasStyle, CanvasTextAlign, CanvasTextSize, CanvasTextVerticalAlign,
-    CanvasTextWeight,
-};
 use block_editor_beui::beui::Color32;
 use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::icons::ICON_DROPLET_OFF;
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
 use block_editor_beui::{ResizeMode, Sidebar, narrow_chrome};
+use infinite_canvas_types::{
+    CanvasArrowhead, CanvasColor, CanvasEntity, CanvasFill, CanvasLayerMove, CanvasShape,
+    CanvasStrokeStyle, CanvasStyle, CanvasTextAlign, CanvasTextSize, CanvasTextVerticalAlign,
+    CanvasTextWeight,
+};
 
 use crate::geometry::*;
 

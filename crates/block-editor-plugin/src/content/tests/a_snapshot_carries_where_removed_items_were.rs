@@ -1,7 +1,7 @@
 use super::*;
 
-use be_block::ChecklistItem;
 use be_block::be_model::Anchor;
+use checklist_types::ChecklistItem;
 
 #[test]
 fn a_snapshot_carries_where_removed_items_were() {

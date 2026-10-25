@@ -1,9 +1,9 @@
 use block_editor_beui::Loaded;
-use block_editor_beui::be_block::DatabaseSchemaContent;
-use block_editor_beui::be_block::database_schema::{DatabaseField, DatabaseFieldType};
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::Root;
 use block_editor_beui::{Creation, Editor};
+use database_types::DatabaseSchemaContent;
+use database_types::database_schema::{DatabaseField, DatabaseFieldType};
 use uuid::Uuid;
 
 mod ui;

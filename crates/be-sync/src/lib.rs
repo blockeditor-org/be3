@@ -12,6 +12,7 @@ use std::path::{Path, PathBuf};
 
 use be_client::{ClientError, Peer};
 use be_store::ObjectStore;
+use be_types_host::Modules;
 use uuid::Uuid;
 
 pub use report::Report;
@@ -32,10 +33,11 @@ pub struct Target {
 
 pub async fn sync<S: ObjectStore>(
     peer: &Peer<S>,
+    types: &mut Modules,
     directory: &Path,
     target: &Target,
 ) -> Result<Report, String> {
-    Kept::open(peer, directory, target)?.sync(peer).await
+    Kept::open(peer, directory, target)?.sync(peer, types).await
 }
 
 pub(crate) struct Kept {
@@ -61,10 +63,14 @@ impl Kept {
         })
     }
 
-    pub(crate) async fn sync<S: ObjectStore>(&mut self, peer: &Peer<S>) -> Result<Report, String> {
+    pub(crate) async fn sync<S: ObjectStore>(
+        &mut self,
+        peer: &Peer<S>,
+        types: &mut Modules,
+    ) -> Result<Report, String> {
         let mut report = Report::default();
         for _ in 0..PASSES {
-            let pass = pass::run(peer, &self.directory, &mut self.index).await?;
+            let pass = pass::run(peer, types, &self.directory, &mut self.index).await?;
             let again = pass.retry;
             report.absorb(pass);
             if !again {

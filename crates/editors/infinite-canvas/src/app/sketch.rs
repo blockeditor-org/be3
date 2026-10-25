@@ -1,11 +1,11 @@
-use block_editor_beui::be_block::canvas::{
-    CanvasEntity, CanvasFill, CanvasLook, CanvasPathPoint, CanvasPoint, CanvasShape,
-    CanvasStrokeStyle, CanvasStyle, CanvasTransform,
-};
 use std::rc::Rc;
 
 use block_editor_beui::beui::{
     Color32, FillRule, LineCap, LineJoin, Painter, Path, PathPaint, Pos2, Stroke, Vec2, pos2,
+};
+use infinite_canvas_types::{
+    CanvasEntity, CanvasFill, CanvasLook, CanvasPathPoint, CanvasPoint, CanvasShape,
+    CanvasStrokeStyle, CanvasStyle, CanvasTransform,
 };
 
 use crate::freehand;

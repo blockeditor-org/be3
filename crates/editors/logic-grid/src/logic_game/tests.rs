@@ -1,8 +1,8 @@
-use block_editor_beui::be_block::LogicGameContent;
-use block_editor_beui::be_block::logic_game::LogicGame;
 use block_editor_beui::beui::Vec2;
 use block_editor_beui::{EditorHost, OwnedEditor};
 use block_ui_test::BeuiTest;
+use logic_grid_types::LogicGame;
+use logic_grid_types::LogicGameContent;
 use logicgame::challenges::ChallengeId;
 use uuid::Uuid;
 
@@ -24,6 +24,7 @@ fn editor_sized(size: Option<Vec2>) -> BeuiTest<LogicGameApp> {
         Some(size) => BeuiTest::new(editor).with_size(size),
         None => BeuiTest::new(editor),
     };
+    editor.store().register(logic_grid_types::registrations());
     editor.hold(None, LogicGameContent::default());
     editor.run();
     editor

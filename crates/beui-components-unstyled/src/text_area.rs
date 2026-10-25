@@ -48,7 +48,7 @@ pub use colors::{SyntaxColors, TextAreaColors};
 pub use completion::{Completer, Completion, CompletionMenu, CompletionRowHandle};
 pub use emoji::{emoji_completer, search_emoji};
 pub use hooks::{
-    LeafSpan, MarkerColumn, MarkerKind, QUOTE_BAR_WIDTH, QuoteBar, RULE_WIDTH, TableFill,
+    LeafSpan, Margin, MarkerColumn, MarkerKind, QUOTE_BAR_WIDTH, QuoteBar, RULE_WIDTH, TableFill,
     TableLines, TextLeaf, TextLine, TextMarker,
 };
 pub use rows::{Prose, RowTable, TextWidget};

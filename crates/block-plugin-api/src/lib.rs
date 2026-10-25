@@ -455,8 +455,23 @@ pub enum CreationProgress {
 pub struct PluginManifest {
     pub identity: PluginIdentity,
     pub editors: Vec<EditorManifest>,
+    pub block_types: Vec<BlockTypeManifest>,
     pub entry_point: String,
     pub network: Vec<String>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct BlockTypeManifest {
+    pub name: String,
+    pub descriptor: BlockTypeDescriptor,
+    pub module: String,
+    pub exported_whole: bool,
+}
+
+impl BlockTypeManifest {
+    pub fn content_type(&self) -> [u8; 16] {
+        self.descriptor.block_type
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -520,6 +535,12 @@ impl PluginManifest {
     pub fn editor(&self, id: [u8; 16]) -> Option<&EditorManifest> {
         self.editors.iter().find(|editor| editor.id == id)
     }
+
+    pub fn type_module(&self) -> Option<&str> {
+        self.block_types
+            .first()
+            .map(|block_type| block_type.module.as_str())
+    }
 }
 
 #[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, Serialize, Deserialize)]
@@ -551,6 +572,7 @@ impl EditorManifest {
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default, deny_unknown_fields)]
 pub struct ChildOperations {
     pub add: bool,
     pub delete: bool,
@@ -610,6 +632,15 @@ pub struct BlockTypeDescriptor {
     pub color: Option<[u8; 3]>,
     pub icon_codepoint: String,
     pub children: ChildOperations,
+    pub press: Press,
+    pub plain_file: bool,
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum Press {
+    #[default]
+    Open,
+    Zoom,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -661,6 +692,8 @@ pub enum ManifestError {
     InvalidNetworkHost,
     NoEditors,
     DuplicateEditor,
+    DuplicateBlockType,
+    SeveralTypeModules,
     DuplicateTemplate,
     TemplateWithoutBlockType,
 }
@@ -680,7 +713,15 @@ impl fmt::Display for ManifestError {
             Self::InvalidNetworkHost => {
                 formatter.write_str("a network host is not a plain host name")
             }
-            Self::NoEditors => formatter.write_str("the plugin declares no editors"),
+            Self::NoEditors => {
+                formatter.write_str("the plugin declares no editors and no block types")
+            }
+            Self::DuplicateBlockType => {
+                formatter.write_str("two block types are declared with the same id or name")
+            }
+            Self::SeveralTypeModules => {
+                formatter.write_str("the block types name more than one type module")
+            }
             Self::DuplicateEditor => {
                 formatter.write_str("two editors are declared with the same id or name")
             }
@@ -707,8 +748,22 @@ impl PluginManifest {
         {
             return Err(ManifestError::InvalidIdentity);
         }
-        if self.editors.is_empty() {
+        if self.editors.is_empty() && self.block_types.is_empty() {
             return Err(ManifestError::NoEditors);
+        }
+        for (index, block_type) in self.block_types.iter().enumerate() {
+            if self.block_types[..index].iter().any(|other| {
+                other.content_type() == block_type.content_type() || other.name == block_type.name
+            }) {
+                return Err(ManifestError::DuplicateBlockType);
+            }
+            manifest_string("block type name", &block_type.name)?;
+            manifest_string("display name", &block_type.descriptor.display_name)?;
+            manifest_string("icon", &block_type.descriptor.icon_codepoint)?;
+            manifest_string("type module", &block_type.module)?;
+            if self.type_module() != Some(block_type.module.as_str()) {
+                return Err(ManifestError::SeveralTypeModules);
+            }
         }
         for (index, editor) in self.editors.iter().enumerate() {
             if self.editors[..index]
@@ -788,40 +843,9 @@ pub enum EditorMessage {
         editable: bool,
     },
 
-    Content {
-        instance: EditorInstanceId,
-        block_id: [u8; 16],
-        content_type: [u8; 16],
-        #[serde(with = "serde_bytes")]
-        bytes: Vec<u8>,
-        #[serde(with = "serde_bytes")]
-        session: Vec<u8>,
-        unsettled: Vec<serde_bytes::ByteBuf>,
-        applied: u64,
-    },
-    ContentOperations {
-        instance: EditorInstanceId,
-        block_id: [u8; 16],
-        operations: Vec<ContentOperation>,
-    },
-    Operate {
-        instance: EditorInstanceId,
-        block_id: [u8; 16],
-        #[serde(with = "serde_bytes")]
-        operation: Vec<u8>,
-    },
-    Gesture {
-        instance: EditorInstanceId,
-        block_id: [u8; 16],
-        phase: GesturePhase,
-    },
     WatchContent {
         instance: EditorInstanceId,
         blocks: Vec<WatchedContent>,
-    },
-    ResendContent {
-        instance: EditorInstanceId,
-        block_id: [u8; 16],
     },
     SeedContent {
         instance: EditorInstanceId,
@@ -836,30 +860,6 @@ pub enum EditorMessage {
         content_type: [u8; 16],
         #[serde(with = "serde_bytes")]
         bytes: Vec<u8>,
-    },
-    ShowPresence {
-        instance: EditorInstanceId,
-        block_id: [u8; 16],
-        kind: [u8; 16],
-        value: Option<serde_bytes::ByteBuf>,
-    },
-    PeerPresence {
-        instance: EditorInstanceId,
-        block_id: [u8; 16],
-        peers: Vec<PeerPresence>,
-    },
-    SendToPeers {
-        instance: EditorInstanceId,
-        block_id: [u8; 16],
-        to: Option<u64>,
-        channel: [u8; 16],
-        #[serde(with = "serde_bytes")]
-        payload: Vec<u8>,
-    },
-    PeerMessages {
-        instance: EditorInstanceId,
-        block_id: [u8; 16],
-        messages: Vec<PeerMessage>,
     },
     ViewChanged {
         instance: EditorInstanceId,
@@ -1031,7 +1031,6 @@ pub enum EditorMessage {
     },
     PlayAudio {
         instance: EditorInstanceId,
-        block_id: [u8; 16],
         command: AudioCommand,
     },
     AudioStatus {
@@ -1136,6 +1135,15 @@ pub enum EditorMessage {
         instance: EditorInstanceId,
         states: Vec<HistoryState>,
     },
+    WatchHeads {
+        instance: EditorInstanceId,
+        blocks: Vec<[u8; 16]>,
+    },
+    Head {
+        instance: EditorInstanceId,
+        block_id: [u8; 16],
+        head: Result<Option<StoredHead>, String>,
+    },
     Presence {
         instance: EditorInstanceId,
         visible: bool,
@@ -1230,6 +1238,12 @@ pub enum EditorMessage {
         block_id: [u8; 16],
         status: VersionStatus,
     },
+    Replica {
+        instance: EditorInstanceId,
+        block_id: [u8; 16],
+        #[serde(with = "serde_bytes")]
+        frame: Vec<u8>,
+    },
 }
 
 impl EditorMessage {
@@ -1237,18 +1251,9 @@ impl EditorMessage {
         match self {
             Self::Open { instance, .. }
             | Self::EditabilityChanged { instance, .. }
-            | Self::Content { instance, .. }
-            | Self::ContentOperations { instance, .. }
-            | Self::Operate { instance, .. }
-            | Self::Gesture { instance, .. }
             | Self::WatchContent { instance, .. }
-            | Self::ResendContent { instance, .. }
             | Self::SeedContent { instance, .. }
             | Self::ReplaceContent { instance, .. }
-            | Self::ShowPresence { instance, .. }
-            | Self::PeerPresence { instance, .. }
-            | Self::SendToPeers { instance, .. }
-            | Self::PeerMessages { instance, .. }
             | Self::ViewChanged { instance, .. }
             | Self::ChangeView { instance, .. }
             | Self::Present { instance, .. }
@@ -1301,6 +1306,8 @@ impl EditorMessage {
             | Self::ArtifactStates { instance, .. }
             | Self::WatchHistory { instance, .. }
             | Self::HistoryStates { instance, .. }
+            | Self::WatchHeads { instance, .. }
+            | Self::Head { instance, .. }
             | Self::Presence { instance, .. }
             | Self::ReplaceChild { instance, .. }
             | Self::ChildReplaced { instance, .. }
@@ -1319,7 +1326,8 @@ impl EditorMessage {
             | Self::SetParent { instance, .. }
             | Self::Define { instance, .. }
             | Self::VersionControl { instance, .. }
-            | Self::VersionStatus { instance, .. } => *instance,
+            | Self::VersionStatus { instance, .. }
+            | Self::Replica { instance, .. } => *instance,
         }
     }
 }
@@ -1442,44 +1450,20 @@ pub struct WatchedContent {
     pub content_type: [u8; 16],
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub struct PeerPresence {
-    pub client: u64,
-    pub kind: [u8; 16],
-    #[serde(with = "serde_bytes")]
-    pub value: Vec<u8>,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub struct PeerMessage {
-    pub from: u64,
-    pub channel: [u8; 16],
-    #[serde(with = "serde_bytes")]
-    pub payload: Vec<u8>,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub struct ContentOperation {
-    #[serde(with = "serde_bytes")]
-    pub operation: Vec<u8>,
-    pub mine: bool,
-    pub unsettled: u64,
-    pub beneath: Option<Vec<serde_bytes::ByteBuf>>,
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub enum GesturePhase {
-    Begin,
-    Commit,
-    Cancel,
-}
-
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct HistoryState {
     pub head: Option<[u8; 32]>,
     pub block_id: [u8; 16],
     pub can_undo: bool,
     pub can_redo: bool,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct StoredHead {
+    pub commit: [u8; 32],
+    pub content_type: [u8; 16],
+    #[serde(with = "serde_bytes")]
+    pub bytes: Vec<u8>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
@@ -1644,6 +1628,7 @@ pub enum HostRequest {
     ListData,
     ReadData(String),
     ExportBlock([u8; 16]),
+    ReadPlainFile([u8; 16]),
     ImportBlocks(BlockLocation),
     ContactLink {
         block_id: [u8; 16],
@@ -1660,6 +1645,7 @@ pub enum HostReply {
 
     FilePicked(FilePick),
     FileSaved(FileSave),
+    PlainFileRead(Result<SavedFile, String>),
     BlockPicked(BlockPick),
     Fetched(FetchResult),
     DataListed(DataListing),
@@ -1756,10 +1742,18 @@ pub struct DroppedFile {
     pub data: Vec<u8>,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum AudioCommand {
+    Load(AudioSource),
     Toggle,
     Reset,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct AudioSource {
+    pub media_type: String,
+    #[serde(with = "serde_bytes")]
+    pub bytes: Vec<u8>,
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -1875,10 +1869,6 @@ impl EditorMessage {
             | Self::Close { .. }
             | Self::Resized { .. }
             | Self::EditabilityChanged { .. }
-            | Self::Content { .. }
-            | Self::ContentOperations { .. }
-            | Self::PeerPresence { .. }
-            | Self::PeerMessages { .. }
             | Self::ViewChanged { .. }
             | Self::PresentingChanged { .. }
             | Self::Presence { .. }
@@ -1899,6 +1889,7 @@ impl EditorMessage {
             | Self::RegenerateArtifact { .. }
             | Self::ArtifactStates { .. }
             | Self::HistoryStates { .. }
+            | Self::Head { .. }
             | Self::ReplaceChild { .. }
             | Self::ChildBar { .. }
             | Self::ChildFocused { .. }
@@ -1932,20 +1923,16 @@ impl EditorMessage {
             | Self::ArtifactRegenerated { .. }
             | Self::WatchArtifacts { .. }
             | Self::WatchHistory { .. }
+            | Self::WatchHeads { .. }
             | Self::ChildReplaced { .. }
             | Self::CopyText { .. }
             | Self::CopyImage { .. }
             | Self::Paste { .. }
             | Self::AspectRatio { .. }
             | Self::IntrinsicSize { .. }
-            | Self::Operate { .. }
-            | Self::Gesture { .. }
             | Self::WatchContent { .. }
-            | Self::ResendContent { .. }
             | Self::SeedContent { .. }
             | Self::ReplaceContent { .. }
-            | Self::ShowPresence { .. }
-            | Self::SendToPeers { .. }
             | Self::Performance { .. }
             | Self::WatchBlocks { .. }
             | Self::VersionControl { .. }
@@ -1954,6 +1941,7 @@ impl EditorMessage {
             | Self::WatchHostValue { .. }
             | Self::HostAction { .. }
             | Self::Define { .. } => Direction::ToHost,
+            Self::Replica { .. } => Direction::Either,
         }
     }
 }
@@ -2431,14 +2419,20 @@ fn validate_editor(message: &EditorMessage) -> Result<(), DecodeError> {
         EditorMessage::WatchArtifacts { blocks, .. }
         | EditorMessage::WatchHistory { blocks, .. } => collection(blocks.len()),
         EditorMessage::HistoryStates { states, .. } => collection(states.len()),
-        EditorMessage::Content { unsettled, .. } => collection(unsettled.len()),
-        EditorMessage::ContentOperations { operations, .. } => {
-            collection(operations.len())?;
-            for operation in operations {
-                collection(operation.beneath.as_ref().map_or(0, Vec::len))?;
-            }
-            Ok(())
+        EditorMessage::WatchHeads { blocks, .. } => collection(blocks.len()),
+        EditorMessage::Head { head, .. } => match head {
+            Ok(Some(head)) => blob(&head.bytes),
+            Ok(None) => Ok(()),
+            Err(error) => string(error),
+        },
+        EditorMessage::PlayAudio {
+            command: AudioCommand::Load(source),
+            ..
+        } => {
+            string(&source.media_type)?;
+            blob(&source.bytes)
         }
+        EditorMessage::Replica { frame, .. } => blob(frame),
         EditorMessage::WatchContent { blocks, .. } => collection(blocks.len()),
         EditorMessage::WatchBlocks { queries, .. } => collection(queries.len()),
         EditorMessage::BlocksFailed { error, .. } => string(error),
@@ -2503,24 +2497,6 @@ fn validate_editor(message: &EditorMessage) -> Result<(), DecodeError> {
                     .iter()
                     .map(|operation| &operation.description),
             )?;
-            Ok(())
-        }
-        EditorMessage::ShowPresence {
-            value: Some(value), ..
-        } => blob(value),
-        EditorMessage::PeerPresence { peers, .. } => {
-            collection(peers.len())?;
-            for peer in peers {
-                blob(&peer.value)?;
-            }
-            Ok(())
-        }
-        EditorMessage::SendToPeers { payload, .. } => blob(payload),
-        EditorMessage::PeerMessages { messages, .. } => {
-            collection(messages.len())?;
-            for message in messages {
-                blob(&message.payload)?;
-            }
             Ok(())
         }
         EditorMessage::ArtifactStates { states, .. } => {
@@ -2589,6 +2565,7 @@ fn validate_request(request: &HostRequest) -> Result<(), DecodeError> {
         HostRequest::Fetch(url) => string(url),
         HostRequest::ReadData(path) => string(path),
         HostRequest::ExportBlock(_)
+        | HostRequest::ReadPlainFile(_)
         | HostRequest::ImportBlocks(_)
         | HostRequest::ContactLink { .. } => Ok(()),
     }
@@ -2604,6 +2581,11 @@ fn validate_reply(reply: &HostReply) -> Result<(), DecodeError> {
         | HostReply::RevisionRestored(Ok(()))
         | HostReply::RevisionReleased => Ok(()),
         HostReply::FilePicked(Ok(Some(file))) => string(&file.name).and_then(|()| blob(&file.data)),
+        HostReply::PlainFileRead(Ok(file)) => {
+            string(&file.name)?;
+            string(&file.mime_type)?;
+            blob(&file.data)
+        }
         HostReply::Fetched(FetchResult::Body(body))
         | HostReply::DataRead(FetchResult::Body(body)) => blob(body),
         HostReply::DataListed(DataListing::Files(files)) => {
@@ -2611,6 +2593,7 @@ fn validate_reply(reply: &HostReply) -> Result<(), DecodeError> {
             strings(files)
         }
         HostReply::FilePicked(Err(message))
+        | HostReply::PlainFileRead(Err(message))
         | HostReply::FileSaved(FileSave::Failed(message))
         | HostReply::BlockPicked(BlockPick::Failed(message))
         | HostReply::Fetched(FetchResult::Failed(message))

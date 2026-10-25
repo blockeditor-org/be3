@@ -18,5 +18,14 @@
       ]
     }
   },
+  "block_types": {
+    "beui_demo": {
+      "id": "62657569-2d64-656d-6f2d-626c6f636b31",
+      "display_name": "beui demo",
+      "icon": "\ue4fa",
+      "color": [44, 158, 128],
+      "module": "beui_gallery_types.wasm"
+    }
+  },
   "entry_point": "beui_gallery.wasm"
 }

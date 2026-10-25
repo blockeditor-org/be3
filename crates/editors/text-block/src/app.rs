@@ -1,3 +1,4 @@
+use text_block_types::TextContent;
 #[cfg(test)]
 mod tests;
 
@@ -11,7 +12,6 @@ mod toolbar;
 use beui::NodeId;
 use beui::reactive::*;
 use beui::styled::*;
-use block_editor_beui::be_block::TextContent;
 use block_editor_beui::{Creation, Editor, Loaded};
 use uuid::Uuid;
 

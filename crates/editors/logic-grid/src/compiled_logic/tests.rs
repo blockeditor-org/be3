@@ -1,9 +1,9 @@
 use block_editor_beui::be_block::BlockContent;
 
-use block_editor_beui::be_block::compiled_logic::{CompiledLogic, CompiledLogicDocument};
-use block_editor_beui::be_block::{CompiledLogicContent, LogicGridContent};
 use block_editor_beui::{BlockInfo, BlockParent, EditorHost, OwnedEditor};
 use block_ui_test::BeuiTest;
+use logic_grid_types::{CompiledLogic, CompiledLogicDocument};
+use logic_grid_types::{CompiledLogicContent, LogicGridContent};
 use logicgame::execution::{Instruction, UnlinkedComponent};
 use logicgame::grid::{ComponentPort, ComponentSide, ConnectionDirection, Scale, Size};
 use uuid::Uuid;

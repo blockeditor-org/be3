@@ -1,6 +1,5 @@
 use std::cell::RefCell;
 
-use block_editor_beui::be_block::PdfContent;
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::{Image, Rect, Vec2};
 use block_editor_beui::{ContentProjection, PerformanceReporter, Waker};
@@ -8,6 +7,7 @@ use block_editor_beui::{ContentProjection, PerformanceReporter, Waker};
 use crate::pane::Pane;
 
 use super::DEFAULT_PAGE_SIZE;
+use pdf_types::PdfContent;
 
 #[derive(Clone, Default, PartialEq)]
 pub(crate) struct Shown {
