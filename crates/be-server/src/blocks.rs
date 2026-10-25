@@ -1144,7 +1144,14 @@ fn open_or_close_inside(
             }
         }
     }
-    write_grant(graph, database, organization, kind, be_graph::ANYONE_INSIDE, access)?;
+    write_grant(
+        graph,
+        database,
+        organization,
+        kind,
+        be_graph::ANYONE_INSIDE,
+        access,
+    )?;
     for account in viewed {
         if !crate::keys::is_viewer(database, graph, organization, account, kind)? {
             crate::keys::lost_view(database, organization, kind, account)?;

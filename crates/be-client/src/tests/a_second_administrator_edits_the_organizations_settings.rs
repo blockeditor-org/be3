@@ -32,7 +32,11 @@ async fn a_second_administrator_edits_the_organizations_settings() {
     )
     .await;
     assert_eq!(
-        admin.organization_policies().await.unwrap().workspace_creation(),
+        admin
+            .organization_policies()
+            .await
+            .unwrap()
+            .workspace_creation(),
         WhoMay::Administrators
     );
 

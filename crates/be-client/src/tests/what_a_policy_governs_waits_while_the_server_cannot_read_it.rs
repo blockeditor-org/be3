@@ -25,7 +25,11 @@ async fn what_a_policy_governs_waits_while_the_server_cannot_read_it() {
         .await
         .unwrap();
     let refused = admin
-        .save(block, &be_block::OrganizationPoliciesContent::default(), None)
+        .save(
+            block,
+            &be_block::OrganizationPoliciesContent::default(),
+            None,
+        )
         .await
         .unwrap_err();
     assert!(

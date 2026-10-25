@@ -4,7 +4,12 @@ use be_keys::{Party, RecoverySecret};
 use be_store::ContentKey;
 use text_block_types::{TextBlock, TextContent};
 
-fn insert_key(database: &rusqlite::Connection, organization: Uuid, block: Uuid, kind: &str) -> Uuid {
+fn insert_key(
+    database: &rusqlite::Connection,
+    organization: Uuid,
+    block: Uuid,
+    kind: &str,
+) -> Uuid {
     let key = Uuid::new_v4();
     database
         .execute(
@@ -117,7 +122,10 @@ async fn a_key_the_server_labels_as_the_organizations_settings_never_seals_anoth
         .await
         .unwrap();
     let sealed = reopened.current_key(note).unwrap();
-    assert_ne!(sealed, data, "the note was sealed with a key the server knows");
+    assert_ne!(
+        sealed, data,
+        "the note was sealed with a key the server knows"
+    );
     assert!(sealed == honest || reopened.keys().trusted(sealed));
     assert_eq!(text(&victim, note).await, "second");
 

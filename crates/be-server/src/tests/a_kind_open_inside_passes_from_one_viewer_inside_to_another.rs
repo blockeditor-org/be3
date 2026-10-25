@@ -111,7 +111,11 @@ async fn a_kind_open_inside_passes_from_one_viewer_inside_to_another() {
             request,
             keys: KeySet {
                 keys: vec![row(other, note, KeyKind::Scope)],
-                wrapped: vec![wrap(other, WrappedBy::Account(sharer_id), b"for the sharer")],
+                wrapped: vec![wrap(
+                    other,
+                    WrappedBy::Account(sharer_id),
+                    b"for the sharer",
+                )],
             },
         })
         .await;
