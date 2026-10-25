@@ -17,6 +17,7 @@ pub struct KeyBook {
     contacts: Mutex<HashMap<Uuid, RecoveryPublic>>,
     trusted: Mutex<HashSet<Uuid>>,
     escrow: Mutex<Escrow>,
+    server: Mutex<Option<(Uuid, RecoveryPublic)>>,
 }
 
 #[derive(Default)]
@@ -124,7 +125,16 @@ impl KeyBook {
             contacts: Mutex::new(HashMap::new()),
             trusted: Mutex::new(HashSet::new()),
             escrow: Mutex::new(Escrow::default()),
+            server: Mutex::new(None),
         }
+    }
+
+    pub fn set_server(&self, account: Uuid, public: RecoveryPublic) {
+        *self.server.lock().unwrap() = Some((account, public));
+    }
+
+    pub fn server(&self) -> Option<(Uuid, RecoveryPublic)> {
+        *self.server.lock().unwrap()
     }
 
     pub fn set_contacts(&self, verified: impl IntoIterator<Item = (Uuid, RecoveryPublic)>) {
@@ -132,9 +142,23 @@ impl KeyBook {
     }
 
     pub fn contact(&self, account: Uuid) -> Option<RecoveryPublic> {
+        if let Some((server, public)) = self.server()
+            && server == account
+        {
+            return Some(public);
+        }
         match account == self.account {
             true => Some(self.identity.public()),
             false => self.contacts.lock().unwrap().get(&account).copied(),
+        }
+    }
+
+    fn vouches(&self, sender: Uuid, block: Option<Uuid>) -> bool {
+        match self.server() {
+            Some((server, _)) if server == sender => {
+                block == Some(be_block::organization_settings(self.organization))
+            }
+            _ => true,
         }
     }
 
@@ -348,9 +372,10 @@ impl KeyBook {
                 if self.trusted(*key) {
                     continue;
                 }
+                let block = rows.keys.get(key).map(|row| row.block);
                 let vouched = wraps
                     .iter()
-                    .find_map(|wrap| self.unwrap(wrap, &escrows, true));
+                    .find_map(|wrap| self.unwrap(wrap, block, &escrows, true));
                 if let Some(bytes) = vouched {
                     self.ring.insert(*key, ContentKey::from_bytes(bytes));
                     self.trusted.lock().unwrap().insert(*key);
@@ -363,7 +388,7 @@ impl KeyBook {
                 }
                 if let Some(bytes) = wraps
                     .iter()
-                    .find_map(|wrap| self.unwrap(wrap, &escrows, false))
+                    .find_map(|wrap| self.unwrap(wrap, block, &escrows, false))
                 {
                     self.ring.insert(*key, ContentKey::from_bytes(bytes));
                     changed += 1;
@@ -382,11 +407,15 @@ impl KeyBook {
     fn unwrap(
         &self,
         wrap: &WrappedKey,
+        block: Option<Uuid>,
         escrows: &HashSet<Uuid>,
         vouched: bool,
     ) -> Option<[u8; 32]> {
         let bytes = match wrap.wrapped_by {
             WrappedBy::Account(account) if account == self.account => {
+                if !self.vouches(wrap.sender, block) {
+                    return None;
+                }
                 let sender = Party {
                     account: wrap.sender.into_bytes(),
                     public: self.contact(wrap.sender)?,

@@ -3411,8 +3411,10 @@ crates = {
             "android-arm64": {
                 "binaries": {
                     "be-server": [
+                        "//crates/be-block:be-block",
                         "//crates/be-commit:be-commit",
                         "//crates/be-graph:be-graph",
+                        "//crates/be-keys:be-keys",
                         "//crates/be-protocol:be-protocol",
                         "//crates/be-session:be-session",
                         "//crates/be-store:be-store",
@@ -3436,8 +3438,10 @@ crates = {
                     ],
                 },
                 "deps": [
+                    "//crates/be-block:be-block",
                     "//crates/be-commit:be-commit",
                     "//crates/be-graph:be-graph",
+                    "//crates/be-keys:be-keys",
                     "//crates/be-protocol:be-protocol",
                     "//crates/be-session:be-session",
                     "//crates/be-store:be-store",
@@ -3462,7 +3466,6 @@ crates = {
                 "examples": {},
                 "features": [],
                 "test_deps": [
-                    "//crates/be-keys:be-keys",
                     "//crates/paint-snapshot:paint-snapshot",
                 ],
                 "test_features": [],
@@ -3470,8 +3473,10 @@ crates = {
             "linux-arm64": {
                 "binaries": {
                     "be-server": [
+                        "//crates/be-block:be-block",
                         "//crates/be-commit:be-commit",
                         "//crates/be-graph:be-graph",
+                        "//crates/be-keys:be-keys",
                         "//crates/be-protocol:be-protocol",
                         "//crates/be-session:be-session",
                         "//crates/be-store:be-store",
@@ -3495,8 +3500,10 @@ crates = {
                     ],
                 },
                 "deps": [
+                    "//crates/be-block:be-block",
                     "//crates/be-commit:be-commit",
                     "//crates/be-graph:be-graph",
+                    "//crates/be-keys:be-keys",
                     "//crates/be-protocol:be-protocol",
                     "//crates/be-session:be-session",
                     "//crates/be-store:be-store",
@@ -3521,7 +3528,6 @@ crates = {
                 "examples": {},
                 "features": [],
                 "test_deps": [
-                    "//crates/be-keys:be-keys",
                     "//crates/paint-snapshot:paint-snapshot",
                 ],
                 "test_features": [],
@@ -3529,8 +3535,10 @@ crates = {
             "linux-x86_64": {
                 "binaries": {
                     "be-server": [
+                        "//crates/be-block:be-block",
                         "//crates/be-commit:be-commit",
                         "//crates/be-graph:be-graph",
+                        "//crates/be-keys:be-keys",
                         "//crates/be-protocol:be-protocol",
                         "//crates/be-session:be-session",
                         "//crates/be-store:be-store",
@@ -3554,8 +3562,10 @@ crates = {
                     ],
                 },
                 "deps": [
+                    "//crates/be-block:be-block",
                     "//crates/be-commit:be-commit",
                     "//crates/be-graph:be-graph",
+                    "//crates/be-keys:be-keys",
                     "//crates/be-protocol:be-protocol",
                     "//crates/be-session:be-session",
                     "//crates/be-store:be-store",
@@ -3580,7 +3590,6 @@ crates = {
                 "examples": {},
                 "features": [],
                 "test_deps": [
-                    "//crates/be-keys:be-keys",
                     "//crates/paint-snapshot:paint-snapshot",
                 ],
                 "test_features": [],
@@ -3588,8 +3597,10 @@ crates = {
             "macos-arm64": {
                 "binaries": {
                     "be-server": [
+                        "//crates/be-block:be-block",
                         "//crates/be-commit:be-commit",
                         "//crates/be-graph:be-graph",
+                        "//crates/be-keys:be-keys",
                         "//crates/be-protocol:be-protocol",
                         "//crates/be-session:be-session",
                         "//crates/be-store:be-store",
@@ -3613,8 +3624,10 @@ crates = {
                     ],
                 },
                 "deps": [
+                    "//crates/be-block:be-block",
                     "//crates/be-commit:be-commit",
                     "//crates/be-graph:be-graph",
+                    "//crates/be-keys:be-keys",
                     "//crates/be-protocol:be-protocol",
                     "//crates/be-session:be-session",
                     "//crates/be-store:be-store",
@@ -3639,7 +3652,6 @@ crates = {
                 "examples": {},
                 "features": [],
                 "test_deps": [
-                    "//crates/be-keys:be-keys",
                     "//crates/paint-snapshot:paint-snapshot",
                 ],
                 "test_features": [],
@@ -3647,8 +3659,10 @@ crates = {
             "macos-x86_64": {
                 "binaries": {
                     "be-server": [
+                        "//crates/be-block:be-block",
                         "//crates/be-commit:be-commit",
                         "//crates/be-graph:be-graph",
+                        "//crates/be-keys:be-keys",
                         "//crates/be-protocol:be-protocol",
                         "//crates/be-session:be-session",
                         "//crates/be-store:be-store",
@@ -3672,8 +3686,10 @@ crates = {
                     ],
                 },
                 "deps": [
+                    "//crates/be-block:be-block",
                     "//crates/be-commit:be-commit",
                     "//crates/be-graph:be-graph",
+                    "//crates/be-keys:be-keys",
                     "//crates/be-protocol:be-protocol",
                     "//crates/be-session:be-session",
                     "//crates/be-store:be-store",
@@ -3698,7 +3714,6 @@ crates = {
                 "examples": {},
                 "features": [],
                 "test_deps": [
-                    "//crates/be-keys:be-keys",
                     "//crates/paint-snapshot:paint-snapshot",
                 ],
                 "test_features": [],
@@ -3706,8 +3721,10 @@ crates = {
             "windows-arm64": {
                 "binaries": {
                     "be-server": [
+                        "//crates/be-block:be-block",
                         "//crates/be-commit:be-commit",
                         "//crates/be-graph:be-graph",
+                        "//crates/be-keys:be-keys",
                         "//crates/be-protocol:be-protocol",
                         "//crates/be-session:be-session",
                         "//crates/be-store:be-store",
@@ -3731,8 +3748,10 @@ crates = {
                     ],
                 },
                 "deps": [
+                    "//crates/be-block:be-block",
                     "//crates/be-commit:be-commit",
                     "//crates/be-graph:be-graph",
+                    "//crates/be-keys:be-keys",
                     "//crates/be-protocol:be-protocol",
                     "//crates/be-session:be-session",
                     "//crates/be-store:be-store",
@@ -3757,7 +3776,6 @@ crates = {
                 "examples": {},
                 "features": [],
                 "test_deps": [
-                    "//crates/be-keys:be-keys",
                     "//crates/paint-snapshot:paint-snapshot",
                 ],
                 "test_features": [],
@@ -3765,8 +3783,10 @@ crates = {
             "windows-x86_64": {
                 "binaries": {
                     "be-server": [
+                        "//crates/be-block:be-block",
                         "//crates/be-commit:be-commit",
                         "//crates/be-graph:be-graph",
+                        "//crates/be-keys:be-keys",
                         "//crates/be-protocol:be-protocol",
                         "//crates/be-session:be-session",
                         "//crates/be-store:be-store",
@@ -3790,8 +3810,10 @@ crates = {
                     ],
                 },
                 "deps": [
+                    "//crates/be-block:be-block",
                     "//crates/be-commit:be-commit",
                     "//crates/be-graph:be-graph",
+                    "//crates/be-keys:be-keys",
                     "//crates/be-protocol:be-protocol",
                     "//crates/be-session:be-session",
                     "//crates/be-store:be-store",
@@ -3816,7 +3838,6 @@ crates = {
                 "examples": {},
                 "features": [],
                 "test_deps": [
-                    "//crates/be-keys:be-keys",
                     "//crates/paint-snapshot:paint-snapshot",
                 ],
                 "test_features": [],

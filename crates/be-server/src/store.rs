@@ -55,6 +55,8 @@ pub struct ServerStore {
     object_refs: std::sync::Mutex<ObjectRefs>,
     hashing: tokio::sync::Semaphore,
     failures: std::sync::Mutex<HashMap<String, Failures>>,
+    server: crate::organization::ServerKey,
+    policies: std::sync::Mutex<HashMap<Uuid, crate::organization::HeldPolicies>>,
 }
 
 struct Failures {
@@ -76,6 +78,7 @@ impl ServerStore {
         schema::initialize(&connection)?;
         connection.execute("UPDATE sessions SET kind = 'app', public_id = lower(hex(randomblob(16))), created = ?1 WHERE kind = 'legacy' AND (account_id IN (SELECT account_id FROM agents) OR account_id IN (SELECT id FROM accounts WHERE local_profile = 1))", [portal::now()])?;
         let object_refs = load_object_refs(&connection)?;
+        let server = crate::organization::ServerKey::load_or_create(&connection)?;
         Ok(Self {
             database: Mutex::new(connection),
             session_changes: tokio::sync::watch::channel(0).0,
@@ -85,6 +88,8 @@ impl ServerStore {
             object_refs: std::sync::Mutex::new(object_refs),
             hashing: tokio::sync::Semaphore::new(PASSWORD_CHECKS_AT_ONCE),
             failures: std::sync::Mutex::new(HashMap::new()),
+            server,
+            policies: std::sync::Mutex::new(HashMap::new()),
         })
     }
 
@@ -1126,6 +1131,20 @@ impl ServerStore {
 
     pub(crate) fn objects(&self) -> &FileStore {
         &self.objects
+    }
+
+    pub(crate) fn server_key(&self) -> &crate::organization::ServerKey {
+        &self.server
+    }
+
+    pub fn server_account(&self) -> be_protocol::ServerAccount {
+        self.server.described()
+    }
+
+    pub(crate) fn policy_cache(
+        &self,
+    ) -> &std::sync::Mutex<HashMap<Uuid, crate::organization::HeldPolicies>> {
+        &self.policies
     }
 }
 

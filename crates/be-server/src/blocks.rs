@@ -24,14 +24,16 @@ pub enum PublishOutcome {
 
 pub(crate) struct Visibility {
     account: Uuid,
+    organization: Uuid,
     administrator: bool,
     visible: std::cell::OnceCell<BTreeMap<Uuid, Access>>,
 }
 
 impl Visibility {
-    fn of(account: Uuid, role: OrganizationRole) -> Self {
+    fn of(account: Uuid, organization: Uuid, role: OrganizationRole) -> Self {
         Self {
             account,
+            organization,
             administrator: role == OrganizationRole::Administrator,
             visible: std::cell::OnceCell::new(),
         }
@@ -41,6 +43,9 @@ impl Visibility {
         match (graph.contains(block), self.administrator) {
             (false, _) => Access::None,
             (true, true) => Access::Manage,
+            (true, false) if crate::organization::in_settings(graph, self.organization, block) => {
+                Access::View
+            }
             (true, false) => graph.inherited(block, self.account),
         }
     }
@@ -75,7 +80,7 @@ impl Visibility {
 }
 
 pub(crate) fn visibility(identity: Identity) -> Visibility {
-    Visibility::of(identity.account, identity.role)
+    Visibility::of(identity.account, identity.organization, identity.role)
 }
 
 fn require_edit(graph: &BlockGraph, seen: &Visibility, block: Uuid) -> Result<(), ServerError> {
@@ -186,6 +191,7 @@ impl ServerStore {
             if let BlockParent::Block(target) = parent {
                 require_parent_of(graph, &visibility(identity), content_type, target)?;
             }
+            self.may_create(graph, database, identity, block, content_type, parent)?;
             if !keys
                 .keys
                 .iter()
@@ -607,6 +613,13 @@ impl ServerStore {
         self.with_graph(identity.organization, move |graph, database| {
             let seen = visibility(identity);
             require_edit(graph, &seen, block)?;
+            if block == crate::organization::settings_of(identity.organization) {
+                return Err(ServerError::Refused(
+                    ErrorCode::PermissionDenied,
+                    "an organization's settings stay where they are for as long as it exists"
+                        .into(),
+                ));
+            }
             if let BlockParent::Block(target) = parent {
                 let content_type = graph.get(block).ok_or(ServerError::Corrupt)?.content_type;
                 require_parent_of(graph, &seen, content_type, target)?;
@@ -666,9 +679,11 @@ impl ServerStore {
     ) -> Result<Vec<BlockSummary>, ServerError> {
         self.with_graph(identity.organization, move |graph, _| {
             let seen = visibility(identity);
+            let settings = crate::organization::settings_of(identity.organization);
             Ok(graph
                 .children(parent)
                 .into_iter()
+                .filter(|block| *block != settings)
                 .filter_map(|block| summary_with(graph, &seen, block))
                 .filter(|block| block.access.can_know_exists())
                 .collect())
@@ -783,8 +798,22 @@ impl ServerStore {
         self.with_graph(identity.organization, move |graph, database| {
             require_edit(graph, &visibility(identity), block)?;
             let head = graph.head(block);
+            let kept_for = self
+                .policies(graph, database, identity.organization)?
+                .history_kept_for();
             let transaction = database.unchecked_transaction()?;
-            let pinned: Vec<CommitId> = read_history(&transaction, identity.organization, block)?
+            let history = read_history(&transaction, identity.organization, block)?;
+            let since = be_commit::now_milliseconds() - kept_for;
+            if kept_for > 0
+                && history
+                    .iter()
+                    .any(|entry| drop.contains(&entry.commit) && entry.time > since)
+            {
+                return Err(crate::organization::refused(
+                    "this organization keeps every version for longer than that",
+                ));
+            }
+            let pinned: Vec<CommitId> = history
                 .into_iter()
                 .filter(|entry| entry.pinned)
                 .map(|entry| entry.commit)
@@ -906,6 +935,13 @@ impl ServerStore {
                     return Err(ServerError::Refused(
                         ErrorCode::InvalidRequest,
                         "only a kind of settings opens to anyone who can view a block inside, and only to view".into(),
+                    ));
+                }
+            } else if account == crate::organization::server_account(database)? {
+                if access > Access::View {
+                    return Err(ServerError::Refused(
+                        ErrorCode::InvalidRequest,
+                        "the server only reads what is shared with it".into(),
                     ));
                 }
             } else if access > Access::None && account != identity.account {

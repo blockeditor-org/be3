@@ -86,7 +86,7 @@ pub(crate) fn key_row(
     .transpose()
 }
 
-fn keys_of_block(
+pub(crate) fn keys_of_block(
     connection: &Connection,
     organization: Uuid,
     block: Uuid,
@@ -117,7 +117,7 @@ fn keys_of_block(
     Ok(keys)
 }
 
-fn wraps_of(
+pub(crate) fn wraps_of(
     connection: &Connection,
     organization: Uuid,
     key: Uuid,
@@ -238,6 +238,16 @@ pub(crate) fn store_keys(
             WrappedBy::Key(by) => {
                 if by == wrap.key || known(by)?.is_none() {
                     return Err(refused(format!("key {} cannot wrap key {}", by, wrap.key)));
+                }
+            }
+            WrappedBy::Account(account)
+                if account == crate::organization::server_account(connection)? =>
+            {
+                if row.kind == KeyKind::Escrow {
+                    return Err(ServerError::Refused(
+                        ErrorCode::PermissionDenied,
+                        "the escrow key is sealed only to administrators".into(),
+                    ));
                 }
             }
             WrappedBy::Account(account) => {
@@ -443,12 +453,16 @@ pub(crate) fn is_viewer(
     account: Uuid,
     block: Uuid,
 ) -> Result<bool, ServerError> {
+    if account == crate::organization::server_account(connection)? {
+        return Ok(graph.inherited(block, account).can_view());
+    }
     Ok(
         match crate::contacts::role_in(connection, account, organization)? {
             None => false,
             Some(be_protocol::OrganizationRole::Administrator) => graph.contains(block),
             Some(be_protocol::OrganizationRole::Editor) => {
                 graph.inherited(block, account).can_view()
+                    || crate::organization::in_settings(graph, organization, block)
             }
         },
     )
@@ -592,9 +606,23 @@ impl ServerStore {
     ) -> Result<KeySet, ServerError> {
         self.with_graph(identity.organization, move |graph, database| {
             let seen = visibility(identity);
+            self.server_key().seal_settings_to(
+                database,
+                graph,
+                identity.organization,
+                identity.account,
+            )?;
+            let settings = crate::organization::settings_of(identity.organization);
             let wanted: BTreeSet<Uuid> = match blocks {
                 None if seen.administrator() => graph.ids().into_iter().collect(),
-                None => graph.visible(identity.account).into_keys().collect(),
+                None => graph
+                    .visible(identity.account)
+                    .into_keys()
+                    .chain(match graph.contains(settings) {
+                        true => graph.subtree(settings),
+                        false => Vec::new(),
+                    })
+                    .collect(),
                 Some(blocks) => blocks
                     .into_iter()
                     .filter(|block| graph.contains(*block))

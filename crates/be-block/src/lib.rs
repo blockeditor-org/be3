@@ -13,6 +13,7 @@ pub mod input_remapper;
 pub mod input_settings;
 pub mod metadata;
 pub mod model;
+pub mod organization;
 pub mod plain;
 pub mod presence;
 pub mod profile;
@@ -38,6 +39,10 @@ pub use metadata::{
     ROW_PREFIX, SCHEMA, SETTINGS, THUMBHASH, Thumbhash, VIEW_EDITOR,
 };
 pub use model::Root;
+pub use organization::{
+    Allowance, LostAccess, OfflineChoice, OfflinePolicy, OfflineSettings, OfflineSettingsContent,
+    OrganizationPolicies, OrganizationPoliciesContent, WhoMay, organization_settings,
+};
 pub use profile::{
     FILES_EDITOR, LINUX_DESKTOP_EDITOR, RecentBlock, Recents, VIEW_TYPE, WORKSPACE_EDITOR,
     WORKSPACE_TYPE,

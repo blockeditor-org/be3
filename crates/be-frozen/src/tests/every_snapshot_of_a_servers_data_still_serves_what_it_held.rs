@@ -167,8 +167,15 @@ async fn check(snapshot: &Snapshot) {
     let (by_password, owner_token) =
         sign_in(&server, scene::OWNER_EMAIL, scene::OWNER_PASSWORD).await;
     let store = be_server::ServerStore::open(&server.data).unwrap();
-    assert!(store.resolve_token(snapshot.owner_token).await.is_err());
-    assert!(store.resolve_token(snapshot.friend_token).await.is_err());
+    let kept = snapshot.name >= scene::SESSIONS_KEPT_SINCE;
+    assert_eq!(
+        store.resolve_token(snapshot.owner_token).await.is_ok(),
+        kept
+    );
+    assert_eq!(
+        store.resolve_token(snapshot.friend_token).await.is_ok(),
+        kept
+    );
     let ServerMessage::RecoveryKey { public, .. } = request(&by_password, |request| {
         ClientMessage::GetRecoveryKey { request }
     })
@@ -210,6 +217,41 @@ async fn check(snapshot: &Snapshot) {
     )));
 
     let owner = peer(&server, snapshot.owner_phrase, &owner_token, organization).await;
+    if snapshot.name >= scene::POLICIES_SINCE {
+        assert!(
+            !owner
+                .organization_policies()
+                .await
+                .unwrap()
+                .shares_outside(),
+            "{name}: the organization's policies no longer read"
+        );
+        let offer = owner
+            .offer(id(snapshot.team), be_graph::Access::View)
+            .await
+            .unwrap();
+        let card = contacts::card(
+            owner.account(),
+            owner.keys().identity(),
+            scene::OWNER_NAME,
+            scene::OWNER_EMAIL,
+        );
+        let refused = contacts::make_link(
+            &owner.connection(),
+            owner.keys().identity(),
+            &card,
+            Some(&offer),
+        )
+        .await
+        .unwrap_err();
+        assert!(
+            matches!(
+                refused,
+                be_client::ClientError::Refused(be_protocol::ErrorCode::PolicyRefused, _)
+            ),
+            "{name}: the server no longer reads the policies shared with it: {refused}"
+        );
+    }
     let metadata = |block: &str| {
         let owner = &owner;
         let block = id(block);

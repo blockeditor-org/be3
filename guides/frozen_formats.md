@@ -14,7 +14,9 @@ else may still change freely.
   personal) and memberships, workspace and other blocks with their sealed
   metadata and current data key, grants, invitations, contact links,
   contacts and key changes, the `keys` and `wrapped_keys` rows, pinned escrow
-  keys, pending rotations and agents.
+  keys, pending rotations and agents, and the server's own account
+  (`server_account`: its account id and the secret of the key that blocks
+  shared with the server are sealed to).
 - **The server's backups**: `databases/*.sealed`, sealed with the backup key,
   and `objects/` laid out as on the server.
 - **What the objects and rows hold**, all sealed so only clients read them:
@@ -105,7 +107,9 @@ Only add:
   `be`'s tracker: a company organization (My files with notes, a Team
   workspace holding the tracker database shared with an agent, an
   administrator demoted so the escrow key rotated, a grant revoked so Team's
-  scope key rotated, a pending invitation) and the personal organization (a
+  scope key rotated, a pending invitation, and from 2026_10_25 the
+  organization's settings shared with the server, holding a policy it
+  enforces) and the personal organization (a
   folder shared with a contact made by link, a pending link carrying a grant,
   and that contact's change of recovery phrase). The test serves each
   snapshot and reads it the way the app and `be` do: signing in by password,

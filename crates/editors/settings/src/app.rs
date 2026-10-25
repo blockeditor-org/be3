@@ -5,6 +5,7 @@ use block_editor_beui::{Editor, Loaded};
 
 mod block;
 mod devices;
+mod organization;
 mod setup;
 mod ui;
 

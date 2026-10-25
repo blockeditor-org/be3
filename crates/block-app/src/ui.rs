@@ -81,6 +81,7 @@ pub(crate) struct AccountRow {
     pub(crate) local: bool,
     pub(crate) has_last_organization: bool,
     pub(crate) current: bool,
+    pub(crate) companies: Vec<String>,
 }
 
 impl AccountRow {
@@ -96,7 +97,13 @@ impl AccountRow {
             local: account.server == ServerLocation::Local,
             has_last_organization: account.last_organization_id.is_some(),
             current,
+            companies: Vec::new(),
         }
+    }
+
+    pub(crate) fn in_companies(mut self, companies: Vec<String>) -> Self {
+        self.companies = companies;
+        self
     }
 }
 

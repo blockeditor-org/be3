@@ -4,8 +4,9 @@ use std::collections::HashMap;
 use be_block::settings::{Settings, SettingsProfile};
 use be_block::{
     BlockContent, BlockMetadata, DeviceClass, DisplaySettingsContent, LINUX_DESKTOP_EDITOR,
-    LiveEdit, MY_FILES, NAME, Root, SettingsContent, SettingsProfileContent, VIEW_EDITOR,
-    VIEW_TYPE, WORKSPACE_EDITOR, WORKSPACE_TYPE,
+    LiveEdit, MY_FILES, NAME, OfflineSettings, OfflineSettingsContent, Resolution,
+    ResolutionLayers, Root, SettingsContent, SettingsProfileContent, VIEW_EDITOR, VIEW_TYPE,
+    WORKSPACE_EDITOR, WORKSPACE_TYPE, organization_settings,
 };
 use be_graph::BlockParent;
 use uuid::Uuid;
@@ -60,6 +61,7 @@ struct Cache {
     settings: HashMap<Uuid, (u64, Settings)>,
     profiles: HashMap<Uuid, (u64, SettingsProfile)>,
     editors: HashMap<Uuid, (u64, Uuid)>,
+    offline: HashMap<Uuid, (u64, OfflineSettings)>,
 }
 
 impl Cache {
@@ -230,6 +232,56 @@ impl RootSettings {
                     .unwrap_or(self.shell),
             )
         })
+    }
+
+    fn offline_layer(&self, block: Option<Uuid>) -> Option<OfflineSettings> {
+        let block = block?;
+        let mut cache = self.cache.borrow_mut();
+        Cache::read(
+            &mut cache.offline,
+            block,
+            OfflineSettingsContent::CONTENT_TYPE,
+            || decode::<OfflineSettingsContent>(block).map(|document| document.root()),
+        )
+    }
+
+    pub(crate) fn offline_settings(
+        &self,
+        client: Uuid,
+        organization: Option<Uuid>,
+    ) -> Resolution<OfflineSettings> {
+        let kind = OfflineSettingsContent::CONTENT_TYPE;
+        let block = organization.map(organization_settings);
+        be::want(
+            be::Owner::Organization,
+            block.into_iter().map(be::Query::Block).collect(),
+        );
+        let held =
+            block.filter(|block| be::node(*block).is_some_and(|node| node.access.can_view()));
+        let held = held.and_then(|block| {
+            let mut cache = self.cache.borrow_mut();
+            Cache::read(&mut cache.settings, block, Settings::CONTENT_TYPE, || {
+                decode::<SettingsContent>(block).map(|document| document.root())
+            })
+        });
+        let own = self.layers(kind, client);
+        Resolution::resolve(ResolutionLayers {
+            organization_policy: self
+                .offline_layer(held.as_ref().and_then(|held| held.policy(kind))),
+            organization_default: self
+                .offline_layer(held.as_ref().and_then(|held| held.kind(kind))),
+            block: None,
+            every_device: self.offline_layer(own.every_device),
+            this_device: self.offline_layer(own.this_device),
+        })
+    }
+
+    pub(crate) fn workspaces(&self) -> Vec<Uuid> {
+        be::query(be::Query::Roots)
+            .into_iter()
+            .filter(|node| node.content_type == WORKSPACE_TYPE)
+            .map(|node| node.id)
+            .collect()
     }
 
     fn edit(&self, edit: &be_block::Edit) {

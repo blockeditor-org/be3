@@ -419,6 +419,7 @@ pub(super) async fn serve<S: Fn() -> Result<Store, String>>(
         None => first_connect(&config, &make_store, &mut nudged, &shared, &changed).await,
     };
     if let Some((peer, open)) = started {
+        forget_what_is_not_kept(&peer);
         resolve_through_graph(&peer, &shared);
         let mut session = Session {
             config: &config,
@@ -434,12 +435,17 @@ pub(super) async fn serve<S: Fn() -> Result<Store, String>>(
             line: Line::down(&config, 0, Duration::ZERO),
         };
         session.run(open).await;
+        forget_what_is_not_kept(&peer);
     }
     shared
         .lock()
         .unwrap_or_else(PoisonError::into_inner)
         .connected = false;
     changed.notify_all();
+}
+
+fn forget_what_is_not_kept(peer: &Peer<Store>) {
+    let _ = peer.forget_offline(|workspace| crate::offline_choice::choice(workspace).keep);
 }
 
 fn peer_config(config: &Config, refs: be_client::RefsDb) -> PeerConfig {
@@ -940,7 +946,26 @@ async fn sync_outbox(
     report(peer, shared, false);
 }
 
+fn expire_unsent(peer: &Peer<Store>) {
+    if peer.kind() != be_protocol::OrganizationKind::Company {
+        return;
+    }
+    let choice = crate::offline_choice::choice(Uuid::nil());
+    if choice.on_lost_access != be_block::LostAccess::Delete {
+        return;
+    }
+    let grace = i64::try_from(choice.grace.as_millis()).unwrap_or(i64::MAX);
+    let now = be_commit::now_milliseconds();
+    for unsent in peer.unsent() {
+        if now.saturating_sub(unsent.since) >= grace {
+            let _ = peer.discard_unsent(unsent.block);
+            let _ = peer.forget_cached(unsent.block);
+        }
+    }
+}
+
 fn report(peer: &Peer<Store>, shared: &Arc<Mutex<Shared>>, syncing: bool) -> bool {
+    expire_unsent(peer);
     let counts = peer.pending();
     let mut held = shared.lock().unwrap_or_else(PoisonError::into_inner);
     let mut changed = (held.waiting, held.draining) != (counts.operations, syncing);

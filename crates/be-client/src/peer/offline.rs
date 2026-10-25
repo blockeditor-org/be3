@@ -386,6 +386,25 @@ impl<S: ObjectStore> Peer<S> {
         }
     }
 
+    pub fn forget_offline(&self, keep: impl Fn(Uuid) -> bool) -> Result<usize, ClientError> {
+        let mut forgotten = 0;
+        for summary in self.refs.summaries() {
+            if summary.content_type == be_block::WORKSPACE_TYPE
+                && summary.parent == Some(BlockParent::Root)
+                && !keep(summary.id)
+            {
+                forgotten += self.refs.forget(&self.refs.below(summary.id))?;
+            }
+        }
+        Ok(forgotten)
+    }
+
+    pub fn forget_cached(&self, block: Uuid) -> Result<usize, ClientError> {
+        let mut blocks = self.refs.below(block);
+        blocks.insert(block);
+        Ok(self.refs.forget(&blocks)?)
+    }
+
     pub fn move_to_unsent(&self, block: Uuid) -> Result<bool, ClientError> {
         Ok(self.refs.move_to_unsent(block, now_milliseconds())?)
     }

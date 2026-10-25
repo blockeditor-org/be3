@@ -1,4 +1,5 @@
 mod s2026_10_16;
+mod s2026_10_25;
 
 pub struct Snapshot {
     pub name: &'static str,
@@ -31,4 +32,4 @@ pub struct Snapshot {
     pub files: &'static [u8],
 }
 
-pub const SNAPSHOTS: &[&Snapshot] = &[&s2026_10_16::SNAPSHOT];
+pub const SNAPSHOTS: &[&Snapshot] = &[&s2026_10_16::SNAPSHOT, &s2026_10_25::SNAPSHOT];

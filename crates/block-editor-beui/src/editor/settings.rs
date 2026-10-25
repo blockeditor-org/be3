@@ -39,12 +39,39 @@ pub(super) struct SettingsCache {
     resolved: HashMap<(Uuid, TypeId), Box<dyn Any>>,
     created: HashMap<Uuid, Uuid>,
     created_kinds: HashMap<(Uuid, Uuid), Uuid>,
+    organization: Option<BlockList>,
 }
 
 impl Editor {
+    pub fn organization_settings(&self) -> Option<Uuid> {
+        let settings = be_block::organization_settings(self.host().organization_id());
+        let state = self.state();
+        if state.settings.borrow().organization.is_none() {
+            let editor = *self;
+            let listed = state
+                ._scope
+                .run(|| editor.blocks().watch(BlockQuery::Block(settings)));
+            state.settings.borrow_mut().organization = Some(listed);
+        }
+        self.blocks()
+            .info(settings)
+            .filter(|info| info.access.can_view())
+            .map(|_| settings)
+    }
+
     pub fn organization_layers(&self, kind: Uuid) -> OrganizationLayers {
-        let _ = kind;
-        OrganizationLayers::default()
+        let Some(settings) = self.organization_settings() else {
+            return OrganizationLayers::default();
+        };
+        self.content_of::<SettingsContent>(settings)
+            .read(|content| {
+                let root = content.root();
+                OrganizationLayers {
+                    policy: root.policy(kind),
+                    default: root.kind(kind),
+                }
+            })
+            .unwrap_or_default()
     }
 
     pub fn settings_block(&self, owner: Uuid) -> Option<Uuid> {

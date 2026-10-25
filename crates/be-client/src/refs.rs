@@ -172,6 +172,8 @@ pub(crate) struct Session {
     pub kind: OrganizationKind,
     pub escrows: Vec<EscrowKey>,
     pub pinned: Option<EscrowKey>,
+    #[serde(default)]
+    pub server: Option<be_protocol::ServerAccount>,
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -636,6 +638,86 @@ impl Refs {
             .outbox
             .values()
             .any(|op| op.block() == block && !matches!(op, Op::Publish(_)))
+    }
+
+    pub fn below(&self, root: Uuid) -> HashSet<Uuid> {
+        let parents: HashMap<Uuid, Uuid> = self
+            .summaries()
+            .into_iter()
+            .filter_map(|summary| Some((summary.id, summary.parent?.block()?)))
+            .collect();
+        parents
+            .keys()
+            .copied()
+            .filter(|block| {
+                let mut current = *block;
+                for _ in 0..=parents.len() {
+                    match parents.get(&current) {
+                        Some(parent) if *parent == root => return true,
+                        Some(parent) => current = *parent,
+                        None => return false,
+                    }
+                }
+                false
+            })
+            .collect()
+    }
+
+    pub fn forget(&self, blocks: &HashSet<Uuid>) -> Result<usize, StoreError> {
+        let mut rows = Vec::new();
+        let forgotten = {
+            let mut guard = self.state.lock().unwrap();
+            let state = &mut *guard;
+            let kept: HashSet<Uuid> = state
+                .outbox
+                .values()
+                .map(Op::block)
+                .chain(state.unsent.keys().copied())
+                .collect();
+            let gone: HashSet<Uuid> = blocks.difference(&kept).copied().collect();
+            let about = |listing: &Listing| match listing {
+                Listing::Children(BlockParent::Block(block))
+                | Listing::Backrefs(block)
+                | Listing::Block(block)
+                | Listing::References(block)
+                | Listing::OpenSettings(block) => gone.contains(block),
+                _ => false,
+            };
+            for (listing, held) in state.listings.iter_mut() {
+                let before = held.len();
+                match about(listing) {
+                    true => held.clear(),
+                    false => held.retain(|summary| !gone.contains(&summary.id)),
+                }
+                if about(listing) {
+                    rows.push(Row {
+                        table: Table::Listing,
+                        key: encode_raw(listing),
+                        value: None,
+                    });
+                } else if held.len() != before {
+                    rows.push(row(Table::Listing, encode_raw(listing), &held.clone()));
+                }
+            }
+            state.listings.retain(|listing, _| !about(listing));
+            for block in &gone {
+                for (table, held) in [
+                    (Table::Head, &mut state.heads),
+                    (Table::Remote, &mut state.remotes),
+                ] {
+                    if held.remove(block).is_some() {
+                        rows.push(Row {
+                            table,
+                            key: block.as_bytes().to_vec(),
+                            value: None,
+                        });
+                    }
+                }
+            }
+            gone.len()
+        };
+        self.write(rows)?;
+        Ok(forgotten)
     }
 
     pub fn has_pending(&self, block: Uuid) -> bool {

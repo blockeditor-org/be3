@@ -47,6 +47,7 @@ pub struct Settings {
     pub sessions: Map<Uuid, ()>,
     pub device_profiles: Map<Uuid, Uuid>,
     pub device_sessions: Map<(Uuid, Uuid), Uuid>,
+    pub policies: Map<Uuid, Uuid>,
 }
 
 impl Settings {
@@ -65,6 +66,7 @@ impl Settings {
                 sessions: union(&upper.sessions, &lower.sessions),
                 device_profiles: union(&upper.device_profiles, &lower.device_profiles),
                 device_sessions: union(&upper.device_sessions, &lower.device_sessions),
+                policies: union(&upper.policies, &lower.policies),
             })
             .unwrap_or_default()
     }
@@ -75,6 +77,16 @@ impl Settings {
 
     pub fn set_kind(kind: Uuid, block: Uuid) -> Edit {
         Self::KINDS.put(ObjectId::ROOT, &kind, Some(&block)).into()
+    }
+
+    pub fn policy(&self, kind: Uuid) -> Option<Uuid> {
+        self.policies.get(&kind).copied()
+    }
+
+    pub fn set_policy(kind: Uuid, block: Uuid) -> Edit {
+        Self::POLICIES
+            .put(ObjectId::ROOT, &kind, Some(&block))
+            .into()
     }
 
     pub fn layers(&self, kind: Uuid, profile: Option<&SettingsProfile>) -> crate::Layers {
@@ -157,6 +169,12 @@ impl Settings {
                 .map(|(kind, _)| Self::KINDS.put(ObjectId::ROOT, kind, new.as_ref())),
         );
         changes.extend(
+            self.policies
+                .iter()
+                .filter(|(_, block)| **block == old)
+                .map(|(kind, _)| Self::POLICIES.put(ObjectId::ROOT, kind, new.as_ref())),
+        );
+        changes.extend(
             self.device_profiles
                 .iter()
                 .filter(|(_, profile)| **profile == old)
@@ -188,6 +206,7 @@ impl Root for Settings {
         let mut references: Vec<Uuid> = self
             .kinds
             .values()
+            .chain(self.policies.values())
             .chain(self.profiles.keys())
             .chain(self.sessions.keys())
             .copied()

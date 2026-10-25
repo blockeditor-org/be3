@@ -313,6 +313,14 @@ impl ServerStore {
                         format!("block {} is not managed by this account", grant.block),
                     ));
                 }
+                if !self
+                    .policies(graph, database, grant.organization)?
+                    .shares_outside()
+                {
+                    return Err(crate::organization::refused(
+                        "this organization shares nothing outside it, and a link reaches whoever holds it",
+                    ));
+                }
                 let key = key_row(database, grant.organization, grant.key)?;
                 if !key.is_some_and(|key| key.block == grant.block && key.kind == KeyKind::Scope)
                     || grant.access == Access::None

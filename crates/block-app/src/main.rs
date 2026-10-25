@@ -23,6 +23,7 @@ mod members;
 mod notices;
 #[cfg(target_os = "linux")]
 mod notifications;
+mod offline_choice;
 mod panic_guard;
 mod password;
 mod performance;
@@ -1578,6 +1579,7 @@ impl BlockApp {
         self.dynamic_artifact_settings.clear();
         self.dynamic_artifact_settings_open = None;
         self.root_settings = RootSettings::new(self.root_settings.shell());
+        offline_choice::forget();
         self.choosing_session = false;
         self.shell = None;
         self.input.set_layers(Default::default());
@@ -1701,6 +1703,7 @@ impl BlockApp {
         self.contacts.close();
         self.members.close();
         self.root_settings = RootSettings::new(self.root_settings.shell());
+        offline_choice::forget();
         self.choosing_session = false;
         self.shell = None;
         self.input.set_layers(Default::default());
@@ -2879,6 +2882,16 @@ impl BlockApp {
     fn sync_local_settings(&mut self) {
         if self.root_settings.loaded() {
             let settings = &self.root_settings;
+            offline_choice::publish(
+                settings,
+                self.client_id,
+                self.organization.as_ref().map(|organization| {
+                    (
+                        organization.id,
+                        organization.kind == be_protocol::OrganizationKind::Company,
+                    )
+                }),
+            );
             self.input
                 .set_layers(settings.layers(InputSettings::CONTENT_TYPE, self.client_id));
             self.display
@@ -3214,6 +3227,24 @@ impl BlockApp {
             ui::Screen::Organization => sync_state(&be_status),
             _ => ui::SyncState::Saved,
         };
+        let listed = matches!(screen, ui::Screen::Accounts | ui::Screen::Organizations);
+        let cache = listed.then(|| self.workspace_cache()).flatten();
+        let companies = |account: &SavedAccount| -> Vec<String> {
+            let Some(cache) = &cache else {
+                return Vec::new();
+            };
+            let url = match &account.server {
+                ServerLocation::Local => self.local_server_url.clone(),
+                ServerLocation::Remote(url) => url.clone(),
+            };
+            cache
+                .workspaces(&url, account.id)
+                .unwrap_or_default()
+                .into_iter()
+                .filter(|organization| organization.kind == be_protocol::OrganizationKind::Company)
+                .map(|organization| organization.name)
+                .collect()
+        };
         let accounts: Vec<_> = self
             .accounts
             .iter()
@@ -3222,6 +3253,7 @@ impl BlockApp {
                     account,
                     account.server == self.account.server && account.id == self.account.id,
                 )
+                .in_companies(companies(account))
             })
             .collect();
         let organization_name = self
@@ -3251,7 +3283,7 @@ impl BlockApp {
                     .then(|| self.account_error.clone())
                     .flatten(),
             },
-            account: ui::AccountRow::of(&self.account, true),
+            account: ui::AccountRow::of(&self.account, true).in_companies(companies(&self.account)),
             recovery: self.keys.recovery_view(),
             unlock: self.keys.unlock_view(&self.account.name),
             pairing: match screen {

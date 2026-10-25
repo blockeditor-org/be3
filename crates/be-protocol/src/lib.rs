@@ -313,6 +313,12 @@ pub struct AccessList {
 }
 
 #[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub struct ServerAccount {
+    pub account: Uuid,
+    pub public: [u8; 32],
+}
+
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
 pub enum ErrorCode {
     NotAuthenticated,
     InvalidCredentials,
@@ -333,6 +339,9 @@ pub enum ErrorCode {
     NotAContact,
     LinkNotFound,
     LastAdministrator,
+    PolicyUnreadable,
+    PolicyRefused,
+    OverQuota,
 }
 
 impl fmt::Display for ErrorCode {
@@ -821,6 +830,7 @@ pub enum ServerMessage {
         escrows: Vec<EscrowKey>,
         #[serde(with = "serde_bytes")]
         pinned: Vec<u8>,
+        server: ServerAccount,
     },
     Stored {
         request: u64,

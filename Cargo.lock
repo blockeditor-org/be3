@@ -973,6 +973,7 @@ name = "be-server"
 version = "0.1.0"
 dependencies = [
  "argon2",
+ "be-block",
  "be-commit",
  "be-graph",
  "be-keys",

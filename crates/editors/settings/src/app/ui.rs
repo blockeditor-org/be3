@@ -19,6 +19,7 @@ use uuid::Uuid;
 
 use super::block;
 use super::devices::DevicesTable;
+use super::organization::{OfflineSection, OrganizationSection};
 use super::setup::{DeviceSection, DeviceSetup, DifferencesSection, SetUpDone, SetUpHeading};
 
 const PADDING: f32 = 16.0;
@@ -124,6 +125,12 @@ pub fn SettingsView(editor: Editor) -> NodeId {
                                 }}
                             />
                         </Section>
+                    </Show>
+                    <Show condition={here}>
+                        <OfflineSection editor={editor} />
+                    </Show>
+                    <Show condition={here}>
+                        <OrganizationSection editor={editor} />
                     </Show>
                     <Show condition={away}>
                         <DevicesAndProfiles
@@ -382,7 +389,7 @@ pub fn SettingsProfileView(editor: Editor) -> NodeId {
 }
 
 #[component]
-fn Section(title: &'static str, caption: &'static str, children: Child) -> NodeId {
+pub(super) fn Section(title: &'static str, caption: &'static str, children: Child) -> NodeId {
     let captioned = !caption.is_empty();
     view! {
         <List spacing=SPACING>

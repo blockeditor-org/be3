@@ -1,7 +1,8 @@
 use be_block::{
     BlockContent, CheckoutContent, DisplaySettingsContent, HomeContent, InputRemapperContent,
-    InputSettingsContent, PrefixRegistryContent, RepositoryContent, SettingsContent,
-    SettingsProfileContent, TagContent, TagsContent,
+    InputSettingsContent, OfflineSettingsContent, OrganizationPoliciesContent,
+    PrefixRegistryContent, RepositoryContent, SettingsContent, SettingsProfileContent, TagContent,
+    TagsContent,
 };
 use block_guest_abi::{Flow, Guest, Waker};
 use block_plugin_api::{BlockTypeDescriptor, ChildOperations, Press};
@@ -54,6 +55,18 @@ pub(crate) fn host_block_types() -> Vec<BlockTypeDescriptor> {
             "Input",
             "\u{e284}",
             GREEN,
+        ),
+        described(
+            OfflineSettingsContent::CONTENT_TYPE,
+            "Offline",
+            "\u{e154}",
+            TEAL,
+        ),
+        described(
+            OrganizationPoliciesContent::CONTENT_TYPE,
+            "Organization policies",
+            "\u{e154}",
+            TEAL,
         ),
         described(
             RepositoryContent::CONTENT_TYPE,

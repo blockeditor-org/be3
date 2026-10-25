@@ -16,6 +16,7 @@ use be_protocol::{
     decode, encode, hello, read_hello,
 };
 use be_session::Claim;
+use be_store::Hash;
 use futures_util::{
     SinkExt, StreamExt,
     stream::{SplitSink, SplitStream},
@@ -40,6 +41,7 @@ pub mod blocks;
 pub mod contacts;
 mod http;
 pub mod keys;
+mod organization;
 pub mod schema;
 pub mod sessions;
 pub mod store;
@@ -774,10 +776,17 @@ impl Connection {
                     kind,
                     escrows,
                     pinned,
+                    server: self.store.server_account(),
                 })
             }
             ClientMessage::PutObjects { request, objects } => {
-                self.identity()?;
+                let identity = self.identity()?;
+                self.store
+                    .may_store(
+                        identity,
+                        objects.iter().map(|bytes| Hash::of(bytes)).collect(),
+                    )
+                    .await?;
                 Ok(ServerMessage::Stored {
                     request,
                     hashes: self.store.put_objects(&objects)?,
@@ -860,6 +869,12 @@ impl Connection {
                 objects,
             } => {
                 let identity = self.identity()?;
+                self.store
+                    .may_store(
+                        identity,
+                        objects.iter().map(|bytes| Hash::of(bytes)).collect(),
+                    )
+                    .await?;
                 self.store.put_objects(&objects)?;
                 let outcome = self
                     .store

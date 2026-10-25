@@ -50,6 +50,7 @@ pub(crate) enum Owner {
     Host,
     Open,
     Version,
+    Organization,
     Editor(u64),
 }
 

@@ -8,7 +8,10 @@ use std::{
 };
 use workspace_ui_types::{FolderContent, WorkspaceContent};
 
-use be_block::{BlockContent, BlockMetadata, MY_FILES};
+use be_block::{
+    Allowance, BlockContent, BlockMetadata, MY_FILES, OrganizationPolicies,
+    OrganizationPoliciesContent, Root, Settings, SettingsContent,
+};
 use be_cli::{cli, tracker::Tracker};
 use be_client::{Connection, Credentials, Peer, PeerConfig};
 use be_frozen::scene;
@@ -124,6 +127,7 @@ fn freeze(
 }
 
 async fn serve_scene(data: &Path) -> Result<Written, String> {
+    be_server::ServerStore::open(data).map_err(text)?;
     let listener = TcpListener::bind("127.0.0.1:0").await.map_err(text)?;
     let url = format!("http://{}", listener.local_addr().map_err(text)?);
     let (stop, stopped) = oneshot::channel::<()>();
@@ -239,16 +243,48 @@ async fn fill_workspace(
     block: Uuid,
     children: &[Uuid],
 ) -> Result<(), String> {
-    let mut content = WorkspaceContent::default();
+    let head = peer.summary(block).await.map_err(text)?.head;
+    let mut content: WorkspaceContent = peer.open(block).await.map_err(text)?.unwrap_or_default();
     for child in children {
         let add = content.root().add(*child);
         content.apply(&add);
     }
-    peer.save(block, &content, None)
+    peer.save(block, &content, head)
         .await
         .map_err(text)?
         .published()
         .ok_or("a save was rejected")?;
+    Ok(())
+}
+
+async fn set_policies(owner: &Peer<MemoryStore>) -> Result<(), String> {
+    let settings = owner.organization_settings();
+    let block = owner
+        .create::<OrganizationPoliciesContent>(BlockParent::Block(settings))
+        .await
+        .map_err(text)?;
+    let mut policies = OrganizationPoliciesContent::default();
+    policies.apply(&OrganizationPolicies::set_outside_sharing(Some(
+        Allowance::Blocked,
+    )));
+    owner
+        .save(block, &policies, None)
+        .await
+        .map_err(text)?
+        .published()
+        .ok_or("the policies were not saved")?;
+    let mut content = SettingsContent::default();
+    content.apply(&Settings::set_policy(
+        OrganizationPolicies::CONTENT_TYPE,
+        block,
+    ));
+    let head = owner.summary(settings).await.map_err(text)?.head;
+    owner
+        .save(settings, &content, head)
+        .await
+        .map_err(text)?
+        .published()
+        .ok_or("the organization's settings were not saved")?;
     Ok(())
 }
 
@@ -596,6 +632,7 @@ async fn write_scene(url: &str, data: &Path) -> Result<Written, String> {
         .map_err(text)?
         .published()
         .ok_or("a save after the rotation was rejected")?;
+    set_policies(&owner).await?;
 
     let owner_personal = reopen(&socket, &owner, personal, ChunkerConfig::DEFAULT).await?;
     let friend_phrase = RecoveryPhrase::generate();

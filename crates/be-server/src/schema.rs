@@ -220,4 +220,10 @@ const SCHEMA: &str = "
 
     CREATE INDEX block_objects_hash
         ON block_objects (organization_id, hash);
+
+    CREATE TABLE server_account (
+        id              INTEGER PRIMARY KEY CHECK (id = 1),
+        account_id      TEXT NOT NULL REFERENCES accounts(id),
+        secret          BLOB NOT NULL
+    );
 ";

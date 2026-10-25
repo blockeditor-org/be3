@@ -224,30 +224,62 @@ re-import once, and say so in `guides/frozen_formats.md`.
 
 ## 5. Organization settings
 
-14. **Sharing a block with the server.** The server becomes an account a block
-    can be shared with, with keys like any reader. An action the server can't
-    check against an unreadable policy is refused.
-15. **The organization settings block.** One per custom organization, created
-    with it, shared with the server, editable only by administrators. The
-    default organization has none. It holds policies and defaults.
-16. **Offline-first.** Add the setting now, and say in its description that
-    offline-first doesn't exist yet. The organization's policy is required,
-    allowed or blocked. Each user chooses per workspace in their this-device
-    layer; blocks shared with them resolve from their own settings, since
-    "Shared with me" is not a workspace. When offline-first is built: on
-    losing access, unsent edits move to a local "unsent" area, stashed the way
-    `Peer::stash` keeps the losing side of a merge, and are offered back if
-    access returns (the unsent area exists in be-client: `Peer::unsent`,
-    `restore_unsent`). Personal accounts never delete anything automatically.
-    For organization accounts, policy decides what happens to cached content,
-    with a grace period for unsent edits. Enforcement on lost machines is for
-    MDM, out of scope.
-17. **Policies the server enforces.** Sharing outside the organization, who can
-    create workspaces, history retention (`be-commit/src/retention.rs` is
-    hardcoded today) and storage quotas.
-18. **Showing members what the organization can see.** A note on the account
-    screen that the organization's administrators can read their settings and
-    blocks.
+14. **Sharing a block with the server.** Done. The server has an account of
+    its own, made on its first start: an `accounts` row ("This server", no
+    password) with a recovery key, its secret in the `server_account` table
+    (`be-server/src/organization.rs`, `ServerKey`). `OrganizationOpened` names
+    it (`be_protocol::ServerAccount`); a block is shared with it like with any
+    reader (`Peer::share_with_server`: a View grant and the scope key sealed to
+    it), and it takes only View. The server opens what was sealed to it, reads
+    the block (`ServerKey::read`), and refuses what a policy governs while it
+    can't (`ErrorCode::PolicyUnreadable`). Tests: be-client
+    `what_a_policy_governs_waits_while_the_server_cannot_read_it`.
+15. **The organization settings block.** Done. Its id is derived from the
+    organization's (`be_block::organization_settings`); an administrator's
+    client makes it at the top of a company organization when it first opens
+    it, and shares it with the server (`Peer::open_session`). The server keeps
+    it out of the roots listing, never lets it move, accepts it only from an
+    administrator, gives every member View on it and everything below and
+    nobody but administrators more, and seals its scope key to each member
+    itself (`ServerKey::seal_settings_to`, on `GetKeys`), which clients accept
+    from the server for this block alone (`KeyBook::vouches`). Its content is a
+    `Settings` whose `kinds` are the organization's defaults and `policies` its
+    policies, one block per kind, which fill `Editor::organization_layers`
+    (pushed by the block's content). The default organization has none.
+16. **Offline-first.** Done. `be_block::OfflineSettings`: the organization's
+    policy (required, allowed or blocked), each user's choice per workspace in
+    their this-device layer, and, for organization accounts only, what happens
+    to what a device kept on losing access (keep or delete) and how long unsent
+    edits wait first. `OfflineSettings::choice` resolves it; block-app publishes
+    the choice of every workspace (`offline_choice::publish`) and the be worker
+    reads it (`offline_choice::choice`): a workspace not kept is forgotten from
+    the refs database when a session starts and ends (`Peer::forget_offline`,
+    keeping what is still waiting to be sent), and an organization's unsent
+    edits are discarded after the grace period when its policy says delete.
+    Personal accounts never delete anything. Tests: be-block
+    `offline_first_is_chosen_per_workspace_within_the_organizations_policy`,
+    be-client
+    `a_workspace_not_kept_for_offline_use_is_forgotten_but_its_unsent_edits_stay`.
+17. **Policies the server enforces.** Done, from `be_block::OrganizationPolicies`
+    in the settings block's `policies` (`ServerStore::policies`, cached by the
+    heads it read). Sharing outside the organization: blocks are shared only
+    with members, so blocked refuses contact links that carry access. Who
+    makes workspaces: with administrators only, a member makes one workspace
+    of their own and no more. History: no prune removes a version younger than
+    the policy's days, and `Peer::prune` keeps them too
+    (`RetentionPolicy::keeping_all_within`). Storage quota: objects held by the
+    organization's commits and blocks, and an upload past it is refused
+    (`ErrorCode::OverQuota`). Tests: be-client
+    `an_organizations_policies_are_read_by_its_members_and_enforced_by_the_server`,
+    `a_link_carrying_access_is_refused_where_nothing_is_shared_outside`; be-frozen
+    snapshot 2026_10_25 holds a policy.
+18. **Showing members what the organization can see.** Done: an account in a
+    company says on the accounts and organizations screens that its
+    administrators can read its settings and blocks there. Painting:
+    `an_account_in_a_company_says_its_administrators_can_read_it`. The
+    settings editor shows the organization's policies (editable by its
+    administrators) and a switch per workspace for keeping it offline:
+    `an_organizations_policies_show_to_its_administrators_and_fix_what_devices_keep_offline`.
 
 ## Later
 

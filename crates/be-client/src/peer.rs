@@ -3,7 +3,10 @@ use std::{
     sync::{Arc, Mutex},
 };
 
-use be_block::{BlockContent, BlockMetadata, Entries, Streamed, derived_metadata, payload_start};
+use be_block::{
+    BlockContent, BlockMetadata, Entries, OrganizationPolicies, Root, Streamed, derived_metadata,
+    payload_start,
+};
 use be_commit::{
     Commit, CommitId, CommitStore, CommitSummary, RetentionPolicy, now_milliseconds, plan_retention,
 };
@@ -11,8 +14,8 @@ use be_graph::{Access, BlockParent};
 use be_keys::{RecoveryPublic, RecoverySecret};
 use be_protocol::{
     AccessList, BlockSummary, ByteBuf, ClientId, ClientMessage, ErrorCode, EscrowKey, HistoryEntry,
-    KeyKind, KeySet, Listing, OrganizationKind, OrganizationRole, ServerMessage, SessionState,
-    WrappedBy,
+    KeyKind, KeySet, Listing, OrganizationKind, OrganizationRole, ServerAccount, ServerMessage,
+    SessionState, WrappedBy,
 };
 use be_store::{ChunkerConfig, Hash, Keyring, Manifest, ObjectStore, StoreError, Vault};
 use uuid::Uuid;
@@ -231,6 +234,9 @@ impl<S: ObjectStore> Peer<S> {
         if let Some(session) = &session {
             keys.set_escrows(session.escrows.clone());
             keys.set_pinned(session.pinned.clone());
+            if let Some(server) = session.server {
+                keys.set_server(server.account, RecoveryPublic(server.public));
+            }
         }
         keys.absorb(refs.keys());
         let peer = Self {
@@ -289,12 +295,15 @@ impl<S: ObjectStore> Peer<S> {
             kind,
             escrows,
             pinned,
+            server,
             ..
         } = response
         else {
             return Err(ClientError::Unexpected);
         };
         *self.session.lock().unwrap() = (role, kind);
+        self.keys
+            .set_server(server.account, RecoveryPublic(server.public));
         let verified =
             crate::contacts::contacts(&connection, self.account, self.keys.identity()).await?;
         let ServerMessage::RecoveryKey { public, .. } = connection
@@ -332,7 +341,69 @@ impl<S: ObjectStore> Peer<S> {
             let _ = self.make_escrow().await;
         }
         self.save_pin().await?;
+        if kind == OrganizationKind::Company && role == OrganizationRole::Administrator {
+            self.ensure_organization_settings().await?;
+        }
         self.persist_session()
+    }
+
+    pub fn server(&self) -> Option<ServerAccount> {
+        self.keys.server().map(|(account, public)| ServerAccount {
+            account,
+            public: public.0,
+        })
+    }
+
+    pub fn organization_settings(&self) -> Uuid {
+        be_block::organization_settings(self.organization)
+    }
+
+    pub async fn share_with_server(&self, block: Uuid) -> Result<(), ClientError> {
+        let (account, public) = self.keys.server().ok_or(ClientError::Unexpected)?;
+        self.share(block, account, Access::View, &public).await
+    }
+
+    async fn ensure_organization_settings(&self) -> Result<(), ClientError> {
+        let settings = self.organization_settings();
+        let made = match self.summary(settings).await {
+            Ok(summary) => summary,
+            Err(ClientError::Refused(ErrorCode::BlockNotFound, _)) => {
+                self.create_with_id::<be_block::SettingsContent>(settings, BlockParent::Root)
+                    .await?;
+                self.share_with_server(settings).await?;
+                self.summary(settings).await?
+            }
+            Err(error) => return Err(error),
+        };
+        if made.head.is_none() {
+            self.save(settings, &be_block::SettingsContent::default(), None)
+                .await?;
+        }
+        Ok(())
+    }
+
+    pub async fn organization_policies(&self) -> Result<OrganizationPolicies, ClientError> {
+        if self.kind() != OrganizationKind::Company {
+            return Ok(OrganizationPolicies::default());
+        }
+        let settings = match self
+            .open::<be_block::SettingsContent>(self.organization_settings())
+            .await
+        {
+            Ok(settings) => settings,
+            Err(ClientError::Refused(ErrorCode::BlockNotFound, _)) => None,
+            Err(error) => return Err(error),
+        };
+        let Some(block) = settings
+            .and_then(|settings| settings.root().policy(OrganizationPolicies::CONTENT_TYPE))
+        else {
+            return Ok(OrganizationPolicies::default());
+        };
+        Ok(self
+            .open::<be_block::OrganizationPoliciesContent>(block)
+            .await?
+            .map(|content| content.root())
+            .unwrap_or_default())
     }
 
     fn persist_session(&self) -> Result<(), ClientError> {
@@ -342,6 +413,7 @@ impl<S: ObjectStore> Peer<S> {
             kind,
             escrows: self.keys.escrows(),
             pinned: self.keys.pinned(),
+            server: self.server(),
         })?)
     }
 
@@ -1626,6 +1698,8 @@ impl<S: ObjectStore> Peer<S> {
     }
 
     pub async fn prune(&self, block: Uuid, policy: &RetentionPolicy) -> Result<usize, ClientError> {
+        let kept_for = self.organization_policies().await?.history_kept_for();
+        let policy = &policy.clone().keeping_all_within(kept_for);
         let entries = self.history(block).await?;
         let summaries: Vec<_> = entries
             .iter()
