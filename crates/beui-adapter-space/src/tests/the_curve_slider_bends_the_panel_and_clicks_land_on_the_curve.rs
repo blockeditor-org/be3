@@ -40,12 +40,20 @@ fn the_curve_slider_bends_the_panel_and_clicks_land_on_the_curve() {
         (main(&space).bend - crate::panel::MOST_BEND).abs() < 1e-4,
         "the far end of the track bends it most"
     );
-    send(
+    let sent = send(
         &mut space,
         now,
         [Input::PointerMoved(track), button(track, false)],
     );
     let panel = *main(&space);
+    assert_eq!(
+        reports(&sent),
+        [WindowReport::Placed {
+            window: WindowId::MAIN,
+            placement: panel.pose.placement(),
+        }],
+        "letting go of the slider reports the placement, as the other controls do"
+    );
     assert!(
         (panel.bend - crate::panel::MOST_BEND / 2.0).abs() < 0.05,
         "the middle of the track bends it half way: {}",

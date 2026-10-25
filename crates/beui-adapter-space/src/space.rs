@@ -1373,7 +1373,10 @@ impl Space {
         };
         if matches!(
             gesture,
-            Gesture::Scale { .. } | Gesture::Turn { .. } | Gesture::Roll { .. }
+            Gesture::Scale { .. }
+                | Gesture::Turn { .. }
+                | Gesture::Roll { .. }
+                | Gesture::Bend { .. }
         ) && let Some(panel) = self.panel(gesture.window())
         {
             out.push(Incoming::Window(WindowReport::Placed {

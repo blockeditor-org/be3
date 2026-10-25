@@ -2838,13 +2838,17 @@ one window never reaches another's nodes at the same coordinates. Focus,
 key routing and tab order stay one across every window, except that a host's
 `Focused { window, focused: false }` takes the focus from a node inside that
 window (remembered per window) and `focused: true` gives it back when nothing
-else has it since. A window with nothing to give back keeps no focus, so the
-app gives it one: a dock window the host focuses (`window_focused` in
-`dock.rs`) focuses its pane and, unless the keyboard is already inside it,
-hands it to the shown tab (`give_keyboard`, the node that tab last had, else
-its first focusable), so a tab floated into a window the host focuses on
-opening takes the keyboard with it, while the main window keeps the remaining
-tab's focus for when it is focused again. `Document::window_of`
+else has it since. A window with nothing to give back first lets its
+`on_report` hear the `Focused` and choose: a dock window the host focuses
+(`window_focused` in `dock.rs`) focuses its pane and, unless the keyboard is
+already inside it, hands it to the shown tab (`give_keyboard`, the node that
+tab last had, else its first focusable), so a tab floated into a window the
+host focuses on opening takes the keyboard with it, while the main window
+keeps the remaining tab's focus for when it is focused again. If the keyboard
+is still not inside the window after that, the document focuses its first
+focusable in tab order (`focus_into`, which waits for the content if it is not
+built yet), so a plain `Window` the host focuses on opening gets the keys too.
+The main window gets no such fallback. `Document::window_of`
 names the window a node is in, `window_rect` its rectangle and `open_windows`
 the windows the host shows. Every window's rectangle starts at the origin, so
 damage is told apart by window: the paint cache files what each root's nodes
@@ -3146,8 +3150,9 @@ all its 3D (`glam`) stays in the crate.
   normal through its centre (`Gesture::Roll`, `chrome::roll_angle`,
   `chrome::rolled`) by the change in the cursor's angle around the centre on
   the panel's surface as it was, so the button, below the centre, stays under
-  the cursor like a dial's knob. Scale, turn and roll report `Placed` when
-  let go. A carry later turns the panel back to face the viewer upright
+  the cursor like a dial's knob. Scale, turn, roll and slider drags report
+  `Placed` when let go (the placement holds only the pose so far, not the
+  scale or bend). A carry later turns the panel back to face the viewer upright
   (`carry::facing`), so it overrides rotation and roll. The curvature button
   opens a slider in the pill (`Chrome::slider`), and clicking or dragging
   along it sets `bend` from 0 to `MOST_BEND` about the panel's centre. Scale,

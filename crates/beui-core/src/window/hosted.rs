@@ -186,6 +186,7 @@ impl Document {
             return;
         }
         let mut heard = Vec::new();
+        let mut unfocused = Vec::new();
         for report in reports {
             let node = self.window_node(report.window());
             match &report {
@@ -201,22 +202,36 @@ impl Document {
                 }
                 WindowReport::Scaled { .. } => self.arena.invalidate(),
                 WindowReport::Placed { .. } => {}
-                WindowReport::Focused { window, focused } => self.window_focused(*window, *focused),
+                WindowReport::Focused { window, focused } => {
+                    if !self.window_focused(*window, *focused) {
+                        unfocused.extend(node);
+                    }
+                }
             }
             if let Some(spec) = node.and_then(|node| self.overlay_window(node)) {
                 heard.push((spec.on_report, report));
             }
         }
         let context = self.reactive_scope().context();
-        let _guard = crate::current::install(self);
+        let guard = crate::current::install(self);
         context.run(|| {
             for (on_report, report) in heard {
                 on_report.call(report);
             }
         });
+        drop(guard);
+        for node in unfocused {
+            let root = node.into();
+            if self.contains(root)
+                && !self.focus_is_within(root)
+                && !self.focus_pending_within(root)
+            {
+                crate::current::run_in(self, |document| document.focus_into(root));
+            }
+        }
     }
 
-    fn window_focused(&mut self, window: WindowId, focused: bool) {
+    fn window_focused(&mut self, window: WindowId, focused: bool) -> bool {
         let current = self.focused.filter(|node| self.window_of(*node) == window);
         match focused {
             false => {
@@ -224,13 +239,20 @@ impl Document {
                     self.windows.kept_focus.insert(window, node);
                     crate::current::run_in(self, |document| document.update_focus(None));
                 }
+                true
             }
             true => {
                 let kept = self.windows.kept_focus.remove(&window);
-                if self.focused.is_none()
-                    && let Some(node) = kept.filter(|node| self.contains(*node))
-                {
-                    crate::current::run_in(self, |document| document.update_focus(Some(node)));
+                match kept.filter(|node| self.contains(*node)) {
+                    Some(node) => {
+                        if self.focused.is_none() {
+                            crate::current::run_in(self, |document| {
+                                document.update_focus(Some(node))
+                            });
+                        }
+                        true
+                    }
+                    None => false,
                 }
             }
         }
