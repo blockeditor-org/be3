@@ -131,7 +131,7 @@ It also lets `test` put tests on the workers (below).
   paths cargo discovers targets at and `crates/buck-tools`, so it is shared
   through the cache.
 - `crates/buck-tools`: the build's own helpers (the `crates.bzl` generator, the
-  sysroot resolver, the APK packer, clippy's fixer and `//:rust-project`).
+  sysroot resolver, the APK packer and `//:rust-project`).
 - `crates/bootstrap`: what every script runs, a prebuilt release
   (guides/bootstrap.md).
 - `crates/verify`, `crates/local-tools`: what runs on this machine after a
@@ -268,7 +268,7 @@ the crate's `[diag.json]` and passes when every line marked
 `//~ ERROR <part of the message>` has that error and no other line has one.
 It is rustc's check pass once for all the cases, with nothing linked. The
 crates sit outside `crates/` because `build //crates/...`, `//:check` and
-clippy would fail on them, and the autofixes would delete the markers.
+`./scripts/verify` would fail on them, and the autofixes would delete the markers.
 
 Arguments after `--` go to the test executor: `--env NAME=VALUE` sets a
 variable, `--test-arg=NAME` runs one test. Write it with `=`: the spaced
@@ -395,13 +395,17 @@ extension ships: the toolchain's panics on this workspace.
   its own, so it works the same on Linux, macOS and Windows and builds once
   (what runs before one is `crates/bootstrap`): `ci`, `deploy`
   (`./scripts/deploy`) and `fuzz` (a fuzz target's runner). The autofixes are actions (`buck/dev/fix.sh`), one
-  a crate: clippy's machine-applicable suggestions from every target's
-  `[clippy.json]` (none if the crate failed to compile, since a `view!` that
-  does not parse leaves its imports looking unused), then fix-rust-source,
-  then rustfmt, on a copy of the
+  a crate: fix-rust-source, then rustfmt, on a copy of the
   crate's sources, output as the files that changed. A fix that makes another
   possible shows up on the next run.
-- **Clippy** reads every target's `[clippy.json]` in the configurations
-  `//crates/...` resolves to. Code behind `cfg(windows)` or
+- **Lints** are rustc's, and a warning fails the compile that finds it, so
+  `./scripts/verify` sees them only in what its tests compile: `linux_x86_64`
+  and `wasi_guest`. It neither typechecks other configurations (Android, the
+  web's wasm32, host wasi, release copies) nor runs clippy: each was a second
+  compile of every target, which doubled what a change cost. `//:check`
+  still typechecks every configuration, and code behind `cfg(windows)` or
   `cfg(target_os = "macos")` is first compiled by `./scripts/deploy`.
-  `clippy.toml` is empty but must exist.
+- **Clippy** is still in the toolchain:
+  `./scripts/buck bxl //buck/dev/workspace.bxl:subtarget -- --subtarget clippy.txt`
+  runs it over every target and prints where each target's findings are.
+  `clippy.toml` is empty but must exist for that.
