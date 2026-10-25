@@ -36,7 +36,12 @@ function kept(request) {
 async function answer(request) {
     const cache = await caches.open(CACHE);
     try {
-        const response = await fetch(request);
+        // Revalidated, since a file of the bundle's root keeps its name across
+        // builds, and the browser's cache would otherwise mix two builds'
+        // module and glue. A deployed build's own files are under /data/BUILD
+        // and never change.
+        const immutable = new URL(request.url).pathname.startsWith("/data/");
+        const response = await fetch(request, immutable ? {} : { cache: "no-cache" });
         if (response.ok && response.type === "basic") {
             await cache.put(request, response.clone());
         }
