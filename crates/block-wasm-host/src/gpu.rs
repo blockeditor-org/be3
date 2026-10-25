@@ -16,9 +16,9 @@ macro_rules! link_gpu {
                         |mut caller: Caller<'_, State>, $($argument: $kind),*| -> wasmtime::Result<Returns<$($result)?>> {
                             let state = caller.data_mut();
                             let result = $glue(state, $($argument),*);
-                            match state.fatal.take() {
-                                Some(message) => Err(crate::panic::stopped(message)),
-                                None => Ok(result),
+                            match state.fatal.is_some() {
+                                false => Ok(result),
+                                true => Err(crate::panic::stopped(state.fatal.take().unwrap_or_default())),
                             }
                         },
                     )

@@ -159,7 +159,18 @@ impl Caller for State {
         Ok(())
     }
 
+    #[inline]
     fn host<R>(&mut self, function: &'static str, call: impl FnOnce(&mut Gpu) -> R) -> Option<R> {
+        if let Device::Ready(gpu) = &mut self.device {
+            let started = Instant::now();
+            let result = call(gpu.as_mut());
+            let took = started.elapsed();
+            self.gpu_time += took;
+            if function == "submit" {
+                self.submit_time += took;
+            }
+            return Some(result);
+        }
         let gpu = match self.gpu() {
             Ok(gpu) => gpu,
             Err(message) => {
