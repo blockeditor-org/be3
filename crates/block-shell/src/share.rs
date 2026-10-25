@@ -1,5 +1,5 @@
 use block_editor_beui::beui::reactive::{Pending, Ready};
-use block_editor_beui::{AccessGrant, AccessLevel};
+use block_editor_beui::{AccessGrant, AccessLevel, Failure};
 use uuid::Uuid;
 
 pub(crate) const GRANTABLE: [AccessLevel; 3] = [
@@ -71,14 +71,14 @@ impl Share {
         }
     }
 
-    pub(crate) fn listed(&mut self, listing: Result<Vec<AccessGrant>, String>) {
+    pub(crate) fn listed(&mut self, listing: Result<Vec<AccessGrant>, Failure>) {
         self.request = None;
         match listing {
             Ok(grants) => {
                 self.grants = grants;
                 self.members = Ok(());
             }
-            Err(error) => self.members = Err(Pending::Failed(error)),
+            Err(error) => self.members = Err(Pending::Failed(error.to_string())),
         }
     }
 

@@ -1,7 +1,7 @@
 use block_plugin_api::{
     ArtifactDescription, AudioStatus, BarAction, BlockIdRole, BlockLocation, BlockPick, Catalog,
-    ChildId, ChildStatus, EditorInstanceId, EditorRegion, Fonts, FrameCommit, Hello, InputBatch,
-    Opening, Preferences, Rect, ScreenId, ScreenLayout, ScreenRequest, Size, WebViewEvent,
+    ChildId, ChildStatus, EditorInstanceId, EditorRegion, Failure, Fonts, FrameCommit, Hello, InputBatch,
+    Opening, PickedBlock, Preferences, Rect, ScreenId, ScreenLayout, ScreenRequest, Size, WebViewEvent,
     WebViewId,
     embed::shell::Call as ShellCall,
     shell_types::{DragOver, FileDrop, Focus, PickRequest},
@@ -93,8 +93,8 @@ pub(super) enum EditorCall {
 
 #[derive(Clone, Debug, PartialEq)]
 pub(super) enum EditorAnswer {
-    Created(Result<[u8; 16], String>),
-    Regenerated(Result<(), String>),
+    Created(Result<[u8; 16], Failure>),
+    Regenerated(Result<(), Failure>),
     Replaced { request_id: u64, replaced: bool },
     Picked { pick: u64, answer: BlockPick },
 }
@@ -252,7 +252,7 @@ impl BlockIds for (EditorInstanceId, EditorAnswer) {
             | (
                 instance,
                 EditorAnswer::Picked {
-                    answer: BlockPick::Chosen { block_id, .. },
+                    answer: Ok(Some(PickedBlock { block_id, .. })),
                     ..
                 },
             ) => visit(*instance, BlockIdRole::Existing, block_id),

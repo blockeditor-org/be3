@@ -8,7 +8,7 @@ use std::{
 };
 
 use block_plugin_api::{
-    EditorInstanceId, FileSave,
+    EditorInstanceId, Failure, FilePick, FileSave,
     ops::{
         OpError, OpId,
         guest::{self, Pending},
@@ -40,22 +40,21 @@ pub(crate) trait Refused {
     fn refused(error: OpError) -> Self;
 }
 
-fn refusal(error: OpError) -> String {
-    match error {
-        OpError::Denied => "The host refused this request.".to_owned(),
-        OpError::Unsupported | OpError::Canceled => "The host can't answer this.".to_owned(),
+impl<T> Refused for Result<T, Failure> {
+    fn refused(error: OpError) -> Self {
+        Err(Failure::from(error))
     }
 }
 
-impl<T> Refused for Result<T, String> {
+impl Refused for FilePick {
     fn refused(error: OpError) -> Self {
-        Err(refusal(error))
+        Err(Failure::from(error).to_string())
     }
 }
 
 impl Refused for FileSave {
     fn refused(error: OpError) -> Self {
-        FileSave::Failed(refusal(error))
+        FileSave::Failed(Failure::from(error).to_string())
     }
 }
 

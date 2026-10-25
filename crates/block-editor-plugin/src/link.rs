@@ -163,7 +163,7 @@ impl Link {
                             query,
                             listed.into_iter().map(crate::BlockInfo::decode).collect(),
                         ),
-                        Err(error) => host.fail_blocks(query, error),
+                        Err(error) => host.fail_blocks(query, error.to_string()),
                     },
                 );
                 watch

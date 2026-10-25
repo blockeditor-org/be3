@@ -3,7 +3,7 @@ package be3:plugin@0.1.0;
 /// The blocks an editor reads and changes through its host: the block graph,
 /// a block's content, history and version control, and asks to open blocks.
 interface blocks {
-    use types.{editor-id, host-panel};
+    use types.{editor-id, failure, host-panel};
     use be3:shared/ids@0.1.0.{
         account-id, block-id, block-type-id, commit-id, content-type-id, uuid,
     };
@@ -288,7 +288,7 @@ interface blocks {
     /// current one; so do the other watches here.
     resource blocks-watch {
         constructor(query: block-query);
-        next: async func() -> result<list<block-info>, string>;
+        next: async func() -> result<list<block-info>, failure>;
     }
 
     resource history-watch {
@@ -299,7 +299,7 @@ interface blocks {
     /// The content stored at a block's head, or none for a block without one.
     resource head-watch {
         constructor(block: block-id);
-        next: async func() -> result<option<stored-head>, string>;
+        next: async func() -> result<option<stored-head>, failure>;
     }
 
     /// The state of an artifact block, or none while the host knows none.

@@ -5,7 +5,7 @@ use block_plugin_api::guest::shell;
 use block_plugin_api::ops::guest::{Sender, spawn};
 use block_plugin_api::{
     ArtifactDescription, BarAction, ChildId, ChildPlacement, ChildPlacements, ChildStatus,
-    EditorInstanceId, EditorRegion, FrameChrome, FrameCommit, FrameReport, MAX_CHILDREN,
+    EditorInstanceId, EditorRegion, Failure, FrameChrome, FrameCommit, FrameReport, MAX_CHILDREN,
     MAX_COLLECTION_ITEMS, MenuEntry, Occluder, RegionSize, ScreenPlacement, ScreenRequest,
     ScreenWindow, Size, TimedInput, ViewportMetrics, WebViewId,
 };
@@ -50,7 +50,7 @@ struct ArtifactState {
     draft: Vec<u8>,
     described: Option<Vec<u8>>,
     edited: bool,
-    regenerating: Option<Sender<Result<(), String>>>,
+    regenerating: Option<Sender<Result<(), Failure>>>,
 }
 
 impl ArtifactState {
@@ -279,18 +279,21 @@ impl EditorSession {
     pub(crate) fn regenerate_artifact(
         &mut self,
         data: &[u8],
-        regenerated: Sender<Result<(), String>>,
+        regenerated: Sender<Result<(), Failure>>,
     ) {
         let Some(artifact) = &mut self.artifact else {
-            regenerated.send(Err("this editor shows no artifact".to_owned()));
+            regenerated.send(Err(Failure::Unavailable));
             return;
         };
         artifact.regenerating = Some(regenerated);
         self.app.regenerate_artifact(data);
     }
 
-    pub(crate) fn commit_creation(&mut self) -> Result<[u8; 16], String> {
-        self.app.create_block().map(Uuid::into_bytes)
+    pub(crate) fn commit_creation(&mut self) -> Result<[u8; 16], Failure> {
+        self.app
+            .create_block()
+            .map(Uuid::into_bytes)
+            .map_err(Failure::Failed)
     }
 
     pub fn place(&mut self, placements: &[ScreenPlacement], requests: &[ScreenRequest]) {
@@ -371,7 +374,7 @@ impl EditorSession {
                 && let Some(result) = self.app.poll_artifact()
                 && let Some(regenerated) = artifact.regenerating.take()
             {
-                regenerated.send(result);
+                regenerated.send(result.map_err(Failure::Failed));
             }
         }
         if self.host.take_leave_frame() {

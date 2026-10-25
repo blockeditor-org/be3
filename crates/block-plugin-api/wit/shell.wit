@@ -282,19 +282,6 @@ interface shell-types {
         touch: bool,
     }
 
-    record chosen-block {
-        block-id: block-id,
-        block-type: block-type-id,
-        linked: bool,
-        placed: bool,
-    }
-
-    variant block-pick {
-        chosen(chosen-block),
-        cancelled,
-        failed(string),
-    }
-
     record audio-source {
         media-type: string,
         bytes: list<u8>,

@@ -1,7 +1,7 @@
 use super::*;
 use crate::plugin_host::wire::Wire;
 use block_plugin_api::{
-    BlockFilter, BlockPick,
+    BlockFilter, PickedBlock,
     ops::{Connection, Incoming, OpError, OpId, Outcome, Side},
 };
 
@@ -112,12 +112,12 @@ fn closing_an_editor_cancels_the_pick_it_waits_on() {
     instances.block_picked(
         INSTANCE,
         shown,
-        BlockPick::Chosen {
+        Ok(Some(PickedBlock {
             block_id: [7; 16],
             block_type: [8; 16],
             linked: false,
             placed: false,
-        },
+        })),
     );
     assert!(
         instances.take_answers().is_empty(),

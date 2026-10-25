@@ -139,7 +139,7 @@ impl Slides {
                 if let Ok(edit) = block.read(|presentation| {
                     presentation
                         .root()
-                        .insert(ObjectId::from_uuid(slide), index, picked.id)
+                        .insert(ObjectId::from_uuid(slide), index, picked.id())
                 }) {
                     block.operate(edit);
                 }

@@ -3,7 +3,7 @@ use block_editor_beui::beui::styled::Root;
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 
-use block_editor_beui::ContentProjection;
+use block_editor_beui::{ContentProjection, Failure};
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::{NodeId, Vec2};
 use block_editor_beui::{BlockFilter, BlockList, BlockParent, BlockQuery, Creation, Editor};
@@ -302,7 +302,7 @@ impl GameCreation {
         self.changed.update(|changed| *changed += 1);
     }
 
-    fn listed(&self, listing: Result<Vec<String>, String>) {
+    fn listed(&self, listing: Result<Vec<String>, Failure>) {
         self.listing.set(false);
         match listing {
             Ok(files) => {
@@ -328,12 +328,12 @@ impl GameCreation {
                     });
                 }
             }
-            Err(error) => *self.listing_error.borrow_mut() = Some(error),
+            Err(error) => *self.listing_error.borrow_mut() = Some(error.to_string()),
         }
         self.changed();
     }
 
-    fn read(&self, index: usize, read: Result<Vec<u8>, String>) {
+    fn read(&self, index: usize, read: Result<Vec<u8>, Failure>) {
         if let Some(game) = self.staged.borrow_mut().get_mut(index) {
             game.staged = match read {
                 Ok(data) => match Game::load(&data) {
@@ -343,7 +343,7 @@ impl GameCreation {
                     }
                     Err(error) => Staged::Failed(error),
                 },
-                Err(error) => Staged::Failed(error),
+                Err(error) => Staged::Failed(error.to_string()),
             };
         }
         self.changed();
@@ -468,9 +468,9 @@ impl GameCreationModel for GameCreation {
                 };
                 creation.picking.set(false);
                 match picked {
-                    Ok(Some(module)) => creation.choose(Chosen::Module(module.id)),
+                    Ok(Some(module)) => creation.choose(Chosen::Module(module.id())),
                     Ok(None) => {}
-                    Err(error) => *creation.error.borrow_mut() = Some(error),
+                    Err(error) => *creation.error.borrow_mut() = Some(error.to_string()),
                 }
                 creation.changed();
             });

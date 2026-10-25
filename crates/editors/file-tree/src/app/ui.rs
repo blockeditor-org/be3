@@ -890,7 +890,7 @@ impl Picker {
             },
             move |result| match result {
                 Ok(block) => picked(block, parent),
-                Err(failure) => error.set(Some(failure)),
+                Err(failure) => error.set(Some(failure.to_string())),
             },
         );
     }
@@ -910,14 +910,15 @@ fn picker(
     let error = create_signal(None::<String>);
     let host = editor.host();
     let picked: Picked = std::rc::Rc::new(move |picked, parent| {
-        tree.remember(picked.id, picked.block_type);
+        let block_type = Uuid::from_bytes(picked.block_type);
+        tree.remember(picked.id(), block_type);
         if !picked.linked {
-            renaming.rename_when_shown(picked.id, Some(parent));
+            renaming.rename_when_shown(picked.id(), Some(parent));
         }
         if !picked.placed {
-            host.place_block(picked.id, picked.block_type, parent, picked.linked);
+            host.place_block(picked.id(), block_type, parent, picked.linked);
         }
-        host.open_block_via(picked.id, picked.block_type, parent);
+        host.open_block_via(picked.id(), block_type, parent);
     });
     Picker {
         inner: store(PickerInner {

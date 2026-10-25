@@ -1,14 +1,15 @@
 use std::{collections::HashMap, marker::PhantomData};
 
 use block_plugin_api::{
-    BlockIdRole, BlockPick, EditorInstanceId, FileSave, ImportedBlock, PickedBlock, SavedFile,
+    BlockIdRole, BlockPick, EditorInstanceId, Failure, FileSave, ImportedBlock, PickedBlock,
+    SavedFile,
     embed::host_services::Call,
     ops::{OpError, OpId, Outcome, Reply},
 };
 use serde::Serialize;
 use uuid::Uuid;
 
-use super::{Instances, REFUSED, allowed};
+use super::{Instances, allowed};
 use crate::{
     be::revisions,
     editors::plugin::discovery,
@@ -28,8 +29,8 @@ struct Delivered {
 
 enum Answer {
     Done(Outcome),
-    Previewed(Result<Uuid, String>),
-    Imported(Result<Option<ImportedBlock>, String>),
+    Previewed(Result<Uuid, Failure>),
+    Imported(Result<Option<ImportedBlock>, Failure>),
 }
 
 struct Work {
@@ -89,16 +90,22 @@ impl<T: Serialize> Answering<T> {
     }
 }
 
-impl Answering<Result<[u8; 16], String>> {
-    fn previewed(self, previewed: Result<Uuid, String>) {
-        self.deliver(Answer::Previewed(previewed));
+impl<T: Serialize> Answering<Result<T, Failure>> {
+    fn send_or_fail(self, answer: Result<T, String>) {
+        self.send(answer.map_err(Failure::Failed));
     }
 }
 
-impl Answering<Result<Option<ImportedBlock>, String>> {
+impl Answering<Result<[u8; 16], Failure>> {
+    fn previewed(self, previewed: Result<Uuid, String>) {
+        self.deliver(Answer::Previewed(previewed.map_err(Failure::Failed)));
+    }
+}
+
+impl Answering<Result<Option<ImportedBlock>, Failure>> {
     fn imported(self, imported: Result<Option<ImportedBlock>, String>) {
         if !self.withdrawn() {
-            self.deliver(Answer::Imported(imported));
+            self.deliver(Answer::Imported(imported.map_err(Failure::Failed)));
         }
     }
 }
@@ -206,7 +213,7 @@ impl Instances {
                     revisions::Asked::List,
                     move |listed| {
                         if let revisions::Answered::Listed(listed) = listed {
-                            answering.send(listed);
+                            answering.send_or_fail(listed);
                         }
                     },
                 );
@@ -233,7 +240,7 @@ impl Instances {
                 let asked = revisions::Asked::Restore(commit);
                 revisions::request(Uuid::from_bytes(block), asked, move |restored| {
                     if let revisions::Answered::Restored(restored) = restored {
-                        answering.send(restored);
+                        answering.send_or_fail(restored);
                     }
                 });
             }
@@ -276,11 +283,11 @@ impl Instances {
             Call::ReadPlainFile { reply, block } => {
                 let block = Uuid::from_bytes(block);
                 if !self.can_view(block) {
-                    return self.answer_now(reply, Err("You can't view this block.".to_owned()));
+                    return self.answer_now(reply, Err(Failure::Denied));
                 }
                 let answering = self.answering(instance, reply);
                 crate::be::plain_file(block, move |read| {
-                    answering.send(read.map(|file| SavedFile {
+                    answering.send_or_fail(read.map(|file| SavedFile {
                         name: file.name.unwrap_or_default(),
                         mime_type: file.media_type,
                         data: file.bytes,
@@ -290,7 +297,7 @@ impl Instances {
             Call::ImportBlocks { reply, parent } => {
                 let parent = super::super::graph::parent_of(parent);
                 if parent.block().is_some_and(|parent| !self.editable(parent)) {
-                    return self.answer_now(reply, Err("You can't add blocks here.".to_owned()));
+                    return self.answer_now(reply, Err(Failure::Denied));
                 }
                 let answering = self.answering(instance, reply);
                 let filter = beui::FileFilter {
@@ -326,7 +333,7 @@ impl Instances {
             Call::ListAccess { reply, block } => {
                 let answering = self.answering(instance, reply);
                 crate::be::list_access(Uuid::from_bytes(block), move |listed| {
-                    answering.send(super::super::graph::grants_of(listed));
+                    answering.send_or_fail(super::super::graph::grants_of(listed));
                 });
             }
             Call::SetAccess {
@@ -348,21 +355,25 @@ impl Instances {
                     Uuid::from_bytes(block),
                     super::super::graph::access_of(access),
                 );
-                crate::be::make_contact_link(Some(offer), move |made| answering.send(made));
+                crate::be::make_contact_link(Some(offer), move |made| {
+                    answering.send_or_fail(made)
+                });
             }
             Call::Fetch { reply, url } => {
                 if !allowed(&url, &self.network) {
-                    return self.answer_now(reply, Err(format!("{REFUSED} {url}")));
+                    return self.answer_now(reply, Err(Failure::Denied));
                 }
                 let op = reply.op();
                 let answering = self.answering(instance, reply);
                 let aborted = self.services.serving[&op].aborted.clone();
-                http::fetch(url, Vec::new(), aborted, move |body| answering.send(body));
+                http::fetch(url, Vec::new(), aborted, move |body| {
+                    answering.send_or_fail(body)
+                });
             }
             Call::ListData { reply } => {
                 let answering = self.answering(instance, reply);
                 discovery::data_listing(&self.plugin_id, move |index| {
-                    answering.send(index.and_then(|index| {
+                    answering.send_or_fail(index.and_then(|index| {
                         serde_json::from_slice(&index)
                             .map_err(|error| format!("the data index is {error}"))
                     }));
@@ -370,7 +381,9 @@ impl Instances {
             }
             Call::ReadData { reply, path } => {
                 let answering = self.answering(instance, reply);
-                discovery::data(&self.plugin_id, &path, move |body| answering.send(body));
+                discovery::data(&self.plugin_id, &path, move |body| {
+                    answering.send_or_fail(body)
+                });
             }
         }
     }
@@ -425,22 +438,12 @@ impl Instances {
             return;
         }
         self.services.serving.remove(&op);
-        let picked = match pick {
-            BlockPick::Chosen {
-                block_id,
-                block_type,
-                linked,
-                placed,
-            } => Ok(Some(PickedBlock {
-                block_id: self.local(instance, block_id),
-                block_type,
-                linked,
-                placed,
-            })),
-            BlockPick::Cancelled => Ok(None),
-            BlockPick::Failed(error) => Err(error),
-        };
-        let answer: Result<Option<PickedBlock>, String> = picked;
+        let answer: BlockPick = pick.map(|picked| {
+            picked.map(|picked| PickedBlock {
+                block_id: self.local(instance, picked.block_id),
+                ..picked
+            })
+        });
         self.services.answers.push((op, Outcome::returned(&answer)));
     }
 
@@ -469,7 +472,7 @@ impl Instances {
                     {
                         entry.revision_previews.insert(*preview);
                     }
-                    let previewed: Result<[u8; 16], String> =
+                    let previewed: Result<[u8; 16], Failure> =
                         previewed.map(|preview| self.local(instance, preview.into_bytes()));
                     Outcome::returned(&previewed)
                 }

@@ -1,4 +1,4 @@
-use block_editor_beui::{BlockLocation, BlockPick, ChildContent, CreationProgress};
+use block_editor_beui::{BlockLocation, PickedBlock, ChildContent, CreationProgress};
 
 use super::*;
 
@@ -47,12 +47,12 @@ fn a_template_without_a_dialog_is_created_and_answers_the_pick() {
         fixture.test.take_pick_answers(),
         vec![(
             3,
-            BlockPick::Chosen {
+            Ok(Some(PickedBlock {
                 block_id: created.into_bytes(),
                 block_type: TEMPLATE_TYPE.into_bytes(),
                 linked: false,
                 placed: false,
-            }
+            }))
         )]
     );
 }

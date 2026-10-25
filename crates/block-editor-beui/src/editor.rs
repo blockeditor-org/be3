@@ -856,7 +856,7 @@ impl Editor {
     pub fn pick_block(
         &self,
         filter: BlockFilter,
-        picked: impl FnOnce(Result<PickedBlock, String>) + 'static,
+        picked: impl FnOnce(Result<PickedBlock, block_editor_plugin::Failure>) + 'static,
     ) {
         let asked = self.state().host.pick_block(filter);
         let task = self.then(asked, move |answer| match answer {

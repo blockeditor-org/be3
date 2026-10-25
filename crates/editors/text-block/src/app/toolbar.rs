@@ -374,13 +374,13 @@ fn pick_block(state: State) {
             state
                 .inner()
                 .client
-                .set_parent(block.id, BlockParent::Block(state.block_id));
+                .set_parent(block.id(), BlockParent::Block(state.block_id));
             let types = state.host().block_types();
-            let name = match state.inner().client.info(block.id) {
+            let name = match state.inner().client.info(block.id()) {
                 Some(info) => info.label(types.as_ref()).name,
-                None => BlockLabel::new(types.as_ref(), block.block_type, None, false).name,
+                None => BlockLabel::new(types.as_ref(), uuid::Uuid::from_bytes(block.block_type), None, false).name,
             };
-            state.insert_image_embed(block.id, &name);
+            state.insert_image_embed(block.id(), &name);
         },
     );
 }

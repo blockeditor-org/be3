@@ -1,4 +1,4 @@
-use block_editor_beui::{BlockLocation, BlockPick, ImportedBlock};
+use block_editor_beui::{BlockLocation, PickedBlock, ImportedBlock};
 use block_ui_test::HostCall;
 
 use super::*;
@@ -68,12 +68,12 @@ fn importing_a_block_file_in_the_picker_answers_the_pick() {
         fixture.test.take_pick_answers(),
         vec![(
             4,
-            BlockPick::Chosen {
+            Ok(Some(PickedBlock {
                 block_id: imported.into_bytes(),
                 block_type: SHOWN_TYPE.into_bytes(),
                 linked: false,
                 placed: false,
-            }
+            }))
         )]
     );
     assert!(

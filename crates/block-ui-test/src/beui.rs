@@ -1255,7 +1255,7 @@ impl<A: BeuiApp> BeuiTest<A> {
                         *pick,
                         ticket
                             .decode(outcome)
-                            .unwrap_or(block_editor_beui::BlockPick::Cancelled),
+                            .unwrap_or(Ok(None)),
                     ));
                     false
                 }

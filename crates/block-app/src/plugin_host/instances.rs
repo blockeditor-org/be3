@@ -49,7 +49,6 @@ fn presence_wanted(instance: EditorInstanceId) -> bool {
     PRESENCE_WANTED.with_borrow(|wanted| wanted.contains(&instance))
 }
 
-const REFUSED: &str = "this plugin's manifest does not allow it to reach";
 
 #[derive(Default)]
 pub(super) struct Instances {
@@ -2689,8 +2688,16 @@ impl Instances {
             return false;
         };
         match answer {
-            EditorAnswer::Created(created) => entry.created = Some(created.map(Uuid::from_bytes)),
-            EditorAnswer::Regenerated(outcome) => entry.artifact.outcome = Some(outcome),
+            EditorAnswer::Created(created) => {
+                entry.created = Some(
+                    created
+                        .map(Uuid::from_bytes)
+                        .map_err(|failure| failure.to_string()),
+                )
+            }
+            EditorAnswer::Regenerated(outcome) => {
+                entry.artifact.outcome = Some(outcome.map_err(|failure| failure.to_string()))
+            }
             EditorAnswer::Picked { pick, answer } => entry.pick_answers.push((pick, answer)),
             EditorAnswer::Replaced {
                 request_id,

@@ -1,4 +1,4 @@
-use block_editor_beui::{BlockLocation, BlockPick, CreationProgress};
+use block_editor_beui::{BlockLocation, CreationProgress};
 
 use super::*;
 
@@ -27,6 +27,6 @@ fn a_failed_creation_is_shown_and_dismissing_it_cancels_the_pick() {
 
     assert_eq!(
         fixture.test.take_pick_answers(),
-        vec![(5, BlockPick::Cancelled)]
+        vec![(5, Ok(None))]
     );
 }

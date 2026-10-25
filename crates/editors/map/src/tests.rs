@@ -139,7 +139,7 @@ fn serve_tiles(editor: &mut BeuiTest<MapApp>) -> Vec<String> {
     serve_tiles_with(editor, ocean_tile)
 }
 
-type Fetched = Reply<Result<Vec<u8>, String>>;
+type Fetched = Reply<Result<Vec<u8>, block_editor_beui::Failure>>;
 
 fn requested_tiles(editor: &mut BeuiTest<MapApp>) -> Vec<(Fetched, String)> {
     editor

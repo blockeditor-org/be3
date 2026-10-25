@@ -47,7 +47,7 @@ impl Exporter {
                     async move {
                         match read.await? {
                             Ok(file) => host.save_file(file).await,
-                            Err(error) => Some(FileSave::Failed(error)),
+                            Err(error) => Some(FileSave::Failed(error.to_string())),
                         }
                     },
                     saved,

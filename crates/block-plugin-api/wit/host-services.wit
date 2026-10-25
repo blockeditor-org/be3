@@ -10,6 +10,7 @@ interface host-services {
     use be3:shared/ids@0.1.0.{account-id, block-id, block-type-id, commit-id};
     use be3:shared/access@0.1.0.{access-level};
     use blocks.{block-location};
+    use types.{failure};
     use be3:ui/types@0.1.0.{rect, file-filter, file-pick, saved-file, file-save};
 
     /// Which blocks a pick offers: of these types (any when empty), never the
@@ -31,6 +32,9 @@ interface host-services {
         linked: bool,
         placed: bool,
     }
+
+    /// What a pick answers: the block chosen, or none when the user cancelled.
+    type block-pick = result<option<picked-block>, failure>;
 
     record rename-dialog {
         anchor: option<rect>,
@@ -72,14 +76,14 @@ interface host-services {
     }
 
     /// The block's saved revisions, newest first.
-    list-revisions: async func(block: block-id) -> result<list<revision>, string>;
+    list-revisions: async func(block: block-id) -> result<list<revision>, failure>;
 
     /// Opens a read-only block showing `block` as it was at `commit`, which the
     /// editor shows until it releases it.
-    preview-revision: async func(block: block-id, commit: commit-id) -> result<block-id, string>;
+    preview-revision: async func(block: block-id, commit: commit-id) -> result<block-id, failure>;
 
     /// Makes `commit`'s content the block's newest revision.
-    restore-revision: async func(block: block-id, commit: commit-id) -> result<_, string>;
+    restore-revision: async func(block: block-id, commit: commit-id) -> result<_, failure>;
 
     /// Closes a preview `preview-revision` opened.
     release-revision: func(preview: block-id);
@@ -94,30 +98,30 @@ interface host-services {
     export-block: async func(block: block-id) -> file-save;
 
     /// The block as the plain file its type writes it as.
-    read-plain-file: async func(block: block-id) -> result<saved-file, string>;
+    read-plain-file: async func(block: block-id) -> result<saved-file, failure>;
 
     /// Asks the user for a block, none when they cancel.
-    pick-block: async func(filter: block-filter) -> result<option<picked-block>, string>;
+    pick-block: async func(filter: block-filter) -> block-pick;
 
     /// Asks the user for a block file and imports it into `parent`, none when
     /// they cancel.
-    import-blocks: async func(parent: block-location) -> result<option<imported-block>, string>;
+    import-blocks: async func(parent: block-location) -> result<option<imported-block>, failure>;
 
     /// Everyone who has access to the block or could be given it.
-    list-access: async func(block: block-id) -> result<list<access-grant>, string>;
+    list-access: async func(block: block-id) -> result<list<access-grant>, failure>;
 
     /// Grants `account` `access` to the block.
     set-access: func(block: block-id, account: account-id, access: access-level);
 
     /// A contact link whose taker is granted `access` to the block.
-    make-contact-link: async func(block: block-id, access: access-level) -> result<string, string>;
+    make-contact-link: async func(block: block-id, access: access-level) -> result<string, failure>;
 
     /// A GET of `url`, refused unless the plugin's manifest names its host.
-    fetch: async func(url: string) -> result<list<u8>, string>;
+    fetch: async func(url: string) -> result<list<u8>, failure>;
 
     /// The files the plugin ships in its data directory.
-    list-data: async func() -> result<list<string>, string>;
+    list-data: async func() -> result<list<string>, failure>;
 
     /// One file of the plugin's data directory.
-    read-data: async func(path: string) -> result<list<u8>, string>;
+    read-data: async func(path: string) -> result<list<u8>, failure>;
 }

@@ -1,4 +1,4 @@
-use block_editor_beui::{BlockLocation, BlockPick};
+use block_editor_beui::{BlockLocation};
 
 use super::*;
 
@@ -20,7 +20,7 @@ fn a_pick_withdrawn_by_the_editor_that_asked_closes_the_picker() {
     );
     assert_eq!(
         fixture.test.take_pick_answers(),
-        vec![(7, BlockPick::Cancelled)],
+        vec![(7, Ok(None))],
         "and the withdrawn call ends as cancelled"
     );
 }

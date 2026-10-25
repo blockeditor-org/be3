@@ -7,7 +7,7 @@ use std::{
 use block_editor_beui::Revision;
 use block_editor_beui::beui::{NodeId, reactive::*, styled::*, unstyled::TabId};
 use block_editor_beui::block_ui::datetime::format_datetime_utc;
-use block_editor_beui::{ChildTarget, Editor, Pushed, Task};
+use block_editor_beui::{ChildTarget, Editor, Failure, Pushed, Task};
 use uuid::Uuid;
 
 use super::{Workspace, tab::TabItem};
@@ -124,7 +124,7 @@ impl RevisionHistory {
         }
     }
 
-    fn listed_revisions(self, generation: u64, result: Result<Vec<Revision>, String>) {
+    fn listed_revisions(self, generation: u64, result: Result<Vec<Revision>, Failure>) {
         if generation != self.state.value().generation.get() {
             return;
         }
@@ -141,7 +141,7 @@ impl RevisionHistory {
                     self.entries.set(Vec::new());
                     self.listed.set(None);
                 }
-                self.error.set(Some(error));
+                self.error.set(Some(error.to_string()));
             }
         }
     }
@@ -173,7 +173,7 @@ impl RevisionHistory {
                     preview,
                     time: revision.time,
                 })),
-                Err(error) => self.error.set(Some(error)),
+                Err(error) => self.error.set(Some(error.to_string())),
             }
         });
     }
@@ -212,7 +212,7 @@ impl RevisionHistory {
                     self.current();
                     self.load();
                 }
-                Err(error) => self.error.set(Some(error)),
+                Err(error) => self.error.set(Some(error.to_string())),
             }
         });
     }

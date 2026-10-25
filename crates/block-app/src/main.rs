@@ -2227,7 +2227,7 @@ impl BlockApp {
 
     fn cancel_forwarded_picks(&mut self) {
         for (_, (source, request_id, _)) in self.forwarded_picks.drain() {
-            source.answer(request_id, block_plugin_api::BlockPick::Cancelled);
+            source.answer(request_id, Ok(None));
         }
     }
 
@@ -2319,7 +2319,7 @@ impl BlockApp {
                     .into_iter()
                     .find_map(|id| Some((id, pickers.get(&id)?)))
                 else {
-                    source.answer(request.op, block_plugin_api::BlockPick::Cancelled);
+                    source.answer(request.op, Ok(None));
                     continue;
                 };
                 filter.anchor = filter.anchor.and_then(|anchor| {

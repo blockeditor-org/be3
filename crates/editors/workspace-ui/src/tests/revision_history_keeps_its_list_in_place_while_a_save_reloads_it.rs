@@ -2,7 +2,7 @@ use super::*;
 use block_editor_beui::{BlockHistory, Revision};
 use block_ui_test::{HostCall, Reply};
 
-fn listing(fixture: &mut Fixture, block: Uuid) -> Option<Reply<Result<Vec<Revision>, String>>> {
+fn listing(fixture: &mut Fixture, block: Uuid) -> Option<Reply<Result<Vec<Revision>, block_editor_beui::Failure>>> {
     fixture
         .test
         .take_requests()

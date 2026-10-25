@@ -37,7 +37,7 @@ be_ops_bindgen::generate!({
         "delete-command", "move-command", "place-command", "app-menu-command", "adopt-command",
         "finish-command", "branch-command", "create-branch-command", "resolve-command",
         "undo-operation-command", "performance-duration", "performance-count", "view-zoom",
-        "artifact-described", "rename-dialog", "creation-options", "chosen-block",
+        "artifact-described", "rename-dialog", "creation-options",
         "block-child", "creation-child", "artifact-settings-child",
     ],
     lenient: ["editor-capabilities", "child-operations"],
@@ -54,10 +54,10 @@ pub use blocks::{
     VersionChangeKind, VersionCommand, VersionCommit, VersionOperation, VersionStatus,
 };
 pub use host_services::{
-    AccessGrant, BlockFilter, ImportedBlock, PickedBlock, Revision, ShellDialog,
+    AccessGrant, BlockFilter, BlockPick, ImportedBlock, PickedBlock, Revision, ShellDialog,
 };
 pub use shell_types::{
-    ArtifactDescription, AudioCommand, AudioSource, AudioStatus, BarAction, BlockPick, Catalog,
+    ArtifactDescription, AudioCommand, AudioSource, AudioStatus, BarAction, Catalog,
     ChildPreview, CreationProgress, DroppedFile, EditorDescriptor, FitArea, MenuCheck, MenuCommand,
     MenuHeading, MenuItem, MenuItemKind, MenuPin, PerformanceMeasurement, PreviewImage,
     SettingsProgress, Stopped, TemplateDescriptor, ViewChange, WebViewEvent,
@@ -67,7 +67,7 @@ pub use shell_types::{
     PanMode, Press, ResizeMode, TemplateCategory,
 };
 pub use types::{
-    ChildContent, ChildLayer, ChildMode, ChildPlacement, ChildPlacements, EditorRegion, FontFace,
+    ChildContent, Failure, ChildLayer, ChildMode, ChildPlacement, ChildPlacements, EditorRegion, FontFace,
     FontRole, Fonts, FrameChrome, FrameCommit, FrameReport, FrameSpec, Hello, HelloAccepted,
     HostPanel, InputBatch, Monitor, Occluder, OpenArtifact, OpenBlock, OpenCreation, Opening,
     PluginIdentity, PresentedFrame, PressClaim, RegionSize, ScreenDamage, ScreenLayout,
@@ -124,6 +124,33 @@ pub const MAX_OPAQUE_DESCRIPTOR_BYTES: usize = 64 * 1024;
 pub const MAX_CHILDREN: usize = 256;
 pub const MAX_ACCESSIBILITY_NODES: usize = 64 * 1024;
 pub const MAX_LISTED_BLOCKS: usize = 16 * 1024;
+
+impl PickedBlock {
+    pub fn id(&self) -> uuid::Uuid {
+        uuid::Uuid::from_bytes(self.block_id)
+    }
+}
+
+impl fmt::Display for Failure {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Denied => formatter.write_str("The host refused this request."),
+            Self::Unavailable => formatter.write_str("The host can't answer this."),
+            Self::Failed(message) => formatter.write_str(message),
+        }
+    }
+}
+
+impl std::error::Error for Failure {}
+
+impl From<ops::OpError> for Failure {
+    fn from(error: ops::OpError) -> Self {
+        match error {
+            ops::OpError::Denied => Self::Denied,
+            ops::OpError::Unsupported | ops::OpError::Canceled => Self::Unavailable,
+        }
+    }
+}
 
 #[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub struct EditorInstanceId(pub u64);

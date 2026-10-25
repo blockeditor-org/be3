@@ -1,4 +1,4 @@
-use block_editor_beui::{BlockInfo, BlockLocation, BlockPick};
+use block_editor_beui::{BlockInfo, BlockLocation, PickedBlock};
 
 use super::*;
 
@@ -35,12 +35,12 @@ fn linking_a_block_in_the_picker_answers_the_pick() {
         fixture.test.take_pick_answers(),
         vec![(
             7,
-            BlockPick::Chosen {
+            Ok(Some(PickedBlock {
                 block_id: linked.into_bytes(),
                 block_type: SHOWN_TYPE.into_bytes(),
                 linked: true,
                 placed: false,
-            }
+            }))
         )]
     );
     assert!(

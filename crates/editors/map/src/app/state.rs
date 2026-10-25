@@ -194,7 +194,7 @@ impl MapState {
         };
         self.editor.pick_block(filter, move |picked| {
             if let (true, Ok(picked)) = (self.inner.is_alive(), picked) {
-                self.place_picked(picked.id, at);
+                self.place_picked(picked.id(), at);
             }
         });
     }

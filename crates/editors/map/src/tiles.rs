@@ -176,7 +176,9 @@ impl TileWorker {
             let fetched = Rc::clone(&self.fetched);
             let waker = self.waker.clone();
             let task = host.then(host.fetch(id.url()), move |result| {
-                fetched.borrow_mut().push((id, result));
+                fetched
+                    .borrow_mut()
+                    .push((id, result.map_err(|failure| failure.to_string())));
                 waker.wake();
             });
             self.downloads.insert(id, task);

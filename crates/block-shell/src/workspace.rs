@@ -17,7 +17,7 @@ use block_editor_beui::beui::unstyled::{
 use block_editor_beui::beui::{NodeId, Rect, Vec2, vec2};
 use block_editor_beui::block_ui::{BlockCatalog, BlockLabel, BlockTypes};
 use block_editor_beui::{
-    AccessLevel, BlockFilter, BlockPick, ChildState, Contacts, Editor, EditorHost, FocusedBlock,
+    AccessLevel, BlockFilter, ChildState, Contacts, Editor, EditorHost, Failure, FocusedBlock,
     HostPanel, HostWindow, HostWindowId, HostWindows, PickedBlock, Pushed, ShellDialog,
     WindowAction,
 };
@@ -557,7 +557,7 @@ impl Workspace {
         }
     }
 
-    fn contact_made(&self, ask: u64, made: Result<String, String>) {
+    fn contact_made(&self, ask: u64, made: Result<String, Failure>) {
         let Some(mut share) = self.share.get_untracked() else {
             return;
         };
@@ -567,12 +567,12 @@ impl Workspace {
         share.inviting = None;
         match made {
             Ok(link) => share.invite_link = Some(link),
-            Err(error) => share.error = Some(error),
+            Err(error) => share.error = Some(error.to_string()),
         }
         self.share.set(Some(share));
     }
 
-    fn share_listed(&self, ask: u64, listing: Result<Vec<block_editor_beui::AccessGrant>, String>) {
+    fn share_listed(&self, ask: u64, listing: Result<Vec<block_editor_beui::AccessGrant>, Failure>) {
         let Some(mut share) = self.share.get_untracked() else {
             return;
         };
@@ -790,7 +790,7 @@ impl Workspace {
                 if self.picks.with_untracked(Vec::is_empty) {
                     self.forget_trees();
                 }
-                if let (BlockPick::Chosen { .. }, Some((block, block_type, container))) =
+                if let (Ok(Some(_)), Some((block, block_type, container))) =
                     (&answer, into)
                 {
                     self.host().place_block(block, block_type, container, false);
@@ -1316,28 +1316,29 @@ impl Workspace {
                 place: Some(parent.encode()),
                 anchor: None,
             },
-            move |picked: Result<PickedBlock, String>| {
+            move |picked: Result<PickedBlock, Failure>| {
                 if !workspace.state.is_alive() {
                     return;
                 }
                 let picked = match picked {
                     Ok(picked) => picked,
                     Err(error) => {
-                        workspace.error.set(Some(error));
+                        workspace.error.set(Some(error.to_string()));
                         return;
                     }
                 };
+                let block_type = Uuid::from_bytes(picked.block_type);
                 if !picked.placed {
                     workspace.host().place_block(
-                        picked.id,
-                        picked.block_type,
+                        picked.id(),
+                        block_type,
                         container,
                         picked.linked,
                     );
                 }
-                workspace.open(TabItem::new(picked.id, picked.block_type), Some(container));
+                workspace.open(TabItem::new(picked.id(), block_type), Some(container));
                 if !picked.linked {
-                    workspace.open_rename(picked.id, None, None);
+                    workspace.open_rename(picked.id(), None, None);
                 }
             },
         );
@@ -1357,18 +1358,18 @@ impl Workspace {
                 place: None,
                 anchor,
             },
-            move |picked: Result<PickedBlock, String>| {
+            move |picked: Result<PickedBlock, Failure>| {
                 if !workspace.state.is_alive() {
                     return;
                 }
                 match picked {
                     Ok(picked) => workspace.host().place_block(
-                        picked.id,
-                        picked.block_type,
+                        picked.id(),
+                        Uuid::from_bytes(picked.block_type),
                         parent,
                         picked.linked,
                     ),
-                    Err(error) => workspace.error.set(Some(error)),
+                    Err(error) => workspace.error.set(Some(error.to_string())),
                 }
             },
         );

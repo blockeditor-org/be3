@@ -5,9 +5,10 @@ interface plugin {
     use types.{child-id, editor-region, frame-commit, opening, screen-id, screen-request, size};
     use be3:shared/ids@0.1.0.{block-id};
     use accessibility.{action-request};
-    use shell-types.{bar-action, block-pick, drag-over, file-drop, focus, pick-request};
+    use shell-types.{bar-action, drag-over, file-drop, focus, pick-request};
     use be3:ui/types@0.1.0.{rect};
-    use host-services.{shell-dialog};
+    use host-services.{block-pick, shell-dialog};
+    use types.{failure};
 
     /// An editor instance. Dropping it closes it.
     resource editor {
@@ -56,10 +57,10 @@ interface plugin {
         artifact-settings: func(data: list<u8>);
 
         /// Creates the block of the creation dialog the editor shows.
-        commit-creation: async func() -> result<block-id, string>;
+        commit-creation: async func() -> result<block-id, failure>;
 
         /// Generates the artifact the settings describe again.
-        regenerate-artifact: async func(data: list<u8>) -> result<_, string>;
+        regenerate-artifact: async func(data: list<u8>) -> result<_, failure>;
 
         /// Shows the user a picker for a pick another editor asked for; dropping
         /// the call closes it.

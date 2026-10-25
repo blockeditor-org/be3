@@ -87,7 +87,12 @@ fn exporting_a_block_as_its_own_file_reads_it_from_the_host_and_saves_it() {
         .expect("exporting again reads the file again");
     fixture
         .test
-        .answer(request, Err("The block could not be read".to_owned()));
+        .answer(
+            request,
+            Err(block_editor_beui::Failure::Failed(
+                "The block could not be read".to_owned(),
+            )),
+        );
     fixture.settle();
     assert!(
         fixture.says("The block could not be read"),

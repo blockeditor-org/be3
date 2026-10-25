@@ -209,8 +209,8 @@ impl VideoState {
                     return;
                 };
                 if state.inner.is_alive() {
-                    state.adopt(picked.id);
-                    state.insert_clip(picked.id, attachment, state.playhead.get_untracked(), None);
+                    state.adopt(picked.id());
+                    state.insert_clip(picked.id(), attachment, state.playhead.get_untracked(), None);
                 }
             });
     }

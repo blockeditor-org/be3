@@ -4,7 +4,7 @@ use super::calls::{EditorAnswer, EditorCall, Heard, PluginCall};
 use block_plugin_api::{Encoded, Watch};
 
 use block_plugin_api::{
-    AudioStatus, BlockPick, Catalog, ChildStatus, EditorInstanceId, Fonts, HelloAccepted,
+    AudioStatus, BlockPick, Catalog, Failure, ChildStatus, EditorInstanceId, Fonts, HelloAccepted,
     InputBatch, Opening, Preferences, WebViewEvent, WebViewId,
     embed::{
         blocks,
@@ -63,29 +63,27 @@ type WatchedHostValue = ((EditorInstanceId, String), Watch<Vec<u8>>);
 type ShownWebView = (EditorInstanceId, WebViewId, Watch<Vec<WebViewEvent>>);
 
 enum Answering {
-    Created(Ticket<Result<[u8; 16], String>>),
-    Regenerated(Ticket<Result<(), String>>),
+    Created(Ticket<Result<[u8; 16], Failure>>),
+    Regenerated(Ticket<Result<(), Failure>>),
     Replaced(u64, Ticket<bool>),
     Picked(u64, Ticket<BlockPick>),
 }
 
 impl Answering {
     fn answer(self, outcome: Outcome) -> EditorAnswer {
-        let failed = |error: OpError| format!("the editor did not answer: {error:?}");
+        fn failed<T>(error: OpError) -> Result<T, Failure> {
+            Err(Failure::from(error))
+        }
         match self {
-            Self::Created(ticket) => EditorAnswer::Created(
-                ticket
-                    .decode(outcome)
-                    .unwrap_or_else(|error| Err(failed(error))),
-            ),
-            Self::Regenerated(ticket) => EditorAnswer::Regenerated(
-                ticket
-                    .decode(outcome)
-                    .unwrap_or_else(|error| Err(failed(error))),
-            ),
+            Self::Created(ticket) => {
+                EditorAnswer::Created(ticket.decode(outcome).unwrap_or_else(failed))
+            }
+            Self::Regenerated(ticket) => {
+                EditorAnswer::Regenerated(ticket.decode(outcome).unwrap_or_else(failed))
+            }
             Self::Picked(pick, ticket) => EditorAnswer::Picked {
                 pick,
-                answer: ticket.decode(outcome).unwrap_or(BlockPick::Cancelled),
+                answer: ticket.decode(outcome).unwrap_or(Ok(None)),
             },
             Self::Replaced(request_id, ticket) => EditorAnswer::Replaced {
                 request_id,

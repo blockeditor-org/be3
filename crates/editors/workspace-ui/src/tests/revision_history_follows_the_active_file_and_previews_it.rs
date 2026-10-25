@@ -2,7 +2,7 @@ use super::*;
 use block_editor_beui::{ChildMode, Revision};
 use block_ui_test::{HostCall, Reply};
 
-fn listing(fixture: &mut Fixture, block: Uuid) -> Reply<Result<Vec<Revision>, String>> {
+fn listing(fixture: &mut Fixture, block: Uuid) -> Reply<Result<Vec<Revision>, block_editor_beui::Failure>> {
     fixture
         .test
         .take_requests()
@@ -98,7 +98,10 @@ fn revision_history_follows_the_active_file_and_previews_it() {
         .expect("restore names the source block and revision");
     fixture
         .test
-        .answer(request, Err("Could not restore".to_owned()));
+        .answer(
+            request,
+            Err(block_editor_beui::Failure::Failed("Could not restore".to_owned())),
+        );
     fixture.settle();
     assert!(
         fixture.shown().contains(&preview),

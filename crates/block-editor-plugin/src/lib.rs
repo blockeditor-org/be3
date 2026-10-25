@@ -32,7 +32,7 @@ pub use asked::{Asked, Task};
 pub use block_plugin_api::accesskit;
 pub use block_plugin_api::{
     AccessGrant, AccessLevel, Administrator, ArtifactAction, AudioCommand, AudioOutput,
-    AudioSource, AudioStatus, BarAction, BlockCommand, BlockFilter, BlockLocation, BlockPick,
+    AudioSource, AudioStatus, BarAction, BlockCommand, BlockFilter, BlockLocation, BlockPick, Failure, PickedBlock,
     BlockTypeDescriptor, Catalog, ChildContent, ChildId, ChildLayer, ChildMode, ChildOperations,
     ChildPlacement, ChildPreview, ChildStatus, ConflictSide, Contacts, CreationProgress,
     CursorIcon, DescribedAction, Description, DisplayMode, Displays, EditorCapabilities,
@@ -65,7 +65,7 @@ pub use graph::{BlockInfo, BlockList, BlockParent, BlockQuery, Blocks, GraphComm
 pub use host::{
     Artifact, ArtifactDescription, ArtifactState, BlockDrag, BlockHistory, EditorHost, FileDrop,
     FileFilter, FocusedBlock, HeadRead, HostContent, OpenRequest, PeerMessage, PeerPresence,
-    PerformanceMeasurementGuard, PerformanceReporter, PickRequest, PickedBlock, PickedFile, Pushed,
+    PerformanceMeasurementGuard, PerformanceReporter, PickRequest, PickedFile, Pushed,
     SavedFile, SeededContent, SentToPeers, ShowRequest, ShownPresence, StoredHead, Waker,
 };
 pub use plugin::{Claim, Frame, Instance, Plugin, Region, RegionMonitor};

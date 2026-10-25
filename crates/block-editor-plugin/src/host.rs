@@ -13,7 +13,7 @@ use block_plugin_api::guest::host_services;
 use block_plugin_api::{
     AccessGrant, AccessLevel, ArtifactAction, AudioCommand, AudioSource, AudioStatus, BarAction,
     BlockCommand, BlockPick, ChildContent, ChildId, ChildLayer, ChildMode, ChildPlacement,
-    ChildStatus, EditorInstanceId, EditorRegion, FilePick, FileSave, FitArea, HostAction,
+    ChildStatus, EditorInstanceId, EditorRegion, Failure, FilePick, FileSave, FitArea, HostAction,
     HostPanel, HostValue, HostWindowId, MenuEntry, Occluder, PerformanceMeasurement, Revision,
     ShellDialog, Size, ViewChange, WebViewCommand, WebViewEvent, WebViewId, decode_host,
     encode_host,
@@ -159,7 +159,7 @@ pub struct StoredHead {
     pub bytes: Vec<u8>,
 }
 
-pub type HeadRead = Result<Option<StoredHead>, String>;
+pub type HeadRead = Result<Option<StoredHead>, Failure>;
 
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct ArtifactState {
@@ -169,14 +169,6 @@ pub struct ArtifactState {
     pub summary: String,
     pub error: Option<String>,
     pub regenerating: bool,
-}
-
-#[derive(Clone, Copy)]
-pub struct PickedBlock {
-    pub id: Uuid,
-    pub block_type: Uuid,
-    pub linked: bool,
-    pub placed: bool,
 }
 
 #[derive(Clone, Default, PartialEq)]
@@ -1418,16 +1410,16 @@ impl EditorHost {
         asking(self.instance.get(), ask)
     }
 
-    pub fn list_revisions(&self, block: Uuid) -> Asked<Result<Vec<Revision>, String>> {
+    pub fn list_revisions(&self, block: Uuid) -> Asked<Result<Vec<Revision>, Failure>> {
         Asked::of(self.ask(|| host_services::list_revisions(block.into_bytes())))
     }
 
-    pub fn preview_revision(&self, block: Uuid, commit: [u8; 32]) -> Asked<Result<Uuid, String>> {
+    pub fn preview_revision(&self, block: Uuid, commit: [u8; 32]) -> Asked<Result<Uuid, Failure>> {
         Asked::of(self.ask(|| host_services::preview_revision(block.into_bytes(), commit)))
             .map(|previewed| previewed.map(Uuid::from_bytes))
     }
 
-    pub fn restore_revision(&self, block: Uuid, commit: [u8; 32]) -> Asked<Result<(), String>> {
+    pub fn restore_revision(&self, block: Uuid, commit: [u8; 32]) -> Asked<Result<(), Failure>> {
         Asked::of(self.ask(|| host_services::restore_revision(block.into_bytes(), commit)))
     }
 
@@ -1447,14 +1439,14 @@ impl EditorHost {
         Asked::of(self.ask(|| host_services::export_block(block_id.into_bytes())))
     }
 
-    pub fn read_plain_file(&self, block_id: Uuid) -> Asked<Result<SavedFile, String>> {
+    pub fn read_plain_file(&self, block_id: Uuid) -> Asked<Result<SavedFile, Failure>> {
         Asked::of(self.ask(|| host_services::read_plain_file(block_id.into_bytes())))
     }
 
     pub fn import_blocks(
         &self,
         parent: BlockParent,
-    ) -> Asked<Result<Option<(Uuid, Uuid)>, String>> {
+    ) -> Asked<Result<Option<(Uuid, Uuid)>, Failure>> {
         Asked::of(self.ask(|| host_services::import_blocks(parent.encode()))).map(|imported| {
             imported.map(|imported| {
                 imported.map(|imported| {
@@ -1467,25 +1459,13 @@ impl EditorHost {
         })
     }
 
-    pub fn pick_block(
-        &self,
-        mut filter: BlockFilter,
-    ) -> Asked<Result<Option<PickedBlock>, String>> {
+    pub fn pick_block(&self, mut filter: BlockFilter) -> Asked<BlockPick> {
         let origin = self.region.get().origin;
         filter.anchor = filter.anchor.map(|anchor| anchor.translate(-origin));
-        Asked::of(self.ask(|| host_services::pick_block(filter))).map(|picked| {
-            picked.map(|picked| {
-                picked.map(|picked| PickedBlock {
-                    id: Uuid::from_bytes(picked.block_id),
-                    block_type: Uuid::from_bytes(picked.block_type),
-                    linked: picked.linked,
-                    placed: picked.placed,
-                })
-            })
-        })
+        Asked::of(self.ask(|| host_services::pick_block(filter)))
     }
 
-    pub fn list_access(&self, block_id: Uuid) -> Asked<Result<Vec<AccessGrant>, String>> {
+    pub fn list_access(&self, block_id: Uuid) -> Asked<Result<Vec<AccessGrant>, Failure>> {
         Asked::of(self.ask(|| host_services::list_access(block_id.into_bytes())))
     }
 
@@ -1493,7 +1473,7 @@ impl EditorHost {
         &self,
         block_id: Uuid,
         access: AccessLevel,
-    ) -> Asked<Result<String, String>> {
+    ) -> Asked<Result<String, Failure>> {
         Asked::of(self.ask(|| host_services::make_contact_link(block_id.into_bytes(), access)))
     }
 
@@ -1531,16 +1511,16 @@ impl EditorHost {
         self.push(Pushed::Audio);
     }
 
-    pub fn fetch(&self, url: impl Into<String>) -> Asked<Result<Vec<u8>, String>> {
+    pub fn fetch(&self, url: impl Into<String>) -> Asked<Result<Vec<u8>, Failure>> {
         let url = url.into();
         Asked::of(self.ask(|| host_services::fetch(url)))
     }
 
-    pub fn list_data(&self) -> Asked<Result<Vec<String>, String>> {
+    pub fn list_data(&self) -> Asked<Result<Vec<String>, Failure>> {
         Asked::of(self.ask(host_services::list_data))
     }
 
-    pub fn read_data(&self, path: impl Into<String>) -> Asked<Result<Vec<u8>, String>> {
+    pub fn read_data(&self, path: impl Into<String>) -> Asked<Result<Vec<u8>, Failure>> {
         let path = path.into();
         Asked::of(self.ask(|| host_services::read_data(path)))
     }

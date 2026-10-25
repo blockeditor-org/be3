@@ -1,4 +1,4 @@
-use block_editor_beui::{BlockCommand, BlockLocation, BlockPick, CreationProgress};
+use block_editor_beui::{BlockCommand, BlockLocation, PickedBlock, CreationProgress};
 
 use super::*;
 
@@ -52,12 +52,12 @@ fn a_folder_chosen_on_the_location_page_holds_the_block_made_there() {
         fixture.test.take_pick_answers(),
         vec![(
             4,
-            BlockPick::Chosen {
+            Ok(Some(PickedBlock {
                 block_id: created.into_bytes(),
                 block_type: TEMPLATE_TYPE.into_bytes(),
                 linked: false,
                 placed: true,
-            }
+            }))
         )]
     );
     assert!(

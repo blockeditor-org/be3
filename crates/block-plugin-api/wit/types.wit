@@ -15,6 +15,18 @@ interface types {
     /// An installation of the app, as the id it keeps across restarts.
     type installation-id = uuid;
 
+    /// Why one side did not do what the other asked of it: the host, a call an
+    /// editor made, or an editor, a call of the host's.
+    variant failure {
+        /// The asker may not see or change what it asked about.
+        denied,
+        /// The other side does not offer this, or not now: it has no such
+        /// service, nothing open to do it with, or it closed first.
+        unavailable,
+        /// It tried and could not; the message says why, for the user.
+        failed(string),
+    }
+
     /// An open editor instance, numbered by the host.
     type editor-instance-id = u64;
 

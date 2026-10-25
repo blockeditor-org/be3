@@ -1,5 +1,5 @@
 use block_editor_beui::beui::{Pos2, Vec2};
-use block_editor_beui::{BlockLocation, BlockPick, CreationProgress, Rect};
+use block_editor_beui::{BlockLocation, PickedBlock, CreationProgress, Rect};
 
 use super::*;
 
@@ -72,12 +72,12 @@ fn a_presentation_offers_its_slide_templates_first() {
         fixture.test.take_pick_answers(),
         vec![(
             3,
-            BlockPick::Chosen {
+            Ok(Some(PickedBlock {
                 block_id: created.into_bytes(),
                 block_type: TEMPLATE_TYPE.into_bytes(),
                 linked: false,
                 placed: false,
-            }
+            }))
         )]
     );
 }

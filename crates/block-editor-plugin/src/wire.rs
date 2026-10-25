@@ -368,7 +368,9 @@ impl GuestEditor for OpenEditor {
         });
     }
 
-    fn commit_creation(&self) -> impl Future<Output = Result<[u8; 16], String>> + 'static {
+    fn commit_creation(
+        &self,
+    ) -> impl Future<Output = Result<[u8; 16], block_plugin_api::Failure>> + 'static {
         let (sender, created) = oneshot();
         self.wire.call(self.instance, move |session| {
             sender.send(session.commit_creation())
@@ -376,14 +378,14 @@ impl GuestEditor for OpenEditor {
         async move {
             created
                 .await
-                .unwrap_or_else(|| Err("the editor closed".to_owned()))
+                .unwrap_or(Err(block_plugin_api::Failure::Unavailable))
         }
     }
 
     fn regenerate_artifact(
         &self,
         data: Vec<u8>,
-    ) -> impl Future<Output = Result<(), String>> + 'static {
+    ) -> impl Future<Output = Result<(), block_plugin_api::Failure>> + 'static {
         let (sender, regenerated) = oneshot();
         self.wire.call(self.instance, move |session| {
             session.regenerate_artifact(&data, sender)
@@ -391,7 +393,7 @@ impl GuestEditor for OpenEditor {
         async move {
             regenerated
                 .await
-                .unwrap_or_else(|| Err("the editor stopped regenerating the artifact".to_owned()))
+                .unwrap_or(Err(block_plugin_api::Failure::Unavailable))
         }
     }
 
@@ -414,7 +416,7 @@ impl GuestEditor for OpenEditor {
             let mut asked = asked;
             let answer = answer.await;
             asked.answered = true;
-            answer.unwrap_or(block_plugin_api::BlockPick::Cancelled)
+            answer.unwrap_or(Ok(None))
         }
     }
 
