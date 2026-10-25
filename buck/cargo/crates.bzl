@@ -12291,6 +12291,10 @@ crates = {
         "edition": "2024",
         "examples": [
             {
+                "crate_root": "examples/gpu-calls.rs",
+                "name": "gpu-calls",
+            },
+            {
                 "crate_root": "examples/instantiate.rs",
                 "name": "instantiate",
             },
@@ -12332,6 +12336,27 @@ crates = {
                     "//third-party/rust:wgpu-29.0.3",
                 ],
                 "examples": {
+                    "gpu-calls": {
+                        "deps": [
+                            "//crates/block-gpu-abi:block-gpu-abi",
+                            "//crates/block-gpu-host:block-gpu-host",
+                            "//crates/block-guest-abi:block-guest-abi",
+                            "//crates/block-guest-echo:block-guest-echo",
+                            "//crates/block-guest-host:block-guest-host",
+                            "//crates/block-plugin-api:block-plugin-api",
+                            "//crates/block-type-api:block-type-api",
+                            "//crates/wasm-dylink:wasm-dylink",
+                            "//third-party/rust:bytes-1.11.1",
+                            "//third-party/rust:rustc-demangle-0.1.28",
+                            "//third-party/rust:sha2-0.10.9",
+                            "//third-party/rust:tokio-1.52.3",
+                            "//third-party/rust:uuid-1.23.2",
+                            "//third-party/rust:wasmtime-48.0.1",
+                            "//third-party/rust:wasmtime-wasi-48.0.1",
+                            "//third-party/rust:wgpu-29.0.3",
+                        ],
+                        "features": [],
+                    },
                     "instantiate": {
                         "deps": [
                             "//crates/block-gpu-abi:block-gpu-abi",
@@ -12394,6 +12419,27 @@ crates = {
                     "//third-party/rust:wgpu-29.0.3",
                 ],
                 "examples": {
+                    "gpu-calls": {
+                        "deps": [
+                            "//crates/block-gpu-abi:block-gpu-abi",
+                            "//crates/block-gpu-host:block-gpu-host",
+                            "//crates/block-guest-abi:block-guest-abi",
+                            "//crates/block-guest-echo:block-guest-echo",
+                            "//crates/block-guest-host:block-guest-host",
+                            "//crates/block-plugin-api:block-plugin-api",
+                            "//crates/block-type-api:block-type-api",
+                            "//crates/wasm-dylink:wasm-dylink",
+                            "//third-party/rust:bytes-1.11.1",
+                            "//third-party/rust:rustc-demangle-0.1.28",
+                            "//third-party/rust:sha2-0.10.9",
+                            "//third-party/rust:tokio-1.52.3",
+                            "//third-party/rust:uuid-1.23.2",
+                            "//third-party/rust:wasmtime-48.0.1",
+                            "//third-party/rust:wasmtime-wasi-48.0.1",
+                            "//third-party/rust:wgpu-29.0.3",
+                        ],
+                        "features": [],
+                    },
                     "instantiate": {
                         "deps": [
                             "//crates/block-gpu-abi:block-gpu-abi",
@@ -12456,6 +12502,27 @@ crates = {
                     "//third-party/rust:wgpu-29.0.3",
                 ],
                 "examples": {
+                    "gpu-calls": {
+                        "deps": [
+                            "//crates/block-gpu-abi:block-gpu-abi",
+                            "//crates/block-gpu-host:block-gpu-host",
+                            "//crates/block-guest-abi:block-guest-abi",
+                            "//crates/block-guest-echo:block-guest-echo",
+                            "//crates/block-guest-host:block-guest-host",
+                            "//crates/block-plugin-api:block-plugin-api",
+                            "//crates/block-type-api:block-type-api",
+                            "//crates/wasm-dylink:wasm-dylink",
+                            "//third-party/rust:bytes-1.11.1",
+                            "//third-party/rust:rustc-demangle-0.1.28",
+                            "//third-party/rust:sha2-0.10.9",
+                            "//third-party/rust:tokio-1.52.3",
+                            "//third-party/rust:uuid-1.23.2",
+                            "//third-party/rust:wasmtime-48.0.1",
+                            "//third-party/rust:wasmtime-wasi-48.0.1",
+                            "//third-party/rust:wgpu-29.0.3",
+                        ],
+                        "features": [],
+                    },
                     "instantiate": {
                         "deps": [
                             "//crates/block-gpu-abi:block-gpu-abi",
@@ -12518,6 +12585,27 @@ crates = {
                     "//third-party/rust:wgpu-29.0.3",
                 ],
                 "examples": {
+                    "gpu-calls": {
+                        "deps": [
+                            "//crates/block-gpu-abi:block-gpu-abi",
+                            "//crates/block-gpu-host:block-gpu-host",
+                            "//crates/block-guest-abi:block-guest-abi",
+                            "//crates/block-guest-echo:block-guest-echo",
+                            "//crates/block-guest-host:block-guest-host",
+                            "//crates/block-plugin-api:block-plugin-api",
+                            "//crates/block-type-api:block-type-api",
+                            "//crates/wasm-dylink:wasm-dylink",
+                            "//third-party/rust:bytes-1.11.1",
+                            "//third-party/rust:rustc-demangle-0.1.28",
+                            "//third-party/rust:sha2-0.10.9",
+                            "//third-party/rust:tokio-1.52.3",
+                            "//third-party/rust:uuid-1.23.2",
+                            "//third-party/rust:wasmtime-48.0.1",
+                            "//third-party/rust:wasmtime-wasi-48.0.1",
+                            "//third-party/rust:wgpu-29.0.3",
+                        ],
+                        "features": [],
+                    },
                     "instantiate": {
                         "deps": [
                             "//crates/block-gpu-abi:block-gpu-abi",
@@ -12580,6 +12668,27 @@ crates = {
                     "//third-party/rust:wgpu-29.0.3",
                 ],
                 "examples": {
+                    "gpu-calls": {
+                        "deps": [
+                            "//crates/block-gpu-abi:block-gpu-abi",
+                            "//crates/block-gpu-host:block-gpu-host",
+                            "//crates/block-guest-abi:block-guest-abi",
+                            "//crates/block-guest-echo:block-guest-echo",
+                            "//crates/block-guest-host:block-guest-host",
+                            "//crates/block-plugin-api:block-plugin-api",
+                            "//crates/block-type-api:block-type-api",
+                            "//crates/wasm-dylink:wasm-dylink",
+                            "//third-party/rust:bytes-1.11.1",
+                            "//third-party/rust:rustc-demangle-0.1.28",
+                            "//third-party/rust:sha2-0.10.9",
+                            "//third-party/rust:tokio-1.52.3",
+                            "//third-party/rust:uuid-1.23.2",
+                            "//third-party/rust:wasmtime-48.0.1",
+                            "//third-party/rust:wasmtime-wasi-48.0.1",
+                            "//third-party/rust:wgpu-29.0.3",
+                        ],
+                        "features": [],
+                    },
                     "instantiate": {
                         "deps": [
                             "//crates/block-gpu-abi:block-gpu-abi",
@@ -12642,6 +12751,27 @@ crates = {
                     "//third-party/rust:wgpu-29.0.3",
                 ],
                 "examples": {
+                    "gpu-calls": {
+                        "deps": [
+                            "//crates/block-gpu-abi:block-gpu-abi",
+                            "//crates/block-gpu-host:block-gpu-host",
+                            "//crates/block-guest-abi:block-guest-abi",
+                            "//crates/block-guest-echo:block-guest-echo",
+                            "//crates/block-guest-host:block-guest-host",
+                            "//crates/block-plugin-api:block-plugin-api",
+                            "//crates/block-type-api:block-type-api",
+                            "//crates/wasm-dylink:wasm-dylink",
+                            "//third-party/rust:bytes-1.11.1",
+                            "//third-party/rust:rustc-demangle-0.1.28",
+                            "//third-party/rust:sha2-0.10.9",
+                            "//third-party/rust:tokio-1.52.3",
+                            "//third-party/rust:uuid-1.23.2",
+                            "//third-party/rust:wasmtime-48.0.1",
+                            "//third-party/rust:wasmtime-wasi-48.0.1",
+                            "//third-party/rust:wgpu-29.0.3",
+                        ],
+                        "features": [],
+                    },
                     "instantiate": {
                         "deps": [
                             "//crates/block-gpu-abi:block-gpu-abi",
@@ -12704,6 +12834,27 @@ crates = {
                     "//third-party/rust:wgpu-29.0.3",
                 ],
                 "examples": {
+                    "gpu-calls": {
+                        "deps": [
+                            "//crates/block-gpu-abi:block-gpu-abi",
+                            "//crates/block-gpu-host:block-gpu-host",
+                            "//crates/block-guest-abi:block-guest-abi",
+                            "//crates/block-guest-echo:block-guest-echo",
+                            "//crates/block-guest-host:block-guest-host",
+                            "//crates/block-plugin-api:block-plugin-api",
+                            "//crates/block-type-api:block-type-api",
+                            "//crates/wasm-dylink:wasm-dylink",
+                            "//third-party/rust:bytes-1.11.1",
+                            "//third-party/rust:rustc-demangle-0.1.28",
+                            "//third-party/rust:sha2-0.10.9",
+                            "//third-party/rust:tokio-1.52.3",
+                            "//third-party/rust:uuid-1.23.2",
+                            "//third-party/rust:wasmtime-48.0.1",
+                            "//third-party/rust:wasmtime-wasi-48.0.1",
+                            "//third-party/rust:wgpu-29.0.3",
+                        ],
+                        "features": [],
+                    },
                     "instantiate": {
                         "deps": [
                             "//crates/block-gpu-abi:block-gpu-abi",
