@@ -36,7 +36,7 @@ suite's `programs` (crates/bench/BUCK). Each can also run alone, with
   stutter, and since a host frame waits at most 8 ms for its plugins, the plugin's own line
   is where the canvas's share shows. The run fails unless the exported stroke holds exactly
   the samples the canvas keeps, where they were drawn: it keeps a sample only when it is more
-  than a point from the last one it kept (about one in twelve of these, `canvas.line-points`),
+  than a point from the last one it kept (667 of these 10,001, `canvas.line-points`),
   so dropping one it would have kept moves the points after it.
   It takes about three minutes; set the two sizes lower while working on it. It needs
   `BLOCK_APP`, and `APP_LIBRARIES` for the libraries the app loads, which the suite sets.
