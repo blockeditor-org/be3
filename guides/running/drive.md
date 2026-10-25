@@ -41,7 +41,10 @@ own to be driven:
   its other windows (the other panels), since only the 3D host knows where they are on screen.
   Test those through `Space` and a `Runner` instead (`InSpace` in crates/beui/src/tests.rs).
   Holding a walking key keeps frames coming, so the command waits out its settle timeout and
-  the head walks far; turn with `drive motion` while Ctrl and Shift are held instead.
+  the head walks far; turn with `drive motion` while Ctrl and Shift are held instead. To walk
+  or roll (Q/E) by a set amount, stop the clock and time the hold, with Ctrl and Shift held:
+  `drive clock stop; drive --no-settle keydown q; drive pause 500; drive --no-settle keyup q;
+  drive clock run`.
   A driver's pointer goes through the same rule as the mouse's: a position puts the 3D cursor
   on the main panel there, and the input goes to whatever panel or chrome is in front of it.
   Holding Escape lets the pointer go: `drive keydown escape; drive pause 700; drive keyup
