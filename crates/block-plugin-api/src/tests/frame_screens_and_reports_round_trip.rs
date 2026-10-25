@@ -57,8 +57,8 @@ fn frame_screens_and_reports_round_trip() {
                 },
                 rect: Rect::from_min_size(Pos2::new(0.0, 40.0), Vec2::new(320.0, 440.0)),
             }],
-            description: Some(Description {
-                tree: Some(checklist_tree()),
+            description: Some(crate::accessibility::Description {
+                tree: Some((&checklist_tree()).into()),
                 actions: vec![DescribedAction {
                     id: "checklist.clear".to_owned(),
                     label: "Clear completed".to_owned(),

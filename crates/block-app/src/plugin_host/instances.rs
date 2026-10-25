@@ -2043,7 +2043,7 @@ impl Instances {
                 capabilities: status.capabilities,
                 resize: status.resize,
                 error: status.error,
-                menu: status.menu,
+                menu: MenuEntry::flatten(&status.menu),
                 creation: status.creation,
                 settings: status.settings,
                 preview: status.preview,
@@ -2237,7 +2237,8 @@ impl Instances {
             let mut tree = report
                 .description
                 .as_mut()
-                .and_then(|description| description.tree.take());
+                .and_then(|description| description.tree.take())
+                .map(beui::accesskit::TreeUpdate::from);
             for entry in self.entries.values_mut() {
                 if let Some(screen) = entry
                     .screens

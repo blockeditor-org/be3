@@ -228,7 +228,7 @@ impl ChildState {
             resize: status.resize,
             error: status.error,
             child,
-            menu: status.menu,
+            menu: block_plugin_api::MenuEntry::nest(status.menu).unwrap_or_default(),
             creation: status.creation,
             settings: status.settings,
             preview: status.preview,

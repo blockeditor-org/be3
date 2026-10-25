@@ -5,11 +5,8 @@ interface types {
     use accessibility.{description};
     use be3:ui/types@0.1.0.{modifiers, pos2, rect, input, preferences, window-requests};
 
-    /// A block, editor, account or organization id.
-    record uuid {
-        hi: u64,
-        lo: u64,
-    }
+    /// A block, editor, account or organization id, as its 16 bytes.
+    type uuid = tuple<u8, u8, u8, u8, u8, u8, u8, u8, u8, u8, u8, u8, u8, u8, u8, u8>;
 
     record editor-instance-id {
         value: u64,

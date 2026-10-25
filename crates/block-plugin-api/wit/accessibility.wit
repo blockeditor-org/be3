@@ -3,11 +3,8 @@ package be3:plugin@0.1.0;
 /// What a plugin describes to assistive technology, and what it is asked to
 /// do there: AccessKit's shapes, as the plugin and host exchange them.
 interface accessibility {
-    /// A tree's id, AccessKit's uuid.
-    record tree-id {
-        hi: u64,
-        lo: u64,
-    }
+    /// A tree's id, AccessKit's uuid, as its 16 bytes.
+    type tree-id = tuple<u8, u8, u8, u8, u8, u8, u8, u8, u8, u8, u8, u8, u8, u8, u8, u8>;
 
     enum action {
         click,

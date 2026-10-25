@@ -546,7 +546,7 @@ impl EditorSession {
             state.reported_frame = Some(report.clone());
             let mut report = report.clone();
             if let Some(description) = &mut report.description {
-                description.tree = state.tree.take();
+                description.tree = state.tree.take().as_ref().map(Into::into);
             }
             reports.push(report);
         }
@@ -788,7 +788,7 @@ impl EditorSession {
                     })
                     .collect(),
                 description: frame.description.as_ref().map(|description| {
-                    block_plugin_api::Description {
+                    block_plugin_api::accessibility::Description {
                         tree: None,
                         actions: description.actions.clone(),
                     }

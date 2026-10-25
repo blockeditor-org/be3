@@ -16,34 +16,22 @@ be_ops_bindgen::generate!({
         "uuid": [u8; 16],
         "editor-instance-id": crate::EditorInstanceId,
         "screen-id": crate::ScreenId,
-        "description": crate::Description,
         "host-window-id": crate::HostWindowId,
         "commit-id": [u8; 32],
-        "metadata-entries": crate::MetadataEntries,
         "child-id": crate::ChildId,
         "tree-id": [u8; 16],
         "web-view-id": crate::WebViewId,
-        "interaction-mode": crate::InteractionMode,
-        "pan-mode": crate::PanMode,
-        "editor-capabilities": crate::EditorCapabilities,
-        "resize-mode": crate::ResizeMode,
-        "child-status": crate::ChildStatus,
-        "child-operations": crate::ChildOperations,
-        "press": crate::Press,
-        "block-type-descriptor": crate::BlockTypeDescriptor,
-        "template-category": crate::TemplateCategory,
-        "edits": crate::Edits,
+        "rgb": [u8; 3],
     },
     copy: [
-        "uuid", "tree-id", "host-window-id", "editor-instance-id", "screen-id", "commit-id", "child-id", "web-view-id", "interaction-mode",
-        "pan-mode", "editor-capabilities", "resize-mode", "child-operations", "press",
-        "template-category", "edits",
+        "uuid", "tree-id", "host-window-id", "editor-instance-id", "screen-id", "commit-id", "child-id", "web-view-id", "rgb",
     ],
     default: [
         "frame-chrome", "top-bar", "frame-spec", "size", "fonts", "screen-layout",
         "block-metadata", "artifact-state", "version-status",
         "menu-command", "menu-check", "menu-pin", "menu-heading", "block-filter", "child-preview",
-        "catalog", "audio-status", "child-layer", "child-mode",
+        "catalog", "audio-status", "child-layer", "child-mode", "interaction-mode", "pan-mode",
+        "editor-capabilities", "resize-mode", "child-operations", "press", "template-category",
     ],
     inline: [
         "rename-command", "artifact-command", "simulate-access-command", "unlink-command",
@@ -53,6 +41,7 @@ be_ops_bindgen::generate!({
         "artifact-described", "rename-dialog", "creation-options", "chosen-block",
         "block-child", "creation-child", "artifact-settings-child",
     ],
+    lenient: ["editor-capabilities", "child-operations"],
     ordered: ["child-content"],
     own_debug: ["font-face"],
 });
@@ -66,6 +55,10 @@ pub use blocks::{
 };
 pub use host_services::{
     AccessGrant, BlockFilter, ImportedBlock, PickedBlock, Revision, ShellDialog,
+};
+pub use shell_types::{
+    BlockTypeDescriptor, ChildOperations, ChildStatus, EditorCapabilities, Edits, InteractionMode,
+    PanMode, Press, ResizeMode, TemplateCategory,
 };
 pub use shell_types::{
     ArtifactDescription, AudioCommand, AudioSource, AudioStatus, BarAction, BlockPick, Catalog,
@@ -231,24 +224,6 @@ impl MenuEntry {
     }
 }
 
-mod menu_items {
-    use super::{MenuEntry, MenuItem};
-    use serde::{Deserialize, Deserializer, Serialize, Serializer, de::Error};
-
-    pub(super) fn serialize<S: Serializer>(
-        entries: &[MenuEntry],
-        serializer: S,
-    ) -> Result<S::Ok, S::Error> {
-        MenuEntry::flatten(entries).serialize(serializer)
-    }
-
-    pub(super) fn deserialize<'de, D: Deserializer<'de>>(
-        deserializer: D,
-    ) -> Result<Vec<MenuEntry>, D::Error> {
-        MenuEntry::nest(Vec::<MenuItem>::deserialize(deserializer)?).map_err(D::Error::custom)
-    }
-}
-
 fn close_submenu(open: &mut Vec<Vec<MenuEntry>>, headings: &mut Vec<MenuHeading>) {
     let entries = open.pop().unwrap_or_default();
     let Some(heading) = headings.pop() else {
@@ -264,9 +239,10 @@ fn close_submenu(open: &mut Vec<Vec<MenuEntry>>, headings: &mut Vec<MenuHeading>
     }
 }
 
-#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+/// What a screen describes to assistive technology, with AccessKit's own
+/// tree; it crosses the protocol as `accessibility::Description`.
+#[derive(Clone, Debug, Default, PartialEq)]
 pub struct Description {
-    #[serde(with = "accesskit_mirror::tree")]
     pub tree: Option<accesskit::TreeUpdate>,
     pub actions: Vec<DescribedAction>,
 }
@@ -355,26 +331,6 @@ impl ChildPlacements {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-pub struct ChildStatus {
-    pub instance: EditorInstanceId,
-    pub region: EditorRegion,
-    pub child: ChildId,
-    pub available: bool,
-    pub intrinsic: Option<Size>,
-    pub aspect_ratio: Option<f32>,
-    pub active: bool,
-    pub interaction: InteractionMode,
-    pub capabilities: EditorCapabilities,
-    pub resize: ResizeMode,
-    pub error: Option<String>,
-    #[serde(with = "menu_items")]
-    pub menu: Vec<MenuEntry>,
-    pub creation: Option<CreationProgress>,
-    pub settings: Option<SettingsProgress>,
-    pub preview: ChildPreview,
-}
-
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct PluginManifest {
     pub identity: PluginIdentity,
@@ -443,18 +399,6 @@ pub struct TemplateManifest {
     pub block_type: [u8; 16],
 }
 
-#[derive(
-    Clone, Copy, Debug, Default, Hash, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize,
-)]
-#[serde(rename_all = "lowercase")]
-pub enum TemplateCategory {
-    Important,
-    #[default]
-    Regular,
-    Debug,
-    Template,
-}
-
 impl PluginManifest {
     pub fn editor(&self, id: [u8; 16]) -> Option<&EditorManifest> {
         self.editors.iter().find(|editor| editor.id == id)
@@ -465,13 +409,6 @@ impl PluginManifest {
             .first()
             .map(|block_type| block_type.module.as_str())
     }
-}
-
-#[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, Serialize, Deserialize)]
-pub enum Edits {
-    Type([u8; 16]),
-    Any,
-    Nothing,
 }
 
 impl Edits {
@@ -495,50 +432,6 @@ impl EditorManifest {
     }
 }
 
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(default, deny_unknown_fields)]
-pub struct ChildOperations {
-    pub add: bool,
-    pub delete: bool,
-    pub replace: bool,
-}
-
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
-pub enum InteractionMode {
-    Preview,
-    #[default]
-    Live,
-    Playback,
-}
-
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
-pub struct EditorCapabilities {
-    pub rotation: bool,
-    pub preserve_aspect_ratio: bool,
-    pub pan_and_zoom: bool,
-    #[serde(default)]
-    pub max_zoom: Option<u32>,
-    #[serde(default)]
-    pub pan: PanMode,
-}
-
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
-pub enum PanMode {
-    None,
-    OneFinger,
-    #[default]
-    TwoFinger,
-}
-
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
-pub enum ResizeMode {
-    None,
-    Horizontal,
-    Vertical,
-    #[default]
-    Both,
-}
-
 impl ResizeMode {
     pub fn horizontal(self) -> bool {
         matches!(self, Self::Horizontal | Self::Both)
@@ -547,24 +440,6 @@ impl ResizeMode {
     pub fn vertical(self) -> bool {
         matches!(self, Self::Vertical | Self::Both)
     }
-}
-
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub struct BlockTypeDescriptor {
-    pub block_type: [u8; 16],
-    pub display_name: String,
-    pub color: Option<[u8; 3]>,
-    pub icon_codepoint: String,
-    pub children: ChildOperations,
-    pub press: Press,
-    pub plain_file: bool,
-}
-
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
-pub enum Press {
-    #[default]
-    Open,
-    Zoom,
 }
 
 impl EditorRegion {
@@ -716,7 +591,7 @@ fn manifest_string(field: &'static str, value: &str) -> Result<(), ManifestError
     }
 }
 
-pub type MetadataEntries = std::collections::BTreeMap<[u8; 16], serde_bytes::ByteBuf>;
+pub use blocks::MetadataEntries;
 
 impl Default for AccessLevel {
     fn default() -> Self {
@@ -867,7 +742,7 @@ fn descriptor(data: &[u8]) -> Result<(), DecodeError> {
 
 fn metadata(entries: &MetadataEntries) -> Result<(), DecodeError> {
     collection(entries.len())?;
-    entries.values().try_for_each(|value| descriptor(value))
+    entries.iter().try_for_each(|(_, value)| descriptor(value))
 }
 
 fn collection(length: usize) -> Result<(), DecodeError> {

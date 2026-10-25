@@ -131,15 +131,15 @@ interface shell-types {
 
     /// How an editor takes input where it is shown.
     enum interaction-mode {
-        preview,
         live,
+        preview,
         playback,
     }
 
     enum pan-mode {
+        two-finger,
         none,
         one-finger,
-        two-finger,
     }
 
     record editor-capabilities {
@@ -151,10 +151,10 @@ interface shell-types {
     }
 
     enum resize-mode {
+        both,
         none,
         horizontal,
         vertical,
-        both,
     }
 
     record creation-options {
@@ -219,10 +219,13 @@ interface shell-types {
         zoom,
     }
 
+    /// A colour's red, green and blue.
+    type rgb = tuple<u8, u8, u8>;
+
     record block-type-descriptor {
         block-type: uuid,
         display-name: string,
-        color: option<tuple<u8, u8, u8>>,
+        color: option<rgb>,
         icon-codepoint: string,
         children: child-operations,
         press: press,
@@ -230,8 +233,8 @@ interface shell-types {
     }
 
     enum template-category {
-        important,
         regular,
+        important,
         debug,
         template,
     }

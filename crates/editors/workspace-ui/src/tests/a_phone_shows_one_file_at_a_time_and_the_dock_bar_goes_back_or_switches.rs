@@ -120,12 +120,12 @@ fn a_phone_shows_one_file_at_a_time_and_the_dock_bar_goes_back_or_switches() {
         resize: ResizeMode::None,
         error: None,
         menu: match placement.child == child {
-            true => vec![MenuEntry::Command(MenuCommand {
+            true => MenuEntry::flatten(&[MenuEntry::Command(MenuCommand {
                 id: "editor.rename".into(),
                 label: "Rename".into(),
                 enabled: true,
                 ..MenuCommand::default()
-            })],
+            })]),
             false => Vec::new(),
         },
         creation: None,

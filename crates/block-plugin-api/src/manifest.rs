@@ -75,11 +75,33 @@ pub struct TemplateDocument {
     #[serde(default)]
     pub icon: Option<String>,
     #[serde(default)]
-    pub category: TemplateCategory,
+    pub category: CategoryDocument,
     #[serde(default)]
     pub dialog: bool,
     #[serde(default)]
     pub block_type: Option<String>,
+}
+
+/// A template's category as a manifest spells it.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum CategoryDocument {
+    Important,
+    #[default]
+    Regular,
+    Debug,
+    Template,
+}
+
+impl From<CategoryDocument> for TemplateCategory {
+    fn from(category: CategoryDocument) -> Self {
+        match category {
+            CategoryDocument::Important => Self::Important,
+            CategoryDocument::Regular => Self::Regular,
+            CategoryDocument::Debug => Self::Debug,
+            CategoryDocument::Template => Self::Template,
+        }
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -213,7 +235,7 @@ impl EditorDocument {
                     id,
                     name: template.name.unwrap_or_else(|| self.display_name.clone()),
                     icon: template.icon.unwrap_or_else(|| self.icon.clone()),
-                    category: template.category,
+                    category: template.category.into(),
                     dialog: template.dialog,
                     block_type: match template.block_type {
                         Some(source) => block_type(&source)?,

@@ -1092,23 +1092,32 @@ fn tree_update_from(update: wire::TreeUpdate) -> accesskit::TreeUpdate {
     }
 }
 
-pub(crate) mod tree {
-    use serde::{Deserialize, Deserializer, Serialize, Serializer};
-
-    use super::wire;
-
-    pub(crate) fn serialize<S: Serializer>(
-        tree: &Option<accesskit::TreeUpdate>,
-        serializer: S,
-    ) -> Result<S::Ok, S::Error> {
-        tree.as_ref()
-            .map(super::tree_update_to)
-            .serialize(serializer)
+impl From<&accesskit::TreeUpdate> for wire::TreeUpdate {
+    fn from(update: &accesskit::TreeUpdate) -> Self {
+        tree_update_to(update)
     }
+}
 
-    pub(crate) fn deserialize<'de, D: Deserializer<'de>>(
-        deserializer: D,
-    ) -> Result<Option<accesskit::TreeUpdate>, D::Error> {
-        Ok(Option::<wire::TreeUpdate>::deserialize(deserializer)?.map(super::tree_update_from))
+impl From<wire::TreeUpdate> for accesskit::TreeUpdate {
+    fn from(update: wire::TreeUpdate) -> Self {
+        tree_update_from(update)
+    }
+}
+
+impl From<crate::Description> for wire::Description {
+    fn from(description: crate::Description) -> Self {
+        Self {
+            tree: description.tree.as_ref().map(tree_update_to),
+            actions: description.actions,
+        }
+    }
+}
+
+impl From<wire::Description> for crate::Description {
+    fn from(description: wire::Description) -> Self {
+        Self {
+            tree: description.tree.map(tree_update_from),
+            actions: description.actions,
+        }
     }
 }

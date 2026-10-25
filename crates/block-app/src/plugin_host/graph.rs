@@ -103,10 +103,7 @@ pub(crate) fn wire_entries(entries: &be_block::Entries) -> MetadataEntries {
     entries
         .iter()
         .map(|(key, value)| {
-            (
-                key.into_bytes(),
-                block_plugin_api::ByteBuf::from(value.clone()),
-            )
+            (key.into_bytes(), value.clone())
         })
         .collect()
 }
@@ -114,6 +111,6 @@ pub(crate) fn wire_entries(entries: &be_block::Entries) -> MetadataEntries {
 pub(crate) fn entries_of(entries: MetadataEntries) -> be_block::Entries {
     entries
         .into_iter()
-        .map(|(key, value)| (Uuid::from_bytes(key), value.into_vec()))
+        .map(|(key, value)| (Uuid::from_bytes(key), value))
         .collect()
 }

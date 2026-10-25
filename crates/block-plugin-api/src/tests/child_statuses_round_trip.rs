@@ -18,13 +18,13 @@ fn child_statuses_round_trip() {
             capabilities: EditorCapabilities::default(),
             resize: ResizeMode::Both,
             error: None,
-            menu: vec![MenuEntry::Command(MenuCommand {
+            menu: MenuEntry::flatten(&[MenuEntry::Command(MenuCommand {
                 id: "editor.rename".into(),
                 label: "Rename".into(),
                 glyph: "edit".into(),
                 enabled: true,
                 ..MenuCommand::default()
-            })],
+            })]),
             creation: Some(CreationProgress::Options { ready: true }),
             settings: Some(SettingsProgress {
                 changed: true,
@@ -57,6 +57,6 @@ fn child_statuses_round_trip() {
     assert_eq!(
         crate::ops::decode::<Vec<ChildStatus>>(&crate::ops::encode(&statuses)),
         Some(statuses),
-        "statuses keep their nested menus through the wire's flattened ones"
+        "statuses keep their menus, flattened"
     );
 }

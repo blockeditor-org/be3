@@ -6,13 +6,8 @@ interface blocks {
     use types.{host-panel, uuid};
     use be3:ui/types@0.1.0.{rect};
 
-    /// A commit of a block's history: the hash of its content.
-    record commit-id {
-        a: u64,
-        b: u64,
-        c: u64,
-        d: u64,
-    }
+    /// A commit of a block's history: the hash of its content, as its 32 bytes.
+    type commit-id = tuple<u8, u8, u8, u8, u8, u8, u8, u8, u8, u8, u8, u8, u8, u8, u8, u8, u8, u8, u8, u8, u8, u8, u8, u8, u8, u8, u8, u8, u8, u8, u8, u8>;
 
     enum access-level {
         none,

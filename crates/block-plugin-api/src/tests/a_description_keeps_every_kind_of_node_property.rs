@@ -73,12 +73,17 @@ fn a_description_keeps_every_kind_of_node_property() {
             live: false,
         }],
     };
-    let carried = crate::ops::encode(&description);
-    let decoded = crate::ops::decode::<Description>(&carried).expect("the description decodes");
+    let carried = crate::ops::encode(&crate::accessibility::Description::from(description.clone()));
+    let decoded: Description = crate::ops::decode::<crate::accessibility::Description>(&carried)
+        .expect("the description decodes")
+        .into();
     assert_eq!(
         format!("{decoded:?}"),
         format!("{description:?}"),
         "a description travels as the accessibility interface's tree and comes back as AccessKit's"
     );
-    assert_eq!(crate::ops::encode(&decoded), carried);
+    assert_eq!(
+        crate::ops::encode(&crate::accessibility::Description::from(decoded)),
+        carried
+    );
 }
