@@ -1,5 +1,6 @@
 use be_block::presence::{PresenceKind, UserActive, pick_free_color};
 use block_plugin_api::accesskit::{ActionRequest, NodeId, TreeUpdate};
+use block_plugin_api::guest::shell;
 use block_plugin_api::{
     ArtifactDescription, BarAction, ChildId, ChildPlacement, ChildPlacements, ChildStatus,
     CreationOutcome, EditorInstanceId, EditorMessage, EditorRegion, FrameChrome, FrameCommit,
@@ -7,7 +8,6 @@ use block_plugin_api::{
     Occluder, RegionSize, ScreenPlacement, ScreenRequest, ScreenWindow, Size, TimedInput,
     ViewportMetrics, WebViewEvent, WebViewId,
 };
-use block_plugin_api::guest::shell;
 use block_ui::BlockCatalog;
 use geometry::{Rect, Vec2, pos2, vec2};
 use std::{

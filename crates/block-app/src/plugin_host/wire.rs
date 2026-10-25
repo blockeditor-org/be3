@@ -247,9 +247,11 @@ impl Wire {
             Call::FontsWatchNext { reply, .. } => self.fonts.next(connection, reply),
             Call::InputNew { resource } => self.input.opened(resource.op()),
             Call::InputNext { reply, .. } => self.input.next(connection, reply),
-            Call::Legacy { message } => heard.push(Heard::Message(decode_frame(&message).map_err(|error| {
-                format!("the plugin sent a message that did not decode: {error:?}")
-            })?)),
+            Call::Legacy { message } => {
+                heard.push(Heard::Message(decode_frame(&message).map_err(|error| {
+                    format!("the plugin sent a message that did not decode: {error:?}")
+                })?))
+            }
         }
         Ok(())
     }

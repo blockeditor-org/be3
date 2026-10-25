@@ -643,7 +643,11 @@ impl Screens {
         true
     }
 
-    pub(crate) fn call(&mut self, instance: EditorInstanceId, call: crate::wire::EditorCall) -> bool {
+    pub(crate) fn call(
+        &mut self,
+        instance: EditorInstanceId,
+        call: crate::wire::EditorCall,
+    ) -> bool {
         let Some(session) = self.sessions.get_mut(&instance) else {
             return false;
         };

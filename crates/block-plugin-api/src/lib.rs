@@ -40,15 +40,15 @@ pub use blocks::{
     BlockMetadata, BlockQuery, ConflictSide, HostPanel, StoredHead, VersionBranch, VersionChange,
     VersionChangeKind, VersionCommand, VersionCommit, VersionOperation, VersionStatus,
 };
+pub use shell_types::{
+    BarAction, MenuCheck, MenuCommand, MenuHeading, MenuItem, MenuItemKind, MenuPin,
+};
 pub use types::{
     EditorRegion, FontFace, FontRole, Fonts, FrameChrome, FrameCommit, FrameReport, FrameSpec,
     Hello, HelloAccepted, InputBatch, Monitor, OpenArtifact, OpenBlock, OpenCreation, Opening,
     PluginIdentity, PresentedFrame, PressClaim, RegionSize, ScreenDamage, ScreenLayout,
     ScreenPlacement, ScreenRequest, ScreenWindow, Size, SurfaceFormat, SurfaceRect, SurfaceSpec,
     SurfaceSupport, TimedInput, TopBar, ViewportMetrics,
-};
-pub use shell_types::{
-    BarAction, MenuCheck, MenuCommand, MenuHeading, MenuItem, MenuItemKind, MenuPin,
 };
 
 mod block_ids;
@@ -215,7 +215,6 @@ fn close_submenu(open: &mut Vec<Vec<MenuEntry>>, headings: &mut Vec<MenuHeading>
         }));
     }
 }
-
 
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 pub struct Description {

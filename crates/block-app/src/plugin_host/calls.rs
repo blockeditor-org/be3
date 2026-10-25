@@ -1,16 +1,14 @@
 use block_plugin_api::{
-    BarAction, ChildId, EditorInstanceId, EditorRegion, EditorMessage, Message,
+    BarAction, ChildId, EditorInstanceId, EditorMessage, EditorRegion, Message,
     embed::shell::Call as ShellCall,
 };
 
-/// What the host sends a plugin, queued in order until the plugin can take it.
 #[derive(Clone, Debug, PartialEq)]
 pub(super) enum Outbound {
     Message(Message),
     Editor(EditorInstanceId, EditorCall),
 }
 
-/// A call of one editor instance's methods.
 #[derive(Clone, Debug, PartialEq)]
 pub(super) enum EditorCall {
     MenuPick(String),
@@ -54,11 +52,13 @@ impl Outbound {
     }
 
     pub(super) fn closes(&self) -> bool {
-        matches!(self, Self::Message(Message::Editor(EditorMessage::Close { .. })))
+        matches!(
+            self,
+            Self::Message(Message::Editor(EditorMessage::Close { .. }))
+        )
     }
 }
 
-/// What a plugin sent the host, in the order it came.
 #[derive(Debug)]
 pub(super) enum Heard {
     Message(Message),

@@ -17,7 +17,6 @@ use crate::editor_session::EditorSession;
 
 pub(crate) type EditorCall = Box<dyn FnOnce(&mut EditorSession)>;
 
-/// What the host's calls leave for the runtime's next step, in the order they came.
 pub(crate) enum Delivery {
     Message(Message),
     Editor(EditorInstanceId, EditorCall),

@@ -11,14 +11,14 @@ use block_editor_beui::{
     EditorRegion, HostReply, HostRequest, Occluder, OwnedEditor, PeerPresence, SeededContent,
     ShownPresence, ViewChange, WebViewCommand, WebViewId,
 };
+use block_plugin_api::Opening;
+use block_plugin_api::embed::{exports::plugin::Editor, shell::Call as ShellCall};
+use block_plugin_api::ops::{Connection, Incoming, Side};
 use block_plugin_api::{
     BarAction, BlockTypeDescriptor, Catalog, ChildId, EditorMessage, FitArea, FrameChrome,
     FrameReport, HelloAccepted, InputBatch, MenuCommand, MenuEntry, Message, ScreenId,
     ScreenRequest, ScreenSet, SurfaceFormat, SurfaceSpec, TimedInput, TopBar, ViewportMetrics,
 };
-use block_plugin_api::embed::{exports::plugin::Editor, shell::Call as ShellCall};
-use block_plugin_api::ops::{Connection, Incoming, Side};
-use block_plugin_api::Opening;
 use std::marker::PhantomData;
 
 enum Inbound {
@@ -316,16 +316,17 @@ impl<A: BeuiApp> BeuiTest<A> {
             scale_factor: self.scale_factor,
             monitors: self.monitors.clone(),
         };
-        self.inbox.push(Inbound::Message(Message::Screens(ScreenSet {
-            request_id: self.screens,
-            screens: vec![ScreenRequest {
-                screen: SCREEN,
-                instance: INSTANCE,
-                region,
-                metrics,
-                frame: self.frame,
-            }],
-        })));
+        self.inbox
+            .push(Inbound::Message(Message::Screens(ScreenSet {
+                request_id: self.screens,
+                screens: vec![ScreenRequest {
+                    screen: SCREEN,
+                    instance: INSTANCE,
+                    region,
+                    metrics,
+                    frame: self.frame,
+                }],
+            })));
     }
 
     pub fn block_id(&self) -> Option<Uuid> {
@@ -378,11 +379,12 @@ impl<A: BeuiApp> BeuiTest<A> {
 
     pub fn set_draft(&mut self, data: Vec<u8>) {
         self.draft.clone_from(&data);
-        self.inbox
-            .push(Inbound::Message(Message::Editor(EditorMessage::ArtifactSettings {
+        self.inbox.push(Inbound::Message(Message::Editor(
+            EditorMessage::ArtifactSettings {
                 instance: INSTANCE,
                 data,
-            })));
+            },
+        )));
     }
 
     pub fn with_top_bar(self, closable: bool) -> Self {
@@ -466,11 +468,13 @@ impl<A: BeuiApp> BeuiTest<A> {
         if let Some(viewport) = &mut self.viewport {
             viewport.show(view, scale, band, rect.min);
         }
-        self.inbox.push(Inbound::Message(Message::Editor(EditorMessage::ViewChanged {
-            instance: INSTANCE,
-            view,
-            scale,
-        })));
+        self.inbox.push(Inbound::Message(Message::Editor(
+            EditorMessage::ViewChanged {
+                instance: INSTANCE,
+                view,
+                scale,
+            },
+        )));
     }
 
     pub fn move_view(&mut self, change: ViewChange) {
@@ -482,14 +486,15 @@ impl<A: BeuiApp> BeuiTest<A> {
     }
 
     pub fn drag_block(&mut self, position: Pos2, block_id: Uuid, block_type: Uuid, dropped: bool) {
-        self.inbox.push(Inbound::Message(Message::Editor(EditorMessage::DragOver {
-            instance: INSTANCE,
-            region: self.region(),
-            pos: position,
-            block_id: block_id.into_bytes(),
-            block_type: block_type.into_bytes(),
-            dropped,
-        })));
+        self.inbox
+            .push(Inbound::Message(Message::Editor(EditorMessage::DragOver {
+                instance: INSTANCE,
+                region: self.region(),
+                pos: position,
+                block_id: block_id.into_bytes(),
+                block_type: block_type.into_bytes(),
+                dropped,
+            })));
     }
 
     pub fn with_size(mut self, size: Vec2) -> Self {
@@ -532,7 +537,8 @@ impl<A: BeuiApp> BeuiTest<A> {
     }
 
     pub fn catalog(&mut self, catalog: Catalog) {
-        self.inbox.push(Inbound::Message(Message::BlockTypes(catalog)));
+        self.inbox
+            .push(Inbound::Message(Message::BlockTypes(catalog)));
         self.run();
     }
 
@@ -595,13 +601,14 @@ impl<A: BeuiApp> BeuiTest<A> {
     pub fn replace_child(&mut self, old: Uuid, new: Uuid) -> bool {
         self.next_request += 1;
         let request_id = self.next_request;
-        self.inbox
-            .push(Inbound::Message(Message::Editor(EditorMessage::ReplaceChild {
+        self.inbox.push(Inbound::Message(Message::Editor(
+            EditorMessage::ReplaceChild {
                 instance: INSTANCE,
                 request_id,
                 old: old.into_bytes(),
                 new: new.into_bytes(),
-            })));
+            },
+        )));
         self.step(Vec::new());
         let mut replaced = None;
         self.sent.retain(|message| match message {
@@ -619,21 +626,23 @@ impl<A: BeuiApp> BeuiTest<A> {
     }
 
     pub fn presence_visible(&mut self, visible: bool) {
-        self.inbox.push(Inbound::Message(Message::Editor(EditorMessage::Presence {
-            instance: INSTANCE,
-            visible,
-        })));
+        self.inbox
+            .push(Inbound::Message(Message::Editor(EditorMessage::Presence {
+                instance: INSTANCE,
+                visible,
+            })));
         self.run();
     }
 
     pub fn resize(&mut self, size: Vec2) {
-        self.inbox.push(Inbound::Message(Message::Editor(EditorMessage::Resized {
-            instance: INSTANCE,
-            size: block_plugin_api::Size {
-                width: size.x,
-                height: size.y,
-            },
-        })));
+        self.inbox
+            .push(Inbound::Message(Message::Editor(EditorMessage::Resized {
+                instance: INSTANCE,
+                size: block_plugin_api::Size {
+                    width: size.x,
+                    height: size.y,
+                },
+            })));
         self.run();
     }
 
@@ -641,8 +650,8 @@ impl<A: BeuiApp> BeuiTest<A> {
         &mut self,
         states: impl IntoIterator<Item = (Uuid, block_editor_beui::BlockHistory)>,
     ) {
-        self.inbox
-            .push(Inbound::Message(Message::Editor(EditorMessage::HistoryStates {
+        self.inbox.push(Inbound::Message(Message::Editor(
+            EditorMessage::HistoryStates {
                 instance: INSTANCE,
                 states: states
                     .into_iter()
@@ -653,19 +662,21 @@ impl<A: BeuiApp> BeuiTest<A> {
                         can_redo: history.can_redo,
                     })
                     .collect(),
-            })));
+            },
+        )));
     }
 
     pub fn set_version_status(&mut self, status: block_editor_beui::VersionStatus) {
         let block = self
             .block_id()
             .expect("a version status is about the editor's own block");
-        self.inbox
-            .push(Inbound::Message(Message::Editor(EditorMessage::VersionStatus {
+        self.inbox.push(Inbound::Message(Message::Editor(
+            EditorMessage::VersionStatus {
                 instance: INSTANCE,
                 block_id: block.into_bytes(),
                 status,
-            })));
+            },
+        )));
     }
 
     pub fn set_peers(&mut self, block: Option<Uuid>, peers: Vec<PeerPresence>) {
@@ -690,24 +701,28 @@ impl<A: BeuiApp> BeuiTest<A> {
     }
 
     pub fn web_view_event(&mut self, web_view: WebViewId, event: block_editor_beui::WebViewEvent) {
-        self.inbox
-            .push(Inbound::Message(Message::Editor(EditorMessage::WebViewEvent {
+        self.inbox.push(Inbound::Message(Message::Editor(
+            EditorMessage::WebViewEvent {
                 instance: INSTANCE,
                 web_view,
                 event,
-            })));
+            },
+        )));
     }
 
     pub fn set_preferences(&mut self, preferences: block_plugin_api::Preferences) {
-        self.inbox.push(Inbound::Message(Message::Preferences(preferences)));
+        self.inbox
+            .push(Inbound::Message(Message::Preferences(preferences)));
     }
 
     pub fn set_host_value<T: block_plugin_api::HostValue>(&mut self, value: &T::Value) {
-        self.inbox.push(Inbound::Message(Message::Editor(EditorMessage::HostValue {
-            instance: INSTANCE,
-            key: T::KEY.to_owned(),
-            value: block_plugin_api::encode_host(value),
-        })));
+        self.inbox.push(Inbound::Message(Message::Editor(
+            EditorMessage::HostValue {
+                instance: INSTANCE,
+                key: T::KEY.to_owned(),
+                value: block_plugin_api::encode_host(value),
+            },
+        )));
     }
 
     pub fn watches<T: block_plugin_api::HostValue>(&self) -> bool {
@@ -717,11 +732,12 @@ impl<A: BeuiApp> BeuiTest<A> {
     }
 
     pub fn reply(&mut self, request_id: u64, reply: HostReply) {
-        self.inbox.push(Inbound::Message(Message::Editor(EditorMessage::Replied {
-            instance: INSTANCE,
-            request_id,
-            reply,
-        })));
+        self.inbox
+            .push(Inbound::Message(Message::Editor(EditorMessage::Replied {
+                instance: INSTANCE,
+                request_id,
+                reply,
+            })));
     }
 
     pub fn report_children(&mut self, report: impl Fn(&ChildPlacement) -> ChildStatus) {
@@ -734,7 +750,8 @@ impl<A: BeuiApp> BeuiTest<A> {
                 ..status
             })
             .collect();
-        self.inbox.push(Inbound::Message(Message::ChildStatuses(statuses)));
+        self.inbox
+            .push(Inbound::Message(Message::ChildStatuses(statuses)));
     }
 
     pub fn available_children(&mut self) {
@@ -834,7 +851,12 @@ impl<A: BeuiApp> BeuiTest<A> {
     pub fn step(&mut self, events: Vec<Input>) {
         self.store.tick(self.clock.as_millis() as u64);
         let mut inbox = std::mem::take(&mut self.inbox);
-        inbox.extend(self.store.outgoing(INSTANCE).into_iter().map(Inbound::Message));
+        inbox.extend(
+            self.store
+                .outgoing(INSTANCE)
+                .into_iter()
+                .map(Inbound::Message),
+        );
         let rect = self.rect();
         let band = self.band(rect);
         let intrinsic = self.intrinsic;
@@ -898,8 +920,11 @@ impl<A: BeuiApp> BeuiTest<A> {
             .is_none_or(|frame| frame.chrome == FrameChrome::Drawn);
         if let Some(viewport) = &mut self.viewport {
             viewport.settle(&mut self.sent, band, rect.min, intrinsic, drawn);
-            self.inbox
-                .extend(viewport.place(band, rect.min, intrinsic).map(Inbound::Message));
+            self.inbox.extend(
+                viewport
+                    .place(band, rect.min, intrinsic)
+                    .map(Inbound::Message),
+            );
         }
     }
 
@@ -952,16 +977,19 @@ impl<A: BeuiApp> BeuiTest<A> {
 
     fn hear(&mut self) {
         for frame in self.plugin.take_frames() {
-            self.connection
-                .receive(&frame)
-                .unwrap_or_else(|error| panic!("the plugin sent a frame that did not decode: {error}"));
+            self.connection.receive(&frame).unwrap_or_else(|error| {
+                panic!("the plugin sent a frame that did not decode: {error}")
+            });
         }
         while let Some(event) = self.connection.next_event() {
             let Incoming::Called(called) = event else {
                 continue;
             };
             let Some(call) = ShellCall::accept_direct(&called) else {
-                panic!("the plugin called {}, which the test does not answer", called.name);
+                panic!(
+                    "the plugin called {}, which the test does not answer",
+                    called.name
+                );
             };
             if let ShellCall::Menu { items, .. } = &call {
                 self.menu = MenuEntry::nest(items.clone())
@@ -1046,23 +1074,26 @@ impl<A: BeuiApp> BeuiTest<A> {
         within: Option<Uuid>,
         touch: bool,
     ) {
-        self.inbox
-            .push(Inbound::Message(Message::Editor(EditorMessage::PickRequested {
+        self.inbox.push(Inbound::Message(Message::Editor(
+            EditorMessage::PickRequested {
                 instance: INSTANCE,
                 pick,
                 filter,
                 parent,
                 within: within.map(Uuid::into_bytes),
                 touch,
-            })));
+            },
+        )));
     }
 
     pub fn show_dialog(&mut self, block: Uuid, dialog: block_plugin_api::ShellDialog) {
-        self.inbox.push(Inbound::Message(Message::Editor(EditorMessage::ShowDialog {
-            instance: INSTANCE,
-            block_id: block.into_bytes(),
-            dialog,
-        })));
+        self.inbox.push(Inbound::Message(Message::Editor(
+            EditorMessage::ShowDialog {
+                instance: INSTANCE,
+                block_id: block.into_bytes(),
+                dialog,
+            },
+        )));
     }
 
     pub fn take_renames(&mut self) -> Vec<(Uuid, Option<String>)> {

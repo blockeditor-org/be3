@@ -5,10 +5,9 @@ use block_plugin_api::{
     ChildMode, ChildPlacement, ChildPlacements, ChildStatus, CreationOutcome, DataListing,
     EditorInstanceId, EditorMessage, EditorRegion, FetchResult, FileSave, FrameReport, FrameSpec,
     HostPanel, HostReply, HostRequest, MenuEntry, Message, Monitor, Occluder,
-    PerformanceMeasurement,
-    RegenerationOutcome, RegionSize, ScreenId, ScreenLayout, ScreenRequest, ScreenSet,
-    ScreenWindow, Size, Stopped, ViewChange, WatchedContent, WebViewCommand, WebViewEvent,
-    WebViewId,
+    PerformanceMeasurement, RegenerationOutcome, RegionSize, ScreenId, ScreenLayout, ScreenRequest,
+    ScreenSet, ScreenWindow, Size, Stopped, ViewChange, WatchedContent, WebViewCommand,
+    WebViewEvent, WebViewId,
 };
 use block_plugin_api::{DescribedAction, WindowRequests, embed::shell::Call as ShellCall};
 use block_type_guest::editor::{FromEditor, Gesture};
@@ -1556,15 +1555,24 @@ impl Instances {
                 let editable = crate::be::access(block.id).can_edit();
                 if entry.reported_editable != Some(editable) {
                     entry.reported_editable = Some(editable);
-                    opened.push(Outbound::from(Message::Editor(EditorMessage::EditabilityChanged {
-                        instance,
-                        editable,
-                    })));
+                    opened.push(Outbound::from(Message::Editor(
+                        EditorMessage::EditabilityChanged { instance, editable },
+                    )));
                 }
             }
-            opened.extend(entry.blocks_messages(instance).into_iter().map(Outbound::from));
+            opened.extend(
+                entry
+                    .blocks_messages(instance)
+                    .into_iter()
+                    .map(Outbound::from),
+            );
             if stale {
-                opened.extend(entry.content_messages(instance).into_iter().map(Outbound::from));
+                opened.extend(
+                    entry
+                        .content_messages(instance)
+                        .into_iter()
+                        .map(Outbound::from),
+                );
             }
             if (stale || graph_moved)
                 && let Some(message) = entry.history_message(instance)
@@ -1589,20 +1597,24 @@ impl Instances {
                     }
                     None => (None, [0; 16]),
                 };
-                opened.push(Outbound::from(Message::Editor(EditorMessage::FocusChanged {
-                    instance,
-                    block_id,
-                    block_type,
-                    via: focus.via.iter().map(|id| id.into_bytes()).collect(),
-                })));
+                opened.push(Outbound::from(Message::Editor(
+                    EditorMessage::FocusChanged {
+                        instance,
+                        block_id,
+                        block_type,
+                        via: focus.via.iter().map(|id| id.into_bytes()).collect(),
+                    },
+                )));
             }
             let presenting = entry.presenting || entry.presented;
             if presenting != entry.reported_presenting {
                 entry.reported_presenting = presenting;
-                opened.push(Outbound::from(Message::Editor(EditorMessage::PresentingChanged {
-                    instance,
-                    presenting,
-                })));
+                opened.push(Outbound::from(Message::Editor(
+                    EditorMessage::PresentingChanged {
+                        instance,
+                        presenting,
+                    },
+                )));
             }
             let mut reported = Vec::new();
             entry.host_values.report(
@@ -1615,11 +1627,13 @@ impl Instances {
             if entry.view != entry.reported_view {
                 entry.reported_view = entry.view;
                 if let Some(view) = entry.view {
-                    opened.push(Outbound::from(Message::Editor(EditorMessage::ViewChanged {
-                        instance,
-                        view: view.rect,
-                        scale: view.scale,
-                    })));
+                    opened.push(Outbound::from(Message::Editor(
+                        EditorMessage::ViewChanged {
+                            instance,
+                            view: view.rect,
+                            scale: view.scale,
+                        },
+                    )));
                 }
             }
             screens.extend(regions);
