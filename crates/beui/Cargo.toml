@@ -71,6 +71,7 @@ web-sys = { version = "0.3", optional = true, features = [
 ] }
 
 [dev-dependencies]
+bench = { path = "../bench" }
 raw-window-handle = "0.6"
 text-editor-core = { path = "../text-editor-core" }
 wgpu = { version = "29", default-features = false }

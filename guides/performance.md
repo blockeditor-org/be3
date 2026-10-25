@@ -5,8 +5,8 @@ Measuring and profiling beui's performance, and the ideas already tried.
 `//crates/bench:suite` is every benchmark in one directory, built in release whatever the
 command asks: the runner `bench`, each benchmark program under `programs/`, and block-app
 with its plugins for the end-to-end ones. `./scripts/buck run //crates/bench:suite -- list`
-lists them; `-- run [--rounds=N] [NAME...]` runs those whose name contains a NAME (all by
-default) N times (3) and prints each metric's fastest, median and slowest. A benchmark is
+lists them; `-- run [--rounds=N] [NAME...]` runs the benchmark each NAME names, or else those
+whose name contains it (all by default), N times (3) and prints each metric's fastest, median and slowest. A benchmark is
 a program that reports its metrics through the `bench` crate (`bench::time`, `count`,
 `record`), which appends them to the file `BENCH_METRICS` names and does nothing without
 it; adding one is a line in `BENCHMARKS` (crates/bench/src/suite.rs) and an entry in the

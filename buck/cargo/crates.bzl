@@ -2161,6 +2161,7 @@ crates = {
                         "deps": [
                             "//crates/be-commit:be-commit",
                             "//crates/be-store:be-store",
+                            "//crates/bench:bench",
                             "//third-party/rust:serde-1.0.228",
                             "//third-party/rust:uuid-1.23.2",
                         ],
@@ -2168,7 +2169,9 @@ crates = {
                     },
                 },
                 "features": [],
-                "test_deps": [],
+                "test_deps": [
+                    "//crates/bench:bench",
+                ],
                 "test_features": [],
             },
             "linux-arm64": {
@@ -2184,6 +2187,7 @@ crates = {
                         "deps": [
                             "//crates/be-commit:be-commit",
                             "//crates/be-store:be-store",
+                            "//crates/bench:bench",
                             "//third-party/rust:serde-1.0.228",
                             "//third-party/rust:uuid-1.23.2",
                         ],
@@ -2191,7 +2195,9 @@ crates = {
                     },
                 },
                 "features": [],
-                "test_deps": [],
+                "test_deps": [
+                    "//crates/bench:bench",
+                ],
                 "test_features": [],
             },
             "linux-x86_64": {
@@ -2207,6 +2213,7 @@ crates = {
                         "deps": [
                             "//crates/be-commit:be-commit",
                             "//crates/be-store:be-store",
+                            "//crates/bench:bench",
                             "//third-party/rust:serde-1.0.228",
                             "//third-party/rust:uuid-1.23.2",
                         ],
@@ -2214,7 +2221,9 @@ crates = {
                     },
                 },
                 "features": [],
-                "test_deps": [],
+                "test_deps": [
+                    "//crates/bench:bench",
+                ],
                 "test_features": [],
             },
             "macos-arm64": {
@@ -2230,6 +2239,7 @@ crates = {
                         "deps": [
                             "//crates/be-commit:be-commit",
                             "//crates/be-store:be-store",
+                            "//crates/bench:bench",
                             "//third-party/rust:serde-1.0.228",
                             "//third-party/rust:uuid-1.23.2",
                         ],
@@ -2237,7 +2247,9 @@ crates = {
                     },
                 },
                 "features": [],
-                "test_deps": [],
+                "test_deps": [
+                    "//crates/bench:bench",
+                ],
                 "test_features": [],
             },
             "macos-x86_64": {
@@ -2253,6 +2265,7 @@ crates = {
                         "deps": [
                             "//crates/be-commit:be-commit",
                             "//crates/be-store:be-store",
+                            "//crates/bench:bench",
                             "//third-party/rust:serde-1.0.228",
                             "//third-party/rust:uuid-1.23.2",
                         ],
@@ -2260,7 +2273,9 @@ crates = {
                     },
                 },
                 "features": [],
-                "test_deps": [],
+                "test_deps": [
+                    "//crates/bench:bench",
+                ],
                 "test_features": [],
             },
             "wasi": {
@@ -2315,6 +2330,7 @@ crates = {
                         "deps": [
                             "//crates/be-commit:be-commit",
                             "//crates/be-store:be-store",
+                            "//crates/bench:bench",
                             "//third-party/rust:serde-1.0.228",
                             "//third-party/rust:uuid-1.23.2",
                         ],
@@ -2322,7 +2338,9 @@ crates = {
                     },
                 },
                 "features": [],
-                "test_deps": [],
+                "test_deps": [
+                    "//crates/bench:bench",
+                ],
                 "test_features": [],
             },
             "windows-x86_64": {
@@ -2338,6 +2356,7 @@ crates = {
                         "deps": [
                             "//crates/be-commit:be-commit",
                             "//crates/be-store:be-store",
+                            "//crates/bench:bench",
                             "//third-party/rust:serde-1.0.228",
                             "//third-party/rust:uuid-1.23.2",
                         ],
@@ -2345,7 +2364,9 @@ crates = {
                     },
                 },
                 "features": [],
-                "test_deps": [],
+                "test_deps": [
+                    "//crates/bench:bench",
+                ],
                 "test_features": [],
             },
         },
@@ -5169,6 +5190,14 @@ crates = {
                 "test_deps": [],
                 "test_features": [],
             },
+            "wasi-guest": {
+                "binaries": {},
+                "deps": [],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
             "windows-arm64": {
                 "binaries": {
                     "bench": [],
@@ -5234,6 +5263,7 @@ crates = {
                 "examples": {
                     "survey": {
                         "deps": [
+                            "//crates/bench:bench",
                             "//crates/beui-adapter-android:beui-adapter-android",
                             "//crates/beui-adapter-space:beui-adapter-space",
                             "//crates/beui-components-styled:beui-components-styled",
@@ -5260,6 +5290,7 @@ crates = {
                     },
                     "text-bench": {
                         "deps": [
+                            "//crates/bench:bench",
                             "//crates/beui-adapter-android:beui-adapter-android",
                             "//crates/beui-adapter-space:beui-adapter-space",
                             "//crates/beui-components-styled:beui-components-styled",
@@ -5291,6 +5322,7 @@ crates = {
                     "window",
                 ],
                 "test_deps": [
+                    "//crates/bench:bench",
                     "//crates/text-editor-core:text-editor-core",
                     "//third-party/rust:raw-window-handle-0.6.2",
                     "//third-party/rust:wgpu-29.0.3",
@@ -5323,6 +5355,7 @@ crates = {
                 "examples": {
                     "survey": {
                         "deps": [
+                            "//crates/bench:bench",
                             "//crates/beui-adapter-headless:beui-adapter-headless",
                             "//crates/beui-adapter-space:beui-adapter-space",
                             "//crates/beui-adapter-winit:beui-adapter-winit",
@@ -5350,6 +5383,7 @@ crates = {
                     },
                     "text-bench": {
                         "deps": [
+                            "//crates/bench:bench",
                             "//crates/beui-adapter-headless:beui-adapter-headless",
                             "//crates/beui-adapter-space:beui-adapter-space",
                             "//crates/beui-adapter-winit:beui-adapter-winit",
@@ -5382,6 +5416,7 @@ crates = {
                     "window",
                 ],
                 "test_deps": [
+                    "//crates/bench:bench",
                     "//crates/text-editor-core:text-editor-core",
                     "//third-party/rust:raw-window-handle-0.6.2",
                     "//third-party/rust:wgpu-29.0.3",
@@ -5414,6 +5449,7 @@ crates = {
                 "examples": {
                     "survey": {
                         "deps": [
+                            "//crates/bench:bench",
                             "//crates/beui-adapter-headless:beui-adapter-headless",
                             "//crates/beui-adapter-space:beui-adapter-space",
                             "//crates/beui-adapter-winit:beui-adapter-winit",
@@ -5441,6 +5477,7 @@ crates = {
                     },
                     "text-bench": {
                         "deps": [
+                            "//crates/bench:bench",
                             "//crates/beui-adapter-headless:beui-adapter-headless",
                             "//crates/beui-adapter-space:beui-adapter-space",
                             "//crates/beui-adapter-winit:beui-adapter-winit",
@@ -5473,6 +5510,7 @@ crates = {
                     "window",
                 ],
                 "test_deps": [
+                    "//crates/bench:bench",
                     "//crates/text-editor-core:text-editor-core",
                     "//third-party/rust:raw-window-handle-0.6.2",
                     "//third-party/rust:wgpu-29.0.3",
@@ -5505,6 +5543,7 @@ crates = {
                 "examples": {
                     "survey": {
                         "deps": [
+                            "//crates/bench:bench",
                             "//crates/beui-adapter-headless:beui-adapter-headless",
                             "//crates/beui-adapter-space:beui-adapter-space",
                             "//crates/beui-adapter-winit:beui-adapter-winit",
@@ -5532,6 +5571,7 @@ crates = {
                     },
                     "text-bench": {
                         "deps": [
+                            "//crates/bench:bench",
                             "//crates/beui-adapter-headless:beui-adapter-headless",
                             "//crates/beui-adapter-space:beui-adapter-space",
                             "//crates/beui-adapter-winit:beui-adapter-winit",
@@ -5564,6 +5604,7 @@ crates = {
                     "window",
                 ],
                 "test_deps": [
+                    "//crates/bench:bench",
                     "//crates/text-editor-core:text-editor-core",
                     "//third-party/rust:raw-window-handle-0.6.2",
                     "//third-party/rust:wgpu-29.0.3",
@@ -5596,6 +5637,7 @@ crates = {
                 "examples": {
                     "survey": {
                         "deps": [
+                            "//crates/bench:bench",
                             "//crates/beui-adapter-headless:beui-adapter-headless",
                             "//crates/beui-adapter-space:beui-adapter-space",
                             "//crates/beui-adapter-winit:beui-adapter-winit",
@@ -5623,6 +5665,7 @@ crates = {
                     },
                     "text-bench": {
                         "deps": [
+                            "//crates/bench:bench",
                             "//crates/beui-adapter-headless:beui-adapter-headless",
                             "//crates/beui-adapter-space:beui-adapter-space",
                             "//crates/beui-adapter-winit:beui-adapter-winit",
@@ -5655,6 +5698,7 @@ crates = {
                     "window",
                 ],
                 "test_deps": [
+                    "//crates/bench:bench",
                     "//crates/text-editor-core:text-editor-core",
                     "//third-party/rust:raw-window-handle-0.6.2",
                     "//third-party/rust:wgpu-29.0.3",
@@ -5736,6 +5780,7 @@ crates = {
                 "examples": {
                     "survey": {
                         "deps": [
+                            "//crates/bench:bench",
                             "//crates/beui-adapter-headless:beui-adapter-headless",
                             "//crates/beui-adapter-space:beui-adapter-space",
                             "//crates/beui-adapter-winit:beui-adapter-winit",
@@ -5763,6 +5808,7 @@ crates = {
                     },
                     "text-bench": {
                         "deps": [
+                            "//crates/bench:bench",
                             "//crates/beui-adapter-headless:beui-adapter-headless",
                             "//crates/beui-adapter-space:beui-adapter-space",
                             "//crates/beui-adapter-winit:beui-adapter-winit",
@@ -5795,6 +5841,7 @@ crates = {
                     "window",
                 ],
                 "test_deps": [
+                    "//crates/bench:bench",
                     "//crates/text-editor-core:text-editor-core",
                     "//third-party/rust:raw-window-handle-0.6.2",
                     "//third-party/rust:wgpu-29.0.3",
@@ -5827,6 +5874,7 @@ crates = {
                 "examples": {
                     "survey": {
                         "deps": [
+                            "//crates/bench:bench",
                             "//crates/beui-adapter-headless:beui-adapter-headless",
                             "//crates/beui-adapter-space:beui-adapter-space",
                             "//crates/beui-adapter-winit:beui-adapter-winit",
@@ -5854,6 +5902,7 @@ crates = {
                     },
                     "text-bench": {
                         "deps": [
+                            "//crates/bench:bench",
                             "//crates/beui-adapter-headless:beui-adapter-headless",
                             "//crates/beui-adapter-space:beui-adapter-space",
                             "//crates/beui-adapter-winit:beui-adapter-winit",
@@ -5886,6 +5935,7 @@ crates = {
                     "window",
                 ],
                 "test_deps": [
+                    "//crates/bench:bench",
                     "//crates/text-editor-core:text-editor-core",
                     "//third-party/rust:raw-window-handle-0.6.2",
                     "//third-party/rust:wgpu-29.0.3",
@@ -7341,6 +7391,7 @@ crates = {
                 "examples": {
                     "open-bench": {
                         "deps": [
+                            "//crates/bench:bench",
                             "//crates/beui-core:beui-core",
                             "//crates/beui-inspector:beui-inspector",
                             "//crates/beui-macros:beui_macros",
@@ -7355,6 +7406,7 @@ crates = {
                 },
                 "features": [],
                 "test_deps": [
+                    "//crates/bench:bench",
                     "//crates/beui-core:beui-core",
                     "//crates/beui-inspector:beui-inspector",
                     "//crates/beui-renderer-wgpu:beui-renderer-wgpu",
@@ -7379,6 +7431,7 @@ crates = {
                 "examples": {
                     "open-bench": {
                         "deps": [
+                            "//crates/bench:bench",
                             "//crates/beui-core:beui-core",
                             "//crates/beui-inspector:beui-inspector",
                             "//crates/beui-macros:beui_macros",
@@ -7393,6 +7446,7 @@ crates = {
                 },
                 "features": [],
                 "test_deps": [
+                    "//crates/bench:bench",
                     "//crates/beui-core:beui-core",
                     "//crates/beui-inspector:beui-inspector",
                     "//crates/beui-renderer-wgpu:beui-renderer-wgpu",
@@ -7417,6 +7471,7 @@ crates = {
                 "examples": {
                     "open-bench": {
                         "deps": [
+                            "//crates/bench:bench",
                             "//crates/beui-core:beui-core",
                             "//crates/beui-inspector:beui-inspector",
                             "//crates/beui-macros:beui_macros",
@@ -7431,6 +7486,7 @@ crates = {
                 },
                 "features": [],
                 "test_deps": [
+                    "//crates/bench:bench",
                     "//crates/beui-core:beui-core",
                     "//crates/beui-inspector:beui-inspector",
                     "//crates/beui-renderer-wgpu:beui-renderer-wgpu",
@@ -7455,6 +7511,7 @@ crates = {
                 "examples": {
                     "open-bench": {
                         "deps": [
+                            "//crates/bench:bench",
                             "//crates/beui-core:beui-core",
                             "//crates/beui-inspector:beui-inspector",
                             "//crates/beui-macros:beui_macros",
@@ -7469,6 +7526,7 @@ crates = {
                 },
                 "features": [],
                 "test_deps": [
+                    "//crates/bench:bench",
                     "//crates/beui-core:beui-core",
                     "//crates/beui-inspector:beui-inspector",
                     "//crates/beui-renderer-wgpu:beui-renderer-wgpu",
@@ -7493,6 +7551,7 @@ crates = {
                 "examples": {
                     "open-bench": {
                         "deps": [
+                            "//crates/bench:bench",
                             "//crates/beui-core:beui-core",
                             "//crates/beui-inspector:beui-inspector",
                             "//crates/beui-macros:beui_macros",
@@ -7507,6 +7566,7 @@ crates = {
                 },
                 "features": [],
                 "test_deps": [
+                    "//crates/bench:bench",
                     "//crates/beui-core:beui-core",
                     "//crates/beui-inspector:beui-inspector",
                     "//crates/beui-renderer-wgpu:beui-renderer-wgpu",
@@ -7543,6 +7603,7 @@ crates = {
                 "examples": {
                     "open-bench": {
                         "deps": [
+                            "//crates/bench:bench",
                             "//crates/beui-inspector:beui-inspector",
                             "//crates/beui-macros:beui_macros",
                             "//crates/beui:beui",
@@ -7554,6 +7615,7 @@ crates = {
                 },
                 "features": [],
                 "test_deps": [
+                    "//crates/bench:bench",
                     "//crates/beui-inspector:beui-inspector",
                     "//crates/block-ui-test:block-ui-test",
                 ],
@@ -7575,6 +7637,7 @@ crates = {
                 "examples": {
                     "open-bench": {
                         "deps": [
+                            "//crates/bench:bench",
                             "//crates/beui-core:beui-core",
                             "//crates/beui-inspector:beui-inspector",
                             "//crates/beui-macros:beui_macros",
@@ -7589,6 +7652,7 @@ crates = {
                 },
                 "features": [],
                 "test_deps": [
+                    "//crates/bench:bench",
                     "//crates/beui-core:beui-core",
                     "//crates/beui-inspector:beui-inspector",
                     "//crates/beui-renderer-wgpu:beui-renderer-wgpu",
@@ -7613,6 +7677,7 @@ crates = {
                 "examples": {
                     "open-bench": {
                         "deps": [
+                            "//crates/bench:bench",
                             "//crates/beui-core:beui-core",
                             "//crates/beui-inspector:beui-inspector",
                             "//crates/beui-macros:beui_macros",
@@ -7627,6 +7692,7 @@ crates = {
                 },
                 "features": [],
                 "test_deps": [
+                    "//crates/bench:bench",
                     "//crates/beui-core:beui-core",
                     "//crates/beui-inspector:beui-inspector",
                     "//crates/beui-renderer-wgpu:beui-renderer-wgpu",
@@ -14745,6 +14811,7 @@ crates = {
                 "examples": {
                     "canvas-bench": {
                         "deps": [
+                            "//crates/bench:bench",
                             "//crates/beui:beui",
                             "//crates/block-editor-beui:block-editor-beui",
                             "//crates/block-ui-test:block-ui-test",
@@ -14763,6 +14830,7 @@ crates = {
                 },
                 "features": [],
                 "test_deps": [
+                    "//crates/bench:bench",
                     "//crates/block-ui-test:block-ui-test",
                     "//crates/editors/counter/types:counter-types",
                 ],
@@ -14785,6 +14853,7 @@ crates = {
                 "examples": {
                     "canvas-bench": {
                         "deps": [
+                            "//crates/bench:bench",
                             "//crates/beui:beui",
                             "//crates/block-editor-beui:block-editor-beui",
                             "//crates/block-ui-test:block-ui-test",
@@ -14803,6 +14872,7 @@ crates = {
                 },
                 "features": [],
                 "test_deps": [
+                    "//crates/bench:bench",
                     "//crates/block-ui-test:block-ui-test",
                     "//crates/editors/counter/types:counter-types",
                 ],
@@ -14825,6 +14895,7 @@ crates = {
                 "examples": {
                     "canvas-bench": {
                         "deps": [
+                            "//crates/bench:bench",
                             "//crates/beui:beui",
                             "//crates/block-editor-beui:block-editor-beui",
                             "//crates/block-ui-test:block-ui-test",
@@ -14843,6 +14914,7 @@ crates = {
                 },
                 "features": [],
                 "test_deps": [
+                    "//crates/bench:bench",
                     "//crates/block-ui-test:block-ui-test",
                     "//crates/editors/counter/types:counter-types",
                 ],
@@ -14865,6 +14937,7 @@ crates = {
                 "examples": {
                     "canvas-bench": {
                         "deps": [
+                            "//crates/bench:bench",
                             "//crates/beui:beui",
                             "//crates/block-editor-beui:block-editor-beui",
                             "//crates/block-ui-test:block-ui-test",
@@ -14883,6 +14956,7 @@ crates = {
                 },
                 "features": [],
                 "test_deps": [
+                    "//crates/bench:bench",
                     "//crates/block-ui-test:block-ui-test",
                     "//crates/editors/counter/types:counter-types",
                 ],
@@ -14905,6 +14979,7 @@ crates = {
                 "examples": {
                     "canvas-bench": {
                         "deps": [
+                            "//crates/bench:bench",
                             "//crates/beui:beui",
                             "//crates/block-editor-beui:block-editor-beui",
                             "//crates/block-ui-test:block-ui-test",
@@ -14923,6 +14998,7 @@ crates = {
                 },
                 "features": [],
                 "test_deps": [
+                    "//crates/bench:bench",
                     "//crates/block-ui-test:block-ui-test",
                     "//crates/editors/counter/types:counter-types",
                 ],
@@ -14945,6 +15021,7 @@ crates = {
                 "examples": {
                     "canvas-bench": {
                         "deps": [
+                            "//crates/bench:bench",
                             "//crates/beui:beui",
                             "//crates/block-editor-beui:block-editor-beui",
                             "//crates/block-ui-test:block-ui-test",
@@ -14963,6 +15040,7 @@ crates = {
                 },
                 "features": [],
                 "test_deps": [
+                    "//crates/bench:bench",
                     "//crates/block-ui-test:block-ui-test",
                     "//crates/editors/counter/types:counter-types",
                 ],
@@ -14985,6 +15063,7 @@ crates = {
                 "examples": {
                     "canvas-bench": {
                         "deps": [
+                            "//crates/bench:bench",
                             "//crates/beui:beui",
                             "//crates/block-editor-beui:block-editor-beui",
                             "//crates/block-ui-test:block-ui-test",
@@ -15003,6 +15082,7 @@ crates = {
                 },
                 "features": [],
                 "test_deps": [
+                    "//crates/bench:bench",
                     "//crates/block-ui-test:block-ui-test",
                     "//crates/editors/counter/types:counter-types",
                 ],
@@ -15025,6 +15105,7 @@ crates = {
                 "examples": {
                     "canvas-bench": {
                         "deps": [
+                            "//crates/bench:bench",
                             "//crates/beui:beui",
                             "//crates/block-editor-beui:block-editor-beui",
                             "//crates/block-ui-test:block-ui-test",
@@ -15043,6 +15124,7 @@ crates = {
                 },
                 "features": [],
                 "test_deps": [
+                    "//crates/bench:bench",
                     "//crates/block-ui-test:block-ui-test",
                     "//crates/editors/counter/types:counter-types",
                 ],

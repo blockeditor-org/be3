@@ -855,6 +855,7 @@ version = "0.1.0"
 dependencies = [
  "be-commit",
  "be-store",
+ "bench",
  "serde",
  "uuid",
 ]
@@ -1101,6 +1102,7 @@ name = "beui"
 version = "0.1.0"
 dependencies = [
  "accesskit",
+ "bench",
  "beui-adapter-android",
  "beui-adapter-headless",
  "beui-adapter-space",
@@ -1272,6 +1274,7 @@ dependencies = [
 name = "beui-demo"
 version = "0.1.0"
 dependencies = [
+ "bench",
  "beui",
  "beui-core",
  "beui-inspector",
@@ -4342,6 +4345,7 @@ dependencies = [
 name = "infinite_canvas"
 version = "0.1.0"
 dependencies = [
+ "bench",
  "beui",
  "block-editor-beui",
  "block-ui-test",

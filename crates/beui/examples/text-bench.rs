@@ -109,6 +109,9 @@ impl Report {
         let count = self.frames.len();
         let total: Duration = self.frames.iter().sum();
         let at = |share: f64| self.frames[((count - 1) as f64 * share) as usize];
+        bench::time(&format!("{}.first", self.name), self.first);
+        bench::time(&format!("{}.median", self.name), at(0.5));
+        bench::time(&format!("{}.p90", self.name), at(0.9));
         println!(
             "{:<24} first {:>9.1?}  mean {:>9.1?}  median {:>9.1?}  p90 {:>9.1?}  ({count} frames)",
             self.name,

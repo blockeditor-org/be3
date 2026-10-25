@@ -7,7 +7,7 @@ const USAGE: &str = "usage: bench list
        bench [run] [--rounds=N] [--verbose] [NAME...]
        bench compare BASE [--rounds=N] [--verbose] [NAME...]
 Runs the benchmarks of the suite this program is in (guides/performance.md), each NAME
-picking those whose name contains it, ROUNDS times each (3 by default). compare runs
+picking the one it names or else those whose name contains it, ROUNDS times each (3 by default). compare runs
 them alternately from the suite at BASE and from this one, and prints each metric's
 fastest and median from both, and how much this suite's fastest differs from BASE's.";
 
@@ -49,10 +49,12 @@ fn run(arguments: &[String]) -> Result<(), String> {
         .iter()
         .filter(|benchmark| {
             options.names.is_empty()
-                || options
-                    .names
-                    .iter()
-                    .any(|name| benchmark.name.contains(name.as_str()))
+                || options.names.iter().any(|name| {
+                    match BENCHMARKS.iter().any(|named| named.name == name) {
+                        true => benchmark.name == name,
+                        false => benchmark.name.contains(name.as_str()),
+                    }
+                })
         })
         .collect();
     if chosen.is_empty() {
