@@ -2,6 +2,7 @@ use std::{sync::Arc, time::Duration};
 
 use block_plugin_api::{Message, PluginManifest, ScreenDamage};
 
+use super::calls::{EditorCall, Heard};
 use super::wire::Wire;
 use crate::{editors::plugin::discovery, host};
 use block_guest_host::Worker;
@@ -40,7 +41,7 @@ pub(super) struct Backend {
     worker: Option<Worker<platform::Channel>>,
     mailbox: Option<platform::Mailbox>,
     wire: Wire,
-    answered: Vec<Message>,
+    answered: Vec<Heard>,
     started: Duration,
     error: Option<String>,
 }
@@ -88,7 +89,7 @@ impl Backend {
         };
         for message in messages {
             match self.wire.send(message) {
-                Ok(answered) => self.answered.extend(answered),
+                Ok(answered) => self.answered.extend(answered.into_iter().map(Heard::Message)),
                 Err(error) => {
                     self.error.get_or_insert(error.to_string());
                 }
@@ -99,7 +100,17 @@ impl Backend {
         }
     }
 
-    pub(super) fn receive(&mut self) -> Vec<Message> {
+    pub(super) fn call(&mut self, instance: block_plugin_api::EditorInstanceId, call: EditorCall) {
+        let Some(worker) = &mut self.worker else {
+            return;
+        };
+        self.wire.call(instance, call);
+        if let Some(failure) = worker.queue(self.wire.take_outbound()) {
+            self.fail(failure);
+        }
+    }
+
+    pub(super) fn receive(&mut self) -> Vec<Heard> {
         self.poll();
         let Some(worker) = &mut self.worker else {
             return Vec::new();

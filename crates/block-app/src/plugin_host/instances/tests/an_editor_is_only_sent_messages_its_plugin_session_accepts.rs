@@ -25,7 +25,7 @@ fn an_editor_is_only_sent_messages_its_plugin_session_accepts() {
         preferences: block_plugin_api::Preferences::default(),
     }));
 
-    let opened = next_screens(&mut instances).opened;
+    let opened = next_screens(&mut instances).messages();
     assert!(
         opened
             .iter()
@@ -48,7 +48,7 @@ fn an_editor_is_only_sent_messages_its_plugin_session_accepts() {
     })
     .expect("the replica never answered the editor");
 
-    let carried = next_screens(&mut instances).opened;
+    let carried = next_screens(&mut instances).messages();
 
     assert!(
         carried

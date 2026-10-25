@@ -13,7 +13,7 @@ enum Sent {
 
 fn sent_once(instances: &mut Instances) -> Vec<Sent> {
     next_screens(instances)
-        .opened
+        .messages()
         .into_iter()
         .filter_map(|message| match message {
             Message::Editor(EditorMessage::Replica { .. }) => Some(Sent::Content),

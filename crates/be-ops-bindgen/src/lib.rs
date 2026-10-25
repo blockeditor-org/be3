@@ -1144,6 +1144,7 @@ impl Generator {
 
     fn embed_import(&self, _module: &Ident, methods: &[Method<'_>]) -> TokenStream {
         let mut cases = Vec::new();
+        let mut started_methods: Vec<TokenStream> = Vec::new();
         let mut arms = Vec::new();
         let mut direct_arms = Vec::new();
         let mut handles = BTreeSet::new();
@@ -1237,6 +1238,7 @@ impl Generator {
                 });
                 continue;
             }
+            started_methods.push(quote!(crate::__args::#constant));
             arms.push(quote! {
                 crate::__args::#constant => {
                     match ::be_ops::decode::<crate::__args::#args>(&started.args) {
@@ -1271,6 +1273,40 @@ impl Generator {
                 }
             }
         });
+        let accept = match arms.is_empty() {
+            true => quote! {
+                connection.complete(
+                    started.op,
+                    ::be_ops::Outcome::Err(::be_ops::OpError::Unsupported),
+                );
+                ::core::option::Option::None
+            },
+            false => quote! {
+                let op = started.op;
+                ::core::option::Option::Some(match started.method {
+                    #(#arms)*
+                    _ => {
+                        connection.complete(
+                            op,
+                            ::be_ops::Outcome::Err(::be_ops::OpError::Unsupported),
+                        );
+                        return ::core::option::Option::None;
+                    }
+                })
+            },
+        };
+        let accept_direct = match direct_arms.is_empty() {
+            true => quote! {
+                let _ = called;
+                ::core::option::Option::None
+            },
+            false => quote! {
+                ::core::option::Option::Some(match called.method() {
+                    #(#direct_arms)*
+                    _ => return ::core::option::Option::None,
+                })
+            },
+        };
         quote! {
             #(#handles)*
 
@@ -1284,24 +1320,16 @@ impl Generator {
                     connection: &mut ::be_ops::Connection,
                     started: ::be_ops::Started,
                 ) -> ::core::option::Option<Self> {
-                    let op = started.op;
-                    ::core::option::Option::Some(match started.method {
-                        #(#arms)*
-                        _ => {
-                            connection.complete(
-                                op,
-                                ::be_ops::Outcome::Err(::be_ops::OpError::Unsupported),
-                            );
-                            return ::core::option::Option::None;
-                        }
-                    })
+                    #accept
                 }
 
                 pub fn accept_direct(called: &::be_ops::Called) -> ::core::option::Option<Self> {
-                    ::core::option::Option::Some(match called.method() {
-                        #(#direct_arms)*
-                        _ => return ::core::option::Option::None,
-                    })
+                    #accept_direct
+                }
+
+                pub fn accepts(started: &::be_ops::Started) -> bool {
+                    let _ = started;
+                    false #(|| started.method == #started_methods)*
                 }
             }
         }

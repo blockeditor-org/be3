@@ -7,6 +7,7 @@ use block_plugin_api::{
     Occluder, RegionSize, ScreenPlacement, ScreenRequest, ScreenWindow, Size, TimedInput,
     ViewportMetrics, WebViewEvent, WebViewId,
 };
+use block_plugin_api::guest::shell;
 use block_ui::BlockCatalog;
 use geometry::{Rect, Vec2, pos2, vec2};
 use std::{
@@ -507,25 +508,15 @@ impl EditorSession {
             messages.push(Message::Editor(EditorMessage::LeaveFrame { instance }));
         }
         for action in self.host.take_bar_actions() {
-            messages.push(Message::Editor(EditorMessage::BarAction {
-                instance,
-                action,
-            }));
+            shell::run_bar_action(instance, action);
         }
         let menu = self.host.menu();
         if self.sent_menu != menu {
-            self.sent_menu = menu.clone();
-            messages.push(Message::Editor(EditorMessage::Menu {
-                instance,
-                entries: menu,
-            }));
+            shell::menu(instance, MenuEntry::flatten(&menu));
+            self.sent_menu = menu;
         }
         for (child, id) in self.host.take_child_menu_picks() {
-            messages.push(Message::Editor(EditorMessage::ChildMenuPick {
-                instance,
-                child,
-                id,
-            }));
+            shell::child_menu_pick(instance, child, id);
         }
         for shown in self.host.take_shown_presence() {
             messages.extend(replica(

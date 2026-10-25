@@ -14,7 +14,7 @@ fn the_view_a_screen_is_given_carries_its_scale() {
 
     let opened = instances.next_screens(PASS).opened;
 
-    assert!(opened.iter().any(|message| matches!(
+    assert!(Outbound::messages(&opened).iter().any(|message| matches!(
         message,
         Message::Editor(EditorMessage::ViewChanged {
             instance,

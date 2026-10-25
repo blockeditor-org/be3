@@ -8,7 +8,7 @@ use calendar_types::{Calendar, CalendarContent, CalendarEvent};
 
 fn history_states(instances: &mut Instances) -> Vec<Vec<HistoryState>> {
     next_screens(instances)
-        .opened
+        .messages()
         .into_iter()
         .filter_map(|message| match message {
             Message::Editor(EditorMessage::HistoryStates { states, .. }) => Some(states),

@@ -409,16 +409,6 @@ impl Screens {
                     session.presence_visible(*visible);
                 }
             }
-            Message::Editor(EditorMessage::ChildBar {
-                instance,
-                child,
-                action,
-                ..
-            }) => {
-                if let Some(session) = self.sessions.get(instance) {
-                    session.child_bar_action(*child, *action);
-                }
-            }
             Message::Editor(EditorMessage::ChildFocused {
                 instance, child, ..
             }) => {
@@ -488,11 +478,6 @@ impl Screens {
             }) => {
                 if let Some(session) = self.sessions.get(instance) {
                     session.host_value(key.clone(), value.clone());
-                }
-            }
-            Message::Editor(EditorMessage::MenuPick { instance, id }) => {
-                if let Some(session) = self.sessions.get(instance) {
-                    session.pick_menu(id.clone());
                 }
             }
             Message::Editor(EditorMessage::Close { instance }) => {
@@ -655,6 +640,15 @@ impl Screens {
             }
             _ => self.touch_everything(),
         }
+        true
+    }
+
+    pub(crate) fn call(&mut self, instance: EditorInstanceId, call: crate::wire::EditorCall) -> bool {
+        let Some(session) = self.sessions.get_mut(&instance) else {
+            return false;
+        };
+        call(session);
+        self.mark(instance);
         true
     }
 

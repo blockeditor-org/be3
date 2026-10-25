@@ -1,7 +1,7 @@
 use block_guest_abi::Flow;
 use block_plugin_api::{ErrorCode, Message, ProtocolError, ops::guest::Executor};
 
-use super::wire::Shared;
+use crate::wire::Shared;
 use crate::{Waker, runtime::Runtime};
 
 pub struct Editor {
@@ -54,7 +54,9 @@ impl Editor {
             .step(inbound, outbound)
             .map_err(|error| failed(format!("a frame did not decode: {error}")))?;
         let batch = self.wire.take_inbox();
-        let (messages, flow) = match self.runtime.step(batch, woken) {
+        let runtime = &mut self.runtime;
+        let stepped = self.executor.enter(|| runtime.step(batch, woken));
+        let (messages, flow) = match stepped {
             Ok(step) => (
                 step.outbound,
                 match step.closed {

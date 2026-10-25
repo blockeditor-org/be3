@@ -12,21 +12,13 @@ fn deepened(empty: &[u8], one: &[u8], levels: usize) -> Vec<u8> {
     bytes
 }
 
-fn menu_frame(levels: usize) -> Vec<u8> {
-    let message = |entries| {
-        let frame = encode_frame(&Message::Editor(EditorMessage::Menu {
-            instance: EditorInstanceId(3),
-            entries,
-        }))
-        .unwrap();
-        frame[4..].to_vec()
-    };
-    let empty = message(Vec::new());
-    let one = message(vec![MenuEntry::Submenu(MenuSubmenu::default())]);
-    let payload = deepened(&empty, &one, levels);
-    let mut frame = (payload.len() as u32).to_be_bytes().to_vec();
-    frame.extend_from_slice(&payload);
-    frame
+fn menu_items(levels: usize) -> Vec<MenuItem> {
+    (0..levels)
+        .map(|depth| MenuItem {
+            depth: depth as u32,
+            kind: MenuItemKind::Submenu(MenuHeading::default()),
+        })
+        .collect()
 }
 
 fn tray_value(levels: usize) -> Vec<u8> {
@@ -42,18 +34,13 @@ fn tray_value(levels: usize) -> Vec<u8> {
 }
 
 fn submenus(levels: usize) -> usize {
-    match decode_frame(&menu_frame(levels)).unwrap() {
-        Message::Editor(EditorMessage::Menu { entries, .. }) => {
-            let mut depth = 0;
-            let mut entries = entries;
-            while let Some(MenuEntry::Submenu(submenu)) = entries.pop() {
-                depth += 1;
-                entries = submenu.entries;
-            }
-            depth
-        }
-        _ => 0,
+    let mut entries = MenuEntry::nest(menu_items(levels)).unwrap();
+    let mut depth = 0;
+    while let Some(MenuEntry::Submenu(submenu)) = entries.pop() {
+        depth += 1;
+        entries = submenu.entries;
     }
+    depth
 }
 
 fn tray_levels(levels: usize) -> Option<usize> {
@@ -74,11 +61,11 @@ fn a_menu_nested_too_deeply_is_refused_while_decoding() {
         MAX_MENU_DEPTH,
         "a menu as deep as the limit decodes"
     );
-    for levels in [MAX_MENU_DEPTH + 1, 100_000] {
+    for levels in [MAX_MENU_DEPTH + 1, MAX_COLLECTION_ITEMS] {
         assert_eq!(
-            decode_frame(&menu_frame(levels)),
+            MenuEntry::nest(menu_items(levels)),
             Err(DecodeError::LimitExceeded("menu depth")),
-            "a menu {levels} submenus deep is refused before it can overflow the stack"
+            "a menu {levels} submenus deep is refused"
         );
     }
 

@@ -297,7 +297,6 @@ impl EditorMessage {
             | Self::Resized { .. }
             | Self::LeaveFrame { .. }
             | Self::Stopped { .. }
-            | Self::BarAction { .. }
             | Self::Close { .. }
             | Self::DragLeft { .. }
             | Self::FileDrop { .. }
@@ -320,17 +319,13 @@ impl EditorMessage {
             | Self::ArtifactRegenerated { .. }
             | Self::Presence { .. }
             | Self::ChildReplaced { .. }
-            | Self::ChildBar { .. }
             | Self::ChildFocused { .. }
             | Self::CopyText { .. }
             | Self::CopyImage { .. }
             | Self::Paste { .. }
             | Self::AspectRatio { .. }
             | Self::IntrinsicSize { .. }
-            | Self::Performance { .. }
-            | Self::Menu { .. }
-            | Self::MenuPick { .. }
-            | Self::ChildMenuPick { .. } => {}
+            | Self::Performance { .. } => {}
         }
     }
 }

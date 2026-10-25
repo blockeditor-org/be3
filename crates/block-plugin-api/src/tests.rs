@@ -102,7 +102,6 @@ mod an_intercepted_key_round_trips;
 mod artifact_messages_round_trip;
 mod artifact_watch_messages_round_trip;
 mod audio_messages_round_trip;
-mod bar_actions_round_trip;
 mod block_commands_round_trip;
 mod block_content_and_operations_round_trip;
 mod block_types_round_trip;

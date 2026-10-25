@@ -4,12 +4,13 @@ use block_plugin_api::{
     ArtifactDescription, AudioCommand, BlockCommand, BlockImport, BlockPick, ChildContent, ChildId,
     ChildMode, ChildPlacement, ChildPlacements, ChildStatus, CreationOutcome, DataListing,
     EditorInstanceId, EditorMessage, EditorRegion, FetchResult, FileSave, FrameReport, FrameSpec,
-    HostPanel, HostReply, HostRequest, Message, Monitor, Occluder, PerformanceMeasurement,
+    HostPanel, HostReply, HostRequest, MenuEntry, Message, Monitor, Occluder,
+    PerformanceMeasurement,
     RegenerationOutcome, RegionSize, ScreenId, ScreenLayout, ScreenRequest, ScreenSet,
     ScreenWindow, Size, Stopped, ViewChange, WatchedContent, WebViewCommand, WebViewEvent,
     WebViewId,
 };
-use block_plugin_api::{DescribedAction, WindowRequests};
+use block_plugin_api::{DescribedAction, WindowRequests, embed::shell::Call as ShellCall};
 use block_type_guest::editor::{FromEditor, Gesture};
 use std::{
     collections::{HashMap, HashSet},
@@ -21,6 +22,7 @@ use super::{
     BlockPickRequest, ChildCommit, EditorBlock, HostChild, HostChildStatus, InstanceRole,
     MAX_LIVE_CHILDREN,
     audio::AudioPlayer,
+    calls::{self, EditorCall, Outbound},
     heads::{HeadReads, Heads},
     host_values::{Published, Watched},
     input::{BlockDrag, BlockDragEvent, FileDropEvent, InputAdapter, viewport_metrics},
@@ -66,7 +68,7 @@ pub(super) struct Instances {
     head_reads: HeadReads,
     published: Published,
     shell: Option<EditorInstanceId>,
-    waiting: HashMap<EditorInstanceId, Vec<Message>>,
+    waiting: HashMap<EditorInstanceId, Vec<Outbound>>,
     gone: HashSet<EditorInstanceId>,
     serial: u64,
 }
@@ -113,7 +115,7 @@ struct Instance {
     created: Option<Result<Uuid, String>>,
     screens: HashMap<EditorRegion, Screen>,
     opened: bool,
-    deferred: Vec<Message>,
+    deferred: Vec<Outbound>,
     opens: Vec<OpenRequest>,
     block_drags: Vec<BlockDrag>,
     block_commands: Vec<(Uuid, BlockCommand)>,
@@ -607,8 +609,15 @@ impl Holes {
 }
 
 pub(super) struct NextScreens {
-    pub(super) opened: Vec<Message>,
+    pub(super) opened: Vec<Outbound>,
     pub(super) screens: Vec<ScreenRequest>,
+}
+
+#[cfg(test)]
+impl NextScreens {
+    pub(super) fn messages(&self) -> Vec<Message> {
+        Outbound::messages(&self.opened)
+    }
 }
 
 impl Instances {
@@ -642,15 +651,11 @@ impl Instances {
         });
     }
 
-    pub(super) fn hold_unreported(&mut self, messages: Vec<Message>) -> Vec<Message> {
+    pub(super) fn hold_unreported(&mut self, messages: Vec<Outbound>) -> Vec<Outbound> {
         let mut passed = Vec::with_capacity(messages.len());
         for message in messages {
-            match &message {
-                Message::Editor(editor)
-                    if !matches!(editor, EditorMessage::Close { .. })
-                        && !self.entries.contains_key(&editor.instance()) =>
-                {
-                    let instance = editor.instance();
+            match message.instance() {
+                Some(instance) if !message.closes() && !self.entries.contains_key(&instance) => {
                     if !self.gone.contains(&instance) {
                         self.waiting.entry(instance).or_default().push(message);
                     }
@@ -661,7 +666,7 @@ impl Instances {
         passed
     }
 
-    pub(super) fn take_reported(&mut self) -> Vec<Message> {
+    pub(super) fn take_reported(&mut self) -> Vec<Outbound> {
         if self.waiting.is_empty() {
             return Vec::new();
         }
@@ -677,32 +682,31 @@ impl Instances {
             .collect()
     }
 
-    pub(super) fn gate(&mut self, messages: Vec<Message>) -> Vec<Message> {
+    pub(super) fn gate(&mut self, messages: Vec<Outbound>) -> Vec<Outbound> {
         let mut allowed = Vec::with_capacity(messages.len());
         for message in messages {
-            match &message {
-                Message::Editor(editor) => {
-                    let instance = editor.instance();
-                    match self.entries.get_mut(&instance) {
-                        Some(entry) if entry.opened => allowed.push(message),
-                        Some(entry) => entry.deferred.push(message),
-                        None if matches!(editor, EditorMessage::Close { .. }) => {
-                            allowed.push(message)
-                        }
-                        None => {}
-                    }
+            if let Some(instance) = message.instance() {
+                match self.entries.get_mut(&instance) {
+                    Some(entry) if entry.opened => allowed.push(message),
+                    Some(entry) => entry.deferred.push(message),
+                    None if message.closes() => allowed.push(message),
+                    None => {}
                 }
-                Message::ChildStatuses(statuses) => {
+                continue;
+            }
+            match &message {
+                Outbound::Message(Message::ChildStatuses(statuses)) => {
                     let opened: Vec<_> = statuses
                         .iter()
                         .filter(|status| self.is_opened(status.instance))
                         .cloned()
                         .collect();
                     if !opened.is_empty() {
-                        allowed.push(Message::ChildStatuses(opened));
+                        allowed.push(Message::ChildStatuses(opened).into());
                     }
                 }
-                Message::Input(batch) if !self.announced.contains(&batch.screen) => {}
+                Outbound::Message(Message::Input(batch))
+                    if !self.announced.contains(&batch.screen) => {}
                 _ => allowed.push(message),
             }
         }
@@ -1279,11 +1283,11 @@ impl Instances {
             .unwrap_or_default()
     }
 
-    pub(super) fn menu_pick(&mut self, instance: EditorInstanceId, id: String) -> Vec<Message> {
+    pub(super) fn menu_pick(&mut self, instance: EditorInstanceId, id: String) -> Vec<Outbound> {
         if !self.entries.contains_key(&instance) {
             return Vec::new();
         }
-        vec![Message::Editor(EditorMessage::MenuPick { instance, id })]
+        vec![Outbound::Editor(instance, EditorCall::MenuPick(id))]
     }
 
     pub(super) fn take_child_menu_picks(
@@ -1452,7 +1456,7 @@ impl Instances {
                     be_types_host::plain_of(Uuid::from_bytes(descriptor.block_type))
                         == be_types_host::Plain::File;
             }
-            opened.push(Message::BlockTypes(block_types));
+            opened.push(Outbound::from(Message::BlockTypes(block_types)));
         }
         for instance in instances {
             let Some(entry) = self.entries.get_mut(&instance) else {
@@ -1481,7 +1485,7 @@ impl Instances {
                 entry.opened = true;
                 let account_id = account.into_bytes();
                 let organization_id = organization.into_bytes();
-                opened.push(match entry.role {
+                opened.push(Outbound::from(match entry.role {
                     InstanceRole::Editor(editor, block) => Message::Editor(EditorMessage::Open {
                         instance,
                         editor: editor.into_bytes(),
@@ -1519,7 +1523,7 @@ impl Instances {
                             data: entry.artifact.data.clone(),
                         })
                     }
-                });
+                }));
                 let mut statuses: Vec<_> = entry
                     .screens
                     .values()
@@ -1527,19 +1531,21 @@ impl Instances {
                     .collect();
                 statuses.sort_by_key(|status| status.child.0);
                 if !statuses.is_empty() {
-                    opened.push(Message::ChildStatuses(statuses));
+                    opened.push(Outbound::from(Message::ChildStatuses(statuses)));
                 }
                 let visible = presence_wanted(instance);
                 if visible && entry.presence_visible != Some(true) {
                     entry.presence_visible = Some(true);
-                    opened.push(Message::Editor(EditorMessage::Presence {
+                    opened.push(Outbound::from(Message::Editor(EditorMessage::Presence {
                         instance,
                         visible,
-                    }));
+                    })));
                 }
             }
             opened.append(&mut entry.deferred);
-            entry.relay_frames(instance, &mut opened);
+            let mut relayed = Vec::new();
+            entry.relay_frames(instance, &mut relayed);
+            opened.extend(relayed.into_iter().map(Outbound::from));
             let stale = std::mem::take(&mut entry.stale);
             if stale || graph_moved {
                 entry.reattach(instance);
@@ -1550,25 +1556,27 @@ impl Instances {
                 let editable = crate::be::access(block.id).can_edit();
                 if entry.reported_editable != Some(editable) {
                     entry.reported_editable = Some(editable);
-                    opened.push(Message::Editor(EditorMessage::EditabilityChanged {
+                    opened.push(Outbound::from(Message::Editor(EditorMessage::EditabilityChanged {
                         instance,
                         editable,
-                    }));
+                    })));
                 }
             }
-            opened.extend(entry.blocks_messages(instance));
+            opened.extend(entry.blocks_messages(instance).into_iter().map(Outbound::from));
             if stale {
-                opened.extend(entry.content_messages(instance));
+                opened.extend(entry.content_messages(instance).into_iter().map(Outbound::from));
             }
             if (stale || graph_moved)
                 && let Some(message) = entry.history_message(instance)
             {
-                opened.push(message);
+                opened.push(Outbound::from(message));
             }
             if stale || graph_moved {
+                let mut requested = Vec::new();
                 entry
                     .heads
-                    .request(instance, self.epoch, &self.head_reads, &mut opened);
+                    .request(instance, self.epoch, &self.head_reads, &mut requested);
+                opened.extend(requested.into_iter().map(Outbound::from));
             }
             if stale || graph_moved {
                 entry.name_content();
@@ -1581,35 +1589,37 @@ impl Instances {
                     }
                     None => (None, [0; 16]),
                 };
-                opened.push(Message::Editor(EditorMessage::FocusChanged {
+                opened.push(Outbound::from(Message::Editor(EditorMessage::FocusChanged {
                     instance,
                     block_id,
                     block_type,
                     via: focus.via.iter().map(|id| id.into_bytes()).collect(),
-                }));
+                })));
             }
             let presenting = entry.presenting || entry.presented;
             if presenting != entry.reported_presenting {
                 entry.reported_presenting = presenting;
-                opened.push(Message::Editor(EditorMessage::PresentingChanged {
+                opened.push(Outbound::from(Message::Editor(EditorMessage::PresentingChanged {
                     instance,
                     presenting,
-                }));
+                })));
             }
+            let mut reported = Vec::new();
             entry.host_values.report(
                 instance,
                 self.shell == Some(instance),
                 &self.published,
-                &mut opened,
+                &mut reported,
             );
+            opened.extend(reported.into_iter().map(Outbound::from));
             if entry.view != entry.reported_view {
                 entry.reported_view = entry.view;
                 if let Some(view) = entry.view {
-                    opened.push(Message::Editor(EditorMessage::ViewChanged {
+                    opened.push(Outbound::from(Message::Editor(EditorMessage::ViewChanged {
                         instance,
                         view: view.rect,
                         scale: view.scale,
-                    }));
+                    })));
                 }
             }
             screens.extend(regions);
@@ -1617,11 +1627,13 @@ impl Instances {
         NextScreens { opened, screens }
     }
 
-    pub(super) fn configure(&mut self, messages: &[Message]) -> Option<Message> {
+    pub(super) fn configure(&mut self, messages: &[Outbound]) -> Option<Message> {
         let configures = messages.iter().any(|message| {
             matches!(
                 message,
-                Message::Screens(_) | Message::Editor(EditorMessage::ViewChanged { .. })
+                Outbound::Message(
+                    Message::Screens(_) | Message::Editor(EditorMessage::ViewChanged { .. })
+                )
             )
         });
         if !configures {
@@ -1630,6 +1642,9 @@ impl Instances {
         self.serial += 1;
         let serial = self.serial;
         for message in messages {
+            let Outbound::Message(message) = message else {
+                continue;
+            };
             match message {
                 Message::Screens(set) => {
                     for request in &set.screens {
@@ -2430,16 +2445,18 @@ impl Instances {
         instance: EditorInstanceId,
         region: EditorRegion,
         actions: Vec<(ChildId, block_plugin_api::BarAction)>,
-    ) -> Vec<Message> {
+    ) -> Vec<Outbound> {
         actions
             .into_iter()
             .map(|(child, action)| {
-                Message::Editor(EditorMessage::ChildBar {
+                Outbound::Editor(
                     instance,
-                    region,
-                    child,
-                    action,
-                })
+                    EditorCall::ChildBar {
+                        region,
+                        child,
+                        action,
+                    },
+                )
             })
             .collect()
     }
@@ -2760,6 +2777,30 @@ impl Instances {
         true
     }
 
+    pub(super) fn shell_call(&mut self, call: ShellCall) -> bool {
+        let instance = calls::instance_of(&call);
+        let preview = self
+            .entries
+            .get(&instance)
+            .and_then(|entry| entry.role.block())
+            .is_some_and(|block| crate::be::revisions::source(block.id).is_some());
+        if preview && !matches!(&call, ShellCall::Menu { .. }) {
+            return false;
+        }
+        let Some(entry) = self.entries.get_mut(&instance) else {
+            return false;
+        };
+        match call {
+            ShellCall::RunBarAction { action, .. } => entry.bar_actions.push(action),
+            ShellCall::Menu { items, .. } => match MenuEntry::nest(items) {
+                Ok(menu) => entry.menu = menu,
+                Err(_) => return false,
+            },
+            ShellCall::ChildMenuPick { child, id, .. } => entry.child_menu_picks.push((child, id)),
+        }
+        true
+    }
+
     pub(super) fn editor_message(&mut self, message: EditorMessage) -> bool {
         let preview = self
             .entries
@@ -2777,7 +2818,6 @@ impl Instances {
                     | EditorMessage::WatchArtifacts { .. }
                     | EditorMessage::WatchHostValue { .. }
                     | EditorMessage::Focused { .. }
-                    | EditorMessage::Menu { .. }
                     | EditorMessage::ChangeView { .. }
                     | EditorMessage::Stopped { .. }
                     | EditorMessage::CopyText { .. }
@@ -3216,31 +3256,6 @@ impl Instances {
                     return false;
                 };
                 entry.leaving = true;
-                true
-            }
-            EditorMessage::BarAction { instance, action } => {
-                let Some(entry) = self.entries.get_mut(&instance) else {
-                    return false;
-                };
-                entry.bar_actions.push(action);
-                true
-            }
-            EditorMessage::Menu { instance, entries } => {
-                let Some(entry) = self.entries.get_mut(&instance) else {
-                    return false;
-                };
-                entry.menu = entries;
-                true
-            }
-            EditorMessage::ChildMenuPick {
-                instance,
-                child,
-                id,
-            } => {
-                let Some(entry) = self.entries.get_mut(&instance) else {
-                    return false;
-                };
-                entry.child_menu_picks.push((child, id));
                 true
             }
             EditorMessage::ChangeView { instance, change } => {

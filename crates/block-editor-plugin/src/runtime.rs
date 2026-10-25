@@ -5,6 +5,7 @@ use crate::{
     screens::Screens,
     session::{ClientSession, State},
     wasm::Surfaces,
+    wire::Delivery,
 };
 
 pub(crate) struct Step {
@@ -41,12 +42,19 @@ impl Runtime {
         self.session.hello()
     }
 
-    pub(crate) fn step(&mut self, batch: Vec<Message>, woken: bool) -> Result<Step, String> {
+    pub(crate) fn step(&mut self, batch: Vec<Delivery>, woken: bool) -> Result<Step, String> {
         let mut changed = woken;
         let mut draw = false;
         let mut painting = false;
         let mut outbound = Vec::new();
-        for message in batch {
+        for delivery in batch {
+            let message = match delivery {
+                Delivery::Message(message) => message,
+                Delivery::Editor(instance, call) => {
+                    changed |= self.screens.call(instance, call);
+                    continue;
+                }
+            };
             if matches!(message, Message::DrawFrame { .. }) {
                 draw = true;
             }

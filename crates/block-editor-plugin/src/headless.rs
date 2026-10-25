@@ -1,26 +1,55 @@
-use block_plugin_api::{EditorInstanceId, Message, ScreenLayout, ScreenPlacement};
+use block_plugin_api::{
+    EditorInstanceId, Message, ScreenLayout, ScreenPlacement, ops::guest::Executor,
+};
 
 use crate::{
     EditorHost, Frame, Instance, Waker,
     editor_session::EditorSession,
     screens::Screens,
     session::{ClientSession, State},
+    wire::{Delivery, Shared},
 };
 
 pub struct HeadlessPlugin {
     session: ClientSession,
     screens: Screens,
     drawn: bool,
+    wire: Shared,
+    executor: Executor,
+    frames: Vec<Vec<u8>>,
 }
 
 impl HeadlessPlugin {
     pub fn new(id: &str, name: &str, version: &str) -> Self {
         crate::clock::restart();
+        let wire = Shared::default();
+        let executor = wire.executor();
         Self {
             session: ClientSession::new(id, name, version),
             screens: Screens::new(Vec::new(), Waker::default()),
             drawn: false,
+            wire,
+            executor,
+            frames: Vec::new(),
         }
+    }
+
+    pub fn deliver(&mut self, frames: Vec<Vec<u8>>) -> Result<Vec<Message>, String> {
+        self.executor.step(frames, &mut self.frames)?;
+        let mut replies = Vec::new();
+        for delivery in self.wire.take_inbox() {
+            match delivery {
+                Delivery::Message(message) => replies.extend(self.receive(message)),
+                Delivery::Editor(instance, call) => {
+                    self.screens.call(instance, call);
+                }
+            }
+        }
+        Ok(replies)
+    }
+
+    pub fn take_frames(&mut self) -> Vec<Vec<u8>> {
+        std::mem::take(&mut self.frames)
     }
 
     pub fn hello(&self) -> Message {
@@ -67,7 +96,11 @@ impl HeadlessPlugin {
         if std::mem::take(&mut self.drawn) {
             messages.push(Message::Frame(self.screens.commit()));
         }
-        messages.extend(self.screens.outbound());
+        let screens = &mut self.screens;
+        messages.extend(self.executor.enter(|| screens.outbound()));
+        if let Err(error) = self.executor.step(Vec::new(), &mut self.frames) {
+            panic!("the headless plugin's executor failed: {error}");
+        }
         messages
     }
 

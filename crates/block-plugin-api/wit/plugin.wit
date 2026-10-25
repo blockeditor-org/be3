@@ -2,11 +2,18 @@ package be3:plugin@0.1.0;
 
 /// What an editor plugin offers its host.
 interface plugin {
-    use types.{frame-commit, opening, screen-request};
+    use types.{editor-region, frame-commit, opening, screen-request};
+    use shell-types.{bar-action, child-id};
 
     /// An editor instance. Dropping it closes it.
     resource editor {
         constructor(opening: opening);
+
+        /// The user picked a command of the editor's menu.
+        menu-pick: func(id: string);
+
+        /// The user ran an action of the bar of a child the editor placed.
+        child-bar: func(region: editor-region, child: child-id, action: bar-action);
     }
 
     /// The screens the host shows, replacing the ones it showed before.
@@ -29,5 +36,6 @@ interface plugin {
 world editor-plugin {
     import host;
     import blocks;
+    import shell;
     export plugin;
 }

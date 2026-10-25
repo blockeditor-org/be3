@@ -132,7 +132,7 @@ fn take_actions<A: block_plugin_api::HostAction>(instances: &mut Instances) -> V
 fn configure(instances: &mut Instances) -> Option<Message> {
     let next = instances.next_screens(PASS);
     let mut messages = next.opened;
-    messages.push(instances.screen_set(next.screens));
+    messages.push(instances.screen_set(next.screens).into());
     instances.configure(&messages)
 }
 
@@ -192,7 +192,7 @@ fn from_replica(messages: &[Message], block: Uuid) -> Vec<ToEditor> {
 }
 
 fn replica_sends(instances: &mut Instances, block: Uuid) -> Vec<ToEditor> {
-    let opened = next_screens(instances).opened;
+    let opened = next_screens(instances).messages();
     from_replica(&opened, block)
 }
 

@@ -17,11 +17,13 @@ be_ops_bindgen::generate!({
         "child-placements": crate::ChildPlacements,
         "commit-id": [u8; 32],
         "metadata-entries": crate::MetadataEntries,
+        "child-id": crate::ChildId,
     },
-    copy: ["uuid", "editor-instance-id", "screen-id", "commit-id"],
+    copy: ["uuid", "editor-instance-id", "screen-id", "commit-id", "child-id"],
     default: [
         "frame-chrome", "top-bar", "frame-spec", "size", "fonts", "screen-layout",
         "block-metadata", "artifact-state", "version-status",
+        "menu-command", "menu-check", "menu-pin", "menu-heading",
     ],
     inline: [
         "rename-command", "artifact-command", "simulate-access-command", "unlink-command",
@@ -44,6 +46,9 @@ pub use types::{
     PluginIdentity, PresentedFrame, PressClaim, RegionSize, ScreenDamage, ScreenLayout,
     ScreenPlacement, ScreenRequest, ScreenWindow, Size, SurfaceFormat, SurfaceRect, SurfaceSpec,
     SurfaceSupport, TimedInput, TopBar, ViewportMetrics,
+};
+pub use shell_types::{
+    BarAction, MenuCheck, MenuCommand, MenuHeading, MenuItem, MenuItemKind, MenuPin,
 };
 
 mod block_ids;
@@ -112,44 +117,11 @@ impl TopBar {
     }
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub enum BarAction {
-    Details,
-}
-
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum MenuEntry {
     Command(MenuCommand),
     Submenu(MenuSubmenu),
     Separator,
-}
-
-#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
-pub struct MenuCommand {
-    pub id: String,
-    pub label: String,
-    pub glyph: String,
-    pub enabled: bool,
-    pub check: MenuCheck,
-    pub shortcut: Option<KeyChord>,
-    pub pin: MenuPin,
-}
-
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
-pub enum MenuPin {
-    #[default]
-    None,
-    Icon,
-    Label,
-    Title,
-}
-
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
-pub enum MenuCheck {
-    #[default]
-    None,
-    Checkbox(bool),
-    Radio(bool),
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -169,7 +141,81 @@ impl MenuEntry {
             MenuEntry::Separator => None,
         })
     }
+
+    pub fn flatten(entries: &[MenuEntry]) -> Vec<MenuItem> {
+        fn flatten_into(entries: &[MenuEntry], depth: u32, items: &mut Vec<MenuItem>) {
+            for entry in entries {
+                let kind = match entry {
+                    MenuEntry::Command(command) => MenuItemKind::Command(command.clone()),
+                    MenuEntry::Separator => MenuItemKind::Separator,
+                    MenuEntry::Submenu(submenu) => MenuItemKind::Submenu(MenuHeading {
+                        id: submenu.id.clone(),
+                        label: submenu.label.clone(),
+                        glyph: submenu.glyph.clone(),
+                    }),
+                };
+                items.push(MenuItem { depth, kind });
+                if let MenuEntry::Submenu(submenu) = entry {
+                    flatten_into(&submenu.entries, depth + 1, items);
+                }
+            }
+        }
+        let mut items = Vec::new();
+        flatten_into(entries, 0, &mut items);
+        items
+    }
+
+    pub fn nest(items: Vec<MenuItem>) -> Result<Vec<MenuEntry>, DecodeError> {
+        collection(items.len())?;
+        let mut open: Vec<Vec<MenuEntry>> = vec![Vec::new()];
+        let mut headings: Vec<MenuHeading> = Vec::new();
+        for item in items {
+            let depth = item.depth as usize;
+            let opens = matches!(item.kind, MenuItemKind::Submenu(_)) as usize;
+            if depth + opens > MAX_MENU_DEPTH {
+                return Err(DecodeError::LimitExceeded("menu depth"));
+            }
+            if depth >= open.len() {
+                return Err(DecodeError::MalformedPayload);
+            }
+            while open.len() > depth + 1 {
+                close_submenu(&mut open, &mut headings);
+            }
+            match item.kind {
+                MenuItemKind::Command(command) => {
+                    strings([&command.id, &command.label, &command.glyph])?;
+                    open[depth].push(MenuEntry::Command(command));
+                }
+                MenuItemKind::Separator => open[depth].push(MenuEntry::Separator),
+                MenuItemKind::Submenu(heading) => {
+                    strings([&heading.id, &heading.label, &heading.glyph])?;
+                    headings.push(heading);
+                    open.push(Vec::new());
+                }
+            }
+        }
+        while open.len() > 1 {
+            close_submenu(&mut open, &mut headings);
+        }
+        Ok(open.pop().unwrap_or_default())
+    }
 }
+
+fn close_submenu(open: &mut Vec<Vec<MenuEntry>>, headings: &mut Vec<MenuHeading>) {
+    let entries = open.pop().unwrap_or_default();
+    let Some(heading) = headings.pop() else {
+        return;
+    };
+    if let Some(parent) = open.last_mut() {
+        parent.push(MenuEntry::Submenu(MenuSubmenu {
+            id: heading.id,
+            label: heading.label,
+            glyph: heading.glyph,
+            entries,
+        }));
+    }
+}
+
 
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 pub struct Description {
@@ -859,23 +905,6 @@ pub enum EditorMessage {
         region: EditorRegion,
         stopped: Stopped,
     },
-    BarAction {
-        instance: EditorInstanceId,
-        action: BarAction,
-    },
-    Menu {
-        instance: EditorInstanceId,
-        entries: Vec<MenuEntry>,
-    },
-    MenuPick {
-        instance: EditorInstanceId,
-        id: String,
-    },
-    ChildMenuPick {
-        instance: EditorInstanceId,
-        child: ChildId,
-        id: String,
-    },
     Close {
         instance: EditorInstanceId,
     },
@@ -1128,12 +1157,6 @@ pub enum EditorMessage {
         request_id: u64,
         replaced: bool,
     },
-    ChildBar {
-        instance: EditorInstanceId,
-        region: EditorRegion,
-        child: ChildId,
-        action: BarAction,
-    },
     ChildFocused {
         instance: EditorInstanceId,
         region: EditorRegion,
@@ -1230,10 +1253,6 @@ impl EditorMessage {
             | Self::Resized { instance, .. }
             | Self::LeaveFrame { instance, .. }
             | Self::Stopped { instance, .. }
-            | Self::BarAction { instance, .. }
-            | Self::Menu { instance, .. }
-            | Self::MenuPick { instance, .. }
-            | Self::ChildMenuPick { instance, .. }
             | Self::Close { instance, .. }
             | Self::OpenBlock { instance, .. }
             | Self::ShowBlock { instance, .. }
@@ -1280,7 +1299,6 @@ impl EditorMessage {
             | Self::Presence { instance, .. }
             | Self::ReplaceChild { instance, .. }
             | Self::ChildReplaced { instance, .. }
-            | Self::ChildBar { instance, .. }
             | Self::ChildFocused { instance, .. }
             | Self::CopyText { instance, .. }
             | Self::CopyImage { instance, .. }
@@ -1646,11 +1664,9 @@ impl EditorMessage {
             | Self::HistoryStates { .. }
             | Self::Head { .. }
             | Self::ReplaceChild { .. }
-            | Self::ChildBar { .. }
             | Self::ChildFocused { .. }
             | Self::Blocks { .. }
             | Self::BlocksFailed { .. }
-            | Self::MenuPick { .. }
             | Self::HostValue { .. }
             | Self::VersionStatus { .. } => Direction::ToPlugin,
             Self::OpenBlock { .. }
@@ -1664,12 +1680,9 @@ impl EditorMessage {
             | Self::Present { .. }
             | Self::LeaveFrame { .. }
             | Self::Stopped { .. }
-            | Self::BarAction { .. }
-            | Self::Menu { .. }
             | Self::CommitChild { .. }
             | Self::SetAccess { .. }
             | Self::PickAnswered { .. }
-            | Self::ChildMenuPick { .. }
             | Self::WebViewCommand { .. }
             | Self::CreationReady { .. }
             | Self::CreationBlock { .. }
@@ -2147,8 +2160,6 @@ fn validate_editor(message: &EditorMessage) -> Result<(), DecodeError> {
             string(key)?;
             blob(bytes)
         }
-        EditorMessage::Menu { entries, .. } => menu(entries),
-        EditorMessage::MenuPick { id, .. } | EditorMessage::ChildMenuPick { id, .. } => string(id),
         EditorMessage::WebViewCommand { command, .. } => match command {
             WebViewCommand::Open(url) | WebViewCommand::Load(url) => string(url),
             WebViewCommand::Reload | WebViewCommand::FocusApp | WebViewCommand::Close => Ok(()),

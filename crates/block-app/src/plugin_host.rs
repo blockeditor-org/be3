@@ -9,6 +9,7 @@ use uuid::Uuid;
 
 mod audio;
 mod backend;
+mod calls;
 mod description;
 mod fonts;
 pub(crate) mod graph;

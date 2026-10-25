@@ -23,6 +23,7 @@ use super::{
     ArtifactSlot, ArtifactState, BlockPickRequest, CreationSlot, CreationState, HostChild,
     HostChildStatus, InstanceRole, RuntimeStatus, SurfaceStatus,
     backend::{Availability, Backend, Deadline, Frame, ShownFrame},
+    calls::{Heard, Outbound},
     input::{BlockDrag, BlockDragEvent},
     instances::{EditorView, Focus, Instances, Placement},
     presenter::{self, Blit, Piece, PresenterState, PresenterStatus, Quad, RegionDrawing, Shared},
@@ -134,7 +135,7 @@ pub(super) struct Runtime {
     plugin: PluginManifest,
     pub(super) backend: Backend,
     session: HostSession,
-    queued: Vec<Message>,
+    queued: Vec<Outbound>,
     held: Vec<Answer>,
     taking_in: bool,
     pub(super) instances: Instances,
@@ -163,8 +164,18 @@ pub(super) struct Runtime {
 
 enum Answer {
     Message(Message),
+    Shell(block_plugin_api::embed::shell::Call),
     Frame(FrameCommit),
     Laid(Laid),
+}
+
+impl From<Heard> for Answer {
+    fn from(heard: Heard) -> Self {
+        match heard {
+            Heard::Message(message) => Self::Message(message),
+            Heard::Shell(call) => Self::Shell(call),
+        }
+    }
 }
 
 struct Laid {
@@ -374,20 +385,23 @@ impl Runtime {
         self.update(messages);
     }
 
-    fn update(&mut self, mut messages: Vec<Message>) {
+    fn update(&mut self, messages: Vec<Message>) {
+        let mut messages: Vec<Outbound> = messages.into_iter().map(Outbound::from).collect();
         let drawing = self.session.granted_surface().is_some();
         let next = self.instances.next_screens(self.since);
         messages.extend(next.opened);
         if drawing && self.sent != next.screens {
             self.sent.clone_from(&next.screens);
-            messages.push(self.instances.screen_set(next.screens));
+            messages.push(self.instances.screen_set(next.screens).into());
         }
-        messages.extend(self.instances.pending());
-        messages.extend(self.instances.configure(&messages));
+        messages.extend(self.instances.pending().into_iter().map(Outbound::from));
+        messages.extend(self.instances.configure(&messages).map(Outbound::from));
         let awaited = messages.iter().any(|message| {
             matches!(
                 message,
-                Message::Editor(EditorMessage::Open { .. } | EditorMessage::OpenArtifact { .. })
+                Outbound::Message(Message::Editor(
+                    EditorMessage::Open { .. } | EditorMessage::OpenArtifact { .. }
+                ))
             )
         });
         self.pacing.needed |= !messages.is_empty();
@@ -600,10 +614,12 @@ impl Runtime {
             self.session.start(now);
         }
         let mut forwarded = Vec::with_capacity(received.len());
-        for message in received {
-            match message.is_session() {
-                true => self.session.receive(message, now),
-                false => forwarded.push(message),
+        for heard in received {
+            match heard {
+                Heard::Message(message) if message.is_session() => {
+                    self.session.receive(message, now)
+                }
+                heard => forwarded.push(heard),
             }
         }
         self.deliver();
@@ -630,13 +646,21 @@ impl Runtime {
         let forwarded = match self.taking_in {
             true => {
                 let mut taken = std::mem::take(&mut self.held);
-                taken.extend(forwarded.into_iter().map(Answer::Message));
+                taken.extend(forwarded.into_iter().map(Answer::from));
                 taken
             }
             false => {
                 let mut drawing = Vec::with_capacity(forwarded.len());
                 let mut held = false;
-                for message in forwarded {
+                for heard in forwarded {
+                    let message = match heard {
+                        Heard::Message(message) => message,
+                        Heard::Shell(call) => {
+                            held = true;
+                            self.held.push(Answer::Shell(call));
+                            continue;
+                        }
+                    };
                     match message {
                         Message::Frame(commit) => {
                             let (now, later) = self.split(commit);
@@ -751,9 +775,9 @@ impl Runtime {
         self.layout = layout;
     }
 
-    fn offer_previews(&mut self, messages: &[Message]) {
+    fn offer_previews(&mut self, messages: &[Outbound]) {
         for message in messages {
-            let Message::ChildStatuses(statuses) = message else {
+            let Outbound::Message(Message::ChildStatuses(statuses)) = message else {
                 continue;
             };
             for status in statuses {
@@ -805,7 +829,7 @@ impl Runtime {
             .iter()
             .filter_map(|held| match held {
                 Answer::Laid(laid) => Some(laid.screens(&self.instances)),
-                Answer::Message(_) | Answer::Frame(_) => None,
+                Answer::Message(_) | Answer::Shell(_) | Answer::Frame(_) => None,
             })
             .flatten()
             .collect()
@@ -832,6 +856,10 @@ impl Runtime {
         for answer in answers {
             let mut message = match answer {
                 Answer::Message(message) => message,
+                Answer::Shell(call) => {
+                    changed |= self.instances.shell_call(call);
+                    continue;
+                }
                 Answer::Frame(commit) => {
                     changed |= self.commit(commit);
                     continue;
@@ -908,14 +936,17 @@ impl Runtime {
         }
     }
 
-    fn send(&mut self, messages: Vec<Message>) {
+    fn send<T: Into<Outbound>>(&mut self, messages: Vec<T>) {
         if messages.is_empty() || self.error.is_some() {
             return;
         }
+        let messages: Vec<Outbound> = messages.into_iter().map(Into::into).collect();
         self.offer_previews(&messages);
         let mut messages = self.instances.hold_unreported(messages);
         for message in &mut messages {
-            self.instances.translate(message, false);
+            if let Outbound::Message(message) = message {
+                self.instances.translate(message, false);
+            }
         }
         self.queued.extend(self.instances.gate(messages));
         self.deliver();
@@ -934,6 +965,14 @@ impl Runtime {
         let now = self.milliseconds();
         let mut failure = None;
         for message in std::mem::take(&mut self.queued) {
+            let message = match message {
+                Outbound::Message(message) => message,
+                Outbound::Editor(instance, call) => {
+                    self.drain();
+                    self.backend.call(instance, call);
+                    continue;
+                }
+            };
             if self.session.queued_message_count() == MAX_QUEUED_MESSAGES {
                 self.drain();
             }

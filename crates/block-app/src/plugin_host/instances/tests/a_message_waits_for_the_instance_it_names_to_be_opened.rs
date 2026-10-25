@@ -8,9 +8,9 @@ fn a_message_waits_for_the_instance_it_names_to_be_opened() {
         visible: true,
     });
 
-    assert!(instances.gate(vec![presence.clone()]).is_empty());
+    assert!(instances.gate(vec![presence.clone().into()]).is_empty());
 
-    let opened = instances.next_screens(PASS).opened;
+    let opened = instances.next_screens(PASS).messages();
     let open = opened
         .iter()
         .position(|message| matches!(message, Message::Editor(EditorMessage::Open { .. })));
@@ -18,5 +18,8 @@ fn a_message_waits_for_the_instance_it_names_to_be_opened() {
 
     assert!(open.is_some());
     assert_eq!(open.zip(held).map(|(open, held)| open < held), Some(true));
-    assert_eq!(instances.gate(vec![presence.clone()]), vec![presence]);
+    assert_eq!(
+        instances.gate(vec![presence.clone().into()]),
+        vec![Outbound::from(presence)]
+    );
 }

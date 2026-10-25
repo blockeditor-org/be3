@@ -47,7 +47,7 @@ fn a_restarted_plugin_hears_its_childrens_statuses_again() {
     instances.reopen();
 
     assert_eq!(
-        statuses_sent(&instances.next_screens(PASS).opened),
+        statuses_sent(&instances.next_screens(PASS).messages()),
         vec![vec![ChildId(7)]],
         "a restarted plugin is told again"
     );

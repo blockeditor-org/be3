@@ -1,0 +1,76 @@
+package be3:plugin@0.1.0;
+
+/// What the shell around an editor and the editor share: its menus, the
+/// actions of its bar and the children it places.
+interface shell-types {
+    use be3:ui/types@0.1.0.{key-chord};
+
+    /// A child an editor placed, numbered by the editor.
+    record child-id {
+        value: u64,
+    }
+
+    /// An action of the bar the host draws above a frame or a child.
+    enum bar-action {
+        details,
+    }
+
+    /// Where a command shows outside its menu.
+    enum menu-pin {
+        none,
+        icon,
+        label,
+        title,
+    }
+
+    variant menu-check {
+        none,
+        checkbox(bool),
+        radio(bool),
+    }
+
+    record menu-command {
+        id: string,
+        label: string,
+        glyph: string,
+        enabled: bool,
+        check: menu-check,
+        shortcut: option<key-chord>,
+        pin: menu-pin,
+    }
+
+    /// A submenu's own fields; its entries follow it.
+    record menu-heading {
+        id: string,
+        label: string,
+        glyph: string,
+    }
+
+    variant menu-item-kind {
+        command(menu-command),
+        submenu(menu-heading),
+        separator,
+    }
+
+    /// One entry of a menu flattened in order: the entries of a submenu
+    /// follow it one level deeper.
+    record menu-item {
+        depth: u32,
+        kind: menu-item-kind,
+    }
+}
+
+/// What an editor tells the shell around it.
+interface shell {
+    use types.{editor-instance-id};
+    use shell-types.{bar-action, child-id, menu-item};
+
+    /// The editor's menu, replacing the one it sent before.
+    menu: func(instance: editor-instance-id, items: list<menu-item>);
+
+    /// The editor asks the host to run an action of its bar.
+    run-bar-action: func(instance: editor-instance-id, action: bar-action);
+
+    /// The editor picked a command of a child's menu.
+    child-menu-pick: func(instance: editor-instance-id, child: child-id, id: string);
+}

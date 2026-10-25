@@ -29,29 +29,29 @@ fn a_host_value_reaches_an_instance_watching_it_again_after_a_restart() {
         !publish::<Displays>(&mut instances, &first),
         "nobody is watching yet"
     );
-    assert!(host_values_sent::<Displays>(&instances.next_screens(PASS).opened).is_empty());
+    assert!(host_values_sent::<Displays>(&instances.next_screens(PASS).messages()).is_empty());
 
     assert!(watch::<Displays>(&mut instances));
     assert!(instances.watches_host_value(Displays::KEY));
     assert_eq!(
-        host_values_sent::<Displays>(&instances.next_screens(PASS).opened),
+        host_values_sent::<Displays>(&instances.next_screens(PASS).messages()),
         vec![first.clone()]
     );
     assert!(
-        host_values_sent::<Displays>(&instances.next_screens(PASS).opened).is_empty(),
+        host_values_sent::<Displays>(&instances.next_screens(PASS).messages()).is_empty(),
         "a value is told once"
     );
 
     let second = vec![monitor(1920)];
     assert!(publish::<Displays>(&mut instances, &second));
     assert_eq!(
-        host_values_sent::<Displays>(&instances.next_screens(PASS).opened),
+        host_values_sent::<Displays>(&instances.next_screens(PASS).messages()),
         vec![second.clone()]
     );
 
     instances.reopen();
     assert_eq!(
-        host_values_sent::<Displays>(&instances.next_screens(PASS).opened),
+        host_values_sent::<Displays>(&instances.next_screens(PASS).messages()),
         vec![second.clone()],
         "a restarted plugin is told again"
     );

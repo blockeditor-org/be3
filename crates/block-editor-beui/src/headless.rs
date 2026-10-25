@@ -129,6 +129,14 @@ impl HeadlessPlugin {
         self.core.outbound()
     }
 
+    pub fn deliver(&mut self, frames: Vec<Vec<u8>>) -> Result<Vec<Message>, String> {
+        self.core.deliver(frames)
+    }
+
+    pub fn take_frames(&mut self) -> Vec<Vec<u8>> {
+        self.core.take_frames()
+    }
+
     pub fn layout(&self) -> &ScreenLayout {
         self.core.layout()
     }

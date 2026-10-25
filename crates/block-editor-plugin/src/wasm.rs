@@ -1,6 +1,5 @@
 mod surface;
 mod transport;
-mod wire;
 
 #[cfg(test)]
 mod tests;

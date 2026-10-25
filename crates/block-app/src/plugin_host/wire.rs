@@ -1,11 +1,14 @@
 use std::collections::{BTreeMap, HashMap};
 
+use super::calls::{EditorCall, Heard};
+
 use block_plugin_api::{
     DecodeError, EditorInstanceId, EditorMessage, ErrorCode, Fonts, InputBatch, Message, Opening,
     Preferences, ProtocolError, decode_frame,
     embed::{
         exports::plugin::{self, Editor},
         host::Call,
+        shell::Call as ShellCall,
     },
     encode_frame,
     ops::{Connection, Incoming, OpId, Outcome, Reply, Side},
@@ -145,11 +148,26 @@ impl Wire {
         Ok(Vec::new())
     }
 
+    pub(super) fn call(&mut self, instance: EditorInstanceId, call: EditorCall) {
+        let Some(editor) = self.editors.get(&instance).copied() else {
+            return;
+        };
+        let connection = &mut self.connection;
+        match call {
+            EditorCall::MenuPick(id) => editor.menu_pick(connection, id),
+            EditorCall::ChildBar {
+                region,
+                child,
+                action,
+            } => editor.child_bar(connection, region, child, action),
+        }
+    }
+
     pub(super) fn take_outbound(&mut self) -> Vec<Vec<u8>> {
         self.connection.take_outbound()
     }
 
-    pub(super) fn receive(&mut self, frame: &[u8], heard: &mut Vec<Message>) -> Result<(), String> {
+    pub(super) fn receive(&mut self, frame: &[u8], heard: &mut Vec<Heard>) -> Result<(), String> {
         self.connection
             .receive(frame)
             .map_err(|error| format!("the plugin sent a frame that did not decode: {error}"))?;
@@ -159,38 +177,44 @@ impl Wire {
         Ok(())
     }
 
-    fn heard(&mut self, event: Incoming, heard: &mut Vec<Message>) -> Result<(), String> {
+    fn heard(&mut self, event: Incoming, heard: &mut Vec<Heard>) -> Result<(), String> {
         let connection = &mut self.connection;
         let call = match event {
             Incoming::Started(started) => match Call::accept(connection, started) {
                 Some(call) => call,
                 None => return Ok(()),
             },
-            Incoming::Called(called) => match Call::accept_direct(&called) {
-                Some(call) => call,
-                None => {
-                    return Err(format!(
-                        "the plugin called {}, which the host does not answer",
-                        called.name
-                    ));
+            Incoming::Called(called) => {
+                if let Some(call) = ShellCall::accept_direct(&called) {
+                    heard.push(Heard::Shell(call));
+                    return Ok(());
                 }
-            },
+                match Call::accept_direct(&called) {
+                    Some(call) => call,
+                    None => {
+                        return Err(format!(
+                            "the plugin called {}, which the host does not answer",
+                            called.name
+                        ));
+                    }
+                }
+            }
             Incoming::Completed { op, outcome } => {
                 match (self.draws.remove(&op), outcome) {
                     (Some(Awaited::Draw), Outcome::Ok(bytes)) => {
                         let commit = block_plugin_api::ops::decode(&bytes)
                             .ok_or("the plugin answered a draw with a frame that did not decode")?;
-                        heard.push(Message::Frame(commit));
+                        heard.push(Heard::Message(Message::Frame(commit)));
                     }
                     (Some(Awaited::Shutdown), Outcome::Ok(_)) => {
-                        heard.push(Message::ShutdownAcknowledged)
+                        heard.push(Heard::Message(Message::ShutdownAcknowledged))
                     }
                     (Some(_), Outcome::Err(error)) => {
-                        heard.push(Message::Error(ProtocolError {
+                        heard.push(Heard::Message(Message::Error(ProtocolError {
                             request_id: None,
                             code: ErrorCode::Internal,
                             message: format!("the plugin did not answer: {error:?}"),
-                        }));
+                        })));
                     }
                     (None, _) => {}
                 }
@@ -208,12 +232,12 @@ impl Wire {
         match call {
             Call::Connect { reply, hello } => {
                 self.connecting = Some(reply);
-                heard.push(Message::Hello(hello));
+                heard.push(Heard::Message(Message::Hello(hello)));
             }
-            Call::Layout { layout } => heard.push(Message::Layout(layout)),
-            Call::FrameNeeded {} => heard.push(Message::FrameNeeded),
+            Call::Layout { layout } => heard.push(Heard::Message(Message::Layout(layout))),
+            Call::FrameNeeded {} => heard.push(Heard::Message(Message::FrameNeeded)),
             Call::MissingCharacters { characters } => {
-                heard.push(Message::MissingCharacters(characters));
+                heard.push(Heard::Message(Message::MissingCharacters(characters)));
             }
             Call::PreferencesWatchNew { resource } => self.preferences.opened(resource.op()),
             Call::PreferencesWatchNext { reply, .. } => self.preferences.next(connection, reply),
@@ -223,9 +247,9 @@ impl Wire {
             Call::FontsWatchNext { reply, .. } => self.fonts.next(connection, reply),
             Call::InputNew { resource } => self.input.opened(resource.op()),
             Call::InputNext { reply, .. } => self.input.next(connection, reply),
-            Call::Legacy { message } => heard.push(decode_frame(&message).map_err(|error| {
+            Call::Legacy { message } => heard.push(Heard::Message(decode_frame(&message).map_err(|error| {
                 format!("the plugin sent a message that did not decode: {error:?}")
-            })?),
+            })?)),
         }
         Ok(())
     }

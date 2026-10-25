@@ -1,8 +1,8 @@
 use std::{cell::RefCell, collections::VecDeque, future::Future, rc::Rc};
 
 use block_plugin_api::{
-    EditorInstanceId, EditorMessage, FrameCommit, Message, Opening, ScreenRequest, ScreenSet,
-    encode_frame,
+    BarAction, ChildId, EditorInstanceId, EditorMessage, EditorRegion, FrameCommit, Message,
+    Opening, ScreenRequest, ScreenSet, encode_frame,
     guest::{
         exports::plugin::{Guest, GuestEditor},
         host,
@@ -13,9 +13,19 @@ use block_plugin_api::{
     },
 };
 
+use crate::editor_session::EditorSession;
+
+pub(crate) type EditorCall = Box<dyn FnOnce(&mut EditorSession)>;
+
+/// What the host's calls leave for the runtime's next step, in the order they came.
+pub(crate) enum Delivery {
+    Message(Message),
+    Editor(EditorInstanceId, EditorCall),
+}
+
 #[derive(Default)]
 struct Wire {
-    inbox: Vec<Message>,
+    inbox: Vec<Delivery>,
     draws: VecDeque<Sender<FrameCommit>>,
     shutdowns: Vec<Sender<()>>,
 }
@@ -28,14 +38,22 @@ impl Shared {
         block_plugin_api::guest::executor(Exports(self.clone()))
     }
 
-    pub(crate) fn take_inbox(&self) -> Vec<Message> {
+    pub(crate) fn take_inbox(&self) -> Vec<Delivery> {
         std::mem::take(&mut self.0.borrow_mut().inbox)
     }
 
     fn push(&self, message: Message) {
-        self.0.borrow_mut().inbox.push(message);
+        self.0.borrow_mut().inbox.push(Delivery::Message(message));
     }
 
+    fn call(&self, instance: EditorInstanceId, call: impl FnOnce(&mut EditorSession) + 'static) {
+        self.0
+            .borrow_mut()
+            .inbox
+            .push(Delivery::Editor(instance, Box::new(call)));
+    }
+
+    #[cfg_attr(not(target_arch = "wasm32"), allow(dead_code))]
     pub(crate) fn watch(&self) {
         let wire = self.clone();
         spawn(async move {
@@ -69,6 +87,7 @@ impl Shared {
         });
     }
 
+    #[cfg_attr(not(target_arch = "wasm32"), allow(dead_code))]
     pub(crate) fn route(&self, messages: Vec<Message>) {
         for message in messages {
             match message {
@@ -174,6 +193,17 @@ impl Guest for Exports {
 }
 
 impl GuestEditor for OpenEditor {
+    fn menu_pick(&self, id: String) {
+        self.wire
+            .call(self.instance, move |session| session.pick_menu(id));
+    }
+
+    fn child_bar(&self, _region: EditorRegion, child: ChildId, action: BarAction) {
+        self.wire.call(self.instance, move |session| {
+            session.child_bar_action(child, action)
+        });
+    }
+
     fn on_drop(&self) -> impl Future<Output = ()> + 'static {
         self.wire.push(Message::Editor(EditorMessage::Close {
             instance: self.instance,

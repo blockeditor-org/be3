@@ -35,10 +35,14 @@ fn show(instances: &mut Instances) -> Vec<Message> {
     )
 }
 
+fn outbound(messages: Vec<Message>) -> Vec<Outbound> {
+    messages.into_iter().map(Outbound::from).collect()
+}
+
 #[test]
 fn a_block_shown_before_its_instance_reports_reaches_it_once_it_does() {
     let mut instances = Instances::default();
-    let shown = show(&mut instances);
+    let shown = outbound(show(&mut instances));
     assert_eq!(shown.len(), 1);
     assert!(
         instances.hold_unreported(shown.clone()).is_empty(),
@@ -58,7 +62,7 @@ fn a_block_shown_before_its_instance_reports_reaches_it_once_it_does() {
     assert!(opened.contains(&shown[0]));
 
     let mut closed = Instances::default();
-    let shown = show(&mut closed);
+    let shown = outbound(show(&mut closed));
     assert!(closed.hold_unreported(shown.clone()).is_empty());
     closed.remove(INSTANCE);
     assert!(

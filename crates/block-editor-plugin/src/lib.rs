@@ -24,6 +24,7 @@ mod screens;
 pub mod session;
 #[cfg(target_arch = "wasm32")]
 mod wasm;
+mod wire;
 
 pub use block_plugin_api::accesskit;
 pub use block_plugin_api::{
