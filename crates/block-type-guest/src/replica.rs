@@ -552,6 +552,7 @@ where
                 if let Some(message) = FromEditor::decode(&bytes) {
                     self.handle_editor(editor, message);
                 }
+                self.reported.status = None;
             }
             Input::Message {
                 from: Endpoint::Host,

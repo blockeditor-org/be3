@@ -292,7 +292,9 @@ export function environ_get() {
 
 export function clock_time_get(clockId, precision, resultPointer) {
     // Clock ids: 0 realtime, 1 monotonic. Both are reported in nanoseconds.
-    const milliseconds = clockId === 0 ? Date.now() : performance.now();
+    // The monotonic clock counts from the page's time origin in every worker
+    // too, so an Instant one context makes means the same time in another.
+    const milliseconds = clockId === 0 ? Date.now() : performance.timeOrigin + performance.now();
     view().setBigUint64(resultPointer, BigInt(Math.round(milliseconds * 1e6)), true);
     return SUCCESS;
 }

@@ -1723,8 +1723,7 @@ impl BlockApp {
     }
 
     fn close_requested(&mut self) -> bool {
-        be::flush();
-        if self.allow_close || be::status().unsaved == 0 {
+        if be::flush() == 0 || self.allow_close {
             return true;
         }
         self.pending_destructive_action = Some(PendingDestructiveAction::Close);
@@ -3062,8 +3061,7 @@ impl BlockApp {
                 self.invite_link = None;
             }
             UiCommand::SwitchOrganization => {
-                be::flush();
-                if be::status().unsaved == 0 {
+                if be::flush() == 0 {
                     self.scheduled_organization_list = true;
                 } else {
                     self.pending_destructive_action =

@@ -29,7 +29,7 @@ impl SqliteRefs {
         if let Some(parent) = path.parent() {
             std::fs::create_dir_all(parent)?;
         }
-        Self::with_connection(Connection::open(path).map_err(failed)?)
+        Self::with_connection(sqlite_schema::open(path).map_err(failed)?)
     }
 
     pub(crate) fn in_memory() -> Result<Self, StoreError> {

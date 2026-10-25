@@ -33,33 +33,61 @@ function kept(request) {
     return !(url.pathname.startsWith("/api") || url.pathname === "/auth" || url.pathname.startsWith("/auth/"));
 }
 
+// How long the network may stay silent before a kept answer is served, as on
+// a connection that is up but passes nothing: the fetch goes on and keeps what
+// it gets for the next load.
+const PATIENCE = 3000;
+
+async function keptAnswer(cache, request) {
+    const found = await cache.match(request, { ignoreVary: true });
+    if (found || request.mode !== "navigate") {
+        return found;
+    }
+    // An address the page was opened at with other parameters still finds the
+    // page.
+    return cache.match(request, { ignoreSearch: true, ignoreVary: true });
+}
+
 async function answer(request) {
     const cache = await caches.open(CACHE);
-    try {
-        // Revalidated, since a file of the bundle's root keeps its name across
-        // builds, and the browser's cache would otherwise mix two builds'
-        // module and glue. A deployed build's own files are under /data/BUILD
-        // and never change.
-        const immutable = new URL(request.url).pathname.startsWith("/data/");
-        const response = await fetch(request, immutable ? {} : { cache: "no-cache" });
-        if (response.ok && response.type === "basic") {
-            await cache.put(request, response.clone());
-        }
-        return response;
-    } catch (error) {
+    // A deployed build's own files are under /data/BUILD and never change, so
+    // a kept one is served without asking. Any other file of the bundle's root
+    // keeps its name across builds and is revalidated, since the browser's
+    // cache would otherwise mix two builds' module and glue.
+    const immutable = new URL(request.url).pathname.startsWith("/data/");
+    if (immutable) {
         const found = await cache.match(request, { ignoreVary: true });
         if (found) {
             return found;
         }
-        // An address the page was opened at with other parameters still
-        // finds the page.
-        if (request.mode === "navigate") {
-            const page = await cache.match(request, { ignoreSearch: true, ignoreVary: true });
-            if (page) {
-                return page;
-            }
+    }
+    const fetched = fetch(request, immutable ? {} : { cache: "no-cache" }).then(async (response) => {
+        if (response.ok && response.type === "basic") {
+            await cache.put(request, response.clone());
+        }
+        return response;
+    });
+    let timer;
+    const silent = new Promise((resolve) => (timer = setTimeout(resolve, PATIENCE)));
+    try {
+        const first = await Promise.race([fetched, silent]);
+        if (first instanceof Response) {
+            return first;
+        }
+        const found = await keptAnswer(cache, request);
+        if (found) {
+            fetched.catch(() => {});
+            return found;
+        }
+        return await fetched;
+    } catch (error) {
+        const found = await keptAnswer(cache, request);
+        if (found) {
+            return found;
         }
         throw error;
+    } finally {
+        clearTimeout(timer);
     }
 }
 

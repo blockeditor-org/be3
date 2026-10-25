@@ -267,10 +267,14 @@ pub(crate) fn retry_now() {
     }
 }
 
-pub(crate) fn flush() {
+pub(crate) fn flush() -> usize {
+    let unsaved = status().unsaved;
     let (done, sealed) = std::sync::mpsc::channel();
     send(Command::Flush(done));
-    platform::await_flush(sealed);
+    match platform::await_flush(sealed) {
+        true => status().unsaved,
+        false => unsaved,
+    }
 }
 
 #[cfg(test)]

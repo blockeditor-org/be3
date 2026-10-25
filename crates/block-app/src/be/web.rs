@@ -1,7 +1,11 @@
 use std::{
     future::Future,
     pin::Pin,
-    sync::{Arc, Condvar},
+    sync::{
+        Arc, Condvar,
+        atomic::{AtomicU64, Ordering},
+    },
+    time::Duration,
 };
 
 use wasi_threads::Mutex;
@@ -23,6 +27,13 @@ unsafe extern "C" {
     fn be_worker_start(entry: usize);
 }
 
+// be::stop cannot wait for a worker to end on the page, so each stack waits in
+// its own worker for the ones started before it: two serving one organization
+// at once would both write its refs.
+static STARTED: AtomicU64 = AtomicU64::new(0);
+static FINISHED: AtomicU64 = AtomicU64::new(0);
+const AWAITING_PREVIOUS: Duration = Duration::from_millis(5);
+
 pub(super) struct Running;
 
 impl Running {
@@ -35,14 +46,19 @@ pub(super) fn spawn(
     shared: Arc<Mutex<Shared>>,
     changed: Arc<Condvar>,
 ) -> Running {
+    let turn = STARTED.fetch_add(1, Ordering::SeqCst);
     let entry: Entry = Box::new(move || {
         Box::pin(async move {
+            while FINISHED.load(Ordering::SeqCst) < turn {
+                config.clock.sleep(AWAITING_PREVIOUS).await;
+            }
             let directory = config.data_dir.join("be-objects");
             let store = move || {
                 FileStore::open(&directory)
                     .map_err(|error| format!("the local object store cannot open: {error}"))
             };
             serve(config, store, inbox, shared, changed).await;
+            FINISHED.fetch_add(1, Ordering::SeqCst);
         })
     });
     let entry = Box::into_raw(Box::new(entry)) as usize;
@@ -66,6 +82,7 @@ pub(super) fn spawn_local(task: impl Future<Output = ()> + 'static) {
     wasm_bindgen_futures::spawn_local(task);
 }
 
-pub(super) fn await_flush(sealed: std::sync::mpsc::Receiver<()>) {
+pub(super) fn await_flush(sealed: std::sync::mpsc::Receiver<()>) -> bool {
     let _ = sealed;
+    false
 }

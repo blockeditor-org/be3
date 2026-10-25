@@ -43,6 +43,22 @@ struct Object {
     sql: String,
 }
 
+pub fn open(path: impl AsRef<std::path::Path>) -> rusqlite::Result<Connection> {
+    #[cfg(target_os = "wasi")]
+    {
+        // SQLite's WASI build locks a database with a lock directory beside it,
+        // which a page that reloads mid-transaction leaves behind, and every
+        // later open is then busy forever. One tab owns the files (the page's
+        // `block-files` Web Lock) and each database has one connection, so
+        // no locking is needed.
+        Connection::open_with_flags_and_vfs(path, rusqlite::OpenFlags::default(), "unix-none")
+    }
+    #[cfg(not(target_os = "wasi"))]
+    {
+        Connection::open(path)
+    }
+}
+
 pub fn ensure(connection: &Connection, declared: &str) -> Result<(), SchemaError> {
     let wanted = Connection::open_in_memory()?;
     wanted.execute_batch(declared)?;

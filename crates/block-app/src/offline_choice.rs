@@ -1,5 +1,7 @@
 use std::collections::HashMap;
-use std::sync::{Mutex, PoisonError};
+use std::sync::PoisonError;
+
+use wasi_threads::Mutex;
 
 use be_block::{OfflineChoice, OfflineSettings};
 use uuid::Uuid;

@@ -1,8 +1,8 @@
 use std::{
-    collections::{HashMap, VecDeque},
+    collections::{BTreeMap, HashMap, VecDeque},
     convert::Infallible,
     sync::{
-        Arc, LazyLock, RwLock,
+        Arc,
         atomic::{AtomicBool, AtomicU64, Ordering},
     },
     time::{Duration, Instant},
@@ -29,12 +29,12 @@ pub struct Kind {
     pub described: Description,
 }
 
-static REGISTRY: LazyLock<RwLock<HashMap<Uuid, Kind>>> =
-    LazyLock::new(|| RwLock::new(HashMap::new()));
+static REGISTRY: wasi_threads::Mutex<BTreeMap<Uuid, Kind>> =
+    wasi_threads::Mutex::new(BTreeMap::new());
 
 pub fn kind_of(content_type: Uuid) -> Option<Kind> {
     REGISTRY
-        .read()
+        .lock()
         .unwrap_or_else(std::sync::PoisonError::into_inner)
         .get(&content_type)
         .cloned()
@@ -42,7 +42,7 @@ pub fn kind_of(content_type: Uuid) -> Option<Kind> {
 
 pub fn is_known(content_type: Uuid) -> bool {
     REGISTRY
-        .read()
+        .lock()
         .unwrap_or_else(std::sync::PoisonError::into_inner)
         .contains_key(&content_type)
 }
@@ -52,7 +52,7 @@ static PLAIN_FORMS: AtomicU64 = AtomicU64::new(0);
 pub fn register(kind: Kind) {
     let plain = kind.plain;
     let before = REGISTRY
-        .write()
+        .lock()
         .unwrap_or_else(std::sync::PoisonError::into_inner)
         .insert(kind.content_type, kind);
     if before.is_none_or(|before| before.plain != plain) {

@@ -151,6 +151,19 @@ mod real {
         fn set_timeout(handler: &js_sys::Function, milliseconds: f64) -> JsValue;
         #[wasm_bindgen(js_name = clearTimeout)]
         fn clear_timeout(id: &JsValue);
+        #[wasm_bindgen(js_namespace = performance, js_name = now)]
+        fn performance_now() -> f64;
+    }
+
+    fn time_origin() -> f64 {
+        thread_local! {
+            static ORIGIN: f64 = js_sys::Reflect::get(&js_sys::global(), &"performance".into())
+                .and_then(|performance| js_sys::Reflect::get(&performance, &"timeOrigin".into()))
+                .ok()
+                .and_then(|origin| origin.as_f64())
+                .unwrap_or_default();
+        }
+        ORIGIN.with(|origin| *origin)
     }
 
     pub(super) struct Sleep {
@@ -159,7 +172,7 @@ mod real {
     }
 
     pub(super) fn now() -> Duration {
-        Duration::from_secs_f64(js_sys::Date::now().max(0.0) / 1000.0)
+        Duration::from_secs_f64((time_origin() + performance_now()).max(0.0) / 1000.0)
     }
 
     pub(super) fn sleep_until(at: Duration) -> Sleep {

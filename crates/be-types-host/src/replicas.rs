@@ -122,6 +122,7 @@ struct Open {
     joining: bool,
     made_up: bool,
     early: Vec<Event>,
+    unreported: bool,
 }
 
 pub struct Replicas<H: Host> {
@@ -456,6 +457,7 @@ impl<H: Host> Replicas<H> {
                 joining,
                 made_up: joining,
                 early: Vec::new(),
+                unreported: false,
             },
         );
         let tag = self.modules.tag(module);
@@ -692,6 +694,7 @@ impl<H: Host> Replicas<H> {
             bytes,
         };
         open.replay.push(event.clone());
+        open.unreported = true;
         self.modules.tick_at(module, at);
         self.modules.send(module, vec![event]);
     }
@@ -1552,6 +1555,7 @@ impl<H: Host> Replicas<H> {
                     return false;
                 }
                 let block = open.block;
+                open.unreported = false;
                 if status.clean && status.head.is_some() && !status.owes_seal {
                     open.replay.clear();
                 }
@@ -1647,13 +1651,22 @@ impl<H: Host> Replicas<H> {
         }
     }
 
-    fn counted(&self, shared: &Arc<Mutex<H>>) {
-        let unsealed = self.open.values().filter(|open| !open.status.clean).count();
+    pub fn counts(&self) -> (usize, usize) {
+        let unsealed = self
+            .open
+            .values()
+            .filter(|open| !open.status.clean || open.unreported)
+            .count();
         let owing = self
             .open
             .values()
             .filter(|open| open.status.owes_seal)
             .count();
+        (unsealed, owing)
+    }
+
+    fn counted(&self, shared: &Arc<Mutex<H>>) {
+        let (unsealed, owing) = self.counts();
         H::counted(shared, unsealed, owing);
     }
 }

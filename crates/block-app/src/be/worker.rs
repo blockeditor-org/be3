@@ -509,8 +509,8 @@ async fn first_connect<S: Fn() -> Result<Store, String>>(
 ) -> Option<(Arc<Peer<Store>>, Option<Opened>)> {
     let mut failures = 0;
     loop {
-        match make_store() {
-            Ok(store) => match unless_stopped(connect(config, store), nudged).await? {
+        match make_store().and_then(|store| Ok((store, super::refs(config)?))) {
+            Ok((store, refs)) => match unless_stopped(connect(config, store, refs), nudged).await? {
                 Ok((peer, open)) => {
                     nudged.mark_unchanged();
                     return Some((Arc::new(peer), Some(open)));
@@ -1255,6 +1255,7 @@ impl Ran<'_> {
         {
             let mut held = self.shared.lock().unwrap_or_else(PoisonError::into_inner);
             held.pending = held.pending.saturating_sub(1);
+            (held.unsealed, held.owing) = self.replicas.counts();
             held.typing = !self.replicas.modules.settled();
         }
         crate::host::wake();
@@ -2448,10 +2449,10 @@ pub(super) fn node_of(peer: &Peer<Store>, summary: &BlockSummary) -> Node {
 async fn connect(
     config: &Config,
     store: Store,
+    refs: be_client::RefsDb,
 ) -> Result<(Peer<Store>, tokio::sync::OwnedMutexGuard<()>), ClientError> {
     let link = crate::link::signed_in(&config.server_url, &config.token, &config.clock).await?;
     let open = link.open_organization().await;
-    let refs = super::refs(config).unwrap_or_else(|_| be_client::RefsDb::memory());
     let peer = Peer::signed_in(
         link.connection,
         link.account,
