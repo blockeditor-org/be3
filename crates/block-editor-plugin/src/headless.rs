@@ -46,6 +46,7 @@ impl HeadlessPlugin {
                     self.executor.enter(|| screens.call(instance, call));
                 }
                 Delivery::Screens(call) => call(&mut self.screens),
+                Delivery::Paintings(painted) => painted.send(self.screens.paintings()),
             }
         }
         Ok(replies)
@@ -72,15 +73,7 @@ impl HeadlessPlugin {
         }
         let screens = &mut self.screens;
         self.executor.enter(|| screens.receive(&message));
-        let painting = matches!(
-            &message,
-            Message::Extension { key, .. } if *key == paint_format::PAINTING_EXTENSION
-        );
-        let mut replies = self.session.receive(message);
-        if painting {
-            replies.push(self.screens.paintings());
-        }
-        replies
+        self.session.receive(message)
     }
 
     pub fn draw(&mut self) -> Vec<(ScreenPlacement, Frame)> {

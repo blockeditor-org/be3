@@ -45,7 +45,7 @@ impl Runtime {
     pub(crate) fn step(&mut self, batch: Vec<Delivery>, woken: bool) -> Result<Step, String> {
         let mut changed = woken;
         let mut draw = false;
-        let mut painting = false;
+        let mut paintings = Vec::new();
         let mut outbound = Vec::new();
         for delivery in batch {
             let message = match delivery {
@@ -59,14 +59,14 @@ impl Runtime {
                     changed = true;
                     continue;
                 }
+                Delivery::Paintings(painted) => {
+                    paintings.push(painted);
+                    continue;
+                }
             };
             if matches!(message, Message::DrawFrame { .. }) {
                 draw = true;
             }
-            painting |= matches!(
-                &message,
-                Message::Extension { key, .. } if *key == paint_format::PAINTING_EXTENSION
-            );
             changed |= self.screens.receive(&message);
             outbound.extend(self.session.receive(message));
             if matches!(self.session.state(), State::Closed) {
@@ -87,8 +87,8 @@ impl Runtime {
                 outbound.push(Message::FrameNeeded);
             }
         }
-        if painting {
-            outbound.push(self.screens.paintings());
+        for painted in paintings {
+            painted.send(self.screens.paintings());
         }
         outbound.extend(self.screens.outbound());
         Ok(Step {

@@ -35,11 +35,7 @@ impl Message {
             | Self::Acknowledged { .. }
             | Self::Error(_)
             | Self::Shutdown
-            | Self::ShutdownAcknowledged
-            | Self::Describe(_)
-            | Self::RunAction { .. }
-            | Self::NodeAction { .. }
-            | Self::Extension { .. } => {}
+            | Self::ShutdownAcknowledged => {}
         }
     }
 }

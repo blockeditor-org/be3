@@ -2,7 +2,8 @@ package be3:plugin@0.1.0;
 
 /// What an editor plugin offers its host.
 interface plugin {
-    use types.{editor-region, frame-commit, opening, screen-request, size, uuid};
+    use types.{editor-region, frame-commit, opening, screen-id, screen-request, size, uuid};
+    use accessibility.{action-request};
     use shell-types.{bar-action, block-pick, child-id, drag-over, file-drop, focus, pick-request};
     use be3:ui/types@0.1.0.{rect};
     use host-services.{shell-dialog};
@@ -69,6 +70,19 @@ interface plugin {
         /// Shows one of the dialogs the instance that draws the window draws.
         show-dialog: func(block: uuid, dialog: shell-dialog);
     }
+
+    /// Whether the host wants screens described to assistive technology.
+    describe: func(on: bool);
+
+    /// Runs an action a screen described.
+    run-action: func(screen: screen-id, id: string);
+
+    /// Runs an action assistive technology asks of a node a screen described.
+    node-action: func(screen: screen-id, request: action-request);
+
+    /// What the plugin's screens painted, in paint-format's encoding of
+    /// screen paintings, for the host's tests to compare.
+    paintings: async func() -> list<u8>;
 
     /// The screens the host shows, replacing the ones it showed before.
     screens: func(screens: list<screen-request>);

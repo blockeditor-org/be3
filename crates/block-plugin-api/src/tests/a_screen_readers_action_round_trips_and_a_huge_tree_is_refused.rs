@@ -3,19 +3,17 @@ use accesskit::{Action, ActionData, ActionRequest, Node, NodeId, Role, TreeId, T
 
 #[test]
 fn a_screen_readers_action_round_trips_and_a_huge_tree_is_refused() {
-    let action = Message::NodeAction {
-        screen: ScreenId(4),
-        request: ActionRequest {
-            action: Action::SetValue,
-            target_tree: TreeId::ROOT,
-            target_node: NodeId(1 << 41 | 7),
-            data: Some(ActionData::Value("Buy bread".into())),
-        },
+    let action = ActionRequest {
+        action: Action::SetValue,
+        target_tree: TreeId::ROOT,
+        target_node: NodeId(1 << 41 | 7),
+        data: Some(ActionData::Value("Buy bread".into())),
     };
-    assert_eq!(
-        decode_frame(&encode_frame(&action).unwrap()).unwrap(),
-        action
-    );
+    let carried = crate::ops::decode::<accessibility::ActionRequest>(&crate::ops::encode(
+        &accessibility::ActionRequest::from(action.clone()),
+    ))
+    .expect("the request decodes");
+    assert_eq!(ActionRequest::from(carried), action);
 
     let huge = Message::Frame(FrameCommit {
         reports: vec![FrameReport {

@@ -1,6 +1,6 @@
 use block_plugin_api::{
     ArtifactDescription, BarAction, BlockIdRole, BlockLocation, BlockPick, Catalog, ChildId,
-    ChildStatus, EditorInstanceId, EditorMessage, EditorRegion, Message, Rect, Size,
+    ChildStatus, EditorInstanceId, EditorMessage, EditorRegion, Message, Rect, ScreenId, Size,
     embed::shell::Call as ShellCall,
     shell_types::{DragOver, FileDrop, Focus, PickRequest},
 };
@@ -15,6 +15,16 @@ pub(super) enum Outbound {
 #[derive(Clone, Debug, PartialEq)]
 pub(super) enum PluginCall {
     BlockTypes(Catalog),
+    Describe(bool),
+    RunAction {
+        screen: ScreenId,
+        id: String,
+    },
+    NodeAction {
+        screen: ScreenId,
+        request: block_plugin_api::accessibility::ActionRequest,
+    },
+    Paintings,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -112,6 +122,7 @@ pub(super) enum Heard {
     Message(Message),
     Shell(ShellCall),
     Answer(EditorInstanceId, EditorAnswer),
+    Paintings(Vec<u8>),
 }
 
 impl From<Message> for Heard {

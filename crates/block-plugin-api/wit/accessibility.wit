@@ -1,0 +1,80 @@
+package be3:plugin@0.1.0;
+
+/// What a plugin describes to assistive technology, and what it is asked to
+/// do there: AccessKit's shapes, as the plugin and host exchange them.
+interface accessibility {
+    use types.{uuid};
+
+    enum action {
+        click,
+        focus,
+        blur,
+        collapse,
+        expand,
+        custom-action,
+        decrement,
+        increment,
+        hide-tooltip,
+        show-tooltip,
+        replace-selected-text,
+        scroll-down,
+        scroll-left,
+        scroll-right,
+        scroll-up,
+        scroll-into-view,
+        scroll-to-point,
+        set-scroll-offset,
+        set-text-selection,
+        set-sequential-focus-navigation-starting-point,
+        set-value,
+        show-context-menu,
+    }
+
+    enum scroll-unit {
+        item,
+        page,
+    }
+
+    enum scroll-hint {
+        top-left,
+        bottom-right,
+        top-edge,
+        bottom-edge,
+        left-edge,
+        right-edge,
+    }
+
+    record point {
+        x: f64,
+        y: f64,
+    }
+
+    record text-position {
+        node: u64,
+        character-index: u64,
+    }
+
+    record text-selection {
+        anchor: text-position,
+        focus: text-position,
+    }
+
+    variant action-data {
+        custom-action(s32),
+        value(string),
+        numeric-value(f64),
+        scroll-unit(scroll-unit),
+        scroll-hint(scroll-hint),
+        scroll-to-point(point),
+        set-scroll-offset(point),
+        set-text-selection(text-selection),
+    }
+
+    /// An action assistive technology asks of a described node.
+    record action-request {
+        action: action,
+        target-tree: uuid,
+        target-node: u64,
+        data: option<action-data>,
+    }
+}

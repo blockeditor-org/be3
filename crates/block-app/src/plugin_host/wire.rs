@@ -35,6 +35,7 @@ pub(super) struct Wire {
     draws: BTreeMap<OpId, Awaited>,
     answering: BTreeMap<OpId, (EditorInstanceId, Answering)>,
     picks: HashMap<(EditorInstanceId, u64), OpId>,
+    painting: HashMap<OpId, Ticket<Vec<u8>>>,
     preferences: Watch<Preferences>,
     utc_offset: Watch<i32>,
     fonts: Watch<Fonts>,
@@ -92,6 +93,7 @@ impl Default for Wire {
             draws: BTreeMap::new(),
             answering: BTreeMap::new(),
             picks: HashMap::new(),
+            painting: HashMap::new(),
             preferences: Watch::default(),
             utc_offset: Watch::default(),
             fonts: Watch::default(),
@@ -168,6 +170,15 @@ impl Wire {
         let connection = &mut self.connection;
         match call {
             PluginCall::BlockTypes(catalog) => self.block_types.change(connection, |_| catalog),
+            PluginCall::Describe(on) => plugin::describe(connection, on),
+            PluginCall::RunAction { screen, id } => plugin::run_action(connection, screen, id),
+            PluginCall::NodeAction { screen, request } => {
+                plugin::node_action(connection, screen, request)
+            }
+            PluginCall::Paintings => {
+                let painted = plugin::paintings(connection);
+                self.painting.insert(painted.op(), painted);
+            }
         }
     }
 
@@ -372,6 +383,12 @@ impl Wire {
                 }
             }
             Incoming::Completed { op, outcome } => {
+                if let Some(painted) = self.painting.remove(&op) {
+                    heard.push(Heard::Paintings(
+                        painted.decode(outcome).unwrap_or_default(),
+                    ));
+                    return Ok(());
+                }
                 if let Some((instance, answering)) = self.answering.remove(&op) {
                     self.picks.retain(|_, pick| *pick != op);
                     heard.push(Heard::Answer(instance, answering.answer(outcome)));

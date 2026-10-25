@@ -150,7 +150,7 @@ impl Screens {
         })
     }
 
-    pub(crate) fn paintings(&mut self) -> Message {
+    pub(crate) fn paintings(&mut self) -> Vec<u8> {
         let mut paintings = paint_format::ScreenPaintings::default();
         for placement in self.layout.screens.clone() {
             let Some(session) = self.sessions.get_mut(&placement.instance) else {
@@ -167,9 +167,35 @@ impl Screens {
                 }
             }
         }
-        Message::Extension {
-            key: paint_format::PAINTING_EXTENSION,
-            payload: paintings.encode(),
+        paintings.encode()
+    }
+
+    pub(crate) fn describe(&mut self, on: bool) {
+        DESCRIBE.store(on, std::sync::atomic::Ordering::Relaxed);
+        self.touch_everything();
+    }
+
+    pub(crate) fn node_action(
+        &mut self,
+        screen: ScreenId,
+        request: block_plugin_api::accesskit::ActionRequest,
+    ) {
+        let Some((instance, region)) = self.screen(screen) else {
+            return;
+        };
+        if let Some(session) = self.sessions.get_mut(&instance) {
+            session.node_action(region, request);
+            self.mark(instance);
+        }
+    }
+
+    pub(crate) fn run_action(&mut self, screen: ScreenId, id: &str) {
+        let Some((instance, region)) = self.screen(screen) else {
+            return;
+        };
+        if let Some(session) = self.sessions.get_mut(&instance) {
+            session.run_action(region, id);
+            self.mark(instance);
         }
     }
 
@@ -191,7 +217,6 @@ impl Screens {
             Message::Preferences(preferences) => crate::preferences::receive(*preferences),
             Message::Fonts(fonts) => crate::fonts::receive(fonts),
             Message::UtcOffset(seconds) => crate::clock::receive(*seconds),
-            Message::Describe(on) => DESCRIBE.store(*on, std::sync::atomic::Ordering::Relaxed),
             Message::Configure { serial } => {
                 self.serial = *serial;
                 return false;
@@ -380,24 +405,6 @@ impl Screens {
                 self.requests = set.screens.clone();
                 self.relayout();
             }
-            Message::NodeAction { screen, request } => {
-                let Some((instance, region)) = self.screen(*screen) else {
-                    return false;
-                };
-                let Some(session) = self.sessions.get_mut(&instance) else {
-                    return false;
-                };
-                session.node_action(region, request.clone());
-            }
-            Message::RunAction { screen, id } => {
-                let Some((instance, region)) = self.screen(*screen) else {
-                    return false;
-                };
-                let Some(session) = self.sessions.get_mut(&instance) else {
-                    return false;
-                };
-                session.run_action(region, id);
-            }
             Message::Input(batch) => {
                 let Some((instance, region)) = self.screen(batch.screen) else {
                     return false;
@@ -425,12 +432,6 @@ impl Screens {
                 Some((instance, _)) => self.mark(instance),
                 None => return false,
             },
-            Message::RunAction { screen, .. } | Message::NodeAction { screen, .. } => {
-                match self.screen(*screen) {
-                    Some((instance, _)) => self.mark(instance),
-                    None => return false,
-                }
-            }
             Message::Editor(EditorMessage::Close { .. }) | Message::Screens(_) => {
                 self.touch_everything();
             }

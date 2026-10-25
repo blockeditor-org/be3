@@ -23,7 +23,7 @@ use super::{
     ArtifactSlot, ArtifactState, BlockPickRequest, CreationSlot, CreationState, HostChild,
     HostChildStatus, InstanceRole, RuntimeStatus, SurfaceStatus,
     backend::{Availability, Backend, Deadline, Frame, ShownFrame},
-    calls::{EditorAnswer, EditorCall, Heard, Outbound},
+    calls::{EditorAnswer, EditorCall, Heard, Outbound, PluginCall},
     input::{BlockDrag, BlockDragEvent},
     instances::{EditorView, Focus, Instances, Placement},
     presenter::{self, Blit, Piece, PresenterState, PresenterStatus, Quad, RegionDrawing, Shared},
@@ -166,6 +166,7 @@ enum Answer {
     Message(Message),
     Shell(block_plugin_api::embed::shell::Call),
     Editor(EditorInstanceId, EditorAnswer),
+    Paintings(Vec<u8>),
     Frame(FrameCommit),
     Laid(Laid),
 }
@@ -176,6 +177,7 @@ impl From<Heard> for Answer {
             Heard::Message(message) => Self::Message(message),
             Heard::Shell(call) => Self::Shell(call),
             Heard::Answer(instance, answer) => Self::Editor(instance, answer),
+            Heard::Paintings(payload) => Self::Paintings(payload),
         }
     }
 }
@@ -364,31 +366,30 @@ impl Runtime {
         }
         self.since = self.pass;
         self.pass = pass;
-        let mut messages = Vec::new();
+        let mut messages: Vec<Outbound> = Vec::new();
         if !self.fonts_sent && *self.session.state() == SessionState::Running {
             self.fonts_sent = true;
-            messages.push(Message::Fonts(super::fonts::bundled()));
+            messages.push(Message::Fonts(super::fonts::bundled()).into());
         }
         let describing = super::description::describing();
         if *self.session.state() == SessionState::Running && self.described != describing {
             self.described = describing;
-            messages.push(Message::Describe(describing));
+            messages.push(Outbound::Plugin(PluginCall::Describe(describing)));
         }
         let preferences = host::preferences();
         if self.preferences != preferences {
             self.preferences = preferences;
-            messages.push(Message::Preferences(preferences));
+            messages.push(Message::Preferences(preferences).into());
         }
         let utc_offset = crate::platform::utc_offset();
         if *self.session.state() == SessionState::Running && self.utc_offset != Some(utc_offset) {
             self.utc_offset = Some(utc_offset);
-            messages.push(Message::UtcOffset(utc_offset));
+            messages.push(Message::UtcOffset(utc_offset).into());
         }
         self.update(messages);
     }
 
-    fn update(&mut self, messages: Vec<Message>) {
-        let mut messages: Vec<Outbound> = messages.into_iter().map(Outbound::from).collect();
+    fn update(&mut self, mut messages: Vec<Outbound>) {
         let drawing = self.session.granted_surface().is_some();
         let next = self.instances.next_screens(self.since);
         messages.extend(next.opened);
@@ -471,13 +472,16 @@ impl Runtime {
         request: beui::accesskit::ActionRequest,
     ) {
         self.pacing.needed = true;
-        self.send(vec![Message::NodeAction { screen, request }]);
+        self.send(vec![Outbound::Plugin(PluginCall::NodeAction {
+            screen,
+            request: request.into(),
+        })]);
         host::request_repaint();
     }
 
     pub(super) fn run_action(&mut self, screen: ScreenId, id: String) {
         self.pacing.needed = true;
-        self.send(vec![Message::RunAction { screen, id }]);
+        self.send(vec![Outbound::Plugin(PluginCall::RunAction { screen, id })]);
         host::request_repaint();
     }
 
@@ -504,10 +508,7 @@ impl Runtime {
             return;
         }
         self.painting = true;
-        self.send(vec![Message::Extension {
-            key: beui::painting::PAINTING_EXTENSION,
-            payload: Vec::new(),
-        }]);
+        self.send(vec![Outbound::Plugin(PluginCall::Paintings)]);
     }
 
     fn painted(&mut self, payload: &[u8]) {
@@ -673,6 +674,10 @@ impl Runtime {
                 for heard in forwarded {
                     let message = match heard {
                         Heard::Message(message) => message,
+                        Heard::Paintings(payload) => {
+                            drawing.push(Answer::Paintings(payload));
+                            continue;
+                        }
                         heard @ (Heard::Shell(_) | Heard::Answer(..)) => {
                             held = true;
                             self.held.push(Answer::from(heard));
@@ -812,7 +817,6 @@ impl Runtime {
     fn draws_the_frame(&self, message: &Message) -> bool {
         match message {
             Message::Layout(_) | Message::FrameNeeded => true,
-            Message::Extension { key, .. } => *key == beui::painting::PAINTING_EXTENSION,
             _ => false,
         }
     }
@@ -847,9 +851,11 @@ impl Runtime {
             .iter()
             .filter_map(|held| match held {
                 Answer::Laid(laid) => Some(laid.screens(&self.instances)),
-                Answer::Message(_) | Answer::Shell(_) | Answer::Editor(..) | Answer::Frame(_) => {
-                    None
-                }
+                Answer::Message(_)
+                | Answer::Shell(_)
+                | Answer::Editor(..)
+                | Answer::Paintings(_)
+                | Answer::Frame(_) => None,
             })
             .flatten()
             .collect()
@@ -879,6 +885,11 @@ impl Runtime {
                 Answer::Shell(mut call) => {
                     self.instances.translate(&mut call, true);
                     changed |= self.instances.shell_call(call);
+                    continue;
+                }
+                Answer::Paintings(payload) => {
+                    self.painted(&payload);
+                    changed = true;
                     continue;
                 }
                 Answer::Editor(instance, answer) => {
@@ -911,12 +922,6 @@ impl Runtime {
                 Message::MissingCharacters(missing) => {
                     replies.extend(self.fallbacks.answer(&missing).map(Message::Fonts));
                     false
-                }
-                Message::Extension { key, payload }
-                    if key == beui::painting::PAINTING_EXTENSION =>
-                {
-                    self.painted(&payload);
-                    true
                 }
                 _ => false,
             };

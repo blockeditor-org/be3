@@ -73,6 +73,7 @@ pub use types::{
     SurfaceSupport, TimedInput, TopBar, ViewportMetrics,
 };
 
+mod accesskit_mirror;
 mod block_ids;
 mod host_value;
 mod linux;
@@ -1126,38 +1127,17 @@ pub enum Message {
     Fonts(Fonts),
     MissingCharacters(Vec<char>),
     Screens(ScreenSet),
-    Configure {
-        serial: u64,
-    },
+    Configure { serial: u64 },
     Layout(ScreenLayout),
     Input(InputBatch),
-    DrawFrame {
-        now_micros: u64,
-        seen: bool,
-    },
+    DrawFrame { now_micros: u64, seen: bool },
     FrameNeeded,
     Frame(FrameCommit),
-    Acknowledged {
-        request_id: u64,
-    },
+    Acknowledged { request_id: u64 },
     Error(ProtocolError),
     Shutdown,
     ShutdownAcknowledged,
     Editor(EditorMessage),
-    Describe(bool),
-    RunAction {
-        screen: ScreenId,
-        id: String,
-    },
-    NodeAction {
-        screen: ScreenId,
-        request: accesskit::ActionRequest,
-    },
-    Extension {
-        key: [u8; 16],
-        #[serde(with = "serde_bytes")]
-        payload: Vec<u8>,
-    },
 }
 
 impl Message {
@@ -1192,10 +1172,7 @@ impl Message {
             | Self::Configure { .. }
             | Self::Input(_)
             | Self::DrawFrame { .. }
-            | Self::Shutdown
-            | Self::Describe(_)
-            | Self::RunAction { .. }
-            | Self::NodeAction { .. } => Direction::ToPlugin,
+            | Self::Shutdown => Direction::ToPlugin,
             Self::Hello(_)
             | Self::Acknowledged { .. }
             | Self::ShutdownAcknowledged
@@ -1203,7 +1180,7 @@ impl Message {
             | Self::MissingCharacters(_)
             | Self::FrameNeeded
             | Self::Frame(_) => Direction::ToHost,
-            Self::Error(_) | Self::Extension { .. } => Direction::Either,
+            Self::Error(_) => Direction::Either,
             Self::Editor(editor) => editor.direction(),
         }
     }
@@ -1421,12 +1398,6 @@ fn validate(message: &Message) -> Result<(), DecodeError> {
         }
         Message::MissingCharacters(value) => collection(value.len()),
         Message::Editor(value) => validate_editor(value),
-        Message::RunAction { id, .. } => string(id),
-        Message::Extension { payload, .. } => blob(payload),
-        Message::NodeAction { request, .. } => match &request.data {
-            Some(accesskit::ActionData::Value(value)) => text(value),
-            _ => Ok(()),
-        },
         _ => Ok(()),
     }
 }

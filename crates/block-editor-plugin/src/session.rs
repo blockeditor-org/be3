@@ -180,10 +180,6 @@ fn name(message: &Message) -> &'static str {
         Message::Shutdown => "a shutdown",
         Message::ShutdownAcknowledged => "a shutdown acknowledgement",
         Message::Editor(_) => "an editor message",
-        Message::Describe(_) => "a description request",
-        Message::RunAction { .. } => "an action to run",
-        Message::NodeAction { .. } => "an action on a described node",
-        Message::Extension { .. } => "an extension message",
     }
 }
 

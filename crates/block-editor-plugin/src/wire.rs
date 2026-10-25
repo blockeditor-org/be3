@@ -2,7 +2,7 @@ use std::{cell::RefCell, collections::VecDeque, future::Future, rc::Rc};
 
 use block_plugin_api::{
     BarAction, ChildId, EditorInstanceId, EditorMessage, EditorRegion, FrameCommit, Message,
-    Opening, Rect, ScreenRequest, ScreenSet, ShellDialog, Size, encode_frame,
+    Opening, Rect, ScreenId, ScreenRequest, ScreenSet, ShellDialog, Size, encode_frame,
     guest::{
         exports::plugin::{Guest, GuestEditor},
         host, shell,
@@ -22,6 +22,7 @@ pub(crate) enum Delivery {
     Message(Message),
     Editor(EditorInstanceId, EditorCall),
     Screens(Box<dyn FnOnce(&mut crate::screens::Screens)>),
+    Paintings(Sender<Vec<u8>>),
 }
 
 #[derive(Default)]
@@ -181,6 +182,34 @@ impl Guest for Exports {
             request_id: 0,
             screens,
         }));
+    }
+
+    fn describe(&self, on: bool) {
+        self.0.screens(move |screens| screens.describe(on));
+    }
+
+    fn run_action(&self, screen: ScreenId, id: String) {
+        self.0
+            .screens(move |screens| screens.run_action(screen, &id));
+    }
+
+    fn node_action(
+        &self,
+        screen: ScreenId,
+        request: block_plugin_api::accessibility::ActionRequest,
+    ) {
+        self.0
+            .screens(move |screens| screens.node_action(screen, request.into()));
+    }
+
+    fn paintings(&self) -> impl Future<Output = Vec<u8>> + 'static {
+        let (sender, painted) = oneshot();
+        self.0
+            .0
+            .borrow_mut()
+            .inbox
+            .push(Delivery::Paintings(sender));
+        async move { painted.await.unwrap_or_default() }
     }
 
     fn configure(&self, serial: u64) {
