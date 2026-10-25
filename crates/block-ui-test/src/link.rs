@@ -131,7 +131,9 @@ impl Link {
                 bytes,
             } => store.seed_content(block(id), block(content_type), bytes, true),
             Call::ReplicaNew {
-                resource, block: id, ..
+                resource,
+                block: id,
+                ..
             } => {
                 self.replicas.insert(resource.op(), block(id));
                 store.watch_content(self.instance, block(id), true);
@@ -152,13 +154,22 @@ impl Link {
                 resource.op(),
                 Subject::Blocks(block_editor_beui::BlockQuery::decode(query)),
             ),
-            Call::HistoryWatchNew { resource, block: id } => {
+            Call::HistoryWatchNew {
+                resource,
+                block: id,
+            } => {
                 self.watch(resource.op(), Subject::History(block(id)));
             }
-            Call::HeadWatchNew { resource, block: id } => {
+            Call::HeadWatchNew {
+                resource,
+                block: id,
+            } => {
                 self.watch(resource.op(), Subject::Head(block(id)));
             }
-            Call::ArtifactWatchNew { resource, block: id } => {
+            Call::ArtifactWatchNew {
+                resource,
+                block: id,
+            } => {
                 self.watch(resource.op(), Subject::Artifact(block(id)));
             }
             Call::VersionWatchNew { resource } => self.watch(resource.op(), Subject::Version),

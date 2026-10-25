@@ -492,12 +492,24 @@ impl Wire {
                 self.held.producers.insert(this.op(), stream);
                 return Ok(());
             }
-            Blocks::BlocksWatchNew { resource, .. } => self.held.owners.insert(resource.op(), instance),
-            Blocks::HistoryWatchNew { resource, .. } => self.held.owners.insert(resource.op(), instance),
-            Blocks::HeadWatchNew { resource, .. } => self.held.owners.insert(resource.op(), instance),
-            Blocks::ArtifactWatchNew { resource, .. } => self.held.owners.insert(resource.op(), instance),
-            Blocks::VersionWatchNew { resource } => self.held.owners.insert(resource.op(), instance),
-            Blocks::ShowRequestsNew { resource } => self.held.owners.insert(resource.op(), instance),
+            Blocks::BlocksWatchNew { resource, .. } => {
+                self.held.owners.insert(resource.op(), instance)
+            }
+            Blocks::HistoryWatchNew { resource, .. } => {
+                self.held.owners.insert(resource.op(), instance)
+            }
+            Blocks::HeadWatchNew { resource, .. } => {
+                self.held.owners.insert(resource.op(), instance)
+            }
+            Blocks::ArtifactWatchNew { resource, .. } => {
+                self.held.owners.insert(resource.op(), instance)
+            }
+            Blocks::VersionWatchNew { resource } => {
+                self.held.owners.insert(resource.op(), instance)
+            }
+            Blocks::ShowRequestsNew { resource } => {
+                self.held.owners.insert(resource.op(), instance)
+            }
             Blocks::ReplicaNew { resource, .. } => self.held.owners.insert(resource.op(), instance),
             _ => None,
         };
@@ -515,7 +527,8 @@ impl Wire {
                 self.connection
                     .complete(next, Outcome::Err(OpError::Canceled));
             }
-            self.connection.complete(op, Outcome::Err(OpError::Canceled));
+            self.connection
+                .complete(op, Outcome::Err(OpError::Canceled));
             heard.push(Heard::Ended(op));
             return true;
         }
@@ -536,7 +549,8 @@ impl Wire {
             held.producers.remove(&replica);
         }
         if waited.is_some() || streamed.is_some() {
-            self.connection.complete(op, Outcome::Err(OpError::Canceled));
+            self.connection
+                .complete(op, Outcome::Err(OpError::Canceled));
             return true;
         }
         false
@@ -644,7 +658,8 @@ impl Wire {
                     return Ok(());
                 }
                 if self.serving.remove(&op).is_some() {
-                    self.connection.complete(op, Outcome::Err(OpError::Canceled));
+                    self.connection
+                        .complete(op, Outcome::Err(OpError::Canceled));
                     self.services.withdrawn.push(op);
                 }
                 let watched = self.child_statuses.values().any(|watch| watch.is(op))

@@ -1,7 +1,6 @@
 use crate::{
     ArtifactState, BlockCommand, BlockInfo, BlockLocation, BlockQuery, ChildContent,
-    ChildPlacements, EditorInstanceId, EditorMessage, Message, VersionCommand,
-    blocks::OpenRequest,
+    ChildPlacements, EditorInstanceId, EditorMessage, Message, VersionCommand, blocks::OpenRequest,
 };
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]

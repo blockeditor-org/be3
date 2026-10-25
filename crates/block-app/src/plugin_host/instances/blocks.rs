@@ -144,7 +144,9 @@ impl Instances {
                 let Some(entry) = self.entries.get_mut(&instance) else {
                     return false;
                 };
-                entry.block_commands.push((Uuid::from_bytes(block), command));
+                entry
+                    .block_commands
+                    .push((Uuid::from_bytes(block), command));
                 true
             }
             Call::Version { block, command } => {
@@ -359,7 +361,10 @@ impl Instances {
         if let Some(watch) = entry.watches.remove(&op) {
             match watch.watched {
                 Subject::Head(block) => {
-                    if !entry.watching().any(|watched| watched == Subject::Head(block)) {
+                    if !entry
+                        .watching()
+                        .any(|watched| watched == Subject::Head(block))
+                    {
                         entry.heads.unwatch(block);
                     }
                 }
@@ -424,7 +429,11 @@ impl Instances {
         std::mem::take(&mut self.frames)
     }
 
-    pub(crate) fn show_panel(&mut self, instance: EditorInstanceId, panel: block_plugin_api::HostPanel) {
+    pub(crate) fn show_panel(
+        &mut self,
+        instance: EditorInstanceId,
+        panel: block_plugin_api::HostPanel,
+    ) {
         if let Some(entry) = self.entries.get_mut(&instance) {
             entry.shows.push(ShowRequest::Panel(panel));
         }

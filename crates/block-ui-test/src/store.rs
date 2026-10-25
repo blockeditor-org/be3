@@ -826,7 +826,13 @@ impl ContentStore {
         }
     }
 
-    pub(crate) fn seed_content(&self, block: Uuid, content_type: Uuid, bytes: Vec<u8>, replace: bool) {
+    pub(crate) fn seed_content(
+        &self,
+        block: Uuid,
+        content_type: Uuid,
+        bytes: Vec<u8>,
+        replace: bool,
+    ) {
         self.seed(block, content_type, bytes, replace);
     }
 

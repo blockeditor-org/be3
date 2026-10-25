@@ -59,7 +59,10 @@ fn a_listing_the_host_could_not_load_reaches_the_plugin_as_failed() {
         )],
         "a listing the host could not load is not an empty one"
     );
-    assert!(sent(&mut instances, watch).is_empty(), "a failure is sent once");
+    assert!(
+        sent(&mut instances, watch).is_empty(),
+        "a failure is sent once"
+    );
 
     crate::be::refetch(children);
     loaded(children);

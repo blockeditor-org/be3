@@ -51,12 +51,14 @@ fn a_block_shown_before_its_instance_reports_reaches_it_once_it_does() {
     let shown: Option<Vec<ShowRequest>> = answered(&mut instances, watch);
     assert_eq!(
         shown,
-        Some(vec![ShowRequest::Block(block_plugin_api::blocks::OpenRequest {
-            block_id: Uuid::from_u128(7).into_bytes(),
-            block_type: Uuid::from_u128(8).into_bytes(),
-            via: None,
-            editor: None,
-        })]),
+        Some(vec![ShowRequest::Block(
+            block_plugin_api::blocks::OpenRequest {
+                block_id: Uuid::from_u128(7).into_bytes(),
+                block_type: Uuid::from_u128(8).into_bytes(),
+                via: None,
+                editor: None,
+            }
+        )]),
         "a block shown before its instance reported waits for it"
     );
     assert!(

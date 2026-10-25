@@ -61,7 +61,10 @@ fn an_instance_watching_a_blocks_head_is_sent_its_stored_bytes() {
     let sent = heads(&mut instances, watch);
     assert_eq!(sent.len(), 1, "{sent:?}");
     assert_eq!(stored(&sent[0]), (4, *first.hash().as_bytes()));
-    assert!(heads(&mut instances, watch).is_empty(), "nothing was saved since");
+    assert!(
+        heads(&mut instances, watch).is_empty(),
+        "nothing was saved since"
+    );
 
     add(block, 1);
     let second = saved_head(block, Some(first));

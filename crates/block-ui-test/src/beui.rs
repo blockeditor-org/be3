@@ -12,9 +12,9 @@ use block_editor_beui::{
     WebViewCommand, WebViewId,
 };
 use block_plugin_api::Opening;
+use block_plugin_api::embed::blocks::Call as BlocksCall;
 use block_plugin_api::embed::{exports::plugin::Editor, shell::Call as ShellCall};
 use block_plugin_api::ops::{Connection, Incoming, Side};
-use block_plugin_api::embed::blocks::Call as BlocksCall;
 use block_plugin_api::{
     BarAction, BlockTypeDescriptor, Catalog, ChildId, EditorMessage, FitArea, FrameChrome,
     FrameReport, HelloAccepted, InputBatch, MenuCommand, MenuEntry, Message, ScreenId,
@@ -1200,9 +1200,7 @@ impl<A: BeuiApp> BeuiTest<A> {
 
     pub fn take_renames(&mut self) -> Vec<(Uuid, Option<String>)> {
         self.take_sent_calls(|sent| match sent {
-            Sent::Define(block, key, value)
-                if *key == block_editor_beui::be_block::NAME.id =>
-            {
+            Sent::Define(block, key, value) if *key == block_editor_beui::be_block::NAME.id => {
                 Some((
                     *block,
                     value

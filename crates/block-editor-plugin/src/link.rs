@@ -92,7 +92,8 @@ impl Link {
         self.watch(host);
         self.send_frames(host);
         for seeded in host.take_seeded_content() {
-            let (block, content_type) = (seeded.block.into_bytes(), seeded.content_type.into_bytes());
+            let (block, content_type) =
+                (seeded.block.into_bytes(), seeded.content_type.into_bytes());
             self.under(|| match seeded.replace {
                 true => blocks::replace_content(block, content_type, seeded.bytes),
                 false => blocks::seed_content(block, content_type, seeded.bytes),
@@ -140,9 +141,9 @@ impl Link {
             let own = self.own.map(|(block, _)| block);
             self.replicas.retain(|block, held| {
                 Some(*block) == own
-                    || watched
-                        .iter()
-                        .any(|(kept, content_type)| kept == block && *content_type == held.content_type)
+                    || watched.iter().any(|(kept, content_type)| {
+                        kept == block && *content_type == held.content_type
+                    })
             });
             for (block, content_type) in watched {
                 self.hold(host, block, content_type);
@@ -153,31 +154,43 @@ impl Link {
             reconcile(&mut self.blocks, &queries, |query| {
                 let watch = Rc::new(under(parent, || blocks::BlocksWatch::new(query.encode())));
                 let host = host.clone();
-                follow(host.waker(), &watch, blocks::BlocksWatch::next, move |listed| match listed {
-                    Ok(listed) => host.set_blocks(
-                        query,
-                        listed.into_iter().map(crate::BlockInfo::decode).collect(),
-                    ),
-                    Err(error) => host.fail_blocks(query, error),
-                });
+                follow(
+                    host.waker(),
+                    &watch,
+                    blocks::BlocksWatch::next,
+                    move |listed| match listed {
+                        Ok(listed) => host.set_blocks(
+                            query,
+                            listed.into_iter().map(crate::BlockInfo::decode).collect(),
+                        ),
+                        Err(error) => host.fail_blocks(query, error),
+                    },
+                );
                 watch
             });
         }
         if let Some(watched) = host.take_history_watch() {
             let parent = self.instance;
             reconcile(&mut self.histories, &watched, |block| {
-                let watch = Rc::new(under(parent, || blocks::HistoryWatch::new(block.into_bytes())));
+                let watch = Rc::new(under(parent, || {
+                    blocks::HistoryWatch::new(block.into_bytes())
+                }));
                 let host = host.clone();
-                follow(host.waker(), &watch, blocks::HistoryWatch::next, move |history| {
-                    host.set_history(
-                        block,
-                        BlockHistory {
-                            head: history.head,
-                            can_undo: history.can_undo,
-                            can_redo: history.can_redo,
-                        },
-                    );
-                });
+                follow(
+                    host.waker(),
+                    &watch,
+                    blocks::HistoryWatch::next,
+                    move |history| {
+                        host.set_history(
+                            block,
+                            BlockHistory {
+                                head: history.head,
+                                can_undo: history.can_undo,
+                                can_redo: history.can_redo,
+                            },
+                        );
+                    },
+                );
                 watch
             });
         }
@@ -204,49 +217,65 @@ impl Link {
         if let Some(watched) = host.take_artifact_watch() {
             let parent = self.instance;
             reconcile(&mut self.artifacts, &watched, |block| {
-                let watch =
-                    Rc::new(under(parent, || blocks::ArtifactWatch::new(block.into_bytes())));
+                let watch = Rc::new(under(parent, || {
+                    blocks::ArtifactWatch::new(block.into_bytes())
+                }));
                 let host = host.clone();
-                follow(host.waker(), &watch, blocks::ArtifactWatch::next, move |state| {
-                    host.set_artifact(
-                        block,
-                        state.map(|state| ArtifactState {
-                            block_id: block,
-                            source_type: Uuid::from_bytes(state.source_type),
-                            source: state.source.map(Uuid::from_bytes),
-                            summary: state.summary,
-                            error: state.error,
-                            regenerating: state.regenerating,
-                        }),
-                    );
-                });
+                follow(
+                    host.waker(),
+                    &watch,
+                    blocks::ArtifactWatch::next,
+                    move |state| {
+                        host.set_artifact(
+                            block,
+                            state.map(|state| ArtifactState {
+                                block_id: block,
+                                source_type: Uuid::from_bytes(state.source_type),
+                                source: state.source.map(Uuid::from_bytes),
+                                summary: state.summary,
+                                error: state.error,
+                                regenerating: state.regenerating,
+                            }),
+                        );
+                    },
+                );
                 watch
             });
         }
         if self.version.is_none() && host.wants_version() {
             let watch = Rc::new(self.under(blocks::VersionWatch::new));
             let host = host.clone();
-            follow(host.waker(), &watch, blocks::VersionWatch::next, move |status| {
-                host.set_version_status(status);
-            });
+            follow(
+                host.waker(),
+                &watch,
+                blocks::VersionWatch::next,
+                move |status| {
+                    host.set_version_status(status);
+                },
+            );
             self.version = Some(watch);
         }
         if self.shows.is_none() && host.wants_shows() {
             let watch = Rc::new(self.under(blocks::ShowRequests::new));
             let host = host.clone();
-            follow(host.waker(), &watch, blocks::ShowRequests::next, move |requests| {
-                for request in requests {
-                    match request {
-                        ShowRequest::Block(open) => host.show_block(crate::ShowRequest {
-                            block_id: Uuid::from_bytes(open.block_id),
-                            block_type: Uuid::from_bytes(open.block_type),
-                            via: open.via.map(Uuid::from_bytes),
-                            editor: open.editor.map(Uuid::from_bytes),
-                        }),
-                        ShowRequest::Panel(panel) => host.show_panel(panel),
+            follow(
+                host.waker(),
+                &watch,
+                blocks::ShowRequests::next,
+                move |requests| {
+                    for request in requests {
+                        match request {
+                            ShowRequest::Block(open) => host.show_block(crate::ShowRequest {
+                                block_id: Uuid::from_bytes(open.block_id),
+                                block_type: Uuid::from_bytes(open.block_type),
+                                via: open.via.map(Uuid::from_bytes),
+                                editor: open.editor.map(Uuid::from_bytes),
+                            }),
+                            ShowRequest::Panel(panel) => host.show_panel(panel),
+                        }
                     }
-                }
-            });
+                },
+            );
             self.shows = Some(watch);
         }
     }

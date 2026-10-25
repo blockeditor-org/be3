@@ -39,7 +39,8 @@ fn exchange(wire: &mut Wire, guest: &Executor, heard: &mut Vec<Heard>) {
             return;
         }
         for item in items {
-            wire.receive(&item, heard).expect("the guest's frames decode");
+            wire.receive(&item, heard)
+                .expect("the guest's frames decode");
         }
     }
 }
@@ -86,7 +87,9 @@ fn closing_an_editor_ends_its_watches() {
     exchange(&mut wire, &guest, &mut heard);
 
     assert!(
-        heard.iter().any(|heard| matches!(heard, Heard::Ended(op) if *op == watch)),
+        heard
+            .iter()
+            .any(|heard| matches!(heard, Heard::Ended(op) if *op == watch)),
         "the host hears the editor's watch end with it"
     );
     assert!(wire.waiting().is_empty(), "nothing waits on it any more");
