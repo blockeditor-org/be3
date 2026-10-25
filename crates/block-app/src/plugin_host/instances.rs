@@ -49,7 +49,6 @@ fn presence_wanted(instance: EditorInstanceId) -> bool {
     PRESENCE_WANTED.with_borrow(|wanted| wanted.contains(&instance))
 }
 
-
 #[derive(Default)]
 pub(super) struct Instances {
     entries: HashMap<EditorInstanceId, Instance>,

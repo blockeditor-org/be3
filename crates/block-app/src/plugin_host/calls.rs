@@ -1,8 +1,8 @@
 use block_plugin_api::{
     ArtifactDescription, AudioStatus, BarAction, BlockIdRole, BlockLocation, BlockPick, Catalog,
-    ChildId, ChildStatus, EditorInstanceId, EditorRegion, Failure, Fonts, FrameCommit, Hello, InputBatch,
-    Opening, PickedBlock, Preferences, Rect, ScreenId, ScreenLayout, ScreenRequest, Size, WebViewEvent,
-    WebViewId,
+    ChildId, ChildStatus, EditorInstanceId, EditorRegion, Failure, Fonts, FrameCommit, Hello,
+    InputBatch, Opening, PickedBlock, Preferences, Rect, ScreenId, ScreenLayout, ScreenRequest,
+    Size, WebViewEvent, WebViewId,
     embed::shell::Call as ShellCall,
     shell_types::{DragOver, FileDrop, Focus, PickRequest},
 };

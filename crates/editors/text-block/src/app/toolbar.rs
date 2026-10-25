@@ -378,7 +378,15 @@ fn pick_block(state: State) {
             let types = state.host().block_types();
             let name = match state.inner().client.info(block.id()) {
                 Some(info) => info.label(types.as_ref()).name,
-                None => BlockLabel::new(types.as_ref(), uuid::Uuid::from_bytes(block.block_type), None, false).name,
+                None => {
+                    BlockLabel::new(
+                        types.as_ref(),
+                        uuid::Uuid::from_bytes(block.block_type),
+                        None,
+                        false,
+                    )
+                    .name
+                }
             };
             state.insert_image_embed(block.id(), &name);
         },

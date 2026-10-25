@@ -1251,12 +1251,7 @@ impl<A: BeuiApp> BeuiTest<A> {
         self.asked_picks
             .retain(|(pick, ticket)| match completed.remove(&ticket.op()) {
                 Some(outcome) => {
-                    answers.push((
-                        *pick,
-                        ticket
-                            .decode(outcome)
-                            .unwrap_or(Ok(None)),
-                    ));
+                    answers.push((*pick, ticket.decode(outcome).unwrap_or(Ok(None))));
                     false
                 }
                 None => true,

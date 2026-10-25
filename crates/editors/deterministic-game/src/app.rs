@@ -3,10 +3,10 @@ use block_editor_beui::beui::styled::Root;
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 
-use block_editor_beui::{ContentProjection, Failure};
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::{NodeId, Vec2};
 use block_editor_beui::{BlockFilter, BlockList, BlockParent, BlockQuery, Creation, Editor};
+use block_editor_beui::{ContentProjection, Failure};
 use deterministic_game_types::{
     DeterministicGame, DeterministicGameContent, GameModuleContent, GameModuleFile,
 };

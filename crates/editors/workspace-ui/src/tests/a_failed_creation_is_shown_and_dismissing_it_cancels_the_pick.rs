@@ -25,8 +25,5 @@ fn a_failed_creation_is_shown_and_dismissing_it_cancels_the_pick() {
 
     fixture.click_text("Dismiss");
 
-    assert_eq!(
-        fixture.test.take_pick_answers(),
-        vec![(5, Ok(None))]
-    );
+    assert_eq!(fixture.test.take_pick_answers(), vec![(5, Ok(None))]);
 }

@@ -4,7 +4,7 @@ use super::calls::{EditorAnswer, EditorCall, Heard, PluginCall};
 use block_plugin_api::{Encoded, Watch};
 
 use block_plugin_api::{
-    AudioStatus, BlockPick, Catalog, Failure, ChildStatus, EditorInstanceId, Fonts, HelloAccepted,
+    AudioStatus, BlockPick, Catalog, ChildStatus, EditorInstanceId, Failure, Fonts, HelloAccepted,
     InputBatch, Opening, Preferences, WebViewEvent, WebViewId,
     embed::{
         blocks,

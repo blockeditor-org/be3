@@ -1,4 +1,4 @@
-use block_editor_beui::{BlockLocation};
+use block_editor_beui::BlockLocation;
 
 use super::*;
 

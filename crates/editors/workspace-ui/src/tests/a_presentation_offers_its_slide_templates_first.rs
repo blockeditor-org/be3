@@ -1,5 +1,5 @@
 use block_editor_beui::beui::{Pos2, Vec2};
-use block_editor_beui::{BlockLocation, PickedBlock, CreationProgress, Rect};
+use block_editor_beui::{BlockLocation, CreationProgress, PickedBlock, Rect};
 
 use super::*;
 

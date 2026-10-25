@@ -1,5 +1,5 @@
 use block_editor_beui::be_block::BlockContent;
-use block_editor_beui::{BlockCommand, BlockInfo, BlockLocation, PickedBlock, ImportedBlock};
+use block_editor_beui::{BlockCommand, BlockInfo, BlockLocation, ImportedBlock, PickedBlock};
 use block_ui_test::HostCall;
 use workspace_ui_types::FolderContent;
 

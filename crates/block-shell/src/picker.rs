@@ -8,8 +8,7 @@ use block_editor_beui::block_ui::{BlockCatalog, BlockTypes, TemplateCategory, Te
 use block_editor_beui::sections::{is_workspace, shared_with_me, workspaces};
 use block_editor_beui::{
     BlockFilter, BlockInfo, BlockParent, BlockPick, BlockQuery, ChildId, CreationProgress, Failure,
-    PickedBlock,
-    PickRequest, label_glyph,
+    PickRequest, PickedBlock, label_glyph,
 };
 use uuid::Uuid;
 

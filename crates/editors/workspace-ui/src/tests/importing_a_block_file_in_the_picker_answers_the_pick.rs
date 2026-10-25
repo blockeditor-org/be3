@@ -1,4 +1,4 @@
-use block_editor_beui::{BlockLocation, PickedBlock, ImportedBlock};
+use block_editor_beui::{BlockLocation, ImportedBlock, PickedBlock};
 use block_ui_test::HostCall;
 
 use super::*;

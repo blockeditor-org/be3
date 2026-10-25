@@ -1,4 +1,4 @@
-use block_editor_beui::{BlockLocation, PickedBlock, ChildContent, CreationProgress};
+use block_editor_beui::{BlockLocation, ChildContent, CreationProgress, PickedBlock};
 
 use super::*;
 

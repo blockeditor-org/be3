@@ -355,9 +355,7 @@ impl Instances {
                     Uuid::from_bytes(block),
                     super::super::graph::access_of(access),
                 );
-                crate::be::make_contact_link(Some(offer), move |made| {
-                    answering.send_or_fail(made)
-                });
+                crate::be::make_contact_link(Some(offer), move |made| answering.send_or_fail(made));
             }
             Call::Fetch { reply, url } => {
                 if !allowed(&url, &self.network) {

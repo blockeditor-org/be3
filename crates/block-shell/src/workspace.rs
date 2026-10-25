@@ -572,7 +572,11 @@ impl Workspace {
         self.share.set(Some(share));
     }
 
-    fn share_listed(&self, ask: u64, listing: Result<Vec<block_editor_beui::AccessGrant>, Failure>) {
+    fn share_listed(
+        &self,
+        ask: u64,
+        listing: Result<Vec<block_editor_beui::AccessGrant>, Failure>,
+    ) {
         let Some(mut share) = self.share.get_untracked() else {
             return;
         };
@@ -790,9 +794,7 @@ impl Workspace {
                 if self.picks.with_untracked(Vec::is_empty) {
                     self.forget_trees();
                 }
-                if let (Ok(Some(_)), Some((block, block_type, container))) =
-                    (&answer, into)
-                {
+                if let (Ok(Some(_)), Some((block, block_type, container))) = (&answer, into) {
                     self.host().place_block(block, block_type, container, false);
                 }
                 self.host().answer_pick(pick, answer);
@@ -1329,12 +1331,9 @@ impl Workspace {
                 };
                 let block_type = Uuid::from_bytes(picked.block_type);
                 if !picked.placed {
-                    workspace.host().place_block(
-                        picked.id(),
-                        block_type,
-                        container,
-                        picked.linked,
-                    );
+                    workspace
+                        .host()
+                        .place_block(picked.id(), block_type, container, picked.linked);
                 }
                 workspace.open(TabItem::new(picked.id(), block_type), Some(container));
                 if !picked.linked {

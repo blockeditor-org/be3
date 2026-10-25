@@ -1,4 +1,4 @@
-use block_editor_beui::{BlockCommand, BlockLocation, PickedBlock, CreationProgress};
+use block_editor_beui::{BlockCommand, BlockLocation, CreationProgress, PickedBlock};
 
 use super::*;
 
