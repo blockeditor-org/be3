@@ -20,6 +20,7 @@ use crate::carry::{Carry, NEAREST};
 use crate::chrome::{self, Chrome, Corner, Gesture, Look, Part};
 use crate::cursor::{self, Sprite};
 use crate::head::{Head, Ray};
+use crate::hold::Hold;
 use crate::panel::{Hit, Panel, Pose, pick};
 use crate::render::{ChromeFrame, Compositor, Frame, PanelFrame};
 use crate::resize::Resize;
@@ -76,6 +77,7 @@ pub struct Space {
     cursor: Option<Vec3>,
     cursor_distance: f32,
     grabbed: bool,
+    hold: Hold,
     regrabbing: Vec<PointerButton>,
     app_locked: bool,
     sprite: Sprite,
@@ -120,6 +122,7 @@ impl Space {
             cursor: None,
             cursor_distance: OPEN_DISTANCE,
             grabbed: true,
+            hold: Hold::default(),
             regrabbing: Vec::new(),
             app_locked: false,
             sprite: Sprite::new(),
@@ -465,6 +468,7 @@ impl Space {
             input => {
                 if let Input::Focus(false) | Input::PointerUnlocked = input {
                     self.grabbed = false;
+                    self.hold.cancel();
                 }
                 match position(&input) {
                     Some(at) => self.point(input, self.ray_of(units, window, at), out),
@@ -710,9 +714,6 @@ impl Space {
         }
         let chord = matches!(keystroke.key, Some(Key::Ctrl | Key::Shift));
         if keystroke.pressed && self.steering() {
-            if keystroke.key == Some(Key::Escape) {
-                self.grabbed = false;
-            }
             self.swallowed.push(stroke);
             if walks
                 && let Some(key) = placed
@@ -720,6 +721,9 @@ impl Space {
             {
                 self.walking.push(key);
             }
+            return;
+        }
+        if !self.hold.key(&keystroke, self.clock, self.grabbed) {
             return;
         }
         if chord {
@@ -1009,6 +1013,9 @@ impl WindowHost for Space {
         self.pixels_per_point = view.pixels_per_point;
         self.clock = Some(view.now);
         self.walk(view.now);
+        if self.hold.due(view.now) {
+            self.grabbed = false;
+        }
         let mut out = std::mem::take(&mut self.reports);
         self.open_main(&mut out);
         for item in incoming.drain(..) {
@@ -1043,7 +1050,7 @@ impl WindowHost for Space {
             || self.carry.is_some_and(|carry| carry.turning(self.clock));
         let repaint_after = match animating || !self.reports.is_empty() {
             true => Duration::ZERO,
-            false => self.settled_in(),
+            false => self.settled_in().min(self.hold.due_in(self.clock)),
         };
         self.app_locked = self.app_locks(output);
         let state = self.window_state(output);

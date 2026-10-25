@@ -2963,8 +2963,12 @@ all its 3D (`glam`) stays in the crate.
   (`Space::grabbed`; it asks for `pointer_locked` all that time), so the mouse
   sends only `PointerMotion`. Losing focus (`Input::Focus(false)`), the
   platform dropping the lock (`Input::PointerUnlocked`: a browser on Escape)
-  or Ctrl+Shift+Escape lets it go, and then the first press into the window grabs
-  it again and reaches nothing, nor does its release. While a window the
+  or holding Escape for `hold::LET_GO_AFTER` (0.6 s, on the frame clock) lets
+  it go, and then the first press into the window grabs it again and reaches
+  nothing, nor does its release. Escape's press reaches the app at once, since
+  apps use a tap of it; space asks for a frame at the deadline
+  (`repaint_after`), and once the hold lets go its repeats stop reaching the
+  app but its release still does, so the app's key state stays whole. While a window the
   cursor is on asks for pointer lock itself, motion goes to it instead and
   the cursor stays put.
 - Pointer: the cursor is a point in the world (`Space::cursor`), and every

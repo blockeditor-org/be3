@@ -2,6 +2,7 @@ pub mod carry;
 pub mod chrome;
 pub mod cursor;
 pub mod head;
+pub mod hold;
 pub mod panel;
 mod picture;
 mod render;

@@ -44,8 +44,9 @@ own to be driven:
   the head walks far; turn with `drive motion` while Ctrl and Shift are held instead.
   A driver's pointer goes through the same rule as the mouse's: a position puts the 3D cursor
   on the main panel there, and the input goes to whatever panel or chrome is in front of it.
-  After `drive key ctrl+shift+escape`, or a lost focus, the next click only grabs the pointer
-  again and reaches nothing.
+  Holding Escape lets the pointer go: `drive keydown escape; drive pause 700; drive keyup
+  escape` (the app sees the press and the release). After that, or a lost focus, the next
+  click only grabs the pointer again and reaches nothing.
 
 `be-drive launch` (crates/be-drive) sets the headless adapter, its sizes and the socket (the
 headless adapter goes in `BEUI_SPACE_ADAPTER` when `BEUI_ADAPTER=space` is already set, so
