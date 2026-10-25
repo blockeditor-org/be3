@@ -42,25 +42,18 @@ fn chosen() -> Option<Rect> {
     .flatten()
 }
 
-fn pieces(rect: Rect, clip: Rect) -> Vec<(Rect, Rect)> {
+fn shown() -> Option<Rect> {
     with("test.previewed", |runtime| {
-        placed_view(
-            runtime,
-            INSTANCE,
-            REGION,
-            Some(EmbedPlacement { rect, clip }),
-            None,
-        )
-        .base
-        .into_iter()
-        .map(|piece| (piece.local, piece.source))
-        .collect()
+        runtime
+            .placements
+            .get(&(INSTANCE, REGION))
+            .map(|placed| placed.shown)
     })
-    .unwrap_or_default()
+    .flatten()
 }
 
 #[test]
-fn a_preview_shown_twice_is_drawn_at_its_larger_place_and_each_shows_its_own_part() {
+fn a_preview_shown_twice_is_drawn_whole_at_its_larger_place() {
     let plugin = manifest();
     HOST.with(|host| {
         let mut host = host.borrow_mut();
@@ -85,7 +78,7 @@ fn a_preview_shown_twice_is_drawn_at_its_larger_place_and_each_shows_its_own_par
         });
     }
     let large = Rect::from_min_size(pos2(100.0, 100.0), vec2(300.0, 200.0));
-    let shown = Rect::from_min_size(pos2(100.0, 100.0), vec2(300.0, 100.0));
+    let half = Rect::from_min_size(pos2(100.0, 100.0), vec2(300.0, 100.0));
     let small = Rect::from_min_size(pos2(10.0, 10.0), vec2(60.0, 40.0));
 
     place_region(
@@ -93,7 +86,7 @@ fn a_preview_shown_twice_is_drawn_at_its_larger_place_and_each_shows_its_own_par
         INSTANCE,
         REGION,
         1,
-        placement(large, shown),
+        placement(large, half),
         None,
         None,
     );
@@ -112,16 +105,10 @@ fn a_preview_shown_twice_is_drawn_at_its_larger_place_and_each_shows_its_own_par
         Some(large),
         "the preview is drawn at the larger of the places it is shown, not the last one placed"
     );
-    let top = Rect::from_min_max(Pos2::ZERO, pos2(1.0, 0.5));
     assert_eq!(
-        pieces(large, shown),
-        vec![(top, top)],
-        "the clipped place shows only its top half, from the top half of the drawing"
-    );
-    assert_eq!(
-        pieces(small, small),
-        vec![(UNIT, UNIT)],
-        "the place shown whole shows the whole drawing, which was drawn for both"
+        shown(),
+        Some(UNIT),
+        "the preview is drawn whole, though only its top half is in view, since its parent shows it as a picture"
     );
 
     unplace_region("test.previewed", INSTANCE, REGION, 1);

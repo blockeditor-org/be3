@@ -18,6 +18,7 @@ mod instance;
 mod layered_settings;
 pub mod live_text;
 mod loading;
+mod preview;
 mod related_content;
 mod rotation;
 pub mod sections;

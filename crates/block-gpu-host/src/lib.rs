@@ -8,6 +8,7 @@ mod tests;
 use std::collections::HashMap;
 use std::future::Future;
 use std::pin::pin;
+use std::sync::{Arc, Mutex};
 use std::task::{Context, Poll, Waker};
 
 use block_gpu_abi as abi;
@@ -19,6 +20,8 @@ pub use wgpu;
 const SURFACE_USAGE: wgpu::TextureUsages = wgpu::TextureUsages::RENDER_ATTACHMENT
     .union(wgpu::TextureUsages::TEXTURE_BINDING)
     .union(wgpu::TextureUsages::COPY_SRC);
+
+pub type Imports = Arc<Mutex<HashMap<u64, wgpu::Texture>>>;
 
 pub struct Gpu {
     device: wgpu::Device,
@@ -37,6 +40,7 @@ pub struct Gpu {
     command_buffers: Table<wgpu::CommandBuffer>,
     passes: Table<wgpu::RenderPass<'static>>,
     surfaces: HashMap<u32, Surface>,
+    imports: Imports,
     presented: Vec<u32>,
     generation: u64,
     error: Option<String>,
@@ -105,10 +109,20 @@ impl Gpu {
             command_buffers: Table::new(),
             passes: Table::new(),
             surfaces: HashMap::new(),
+            imports: Imports::default(),
             presented: Vec::new(),
             generation: 0,
             error: None,
         }
+    }
+
+    pub fn sharing(mut self, imports: Imports) -> Self {
+        self.imports = imports;
+        self
+    }
+
+    pub fn imports(&self) -> Imports {
+        Arc::clone(&self.imports)
     }
 
     pub fn device(&self) -> &wgpu::Device {
@@ -1073,6 +1087,22 @@ impl Gpu {
         };
         let texture = target.textures[target.drawn].0.clone();
         self.textures.insert(texture)
+    }
+
+    pub fn import_texture(&mut self, image: u64) -> abi::Handle {
+        let texture = self
+            .imports
+            .lock()
+            .unwrap_or_else(|held| held.into_inner())
+            .get(&image)
+            .cloned();
+        match texture {
+            Some(texture) => self.textures.insert(texture),
+            None => {
+                self.textures.skip();
+                abi::NULL_HANDLE
+            }
+        }
     }
 
     pub fn surface_age(&mut self, surface: u32) -> u32 {

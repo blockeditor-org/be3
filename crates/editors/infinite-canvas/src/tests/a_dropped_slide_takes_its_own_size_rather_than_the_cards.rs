@@ -46,6 +46,7 @@ fn a_dropped_slide_takes_its_own_size_rather_than_the_cards() {
             menu: Vec::new(),
             creation: None,
             settings: None,
+            preview: Default::default(),
         });
         editor.run();
     };

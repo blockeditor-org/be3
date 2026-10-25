@@ -2684,7 +2684,8 @@ draws only for a driver's `shot`.
 first frame whose app says through `App::drawing` that it has nothing still to
 draw. block-app answers with its plugins: each `DrawFrame` carries `seen`, an
 unseen plugin runs its frames (layout, its description, children) without
-encoding or presenting them, and keeps what they damaged; when the host is seen
+encoding or presenting them, and keeps what they damaged, except its previews,
+which another editor shows as pictures and which it paints either way; when the host is seen
 again it asks each plugin that drew unseen for a frame, which paints all of it,
 and `drawing` holds the shot until those frames have arrived.
 

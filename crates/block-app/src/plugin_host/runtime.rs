@@ -9,11 +9,11 @@ use std::{
 use beui::reactive::EmbedPlacement;
 use beui::{Pos2, Rect, Vec2, pos2, vec2};
 use block_plugin_api::{
-    ArtifactDescription, BlockPick, ChildPlacements, EditorInstanceId, EditorMessage, EditorRegion,
-    FrameCommit, FrameSpec, HostAction, HostPanel, HostSession, HostValue, MAX_QUEUED_MESSAGES,
-    Message, Monitor, PluginManifest, PresentedFrame, RegionSize, ScreenDamage, ScreenId,
-    ScreenLayout, ScreenRequest, ScreenWindow, SessionState, SurfaceFormat, SurfaceSpec,
-    ViewChange, decode_host, encode_host,
+    ArtifactDescription, BlockPick, ChildPlacements, ChildPreview, EditorInstanceId, EditorMessage,
+    EditorRegion, FrameCommit, FrameSpec, HostAction, HostPanel, HostSession, HostValue,
+    MAX_QUEUED_MESSAGES, Message, Monitor, PluginManifest, PresentedFrame, PreviewImage,
+    RegionSize, ScreenDamage, ScreenId, ScreenLayout, ScreenPlacement, ScreenRequest, ScreenWindow,
+    SessionState, SurfaceFormat, SurfaceSpec, ViewChange, decode_host, encode_host,
 };
 use uuid::Uuid;
 
@@ -22,11 +22,11 @@ use crate::host;
 use super::{
     ArtifactSlot, ArtifactState, BlockPickRequest, CreationSlot, CreationState, HostChild,
     HostChildStatus, InstanceRole, RuntimeStatus, SurfaceStatus,
-    backend::{Availability, Backend, Deadline, ShownFrame},
+    backend::{Availability, Backend, Deadline, Frame, ShownFrame},
     input::{BlockDrag, BlockDragEvent},
     instances::{EditorView, Focus, Instances, Placement},
     presenter::{self, Blit, Piece, PresenterState, PresenterStatus, Quad, RegionDrawing, Shared},
-    preview_scale,
+    preview_scale, previews,
 };
 
 const HOST_NAME: &str = "BE3";
@@ -312,6 +312,7 @@ impl Runtime {
         self.session.shutdown(self.milliseconds());
         self.drain();
         self.backend.shutdown();
+        previews::forget(&self.plugin.identity.id);
     }
 
     fn restart(&mut self) {
@@ -559,6 +560,7 @@ impl Runtime {
         crate::notices::report_with(format!("{} stopped: {first}", self.name()), error.clone());
         self.error = Some(error);
         let _ = crate::panic_guard::contain(|| self.backend.shutdown());
+        previews::forget(&self.plugin.identity.id);
         CRASHED.with(|crashed| crashed.borrow_mut().push(self.plugin.identity.id.clone()));
         mark(&self.plugin.identity.id);
         host::request_repaint();
@@ -668,16 +670,84 @@ impl Runtime {
                 );
             }
         }
+        for image in previews::take_withdrawn(&self.plugin.identity.id) {
+            self.backend.withdraw(image);
+        }
         if let Some(mut frame) = self.backend.received_frame() {
-            frame.set_damage(self.presents.damage_through(frame.presents()));
-            self.shared.borrow_mut().publish(&self.layout, Some(frame));
-            self.frames += 1;
-            crate::performance::record_group_count(
-                PACING,
-                &format!("{} frames", self.plugin.identity.id),
-                self.frames,
-            );
+            self.export_previews(&frame);
+            if frame.composited() {
+                frame.set_damage(self.presents.damage_through(frame.presents()));
+                self.shared.borrow_mut().publish(&self.layout, Some(frame));
+                self.frames += 1;
+                crate::performance::record_group_count(
+                    PACING,
+                    &format!("{} frames", self.plugin.identity.id),
+                    self.frames,
+                );
+            }
             mark(&self.plugin.identity.id);
+        }
+    }
+
+    fn export_previews(&mut self, frame: &Frame) {
+        let shown: Vec<ScreenPlacement> = self
+            .layout
+            .screens
+            .iter()
+            .filter(|placement| placement.region == EditorRegion::Preview)
+            .copied()
+            .collect();
+        if shown.is_empty() {
+            return;
+        }
+        let surfaces: Vec<u32> = shown.iter().map(|placement| placement.surface).collect();
+        let painted = Backend::pictures(frame, &surfaces)
+            .into_iter()
+            .filter_map(|(surface, picture)| {
+                let placement = shown
+                    .iter()
+                    .find(|placement| placement.surface == surface)?;
+                Some(previews::Painted {
+                    instance: placement.instance,
+                    screen: placement.screen,
+                    picture,
+                    size: [placement.width, placement.height],
+                })
+            })
+            .collect();
+        previews::exported(&self.plugin.identity.id, &self.shared, painted);
+    }
+
+    fn laid_out(&mut self, layout: ScreenLayout) {
+        let shown: Vec<ScreenPlacement> = layout
+            .screens
+            .iter()
+            .filter(|placement| placement.region == EditorRegion::Preview)
+            .copied()
+            .collect();
+        previews::keep(&self.plugin.identity.id, |instance, screen| {
+            shown
+                .iter()
+                .any(|placement| placement.instance == instance && placement.screen == screen)
+        });
+        self.backend
+            .export(shown.iter().map(|placement| placement.surface).collect());
+        self.layout = layout;
+    }
+
+    fn offer_previews(&mut self, messages: &[Message]) {
+        for message in messages {
+            let Message::ChildStatuses(statuses) = message else {
+                continue;
+            };
+            for status in statuses {
+                let ChildPreview::Image(image) = status.preview else {
+                    continue;
+                };
+                if let Some(picture) = previews::offer(&self.plugin.identity.id, image.image) {
+                    self.backend.offer(image.image, &picture);
+                }
+            }
         }
     }
 
@@ -758,7 +828,7 @@ impl Runtime {
             self.instances.translate(&mut message, true);
             changed |= match message {
                 Message::Layout(layout) => {
-                    self.layout = layout;
+                    self.laid_out(layout);
                     true
                 }
                 Message::Editor(message) => self.instances.editor_message(message),
@@ -826,6 +896,7 @@ impl Runtime {
         if messages.is_empty() || self.error.is_some() {
             return;
         }
+        self.offer_previews(&messages);
         let mut messages = self.instances.hold_unreported(messages);
         for message in &mut messages {
             self.instances.translate(message, false);
@@ -992,6 +1063,10 @@ pub(crate) fn report_child_focus(
             child,
         })]);
     });
+}
+
+pub(crate) fn preview_image(plugin_id: &str, instance: EditorInstanceId) -> Option<PreviewImage> {
+    previews::image(plugin_id, instance)
 }
 
 pub(crate) fn report_children(
@@ -1614,6 +1689,16 @@ pub(crate) fn present(plugin_id: &str, instance: EditorInstanceId, presenting: b
     });
 }
 
+pub(crate) fn set_presented(plugin_id: &str, instance: EditorInstanceId, presented: bool) {
+    with(plugin_id, |runtime| {
+        if runtime.instances.set_presented(instance, presented) {
+            runtime.pacing.needed = true;
+            mark(plugin_id);
+            host::request_repaint();
+        }
+    });
+}
+
 pub(crate) fn set_presence_visible(plugin_id: &str, instance: EditorInstanceId, visible: bool) {
     super::instances::want_presence(instance, visible);
     with(plugin_id, |runtime| {
@@ -1892,14 +1977,17 @@ fn apply_offers(runtime: &mut Runtime, instance: EditorInstanceId, region: Edito
     let Some(chosen) = offers.iter().max_by(|a, b| area(a).total_cmp(&area(b))) else {
         return;
     };
-    let shown = offers
-        .iter()
-        .filter_map(|offer| {
-            Quad::upright(offer.placement.rect)
-                .crop_to(offer.placement.clip)
-                .map(|(_, source)| source)
-        })
-        .reduce(|shown, source| shown.union(source));
+    let shown = match region {
+        EditorRegion::Preview => Some(UNIT),
+        _ => offers
+            .iter()
+            .filter_map(|offer| {
+                Quad::upright(offer.placement.rect)
+                    .crop_to(offer.placement.clip)
+                    .map(|(_, source)| source)
+            })
+            .reduce(|shown, source| shown.union(source)),
+    };
     let frame = chosen.frame;
     let view = chosen.view;
     let RegionPlacement {

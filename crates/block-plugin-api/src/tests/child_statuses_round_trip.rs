@@ -30,6 +30,11 @@ fn child_statuses_round_trip() {
                 changed: true,
                 summary: Some("Every 5 minutes".into()),
             }),
+            preview: ChildPreview::Image(PreviewImage {
+                image: 12,
+                width: 320,
+                height: 180,
+            }),
         },
         ChildStatus {
             instance: EditorInstanceId(4),
@@ -46,6 +51,7 @@ fn child_statuses_round_trip() {
             menu: Vec::new(),
             creation: None,
             settings: None,
+            preview: Default::default(),
         },
     ]);
     assert_eq!(
@@ -68,6 +74,7 @@ fn child_statuses_round_trip() {
         menu: Vec::new(),
         creation: None,
         settings: None,
+        preview: Default::default(),
     }]);
     assert_eq!(
         encode_frame(&oversized),

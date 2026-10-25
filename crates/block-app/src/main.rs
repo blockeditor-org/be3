@@ -4,7 +4,6 @@ mod app_state;
 #[cfg(all(not(target_os = "android"), not(target_arch = "wasm32")))]
 mod arguments;
 mod be;
-mod block_label;
 mod compositor;
 mod contacts;
 #[cfg(target_os = "linux")]

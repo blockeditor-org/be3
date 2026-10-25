@@ -9592,6 +9592,7 @@ crates = {
                 "deps": [
                     "//crates/be-block:be-block",
                     "//crates/beui-adapter-plugin:beui-adapter-plugin",
+                    "//crates/beui-renderer-wgpu:beui-renderer-wgpu",
                     "//crates/beui:beui",
                     "//crates/block-editor-plugin:block-editor-plugin",
                     "//crates/block-plugin-api:block-plugin-api",

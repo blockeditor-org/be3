@@ -131,6 +131,7 @@ scalar! {
     fn surface_age(surface: u32) -> u32 => surface_age;
     fn surface_present(surface: u32) => present_surface;
     fn surface_release(surface: u32) => detach_surface;
+    fn texture_import(image: u64) -> u32 => import_texture;
 }
 
 pub fn device_limits(guest: &mut impl Guest, pointer: u32, capacity: u32) -> u32 {
