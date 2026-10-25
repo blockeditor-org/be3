@@ -14,9 +14,10 @@ use beui_core::window::{
     WindowEdge, WindowId, WindowPlacement, WindowReport, WindowRequest, WindowState,
 };
 use beui_renderer_wgpu::present::GpuSetup;
-use glam::{Quat, Vec3};
+use glam::{Mat4, Quat, Vec3};
 
 use crate::carry::{Carry, NEAREST};
+use crate::cursor::{self, Sprite};
 use crate::head::{Head, Ray};
 use crate::panel::{Hit, Panel, Pose, pick};
 use crate::render::{Compositor, Frame, PanelFrame};
@@ -24,12 +25,12 @@ use crate::resize::Resize;
 
 pub const SKY: Color32 = Color32::from_rgb(22, 25, 31);
 const MOST_SECONDS: f32 = 0.1;
-const CURSOR_RADIUS: f32 = 0.006;
 const FILLED: f32 = 0.8;
 pub const OPEN_DISTANCE: f32 = 1.0;
 pub const OPEN_NEARER: f32 = 0.1;
 pub const OPEN_GRAB: Pos2 = pos2(24.0, 16.0);
 pub const OVER_NEARER: f32 = 0.03;
+pub const CURSOR_LIFT: f32 = 0.01;
 
 #[derive(Clone, Copy, PartialEq, Debug)]
 enum Cursor {
@@ -59,6 +60,7 @@ struct Shown {
     panels: Vec<Panel>,
     lifted: Option<WindowId>,
     cursor: Option<Vec3>,
+    icon: CursorIcon,
 }
 
 pub struct Space {
@@ -72,6 +74,8 @@ pub struct Space {
     now: Option<Instant>,
     clock: Option<Instant>,
     cursor: Option<Cursor>,
+    cursor_distance: f32,
+    sprite: Sprite,
     hovered: Option<WindowId>,
     last: Option<(WindowId, Pos2)>,
     captured: Option<WindowId>,
@@ -107,6 +111,8 @@ impl Space {
             now: None,
             clock: None,
             cursor: None,
+            cursor_distance: OPEN_DISTANCE,
+            sprite: Sprite::new(),
             hovered: None,
             last: None,
             captured: None,
@@ -194,6 +200,50 @@ impl Space {
                 .pick(self.head.ray(self.platform, at.to_vec2()))
                 .map(|hit| hit.point),
             Cursor::Window(window, pos) => self.panel(window).map(|panel| panel.world(pos)),
+        }
+    }
+
+    pub fn cursor_at(&self) -> Option<Vec3> {
+        let ray = self.cursor_ray()?;
+        let distance = self
+            .cursor_point()
+            .map_or(self.cursor_distance, |point| point.distance(ray.origin));
+        Some(ray.at(distance * (1.0 - CURSOR_LIFT)))
+    }
+
+    pub fn cursor_scale(&self, at: Vec3) -> f32 {
+        let points = self.platform.y.max(1.0) / self.pixels_per_point;
+        at.distance(self.head.position) * 2.0 * (crate::head::FOV_Y / 2.0).tan() / points
+    }
+
+    pub fn cursor_icon(&self, output: &FrameOutput) -> CursorIcon {
+        self.hovered
+            .or(self.captured)
+            .or(self.gripped())
+            .and_then(|window| output.window(window))
+            .map_or(CursorIcon::Default, |window| window.window.requests.cursor)
+    }
+
+    fn remember_cursor(&mut self) {
+        if let Some(point) = self.cursor_point() {
+            self.cursor_distance = point.distance(self.head.position);
+        }
+    }
+
+    fn cursor_frame(&self, at: Vec3) -> PanelFrame {
+        let scale = self.cursor_scale(at);
+        let rotation = self.head.rotation();
+        let (right, up) = (rotation * Vec3::X, rotation * Vec3::Y);
+        let centre = cursor::SIZE / 2.0 - cursor::HOTSPOT.to_vec2();
+        let middle = at + (right * centre.x - up * centre.y) * scale;
+        PanelFrame {
+            window: self.sprite.window,
+            model: Mat4::from_cols(
+                (right * cursor::SIZE.x * scale).extend(0.0),
+                (up * cursor::SIZE.y * scale).extend(0.0),
+                (rotation * Vec3::Z).extend(0.0),
+                middle.extend(1.0),
+            ),
         }
     }
 
@@ -779,7 +829,7 @@ impl Space {
             .filter(|_| self.gripped().is_none())
             .and_then(|window| output.window(window))
             .map(|window| &window.window.requests);
-        state.requests.cursor = over.map_or(CursorIcon::Default, |requests| requests.cursor);
+        state.requests.cursor = CursorIcon::None;
         state.requests.pointer_locked =
             self.steering() || over.is_some_and(|requests| requests.pointer_locked);
         state.requests.ime = None;
@@ -792,6 +842,7 @@ impl WindowHost for Space {
     fn setup(&mut self, setup: &Setup) {
         self.compositor = setup.get::<GpuSetup>().map(Compositor::new);
         self.shown = None;
+        self.sprite.repaint();
     }
 
     fn input(&mut self, incoming: &mut Vec<Incoming>, view: &HostView) {
@@ -806,6 +857,7 @@ impl WindowHost for Space {
         }
         self.place_carried();
         self.rescale();
+        self.remember_cursor();
         out.append(&mut self.reports);
         *incoming = out;
     }
@@ -827,15 +879,20 @@ impl WindowHost for Space {
         }
         self.place_carried();
         self.rescale();
+        self.remember_cursor();
         let animating = self.steering() && !self.walking.is_empty()
             || self.carry.is_some_and(|carry| carry.turning(self.clock));
         let repaint_after = match animating || !self.reports.is_empty() {
             true => Duration::ZERO,
             false => Duration::MAX,
         };
+        let state = self.window_state(output);
         let Some(compositor) = &self.compositor else {
             return Hosted {
-                window: output.main().clone(),
+                window: WindowOutput {
+                    window: state,
+                    ..output.main().clone()
+                },
                 repaint_after,
             };
         };
@@ -845,15 +902,21 @@ impl WindowHost for Space {
                 changed |= compositor.update(window);
             }
         }
+        let icon = self.cursor_icon(output);
+        if self.sprite.changed(icon, view.pixels_per_point) {
+            compositor.forget(self.sprite.window);
+            let sprite = self.sprite.paint(icon, view.pixels_per_point);
+            changed |= compositor.update(&sprite);
+        }
         let shown = Shown {
             platform: view.platform,
             head: self.head,
             panels: self.panels.clone(),
             lifted: self.lifted(),
-            cursor: self.cursor_point(),
+            cursor: self.cursor_at(),
+            icon,
         };
         let size = view.platform / view.pixels_per_point;
-        let state = self.window_state(output);
         if let Some((last, window)) = &mut self.shown
             && *last == shown
             && !changed
@@ -866,18 +929,12 @@ impl WindowHost for Space {
                 repaint_after,
             };
         }
-        let distance = shown
-            .cursor
-            .map_or(1.0, |point| point.distance(self.head.position));
         let frame = Frame {
             view_projection: self.head.view_projection(view.platform),
             eye: self.head.position,
             right: self.head.rotation() * Vec3::X,
             up: self.head.rotation() * Vec3::Y,
-            cursor: shown.cursor.map(|point| {
-                let toward = (self.head.position - point).normalize_or_zero();
-                (point + toward * 0.002, CURSOR_RADIUS * distance)
-            }),
+            cursor: shown.cursor.map(|at| self.cursor_frame(at)),
             panels: self
                 .panels
                 .iter()

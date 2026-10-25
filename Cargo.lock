@@ -1190,6 +1190,7 @@ name = "beui-adapter-space"
 version = "0.1.0"
 dependencies = [
  "beui-core",
+ "beui-font-freetype",
  "beui-renderer-wgpu",
  "bytemuck",
  "glam",

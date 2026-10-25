@@ -1,8 +1,9 @@
 use std::time::{Duration, Instant};
 
+use beui_core::context::{Context, FrameOutput};
 use beui_core::geometry::Rect;
 use beui_core::geometry::{Pos2, Vec2, pos2, vec2};
-use beui_core::input::{Input, Key, Keystroke, Modifiers, PointerButton, ScrollDelta};
+use beui_core::input::{CursorIcon, Input, Key, Keystroke, Modifiers, PointerButton, ScrollDelta};
 use beui_core::runner::{HostView, Incoming, Units, WindowHost};
 use beui_core::window::{
     HostPlacement, WindowEdge, WindowId, WindowPlacement, WindowReport, WindowRequest,
@@ -17,6 +18,7 @@ mod a_carried_panel_follows_the_cursor_and_the_head;
 mod a_carried_panel_is_in_front_of_the_others_until_scrolled_away;
 mod a_carried_panel_turns_smoothly_to_face_the_viewer_while_carried;
 mod a_click_on_the_panel_reaches_the_app_where_the_ray_hits;
+mod a_miss_keeps_the_cursor_as_far_away_as_it_last_hit;
 mod a_miss_leaves_the_panel;
 mod a_miss_while_a_button_is_held_leaves_the_window_and_keeps_the_drag;
 mod a_nearer_panel_is_drawn_at_more_pixels_per_point;
@@ -35,6 +37,9 @@ mod motion_a_driver_sends_turns_the_head_while_steering;
 mod moving_a_window_carries_its_panel;
 mod resizing_a_window_drags_its_edge_and_reports_the_new_size;
 mod scrolling_while_carrying_moves_the_panel_nearer_or_farther;
+mod the_cursor_shows_the_icon_the_window_under_it_asks_for_and_hides_the_platform_one;
+mod the_cursor_sits_just_in_front_of_the_panel_at_the_same_size_to_the_eye;
+mod the_cursor_sprite_draws_the_icon_around_its_hotspot;
 mod windows_opened_over_the_same_spot_stack_toward_the_viewer;
 
 const PLATFORM: Vec2 = vec2(800.0, 600.0);
@@ -221,4 +226,18 @@ fn on(space: &Space, window: WindowId, at: Pos2) -> Pos2 {
         .and_then(|panel| panel.hit(space.head.ray(PLATFORM, at.to_vec2())))
         .expect("the cursor is on the panel")
         .pos
+}
+
+fn app_frame(cursor: CursorIcon) -> FrameOutput {
+    let fonts = beui_font_freetype::FreetypeFonts::new(beui_font_freetype::FontLibrary::new(
+        beui_font_freetype::FontSources::default(),
+    ));
+    Context::new(fonts).run(|context| context.set_cursor_icon(cursor))
+}
+
+fn eye_distance(space: &Space) -> f32 {
+    space
+        .cursor_at()
+        .expect("the cursor is shown")
+        .distance(space.head.position)
 }

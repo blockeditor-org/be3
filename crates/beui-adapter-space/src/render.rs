@@ -28,7 +28,7 @@ pub struct Frame {
     pub eye: Vec3,
     pub right: Vec3,
     pub up: Vec3,
-    pub cursor: Option<(Vec3, f32)>,
+    pub cursor: Option<PanelFrame>,
     pub panels: Vec<PanelFrame>,
     pub lifted: Option<WindowId>,
 }
@@ -38,7 +38,6 @@ pub struct Frame {
 struct SceneUniform {
     view_projection: [[f32; 4]; 4],
     eye: [f32; 4],
-    cursor: [f32; 4],
     right: [f32; 4],
     up: [f32; 4],
     sky: [f32; 4],
@@ -422,19 +421,20 @@ impl Gpu {
                 },
                 wgpu::CompareFunction::Always,
             ),
-            cursor: pipeline(
+            cursor: pipeline_comparing(
                 device,
                 shader,
                 Stage {
                     label: "space cursor",
-                    vertex: "cursor_vertex",
+                    vertex: "panel_vertex",
                     fragment: "cursor_fragment",
-                    layouts: &[&self.scene_layout],
+                    layouts: &[&self.scene_layout, &self.texture_layout],
                     format,
                     samples: SAMPLES,
                     depth: Some(false),
-                    blend: Some(wgpu::BlendState::ALPHA_BLENDING),
+                    blend: Some(wgpu::BlendState::PREMULTIPLIED_ALPHA_BLENDING),
                 },
+                wgpu::CompareFunction::Always,
             ),
             blit: pipeline(
                 device,
@@ -676,11 +676,9 @@ impl Gpu {
         let (Some(pipelines), Some(target)) = (&self.pipelines, &self.target) else {
             return;
         };
-        let (cursor, radius) = frame.cursor.unwrap_or((Vec3::ZERO, 0.0));
         let scene = SceneUniform {
             view_projection: frame.view_projection.to_cols_array_2d(),
             eye: frame.eye.extend(1.0).to_array(),
-            cursor: cursor.extend(radius).to_array(),
             right: frame.right.extend(0.0).to_array(),
             up: frame.up.extend(0.0).to_array(),
             sky: SKY.to_linear_f32(),
@@ -696,7 +694,7 @@ impl Gpu {
                 screen: [at.screen.x, at.screen.y, 0.0, 0.0],
             }),
         );
-        for panel in &frame.panels {
+        for panel in frame.panels.iter().chain(&frame.cursor) {
             if let Some(drawn) = self.panels.get(&panel.window) {
                 self.queue.write_buffer(
                     &drawn.uniform,
@@ -746,8 +744,12 @@ impl Gpu {
                 }
             }
         }
-        if frame.cursor.is_some() {
+        if let Some(cursor) = &frame.cursor
+            && let Some(drawn) = self.panels.get(&cursor.window)
+            && drawn.painted
+        {
             pass.set_pipeline(&pipelines.cursor);
+            pass.set_bind_group(1, &drawn.group, &[]);
             pass.draw(0..4, 0..1);
         }
     }

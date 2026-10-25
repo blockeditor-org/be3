@@ -6476,6 +6476,7 @@ crates = {
                 "binaries": {},
                 "deps": [
                     "//crates/beui-core:beui-core",
+                    "//crates/beui-font-freetype:beui-font-freetype",
                     "//crates/beui-renderer-wgpu:beui-renderer-wgpu",
                     "//third-party/rust:bytemuck-1.25.0",
                     "//third-party/rust:glam-0.30.10",
@@ -6490,6 +6491,7 @@ crates = {
                 "binaries": {},
                 "deps": [
                     "//crates/beui-core:beui-core",
+                    "//crates/beui-font-freetype:beui-font-freetype",
                     "//crates/beui-renderer-wgpu:beui-renderer-wgpu",
                     "//third-party/rust:bytemuck-1.25.0",
                     "//third-party/rust:glam-0.30.10",
@@ -6504,6 +6506,7 @@ crates = {
                 "binaries": {},
                 "deps": [
                     "//crates/beui-core:beui-core",
+                    "//crates/beui-font-freetype:beui-font-freetype",
                     "//crates/beui-renderer-wgpu:beui-renderer-wgpu",
                     "//third-party/rust:bytemuck-1.25.0",
                     "//third-party/rust:glam-0.30.10",
@@ -6518,6 +6521,7 @@ crates = {
                 "binaries": {},
                 "deps": [
                     "//crates/beui-core:beui-core",
+                    "//crates/beui-font-freetype:beui-font-freetype",
                     "//crates/beui-renderer-wgpu:beui-renderer-wgpu",
                     "//third-party/rust:bytemuck-1.25.0",
                     "//third-party/rust:glam-0.30.10",
@@ -6532,6 +6536,7 @@ crates = {
                 "binaries": {},
                 "deps": [
                     "//crates/beui-core:beui-core",
+                    "//crates/beui-font-freetype:beui-font-freetype",
                     "//crates/beui-renderer-wgpu:beui-renderer-wgpu",
                     "//third-party/rust:bytemuck-1.25.0",
                     "//third-party/rust:glam-0.30.10",
@@ -6546,6 +6551,7 @@ crates = {
                 "binaries": {},
                 "deps": [
                     "//crates/beui-core:beui-core",
+                    "//crates/beui-font-freetype:beui-font-freetype",
                     "//crates/beui-renderer-wgpu:beui-renderer-wgpu",
                     "//third-party/rust:bytemuck-1.25.0",
                     "//third-party/rust:glam-0.30.10",
@@ -6560,6 +6566,7 @@ crates = {
                 "binaries": {},
                 "deps": [
                     "//crates/beui-core:beui-core",
+                    "//crates/beui-font-freetype:beui-font-freetype",
                     "//crates/beui-renderer-wgpu:beui-renderer-wgpu",
                     "//third-party/rust:bytemuck-1.25.0",
                     "//third-party/rust:glam-0.30.10",

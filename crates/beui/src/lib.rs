@@ -71,6 +71,7 @@ pub use beui_core::runner::environment;
 pub use beui_core::screens::Screen;
 pub use beui_core::testing;
 pub use beui_core::touch_cursor;
+pub use beui_core::drawn_cursor;
 #[cfg(not(target_arch = "wasm32"))]
 pub use beui_font_freetype::system::SystemFonts;
 pub use beui_font_freetype::{

@@ -347,7 +347,10 @@ hooks the higher crates fill in:
   whatever the app asked: a finger-sized circle, defined once in
   `beui_core::touch_cursor` as an image at any scale (winit's custom cursor,
   the DRM sprite), an SVG (the web's CSS `url(...)` cursor) and a painter
-  call (the mouse simulation's cursor). A plugin region passes it to its host
+  call (the mouse simulation's cursor). Every other icon is drawn, for hosts that
+  draw their own cursor (the mouse simulation, space), by
+  `beui_core::drawn_cursor::paint`: an icon-font glyph with its hotspot on the
+  point, or an I-beam for text. A plugin region passes it to its host
   unchanged (the protocol's `CursorIcon` is beui's, from `ui-types`), and a platform with no custom cursors
   falls back to `CursorIcon::Touch.name()`, a crosshair. The runner hands it to `Platform::show_window` with the state it
   showed before, only when they differ, so an adapter compares just the
@@ -2996,12 +2999,25 @@ all its 3D (`glam`) stays in the crate.
   trilinear and anisotropic filtering and a level-of-detail bias of -0.5
   (`SHARPEN` in space.wgsl), so a texture up to 1.4 times the panel's size
   on screen is read from its sharpest level;
-  then a 4x multisampled, depth-tested pass draws a floor grid, the panels
+  then a 4x multisampled, depth-tested pass draws a floor grid and the panels
   (their backs grey; nearer panels hide farther ones by depth, except a lifted
-  carried panel, drawn last with its depth test off) and a cursor
-  disc where the ray meets a panel, and a
+  carried panel, drawn last with its depth test off), and a
   `Drawing` copies it texel for texel into the platform window. A frame is composed again only
   when the head, a panel, the cursor or a window's output changed.
+- Cursor: the host asks the platform for `CursorIcon::None` and draws its own
+  in the scene, last and over everything, as a quad facing the head with its
+  hotspot on the cursor's ray, `CURSOR_LIFT` (1%) of the distance in front of
+  the panel the ray hits (`Space::cursor_at`). On a miss it stays on the ray
+  at the last hit's distance (`OPEN_DISTANCE` before any hit), and it goes
+  only when the pointer leaves the platform window. Its size grows with
+  distance (`Space::cursor_scale`, metres per point) so it covers as many
+  pixels as it has points at any depth. It shows the icon that the window
+  under it, holding the press, or being carried or resized asks for
+  (`Space::cursor_icon`), an arrow over nothing. `cursor::Sprite` paints that
+  icon with `beui_core::drawn_cursor::paint`, the same drawing the inspector's
+  mouse simulation shows on a touchscreen, through a `Context` of its own with
+  only the icon font, and the compositor draws it into a texture like a window
+  only when the icon or the scale changes.
 
 ### The on-screen keyboard
 

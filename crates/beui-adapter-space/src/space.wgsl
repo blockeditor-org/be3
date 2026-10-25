@@ -1,7 +1,6 @@
 struct Scene {
     view_projection: mat4x4<f32>,
     eye: vec4<f32>,
-    cursor: vec4<f32>,
     right: vec4<f32>,
     up: vec4<f32>,
     sky: vec4<f32>,
@@ -92,30 +91,9 @@ fn panel_fragment(input: PanelOut, @builtin(front_facing) front: bool) -> @locat
     return vec4<f32>(color.rgb, 1.0);
 }
 
-struct CursorOut {
-    @builtin(position) position: vec4<f32>,
-    @location(0) at: vec2<f32>,
-};
-
-@vertex
-fn cursor_vertex(@builtin(vertex_index) index: u32) -> CursorOut {
-    let at = corner(index) * 2.0 - 1.0;
-    let radius = scene.cursor.w;
-    let world = scene.cursor.xyz + (scene.right.xyz * at.x + scene.up.xyz * at.y) * radius;
-    var out: CursorOut;
-    out.position = scene.view_projection * vec4<f32>(world, 1.0);
-    out.at = at;
-    return out;
-}
-
 @fragment
-fn cursor_fragment(input: CursorOut) -> @location(0) vec4<f32> {
-    let distance = length(input.at);
-    let edge = fwidth(distance);
-    let disc = 1.0 - smoothstep(1.0 - edge, 1.0, distance);
-    let inner = 1.0 - smoothstep(0.62 - edge, 0.62, distance);
-    let color = mix(vec3<f32>(0.0, 0.0, 0.0), vec3<f32>(1.0, 1.0, 1.0), inner);
-    return vec4<f32>(encode(color), disc * 0.95);
+fn cursor_fragment(input: PanelOut) -> @location(0) vec4<f32> {
+    return textureSample(panel_texture, panel_sampler, input.uv);
 }
 
 struct Blit {
