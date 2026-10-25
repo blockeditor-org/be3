@@ -428,7 +428,10 @@ impl ServerStore {
                             role,
                         })
                         .can_manage(graph, grant.block)
-                    });
+                    })
+                    && self
+                        .policies(graph, &transaction, grant.organization)
+                        .is_ok_and(|policies| policies.shares_outside());
                 let mut granted = None;
                 if may_grant {
                     let before = graph.audience(grant.block);

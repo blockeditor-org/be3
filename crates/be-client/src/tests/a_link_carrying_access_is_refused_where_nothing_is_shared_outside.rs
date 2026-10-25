@@ -16,7 +16,7 @@ async fn a_link_carrying_access_is_refused_where_nothing_is_shared_outside() {
         "admin@example.com",
     );
     let offer = admin.offer(team, be_graph::Access::View).await.unwrap();
-    crate::contacts::make_link(
+    let early = crate::contacts::make_link(
         &admin.connection(),
         admin.keys().identity(),
         &card,
@@ -47,6 +47,29 @@ async fn a_link_carrying_access_is_refused_where_nothing_is_shared_outside() {
     crate::contacts::make_link(&admin.connection(), admin.keys().identity(), &card, None)
         .await
         .expect("a link that only makes a contact is still made");
+
+    let member = harness.member(&admin, "member@example.com").await;
+    let member_card = crate::contacts::card(
+        member.account(),
+        member.keys().identity(),
+        "Member",
+        "member@example.com",
+    );
+    crate::contacts::accept_link(
+        &member.connection(),
+        member.keys().identity(),
+        &member_card,
+        &early,
+    )
+    .await
+    .expect("the link still makes a contact");
+    assert!(
+        !member
+            .summary(team)
+            .await
+            .is_ok_and(|summary| summary.access.can_view()),
+        "a link made before sharing outside was blocked still granted access"
+    );
 
     harness.stop().await;
 }
