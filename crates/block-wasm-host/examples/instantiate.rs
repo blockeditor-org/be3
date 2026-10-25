@@ -141,6 +141,7 @@ fn hello_accepted() -> Message {
         host_name: "instantiate".to_owned(),
         surface: Some(block_plugin_api::SurfaceSpec {
             format: block_plugin_api::SurfaceFormat::Rgba8Unorm,
+            render: true,
         }),
         preferences: block_plugin_api::Preferences::default(),
     })

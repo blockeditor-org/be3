@@ -21,7 +21,10 @@ variables, so a program needs nothing of its own to be driven:
 
 - `BEUI_HEADLESS=WIDTHxHEIGHT[@SCALE]` runs it on `beui::Headless` (crates/beui-adapter-headless),
   which draws offscreen with wgpu and needs no display server. `BEUI_HEADLESS_SCREEN=WIDTHxHEIGHT`
-  is the screen a fullscreen window grows to.
+  is the screen a fullscreen window grows to. `BEUI_RENDERER=none` runs it headless with no GPU
+  at all (`beui_core::renderer::NoRenderer`): every frame is laid out and painted as usual, but
+  nothing draws the painting, so `drive paint` works and `drive shot` does not. block-app then
+  gives its plugins surfaces it does not render, so they run their frames without a GPU either.
 - `BEUI_AUTOMATION=PATH` answers `drive` on the Unix socket PATH. It works in a window too.
 - `BEUI_SPACE=1` shows it as a panel in the VR simulator (guides/beui.md, "Space: the VR simulator
   host"), headless or in a window; `drive shot` takes the 3D view, every other command the app.

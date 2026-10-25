@@ -1994,6 +1994,7 @@ pub enum SurfaceSupport {
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct SurfaceSpec {
     pub format: SurfaceFormat,
+    pub render: bool,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]

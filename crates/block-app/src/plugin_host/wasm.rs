@@ -60,8 +60,10 @@ pub(super) fn spawn(
     module: String,
     waiting: Arc<AtomicBool>,
 ) -> Result<Channel, String> {
-    let (device, queue) = gpu().ok_or(NO_GPU)?;
-    let host = Host::new(device, queue, cache().as_deref())?;
+    let host = match gpu() {
+        Some((device, queue)) => Host::new(device, queue, cache().as_deref())?,
+        None => Host::on_demand(|| Err(NO_GPU.to_owned()), cache().as_deref())?,
+    };
     let interrupter = host.interrupter();
     thread::spawn(
         Spawn {

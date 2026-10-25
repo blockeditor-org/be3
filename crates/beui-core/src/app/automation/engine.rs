@@ -600,7 +600,7 @@ impl Automation {
         let reply = match capture {
             Some(capture) => cropped(capture, *crop),
             None => Reply::Error(
-                "this renderer cannot take screenshots; run the app headless".to_owned(),
+                "this renderer cannot take screenshots; run the app headless with the wgpu renderer, or use paint".to_owned(),
             ),
         };
         self.finish(reply);

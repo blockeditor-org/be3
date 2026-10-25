@@ -19,6 +19,8 @@ const SHAPE: &str = "#infinite-canvas.entity.";
 const POLL: Duration = Duration::from_millis(5);
 
 fn main() -> ExitCode {
+    // unsafe(env)
+    unsafe { std::env::set_var("BEUI_RENDERER", "none") };
     match run() {
         Ok(()) => ExitCode::SUCCESS,
         Err(error) => {

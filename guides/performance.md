@@ -16,7 +16,8 @@ suite's `programs` (crates/bench/BUCK). Each can also run alone, with
 - `//crates/app-bench:bin` (the suite's `app-canvas-and-text`) runs block-app headless,
   driven as `drive` drives it (crates/be-drive's `Driven`, guides/running/drive.md), against
   a be-server in its own process behind a proxy that delays each direction 15 ms, so every
-  round trip takes 30 ms more. It signs a first device in through the portal, as a person's
+  round trip takes 30 ms more, with `BEUI_RENDERER=none`, so it measures the app's own work and
+  not a software GPU drawing it (guides/running/drive.md). It signs a first device in through the portal, as a person's
   browser would, makes a folder and zooms the files into it, then with `hurry off` adds a
   canvas and a text block from the files' New menu, draws a rectangle and a pen line of
   `APP_BENCH_POINTS` samples (10,000), pastes `APP_BENCH_TEXT_BYTES` of text (50 MB), paints

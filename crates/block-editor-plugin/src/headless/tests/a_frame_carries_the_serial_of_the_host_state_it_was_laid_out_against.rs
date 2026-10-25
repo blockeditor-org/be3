@@ -73,6 +73,7 @@ fn a_frame_carries_the_serial_of_the_host_state_it_was_laid_out_against() {
         host_name: "test host".into(),
         surface: Some(SurfaceSpec {
             format: SurfaceFormat::Rgba8Unorm,
+            render: true,
         }),
         preferences: block_plugin_api::Preferences::default(),
     }));

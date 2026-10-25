@@ -7,7 +7,7 @@ use std::time::{Duration, Instant};
 use beui_core::app::automation::{Simulation, WindowSize};
 use beui_core::app::{SafeArea, Setup, Waker};
 use beui_core::geometry::Vec2;
-use beui_core::renderer::Loaded;
+use beui_core::renderer::{Loaded, NoRenderer, Renderer};
 use beui_core::runner::{Adapter, Launch, Runner, Running};
 use beui_renderer_wgpu::offscreen::OffscreenSurface;
 use beui_renderer_wgpu::present::OpenDevice;
@@ -18,6 +18,7 @@ pub struct Headless {
     pub window: WindowSize,
     pub screen: Option<Vec2>,
     pub open_device: Option<OpenDevice>,
+    pub render: bool,
 }
 
 impl Adapter for Headless {
@@ -35,14 +36,21 @@ fn run(headless: Headless, launch: Launch) -> Result<(), Box<dyn Error>> {
     runner.set_occluded(true);
     let mut window = Simulation::new(headless.window, headless.screen, runner.reports().clone());
     let (width, height) = window.physical();
-    let renderer = pollster::block_on(OffscreenSurface::new(width, height, headless.open_device))?;
+    let renderer: Box<dyn Renderer> = match headless.render {
+        true => Box::new(pollster::block_on(OffscreenSurface::new(
+            width,
+            height,
+            headless.open_device,
+        ))?),
+        false => Box::new(NoRenderer::new(width, height)),
+    };
     let (sender, receiver) = mpsc::channel();
     let setup = Setup::new(Waker::new(move || {
         let _ = sender.send(());
     }));
     runner.start(
         vec![Loaded {
-            renderer: Box::new(renderer),
+            renderer,
             fonts: None,
         }],
         setup,

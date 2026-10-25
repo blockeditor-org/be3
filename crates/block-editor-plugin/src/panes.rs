@@ -25,6 +25,7 @@ impl Panes {
         screens: &mut Screens,
         fresh: &HashSet<u32>,
         seen: bool,
+        rendered: bool,
     ) -> Ran {
         let mut repaint = Duration::MAX;
         let mut animating = false;
@@ -45,7 +46,10 @@ impl Panes {
                 || repainting.contains(&placement.instance)
                 || unpainted.contains(&placement.instance)
             {
-                let age = block_gpu_guest::surface_age(placement.surface);
+                let age = match rendered {
+                    true => block_gpu_guest::surface_age(placement.surface),
+                    false => 0,
+                };
                 let frame = session.run(placement.region, age);
                 screens.ran(placement.instance);
                 changed |= frame.changed;

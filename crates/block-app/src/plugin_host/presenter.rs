@@ -772,9 +772,9 @@ struct Presenter {
 }
 
 pub(super) fn install(setup: &beui::Setup) -> Availability {
-    let gpu = setup
-        .get::<beui::GpuSetup>()
-        .expect("beui's runner provides the GPU it draws with");
+    let Some(gpu) = setup.get::<beui::GpuSetup>() else {
+        return Availability(Ok(()));
+    };
     let regions = RegionLayout::new(&gpu.device);
     let platform = build_presenter(&gpu.device, &gpu.queue, &regions, gpu.format);
     let availability = Availability(platform.as_ref().map(|_| ()).map_err(Clone::clone));
@@ -785,6 +785,10 @@ pub(super) fn install(setup: &beui::Setup) -> Availability {
         });
     });
     availability
+}
+
+pub(super) fn rendered() -> bool {
+    PRESENTER.with(|presenter| presenter.borrow().is_some())
 }
 
 pub(super) fn stop() {
