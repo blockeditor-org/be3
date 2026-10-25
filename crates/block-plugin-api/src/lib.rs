@@ -6,7 +6,7 @@ use std::fmt;
 be_ops_bindgen::generate!({
     path: "wit",
     world: "editor-plugin",
-    deps: ["../ui-types/wit", "../block-gpu-abi/wit"],
+    deps: ["../ui-types/wit", "../be-ops/wit", "../block-gpu-abi/wit"],
     uses: {
         "be3:ui/types@0.1.0": ::ui_types::types,
         "be3:gpu/device@0.1.0": ::block_gpu_abi::device,
@@ -14,17 +14,16 @@ be_ops_bindgen::generate!({
     local: ["be3:gpu/device@0.1.0"],
     with: {
         "uuid": [u8; 16],
+        "hash": [u8; 32],
         "editor-instance-id": crate::EditorInstanceId,
         "screen-id": crate::ScreenId,
         "host-window-id": crate::HostWindowId,
-        "commit-id": [u8; 32],
         "child-id": crate::ChildId,
-        "tree-id": [u8; 16],
         "web-view-id": crate::WebViewId,
         "rgb": [u8; 3],
     },
     copy: [
-        "uuid", "tree-id", "host-window-id", "editor-instance-id", "screen-id", "commit-id", "child-id", "web-view-id", "rgb",
+        "uuid", "hash", "host-window-id", "editor-instance-id", "screen-id", "child-id", "web-view-id", "rgb",
     ],
     default: [
         "frame-chrome", "top-bar", "frame-spec", "size", "fonts", "screen-layout",
@@ -48,8 +47,9 @@ be_ops_bindgen::generate!({
 
 pub use accessibility::DescribedAction;
 pub use be_ops as ops;
+pub use access::AccessLevel;
 pub use blocks::{
-    AccessLevel, ArtifactAction, ArtifactState, BlockCommand, BlockInfo, BlockLocation,
+    ArtifactAction, ArtifactState, BlockCommand, BlockInfo, BlockLocation,
     BlockMetadata, BlockQuery, ConflictSide, StoredHead, VersionBranch, VersionChange,
     VersionChangeKind, VersionCommand, VersionCommit, VersionOperation, VersionStatus,
 };

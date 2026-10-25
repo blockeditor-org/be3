@@ -4,14 +4,15 @@ package be3:block-type@0.1.0;
 /// that need none.
 interface replicas {
     use types.{
-        change, client-id, commit-id, description, editor-id, endpoint, failure, merged,
-        plain-file, session-state, session-tag, type-info, uuid,
+        block-id, change, client-id, commit-id, content-type-id, description, editor-id,
+        endpoint, failure, merged, organization-id, plain-file, session-state, session-tag,
+        type-info,
     };
 
     record opening {
-        block: uuid,
-        content-type: uuid,
-        organization: uuid,
+        block: block-id,
+        content-type: content-type-id,
+        organization: organization-id,
         client: client-id,
         tag: session-tag,
         /// The head the host just read; the replica reads it itself.
@@ -57,28 +58,28 @@ interface replicas {
     /// Seeds the module's entropy, starts its clock and lists its types.
     start: func(entropy: list<u8>) -> list<type-info>;
 
-    blank: func(content-type: uuid) -> result<list<u8>, failure>;
+    blank: func(content-type: content-type-id) -> result<list<u8>, failure>;
 
     /// A side that is none is the type's default.
     merge3: func(
-        content-type: uuid,
+        content-type: content-type-id,
         base: option<list<u8>>,
         ours: option<list<u8>>,
         theirs: option<list<u8>>,
     ) -> result<merged, failure>;
 
-    describe: func(content-type: uuid, bytes: list<u8>, organization: uuid) -> result<description, failure>;
+    describe: func(content-type: content-type-id, bytes: list<u8>, organization: organization-id) -> result<description, failure>;
 
-    to-file: func(content-type: uuid, bytes: list<u8>) -> result<option<plain-file>, failure>;
+    to-file: func(content-type: content-type-id, bytes: list<u8>) -> result<option<plain-file>, failure>;
 
     /// Which of the module's types takes a file, by name and first bytes, or
     /// with `directory` a new directory.
-    claims: func(name: string, first: list<u8>, directory: bool, fallback: bool) -> option<uuid>;
+    claims: func(name: string, first: list<u8>, directory: bool, fallback: bool) -> option<content-type-id>;
 
     /// A child or file change made to content bytes, or to the type's default
     /// for none. None when it does not apply.
     apply: func(
-        content-type: uuid,
+        content-type: content-type-id,
         bytes: option<list<u8>>,
         client: client-id,
         change: change,

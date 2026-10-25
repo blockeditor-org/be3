@@ -3,8 +3,13 @@ package be3:plugin@0.1.0;
 /// What a plugin describes to assistive technology, and what it is asked to
 /// do there: AccessKit's shapes, as the plugin and host exchange them.
 interface accessibility {
-    /// A tree's id, AccessKit's uuid, as its 16 bytes.
-    type tree-id = tuple<u8, u8, u8, u8, u8, u8, u8, u8, u8, u8, u8, u8, u8, u8, u8, u8>;
+    use be3:shared/ids@0.1.0.{uuid};
+
+    /// A tree's id, AccessKit's uuid.
+    type tree-id = uuid;
+
+    /// A node of a tree, numbered by the plugin that describes it.
+    type node-id = u64;
 
     enum action {
         click,
@@ -51,7 +56,7 @@ interface accessibility {
     }
 
     record text-position {
-        node: u64,
+        node: node-id,
         character-index: u64,
     }
 
@@ -75,7 +80,7 @@ interface accessibility {
     record action-request {
         action: action,
         target-tree: tree-id,
-        target-node: u64,
+        target-node: node-id,
         data: option<action-data>,
     }
 
@@ -400,21 +405,21 @@ interface accessibility {
 
     /// One property of a node AccessKit describes.
     variant node-property {
-        children(list<u64>),
-        controls(list<u64>),
-        details(list<u64>),
-        described-by(list<u64>),
-        flow-to(list<u64>),
-        labelled-by(list<u64>),
-        owns(list<u64>),
-        radio-group(list<u64>),
-        active-descendant(u64),
-        error-message(u64),
-        in-page-link-target(u64),
-        member-of(u64),
-        next-on-line(u64),
-        previous-on-line(u64),
-        popup-for(u64),
+        children(list<node-id>),
+        controls(list<node-id>),
+        details(list<node-id>),
+        described-by(list<node-id>),
+        flow-to(list<node-id>),
+        labelled-by(list<node-id>),
+        owns(list<node-id>),
+        radio-group(list<node-id>),
+        active-descendant(node-id),
+        error-message(node-id),
+        in-page-link-target(node-id),
+        member-of(node-id),
+        next-on-line(node-id),
+        previous-on-line(node-id),
+        popup-for(node-id),
         label(string),
         description(string),
         value(string),
@@ -489,7 +494,7 @@ interface accessibility {
     }
 
     record node {
-        id: u64,
+        id: node-id,
         role: role,
         actions: list<action>,
         %flags: list<node-flag>,
@@ -497,7 +502,7 @@ interface accessibility {
     }
 
     record tree {
-        root: u64,
+        root: node-id,
         toolkit-name: option<string>,
         toolkit-version: option<string>,
     }
@@ -507,7 +512,7 @@ interface accessibility {
         nodes: list<node>,
         tree: option<tree>,
         tree-id: tree-id,
-        focus: u64,
+        focus: node-id,
     }
 
     /// An action a screen offers outside its tree, such as a menu command.

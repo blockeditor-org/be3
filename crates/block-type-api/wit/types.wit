@@ -2,26 +2,18 @@ package be3:block-type@0.1.0;
 
 /// The shapes a host and a type module share.
 interface types {
-    /// A block, content type or organization id.
-    record uuid {
-        hi: u64,
-        lo: u64,
-    }
-
-    /// The hash that names a commit.
-    record commit-id {
-        hash: tuple<u64, u64, u64, u64>,
-    }
+    use be3:shared/ids@0.1.0.{uuid, hash, block-id, content-type-id, organization-id, commit-id};
 
     /// The type module's hash: two builds of a type never edit one session.
-    record session-tag {
-        hash: tuple<u64, u64, u64, u64>,
-    }
+    type session-tag = hash;
 
+    /// A participant of a block's session, numbered by the server.
     type client-id = u64;
 
+    /// An editor attached to a replica, numbered by the host.
     type editor-id = u64;
 
+    /// A metadata entry, keyed by the uuid of its kind.
     record entry {
         key: uuid,
         value: list<u8>,
@@ -61,7 +53,7 @@ interface types {
     }
 
     record type-info {
-        content-type: uuid,
+        content-type: content-type-id,
         frozen: bool,
         schema: string,
         undo: bool,
@@ -71,7 +63,7 @@ interface types {
     record description {
         name: option<string>,
         derived: entries,
-        references: list<uuid>,
+        references: list<block-id>,
     }
 
     record plain-file {
@@ -85,7 +77,7 @@ interface types {
     /// computed. The host resolves, seals and uploads.
     record written {
         bytes: list<u8>,
-        references: list<uuid>,
+        references: list<block-id>,
         derived: entries,
     }
 
@@ -123,13 +115,13 @@ interface types {
     }
 
     record replace-child {
-        old: uuid,
-        new: uuid,
+        old: block-id,
+        new: block-id,
     }
 
     variant child-change {
-        add(uuid),
-        delete(uuid),
+        add(block-id),
+        delete(block-id),
         replace(replace-child),
     }
 

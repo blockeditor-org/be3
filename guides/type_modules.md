@@ -71,9 +71,11 @@ operations ("ops") of the be-ops kernel, which can be awaited and canceled.
   `with` (a map, keyed by the WIT type's name in any interface) puts an existing Rust
   type in place of a WIT type whose serde data model is the same, which the
   interface's module still names as an alias: a byte array for a tuple of as many
-  `u8` (uuids, commit ids, colours), a newtype id for a record of one `u64`. Nothing
-  checks that the two agree, so `with` is never for a type with fields or cases of its
-  own: generate it, and convert explicitly where Rust code wants another shape (a
+  `u8` (uuids, commit ids, colours), a newtype id for an alias of `u64`. Nothing
+  checks that the two agree (one known exception: block-type-api maps `uuid` onto
+  `uuid::Uuid`, whose serde writes its 16 bytes with a length in front, which works
+  because both ends of a type module's link are block-type-api), so `with` is never for
+  a type with fields or cases of its own: generate it, and convert explicitly where Rust code wants another shape (a
   menu's tree, AccessKit's tree update); `uses` (a map) takes a whole interface of another package from the crate
   generated from it (`{"be3:ui/types@0.1.0": ::ui_types::types}`); `copy` names the
   mapped types that are `Copy`; `default` the types that derive `Default` (a variant's
@@ -85,7 +87,12 @@ operations ("ops") of the be-ops kernel, which can be awaited and canceled.
   for a case named `type`, generated as `Type`), and a function may not share its name
   with a type of its interface, so a function that takes a `hello` is not `hello`.
   A package's dependencies may also sit in a `deps/<name>/` folder beside its files,
-  which is how an extension package travels with the world that imports it. For the guest:
+  which is how an extension package travels with the world that imports it. Ids and
+  access levels have one shape in every package: `be3:shared` (crates/be-ops/wit, its
+  buck `foreign_resources` `//crates/be-ops:wit`) holds `uuid` (16 bytes), `hash` (32)
+  and their aliases by what they name (`block-id`, `content-type-id`, `commit-id`, ...);
+  an id is always a named alias, and a number one side hands out is an alias of an
+  unsigned integer named `<thing>-id` in the package that hands it out. For the guest:
   `guest::<import>` functions (a `func` returns nothing and goes through a wasm import
   on wasm32-unknown-unknown and through the executor in process; an `async func` returns
   `Pending<T>`; a `stream<T>` returns `Stream<T>`), and for each export a `Guest`

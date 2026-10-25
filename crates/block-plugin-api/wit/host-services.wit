@@ -7,8 +7,9 @@ package be3:plugin@0.1.0;
 /// drops that work (a pick it has not shown, a fetch, an import or export not
 /// yet made) and answers `canceled`.
 interface host-services {
-    use types.{uuid};
-    use blocks.{access-level, block-location, commit-id};
+    use be3:shared/ids@0.1.0.{account-id, block-id, block-type-id, commit-id};
+    use be3:shared/access@0.1.0.{access-level};
+    use blocks.{block-location};
     use be3:ui/types@0.1.0.{rect, file-filter, file-pick, saved-file, file-save};
 
     /// Which blocks a pick offers: of these types (any when empty), never the
@@ -16,8 +17,8 @@ interface host-services {
     /// `place` once chosen, and hung from `anchor` (in the asking region).
     record block-filter {
         name: string,
-        block-types: list<uuid>,
-        excluded: list<uuid>,
+        block-types: list<block-type-id>,
+        excluded: list<block-id>,
         templates: bool,
         place: option<block-location>,
         anchor: option<rect>,
@@ -25,15 +26,15 @@ interface host-services {
 
     /// A block chosen in a pick, and whether it was linked or placed.
     record picked-block {
-        block-id: uuid,
-        block-type: uuid,
+        block-id: block-id,
+        block-type: block-type-id,
         linked: bool,
         placed: bool,
     }
 
     record rename-dialog {
         anchor: option<rect>,
-        within: option<uuid>,
+        within: option<block-id>,
     }
 
     /// A dialog of the instance that draws the window, asked for a block:
@@ -54,7 +55,7 @@ interface host-services {
     /// Who has access to a block: what they were granted, if anything, and
     /// what they may do once their organization and the block's parents count.
     record access-grant {
-        account: uuid,
+        account: account-id,
         email: string,
         display-name: string,
         administrator: bool,
@@ -66,22 +67,22 @@ interface host-services {
 
     /// A block a file was imported into.
     record imported-block {
-        block-id: uuid,
-        block-type: uuid,
+        block-id: block-id,
+        block-type: block-type-id,
     }
 
     /// The block's saved revisions, newest first.
-    list-revisions: async func(block: uuid) -> result<list<revision>, string>;
+    list-revisions: async func(block: block-id) -> result<list<revision>, string>;
 
     /// Opens a read-only block showing `block` as it was at `commit`, which the
     /// editor shows until it releases it.
-    preview-revision: async func(block: uuid, commit: commit-id) -> result<uuid, string>;
+    preview-revision: async func(block: block-id, commit: commit-id) -> result<block-id, string>;
 
     /// Makes `commit`'s content the block's newest revision.
-    restore-revision: async func(block: uuid, commit: commit-id) -> result<_, string>;
+    restore-revision: async func(block: block-id, commit: commit-id) -> result<_, string>;
 
     /// Closes a preview `preview-revision` opened.
-    release-revision: func(preview: uuid);
+    release-revision: func(preview: block-id);
 
     /// Asks the user for a file to open.
     pick-file: async func(filter: file-filter) -> file-pick;
@@ -90,10 +91,10 @@ interface host-services {
     save-file: async func(file: saved-file) -> file-save;
 
     /// Saves a block and everything inside it as a block file the user places.
-    export-block: async func(block: uuid) -> file-save;
+    export-block: async func(block: block-id) -> file-save;
 
     /// The block as the plain file its type writes it as.
-    read-plain-file: async func(block: uuid) -> result<saved-file, string>;
+    read-plain-file: async func(block: block-id) -> result<saved-file, string>;
 
     /// Asks the user for a block, none when they cancel.
     pick-block: async func(filter: block-filter) -> result<option<picked-block>, string>;
@@ -103,13 +104,13 @@ interface host-services {
     import-blocks: async func(parent: block-location) -> result<option<imported-block>, string>;
 
     /// Everyone who has access to the block or could be given it.
-    list-access: async func(block: uuid) -> result<list<access-grant>, string>;
+    list-access: async func(block: block-id) -> result<list<access-grant>, string>;
 
     /// Grants `account` `access` to the block.
-    set-access: func(block: uuid, account: uuid, access: access-level);
+    set-access: func(block: block-id, account: account-id, access: access-level);
 
     /// A contact link whose taker is granted `access` to the block.
-    make-contact-link: async func(block: uuid, access: access-level) -> result<string, string>;
+    make-contact-link: async func(block: block-id, access: access-level) -> result<string, string>;
 
     /// A GET of `url`, refused unless the plugin's manifest names its host.
     fetch: async func(url: string) -> result<list<u8>, string>;

@@ -2,6 +2,7 @@ load("@root//buck/cargo:defs.bzl", "cargo_library", "cargo_test", "editor_packag
 
 WIT = {
     "foreign_resources": {
+        "//crates/be-ops:wit": "crates/be-ops",
         "//crates/block-gpu-abi:wit": "crates/block-gpu-abi",
         "//crates/ui-types:wit": "crates/ui-types",
     },

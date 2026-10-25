@@ -1,8 +1,13 @@
 load("@root//buck/cargo:defs.bzl", "cargo_library", "cargo_test")
 
-cargo_library(resources = glob(["wit/*.wit"]))
+WIT = {
+    "foreign_resources": {"//crates/be-ops:wit": "crates/be-ops"},
+    "resources": glob(["wit/*.wit"]),
+}
 
-cargo_test(resources = glob(["wit/*.wit"]))
+cargo_library(**WIT)
+
+cargo_test(**WIT)
 
 filegroup(
     name = "wit",

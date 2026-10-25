@@ -1,8 +1,9 @@
 package be3:ui@0.1.0;
 
 /// The vocabulary beui and the plugin protocol share. The Rust in `ui-types` is
-/// generated from this, so these shapes are what every program serializes;
-/// `be-frozen` keeps reading what they saved, so a change only adds.
+/// generated from this, so these shapes are what every program serializes,
+/// including the display and input settings blocks. None of them is frozen
+/// (guides/frozen_formats.md), so a shape may change like any other.
 interface types {
     record vec2 {
         x: f32,

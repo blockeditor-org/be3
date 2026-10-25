@@ -7,6 +7,8 @@ package be3:gpu@0.1.0;
 /// A create that fails answers `none`; the reason is kept for `take-error`,
 /// as is the first error any other call met.
 interface device {
+    use be3:shared/ids@0.1.0.{image-id, surface-id};
+
     enum texture-format {
         r8-unorm, r8-snorm, r8-uint, r8-sint,
         r16-uint, r16-sint, r16-float,
@@ -476,7 +478,7 @@ interface device {
     /// One place the host shows the plugin, named by the id the host gave it.
     /// Dropping it lets the host forget it.
     resource surface {
-        constructor(id: u32);
+        constructor(id: surface-id);
         /// Gives the surface two textures of this size, unless it has them.
         configure: func(configuration: surface-configuration);
         /// The texture to draw the next frame into.
@@ -516,7 +518,7 @@ interface device {
 
     /// A texture the host shares with every plugin under an image id, such as
     /// a preview another plugin painted; none when no such image is shared.
-    import-texture: func(image: u64) -> option<texture>;
+    import-texture: func(image: image-id) -> option<texture>;
 
     /// The first error since the last time it was taken.
     take-error: func() -> option<string>;

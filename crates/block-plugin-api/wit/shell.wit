@@ -3,7 +3,8 @@ package be3:plugin@0.1.0;
 /// What the shell around an editor and the editor share: its menus, the
 /// actions of its bar and the children it places.
 interface shell-types {
-    use types.{child-id, editor-instance-id, editor-region, size, uuid, web-view-id};
+    use types.{child-id, editor-id, editor-instance-id, editor-region, size, web-view-id};
+    use be3:shared/ids@0.1.0.{block-id, block-type-id, image-id};
     use blocks.{block-location};
     use host-services.{block-filter};
     use be3:ui/types@0.1.0.{key-chord, pos2, rect, vec2};
@@ -61,8 +62,8 @@ interface shell-types {
     record drag-over {
         region: editor-region,
         pos: pos2,
-        block-id: uuid,
-        block-type: uuid,
+        block-id: block-id,
+        block-type: block-type-id,
         dropped: bool,
     }
 
@@ -119,7 +120,7 @@ interface shell-types {
     }
 
     record artifact-described {
-        source: uuid,
+        source: block-id,
         summary: string,
     }
 
@@ -165,7 +166,7 @@ interface shell-types {
     variant creation-progress {
         options(creation-options),
         working,
-        created(uuid),
+        created(block-id),
         failed(string),
     }
 
@@ -176,7 +177,7 @@ interface shell-types {
 
     /// A picture of a child the host painted, offered to the plugin as a texture.
     record preview-image {
-        image: u64,
+        image: image-id,
         width: u32,
         height: u32,
     }
@@ -223,7 +224,7 @@ interface shell-types {
     type rgb = tuple<u8, u8, u8>;
 
     record block-type-descriptor {
-        block-type: uuid,
+        block-type: block-type-id,
         display-name: string,
         color: option<rgb>,
         icon-codepoint: string,
@@ -240,9 +241,9 @@ interface shell-types {
     }
 
     record template-descriptor {
-        editor: uuid,
+        editor: editor-id,
         template: string,
-        block-type: uuid,
+        block-type: block-type-id,
         name: string,
         icon-codepoint: string,
         category: template-category,
@@ -250,13 +251,13 @@ interface shell-types {
     }
 
     variant edits {
-        %type(uuid),
+        %type(block-type-id),
         any,
         nothing,
     }
 
     record editor-descriptor {
-        editor: uuid,
+        editor: editor-id,
         edits: edits,
         name: string,
         icon-codepoint: string,
@@ -269,18 +270,21 @@ interface shell-types {
         editors: list<editor-descriptor>,
     }
 
+    /// A pick the host forwards to an editor, numbered by the host.
+    type pick-id = u64;
+
     /// A pick the host forwards to the editor that shows its picker.
     record pick-request {
-        pick: u64,
+        pick: pick-id,
         filter: block-filter,
         parent: block-location,
-        within: option<uuid>,
+        within: option<block-id>,
         touch: bool,
     }
 
     record chosen-block {
-        block-id: uuid,
-        block-type: uuid,
+        block-id: block-id,
+        block-type: block-type-id,
         linked: bool,
         placed: bool,
     }
@@ -323,15 +327,16 @@ interface shell-types {
 
     /// The block an editor's focus is in, and the blocks it is shown through.
     record focus {
-        block-id: option<uuid>,
-        block-type: uuid,
-        via: list<uuid>,
+        block-id: option<block-id>,
+        block-type: block-type-id,
+        via: list<block-id>,
     }
 }
 
 /// What an editor tells the shell around it.
 interface shell {
-    use types.{child-id, editor-instance-id, editor-region, size, uuid, web-view-id};
+    use types.{child-id, editor-instance-id, editor-region, size, web-view-id};
+    use be3:shared/ids@0.1.0.{block-id, block-type-id};
     use blocks.{block-location};
     use shell-types.{
         artifact-description, audio-command, audio-status, bar-action, catalog,
@@ -388,7 +393,7 @@ interface shell {
     paste: func(instance: editor-instance-id);
 
     /// The editor starts dragging a block out of itself.
-    drag-block: func(instance: editor-instance-id, block-id: uuid, block-type: uuid);
+    drag-block: func(instance: editor-instance-id, block-id: block-id, block-type: block-type-id);
 
     /// Whether the editor takes the block dragged over it.
     drag-accepted: func(instance: editor-instance-id, accepted: bool);

@@ -2,7 +2,8 @@ package be3:plugin@0.1.0;
 
 /// What an editor plugin offers its host.
 interface plugin {
-    use types.{child-id, editor-region, frame-commit, opening, screen-id, screen-request, size, uuid};
+    use types.{child-id, editor-region, frame-commit, opening, screen-id, screen-request, size};
+    use be3:shared/ids@0.1.0.{block-id};
     use accessibility.{action-request};
     use shell-types.{bar-action, block-pick, drag-over, file-drop, focus, pick-request};
     use be3:ui/types@0.1.0.{rect};
@@ -55,7 +56,7 @@ interface plugin {
         artifact-settings: func(data: list<u8>);
 
         /// Creates the block of the creation dialog the editor shows.
-        commit-creation: async func() -> result<uuid, string>;
+        commit-creation: async func() -> result<block-id, string>;
 
         /// Generates the artifact the settings describe again.
         regenerate-artifact: async func(data: list<u8>) -> result<_, string>;
@@ -65,10 +66,10 @@ interface plugin {
         pick: async func(request: pick-request) -> block-pick;
 
         /// Puts a block in place of a child block; false when the editor cannot.
-        replace-child: async func(old: uuid, new: uuid) -> bool;
+        replace-child: async func(old: block-id, new: block-id) -> bool;
 
         /// Shows one of the dialogs the instance that draws the window draws.
-        show-dialog: func(block: uuid, dialog: shell-dialog);
+        show-dialog: func(block: block-id, dialog: shell-dialog);
     }
 
     /// Whether the host wants screens described to assistive technology.

@@ -20,6 +20,12 @@ Rust on both sides is generated from it into this crate. The world imports:
   core protocol: values and actions of a particular host under string keys, the
   Linux desktop session's among them.
 
+Ids and access levels come from `be3:shared` (crates/be-ops/wit), which the
+type-module world and `be3:gpu` use too, so an id has one shape everywhere: a
+uuid is its 16 bytes and a hash its 32, each under the alias of what it names
+(`block-id`, `block-type-id`, `commit-id`, ...), and a number one side hands
+out is an alias named `<thing>-id` (`screen-id`, `child-id`, `pick-id`).
+
 It exports `plugin` (`plugin.wit`): `resource editor`, one open editor instance,
 whose methods are what the host says to that instance and whose drop closes it;
 the screens and their configure, `draw`, whose answer is the frame, the

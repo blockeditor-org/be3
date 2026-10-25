@@ -10,15 +10,17 @@ pub use uuid::Uuid;
 be_ops_bindgen::generate!({
     path: "wit",
     world: "type-module",
+    deps: ["../be-ops/wit"],
     with: {
         "uuid": uuid::Uuid,
+        "hash": [u8; 32],
         "commit-id": be_commit::CommitId,
         "session-tag": crate::SessionTag,
         "session-state": be_protocol::SessionState,
         "resume": be_session::Resume,
         "entries": crate::Entries,
     },
-    copy: ["uuid", "commit-id", "session-tag"],
+    copy: ["uuid", "hash", "commit-id", "session-tag"],
     default: ["plain", "description", "plain-file", "status"],
 });
 

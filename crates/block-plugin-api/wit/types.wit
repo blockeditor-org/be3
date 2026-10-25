@@ -5,16 +5,21 @@ interface types {
     use accessibility.{description};
     use be3:ui/types@0.1.0.{modifiers, pos2, rect, input, preferences, window-requests};
 
-    /// A block, editor, account or organization id, as its 16 bytes.
-    type uuid = tuple<u8, u8, u8, u8, u8, u8, u8, u8, u8, u8, u8, u8, u8, u8, u8, u8>;
+    use be3:shared/ids@0.1.0.{
+        account-id, block-id, block-type-id, organization-id, surface-id, uuid,
+    };
 
-    record editor-instance-id {
-        value: u64,
-    }
+    /// An editor a plugin's manifest declares.
+    type editor-id = uuid;
 
-    record screen-id {
-        value: u64,
-    }
+    /// An installation of the app, as the id it keeps across restarts.
+    type installation-id = uuid;
+
+    /// An open editor instance, numbered by the host.
+    type editor-instance-id = u64;
+
+    /// A screen the host asked a plugin to draw, numbered by the host.
+    type screen-id = u64;
 
     record size {
         width: f32,
@@ -124,7 +129,7 @@ interface types {
         screen: screen-id,
         instance: editor-instance-id,
         region: editor-region,
-        surface: u32,
+        surface: surface-id,
         width: u32,
         height: u32,
         scale-factor-millis: u32,
@@ -167,19 +172,13 @@ interface types {
     }
 
     /// A child an editor placed, numbered by the editor.
-    record child-id {
-        value: u64,
-    }
+    type child-id = u64;
 
     /// A web view an editor shows, numbered by the editor.
-    record web-view-id {
-        value: u32,
-    }
+    type web-view-id = u32;
 
-    /// A window of another program the host shows.
-    record host-window-id {
-        value: u64,
-    }
+    /// A window of another program the host shows, numbered by the host.
+    type host-window-id = u64;
 
     enum child-layer {
         below,
@@ -195,19 +194,19 @@ interface types {
     }
 
     record block-child {
-        block-id: uuid,
-        block-type: uuid,
-        view-block: option<uuid>,
-        editor: option<uuid>,
+        block-id: block-id,
+        block-type: block-type-id,
+        view-block: option<block-id>,
+        editor: option<editor-id>,
     }
 
     record creation-child {
-        editor: uuid,
+        editor: editor-id,
         template: string,
     }
 
     record artifact-settings-child {
-        block-id: uuid,
+        block-id: block-id,
     }
 
     /// What a child an editor placed shows.
@@ -298,33 +297,33 @@ interface types {
 
     record open-block {
         instance: editor-instance-id,
-        editor: uuid,
-        block-id: uuid,
-        block-type: uuid,
-        view-block: option<uuid>,
-        account-id: uuid,
-        organization-id: uuid,
-        client-id: uuid,
+        editor: editor-id,
+        block-id: block-id,
+        block-type: block-type-id,
+        view-block: option<block-id>,
+        account-id: account-id,
+        organization-id: organization-id,
+        client-id: installation-id,
         editable: bool,
     }
 
     record open-creation {
         instance: editor-instance-id,
-        editor: uuid,
+        editor: editor-id,
         template: string,
-        account-id: uuid,
-        organization-id: uuid,
-        client-id: uuid,
+        account-id: account-id,
+        organization-id: organization-id,
+        client-id: installation-id,
     }
 
     record open-artifact {
         instance: editor-instance-id,
-        editor: uuid,
-        block-id: uuid,
-        block-type: uuid,
-        account-id: uuid,
-        organization-id: uuid,
-        client-id: uuid,
+        editor: editor-id,
+        block-id: block-id,
+        block-type: block-type-id,
+        account-id: account-id,
+        organization-id: organization-id,
+        client-id: installation-id,
         data: list<u8>,
     }
 
