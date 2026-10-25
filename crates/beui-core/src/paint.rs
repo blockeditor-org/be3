@@ -274,6 +274,7 @@ impl PaintCache {
             !dirt.own
                 && painted.placement.size == placement.size
                 && painted.placement.own.settles(placement.own)
+                && painted.placement.own.raster == placement.own.raster
         }) else {
             return Visit::Record;
         };
@@ -1142,9 +1143,7 @@ pub fn paint(doc: &Document, painter: &Painter, rects: &Rects, id: NodeId) {
             ctx.enter_paint(id);
             let outer = ctx.swap_space_read(false);
             let local = Rect::from_min_size(Pos2::ZERO, rect.size());
-            ctx.rastered(own.state().raster, || {
-                doc.arena.get(id).paint(doc, &own, rects, local)
-            });
+            doc.arena.get(id).paint(doc, &own, rects, local);
             let reads = ctx.swap_space_read(outer);
             let recorded = Recorded {
                 reads,

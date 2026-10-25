@@ -96,7 +96,6 @@ struct Inner {
     mouse_viewport: Cell<Option<Rect>>,
     shown: Cell<Option<Rect>>,
     pixels_per_point: Cell<f32>,
-    raster: Cell<f32>,
     native_pixels_per_point: Cell<f32>,
     simulated_pixels_per_point: Cell<Option<f32>>,
     screen_simulation: Cell<Option<ScreenSimulation>>,
@@ -366,7 +365,6 @@ impl Context {
                 mouse_viewport: Cell::new(None),
                 shown: Cell::new(None),
                 pixels_per_point: Cell::new(1.0),
-                raster: Cell::new(1.0),
                 native_pixels_per_point: Cell::new(1.0),
                 simulated_pixels_per_point: Cell::new(None),
                 screen_simulation: Cell::new(None),
@@ -1505,17 +1503,7 @@ impl Context {
     }
 
     pub fn pixels_per_point(&self) -> f32 {
-        self.inner.pixels_per_point.get() * self.inner.raster.get()
-    }
-
-    pub fn rastered<R>(&self, raster: f32, content: impl FnOnce() -> R) -> R {
-        if self.inner.raster.get() == raster {
-            return content();
-        }
-        let held = self.inner.raster.replace(raster);
-        let result = content();
-        self.inner.raster.set(held);
-        result
+        self.inner.pixels_per_point.get()
     }
 
     pub fn set_long_press_delay(&self, delay: Duration) {
@@ -1671,6 +1659,10 @@ impl Context {
             .fonts
             .borrow_mut()
             .layout(text, font, layout, self.pixels_per_point())
+    }
+
+    pub fn rastered(&self, galley: &Galley, raster: f32) -> Galley {
+        self.inner.fonts.borrow_mut().rastered(galley, raster)
     }
 
     pub fn push(&self, shape: Shape) {

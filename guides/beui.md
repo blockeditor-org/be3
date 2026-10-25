@@ -709,6 +709,28 @@ costs a hash lookup. A `FontId` carries `bold` and `italic` alongside its size
 and family; both are synthesised by FreeType rather than loaded as separate
 faces.
 
+Layout and raster are two scales, as pinch-zoom and Ctrl+/- are in a browser.
+Text is laid out, and everything snaps to the pixel grid (`Document::pixel_grid`,
+`Painter::pixel_grid`), at the layout scale: `Context::pixels_per_point`, the
+platform's scale times the zoom factor, which a platform DPI change or Ctrl+/-
+changes and which lays the document out again. The font pixel size
+(`round(size * scale)`), line heights, baselines, advances and wrap points all
+come from it, and galleys are cached by it. `PainterState::raster` is how much
+finer than that a subtree is drawn (a hosted window's scale over the context's,
+times each zoomed canvas's `Zoom::raster`), and only painting reads it: layout,
+measurement and placement reuse ignore it, so changing it changes no size, wrap
+or caret and lays nothing out, and a node painted under a new raster records
+again. `Painter::galley` hands a galley to `Context::rastered` under a raster
+other than 1, which asks the font backend (`FontBackend::raster`) for the same
+layout with its glyphs at that many times the pixels: FreeType places each glyph
+at its laid-out position times the raster (keeping a subpixel step) and
+rasterises it unhinted from the outline at the laid-out size scaled by the
+raster (`GlyphId::raster`, the factor's bits; `GlyphId::LAID_OUT` is 1), so the
+outlines match the scaled advances. The result's `Galley::pixels_per_point` is
+the layout scale times the raster. A backend without glyphs of its own (the
+browser's, whose text the DOM renderer draws with CSS and scales with the
+group's transform) keeps the galley as it is.
+
 `unstyled::Button` shows the split. It is a focusable `Interactive`,
 and owns button semantics, disabled behavior, pointer and keyboard activation,
 and accessibility: it takes the `label`, `glyph`, `role` or `Action` and builds
@@ -2860,17 +2882,18 @@ same way: each `paint::Move` names its window, the document settles each
 window's moves against that window's painting and damage alone, and each
 `WindowOutput` carries its own `moved`, so scrolling one window copies in that
 window and damages nothing in the others.
-Each window has its own pixels per point: a host reports one with
+Each window is drawn at its own pixels per point: a host reports one with
 `WindowReport::Scaled { window, pixels_per_point }` (the main window
-included), and until it does a window uses the context's. The document lays
-out and paints each window's tree, and everything opened inside it, with
-`Context::window_painter(window)`, whose `PainterState::raster` is that
-window's pixels per point over the context's, so its text is shaped and
-rasterized for the size it is drawn at, as a zoomed canvas's is
+included), and until it does a window uses the context's. It is the window's
+raster, not its layout: every window is laid out at the context's scale. The
+document lays out and paints each window's tree, and everything opened inside
+it, with `Context::window_painter(window)`, whose `PainterState::raster` is that
+window's pixels per point over the context's, so its text is rasterized for the
+size it is drawn at without moving, as a zoomed canvas's is
 (`Document::viewport_window` names the window being laid out, since the
 overlays above a node are out of the arena then). A change of scale lays
-the whole document out again, as a change of the platform's scale does, and
-the window's output is damaged whole. `WindowOutput::pixels_per_point` is the
+nothing out: it repaints the window's tree at the new raster, and the window's
+output is damaged whole. `WindowOutput::pixels_per_point` is the
 scale the output was drawn for, which a host draws it at.
 The cursor goes to the window the pointer is over, the IME area to the window
 holding the focus, and the rest of `WindowState` stays on the main window.
@@ -3068,8 +3091,10 @@ all its 3D (`glam`) stays in the crate.
   `HostView::now`, the host asking for a frame when the wait is over), and a
   panel being carried, resized or reshaped by its chrome keeps the one it has
   until the gesture ends, so a scale never changes every frame. A change is
-  reported as `WindowReport::Scaled` (`Space::scale` reads it), and the app
-  lays the document out again at it. A new window takes its scale at once.
+  reported as `WindowReport::Scaled` (`Space::scale` reads it), which is
+  only the window's raster: the app repaints the window at it without laying
+  anything out, so its text stays where it was and only gets sharper or
+  softer. A new window takes its scale at once.
 - Drawing: each window's display is drawn by its own
   `beui_renderer_wgpu::Renderer` into a mipmapped texture at its output's
   `pixels_per_point`, only when that window's output changed, repainting only

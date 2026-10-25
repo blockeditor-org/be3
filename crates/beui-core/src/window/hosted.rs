@@ -200,7 +200,11 @@ impl Document {
                         self.arena.invalidate_node(node);
                     }
                 }
-                WindowReport::Scaled { .. } => self.arena.invalidate(),
+                WindowReport::Scaled { .. } => {
+                    if let Some(shown) = node.map(NodeId::from).or(self.root) {
+                        self.arena.repaint_node(shown);
+                    }
+                }
                 WindowReport::Placed { .. } => {}
                 WindowReport::Focused { window, focused } => {
                     if !self.window_focused(*window, *focused) {

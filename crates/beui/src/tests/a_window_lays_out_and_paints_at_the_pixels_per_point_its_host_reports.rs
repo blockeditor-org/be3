@@ -43,7 +43,7 @@ fn a_window_lays_out_and_paints_at_the_pixels_per_point_its_host_reports() {
     assert_eq!(
         text_scales(shown.shapes()),
         [2.5],
-        "its text is laid out for that many pixels per point, so it is sharp at that size"
+        "its text is rasterised for that many pixels per point, so it is sharp at that size"
     );
     assert!(
         shown.changed && shown.damage.bounds() == Rect::from_min_size(Pos2::ZERO, shown.size),

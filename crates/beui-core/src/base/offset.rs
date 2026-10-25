@@ -136,8 +136,7 @@ impl OffsetNode {
         position: ScrollPosition,
         host: NodeId,
     ) {
-        let scale = painter.ctx().window_pixels_per_point(doc.viewport_window());
-        let offset = crate::pixel_grid::PixelGrid::new(scale).snap(position.offset);
+        let offset = doc.pixel_grid().snap(position.offset);
         self.translation = self.direction.axes(-offset, 0.0);
         self.host = Some(host);
         let entered = doc.enter_space(host, 1, painter, self.translation, rect, out);
