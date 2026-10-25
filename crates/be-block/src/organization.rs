@@ -16,6 +16,25 @@ pub fn organization_settings(organization: Uuid) -> Uuid {
     Uuid::from_u128(organization.as_u128() ^ SETTINGS_MASK)
 }
 
+const MY_FILES_MASK: u128 = 0x6d79_2d66_696c_6573_2d6f_662d_6163_6374;
+
+pub fn my_files(organization: Uuid, account: Uuid) -> Uuid {
+    Uuid::from_u128(organization.as_u128() ^ account.as_u128() ^ MY_FILES_MASK)
+}
+
+pub fn my_files_of(organization: Uuid, block: Uuid) -> Uuid {
+    Uuid::from_u128(organization.as_u128() ^ block.as_u128() ^ MY_FILES_MASK)
+}
+
+pub const SYSTEM_TYPES: [Uuid; 2] = [
+    crate::settings::Settings::CONTENT_TYPE,
+    crate::settings::SettingsProfile::CONTENT_TYPE,
+];
+
+pub fn is_workspace_type(content_type: Uuid) -> bool {
+    !SYSTEM_TYPES.contains(&content_type)
+}
+
 #[derive(Clone, Copy, Debug, Default, Deserialize, Eq, Hash, PartialEq, Serialize)]
 pub enum Allowance {
     #[default]

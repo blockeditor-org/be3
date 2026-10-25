@@ -254,6 +254,18 @@ async fn workspace(peer: &Peer<MemoryStore>, name: &str) -> Uuid {
     .id
 }
 
+async fn my_files(peer: &Peer<MemoryStore>) -> Uuid {
+    peer.create_block(
+        be_block::my_files(peer.organization(), peer.account()),
+        workspace_ui_types::WorkspaceContent::CONTENT_TYPE,
+        BlockParent::Root,
+        &be_block::BlockMetadata::named("My files"),
+    )
+    .await
+    .unwrap()
+    .id
+}
+
 async fn text(peer: &Peer<MemoryStore>, block: Uuid) -> String {
     let opened = peer
         .open::<text_block_types::TextContent>(block)

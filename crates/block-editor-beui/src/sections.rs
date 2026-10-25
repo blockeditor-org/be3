@@ -1,20 +1,15 @@
-use be_block::{BlockContent, MY_FILES, SettingsContent, SettingsProfileContent};
+use be_block::MY_FILES;
 use block_ui::BlockTypes;
 use uuid::Uuid;
 
 use crate::{BlockInfo, BlockParent};
-
-const SYSTEM_TYPES: [Uuid; 2] = [
-    SettingsContent::CONTENT_TYPE,
-    SettingsProfileContent::CONTENT_TYPE,
-];
 
 pub fn is_workspace(block: &BlockInfo) -> bool {
     block.parent == Some(BlockParent::Root) && !is_system(block.block_type)
 }
 
 pub fn is_system(block_type: Uuid) -> bool {
-    SYSTEM_TYPES.contains(&block_type)
+    !be_block::is_workspace_type(block_type)
 }
 
 pub fn is_my_files(block: &BlockInfo, account: Uuid) -> bool {

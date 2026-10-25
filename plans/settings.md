@@ -290,13 +290,15 @@ re-import once, and say so in `guides/frozen_formats.md`.
     in the settings block's `policies` (`ServerStore::policies`, cached by the
     heads it read). Sharing outside the organization: blocks are shared only
     with members, so blocked refuses contact links that carry access. Who
-    makes workspaces: with administrators only, a member makes one workspace
-    of their own and no more, by creating one or by moving a block to the top
-    (`may_add_workspace`; be-client
-    `moving_a_block_to_the_top_follows_who_may_make_workspaces`). That one is
-    kept because every account needs it: the app makes My files on opening an
+    makes workspaces: with administrators only, a member makes no workspace
+    but their My files, by creating one or by moving a block to the top
+    (`may_add_workspace`, for any type but the settings ones, `be_block::is_workspace_type`; be-client
+    `moving_a_block_to_the_top_follows_who_may_make_workspaces`). My files is
+    kept because every account needs it: the app makes it on opening an
     organization and puts there what is made or restored outside any
-    workspace. History: no prune removes a version younger than
+    workspace. Its id is derived from the organization and the account
+    (`be_block::my_files`), so the server knows it, and nobody else may take
+    that id. History: no prune removes a version younger than
     the policy's days, and `Peer::prune` keeps them too
     (`RetentionPolicy::keeping_all_within`). Storage quota: objects held by the
     organization's commits and blocks, and an upload past it is refused

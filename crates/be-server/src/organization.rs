@@ -253,6 +253,12 @@ pub(crate) fn in_settings(graph: &BlockGraph, organization: Uuid, block: Uuid) -
         && (block == settings || graph.ancestors(block).any(|up| up == settings))
 }
 
+fn account_exists(connection: &Connection, account: Uuid) -> Result<bool, ServerError> {
+    Ok(connection
+        .prepare_cached("SELECT EXISTS(SELECT 1 FROM accounts WHERE id = ?1)")?
+        .query_row([account.to_string()], |row| row.get(0))?)
+}
+
 pub(crate) fn server_account(connection: &Connection) -> Result<Uuid, ServerError> {
     let account: String = connection
         .prepare_cached("SELECT account_id FROM server_account WHERE id = 1")?
@@ -372,10 +378,17 @@ impl ServerStore {
             }
             return Ok(());
         }
-        if content_type != WORKSPACE_TYPE || parent != BlockParent::Root {
+        let claimed = be_block::my_files_of(identity.organization, block);
+        if claimed != identity.account && account_exists(connection, claimed)? {
+            return Err(ServerError::Refused(
+                ErrorCode::PermissionDenied,
+                "this id is kept for another account's My files".into(),
+            ));
+        }
+        if parent != BlockParent::Root {
             return Ok(());
         }
-        self.may_add_workspace(graph, connection, identity)
+        self.may_add_workspace(graph, connection, identity, block, content_type)
     }
 
     pub(crate) fn may_add_workspace(
@@ -383,27 +396,24 @@ impl ServerStore {
         graph: &BlockGraph,
         connection: &Connection,
         identity: Identity,
+        block: Uuid,
+        content_type: Uuid,
     ) -> Result<(), ServerError> {
-        if identity.role == OrganizationRole::Administrator {
-            return Ok(());
-        }
-        if self
-            .policies(graph, connection, identity.organization)?
-            .workspace_creation()
-            != WhoMay::Administrators
+        if identity.role == OrganizationRole::Administrator
+            || !be_block::is_workspace_type(content_type)
+            || (block == be_block::my_files(identity.organization, identity.account)
+                && content_type == WORKSPACE_TYPE)
         {
             return Ok(());
         }
-        let has_one = graph.children(BlockParent::Root).into_iter().any(|root| {
-            graph.get(root).is_some_and(|node| {
-                node.content_type == WORKSPACE_TYPE && node.author == identity.account
-            })
-        });
-        match has_one {
-            true => Err(refused(
-                "only administrators make workspaces in this organization; each member keeps one of their own",
+        match self
+            .policies(graph, connection, identity.organization)?
+            .workspace_creation()
+        {
+            WhoMay::Administrators => Err(refused(
+                "only administrators make workspaces in this organization; each member has My files",
             )),
-            false => Ok(()),
+            WhoMay::Everyone => Ok(()),
         }
     }
 

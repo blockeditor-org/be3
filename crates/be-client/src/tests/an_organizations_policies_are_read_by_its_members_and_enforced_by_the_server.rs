@@ -80,7 +80,7 @@ async fn an_organizations_policies_are_read_by_its_members_and_enforced_by_the_s
         "a member edited the organization's settings: {edited}"
     );
 
-    workspace(&member, "Mine").await;
+    my_files(&member).await;
     let second = member
         .create_block(
             Uuid::now_v7(),
@@ -91,6 +91,39 @@ async fn an_organizations_policies_are_read_by_its_members_and_enforced_by_the_s
         .await
         .unwrap_err();
     assert_eq!(refused(second), ErrorCode::PolicyRefused);
+    let folder = member
+        .create_block(
+            Uuid::now_v7(),
+            Uuid::from_u128(0xf01d),
+            BlockParent::Root,
+            &be_block::BlockMetadata::named("A folder at the top"),
+        )
+        .await
+        .unwrap_err();
+    assert_eq!(
+        refused(folder),
+        ErrorCode::PolicyRefused,
+        "a member made a workspace of another type"
+    );
+    let squatted = admin
+        .create_block(
+            be_block::my_files(member.organization(), Uuid::from_u128(0xfeed)),
+            workspace_ui_types::WorkspaceContent::CONTENT_TYPE,
+            BlockParent::Root,
+            &be_block::BlockMetadata::named("Not mine"),
+        )
+        .await;
+    assert!(squatted.is_ok(), "an id no account's My files uses is free");
+    let squatted = member
+        .create_block(
+            be_block::my_files(member.organization(), admin.account()),
+            workspace_ui_types::WorkspaceContent::CONTENT_TYPE,
+            BlockParent::Root,
+            &be_block::BlockMetadata::named("Not mine"),
+        )
+        .await
+        .unwrap_err();
+    assert_eq!(refused(squatted), ErrorCode::PermissionDenied);
     workspace(&admin, "Team").await;
     workspace(&admin, "Projects").await;
 

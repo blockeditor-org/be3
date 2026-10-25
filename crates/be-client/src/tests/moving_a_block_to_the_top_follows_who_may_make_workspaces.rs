@@ -16,7 +16,7 @@ async fn moving_a_block_to_the_top_follows_who_may_make_workspaces() {
     )
     .await;
     let member = harness.member(&admin, "member@example.com").await;
-    let mine = workspace(&member, "Mine").await;
+    let mine = my_files(&member).await;
     let folder = member
         .create::<text_block_types::TextContent>(BlockParent::Block(mine))
         .await

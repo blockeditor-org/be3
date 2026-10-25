@@ -176,8 +176,11 @@ impl RootSettings {
     }
 
     pub(crate) fn ensure_my_files(&mut self) -> Option<Uuid> {
-        if self.my_files().is_none() && be::ready(be::Query::Roots) {
-            let block = Uuid::now_v7();
+        if self.my_files().is_none()
+            && be::ready(be::Query::Roots)
+            && let Some((account, organization)) = be::identity()
+        {
+            let block = be_block::my_files(organization, account);
             let mut metadata = BlockMetadata::default();
             metadata.insert(&NAME, &"My files".to_owned());
             metadata.insert(&MY_FILES, &true);

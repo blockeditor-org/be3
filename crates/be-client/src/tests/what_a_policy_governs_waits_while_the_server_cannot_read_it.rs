@@ -49,7 +49,7 @@ async fn what_a_policy_governs_waits_while_the_server_cannot_read_it() {
     )
     .await;
     let member = harness.member(&admin, "member@example.com").await;
-    workspace(&member, "Mine").await;
+    my_files(&member).await;
     let second = member
         .create_block(
             Uuid::now_v7(),

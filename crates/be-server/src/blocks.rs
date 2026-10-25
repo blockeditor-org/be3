@@ -629,7 +629,7 @@ impl ServerStore {
                     require_parent_of(graph, &seen, node.content_type, target)?;
                 }
                 BlockParent::Root if node.parent != BlockParent::Root => {
-                    self.may_add_workspace(graph, database, identity)?;
+                    self.may_add_workspace(graph, database, identity, block, node.content_type)?;
                 }
                 BlockParent::Root | BlockParent::Detached => {}
             }
