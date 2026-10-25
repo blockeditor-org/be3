@@ -2126,6 +2126,7 @@ impl Instances {
                 menu: status.menu,
                 creation: status.creation,
                 settings: status.settings,
+                preview: status.preview,
             };
             if screen.reported_statuses.get(&status.child) == Some(&status) {
                 continue;

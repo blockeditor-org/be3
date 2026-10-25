@@ -25,6 +25,10 @@ pub(super) type Frame = SurfaceFrame;
 
 pub(super) type Channel = Threaded<PresentedTexture>;
 
+pub(super) type Picture = wgpu::Texture;
+
+pub(super) type Mailbox = block_wasm_host::Imports;
+
 thread_local! {
     static CACHE: RefCell<Option<PathBuf>> = const { RefCell::new(None) };
 }
@@ -59,11 +63,12 @@ pub(super) fn spawn(
     plugin: &PluginManifest,
     module: String,
     waiting: Arc<AtomicBool>,
-) -> Result<Channel, String> {
+) -> Result<(Channel, Mailbox), String> {
     let (device, queue) = gpu().ok_or(NO_GPU)?;
     let host = Host::new(device, queue, cache().as_deref())?;
     let interrupter = host.interrupter();
-    thread::spawn(
+    let mailbox = host.imports();
+    let channel = thread::spawn(
         Spawn {
             name: format!("plugin {}", plugin.identity.id),
             wake: Arc::new(crate::host::wake),
@@ -76,7 +81,35 @@ pub(super) fn spawn(
             plugin.on_wake(move || wake());
             Ok(Editor(plugin))
         },
-    )
+    )?;
+    Ok((channel, mailbox))
+}
+
+pub(super) fn offer(mailbox: &Mailbox, _channel: &mut Channel, image: u64, picture: &Picture) {
+    mailbox
+        .lock()
+        .unwrap_or_else(|held| held.into_inner())
+        .insert(image, picture.clone());
+}
+
+pub(super) fn withdraw(mailbox: &Mailbox, _channel: &mut Channel, image: u64) {
+    mailbox
+        .lock()
+        .unwrap_or_else(|held| held.into_inner())
+        .remove(&image);
+}
+
+pub(super) fn export(_channel: &mut Channel, _surfaces: Vec<u32>) {}
+
+pub(super) fn release(_picture: &Picture) {}
+
+pub(super) fn pictures(frame: &SurfaceFrame, surfaces: &[u32]) -> Vec<(u32, Picture)> {
+    frame
+        .textures
+        .iter()
+        .filter(|presented| surfaces.contains(&presented.surface))
+        .filter_map(|presented| Some((presented.surface, super::surface::copied(&presented.texture)?)))
+        .collect()
 }
 
 struct Editor(Plugin);

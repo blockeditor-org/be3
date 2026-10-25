@@ -11,7 +11,7 @@ use beui::{
     Color32, Dismiss, Key, KeyEvent, NodeId, Pos2, Rect, ScrollGesture, Vec2, ZoomGesture, vec2,
 };
 use block_plugin_api::{
-    BarAction, ChildId, ChildMode, CreationProgress, EditorInstanceId, EditorRegion, FitArea,
+    BarAction, ChildId, ChildMode, ChildPreview, CreationProgress, EditorInstanceId, EditorRegion, FitArea,
     FrameChrome, FrameSpec, HostPanel, HostWindowId, PanMode, SettingsProgress, TopBar, ViewChange,
 };
 use uuid::Uuid;
@@ -21,7 +21,7 @@ use crate::wayland::WindowSurface;
 use super::region::{ChildView, PanDrag, PluginRegion, RegionEditor};
 use crate::editors::plugin::PickSource;
 use crate::editors::{
-    BlockLabel, Chrome, CreationStep, EditorRegistry, PendingCreation, PluginEditor,
+    Chrome, CreationStep, EditorRegistry, PendingCreation, PluginEditor,
     editor_access_ceiling,
 };
 use crate::host::HostItem;
@@ -1442,6 +1442,9 @@ fn HostedChild(
             let child = child.get()?;
             let available = !matches!(kind.get(), Kind::Unavailable | Kind::Missing);
             let mut status = status_of(&editors, &child, available);
+            if let (Kind::Preview, Some(block)) = (kind.get(), child.block_id()) {
+                status.preview = preview_of(&editors, block);
+            }
             if let Some((progress, height)) = editors.creation_status(&creation_key) {
                 status.creation = progress;
                 status.intrinsic = height.map(|height| vec2(0.0, height));
@@ -1523,17 +1526,9 @@ fn HostedChild(
                                     <Frame />
                                 },
                             },
-                            Kind::Preview => {
-                                let rotation = create_memo(move || {
-                                    child.get().map_or(0.0, |child| child.rotation)
-                                });
-                                let opacity = create_memo(move || {
-                                    child.get().map_or(1.0, |child| child.opacity)
-                                });
-                                view! {
-                                    <BlockPreview block=id rotation={rotation} opacity={opacity} />
-                                }
-                            }
+                            Kind::Preview => view! {
+                                <BlockPreview block=id />
+                            },
                             Kind::OwnFrame => {
                                 let top_bar = create_memo(move || {
                                     child.get().map_or(TopBar::Hidden, |child| child.top_bar)
@@ -1687,6 +1682,7 @@ fn status_of(editors: &Editors, child: &HostChild, available: bool) -> HostChild
             .or_else(|| (!available).then(|| CHILD_UNAVAILABLE.to_owned())),
         creation: None,
         settings: None,
+        preview: ChildPreview::Hosted,
         menu: match available && child.frame_owner {
             true => frame_menu(editors, block),
             false => Vec::new(),
@@ -1729,7 +1725,7 @@ fn reporter_for(
 }
 
 #[component]
-fn BlockPreview(block: Uuid, rotation: Prop<f32>, opacity: Prop<f32>) -> NodeId {
+fn BlockPreview(block: Uuid) -> NodeId {
     let editors = editors();
     let any = super::any();
     let keys = create_memo(move || {
@@ -1738,25 +1734,9 @@ fn BlockPreview(block: Uuid, rotation: Prop<f32>, opacity: Prop<f32>) -> NodeId 
             .into_iter()
             .collect::<Vec<_>>()
     });
-    let fallback = create_memo(move || keys.with(Vec::is_empty));
-    let label = create_memo(move || {
-        any.get();
-        let label =
-            crate::be::node(block).map(|node| BlockLabel::for_node(&editors.registry(), &node));
-        HostItem::Fallback {
-            name: label
-                .as_ref()
-                .map_or_else(|| "Loading…".to_owned(), |label| label.name.clone()),
-            automatic: label.as_ref().is_some_and(|label| label.automatic),
-            icon: label.and_then(|label| label.icon),
-        }
-    });
     let child_view = child_view(block, EditorRegion::Preview);
     view! {
         <Layers>
-            <Show condition={fallback}>
-                <HostItemFace content={label} />
-            </Show>
             <ForEach keys={keys}>|_key: RegionKey| {
                 let Some(region_editor) = editors.handle(block).and_then(|handle| editors.region(&handle)) else {
                     return view! {
@@ -1767,15 +1747,24 @@ fn BlockPreview(block: Uuid, rotation: Prop<f32>, opacity: Prop<f32>) -> NodeId 
                     <PluginRegion
                         editor={region_editor}
                         region=EditorRegion::Preview
-                        passive=true
-                        rotation={rotation}
-                        opacity={opacity}
+                        offscreen=true
                         child_view
                     />
                 }
             }</ForEach>
         </Layers>
     }
+}
+
+fn preview_of(editors: &Editors, block: Uuid) -> ChildPreview {
+    let Some(handle) = editors.handle(block).filter(|handle| handle.preview) else {
+        return ChildPreview::Label;
+    };
+    let Some(plugin) = handle.plugin_id() else {
+        return ChildPreview::Label;
+    };
+    plugin_host::preview_image(plugin, handle.instance)
+        .map_or(ChildPreview::Waiting, ChildPreview::Image)
 }
 
 pub(super) fn reports() -> (ChildReports, ReadSignal<u64>) {

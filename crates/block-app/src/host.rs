@@ -314,11 +314,6 @@ pub(crate) enum HostItem {
         spinner: bool,
         icon: Option<beui::icons::Glyph>,
     },
-    Fallback {
-        name: String,
-        automatic: bool,
-        icon: Option<beui::icons::Glyph>,
-    },
     Unsupported {
         block: Uuid,
         block_type: Uuid,

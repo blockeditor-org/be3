@@ -726,6 +726,7 @@ impl<A: BeuiApp> BeuiTest<A> {
             menu: Vec::new(),
             creation: None,
             settings: None,
+            preview: Default::default(),
         });
     }
 

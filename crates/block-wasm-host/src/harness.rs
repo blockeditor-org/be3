@@ -146,7 +146,8 @@ impl Host {
         let state = State {
             wasi: builder.build_p1(),
             memory: memory.clone(),
-            device: self.devices.open(),
+            device: self.devices.open(&self.imports),
+            imports: Arc::clone(&self.imports),
             error: None,
             transport: Default::default(),
             gpu_time: Duration::ZERO,

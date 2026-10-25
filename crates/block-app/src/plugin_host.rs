@@ -18,6 +18,7 @@ mod input;
 mod instances;
 mod pieces;
 mod presenter;
+mod previews;
 mod runtime;
 mod sent;
 #[cfg(not(target_arch = "wasm32"))]
@@ -41,7 +42,7 @@ pub(crate) use runtime::{
     PACING, Pick, artifact, artifact_draft, aspect_ratio, assigned_size, block_picked, busy, close,
     commit_creation, crash, creation, creation_ready, drawing, flush, frame_child, frame_placement,
     frame_rects, hold, in_use, install, intrinsic_size, kill, menu, menu_pick, poll, present,
-    presenting, publish, reanchor, record_pacing, regenerate_artifact, region_size, replace_child,
+    presenting, preview_image, publish, reanchor, record_pacing, regenerate_artifact, region_size, replace_child,
     replace_gpu, report_child_bars, report_child_focus, report_children, request_painting,
     request_pick, resized, revoke_frame_child, running, set_artifact_states, set_focus,
     set_presence_visible, set_shell, settle, show_block, show_dialog, show_panel, start_frames,
@@ -160,6 +161,7 @@ pub(crate) struct HostChildStatus {
     pub(crate) menu: Vec<block_plugin_api::MenuEntry>,
     pub(crate) creation: Option<block_plugin_api::CreationProgress>,
     pub(crate) settings: Option<block_plugin_api::SettingsProgress>,
+    pub(crate) preview: block_plugin_api::ChildPreview,
 }
 
 #[derive(Clone, Debug)]

@@ -181,6 +181,7 @@ pub(crate) fn PluginRegion(
     #[prop(default = 0.0)] rotation: Prop<f32>,
     #[prop(default = 1.0)] opacity: Prop<f32>,
     #[prop(default = None)] pan_drag: Option<PanDrag>,
+    #[prop(default = false)] offscreen: bool,
     on_focus: Callback<()>,
     child_view: ChildView,
 ) -> NodeId {
@@ -269,6 +270,27 @@ pub(crate) fn PluginRegion(
             carry(drag);
         }
     });
+    let rect = create_memo(move || state.with(|view| view.rect));
+    let (reports, tick) = super::editors::reports();
+    super::editors::provide_reports(reports);
+    create_effect(move || {
+        tick.get();
+        plugin_host::report_children(
+            &plugin_id.value(),
+            instance,
+            region,
+            super::editors::statuses(&reports),
+        );
+    });
+    if offscreen {
+        return view! {
+            <Layers>
+                <RegionChildren state={state} rect={rect} child_view below=true />
+                <Embed slot={slot} punch=false />
+                <RegionChildren state rect child_view below=false />
+            </Layers>
+        };
+    }
     let frames = create_memo(move || {
         revision.get();
         plugin_host::frames(&plugin_id.value())
@@ -411,18 +433,6 @@ pub(crate) fn PluginRegion(
                 restart: restart.then(|| plugin_id.with(String::clone)),
             })
         })
-    });
-    let rect = create_memo(move || state.with(|view| view.rect));
-    let (reports, tick) = super::editors::reports();
-    super::editors::provide_reports(reports);
-    create_effect(move || {
-        tick.get();
-        plugin_host::report_children(
-            &plugin_id.value(),
-            instance,
-            region,
-            super::editors::statuses(&reports),
-        );
     });
     let steering = StoredCell::new(Steering::IDLE);
     let forward = move |input: ForwardedInput| {

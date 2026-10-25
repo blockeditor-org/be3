@@ -3,3 +3,4 @@ use super::*;
 mod a_field_left_at_its_default_is_not_written;
 mod a_painting_keeps_its_texture_pixels_through_encoding;
 mod a_painting_rasterizes_onto_a_transparent_background;
+mod a_preview_in_a_painting_is_replaced_by_the_painting_it_shows;
