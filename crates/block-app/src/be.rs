@@ -209,7 +209,10 @@ pub(crate) fn start(config: Config) {
     stop();
     let (commands, receiver) = unbounded_channel();
     let (nudges, nudged) = tokio::sync::watch::channel(());
-    let shared = Arc::new(Mutex::new(Shared::default()));
+    let shared = Arc::new(Mutex::new(Shared {
+        wall: worker::Wall::new(config.clock.clone()),
+        ..Shared::default()
+    }));
     let changed = Arc::new(Condvar::new());
     let account = config.account;
     let organization = config.organization;

@@ -371,6 +371,28 @@ pub(crate) struct Shared {
     pub(crate) waiting: usize,
     pub(crate) unsent: Vec<be_client::UnsentBlock>,
     pub(crate) comparison: Option<super::conflicts::Comparison>,
+    pub(crate) wall: Wall,
+}
+
+#[derive(Clone, Default)]
+pub(crate) struct Wall {
+    clock: be_client::Clock,
+    anchor: Option<(i64, std::time::Duration)>,
+}
+
+impl Wall {
+    pub(crate) fn new(clock: be_client::Clock) -> Self {
+        let anchor = Some((be_commit::now_milliseconds(), clock.now()));
+        Self { clock, anchor }
+    }
+
+    pub(crate) fn now(&self) -> i64 {
+        let Some((wall, at)) = self.anchor else {
+            return be_commit::now_milliseconds();
+        };
+        let since = self.clock.now().saturating_sub(at);
+        wall.saturating_add(i64::try_from(since.as_millis()).unwrap_or(i64::MAX))
+    }
 }
 
 impl Shared {
@@ -946,26 +968,39 @@ async fn sync_outbox(
     report(peer, shared, false);
 }
 
-fn expire_unsent(peer: &Peer<Store>) {
-    if peer.kind() != be_protocol::OrganizationKind::Company {
-        return;
-    }
-    let choice = crate::offline_choice::choice(Uuid::nil());
-    if choice.on_lost_access != be_block::LostAccess::Delete {
-        return;
+pub(super) fn expired_unsent(
+    unsent: &[be_client::UnsentBlock],
+    company: bool,
+    choice: &be_block::OfflineChoice,
+    now: i64,
+) -> Vec<Uuid> {
+    if !company || choice.on_lost_access != be_block::LostAccess::Delete {
+        return Vec::new();
     }
     let grace = i64::try_from(choice.grace.as_millis()).unwrap_or(i64::MAX);
-    let now = be_commit::now_milliseconds();
-    for unsent in peer.unsent() {
-        if now.saturating_sub(unsent.since) >= grace {
-            let _ = peer.discard_unsent(unsent.block);
-            let _ = peer.forget_cached(unsent.block);
-        }
+    unsent
+        .iter()
+        .filter(|unsent| now.saturating_sub(unsent.since) >= grace)
+        .map(|unsent| unsent.block)
+        .collect()
+}
+
+pub(super) fn expire_unsent(peer: &Peer<Store>, now: i64) {
+    let company = peer.kind() == be_protocol::OrganizationKind::Company;
+    let choice = crate::offline_choice::choice(Uuid::nil());
+    for block in expired_unsent(&peer.unsent(), company, &choice, now) {
+        let _ = peer.discard_unsent(block);
+        let _ = peer.forget_cached(block);
     }
 }
 
 fn report(peer: &Peer<Store>, shared: &Arc<Mutex<Shared>>, syncing: bool) -> bool {
-    expire_unsent(peer);
+    let now = shared
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .wall
+        .now();
+    expire_unsent(peer, now);
     let counts = peer.pending();
     let mut held = shared.lock().unwrap_or_else(PoisonError::into_inner);
     let mut changed = (held.waiting, held.draining) != (counts.operations, syncing);
