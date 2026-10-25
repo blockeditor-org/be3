@@ -1095,11 +1095,12 @@ pub(crate) fn revoke_or_grant(
     access: Access,
 ) -> Result<(), ServerError> {
     let viewed = crate::keys::is_viewer(database, graph, organization, account, block)?;
+    let kinds = crate::keys::open_kinds_viewed(database, graph, organization, account, block)?;
     write_grant(graph, database, organization, block, account, access)?;
     if viewed && !crate::keys::is_viewer(database, graph, organization, account, block)? {
         crate::keys::lost_view(database, organization, block, account)?;
     }
-    Ok(())
+    crate::keys::lost_open_kinds(database, graph, organization, account, kinds)
 }
 
 pub(crate) fn write_grant(

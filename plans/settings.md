@@ -160,6 +160,9 @@ re-import once, and say so in `guides/frozen_formats.md`.
    the walk meets an ancestor the viewer can't view, it takes the nearest open
    kind of each type above from `Listing::OpenSettings` (`BlockQuery::OpenSettings`),
    which the server pushes again whenever an open kind changes.
+   Someone who stops viewing every block inside the owner (a grant removed,
+   or leaving the organization) queues a rotation of each open kind they read
+   (be-server `losing_every_block_inside_rotates_a_kind_open_inside`).
    Tests: be-graph `a_kind_open_inside_is_read_by_anyone_who_views_a_block_inside`,
    be-server `a_settings_kind_opens_to_anyone_who_views_a_block_inside`.
 8. **Settings editor.** A section for the current workspace and one for any

@@ -1199,6 +1199,16 @@ fn remove_from(
 ) -> Result<Vec<crate::contacts::Granted>, ServerError> {
     let role = crate::contacts::role_in(connection, account, organization)?;
     let mut revoked = Vec::new();
+    let mut kinds = std::collections::BTreeSet::new();
+    for block in graph.entry_points(account) {
+        kinds.extend(crate::keys::open_kinds_viewed(
+            connection,
+            graph,
+            organization,
+            account,
+            block,
+        )?);
+    }
     for block in graph.entry_points(account) {
         let Some(node) = graph.get(block) else {
             continue;
@@ -1239,6 +1249,7 @@ fn remove_from(
     if role == Some(OrganizationRole::Administrator) {
         crate::keys::rotate_escrow_later(connection, organization, account)?;
     }
+    crate::keys::lost_open_kinds(connection, graph, organization, account, kinds)?;
     Ok(revoked)
 }
 

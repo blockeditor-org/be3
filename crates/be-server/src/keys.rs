@@ -537,6 +537,41 @@ pub(crate) fn lost_view(
     Ok(())
 }
 
+pub(crate) fn open_kinds_viewed(
+    connection: &Connection,
+    graph: &BlockGraph,
+    organization: Uuid,
+    account: Uuid,
+    block: Uuid,
+) -> Result<BTreeSet<Uuid>, ServerError> {
+    let mut viewed = BTreeSet::new();
+    for owner in std::iter::once(block).chain(graph.ancestors(block)) {
+        for kind in graph.kinds_of(owner) {
+            if graph.get(kind).is_some_and(be_graph::BlockNode::is_open_inside)
+                && is_viewer(connection, graph, organization, account, kind)?
+            {
+                viewed.insert(kind);
+            }
+        }
+    }
+    Ok(viewed)
+}
+
+pub(crate) fn lost_open_kinds(
+    connection: &Connection,
+    graph: &BlockGraph,
+    organization: Uuid,
+    account: Uuid,
+    viewed: BTreeSet<Uuid>,
+) -> Result<(), ServerError> {
+    for kind in viewed {
+        if !is_viewer(connection, graph, organization, account, kind)? {
+            lost_view(connection, organization, kind, account)?;
+        }
+    }
+    Ok(())
+}
+
 pub(crate) fn rotate_escrow_later(
     connection: &Connection,
     organization: Uuid,
