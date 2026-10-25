@@ -13,8 +13,8 @@ fn dragging_a_corner_handle_scales_the_panel_and_keeps_its_points() {
     );
     assert!(!start.contains(handle), "the handle is outside the window");
     let grab = screen(&space, start.world(handle));
-    let farther = handle + (handle - Pos2::ZERO) * 0.25;
-    let to = screen(&space, start.world(farther));
+    let nearer = handle + (handle - Pos2::ZERO) * -0.2;
+    let to = screen(&space, start.world(nearer));
 
     let sent = send(
         &mut space,
@@ -35,8 +35,8 @@ fn dragging_a_corner_handle_scales_the_panel_and_keeps_its_points() {
     let panel = *main(&space);
     assert_eq!(panel.size, start.size, "the window keeps its points");
     assert!(
-        (panel.metres_per_point / start.metres_per_point - 1.25).abs() < 0.01,
-        "the panel grew by a quarter: {}",
+        (panel.metres_per_point / start.metres_per_point - 0.8).abs() < 0.01,
+        "the panel shrank by a fifth: {}",
         panel.metres_per_point / start.metres_per_point
     );
     assert!(close(panel.world(Pos2::ZERO), kept), "the far corner stays");
@@ -47,8 +47,8 @@ fn dragging_a_corner_handle_scales_the_panel_and_keeps_its_points() {
 
     let sharper = |panel: &Panel| crate::scale::wanted(panel, &space.head, PLATFORM).unwrap();
     assert!(
-        (sharper(&panel) / sharper(&start) - 1.25).abs() < 0.01,
-        "its texture gets as many more pixels per point as it grew"
+        (sharper(&panel) / sharper(&start) - 0.8).abs() < 0.01,
+        "its texture gets as many fewer pixels per point as it shrank"
     );
 
     let released = send(&mut space, now, [button(to, false)]);

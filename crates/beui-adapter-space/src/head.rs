@@ -76,6 +76,24 @@ impl Head {
         Vec3::new(x * half * aspect(screen), y * half, -1.0).normalize()
     }
 
+    pub fn across(&self, screen: Vec2, point: Vec3) -> glam::Vec2 {
+        let local = self.rotation().inverse() * (point - self.position);
+        let half = (FOV_Y / 2.0).tan();
+        let across = glam::Vec2::new(local.x / (half * aspect(screen)), local.y / half);
+        let depth = -local.z;
+        match depth > 1e-4 {
+            true => across / depth,
+            false => across.normalize_or(glam::Vec2::NEG_Y) * 1e4,
+        }
+    }
+
+    pub fn on_screen(screen: Vec2, across: glam::Vec2) -> Vec2 {
+        Vec2::new(
+            (across.x + 1.0) / 2.0 * screen.x,
+            (1.0 - across.y) / 2.0 * screen.y,
+        )
+    }
+
     pub fn ray(&self, screen: Vec2, at: Vec2) -> Ray {
         Ray {
             origin: self.position,

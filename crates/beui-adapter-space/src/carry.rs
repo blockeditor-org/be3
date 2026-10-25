@@ -99,9 +99,13 @@ impl Carry {
         self.distance = (self.distance / STEP_PER_LINE.powf(lines)).clamp(NEAREST, FARTHEST);
     }
 
+    pub fn grabbed_at(&self, head: &Head) -> Vec3 {
+        head.position + head.rotation() * self.direction * self.distance
+    }
+
     pub fn place(&self, head: &Head, panel: &mut Panel, now: Option<Instant>) {
         let rotation = head.rotation();
-        let grab = head.position + rotation * self.direction * self.distance;
+        let grab = self.grabbed_at(head);
         let carried = rotation * self.rotation;
         panel.pose.rotation = facing(head.position, grab, self.grab)
             .map_or(carried, |target| self.turn.toward(carried, target, now));
