@@ -44,7 +44,9 @@ async fn edits_sealed_offline_are_published_when_the_device_reconnects() {
         .await
         .unwrap();
     assert!(matches!(
-        offline.save(added, &TextBlock::of("made offline"), None).await,
+        offline
+            .save(added, &TextBlock::of("made offline"), None)
+            .await,
         Err(ClientError::Disconnected(_))
     ));
     let listed = offline.children(BlockParent::Block(team)).await.unwrap();
@@ -56,7 +58,11 @@ async fn edits_sealed_offline_are_published_when_the_device_reconnects() {
     assert_eq!(counts.unsent, 0);
 
     let resumed = harness.offline(&owner, &refs, &store);
-    assert_eq!(resumed.pending(), counts, "the outbox did not survive a restart");
+    assert_eq!(
+        resumed.pending(),
+        counts,
+        "the outbox did not survive a restart"
+    );
     harness.reconnect(&resumed, owner.token()).await;
     let drained = resumed.drain(|_| false).await.unwrap();
     assert!(drained.contains(&Drained::Published {
@@ -64,9 +70,11 @@ async fn edits_sealed_offline_are_published_when_the_device_reconnects() {
         head: three
     }));
     assert!(drained.contains(&Drained::Created { block: added }));
-    assert!(drained.iter().any(
-        |outcome| matches!(outcome, Drained::Published { block, .. } if *block == added)
-    ));
+    assert!(
+        drained
+            .iter()
+            .any(|outcome| matches!(outcome, Drained::Published { block, .. } if *block == added))
+    );
     assert_eq!(resumed.pending(), refs::PendingCounts::default());
     assert_eq!(resumed.known_remote_head(note), Some(three));
 

@@ -247,7 +247,11 @@ impl<S: ObjectStore> Peer<S> {
         Ok(peer)
     }
 
-    pub async fn attach(&self, connection: Arc<Connection>, token: String) -> Result<(), ClientError> {
+    pub async fn attach(
+        &self,
+        connection: Arc<Connection>,
+        token: String,
+    ) -> Result<(), ClientError> {
         *self.connection.lock().unwrap() = connection;
         *self.token.lock().unwrap() = token;
         self.open_session().await
@@ -277,7 +281,8 @@ impl<S: ObjectStore> Peer<S> {
             return Err(ClientError::Unexpected);
         };
         *self.session.lock().unwrap() = (role, kind);
-        let verified = crate::contacts::contacts(&connection, self.account, self.keys.identity()).await?;
+        let verified =
+            crate::contacts::contacts(&connection, self.account, self.keys.identity()).await?;
         let ServerMessage::RecoveryKey { public, .. } = connection
             .request(|request| ClientMessage::GetRecoveryKey { request })
             .await?
@@ -336,7 +341,10 @@ impl<S: ObjectStore> Peer<S> {
         let _ = self.persist_session();
     }
 
-    pub(crate) fn adopt_contacts(&self, verified: impl IntoIterator<Item = (Uuid, RecoveryPublic)>) {
+    pub(crate) fn adopt_contacts(
+        &self,
+        verified: impl IntoIterator<Item = (Uuid, RecoveryPublic)>,
+    ) {
         let verified: Vec<_> = verified.into_iter().collect();
         let _ = self.refs.set_contacts(
             verified
@@ -893,7 +901,9 @@ impl<S: ObjectStore> Peer<S> {
         blocks: &[(Uuid, Option<CommitId>)],
     ) -> Result<Vec<(BlockSummary, Option<Vec<u8>>)>, ClientError> {
         match self.read_contents_online(blocks).await {
-            Err(ClientError::Disconnected(reason)) => self.read_contents_cached(blocks, reason).await,
+            Err(ClientError::Disconnected(reason)) => {
+                self.read_contents_cached(blocks, reason).await
+            }
             read => read,
         }
     }
@@ -1253,7 +1263,11 @@ impl<S: ObjectStore> Peer<S> {
         Ok(Sealed::Sealed(id))
     }
 
-    pub async fn publish_sealed(&self, block: Uuid, commit: CommitId) -> Result<Saved, ClientError> {
+    pub async fn publish_sealed(
+        &self,
+        block: Uuid,
+        commit: CommitId,
+    ) -> Result<Saved, ClientError> {
         let Some((sequence, pending)) = self.pending_publish(block, commit) else {
             return Err(ClientError::MissingObject(commit.hash()));
         };
@@ -1687,18 +1701,24 @@ impl<S: ObjectStore> Peer<S> {
     }
 
     pub async fn shared(&self) -> Result<Vec<BlockSummary>, ClientError> {
-        self.listed(Listing::Shared, |request| ClientMessage::ListShared { request })
-            .await
+        self.listed(Listing::Shared, |request| ClientMessage::ListShared {
+            request,
+        })
+        .await
     }
 
     pub async fn children(&self, parent: BlockParent) -> Result<Vec<BlockSummary>, ClientError> {
-        self.listed(Listing::Children(parent), |request| ClientMessage::ListChildren { request, parent })
-            .await
+        self.listed(Listing::Children(parent), |request| {
+            ClientMessage::ListChildren { request, parent }
+        })
+        .await
     }
 
     pub async fn deleted(&self) -> Result<Vec<BlockSummary>, ClientError> {
-        self.listed(Listing::Deleted, |request| ClientMessage::ListDeleted { request })
-            .await
+        self.listed(Listing::Deleted, |request| ClientMessage::ListDeleted {
+            request,
+        })
+        .await
     }
 
     pub async fn unlist(&self, listing: Listing) -> Result<(), ClientError> {
@@ -1709,13 +1729,17 @@ impl<S: ObjectStore> Peer<S> {
     }
 
     pub async fn backrefs(&self, block: Uuid) -> Result<Vec<BlockSummary>, ClientError> {
-        self.listed(Listing::Backrefs(block), |request| ClientMessage::ListBackrefs { request, block })
-            .await
+        self.listed(Listing::Backrefs(block), |request| {
+            ClientMessage::ListBackrefs { request, block }
+        })
+        .await
     }
 
     pub async fn referenced(&self, block: Uuid) -> Result<Vec<BlockSummary>, ClientError> {
-        self.listed(Listing::References(block), |request| ClientMessage::ListReferences { request, block })
-            .await
+        self.listed(Listing::References(block), |request| {
+            ClientMessage::ListReferences { request, block }
+        })
+        .await
     }
 
     pub async fn delete(&self, block: Uuid) -> Result<(), ClientError> {

@@ -153,7 +153,12 @@ impl RefsDb {
         )
     }
 
-    pub fn knows(&self, server: &str, account: Uuid, organization: Uuid) -> Result<bool, StoreError> {
+    pub fn knows(
+        &self,
+        server: &str,
+        account: Uuid,
+        organization: Uuid,
+    ) -> Result<bool, StoreError> {
         let scope = Scope {
             server: server.to_owned(),
             account,
@@ -277,7 +282,9 @@ impl State {
                     state.remotes.insert(uuid_key(&row.key)?, decode(&value)?);
                 }
                 Table::Listing => {
-                    state.listings.insert(decode_raw(&row.key)?, decode(&value)?);
+                    state
+                        .listings
+                        .insert(decode_raw(&row.key)?, decode(&value)?);
                 }
                 Table::Key => {
                     let key: KeyRow = decode(&value)?;
@@ -409,7 +416,11 @@ impl Refs {
         )])
     }
 
-    pub fn add_to_listing(&self, listing: Listing, summary: &BlockSummary) -> Result<(), StoreError> {
+    pub fn add_to_listing(
+        &self,
+        listing: Listing,
+        summary: &BlockSummary,
+    ) -> Result<(), StoreError> {
         let mut blocks = self.listing(&listing).unwrap_or_default();
         blocks.retain(|held| held.id != summary.id);
         blocks.push(summary.clone());

@@ -127,10 +127,9 @@ impl<S: ObjectStore> Peer<S> {
 
     pub(super) fn create_locally(&self, creation: Creation) -> Result<BlockSummary, ClientError> {
         let scope = match creation.parent {
-            BlockParent::Block(parent) => self
-                .refs
-                .summary(parent)
-                .and_then(|summary| summary.scope),
+            BlockParent::Block(parent) => {
+                self.refs.summary(parent).and_then(|summary| summary.scope)
+            }
             BlockParent::Root | BlockParent::Detached => Some(creation.block),
         };
         let summary = BlockSummary {

@@ -13,8 +13,6 @@ use image_block_types::{ImageContent, ImageHeader};
 mod a_block_a_shared_one_links_to_shows_only_that_it_exists;
 mod a_block_moved_to_another_workspace_is_rewrapped_and_given_a_fresh_key;
 mod a_device_that_starts_offline_reads_and_lists_what_it_saved;
-mod edits_sealed_offline_are_published_when_the_device_reconnects;
-mod edits_to_a_block_whose_access_was_lost_wait_aside_until_it_returns;
 mod a_file_added_to_a_shared_folder_opens_and_saves_for_who_it_was_shared_with;
 mod a_folder_shared_with_a_contact_opens_for_them_alone;
 mod a_key_the_server_or_a_stranger_seals_to_a_member_is_never_used;
@@ -29,6 +27,8 @@ mod an_escrow_key_the_server_puts_in_place_is_refused;
 mod an_image_round_trips_without_being_re_encoded;
 mod contacts_keep_sharing_after_one_of_them_takes_a_new_recovery_phrase;
 mod contents_read_together_match_what_each_block_saved;
+mod edits_sealed_offline_are_published_when_the_device_reconnects;
+mod edits_to_a_block_whose_access_was_lost_wait_aside_until_it_returns;
 mod history_is_thinned_but_the_head_and_bookmarks_survive;
 mod leaving_a_shared_workspace_leaves_its_rotation_to_who_can_edit_it;
 mod metadata_is_sealed_on_the_server_and_opened_by_members;
@@ -137,9 +137,14 @@ impl Harness {
         .await
         .unwrap();
         let theirs = crate::contacts::card(own.account(), own.keys().identity(), email, email);
-        crate::contacts::accept_invitation(&own.connection(), own.keys().identity(), &theirs, &code)
-            .await
-            .unwrap();
+        crate::contacts::accept_invitation(
+            &own.connection(),
+            own.keys().identity(),
+            &theirs,
+            &code,
+        )
+        .await
+        .unwrap();
         crate::contacts::finish_links(
             &admin.connection(),
             admin.keys().identity(),

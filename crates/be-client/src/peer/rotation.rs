@@ -218,7 +218,8 @@ impl<S: ObjectStore> Peer<S> {
 
     pub async fn refresh_contacts(&self) -> Result<Vec<crate::Contact>, ClientError> {
         let contacts =
-            crate::contacts::contacts(&self.connection(), self.account, self.keys.identity()).await?;
+            crate::contacts::contacts(&self.connection(), self.account, self.keys.identity())
+                .await?;
         self.adopt_contacts(
             contacts
                 .iter()
