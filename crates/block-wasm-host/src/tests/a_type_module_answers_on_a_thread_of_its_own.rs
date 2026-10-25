@@ -12,7 +12,7 @@ fn a_type_module_answers_on_a_thread_of_its_own() {
     let waiting = std::sync::Arc::default();
     let channel = PureHost::new(None)
         .unwrap()
-        .with_imports(block_type_api::embed::IMPORTS, None)
+        .with_imports(block_type_api::embed::IMPORTS)
         .spawn(
             "be3.counter".to_owned(),
             |host| host.load_bytes(COUNTER_TYPES),

@@ -13,7 +13,7 @@ use std::{
 use serde::{Serialize, de::DeserializeOwned};
 
 use crate::{
-    Called, Connection, Incoming, MethodId, OpError, OpId, Outcome, Side, Started, decode, encode,
+    Called, Connection, Incoming, MethodId, OpError, OpId, Outcome, Side, Started, encode,
 };
 
 pub type LocalFuture<T> = Pin<Box<dyn Future<Output = T>>>;
@@ -82,6 +82,7 @@ struct Inner {
     next_task: Cell<u64>,
     ready: Arc<ReadyQueue>,
     parent: Cell<Option<OpId>>,
+    returning: RefCell<Vec<Outcome>>,
     dispatch: RefCell<Option<Dispatch>>,
 }
 
@@ -130,6 +131,7 @@ impl Executor {
                 next_task: Cell::new(0),
                 ready: Arc::new(ReadyQueue(Mutex::new(VecDeque::new()))),
                 parent: Cell::new(None),
+                returning: RefCell::new(Vec::new()),
                 dispatch: RefCell::new(Some(dispatch)),
             }),
         };
@@ -147,6 +149,9 @@ impl Executor {
                 continue;
             }
             self.inner.settle();
+            for outcome in std::mem::take(&mut *self.inner.returning.borrow_mut()) {
+                self.inner.connection.borrow_mut().return_direct(&outcome);
+            }
         }
         self.inner.settle();
         outbound.extend(self.inner.connection.borrow_mut().take_outbound());
@@ -218,7 +223,7 @@ impl Inner {
                 let answered = called.answered;
                 let outcome = self.call_direct(called);
                 if answered {
-                    self.connection.borrow_mut().return_direct(&outcome);
+                    self.returning.borrow_mut().push(outcome);
                 }
             }
             Incoming::Started(started) => {
@@ -391,23 +396,14 @@ pub fn end(resource: OpId) {
     }
 }
 
-pub fn returned<T: DeserializeOwned>(result: &[u8]) -> T {
-    let decoded = match result.is_empty() {
-        true => decode::<T>(result),
-        false => decode::<Outcome>(result).and_then(|outcome| outcome.decode().ok()),
-    };
-    decoded.expect("the host answered a direct call")
-}
-
 #[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
-pub fn direct(name: &str, args: &[u8]) -> Vec<u8> {
+pub fn direct(name: &str, args: &[u8]) {
     let inner = current();
     let parent = inner.parent.get();
     inner
         .connection
         .borrow_mut()
         .notify_direct(parent, name, args);
-    Vec::new()
 }
 
 #[cfg(all(target_arch = "wasm32", target_os = "unknown"))]
@@ -418,12 +414,6 @@ mod wasm {
 
     use super::{Called, Entered, Inner, current};
     use crate::encode;
-
-    // unsafe(ffi)
-    #[link(wasm_import_module = "be3_host")]
-    unsafe extern "C" {
-        fn host_result(pointer: u32);
-    }
 
     thread_local! {
         pub(super) static SERVED: RefCell<Option<Rc<Inner>>> = const { RefCell::new(None) };
@@ -436,22 +426,16 @@ mod wasm {
         }
     }
 
-    // unsafe(ffi)
-    pub fn direct(args: &[u8], import: impl FnOnce(i32, i64, u32, u32) -> u32) -> Vec<u8> {
+    pub fn direct(args: &[u8], import: impl FnOnce(i32, i64, u32, u32)) {
         let inner = current();
         flush(&inner);
         let parent = inner.parent.get();
-        let length = import(
+        import(
             parent.is_some() as i32,
             parent.unwrap_or_default() as i64,
             args.as_ptr() as u32,
             args.len() as u32,
         );
-        let mut result = vec![0u8; length as usize];
-        if length > 0 {
-            unsafe { host_result(result.as_mut_ptr() as u32) };
-        }
-        result
     }
 
     pub fn alloc(length: u32) -> u32 {

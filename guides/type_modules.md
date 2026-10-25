@@ -61,8 +61,8 @@ operations ("ops") of the be-ops kernel, which can be awaited and canceled.
   with serde_bytes), `with` maps a WIT type onto an existing Rust type of the same
   shape (uuids, commit ids, the session state), `copy` names the mapped types that
   are `Copy` and `default` the types that derive `Default`. For the guest:
-  `guest::<import>` functions (a `func` returns its result, through a wasm import on
-  wasm32-unknown-unknown and through the executor in process; an `async func` returns
+  `guest::<import>` functions (a `func` returns nothing and goes through a wasm import
+  on wasm32-unknown-unknown and through the executor in process; an `async func` returns
   `Pending<T>`; a `stream<T>` returns `Stream<T>`), and for each export a `Guest`
   trait, a `Guest<Resource>` trait per resource and `dispatch`;
   `guest::executor(guest)` serves them, and `export_<world>!()` makes the wasm exports
@@ -71,8 +71,7 @@ operations ("ops") of the be-ops kernel, which can be awaited and canceled.
   the world's sync imports as `(module, name)`, which a runtime links and nothing else;
   `embed::<import>::Call`, one case per import, accepted from an op
   (`Call::accept`, with a `Reply<T>` or `Producer<T>` to answer it) or a sync call
-  (`Call::accept_direct`); `Direct` and `answer`, for a sync import with a result,
-  which must be answered on the guest's thread; and `embed::exports::<export>`
+  (`Call::accept_direct`); and `embed::exports::<export>`
   functions and resource handles that return `Ticket<T>`s to decode the completion
   with. A resource's constructor is a long-lived op whose id is the handle; its async
   methods are ops with it as parent, its sync ones direct calls naming it, and
@@ -81,12 +80,16 @@ operations ("ops") of the be-ops kernel, which can be awaited and canceled.
   statics, since tests run many modules on one thread, and the constructor lives on
   `Guest` as `new_<resource>`, handed its op id.
 
-Where a sync import is answered: on the guest's thread. A runtime forwards one with
-no result to the host in order with the frames and answers `()` at once, which is all
-the type-module world has. One with a result needs an answer there: natively
-`PureHost::with_imports(IMPORTS, Some(answer))` (an `Answer` closure, which reaches
-host state through a lock), while a web worker and an in-process guest can only
-forward, so a result-bearing sync import is not answerable on the web or in process.
+The rule, so that native, the web and in process behave the same: a sync import
+carries no result. The guest's thread answers it `()` at once and forwards it to the
+host in order with the frames, since the host's state is not reachable from the
+guest's worker on the web; an import that needs an answer is an `async func`, and
+the generator refuses a sync import with a result. A sync export is a call the host
+always awaits: every runtime runs it on the guest's thread and sends its result back
+after the frames it made. The one place a sync import could return a value would be
+an interface whose host runs inside the guest's own worker or thread on every
+platform, as the GPU device does (block-gpu-shim on the web, wasmtime host functions
+natively); none exists yet.
 
 ## The protocol
 

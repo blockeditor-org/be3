@@ -35,7 +35,7 @@ use wake::Wake;
 
 pub use interrupt::Interrupter;
 pub use precompile::{precompile, precompile_to};
-pub use pure::{Answer, MEMORY_LIMIT, PureGuest, PureHost};
+pub use pure::{MEMORY_LIMIT, PureGuest, PureHost};
 pub use state::{Connect, State};
 pub use wasm_dylink::sdk_file_name;
 

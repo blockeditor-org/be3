@@ -4,8 +4,6 @@ const CALL: u8 = 1;
 
 const RETURNED: u8 = 2;
 
-pub const HOST_RESULT: &str = "host_result";
-
 pub const ALLOC: &str = "plugin_alloc";
 
 #[derive(Clone, Debug, Eq, PartialEq)]

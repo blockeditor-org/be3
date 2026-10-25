@@ -128,7 +128,7 @@ pub fn wasm(
             let tag = tag.clone()?;
             let load = load.clone();
             let host = block_wasm_host::PureHost::new(cache.as_deref())?
-                .with_imports(block_type_api::embed::IMPORTS, None);
+                .with_imports(block_type_api::embed::IMPORTS);
             let channel = host.spawn(name.clone(), move |host| load(host), wake, waiting)?;
             Ok((Box::new(channel) as Boxed, tag))
         }),

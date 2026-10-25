@@ -767,6 +767,13 @@ impl Generator {
                     method.name
                 ));
             }
+            if let Shape::Direct(Some(_)) = method.shape {
+                return Err(format!(
+                    "{}: a sync import cannot return a value, since the host that answers it is \
+                     not on the guest's thread on every platform; make it an async func",
+                    method.name
+                ));
+            }
             let name = snake(method.function.item_name());
             let params = self.params(method)?;
             let constant = &method.constant;
@@ -774,19 +781,12 @@ impl Generator {
             let named = &method.named;
             let (interface, key) = (&method.interface, &method.key);
             out.extend(match &method.shape {
-                Shape::Direct(result) => {
-                    let returns = match result {
-                        Some(result) => {
-                            let result = self.ty(result)?;
-                            quote!(-> #result)
-                        }
-                        None => TokenStream::new(),
-                    };
+                Shape::Direct(_) => {
                     quote! {
-                        pub fn #name(#(#params),*) #returns {
+                        pub fn #name(#(#params),*) {
                             let args = ::be_ops::encode(&#args);
                             #[cfg(all(target_arch = "wasm32", target_os = "unknown"))]
-                            let result = {
+                            {
                                 #[link(wasm_import_module = #interface)]
                                 unsafe extern "C" {
                                     #[link_name = #key]
@@ -795,15 +795,14 @@ impl Generator {
                                         parent: i64,
                                         pointer: u32,
                                         length: u32,
-                                    ) -> u32;
+                                    );
                                 }
                                 ::be_ops::guest::direct(&args, |has_parent, parent, pointer, length| {
                                     unsafe { import(has_parent, parent, pointer, length) }
-                                })
-                            };
+                                });
+                            }
                             #[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
-                            let result = ::be_ops::guest::direct(crate::__args::#named, &args);
-                            ::be_ops::guest::returned(&result)
+                            ::be_ops::guest::direct(crate::__args::#named, &args);
                         }
                     }
                 }
@@ -832,29 +831,7 @@ impl Generator {
         let mut cases = Vec::new();
         let mut arms = Vec::new();
         let mut direct_arms = Vec::new();
-        let mut answers = Vec::new();
-        let mut answer_arms = Vec::new();
         for method in methods {
-            if let Shape::Direct(Some(result)) = &method.shape {
-                let name = snake(method.function.item_name());
-                let constant = &method.constant;
-                let args = &method.args;
-                let names: Vec<&Ident> = method.params.iter().map(|(name, _)| name).collect();
-                let params = self.params(method).unwrap_or_default();
-                let result = self.ty(result).unwrap_or_else(|error| {
-                    syn::Error::new(Span::call_site(), error).to_compile_error()
-                });
-                answers.push(quote! {
-                    fn #name(&self, parent: ::core::option::Option<::be_ops::OpId>, #(#params),*) -> #result;
-                });
-                answer_arms.push(quote! {
-                    crate::__args::#constant => ::be_ops::decode::<crate::__args::#args>(&called.args)
-                        .map(|crate::__args::#args { #(#names),* }| {
-                            ::be_ops::Outcome::returned(&direct.#name(called.parent, #(#names),*))
-                        }),
-                });
-                continue;
-            }
             let case = camel(method.function.item_name());
             let constant = &method.constant;
             let args = &method.args;
@@ -951,21 +928,6 @@ impl Generator {
                         #(#direct_arms)*
                         _ => return ::core::option::Option::None,
                     })
-                }
-            }
-
-            pub trait Direct {
-                #(#answers)*
-            }
-
-            pub fn answer<D: Direct>(
-                direct: &D,
-                called: &::be_ops::Called,
-            ) -> ::core::option::Option<::be_ops::Outcome> {
-                let _ = direct;
-                match called.method() {
-                    #(#answer_arms)*
-                    _ => ::core::option::Option::None,
                 }
             }
         }

@@ -16,7 +16,6 @@ let exports = null;
 let inbox = [];
 let outbox = [];
 let woken = false;
-let result = new Uint8Array(0);
 let direct = [];
 const MARK = [0xff, 0xff, 0xff, 0xff];
 const CALL = 1;
@@ -58,10 +57,6 @@ const host = {
     host_panic(pointer, length) {
         throw new Error(new TextDecoder().decode(memory().slice(pointer, pointer + length)));
     },
-    host_result(pointer) {
-        memory().set(result, pointer);
-        result = new Uint8Array(0);
-    },
 };
 
 function marked(item) {
@@ -86,8 +81,6 @@ function forward(name) {
     return (hasParent, parent, pointer, length) => {
         const args = memory().slice(pointer, pointer + length);
         outbox.push(callItem(name, hasParent !== 0, parent, args).buffer);
-        result = new Uint8Array(0);
-        return 0;
     };
 }
 

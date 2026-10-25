@@ -104,10 +104,9 @@ clock. It is a `wasm32_module` (wasm32-unknown-unknown) rather than an `editor()
 own memory. `crates/block-guest-echo` is the smallest one, which the tests start every way. A
 type module is a pure guest whose ABI grows with its WIT world (guides/type_modules.md,
 "Operations and WIT"): its async calls are be-ops frames, and each sync func is a wasm
-import (`(has_parent: i32, parent: i64, pointer, length) -> length`, whose result the
-guest copies with `be3_host`'s `host_result`) or export (the same arguments, the host
-writing them into memory from `plugin_alloc`, returning the result's packed pointer and
-length). The host links `be3_host` and the world's imports (`PureHost::with_imports`,
+import (`(has_parent: i32, parent: i64, pointer, length)`, with no result) or export
+(the same arguments, the host writing them into memory from `plugin_alloc`, returning
+the result's packed pointer and length). The host links `be3_host` and the world's imports (`PureHost::with_imports`,
 `WebGuest::start`'s list) and refuses any other.
 
 The host half is `crates/block-guest-host`, which the editor host and anything else that runs a

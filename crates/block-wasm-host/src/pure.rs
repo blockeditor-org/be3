@@ -27,15 +27,12 @@ pub const MEMORY_LIMIT: usize = 1 << 30;
 
 const MEMORY: &str = "memory";
 
-pub type Answer = Arc<dyn Fn(&str, Option<u64>, &[u8]) -> Option<Vec<u8>> + Send + Sync>;
-
 #[derive(Clone)]
 pub struct PureHost {
     engine: Engine,
     interrupt: Arc<Interrupt>,
     memory_limit: usize,
     imports: Vec<(String, String)>,
-    answer: Option<Answer>,
 }
 
 impl PureHost {
@@ -46,16 +43,14 @@ impl PureHost {
             engine,
             memory_limit: MEMORY_LIMIT,
             imports: Vec::new(),
-            answer: None,
         })
     }
 
-    pub fn with_imports(mut self, imports: &[(&str, &str)], answer: Option<Answer>) -> Self {
+    pub fn with_imports(mut self, imports: &[(&str, &str)]) -> Self {
         self.imports = imports
             .iter()
             .map(|(module, name)| ((*module).to_owned(), (*name).to_owned()))
             .collect();
-        self.answer = answer;
         self
     }
 
@@ -145,7 +140,6 @@ impl PureHost {
 struct PureState {
     inbox: VecDeque<Vec<u8>>,
     outbox: Vec<Vec<u8>>,
-    result: Vec<u8>,
     wake: Arc<Wake>,
     limits: StoreLimits,
     interrupt: Arc<Interrupt>,
@@ -176,7 +170,6 @@ impl PureGuest {
         let state = PureState {
             inbox: VecDeque::new(),
             outbox: Vec::new(),
-            result: Vec::new(),
             wake: Arc::clone(&wake),
             limits: StoreLimitsBuilder::new()
                 .memory_size(host.memory_limit)
@@ -195,7 +188,7 @@ impl PureGuest {
         store.set_epoch_deadline(1);
         let mut linker: Linker<PureState> = Linker::new(&host.engine);
         link(&mut linker)?;
-        link_direct(&mut linker, &host.imports, host.answer.clone())?;
+        link_direct(&mut linker, &host.imports)?;
         crate::wake::link(&mut linker)?;
         let instance = linker
             .instantiate(&mut store, module)
@@ -434,28 +427,9 @@ fn link(linker: &mut Linker<PureState>) -> Result<(), String> {
     Ok(())
 }
 
-fn link_direct(
-    linker: &mut Linker<PureState>,
-    imports: &[(String, String)],
-    answer: Option<Answer>,
-) -> Result<(), String> {
-    linker
-        .func_wrap(
-            abi::HOST_MODULE,
-            direct::HOST_RESULT,
-            |mut caller: Caller<'_, PureState>, pointer: u32| -> wasmtime::Result<()> {
-                let result = std::mem::take(&mut caller.data_mut().result);
-                memory(&mut caller)?
-                    .write(&mut caller, pointer as usize, &result)
-                    .map_err(|_| {
-                        wasmtime::Error::msg("the guest's result buffer is outside its memory")
-                    })
-            },
-        )
-        .map_err(|error| format!("{} could not be linked: {error}", direct::HOST_RESULT))?;
+fn link_direct(linker: &mut Linker<PureState>, imports: &[(String, String)]) -> Result<(), String> {
     for (module, name) in imports {
         let full = format!("{module}#{name}");
-        let answer = answer.clone();
         linker
             .func_wrap(
                 module,
@@ -465,25 +439,14 @@ fn link_direct(
                       parent: i64,
                       pointer: u32,
                       length: u32|
-                      -> wasmtime::Result<u32> {
+                      -> wasmtime::Result<()> {
                     let args = read(&mut caller, pointer, length)?;
                     let parent = (has_parent != 0).then_some(parent as u64);
-                    let result = match answer
-                        .as_ref()
-                        .and_then(|answer| answer(&full, parent, &args))
-                    {
-                        Some(result) => result,
-                        None => {
-                            caller
-                                .data_mut()
-                                .outbox
-                                .push(direct::call(&full, parent, false, &args));
-                            Vec::new()
-                        }
-                    };
-                    let length = result.len() as u32;
-                    caller.data_mut().result = result;
-                    Ok(length)
+                    caller
+                        .data_mut()
+                        .outbox
+                        .push(direct::call(&full, parent, false, &args));
+                    Ok(())
                 },
             )
             .map_err(|error| format!("{module}#{name} could not be linked: {error}"))?;
