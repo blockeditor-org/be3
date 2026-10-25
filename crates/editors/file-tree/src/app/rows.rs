@@ -7,7 +7,6 @@ use workspace_ui_types::ViewState;
 
 use block_editor_beui::be_block::SETTINGS;
 use block_editor_beui::be_block::metadata::ICON_COLOR;
-use block_editor_beui::be_block::{Root, settings::Settings};
 use block_editor_beui::beui::icons::{
     ICON_BOXES, ICON_DATABASE, ICON_ROTATE_CCW_CLOCK, ICON_USERS, named,
 };
@@ -636,10 +635,7 @@ impl Builder<'_> {
         path: &mut Vec<Uuid>,
         trashed: bool,
     ) {
-        if reference.block_type == <Settings as Root>::CONTENT_TYPE
-            && container
-                .is_some_and(|container| reference.parent == Some(BlockParent::Block(container)))
-        {
+        if block_editor_beui::sections::is_settings_part(&reference, container) {
             return;
         }
         self.watched

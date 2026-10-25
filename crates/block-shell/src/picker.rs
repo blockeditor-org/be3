@@ -375,11 +375,15 @@ impl Graph {
     }
 
     fn children(&self, block: &BlockInfo) -> impl Iterator<Item = &BlockInfo> {
+        let container = block.id;
         block
             .references
             .iter()
             .filter_map(|id| self.blocks.get(id))
-            .filter(|child| !child.deleted)
+            .filter(move |child| {
+                !child.deleted
+                    && !block_editor_beui::sections::is_settings_part(child, Some(container))
+            })
     }
 
     fn ancestors(&self, block: Uuid) -> HashSet<Uuid> {

@@ -7,6 +7,7 @@ use block_editor_beui::BlockQuery;
 use block_editor_beui::be_block::BlockContent;
 use block_editor_beui::be_block::Edit;
 use block_editor_beui::be_block::ObjectId;
+use block_editor_beui::be_block::{PrefixRegistry, PrefixRegistryContent, normal_prefix};
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::block_ui::BlockLabel;
 use block_editor_beui::database::DatabaseBlockPickRequest;
@@ -67,6 +68,7 @@ pub struct ViewData {
     pub selected: Signal<Option<Selection>>,
     pub error: Signal<Option<String>>,
     pub read_only: Memo<bool>,
+    pub sharing_prefix: Memo<Vec<Uuid>>,
 }
 
 impl ViewData {
@@ -110,6 +112,7 @@ impl ViewData {
         });
         let prefix = database.field(ObjectId::ROOT, Database::PREFIX);
         let prefix = create_memo(move || prefix.get());
+        let sharing_prefix = keep_registered(editor, database_id, prefix);
         let title_field = schema.project(|schema| schema.root().title_field());
         let title_field = create_memo(move || title_field.get());
         let fields = schema.project(|schema| schema.root().fields());
@@ -228,6 +231,7 @@ impl ViewData {
             selected,
             error,
             read_only: editor.read_only(),
+            sharing_prefix,
         }
     }
 
@@ -661,6 +665,65 @@ fn watch_name(editor: Editor, database_id: Memo<Option<Uuid>>) -> Memo<String> {
             .and_then(|info| info.name())
             .filter(|name| !name.trim().is_empty())
             .unwrap_or_else(|| "Database".to_owned())
+    })
+}
+
+fn keep_registered(
+    editor: Editor,
+    database_id: Memo<Option<Uuid>>,
+    prefix: Memo<String>,
+) -> Memo<Vec<Uuid>> {
+    let nearest = editor.nearest_settings(editor.block_id(), PrefixRegistryContent::CONTENT_TYPE);
+    let registry = create_memo(move || nearest.get().map(|set| set.block));
+    let editable = editor.editable();
+    create_effect(move || {
+        let (Some(database), true) = (database_id.get(), editable.get()) else {
+            return;
+        };
+        let wanted = normal_prefix(&prefix.get());
+        match registry.get() {
+            Some(registry) => {
+                let held = editor.content_of::<PrefixRegistryContent>(registry);
+                let Ok(registered) =
+                    held.read(|content| content.root().prefix_of(database).map(normal_prefix))
+                else {
+                    return;
+                };
+                let owner = untrack(|| nearest.get().map(|set| set.owner));
+                if registered.unwrap_or_default() != wanted
+                    && owner.is_some_and(|owner| untrack(|| editor.blocks().access(owner)).can_edit())
+                {
+                    untrack(|| held.operate(PrefixRegistry::register(database, Some(&wanted))));
+                }
+            }
+            None if !wanted.is_empty() => untrack(|| {
+                let Some(owner) = editor.workspace_of(editor.block_id()) else {
+                    return;
+                };
+                let mut content = PrefixRegistryContent::default();
+                content.apply(&PrefixRegistry::register(database, Some(&wanted)));
+                editor.ensure_block_kind::<PrefixRegistry>(owner, content);
+            }),
+            None => {}
+        }
+    });
+    create_memo(move || {
+        let Some(registry) = registry.get() else {
+            return Vec::new();
+        };
+        let wanted = prefix.get();
+        let own = database_id.get();
+        editor
+            .content_of::<PrefixRegistryContent>(registry)
+            .read(|content| {
+                content
+                    .root()
+                    .databases_with(&wanted)
+                    .into_iter()
+                    .filter(|database| Some(*database) != own)
+                    .collect()
+            })
+            .unwrap_or_default()
     })
 }
 

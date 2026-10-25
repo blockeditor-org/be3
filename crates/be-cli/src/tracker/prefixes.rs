@@ -162,20 +162,41 @@ impl<S: ObjectStore> Tracker<S> {
             let Ok(Some(content)) = self.peer.open::<PrefixRegistryContent>(kind).await else {
                 continue;
             };
+            let owner = self
+                .peer
+                .summary(kind)
+                .await
+                .ok()
+                .and_then(|summary| summary.parent?.block());
             for database in content.root().databases_with(prefix) {
                 if databases.contains(&database) {
                     continue;
                 }
-                if self
+                let shown = self
                     .entry(database)
                     .await
-                    .is_ok_and(|entry| entry.access.can_view() && !entry.deleted)
-                {
+                    .is_ok_and(|entry| entry.access.can_view() && !entry.deleted);
+                if shown && self.lies_below(owner, database).await {
                     databases.push(database);
                 }
             }
         }
         Ok(databases)
+    }
+
+    async fn lies_below(&self, owner: Option<Uuid>, block: Uuid) -> bool {
+        let Some(owner) = owner else {
+            return true;
+        };
+        let mut current = block;
+        for _ in 0..256 {
+            match self.entry(current).await.map(|entry| entry.parent) {
+                Ok(BlockParent::Block(parent)) if parent == owner => return true,
+                Ok(BlockParent::Block(parent)) => current = parent,
+                _ => return false,
+            }
+        }
+        false
     }
 
     pub async fn database_of_row(&self, id: &str) -> Result<Uuid, String> {

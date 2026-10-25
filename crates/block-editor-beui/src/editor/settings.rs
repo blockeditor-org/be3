@@ -3,8 +3,9 @@ use std::collections::{BTreeMap, HashMap};
 
 use be_block::be_model::{BlockRef, Document};
 use be_block::{
-    ANYONE_INSIDE, BlockContent, Follows, KindVisibility, Layered, LiveEdit, Resolution,
-    ResolutionLayers, Root, SETTINGS, Settings, SettingsContent,
+    ANYONE_INSIDE, BlockContent, EDIT_KINDS, Follows, KindVisibility, Layered, LiveEdit,
+    Resolution, ResolutionLayers, Root, SETTINGS, Settings, SettingsContent, WORKSPACE_TYPE,
+    edit_kind_key,
 };
 use beui::reactive::*;
 use block_plugin_api::AccessLevel;
@@ -62,6 +63,41 @@ impl Editor {
         }
     }
 
+    pub fn edit_kind(&self, owner: Uuid, kind: Uuid) -> Option<Uuid> {
+        self.blocks()
+            .info(owner)
+            .and_then(|info| info.metadata.get(&edit_kind_key(kind)))
+            .map(|found| found.0)
+            .or_else(|| {
+                self.state()
+                    .settings
+                    .borrow()
+                    .created_kinds
+                    .get(&(owner, kind))
+                    .copied()
+            })
+    }
+
+    pub fn workspace_of(&self, block: Uuid) -> Option<Uuid> {
+        let blocks = self.blocks();
+        let mut current = block;
+        let mut outermost = None;
+        for _ in 0..MAX_DEPTH {
+            let Some(info) = blocks.info(current).filter(|info| info.access.can_view()) else {
+                break;
+            };
+            if info.block_type == WORKSPACE_TYPE {
+                return Some(current);
+            }
+            outermost = Some(current);
+            let Some(BlockParent::Block(parent)) = info.parent else {
+                break;
+            };
+            current = parent;
+        }
+        outermost
+    }
+
     pub fn kinds_above(&self, block: Uuid) -> Memo<KindsAbove> {
         if let Some(found) = self.state().settings.borrow().kinds.get(&block) {
             return *found;
@@ -91,6 +127,15 @@ impl Editor {
                 self.open_above(block, &mut found);
                 break;
             };
+            for kind in EDIT_KINDS {
+                if let Some(set) = self.edit_kind(current, kind) {
+                    found.entry(kind).or_insert(SetKind {
+                        owner: current,
+                        settings: current,
+                        block: set,
+                    });
+                }
+            }
             if let Some(settings) = self.settings_block(current) {
                 let kinds = self
                     .content_of::<SettingsContent>(settings)
@@ -259,6 +304,9 @@ impl Editor {
         Document<R>: BlockContent,
     {
         let kind = R::CONTENT_TYPE;
+        if EDIT_KINDS.contains(&kind) {
+            return self.ensure_edit_kind::<R>(owner, content);
+        }
         let existing = untrack(|| self.settings_block(owner));
         let block = Uuid::now_v7();
         let settings = match existing {
@@ -305,7 +353,55 @@ impl Editor {
         Some(block)
     }
 
+    fn ensure_edit_kind<R>(&self, owner: Uuid, content: Document<R>) -> Option<Uuid>
+    where
+        R: Layered + 'static,
+        Document<R>: BlockContent,
+    {
+        let kind = R::CONTENT_TYPE;
+        if let Some(found) = untrack(|| self.edit_kind(owner, kind)) {
+            return Some(found);
+        }
+        if !untrack(|| self.blocks().access(owner)).can_edit() {
+            return None;
+        }
+        let block = Uuid::now_v7();
+        let blocks = self.blocks();
+        blocks.create_at(
+            block,
+            kind,
+            Some(content.encode()),
+            BlockParent::Block(owner),
+            be_block::BlockMetadata::default(),
+        );
+        blocks.define(owner, edit_kind_key(kind).definition(Some(&BlockRef(block))));
+        if R::VISIBILITY == KindVisibility::Inside {
+            self.host()
+                .set_access(block, ANYONE_INSIDE, AccessLevel::View);
+        }
+        self.state()
+            .settings
+            .borrow_mut()
+            .created_kinds
+            .insert((owner, kind), block);
+        Some(block)
+    }
+
     pub fn clear_block_kind(&self, settings: Uuid, kind: Uuid) {
+        if EDIT_KINDS.contains(&kind) {
+            let owner = untrack(|| self.settings_owner(settings)).unwrap_or(settings);
+            let Some(block) = untrack(|| self.edit_kind(owner, kind)) else {
+                return;
+            };
+            self.state()
+                .settings
+                .borrow_mut()
+                .created_kinds
+                .remove(&(owner, kind));
+            self.blocks().define(owner, edit_kind_key(kind).definition(None));
+            self.host().delete_block(block, kind, BlockParent::Block(owner));
+            return;
+        }
         let held = self.content_of::<SettingsContent>(settings);
         let Ok(Some(block)) = untrack(|| held.read(|content| content.root().kind(kind))) else {
             return;
