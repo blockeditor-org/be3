@@ -964,6 +964,7 @@ impl Runtime {
             sizes,
             reports,
             windows,
+            window_requests,
             children,
             repaint_after_micros,
             animating,
@@ -977,6 +978,7 @@ impl Runtime {
         let held = self.held_screens();
         let mut changed = self.instances.confirm(serial, &held);
         changed |= self.instances.set_frame_reports(reports);
+        changed |= self.instances.request_windows(window_requests);
         changed |= self.lay(Laid {
             serial,
             sizes,
@@ -1819,6 +1821,26 @@ pub(crate) fn replace_child(
         replaced
     })
     .flatten()
+}
+
+pub(crate) fn plugin_windows(
+    plugin_id: &str,
+    instance: EditorInstanceId,
+) -> Vec<super::instances::PluginWindow> {
+    with(plugin_id, |runtime| runtime.instances.plugin_windows(instance)).unwrap_or_default()
+}
+
+pub(crate) fn report_window(
+    plugin_id: &str,
+    instance: EditorInstanceId,
+    report: block_plugin_api::WindowReport,
+) {
+    with(plugin_id, |runtime| {
+        let messages = runtime.instances.window_reported(instance, report);
+        runtime.send(messages);
+    });
+    mark(plugin_id);
+    host::request_repaint();
 }
 
 pub(crate) fn resized(plugin_id: &str, instance: EditorInstanceId, size: Vec2) {

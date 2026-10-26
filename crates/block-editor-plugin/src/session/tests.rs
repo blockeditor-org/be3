@@ -48,6 +48,7 @@ fn screen(screen: ScreenId, instance: EditorInstanceId) -> ScreenRequest {
         instance,
         region: EditorRegion::Frame,
         frame: None,
+        opens_windows: false,
         metrics: ViewportMetrics {
             logical: block_plugin_api::Size {
                 width: 100.0,

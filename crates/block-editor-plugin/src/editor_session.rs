@@ -7,7 +7,8 @@ use block_plugin_api::{
     ArtifactDescription, BarAction, ChildId, ChildPlacement, ChildPlacements, ChildStatus,
     EditorInstanceId, EditorRegion, Failure, FrameChrome, FrameCommit, FrameReport, MAX_CHILDREN,
     MAX_COLLECTION_ITEMS, MenuEntry, Occluder, RegionSize, ScreenPlacement, ScreenRequest,
-    ScreenWindow, Size, TimedInput, ViewportMetrics, WebViewId,
+    ScreenWindow, ScreenWindowRequest, Size, TimedInput, ViewportMetrics, WebViewId, WindowReport,
+    WindowRequest,
 };
 use block_ui::BlockCatalog;
 use geometry::{Rect, Vec2, pos2, vec2};
@@ -78,6 +79,8 @@ struct RegionState {
     placement: Option<ScreenPlacement>,
     metrics: Option<ViewportMetrics>,
     frame: Option<block_plugin_api::FrameSpec>,
+    opens_windows: bool,
+    window_requests: Vec<WindowRequest>,
     used: Option<Vec2>,
     reported: Option<Vec2>,
     report: Option<FrameReport>,
@@ -314,6 +317,7 @@ impl EditorSession {
             state.placement = Some(*placement);
             state.metrics = Some(request.metrics.clone());
             state.frame = request.frame;
+            state.opens_windows = request.opens_windows;
         }
     }
 
@@ -321,6 +325,7 @@ impl EditorSession {
         commit.sizes.extend(self.region_sizes());
         commit.reports.extend(self.frame_reports());
         commit.windows.extend(self.windows());
+        commit.window_requests.extend(self.window_requests());
         commit.children.extend(self.children());
         self.retain_child_statuses();
     }
@@ -448,6 +453,29 @@ impl EditorSession {
         for opening in self.host.take_watch_openings() {
             opening(&self.host, instance);
         }
+    }
+
+    pub(crate) fn window_reported(&mut self, report: WindowReport) {
+        self.app.window_reported(report);
+    }
+
+    fn window_requests(&mut self) -> Vec<ScreenWindowRequest> {
+        let mut requests = Vec::new();
+        for state in self.regions.values_mut() {
+            let Some(placement) = state.placement else {
+                continue;
+            };
+            requests.extend(
+                state
+                    .window_requests
+                    .drain(..)
+                    .map(|request| ScreenWindowRequest {
+                        screen: placement.screen,
+                        request,
+                    }),
+            );
+        }
+        requests
     }
 
     fn windows(&mut self) -> Vec<ScreenWindow> {
@@ -694,6 +722,7 @@ impl EditorSession {
                 .filter(|_| region == EditorRegion::Frame && crate::screens::describing())
                 .map(|state| state.epoch),
             seen: crate::screens::seen(),
+            opens_windows: state.is_some_and(|state| state.opens_windows),
         }
     }
 
@@ -766,11 +795,14 @@ impl EditorSession {
         if let (Some(state), Some(screen)) = (self.regions.get_mut(&region), screen) {
             state.children = placed;
             state.occluders = occluders;
+            state
+                .window_requests
+                .extend(std::mem::take(&mut frame.window_requests));
             state.window = block_plugin_api::WindowRequests {
                 ime: frame.window.ime.clone().map(|ime| ime.translated(-origin)),
                 ..frame.window.clone()
             };
-            let reports = matches!(region, EditorRegion::Frame);
+            let reports = matches!(region, EditorRegion::Frame | EditorRegion::Window(_));
             match frame.description.as_mut() {
                 Some(description) => {
                     if let Some(tree) = description.tree.take() {

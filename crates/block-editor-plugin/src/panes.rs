@@ -48,7 +48,17 @@ impl Panes {
                 .iter()
                 .any(|placement| placement.surface == surface)
         });
-        for placement in &layout.screens {
+        let windows_last = layout
+            .screens
+            .iter()
+            .filter(|placement| !matches!(placement.region, EditorRegion::Window(_)))
+            .chain(
+                layout
+                    .screens
+                    .iter()
+                    .filter(|placement| matches!(placement.region, EditorRegion::Window(_))),
+            );
+        for placement in windows_last {
             let Some(session) = screens.session(placement.instance) else {
                 continue;
             };
@@ -105,7 +115,7 @@ impl Panes {
     fn cooling(&self, placement: &ScreenPlacement, now: Duration) -> Option<Duration> {
         match placement.region {
             EditorRegion::Preview => self.previews.wait(placement.surface, now),
-            EditorRegion::Frame | EditorRegion::ArtifactSettings => None,
+            EditorRegion::Frame | EditorRegion::ArtifactSettings | EditorRegion::Window(_) => None,
         }
     }
 

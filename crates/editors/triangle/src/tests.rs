@@ -21,5 +21,6 @@ fn region() -> Region {
         monitors: Vec::new(),
         describe: None,
         seen: true,
+        opens_windows: false,
     }
 }

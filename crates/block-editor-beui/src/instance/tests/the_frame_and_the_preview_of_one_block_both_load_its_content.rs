@@ -63,6 +63,7 @@ fn screen(region: EditorRegion, screen: u32) -> (ScreenPlacement, ScreenRequest)
             monitors: Vec::new(),
         },
         frame: (region == EditorRegion::Frame).then(FrameSpec::default),
+        opens_windows: false,
     };
     (placement, request)
 }

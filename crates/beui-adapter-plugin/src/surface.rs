@@ -93,7 +93,7 @@ impl Surface {
         self.pending.is_some()
     }
 
-    fn note(&mut self, output: &WindowOutput, scale: f32, background: Color32) {
+    pub(crate) fn note(&mut self, output: &WindowOutput, scale: f32, background: Color32) {
         let look = (scale, self.laid, background);
         let moved = self.look.as_ref() != Some(&look);
         self.look = Some(look);
@@ -107,12 +107,12 @@ impl Surface {
     }
 
     #[cfg(not(target_arch = "wasm32"))]
-    fn prepare(&mut self, _output: &WindowOutput, _scale: f32) -> bool {
+    pub(crate) fn prepare(&mut self, _output: &WindowOutput, _scale: f32) -> bool {
         self.pending.take().is_some()
     }
 
     #[cfg(target_arch = "wasm32")]
-    fn prepare(&mut self, output: &WindowOutput, scale: f32) -> bool {
+    pub(crate) fn prepare(&mut self, output: &WindowOutput, scale: f32) -> bool {
         let Some((width, height)) = self.size else {
             return false;
         };
@@ -198,7 +198,7 @@ impl Surface {
     }
 
     #[cfg(target_arch = "wasm32")]
-    fn present(&mut self) {
+    pub(crate) fn present(&mut self) {
         let target = self.target.take();
         let painted = self.prepared.take();
         self.drawn.clear();

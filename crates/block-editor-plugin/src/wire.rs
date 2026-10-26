@@ -434,6 +434,12 @@ impl GuestEditor for OpenEditor {
         });
     }
 
+    fn window_reported(&self, report: block_plugin_api::WindowReport) {
+        self.wire.call(self.instance, move |session| {
+            session.window_reported(report)
+        });
+    }
+
     fn on_drop(&self) -> impl Future<Output = ()> + 'static {
         crate::asked::closed(self.instance);
         self.wire.push(Delivery::Close(self.instance));

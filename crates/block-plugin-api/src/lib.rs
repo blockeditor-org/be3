@@ -78,7 +78,7 @@ pub use types::{
     FontFace, FontRole, Fonts, FrameChrome, FrameCommit, FrameReport, FrameSpec, Hello,
     HelloAccepted, HostPanel, InputBatch, Monitor, Occluder, OpenArtifact, OpenBlock, OpenCreation,
     Opening, PluginIdentity, PresentedFrame, PressClaim, RegionSize, ScreenDamage, ScreenLayout,
-    ScreenPlacement, ScreenRequest, ScreenWindow, Size, SurfaceFormat, SurfaceRect, SurfaceSpec,
+    ScreenPlacement, ScreenRequest, ScreenWindow, ScreenWindowRequest, Size, SurfaceFormat, SurfaceRect, SurfaceSpec,
     SurfaceSupport, TimedInput, TopBar, ViewportMetrics,
 };
 
@@ -140,7 +140,10 @@ pub use ui_types::{
     CanvasTouch, DisplayMode, InputDevice, Motion, PointerSettings, PointerSpeed, PreferenceLayer,
     Preferences, Rotation, ThemeKind,
 };
-pub use ui_types::{ImeArea, WindowRequests};
+pub use ui_types::{
+    HostPlacement, ImeArea, WindowEdge, WindowId, WindowPlacement, WindowReport, WindowRequest,
+    WindowRequests,
+};
 pub use watch::{Encoded, WAITING_WEB_VIEW_EVENTS, Watch};
 
 pub const MAX_COLLECTION_ITEMS: usize = 1024;

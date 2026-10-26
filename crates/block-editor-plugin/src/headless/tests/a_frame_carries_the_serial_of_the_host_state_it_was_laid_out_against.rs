@@ -37,6 +37,7 @@ fn configure(plugin: &mut HeadlessPlugin, height: f32, serial: u64) {
             instance: INSTANCE,
             region: EditorRegion::Frame,
             frame: None,
+            opens_windows: false,
             metrics: ViewportMetrics {
                 logical: Size {
                     width: 100.0,

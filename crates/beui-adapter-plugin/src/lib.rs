@@ -1,6 +1,7 @@
 mod input;
 mod platform;
 mod surface;
+mod windows;
 
 use std::cell::RefCell;
 use std::rc::Rc;
@@ -12,7 +13,7 @@ use beui_core::geometry::Rect;
 use beui_core::renderer::Loaded;
 use beui_core::runner::{Adapter, Incoming, Launch, RunOptions, Runner, Running};
 use beui_core::screens::Screen;
-use beui_core::window::WindowState;
+use beui_core::window::{WindowId, WindowReport, WindowRequest, WindowState};
 use block_editor_plugin::accesskit::{ActionRequest, Affine, TreeUpdate};
 use block_editor_plugin::{DescribedAction, Description, EditorHost, Frame, Region, TimedInput};
 #[cfg(target_arch = "wasm32")]
@@ -20,6 +21,7 @@ use block_editor_plugin::{PaintTarget, SurfaceRect};
 
 use platform::HostPlatform;
 use surface::{Surface, SurfaceRenderer};
+use windows::{PluginWindows, Windows};
 
 pub struct PluginAdapter {
     host: EditorHost,
@@ -51,6 +53,7 @@ pub struct PluginSurface {
     runner: Runner,
     platform: HostPlatform,
     surface: Rc<RefCell<Surface>>,
+    windows: Rc<RefCell<Windows>>,
     described: Option<u64>,
 }
 
@@ -58,6 +61,7 @@ impl PluginSurface {
     pub fn launch(host: EditorHost, context: Context, app: impl App + 'static) -> Self {
         let surface = Rc::new(RefCell::new(Surface::default()));
         let launched = Rc::new(RefCell::new(None));
+        let windows = Rc::new(RefCell::new(Windows::default()));
         let adapter = Box::new(PluginAdapter {
             host: host.clone(),
             surface: Rc::clone(&surface),
@@ -67,7 +71,7 @@ impl PluginSurface {
             options: RunOptions::default(),
             context,
             app: Box::new(app),
-            host: None,
+            host: Some(Box::new(PluginWindows(Rc::clone(&windows)))),
         };
         let mut running = adapter.run(launch);
         match running
@@ -85,6 +89,7 @@ impl PluginSurface {
             runner,
             platform: HostPlatform::new(host),
             surface,
+            windows,
             described: None,
         }
     }
@@ -108,10 +113,86 @@ impl PluginSurface {
     }
 
     pub fn input(&mut self, region: &Region, event: &TimedInput) {
-        self.runner.push(input::translate(region, event));
+        self.window_input(WindowId::MAIN, region, event);
+    }
+
+    pub fn window_input(&mut self, window: WindowId, region: &Region, event: &TimedInput) {
+        if let block_plugin_api::Input::Focus(focused) = event.input {
+            let mut windows = self.windows.borrow_mut();
+            if windows.opens {
+                windows.report(WindowReport::Focused { window, focused });
+                if !window.is_main() {
+                    if focused {
+                        drop(windows);
+                        self.runner
+                            .push(Incoming::logical(block_plugin_api::Input::Focus(true)));
+                    }
+                    return;
+                }
+            }
+        }
+        self.runner
+            .push(input::translate(region, event).in_window(window));
         if let Some(at) = input::time(event) {
             self.runner.push(Incoming::Time(at));
         }
+    }
+
+    pub fn window_reported(&mut self, report: WindowReport) {
+        self.windows.borrow_mut().report(report);
+    }
+
+    pub fn update_window(&mut self, window: WindowId, region: &Region) -> Frame {
+        let mut windows = self.windows.borrow_mut();
+        let reported = windows.place(window, region.rect.size(), region.raster);
+        let shown = windows.shown(window);
+        let mut surface = shown.surface.borrow_mut();
+        let [width, height] = region.pixels;
+        surface.age = region.age;
+        surface.laid = region.rect;
+        surface.size = Some((width, height));
+        let changed = match &shown.output {
+            Some(output) => surface.prepare(output, output.pixels_per_point),
+            None => false,
+        };
+        let requests = shown
+            .output
+            .as_ref()
+            .map(|output| output.window.requests.clone())
+            .unwrap_or_default();
+        let rect = region.rect;
+        Frame {
+            changed,
+            repaint_after: reported.then_some(std::time::Duration::ZERO),
+            painted: vec![rect],
+            window: requests,
+            ..Frame::default()
+        }
+    }
+
+    pub fn window_painting(&self, window: WindowId) -> Option<beui_core::painting::Painting> {
+        let windows = self.windows.borrow();
+        let output = windows.get(window)?.output.as_ref()?;
+        beui_core::painting::painting(
+            output,
+            output.size,
+            output.pixels_per_point,
+            output.window.appearance.clear_color,
+            beui_core::painting::Punches::Erase,
+        )
+        .ok()
+    }
+
+    #[cfg(target_arch = "wasm32")]
+    pub fn paint_window(&mut self, window: WindowId, target: &PaintTarget<'_>) -> Vec<SurfaceRect> {
+        let windows = self.windows.borrow();
+        let Some(shown) = windows.get(window) else {
+            return Vec::new();
+        };
+        let mut surface = shown.surface.borrow_mut();
+        surface.aim(target);
+        surface.present();
+        surface.take_drawn()
     }
 
     pub fn update(&mut self, region: &Region) -> Frame {
@@ -139,6 +220,7 @@ impl PluginSurface {
         }
         self.runner.reports().scaled(region.scale_factor);
         self.runner.reports().rastered(region.raster);
+        self.windows.borrow_mut().opens = region.opens_windows;
         self.runner.set_occluded(!region.seen);
         if let Some(now) = block_editor_plugin::frame_time() {
             self.runner.context().set_clock(now);
@@ -174,6 +256,11 @@ impl PluginSurface {
         let description = region.describe.map(|_| self.describe(region));
         let mut frame = frame_for(self.runner.window(), &frame, description);
         frame.changed |= self.surface.borrow().unpainted();
+        let mut windows = self.windows.borrow_mut();
+        frame.window_requests = windows.take_requests();
+        if windows.pending() {
+            frame.repaint_after = Some(std::time::Duration::ZERO);
+        }
         frame
     }
 
@@ -278,6 +365,7 @@ fn frame_for(
         every_sample: false,
         claims: Vec::new(),
         window: window.requests.clone(),
+        window_requests: Vec::<WindowRequest>::new(),
         description,
         stopped: None,
     }

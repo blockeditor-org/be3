@@ -28,6 +28,7 @@ struct Launch {
     screen: Option<String>,
     fresh: bool,
     stop: bool,
+    space: bool,
     arguments: Vec<String>,
 }
 
@@ -104,7 +105,10 @@ impl Launch {
         }
         let _ = fs::remove_file(&socket);
         let mut command = Command::new(program);
-        let slot = if std::env::var(environment::ADAPTER).as_deref() == Ok("space") {
+        if self.space {
+            command.env(environment::ADAPTER, "space");
+        }
+        let slot = if self.space || std::env::var(environment::ADAPTER).as_deref() == Ok("space") {
             environment::SPACE_ADAPTER
         } else {
             environment::ADAPTER
@@ -215,6 +219,7 @@ pub(crate) fn start(
     arguments: Vec<String>,
     size: &str,
     libraries: Option<String>,
+    space: bool,
     dir: &Path,
     log: &Path,
 ) -> Result<Child, String> {
@@ -222,6 +227,7 @@ pub(crate) fn start(
         program: Some(program.to_owned()),
         data: true,
         fresh: true,
+        space,
         libraries,
         size: Some(size.to_owned()),
         arguments,

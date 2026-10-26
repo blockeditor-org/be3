@@ -25,6 +25,7 @@ impl Driven {
         arguments: &[&str],
         size: &str,
         libraries: Option<String>,
+        space: bool,
     ) -> Result<Self, String> {
         static STARTED: AtomicU32 = AtomicU32::new(0);
         let dir = Path::new("/tmp").join(format!(
@@ -44,6 +45,7 @@ impl Driven {
                 .collect(),
             size,
             libraries,
+            space,
             &dir,
             &log,
         )?;

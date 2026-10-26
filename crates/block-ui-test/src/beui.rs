@@ -363,6 +363,7 @@ impl<A: BeuiApp> BeuiTest<A> {
             region,
             metrics,
             frame: self.frame,
+            opens_windows: false,
         }];
         block_plugin_api::embed::exports::plugin::screens(&mut self.connection, screens);
         let frames = self.connection.take_outbound();

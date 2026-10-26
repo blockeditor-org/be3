@@ -81,6 +81,7 @@ impl<A: BeuiApp> beui::App for RegionApp<A> {
                     views.artifact_settings(context, rect, draft);
                 }
             }
+            EditorRegion::Window(_) => {}
         }
     }
 }
@@ -264,8 +265,8 @@ impl<A: BeuiApp> BeuiInstance<A> {
 
     pub(crate) fn document(&self, region: EditorRegion) -> Option<&beui::Document> {
         match (region, self.views.creating) {
-            (EditorRegion::Frame, false) => self.views.chrome.as_ref().map(BeuiFrame::document),
-            (EditorRegion::Frame, true) => self.views.dialog.as_ref(),
+            (EditorRegion::Frame | EditorRegion::Window(_), false) => self.views.chrome.as_ref().map(BeuiFrame::document),
+            (EditorRegion::Frame | EditorRegion::Window(_), true) => self.views.dialog.as_ref(),
             (EditorRegion::Preview, _) => self.views.preview_document.as_ref(),
             (EditorRegion::ArtifactSettings, _) => self.views.settings.as_ref(),
         }
@@ -273,8 +274,8 @@ impl<A: BeuiApp> BeuiInstance<A> {
 
     pub(crate) fn document_mut(&mut self, region: EditorRegion) -> Option<&mut beui::Document> {
         match (region, self.views.creating) {
-            (EditorRegion::Frame, false) => self.views.chrome.as_mut().map(BeuiFrame::document_mut),
-            (EditorRegion::Frame, true) => self.views.dialog.as_mut(),
+            (EditorRegion::Frame | EditorRegion::Window(_), false) => self.views.chrome.as_mut().map(BeuiFrame::document_mut),
+            (EditorRegion::Frame | EditorRegion::Window(_), true) => self.views.dialog.as_mut(),
             (EditorRegion::Preview, _) => self.views.preview_document.as_mut(),
             (EditorRegion::ArtifactSettings, _) => self.views.settings.as_mut(),
         }
@@ -282,6 +283,10 @@ impl<A: BeuiApp> BeuiInstance<A> {
 
     pub(crate) fn take_output(&mut self, region: EditorRegion) -> Option<beui::FrameOutput> {
         self.surfaces.get_mut(&region)?.take_output()
+    }
+
+    fn framing(&mut self) -> Option<&mut PluginSurface> {
+        self.surfaces.get_mut(&EditorRegion::Frame)
     }
 
     fn new(host: EditorHost) -> Self {
@@ -428,7 +433,19 @@ impl<A: BeuiApp> Instance for BeuiInstance<A> {
         editor.replace_child(old, new)
     }
 
+    fn window_reported(&mut self, report: block_plugin_api::WindowReport) {
+        if let Some(surface) = self.framing() {
+            surface.window_reported(report);
+        }
+    }
+
     fn update(&mut self, region: &Region, settings: Option<&mut Vec<u8>>) -> Frame {
+        if let EditorRegion::Window(window) = region.region {
+            return self
+                .framing()
+                .map(|surface| surface.update_window(window, region))
+                .unwrap_or_default();
+        }
         let picks = match region.region {
             EditorRegion::Frame => self.host.take_menu_picks(),
             _ => Vec::new(),
@@ -488,7 +505,10 @@ impl<A: BeuiApp> Instance for BeuiInstance<A> {
     }
 
     fn painting(&mut self, region: EditorRegion) -> Option<beui::painting::Painting> {
-        self.surfaces.get(&region)?.painting()
+        match region {
+            EditorRegion::Window(window) => self.framing()?.window_painting(window),
+            _ => self.surfaces.get(&region)?.painting(),
+        }
     }
 
     fn overflows(&mut self, region: EditorRegion) -> Vec<String> {
@@ -500,6 +520,12 @@ impl<A: BeuiApp> Instance for BeuiInstance<A> {
 
     #[cfg(target_arch = "wasm32")]
     fn paint(&mut self, target: &PaintTarget<'_>) -> Vec<SurfaceRect> {
+        if let EditorRegion::Window(window) = target.region {
+            return match self.framing() {
+                Some(surface) => surface.paint_window(window, target),
+                None => Vec::new(),
+            };
+        }
         match self.surfaces.get_mut(&target.region) {
             Some(surface) => surface.paint(target),
             None => Vec::new(),
@@ -507,11 +533,22 @@ impl<A: BeuiApp> Instance for BeuiInstance<A> {
     }
 
     fn input(&mut self, region: &Region, event: &TimedInput) {
-        self.surface(region.region).input(region, event);
+        match region.region {
+            EditorRegion::Window(window) => {
+                if let Some(surface) = self.framing() {
+                    surface.window_input(window, region, event);
+                }
+            }
+            _ => self.surface(region.region).input(region, event),
+        }
     }
 
     fn run_action(&mut self, region: &Region, id: &str) {
-        self.surface(region.region).run_action(id);
+        let region = match region.region {
+            EditorRegion::Window(_) => EditorRegion::Frame,
+            region => region,
+        };
+        self.surface(region).run_action(id);
     }
 
     fn node_action(
@@ -519,7 +556,11 @@ impl<A: BeuiApp> Instance for BeuiInstance<A> {
         region: &Region,
         request: block_editor_plugin::accesskit::ActionRequest,
     ) {
-        self.surface(region.region).node_action(request);
+        let region = match region.region {
+            EditorRegion::Window(_) => EditorRegion::Frame,
+            region => region,
+        };
+        self.surface(region).node_action(request);
     }
 }
 

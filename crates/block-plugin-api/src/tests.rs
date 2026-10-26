@@ -28,6 +28,7 @@ fn frame(serial: u64) -> FrameCommit {
         sizes: Vec::new(),
         reports: Vec::new(),
         windows: Vec::new(),
+        window_requests: Vec::new(),
         children: Vec::new(),
         repaint_after_micros: None,
         animating: false,
@@ -72,6 +73,7 @@ fn region_screen(
         instance: EditorInstanceId(instance),
         region,
         frame: None,
+        opens_windows: false,
         metrics: ViewportMetrics {
             logical: Size {
                 width: pixel_width as f32 / scale_factor,

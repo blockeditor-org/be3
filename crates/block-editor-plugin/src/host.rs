@@ -336,6 +336,13 @@ struct Children {
     identities: HashMap<ChildKey, ChildId>,
     used: Vec<ChildKey>,
     next: u64,
+    windows: HashMap<block_plugin_api::WindowId, WindowChildren>,
+}
+
+#[derive(Default)]
+struct WindowChildren {
+    placements: Vec<ChildPlacement>,
+    used: Vec<ChildKey>,
 }
 
 impl Children {
@@ -1769,6 +1776,7 @@ impl EditorHost {
 
     pub fn place_child(
         &self,
+        window: block_plugin_api::WindowId,
         content: ChildContent,
         rect: Rect,
         clip: Rect,
@@ -1782,16 +1790,26 @@ impl EditorHost {
         follows_view: bool,
     ) -> ChildId {
         let state = self.region.get();
-        let placed = rect.translate(-state.origin);
+        let (region, origin) = match window.is_main() {
+            true => (state.region.unwrap_or(EditorRegion::Frame), state.origin),
+            false => (EditorRegion::Window(window), Vec2::ZERO),
+        };
+        let placed = rect.translate(-origin);
         let clip = clip
-            .translate(-state.origin)
+            .translate(-origin)
             .intersect(geometry::Rotation::new(placed.center(), rotation).bounds(placed));
         let mut children = self.children.borrow_mut();
-        let child = children.identify(
-            state.region.unwrap_or(EditorRegion::Frame),
-            Identity::of(&content),
-        );
-        children.placements.push(ChildPlacement {
+        let child = children.identify(region, Identity::of(&content));
+        let children = &mut *children;
+        let placements = match window.is_main() {
+            true => &mut children.placements,
+            false => {
+                let held = children.windows.entry(window).or_default();
+                held.used.extend(children.used.pop());
+                &mut held.placements
+            }
+        };
+        placements.push(ChildPlacement {
             child,
             content,
             rect: placed,
@@ -1933,11 +1951,25 @@ impl EditorHost {
         children.occluders.clear();
         children.ordinals.clear();
         children.used.clear();
+        if region == EditorRegion::Frame {
+            children.windows.clear();
+        }
     }
 
     pub fn end_region(&self, region: EditorRegion) -> (Vec<ChildPlacement>, Vec<Occluder>) {
         self.region.set(Region::default());
         let mut children = self.children.borrow_mut();
+        if let EditorRegion::Window(window) = region {
+            let (placements, used) = children
+                .windows
+                .get(&window)
+                .map(|held| (held.placements.clone(), held.used.clone()))
+                .unwrap_or_default();
+            children
+                .identities
+                .retain(|key, _| key.0 != region || used.contains(key));
+            return (placements, Vec::new());
+        }
         let used = std::mem::take(&mut children.used);
         children
             .identities

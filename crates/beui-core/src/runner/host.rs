@@ -25,6 +25,14 @@ pub trait WindowHost {
         None
     }
 
+    fn opens_windows(&self) -> bool {
+        true
+    }
+
+    fn passes_main_through(&self) -> bool {
+        false
+    }
+
     fn input(&mut self, incoming: &mut Vec<Incoming>, view: &HostView);
 
     fn frame(&mut self, output: &FrameOutput, view: &HostView) -> Hosted;

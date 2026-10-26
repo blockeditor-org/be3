@@ -6,7 +6,7 @@ interface plugin {
     use be3:shared/ids@0.1.0.{block-id};
     use accessibility.{action-request};
     use shell-types.{bar-action, drag-over, file-drop, focus, pick-request};
-    use be3:ui/types@0.1.0.{rect};
+    use be3:ui/types@0.1.0.{rect, window-report};
     use host-services.{block-pick, shell-dialog};
     use types.{failure};
 
@@ -71,6 +71,9 @@ interface plugin {
 
         /// Shows one of the dialogs the instance that draws the window draws.
         show-dialog: func(block: block-id, dialog: shell-dialog);
+
+        /// What the host did with a window the instance's frame asked for.
+        window-reported: func(report: window-report);
     }
 
     /// Whether the host wants screens described to assistive technology.

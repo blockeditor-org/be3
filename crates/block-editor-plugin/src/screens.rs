@@ -98,6 +98,7 @@ impl Screens {
             sizes: Vec::new(),
             reports: Vec::new(),
             windows: Vec::new(),
+            window_requests: Vec::new(),
             children: Vec::new(),
             repaint_after_micros: None,
             animating: false,

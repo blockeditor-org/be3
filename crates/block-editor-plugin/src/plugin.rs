@@ -2,7 +2,9 @@ use std::time::Duration;
 
 #[cfg(target_arch = "wasm32")]
 use block_plugin_api::SurfaceRect;
-use block_plugin_api::{EditorRegion, FrameChrome, FrameSpec, TimedInput, WindowRequests};
+use block_plugin_api::{
+    EditorRegion, FrameChrome, FrameSpec, TimedInput, WindowReport, WindowRequest, WindowRequests,
+};
 use geometry::{Rect, Vec2};
 use uuid::Uuid;
 
@@ -49,6 +51,8 @@ pub trait Instance: std::any::Any {
         false
     }
 
+    fn window_reported(&mut self, _report: WindowReport) {}
+
     fn input(&mut self, region: &Region, event: &TimedInput);
 
     fn run_action(&mut self, _region: &Region, _id: &str) {}
@@ -86,6 +90,7 @@ pub struct Region {
     pub monitors: Vec<RegionMonitor>,
     pub describe: Option<u64>,
     pub seen: bool,
+    pub opens_windows: bool,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -113,6 +118,7 @@ pub struct Frame {
     pub every_sample: bool,
     pub claims: Vec<Claim>,
     pub window: WindowRequests,
+    pub window_requests: Vec<WindowRequest>,
     pub description: Option<block_plugin_api::Description>,
     pub stopped: Option<block_plugin_api::Stopped>,
 }

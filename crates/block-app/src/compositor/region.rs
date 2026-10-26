@@ -1,5 +1,6 @@
 use std::{
     cell::{Cell, RefCell},
+    collections::HashMap,
     rc::Rc,
     sync::Arc,
 };
@@ -7,9 +8,11 @@ use std::{
 use beui::reactive::*;
 use beui::styled::*;
 use beui::unstyled::{DragPoint, DropHandle, DropTarget};
+use beui::primitives::{Window, WindowHandle, use_window};
 use beui::{
     Align, CursorIcon, Forwarded, ForwardedInput, ImeCursor, Modifiers, NodeId, PointerButton,
-    PointerEvent, PointerId, PointerPhase, Pos2, Rect, Region, Vec2, pos2,
+    PointerEvent, PointerId, PointerPhase, Pos2, Rect, Region, Vec2, WindowId, WindowPlacement,
+    WindowReport, pos2,
 };
 use block_plugin_api::{ChildId, EditorInstanceId, EditorRegion, FrameSpec, PluginManifest};
 use uuid::Uuid;
@@ -189,6 +192,7 @@ pub(crate) fn PluginRegion(
     child_view: ChildView,
 ) -> NodeId {
     let instance = editor.instance;
+    let windowing = (region == EditorRegion::Frame && !offscreen).then(|| editor.clone());
     let plugin_id = editor.plugin_id().to_owned();
     let name = editor.plugin.identity.name.clone();
     let crash_id = format!("{plugin_id}.{}.{region:?}.crashed", instance.0);
@@ -556,6 +560,11 @@ pub(crate) fn PluginRegion(
     let pen_surface = move |position: Pos2| {
         !passive.get_untracked() && state.with_untracked(|view| view.draws(position))
     };
+    let windows = windowing.map(|editor| {
+        view! {
+            <RegionWindows editor revision rect on_focus child_view />
+        }
+    });
     view! {
         <DropTarget on_over={over} on_drop={dropped}>|_: DropHandle|
             <Layers>
@@ -592,9 +601,118 @@ pub(crate) fn PluginRegion(
                 <Notices loading failure id={crash_id.clone()} />
                 <RegionChildren state rect child_view below=false />
                 <Drawing draw={floating} />
+                {windows}
             </Layers>
         </DropTarget>
     }
+}
+
+#[component]
+fn RegionWindows(
+    editor: RegionEditor,
+    revision: ReadSignal<u64>,
+    rect: Memo<Rect>,
+    on_focus: Callback<()>,
+    child_view: ChildView,
+) -> NodeId {
+    let instance = editor.instance;
+    let plugin_id = store(editor.plugin_id().to_owned());
+    let editor = store(editor);
+    let windows = create_memo(move || {
+        revision.get();
+        plugin_host::plugin_windows(&plugin_id.value(), instance)
+    });
+    let keys = create_memo(move || {
+        windows.with(|windows| {
+            windows
+                .iter()
+                .map(|window| window.window)
+                .collect::<Vec<WindowId>>()
+        })
+    });
+    let hosted: Stored<RefCell<HashMap<WindowId, WindowId>>> = store(RefCell::default());
+    let within = use_window().map_or(WindowId::MAIN, |handle| handle.id);
+    let placed = move |placement: WindowPlacement| match placement {
+        WindowPlacement::Over { window, at } if window.is_main() => WindowPlacement::Over {
+            window: within,
+            at: at + rect.get_untracked().min.to_vec2(),
+        },
+        WindowPlacement::Over { window, at } => {
+            match hosted.with(|hosted| hosted.borrow().get(&window).copied()) {
+                Some(window) => WindowPlacement::Over { window, at },
+                None => WindowPlacement::AtPointer,
+            }
+        }
+        placement => placement,
+    };
+    view! {
+        <Layers>
+        <ForEach keys={keys}>|key: WindowId| {
+            let id = WindowId::next();
+            hosted.with(|hosted| hosted.borrow_mut().insert(key, id));
+            on_cleanup(move || {
+                hosted.with(|hosted| hosted.borrow_mut().remove(&key));
+            });
+            let window = create_memo(move || {
+                windows.with(|windows| windows.iter().find(|window| window.window == key).cloned())
+            });
+            let size = create_memo(move || window.with(|window| window.as_ref().map_or(Vec2::ZERO, |window| window.size)));
+            let placement = window
+                .with_untracked(|window| window.as_ref().map(|window| window.placement.clone()))
+                .map_or(WindowPlacement::AtPointer, placed);
+            let report = move |report: WindowReport| {
+                let report = match report {
+                    WindowReport::Placed { placement, .. } => WindowReport::Placed {
+                        window: key,
+                        placement,
+                    },
+                    WindowReport::Closed(_) => WindowReport::Closed(key),
+                    _ => return,
+                };
+                plugin_host::report_window(&plugin_id.value(), instance, report);
+            };
+            view! {
+                <Window id={Some(id)} size placement on_report={report}>|handle: WindowHandle| {
+                    follow_window_asks(window, handle);
+                    view! {
+                        <PluginRegion
+                            editor={editor.with(RegionEditor::clone)}
+                            region={EditorRegion::Window(key)}
+                            on_focus
+                            child_view
+                        />
+                    }
+                }</Window>
+            }
+        }</ForEach>
+        </Layers>
+    }
+}
+
+fn follow_window_asks(window: Memo<Option<plugin_host::PluginWindow>>, handle: WindowHandle) {
+    let asked = create_memo(move || {
+        window.with(|window| {
+            window
+                .as_ref()
+                .map_or((0, 0, beui::WindowEdge::BottomRight), |window| {
+                    (window.moves, window.resizes.0, window.resizes.1)
+                })
+        })
+    });
+    let seen = StoredCell::new(asked.get_untracked());
+    create_effect(move || {
+        let (moves, resizes, edge) = asked.get();
+        let (moved, resized, _) = seen.get();
+        seen.set((moves, resizes, edge));
+        untrack(|| {
+            if moves != moved {
+                handle.begin_move();
+            }
+            if resizes != resized {
+                handle.begin_resize(edge);
+            }
+        });
+    });
 }
 
 fn carry(drag: BlockDrag) {

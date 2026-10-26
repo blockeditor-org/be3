@@ -219,7 +219,7 @@ impl Runner {
             app,
             host,
         } = launch;
-        context.set_opens_windows(host.is_some());
+        context.set_opens_windows(host.as_ref().is_some_and(|host| host.opens_windows()));
         let automation = options.automation.map(Automation::new);
         context.keep_accessibility(options.accessibility_tree || automation.is_some());
         if automation.is_some() {
@@ -510,8 +510,12 @@ impl Runner {
         };
         self.context.set_pixels_per_point(pixels_per_point);
         let scale = self.context.pixels_per_point();
-        let drawn = match (&self.host, self.raster) {
-            (None, Some(raster)) => raster * scale / self.native,
+        let through = self
+            .host
+            .as_ref()
+            .is_none_or(|host| host.passes_main_through());
+        let drawn = match (through, self.raster) {
+            (true, Some(raster)) => raster * scale / self.native,
             _ => scale,
         };
         let paced = self.host.as_mut().and_then(|host| host.pace());
@@ -530,6 +534,7 @@ impl Runner {
             now,
         };
         if let Some(host) = &mut self.host {
+            self.context.set_opens_windows(host.opens_windows());
             host.input(&mut self.intake.incoming, &view);
         }
         self.intake.drain(
@@ -549,13 +554,13 @@ impl Runner {
             self.context.window_reported(report);
         }
         let (screen, safe_area) = match &self.host {
-            Some(_) => (
+            Some(host) if !host.passes_main_through() => (
                 self.context
                     .window_size(WindowId::MAIN)
                     .unwrap_or(physical / scale),
                 SafeArea::default(),
             ),
-            None => {
+            _ => {
                 let screen = physical / drawn;
                 if self.raster.is_some() {
                     self.context.window_reported(WindowReport::Rastered {
@@ -737,11 +742,17 @@ impl Runner {
                 automation.captured(renderers.capture());
             }
             if automation.wants_painting() {
+                let (painted, size) = match (&hosted, &self.host) {
+                    (Some(hosted), Some(host)) if !host.passes_main_through() => {
+                        (&hosted.window, physical / scale)
+                    }
+                    _ => (output.main(), screen),
+                };
                 automation.painted(crate::painting::painting(
-                    output.main(),
-                    screen,
+                    painted,
+                    size,
                     scale,
-                    output.main().window.appearance.clear_color,
+                    painted.window.appearance.clear_color,
                     crate::painting::Punches::Erase,
                 ));
             }

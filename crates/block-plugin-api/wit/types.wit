@@ -3,7 +3,9 @@ package be3:plugin@0.1.0;
 /// What the host and an editor plugin share.
 interface types {
     use accessibility.{description};
-    use be3:ui/types@0.1.0.{modifiers, pos2, rect, input, preferences, window-requests};
+    use be3:ui/types@0.1.0.{
+        modifiers, pos2, rect, input, preferences, window-id, window-request, window-requests,
+    };
 
     use be3:shared/ids@0.1.0.{
         account-id, block-id, block-type-id, organization-id, surface-id, uuid,
@@ -91,10 +93,14 @@ interface types {
         faces: list<font-face>,
     }
 
-    enum editor-region {
+    /// What part of an instance a screen shows. `window` is one of the windows
+    /// the instance's frame asked the host to open (`screen-window-request`),
+    /// drawn by the frame's own document.
+    variant editor-region {
         frame,
         preview,
         artifact-settings,
+        window(window-id),
     }
 
     enum frame-chrome {
@@ -141,6 +147,9 @@ interface types {
         region: editor-region,
         metrics: viewport-metrics,
         frame: option<frame-spec>,
+        /// Whether the host shows windows this screen asks for as windows of
+        /// their own; otherwise they are drawn inside the screen.
+        opens-windows: bool,
     }
 
     record screen-placement {
@@ -284,6 +293,13 @@ interface types {
         window: window-requests,
     }
 
+    /// A window a screen's content asks the host to open, move, resize or
+    /// close. Each window it opens is then a screen of its own.
+    record screen-window-request {
+        screen: screen-id,
+        request: window-request,
+    }
+
     record surface-rect {
         x: u32,
         y: u32,
@@ -308,6 +324,7 @@ interface types {
         sizes: list<region-size>,
         reports: list<frame-report>,
         windows: list<screen-window>,
+        window-requests: list<screen-window-request>,
         children: list<child-placements>,
         repaint-after-micros: option<u64>,
         animating: bool,

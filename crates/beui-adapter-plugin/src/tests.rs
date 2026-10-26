@@ -15,6 +15,7 @@ mod a_region_tells_the_host_it_locks_the_pointer_and_when_it_stops;
 mod a_region_that_loses_the_keyboard_mid_press_keeps_the_press;
 mod a_regions_keyboard_reaches_the_host_with_its_asks;
 mod a_trackpad_scroll_held_past_the_start_stretches_and_springs_back_when_lifted;
+mod a_window_is_a_region_of_its_own_only_where_the_host_opens_windows;
 mod an_image_copied_in_a_region_reaches_the_host;
 
 fn region(rect: Rect, pixels: [u32; 2]) -> Region {
@@ -29,6 +30,7 @@ fn region(rect: Rect, pixels: [u32; 2]) -> Region {
         monitors: Vec::new(),
         describe: None,
         seen: true,
+        opens_windows: false,
     }
 }
 

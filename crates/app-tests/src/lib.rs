@@ -27,13 +27,27 @@ impl AppTest {
         Self::start_with(&["--desktop"], "Pane \"Linux desktop\"")
     }
 
+    pub fn start_in_space() -> Self {
+        Self::launch(&[], "Pane \"Files\"", true)
+    }
+
     pub fn start_with(arguments: &[&str], ready: &str) -> Self {
+        Self::launch(arguments, ready, false)
+    }
+
+    fn launch(arguments: &[&str], ready: &str, space: bool) -> Self {
         let started = Instant::now();
         let program = std::env::var("BLOCK_APP")
             .expect("BLOCK_APP names the app to test; run these through ./scripts/buck test //crates/app-tests:test");
         let mut all = vec!["--dev-workspace"];
         all.extend_from_slice(arguments);
-        let app = Driven::start(&program, &all, SIZE, std::env::var("APP_LIBRARIES").ok())
+        let app = Driven::start(
+            &program,
+            &all,
+            SIZE,
+            std::env::var("APP_LIBRARIES").ok(),
+            space,
+        )
             .unwrap_or_else(|error| panic!("block-app did not start: {error}"));
         let mut test = Self {
             app: Some(app),

@@ -1245,10 +1245,16 @@ impl Editor {
         let overlays = document.overlay_layers();
         let mut overlays = overlays.iter().peekable();
         for (order, record) in records {
-            while let Some((_, rect)) = overlays.next_if(|(layer, _)| *layer < order) {
+            let window = record
+                .slot
+                .node()
+                .map_or(beui::WindowId::MAIN, |node| document.window_of(node));
+            while let Some((_, rect)) = overlays
+                .next_if(|(layer, _)| window.is_main() && *layer < order)
+            {
                 state.host.occlude(rect.scaled(unscale));
             }
-            let child = self.place_child(document, &record);
+            let child = self.place_child(document, &record, window);
             if record.child.replace(child) != child {
                 state.children_moved.set(true);
             }
@@ -1278,7 +1284,12 @@ fn document_zone() -> u64 {
 }
 
 impl Editor {
-    fn place_child(&self, document: &Document, record: &ChildRecord) -> Option<ChildId> {
+    fn place_child(
+        &self,
+        document: &Document,
+        record: &ChildRecord,
+        window: beui::WindowId,
+    ) -> Option<ChildId> {
         let state = self.state();
         let node = record.slot.node()?;
         let rect = document.node_rect(node)?;
@@ -1286,6 +1297,7 @@ impl Editor {
         let content = record.content.get_untracked()?;
         let unscale = self.ratio().recip();
         Some(state.host.place_child(
+            window,
             content.wire(),
             rect.scaled(unscale),
             placement.clip.scaled(unscale),

@@ -69,6 +69,7 @@ fn a_surface_the_host_does_not_render_runs_its_frames_without_a_gpu() {
             instance: INSTANCE,
             region: EditorRegion::Frame,
             frame: None,
+            opens_windows: false,
             metrics: ViewportMetrics {
                 logical: Size {
                     width: 100.0,
