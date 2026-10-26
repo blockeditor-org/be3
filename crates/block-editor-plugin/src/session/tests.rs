@@ -57,7 +57,10 @@ fn screen(screen: ScreenId, instance: EditorInstanceId) -> ScreenRequest {
             pixel_width: 100,
             pixel_height: 100,
             scale_factor: 1.0,
+            raster: 1.0,
         },
+        windows: false,
+        placement: None,
     }
 }
 

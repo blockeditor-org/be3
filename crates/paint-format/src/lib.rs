@@ -35,20 +35,37 @@ pub struct Primitive {
     pub content: Content,
 }
 
-#[derive(Clone, Copy, Debug, Default, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
 pub struct Fade {
     pub rect: [f32; 4],
     pub widths: [f32; 4],
+    #[serde(default = "opaque", skip_serializing_if = "is_opaque")]
+    pub opacity: f32,
+}
+
+fn opaque() -> f32 {
+    1.0
+}
+
+fn is_opaque(opacity: &f32) -> bool {
+    *opacity >= 1.0
+}
+
+impl Default for Fade {
+    fn default() -> Self {
+        Self::NONE
+    }
 }
 
 impl Fade {
     pub const NONE: Self = Self {
         rect: [0.0; 4],
         widths: [0.0; 4],
+        opacity: 1.0,
     };
 
     pub fn is_none(&self) -> bool {
-        self.widths == [0.0; 4]
+        self.widths == [0.0; 4] && is_opaque(&self.opacity)
     }
 
     pub fn alpha(self, point: [f32; 2]) -> f32 {
@@ -62,12 +79,14 @@ impl Fade {
             * ramp(point[1] - top, near_y)
             * ramp(right - point[0], far_x)
             * ramp(bottom - point[1], far_y)
+            * self.opacity
     }
 
     pub fn scaled(self, scale: f32) -> Self {
         Self {
             rect: self.rect.map(|value| value * scale),
             widths: self.widths.map(|width| width * scale),
+            opacity: self.opacity,
         }
     }
 
@@ -81,7 +100,7 @@ impl Fade {
                     self.rect[2] + by[0],
                     self.rect[3] + by[1],
                 ],
-                widths: self.widths,
+                ..self
             },
         }
     }
@@ -584,6 +603,7 @@ impl Painting {
                     false => Fade {
                         rect: map.bounds(primitive.fade.rect),
                         widths: primitive.fade.widths.map(|width| width * map.scale),
+                        opacity: primitive.fade.opacity,
                     },
                 };
                 Some(Primitive {

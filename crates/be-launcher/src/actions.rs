@@ -1,9 +1,7 @@
 use beui::NodeId;
-use beui::Wrap;
 use beui::icons::{ICON_KEY_ROUND, ICON_PLAY, ICON_TERMINAL};
 use beui::reactive::*;
 use beui::styled::*;
-use beui::unstyled::MenuItem;
 
 use crate::builds::Slot;
 use crate::github::{Entry, PullRequest, branch_deleted};
@@ -102,14 +100,14 @@ pub(crate) fn Notes(
         _ => false,
     });
     view! {
-        <List spacing=8.0>
+        <List spacing=Space::Md>
             <Show condition={fork}>
-                <Text style=TextStyle::CAPTION wrap=Wrap::Words>
+                <Text style=TextStyle::CAPTION>
                     "It comes from a fork, so the build helper does not build it."
                 </Text>
             </Show>
             <Show condition={deleted}>
-                <Text style=TextStyle::CAPTION wrap=Wrap::Words>
+                <Text style=TextStyle::CAPTION>
                     "Its branch was deleted, so there is nothing to build."
                 </Text>
             </Show>
@@ -132,11 +130,9 @@ pub(crate) fn MainActions(model: Model) -> NodeId {
         }
     });
     view! {
-        <List spacing=8.0>
-            <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
-                <Text style=TextStyle::CAPTION @sizing=ItemSize::Percent(100.0) wrap=Wrap::Words>
-                    {summary}
-                </Text>
+        <List spacing=Space::Md>
+            <List direction=Direction::Horizontal align=Align::Center spacing=Space::Md>
+                <Text style=TextStyle::CAPTION @sizing=ItemSize::Percent(100.0)>{summary}</Text>
                 <RunButton
                     model
                     slot={Slot::Main}
@@ -165,11 +161,11 @@ fn KeyEntry(runs: Runs) -> DynamicSegment<ListChild> {
     };
     view! {
         <Show condition={shown}>
-            <List spacing=8.0>
-                <Text style=TextStyle::CAPTION wrap=Wrap::Words>
+            <List spacing=Space::Md>
+                <Text style=TextStyle::CAPTION>
                     "The build helper is behind the API gateway: enter its key to build."
                 </Text>
-                <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
+                <List direction=Direction::Horizontal align=Align::Center spacing=Space::Md>
                     <TextInput
                         @sizing=ItemSize::Percent(100.0)
                         value={key}
@@ -231,15 +227,15 @@ fn SlotNotes(model: Model, slot: Slot) -> NodeId {
     });
     let failed = create_memo(move || !problem.get().is_empty());
     view! {
-        <List spacing=8.0>
+        <List spacing=Space::Md>
             <Show condition={working}>
-                <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
-                    <Spinner width=18.0 label="Working on the build" />
+                <List direction=Direction::Horizontal align=Align::Center spacing=Space::Md>
+                    <Progress width=Size::Sm label="Working on the build" />
                     <Text style=TextStyle::CAPTION>{progress}</Text>
                 </List>
             </Show>
             <Show condition={failed}>
-                <Text color=TextColor::Danger wrap=Wrap::Words>{problem}</Text>
+                <Text color=TextColor::Danger>{problem}</Text>
             </Show>
             <SlotLog model slot />
         </List>
@@ -281,7 +277,7 @@ fn SlotLog(model: Model, slot: Slot) -> NodeId {
     let toggle = move || open.update(|open| *open = !*open);
     let pane = runs.pane;
     view! {
-        <List spacing=8.0>
+        <List spacing=Space::Md>
             <Show condition={logged}>
                 <Button label glyph=ICON_TERMINAL variant=ButtonVariant::Ghost on_click={toggle} />
             </Show>

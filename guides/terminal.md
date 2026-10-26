@@ -117,11 +117,14 @@ default `colors`, and reports `TerminalInput`, `TerminalWheel` and `Fit`.
   underline, strikethrough; faint is the colour halfway to the background) in
   `TextStyle::CODE`, in one `VirtualList` keyed by line id, inside a
   `SelectableText`, inside a `Scroll` with `follow_end` and the padding inside
-  it. A history line wraps with `Wrap::Anywhere` at the view's width, so in a
-  monospace font it breaks where the terminal did. Screen rows joined by
-  `wrapped` (`logical_lines`) are one `Text` with `Wrap::Off` and a `<Break/>`
-  at each wrap point, keyed by the first row's id, so a selection across the
-  wrap copies no newline. The list's `text` gives unbuilt rows' text to copy
+  it. A history line wraps with `Overflow::Wrap { at: WrapAt::Anywhere, .. }`
+  at the view's width, so in a monospace font it breaks where the terminal did.
+  Screen rows joined by `wrapped` (`logical_lines`) are one `Text` with
+  `Overflow::Visible` and a `<Break/>` at each wrap point, keyed by the first
+  row's id, so a selection across the wrap copies no newline. They are not
+  `Overflow::Ellipsis`: that would cut each row on its own and draw an
+  ellipsis the terminal's cells do not hold whenever the view is briefly
+  narrower than the grid. The list's `text` gives unbuilt rows' text to copy
   and select-all.
 - The cursor is the row's caret (`TextCaret`, a bar) at `cursor.byte`, the row
   padded with spaces when the byte is past its end.

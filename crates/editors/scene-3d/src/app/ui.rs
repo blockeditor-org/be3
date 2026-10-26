@@ -1,17 +1,16 @@
 use std::cell::Cell;
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 use beui::accesskit::{Node, Role};
 use beui::reactive::*;
 use beui::styled::*;
-use beui::unstyled::{Edge, Floating, PointerLock, PointerLockHandle};
 use beui::{CursorIcon, Key, KeyPress, NodeId, Vec2};
 
 use crate::camera::Camera;
 use crate::renderer::Scene;
 
 const LONGEST_STEP: f32 = 0.1;
-const HINT_INSET: f32 = 16.0;
+const HINT_INSET: Space = Space::Xl;
 
 #[derive(Clone, Copy, Default)]
 struct Walking {
@@ -52,15 +51,15 @@ pub(crate) fn Scene3DView() -> NodeId {
     let scene = Scene::default();
     let camera = create_signal(Camera::default());
     let walking = store(Cell::new(Walking::default()));
-    let clock = store(Cell::new(Instant::now()));
+    let clock = store(Cell::new(now()));
     let drawing = create_memo(move || Some(scene.drawing(camera.get())));
     let looking = create_signal(false);
     let idle = create_memo(move || !looking.get());
 
     let stepping = create_timer(move || {
-        let now = Instant::now();
-        let elapsed = now
-            .saturating_duration_since(clock.with(|clock| clock.replace(now)))
+        let stepped = now();
+        let elapsed = stepped
+            .saturating_duration_since(clock.with(|clock| clock.replace(stepped)))
             .as_secs_f32()
             .min(LONGEST_STEP);
         let walk = walking.with(Cell::get);
@@ -79,7 +78,7 @@ pub(crate) fn Scene3DView() -> NodeId {
         let handled = held.hold(press.key, press.pressed);
         walking.with(|walking| walking.set(held));
         if held.moving() && !stepping.running() {
-            clock.with(|clock| clock.set(Instant::now()));
+            clock.with(|clock| clock.set(now()));
             stepping.start(Duration::ZERO);
         }
         handled
@@ -111,7 +110,7 @@ pub(crate) fn Scene3DView() -> NodeId {
             on_motion={look}
             on_key={walked}
         >|_: PointerLockHandle|
-            <List spacing=0.0>
+            <List spacing=Space::None>
                 <Drawing
                     draw={Prop::dynamic(move || draw_gpu(drawing.get()))}
                     @sizing=ItemSize::Percent(100.0)
@@ -127,9 +126,9 @@ pub(crate) fn Scene3DView() -> NodeId {
 #[component]
 fn Hint() -> NodeId {
     view! {
-        <Frame padding={Sides::vertical(HINT_INSET)}>
+        <Frame padding={Padding::vertical(HINT_INSET)}>
             <Card>
-                <List direction=Direction::Horizontal align=Align::Center spacing=16.0>
+                <List direction=Direction::Horizontal align=Align::Center spacing=Space::Xl>
                     <Shortcut keys="Click" description="look around" />
                     <Shortcut keys="W A S D" description="move" />
                     <Shortcut keys="Esc" description="release" />

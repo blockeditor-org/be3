@@ -4,6 +4,7 @@ use block_editor_beui::beui::{TouchPhase, Vec2};
 #[test]
 fn text_tapped_in_where_the_keyboard_opens_keeps_the_keyboard() {
     let mut editor = phone(&[]);
+    editor.reveal("infinite-canvas.dock.tool.Text");
     editor.click("infinite-canvas.dock.tool.Text");
     editor.run();
     let canvas = editor.rect_of("infinite-canvas.canvas");

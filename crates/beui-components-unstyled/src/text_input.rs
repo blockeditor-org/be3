@@ -7,9 +7,8 @@ use accesskit::{Node, Role};
 use text_editor_core::{EditorCommand, TextBuffer, TextLanguage};
 
 use beui_core::base::ItemSize;
-use beui_core::base::text::DEFAULT_FONT_SIZE;
 use beui_core::color::Color32;
-use beui_core::geometry::{Pos2, Rect, Vec2};
+use beui_core::geometry::{Pos2, Rect};
 
 use crate::ContextMenuApi;
 use crate::MenuListApi;
@@ -18,6 +17,8 @@ use crate::SyntaxColors;
 use crate::TextArea;
 use crate::TextAreaApi;
 use crate::TextAreaColors;
+use crate::TextAreaGeometry;
+use crate::TextAreaLook;
 use crate::TextAreaState;
 use crate::menu_popup::MenuStyle;
 use crate::text_menu::TextContextMenu;
@@ -27,9 +28,6 @@ use beui_macros::{component, view};
 use beui_view::primitives::*;
 use beui_view::reactive::*;
 
-const PLACEHOLDER_COLOR: Color32 = Color32::from_gray(140);
-const SELECTION_COLOR: Color32 = Color32::from_rgba_unmultiplied(120, 160, 255, 90);
-
 pub struct TextInputHandle {
     pub field: Child,
     pub hovered: ReadSignal<bool>,
@@ -37,6 +35,7 @@ pub struct TextInputHandle {
     pub disabled: Memo<bool>,
     pub empty: Memo<bool>,
     pub clear: ClickCallback,
+    pub copy: ClickCallback,
 }
 
 #[derive(Clone, Copy)]
@@ -49,23 +48,8 @@ pub struct TextInputStyle {
     pub padding_horizontal: Prop<f32>,
     pub padding_vertical: Prop<f32>,
     pub prose: Prop<Option<Prose>>,
-    pub menu: MenuStyle,
-}
-
-impl Default for TextInputStyle {
-    fn default() -> Self {
-        Self {
-            font_size: Prop::Static(DEFAULT_FONT_SIZE),
-            color: Prop::Static(Color32::WHITE),
-            placeholder_color: Prop::Static(PLACEHOLDER_COLOR),
-            selection_color: Prop::Static(SELECTION_COLOR),
-            caret_color: Prop::Static(Color32::WHITE),
-            padding_horizontal: Prop::Static(0.0),
-            padding_vertical: Prop::Static(0.0),
-            prose: Prop::Static(None),
-            menu: MenuStyle::default(),
-        }
-    }
+    pub geometry: Prop<TextAreaGeometry>,
+    pub menu: Option<MenuStyle>,
 }
 
 #[derive(Clone, Copy)]
@@ -89,7 +73,7 @@ pub fn TextInput(
     #[prop(children)] content: Option<Render<TextInputHandle>>,
     placeholder: Prop<String>,
     #[prop(default = String::new())] label: Prop<String>,
-    #[prop(default = TextInputStyle::default())] style: TextInputStyle,
+    style: TextInputStyle,
     on_submit: Callback<String>,
     on_hover_change: Callback<bool>,
     on_focus_change: Callback<bool>,
@@ -104,6 +88,7 @@ pub fn TextInput(
         padding_horizontal,
         padding_vertical,
         prose,
+        geometry,
         menu,
     } = style;
     let initial = value.get_untracked();
@@ -134,6 +119,7 @@ pub fn TextInput(
     let clear = ClickCallback::new(move || {
         state.execute(EditorCommand::ReplaceWholeFile(b""));
     });
+    let copy = ClickCallback::new(move || copy_text(text_of(state)));
     let content_changed = state.content();
     create_effect(move || {
         content_changed.get();
@@ -145,7 +131,13 @@ pub fn TextInput(
         caret: caret_color.get(),
         placeholder: placeholder_color.get(),
         syntax: SyntaxColors::uniform(color.get()),
-        ..TextAreaColors::DEFAULT
+        gutter_border: Color32::TRANSPARENT,
+        gutter_text: Color32::TRANSPARENT,
+        gutter_arrow: Color32::TRANSPARENT,
+        code_background: Color32::TRANSPARENT,
+        widget: Color32::TRANSPARENT,
+        broken_widget: Color32::TRANSPARENT,
+        remote_selection_alpha: 0,
     });
     let role = match multiline {
         true => Role::MultilineTextInput,
@@ -191,6 +183,7 @@ pub fn TextInput(
                         disabled,
                         empty,
                         clear,
+                        copy,
                     }),
                     None => field,
                 }
@@ -205,8 +198,8 @@ pub fn TextInput(
         wrap(field, padded)
     };
     let padding = create_memo(move || match multiline {
-        true => Vec2::new(padding_horizontal.get(), padding_vertical.get()),
-        false => Vec2::ZERO,
+        true => Sides::symmetric(padding_horizontal.get(), padding_vertical.get()),
+        false => Sides::ZERO,
     });
     let submit = match on_submit.is_empty() {
         true => ClickCallback::empty(),
@@ -219,6 +212,7 @@ pub fn TextInput(
             single_line={!multiline}
             line_numbers=false
             colors
+            look={TextAreaLook::plain(geometry)}
             placeholder
             password={masked}
             focused

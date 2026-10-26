@@ -9,6 +9,7 @@ name = "be"
 path = "src/main.rs"
 
 [dependencies]
+wasi-threads = { path = "../wasi-threads" }
 be-block = { path = "../be-block" }
 be-client = { path = "../be-client" }
 be-commit = { path = "../be-commit" }

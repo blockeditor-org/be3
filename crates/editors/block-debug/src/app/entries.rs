@@ -84,7 +84,11 @@ pub(crate) fn block(info: Option<&BlockInfo>, types: &dyn BlockTypes) -> Entry {
     if let Some(artifact) = info.artifact() {
         children.push(Entry::leaf(
             "artifact of",
-            type_name(types, artifact.source_type),
+            format!(
+                "{} {}",
+                type_name(types, artifact.source_type),
+                *artifact.source
+            ),
         ));
     }
     Entry::branch("block", String::new(), children)

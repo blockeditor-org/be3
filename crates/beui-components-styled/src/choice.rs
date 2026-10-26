@@ -1,21 +1,25 @@
 use crate::frame::{Border, ColorRole, Frame, Radius, focus_border};
 use beui_core::base::TextAlign;
-use beui_core::color::Color32;
+use beui_core::font::Overflow;
 use beui_core::node::NodeId;
 use beui_macros::{component, view};
 
-use crate::theme::{ThemeStore, use_theme};
-use beui_components_unstyled::ChoiceOptionHandle;
-use beui_view::primitives::*;
+use crate::list::List;
+use crate::select::Select;
+use crate::tokens::{Padding, Size, Space, Stroke};
+use beui_components_unstyled::{ChoiceOption, ChoiceOptionHandle};
+use beui_view::primitives::{FirstFit, Layers};
 use beui_view::reactive::*;
 
 use crate::text::{Text, TextColor};
 pub(super) use beui_components_unstyled::ChoiceKind as Kind;
 
-const MARK_SPACING: f32 = 10.0;
-const MARK_BOX: f32 = 18.0;
-const MARK_DOT: f32 = 8.0;
-const MARK_RADIUS: f32 = 9.0;
+pub(crate) const OPTION_SPACING: Space = Space::Sm;
+const MARK_SPACING: Space = Space::Md;
+const MARK_BOX: Size = Size::Custom(18.0);
+const MARK_DOT: Size = Size::Custom(8.0);
+const OPTION_PADDING: Padding = Padding::symmetric(Space::Lg, Space::Sm);
+const SEGMENT_PADDING: Padding = Padding::symmetric(Space::Lg, Space::Xs);
 
 #[component]
 pub(super) fn OptionFace(kind: Kind, handle: ChoiceOptionHandle) -> NodeId {
@@ -26,18 +30,17 @@ pub(super) fn OptionFace(kind: Kind, handle: ChoiceOptionHandle) -> NodeId {
         focused,
         ..
     } = handle;
-    let theme = use_theme();
     let label_color = create_memo(move || match selected.get() {
         true => TextColor::Default,
         false => TextColor::Muted,
     });
-    let fill_color = create_memo(move || background(&theme, selected.get(), hovered.get()));
+    let fill_color = create_memo(move || background(selected.get(), hovered.get()));
     view! {
         <Frame
-            fill={ColorRole::custom(fill_color)}
-            border={focus_border(focused, Border::FOCUS.offset(1.0))}
+            fill={fill_color}
+            border={focus_border(focused, Border::FOCUS.offset(Stroke::Hairline))}
             radius=Radius::Md
-            padding={Sides::symmetric(14.0, 6.0)}
+            padding=OPTION_PADDING
         >
             <ChoiceLabel kind label color={label_color} checked={selected} />
         </Frame>
@@ -61,21 +64,23 @@ fn ChoiceLabel(
             <Show condition={kind == Kind::Radio}>
                 <RadioMark checked={checked} />
             </Show>
-            <Text @sizing=ItemSize::Percent(100.0) color align>{label}</Text>
+            <Text overflow=Overflow::Ellipsis @sizing=ItemSize::Percent(100.0) color align>
+                {label}
+            </Text>
         </List>
     }
 }
 
 #[component]
 fn RadioMark(checked: Memo<bool>) -> NodeId {
-    let theme = use_theme();
-    let ring_color = create_memo(move || ring(&theme, checked.get()));
+    let ring_color =
+        create_memo(move || Some(Border::new(ring(checked.get())).width(Stroke::Focus)));
     view! {
         <Frame
             width=MARK_BOX
             height=MARK_BOX
-            border={create_memo(move || Some(Border::new(ColorRole::Custom(ring_color.get())).width(2.0)))}
-            radius={Radius::custom(MARK_RADIUS)}
+            border={ring_color}
+            radius=Radius::Full
             align=Align::Center
         >
             <Layers>
@@ -84,7 +89,7 @@ fn RadioMark(checked: Memo<bool>) -> NodeId {
                         width=MARK_DOT
                         height=MARK_DOT
                         fill=ColorRole::Accent
-                        radius={Radius::custom(MARK_RADIUS)}
+                        radius=Radius::Full
                     />
                 </Show>
             </Layers>
@@ -92,18 +97,79 @@ fn RadioMark(checked: Memo<bool>) -> NodeId {
     }
 }
 
-fn ring(theme: &ThemeStore, checked: bool) -> Color32 {
+fn ring(checked: bool) -> ColorRole {
     if checked {
-        theme.accent.get()
+        ColorRole::Accent
     } else {
-        theme.border.get()
+        ColorRole::Border
     }
 }
 
-fn background(theme: &ThemeStore, active: bool, hovered: bool) -> Color32 {
+fn background(active: bool, hovered: bool) -> ColorRole {
     match (active, hovered) {
-        (true, _) => theme.accent_soft.get(),
-        (false, true) => theme.hover.get(),
-        _ => Color32::TRANSPARENT,
+        (true, _) => ColorRole::AccentSoft,
+        (false, true) => ColorRole::Hover,
+        _ => ColorRole::None,
+    }
+}
+
+pub(super) struct Wide {
+    pub options: Run<ChoiceOption>,
+    pub selected: Binding<Option<usize>>,
+}
+
+#[component]
+pub(super) fn Collapsing(
+    options: Children<ChoiceOption>,
+    selected: Binding<usize>,
+    label: Memo<String>,
+    #[prop(children)] wide: Render<Wide>,
+) -> NodeId {
+    let options = options.into_run();
+    let count = options.clone();
+    let shown = Prop::dynamic(move || Some(selected.get().min(count.len().saturating_sub(1))));
+    let chosen = Binding::new(shown, move |chosen: Option<usize>| {
+        if let Some(chosen) = chosen {
+            selected.set(chosen);
+        }
+    });
+    let narrow = options.clone();
+    let wide = wide.call(Wide {
+        options,
+        selected: chosen,
+    });
+    view! {
+        <FirstFit>
+            {wide}
+            <Select options={narrow} selected={chosen} label />
+        </FirstFit>
+    }
+}
+
+#[component]
+pub(super) fn SegmentFace(handle: ChoiceOptionHandle) -> NodeId {
+    let ChoiceOptionHandle {
+        label,
+        selected,
+        hovered,
+        focused,
+        ..
+    } = handle;
+    let label_color = create_memo(move || match selected.get() {
+        true => TextColor::Default,
+        false => TextColor::Muted,
+    });
+    let fill_color = create_memo(move || background(selected.get(), hovered.get()));
+    view! {
+        <Frame
+            fill={fill_color}
+            border={focus_border(focused, Border::FOCUS.offset(Stroke::Hairline))}
+            radius=Radius::Sm
+            padding=SEGMENT_PADDING
+        >
+            <Text overflow=Overflow::Ellipsis color={label_color} align=TextAlign::Center>
+                {label}
+            </Text>
+        </Frame>
     }
 }

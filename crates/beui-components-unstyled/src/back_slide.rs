@@ -15,7 +15,6 @@ const LEAVE_SECONDS: f32 = 0.2;
 const ENTER_SECONDS: f32 = 0.3;
 const ENTER_SHARE: f32 = 0.25;
 const BEHIND_SHARE: f32 = 0.25;
-const SHADE: Color32 = Color32::from_rgba_unmultiplied(0, 0, 0, 110);
 
 #[derive(Clone, Copy, PartialEq, Debug)]
 enum Phase {
@@ -37,11 +36,13 @@ struct Slide {
     animation: Cell<Option<Animation>>,
     shift: Signal<Vec2>,
     behind_shift: Signal<Vec2>,
-    shade: Signal<Color32>,
+    cover: Signal<f32>,
     revealing: Signal<bool>,
     behind: bool,
     enters: bool,
+    open: Option<Prop<bool>>,
     on_back: ClickCallback,
+    on_gone: ClickCallback,
     on_presence: Callback<f32>,
 }
 
@@ -56,8 +57,7 @@ impl Slide {
         self.shift.set(vec2(direction * position * width, 0.0));
         let behind = -direction * BEHIND_SHARE * (1.0 - position.clamp(0.0, 1.0)) * width;
         self.behind_shift.set(vec2(behind, 0.0));
-        self.shade
-            .set(SHADE.scale_alpha(1.0 - position.clamp(0.0, 1.0)));
+        self.cover.set(1.0 - position.clamp(0.0, 1.0));
         self.on_presence.call(1.0 - position.clamp(0.0, 1.0));
     }
 
@@ -121,8 +121,30 @@ impl Slide {
                 if phase == Phase::Still {
                     self.state.borrow_mut().direction = 1.0;
                 }
-                self.start(Phase::Leaving { from: position });
+                match self.open {
+                    None => self.start(Phase::Leaving { from: position }),
+                    Some(open) => {
+                        self.on_back.call();
+                        match open.get_untracked() {
+                            true if phase == Phase::Dragging => {
+                                self.start(Phase::Returning { from: position })
+                            }
+                            true => {}
+                            false => self.leave(),
+                        }
+                    }
+                }
             }
+        }
+    }
+
+    fn leave(&self) {
+        let (phase, position) = {
+            let state = self.state.borrow();
+            (state.phase, state.position)
+        };
+        if !matches!(phase, Phase::Leaving { .. }) && position < 1.0 {
+            self.start(Phase::Leaving { from: position });
         }
     }
 
@@ -132,6 +154,11 @@ impl Slide {
     }
 
     fn gone(&self) {
+        if self.open.is_some() {
+            self.start(Phase::Still);
+            self.on_gone.call();
+            return;
+        }
         self.on_back.call();
         match self.enters && !self.behind {
             true => {
@@ -199,13 +226,17 @@ pub fn BackSlide(
     #[prop(default = true)] enabled: Prop<bool>,
     #[prop(default = true)] enters: bool,
     #[prop(default = ClickCallback::default())] on_back: ClickCallback,
+    #[prop(default = None)] open: Option<Prop<bool>>,
+    #[prop(default = ClickCallback::default())] on_gone: ClickCallback,
     #[prop(default = Callback::default())] on_presence: Callback<f32>,
     #[prop(default = None)] behind: Option<RenderFn<()>>,
+    #[prop(default = Color32::TRANSPARENT)] shade: Prop<Color32>,
     children: Child,
 ) -> NodeId {
     let shift = create_signal(Vec2::ZERO);
     let behind_shift = create_signal(Vec2::ZERO);
-    let shade = create_signal(SHADE);
+    let cover = create_signal(1.0_f32);
+    let shade = create_memo(move || shade.get().scale_alpha(cover.get()));
     let revealing = create_signal(false);
     let slide = store(Slide {
         state: RefCell::new(State {
@@ -216,11 +247,13 @@ pub fn BackSlide(
         animation: Cell::new(None),
         shift,
         behind_shift,
-        shade,
+        cover,
         revealing,
         behind: behind.is_some(),
         enters,
+        open,
         on_back,
+        on_gone,
         on_presence,
     });
     let animation = create_animation(
@@ -242,6 +275,22 @@ pub fn BackSlide(
             });
         }
     });
+    if let Some(open) = open {
+        let was_open = Cell::new(true);
+        create_effect(move || {
+            let open = open.get();
+            if open == was_open.replace(open) {
+                return;
+            }
+            untrack(|| {
+                let slide = slide.value();
+                match open {
+                    true => slide.reset(),
+                    false => slide.leave(),
+                }
+            });
+        });
+    }
     let page = view! {
         <BackHandler
             enabled={enabled}

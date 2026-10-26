@@ -369,7 +369,7 @@ version = "0.38.0+1.3.281"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0bb44936d800fea8f016d7f2311c6a4f97aebd5dc86f09906139ec848cf3a46f"
 dependencies = [
- "libloading",
+ "libloading 0.8.9",
 ]
 
 [[package]]
@@ -726,6 +726,7 @@ name = "be-block"
 version = "0.1.0"
 dependencies = [
  "be-commit",
+ "be-graph",
  "be-model",
  "be-store",
  "memchr",
@@ -764,6 +765,7 @@ dependencies = [
  "text-block-types",
  "tokio",
  "uuid",
+ "wasi-threads",
  "workspace-ui-types",
 ]
 
@@ -780,6 +782,7 @@ dependencies = [
  "be-store",
  "build-id",
  "counter-types",
+ "fault-relay",
  "futures-channel",
  "futures-util",
  "httparse",
@@ -787,11 +790,15 @@ dependencies = [
  "js-sys",
  "rusqlite",
  "rustls",
+ "serde",
+ "serde_bytes",
+ "sqlite-schema",
  "text-block-types",
  "tokio",
  "tokio-rustls",
  "tokio-tungstenite",
  "uuid",
+ "wasi-threads",
  "wasm-bindgen",
  "wasm-bindgen-futures",
  "web-sys",
@@ -814,6 +821,7 @@ name = "be-dmabuf"
 version = "0.1.0"
 dependencies = [
  "ash",
+ "beui-renderer-wgpu",
  "pollster",
  "rustix 1.1.4",
  "smithay",
@@ -990,6 +998,7 @@ name = "be-server"
 version = "0.1.0"
 dependencies = [
  "argon2",
+ "be-block",
  "be-commit",
  "be-graph",
  "be-keys",
@@ -1092,6 +1101,7 @@ dependencies = [
  "pollster",
  "tokio",
  "uuid",
+ "wasi-threads",
 ]
 
 [[package]]
@@ -1111,9 +1121,11 @@ version = "0.1.0"
 dependencies = [
  "be-dmabuf",
  "beui",
+ "beui-layer-space",
  "bytemuck",
  "gvdb",
  "image",
+ "paint-snapshot",
  "resvg",
  "rustix 1.1.4",
  "smithay",
@@ -1136,11 +1148,14 @@ dependencies = [
  "beui-components-styled",
  "beui-components-unstyled",
  "beui-core",
+ "beui-dock",
  "beui-font-browser",
  "beui-font-freetype",
  "beui-inspector",
+ "beui-keyboard",
  "beui-layer-drive",
  "beui-layer-space",
+ "beui-layer-xr",
  "beui-platform-android",
  "beui-platform-headless",
  "beui-platform-web",
@@ -1187,7 +1202,6 @@ dependencies = [
  "foldhash 0.2.0",
  "memchr",
  "reactive",
- "serde",
  "text-editor-core",
 ]
 
@@ -1227,6 +1241,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "beui-dock"
+version = "0.1.0"
+dependencies = [
+ "accesskit",
+ "beui-components-styled",
+ "beui-components-unstyled",
+ "beui-core",
+ "beui-view",
+ "beui_macros",
+ "reactive",
+ "serde",
+]
+
+[[package]]
 name = "beui-font-browser"
 version = "0.1.0"
 dependencies = [
@@ -1244,7 +1272,7 @@ dependencies = [
  "foldhash 0.2.0",
  "freetype",
  "harfbuzz_rs",
- "libloading",
+ "libloading 0.8.9",
  "unicode-script",
 ]
 
@@ -1274,8 +1302,23 @@ dependencies = [
  "beui-components-styled",
  "beui-components-unstyled",
  "beui-core",
+ "beui-dock",
  "beui-view",
  "beui_macros",
+ "reactive",
+]
+
+[[package]]
+name = "beui-keyboard"
+version = "0.1.0"
+dependencies = [
+ "accesskit",
+ "beui-components-styled",
+ "beui-components-unstyled",
+ "beui-core",
+ "beui-view",
+ "beui_macros",
+ "emojis",
  "reactive",
 ]
 
@@ -1291,13 +1334,34 @@ dependencies = [
 name = "beui-layer-space"
 version = "0.1.0"
 dependencies = [
+ "beui-components-styled",
  "beui-core",
  "beui-font-freetype",
+ "beui-keyboard",
  "beui-renderer-wgpu",
+ "beui-view",
+ "beui_macros",
  "bytemuck",
  "glam",
  "paint-snapshot",
  "pollster",
+ "wgpu",
+]
+
+[[package]]
+name = "beui-layer-xr"
+version = "0.1.0"
+dependencies = [
+ "ash",
+ "beui-core",
+ "beui-font-freetype",
+ "beui-layer-space",
+ "beui-renderer-wgpu",
+ "glam",
+ "libloading 0.9.0",
+ "openxr",
+ "pollster",
+ "serde_json",
  "wgpu",
 ]
 
@@ -1359,6 +1423,7 @@ name = "beui-platform-web"
 version = "0.1.0"
 dependencies = [
  "beui-core",
+ "futures-util",
  "js-sys",
  "wasm-bindgen",
  "wasm-bindgen-futures",
@@ -1574,6 +1639,7 @@ dependencies = [
  "block-plugin-api",
  "block-type-api",
  "block-type-guest",
+ "block-ui-test",
  "block-wasm-host",
  "browser-tab-types",
  "build-id",
@@ -1583,6 +1649,7 @@ dependencies = [
  "counter-types",
  "database-types",
  "directories-next",
+ "fault-relay",
  "first-party-types",
  "futures-util",
  "host-types",
@@ -1592,6 +1659,7 @@ dependencies = [
  "js-sys",
  "libc",
  "ndk-context",
+ "notify",
  "paint-snapshot",
  "pollster",
  "presentation-types",
@@ -2363,7 +2431,7 @@ checksum = "157a8ba7b480713b56f4c09fd13fc3e0a22a5dfab8097ba61cbc5feef950788a"
 dependencies = [
  "glob",
  "libc",
- "libloading",
+ "libloading 0.8.9",
 ]
 
 [[package]]
@@ -3143,7 +3211,7 @@ version = "0.5.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ab8ecd87370524b461f8557c119c405552c396ed91fc0a8eec68679eab26f94a"
 dependencies = [
- "libloading",
+ "libloading 0.8.9",
 ]
 
 [[package]]
@@ -3396,6 +3464,14 @@ name = "fastrand"
 version = "2.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "da7c62ceae207dd37ea5b845da6a0696c799f85e97da1ab5b7910be3c1c80223"
+
+[[package]]
+name = "fault-relay"
+version = "0.1.0"
+dependencies = [
+ "be-protocol",
+ "tokio",
+]
 
 [[package]]
 name = "fax"
@@ -4675,7 +4751,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6aae1df220ece3c0ada96b8153459b67eebe9ae9212258bb0134ae60416fdf76"
 dependencies = [
  "libc",
- "libloading",
+ "libloading 0.8.9",
  "pkg-config",
 ]
 
@@ -4760,6 +4836,16 @@ name = "libloading"
 version = "0.8.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d7c4b02199fee7c5d21a5ae7d8cfa79a6ef5bb2fc834d6e9058e89c825efdc55"
+dependencies = [
+ "cfg-if",
+ "windows-link",
+]
+
+[[package]]
+name = "libloading"
+version = "0.9.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "754ca22de805bb5744484a5b151a9e1a8e837d5dc232c2d7d8c2e3492edc8b60"
 dependencies = [
  "cfg-if",
  "windows-link",
@@ -5631,6 +5717,26 @@ name = "opaque-debug"
 version = "0.3.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c08d65885ee38876c4f86fa503fb49d7b507c2b62552df7c70b2fce627e06381"
+
+[[package]]
+name = "openxr"
+version = "0.22.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "53770c8f7d3f185bcb577b78f2ed8e33bbf7cdf5cd57fb68b5ec0b4117b79de6"
+dependencies = [
+ "libc",
+ "libloading 0.9.0",
+ "openxr-sys",
+]
+
+[[package]]
+name = "openxr-sys"
+version = "0.14.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "febb5d50cee7b964b69d5b7a810ed9620fc64f41382ffefe05434754c7a48877"
+dependencies = [
+ "libc",
+]
 
 [[package]]
 name = "orbclient"
@@ -9379,7 +9485,7 @@ dependencies = [
  "js-sys",
  "khronos-egl",
  "libc",
- "libloading",
+ "libloading 0.8.9",
  "log",
  "naga",
  "ndk-sys 0.6.0+11769913",
@@ -10435,7 +10541,7 @@ dependencies = [
  "as-raw-xcb-connection",
  "gethostname",
  "libc",
- "libloading",
+ "libloading 0.8.9",
  "once_cell",
  "rustix 1.1.4",
  "x11rb-protocol",

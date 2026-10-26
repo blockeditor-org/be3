@@ -30,6 +30,10 @@ fn frame_screens_and_reports_round_trip() {
             Vec2::new(300.0, 200.0),
         )),
         top_bar: TopBar::Phone,
+        dialog: Some(DialogFrame {
+            narrow: true,
+            bottom_inset: 24.0,
+        }),
     });
     round_trips(&vec![request]);
 

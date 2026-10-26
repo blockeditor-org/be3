@@ -1,49 +1,72 @@
 use crate::frame::{Border, ColorRole, Frame, Radius};
 use beui_macros::{component, view};
 
-use crate::context_menu::MenuCheck;
+use crate::list::List;
+use crate::row::{RowFace, RowSize, RowTrailing};
 use crate::scroll::scrollbar_style;
-use crate::text::{Icon, Text, TextColor, TextSize};
+use crate::text::{Icon, Text, TextColor};
 use crate::text_input::text_input_style;
 use crate::theme::use_theme;
+use crate::tokens::{Padding, Size, Space, use_space};
 use beui_components_unstyled as unstyled;
-use beui_components_unstyled::{CommandRowHandle, TextInputHandle};
+use beui_components_unstyled::{
+    CommandPaletteApi, CommandRowHandle, PaletteItem, PaletteItems, PaletteScore, TextInputHandle,
+};
 use beui_core::base::TextAlign;
-use beui_core::color::Color32;
+use beui_core::icons::ICON_SEARCH;
 use beui_core::node::NodeId;
-use beui_view::primitives::*;
 use beui_view::reactive::*;
 
-const WIDTH: f32 = 520.0;
-const LIST_HEIGHT: f32 = 320.0;
-const MARGIN: f32 = 12.0;
-const PADDING: f32 = 6.0;
-const SEARCH_HEIGHT: f32 = 36.0;
-const PADDING_HORIZONTAL: f32 = 10.0;
-const ROW_PADDING_VERTICAL: f32 = 7.0;
-const ROW_SPACING: f32 = 10.0;
-const ICON_WIDTH: f32 = 20.0;
+const WIDTH: f32 = 560.0;
+const LIST_HEIGHT: f32 = 360.0;
+const MARGIN: Space = Space::Lg;
+const PADDING: Space = Space::Sm;
+const SEARCH_HEIGHT: Size = Size::Custom(38.0);
+const PADDING_HORIZONTAL: Space = Space::Md;
+const ROW_SPACING: Space = Space::Lg;
 
 #[component]
-pub fn CommandPalette(open: Binding<bool>) -> NodeId {
+pub fn CommandPalette(
+    #[prop(default = ComponentRef::new())] api: ComponentRef<CommandPaletteApi>,
+    open: Binding<bool>,
+    #[prop(default = PaletteItems::Actions)] items: PaletteItems,
+    #[prop(default = PaletteItem::substring_score as PaletteScore)] score: PaletteScore,
+    #[prop(default = create_signal(String::new()))] query: Signal<String>,
+    #[prop(default = "Run a command".to_owned())] placeholder: Prop<String>,
+    #[prop(default = "Command palette".to_owned())] label: Prop<String>,
+    #[prop(default = "command-palette".to_owned())] id: String,
+    on_choose: Callback<String>,
+) -> NodeId {
     let theme = use_theme();
-    let scrim = create_memo(move || theme.scrim_soft.get());
+    let scrim = create_memo(move || ColorRole::ScrimSoft.resolve(&theme));
+    let search_id = format!("{id}.search");
+    let row_id = id.clone();
     view! {
         <unstyled::CommandPalette
+            api
             open
+            items
+            score
+            query
+            label
+            on_choose={move |key: String| on_choose.call(key)}
             list_height=LIST_HEIGHT
+            spacing={use_space(PADDING).get_untracked()}
             scrim={scrim}
-            search_placeholder="Run a command"
-            search_content={|handle| view! {
-                <PaletteSearch handle />
+            search_placeholder={placeholder}
+            search_content={move |handle| view! {
+                <PaletteSearch @test_id={search_id.clone()} handle />
             }}
             search_style={text_input_style()}
             scrollbar={scrollbar_style()}
-            row={|handle| view! {
-                <PaletteRow handle />
+            row={move |handle: CommandRowHandle| {
+                let row_test_id = format!("{row_id}.item.{}", handle.key);
+                view! {
+                    <PaletteRow @test_id={row_test_id} handle />
+                }
             }}
         >|content|
-            <PalettePanel>{content}</PalettePanel>
+            <PalettePanel @test_id={id.clone()}>{content}</PalettePanel>
         </unstyled::CommandPalette>
     }
 }
@@ -74,8 +97,14 @@ fn PaletteSearch(handle: TextInputHandle) -> NodeId {
             fill=ColorRole::Surface
             border={Border::new(ColorRole::Accent)}
             radius=Radius::Md
+            padding={Padding::horizontal(PADDING_HORIZONTAL)}
         >
-            {field}
+            <List direction=Direction::Horizontal align=Align::Center spacing=ROW_SPACING>
+                <Text color=TextColor::Muted align=TextAlign::Center>
+                    <Icon glyph=ICON_SEARCH />
+                </Text>
+                <Frame @sizing=ItemSize::Percent(100.0)>{field}</Frame>
+            </List>
         </Frame>
     }
 }
@@ -84,46 +113,33 @@ fn PaletteSearch(handle: TextInputHandle) -> NodeId {
 fn PaletteRow(handle: CommandRowHandle) -> NodeId {
     let CommandRowHandle {
         label,
+        detail,
         glyph,
+        image,
         shortcut,
         checked,
         disabled,
         highlighted,
         hovered,
+        ..
     } = handle;
-    let theme = use_theme();
-    let fill = create_memo(
-        move || match (disabled.get(), highlighted.get(), hovered.get()) {
-            (true, _, _) | (false, false, false) => Color32::TRANSPARENT,
-            (false, true, _) => theme.accent_soft.get(),
-            (false, false, true) => theme.surface.get(),
-        },
-    );
-    let text_color = create_memo(move || match disabled.get() {
-        true => TextColor::Muted,
-        false => TextColor::Default,
+    let trailing = create_memo(move || match checked.get() {
+        Some(true) => RowTrailing::Check,
+        _ => RowTrailing::None,
     });
-    let shortcut = shortcut.unwrap_or_default();
     view! {
-        <Frame
-            fill={ColorRole::custom(fill)}
-            radius=Radius::Md
-            padding={Sides::symmetric(PADDING_HORIZONTAL, ROW_PADDING_VERTICAL)}
-        >
-            <List direction=Direction::Horizontal align=Align::Center spacing=ROW_SPACING>
-                <Frame width=ICON_WIDTH>
-                    <Text color={text_color} align=TextAlign::Center>
-                        <Icon glyph={glyph} />
-                    </Text>
-                </Frame>
-                <Text @sizing=ItemSize::Percent(100.0) color={text_color} align=TextAlign::Start>
-                    {label}
-                </Text>
-                <Text size=TextSize::Sm color=TextColor::Muted align=TextAlign::End>
-                    {shortcut}
-                </Text>
-                <MenuCheck checked />
-            </List>
-        </Frame>
+        <RowFace
+            hovered
+            selected={highlighted}
+            disabled
+            size=RowSize::Large
+            label
+            detail
+            glyph
+            image
+            leading=true
+            shortcut
+            trailing
+        />
     }
 }

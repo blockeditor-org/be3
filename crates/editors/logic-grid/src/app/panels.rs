@@ -1,4 +1,3 @@
-use beui::Wrap;
 use std::cell::Cell;
 
 use beui::reactive::*;
@@ -8,10 +7,9 @@ use beui::{FontId, NodeId, Painter, PointerPress};
 use super::session::Session;
 use super::*;
 
-const SPACING: f32 = 8.0;
+const SPACING: Space = Space::Md;
 const LABEL_WIDTH: f32 = 110.0;
 const CELL_WIDTH: f32 = 52.0;
-const DIALOG_WIDTH: f32 = 260.0;
 const GRAPH_EDGE_COLOR: Color32 = Color32::from_rgb(140, 150, 170);
 const GRAPH_OUTLINE_COLOR: Color32 = Color32::from_rgb(70, 78, 96);
 const GRAPH_DETAIL_COLOR: Color32 = Color32::from_rgb(225, 225, 225);
@@ -53,9 +51,7 @@ fn Field(label: Prop<String>, value: Prop<String>) -> NodeId {
     view! {
         <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
             <Text style=TextStyle::CAPTION @sizing=ItemSize::Fixed(LABEL_WIDTH)>{label}</Text>
-            <Text style=TextStyle::CODE @sizing=ItemSize::Percent(100.0) wrap=Wrap::Words>
-                {value}
-            </Text>
+            <Text style=TextStyle::CODE @sizing=ItemSize::Percent(100.0)>{value}</Text>
         </List>
     }
 }
@@ -63,7 +59,7 @@ fn Field(label: Prop<String>, value: Prop<String>) -> NodeId {
 #[component]
 fn Problem(content: Prop<String>) -> NodeId {
     view! {
-        <Text style=TextStyle::CAPTION color=TextColor::Danger wrap=Wrap::Words>{content}</Text>
+        <Text style=TextStyle::CAPTION color=TextColor::Danger>{content}</Text>
     }
 }
 
@@ -72,7 +68,7 @@ fn Rows(rows: Memo<Vec<(String, String)>>) -> NodeId {
     let keys = create_memo(move || (0..rows.with(Vec::len)).collect::<Vec<_>>());
     let empty = create_memo(move || keys.with(Vec::is_empty));
     view! {
-        <List spacing=4.0>
+        <List spacing=Space::Xs>
             <Show condition={empty}>
                 <Text style=TextStyle::CAPTION>"None"</Text>
             </Show>
@@ -385,7 +381,7 @@ fn SimulationPanel(session: Session) -> NodeId {
                 <Problem content={problem} />
             </Show>
             <Show condition={idle}>
-                <Text style=TextStyle::CAPTION wrap=Wrap::Words>
+                <Text style=TextStyle::CAPTION>
                     "Run a step to compile and execute the circuit."
                 </Text>
             </Show>
@@ -394,7 +390,7 @@ fn SimulationPanel(session: Session) -> NodeId {
                     <Rows rows={summary} />
                     <Separator />
                     <Text>"Call stack"</Text>
-                    <List spacing=2.0>
+                    <List spacing=Space::Xs2>
                         <ForEach keys={frames}>|index: usize| {
                             let row = create_memo(move || {
                                 shown.get().frames.get(index).cloned()
@@ -422,7 +418,7 @@ fn SimulationPanel(session: Session) -> NodeId {
                     <Show condition={no_instructions}>
                         <Text style=TextStyle::CAPTION>"No instructions"</Text>
                     </Show>
-                    <List spacing=2.0>
+                    <List spacing=Space::Xs2>
                         <ForEach keys={instructions}>|index: usize| {
                             let row = create_memo(move || {
                                 shown.get().instructions.get(index).cloned()
@@ -437,7 +433,7 @@ fn SimulationPanel(session: Session) -> NodeId {
                     <Show condition={no_inputs}>
                         <Text style=TextStyle::CAPTION>"None"</Text>
                     </Show>
-                    <List spacing=4.0>
+                    <List spacing=Space::Xs>
                         <ForEach keys={inputs}>|index: usize| {
                             let row = create_memo(move || {
                                 shown.get().inputs.get(index).cloned()
@@ -469,20 +465,15 @@ fn InstructionRow(
     index: usize,
 ) -> NodeId {
     let text = create_memo(move || row.get().map(|row| row.0).unwrap_or_default());
-    let theme = use_theme();
     let fill = create_memo(move || match row.get().is_some_and(|row| row.1) {
-        true => theme.accent_soft.get(),
-        false => Color32::TRANSPARENT,
+        true => ColorRole::AccentSoft,
+        false => ColorRole::None,
     });
     let calls = create_memo(move || row.get().is_some_and(|row| row.2.is_some()));
     let unresolved = create_memo(move || row.get().is_none_or(|row| row.2 != Some(true)));
     let target = move || session.update(|model| model.select_instruction_target(index));
     view! {
-        <Frame
-            fill={ColorRole::custom(fill)}
-            radius={Radius::custom(3.0)}
-            padding={Sides::horizontal(4.0)}
-        >
+        <Frame fill={fill} radius=Radius::Xs padding={Padding::horizontal(Space::Xs)}>
             <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
                 <Text style=TextStyle::CODE @sizing=ItemSize::Percent(100.0)>{text}</Text>
                 <Show condition={calls}>
@@ -509,7 +500,7 @@ fn InputRow(session: Session, row: Memo<Option<InputView>>, index: usize) -> Nod
             .unwrap_or_default()
     });
     view! {
-        <List direction=Direction::Horizontal wrap=true align=Align::Center spacing=4.0>
+        <List direction=Direction::Horizontal wrap=true align=Align::Center spacing=Space::Xs>
             <Text style=TextStyle::CAPTION>{label}</Text>
             <Show condition={deleted}>
                 <Text style=TextStyle::CAPTION>"deleted"</Text>
@@ -636,12 +627,12 @@ fn ChallengePanel(session: Session) -> NodeId {
                 <Problem content={problem} />
             </Show>
             <Show condition={working}>
-                <List spacing=2.0>
+                <List spacing=Space::Xs2>
                     <Text style=TextStyle::CAPTION @test_id={"logic-grid.challenge-status"}>
                         {status}
                     </Text>
                     <Scroll direction=Direction::Horizontal>
-                        <List spacing=2.0>
+                        <List spacing=Space::Xs2>
                             <TableRow cells={header} />
                             <ForEach keys={ticks}>|tick: usize| {
                                 let row = create_memo(move || {
@@ -665,13 +656,16 @@ fn ChallengePanel(session: Session) -> NodeId {
 fn TableRow(cells: Memo<Vec<String>>) -> NodeId {
     let keys = create_memo(move || (0..cells.with(Vec::len)).collect::<Vec<_>>());
     view! {
-        <List direction=Direction::Horizontal spacing=0.0>
+        <List direction=Direction::Horizontal spacing=Space::None>
             <ForEach keys={keys}>|index: usize| {
                 let text = create_memo(move || {
                     cells.with(|cells| cells.get(index).cloned().unwrap_or_default())
                 });
                 view! {
-                    <Frame @sizing=ItemSize::Fixed(CELL_WIDTH) padding={Sides::horizontal(2.0)}>
+                    <Frame
+                        @sizing=ItemSize::Fixed(CELL_WIDTH)
+                        padding={Padding::horizontal(Space::Xs2)}
+                    >
                         <Text>{text}</Text>
                     </Frame>
                 }
@@ -687,7 +681,7 @@ fn TickRow(session: Session, row: Memo<Option<TickView>>, tick: usize) -> NodeId
     let seek = move || session.update(|model| model.challenge_test_seek(tick));
     view! {
         <ListRow selected={active} on_click={seek}>
-            <List direction=Direction::Horizontal spacing=0.0>
+            <List direction=Direction::Horizontal spacing=Space::None>
                 <ForEach keys={keys}>|index: usize| {
                     let cell = create_memo(move || {
                         row.get().and_then(|row| row.0.get(index).cloned())
@@ -710,7 +704,7 @@ fn TickCell(cell: Memo<Option<(String, Option<bool>)>>) -> NodeId {
         None => TextColor::Muted,
     });
     view! {
-        <Frame width=CELL_WIDTH padding={Sides::horizontal(2.0)}>
+        <Frame width={Size::Custom(CELL_WIDTH)} padding={Padding::horizontal(Space::Xs2)}>
             <Text style=TextStyle::CODE color={color}>{text}</Text>
         </Frame>
     }
@@ -955,8 +949,8 @@ fn GraphPanel(session: Session) -> NodeId {
     });
     let empty = create_memo(move || shape.get().graph.nodes.is_empty());
     let drawn = create_memo(move || !empty.get());
-    let width = create_memo(move || Some(shape.get().size.x));
-    let height = create_memo(move || Some(shape.get().size.y));
+    let width = create_memo(move || Size::Custom(shape.get().size.x));
+    let height = create_memo(move || Size::Custom(shape.get().size.y));
     let draw: Prop<Draw> = Prop::dynamic(move || {
         let shape = shape.get();
         Rc::new(move |painter: &Painter, rect: Rect| paint_graph(painter, rect, &shape)) as Draw
@@ -988,8 +982,8 @@ fn GraphPanel(session: Session) -> NodeId {
 fn GraphCanvas(
     session: Session,
     shape: Memo<Rc<GraphShape>>,
-    width: Memo<Option<f32>>,
-    height: Memo<Option<f32>>,
+    width: Memo<Size>,
+    height: Memo<Size>,
     draw: Prop<Draw>,
 ) -> NodeId {
     let hovered = store(Cell::new(None::<usize>));
@@ -1050,8 +1044,8 @@ fn StorageDialog(session: Session) -> NodeId {
     });
     let dismiss = move || session.update(|model| model.configured_storage = None);
     view! {
-        <Dialog open={open} title={title} width=DIALOG_WIDTH on_dismiss={dismiss}>
-            <List direction=Direction::Horizontal wrap=true spacing=4.0>
+        <Dialog open={open} title={title} on_dismiss={dismiss}>
+            <List direction=Direction::Horizontal wrap=true spacing=Space::Xs>
                 <ForEach keys={bits}>|bit: u32| {
                     let label = create_memo(move || {
                         let state = configured.get().map_or(0, |(_, _, value)| (value >> bit) & 1);

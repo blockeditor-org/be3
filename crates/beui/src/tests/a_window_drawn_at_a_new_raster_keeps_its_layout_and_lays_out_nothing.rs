@@ -52,7 +52,7 @@ fn a_window_drawn_at_a_new_raster_keeps_its_layout_and_lays_out_nothing() {
     let document = build_node(move || {
         view! {
             <Window id={window} size={vec2(150.0, 120.0)}>|_: WindowHandle|
-                <Text @test_id="words" color=Color32::WHITE wrap=Wrap::Words>
+                <Text @test_id="words" color=Color32::WHITE>
                     "Pinching a panel draws it sharper without moving a single word of it"
                 </Text>
             </Window>
@@ -68,7 +68,7 @@ fn a_window_drawn_at_a_new_raster_keeps_its_layout_and_lays_out_nothing() {
     let glyph = widest_glyph(&shown.shapes());
 
     for raster in [1.37, 2.0, 0.8] {
-        harness.report_window(WindowReport::Scaled {
+        harness.report_window(WindowReport::Rastered {
             window,
             pixels_per_point: raster,
         });

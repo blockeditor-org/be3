@@ -28,7 +28,9 @@ fn placement(rect: Rect, clip: Rect) -> RegionPlacement {
         rect,
         clip,
         zoom: 1.0,
-        raster: None,
+        raster: 1.0,
+        windows: false,
+        placement: None,
     }
 }
 

@@ -81,6 +81,17 @@ impl Document {
                 && matches!(spec.placement, super::WindowPlacement::Host(_)))
     }
 
+    pub(crate) fn shows_in(&self, window: WindowId) -> bool {
+        self.opens_windows() && (window.is_main() || self.window_node(window).is_some())
+    }
+
+    pub(crate) fn shown_in(&self, overlay: NodeOf<OverlayNode>) -> Option<WindowId> {
+        self.arena
+            .get_as::<OverlayNode>(overlay)
+            .shown_in
+            .filter(|window| self.shows_in(*window))
+    }
+
     pub(crate) fn real_window(&self, overlay: NodeOf<OverlayNode>) -> Option<WindowId> {
         self.arena
             .get_as::<OverlayNode>(overlay)
@@ -116,8 +127,11 @@ impl Document {
             let Some(id) = current else {
                 break;
             };
+            if self.arena.current(id) && self.arena.try_get(id).is_none() {
+                return self.viewport_window();
+            }
             if let Some(overlay) = self.arena.kind_of::<OverlayNode>(id)
-                && let Some(window) = self.real_window(overlay)
+                && let Some(window) = self.real_window(overlay).or_else(|| self.shown_in(overlay))
             {
                 return window;
             }
@@ -234,12 +248,16 @@ impl Document {
             self.layers_changed();
             self.arena.invalidate();
         }
-        let reports = ctx.take_window_reports();
+        let keyboard = ctx.keyboard(|state| state.own_window());
+        let reports = ctx.take_window_reports(|window| {
+            Some(window) != keyboard || self.window_node(window).is_some()
+        });
         if reports.is_empty() {
             return;
         }
         let mut heard = Vec::new();
         let mut unfocused = Vec::new();
+        let mut rastered = false;
         for report in reports {
             let node = self.window_node(report.window());
             match &report {
@@ -259,7 +277,8 @@ impl Document {
                         self.arena.invalidate_node(node);
                     }
                 }
-                WindowReport::Scaled { .. } => {
+                WindowReport::Rastered { .. } => {
+                    rastered = true;
                     if let Some(shown) = node.map(NodeId::from).or(self.root) {
                         self.arena.repaint_node(shown);
                     }
@@ -290,6 +309,9 @@ impl Document {
             }
         });
         drop(guard);
+        if rastered {
+            crate::current::run_in(self, Document::rerasterise_embeds);
+        }
         for node in unfocused {
             let root = node.into();
             if self.contains(root)
@@ -390,6 +412,7 @@ impl Document {
                     window: *window,
                     placement: spec.placement.clone(),
                     size,
+                    role: spec.role,
                 });
                 self.windows.asked.push(*window);
                 self.windows.wanted.insert(*window, size);

@@ -3,7 +3,9 @@ package be3:plugin@0.1.0;
 /// What the host and an editor plugin share.
 interface types {
     use accessibility.{description};
-    use be3:ui/types@0.1.0.{modifiers, pos2, rect, input, preferences, window-requests};
+    use be3:ui/types@0.1.0.{
+        modifiers, pos2, rect, input, preferences, window-requests, window-role,
+    };
 
     use be3:shared/ids@0.1.0.{
         account-id, block-id, block-type-id, organization-id, surface-id, uuid,
@@ -91,10 +93,17 @@ interface types {
         faces: list<font-face>,
     }
 
-    enum editor-region {
+    /// Where an instance is shown. `display(n)` is a further display of a host
+    /// that shows the frame on its first display and one region on each of
+    /// the others, numbered from 1 in the order the host lists its displays.
+    /// `window(w)` is a window the plugin asked for with
+    /// `window-request.open` and the host shows as one of its own.
+    variant editor-region {
         frame,
         preview,
         artifact-settings,
+        display(u32),
+        window(u64),
     }
 
     enum frame-chrome {
@@ -108,10 +117,25 @@ interface types {
         phone,
     }
 
+    /// How a frame shown as a dialog is laid out. The editor draws the
+    /// dialog's whole inside, its title, content and actions, with nothing of
+    /// the host's around it but the card or sheet.
+    record dialog-frame {
+        /// Laid out for a narrow screen or for touch: the footer's buttons
+        /// stretch across it, the primary one first.
+        narrow: bool,
+        /// How much of the frame's bottom is covered, by an on-screen keyboard
+        /// or a phone's gesture bar, which a footer pinned to the bottom stays
+        /// above.
+        bottom-inset: f32,
+    }
+
     record frame-spec {
         chrome: frame-chrome,
         content: option<rect>,
         top-bar: top-bar,
+        /// Set when the frame is shown as a dialog.
+        dialog: option<dialog-frame>,
     }
 
     record viewport-metrics {
@@ -119,15 +143,28 @@ interface types {
         visible: pos2,
         pixel-width: u32,
         pixel-height: u32,
+        /// Pixels per logical point the screen is laid out at.
         scale-factor: f32,
+        /// Pixels per logical point the screen is drawn at, which the pixel
+        /// size counts. It differs from the scale factor where the host shows
+        /// the screen at another size than it lays it out at, as a panel in VR
+        /// does; a change of raster alone needs no new layout, only a painting.
+        raster: f32,
     }
 
+    /// `windows` says the host shows the windows the plugin opens from this
+    /// screen as windows of its own (`window-request`); otherwise the plugin
+    /// draws them inside the screen. `placement` is, for a `window` region,
+    /// where the host last put it, a value only the host reads, which the
+    /// plugin keeps and hands back to open the window there again.
     record screen-request {
         screen: screen-id,
         instance: editor-instance-id,
         region: editor-region,
         metrics: viewport-metrics,
         frame: option<frame-spec>,
+        windows: bool,
+        placement: option<string>,
     }
 
     record screen-placement {
@@ -138,15 +175,22 @@ interface types {
         width: u32,
         height: u32,
         scale-factor-millis: u32,
+        raster-millis: u32,
     }
 
     record screen-layout {
         screens: list<screen-placement>,
     }
 
+    /// `over` names another screen of the plugin the pointer is over while a
+    /// press made in this screen holds it; the event's position is then in that
+    /// screen's coordinates. While a press holds it and the pointer is over none
+    /// of the plugin's screens, the host sends `pointer-left` and goes on with
+    /// positions in this screen's coordinates.
     record timed-input {
         input: input,
         time-micros: option<u64>,
+        over: option<screen-id>,
     }
 
     /// Input for one screen. Batches waiting for the plugin merge: pointer moves
@@ -238,6 +282,9 @@ interface types {
         rotation: f32,
         opacity: f32,
         follows-view: bool,
+        /// Set when the editor shows the child as a dialog, which the host
+        /// passes on to the child's frame.
+        dialog: option<dialog-frame>,
     }
 
     /// A rectangle that hides the children placed before it.
@@ -287,6 +334,69 @@ interface types {
         damage: list<screen-damage>,
     }
 
+    /// A region of the plugin: an instance and where it is shown.
+    record region-ref {
+        instance: editor-instance-id,
+        region: editor-region,
+    }
+
+    record window-over {
+        region: region-ref,
+        at: pos2,
+    }
+
+    /// Where a window opens: at the pointer, with its corner at `at` in a
+    /// region's points, or where a `placement` the host gave says.
+    variant window-placement {
+        at-pointer,
+        over(window-over),
+        host(string),
+    }
+
+    /// `role` says what the window is for, as beui's own windows do: a host
+    /// that shows windows in space never focuses a keyboard or a popup.
+    record window-open {
+        window: u64,
+        opener: region-ref,
+        placement: window-placement,
+        size: size,
+        role: window-role,
+    }
+
+    enum window-edge {
+        top,
+        bottom,
+        left,
+        right,
+        top-left,
+        top-right,
+        bottom-left,
+        bottom-right,
+    }
+
+    record window-resize-begin {
+        window: u64,
+        edge: window-edge,
+    }
+
+    record window-resize {
+        window: u64,
+        size: size,
+    }
+
+    /// What the plugin asks of the host about a window it shows: to open it
+    /// (as a `window` region of the instance it opened from), move or resize it
+    /// with the pointer as a window manager does, give it another size, or
+    /// close it. The host answers through the window's screen: its size and
+    /// scale, its `placement`, focus as input, and closing as the screen going.
+    variant window-request {
+        open(window-open),
+        begin-move(u64),
+        begin-resize(window-resize-begin),
+        resize(window-resize),
+        close(u64),
+    }
+
     /// What a plugin drew: the frame the host composites, with what each
     /// screen asks of its window and the children it placed.
     record frame-commit {
@@ -298,6 +408,7 @@ interface types {
         repaint-after-micros: option<u64>,
         animating: bool,
         presented: option<presented-frame>,
+        window-requests: list<window-request>,
     }
 
     record open-block {
@@ -326,6 +437,8 @@ interface types {
         editor: editor-id,
         block-id: block-id,
         block-type: block-type-id,
+        /// The block the artifact is made from.
+        source: block-id,
         account-id: account-id,
         organization-id: organization-id,
         client-id: installation-id,

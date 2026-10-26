@@ -64,7 +64,8 @@ pub struct Document {
     pub(crate) focus_before: Option<NodeId>,
     pub composed: String,
     pub(crate) keyboard_held: bool,
-    pub(crate) touched: bool,
+    touched: ::reactive::OwnedSignal<bool>,
+    pub(crate) finger_pressed: bool,
     pub(crate) keyboard_asks: u32,
     pub activated: Option<NodeId>,
     pub activation_key: Option<Key>,
@@ -90,6 +91,7 @@ pub struct Document {
     focus_visible: ::reactive::OwnedSignal<bool>,
     focus_watched: ::reactive::OwnedSignal<Option<NodeId>>,
     fullscreen: ::reactive::OwnedSignal<bool>,
+    viewport_size: ::reactive::OwnedSignal<Vec2>,
     reattached: Cell<bool>,
     pub(crate) pointer_lockers: RefCell<Vec<NodeOf<crate::base::interactive::InteractiveNode>>>,
     pub(crate) pointer_locked: Cell<bool>,
@@ -125,6 +127,7 @@ pub struct Document {
     measurements: NodeMap<Vec<Measurement>>,
     offer_dependent: bool,
     baselines: NodeMap<Vec<(Vec2, Option<f32>)>>,
+    min_widths: NodeMap<f32>,
     layout_parent: Option<NodeId>,
     placed_children: NodeMap<Vec<NodeId>>,
     placing: Vec<NodeId>,
@@ -288,7 +291,8 @@ impl Document {
             focus_before: None,
             composed: String::new(),
             keyboard_held: false,
-            touched: false,
+            touched: ::reactive::OwnedSignal::new(false),
+            finger_pressed: false,
             keyboard_asks: 0,
             activated: None,
             activation_key: None,
@@ -315,6 +319,7 @@ impl Document {
             focus_visible: ::reactive::OwnedSignal::new(false),
             focus_watched: ::reactive::OwnedSignal::new(None),
             fullscreen: ::reactive::OwnedSignal::new(false),
+            viewport_size: ::reactive::OwnedSignal::new(Vec2::ZERO),
             reattached: Cell::new(false),
             pointer_lockers: RefCell::default(),
             pointer_locked: Cell::new(false),
@@ -349,6 +354,7 @@ impl Document {
             measurements: NodeMap::default(),
             offer_dependent: false,
             baselines: NodeMap::default(),
+            min_widths: NodeMap::default(),
             layout_parent: None,
             placed_children: NodeMap::default(),
             placing: Vec::new(),
@@ -504,6 +510,10 @@ impl Document {
         self.scale.read_only()
     }
 
+    pub fn watch_viewport_size(&self) -> ::reactive::ReadSignal<Vec2> {
+        self.viewport_size.read_only()
+    }
+
     pub fn watch_fullscreen(&self) -> ::reactive::ReadSignal<bool> {
         self.fullscreen.read_only()
     }
@@ -537,6 +547,20 @@ impl Document {
 
     pub fn watch_keyboard(&self) -> ::reactive::ReadSignal<bool> {
         self.keyboard.read_only()
+    }
+
+    pub fn touched(&self) -> bool {
+        self.touched.get_untracked()
+    }
+
+    pub fn touched_by_finger(&self) -> bool {
+        self.finger_pressed && self.touched()
+    }
+
+    pub(crate) fn set_touched(&self, touched: bool) {
+        if self.touched() != touched {
+            self.touched.set(touched);
+        }
     }
 
     pub(crate) fn set_keyboard(&self, keyboard: bool) {
@@ -632,6 +656,13 @@ impl Document {
             .is_some_and(|(ctx, _, _)| ctx.fullscreen());
         if self.fullscreen.get_untracked() != fullscreen {
             self.fullscreen.set(fullscreen);
+        }
+        let size = self
+            .viewport
+            .as_ref()
+            .map_or(Vec2::ZERO, |(_, rect, _)| rect.size());
+        if self.viewport_size.get_untracked() != size {
+            self.viewport_size.set(size);
         }
         let reattached = self.reattached.replace(false);
         if reattached {
@@ -784,8 +815,12 @@ impl Document {
         }
     }
 
+    pub fn find_test_ids(&self, test_id: &str) -> Vec<NodeId> {
+        self.named_live(test_id, &self.live_nodes())
+    }
+
     pub fn find_test_id(&self, test_id: &str) -> Option<NodeId> {
-        let named = self.named_live(test_id, &self.live_nodes());
+        let named = self.find_test_ids(test_id);
         if named.len() > 1 {
             panic!(
                 "test id {test_id:?} names {} nodes in the tree; give each its own id",
@@ -1081,6 +1116,7 @@ impl Document {
         self.text_bounds.remove(&id);
         self.measurements.remove(&id);
         self.baselines.remove(&id);
+        self.min_widths.remove(&id);
         self.component_states.remove(&id);
         self.component_names.remove(&id);
         self.placed_children.remove(&id);
@@ -1836,6 +1872,7 @@ impl Document {
         if self.arena.stale(id) {
             self.measurements.remove(&id);
             self.baselines.remove(&id);
+            self.min_widths.remove(&id);
             return None;
         }
         let held = self.measurements.get(&id)?;
@@ -1917,6 +1954,20 @@ impl Document {
             held.remove(0);
         }
         held.push((available, baseline));
+    }
+
+    pub fn measured_min_width(&self, id: NodeId) -> Option<f32> {
+        if self.arena.stale(id) {
+            return None;
+        }
+        self.min_widths.get(&id).copied()
+    }
+
+    pub fn remember_min_width(&mut self, id: NodeId, width: f32, watermark: u64) {
+        if self.arena.layout_revision != watermark || self.arena.stale(id) {
+            return;
+        }
+        self.min_widths.insert(id, width);
     }
 
     pub fn note_measured(&self, reused: bool) {

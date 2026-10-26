@@ -4,11 +4,11 @@ use std::rc::Rc;
 
 use be_block::ObjectId;
 use beui::reactive::*;
-use beui::rich::{SpanBackground, TextCaret};
+use beui::rich::TextCaret;
 use beui::styled::*;
 use beui::{
-    Key, KeyPress, NodeId, PasteKind, Pasted, PointerPress, Pos2, ScrollGesture, TextLayout, Vec2,
-    Wrap, primitives,
+    Key, KeyPress, NodeId, Overflow, PasteKind, Pasted, PointerPress, Pos2, ScrollGesture,
+    TextLayout, Vec2,
 };
 use terminal_types::{TerminalColors, TerminalCursor, TerminalLine, TerminalWheel};
 
@@ -16,8 +16,7 @@ use crate::keys::{TerminalInput, key_event, text_event};
 use crate::lines::{Lines, Look, Piece, Shown, color, screen};
 
 const TEXT: TextStyle = TextStyle::CODE;
-const PADDING: f32 = 6.0;
-const CARET_WIDTH: f32 = 2.0;
+const PADDING: Space = Space::Sm;
 const COPY_KEY: Chord = Chord::ctrl(Key::C).shift();
 
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
@@ -121,17 +120,19 @@ pub fn TerminalView(
         false => Vec::new(),
     });
     let spill = Rc::new(Cell::new(0.0_f32));
+    let padding = use_space(PADDING);
     view! {
         <LayoutBuilder>|size: ReadSignal<Vec2>| {
             let measured = create_memo(move || cell().unwrap_or(Vec2::new(7.0, 15.0)));
             create_effect(move || {
                 let size = size.get();
+                let inset = 2.0 * padding.get();
                 let Some(cell) = cell() else {
                     return;
                 };
                 let fit = Fit {
-                    cols: ((size.x - 2.0 * PADDING) / cell.x).floor().max(1.0) as u16,
-                    rows: ((size.y - 2.0 * PADDING) / cell.y).floor().max(1.0) as u16,
+                    cols: ((size.x - inset) / cell.x).floor().max(1.0) as u16,
+                    rows: ((size.y - inset) / cell.y).floor().max(1.0) as u16,
                 };
                 untrack(|| on_fit.call(fit));
             });
@@ -185,7 +186,7 @@ pub fn TerminalView(
                                         }
                                     }}
                                 >
-                                    <List spacing=0.0>
+                                    <List spacing=Space::None>
                                         <Show condition={scrolling}>
                                             <VirtualList
                                                 keys
@@ -233,18 +234,23 @@ fn TerminalRow(key: ReadSignal<ObjectId>, table: Table) -> NodeId {
                 .collect::<Vec<_>>()
         })
     });
-    let wrap = create_memo(move || {
-        shown.with(|shown| shown.as_ref().map_or(Wrap::Off, |shown| shown.wrap))
+    let overflow = create_memo(move || {
+        shown.with(|shown| {
+            shown
+                .as_ref()
+                .map_or(Overflow::Visible, |shown| shown.overflow)
+        })
     });
     let foreground = create_memo(move || color(colors.get().foreground));
+    let caret_width = text_area_geometry().caret_width;
     let carets = create_memo(move || {
         let at = shown.with(|shown| shown.as_ref().and_then(Shown::caret));
-        at.map(|at| vec![TextCaret::new(at, foreground.get(), CARET_WIDTH)])
+        at.map(|at| vec![TextCaret::new(at, foreground.get(), caret_width)])
             .unwrap_or_default()
     });
     let text_color = create_memo(move || TextColor::Custom(foreground.get()));
     view! {
-        <Text style=TEXT color={text_color} wrap carets>
+        <Text style=TEXT color={text_color} overflow carets>
             <ForEach keys={pieces}>|(_, piece): (usize, Piece)|
                 <TerminalPiece piece />
             </ForEach>
@@ -253,10 +259,10 @@ fn TerminalRow(key: ReadSignal<ObjectId>, table: Table) -> NodeId {
 }
 
 #[component]
-fn TerminalPiece(piece: Piece) -> primitives::TextChild {
+fn TerminalPiece(piece: Piece) -> TextChild {
     match piece {
         Piece::Break => view! {
-            <primitives::Break />
+            <Break />
         }
         .into_child(),
         Piece::Text(text, look) => {
@@ -268,24 +274,36 @@ fn TerminalPiece(piece: Piece) -> primitives::TextChild {
                 underline,
                 strikethrough,
             } = look;
-            let background = background.map(|color| SpanBackground {
-                color,
-                radius: 0.0,
-                outset: Vec2::ZERO,
-            });
-            view! {
-                <primitives::Span
-                    bold={Some(bold)}
-                    italic={Some(italic)}
-                    color={Some(color)}
-                    underline={Some(underline)}
-                    strikethrough={Some(strikethrough)}
-                    background
-                >
-                    {text}
-                </primitives::Span>
-            }
-            .into_child()
+            let weight = match bold {
+                true => Weight::Bold,
+                false => Weight::Normal,
+            };
+            let span = match background {
+                Some(fill) => view! {
+                    <Span
+                        weight
+                        italic
+                        color={TextColor::Custom(color)}
+                        underline={Some(underline)}
+                        strikethrough={Some(strikethrough)}
+                        background={ColorRole::Custom(fill)}
+                    >
+                        {text}
+                    </Span>
+                },
+                None => view! {
+                    <Span
+                        weight
+                        italic
+                        color={TextColor::Custom(color)}
+                        underline={Some(underline)}
+                        strikethrough={Some(strikethrough)}
+                    >
+                        {text}
+                    </Span>
+                },
+            };
+            span.into_child()
         }
     }
 }

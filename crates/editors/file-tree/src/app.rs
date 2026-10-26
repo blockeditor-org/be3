@@ -3,6 +3,7 @@ use block_editor_beui::beui::styled::Root;
 use block_editor_beui::{Editor, Loaded};
 
 mod export;
+mod kinds;
 mod menu;
 mod rename;
 mod rows;

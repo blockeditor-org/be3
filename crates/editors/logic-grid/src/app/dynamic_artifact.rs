@@ -1,19 +1,13 @@
 use beui::NodeId;
 use beui::reactive::*;
 use beui::styled::*;
-use block_editor_beui::be_block::{ArtifactSource, BlockContent};
+use block_editor_beui::be_block::{Artifact, BlockContent};
 use block_editor_beui::{Artifacts, BlockList, BlockQuery, EditorHost, OwnedContentProjection};
 use logic_grid_types::CompiledLogic;
 use logic_grid_types::{CompiledLogicContent, CompiledLogicDocument, LogicGridContent};
 use logicgame::grid::LogicGrid as Grid;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
-
-#[derive(Clone, Debug, Deserialize, PartialEq, Eq, Serialize)]
-struct ComponentArtifact {
-    source: Uuid,
-    settings: ComponentSettings,
-}
 
 #[derive(Clone, Debug, Deserialize, PartialEq, Eq, Serialize)]
 struct ComponentSettings {
@@ -28,7 +22,7 @@ impl Default for ComponentSettings {
     }
 }
 
-impl ComponentArtifact {
+impl ComponentSettings {
     fn decode(data: &[u8]) -> Result<Self, String> {
         serde_json::from_slice(data)
             .map_err(|error| format!("logic grid component descriptor is unreadable: {error}"))
@@ -39,18 +33,11 @@ impl ComponentArtifact {
     }
 }
 
-pub(super) fn source(data: &[u8]) -> Result<Uuid, String> {
-    ComponentArtifact::decode(data).map(|artifact| artifact.source)
-}
-
-pub(super) fn descriptor(source_id: Uuid) -> ArtifactSource {
-    ArtifactSource {
+pub(super) fn descriptor(source_id: Uuid) -> Artifact {
+    Artifact {
+        source: source_id.into(),
         source_type: LogicGridContent::CONTENT_TYPE,
-        data: ComponentArtifact {
-            source: source_id,
-            settings: ComponentSettings::default(),
-        }
-        .encode(),
+        settings: ComponentSettings::default().encode(),
     }
 }
 
@@ -63,53 +50,50 @@ pub(super) fn artifact_name(source_name: &str) -> String {
 }
 
 pub(super) fn summary(data: &[u8]) -> String {
-    let Ok(artifact) = ComponentArtifact::decode(data) else {
+    let Ok(settings) = ComponentSettings::decode(data) else {
         return "Compiled component".to_owned();
     };
-    if artifact.settings.rename_with_source {
+    if settings.rename_with_source {
         "Compiled component, named after its grid".to_owned()
     } else {
         "Compiled component".to_owned()
     }
 }
 
-const SETTINGS_PADDING: f32 = 14.0;
-const SETTINGS_SPACING: f32 = 12.0;
+const SETTINGS_SPACING: Space = Space::Lg;
 
 #[component]
 pub(super) fn Settings(artifacts: Artifacts) -> NodeId {
     let data = artifacts.settings();
-    let decoded = create_memo(move || ComponentArtifact::decode(&data.get()).ok());
+    let decoded = create_memo(move || ComponentSettings::decode(&data.get()).ok());
     let readable = create_memo(move || decoded.get().is_some());
     let unreadable = create_memo(move || decoded.get().is_none());
     let renamed = create_memo(move || {
         decoded
             .get()
-            .is_some_and(|artifact| artifact.settings.rename_with_source)
+            .is_some_and(|settings| settings.rename_with_source)
     });
     let edited = artifacts.clone();
     let rename = move |on: bool| {
-        let Some(mut artifact) = decoded.get_untracked() else {
+        let Some(mut settings) = decoded.get_untracked() else {
             return;
         };
-        artifact.settings.rename_with_source = on;
-        edited.edit_settings(artifact.encode());
+        settings.rename_with_source = on;
+        edited.edit_settings(settings.encode());
     };
     view! {
-        <Frame padding=SETTINGS_PADDING>
-            <List spacing=SETTINGS_SPACING>
-                <Show condition={readable}>
-                    <Checkbox
-                        label="Rename with the grid"
-                        checked={Binding::new(renamed, rename.clone())}
-                        @test_id={"logic-grid.rename-with-source"}
-                    />
-                </Show>
-                <Show condition={unreadable}>
-                    <Text style=TextStyle::CAPTION>"These settings cannot be read."</Text>
-                </Show>
-            </List>
-        </Frame>
+        <List spacing=SETTINGS_SPACING>
+            <Show condition={readable}>
+                <Checkbox
+                    label="Rename with the grid"
+                    checked={Binding::new(renamed, rename.clone())}
+                    @test_id={"logic-grid.rename-with-source"}
+                />
+            </Show>
+            <Show condition={unreadable}>
+                <Text style=TextStyle::CAPTION>"These settings cannot be read."</Text>
+            </Show>
+        </List>
     }
 }
 
@@ -117,6 +101,7 @@ pub(super) fn regenerate(
     host: &EditorHost,
     target_id: Uuid,
     target_type: Uuid,
+    source: Uuid,
     data: &[u8],
 ) -> Result<CompileRegeneration, String> {
     if target_type != CompiledLogicContent::CONTENT_TYPE {
@@ -124,14 +109,14 @@ pub(super) fn regenerate(
             "compiling a logic grid expected a Compiled Logic target, found {target_type}"
         ));
     }
-    let artifact = ComponentArtifact::decode(data)?;
+    let settings = ComponentSettings::decode(data)?;
     Ok(CompileRegeneration {
         host: host.clone(),
-        source_id: artifact.source,
-        source: host.content_of::<LogicGridContent>(artifact.source),
-        source_block: host.blocks().watch(BlockQuery::Block(artifact.source)),
+        source_id: source,
+        source: host.content_of::<LogicGridContent>(source),
+        source_block: host.blocks().watch(BlockQuery::Block(source)),
         target: target_id,
-        settings: artifact.settings,
+        settings,
     })
 }
 

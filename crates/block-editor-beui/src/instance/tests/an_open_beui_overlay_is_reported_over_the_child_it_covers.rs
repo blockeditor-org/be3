@@ -3,7 +3,6 @@ use crate::{ChildBlock, ChildState, ChildTarget};
 use beui::ItemSize;
 use beui::reactive::*;
 use beui::styled::*;
-use beui::unstyled::Floating;
 use block_plugin_api::ChildMode;
 
 const BLOCK: Uuid = Uuid::from_u128(1);
@@ -20,7 +19,7 @@ impl crate::BeuiApp for OverlaidApp {
             let child = NodeRef::new();
             view! {
                 <Frame>
-                    <List spacing=0.0>
+                    <List spacing=Space::None>
                         <ChildBlock
                             @node_ref={&child}
                             @sizing=ItemSize::Percent(100.0)
@@ -31,7 +30,7 @@ impl crate::BeuiApp for OverlaidApp {
                             on_state={move |_: ChildState| {}}
                         />
                         <Floating anchor={child}>
-                            <Frame width=PANEL height=PANEL />
+                            <Frame width={Size::Custom(PANEL)} height={Size::Custom(PANEL)} />
                         </Floating>
                     </List>
                 </Frame>

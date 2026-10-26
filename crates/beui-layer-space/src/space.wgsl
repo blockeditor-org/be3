@@ -10,6 +10,7 @@ struct Scene {
     floor: vec4<f32>,
     inverse: mat4x4<f32>,
     options: vec4<f32>,
+    beams: array<vec4<f32>, 6>,
 };
 
 @group(0) @binding(0) var<uniform> scene: Scene;
@@ -141,6 +142,14 @@ fn panel_fragment(input: PanelOut, @builtin(front_facing) front: bool) -> @locat
 }
 
 @fragment
+fn hole_fragment(input: PanelOut, @builtin(front_facing) front: bool) -> @location(0) vec4<f32> {
+    if !front {
+        return vec4<f32>(encode(vec3<f32>(0.05, 0.055, 0.065)), 1.0);
+    }
+    return vec4<f32>(0.0);
+}
+
+@fragment
 fn chrome_fragment(input: PanelOut, @builtin(front_facing) front: bool) -> @location(0) vec4<f32> {
     if !front {
         discard;
@@ -151,6 +160,57 @@ fn chrome_fragment(input: PanelOut, @builtin(front_facing) front: bool) -> @loca
 @fragment
 fn cursor_fragment(input: PanelOut) -> @location(0) vec4<f32> {
     return textureSample(panel_texture, panel_sampler, input.uv);
+}
+
+struct BeamOut {
+    @builtin(position) position: vec4<f32>,
+    @location(0) at: vec3<f32>,
+    @location(1) color: vec4<f32>,
+};
+
+@vertex
+fn beam_vertex(@builtin(vertex_index) index: u32, @builtin(instance_index) instance: u32) -> BeamOut {
+    let beam = instance % 2u;
+    let dot = instance >= 2u;
+    let start = scene.beams[beam * 3u];
+    let end = scene.beams[beam * 3u + 1u];
+    var out: BeamOut;
+    out.color = scene.beams[beam * 3u + 2u];
+    let c = corner(index);
+    let across = c.y * 2.0 - 1.0;
+    var world: vec3<f32>;
+    if dot {
+        let toward = normalize(scene.eye.xyz - end.xyz);
+        let side = c.x * 2.0 - 1.0;
+        world = end.xyz + toward * 0.002 + (scene.right.xyz * side + scene.up.xyz * across) * end.w;
+        out.at = vec3<f32>(side, across, 1.0);
+        if end.w <= 0.0 {
+            out.color = vec4<f32>(0.0);
+        }
+    } else {
+        let point = mix(start.xyz, end.xyz, c.x);
+        let along = end.xyz - start.xyz;
+        let side = normalize(cross(along, scene.eye.xyz - point));
+        world = point + side * across * start.w / 2.0;
+        out.at = vec3<f32>(c.x, across, 0.0);
+        if start.w <= 0.0 {
+            out.color = vec4<f32>(0.0);
+        }
+    }
+    out.position = scene.view_projection * vec4<f32>(world, 1.0);
+    return out;
+}
+
+@fragment
+fn beam_fragment(input: BeamOut) -> @location(0) vec4<f32> {
+    var shape: f32;
+    if input.at.z > 0.5 {
+        shape = 1.0 - smoothstep(0.7, 1.0, length(input.at.xy));
+    } else {
+        shape = (1.0 - smoothstep(0.4, 1.0, abs(input.at.y))) * mix(0.15, 1.0, input.at.x);
+    }
+    let alpha = input.color.a * shape;
+    return vec4<f32>(encode(input.color.rgb) * alpha, alpha);
 }
 
 struct Blit {

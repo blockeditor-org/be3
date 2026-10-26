@@ -1,10 +1,10 @@
 use std::cell::RefCell;
 
 use block_editor_beui::beui::NodeId;
+use block_editor_beui::beui::dock::styled::{TabId, dock_menu, use_dock_tab};
 use block_editor_beui::beui::icons::ICON_LOCK;
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
-use block_editor_beui::beui::unstyled::{TabId, dock_menu, use_dock_tab};
 use block_editor_beui::block_ui::BlockTypes;
 use block_editor_beui::{AccessLevel, BlockInfo, BlockList, BlockParent, BlockQuery, Blocks};
 use block_editor_beui::{
@@ -21,8 +21,8 @@ use super::revisions::RevisionPreviewBar;
 use super::tab::TabItem;
 use super::workspace::{PanelStatus, PhoneSheet, Workspace};
 
-const PANEL_PADDING: f32 = 14.0;
-const PANEL_SPACING: f32 = 6.0;
+const PANEL_PADDING: Space = Space::Lg;
+const PANEL_SPACING: Space = Space::Sm;
 
 #[derive(Clone, PartialEq)]
 pub(crate) struct Refs {
@@ -202,7 +202,7 @@ pub(crate) fn BlockPanel(workspace: Workspace, tab: TabId) -> NodeId {
     on_cleanup(move || workspace.forget_tab_node(tab, top));
     view! {
         <Frame @node_ref={&top}>
-            <List spacing=0.0>
+            <List spacing=Space::None>
                 <Show condition={!session}>
                     <ArtifactBar workspace={workspace} info={info.read_only()} />
                 </Show>
@@ -214,7 +214,7 @@ pub(crate) fn BlockPanel(workspace: Workspace, tab: TabId) -> NodeId {
                 </Show>
                 <RevisionPreviewBar history={workspace.revisions} tab={tab} workspace />
                 <ShowKeepAlive condition={live}>
-                    <List @sizing=ItemSize::Percent(100.0) spacing=0.0>
+                    <List @sizing=ItemSize::Percent(100.0) spacing=Space::None>
                         <Dynamic value={content}>|content: Content| {
                             match content {
                                 Content::Denied => view! {

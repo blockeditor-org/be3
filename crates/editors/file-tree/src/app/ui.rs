@@ -1,17 +1,17 @@
-use beui::Wrap;
+use beui::Overflow;
 use std::collections::HashSet;
 
 use block_editor_beui::BlockParent;
-use block_editor_beui::be_block::{BlockMetadata, WORKSPACE_TYPE};
-use block_editor_beui::beui::accesskit::{Node as AccessNode, Role};
+use block_editor_beui::be_block::{BlockMetadata, Root, WORKSPACE_TYPE, settings::Settings};
 use block_editor_beui::beui::icons::{
-    ICON_BOXES, ICON_CIRCLE_USER_ROUND, ICON_DOWNLOAD, ICON_MOVE, ICON_PLUS, ICON_SPARKLES,
+    Glyph, ICON_BOXES, ICON_CIRCLE_USER_ROUND, ICON_DOWNLOAD, ICON_MOVE, ICON_PLUS, ICON_SETTINGS,
+    ICON_SHARE_2, ICON_SPARKLES,
 };
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
-use block_editor_beui::beui::unstyled::{self, BackSlide, ButtonHandle, MenuItem, TreeItem};
 use block_editor_beui::beui::{Color32, NodeId, Rect};
 use block_editor_beui::block_ui::BlockTypes;
+use block_editor_beui::tags::{ShownTag, TagChip};
 use block_editor_beui::{
     AdministratorWatch, BlockFilter, Drag, Editor, Toolbar, node_anchor, phone_layout,
 };
@@ -24,11 +24,11 @@ use super::rows::{Inspection, Row, RowKey, Tree as FileTree, access_hint, access
 use super::zoom::{Zoom, ZoomBar, zooms};
 use block_editor_beui::beui::TextAlign;
 
-const PADDING: f32 = 8.0;
-const ROW_SPACING: f32 = 6.0;
-const ADD_WIDTH: f32 = 20.0;
-const INSPECT_WIDTH: f32 = 420.0;
-const FIELD_SPACING: f32 = 2.0;
+const PADDING: Space = Space::Md;
+const ROW_SPACING: Space = Space::Sm;
+const INSPECT_WIDTH: Size = Size::Dialog;
+const FIELD_SPACING: Space = Space::Xs2;
+const SETTINGS_TYPE: Uuid = <Settings as Root>::CONTENT_TYPE;
 
 #[component]
 pub fn FileTreeEditor(editor: Editor) -> NodeId {
@@ -97,7 +97,8 @@ pub fn FileTreeEditor(editor: Editor) -> NodeId {
             | RowKey::Note(_)
             | RowKey::SharedNote
             | RowKey::OrphansNote
-            | RowKey::SystemNote => None,
+            | RowKey::SystemNote
+            | RowKey::Pinned(_) => None,
         };
         tree.toggle(&key, id, !expanded);
     };
@@ -123,12 +124,11 @@ pub fn FileTreeEditor(editor: Editor) -> NodeId {
     let failed = create_memo(move || failure.get().is_some());
     let reason = create_memo(move || failure.get().unwrap_or_default());
 
-    let theme = use_theme();
     let outline = move |key: RowKey| {
         let (landed, accepts) = arriving.get()?;
-        (landed == key).then(|| match accepts {
-            true => theme.accent.get(),
-            false => theme.danger.get(),
+        (landed == key).then_some(match accepts {
+            true => ColorRole::Accent,
+            false => ColorRole::Danger,
         })
     };
     let start = move |key: RowKey| {
@@ -184,16 +184,18 @@ pub fn FileTreeEditor(editor: Editor) -> NodeId {
         landing.set(landed);
     });
     view! {
-        <List spacing=0.0>
+        <List spacing=Space::None>
             <Toolbar shown={toolbar}>
-                <IconButton
+                <Button
+                    icon_only=true
                     glyph=ICON_BOXES
                     label="New workspace"
                     @test_id={"file-tree.new-workspace"}
                     on_click={new_workspace}
                 />
                 <Spacer @sizing=ItemSize::Percent(100.0) />
-                <IconButton
+                <Button
+                    icon_only=true
                     @node_ref={&desktop_menu}
                     glyph=ICON_CIRCLE_USER_ROUND
                     label="Account and settings"
@@ -211,7 +213,7 @@ pub fn FileTreeEditor(editor: Editor) -> NodeId {
             <Frame @sizing=ItemSize::Percent(100.0) @node_ref={&content}>
                 <BackSlide enabled={swipes} on_back={move || zoom.up()}>
                     <Frame fill=ColorRole::Background>
-                        <List spacing=0.0>
+                        <List spacing=Space::None>
                             <Show condition={zoomed}>
                                 <ZoomBar zoom addable new_button on_new={adding} />
                             </Show>
@@ -234,7 +236,7 @@ pub fn FileTreeEditor(editor: Editor) -> NodeId {
                                 item={item}
                                 selected={focused}
                                 ancestors={move |key: RowKey| ancestors(&key)}
-                                spacing=2.0
+                                spacing=Space::Xs2
                                 padding=PADDING
                                 row_test_id={move |key: RowKey| row_test_id(&key)}
                                 reveal_test_id={"file-tree.reveal".to_owned()}
@@ -289,17 +291,22 @@ fn PhoneTitle(
 ) -> NodeId {
     view! {
         <Frame fill=ColorRole::Background padding=PADDING>
-            <List direction=Direction::Horizontal align=Align::Center spacing=4.0>
-                <Frame @sizing=ItemSize::Percent(100.0) padding={Sides::symmetric(PADDING, 4.0)}>
+            <List direction=Direction::Horizontal align=Align::Center spacing=Space::Xs>
+                <Frame
+                    @sizing=ItemSize::Percent(100.0)
+                    padding={Padding::symmetric(PADDING, Space::Xs)}
+                >
                     <Text style=TextStyle::TITLE>"Files"</Text>
                 </Frame>
-                <IconButton
+                <Button
+                    icon_only=true
                     @test_id={"file-tree.new-workspace"}
                     glyph=ICON_BOXES
                     label="New workspace"
                     on_click={on_new_workspace}
                 />
-                <IconButton
+                <Button
+                    icon_only=true
                     @node_ref={&menu_button}
                     @test_id={"file-tree.app-menu"}
                     glyph=ICON_CIRCLE_USER_ROUND
@@ -335,7 +342,6 @@ fn Inspector(inspecting: Signal<Option<Inspection>>) -> NodeId {
             title="Inspect"
             width=INSPECT_WIDTH
             id="file-tree.inspect"
-            cancel="Close"
             on_dismiss={dismiss}
         >
             <List spacing=ROW_SPACING>
@@ -362,7 +368,6 @@ fn Field(label: Prop<String>, value: Memo<String>, named: String) -> NodeId {
                 style=TextStyle::PARAGRAPH
                 color=TextColor::Default
                 @test_id={format!("file-tree.inspect.{named}")}
-                wrap=Wrap::Words
             >
                 {value}
             </Text>
@@ -398,7 +403,8 @@ fn ancestors(key: &RowKey) -> Vec<RowKey> {
         | RowKey::Note(_)
         | RowKey::SharedNote
         | RowKey::OrphansNote
-        | RowKey::SystemNote => Vec::new(),
+        | RowKey::SystemNote
+        | RowKey::Pinned(_) => Vec::new(),
     }
 }
 
@@ -414,6 +420,10 @@ fn row_test_id(key: &RowKey) -> String {
         RowKey::SharedNote => "note.shared".to_owned(),
         RowKey::OrphansNote => "note.orphans".to_owned(),
         RowKey::SystemNote => "note.system".to_owned(),
+        RowKey::Pinned(path) => match path.get(1) {
+            Some(id) => format!("pinned.{id}"),
+            None => "pinned".to_owned(),
+        },
     };
     format!("file-tree.{named}")
 }
@@ -432,6 +442,11 @@ fn TreeRow(
     let glyph = create_memo(move || row.get().and_then(|row| row.glyph));
     let has_glyph = create_memo(move || glyph.get().is_some());
     let generated = create_memo(move || row.get().is_some_and(|row| row.dynamic_artifact));
+    let tag_keys = create_memo(move || {
+        row.get()
+            .map(|row| row.tags.iter().map(|tag| tag.id).collect::<Vec<_>>())
+            .unwrap_or_default()
+    });
     let access = create_memo(move || {
         row.get()
             .filter(|row| row.id.is_some())
@@ -445,6 +460,7 @@ fn TreeRow(
     });
     let restricted = create_memo(move || access.get().is_some());
     let can_add = create_memo(move || row.get().is_some_and(|row| row.can_add));
+    let actions = create_memo(move || row.get().is_some_and(|row| has_actions(&row)));
     let muted = create_memo(move || {
         row.get()
             .is_none_or(|row| row.automatic || row.id.is_none() || row.marked_deleted)
@@ -489,12 +505,22 @@ fn TreeRow(
                     <Icon glyph={glyph} />
                 </Text>
             </Show>
-            <List @sizing=ItemSize::Percent(100.0) spacing=0.0>
-                <Text color={color} weight={weight} ellipsis=true>{label}</Text>
+            <List @sizing=ItemSize::Percent(100.0) spacing=Space::None>
+                <Text color={color} weight={weight} overflow=Overflow::Ellipsis>{label}</Text>
                 <Show condition={detailed}>
-                    <Text style=TextStyle::CAPTION ellipsis=true>{detail}</Text>
+                    <Text style=TextStyle::CAPTION overflow=Overflow::Ellipsis>{detail}</Text>
                 </Show>
             </List>
+            <ForEach keys={tag_keys}>|tag: Uuid| {
+                let shown = create_memo(move || {
+                    row.get()
+                        .and_then(|row| row.tags.into_iter().find(|held| held.id == tag))
+                        .unwrap_or(ShownTag { id: tag, name: String::new(), color: Default::default() })
+                });
+                view! {
+                    <TagChip tag={shown} size=TextSize::Xs />
+                }
+            }</ForEach>
             <Show condition={generated}>
                 <Tooltip label="Generated from another block">
                     <Text size={glyph_size} color={generated_color} align=TextAlign::Center>
@@ -509,10 +535,21 @@ fn TreeRow(
                     </Text>
                 </Tooltip>
             </Show>
-            <Show condition={can_add}>
-                <AddChild
+            <Show condition={actions}>
+                <RowActions
+                    editor={editor}
+                    row={row}
+                    key={face.key.clone()}
                     hovered={hovered}
                     row_focused={row_focused}
+                />
+            </Show>
+            <Show condition={can_add}>
+                <RowButton
+                    hovered={hovered}
+                    row_focused={row_focused}
+                    glyph=ICON_PLUS
+                    always=false
                     label={add_label}
                     named={named.clone()}
                     on_click={add_child}
@@ -536,6 +573,7 @@ fn SectionRow(
     let glyph = create_memo(move || row.get().and_then(|row| row.glyph));
     let has_glyph = create_memo(move || glyph.get().is_some());
     let can_add = create_memo(move || row.get().is_some_and(|row| row.can_add));
+    let actions = create_memo(move || row.get().is_some_and(|row| has_actions(&row)));
     let glyph_size = glyph_size();
     let (detail, detailed) = detail(editor, row);
     let add_child = move || {
@@ -552,16 +590,27 @@ fn SectionRow(
                     <Icon glyph={glyph} />
                 </Text>
             </Show>
-            <List @sizing=ItemSize::Percent(100.0) spacing=0.0>
-                <Text weight=Weight::Bold ellipsis=true>{label}</Text>
+            <List @sizing=ItemSize::Percent(100.0) spacing=Space::None>
+                <Text weight=Weight::Bold overflow=Overflow::Ellipsis>{label}</Text>
                 <Show condition={detailed}>
-                    <Text style=TextStyle::CAPTION ellipsis=true>{detail}</Text>
+                    <Text style=TextStyle::CAPTION overflow=Overflow::Ellipsis>{detail}</Text>
                 </Show>
             </List>
-            <Show condition={can_add}>
-                <AddChild
+            <Show condition={actions}>
+                <RowActions
+                    editor={editor}
+                    row={row}
+                    key={face.key.clone()}
                     hovered={hovered}
                     row_focused={row_focused}
+                />
+            </Show>
+            <Show condition={can_add}>
+                <RowButton
+                    hovered={hovered}
+                    row_focused={row_focused}
+                    glyph=ICON_PLUS
+                    always=false
                     label={add_label}
                     named={named.clone()}
                     on_click={add_child}
@@ -626,11 +675,12 @@ pub(crate) fn OpenWith(editor: Editor, row: Memo<Option<Row>>) -> MenuItem {
             .filter(|row| row.access.can_view())
             .and_then(|row| Some((row.id?, row.block_type)))
     });
+    let file_name = create_memo(move || row.get().and_then(|row| row.file_name));
     let editors = create_memo(move || {
         let types = editor.block_types();
         block.get().map_or_else(Vec::new, |(_, block_type)| {
             types
-                .editors_for(block_type)
+                .editors_for(block_type, file_name.get().as_deref())
                 .into_iter()
                 .map(|entry| (entry.editor, entry.name.clone()))
                 .collect::<Vec<_>>()
@@ -727,72 +777,92 @@ pub(crate) fn ExportAs(
 }
 
 #[component]
-fn AddChild(
+fn RowButton(
     hovered: ReadSignal<bool>,
     row_focused: ReadSignal<bool>,
+    glyph: Glyph,
+    always: bool,
     label: Memo<String>,
     named: String,
     on_click: block_editor_beui::beui::reactive::ClickCallback,
 ) -> NodeId {
     let focused = create_signal(false);
     let reachable = create_memo(move || row_focused.get() || focused.get());
-    let shown = create_memo(move || hovered.get() || reachable.get());
-    let accessibility = create_memo(move || {
-        let mut node = AccessNode::new(Role::Button);
-        node.set_label(label.get());
-        node
-    });
+    let shown = create_memo(move || always || hovered.get() || reachable.get());
     view! {
-        <Frame width=ADD_WIDTH>
-            <List spacing=0.0>
-                <unstyled::Button
-                    @test_id={named}
-                    tab_stop={reachable}
-                    capture_presses=true
-                    accessibility={accessibility}
-                    on_focus_change={focused}
-                    on_click={on_click}
-                    content={move |button: ButtonHandle| view! {
-                        <AddChildFace handle={button} shown={shown} label={label} />
-                    }}
-                />
-            </List>
-        </Frame>
+        <Button
+            @test_id={named}
+            icon_only=true
+            glyph={glyph}
+            label={label}
+            variant=ButtonVariant::Ghost
+            size=ButtonSize::Small
+            tab_stop={reachable}
+            revealed={shown}
+            capture_presses=true
+            on_focus_change={focused}
+            on_click={on_click}
+        />
     }
 }
 
+fn has_actions(row: &Row) -> bool {
+    (row.sets_access && row.access.can_manage()) || row.settings.is_some()
+}
+
 #[component]
-fn AddChildFace(handle: ButtonHandle, shown: Memo<bool>, label: Memo<String>) -> NodeId {
-    let ButtonHandle {
-        hovered,
-        active,
-        focused,
-        ..
-    } = handle;
-    let theme = use_theme();
-    let color = create_memo(move || match (shown.get(), hovered.get() || active.get()) {
-        (false, _) => TextColor::Custom(Color32::TRANSPARENT),
-        (true, true) => TextColor::Default,
-        (true, false) => TextColor::Muted,
+fn RowActions(
+    editor: Editor,
+    row: Memo<Option<Row>>,
+    key: RowKey,
+    hovered: ReadSignal<bool>,
+    row_focused: ReadSignal<bool>,
+) -> NodeId {
+    let prefix = row_test_id(&key);
+    let (share_id, settings_id) = (format!("{prefix}.share"), format!("{prefix}.settings"));
+    let shared = create_memo(move || {
+        row.get()
+            .is_some_and(|row| row.sets_access && row.access.can_manage())
     });
-    let fill = create_memo(move || match active.get() {
-        true => theme.pressed.get(),
-        false => Color32::TRANSPARENT,
-    });
+    let settings = create_memo(move || row.get().and_then(|row| row.settings));
+    let has_settings = create_memo(move || settings.get().is_some());
+    let share_label = create_memo(|| "Share: access is set here".to_owned());
+    let settings_label = create_memo(|| "Settings".to_owned());
+    let share = move || {
+        if let Some(id) = row.get_untracked().and_then(|row| row.id) {
+            editor.host().share_block(id);
+        }
+    };
+    let open_settings = move || {
+        if let Some(settings) = settings.get_untracked() {
+            editor.host().open_block(settings, SETTINGS_TYPE);
+        }
+    };
     view! {
-        <Tooltip label={label}>
-            <Frame
-                width=ADD_WIDTH
-                height=ADD_WIDTH
-                fill={ColorRole::custom(fill)}
-                border={focus_border(focused, Border::new(ColorRole::Accent).width(1.0))}
-                radius={Radius::custom(3.0)}
-            >
-                <Text size=TextSize::Xs color={color} align=TextAlign::Center>
-                    <Icon glyph=ICON_PLUS />
-                </Text>
-            </Frame>
-        </Tooltip>
+        <List direction=Direction::Horizontal align=Align::Center spacing=Space::None>
+            <Show condition={shared}>
+                <RowButton
+                    hovered={hovered}
+                    row_focused={row_focused}
+                    glyph=ICON_SHARE_2
+                    always=true
+                    label={share_label}
+                    named={share_id.clone()}
+                    on_click={share}
+                />
+            </Show>
+            <Show condition={has_settings}>
+                <RowButton
+                    hovered={hovered}
+                    row_focused={row_focused}
+                    glyph=ICON_SETTINGS
+                    always=true
+                    label={settings_label}
+                    named={settings_id.clone()}
+                    on_click={open_settings}
+                />
+            </Show>
+        </List>
     }
 }
 

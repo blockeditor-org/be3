@@ -13,6 +13,7 @@ fn a_faded_rect_fades_toward_the_edge_it_names_the_way_the_shader_does() {
                 fade: Fade {
                     rect: [0.0, 0.0, 4.0, 1.0],
                     widths: [2.0, 0.0, 0.0, 0.0],
+                    opacity: 1.0,
                 },
                 content: Content::RoundedRect(RoundedRect {
                     rect: [0.0, 0.0, 4.0, 1.0],

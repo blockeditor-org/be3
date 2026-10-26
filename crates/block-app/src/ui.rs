@@ -1,5 +1,6 @@
 mod debug;
 mod dialogs;
+mod keep_changes;
 mod keys;
 mod lock;
 mod onboarding;
@@ -11,13 +12,12 @@ use std::cell::RefCell;
 use be_protocol::OrganizationRole;
 use beui::reactive::*;
 use beui::styled::*;
-use beui::unstyled::Edge;
 use beui::{ItemSize, NodeId};
 use block_plugin_api::HostPanel;
 use uuid::Uuid;
 
 use crate::app_state::{SavedAccount, ServerLocation};
-use crate::surfaces::MainSurface;
+use crate::compositor::ShellDisplay;
 use crate::wayland::WindowActions;
 
 pub(crate) use debug::{
@@ -82,6 +82,7 @@ pub(crate) struct AccountRow {
     pub(crate) local: bool,
     pub(crate) has_last_organization: bool,
     pub(crate) current: bool,
+    pub(crate) companies: Vec<String>,
 }
 
 impl AccountRow {
@@ -97,7 +98,13 @@ impl AccountRow {
             local: account.server == ServerLocation::Local,
             has_last_organization: account.last_organization_id.is_some(),
             current,
+            companies: Vec::new(),
         }
+    }
+
+    pub(crate) fn in_companies(mut self, companies: Vec<String>) -> Self {
+        self.companies = companies;
+        self
     }
 }
 
@@ -151,8 +158,35 @@ pub(crate) struct ReauthView {
 }
 
 #[derive(Clone, Debug, Default, PartialEq)]
+pub(crate) enum SyncState {
+    #[default]
+    Saved,
+    Connecting,
+    Syncing,
+    Offline {
+        waiting: usize,
+    },
+    Error(String),
+}
+
+#[derive(Clone, Debug, Default, PartialEq)]
+pub(crate) struct UnsentRow {
+    pub(crate) block: Uuid,
+    pub(crate) name: String,
+    pub(crate) offerable: bool,
+}
+
+#[derive(Clone, Debug, Default, PartialEq)]
+pub(crate) struct UnsentView {
+    pub(crate) rows: Vec<UnsentRow>,
+    pub(crate) discarding: Option<Uuid>,
+}
+
+#[derive(Clone, Debug, Default, PartialEq)]
 pub(crate) struct StatusView {
-    pub(crate) changes_saved: bool,
+    pub(crate) sync: SyncState,
+    pub(crate) unsaved: bool,
+    pub(crate) unsent: usize,
     pub(crate) saves: u64,
     pub(crate) organization: String,
     pub(crate) signed_in_as: String,
@@ -294,6 +328,7 @@ pub(crate) struct AppView {
     pub(crate) contacts: Option<ContactsView>,
     pub(crate) members: Option<MembersView>,
     pub(crate) about: bool,
+    pub(crate) unsent: Option<UnsentView>,
     pub(crate) app_menu: Option<AppMenuView>,
     pub(crate) discard: Option<DiscardView>,
     pub(crate) leaving: bool,
@@ -343,6 +378,11 @@ pub(crate) enum UiCommand {
     SwitchOrganization,
     ManageAccounts,
     About(bool),
+    Unsent(bool),
+    RestoreUnsent(Uuid),
+    DiscardUnsent(Uuid),
+    ConfirmDiscardUnsent,
+    CancelDiscardUnsent,
     CloseApp,
     AppMenu(bool),
     SendInvite(String, OrganizationRole),
@@ -444,19 +484,25 @@ fn DisplayWindow(view: AppViewStore, id: String) -> NodeId {
             display.placement
         });
     let title = display.get_untracked().map(|display| display.name);
-    let desktop = create_memo(move || shown.with(|shown| crate::display::desktop(shown)));
+    let index = create_memo({
+        let key = id.clone();
+        move || {
+            shown.with(|shown| {
+                shown
+                    .iter()
+                    .position(|display| display.id == key)
+                    .unwrap_or_default()
+            })
+        }
+    });
     let displays = create_memo(move || {
         shown.with(|shown| shown.iter().map(|display| display.rect).collect::<Vec<_>>())
     });
-    let scale = create_memo(move || display.get().map_or(1.0, |display| display.scale));
     view! {
         <Window size={size} placement={placement} title={title}>|_handle: WindowHandle| {
             provide_context(crate::compositor::DesktopPlace {
                 display: rect,
-                desktop,
                 displays,
-                scale,
-                primary,
             });
             view! {
                 <beui::styled::Root>
@@ -467,7 +513,7 @@ fn DisplayWindow(view: AppViewStore, id: String) -> NodeId {
                                     <Root view />
                                 },
                                 false => view! {
-                                    <SecondaryDisplay view />
+                                    <SecondaryDisplay view index />
                                 },
                             }
                         }</Dynamic>
@@ -480,7 +526,7 @@ fn DisplayWindow(view: AppViewStore, id: String) -> NodeId {
 }
 
 #[component]
-fn SecondaryDisplay(view: AppViewStore) -> NodeId {
+fn SecondaryDisplay(view: AppViewStore, index: Memo<usize>) -> NodeId {
     let area = NodeRef::new();
     let screen = view.screen;
     let presenting = view.presenting;
@@ -490,9 +536,18 @@ fn SecondaryDisplay(view: AppViewStore) -> NodeId {
     });
     view! {
         <Frame @node_ref=&area>
-            <List spacing=0.0>
+            <List spacing=Space::None>
                 <Show condition={desktop}>
-                    <MainSurface @sizing=ItemSize::Percent(100.0) />
+                    <Dynamic value={index}>|index: usize| {
+                        let display = u32::try_from(index).unwrap_or(u32::MAX);
+                        view! {
+                            <ShellDisplay
+                                @sizing=ItemSize::Percent(100.0)
+                                shell={create_memo(move || shell.get())}
+                                display
+                            />
+                        }
+                    }</Dynamic>
                 </Show>
                 <DisplayChrome view area primary=false />
             </List>
@@ -506,7 +561,7 @@ pub(crate) fn Root(view: AppViewStore) -> NodeId {
     let area = NodeRef::new();
     view! {
         <Frame @node_ref=&area>
-            <List spacing=0.0>
+            <List spacing=Space::None>
                 <Dynamic value={screen}>|screen: Screen| {
                     match screen {
                         Screen::Error => view! {
@@ -560,7 +615,7 @@ fn DisplayChrome(view: AppViewStore, area: NodeRef, primary: bool) -> NodeId {
         false => Vec::new(),
     });
     view! {
-        <List spacing=0.0>
+        <List spacing=Space::None>
             <Toasts
                 anchor={area}
                 edge=Edge::TopEnd
@@ -577,7 +632,7 @@ fn DisplayChrome(view: AppViewStore, area: NodeRef, primary: bool) -> NodeId {
                     }
                 }}
             />
-            <KeepChanges
+            <keep_changes::KeepChanges
                 open={asking}
                 title="Keep these display settings?"
                 timeout=crate::display::ANSWER_WITHIN

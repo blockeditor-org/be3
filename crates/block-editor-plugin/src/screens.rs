@@ -132,6 +132,7 @@ impl Screens {
             repaint_after_micros: None,
             animating: false,
             presented: None,
+            window_requests: Vec::new(),
         };
         let mut laid_out: Vec<_> = self.laid_out.drain().collect();
         laid_out.sort_by_key(|instance| instance.0);
@@ -288,7 +289,14 @@ impl Screens {
                     return false;
                 };
                 for event in &batch.events {
-                    session.input(region, event);
+                    let over = event.over.and_then(|over| {
+                        let (instance, region) = self
+                            .layout
+                            .placement(over)
+                            .map(|placement| (placement.instance, placement.region))?;
+                        Some(crate::RegionId { instance, region })
+                    });
+                    session.input(region, event, over);
                 }
                 self.mark(instance);
                 return true;
@@ -345,8 +353,11 @@ impl Screens {
             }
             Opening::Creation(open) => session.connect_creation(open.template),
             Opening::Artifact(open) => session.connect_artifact(
-                Uuid::from_bytes(open.block_id),
-                Uuid::from_bytes(open.block_type),
+                crate::Artifact {
+                    block_id: Uuid::from_bytes(open.block_id),
+                    block_type: Uuid::from_bytes(open.block_type),
+                    source: Uuid::from_bytes(open.source),
+                },
                 open.data,
             ),
         }
@@ -500,6 +511,7 @@ fn catalog(catalog: &Catalog, debug: &[DebugTemplate]) -> BlockCatalog {
         },
         name: editor.name.clone(),
         icon: Glyph::from_codepoint(&editor.icon_codepoint),
+        extensions: editor.extensions.clone(),
     }))
 }
 

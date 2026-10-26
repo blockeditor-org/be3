@@ -3,6 +3,7 @@ pub use crate::components::canvas::{Canvas, CanvasItem};
 pub use crate::components::drawing::Drawing;
 pub use crate::components::embed::Embed;
 pub use crate::components::fade::Fade;
+pub use crate::components::first_fit::{FirstFit, Fitting};
 pub use crate::components::frame::Frame;
 pub use crate::components::grid::{Grid, GridCell};
 pub use crate::components::interactive::Interactive;

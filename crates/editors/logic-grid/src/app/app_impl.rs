@@ -4,7 +4,7 @@ use std::cell::RefCell;
 use beui::NodeId;
 use beui::reactive::*;
 use block_editor_beui::Loaded;
-use block_editor_beui::{ArtifactDescription, Artifacts, Creation, Editor};
+use block_editor_beui::{Artifacts, Creation, Editor};
 
 use super::ui::LogicGridView;
 use super::*;
@@ -35,10 +35,11 @@ impl block_editor_beui::BeuiApp for LogicGridApp {
         let host = artifacts.host().clone();
         let block_id = artifacts.block_id();
         let block_type = artifacts.block_type();
+        let source = artifacts.source();
         let started = Rc::clone(&regeneration);
         let reported = Rc::clone(&failure);
         artifacts.on_regenerate(move |data| {
-            match dynamic_artifact::regenerate(&host, block_id, block_type, data) {
+            match dynamic_artifact::regenerate(&host, block_id, block_type, source, data) {
                 Ok(started_regeneration) => {
                     *started.borrow_mut() = Some(started_regeneration);
                     reported.borrow_mut().take();
@@ -59,11 +60,8 @@ impl block_editor_beui::BeuiApp for LogicGridApp {
         });
     }
 
-    fn describe_artifact(data: &[u8]) -> Result<ArtifactDescription, String> {
-        Ok(ArtifactDescription {
-            source: dynamic_artifact::source(data)?,
-            summary: dynamic_artifact::summary(data),
-        })
+    fn describe_artifact(data: &[u8]) -> Result<String, String> {
+        Ok(dynamic_artifact::summary(data))
     }
 
     #[component]

@@ -18,10 +18,13 @@ fn region() -> Region {
         rect: Rect::from_min_size(pos2(0.0, 0.0), vec2(400.0, 300.0)),
         visible: vec2(0.0, 0.0),
         scale_factor: 1.0,
+        raster: 1.0,
         pixels: [400, 300],
         age: 0,
         spec: FrameSpec::default(),
         describe: None,
         seen: true,
+        windows: false,
+        placement: None,
     }
 }

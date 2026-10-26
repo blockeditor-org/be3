@@ -1,6 +1,6 @@
 use super::*;
+use crate::dock::unstyled::{DockPane, DockSplit, DockTab, DockWindow, DockingLayout};
 use crate::reactive::*;
-use crate::unstyled::{DockPane, DockSplit, DockTab, DockWindow, DockingLayout};
 use crate::{Rect, vec2};
 
 #[test]
@@ -9,7 +9,7 @@ fn the_dock_switcher_shows_the_recent_tabs_and_a_pick_shows_one() {
     let layout = DockingLayout::<u64>::new();
     let document = build_node(move || {
         view! {
-            <styled::Docking layout={layout}>
+            <dock::styled::Docking layout={layout}>
                 <DockSplit id="split">
                     <DockPane id="left">
                         <DockTab id=1u64 title="One">
@@ -35,7 +35,7 @@ fn the_dock_switcher_shows_the_recent_tabs_and_a_pick_shows_one() {
                         </DockTab>
                     </DockPane>
                 </DockWindow>
-            </styled::Docking>
+            </dock::styled::Docking>
         }
     });
     let mut harness = Harness::sized(document, WIDE_VIEWPORT);

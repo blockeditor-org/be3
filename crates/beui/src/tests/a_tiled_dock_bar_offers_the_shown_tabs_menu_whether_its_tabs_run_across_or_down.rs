@@ -1,6 +1,6 @@
 use super::*;
+use crate::dock::unstyled::{DockApi, DockPane, DockTab, DockingLayout, dock_menu};
 use crate::reactive::*;
-use crate::unstyled::{DockApi, DockPane, DockTab, DockingLayout, dock_menu};
 
 fn laid_out(harness: &Harness, test_id: &str) -> bool {
     harness
@@ -29,7 +29,7 @@ fn a_tiled_dock_bar_offers_the_shown_tabs_menu_whether_its_tabs_run_across_or_do
     let document = build_node(move || {
         let layout = DockingLayout::new();
         view! {
-            <styled::Docking @node_ref=&dock layout focus=2u64>
+            <dock::styled::Docking @node_ref=&dock layout focus=2u64>
                 <DockPane id="tabs">
                     <DockTab id=1u64 title="Tab 1">
                         <Frame @test_id="content.1" />
@@ -49,7 +49,7 @@ fn a_tiled_dock_bar_offers_the_shown_tabs_menu_whether_its_tabs_run_across_or_do
                         }}
                     />
                 </DockPane>
-            </styled::Docking>
+            </dock::styled::Docking>
         }
     });
     let mut harness = Harness::sized(document, WIDE_VIEWPORT);

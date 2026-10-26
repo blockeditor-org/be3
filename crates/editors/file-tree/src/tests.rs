@@ -18,6 +18,9 @@ mod a_new_workspace_is_made_at_the_top_and_named_in_place;
 mod a_phone_lists_what_is_shared_with_it;
 mod a_phone_reaches_the_account_s_system_blocks;
 mod a_phone_walks_into_folders_and_opens_files;
+mod a_pinned_block_is_listed_first_in_its_workspace;
+mod a_row_whose_access_or_settings_are_its_own_opens_them_from_an_icon;
+mod a_tag_from_the_workspace_marks_a_block_and_shows_on_its_row;
 mod a_workspace_header_adds_into_that_workspace;
 mod a_workspace_is_shown_with_what_it_holds_already_listed;
 mod an_opened_folder_is_kept_open_in_the_view_and_reopens_open;
@@ -28,7 +31,10 @@ mod exporting_any_block_as_a_block_file_asks_the_host_for_it;
 mod icon_and_color_asks_the_host_from_the_row_and_the_row_shows_what_is_chosen;
 mod inspecting_a_row_shows_what_is_known_about_its_block;
 mod leave_is_offered_on_a_phone_but_never_to_an_administrator;
+mod my_files_offers_no_delete_but_another_workspace_does;
+mod open_with_offers_the_programs_that_open_a_files_extension;
 mod open_with_opens_a_block_in_the_editor_chosen_for_it;
+mod opens_in_keeps_an_editor_for_one_block;
 mod renaming_a_row_edits_its_name_in_place;
 mod renaming_a_row_on_a_phone_edits_it_in_place;
 mod reopening_a_folder_shows_its_children_at_once;
@@ -116,7 +122,7 @@ impl Fixture {
     }
 }
 
-const MY_FILES: Uuid = Uuid::from_u128(0x006d_7966_696c_6573);
+const MY_FILES: Uuid = block_editor_beui::be_block::my_files(Uuid::nil(), Uuid::nil());
 
 fn files_workspace(
     host: &EditorHost,
@@ -124,12 +130,13 @@ fn files_workspace(
 ) -> block_editor_beui::BlockInfo {
     use block_editor_beui::be_block::BlockContent;
     use block_editor_beui::{BlockInfo, BlockParent};
+    assert_eq!(
+        MY_FILES,
+        block_editor_beui::be_block::my_files(host.organization_id(), host.account_id())
+    );
     let mut files = BlockInfo::new(MY_FILES, WorkspaceContent::CONTENT_TYPE, BlockParent::Root);
     files.author = Some(host.account_id());
     files.set_name("My files");
-    files
-        .metadata
-        .insert(&block_editor_beui::be_block::MY_FILES, &true);
     files.references = inside.iter().map(|block| block.id).collect();
     files
 }

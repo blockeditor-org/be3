@@ -1,6 +1,7 @@
 use beui::{Event, Pos2, Rect, Replay, Replayed, Vec2};
 use block_plugin_api::{
-    DroppedFile, Input, InputBatch, Pasted, ScreenId, Size, TimedInput, ViewportMetrics,
+    DroppedFile, Input, InputBatch, Pasted, ScreenId, ScreenPlacement, Size, TimedInput,
+    ViewportMetrics,
 };
 use uuid::Uuid;
 
@@ -79,9 +80,11 @@ impl InputForwarder {
         screen: ScreenId,
         zoom: f32,
         every_sample: bool,
+        aim: &dyn Fn(Option<beui::Over>, Pos2) -> beui::Aim,
+        screen_of: &dyn Fn(beui::NodeId) -> Option<ScreenId>,
     ) -> Vec<super::calls::PluginCall> {
         let mut batch = InputBatch::new(screen, every_sample);
-        for Replayed { input, time } in self.replay.replay(input, zoom) {
+        for Replayed { input, time, over } in self.replay.replay(input, zoom, aim) {
             match input {
                 Input::Paste(Pasted::Text(text)) => {
                     for piece in block_plugin_api::paste_events(&text) {
@@ -91,6 +94,7 @@ impl InputForwarder {
                 input => batch.push(TimedInput {
                     input,
                     time_micros: time.map(crate::host::micros_at),
+                    over: over.and_then(screen_of),
                 }),
             }
         }
@@ -113,7 +117,27 @@ impl InputForwarder {
     }
 }
 
-pub(super) fn viewport_metrics(size: Vec2, visible: Rect, scale_factor: f32) -> ViewportMetrics {
+pub(super) fn finer(placement: &ScreenPlacement) -> f32 {
+    placement.raster() / placement.scale_factor()
+}
+
+pub(super) fn requested_at(metrics: &ViewportMetrics, finer: f32) -> (u32, u32) {
+    let scale = finer * metrics.scale_factor / metrics.raster;
+    match scale.is_finite() && (scale - 1.0).abs() > 1e-3 {
+        true => (
+            (metrics.pixel_width as f32 * scale).round() as u32,
+            (metrics.pixel_height as f32 * scale).round() as u32,
+        ),
+        false => (metrics.pixel_width, metrics.pixel_height),
+    }
+}
+
+pub(super) fn viewport_metrics(
+    size: Vec2,
+    visible: Rect,
+    scale_factor: f32,
+    raster: f32,
+) -> ViewportMetrics {
     let logical = Size {
         width: size.x.max(0.0),
         height: size.y.max(0.0),
@@ -122,8 +146,9 @@ pub(super) fn viewport_metrics(size: Vec2, visible: Rect, scale_factor: f32) -> 
     ViewportMetrics {
         logical,
         visible: Pos2::new(visible.min.x.max(0.0), visible.min.y.max(0.0)),
-        pixel_width: (visible.width().max(0.0) * scale_factor).round() as u32,
-        pixel_height: (visible.height().max(0.0) * scale_factor).round() as u32,
+        pixel_width: (visible.width().max(0.0) * raster).round() as u32,
+        pixel_height: (visible.height().max(0.0) * raster).round() as u32,
         scale_factor,
+        raster,
     }
 }

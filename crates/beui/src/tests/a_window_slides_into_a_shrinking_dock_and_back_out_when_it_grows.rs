@@ -1,5 +1,5 @@
 use super::*;
-use crate::unstyled::DockApi;
+use crate::dock::unstyled::DockApi;
 
 #[test]
 fn a_window_slides_into_a_shrinking_dock_and_back_out_when_it_grows() {

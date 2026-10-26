@@ -609,6 +609,7 @@ impl Runtime {
         let _ = crate::panic_guard::contain(|| self.backend.shutdown());
         previews::forget(&self.plugin.identity.id);
         CRASHED.with(|crashed| crashed.borrow_mut().push(self.plugin.identity.id.clone()));
+        crate::compositor::forget_windows(&self.plugin.identity.id);
         mark(&self.plugin.identity.id);
         host::request_repaint();
     }
@@ -968,7 +969,9 @@ impl Runtime {
             repaint_after_micros,
             animating,
             presented,
+            window_requests,
         } = commit;
+        crate::compositor::request_windows(&self.plugin.identity.id, window_requests);
         self.pacing.animating = animating;
         self.await_next_frame(repaint_after_micros);
         if let Some(presented) = presented {
@@ -1032,6 +1035,7 @@ impl Runtime {
     }
 
     fn template(&self, screen: ScreenId, drawn: Option<(u32, u32)>) -> Blit {
+        let placement = self.layout.placement(screen);
         Blit {
             surface: self.surface,
             status: self.status.clone(),
@@ -1044,10 +1048,13 @@ impl Runtime {
                 .sent
                 .iter()
                 .find(|request| request.screen == screen)
-                .map(|request| (request.metrics.pixel_width, request.metrics.pixel_height)),
-            placed: self
-                .layout
-                .placement(screen)
+                .map(|request| match placement {
+                    Some(placement) => {
+                        super::input::requested_at(&request.metrics, super::input::finer(placement))
+                    }
+                    None => (request.metrics.pixel_width, request.metrics.pixel_height),
+                }),
+            placed: placement
                 .map(|placement| [placement.surface, placement.width, placement.height]),
         }
     }
@@ -1186,6 +1193,16 @@ pub(crate) fn take_pick_answers(
     .unwrap_or_default()
 }
 
+pub(crate) fn take_child_dismissals(
+    plugin_id: &str,
+    instance: EditorInstanceId,
+) -> Vec<block_plugin_api::ChildId> {
+    with(plugin_id, |runtime| {
+        runtime.instances.take_child_dismissals(instance)
+    })
+    .unwrap_or_default()
+}
+
 pub(crate) fn take_child_commits(
     plugin_id: &str,
     instance: EditorInstanceId,
@@ -1320,6 +1337,7 @@ pub(crate) fn artifact(slot: ArtifactSlot<'_>) -> ArtifactState {
         instance,
         editor,
         block,
+        source,
         data,
         resync,
     } = slot;
@@ -1339,6 +1357,7 @@ pub(crate) fn artifact(slot: ArtifactSlot<'_>) -> ArtifactState {
                 block_types,
                 editor,
                 block,
+                source,
                 data,
                 resync,
             );
@@ -1348,11 +1367,8 @@ pub(crate) fn artifact(slot: ArtifactSlot<'_>) -> ArtifactState {
         });
         match (description, runtime.error.clone()) {
             (_, Some(error)) => ArtifactState::Failed(error),
-            (Some(ArtifactDescription::Described { source, summary }), None) => {
-                ArtifactState::Described {
-                    source: Uuid::from_bytes(source),
-                    summary,
-                }
+            (Some(ArtifactDescription::Described(summary)), None) => {
+                ArtifactState::Described(summary)
             }
             (Some(ArtifactDescription::Unreadable(error)), None) => ArtifactState::Failed(error),
             (None, None) => ArtifactState::Starting,
@@ -1711,11 +1727,27 @@ pub(crate) fn region_size(
     .flatten()
 }
 
-pub(crate) fn creation_ready(plugin_id: &str, instance: EditorInstanceId) -> bool {
+pub(crate) fn dialog_status(
+    plugin_id: &str,
+    instance: EditorInstanceId,
+) -> Option<block_plugin_api::DialogStatus> {
     with(plugin_id, |runtime| {
-        runtime.instances.creation_ready(instance)
+        runtime.instances.dialog_status(instance)
     })
-    .unwrap_or_default()
+    .flatten()
+}
+
+pub(crate) fn forget_dialog_answer(plugin_id: &str, instance: EditorInstanceId) {
+    with(plugin_id, |runtime| {
+        runtime.instances.forget_dialog_answer(instance)
+    });
+}
+
+pub(crate) fn dismiss(plugin_id: &str, instance: EditorInstanceId) {
+    with(plugin_id, |runtime| {
+        let messages = runtime.instances.dismiss(instance);
+        runtime.send(messages);
+    });
 }
 
 pub(crate) fn commit_creation(plugin_id: &str, instance: EditorInstanceId) {
@@ -2029,7 +2061,9 @@ pub(crate) struct RegionPlacement {
     pub(crate) rect: Rect,
     pub(crate) clip: Rect,
     pub(crate) zoom: f32,
-    pub(crate) raster: Option<f32>,
+    pub(crate) raster: f32,
+    pub(crate) windows: bool,
+    pub(crate) placement: Option<String>,
 }
 
 pub(super) struct Offer {
@@ -2088,10 +2122,17 @@ fn apply_offers(runtime: &mut Runtime, instance: EditorInstanceId, region: Edito
             })
             .reduce(|shown, source| shown.union(source)),
     };
+    let seen = |offer: &Offer| {
+        let shown = offer.placement.rect.intersect(offer.placement.clip);
+        shown.width().max(0.0) * shown.height().max(0.0)
+    };
     let raster = offers
         .iter()
-        .filter_map(|offer| offer.placement.raster)
-        .reduce(f32::max);
+        .filter(|offer| offer.placement.raster.is_finite() && offer.placement.raster > 0.0)
+        .max_by(|a, b| seen(a).total_cmp(&seen(b)))
+        .map(|offer| offer.placement.raster);
+    let windows = chosen.placement.windows;
+    let host_placement = chosen.placement.placement.clone();
     let frame = chosen.frame;
     let view = chosen.view;
     let RegionPlacement {
@@ -2116,15 +2157,25 @@ fn apply_offers(runtime: &mut Runtime, instance: EditorInstanceId, region: Edito
             rect.size(),
             preview_scale(rect.size(), host::pixels_per_point()),
         ),
-        _ => (
-            rect.size() / zoom,
-            raster.unwrap_or_else(host::pixels_per_point) * zoom,
-        ),
+        _ => (rect.size() / zoom, host::pixels_per_point() * zoom),
+    };
+    let raster = match (raster, region) {
+        (None, _) => scale_factor,
+        (Some(raster), EditorRegion::Preview) => preview_scale(rect.size(), scale_factor * raster),
+        (Some(raster), _) => scale_factor * raster,
     };
     let visible = shown.map_or(Rect::ZERO, |source| scale_rect(source, size));
-    runtime
-        .instances
-        .place_mounted(instance, region, frame, size, visible, scale_factor);
+    runtime.instances.place_mounted(
+        instance,
+        region,
+        frame,
+        size,
+        visible,
+        scale_factor,
+        raster,
+        windows,
+        host_placement,
+    );
     if let Some(view) = view {
         runtime.instances.set_view(instance, view);
     }
@@ -2138,9 +2189,13 @@ pub(crate) fn forward_region(
     instance: EditorInstanceId,
     region: EditorRegion,
     input: &beui::ForwardedInput,
+    aim: &dyn Fn(Option<beui::Over>, beui::Pos2) -> beui::Aim,
+    target: &dyn Fn(beui::NodeId) -> Option<(EditorInstanceId, EditorRegion)>,
 ) {
     with(plugin_id, |runtime| {
-        let (messages, revoked) = runtime.instances.forward(instance, region, input);
+        let (messages, revoked) = runtime
+            .instances
+            .forward(instance, region, input, aim, target);
         runtime.pacing.needed |= !messages.is_empty();
         runtime.send(messages);
         if revoked {
@@ -2364,9 +2419,7 @@ fn placed_view(
         let chosen = (placement.rect, placement.clip);
         let (rect, clip) = own.map_or(chosen, |own| (own.rect, own.clip));
         let screen = runtime.instances.screen_id(instance, region);
-        let drawn = screen
-            .and_then(|screen| runtime.layout.placement(screen))
-            .map(|placement| (placement.width, placement.height));
+        let painted = screen.and_then(|screen| runtime.layout.placement(screen));
         let visible = rect.intersect(clip);
         let shown = runtime
             .placements
@@ -2377,9 +2430,18 @@ fn placed_view(
             rect.min + vec2(shown.max.x * rect.width(), shown.max.y * rect.height()),
         );
         let held = match (rect, clip) == chosen {
-            true => runtime
-                .instances
-                .held(instance, region, Some(visible), clip, drawn),
+            true => runtime.instances.held(
+                instance,
+                region,
+                Some(visible),
+                clip,
+                painted.map(|placement| {
+                    (
+                        (placement.width, placement.height),
+                        super::input::finer(placement),
+                    )
+                }),
+            ),
             false => None,
         };
         let (children, holes) = runtime

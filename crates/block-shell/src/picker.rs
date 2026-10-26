@@ -2,8 +2,8 @@ use block_editor_beui::beui::icons::Glyph;
 use std::collections::{HashMap, HashSet};
 
 use block_editor_beui::beui::Rect;
+use block_editor_beui::beui::dock::styled::TabId;
 use block_editor_beui::beui::icons::{ICON_BOXES, ICON_USERS};
-use block_editor_beui::beui::unstyled::TabId;
 use block_editor_beui::block_ui::{BlockCatalog, BlockTypes, TemplateCategory, TemplateEntry};
 use block_editor_beui::sections::{is_workspace, shared_with_me, workspaces};
 use block_editor_beui::{
@@ -27,6 +27,7 @@ pub(crate) struct Creating {
     pub(crate) committed: bool,
     pub(crate) sent: bool,
     pub(crate) child: Option<ChildId>,
+    pub(crate) height: Option<f32>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -73,6 +74,7 @@ pub(crate) enum PickAction {
     UnfoldPlace(TreeKey, bool),
     Link(Uuid, Uuid),
     Import,
+    CopyTemplate(Uuid),
     Create,
     CancelCreation,
     Close,
@@ -186,6 +188,7 @@ impl Pick {
                     committed: false,
                     sent: false,
                     child: None,
+                    height: None,
                 });
                 if !dialog {
                     return self.act(PickAction::Create);
@@ -203,7 +206,7 @@ impl Pick {
                     None,
                 );
             }
-            PickAction::Import => {}
+            PickAction::Import | PickAction::CopyTemplate(_) => {}
             PickAction::Create => {
                 if let Some(creating) = &mut self.creating {
                     creating.committed = true;
@@ -352,6 +355,7 @@ pub(crate) fn groups(catalog: &BlockCatalog, pick: &Pick) -> Vec<TypeGroup> {
 }
 
 pub(crate) struct Graph {
+    pub(crate) organization: Uuid,
     pub(crate) account: Uuid,
     pub(crate) roots: Vec<BlockInfo>,
     pub(crate) shared: Vec<BlockInfo>,
@@ -361,7 +365,7 @@ pub(crate) struct Graph {
 
 impl Graph {
     fn sections(&self, types: &dyn BlockTypes) -> Vec<BlockInfo> {
-        workspaces(self.roots.clone(), self.account, types)
+        workspaces(self.roots.clone(), self.organization, self.account, types)
             .into_iter()
             .filter(|block| !block.deleted)
             .collect()

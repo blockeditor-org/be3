@@ -1,6 +1,6 @@
 use std::path::{Path, PathBuf};
 
-use beui_core::app::{App, FrameTimes, Setup};
+use beui_core::app::{App, FrameTimes, Lifecycle, Setup};
 use beui_core::context::Context;
 use beui_core::geometry::Rect;
 use beui_core::preferences::{PreferenceLayer, PreferenceSource};
@@ -55,6 +55,10 @@ impl<A: App> App for SavedPreferences<A> {
 
     fn exiting(&mut self) {
         self.app.exiting();
+    }
+
+    fn lifecycle(&mut self, change: Lifecycle) {
+        self.app.lifecycle(change);
     }
 
     fn busy(&self) -> bool {

@@ -189,18 +189,22 @@ that replica as its parent, which is how the host knows the block.
 
 What the host owes a replica:
 
-- **Time.** The module starts `host.clock` once, a `stream<u64>` of the frame clock
-  in milliseconds, and the host yields the time on it whenever the clock moved, ahead
-  of any other frame. `host.sleep-until(at)` asks to be woken: the host yields a time
-  at or after `at` and then completes it; the module cancels it when it wants another
-  time. The replica never reads a clock, so a test moves time by yielding.
+- **Time.** The module starts `host.clock` once, a `stream<u64>` of the host's
+  `be_client::Clock` in milliseconds (`Modules::new` takes it; an editor's frames are
+  stamped with the frame clock's instant, which `Clock::at` places on that clock), and
+  the host yields the time on it whenever the clock moved, ahead of any other frame.
+  `host.sleep-until(at)` asks to be woken: the host yields a time at or after `at` and
+  then completes it; the module cancels it when it wants another time. The replica
+  never reads a clock, so a test moves time by yielding.
 - **Opening.** The constructor's `opening` carries the head the host just read, the
   session's lease state, the client id and a `session-tag` (the module's hash). The
   replica reads the head itself (`read`) and queues everything until it arrives. The
   host must call `head-moved` for every head that lands after the one in `opening`
   (including the remote head, when it opened at a local head it differs from), since
   the replica does not reconcile on opening. `reopen(opening)` starts the replica over
-  after the host reconnected; the host replays what it kept.
+  after the host reconnected or joined late; the host replays what it kept (its
+  editors' messages and its own `change`s) and asks again whatever `change`,
+  `content` or `seal` was still unanswered, handing the new answer to the old caller.
 - **IO answers.** `read`, `publish` (`published` or `rejected` with the current head;
   an unchanged save is `published` with the same head), `stash` and `resume-session`
   (the host fetches both histories and runs `be_session::resume`; the replica cannot
@@ -238,7 +242,11 @@ sequencing, follower rebase and `apply_beneath`, the 1 MiB relay limit (a follow
 queued edits are absorbed into pieces no larger), `Snapshot`/`Sealed`/`reload`,
 `Replaced`, `Moved`, `Kept`/`Saved`, takeover with `Sequencer::continuing`, presence
 and channel messages. Its rules: an owner that owes a seal seals `SEAL_INTERVAL`
-(750 ms) after it started owing; a rejected seal reconciles and seals once more;
+(750 ms) after it started owing; while a seal's publish is unanswered the
+replica goes on taking its editors' edits, child changes, undo and redo (they show
+at once, held back from the sequence so peers hear `Sealed` before them, and are
+sequenced and sealed next once the answer comes), and only what could move its
+base waits; a rejected seal reconciles and seals once more;
 reconcile merges unsaved work into whatever it fast-forwards or merges onto and
 stashes our side when the merge conflicts; a head moved from elsewhere reconciles an
 owner, and one this device published outside the session (`from_this_device`) sends
@@ -335,7 +343,9 @@ one that is only ever the root of one (a workspace); `TypeInfo::plain` says whic
 form each type has. The order is the order `claims` asks in. A type that takes any
 file (the workspace plugin's file type) sets `ANY_FILE` on its `BlobFile` or
 `DocumentFile`, and answers only a `claims` with `fallback`: a host asks every
-module without it first, then every module with it.
+module without it first, then every module with it (`Modules::claim_requests`,
+which both `be sync` and block-app's import of a picked file follow, so one rule
+decides what a file becomes).
 
 `Module` implements the generated `guest::exports::replicas::Guest` (its stateless
 functions are callable directly, as the types crates' tests do), and its `OpenReplica`

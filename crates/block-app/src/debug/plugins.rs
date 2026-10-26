@@ -196,11 +196,12 @@ fn instance_lines(lines: &mut Vec<Line>, instance: &InstanceStatus) {
 
 fn screen_line(lines: &mut Vec<Line>, screen: &ScreenStatus) {
     let text = format!(
-        "{:?} #{} — {} pt @ {:.2} ({}x{} px){}{}{}{}",
+        "{:?} #{} — {} pt @ {:.2}, drawn @ {:.2} ({}x{} px){}{}{}{}",
         screen.region,
         screen.screen.0,
         size(screen.logical),
         screen.scale_factor,
+        screen.raster,
         screen.pixels[0],
         screen.pixels[1],
         screen

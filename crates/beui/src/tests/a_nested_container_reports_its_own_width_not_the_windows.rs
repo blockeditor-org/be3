@@ -1,5 +1,6 @@
 use super::*;
 use crate::primitives::Frame;
+use crate::primitives::List;
 use crate::reactive::*;
 use crate::styled::*;
 use crate::unstyled::{Container, narrower_than};
@@ -22,7 +23,7 @@ fn a_nested_container_reports_its_own_width_not_the_windows() {
                 collapsed.update(|collapsed| collapsed.push(narrow));
                 view! {
                     <List spacing=0.0>
-                        <Stack spacing=0.0 breakpoint=BREAKPOINT>
+                        <Stack spacing=Space::None breakpoint=BREAKPOINT>
                             <Frame
                                 @sizing=ItemSize::Percent(100.0)
                                 @node_ref=&outer_item
@@ -37,7 +38,7 @@ fn a_nested_container_reports_its_own_width_not_the_windows() {
                                 let narrow = narrower_than(BREAKPOINT);
                                 collapsed.update(|collapsed| collapsed.push(narrow));
                                 view! {
-                                    <Stack spacing=0.0 breakpoint=BREAKPOINT>
+                                    <Stack spacing=Space::None breakpoint=BREAKPOINT>
                                         <Frame
                                             @sizing=ItemSize::Percent(100.0)
                                             @node_ref=&inner_item

@@ -1,10 +1,10 @@
+use beui::Overflow;
 use block_editor_beui::beui::icons::{
     ICON_CHEVRON_FIRST, ICON_CHEVRON_LAST, ICON_CHEVRON_LEFT, ICON_CHEVRON_RIGHT,
 };
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
-use block_editor_beui::beui::unstyled;
-use block_editor_beui::beui::{Color32, NodeId, TextAlign};
+use block_editor_beui::beui::{NodeId, TextAlign};
 
 use super::{Steps, Table};
 
@@ -72,43 +72,47 @@ pub(crate) fn MoveTable(table: Memo<Table>, shown: Memo<usize>, steps: Steps) ->
     let ended = create_memo(move || table.with(|table| table.ending.is_some()));
     let muted = TextColor::Muted;
     view! {
-        <List spacing=6.0>
-            <List direction=Direction::Horizontal align=Align::Center spacing=2.0>
+        <List spacing=Space::Sm>
+            <List direction=Direction::Horizontal align=Align::Center spacing=Space::Xs2>
                 <Text style=TextStyle::CAPTION @sizing=ItemSize::Percent(100.0)>"Moves"</Text>
-                <IconButton
+                <Button
+                    icon_only=true
                     glyph=ICON_CHEVRON_FIRST
                     label="First move"
-                    size=IconButtonSize::Compact
+                    size=ButtonSize::Small
                     disabled={at_start}
                     @test_id={"game.history.first"}
                     on_click={move || steps.first()}
                 />
-                <IconButton
+                <Button
+                    icon_only=true
                     glyph=ICON_CHEVRON_LEFT
                     label="Previous move"
-                    size=IconButtonSize::Compact
+                    size=ButtonSize::Small
                     disabled={at_start}
                     @test_id={"game.history.previous"}
                     on_click={move || steps.previous()}
                 />
-                <IconButton
+                <Button
+                    icon_only=true
                     glyph=ICON_CHEVRON_RIGHT
                     label="Next move"
-                    size=IconButtonSize::Compact
+                    size=ButtonSize::Small
                     disabled={at_end}
                     @test_id={"game.history.next"}
                     on_click={move || steps.next()}
                 />
-                <IconButton
+                <Button
+                    icon_only=true
                     glyph=ICON_CHEVRON_LAST
                     label="Latest move"
-                    size=IconButtonSize::Compact
+                    size=ButtonSize::Small
                     disabled={at_end}
                     @test_id={"game.history.last"}
                     on_click={move || steps.last()}
                 />
             </List>
-            <List direction=Direction::Horizontal spacing=2.0>
+            <List direction=Direction::Horizontal spacing=Space::Xs2>
                 <Text size=TextSize::Sm color={muted} @sizing=ItemSize::Fixed(NUMBER_WIDTH)>
                     "#"
                 </Text>
@@ -117,7 +121,12 @@ pub(crate) fn MoveTable(table: Memo<Table>, shown: Memo<usize>, steps: Steps) ->
                         columns.with(|columns| columns.get(column).cloned().unwrap_or_default())
                     });
                     view! {
-                        <Text size=TextSize::Sm color={muted} @sizing=ItemSize::Percent(100.0)>
+                        <Text
+                            overflow=Overflow::Ellipsis
+                            size=TextSize::Sm
+                            color={muted}
+                            @sizing=ItemSize::Percent(100.0)
+                        >
                             {name}
                         </Text>
                     }
@@ -126,7 +135,7 @@ pub(crate) fn MoveTable(table: Memo<Table>, shown: Memo<usize>, steps: Steps) ->
             <Show condition={empty}>
                 <Text style=TextStyle::CAPTION>"No moves yet"</Text>
             </Show>
-            <List spacing=1.0>
+            <List spacing=Space::Xs2>
                 <ForEach keys>|row: usize|
                     <MoveRow row rows={rows} columns={column_keys} shown={shown} steps={steps} />
                 </ForEach>
@@ -148,7 +157,7 @@ fn MoveRow(
 ) -> NodeId {
     let muted = TextColor::Muted;
     view! {
-        <List direction=Direction::Horizontal align=Align::Center spacing=2.0>
+        <List direction=Direction::Horizontal align=Align::Center spacing=Space::Xs2>
             <Text size=TextSize::Sm color={muted} @sizing=ItemSize::Fixed(NUMBER_WIDTH)>
                 {format!("{}", row + 1)}
             </Text>
@@ -188,7 +197,6 @@ fn MoveCell(
                 .unwrap_or_default()
         })
     });
-    let theme = use_theme();
     let chosen = create_memo(move || {
         let shown = shown.get();
         cell.with(|cell| {
@@ -196,29 +204,18 @@ fn MoveCell(
                 .is_some_and(|cell| shown > cell.first && shown <= cell.last + 1)
         })
     });
-    let fill = create_memo(move || match chosen.get() {
-        true => theme.get().accent_soft,
-        false => Color32::TRANSPARENT,
-    });
-    let color = TextColor::Default;
     let open = move || {
         if let Some(cell) = cell.get_untracked() {
             steps.show(cell.last + 1);
         }
     };
     view! {
-        <unstyled::Button
+        <ListRow
+            label={text}
+            selected={chosen}
             @test_id={format!("game.history.{row}.{column}")}
             on_click={open}
-        >|_: unstyled::ButtonHandle|
-            <Frame
-                fill={ColorRole::custom(fill)}
-                radius=Radius::Sm
-                padding={Sides::symmetric(6.0, 3.0)}
-            >
-                <Text size=TextSize::Sm color={color}>{text}</Text>
-            </Frame>
-        </unstyled::Button>
+        />
     }
 }
 
@@ -246,7 +243,7 @@ fn Result(table: Memo<Table>) -> NodeId {
     let text = TextColor::Default;
     let muted = TextColor::Muted;
     view! {
-        <List spacing=2.0 align=Align::Center @test_id={"game.result"}>
+        <List spacing=Space::Xs2 align=Align::Center @test_id={"game.result"}>
             <Show condition={scored}>
                 <Text size=TextSize::Lg weight=Weight::Bold color={text} align=TextAlign::Center>
                     {score}

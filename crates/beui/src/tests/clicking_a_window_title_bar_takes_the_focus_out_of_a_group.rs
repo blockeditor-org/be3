@@ -1,5 +1,5 @@
 use super::*;
-use crate::unstyled::{DockApi, Entry, TabId};
+use crate::dock::unstyled::{DockApi, Entry, TabId};
 
 #[test]
 fn clicking_a_window_title_bar_takes_the_focus_out_of_a_group() {

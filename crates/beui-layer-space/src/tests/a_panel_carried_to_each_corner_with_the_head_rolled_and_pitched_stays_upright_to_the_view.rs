@@ -56,7 +56,7 @@ fn a_panel_carried_to_each_corner_with_the_head_rolled_and_pitched_stays_upright
         );
     }
     send(&mut space, at, [button(corners[3], false)]);
-    assert_eq!(space.carry, None);
+    assert_eq!(space.mouse.carry, None);
     assert!(
         upright_to(&space, main(&space)) < 1e-3,
         "and after letting go"

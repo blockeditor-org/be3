@@ -1,4 +1,4 @@
-use beui_core::font::Wrap;
+use beui_core::font::Overflow;
 use beui_core::layer::LayerPolicy;
 use std::collections::HashMap;
 use std::rc::Rc;
@@ -24,19 +24,10 @@ use beui_view::reactive::*;
 use super::colors::TextAreaColors;
 use super::hooks::{MARGIN_MIN_WIDTH_EM, Margin, MarkerKind, TextLeaf, TextLine, TextMarker};
 use super::rows::{
-    BODY_SIZE, DOCUMENT_PADDING, Inline, InlineItem, LINE_PADDING, RUN_CHIP_SIZE, Row, RowInputs,
-    RowKey, RowOptions, SpanKind, TableColumns, build_row, galley, line_range, row_key,
-    table_columns,
+    Inline, InlineItem, Row, RowInputs, RowKey, RowOptions, SpanKind, TableColumns, build_row,
+    galley, line_range, row_key, table_columns,
 };
-use super::{
-    CARET_WIDTH, Context, GUTTER_ARROW_SIZE, GUTTER_PADDING_LEFT, GUTTER_PADDING_RIGHT,
-    GeometryCell, INLINE_WIDGET_RADIUS, REMOTE_SELECTION_ALPHA, RUN_CHIP_RADIUS, RowEntry,
-};
-
-const INLINE_WIDGET_HEIGHT: f32 = 24.0;
-const INLINE_WIDGET_ICON_INSET: f32 = 13.0;
-const RUN_CHIP_HEIGHT: f32 = 16.0;
-const RUN_CHIP_PADDING: f32 = 4.0;
+use super::{Context, GeometryCell, RowEntry};
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub(super) enum Layer {
@@ -50,10 +41,10 @@ pub(super) fn Lines(cx: Context) -> NodeId {
     let fill = create_memo(move || Some(cx.view_height.get()));
     let list = cx.list;
     let keys = cx.visible;
-    let top = create_memo(move || Some(cx.padding.get().y));
+    let top = create_memo(move || Some(cx.padding.get().top));
     let bottom = create_memo(move || match cx.prose.get() {
-        Some(_) => Some(cx.padding.get().y),
-        None => Some((DOCUMENT_PADDING.y - cx.padding.get().y).max(0.0)),
+        Some(_) => Some(cx.padding.get().bottom),
+        None => Some((cx.geometry.get().end_room - cx.padding.get().bottom).max(0.0)),
     });
     let align = create_memo(move || match cx.prose.get() {
         Some(prose) => Align2::new(
@@ -91,9 +82,10 @@ pub(super) fn Lines(cx: Context) -> NodeId {
             .rights
             .with(|rights| rights.values().copied().reduce(f32::max))?;
         let below = bottom.get().unwrap_or(0.0);
+        let scale = scale_of(cx, canvas);
         Some(Vec2::new(
-            right.max(left) - left + padding.x,
-            padding.y + rows.get().height() + below,
+            (right.max(left) - left) / scale + padding.right,
+            padding.top + rows.get().height() / scale + below,
         ))
     });
     create_effect(move || {
@@ -104,6 +96,15 @@ pub(super) fn Lines(cx: Context) -> NodeId {
     lines
 }
 
+fn scale_of(cx: Context, canvas: NodeRef) -> f32 {
+    canvas
+        .try_get()
+        .map_or(1.0, |canvas| {
+            cx.held.with(|held| held.placements.scale(canvas))
+        })
+        .max(f32::EPSILON)
+}
+
 #[component]
 pub(super) fn SingleLine(cx: Context) -> NodeId {
     let canvas = cx.state.canvas();
@@ -111,26 +112,33 @@ pub(super) fn SingleLine(cx: Context) -> NodeId {
     let bounds = create_signal(Rect::ZERO);
     let geometry = GeometryCell::default();
     let text = create_memo(move || {
-        let laid = bounds.get().size();
+        let scale = scale_of(cx, canvas);
+        let laid = bounds.get().size() / scale;
         cx.metrics.get();
         let body = galley("", FontId::proportional(cx.font_size.get()))
             .map_or(0.0, |galley| galley.line_height());
         Vec2::new(laid.x, laid.y.max(body))
     });
     create_effect(move || cx.text_extent.set(text.get()));
-    let canvas_width = create_memo(move || text.get().x + cx.padding.get().x * 2.0 + CARET_WIDTH);
-    let canvas_height = create_memo(move || text.get().y + cx.padding.get().y * 2.0);
-    let x = create_memo(move || cx.padding.get().x - cx.shift.get());
+    let canvas_width = create_memo(move || {
+        let padding = cx.padding.get();
+        text.get().x + padding.left + padding.right + cx.geometry.get().caret_width
+    });
+    let canvas_height = create_memo(move || {
+        let padding = cx.padding.get();
+        text.get().y + padding.top + padding.bottom
+    });
+    let x = create_memo(move || cx.padding.get().left - cx.shift.get());
     let y = create_memo(move || {
         let padding = cx.padding.get();
         let line = text.get().y;
         let height = cx.view_height.get();
-        match height > line + padding.y * 2.0 {
+        match height > line + padding.top + padding.bottom {
             true => (height - line) / 2.0,
-            false => padding.y,
+            false => padding.top,
         }
     });
-    let text_width = create_memo(move || text.get().x + CARET_WIDTH);
+    let text_width = create_memo(move || text.get().x + cx.geometry.get().caret_width);
     let text_height = create_memo(move || text.get().y);
     let handles = handles_drawing(cx, model, geometry.clone(), bounds.read_only());
     view! {
@@ -157,6 +165,7 @@ fn handles_drawing(
         bounds.get();
         let row = model.get();
         let color = cx.colors.get().caret;
+        let caret_width = cx.geometry.get().caret_width;
         let handles: Vec<_> = cursors
             .get()
             .handles
@@ -172,10 +181,13 @@ fn handles_drawing(
                 return;
             };
             for (handle, at) in &handles {
-                let Some(caret) = text.caret_rect(*at, CARET_WIDTH) else {
+                let Some(caret) = text.caret_rect(*at, caret_width) else {
                     continue;
                 };
-                let caret = caret.translate(rect.min - laid.min);
+                let caret = caret
+                    .translate(-laid.min.to_vec2())
+                    .scaled(text.scale().recip())
+                    .translate(rect.min.to_vec2());
                 let (shape, corners, angle) = handle_shape(caret, *handle);
                 painter
                     .rotated(shape.center(), angle)
@@ -192,7 +204,7 @@ fn AreaRow(cx: Context, line: ReadSignal<usize>) -> NodeId {
     let gutter = create_memo(move || Some(cx.gutter.get()));
     let numbered = create_memo(move || cx.gutter.get() > 0.0);
     let look = create_memo(move || model.get().look.clone());
-    let padding = create_memo(move || cx.padding.get().x);
+    let padding = create_memo(move || cx.padding.get());
     let block = create_memo(move || model.get().block);
     let renders = cx.block.is_some();
     let shown_block = create_memo(move || block.get().filter(|_| renders).map(|(index, _)| index));
@@ -249,7 +261,8 @@ fn AreaRow(cx: Context, line: ReadSignal<usize>) -> NodeId {
             return Margin::default();
         }
         let size = cx.font_size.get();
-        let width = cx.view_width.get() - cx.gutter.get() - cx.padding.get().x * 2.0;
+        let padding = cx.padding.get();
+        let width = cx.view_width.get() - cx.gutter.get() - padding.left - padding.right;
         Margin::centered(
             width,
             size,
@@ -494,6 +507,7 @@ fn row_model(cx: Context, line: impl Fn() -> usize + 'static) -> Memo<Rc<Row>> {
                 mask: cx.masked.get(),
                 single_line: cx.single_line,
                 prose: cx.prose.get(),
+                geometry: cx.geometry.get(),
             },
             client_colors: cx.client_colors.get(),
         };
@@ -573,12 +587,12 @@ fn RowText(
     let padding = create_memo(move || match (cx.single_line, cx.prose.get()) {
         (true, _) => (0.0, 0.0),
         (false, Some(prose)) => prose.line_padding,
-        (false, None) => LINE_PADDING,
+        (false, None) => cx.geometry.get().line_padding,
     });
     let wraps = create_memo(
         move || match wrap && cx.prose.get().is_none_or(|prose| prose.wrap) {
-            true => Wrap::Words,
-            false => Wrap::Off,
+            true => Overflow::default(),
+            false => Overflow::Visible,
         },
     );
     let align = create_memo(move || cx.prose.get().map(|prose| prose.align));
@@ -594,8 +608,12 @@ fn RowText(
             let range = remote.selection;
             if range.start < range.end && range.start <= row.end && range.end > row.start {
                 let [red, green, blue, _] = remote.color.to_array();
-                let fill =
-                    Color32::from_rgba_unmultiplied(red, green, blue, REMOTE_SELECTION_ALPHA);
+                let fill = Color32::from_rgba_unmultiplied(
+                    red,
+                    green,
+                    blue,
+                    colors.remote_selection_alpha,
+                );
                 marks.push(TextMark::new(row.display_range(&range), fill));
             }
         }
@@ -621,6 +639,7 @@ fn RowText(
     let carets = create_memo(move || {
         let row = model.get();
         let colors = cx.colors.get();
+        let caret_width = cx.geometry.get().caret_width;
         let typing = cx.focused.get() && cx.keyboard.get();
         let contains = |byte: usize| byte >= row.start && byte <= row.end;
         let mut carets = Vec::new();
@@ -628,14 +647,14 @@ fn RowText(
         for (handle, byte) in &cursors.handles {
             carets.push(TextCaret {
                 handle: Some(*handle),
-                ..TextCaret::new(row.to_display(*byte), colors.caret, CARET_WIDTH)
+                ..TextCaret::new(row.to_display(*byte), colors.caret, caret_width)
             });
         }
         for remote in cx.remote_cursors.get() {
             if contains(remote.caret) {
                 carets.push(TextCaret {
                     flag: true,
-                    ..TextCaret::new(row.to_display(remote.caret), remote.color, CARET_WIDTH)
+                    ..TextCaret::new(row.to_display(remote.caret), remote.color, caret_width)
                 });
             }
         }
@@ -643,14 +662,14 @@ fn RowText(
             carets.push(TextCaret::new(
                 row.to_display(byte),
                 colors.caret,
-                CARET_WIDTH,
+                caret_width,
             ));
         }
         if typing {
             for byte in &cursors.carets {
                 carets.push(TextCaret {
                     blink: true,
-                    ..TextCaret::new(row.to_display(*byte), colors.caret, CARET_WIDTH)
+                    ..TextCaret::new(row.to_display(*byte), colors.caret, caret_width)
                 });
             }
         }
@@ -673,7 +692,7 @@ fn RowText(
     let shown = view! {
         <Text
             @node_ref=&node
-            wrap={wraps}
+            overflow={wraps}
             align={align}
             vertical_align={Some(TextAlign::Start)}
             line_padding={padding}
@@ -869,7 +888,10 @@ fn marker(cx: Context, model: Memo<Rc<Row>>, item: Memo<Option<InlineItem>>) -> 
     });
     let style = create_memo(move || {
         item.get().map_or(
-            SpanStyle::new(FontId::proportional(BODY_SIZE), Color32::WHITE),
+            SpanStyle::new(
+                FontId::proportional(cx.font_size.get()),
+                Color32::TRANSPARENT,
+            ),
             |item| item.style,
         )
     });
@@ -887,7 +909,7 @@ fn marker(cx: Context, model: Memo<Rc<Row>>, item: Memo<Option<InlineItem>>) -> 
         depth: create_memo(move || model.get().look.depth),
         style,
         checked,
-        disabled: cx.disabled,
+        disabled: cx.locked,
     }
 }
 
@@ -895,20 +917,18 @@ fn marker(cx: Context, model: Memo<Rc<Row>>, item: Memo<Option<InlineItem>>) -> 
 fn RunChip(cx: Context, item: Memo<Option<InlineItem>>) -> NodeId {
     let fill = create_memo(move || cx.colors.get().widget);
     let label = create_memo(move || item.get().map(|item| item.label).unwrap_or_default());
-    let color = create_memo(move || item.get().map_or(Color32::WHITE, |item| item.style.color));
+    let color = create_memo(move || {
+        item.get()
+            .map_or(Color32::TRANSPARENT, |item| item.style.color)
+    });
+    let chip = create_memo(move || cx.geometry.get().run_chip);
+    let height = create_memo(move || Extent::px(chip.get().height));
+    let radius = create_memo(move || chip.get().radius);
+    let padding = create_memo(move || Sides::horizontal(chip.get().padding));
+    let font = create_memo(move || FontId::monospace(chip.get().font_size));
     view! {
-        <Frame
-            height=RUN_CHIP_HEIGHT
-            fill=fill
-            radius=RUN_CHIP_RADIUS
-            padding={Sides::horizontal(RUN_CHIP_PADDING)}
-        >
-            <Text
-                font={FontId::monospace(RUN_CHIP_SIZE)}
-                color={color}
-                align=TextAlign::Center
-                vertical_align=TextAlign::Center
-            >
+        <Frame height fill=fill radius padding>
+            <Text font color={color} align=TextAlign::Center vertical_align=TextAlign::Center>
                 {label}
             </Text>
         </Frame>
@@ -935,11 +955,21 @@ fn WidgetPill(cx: Context, item: Memo<Option<InlineItem>>) -> NodeId {
     let icon = create_memo(move || widget.get().and_then(|widget| widget.icon));
     let has_icon = create_memo(move || icon.get().is_some());
     let label = create_memo(move || item.get().map(|item| item.label).unwrap_or_default());
-    let color = create_memo(move || item.get().map_or(Color32::WHITE, |item| item.style.color));
+    let color = create_memo(move || {
+        item.get()
+            .map_or(Color32::TRANSPARENT, |item| item.style.color)
+    });
     let font = create_memo(move || {
         item.get()
-            .map_or(FontId::proportional(BODY_SIZE), |item| item.style.font)
+            .map_or(FontId::proportional(cx.font_size.get()), |item| {
+                item.style.font
+            })
     });
+    let shape = create_memo(move || cx.geometry.get().widget);
+    let height = create_memo(move || Extent::px(shape.get().height));
+    let radius = create_memo(move || shape.get().radius);
+    let icon_width = create_memo(move || Extent::px(shape.get().icon_width));
+    let icon_font = create_memo(move || FontId::proportional(shape.get().icon_size));
     let selected = create_memo(move || {
         cx.state.cursors().get();
         let Some(index) = index.get() else {
@@ -956,15 +986,11 @@ fn WidgetPill(cx: Context, item: Memo<Option<InlineItem>>) -> NodeId {
     });
     let pill = NodeRef::new();
     view! {
-        <Frame @node_ref=&pill height=INLINE_WIDGET_HEIGHT fill=fill radius=INLINE_WIDGET_RADIUS>
+        <Frame @node_ref=&pill height fill=fill radius>
             <List direction=beui_core::base::Direction::Horizontal spacing=0.0>
                 <Show condition={has_icon}>||
-                    <Frame width={INLINE_WIDGET_ICON_INSET * 2.0}>
-                        <Text
-                            font={FontId::proportional(16.0)}
-                            color={Color32::WHITE}
-                            align=TextAlign::Center
-                        >
+                    <Frame width=icon_width>
+                        <Text font=icon_font color={color} align=TextAlign::Center>
                             <Icon glyph={icon} />
                         </Text>
                     </Frame>
@@ -1012,14 +1038,15 @@ fn BlockSlot(render: RenderFn<usize>, index: usize, size: Vec2) -> NodeId {
 fn Gutter(cx: Context, model: Memo<Rc<Row>>) -> NodeId {
     let number = create_memo(move || (model.get().line + 1).to_string());
     let height = create_memo(move || Some(model.get().line_height));
+    let geometry = cx.geometry;
     let above = create_memo(move || {
-        Sides::new(
-            GUTTER_PADDING_LEFT,
-            model.get().space.0,
-            GUTTER_PADDING_RIGHT,
-            0.0,
-        )
+        let (left, right) = geometry.get().gutter_padding;
+        Sides::new(left, model.get().space.0, right, 0.0)
     });
+    let arrow_size = create_memo(move || geometry.get().gutter_arrow);
+    let arrow_width = create_memo(move || Extent::px(arrow_size.get()));
+    let arrow_font = create_memo(move || FontId::proportional(arrow_size.get()));
+    let number_font = create_memo(move || FontId::monospace(cx.font_size.get()));
     let arrow = create_memo(move || {
         cx.state.content().get();
         let start = model.get().start;
@@ -1037,23 +1064,13 @@ fn Gutter(cx: Context, model: Memo<Rc<Row>>) -> NodeId {
     view! {
         <Frame padding=above>
             <List direction=beui_core::base::Direction::Horizontal spacing=0.0>
-                <Frame width=GUTTER_ARROW_SIZE height=height>
-                    <Text
-                        font={FontId::proportional(GUTTER_ARROW_SIZE)}
-                        color={arrow_color}
-                        align=TextAlign::Center
-                    >
+                <Frame width=arrow_width height=height>
+                    <Text font=arrow_font color={arrow_color} align=TextAlign::Center>
                         <Icon glyph={arrow} />
                     </Text>
                 </Frame>
                 <Frame @sizing=ItemSize::Percent(100.0) height=height>
-                    <Text
-                        font={FontId::monospace(BODY_SIZE)}
-                        color={number_color}
-                        align=TextAlign::End
-                    >
-                        {number}
-                    </Text>
+                    <Text font=number_font color={number_color} align=TextAlign::End>{number}</Text>
                 </Frame>
             </List>
         </Frame>

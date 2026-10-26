@@ -623,11 +623,14 @@ impl Compositor {
     }
 
     fn refuse(&mut self, id: WindowId, dialog: WindowId, input: &ForwardedInput, now: Instant) {
-        let pressed = mouse(input).any(|event| matches!(event.phase, PointerPhase::Down(_)));
+        let pressed = input
+            .pointer_events()
+            .any(|event| matches!(event.phase, PointerPhase::Down(_)));
         if pressed {
             self.raise = Some(dialog);
         }
-        if self.server.state.buttons_held() && self.server.state.pointer_window() == Some(id) {
+        let state = &self.server.state;
+        if state.buttons_held() && state.pointer_window() == Some(id) || state.touching(id) {
             let releases = ForwardedInput {
                 events: input
                     .events
@@ -636,7 +639,7 @@ impl Compositor {
                         matches!(
                             event,
                             Forwarded::Pointer { event, .. }
-                                if matches!(event.phase, PointerPhase::Up(_))
+                                if matches!(event.phase, PointerPhase::Up(_) | PointerPhase::Cancel)
                         )
                     })
                     .cloned()
@@ -668,6 +671,7 @@ impl Compositor {
             };
             Some((id, (f64::from(local.x), f64::from(local.y)).into()))
         };
+        let mut touched = false;
         for forwarded in &input.events {
             match forwarded {
                 Forwarded::Input(Event::Key {
@@ -689,11 +693,12 @@ impl Compositor {
                     state.text_inputs.commit_text(text);
                 }
                 Forwarded::Pointer { event, over } if event.pointer == PointerId::Mouse => {
+                    let over = over.map(|over| over.node);
                     match event.phase {
-                        PointerPhase::Move => state.pointer_motion(at(*over, event.pos)),
+                        PointerPhase::Move => state.pointer_motion(at(over, event.pos)),
                         PointerPhase::Down(button) | PointerPhase::Up(button) => {
                             let pressed = matches!(event.phase, PointerPhase::Down(_));
-                            let target = at(*over, event.pos);
+                            let target = at(over, event.pos);
                             state.pointer_motion(target);
                             if pressed {
                                 state.ping(id, now);
@@ -705,7 +710,7 @@ impl Compositor {
                         }
                         PointerPhase::Scroll(delta) => {
                             if state.pointer_window() != Some(id) {
-                                state.pointer_motion(at(*over, event.pos));
+                                state.pointer_motion(at(over, event.pos));
                             }
                             state.pointer_axis((-f64::from(delta.x), -f64::from(delta.y)));
                         }
@@ -713,8 +718,9 @@ impl Compositor {
                     }
                 }
                 Forwarded::Pointer { event, over } if event.pointer == PointerId::Pen => {
+                    let over = over.map(|over| over.node);
                     let pen = event.pen.unwrap_or_default();
-                    let target = at(*over, event.pos);
+                    let target = at(over, event.pos);
                     state.pen_motion(
                         target,
                         f64::from(pen.pressure),
@@ -739,6 +745,27 @@ impl Compositor {
                         _ => {}
                     }
                 }
+                Forwarded::Pointer { event, over } => {
+                    let PointerId::Touch(finger) = event.pointer else {
+                        continue;
+                    };
+                    let target = at(over.map(|over| over.node), event.pos);
+                    touched = true;
+                    match event.phase {
+                        PointerPhase::Down(_) => {
+                            state.ping(id, now);
+                            if let Some((target, _)) = target {
+                                windows.pressed(target);
+                            }
+                            state.touch_seen();
+                            state.touch_down(finger, target);
+                        }
+                        PointerPhase::Move => state.touch_motion(finger, target),
+                        PointerPhase::Up(_) => state.touch_up(finger),
+                        PointerPhase::Cancel => state.touch_cancel(finger),
+                        _ => {}
+                    }
+                }
                 Forwarded::Left => {
                     state.pen_left(id);
                     if !hovered && !state.buttons_held() && state.pointer_window() == Some(id) {
@@ -747,6 +774,9 @@ impl Compositor {
                 }
                 _ => {}
             }
+        }
+        if touched {
+            state.touch_frame();
         }
     }
 
@@ -982,6 +1012,9 @@ impl Compositor {
             })
             .collect();
         self.server.state.set_heads(heads);
+        self.server
+            .state
+            .set_touchscreen(context.touchscreen_attached());
         self.publish();
         self.listed = self.windows.revision();
     }
@@ -1117,9 +1150,3 @@ mod unowned;
 
 #[cfg(test)]
 mod tests;
-
-fn mouse(input: &ForwardedInput) -> impl Iterator<Item = &beui::PointerEvent> {
-    input
-        .pointer_events()
-        .filter(|event| event.pointer == PointerId::Mouse)
-}

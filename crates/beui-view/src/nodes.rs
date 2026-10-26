@@ -228,6 +228,10 @@ impl Placements {
     pub fn rect(&self, node: NodeId) -> Option<Rect> {
         self.0.get(&node)
     }
+
+    pub fn scale(&self, node: NodeId) -> f32 {
+        self.0.scale_of(&node)
+    }
 }
 
 pub fn placements() -> Placements {
@@ -236,6 +240,10 @@ pub fn placements() -> Placements {
 
 pub fn viewport_rect() -> Rect {
     with_document(|document| document.viewport_rect())
+}
+
+pub fn window_of(node: NodeId) -> WindowId {
+    with_document(|document| document.window_of(node))
 }
 
 pub fn focused_node() -> Option<NodeId> {

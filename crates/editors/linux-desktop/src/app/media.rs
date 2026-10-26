@@ -1,3 +1,4 @@
+use super::osd::{LevelOsd, OsdLevel};
 use beui::KeyAt;
 use block_editor_beui::beui::icons::Glyph;
 use block_editor_beui::beui::icons::{
@@ -5,7 +6,7 @@ use block_editor_beui::beui::icons::{
     ICON_SUN_DIM, ICON_VOLUME_1, ICON_VOLUME_2, ICON_VOLUME_X,
 };
 use block_editor_beui::beui::reactive::*;
-use block_editor_beui::beui::styled::*;
+use block_editor_beui::beui::styled::Frame;
 use block_editor_beui::beui::{Key, NodeId, Rect};
 use block_editor_beui::linux_desktop;
 use block_editor_beui::{Editor, MediaLevel, MediaLevels, MediaRequest, MediaWatch, PlayerCommand};
@@ -154,18 +155,39 @@ fn osd_level(shown: Shown, levels: MediaLevels) -> Option<OsdLevel> {
     }
 }
 
+#[derive(Clone, Copy)]
+pub(crate) struct Osd {
+    level: Memo<Option<OsdLevel>>,
+    shown: Signal<Option<Shown>>,
+    shows: Signal<u64>,
+}
+
+impl Osd {
+    pub(crate) fn new(editor: Editor) -> Self {
+        let levels = editor.watch::<MediaWatch>();
+        let shown = create_signal(None);
+        let level = create_memo(move || osd_level(shown.get()?, levels.get()));
+        Self {
+            level,
+            shown,
+            shows: create_signal(0_u64),
+        }
+    }
+
+    fn show(self, showing: Shown) {
+        self.shown.set(Some(showing));
+        self.shows.update(|shows| *shows += 1);
+    }
+}
+
 #[component]
-pub(super) fn MediaKeys(editor: Editor, displays: Memo<Vec<Rect>>) -> NodeId {
-    let levels = editor.watch::<MediaWatch>();
-    let shown = create_signal(None);
-    let shows = create_signal(0_u64);
+pub(super) fn MediaKeys(editor: Editor, osd: Osd) -> NodeId {
     for (key, media_key) in BINDINGS {
         Action::new(media_key.id(), media_key.label(), move || {
             let (request, showing) = media_key.request();
             editor.act(move || linux_desktop::media::request(request));
             if let Some(showing) = showing {
-                shown.set(Some(showing));
-                shows.update(|shows| *shows += 1);
+                osd.show(showing);
             }
         })
         .glyph(media_key.glyph())
@@ -174,21 +196,19 @@ pub(super) fn MediaKeys(editor: Editor, displays: Memo<Vec<Rect>>) -> NodeId {
         .capture()
         .register();
     }
-    let level = create_memo(move || osd_level(shown.get()?, levels.get()));
-    let places = create_memo(move || (0..displays.with(Vec::len)).collect::<Vec<usize>>());
     view! {
-        <List spacing=0.0>
-            <ForEach keys={places}>|index: usize| {
-                let area = create_memo(move || displays.with(|displays| displays.get(index).copied()));
-                view! {
-                    <LevelOsd
-                        level={level}
-                        shown={shows}
-                        area={area}
-                        id={format!("desktop.osd.{index}")}
-                    />
-                }
-            }</ForEach>
-        </List>
+        <Frame />
+    }
+}
+
+#[component]
+pub(super) fn LevelDisplay(osd: Osd, area: Memo<Rect>, display: u32) -> NodeId {
+    view! {
+        <LevelOsd
+            level={osd.level}
+            shown={osd.shows.read_only()}
+            area
+            id={format!("desktop.osd.{display}")}
+        />
     }
 }

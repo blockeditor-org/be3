@@ -5,7 +5,7 @@ use std::cell::{Cell, RefCell};
 use std::collections::{BTreeMap, HashMap, VecDeque};
 use std::rc::Rc;
 
-use be_block::{ArtifactSource, BlockMetadata, Definition, Entries};
+use be_block::{BlockMetadata, Definition, Entries};
 use block_plugin_api::{AccessLevel, BlockLocation};
 use reactive::OwnedSignal;
 use uuid::Uuid;
@@ -56,6 +56,7 @@ pub enum BlockQuery {
     Backrefs(Uuid),
     Parents(Uuid),
     Block(Uuid),
+    OpenSettings(Uuid),
 }
 
 impl BlockQuery {
@@ -70,6 +71,7 @@ impl BlockQuery {
             Self::Backrefs(id) => Wire::Backrefs(id.into_bytes()),
             Self::Parents(id) => Wire::Parents(id.into_bytes()),
             Self::Block(id) => Wire::Block(id.into_bytes()),
+            Self::OpenSettings(id) => Wire::OpenSettings(id.into_bytes()),
         }
     }
 
@@ -84,6 +86,7 @@ impl BlockQuery {
             Wire::Backrefs(id) => Self::Backrefs(Uuid::from_bytes(id)),
             Wire::Parents(id) => Self::Parents(Uuid::from_bytes(id)),
             Wire::Block(id) => Self::Block(Uuid::from_bytes(id)),
+            Wire::OpenSettings(id) => Self::OpenSettings(Uuid::from_bytes(id)),
         }
     }
 }
@@ -99,6 +102,7 @@ pub struct BlockInfo {
     pub metadata: BlockMetadata,
     pub locked: bool,
     pub deleted: bool,
+    pub sets_access: bool,
 }
 
 impl BlockInfo {
@@ -109,15 +113,23 @@ impl BlockInfo {
             author: Some(Uuid::nil()),
             parent: Some(parent),
             references: Vec::new(),
-            access: AccessLevel::Edit,
+            access: AccessLevel::Manage,
             metadata: BlockMetadata::default(),
             locked: false,
             deleted: false,
+            sets_access: false,
         }
     }
 
     pub fn name(&self) -> Option<String> {
         self.metadata.name()
+    }
+
+    pub fn file_name(&self) -> Option<String> {
+        self.metadata
+            .get(&be_block::INTRINSIC_NAME)
+            .filter(|name| !name.is_empty())
+            .or_else(|| self.name())
     }
 
     pub fn no_access(&self) -> bool {
@@ -149,7 +161,7 @@ impl BlockInfo {
         self.metadata.named_by_hand()
     }
 
-    pub fn artifact(&self) -> Option<ArtifactSource> {
+    pub fn artifact(&self) -> Option<be_block::Artifact> {
         self.metadata.get(&be_block::ARTIFACT)
     }
 
@@ -186,6 +198,7 @@ impl BlockInfo {
             },
             locked: self.locked,
             deleted: self.deleted,
+            sets_access: self.sets_access,
         }
     }
 
@@ -203,6 +216,7 @@ impl BlockInfo {
             },
             locked: info.locked,
             deleted: info.deleted,
+            sets_access: info.sets_access,
         }
     }
 }
@@ -444,7 +458,7 @@ impl Blocks {
         content: &C,
         parent: BlockParent,
         name: Option<String>,
-        artifact: ArtifactSource,
+        artifact: be_block::Artifact,
     ) -> Uuid {
         let mut metadata = BlockMetadata::default();
         metadata.put(&be_block::NAME, name.as_ref());
@@ -459,7 +473,17 @@ impl Blocks {
         parent: BlockParent,
         metadata: BlockMetadata,
     ) -> Uuid {
-        let id = Uuid::now_v7();
+        self.create_at(Uuid::now_v7(), block_type, content, parent, metadata)
+    }
+
+    pub fn create_at(
+        &self,
+        id: Uuid,
+        block_type: Uuid,
+        content: Option<Vec<u8>>,
+        parent: BlockParent,
+        metadata: BlockMetadata,
+    ) -> Uuid {
         self.graph.push(GraphCommand::Create {
             id,
             block_type,

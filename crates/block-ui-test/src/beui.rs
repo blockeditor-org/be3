@@ -52,6 +52,7 @@ use crate::{ContentStore, overflow, snapshot};
 use beui::drive::gestures::{Frames, Gestures};
 
 pub(crate) mod capture;
+mod desk;
 
 const SIZE: Vec2 = Vec2::new(800.0, 600.0);
 const EAGER_FRAMES: usize = 8;
@@ -72,6 +73,7 @@ pub struct BeuiTest<A: BeuiApp> {
     store: ContentStore,
     size: Vec2,
     scale_factor: f32,
+    raster: Option<f32>,
     frame: Option<block_plugin_api::FrameSpec>,
     gestures: Gestures,
     steps: Vec<String>,
@@ -124,6 +126,9 @@ pub struct BeuiTest<A: BeuiApp> {
     requests: Vec<(Option<OpId>, Call)>,
     wakes: Arc<Wakes>,
     clock: std::time::Duration,
+    desk: Option<desk::Desk>,
+    desk_batches: Vec<InputBatch>,
+    drawn_screens: Vec<(ScreenId, beui::WindowId)>,
     app: PhantomData<A>,
 }
 
@@ -210,7 +215,7 @@ impl<A: BeuiApp> BeuiTest<A> {
             _ => String::new(),
         };
         let artifact = match &adopted {
-            Adopted::Artifacts(artifacts) => Some(artifacts.block_id()),
+            Adopted::Artifacts(artifacts) => Some((artifacts.block_id(), artifacts.source())),
             _ => None,
         };
         let wakes = Arc::new(Wakes::default());
@@ -219,6 +224,8 @@ impl<A: BeuiApp> BeuiTest<A> {
         let mut plugin = HeadlessPlugin::new("block-ui-test", "block-ui-test", "0");
         plugin.adopt::<A>(INSTANCE, adopted);
         let store = ContentStore::new(host.organization_id());
+        let blocks = host.blocks();
+        store.know_elsewhere(move |block| blocks.info(block).is_some());
         let block_type = host.block_type().unwrap_or_default();
         let (account_id, organization_id, client_id) = (
             host.account_id().into_bytes(),
@@ -251,19 +258,30 @@ impl<A: BeuiApp> BeuiTest<A> {
             Kind::Settings => Opening::Artifact(OpenArtifact {
                 instance: INSTANCE,
                 editor: ADOPTED_EDITOR,
-                block_id: artifact.unwrap_or_default().into_bytes(),
+                block_id: artifact.unwrap_or_default().0.into_bytes(),
                 block_type: block_type.into_bytes(),
+                source: artifact.unwrap_or_default().1.into_bytes(),
                 account_id,
                 organization_id,
                 client_id,
                 data: data.clone(),
             }),
         };
-        let frame = matches!(kind, Kind::Frame(_)).then(|| block_plugin_api::FrameSpec {
-            chrome: FrameChrome::Drawn,
-            content: None,
-            top_bar: TopBar::Hidden,
-        });
+        let frame = match &kind {
+            Kind::Frame(_) => Some(block_plugin_api::FrameSpec {
+                chrome: FrameChrome::Drawn,
+                content: None,
+                top_bar: TopBar::Hidden,
+                dialog: None,
+            }),
+            Kind::Creation => Some(block_plugin_api::FrameSpec {
+                chrome: FrameChrome::None,
+                content: None,
+                top_bar: TopBar::Hidden,
+                dialog: Some(block_plugin_api::DialogFrame::default()),
+            }),
+            _ => None,
+        };
         let mut test = Self {
             plugin,
             kind,
@@ -271,6 +289,7 @@ impl<A: BeuiApp> BeuiTest<A> {
             store,
             size: SIZE,
             scale_factor: 1.0,
+            raster: None,
             frame,
             steps: Vec::new(),
             gestures: Gestures::default(),
@@ -307,6 +326,9 @@ impl<A: BeuiApp> BeuiTest<A> {
             requests: Vec::new(),
             wakes,
             clock: std::time::Duration::ZERO,
+            desk: None,
+            desk_batches: Vec::new(),
+            drawn_screens: Vec::new(),
             app: PhantomData,
         };
         roundtrip(test.plugin.hello(), "the plugin's hello");
@@ -342,23 +364,29 @@ impl<A: BeuiApp> BeuiTest<A> {
 
     fn place(&mut self) {
         let region = self.region();
+        let raster = self.raster.unwrap_or(self.scale_factor);
         let metrics = ViewportMetrics {
             logical: block_plugin_api::Size {
                 width: self.size.x,
                 height: self.size.y,
             },
             visible: block_plugin_api::Pos2::ZERO,
-            pixel_width: (self.size.x * self.scale_factor).round() as u32,
-            pixel_height: (self.size.y * self.scale_factor).round() as u32,
+            pixel_width: (self.size.x * raster).round() as u32,
+            pixel_height: (self.size.y * raster).round() as u32,
             scale_factor: self.scale_factor,
+            raster,
         };
-        let screens = vec![ScreenRequest {
-            screen: SCREEN,
-            instance: INSTANCE,
-            region,
-            metrics,
-            frame: self.frame,
-        }];
+        let screens = self.desk_requests().unwrap_or_else(|| {
+            vec![ScreenRequest {
+                screen: SCREEN,
+                instance: INSTANCE,
+                region,
+                metrics,
+                frame: self.frame,
+                windows: false,
+                placement: None,
+            }]
+        });
         block_plugin_api::embed::exports::plugin::screens(&mut self.connection, screens);
         let frames = self.connection.take_outbound();
         self.inbox.push(Inbound::Frames(frames));
@@ -434,6 +462,7 @@ impl<A: BeuiApp> BeuiTest<A> {
             chrome: FrameChrome::Drawn,
             content: closable.then_some(Rect::from_min_size(Pos2::ZERO, self.size)),
             top_bar,
+            dialog: None,
         });
         self.place();
         self.run();
@@ -486,6 +515,40 @@ impl<A: BeuiApp> BeuiTest<A> {
         self.run();
     }
 
+    pub fn dismiss(&mut self) {
+        self.call(|editor, connection| editor.dismiss(connection));
+        self.run();
+    }
+
+    pub fn set_dialog(&mut self, dialog: block_plugin_api::DialogFrame) {
+        if let Some(frame) = &mut self.frame {
+            frame.dialog = Some(dialog);
+        }
+        self.place();
+        self.run();
+    }
+
+    pub fn handles_dismiss(&self) -> Option<bool> {
+        self.calls.iter().rev().find_map(|call| match call {
+            ShellCall::HandlesDismiss { handles, .. } => Some(*handles),
+            _ => None,
+        })
+    }
+
+    pub fn take_dialog_closes(&mut self) -> Vec<block_plugin_api::DialogAnswer> {
+        self.take_calls(|call| match call {
+            ShellCall::CloseDialog { answer, .. } => Some(*answer),
+            _ => None,
+        })
+    }
+
+    pub fn take_child_dismissals(&mut self) -> Vec<ChildId> {
+        self.take_calls(|call| match call {
+            ShellCall::DismissChild { child, .. } => Some(*child),
+            _ => None,
+        })
+    }
+
     pub fn child_bar(&mut self, child: ChildId, action: BarAction) {
         self.call(|editor, connection| {
             editor.child_bar(connection, EditorRegion::Frame, child, action)
@@ -536,6 +599,12 @@ impl<A: BeuiApp> BeuiTest<A> {
         self.place();
         self.run();
         self
+    }
+
+    pub fn set_raster(&mut self, raster: f32) {
+        self.raster = Some(raster);
+        self.place();
+        self.run();
     }
 
     pub fn block_types(&mut self, descriptors: Vec<BlockTypeDescriptor>) {
@@ -769,8 +838,8 @@ impl<A: BeuiApp> BeuiTest<A> {
             error: None,
             menu: Vec::new(),
             creation: None,
-            settings: None,
             preview: Default::default(),
+            dialog: Default::default(),
         });
     }
 
@@ -883,6 +952,7 @@ impl<A: BeuiApp> BeuiTest<A> {
                     TimedInput {
                         input,
                         time_micros: sampled.then_some(now),
+                        over: None,
                     }
                 })
                 .collect();
@@ -896,6 +966,10 @@ impl<A: BeuiApp> BeuiTest<A> {
             );
             inbox.push(Inbound::pushed(move |plugin| plugin.input(batch)));
         }
+        for batch in std::mem::take(&mut self.desk_batches) {
+            let batch = roundtrip(batch, "the host's input");
+            inbox.push(Inbound::pushed(move |plugin| plugin.input(batch)));
+        }
         let now_micros = self.clock.as_micros() as u64;
         inbox.push(Inbound::pushed(move |plugin| {
             plugin.draw_frame(now_micros, true)
@@ -905,6 +979,11 @@ impl<A: BeuiApp> BeuiTest<A> {
         }
         self.hear();
         let drawn = self.plugin.draw().and_then(|drawn| {
+            self.drawn_screens = drawn
+                .windows
+                .iter()
+                .map(|(placement, window)| (placement.screen, *window))
+                .collect();
             let window = drawn
                 .windows
                 .iter()
@@ -938,7 +1017,14 @@ impl<A: BeuiApp> BeuiTest<A> {
     }
 
     fn committed(&mut self, commit: FrameCommit) {
-        if let Some(placements) = commit.children.into_iter().last() {
+        let region = self.region();
+        let asked = commit.window_requests;
+        if let Some(placements) = commit
+            .children
+            .into_iter()
+            .filter(|placements| placements.region == region)
+            .last()
+        {
             self.children = placements.children;
             self.occluders = placements.occluders;
         }
@@ -957,6 +1043,7 @@ impl<A: BeuiApp> BeuiTest<A> {
         {
             self.window = window.window;
         }
+        self.desk_asked(asked);
     }
 
     fn call(&mut self, call: impl FnOnce(Editor, &mut Connection)) {
@@ -1250,6 +1337,13 @@ impl<A: BeuiApp> BeuiTest<A> {
                         .and_then(|value| block_editor_beui::be_block::be_model::from_cbor(value)),
                 ))
             }
+            _ => None,
+        })
+    }
+
+    pub fn take_definitions(&mut self, key: Uuid) -> Vec<(Uuid, Option<Vec<u8>>)> {
+        self.take_sent_calls(|sent| match sent {
+            Sent::Define(block, defined, value) if *defined == key => Some((*block, value.clone())),
             _ => None,
         })
     }
@@ -1618,7 +1712,7 @@ impl<A: BeuiApp> BeuiTest<A> {
     }
 
     pub fn reveal(&mut self, test_id: &str) {
-        if self.rect_of(test_id).intersect(self.rect()).is_positive() {
+        if self.rect().contains_rect(self.rect_of(test_id)) {
             return;
         }
         {
@@ -1887,14 +1981,10 @@ impl<A: BeuiApp> BeuiTest<A> {
 
     fn painted(&mut self) -> snapshot::Snapshot {
         let behind = beui::styled::Theme::of(self.document().preferences().theme).background;
-        let output = self
-            .output
-            .as_ref()
-            .expect("the editor has not drawn a frame yet");
         let shown = self
             .shown_output()
             .expect("the editor has not drawn its window yet");
-        capture::capture(shown, self.size, output.pixels_per_point(), behind)
+        capture::capture(shown, self.size, shown.pixels_per_point, behind)
             .expect("the painting could not be rendered")
     }
 }

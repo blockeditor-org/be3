@@ -11,11 +11,13 @@ use uuid::Uuid;
 use crate::app::WorkspaceUiApp;
 
 mod a_block_opened_while_another_is_shown_gets_its_own_tab;
+mod a_block_opens_in_the_editor_it_keeps_for_itself;
 mod a_block_tab_asks_its_editor_for_the_top_bar;
 mod a_block_tabs_menu_previews_its_access_and_comes_back;
 mod a_closed_tab_gives_up_its_view_block;
 mod a_deleted_block_says_so_above_it_and_can_be_restored;
 mod a_failed_creation_is_shown_and_dismissing_it_cancels_the_pick;
+mod a_file_with_no_editor_of_its_own_opens_in_the_program_for_its_extension;
 mod a_folder_chosen_on_the_location_page_holds_the_block_made_there;
 mod a_host_panel_the_host_asks_for_is_placed_in_its_own_window;
 mod a_modal_window_sends_presses_on_its_parent_to_itself;
@@ -28,6 +30,7 @@ mod a_reopened_phone_goes_back_through_the_files_in_the_order_they_were_shown;
 mod a_reopened_tab_shows_its_saved_title_before_its_block_is_known;
 mod a_shown_block_is_remembered_in_the_recents;
 mod a_shown_block_is_reported_as_focused;
+mod a_template_of_the_workspace_is_copied_into_place;
 mod a_template_without_a_dialog_is_created_and_answers_the_pick;
 mod a_window_tab_shows_the_icon_its_program_set;
 mod a_window_that_stops_responding_offers_to_wait_or_force_close;
@@ -35,10 +38,12 @@ mod a_window_the_host_makes_fullscreen_covers_the_workspace_until_it_leaves;
 mod a_window_the_host_raises_brings_its_hidden_tab_forward;
 mod a_window_the_host_runs_gets_a_tab_until_its_program_closes_it;
 mod a_window_with_a_parent_hangs_over_it_and_hides_with_its_tab;
+mod a_workspace_opens_on_its_landing_page;
 mod an_import_into_a_folder_is_made_inside_it;
 mod an_import_keeps_the_location_it_started_with;
 mod an_open_menu_is_withheld_from_the_block_under_it;
 mod an_open_pick_leaves_the_tabs_where_they_were;
+mod back_asks_a_creation_dialog_to_dismiss_itself_first;
 mod block_type_colors_are_shown_in_the_add_menu_and_full_list;
 mod block_type_colors_are_shown_on_a_phone;
 mod closing_a_window_tab_asks_its_program_to_close;
@@ -68,6 +73,7 @@ mod the_location_page_shows_the_folders_as_a_tree_with_the_chosen_one_checked;
 mod the_picker_never_offers_a_deleted_block_to_link;
 mod the_rename_card_sets_a_blocks_name_icon_and_color;
 mod the_share_dialog_lists_again_when_a_contact_is_made;
+mod the_share_dialog_says_where_each_persons_access_comes_from;
 mod widening_the_phone_with_its_switcher_open_keeps_the_workspace;
 
 const MAX_TAB: u64 = 64;
@@ -231,11 +237,11 @@ fn profiled_sized(size: Option<Vec2>, layout: Option<ViewState>) -> (Fixture, Uu
 }
 
 fn open_editor(size: Option<Vec2>, profile: Option<EditorViewContent>) -> (Fixture, Uuid) {
-    let workspace = Uuid::new_v4();
-    let opened = Uuid::new_v4();
+    let workspace = Uuid::from_u128(0x3a_0001);
+    let opened = Uuid::from_u128(0x3a_0002);
     let host = EditorHost::default();
     host.set_editable(true);
-    host.set_client_id(Uuid::new_v4());
+    host.set_client_id(Uuid::from_u128(0x3a_0003));
     if profile.is_some() {
         host.set_view_block(Some(workspace));
     }
@@ -331,12 +337,12 @@ fn places(fixture: &mut Fixture) -> Places {
     use block_editor_beui::BlockInfo;
     use block_editor_beui::be_block::BlockContent;
     let places = Places {
-        space: Uuid::new_v4(),
-        trips: Uuid::new_v4(),
-        work: Uuid::new_v4(),
-        q4: Uuid::new_v4(),
-        minutes: Uuid::new_v4(),
-        budget: Uuid::new_v4(),
+        space: Uuid::from_u128(0x3a_0101),
+        trips: Uuid::from_u128(0x3a_0102),
+        work: Uuid::from_u128(0x3a_0103),
+        q4: Uuid::from_u128(0x3a_0104),
+        minutes: Uuid::from_u128(0x3a_0105),
+        budget: Uuid::from_u128(0x3a_0106),
     };
     let block = |id: Uuid, block_type: Uuid, parent: BlockParent, name: &str, children: &[Uuid]| {
         let mut info = BlockInfo::new(id, block_type, parent);
@@ -393,6 +399,18 @@ fn places(fixture: &mut Fixture) -> Places {
 }
 
 fn report_creation(fixture: &mut Fixture, progress: block_editor_beui::CreationProgress) {
+    report_creation_dialog(
+        fixture,
+        progress,
+        block_editor_beui::DialogStatus::default(),
+    );
+}
+
+fn report_creation_dialog(
+    fixture: &mut Fixture,
+    progress: block_editor_beui::CreationProgress,
+    dialog: block_editor_beui::DialogStatus,
+) {
     fixture
         .test
         .report_children(|placement| block_editor_beui::ChildStatus {
@@ -413,8 +431,8 @@ fn report_creation(fixture: &mut Fixture, progress: block_editor_beui::CreationP
                 block_editor_beui::ChildContent::Creation { .. }
             )
             .then(|| progress.clone()),
-            settings: None,
             preview: Default::default(),
+            dialog,
         });
     fixture.settle();
 }

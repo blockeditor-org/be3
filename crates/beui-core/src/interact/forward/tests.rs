@@ -5,6 +5,7 @@ use crate::input::{Key, Pen, PointerButton, TouchId};
 
 use super::*;
 
+mod a_held_press_is_replayed_where_the_pointer_is_and_leaves_once_over_nothing;
 mod a_mouse_press_the_host_gave_up_is_cancelled;
 mod a_move_carries_its_prediction_along;
 mod a_scroll_is_replayed_in_unzoomed_pixels;
@@ -62,7 +63,7 @@ fn timed(replay: &mut Replay, events: Vec<Forwarded>, zoom: f32) -> Vec<Replayed
         pointer: None,
         modifiers: Modifiers::NONE,
     };
-    replay.replay(&input, zoom)
+    replay.replay(&input, zoom, |_, _| Aim::Own)
 }
 
 fn button(pos: Pos2, pressed: bool) -> Input {

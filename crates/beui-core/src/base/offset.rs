@@ -191,8 +191,9 @@ impl OffsetNode {
             return 0.0;
         };
         let extent = doc.outlined_extent(out, node).unwrap_or(rect);
-        let end = start + self.direction.main(extent.max - rect.min);
-        let start = start - self.direction.main(rect.min - extent.min);
+        let scale = out.transform(Some(SpaceId::inside(host, 1))).scale;
+        let end = start + self.direction.main(extent.max - rect.min) / scale;
+        let start = start - self.direction.main(rect.min - extent.min) / scale;
         let Some(revealed) = revealed_offset(start, end, self.offset, main) else {
             return 0.0;
         };
@@ -257,7 +258,8 @@ impl Element for OffsetNode {
             )
         });
         let (length, content) = self.direction.main_and_cross(size);
-        let length = match self.fits {
+        let unbounded = !self.direction.main_and_cross(available).0.is_finite();
+        let length = match self.fits || unbounded {
             true => length,
             false => 0.0,
         };

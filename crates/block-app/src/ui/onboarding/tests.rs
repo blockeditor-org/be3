@@ -89,6 +89,7 @@ fn painting_of_sized(name: &str, document: beui::Document, select_default: bool,
 }
 
 mod a_deployed_default_server_asks_for_its_gateway_token;
+mod an_account_in_a_company_says_its_administrators_can_read_it;
 mod an_expired_session_signs_in_through_the_browser;
 mod browser_authorization_always_offers_the_link_and_code;
 mod browser_authorization_on_a_narrow_screen;

@@ -8,9 +8,9 @@ use terminal_view::{Fit, Lines, TerminalInput, TerminalView};
 use super::offline::{Offline, SetupSteps};
 use super::session::Session;
 
-const BAR_PADDING: f32 = 8.0;
-const BAR_HEIGHT: f32 = 48.0;
-const SETUP_WIDTH: f32 = 440.0;
+const BAR_PADDING: Space = Space::Md;
+const BAR_HEIGHT: Size = Size::Xl2;
+const SETUP_WIDTH: Size = Size::Custom(440.0);
 
 #[component]
 pub(crate) fn TerminalBlock(editor: Editor) -> NodeId {
@@ -18,7 +18,7 @@ pub(crate) fn TerminalBlock(editor: Editor) -> NodeId {
     let setup = create_memo(move || session.host.with(Option::is_none) && session.empty());
     let running = create_memo(move || !setup.get());
     view! {
-        <List spacing=0.0>
+        <List spacing=Space::None>
             <Show condition={setup}>
                 <Offline @sizing=ItemSize::Percent(100.0) editor={editor} />
             </Show>
@@ -81,13 +81,13 @@ fn Running(session: Session, editor: Editor) -> NodeId {
     let content = NodeRef::new();
     editor.content(&content);
     view! {
-        <List spacing=0.0>
+        <List spacing=Space::None>
             <Frame
                 padding=BAR_PADDING
-                height={Extent::at_least(BAR_HEIGHT)}
+                height={Extent::at_least(BAR_HEIGHT.px())}
                 align={Align2::new(Align::Stretch, Align::Center)}
             >
-                <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
+                <List direction=Direction::Horizontal align=Align::Center spacing=Space::Md>
                     <Text style=TextStyle::CAPTION>
                         <Icon glyph={ICON_TERMINAL.to_owned()} />
                     </Text>
@@ -95,7 +95,7 @@ fn Running(session: Session, editor: Editor) -> NodeId {
                         <Text style=TextStyle::CAPTION @test_id={"terminal.host"}>{place}</Text>
                     </Show>
                     <Show condition={disconnected}>
-                        <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
+                        <List direction=Direction::Horizontal align=Align::Center spacing=Space::Md>
                             <Text style=TextStyle::CAPTION color=TextColor::Warning>
                                 <Icon glyph={ICON_UNPLUG.to_owned()} />
                             </Text>

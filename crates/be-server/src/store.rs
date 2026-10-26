@@ -13,8 +13,7 @@ use argon2::{
 use be_commit::CommitId;
 use be_graph::{Access, BlockGraph, BlockNode, BlockParent, GraphError, ObjectRefs};
 use be_protocol::{
-    AccessEntry, Agent, ErrorCode, Organization, OrganizationInvitation, OrganizationKind,
-    OrganizationRole,
+    Agent, ErrorCode, Organization, OrganizationInvitation, OrganizationKind, OrganizationRole,
 };
 use be_store::{FileStore, Hash, ObjectStore};
 use rand::TryRngCore;
@@ -56,6 +55,8 @@ pub struct ServerStore {
     object_refs: std::sync::Mutex<ObjectRefs>,
     hashing: tokio::sync::Semaphore,
     failures: std::sync::Mutex<HashMap<String, Failures>>,
+    server: crate::organization::ServerKey,
+    policies: std::sync::Mutex<HashMap<Uuid, crate::organization::HeldPolicies>>,
 }
 
 struct Failures {
@@ -77,6 +78,7 @@ impl ServerStore {
         schema::initialize(&connection)?;
         connection.execute("UPDATE sessions SET kind = 'app', public_id = lower(hex(randomblob(16))), created = ?1 WHERE kind = 'legacy' AND (account_id IN (SELECT account_id FROM agents) OR account_id IN (SELECT id FROM accounts WHERE local_profile = 1))", [portal::now()])?;
         let object_refs = load_object_refs(&connection)?;
+        let server = crate::organization::ServerKey::load_or_create(&connection)?;
         Ok(Self {
             database: Mutex::new(connection),
             session_changes: tokio::sync::watch::channel(0).0,
@@ -86,6 +88,8 @@ impl ServerStore {
             object_refs: std::sync::Mutex::new(object_refs),
             hashing: tokio::sync::Semaphore::new(PASSWORD_CHECKS_AT_ONCE),
             failures: std::sync::Mutex::new(HashMap::new()),
+            server,
+            policies: std::sync::Mutex::new(HashMap::new()),
         })
     }
 
@@ -1035,6 +1039,7 @@ pub fn encode_access(access: Access) -> Option<&'static str> {
         Access::KnowExists => Some("know_exists"),
         Access::View => Some("view"),
         Access::Edit => Some("edit"),
+        Access::Manage => Some("manage"),
     }
 }
 
@@ -1043,6 +1048,7 @@ pub fn decode_access(value: &str) -> Result<Access, ServerError> {
         "know_exists" => Ok(Access::KnowExists),
         "view" => Ok(Access::View),
         "edit" => Ok(Access::Edit),
+        "manage" => Ok(Access::Manage),
         _ => Err(ServerError::Corrupt),
     }
 }
@@ -1089,10 +1095,6 @@ pub struct Collected {
     pub revision: u64,
 }
 
-pub struct AccessList {
-    pub entries: Vec<AccessEntry>,
-}
-
 impl ServerStore {
     pub(crate) async fn with_graph<R>(
         &self,
@@ -1129,6 +1131,20 @@ impl ServerStore {
 
     pub(crate) fn objects(&self) -> &FileStore {
         &self.objects
+    }
+
+    pub(crate) fn server_key(&self) -> &crate::organization::ServerKey {
+        &self.server
+    }
+
+    pub fn server_account(&self) -> be_protocol::ServerAccount {
+        self.server.described()
+    }
+
+    pub(crate) fn policy_cache(
+        &self,
+    ) -> &std::sync::Mutex<HashMap<Uuid, crate::organization::HeldPolicies>> {
+        &self.policies
     }
 }
 
@@ -1183,6 +1199,16 @@ fn remove_from(
 ) -> Result<Vec<crate::contacts::Granted>, ServerError> {
     let role = crate::contacts::role_in(connection, account, organization)?;
     let mut revoked = Vec::new();
+    let mut kinds = std::collections::BTreeSet::new();
+    for block in graph.entry_points(account) {
+        kinds.extend(crate::keys::open_kinds_viewed(
+            connection,
+            graph,
+            organization,
+            account,
+            block,
+        )?);
+    }
     for block in graph.entry_points(account) {
         let Some(node) = graph.get(block) else {
             continue;
@@ -1223,6 +1249,11 @@ fn remove_from(
     if role == Some(OrganizationRole::Administrator) {
         crate::keys::rotate_escrow_later(connection, organization, account)?;
     }
+    let settings = crate::organization::settings_of(organization);
+    if graph.contains(settings) {
+        crate::keys::lost_view(connection, organization, settings, account)?;
+    }
+    crate::keys::lost_open_kinds(connection, graph, organization, account, kinds)?;
     Ok(revoked)
 }
 

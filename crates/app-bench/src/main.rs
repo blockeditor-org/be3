@@ -332,7 +332,13 @@ struct App {
 
 impl App {
     fn start(settings: &Settings) -> Result<Self, String> {
-        let driven = Driven::start(&settings.program, &[], SIZE, settings.libraries.clone())?;
+        let driven = Driven::start(
+            &settings.program,
+            &[],
+            SIZE,
+            settings.libraries.clone(),
+            false,
+        )?;
         Ok(Self {
             driven: Some(driven),
         })

@@ -21,6 +21,8 @@ use crate::{
 
 pub const SEAL_INTERVAL: u64 = 750;
 
+pub const HEARTBEAT_INTERVAL: u64 = be_session::LEASE_MILLISECONDS as u64 / 2;
+
 const JOURNAL_LIMIT: usize = 1024;
 const LARGEST_RELAYED_OPERATION: usize = 1024 * 1024;
 const REPLACE_ATTEMPTS: u8 = 4;
@@ -132,6 +134,26 @@ enum Job<C> {
     Keep(Keeping),
     Oversized,
     Release,
+}
+
+impl<C> Job<C> {
+    fn passes_a_seal(&self) -> bool {
+        matches!(
+            self,
+            Job::Input(
+                Input::Message {
+                    from: Endpoint::Editor(_),
+                    ..
+                } | Input::Attach { .. }
+                    | Input::Detach { .. }
+                    | Input::Content { .. }
+                    | Input::Change {
+                        change: Change::Child(_) | Change::Undo | Change::Redo,
+                        ..
+                    }
+            )
+        )
+    }
 }
 
 #[derive(Clone, Copy)]
@@ -276,6 +298,7 @@ pub(crate) struct Replica<C: LiveEdit, H> {
     confirmed: C,
     visible: C,
     unsent: VecDeque<(C::Op, usize, u64)>,
+    held: Vec<C::Op>,
     in_flight: u64,
     covered: bool,
     base: Option<CommitId>,
@@ -303,6 +326,8 @@ pub(crate) struct Replica<C: LiveEdit, H> {
     tokens: Token,
     now: u64,
     owes_since: Option<u64>,
+    beaten: Option<u64>,
+    active: bool,
     sealing: bool,
     claimed: Option<u64>,
     replaced_at: u64,
@@ -359,14 +384,18 @@ where
                 reply: None,
             });
         }
+        if self.beat_at().is_some_and(|at| self.now >= at) {
+            self.heartbeat();
+        }
         self.run(out);
     }
 
     fn wake_at(&self) -> Option<u64> {
-        match self.sealing {
+        let seal = match self.sealing {
             true => None,
             false => self.owes_since.map(|since| since + SEAL_INTERVAL),
-        }
+        };
+        seal.into_iter().chain(self.beat_at()).min()
     }
 
     fn released(&self) -> bool {
@@ -395,6 +424,7 @@ where
             visible: empty.clone(),
             confirmed: empty,
             unsent: VecDeque::new(),
+            held: Vec::new(),
             in_flight: 0,
             covered: true,
             base: opened.head,
@@ -420,6 +450,8 @@ where
             tokens: 0,
             now: opened.now,
             owes_since: None,
+            beaten: None,
+            active: false,
             sealing: false,
             claimed: None,
             replaced_at: 0,
@@ -439,7 +471,13 @@ where
     fn run(&mut self, out: &mut Vec<Effect>) {
         loop {
             self.flush_editors();
-            if self.waiting.is_some() || self.released {
+            if self.released {
+                break;
+            }
+            let Some(job) = self.jobs.front() else {
+                break;
+            };
+            if self.waiting.is_some() && !(self.sealing_out() && job.passes_a_seal()) {
                 break;
             }
             let Some(job) = self.jobs.pop_front() else {
@@ -447,8 +485,61 @@ where
             };
             self.job(job);
         }
+        match self.loaded && self.is_owner() && !self.released {
+            true => {
+                self.beaten.get_or_insert(self.now);
+            }
+            false => self.beaten = None,
+        }
         self.report();
         out.append(&mut self.out);
+    }
+
+    fn sealing_out(&self) -> bool {
+        matches!(
+            self.waiting,
+            Some(Wait::Publish {
+                then: AfterPublish::Seal { .. },
+                ..
+            })
+        )
+    }
+
+    fn sequence_held(&mut self) {
+        for operation in std::mem::take(&mut self.held) {
+            let Role::Owner(sequencer) = &mut self.role else {
+                let size = C::encode_operation(&operation).len();
+                self.unsent.push_back((operation, size, 1));
+                continue;
+            };
+            let id = OpId {
+                client: self.client,
+                counter: sequencer.sequence() + 1,
+            };
+            if let Some(op) = sequencer.accept(id, C::encode_operation(&operation)) {
+                self.confirmed.apply(&operation);
+                self.broadcast(&SessionMessage::Accepted { op });
+            }
+        }
+        self.flush();
+    }
+
+    fn beat_at(&self) -> Option<u64> {
+        let busy = self.active || !self.is_clean();
+        self.beaten
+            .filter(|_| busy)
+            .map(|beaten| beaten + HEARTBEAT_INTERVAL)
+    }
+
+    fn heartbeat(&mut self) {
+        self.beaten = Some(self.now);
+        self.active = false;
+        let clean_at = self.base.filter(|_| self.is_clean());
+        self.out.push(Effect::ReportClean {
+            replica: self.id,
+            generation: self.state.generation,
+            clean_at,
+        });
     }
 
     fn job(&mut self, job: Job<C>) {
@@ -519,6 +610,7 @@ where
                 if let Some(message) = FromEditor::decode(&bytes) {
                     self.handle_editor(editor, message);
                 }
+                self.reported.status = None;
             }
             Input::Message {
                 from: Endpoint::Host,
@@ -911,6 +1003,14 @@ where
         if !answered {
             return;
         }
+        let sealed = self.sealing_out();
+        self.answer_awaited(event);
+        if sealed {
+            self.sequence_held();
+        }
+    }
+
+    fn answer_awaited(&mut self, event: HeadEvent) {
         match (self.waiting.take(), event) {
             (Some(Wait::Publish { then, .. }), HeadEvent::Published { head, .. }) => {
                 self.published(then, Some(head));
@@ -1243,13 +1343,14 @@ where
 
     fn is_clean(&self) -> bool {
         match &self.role {
-            Role::Owner(sequencer) => sequencer.is_clean(),
+            Role::Owner(sequencer) => sequencer.is_clean() && self.held.is_empty(),
             Role::Follower(follower) => follower.pending() == 0 && self.unsent.is_empty(),
         }
     }
 
     fn has_unsealed_work(&self) -> bool {
         matches!(&self.role, Role::Owner(sequencer) if !sequencer.is_clean())
+            || !self.held.is_empty()
     }
 
     fn unsettled(&self) -> u64 {
@@ -1332,6 +1433,7 @@ where
     }
 
     fn edit(&mut self, operation: C::Op, origin: Option<EditorId>) -> bool {
+        self.active = true;
         if self.diverged {
             self.error(DIVERGED);
             return false;
@@ -1355,7 +1457,9 @@ where
             self.hand_over_oversized();
             return true;
         }
+        let holding = self.sealing_out();
         match &mut self.role {
+            Role::Owner(_) if holding => self.held.push(operation),
             Role::Owner(sequencer) => {
                 let id = OpId {
                     client: self.client,
@@ -2341,7 +2445,7 @@ where
 
     fn has_unsaved(&self) -> bool {
         match &self.role {
-            Role::Owner(sequencer) => !sequencer.is_clean(),
+            Role::Owner(sequencer) => !sequencer.is_clean() || !self.held.is_empty(),
             Role::Follower(follower) => !self.is_clean() || follower.applied() > self.sealed,
         }
     }
@@ -2477,6 +2581,8 @@ where
             sequence,
             reload,
         });
+        self.beaten = Some(self.now);
+        self.active = false;
         self.out.push(Effect::ReportClean {
             replica: self.id,
             generation: self.state.generation,

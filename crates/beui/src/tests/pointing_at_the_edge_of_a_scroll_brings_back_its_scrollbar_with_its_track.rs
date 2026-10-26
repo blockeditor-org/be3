@@ -1,8 +1,8 @@
 use super::*;
 use crate::primitives::Frame;
+use crate::primitives::List;
 use crate::reactive::*;
 use crate::styled::Scroll;
-use crate::styled::*;
 use crate::unstyled::{SCROLLBAR_FADE_OUT, SCROLLBAR_LINGER};
 
 #[test]

@@ -81,7 +81,7 @@ impl From<sqlite_schema::SchemaError> for Opened {
 impl AppStateStore {
     pub fn open(path: impl AsRef<Path>) -> Result<Self, AppStateError> {
         let path = path.as_ref();
-        match Self::with_connection(Connection::open(path)?) {
+        match Self::with_connection(sqlite_schema::open(path)?) {
             Err(Opened::Incompatible(problems)) => {
                 for stale in [
                     path.to_owned(),
@@ -98,7 +98,7 @@ impl AppStateStore {
                 crate::notices::report(format!(
                     "This device's saved sign-ins came from an incompatible build of Block, so they were cleared: {problems}"
                 ));
-                Self::with_connection(Connection::open(path)?).map_err(Opened::into_error)
+                Self::with_connection(sqlite_schema::open(path)?).map_err(Opened::into_error)
             }
             opened => opened.map_err(Opened::into_error),
         }

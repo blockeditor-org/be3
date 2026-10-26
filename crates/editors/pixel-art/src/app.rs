@@ -6,11 +6,8 @@ use std::rc::Rc;
 use block_editor_beui::be_block::ObjectId;
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
-use block_editor_beui::beui::unstyled::Picture;
 use block_editor_beui::beui::{ImageFit, NodeId, Vec2};
-use block_editor_beui::{
-    ArtifactDescription, Artifacts, BlockParent, Creation, Editor, Side, Sidebar,
-};
+use block_editor_beui::{Artifacts, BlockParent, Creation, Editor, Side, Sidebar};
 use pixel_art_types::PixelColor;
 use pixel_art_types::{PixelArtContent, PixelArtDocument};
 use pixel_art_types::{default_palette, size_of};
@@ -30,7 +27,7 @@ use state::Tools;
 
 const EMBEDDED_LONG_SIDE: f32 = 256.0;
 const EMBEDDED_SHORT_SIDE: f32 = 24.0;
-const TOOLS_WIDTH: f32 = 180.0;
+const TOOLS_WIDTH: Size = Size::Custom(180.0);
 
 pub struct PixelArtApp;
 
@@ -66,10 +63,11 @@ impl block_editor_beui::BeuiApp for PixelArtApp {
         let host = artifacts.host().clone();
         let block_id = artifacts.block_id();
         let block_type = artifacts.block_type();
+        let source = artifacts.source();
         let started = Rc::clone(&regeneration);
         let reported = Rc::clone(&failure);
         artifacts.on_regenerate(move |data| {
-            match artifact::Regeneration::start(&host, block_id, block_type, data) {
+            match artifact::Regeneration::start(&host, block_id, block_type, source, data) {
                 Ok(started_regeneration) => {
                     *started.borrow_mut() = Some(started_regeneration);
                     reported.borrow_mut().take();
@@ -90,7 +88,7 @@ impl block_editor_beui::BeuiApp for PixelArtApp {
         });
     }
 
-    fn describe_artifact(data: &[u8]) -> Result<ArtifactDescription, String> {
+    fn describe_artifact(data: &[u8]) -> Result<String, String> {
         artifact::describe(data)
     }
 
@@ -131,13 +129,17 @@ fn PixelArtEditor(editor: Editor) -> NodeId {
 
     let chrome = editor.chrome_shown();
     view! {
-        <List spacing=0.0>
+        <List spacing=Space::None>
             <TopBar tools={tools} size={size} shown={chrome} />
-            <List @sizing=ItemSize::Percent(100.0) direction=Direction::Horizontal spacing=0.0>
+            <List
+                @sizing=ItemSize::Percent(100.0)
+                direction=Direction::Horizontal
+                spacing=Space::None
+            >
                 <Sidebar side=Side::Left shown={chrome} width=TOOLS_WIDTH>
                     <ToolsPanel tools={tools} />
                 </Sidebar>
-                <List @sizing=ItemSize::Percent(100.0) spacing=0.0>
+                <List @sizing=ItemSize::Percent(100.0) spacing=Space::None>
                     <ArtworkCanvas
                         @sizing=ItemSize::Percent(100.0)
                         tools={tools}

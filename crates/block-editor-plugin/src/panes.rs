@@ -119,7 +119,7 @@ impl Panes {
     fn cooling(&self, placement: &ScreenPlacement, now: Duration) -> Option<Duration> {
         match placement.region {
             EditorRegion::Preview => self.previews.wait(placement.surface, now),
-            EditorRegion::Frame | EditorRegion::ArtifactSettings => None,
+            _ => None,
         }
     }
 

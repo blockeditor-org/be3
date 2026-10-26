@@ -1,4 +1,4 @@
-use beui::Wrap;
+use beui::Overflow;
 use std::cell::RefCell;
 use std::collections::{HashMap, HashSet};
 use std::rc::Rc;
@@ -15,7 +15,7 @@ use super::state::TileState;
 use super::tiles;
 
 const HALO: Color32 = Color32::from_rgba_unmultiplied(255, 255, 255, 200);
-const HALO_PADDING: f32 = 2.0;
+const HALO_PADDING: Space = Space::Xs2;
 const LABEL_GAP: f32 = 4.0;
 const CELL: f32 = 64.0;
 
@@ -75,7 +75,7 @@ impl Measures {
                 font_size * 1.3,
             )
         });
-        let size = size + Vec2::new(HALO_PADDING * 2.0, 0.0);
+        let size = size + Vec2::new(HALO_PADDING.px() * 2.0, 0.0);
         if measured.is_some() {
             self.0.borrow_mut().insert(key, size);
         }
@@ -211,10 +211,12 @@ pub(crate) fn MapLabel(
             <Frame
                 fill={ColorRole::Custom(HALO)}
                 radius=Radius::Xs
-                padding={Sides::horizontal(HALO_PADDING)}
+                padding={Padding::horizontal(HALO_PADDING)}
                 @test_id={element_test_id}
             >
-                <Text size align=TextAlign::Center color={color} wrap=Wrap::Off>{text}</Text>
+                <Text size align=TextAlign::Center color={color} overflow=Overflow::Visible>
+                    {text}
+                </Text>
             </Frame>
         </CanvasItem>
     }

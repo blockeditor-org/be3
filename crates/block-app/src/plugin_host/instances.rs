@@ -2,10 +2,10 @@ use beui::accessibility::Embedded;
 use beui::{ImeArea, Rect, Vec2, pos2, vec2};
 use block_plugin_api::{
     AccessLevel, ArtifactDescription, AudioCommand, BlockCommand, BlockPick, ChildContent, ChildId,
-    ChildMode, ChildPlacement, ChildPlacements, ChildStatus, EditorInstanceId, EditorRegion,
-    FrameReport, FrameSpec, MenuEntry, Occluder, OpenArtifact, OpenBlock, OpenCreation, Opening,
-    PerformanceMeasurement, RegionSize, ScreenId, ScreenLayout, ScreenRequest, ScreenWindow,
-    ShellCommand, Size, Stopped, ViewChange, WebViewEvent, WebViewId,
+    ChildMode, ChildPlacement, ChildPlacements, ChildStatus, DialogStatus, EditorInstanceId,
+    EditorRegion, FrameReport, FrameSpec, MenuEntry, Occluder, OpenArtifact, OpenBlock,
+    OpenCreation, Opening, PerformanceMeasurement, RegionSize, ScreenId, ScreenLayout,
+    ScreenRequest, ScreenWindow, ShellCommand, Size, Stopped, ViewChange, WebViewEvent, WebViewId,
 };
 use block_plugin_api::{
     DescribedAction, WindowRequests,
@@ -58,7 +58,7 @@ pub(super) struct Instances {
     next_screen: u64,
     announced: HashSet<ScreenId>,
     block_types: Option<Arc<crate::editors::PluginCatalog>>,
-    sent_block_types: Option<u64>,
+    sent_block_types: Option<(u64, u64)>,
     network: Vec<String>,
     plugin_id: String,
     services: services::Services,
@@ -97,7 +97,8 @@ struct Connection {
 struct Instance {
     role: InstanceRole,
     artifact: ArtifactState,
-    creation_ready: bool,
+    dialog: DialogStatus,
+    child_dismissals: Vec<ChildId>,
     created: Option<Result<Uuid, String>>,
     screens: HashMap<EditorRegion, Screen>,
     opened: bool,
@@ -245,7 +246,8 @@ impl Instance {
         Self {
             role,
             artifact: ArtifactState::default(),
-            creation_ready: false,
+            dialog: DialogStatus::default(),
+            child_dismissals: Vec::new(),
             created: None,
             screens: HashMap::new(),
             opened: false,
@@ -570,7 +572,7 @@ impl Screen {
 
     fn unplace(&mut self) {
         self.placement = None;
-        self.request.metrics = viewport_metrics(Vec2::ZERO, Rect::ZERO, 1.0);
+        self.request.metrics = viewport_metrics(Vec2::ZERO, Rect::ZERO, 1.0, 1.0);
     }
 }
 
@@ -818,8 +820,10 @@ impl Instances {
                     screen: ScreenId(*next_screen),
                     instance,
                     region,
-                    metrics: viewport_metrics(size, visible, scale_factor),
+                    metrics: viewport_metrics(size, visible, scale_factor, scale_factor),
                     frame,
+                    windows: false,
+                    placement: None,
                 },
                 last_seen: pass,
                 mounted: 0,
@@ -841,7 +845,7 @@ impl Instances {
                 serial: 0,
             }
         });
-        screen.request.metrics = viewport_metrics(size, visible, scale_factor);
+        screen.request.metrics = viewport_metrics(size, visible, scale_factor, scale_factor);
         screen.request.frame = frame;
         screen.last_seen = pass;
         screen.request.screen
@@ -916,14 +920,23 @@ impl Instances {
         size: Vec2,
         visible: Rect,
         scale_factor: f32,
+        raster: f32,
+        windows: bool,
+        placement: Option<String>,
     ) {
         let Some(screen) = self.screen_mut(instance, region) else {
             return;
         };
-        let metrics = viewport_metrics(size, visible, scale_factor);
-        if screen.request.metrics != metrics || screen.request.frame != frame {
+        let metrics = viewport_metrics(size, visible, scale_factor, raster);
+        if screen.request.metrics != metrics
+            || screen.request.frame != frame
+            || screen.request.windows != windows
+            || screen.request.placement != placement
+        {
             screen.request.metrics = metrics;
             screen.request.frame = frame;
+            screen.request.windows = windows;
+            screen.request.placement = placement;
         }
     }
 
@@ -1060,7 +1073,27 @@ impl Instances {
         instance: EditorInstanceId,
         region: EditorRegion,
         input: &beui::ForwardedInput,
+        aim: &dyn Fn(Option<beui::Over>, beui::Pos2) -> beui::Aim,
+        target: &dyn Fn(beui::NodeId) -> Option<(EditorInstanceId, EditorRegion)>,
     ) -> (Vec<Outbound>, bool) {
+        let screens: Vec<(EditorInstanceId, EditorRegion, ScreenId)> = self
+            .entries
+            .iter()
+            .flat_map(|(instance, entry)| {
+                entry
+                    .screens
+                    .iter()
+                    .filter(|(_, screen)| self.announced.contains(&screen.request.screen))
+                    .map(|(region, screen)| (*instance, *region, screen.request.screen))
+            })
+            .collect();
+        let screen_of = |node: beui::NodeId| {
+            let (instance, region) = target(node)?;
+            screens
+                .iter()
+                .find(|(held, at, _)| *held == instance && *at == region)
+                .map(|(_, _, screen)| *screen)
+        };
         let announced = &self.announced;
         let Some(screen) = self
             .entries
@@ -1091,7 +1124,7 @@ impl Instances {
             .is_some_and(|report| report.every_sample);
         let mut messages: Vec<Outbound> = screen
             .input
-            .forward(input, id, zoom, every_sample)
+            .forward(input, id, zoom, every_sample, aim, &screen_of)
             .into_iter()
             .map(Outbound::from)
             .collect();
@@ -1118,17 +1151,17 @@ impl Instances {
         region: EditorRegion,
         rect: Option<Rect>,
         clip: Rect,
-        drawn: Option<(u32, u32)>,
+        drawn: Option<((u32, u32), f32)>,
     ) -> Option<Held> {
         let screen = self
             .entries
             .get_mut(&instance)
             .and_then(|entry| entry.screens.get_mut(&region))?;
-        let requested = (
-            screen.request.metrics.pixel_width,
-            screen.request.metrics.pixel_height,
-        );
-        let stale = drawn.filter(|drawn| *drawn != requested);
+        let stale = drawn
+            .filter(|(drawn, finer)| {
+                *drawn != super::input::requested_at(&screen.request.metrics, *finer)
+            })
+            .map(|(drawn, _)| drawn);
         if screen.holding
             && let (Some(drawn), Some((rect, _))) = (stale, screen.presented)
         {
@@ -1264,6 +1297,7 @@ impl Instances {
         block_types: &Arc<crate::editors::PluginCatalog>,
         editor: Uuid,
         block: EditorBlock,
+        source: Uuid,
         data: &[u8],
         resync: bool,
     ) -> Vec<Outbound> {
@@ -1272,7 +1306,7 @@ impl Instances {
             self.block_types = Some(Arc::clone(block_types));
         }
         let entry = self.entries.entry(instance).or_insert_with(|| {
-            let mut entry = Instance::new(InstanceRole::Artifact(editor, block));
+            let mut entry = Instance::new(InstanceRole::Artifact(editor, block, source));
             entry.artifact.data = data.to_vec();
             entry
         });
@@ -1378,13 +1412,15 @@ impl Instances {
         let mut opened = Vec::new();
         let mut screens = Vec::new();
         self.relaying.clear();
-        let plain_forms = be_types_host::plain_forms_revision();
-        if self.sent_block_types != Some(plain_forms)
+        let (programs, program_editors) = crate::programs::editors();
+        let sent = (be_types_host::plain_forms_revision(), programs);
+        if self.sent_block_types != Some(sent)
             && let Some(block_types) = &self.block_types
         {
-            self.sent_block_types = Some(plain_forms);
+            self.sent_block_types = Some(sent);
             let debug_templates = block_types.debug_templates.clone();
             let mut block_types = block_types.catalog.clone();
+            block_types.editors.extend(program_editors);
             for descriptor in &mut block_types.types {
                 descriptor.plain_file =
                     be_types_host::plain_of(Uuid::from_bytes(descriptor.block_type))
@@ -1447,16 +1483,19 @@ impl Instances {
                         organization_id,
                         client_id,
                     }),
-                    InstanceRole::Artifact(editor, block) => Opening::Artifact(OpenArtifact {
-                        instance,
-                        editor: editor.into_bytes(),
-                        block_id: block.id.into_bytes(),
-                        block_type: block.block_type.into_bytes(),
-                        account_id,
-                        organization_id,
-                        client_id,
-                        data: entry.artifact.data.clone(),
-                    }),
+                    InstanceRole::Artifact(editor, block, source) => {
+                        Opening::Artifact(OpenArtifact {
+                            instance,
+                            editor: editor.into_bytes(),
+                            block_id: block.id.into_bytes(),
+                            block_type: block.block_type.into_bytes(),
+                            source: source.into_bytes(),
+                            account_id,
+                            organization_id,
+                            client_id,
+                            data: entry.artifact.data.clone(),
+                        })
+                    }
                 })));
                 let mut statuses: Vec<_> = entry
                     .screens
@@ -1979,6 +2018,7 @@ impl Instances {
                 intrinsic: child.intrinsic.map(|size| vec2(size.width, size.height)),
                 rotation: child.rotation,
                 opacity: child.opacity,
+                dialog: child.dialog,
             });
         }
         (children, holes)
@@ -2080,8 +2120,8 @@ impl Instances {
                 error: status.error,
                 menu: MenuEntry::flatten(&status.menu),
                 creation: status.creation,
-                settings: status.settings,
                 preview: status.preview,
+                dialog: status.dialog,
             };
             if screen.reported_statuses.get(&status.child) == Some(&status) {
                 continue;
@@ -2121,6 +2161,13 @@ impl Instances {
         self.entries
             .get_mut(&instance)
             .map(|entry| std::mem::take(&mut entry.pick_answers))
+            .unwrap_or_default()
+    }
+
+    pub(super) fn take_child_dismissals(&mut self, instance: EditorInstanceId) -> Vec<ChildId> {
+        self.entries
+            .get_mut(&instance)
+            .map(|entry| std::mem::take(&mut entry.child_dismissals))
             .unwrap_or_default()
     }
 
@@ -2185,6 +2232,7 @@ impl Instances {
                             logical: vec2(metrics.logical.width, metrics.logical.height),
                             pixels: [metrics.pixel_width, metrics.pixel_height],
                             scale_factor: metrics.scale_factor,
+                            raster: metrics.raster,
                             used: screen.used,
                             placement,
                             drawn: screen.mounted > 0 || screen.last_seen >= pass,
@@ -2212,9 +2260,7 @@ impl Instances {
                             draft: entry.artifact.draft.as_ref().map(Vec::len),
                             description: entry.artifact.description.as_ref().map(|description| {
                                 match description {
-                                    ArtifactDescription::Described { summary, .. } => {
-                                        summary.clone()
-                                    }
+                                    ArtifactDescription::Described(summary) => summary.clone(),
                                     ArtifactDescription::Unreadable(error) => {
                                         format!("unreadable: {error}")
                                     }
@@ -2230,10 +2276,21 @@ impl Instances {
         statuses
     }
 
-    pub(super) fn creation_ready(&self, instance: EditorInstanceId) -> bool {
-        self.entries
-            .get(&instance)
-            .is_some_and(|entry| entry.creation_ready)
+    pub(super) fn dialog_status(&self, instance: EditorInstanceId) -> Option<DialogStatus> {
+        self.entries.get(&instance).map(|entry| entry.dialog)
+    }
+
+    pub(super) fn forget_dialog_answer(&mut self, instance: EditorInstanceId) {
+        if let Some(entry) = self.entries.get_mut(&instance) {
+            entry.dialog.answer = None;
+        }
+    }
+
+    pub(super) fn dismiss(&self, instance: EditorInstanceId) -> Vec<Outbound> {
+        if !self.entries.contains_key(&instance) {
+            return Vec::new();
+        }
+        vec![Outbound::Editor(instance, EditorCall::Dismiss)]
     }
 
     pub(super) fn commit_creation(&self, instance: EditorInstanceId) -> Vec<Outbound> {
@@ -2658,11 +2715,18 @@ impl Instances {
                 }),
                 via: focus.via.into_iter().map(Uuid::from_bytes).collect(),
             }),
-            ShellCall::CreationReady { ready, .. } => {
-                let changed = entry.creation_ready != ready;
-                entry.creation_ready = ready;
+            ShellCall::HandlesDismiss { handles, .. } => {
+                let changed = entry.dialog.handles_dismiss != handles;
+                entry.dialog.handles_dismiss = handles;
                 return changed;
             }
+            ShellCall::CloseDialog { answer, .. } => {
+                if entry.dialog.answer.is_some() {
+                    return false;
+                }
+                entry.dialog.answer = Some(answer);
+            }
+            ShellCall::DismissChild { child, .. } => entry.child_dismissals.push(child),
             ShellCall::CommitChild {
                 child,
                 parent,

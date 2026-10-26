@@ -14,6 +14,7 @@ async fn every_graph_change_advances_a_blocks_version() {
             request,
             block,
             metadata: vec![1, 2, 3],
+            references: Vec::new(),
         })
         .await;
     let ServerMessage::Block { block: renamed, .. } = response else {

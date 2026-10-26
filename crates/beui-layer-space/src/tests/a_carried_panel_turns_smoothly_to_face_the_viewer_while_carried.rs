@@ -50,7 +50,7 @@ fn a_carried_panel_turns_smoothly_to_face_the_viewer_while_carried() {
     );
     let carried = main(&space).pose;
     send(&mut space, later(done, 0.2), [button(moved, false)]);
-    assert_eq!(space.carry, None);
+    assert_eq!(space.mouse.carry, None);
     let released = main(&space).pose;
     assert!(
         close(released.position, carried.position)

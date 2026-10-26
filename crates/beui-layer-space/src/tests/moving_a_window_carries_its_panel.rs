@@ -13,7 +13,10 @@ fn moving_a_window_carries_its_panel() {
         [Input::PointerMoved(grab), button(grab, true)],
     );
     space.request(&WindowRequest::BeginMove(window));
-    assert_eq!(space.carry.as_ref().map(|carry| carry.window), Some(window));
+    assert_eq!(
+        space.mouse.carry.as_ref().map(|carry| carry.window),
+        Some(window)
+    );
 
     let moved = grab + vec2(-200.0, 60.0);
     assert_eq!(
@@ -27,7 +30,7 @@ fn moving_a_window_carries_its_panel() {
     assert_eq!(main(&space).pose, main_pose, "the main window stays");
 
     let released = send(&mut space, now, [button(moved, false)]);
-    assert_eq!(space.carry, None);
+    assert_eq!(space.mouse.carry, None);
     assert_eq!(
         delivered(&released)
             .iter()

@@ -27,29 +27,6 @@ pub struct SyntaxColors {
 }
 
 impl SyntaxColors {
-    pub const DEFAULT: Self = Self {
-        invalid: rgb(0xff0000),
-        keyword: rgb(0x5ec4ff),
-        keyword_storage: rgb(0x008b94),
-        keyword_primitive_type: rgb(0x70e1e8),
-        literal: rgb(0xe27e8d),
-        literal_string: rgb(0x68a1f0),
-        comment: rgb(0xff9d1c),
-        punctuation: rgb(0x718ca1),
-        punctuation_important: rgb(0xb7c5d3),
-        variable: rgb(0x718ca1),
-        variable_constant: rgb(0x8bd49c),
-        variable_function: rgb(0x70e1e8),
-        variable_mutable: rgb(0xb7c5d3),
-        variable_parameter: rgb(0xebbf83),
-        markdown_plain_text: rgb(0xffffff),
-        markdown_symbol: rgb(0x5a6579),
-        markdown_link: rgb(0x7aa5ff),
-        markdown_code: rgb(0x8bd49c),
-        unstyled: rgb(0xb7c5d3),
-        invisible: rgb(0x43515c),
-    };
-
     pub const fn uniform(color: Color32) -> Self {
         Self {
             invalid: color,
@@ -101,12 +78,6 @@ impl SyntaxColors {
     }
 }
 
-impl Default for SyntaxColors {
-    fn default() -> Self {
-        Self::DEFAULT
-    }
-}
-
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub struct TextAreaColors {
     pub gutter_border: Color32,
@@ -118,34 +89,6 @@ pub struct TextAreaColors {
     pub selection: Color32,
     pub caret: Color32,
     pub placeholder: Color32,
+    pub remote_selection_alpha: u8,
     pub syntax: SyntaxColors,
-}
-
-impl TextAreaColors {
-    pub const DEFAULT: Self = Self {
-        gutter_border: rgb(0x28333c),
-        gutter_text: rgb(0x718ca1),
-        gutter_arrow: rgb(0x8fa8ba),
-        code_background: rgb(0x171e24),
-        widget: rgb(0x31414e),
-        broken_widget: rgb(0x48373d),
-        selection: rgb(0x213054),
-        caret: rgb(0x5289ff),
-        placeholder: rgb(0x8c8c8c),
-        syntax: SyntaxColors::DEFAULT,
-    };
-}
-
-impl Default for TextAreaColors {
-    fn default() -> Self {
-        Self::DEFAULT
-    }
-}
-
-const fn rgb(hex: u32) -> Color32 {
-    Color32::from_rgb(
-        ((hex >> 16) & 0xff) as u8,
-        ((hex >> 8) & 0xff) as u8,
-        (hex & 0xff) as u8,
-    )
 }

@@ -1,6 +1,6 @@
 use super::*;
+use crate::dock::unstyled::{DockPane, DockTab, DockWindow, DockingLayout};
 use crate::styled::*;
-use crate::unstyled::{DockPane, DockTab, DockWindow, DockingLayout};
 
 #[component]
 fn Input(id: u64) -> NodeId {
@@ -17,7 +17,7 @@ fn pressing_a_floating_windows_bar_gives_the_keyboard_to_what_it_shows() {
     let document = build_node(move || {
         let layout = DockingLayout::new();
         view! {
-            <styled::Docking @node_ref=&dock layout>
+            <dock::styled::Docking @node_ref=&dock layout>
                 <DockPane id="main">
                     <DockTab id=1u64 title="Main">
                         <Input id=1 />
@@ -33,7 +33,7 @@ fn pressing_a_floating_windows_bar_gives_the_keyboard_to_what_it_shows() {
                         </DockTab>
                     </DockPane>
                 </DockWindow>
-            </styled::Docking>
+            </dock::styled::Docking>
         }
     });
     let dock = dock.get();

@@ -48,9 +48,10 @@ impl DragPoint {
         Self { window, ..self }
     }
 
-    pub fn within(self, rect: Rect) -> Self {
+    pub fn within(self, (rect, scale): (Rect, f32)) -> Self {
         let press = crate::base::interactive::press_at(
             rect,
+            scale,
             self.pos,
             0,
             self.modifiers,
@@ -85,7 +86,7 @@ pub struct Carried {
     pub payload: Rc<dyn Any>,
     pub over: Option<u64>,
     pub last: Option<DragPoint>,
-    pub follow: Rc<dyn Fn(Pos2)>,
+    pub follow: Rc<dyn Fn(DragPoint)>,
     pub outside: Outside,
 }
 
@@ -114,8 +115,8 @@ impl Board {
         }
     }
 
-    fn rect_of(&self, target: &Target) -> Option<Rect> {
-        self.rects.get(&target.node.try_get()?)
+    fn rect_of(&self, target: &Target) -> Option<(Rect, f32)> {
+        self.rects.scaled(&target.node.try_get()?)
     }
 
     pub fn register(&self, mut target: Target) -> u64 {
@@ -154,7 +155,7 @@ impl Board {
         &self,
         payload: Rc<dyn Any>,
         point: DragPoint,
-        follow: Rc<dyn Fn(Pos2)>,
+        follow: Rc<dyn Fn(DragPoint)>,
         outside: Outside,
     ) {
         let marks = self
@@ -250,7 +251,7 @@ impl Board {
             carried.last = Some(point);
             Rc::clone(&carried.follow)
         };
-        follow(point.pos);
+        follow(point);
         self.move_to(point);
     }
 
@@ -276,7 +277,7 @@ impl Board {
         }
     }
 
-    pub fn under(&self, window: WindowId, pos: Pos2) -> Option<(u64, Rect, Over)> {
+    pub fn under(&self, window: WindowId, pos: Pos2) -> Option<(u64, (Rect, f32), Over)> {
         let carried = self.carried.borrow();
         let payload = carried.as_ref()?.payload.as_ref();
         let windows = self.windows.borrow();
@@ -310,7 +311,7 @@ impl Board {
             .map(|target| Rc::clone(&target.over))
     }
 
-    fn placed(&self, id: u64) -> Option<Rect> {
+    fn placed(&self, id: u64) -> Option<(Rect, f32)> {
         self.targets
             .borrow()
             .iter()

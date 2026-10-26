@@ -1,4 +1,5 @@
 import json
+import os
 import sys
 from urllib.parse import urljoin, urldefrag
 
@@ -21,7 +22,7 @@ missing = set()
 errors = []
 
 with sync_playwright() as playwright:
-    browser = playwright.chromium.launch()
+    browser = playwright.chromium.launch(executable_path=os.environ.get("BE3_CHROME") or None)
     context = browser.new_context(
         viewport={"width": snapshot["size"][0], "height": snapshot["size"][1]},
         device_scale_factor=1,

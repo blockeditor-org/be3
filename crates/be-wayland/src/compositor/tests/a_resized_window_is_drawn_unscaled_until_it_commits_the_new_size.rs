@@ -13,10 +13,10 @@ fn Pane(windows: Windows) -> NodeId {
     let size = create_signal(SHOWN);
     PANE.with(|pane| *pane.borrow_mut() = Some(size));
     let ids = create_memo(clone_list(&windows));
-    let width = create_memo(move || Some(size.get().x));
-    let height = create_memo(move || Some(size.get().y));
+    let width = create_memo(move || Size::Custom(size.get().x));
+    let height = create_memo(move || Size::Custom(size.get().y));
     view! {
-        <List spacing=0.0>
+        <List spacing=Space::None>
             <ForEach keys={ids}>|id: WindowId|
                 <Frame width=width height=height>
                     <WindowView windows id />

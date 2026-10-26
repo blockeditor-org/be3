@@ -1,5 +1,5 @@
 use super::*;
-use crate::{ARTIFACT, ArtifactSource, BlockMetadata, LOCAL_ID, NAME};
+use crate::{ARTIFACT, Artifact, BlockMetadata, LOCAL_ID, NAME};
 
 #[test]
 fn defined_metadata_merges_key_by_key() {
@@ -11,9 +11,10 @@ fn defined_metadata_merges_key_by_key() {
     theirs.remove(&LOCAL_ID);
     theirs.insert(
         &ARTIFACT,
-        &ArtifactSource {
+        &Artifact {
+            source: Uuid::from_u128(4).into(),
             source_type: Uuid::from_u128(2),
-            data: vec![3],
+            settings: vec![3],
         },
     );
 

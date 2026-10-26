@@ -171,6 +171,7 @@ fn metrics() -> ViewportMetrics {
         pixel_width: WIDTH,
         pixel_height: HEIGHT,
         scale_factor: 1.0,
+        raster: 1.0,
     }
 }
 
@@ -184,8 +185,11 @@ fn screens() -> Vec<ScreenRequest> {
                 chrome: FrameChrome::Drawn,
                 content: None,
                 top_bar: block_plugin_api::TopBar::Hidden,
+                dialog: None,
             }),
             metrics: metrics(),
+            windows: false,
+            placement: None,
         },
         ScreenRequest {
             screen: ScreenId(2),
@@ -193,6 +197,8 @@ fn screens() -> Vec<ScreenRequest> {
             region: EditorRegion::Preview,
             frame: None,
             metrics: metrics(),
+            windows: false,
+            placement: None,
         },
     ]
 }

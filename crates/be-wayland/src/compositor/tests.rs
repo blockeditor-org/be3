@@ -11,6 +11,8 @@ mod a_drag_begun_on_the_ui_over_a_window_never_reaches_the_window;
 mod a_drag_does_not_drop_onto_a_window_a_modal_dialog_blocks;
 mod a_drag_reaches_a_popup_past_its_windows_edge;
 mod a_drawn_window_is_listed_and_fitted_to_where_it_is_shown;
+mod a_finger_held_on_one_window_stays_on_it_while_it_moves_over_another;
+mod a_finger_on_a_window_that_takes_no_touch_moves_and_presses_its_pointer;
 mod a_frame_callback_waits_for_the_flip_of_the_screen_the_window_is_on;
 mod a_fullscreen_window_covers_only_its_own_screen;
 mod a_global_action_that_does_not_intercept_leaves_the_window_its_keys;
@@ -35,6 +37,7 @@ mod a_single_pixel_buffer_fills_its_window_with_one_color;
 mod a_stale_or_foreign_token_does_not_take_the_focus;
 mod a_token_from_a_click_in_the_focused_window_brings_another_window_forward;
 mod a_token_is_lost_once_the_keyboard_leaves_its_window;
+mod a_toplevel_and_its_popup_are_panels_of_their_own_in_space;
 mod a_wake_from_the_host_counts_as_activity;
 mod a_window_asked_fullscreen_on_an_output_fills_that_monitor;
 mod a_window_asking_for_fullscreen_before_it_is_shown_is_answered;
@@ -69,8 +72,10 @@ mod text_the_host_copies_is_offered_to_programs;
 mod the_f_of_super_f_released_elsewhere_is_not_held_against_the_next;
 mod the_lock_time_runs_on_its_own_and_ignores_inhibitors_once_locked;
 mod the_pointer_shows_the_cursor_surface_a_client_sets_over_its_window;
+mod the_seat_offers_touch_only_while_a_touchscreen_is_attached;
 mod the_session_idles_after_the_blank_time_and_wakes_on_input;
 mod the_ui_can_make_a_window_fullscreen_and_take_it_back;
+mod two_fingers_on_a_window_reach_it_as_two_touch_points;
 mod with_middle_click_paste_off_a_selection_is_cancelled_and_offered_to_no_one;
 mod with_middle_click_paste_on_a_selection_is_offered_until_it_is_switched_off;
 
@@ -152,7 +157,7 @@ fn Shown(windows: Windows) -> NodeId {
                     }
                 }}
             >
-                <List spacing=0.0>
+                <List spacing=Space::None>
                     <TextInput @test_id={"test.input"} value={text} />
                     <ForEach keys={ids}>|id: WindowId| {
                         let list = windows.list();
@@ -164,8 +169,8 @@ fn Shown(windows: Windows) -> NodeId {
                                     .map_or(SHOWN, |area| area.size())
                             })
                         });
-                        let width = create_memo(move || Some(size.get().x));
-                        let height = create_memo(move || Some(size.get().y));
+                        let width = create_memo(move || Size::Custom(size.get().x));
+                        let height = create_memo(move || Size::Custom(size.get().y));
                         view! {
                             <Frame width=width height=height>
                                 <WindowView windows id />
@@ -221,6 +226,44 @@ impl Harness {
         gpu: Option<(wgpu::Device, wgpu::Queue)>,
         view: impl FnOnce(Windows) -> NodeId,
     ) -> Self {
+        let (shell, client) = Self::shell(gpu, view);
+        Self {
+            stepped: Stepped::new(beui::context(), shell, Self::screen(), None),
+            client,
+            output: None,
+        }
+    }
+
+    fn in_space(view: impl FnOnce(Windows) -> NodeId) -> Self {
+        let (device, queue) = crate::test_client::vulkan_device();
+        let (shell, client) = Self::shell(Some((device.clone(), queue.clone())), view);
+        let context = beui::context();
+        let mut setup = beui::Setup::new(Waker::new(|| {}));
+        setup.provide(context.clone());
+        setup.provide(beui::GpuSetup {
+            device,
+            queue,
+            format: wgpu::TextureFormat::Bgra8Unorm,
+        });
+        let space = Box::new(beui_layer_space::Space::new());
+        Self {
+            stepped: Stepped::hosted(context, shell, Self::screen(), space, setup),
+            client,
+            output: None,
+        }
+    }
+
+    fn screen() -> WindowSize {
+        WindowSize {
+            size: SCREEN,
+            scale: 1.0,
+        }
+    }
+
+    fn shell(
+        gpu: Option<(wgpu::Device, wgpu::Queue)>,
+        view: impl FnOnce(Windows) -> NodeId,
+    ) -> (Shell, TestClient) {
         let mut windows = None;
         let document = build(|| {
             let store = Windows::new();
@@ -248,15 +291,7 @@ impl Harness {
             document,
             copy: None,
         };
-        let window = WindowSize {
-            size: SCREEN,
-            scale: 1.0,
-        };
-        Self {
-            stepped: Stepped::new(beui::context(), shell, window, None),
-            client,
-            output: None,
-        }
+        (shell, client)
     }
 
     fn compositor(&mut self) -> &mut Compositor {
@@ -293,6 +328,11 @@ impl Harness {
             .with(|dialog| *dialog.borrow())
             .expect("the harness has a dialog");
         set.set(open);
+        self.settle();
+    }
+
+    fn attach_touchscreen(&mut self, attached: bool) {
+        self.context().set_touchscreen_attached(attached);
         self.settle();
     }
 
@@ -499,6 +539,15 @@ fn super_key(pressed: bool) -> Vec<Input> {
 
 fn f_key(pressed: bool) -> Vec<Input> {
     vec![stroke(Some(Key::F), KEY_F, pressed)]
+}
+
+fn finger(finger: u64, phase: beui::TouchPhase, pos: Pos2) -> Input {
+    Input::Touch {
+        id: beui::TouchId { device: 0, finger },
+        phase,
+        pos,
+        force: None,
+    }
 }
 
 fn outside() -> Pos2 {

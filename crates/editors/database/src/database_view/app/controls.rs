@@ -1,44 +1,12 @@
 use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::reactive::*;
-use block_editor_beui::beui::styled::context_menu::menu_style;
 use block_editor_beui::beui::styled::*;
-use block_editor_beui::beui::unstyled::{self, ButtonHandle, MenuButtonHandle, MenuItem};
 use block_editor_beui::database::{ChoiceMark, choice_glyph};
 use database_types::database_schema::DatabaseField;
 use uuid::Uuid;
 
 pub const MARK: TextSize = TextSize::Sm;
 pub const MARK_SIZE: f32 = MARK.icon_px();
-
-#[component]
-pub fn ControlFace(handle: ButtonHandle, children: Child) -> NodeId {
-    let theme = use_theme();
-    let ButtonHandle {
-        hovered,
-        active,
-        focused,
-        ..
-    } = handle;
-    let fill = create_memo(move || {
-        if active.get() {
-            theme.pressed.get()
-        } else if hovered.get() {
-            theme.hover.get()
-        } else {
-            block_editor_beui::beui::Color32::TRANSPARENT
-        }
-    });
-    view! {
-        <Frame
-            fill={ColorRole::custom(fill)}
-            border={create_memo(move || focused.get().then_some(Border::new(ColorRole::Accent).width(2.0)))}
-            radius=Radius::Md
-            padding={Sides::symmetric(8.0, 5.0)}
-        >
-            {children}
-        </Frame>
-    }
-}
 
 #[component]
 pub fn ChoicePicker(
@@ -60,10 +28,6 @@ pub fn ChoicePicker(
             })
         }),
     });
-    let color = create_memo(move || match option.with(Option::is_some) {
-        true => TextColor::Default,
-        false => TextColor::Muted,
-    });
     let keys = create_memo(move || {
         field.with(|field| {
             field
@@ -81,11 +45,17 @@ pub fn ChoicePicker(
     let clear_id = format!("{picker_id}.clear");
     let option_id = picker_id.clone();
     view! {
-        <List direction=Direction::Horizontal spacing=0.0>
-            <unstyled::MenuButton
+        <List direction=Direction::Horizontal spacing=Space::None>
+            <MenuButton
                 label={label}
                 disabled={disabled}
-                menu={menu_style()}
+                variant=ButtonVariant::Ghost
+                size=ButtonSize::Compact
+                arrow=false
+                placeholder={create_memo(move || option.with(Option::is_none))}
+                leading={view! {
+                    <ChoiceMark option={option} size=MARK />
+                }}
                 @test_id={picker_id.clone()}
                 items={view! {
                     <ForEach keys={keys}>|id: Uuid| {
@@ -113,16 +83,6 @@ pub fn ChoicePicker(
                         row_test_id={clear_id.clone()}
                         on_click={move || on_pick.call(None)}
                     />
-                }}
-                trigger={move |handle: MenuButtonHandle| {
-                    view! {
-                        <ControlFace handle={handle.button}>
-                            <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
-                                <ChoiceMark option={option} size=MARK />
-                                <Text color={color}>{label}</Text>
-                            </List>
-                        </ControlFace>
-                    }
                 }}
             />
         </List>

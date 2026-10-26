@@ -1,13 +1,16 @@
-use std::sync::{Arc, Condvar, Mutex, OnceLock, PoisonError};
+use std::sync::{Arc, Condvar, OnceLock, PoisonError};
 
-#[cfg(not(target_arch = "wasm32"))]
+use wasi_threads::Mutex;
+
 use std::path::PathBuf;
 
 use beui::reactive::now;
 use tokio::sync::mpsc::{UnboundedSender, unbounded_channel};
 use uuid::Uuid;
 
+pub(crate) mod conflicts;
 mod graph;
+mod nudge;
 mod replicas;
 pub(crate) mod revisions;
 pub(crate) mod types;
@@ -24,12 +27,27 @@ use native as platform;
 #[cfg(target_arch = "wasm32")]
 use web as platform;
 
-pub(crate) use platform::sleep;
-
 pub(crate) use graph::{Graph, Node, Owner, Query, Scope};
 pub(crate) use worker::{History, PairingRequest, Shared};
 
 use worker::Command;
+
+fn refs(config: &Config) -> Result<be_client::RefsDb, String> {
+    refs_in(&config.data_dir)
+}
+
+pub(crate) fn refs_in(root: &std::path::Path) -> Result<be_client::RefsDb, String> {
+    static OPEN: Mutex<Vec<(std::path::PathBuf, be_client::RefsDb)>> = Mutex::new(Vec::new());
+    let path = root.join("be-refs.sqlite3");
+    let mut open = OPEN.lock().unwrap_or_else(PoisonError::into_inner);
+    if let Some((_, refs)) = open.iter().find(|(held, _)| *held == path) {
+        return Ok(refs.clone());
+    }
+    let refs = be_client::RefsDb::open(&path)
+        .map_err(|error| format!("this device's record of what it holds cannot open: {error}"))?;
+    open.push((path, refs.clone()));
+    Ok(refs)
+}
 
 pub(crate) struct Config {
     pub(crate) server_url: String,
@@ -39,8 +57,8 @@ pub(crate) struct Config {
     pub(crate) identity: [u8; 32],
     pub(crate) display_name: String,
     pub(crate) email: String,
-    #[cfg(not(target_arch = "wasm32"))]
     pub(crate) data_dir: PathBuf,
+    pub(crate) clock: be_client::Clock,
 }
 
 impl Config {
@@ -74,12 +92,26 @@ impl Content {
 pub(crate) struct Status {
     pub(crate) running: bool,
     pub(crate) connected: bool,
+    pub(crate) connecting: bool,
     pub(crate) blocks: usize,
     pub(crate) wakes: u64,
-    pub(crate) unsealed: usize,
+    pub(crate) unsaved: usize,
+    pub(crate) kept: usize,
     pub(crate) saves: u64,
     pub(crate) conflicts: usize,
+    pub(crate) conflicted: Vec<Uuid>,
     pub(crate) error: Option<String>,
+    pub(crate) waiting: usize,
+    pub(crate) syncing: bool,
+    pub(crate) unsent: usize,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) struct UnsentEdit {
+    pub(crate) block: Uuid,
+    pub(crate) name: Option<String>,
+    pub(crate) since: i64,
+    pub(crate) offerable: bool,
 }
 
 pub(crate) use types::{host_block_types, is_known, kind_of, provided};
@@ -151,6 +183,7 @@ struct Stack {
     account: Uuid,
     organization: Uuid,
     commands: Option<UnboundedSender<Command>>,
+    nudges: Option<nudge::Nudges>,
     held: std::collections::HashSet<Uuid>,
     versioned: std::collections::HashSet<Uuid>,
     tried: std::collections::HashSet<Uuid>,
@@ -163,7 +196,8 @@ struct Stack {
 impl Drop for Stack {
     fn drop(&mut self) {
         self.commands = None;
-        self.running.finish();
+        self.nudges = None;
+        self.running.stop();
     }
 }
 
@@ -175,15 +209,28 @@ fn stack() -> &'static Mutex<Option<Stack>> {
 pub(crate) fn start(config: Config) {
     stop();
     let (commands, receiver) = unbounded_channel();
-    let shared = Arc::new(Mutex::new(Shared::default()));
+    let (nudges, nudged) = nudge::channel();
+    let shared = Arc::new(Mutex::new(Shared {
+        wall: worker::Wall::new(config.clock.clone()),
+        ..Shared::default()
+    }));
     let changed = Arc::new(Condvar::new());
     let account = config.account;
     let organization = config.organization;
-    let running = platform::spawn(config, receiver, Arc::clone(&shared), Arc::clone(&changed));
+    let running = platform::spawn(
+        config,
+        worker::Inbox {
+            commands: receiver,
+            nudged,
+        },
+        Arc::clone(&shared),
+        Arc::clone(&changed),
+    );
     *stack().lock().unwrap_or_else(PoisonError::into_inner) = Some(Stack {
         account,
         organization,
         commands: Some(commands),
+        nudges: Some(nudges),
         held: std::collections::HashSet::new(),
         versioned: std::collections::HashSet::new(),
         tried: std::collections::HashSet::new(),
@@ -206,13 +253,55 @@ pub(crate) fn stop() {
         .lock()
         .unwrap_or_else(PoisonError::into_inner)
         .take();
+    if let Some(stack) = &stack {
+        let connection = stack
+            .shared
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .connection
+            .take();
+        if let Some(connection) = connection {
+            connection.close();
+        }
+    }
     drop(stack);
 }
 
-pub(crate) fn flush() {
+pub(crate) fn stop_and_wait() {
+    stop();
+    platform::wait_for_stopped();
+}
+
+#[cfg(all(test, not(target_arch = "wasm32")))]
+pub(crate) fn abandon() {
+    let stack = stack()
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .take();
+    if let Some(mut stack) = stack {
+        stack.running.abandon();
+    }
+}
+
+pub(crate) fn retry_now() {
+    if let Some(stack) = stack()
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .as_ref()
+        && let Some(nudges) = &stack.nudges
+    {
+        nudges.nudge();
+    }
+}
+
+pub(crate) fn flush() -> usize {
+    let unsaved = status().unsaved;
     let (done, sealed) = std::sync::mpsc::channel();
     send(Command::Flush(done));
-    platform::await_flush(sealed);
+    match platform::await_flush(sealed) {
+        true => status().unsaved,
+        false => unsaved,
+    }
 }
 
 #[cfg(test)]
@@ -417,6 +506,7 @@ pub(crate) fn duplicate(from: Uuid) -> Option<(Uuid, Uuid)> {
     let to = Uuid::now_v7();
     let mut metadata = source.metadata.clone();
     metadata.remove(&be_block::ARTIFACT);
+    let references = source.contents();
     let author = account().unwrap_or_default();
     with_shared_mut(|shared| {
         shared.graph.change(Node {
@@ -424,12 +514,13 @@ pub(crate) fn duplicate(from: Uuid) -> Option<(Uuid, Uuid)> {
             content_type: source.content_type,
             author: Some(author),
             parent: Some(be_graph::BlockParent::Detached),
-            access: be_graph::Access::Edit,
-            references: source.references.clone(),
+            access: be_graph::Access::Manage,
+            references,
             metadata: metadata.clone(),
             head: None,
             locked: false,
             held: true,
+            sets_access: false,
         });
     });
     send(Command::Duplicate {
@@ -579,14 +670,53 @@ pub(crate) fn status() -> Status {
     with_shared(|shared| Status {
         running: true,
         connected: shared.connected,
+        connecting: !shared.connected && !shared.reached,
         blocks: shared.blocks.len(),
         wakes: shared.wakes,
-        unsealed: shared.unsealed,
+        unsaved: shared.unsealed + shared.pending + shared.importing,
+        kept: shared.waiting,
         saves: shared.saves,
         conflicts: shared.conflicts.values().map(Vec::len).sum(),
+        conflicted: shared.conflicts.keys().copied().collect(),
         error: shared.error.clone(),
+        waiting: shared.unsealed + shared.waiting,
+        syncing: shared.draining || (shared.connected && shared.unsealed + shared.waiting > 0),
+        unsent: shared.unsent.len(),
     })
     .unwrap_or_default()
+}
+
+pub(crate) fn unsent() -> Vec<UnsentEdit> {
+    with_shared(|shared| {
+        shared
+            .unsent
+            .iter()
+            .map(|unsent| UnsentEdit {
+                block: unsent.block,
+                name: shared
+                    .graph
+                    .get(unsent.block)
+                    .and_then(|node| node.metadata.name()),
+                since: unsent.since,
+                offerable: unsent.offerable,
+            })
+            .collect()
+    })
+    .unwrap_or_default()
+}
+
+pub(crate) fn restore_unsent(block: Uuid) {
+    send(Command::Unsent {
+        block,
+        restore: true,
+    });
+}
+
+pub(crate) fn discard_unsent(block: Uuid) {
+    send(Command::Unsent {
+        block,
+        restore: false,
+    });
 }
 
 fn send(command: Command) {
@@ -627,6 +757,11 @@ pub(crate) fn seal_owed() {
         let (done, _) = std::sync::mpsc::channel();
         send(Command::Flush(done));
     }
+}
+
+pub(crate) fn backgrounded() {
+    let (done, _) = std::sync::mpsc::channel();
+    send(Command::Flush(done));
 }
 
 #[cfg(all(test, not(target_arch = "wasm32")))]
@@ -745,6 +880,7 @@ fn sourced(query: Query) -> Query {
         Query::Parents(id) => Query::Parents(revisions::source(id).unwrap_or(id)),
         Query::Subtree(id) => Query::Subtree(revisions::source(id).unwrap_or(id)),
         Query::Block(id) => Query::Block(revisions::source(id).unwrap_or(id)),
+        Query::OpenSettings(id) => Query::OpenSettings(revisions::source(id).unwrap_or(id)),
         other => other,
     }
 }
@@ -832,12 +968,13 @@ pub(crate) fn create(
             content_type,
             author: Some(author),
             parent: Some(parent),
-            access: be_graph::Access::Edit,
+            access: be_graph::Access::Manage,
             references: Vec::new(),
             metadata: metadata.clone(),
             head: None,
             locked: false,
             held: true,
+            sets_access: false,
         });
     });
     send(Command::Create {
@@ -990,7 +1127,7 @@ const NOT_OPEN: &str = "Open the organization first.";
 
 pub(crate) fn list_access(
     block: Uuid,
-    reply: impl FnOnce(Result<Vec<be_protocol::AccessEntry>, String>) + Send + 'static,
+    reply: impl FnOnce(Result<be_protocol::AccessList, String>) + Send + 'static,
 ) {
     send(Command::ListAccess {
         block,
@@ -1029,6 +1166,15 @@ pub(crate) fn plain_file(
     });
 }
 
+pub(crate) fn from_file(block: Uuid, content_type: Uuid, name: String, bytes: Vec<u8>) {
+    send(Command::FromFile {
+        block,
+        content_type,
+        name,
+        bytes,
+    });
+}
+
 pub(crate) fn import(bytes: &[u8], parent: be_graph::BlockParent) -> Result<(Uuid, Uuid), String> {
     let blocks = be_client::transfer::renumber(be_client::transfer::decode(bytes)?);
     let author = account().ok_or("Sign in to import blocks.")?;
@@ -1045,12 +1191,13 @@ pub(crate) fn import(bytes: &[u8], parent: be_graph::BlockParent) -> Result<(Uui
                 content_type: block.block_type,
                 author: Some(author),
                 parent: Some(placed),
-                access: be_graph::Access::Edit,
+                access: be_graph::Access::Manage,
                 references: block.references.clone(),
                 metadata: block.metadata.clone(),
                 head: None,
                 locked: false,
                 held: true,
+                sets_access: false,
             });
         });
         if let Some(bytes) = &block.content {
@@ -1064,6 +1211,30 @@ pub(crate) fn import(bytes: &[u8], parent: be_graph::BlockParent) -> Result<(Uui
     }
     send(Command::Import(imported));
     Ok(top)
+}
+
+pub(crate) fn import_file(
+    name: String,
+    bytes: Vec<u8>,
+    parent: be_graph::BlockParent,
+    reply: impl FnOnce(Result<(Uuid, Uuid), String>) + Send + 'static,
+) {
+    if account().is_none() {
+        reply(Err("Sign in to import files.".to_owned()));
+        return;
+    }
+    let metadata = be_block::BlockMetadata::named(&name);
+    send(Command::ContentOfFile {
+        name,
+        bytes,
+        reply: Box::new(move |content| {
+            reply(content.map(|(content_type, content)| {
+                let block = Uuid::new_v4();
+                create(block, content_type, parent, metadata, Some(content));
+                (block, content_type)
+            }));
+        }),
+    });
 }
 
 fn with_shared<T>(read: impl FnOnce(&Shared) -> T) -> Option<T> {

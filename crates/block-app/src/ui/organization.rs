@@ -1,20 +1,20 @@
 use beui::icons::Glyph;
 use beui::icons::{
-    ICON_ARROW_LEFT_RIGHT, ICON_BOT, ICON_BUG, ICON_CHECK, ICON_CONTACT, ICON_INFO, ICON_KEY,
-    ICON_LAYOUT_PANEL_LEFT, ICON_POWER, ICON_REFRESH_CCW, ICON_SHIELD_ALERT, ICON_USER_COG,
-    ICON_USER_PLUS, ICON_USERS,
+    ICON_ARCHIVE_RESTORE, ICON_ARROW_LEFT_RIGHT, ICON_BOT, ICON_BUG, ICON_CLOUD_ALERT,
+    ICON_CLOUD_CHECK, ICON_CLOUD_OFF, ICON_CLOUD_SYNC, ICON_CONTACT, ICON_INFO, ICON_KEY,
+    ICON_LAYOUT_PANEL_LEFT, ICON_POWER, ICON_SHIELD_ALERT, ICON_USER_COG, ICON_USER_PLUS,
+    ICON_USERS,
 };
 use beui::reactive::*;
 use beui::styled::*;
-use beui::unstyled::{Container, MenuItem};
 use beui::{NodeId, OverlayAnchor, Pos2};
 use block_plugin_api::HostPanel;
 
 use super::debug::DebugPanels;
 use super::dialogs::Dialogs;
 use super::keys::PairingDialog;
-use super::{AppMenuView, AppViewStore, StatusView, UiCommand, send};
-use crate::compositor::PresentingSurface;
+use super::{AppMenuView, AppViewStore, StatusView, SyncState, UiCommand, send};
+use crate::compositor::{ConflictSurface, PresentingSurface};
 use crate::surfaces::MainSurface;
 
 #[component]
@@ -35,15 +35,45 @@ fn OrganizationBody(view: AppViewStore) -> NodeId {
     let status = create_memo(move || view.status.get());
     let menu = view.app_menu;
     view! {
-        <List spacing=0.0>
+        <List spacing=Space::None>
             <Show condition={normal}>
                 <MainSurface @sizing=ItemSize::Percent(100.0) />
             </Show>
             <AppMenu status={status} menu={menu} />
             <PresentingSurface />
+            <ConflictSurface />
             <Dialogs view={view} />
             <PairingDialog view={view} />
         </List>
+    }
+}
+
+fn sync_label(sync: &SyncState) -> &'static str {
+    match sync {
+        SyncState::Saved => "All changes saved",
+        SyncState::Connecting => "Connecting…",
+        SyncState::Syncing => "Syncing changes…",
+        SyncState::Offline { .. } => "Offline",
+        SyncState::Error(_) => "Changes could not sync",
+    }
+}
+
+fn sync_detail(sync: &SyncState) -> String {
+    match sync {
+        SyncState::Saved | SyncState::Connecting | SyncState::Syncing => String::new(),
+        SyncState::Offline { waiting: 0 } => "Nothing waiting to sync".to_owned(),
+        SyncState::Offline { waiting: 1 } => "1 change kept on this device to sync".to_owned(),
+        SyncState::Offline { waiting } => format!("{waiting} changes kept on this device to sync"),
+        SyncState::Error(error) => error.clone(),
+    }
+}
+
+fn sync_glyph(sync: &SyncState) -> Glyph {
+    match sync {
+        SyncState::Saved => ICON_CLOUD_CHECK,
+        SyncState::Connecting | SyncState::Syncing => ICON_CLOUD_SYNC,
+        SyncState::Offline { .. } => ICON_CLOUD_OFF,
+        SyncState::Error(_) => ICON_CLOUD_ALERT,
     }
 }
 
@@ -56,30 +86,24 @@ fn pick(command: UiCommand) {
 fn AppMenu(status: Memo<StatusView>, menu: Prop<Option<AppMenuView>>) -> NodeId {
     let menu = create_memo(move || menu.get());
     let open = create_memo(move || menu.with(Option::is_some));
-    let placed = create_memo(move || {
-        let opened = menu.get()?;
-        let pointer = untrack(last_pointer);
-        let anchor = match opened.at {
-            Some(rect) => OverlayAnchor::Rect(rect),
-            None => OverlayAnchor::Point(pointer.map_or(Pos2::ZERO, |pointer| pointer.pos)),
-        };
-        Some((anchor, pointer.is_some_and(|pointer| pointer.touch)))
-    });
     let anchor = create_memo(move || {
-        placed
-            .get()
-            .map_or(OverlayAnchor::Point(Pos2::ZERO), |(anchor, _)| anchor)
+        let pointer = || untrack(last_pointer).map_or(Pos2::ZERO, |pointer| pointer.pos);
+        match menu.get().map(|opened| opened.at) {
+            Some(Some(rect)) => OverlayAnchor::Rect(rect),
+            Some(None) => OverlayAnchor::Point(pointer()),
+            None => OverlayAnchor::Point(Pos2::ZERO),
+        }
     });
-    let sheet = create_memo(move || placed.get().is_some_and(|(_, touch)| touch));
-    let saved = create_memo(move || status.get().changes_saved);
-    let unsaved = create_memo(move || !saved.get());
-    let saved_label = create_memo(move || match saved.get() {
-        true => "All changes saved".to_owned(),
-        false => "Submitting changes…".to_owned(),
-    });
-    let saved_glyph = create_memo(move || match saved.get() {
-        true => ICON_CHECK,
-        false => ICON_REFRESH_CCW,
+    let sync = create_memo(move || status.get().sync);
+    let sync_label = create_memo(move || sync_label(&sync.get()).to_owned());
+    let sync_detail = create_memo(move || sync_detail(&sync.get()));
+    let sync_glyph = create_memo(move || sync_glyph(&sync.get()));
+    let unsaved = create_memo(move || status.get().unsaved);
+    let unsent = create_memo(move || status.get().unsent);
+    let has_unsent = create_memo(move || unsent.get() > 0);
+    let unsent_detail = create_memo(move || match unsent.get() {
+        1 => "1 block".to_owned(),
+        count => format!("{count} blocks"),
     });
     let organization = create_memo(move || status.get().organization);
     let signed_in_as = create_memo(move || status.get().signed_in_as);
@@ -93,15 +117,24 @@ fn AppMenu(status: Memo<StatusView>, menu: Prop<Option<AppMenuView>>) -> NodeId 
         <MenuPopup
             anchor
             open
-            sheet
             on_dismiss={|| send(UiCommand::AppMenu(false))}
             items={view! {
                 <MenuItem
                     row_test_id={"app.menu.status".to_owned()}
-                    label={saved_label}
-                    glyph={saved_glyph}
+                    label={sync_label}
+                    glyph={sync_glyph}
+                    detail={sync_detail}
                     disabled=true
                 />
+                <Show condition={has_unsent}>
+                    <MenuItem
+                        row_test_id={"app.menu.unsent".to_owned()}
+                        label="Unsent edits"
+                        glyph=ICON_ARCHIVE_RESTORE
+                        detail={unsent_detail}
+                        on_click={|| pick(UiCommand::Unsent(true))}
+                    />
+                </Show>
                 <Show condition={warned}>
                     <MenuItem
                         row_test_id={"app.menu.escrow-warning".to_owned()}
@@ -206,3 +239,6 @@ fn panel_icon(panel: HostPanel) -> Glyph {
         HostPanel::Plugins => beui::icons::ICON_PUZZLE,
     }
 }
+
+#[cfg(test)]
+mod tests;

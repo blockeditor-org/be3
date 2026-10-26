@@ -1,0 +1,25 @@
+load("@root//buck/cargo:defs.bzl", "cargo_library", "cargo_test")
+
+cargo_library()
+
+# The smoke test runs Monado's service from the XR runtime set with its null
+# compositor, which draws through lavapipe as the test does, and shows frames
+# to it through the runtime's own library, named by monado_runtime.json. Its
+# OpenCV links LAPACK and BLAS, and its audio PulseAudio, which Ubuntu keeps in
+# directories of their own.
+cargo_test(
+    env = {
+        "LD_LIBRARY_PATH": ":".join([
+            "$(location //buck/sysroot:amd64-xr)/usr/lib/x86_64-linux-gnu",
+            "$(location //buck/sysroot:amd64-xr)/usr/lib/x86_64-linux-gnu/lapack",
+            "$(location //buck/sysroot:amd64-xr)/usr/lib/x86_64-linux-gnu/blas",
+            "$(location //buck/sysroot:amd64-xr)/usr/lib/x86_64-linux-gnu/pulseaudio",
+            "$(location //buck/sysroot:amd64-xr)/usr/lib",
+            "$(location //buck/sysroot:amd64)/usr/lib/x86_64-linux-gnu",
+        ]),
+        "MONADO_SERVICE": "$(location //buck/sysroot:amd64-xr)/usr/bin/monado-service",
+        "VK_ICD_FILENAMES": "$(location //buck/sysroot:lavapipe_icd.json)",
+        "XR_RUNTIME_JSON": "$(location //buck/sysroot:monado_runtime.json)",
+    },
+    target_compatible_with = ["prelude//os:linux"],
+)

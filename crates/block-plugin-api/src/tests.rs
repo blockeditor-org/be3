@@ -32,6 +32,7 @@ fn frame(serial: u64) -> FrameCommit {
         repaint_after_micros: None,
         animating: false,
         presented: None,
+        window_requests: Vec::new(),
     }
 }
 
@@ -81,7 +82,10 @@ fn region_screen(
             pixel_width,
             pixel_height,
             scale_factor,
+            raster: scale_factor,
         },
+        windows: false,
+        placement: None,
     }
 }
 

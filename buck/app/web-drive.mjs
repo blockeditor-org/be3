@@ -14,7 +14,7 @@ browser is the platform here, so it answers these screen commands itself:
   screen upload FILE TARGET click TARGET and answer the file chooser with FILE
 and these of its own:
   eval EXPRESSION           evaluate JavaScript in the page and print the result
-  reload                    reload the page
+  reload                    reload the page and wait until the app answers
   size W H                  make the page W by H
   quit                      close the browser`;
 
@@ -57,9 +57,17 @@ if (!page) {
     process.exit(1);
 }
 
-const automate = (words) =>
-    page.evaluate(
+const started = () =>
+    page.waitForFunction(() => globalThis.blockStarted !== undefined, null, { timeout: timeout * 1000 });
+const automate = async (words) => {
+    await started();
+    return page.evaluate(
         async ({ words, timeout }) => {
+            try {
+                await globalThis.blockStarted;
+            } catch (error) {
+                return { error: `the app did not start: ${error?.message ?? error}` };
+            }
             const app = await import(new URL("block_app_lib.js", document.baseURI).href);
             try {
                 return { text: await app.automate(words, Math.round(timeout * 1000)) };
@@ -69,6 +77,7 @@ const automate = (words) =>
         },
         { words, timeout },
     );
+};
 const answer = async (words) => {
     const { text, error } = await automate(words);
     if (error !== undefined) {
@@ -100,7 +109,9 @@ const number = (index) => {
 };
 switch (command) {
     case "dev-sign-in": {
+        await started();
         const tree = await page.evaluate(async (timeoutMs) => {
+            await globalThis.blockStarted;
             const app = await import(new URL("block_app_lib.js", document.baseURI).href);
             const deadline = performance.now() + timeoutMs;
             while (performance.now() < deadline) {
@@ -188,6 +199,7 @@ switch (command) {
         break;
     case "reload":
         await page.reload();
+        await answer(["--no-settle", "app", "tree"]);
         break;
     case "size": {
         const session = await page.context().newCDPSession(page);

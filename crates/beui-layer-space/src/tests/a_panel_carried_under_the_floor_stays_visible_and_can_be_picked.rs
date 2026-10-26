@@ -26,6 +26,7 @@ fn a_panel_carried_under_the_floor_stays_visible_and_can_be_picked() {
         window: under,
         placement: WindowPlacement::Host(panel(under, pose).placement()),
         size: SIZE,
+        role: WindowRole::Normal,
     });
     send(&mut space, now, []);
 
@@ -37,7 +38,7 @@ fn a_panel_carried_under_the_floor_stays_visible_and_can_be_picked() {
     space.request(&WindowRequest::BeginMove(under));
     send(&mut space, now, []);
     let now = later(now, TURN_SECONDS);
-    send(&mut space, now, [scroll(10.0)]);
+    send(&mut space, now, [scroll(22.0)]);
     let carried = space.panel(under).expect("the window has a panel");
     let highest = [pos2(0.0, 0.0), pos2(SIZE.x, 0.0)]
         .map(|corner| carried.world(corner).y)
@@ -54,7 +55,7 @@ fn a_panel_carried_under_the_floor_stays_visible_and_can_be_picked() {
         "the panel is picked under the floor while carried"
     );
     send(&mut space, now, [button(centre(), false)]);
-    assert_eq!(space.carry, None);
+    assert_eq!(space.mouse.carry, None);
 
     let got = delivered(&send(
         &mut space,

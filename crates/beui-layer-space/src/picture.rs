@@ -4,24 +4,26 @@ use beui_core::color::Color32;
 use beui_core::context::WindowOutput;
 use beui_core::geometry::Rect;
 use beui_core::painting::{
-    self, Content, Fade, Frame as Paint, Painting, Pixels, Placement, Primitive, Punches,
-    RoundedRect, Triangle, Turn, Vertex,
+    self, Content, Fade, Frame as Paint, Painting, Pixels, Primitive, Punches, RoundedRect,
+    Triangle, Turn, Vertex,
 };
 use glam::Vec3;
 
 use crate::chrome::LIFT;
 use crate::floor;
 use crate::head::NEAR;
-use crate::panel::bent;
-use crate::render::{Frame, PanelFrame};
+use crate::render::{BEAM_WIDTH, Frame, PanelFrame};
 use crate::space::SKY;
 
-const COLUMNS: usize = 24;
-const ROWS: usize = 4;
+mod scene;
+
+use scene::Scene;
+
 const WHITE: u64 = u64::MAX;
 const BACKDROP: usize = 16;
 const GRID_REACH: f32 = 20.0;
 const GRID_SEGMENT: usize = 4;
+const DOT_SIDES: usize = 16;
 
 pub fn painting(frame: &Frame, rect: Rect) -> Option<Painting> {
     let scale = frame.pixels_per_point;
@@ -42,6 +44,7 @@ pub fn painting(frame: &Frame, rect: Rect) -> Option<Painting> {
     };
     out.backdrop(frame, rect);
     out.grid(frame, rect);
+    let mut scene = Scene::new(frame, rect);
     let eye = frame.eye;
     let mut panels: Vec<&PanelFrame> = frame.panels.iter().collect();
     let distance = |panel: &PanelFrame| panel.model.w_axis.truncate().distance(eye);
@@ -57,7 +60,7 @@ pub fn painting(frame: &Frame, rect: Rect) -> Option<Painting> {
             let background = output.window.appearance.clear_color;
             let picture =
                 painting::painting(&output, output.size, scale, background, Punches::Shown).ok()?;
-            out.place(frame, rect, panel, &picture, [0.0, 0.0, 1.0, 1.0], 0.0, 1.0);
+            scene.surface(panel, picture, [0.0, 0.0, 1.0, 1.0], 0.0, 1.0);
         }
         if let Some(chrome) = panel.chrome
             && let Some(output) = find(&frame.chrome, panel)
@@ -70,16 +73,23 @@ pub fn painting(frame: &Frame, rect: Rect) -> Option<Painting> {
                 Punches::Shown,
             )
             .ok()?;
-            out.place(
-                frame,
-                rect,
-                panel,
-                &picture,
-                chrome.span,
-                LIFT,
-                chrome.opacity,
-            );
+            scene.surface(panel, picture, chrome.span, LIFT, chrome.opacity);
         }
+    }
+    scene.paint(&mut out, scale);
+    out.beams(frame, rect);
+    if let (Some(cursor), Some(output)) = (&frame.cursor, &frame.sprite) {
+        let picture = painting::painting(
+            output,
+            output.size,
+            scale,
+            Color32::TRANSPARENT,
+            Punches::Shown,
+        )
+        .ok()?;
+        let mut over = Scene::new(frame, rect);
+        over.surface(cursor, picture, [0.0, 0.0, 1.0, 1.0], 0.0, 1.0);
+        over.paint(&mut out, scale);
     }
     Some(Painting {
         frame: Paint {
@@ -257,114 +267,102 @@ impl Out {
         self.mesh(rect, triangles);
     }
 
-    #[allow(clippy::too_many_arguments)]
-    fn place(
-        &mut self,
-        frame: &Frame,
-        rect: Rect,
-        panel: &PanelFrame,
-        picture: &Painting,
-        span: [f32; 4],
-        lift: f32,
-        opacity: f32,
-    ) {
-        let screen = |u: f32, v: f32| -> Option<[f32; 2]> {
-            let u = span[0] + (span[2] - span[0]) * u;
-            let v = span[1] + (span[3] - span[1]) * v;
-            let local = bent(
-                panel.metres.x,
-                panel.bend,
-                (u - 0.5) * panel.metres.x,
-                (0.5 - v) * panel.metres.y,
-                lift,
-            );
-            let world: Vec3 = panel.model.transform_point3(local);
+    fn beams(&mut self, frame: &Frame, rect: Rect) {
+        let screen = |world: Vec3| -> Option<(glam::Vec2, f32)> {
             let clip = frame.view_projection * world.extend(1.0);
-            if clip.w <= NEAR {
-                return None;
-            }
-            let (x, y) = (clip.x / clip.w, clip.y / clip.w);
-            Some([
-                rect.min.x + (x + 1.0) / 2.0 * rect.width(),
-                rect.min.y + (1.0 - y) / 2.0 * rect.height(),
-            ])
+            (clip.w > NEAR).then(|| {
+                (
+                    glam::Vec2::new(
+                        rect.min.x + (clip.x / clip.w + 1.0) / 2.0 * rect.width(),
+                        rect.min.y + (1.0 - clip.y / clip.w) / 2.0 * rect.height(),
+                    ),
+                    clip.w,
+                )
+            })
         };
-        let mut cells = Vec::new();
-        for column in 0..COLUMNS {
-            for row in 0..ROWS {
-                let (left, right) = (
-                    column as f32 / COLUMNS as f32,
-                    (column + 1) as f32 / COLUMNS as f32,
-                );
-                let (top, bottom) = (row as f32 / ROWS as f32, (row + 1) as f32 / ROWS as f32);
-                let (Some(c0), Some(c1), Some(c2), Some(c3)) = (
-                    screen(left, top),
-                    screen(right, top),
-                    screen(right, bottom),
-                    screen(left, bottom),
-                ) else {
-                    continue;
-                };
-                let facing = (c1[0] - c0[0]) * (c3[1] - c0[1]) - (c1[1] - c0[1]) * (c3[0] - c0[0]);
-                if facing <= 0.0 {
-                    continue;
-                }
-                let xs = [c0[0], c1[0], c2[0], c3[0]];
-                let ys = [c0[1], c1[1], c2[1], c3[1]];
-                let clip = [
-                    xs.into_iter().fold(f32::MAX, f32::min).max(rect.min.x),
-                    ys.into_iter().fold(f32::MAX, f32::min).max(rect.min.y),
-                    xs.into_iter().fold(f32::MIN, f32::max).min(rect.max.x),
-                    ys.into_iter().fold(f32::MIN, f32::max).min(rect.max.y),
-                ];
-                if clip[2] > clip[0] && clip[3] > clip[1] {
-                    cells.push(([left, top, right, bottom], [c0, c1, c2, c3], clip));
-                }
-            }
-        }
-        let mut background = picture.frame.background;
-        background[3] = (f32::from(background[3]) * opacity).round() as u8;
-        if background[3] > 0 {
-            self.white();
-            let vertex = |pos: [f32; 2]| Vertex {
-                pos,
-                uv: [0.0, 0.0],
-                color: background,
+        let across = |world: Vec3, metres: f32| -> Option<f32> {
+            let (at, _) = screen(world)?;
+            let (side, _) = screen(world + frame.right * metres)?;
+            Some(at.distance(side))
+        };
+        let mut triangles = Vec::new();
+        for beam in &frame.beams {
+            let color = beam.color().to_array();
+            let tinted = |alpha: f32| {
+                [
+                    color[0],
+                    color[1],
+                    color[2],
+                    (f32::from(color[3]) * alpha).round() as u8,
+                ]
             };
-            let triangles = cells
-                .iter()
-                .flat_map(|(_, [c0, c1, c2, c3], _)| {
-                    [[*c0, *c1, *c2], [*c0, *c2, *c3]].map(|corners| Triangle {
+            let (mut start, end) = (beam.start, beam.end);
+            let (start_w, end_w) = (
+                (frame.view_projection * start.extend(1.0)).w,
+                (frame.view_projection * end.extend(1.0)).w,
+            );
+            if end_w <= NEAR && start_w <= NEAR {
+                continue;
+            }
+            let mut faint = 0.15;
+            if start_w <= NEAR {
+                let t = (NEAR * 1.01 - start_w) / (end_w - start_w);
+                start = start.lerp(end, t);
+                faint += (1.0 - faint) * t;
+            }
+            let (Some((from, _)), Some((to, _)), Some(near), Some(far)) = (
+                screen(start),
+                screen(end),
+                across(start, BEAM_WIDTH / 2.0),
+                across(end, BEAM_WIDTH / 2.0),
+            ) else {
+                continue;
+            };
+            let direction = to - from;
+            if direction.length() > 1e-3 {
+                let side = direction.normalize().perp();
+                let vertex = |at: glam::Vec2, alpha: f32| Vertex {
+                    pos: at.to_array(),
+                    uv: [0.0, 0.0],
+                    color: tinted(alpha),
+                };
+                let corners = [
+                    vertex(from + side * near.max(0.5), faint),
+                    vertex(to + side * far.max(0.5), 1.0),
+                    vertex(to - side * far.max(0.5), 1.0),
+                    vertex(from - side * near.max(0.5), faint),
+                ];
+                triangles.push(Triangle {
+                    texture: WHITE,
+                    corners: [corners[0], corners[1], corners[2]],
+                });
+                triangles.push(Triangle {
+                    texture: WHITE,
+                    corners: [corners[0], corners[2], corners[3]],
+                });
+            }
+            let radius = beam.dot(frame.eye);
+            if radius > 0.0
+                && let Some(size) = across(end, radius)
+            {
+                let vertex = |at: glam::Vec2| Vertex {
+                    pos: at.to_array(),
+                    uv: [0.0, 0.0],
+                    color: tinted(1.0),
+                };
+                let rim = |index: usize| {
+                    let angle = std::f32::consts::TAU * index as f32 / DOT_SIDES as f32;
+                    to + glam::Vec2::from_angle(angle) * size
+                };
+                for index in 0..DOT_SIDES {
+                    triangles.push(Triangle {
                         texture: WHITE,
-                        corners: corners.map(vertex),
-                    })
-                })
-                .collect();
-            self.primitives.push(Primitive {
-                clip: [rect.min.x, rect.min.y, rect.max.x, rect.max.y],
-                fade: Fade::NONE,
-                content: Content::Mesh(triangles),
-            });
-        }
-        let mut picture = picture.clone();
-        picture.frame.background = [0; 4];
-        for (source, corners, clip) in cells {
-            let placed = picture.placed(Placement {
-                source,
-                corners,
-                clip,
-            });
-            for mut primitive in placed {
-                if !overlaps(&primitive) {
-                    continue;
+                        corners: [vertex(to), vertex(rim(index)), vertex(rim(index + 1))],
+                    });
                 }
-                faded(&mut primitive.content, opacity);
-                self.primitives.push(primitive);
             }
         }
-        for (key, pixels) in &picture.textures {
-            self.textures.entry(*key).or_insert_with(|| pixels.clone());
-        }
+        self.mesh(rect, triangles);
     }
 }
 

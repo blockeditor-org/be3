@@ -92,6 +92,14 @@ the receiver reads as a zoom of its own. Consecutive moves from one touch
 coalesce to their latest position and pressure. Consecutive zoom gestures
 coalesce by multiplying their factors.
 
+A press made in one screen keeps that screen's input while it is held, as an
+operating system keeps a press with the window it began in. While it is held
+and the pointer is over another screen of the same plugin, each pointer event
+names that screen (`over`) and carries its position in that screen's
+coordinates, so a drag carries across a plugin's screens; over none of them the
+host sends `pointer-left` once and goes on with positions in the holding
+screen's coordinates, outside its rectangle.
+
 A back gesture - the system's back button or swipe, or a Back key - is an
 input event of its own, carrying its phase: started from an edge, its
 progress, cancelled, or invoked. It is not sent to the screen with the focus.
@@ -137,12 +145,26 @@ plugin found that names the type.
 Every block is made from a template the plugin's manifest declares, and an
 instance opened to make one is opened as a creation instance instead of on a
 block, naming the template it makes: it has a client of its own but no block,
-and a template the manifest marks as a dialog is also given a frame with no
-chrome bands, in which it asks what it needs first. It reports whether the dialog
-has been filled in, which is what lets the user accept it. On acceptance the
-host asks the instance to commit, and the instance creates the block through
-its own client and answers with the block's id, or with why it could not be
-created; the host then opens the block it was given.
+and a template the manifest marks as a dialog is also shown as a dialog, in
+which it asks what it needs first. When the user accepts it the instance asks
+to close with `close-dialog(accepted)`; the host then asks it to commit, and
+the instance creates the block through its own client and answers with the
+block's id, or with why it could not be created; the host then opens the block
+it was given.
+
+An instance shown as a dialog (its frame's `dialog` is set, which an editor
+asks for by placing a child with `dialog` set) gets the whole area inside the
+card or sheet, with no padding and no title bar of the host's: it draws the
+title, the content and the actions, and reports the height it wants as its
+content (the host passes the size it got as the frame's, and how much of its
+bottom is covered as `bottom-inset`). Escape, back and a press outside it go to
+the instance first, so a form with unsaved changes can ask before closing: the
+editor showing it calls `dismiss-child`, the host calls the instance's
+`dismiss`, and the instance answers with `close-dialog`, which reaches the
+editor showing it as the child's `dialog-status`. Whether an instance answers
+is decided up front rather than by waiting: it says `handles-dismiss(true)`
+while it can, and until it does the host answers a `dismiss-child` for it at
+once with `dismissed`, as it does for an instance that stopped.
 
 An editor whose block type generates dynamic artifacts is also opened on an
 artifact: an instance with a client of its own, the artifact's block and the
@@ -284,9 +306,11 @@ artifact can describe it, so the host keeps that instance open for as long as
 a block is watched and answers on its behalf. Each watched block is a watch of
 its own; dropping the last watch on a block closes the instance describing it. That instance
 also shows a block's artifact settings: an instance places a child showing
-them, whose status says whether the copy being edited differs from the stored
-settings and summarises what it would produce, and committing that child
-stores the copy.
+them, as a dialog, whose status says whether the copy being edited differs
+from the stored settings and summarises what it would produce. The settings
+instance draws the dialog and its Apply and Cancel, and answers with
+`close-dialog`; the editor showing it commits that child to store the copy
+when the answer is `accepted`, and closes it either way.
 
 The instance that draws the window may ask the host who can open a block,
 answered once with the people the account may share it with: whoever already
@@ -393,8 +417,20 @@ when it is let go, and reports that the drag has moved off the instance again.
 An instance answers with whether it would take the block, which only decides
 the cursor the host shows; a drop is delivered whether or not it was accepted.
 
-An instance is shown through screens of three kinds: a frame, a preview, and
-an artifact-settings region. A frame is the whole rectangle an editor is
+An instance is shown through screens of five kinds: a frame, a preview, an
+artifact-settings region, a display and a window. A host that shows a desktop
+on several displays shows the frame on its first display and a `display(n)`
+region on each further one, numbered from 1 in the order it lists them. A screen
+request may say the host shows the windows the plugin opens from it as windows
+of its own (`windows`): the plugin then asks for each with a `window-request`
+in its frame (`open`, naming the region it opens from and a placement: at the
+pointer, at a point of a region, or where a `placement` the host gave says,
+and its role, which a host showing windows in space reads to never focus a
+keyboard or a popup; then `begin-move` and `begin-resize`, which hand the pointer to the host until
+the press is let go, `resize` and `close`), and the host shows it as a
+`window(w)` screen of that instance, whose size, scale and `placement` are the
+host's answer, whose focus arrives as input, and whose going away closes it.
+Without `windows` the plugin draws its windows inside the screen. A frame is the whole rectangle an editor is
 edited in, and an instance has at most one; the plugin lays its own toolbar
 row, sidebars and content out inside it, in one pass of one context. The host
 says, per frame, whether the instance owns the chrome bands this frame, where
@@ -492,6 +528,13 @@ its screen - scales them, and then by the one sent at the frame's serial. A
 child the placement says follows the view is moved from the view sent at that
 serial to the one the host is showing, so a child keeps up with a pan the
 plugin has not drawn yet.
+
+A screen also carries its raster: the pixel density the host draws it at,
+which its pixel size counts. It differs from its scale where the host shows
+the screen larger or smaller than it lays it out at, as a panel in VR does. A
+plugin lays out at the scale and paints at the raster, so a change of raster
+alone moves nothing; until a painting at the new raster arrives, the host
+shows the last one at the same size in points.
 
 A child the user has selected, or one an instance declares as the whole of
 what it shows, becomes a frame owner of its own: it is handed the same frame
@@ -627,7 +670,7 @@ own under wasmtime, a worker of its own in the browser - and either side may
 send at any time.
 
 Every host call that changes what a plugin lays out against - the screens,
-which carries each screen's size, scale and frame, and a view - is followed by
+which carries each screen's size, scale, raster and frame, and a view - is followed by
 a configure carrying a serial, one higher each time, which says the host has
 sent everything up to it. A plugin answers no configure: each frame it commits
 names the last serial it had received when it laid out, so the host knows

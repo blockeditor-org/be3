@@ -25,16 +25,16 @@ fn child_statuses_round_trip() {
                 enabled: true,
                 ..MenuCommand::default()
             })]),
-            creation: Some(CreationProgress::Options { ready: true }),
-            settings: Some(SettingsProgress {
-                changed: true,
-                summary: Some("Every 5 minutes".into()),
-            }),
+            creation: Some(CreationProgress::Options),
             preview: ChildPreview::Image(PreviewImage {
                 image: 12,
                 width: 320,
                 height: 180,
             }),
+            dialog: DialogStatus {
+                handles_dismiss: true,
+                answer: Some(DialogAnswer::Accepted),
+            },
         },
         ChildStatus {
             instance: EditorInstanceId(4),
@@ -50,8 +50,8 @@ fn child_statuses_round_trip() {
             error: Some("the block is already open above this editor".into()),
             menu: Vec::new(),
             creation: None,
-            settings: None,
             preview: Default::default(),
+            dialog: DialogStatus::default(),
         },
     ];
     assert_eq!(

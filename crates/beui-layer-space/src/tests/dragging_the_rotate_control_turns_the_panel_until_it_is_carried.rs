@@ -35,8 +35,8 @@ fn dragging_the_rotate_control_turns_the_panel_until_it_is_carried() {
 
     let middle = centre();
     send(&mut space, now, [Input::PointerMoved(middle)]);
-    space.request(&WindowRequest::BeginMove(WindowId::MAIN));
     send(&mut space, now, [button(middle, true)]);
+    space.request(&WindowRequest::BeginMove(WindowId::MAIN));
     send(&mut space, later(now, 1.0), [button(middle, false)]);
     let normal = main(&space).normal();
     assert!(

@@ -2,6 +2,7 @@ use super::*;
 use crate::geometry::Rect;
 use crate::painter::Shape;
 use crate::primitives::Frame;
+use crate::primitives::List;
 use crate::reactive::*;
 use crate::styled::*;
 

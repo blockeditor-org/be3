@@ -45,6 +45,7 @@ pub struct EditorSession {
     audio_watched: bool,
     web_views: HashMap<WebViewId, Rc<shell::WebView>>,
     link: crate::link::Link,
+    asks: Vec<block_plugin_api::WindowRequest>,
 }
 
 struct ArtifactState {
@@ -94,6 +95,8 @@ struct RegionState {
     occluders: Vec<Occluder>,
     reported_children: Option<ReportedChildren>,
     age: u32,
+    windows: bool,
+    placement_value: Option<String>,
 }
 
 impl Drop for EditorSession {
@@ -142,11 +145,16 @@ impl EditorSession {
             audio_watched: false,
             web_views: HashMap::new(),
             link: crate::link::Link::default(),
+            asks: Vec::new(),
         }
     }
 
     pub fn pick_menu(&self, id: String) {
         self.host.push_menu_pick(id);
+    }
+
+    pub fn dismiss(&self) {
+        self.host.request_dismiss();
     }
 
     pub(crate) fn set_block_types(&self, catalog: Rc<BlockCatalog>) {
@@ -294,13 +302,10 @@ impl EditorSession {
         self.app.connect_creation(template);
     }
 
-    pub(crate) fn connect_artifact(&mut self, block_id: Uuid, block_type: Uuid, data: Vec<u8>) {
+    pub(crate) fn connect_artifact(&mut self, artifact: crate::Artifact, data: Vec<u8>) {
         self.artifact = Some(ArtifactState::new(data));
         self.host.set_editable(true);
-        self.app.connect_artifact(crate::Artifact {
-            block_id,
-            block_type,
-        });
+        self.app.connect_artifact(artifact);
     }
 
     pub(crate) fn artifact_settings(&mut self, data: Vec<u8>) {
@@ -347,6 +352,8 @@ impl EditorSession {
             state.placement = Some(*placement);
             state.metrics = Some(request.metrics.clone());
             state.frame = request.frame;
+            state.windows = request.windows;
+            state.placement_value.clone_from(&request.placement);
         }
     }
 
@@ -355,6 +362,7 @@ impl EditorSession {
         commit.reports.extend(self.frame_reports());
         commit.windows.extend(self.windows());
         commit.children.extend(self.children());
+        commit.window_requests.append(&mut self.asks);
         self.retain_child_statuses();
     }
 
@@ -392,17 +400,20 @@ impl EditorSession {
             self.aspect_ratio = aspect_ratio;
             shell::aspect_ratio(instance, aspect_ratio);
         }
-        if let Some(ready) = self.host.take_creation_ready() {
-            shell::creation_ready(instance, ready);
+        if let Some(handles) = self.host.take_handles_dismiss() {
+            shell::handles_dismiss(instance, handles);
+        }
+        for answer in self.host.take_dialog_closes() {
+            shell::close_dialog(instance, answer);
+        }
+        for child in self.host.take_child_dismissals() {
+            shell::dismiss_child(instance, child);
         }
         if let Some(artifact) = &mut self.artifact {
             if artifact.described.as_deref() != Some(artifact.data.as_slice()) {
                 artifact.described = Some(artifact.data.clone());
                 let description = match self.app.describe_artifact(&artifact.data) {
-                    Ok(description) => ArtifactDescription::Described {
-                        source: description.source.into_bytes(),
-                        summary: description.summary,
-                    },
+                    Ok(summary) => ArtifactDescription::Described(summary),
                     Err(error) => ArtifactDescription::Unreadable(error),
                 };
                 shell::artifact_described(instance, description);
@@ -662,6 +673,11 @@ impl EditorSession {
             .map_or(1.0, |placement| placement.scale_factor())
     }
 
+    fn raster(&self, region: EditorRegion) -> f32 {
+        self.placement(region)
+            .map_or(1.0, |placement| placement.raster())
+    }
+
     fn placement(&self, region: EditorRegion) -> Option<&ScreenPlacement> {
         self.regions
             .get(&region)
@@ -698,6 +714,7 @@ impl EditorSession {
             rect: self.rect(region),
             visible: self.visible(region),
             scale_factor: self.scale_factor(region),
+            raster: self.raster(region),
             pixels: self
                 .placement(region)
                 .map_or([0, 0], |placement| [placement.width, placement.height]),
@@ -708,9 +725,16 @@ impl EditorSession {
                 .and_then(|state| state.frame)
                 .unwrap_or_default(),
             describe: state
-                .filter(|_| region == EditorRegion::Frame && crate::screens::describing())
+                .filter(|_| {
+                    matches!(
+                        region,
+                        EditorRegion::Frame | EditorRegion::Display(_) | EditorRegion::Window(_)
+                    ) && crate::screens::describing()
+                })
                 .map(|state| state.epoch),
             seen: crate::screens::seen(),
+            windows: state.is_some_and(|state| state.windows),
+            placement: state.and_then(|state| state.placement_value.clone()),
         }
     }
 
@@ -757,10 +781,10 @@ impl EditorSession {
             .and_then(|(dropped, files)| (*dropped == region).then(|| files.clone()));
         self.host.set_files(region, files);
         if region == EditorRegion::ArtifactSettings {
-            let draft = self
-                .artifact
-                .as_ref()
-                .map(|artifact| artifact.draft.clone());
+            let draft = self.artifact.as_ref().map(|artifact| crate::SettingsDraft {
+                saved: artifact.data.clone(),
+                draft: artifact.draft.clone(),
+            });
             self.host.open_settings_draft(draft);
         }
         context
@@ -770,7 +794,7 @@ impl EditorSession {
         let host = self.rect(region);
         let draft = match region {
             EditorRegion::ArtifactSettings => self.host.close_settings_draft(),
-            EditorRegion::Frame | EditorRegion::Preview => None,
+            _ => None,
         };
         let delivered_drop = self
             .drag
@@ -785,6 +809,7 @@ impl EditorSession {
             state.stopped = frame.stopped.take();
         }
 
+        self.asks.append(&mut frame.asks);
         if let Some(delay) = self.host.take_frame_request(region) {
             frame.repaint_after = Some(frame.repaint_after.map_or(delay, |held| held.min(delay)));
         }
@@ -814,7 +839,10 @@ impl EditorSession {
             state.children = placed;
             state.occluders = occluders;
             state.window = frame.window.clone();
-            let reports = matches!(region, EditorRegion::Frame);
+            let reports = matches!(
+                region,
+                EditorRegion::Frame | EditorRegion::Display(_) | EditorRegion::Window(_)
+            );
             match frame.description.as_mut() {
                 Some(description) => {
                     if let Some(tree) = description.tree.take() {
@@ -880,11 +908,16 @@ impl EditorSession {
             .unwrap_or_default()
     }
 
-    pub(crate) fn input(&mut self, region: EditorRegion, event: &TimedInput) {
+    pub(crate) fn input(
+        &mut self,
+        region: EditorRegion,
+        event: &TimedInput,
+        over: Option<RegionId>,
+    ) {
         self.open(region);
         let context = self.context(region);
         self.module
-            .with_handler(|handler| handler.input(&context, event));
+            .with_handler(|handler| handler.input(&context, event, over));
     }
 
     pub(crate) fn node_action(&mut self, region: EditorRegion, request: ActionRequest) {

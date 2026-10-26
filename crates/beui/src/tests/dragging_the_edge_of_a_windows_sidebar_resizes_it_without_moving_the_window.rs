@@ -1,8 +1,8 @@
 use super::*;
-use crate::geometry::vec2;
-use crate::unstyled::{
+use crate::dock::unstyled::{
     DockApi, DockPane, DockTab, DockWindow, DockingLayout, MIN_SIDEBAR_WIDTH, SIDEBAR_WIDTH,
 };
+use crate::geometry::vec2;
 
 #[test]
 fn dragging_the_edge_of_a_windows_sidebar_resizes_it_without_moving_the_window() {
@@ -11,7 +11,7 @@ fn dragging_the_edge_of_a_windows_sidebar_resizes_it_without_moving_the_window()
     let document = build_node(move || {
         let layout = DockingLayout::new();
         view! {
-            <styled::Docking @node_ref=&dock layout>
+            <dock::styled::Docking @node_ref=&dock layout>
                 <DockPane id="main">
                     <DockTab id=1u64 title="Tab 1">
                         <Frame @test_id="content.1" />
@@ -27,7 +27,7 @@ fn dragging_the_edge_of_a_windows_sidebar_resizes_it_without_moving_the_window()
                         </DockTab>
                     </DockPane>
                 </DockWindow>
-            </styled::Docking>
+            </dock::styled::Docking>
         }
     });
     let dock = dock.get();

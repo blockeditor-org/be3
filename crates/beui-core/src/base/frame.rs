@@ -439,6 +439,22 @@ impl Element for FrameNode {
         }
     }
 
+    fn min_width(&self, doc: &mut Document, painter: &Painter) -> f32 {
+        let width = self.width;
+        let padding = self.padding(doc.pixel_grid()).amount().x;
+        let inner = self
+            .child
+            .map_or(0.0, |child| crate::layout::min_width(doc, painter, child));
+        let length = (inner + padding).max(0.0);
+        let length = match (width.exact, width.fraction) {
+            (Some(exact), _) => length.min(exact),
+            (None, Some(_)) => 0.0,
+            (None, None) => length,
+        };
+        let length = width.max.map_or(length, |max| length.min(max));
+        width.min.map_or(length, |min| length.max(min))
+    }
+
     fn baseline(&self, doc: &mut Document, painter: &Painter, available: Vec2) -> Option<f32> {
         let child = self.child?;
         let grid = doc.pixel_grid();

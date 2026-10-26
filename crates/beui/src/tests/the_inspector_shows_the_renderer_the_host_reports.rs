@@ -24,7 +24,7 @@ fn the_inspector_shows_the_renderer_the_host_reports() {
     ));
     harness.toggle_inspector();
 
-    harness.click(harness.performance_tab_center());
+    harness.show_inspector_tab(crate::inspector::InspectorTab::Performance);
     harness.context().reset_accessibility();
     let output = harness.frame(Vec::new());
 

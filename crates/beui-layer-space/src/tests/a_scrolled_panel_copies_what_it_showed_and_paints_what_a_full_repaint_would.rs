@@ -34,7 +34,7 @@ fn rows(offset: f32) -> WindowOutput {
 fn a_scrolled_panel_copies_what_it_showed_and_paints_what_a_full_repaint_would() {
     let gpu = pollster::block_on(beui_renderer_wgpu::present::create_offscreen(
         beui_renderer_wgpu::offscreen::FORMAT,
-        None,
+        Default::default(),
     ))
     .expect("no graphics adapter is available");
     let draw = |scrolled: &WindowOutput| {

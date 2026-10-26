@@ -69,8 +69,8 @@ own to be driven:
   click '"Save"'` clicks the app's button wherever its panel is, and `drive screen click X,Y`
   puts space's cursor at that point of the platform window, as the mouse does, so the click
   goes to whatever panel or chrome is in front of it. The app tap's targets are in the app's
-  main window only; test what is in its other windows (the other panels) through `Space` and a
-  `Runner` instead (`InSpace` in crates/beui/src/tests.rs). Space's steering takes keys and
+  main window unless a command names another with `in WINDOW` (the other panels); the panels'
+  own placement is tested through `Space` and a `Runner` (`InSpace` in crates/beui/src/tests.rs). Space's steering takes keys and
   motion from the screen tap: holding a walking key keeps frames coming, so the command waits
   out its settle timeout and the head walks far; turn with `drive screen motion` while Ctrl
   and Shift are held instead. To walk or roll (Q/E) by a set amount, stop the clock and time
@@ -79,6 +79,20 @@ own to be driven:
   pointer go: `drive screen keydown escape; drive pause 700; drive screen keyup escape` (the
   app sees the press and the release). After that, or a lost focus, the next screen click only
   grabs the pointer again and reaches nothing.
+  `BEUI_LAYERS=drive,xr,drive` shows space on an OpenXR headset instead (guides/beui.md,
+  "Headsets"), waiting for one, with a notice over the simulator, while there is none; the
+  window is the headset's mirror. `drive screen paint` paints what reaches the platform, the 3D scene below space,
+  as `drive screen shot` shows it.
+  `drive screen xr HAND ...` (HAND is `left` or `right`) works the controllers' lasers, which act
+  as fingers (guides/beui.md, "Lasers"): they enter below space, as a headset's do. `xr right
+  point TARGET` aims that hand's laser from where the hand is at TARGET, found in the app's tree,
+  `xr right trigger 1` and `xr right trigger 0` press and let go there (`xr right click TARGET`
+  does all three), `xr right squeeze 1` carries the panel the laser is on until `xr right squeeze
+  0`, `xr left pose X Y Z [YAW PITCH]` puts a hand at a point in metres (eye height is 1.6)
+  turned YAW degrees left and PITCH up from -Z, which is how to move a carried panel or spread
+  both grips, and `xr right lost` stops tracking it. Two hands pressed on one panel and pointed
+  apart pinch it. A laser turned by less than 0.15 rad is smoothed and settles over frames, which
+  with the clock stopped needs `drive pause`.
 
 `be-drive launch` (crates/be-drive) sets the headless platform, its sizes and the socket, and
 adds drive to the `BEUI_LAYERS` it finds: `drive` alone when it names none, the taps around
@@ -170,6 +184,12 @@ so dialogs, the file tree and every editor read like the host's own controls.
   `drive app actions all` lists every registered one.
 - `drive screen shot FILE.png [TARGET]` writes a PNG of what the platform shows (under space, the 3D view), or of one target, where that target is in the frame it captures.
 - `drive app windows` lists the app's windows, each one's number and size in pixels.
+- An input command (`click`, `move`, `down`, `up`, `drag`, `wheel`, `scroll`, `tap`, ...) may end
+  with `in WINDOW`, a number `windows` lists: its targets are then found among that window's
+  nodes only, and its input goes to that window, in its points. That is how to reach a window
+  other than the main one, such as one display's window under `--session`, where every display
+  shows its own lock screen and bar with the same test ids:
+  `drive app click '#lock.password' in 3`.
 - `drive app paint FILE.paint [TARGET] [in WINDOW]` writes what the app's main window (or the
   window numbered WINDOW) paints as a paint snapshot
   (guides/testing_a_gui.md, 4), every plugin's painting included where the host composites it,
@@ -216,6 +236,8 @@ the one that finds names, so the examples use it.
     drive app swipe FROM TO
     drive app pinch TARGET 2                      two fingers spreading apart
     drive app touch down 0=TARGET 1=TARGET; drive app touch move 0=... 1=...; drive app touch up
+    drive screen xr right click TARGET           a controller's laser, in space: point, trigger,
+                                                  squeeze, pose and lost too (see above)
     drive app pen draw FROM TO [STEPS [PER_FRAME]]   a stylus stroke of STEPS samples (8), its pressure
                                               rising and falling, PER_FRAME (1) in each frame
     drive app pen move TARGET; drive app pen down TARGET 0.8; drive app pen move TARGET 0.3; drive app pen up
@@ -271,7 +293,8 @@ own clock. Each command gives up after 30 seconds, or `drive --timeout=SECONDS`.
 `drive clock stop` stops the app's clock: time then passes only with `drive pause`, a frame at
 a time, so an animation can be stopped at any point and a screenshot of it taken the same way
 every run, and an app that animates forever still settles. `drive clock run` starts it again.
-Anything else waiting on time, such as a plugin's frame timeout, waits for `pause` too, and a frame waits for the plugins it asked to draw however long they take, so `--no-settle` answers with the same frame on a loaded machine as on an idle one.
+Anything else waiting on time, such as a plugin's frame timeout or a type module's clock (which
+groups quick edits into one undo step), waits for `pause` too, and a frame waits for the plugins it asked to draw however long they take, so `--no-settle` answers with the same frame on a loaded machine as on an idle one.
 
 A driven app may take shortcuts a person never sees so that it settles sooner: block-app seals
 edits at once rather than after the pause a person's edits wait for. An app asks

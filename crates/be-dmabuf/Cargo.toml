@@ -6,6 +6,7 @@ license.workspace = true
 
 [dependencies]
 ash = "0.38"
+beui-renderer-wgpu = { path = "../beui-renderer-wgpu" }
 pollster = "0.4"
 rustix = { version = "1", features = ["event", "fs"] }
 smithay = { version = "0.7", default-features = false }

@@ -35,13 +35,14 @@ be_ops_bindgen::generate!({
         "power-availability", "media-level", "audio-output", "media-levels", "wifi-security",
         "wifi-network", "wifi-link", "wifi-status", "incoming-notification", "notification-inbox",
         "notification-report", "host-program", "tray-toggle", "tray-menu-item", "host-tray-item",
+        "dialog-status", "dialog-frame",
     ],
     inline: [
         "rename-command", "artifact-command", "unlink-command",
         "delete-command", "move-command", "place-command", "app-menu-command", "adopt-command",
         "finish-command", "branch-command", "create-branch-command", "resolve-command",
         "undo-operation-command", "performance-duration", "performance-count", "view-zoom",
-        "artifact-described", "rename-dialog", "creation-options",
+        "rename-dialog",
         "block-child", "creation-child", "artifact-settings-child",
         "window-fullscreen", "wifi-connect", "notification-closed", "notification-action-invoked",
         "program-list", "program-launch", "program-exec", "tray-scroll", "tray-menu-chosen",
@@ -60,26 +61,31 @@ pub use blocks::{
 };
 pub use debug::debug::{DebugTemplate, PerformanceMeasurement};
 pub use host_services::{
-    AccessGrant, BlockFilter, BlockPick, ImportedBlock, PickedBlock, Revision, ShellDialog,
+    AccessGrant, AccessListing, BlockFilter, BlockPick, ImportedBlock, PickedBlock, Revision,
+    ShellDialog,
 };
 pub use shared::access::AccessLevel;
 pub use shell_types::{
     ArtifactDescription, AudioCommand, AudioSource, AudioStatus, BarAction, Catalog, ChildPreview,
-    CreationProgress, DroppedFile, EditorDescriptor, FitArea, MenuCheck, MenuCommand, MenuHeading,
-    MenuItem, MenuItemKind, MenuPin, PreviewImage, SettingsProgress, ShellCommand, Stopped,
-    TemplateDescriptor, ViewChange, WebViewEvent,
+    CreationProgress, DialogAnswer, DialogStatus, DroppedFile, EditorDescriptor, FitArea,
+    MenuCheck, MenuCommand, MenuHeading, MenuItem, MenuItemKind, MenuPin, PreviewImage,
+    ShellCommand, Stopped, TemplateDescriptor, ViewChange, WebViewEvent,
 };
 pub use shell_types::{
     BlockTypeDescriptor, ChildOperations, ChildStatus, EditorCapabilities, Edits, InteractionMode,
     PanMode, Press, ResizeMode, TemplateCategory,
 };
 pub use types::{
-    ChildContent, ChildLayer, ChildMode, ChildPlacement, ChildPlacements, EditorRegion, Failure,
-    FontFace, FontRole, Fonts, FrameChrome, FrameCommit, FrameReport, FrameSpec, Hello,
-    HelloAccepted, HostPanel, InputBatch, Occluder, OpenArtifact, OpenBlock, OpenCreation, Opening,
-    PluginIdentity, PresentedFrame, PressClaim, RegionSize, ScreenDamage, ScreenLayout,
-    ScreenPlacement, ScreenRequest, ScreenWindow, Size, SurfaceFormat, SurfaceRect, SurfaceSpec,
-    SurfaceSupport, TimedInput, TopBar, ViewportMetrics,
+    ChildContent, ChildLayer, ChildMode, ChildPlacement, ChildPlacements, DialogFrame,
+    EditorRegion, Failure, FontFace, FontRole, Fonts, FrameChrome, FrameCommit, FrameReport,
+    FrameSpec, Hello, HelloAccepted, HostPanel, InputBatch, Occluder, OpenArtifact, OpenBlock,
+    OpenCreation, Opening, PluginIdentity, PresentedFrame, PressClaim, RegionSize, ScreenDamage,
+    ScreenLayout, ScreenPlacement, ScreenRequest, ScreenWindow, Size, SurfaceFormat, SurfaceRect,
+    SurfaceSpec, SurfaceSupport, TimedInput, TopBar, ViewportMetrics,
+};
+pub use types::{
+    RegionRef, WindowEdge, WindowOpen, WindowOver, WindowPlacement, WindowRequest, WindowResize,
+    WindowResizeBegin,
 };
 
 pub use account::HostPreferenceSources;
@@ -140,7 +146,7 @@ pub use ui_types::{
     CanvasTouch, DisplayMode, InputDevice, Motion, PointerSettings, PointerSpeed, PreferenceLayer,
     Preferences, Rotation, ThemeKind,
 };
-pub use ui_types::{ImeArea, WindowRequests};
+pub use ui_types::{ImeArea, WindowRequests, WindowRole};
 pub use watch::{Encoded, WAITING_WEB_VIEW_EVENTS, Watch};
 
 pub const MAX_COLLECTION_ITEMS: usize = 1024;
@@ -288,6 +294,14 @@ impl ScreenPlacement {
     pub fn scale_factor(&self) -> f32 {
         self.scale_factor_millis as f32 / 1000.0
     }
+
+    pub fn raster(&self) -> f32 {
+        self.raster_millis as f32 / 1000.0
+    }
+}
+
+fn millis(value: f32) -> u32 {
+    (value * 1000.0).round().max(1.0) as u32
 }
 
 impl ScreenLayout {
@@ -306,8 +320,8 @@ impl ScreenLayout {
                     surface: surface(request.screen),
                     width: request.metrics.pixel_width,
                     height: request.metrics.pixel_height,
-                    scale_factor_millis: (request.metrics.scale_factor * 1000.0).round().max(1.0)
-                        as u32,
+                    scale_factor_millis: millis(request.metrics.scale_factor),
+                    raster_millis: millis(request.metrics.raster),
                 })
                 .collect(),
         }
@@ -665,7 +679,7 @@ pub use blocks::MetadataEntries;
 
 impl Default for AccessLevel {
     fn default() -> Self {
-        Self::Edit
+        Self::Manage
     }
 }
 
@@ -679,7 +693,11 @@ impl AccessLevel {
     }
 
     pub fn can_edit(self) -> bool {
-        self == Self::Edit
+        self >= Self::Edit
+    }
+
+    pub fn can_manage(self) -> bool {
+        self >= Self::Manage
     }
 
     pub fn label(self) -> &'static str {
@@ -688,6 +706,7 @@ impl AccessLevel {
             Self::KnowExists => "Knows it exists",
             Self::View => "Can view",
             Self::Edit => "Can edit",
+            Self::Manage => "Can manage",
         }
     }
 }
@@ -732,6 +751,7 @@ impl From<Input> for TimedInput {
         Self {
             input,
             time_micros: None,
+            over: None,
         }
     }
 }

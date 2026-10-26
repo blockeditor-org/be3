@@ -44,7 +44,7 @@ fn a_new_pixels_per_point_waits_for_the_panel_to_settle_and_not_while_it_is_resi
         now,
         [Input::PointerMoved(grip), button(grip, true)],
     );
-    space.request(&WindowRequest::BeginResize(window, WindowEdge::BottomRight));
+    space.begin_resize(Pointer::Mouse, window, WindowEdge::BottomRight);
     space.head.position.z += 3.0;
     for step in 1..=20 {
         now = later(now, 0.1);
@@ -59,7 +59,7 @@ fn a_new_pixels_per_point_waits_for_the_panel_to_settle_and_not_while_it_is_resi
         );
     }
     send(&mut space, now, [button(grip, false)]);
-    assert_eq!(space.resize, None);
+    assert_eq!(space.mouse.resize, None);
     assert!(rescaled(&send(&mut space, now, [])).is_empty());
     let sent = send(
         &mut space,

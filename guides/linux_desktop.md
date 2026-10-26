@@ -60,6 +60,20 @@ Popups (xdg-popup, and Xwayland's override-redirect windows) are fitted to the m
 is mostly on, not to the window, as the protocol intends, and are drawn and take input in a floating
 overlay above the document, so a menu can reach past its window's edge.
 
+Where the host opens windows (`opens_windows()`, true only in space), every toplevel is a
+window, and so a panel, of its own: workspace-ui shows each top program window as a floating dock
+window (`FloatingWindow`) instead of a tab, as linux-desktop always does, and the dock shows a
+window-presented dialog, which is how both shells show a program's dialogs (`AttachedWindow`), as
+a `Window` placed `Over` its parent's window, centred on it and `dialog_outset` (the chrome the
+styled dock draws around the body) larger than its body. A toplevel's popups are a `Window` of the
+`WindowView` (`WindowRole::Popup`, so the toplevel keeps the keyboard and the popup its grab), placed `Over` the window the toplevel is in where the overlay would be, and opened
+again whenever the popups' corner moves, as when a submenu grows them leftward or upward. The
+compositor still places each toplevel at its rectangle in its own window's coordinates, the
+keyboard follows the document's focus as anywhere, and a modal dialog still turns presses on its
+parent into raising the dialog. Outside space all of this stays an overlay or a tab, as above.
+
+A window's and its popups' drawings paint too (`Paints` on `WindowDraw`, which reads each surface's
+texture back, opaque), so paintings and `drive paint` show what programs drew.
 ## Displays
 
 Under `--session`, `beui-platform-drm` shows one window per display, macOS-like
@@ -68,29 +82,58 @@ platform's `Displays` handle (`display/linux.rs` offers them to `display/shown.r
 `ui::Displays` opens a `Window` per display at its size, with `displays.placement(id)`). The
 first display's window holds the host's whole UI (`ui::Root`: sign-in, the shell, dialogs); every
 display's window holds its own lock screen and display-settings prompt (`DisplayChrome`), and the
-host's toasts stand in the first's. Every display has its own scale: `BEUI_SCALE`, or what
+host's toasts stand in the first's. Their test ids repeat from one display's window to the next:
+`drive app click ID in WINDOW` (guides/running/drive.md) finds a target among one window's
+nodes. Every display has its own scale: `BEUI_SCALE`, or what
 `DisplayConfig::scales` names for its monitor. Elsewhere (a window, headless, the web, Android)
 there are no displays and the UI is the main window's, as it always was.
 
-The desktop is one space in points: the displays side by side along their bottom edges. The
-shell's region spans all of it, so its coordinates are the desktop's, and every display's window
-shows its own part of that one region (`MainSurface` lays the shell out at the desktop's size,
-shifted by the display's position; `compositor/desktop.rs`): each window mounts the region, the
-host draws the plugin's one surface into each, rendered at the largest display scale
-(`RegionPlacement::raster`), and each mount builds only the region's children (program windows,
-block editors) that its display owns, the display holding most of a child, or every display a child
-overlaps while a press is held on the shell, so a window dragged across displays is drawn in both
-until it is let go. Mounts after the first only draw and forward input: the shell's keyboard
-focus, intercepted keys and child statuses go through the first display's (statuses are merged
-across mounts). The pointer crosses between display windows with a press held, by beui's
-cross-window rules: the platform reports each window's desktop origin (`WindowReport::Moved`), so
-the region or Wayland window holding the press hears the pointer in its own window's coordinates.
+The desktop is one space in points: the displays side by side along their bottom edges. Each
+display's window shows its own region of the shell, macOS-like: the first display the shell's
+frame (`ui::Root`'s `MainSurface`), each further one a `display(n)` region of the same instance
+(`ui::SecondaryDisplay` mounts `compositor::ShellDisplay`, n being the display's place in the
+list from 1), each at its display's size and scale. The shell's windows are the host's own,
+placed in the desktop's points: the shell's regions say the host shows the windows the plugin
+opens from them (`windows` in the screen request, set for the shell's frame and display regions
+and for the windows themselves; guides/adding_a_plugin_editor.md), so every `Window` the shell
+opens, each of linux-desktop's dock windows, becomes a `window(w)` region that block-app keeps
+in `compositor/desktop.rs`: a list of `Floated` windows, each its rect in desktop points, in
+stacking order (a press raises one). The shell's region on each display draws, between its own
+surface and its floating layers (menus, popovers, toasts), the windows that display holds most
+of (`desktop::shown_on`, `DesktopWindows` in `compositor/region.rs`), each a `PluginRegion` of
+its window region placed at its rect less the display's corner, whose children are the program
+windows and block editors the shell placed in it. A window opens where the plugin asked: at a
+point of the region it opened from (`Over`, measured from that region's corner on the desktop),
+at the pointer, or at the `placement` it kept (`desktop X Y`); the host answers with that
+placement on the window's screen request, which the dock keeps. `BeginMove` and `BeginResize`
+hand the press to the host: the window follows the pointer from where it was pressed (the
+press's point and the window's rect are noted on the press, `desktop::follow`), the plugin sees
+no moves meanwhile, and the release ends it and gives the new placement. While one moves it is
+drawn on every display it overlaps and on the one the move began on, which holds the press;
+once let go it is drawn only on the display holding most of it. Each region is laid out at the
+document's scale and rendered at the raster of the display that shows most of it (each mount's
+`EmbedPlacement::raster`, `RegionPlacement::raster` of the offer whose clip is largest), so a window moved onto a display at another scale is rendered at that scale once
+it is mostly there; while it straddles two, the display that holds less of it shows the same
+texture scaled. Program windows and block editors are children of the windows they are tabs
+of, so they stack and take the focus with them. The pointer crosses between display windows
+with a press held, by beui's cross-window rules (the platform reports each window's desktop
+origin, `WindowReport::Moved`), and between the shell's regions by the protocol's `over`: a
+press held in one of the shell's regions names the region the pointer is over, so a tab dragged
+out of one window and over another, on any display, lands on that window's bar.
+
+`--desktop` in a window, or headless, is the same with one display, the window: the shell's frame
+fills it, and its windows are the host's own, drawn over it in that window's points. The plugin
+tests do the same through block-ui-test's `BeuiTest::show_on_displays`, which shows the regions
+and hosts the windows as block-app does, takes input in desktop points (`desk_press`,
+`desk_move`, `desk_release`, `desk_drag`) and paints a display with the windows on it
+(`desk_snapshot`); without it a plugin draws its windows inside its frame.
 
 The shell learns the displays from `DisplaysWatch`: each `HostDisplay` carries its `rect` in the
-desktop's points and its `scale`. linux-desktop lays out a bar along the foot of each display
-(one `DesktopBar` per display, in a row along the desktop's foot), its notification toasts above
-the first display's bar and a level display on each; with no display reported (`--desktop` in a
-window, tests) the whole region is one display.
+desktop's points and its `scale`. linux-desktop draws, in every region, a bar along its foot and
+a level display (`desktop.osd.{n}`, n the region's display), and in the frame alone its dock,
+launcher, pickers and notification toasts (above that display's bar); `BeuiApp::Display`
+draws the further displays' regions from what the frame's region shares (`app.rs`, `Desktop`).
+The dock fills the frame above the bar, and its windows open over it.
 
 be-wayland advertises one `wl_output` per display (`Compositor::set_monitors`, from the same
 handle; `heads.rs`), at its desktop position and its scale rounded up, and keeps every window
@@ -201,7 +244,7 @@ and `Compositor::set_owned(false)`, which block-app sets whenever no shell is on
 the keyboard, the pointer, held buttons and popups from them, drops any input meant for them
 and pings every client each `PING_TIMEOUT`, so one that froze meanwhile is listed as not
 responding. The lock screen is the host's and works throughout. The new shell sees the
-windows in `HostWindows` and shows them as it shows any window; linux-desktop's saved layout
+windows in `WindowsWatch` and shows them as it shows any window; linux-desktop's saved layout
 names window tabs by `HostWindowId`, which the compositor keeps, so a restored layout puts
 each window back where it was, fullscreen and dialogs included. To try it, open the Plugins
 panel from the bar's menu and press Crash beside `be3.linux-desktop`.
@@ -270,7 +313,7 @@ order, each one deeper than the submenu it is in; the host builds that list stra
 dbusmenu's layout, and the shell nests it into `TrayMenuEntry` trees with
 `HostTrayItem::entries`, the helper the shell's own menus nest with (block-plugin-api's
 `nesting.rs`), which refuses a menu nested deeper than `MAX_MENU_DEPTH`. linux-desktop's `src/app/tray.rs` shows each
-item that is not `Passive` as a `PictureMenuButton` in the bar: a click is `Activate` (or opens
+item that is not `Passive` as a `MenuButton` with a picture face in the bar: a click is `Activate` (or opens
 the menu of an `ItemIsMenu` item), a right click opens the menu, a middle click is
 `SecondaryActivate` and the wheel `Scroll`s, 120 to a notch. Opening the menu sends
 `MenuOpened`, which the host turns into `AboutToShow` and the `opened` event, or into the item's
@@ -288,8 +331,8 @@ linux-desktop binds the volume, mute, mic mute, brightness and media transport k
 (`BINDINGS` in its `app/media.rs`, the one place that says which key does what) as
 intercepting actions, so the host hands them to the shell even while a program has the keyboard,
 and a held key repeats. Each key sends a `MediaRequest` (`media::request` inside
-`editor.act`), and a volume, mute or brightness key shows `beui::styled::LevelOsd`, an icon and
-a level bar on every display (one `LevelOsd` per display's rect, `desktop.osd.{index}`) that fades out after 1.5 seconds, with the levels the host reports
+`editor.act`), and a volume, mute or brightness key shows `LevelOsd` (`app/osd.rs`), an icon and
+a `styled::Progress` bar on every display (one card in each display's region, `desktop.osd.{n}`) that fades out after 1.5 seconds, with the levels the host reports
 (`editor.watch::<MediaWatch>()`). The bar's volume item (`app/volume.rs`) shows
 the same output level while the host reports one, and its popup sets the volume, the mute and
 the default output (`MediaRequest::SetVolume`, `SetMute`, `ChooseOutput`) from the sinks the
@@ -420,8 +463,9 @@ turn off), and, under `--session`, logind's `Lock` for the app's own session (`l
 lock-session`) and before every suspend: `DesktopSession` holds a logind `delay` inhibitor for
 sleep and lets it go once the lock screen has been drawn twice (`src/session/sleep.rs`), taking it
 again on waking. `src/session/lock.rs` is the state machine, `src/session.rs`'s `ScreenLock` runs
-it, and `src/ui/lock.rs` shows it as `styled::LockScreen`, a card over an opaque scrim in
-every display's window (one in the main window elsewhere). logind's `Unlock` is not obeyed: only a password unlocks.
+it, and `src/ui/lock.rs` shows it as its `LockScreen`: a `Modal` filling its window at
+`LayerLevel::Lock` over an opaque scrim, in every display's window (one in the main window
+elsewhere). logind's `Unlock` is not obeyed: only a password unlocks.
 
 The password is checked by PAM on a thread of its own, with the service `block-app` when
 `/etc/pam.d/block-app` exists (`--install-session` writes it unless one is there, as
@@ -464,7 +508,7 @@ program can also be started against a driven app directly: the app hands the sam
 `drive app env` (`App::environment`), so `drive exec foot` runs `foot` inside it, and
 `eval "$(drive app env)"` sets them in a shell for anything else, such as `wl-paste`.
 
-A top-level window opens as a tab in the workspace shell and floats in a dock window of its own in the desktop shell. A window with a parent (`xdg_toplevel.set_parent`) instead hangs over its parent's tab as a dock dialog (see the dock in guides/beui.md), showing and hiding with it. `xdg-dialog-v1` (be-wayland's `dialog.rs`) lets a program mark such a window modal (an XWayland window's parent is its `WM_TRANSIENT_FOR` and its modal flag `_NET_WM_STATE_MODAL`, which smithay's `X11Surface::is_popup` reads): `WindowInfo::modal` is set, and `Windows::blocked_by` names the innermost modal dialog of a window, to which be-wayland gives the keyboard whenever the parent would get it, and for which it drops the parent's pointer input. `weston-simple-shm` (from the `weston` package)
+A top-level window opens as a tab in the workspace shell and floats in a dock window of its own in the desktop shell, unless it was launched to open a block (Files opened in programs, below). A window with a parent (`xdg_toplevel.set_parent`) instead hangs over its parent's tab as a dock dialog (see the dock in guides/beui.md), showing and hiding with it. `xdg-dialog-v1` (be-wayland's `dialog.rs`) lets a program mark such a window modal (an XWayland window's parent is its `WM_TRANSIENT_FOR` and its modal flag `_NET_WM_STATE_MODAL`, which smithay's `X11Surface::is_popup` reads): `WindowInfo::modal` is set, and `Windows::blocked_by` names the innermost modal dialog of a window, to which be-wayland gives the keyboard whenever the parent would get it, and for which it drops the parent's pointer input. `weston-simple-shm` (from the `weston` package)
 and `foot` are small clients to try it with. `foot --fullscreen` starts one fullscreen, and in the desktop shell Super+F toggles fullscreen on the focused
 window (linux-desktop's `desktop.fullscreen` action, which sends `WindowAction::Fullscreen`). A window's
 tab menu offers the same (`FloatingWindow` offers fullscreen on its tab; workspace-ui's
@@ -493,6 +537,19 @@ click, decided when the pen comes over it and kept while the tip is down. Under 
 DRM platform reads libinput's tablet tools over the area of every display, as it does an absolute
 pointer, and moves the cursor with them; with one display both turn with its rotation (below).
 
+A finger (`Event::Touch`) reaches a window as a `wl_touch` point (`src/touch.rs`), in the
+coordinates of the surface, sub-surface or popup it went down on, where it stays until it lifts,
+as a press does; each finger goes down on the window under it, so two windows can each hold
+one. A cancelled finger cancels the client's whole touch sequence, as `wl_touch.cancel` means.
+A client with no `wl_touch` gets its first finger as its pointer instead, a left click, and its
+other fingers not at all, decided when the finger goes down. The seat offers touch only while a
+touchscreen is attached (beui-platform-drm's `WindowReports::touchscreen_attached`, read as
+`Context::touchscreen_attached`) or once a finger has been seen, since GTK, SDL and browsers
+take the capability as a touchscreen and change their interfaces for it (a browser tells pages
+it has touch). be-wayland's own default touch grab gives each point its own surface, where
+smithay's would send every later finger to the first one's, so a client's touch drag and drop
+(`wl_data_device.start_drag` from a touch serial) is not taken.
+
 A screen's rotation (`ScreenSettings::rotation`, through `DisplayConfig::rotations`) turns its
 picture clockwise on the panel: `Clockwise90` puts the picture's top along the panel's right
 edge, so the device is held with that edge up. The platform's `Screen` lays out and draws the
@@ -503,7 +560,7 @@ an unturned screen copies), the software pointer and the damage clips with it
 (`rotation.rs`). It never asks the plane to rotate, which most display devices, the e-paper
 panel's included, cannot do. Absolute input arrives in the panel's own orientation
 (libinput's calibration matrix lines a touchscreen up with the panel unturned) and is turned
-back (`layout::absolute`): touch onto the first display, an absolute pointer or a pen onto the
+back (`layout::absolute`), before beui or a window sees it: touch onto the first display, an absolute pointer or a pen onto the
 one display when there is one and across all of them unturned otherwise, and a pen's tilt
 with it. A relative pointer is already in the picture's terms. A rotation applies live, rebuilding
 the output's `Screen` as a mode change does, and never asks to be kept.
@@ -609,6 +666,65 @@ program's executable, the first word of the client's `/proc` command line (an X1
 argument can be a secret. linux-desktop opens a placeholder with that entry, else one from
 `Programs` whose `StartupWMClass` or id matches the app id, else the executable. The host runs
 a `Launch` that arrives before it has listed the programs once the list is in.
+
+### Files opened in programs
+
+On Linux a program installed with a `.desktop` entry is an editor of every block whose type has a
+plain-file form (guides/type_modules.md) and whose file name has an extension the entry's
+`MimeType` names, so a book (an EPUB file block, the fallback type that holds any bytes; it needs
+no type of its own) opens in KOReader, and later a `.kra` in Krita or a `.blend` in Blender, as a
+tab of whichever shell opened it, the workspace-ui inside linux-desktop included. be-wayland's
+`programs` reads `MimeType` (`DesktopEntry::mime_types`) and turns MIME types into extensions with
+shared-mime-info's `mime/globs2` and `mime/aliases` in the XDG data dirs (`MimeGlobs`).
+
+block-app's `src/programs.rs` scans the programs once the compositor runs and adds one
+`EditorDescriptor` per program that opens anything to the catalog every plugin gets: `Edits::Any`,
+the program's name, and `extensions` (shell.wit's `editor-descriptor`). Its editor id is `programs::editor_id`, `program\0` in the
+high half and a hash of the desktop id in the low, so a tab saved with it names the same program
+on the next start. block-ui's `BlockCatalog` matches such an editor by the block's file name
+(`BlockInfo::file_name`: its intrinsic name, the file it came from, so a renamed book still
+matches) and only for a type with a plain-file form: `editors_for(block_type, file_name)` lists
+it after the type's own editors (the file tree's Open with), and `own_editor` falls back to the
+first one for a type with no editor of its own (the EPUB's default). Elsewhere (the web,
+Android, Windows, macOS) no program is listed, so nothing changes there.
+
+The plugin side is only that editor id on a `ChildTarget`; the host does the rest. When a
+child region asks for a block in a listed program (`programs::opens`), `HostedChild` shows a
+`ProgramSurface` instead of a plugin, and `programs::show` starts a session for the block:
+
+- **Write out.** `be::plain_file` asks the block's type module for `to-file`, the same
+  file form `be sync` writes, and `programs/files.rs` puts it at a path that stays the same for
+  the block, `DATA/files/<block id>/<file name>` in the app's data directory (not a cache). It
+  writes only when the bytes differ, so what a program keeps beside the file stays valid:
+  KOReader's default `document_metadata_folder` (`doc`) keeps the reading position in
+  `<name>.sdr/` next to the book, so the book resumes with KOReader's own settings and none of
+  ours. `.written` beside the file records the size and time it was left at.
+- **Launch.** `wayland::Programs::open_file` runs the entry with the path in place of its first
+  `%f`, `%F`, `%u` or `%U` (appended when the line has none), tagged with the block, so its
+  first top-level window is bound to the session (`wayland::opening_windows`) and drawn in the
+  region by `WindowSurface`. Until then the region says it is opening; once the program exits
+  it says so with Open again (`program.reopen`).
+- **Hidden from the shell.** A bound window is left out of `WindowsWatch`
+  (`programs::bound_windows`), so linux-desktop does not float it and keeps no placeholder for
+  it; its dialogs are listed as top-level windows of their own.
+- **Write back.** The file's folder is watched (`programs/watch.rs`, the `notify` crate), and
+  when the file's size or time differs from what was recorded, its bytes go back into the block
+  as a `from-file` change (`be::from_file`), a commit like any other edit. A file changed while
+  nothing watched it (the app ended first) is taken back instead of written over when the block
+  is next opened.
+- **Close.** Closing the tab closes its editor (`programs::close`, from `close_editor`, which
+  also closes the sessions of blocks an editor being closed showed), which asks the window to
+  close (`xdg_toplevel.close`), so the program saves as it would when its own window is closed.
+
+A restored tab names the same block and editor, so a session that is started again opens the
+book in KOReader by itself, where it was left: no placeholder, and no program arguments stored.
+Two sessions never share a file, since the path is per block. A single-instance program that
+hands a second file to its running process (Krita's default) opens its window from that process,
+which is not tagged, so it shows as an ordinary window instead.
+
+To try it, give a program a `.desktop` entry in `/usr/local/share/applications` (`:dev` moves
+`XDG_DATA_HOME`, so the user's own entries are not read there), get a file into a workspace with
+`be WORKSPACE sync DIR` (an agent's credentials, guides/tracker.md), and click it in the files.
 
 ### X11 programs
 

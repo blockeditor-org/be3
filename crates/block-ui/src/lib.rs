@@ -85,6 +85,7 @@ pub struct EditorEntry {
     pub edits: Edits,
     pub name: String,
     pub icon: Option<Glyph>,
+    pub extensions: Vec<String>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -95,12 +96,23 @@ pub enum Edits {
 }
 
 impl EditorEntry {
-    pub fn edits(&self, block_type: Uuid) -> bool {
+    fn edits_type(&self, block_type: Uuid) -> bool {
         match self.edits {
             Edits::Type(edited) => edited == block_type,
             Edits::Any => true,
             Edits::Nothing => false,
         }
+    }
+
+    fn opens_file(&self, file_name: Option<&str>) -> bool {
+        let Some((stem, extension)) = file_name.and_then(|name| name.rsplit_once('.')) else {
+            return false;
+        };
+        !stem.is_empty()
+            && self
+                .extensions
+                .iter()
+                .any(|listed| listed.eq_ignore_ascii_case(extension))
     }
 }
 
@@ -125,16 +137,37 @@ impl BlockCatalog {
         self
     }
 
-    pub fn editors_for(&self, block_type: Uuid) -> Vec<&EditorEntry> {
-        let specific = self
+    pub fn editors_for(&self, block_type: Uuid, file_name: Option<&str>) -> Vec<&EditorEntry> {
+        let plain = self
             .editors
             .iter()
+            .filter(|editor| editor.extensions.is_empty());
+        let specific = plain
+            .clone()
             .filter(|editor| editor.edits == Edits::Type(block_type));
-        let any = self
-            .editors
+        let programs = self.programs_for(block_type, file_name);
+        let any = plain.filter(|editor| editor.edits == Edits::Any);
+        specific.chain(programs).chain(any).collect()
+    }
+
+    fn programs_for(
+        &self,
+        block_type: Uuid,
+        file_name: Option<&str>,
+    ) -> impl Iterator<Item = &EditorEntry> + Clone {
+        let plain_file = self.plain_file(block_type);
+        self.editors.iter().filter(move |editor| {
+            !editor.extensions.is_empty()
+                && plain_file
+                && editor.edits_type(block_type)
+                && editor.opens_file(file_name)
+        })
+    }
+
+    pub fn edits(&self, editor: Uuid, block_type: Uuid, file_name: Option<&str>) -> bool {
+        self.editors_for(block_type, file_name)
             .iter()
-            .filter(|editor| editor.edits == Edits::Any);
-        specific.chain(any).collect()
+            .any(|entry| entry.editor == editor)
     }
 
     pub fn plain_file(&self, block_type: Uuid) -> bool {
@@ -147,10 +180,11 @@ impl BlockCatalog {
         self.editors.iter().find(|entry| entry.editor == editor)
     }
 
-    pub fn built_in_editor(&self, block_type: Uuid) -> Option<Uuid> {
+    pub fn own_editor(&self, block_type: Uuid, file_name: Option<&str>) -> Option<Uuid> {
         self.editors
             .iter()
-            .find(|editor| editor.edits == Edits::Type(block_type))
+            .find(|editor| editor.extensions.is_empty() && editor.edits == Edits::Type(block_type))
+            .or_else(|| self.programs_for(block_type, file_name).next())
             .map(|editor| editor.editor)
     }
 

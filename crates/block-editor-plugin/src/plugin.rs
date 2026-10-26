@@ -8,7 +8,7 @@ use block_plugin_api::{
 use geometry::{Rect, Vec2};
 use uuid::Uuid;
 
-use crate::{Artifact, ArtifactDescription, EditorHost};
+use crate::{Artifact, EditorHost};
 
 pub trait Plugin: 'static {
     fn open(host: EditorHost) -> Box<dyn Instance>;
@@ -25,7 +25,7 @@ pub trait Instance: std::any::Any {
 
     fn connect_artifact(&mut self, _artifact: Artifact) {}
 
-    fn describe_artifact(&mut self, _data: &[u8]) -> Result<ArtifactDescription, String> {
+    fn describe_artifact(&mut self, _data: &[u8]) -> Result<String, String> {
         Err("this editor does not generate artifacts".into())
     }
 
@@ -61,7 +61,7 @@ pub struct RegionId {
 }
 
 pub trait Regions: std::any::Any {
-    fn input(&mut self, region: &Region, event: &TimedInput);
+    fn input(&mut self, region: &Region, event: &TimedInput, over: Option<RegionId>);
 
     fn run_action(&mut self, _region: &Region, _id: &str) {}
 
@@ -86,6 +86,12 @@ pub trait Regions: std::any::Any {
     fn paint(&mut self, region: RegionId, target: &PaintTarget<'_>) -> Vec<SurfaceRect>;
 }
 
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct SettingsDraft {
+    pub saved: Vec<u8>,
+    pub draft: Vec<u8>,
+}
+
 #[derive(Clone, Debug, PartialEq)]
 pub struct Region {
     pub instance: EditorInstanceId,
@@ -94,11 +100,14 @@ pub struct Region {
     pub rect: Rect,
     pub visible: Vec2,
     pub scale_factor: f32,
+    pub raster: f32,
     pub pixels: [u32; 2],
     pub age: u32,
     pub spec: FrameSpec,
     pub describe: Option<u64>,
     pub seen: bool,
+    pub windows: bool,
+    pub placement: Option<String>,
 }
 
 impl Region {
@@ -128,6 +137,7 @@ pub struct Frame {
     pub window: WindowRequests,
     pub description: Option<block_plugin_api::Description>,
     pub stopped: Option<block_plugin_api::Stopped>,
+    pub asks: Vec<block_plugin_api::WindowRequest>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]

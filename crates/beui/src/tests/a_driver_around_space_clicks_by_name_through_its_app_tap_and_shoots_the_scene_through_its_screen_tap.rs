@@ -18,7 +18,7 @@ fn a_driver_around_space_clicks_by_name_through_its_app_tap_and_shoots_the_scene
     let document = build_node(|| {
         let pressed = create_signal(false);
         view! {
-            <List spacing=8.0>
+            <styled::List spacing=Space::Md>
                 <Button
                     label="Press me"
                     variant=ButtonVariant::Primary
@@ -27,7 +27,7 @@ fn a_driver_around_space_clicks_by_name_through_its_app_tap_and_shoots_the_scene
                 <ShowKeepAlive condition={pressed}>
                     <Text>"Pressed"</Text>
                 </ShowKeepAlive>
-            </List>
+            </styled::List>
         }
     });
     let inbox = Inbox::default();
@@ -52,7 +52,9 @@ fn a_driver_around_space_clicks_by_name_through_its_app_tap_and_shoots_the_scene
         runner.reports().clone(),
     );
     let surface = pollster::block_on(beui_renderer_wgpu::offscreen::OffscreenSurface::new(
-        WIDTH, HEIGHT, None,
+        WIDTH,
+        HEIGHT,
+        Default::default(),
     ))
     .expect("no graphics adapter is available");
     runner

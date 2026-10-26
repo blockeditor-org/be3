@@ -32,6 +32,7 @@ impl block_editor_beui::BeuiApp for GameModuleApp {
         view! {
             <ContentFileCreation
                 creation
+                title="New Game Module"
                 id_prefix="game-module"
                 filter={filter()}
                 import={imported}

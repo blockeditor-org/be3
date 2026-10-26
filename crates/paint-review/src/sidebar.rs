@@ -1,4 +1,4 @@
-use beui::Wrap;
+use beui::Overflow;
 use beui::icons::Glyph;
 use beui::icons::{ICON_CIRCLE_MINUS, ICON_CIRCLE_PLUS, ICON_DIFF, ICON_IMAGE_OFF};
 use beui::reactive::*;
@@ -8,10 +8,10 @@ use beui::{NodeId, TextAlign};
 use crate::review::Review;
 use paint_review_manifest::Status;
 
-const PADDING: f32 = 12.0;
-const GROUP_SPACING: f32 = 16.0;
-const ROW_SPACING: f32 = 2.0;
-const HEADING_SPACING: f32 = 6.0;
+const PADDING: Space = Space::Lg;
+const GROUP_SPACING: Space = Space::Xl;
+const ROW_SPACING: Space = Space::Xs2;
+const HEADING_SPACING: Space = Space::Sm;
 
 pub(crate) fn label(status: Status) -> &'static str {
     match status {
@@ -65,22 +65,18 @@ pub(crate) fn PaintingList(review: Review) -> NodeId {
         }
     });
     view! {
-        <List spacing=0.0>
-            <Frame padding={Sides::all(PADDING)}>
+        <List spacing=Space::None>
+            <Frame padding=PADDING>
                 <List spacing=ROW_SPACING>
                     <Text style=TextStyle::HEADING>"Paintings"</Text>
-                    <Text
-                        style=TextStyle::CAPTION
-                        wrap=Wrap::Words
-                        @test_id={"paint_review.summary"}
-                    >
+                    <Text style=TextStyle::CAPTION @test_id={"paint_review.summary"}>
                         {summary}
                     </Text>
                 </List>
             </Frame>
             <Separator />
             <Scroll @sizing=ItemSize::Percent(100.0)>
-                <Frame padding={Sides::all(PADDING)}>
+                <Frame padding=PADDING>
                     <List spacing=GROUP_SPACING>
                         <StatusGroup review status=Status::Changed />
                         <StatusGroup review status=Status::Added />
@@ -110,7 +106,7 @@ fn StatusGroup(review: Review, status: Status) -> DynamicSegment<ListChild> {
     view! {
         <Show condition={any}>
             <List spacing=ROW_SPACING>
-                <Frame padding={Sides::symmetric(PADDING / 2.0, ROW_SPACING)}>
+                <Frame padding={Padding::symmetric(Space::Sm, ROW_SPACING)}>
                     <List
                         direction=Direction::Horizontal
                         align=Align::Center
@@ -157,7 +153,7 @@ fn PaintingRow(review: Review, index: usize, name: Memo<String>, selected: Memo<
             on_click={move || review.select(index)}
             on_activate={move || review.select(index)}
         >
-            <Text ellipsis=true family=Family::Mono size=TextSize::Sm>{name}</Text>
+            <Text overflow=Overflow::Ellipsis family=Family::Mono size=TextSize::Sm>{name}</Text>
         </ListRow>
     }
 }
