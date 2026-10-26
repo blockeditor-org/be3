@@ -34,12 +34,16 @@ fn a_slide_template_makes_a_canvas_with_its_placeholders() {
         (slide.transform.size.x, slide.transform.size.y),
         (960.0, 540.0)
     );
-    let placeholders: Vec<_> = entities
+    let texts: Vec<_> = entities
         .into_iter()
         .filter(|entity| entity.shape == CanvasShape::Text)
-        .map(|entity| entity.placeholder)
         .collect();
+    let placeholders: Vec<_> = texts.iter().map(|text| text.placeholder.clone()).collect();
     assert_eq!(placeholders, ["Title", "Subtitle"]);
+    assert!(
+        texts.iter().all(|text| text.text_style.wrap),
+        "placeholders are areas that keep their box, not texts that fit their content"
+    );
 
     let unknown = Creation::for_template(host, "no-such-slide");
     assert!(PresentationApp::create_block(&unknown).is_err());
