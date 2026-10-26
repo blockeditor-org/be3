@@ -13,6 +13,8 @@ fn formatted(source: &str) -> String {
 }
 
 mod a_component_method_needs_a_component_block;
+mod example_body_is_the_function_body_dedented;
+mod fix_docs_finds_an_example_anywhere_in_its_crate;
 mod fix_repository_accepts_tagged_unsafe;
 mod fix_repository_check_reports_without_changes;
 mod fix_repository_does_not_rewrite_compliant_repository;
@@ -49,6 +51,9 @@ mod format_views_shifts_a_multi_line_expression_to_its_new_indent;
 mod strip_comments;
 mod strip_comments_keeps_every_comment_in_a_file_marked_to_keep_them;
 mod strip_comments_keeps_unsafe_tags_and_keep_markers;
+mod sync_examples_indents_a_sample_inside_a_list;
+mod sync_examples_reports_a_missing_example_by_line;
+mod sync_examples_rewrites_a_sample_from_its_example;
 mod unsafe_sites_reads_unparseable_source;
 mod unsafe_sites_resolves_the_nearest_tag;
 mod view_helpers_require_components_independently_of_return_type;

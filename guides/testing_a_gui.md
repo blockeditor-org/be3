@@ -48,24 +48,27 @@ decoded as the wire would. Gestures are turned into the protocol's input events 
 block-app turns beui's, so a key or a modifier the protocol cannot carry never reaches the
 editor here either, and a call the plugin refuses fails the test.
 
-    let block = Uuid::new_v4();
-    let host = EditorHost::default();
-    host.set_editable(true);
-    let editor = OwnedEditor::new(host, block);
-    let mut test = BeuiTest::<ChecklistApp>::new(editor);
-    test.hold(None, ChecklistContent::default());
-    test.run();
+```rust example=checklist.adding_an_item_puts_it_on_the_list
+let block = Uuid::new_v4();
+let host = EditorHost::default();
+host.set_editable(true);
+let editor = OwnedEditor::new(host, block);
+let mut test = BeuiTest::<ChecklistApp>::new(editor);
+test.store().register(checklist_types::registrations());
+test.hold(None, ChecklistContent::default());
+test.run();
 
-    test.click("checklist.draft");
-    test.run();
-    test.text("buy milk");
-    test.run();
-    test.click("checklist.add");
-    test.run();
+test.click("checklist.draft");
+test.run();
+test.type_text("buy milk");
+test.run();
+test.click("checklist.add");
+test.run();
 
-    let items = test.content::<ChecklistContent>(None);
-    assert_eq!(items.root().items[0].text, "buy milk");
-    test.snapshot("adding_an_item_puts_it_on_the_list");
+let items = test.content::<ChecklistContent>(None);
+assert_eq!(items.root().items[0].text, "buy milk");
+test.snapshot("adding_an_item_puts_it_on_the_list");
+```
 
 There is no server and no block store in an editor test: BeuiTest is the host, and does
 what the app's host does for the editor's block. hold(block, content) gives it the content of
@@ -176,11 +179,13 @@ keeps the frame the editor has just painted, and snapshot(name) writes the frame
 since the last one — or the frame the test is on, if it kept none — so recording a gesture
 at a time paints how the editor got somewhere rather than only where it ended up.
 
-    editor.record();
-    editor.click("checklist.add");
-    editor.run();
-    editor.record();
-    editor.snapshot("adding_an_item_puts_it_on_the_list");
+```rust example=checklist.recording_a_gesture
+editor.record();
+editor.click("checklist.add");
+editor.run();
+editor.record();
+editor.snapshot("adding_an_item_records_each_step");
+```
 
 The frames of a recording share one table of textures, so a frame that draws the same text
 as the last costs the triangles that draw it and nothing more. Keep recordings to the

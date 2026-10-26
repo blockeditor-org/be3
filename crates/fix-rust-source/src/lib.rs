@@ -1,7 +1,9 @@
 mod beui_rules;
+mod docs;
 mod unsafe_tags;
 mod views;
 
+pub use docs::{example_body, fix_docs, sync_examples};
 use ra_ap_syntax::ast::{self, AstNode, AstToken, HasAttrs, HasModuleItem, HasName, HasVisibility};
 use ra_ap_syntax::{Edition, NodeOrToken, SourceFile, SyntaxNode};
 use std::collections::HashSet;

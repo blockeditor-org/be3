@@ -7,6 +7,7 @@ Guides:
 - guides/adding_a_block.md
 - guides/adding_a_game.md
 - guides/adding_a_plugin_editor.md
+- guides/code_samples.md: code samples in guides/ that `./scripts/verify` copies from functions tests run
 - guides/bootstrap.md: crates/bootstrap, the prebuilt tool every script runs, and how CI publishes and pins it
 - guides/beui.md
 - guides/beui_keyboard.md

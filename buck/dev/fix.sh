@@ -10,10 +10,13 @@
 # could not run, is not this checkout's fix.
 #
 # rust fixes one crate's Rust files with fix-rust-source, then rustfmt. starlark formats the BUCK and .bzl files with starlark_fmt.
+# docs rewrites the code samples in the Markdown files from the examples they
+# name (guides/code_samples.md), read from CODE as the rust fixes left it.
 #
 # Usage:
 #   fix.sh rust OUT SOURCES FIX_RUST_SOURCE RUSTFMT_SYSROOT
 #   fix.sh starlark OUT SOURCES STARLARK_FMT CONFIG
+#   fix.sh docs OUT SOURCES FIX_RUST_SOURCE CODE RUST_FIX...
 set -eu
 here="$(pwd)"
 absolute() {
@@ -38,6 +41,22 @@ case "$kind" in
     starlark)
         starlark_fmt="$(absolute "$1")" config="$(absolute "$2")"
         find "$tree" -type f -exec "$starlark_fmt" --config "$config" fmt {} +
+        ;;
+    docs)
+        fix_rust_source="$(absolute "$1")"
+        code="$(mktemp -d)"
+        cp -RL "$(absolute "$2")/." "$code/"
+        chmod -R u+w "$code"
+        shift 2
+        for fix in "$@"; do
+            fix="$(absolute "$fix")"
+            cp -R "$fix/changed/." "$code/"
+            while IFS= read -r path; do
+                [ -n "$path" ] && rm -f "$code/$path"
+            done < "$fix/deleted"
+        done
+        (cd "$tree" && "$fix_rust_source" docs "$code")
+        rm -rf "$code"
         ;;
     *)
         echo "unknown kind $kind" >&2
