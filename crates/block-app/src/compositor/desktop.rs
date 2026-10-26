@@ -539,3 +539,6 @@ pub(crate) fn merged_statuses(
         merged
     })
 }
+
+#[cfg(test)]
+mod tests;
