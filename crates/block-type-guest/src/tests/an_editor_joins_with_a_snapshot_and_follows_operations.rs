@@ -46,13 +46,7 @@ fn an_editor_joins_with_a_snapshot_and_follows_operations() {
         assert_eq!(texts(sim.mirror(device, editor)), ["first", "second"]);
         assert_eq!(sim.editors[&(device, editor)].pending(), 0);
     }
-    sim.queue.push_back((
-        1,
-        Event::Detach {
-            replica: REPLICA,
-            editor: 2,
-        },
-    ));
+    sim.detach(1, 2);
     sim.operate(0, 1, add("unseen"));
     sim.operate(1, 1, add("third"));
     sim.settle();

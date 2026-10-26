@@ -1,5 +1,7 @@
 use block_editor_beui::beui::{PointerButton, Vec2};
-use block_editor_beui::{HostTrayItem, Tray, TrayMenuEntry, TrayRequest, TrayStatus, TrayToggle};
+use block_editor_beui::{
+    HostTrayItem, TrayMenuItem, TrayRequest, TrayStatus, TrayToggle, TrayWatch,
+};
 
 use super::*;
 
@@ -27,12 +29,12 @@ fn disc(rgb: [u8; 3]) -> HostImage {
     }
 }
 
-fn entry(id: i32, label: &str) -> TrayMenuEntry {
-    TrayMenuEntry {
+fn entry(id: i32, label: &str) -> TrayMenuItem {
+    TrayMenuItem {
         id,
         label: label.to_owned(),
         enabled: true,
-        ..TrayMenuEntry::default()
+        ..TrayMenuItem::default()
     }
 }
 
@@ -47,28 +49,26 @@ fn tray() -> Vec<HostTrayItem> {
             item_is_menu: false,
             menu: vec![
                 entry(1, "Open Chat"),
-                TrayMenuEntry {
+                TrayMenuItem {
                     toggle: TrayToggle::Check(true),
                     ..entry(2, "Start with the computer")
                 },
-                TrayMenuEntry {
-                    children: vec![
-                        TrayMenuEntry {
-                            toggle: TrayToggle::Radio(true),
-                            ..entry(4, "Online")
-                        },
-                        TrayMenuEntry {
-                            toggle: TrayToggle::Radio(false),
-                            ..entry(5, "Away")
-                        },
-                    ],
-                    ..entry(3, "Status")
+                entry(3, "Status"),
+                TrayMenuItem {
+                    depth: 1,
+                    toggle: TrayToggle::Radio(true),
+                    ..entry(4, "Online")
                 },
-                TrayMenuEntry {
+                TrayMenuItem {
+                    depth: 1,
+                    toggle: TrayToggle::Radio(false),
+                    ..entry(5, "Away")
+                },
+                TrayMenuItem {
                     separator: true,
                     ..entry(6, "")
                 },
-                TrayMenuEntry {
+                TrayMenuItem {
                     enabled: false,
                     ..entry(7, "Updates")
                 },
@@ -100,10 +100,10 @@ fn the_tray_shows_its_items_and_answers_their_clicks_and_menus() {
     let mut fixture = Fixture::new();
     fixture.settle();
     assert!(
-        fixture.test.watches::<Tray>(),
+        fixture.test.watches::<TrayWatch>(),
         "the desktop asks the host for the tray"
     );
-    fixture.test.set_host_value::<Tray>(&tray());
+    fixture.test.set_watched::<TrayWatch>(&tray());
     fixture.settle();
     assert!(fixture.test.shown(&item(CHAT)));
     assert!(fixture.test.shown(&item(SYNC)));
@@ -120,7 +120,7 @@ fn the_tray_shows_its_items_and_answers_their_clicks_and_menus() {
     fixture.test.scroll(item(CHAT), Vec2::new(0.0, -40.0));
     fixture.settle();
     assert_eq!(
-        fixture.test.take_actions::<TrayRequest>(),
+        fixture.test.take_host_calls(block_ui_test::requested::tray),
         vec![
             TrayRequest::Activate(CHAT.to_owned()),
             TrayRequest::SecondaryActivate(CHAT.to_owned()),
@@ -155,7 +155,7 @@ fn the_tray_shows_its_items_and_answers_their_clicks_and_menus() {
     fixture.settle();
     fixture.test.settle();
     assert_eq!(
-        fixture.test.take_actions::<TrayRequest>(),
+        fixture.test.take_host_calls(block_ui_test::requested::tray),
         vec![
             TrayRequest::MenuOpened(CHAT.to_owned()),
             TrayRequest::MenuChosen {
@@ -175,7 +175,7 @@ fn the_tray_shows_its_items_and_answers_their_clicks_and_menus() {
         .click_with(item(SYNC), PointerButton::Secondary);
     fixture.settle();
     assert_eq!(
-        fixture.test.take_actions::<TrayRequest>(),
+        fixture.test.take_host_calls(block_ui_test::requested::tray),
         vec![
             TrayRequest::MenuOpened(SYNC.to_owned()),
             TrayRequest::MenuOpened(SYNC.to_owned()),
@@ -186,7 +186,7 @@ fn the_tray_shows_its_items_and_answers_their_clicks_and_menus() {
     let mut changed = tray();
     changed[1].menu = vec![entry(1, "Pause syncing")];
     changed.remove(0);
-    fixture.test.set_host_value::<Tray>(&changed);
+    fixture.test.set_watched::<TrayWatch>(&changed);
     fixture.settle();
     assert!(
         !fixture.test.shown(&item(CHAT)),

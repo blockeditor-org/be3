@@ -1,6 +1,6 @@
 use super::*;
 
-use block_gpu_abi as abi;
+use block_gpu_abi::device as abi;
 
 fn host() -> Host {
     let (device, queue) = wgpu::Device::noop(&wgpu::DeviceDescriptor::default());
@@ -12,8 +12,8 @@ fn escaped(bytes: &[u8]) -> String {
 }
 
 fn buffer_descriptor() -> Vec<u8> {
-    abi::encode(&abi::BufferDescriptor {
-        label: "vertices".into(),
+    be_ops::encode(&abi::BufferDescriptor {
+        label: Some("vertices".into()),
         size: 256,
         usage: wgpu::BufferUsages::VERTEX.bits(),
         mapped_at_creation: false,
@@ -25,8 +25,8 @@ fn guest(body: &str) -> String {
     format!(
         r#"(module
             (import "env" "memory" (memory 1 4 shared))
-            (import "be3_gpu" "create_buffer" (func $create_buffer (param i32 i32) (result i32)))
-            (import "be3_gpu" "error_take" (func $error_take (param i32 i32) (result i32)))
+            (import "be3:gpu/device@0.1.0" "create-buffer" (func $create_buffer (param i32 i32) (result i32)))
+            (import "be3:gpu/device@0.1.0" "take-error" (func $take_error (param i32 i32) (result i32)))
             (import "be3_host" "host_send" (func $host_send (param i32 i32)))
             (import "be3_host" "host_receive" (func $host_receive (param i32 i32) (result i64)))
             (data (i32.const 0) "{descriptor}")
@@ -48,7 +48,7 @@ fn threaded_guest(body: &str) -> String {
         r#"(module
             (import "env" "memory" (memory 1 4 shared))
             (import "wasi" "thread-spawn" (func $spawn (param i32) (result i32)))
-            (import "be3_gpu" "create_buffer" (func $create_buffer (param i32 i32) (result i32)))
+            (import "be3:gpu/device@0.1.0" "create-buffer" (func $create_buffer (param i32 i32) (result i32)))
             (import "be3_host" "host_send" (func $host_send (param i32 i32)))
             (import "be3_host" "host_wake" (func $host_wake))
             (global (export "__tls_size") i32 (i32.const 0))
@@ -223,6 +223,6 @@ mod a_spawned_guest_thread_may_not_reach_the_gpu;
 mod a_spawned_guest_thread_shares_the_memory_it_was_given;
 mod a_spawned_guest_thread_wakes_the_host;
 mod a_thread_that_trapped_wakes_the_host_to_be_told;
-mod a_type_module_says_hello_on_a_thread_of_its_own;
+mod a_type_module_answers_on_a_thread_of_its_own;
 mod an_interrupted_host_loads_no_plugin;
 mod an_interrupted_plugin_stops_on_every_thread;

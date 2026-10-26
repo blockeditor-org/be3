@@ -159,7 +159,7 @@ pub(crate) fn begin(context: &beui::Context) {
     };
     frame.preferences = context.preferences();
     let layers = context.preference_layers();
-    crate::plugin_host::publish::<block_plugin_api::PreferenceSources>(
+    crate::plugin_host::publish::<block_plugin_api::PreferenceSourcesWatch>(
         &block_plugin_api::HostPreferenceSources {
             system: layers.layer(beui::PreferenceSource::System),
             developer: layers.layer(beui::PreferenceSource::Developer),

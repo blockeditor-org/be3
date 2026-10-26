@@ -9,12 +9,14 @@ fn a_window_launched_from_a_placeholder_takes_its_place() {
     let place = resumed
         .placeholder_rect(2)
         .expect("the newer terminal is a placeholder");
-    resumed.test.take_sent();
+    resumed.test.clear_calls();
 
     resumed.test.click("desktop.placeholder.2.open");
     resumed.settle();
     assert_eq!(
-        resumed.test.take_actions::<ProgramAction>(),
+        resumed
+            .test
+            .take_host_calls(block_ui_test::requested::program),
         vec![ProgramAction::Launch {
             program: "foot.desktop".to_owned(),
             launch: Some(2),

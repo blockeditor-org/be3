@@ -23,5 +23,10 @@ fn the_media_keys_ask_the_host_even_from_a_program_with_the_keyboard() {
         MediaRequest::StepBrightness(-BRIGHTNESS_STEP),
     ];
     expected.extend(PlayerCommand::ALL.map(MediaRequest::Player));
-    assert_eq!(fixture.test.take_actions::<MediaRequest>(), expected);
+    assert_eq!(
+        fixture
+            .test
+            .take_host_calls(block_ui_test::requested::media),
+        expected
+    );
 }

@@ -71,10 +71,10 @@ fn a_toast_hides_when_its_time_is_up_and_the_notification_stays_listed() {
     );
     assert_eq!(
         center.take_signals(),
-        vec![NotificationSignal::Closed(
-            transient,
-            NotificationCloseReason::Expired
-        )],
+        vec![NotificationSignal::Closed {
+            id: transient,
+            reason: NotificationCloseReason::Expired
+        }],
         "a transient notification closes when its time is up"
     );
     assert_eq!(listed(&center), vec![critical, never, quick, usual]);

@@ -7,12 +7,14 @@ use be_block::BlockContent;
 use database_types::database_view::{DatabaseView, DatabaseViewContent};
 
 fn seed(instances: &mut Instances, block: Uuid, database: Uuid) {
-    instances.editor_message(EditorMessage::SeedContent {
-        instance: INSTANCE,
-        block_id: block.into_bytes(),
-        content_type: DatabaseViewContent::CONTENT_TYPE.into_bytes(),
-        bytes: DatabaseViewContent::new(&DatabaseView::of(database)).encode(),
-    });
+    call(
+        instances,
+        Call::SeedContent {
+            block: block.into_bytes(),
+            content_type: DatabaseViewContent::CONTENT_TYPE.into_bytes(),
+            bytes: DatabaseViewContent::new(&DatabaseView::of(database)).encode(),
+        },
+    );
 }
 
 fn database_in(bytes: &[u8]) -> Option<Uuid> {

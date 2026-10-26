@@ -2,7 +2,7 @@ use super::*;
 
 #[test]
 fn touch_input_round_trips() {
-    let message = Message::Input(InputBatch {
+    let message = InputBatch {
         screen: ScreenId(3),
         every_sample: false,
         events: vec![TimedInput {
@@ -17,10 +17,7 @@ fn touch_input_round_trips() {
             },
             time_micros: Some(1_234_567),
         }],
-    });
+    };
 
-    assert_eq!(
-        decode_frame(&encode_frame(&message).unwrap()).unwrap(),
-        message
-    );
+    round_trips(&message);
 }

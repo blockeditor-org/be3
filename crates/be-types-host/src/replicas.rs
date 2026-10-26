@@ -8,9 +8,15 @@ use be_client::{ClientError, Peer, Saved, connection::Answer};
 use be_commit::CommitId;
 use be_graph::BlockParent;
 use be_protocol::{ClientId, ServerMessage, SessionState};
+use block_type_api::ops::DeserializeOwned;
 use block_type_api::{
-    ByteRange, Change, Command, EditorId, Endpoint, Event, HeadEvent, Recipients, ReplicaId, Reply,
-    Request, RequestId, Status,
+    ByteRange, Change, Description, EditorId, Endpoint, Opening, PlainFile, PublishOutcome,
+    Recipients, ReplicaId, Resume, Status,
+    embed::{
+        exports::replicas::{self, Replica},
+        host::Call,
+    },
+    ops::{Connection, OpError, OpId, Outcome, Reply, Ticket},
 };
 use block_type_guest::editor::FromEditor;
 use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender, unbounded_channel};
@@ -18,16 +24,43 @@ use uuid::Uuid;
 
 use crate::{
     Host,
-    modules::{self as types, Modules},
+    modules::{self as types, Heard, Modules},
 };
 
 pub const HOST_EDITOR: EditorId = u64::MAX;
 
+pub enum Answered {
+    Read(Reply<Result<Vec<u8>, String>>, Result<Vec<u8>, String>),
+    Publish(
+        Reply<Result<PublishOutcome, String>>,
+        Result<PublishOutcome, String>,
+    ),
+    Stash(Reply<Result<CommitId, String>>, Result<CommitId, String>),
+    Resume(Reply<Result<Resume, String>>, Result<Resume, String>),
+}
+
+impl Answered {
+    fn heads(&self) -> bool {
+        matches!(self, Answered::Publish(..) | Answered::Stash(..))
+    }
+
+    fn send(self, connection: &mut Connection) {
+        match self {
+            Answered::Read(reply, result) => reply.send(connection, &result),
+            Answered::Publish(reply, result) => reply.send(connection, &result),
+            Answered::Stash(reply, result) => reply.send(connection, &result),
+            Answered::Resume(reply, result) => reply.send(connection, &result),
+        }
+    }
+}
+
 pub enum Io {
     Answer {
         replica: ReplicaId,
+        module: usize,
+        generation: u64,
         epoch: u64,
-        event: Box<Event>,
+        answer: Box<Answered>,
         published: Option<CommitId>,
     },
     Locked {
@@ -36,9 +69,48 @@ pub enum Io {
     Relayed,
 }
 
+#[derive(Clone)]
+enum Replayed {
+    Message {
+        from: Endpoint,
+        bytes: Vec<u8>,
+    },
+    Moved {
+        head: CommitId,
+        from_this_device: bool,
+    },
+    Lease {
+        session: SessionState,
+        resynchronize: bool,
+    },
+}
+
+impl Replayed {
+    fn send(&self, replica: Replica, connection: &mut Connection) {
+        match self.clone() {
+            Replayed::Message { from, bytes } => {
+                replica.message(connection, from, bytes);
+            }
+            Replayed::Moved {
+                head,
+                from_this_device,
+            } => {
+                replica.head_moved(connection, head, from_this_device);
+            }
+            Replayed::Lease {
+                session,
+                resynchronize,
+            } => {
+                replica.lease(connection, session, resynchronize);
+            }
+        }
+    }
+}
+
 struct Open {
     block: Uuid,
     module: usize,
+    handle: Replica,
     content_type: Uuid,
     client: ClientId,
     organization: Uuid,
@@ -49,7 +121,7 @@ struct Open {
     publishing: usize,
     moved: Vec<CommitId>,
     published: Vec<CommitId>,
-    replay: Vec<Event>,
+    replay: Vec<Replayed>,
     closing: bool,
     reopen: bool,
     epoch: u64,
@@ -62,8 +134,9 @@ pub struct Replicas<H: Host> {
     blocks: HashMap<Uuid, ReplicaId>,
     next: ReplicaId,
     io: UnboundedSender<Io>,
-    contents: HashMap<RequestId, ReplicaId>,
-    replies: HashMap<RequestId, tokio::sync::oneshot::Sender<Reply>>,
+    handles: HashMap<(usize, OpId), ReplicaId>,
+    contents: HashMap<(usize, OpId), ReplicaId>,
+    replies: HashMap<(usize, OpId), tokio::sync::oneshot::Sender<Outcome>>,
     pending: Vec<Io>,
     relaying: usize,
     changed: bool,
@@ -83,6 +156,7 @@ impl<H: Host> Replicas<H> {
             blocks: HashMap::new(),
             next: 0,
             io,
+            handles: HashMap::new(),
             contents: HashMap::new(),
             replies: HashMap::new(),
             pending: Vec::new(),
@@ -135,49 +209,55 @@ impl<H: Host> Replicas<H> {
                 self.pending.push(io);
             }
             let answers = std::mem::take(&mut self.pending);
-            let commands = self.modules.take();
+            let heard = self.modules.take();
             for module in self.modules.take_restarted() {
                 self.restart(module).await;
                 self.changed = true;
             }
-            if answers.is_empty() && commands.is_empty() {
+            if answers.is_empty() && heard.is_empty() {
                 return;
             }
-            self.handled += (answers.len() + commands.len()) as u64;
+            self.handled += (answers.len() + heard.len()) as u64;
             for io in answers {
                 self.answered(io, ctx.1);
             }
-            for (module, command) in commands {
-                self.changed |= self.act(ctx, module, command).await;
+            for (module, heard) in heard {
+                self.changed |= self.heard_from(ctx, module, heard).await;
             }
         }
     }
 
-    pub async fn ask(&mut self, ctx: Ctx<'_, H>, module: usize, request: Request) -> Reply {
-        let Some(answered) = self.ask_later(module, request) else {
-            return Reply::Unknown;
+    pub async fn ask<T: DeserializeOwned>(
+        &mut self,
+        ctx: Ctx<'_, H>,
+        module: usize,
+        call: impl FnOnce(&mut Connection) -> Ticket<T>,
+    ) -> Result<T, OpError> {
+        let Some((ticket, answered)) = self.ask_later(module, call) else {
+            return Err(OpError::Canceled);
         };
         let mut answered = std::pin::pin!(answered);
         loop {
             self.drain(ctx).await;
-            if let Some(reply) = futures_util::FutureExt::now_or_never(answered.as_mut()) {
-                return reply.unwrap_or(Reply::Unknown);
+            if let Some(outcome) = futures_util::FutureExt::now_or_never(answered.as_mut()) {
+                return match outcome {
+                    Ok(outcome) => ticket.decode(outcome),
+                    Err(_) => Err(OpError::Canceled),
+                };
             }
             self.woken().await;
         }
     }
 
-    fn ask_later(
+    fn ask_later<T: DeserializeOwned>(
         &mut self,
         module: usize,
-        request: Request,
-    ) -> Option<tokio::sync::oneshot::Receiver<Reply>> {
-        let id = self.modules.next_request();
+        call: impl FnOnce(&mut Connection) -> Ticket<T>,
+    ) -> Option<(Ticket<T>, tokio::sync::oneshot::Receiver<Outcome>)> {
+        let ticket = self.modules.call(module, call)?;
         let (answer, answered) = tokio::sync::oneshot::channel();
-        self.replies.insert(id, answer);
-        self.modules
-            .send(module, vec![Event::Request { id, request }]);
-        Some(answered)
+        self.replies.insert((module, ticket.op()), answer);
+        Some((ticket, answered))
     }
 
     pub fn is_open(&self, block: Uuid) -> bool {
@@ -207,8 +287,7 @@ impl<H: Host> Replicas<H> {
             open.closing = false;
             if reader && !open.reader {
                 open.reader = true;
-                let module = open.module;
-                self.attach_now(module, replica, HOST_EDITOR, true);
+                self.attach_now(replica, HOST_EDITOR, true);
             }
             return;
         }
@@ -248,12 +327,30 @@ impl<H: Host> Replicas<H> {
             return;
         };
         let organization = peer.organization();
+        let tag = self.modules.tag(module);
+        let opening = Opening {
+            block,
+            content_type,
+            organization,
+            client,
+            tag,
+            head,
+            session: session.clone(),
+        };
+        let Some(handle) = self
+            .modules
+            .call(module, |connection| Replica::new(connection, opening))
+        else {
+            return;
+        };
         self.blocks.insert(block, replica);
+        self.handles.insert((module, handle.op()), replica);
         self.open.insert(
             replica,
             Open {
                 block,
                 module,
+                handle,
                 content_type,
                 client,
                 organization,
@@ -262,7 +359,7 @@ impl<H: Host> Replicas<H> {
                     head,
                     ..Status::default()
                 },
-                session: session.clone(),
+                session,
                 reader,
                 publishing: 0,
                 moved: Vec::new(),
@@ -273,28 +370,9 @@ impl<H: Host> Replicas<H> {
                 epoch: 0,
             },
         );
-        let tag = self.modules.tag(module);
-        let mut events = vec![Event::Open {
-            replica,
-            block,
-            content_type,
-            organization,
-            client,
-            tag,
-            head,
-            session,
-        }];
         if reader {
-            events.push(Event::Attach {
-                replica,
-                editor: HOST_EDITOR,
-                editable: true,
-            });
-            if let Some(open) = self.open.get_mut(&replica) {
-                open.editors.insert(HOST_EDITOR, true);
-            }
+            self.attach_now(replica, HOST_EDITOR, true);
         }
-        self.modules.send(module, events);
         let current = H::known_head(shared, block);
         if let Some(current) = current
             && Some(current) != head
@@ -303,18 +381,33 @@ impl<H: Host> Replicas<H> {
         }
     }
 
-    fn attach_now(&mut self, module: usize, replica: ReplicaId, editor: EditorId, editable: bool) {
-        if let Some(open) = self.open.get_mut(&replica) {
-            open.editors.insert(editor, editable);
+    fn attach_now(&mut self, replica: ReplicaId, editor: EditorId, editable: bool) {
+        let Some(open) = self.open.get_mut(&replica) else {
+            return;
+        };
+        open.editors.insert(editor, editable);
+        let (module, handle) = (open.module, open.handle);
+        self.modules.call(module, |connection| {
+            handle.attach(connection, editor, editable);
+        });
+    }
+
+    fn with_replica(&mut self, replica: ReplicaId, call: impl FnOnce(Replica, &mut Connection)) {
+        if let Some(open) = self.open.get(&replica) {
+            let (module, handle) = (open.module, open.handle);
+            self.modules
+                .call(module, |connection| call(handle, connection));
         }
-        self.modules.send(
-            module,
-            vec![Event::Attach {
-                replica,
-                editor,
-                editable,
-            }],
-        );
+    }
+
+    fn replay(&mut self, replica: ReplicaId, replayed: Replayed) {
+        let Some(open) = self.open.get_mut(&replica) else {
+            return;
+        };
+        open.replay.push(replayed.clone());
+        self.with_replica(replica, |handle, connection| {
+            replayed.send(handle, connection);
+        });
     }
 
     pub fn attach(&mut self, block: Uuid, editor: EditorId, editable: bool) {
@@ -324,8 +417,7 @@ impl<H: Host> Replicas<H> {
         if open.editors.get(&editor) == Some(&editable) {
             return;
         }
-        let module = open.module;
-        self.attach_now(module, replica, editor, editable);
+        self.attach_now(replica, editor, editable);
     }
 
     pub fn detach(&mut self, block: Uuid, editor: EditorId) -> bool {
@@ -338,10 +430,10 @@ impl<H: Host> Replicas<H> {
         if open.editors.remove(&editor).is_none() {
             return open.editors.is_empty();
         }
-        let module = open.module;
         let idle = open.editors.is_empty();
-        self.modules
-            .send(module, vec![Event::Detach { replica, editor }]);
+        self.with_replica(replica, |handle, connection| {
+            handle.detach(connection, editor);
+        });
         idle
     }
 
@@ -355,26 +447,24 @@ impl<H: Host> Replicas<H> {
         let Some(replica) = self.blocks.get(&block).copied() else {
             return;
         };
-        let Some(open) = self.open.get_mut(&replica) else {
+        let Some(open) = self.open.get(&replica) else {
             return;
         };
-        let module = open.module;
-        let event = Event::Message {
+        self.modules.tick_at(open.module, at);
+        self.replay(
             replica,
-            from: Endpoint::Editor(editor),
-            bytes,
-        };
-        open.replay.push(event.clone());
-        self.modules.tick_at(module, at);
-        self.modules.send(module, vec![event]);
+            Replayed::Message {
+                from: Endpoint::Editor(editor),
+                bytes,
+            },
+        );
     }
 
     pub fn send_as_host(&mut self, block: Uuid, message: &FromEditor, at: Instant) {
         if let Some((replica, open)) = self.replica_of(block)
             && !open.editors.contains_key(&HOST_EDITOR)
         {
-            let module = open.module;
-            self.attach_now(module, replica, HOST_EDITOR, true);
+            self.attach_now(replica, HOST_EDITOR, true);
         }
         self.relay_from_editor(block, HOST_EDITOR, message.encode(), at);
     }
@@ -389,8 +479,9 @@ impl<H: Host> Replicas<H> {
         if std::mem::replace(&mut open.closing, true) {
             return;
         }
-        let module = open.module;
-        self.modules.send(module, vec![Event::Close { replica }]);
+        self.with_replica(replica, |handle, connection| {
+            handle.resource_drop(connection)
+        });
     }
 
     pub fn reopen(&mut self, block: Uuid) {
@@ -404,8 +495,9 @@ impl<H: Host> Replicas<H> {
         if std::mem::replace(&mut open.closing, true) {
             return;
         }
-        let module = open.module;
-        self.modules.send(module, vec![Event::Close { replica }]);
+        self.with_replica(replica, |handle, connection| {
+            handle.resource_drop(connection)
+        });
     }
 
     pub fn moved_here(&mut self, block: Uuid, head: CommitId) {
@@ -426,61 +518,57 @@ impl<H: Host> Replicas<H> {
             open.published.drain(..=index);
             return;
         }
-        let module = open.module;
-        let event = Event::Head {
+        self.replay(
             replica,
-            event: HeadEvent::Moved {
+            Replayed::Moved {
                 head,
                 from_this_device,
             },
-        };
-        open.replay.push(event.clone());
-        self.modules.send(module, vec![event]);
+        );
     }
 
-    pub async fn request(
+    async fn on_replica<T: DeserializeOwned>(
         &mut self,
         ctx: Ctx<'_, H>,
         block: Uuid,
-        request: impl FnOnce(ReplicaId) -> Request,
-    ) -> Reply {
-        let Some((replica, open)) = self.replica_of(block) else {
-            return Reply::Unknown;
+        call: impl FnOnce(Replica, &mut Connection) -> Ticket<T>,
+    ) -> Result<T, OpError> {
+        let Some((_, open)) = self.replica_of(block) else {
+            return Err(OpError::Canceled);
         };
-        let module = open.module;
-        self.ask(ctx, module, request(replica)).await
-    }
-
-    pub fn request_later(
-        &mut self,
-        block: Uuid,
-        request: impl FnOnce(ReplicaId) -> Request,
-    ) -> Option<tokio::sync::oneshot::Receiver<Reply>> {
-        let (replica, open) = self.replica_of(block)?;
-        let module = open.module;
-        self.ask_later(module, request(replica))
-    }
-
-    pub async fn content(&mut self, ctx: Ctx<'_, H>, block: Uuid) -> Option<Vec<u8>> {
-        match self
-            .request(ctx, block, |replica| Request::Content { replica })
+        let (module, handle) = (open.module, open.handle);
+        self.ask(ctx, module, |connection| call(handle, connection))
             .await
-        {
-            Reply::Content(bytes) => Some(bytes),
-            _ => None,
+    }
+
+    pub fn change_later(&mut self, block: Uuid, change: Change) {
+        if let Some((replica, _)) = self.replica_of(block) {
+            self.with_replica(replica, |handle, connection| {
+                handle.change(connection, change);
+            });
         }
     }
 
+    pub async fn content(&mut self, ctx: Ctx<'_, H>, block: Uuid) -> Option<Vec<u8>> {
+        self.on_replica(ctx, block, |handle, connection| handle.content(connection))
+            .await
+            .ok()
+            .flatten()
+    }
+
     pub async fn change(&mut self, ctx: Ctx<'_, H>, block: Uuid, change: Change) -> bool {
-        matches!(
-            self.request(ctx, block, |replica| Request::Change { replica, change })
-                .await,
-            Reply::Changed(true)
-        )
+        self.on_replica(ctx, block, |handle, connection| {
+            handle.change(connection, change)
+        })
+        .await
+        .unwrap_or(false)
     }
 
     pub async fn seal(&mut self, ctx: Ctx<'_, H>, block: Uuid, force: bool) {
-        self.request(ctx, block, |replica| Request::Seal { replica, force })
+        let _ = self
+            .on_replica(ctx, block, |handle, connection| {
+                handle.seal(connection, force)
+            })
             .await;
     }
 
@@ -499,14 +587,18 @@ impl<H: Host> Replicas<H> {
         theirs: Option<&[u8]>,
     ) -> Option<(Vec<u8>, bool)> {
         let module = self.modules.module_of(content_type)?;
-        let request = Request::Merge3 {
-            content_type,
-            base: base.map(<[u8]>::to_vec),
-            ours: ours.map(<[u8]>::to_vec),
-            theirs: theirs.map(<[u8]>::to_vec),
-        };
-        match self.ask(ctx, module, request).await {
-            Reply::Merged { bytes, conflicts } => Some((bytes, conflicts > 0)),
+        let (base, ours, theirs) = (
+            base.map(<[u8]>::to_vec),
+            ours.map(<[u8]>::to_vec),
+            theirs.map(<[u8]>::to_vec),
+        );
+        match self
+            .ask(ctx, module, |connection| {
+                replicas::merge3(connection, content_type, base, ours, theirs)
+            })
+            .await
+        {
+            Ok(Ok(merged)) => Some((merged.bytes, merged.conflicts > 0)),
             _ => None,
         }
     }
@@ -516,15 +608,16 @@ impl<H: Host> Replicas<H> {
         ctx: Ctx<'_, H>,
         content_type: Uuid,
         bytes: &[u8],
-    ) -> Option<block_type_api::Description> {
+    ) -> Option<Description> {
         let module = self.modules.module_of(content_type)?;
-        let request = Request::Describe {
-            content_type,
-            bytes: bytes.to_vec(),
-            organization: ctx.0.organization(),
-        };
-        match self.ask(ctx, module, request).await {
-            Reply::Described(description) => Some(description),
+        let (bytes, organization) = (bytes.to_vec(), ctx.0.organization());
+        match self
+            .ask(ctx, module, |connection| {
+                replicas::describe(connection, content_type, bytes, organization)
+            })
+            .await
+        {
+            Ok(Ok(description)) => Some(description),
             _ => None,
         }
     }
@@ -534,19 +627,23 @@ impl<H: Host> Replicas<H> {
         ctx: Ctx<'_, H>,
         content_type: Uuid,
         bytes: Vec<u8>,
-    ) -> Result<Option<block_type_api::PlainFile>, String> {
+    ) -> Result<Option<PlainFile>, String> {
         let module = self
             .modules
             .module_of(content_type)
             .ok_or_else(|| format!("no type module has the block type {content_type}"))?;
-        let request = Request::ToFile {
-            content_type,
-            bytes,
-        };
-        match self.ask(ctx, module, request).await {
-            Reply::File(file) => Ok(file),
-            Reply::Malformed(error) => Err(error),
-            other => Err(format!("the type module answered {other:?}")),
+        match self
+            .ask(ctx, module, |connection| {
+                replicas::to_file(connection, content_type, bytes)
+            })
+            .await
+        {
+            Ok(Ok(file)) => Ok(file),
+            Ok(Err(block_type_api::Failure::Malformed(error))) => Err(error),
+            Ok(Err(block_type_api::Failure::UnknownType)) => {
+                Err(format!("no type module has the block type {content_type}"))
+            }
+            Err(error) => Err(format!("the type module answered: {error}")),
         }
     }
 
@@ -562,17 +659,18 @@ impl<H: Host> Replicas<H> {
             .modules
             .module_of(content_type)
             .ok_or_else(|| format!("no type module has the block type {content_type}"))?;
-        let request = Request::Apply {
-            content_type,
-            bytes,
-            client,
-            change,
-        };
-        match self.ask(ctx, module, request).await {
-            Reply::Content(bytes) => Ok(Some(bytes)),
-            Reply::Changed(false) => Ok(None),
-            Reply::Malformed(error) => Err(error),
-            other => Err(format!("the type module answered {other:?}")),
+        match self
+            .ask(ctx, module, |connection| {
+                replicas::apply(connection, content_type, bytes, client, change)
+            })
+            .await
+        {
+            Ok(Ok(bytes)) => Ok(bytes),
+            Ok(Err(block_type_api::Failure::Malformed(error))) => Err(error),
+            Ok(Err(block_type_api::Failure::UnknownType)) => {
+                Err(format!("no type module has the block type {content_type}"))
+            }
+            Err(error) => Err(format!("the type module answered: {error}")),
         }
     }
 
@@ -586,9 +684,8 @@ impl<H: Host> Replicas<H> {
     }
 
     pub fn claim(&mut self, block: Uuid) {
-        if let Some((replica, open)) = self.replica_of(block) {
-            let module = open.module;
-            self.modules.send(module, vec![Event::Claim { replica }]);
+        if let Some((replica, _)) = self.replica_of(block) {
+            self.with_replica(replica, |handle, connection| handle.claim(connection));
         }
     }
 
@@ -602,14 +699,13 @@ impl<H: Host> Replicas<H> {
                     return;
                 };
                 open.session = state.clone();
-                let module = open.module;
-                let event = Event::Lease {
+                self.replay(
                     replica,
-                    session: state.clone(),
-                    resynchronize: false,
-                };
-                open.replay.push(event.clone());
-                self.modules.send(module, vec![event]);
+                    Replayed::Lease {
+                        session: state.clone(),
+                        resynchronize: false,
+                    },
+                );
             }
             ServerMessage::Relayed {
                 block,
@@ -623,17 +719,13 @@ impl<H: Host> Replicas<H> {
                     Ok(bytes) => bytes,
                     Err(error) => return H::record(shared, error),
                 };
-                let Some(open) = self.open.get_mut(&replica) else {
-                    return;
-                };
-                let module = open.module;
-                let event = Event::Message {
+                self.replay(
                     replica,
-                    from: Endpoint::Peer(*from),
-                    bytes,
-                };
-                open.replay.push(event.clone());
-                self.modules.send(module, vec![event]);
+                    Replayed::Message {
+                        from: Endpoint::Peer(*from),
+                        bytes,
+                    },
+                );
             }
             ServerMessage::HeadChanged { block, head, .. } => {
                 if let Some(replica) = self.blocks.get(block).copied() {
@@ -662,15 +754,9 @@ impl<H: Host> Replicas<H> {
                 continue;
             };
             open.session = session.clone();
-            let module = open.module;
-            self.modules.send(
-                module,
-                vec![Event::Lease {
-                    replica,
-                    session,
-                    resynchronize: true,
-                }],
-            );
+            self.with_replica(replica, |handle, connection| {
+                handle.lease(connection, session, true);
+            });
         }
     }
 
@@ -678,24 +764,29 @@ impl<H: Host> Replicas<H> {
         match io {
             Io::Answer {
                 replica,
+                module,
+                generation,
                 epoch,
-                event,
+                answer,
                 published,
             } => {
+                let heads = answer.heads();
+                if self.modules.generation(module) == generation {
+                    self.modules
+                        .call(module, |connection| answer.send(connection));
+                }
                 let Some(open) = self.open.get_mut(&replica) else {
                     return;
                 };
                 if open.epoch != epoch {
                     return;
                 }
-                let module = open.module;
-                if matches!(*event, Event::Head { .. }) {
+                if heads {
                     open.publishing = open.publishing.saturating_sub(1);
                 }
                 if let Some(head) = published {
                     open.published.push(head);
                 }
-                self.modules.send(module, vec![*event]);
                 let Some(open) = self.open.get_mut(&replica) else {
                     return;
                 };
@@ -743,36 +834,40 @@ impl<H: Host> Replicas<H> {
             open.publishing = 0;
             open.moved.clear();
             open.published.clear();
-            open.replay.retain(|event| {
+            open.replay.retain(|replayed| {
                 matches!(
-                    event,
-                    Event::Message {
+                    replayed,
+                    Replayed::Message {
                         from: Endpoint::Editor(_),
                         ..
                     }
                 )
             });
-            let module = open.module;
-            let mut events = vec![Event::Open {
-                replica,
+            let opening = Opening {
                 block,
                 content_type: open.content_type,
                 organization: open.organization,
                 client,
-                tag: self.modules.tag(module),
+                tag: self.modules.tag(open.module),
                 head: open.status.head,
                 session,
-            }];
-            for (editor, editable) in &open.editors {
-                events.push(Event::Attach {
-                    replica,
-                    editor: *editor,
-                    editable: *editable,
-                });
-            }
-            events.extend(open.replay.iter().cloned());
+            };
+            let editors: Vec<(EditorId, bool)> = open
+                .editors
+                .iter()
+                .map(|(editor, editable)| (*editor, *editable))
+                .collect();
+            let replay = open.replay.clone();
             let known = open.status.head;
-            self.modules.send(module, events);
+            self.with_replica(replica, |handle, connection| {
+                handle.reopen(connection, opening);
+                for (editor, editable) in editors {
+                    handle.attach(connection, editor, editable);
+                }
+                for replayed in &replay {
+                    replayed.send(handle, connection);
+                }
+            });
             if let Some(head) = head
                 && Some(head) != known
             {
@@ -782,98 +877,195 @@ impl<H: Host> Replicas<H> {
     }
 
     pub async fn restart(&mut self, module: usize) {
-        for (replica, open) in self
+        let restarted: Vec<ReplicaId> = self
             .open
-            .iter_mut()
+            .iter()
             .filter(|(_, open)| open.module == module)
-        {
+            .map(|(replica, _)| *replica)
+            .collect();
+        self.handles.retain(|(from, _), _| *from != module);
+        self.contents.retain(|(from, _), _| *from != module);
+        self.replies.retain(|(from, _), _| *from != module);
+        for replica in restarted {
+            let tag = self.modules.tag(module);
+            let Some(open) = self.open.get_mut(&replica) else {
+                continue;
+            };
             open.epoch += 1;
-            let mut events = vec![Event::Open {
-                replica: *replica,
+            open.publishing = 0;
+            open.moved.clear();
+            let opening = Opening {
                 block: open.block,
                 content_type: open.content_type,
                 organization: open.organization,
                 client: open.client,
-                tag: self.modules.tag(module),
+                tag,
                 head: open.status.head,
                 session: open.session.clone(),
-            }];
-            for (editor, editable) in &open.editors {
-                events.push(Event::Attach {
-                    replica: *replica,
-                    editor: *editor,
-                    editable: *editable,
-                });
+            };
+            let editors: Vec<(EditorId, bool)> = open
+                .editors
+                .iter()
+                .map(|(editor, editable)| (*editor, *editable))
+                .collect();
+            let replay = open.replay.clone();
+            let closing = open.closing;
+            let Some(handle) = self.modules.call(module, |connection| {
+                let handle = Replica::new(connection, opening);
+                for (editor, editable) in editors {
+                    handle.attach(connection, editor, editable);
+                }
+                for replayed in &replay {
+                    replayed.send(handle, connection);
+                }
+                if closing {
+                    handle.resource_drop(connection);
+                }
+                handle
+            }) else {
+                continue;
+            };
+            if let Some(open) = self.open.get_mut(&replica) {
+                open.handle = handle;
             }
-            events.extend(open.replay.iter().cloned());
-            open.publishing = 0;
-            open.moved.clear();
-            self.modules.send(module, events);
-            if open.closing {
-                self.modules
-                    .send(module, vec![Event::Close { replica: *replica }]);
+            self.handles.insert((module, handle.op()), replica);
+        }
+    }
+
+    async fn heard_from(&mut self, ctx: Ctx<'_, H>, module: usize, heard: Heard) -> bool {
+        match heard {
+            Heard::Hello(_) => false,
+            Heard::Canceled { op } => {
+                self.refuse(module, op);
+                false
+            }
+            Heard::Completed { op, outcome } => self.completed(ctx, module, op, outcome).await,
+            Heard::Call { op, parent, call } => {
+                let replica = parent
+                    .and_then(|parent| self.handles.get(&(module, parent)).copied())
+                    .filter(|replica| self.open.contains_key(replica));
+                match replica {
+                    Some(replica) => self.act(ctx, module, replica, call).await,
+                    None => {
+                        if let Call::Error { message } = call {
+                            H::report(ctx.1, format!("a type module: {message}"));
+                        }
+                        if let Some(op) = op {
+                            self.refuse(module, op);
+                        }
+                        false
+                    }
+                }
             }
         }
     }
 
-    pub async fn act(
+    fn refuse(&mut self, module: usize, op: OpId) {
+        self.modules.call(module, |connection| {
+            connection.complete(op, Outcome::Err(OpError::Canceled));
+        });
+    }
+
+    async fn completed(
         &mut self,
         (peer, shared): Ctx<'_, H>,
         module: usize,
-        command: Command,
+        op: OpId,
+        outcome: Outcome,
     ) -> bool {
-        let replica_of = |replica: ReplicaId, open: &HashMap<ReplicaId, Open>| {
-            open.get(&replica)
-                .map(|open| (open.block, open.content_type, open.module == module))
+        if let Some(answer) = self.replies.remove(&(module, op)) {
+            let _ = answer.send(outcome);
+            return false;
+        }
+        if let Some(replica) = self.contents.remove(&(module, op)) {
+            let (Some(open), Ok(Some(bytes))) =
+                (self.open.get(&replica), outcome.decode::<Option<Vec<u8>>>())
+            else {
+                return false;
+            };
+            H::content(shared, open.block, open.content_type, bytes);
+            return true;
+        }
+        let Some(replica) = self.handles.remove(&(module, op)) else {
+            return false;
         };
-        match command {
-            Command::Hello { .. } | Command::WakeAt { .. } => false,
-            Command::Reply { id, reply } => {
-                if let Some(answer) = self.replies.remove(&id) {
-                    let _ = answer.send(reply);
-                    return false;
-                }
-                let Some(replica) = self.contents.remove(&id) else {
-                    return false;
-                };
-                let (Some(open), Reply::Content(bytes)) = (self.open.get(&replica), reply) else {
-                    return false;
-                };
-                H::content(shared, open.block, open.content_type, bytes);
-                true
-            }
-            Command::Send { replica, to, bytes } => {
-                let Some((block, _, true)) = replica_of(replica, &self.open) else {
-                    return false;
-                };
-                match to {
-                    Recipients::One(Endpoint::Editor(editor)) => {
-                        H::to_editor(shared, block, editor, bytes)
-                    }
-                    Recipients::One(Endpoint::Host) => false,
-                    Recipients::One(Endpoint::Peer(client)) => {
-                        self.relay(shared, peer.relay(block, Some(client), &bytes).await);
-                        false
-                    }
-                    Recipients::Peers => {
-                        self.relay(shared, peer.relay(block, None, &bytes).await);
-                        false
-                    }
-                }
-            }
-            Command::Read {
+        let Some(open) = self.open.remove(&replica) else {
+            return false;
+        };
+        self.blocks.remove(&open.block);
+        let _ = peer.leave_session(open.block).await;
+        let _ = peer.unwatch(open.block).await;
+        if open.reopen {
+            self.open((peer, shared), open.block, open.content_type, open.reader)
+                .await;
+            return true;
+        }
+        H::released(shared, open.block);
+        self.counted(shared);
+        true
+    }
+
+    fn answer_later(
+        &self,
+        replica: ReplicaId,
+        module: usize,
+        task: impl Future<Output = (Answered, Option<CommitId>)> + 'static,
+    ) {
+        let epoch = self.open.get(&replica).map_or(0, |open| open.epoch);
+        let generation = self.modules.generation(module);
+        let io = self.io.clone();
+        H::spawn(async move {
+            let (answer, published) = task.await;
+            let _ = io.send(Io::Answer {
                 replica,
-                token,
+                module,
+                generation,
+                epoch,
+                answer: Box::new(answer),
+                published,
+            });
+            H::wake();
+        });
+    }
+
+    async fn act(
+        &mut self,
+        (peer, shared): Ctx<'_, H>,
+        module: usize,
+        replica: ReplicaId,
+        call: Call,
+    ) -> bool {
+        let Some((block, content_type)) = self
+            .open
+            .get(&replica)
+            .map(|open| (open.block, open.content_type))
+        else {
+            return false;
+        };
+        match call {
+            Call::Clock { .. } | Call::SleepUntil { .. } => false,
+            Call::Send { to, bytes } => match to {
+                Recipients::One(Endpoint::Editor(editor)) => {
+                    H::to_editor(shared, block, editor, bytes)
+                }
+                Recipients::One(Endpoint::Host) => false,
+                Recipients::One(Endpoint::Peer(client)) => {
+                    self.relay(shared, peer.relay(block, Some(client), &bytes).await);
+                    false
+                }
+                Recipients::Peers => {
+                    self.relay(shared, peer.relay(block, None, &bytes).await);
+                    false
+                }
+            },
+            Call::Read {
+                reply,
                 commit,
                 range,
             } => {
-                let Some((_, _, true)) = replica_of(replica, &self.open) else {
-                    return false;
-                };
-                let epoch = self.open.get(&replica).map_or(0, |open| open.epoch);
                 let peer = Arc::clone(peer);
                 let io = self.io.clone();
-                H::spawn(async move {
+                self.answer_later(replica, module, async move {
                     let read = async {
                         let commit = peer.load_commit(commit).await?;
                         peer.read_manifest(&commit.manifest).await
@@ -885,37 +1077,21 @@ impl<H: Host> Replicas<H> {
                     let result = read
                         .map(|bytes| slice(bytes, range))
                         .map_err(|error| error.to_string());
-                    let _ = io.send(Io::Answer {
-                        replica,
-                        epoch,
-                        event: Box::new(Event::Read {
-                            replica,
-                            token,
-                            result,
-                        }),
-                        published: None,
-                    });
-                    H::wake();
+                    (Answered::Read(reply, result), None)
                 });
                 false
             }
-            Command::Publish {
-                replica,
-                token,
+            Call::Publish {
+                reply,
                 expected,
                 merging,
                 content,
             } => {
-                let Some((block, content_type, true)) = replica_of(replica, &self.open) else {
-                    return false;
-                };
                 if let Some(open) = self.open.get_mut(&replica) {
                     open.publishing += 1;
                 }
-                let epoch = self.open.get(&replica).map_or(0, |open| open.epoch);
                 let peer = Arc::clone(peer);
-                let io = self.io.clone();
-                H::spawn(async move {
+                self.answer_later(replica, module, async move {
                     let saved = peer
                         .publish_encoded(
                             block,
@@ -927,46 +1103,28 @@ impl<H: Host> Replicas<H> {
                             merging.map(|merging| (merging.base, merging.ours)),
                         )
                         .await;
-                    let (event, published) = match saved {
+                    let (result, published) = match saved {
                         Ok(Saved::Published(head)) => {
-                            (HeadEvent::Published { token, head }, Some(head))
+                            (Ok(PublishOutcome::Published(head)), Some(head))
                         }
-                        Ok(Saved::Unchanged(head)) => (HeadEvent::Published { token, head }, None),
-                        Ok(Saved::Rejected { head }) => (HeadEvent::Rejected { token, head }, None),
-                        Err(error) => (
-                            HeadEvent::Failed {
-                                token,
-                                error: error.to_string(),
-                            },
-                            None,
-                        ),
+                        Ok(Saved::Unchanged(head)) => (Ok(PublishOutcome::Published(head)), None),
+                        Ok(Saved::Rejected { head }) => (Ok(PublishOutcome::Rejected(head)), None),
+                        Err(error) => (Err(error.to_string()), None),
                     };
-                    let _ = io.send(Io::Answer {
-                        replica,
-                        epoch,
-                        event: Box::new(Event::Head { replica, event }),
-                        published,
-                    });
-                    H::wake();
+                    (Answered::Publish(reply, result), published)
                 });
                 false
             }
-            Command::Stash {
-                replica,
-                token,
+            Call::Stash {
+                reply,
                 parent,
                 content,
             } => {
-                let Some((block, content_type, true)) = replica_of(replica, &self.open) else {
-                    return false;
-                };
                 if let Some(open) = self.open.get_mut(&replica) {
                     open.publishing += 1;
                 }
-                let epoch = self.open.get(&replica).map_or(0, |open| open.epoch);
                 let peer = Arc::clone(peer);
-                let io = self.io.clone();
-                H::spawn(async move {
+                self.answer_later(replica, module, async move {
                     let stashed = peer
                         .stash_encoded(
                             block,
@@ -976,36 +1134,15 @@ impl<H: Host> Replicas<H> {
                             content.derived,
                             parent,
                         )
-                        .await;
-                    let event = match stashed {
-                        Ok(commit) => HeadEvent::Stashed { token, commit },
-                        Err(error) => HeadEvent::Failed {
-                            token,
-                            error: error.to_string(),
-                        },
-                    };
-                    let _ = io.send(Io::Answer {
-                        replica,
-                        epoch,
-                        event: Box::new(Event::Head { replica, event }),
-                        published: None,
-                    });
-                    H::wake();
+                        .await
+                        .map_err(|error| error.to_string());
+                    (Answered::Stash(reply, stashed), None)
                 });
                 false
             }
-            Command::Resume {
-                replica,
-                token,
-                local,
-            } => {
-                let Some((block, _, true)) = replica_of(replica, &self.open) else {
-                    return false;
-                };
-                let epoch = self.open.get(&replica).map_or(0, |open| open.epoch);
+            Call::ResumeSession { reply, local } => {
                 let peer = Arc::clone(peer);
-                let io = self.io.clone();
-                H::spawn(async move {
+                self.answer_later(replica, module, async move {
                     let resumed = async {
                         let remote = peer.remote_head(block).await?;
                         if let Some(remote) = remote {
@@ -1016,89 +1153,49 @@ impl<H: Host> Replicas<H> {
                         }
                         Ok::<_, ClientError>(be_session::resume(peer.commits(), local, remote)?)
                     }
-                    .await;
-                    let _ = io.send(Io::Answer {
-                        replica,
-                        epoch,
-                        event: Box::new(Event::Resumed {
-                            replica,
-                            token,
-                            result: resumed.map_err(|error| error.to_string()),
-                        }),
-                        published: None,
-                    });
-                    H::wake();
+                    .await
+                    .map_err(|error| error.to_string());
+                    (Answered::Resume(reply, resumed), None)
                 });
                 false
             }
-            Command::ClaimLease {
-                replica,
-                generation,
-            } => {
-                let Some((block, _, true)) = replica_of(replica, &self.open) else {
-                    return false;
-                };
+            Call::ClaimLease { generation } => {
                 match peer.claim_ownership(block, generation).await {
                     Ok(state) => {
                         if let Some(open) = self.open.get_mut(&replica) {
                             open.session = state.clone();
-                            let event = Event::Lease {
-                                replica,
+                        }
+                        self.replay(
+                            replica,
+                            Replayed::Lease {
                                 session: state,
                                 resynchronize: false,
-                            };
-                            open.replay.push(event.clone());
-                            self.modules.send(module, vec![event]);
-                        }
+                            },
+                        );
                     }
                     Err(error) => H::record(shared, error),
                 }
                 false
             }
-            Command::ReportClean {
-                replica,
+            Call::ReportClean {
                 generation,
                 clean_at,
             } => {
-                let Some((block, _, true)) = replica_of(replica, &self.open) else {
-                    return false;
-                };
                 if let Err(error) = peer.heartbeat(block, generation, clean_at).await {
                     H::record(shared, error);
                 }
                 false
             }
-            Command::Release { replica } => {
-                let Some(open) = self.open.remove(&replica) else {
-                    return false;
-                };
-                self.blocks.remove(&open.block);
-                let _ = peer.leave_session(open.block).await;
-                let _ = peer.unwatch(open.block).await;
-                if open.reopen {
-                    self.open((peer, shared), open.block, open.content_type, open.reader)
-                        .await;
-                    return true;
-                }
-                H::released(shared, open.block);
-                self.counted(shared);
-                true
-            }
-            Command::Status { replica, status } => {
+            Call::ReportStatus { status } => {
                 let Some(open) = self.open.get_mut(&replica) else {
                     return false;
                 };
-                if open.module != module {
-                    return false;
-                }
-                let block = open.block;
                 if status.clean && status.head.is_some() && !status.owes_seal {
                     open.replay.clear();
                 }
                 let became_unreadable =
                     status.unreadable.is_some() && open.status.unreadable.is_none();
                 open.status = status.clone();
-                let content_type = open.content_type;
                 if became_unreadable {
                     let owned = H::owned(shared, block);
                     if let Some(kind) = types::kind_of(content_type)
@@ -1111,7 +1208,9 @@ impl<H: Host> Replicas<H> {
                                     open.reopen = true;
                                     open.closing = true;
                                 }
-                                self.modules.send(module, vec![Event::Close { replica }]);
+                                self.with_replica(replica, |handle, connection| {
+                                    handle.resource_drop(connection);
+                                });
                                 return true;
                             }
                             Err(error) => H::record(shared, error),
@@ -1122,68 +1221,43 @@ impl<H: Host> Replicas<H> {
                 self.counted(shared);
                 true
             }
-            Command::Described {
-                replica,
-                description,
-            } => {
-                let Some(open) = self.open.get(&replica) else {
-                    return false;
-                };
-                let block = open.block;
-                let reader = open.reader;
+            Call::Described { description } => {
+                let reader = self.open.get(&replica).is_some_and(|open| open.reader);
                 let references = peer.resolve(block, description.references.clone());
                 H::described(shared, block, references, description);
-                if reader {
-                    let id = self.modules.next_request();
-                    self.contents.insert(id, replica);
-                    self.modules.send(
-                        module,
-                        vec![Event::Request {
-                            id,
-                            request: Request::Content { replica },
-                        }],
-                    );
+                if reader && let Some(open) = self.open.get(&replica) {
+                    let handle = open.handle;
+                    if let Some(ticket) = self
+                        .modules
+                        .call(module, |connection| handle.content(connection))
+                    {
+                        self.contents.insert((module, ticket.op()), replica);
+                    }
                 }
                 true
             }
-            Command::History {
-                replica,
-                can_undo,
-                can_redo,
-            } => {
-                let Some(open) = self.open.get(&replica) else {
-                    return false;
-                };
-                H::history(shared, open.block, can_undo, can_redo);
+            Call::History { can_undo, can_redo } => {
+                H::history(shared, block, can_undo, can_redo);
                 true
             }
-            Command::Conflict {
-                replica,
+            Call::Conflict {
                 ours,
                 theirs,
                 count,
             } => {
-                let Some(open) = self.open.get(&replica) else {
-                    return false;
-                };
                 H::conflict(
                     shared,
-                    open.block,
+                    block,
                     crate::Conflict {
                         ours,
                         theirs,
-                        count,
+                        count: count as usize,
                     },
                 );
                 true
             }
-            Command::Error { replica, message } => {
-                let name = self
-                    .open
-                    .get(&replica)
-                    .map(|open| open.block.to_string())
-                    .unwrap_or_else(|| "a type module".to_owned());
-                H::report(shared, format!("{name}: {message}"));
+            Call::Error { message } => {
+                H::report(shared, format!("{block}: {message}"));
                 false
             }
         }

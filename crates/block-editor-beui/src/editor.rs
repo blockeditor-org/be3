@@ -8,16 +8,16 @@ use beui::reactive::*;
 use beui::{Document, Pos2, Rect, Vec2};
 use block_plugin_api::{
     BarAction, ChildContent, ChildId, ChildLayer, ChildMode, ChildPreview, CreationProgress,
-    EditorCapabilities, HostAction, HostPanel, HostValue, HostWindowId, InteractionMode, MenuEntry,
-    ResizeMode, SettingsProgress, TopBar, WebViewId,
+    EditorCapabilities, HostPanel, HostWindowId, InteractionMode, MenuEntry, ResizeMode,
+    SettingsProgress, TopBar, Watched, WebViewId,
 };
 use block_ui::BlockCatalog;
 use uuid::Uuid;
 use workspace_ui_types::{EditorViewContent, ViewState};
 
 use crate::{
-    BlockFilter, BlockList, BlockParent, BlockPicker, BlockQuery, Blocks, ContentProjection,
-    EditorHost, OwnedContentProjection, PickedBlock, Waker,
+    BlockFilter, BlockList, BlockParent, BlockQuery, Blocks, ContentProjection, EditorHost,
+    OwnedContentProjection, PickedBlock, Task, Waker,
 };
 use crate::{BlockHistory, FileDrop, FocusedBlock, Pushed};
 use block_plugin_api::{AudioStatus, FitArea};
@@ -228,7 +228,7 @@ impl ChildState {
             resize: status.resize,
             error: status.error,
             child,
-            menu: status.menu,
+            menu: block_plugin_api::MenuEntry::nest(status.menu).unwrap_or_default(),
             creation: status.creation,
             settings: status.settings,
             preview: status.preview,
@@ -254,20 +254,21 @@ struct ChildRecord {
     zone: u64,
 }
 
-struct PendingPick {
-    picker: BlockPicker,
-    picked: Rc<dyn Fn(Result<PickedBlock, String>)>,
-}
-
 type Revision = OwnedSignal<u64>;
 
 type Wake = (Arc<AtomicU64>, Signal<u64>);
 
-fn watch_replies(replies: ReadSignal<u64>, replied: impl Fn() + 'static) {
-    create_effect(move || {
-        replies.get();
-        untrack(&replied);
-    });
+fn then<T: 'static>(
+    host: &EditorHost,
+    asked: impl std::future::Future<Output = Option<T>> + 'static,
+    answered: impl FnOnce(T) + 'static,
+) -> Task {
+    let owner = owner_scope();
+    host.then(asked, move |answer| {
+        if owner.as_ref().is_none_or(ScopeContext::is_alive) {
+            answered(answer);
+        }
+    })
 }
 
 struct Mirror([Revision; Pushed::ALL.len()]);
@@ -407,7 +408,7 @@ impl OwnedEditor {
             children_moved: Cell::new(false),
             wakes: Rc::default(),
             pushed,
-            host_values: RefCell::default(),
+            watches: RefCell::default(),
             files,
             placed,
         });
@@ -462,13 +463,13 @@ struct EditorState {
     intrinsic: Cell<Option<Vec2>>,
     children: RefCell<Vec<(u64, Rc<ChildRecord>)>>,
     next_child: Cell<u64>,
-    pick: RefCell<Option<PendingPick>>,
+    pick: RefCell<Option<Task>>,
     seen: Cell<Option<(u64, f32)>>,
     shown_rect: Cell<Option<Rect>>,
     children_moved: Cell<bool>,
     wakes: Rc<RefCell<Vec<Wake>>>,
     pushed: Mirror,
-    host_values: RefCell<std::collections::HashMap<&'static str, Revision>>,
+    watches: RefCell<std::collections::HashMap<std::any::TypeId, Revision>>,
     files: Signal<Option<FileDrop>>,
     placed: Signal<Rect>,
 }
@@ -665,12 +666,12 @@ impl Editor {
         self.state().pushed.watch(pushed)
     }
 
-    pub fn replies(&self) -> ReadSignal<u64> {
-        self.pushed(Pushed::Replies)
-    }
-
-    pub fn on_reply(&self, replied: impl Fn() + 'static) {
-        watch_replies(self.replies(), replied);
+    pub fn then<T: 'static>(
+        &self,
+        asked: impl std::future::Future<Output = Option<T>> + 'static,
+        answered: impl FnOnce(T) + 'static,
+    ) -> Task {
+        then(&self.state().host, asked, answered)
     }
 
     pub fn woken(&self) -> (Waker, ReadSignal<u64>) {
@@ -713,6 +714,7 @@ impl Editor {
 
     pub fn version_status(&self) -> Memo<block_editor_plugin::VersionStatus> {
         let host = self.state().host.clone();
+        host.watch_version();
         let revision = self.pushed(Pushed::Version);
         let known = create_memo({
             let host = host.clone();
@@ -756,36 +758,39 @@ impl Editor {
         self.state().host.take_panel_requests()
     }
 
-    pub fn host_value<T: HostValue>(&self) -> Memo<T::Value> {
+    pub fn watch<W: Watched>(&self) -> Memo<W::Value>
+    where
+        W::Value: Default,
+    {
         let host = self.state().host.clone();
-        let revision = self.host_value_revision(T::KEY);
+        let revision = self.watch_revision::<W>();
         create_memo(move || {
             revision.get();
-            host.host_value::<T>()
+            host.watched::<W>().unwrap_or_default()
         })
     }
 
-    pub fn host_offers<T: HostValue>(&self) -> Memo<bool> {
+    pub fn offered<W: Watched>(&self) -> Memo<bool> {
         let host = self.state().host.clone();
-        let revision = self.host_value_revision(T::KEY);
+        let revision = self.watch_revision::<W>();
         create_memo(move || {
             revision.get();
-            host.host_offers::<T>()
+            host.offers::<W>()
         })
     }
 
-    fn host_value_revision(&self, key: &'static str) -> ReadSignal<u64> {
+    fn watch_revision<W: Watched>(&self) -> ReadSignal<u64> {
         let host = &self.state().host;
         self.state()
-            .host_values
+            .watches
             .borrow_mut()
-            .entry(key)
-            .or_insert_with(|| OwnedSignal::new(host.host_value_revision(key)))
+            .entry(std::any::TypeId::of::<W>())
+            .or_insert_with(|| OwnedSignal::new(host.watch_revision::<W>()))
             .read_only()
     }
 
-    pub fn act<A: HostAction>(&self, action: A) {
-        self.state().host.act(action);
+    pub fn act(&self, call: impl FnOnce() + 'static) {
+        self.state().host.act(call);
     }
 
     pub fn web_view_events(&self) -> ReadSignal<u64> {
@@ -854,14 +859,17 @@ impl Editor {
     pub fn pick_block(
         &self,
         filter: BlockFilter,
-        picked: impl Fn(Result<PickedBlock, String>) + 'static,
+        picked: impl FnOnce(Result<PickedBlock, block_editor_plugin::Failure>) + 'static,
     ) {
-        let mut picker = BlockPicker::default();
-        picker.open(&self.state().host, filter);
-        *self.state().pick.borrow_mut() = Some(PendingPick {
-            picker,
-            picked: Rc::new(picked),
+        let asked = self.state().host.pick_block(filter);
+        let task = self.then(asked, move |answer| match answer {
+            Ok(Some(block)) => picked(Ok(block)),
+            Ok(None) => {}
+            Err(error) => picked(Err(error)),
         });
+        if let Some(earlier) = self.state().pick.replace(Some(task)) {
+            earlier.cancel();
+        }
     }
 
     pub(crate) fn register_child(
@@ -922,23 +930,6 @@ impl Editor {
             .iter()
             .map(|(_, record)| Rc::clone(record))
             .collect()
-    }
-
-    fn poll_pick(&self) {
-        let state = self.state();
-        let picked = {
-            let mut pending = state.pick.borrow_mut();
-            let Some(pick) = pending.as_mut() else {
-                return;
-            };
-            let Some(picked) = pick.picker.poll(&state.host) else {
-                return;
-            };
-            pending.take().map(|pick| (pick.picked, picked))
-        };
-        if let Some((callback, picked)) = picked {
-            callback(picked);
-        }
     }
 
     pub fn content(&self, node: &NodeRef) {
@@ -1144,14 +1135,14 @@ impl Editor {
         }
         if pushed {
             state.pushed.sync(&state.host);
-            let keys: Vec<_> = state
-                .host_values
+            let watches: Vec<_> = state
+                .watches
                 .borrow()
                 .iter()
-                .map(|(key, revision)| (*key, revision.handle()))
+                .map(|(watch, revision)| (*watch, revision.handle()))
                 .collect();
-            for (key, revision) in keys {
-                revision.set(state.host.host_value_revision(key));
+            for (watch, revision) in watches {
+                revision.set(state.host.watch_revision_of(watch));
             }
             state
                 .files
@@ -1194,9 +1185,6 @@ impl Editor {
         state.revealed.set(state.pending_reveal.take());
         if pushed || state.children_moved.take() {
             self.follow_children();
-        }
-        if pushed {
-            self.poll_pick();
         }
     }
 
@@ -1372,12 +1360,12 @@ impl Creation {
         *self.0.maker.borrow_mut() = Some(Rc::new(make));
     }
 
-    pub fn replies(&self) -> ReadSignal<u64> {
-        self.0.pushed.watch(Pushed::Replies)
-    }
-
-    pub fn on_reply(&self, replied: impl Fn() + 'static) {
-        watch_replies(self.replies(), replied);
+    pub fn then<T: 'static>(
+        &self,
+        asked: impl std::future::Future<Output = Option<T>> + 'static,
+        answered: impl FnOnce(T) + 'static,
+    ) -> Task {
+        then(&self.0.host, asked, answered)
     }
 
     pub fn create_block(&self) -> Result<Uuid, String> {

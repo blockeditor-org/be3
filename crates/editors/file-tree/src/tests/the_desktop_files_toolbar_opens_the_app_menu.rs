@@ -1,4 +1,4 @@
-use block_editor_beui::BlockCommand;
+use block_editor_beui::ShellCommand;
 
 use super::*;
 
@@ -13,9 +13,9 @@ fn the_desktop_files_toolbar_opens_the_app_menu() {
     assert!(
         fixture
             .test
-            .take_block_commands()
+            .take_shell_commands()
             .iter()
-            .any(|(_, command)| matches!(command, BlockCommand::AppMenu { anchor: Some(_) })),
+            .any(|(_, command)| matches!(command, ShellCommand::AppMenu { anchor: Some(_) })),
         "the account button asks the host for its menu"
     );
 }

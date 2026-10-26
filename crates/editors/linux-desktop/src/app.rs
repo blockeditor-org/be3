@@ -22,7 +22,7 @@ use block_editor_beui::beui::unstyled::{
 use block_editor_beui::beui::{Modifiers, NodeId, Rect, Vec2, pos2, vec2};
 use block_editor_beui::{Editor, Loaded};
 use block_editor_beui::{HostPanel, HostWindowId};
-use block_editor_beui::{Media, Power};
+use block_editor_beui::{MediaWatch, PowerWatch};
 use block_shell::{
     AttachedWindow, BlockTab, Failure, FloatingWindow, PanelWindow, PickerDialog, Pickers,
     RenameDialog, Workspace, WorkspaceDialogs,
@@ -95,7 +95,7 @@ fn DesktopBody(workspace: Workspace) -> NodeId {
     let editor = workspace.editor();
     let launcher = ProgramLauncher::new(editor);
     let launchable = launcher.offered;
-    let keyed = editor.host_offers::<Media>();
+    let keyed = editor.offered::<MediaWatch>();
     let notifications = DesktopNotifications::new(editor);
     let bar_node = NodeRef::new();
     view! {
@@ -149,7 +149,7 @@ fn DesktopBody(workspace: Workspace) -> NodeId {
 }
 
 fn hold_saving_while_ending(workspace: Workspace) {
-    let power = workspace.editor().host_value::<Power>();
+    let power = workspace.editor().watch::<PowerWatch>();
     let ending = create_memo(move || power.with(|power| power.ending));
     create_effect(move || {
         let ending = ending.get();

@@ -3,6 +3,7 @@ mod history;
 mod markup;
 mod toasts;
 
+use block_editor_beui::linux_desktop;
 use std::cell::{Cell, RefCell};
 use std::time::{Duration, Instant};
 
@@ -10,7 +11,7 @@ use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
 use block_editor_beui::{
     Editor, NotificationCloseReason, NotificationInbox, NotificationReport, NotificationRequest,
-    Notifications, ScreenLocked,
+    NotificationsWatch, ScreenLockedWatch,
 };
 
 use center::{Center, DEFAULT_ACTION, Incoming, Notification};
@@ -82,7 +83,7 @@ impl DesktopNotifications {
         });
         let expiry = create_timer(move || shared.try_value().and_then(|shared| shared.tick()));
         shared.with(|shared| shared.expiry.replace(Some(expiry)));
-        let inbox = editor.host_value::<Notifications>();
+        let inbox = editor.watch::<NotificationsWatch>();
         create_effect(move || {
             let inbox = inbox.get();
             if let Some(shared) = shared.try_value() {
@@ -93,8 +94,8 @@ impl DesktopNotifications {
         Self {
             shared,
             revision: revision.read_only(),
-            offered: editor.host_offers::<Notifications>(),
-            locked: editor.host_value::<ScreenLocked>(),
+            offered: editor.offered::<NotificationsWatch>(),
+            locked: editor.watch::<ScreenLockedWatch>(),
             browsing,
         }
     }
@@ -212,10 +213,12 @@ impl Shared {
         let moved = *self.reported.borrow() != kept;
         if received.is_some() || !signals.is_empty() || moved {
             self.reported.replace(kept.clone());
-            self.editor.act(NotificationReport {
-                received,
-                signals,
-                kept,
+            self.editor.act(move || {
+                linux_desktop::notifications::report(NotificationReport {
+                    received,
+                    signals,
+                    kept,
+                })
             });
         }
         if self.shown.replace(revision) != revision {

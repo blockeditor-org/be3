@@ -7,12 +7,12 @@ fn the_wifi_popup_asks_the_host_to_connect() {
     fixture.wifi(nearby());
     fixture.test.click("desktop.wifi");
     fixture.settle();
-    fixture.test.take_actions::<WifiRequest>();
+    fixture.test.take_host_calls(block_ui_test::requested::wifi);
 
     fixture.test.click("desktop.wifi.network.Cafe");
     fixture.settle();
     assert_eq!(
-        fixture.test.take_actions::<WifiRequest>(),
+        fixture.test.take_host_calls(block_ui_test::requested::wifi),
         vec![WifiRequest::Connect {
             ssid: "Cafe".to_owned(),
             password: None,
@@ -23,14 +23,20 @@ fn the_wifi_popup_asks_the_host_to_connect() {
     fixture.test.click("desktop.wifi.network.Office");
     fixture.settle();
     assert!(
-        fixture.test.take_actions::<WifiRequest>().is_empty(),
+        fixture
+            .test
+            .take_host_calls(block_ui_test::requested::wifi)
+            .is_empty(),
         "a network this desktop cannot sign in to is not tried"
     );
 
     fixture.test.click("desktop.wifi.network.Flat");
     fixture.settle();
     assert!(
-        fixture.test.take_actions::<WifiRequest>().is_empty(),
+        fixture
+            .test
+            .take_host_calls(block_ui_test::requested::wifi)
+            .is_empty(),
         "a protected network asks for its password first"
     );
     assert!(fixture.test.shown("desktop.wifi.network.Flat.password"));
@@ -39,7 +45,10 @@ fn the_wifi_popup_asks_the_host_to_connect() {
     fixture.test.click("desktop.wifi.network.Flat.connect");
     fixture.settle();
     assert!(
-        fixture.test.take_actions::<WifiRequest>().is_empty(),
+        fixture
+            .test
+            .take_host_calls(block_ui_test::requested::wifi)
+            .is_empty(),
         "a password too short for any network is not sent"
     );
     fixture.test.click("desktop.wifi.network.Flat.password");
@@ -48,7 +57,7 @@ fn the_wifi_popup_asks_the_host_to_connect() {
     fixture.test.key(Key::Enter, Modifiers::NONE);
     fixture.settle();
     assert_eq!(
-        fixture.test.take_actions::<WifiRequest>(),
+        fixture.test.take_host_calls(block_ui_test::requested::wifi),
         vec![WifiRequest::Connect {
             ssid: "Flat".to_owned(),
             password: Some("hunter22".to_owned()),
@@ -70,14 +79,14 @@ fn the_wifi_popup_asks_the_host_to_connect() {
     fixture.test.click("desktop.wifi.network.Home.disconnect");
     fixture.settle();
     assert_eq!(
-        fixture.test.take_actions::<WifiRequest>(),
+        fixture.test.take_host_calls(block_ui_test::requested::wifi),
         vec![WifiRequest::Disconnect]
     );
 
     fixture.test.click("desktop.wifi.enabled");
     fixture.settle();
     assert_eq!(
-        fixture.test.take_actions::<WifiRequest>(),
+        fixture.test.take_host_calls(block_ui_test::requested::wifi),
         vec![WifiRequest::SetEnabled(false)]
     );
 }

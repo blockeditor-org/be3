@@ -1,6 +1,6 @@
 use block_editor_beui::be_block::{InputRemapper, InputRemapperContent};
 use block_editor_beui::beui::{Vec2, pos2};
-use block_editor_beui::{EditorHost, OwnedEditor, RemapState, Remaps};
+use block_editor_beui::{EditorHost, OwnedEditor, RemapState, RemapsWatch};
 use block_ui_test::BeuiTest;
 use uuid::Uuid;
 
@@ -15,7 +15,7 @@ const SIZE: Vec2 = Vec2::new(800.0, 1400.0);
 fn editor(state: RemapState, config: Option<&str>) -> BeuiTest<InputRemapsApp> {
     let host = EditorHost::default();
     host.set_editable(true);
-    host.set_host_value::<Remaps>(&state);
+    host.set_watched::<RemapsWatch>(&state);
     let mut editor = BeuiTest::new(OwnedEditor::new(host, Uuid::new_v4())).with_size(SIZE);
     let mut content = InputRemapperContent::default();
     if let Some(config) = config {

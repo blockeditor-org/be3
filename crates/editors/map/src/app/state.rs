@@ -151,7 +151,7 @@ impl MapState {
     pub(crate) fn reload_tiles(&self) {
         let inner = self.inner.value();
         if let Some(worker) = inner.worker.borrow_mut().take() {
-            worker.forget(&self.editor.host());
+            worker.forget();
         }
         inner.tiles.borrow_mut().clear();
         inner.used.borrow_mut().clear();
@@ -194,7 +194,7 @@ impl MapState {
         };
         self.editor.pick_block(filter, move |picked| {
             if let (true, Ok(picked)) = (self.inner.is_alive(), picked) {
-                self.place_picked(picked.id, at);
+                self.place_picked(picked.id(), at);
             }
         });
     }
@@ -389,11 +389,6 @@ impl MapState {
         create_effect(move || {
             woken.with(|_| ());
             untrack(|| self.collect_tiles());
-        });
-        self.editor.on_reply(move || {
-            if self.inner.is_alive() {
-                self.collect_tiles();
-            }
         });
         let drag = self.editor.drag();
         create_effect(move || {

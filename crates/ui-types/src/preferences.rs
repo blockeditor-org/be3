@@ -1,13 +1,4 @@
-use serde::{Deserialize, Serialize};
-
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
-pub enum ThemeKind {
-    #[default]
-    Dark,
-    OledDark,
-    Light,
-    EPaper,
-}
+pub use crate::types::{CanvasTouch, Motion, PreferenceLayer, Preferences, ThemeKind};
 
 impl ThemeKind {
     pub const ALL: [Self; 4] = [Self::Light, Self::Dark, Self::OledDark, Self::EPaper];
@@ -20,13 +11,6 @@ impl ThemeKind {
             Self::EPaper => "E-paper",
         }
     }
-}
-
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
-pub enum Motion {
-    #[default]
-    Animated,
-    Instant,
 }
 
 impl Motion {
@@ -44,13 +28,6 @@ impl Motion {
     }
 }
 
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
-pub enum CanvasTouch {
-    #[default]
-    On,
-    Off,
-}
-
 impl CanvasTouch {
     pub const ALL: [Self; 2] = [Self::On, Self::Off];
 
@@ -64,21 +41,6 @@ impl CanvasTouch {
             Self::Off => "Off",
         }
     }
-}
-
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
-pub struct Preferences {
-    pub theme: ThemeKind,
-    pub motion: Motion,
-    pub canvas_touch: CanvasTouch,
-}
-
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
-#[serde(default)]
-pub struct PreferenceLayer {
-    pub theme: Option<ThemeKind>,
-    pub motion: Option<Motion>,
-    pub canvas_touch: Option<CanvasTouch>,
 }
 
 impl PreferenceLayer {

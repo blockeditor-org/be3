@@ -10,5 +10,5 @@ pub(super) fn scan() -> Plugins {
 }
 
 pub(super) fn fetch(path: String, deliver: impl FnOnce(Result<Vec<u8>, String>) + Send + 'static) {
-    crate::platform::http::fetch(path, Vec::new(), deliver);
+    crate::platform::http::fetch(path, Vec::new(), Default::default(), deliver);
 }

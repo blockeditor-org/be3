@@ -7,8 +7,8 @@ use block_editor_beui::beui::unstyled::TabId;
 use block_editor_beui::block_ui::{BlockCatalog, BlockTypes, TemplateCategory, TemplateEntry};
 use block_editor_beui::sections::{is_workspace, shared_with_me, workspaces};
 use block_editor_beui::{
-    BlockFilter, BlockInfo, BlockParent, BlockPick, BlockQuery, ChildId, CreationProgress,
-    PickRequest, label_glyph,
+    BlockFilter, BlockInfo, BlockParent, BlockPick, BlockQuery, ChildId, CreationProgress, Failure,
+    PickRequest, PickedBlock, label_glyph,
 };
 use uuid::Uuid;
 
@@ -194,12 +194,12 @@ impl Pick {
             PickAction::Link(id, block_type) => {
                 return PickOutcome::Answered(
                     self.pick,
-                    BlockPick::Chosen {
+                    Ok(Some(PickedBlock {
                         block_id: id.into_bytes(),
                         block_type: block_type.into_bytes(),
                         linked: true,
                         placed: false,
-                    },
+                    })),
                     None,
                 );
             }
@@ -211,16 +211,16 @@ impl Pick {
             }
             PickAction::CancelCreation => {
                 if self.creating.is_some() {
-                    return PickOutcome::Answered(self.pick, BlockPick::Cancelled, None);
+                    return PickOutcome::Answered(self.pick, Ok(None), None);
                 }
             }
             PickAction::Close => {
                 if self.choosing() {
-                    return PickOutcome::Answered(self.pick, BlockPick::Cancelled, None);
+                    return PickOutcome::Answered(self.pick, Ok(None), None);
                 }
             }
             PickAction::DismissError => {
-                return PickOutcome::Answered(self.pick, BlockPick::Cancelled, None);
+                return PickOutcome::Answered(self.pick, Ok(None), None);
             }
         }
         PickOutcome::Open(Box::new(self))
@@ -248,7 +248,7 @@ impl Pick {
 
     pub(crate) fn imported(
         mut self,
-        imported: Result<Option<(Uuid, Uuid)>, String>,
+        imported: Result<Option<(Uuid, Uuid)>, Failure>,
     ) -> PickOutcome {
         self.importing = None;
         match imported {
@@ -261,7 +261,7 @@ impl Pick {
             }
             Ok(None) => PickOutcome::Open(Box::new(self)),
             Err(error) => {
-                self.error = Some(error);
+                self.error = Some(error.to_string());
                 PickOutcome::Open(Box::new(self))
             }
         }
@@ -274,12 +274,12 @@ impl Pick {
         };
         PickOutcome::Answered(
             self.pick,
-            BlockPick::Chosen {
+            Ok(Some(PickedBlock {
                 block_id: block.into_bytes(),
                 block_type: block_type.into_bytes(),
                 linked: false,
                 placed: self.place.is_some(),
-            },
+            })),
             into,
         )
     }

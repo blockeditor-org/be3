@@ -62,10 +62,10 @@ impl Inbox {
         let over = self.pending.len().saturating_sub(MAX_PENDING);
         for (_, dropped) in self.pending.drain(..over) {
             if let NotificationRequest::Notify(incoming) = dropped {
-                signals.push(NotificationSignal::Closed(
-                    incoming.id,
-                    NotificationCloseReason::Expired,
-                ));
+                signals.push(NotificationSignal::Closed {
+                    id: incoming.id,
+                    reason: NotificationCloseReason::Expired,
+                });
             }
         }
         for report in reports {

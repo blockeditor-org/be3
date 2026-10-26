@@ -6,7 +6,7 @@ use std::{
     time::Duration,
 };
 
-use block_gpu_abi as abi;
+use block_gpu_abi::embed::device as gpu;
 use block_guest_abi as guest;
 use wasmtime::{Caller, Engine, Error, Instance, Linker, SharedMemory, Store, TypedFunc};
 use wasmtime_wasi::{WasiCtxBuilder, p1};
@@ -258,7 +258,7 @@ impl Spawner {
             .into_iter()
             .flat_map(|module| module.imports())
         {
-            if !matches!(import.module(), abi::GPU_MODULE | guest::HOST_MODULE) {
+            if !matches!(import.module(), gpu::MODULE | guest::HOST_MODULE) {
                 continue;
             }
             if import.module() == guest::HOST_MODULE

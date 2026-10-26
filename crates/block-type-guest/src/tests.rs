@@ -10,8 +10,10 @@ use be_protocol::ClientId;
 use be_session::{Lease, Resume};
 use be_store::Hash;
 use block_type_api::{
-    Change, Command, Description, EditorId, Endpoint, Event, HeadEvent, Recipients, ReplicaId,
-    Reply, Request, RequestId, SessionTag, Status,
+    Change, Description, EditorId, Endpoint, Opening, PublishOutcome, Recipients, SessionTag,
+    Status,
+    embed::{exports::replicas::Replica, host::Call},
+    ops::{Connection, Incoming, Latest, OpId, Outcome, Reply, Side, guest::Executor},
 };
 use uuid::Uuid;
 
@@ -214,7 +216,6 @@ type FolderContent = Document<Folder>;
 
 const BLOCK: Uuid = Uuid::from_u128(0xb10c);
 const ORGANIZATION: Uuid = Uuid::from_u128(0x0e9);
-const REPLICA: ReplicaId = 1;
 const TAG: SessionTag = SessionTag([7; 32]);
 
 fn checklist_module() -> Module {
@@ -263,9 +264,67 @@ struct Stored {
     bytes: Vec<u8>,
 }
 
+struct Lone {
+    executor: Executor,
+    host: Connection,
+}
+
+impl Lone {
+    fn new(module: &Module) -> Self {
+        Self {
+            executor: module.executor(),
+            host: Connection::new(Side::Host),
+        }
+    }
+
+    fn exchange(&mut self) -> (Vec<Call>, Vec<(OpId, Outcome)>) {
+        let mut calls = Vec::new();
+        let mut completed = Vec::new();
+        let mut outbound = Vec::new();
+        self.executor
+            .step(self.host.take_outbound(), &mut outbound)
+            .unwrap();
+        for frame in outbound {
+            self.host.receive(&frame).unwrap();
+        }
+        while let Some(event) = self.host.next_event() {
+            match event {
+                Incoming::Started(started) => calls.extend(Call::accept(&mut self.host, started)),
+                Incoming::Called(called) => calls.extend(Call::accept_direct(&called)),
+                Incoming::Completed { op, outcome } => completed.push((op, outcome)),
+                Incoming::Yielded { .. }
+                | Incoming::Canceled { .. }
+                | Incoming::Credited { .. } => {}
+            }
+        }
+        (calls, completed)
+    }
+}
+
+fn opening(
+    client: ClientId,
+    head: Option<CommitId>,
+    session: be_protocol::SessionState,
+) -> Opening {
+    Opening {
+        block: BLOCK,
+        content_type: Uuid::nil(),
+        organization: ORGANIZATION,
+        client,
+        tag: TAG,
+        head,
+        session,
+    }
+}
+
 struct Device {
     client: ClientId,
     module: Option<Module>,
+    executor: Option<Executor>,
+    host: Connection,
+    clock: Option<Latest<u64>>,
+    replica: Option<Replica>,
+    sleeping: Vec<(u64, Reply<()>)>,
     tag: SessionTag,
     status: Status,
     history: (bool, bool),
@@ -282,9 +341,8 @@ struct Sim<C: LiveEdit + Clone + Default> {
     devices: Vec<Device>,
     editors: BTreeMap<(usize, EditorId), EditorMirror<C>>,
     received: BTreeMap<(usize, EditorId), Vec<ToEditor>>,
-    queue: VecDeque<(usize, Event)>,
-    replies: BTreeMap<RequestId, Reply>,
-    requests: RequestId,
+    queue: VecDeque<(usize, Vec<u8>)>,
+    replies: BTreeMap<(usize, OpId), Outcome>,
     publishes: usize,
     rejections: usize,
     conflicts: Vec<(usize, CommitId, CommitId, usize)>,
@@ -307,6 +365,11 @@ impl<C: LiveEdit + Clone + Default> Sim<C> {
                 .map(|index| Device {
                     client: index as ClientId + 1,
                     module: None,
+                    executor: None,
+                    host: Connection::new(Side::Host),
+                    clock: None,
+                    replica: None,
+                    sleeping: Vec::new(),
                     tag: TAG,
                     status: Status::default(),
                     history: (false, false),
@@ -319,7 +382,6 @@ impl<C: LiveEdit + Clone + Default> Sim<C> {
             received: BTreeMap::new(),
             queue: VecDeque::new(),
             replies: BTreeMap::new(),
-            requests: 0,
             publishes: 0,
             rejections: 0,
             conflicts: Vec::new(),
@@ -344,72 +406,79 @@ impl<C: LiveEdit + Clone + Default> Sim<C> {
             .position(|device| device.client == client && device.module.is_some())
     }
 
+    fn to<R>(&mut self, device: usize, call: impl FnOnce(&mut Connection) -> R) -> R {
+        let result = call(&mut self.devices[device].host);
+        for frame in self.devices[device].host.take_outbound() {
+            self.queue.push_back((device, frame));
+        }
+        result
+    }
+
+    fn with_replica<R>(
+        &mut self,
+        device: usize,
+        call: impl FnOnce(Replica, &mut Connection) -> R,
+    ) -> R {
+        let replica = self.devices[device]
+            .replica
+            .expect("the device has the block open");
+        self.to(device, |host| call(replica, host))
+    }
+
     fn open(&mut self, device: usize) {
         self.open_at(device, self.head);
     }
 
     fn open_at(&mut self, device: usize, local: Option<CommitId>) {
         let client = self.devices[device].client;
-        self.devices[device].module = Some((self.make)());
-        self.devices[device].released = false;
+        let module = (self.make)();
+        let held = &mut self.devices[device];
+        held.executor = Some(module.executor());
+        held.module = Some(module);
+        held.host = Connection::new(Side::Host);
+        held.clock = None;
+        held.sleeping.clear();
+        held.released = false;
         self.lease.join(client, self.now as i64);
-        self.queue
-            .push_back((device, Event::Tick { now: self.now }));
-        self.queue.push_back((
-            device,
-            Event::Open {
-                replica: REPLICA,
-                block: BLOCK,
-                content_type: C::CONTENT_TYPE,
-                organization: ORGANIZATION,
-                client,
-                tag: self.devices[device].tag,
-                head: local,
-                session: self.lease.state().clone(),
-            },
-        ));
+        self.to(device, |host| {
+            block_type_api::embed::exports::replicas::start(host, vec![0; 32])
+        });
+        self.settle();
+        let opening = Opening {
+            content_type: C::CONTENT_TYPE,
+            tag: self.devices[device].tag,
+            ..opening(client, local, self.lease.state().clone())
+        };
+        let replica = self.to(device, |host| Replica::new(host, opening));
+        self.devices[device].replica = Some(replica);
         if let Some(head) = self.head
             && local != self.head
         {
-            self.queue.push_back((
-                device,
-                Event::Head {
-                    replica: REPLICA,
-                    event: HeadEvent::Moved {
-                        head,
-                        from_this_device: false,
-                    },
-                },
-            ));
+            self.with_replica(device, |replica, host| {
+                replica.head_moved(host, head, false)
+            });
         }
         self.lease_changed(Some(device));
         self.settle();
     }
 
     fn resynchronize(&mut self, device: usize) {
-        self.queue.push_back((
-            device,
-            Event::Lease {
-                replica: REPLICA,
-                session: self.lease.state().clone(),
-                resynchronize: true,
-            },
-        ));
+        let session = self.lease.state().clone();
+        self.with_replica(device, |replica, host| replica.lease(host, session, true));
         self.settle();
     }
 
     fn attach(&mut self, device: usize, editor: EditorId, editable: bool) {
         self.editors
             .insert((device, editor), EditorMirror::default());
-        self.queue.push_back((
-            device,
-            Event::Attach {
-                replica: REPLICA,
-                editor,
-                editable,
-            },
-        ));
+        self.with_replica(device, |replica, host| {
+            replica.attach(host, editor, editable)
+        });
         self.settle();
+    }
+
+    fn detach(&mut self, device: usize, editor: EditorId) {
+        self.with_replica(device, |replica, host| replica.detach(host, editor));
     }
 
     fn operate(&mut self, device: usize, editor: EditorId, operation: C::Op) {
@@ -426,40 +495,32 @@ impl<C: LiveEdit + Clone + Default> Sim<C> {
     }
 
     fn send_from_editor(&mut self, device: usize, editor: EditorId, message: FromEditor) {
-        self.queue.push_back((
-            device,
-            Event::Message {
-                replica: REPLICA,
-                from: Endpoint::Editor(editor),
-                bytes: message.encode(),
-            },
-        ));
+        self.with_replica(device, |replica, host| {
+            replica.message(host, Endpoint::Editor(editor), message.encode())
+        });
     }
 
-    fn request(&mut self, device: usize, request: Request) -> Reply {
-        self.requests += 1;
-        let id = self.requests;
-        self.queue
-            .push_back((device, Event::Request { id, request }));
+    fn answered(&mut self, device: usize, op: OpId) -> Outcome {
         self.settle();
-        self.replies.remove(&id).expect("every request is answered")
+        self.replies
+            .remove(&(device, op))
+            .expect("every request is answered")
     }
 
-    fn change(&mut self, device: usize, change: Change) -> Reply {
-        self.request(
-            device,
-            Request::Change {
-                replica: REPLICA,
-                change,
-            },
-        )
+    fn change(&mut self, device: usize, change: Change) -> bool {
+        let ticket = self.with_replica(device, |replica, host| replica.change(host, change));
+        let outcome = self.answered(device, ticket.op());
+        ticket.decode(outcome).expect("a change is answered")
     }
 
     fn content(&mut self, device: usize) -> C {
-        match self.request(device, Request::Content { replica: REPLICA }) {
-            Reply::Content(bytes) => C::decode(&bytes).unwrap(),
-            reply => panic!("asked for content, got {reply:?}"),
-        }
+        let ticket = self.with_replica(device, |replica, host| replica.content(host));
+        let outcome = self.answered(device, ticket.op());
+        let bytes = ticket
+            .decode(outcome)
+            .expect("content is answered")
+            .expect("the replica is readable");
+        C::decode(&bytes).unwrap()
     }
 
     fn mirror(&self, device: usize, editor: EditorId) -> &C {
@@ -480,18 +541,17 @@ impl<C: LiveEdit + Clone + Default> Sim<C> {
     }
 
     fn claim(&mut self, device: usize) {
-        self.queue
-            .push_back((device, Event::Claim { replica: REPLICA }));
+        self.with_replica(device, |replica, host| replica.claim(host));
     }
 
     fn close(&mut self, device: usize) {
-        self.queue
-            .push_back((device, Event::Close { replica: REPLICA }));
+        self.with_replica(device, |replica, host| replica.resource_drop(host));
         self.settle();
     }
 
     fn crash(&mut self, device: usize) {
         self.devices[device].module = None;
+        self.devices[device].executor = None;
         self.queue.retain(|(to, _)| *to != device);
         let client = self.devices[device].client;
         self.lease.leave(client, self.now as i64);
@@ -501,9 +561,19 @@ impl<C: LiveEdit + Clone + Default> Sim<C> {
 
     fn advance(&mut self, milliseconds: u64) {
         self.now += milliseconds;
+        let now = self.now;
         for device in self.open_devices() {
-            self.queue
-                .push_back((device, Event::Tick { now: self.now }));
+            let Some(mut clock) = self.devices[device].clock.take() else {
+                continue;
+            };
+            self.to(device, |host| clock.send(host, now));
+            self.devices[device].clock = Some(clock);
+            let held = std::mem::take(&mut self.devices[device].sleeping);
+            let (due, waiting): (Vec<_>, Vec<_>) = held.into_iter().partition(|(at, _)| *at <= now);
+            self.devices[device].sleeping = waiting;
+            for (_, reply) in due {
+                self.to(device, |host| reply.send(host, &()));
+            }
         }
         self.settle();
     }
@@ -530,16 +600,9 @@ impl<C: LiveEdit + Clone + Default> Sim<C> {
             if Some(device) == publisher {
                 continue;
             }
-            self.queue.push_back((
-                device,
-                Event::Head {
-                    replica: REPLICA,
-                    event: HeadEvent::Moved {
-                        head,
-                        from_this_device: false,
-                    },
-                },
-            ));
+            self.with_replica(device, |replica, host| {
+                replica.head_moved(host, head, false)
+            });
         }
     }
 
@@ -549,30 +612,31 @@ impl<C: LiveEdit + Clone + Default> Sim<C> {
             if Some(device) == except {
                 continue;
             }
-            self.queue.push_back((
-                device,
-                Event::Lease {
-                    replica: REPLICA,
-                    session: session.clone(),
-                    resynchronize: false,
-                },
-            ));
+            let session = session.clone();
+            self.with_replica(device, |replica, host| replica.lease(host, session, false));
         }
     }
 
     fn settle(&mut self) {
         let mut handled = 0;
-        while let Some((device, event)) = self.queue.pop_front() {
+        while let Some((device, frame)) = self.queue.pop_front() {
             handled += 1;
-            assert!(handled < 100_000, "the simulation never settled");
-            let Some(module) = self.devices[device].module.as_mut() else {
+            assert!(handled < 1_000_000, "the simulation never settled");
+            let Some(executor) = self.devices[device].executor.as_ref() else {
                 continue;
             };
-            for command in module.handle(event) {
-                self.act(device, command);
+            let mut outbound = Vec::new();
+            executor.step(vec![frame], &mut outbound).unwrap();
+            for frame in outbound {
+                self.devices[device].host.receive(&frame).unwrap();
+                while let Some(event) = self.devices[device].host.next_event() {
+                    self.heard(device, event);
+                }
             }
             if self.devices[device].released {
                 self.devices[device].module = None;
+                self.devices[device].executor = None;
+                self.devices[device].replica = None;
                 let client = self.devices[device].client;
                 self.lease.leave(client, self.now as i64);
                 self.lease_changed(Some(device));
@@ -580,14 +644,45 @@ impl<C: LiveEdit + Clone + Default> Sim<C> {
         }
     }
 
-    fn reply_to(&mut self, device: usize, event: HeadEvent) {
-        self.queue.push_back((
-            device,
-            Event::Head {
-                replica: REPLICA,
-                event,
-            },
-        ));
+    fn heard(&mut self, device: usize, event: Incoming) {
+        match event {
+            Incoming::Started(started) => {
+                let call = self.to(device, |host| Call::accept(host, started));
+                if let Some(call) = call {
+                    self.act(device, call);
+                }
+            }
+            Incoming::Completed { op, outcome } => {
+                if self.devices[device].replica.map(Replica::op) == Some(op) {
+                    self.devices[device].released = true;
+                } else {
+                    self.replies.insert((device, op), outcome);
+                }
+            }
+            Incoming::Canceled { op } => {
+                let held = std::mem::take(&mut self.devices[device].sleeping);
+                let (canceled, waiting): (Vec<_>, Vec<_>) =
+                    held.into_iter().partition(|(_, reply)| reply.op() == op);
+                self.devices[device].sleeping = waiting;
+                for (_, reply) in canceled {
+                    self.to(device, |host| {
+                        reply.fail(host, block_type_api::ops::OpError::Canceled)
+                    });
+                }
+            }
+            Incoming::Called(called) => {
+                if let Some(call) = Call::accept_direct(&called) {
+                    self.act(device, call);
+                }
+            }
+            Incoming::Credited { op } => {
+                if let Some(mut clock) = self.devices[device].clock.take() {
+                    self.to(device, |host| clock.credited(host, op));
+                    self.devices[device].clock = Some(clock);
+                }
+            }
+            Incoming::Yielded { .. } => {}
+        }
     }
 
     fn kept(&self, unsaved: impl Fn(&C) -> bool) -> bool {
@@ -637,11 +732,20 @@ impl<C: LiveEdit + Clone + Default> Sim<C> {
         }
     }
 
-    fn act(&mut self, device: usize, command: Command) {
+    fn act(&mut self, device: usize, call: Call) {
         let client = self.devices[device].client;
-        match command {
-            Command::Hello { .. } => {}
-            Command::Send { to, bytes, .. } => match to {
+        match call {
+            Call::Clock { stream } => {
+                let now = self.now;
+                let mut clock = Latest::new(stream);
+                self.to(device, |host| clock.send(host, now));
+                self.devices[device].clock = Some(clock);
+            }
+            Call::SleepUntil { reply, at } => {
+                self.devices[device].wake = Some(at);
+                self.devices[device].sleeping.push((at, reply));
+            }
+            Call::Send { to, bytes } => match to {
                 Recipients::One(Endpoint::Editor(editor)) => {
                     let message = ToEditor::decode(&bytes).expect("an editor message");
                     self.received
@@ -673,28 +777,26 @@ impl<C: LiveEdit + Clone + Default> Sim<C> {
                     }
                 }
             },
-            Command::Publish {
-                token,
+            Call::Publish {
+                reply,
                 expected,
                 merging,
                 content,
-                ..
             } => {
                 if expected != self.head {
                     self.rejections += 1;
-                    return self.reply_to(
-                        device,
-                        HeadEvent::Rejected {
-                            token,
-                            head: self.head,
-                        },
-                    );
+                    let head = self.head;
+                    return self.to(device, |host| {
+                        reply.send(host, &Ok(PublishOutcome::Rejected(head)))
+                    });
                 }
                 if let Some(head) = expected
                     && merging.is_none()
                     && self.commits[&head].bytes == content.bytes
                 {
-                    return self.reply_to(device, HeadEvent::Published { token, head });
+                    return self.to(device, |host| {
+                        reply.send(host, &Ok(PublishOutcome::Published(head)))
+                    });
                 }
                 let parents = expected
                     .into_iter()
@@ -703,77 +805,57 @@ impl<C: LiveEdit + Clone + Default> Sim<C> {
                 let head = self.write(content.bytes, parents);
                 self.head = Some(head);
                 self.publishes += 1;
-                self.reply_to(device, HeadEvent::Published { token, head });
+                self.to(device, |host| {
+                    reply.send(host, &Ok(PublishOutcome::Published(head)))
+                });
                 if !self.quiet {
                     self.moved(head, Some(device));
                 }
             }
-            Command::Stash {
-                token,
+            Call::Stash {
+                reply,
                 parent,
                 content,
-                ..
             } => {
                 let commit = self.write(content.bytes, parent.into_iter().collect());
-                self.reply_to(device, HeadEvent::Stashed { token, commit });
+                self.to(device, |host| reply.send(host, &Ok(commit)));
             }
-            Command::Read { token, commit, .. } => {
+            Call::Read { reply, commit, .. } => {
                 let result = self
                     .commits
                     .get(&commit)
                     .map(|stored| stored.bytes.clone())
                     .ok_or_else(|| "no such commit".to_owned());
-                self.queue.push_back((
-                    device,
-                    Event::Read {
-                        replica: REPLICA,
-                        token,
-                        result,
-                    },
-                ));
+                self.to(device, |host| reply.send(host, &result));
             }
-            Command::Resume { token, local, .. } => {
+            Call::ResumeSession { reply, local } => {
                 let resume = self.resume(local, self.head);
-                self.queue.push_back((
-                    device,
-                    Event::Resumed {
-                        replica: REPLICA,
-                        token,
-                        result: Ok(resume),
-                    },
-                ));
+                self.to(device, |host| reply.send(host, &Ok(resume)));
             }
-            Command::ClaimLease { generation, .. } => {
+            Call::ClaimLease { generation } => {
                 self.lease.claim(client, generation, self.now as i64);
                 self.lease_changed(None);
             }
-            Command::ReportClean {
+            Call::ReportClean {
                 generation,
                 clean_at,
-                ..
             } => {
                 self.lease
                     .heartbeat(client, generation, clean_at, self.now as i64);
             }
-            Command::Release { .. } => self.devices[device].released = true,
-            Command::WakeAt { at } => self.devices[device].wake = Some(at),
-            Command::Status { status, .. } => self.devices[device].status = status,
-            Command::Described { description, .. } => {
+            Call::ReportStatus { status } => self.devices[device].status = status,
+            Call::Described { description } => {
                 self.devices[device].described = Some(description);
             }
-            Command::History {
-                can_undo, can_redo, ..
-            } => self.devices[device].history = (can_undo, can_redo),
-            Command::Conflict {
+            Call::History { can_undo, can_redo } => {
+                self.devices[device].history = (can_undo, can_redo);
+            }
+            Call::Conflict {
                 ours,
                 theirs,
                 count,
-                ..
-            } => self.conflicts.push((device, ours, theirs, count)),
-            Command::Error { message, .. } => self.errors.push((device, message)),
-            Command::Reply { id, reply } => {
-                self.replies.insert(id, reply);
-            }
+            } => self.conflicts.push((device, ours, theirs, count as usize)),
+            Call::Error { message } => self.errors.push((device, message)),
         }
     }
 
@@ -782,14 +864,9 @@ impl<C: LiveEdit + Clone + Default> Sim<C> {
         if self.deaf.contains(&to) {
             return;
         }
-        self.queue.push_back((
-            to,
-            Event::Message {
-                replica: REPLICA,
-                from: Endpoint::Peer(from),
-                bytes,
-            },
-        ));
+        self.with_replica(to, |replica, host| {
+            replica.message(host, Endpoint::Peer(from), bytes)
+        });
     }
 }
 

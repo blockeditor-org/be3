@@ -211,7 +211,7 @@ impl Server {
         incoming.id = ids.assign(replaces_id);
         let id = incoming.id;
         self.requests
-            .send(NotificationRequest::Notify(Box::new(incoming)))
+            .send(NotificationRequest::Notify(incoming))
             .map_err(|_| fdo::Error::Failed("the desktop has closed".to_owned()))?;
         Ok(id)
     }
@@ -298,10 +298,10 @@ pub(crate) async fn run(
     };
     while let Some(signal) = signals.recv().await {
         let sent = match &signal {
-            NotificationSignal::Closed(id, reason) => {
-                Server::notification_closed(&emitter, *id, *reason as u32).await
+            NotificationSignal::Closed { id, reason } => {
+                Server::notification_closed(&emitter, *id, reason.code()).await
             }
-            NotificationSignal::ActionInvoked(id, key) => {
+            NotificationSignal::ActionInvoked { id, key } => {
                 Server::action_invoked(&emitter, *id, key).await
             }
         };

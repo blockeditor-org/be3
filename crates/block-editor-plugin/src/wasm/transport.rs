@@ -1,9 +1,14 @@
 use block_guest_abi::Flow;
-use block_plugin_api::{ErrorCode, Message, ProtocolError, decode_frame, encode_frame};
+use block_plugin_api::ops::guest::Executor;
 
+use crate::wire::Shared;
 use crate::{Waker, runtime::Runtime};
 
-pub struct Editor(Runtime);
+pub struct Editor {
+    runtime: Runtime,
+    wire: Shared,
+    executor: Executor,
+}
 
 pub(crate) struct Started {
     pub(crate) apps: Vec<(uuid::Uuid, crate::screens::Opener)>,
@@ -25,8 +30,19 @@ impl Editor {
             version,
         } = started;
         let runtime = Runtime::new(apps, &id, &name, &version, Waker::new(move || waker.wake()));
-        post(outbound, vec![runtime.hello()]);
-        Ok(Self(runtime))
+        let wire = Shared::default();
+        let executor = wire.executor();
+        executor.enter(|| {
+            wire.connect(runtime.hello());
+            wire.watch();
+            wire.watch_shell();
+        });
+        executor.step(Vec::new(), outbound)?;
+        Ok(Self {
+            runtime,
+            wire,
+            executor,
+        })
     }
 
     pub fn step(
@@ -35,23 +51,20 @@ impl Editor {
         woken: bool,
         outbound: &mut Vec<Vec<u8>>,
     ) -> Result<Flow, String> {
-        let mut batch = Vec::with_capacity(inbound.len());
-        for frame in inbound {
-            batch.push(decode_frame(&frame).map_err(|error| failed(format!("{error:?}")))?);
-        }
-        match self.0.step(batch, woken) {
-            Ok(step) => {
-                post(outbound, step.outbound);
-                Ok(match step.closed {
-                    true => Flow::Finished,
-                    false => Flow::Running,
-                })
-            }
-            Err(error) => {
-                post(outbound, vec![protocol_error(error.clone())]);
-                Err(failed(error))
-            }
-        }
+        self.executor
+            .step(inbound, outbound)
+            .map_err(|error| failed(format!("a frame did not decode: {error}")))?;
+        let batch = self.wire.take_inbox();
+        let (runtime, wire) = (&mut self.runtime, &self.wire);
+        let closed = self
+            .executor
+            .enter(|| runtime.step(batch, woken, wire))
+            .map_err(failed)?;
+        self.executor.step(Vec::new(), outbound)?;
+        Ok(match closed {
+            true => Flow::Finished,
+            false => Flow::Running,
+        })
     }
 }
 
@@ -61,21 +74,4 @@ pub(crate) fn initialize_storage(size: usize, align: usize) {
 
 fn failed(error: String) -> String {
     format!("the plugin could not run a frame: {error}")
-}
-
-fn post(outbound: &mut Vec<Vec<u8>>, messages: Vec<Message>) {
-    for message in messages {
-        match encode_frame(&message) {
-            Ok(frame) => outbound.push(frame),
-            Err(error) => eprintln!("dropped a message the protocol refused to carry: {error}"),
-        }
-    }
-}
-
-fn protocol_error(message: String) -> Message {
-    Message::Error(ProtocolError {
-        request_id: None,
-        code: ErrorCode::Internal,
-        message,
-    })
 }

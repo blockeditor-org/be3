@@ -11,14 +11,13 @@ enum Sent {
     Failed(String),
 }
 
-fn sent(instances: &mut Instances) -> Vec<Sent> {
-    next_screens(instances)
-        .opened
+fn sent(instances: &mut Instances, watch: OpId) -> Vec<Sent> {
+    next_screens(instances);
+    answered::<Result<Vec<block_plugin_api::BlockInfo>, String>>(instances, watch)
         .into_iter()
-        .filter_map(|message| match message {
-            Message::Editor(EditorMessage::Blocks { .. }) => Some(Sent::Blocks),
-            Message::Editor(EditorMessage::BlocksFailed { error, .. }) => Some(Sent::Failed(error)),
-            _ => None,
+        .map(|answer| match answer {
+            Ok(_) => Sent::Blocks,
+            Err(error) => Sent::Failed(error),
         })
         .collect()
 }
@@ -43,29 +42,32 @@ fn a_listing_the_host_could_not_load_reaches_the_plugin_as_failed() {
         None,
     );
     let mut instances = placed_on(folder, CounterContent::CONTENT_TYPE);
-    instances.editor_message(EditorMessage::WatchBlocks {
-        instance: INSTANCE,
-        queries: vec![BlockQuery::Children(folder.into_bytes())],
+    let watch = open_watch(&mut instances, |op| Call::BlocksWatchNew {
+        resource: wire::BlocksWatch(op),
+        query: BlockQuery::Children(folder.into_bytes()),
     });
     let children = crate::be::Query::Children(folder);
-    sent(&mut instances);
+    sent(&mut instances, watch);
     loaded(children);
-    assert_eq!(sent(&mut instances), [Sent::Blocks]);
+    assert_eq!(sent(&mut instances, watch), [Sent::Blocks]);
 
     crate::be::fail_listings(children, "Couldn't load what's inside this block");
     assert_eq!(
-        sent(&mut instances),
+        sent(&mut instances, watch),
         [Sent::Failed(
             "Couldn't load what's inside this block".to_owned()
         )],
         "a listing the host could not load is not an empty one"
     );
-    assert!(sent(&mut instances).is_empty(), "a failure is sent once");
+    assert!(
+        sent(&mut instances, watch).is_empty(),
+        "a failure is sent once"
+    );
 
     crate::be::refetch(children);
     loaded(children);
     assert_eq!(
-        sent(&mut instances),
+        sent(&mut instances, watch),
         [Sent::Blocks],
         "once a retry loads it, the answer is sent again"
     );

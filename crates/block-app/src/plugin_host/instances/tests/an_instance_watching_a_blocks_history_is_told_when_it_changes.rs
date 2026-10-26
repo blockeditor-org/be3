@@ -3,18 +3,12 @@ use super::*;
 use std::time::Duration;
 
 use be_block::{BlockContent, LiveEdit};
-use block_plugin_api::HistoryState;
+use block_plugin_api::blocks::BlockHistory;
 use calendar_types::{Calendar, CalendarContent, CalendarEvent};
 
-fn history_states(instances: &mut Instances) -> Vec<Vec<HistoryState>> {
-    next_screens(instances)
-        .opened
-        .into_iter()
-        .filter_map(|message| match message {
-            Message::Editor(EditorMessage::HistoryStates { states, .. }) => Some(states),
-            _ => None,
-        })
-        .collect()
+fn histories(instances: &mut Instances, watch: OpId) -> Vec<BlockHistory> {
+    next_screens(instances);
+    answered(instances, watch).into_iter().collect()
 }
 
 #[test]
@@ -24,18 +18,17 @@ fn an_instance_watching_a_blocks_history_is_told_when_it_changes() {
     let block = Uuid::new_v4();
     let mut instances = placed();
     next_screens(&mut instances);
-    assert!(instances.editor_message(EditorMessage::WatchHistory {
-        instance: INSTANCE,
-        blocks: vec![block.into_bytes()],
-    }));
-    let nothing = HistoryState {
+    let watch = open_watch(&mut instances, |op| Call::HistoryWatchNew {
+        resource: wire::HistoryWatch(op),
+        block: block.into_bytes(),
+    });
+    let nothing = BlockHistory {
         head: None,
-        block_id: block.into_bytes(),
         can_undo: false,
         can_redo: false,
     };
-    assert_eq!(history_states(&mut instances), [vec![nothing]]);
-    assert!(history_states(&mut instances).is_empty());
+    assert_eq!(histories(&mut instances, watch), [nothing]);
+    assert!(histories(&mut instances, watch).is_empty());
 
     crate::be::open(block, CalendarContent::CONTENT_TYPE);
     crate::be::operate(
@@ -54,13 +47,13 @@ fn an_instance_watching_a_blocks_history_is_told_when_it_changes() {
     .expect("the calendar never had anything to undo");
 
     assert_eq!(
-        history_states(&mut instances),
-        [vec![HistoryState {
+        histories(&mut instances, watch),
+        [BlockHistory {
             head: crate::be::node(block)
                 .and_then(|node| node.head)
                 .map(|head| *head.hash().as_bytes()),
             can_undo: true,
             ..nothing
-        }]]
+        }]
     );
 }

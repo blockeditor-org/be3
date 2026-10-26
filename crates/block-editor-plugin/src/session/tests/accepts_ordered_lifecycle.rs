@@ -3,29 +3,16 @@ use super::*;
 #[test]
 fn accepts_ordered_lifecycle() {
     let mut session = ClientSession::default();
-    assert!(matches!(session.hello(), Message::Hello(_)));
+    assert_eq!(session.hello().plugin.id, "");
     accept(&mut session);
     assert_eq!(session.state(), State::Running);
 
     let instance = EditorInstanceId(1);
-    open(&mut session, instance);
-    let responses = session.receive(Message::Screens(ScreenSet {
-        request_id: 7,
-        screens: vec![screen(ScreenId(3), instance)],
-    }));
-    assert_eq!(responses, vec![Message::Acknowledged { request_id: 7 }]);
-    assert!(
-        session
-            .receive(Message::Input(InputBatch {
-                screen: ScreenId(3),
-                every_sample: false,
-                events: Vec::new(),
-            }))
-            .is_empty()
-    );
-    assert_eq!(
-        session.receive(Message::Shutdown),
-        vec![Message::ShutdownAcknowledged]
-    );
+    session.receive(&opening(instance)).unwrap();
+    session
+        .receive(&Delivery::Screens(vec![screen(ScreenId(3), instance)]))
+        .unwrap();
+    session.receive(&input(ScreenId(3))).unwrap();
+    session.receive(&Delivery::Shutdown).unwrap();
     assert_eq!(session.state(), State::Closed);
 }

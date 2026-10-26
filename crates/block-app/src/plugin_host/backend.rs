@@ -1,7 +1,9 @@
 use std::{sync::Arc, time::Duration};
 
-use block_plugin_api::{Message, PluginManifest, ScreenDamage, decode_frame, encode_frame};
+use block_plugin_api::{HelloAccepted, PluginManifest, ScreenDamage, ops::Outcome};
 
+use super::calls::{Heard, Outbound};
+use super::wire::Wire;
 use crate::{editors::plugin::discovery, host};
 use block_guest_host::Worker;
 pub(super) use block_guest_host::{Deadline, StepTime};
@@ -38,6 +40,7 @@ pub(super) struct Backend {
     module: Option<String>,
     worker: Option<Worker<platform::Channel>>,
     mailbox: Option<platform::Mailbox>,
+    wire: Wire,
     started: Duration,
     error: Option<String>,
 }
@@ -48,6 +51,7 @@ impl Backend {
             module: discovery::entry_point(&plugin.identity.id, &plugin.entry_point),
             worker: None,
             mailbox: None,
+            wire: Wire::granting(plugin.extensions.clone()),
             started: host::now(),
             error: None,
         }
@@ -57,6 +61,7 @@ impl Backend {
         self.shutdown();
         self.started = host::now();
         self.error = None;
+        self.wire = Wire::granting(plugin.extensions.clone());
         let Some(module) = self.module.clone() else {
             self.error = Some(NO_ENTRY_POINT.to_owned());
             return;
@@ -75,39 +80,94 @@ impl Backend {
         self.worker.as_ref().is_some_and(Worker::ready)
     }
 
-    pub(super) fn send(&mut self, messages: Vec<Message>) {
+    fn wired(&mut self, act: impl FnOnce(&mut Wire)) {
         let Some(worker) = &mut self.worker else {
             return;
         };
-        let mut frames = Vec::with_capacity(messages.len());
-        for message in messages {
-            match encode_frame(&message) {
-                Ok(frame) => frames.push(frame),
-                Err(error) => {
-                    self.error.get_or_insert(error.to_string());
-                }
-            }
-        }
-        if let Some(failure) = worker.queue(frames) {
+        act(&mut self.wire);
+        if let Some(failure) = worker.queue(self.wire.take_outbound()) {
             self.fail(failure);
         }
     }
 
-    pub(super) fn receive(&mut self) -> Vec<Message> {
+    pub(super) fn send(&mut self, outbound: Outbound) {
+        self.wired(|wire| match outbound {
+            Outbound::Open(opening) => wire.open(*opening),
+            Outbound::Close(instance) => wire.close(instance),
+            Outbound::Editor(instance, call) => wire.call(instance, call),
+            Outbound::Plugin(call) => wire.plugin_call(call),
+        });
+    }
+
+    pub(super) fn accept(&mut self, accepted: &HelloAccepted) {
+        self.wired(|wire| wire.accept(accepted));
+    }
+
+    pub(super) fn ask_to_shut_down(&mut self) {
+        self.wired(Wire::shutdown);
+    }
+
+    pub(super) fn receive(&mut self) -> Vec<Heard> {
         self.poll();
         let Some(worker) = &mut self.worker else {
             return Vec::new();
         };
         let mut messages = Vec::new();
         for frame in worker.take_received() {
-            match decode_frame(&frame) {
-                Ok(message) => messages.push(message),
-                Err(failure) => {
-                    self.error.get_or_insert(format!("{failure:?}"));
-                }
+            if let Err(failure) = self.wire.receive(&frame, &mut messages) {
+                self.error.get_or_insert(failure);
             }
         }
+        if let Some(failure) = worker.queue(self.wire.take_outbound()) {
+            self.fail(failure);
+        }
         messages
+    }
+
+    #[cfg(test)]
+    pub(super) fn wire_mut(&mut self) -> &mut Wire {
+        &mut self.wire
+    }
+
+    pub(super) fn waiting(&self) -> Vec<block_plugin_api::ops::OpId> {
+        self.wire.waiting()
+    }
+
+    pub(super) fn answer_watches(
+        &mut self,
+        answers: Vec<(block_plugin_api::ops::OpId, Vec<u8>)>,
+        accepted: Vec<block_plugin_api::ops::OpId>,
+    ) {
+        for (watch, value) in answers {
+            self.wire.answer_watch(watch, value);
+        }
+        for send in accepted {
+            self.wire.accepted(send);
+        }
+        self.flush();
+    }
+
+    pub(super) fn relay(&mut self, replica: block_plugin_api::ops::OpId, frame: &Vec<u8>) -> bool {
+        self.wire.relay(replica, frame)
+    }
+
+    pub(super) fn answer(&mut self, answers: Vec<(block_plugin_api::ops::OpId, Outcome)>) {
+        for (op, outcome) in answers {
+            self.wire.answer(op, outcome);
+        }
+        self.flush();
+    }
+
+    fn flush(&mut self) {
+        let Some(worker) = &mut self.worker else {
+            return;
+        };
+        if !self.wire.has_outbound() {
+            return;
+        }
+        if let Some(failure) = worker.queue(self.wire.take_outbound()) {
+            self.fail(failure);
+        }
     }
 
     pub(super) fn received_frame(&mut self) -> Option<Frame> {

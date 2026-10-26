@@ -33,7 +33,7 @@ pub(crate) struct RegionEditor {
     pub(crate) plugin: Arc<PluginManifest>,
     pub(crate) role: InstanceRole,
     pub(crate) instance: EditorInstanceId,
-    pub(crate) block_types: Arc<block_plugin_api::Catalog>,
+    pub(crate) block_types: Arc<crate::editors::PluginCatalog>,
     pub(crate) client_id: Uuid,
 }
 

@@ -1,5 +1,4 @@
 use be_block::BlockContent;
-use block_type_api::{Reply, Request};
 
 use crate::{in_process, started};
 

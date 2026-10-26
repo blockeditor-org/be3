@@ -185,7 +185,10 @@ rule attribute such as a test's `remote_execution = "disabled"`.
 Sources are inferred, including non-Rust files read at compile time. The common
 library, binary, example and test rules also carry the manifest at
 `CARGO_MANIFEST_DIR/Cargo.toml`, so procedural macros can discover dependency
-names during remote compilation. Libraries
+names during remote compilation. Other sources sit at their path in the package,
+not under `CARGO_MANIFEST_DIR`, so a file a procedural macro reads from there is
+passed as `resources` to `cargo_library` and `cargo_test`, as block-type-api's
+WIT is (`resources = glob(["wit/*.wit"])`). Libraries
 use `src/**` except `src/bin/**`, `tests.rs`, `tests/**`, `main_tests.rs` and
 `main_tests/**` at any depth. Tests use all of `src/**` except `src/bin/**`.
 Keep test-only assets under a `tests/` directory. Binaries and examples in a

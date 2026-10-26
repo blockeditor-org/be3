@@ -7,7 +7,7 @@ mod watcher;
 
 use std::sync::mpsc::Receiver;
 
-use block_plugin_api::{HostTrayItem, TrayRequest};
+use block_plugin_api::HostTrayItem;
 use tokio::sync::mpsc::{UnboundedSender, unbounded_channel};
 
 use client::Event;
@@ -28,11 +28,11 @@ impl Tray {
     }
 
     pub(crate) fn frame(&mut self) {
-        for request in crate::plugin_host::take_actions::<TrayRequest>() {
+        for request in crate::plugin_host::take_calls(block_plugin_api::requested::tray) {
             let _ = self.events.send(Event::Request(request));
         }
         if let Some(listed) = self.items.try_iter().last() {
-            crate::plugin_host::publish::<block_plugin_api::Tray>(&listed);
+            crate::plugin_host::publish::<block_plugin_api::TrayWatch>(&listed);
         }
     }
 }

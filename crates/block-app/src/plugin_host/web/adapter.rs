@@ -62,6 +62,7 @@ self.onmessage = async (event) => {
                 new URL("./block_gpu_shim.js", data.url).href,
                 data.url,
                 () => self.postMessage({ kind: "wake" }),
+                data.imports,
             );
             for (const pending of shown.values()) show(pending);
             shown.clear();
@@ -142,6 +143,11 @@ impl WebProtocolAdapter {
         let message = js_sys::Object::new();
         set(&message, "kind", &"start".into());
         set(&message, "url", &absolute(url).into());
+        let direct = js_sys::Array::new();
+        for (module, name) in block_plugin_api::embed::IMPORTS {
+            direct.push(&js_sys::Array::of2(&(*module).into(), &(*name).into()));
+        }
+        set(&message, "imports", &direct);
         worker
             .post_message(&message)
             .map_err(|_| "the plugin worker could not be started".to_owned())?;

@@ -1,0 +1,437 @@
+package be3:plugin@0.1.0;
+
+/// What the shell around an editor and the editor share: its menus, the
+/// actions of its bar and the children it places.
+interface shell-types {
+    use types.{child-id, editor-id, editor-instance-id, editor-region, size, web-view-id};
+    use be3:shared/ids@0.1.0.{block-id, block-type-id, image-id};
+    use blocks.{block-location};
+    use host-services.{block-filter};
+    use be3:ui/types@0.1.0.{key-chord, pos2, rect, vec2};
+
+    /// An action of the bar the host draws above a frame or a child.
+    enum bar-action {
+        details,
+    }
+
+    /// Where a command shows outside its menu.
+    enum menu-pin {
+        none,
+        icon,
+        label,
+        title,
+    }
+
+    variant menu-check {
+        none,
+        checkbox(bool),
+        radio(bool),
+    }
+
+    record menu-command {
+        id: string,
+        label: string,
+        glyph: string,
+        enabled: bool,
+        check: menu-check,
+        shortcut: option<key-chord>,
+        pin: menu-pin,
+    }
+
+    /// A submenu's own fields; its entries follow it.
+    record menu-heading {
+        id: string,
+        label: string,
+        glyph: string,
+    }
+
+    variant menu-item-kind {
+        command(menu-command),
+        submenu(menu-heading),
+        separator,
+    }
+
+    /// One entry of a menu flattened in order: the entries of a submenu
+    /// follow it one level deeper.
+    record menu-item {
+        depth: u32,
+        kind: menu-item-kind,
+    }
+
+    /// A block dragged over the editor, where, and whether it was dropped there.
+    record drag-over {
+        region: editor-region,
+        pos: pos2,
+        block-id: block-id,
+        block-type: block-type-id,
+        dropped: bool,
+    }
+
+    record dropped-file {
+        name: string,
+        data: list<u8>,
+    }
+
+    /// Files dragged over the editor from outside the app.
+    record file-drop {
+        region: editor-region,
+        pos: pos2,
+        files: list<dropped-file>,
+        dropped: bool,
+    }
+
+    variant stopped {
+        closed,
+        failed(string),
+    }
+
+    variant fit-area {
+        %world,
+        centre,
+        rect(rect),
+    }
+
+    record view-zoom {
+        factor: f32,
+        anchor: option<pos2>,
+    }
+
+    variant view-change {
+        pan(vec2),
+        zoom(view-zoom),
+        keep-fitted(option<fit-area>),
+        fit,
+        pan-drag,
+    }
+
+    record artifact-described {
+        source: block-id,
+        summary: string,
+    }
+
+    /// What an artifact's settings say it is made from, or why they cannot be read.
+    variant artifact-description {
+        described(artifact-described),
+        unreadable(string),
+    }
+
+    /// How an editor takes input where it is shown.
+    enum interaction-mode {
+        live,
+        preview,
+        playback,
+    }
+
+    enum pan-mode {
+        two-finger,
+        none,
+        one-finger,
+    }
+
+    record editor-capabilities {
+        rotation: bool,
+        preserve-aspect-ratio: bool,
+        pan-and-zoom: bool,
+        max-zoom: option<u32>,
+        pan: pan-mode,
+    }
+
+    enum resize-mode {
+        both,
+        none,
+        horizontal,
+        vertical,
+    }
+
+    record creation-options {
+        ready: bool,
+    }
+
+    /// How far a creation dialog shown as a child got.
+    variant creation-progress {
+        options(creation-options),
+        working,
+        created(block-id),
+        failed(string),
+    }
+
+    record settings-progress {
+        changed: bool,
+        summary: option<string>,
+    }
+
+    /// A picture of a child the host painted, offered to the plugin as a texture.
+    record preview-image {
+        image: image-id,
+        width: u32,
+        height: u32,
+    }
+
+    variant child-preview {
+        hosted,
+        waiting,
+        label,
+        image(preview-image),
+    }
+
+    /// What the host knows of a child an editor placed.
+    record child-status {
+        instance: editor-instance-id,
+        region: editor-region,
+        child: child-id,
+        available: bool,
+        intrinsic: option<size>,
+        aspect-ratio: option<f32>,
+        active: bool,
+        interaction: interaction-mode,
+        capabilities: editor-capabilities,
+        resize: resize-mode,
+        error: option<string>,
+        menu: list<menu-item>,
+        creation: option<creation-progress>,
+        settings: option<settings-progress>,
+        preview: child-preview,
+    }
+
+    record child-operations {
+        add: bool,
+        delete: bool,
+        replace: bool,
+    }
+
+    /// What pressing a block in a container does.
+    enum press {
+        open,
+        zoom,
+    }
+
+    /// A colour's red, green and blue.
+    type rgb = tuple<u8, u8, u8>;
+
+    record block-type-descriptor {
+        block-type: block-type-id,
+        display-name: string,
+        color: option<rgb>,
+        icon-codepoint: string,
+        children: child-operations,
+        press: press,
+        plain-file: bool,
+    }
+
+    /// Where a picker lists a template: among every block, among the ones
+    /// offered first, or as a template to start from.
+    enum template-category {
+        regular,
+        important,
+        template,
+    }
+
+    record template-descriptor {
+        editor: editor-id,
+        template: string,
+        block-type: block-type-id,
+        name: string,
+        icon-codepoint: string,
+        category: template-category,
+        dialog: bool,
+    }
+
+    variant edits {
+        %type(block-type-id),
+        any,
+        nothing,
+    }
+
+    record editor-descriptor {
+        editor: editor-id,
+        edits: edits,
+        name: string,
+        icon-codepoint: string,
+    }
+
+    /// The block types, templates and editors the host has.
+    record catalog {
+        types: list<block-type-descriptor>,
+        templates: list<template-descriptor>,
+        editors: list<editor-descriptor>,
+    }
+
+    /// A pick the host forwards to an editor, numbered by the host.
+    type pick-id = u64;
+
+    /// A pick the host forwards to the editor that shows its picker.
+    record pick-request {
+        pick: pick-id,
+        filter: block-filter,
+        parent: block-location,
+        within: option<block-id>,
+        touch: bool,
+    }
+
+    record audio-source {
+        media-type: string,
+        bytes: list<u8>,
+    }
+
+    variant audio-command {
+        load(audio-source),
+        toggle,
+        reset,
+    }
+
+    record audio-status {
+        playing: bool,
+        position-micros: u64,
+        duration-micros: option<u64>,
+        error: option<string>,
+    }
+
+    variant web-view-event {
+        navigate(string),
+        finished(string),
+        push(string),
+        replace(string),
+        title(string),
+        history(s32),
+        new-window(string),
+        address(string),
+        failed(string),
+    }
+
+    record rename-command {
+        anchor: option<rect>,
+    }
+
+    record app-menu-command {
+        anchor: option<rect>,
+    }
+
+    /// What an editor asks of the app around it for a block it draws: to share
+    /// it, leave it, rename it (hung from `anchor`), close the editor, or show
+    /// the app's menu.
+    variant shell-command {
+        share,
+        leave,
+        rename(rename-command),
+        close-editor,
+        app-menu(app-menu-command),
+    }
+
+    /// The block an editor's focus is in, and the blocks it is shown through.
+    record focus {
+        block-id: option<block-id>,
+        block-type: block-type-id,
+        via: list<block-id>,
+    }
+}
+
+/// What an editor tells the shell around it.
+interface shell {
+    use types.{child-id, editor-instance-id, editor-region, size, web-view-id};
+    use be3:shared/ids@0.1.0.{block-id, block-type-id};
+    use blocks.{block-location};
+    use shell-types.{
+        artifact-description, audio-command, audio-status, bar-action, catalog,
+        child-status, focus, menu-item, shell-command, stopped, view-change, web-view-event,
+    };
+
+    /// The status of the audio the editor plays, watched like preferences once
+    /// it plays any.
+    resource audio-status-watch {
+        constructor(instance: editor-instance-id);
+        next: async func() -> audio-status;
+    }
+
+    /// A web view the editor shows at a child it places; dropping it closes it.
+    resource web-view {
+        constructor(instance: editor-instance-id, id: web-view-id, url: string);
+        load: func(url: string);
+        reload: func();
+        focus-app: func();
+        /// The events since the last answer, in order. A title, address or
+        /// failure right after one of its own kind replaces it, and at most
+        /// 256 events wait: past that the oldest goes.
+        next-events: async func() -> list<web-view-event>;
+    }
+
+    /// The statuses of the children an editor placed. `next` answers with every
+    /// status that changed since the last answer, the latest of each child.
+    resource child-statuses-watch {
+        constructor(instance: editor-instance-id);
+        next: async func() -> list<child-status>;
+    }
+
+    /// The host's catalog of block types, templates and editors, watched like
+    /// preferences.
+    resource block-types-watch {
+        constructor();
+        next: async func() -> catalog;
+    }
+
+    /// The editor's menu, replacing the one it sent before.
+    menu: func(instance: editor-instance-id, items: list<menu-item>);
+
+    /// The editor asks the host to run an action of its bar.
+    run-bar-action: func(instance: editor-instance-id, action: bar-action);
+
+    /// The editor picked a command of a child's menu.
+    child-menu-pick: func(instance: editor-instance-id, child: child-id, id: string);
+
+    copy-text: func(instance: editor-instance-id, text: string);
+
+    /// A PNG for the clipboard.
+    copy-image: func(instance: editor-instance-id, png: list<u8>);
+
+    /// The editor asks for the clipboard; it arrives as input.
+    paste: func(instance: editor-instance-id);
+
+    /// The editor starts dragging a block out of itself.
+    drag-block: func(instance: editor-instance-id, block-id: block-id, block-type: block-type-id);
+
+    /// Whether the editor takes the block dragged over it.
+    drag-accepted: func(instance: editor-instance-id, accepted: bool);
+
+    /// The width over height the editor keeps, when it keeps one.
+    aspect-ratio: func(instance: editor-instance-id, ratio: option<f32>);
+
+    /// The size the editor's content wants, when it has one.
+    intrinsic-size: func(instance: editor-instance-id, size: option<size>);
+
+    /// Asks the app around the editor to act for a block the editor draws.
+    act: func(instance: editor-instance-id, block: block-id, command: shell-command);
+
+    /// The editor asks to leave the frame it is shown in.
+    leave-frame: func(instance: editor-instance-id);
+
+    /// The editor stopped drawing a region, closed or failed.
+    region-stopped: func(instance: editor-instance-id, region: editor-region, stopped: stopped);
+
+    /// The editor asks to be presented full screen, or no longer.
+    present: func(instance: editor-instance-id, presenting: bool);
+
+    /// The editor asks the host to move its view.
+    change-view: func(instance: editor-instance-id, change: view-change);
+
+    /// Loads, plays or pauses, or stops the editor's audio.
+    play-audio: func(instance: editor-instance-id, command: audio-command);
+
+    /// Where the editor's focus is now.
+    focused: func(instance: editor-instance-id, focus: focus);
+
+    /// Whether the creation dialog the editor shows can create its block.
+    creation-ready: func(instance: editor-instance-id, ready: bool);
+
+    /// The user created the block of a creation dialog the editor placed as a child.
+    commit-child: func(
+        instance: editor-instance-id,
+        child: child-id,
+        parent: block-location,
+        name: option<string>,
+    );
+
+    /// What the artifact settings the editor was opened on say.
+    artifact-described: func(instance: editor-instance-id, description: artifact-description);
+
+    /// The user changed the artifact settings the editor shows.
+    artifact-edited: func(instance: editor-instance-id, data: list<u8>);
+}

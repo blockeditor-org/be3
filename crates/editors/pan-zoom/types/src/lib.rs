@@ -14,4 +14,4 @@ pub type PanZoomContent = Document<PanZoom>;
 block_type_guest::be_block_types![PanZoomContent];
 
 #[cfg(feature = "module")]
-block_type_guest::abi::guest!(BlockTypes);
+block_type_guest::type_module!(BlockTypes);

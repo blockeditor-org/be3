@@ -3,7 +3,7 @@ use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
 use block_editor_beui::beui::unstyled::ChoiceOption;
-use block_editor_beui::{Editor, LayeredSettingsRow, PreferenceSources};
+use block_editor_beui::{Editor, LayeredSettingsRow, PreferenceSourcesWatch};
 
 use super::ui::Settings;
 
@@ -13,7 +13,7 @@ pub(super) fn AppearanceSection(
     settings: Settings,
     read_only: Memo<bool>,
 ) -> NodeId {
-    let sources = editor.host_value::<PreferenceSources>();
+    let sources = editor.watch::<PreferenceSourcesWatch>();
     let system = create_memo(move || sources.get().system.resolve());
     let developer = create_memo(move || sources.get().developer);
     let theme = DisplaySettings::theme_setting().with_default(Some(system.get_untracked().theme));

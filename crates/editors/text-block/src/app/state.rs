@@ -11,7 +11,7 @@ use block_editor_beui::SharedCaret;
 use block_editor_beui::be_block::presence::pick_free_color;
 use block_editor_beui::live_text::Synced;
 use block_editor_beui::{BlockList, Blocks};
-use block_editor_beui::{ChildState, ContentProjection, Editor, EditorHost, LinkBase};
+use block_editor_beui::{ChildState, ContentProjection, Editor, EditorHost, LinkBaseWatch};
 use text_editor_core::{EditorCommand, TextLanguage};
 use uuid::Uuid;
 
@@ -90,7 +90,7 @@ impl State {
         let embed_sizes = create_signal(HashMap::new());
         let state = Self {
             organization_id: editor.host().organization_id(),
-            link_base: editor.host_value::<LinkBase>(),
+            link_base: editor.watch::<LinkBaseWatch>(),
             peers,
             remote_cursors,
             editor,

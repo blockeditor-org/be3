@@ -118,10 +118,10 @@ impl Center {
         });
         while self.kept.len() > MAX_KEPT {
             let oldest = self.kept.remove(0);
-            self.signals.push(NotificationSignal::Closed(
-                oldest.id,
-                NotificationCloseReason::Expired,
-            ));
+            self.signals.push(NotificationSignal::Closed {
+                id: oldest.id,
+                reason: NotificationCloseReason::Expired,
+            });
         }
     }
 
@@ -130,7 +130,7 @@ impl Center {
             return false;
         };
         self.kept.remove(at);
-        self.signals.push(NotificationSignal::Closed(id, reason));
+        self.signals.push(NotificationSignal::Closed { id, reason });
         self.revision += 1;
         true
     }
@@ -146,8 +146,10 @@ impl Center {
         if !kept.incoming.actions.iter().any(|action| action.key == key) {
             return false;
         }
-        self.signals
-            .push(NotificationSignal::ActionInvoked(id, key.to_owned()));
+        self.signals.push(NotificationSignal::ActionInvoked {
+            id,
+            key: key.to_owned(),
+        });
         match kept.incoming.resident {
             true => {
                 kept.toast = Toast::Hidden;

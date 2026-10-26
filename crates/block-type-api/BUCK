@@ -1,5 +1,6 @@
-load("@root//buck/cargo:defs.bzl", "cargo_library", "cargo_test")
+load("@root//buck/cargo:defs.bzl", "cargo_library")
 
-cargo_library()
-
-cargo_test()
+cargo_library(
+    foreign_resources = {"//crates/be-ops:wit": "crates/be-ops"},
+    resources = glob(["wit/*.wit"]),
+)

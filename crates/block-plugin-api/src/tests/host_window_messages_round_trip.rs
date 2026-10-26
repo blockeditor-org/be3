@@ -8,10 +8,7 @@ fn host_window_messages_round_trip() {
         app_id: "foot".into(),
         parent: Some(HostWindowId(3)),
         modal: true,
-        size: Size {
-            width: 640.0,
-            height: 480.0,
-        },
+        size: Vec2::new(640.0, 480.0),
         fullscreen: None,
         responding: true,
         focused: false,
@@ -27,7 +24,7 @@ fn host_window_messages_round_trip() {
             launch: Some(9),
         },
     };
-    host_value_round_trips::<HostWindows>(vec![window.clone()]);
+    watched_round_trips::<WindowsWatch>(vec![window.clone()]);
     for action in [
         WindowAction::Focus(window.id),
         WindowAction::Fullscreen {
@@ -36,7 +33,7 @@ fn host_window_messages_round_trip() {
         },
         WindowAction::Close(window.id),
     ] {
-        host_action_round_trips(action);
+        round_trips(&action);
     }
     {
         let message = committed(ChildPlacements {
@@ -59,9 +56,6 @@ fn host_window_messages_round_trip() {
             }],
             occluders: Vec::new(),
         });
-        assert_eq!(
-            decode_frame(&encode_frame(&message).unwrap()).unwrap(),
-            message
-        );
+        round_trips(&message);
     }
 }
