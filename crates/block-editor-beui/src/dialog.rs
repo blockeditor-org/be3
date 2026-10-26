@@ -3,7 +3,7 @@ use std::rc::Rc;
 
 use beui::reactive::*;
 use beui::styled::*;
-use beui::{Key, KeyAt, KeyPhase, NodeId};
+use beui::{BackGesture, Key, KeyAt, KeyPhase, NodeId};
 use block_editor_plugin::{DialogAnswer, DialogFrame, EditorHost};
 
 use crate::Artifacts;
@@ -70,9 +70,12 @@ pub(crate) fn PluginDialog(
         escape
     });
     let body = content.call(());
-    view! {
-        <BackHandler on_back={move || dismiss.call(())}>{body}</BackHandler>
-    }
+    on_back(true, move |gesture| {
+        if gesture == BackGesture::Invoked {
+            dismiss.call(());
+        }
+    });
+    body
 }
 
 #[component]

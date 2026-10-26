@@ -5,6 +5,7 @@ use crate::reactive::Prop;
 use crate::reactive::RenderFn;
 use beui_core::base::overlay::OverlayAnchor;
 use beui_core::base::overlay::Placement;
+use beui_core::base::overlay::WindowSpec;
 use beui_core::color::Color32;
 use beui_core::layer::Dismiss;
 use beui_core::layer::LayerLevel;
@@ -24,6 +25,8 @@ pub fn Overlay(
     #[prop(default = None)] shown_in: Prop<Option<WindowId>>,
     trigger: Option<NodeRef>,
     pointer: Option<NodeRef>,
+    #[prop(default = 0.0)] beak: Prop<f32>,
+    #[prop(default = None)] window: Prop<Option<WindowSpec>>,
     open: Prop<bool>,
     #[prop(default = false)] keep_alive: bool,
     on_dismiss: Callback<Dismiss>,
@@ -39,6 +42,8 @@ pub fn Overlay(
         shown_in,
         trigger,
         pointer,
+        beak,
+        window,
         open,
         keep_alive,
         on_dismiss,

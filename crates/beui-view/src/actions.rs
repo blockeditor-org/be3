@@ -430,7 +430,7 @@ impl ActionBuilder {
         action
             .0
             .window
-            .set(crate::components::window::use_window().map(|window| window.id));
+            .set(crate::window::use_window().map(|window| window.id));
         scope.add(action.clone());
         if let Some(KeyAt::Node(node)) = &action.0.at {
             let phase = match action.0.capture {

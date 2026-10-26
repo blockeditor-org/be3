@@ -75,10 +75,10 @@ pub use beui_components_unstyled::{DialogDismissal, DialogLayout};
 pub use beui_components_unstyled::{PaletteItem, PaletteItems, PaletteScore};
 pub use beui_components_unstyled::{emoji_completer, search_emoji};
 pub use beui_view::primitives::{
-    BackHandler, Break, Canvas, CanvasItem, Drawing, Embed, Fade, GridCell, Interactive, Layer,
-    Layers, LayoutBuilder, Offset, Overlay, PlacementBuilder, Portal, Shift, Spacer, SystemBars,
-    TextChild, TextItem, Turn, VirtualList, Window, WindowHandle, opens_windows, use_window,
+    Break, Canvas, CanvasItem, Drawing, GridCell, Interactive, Layer, Layers, LayoutBuilder,
+    Offset, Overlay, PlacementBuilder, Portal, SystemBars, TextChild, TextItem, Turn, VirtualList,
 };
+pub use beui_view::window::{Window, WindowHandle, opens_windows, use_window};
 pub use border::Separator;
 pub use button::{Button, ButtonSize, ButtonVariant};
 pub use calendar::Calendar;
@@ -98,7 +98,7 @@ pub use focus_ring::FocusRing;
 pub use frame::{Border, ColorRole, Frame, Radius, focus_border};
 pub use fullscreen::Fullscreen;
 pub use link::Link;
-pub use list::{Grid, List};
+pub use list::{Grid, List, Spacer};
 pub use list_row::ListRow;
 pub use menu_button::MenuButton;
 pub use number_input::{NumberInput, NumberInputTextApi};

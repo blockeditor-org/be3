@@ -4,7 +4,7 @@ use std::cell::Cell;
 use beui_core::base::Direction;
 use beui_core::geometry::{Pos2, Rect, Vec2};
 use beui_core::input::{Modifiers, SecondaryDrag};
-use beui_view::primitives::WindowHandle;
+use beui_view::window::WindowHandle;
 
 use super::{DockLayout, Grip, SplitId, State, SurfaceId, fraction_moved, layout_tree};
 

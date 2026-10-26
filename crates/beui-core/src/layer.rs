@@ -1,5 +1,6 @@
-use crate::base::back::BackNode;
+use crate::back::BackHandlerId;
 use crate::base::overlay::OverlayNode;
+use crate::callback::Callback;
 use crate::document::Document;
 use crate::geometry::{Pos2, Rect};
 use crate::input::BackGesture;
@@ -53,17 +54,8 @@ impl Layer {
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub(crate) enum DismissTarget {
-    Handler(NodeOf<BackNode>),
+    Handler(BackHandlerId),
     Overlay(NodeOf<OverlayNode>),
-}
-
-impl DismissTarget {
-    fn id(self) -> NodeId {
-        match self {
-            DismissTarget::Handler(handler) => handler.id(),
-            DismissTarget::Overlay(overlay) => overlay.id(),
-        }
-    }
 }
 
 type StackKey = (LayerLevel, Vec<(bool, u64)>);
@@ -467,13 +459,31 @@ impl Document {
         }
     }
 
-    fn back_handler_in(&self, layers: &Layers, index: usize) -> Option<NodeOf<BackNode>> {
-        self.back_handlers.iter().rev().copied().find(|handler| {
-            self.contains(handler.id())
-                && self.arena.get_as(*handler).enabled
-                && self.live(handler.id())
-                && self.layer_of(layers, handler.id()) == Some(index)
-        })
+    fn back_handler_in(&self, layers: &Layers, index: usize) -> Option<BackHandlerId> {
+        self.back_handlers
+            .handlers
+            .iter()
+            .rev()
+            .find(|handler| {
+                handler.enabled
+                    && handler.node(self.root).is_some_and(|node| {
+                        self.contains(node)
+                            && self.live(node)
+                            && self.layer_of(layers, node) == Some(index)
+                    })
+            })
+            .map(|handler| handler.id)
+    }
+
+    fn back_handler(&self, id: BackHandlerId) -> Option<Callback<BackGesture>> {
+        self.back_handlers.get(id).map(|handler| handler.on_back)
+    }
+
+    fn dismiss_target_exists(&self, target: DismissTarget) -> bool {
+        match target {
+            DismissTarget::Handler(handler) => self.back_handlers.get(handler).is_some(),
+            DismissTarget::Overlay(overlay) => self.contains(overlay.id()),
+        }
     }
 
     pub(crate) fn live(&self, node: NodeId) -> bool {
@@ -603,11 +613,8 @@ impl Document {
         match target {
             DismissTarget::Overlay(overlay) => self.call_overlay_dismiss(overlay, reason),
             DismissTarget::Handler(handler) => {
-                let node = self.arena.get_as(handler);
-                let (on_gesture, on_back) = (node.on_gesture, node.on_back);
-                match on_gesture.is_empty() {
-                    false => on_gesture.call(BackGesture::Invoked),
-                    true => on_back.call(),
+                if let Some(on_back) = self.back_handler(handler) {
+                    on_back.call(BackGesture::Invoked);
                 }
             }
         }
@@ -623,22 +630,18 @@ impl Document {
             BackGesture::Progressed(_) => self.back_gesture,
             BackGesture::Cancelled | BackGesture::Invoked => None,
         };
-        let Some(target) = target.filter(|target| self.contains(target.id())) else {
+        let Some(target) = target.filter(|target| self.dismiss_target_exists(*target)) else {
             return;
         };
         match target {
             DismissTarget::Handler(handler) => {
-                let node = self.arena.get_as(handler);
-                let (on_gesture, on_back) = (node.on_gesture, node.on_back);
-                if !on_gesture.is_empty() {
-                    on_gesture.call(match gesture {
+                if let Some(on_back) = self.back_handler(handler) {
+                    on_back.call(match gesture {
                         BackGesture::Progressed(progress) => {
                             BackGesture::Progressed(progress.clamp(0.0, 1.0))
                         }
                         gesture => gesture,
                     });
-                } else if gesture == BackGesture::Invoked {
-                    on_back.call();
                 }
             }
             DismissTarget::Overlay(overlay) => {
@@ -650,7 +653,15 @@ impl Document {
     }
 
     pub(crate) fn forget_back_gesture(&mut self, id: NodeId) {
-        if self.back_gesture.is_some_and(|target| target.id() == id) {
+        if self.back_gesture.is_some_and(
+            |target| matches!(target, DismissTarget::Overlay(overlay) if overlay.id() == id),
+        ) {
+            self.back_gesture = None;
+        }
+    }
+
+    pub(crate) fn forget_back_handler_gesture(&mut self, id: BackHandlerId) {
+        if self.back_gesture == Some(DismissTarget::Handler(id)) {
             self.back_gesture = None;
         }
     }

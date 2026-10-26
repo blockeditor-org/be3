@@ -613,10 +613,13 @@ need:
 - **Need new behavior?** Add an unstyled component composed from base
   components.
 - **Tempted to add a base component?** Almost always, add an unstyled one
-  instead. The base layer is small on purpose — `Frame`, `List`, `Layers`, `FirstFit`, `Grid`, `Text`,
-  `Offset`, `VirtualList`, `Canvas`, `Drawing`, `Overlay`, `Interactive`, `Embed`,
-  `Portal`, `BackHandler`, `Shift`, `Turn`, `Fade` — and it stays small because most things are
-  compositions of those. `unstyled::Picture` is one: a `Drawing` with a size.
+  instead. The base layer is small on purpose — `Frame`, `List`, `Spacer`, `Layers`, `FirstFit`,
+  `Grid`, `Text`, `Offset`, `VirtualList`, `Canvas`, `Drawing`, `Overlay`, `Interactive`,
+  `Portal`, `Turn` and `Root` — and it stays small because most things are
+  compositions of those. `unstyled::Picture` is one: a `Drawing` with a size, and
+  `Window` (`beui_view::window`, re-exported as `beui::Window`) is another: an
+  `Overlay` given a `window` spec. Back is a hook, `on_back`, not a node, and
+  `Embed`, which only the native app composites, is in `beui::native`.
   Add a base component only when the retained tree genuinely lacks a primitive:
   a new way to lay out, paint, or receive input that cannot be expressed by
   arranging the existing nodes. `Portal` is one: it shows a subtree it does not
@@ -844,17 +847,28 @@ or `Stroke` goes does not compile. The one way to write pixels into a styled
 `Length` is `Extent::px`, so the source lint rejects `Extent::px` outside
 beui's own crates; write a `Size` (`Size::Custom` for content). Styled `List`
 and `Grid` take their `spacing`, `column_spacing` and `row_spacing` as `Space`,
-and styled `Gap` its `width`; the base ones keep taking pixels.
+and styled `Gap` its `width`; the base ones keep taking pixels. A base
+`Spacer` is an empty box with no props, which fills the rest of a row given a
+`Percent` `@sizing` or stands in for a child that is not there; a fixed gap
+is the styled `Spacer`, whose `width` and `height` are `Space`s (a
+`Space::Custom` for an indent computed from content).
 A `FocusRing` takes the `radius` of what it rings and an `offset` `Stroke`,
 and rounds its ring by the two together so the ring stays concentric.
-A frame can also paint a `pointer`, a beak of that reach on its top or bottom
-edge, filled and outlined with the frame so its border runs on around the beak;
-it shows only while an overlay points it at its anchor (below). It paints
-outside the frame's box without taking room, so give it room in a padded frame
-around it: a plugin's host draws what is outside an overlay's content under the
-editors it holds. The styled `Frame` takes it as a token, `pointer=true`
-(`POINTER_REACH`). Frames paint no shadows: a floating surface stands apart by
-its fill and border.
+A frame also carries the effects that need no node of their own, all of them
+leaving the space it takes alone: `translate` lays its box and child out moved
+by a vector (snapped to the pixel grid) and paints nothing while both are off
+the screen, which is how a sheet slides in; `rotate` paints it turned clockwise
+by that many radians about the middle of its box, clips inside it growing to the
+upright bounds of what they clip so nothing turned is cut off; `opacity` paints
+all of it, fill and border included, at that opacity (1 by default); and
+`fade_edges` fades it out toward each edge over the widths it names. The opacity
+and the edges are one mask (`Painter::faded`, `Group::Mask`): the renderer
+multiplies every shape's coverage by it, so shapes inside it that overlap show
+through one another, and a change damages the frame's rectangle. Pointer input
+and the accessibility tree follow `translate` but see a rotated frame unturned,
+so `rotate` is for pictures (a canvas's turned text), not for controls. The styled
+`Frame` passes all four through. Frames paint no shadows: a floating surface
+stands apart by its fill and border.
 `Layers` lays every child over the same box, sized to the largest, later
 children on top: content over a background, a badge over an icon. A child that
 should not fill the box goes in a `Frame` that aligns it. Pointer input is the
@@ -881,7 +895,8 @@ stands, and leaves it alone when the portal goes away, so a subtree can move
 between places in the tree without being built again. Exactly one portal shows
 a given node - claiming it takes it from the portal that had it - and the
 subtree lives as long as the scope that built it. `Embed` reserves a rectangle
-for something outside the document — an editor the host composites behind the
+for something outside the document (`beui::native::Embed`, since only the
+native app composites anything) — an editor the host composites behind the
 surface — publishing the rectangle and the clip it was laid out in through the
 `EmbedSlot` it was given (a `Copy` handle owned by the scope that made it) and cutting that rectangle out of the surface so what
 is behind shows through. The placement also carries its window's raster over
@@ -899,20 +914,12 @@ so a box sized by what it holds can still scroll once it is squeezed. Without
 except when it is measured with no limit along it, as a `Percent` child is
 inside a box sized by its content (a fitted sheet): then it measures as long as
 its child, since nothing else could give it a length. Rows far
-outside its viewport are culled like any other node out of sight. `Fade` paints
-its one child faded out toward each edge over the widths its `edges` name, and
-all of it at its `opacity` (1 by default), which is how a subtree fades in or out
-without each colour being faded by hand. The opacity multiplies every shape's
-coverage in the renderer (a mask, like the edges), so shapes inside it that
-overlap show through one another; a change damages the fade's rectangle. `Shift`
-lays its child out moved `by` a vector without moving the space it takes, and
-paints nothing while the child is off the screen, which is how a sheet slides in. `Turn`
+outside its viewport are culled like any other node out of sight. `Turn`
 paints its child turned clockwise by `quarter_turns` about the middle of its box, which
-takes the child's size with width and height swapped for an odd number of turns, and
-further by `angle` radians, which leaves the box as it is; clips inside it grow to the
-upright bounds of what they clip, so nothing turned is cut off. Pointer
+takes the child's size with width and height swapped for an odd number of turns. Pointer
 input and the accessibility tree still see the child unturned, so it is for pictures, such
-as a preview of a turned screen or a canvas's turned text, not for controls. `VirtualList` is an ordinary box that stands for
+as a preview of a turned screen, not for controls; a turn that keeps the box is `Frame`'s
+`rotate`. `VirtualList` is an ordinary box that stands for
 one item per key, each of an estimated `item_size`, and builds only the ones its slice of
 the viewport reaches (see [Long lists](#long-lists)).
 `Scroll` takes a `direction`, so the same tag is a
@@ -942,8 +949,8 @@ character and a search: typing it after a space opens the menu
 `completion_menu` draws under the caret, filtered by what follows it, with
 arrows, Enter and Escape; `styled::TextArea` uses it for emoji (`:rocket`). The
 menu is a passing layer with an `on_dismiss`, so Escape, back and a press
-outside it all close it the same way, and the styled find bar holds a
-`BackHandler` while it is open, so back closes it as Escape does. The state republishes
+outside it all close it the same way, and the styled find bar takes `on_back`
+while it is open, so back closes it as Escape does. The state republishes
 what it shows whenever one of its own commands runs; code that changes the
 document behind it - adopting an edit that arrived from someone else - calls
 `sync()`, or `external_edit()` when the edit should also break the undo group,
@@ -1436,7 +1443,7 @@ as the content has scrolled, so a scroll whose rows happen to end exactly at
 its edge still reads as scrollable. The styled layer's scrollbar style fades by
 `theme::SCROLL_FADE`, so `styled::Scroll` and every styled control that scrolls
 fade. `unstyled::Scroll` works the widths out from the position its offset
-reports and wraps the offset in a base `Fade`, which paints its child inside a
+reports and wraps the offset in a base `Frame` with those `fade_edges`, which paints its child inside a
 mask group (`Painter::faded`, `Group::Mask`): the wgpu renderer multiplies the
 alpha of everything in that group by it in the shader. Custom `Drawing`s are not faded.
 
@@ -1475,7 +1482,7 @@ the scroll remembers the node at the top of its viewport and where it started,
 so a row further up growing or shrinking - a wrapping label, an image that
 finished loading - leaves what is being read exactly where it is. It finds that
 node by walking down from its child through the nodes that lay their children
-out in place (`Element::passes_scroll_anchor`: `List`, `Frame` and `Fade`),
+out in place (`Element::passes_scroll_anchor`: `List`, and a `Frame` that is neither translated nor rotated),
 taking the first child that reaches past the top of the viewport each time.
 
 The offset places its child once per layout. What the content's own layout
@@ -1726,8 +1733,15 @@ the anchor and `gap` below it, flipping above where only that side has room and
 shifting sideways to stay `margin` inside the screen (the vertical choice and
 the shrinking when neither side fits are `BelowStart`'s). Given a `pointer`
 frame in its content, the overlay moves the content so that frame, not the
-content's padded edge, stands `gap` off the anchor, and points the frame's beak
-at the anchor's middle on whichever side it opened.
+content's padded edge, stands `gap` off the anchor, and given a `beak` reach it
+draws a beak of that reach on the frame's top or bottom edge, whichever side it
+opened on, pointing at the anchor's middle. The overlay chooses the side, so it
+draws the beak, filled and outlined like the frame so the frame's border runs on
+around it, and kept clear of the frame's rounded corners; nothing is drawn while
+the anchor's middle is past them. The beak lies outside the frame's box without
+taking room, so give it room in a padded frame around it: a plugin's host draws
+what is outside an overlay's content under the editors it holds. The styled dock
+gives its cards `POINTER_REACH`.
 
 An `Overlay`'s children (or `content={move || ...}`) are built when it opens
 and taken out of the tree when it closes, like a `Show`: a closed tooltip,
@@ -1783,7 +1797,7 @@ dismissed. There is one request for each reason, sent to one layer:
 - Escape that nothing on the focus path took goes to the nearest dismissable
   layer holding the focus, or with nothing focused, the topmost trapping layer.
 - Back - Android's back gesture, or the Back key or mouse button - goes to the
-  topmost layer that has an enabled `BackHandler` in it or is dismissable,
+  topmost layer that has an enabled `on_back` handler in it or is dismissable,
   stopping at the first layer that blocks everything; the root's handlers come
   last. `WindowRequests::handles_back` says whether anything would take it.
 - A press outside goes to every dismissable layer it is outside of, from the
@@ -1798,7 +1812,7 @@ dismissed. There is one request for each reason, sent to one layer:
   on the tap, so a scroll that starts outside a layer leaves it open.
 
 Inside the layer it is sent to, a request goes to the most recently made
-enabled `BackHandler` in that layer that is in the tree (not in hidden
+enabled `on_back` handler in that layer whose component is in the tree (not in hidden
 `ShowKeepAlive` content or a closed overlay) first, and to `on_dismiss` only
 when there is none, so Escape, back and a press outside all play the same slide-away.
 An overlay closed because the one it is nested in closed is told so after the
@@ -1837,9 +1851,11 @@ opening or closing, a frame hiding, a node being removed or moved - by walking
 up from the focused node, never by searching the tree; a node whose parent
 link is gone is outside the tree.
 
-A base `BackHandler` only routes: it calls `on_back` when back completes, or
-hands every phase of the gesture to `on_gesture` if it has one, and moves
-nothing. The motion lives above it. `unstyled::BackSlide` wraps a
+`on_back(enabled, handler)` is a hook, like `on_key`: called in a component, it
+hangs a handler on that component's node (on the root outside one) for as long
+as the scope that called it lives. It only routes: the handler hears every
+phase of the back gesture, a back with no gesture before it (a key, Escape, a
+press outside) as `BackGesture::Invoked` alone, and moves nothing. The motion lives above it. `unstyled::BackSlide` wraps a
 page: held, the page follows the finger across a good share of the screen;
 let go, it carries on off the edge before `on_back` runs and the next page
 slides in behind it, and a cancelled gesture eases it back. Given `behind`, a
@@ -3025,8 +3041,8 @@ beui-platform-drm) sets `Context::set_shows_main(false)`: the document then pain
 root nor anything opened in the main window, so the root just holds the app's
 `Window`s.
 
-An app makes a window with the `Window` component (`beui::primitives`,
-`beui::styled`):
+An app makes a window with the `Window` component (`beui::Window`,
+`beui::styled`), an `Overlay` with a `window` spec:
 
 ```rust
 view! {

@@ -3426,6 +3426,9 @@ pub(crate) fn LayoutPage() -> NodeId {
             <Sample title="Frame tokens" code={vec![FrameTokens::SOURCE]}>
                 <FrameTokens />
             </Sample>
+            <Sample title="Spacers" code={vec![SpacedMarks::SOURCE]}>
+                <SpacedMarks />
+            </Sample>
             <Sample title="Pictures" code={vec![Pictures::SOURCE, sunset::SOURCE]}>
                 <Pictures />
             </Sample>
@@ -3470,6 +3473,34 @@ fn Pictures() -> NodeId {
                     </List>
                 }
             }</ForEach>
+        </List>
+    }
+}
+
+#[sample]
+#[component]
+fn SpacedMarks() -> NodeId {
+    view! {
+        <List @test_id="demo.layout.spacers" spacing=Space::Xs>
+            <ForEach keys={(0..Space::ALL.len()).collect::<Vec<_>>()}>|index: usize|
+                <List direction=Direction::Horizontal align=Align::Center spacing=Space::None>
+                    <Frame
+                        width=Size::Xs
+                        height=Size::Xs
+                        fill=ColorRole::Accent
+                        radius=Radius::Sm
+                    />
+                    <Spacer width={Space::ALL[index]} />
+                    <Frame
+                        width=Size::Xs
+                        height=Size::Xs
+                        fill=ColorRole::Accent
+                        radius=Radius::Sm
+                    />
+                    <Spacer @sizing=ItemSize::Percent(100.0) />
+                    <Text style=TextStyle::CAPTION>{Space::ALL[index].name()}</Text>
+                </List>
+            </ForEach>
         </List>
     }
 }

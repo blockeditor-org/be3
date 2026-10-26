@@ -1,5 +1,6 @@
 use super::*;
 use crate::FontId;
+use crate::native::{Embed, EmbedPlacement, EmbedSlot};
 
 mod a_back_gesture_lowers_a_sheet_and_it_slides_away_from_there;
 mod a_back_gesture_slides_a_dialog_away_once_its_owner_closes_it;
@@ -950,6 +951,16 @@ use crate::styled;
 use crate::styled::*;
 use crate::unstyled;
 use beui_macros::{component, view};
+
+#[component]
+fn BackTo(
+    #[prop(default = true)] enabled: Prop<bool>,
+    on_gesture: Callback<crate::input::BackGesture>,
+    children: Child,
+) -> NodeId {
+    on_back(enabled, move |gesture| on_gesture.call(gesture));
+    children
+}
 
 const VIEWPORT: Vec2 = Vec2::new(400.0, 300.0);
 const WIDE_VIEWPORT: Vec2 = Vec2::new(1000.0, 600.0);

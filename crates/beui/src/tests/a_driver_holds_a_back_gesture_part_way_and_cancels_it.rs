@@ -9,11 +9,11 @@ fn a_driver_holds_a_back_gesture_part_way_and_cancels_it() {
     let heard = create_signal(Vec::<BackGesture>::new());
     let document = build_node(move || {
         view! {
-            <BackHandler
+            <BackTo
                 on_gesture={move |gesture: BackGesture| heard.update(|heard| heard.push(gesture))}
             >
                 <Text>"Page"</Text>
-            </BackHandler>
+            </BackTo>
         }
     });
     let mut driven = stepped(crate::testing::Showing(document));

@@ -1,8 +1,5 @@
-pub mod back;
 pub mod canvas;
 pub mod drawing;
-pub mod embed;
-pub mod fade;
 pub mod first_fit;
 pub mod frame;
 pub mod grid;
@@ -14,8 +11,6 @@ pub mod offset;
 pub mod overlay;
 pub mod portal;
 pub mod root;
-pub mod shift;
 pub mod text;
 pub mod turn;
 pub mod virtual_list;
-pub mod window;

@@ -185,6 +185,24 @@ pub fn on_key(
     listen(at, phase, true, handler);
 }
 
+pub fn on_back(
+    enabled: impl IntoProp<bool>,
+    handler: impl Fn(beui_core::input::BackGesture) + 'static,
+) {
+    let at =
+        beui_tree::reactive::try_current_component().map(|_| beui_core::tree::component_node());
+    let handler = beui_core::callback::Callback::new(handler);
+    let id = with_document(|document| document.add_back_handler(at, handler));
+    let enabled = enabled.into_prop();
+    create_binding(move || {
+        let enabled = enabled.get();
+        with_document(|document| document.set_back_handler_enabled(id, enabled));
+    });
+    on_cleanup(move || {
+        try_with_document(|document| document.remove_back_handler(id));
+    });
+}
+
 pub fn on_scroll_key(
     at: beui_core::keys::KeyAt,
     phase: beui_core::keys::KeyPhase,
@@ -200,7 +218,7 @@ fn listen(
     handler: impl Fn(beui_core::keys::KeyEvent) -> bool + 'static,
 ) {
     let handler: Rc<beui_core::keys::KeyHandler> = Rc::new(handler);
-    let window = crate::components::window::use_window().map(|window| window.id);
+    let window = crate::window::use_window().map(|window| window.id);
     with_document(|document| {
         document.listen_keys(at, phase, reveal, Rc::downgrade(&handler), window)
     });
@@ -335,6 +353,5 @@ pub use crate::file_saver::{FileSave, SavedFile, save_file};
 pub use crate::nodes::*;
 pub use beui_core::base::canvas::CanvasView;
 pub use beui_core::base::drawing::{Draw, draw_gpu};
-pub use beui_core::base::embed::{EmbedPlacement, EmbedSlot};
 pub use beui_core::base::overlay::OverlayAnchor;
 pub use beui_core::rich::{Piece, RichLayout, SpanKind};

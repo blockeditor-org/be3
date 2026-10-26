@@ -6,7 +6,7 @@ use beui_core::software_keyboard::KeyboardHost;
 use beui_core::window::{WindowId, WindowRole};
 use beui_keyboard::styled::SoftwareKeyboard;
 use beui_macros::view;
-use beui_view::components::window::{Window, WindowHandle};
+use beui_view::window::{Window, WindowHandle};
 
 pub const WINDOW_SIZE: Vec2 = vec2(760.0, 280.0);
 

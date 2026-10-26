@@ -6,6 +6,7 @@ use std::{
 };
 
 use beui::native::try_with_document;
+use beui::native::{Embed, EmbedPlacement, EmbedSlot};
 use beui::reactive::*;
 use beui::styled::*;
 use beui::{
@@ -674,39 +675,37 @@ pub(crate) fn PluginRegion(
             <PanelWindows editor rect />
         }
     });
-    view! {
+    let built = view! {
         <DropTarget on_over={over} on_drop={dropped}>|_: DropHandle|
             <Layers>
                 <RegionChildren state={state} rect={rect} child_view below=true />
-                <BackHandler enabled={handles_back} on_gesture={back}>
-                    <Interactive
-                        @node_ref={&catcher}
-                        focusable=true
-                        press_focus={create_memo(move || !presented.get())}
-                        cursor={cursor}
-                        ime={ime}
-                        ime_keyboard={ime_keyboard}
-                        keyboard_asks={keyboard_asks}
-                        ime_cursor={ime_cursor}
-                        ime_text={ime_text}
-                        pastes={pastes}
-                        clipboard_keys={clipboard_keys}
-                        on_forward={forward}
-                        hit_at={takes}
-                        claim_at={claims}
-                        drawing_at={pen_surface}
-                        on_press_outside={pressed_outside}
-                        on_focus_change={move |focused: bool| {
-                            if focused {
-                                on_focus.call(());
-                            }
-                        }}
-                    >
-                        <Embed slot={slot} punch=false @node_ref={&anchor}>
-                            <Drawing draw={base} />
-                        </Embed>
-                    </Interactive>
-                </BackHandler>
+                <Interactive
+                    @node_ref={&catcher}
+                    focusable=true
+                    press_focus={create_memo(move || !presented.get())}
+                    cursor={cursor}
+                    ime={ime}
+                    ime_keyboard={ime_keyboard}
+                    keyboard_asks={keyboard_asks}
+                    ime_cursor={ime_cursor}
+                    ime_text={ime_text}
+                    pastes={pastes}
+                    clipboard_keys={clipboard_keys}
+                    on_forward={forward}
+                    hit_at={takes}
+                    claim_at={claims}
+                    drawing_at={pen_surface}
+                    on_press_outside={pressed_outside}
+                    on_focus_change={move |focused: bool| {
+                        if focused {
+                            on_focus.call(());
+                        }
+                    }}
+                >
+                    <Embed slot={slot} punch=false @node_ref={&anchor}>
+                        <Drawing draw={base} />
+                    </Embed>
+                </Interactive>
                 <Notices loading failure id={crash_id.clone()} />
                 <Show condition={shows_desktop}>||
                     <DesktopWindows editor={desktop_editor.with(Clone::clone)} state rect />
@@ -716,7 +715,9 @@ pub(crate) fn PluginRegion(
                 {windows}
             </Layers>
         </DropTarget>
-    }
+    };
+    on_back(handles_back, back);
+    built
 }
 
 #[component]

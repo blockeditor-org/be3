@@ -35,7 +35,7 @@ use beui_core::icons::{ICON_APP_WINDOW, ICON_GRIP_VERTICAL, ICON_MAXIMIZE, ICON_
 use beui_core::image::Image;
 use beui_core::input::Modifiers;
 use beui_core::node::NodeId;
-use beui_view::primitives::{Fade, Layers};
+use beui_view::primitives::Layers;
 use beui_view::reactive::*;
 use beui_view::types::Sides;
 use stack::{DockStackBar, DockSwitcher};
@@ -134,6 +134,7 @@ where
             dialog_scrim={dialog_scrim}
             dialog_margin=CARD_MARGIN
             dialog_gap=CARD_GAP
+            dialog_beak=POINTER_REACH
             dialog_outset=DIALOG_CHROME
             tab={move |handle: DockTabHandle| view! {
                 <DockTabFace handle />
@@ -506,7 +507,6 @@ fn DockCardFace(handle: DockDialogHandle) -> NodeId {
                 fill=ColorRole::SurfaceRaised
                 border={dialog_outline(focused, attention)}
                 radius=Radius::Lg
-                pointer=true
                 padding=CHROME_PADDING
             >
                 {body}
@@ -802,9 +802,7 @@ fn DockSplitterFace(handle: DockSplitterHandle) -> NodeId {
 fn DockDropHighlight() -> NodeId {
     view! {
         <Layers>
-            <Fade opacity=DROP_OPACITY>
-                <Frame fill=ColorRole::Accent radius=Radius::Md />
-            </Fade>
+            <Frame fill=ColorRole::Accent radius=Radius::Md opacity=DROP_OPACITY />
             <Frame @test_id={"dock.drop"} border={Border::FOCUS} radius=Radius::Md />
         </Layers>
     }
@@ -815,29 +813,28 @@ fn DockDragPreview(title: Prop<String>, icon: Memo<Option<Glyph>>, grouped: bool
     let pictured = create_memo(move || !grouped && icon.get().is_some());
     let pictured_color = TextColor::Default;
     view! {
-        <Fade opacity=PREVIEW_OPACITY>
-            <Frame
-                fill=ColorRole::SurfaceRaised
-                border={Border::FOCUS}
-                radius=TAB_RADIUS
-                height=TAB_HEIGHT
-                padding={Padding::horizontal(PREVIEW_PADDING)}
-            >
-                <List direction=Direction::Horizontal align=Align::Center spacing=TAB_SPACING>
-                    <Show condition={grouped}>
-                        <Text size=TextSize::Sm align=TextAlign::Center>
-                            <Icon glyph=ICON_APP_WINDOW />
-                        </Text>
-                    </Show>
-                    <Show condition={pictured}>
-                        <Text size=TextSize::Sm color={pictured_color} align=TextAlign::Center>
-                            <Icon glyph={icon} />
-                        </Text>
-                    </Show>
-                    <Text overflow=Overflow::Ellipsis>{title}</Text>
-                </List>
-            </Frame>
-        </Fade>
+        <Frame
+            opacity=PREVIEW_OPACITY
+            fill=ColorRole::SurfaceRaised
+            border={Border::FOCUS}
+            radius=TAB_RADIUS
+            height=TAB_HEIGHT
+            padding={Padding::horizontal(PREVIEW_PADDING)}
+        >
+            <List direction=Direction::Horizontal align=Align::Center spacing=TAB_SPACING>
+                <Show condition={grouped}>
+                    <Text size=TextSize::Sm align=TextAlign::Center>
+                        <Icon glyph=ICON_APP_WINDOW />
+                    </Text>
+                </Show>
+                <Show condition={pictured}>
+                    <Text size=TextSize::Sm color={pictured_color} align=TextAlign::Center>
+                        <Icon glyph={icon} />
+                    </Text>
+                </Show>
+                <Text overflow=Overflow::Ellipsis>{title}</Text>
+            </List>
+        </Frame>
     }
 }
 

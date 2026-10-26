@@ -292,13 +292,9 @@ pub fn BackSlide(
         });
     }
     let page = view! {
-        <BackHandler
-            enabled={enabled}
-            on_gesture={move |gesture: BackGesture| slide.value().gesture(gesture)}
-        >
-            <Shift by={shift}>{children}</Shift>
-        </BackHandler>
+        <Frame translate={shift}>{children}</Frame>
     };
+    beui_view::reactive::on_back(enabled, move |gesture| slide.value().gesture(gesture));
     let Some(behind) = behind else {
         return page;
     };
@@ -307,12 +303,12 @@ pub fn BackSlide(
             <Show condition={revealing}>|| {
                 let page = behind.call(());
                 view! {
-                    <Shift by={behind_shift}>
+                    <Frame translate={behind_shift}>
                         <Layers>
                             {page}
                             <Frame fill=shade />
                         </Layers>
-                    </Shift>
+                    </Frame>
                 }
             }</Show>
             {page}

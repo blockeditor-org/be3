@@ -2,10 +2,10 @@ use beui_macros::{component, view};
 use beui_view::primitives;
 use beui_view::reactive::NodeId;
 use beui_view::reactive::{Child, Get, IntoProp, Memo, Prop, create_memo, focus_ring};
-use beui_view::types::Color32;
 use beui_view::types::{Align2, Corners, Outline};
+use beui_view::types::{Color32, Sides, Vec2};
 
-use crate::theme::{POINTER_REACH, ThemeStore, use_theme};
+use crate::theme::{ThemeStore, use_theme};
 use crate::tokens::{CornerSet, Length, Padding, Stroke, resolved};
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
@@ -309,7 +309,10 @@ pub fn Frame(
     #[prop(default = Radius::None)] radius: Prop<Radius>,
     #[prop(default = CornerSet::ALL)] corners: Prop<CornerSet>,
     #[prop(default = None)] border: Prop<Option<Border>>,
-    #[prop(default = false)] pointer: Prop<bool>,
+    #[prop(default = Vec2::ZERO)] translate: Prop<Vec2>,
+    #[prop(default = 0.0)] rotate: Prop<f32>,
+    #[prop(default = 1.0)] opacity: Prop<f32>,
+    #[prop(default = Sides::ZERO)] fade_edges: Prop<Sides>,
     children: Option<Child>,
 ) -> NodeId {
     let theme = use_theme();
@@ -322,10 +325,22 @@ pub fn Frame(
     let width = resolved(width, Length::resolve);
     let height = resolved(height, Length::resolve);
     let padding = resolved(padding, Padding::resolve);
-    let pointer = pointer.map(|pointer| if pointer { POINTER_REACH } else { 0.0 });
     match children {
         Some(child) => view! {
-            <primitives::Frame width height aspect_ratio padding align fill radius outline pointer>
+            <primitives::Frame
+                width
+                height
+                aspect_ratio
+                padding
+                align
+                fill
+                radius
+                outline
+                translate
+                rotate
+                opacity
+                fade_edges
+            >
                 {child}
             </primitives::Frame>
         },
@@ -339,7 +354,10 @@ pub fn Frame(
                 fill
                 radius
                 outline
-                pointer
+                translate
+                rotate
+                opacity
+                fade_edges
             />
         },
     }

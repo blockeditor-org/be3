@@ -38,7 +38,7 @@ pub fn root(
     system_bars: Prop<SystemBars>,
     children: Child,
 ) -> Root {
-    let handle = crate::components::window::use_window();
+    let handle = crate::window::use_window();
     let window = move || {
         handle
             .filter(|handle| handle.is_window())

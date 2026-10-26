@@ -6,6 +6,7 @@ use beui_core::base::frame::Outline;
 use beui_core::base::frame::Sides;
 use beui_core::color::Color32;
 use beui_core::node::NodeId;
+use beui_core::geometry::Vec2;
 use beui_core::painter::Corners;
 use beui_macros::component;
 
@@ -19,7 +20,10 @@ pub fn Frame(
     #[prop(default = Color32::TRANSPARENT)] fill: Prop<Color32>,
     #[prop(default = Corners::ZERO)] radius: Prop<Corners>,
     #[prop(default = None)] outline: Prop<Option<Outline>>,
-    #[prop(default = 0.0)] pointer: Prop<f32>,
+    #[prop(default = Vec2::ZERO)] translate: Prop<Vec2>,
+    #[prop(default = 0.0)] rotate: Prop<f32>,
+    #[prop(default = 1.0)] opacity: Prop<f32>,
+    #[prop(default = Sides::ZERO)] fade_edges: Prop<Sides>,
     children: Option<Child>,
 ) -> NodeId {
     crate::core::frame(
@@ -31,7 +35,10 @@ pub fn Frame(
         fill,
         radius,
         outline,
-        pointer,
+        translate,
+        rotate,
+        opacity,
+        fade_edges,
         children,
     )
 }

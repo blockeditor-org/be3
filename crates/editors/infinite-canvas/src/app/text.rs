@@ -256,7 +256,7 @@ pub(crate) fn EntityText(
     };
     view! {
         <Frame padding={padding}>
-            <Turn angle={turn}>
+            <Frame rotate={turn}>
                 <TextArea
                     @node_ref=&field
                     @test_id={format!("infinite-canvas.text.{id}")}
@@ -274,7 +274,7 @@ pub(crate) fn EntityText(
                     on_content_size={move |size: Vec2| content.set(size)}
                     on_focus_change={left}
                 />
-            </Turn>
+            </Frame>
         </Frame>
     }
 }

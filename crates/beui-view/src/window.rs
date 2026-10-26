@@ -1,4 +1,4 @@
-use beui_core::base::overlay::{OverlayAnchor, Placement};
+use beui_core::base::overlay::{OverlayAnchor, Placement, WindowSpec};
 use beui_core::geometry::{Pos2, Vec2};
 use beui_core::layer::{LayerLevel, LayerPolicy};
 use beui_core::node::NodeId;
@@ -104,19 +104,28 @@ pub fn Window(
     let width = create_memo(move || shown.get().x);
     let height = create_memo(move || shown.get().y);
     let anchor = create_memo(move || OverlayAnchor::Point(at.get())).into_prop();
-    let node = view! {
+    let spec = create_memo(move || {
+        Some(WindowSpec {
+            id,
+            size: size.get(),
+            placement: placement.get(),
+            title: title.get(),
+            role: role.get(),
+            on_report: heard,
+        })
+    });
+    view! {
         <Overlay
             anchor={anchor}
             placement=Placement::At
             policy=LayerPolicy::Pass
             level={level}
+            window={spec}
             traps_focus=false
             open={open}
             keep_alive={keep_alive}
         >
             <Frame width=width height=height>{provided(handle, content)}</Frame>
         </Overlay>
-    };
-    crate::core::host_window(node, id, size, placement, title, role, heard);
-    node
+    }
 }

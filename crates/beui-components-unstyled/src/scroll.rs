@@ -760,7 +760,7 @@ pub fn Scroll(
             marker
             on_change={on_change}
         >|report: Callback<ScrollPosition>|
-            <Fade edges>
+            <Frame fade_edges={edges}>
                 <Offset
                     offset
                     direction={direction}
@@ -775,7 +775,7 @@ pub fn Scroll(
                         <List @node_ref=&rows direction={direction} spacing=0.0>{children}</List>
                     </Frame>
                 </Offset>
-            </Fade>
+            </Frame>
         </Scrolling>
     };
     create_effect(move || {

@@ -89,6 +89,7 @@ pub use beui_renderer_wgpu::{
     wgpu_color,
 };
 pub use beui_view::primitives;
+pub use beui_view::window::{Window, WindowHandle, opens_windows, use_window};
 pub use beui_view::types::{
     Align2, CaretHandle, Extent, Outline, SpanBackground, SpanStyle, TextCaret, TextGlyph, TextMark,
 };
@@ -116,6 +117,7 @@ pub use web::{run_web, web_platform};
 mod web;
 
 mod keyboard_host;
+pub mod native;
 #[cfg(all(feature = "window", not(target_arch = "wasm32")))]
 pub use window::{native_platform, run_on, run_with, run_with_device};
 
@@ -129,11 +131,6 @@ mod window;
     not(any(target_os = "android", target_arch = "wasm32"))
 ))]
 pub use beui_platform_headless::Headless;
-
-pub mod native {
-    pub use beui_core::current::{enter, try_with_document, with_document, with_reactive_scope};
-    pub use beui_core::document::Document;
-}
 
 pub mod reactive {
     pub use beui_view::reactive::*;

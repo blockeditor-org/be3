@@ -83,7 +83,7 @@ pub struct Document {
     pub(crate) focus_dirty: bool,
     pub(crate) focus_wanted: Option<NodeId>,
     pub(crate) focus_into: Option<(NodeId, u64)>,
-    pub back_handlers: Vec<NodeOf<crate::base::back::BackNode>>,
+    pub(crate) back_handlers: crate::back::BackHandlers,
     pub(crate) back_gesture: Option<crate::layer::DismissTarget>,
     timers: Rc<RefCell<crate::timer::Timers>>,
     scale: ::reactive::OwnedSignal<f32>,
@@ -311,7 +311,7 @@ impl Document {
             focus_dirty: false,
             focus_wanted: None,
             focus_into: None,
-            back_handlers: Vec::new(),
+            back_handlers: crate::back::BackHandlers::default(),
             back_gesture: None,
             timers: Rc::default(),
             scale: ::reactive::OwnedSignal::new(1.0),
@@ -1109,7 +1109,6 @@ impl Document {
         self.forget_layer(id);
         self.forget_focus_scope(id);
         self.forget_back_gesture(id);
-        self.back_handlers.retain(|handler| handler.id() != id);
         self.paint_cache.borrow_mut().forget(id);
         self.placements.remove(&id);
         self.placed.remove(&id);
@@ -1560,9 +1559,10 @@ impl Document {
             }
             let scrim = self.overlay_scrim(overlay);
             let content = self.overlay_content(overlay);
+            let beak = self.overlay_beak(overlay);
             let painter = ctx.window_painter(layer.window);
             self.paint_cache.get_mut().paint_into(layer.window);
-            for root in [Some(scrim), content].into_iter().flatten() {
+            for root in [Some(scrim), content, beak].into_iter().flatten() {
                 if self.rects.contains_key(&root) {
                     paint::paint(self, &painter, &self.rects, root);
                     roots.push((layer.window, root));

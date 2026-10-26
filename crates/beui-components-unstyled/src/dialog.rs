@@ -10,6 +10,7 @@ use beui_view::reactive::*;
 use beui_view::types::Color32;
 use beui_view::types::Key;
 use beui_view::types::KeyPhase;
+use beui_view::window::use_window;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum DialogKind {

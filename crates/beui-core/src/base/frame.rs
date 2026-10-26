@@ -3,33 +3,18 @@ use std::any::Any;
 use crate::base::list::Align;
 use crate::color::{Color32, format_hex};
 use crate::document::Document;
-use crate::geometry::{Rect, Vec2, pos2, vec2};
-use crate::node::{Element, NodeId, NodeOf, Outlined, Rects};
+use crate::geometry::{Rect, Vec2, vec2};
+use crate::node::{Element, NodeId, NodeOf, Outlined, Rects, SpaceId};
 use crate::painter::{Corners, Painter};
 use crate::pixel_grid::PixelGrid;
 
 pub use beui_types::layout::{Align2, Extent, Outline, Sides};
-
-const TIP_RADIUS: f32 = 2.0;
-
-#[derive(Clone, Copy, PartialEq, Eq, Debug)]
-pub enum PointerSide {
-    Top,
-    Bottom,
-}
-
-#[derive(Clone, Copy, PartialEq, Debug)]
-pub struct Pointing {
-    pub side: PointerSide,
-    pub at: f32,
-}
 
 #[derive(Clone, Copy, PartialEq, Debug)]
 pub struct FrameStyle {
     pub fill: Color32,
     pub radius: Corners,
     pub outline: Option<Outline>,
-    pub pointer: f32,
 }
 
 impl Default for FrameStyle {
@@ -38,7 +23,6 @@ impl Default for FrameStyle {
             fill: Color32::TRANSPARENT,
             radius: Corners::all(0.0),
             outline: None,
-            pointer: 0.0,
         }
     }
 }
@@ -51,52 +35,46 @@ pub struct FrameNode {
     pub padding: Sides,
     pub align: Align2,
     pub style: FrameStyle,
-    pub pointing: Option<Pointing>,
+    pub translate: Vec2,
+    pub rotate: f32,
+    pub opacity: f32,
+    pub fade_edges: Sides,
+    mask: Option<SpaceId>,
 }
 
 impl FrameNode {
-    pub fn pointer_room(&self, rect: Rect) -> (f32, f32) {
-        let radius = self.style.radius.largest();
-        let reach = self.style.pointer + self.outline_width();
-        (rect.left() + radius + reach, rect.right() - radius - reach)
+    fn moved(&self, grid: PixelGrid) -> Vec2 {
+        grid.snap_vec(self.translate)
     }
 
-    fn outline_width(&self) -> f32 {
-        self.style.outline.map_or(0.0, |outline| outline.width)
+    fn off_screen(&self, painter: &Painter, rects: &Rects, rect: Rect) -> bool {
+        let clip = painter.clip_rect();
+        !rect.intersects(clip)
+            && self.child.is_none_or(|child| {
+                rects
+                    .placed(&child)
+                    .is_none_or(|placed| !placed.rect.intersects(clip))
+            })
     }
 
-    fn paint_pointer(&self, painter: &Painter, rect: Rect) {
-        let Some(pointing) = self.pointing.filter(|_| self.style.pointer > 0.0) else {
-            return;
-        };
-        let (lowest, highest) = self.pointer_room(rect);
-        if lowest > highest {
-            return;
+    fn faded(&self) -> bool {
+        self.opacity < 1.0 || self.fade_edges != Sides::ZERO
+    }
+
+    fn paint_box(&self, doc: &Document, painter: &Painter, rects: &Rects, rect: Rect) {
+        if self.style.fill.to_array()[3] > 0 {
+            painter.rect_filled(rect, self.style.radius, self.style.fill);
         }
-        let x = (rect.left() + pointing.at).clamp(lowest, highest);
-        let width = self.outline_width();
-        let half = (self.style.pointer + width) / std::f32::consts::SQRT_2;
-        let around = rect.expand(self.style.pointer + 1.0);
-        let (y, clip, tip) = match pointing.side {
-            PointerSide::Top => (
-                rect.top() + width,
-                Rect::from_min_max(around.min, pos2(around.right(), rect.top() + width)),
-                Corners::new(TIP_RADIUS, 0.0, 0.0, 0.0),
-            ),
-            PointerSide::Bottom => (
-                rect.bottom() - width,
-                Rect::from_min_max(pos2(around.left(), rect.bottom() - width), around.max),
-                Corners::new(0.0, 0.0, TIP_RADIUS, 0.0),
-            ),
-        };
-        let centre = pos2(x, y);
-        let square = Rect::from_center_size(centre, Vec2::splat(2.0 * half));
-        let turned = painter
-            .with_clip_rect(clip)
-            .rotated(centre, std::f32::consts::FRAC_PI_4);
-        turned.rect_filled(square, tip, self.style.fill);
+        if let Some(child) = self.child {
+            crate::paint::paint(doc, painter, rects, child);
+        }
         if let Some(outline) = self.style.outline {
-            turned.rect_stroke(square, tip, outline.width, outline.color);
+            painter.rect_stroke(
+                rect.expand(outline.offset),
+                self.style.radius,
+                outline.width,
+                outline.color,
+            );
         }
     }
 
@@ -175,7 +153,11 @@ impl Default for FrameNode {
             padding: Sides::default(),
             align: Align2::STRETCH,
             style: FrameStyle::default(),
-            pointing: None,
+            translate: Vec2::ZERO,
+            rotate: 0.0,
+            opacity: 1.0,
+            fade_edges: Sides::ZERO,
+            mask: None,
         }
     }
 }
@@ -260,7 +242,7 @@ impl Element for FrameNode {
         if let Some(child) = self.child {
             let grid = doc.pixel_grid();
             let padding = self.padding(grid);
-            let outer = self.box_rect(grid, rect);
+            let outer = self.box_rect(grid, rect).translate(self.moved(grid));
             let inner = Rect::from_min_max(
                 outer.min + padding.start(),
                 outer.max - vec2(padding.right, padding.bottom),
@@ -275,22 +257,39 @@ impl Element for FrameNode {
     }
 
     fn paint(&self, doc: &Document, painter: &Painter, rects: &Rects, rect: Rect) {
-        let rect = self.box_rect(doc.pixel_grid(), rect);
-        if self.style.fill.to_array()[3] > 0 {
-            painter.rect_filled(rect, self.style.radius, self.style.fill);
+        let grid = doc.pixel_grid();
+        let moved = self.moved(grid);
+        let rect = self.box_rect(grid, rect).translate(moved);
+        if moved != Vec2::ZERO && self.off_screen(painter, rects, rect) {
+            return;
         }
-        if let Some(child) = self.child {
-            crate::paint::paint(doc, painter, rects, child);
-        }
-        if let Some(outline) = self.style.outline {
-            painter.rect_stroke(
-                rect.expand(outline.offset),
-                self.style.radius,
-                outline.width,
-                outline.color,
-            );
-        }
-        self.paint_pointer(painter, rect);
+        let turned;
+        let painter = match self.rotate == 0.0 {
+            true => painter,
+            false => {
+                turned = painter.rotated(rect.center(), self.rotate);
+                &turned
+            }
+        };
+        let faded;
+        let painter = match (self.faded(), self.mask) {
+            (true, Some(mask)) => {
+                let Sides {
+                    left,
+                    top,
+                    right,
+                    bottom,
+                } = self.fade_edges;
+                faded = painter.faded(mask, rect, [left, top, right, bottom], self.opacity);
+                &faded
+            }
+            _ => painter,
+        };
+        self.paint_box(doc, painter, rects, rect);
+    }
+
+    fn turns_children(&self) -> bool {
+        self.rotate != 0.0
     }
 
     fn children(&self) -> Vec<NodeId> {
@@ -314,7 +313,7 @@ impl Element for FrameNode {
     }
 
     fn passes_scroll_anchor(&self) -> bool {
-        true
+        self.translate == Vec2::ZERO && self.rotate == 0.0
     }
 
     fn kind(&self) -> &'static str {
@@ -325,7 +324,7 @@ impl Element for FrameNode {
         let outline = self.style.outline.filter(|outline| {
             outline.offset > 0.0 && outline.width > 0.0 && outline.color.alpha() > 0
         })?;
-        let inner = self.box_rect(grid, rect);
+        let inner = self.box_rect(grid, rect).translate(self.moved(grid));
         Some(Outlined {
             inner,
             outer: inner.expand(outline.offset),
@@ -384,6 +383,22 @@ impl Element for FrameNode {
                     radius.top_left, radius.top_right, radius.bottom_right, radius.bottom_left
                 ),
             ),
+            (
+                "translate",
+                format!("{} {}", self.translate.x, self.translate.y),
+            ),
+            ("rotate", self.rotate.to_string()),
+            ("opacity", self.opacity.to_string()),
+            (
+                "fade edges",
+                format!(
+                    "{} {} {} {}",
+                    self.fade_edges.left,
+                    self.fade_edges.top,
+                    self.fade_edges.right,
+                    self.fade_edges.bottom
+                ),
+            ),
         ]
     }
 
@@ -416,7 +431,16 @@ fn extent_label(extent: Extent) -> String {
 
 impl Document {
     pub fn create_frame(&mut self) -> NodeOf<FrameNode> {
-        self.arena.insert(FrameNode::default())
+        let frame = self.arena.insert(FrameNode::default());
+        if let Some(node) = self
+            .arena
+            .state_mut(frame)
+            .as_any_mut()
+            .downcast_mut::<FrameNode>()
+        {
+            node.mask = Some(SpaceId::of(frame.id()));
+        }
+        frame
     }
 
     pub fn set_frame_child(&mut self, frame: NodeOf<FrameNode>, child: NodeId) {
@@ -461,9 +485,31 @@ impl Document {
         }
     }
 
-    pub fn set_frame_pointing(&mut self, frame: NodeOf<FrameNode>, pointing: Option<Pointing>) {
-        if self.arena.get_as::<FrameNode>(frame).pointing != pointing {
-            self.arena.paint_mut_as::<FrameNode>(frame).pointing = pointing;
+    pub fn set_frame_translate(&mut self, frame: NodeOf<FrameNode>, translate: Vec2) {
+        if self.arena.get_as::<FrameNode>(frame).translate != translate {
+            self.arena.get_mut_as::<FrameNode>(frame).translate = translate;
+        }
+    }
+
+    pub fn set_frame_rotate(&mut self, frame: NodeOf<FrameNode>, rotate: f32) {
+        if self.arena.get_as::<FrameNode>(frame).rotate != rotate {
+            self.arena.paint_mut_as::<FrameNode>(frame).rotate = rotate;
+        }
+    }
+
+    pub fn set_frame_opacity(&mut self, frame: NodeOf<FrameNode>, opacity: f32) {
+        let opacity = match opacity.is_finite() {
+            true => opacity.clamp(0.0, 1.0),
+            false => 1.0,
+        };
+        if self.arena.get_as::<FrameNode>(frame).opacity != opacity {
+            self.arena.paint_mut_as::<FrameNode>(frame).opacity = opacity;
+        }
+    }
+
+    pub fn set_frame_fade_edges(&mut self, frame: NodeOf<FrameNode>, edges: Sides) {
+        if self.arena.get_as::<FrameNode>(frame).fade_edges != edges {
+            self.arena.paint_mut_as::<FrameNode>(frame).fade_edges = edges;
         }
     }
 

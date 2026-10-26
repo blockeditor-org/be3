@@ -178,7 +178,7 @@ fn ProblemGrid(
             />
             <OperandRows operands={operands} />
             <List direction=Direction::Horizontal align=Align::Center spacing=CELL_SPACING>
-                <Spacer @sizing=ItemSize::Fixed(LABEL_WIDTH.px()) />
+                <Frame width=LABEL_WIDTH />
                 <Separator @sizing=ItemSize::Percent(100.0) />
             </List>
             <BitRow

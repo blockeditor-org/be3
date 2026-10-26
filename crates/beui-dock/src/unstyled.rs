@@ -44,6 +44,7 @@ use beui_core::window::{WindowEdge, WindowId, WindowPlacement, WindowReport};
 use beui_view::components::overlay::Overlay;
 use beui_view::primitives::*;
 use beui_view::reactive::*;
+use beui_view::window::{Window, WindowHandle, opens_windows, use_window};
 
 use dialog::{DialogParts, DockDialogs};
 pub use dialog::{DockDialogHandle, DockDialogPresentation, DockSheetHandle};
@@ -405,6 +406,7 @@ struct State {
     dialog_scrim: Memo<Color32>,
     dialog_margin: u16,
     dialog_gap: u16,
+    dialog_beak: f32,
     dialog_outset: Vec2,
     dialog_frames: Stored<RefCell<HashMap<TabId, NodeRef>>>,
     dialog_bodies: Stored<RefCell<HashMap<TabId, NodeRef>>>,
@@ -1361,6 +1363,7 @@ pub(crate) struct DockConfig {
     pub(crate) dialog_scrim: Memo<Color32>,
     pub(crate) dialog_margin: u16,
     pub(crate) dialog_gap: u16,
+    pub(crate) dialog_beak: f32,
     pub(crate) dialog_outset: Vec2,
 }
 
@@ -1408,6 +1411,7 @@ pub(crate) fn Dock(config: DockConfig) -> NodeId {
         dialog_scrim,
         dialog_margin,
         dialog_gap,
+        dialog_beak,
         dialog_outset,
     } = config;
     view! {
@@ -1455,6 +1459,7 @@ pub(crate) fn Dock(config: DockConfig) -> NodeId {
                 dialog_scrim,
                 dialog_margin,
                 dialog_gap,
+                dialog_beak,
                 dialog_outset,
                 dialog_frames: store(RefCell::default()),
                 dialog_bodies: store(RefCell::default()),

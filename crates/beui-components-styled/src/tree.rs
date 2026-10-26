@@ -6,6 +6,7 @@ use beui_macros::{component, view};
 use crate::button::{Button, ButtonVariant};
 use crate::context_menu::menu_style;
 use crate::list::List;
+use crate::list::Spacer;
 use crate::scroll::{Bleed, Scroll};
 use crate::text::{Icon, Text, TextColor, TextSize};
 use crate::text_input::text_input_style;
@@ -17,7 +18,6 @@ use beui_components_unstyled::{
     ButtonHandle, Edge, PopupTriggerHandle, TextInputHandle, TreeItem, TreeMenu, TreeRevealHandle,
     TreeRowEdit, TreeRowHandle, TreeToggleHandle,
 };
-use beui_view::primitives::Spacer;
 use beui_view::reactive::NodeId;
 use beui_view::reactive::*;
 use beui_view::types::TextAlign;
@@ -413,15 +413,14 @@ fn ChevronFace(
         true => ICON_CHEVRON_DOWN,
         false => ICON_CHEVRON_RIGHT,
     });
-    let indent = create_memo(move || ItemSize::Fixed(item.get().depth as f32 * sized.get().indent));
+    let indent = create_memo(move || Space::Custom(item.get().depth as f32 * sized.get().indent));
     let width = create_memo(move || Size::Custom(sized.get().chevron));
     let height = create_memo(move || Size::Custom(sized.get().row));
-    let gap = create_memo(move || ItemSize::Fixed(sized.get().spacing));
     let glyph_size = create_memo(move || sized.get().glyph);
     view! {
         <Tooltip label={label}>
             <List direction=Direction::Horizontal align=Align::Center spacing=Space::None>
-                <Spacer @sizing={indent} />
+                <Spacer width={indent} />
                 <Frame
                     width={width}
                     height={height}
@@ -433,7 +432,7 @@ fn ChevronFace(
                         <Icon glyph={glyph} />
                     </Text>
                 </Frame>
-                <Spacer @sizing={gap} />
+                <Spacer width=SPACING />
             </List>
         </Tooltip>
     }

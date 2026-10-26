@@ -6,7 +6,7 @@ use std::{
     time::Duration,
 };
 
-use beui::reactive::EmbedPlacement;
+use beui::native::EmbedPlacement;
 use beui::{Pos2, Rect, Vec2, pos2, vec2};
 use block_plugin_api::{
     ArtifactDescription, BlockPick, ChildPlacements, ChildPreview, EditorInstanceId, EditorRegion,

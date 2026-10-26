@@ -1,6 +1,6 @@
 use super::*;
-use crate::primitives::{Window, WindowHandle};
 use crate::{HostPlacement, WindowId, WindowReport};
+use crate::{Window, WindowHandle};
 
 #[test]
 fn a_hosts_report_of_a_windows_size_and_place_reaches_the_app() {

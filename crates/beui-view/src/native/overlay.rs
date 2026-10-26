@@ -19,6 +19,7 @@ use crate::reactive::use_context;
 use crate::reactive::with_document;
 use beui_core::base::overlay::OverlayAnchor;
 use beui_core::base::overlay::Placement;
+use beui_core::base::overlay::WindowSpec;
 use beui_core::color::Color32;
 use beui_core::layer::Dismiss;
 use beui_core::layer::LayerLevel;
@@ -62,6 +63,8 @@ pub fn overlay(
     shown_in: Prop<Option<WindowId>>,
     trigger: Option<NodeRef>,
     pointer: Option<NodeRef>,
+    beak: Prop<f32>,
+    window: Prop<Option<WindowSpec>>,
     open: Prop<bool>,
     keep_alive: bool,
     on_dismiss: Callback<Dismiss>,
@@ -77,6 +80,14 @@ pub fn overlay(
     create_binding(move || {
         let anchor = anchor.get();
         with_document(|document| document.set_overlay_anchor(overlay, anchor))
+    });
+    create_binding(move || {
+        let beak = beak.get();
+        with_document(|document| document.set_overlay_beak(overlay, beak))
+    });
+    create_binding(move || {
+        let window = window.get();
+        with_document(|document| document.set_overlay_window(overlay, window))
     });
     create_binding(move || {
         let shown_in = shown_in.get();

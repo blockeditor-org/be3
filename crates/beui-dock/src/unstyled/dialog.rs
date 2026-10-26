@@ -11,9 +11,9 @@ use beui_core::node::NodeId;
 use beui_core::window::{WindowPlacement, WindowReport};
 use beui_macros::{component, view};
 use beui_view::components::overlay::Overlay;
-use beui_view::components::window::{Window, WindowHandle, opens_windows};
 use beui_view::primitives::*;
 use beui_view::reactive::*;
+use beui_view::window::{Window, WindowHandle, opens_windows};
 
 use super::{DockMode, DockState, DockTabControl, State, TabId};
 use beui_view::types::Extent;
@@ -443,6 +443,7 @@ fn DockDialogView(dock: State, tab: TabId, parent: TabId) -> NodeId {
                 anchor={at}
                 placement
                 pointer
+                beak={dock.dialog_beak}
                 scrim
                 policy
                 traps_focus=false

@@ -1,8 +1,5 @@
-pub use crate::components::back::BackHandler;
 pub use crate::components::canvas::{Canvas, CanvasItem};
 pub use crate::components::drawing::Drawing;
-pub use crate::components::embed::Embed;
-pub use crate::components::fade::Fade;
 pub use crate::components::first_fit::{FirstFit, Fitting};
 pub use crate::components::frame::Frame;
 pub use crate::components::grid::{Grid, GridCell};
@@ -14,8 +11,6 @@ pub use crate::components::offset::Offset;
 pub use crate::components::overlay::Overlay;
 pub use crate::components::portal::Portal;
 pub use crate::components::root::{Root, SystemBars};
-pub use crate::components::shift::Shift;
 pub use crate::components::text::{Break, Gap, Icon, Span, SpanText, Text, TextChild, TextItem};
 pub use crate::components::turn::Turn;
 pub use crate::components::virtual_list::VirtualList;
-pub use crate::components::window::{Window, WindowHandle, opens_windows, use_window};

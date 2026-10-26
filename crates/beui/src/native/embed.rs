@@ -1,15 +1,14 @@
-use crate::reactive::Child;
-use crate::reactive::Get;
-use crate::reactive::Prop;
-use crate::reactive::create_effect;
-use crate::reactive::with_document;
 use beui_core::base::embed::EmbedSlot;
+use beui_core::current::with_document;
 use beui_core::node::NodeId;
+use beui_macros::component;
+use beui_view::reactive::{Child, Get, Prop, create_effect};
 
-pub fn embed(
+#[component]
+pub fn Embed(
     slot: EmbedSlot,
-    punch: Prop<bool>,
-    rotation: Prop<f32>,
+    #[prop(default = true)] punch: Prop<bool>,
+    #[prop(default = 0.0)] rotation: Prop<f32>,
     children: Option<Child>,
 ) -> NodeId {
     let state = slot.0.value();

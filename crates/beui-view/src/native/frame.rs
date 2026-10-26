@@ -13,6 +13,7 @@ use beui_core::color::Color32;
 use beui_core::document::Document;
 use beui_core::node::NodeId;
 use beui_core::node::NodeOf;
+use beui_core::geometry::Vec2;
 use beui_core::painter::Corners;
 
 fn bind<T: Clone + 'static>(
@@ -38,7 +39,10 @@ pub fn frame(
     fill: Prop<Color32>,
     radius: Prop<Corners>,
     outline: Prop<Option<Outline>>,
-    pointer: Prop<f32>,
+    translate: Prop<Vec2>,
+    rotate: Prop<f32>,
+    opacity: Prop<f32>,
+    fade_edges: Prop<Sides>,
     children: Option<Child>,
 ) -> NodeId {
     let frame = with_document(|document| {
@@ -53,12 +57,15 @@ pub fn frame(
     bind(frame, aspect_ratio, Document::set_frame_aspect_ratio);
     bind(frame, padding, Document::set_frame_padding);
     bind(frame, align, Document::set_frame_align);
+    bind(frame, translate, Document::set_frame_translate);
+    bind(frame, rotate, Document::set_frame_rotate);
+    bind(frame, opacity, Document::set_frame_opacity);
+    bind(frame, fade_edges, Document::set_frame_fade_edges);
     create_binding(move || {
         let style = FrameStyle {
             fill: fill.get(),
             radius: radius.get(),
             outline: outline.get(),
-            pointer: pointer.get(),
         };
         with_document(|document| document.set_frame_style(frame, style));
     });

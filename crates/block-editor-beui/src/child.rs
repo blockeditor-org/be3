@@ -1,5 +1,6 @@
 use beui::NodeId;
 use beui::icons::Glyph;
+use beui::native::{Embed, EmbedSlot};
 use beui::reactive::*;
 use beui::styled::*;
 use std::cell::RefCell;

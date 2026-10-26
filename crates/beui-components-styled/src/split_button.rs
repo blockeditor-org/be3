@@ -9,7 +9,6 @@ use crate::text::{Icon, Text};
 use crate::tooltip::Tooltip;
 use beui_components_unstyled as unstyled;
 use beui_components_unstyled::{ButtonHandle, MenuItem, PopupTriggerHandle};
-use beui_view::primitives::Fade;
 use beui_view::reactive::NodeId;
 use beui_view::types::TextAlign;
 use beui_view::types::icons::ICON_CHEVRON_DOWN;
@@ -124,9 +123,11 @@ fn ArrowFace(handle: PopupTriggerHandle, variant: ButtonVariant) -> NodeId {
     view! {
         <List direction=Direction::Horizontal spacing=Space::None>
             <Frame padding={Padding::vertical(DIVIDER_INSET)}>
-                <Fade opacity={divider_opacity}>
-                    <Frame width={Size::Custom(Stroke::Hairline.px())} fill={divider_fill} />
-                </Fade>
+                <Frame
+                    width={Size::Custom(Stroke::Hairline.px())}
+                    fill={divider_fill}
+                    opacity={divider_opacity}
+                />
             </Frame>
             <Tooltip label={tooltip}>
                 <HalfFace fill focused side=Side::Trailing padding=ARROW_PADDING_HORIZONTAL>

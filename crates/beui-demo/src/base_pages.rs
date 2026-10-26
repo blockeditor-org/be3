@@ -10,10 +10,10 @@ use beui::primitives::Icon;
 use beui::primitives::Span;
 use beui::primitives::Text;
 use beui::primitives::{Grid, List};
-use beui::primitives::{Window, WindowHandle};
 use beui::{Align, Align2, Corners, Dismiss, Extent, Justify, Outline, Placement, Track};
 use beui::{Color32, FillRule, LineCap, LineJoin, Painter, Path, Pos2, Stroke, vec2};
 use beui::{Overflow, WrapAt};
+use beui::{Window, WindowHandle};
 
 const SWATCH: f32 = 72.0;
 const BADGE: f32 = 22.0;
@@ -590,14 +590,20 @@ pub(crate) fn LayeringPage() -> NodeId {
             <Sample title="Window" code={vec![FloatingWindow::SOURCE]}>
                 <FloatingWindow />
             </Sample>
-            <Sample title="Shift" code={vec![NudgedTile::SOURCE]}>
+            <Sample title="Translate" code={vec![NudgedTile::SOURCE]}>
                 <NudgedTile />
+            </Sample>
+            <Sample title="Rotate" code={vec![TiltedLabel::SOURCE]}>
+                <TiltedLabel />
             </Sample>
             <Sample title="Turn" code={vec![TurnedLabel::SOURCE]}>
                 <TurnedLabel />
             </Sample>
-            <Sample title="Fade" code={vec![FadedStrip::SOURCE]}>
+            <Sample title="Fade edges" code={vec![FadedStrip::SOURCE]}>
                 <FadedStrip />
+            </Sample>
+            <Sample title="Frame effects" code={vec![FrameEffects::SOURCE]}>
+                <FrameEffects />
             </Sample>
             <Sample title="Opacity" code={vec![FadedTiles::SOURCE]}>
                 <FadedTiles />
@@ -658,9 +664,35 @@ fn NudgedTile() -> NodeId {
                     <Text color={ink}>"Nudge"</Text>
                 </Frame>
             </Interactive>
-            <Shift by={by}>
-                <Frame width=SWATCH height=SWATCH fill={theme.accent} radius=12.0 />
-            </Shift>
+            <Frame translate={by} width=SWATCH height=SWATCH fill={theme.accent} radius=12.0 />
+        </List>
+    }
+}
+
+#[sample]
+#[component]
+fn TiltedLabel() -> NodeId {
+    let theme = use_theme();
+    let angle = create_signal(0.25f32);
+    let face = theme.surface_raised;
+    let ink = theme.text;
+    view! {
+        <List direction=Direction::Horizontal align=Align::Center spacing=16.0>
+            <Interactive
+                on_click={move || angle.update(|angle| *angle = (*angle + 0.25) % std::f32::consts::FRAC_PI_2)}
+            >
+                <Frame fill=face radius={Radius::Md.px()} padding={Sides::symmetric(16.0, 10.0)}>
+                    <Text color={ink}>"Tilt"</Text>
+                </Frame>
+            </Interactive>
+            <Frame
+                rotate={angle}
+                fill={theme.accent}
+                radius={Radius::Md.px()}
+                padding={Sides::symmetric(16.0, 10.0)}
+            >
+                <Text color={theme.on_accent}>"Tilted in its own box"</Text>
+            </Frame>
         </List>
     }
 }
@@ -670,7 +702,6 @@ fn NudgedTile() -> NodeId {
 fn TurnedLabel() -> NodeId {
     let theme = use_theme();
     let quarters = create_signal(1u8);
-    let angle = create_signal(0.0f32);
     let face = theme.surface_raised;
     let ink = theme.text;
     view! {
@@ -682,14 +713,7 @@ fn TurnedLabel() -> NodeId {
                     <Text color={ink}>"Turn"</Text>
                 </Frame>
             </Interactive>
-            <Interactive
-                on_click={move || angle.update(|angle| *angle = (*angle + 0.25) % std::f32::consts::FRAC_PI_2)}
-            >
-                <Frame fill=face radius={Radius::Md.px()} padding={Sides::symmetric(16.0, 10.0)}>
-                    <Text color={ink}>"Tilt"</Text>
-                </Frame>
-            </Interactive>
-            <Turn quarter_turns={quarters} angle={angle}>
+            <Turn quarter_turns={quarters}>
                 <Frame
                     fill={theme.accent}
                     radius={Radius::Md.px()}
@@ -707,7 +731,7 @@ fn TurnedLabel() -> NodeId {
 fn FadedStrip() -> NodeId {
     let edges = Sides::symmetric(48.0, 0.0);
     view! {
-        <Fade edges>
+        <Frame fade_edges={edges}>
             <Scroll direction=Direction::Horizontal>
                 <List direction=Direction::Horizontal spacing=8.0>
                     <ForEach keys={PLANETS.to_vec()}>|planet: &'static str|
@@ -715,7 +739,7 @@ fn FadedStrip() -> NodeId {
                     </ForEach>
                 </List>
             </Scroll>
-        </Fade>
+        </Frame>
     }
 }
 
@@ -725,10 +749,37 @@ fn FadedTiles() -> NodeId {
     view! {
         <List @test_id="demo.layering.opacity" direction=Direction::Horizontal spacing=8.0>
             <ForEach keys={vec![100_u32, 60, 30]}>|percent: u32|
-                <Fade opacity={percent as f32 / 100.0}>
+                <Frame opacity={percent as f32 / 100.0}>
                     <Tile label={format!("{percent}%")} />
-                </Fade>
+                </Frame>
             </ForEach>
+        </List>
+    }
+}
+
+#[sample]
+#[component]
+fn FrameEffects() -> NodeId {
+    view! {
+        <List
+            @test_id="demo.layering.frame_effects"
+            direction=Direction::Horizontal
+            wrap=true
+            align=Align::Center
+            spacing=24.0
+        >
+            <Frame translate={vec2(0.0, 12.0)}>
+                <Tile label={"translate".to_owned()} />
+            </Frame>
+            <Frame rotate=0.3>
+                <Tile label={"rotate".to_owned()} />
+            </Frame>
+            <Frame opacity=0.5>
+                <Tile label={"opacity".to_owned()} />
+            </Frame>
+            <Frame fade_edges={Sides::symmetric(32.0, 0.0)}>
+                <Tile label={"fade edges at both sides".to_owned()} />
+            </Frame>
         </List>
     }
 }
