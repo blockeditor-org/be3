@@ -16,6 +16,7 @@ fn opening_the_remaps_makes_them_with_the_remapper_and_opens_them() {
             edits: block_editor_beui::Edits::Type(*InputRemapper::CONTENT_TYPE.as_bytes()),
             name: "Input Remaps".to_owned(),
             icon_codepoint: String::new(),
+            extensions: Vec::new(),
         }],
     });
 

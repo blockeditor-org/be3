@@ -17,6 +17,7 @@ fn opens_in_keeps_an_editor_for_one_block() {
         edits: block_editor_beui::Edits::Type(block_type.into_bytes()),
         name: name.to_owned(),
         icon_codepoint: String::new(),
+        extensions: Vec::new(),
     };
     fixture.test.catalog(Catalog {
         types: vec![BlockTypeDescriptor {

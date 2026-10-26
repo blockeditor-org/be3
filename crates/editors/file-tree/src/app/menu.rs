@@ -213,7 +213,12 @@ fn BlockMenu<F: Fn() + 'static>(
     let taggable = create_memo(move || row.get().is_some_and(|row| row.can_edit && !row.deleted));
     let choosable = create_memo(move || {
         row.get().is_some_and(|row| {
-            row.can_edit && editor.block_types().editors_for(row.block_type).len() > 1
+            row.can_edit
+                && editor
+                    .block_types()
+                    .editors_for(row.block_type, row.file_name.as_deref())
+                    .len()
+                    > 1
         })
     });
     let homeable = create_memo(move || {

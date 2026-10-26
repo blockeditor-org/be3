@@ -22,6 +22,7 @@ mod tablet;
 mod tearing;
 mod text_input;
 mod toplevel_icon;
+mod touch;
 mod view;
 mod windows;
 mod xwayland;

@@ -33,12 +33,14 @@ fn choosing_a_default_editor_stores_it() {
                 edits: block_editor_beui::Edits::Type(block_type.into_bytes()),
                 name: "Note".to_owned(),
                 icon_codepoint: String::new(),
+                extensions: Vec::new(),
             },
             EditorDescriptor {
                 editor: debug.into_bytes(),
                 edits: block_editor_beui::Edits::Any,
                 name: "Debug view".to_owned(),
                 icon_codepoint: String::new(),
+                extensions: Vec::new(),
             },
         ],
     });

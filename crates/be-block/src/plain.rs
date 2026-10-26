@@ -7,7 +7,7 @@ pub fn extension(name: &str) -> String {
     }
 }
 
-const MEDIA_TYPES: [(&str, &str); 17] = [
+const MEDIA_TYPES: [(&str, &str); 18] = [
     ("png", "image/png"),
     ("jpg", "image/jpeg"),
     ("jpeg", "image/jpeg"),
@@ -25,6 +25,7 @@ const MEDIA_TYPES: [(&str, &str); 17] = [
     ("zip", "application/zip"),
     ("ttf", "font/ttf"),
     ("wasm", "application/wasm"),
+    ("epub", "application/epub+zip"),
 ];
 
 pub fn media_type_of(name: &str) -> &'static str {

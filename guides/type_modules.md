@@ -343,7 +343,9 @@ one that is only ever the root of one (a workspace); `TypeInfo::plain` says whic
 form each type has. The order is the order `claims` asks in. A type that takes any
 file (the workspace plugin's file type) sets `ANY_FILE` on its `BlobFile` or
 `DocumentFile`, and answers only a `claims` with `fallback`: a host asks every
-module without it first, then every module with it.
+module without it first, then every module with it (`Modules::claim_requests`,
+which both `be sync` and block-app's import of a picked file follow, so one rule
+decides what a file becomes).
 
 `Module` implements the generated `guest::exports::replicas::Guest` (its stateless
 functions are callable directly, as the types crates' tests do), and its `OpenReplica`

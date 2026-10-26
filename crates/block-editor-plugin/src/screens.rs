@@ -511,6 +511,7 @@ fn catalog(catalog: &Catalog, debug: &[DebugTemplate]) -> BlockCatalog {
         },
         name: editor.name.clone(),
         icon: Glyph::from_codepoint(&editor.icon_codepoint),
+        extensions: editor.extensions.clone(),
     }))
 }
 

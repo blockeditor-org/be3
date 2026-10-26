@@ -389,7 +389,7 @@ fn ImportItem(held: Memo<Option<Pick>>, act: Act) -> MenuItem {
     });
     let label = create_memo(move || match importing.get() {
         true => "Importing…".to_owned(),
-        false => "Import a .block file…".to_owned(),
+        false => "Import a file…".to_owned(),
     });
     view! {
         <MenuItem

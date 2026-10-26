@@ -93,6 +93,7 @@ struct Inner {
     fullscreen_shown: Cell<bool>,
     close_requested: Cell<bool>,
     touch_emulation: Cell<bool>,
+    touchscreen: Cell<bool>,
     preferences: Cell<PreferenceLayers>,
     input_simulation: RefCell<Option<Box<dyn InputSimulation>>>,
     keyboard: RefCell<crate::software_keyboard::KeyboardState>,
@@ -381,6 +382,7 @@ impl Context {
                 fullscreen_shown: Cell::new(false),
                 close_requested: Cell::new(false),
                 touch_emulation: Cell::new(false),
+                touchscreen: Cell::new(false),
                 preferences: Cell::new(PreferenceLayers::default()),
                 input_simulation: RefCell::new(None),
                 keyboard: RefCell::new(Default::default()),
@@ -1265,6 +1267,14 @@ impl Context {
 
     pub fn set_keyboard_attached(&self, attached: bool) {
         self.inner.keyboard.borrow_mut().set_attached(attached);
+    }
+
+    pub fn touchscreen_attached(&self) -> bool {
+        self.inner.touchscreen.get()
+    }
+
+    pub fn set_touchscreen_attached(&self, attached: bool) {
+        self.inner.touchscreen.set(attached);
     }
 
     pub fn keyboard_share(&self) -> f32 {

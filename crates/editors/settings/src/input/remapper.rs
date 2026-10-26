@@ -18,7 +18,7 @@ pub(super) fn RemapperSetting(editor: Editor, settings: Settings, read_only: Mem
     let remappers = create_memo(move || {
         editor
             .block_types()
-            .editors_for(InputRemapper::CONTENT_TYPE)
+            .editors_for(InputRemapper::CONTENT_TYPE, None)
             .into_iter()
             .filter(|entry| {
                 entry.edits == block_editor_beui::block_ui::Edits::Type(InputRemapper::CONTENT_TYPE)
