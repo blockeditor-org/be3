@@ -1765,7 +1765,7 @@ fn capped(changes: String, limit: Option<usize>) -> String {
         .flat_map(|line| [line, "\n"])
         .collect();
     text.push_str(&format!(
-        "... and {} more changed lines; --changes=all prints them, and `drive tree` the whole tree\n",
+        "... and {} more changed lines; --changes=all prints them, and `drive app tree` the whole tree\n",
         total - limit
     ));
     text

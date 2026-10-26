@@ -34,7 +34,7 @@ fn a_long_change_is_cut_short_unless_asked_for_in_full() {
         61,
         "sixty lines and a note:\n{changed}"
     );
-    assert!(changed.ends_with("--changes=all prints them, and `drive tree` the whole tree\n"));
+    assert!(changed.ends_with("--changes=all prints them, and `drive app tree` the whole tree\n"));
 
     let changed = driven
         .ask(&["--changes=all", "app", "click", "\"Toggle\""])

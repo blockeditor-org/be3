@@ -236,10 +236,10 @@ pub async fn automate(
         beui::drive::Reply::Text(text) => Ok(text),
         beui::drive::Reply::Error(error) => Err(error.into()),
         beui::drive::Reply::Image { .. } => {
-            Err("the browser takes screenshots itself: use drive shot".into())
+            Err("the browser takes screenshots itself: use drive screen shot".into())
         }
         beui::drive::Reply::Painting(_) => {
-            Err("the web build does not answer paint; run the app natively".into())
+            Err("the web build does not answer app paint; run the app natively".into())
         }
     }
 }

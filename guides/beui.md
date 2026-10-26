@@ -307,6 +307,8 @@ direction:
 | `beui-platform-winit`, `beui-platform-android`, `beui-platform-web` | each platform's `Platform` and `PlatformServices`: its event loop, window or view, input, IME, clipboard, file picker and accessibility adapter (winit's is its own `accessibility.rs` over `accesskit_unix`, `accesskit_windows` and `accesskit_macos`, since `accesskit_winit` has no release for winit 0.31) |
 | `beui-platform-drm` | Linux's displays and input devices through DRM/KMS and libinput: a `Platform`, `PlatformServices` and `Renderer` that shows one window per display (see Displays under beui-platform-drm below), each display keeping a retained frame of its window, drawn when the display flips (the app's frames are paced to the flips too, by `pacing.rs`: at most one per flip, none while nothing changes), handing the flip a fence (or, without atomic fences, waiting for it in the event loop) instead of blocking on the GPU; callers run it with `beui::run_on` |
 | `beui-layer-space` | the VR simulator `Layer` that `BEUI_LAYERS=space` stacks over a native or headless platform: the app's windows as panels in a 3D scene ("Space: the VR simulator layer" below) |
+| `beui-layer-drive` | `beui::drive`: drive as a `Layer` (`Drive`, one layer or a screen tap and an app tap sharing a session), its command `Inbox` and `Reply`, its socket protocol and the gestures it and the editor tests share (guides/running/drive.md) |
+| `beui-platform-headless` | `beui::Headless`, the platform that draws offscreen with no window or display server; `beui::Simulation`, the headless window and its stand-in services; and `beui::testing`, the harness that steps an app frame by frame under a drive layer |
 | `beui-platform-plugin` | the `Platform`, `PlatformServices` and `Renderer` for a block editor plugin module: `launch` starts the module's one app and registers its runner with the plugin framework as the module's `Regions` handler, whose batched calls then drive its frames; every region the host shows is a window of that app, which the app opens from the `Views` handle the platform provides through `Setup` (guides/adding_a_plugin_editor.md); it depends on the plugin framework, so the facade does not offer it, and it reads no `BEUI_*` variable |
 
 Core cannot see the crates above it, so the few places it used to reach up are
@@ -2710,7 +2712,7 @@ focused field into what is left, through every scroll it sits in.
   plugin's frame, will still change what it shows. Only a driver reads it.
 - `environment` is the variables a program needs to open its windows inside an app
   that hosts programs (block-app's Wayland compositor). Only a driver reads it,
-  for `drive env` and `drive exec`.
+  for `drive app env` and `drive exec`.
 
 From inside a frame the app can also ask the window for things through the
 `Context`: `set_fullscreen`, `set_ime_area` for an input it draws itself,
@@ -2723,28 +2725,30 @@ follows typing waits for the next frame, so text typed before a click always
 reaches the field it was typed into, however many events arrive between two
 frames.
 
-`RunOptions::automation` hands the runner an `automation::Inbox` of commands
-from a driver (guides/running/drive.md); the native run functions fill it
-from `BEUI_AUTOMATION`, pick their platform and renderer from `BEUI_PLATFORM` and
-`BEUI_RENDERER`, and stack the layers `BEUI_LAYERS` names (`beui_core::runner::environment`), and
-block-app's web build fills it from its `automate` export. The runner keeps the
-accessibility tree (`Context::keep_accessibility`, which a bare `Context` and a
-headless plugin do by default and other runners only for a driver) and the action registry's actions, takes
-the next command at the start of a frame, turns input commands into `Event`s
-already in points, which skip the platforms' intake (`automation/keys.rs` names
-the keys), and answers once a frame
-asks for no other and the app is not `busy`. The driver acts on the window
-only through the `PlatformServices` it is given, as the app does: `clipboard` copies
-and pastes through it, `resize` asks `Platform::resize` (which only a
-headless window answers), and `state` reads the size, scale and fullscreen
-the window last reported. While a driver is attached the runner hands it the
-app's file dialogs instead of the platform, so `upload` and `dismiss` answer
-them in any window, and it keeps the focus `focus` and `blur` gave. The
-headless platform's window is `automation::Simulation`, a `PlatformServices` like any
-other: it keeps a clipboard, grows to its screen for fullscreen, and reports
-its size, scale and fullscreen through its `WindowReports`. beui's own tests
-drive one the same way, with a renderer that draws nothing. `Renderer::capture` reads the presented
-frame back for a screenshot.
+A driver is a layer, `beui_layer_drive::Drive` (guides/running/drive.md): the native run
+functions stack it where `BEUI_LAYERS` names `drive` and serve its commands on
+`BEUI_DRIVE_SOCKET`, pick their platform and renderer from `BEUI_PLATFORM` and
+`BEUI_RENDERER` (`beui_core::runner::environment`), and block-app's web build stacks one
+its `automate` export feeds (`beui::run_web` takes the layers). `Drive::new(inbox)` is one layer
+that serves both of drive's taps; `Drive::taps(inbox)` is a screen tap and an app tap sharing
+one session, for a stack with another layer between them (`drive,space,drive`). The drive
+layer keeps the accessibility tree (`Context::keep_accessibility`, which a bare `Context` and
+a headless plugin do by default and other runners only for a driver), takes the next command
+in the lowest tap's `input`, turns input commands into `Incoming`s already in points, which
+skip the platforms' intake (`beui_core::input::typing` names the keys), pushes each tap's into
+the stack at that tap, steps a stopped clock in `now`, and answers in `framed` once a frame
+asks for no other and the app is not `busy`, reading the app's `FrameOutput` (its actions,
+paintings, overflows) there. It acts on the window only through the `PlatformServices` below
+its screen tap, as the app does: `clipboard` copies and pastes through them, `resize` asks
+`PlatformServices::resize` (which only a headless window answers), and `state` reads the size,
+scale and fullscreen the window last reported. Its screen tap answers the app's file and save
+dialogs itself (`Layer::pick_file`, `save_file`), so `upload` and `dismiss` answer them in any
+window, and it keeps the focus `focus` and `blur` gave. The headless platform's window is
+`beui_platform_headless::Simulation` (`beui::Simulation`), a `PlatformServices` like any other:
+it keeps a clipboard, grows to its screen for fullscreen, and reports its size, scale and
+fullscreen through its `WindowReports`. beui's own tests drive one the same way, with a
+renderer that draws nothing. `Renderer::capture` reads the presented frame back as a
+`beui_core::renderer::Capture` for a screenshot.
 
 A window nobody can see is `Runner::set_occluded`: its frames still run (layout,
 paint, accessibility, the driver), but the runner hands each one's output to
@@ -3152,8 +3156,8 @@ it, and all its 3D (`glam`) stays in the crate.
   release, and clicks reach it without Ctrl or Shift, so an app in space never
   sees a Ctrl+Shift chord. Keys, modifiers and `PointerMotion` sent by `drive`
   go through the same rule (a driver's motion is in points, scaled to pixels
-  first), so `drive keydown ctrl; drive keydown shift; drive keydown w` walks
-  and `drive motion 200 0` while Ctrl and Shift are held turns the head.
+  first), so `drive screen keydown ctrl; drive screen keydown shift; drive screen keydown w` walks
+  and `drive screen motion 200 0` while Ctrl and Shift are held turns the head.
 - Carry: on `WindowRequest::BeginMove` (for any window) the panel keeps its pose relative to the
   head, with the grabbed point on the cursor's ray at a fixed distance, so
   moving the mouse or steering carries it. As the mouse swings the ray around
@@ -3418,7 +3422,7 @@ it opens whenever the focused field's `ImeArea::keyboard` turns `Shown` or its
 nothing. Its close button (`close_keyboard()`) closes it until a field asks
 again, so tapping a field brings it back. Its keys reach the app as a keyboard
 would: the engine makes `Input::Key`s with evdev codes and real modifier
-presses (`beui_core::app::automation::keys`, which `drive type` and `drive key`
+presses (`beui_core::input::typing`, which `drive app type` and `drive app key`
 use too) and `Input::Text` for what no key types, `Context::type_events` puts
 them in `FrameOutput::typed`, and the runner pushes them as the next frame's
 input, so a beui field, a plugin and a Wayland program all take them
@@ -4367,13 +4371,13 @@ relevant `tests` directory and declare it in that directory's `tests.rs`; this
 repository keeps one test per file.
 
 Every test that runs a document or an app runs it through `beui::testing::Stepped`, the way
-a platform does: through the real `Runner`, on the headless window's `Simulation`
+a platform does: through the real `Runner` under one drive layer, on the headless window's `Simulation`
 (`Stepped::new`) or on a `PlatformServices` the test supplies (`Stepped::on`), with a gpu-free
 `testing::Screen`, the clock stopped, and one frame interval per frame.
 `testing::Showing(document)` is a `Document` as an app. Its gestures are `drive`'s commands,
-run by the same automation engine: `click(Target::id("wheel").at(offset))`, `drag`, `down`,
+run by the same drive layer (crates/beui-platform-headless/src/testing.rs), through its app tap: `click(Target::id("wheel").at(offset))`, `drag`, `down`,
 `up`, `hover`, `scroll`, `zoom`, `pinch`, `fingers`, `type_text`, `key`, `key_down`, `wait`
-and `settle` are typed forms of them, a `Pos2` is a target too, and `ask(&["back",
+and `settle` are typed forms of them, a `Pos2` is a target too, and `ask(&["app", "back",
 "0.5"])` sends any other. Each settles as `drive` does, unless the test turned that off
 with `settle_after_gestures(false)`, when it answers after the frame that took the input.
 `frame(inputs)` pushes the `Input`s it is handed in points (`Incoming::points`) and paints one

@@ -26,7 +26,7 @@ suite's `programs` (crates/bench/BUCK). Each can also run alone, with
   paints them and exports the folder again. It fails unless both exports are identical and
   each block paints the same on both devices. "Save" is how long `hurry on` takes to settle
   after the edit shows: the seal the app would wait 750 ms for, published to the server.
-- The pen line goes in 1,000 samples a frame (`drive pen draw FROM TO STEPS PER_FRAME`), so
+- The pen line goes in 1,000 samples a frame (`drive app pen draw FROM TO STEPS PER_FRAME`), so
   `canvas.line-draw`, from its first sample until the whole line shows, is the work the
   samples cause (the canvas's edits, relaying them, the replica, the plugin applying them)
   and not the cost of 10,000 frames, which a person drawing never waits on.
@@ -69,7 +69,7 @@ suite's `programs` (crates/bench/BUCK). Each can also run alone, with
   over one icon. In October 2026 a switch's `frame` was about 4 ms, as the moves' are,
   after 32 ms while the cursor sprite built a new `Renderer` for every icon.
 - `//crates/beui:example-text-bench -- [NAME]` times resizing and editing text.
-- Both beui benches run their frames through the real `Runner`, with no automation (so no
+- Both beui benches run their frames through the real `Runner`, with no drive layer (so no
   accessibility dump) and the clock stopped, and push their inputs as a platform would. A
   frame's time is `Runner::frame`'s, so it includes the intake and the window bookkeeping
   around the app's update; the open bench takes the renderer's `prepare` out of it.
@@ -100,7 +100,7 @@ suite's `programs` (crates/bench/BUCK). Each can also run alone, with
   behind a proxy; the server and the proxy are pinned to one core and the app to the others.
   It times what a person waits for: signing in, making, saving, closing, exporting and
   reopening blocks, and a second device recovering the account. Every wait is one the app
-  answers (`drive wait`, `gone`, `settle`), never a poll, and every command passes
+  answers (`drive app wait`, `gone`, `settle`), never a poll, and every command passes
   `--changes=0`. Its pen stroke sends 400 samples at the start and 400 at the end at 4 a
   frame, as a stylus does, and the 9,200 between at 1,000 a frame to get there; each of the
   two stretches reports its longest frame and how long the ink takes to reach the pen after
