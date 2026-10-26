@@ -52,6 +52,9 @@ struct Shared {
     state: Mutex<State>,
     version: AtomicU64,
     lost: Mutex<Option<Lost>>,
+    // Whether frames include the cursor; the thread applies a change on its
+    // next wake.
+    cursor: AtomicBool,
 }
 
 struct State {
@@ -173,6 +176,7 @@ impl Capture {
             }),
             version: AtomicU64::new(0),
             lost: Mutex::new(None),
+            cursor: AtomicBool::new(false),
         });
         // Manual reset, so both of the thread's waits see it.
         let stop = Arc::new(WinEvent::new(true)?);
@@ -221,6 +225,12 @@ impl Capture {
 
     pub fn version(&self) -> u64 {
         self.shared.version.load(Ordering::Acquire)
+    }
+
+    pub fn set_cursor(&self, shown: bool) {
+        if self.shared.cursor.swap(shown, Ordering::AcqRel) != shown {
+            self.shared.wake.set();
+        }
     }
 
     pub fn lost(&self) -> Option<Lost> {
@@ -286,6 +296,7 @@ struct Session {
     copies: u64,
     copy_done: WinEvent,
     registered: Vec<u64>,
+    cursor: bool,
 }
 
 enum Delivery {
@@ -395,6 +406,7 @@ impl Session {
             copies: 0,
             copy_done,
             registered: vec![0; SLOTS],
+            cursor: false,
         };
         // Both are newer than capture itself (Windows 10 2004 and Windows 11);
         // where they are missing the border and cursor stay, which is all.
@@ -419,6 +431,11 @@ impl Session {
             }
             if self.closed.load(Ordering::Acquire) {
                 return Some(Lost::Closed);
+            }
+            let cursor = shared.cursor.load(Ordering::Acquire);
+            if cursor != self.cursor {
+                self.cursor = cursor;
+                let _ = self.session.SetIsCursorCaptureEnabled(cursor);
             }
             // Only the newest frame matters; closing the others hands their
             // buffers back to the pool.

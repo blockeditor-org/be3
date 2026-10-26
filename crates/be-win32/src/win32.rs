@@ -1,3 +1,4 @@
+mod affinity;
 mod desktop;
 mod focus;
 mod icons;
@@ -76,6 +77,10 @@ impl Drop for Com {
             unsafe { CoUninitialize() };
         }
     }
+}
+
+pub fn bring_forward(window: Handle) -> bool {
+    focus::bring_forward(hwnd(window))
 }
 
 // unsafe(ffi)

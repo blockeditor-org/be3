@@ -24,8 +24,23 @@ pub(super) fn interface_of(called: &Called) -> Option<&str> {
     block_plugin_api::is_published(interface).then_some(interface)
 }
 
-pub(super) fn offered(extension: &str) -> bool {
-    extension == "be3:desktop" && cfg!(target_os = "linux")
+const WINDOWS_DESKTOP: [&str; 3] = ["windows", "programs", "power"];
+
+pub(super) fn offered(interface: &str) -> bool {
+    if extension_of(interface) != Some("be3:desktop") {
+        return false;
+    }
+    cfg!(target_os = "linux") || (cfg!(windows) && windows_offers(interface))
+}
+
+pub(super) fn windows_offers(interface: &str) -> bool {
+    let name = interface
+        .split_once('/')
+        .map_or(interface, |(_, name)| name)
+        .split('@')
+        .next()
+        .unwrap_or_default();
+    WINDOWS_DESKTOP.contains(&name)
 }
 
 fn shell_only(open: MethodId) -> bool {
@@ -114,3 +129,6 @@ impl Watched {
         }
     }
 }
+
+#[cfg(test)]
+mod tests;

@@ -19,6 +19,7 @@ use windows::Win32::UI::WindowsAndMessaging::{
 };
 use windows::core::w;
 
+use super::affinity::Excluded;
 use super::desktop::Win32Desktop;
 use super::focus::{self, HOTKEY_ID};
 use super::{Com, handle, hwnd};
@@ -68,6 +69,7 @@ struct State<'a> {
     host: Option<Handle>,
     hotkey: Option<Hotkey>,
     own_process: u32,
+    excluded: Excluded,
 }
 
 pub struct Watcher {
@@ -221,7 +223,14 @@ fn run(shared: &Shared, ready: &mpsc::Sender<io::Result<u32>>) {
         host: None,
         hotkey: None,
         own_process: unsafe { GetCurrentProcessId() },
+        excluded: Excluded::default(),
     };
+    let own: Vec<Handle> = crate::Desktop::windows(&state.desktop)
+        .into_iter()
+        .filter(|window| window.process_id == state.own_process)
+        .map(|window| window.handle)
+        .collect();
+    state.excluded.windows(state.own_process, own);
     state.refresh(&[]);
     loop {
         let got = unsafe { GetMessageW(&mut message, None, 0, 0) };
@@ -317,6 +326,7 @@ impl State<'_> {
     }
 
     fn refresh(&mut self, events: &[Event]) {
+        self.excluded.events(self.own_process, events);
         let mut changed = false;
         if self.model.update(&self.desktop, events) {
             *self.shared.snapshot.lock().expect("snapshot lock") = self.model.snapshot();

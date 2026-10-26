@@ -5804,6 +5804,7 @@ crates = {
             "android-arm64": {
                 "binaries": {},
                 "deps": [
+                    "//crates/be-win32:be-win32",
                     "//crates/beui-core:beui-core",
                 ],
                 "examples": {},
@@ -5814,6 +5815,7 @@ crates = {
             "linux-arm64": {
                 "binaries": {},
                 "deps": [
+                    "//crates/be-win32:be-win32",
                     "//crates/beui-core:beui-core",
                 ],
                 "examples": {},
@@ -5824,6 +5826,7 @@ crates = {
             "linux-x86_64": {
                 "binaries": {},
                 "deps": [
+                    "//crates/be-win32:be-win32",
                     "//crates/beui-core:beui-core",
                 ],
                 "examples": {},
@@ -5834,6 +5837,7 @@ crates = {
             "macos-arm64": {
                 "binaries": {},
                 "deps": [
+                    "//crates/be-win32:be-win32",
                     "//crates/beui-core:beui-core",
                 ],
                 "examples": {},
@@ -5844,6 +5848,7 @@ crates = {
             "macos-x86_64": {
                 "binaries": {},
                 "deps": [
+                    "//crates/be-win32:be-win32",
                     "//crates/beui-core:beui-core",
                 ],
                 "examples": {},
@@ -5854,6 +5859,7 @@ crates = {
             "windows-arm64": {
                 "binaries": {},
                 "deps": [
+                    "//crates/be-win32:be-win32",
                     "//crates/beui-core:beui-core",
                     "//third-party/rust:windows-0.62.2",
                 ],
@@ -5865,6 +5871,7 @@ crates = {
             "windows-x86_64": {
                 "binaries": {},
                 "deps": [
+                    "//crates/be-win32:be-win32",
                     "//crates/beui-core:beui-core",
                     "//third-party/rust:windows-0.62.2",
                 ],
@@ -10811,6 +10818,7 @@ crates = {
                 "examples": {},
                 "features": [],
                 "test_deps": [
+                    "//crates/be-win32:be-win32",
                     "//crates/block-editor-plugin:block-editor-plugin",
                     "//crates/block-ui-test:block-ui-test",
                     "//crates/editors/browser-tab/types:browser-tab-types",
@@ -10935,6 +10943,7 @@ crates = {
                 "features": [],
                 "test_deps": [
                     "//crates/be-cli:be-cli",
+                    "//crates/be-win32:be-win32",
                     "//crates/block-editor-plugin:block-editor-plugin",
                     "//crates/block-ui-test:block-ui-test",
                     "//crates/editors/browser-tab/types:browser-tab-types",
@@ -11058,6 +11067,7 @@ crates = {
                 "features": [],
                 "test_deps": [
                     "//crates/be-cli:be-cli",
+                    "//crates/be-win32:be-win32",
                     "//crates/block-editor-plugin:block-editor-plugin",
                     "//crates/block-ui-test:block-ui-test",
                     "//crates/editors/browser-tab/types:browser-tab-types",
@@ -11159,6 +11169,7 @@ crates = {
                 "features": [],
                 "test_deps": [
                     "//crates/be-cli:be-cli",
+                    "//crates/be-win32:be-win32",
                     "//crates/block-editor-plugin:block-editor-plugin",
                     "//crates/block-ui-test:block-ui-test",
                     "//crates/editors/browser-tab/types:browser-tab-types",
@@ -11261,6 +11272,7 @@ crates = {
                 "features": [],
                 "test_deps": [
                     "//crates/be-cli:be-cli",
+                    "//crates/be-win32:be-win32",
                     "//crates/block-editor-plugin:block-editor-plugin",
                     "//crates/block-ui-test:block-ui-test",
                     "//crates/editors/browser-tab/types:browser-tab-types",
@@ -11338,6 +11350,8 @@ crates = {
                         "//crates/be-types-host:be-types-host",
                         "//crates/be-vcs:be-vcs",
                         "//crates/be-win32-capture:be-win32-capture",
+                        "//crates/be-win32-input:be-win32-input",
+                        "//crates/be-win32:be-win32",
                         "//crates/beui:beui",
                         "//crates/block-guest-abi:block-guest-abi",
                         "//crates/block-guest-host:block-guest-host",
@@ -11377,6 +11391,8 @@ crates = {
                     "//crates/be-types-host:be-types-host",
                     "//crates/be-vcs:be-vcs",
                     "//crates/be-win32-capture:be-win32-capture",
+                    "//crates/be-win32-input:be-win32-input",
+                    "//crates/be-win32:be-win32",
                     "//crates/beui:beui",
                     "//crates/block-guest-abi:block-guest-abi",
                     "//crates/block-guest-host:block-guest-host",
@@ -11440,6 +11456,8 @@ crates = {
                         "//crates/be-types-host:be-types-host",
                         "//crates/be-vcs:be-vcs",
                         "//crates/be-win32-capture:be-win32-capture",
+                        "//crates/be-win32-input:be-win32-input",
+                        "//crates/be-win32:be-win32",
                         "//crates/beui:beui",
                         "//crates/block-guest-abi:block-guest-abi",
                         "//crates/block-guest-host:block-guest-host",
@@ -11479,6 +11497,8 @@ crates = {
                     "//crates/be-types-host:be-types-host",
                     "//crates/be-vcs:be-vcs",
                     "//crates/be-win32-capture:be-win32-capture",
+                    "//crates/be-win32-input:be-win32-input",
+                    "//crates/be-win32:be-win32",
                     "//crates/beui:beui",
                     "//crates/block-guest-abi:block-guest-abi",
                     "//crates/block-guest-host:block-guest-host",

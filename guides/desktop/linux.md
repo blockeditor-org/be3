@@ -510,7 +510,7 @@ icon directories, following `Inherits`), looked up by CSS name and then the old 
 (`cursors.rs`), at the size the scale needs; without a theme the built-in arrow is drawn. Over a
 window, a `wp_cursor_shape_v1` shape becomes the window's `CursorIcon` (`Windows::cursor`, which
 the winit backend shows too), and a `wl_pointer.set_cursor` surface reaches the platform through
-`beui_platform_drm::SoftwareCursor` (block-app's `wayland/linux.rs`), redrawn whenever the client
+`beui_platform_drm::SoftwareCursor` (block-app's `desktop_host/linux.rs`), redrawn whenever the client
 commits to it; a null cursor hides the pointer.
 
 Under `--session` the app runs a frame only when an output has flipped since the last one (`beui-platform-drm`'s `pacing.rs`), and a window's `wl_surface.frame` callbacks and `wp_presentation_feedback` are answered by the flip of the display it mostly covers, with the flip's time, refresh and sequence: the platform reports each flip through `beui_platform_drm::Flips`, which block-app hands to `Compositor::presented` (`presentation.rs`). Elsewhere there are no flips, so they are answered as soon as the window is painted, at the frame clock's time.
@@ -596,9 +596,9 @@ child region asks for a block in a listed program (`programs::opens`), `HostedCh
   KOReader's default `document_metadata_folder` (`doc`) keeps the reading position in
   `<name>.sdr/` next to the book, so the book resumes with KOReader's own settings and none of
   ours. `.written` beside the file records the size and time it was left at.
-- **Launch.** `wayland::Programs::open_file` runs the entry with the path in place of its first
+- **Launch.** `desktop_host::Programs::open_file` runs the entry with the path in place of its first
   `%f`, `%F`, `%u` or `%U` (appended when the line has none), tagged with the block, so its
-  first top-level window is bound to the session (`wayland::opening_windows`) and drawn in the
+  first top-level window is bound to the session (`desktop_host::opening_windows`) and drawn in the
   region by `WindowSurface`. Until then the region says it is opening; once the program exits
   it says so with Open again (`program.reopen`).
 - **Hidden from the shell.** A bound window is left out of `WindowsWatch`

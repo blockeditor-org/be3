@@ -51,6 +51,7 @@ _CROSS_CHECKS = {
     "root//crates/be-win32-input:be-win32-input": ["windows_x86_64"],
     "root//crates/be-win32:be-win32": ["windows_x86_64"],
     "root//crates/beui:beui": ["windows_x86_64"],
+    "root//crates/block-app:block-app": ["windows_x86_64"],
 }
 
 def _cross_checks(ctx) -> list[Artifact]:

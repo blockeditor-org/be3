@@ -29,8 +29,8 @@ pub use power::{PowerAction, PowerAvailability};
 pub use programs::{Program, Shortcut};
 #[cfg(windows)]
 pub use win32::{
-    Watcher, Win32Desktop, close_window, exec, launch, power_availability, program_icon,
-    request_power, start_menu_programs,
+    Watcher, Win32Desktop, bring_forward, close_window, exec, launch, power_availability,
+    program_icon, request_power, start_menu_programs,
 };
 
 use std::path::PathBuf;

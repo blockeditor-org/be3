@@ -1155,6 +1155,7 @@ dependencies = [
 name = "be-win32-input"
 version = "0.1.0"
 dependencies = [
+ "be-win32",
  "beui-core",
  "windows 0.62.2",
 ]
@@ -1655,7 +1656,9 @@ dependencies = [
  "be-types-host",
  "be-vcs",
  "be-wayland",
+ "be-win32",
  "be-win32-capture",
+ "be-win32-input",
  "beui",
  "beui-platform-drm",
  "block-editor-plugin",

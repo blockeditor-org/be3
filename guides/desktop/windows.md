@@ -1,59 +1,74 @@
 # The Windows host
 
-Today `--desktop` on Windows is the desktop shell alone (guides/desktop.md): block-app's
-`wayland` module (`crates/block-app/src/wayland.rs`) uses `wayland/unsupported.rs` there, and
-`be3:desktop` is not published (`plugin_host/published.rs`), so every watch is answered
-`unsupported` and the shell shows none of the controls they back. `--session` and
-`--install-session` are refused (`src/arguments.rs`).
+`--desktop` on Windows shows the person's Windows monitors and windows inside the desktop shell
+(guides/desktop.md). XR is the main target: each shown entry is a panel of its own, as program
+windows are where `opens_windows()` is true. A windowed `--desktop` is a development view: there
+is no virtual display, so a focused window comes up on the real monitor above block-app.
+`--session` and `--install-session` are refused (`src/arguments.rs`).
 
-The Windows host is being added, in three crates of its own, so the logic can be tested on Linux
-with fakes behind small traits and only the Win32 calls are Windows-only:
+All of it is compile-checked only: `buck/dev/verify.bxl`'s `_CROSS_CHECKS` checks be-win32,
+be-win32-capture, be-win32-input, beui and block-app for `windows_x86_64`, and the logic behind
+the Win32 calls is plain Rust tested on Linux with fakes. Running it needs a real Windows
+machine; Wine has no Windows.Graphics.Capture.
 
-- `crates/be-win32`: the windows (`EnumWindows`, and `SetWinEventHook` on a thread of its own),
-  filtered as Alt+Tab does, with their owners, icons, titles, app ids and frame bounds, folded
-  into a list of entries with stable ids and a revision; monitors; Start Menu programs; power;
-  and detecting elevated windows and the secure desktop.
-- `crates/be-win32-capture`: a capture of one monitor or window through
-  Windows.Graphics.Capture, its latest frame handed over as a `wgpu::Texture` on wgpu's Vulkan
-  device without leaving the GPU.
-- `crates/be-win32-input`: low-level input hooks, injecting pointer, keys and text into a
-  window or monitor, and mapping points in an entry's rect to virtual-desktop coordinates.
+## The crates
 
-Windows code is compile-checked on Linux: `buck/dev/verify.bxl`'s `_CROSS_CHECKS` lists the
-targets `./scripts/verify` checks for `windows_x86_64`. Running it needs a real Windows machine;
-Wine has no Windows.Graphics.Capture.
+- `crates/be-win32`: the windows and the session. `Watcher::spawn(wake)` runs a thread of its own
+  (per-monitor DPI aware, with COM) with `SetWinEventHook` (out of context, no low-level hooks),
+  a hidden window for display changes and a 1 s tick for "not responding". `Model` folds what it
+  reads into a `Snapshot`: entries with stable `EntryId`s, the displays first (one per monitor,
+  sized as the monitor and titled with its name), then the top-level windows Alt+Tab would show
+  (with owner, dialog, icon, title, app id, frame bounds, popups, `Control::Elevated` for a
+  process of higher integrity), the monitors, and the input desktop (`secure_desktop()`). It
+  keeps each entry's `shown`, so a restarted shell brings back what was shown. It also lists
+  the Start Menu's `.lnk` programs, launches them (`launch`, `exec`, which block in
+  `ShellExecuteExW`) and matches their windows by process id (`Watcher::launched`), and offers
+  lock, suspend, restart, power off and log out. It sets `WDA_EXCLUDEFROMCAPTURE` on every
+  top-level window of block-app's own process as it appears, so captures never show block-app.
+- `crates/be-win32-capture`: Windows.Graphics.Capture of one monitor or window, its newest frame
+  handed out as a `wgpu::Texture` on wgpu's Vulkan device (shared D3D11 texture and fence,
+  imported with `VK_KHR_external_memory_win32` and `VK_KHR_external_semaphore_win32`; the
+  device extensions are `DEVICE_EXTENSIONS`, which block-app's Windows `run_shell` opens wgpu
+  with). One `Device` per wgpu device; a `Capture` per entry; the border is off and the cursor
+  is captured only while `set_cursor(true)`.
+- `crates/be-win32-input`: `inject` puts pointer, key and text events into an entry at a point
+  of its panel (`SendInput` in absolute virtual-desktop coordinates), after
+  `be_win32::bring_forward`. It refuses an elevated window and the secure desktop from
+  be-win32's snapshot (`target`), the one place either is decided.
 
-## The design
+## In block-app
 
-- XR is the main target: each shown entry is a panel of its own, as program windows are where
-  `opens_windows()` is true. A windowed `--desktop` is a development view: with no virtual
-  display, injected input raises real windows above block-app on the real monitor.
-- Nothing opens by itself. The host lists every candidate, monitors (a `display` entry, sized
-  as the monitor and titled with its name) and top-level windows, in `be3:desktop`'s `windows`
-  interface, each with `shown`, which the host keeps so a restarted shell brings back what was
-  shown. The person picks what to show from the shell's picker (`show` and `hide` window
-  actions); hiding stops an entry's capture, and `close` closes the real window.
-- Capture: whole monitors first, then single windows, both through Windows.Graphics.Capture
-  (`GraphicsCaptureItem` from an HMONITOR or HWND), never DXGI desktop duplication, with the
-  border and the cursor left out (the shell draws its own). Frames are BGRA8 D3D11 textures,
-  copied into a texture shared with an NT handle and a shared fence, imported into Vulkan
-  (`VK_KHR_external_memory_win32`, `VK_KHR_external_semaphore_win32`) and wrapped as a
-  `wgpu::Texture` through wgpu-hal, as crates/be-dmabuf does for dmabufs. The D3D11 device is on
-  wgpu's adapter (matched by LUID). block-app's own window is left out of capture
-  (`WDA_EXCLUDEFROMCAPTURE`).
-- Input has one path: block-app never relies on being the foreground window. Low-level hooks
-  (`WH_MOUSE_LL`, `WH_KEYBOARD_LL`) on a thread with its own message loop, which must never block,
-  swallow physical input while the shell owns it and hand it to beui, which routes it as
-  anywhere. When it reaches a Windows entry the host raises that window and injects it
-  (`SendInput` in absolute virtual-desktop coordinates, `KEYEVENTF_UNICODE` for text no key
-  types).
-- What the host cannot reach is shown, never silently ignored: over a window whose process runs
-  at a higher integrity level (UIPI keeps hooks and injection out) the host draws a notice to run
-  Block as administrator, and while the secure desktop is up (a UAC prompt, Ctrl+Alt+Del) it
-  shows a notice over every display entry and a toast asking the person to take off the headset
-  and answer it.
-- Programs are the Start Menu's `.lnk` files (per-user and all-users), resolved with
-  `IShellLinkW`, launched with `ShellExecuteExW` and matched to their windows by process id.
-- `displays` comes from `EnumDisplayMonitors` and `GetMonitorInfoW` (`GetDpiForMonitor` for the
-  scale), read-only. `power` offers lock, suspend, restart, power off and log out. Explorer owns
-  the tray, notifications, media and Wi-Fi, so those stay unsupported and the shell hides them.
+`crates/block-app/src/desktop_host.rs` is the host facade; on Windows it is `desktop_host/win32.rs`, with
+the mapping to `be3:desktop`'s types in `desktop_host/win32_map.rs` (tested on Linux).
+`plugin_host/published.rs` offers `windows`, `programs` and `power` there; the other interfaces,
+`displays` among them (it describes the displays the shell is drawn on, and on Windows that is
+block-app's one window), stay unsupported, so the shell hides what they back.
+
+- The watcher starts when the desktop shell is first shown (`set_owned(true)`), with block-app's
+  window (`beui::NativeWindow`) as the host window and `Hotkey::DEFAULT` (Ctrl+Alt+Space)
+  registered; a hotkey that cannot be registered is a toast.
+- `WindowsWatch` is the snapshot's entries (`kind`, `shown`); `show` and `hide` set `shown` in
+  be-win32's model. `WindowSurface` starts a capture of its entry when it is mounted, which the
+  shells do only for shown entries, and stops it when unmounted; a display entry draws its
+  monitor's capture. Each capture's notify wakes the UI, and `before` hands the newest `Frame`
+  to every surface showing it (`desktop_host/texture_draw.rs` draws it and keeps the `Frame` alive
+  while drawn). The frames' format follows the surface (srgb or not).
+- Focus mode is the mouse and keyboard path: a press on an entry's panel, or the `focus` window
+  action (the picker), calls `Watcher::focus(id, point)` at once, which raises the real window,
+  makes it the foreground, moves the cursor in and clips it there, so the physical mouse and
+  keyboard drive it natively, elevated windows included. The focused entry's capture shows the
+  cursor, and its panel says which hotkey comes back; the hotkey, or block-app coming forward,
+  ends focus. A refused focus (`FocusError`) is a notice over the entry until it is focused.
+- XR controller presses (`PointerId::is_controller`) are injected instead (press, release and
+  drags), since a laser has no physical cursor to clip.
+- Notices are drawn by the host, never left silent: over an elevated window an injected press
+  could not reach, "run Block as administrator"; over every display entry while the secure
+  desktop is up, and as a toast when it comes up, "take off the headset to answer it"; a toast
+  when Windows refuses to bring block-app back.
+
+## Not there yet
+
+Opening a block's file in a Windows program, packaged (Store) apps, per-window popups shown as
+popups of their toplevel, resizing and fullscreen (`fullscreen` is ignored), the tray,
+notifications, media, Wi-Fi, input devices and the lock screen (Explorer owns them). The deferred
+input plans are in plans/windows_input.md.

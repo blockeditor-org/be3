@@ -9,8 +9,9 @@ programs' windows inside it. This guide is what every host shares; each host has
 - guides/desktop/windows.md: the Windows host, which shows Windows' monitors and windows.
 
 `--desktop` (every native platform) starts the desktop shell in a normal window. On Linux
-programs open as windows inside it (guides/desktop/linux.md); on Windows and macOS
-(`src/arguments.rs` parses the flags) it is the shell alone for now: there are no program
+programs open as windows inside it (guides/desktop/linux.md); on Windows it shows Windows'
+monitors and windows, launches Start Menu programs and offers power (guides/desktop/windows.md);
+on macOS (`src/arguments.rs` parses the flags) it is the shell alone for now: there are no program
 windows, notification server, tray, media, power, lock screen or launcher.
 The app test `the_desktop_shell_opens_and_closes_cleanly` (crates/app-tests) starts it headless
 and closes it. `--session` and `--install-session` are Linux's (guides/desktop/linux.md).
@@ -30,8 +31,8 @@ from any other. The desktop plugin shows a control only while the host offers wh
 Super tap and placeholders' Open need `ProgramsWatch`, the bell `NotificationsWatch`, the power
 menu `PowerWatch`, the media keys `MediaWatch` (the volume item, its `output`), the Wi-Fi item
 `WifiWatch` (its `available`), and the tray its items. block-app publishes each as soon as the
-service behind it runs, even empty. block-app publishes the package only on Linux today
-(`plugin_host/published.rs`); a host that does not publish it (elsewhere, the web and Android)
+service behind it runs, even empty. block-app publishes the package on Linux, and on Windows its
+`windows`, `programs` and `power` (`plugin_host/published.rs`); a host that does not publish it (elsewhere, the web and Android)
 answers every watch of the package `unsupported` and drops its calls, which the desktop
 sees as nothing offered. The web and Android apps have no `--desktop`: a desktop with none of
 these is only a dock of block windows, which their own shells already are.
@@ -71,7 +72,7 @@ choosing one sends `show` (when hidden) then `focus`, and a shown entry's Hide c
 (`desktop.windows.entry.ID.hide`) sends `hide`; closing stays `close`. On Linux it is a window
 switcher too. block-app's Wayland host opens every window shown and lists no displays; `hide`
 only stops the shells drawing it (the client keeps running and connected), and the shown state
-lives in `wayland/shown.rs` for as long as block-app runs, forgotten when the window closes.
+lives in `block-app/src/desktop_host/shown.rs` for as long as block-app runs, forgotten when the window closes.
 A hidden window shown again opens at its default place, not where it was.
 
 ## Displays
