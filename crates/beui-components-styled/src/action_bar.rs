@@ -4,18 +4,19 @@ use beui_core::icons::ICON_ELLIPSIS_VERTICAL;
 use beui_core::node::NodeId;
 use beui_macros::{component, view};
 use beui_view::actions::{Action, MenuNode};
-use beui_view::primitives::*;
 use beui_view::reactive::*;
 
 use crate::button::{Button, ButtonSize, ButtonVariant};
-use crate::frame::{ColorRole, Frame};
+use crate::frame::Frame;
 use crate::menu_button::MenuButton;
+use crate::border::Separator;
+use crate::list::List;
+use crate::tokens::{Padding, Size, Space};
 
-const SPACING: f32 = 2.0;
-const DIVIDER_HEIGHT: f32 = 18.0;
-const DIVIDER_MARGIN: f32 = 4.0;
-const RULE: f32 = 1.0;
-const LABEL_MARGIN: f32 = 2.0;
+const SPACING: Space = Space::Xs2;
+const DIVIDER_HEIGHT: Size = Size::Custom(18.0);
+const DIVIDER_MARGIN: Space = Space::Xs;
+const LABEL_MARGIN: Space = Space::Xs2;
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum ActionLabels {
@@ -90,8 +91,8 @@ fn ActionBarFace(
         <List direction=direction align=Align::Center spacing=SPACING>
             <ForEach keys={icon_keys}>|key: u64| { icon_pin(icons, key, false) }</ForEach>
             <Show condition={divided}>
-                <Frame padding={Sides::horizontal(DIVIDER_MARGIN)}>
-                    <Frame width=RULE height=DIVIDER_HEIGHT fill=ColorRole::Border />
+                <Frame padding={Padding::horizontal(DIVIDER_MARGIN)}>
+                    <Separator direction=Direction::Vertical length=DIVIDER_HEIGHT />
                 </Frame>
             </Show>
             <ForEach keys={label_keys}>|key: u64| {
@@ -119,7 +120,7 @@ fn ActionPin(action: Action, labelled: bool, size: ButtonSize, prefix: String) -
     let id = format!("{prefix}.pin.{}", action.id());
     match labelled {
         true => view! {
-            <Frame padding={Sides::horizontal(LABEL_MARGIN)}>
+            <Frame padding={Padding::horizontal(LABEL_MARGIN)}>
                 <Button
                     @test_id={id}
                     action={action}
