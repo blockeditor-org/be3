@@ -1863,6 +1863,15 @@ fn TrayIcons() -> NodeId {
 #[component]
 fn SortMenus() -> NodeId {
     let sort_text = create_signal("Sorted by name".to_owned());
+    let done = create_signal(false);
+    let status = create_memo(move || match done.get() {
+        true => "Done".to_owned(),
+        false => "In progress".to_owned(),
+    });
+    let status_fill = create_memo(move || match done.get() {
+        true => ColorRole::Success,
+        false => ColorRole::Warning,
+    });
     view! {
         <List spacing=SECTION_SPACING>
             <List direction=Direction::Horizontal align=Align::Center spacing=Space::Md wrap=true>
@@ -1892,6 +1901,19 @@ fn SortMenus() -> NodeId {
                         <unstyled::MenuItem label="Reverse the order" />
                     }}
                     on_select={move |_: Vec<usize>| sort_text.set("Sorted in reverse".to_owned())}
+                />
+                <MenuButton
+                    label={status}
+                    variant=ButtonVariant::Ghost
+                    arrow=false
+                    leading={view! {
+                        <Frame width=Size::Track height=Size::Track radius=Radius::Full fill={status_fill} />
+                    }}
+                    items={view! {
+                        <unstyled::MenuItem label="In progress" />
+                        <unstyled::MenuItem label="Done" />
+                    }}
+                    on_select={move |path: Vec<usize>| done.set(path.as_slice() == [1])}
                 />
             </List>
             <Text style=TextStyle::CAPTION>{sort_text}</Text>

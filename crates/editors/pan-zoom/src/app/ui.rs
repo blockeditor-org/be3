@@ -1,21 +1,18 @@
 use block_editor_beui::Fit;
-use block_editor_beui::beui::TextAlign;
 use block_editor_beui::beui::icons::ICON_PANEL_LEFT_OPEN;
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
-use block_editor_beui::beui::unstyled;
 use block_editor_beui::beui::{CursorIcon, NodeId, Rect, Vec2, pos2, vec2};
 use block_editor_beui::{Editor, Fitting};
 
 const SIDEBAR_WIDTH: f32 = 220.0;
 const RAIL_WIDTH: f32 = 44.0;
-const PANEL_PADDING: f32 = 14.0;
-const PANEL_SPACING: f32 = 10.0;
+const PANEL_PADDING: Space = Space::Lg;
+const PANEL_SPACING: Space = Space::Md;
 const CARD_TITLE_SIZE: f32 = 17.0;
 const CARD_LABEL_SIZE: f32 = 11.0;
 const CARD_PADDING: f32 = 12.0;
 const CARD_SPACING: f32 = 6.0;
-const CARD_RADIUS: f32 = 10.0;
 const CARD_OUTLINE: f32 = 2.0;
 const ZOOM_STEP: f32 = 1.25;
 
@@ -106,7 +103,7 @@ pub fn PanZoom(editor: Editor) -> NodeId {
     let panel = (editor, fitting, selected, open);
 
     view! {
-        <List direction=Direction::Horizontal spacing=0.0>
+        <List direction=Direction::Horizontal spacing=Space::None>
             <Show condition={panel_shown}>|| {
                 let (editor, fitting, selected, open) = panel;
                 view! {
@@ -150,7 +147,7 @@ fn Sidebar(
                 <Text size=TextSize::Sm color=TextColor::Muted @test_id={"pan_zoom.zoom"}>
                     {readout}
                 </Text>
-                <List direction=Direction::Horizontal spacing=6.0>
+                <List direction=Direction::Horizontal spacing=Space::Sm>
                     <Button
                         label="-"
                         variant=ButtonVariant::Secondary
@@ -174,7 +171,7 @@ fn Sidebar(
                 <Text size=TextSize::Sm color=TextColor::Muted @test_id={"pan_zoom.selected"}>
                     {chosen}
                 </Text>
-                <List spacing=4.0>
+                <List spacing=Space::Xs>
                     <ForEach keys={card_indices()}>|index: usize|
                         <FocusRow index editor={editor} selected={selected} />
                     </ForEach>
@@ -212,15 +209,15 @@ fn FocusRow(editor: Editor, index: usize, selected: Signal<Option<usize>>) -> No
 fn Rail(open: Signal<bool>) -> NodeId {
     let show = move || open.set(true);
     view! {
-        <Frame fill=ColorRole::Surface padding={Sides::symmetric(6.0, PANEL_PADDING)}>
-            <List spacing=0.0>
-                <unstyled::Button on_click={show} @test_id={"pan_zoom.show_sidebar"}>
-                    <Frame fill=ColorRole::SurfaceRaised radius=Radius::Md padding=8.0>
-                        <Text align=TextAlign::Center>
-                            <Icon glyph=ICON_PANEL_LEFT_OPEN />
-                        </Text>
-                    </Frame>
-                </unstyled::Button>
+        <Frame fill=ColorRole::Surface padding={Padding::symmetric(Space::Sm, PANEL_PADDING)}>
+            <List spacing=Space::None>
+                <Button
+                    icon_only=true
+                    glyph=ICON_PANEL_LEFT_OPEN
+                    label="Show the sidebar"
+                    @test_id={"pan_zoom.show_sidebar"}
+                    on_click={show}
+                />
             </List>
         </Frame>
     }
@@ -241,21 +238,19 @@ fn Stage(editor: Editor, selected: Signal<Option<usize>>) -> NodeId {
 #[component]
 fn CardView(index: usize, scale: ReadSignal<f32>, selected: Signal<Option<usize>>) -> CanvasItem {
     let card: &'static Card = &CARDS[index];
-    let theme = use_theme();
     let chosen = create_memo(move || selected.get() == Some(index));
-    let outline = {
-        create_memo(move || match chosen.get() {
-            true => theme.get().accent,
-            false => theme.get().border,
-        })
-    };
+    let outline = create_memo(move || match chosen.get() {
+        true => ColorRole::Accent,
+        false => ColorRole::Border,
+    });
     let title_size = scaled(scale, CARD_TITLE_SIZE);
     let label_size = scaled(scale, CARD_LABEL_SIZE);
     let title_size = create_memo(move || TextSize::Custom(title_size.get()));
     let label_size = create_memo(move || TextSize::Custom(label_size.get()));
     let padding = scaled(scale, CARD_PADDING);
+    let padding = create_memo(move || Padding::all(Space::Custom(padding.get())));
     let spacing = scaled(scale, CARD_SPACING);
-    let radius = create_memo(move || Radius::custom((CARD_RADIUS * scale.get()).floor()));
+    let spacing = create_memo(move || Space::Custom(spacing.get()));
     let outline_width = scaled(scale, CARD_OUTLINE);
     let position = format!("{:.0}, {:.0}", card.x, card.y);
     let select = move || selected.set(Some(index));
@@ -271,8 +266,8 @@ fn CardView(index: usize, scale: ReadSignal<f32>, selected: Signal<Option<usize>
             <Interactive cursor=CursorIcon::PointingHand on_click={select}>
                 <Frame
                     fill=ColorRole::SurfaceRaised
-                    border={create_memo(move || Some(Border::new(ColorRole::Custom(outline.get())).width(outline_width.get())))}
-                    radius=radius
+                    border={create_memo(move || Some(Border::new(outline.get()).width(Stroke::Custom(outline_width.get()))))}
+                    radius=Radius::Lg
                     padding=padding
                 >
                     <List spacing={spacing}>

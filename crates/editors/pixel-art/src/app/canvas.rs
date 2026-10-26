@@ -18,8 +18,8 @@ use super::state::Tools;
 const GRID_MIN_CELL: f32 = 6.0;
 const GRID_ALPHA: u8 = 60;
 const BORDER_ALPHA: u8 = 160;
-const HOVER_LABEL_PADDING: f32 = 6.0;
-const HOVER_LABEL_HEIGHT: f32 = 24.0;
+const HOVER_LABEL_PADDING: Space = Space::Sm;
+const HOVER_LABEL_HEIGHT: Size = Size::Md;
 
 #[component]
 pub(crate) fn ArtworkCanvas(
@@ -181,7 +181,7 @@ pub(crate) fn ArtworkCanvas(
                         on_hover_move={on_hover_move}
                         on_hover_change={on_hover_change}
                     >
-                        <List spacing=0.0>
+                        <List spacing=Space::None>
                             <Artwork
                                 @sizing=ItemSize::Percent(100.0)
                                 shown={shown}
@@ -361,7 +361,7 @@ fn Artwork(
             </CanvasItem>
             <CanvasItem x={left} y={top} width={width} height={height}>
                 <Frame
-                    border={create_memo(move || Some(Border::new(ColorRole::Custom(Color32::from_rgba_unmultiplied(0, 0, 0, BORDER_ALPHA))).width(thin.get())))}
+                    border={create_memo(move || Some(Border::new(ColorRole::Custom(Color32::from_rgba_unmultiplied(0, 0, 0, BORDER_ALPHA))).width(Stroke::Custom(thin.get()))))}
                 />
             </CanvasItem>
             <Show condition={has_preview}>
@@ -403,7 +403,7 @@ fn Artwork(
             }</ForEach>
             <Show condition={over}>
                 <CanvasItem x={hover_x} y={hover_y} width={hover_size} height={hover_size}>
-                    <Frame border={Border::new(ColorRole::Custom(Color32::WHITE)).width(1.0)} />
+                    <Frame border={Border::new(ColorRole::Custom(Color32::WHITE)).width(Stroke::Hairline)} />
                 </CanvasItem>
             </Show>
         </Canvas>

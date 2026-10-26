@@ -21,8 +21,8 @@ use crate::database_view::app::data::Data;
 use crate::database_view::app::list::{iconic, row_title, visible_groups};
 use text_block_types::TextContent;
 
-const PADDING: f32 = 20.0;
-const SPACING: f32 = 8.0;
+const PADDING: Space = Space::Xl2;
+const SPACING: Space = Space::Md;
 const LABEL_WIDTH: f32 = 104.0;
 
 #[component]
@@ -124,9 +124,9 @@ pub fn RowPanel(data: Data, row: ObjectId) -> NodeId {
     view! {
         <BackHandler on_back={close}>
             <Frame fill=ColorRole::Background>
-                <List spacing=0.0>
-                    <Frame padding={Sides::symmetric(SPACING, 6.0)}>
-                        <List direction=Direction::Horizontal align=Align::Center spacing=2.0>
+                <List spacing=Space::None>
+                    <Frame padding={Padding::symmetric(SPACING, Space::Sm)}>
+                        <List direction=Direction::Horizontal align=Align::Center spacing=Space::Xs2>
                             <Show condition={narrow}>
                                 <Button
                                     icon_only=true
@@ -153,7 +153,7 @@ pub fn RowPanel(data: Data, row: ObjectId) -> NodeId {
                                 @test_id={"database-view.detail.next"}
                                 on_click={move || step(1)}
                             />
-                            <Frame padding={Sides::horizontal(6.0)}>
+                            <Frame padding={Padding::horizontal(Space::Sm)}>
                                 <Text style=TextStyle::CAPTION @test_id={"database-view.detail.id"}>
                                     {code}
                                 </Text>
@@ -199,7 +199,7 @@ pub fn RowPanel(data: Data, row: ObjectId) -> NodeId {
                     <Separator />
                     <Scroll @sizing=ItemSize::Percent(100.0)>
                         <Frame padding=PADDING>
-                            <List spacing={SPACING * 2.0}>
+                            <List spacing=Space::Xl>
                                 <TextInput
                                     value={Binding::new(title, retitled)}
                                     placeholder="Title"
@@ -207,7 +207,7 @@ pub fn RowPanel(data: Data, row: ObjectId) -> NodeId {
                                     focused={untitled}
                                     @test_id={"database-view.detail.title"}
                                 />
-                                <List spacing=2.0>
+                                <List spacing=Space::Xs2>
                                     <ForEach keys={properties}>|field: Uuid|
                                         <Property data={data} row={row} field={field} />
                                     </ForEach>
@@ -217,7 +217,7 @@ pub fn RowPanel(data: Data, row: ObjectId) -> NodeId {
                                 </ForEach>
                                 <Separator />
                                 <Show condition={missing}>
-                                    <List direction=Direction::Horizontal spacing=0.0>
+                                    <List direction=Direction::Horizontal spacing=Space::None>
                                         <Button
                                             glyph=ICON_FILE_PLUS
                                             label="Write a description"
@@ -309,7 +309,7 @@ fn Property(data: Data, row: ObjectId, field: Uuid) -> NodeId {
                 <Text style=TextStyle::CAPTION overflow=Overflow::Ellipsis>{name}</Text>
             </Frame>
             <Frame @sizing=ItemSize::Percent(100.0)>
-                <List spacing=0.0>
+                <List spacing=Space::None>
                     <Show condition={choice}>
                         <ChoicePicker
                             field={known}
@@ -402,8 +402,8 @@ fn LinkSection(data: Data, row: ObjectId, field: Uuid) -> NodeId {
     };
     let add_off = data.read_only;
     view! {
-        <List spacing=4.0>
-            <List direction=Direction::Horizontal align=Align::Center spacing=6.0>
+        <List spacing=Space::Xs>
+            <List direction=Direction::Horizontal align=Align::Center spacing=Space::Sm>
                 <Text>{heading}</Text>
                 <Text style=TextStyle::CAPTION>{count}</Text>
                 <Frame @sizing=ItemSize::Percent(100.0) />
@@ -497,15 +497,15 @@ fn LinkedRow(
     };
     let read_only = data.read_only;
     view! {
-        <List direction=Direction::Horizontal align=Align::Center spacing=4.0>
+        <List direction=Direction::Horizontal align=Align::Center spacing=Space::Xs>
             <ListRow
                 @sizing=ItemSize::Percent(100.0)
                 @test_id={format!("database-view.detail.links.{field}.{}", link.row)}
                 on_click={open}
                 on_activate={open}
             >
-                <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
-                    <Frame width=MARK_SIZE height=MARK_SIZE>
+                <List direction=Direction::Horizontal align=Align::Center spacing=Space::Md>
+                    <Frame width={Size::Custom(MARK_SIZE)} height={Size::Custom(MARK_SIZE)}>
                         <Layers>
                             <Show condition={marked}>
                                 <ChoiceMark option={option} size=MARK />

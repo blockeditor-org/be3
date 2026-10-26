@@ -23,8 +23,7 @@ const LINE_HEIGHT: f32 = 38.0;
 const CODE_WIDTH: f32 = 76.0;
 const MARK: TextSize = TextSize::Sm;
 const MARK_SIZE: f32 = MARK.icon_px();
-const SPACING: f32 = 10.0;
-const GUTTER: f32 = 12.0;
+const SPACING: Space = Space::Md;
 const PAGE_PART: Uuid = Uuid::nil();
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -78,10 +77,10 @@ pub fn ListView(data: Data) -> NodeId {
     view! {
         <Frame fill=ColorRole::Background>
             <Scroll>
-                <Frame padding={Sides::new(0.0, 0.0, 0.0, GUTTER * 2.0)}>
-                    <List spacing=0.0>
+                <Frame padding={Padding::ZERO.bottom(Space::Xl3)}>
+                    <List spacing=Space::None>
                         <Show condition={empty}>
-                            <Frame padding={Sides::symmetric(GUTTER * 1.5, GUTTER)}>
+                            <Frame padding={Padding::symmetric(Space::Xl, Space::Lg)}>
                                 <Text style=TextStyle::CAPTION>{blank}</Text>
                             </Frame>
                         </Show>
@@ -115,7 +114,7 @@ pub fn RowBeside(
     let beside = create_memo(move || !narrow.get() && open.get());
     let instead = create_memo(move || narrow.get() && open.get());
     view! {
-        <List direction=Direction::Horizontal spacing=0.0>
+        <List direction=Direction::Horizontal spacing=Space::None>
             <Layers @sizing=ItemSize::Percent(100.0)>
                 <ShowKeepAlive condition={main_shown}>{children}</ShowKeepAlive>
                 <Show condition={instead}>
@@ -124,7 +123,7 @@ pub fn RowBeside(
             </Layers>
             <Show condition={beside}>
                 <Frame @sizing=ItemSize::Fixed(PANEL_WIDTH)>
-                    <List direction=Direction::Horizontal spacing=0.0>
+                    <List direction=Direction::Horizontal spacing=Space::None>
                         <Separator direction=Direction::Vertical />
                         <OpenRow @sizing=ItemSize::Percent(100.0) data={data} row={selected} />
                     </List>
@@ -137,7 +136,7 @@ pub fn RowBeside(
 #[component]
 fn OpenRow(data: Data, row: Memo<Option<ObjectId>>) -> NodeId {
     view! {
-        <List spacing=0.0>
+        <List spacing=Space::None>
             <Dynamic value={row}>|row: Option<ObjectId>| {
                 match row {
                     Some(row) => view! {
@@ -212,9 +211,9 @@ fn GroupHeader(data: Data, groups: Memo<Vec<Group>>, key: GroupKey) -> NodeId {
     view! {
         <Frame
             fill=ColorRole::Surface
-            padding={Sides::vertical(2.0).left(GUTTER * 0.5).right(GUTTER * 0.5)}
+            padding={Padding::symmetric(Space::Sm, Space::Xs2)}
         >
-            <List direction=Direction::Horizontal align=Align::Center spacing=6.0>
+            <List direction=Direction::Horizontal align=Align::Center spacing=Space::Sm>
                 <Button
                     icon_only=true
                     glyph=ICON_CHEVRON_DOWN
@@ -275,11 +274,11 @@ fn AnyLine(data: Data, groups: Memo<Vec<Group>>, line: ReadSignal<Line>) -> Node
         Line::Header(_) => None,
     });
     view! {
-        <List spacing=0.0>
+        <List spacing=Space::None>
             <Dynamic value={kind}>|kind: LineKind| {
                 match kind {
                     LineKind::Header => view! {
-                        <List spacing=0.0>
+                        <List spacing=Space::None>
                             <Dynamic value={header}>|key: Option<GroupKey>| {
                                 match key {
                                     Some(key) => view! {
@@ -368,7 +367,7 @@ fn RowLine(data: Data, row: Memo<Option<ObjectId>>) -> NodeId {
     let wide = create_memo(move || !narrow.get());
     view! {
         <ListRow selected={selected} @test_id={element_test_id} on_click={pick} on_activate={pick}>
-            <List spacing=0.0>
+            <List spacing=Space::None>
                 <Show condition={wide}>
                     <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
                         <Frame @sizing=ItemSize::Fixed(CODE_WIDTH)>
@@ -385,7 +384,7 @@ fn RowLine(data: Data, row: Memo<Option<ObjectId>>) -> NodeId {
                     </List>
                 </Show>
                 <Show condition={narrow}>
-                    <List spacing=4.0>
+                    <List spacing=Space::Xs>
                         <List direction=Direction::Horizontal align=Align::Start spacing=SPACING>
                             <Marks data={data} entry={entry} marks={marks} />
                             <Text @sizing=ItemSize::Percent(100.0)>{title}</Text>
@@ -393,7 +392,7 @@ fn RowLine(data: Data, row: Memo<Option<ObjectId>>) -> NodeId {
                         <List
                             direction=Direction::Horizontal
                             align=Align::Center
-                            spacing=8.0
+                            spacing=Space::Md
                             wrap=true
                         >
                             <Text style=TextStyle::CAPTION>{code}</Text>
@@ -409,7 +408,7 @@ fn RowLine(data: Data, row: Memo<Option<ObjectId>>) -> NodeId {
 #[component]
 fn Marks(data: Data, entry: Memo<Option<DatabaseRow>>, marks: Memo<Vec<Uuid>>) -> NodeId {
     view! {
-        <List direction=Direction::Horizontal align=Align::Center spacing=6.0>
+        <List direction=Direction::Horizontal align=Align::Center spacing=Space::Sm>
             <ForEach keys={marks}>|field: Uuid| {
                 let option = create_memo(move || {
                     let chosen = entry.with(|entry| match entry.as_ref()?.get(field) {
@@ -425,7 +424,7 @@ fn Marks(data: Data, entry: Memo<Option<DatabaseRow>>, marks: Memo<Vec<Uuid>>) -
                 });
                 let set = create_memo(move || option.with(Option::is_some));
                 view! {
-                    <Frame width=MARK_SIZE height=MARK_SIZE>
+                    <Frame width={Size::Custom(MARK_SIZE)} height={Size::Custom(MARK_SIZE)}>
                         <Layers>
                             <Show condition={set}>
                                 <ChoiceMark option={option} size=MARK />
@@ -445,7 +444,7 @@ pub fn Parts(
     #[prop(default = false)] wrap: bool,
 ) -> NodeId {
     view! {
-        <List direction=Direction::Horizontal align=Align::Center spacing=6.0 wrap={wrap}>
+        <List direction=Direction::Horizontal align=Align::Center spacing=Space::Sm wrap={wrap}>
             <ForEach keys={keys}>|key: Uuid| {
                 let part = create_memo(move || {
                     parts.with(|parts| {
@@ -485,7 +484,7 @@ fn RowPart(part: Memo<Option<Part>>) -> NodeId {
         })
     });
     view! {
-        <List direction=Direction::Horizontal spacing=0.0>
+        <List direction=Direction::Horizontal spacing=Space::None>
             <Dynamic value={kind}>|kind: PartKind| {
                 match kind {
                     PartKind::Page => view! {
@@ -514,15 +513,15 @@ fn Chip(part: Memo<Option<Part>>, text: Memo<String>) -> NodeId {
     });
     let dotted = create_memo(move || choice.with(Option::is_some));
     let dot = create_memo(move || match choice.get() {
-        Some(option) => choice_color(option.color, theme.kind.get()),
-        None => theme.text_muted.get(),
+        Some(option) => ColorRole::Custom(choice_color(option.color, theme.kind.get())),
+        None => ColorRole::TextMuted,
     });
     let linked = create_memo(move || part.with(|part| matches!(part, Some(Part::Links(..)))));
     view! {
-        <Frame border={Border::DEFAULT} radius=Radius::Lg padding={Sides::symmetric(8.0, 1.0)}>
-            <List direction=Direction::Horizontal align=Align::Center spacing=5.0>
+        <Frame border={Border::DEFAULT} radius=Radius::Lg padding={Padding::symmetric(Space::Md, Space::Xs2)}>
+            <List direction=Direction::Horizontal align=Align::Center spacing=Space::Xs>
                 <Show condition={dotted}>
-                    <Frame width=8.0 height=8.0 radius=Radius::Xs fill={ColorRole::custom(dot)} />
+                    <Frame width={Size::Custom(8.0)} height={Size::Custom(8.0)} radius=Radius::Xs fill={dot} />
                 </Show>
                 <Show condition={linked}>
                     <Text size=TextSize::Xs color=TextColor::Muted align=TextAlign::Center>

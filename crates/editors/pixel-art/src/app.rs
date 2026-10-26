@@ -131,13 +131,13 @@ fn PixelArtEditor(editor: Editor) -> NodeId {
 
     let chrome = editor.chrome_shown();
     view! {
-        <List spacing=0.0>
+        <List spacing=Space::None>
             <TopBar tools={tools} size={size} shown={chrome} />
-            <List @sizing=ItemSize::Percent(100.0) direction=Direction::Horizontal spacing=0.0>
+            <List @sizing=ItemSize::Percent(100.0) direction=Direction::Horizontal spacing=Space::None>
                 <Sidebar side=Side::Left shown={chrome} width=TOOLS_WIDTH>
                     <ToolsPanel tools={tools} />
                 </Sidebar>
-                <List @sizing=ItemSize::Percent(100.0) spacing=0.0>
+                <List @sizing=ItemSize::Percent(100.0) spacing=Space::None>
                     <ArtworkCanvas
                         @sizing=ItemSize::Percent(100.0)
                         tools={tools}

@@ -11,8 +11,8 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 const MAX_EXPORT_SCALE: u32 = 16;
-const SETTINGS_PADDING: f32 = 14.0;
-const SETTINGS_SPACING: f32 = 12.0;
+const SETTINGS_PADDING: Space = Space::Lg;
+const SETTINGS_SPACING: Space = Space::Lg;
 
 #[derive(Clone, Debug, Deserialize, PartialEq, Eq, Serialize)]
 struct ImageArtifact {

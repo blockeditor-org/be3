@@ -68,9 +68,9 @@ fn MapEditor(editor: Editor) -> NodeId {
 
     let chrome = editor.chrome_shown();
     view! {
-        <List spacing=0.0>
+        <List spacing=Space::None>
             <MapToolbar state={state} fitting={fitting} shown={chrome} />
-            <List @sizing=ItemSize::Percent(100.0) direction=Direction::Horizontal spacing=0.0>
+            <List @sizing=ItemSize::Percent(100.0) direction=Direction::Horizontal spacing=Space::None>
                 <MapCanvas @sizing=ItemSize::Percent(100.0) state={state} />
                 <Sidebar shown={chrome}>
                     <MapSidebar state={state} />

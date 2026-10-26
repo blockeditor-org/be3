@@ -24,9 +24,9 @@ use moves::MoveTable;
 use play::Play;
 
 const SIDEBAR_WIDTH: f32 = 280.0;
-const PANEL_PADDING: f32 = 14.0;
-const SECTION_SPACING: f32 = 12.0;
-const BANNER_MARGIN: f32 = 12.0;
+const PANEL_PADDING: Space = Space::Lg;
+const SECTION_SPACING: Space = Space::Lg;
+const BANNER_MARGIN: Space = Space::Lg;
 
 pub(crate) trait GameModel {
     fn choose(&self, effect: Vec<u8>);
@@ -192,7 +192,7 @@ pub(crate) fn Game(
     snapshot: ReadSignal<GameSnapshot>,
 ) -> NodeId {
     view! {
-        <List spacing=0.0>
+        <List spacing=Space::None>
             <Keyed
                 value={snapshot}
                 key={|snapshot: GameSnapshot| snapshot.shape()}
@@ -214,7 +214,7 @@ fn GameShape(
     let failed = shape == Shape::Error;
     let playing = shape == Shape::Screen;
     view! {
-        <List spacing=0.0>
+        <List spacing=Space::None>
             <Show condition=loading>
                 <LoadingPane @sizing=ItemSize::Percent(100.0) label="Loading the game" />
             </Show>
@@ -238,7 +238,7 @@ fn GameError(snapshot: ReadSignal<GameSnapshot>) -> NodeId {
     let error = create_memo(move || snapshot.get().as_error());
     view! {
         <Card>
-            <List spacing=8.0>
+            <List spacing=Space::Md>
                 <Text style=TextStyle::HEADING>"Game unavailable"</Text>
                 <Text style=TextStyle::PARAGRAPH @test_id={"game.error"}>{error}</Text>
             </List>
@@ -321,13 +321,13 @@ fn GamePlay(
     editor.content(&stage);
     let chrome = editor.chrome_shown();
     view! {
-        <List spacing=0.0>
+        <List spacing=Space::None>
             <Keyed value={chrome} key={|shown: bool| shown}>|chrome: ReadSignal<bool>| {
                 match chrome.get_untracked() {
                     true => view! {
                         <List
                             direction=Direction::Horizontal
-                            spacing=0.0
+                            spacing=Space::None
                             @sizing=ItemSize::Percent(100.0)
                         >
                             <Stage
@@ -388,7 +388,7 @@ fn Sidebar(panel: Panel) -> NodeId {
             <Scroll>
                 <Frame padding=PANEL_PADDING>
                     <List spacing=SECTION_SPACING>
-                        <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
+                        <List direction=Direction::Horizontal align=Align::Center spacing=Space::Md>
                             <Text style=TextStyle::CAPTION>"Playing as"</Text>
                             <Select
                                 options={view! {
@@ -429,7 +429,7 @@ fn Controls(
     editable: Memo<bool>,
 ) -> NodeId {
     view! {
-        <List direction=Direction::Horizontal align=Align::Center spacing=6.0>
+        <List direction=Direction::Horizontal align=Align::Center spacing=Space::Sm>
             <ForEach keys={controls}>|action: Action|
                 <ControlButton game action editable={editable} />
             </ForEach>
@@ -452,7 +452,7 @@ fn ControlButton(game: Stored<Rc<dyn GameModel>>, action: Action, editable: Memo
     let confirm = format!("Confirm: {label}");
     let effect = action.effect;
     view! {
-        <List direction=Direction::Horizontal align=Align::Center spacing=4.0>
+        <List direction=Direction::Horizontal align=Align::Center spacing=Space::Xs>
             <Show condition={asking}>
                 <Button
                     icon_only=true
@@ -465,7 +465,7 @@ fn ControlButton(game: Stored<Rc<dyn GameModel>>, action: Action, editable: Memo
             </Show>
             <Show condition={confirming}>|| {
                 let confirm = confirm.clone(); let effect = effect.clone(); let question = question.clone(); view! {
-                    <List direction=Direction::Horizontal align=Align::Center spacing=4.0>
+                    <List direction=Direction::Horizontal align=Align::Center spacing=Space::Xs>
                         <Text style=TextStyle::CAPTION>{question}</Text>
                         <Button
                             icon_only=true
@@ -516,12 +516,12 @@ fn Banner(anchor: NodeRef, table: Memo<Table>) -> NodeId {
             <Frame padding=BANNER_MARGIN>
                 <Frame
                     fill=ColorRole::SurfaceRaised
-                    radius={Radius::custom(8.0)}
-                    padding={Sides::symmetric(14.0, 8.0)}
-                    border={Border::new(ColorRole::Border).width(1.0)}
+                    radius={Radius::Tab}
+                    padding={Padding::symmetric(Space::Lg, Space::Md)}
+                    border={Border::new(ColorRole::Border).width(Stroke::Hairline)}
                     @test_id={"game.banner"}
                 >
-                    <List direction=Direction::Horizontal align=Align::Center spacing=10.0>
+                    <List direction=Direction::Horizontal align=Align::Center spacing=Space::Md>
                         <Text size=TextSize::Lg weight=Weight::Bold color={color}>{text}</Text>
                         <Button
                             icon_only=true
@@ -543,7 +543,7 @@ fn Banner(anchor: NodeRef, table: Memo<Table>) -> NodeId {
 fn Choices(play: Play) -> NodeId {
     view! {
         <Card>
-            <List spacing=8.0>
+            <List spacing=Space::Md>
                 <Text>"Which move?"</Text>
                 <ChoiceButtons play />
             </List>
@@ -557,7 +557,7 @@ fn ChoiceButtons(play: Play) -> NodeId {
     let keys = create_memo(move || choices.get());
     let cancel = move || play.cancel();
     view! {
-        <List spacing=6.0>
+        <List spacing=Space::Sm>
             <ForEach keys={keys}>|action: Action| {
                 let index = action.index;
                 view! {
@@ -655,7 +655,7 @@ pub(crate) fn GameCreation(
             ]}
             on_dismiss={move || creation.value().cancel()}
         >
-            <List spacing=10.0 align=Align::Start>
+            <List spacing=Space::Md align=Align::Start>
                 <ForEach keys={games}>|game: StagedChoice| {
                     let index = game.index;
                     let (variant, disabled, caption) = match &game.state {
@@ -670,7 +670,7 @@ pub(crate) fn GameCreation(
                     };
                     let failed = !caption.is_empty();
                     view! {
-                        <List spacing=2.0 align=Align::Start>
+                        <List spacing=Space::Xs2 align=Align::Start>
                             <Button
                                 label={game.name.clone()}
                                 variant

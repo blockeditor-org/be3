@@ -4137,8 +4137,9 @@ There is one `Button`. It takes a `variant` (`Secondary` unless given), a
 square when icon-only), and `icon_only`, which shows only the glyph and turns the
 label into the tooltip. `MenuButton` and `Popover` take the same `variant`,
 `size` and `icon_only` and paint the same `ButtonFace`; `MenuButton` also takes an
-`image` for a picture face and adds a chevron to a labelled face unless
-`arrow=false`. A custom face over `unstyled::Button` reads `handle.icon_only` and
+`image` for a picture face, a `leading` node drawn before the label in place
+of a glyph (a database choice's coloured mark, a status dot), and adds a
+chevron to a labelled face unless `arrow=false`. A custom face over `unstyled::Button` reads `handle.icon_only` and
 wraps itself in `<Tooltip label={handle.tooltip}>`.
 
 A pressable row paints `RowFace`: a leading picture or icon (`image`, `glyph`, or

@@ -16,7 +16,7 @@ use crate::points::marker_color;
 use super::state::MapState;
 use block_editor_beui::beui::TextAlign;
 
-const PREVIEW_HEIGHT: f32 = 130.0;
+const PREVIEW_HEIGHT: Size = Size::Custom(130.0);
 
 const COLOR_PRESETS: [(&str, MapColor); 5] = [
     ("Default", MapColor::Default),
@@ -64,7 +64,7 @@ pub(crate) fn MapSidebar(state: MapState) -> NodeId {
     let reason = create_memo(move || error.get().unwrap_or_default());
 
     view! {
-        <List spacing=10.0>
+        <List spacing=Space::Md>
             <Text style=TextStyle::HEADING>"Map"</Text>
             <Separator />
             <RegionInspector state={state} />
@@ -76,7 +76,7 @@ pub(crate) fn MapSidebar(state: MapState) -> NodeId {
                 <PointDetails state={state} selected={selected} />
             </Show>
             <Show condition={failed}>
-                <List spacing=4.0>
+                <List spacing=Space::Xs>
                     <Text style=TextStyle::CAPTION color=TextColor::Danger>{reason}</Text>
                     <Button
                         label="Dismiss"
@@ -96,7 +96,7 @@ fn RegionInspector(state: MapState) -> NodeId {
     let loose = create_memo(move || !fixed.get());
     let loose_color = TextColor::Muted;
     view! {
-        <List spacing=6.0>
+        <List spacing=Space::Sm>
             <Text>"Preview region"</Text>
             <Checkbox
                 label="Show a fixed region"
@@ -112,9 +112,9 @@ fn RegionInspector(state: MapState) -> NodeId {
                 </Text>
             </Show>
             <Show condition={fixed}>
-                <List spacing=6.0>
+                <List spacing=Space::Sm>
                     <RegionEdges state={state} />
-                    <List direction=Direction::Horizontal align=Align::Center spacing=6.0>
+                    <List direction=Direction::Horizontal align=Align::Center spacing=Space::Sm>
                         <Button
                             label="Use current view"
                             variant=ButtonVariant::Secondary
@@ -177,8 +177,8 @@ fn RegionEdges(state: MapState) -> NodeId {
         |edges, value| edges.east = value,
     );
     view! {
-        <List spacing=4.0>
-            <List direction=Direction::Horizontal align=Align::Center spacing=6.0>
+        <List spacing=Space::Xs>
+            <List direction=Direction::Horizontal align=Align::Center spacing=Space::Sm>
                 <Coordinate
                     @sizing=ItemSize::Percent(50.0)
                     label={north_label}
@@ -194,7 +194,7 @@ fn RegionEdges(state: MapState) -> NodeId {
                     on_change={set_south}
                 />
             </List>
-            <List direction=Direction::Horizontal align=Align::Center spacing=6.0>
+            <List direction=Direction::Horizontal align=Align::Center spacing=Space::Sm>
                 <Coordinate
                     @sizing=ItemSize::Percent(50.0)
                     label={west_label}
@@ -269,7 +269,7 @@ fn PointList(state: MapState) -> NodeId {
     let any = create_memo(move || !empty.get());
     let hint = TextColor::Muted;
     view! {
-        <List spacing=6.0>
+        <List spacing=Space::Sm>
             <Text>"Points of interest"</Text>
             <Show condition={empty}>
                 <Text style=TextStyle::CAPTION color={hint}>
@@ -307,7 +307,7 @@ fn PointRow(state: MapState, id: Uuid) -> NodeId {
             }}
             on_activate={move || {}}
         >
-            <List direction=Direction::Horizontal align=Align::Center spacing=6.0>
+            <List direction=Direction::Horizontal align=Align::Center spacing=Space::Sm>
                 <Text overflow=Overflow::Ellipsis @sizing=ItemSize::Percent(100.0)>{label}</Text>
                 <Swatch color={swatch} />
             </List>
@@ -348,8 +348,8 @@ fn PointDetails(state: MapState, selected: Memo<Option<Uuid>>) -> NodeId {
     });
 
     view! {
-        <List spacing=8.0>
-            <List direction=Direction::Horizontal align=Align::Center spacing=6.0>
+        <List spacing=Space::Md>
+            <List direction=Direction::Horizontal align=Align::Center spacing=Space::Sm>
                 <Button
                     icon_only=true
                     glyph=ICON_ARROW_LEFT
@@ -367,7 +367,7 @@ fn PointDetails(state: MapState, selected: Memo<Option<Uuid>>) -> NodeId {
                     on_state={move |_| {}}
                 />
             </Frame>
-            <List direction=Direction::Horizontal align=Align::Center spacing=6.0>
+            <List direction=Direction::Horizontal align=Align::Center spacing=Space::Sm>
                 <Button
                     label="Edit"
                     variant=ButtonVariant::Secondary
@@ -426,7 +426,7 @@ fn PointDetails(state: MapState, selected: Memo<Option<Uuid>>) -> NodeId {
                 label="Longitude"
             />
             <Text>"Colour"</Text>
-            <List direction=Direction::Horizontal align=Align::Center spacing=4.0>
+            <List direction=Direction::Horizontal align=Align::Center spacing=Space::Xs>
                 <ForEach
                     keys={COLOR_PRESETS.map(|(name, _)| name.to_owned()).to_vec()}
                 >|name: String|

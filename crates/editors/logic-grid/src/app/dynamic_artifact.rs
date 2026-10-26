@@ -73,8 +73,8 @@ pub(super) fn summary(data: &[u8]) -> String {
     }
 }
 
-const SETTINGS_PADDING: f32 = 14.0;
-const SETTINGS_SPACING: f32 = 12.0;
+const SETTINGS_PADDING: Space = Space::Lg;
+const SETTINGS_SPACING: Space = Space::Lg;
 
 #[component]
 pub(super) fn Settings(artifacts: Artifacts) -> NodeId {

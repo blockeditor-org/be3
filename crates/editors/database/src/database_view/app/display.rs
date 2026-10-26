@@ -16,7 +16,7 @@ use uuid::Uuid;
 use crate::database_view::app::data::Data;
 use crate::database_view::groups::groupable;
 
-const SPACING: f32 = 10.0;
+const SPACING: Space = Space::Md;
 const LABEL_WIDTH: f32 = 96.0;
 pub const KINDS: [(DatabaseViewKind, &str, Glyph); 4] = [
     (DatabaseViewKind::List, "List", ICON_LIST),
@@ -75,7 +75,7 @@ pub fn DisplayOptions(data: Data) -> NodeId {
                     @test_id={"database-view.prefix"}
                 />
             </List>
-            <List direction=Direction::Horizontal spacing=0.0>
+            <List direction=Direction::Horizontal spacing=Space::None>
                 <Button
                     glyph=ICON_TABLE_PROPERTIES
                     label="Edit fields"
@@ -92,7 +92,7 @@ pub fn DisplayOptions(data: Data) -> NodeId {
 fn KindSwitch(data: Data) -> NodeId {
     let keys = create_memo(|| (0..KINDS.len()).collect::<Vec<usize>>());
     view! {
-        <List direction=Direction::Horizontal align=Align::Center spacing=6.0 wrap=true>
+        <List direction=Direction::Horizontal align=Align::Center spacing=Space::Sm wrap=true>
             <ForEach keys={keys}>|index: usize| {
                 let (wanted, label, glyph) = KINDS[index];
                 let pressed = create_memo(move || data.kind.get() == wanted);
@@ -216,7 +216,7 @@ fn OrderPicker(data: Data) -> NodeId {
     };
     view! {
         <Labelled label="Order by">
-            <List direction=Direction::Horizontal align=Align::Center spacing=6.0>
+            <List direction=Direction::Horizontal align=Align::Center spacing=Space::Sm>
                 <FieldPicker
                     @sizing=ItemSize::Percent(100.0)
                     options={options}
@@ -318,9 +318,9 @@ fn ShownFields(data: Data) -> NodeId {
         })
     });
     view! {
-        <List spacing=6.0>
+        <List spacing=Space::Sm>
             <Text style=TextStyle::CAPTION>"Shown on each row"</Text>
-            <List direction=Direction::Horizontal spacing=6.0 wrap=true>
+            <List direction=Direction::Horizontal spacing=Space::Sm wrap=true>
                 <ForEach keys={keys}>|field: Uuid| {
                     let name = create_memo(move || {
                         data.fields.with(|fields| {

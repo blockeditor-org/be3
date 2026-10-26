@@ -10,10 +10,10 @@ use crate::database_view::app::data::Data;
 use crate::database_view::app::display::DisplayOptions;
 use crate::database_view::app::filters::{FilterBar, FilterList};
 
-const GUTTER: f32 = 12.0;
-const SPACING: f32 = 8.0;
+const GUTTER: Space = Space::Lg;
+const SPACING: Space = Space::Md;
 const SEARCH_WIDTH: f32 = 220.0;
-const DISPLAY_WIDTH: f32 = 380.0;
+const DISPLAY_WIDTH: Size = Size::Custom(380.0);
 
 #[component]
 pub fn ViewHeader(data: Data) -> NodeId {
@@ -23,7 +23,7 @@ pub fn ViewHeader(data: Data) -> NodeId {
     let message = create_memo(move || data.error.get().unwrap_or_default());
     let dismiss = move || data.dismiss_error();
     view! {
-        <List spacing=0.0>
+        <List spacing=Space::None>
             <Show condition={wide}>
                 <WideHeader data={data} />
             </Show>
@@ -31,7 +31,7 @@ pub fn ViewHeader(data: Data) -> NodeId {
                 <NarrowHeader data={data} />
             </Show>
             <Show condition={failed}>
-                <Frame padding={Sides::symmetric(GUTTER, 6.0)}>
+                <Frame padding={Padding::symmetric(GUTTER, Space::Sm)}>
                     <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
                         <Text @sizing=ItemSize::Percent(100.0) color=TextColor::Danger>
                             {message}
@@ -54,8 +54,8 @@ pub fn ViewHeader(data: Data) -> NodeId {
 fn WideHeader(data: Data) -> NodeId {
     let count = row_count(data);
     view! {
-        <Frame padding={Sides::horizontal(GUTTER).top(8.0).bottom(6.0)}>
-            <List spacing=6.0>
+        <Frame padding={Padding::horizontal(GUTTER).top(Space::Md).bottom(Space::Sm)}>
+            <List spacing=Space::Sm>
                 <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
                     <Text style=TextStyle::HEADING>{data.name}</Text>
                     <ViewTabs @sizing={ItemSize::Percent(100.0).shrink(1.0)} data={data} />
@@ -90,7 +90,7 @@ fn NarrowHeader(data: Data) -> NodeId {
     let open = move || sheet.set(true);
     let close = move || sheet.set(false);
     view! {
-        <Frame padding={Sides::horizontal(GUTTER).top(8.0).bottom(8.0)}>
+        <Frame padding={Padding::symmetric(GUTTER, Space::Md)}>
             <List spacing=SPACING>
                 <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
                     <Text style=TextStyle::HEADING @sizing=ItemSize::Percent(100.0)>
@@ -149,7 +149,7 @@ fn ViewTabs(data: Data) -> NodeId {
     let create = move || data.new_view();
     let read_only = data.read_only;
     view! {
-        <List direction=Direction::Horizontal align=Align::Center spacing=4.0>
+        <List direction=Direction::Horizontal align=Align::Center spacing=Space::Xs>
             <ForEach keys={keys}>|view: Uuid| {
                 let name = create_memo(move || {
                     data.views.with(|views| {

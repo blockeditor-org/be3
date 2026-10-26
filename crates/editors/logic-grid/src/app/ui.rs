@@ -22,17 +22,17 @@ pub(super) fn LogicGridView(editor: Editor) -> NodeId {
     on_shortcut(move |press: KeyPress| shortcut(session, press));
     let chrome = editor.chrome_shown();
     view! {
-        <List spacing=0.0>
+        <List spacing=Space::None>
             <Show condition={waiting}>
                 <LoadingPane @sizing=ItemSize::Percent(100.0) label="Loading the grid" />
             </Show>
             <Show condition={loaded}>
-                <List @sizing=ItemSize::Percent(100.0) spacing=0.0>
+                <List @sizing=ItemSize::Percent(100.0) spacing=Space::None>
                     <GridToolbar session={session} shown={chrome} />
                     <List
                         @sizing=ItemSize::Percent(100.0)
                         direction=Direction::Horizontal
-                        spacing=0.0
+                        spacing=Space::None
                     >
                         <Sidebar side=Side::Left shown={chrome} width=HOTBAR_WIDTH>
                             <Hotbar session={session} />

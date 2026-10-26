@@ -12,9 +12,8 @@ use crate::logic_game::binary_addition::ui::BinaryAddition;
 use super::game::{Game, Level, Solution};
 use block_editor_beui::beui::TextAlign;
 
-const PADDING: f32 = 16.0;
-const ROW_SPACING: f32 = 8.0;
-const INDENT: f32 = 20.0;
+const PADDING: Space = Space::Xl;
+const ROW_SPACING: Space = Space::Md;
 const ROW_HEIGHT: f32 = 26.0;
 const CHROME_HEIGHT: f32 = 120.0;
 const QUIZ_HEIGHT: f32 = 320.0;
@@ -79,7 +78,7 @@ pub fn LogicGameEditor(editor: Editor) -> NodeId {
                     <Spacer @sizing=ItemSize::Percent(100.0) />
                 </List>
                 <Scroll @sizing=ItemSize::Percent(100.0)>
-                    <List spacing=4.0>
+                    <List spacing=Space::Xs>
                         <ForEach keys={keys}>|challenge: ChallengeId| {
                             let level = level_of(levels, challenge);
                             let here = open.memo(Some(challenge));
@@ -126,7 +125,7 @@ fn LevelRow(
     let shows_solutions = create_memo(move || expanded.get() && !quiz);
     let goal = generate_challenge(challenge).goal;
     view! {
-        <List spacing=4.0>
+        <List spacing=Space::Xs>
             <ListRow
                 selected={expanded}
                 @test_id={format!("logic-game.level.{}", challenge as usize)}
@@ -146,7 +145,7 @@ fn LevelRow(
             </ListRow>
             <Show condition={expanded}>|| {
                 let goal = goal.clone(); view! {
-                    <Frame padding={Sides::new(INDENT, 0.0, 0.0, 0.0)}>
+                    <Frame padding={Padding::ZERO.left(Space::Xl2)}>
                         <List spacing=ROW_SPACING>
                             <Text style=TextStyle::CAPTION>{goal}</Text>
                             <Show condition={shows_quiz}>
@@ -192,7 +191,7 @@ fn Solutions(
         game.start(challenge, index);
     };
     view! {
-        <List spacing=4.0>
+        <List spacing=Space::Xs>
             <ForEach keys={keys}>|reference: Uuid| {
                 let solution = solution_of(level, reference);
                 view! {
@@ -204,7 +203,7 @@ fn Solutions(
                     />
                 }
             }</ForEach>
-            <List direction=Direction::Horizontal spacing=0.0>
+            <List direction=Direction::Horizontal spacing=Space::None>
                 <Button
                     glyph=ICON_PLUS
                     label="New attempt"

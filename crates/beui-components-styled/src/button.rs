@@ -182,6 +182,7 @@ pub fn ButtonFace(
     #[prop(default = false)] busy: Prop<bool>,
     #[prop(default = false)] wide: Prop<bool>,
     #[prop(default = true)] revealed: Prop<bool>,
+    leading: Option<Child>,
 ) -> NodeId {
     let unstyled::ButtonHandle {
         hovered,
@@ -210,7 +211,9 @@ pub fn ButtonFace(
     });
     let image = create_memo(move || image.get());
     let pictured = create_memo(move || image.with(Option::is_some));
-    let has_glyph = create_memo(move || !pictured.get() && glyph.get().is_some());
+    let has_leading = leading.is_some();
+    let leading = leading.unwrap_or_else(|| view! { <Frame /> });
+    let has_glyph = create_memo(move || !has_leading && !pictured.get() && glyph.get().is_some());
     let trailing = create_memo(move || trailing_glyph.get());
     let has_trailing = create_memo(move || trailing.get().is_some());
     let labelled = create_memo(move || !icon_only.get());
@@ -243,6 +246,9 @@ pub fn ButtonFace(
                     >
                         <Show condition={busy}>
                             <Progress width=INLINE_PROGRESS_WIDTH />
+                        </Show>
+                        <Show condition=has_leading>
+                            {leading}
                         </Show>
                         <Show condition={pictured}>
                             <Frame width=picture height=picture>

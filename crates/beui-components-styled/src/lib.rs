@@ -65,6 +65,7 @@ pub use beui_components_unstyled::{
 };
 pub use beui_components_unstyled::{DialogDismissal, DialogLayout};
 pub use beui_components_unstyled::{PaletteItem, PaletteItems, PaletteScore};
+pub use beui_components_unstyled::{Pressable, SliderScale};
 pub use beui_components_unstyled::{emoji_completer, search_emoji};
 pub use beui_view::primitives::{
     BackHandler, Break, Canvas, CanvasItem, Drawing, Embed, Fade, GridCell, Interactive, Layer,

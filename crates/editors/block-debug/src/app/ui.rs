@@ -8,8 +8,8 @@ use block_editor_beui::{BlockQuery, Editor};
 
 use super::entries::{self, Row};
 
-const PADDING: f32 = 8.0;
-const ROW_SPACING: f32 = 2.0;
+const PADDING: Space = Space::Md;
+const ROW_SPACING: Space = Space::Xs2;
 
 #[component]
 pub fn BlockDebug(editor: Editor) -> NodeId {
@@ -45,7 +45,7 @@ pub fn BlockDebug(editor: Editor) -> NodeId {
         })
     });
     view! {
-        <List spacing=0.0>
+        <List spacing=Space::None>
             <Tree
                 @sizing=ItemSize::Percent(100.0)
                 keys={keys}

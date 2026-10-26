@@ -4,9 +4,9 @@ use block_editor_beui::be_block::ObjectId;
 use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::icons::{ICON_LIST_FILTER, ICON_PLUS, ICON_X};
 use block_editor_beui::beui::reactive::*;
-use block_editor_beui::beui::styled::popover::popover_surface;
+use block_editor_beui::beui::styled::popover::PANEL_PADDING;
 use block_editor_beui::beui::styled::*;
-use block_editor_beui::beui::unstyled::{self, ChoiceOption, PopoverHandle, PopupTriggerHandle};
+use block_editor_beui::beui::unstyled::{ChoiceOption, PopoverHandle};
 use block_editor_beui::block_ui::database::{
     DatabaseValueChange, ValueLabels, database_value_text,
 };
@@ -16,12 +16,13 @@ use database_types::database_schema::{DatabaseEnumOption, DatabaseField, Databas
 use database_types::database_view::{DatabaseView, FilterCondition, ViewFilter};
 use uuid::Uuid;
 
-use crate::database_view::app::controls::{ControlFace, MARK};
+use crate::database_view::app::controls::MARK;
 use crate::database_view::app::data::Data;
 use block_editor_beui::beui::TextAlign;
 
-const SPACING: f32 = 6.0;
+const SPACING: Space = Space::Sm;
 const EDITOR_WIDTH: f32 = 300.0;
+const EDITOR_POPOVER_WIDTH: Size = Size::Custom(EDITOR_WIDTH + PANEL_PADDING.px() * 2.0);
 const CHOICES_HEIGHT: f32 = 280.0;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -218,22 +219,17 @@ fn FilterChip(data: Data, id: ObjectId) -> NodeId {
     let remove = move || data.operate_view(DatabaseView::remove_filter(id));
     let read_only = data.read_only;
     view! {
-        <Frame fill=ColorRole::Surface border={Border::DEFAULT} radius={Radius::custom(14.0)}>
-            <List direction=Direction::Horizontal align=Align::Center spacing=0.0>
-                <unstyled::Popover
+        <Frame fill=ColorRole::Surface border={Border::DEFAULT} radius=Radius::Full>
+            <List direction=Direction::Horizontal align=Align::Center spacing=Space::None>
+                <Popover
                     label={text}
+                    variant=ButtonVariant::Ghost
+                    size=ButtonSize::Compact
+                    max_width=EDITOR_POPOVER_WIDTH
                     @test_id={format!("database-view.filter.{}", id.as_uuid())}
-                    surface={popover_surface(Some(Size::Custom(EDITOR_WIDTH + 24.0)))}
-                    trigger={move |handle: PopupTriggerHandle| {
-                        view! {
-                            <ControlFace handle={handle.button}>
-                                <Text style=TextStyle::CAPTION>{text}</Text>
-                            </ControlFace>
-                        }
-                    }}
                 >|_: PopoverHandle|
                     <FilterEditor data={data} id={id} />
-                </unstyled::Popover>
+                </Popover>
                 <Button
                     icon_only=true
                     glyph=ICON_X
@@ -264,24 +260,17 @@ fn AddFilter(data: Data) -> NodeId {
     });
     let read_only = data.read_only;
     view! {
-        <unstyled::Popover
+        <Popover
             label="Filter"
+            glyph=ICON_LIST_FILTER
+            variant=ButtonVariant::Ghost
+            size=ButtonSize::Compact
             disabled={read_only}
+            max_width=EDITOR_POPOVER_WIDTH
             @test_id={"database-view.filters.add"}
             open
-            surface={popover_surface(Some(Size::Custom(EDITOR_WIDTH + 24.0)))}
-            trigger={move |handle: PopupTriggerHandle| view! {
-                <ControlFace handle={handle.button}>
-                    <List direction=Direction::Horizontal align=Align::Center spacing=4.0>
-                        <Text size=TextSize::Xs color=TextColor::Muted align=TextAlign::Center>
-                            <Icon glyph=ICON_LIST_FILTER />
-                        </Text>
-                        <Text style=TextStyle::CAPTION>"Filter"</Text>
-                    </List>
-                </ControlFace>
-            }}
         >|_: PopoverHandle|
-            <List spacing=0.0>
+            <List spacing=Space::None>
                 <Show condition={choosing}>
                     <FieldChoices data={data} on_pick={move |id: ObjectId| adding.set(Some(id))} />
                 </Show>
@@ -297,7 +286,7 @@ fn AddFilter(data: Data) -> NodeId {
                     }
                 }</Show>
             </List>
-        </unstyled::Popover>
+        </Popover>
     }
 }
 
@@ -316,7 +305,7 @@ fn FieldChoices(
         })
     });
     view! {
-        <List spacing=2.0>
+        <List spacing=Space::Xs2>
             <Text style=TextStyle::CAPTION>"Filter by"</Text>
             <ForEach keys={keys}>|field: Uuid| {
                 let name = create_memo(move || {
@@ -339,15 +328,11 @@ fn FieldChoices(
                     on_pick.call(id);
                 };
                 view! {
-                    <unstyled::Button
+                    <ActionRow
                         label={name}
                         @test_id={format!("database-view.filters.field.{field}")}
                         on_click={pick}
-                    >|handle|
-                        <ControlFace handle={handle}>
-                            <Text>{name}</Text>
-                        </ControlFace>
-                    </unstyled::Button>
+                    />
                 }
             }</ForEach>
         </List>
@@ -438,8 +423,8 @@ pub fn FilterEditor(data: Data, id: ObjectId) -> NodeId {
     let (condition_off, value_off, text_off) = (data.read_only, data.read_only, data.read_only);
     let labels = data.labels;
     view! {
-        <Frame width=EDITOR_WIDTH>
-            <List spacing={SPACING * 1.5}>
+        <Frame width={Size::Custom(EDITOR_WIDTH)}>
+            <List spacing=Space::Md>
                 <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
                     <Text>{name}</Text>
                     <Frame @sizing=ItemSize::Percent(100.0)>
@@ -597,7 +582,7 @@ fn ValueChoices(
                 />
             </Show>
             <Scroll max_length=CHOICES_HEIGHT>
-                <List spacing=2.0>
+                <List spacing=Space::Xs2>
                     <ForEach keys={keys}>|index: usize| {
                         let choice = create_memo(move || choices.with(|choices| choices.get(index).cloned()));
                         let label = create_memo(move || choice.with(|choice| choice.as_ref().map(|choice| choice.label.clone()).unwrap_or_default()));
@@ -674,7 +659,7 @@ pub fn FilterList(data: Data) -> NodeId {
     };
     let read_only = data.read_only;
     view! {
-        <List spacing={SPACING * 2.0}>
+        <List spacing=Space::Lg>
             <Show condition={none}>
                 <Text style=TextStyle::CAPTION>"Every row is shown."</Text>
             </Show>

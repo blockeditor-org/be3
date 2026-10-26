@@ -92,7 +92,7 @@ pub(crate) fn Artwork(state: RayState) -> NodeId {
                     }}
                 >
                     <Frame fill=ColorRole::Background>
-                        <List spacing=0.0>
+                        <List spacing=Space::None>
                             <Canvas view={camera} @sizing=ItemSize::Percent(100.0)>
                                 <CanvasItem
                                     x={left}

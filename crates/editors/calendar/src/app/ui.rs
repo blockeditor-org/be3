@@ -13,12 +13,11 @@ use super::model::{
 use super::month::MonthGrid;
 use super::timeline::Timeline;
 
-const PADDING: f32 = 12.0;
-const SPACING: f32 = 8.0;
+const PADDING: Space = Space::Lg;
+const SPACING: Space = Space::Md;
 const INTRINSIC_WIDTH: f32 = 880.0;
 const MONTH_HEIGHT: f32 = 600.0;
 const TIMELINE_HEIGHT: f32 = 660.0;
-const FORM_WIDTH: f32 = 420.0;
 
 #[component]
 pub fn CalendarEditor(editor: Editor) -> NodeId {
@@ -92,7 +91,7 @@ pub fn CalendarEditor(editor: Editor) -> NodeId {
     let content = NodeRef::new();
     editor.content(&content);
     view! {
-        <List spacing=0.0>
+        <List spacing=Space::None>
             <Toolbar shown={chrome}>
                 <Button
                     icon_only=true
@@ -141,7 +140,7 @@ pub fn CalendarEditor(editor: Editor) -> NodeId {
                 />
             </Toolbar>
             <Frame @sizing=ItemSize::Percent(100.0) @node_ref={&content} padding=PADDING>
-                <List spacing=0.0>
+                <List spacing=Space::None>
                     <Dynamic value={mode}>|shown: CalendarView| {
                         match shown {
                             CalendarView::Month => view! {
@@ -258,7 +257,6 @@ fn EventDialog(
         <Dialog
             open={open}
             title={title}
-            width=FORM_WIDTH
             id="calendar.form"
             actions={vec![
                 DialogAction::destructive("Delete", delete).shown(editing).named("delete"),

@@ -6,7 +6,7 @@ use beui::{CursorIcon, Image, ImageFit, Key, KeyPress, NodeId, TextAlign, Vec2};
 
 use crate::model::{Loaded, Model};
 
-const PADDING: f32 = 16.0;
+const PADDING: Space = Space::Xl;
 const HINT_HEIGHT: f32 = 18.0;
 
 #[component]
@@ -104,7 +104,7 @@ pub(crate) fn ViewerBar(
     on_close: ClickCallback,
 ) -> NodeId {
     view! {
-        <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
+        <List direction=Direction::Horizontal align=Align::Center spacing=Space::Md>
             <Text style=TextStyle::CAPTION @sizing=ItemSize::Percent(100.0)>{position}</Text>
             <Button
                 icon_only=true
@@ -164,8 +164,8 @@ fn ImageStage(picture: Memo<Option<Image>>) -> NodeId {
                 }
                 .to_owned()
             });
-            let width = create_memo(move || Some(natural.get().x));
-            let height = create_memo(move || Some(natural.get().y));
+            let width = create_memo(move || Size::Custom(natural.get().x));
+            let height = create_memo(move || Size::Custom(natural.get().y));
             let zoom_in = move || {
                 if shrunk.get_untracked() {
                     actual.set(true);
@@ -173,7 +173,7 @@ fn ImageStage(picture: Memo<Option<Image>>) -> NodeId {
             };
             let zoom_out = move || actual.set(false);
             view! {
-                <List spacing=8.0>
+                <List spacing=Space::Md>
                     <Show condition={fitted}>
                         <Interactive
                             @sizing=ItemSize::Percent(100.0)

@@ -22,10 +22,9 @@ use crate::drawing::{BrushShape, MAX_BRUSH_SIZE, PixelTool};
 
 use crate::app::state::{Dialog, Tools};
 
-const SPACING: f32 = 8.0;
-const SWATCH: f32 = 20.0;
+const SPACING: Space = Space::Md;
+const SWATCH: Size = Size::Sm;
 const TOOL_WIDTH: f32 = 76.0;
-const DIALOG_WIDTH: f32 = 300.0;
 
 const TOOLS: [(PixelTool, Glyph, &str); 8] = [
     (PixelTool::Pencil, ICON_PENCIL, "B or P"),
@@ -181,7 +180,7 @@ pub(crate) fn ToolsPanel(tools: Tools) -> NodeId {
             <ForEach keys={rows}>|row: usize| {
                 let (left, right) = (TOOLS[row * 2], TOOLS[row * 2 + 1]);
                 view! {
-                    <List direction=Direction::Horizontal spacing=4.0>
+                    <List direction=Direction::Horizontal spacing=Space::Xs>
                         <ToolButton
                             @sizing=ItemSize::Fixed(TOOL_WIDTH)
                             tools={tools}
@@ -203,7 +202,7 @@ pub(crate) fn ToolsPanel(tools: Tools) -> NodeId {
                 label="Brush size"
                 @test_id={"pixel-art.brush-size"}
             />
-            <List direction=Direction::Horizontal align=Align::Center spacing=4.0>
+            <List direction=Direction::Horizontal align=Align::Center spacing=Space::Xs>
                 <ToggleButton
                     glyph=ICON_SQUARE
                     label="Square brush"
@@ -304,7 +303,7 @@ pub(crate) fn ColorsPanel(tools: Tools, palette: Memo<Vec<PixelColor>>) -> NodeI
                 <Channel tools={tools} channel={channel} />
             </ForEach>
             <Text>"Palette"</Text>
-            <List direction=Direction::Horizontal wrap=true spacing=4.0>
+            <List direction=Direction::Horizontal wrap=true spacing=Space::Xs>
                 <ForEach keys={palette}>|swatch: PixelColor| {
                     let chosen = create_memo(move || color.get() == swatch);
                     let pick = move || tools.set_active_color(swatch, true);
@@ -313,7 +312,7 @@ pub(crate) fn ColorsPanel(tools: Tools, palette: Memo<Vec<PixelColor>>) -> NodeI
                     }
                 }</ForEach>
             </List>
-            <List direction=Direction::Horizontal align=Align::Center spacing=4.0>
+            <List direction=Direction::Horizontal align=Align::Center spacing=Space::Xs>
                 <Button
                     icon_only=true
                     glyph=ICON_PLUS
@@ -333,7 +332,7 @@ pub(crate) fn ColorsPanel(tools: Tools, palette: Memo<Vec<PixelColor>>) -> NodeI
                 <Spacer @sizing=ItemSize::Percent(100.0) />
             </List>
             <Text>"Recent"</Text>
-            <List direction=Direction::Horizontal wrap=true spacing=4.0>
+            <List direction=Direction::Horizontal wrap=true spacing=Space::Xs>
                 <ForEach keys={recent_colors}>|swatch: PixelColor|
                     <Swatch color={swatch} selected=false on_click={move || {}} />
                 </ForEach>
@@ -377,7 +376,7 @@ fn Swatch(color: Prop<PixelColor>, selected: Prop<bool>, on_click: ClickCallback
                 width=SWATCH
                 height=SWATCH
                 fill={ColorRole::custom(fill)}
-                border={create_memo(move || Some(Border::new(ColorRole::Custom(outline.get())).width(2.0)))}
+                border={create_memo(move || Some(Border::new(ColorRole::Custom(outline.get())).width(Stroke::Focus)))}
                 radius=Radius::Xs
             />
         </Pressable>
@@ -414,11 +413,10 @@ pub(crate) fn Dialogs(tools: Tools, size: Memo<(u16, u16)>) -> NodeId {
     };
     let dismiss = move || tools.close_dialog();
     view! {
-        <List spacing=0.0>
+        <List spacing=Space::None>
             <styled::Dialog
                 open={resizing}
                 title="Resize pixel art"
-                width=DIALOG_WIDTH
                 id="pixel-art.resize"
                 actions={vec![
                     DialogAction::cancel("Cancel"),
@@ -460,7 +458,6 @@ pub(crate) fn Dialogs(tools: Tools, size: Memo<(u16, u16)>) -> NodeId {
                 open={clearing}
                 kind=DialogKind::Alert
                 title="Clear pixel art?"
-                width=DIALOG_WIDTH
                 id="pixel-art.clear"
                 actions={vec![
                     DialogAction::destructive("Clear", clear).named("apply"),
@@ -478,7 +475,7 @@ pub(crate) fn Dialogs(tools: Tools, size: Memo<(u16, u16)>) -> NodeId {
 fn AnchorRow(tools: Tools, row: usize) -> NodeId {
     let entries = create_memo(move || (0..3).map(|column| row * 3 + column).collect::<Vec<_>>());
     view! {
-        <List direction=Direction::Horizontal align=Align::Center spacing=4.0>
+        <List direction=Direction::Horizontal align=Align::Center spacing=Space::Xs>
             <ForEach keys={entries}>|index: usize| {
                 let (anchor, glyph, label) = ANCHORS[index];
                 let chosen = tools.resize_anchor;

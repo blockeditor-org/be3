@@ -11,9 +11,9 @@ use block_editor_beui::{BlockLink, ChildTarget, ContentProjection, Editor};
 use logic_grid_types::hotbar::{HotbarContent, HotbarSlot, SlotKind};
 use uuid::Uuid;
 
-const PADDING: f32 = 16.0;
+const PADDING: Space = Space::Xl;
 const INDENT: f32 = 16.0;
-const ROW_SPACING: f32 = 6.0;
+const ROW_SPACING: Space = Space::Sm;
 
 type Pinned = ContentProjection<HotbarContent>;
 
@@ -153,7 +153,7 @@ fn SlotRow(
         }
     };
     view! {
-        <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
+        <List direction=Direction::Horizontal align=Align::Center spacing=Space::Md>
             <Spacer @sizing={indent} />
             <Show condition={is_folder}>
                 <Text color=TextColor::Muted align=TextAlign::Center>

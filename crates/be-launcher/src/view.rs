@@ -25,12 +25,9 @@ use beui::TextAlign;
 
 #[cfg(not(target_os = "android"))]
 const SIDEBAR_WIDTH: f32 = 380.0;
-pub(crate) const PADDING: f32 = 16.0;
-const SPACING: f32 = 10.0;
-const ROW_SPACING: f32 = 4.0;
-const CHIP_PADDING_HORIZONTAL: f32 = 7.0;
-const CHIP_PADDING_VERTICAL: f32 = 1.0;
-const CHIP_RADIUS: f32 = 9.0;
+pub(crate) const PADDING: Space = Space::Xl;
+const SPACING: Space = Space::Md;
+const ROW_SPACING: Space = Space::Xs;
 pub(crate) const MERGED: Color32 = Color32::from_rgb(163, 113, 247);
 #[cfg(not(target_os = "android"))]
 const CURRENT: &str = "last run";
@@ -58,7 +55,7 @@ pub(crate) fn Launcher(model: Model) -> NodeId {
     let page = theme.background;
     let shade = theme.scrim_soft;
     view! {
-        <List spacing=0.0>
+        <List spacing=Space::None>
             <Show condition={listing}>
                 <Portal @sizing=ItemSize::Percent(100.0) node={Some(sidebar)} />
             </Show>
@@ -72,8 +69,8 @@ pub(crate) fn Launcher(model: Model) -> NodeId {
                     }}
                 >
                     <Frame fill={ColorRole::custom(page)}>
-                        <List spacing=0.0>
-                            <Frame padding={Sides::symmetric(8.0, 4.0)}>
+                        <List spacing=Space::None>
+                            <Frame padding={Padding::symmetric(Space::Md, Space::Xs)}>
                                 <Button
                                     icon_only=true
                                     glyph=ICON_ARROW_LEFT
@@ -112,7 +109,7 @@ pub(crate) fn Launcher(model: Model) -> NodeId {
 #[component]
 pub(crate) fn Launcher(model: Model) -> NodeId {
     view! {
-        <List direction=Direction::Horizontal spacing=0.0>
+        <List direction=Direction::Horizontal spacing=Space::None>
             <Frame @sizing=ItemSize::Fixed(SIDEBAR_WIDTH) fill=ColorRole::Surface>
                 <Sidebar model={model} />
             </Frame>
@@ -176,11 +173,11 @@ fn Sidebar(model: Model) -> NodeId {
     };
     let query = model.query;
     view! {
-        <List spacing=0.0>
+        <List spacing=Space::None>
             <Frame padding=PADDING>
                 <List spacing=SPACING>
                     <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
-                        <List @sizing=ItemSize::Percent(100.0) spacing=2.0>
+                        <List @sizing=ItemSize::Percent(100.0) spacing=Space::Xs2>
                             <Text style=TextStyle::HEADING>"Pull requests"</Text>
                             <Text style=TextStyle::CAPTION>{repository}</Text>
                         </List>
@@ -206,7 +203,7 @@ fn Sidebar(model: Model) -> NodeId {
                         }}
                         selected={Binding::new(tab, show)}
                     />
-                    <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
+                    <List direction=Direction::Horizontal align=Align::Center spacing=Space::Md>
                         <Text color=TextColor::Muted align=TextAlign::Center>
                             <Icon glyph=ICON_SEARCH />
                         </Text>
@@ -218,8 +215,8 @@ fn Sidebar(model: Model) -> NodeId {
                         />
                     </List>
                     <Show condition={loading}>
-                        <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
-                            <Progress width=20.0 label="Loading pull requests" />
+                        <List direction=Direction::Horizontal align=Align::Center spacing=Space::Md>
+                            <Progress width=Size::Sm label="Loading pull requests" />
                             <Text style=TextStyle::CAPTION>"Loading pull requests"</Text>
                         </List>
                     </Show>
@@ -232,8 +229,8 @@ fn Sidebar(model: Model) -> NodeId {
                 </List>
             </Frame>
             <Scroll @sizing=ItemSize::Percent(100.0)>
-                <Frame padding={Sides::horizontal(PADDING).bottom(PADDING)}>
-                    <List spacing=0.0>
+                <Frame padding={Padding::horizontal(PADDING).bottom(PADDING)}>
+                    <List spacing=Space::None>
                         <ForEach keys={visible}>|number: u64| {
                             let pull_request = model.pull_requests.get(&number);
                             let pull_request = create_memo(move || pull_request.get());
@@ -285,7 +282,7 @@ fn PullRequestRow(model: Model, pull_request: Memo<PullRequest>) -> NodeId {
     };
     view! {
         <ListRow @test_id={format!("launcher.pull_request.{number}")} selected on_click={open}>
-            <List direction=Direction::Horizontal spacing=8.0>
+            <List direction=Direction::Horizontal spacing=Space::Md>
                 <StateIcon state />
                 <List @sizing=ItemSize::Percent(100.0) spacing=ROW_SPACING>
                     <Text>{title}</Text>
@@ -329,7 +326,7 @@ pub(crate) fn Labels(labels: Memo<Vec<Label>>, checked_out: Memo<bool>) -> NodeI
     let theme = use_theme();
     let keys = create_memo(move || (0..labels.get().len()).collect::<Vec<_>>());
     view! {
-        <List direction=Direction::Horizontal spacing=6.0>
+        <List direction=Direction::Horizontal spacing=Space::Sm>
             <Show condition={checked_out}>
                 <Chip text=CURRENT color={theme.accent} />
             </Show>
@@ -352,8 +349,8 @@ fn Chip(text: Prop<String>, color: Prop<Color32>) -> NodeId {
     view! {
         <Frame
             fill={ColorRole::custom(color)}
-            radius={Radius::custom(CHIP_RADIUS)}
-            padding={Sides::symmetric(CHIP_PADDING_HORIZONTAL, CHIP_PADDING_VERTICAL)}
+            radius=Radius::Full
+            padding={Padding::symmetric(Space::Sm, Space::Xs2)}
         >
             <Text size=TextSize::Sm color={ink}>{text}</Text>
         </Frame>

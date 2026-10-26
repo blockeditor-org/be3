@@ -18,7 +18,7 @@ use crate::database_view::app::spreadsheet::Spreadsheet;
 use crate::database_view::sort::{ROW_HEADER_WIDTH, ROW_HEIGHT, column_name, column_width};
 
 const CELL_LABEL_WIDTH: f32 = 56.0;
-const CELL_EDITOR_HEIGHT: f32 = 40.0;
+const CELL_EDITOR_HEIGHT: Size = Size::Xl;
 
 #[component]
 pub fn DatabaseViewEditor(editor: Editor) -> NodeId {
@@ -52,7 +52,7 @@ fn ViewEditor(editor: Editor) -> NodeId {
     let content = NodeRef::new();
     editor.content(&content);
     view! {
-        <List spacing=0.0>
+        <List spacing=Space::None>
             <Show condition={spreadsheet}>
                 <Toolbar shown={chrome}>
                     <CellEditor @sizing=ItemSize::Percent(100.0) data={data} />
@@ -90,7 +90,7 @@ fn Content(data: Data, panels: bool) -> NodeId {
     let kind = data.kind;
     view! {
         <RowBeside data={data} enabled={panels}>
-            <List spacing=0.0>
+            <List spacing=Space::None>
                 <Dynamic value={kind}>|kind: DatabaseViewKind| {
                     match kind {
                         DatabaseViewKind::Spreadsheet => view! {
@@ -154,7 +154,7 @@ fn CellEditor(data: Data) -> NodeId {
     let read_only = data.read_only;
     view! {
         <Frame height=CELL_EDITOR_HEIGHT>
-            <List direction=Direction::Horizontal align=Align::Center spacing=10.0>
+            <List direction=Direction::Horizontal align=Align::Center spacing=Space::Md>
                 <Frame @sizing={ItemSize::Intrinsic.min(CELL_LABEL_WIDTH)}>
                     <Text @test_id={"database-view.cell-editor.cell"}>{label}</Text>
                 </Frame>

@@ -26,9 +26,9 @@ pub(crate) fn Workspace(model: Model) -> NodeId {
     });
     let pane = runs.pane;
     view! {
-        <List spacing=0.0>
-            <Frame padding={Sides::symmetric(PADDING, 12.0)}>
-                <List direction=Direction::Horizontal align=Align::Center spacing=12.0>
+        <List spacing=Space::None>
+            <Frame padding={Padding::symmetric(PADDING, Space::Lg)}>
+                <List direction=Direction::Horizontal align=Align::Center spacing=Space::Lg>
                     <Text
                         style=TextStyle::CAPTION
                         @sizing=ItemSize::Percent(100.0)
@@ -37,7 +37,7 @@ pub(crate) fn Workspace(model: Model) -> NodeId {
                         {status}
                     </Text>
                     <Show condition={working}>
-                        <Progress width=18.0 label="A build is running" />
+                        <Progress width=Size::Sm label="A build is running" />
                     </Show>
                 </List>
             </Frame>
