@@ -278,6 +278,7 @@ dependencies = [
  "beui-core",
  "build-id",
  "infinite-canvas-types",
+ "libc",
  "paint-snapshot",
  "tokio",
 ]
@@ -825,6 +826,7 @@ version = "0.1.0"
 dependencies = [
  "beui-core",
  "image",
+ "libc",
  "paint-snapshot",
 ]
 

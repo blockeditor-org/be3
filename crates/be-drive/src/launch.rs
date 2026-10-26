@@ -1,5 +1,7 @@
 use std::fs::{self, File};
-use std::os::unix::net::UnixStream;
+use std::os::fd::AsRawFd;
+use std::os::unix::fs::PermissionsExt;
+use std::os::unix::net::UnixListener;
 use std::os::unix::process::CommandExt;
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
@@ -8,7 +10,7 @@ use std::time::{Duration, Instant};
 
 use beui_core::runner::environment;
 
-use crate::request;
+use crate::{Unanswered, request};
 
 const USAGE: &str = "usage: be-drive launch --program=PATH [--name=NAME] [--data] [--libraries=DIR]
        [--size=WIDTHxHEIGHT[@SCALE]] [--screen=WIDTHxHEIGHT] [--fresh] [--stop] [PROGRAM ARGUMENTS...]
@@ -103,6 +105,11 @@ impl Launch {
             ));
         }
         let _ = fs::remove_file(&socket);
+        let listener = UnixListener::bind(&socket)
+            .map_err(|error| format!("could not listen on {}: {error}", socket.display()))?;
+        fs::set_permissions(&socket, fs::Permissions::from_mode(0o600))
+            .map_err(|error| error.to_string())?;
+        let listening = listener.as_raw_fd();
         let mut command = Command::new(program);
         let slot = if std::env::var(environment::ADAPTER).as_deref() == Ok("space") {
             environment::SPACE_ADAPTER
@@ -123,10 +130,18 @@ impl Launch {
                 self.screen.as_deref().unwrap_or(SCREEN),
             )
             .env(environment::AUTOMATION, &socket)
+            .env(environment::AUTOMATION_LISTENER, listening.to_string())
             .env_remove("DISPLAY")
             .env_remove("WAYLAND_DISPLAY")
             .stdin(Stdio::null())
             .process_group(0);
+        // unsafe(ffi)
+        unsafe {
+            command.pre_exec(move || match libc::fcntl(listening, libc::F_SETFD, 0) {
+                -1 => Err(std::io::Error::last_os_error()),
+                _ => Ok(()),
+            });
+        }
         if let Some(log) = log {
             let file = File::create(log)
                 .map_err(|error| format!("could not create {}: {error}", log.display()))?;
@@ -141,35 +156,18 @@ impl Launch {
             command.env("XDG_DATA_HOME", &data);
         }
         let see = log.map_or_else(String::new, |log| format!("; see {}", log.display()));
-        let mut child = command
-            .spawn()
-            .map_err(|error| format!("could not start {program}: {error}"))?;
-        let answered = (|| {
-            let started = Instant::now();
-            loop {
-                if let Ok(Some(status)) = child.try_wait() {
-                    return Err(format!("{name} exited ({status}) before it answered{see}"));
-                }
-                if UnixStream::connect(&socket).is_ok() {
-                    break;
-                }
-                if started.elapsed() > STARTUP {
-                    return Err(format!(
-                        "{name} did not open {} within {} seconds; is it a beui app?{see}",
-                        socket.display(),
-                        STARTUP.as_secs(),
-                    ));
-                }
-                std::thread::sleep(Duration::from_millis(50));
-            }
-            request(&socket, &["settle".to_owned()], STARTUP)
-                .map(|_| ())
-                .map_err(|error| format!("{error}{see}"))
-        })();
-        if let Err(error) = answered {
+        let spawned = command.spawn();
+        drop(listener);
+        let mut child = spawned.map_err(|error| format!("could not start {program}: {error}"))?;
+        if let Err(error) = request(&socket, &["settle".to_owned()], STARTUP) {
             kill_group(child.id());
-            let _ = child.wait();
-            return Err(error);
+            let status = child.wait().map_err(|error| error.to_string())?;
+            return Err(match error {
+                Unanswered::Closed => {
+                    format!("{name} exited ({status}) before it answered; is it a beui app?{see}")
+                }
+                Unanswered::Failed(error) => format!("{error}{see}"),
+            });
         }
         Ok(child)
     }

@@ -444,10 +444,8 @@ impl Runner {
         if let Some(automation) = &mut self.automation
             && let Some(dump) = self.context.kept_accessibility()
         {
-            let rendered = dump.rendered();
             let view = View {
-                lines: rendered.lines(),
-                tree: rendered.text(),
+                accessibility: &dump,
                 pixels_per_point: self.context.pixels_per_point(),
                 now: self.context.now(),
                 size: renderers.physical().map_or(Vec2::ZERO, |physical| {
@@ -674,10 +672,8 @@ impl Runner {
             let took = started.elapsed();
             let others = self.app.other_frames();
             self.actions = std::mem::take(&mut output.actions);
-            let rendered = dump.rendered();
             let view = View {
-                lines: rendered.lines(),
-                tree: rendered.text(),
+                accessibility: &dump,
                 pixels_per_point: scale,
                 now: self.context.now(),
                 size: screen,

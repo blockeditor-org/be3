@@ -90,6 +90,23 @@ suite's `programs` (crates/bench/BUCK). Each can also run alone, with
   always be 0. `shape()` is the one place it names the canvas model. An editor with an
   `examples/` folder is built for the host as well (`editor()` in buck/wasm/defs.bzl), which
   is how an editor gets a benchmark.
+- `./scripts/buck run //crates/bench:suite -- [run|compare BASE|list] [NAME...]` runs the
+  benchmarks crates/bench/src/suite.rs lists, in release, three rounds each (`--rounds=N`).
+  `compare BASE` alternates them with a suite built at BASE
+  (`./scripts/buck build //crates/bench:suite --out BASE` on the base) and prints each
+  metric's fastest and median from both.
+- The suite's `app-canvas-and-text` (crates/app-bench) drives block-app headless with no GPU
+  (`BEUI_RENDERER=none`) against a be-server in a process of its own, 15 ms away each way
+  behind a proxy; the server and the proxy are pinned to one core and the app to the others.
+  It times what a person waits for: signing in, making, saving, closing, exporting and
+  reopening blocks, and a second device recovering the account. Every wait is one the app
+  answers (`drive wait`, `gone`, `settle`), never a poll, and every command passes
+  `--changes=0`. Its pen stroke sends 400 samples at the start and 400 at the end at 4 a
+  frame, as a stylus does, and the 9,200 between at 1,000 a frame to get there; each of the
+  two stretches reports its longest frame and how long the ink takes to reach the pen after
+  its last sample (`-catch-up`). It does not measure drawing on a GPU, frame pacing,
+  connection and TLS set-up, bandwidth (the proxy delays but does not throttle), a large
+  organization, a relaunch on warm caches, or two devices editing at once.
 
 The target for opening a page is under 2 ms warm. The canvas bench measured, in October
 2026:

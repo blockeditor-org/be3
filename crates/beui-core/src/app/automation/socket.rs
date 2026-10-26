@@ -18,6 +18,10 @@ pub fn serve(path: &Path, inbox: Inbox) -> io::Result<()> {
     let _ = std::fs::remove_file(path);
     let listener = UnixListener::bind(path)?;
     std::fs::set_permissions(path, std::os::unix::fs::PermissionsExt::from_mode(0o600))?;
+    serve_on(listener, path, inbox)
+}
+
+pub fn serve_on(listener: UnixListener, path: &Path, inbox: Inbox) -> io::Result<()> {
     let path = path.to_path_buf();
     std::thread::Builder::new()
         .name("beui automation".to_owned())
