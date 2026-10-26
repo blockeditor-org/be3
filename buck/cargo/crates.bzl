@@ -8246,6 +8246,16 @@ crates = {
                 "test_deps": [],
                 "test_features": [],
             },
+            "linux-x86_64-html": {
+                "binaries": {},
+                "deps": [
+                    "//crates/beui-tree:beui-tree",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
             "macos-arm64": {
                 "binaries": {},
                 "deps": [
@@ -8267,6 +8277,19 @@ crates = {
                 "test_features": [],
             },
             "wasi": {
+                "binaries": {},
+                "deps": [
+                    "//crates/beui-tree:beui-tree",
+                    "//third-party/rust:js-sys-0.3.99",
+                    "//third-party/rust:wasm-bindgen-0.2.122",
+                    "//third-party/rust:web-sys-0.3.99",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "wasi-html": {
                 "binaries": {},
                 "deps": [
                     "//crates/beui-tree:beui-tree",
@@ -31045,6 +31068,7 @@ third_party = {
             "macos-x86_64": {},
             "wasi": {},
             "wasi-guest": {},
+            "wasi-html": {},
             "wasm32": {},
             "windows-arm64": {},
             "windows-x86_64": {},
@@ -40443,6 +40467,12 @@ third_party = {
                     "std",
                 ],
             },
+            "wasi-html": {
+                "features": [
+                    "alloc",
+                    "std",
+                ],
+            },
             "wasm32": {
                 "features": [
                     "alloc",
@@ -40781,6 +40811,12 @@ third_party = {
                     "std",
                 ],
             },
+            "wasi-html": {
+                "features": [
+                    "alloc",
+                    "std",
+                ],
+            },
             "wasm32": {
                 "features": [
                     "alloc",
@@ -40985,6 +41021,19 @@ third_party = {
                 ],
             },
             "wasi-guest": {
+                "deps": [
+                    ":futures-core-0.3.32",
+                    ":futures-task-0.3.32",
+                    ":pin-project-lite-0.2.17",
+                    ":slab-0.4.12",
+                ],
+                "features": [
+                    "alloc",
+                    "slab",
+                    "std",
+                ],
+            },
+            "wasi-html": {
                 "deps": [
                     ":futures-core-0.3.32",
                     ":futures-task-0.3.32",
@@ -47796,6 +47845,19 @@ third_party = {
                     "std",
                 ],
             },
+            "wasi-html": {
+                "deps": [
+                    ":cfg-if-1.0.4",
+                    ":futures-util-0.3.32",
+                    ":once_cell-1.21.4",
+                    ":wasm-bindgen-0.2.122",
+                ],
+                "features": [
+                    "default",
+                    "std",
+                    "unsafe-eval",
+                ],
+            },
             "wasm32": {
                 "deps": [
                     ":cfg-if-1.0.4",
@@ -53915,6 +53977,7 @@ third_party = {
                 ],
             },
             "wasi-guest": {},
+            "wasi-html": {},
             "wasm32": {
                 "features": [
                     "alloc",
@@ -55488,6 +55551,7 @@ third_party = {
             "macos-x86_64": {},
             "wasi": {},
             "wasi-guest": {},
+            "wasi-html": {},
             "wasm32": {},
             "windows-arm64": {},
             "windows-x86_64": {},
@@ -65558,6 +65622,11 @@ third_party = {
                     "std",
                 ],
             },
+            "wasi-html": {
+                "features": [
+                    "std",
+                ],
+            },
             "wasm32": {
                 "features": [
                     "std",
@@ -72499,6 +72568,7 @@ third_party = {
             "macos-x86_64": {},
             "wasi": {},
             "wasi-guest": {},
+            "wasi-html": {},
             "wasm32": {},
             "windows-arm64": {},
             "windows-x86_64": {},
@@ -73912,6 +73982,18 @@ third_party = {
                     "std",
                 ],
             },
+            "wasi-html": {
+                "deps": [
+                    ":cfg-if-1.0.4",
+                    ":once_cell-1.21.4",
+                    ":wasm-bindgen-macro-0.2.122",
+                    ":wasm-bindgen-shared-0.2.122",
+                ],
+                "features": [
+                    "default",
+                    "std",
+                ],
+            },
             "wasm32": {
                 "deps": [
                     ":cfg-if-1.0.4",
@@ -74080,6 +74162,11 @@ third_party = {
                 ],
             },
             "wasi-guest": {
+                "deps": [
+                    ":unicode-ident-1.0.24",
+                ],
+            },
+            "wasi-html": {
                 "deps": [
                     ":unicode-ident-1.0.24",
                 ],
@@ -78359,6 +78446,28 @@ third_party = {
                     "Node",
                     "OffscreenCanvas",
                     "VideoFrame",
+                    "std",
+                ],
+            },
+            "wasi-html": {
+                "deps": [
+                    ":js-sys-0.3.99",
+                    ":wasm-bindgen-0.2.122",
+                ],
+                "features": [
+                    "CharacterData",
+                    "Comment",
+                    "Document",
+                    "Element",
+                    "Event",
+                    "EventTarget",
+                    "KeyboardEvent",
+                    "Node",
+                    "Text",
+                    "UiEvent",
+                    "Window",
+                    "console",
+                    "default",
                     "std",
                 ],
             },

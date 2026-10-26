@@ -314,7 +314,7 @@ has a plan for each.
 `wasi_html` and `linux_x86_64_html` are `wasi` and the host with the `html`
 constraint (`buck/constraints`), which picks beui's HTML core
 (plans/html_core.md). Their plans, `wasi-html` and `linux-x86_64-html`, are
-cargo's for the crates `html_packages` in `buck/cargo/buckify.sh` names, run
+cargo's for the crates `html_packages` in `buck/cargo/buckify.sh` names (beui-view and beui-html for now), run
 with `RUSTFLAGS="--cfg beui_html"`; cargo evaluates
 `[target.'cfg(beui_html)'.dependencies]` against it, so a manifest says what
 each core links (beui-view takes `beui-core` only under
