@@ -1,3 +1,5 @@
+use std::rc::Rc;
+
 use crate::app::accessibility_dump::Line;
 use crate::geometry::{Pos2, Rect, Vec2, pos2};
 
@@ -18,7 +20,7 @@ pub(crate) fn describe(rect: Rect) -> String {
     )
 }
 
-pub(crate) fn locate(target: &str, lines: &[Line]) -> Result<Rect, String> {
+pub(crate) fn locate(target: &str, lines: &[Rc<Line>]) -> Result<Rect, String> {
     if let Some(id) = target.strip_prefix('#') {
         if let Some((id, offset)) = id.rsplit_once('+')
             && let Some([x, y]) = numbers(offset).as_deref()
@@ -32,6 +34,7 @@ pub(crate) fn locate(target: &str, lines: &[Line]) -> Result<Rect, String> {
         let named: Vec<&Line> = lines
             .iter()
             .filter(|line| line.test_ids.iter().any(|named| named == id))
+            .map(|line| &**line)
             .collect();
         let line = match named.as_slice() {
             [] => {
@@ -63,7 +66,7 @@ pub(crate) fn locate(target: &str, lines: &[Line]) -> Result<Rect, String> {
         .filter(|index| lines[*index].text.contains(target))
         .collect();
     let line = match pick(lines, &found) {
-        Some(index) => &lines[index],
+        Some(index) => &*lines[index],
         None if found.is_empty() => {
             return Err(format!(
                 "no line of the tree contains {target:?}; `tree` prints it"
@@ -99,12 +102,12 @@ fn placed(line: &Line) -> Result<Rect, String> {
     Ok(rect)
 }
 
-fn line_with<'a>(target: &str, lines: &'a [Line]) -> Result<&'a Line, String> {
+fn line_with<'a>(target: &str, lines: &'a [Rc<Line>]) -> Result<&'a Line, String> {
     let found: Vec<usize> = (0..lines.len())
         .filter(|index| lines[*index].text.contains(target))
         .collect();
     match pick(lines, &found) {
-        Some(index) => Ok(&lines[index]),
+        Some(index) => Ok(&*lines[index]),
         None if found.is_empty() => Err(format!(
             "no line of the tree contains {target:?}; `tree` prints it"
         )),
@@ -121,7 +124,7 @@ fn line_with<'a>(target: &str, lines: &'a [Line]) -> Result<&'a Line, String> {
     }
 }
 
-pub(crate) fn node<'a>(target: &str, lines: &'a [Line]) -> Result<&'a Line, String> {
+pub(crate) fn node<'a>(target: &str, lines: &'a [Rc<Line>]) -> Result<&'a Line, String> {
     let named = !target.starts_with('#')
         && target
             .split(',')
@@ -133,6 +136,7 @@ pub(crate) fn node<'a>(target: &str, lines: &'a [Line]) -> Result<&'a Line, Stri
     let under: Vec<&Line> = lines
         .iter()
         .filter(|line| line.visible && line.bounds.is_some_and(|bounds| bounds.contains(center)))
+        .map(|line| &**line)
         .collect();
     under
         .iter()
@@ -143,7 +147,7 @@ pub(crate) fn node<'a>(target: &str, lines: &'a [Line]) -> Result<&'a Line, Stri
         .ok_or_else(|| format!("no node of the tree is at {target}"))
 }
 
-fn pick(lines: &[Line], found: &[usize]) -> Option<usize> {
+fn pick(lines: &[Rc<Line>], found: &[usize]) -> Option<usize> {
     if let [first, rest @ ..] = found
         && rest.iter().all(|index| {
             lines[*index].text == lines[*first].text && lines[*index].bounds == lines[*first].bounds
@@ -170,7 +174,7 @@ fn pick(lines: &[Line], found: &[usize]) -> Option<usize> {
     })
 }
 
-pub(crate) fn point(target: &str, lines: &[Line], pixels_per_point: f32) -> Result<Pos2, String> {
+pub(crate) fn point(target: &str, lines: &[Rc<Line>], pixels_per_point: f32) -> Result<Pos2, String> {
     let center = locate(target, lines)?.center();
     Ok(pos2(
         center.x / pixels_per_point,

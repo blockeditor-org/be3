@@ -273,6 +273,7 @@ impl Compositor {
             .env_remove("DISPLAY")
             .envs(self.environment())
             .env_remove("BEUI_AUTOMATION")
+            .env_remove("BEUI_AUTOMATION_LISTENER")
             .env_remove("BEUI_HEADLESS")
             .env_remove("BEUI_HEADLESS_SCREEN")
             .env("GDK_BACKEND", "wayland")

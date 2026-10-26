@@ -1,5 +1,6 @@
 use std::collections::{BTreeMap, VecDeque};
 use std::path::PathBuf;
+use std::rc::Rc;
 use std::sync::atomic::Ordering;
 use std::time::{Duration, Instant};
 
@@ -8,12 +9,12 @@ use super::target::{describe, locate, node, point, scaled};
 use super::window::{Resize, WindowSize};
 use super::{Capture, Inbox, Reply, Request, changes};
 use crate::app::FrameTimes;
-use crate::app::accessibility_dump::{ACTIONS, Line};
+use crate::app::accessibility_dump::{ACTIONS, AccessibilityDump, Line, Rendered};
 use crate::clipboard::{PasteAnswer, PasteKind, Pasted};
 use crate::context::{ActionGroup, Context};
 use crate::file_picker::{FilePickAnswer, FilePickRequest, PickedFile};
 use crate::file_saver::{FileSave, FileSaveAnswer, FileSaveRequest};
-use crate::geometry::{Rect, Vec2, vec2};
+use crate::geometry::{Pos2, Rect, Vec2, vec2};
 use crate::input::Keyboard;
 use crate::input::{BackEdge, DroppedFile, FileDrag, Input, Key, PointerButton, TouchPhase};
 use crate::runner::{Incoming, Platform};
@@ -63,7 +64,9 @@ Touch:
                             frame; cancel is the system taking a finger back, as for a gesture
   touch up / touch cancel   lift or cancel every finger
 Pen:
-  pen move TARGET [PRESSURE]   the pen hovers over TARGET, or moves there pressed down with PRESSURE
+  pen move TARGET [PRESSURE [STEPS [PER_FRAME]]]   the pen hovers over TARGET, or moves there
+                            pressed down with PRESSURE, in STEPS (1) samples, PER_FRAME (1) in
+                            each frame
   pen down TARGET [PRESSURE]   the tip touches TARGET, PRESSURE from 0 to 1 (0.5)
   pen up [TARGET]           the tip lifts; the pen stays in range
   pen draw FROM TO [STEPS [PER_FRAME]]   the tip down at FROM, along in STEPS (8) with the
@@ -98,8 +101,9 @@ Window (headless only, except focus, blur, leave and close):
                             open, to ask about unsaved changes, answers with what changed
 Waiting:
   settle                    wait until nothing is left to draw
-  wait TEXT|#TEST_ID        wait until a line of the tree contains TEXT, or the test id is on screen
-  gone TEXT|#TEST_ID        wait until it is not
+  wait TEXT|#TEST_ID [over X,Y]   wait until a line of the tree contains TEXT, or the test id is on
+                            screen, with its node over the point X,Y if given
+  gone TEXT|#TEST_ID [over X,Y]   wait until it is not
   pause MILLISECONDS        let that much time pass, by the app's clock
   clock stop / clock run    stop the app's clock, so time passes only with pause, frame by frame
   hurry off / hurry on      stop or start the app's shortcuts for a driven run, such as saving at once,
@@ -107,14 +111,14 @@ Waiting:
 A TARGET is #TEST_ID, #TEST_ID+X,Y (that far from its top left corner), X,Y or X,Y,WIDTH,HEIGHT
 in the tree's pixels, or text found in one line of the tree.
 Every command that gives input waits for the app to settle and answers with what changed in the tree,
-at most 60 lines of it; before the command, --changes=N|all changes that, and --no-settle answers
-after the frame that took the input instead of waiting.";
+at most 60 lines of it; before the command, --changes=N|all changes that (--changes=0 answers with
+nothing, without comparing the trees), and --no-settle answers after the frame that took the input
+instead of waiting.";
 
 pub const PANE: char = '\u{1f}';
 
 pub struct View<'a> {
-    pub lines: &'a [Line],
-    pub tree: &'a str,
+    pub accessibility: &'a AccessibilityDump,
     pub pixels_per_point: f32,
     pub now: Instant,
     pub size: Vec2,
@@ -122,6 +126,12 @@ pub struct View<'a> {
     pub fullscreen: bool,
     pub actions: &'a [ActionGroup],
     pub environment: &'a dyn Fn() -> Vec<(String, String)>,
+}
+
+impl View<'_> {
+    fn rendered(&self) -> Rc<Rendered> {
+        self.accessibility.rendered()
+    }
 }
 
 pub struct World<'a> {
@@ -140,32 +150,33 @@ pub struct Settled {
 enum Phase {
     Input {
         steps: VecDeque<Vec<Incoming>>,
-        before: String,
+        before: Rc<Rendered>,
         then: Option<Box<Phase>>,
     },
     Settling {
-        before: Option<String>,
+        before: Option<Rc<Rendered>>,
     },
     Waiting {
         text: String,
         present: bool,
+        over: Option<Pos2>,
     },
     Pausing {
         until: Instant,
     },
     Acting {
         id: String,
-        before: String,
+        before: Rc<Rendered>,
     },
     Hitting,
     Components,
     Uploading {
         file: PathBuf,
-        before: String,
+        before: Rc<Rendered>,
     },
     Saving {
         file: PathBuf,
-        before: String,
+        before: Rc<Rendered>,
     },
     Capturing {
         target: Option<String>,
@@ -391,8 +402,8 @@ impl Automation {
         let Some(active) = &mut self.active else {
             return;
         };
-        let settling = |before: &mut String| Phase::Settling {
-            before: Some(std::mem::take(before)),
+        let settling = |before: &mut Rc<Rendered>| Phase::Settling {
+            before: Some(Rc::clone(before)),
         };
         let mut failed = None;
         match &mut active.phase {
@@ -403,7 +414,7 @@ impl Automation {
             } => {
                 *drawn = !settled.drawing;
                 if *drawn && let Some(target) = target {
-                    match locate(target, view.lines) {
+                    match locate(target, view.rendered().lines()) {
                         Ok(rect) => *crop = Some(rect),
                         Err(error) => failed = Some(error),
                     }
@@ -418,7 +429,7 @@ impl Automation {
             } => {
                 *ready = quiet;
                 if *ready && let Some(target) = target {
-                    match locate(target, view.lines) {
+                    match locate(target, view.rendered().lines()) {
                         Ok(rect) => *crop = Some(in_points(rect, view.pixels_per_point)),
                         Err(error) => failed = Some(error),
                     }
@@ -501,12 +512,20 @@ impl Automation {
         let reply = match failed {
             Some(error) => Some(Reply::Error(error)),
             None => match &mut active.phase {
-                Phase::Settling { before } if quiet || (immediate && before.is_some()) => Some(
-                    Reply::Text(before.as_deref().map_or_else(String::new, |before| {
-                        capped(changes(before, view.tree), limit)
-                    })),
-                ),
-                Phase::Waiting { text, present } if shown(view, text) == *present => {
+                Phase::Settling { before } if quiet || (immediate && before.is_some()) => {
+                    Some(Reply::Text(match (before.as_deref(), limit) {
+                        (None, _) | (Some(_), Some(0)) => String::new(),
+                        (Some(before), limit) => capped(
+                            changes(before.text(), view.rendered().text()),
+                            limit,
+                        ),
+                    }))
+                }
+                Phase::Waiting {
+                    text,
+                    present,
+                    over,
+                } if shown(view, text, *over) == *present => {
                     Some(Reply::Text(String::new()))
                 }
                 Phase::Pausing { until } if view.now >= *until => Some(Reply::Text(String::new())),
@@ -655,24 +674,25 @@ impl Automation {
                 .map(String::as_str)
                 .ok_or_else(|| format!("{command} needs more arguments\n{USAGE}"))
         };
-        let at = |target: &str| point(target, view.lines, view.pixels_per_point);
+        let at = |target: &str| point(target, view.rendered().lines(), view.pixels_per_point);
         let incoming = |steps: Vec<Vec<Incoming>>| {
             Ok(Started::Phase(Phase::Input {
                 steps: steps.into(),
-                before: view.tree.to_owned(),
+                before: view.rendered(),
                 then: None,
             }))
         };
         let input = |frames: Frames| incoming(points(frames));
         match command.as_str() {
             "help" => Ok(Started::Done(Reply::Text(format!("{USAGE}\n")))),
-            "tree" => Ok(Started::Done(Reply::Text(view.tree.to_owned()))),
+            "tree" => Ok(Started::Done(Reply::Text(view.rendered().text().to_owned()))),
             "frames" => Ok(Started::Done(Reply::Text(self.take_frames()))),
             "ids" => {
-                let mut ids: Vec<(&str, &Line)> = view
-                    .lines
+                let rendered = view.rendered();
+                let mut ids: Vec<(&str, &Line)> = rendered
+                    .lines()
                     .iter()
-                    .flat_map(|line| line.test_ids.iter().map(move |id| (id.as_str(), line)))
+                    .flat_map(|line| line.test_ids.iter().map(move |id| (id.as_str(), &**line)))
                     .collect();
                 ids.sort_by(|a, b| a.0.cmp(b.0));
                 let text = ids
@@ -686,7 +706,7 @@ impl Automation {
                 Ok(Started::Done(Reply::Text(text)))
             }
             "find" => {
-                let rect = locate(argument(0)?, view.lines)?;
+                let rect = locate(argument(0)?, view.rendered().lines())?;
                 Ok(Started::Done(Reply::Text(format!("{}\n", describe(rect)))))
             }
             "comps" => {
@@ -720,7 +740,7 @@ impl Automation {
                 world.context.request_action(id.clone());
                 Ok(Started::Phase(Phase::Acting {
                     id,
-                    before: view.tree.to_owned(),
+                    before: view.rendered(),
                 }))
             }
             "click" => {
@@ -827,8 +847,21 @@ impl Automation {
                         })
                         .transpose()
                 };
+                let count = |index: usize, default: usize, what: &str| match arguments.get(index) {
+                    Some(text) => text
+                        .parse::<usize>()
+                        .ok()
+                        .filter(|count| *count > 0)
+                        .ok_or_else(|| format!("{text} is not a number of {what} above 0")),
+                    None => Ok(default),
+                };
                 let frames = match argument(0)? {
-                    "move" => self.gestures.pen_move(at(argument(1)?)?, pressure(2)?),
+                    "move" => self.gestures.pen_move(
+                        at(argument(1)?)?,
+                        pressure(2)?,
+                        count(3, 1, "steps")?,
+                        count(4, 1, "samples a frame")?,
+                    ),
                     "down" => self.gestures.pen_down(at(argument(1)?)?, pressure(2)?)?,
                     "up" => {
                         let to = arguments.get(1).map(|target| at(target)).transpose()?;
@@ -837,20 +870,8 @@ impl Automation {
                     "draw" => {
                         let from = at(argument(1)?)?;
                         let to = at(argument(2)?)?;
-                        let count =
-                            |index: usize, default: usize, what: &str| match arguments.get(index) {
-                                Some(text) => text
-                                    .parse::<usize>()
-                                    .map_err(|_| format!("{text} is not a number of {what}")),
-                                None => Ok(default),
-                            };
                         let steps = count(3, 8, "steps")?;
                         let per_frame = count(4, 1, "samples a frame")?;
-                        if per_frame == 0 {
-                            return Err(
-                                "pen draw puts at least one sample in each frame".to_owned()
-                            );
-                        }
                         self.gestures.pen_draw(from, to, steps, per_frame)?
                     }
                     "leave" => self.gestures.pen_leave()?,
@@ -969,7 +990,7 @@ impl Automation {
             }
             "upload" => {
                 let file = PathBuf::from(argument(0)?);
-                let before = view.tree.to_owned();
+                let before = view.rendered();
                 match arguments.get(1) {
                     Some(target) => {
                         let at = at(target)?;
@@ -988,7 +1009,7 @@ impl Automation {
             }
             "save" => {
                 let file = PathBuf::from(argument(0)?);
-                let before = view.tree.to_owned();
+                let before = view.rendered();
                 match arguments.get(1) {
                     Some(target) => {
                         let at = at(target)?;
@@ -1070,11 +1091,12 @@ impl Automation {
             "close" => {
                 self.closing = true;
                 Ok(Started::Phase(Phase::Settling {
-                    before: Some(view.tree.to_owned()),
+                    before: Some(view.rendered()),
                 }))
             }
             "a11y" => {
-                let line = node(argument(0)?, view.lines)?;
+                let rendered = view.rendered();
+                let line = node(argument(0)?, rendered.lines())?;
                 let offered = || {
                     line.actions
                         .iter()
@@ -1142,10 +1164,20 @@ impl Automation {
                 world.context.set_hurried(!self.unhurried);
                 Ok(Started::Phase(Phase::Settling { before: None }))
             }
-            "wait" | "gone" => Ok(Started::Phase(Phase::Waiting {
-                text: arguments.join(" "),
-                present: command == "wait",
-            })),
+            "wait" | "gone" => {
+                let (text, over) = match arguments {
+                    [text @ .., over, at] if !text.is_empty() && over == "over" => {
+                        let at = locate(at, view.rendered().lines())?;
+                        (text, Some(at.center()))
+                    }
+                    text => (text, None),
+                };
+                Ok(Started::Phase(Phase::Waiting {
+                    text: text.join(" "),
+                    present: command == "wait",
+                    over,
+                }))
+            }
             "pause" => {
                 let milliseconds: u64 = argument(0)?
                     .parse()
@@ -1157,7 +1189,7 @@ impl Automation {
             "shot" => {
                 let target = arguments.first().cloned();
                 let crop = match &target {
-                    Some(target) => Some(locate(target, view.lines)?),
+                    Some(target) => Some(locate(target, view.rendered().lines())?),
                     None => None,
                 };
                 Ok(Started::Phase(Phase::Capturing {
@@ -1170,7 +1202,7 @@ impl Automation {
                 let target = arguments.first().cloned();
                 let crop = match &target {
                     Some(target) => Some(in_points(
-                        locate(target, view.lines)?,
+                        locate(target, view.rendered().lines())?,
                         view.pixels_per_point,
                     )),
                     None => None,
@@ -1394,14 +1426,18 @@ fn finger_target(spec: &str) -> (u64, Option<&str>) {
     }
 }
 
-fn shown(view: &View<'_>, text: &str) -> bool {
-    match text.strip_prefix('#') {
-        Some(id) => view
-            .lines
-            .iter()
-            .any(|line| line.test_ids.iter().any(|named| named == id)),
-        None => view.lines.iter().any(|line| line.text.contains(text)),
-    }
+fn shown(view: &View<'_>, text: &str, over: Option<Pos2>) -> bool {
+    let matches = |line: &Line| match text.strip_prefix('#') {
+        Some(id) => line.test_ids.iter().any(|named| named == id),
+        None => line.text.contains(text),
+    };
+    let reaches = |line: &Line| {
+        over.is_none_or(|over| line.bounds.is_some_and(|bounds| bounds.contains(over)))
+    };
+    view.rendered()
+        .lines()
+        .iter()
+        .any(|line| matches(line) && reaches(line))
 }
 
 fn finger(argument: Option<&String>) -> Result<u64, String> {

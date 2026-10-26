@@ -17,6 +17,7 @@ bench = { path = "../bench" }
 beui-core = { path = "../beui-core" }
 build-id = { path = "../build-id" }
 infinite-canvas-types = { path = "../editors/infinite-canvas/types" }
+libc = "0.2"
 paint-snapshot = { path = "../paint-snapshot" }
 tokio = { version = "1", features = ["net", "rt-multi-thread", "sync"] }
 

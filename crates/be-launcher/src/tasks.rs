@@ -162,6 +162,7 @@ pub(crate) fn command(program: impl AsRef<std::ffi::OsStr>) -> Command {
     let mut command = Command::new(program);
     command
         .env_remove("BEUI_AUTOMATION")
+        .env_remove("BEUI_AUTOMATION_LISTENER")
         .env_remove("BEUI_HEADLESS")
         .env_remove("BEUI_HEADLESS_SCREEN");
     #[cfg(windows)]

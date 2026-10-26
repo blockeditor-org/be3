@@ -221,6 +221,7 @@ fn exec(socket: &Path, arguments: &[String], timeout: Duration) -> Result<(), St
         .env_remove("WAYLAND_DISPLAY")
         .env_remove("DISPLAY")
         .env_remove("BEUI_AUTOMATION")
+        .env_remove("BEUI_AUTOMATION_LISTENER")
         .env_remove("BEUI_HEADLESS")
         .env_remove("BEUI_HEADLESS_SCREEN")
         .envs(environment)

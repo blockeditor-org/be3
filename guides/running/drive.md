@@ -35,7 +35,9 @@ variables, so a program needs nothing of its own to be driven:
   the head walks far; turn with `drive motion` while Ctrl and Shift are held instead.
 
 `be-drive launch` (crates/be-drive) sets the first two, waits for the program to settle and writes the
-`env` file. `headless(...)` in buck/app/drive.bzl makes a crate's `:dev` target from it.
+`env` file. It listens on the automation socket itself and hands the program the listener
+(`BEUI_AUTOMATION_LISTENER`, its file descriptor), so it can ask the program to settle at once rather than
+watch for the socket to appear. `headless(...)` in buck/app/drive.bzl makes a crate's `:dev` target from it.
 Arguments after `--` go to the launcher, which passes on those it does not know:
 
 - `--fresh` deletes the program's data first (programs started with `--data`, which block-app is,
@@ -162,6 +164,8 @@ A command that acts on something takes a TARGET:
     drive pen draw FROM TO [STEPS [PER_FRAME]]   a stylus stroke of STEPS samples (8), its pressure
                                               rising and falling, PER_FRAME (1) in each frame
     drive pen move TARGET; drive pen down TARGET 0.8; drive pen move TARGET 0.3; drive pen up
+    drive pen move TARGET 0.5 400 4           there in 400 samples, 4 in each frame, as a stylus
+                                              sends them; down, this draws part of a stroke
     drive pen leave                           the pen goes out of range
     drive back                                the system back gesture; back 0.4 holds it part way,
                                               back commit and back cancel finish it
@@ -191,7 +195,8 @@ shows only on hover, such as a scrollbar, is there to be pressed.
 
 Every command that gives input waits until the app has settled and prints what changed in
 the tree, `-` and `+` lines, so there is no need to wait or read the whole tree again. A long
-change is cut to its first 60 lines; `drive --changes=N COMMAND` (or `all`) prints more. The app
+change is cut to its first 60 lines; `drive --changes=N COMMAND` (or `all`) prints more, and
+`--changes=0` nothing, without comparing the trees, which a benchmark wants. The app
 has settled once a frame asks for no other and `App::busy` is false; block-app is busy while a
 plugin is starting, owes a frame, holds unanswered input or has yet to answer a `paint`, while
 an editor on screen waits for its block's content, while a plugin's change arrived after the
@@ -202,6 +207,8 @@ still loading the organization's graph, and never while it shows its error scree
 instead, to see the app part way through something, such as a plugin still loading. Work the
 app cannot see, such as a server push, is waited for with `drive wait TEXT` or `drive gone
 TEXT` (or `#TEST_ID`), which return once a line of the tree contains TEXT or none does;
+`drive wait TEXT over X,Y` also asks that the line's node cover that point, for something that
+moves or grows, such as a stroke reaching the pen;
 `drive settle` waits on its own, and `drive pause MILLISECONDS` lets time pass by the app's
 own clock. Each command gives up after 30 seconds, or `drive --timeout=SECONDS`.
 
@@ -261,7 +268,10 @@ real one:
 `beui_core::app::automation` runs the commands inside the runner every adapter shares
 (guides/beui.md), so input lands on the queue a window's own events go to and everything
 above it - the document, block-app's plugin host, the Wayland compositor - runs as it does
-with a window. What a headless run never exercises is the platform underneath: winit's
+with a window. A driven app keeps the accessibility tree a screen reader would get, as the app
+does in a window, but writes it out as text only when a command reads it (`tree`, a target, a
+`wait`, the changes it answers with), and then describes again only the nodes that changed
+or moved (`AccessibilityDump`), so what a frame costs is what it costs in a window. What a headless run never exercises is the platform underneath: winit's
 translation of the system's keys, its clipboard and file dialogs, the window's swapchain and
 real input methods. For those, run the program in a window (guides/running/native.md).
 The web build answers the same commands through Playwright (guides/running/web.md).
