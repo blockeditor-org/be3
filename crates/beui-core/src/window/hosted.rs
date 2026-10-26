@@ -116,6 +116,9 @@ impl Document {
             let Some(id) = current else {
                 break;
             };
+            if self.arena.current(id) && self.arena.try_get(id).is_none() {
+                return self.viewport_window();
+            }
             if let Some(overlay) = self.arena.kind_of::<OverlayNode>(id)
                 && let Some(window) = self.real_window(overlay)
             {

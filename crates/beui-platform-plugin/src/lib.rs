@@ -647,12 +647,16 @@ impl Regions for ModuleRunner {
         let output = surface.output()?;
         let (width, height) = surface.size;
         let pixels_per_point = output.pixels_per_point;
-        beui_core::painting::painting(
-            output,
-            vec2(
+        let size = match region.region {
+            EditorRegion::Window(_) => output.size,
+            _ => vec2(
                 width as f32 / pixels_per_point,
                 height as f32 / pixels_per_point,
             ),
+        };
+        beui_core::painting::painting(
+            output,
+            size,
             pixels_per_point,
             output.window.appearance.clear_color,
             beui_core::painting::Punches::Erase,
