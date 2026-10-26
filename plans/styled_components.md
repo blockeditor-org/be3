@@ -33,8 +33,8 @@ into a new unstyled component, then rebuild the styled one on top of it.
   presence, and dismiss handling. `styled::Dialog` and `styled::Fullscreen`
   (`dialog.rs`, `fullscreen.rs`) copy this today. `ModalSheet` and the launcher
   overlay should share it where they can. `ModalSheet` is built on it
-  (`ModalMotion::Reported`); the launcher overlay is left for the launcher
-  move in §3.
+  (`ModalMotion::Reported`), and so is the command palette's overlay, which
+  the launcher became in §3.
 - **Done.** **`unstyled::Dialog`** on top of `Modal`: Enter confirms unless the action is
   destructive or disabled (`DialogActions::enter`), Dialog or AlertDialog
   accessibility with the title as its label, confirm and cancel callbacks.
@@ -60,6 +60,8 @@ into a new unstyled component, then rebuild the styled one on top of it.
   each given its screen's rectangle relative to the bounds of all screens.
   `KeepChanges`, `LockScreen` and `LevelOsd` each repeat this. All three are
   moving out of beui (§3), but they still need it, in two different crates.
+  All three use it now; `LevelOsd`, which must not take input, puts it in an
+  inert `Overlay` rather than a `Modal`.
 - **Done.** **Low priority:** an unstyled `Table` for the Table, Row, ColumnHeader,
   RowHeader and Cell accessibility nodes that `styled::Table` builds. An
   unstyled `ColorInput` for the preview state and the popover plus hex-field
@@ -109,8 +111,8 @@ into a new unstyled component, then rebuild the styled one on top of it.
   `EveryScreen`.
 - **Done.** **`LevelOsd`.** Its bar becomes `Progress` (§4.4). What's left is an OSD card
   used only by linux-desktop (`app/media.rs`), so move it there. It is in
-  `app/osd.rs` now, with its tests in linux-desktop's; it still lays out one
-  card per screen itself, so switch it to `EveryScreen` once that exists.
+  `app/osd.rs` now, with its tests in linux-desktop's, and lays out its cards
+  with `EveryScreen`.
 - **Done.** **`Launcher`.** Its core joins the command palette (§4.2): a styled
   searchable palette with pluggable ranking and rows that show a picture or
   icon and a detail line. Also move `launcher_score` there as one of the
@@ -696,10 +698,11 @@ on who wrote it:
 - **Done.** **Row and control actions stay in the content**: a member's role, removing
   a member, share's Add. Only the modal's own actions go in the footer.
 - **Done.** **Convert every modal listed above**, the dock's Rename included.
-  Left as they are: the block picker's stage footers (Cancel, Create), which
-  it shares with its dock card and which should move onto `DialogBody` with
-  the plugin half below; phone details, which is a menu sheet of rows rather
-  than a dialog; members' busy spinner, which shows row actions in flight.
+  The block picker's More and Link stages are `DialogBody`s too (in its
+  centred card and its dock card alike), and its creation stage is the
+  plugin's own `DialogBody` (below). Left as they are: phone details, which is
+  a menu sheet of rows rather than a dialog; members' busy spinner, which
+  shows row actions in flight.
 
 ### The dialog's inside is one component that plugins use too
 
@@ -710,30 +713,60 @@ Split the dialog into an outer part and an inner part:
 - **Done.** **The inner part** is a styled `DialogBody`: the title row with its close
   X, the scrolling content, and the pinned footer with role actions, laid out
   wide or narrow. `Dialog` and `ModalSheet` use it. (`DialogFrame` is the
-  outer part: a card, or a `ModalSheet` holding the body. The rest of this
-  section, the plugin protocol, is not done yet.)
+  outer part: a card, or a `ModalSheet` holding the body.)
 
-A plugin opened as a dialog gets the whole area inside the frame, with no
+**Done.** A plugin opened as a dialog gets the whole area inside the frame, with no
 padding and no shell title bar. A beui plugin builds its contents with the
 same `DialogBody`, so it defines its own buttons with the code beui uses for
 its own dialogs. The plugin protocol stays free of beui: it carries only
 what any framework needs.
 
-- **Back and dismiss go to the plugin first.** Back already reaches a plugin
+The plugins opened as dialogs today are the creation dialogs of templates
+marked `"dialog": true` (image, PDF, audio, game, game module), which the
+picker shows as a `Subregion dialog=true`; their `Creation` components are
+`DialogBody`s (`ContentFileCreation` for the file pickers) whose Create calls
+`creation.accept()` and whose Cancel calls `creation.cancel()`. The protocol
+gained `frame-spec.dialog` and `child-placement.dialog` (a `dialog-frame`:
+`narrow`, `bottom-inset`), `shell.handles-dismiss`, `shell.close-dialog`
+(`dialog-answer`: `dismissed` or `accepted`), `shell.dismiss-child`, the
+plugin's `editor.dismiss`, and `child-status.dialog` (`dialog-status`);
+`creation-ready` went, since the plugin now enables its own Create, and
+`creation-progress.options` lost its `ready`. block-editor-beui hands the
+plugin's `DialogBody` a `DialogLayout` and an `unstyled::DialogDismissal`
+(`crates/block-editor-beui/src/dialog.rs`). The artifact settings dialog is
+still the shell's `Dialog` around a plugin `Subregion`: its Apply commits a
+child the shell owns, so moving it means the plugin asking the shell to
+commit through `close-dialog(accepted)` as the creation dialogs do.
+
+- **Done.** **Back and dismiss go to the plugin first.** Back already reaches a plugin
   as input. Escape, back and a press on the scrim reach the plugin, whose
   `DialogBody` runs its Cancel action. That way a form with unsaved changes
   can ask before closing. The plugin asks the host to close it. The host
-  closes it itself only if the plugin doesn't answer.
+  closes it itself only if the plugin doesn't answer. "Doesn't answer" is
+  decided up front, not by waiting: the plugin says `handles-dismiss(true)`
+  while a `DialogBody` is mounted (it claims the `DialogDismissal`), and until
+  then, or once the instance stopped, the host answers `dismiss-child` for it
+  with `dismissed` at once.
 - **Size.** The plugin reports the height it wants, so a card or sheet fits
   its content, and the host passes back the size it got. Reuse the
   intrinsic sizes the protocol already has for child placements if they
-  fit.
-- **Keyboard and safe area.** The host tells the plugin the bottom inset (the
+  fit. **Done:** a creation instance already reported the height its root
+  measures as its frame's content, which the host passes on as the child's
+  intrinsic height; the picker sizes the card to it, and the size the plugin
+  got is its frame's.
+- **Done.** **Keyboard and safe area.** The host tells the plugin the bottom inset (the
   on-screen keyboard, a phone's gesture bar), so the pinned footer stays
-  visible.
+  visible. `dialog-frame.bottom-inset` is how far the child reaches below the
+  document's viewport (beui's keyboard and the platform's safe area already
+  shorten it) or the parent's own `DialogLayout::bottom_inset`, whichever is
+  more; `DialogBody` adds it to its bottom padding.
 - **Window dialogs** keep a frame but no title bar. Moving one by dragging
   its title row needs the plugin to report that row as a drag region. Check
-  whether anything moves dialogs today before adding that.
+  whether anything moves dialogs today before adding that. **Checked:** no
+  plugin editor is shown in a window-presentation `DockDialog` today (only
+  program windows are), and dock dialogs are anchored, not dragged, so no
+  drag region was added. The dock's card dialogs now provide a
+  `DialogLayout`, narrow while the dock is stacked.
 - **Other frameworks.** A plugin written with another framework (egui, say)
   gets the same area and messages and draws its own version. Only beui
   plugins match the shell's look exactly, which follows from keeping the
