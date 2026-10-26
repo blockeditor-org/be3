@@ -45,6 +45,7 @@ pub struct EditorSession {
     audio_watched: bool,
     web_views: HashMap<WebViewId, Rc<shell::WebView>>,
     link: crate::link::Link,
+    asks: Vec<block_plugin_api::WindowRequest>,
 }
 
 struct ArtifactState {
@@ -94,6 +95,8 @@ struct RegionState {
     occluders: Vec<Occluder>,
     reported_children: Option<ReportedChildren>,
     age: u32,
+    windows: bool,
+    placement_value: Option<String>,
 }
 
 impl Drop for EditorSession {
@@ -142,6 +145,7 @@ impl EditorSession {
             audio_watched: false,
             web_views: HashMap::new(),
             link: crate::link::Link::default(),
+            asks: Vec::new(),
         }
     }
 
@@ -348,6 +352,8 @@ impl EditorSession {
             state.placement = Some(*placement);
             state.metrics = Some(request.metrics.clone());
             state.frame = request.frame;
+            state.windows = request.windows;
+            state.placement_value.clone_from(&request.placement);
         }
     }
 
@@ -356,6 +362,7 @@ impl EditorSession {
         commit.reports.extend(self.frame_reports());
         commit.windows.extend(self.windows());
         commit.children.extend(self.children());
+        commit.window_requests.append(&mut self.asks);
         self.retain_child_statuses();
     }
 
@@ -712,9 +719,16 @@ impl EditorSession {
                 .and_then(|state| state.frame)
                 .unwrap_or_default(),
             describe: state
-                .filter(|_| region == EditorRegion::Frame && crate::screens::describing())
+                .filter(|_| {
+                    matches!(
+                        region,
+                        EditorRegion::Frame | EditorRegion::Display(_) | EditorRegion::Window(_)
+                    ) && crate::screens::describing()
+                })
                 .map(|state| state.epoch),
             seen: crate::screens::seen(),
+            windows: state.is_some_and(|state| state.windows),
+            placement: state.and_then(|state| state.placement_value.clone()),
         }
     }
 
@@ -774,7 +788,7 @@ impl EditorSession {
         let host = self.rect(region);
         let draft = match region {
             EditorRegion::ArtifactSettings => self.host.close_settings_draft(),
-            EditorRegion::Frame | EditorRegion::Preview => None,
+            _ => None,
         };
         let delivered_drop = self
             .drag
@@ -789,6 +803,7 @@ impl EditorSession {
             state.stopped = frame.stopped.take();
         }
 
+        self.asks.append(&mut frame.asks);
         if let Some(delay) = self.host.take_frame_request(region) {
             frame.repaint_after = Some(frame.repaint_after.map_or(delay, |held| held.min(delay)));
         }
@@ -818,7 +833,10 @@ impl EditorSession {
             state.children = placed;
             state.occluders = occluders;
             state.window = frame.window.clone();
-            let reports = matches!(region, EditorRegion::Frame);
+            let reports = matches!(
+                region,
+                EditorRegion::Frame | EditorRegion::Display(_) | EditorRegion::Window(_)
+            );
             match frame.description.as_mut() {
                 Some(description) => {
                     if let Some(tree) = description.tree.take() {
@@ -884,11 +902,16 @@ impl EditorSession {
             .unwrap_or_default()
     }
 
-    pub(crate) fn input(&mut self, region: EditorRegion, event: &TimedInput) {
+    pub(crate) fn input(
+        &mut self,
+        region: EditorRegion,
+        event: &TimedInput,
+        over: Option<RegionId>,
+    ) {
         self.open(region);
         let context = self.context(region);
         self.module
-            .with_handler(|handler| handler.input(&context, event));
+            .with_handler(|handler| handler.input(&context, event, over));
     }
 
     pub(crate) fn node_action(&mut self, region: EditorRegion, request: ActionRequest) {

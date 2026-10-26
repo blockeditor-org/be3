@@ -51,7 +51,7 @@ impl Instance for Triangle {
 }
 
 impl Regions for TriangleRegions {
-    fn input(&mut self, _region: &Region, _event: &TimedInput) {}
+    fn input(&mut self, _region: &Region, _event: &TimedInput, _over: Option<RegionId>) {}
 
     fn frame(&mut self, regions: &[Region]) -> Vec<Frame> {
         self.painted

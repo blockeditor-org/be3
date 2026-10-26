@@ -19,9 +19,9 @@ use block_editor_beui::beui::dock::styled::{DockNode, DockPane, DockWindow, Dock
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
 use block_editor_beui::beui::{Modifiers, NodeId, Pos2, Rect, Vec2, pos2, vec2};
-use block_editor_beui::{DisplaysWatch, MediaWatch, PowerWatch};
 use block_editor_beui::{Editor, Loaded};
 use block_editor_beui::{HostPanel, HostWindowId};
+use block_editor_beui::{MediaWatch, PowerWatch};
 use block_shell::{
     AttachedWindow, BlockTab, Failure, FloatingWindow, PanelWindow, PickerDialog, Pickers,
     RenameDialog, Workspace, WorkspaceDialogs,
@@ -50,6 +50,88 @@ impl block_editor_beui::BeuiApp for LinuxDesktopApp {
                 <DesktopShell editor={editor} />
             </Root>
         }
+    }
+
+    #[component]
+    fn Display(editor: Editor, display: u32) -> NodeId {
+        let shared = shared(editor.block_id());
+        let ready = create_memo(move || shared.with(Option::is_some));
+        view! {
+            <Layers>
+                <Show condition={ready}>|| {
+                    let Some(desktop) = shared.get_untracked() else {
+                        return view! {
+                            <Frame />
+                        };
+                    };
+                    view! {
+                        <Container>|_|
+                            <DisplayBody desktop display />
+                        </Container>
+                    }
+                }</Show>
+            </Layers>
+        }
+    }
+}
+
+#[derive(Clone, Copy)]
+struct Desktop {
+    workspace: Workspace,
+    notifications: DesktopNotifications,
+    launcher: ProgramLauncher,
+    placeholders: Placeholders,
+    osd: media::Osd,
+}
+
+impl PartialEq for Desktop {
+    fn eq(&self, _: &Self) -> bool {
+        false
+    }
+}
+
+thread_local! {
+    static SHARED: std::cell::RefCell<std::collections::HashMap<Uuid, OwnedSignal<Option<Desktop>>>> =
+        std::cell::RefCell::new(std::collections::HashMap::new());
+}
+
+fn shared_signal(block: Uuid) -> Signal<Option<Desktop>> {
+    SHARED.with(|shared| {
+        shared
+            .borrow_mut()
+            .entry(block)
+            .or_insert_with(|| OwnedSignal::new(None))
+            .handle()
+    })
+}
+
+fn shared(block: Uuid) -> ReadSignal<Option<Desktop>> {
+    shared_signal(block).read_only()
+}
+
+fn publish(block: Uuid, desktop: Desktop) {
+    let signal = shared_signal(block);
+    signal.set(Some(desktop));
+    on_cleanup(move || signal.set(None));
+}
+
+#[component]
+fn DisplayBody(desktop: Desktop, display: u32) -> NodeId {
+    let area = region_area();
+    view! {
+        <Frame>
+            <List spacing=Space::None>
+                <Spacer @sizing=ItemSize::Percent(100.0) />
+                <DesktopBar
+                    workspace={desktop.workspace}
+                    notifications={desktop.notifications}
+                    launcher={desktop.launcher}
+                    placeholders={desktop.placeholders}
+                    display
+                />
+                <media::LevelDisplay osd={desktop.osd} area display />
+            </List>
+        </Frame>
     }
 }
 
@@ -97,14 +179,18 @@ fn DesktopBody(workspace: Workspace) -> NodeId {
     let keyed = editor.offered::<MediaWatch>();
     let notifications = DesktopNotifications::new(editor);
     let bar_node = NodeRef::new();
-    let displays = display_rects(editor);
-    let along = create_memo(move || {
-        displays.with(|displays| {
-            let mut along: Vec<usize> = (0..displays.len()).collect();
-            along.sort_by(|a, b| displays[*a].left().total_cmp(&displays[*b].left()));
-            along
-        })
-    });
+    let area = region_area();
+    let osd = media::Osd::new(editor);
+    publish(
+        editor.block_id(),
+        Desktop {
+            workspace,
+            notifications,
+            launcher,
+            placeholders,
+            osd,
+        },
+    );
     view! {
         <Frame @node_ref={&surface}>
             <List spacing=Space::None>
@@ -134,65 +220,32 @@ fn DesktopBody(workspace: Workspace) -> NodeId {
                         <PanelWindow workspace panel />
                     </ForEach>
                 </Docking>
-                <List direction=Direction::Horizontal spacing=Space::None>
-                    <ForEach keys={along}>|index: usize| {
-                        let width = create_memo(move || {
-                            displays.with(|displays| {
-                                displays.get(index).map_or(Length::INTRINSIC, |display| {
-                                    Length::Size(Size::Custom(display.width()))
-                                })
-                            })
-                        });
-                        let node = match index {
-                            0 => bar_node,
-                            _ => NodeRef::new(),
-                        };
-                        view! {
-                            <Frame width=width>
-                                <DesktopBar
-                                    @node_ref=&node
-                                    workspace
-                                    notifications={notifications}
-                                    launcher={launcher}
-                                    placeholders
-                                />
-                            </Frame>
-                        }
-                    }</ForEach>
-                </List>
+                <DesktopBar
+                    @node_ref=&bar_node
+                    workspace
+                    notifications={notifications}
+                    launcher={launcher}
+                    placeholders
+                    display=0
+                />
                 <Pickers workspace />
                 <WorkspaceDialogs workspace />
                 <Show condition={keyed}>
-                    <MediaKeys editor displays />
+                    <MediaKeys editor osd />
                 </Show>
+                <media::LevelDisplay osd area display=0 />
                 <Show condition={launchable}>
                     <ProgramLauncherOverlay launcher />
                 </Show>
-                <DesktopToasts notifications bar={bar_node} displays />
+                <DesktopToasts notifications bar={bar_node} area />
             </List>
         </Frame>
     }
 }
 
-fn display_rects(editor: Editor) -> Memo<Vec<Rect>> {
-    let displays = editor.watch::<DisplaysWatch>();
+fn region_area() -> Memo<Rect> {
     let area = container_size();
-    create_memo(move || {
-        let shown: Vec<Rect> = displays.with(|displays| {
-            displays
-                .iter()
-                .map(|display| display.rect)
-                .filter(|rect| rect.is_positive())
-                .collect()
-        });
-        match shown.is_empty() {
-            false => shown,
-            true => vec![Rect::from_min_size(
-                Pos2::ZERO,
-                area.map_or(Vec2::ZERO, |area| area.get()),
-            )],
-        }
-    })
+    create_memo(move || Rect::from_min_size(Pos2::ZERO, area.map_or(Vec2::ZERO, |area| area.get())))
 }
 
 fn hold_saving_while_ending(workspace: Workspace) {

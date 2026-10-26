@@ -17,7 +17,7 @@ use block_plugin_api::HostPanel;
 use uuid::Uuid;
 
 use crate::app_state::{SavedAccount, ServerLocation};
-use crate::surfaces::MainSurface;
+use crate::compositor::ShellDisplay;
 use crate::wayland::WindowActions;
 
 pub(crate) use debug::{
@@ -484,7 +484,17 @@ fn DisplayWindow(view: AppViewStore, id: String) -> NodeId {
             display.placement
         });
     let title = display.get_untracked().map(|display| display.name);
-    let desktop = create_memo(move || shown.with(|shown| crate::display::desktop(shown)));
+    let index = create_memo({
+        let key = id.clone();
+        move || {
+            shown.with(|shown| {
+                shown
+                    .iter()
+                    .position(|display| display.id == key)
+                    .unwrap_or_default()
+            })
+        }
+    });
     let displays = create_memo(move || {
         shown.with(|shown| shown.iter().map(|display| display.rect).collect::<Vec<_>>())
     });
@@ -493,10 +503,8 @@ fn DisplayWindow(view: AppViewStore, id: String) -> NodeId {
         <Window size={size} placement={placement} title={title}>|_handle: WindowHandle| {
             provide_context(crate::compositor::DesktopPlace {
                 display: rect,
-                desktop,
                 displays,
                 scale,
-                primary,
             });
             view! {
                 <beui::styled::Root>
@@ -507,7 +515,7 @@ fn DisplayWindow(view: AppViewStore, id: String) -> NodeId {
                                     <Root view />
                                 },
                                 false => view! {
-                                    <SecondaryDisplay view />
+                                    <SecondaryDisplay view index />
                                 },
                             }
                         }</Dynamic>
@@ -520,7 +528,7 @@ fn DisplayWindow(view: AppViewStore, id: String) -> NodeId {
 }
 
 #[component]
-fn SecondaryDisplay(view: AppViewStore) -> NodeId {
+fn SecondaryDisplay(view: AppViewStore, index: Memo<usize>) -> NodeId {
     let area = NodeRef::new();
     let screen = view.screen;
     let presenting = view.presenting;
@@ -532,7 +540,16 @@ fn SecondaryDisplay(view: AppViewStore) -> NodeId {
         <Frame @node_ref=&area>
             <List spacing=Space::None>
                 <Show condition={desktop}>
-                    <MainSurface @sizing=ItemSize::Percent(100.0) />
+                    <Dynamic value={index}>|index: usize| {
+                        let display = u32::try_from(index).unwrap_or(u32::MAX);
+                        view! {
+                            <ShellDisplay
+                                @sizing=ItemSize::Percent(100.0)
+                                shell={create_memo(move || shell.get())}
+                                display
+                            />
+                        }
+                    }</Dynamic>
                 </Show>
                 <DisplayChrome view area primary=false />
             </List>

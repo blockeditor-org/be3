@@ -8,7 +8,7 @@ use crate::editor_session::EditorSession;
 use crate::screens::Screens;
 use crate::wasm::{Surfaces, surface_gpu};
 use crate::wire::Delivery;
-use crate::{EditorHost, Frame, Instance, Region, Regions, Waker};
+use crate::{EditorHost, Frame, Instance, Region, RegionId, Regions, Waker};
 
 const INSTANCE: EditorInstanceId = EditorInstanceId(1);
 
@@ -27,7 +27,7 @@ impl Instance for Unpainted {
 struct UnpaintedRegions;
 
 impl Regions for UnpaintedRegions {
-    fn input(&mut self, _region: &Region, _event: &TimedInput) {}
+    fn input(&mut self, _region: &Region, _event: &TimedInput, _over: Option<RegionId>) {}
 
     fn frame(&mut self, regions: &[Region]) -> Vec<Frame> {
         regions
@@ -93,6 +93,8 @@ fn a_surface_the_host_does_not_render_runs_its_frames_without_a_gpu() {
                 pixel_height: 80,
                 scale_factor: 1.0,
             },
+            windows: false,
+            placement: None,
         }]),
         Delivery::Configure(1),
     ] {

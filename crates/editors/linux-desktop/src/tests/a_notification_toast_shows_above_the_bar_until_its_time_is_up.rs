@@ -62,15 +62,17 @@ fn a_notification_toast_shows_above_the_bar_until_its_time_is_up() {
         monitor("right", right, 1.0),
         monitor("left", left, 1.0),
     ]);
-    let card = fixture.test.rect_of(&toast(2));
+    fixture.test.show_on_displays(&[(right, 1.0), (left, 1.0)]);
+    fixture.settle();
+    let cards = fixture.test.desk_rects_of(&toast(2));
     assert!(
-        right.contains_rect(card),
-        "the toasts show on the first display the host reports: {card:?}"
+        cards.len() == 1 && right.contains_rect(cards[0]),
+        "the toasts show on the first display the host reports: {cards:?}"
     );
-    let bars = fixture.test.rects_of("desktop.bar");
+    let bars = fixture.test.desk_rects_of("desktop.bar");
     assert!(
         bars.iter()
-            .any(|bar| right.contains_rect(*bar) && card.bottom() <= bar.top()),
-        "above that display's own bar: {card:?} {bars:?}"
+            .any(|bar| right.contains_rect(*bar) && cards[0].bottom() <= bar.top()),
+        "above that display's own bar: {cards:?} {bars:?}"
     );
 }

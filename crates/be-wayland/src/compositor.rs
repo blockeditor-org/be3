@@ -689,11 +689,12 @@ impl Compositor {
                     state.text_inputs.commit_text(text);
                 }
                 Forwarded::Pointer { event, over } if event.pointer == PointerId::Mouse => {
+                    let over = over.map(|over| over.node);
                     match event.phase {
-                        PointerPhase::Move => state.pointer_motion(at(*over, event.pos)),
+                        PointerPhase::Move => state.pointer_motion(at(over, event.pos)),
                         PointerPhase::Down(button) | PointerPhase::Up(button) => {
                             let pressed = matches!(event.phase, PointerPhase::Down(_));
-                            let target = at(*over, event.pos);
+                            let target = at(over, event.pos);
                             state.pointer_motion(target);
                             if pressed {
                                 state.ping(id, now);
@@ -705,7 +706,7 @@ impl Compositor {
                         }
                         PointerPhase::Scroll(delta) => {
                             if state.pointer_window() != Some(id) {
-                                state.pointer_motion(at(*over, event.pos));
+                                state.pointer_motion(at(over, event.pos));
                             }
                             state.pointer_axis((-f64::from(delta.x), -f64::from(delta.y)));
                         }
@@ -713,8 +714,9 @@ impl Compositor {
                     }
                 }
                 Forwarded::Pointer { event, over } if event.pointer == PointerId::Pen => {
+                    let over = over.map(|over| over.node);
                     let pen = event.pen.unwrap_or_default();
-                    let target = at(*over, event.pos);
+                    let target = at(over, event.pos);
                     state.pen_motion(
                         target,
                         f64::from(pen.pressure),

@@ -16,6 +16,7 @@ fn touch_input_round_trips() {
                 force: Some(0.75),
             },
             time_micros: Some(1_234_567),
+            over: Some(ScreenId(4)),
         }],
     };
 

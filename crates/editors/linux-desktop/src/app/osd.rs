@@ -29,7 +29,7 @@ pub(crate) struct OsdLevel {
 pub(crate) fn LevelOsd(
     level: Memo<Option<OsdLevel>>,
     shown: ReadSignal<u64>,
-    displays: Memo<Vec<Rect>>,
+    area: Memo<Rect>,
     id: String,
 ) -> NodeId {
     let since = StoredCell::new(None::<Instant>);
@@ -75,7 +75,7 @@ pub(crate) fn LevelOsd(
         });
     });
     let open = create_memo(move || opacity.get() > 0.0 && level.with(Option::is_some));
-    let places = create_memo(move || (0..displays.with(Vec::len)).collect::<Vec<usize>>());
+    let below = create_memo(move || area.get().height() * (1.0 - SCREEN_HEIGHT_FRACTION));
     view! {
         <Overlay
             anchor=OverlayAnchor::Point(Pos2::ZERO)
@@ -85,29 +85,9 @@ pub(crate) fn LevelOsd(
             traps_focus=false
             open={open}
             content={move || { let id = id.clone(); view! {
-                <Layers>
-                    <ForEach keys={places}>|index: usize| {
-                        let rect = create_memo(move || {
-                            displays.with(|displays| displays.get(index).copied().unwrap_or(Rect::ZERO))
-                        });
-                        let inset = create_memo(move || {
-                            Padding::custom(Sides::new(rect.get().left(), rect.get().top(), 0.0, 0.0))
-                        });
-                        let width = create_memo(move || Length::Size(Size::Custom(rect.get().width())));
-                        let height = create_memo(move || Length::Size(Size::Custom(rect.get().height())));
-                        let below = create_memo(move || rect.get().height() * (1.0 - SCREEN_HEIGHT_FRACTION));
-                        let id = format!("{id}.{index}");
-                        let card = view! {
-                            <Frame padding={inset} align={Align2::START}>
-                                <Frame width height align={Align2::new(Align::Center, Align::End)}>
-                                    <OsdCard level opacity={opacity.read_only()} below id />
-                                </Frame>
-                            </Frame>
-                        };
-                        let layer: Layer = card.into_child();
-                        layer
-                    }</ForEach>
-                </Layers>
+                <Frame width=Length::FILL height=Length::FILL align={Align2::new(Align::Center, Align::End)}>
+                    <OsdCard level opacity={opacity.read_only()} below id />
+                </Frame>
             } }}
         />
     }

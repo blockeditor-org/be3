@@ -24,6 +24,8 @@ pub(crate) trait Shown {
         document: &mut Document,
         window: WindowId,
     ) -> Report;
+
+    fn floated(&self, document: &mut Document, window: WindowId, size: beui::Vec2) -> Report;
 }
 
 struct Registry {
@@ -169,6 +171,16 @@ impl beui::App for ModuleApp {
                 shown.after(view, context, document, window)
             });
             views.report(view.id, report);
+        }
+        for (id, window) in views.floated() {
+            let Some(shown) = module.shown(id.instance) else {
+                continue;
+            };
+            let size = context.window_size(window).unwrap_or_default();
+            let report = shown
+                .host()
+                .in_region(id.region, || shown.floated(document, window, size));
+            views.report(id, report);
         }
     }
 }

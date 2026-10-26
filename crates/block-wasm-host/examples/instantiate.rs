@@ -187,6 +187,8 @@ fn screens() -> Vec<ScreenRequest> {
                 dialog: None,
             }),
             metrics: metrics(),
+            windows: false,
+            placement: None,
         },
         ScreenRequest {
             screen: ScreenId(2),
@@ -194,6 +196,8 @@ fn screens() -> Vec<ScreenRequest> {
             region: EditorRegion::Preview,
             frame: None,
             metrics: metrics(),
+            windows: false,
+            placement: None,
         },
     ]
 }

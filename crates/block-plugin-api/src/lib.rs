@@ -83,6 +83,10 @@ pub use types::{
     ScreenLayout, ScreenPlacement, ScreenRequest, ScreenWindow, Size, SurfaceFormat, SurfaceRect,
     SurfaceSpec, SurfaceSupport, TimedInput, TopBar, ViewportMetrics,
 };
+pub use types::{
+    RegionRef, WindowEdge, WindowOpen, WindowOver, WindowPlacement, WindowRequest, WindowResize,
+    WindowResizeBegin,
+};
 
 pub use account::HostPreferenceSources;
 pub use be_ops::Watched;
@@ -739,6 +743,7 @@ impl From<Input> for TimedInput {
         Self {
             input,
             time_micros: None,
+            over: None,
         }
     }
 }

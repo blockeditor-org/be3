@@ -61,7 +61,7 @@ pub struct RegionId {
 }
 
 pub trait Regions: std::any::Any {
-    fn input(&mut self, region: &Region, event: &TimedInput);
+    fn input(&mut self, region: &Region, event: &TimedInput, over: Option<RegionId>);
 
     fn run_action(&mut self, _region: &Region, _id: &str) {}
 
@@ -105,6 +105,8 @@ pub struct Region {
     pub spec: FrameSpec,
     pub describe: Option<u64>,
     pub seen: bool,
+    pub windows: bool,
+    pub placement: Option<String>,
 }
 
 impl Region {
@@ -134,6 +136,7 @@ pub struct Frame {
     pub window: WindowRequests,
     pub description: Option<block_plugin_api::Description>,
     pub stopped: Option<block_plugin_api::Stopped>,
+    pub asks: Vec<block_plugin_api::WindowRequest>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]

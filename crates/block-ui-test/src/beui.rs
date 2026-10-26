@@ -52,6 +52,7 @@ use crate::{ContentStore, overflow, snapshot};
 use beui::drive::gestures::{Frames, Gestures};
 
 pub(crate) mod capture;
+mod desk;
 
 const SIZE: Vec2 = Vec2::new(800.0, 600.0);
 const EAGER_FRAMES: usize = 8;
@@ -124,6 +125,9 @@ pub struct BeuiTest<A: BeuiApp> {
     requests: Vec<(Option<OpId>, Call)>,
     wakes: Arc<Wakes>,
     clock: std::time::Duration,
+    desk: Option<desk::Desk>,
+    desk_batches: Vec<InputBatch>,
+    drawn_screens: Vec<(ScreenId, beui::WindowId)>,
     app: PhantomData<A>,
 }
 
@@ -320,6 +324,9 @@ impl<A: BeuiApp> BeuiTest<A> {
             requests: Vec::new(),
             wakes,
             clock: std::time::Duration::ZERO,
+            desk: None,
+            desk_batches: Vec::new(),
+            drawn_screens: Vec::new(),
             app: PhantomData,
         };
         roundtrip(test.plugin.hello(), "the plugin's hello");
@@ -365,13 +372,17 @@ impl<A: BeuiApp> BeuiTest<A> {
             pixel_height: (self.size.y * self.scale_factor).round() as u32,
             scale_factor: self.scale_factor,
         };
-        let screens = vec![ScreenRequest {
-            screen: SCREEN,
-            instance: INSTANCE,
-            region,
-            metrics,
-            frame: self.frame,
-        }];
+        let screens = self.desk_requests().unwrap_or_else(|| {
+            vec![ScreenRequest {
+                screen: SCREEN,
+                instance: INSTANCE,
+                region,
+                metrics,
+                frame: self.frame,
+                windows: false,
+                placement: None,
+            }]
+        });
         block_plugin_api::embed::exports::plugin::screens(&mut self.connection, screens);
         let frames = self.connection.take_outbound();
         self.inbox.push(Inbound::Frames(frames));
@@ -931,6 +942,7 @@ impl<A: BeuiApp> BeuiTest<A> {
                     TimedInput {
                         input,
                         time_micros: sampled.then_some(now),
+                        over: None,
                     }
                 })
                 .collect();
@@ -944,6 +956,10 @@ impl<A: BeuiApp> BeuiTest<A> {
             );
             inbox.push(Inbound::pushed(move |plugin| plugin.input(batch)));
         }
+        for batch in std::mem::take(&mut self.desk_batches) {
+            let batch = roundtrip(batch, "the host's input");
+            inbox.push(Inbound::pushed(move |plugin| plugin.input(batch)));
+        }
         let now_micros = self.clock.as_micros() as u64;
         inbox.push(Inbound::pushed(move |plugin| {
             plugin.draw_frame(now_micros, true)
@@ -953,6 +969,11 @@ impl<A: BeuiApp> BeuiTest<A> {
         }
         self.hear();
         let drawn = self.plugin.draw().and_then(|drawn| {
+            self.drawn_screens = drawn
+                .windows
+                .iter()
+                .map(|(placement, window)| (placement.screen, *window))
+                .collect();
             let window = drawn
                 .windows
                 .iter()
@@ -986,7 +1007,14 @@ impl<A: BeuiApp> BeuiTest<A> {
     }
 
     fn committed(&mut self, commit: FrameCommit) {
-        if let Some(placements) = commit.children.into_iter().last() {
+        let region = self.region();
+        let asked = commit.window_requests;
+        if let Some(placements) = commit
+            .children
+            .into_iter()
+            .filter(|placements| placements.region == region)
+            .last()
+        {
             self.children = placements.children;
             self.occluders = placements.occluders;
         }
@@ -1005,6 +1033,7 @@ impl<A: BeuiApp> BeuiTest<A> {
         {
             self.window = window.window;
         }
+        self.desk_asked(asked);
     }
 
     fn call(&mut self, call: impl FnOnce(Editor, &mut Connection)) {

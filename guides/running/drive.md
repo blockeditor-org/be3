@@ -69,8 +69,8 @@ own to be driven:
   click '"Save"'` clicks the app's button wherever its panel is, and `drive screen click X,Y`
   puts space's cursor at that point of the platform window, as the mouse does, so the click
   goes to whatever panel or chrome is in front of it. The app tap's targets are in the app's
-  main window only; test what is in its other windows (the other panels) through `Space` and a
-  `Runner` instead (`InSpace` in crates/beui/src/tests.rs). Space's steering takes keys and
+  main window unless a command names another with `in WINDOW` (the other panels); the panels'
+  own placement is tested through `Space` and a `Runner` (`InSpace` in crates/beui/src/tests.rs). Space's steering takes keys and
   motion from the screen tap: holding a walking key keeps frames coming, so the command waits
   out its settle timeout and the head walks far; turn with `drive screen motion` while Ctrl
   and Shift are held instead. To walk or roll (Q/E) by a set amount, stop the clock and time
@@ -170,6 +170,12 @@ so dialogs, the file tree and every editor read like the host's own controls.
   `drive app actions all` lists every registered one.
 - `drive screen shot FILE.png [TARGET]` writes a PNG of what the platform shows (under space, the 3D view), or of one target, where that target is in the frame it captures.
 - `drive app windows` lists the app's windows, each one's number and size in pixels.
+- An input command (`click`, `move`, `down`, `up`, `drag`, `wheel`, `scroll`, `tap`, ...) may end
+  with `in WINDOW`, a number `windows` lists: its targets are then found among that window's
+  nodes only, and its input goes to that window, in its points. That is how to reach a window
+  other than the main one, such as one display's window under `--session`, where every display
+  shows its own lock screen and bar with the same test ids:
+  `drive app click '#lock.password' in 3`.
 - `drive app paint FILE.paint [TARGET] [in WINDOW]` writes what the app's main window (or the
   window numbered WINDOW) paints as a paint snapshot
   (guides/testing_a_gui.md, 4), every plugin's painting included where the host composites it,

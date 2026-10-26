@@ -1249,6 +1249,12 @@ impl Editor {
             .records()
             .into_iter()
             .filter(|record| record.zone == 0 || record.zone == zone)
+            .filter(|record| {
+                record
+                    .slot
+                    .node()
+                    .is_none_or(|node| document.window_of(node) == window)
+            })
             .map(|record| {
                 let order = record
                     .slot
@@ -1279,7 +1285,8 @@ impl Editor {
             .borrow()
             .as_ref()
             .filter(|(_, owner)| *owner == 0 || *owner == zone)
-            .and_then(|(node, _)| node.try_get());
+            .and_then(|(node, _)| node.try_get())
+            .filter(|node| document.window_of(*node) == window);
         let Some(rect) = node.and_then(|node| document.node_rect(node)) else {
             return;
         };

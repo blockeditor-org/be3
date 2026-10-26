@@ -19,7 +19,7 @@ impl NodeId {
         (u64::from(self.generation) << 32) | u64::from(self.index)
     }
 
-    fn from_key(key: u64) -> Self {
+    pub(crate) fn from_key(key: u64) -> Self {
         Self {
             index: key as u32,
             generation: (key >> 32) as u32,

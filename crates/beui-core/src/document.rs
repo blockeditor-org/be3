@@ -815,8 +815,12 @@ impl Document {
         }
     }
 
+    pub fn find_test_ids(&self, test_id: &str) -> Vec<NodeId> {
+        self.named_live(test_id, &self.live_nodes())
+    }
+
     pub fn find_test_id(&self, test_id: &str) -> Option<NodeId> {
-        let named = self.named_live(test_id, &self.live_nodes());
+        let named = self.find_test_ids(test_id);
         if named.len() > 1 {
             panic!(
                 "test id {test_id:?} names {} nodes in the tree; give each its own id",

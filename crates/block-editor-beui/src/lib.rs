@@ -65,6 +65,13 @@ pub trait BeuiApp: 'static {
         }
     }
     #[beui::reactive::component]
+    fn Display(editor: Editor, display: u32) -> beui::NodeId {
+        let _ = (editor, display);
+        beui::reactive::view! {
+            <beui::styled::Frame />
+        }
+    }
+    #[beui::reactive::component]
     fn Creation(creation: Creation) -> beui::NodeId {
         let _ = creation;
         beui::reactive::view! {
