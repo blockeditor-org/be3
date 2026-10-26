@@ -254,7 +254,7 @@ impl<S: ObjectStore + 'static, C: LiveEdit + Clone + Default> Session<S, C> {
         match woken {
             Woken::Closed => return Err("the connection to the server closed".to_owned()),
             Woken::Event(event) => match *event {
-                Some(event) => self.replicas.heard(ctx, &event).await,
+                Some(event) => self.replicas.heard(ctx, &event),
                 None => self.replicas.resynchronize(ctx).await,
             },
             Woken::Deadline | Woken::Module => self.replicas.modules.tick_due(),

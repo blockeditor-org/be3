@@ -217,6 +217,7 @@ fn AccountCard(account: Memo<AccountRow>) -> NodeId {
                         <Button
                             label="Open"
                             variant=ButtonVariant::Primary
+                            @test_id={format!("account.open.{}", name.get_untracked())}
                             on_click={move || send(UiCommand::OpenAccount(key.get_untracked()))}
                         />
                     </Tooltip>

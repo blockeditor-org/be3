@@ -2130,9 +2130,12 @@ impl<S: ObjectStore> Peer<S> {
         })
     }
 
-    pub async fn unseal(&self, payload: &[u8]) -> Result<Vec<u8>, ClientError> {
-        self.retrying(|| Ok(self.commits.vault().open(payload)?))
-            .await
+    pub fn unseal(&self, payload: &[u8]) -> Result<Vec<u8>, ClientError> {
+        self.commits.vault().open(payload).map_err(locked)
+    }
+
+    pub fn first_search_for(&self, key: Uuid) -> bool {
+        self.tried.lock().unwrap().insert(key)
     }
 }
 

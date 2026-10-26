@@ -19,7 +19,7 @@ async fn heard(
             } = events.recv().await.unwrap()
                 && relayed == block
             {
-                let plain = peer.unseal(&payload).await.unwrap();
+                let plain = peer.unseal(&payload).unwrap();
                 heard.push((from, payload, plain));
             }
         }

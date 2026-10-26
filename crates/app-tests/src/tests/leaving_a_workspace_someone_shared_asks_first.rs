@@ -58,20 +58,8 @@ fn leaving_a_workspace_someone_shared_asks_first() {
 
     app.click("#file-tree.desktop-app-menu");
     app.click("#app.menu.accounts");
-    app.wait("Label value=\"Dev\"");
-    let tree = app.tree();
-    let open = tree
-        .lines()
-        .skip_while(|line| !line.contains("Label value=\"Dev\""))
-        .find(|line| line.contains("Button \"Open\""))
-        .and_then(|line| line.split(" at ").nth(1))
-        .and_then(|place| place.split(' ').next())
-        .expect("the accounts screen offers to open Dev's account")
-        .to_owned();
-    let (x, y) = open.split_once(',').expect("a place is X,Y");
-    let x: f32 = x.parse().unwrap();
-    let y: f32 = y.parse().unwrap();
-    app.run(&["click", &format!("{},{}", x + 10.0, y + 10.0)]);
+    app.click("#account.open.Dev");
+    app.gone("#account.open.Dev");
     app.wait("TreeItem \"Team\"");
     app.run(&["click", "TreeItem \"Team\"", "right"]);
     app.click("#file-tree.section.leave");

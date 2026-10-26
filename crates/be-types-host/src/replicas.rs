@@ -1,5 +1,5 @@
 use std::{
-    collections::{BTreeMap, HashMap},
+    collections::{BTreeMap, HashMap, VecDeque},
     sync::Arc,
     time::Instant,
 };
@@ -106,6 +106,10 @@ pub enum Io {
     },
     Relayed,
     Sealed,
+    Keyed {
+        block: Uuid,
+        error: Option<ClientError>,
+    },
     Joined {
         replica: ReplicaId,
         block: Uuid,
@@ -257,6 +261,7 @@ pub struct Replicas<H: Host> {
     asked: HashMap<(usize, OpId), (ReplicaId, Asked)>,
     pending: Vec<Io>,
     relaying: usize,
+    unsealing: HashMap<Uuid, VecDeque<ServerMessage>>,
     leaving: Vec<Uuid>,
     rejoins: u64,
     changed: bool,
@@ -282,6 +287,7 @@ impl<H: Host> Replicas<H> {
             asked: HashMap::new(),
             pending: Vec::new(),
             relaying: 0,
+            unsealing: HashMap::new(),
             leaving: Vec::new(),
             rejoins: 0,
             changed: false,
@@ -345,7 +351,7 @@ impl<H: Host> Replicas<H> {
             }
             self.handled += (answers.len() + heard.len()) as u64;
             for io in answers {
-                self.answered(io, ctx.1);
+                self.answered(ctx, io);
             }
             for block in std::mem::take(&mut self.leaving) {
                 let _ = ctx.0.leave_session(block).await;
@@ -1218,7 +1224,17 @@ impl<H: Host> Replicas<H> {
         }
     }
 
-    pub async fn heard(&mut self, (peer, shared): Ctx<'_, H>, event: &ServerMessage) {
+    pub fn heard(&mut self, (peer, shared): Ctx<'_, H>, event: &ServerMessage) {
+        let (ServerMessage::SessionChanged { block, .. }
+        | ServerMessage::Relayed { block, .. }
+        | ServerMessage::HeadChanged { block, .. }) = event
+        else {
+            return;
+        };
+        if let Some(waiting) = self.unsealing.get_mut(block) {
+            waiting.push_back(event.clone());
+            return;
+        }
         match event {
             ServerMessage::SessionChanged { block, state } => {
                 let Some(replica) = self.blocks.get(block).copied() else {
@@ -1245,8 +1261,19 @@ impl<H: Host> Replicas<H> {
                 let Some(replica) = self.blocks.get(block).copied() else {
                     return;
                 };
-                let bytes = match peer.unseal(payload).await {
+                let bytes = match peer.unseal(payload) {
                     Ok(bytes) => bytes,
+                    Err(ClientError::Locked(key)) if peer.first_search_for(key) => {
+                        self.unsealing
+                            .insert(*block, VecDeque::from([event.clone()]));
+                        let (peer, io, block) = (Arc::clone(peer), self.io.clone(), *block);
+                        H::spawn(async move {
+                            let error = peer.refresh_keys(None).await.err();
+                            let _ = io.send(Io::Keyed { block, error });
+                            H::wake();
+                        });
+                        return;
+                    }
                     Err(error) => return H::record(shared, error),
                 };
                 let replayed = Replayed::Message {
@@ -1303,7 +1330,7 @@ impl<H: Host> Replicas<H> {
         }
     }
 
-    pub fn answered(&mut self, io: Io, shared: &Arc<Mutex<H>>) {
+    fn answered(&mut self, (peer, shared): Ctx<'_, H>, io: Io) {
         match io {
             Io::Answer {
                 replica,
@@ -1346,6 +1373,16 @@ impl<H: Host> Replicas<H> {
             }
             Io::Relayed => self.relaying -= 1,
             Io::Sealed => {}
+            Io::Keyed { block, error } => {
+                if let Some(error) = error
+                    && !unreachable(&error)
+                {
+                    H::record(shared, error);
+                }
+                for event in self.unsealing.remove(&block).unwrap_or_default() {
+                    self.heard((peer, shared), &event);
+                }
+            }
             Io::Joined {
                 replica,
                 block,

@@ -256,6 +256,17 @@ pub(crate) fn stop() {
     drop(stack);
 }
 
+#[cfg(all(test, not(target_arch = "wasm32")))]
+pub(crate) fn abandon() {
+    let stack = stack()
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .take();
+    if let Some(mut stack) = stack {
+        stack.running.abandon();
+    }
+}
+
 pub(crate) fn retry_now() {
     if let Some(stack) = stack()
         .lock()

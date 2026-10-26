@@ -26082,6 +26082,9 @@ third_party = {
         },
         "profile_flags": [
             "-Cdebuginfo=0",
+            "-Copt-level=2",
+            "-Cdebug-assertions=off",
+            "-Coverflow-checks=off",
         ],
         "sha256": "3c3610892ee6e0cbce8ae2700349fcf8f98adb0dbfbee85aec3c9179d29cc072",
         "size_bytes": 28795,
@@ -28371,6 +28374,9 @@ third_party = {
         },
         "profile_flags": [
             "-Cdebuginfo=0",
+            "-Copt-level=2",
+            "-Cdebug-assertions=off",
+            "-Coverflow-checks=off",
         ],
         "sha256": "46502ad458c9a52b69d4d4d32775c788b7a1b85e8bc9d482d92250fc0e3f8efe",
         "size_bytes": 47234,

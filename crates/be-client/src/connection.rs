@@ -1,5 +1,5 @@
 use std::{
-    collections::HashMap,
+    collections::{HashMap, VecDeque},
     sync::{
         Arc,
         atomic::{AtomicU64, Ordering},
@@ -37,6 +37,7 @@ pub struct Connection {
     commands: mpsc::UnboundedSender<Outbound>,
     events: broadcast::Sender<ServerMessage>,
     closed: watch::Receiver<bool>,
+    due: watch::Receiver<Duration>,
     next: AtomicU64,
 }
 
@@ -54,10 +55,13 @@ impl Connection {
         let (commands, receiver) = mpsc::unbounded_channel();
         let (events, _) = broadcast::channel(EVENT_CAPACITY);
         let (closing, closed) = watch::channel(false);
+        let opened = clock.now();
+        let (due, watched) = watch::channel(opened + PING_INTERVAL);
         let connection = Arc::new(Self {
             commands,
             events: events.clone(),
             closed,
+            due: watched,
             next: AtomicU64::new(0),
         });
         spawn(worker(
@@ -67,7 +71,8 @@ impl Connection {
                 commands: receiver,
                 events,
                 clock: clock.clone(),
-                opened: clock.now(),
+                opened,
+                due,
             },
             closing,
         ));
@@ -78,10 +83,12 @@ impl Connection {
         let (commands, _) = mpsc::unbounded_channel();
         let (events, _) = broadcast::channel(1);
         let (_, closed) = watch::channel(true);
+        let (_, due) = watch::channel(Duration::MAX);
         Arc::new(Self {
             commands,
             events,
             closed,
+            due,
             next: AtomicU64::new(0),
         })
     }
@@ -92,6 +99,10 @@ impl Connection {
 
     pub fn closed(&self) -> watch::Receiver<bool> {
         self.closed.clone()
+    }
+
+    pub fn due(&self) -> watch::Receiver<Duration> {
+        self.due.clone()
     }
 
     pub fn is_closed(&self) -> bool {
@@ -195,6 +206,7 @@ struct Carried {
     events: broadcast::Sender<ServerMessage>,
     clock: Clock,
     opened: Duration,
+    due: watch::Sender<Duration>,
 }
 
 async fn worker(carried: Carried, closing: watch::Sender<bool>) {
@@ -202,7 +214,30 @@ async fn worker(carried: Carried, closing: watch::Sender<bool>) {
     let _ = closing.send(true);
 }
 
+enum Out {
+    Message(Vec<u8>),
+    #[cfg(not(target_arch = "wasm32"))]
+    Pong(Vec<u8>),
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+type Sending = std::pin::Pin<Box<dyn Future<Output = (Writer, bool, Result<(), String>)> + Send>>;
+#[cfg(target_arch = "wasm32")]
+type Sending = std::pin::Pin<Box<dyn Future<Output = (Writer, bool, Result<(), String>)>>>;
+
+fn write(mut writer: Writer, out: Out, ping: bool) -> Sending {
+    Box::pin(async move {
+        let written = match out {
+            Out::Message(bytes) => writer.send(bytes).await,
+            #[cfg(not(target_arch = "wasm32"))]
+            Out::Pong(payload) => writer.pong(payload).await,
+        };
+        (writer, ping, written)
+    })
+}
+
 enum Woke {
+    Wrote(Writer, bool, Result<(), String>),
     Command(Option<Outbound>),
     Frame(Option<Frame>),
     Timer,
@@ -210,44 +245,67 @@ enum Woke {
 
 async fn carry(
     Carried {
-        mut writer,
+        writer,
         mut reader,
         mut commands,
         events,
         clock,
         opened,
+        due,
     }: Carried,
 ) {
+    let Ok(ping) = encode(&ClientMessage::Ping {
+        request: PING_REQUEST,
+    }) else {
+        return;
+    };
     let mut pending: HashMap<u64, Reply> = HashMap::new();
+    let mut writer = Some(writer);
+    let mut sending: Option<(Sending, Duration)> = None;
+    let mut queued: VecDeque<(Out, bool)> = VecDeque::new();
     let mut heard = opened;
+    let mut owed = false;
     let mut pinged: Option<Duration> = None;
     let mut reading_first = false;
     loop {
-        if pinged.is_none() && clock.now() >= heard + PING_INTERVAL {
-            let Ok(ping) = encode(&ClientMessage::Ping {
-                request: PING_REQUEST,
-            }) else {
-                return;
-            };
-            if writer.send(ping).await.is_err() {
-                return;
-            }
-            pinged = Some(clock.now());
+        let now = clock.now();
+        if !owed && pinged.is_none() && now >= heard + PING_INTERVAL {
+            queued.push_front((Out::Message(ping.clone()), true));
+            owed = true;
         }
-        let next = match pinged {
-            Some(sent) => sent + PONG_WAIT,
-            None => heard + PING_INTERVAL,
+        if sending.is_none()
+            && let Some((out, is_ping)) = queued.pop_front()
+            && let Some(idle) = writer.take()
+        {
+            sending = Some((write(idle, out, is_ping), now));
+        }
+        let stuck = sending
+            .as_ref()
+            .map(|(_, since)| (heard + PING_INTERVAL).max(*since) + PONG_WAIT);
+        let next = match (pinged, stuck) {
+            (Some(sent), stuck) => {
+                stuck.map_or(sent + PONG_WAIT, |stuck| stuck.min(sent + PONG_WAIT))
+            }
+            (None, Some(stuck)) if owed => stuck,
+            (None, _) => heard + PING_INTERVAL,
         };
+        due.send_if_modified(|due| std::mem::replace(due, next) != next);
         let woke = {
             let mut frame = std::pin::pin!(reader.next());
             let mut timer = std::pin::pin!(clock.sleep_until(next));
+            let accepting = sending.is_none();
             std::future::poll_fn(|context| {
+                if let Some((write, _)) = &mut sending
+                    && let Poll::Ready((writer, ping, written)) = write.as_mut().poll(context)
+                {
+                    return Poll::Ready(Woke::Wrote(writer, ping, written));
+                }
                 for reading in [reading_first, !reading_first] {
                     if reading {
                         if let Poll::Ready(frame) = frame.as_mut().poll(context) {
                             return Poll::Ready(Woke::Frame(frame));
                         }
-                    } else if let Poll::Ready(command) = commands.poll_recv(context) {
+                    } else if accepting && let Poll::Ready(command) = commands.poll_recv(context) {
                         return Poll::Ready(Woke::Command(command));
                     }
                 }
@@ -257,8 +315,20 @@ async fn carry(
         };
         reading_first = matches!(woke, Woke::Command(_));
         match woke {
+            Woke::Wrote(_, _, Err(_)) => return,
+            Woke::Wrote(idle, ping, Ok(())) => {
+                writer = Some(idle);
+                sending = None;
+                if ping {
+                    owed = false;
+                    pinged = Some(clock.now());
+                }
+            }
             Woke::Timer => {
-                if pinged.is_some_and(|sent| clock.now() >= sent + PONG_WAIT) {
+                let now = clock.now();
+                if pinged.is_some_and(|sent| now >= sent + PONG_WAIT)
+                    || stuck.is_some_and(|stuck| now >= stuck)
+                {
                     return;
                 }
             }
@@ -268,9 +338,7 @@ async fn carry(
                     continue;
                 }
                 pending.insert(command.request, command.reply);
-                if writer.send(command.bytes).await.is_err() {
-                    return;
-                }
+                queued.push_back((Out::Message(command.bytes), false));
             }
             Woke::Frame(frame) => {
                 heard = clock.now();
@@ -296,11 +364,7 @@ async fn carry(
                         }
                     }
                     #[cfg(not(target_arch = "wasm32"))]
-                    Some(Frame::Ping(payload)) => {
-                        if writer.pong(payload).await.is_err() {
-                            return;
-                        }
-                    }
+                    Some(Frame::Ping(payload)) => queued.push_back((Out::Pong(payload), false)),
                     #[cfg(not(target_arch = "wasm32"))]
                     Some(Frame::Failed(_)) => return,
                     Some(Frame::Closed) | None => return,

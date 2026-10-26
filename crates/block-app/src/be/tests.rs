@@ -27,6 +27,7 @@ mod a_duplicated_block_carries_what_its_source_held;
 mod a_folder_lists_a_new_child_before_its_edit_is_sealed;
 mod a_fork_pulls_and_pushes_through_its_upstream;
 mod a_half_open_connection_is_noticed_and_the_peer_reconnects;
+mod a_heartbeat_the_server_never_answers_holds_up_no_edit;
 mod a_held_block_stays_open_when_its_editors_close;
 mod a_link_carrying_a_share_opens_the_block_the_moment_it_is_accepted;
 mod a_merge_conflict_shows_both_versions_and_keeps_the_one_chosen;
@@ -199,28 +200,35 @@ impl Harness {
     }
 
     fn miss_a_ping(&self) {
-        let runtime = runtime();
-        loop {
-            let pings = self.relay().pings();
-            self.clock.advance(be_client::connection::PING_INTERVAL);
-            let pinged = runtime.block_on(async {
-                tokio::time::timeout(
-                    Duration::from_millis(200),
-                    self.relay().pinged_beyond(pings),
-                )
-                .await
-            });
-            if pinged.is_err() {
-                continue;
-            }
-            self.clock.advance(be_client::connection::PONG_WAIT);
-            let gone = wait_for(Duration::from_millis(200), |shared| {
-                (!shared.connected).then_some(())
-            });
-            if gone.is_some() {
-                return;
-            }
-        }
+        let mut due = wait_for(PATIENCE, |shared| {
+            shared
+                .connected
+                .then(|| shared.connection_due.clone())
+                .flatten()
+        })
+        .expect("the stack is connected");
+        let missed = runtime().block_on(async {
+            tokio::time::timeout(PATIENCE, async {
+                loop {
+                    let at = *due.borrow_and_update();
+                    let now = self.clock.now();
+                    if at > now {
+                        self.clock.advance(at - now);
+                    }
+                    if due.changed().await.is_err() {
+                        return;
+                    }
+                }
+            })
+            .await
+        });
+        assert!(
+            missed.is_ok(),
+            "the connection never gave up on the silent server"
+        );
+        wait_until("noticed the connection was gone", |shared| {
+            !shared.connected
+        });
     }
 
     fn leasing(lease: Duration) -> Self {
@@ -342,7 +350,11 @@ async fn outside_peer(
 
 impl Drop for Harness {
     fn drop(&mut self) {
-        stop();
+        if std::thread::panicking() {
+            abandon();
+        } else {
+            stop();
+        }
         let _ = std::fs::remove_dir_all(&self.directory);
     }
 }

@@ -410,7 +410,13 @@ stopped forwarding) and the transport never says so:
   or starved for longer than both pings when it wakes and keeps a live
   connection. The timer only wins when no frame and no command is waiting, and
   the worker alternates between reading frames and writing queued commands, so
-  neither a flood of requests nor of events stops the other side.
+  neither a flood of requests nor of events stops the other side. It keeps
+  reading frames while a write is under way, and a write still stuck
+  `PONG_WAIT` after the ping fell due (a server that stopped reading, so the
+  socket's send buffer is full) closes the connection too.
+  `Connection::due()` watches the clock time at which the connection next acts
+  on silence (pings or gives up), so a test with a manual clock can advance
+  straight to it.
 - Each deadline is read from a `be_client::Clock`, passed to
   `Connection::connect`: `Clock::real()` everywhere but tests, which pass
   `Clock::manual()` and `advance` it, so none of this needs sleeping in a test.
@@ -419,9 +425,13 @@ stopped forwarding) and the transport never says so:
   heard and forward nothing, a half-open socket), `stall_at_next_request` (the
   same, from the next bytes the client sends, so a test can silence the server
   just as the client asks something), `cut` them, or `hold_new` ones it accepts
-  without ever reaching the server. It also counts the
-  `Ping` messages a client sends (`pings`, `pinged_beyond`), so a test advances
-  `PING_INTERVAL`, waits for the ping, then advances `PONG_WAIT`.
+  without ever reaching the server, or `jam_at_next_request` (stop reading
+  altogether, so the client's writes back up; it accepts with a 64 KiB receive
+  buffer so that takes megabytes, not tens of them). `count(predicate)` counts
+  the client messages that match from then on (a `watch` of the count), so a
+  test waits for a `Ping` or a `Heartbeat` to be sent. The block-app
+  `Harness::miss_a_ping` advances the manual clock to each `Connection::due()`
+  until the connection gives up.
 
 - `open` reads the head commit and its chunks with one `ReadContents` and decodes.
 - `save` chunks the content and publishes against the head it read, carrying in
@@ -1717,7 +1727,11 @@ config clock) while connected with something still in the outbox. A block
 opened while connected with local commits still waiting opens from its local
 head and is then moved to the remote one, so its next publish builds on them.
 Heartbeats (`Peer::heartbeat` sends at once and returns the answer to await)
-are answered off the worker loop, like relays. The wait
+are answered off the worker loop, like relays. A relayed message is unsealed
+on the spot (`Peer::unseal`, no network); one whose key this device lacks
+(`ClientError::Locked`) and has not yet looked for (`Peer::first_search_for`)
+fetches the keys in a task, and that block's later events wait behind it so
+they keep their order. The wait
 before each attempt doubles from 0.5 s to at most 30 s with each failure in a
 row, randomly shortened by up to half so that clients a server dropped together
 do not come back together (`reconnect_delay`), and starts over once a connection

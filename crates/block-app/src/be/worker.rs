@@ -350,6 +350,8 @@ pub(crate) struct Shared {
     pub(crate) saves: u64,
     pub(crate) owing: usize,
     pub(crate) connected: bool,
+    #[cfg(test)]
+    pub(crate) connection_due: Option<tokio::sync::watch::Receiver<Duration>>,
     pub(crate) reached: bool,
     pub(crate) draining: bool,
     pub(crate) error: Option<String>,
@@ -828,7 +830,7 @@ impl Session<'_> {
                     }
                     for event in heard_all {
                         match &event {
-                            Some(message) => self.replicas.heard((peer, shared), message).await,
+                            Some(message) => self.replicas.heard((peer, shared), message),
                             None => self.replicas.resynchronize((peer, shared)).await,
                         }
                         heard(peer, shared, &self.tasks.0, event).await;
@@ -920,6 +922,10 @@ impl Session<'_> {
         {
             let mut held = shared.lock().unwrap_or_else(PoisonError::into_inner);
             held.connected = true;
+            #[cfg(test)]
+            {
+                held.connection_due = Some(peer.connection().due());
+            }
             held.reached = true;
             held.error = None;
         }

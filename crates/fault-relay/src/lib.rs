@@ -6,7 +6,7 @@ use std::{
 use tokio::{
     io::{AsyncReadExt, AsyncWriteExt},
     net::{
-        TcpListener, TcpStream,
+        TcpListener, TcpSocket, TcpStream,
         tcp::{OwnedReadHalf, OwnedWriteHalf},
     },
     sync::watch,
@@ -23,13 +23,20 @@ struct State {
     links: Mutex<Vec<Link>>,
     holding: Mutex<bool>,
     stalling: Mutex<bool>,
+    jamming: Mutex<bool>,
     heard: watch::Sender<u64>,
-    pings: watch::Sender<u64>,
+    counters: Mutex<Vec<Counter>>,
 }
+
+type Counter = (
+    Box<dyn Fn(&be_protocol::ClientMessage) -> bool + Send>,
+    watch::Sender<u64>,
+);
 
 #[derive(Clone)]
 struct Link {
     stalled: watch::Sender<bool>,
+    jammed: watch::Sender<bool>,
     cut: watch::Sender<bool>,
 }
 
@@ -41,18 +48,26 @@ impl Relay {
             .enable_io()
             .build()
             .expect("the relay's runtime starts");
-        let listener = std::net::TcpListener::bind("127.0.0.1:0").expect("the relay listens");
-        listener
-            .set_nonblocking(true)
-            .expect("the relay's socket does not block");
+        let listener = {
+            let _entered = runtime.enter();
+            let socket = TcpSocket::new_v4().expect("the relay opens a socket");
+            socket
+                .set_recv_buffer_size(RECEIVE_BUFFER)
+                .expect("the relay sizes what it buffers");
+            socket
+                .bind("127.0.0.1:0".parse().expect("a local address parses"))
+                .expect("the relay binds");
+            socket.listen(64).expect("the relay listens")
+        };
         let address = listener.local_addr().expect("the relay has an address");
         let state = Arc::new(State {
             upstream,
             links: Mutex::new(Vec::new()),
             holding: Mutex::new(false),
             stalling: Mutex::new(false),
+            jamming: Mutex::new(false),
             heard: watch::Sender::new(0),
-            pings: watch::Sender::new(0),
+            counters: Mutex::new(Vec::new()),
         });
         runtime.spawn(accept(listener, Arc::clone(&state)));
         Self {
@@ -84,6 +99,14 @@ impl Relay {
             .unwrap_or_else(PoisonError::into_inner) = true;
     }
 
+    pub fn jam_at_next_request(&self) {
+        *self
+            .state
+            .jamming
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner) = true;
+    }
+
     pub fn cut(&self) {
         for link in self.state.links() {
             link.cut.send_replace(true);
@@ -107,13 +130,17 @@ impl Relay {
         let _ = heard.wait_for(|heard| *heard > bytes).await;
     }
 
-    pub fn pings(&self) -> u64 {
-        *self.state.pings.borrow()
-    }
-
-    pub async fn pinged_beyond(&self, pings: u64) {
-        let mut pinged = self.state.pings.subscribe();
-        let _ = pinged.wait_for(|pinged| *pinged > pings).await;
+    pub fn count(
+        &self,
+        counted: impl Fn(&be_protocol::ClientMessage) -> bool + Send + 'static,
+    ) -> watch::Receiver<u64> {
+        let (sender, receiver) = watch::channel(0);
+        self.state
+            .counters
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .push((Box::new(counted), sender));
+        receiver
     }
 }
 
@@ -134,14 +161,12 @@ impl State {
     }
 }
 
-async fn accept(listener: std::net::TcpListener, state: Arc<State>) {
-    let Ok(listener) = TcpListener::from_std(listener) else {
-        return;
-    };
+async fn accept(listener: TcpListener, state: Arc<State>) {
     while let Ok((client, _)) = listener.accept().await {
         let holding = *state.holding.lock().unwrap_or_else(PoisonError::into_inner);
         let link = Link {
             stalled: watch::Sender::new(holding),
+            jammed: watch::Sender::new(false),
             cut: watch::Sender::new(false),
         };
         state
@@ -199,6 +224,9 @@ async fn pump(
     let mut buffer = vec![0u8; 64 * 1024];
     let mut frames = Frames::default();
     loop {
+        if *link.jammed.borrow() {
+            std::future::pending::<()>().await;
+        }
         let read = match from.read(&mut buffer).await {
             Ok(0) | Err(_) => return,
             Ok(read) => read,
@@ -214,10 +242,24 @@ async fn pump(
                     link.stalled.send_replace(true);
                 }
             }
+            if std::mem::take(&mut *state.jamming.lock().unwrap_or_else(PoisonError::into_inner)) {
+                for link in state.links() {
+                    link.jammed.send_replace(true);
+                }
+            }
             state.heard.send_modify(|heard| *heard += read as u64);
-            let pings = frames.pings_in(&buffer[..read]);
-            if pings > 0 {
-                state.pings.send_modify(|pinged| *pinged += pings);
+            let messages = frames.messages_in(&buffer[..read]);
+            if !messages.is_empty() {
+                let counters = state
+                    .counters
+                    .lock()
+                    .unwrap_or_else(PoisonError::into_inner);
+                for (counted, count) in counters.iter() {
+                    let matched = messages.iter().filter(|message| counted(message)).count();
+                    if matched > 0 {
+                        count.send_modify(|count| *count += matched as u64);
+                    }
+                }
             }
         }
         if *link.stalled.borrow() {
@@ -231,6 +273,8 @@ async fn pump(
     }
 }
 
+const RECEIVE_BUFFER: u32 = 64 * 1024;
+
 #[derive(Default)]
 struct Frames {
     upgraded: bool,
@@ -238,7 +282,7 @@ struct Frames {
 }
 
 impl Frames {
-    fn pings_in(&mut self, bytes: &[u8]) -> u64 {
+    fn messages_in(&mut self, bytes: &[u8]) -> Vec<be_protocol::ClientMessage> {
         self.unread.extend_from_slice(bytes);
         if !self.upgraded {
             let Some(end) = self
@@ -246,22 +290,19 @@ impl Frames {
                 .windows(4)
                 .position(|window| window == b"\r\n\r\n")
             else {
-                return 0;
+                return Vec::new();
             };
             self.unread.drain(..end + 4);
             self.upgraded = true;
         }
-        let mut pings = 0;
+        let mut messages = Vec::new();
         while let Some((payload, length)) = frame(&self.unread) {
-            if matches!(
-                be_protocol::decode::<be_protocol::ClientMessage>(&payload),
-                Ok(be_protocol::ClientMessage::Ping { .. })
-            ) {
-                pings += 1;
+            if let Ok(message) = be_protocol::decode(&payload) {
+                messages.push(message);
             }
             self.unread.drain(..length);
         }
-        pings
+        messages
     }
 }
 

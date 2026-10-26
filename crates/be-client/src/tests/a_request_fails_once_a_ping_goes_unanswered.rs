@@ -18,9 +18,9 @@ async fn a_request_fails_once_a_ping_goes_unanswered() {
     let answer = connection
         .send(|request| ClientMessage::ListOrganizations { request })
         .unwrap();
-    let pings = relay.pings();
+    let mut pings = relay.count(|message| matches!(message, ClientMessage::Ping { .. }));
     clock.advance(PING_INTERVAL);
-    relay.pinged_beyond(pings).await;
+    pings.wait_for(|pings| *pings > 0).await.unwrap();
     clock.advance(PONG_WAIT);
 
     assert!(

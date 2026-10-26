@@ -291,6 +291,20 @@ opt-level = 2
 debug-assertions = false
 overflow-checks = false
 
+# The server hashes every password it registers or checks with Argon2, which
+# unoptimised took half a second: most of what starting a test's server and
+# account cost, paid by every block-app and app test.
+
+[profile.dev.package.argon2]
+opt-level = 2
+debug-assertions = false
+overflow-checks = false
+
+[profile.dev.package.blake2]
+opt-level = 2
+debug-assertions = false
+overflow-checks = false
+
 # Cranelift is what compiles a plugin, both in the app when an artifact is
 # missing and in the compiler the build hands every plugin to, and unoptimised
 # it is an order of magnitude slower at it: the plugins a debug build ships take

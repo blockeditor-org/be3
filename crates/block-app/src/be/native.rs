@@ -23,6 +23,11 @@ impl Running {
             let _ = worker.join();
         }
     }
+
+    #[cfg(test)]
+    pub(super) fn abandon(&mut self) {
+        self.0 = None;
+    }
 }
 
 pub(super) fn spawn(
