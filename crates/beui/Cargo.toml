@@ -11,6 +11,7 @@ window = [
     "render",
     "dep:beui-platform-android",
     "dep:beui-layer-space",
+    "dep:beui-layer-xr",
     "dep:beui-platform-winit",
     "dep:pollster",
     "dep:serde_json",
@@ -48,6 +49,7 @@ reactive = { path = "../reactive" }
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 beui-layer-space = { path = "../beui-layer-space", optional = true }
+beui-layer-xr = { path = "../beui-layer-xr", optional = true }
 pollster = { version = "0.4", optional = true }
 serde_json = { version = "1", optional = true }
 

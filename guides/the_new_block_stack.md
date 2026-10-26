@@ -1302,8 +1302,12 @@ the app does not know.
 commit and chunks (those that fit in half a frame, and none for a head the
 client says it already holds), and anything left out is fetched afterwards, so
 a tree costs one round trip, not three per block.
-host-services' `import-blocks(parent)` has the host pick a file and `be::import`
-it: every block gets a new id, old ids in the content bytes and references are
+host-services' `import-blocks(parent)`, the picker's "Import a file…", has the
+host pick any file. Anything but a `.block` file goes to `be::import_file`, which
+turns it into one block the way `be sync` turns a new file into one (guides/sync.md:
+the first type that `claims` it, an image for a `.png`, a file block for an
+`.epub`, its content `from-file`, named after the file) and creates it with
+`be::create`. A `.block` file is `be::import`ed: every block gets a new id, old ids in the content bytes and references are
 swapped for the new ones, and each block is created and given its bytes as its first commit. The
 answer names the outermost block. The tree is in the mirror
 at once and uploads in the background, as a task beside the worker's loop

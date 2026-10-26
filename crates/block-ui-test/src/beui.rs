@@ -73,6 +73,7 @@ pub struct BeuiTest<A: BeuiApp> {
     store: ContentStore,
     size: Vec2,
     scale_factor: f32,
+    raster: Option<f32>,
     frame: Option<block_plugin_api::FrameSpec>,
     gestures: Gestures,
     steps: Vec<String>,
@@ -288,6 +289,7 @@ impl<A: BeuiApp> BeuiTest<A> {
             store,
             size: SIZE,
             scale_factor: 1.0,
+            raster: None,
             frame,
             steps: Vec::new(),
             gestures: Gestures::default(),
@@ -362,15 +364,17 @@ impl<A: BeuiApp> BeuiTest<A> {
 
     fn place(&mut self) {
         let region = self.region();
+        let raster = self.raster.unwrap_or(self.scale_factor);
         let metrics = ViewportMetrics {
             logical: block_plugin_api::Size {
                 width: self.size.x,
                 height: self.size.y,
             },
             visible: block_plugin_api::Pos2::ZERO,
-            pixel_width: (self.size.x * self.scale_factor).round() as u32,
-            pixel_height: (self.size.y * self.scale_factor).round() as u32,
+            pixel_width: (self.size.x * raster).round() as u32,
+            pixel_height: (self.size.y * raster).round() as u32,
             scale_factor: self.scale_factor,
+            raster,
         };
         let screens = self.desk_requests().unwrap_or_else(|| {
             vec![ScreenRequest {
@@ -595,6 +599,12 @@ impl<A: BeuiApp> BeuiTest<A> {
         self.place();
         self.run();
         self
+    }
+
+    pub fn set_raster(&mut self, raster: f32) {
+        self.raster = Some(raster);
+        self.place();
+        self.run();
     }
 
     pub fn block_types(&mut self, descriptors: Vec<BlockTypeDescriptor>) {
@@ -1971,14 +1981,10 @@ impl<A: BeuiApp> BeuiTest<A> {
 
     fn painted(&mut self) -> snapshot::Snapshot {
         let behind = beui::styled::Theme::of(self.document().preferences().theme).background;
-        let output = self
-            .output
-            .as_ref()
-            .expect("the editor has not drawn a frame yet");
         let shown = self
             .shown_output()
             .expect("the editor has not drawn its window yet");
-        capture::capture(shown, self.size, output.pixels_per_point(), behind)
+        capture::capture(shown, self.size, shown.pixels_per_point, behind)
             .expect("the painting could not be rendered")
     }
 }

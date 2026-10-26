@@ -2,7 +2,9 @@ use beui::KeyAt;
 use beui::reactive::*;
 
 use beui::styled::*;
-use beui::{ForwardedInput, Key, NodeId, Pos2, Rect, Vec2};
+use beui::{
+    ForwardedInput, Key, NodeId, Pos2, Rect, Vec2, WindowPlacement, WindowReport, WindowRole,
+};
 
 use crate::state::WindowId;
 use crate::windows::Windows;
@@ -66,13 +68,20 @@ pub fn WindowView(
                 popups.as_ref().map(|popups| popups.rect)
             }));
             let open = create_memo(move || shown.get().is_some());
-            let anchor = create_memo(move || {
-                let at = shown.get().unwrap_or(Rect::ZERO);
-                OverlayAnchor::Rect(at.translate(rect.get().min.to_vec2()))
+            let at = create_memo(move || {
+                rect.get().min + shown.get().unwrap_or(Rect::ZERO).min.to_vec2()
             });
-            let length = |px: Option<f32>| px.map_or(Length::INTRINSIC, |px| Length::Size(Size::Custom(px)));
-            let width = create_memo(move || length(shown.get().map(|at| at.width())));
-            let height = create_memo(move || length(shown.get().map(|at| at.height())));
+            let size = create_memo(move || shown.get().map_or(Vec2::ZERO, |at| at.size()));
+            let parent = use_window().map_or(beui::WindowId::MAIN, |window| window.id);
+            let hosted = opens_windows();
+            let openings = create_memo(move || match (hosted.get(), open.get()) {
+                (true, true) => {
+                    let at = at.get();
+                    vec![Some((at.x.to_bits(), at.y.to_bits()))]
+                }
+                (true, false) => Vec::new(),
+                (false, _) => vec![None],
+            });
             let into_window = move |mut input: ForwardedInput| {
                 let at = shown.get_untracked().unwrap_or(Rect::ZERO);
                 input.rect = input.rect.translate(-at.min.to_vec2());
@@ -109,22 +118,28 @@ pub fn WindowView(
                             <Frame fill={dim} />
                         </Layers>
                     </Interactive>
-                    <Overlay
-                        anchor={anchor}
-                        placement=Placement::At
-                        policy=LayerPolicy::Pass
-                        traps_focus=false
-                        open={open}
-                    >
-                        {{
-                            create_effect(move || {
-                                rect.get();
-                                if let Some(node) = popup_catcher.try_get() {
-                                    windows.popups_caught_by(id, node);
-                                }
-                            });
-                            view! {
-                                <Frame width=width height=height>
+                    <ForEach keys={openings}>|_: Option<(u32, u32)>| {
+                        let placement = WindowPlacement::Over {
+                            window: parent,
+                            at: at.get_untracked(),
+                        };
+                        view! {
+                            <Window
+                                id={None}
+                                size
+                                placement
+                                at
+                                open
+                                role={WindowRole::Popup}
+                                on_report={|_: WindowReport| {}}
+                            >|_: WindowHandle| {
+                                create_effect(move || {
+                                    rect.get();
+                                    if let Some(node) = popup_catcher.try_get() {
+                                        windows.popups_caught_by(id, node);
+                                    }
+                                });
+                                view! {
                                     <Interactive
                                         @node_ref={&popup_catcher}
                                         focusable=true
@@ -143,10 +158,10 @@ pub fn WindowView(
                                             })}
                                         />
                                     </Interactive>
-                                </Frame>
-                            }
-                        }}
-                    </Overlay>
+                                }
+                            }</Window>
+                        }
+                    }</ForEach>
                 </Layers>
             };
             let asks = signals.asks;

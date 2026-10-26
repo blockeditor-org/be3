@@ -1,11 +1,20 @@
 pub(crate) mod hosted;
 
-use std::sync::atomic::{AtomicU64, Ordering};
-
 use crate::color::Color32;
-use crate::geometry::{Pos2, Vec2};
+use crate::geometry::Vec2;
 
-pub use ui_types::window::WindowRequests;
+pub use ui_types::window::{
+    HostPlacement, WindowEdge, WindowId, WindowPlacement, WindowReport, WindowRequest,
+    WindowRequests, WindowRole,
+};
+
+#[derive(Clone, Copy, PartialEq, Eq, Debug, Default)]
+pub enum WindowHosting {
+    #[default]
+    None,
+    Placed,
+    Any,
+}
 
 pub const MAX_PIXELS: f32 = 8192.0;
 
@@ -104,6 +113,7 @@ struct Reported {
     size: std::cell::Cell<Option<(u32, u32)>>,
     scale: std::cell::Cell<Option<f32>>,
     keyboard: std::cell::Cell<Option<bool>>,
+    touchscreen: std::cell::Cell<Option<bool>>,
     preferences: std::cell::Cell<Option<crate::preferences::PreferenceLayer>>,
 }
 
@@ -127,6 +137,10 @@ impl WindowReports {
         self.0.keyboard.set(Some(attached));
     }
 
+    pub fn touchscreen_attached(&self, attached: bool) {
+        self.0.touchscreen.set(Some(attached));
+    }
+
     pub fn system_preferences(&self, preferences: crate::preferences::PreferenceLayer) {
         self.0.preferences.set(Some(preferences));
     }
@@ -139,11 +153,16 @@ impl WindowReports {
         self.0.keyboard.take()
     }
 
+    pub(crate) fn take_touchscreen(&self) -> Option<bool> {
+        self.0.touchscreen.take()
+    }
+
     pub(crate) fn pending(&self) -> bool {
         self.0.fullscreen.get().is_some()
             || self.0.size.get().is_some()
             || self.0.scale.get().is_some()
             || self.0.keyboard.get().is_some()
+            || self.0.touchscreen.get().is_some()
             || self.0.preferences.get().is_some()
     }
 
@@ -157,125 +176,5 @@ impl WindowReports {
 
     pub(crate) fn take_scale(&self) -> Option<f32> {
         self.0.scale.take()
-    }
-}
-
-#[derive(Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Debug)]
-pub struct WindowId(u64);
-
-static NEXT_WINDOW: AtomicU64 = AtomicU64::new(1);
-
-impl WindowId {
-    pub const MAIN: Self = Self(0);
-
-    pub fn next() -> Self {
-        Self(NEXT_WINDOW.fetch_add(1, Ordering::Relaxed))
-    }
-
-    pub fn is_main(self) -> bool {
-        self == Self::MAIN
-    }
-
-    pub fn raw(self) -> u64 {
-        self.0
-    }
-}
-
-impl Default for WindowId {
-    fn default() -> Self {
-        Self::MAIN
-    }
-}
-
-#[derive(Clone, PartialEq, Eq, Hash, Debug)]
-pub struct HostPlacement(pub String);
-
-#[derive(Clone, Copy, PartialEq, Eq, Debug, Default)]
-pub enum WindowHosting {
-    #[default]
-    None,
-    Placed,
-    Any,
-}
-
-#[derive(Clone, PartialEq, Debug)]
-pub enum WindowPlacement {
-    AtPointer,
-    Over { window: WindowId, at: Pos2 },
-    Host(HostPlacement),
-}
-
-#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
-pub enum WindowEdge {
-    Top,
-    Bottom,
-    Left,
-    Right,
-    TopLeft,
-    TopRight,
-    BottomLeft,
-    BottomRight,
-}
-
-#[derive(Clone, PartialEq, Debug)]
-pub enum WindowRequest {
-    Open {
-        window: WindowId,
-        placement: WindowPlacement,
-        size: Vec2,
-    },
-    BeginMove(WindowId),
-    BeginResize(WindowId, WindowEdge),
-    Resize {
-        window: WindowId,
-        size: Vec2,
-    },
-    Close(WindowId),
-}
-
-impl WindowRequest {
-    pub fn window(&self) -> WindowId {
-        match self {
-            Self::Open { window, .. } | Self::Resize { window, .. } => *window,
-            Self::BeginMove(window) | Self::BeginResize(window, _) | Self::Close(window) => *window,
-        }
-    }
-}
-
-#[derive(Clone, PartialEq, Debug)]
-pub enum WindowReport {
-    Resized {
-        window: WindowId,
-        size: Vec2,
-    },
-    Placed {
-        window: WindowId,
-        placement: HostPlacement,
-    },
-    Scaled {
-        window: WindowId,
-        pixels_per_point: f32,
-    },
-    Moved {
-        window: WindowId,
-        origin: Pos2,
-    },
-    Closed(WindowId),
-    Focused {
-        window: WindowId,
-        focused: bool,
-    },
-}
-
-impl WindowReport {
-    pub fn window(&self) -> WindowId {
-        match self {
-            Self::Resized { window, .. }
-            | Self::Placed { window, .. }
-            | Self::Scaled { window, .. }
-            | Self::Moved { window, .. }
-            | Self::Focused { window, .. } => *window,
-            Self::Closed(window) => *window,
-        }
     }
 }

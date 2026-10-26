@@ -728,6 +728,7 @@ pub fn Docking<K>(
     dialog_scrim: Prop<Color32>,
     #[prop(default = 0)] dialog_margin: u16,
     #[prop(default = 0)] dialog_gap: u16,
+    #[prop(default = Vec2::ZERO)] dialog_outset: Vec2,
     children: Children<DockNode<K>>,
 ) -> NodeId
 where
@@ -850,6 +851,7 @@ where
                 dialog_scrim: create_memo(move || dialog_scrim.get()),
                 dialog_margin,
                 dialog_gap,
+                dialog_outset,
             }}
         />
     }

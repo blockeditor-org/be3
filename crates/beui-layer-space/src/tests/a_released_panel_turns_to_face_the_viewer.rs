@@ -4,7 +4,7 @@ use super::*;
 fn a_released_panel_turns_to_face_the_viewer() {
     let (mut space, now) = space();
     send(&mut space, now, [Input::PointerMoved(centre())]);
-    space.begin_carry(WindowId::MAIN);
+    space.begin_carry(Pointer::Mouse, WindowId::MAIN);
     send(&mut space, now, steer(true));
     send(&mut space, now, [Input::PointerMotion(vec2(300.0, -150.0))]);
     send(&mut space, now, steer(false));
@@ -20,7 +20,7 @@ fn a_released_panel_turns_to_face_the_viewer() {
         [button(centre(), true), button(centre(), false)],
     );
     assert_eq!(
-        space.carry, None,
+        space.mouse.carry, None,
         "a carry begun without a button ends at the next click"
     );
     assert_eq!(

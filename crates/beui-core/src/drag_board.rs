@@ -86,7 +86,7 @@ pub struct Carried {
     pub payload: Rc<dyn Any>,
     pub over: Option<u64>,
     pub last: Option<DragPoint>,
-    pub follow: Rc<dyn Fn(Pos2)>,
+    pub follow: Rc<dyn Fn(DragPoint)>,
     pub outside: Outside,
 }
 
@@ -155,7 +155,7 @@ impl Board {
         &self,
         payload: Rc<dyn Any>,
         point: DragPoint,
-        follow: Rc<dyn Fn(Pos2)>,
+        follow: Rc<dyn Fn(DragPoint)>,
         outside: Outside,
     ) {
         let marks = self
@@ -251,7 +251,7 @@ impl Board {
             carried.last = Some(point);
             Rc::clone(&carried.follow)
         };
-        follow(point.pos);
+        follow(point);
         self.move_to(point);
     }
 

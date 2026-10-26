@@ -204,6 +204,24 @@ impl PaintCache {
             }
         }
         self.places = places;
+        for (id, bounds) in &roots {
+            let Some(was) = self.root_windows.get(id).copied() else {
+                continue;
+            };
+            let window = window_of(*id);
+            if was == window {
+                continue;
+            }
+            if let Some((_, held)) = self.roots.iter().find(|(root, _)| root == id) {
+                self.stale.push(Stale {
+                    window: was,
+                    rect: *held,
+                    scroll: None,
+                });
+            }
+            self.damage.add(window, *bounds);
+            self.recorded = true;
+        }
         let held: Vec<NodeId> = self.roots.iter().map(|(id, _)| *id).collect();
         if roots.iter().map(|(id, _)| *id).ne(held) {
             let before = kept(&self.roots, &roots);

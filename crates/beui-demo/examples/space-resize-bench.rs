@@ -61,7 +61,7 @@ mod bench {
                     pollster::block_on(OffscreenSurface::new(
                         PLATFORM.x as u32,
                         PLATFORM.y as u32,
-                        None,
+                        Default::default(),
                     ))
                     .expect("an offscreen GPU"),
                 ),
@@ -193,10 +193,12 @@ mod bench {
                     pressed: true,
                 },
             ]);
-            if self.space.borrow().resize.is_none() {
-                self.space
-                    .borrow_mut()
-                    .begin_resize(window, WindowEdge::BottomRight);
+            if self.space.borrow().mouse.resize.is_none() {
+                self.space.borrow_mut().begin_resize(
+                    beui_layer_space::Pointer::Mouse,
+                    window,
+                    WindowEdge::BottomRight,
+                );
             }
             let mut frames = Vec::new();
             for step in 1..=STEPS {

@@ -21,10 +21,11 @@ fn resizing_a_window_in_space_lays_out_and_paints_only_that_window() {
             pressed: true,
         },
     ]);
-    space
-        .space
-        .borrow_mut()
-        .begin_resize(window, crate::WindowEdge::BottomRight);
+    space.space.borrow_mut().begin_resize(
+        beui_layer_space::Pointer::Mouse,
+        window,
+        crate::WindowEdge::BottomRight,
+    );
     space.frame([Input::PointerMoved(grip + vec2(4.0, 4.0))]);
     let main_nodes = {
         let document = space.document.borrow();

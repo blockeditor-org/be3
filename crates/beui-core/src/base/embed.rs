@@ -13,6 +13,7 @@ use crate::painter::Painter;
 pub struct EmbedPlacement {
     pub rect: Rect,
     pub clip: Rect,
+    pub raster: f32,
 }
 
 type PlaceListener = Box<dyn Fn(Option<EmbedPlacement>)>;
@@ -34,6 +35,17 @@ impl EmbedState {
         let was = self.shown();
         self.placement.set(placement);
         self.announce(was);
+    }
+
+    pub(crate) fn rerasterise(&self, raster: f32) {
+        if let Some(placement) = self.placement.get()
+            && placement.raster != raster
+        {
+            self.place(Some(EmbedPlacement {
+                raster,
+                ..placement
+            }));
+        }
     }
 
     pub(crate) fn conceal(&self, concealed: bool) {
@@ -123,6 +135,7 @@ impl Element for EmbedNode {
             clip: grid
                 .snap_rect(painter.to_screen(painter.clip_rect()))
                 .intersect(placed),
+            raster: self.own.map_or(1.0, |own| doc.raster_of(own)),
         }));
         if let Some(child) = self.child {
             crate::layout::layout(doc, painter, child, rect, out);
@@ -185,6 +198,25 @@ impl Element for EmbedNode {
 }
 
 impl Document {
+    pub fn raster_of(&self, node: NodeId) -> f32 {
+        self.context().map_or(1.0, |ctx| {
+            ctx.window_pixels_per_point(self.window_of(node)) / ctx.pixels_per_point()
+        })
+    }
+
+    pub(crate) fn rerasterise_embeds(&mut self) {
+        let embeds: Vec<Rc<EmbedState>> = self
+            .embeds
+            .iter()
+            .filter_map(std::rc::Weak::upgrade)
+            .collect();
+        for embed in embeds {
+            if let Some(node) = embed.node.get().filter(|node| self.contains(*node)) {
+                embed.rerasterise(self.raster_of(node));
+            }
+        }
+    }
+
     pub fn create_embed(&mut self, state: Rc<EmbedState>) -> NodeOf<EmbedNode> {
         state.concealed.set(self.hidden);
         if !self

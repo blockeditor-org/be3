@@ -260,11 +260,11 @@ impl SessionControl for Live<'_> {
     }
 
     fn windows(&self) -> usize {
-        crate::wayland::listed().len()
+        crate::wayland::listed(&[]).len()
     }
 
     fn close_windows(&mut self) {
-        for window in crate::wayland::listed() {
+        for window in crate::wayland::listed(&[]) {
             crate::wayland::close(window.id);
         }
         crate::host::wake();

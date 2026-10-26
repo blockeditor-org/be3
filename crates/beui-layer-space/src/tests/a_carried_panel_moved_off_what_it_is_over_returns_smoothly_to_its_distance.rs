@@ -8,7 +8,7 @@ fn a_carried_panel_moved_off_what_it_is_over_returns_smoothly_to_its_distance() 
     let now = later(now, TURN_SECONDS);
     send(&mut space, now, [Input::PointerMoved(centre())]);
     let carry = |space: &Space| {
-        let carry = space.carry.as_ref().unwrap();
+        let carry = space.mouse.carry.as_ref().unwrap();
         (carry.at, carry.distance)
     };
     let (pulled, wanted) = carry(&space);

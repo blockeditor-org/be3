@@ -15,9 +15,9 @@ use block_editor_beui::{
     TopBar,
 };
 use block_shell::{
-    AttachedWindow, BlockTab, FILES, Failure, PanelStatus, PanelWindow, PickerDialog, Pickers,
-    REVISIONS, RenameDialog, RevisionHistoryPanel, SETTINGS, WindowTab, Workspace,
-    WorkspaceDialogs,
+    AttachedWindow, BlockTab, FILES, Failure, FloatingWindow, PanelStatus, PanelWindow,
+    PickerDialog, Pickers, REVISIONS, RenameDialog, RevisionHistoryPanel, SETTINGS, WindowTab,
+    Workspace, WorkspaceDialogs,
 };
 use uuid::Uuid;
 
@@ -72,6 +72,20 @@ pub(crate) fn WorkspaceBody(workspace: Workspace) -> NodeId {
     let reason = create_memo(move || failure.get().unwrap_or_default());
     let block_tabs = workspace.block_tabs();
     let top_windows = workspace.windows();
+    let opens = opens_windows();
+    let tabbed = create_memo(move || match opens.get() {
+        true => Vec::new(),
+        false => top_windows.get(),
+    });
+    let floating = create_memo(move || match opens.get() {
+        true => top_windows.get(),
+        false => Vec::new(),
+    });
+    let placeholder = RenderFn::new(|_: HostWindowId| {
+        view! {
+            <Frame />
+        }
+    });
     let dialog_windows = workspace.dialogs();
     let picker_dialogs = workspace.picker_dialogs();
     let rename_dialogs = workspace.rename_dialogs();
@@ -102,13 +116,16 @@ pub(crate) fn WorkspaceBody(workspace: Workspace) -> NodeId {
                             <ForEach keys={block_tabs}>|tab: TabId|
                                 <BlockTab workspace tab />
                             </ForEach>
-                            <ForEach keys={top_windows}>|window: HostWindowId|
+                            <ForEach keys={tabbed}>|window: HostWindowId|
                                 <WindowTab workspace key={window} />
                             </ForEach>
                         </DockPane>
                     </DockSplit>
                     <ForEach keys={panels}>|panel: HostPanel|
                         <PanelWindow workspace panel />
+                    </ForEach>
+                    <ForEach keys={floating}>|key: HostWindowId|
+                        <FloatingWindow workspace key placeholder />
                     </ForEach>
                     <ForEach keys={dialog_windows}>|(window, parent): (HostWindowId, HostWindowId)|
                         <AttachedWindow workspace window parent />

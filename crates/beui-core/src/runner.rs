@@ -20,10 +20,12 @@ use crate::input::{Event, Input};
 use crate::renderer::{Capture, Loaded, Renderers};
 use crate::window::{Resize, WindowId, WindowReport, WindowReports, WindowState};
 
+mod controller;
 pub mod environment;
 mod intake;
 mod layer;
 
+pub use controller::{Controller, Hand, HandPose};
 use intake::{Drain, Intake};
 pub use intake::{Incoming, PINCH_SPEED, SCROLL_LINE, SCROLL_PAGE, Units, scrolled};
 pub use layer::{Above, Below, Layer, LayerFrame, LayerView, Shown};
@@ -184,6 +186,10 @@ pub struct Runner {
     background: crate::color::Color32,
     reports: WindowReports,
     native: f32,
+    paced: Option<Instant>,
+    last_physical: Option<Vec2>,
+    platform_keyboard: Option<bool>,
+    keyboard_attached: Option<bool>,
     output: Option<FrameOutput>,
     exited: bool,
     failure: Option<String>,
@@ -238,6 +244,10 @@ impl Runner {
             background: crate::color::Color32::BLACK,
             reports: WindowReports::default(),
             native: 1.0,
+            paced: None,
+            last_physical: None,
+            platform_keyboard: None,
+            keyboard_attached: None,
             output: None,
             exited: false,
             failure: None,
@@ -461,21 +471,41 @@ impl Runner {
             self.native = scale;
         }
         if let Some(attached) = self.reports.take_keyboard() {
-            self.context.set_keyboard_attached(attached);
+            self.platform_keyboard = Some(attached);
+        }
+        if let Some(attached) = self.reports.take_touchscreen() {
+            self.context.set_touchscreen_attached(attached);
         }
         if let Some(preferences) = self.reports.take_system_preferences() {
             self.context
                 .set_preference_layer(crate::preferences::PreferenceSource::System, preferences);
         }
         let pixels_per_point = self.native;
-        let Some(physical) = renderers.physical() else {
+        let visible = renderers.physical();
+        let paced = match (visible, self.last_physical) {
+            (Some(_), _) | (None, Some(_)) => self
+                .layers
+                .iter_mut()
+                .fold(None, |paced, layer| paced.or(layer.pace())),
+            (None, None) => None,
+        };
+        let Some(physical) = visible.or(self.last_physical.filter(|_| paced.is_some())) else {
             self.events.clear();
             self.intake.incoming.clear();
             return None;
         };
+        self.last_physical = Some(physical);
         self.context.set_pixels_per_point(pixels_per_point);
         let scale = self.context.pixels_per_point();
-        let mut now = self.context.frame_time();
+        renderers.set_vsync(paced.is_none());
+        let mut now = match paced {
+            Some(at) if !self.context.clock_stopped() => {
+                let at = self.paced.map_or(at, |last| at.max(last));
+                self.paced = Some(at);
+                at
+            }
+            _ => self.context.frame_time(),
+        };
         for layer in &mut self.layers {
             now = layer.now(now);
         }
@@ -501,6 +531,16 @@ impl Runner {
         }
         while let Ok((id, save)) = self.saves.1.try_recv() {
             self.context.file_saved(id, save);
+        }
+        let attached = self
+            .layers
+            .iter()
+            .rev()
+            .find_map(|layer| layer.keyboard_attached())
+            .or(self.platform_keyboard);
+        if attached != self.keyboard_attached {
+            self.keyboard_attached = attached;
+            self.context.set_keyboard_attached(attached.unwrap_or(true));
         }
         self.intake.drain(
             &mut Drain {
@@ -535,7 +575,8 @@ impl Runner {
             }
         };
         let events = next_batch(&mut self.events);
-        let seen = !self.occluded || self.layers.iter().any(|layer| layer.wants_sight());
+        let seen = (!self.occluded && visible.is_some())
+            || self.layers.iter().any(|layer| layer.wants_sight());
         self.context.set_seen(seen);
         self.context.set_accessibility_viewport(screen);
         let app = &mut self.app;

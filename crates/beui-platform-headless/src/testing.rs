@@ -31,6 +31,12 @@ const ANSWER_FRAMES: usize = 600;
 
 pub struct Screen(pub Vec2);
 
+enum Hosting {
+    Alone,
+    Tested(Rc<RefCell<Windows>>),
+    By(Box<dyn Layer>, Setup),
+}
+
 impl Renderer for Screen {
     fn name(&self) -> &'static str {
         "screen"
@@ -45,7 +51,7 @@ impl Renderer for Screen {
     }
 
     fn physical(&self) -> Option<Vec2> {
-        Some(self.0)
+        (self.0.x > 0.0 && self.0.y > 0.0).then_some(self.0)
     }
 
     fn prepare(&mut self, output: &WindowOutput, _scale: f32, _background: Color32) -> bool {
@@ -148,6 +154,7 @@ pub struct Windows {
     pub open: Vec<HostedWindow>,
     pub requests: Vec<WindowRequest>,
     pub outputs: Vec<WindowOutput>,
+    pub controllers: Vec<beui_core::runner::Controller>,
     reports: Vec<WindowReport>,
     main: Option<Vec2>,
 }
@@ -212,6 +219,13 @@ impl Layer for TestHost {
                 }),
             );
         }
+        incoming.retain(|item| match item {
+            Incoming::Controller(controller) => {
+                windows.controllers.push(*controller);
+                false
+            }
+            _ => true,
+        });
         incoming.extend(windows.reports.drain(..).map(Incoming::Window));
     }
 
@@ -224,13 +238,14 @@ impl Layer for TestHost {
                     window,
                     placement,
                     size,
+                    ..
                 } => windows.opened(*window, placement, *size),
                 WindowRequest::Close(window) => {
                     windows.open.retain(|open| open.id != *window);
                     windows.outputs.retain(|output| output.id != *window);
                 }
                 WindowRequest::Resize { window, size } => windows.resized(*window, *size),
-                WindowRequest::BeginMove(_) | WindowRequest::BeginResize(..) => {}
+                WindowRequest::BeginMove(_) | WindowRequest::BeginResize { .. } => {}
             }
         }
         for window in shown.windows.iter().filter(|window| !window.id.is_main()) {
@@ -257,9 +272,14 @@ pub struct Stepped<A: App = Showing> {
 
 impl<A: App + 'static> Stepped<A> {
     pub fn new(context: Context, app: A, window: WindowSize, screen: Option<Vec2>) -> Self {
-        Self::start(context, app, window.size, window.scale, None, |runner| {
-            Window::Simulated(Simulation::new(window, screen, runner.reports().clone()))
-        })
+        Self::start(
+            context,
+            app,
+            window.size,
+            window.scale,
+            Hosting::Alone,
+            |runner| Window::Simulated(Simulation::new(window, screen, runner.reports().clone())),
+        )
     }
 
     pub fn hosting_windows(context: Context, app: A, window: WindowSize) -> Self {
@@ -269,7 +289,24 @@ impl<A: App + 'static> Stepped<A> {
             app,
             window.size,
             window.scale,
-            Some(windows),
+            Hosting::Tested(windows),
+            |runner| Window::Simulated(Simulation::new(window, None, runner.reports().clone())),
+        )
+    }
+
+    pub fn hosted(
+        context: Context,
+        app: A,
+        window: WindowSize,
+        host: Box<dyn Layer>,
+        setup: Setup,
+    ) -> Self {
+        Self::start(
+            context,
+            app,
+            window.size,
+            window.scale,
+            Hosting::By(host, setup),
             |runner| Window::Simulated(Simulation::new(window, None, runner.reports().clone())),
         )
     }
@@ -280,7 +317,7 @@ impl<A: App + 'static> Stepped<A> {
         size: Vec2,
         platform: impl PlatformServices + 'static,
     ) -> Self {
-        Self::start(context, app, size, 1.0, None, |_| {
+        Self::start(context, app, size, 1.0, Hosting::Alone, |_| {
             Window::Other(Box::new(platform))
         })
     }
@@ -290,16 +327,21 @@ impl<A: App + 'static> Stepped<A> {
         app: A,
         size: Vec2,
         scale: f32,
-        windows: Option<Rc<RefCell<Windows>>>,
+        hosting: Hosting,
         window: impl FnOnce(&Runner) -> Window,
     ) -> Self {
         let inbox = Inbox::default();
+        let (windows, host, setup) = match hosting {
+            Hosting::Alone => (None, None, Setup::new(Waker::new(|| {}))),
+            Hosting::Tested(windows) => (
+                Some(windows.clone()),
+                Some(Box::new(TestHost(windows)) as Box<dyn Layer>),
+                Setup::new(Waker::new(|| {})),
+            ),
+            Hosting::By(host, setup) => (None, Some(host), setup),
+        };
         let layers = std::iter::once(Box::new(Drive::new(inbox.clone())) as Box<dyn Layer>)
-            .chain(
-                windows
-                    .clone()
-                    .map(|windows| Box::new(TestHost(windows)) as Box<dyn Layer>),
-            )
+            .chain(host)
             .collect();
         let mut runner = Runner::new(Launch {
             options: RunOptions::default(),
@@ -314,7 +356,7 @@ impl<A: App + 'static> Stepped<A> {
                     renderer: Box::new(Screen(size * scale)),
                     fonts: None,
                 }],
-                Setup::new(Waker::new(|| {})),
+                setup,
             )
             .expect("a screen without a gpu always loads");
         runner.context().stop_clock();
@@ -425,7 +467,7 @@ impl<A: App + 'static> Stepped<A> {
                     open.placement = placement.clone();
                 }
             }
-            WindowReport::Scaled { .. }
+            WindowReport::Rastered { .. }
             | WindowReport::Moved { .. }
             | WindowReport::Focused { .. } => {}
             WindowReport::Closed(window) => {
@@ -502,6 +544,24 @@ impl<A: App + 'static> Stepped<A> {
     }
 
     pub fn ask(&mut self, words: &[&str]) -> Result<String, String> {
+        match self.reply(words) {
+            Reply::Text(text) => Ok(text),
+            Reply::Error(error) => Err(error),
+            Reply::Image { .. } => Err("the answer is an image".to_owned()),
+            Reply::Painting(_) => Err("the answer is a painting".to_owned()),
+        }
+    }
+
+    pub fn painting(&mut self) -> beui_core::painting::Painting {
+        let painted = match self.reply(&["paint", "in", "platform"]) {
+            Reply::Painting(bytes) => beui_core::painting::Painting::decode(&bytes),
+            Reply::Error(error) => Err(error),
+            Reply::Text(_) | Reply::Image { .. } => Err("the answer is not a painting".to_owned()),
+        };
+        painted.unwrap_or_else(|error| panic!("{error}\n{}", self.replay()))
+    }
+
+    fn reply(&mut self, words: &[&str]) -> Reply {
         self.steps.push(
             std::iter::once("drive")
                 .chain(words.iter().copied())
@@ -518,12 +578,7 @@ impl<A: App + 'static> Stepped<A> {
         for _ in 0..ANSWER_FRAMES {
             self.paint();
             if let Poll::Ready(reply) = answered.as_mut().poll(&mut waiting) {
-                return match reply {
-                    Reply::Text(text) => Ok(text),
-                    Reply::Error(error) => Err(error),
-                    Reply::Image { .. } => Err("the answer is an image".to_owned()),
-                    Reply::Painting(_) => Err("the answer is a painting".to_owned()),
-                };
+                return reply;
             }
         }
         panic!(

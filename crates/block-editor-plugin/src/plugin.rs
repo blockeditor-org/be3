@@ -100,6 +100,7 @@ pub struct Region {
     pub rect: Rect,
     pub visible: Vec2,
     pub scale_factor: f32,
+    pub raster: f32,
     pub pixels: [u32; 2],
     pub age: u32,
     pub spec: FrameSpec,

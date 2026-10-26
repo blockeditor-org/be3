@@ -112,6 +112,7 @@ pub struct WindowSpec {
     pub size: Vec2,
     pub placement: WindowPlacement,
     pub title: Option<String>,
+    pub role: crate::window::WindowRole,
     pub on_report: Callback<WindowReport>,
 }
 
@@ -121,12 +122,14 @@ impl PartialEq for WindowSpec {
             && self.size == other.size
             && self.placement == other.placement
             && self.title == other.title
+            && self.role == other.role
     }
 }
 
 pub struct OverlayNode {
     pub(crate) content: Option<NodeId>,
     pub(crate) window: Option<WindowSpec>,
+    pub(crate) shown_in: Option<WindowId>,
     scrim: NodeOf<FrameNode>,
     dims: bool,
     pub(crate) open: bool,
@@ -147,6 +150,7 @@ impl OverlayNode {
         Self {
             content: None,
             window: None,
+            shown_in: None,
             scrim,
             dims: false,
             open: false,
@@ -511,9 +515,12 @@ impl Element for OverlayNode {
             .window
             .as_ref()
             .filter(|window| doc.hosts_window(window));
-        let painter = &painter
-            .ctx()
-            .window_painter(real.map_or_else(|| doc.viewport_window(), |window| window.id));
+        let shown_in = self.shown_in.filter(|window| doc.shows_in(*window));
+        let painter = &painter.ctx().window_painter(match (real, shown_in) {
+            (Some(window), _) => window.id,
+            (None, Some(window)) => window,
+            (None, None) => doc.viewport_window(),
+        });
         if let Some(window) = real {
             let size = painter.ctx().window_size(window.id).unwrap_or(window.size);
             let rect = painter
@@ -524,11 +531,18 @@ impl Element for OverlayNode {
             doc.swap_window_viewport(outer);
             return;
         }
+        let outer = shown_in.map(|window| {
+            let viewport = doc.window_viewport(window);
+            doc.swap_window_viewport(viewport)
+        });
         let viewport = doc.viewport_rect();
         if self.policy == LayerPolicy::BlocksAll {
             crate::layout::layout(doc, painter, self.scrim.id(), viewport, out);
         }
         self.place_content(doc, painter, content, out);
+        if let Some(outer) = outer {
+            doc.swap_window_viewport(outer);
+        }
     }
 
     fn paint(&self, _doc: &Document, _painter: &Painter, _rects: &Rects, _rect: Rect) {}
@@ -734,6 +748,13 @@ impl Document {
     pub fn set_overlay_policy(&mut self, overlay: NodeOf<OverlayNode>, policy: LayerPolicy) {
         if self.arena.get_as::<OverlayNode>(overlay).policy != policy {
             self.arena.get_mut_as::<OverlayNode>(overlay).policy = policy;
+            self.layers_changed();
+        }
+    }
+
+    pub fn set_overlay_shown_in(&mut self, overlay: NodeOf<OverlayNode>, window: Option<WindowId>) {
+        if self.arena.get_as::<OverlayNode>(overlay).shown_in != window {
+            self.arena.get_mut_as::<OverlayNode>(overlay).shown_in = window;
             self.layers_changed();
         }
     }

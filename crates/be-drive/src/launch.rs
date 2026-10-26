@@ -30,6 +30,7 @@ struct Launch {
     screen: Option<String>,
     fresh: bool,
     stop: bool,
+    space: bool,
     arguments: Vec<String>,
 }
 
@@ -126,7 +127,7 @@ impl Launch {
             )
             .env(
                 environment::LAYERS,
-                layers(std::env::var(environment::LAYERS).ok()),
+                layers(std::env::var(environment::LAYERS).ok(), self.space),
             )
             .env(environment::DRIVE_SOCKET, &socket)
             .env(environment::DRIVE_LISTENER, listening.to_string())
@@ -212,6 +213,7 @@ pub(crate) fn start(
     arguments: Vec<String>,
     size: &str,
     libraries: Option<String>,
+    space: bool,
     dir: &Path,
     log: &Path,
 ) -> Result<Child, String> {
@@ -219,6 +221,7 @@ pub(crate) fn start(
         program: Some(program.to_owned()),
         data: true,
         fresh: true,
+        space,
         libraries,
         size: Some(size.to_owned()),
         arguments,
@@ -286,13 +289,16 @@ pub fn run_script(arguments: &[String]) -> Result<(), String> {
     }
 }
 
-fn layers(inherited: Option<String>) -> String {
+fn layers(inherited: Option<String>, space: bool) -> String {
     let inherited = inherited.unwrap_or_default();
-    let named: Vec<&str> = inherited
+    let mut named: Vec<&str> = inherited
         .split(',')
         .map(str::trim)
         .filter(|name| !name.is_empty())
         .collect();
+    if space && !named.iter().any(|name| *name == "space" || *name == "xr") {
+        named.push("space");
+    }
     match named.as_slice() {
         [] => "drive".to_owned(),
         named if named.contains(&"drive") => named.join(","),

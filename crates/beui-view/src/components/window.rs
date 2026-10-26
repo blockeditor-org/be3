@@ -2,7 +2,9 @@ use beui_core::base::overlay::{OverlayAnchor, OverlayNode, Placement, WindowSpec
 use beui_core::geometry::{Pos2, Vec2};
 use beui_core::layer::{LayerLevel, LayerPolicy};
 use beui_core::node::NodeId;
-use beui_core::window::{WindowEdge, WindowId, WindowPlacement, WindowReport, WindowRequest};
+use beui_core::window::{
+    WindowEdge, WindowId, WindowPlacement, WindowReport, WindowRequest, WindowRole,
+};
 use beui_macros::{component, view};
 
 use crate::components::frame::Frame;
@@ -34,7 +36,10 @@ impl WindowHandle {
     }
 
     pub fn begin_resize(self, edge: WindowEdge) -> bool {
-        self.ask(WindowRequest::BeginResize(self.id, edge))
+        self.ask(WindowRequest::BeginResize {
+            window: self.id,
+            edge,
+        })
     }
 
     pub fn close(self) -> bool {
@@ -66,6 +71,7 @@ pub fn Window(
     #[prop(default = WindowPlacement::AtPointer)] placement: Prop<WindowPlacement>,
     #[prop(default = Pos2::ZERO)] at: Prop<Pos2>,
     #[prop(default = None)] title: Prop<Option<String>>,
+    #[prop(default = WindowRole::Normal)] role: Prop<WindowRole>,
     #[prop(default = true)] open: Prop<bool>,
     #[prop(default = LayerLevel::Normal)] level: Prop<LayerLevel>,
     #[prop(default = false)] keep_alive: bool,
@@ -125,6 +131,7 @@ pub fn Window(
             size: size.get(),
             placement: placement.get(),
             title: title.get(),
+            role: role.get(),
             on_report: heard,
         };
         with_document(|document| document.set_overlay_window(overlay, Some(spec)));

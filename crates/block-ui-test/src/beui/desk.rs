@@ -129,6 +129,7 @@ impl Desk {
             pixel_width: (size.x * scale).round() as u32,
             pixel_height: (size.y * scale).round() as u32,
             scale_factor: scale,
+            raster: scale,
         };
         let displays = self
             .displays

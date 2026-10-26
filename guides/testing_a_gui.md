@@ -160,8 +160,8 @@ arrives. An editor that is not in a viewport is told nothing about a view and fi
 region, which is what an editor without that capability does anyway.
 
 The region is 800 by 600 points at a scale factor of 1; with_size(Vec2::new(390.0, 800.0))
-places it the size of a phone, and with_scale_factor(2.0) draws it the way a high-density
-screen does.
+places it the size of a phone, with_scale_factor(2.0) draws it the way a high-density
+screen does, and set_raster(3.0) draws it finer than it lays it out, as a panel in VR is.
 
 4. Snapshots of the painting
 
@@ -409,6 +409,9 @@ which close() checks, so a test that ends without calling it fails too.
   `PREVIEW_COOLDOWN` first.
   They also fail, as in an editor test, on what the window shows out of bounds (`drive
   overflows`), in the host or in any plugin shown, whatever the crop.
+- `AppTest::start_in_space()` starts the app in the VR simulator (`BEUI_LAYERS=space` on the
+  headless platform), where the painting is the 3D view and targets and points are the main
+  panel's, so it shows what happens between panels, such as a plugin's window becoming one.
 - ./scripts/verify runs each test as an action of its own, so a test that fails leaves the
   paintings of the others to be accepted.
 - Any failure, a plain `assert!` or a painting as much as a step, prints the steps so far as `drive` commands, which replay against

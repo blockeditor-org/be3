@@ -5,7 +5,7 @@ use crate::carry::{IN_FRONT, TURN_SECONDS};
 fn a_carried_panel_stays_in_front_of_the_panel_it_is_carried_over_and_after_release() {
     let (mut space, now) = space();
     let window = carry_popped_out(&mut space, now);
-    let wanted = space.carry.as_ref().unwrap().distance;
+    let wanted = space.mouse.carry.as_ref().unwrap().distance;
     let now = later(now, TURN_SECONDS);
     send(&mut space, now, [Input::PointerMoved(centre())]);
     let main_depth = main(&space)
@@ -26,13 +26,13 @@ fn a_carried_panel_stays_in_front_of_the_panel_it_is_carried_over_and_after_rele
         gaps.iter().any(|gap| (*gap - IN_FRONT).abs() < 1e-3),
         "and no nearer than it needs: {gaps:?}"
     );
-    let at = space.carry.as_ref().unwrap().at;
+    let at = space.mouse.carry.as_ref().unwrap().at;
     let ray = space.head.ray(PLATFORM, centre().to_vec2());
     assert_eq!(space.pick(ray).map(|hit| hit.window), Some(window));
 
     let held = space.panel(window).unwrap().pose;
     send(&mut space, later(now, 1.0), [button(centre(), false)]);
-    assert_eq!(space.carry, None);
+    assert_eq!(space.mouse.carry, None);
     let released = space.panel(window).unwrap().pose;
     assert!(
         close(released.position, held.position)

@@ -29,6 +29,7 @@ pub struct Panel {
     pub size: Vec2,
     pub metres_per_point: f32,
     pub bend: f32,
+    pub chrome: crate::chrome::Fit,
 }
 
 impl Panel {
@@ -39,6 +40,7 @@ impl Panel {
             size,
             metres_per_point: 1.0 / POINTS_PER_METRE,
             bend: 0.0,
+            chrome: crate::chrome::Fit::default(),
         }
     }
 

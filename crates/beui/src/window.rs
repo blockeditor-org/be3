@@ -3,6 +3,7 @@ use std::sync::Arc;
 
 use beui_core::app::App;
 use beui_core::renderer::{Loaded, WindowHandle, any_loaded};
+use beui_layer_xr::Link;
 use beui_renderer_wgpu::present::OpenDevice;
 use beui_renderer_wgpu::window::WindowSurface;
 
@@ -11,12 +12,14 @@ use beui_core::runner::{Launch, Layer, Platform, RunOptions};
 use beui_core::runner::environment::{Base, Choice, Stacked};
 
 pub enum WindowRenderer {
-    Wgpu { open_device: Option<OpenDevice> },
+    Wgpu { open_device: OpenDevice },
 }
 
 impl WindowRenderer {
     pub fn wgpu() -> Self {
-        Self::Wgpu { open_device: None }
+        Self::Wgpu {
+            open_device: OpenDevice::default(),
+        }
     }
 }
 
@@ -26,13 +29,24 @@ pub fn run_with(options: RunOptions, app: impl App + 'static) -> Result<(), Box<
 
 pub fn run_with_renderers(
     options: RunOptions,
-    renderers: Vec<WindowRenderer>,
+    mut renderers: Vec<WindowRenderer>,
     app: impl App + 'static,
 ) -> Result<(), Box<dyn Error>> {
-    let open_device = renderers.iter().find_map(|renderer| match renderer {
-        WindowRenderer::Wgpu { open_device } => open_device.clone(),
-    });
     let choice = from_environment(NATIVE)?;
+    let link = link(choice.as_ref(), &application_name(&options));
+    if let Some(link) = &link {
+        for renderer in &mut renderers {
+            let WindowRenderer::Wgpu { open_device } = renderer;
+            *open_device = link.open_device(open_device.extensions);
+        }
+    }
+    let open_device = renderers
+        .iter()
+        .map(|renderer| match renderer {
+            WindowRenderer::Wgpu { open_device } => open_device.clone(),
+        })
+        .next()
+        .unwrap_or_default();
     let app: Box<dyn App> = match (&choice, options.saved_preferences.clone()) {
         (
             Some(Choice {
@@ -44,7 +58,8 @@ pub fn run_with_renderers(
         ) => Box::new(crate::saved_preferences::SavedPreferences::new(app, path)),
         _ => Box::new(app),
     };
-    let (platform, layers) = choose_platform(choice, open_device, || native_platform(renderers))?;
+    let (platform, layers) =
+        choose_platform(choice, link, open_device, || native_platform(renderers))?;
     let launch = Launch {
         options,
         context: crate::system_context(),
@@ -70,9 +85,27 @@ fn from_environment(_native: &str) -> Result<Option<Choice>, Box<dyn Error>> {
     Ok(None)
 }
 
+fn application_name(options: &RunOptions) -> String {
+    options
+        .app_id
+        .clone()
+        .or_else(|| {
+            let program = std::env::current_exe().ok()?;
+            Some(program.file_stem()?.to_str()?.to_owned())
+        })
+        .unwrap_or_else(|| "beui".to_owned())
+}
+
+fn link(choice: Option<&Choice>, application: &str) -> Option<Link> {
+    choice
+        .is_some_and(|choice| choice.layers.contains(&Stacked::Xr))
+        .then(|| Link::new(application))
+}
+
 fn choose_platform(
     choice: Option<Choice>,
-    open_device: Option<OpenDevice>,
+    link: Option<Link>,
+    open_device: OpenDevice,
     native: impl FnOnce() -> Box<dyn Platform>,
 ) -> Result<(Box<dyn Platform>, Vec<Box<dyn Layer>>), Box<dyn Error>> {
     let Some(choice) = choice else {
@@ -107,17 +140,29 @@ fn choose_platform(
             taps
         }
     };
+    let mut link = link;
     let layers = choice
         .layers
         .iter()
-        .filter_map(|layer| stack(*layer, &mut taps))
+        .filter_map(|layer| stack(*layer, &mut link, &mut taps))
         .collect();
     Ok((platform, layers))
 }
 
-fn stack(layer: Stacked, taps: &mut Vec<beui_layer_drive::Drive>) -> Option<Box<dyn Layer>> {
+fn stack(
+    layer: Stacked,
+    link: &mut Option<Link>,
+    taps: &mut Vec<beui_layer_drive::Drive>,
+) -> Option<Box<dyn Layer>> {
     match layer {
         Stacked::Space => Some(Box::new(beui_layer_space::Space::new())),
+        Stacked::Xr => {
+            let space = beui_layer_space::Space::new();
+            Some(match link.take() {
+                Some(link) => Box::new(beui_layer_xr::XrSpace::new(space, link)),
+                None => Box::new(space),
+            })
+        }
         Stacked::Drive => Some(Box::new(taps.pop()?)),
     }
 }
@@ -186,7 +231,13 @@ pub fn run_on(
     app: impl App + 'static,
 ) -> Result<(), Box<dyn Error>> {
     let choice = from_environment(platform.name())?;
-    let (platform, layers) = choose_platform(choice, None, || platform)?;
+    if choice
+        .as_ref()
+        .is_some_and(|choice| choice.layers.contains(&Stacked::Xr))
+    {
+        eprintln!("beui: {} cannot show space on a headset", platform.name());
+    }
+    let (platform, layers) = choose_platform(choice, None, OpenDevice::default(), || platform)?;
     let launch = Launch {
         options,
         context: crate::system_context(),

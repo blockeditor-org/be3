@@ -44,6 +44,7 @@ fn screen(region: EditorRegion, screen: u32) -> (ScreenPlacement, ScreenRequest)
         width: 400,
         height: 300,
         scale_factor_millis: 1000,
+        raster_millis: 1000,
     };
     let request = ScreenRequest {
         screen: ScreenId(screen.into()),
@@ -58,6 +59,7 @@ fn screen(region: EditorRegion, screen: u32) -> (ScreenPlacement, ScreenRequest)
             pixel_width: 400,
             pixel_height: 300,
             scale_factor: 1.0,
+            raster: 1.0,
         },
         frame: (region == EditorRegion::Frame).then(FrameSpec::default),
         windows: false,

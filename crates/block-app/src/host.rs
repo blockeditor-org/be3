@@ -74,6 +74,7 @@ struct Host {
     clock_stopped: bool,
     pixels_per_point: f32,
     screen_scale: f32,
+    opens_windows: bool,
     preferences: block_plugin_api::Preferences,
     commands: Vec<HostCommand>,
     waiting_picks: Vec<(FilePickId, PickSlot)>,
@@ -91,6 +92,7 @@ impl Default for Host {
             clock_stopped: false,
             pixels_per_point: 1.0,
             screen_scale: 1.0,
+            opens_windows: false,
             preferences: block_plugin_api::Preferences::default(),
             commands: Vec::new(),
             waiting_picks: Vec::new(),
@@ -111,6 +113,7 @@ struct Frame {
     preferences: block_plugin_api::Preferences,
     pixels_per_point: f32,
     screen_scale: f32,
+    opens_windows: bool,
 }
 
 impl Default for Frame {
@@ -122,6 +125,7 @@ impl Default for Frame {
             preferences: block_plugin_api::Preferences::default(),
             pixels_per_point: 1.0,
             screen_scale: 1.0,
+            opens_windows: false,
         }
     }
 }
@@ -168,6 +172,7 @@ pub(crate) fn begin(context: &beui::Context) {
     );
     frame.screen_scale = context.screen_scale();
     frame.pixels_per_point = context.pixels_per_point() * frame.screen_scale;
+    frame.opens_windows = context.opens_windows();
     start(frame);
 }
 
@@ -183,6 +188,7 @@ fn start(frame: Frame) {
         }
         host.pixels_per_point = frame.pixels_per_point;
         host.screen_scale = frame.screen_scale;
+        host.opens_windows = frame.opens_windows;
         host.output = Output::default();
     });
 }
@@ -258,6 +264,10 @@ pub(crate) fn milliseconds() -> u64 {
 
 pub(crate) fn pixels_per_point() -> f32 {
     with(|host| host.pixels_per_point)
+}
+
+pub(crate) fn opens_windows() -> bool {
+    with(|host| host.opens_windows)
 }
 
 pub(crate) fn preferences() -> block_plugin_api::Preferences {

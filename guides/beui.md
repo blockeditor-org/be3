@@ -293,7 +293,7 @@ direction:
 
 | Crate | Owns |
 | --- | --- |
-| `ui-types` | the vocabulary beui shares with the plugin protocol, which depends on nothing but serde and `geometry`: `Key` (with its names for drive, `Key::from_name` and `Key::name`, its evdev code, `Key::evdev`, and what every platform names keys with: `Key::from_typed`, the one rule for a character key, `Key::from_value` for a W3C key value, and `Key::evdev_from_code` and `Key::from_evdev` for a physical place), `Modifiers`, `KeyChord`, `PointerButton`, the touch, pen and back phases, `ImeEvent`, `CursorIcon`, `Pasted` and `PickedFile`; `Input`, the raw input every platform, drive's gestures, the on-screen keyboard and the plugin protocol produce; `WindowRequests` and `ImeArea`, what an app asks of its window; the preferences (`ThemeKind`, `Motion`, `Preferences`, `PreferenceLayer`); and the display and pointer settings `beui-platform-drm` applies and block settings store (`DisplayMode`, `Rotation`, `InputDevice`, `PointerSettings`) |
+| `ui-types` | the vocabulary beui shares with the plugin protocol, which depends on nothing but serde and `geometry`: `Key` (with its names for drive, `Key::from_name` and `Key::name`, its evdev code, `Key::evdev`, and what every platform names keys with: `Key::from_typed`, the one rule for a character key, `Key::from_value` for a W3C key value, and `Key::evdev_from_code` and `Key::from_evdev` for a physical place), `Modifiers`, `KeyChord`, `PointerButton`, the touch, pen and back phases, `ImeEvent`, `CursorIcon`, `Pasted` and `PickedFile`; `Input`, the raw input every platform, drive's gestures, the on-screen keyboard and the plugin protocol produce; `WindowRequests` and `ImeArea`, what an app asks of its window; the window vocabulary of window-hosting layers (`WindowId`, `WindowPlacement`, `HostPlacement`, `WindowEdge`, `WindowRole`, `WindowRequest`, `WindowReport`, which `beui_core::window` re-exports); the preferences (`ThemeKind`, `Motion`, `Preferences`, `PreferenceLayer`); and the display and pointer settings `beui-platform-drm` applies and block settings store (`DisplayMode`, `Rotation`, `InputDevice`, `PointerSettings`) |
 | `beui-tree` | what makes a tree of components, whatever it is made of: `#[component]` and `view!`'s runtime, `Prop`, child slots (`Children`, `Run`, `SlotChild`, `SlotHost`) and `Show`, `ShowKeepAlive`, `Dynamic`, `Keyed` and `ForEach` |
 | `beui-core` | `Document` and `Context`, the retained nodes and their layout, input and its dispatch, accessibility, paint output and damage, the font and image interfaces, the icon codepoints, the `App` contract, and the `Runner` every platform drives it through |
 | `beui-font-freetype` | `FreetypeFonts`: FreeType and HarfBuzz shaping and rasterizing, and the fonts beui compiles in |
@@ -309,6 +309,7 @@ direction:
 | `beui-platform-winit`, `beui-platform-android`, `beui-platform-web` | each platform's `Platform` and `PlatformServices`: its event loop, window or view, input, IME, clipboard, file picker and accessibility adapter (winit's is its own `accessibility.rs` over `accesskit_unix`, `accesskit_windows` and `accesskit_macos`, since `accesskit_winit` has no release for winit 0.31) |
 | `beui-platform-drm` | Linux's displays and input devices through DRM/KMS and libinput: a `Platform`, `PlatformServices` and `Renderer` that shows one window per display (see Displays under beui-platform-drm below), each display keeping a retained frame of its window, drawn when the display flips (the app's frames are paced to the flips too, by `pacing.rs`: at most one per flip, none while nothing changes), handing the flip a fence (or, without atomic fences, waiting for it in the event loop) instead of blocking on the GPU; callers run it with `beui::run_on` |
 | `beui-layer-space` | the VR simulator `Layer` that `BEUI_LAYERS=space` stacks over a native or headless platform: the app's windows as panels in a 3D scene ("Space: the VR simulator layer" below) |
+| `beui-layer-xr` | space on an OpenXR headset (`BEUI_LAYERS=xr`): the runtime, the Vulkan device it picks, its session, swapchains and frame pacing, and `XrSpace`, the `Layer` that drives `Space` from them ("Headsets" in the space section below) |
 | `beui-layer-drive` | `beui::drive`: drive as a `Layer` (`Drive`, one layer or a tap under each of several layers sharing a session), its command `Inbox` and `Reply`, its socket protocol and the gestures it and the editor tests share (guides/running/drive.md) |
 | `beui-platform-headless` | `beui::Headless`, the platform that draws offscreen with no window or display server; `beui::Simulation`, the headless window and its stand-in services; and `beui::testing`, the harness that steps an app frame by frame under a drive layer |
 | `beui-platform-plugin` | the `Platform`, `PlatformServices` and `Renderer` for a block editor plugin module: `launch` starts the module's one app and registers its runner with the plugin framework as the module's `Regions` handler, whose batched calls then drive its frames; every region the host shows is a window of that app, which the app opens from the `Views` handle the platform provides through `Setup` (guides/adding_a_plugin_editor.md); it depends on the plugin framework, so the facade does not offer it, and it reads no `BEUI_*` variable |
@@ -375,7 +376,10 @@ hooks the higher crates fill in:
   hands one to its `fullscreenchange` listener): `resized` with its size in
   physical pixels, `scaled` with its pixels per point (winit's scale factor,
   the browser's device pixel ratio, Android's density, a plugin region's
-  scale factor, the DRM displays' scale), and `fullscreen`. The runner
+  scale factor, the DRM displays' scale), and `fullscreen`. A window drawn at
+  a raster other than that scale hears it as an `Incoming::Window` of
+  `WindowReport::Rastered` instead (a DRM display's window, a plugin region's
+  window at the region's raster). The runner
   applies them at the start of the next frame, resizing the renderers and
   setting `Context::set_pixels_per_point` before the app lays out, so no
   platform resizes a renderer or passes a scale itself. A report made during
@@ -884,7 +888,11 @@ subtree lives as long as the scope that built it. `Embed` reserves a rectangle
 for something outside the document — an editor the host composites behind the
 surface — publishing the rectangle and the clip it was laid out in through the
 `EmbedSlot` it was given (a `Copy` handle owned by the scope that made it) and cutting that rectangle out of the surface so what
-is behind shows through. `punch=false`
+is behind shows through. The placement also carries its window's raster over
+the document's scale (`EmbedPlacement::raster`, 1 unless a host draws the
+window finer or coarser), announced again when a `WindowReport::Rastered`
+changes it, so whatever the host composites there can be drawn as sharp as
+the window around it. `punch=false`
 keeps the surface whole, for something the host draws over it instead.
 `Offset` takes exactly one child, lays it out at its full length along a
 `direction` and shows it from an offset; a run of rows goes in a `List` inside
@@ -1761,6 +1769,11 @@ Each layer has one `policy` (`LayerPolicy`):
   document underneath goes on answering the pointer and the keyboard as if it
   were not there.
 
+An overlay that is not a window of its own is shown in the window it was
+opened in, unless `shown_in` names another of the document's windows where
+windows open: it is then laid out in that window's viewport, painted in it and
+counts as in it (`Document::window_of`).
+
 `traps_focus` (on unless a caller turns it off) keeps Tab inside the layer and
 makes it a boundary for keys (see the keyboard guide): a menu, a dialog and a
 popover trap; a window does not. A layer that blocks everything but traps
@@ -2543,7 +2556,10 @@ press reaches the innermost one and not the one around it, the way
 
 While a drag is under way the `preview` is shown beside the pointer in an
 inert overlay at `LayerLevel::Top`, so it paints above every window and takes
-no input. The pointer
+no input. Where windows open (`Context::opens_windows`), it is shown in the
+window the pointer is over (the overlay's `shown_in`, the board's `DragPoint::window`),
+so a drag carried from one window into another, a tab between space's panels
+say, shows its preview under the pointer there. The pointer
 it follows is the one the document saw, not the one the draggable's own
 catcher saw: the board is fed the pointer at the start of every frame, even
 where a floating overlay covers the source, so a drag carried over a floating
@@ -2996,7 +3012,10 @@ actions, accessibility) stays on `FrameOutput`. A renderer, `painting` and
 
 The app asks its host for windows with `Context::request_window`, which
 collects `WindowRequest`s into `FrameOutput::window_requests`: `Open { window,
-placement, size }`, `BeginMove(window)`, `BeginResize(window, WindowEdge)`
+placement, size, role }` (a `WindowRole`: `Normal`, `Keyboard` for an
+on-screen keyboard, which the host never focuses and places by the field it
+types into, or `Popup` for a menu of the window it is placed over, which the
+host never focuses either; the `Window` component's `role`), `BeginMove(window)`, `BeginResize { window, edge }`
 (the host then moves or resizes it, as an OS does after winit's
 `drag_window`), `Resize { window, size }` (the app wants another size; the
 host answers with the size it gives) and `Close(window)`. A `WindowPlacement` is `AtPointer`,
@@ -3054,7 +3073,7 @@ other than the size the host last reported, the document asks for it with
 `Resize`; the window keeps the reported size until the host answers, so an
 app that follows `Resized` reports in its `size` never fights the host; `on_report` hears the host's `Resized`, `Placed`
 (the `HostPlacement` to store and hand back as `placement` next time),
-`Scaled` and `Closed`, after which the window stays shut until the app closes and opens it
+`Rastered` and `Closed`, after which the window stays shut until the app closes and opens it
 again. Elsewhere it is an `Overlay` at `at` (`Placement::At`,
 `LayerPolicy::Pass`, no focus trap) holding its content at `size`, which is
 how floating windows looked before there were windows, so an app looks the
@@ -3098,7 +3117,7 @@ window's moves against that window's painting and damage alone, and each
 `WindowOutput` carries its own `moved`, so scrolling one window copies in that
 window and damages nothing in the others.
 Each window is drawn at its own pixels per point: a host reports one with
-`WindowReport::Scaled { window, pixels_per_point }` (the main window
+`WindowReport::Rastered { window, pixels_per_point }` (the main window
 included), and until it does a window uses the context's. It is the window's
 raster, not its layout: every window is laid out at the context's scale. The
 document lays out and paints each window's tree, and everything opened inside
@@ -3148,6 +3167,11 @@ its size and reports `Resized` and `Placed` back the next frame.
 reads what the app asked, `report_window` reports as a host would, `windows()`
 lists the open windows and each one's latest `WindowOutput`, and
 `DocumentTest::snapshot_window(name, id)` takes a window's painting.
+`Stepped::hosted(context, app, window, layer, setup)` runs under a real
+window-hosting layer instead, such as `beui_layer_space::Space`, stacked over
+its drive layer, with the `Setup` it is given (space wants `GpuSetup` and the
+`Context`), so a test can paint the scene that reaches the platform
+(`Stepped::painting`, `drive paint in platform`), as be-wayland's space test does.
 
 Pointer input names its window: `Incoming::Input` carries a `window`
 (`Incoming::in_window`; every constructor starts with the main window), in
@@ -3202,6 +3226,12 @@ default that changes nothing:
   `setup.get::<beui::GpuSetup>()` is the wgpu device, queue and surface format,
   `setup.get::<Context>()` the app's context and `setup.waker` wakes the
   platform.
+- `pace() -> Option<Instant>`, before everything else in a frame: a layer that
+  paces frames (an XR headset) blocks for the next one and returns its
+  predicted display time, which becomes the frame's time (unless the clock is
+  stopped; never earlier than the last). While a layer paces, the runner turns
+  the window's vsync off (`Renderer::set_vsync`) and keeps framing while the
+  platform window has no size (minimised), at its last size and unseen.
 - `now(Instant) -> Instant`, bottom first, before the frame: the frame's time.
   The runner reads the context's clock once (`Context::stop_clock` and
   `advance_clock` stop and step it), and the layers, the app and every later
@@ -3209,7 +3239,10 @@ default that changes nothing:
 - `input(&mut Vec<Incoming>, &mut LayerFrame)`, bottom first, with everything
   that arrived for the frame before the app sees it: a layer may rewrite, drop
   or add entries, name each pointer event's window in that window's
-  coordinates, and push `WindowReport`s.
+  coordinates, and push `WindowReport`s. Right after it the runner asks
+  `keyboard_attached()`, top first: the first `Some` overrides whether the
+  platform reports a keyboard attached (see The on-screen keyboard), `None`
+  (the default) leaves it to the layers below and the platform.
 - `output(&mut Shown, &FrameOutput, &mut LayerFrame)`, top first, after the
   app's frame. `Shown` is what the layers above left of the app's windows and
   window requests (the app's own at the top); a layer may read, replace or
@@ -3321,7 +3354,16 @@ it, and all its 3D (`glam`) stays in the crate.
   in front of the panel the ray hits or `OPEN_DISTANCE` (1 m) away when it hits
   none, turned to face the viewer as a carry leaves a panel (`Panel::face`, see Carry). A window that opens takes the
   focus (see Focus); a window asked for again keeps its panel and leaves the
-  focus alone. `Resize` sets the panel's size,
+  focus alone. A `WindowRole::Keyboard` window (`Space::keyboards`) ignores
+  its placement and opens as `Over` would put it on the panel holding the
+  focused field (the window whose output carries the IME area), centred under
+  the field `KEYBOARD_GAP` (12) points below it, or with no field over the
+  bottom of the focused panel; it never takes the focus, however it is opened,
+  pressed or carried, so its keys type into the field, and a hand's grip
+  carries it like any panel. A `WindowRole::Popup` window opens where its
+  placement says and never takes the focus either, so the window it belongs
+  to keeps it (a Wayland popup's grab ends when its toplevel loses the
+  keyboard). `Resize` sets the panel's size,
   keeping its top-left corner, and reports `Resized` the next frame. `Close`
   removes the panel and its texture; the main window's panel never closes.
 - Grab: while its window has focus the host holds the pointer
@@ -3343,15 +3385,20 @@ it, and all its 3D (`glam`) stays in the crate.
   panel, the point of the curved surface the ray meets). A press's own
   position is ignored. An absolute position, a `PointerMoved` in pixels or in a
   window's points (a driver's, mapped onto that window's panel), puts the
-  cursor where its ray hits; `PointerMotion` moves it from where it is drawn by
-  as many screen pixels (no further than `CURSOR_MARGIN` points inside the
-  edge); either saves it `CURSOR_LIFT` (1%) of the distance in front of what
+  cursor where its ray hits; `PointerMotion` swings its ray about the eye,
+  gravity-aligned whatever the head's pitch and roll (`Head::swing`): motion
+  across turns it about the vertical, keeping its height, and motion up raises
+  it toward the sky along its line to the zenith, short of
+  `head::MOST_ELEVATION`, both at a fixed angle per pixel
+  (`Head::pixels_per_radian`, so near the middle of an unrolled view a pixel
+  of motion is a pixel on screen), the same in the simulator and under a
+  headset. Either saves it `CURSOR_LIFT` (1%) of the distance in front of what
   it hits, or on a miss at the last hit's distance (`OPEN_DISTANCE` before any
   hit). Turning the head and walking leave it at its point, so it slides
-  across the view; one that would leave the view is drawn, and points, just
-  inside the edge without moving its point, so turning back finds it where it
-  was, and moving the mouse from the edge starts from where it is drawn. While
-  a panel is carried the cursor stays on its grabbed point. Moving onto another
+  across the view, and nothing holds it inside the view: motion or a turn can
+  take it anywhere around the viewer, it still points (and clicks) where it
+  is, and turning back or moving the mouse back finds it. While a panel is
+  carried the cursor stays on its grabbed point. Moving onto another
   panel just names the new window, held button or not (no `PointerLeft`), so
   a drag goes on across windows. Moving off every panel sends the last window
   `PointerLeft`; while a button is held, moves and the release then go to the
@@ -3366,8 +3413,8 @@ it, and all its 3D (`glam`) stays in the crate.
   place, walk along the floor relative to where the head faces, and Q and E
   roll it left and right (`Head::roll`, `ROLL_PER_SECOND`), all timed from
   `LayerView::now`. `Head::rotation` is yaw, then pitch, then roll about the
-  view direction; the view, cursor rays, the screen edge clamp and `scale`
-  all go through it, so the cursor moves along the rolled screen's axes.
+  view direction; the view, cursor rays and `scale` all go through it, but
+  the cursor's motion does not (see Pointer).
   Mouse steering with the head rolled first turns the motion by the roll
   into the level frame, so moving the mouse along the screen turns the view
   along the screen while yaw stays about the vertical and the roll stays put. No key pressed while steering reaches the app, nor its
@@ -3376,11 +3423,149 @@ it, and all its 3D (`glam`) stays in the crate.
   go through the same rule (a driver's motion is in points, scaled to pixels
   first), so `drive --into=space keydown ctrl shift w` walks and `drive --into=space motion
   200 0` while Ctrl and Shift are held turns the head.
+- Views: what the scene is drawn through is a list of `head::View { position,
+  rotation, fov, size }`, a pose with an off-axis `head::Fov` (built from the
+  tangents of its left, right, up and down edges, `Fov::tangents`, or from
+  OpenXR's angles, `Fov::from_angles`; `Fov::projection` is right-handed with
+  depth 0 to 1 between `NEAR` and `FAR`) and its target's size in pixels.
+  `Space::views` is the pose source's: the simulator's one view, the head over
+  the platform window (`Head::view`, a symmetric `FOV_Y`), or the tracked
+  `head::Views { display_time, views }` an XR host hands `Space::set_views`
+  each frame (`None` goes back to the simulator), in world space, whose floor
+  is y = 0. Tracked views move `Space::head` to their centre (mean position,
+  averaged rotation, `Head::posed`), so everything that reads the head (cursor
+  rays, carry, chrome, the window, which mirrors that centre eye at
+  `FOV_Y`) works off the centre eye. `Space::draw(encoder, targets)` draws
+  each `ViewTarget { view, texture, format }` (a 2D texture view of that
+  view's size, such as an XR swapchain image) through its own view: a 4x
+  multisampled pass per view resolved into the texture, after painting any
+  window that changed; the platform window is still drawn by the `Drawing`
+  `Space::frame` returns.
+- Headsets: `BEUI_LAYERS=xr`, in space's place, shows space on
+  an OpenXR headset through `crates/beui-layer-xr`, and waits for one when
+  there is none; `BEUI_LAYERS=space` is the simulator. `beui::window` makes
+  a `Link` (`Link::new(app name)`: `RunOptions::app_id`, else the program's
+  name, for the runtime's dashboard), which tries once at once and then, on
+  a thread of its own, every `RETRY` (2 s): load the runtime and make an
+  instance (`Runtime::open`), then ask it for a headset (`xrGetSystem`),
+  keeping the instance while the answer is `FORM_FACTOR_UNAVAILABLE`, so
+  SteamVR started later or a headset plugged in later are both found without
+  starting SteamVR again. `Link::status()` is `Found`, `Missing(why)` or
+  `Failed(why)` (the runtime could not make or share the GPU; it then stops
+  looking), and each change wakes the loop through the `Waker` the layer
+  hands it in `setup`. The `Link` is the renderers' `OpenGpu`
+  (`Link::open_device`): it opens the device through the `Xr` it found,
+  else a plain one, and reports itself `OpenGpu::stale` once it has found
+  an `Xr` the device was not opened through. A renderer whose `OpenDevice`
+  is stale reopens its device as after a lost GPU (`Renderer::recover`,
+  `Gpu::reopen`, which asks the `OpenGpu` for a fresh instance), and the
+  runner hands the app (`App::renderer_replaced`) and the layers the new
+  device; `XrSpace::setup` then takes a `Headset` for `Link::opened()`.
+  While there is no headset, or its session is lost or not yet running,
+  `XrSpace` hands space a `notice::Notice` ("Waiting for a headset" and
+  why) that space draws over the mirror window (`Space::set_notice`), and
+  space is the simulator meanwhile: its head at eye height looking at the
+  main panel, the mouse and keyboard on the panels, no pacing and no
+  polling. `Headset::lost()` says how a session ended: `Lost::Session`
+  (`LOSS_PENDING`, the headset unplugged) is opened again on the same device
+  once `xrGetSystem` finds the headset, tried every `RETRY`
+  (`Headset::reopen`); `Lost::Instance` (the runtime quit: an instance
+  loss event, `ERROR_INSTANCE_LOST`, or `xrGetSystem` failing otherwise)
+  drops the headset, its session and instance (the device holds its `Xr`
+  only weakly, since the Khronos loader allows one instance at a time) and
+  sends the `Link` looking again (`Link::lost`), which reopens the device
+  through the next instance; `Lost::Ended` (`EXITING`, or swapchains or a
+  session that could not be made) leaves the simulator for the rest of the
+  run, so a runtime that closes the app is not answered by opening it
+  again. The mirror keeps the simulator's head where the headset left it.
+  The runtime is loaded with the
+  `openxr` crate's `loaded` feature: the system's `openxr_loader` if there is
+  one, else the active runtime's own library, found as the Khronos loader
+  finds it (`XR_RUNTIME_JSON`, then `active_runtime.json` under the XDG
+  config directories on Linux, the `ActiveRuntime` registry value on
+  Windows) and negotiated with directly (`runtime.rs`), since Windows has no
+  system loader and SteamVR ships none. It builds on Linux and Windows; on
+  other platforms the `Link` fails at once and space stays the simulator.
+  The runtime picks the GPU, so the `Link` is an `OpenGpu`
+  (`beui_renderer_wgpu::present`): `OpenDevice { extensions,
+  gpu }` says how a renderer opens its device, the Vulkan device extensions
+  it wants where the adapter has them (be-dmabuf's `DEVICE_EXTENSIONS`, which
+  block-app passes, enabled through `open_vulkan_device`) and, when set, the
+  `OpenGpu` that makes the instance and may make the adapter and device
+  itself (`None` leaves them to wgpu). `Xr` makes
+  the VkInstance and VkDevice through `XR_KHR_vulkan_enable2` with the
+  extensions wgpu wants (`desired_extensions`, `required_device_extensions`)
+  and those, and hands them to wgpu (`Instance::from_raw`, `expose_adapter`,
+  `device_from_raw`), so the window, the panels, dmabufs and the headset
+  share one device; it then starts the session. `XrSpace` wraps `Space` as
+  the layer. Frames are paced by the headset: `Layer::pace`, which the
+  runner calls before each frame, blocks in `xrWaitFrame` and returns the
+  predicted display time, which becomes `LayerView::now` and the frame clock
+  (unless the clock is stopped; never earlier than the last), and while a
+  layer paces the runner turns the window's vsync off
+  (`Renderer::set_vsync`, `AutoNoVsync`) and the layer asks for the next
+  frame at once. Input locates the eyes in a `LOCAL_FLOOR` space (`STAGE`,
+  else `LOCAL` lowered by eye height) and hands them to `Space::set_views`;
+  just before drawing, the frame locates them again for the same display
+  time (`Headset::relocate`, which the projection layer then names) and
+  hands those over instead, then draws them into each eye's swapchain image (imported with
+  `create_texture_from_hal`, one swapchain per eye, sRGB where offered),
+  submits, releases the images and ends the frame with a projection layer.
+  Panels whose order to the eye is plain are also shown as OpenXR
+  composition layers, sampled once by the runtime's compositor, so text stays
+  sharp: `Space::layers(&layers::Allowance { most, cylinders, largest })`
+  picks them (`layers::choose`): panels facing the eye, not held by a
+  carry, resize or gesture, no bigger than the runtime's swapchains, bent
+  ones only where `XR_KHR_composition_layer_cylinder` is enabled, those that
+  look biggest first, up to the runtime's layer count less the projection
+  layer (and `MOST_LAYERS`, 8, for memory), and none whose order to another
+  chosen one is unclear: two that can overlap on screen must lie wholly
+  behind or in front of each other's planes, else the second keeps to the
+  eye buffer. Each `PanelLayer` (pose, metres, bend, texture pixels and
+  format, and a `version` the compositor bumps on each repaint) becomes a
+  `beui_layer_xr::Quad`; `Headset::submit` keeps a swapchain per layered window (one no longer
+  layered is dropped three frames later, once the GPU is done with it),
+  acquires an image only when its version changed (an idle panel costs no
+  copy), and `Space::draw`'s `LayerTarget`s have the compositor copy the
+  panel's texture into it (`fill`) and draw each layered panel's front as a
+  hole, cleared to transparent with depth, so nearer panels, chrome, beams
+  and the cursor drawn in the eye buffer still cover it. The layers go
+  under the projection layer, farthest first, as quads or cylinders (posed
+  at the cylinder's axis, `central_angle` = bend), and the projection layer
+  blends by its alpha (`BLEND_TEXTURE_SOURCE_ALPHA`). The mirror window
+  draws every panel itself. `Headset::layered` counts the last frame's
+  layers.
+  A frame begun and not submitted is ended empty at the next `pace`. While
+  the session is idle the layer polls the runtime every `IDLE_POLL` (100 ms).
+  The mouse and keyboard work exactly as in the simulator: the mirror window
+  keeps the keyboard focus and the pointer, and the cursor's screen is the
+  mirror, the centre eye at `FOV_Y`, which lies inside a headset's field, so
+  the marker of a cursor out of view (see Cursor) never sits in the periphery. Tracked views are in the
+  tracking space, and `Space::body` (`head::Body { position, yaw }`) places
+  that space in the world (`Views::placed`, and each hand's poses through
+  `Body::place`); while views are tracked,
+  Ctrl+Shift steering moves the body instead of the head: mouse motion
+  across turns it about the eyes (motion up and down, and Q and E, do
+  nothing), and W, A, S and D walk it the way the head faces. The body stays
+  while the headset is away. The runner keeps framing a paced layer while the
+  platform window has no size (minimised), at the window's last size and
+  unseen, so the headset's frames go on. Controllers come from an action set (`controllers.rs`) attached when
+  the session starts: per hand, the aim and grip poses, trigger and squeeze,
+  bound for the simple controller, Index, Touch, Vive and Windows Mixed
+  Reality profiles, read at the predicted display time in the eyes' space
+  and pushed into the frame's input as `Incoming::Controller` (see Lasers),
+  with `Lost` once when a hand's aim stops being tracked.
+  `beui-layer-xr`'s tests run Monado's service with its null compositor on
+  lavapipe (`//buck/sysroot:amd64-xr`) and have it show frames, the main
+  panel as a quad layer; one starts the `Link` before the service, then
+  stops and starts the service again, reopening the device as the runner
+  would (`Gpu::stale`, `Gpu::reopen`, `XrSpace::setup`). They share
+  `XDG_RUNTIME_DIR`, so each holds the tests' `MONADO` lock.
 - Carry: on `WindowRequest::BeginMove` (for any window) the panel keeps its pose relative to the
   head, with the grabbed point on the cursor's ray at a fixed distance, so
   moving the mouse or steering carries it. As the mouse swings the ray around
   the viewer the panel turns with it, by the ray's change of yaw about the
-  grabbed point (`Carry::aim`); steering turns it with the head instead. From
+  head's up, the up the facing below uses (`Carry::aim`); steering turns it with the head instead. From
   the moment it is grabbed it also turns, over `TURN_SECONDS` of
   `LayerView::now` (smoothstep, `carry::Turn`), from that carried rotation
   to facing the viewer: a look-at basis whose normal through its centre
@@ -3392,47 +3577,71 @@ it, and all its 3D (`glam`) stays in the crate.
   grab offset, and the one turn left about the line to the eye is the one
   that keeps the panel's right perpendicular to the head's up), and then
   keeps facing them, so letting go turns it no further.
-  The carry keeps the panel really in front of what it is carried over:
-  `Carry::distance` is the wanted distance (where it was picked up, changed
-  by scroll) and `Carry::at` the one it is drawn at, the largest no farther
-  than the wanted one at which every other panel is at least `IN_FRONT`
-  (1.5 cm) behind it, solved afresh every frame (`Carry::reach`: a step
-  along the worst ray, then bisection). Rays from the eye go through a 5x5
-  grid of the carried panel's surface with its chrome, onto each other
-  panel's surface, and through a grid of each other panel onto the carried
-  one, flat or bent (`Panel::intersect`). A ray that lands outside the
-  other rectangle counts less by `RAMP` (1) times how far outside, so the
-  panel comes forward as its edge nears another panel and goes back as it
-  leaves: the drawn distance is continuous, with no easing and no jump.
-  So it is in front because it is nearer, drawn and picked by depth like any
-  panel, and letting go changes nothing. Picking a panel up that another
-  covers brings it in front of that one at once, as a desktop raises a
-  dragged window. Scroll changes the distance from where it is drawn (`at`)
-  and does not reach the app; the app sees no pointer moves meanwhile. A
-  scroll farther that some panel would stop takes the carried panel through
-  it to `IN_FRONT` behind it, and it stays behind that panel
-  (`Carry::behind`) for the rest of the carry, until a scroll nearer leaves
-  it less than `IN_FRONT` behind; that is the only way to put a carried
-  panel behind another. Letting go of the
-  button that was down when it began (or, if none was, the next click) ends it:
-  the app gets that release where it grabbed, the panel faces the viewer
-  (`Panel::face`, the same facing about its centre, at once: a carry let go mid-turn snaps to it rather than finishing the turn), and the host reports `WindowReport::Placed` with the panel's placement,
+  The carry keeps the panel really in front of what it is carried over
+  when the two are close in depth: `Carry::distance` is the wanted distance
+  (where it was picked up, changed by scroll) and `Carry::at` the one it is
+  drawn at, the largest no farther than the wanted one at which every other
+  close panel is at least `IN_FRONT` (1.5 cm) behind it, solved afresh every
+  frame (`Carry::reach`: a step along the worst ray, then bisection). Rays
+  from the eye go through a 5x5 grid of the carried panel's surface with its
+  chrome, onto each other panel's surface, and through a grid of each other
+  panel onto the carried one, flat or bent (`Panel::intersect`). A ray counts
+  only where the carried panel is less than `CLOSE` (10%) of that panel's
+  distance from the eye behind it (`carry::close`): 10 cm at arm's length,
+  30 cm at 3 m, two scroll lines anywhere, since the eye judges depth, and
+  scroll steps it, relative to distance. So a carried panel overlapping on
+  screen one that is far nearer stays at its distance, behind it, and only
+  one it is about to meet or pass is pushed behind it. A ray that lands
+  outside the other rectangle counts less by `RAMP` (1) times how far
+  outside, so the panel comes forward as its edge nears a close panel and
+  goes back as it leaves: the drawn distance is continuous, with no easing
+  and no jump. So it is in front because it is nearer, drawn and picked by
+  depth like any panel, and letting go changes nothing. Picking a panel up
+  that a close one covers brings it in front of that one at once, as a
+  desktop raises a dragged window. Scroll changes the distance by
+  `STEP_PER_LINE` (0.95) per line, about 5%, from where it is drawn (`at`);
+  a touchpad's pixels move it by their share of a line (`SCROLL_LINE`
+  points), so it glides in proportion. It does not reach the app, which sees
+  no pointer moves meanwhile. A scroll farther that a close panel would stop
+  leaves it held in front until the distance asked for is `IN_FRONT` behind
+  that panel (further scrolls farther go on from the distance asked for,
+  `Carry::pushing`), then it is drawn there, behind that panel, and stays
+  behind it (`Carry::behind`) for the rest of the carry, until a scroll
+  nearer leaves it less than `IN_FRONT` behind; that is the only way to put
+  a carried panel behind a close one. A wheel line usually takes it through
+  at once; a touchpad's small deltas push until it is past.
+  An app's `BeginMove` or `BeginResize` starts a carry or resize only while
+  a press it was given is held (any window's, since one app's drag can open
+  and carry another window; for a laser, while its trigger holds that
+  window), as Wayland ties a move to its press: a plugin's request reaches
+  block-app a frame or two after the press it answers, and one that arrives
+  after that click was let go is dropped rather than leaving the window
+  stuck to the cursor until the next click. Letting go of the button that
+  was down when it began (or, for a carry begun with none, as
+  `Space::begin_carry` can, the next click) ends it: the app gets that
+  release in the window that took the press, where it grabbed when that is
+  the carried one, the turn to face the viewer
+  finishes at once (`Carry::finish`) and the panel is placed once more, its
+  distance solved for that facing, so a carry let go mid-turn lands where it
+  would have after the turn, in front of what it is over, and the host reports `WindowReport::Placed` with the panel's placement,
   `space X Y Z QX QY QZ QW S B`: its position, rotation, `metres_per_point`
   and `bend` (`Panel::placement`, read back by `Panel::placed`). The app keeps
   it in memory (the dock does) and hands it back when it opens the window
   again. Nothing keeps a placement across restarts yet (plans/vr.md).
-- Resize: on `WindowRequest::BeginResize(window, edge)` (`resize::Resize`)
+- Resize: on `WindowRequest::BeginResize { window, edge }`, or a drag on a
+  side of a panel's chrome (`resize::Resize`)
   the cursor's ray meets the panel's surface as it was, and that edge or corner
   follows it while the opposite one stays put, no smaller than
   `resize::SMALLEST`. Each new size is reported as `Resized` at once, so the
   app lays out at it the same frame; the app sees no moves meanwhile, and the
   carry's rule for letting go ends it, with a `Placed` for the panel's new
   centre.
-- Sharpness (`scale`): each frame `Space` gives every panel the pixels per
-  point it shows at on screen: the frustum-clipped panel's nearest depth
+- Sharpness (`scale`): each frame `Space` gives every panel the most pixels per
+  point any of its views shows it at (`scale::wanted`): per view, the frustum-clipped panel's nearest depth
   (its outline sampled along the top and bottom edges, so a bent panel's
-  nearer sides count), as screen pixels per point there (so a panel scaled
-  up by its chrome gets more), times `SUPERSAMPLE` (1.25, so the main
+  nearer sides count), as the view's pixels per point there (so a panel scaled
+  up by its chrome gets more; a view's pixels per unit of tangent,
+  `Fov::pixels_per_tangent`, is the larger of across and down), times `SUPERSAMPLE` (1.25, so the main
   panel's first 80% view is drawn at exactly the platform's scale), rounded
   up to a step of `STEPS_PER_DOUBLING` (4) per doubling, between
   `LEAST_SCALE` (0.5) and `MOST_SCALE` (4) and no larger than
@@ -3443,10 +3652,15 @@ it, and all its 3D (`glam`) stays in the crate.
   `LayerView::now`, the host asking for a frame when the wait is over), and a
   panel being carried, resized or reshaped by its chrome keeps the one it has
   until the gesture ends, so a scale never changes every frame. A change is
-  reported as `WindowReport::Scaled` (`Space::scale` reads it), which is
+  reported as `WindowReport::Rastered` (`Space::scale` reads it), which is
   only the window's raster: the app repaints the window at it without laying
   anything out, so its text stays where it was and only gets sharper or
-  softer. A new window takes its scale at once.
+  softer. A new window takes its scale at once. An `Embed` in the window
+  hears the new raster (`EmbedPlacement::raster`), which is how block-app
+  sends a plugin region in it its raster beside its scale (the protocol's
+  `raster`, `RegionPlacement::raster`), and beui-platform-plugin reports it
+  to the region's window as its `WindowReport::Rastered`, so plugin content
+  in space is as sharp as the window and is not laid out again.
 - Drawing: each window's display is drawn by its own
   `beui_renderer_wgpu::Renderer` into a mipmapped texture at its output's
   `pixels_per_point`, only when that window's output changed, repainting only
@@ -3475,13 +3689,34 @@ it, and all its 3D (`glam`) stays in the crate.
   mesh of the screen with each vertex's direction's colour, the grid lines
   within 20 m as thin quads (fading out by 20 m, where the GPU's go on to
   `floor::EXTENT`), then each panel's and its chrome's paintings placed onto
-  the projected surface cell by cell, far to near, which is what the crate's
-  painting tests compare.
-- Cursor: the host asks the platform for `CursorIcon::None` and draws its own
-  in the scene, last and over everything, as a quad facing the head with its
-  hotspot on the cursor's point (`Space::cursor_at`), or when that is out of
-  view on the clamped ray, just in front of what it hits there. It goes only
-  when the pointer leaves the platform window. Its size grows with
+  the projected surface cell by cell (`picture::scene`), which is what the
+  crate's painting tests compare. Cells are ordered by depth per pixel, as
+  the GPU's depth test does: each cell is a flat quad, and two cells
+  overlapping on screen are in a fixed order wherever the difference of
+  their planes' depths along the eye's rays keeps one sign over their
+  overlap (checked at its corners, since it changes sign only along a
+  straight line). A cell with nothing to draw takes no part. When every
+  pair is decided, the cells are drawn in an order that keeps all of them
+  (far centres first where nothing decides); where panels pass through
+  each other or the pairs cycle, the screen is split into quarters on the
+  pixel grid until each is decided or one pixel, which takes the nearest
+  at its centre. A tile drops everything under the last opaque cell
+  covering it all, so an intersection costs a few primitives per pixel
+  along its line, and a scene with none paints as one tile.
+- Cursor: while space holds the pointer (Grab) or an app locks it
+  (`Space::cursor_shown`), the host asks the platform for `CursorIcon::None`
+  and draws its own in the scene, last and over everything, as a quad facing
+  the head with its hotspot on the cursor's point (`Space::cursor_at`). Once
+  the grab lets go it draws none and asks the platform's own cursor for the
+  icon it would have drawn, since the platform then moves the pointer. When
+  the cursor's point is out of the view (off the screen or behind the eye),
+  it draws instead a marker inside the edge (`Space::cursor_away`,
+  `cursor::Look::Away`): `beui_core::icons::ICON_MOUSE` with an
+  `ICON_ARROW_UP` turned toward the cursor, on the line from the view's
+  middle toward where the cursor projects, `cursor::AWAY_INSET` (36) points
+  inside the edge, just in front of what it hits there; the arrow's angle
+  is kept in `AWAY_STEPS` (90) steps a turn so the sprite repaints only when
+  it moves a step. It goes only when the pointer leaves the platform window. Its size grows with
   distance (`Space::cursor_scale`, metres per point) so it covers as many
   pixels as it has points at any depth. It shows the icon that the window
   under it, holding the press, or being carried or resized asks for
@@ -3490,9 +3725,68 @@ it, and all its 3D (`glam`) stays in the crate.
   icon with `beui_core::drawn_cursor::paint`, the same drawing the inspector's
   mouse simulation shows on a touchscreen, through a `Context` of its own with
   only the icon font, and the compositor draws it into a texture like a window
-  only when the icon or the scale changes, under a `WindowId` of its own. A new
+  only when its look (icon or marker) or the scale changes, under a
+  `WindowId` of its own, and the paintings draw its last output over
+  everything (`render::Frame::sprite`). A new
   icon repaints into the same texture with the same renderer; building a
   renderer for each icon cost about 30 ms a switch.
+- Pointers: the mouse and each controller's laser are pointers of their own
+  (`space::Pointer`: `Mouse` or `Hand(Hand)`), and each holds its own carry,
+  resize, chrome gesture, hovered and captured window (`space::Held`:
+  `Space::mouse`, and `held` on each `Space::lasers` entry), so both hands and
+  the mouse can each carry, resize, reshape or press at once. A
+  `WindowRequest::BeginMove` or `BeginResize` goes to the laser whose touch is
+  down in that window, else to the mouse. Two pointers never hold one panel,
+  but both hands' grips together scale and turn it (below).
+- Lasers: controllers reach space as `Incoming::Controller`
+  (`beui_core::runner::Controller`, per `Hand::Left` or `Right`): `Pose { aim,
+  grip }` (`HandPose`, a position and an `xyzw` orientation whose -Z is where
+  it points, in the world of the views, floor at y = 0), `Trigger` and
+  `Squeeze` (0 to 1; a press at `laser::PRESS` (0.6), a release at
+  `laser::LET_GO` (0.4)), `Lost` (no longer tracked: its touch is cancelled
+  and what it held let go), and `Toward { window, at }`, which a driver uses
+  to aim a hand from where it is (`Laser::resting` beside the head before it
+  has a pose) at a window's point. An XR host sends a hand's pose, trigger and
+  squeeze each frame. A laser is a ray from its aim pose (`laser::Laser`),
+  smoothed by a One-Euro filter (`laser::OneEuro`, `MIN_CUTOFF`, `BETA`,
+  `DERIVATIVE_CUTOFF`, timed from `LayerView::now`, the last pose fed again
+  each frame so a hand held still settles, with frames asked for until it
+  has), except that a change of more than `laser::JUMP` (0.15 rad or m) is
+  taken at once. It acts as a finger, never a hovering mouse: nothing reaches
+  the app until the trigger presses, which sends `Input::Touch` (a
+  `TouchId` with `laser::DEVICE`, finger 0 for the left hand and 1 for the
+  right) `Start` where the ray hits the nearest panel, focusing it (a press on
+  nothing focuses none), then `Move` as the ray turns and `End` on release,
+  all to the window it began in (off its panel, where the ray meets the
+  panel's surface extended), so beui's touch handling applies: a drag
+  scrolls, a long press opens the context menu, and two lasers on one panel
+  are two fingers that pinch. The press freezes the ray it was aimed along
+  (`Laser::frozen`) until the laser turns more than `laser::FREEZE` (0.02 rad)
+  from it, so the jolt of pulling the trigger moves nothing and a tap lands
+  where it was aimed. A trigger press on chrome works its part as a mouse
+  press does (the move button carries along the laser). Squeezing the grip
+  with the laser on a panel or its chrome carries the panel along the laser
+  (`Carry::along`: the grabbed point stays on the laser's ray at the distance
+  it was grabbed, `Carry::follow` each frame), with the mouse carry's turn to
+  face the viewer and its staying in front, until the grip lets go; a carry a
+  laser's touch began (a title bar's `BeginMove`) ends with the trigger
+  instead, and the app gets the `End` where it grabbed. Squeezing the other
+  grip on the panel one hand is carrying holds it with both (`Space::both`,
+  `Both`): it then moves and turns with the line between the two grip
+  positions (`Quat::from_rotation_arc` of where it began to where it is) and
+  scales about its centre by how far apart they are (`metres_per_point`,
+  between `chrome::SMALLEST_SCALE` and `LARGEST_SCALE` of where it began),
+  until either grip lets go, which reports `Placed` and leaves neither hand
+  holding it. Each laser is drawn (`Space::beams`, `render::Beam`), depth
+  tested after the chrome, as a strip `BEAM_WIDTH` (4 mm) wide from the hand to
+  where it hits a panel or its chrome, or `laser::REACH` (5 m) on a miss,
+  faint at the hand, blue, and white while pressed, with a dot `DOT` times
+  its distance from the eye across where it hits; the paintings draw them
+  over the panels.
+- Keyboard: while any laser has a ray, `Space::keyboard_attached` (its
+  `Layer::keyboard_attached`) says no keyboard is attached, so tapping a
+  field opens beui's on-screen keyboard as a panel (above); with only the
+  mouse and keyboard it says nothing and no panel opens.
 - Focus: like a desktop window manager, focus follows clicks, not the cursor
   (`Space::focused`, the main window's panel at first). A press on a panel's
   content or its chrome focuses that panel, as does starting to carry it and
@@ -3509,23 +3803,40 @@ it, and all its 3D (`glam`) stays in the crate.
   window. Nothing is raised: panels have no stacking order in 3D, only depth.
   Closing the focused panel focuses the main one.
 - Chrome: the host draws and handles controls of its own around every panel
-  (`chrome.rs`), sized in metres so they keep their size however the panel
-  is scaled: an L bracket just outside each corner, and under the bottom edge
+  (`chrome.rs`): an L bracket just outside each corner, the window's title
+  (its `WindowState` appearance title, which the `Window` component's
+  `title` sets) in a pill centred above the top edge, cut short with an
+  ellipsis to fit between the top brackets, and under the bottom edge
   a pill with a move button (`ICON_MOVE`), a rotate button (`ICON_ROTATE_3D`),
   a roll button (`ICON_ROTATE_CW_SQUARE`) and a curvature button
-  (`ICON_SPLINE`). They are faint (`FAINT`) except on the focused panel, which
+  (`ICON_SPLINE`). They keep one size to the eye wherever the panel is, as
+  the cursor does: their lengths are metres at `REFERENCE` (0.6 m) times
+  `Fit::scale`, the eye's distance to the panel's centre over `REFERENCE`
+  (`chrome::fitted`), which `Space` sets on each panel (`Panel::chrome`)
+  every input and frame and changes only once it is off by more than `KEPT`
+  (5%), so a head that moves a little never paints the chrome again.
+  `Fit::title` is the title's width at that reference, measured with the
+  app's `Context` when the title changes. They are faint (`FAINT`) except on the focused panel, which
   keeps them lit wherever the cursor goes until another press moves the focus.
-  `chrome::layout` places the parts (each bracket's two arms, `SLOP` wider,
-  and the buttons) and `chrome::part_at` finds one at a window point outside
-  the window's rectangle. Picking is by depth alone: the cursor's ray takes
+  `chrome::layout` places the parts and `chrome::part_at` finds one at a
+  window point outside the window's rectangle. Their hit areas leave no gap
+  next to the window for a ray to fall through to a panel behind: each
+  bracket's arms take the band from the window's edge out to the bracket
+  (and `SLOP` beyond), the sides between the brackets take that band too,
+  and the buttons, the slider and the title take everything between them
+  and the window's edge, edge to edge with each other. Picking is by depth alone: the cursor's ray takes
   the chrome on a panel's extended surface when it is nearer than any panel
-  (`chrome::pick`), focused or not, so a bracket of a window popped out in
-  front of another takes the click over the content behind it; the arms'
-  small margin is what keeps a dock window popped out over the main one from
-  covering its tab bar. A driver's point outside its window picks too. Input
+  (`chrome::pick`), focused or not, so the chrome of a window popped out in
+  front of another takes the click over the content behind it. A driver's point outside its window picks too. Input
   on chrome never reaches the app (the window under it last gets
   `PointerLeft`), and the cursor shows what a part does. While an app holds a
-  button, chrome is ignored. Dragging a bracket scales the panel
+  button, chrome is ignored. Dragging a side between the brackets
+  (`Part::Resize`, lit while hovered or held) resizes the window from that
+  edge as a `BeginResize` would (`Gesture::Resize` while it lasts), the main
+  window too: its size in space is its logical size, reported as `Resized`,
+  while the platform window keeps its own size and stays the mirror.
+  Dragging the title carries the panel as the move button does.
+  Dragging a bracket scales the panel
   (`Gesture::Scale`): `metres_per_point` grows or shrinks with how far the
   cursor goes along the diagonal from the opposite corner, which stays put,
   between `SMALLEST_SCALE` and `LARGEST_SCALE` of where it began, so the
@@ -3537,7 +3848,7 @@ it, and all its 3D (`glam`) stays in the crate.
   `chrome::Sight`, `chrome::turned`), like a trackball: when the drag begins
   it takes the sight line from the eye to the panel's centre, the head's up
   made perpendicular to it (the sight's up) and their cross product (the
-  sight's right, along the screen's right). The cursor ray's change from
+  sight's right, along the screen's right). The aim's change (the cursor's ray; see below) from
   where the drag began is measured on the screen: its direction is the
   change of the ray's point on the head's image plane, its size the angle
   between the rays, times `TURN_GAIN` (2). Its horizontal part turns the
@@ -3547,10 +3858,14 @@ it, and all its 3D (`glam`) stays in the crate.
   a panel's edge level to the view stays level, wherever the panel is on
   screen and however the head is rolled or pitched. For a panel straight ahead of a
   level head and facing it, that is yaw about the vertical and pitch about the panel's own
-  horizontal axis. The gain is fixed rather than keeping the button under
-  the cursor: the button sits on the panel's vertical centre line, so a
-  turn about the sight's up hardly moves it on screen. The panel never rolls however the cursor
-  circles. Dragging the roll button rolls it about its
+  horizontal axis. With the mouse the cursor stays on the button meanwhile:
+  `PointerMotion` swings the gesture's own aim (`Gesture::Turn::aim`, as it
+  would swing the cursor) and the turn follows that aim, while the cursor is
+  put back on the button's point (`grab`) as the panel turns, so the mouse
+  turns the panel without the cursor wandering off, and lets go on the button.
+  An absolute position (the platform's own pointer, not grabbed, or a driver)
+  aims it directly. A laser's turn follows its ray. The panel never rolls
+  however the cursor circles. Dragging the roll button rolls it about its
   normal through its centre (`Gesture::Roll`, `chrome::roll_angle`,
   `chrome::rolled`) by the change in the cursor's angle around the centre on
   the panel's surface as it was, so the button, below the centre, stays under
@@ -3562,7 +3877,11 @@ it, and all its 3D (`glam`) stays in the crate.
   roll and slider drags map the ray onto the panel as it was when they began.
   Each panel's chrome is a display list (`chrome::output`, icons laid out
   with the app's `Context`, which `Setup` provides) drawn into a texture of
-  its own only when its `Look` changes, on the extended surface `LIFT` in
+  its own only when its `Look` changes, at as many pixels per metre as its
+  window's scale gives the window (`chrome::pixels_per_point`, no more than
+  `LARGEST_TEXTURE` texels a side) with its icons rasterised at that
+  (`Context::rastered`), so they sharpen with the window instead of
+  stretching, on the extended surface `LIFT` in
   front of the panel, after every panel.
 
 ### The on-screen keyboard
@@ -3622,7 +3941,16 @@ It is three pieces:
   ignores it.
   The keyboard is a document of its own, shown after
   the app with the pointer only while a press began on it or the pointer is
-  over it, and with no keys.
+  over it, and with no keys. Where windows open (`Context::opens_windows`, a
+  host such as space) it takes nothing off the screen: `KeyboardHost::show`
+  gets a `WindowId` the context keeps for it, and `KeyboardWindow` shows the
+  keys in a `Window` of that id with `WindowRole::Keyboard`
+  (`keyboard::WINDOW_SIZE`), which the core closes with
+  `WindowRequest::Close` when the keyboard closes. The pointer counts as on it
+  while its window is the one the pointer is in. The keyboard's window reports go
+  only to the document that holds that window (`Context::take_window_reports`
+  takes those a filter keeps), so the keyboard's document hears its own
+  window's `Rastered`.
 
 There is one way to ask for an on-screen keyboard whatever shows it:
 `toggle_keyboard()` (or `Context::toggle_keyboard`) counts up
@@ -3634,7 +3962,8 @@ or blurs its hidden textarea, and a plugin passes it to its host as
 desktop bar's keyboard button, the inspector's Sim tab button and the mouse
 simulation's keyboard button all call it. While the platform reports that no keyboard is attached
 (`WindowReports::keyboard_attached`, which only `beui-platform-drm` sends, from
-libinput devices that have an A key; every other platform counts as attached),
+libinput devices that have an A key; every other platform counts as attached,
+and a layer may override it, as space does while controllers are active),
 it opens whenever the focused field's `ImeArea::keyboard` turns `Shown` or its
 `asks` changes, and closes when the focus leaves for something that types
 nothing. Its close button (`close_keyboard()`) closes it until a field asks
@@ -4131,6 +4460,22 @@ frame as signals on the `Editor`: `drag()` and `files()` carry a drag or a file 
 signal. Work on another thread takes its `Waker` from `editor.woken()`,
 whose signal ticks once the work has woken the editor, and an effect that
 reads that signal collects the result.
+
+A plugin's frame can open windows (a dock's floating window, linux-desktop's).
+Outside space and the desktop shell a `Window` is an overlay inside its
+region's window. Where the host shows windows as its own (the screen request's
+`windows`, `Region::windows`; guides/adding_a_plugin_editor.md), each becomes a
+`EditorRegion::Window(w)` region. block-app keeps every such window in
+`compositor/desktop.rs` (`Floated`): on the desktop shell it draws them on the
+displays (`DesktopWindows`), and under space, where it says `windows` for every
+frame region (`host::opens_windows()`), each is a `Panel`: a beui `Window` of
+its own holding a `PluginRegion` of the window region (`PanelWindows` in
+`compositor/region.rs`), opened where the plugin asked with its role, moved
+and resized by space on `BeginMove`/`BeginResize`, and its `Placed` answered as
+the window region's `placement`; closing the panel ends the region, which
+closes the app's window. block-editor-beui places the children laid out in a
+window on that window's region (`Editor::end_frame` places only the children
+in the window it is given).
 
 The counter editor under `crates/editors/counter` is the reference integration.
 The [plugin editor guide](adding_a_plugin_editor.md) covers the manifest,
