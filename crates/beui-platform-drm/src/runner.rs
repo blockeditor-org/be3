@@ -1166,6 +1166,11 @@ impl Session {
                 && device.keyboard_has_key(KEY_A) == Ok(true)
         });
         self.runner.reports().keyboard_attached(typing);
+        let touch = self
+            .devices
+            .iter()
+            .any(|device| device.has_capability(DeviceCapability::Touch));
+        self.runner.reports().touchscreen_attached(touch);
     }
 
     fn input(&mut self, event: InputEvent<LibinputInputBackend>) {

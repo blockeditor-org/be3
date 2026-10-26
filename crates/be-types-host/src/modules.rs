@@ -202,6 +202,8 @@ pub struct Modules {
 
 const RESTART_LIMIT: usize = 8;
 
+const CLAIMED_BYTES: usize = 64 * 1024;
+
 fn unknown(content_type: Uuid) -> String {
     format!("no type module has the block type {content_type}")
 }
@@ -210,6 +212,25 @@ fn failed(content_type: Uuid, failure: Failure) -> String {
     match failure {
         Failure::UnknownType => unknown(content_type),
         Failure::Malformed(error) => error,
+    }
+}
+
+pub struct Claim {
+    name: String,
+    first: Vec<u8>,
+    directory: bool,
+    fallback: bool,
+}
+
+impl Claim {
+    pub fn call(self, connection: &mut Connection) -> Ticket<Option<Uuid>> {
+        replicas::claims(
+            connection,
+            self.name,
+            self.first,
+            self.directory,
+            self.fallback,
+        )
     }
 }
 
@@ -767,18 +788,30 @@ impl Modules {
         answers
     }
 
+    pub fn claim_requests(&self, name: &str, first: &[u8], directory: bool) -> Vec<(usize, Claim)> {
+        let first = &first[..first.len().min(CLAIMED_BYTES)];
+        [false, true]
+            .into_iter()
+            .flat_map(|fallback| {
+                (0..self.modules.len()).map(move |module| {
+                    let claim = Claim {
+                        name: name.to_owned(),
+                        first: first.to_vec(),
+                        directory,
+                        fallback,
+                    };
+                    (module, claim)
+                })
+            })
+            .collect()
+    }
+
     pub async fn claims(&mut self, name: &str, first: &[u8], directory: bool) -> Option<Uuid> {
-        for fallback in [false, true] {
-            for module in 0..self.modules.len() {
-                let (name, first) = (name.to_owned(), first.to_vec());
-                if let Ok(Some(content_type)) = self
-                    .ask(module, |connection| {
-                        replicas::claims(connection, name, first, directory, fallback)
-                    })
-                    .await
-                {
-                    return Some(content_type);
-                }
+        for (module, claim) in self.claim_requests(name, first, directory) {
+            if let Ok(Some(content_type)) =
+                self.ask(module, |connection| claim.call(connection)).await
+            {
+                return Some(content_type);
             }
         }
         None

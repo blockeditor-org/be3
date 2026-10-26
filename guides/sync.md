@@ -15,7 +15,7 @@ The code is `crates/be-sync`, used by `be` (`crates/be-cli`). It knows no block
 format: every block's file form comes from its type module
 (guides/type_modules.md), through the `be_types_host::Modules` its caller hands
 `sync` and `watch`. A folder export in the app (plans/daily_driver.md, phase 7)
-should use the same requests rather than writing another mapping.
+should use the same requests rather than writing another mapping, as block-app's files opened in programs do (`to-file` to write a block out and `from-file` to take a program's save back, guides/linux_desktop.md).
 
 ## What becomes what
 

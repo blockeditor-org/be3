@@ -58,7 +58,7 @@ pub(super) struct Instances {
     next_screen: u64,
     announced: HashSet<ScreenId>,
     block_types: Option<Arc<crate::editors::PluginCatalog>>,
-    sent_block_types: Option<u64>,
+    sent_block_types: Option<(u64, u64)>,
     network: Vec<String>,
     plugin_id: String,
     services: services::Services,
@@ -1412,13 +1412,15 @@ impl Instances {
         let mut opened = Vec::new();
         let mut screens = Vec::new();
         self.relaying.clear();
-        let plain_forms = be_types_host::plain_forms_revision();
-        if self.sent_block_types != Some(plain_forms)
+        let (programs, program_editors) = crate::programs::editors();
+        let sent = (be_types_host::plain_forms_revision(), programs);
+        if self.sent_block_types != Some(sent)
             && let Some(block_types) = &self.block_types
         {
-            self.sent_block_types = Some(plain_forms);
+            self.sent_block_types = Some(sent);
             let debug_templates = block_types.debug_templates.clone();
             let mut block_types = block_types.catalog.clone();
+            block_types.editors.extend(program_editors);
             for descriptor in &mut block_types.types {
                 descriptor.plain_file =
                     be_types_host::plain_of(Uuid::from_bytes(descriptor.block_type))

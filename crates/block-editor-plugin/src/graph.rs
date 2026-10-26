@@ -125,6 +125,13 @@ impl BlockInfo {
         self.metadata.name()
     }
 
+    pub fn file_name(&self) -> Option<String> {
+        self.metadata
+            .get(&be_block::INTRINSIC_NAME)
+            .filter(|name| !name.is_empty())
+            .or_else(|| self.name())
+    }
+
     pub fn no_access(&self) -> bool {
         !self.access.can_view()
     }

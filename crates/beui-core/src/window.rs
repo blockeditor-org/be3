@@ -113,6 +113,7 @@ struct Reported {
     size: std::cell::Cell<Option<(u32, u32)>>,
     scale: std::cell::Cell<Option<f32>>,
     keyboard: std::cell::Cell<Option<bool>>,
+    touchscreen: std::cell::Cell<Option<bool>>,
     preferences: std::cell::Cell<Option<crate::preferences::PreferenceLayer>>,
 }
 
@@ -136,6 +137,10 @@ impl WindowReports {
         self.0.keyboard.set(Some(attached));
     }
 
+    pub fn touchscreen_attached(&self, attached: bool) {
+        self.0.touchscreen.set(Some(attached));
+    }
+
     pub fn system_preferences(&self, preferences: crate::preferences::PreferenceLayer) {
         self.0.preferences.set(Some(preferences));
     }
@@ -148,11 +153,16 @@ impl WindowReports {
         self.0.keyboard.take()
     }
 
+    pub(crate) fn take_touchscreen(&self) -> Option<bool> {
+        self.0.touchscreen.take()
+    }
+
     pub(crate) fn pending(&self) -> bool {
         self.0.fullscreen.get().is_some()
             || self.0.size.get().is_some()
             || self.0.scale.get().is_some()
             || self.0.keyboard.get().is_some()
+            || self.0.touchscreen.get().is_some()
             || self.0.preferences.get().is_some()
     }
 

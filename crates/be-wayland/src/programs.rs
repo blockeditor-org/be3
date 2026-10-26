@@ -1,6 +1,7 @@
 mod entry;
 mod exec;
 mod icons;
+mod mime;
 
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
@@ -8,6 +9,7 @@ use std::path::{Path, PathBuf};
 pub use entry::{DesktopEntry, locales};
 pub use exec::{ExecError, arguments, command};
 pub use icons::{IconThemes, load_icon};
+pub use mime::MimeGlobs;
 
 const TERMINALS: [(&str, &[&str]); 8] = [
     ("foot", &[]),
@@ -135,12 +137,20 @@ impl Environment {
             .is_none_or(|program| self.find_program(program).is_some())
     }
 
-    pub fn command(&self, entry: &DesktopEntry) -> Result<Vec<String>, ExecError> {
+    pub fn command(
+        &self,
+        entry: &DesktopEntry,
+        file: Option<&str>,
+    ) -> Result<Vec<String>, ExecError> {
         let terminal = match entry.terminal {
             true => self.terminal(),
             false => None,
         };
-        command(entry, terminal.as_deref())
+        command(entry, terminal.as_deref(), file)
+    }
+
+    pub fn mime_globs(&self) -> MimeGlobs {
+        MimeGlobs::read(&self.data_dirs)
     }
 }
 

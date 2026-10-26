@@ -473,6 +473,9 @@ impl Runner {
         if let Some(attached) = self.reports.take_keyboard() {
             self.platform_keyboard = Some(attached);
         }
+        if let Some(attached) = self.reports.take_touchscreen() {
+            self.context.set_touchscreen_attached(attached);
+        }
         if let Some(preferences) = self.reports.take_system_preferences() {
             self.context
                 .set_preference_layer(crate::preferences::PreferenceSource::System, preferences);

@@ -11,6 +11,8 @@ mod a_drag_begun_on_the_ui_over_a_window_never_reaches_the_window;
 mod a_drag_does_not_drop_onto_a_window_a_modal_dialog_blocks;
 mod a_drag_reaches_a_popup_past_its_windows_edge;
 mod a_drawn_window_is_listed_and_fitted_to_where_it_is_shown;
+mod a_finger_held_on_one_window_stays_on_it_while_it_moves_over_another;
+mod a_finger_on_a_window_that_takes_no_touch_moves_and_presses_its_pointer;
 mod a_frame_callback_waits_for_the_flip_of_the_screen_the_window_is_on;
 mod a_fullscreen_window_covers_only_its_own_screen;
 mod a_global_action_that_does_not_intercept_leaves_the_window_its_keys;
@@ -70,8 +72,10 @@ mod text_the_host_copies_is_offered_to_programs;
 mod the_f_of_super_f_released_elsewhere_is_not_held_against_the_next;
 mod the_lock_time_runs_on_its_own_and_ignores_inhibitors_once_locked;
 mod the_pointer_shows_the_cursor_surface_a_client_sets_over_its_window;
+mod the_seat_offers_touch_only_while_a_touchscreen_is_attached;
 mod the_session_idles_after_the_blank_time_and_wakes_on_input;
 mod the_ui_can_make_a_window_fullscreen_and_take_it_back;
+mod two_fingers_on_a_window_reach_it_as_two_touch_points;
 mod with_middle_click_paste_off_a_selection_is_cancelled_and_offered_to_no_one;
 mod with_middle_click_paste_on_a_selection_is_offered_until_it_is_switched_off;
 
@@ -327,6 +331,11 @@ impl Harness {
         self.settle();
     }
 
+    fn attach_touchscreen(&mut self, attached: bool) {
+        self.context().set_touchscreen_attached(attached);
+        self.settle();
+    }
+
     fn settle(&mut self) {
         for _ in 0..3 {
             self.frame(Vec::new());
@@ -530,6 +539,15 @@ fn super_key(pressed: bool) -> Vec<Input> {
 
 fn f_key(pressed: bool) -> Vec<Input> {
     vec![stroke(Some(Key::F), KEY_F, pressed)]
+}
+
+fn finger(finger: u64, phase: beui::TouchPhase, pos: Pos2) -> Input {
+    Input::Touch {
+        id: beui::TouchId { device: 0, finger },
+        phase,
+        pos,
+        force: None,
+    }
 }
 
 fn outside() -> Pos2 {

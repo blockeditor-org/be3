@@ -34,7 +34,7 @@ use wayland_protocols::wp::idle_inhibit::zv1::client::{
 };
 
 mod protocols;
-pub(crate) use protocols::PenSeen;
+pub(crate) use protocols::{PenSeen, TouchSeen};
 use wayland_protocols::wp::presentation_time::client::{wp_presentation, wp_presentation_feedback};
 use wayland_protocols::xdg::activation::v1::client::{xdg_activation_token_v1, xdg_activation_v1};
 
@@ -891,7 +891,6 @@ impl Dispatch<org_kde_kwin_server_decoration::OrgKdeKwinServerDecoration, ()> fo
 }
 
 wayland_client::delegate_noop!(Received: ignore zxdg_decoration_manager_v1::ZxdgDecorationManagerV1);
-wayland_client::delegate_noop!(Received: ignore wl_seat::WlSeat);
 wayland_client::delegate_noop!(Received: ignore zwp_idle_inhibit_manager_v1::ZwpIdleInhibitManagerV1);
 wayland_client::delegate_noop!(Received: ignore zwp_idle_inhibitor_v1::ZwpIdleInhibitorV1);
 wayland_client::delegate_noop!(Received: ignore ext_idle_notifier_v1::ExtIdleNotifierV1);

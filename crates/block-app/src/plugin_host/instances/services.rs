@@ -309,27 +309,35 @@ impl Instances {
                     return self.answer_now(reply, Err(Failure::Denied));
                 }
                 let answering = self.answering(instance, reply);
-                let filter = beui::FileFilter {
-                    name: "Block file".to_owned(),
-                    extensions: vec![be_client::transfer::EXTENSION.to_owned()],
-                    mime_types: vec![be_client::transfer::MIME_TYPE.to_owned()],
+                let imported = |imported: Result<(Uuid, Uuid), String>| {
+                    imported.map(|(block, block_type)| {
+                        Some(ImportedBlock {
+                            block_id: block.into_bytes(),
+                            block_type: block_type.into_bytes(),
+                        })
+                    })
                 };
-                host::pick_file(filter, move |picked| {
+                host::pick_file(beui::FileFilter::default(), move |picked| {
                     if answering.withdrawn() {
                         return;
                     }
-                    answering.imported(match picked {
-                        Ok(Some(file)) => {
-                            crate::be::import(&file.data, parent).map(|(block, block_type)| {
-                                Some(ImportedBlock {
-                                    block_id: block.into_bytes(),
-                                    block_type: block_type.into_bytes(),
-                                })
-                            })
+                    match picked {
+                        Ok(Some(file))
+                            if be_block::plain::extension(&file.name)
+                                == be_client::transfer::EXTENSION =>
+                        {
+                            answering.imported(imported(crate::be::import(&file.data, parent)));
                         }
-                        Ok(None) => Ok(None),
-                        Err(error) => Err(error),
-                    });
+                        Ok(Some(file)) => {
+                            crate::be::import_file(file.name, file.data, parent, move |file| {
+                                if !answering.withdrawn() {
+                                    answering.imported(imported(file));
+                                }
+                            });
+                        }
+                        Ok(None) => answering.imported(Ok(None)),
+                        Err(error) => answering.imported(Err(error)),
+                    }
                 });
             }
             Call::CopyBlocks {
