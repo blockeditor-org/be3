@@ -19,7 +19,9 @@ fn index_at(editor: &BeuiTest<CanvasApp>, field: &str, at: Pos2) -> usize {
     let document = editor.document();
     let node = document.find_test_id(field).expect("the text is drawn");
     let surface = document.api::<TextAreaSurfaceApi>(node).surface();
-    document.api::<TextAreaApi>(surface).index_at(&*document, at)
+    document
+        .api::<TextAreaApi>(surface)
+        .index_at(&*document, at)
 }
 
 fn layout(editor: &BeuiTest<CanvasApp>, field: &str) -> Vec<usize> {
