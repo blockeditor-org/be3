@@ -38,7 +38,7 @@ use windows::Win32::UI::WindowsAndMessaging::{
     EnumWindows, GCLP_HICON, GCLP_HICONSM, GW_OWNER, GWL_EXSTYLE, GWL_STYLE, GetClassLongPtrW,
     GetClassNameW, GetForegroundWindow, GetWindow, GetWindowLongPtrW, GetWindowRect,
     GetWindowTextLengthW, GetWindowTextW, GetWindowThreadProcessId, HICON, ICON_BIG, ICON_SMALL,
-    ICON_SMALL2, IsHungAppWindow, IsIconic, IsWindowVisible, MONITORINFOF_PRIMARY,
+    ICON_SMALL2, IsHungAppWindow, IsIconic, IsWindowVisible, IsZoomed, MONITORINFOF_PRIMARY,
     SMTO_ABORTIFHUNG, SMTO_BLOCK, SendMessageTimeoutW, WM_GETICON, WS_CHILD, WS_EX_APPWINDOW,
     WS_EX_DLGMODALFRAME, WS_EX_NOACTIVATE, WS_EX_TOOLWINDOW, WS_POPUP,
 };
@@ -176,6 +176,7 @@ fn raw_window(window: HWND) -> RawWindow {
         cloaked,
         enabled: unsafe { IsWindowEnabled(window) }.as_bool(),
         minimized: unsafe { IsIconic(window) }.as_bool(),
+        maximized: unsafe { IsZoomed(window) }.as_bool(),
         style: Style {
             popup: style & WS_POPUP.0 != 0,
             child: style & WS_CHILD.0 != 0,
@@ -189,7 +190,7 @@ fn raw_window(window: HWND) -> RawWindow {
     }
 }
 
-fn rect(rect: RECT) -> Rect {
+pub(super) fn rect(rect: RECT) -> Rect {
     Rect::new(rect.left, rect.top, rect.right, rect.bottom)
 }
 

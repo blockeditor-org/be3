@@ -30,7 +30,7 @@ pub use programs::{Program, Shortcut};
 #[cfg(windows)]
 pub use win32::{
     Watcher, Win32Desktop, bring_forward, close_window, exec, launch, power_availability,
-    program_icon, request_power, start_menu_programs,
+    program_icon, request_power, resize_window, set_maximized, start_menu_programs,
 };
 
 use std::path::PathBuf;
@@ -126,6 +126,13 @@ impl Rect {
     }
 }
 
+pub fn window_size_for_frame(window: Rect, frame: Rect, width: i32, height: i32) -> (i32, i32) {
+    (
+        (width + window.width() - frame.width()).max(1),
+        (height + window.height() - frame.height()).max(1),
+    )
+}
+
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct Image {
     pub width: u32,
@@ -155,6 +162,7 @@ pub struct RawWindow {
     pub cloaked: bool,
     pub enabled: bool,
     pub minimized: bool,
+    pub maximized: bool,
     pub style: Style,
     pub frame: Rect,
     pub responding: bool,

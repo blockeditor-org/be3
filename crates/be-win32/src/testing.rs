@@ -114,6 +114,7 @@ pub fn window(handle: u64, title: &str) -> RawWindow {
         cloaked: false,
         enabled: true,
         minimized: false,
+        maximized: false,
         style: Default::default(),
         frame: Rect::new(100, 100, 900, 700),
         responding: true,

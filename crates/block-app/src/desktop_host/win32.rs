@@ -5,16 +5,18 @@ use std::sync::Arc;
 use std::sync::mpsc::{Receiver, TryRecvError};
 
 use be_win32::{EntryId, EntryKind, FocusEvent, Handle, Hotkey, Program, Snapshot, Watcher};
-use be_win32_capture::{Capture, Device, Target};
+use be_win32_capture::{Capture, Device, Lost, Target};
 use beui::reactive::*;
 use beui::styled::*;
 use beui::{
-    Context, Document, Drawing, Forwarded, ForwardedInput, NodeId, PointerPhase, Rect, Setup,
+    Context, Document, Drawing, Forwarded, ForwardedInput, NodeId, PointerPhase, Pos2, Rect, Setup,
+    Vec2, WindowPlacement, WindowReport, WindowRole,
 };
 use block_plugin_api::{HostImage, HostProgram, HostWindow, HostWindowId};
 
 use super::texture_draw::TextureDraw;
-use super::win32_map::{self, SurfaceNotice, entry_id};
+use super::win32_map::{self, Recovery, SurfaceNotice, entry_id};
+use super::win32_shape::Shaping;
 use crate::host::HostItem;
 use crate::surfaces::HostItemFace;
 
@@ -29,8 +31,25 @@ struct Gpu {
     srgb: bool,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+enum Source {
+    Entry(EntryId),
+    Popup { entry: EntryId, handle: Handle },
+}
+
+impl Source {
+    fn entry(self) -> EntryId {
+        match self {
+            Self::Entry(entry) | Self::Popup { entry, .. } => entry,
+        }
+    }
+}
+
 struct Captured {
     capture: Capture,
+    target: Target,
+    title: String,
+    restarted: bool,
     drawn: u64,
     cursor: bool,
     users: Vec<(u64, Signal<Option<Drawing>>)>,
@@ -54,8 +73,10 @@ thread_local! {
     static HOST_WINDOW: Cell<Option<Handle>> = const { Cell::new(None) };
     static HOST: RefCell<Option<Host>> = const { RefCell::new(None) };
     static DEVICE: RefCell<Option<Device>> = const { RefCell::new(None) };
-    static CAPTURES: RefCell<HashMap<EntryId, Captured>> = RefCell::new(HashMap::new());
+    static CAPTURES: RefCell<HashMap<Source, Captured>> = RefCell::new(HashMap::new());
     static NEXT_USER: Cell<u64> = const { Cell::new(0) };
+    static SHAPING: RefCell<Shaping> = RefCell::new(Shaping::default());
+    static CHANGES: Cell<u64> = const { Cell::new(0) };
 }
 
 fn signals() -> Option<Signals> {
@@ -64,6 +85,11 @@ fn signals() -> Option<Signals> {
 
 fn watcher() -> Option<Arc<Watcher>> {
     HOST.with_borrow(|host| host.as_ref().map(|host| host.watcher.clone()))
+}
+
+fn changed() {
+    CHANGES.set(CHANGES.get() + 1);
+    crate::host::wake();
 }
 
 fn snapshot() -> Arc<Snapshot> {
@@ -150,10 +176,18 @@ fn device() -> Option<Device> {
     })
 }
 
-pub(crate) fn before(_context: &Context, _rect: Rect, document: &mut Document) {
+fn start_capture(target: Target) -> Result<Capture, String> {
+    let device = device().ok_or_else(|| "there is no GPU to draw it with".to_owned())?;
+    Capture::start(&device, target, |_| crate::host::wake())
+}
+
+pub(crate) fn before(_context: &Context, rect: Rect, document: &mut Document) {
     let Some(watcher) = watcher() else {
         return;
     };
+    if SHAPING.with_borrow_mut(|shaping| shaping.set_area(rect)) {
+        changed();
+    }
     let Some(signals) = signals() else {
         return;
     };
@@ -177,13 +211,36 @@ pub(crate) fn before(_context: &Context, _rect: Rect, document: &mut Document) {
     }
     let frames = CAPTURES.with_borrow_mut(|captures| {
         let mut frames = Vec::new();
-        captures.retain(|id, captured| {
+        captures.retain(|source, captured| {
             if let Some(lost) = captured.capture.lost() {
-                eprintln!("block-app: the capture of entry {} ended: {lost:?}", id.0);
+                eprintln!("block-app: the capture of {source:?} ended: {lost:?}");
+                let failed = match &lost {
+                    Lost::Closed => None,
+                    Lost::Failed(error) => Some(error.as_str()),
+                };
+                let notice = match win32_map::recovery(failed, captured.restarted, &captured.title)
+                {
+                    Recovery::Stop => None,
+                    Recovery::Notice(notice) => Some(notice),
+                    Recovery::Restart => match start_capture(captured.target) {
+                        Ok(capture) => {
+                            captured.capture = capture;
+                            captured.restarted = true;
+                            captured.drawn = 0;
+                            captured.cursor = false;
+                            return true;
+                        }
+                        Err(error) => win32_map::recovery(Some(&error), true, &captured.title)
+                            .notice(),
+                    },
+                };
+                if let Some(notice) = notice {
+                    crate::notices::report(notice);
+                }
                 frames.extend(captured.users.iter().map(|(_, drawing)| (*drawing, None)));
                 return false;
             }
-            let cursor = focused == Some(*id);
+            let cursor = focused == Some(source.entry());
             if cursor != captured.cursor {
                 captured.cursor = cursor;
                 captured.capture.set_cursor(cursor);
@@ -257,12 +314,16 @@ pub(crate) fn set_owned(owned: bool) {
 }
 
 pub(crate) fn revision() -> u64 {
-    watcher().map_or(0, |watcher| watcher.snapshot().revision)
+    watcher().map_or(0, |watcher| watcher.snapshot().revision) + CHANGES.get()
 }
 
 pub(crate) fn listed(hidden: &[HostWindowId]) -> Vec<HostWindow> {
     watcher().map_or_else(Vec::new, |watcher| {
-        win32_map::listed(&watcher.snapshot(), hidden)
+        let snapshot = watcher.snapshot();
+        SHAPING.with_borrow_mut(|shaping| {
+            shaping.observe(&snapshot);
+            win32_map::listed(&snapshot, hidden, shaping)
+        })
     })
 }
 
@@ -282,7 +343,32 @@ pub(crate) fn close(window: HostWindowId) {
     }
 }
 
-pub(crate) fn fullscreen(_window: HostWindowId, _fullscreen: bool) {}
+pub(crate) fn fullscreen(window: HostWindowId, fullscreen: bool) {
+    let Some(watcher) = watcher() else {
+        return;
+    };
+    let snapshot = watcher.snapshot();
+    let id = entry_id(window);
+    let handle = SHAPING.with_borrow_mut(|shaping| match fullscreen {
+        true => shaping.enter_fullscreen(&snapshot, id),
+        false => shaping.leave_fullscreen(&snapshot, id),
+    });
+    if let Some(handle) = handle {
+        be_win32::set_maximized(handle, fullscreen);
+    }
+    changed();
+}
+
+fn resize(id: EntryId, size: Vec2) {
+    let snapshot = snapshot();
+    let asked = SHAPING.with_borrow_mut(|shaping| shaping.placed(&snapshot, id, size));
+    let (Some((width, height)), Some(entry)) = (asked, snapshot.entry(id)) else {
+        return;
+    };
+    if let Err(error) = be_win32::resize_window(entry.handle, width, height) {
+        eprintln!("block-app: {} was not resized: {error}", entry.title);
+    }
+}
 
 pub(crate) fn show(window: HostWindowId) {
     if let Some(watcher) = watcher() {
@@ -363,12 +449,13 @@ pub(crate) fn WindowActions() -> NodeId {
     }
 }
 
-fn acquire(id: EntryId, drawing: Signal<Option<Drawing>>) -> Option<u64> {
-    let entry = snapshot().entry(id).cloned()?;
+fn acquire(source: Source, drawing: Signal<Option<Drawing>>) -> Option<u64> {
+    let snapshot = snapshot();
+    let entry = snapshot.entry(source.entry())?;
     let user = NEXT_USER.get() + 1;
     NEXT_USER.set(user);
     let held = CAPTURES.with_borrow_mut(|captures| {
-        if let Some(captured) = captures.get_mut(&id) {
+        if let Some(captured) = captures.get_mut(&source) {
             captured.users.push((user, drawing));
             captured.drawn = 0;
             crate::host::wake();
@@ -379,18 +466,21 @@ fn acquire(id: EntryId, drawing: Signal<Option<Drawing>>) -> Option<u64> {
     if held {
         return Some(user);
     }
-    let device = device()?;
-    let target = match entry.kind {
-        EntryKind::Display => Target::Monitor(entry.handle.0 as isize),
-        EntryKind::Window => Target::Window(entry.handle.0 as isize),
+    let target = match (source, entry.kind) {
+        (Source::Popup { handle, .. }, _) => Target::Window(handle.0 as isize),
+        (Source::Entry(_), EntryKind::Display) => Target::Monitor(entry.handle.0 as isize),
+        (Source::Entry(_), EntryKind::Window) => Target::Window(entry.handle.0 as isize),
     };
-    match Capture::start(&device, target, |_| crate::host::wake()) {
+    match start_capture(target) {
         Ok(capture) => {
             CAPTURES.with_borrow_mut(|captures| {
                 captures.insert(
-                    id,
+                    source,
                     Captured {
                         capture,
+                        target,
+                        title: entry.title.clone(),
+                        restarted: false,
                         drawn: 0,
                         cursor: false,
                         users: vec![(user, drawing)],
@@ -406,12 +496,12 @@ fn acquire(id: EntryId, drawing: Signal<Option<Drawing>>) -> Option<u64> {
     }
 }
 
-fn release(id: EntryId, user: u64) {
+fn release(source: Source, user: u64) {
     let capture = CAPTURES.with_borrow_mut(|captures| {
-        let captured = captures.get_mut(&id)?;
+        let captured = captures.get_mut(&source)?;
         captured.users.retain(|(held, _)| *held != user);
         match captured.users.is_empty() {
-            true => captures.remove(&id),
+            true => captures.remove(&source),
             false => None,
         }
     });
@@ -483,6 +573,50 @@ fn forwarded(id: EntryId, pressed: &Cell<bool>, input: ForwardedInput) {
     }
 }
 
+fn popup_forwarded(entry: EntryId, handle: Handle, input: ForwardedInput) {
+    let size = input.rect.size();
+    for event in &input.events {
+        let Forwarded::Pointer { event, over } = event else {
+            continue;
+        };
+        if event.pointer.is_controller() || !matches!(event.phase, PointerPhase::Down(_)) {
+            continue;
+        }
+        let local = over.map_or(event.pos - input.rect.min.to_vec2(), |over| over.local);
+        let snapshot = snapshot();
+        let at = snapshot.entry(entry).and_then(|toplevel| {
+            let popup = toplevel.popups.iter().find(|popup| popup.handle == handle)?;
+            Some(win32_map::popup_point(
+                toplevel.frame,
+                popup.frame,
+                size,
+                local,
+            ))
+        });
+        focus_entry(entry, at);
+    }
+}
+
+#[component]
+fn PopupSurface(entry: EntryId, handle: Handle) -> NodeId {
+    let source = Source::Popup { entry, handle };
+    let drawing = create_signal(None);
+    if let Some(user) = acquire(source, drawing) {
+        on_cleanup(move || release(source, user));
+    }
+    view! {
+        <Interactive
+            focusable=true
+            press_focus=false
+            tab_stop=false
+            @test_id={format!("win32.popup.{}", handle.0)}
+            on_forward={move |input: ForwardedInput| popup_forwarded(entry, handle, input)}
+        >
+            <Drawing draw={Prop::dynamic(move || draw_gpu(drawing.get()))} />
+        </Interactive>
+    }
+}
+
 #[component]
 pub(crate) fn WindowSurface(window: HostWindowId) -> NodeId {
     let id = entry_id(window);
@@ -492,8 +626,8 @@ pub(crate) fn WindowSurface(window: HostWindowId) -> NodeId {
         };
     };
     let drawing = create_signal(None);
-    if let Some(user) = acquire(id, drawing) {
-        on_cleanup(move || release(id, user));
+    if let Some(user) = acquire(Source::Entry(id), drawing) {
+        on_cleanup(move || release(Source::Entry(id), user));
     }
     let snapshot = signals.snapshot;
     let refused = signals.refused;
@@ -510,53 +644,125 @@ pub(crate) fn WindowSurface(window: HostWindowId) -> NodeId {
     });
     let pressed = Rc::new(Cell::new(false));
     view! {
-        <Interactive
-            focusable=true
-            @test_id={format!("win32.window.{}", id.0)}
-            on_forward={move |input: ForwardedInput| forwarded(id, &pressed, input)}
-        >
-            <Layers>
-                <Drawing draw={Prop::dynamic(move || draw_gpu(drawing.get()))} />
-                <Frame fill={dim} />
-                <Dynamic value={notice}>|notice: Option<SurfaceNotice>| {
-                    match notice {
-                        Some(notice) => {
-                            let content = create_memo(move || notice_item(&notice));
-                            view! {
-                                <Frame align=beui::Align::Center>
-                                    <HostItemFace content />
-                                </Frame>
-                            }
+        <PlacementBuilder>|rect: ReadSignal<Rect>| {
+            create_effect(move || resize(id, rect.get().size()));
+            let popups = create_memo(move || {
+                let panel = rect.get();
+                snapshot.with(|snapshot| {
+                    snapshot
+                        .entry(id)
+                        .map(|entry| {
+                            entry
+                                .popups
+                                .iter()
+                                .map(|popup| {
+                                    let at = win32_map::popup_rect(entry.frame, popup.frame, panel.size());
+                                    (popup.handle, at.translate(panel.min.to_vec2()))
+                                })
+                                .collect::<Vec<_>>()
+                        })
+                        .unwrap_or_default()
+                })
+            });
+            let hosted = opens_windows();
+            let keys = create_memo(move || {
+                let hosted = hosted.get();
+                popups.with(|popups| {
+                    popups
+                        .iter()
+                        .map(|(handle, at)| {
+                            (handle.0, hosted.then(|| (at.min.x.to_bits(), at.min.y.to_bits())))
+                        })
+                        .collect::<Vec<_>>()
+                })
+            });
+            let parent = use_window().map_or(beui::WindowId::MAIN, |window| window.id);
+            let pressed = pressed.clone();
+            view! {
+                <Layers>
+                    <Interactive
+                        focusable=true
+                        @test_id={format!("win32.window.{}", id.0)}
+                        on_forward={move |input: ForwardedInput| forwarded(id, &pressed, input)}
+                    >
+                        <Layers>
+                            <Drawing draw={Prop::dynamic(move || draw_gpu(drawing.get()))} />
+                            <Frame fill={dim} />
+                            <Dynamic value={notice}>|notice: Option<SurfaceNotice>| {
+                                match notice {
+                                    Some(notice) => {
+                                        let content = create_memo(move || notice_item(&notice));
+                                        view! {
+                                            <Frame align=beui::Align::Center>
+                                                <HostItemFace content />
+                                            </Frame>
+                                        }
+                                    }
+                                    None => view! {
+                                        <Frame />
+                                    },
+                                }
+                            }</Dynamic>
+                            <Dynamic value={focused}>|focused: bool| {
+                                match focused {
+                                    true => {
+                                        let content = create_memo(|| HostItem::Notice {
+                                            text: format!(
+                                                "Windows has the mouse and keyboard. Press {} to come back to Block.",
+                                                Hotkey::DEFAULT
+                                            ),
+                                            busy: false,
+                                            icon: Some(beui::icons::ICON_KEYBOARD),
+                                        });
+                                        view! {
+                                            <List spacing=Space::Sm align=Align::Center>
+                                                <HostItemFace content />
+                                            </List>
+                                        }
+                                    }
+                                    false => view! {
+                                        <Frame />
+                                    },
+                                }
+                            }</Dynamic>
+                        </Layers>
+                    </Interactive>
+                    <ForEach keys={keys}>|key: (u64, Option<(u32, u32)>)| {
+                        let handle = Handle(key.0);
+                        let placed = create_memo(move || {
+                            popups.with(|popups| {
+                                popups
+                                    .iter()
+                                    .find(|(popup, _)| *popup == handle)
+                                    .map(|(_, at)| *at)
+                            })
+                        });
+                        let at = create_memo(move || placed.get().map_or(Pos2::ZERO, |at| at.min));
+                        let size = create_memo(move || placed.get().map_or(Vec2::ZERO, |at| at.size()));
+                        let open = create_memo(move || placed.get().is_some());
+                        let placement = WindowPlacement::Over {
+                            window: parent,
+                            at: at.get_untracked(),
+                        };
+                        view! {
+                            <Window
+                                id={None}
+                                size
+                                placement
+                                at
+                                open
+                                role={WindowRole::Popup}
+                                on_report={|_: WindowReport| {}}
+                            >|_: WindowHandle| {
+                                view! {
+                                    <PopupSurface entry={id} handle />
+                                }
+                            }</Window>
                         }
-                        None => view! {
-                            <Frame />
-                        },
-                    }
-                }</Dynamic>
-                <Dynamic value={focused}>|focused: bool| {
-                    match focused {
-                        true => {
-                            let content = create_memo(|| HostItem::Notice {
-                                text: format!(
-                                    "Windows has the mouse and keyboard. Press {} to come back to Block.",
-                                    Hotkey::DEFAULT
-                                ),
-                                busy: false,
-                                icon: Some(beui::icons::ICON_KEYBOARD),
-                            });
-                            view! {
-                                <List spacing=Space::Sm align=Align::Center>
-                                    <HostItemFace content />
-                                </List>
-                            }
-                        }
-                        false => view! {
-                            <Frame />
-                        },
-                    }
-                }</Dynamic>
-            </Layers>
-        </Interactive>
+                    }</ForEach>
+                </Layers>
+            }
+        }</PlacementBuilder>
     }
 }
 

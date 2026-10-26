@@ -18,12 +18,13 @@ machine; Wine has no Windows.Graphics.Capture.
   a hidden window for display changes and a 1 s tick for "not responding". `Model` folds what it
   reads into a `Snapshot`: entries with stable `EntryId`s, the displays first (one per monitor,
   sized as the monitor and titled with its name), then the top-level windows Alt+Tab would show
-  (with owner, dialog, icon, title, app id, frame bounds, popups, `Control::Elevated` for a
-  process of higher integrity), the monitors, and the input desktop (`secure_desktop()`). It
+  (with owner, dialog, icon, title, app id, frame bounds, minimized and maximized, popups,
+  `Control::Elevated` for a process of higher integrity), the monitors, and the input desktop (`secure_desktop()`). It
   keeps each entry's `shown`, so a restarted shell brings back what was shown. It also lists
   the Start Menu's `.lnk` programs, launches them (`launch`, `exec`, which block in
   `ShellExecuteExW`) and matches their windows by process id (`Watcher::launched`), and offers
-  lock, suspend, restart, power off and log out. It sets `WDA_EXCLUDEFROMCAPTURE` on every
+  lock, suspend, restart, power off and log out, and closes, resizes and maximizes windows
+  (`close_window`, `resize_window`, `set_maximized`). It sets `WDA_EXCLUDEFROMCAPTURE` on every
   top-level window of block-app's own process as it appears, so captures never show block-app.
 - `crates/be-win32-capture`: Windows.Graphics.Capture of one monitor or window, its newest frame
   handed out as a `wgpu::Texture` on wgpu's Vulkan device (shared D3D11 texture and fence,
@@ -52,7 +53,35 @@ block-app's one window), stay unsupported, so the shell hides what they back.
   shells do only for shown entries, and stops it when unmounted; a display entry draws its
   monitor's capture. Each capture's notify wakes the UI, and `before` hands the newest `Frame`
   to every surface showing it (`desktop_host/texture_draw.rs` draws it and keeps the `Frame` alive
-  while drawn). The frames' format follows the surface (srgb or not).
+  while drawn). The frames' format follows the surface (srgb or not). A capture that reports
+  `Lost::Failed` is started again once; failing again is a toast (`win32_map::recovery`).
+  `Lost::Closed` just ends it.
+- Popups: be-win32 gives each entry its live popups (menus, tooltips: owned or same-thread
+  `WS_POPUP` windows), bottom first, with their frames. `WindowSurface` captures each popup's
+  HWND and draws it as a `Window` of role `WindowRole::Popup` placed `Over` the window the panel
+  is in, at its offset from the toplevel's frame in the panel's scale (`win32_map::popup_rect`),
+  as the Linux host shows a toplevel's popups (guides/desktop.md, Program windows). They come
+  and go with the snapshot; where windows are hosted (space) a popup is opened again when its
+  corner moves. A press on one focuses its toplevel with the cursor at that point
+  (`popup_point`); controllers do not inject into popups. Focus mode's clip already covers them.
+- Sizes (`desktop_host/win32_shape.rs`, `Shaping`, tested on Linux), as guides/desktop/linux.md
+  does for floating windows: `HostWindow::size` is the size the window last chose itself (its
+  frame bounds in its monitor's points), not one it took because block-app asked, so a window
+  shown at its own size keeps following its own size. When a panel's placed size differs from
+  where the window is heading (by more than 2 px), because the person resized the panel or docked
+  it, the host asks for it: `be_win32::resize_window` (frame size in physical pixels, the panel's
+  points times the monitor's scale; it adds the invisible borders, the window rect less the DWM
+  frame bounds, and calls `SetWindowPos` with `SWP_NOMOVE | SWP_NOZORDER | SWP_NOACTIVATE |
+  SWP_ASYNCWINDOWPOS` on a per-monitor-aware thread context). The last few sizes asked are kept,
+  and a frame matching one is that answer; any other frame is the window's own choice and clears
+  them. Displays, minimized, maximized, fullscreen and elevated windows are never resized.
+- Fullscreen: Windows has no request for another program's window to go fullscreen, so the
+  `fullscreen` action maximizes it (`be_win32::set_maximized`, `ShowWindowAsync`, which also
+  activates it) and leaving restores it. `HostWindow::fullscreen` is the area the shell is shown
+  in (the `rect` `before` is given, block-app's window, as Linux reports in a window) for a window
+  the shell maximized while it stays maximized (restoring it by hand ends it) and for any window
+  whose frame covers a whole monitor (a game, F11 in a browser); the shell then fills that area
+  with its panel.
 - Focus mode is the mouse and keyboard path: a press on an entry's panel, or the `focus` window
   action (the picker), calls `Watcher::focus(id, point)` at once, which raises the real window,
   makes it the foreground, moves the cursor in and clips it there, so the physical mouse and
@@ -68,7 +97,7 @@ block-app's one window), stay unsupported, so the shell hides what they back.
 
 ## Not there yet
 
-Opening a block's file in a Windows program, packaged (Store) apps, per-window popups shown as
-popups of their toplevel, resizing and fullscreen (`fullscreen` is ignored), the tray,
+Opening a block's file in a Windows program, packaged (Store) apps, injecting controller presses
+into popups, the tray,
 notifications, media, Wi-Fi, input devices and the lock screen (Explorer owns them). The deferred
 input plans are in plans/windows_input.md.

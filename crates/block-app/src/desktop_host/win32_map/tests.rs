@@ -46,7 +46,9 @@ fn window(id: u64, frame: Rect) -> Entry {
 
 mod a_point_in_a_panel_lands_on_the_same_place_in_the_frame;
 mod a_start_menu_shortcut_becomes_a_program;
-mod a_window_covering_a_monitor_is_fullscreen_on_it;
+mod a_failed_capture_restarts_once_then_tells_the_person;
+mod a_popup_sits_at_its_offset_from_its_window_in_the_panels_scale;
+mod a_window_covering_a_monitor_or_maximized_by_the_shell_fills_the_shell;
 mod a_window_entry_becomes_a_host_window_in_its_monitors_points;
 mod displays_come_first_as_display_entries_and_keep_whether_they_are_shown;
 mod entry_ids_are_host_window_ids;

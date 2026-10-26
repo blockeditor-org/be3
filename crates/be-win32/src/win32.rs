@@ -2,11 +2,13 @@ mod affinity;
 mod desktop;
 mod focus;
 mod icons;
+mod placement;
 mod power;
 mod programs;
 mod watcher;
 
 pub use desktop::Win32Desktop;
+pub use placement::{resize_window, set_maximized};
 pub use power::{power_availability, request_power};
 pub use programs::{exec, launch, program_icon, start_menu_programs};
 pub use watcher::Watcher;

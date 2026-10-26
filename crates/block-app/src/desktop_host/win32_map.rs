@@ -1,4 +1,5 @@
 use be_win32::{Entry, EntryId, EntryKind, FocusError, Point, Program, Rect, Snapshot};
+use super::win32_shape::Shaping;
 use block_plugin_api::{
     HostImage, HostProgram, HostWindow, HostWindowId, Vec2, WindowKind, WindowOrigin,
 };
@@ -62,30 +63,17 @@ pub(crate) fn scale_at(snapshot: &Snapshot, rect: Rect) -> f32 {
         .max(0.1)
 }
 
-fn logical(rect: Rect, scale: f32) -> block_plugin_api::Rect {
-    block_plugin_api::Rect::from_min_size(
-        block_plugin_api::Pos2::new(rect.left as f32 / scale, rect.top as f32 / scale),
-        Vec2::new(rect.width() as f32 / scale, rect.height() as f32 / scale),
-    )
-}
-
-pub(crate) fn host_window(snapshot: &Snapshot, entry: &Entry) -> HostWindow {
+pub(crate) fn host_window(snapshot: &Snapshot, entry: &Entry, shaping: &Shaping) -> HostWindow {
     let scale = scale_at(snapshot, entry.frame);
-    let fullscreen = snapshot
-        .monitors
-        .iter()
-        .find(|monitor| entry.kind == EntryKind::Window && monitor.rect == entry.frame)
-        .map(|monitor| logical(monitor.rect, monitor.scale.max(0.1)));
+    let (width, height) = shaping.own_size(entry);
+    let fullscreen = shaping.fullscreen_area(snapshot, entry);
     HostWindow {
         id: window_id(entry.id),
         title: entry.title.clone(),
         app_id: entry.app_id.clone(),
         parent: entry.parent.map(window_id),
         modal: entry.modal,
-        size: Vec2::new(
-            entry.frame.width() as f32 / scale,
-            entry.frame.height() as f32 / scale,
-        ),
+        size: Vec2::new(width as f32 / scale, height as f32 / scale),
         fullscreen,
         responding: entry.responding,
         focused: entry.focused,
@@ -108,13 +96,17 @@ pub(crate) fn host_window(snapshot: &Snapshot, entry: &Entry) -> HostWindow {
     }
 }
 
-pub(crate) fn listed(snapshot: &Snapshot, hidden: &[HostWindowId]) -> Vec<HostWindow> {
+pub(crate) fn listed(
+    snapshot: &Snapshot,
+    hidden: &[HostWindowId],
+    shaping: &Shaping,
+) -> Vec<HostWindow> {
     snapshot
         .entries
         .iter()
         .filter(|entry| !hidden.contains(&window_id(entry.id)))
         .map(|entry| {
-            let mut window = host_window(snapshot, entry);
+            let mut window = host_window(snapshot, entry, shaping);
             window.parent = window.parent.filter(|parent| !hidden.contains(parent));
             window
         })
@@ -167,6 +159,65 @@ pub(crate) fn frame_point(frame: Rect, panel: Vec2, local: block_plugin_api::Pos
         along(local.x, panel.x, frame.width()),
         along(local.y, panel.y, frame.height()),
     )
+}
+
+pub(crate) fn popup_rect(frame: Rect, popup: Rect, panel: Vec2) -> block_plugin_api::Rect {
+    let across = |length: f32, pixels: i32| match pixels > 0 {
+        true => length / pixels as f32,
+        false => 0.0,
+    };
+    let x = across(panel.x, frame.width());
+    let y = across(panel.y, frame.height());
+    block_plugin_api::Rect::from_min_size(
+        block_plugin_api::Pos2::new(
+            (popup.left - frame.left) as f32 * x,
+            (popup.top - frame.top) as f32 * y,
+        ),
+        Vec2::new(popup.width() as f32 * x, popup.height() as f32 * y),
+    )
+}
+
+pub(crate) fn popup_point(
+    frame: Rect,
+    popup: Rect,
+    shown: Vec2,
+    local: block_plugin_api::Pos2,
+) -> Point {
+    let at = frame_point(popup, shown, local);
+    Point::new(
+        popup.left - frame.left + at.x,
+        popup.top - frame.top + at.y,
+    )
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) enum Recovery {
+    Restart,
+    Notice(String),
+    Stop,
+}
+
+impl Recovery {
+    pub(crate) fn notice(self) -> Option<String> {
+        match self {
+            Self::Notice(notice) => Some(notice),
+            Self::Restart | Self::Stop => None,
+        }
+    }
+}
+
+pub(crate) fn recovery(failed: Option<&str>, restarted: bool, title: &str) -> Recovery {
+    match failed {
+        None => Recovery::Stop,
+        Some(_) if !restarted => Recovery::Restart,
+        Some(error) => Recovery::Notice(format!(
+            "{} stopped being drawn, since capturing it failed twice: {error}",
+            match title.is_empty() {
+                true => "A window",
+                false => title,
+            }
+        )),
+    }
 }
 
 #[cfg(test)]
