@@ -1,10 +1,10 @@
 use super::*;
+use crate::NodeId;
 use crate::input::{Pen, PenPhase};
 use crate::primitives::{List, Text};
 use crate::reactive::*;
 use crate::styled::*;
 use crate::unstyled::DialogLayout;
-use crate::NodeId;
 
 #[test]
 fn a_dialog_opened_by_a_finger_is_a_sheet_and_by_a_pen_a_card() {
@@ -58,5 +58,7 @@ fn a_dialog_opened_by_a_finger_is_a_sheet_and_by_a_pen_a_card() {
 fn Probe(sheet: Signal<Option<bool>>) -> NodeId {
     let layout = use_context::<DialogLayout>().expect("a dialog provides its layout");
     create_effect(move || sheet.set(Some(layout.sheet.get())));
-    view! { <Text color=Color32::WHITE>"Body"</Text> }
+    view! {
+        <Text color=Color32::WHITE>"Body"</Text>
+    }
 }

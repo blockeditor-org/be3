@@ -131,9 +131,7 @@ pub fn Scroll(
     let max_length = use_size(max_length);
     let bounded = create_memo(move || ItemSize::Intrinsic.max(max_length.get()));
     view! {
-        <List direction={direction} spacing=Space::None>
-            {scroll} @sizing={bounded}
-        </List>
+        <List direction={direction} spacing=Space::None>{scroll} @sizing={bounded}</List>
     }
 }
 

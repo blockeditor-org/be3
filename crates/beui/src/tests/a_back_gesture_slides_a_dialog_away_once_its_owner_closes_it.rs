@@ -96,7 +96,12 @@ fn a_back_gesture_slides_a_dialog_away_once_its_owner_closes_it() {
         "the owner was asked as it was let go, and slides it away once it agrees"
     );
     assert!(
-        !harness.frame(Vec::new()).main().window.requests.handles_back,
+        !harness
+            .frame(Vec::new())
+            .main()
+            .window
+            .requests
+            .handles_back,
         "while it leaves it takes no more input"
     );
     harness.settle();

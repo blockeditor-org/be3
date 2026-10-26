@@ -808,8 +808,9 @@ fn press(
             CaretHandle::Start => end,
             _ => start,
         };
-        let offset =
-            state.caret_rect(&moving).map_or(Vec2::ZERO, |caret| press.pos - caret.min);
+        let offset = state
+            .caret_rect(&moving)
+            .map_or(Vec2::ZERO, |caret| press.pos - caret.min);
         *state.0.value().grab.borrow_mut() = Some(Grab { fixed, offset });
         on_toolbar.call(None);
         return;

@@ -813,27 +813,27 @@ fn DockDragPreview(title: Prop<String>, icon: Memo<Option<Glyph>>, grouped: bool
     let pictured_color = TextColor::Default;
     view! {
         <Fade opacity=PREVIEW_OPACITY>
-        <Frame
-            fill=ColorRole::SurfaceRaised
-            border={Border::FOCUS}
-            radius=TAB_RADIUS
-            height=TAB_HEIGHT
-            padding={Padding::horizontal(PREVIEW_PADDING)}
-        >
-            <List direction=Direction::Horizontal align=Align::Center spacing=TAB_SPACING>
-                <Show condition={grouped}>
-                    <Text size=TextSize::Sm align=TextAlign::Center>
-                        <Icon glyph=ICON_APP_WINDOW />
-                    </Text>
-                </Show>
-                <Show condition={pictured}>
-                    <Text size=TextSize::Sm color={pictured_color} align=TextAlign::Center>
-                        <Icon glyph={icon} />
-                    </Text>
-                </Show>
-                <Text overflow=Overflow::Ellipsis>{title}</Text>
-            </List>
-        </Frame>
+            <Frame
+                fill=ColorRole::SurfaceRaised
+                border={Border::FOCUS}
+                radius=TAB_RADIUS
+                height=TAB_HEIGHT
+                padding={Padding::horizontal(PREVIEW_PADDING)}
+            >
+                <List direction=Direction::Horizontal align=Align::Center spacing=TAB_SPACING>
+                    <Show condition={grouped}>
+                        <Text size=TextSize::Sm align=TextAlign::Center>
+                            <Icon glyph=ICON_APP_WINDOW />
+                        </Text>
+                    </Show>
+                    <Show condition={pictured}>
+                        <Text size=TextSize::Sm color={pictured_color} align=TextAlign::Center>
+                            <Icon glyph={icon} />
+                        </Text>
+                    </Show>
+                    <Text overflow=Overflow::Ellipsis>{title}</Text>
+                </List>
+            </Frame>
         </Fade>
     }
 }

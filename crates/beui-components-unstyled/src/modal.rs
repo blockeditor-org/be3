@@ -100,11 +100,10 @@ pub fn Modal(
             placement=placed
             scrim={faded}
             level={level}
-            policy={create_memo(move || match open.get() {
-                true => LayerPolicy::BlocksAll,
-                false => LayerPolicy::Inert,
+            policy={create_memo(move || match asked.get() && !open.get() {
+                true => LayerPolicy::Inert,
+                false => LayerPolicy::BlocksAll,
             })}
-            traps_focus={create_memo(move || open.get())}
             on_dismiss={move |_: Dismiss| on_dismiss.call()}
             content={move || body.call(())}
         />

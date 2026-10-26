@@ -940,8 +940,8 @@ Problems earlier steps found in the beui crates, fixed at their source:
   outside closed nothing until the animation had run (the palette tests,
   which look one frame later, saw no close). Escape, back and a press on the
   scrim now reach `on_dismiss` at once; the modal slides away only when its
-  owner closes it after such a request, lingering inert (no input, no focus
-  trap) while it goes, and stays put if the owner keeps it open, so a
+  owner closes it after such a request, lingering inert (it takes no
+  input) while it goes, and stays put if the owner keeps it open, so a
   "discard changes?" answer, or a plugin's `DialogDismissal`, decides first.
   `BackSlide` gained `open: Option<Prop<bool>>` and `on_gone` for this. The
   command palette stays `ModalMotion::Still` by choice, not as a

@@ -16,7 +16,12 @@ fn a_modal_with_nothing_to_focus_hears_escape() {
         view! {
             <Popover @node_ref=&popover label="Tools" open={shown}>|_: PopoverHandle|
                 <List spacing=8.0>
-                    <Button @node_ref=&opener label="Open" focused={aimed} on_click={move || open.set(true)} />
+                    <Button
+                        @node_ref=&opener
+                        label="Open"
+                        focused={aimed}
+                        on_click={move || open.set(true)}
+                    />
                     <Modal open={open} on_dismiss={move || dismissed.update(|n| *n += 1)}>
                         <Text color=Color32::WHITE>"Nothing here takes the focus"</Text>
                     </Modal>
