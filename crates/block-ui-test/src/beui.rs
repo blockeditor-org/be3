@@ -361,6 +361,7 @@ impl<A: BeuiApp> BeuiTest<A> {
             region,
             metrics,
             frame: self.frame,
+            windows: false, placement: None,
         }];
         block_plugin_api::embed::exports::plugin::screens(&mut self.connection, screens);
         let frames = self.connection.take_outbound();
@@ -886,6 +887,7 @@ impl<A: BeuiApp> BeuiTest<A> {
                     TimedInput {
                         input,
                         time_micros: sampled.then_some(now),
+                        over: None,
                     }
                 })
                 .collect();

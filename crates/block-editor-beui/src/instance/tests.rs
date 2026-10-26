@@ -50,6 +50,7 @@ fn frame(session: &mut EditorSession, content: Option<Rect>, top_bar: TopBar) {
                 content,
                 top_bar,
             }),
+            windows: false, placement: None,
         }],
     );
 }

@@ -524,6 +524,21 @@ pub(crate) fn ShellSurface(shell: Memo<Option<Uuid>>) -> NodeId {
 }
 
 #[component]
+pub(crate) fn ShellDisplay(shell: Memo<Option<Uuid>>, display: u32) -> NodeId {
+    let keys = create_memo(move || shell.get().into_iter().collect::<Vec<_>>());
+    view! {
+        <Layers>
+            <ForEach keys={keys}>|block: Uuid| {
+                provide_context(Nesting::root());
+                view! {
+                    <BlockRegion block region={EditorRegion::Display(display)} />
+                }
+            }</ForEach>
+        </Layers>
+    }
+}
+
+#[component]
 pub(crate) fn PresentingSurface() -> NodeId {
     let editors = editors();
     let any = super::any();
@@ -1494,7 +1509,7 @@ fn BlockFrameView(
     }
 }
 
-fn child_view(parent: Uuid, region: EditorRegion) -> ChildView {
+pub(super) fn child_view(parent: Uuid, region: EditorRegion) -> ChildView {
     store(Box::new(
         move |key: ChildId, child: Memo<Option<HostChild>>, rect: Memo<Rect>| {
             view! {

@@ -9,6 +9,7 @@ fn timed(input: Input, time_micros: u64) -> TimedInput {
     TimedInput {
         input,
         time_micros: Some(time_micros),
+        over: None,
     }
 }
 

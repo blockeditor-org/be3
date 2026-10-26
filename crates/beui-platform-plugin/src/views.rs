@@ -38,6 +38,7 @@ struct Shared {
     views: RefCell<Vec<View>>,
     watchers: RefCell<Vec<Rc<dyn Fn()>>>,
     reports: RefCell<HashMap<RegionId, Report>>,
+    floated: RefCell<Vec<(RegionId, beui_core::window::WindowId)>>,
 }
 
 #[derive(Clone, Default)]
@@ -63,6 +64,14 @@ impl Views {
 
     pub fn placement(&self, id: RegionId) -> WindowPlacement {
         WindowPlacement::Host(placement_of(id))
+    }
+
+    pub fn floated(&self) -> Vec<(RegionId, beui_core::window::WindowId)> {
+        self.0.floated.borrow().clone()
+    }
+
+    pub(crate) fn set_floated(&self, floated: Vec<(RegionId, beui_core::window::WindowId)>) {
+        *self.0.floated.borrow_mut() = floated;
     }
 
     pub fn report(&self, id: RegionId, report: Report) {

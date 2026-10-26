@@ -186,6 +186,7 @@ fn screens() -> Vec<ScreenRequest> {
                 top_bar: block_plugin_api::TopBar::Hidden,
             }),
             metrics: metrics(),
+            windows: false, placement: None,
         },
         ScreenRequest {
             screen: ScreenId(2),
@@ -193,6 +194,7 @@ fn screens() -> Vec<ScreenRequest> {
             region: EditorRegion::Preview,
             frame: None,
             metrics: metrics(),
+            windows: false, placement: None,
         },
     ]
 }

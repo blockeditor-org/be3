@@ -609,6 +609,7 @@ impl Runtime {
         let _ = crate::panic_guard::contain(|| self.backend.shutdown());
         previews::forget(&self.plugin.identity.id);
         CRASHED.with(|crashed| crashed.borrow_mut().push(self.plugin.identity.id.clone()));
+        crate::compositor::forget_windows(&self.plugin.identity.id);
         mark(&self.plugin.identity.id);
         host::request_repaint();
     }
@@ -968,7 +969,9 @@ impl Runtime {
             repaint_after_micros,
             animating,
             presented,
+            window_requests,
         } = commit;
+        crate::compositor::request_windows(&self.plugin.identity.id, window_requests);
         self.pacing.animating = animating;
         self.await_next_frame(repaint_after_micros);
         if let Some(presented) = presented {
@@ -2029,6 +2032,8 @@ pub(crate) struct RegionPlacement {
     pub(crate) clip: Rect,
     pub(crate) zoom: f32,
     pub(crate) raster: Option<f32>,
+    pub(crate) windows: bool,
+    pub(crate) placement: Option<String>,
 }
 
 pub(super) struct Offer {
@@ -2087,10 +2092,16 @@ fn apply_offers(runtime: &mut Runtime, instance: EditorInstanceId, region: Edito
             })
             .reduce(|shown, source| shown.union(source)),
     };
+    let seen = |offer: &Offer| {
+        let shown = offer.placement.rect.intersect(offer.placement.clip);
+        shown.width().max(0.0) * shown.height().max(0.0)
+    };
     let raster = offers
         .iter()
-        .filter_map(|offer| offer.placement.raster)
-        .reduce(f32::max);
+        .max_by(|a, b| seen(a).total_cmp(&seen(b)))
+        .and_then(|offer| offer.placement.raster);
+    let windows = chosen.placement.windows;
+    let host_placement = chosen.placement.placement.clone();
     let frame = chosen.frame;
     let view = chosen.view;
     let RegionPlacement {
@@ -2123,7 +2134,16 @@ fn apply_offers(runtime: &mut Runtime, instance: EditorInstanceId, region: Edito
     let visible = shown.map_or(Rect::ZERO, |source| scale_rect(source, size));
     runtime
         .instances
-        .place_mounted(instance, region, frame, size, visible, scale_factor);
+        .place_mounted(
+            instance,
+            region,
+            frame,
+            size,
+            visible,
+            scale_factor,
+            windows,
+            host_placement,
+        );
     if let Some(view) = view {
         runtime.instances.set_view(instance, view);
     }
@@ -2137,9 +2157,13 @@ pub(crate) fn forward_region(
     instance: EditorInstanceId,
     region: EditorRegion,
     input: &beui::ForwardedInput,
+    aim: &dyn Fn(Option<beui::Over>, beui::Pos2) -> beui::Aim,
+    target: &dyn Fn(beui::NodeId) -> Option<(EditorInstanceId, EditorRegion)>,
 ) {
     with(plugin_id, |runtime| {
-        let (messages, revoked) = runtime.instances.forward(instance, region, input);
+        let (messages, revoked) = runtime
+            .instances
+            .forward(instance, region, input, aim, target);
         runtime.pacing.needed |= !messages.is_empty();
         runtime.send(messages);
         if revoked {

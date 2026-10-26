@@ -285,7 +285,7 @@ pub(crate) fn begin(doc: &mut Document, frame: &Frame) -> Vec<LongPressed> {
             .window_size(window)
             .is_some_and(|size| Rect::from_min_size(Pos2::ZERO, size).contains(pos))
     };
-    let outside = left && doc.opens_windows() && !pos.is_some_and(within);
+    let outside = left && frame.ctx.opens_windows() && !pos.is_some_and(within);
     doc.drag_board().set_outside(outside);
     autoscroll::frame(doc, frame.ctx);
     long_presses(doc, frame)

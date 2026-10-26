@@ -14,11 +14,17 @@ use crate::window::WindowId;
 use super::hit;
 use super::pointer::Routed;
 
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Over {
+    pub node: NodeId,
+    pub local: Pos2,
+}
+
 #[derive(Clone, Debug, PartialEq)]
 pub enum Forwarded {
     Pointer {
         event: PointerEvent,
-        over: Option<NodeId>,
+        over: Option<Over>,
     },
     Left,
     Focus(bool),
@@ -55,12 +61,24 @@ impl ForwardedInput {
 pub struct Replayed {
     pub input: Input,
     pub time: Option<Instant>,
+    pub over: Option<NodeId>,
 }
 
 impl From<Input> for Replayed {
     fn from(input: Input) -> Self {
-        Self { input, time: None }
+        Self {
+            input,
+            time: None,
+            over: None,
+        }
     }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum Aim {
+    Own,
+    Other { node: NodeId, zoom: f32 },
+    Away,
 }
 
 #[derive(Default)]
@@ -68,6 +86,7 @@ pub struct Replay {
     focused: bool,
     modifiers: Modifiers,
     pressed: u32,
+    away: bool,
 }
 
 impl Replay {
@@ -75,7 +94,12 @@ impl Replay {
         self.focused
     }
 
-    pub fn replay(&mut self, input: &ForwardedInput, zoom: f32) -> Vec<Replayed> {
+    pub fn replay(
+        &mut self,
+        input: &ForwardedInput,
+        zoom: f32,
+        aim: impl Fn(Option<Over>, Pos2) -> Aim,
+    ) -> Vec<Replayed> {
         let zoom = match zoom.is_finite() && zoom > 0.0 {
             true => zoom,
             false => 1.0,
@@ -83,7 +107,44 @@ impl Replay {
         let mut out = Vec::new();
         for event in &input.events {
             match event {
-                Forwarded::Pointer { event, .. } => self.pointer(event, input.rect, zoom, &mut out),
+                Forwarded::Pointer { event, over } => {
+                    let aimed = match event.phase {
+                        PointerPhase::Move | PointerPhase::Down(_) | PointerPhase::Up(_) => {
+                            aim(*over, event.pos)
+                        }
+                        _ => Aim::Own,
+                    };
+                    let held = match event.pointer {
+                        PointerId::Touch(_) => false,
+                        _ => self.pressed > 0 || matches!(event.phase, PointerPhase::Up(_)),
+                    };
+                    match aimed {
+                        Aim::Away if held => {
+                            if !std::mem::replace(&mut self.away, true) {
+                                out.push(Input::PointerLeft.into());
+                            }
+                            self.pointer(event, input.rect, zoom, None, &mut out);
+                        }
+                        Aim::Other { node, zoom: theirs } => {
+                            self.away = false;
+                            let local = over.map_or(Pos2::ZERO, |over| over.local);
+                            let theirs = match theirs.is_finite() && theirs > 0.0 {
+                                true => theirs,
+                                false => 1.0,
+                            };
+                            let aimed = PointerEvent {
+                                pos: Pos2::ZERO + local.to_vec2() / theirs,
+                                predicted: None,
+                                ..*event
+                            };
+                            self.pointer(&aimed, Rect::ZERO, 1.0, Some(node), &mut out);
+                        }
+                        _ => {
+                            self.away = false;
+                            self.pointer(event, input.rect, zoom, None, &mut out);
+                        }
+                    }
+                }
                 Forwarded::Left => out.push(Input::PointerLeft.into()),
                 Forwarded::Focus(focused) | Forwarded::Input(Event::Focus(focused)) => {
                     if self.focused != *focused {
@@ -113,12 +174,20 @@ impl Replay {
         out
     }
 
-    fn pointer(&mut self, event: &PointerEvent, rect: Rect, zoom: f32, out: &mut Vec<Replayed>) {
+    fn pointer(
+        &mut self,
+        event: &PointerEvent,
+        rect: Rect,
+        zoom: f32,
+        over: Option<NodeId>,
+        out: &mut Vec<Replayed>,
+    ) {
         let at = |pos: Pos2| Pos2::ZERO + (pos - rect.min) / zoom;
         let pos = at(event.pos);
         let timed = |input: Input| Replayed {
             input,
             time: Some(event.time),
+            over,
         };
         if let PointerId::Touch(id) = event.pointer {
             let phase = match event.phase {
@@ -330,6 +399,11 @@ pub(super) fn route(
             {
                 entered.push(to);
             }
+            let over = over.map(|node| Over {
+                node,
+                local: Pos2::ZERO
+                    + (pointer_event.pos - rects.get(&node).map_or(Pos2::ZERO, |rect| rect.min)),
+            });
             deliver(
                 to,
                 Forwarded::Pointer {

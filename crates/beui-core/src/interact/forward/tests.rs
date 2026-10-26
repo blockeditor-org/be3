@@ -62,7 +62,7 @@ fn timed(replay: &mut Replay, events: Vec<Forwarded>, zoom: f32) -> Vec<Replayed
         pointer: None,
         modifiers: Modifiers::NONE,
     };
-    replay.replay(&input, zoom)
+    replay.replay(&input, zoom, |_, _| Aim::Own)
 }
 
 fn button(pos: Pos2, pressed: bool) -> Input {

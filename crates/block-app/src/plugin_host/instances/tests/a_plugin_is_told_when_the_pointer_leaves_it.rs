@@ -11,6 +11,8 @@ fn a_plugin_is_told_when_the_pointer_leaves_it() {
         INSTANCE,
         REGION,
         &forwarded(vec![moved(inside)], Some(inside), false),
+        &|_, _| beui::Aim::Own,
+        &|_| None,
     );
     assert_eq!(
         input_events(&messages),
@@ -18,6 +20,6 @@ fn a_plugin_is_told_when_the_pointer_leaves_it() {
     );
 
     let left = forwarded(vec![beui::Forwarded::Left], None, false);
-    let (messages, _) = instances.forward(INSTANCE, REGION, &left);
+    let (messages, _) = instances.forward(INSTANCE, REGION, &left, &|_, _| beui::Aim::Own, &|_| None);
     assert_eq!(input_events(&messages), [Input::PointerLeft]);
 }
