@@ -199,7 +199,7 @@ fn listen(
     handler: impl Fn(beui_core::keys::KeyEvent) -> bool + 'static,
 ) {
     let handler: Rc<beui_core::keys::KeyHandler> = Rc::new(handler);
-    let window = crate::components::window::use_window().and_then(|window| window.real_window());
+    let window = crate::components::window::use_window().map(|window| window.id);
     with_document(|document| {
         document.listen_keys(at, phase, reveal, Rc::downgrade(&handler), window)
     });

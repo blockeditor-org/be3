@@ -4,6 +4,8 @@ use std::cell::{Cell, RefCell};
 use std::marker::PhantomData;
 use std::rc::Rc;
 
+use beui::reactive::RenderFn;
+use beui::styled::WindowHandle;
 use beui::{Document, WindowId};
 use beui_platform_plugin::{Report, View};
 use block_editor_plugin::{
@@ -11,7 +13,7 @@ use block_editor_plugin::{
 };
 use uuid::Uuid;
 
-use crate::beui_frame::{self, BeuiFrame, FrameBar};
+use crate::beui_frame::{self, BeuiFrame, FrameBar, FrameChrome};
 use crate::editor::BeuiScale;
 use crate::module::{Module, Shown};
 use crate::{Artifacts, BeuiApp, Creation, Editor, OwnedEditor};
@@ -33,6 +35,7 @@ pub(crate) struct BeuiInstance<A: BeuiApp> {
 
 struct Parts<A: BeuiApp> {
     host: EditorHost,
+    dialog: Rc<Cell<Option<beui::NodeId>>>,
     scale: Rc<Cell<BeuiScale>>,
     views: RefCell<Views<A>>,
     generation: beui::reactive::OwnedSignal<u64>,
@@ -41,7 +44,6 @@ struct Parts<A: BeuiApp> {
 struct Views<A: BeuiApp> {
     creating: bool,
     chrome: Rc<BeuiFrame>,
-    dialog: Option<beui::NodeId>,
     view: Option<crate::headless::View>,
     editor: Option<OwnedEditor>,
     preview: Option<OwnedEditor>,
@@ -55,7 +57,6 @@ impl<A: BeuiApp> Views<A> {
         Self {
             creating: false,
             chrome: Rc::default(),
-            dialog: None,
             editor: None,
             preview: None,
             creation: None,
@@ -71,59 +72,73 @@ impl<A: BeuiApp> Parts<A> {
         self.generation.handle().update(|generation| *generation += 1);
     }
 
-    fn frame_content(&self) -> beui::NodeId {
+    fn frame_content(&self) -> RenderFn<WindowHandle> {
         let mut views = self.views.borrow_mut();
         if views.creating {
             let Some(creation) = views.creation.clone() else {
                 return empty();
             };
-            let root = beui::reactive::view! {
-                <beui::styled::Root clear_color=beui::styled::ColorRole::None>
-                    <A::Creation creation={creation} />
-                </beui::styled::Root>
-            };
-            let node = root.child();
-            views.dialog = Some(node);
-            return node;
+            let dialog = Rc::clone(&self.dialog);
+            return RenderFn::new(move |_: WindowHandle| {
+                let creation = creation.clone();
+                let node = beui::reactive::view! {
+                    <beui::styled::Root clear_color=beui::styled::ColorRole::None>
+                        <A::Creation creation={creation} />
+                    </beui::styled::Root>
+                }
+                .child();
+                dialog.set(Some(node));
+                node
+            });
         }
         let Some(editor) = views.editor.as_deref().copied() else {
             return empty();
         };
-        let view = views.view.take();
+        let custom = Rc::new(RefCell::new(views.view.take()));
         let chrome = Rc::clone(&views.chrome);
-        drop(views);
-        chrome
-            .build(editor, move || match view {
-                Some(view) => view(),
-                None => beui::reactive::view! {
-                    <A::View editor />
-                },
-            })
+        RenderFn::new(move |_: WindowHandle| {
+            let custom = Rc::clone(&custom);
+            let view: Rc<dyn Fn() -> beui::styled::Root> =
+                Rc::new(move || match custom.borrow_mut().take() {
+                    Some(view) => view(),
+                    None => beui::reactive::view! {
+                        <A::View editor />
+                    },
+                });
+            beui::reactive::view! {
+                <FrameChrome chrome={Rc::clone(&chrome)} editor view />
+            }
             .child()
+        })
     }
 
-    fn preview_content(&self) -> beui::NodeId {
+    fn preview_content(&self) -> RenderFn<WindowHandle> {
         let Some(editor) = self.views.borrow().preview.as_deref().copied() else {
             return empty();
         };
-        beui::reactive::view! {
-            <beui::styled::Root clear_color=beui::styled::ColorRole::None>
-                <A::Preview editor />
-            </beui::styled::Root>
-        }
-        .child()
+        RenderFn::new(move |_: WindowHandle| {
+            beui::reactive::view! {
+                <beui::styled::Root clear_color=beui::styled::ColorRole::None>
+                    <A::Preview editor />
+                </beui::styled::Root>
+            }
+            .child()
+        })
     }
 
-    fn settings_content(&self) -> beui::NodeId {
+    fn settings_content(&self) -> RenderFn<WindowHandle> {
         let Some(artifacts) = self.views.borrow().artifacts.clone() else {
             return empty();
         };
-        beui::reactive::view! {
-            <beui::styled::Root clear_color=beui::styled::ColorRole::None>
-                <A::ArtifactSettings artifacts={artifacts} />
-            </beui::styled::Root>
-        }
-        .child()
+        RenderFn::new(move |_: WindowHandle| {
+            let artifacts = artifacts.clone();
+            beui::reactive::view! {
+                <beui::styled::Root clear_color=beui::styled::ColorRole::None>
+                    <A::ArtifactSettings artifacts={artifacts} />
+                </beui::styled::Root>
+            }
+            .child()
+        })
     }
 
     fn frame_report(
@@ -157,10 +172,12 @@ impl<A: BeuiApp> Parts<A> {
     }
 }
 
-fn empty() -> beui::NodeId {
-    beui::reactive::view! {
-        <beui::styled::Frame />
-    }
+fn empty() -> RenderFn<WindowHandle> {
+    RenderFn::new(|_: WindowHandle| {
+        beui::reactive::view! {
+            <beui::styled::Frame />
+        }
+    })
 }
 
 impl<A: BeuiApp> Shown for Parts<A> {
@@ -172,7 +189,7 @@ impl<A: BeuiApp> Shown for Parts<A> {
         self.generation.get()
     }
 
-    fn content(&self, region: EditorRegion) -> beui::NodeId {
+    fn content(&self, region: EditorRegion) -> RenderFn<WindowHandle> {
         match region {
             EditorRegion::Frame => self.frame_content(),
             EditorRegion::Preview => self.preview_content(),
@@ -238,7 +255,7 @@ impl<A: BeuiApp> Shown for Parts<A> {
         let creating = self.views.borrow().creating;
         match view.id.region {
             EditorRegion::Frame if creating => {
-                let Some(dialog) = self.views.borrow().dialog else {
+                let Some(dialog) = self.dialog.get() else {
                     return Report::default();
                 };
                 let width = view.size.x;
@@ -308,6 +325,7 @@ impl<A: BeuiApp> BeuiInstance<A> {
         Self {
             parts: Rc::new(Parts {
                 host: host.clone(),
+                dialog: Rc::default(),
                 scale: Rc::default(),
                 views: RefCell::new(Views::empty()),
                 generation: beui::reactive::OwnedSignal::new(0),

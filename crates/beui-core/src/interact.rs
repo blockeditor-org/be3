@@ -263,7 +263,9 @@ fn outer(doc: &Document, route: &Route, phase: KeyPhase) -> Vec<Placed> {
         reveal: true,
     };
     let listening = |stop: Stop| match route.window && !(stop == Stop::Window && route.inhibited) {
-        true => doc.keys.at(stop, phase, doc.key_window()),
+        true => doc.keys.at(stop, phase, doc.key_window(), &|window| {
+            doc.host_window_of(window)
+        }),
         false => Vec::new(),
     };
     let mut placed = Vec::new();

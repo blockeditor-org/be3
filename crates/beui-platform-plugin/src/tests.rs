@@ -1,8 +1,8 @@
 use std::cell::{Cell, RefCell};
 
 use beui::reactive::*;
-use beui::primitives::{Window, WindowHandle};
 use beui::styled;
+use beui::styled::{Window, WindowHandle};
 use beui_core::document::Document;
 use beui_core::geometry::{Pos2, pos2};
 use beui_core::input::Event;

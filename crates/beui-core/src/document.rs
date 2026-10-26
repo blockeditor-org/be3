@@ -39,7 +39,7 @@ type PickedCallback = Box<dyn FnOnce(FilePick)>;
 type SavedCallback = Box<dyn FnOnce(FileSave)>;
 pub type FingerTap = dyn Fn(usize) -> bool;
 
-pub type ActionsHook = dyn Fn(&Context, &[NodeId], &[WindowId]);
+pub type ActionsHook = dyn Fn(&Context, &[NodeId], &[WindowId], &[(WindowId, WindowId)]);
 
 pub trait Tools: Any {
     fn show(&mut self, document: &mut Document, ctx: &Context, rect: Rect);
@@ -611,8 +611,9 @@ impl Document {
         drop(hooks);
         let path = self.focus_ancestry();
         let windows = self.open_windows();
+        let hosts = self.window_hosts();
         for hook in live {
-            hook(ctx, &path, &windows);
+            hook(ctx, &path, &windows, &hosts);
         }
     }
 
@@ -1246,10 +1247,14 @@ impl Document {
         ctx.set_screen_scale(placement.map_or(1.0, |placement| placement.scale));
         self.offered_screens = match placement {
             Some(placement) => Some(vec![Screen::window(placement.screen)]),
-            None => Some(crate::software_keyboard::usable_screens(
-                ctx,
-                crate::screens::shown_in(&ctx.screens(), rect),
-            )),
+            None => {
+                let screens = ctx.screens();
+                let shown = match ctx.shows_main() || screens.is_empty() {
+                    true => crate::screens::shown_in(&screens, rect),
+                    false => screens,
+                };
+                Some(crate::software_keyboard::usable_screens(ctx, shown))
+            }
         };
         match placement {
             Some(placement) => {
@@ -1404,7 +1409,8 @@ impl Document {
         }
         ctx.accept_pastes(&self.paste_kinds());
         ctx.take_clipboard_keys(self.clipboard_keys());
-        if resized && self.focus_takes_text() {
+        let window_resized = std::mem::take(&mut self.windows.focus_resized);
+        if (resized || window_resized) && self.focus_takes_text() {
             self.reveal_focus();
         }
         measurement.layout_passes =

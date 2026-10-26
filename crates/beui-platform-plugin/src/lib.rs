@@ -154,7 +154,7 @@ impl ModuleRunner {
     }
 
     fn show(&mut self, regions: &[Region], ratio: f32) {
-        self.shared.borrow_mut().screens = regions
+        let monitors = regions
             .iter()
             .find(|region| !region.monitors.is_empty())
             .map(|region| {
@@ -166,8 +166,15 @@ impl ModuleRunner {
                             .scaled(region.scale_factor)
                     })
                     .collect()
-            })
-            .unwrap_or_default();
+            });
+        let window = || {
+            regions
+                .iter()
+                .map(|region| Screen::window(region.rect).scaled(region.scale_factor))
+                .take(1)
+                .collect()
+        };
+        self.shared.borrow_mut().screens = monitors.unwrap_or_else(window);
         self.views.set(
             regions
                 .iter()

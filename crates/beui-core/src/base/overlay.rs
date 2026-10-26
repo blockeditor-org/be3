@@ -533,7 +533,10 @@ impl Element for OverlayNode {
         let Some(content) = self.content else {
             return;
         };
-        let real = self.window.as_ref().filter(|window| doc.hosts_window(window));
+        let real = self
+            .window
+            .as_ref()
+            .filter(|window| doc.hosts_window(window));
         let painter = &painter
             .ctx()
             .window_painter(real.map_or_else(|| doc.viewport_window(), |window| window.id));

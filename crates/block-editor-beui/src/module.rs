@@ -4,7 +4,6 @@ use std::rc::Rc;
 
 use beui::reactive::*;
 use beui::styled::*;
-use beui::primitives::{Window, WindowHandle};
 use beui::{Document, WindowId};
 use beui_platform_plugin::{Report, View, Views};
 use block_editor_plugin::{EditorHost, EditorInstanceId, EditorRegion, RegionId};
@@ -14,7 +13,7 @@ pub(crate) trait Shown {
 
     fn generation(&self) -> u64;
 
-    fn content(&self, region: EditorRegion) -> beui::NodeId;
+    fn content(&self, region: EditorRegion) -> RenderFn<WindowHandle>;
 
     fn before(&self, view: &View, context: &beui::Context, document: &mut Document);
 
@@ -235,15 +234,15 @@ fn RegionWindow(
                 .map_or(initial, |view| view.size)
         })
     });
-    let shown = registry.shown(id.instance);
+    let content = match registry.shown(id.instance) {
+        Some(shown) => shown.content(id.region),
+        None => RenderFn::new(|_: WindowHandle| {
+            view! {
+                <Frame />
+            }
+        }),
+    };
     view! {
-        <Window id={Some(window)} size={size} placement={views.placement(id)}>|_window: WindowHandle|
-            {match &shown {
-                Some(shown) => shown.content(id.region),
-                None => view! {
-                    <Frame />
-                },
-            }}
-        </Window>
+        <Window id={Some(window)} size={size} placement={views.placement(id)} content />
     }
 }

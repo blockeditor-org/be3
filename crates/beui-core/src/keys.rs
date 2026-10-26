@@ -134,12 +134,18 @@ impl KeyListeners {
         listeners
     }
 
-    pub(crate) fn at(&self, stop: Stop, phase: KeyPhase, window: Option<WindowId>) -> Vec<Placed> {
+    pub(crate) fn at(
+        &self,
+        stop: Stop,
+        phase: KeyPhase,
+        window: Option<WindowId>,
+        host: &dyn Fn(WindowId) -> WindowId,
+    ) -> Vec<Placed> {
         self.live()
             .iter()
             .filter(|listener| listener.phase == phase)
             .filter(|listener| match (listener.window, window) {
-                (Some(own), Some(window)) => own == window,
+                (Some(own), Some(window)) => host(own) == window,
                 _ => true,
             })
             .filter(|listener| {

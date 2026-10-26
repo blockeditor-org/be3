@@ -1,6 +1,6 @@
 use block_plugin_api::{
-    EditorInstanceId, Fonts, FrameCommit, Hello, HelloAccepted, InputBatch, Opening,
-    Preferences, ScreenLayout, ScreenPlacement, ScreenRequest, ops::guest::Executor,
+    EditorInstanceId, Fonts, FrameCommit, Hello, HelloAccepted, InputBatch, Opening, Preferences,
+    ScreenLayout, ScreenPlacement, ScreenRequest, ops::guest::Executor,
 };
 
 use crate::{

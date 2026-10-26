@@ -375,6 +375,7 @@ struct State {
     icon_sidebar_width: f32,
     rect: ReadSignal<Rect>,
     opens: ReadSignal<bool>,
+    home: Option<WindowHandle>,
     placements: Signal<HashMap<SurfaceId, WindowPlacement>>,
     panes: Stored<RefCell<HashMap<Tree, NodeRef>>>,
     windows: Stored<RefCell<HashMap<SurfaceId, NodeRef>>>,
@@ -775,6 +776,12 @@ impl State {
         });
     }
 
+    fn home(&self) -> WindowId {
+        self.home
+            .and_then(|window| window.real_window())
+            .unwrap_or(WindowId::MAIN)
+    }
+
     fn float_origin(&self) -> Pos2 {
         let dock = self.rect.get_untracked();
         let origin = pos2(FLOAT_INSET.x, FLOAT_INSET.y);
@@ -987,7 +994,7 @@ impl State {
                 }
             }
         }
-        if !point.window.is_main() {
+        if point.window != self.home() {
             return (None, None);
         }
         let dock = self.rect.get_untracked();
@@ -1449,6 +1456,7 @@ pub(crate) fn Dock(config: DockConfig) -> NodeId {
                 icon_sidebar_width,
                 rect: dock_rect,
                 opens: opens_windows(),
+                home: use_window(),
                 placements: create_signal(HashMap::new()),
                 panes: store(RefCell::default()),
                 bars: store(RefCell::default()),
@@ -2910,7 +2918,7 @@ fn DockWindowView(dock: State, surface: SurfaceId) -> NodeId {
             .unwrap_or_default()
     });
     let window_title = create_memo(move || Some(title.get()));
-    let parent = use_window().map_or(WindowId::MAIN, |window| window.id);
+    let parent = dock.home();
     let placement = create_memo(move || dock.placement(surface, parent));
     let contents = create_memo(move || state.with(|state| state.surface_tabs(surface)));
     let vacant = create_memo(move || contents.with(Vec::is_empty));

@@ -1708,7 +1708,10 @@ impl EditorHost {
     }
 
     pub fn module(&self) -> Option<crate::Module> {
-        self.module.borrow().upgrade().map(crate::Module::from_state)
+        self.module
+            .borrow()
+            .upgrade()
+            .map(crate::Module::from_state)
     }
 
     pub fn handle_regions(&self, handler: Box<dyn crate::Regions>) {
@@ -1821,7 +1824,8 @@ impl EditorHost {
     ) -> ChildId {
         let region = self.region.get().unwrap_or(EditorRegion::Frame);
         let placed = rect;
-        let clip = clip.intersect(geometry::Rotation::new(placed.center(), rotation).bounds(placed));
+        let clip =
+            clip.intersect(geometry::Rotation::new(placed.center(), rotation).bounds(placed));
         let mut children = self.children.borrow_mut();
         let child = children.identify(region, Identity::of(&content));
         children
@@ -1830,23 +1834,23 @@ impl EditorHost {
             .or_default()
             .placements
             .push(ChildPlacement {
-            child,
-            content,
-            rect: placed,
-            clip,
-            own_frame,
-            top_bar,
-            corner_radius: 0.0,
-            layer,
-            mode,
-            intrinsic: intrinsic.map(|size| Size {
-                width: size.x.max(0.0),
-                height: size.y.max(0.0),
-            }),
-            rotation,
-            opacity: opacity.clamp(0.0, 1.0),
-            follows_view,
-        });
+                child,
+                content,
+                rect: placed,
+                clip,
+                own_frame,
+                top_bar,
+                corner_radius: 0.0,
+                layer,
+                mode,
+                intrinsic: intrinsic.map(|size| Size {
+                    width: size.x.max(0.0),
+                    height: size.y.max(0.0),
+                }),
+                rotation,
+                opacity: opacity.clamp(0.0, 1.0),
+                follows_view,
+            });
         child
     }
 

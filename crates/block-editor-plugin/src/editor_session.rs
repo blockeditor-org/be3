@@ -684,8 +684,9 @@ impl EditorSession {
     }
 
     fn visible(&self, region: EditorRegion) -> Vec2 {
-        self.metrics(region)
-            .map_or(Vec2::ZERO, |metrics| vec2(metrics.visible.x, metrics.visible.y))
+        self.metrics(region).map_or(Vec2::ZERO, |metrics| {
+            vec2(metrics.visible.x, metrics.visible.y)
+        })
     }
 
     fn monitors(&self, region: EditorRegion) -> Vec<RegionMonitor> {
@@ -773,7 +774,10 @@ impl EditorSession {
             .and_then(|(dropped, files)| (*dropped == region).then(|| files.clone()));
         self.host.set_files(region, files);
         if region == EditorRegion::ArtifactSettings {
-            let draft = self.artifact.as_ref().map(|artifact| artifact.draft.clone());
+            let draft = self
+                .artifact
+                .as_ref()
+                .map(|artifact| artifact.draft.clone());
             self.host.open_settings_draft(draft);
         }
         context

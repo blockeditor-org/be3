@@ -29,6 +29,7 @@ pub(crate) struct Windows {
     pub(crate) viewport: Option<(WindowId, Rect)>,
     kept_focus: HashMap<WindowId, NodeId>,
     host_focused: Option<WindowId>,
+    pub(crate) focus_resized: bool,
     pub(crate) appearances: HashMap<WindowId, crate::window::Appearance>,
 }
 
@@ -47,6 +48,7 @@ impl Default for Windows {
             viewport: None,
             kept_focus: HashMap::default(),
             host_focused: None,
+            focus_resized: false,
             appearances: HashMap::default(),
         }
     }
@@ -125,6 +127,23 @@ impl Document {
             current = self.arena.parent(id);
         }
         WindowId::MAIN
+    }
+
+    pub fn host_window_of(&self, window: WindowId) -> WindowId {
+        self.windows
+            .nodes
+            .iter()
+            .find(|(id, node)| *id == window && self.contains(*node))
+            .map_or(WindowId::MAIN, |(_, node)| self.window_of((*node).into()))
+    }
+
+    pub fn window_hosts(&self) -> Vec<(WindowId, WindowId)> {
+        self.windows
+            .nodes
+            .iter()
+            .filter(|(_, node)| self.contains(*node))
+            .map(|(id, node)| (*id, self.window_of((*node).into())))
+            .collect()
     }
 
     pub fn key_window(&self) -> Option<WindowId> {
@@ -226,7 +245,10 @@ impl Document {
                     self.windows.asked.retain(|asked| asked != window);
                     self.layers_changed();
                 }
-                WindowReport::Resized { .. } => {
+                WindowReport::Resized { window, .. } => {
+                    self.windows.focus_resized |= self
+                        .focused
+                        .is_some_and(|focused| self.window_of(focused) == *window);
                     if let Some(node) = node {
                         self.arena.invalidate_node(node);
                     }

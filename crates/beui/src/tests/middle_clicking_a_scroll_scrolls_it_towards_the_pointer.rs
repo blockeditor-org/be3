@@ -46,5 +46,8 @@ fn middle_clicking_a_scroll_scrolls_it_towards_the_pointer() {
 
     harness.click(origin + Vec2::new(0.0, 100.0));
     harness.frame(Vec::new());
-    assert_eq!(harness.document().overlay_rects(crate::WindowId::MAIN), Vec::new());
+    assert_eq!(
+        harness.document().overlay_rects(crate::WindowId::MAIN),
+        Vec::new()
+    );
 }
