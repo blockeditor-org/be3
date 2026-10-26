@@ -1629,11 +1629,14 @@ impl<S: ObjectStore> Peer<S> {
         Ok(())
     }
 
-    pub async fn unwatch(&self, block: Uuid) -> Result<(), ClientError> {
-        self.connection()
-            .request(|request| ClientMessage::Unwatch { request, block })
-            .await?;
-        Ok(())
+    pub fn unwatch(
+        &self,
+        block: Uuid,
+    ) -> Result<impl Future<Output = Result<(), ClientError>> + Send + use<S>, ClientError> {
+        let answer = self
+            .connection()
+            .send(|request| ClientMessage::Unwatch { request, block })?;
+        Ok(async move { answer.await.map(|_| ()) })
     }
 
     pub fn set_resolver(&self, resolver: Resolver) {
@@ -2056,41 +2059,53 @@ impl<S: ObjectStore> Peer<S> {
         }
     }
 
-    pub async fn join_session(&self, block: Uuid) -> Result<(ClientId, SessionState), ClientError> {
-        let response = self
+    pub fn join_session(
+        &self,
+        block: Uuid,
+    ) -> Result<
+        impl Future<Output = Result<(ClientId, SessionState), ClientError>> + Send + use<S>,
+        ClientError,
+    > {
+        let answer = self
             .connection()
-            .request(|request| ClientMessage::JoinSession { request, block })
-            .await?;
-        match response {
-            ServerMessage::Session { client, state, .. } => Ok((client, state)),
-            _ => Err(ClientError::Unexpected),
-        }
+            .send(|request| ClientMessage::JoinSession { request, block })?;
+        Ok(async move {
+            match answer.await? {
+                ServerMessage::Session { client, state, .. } => Ok((client, state)),
+                _ => Err(ClientError::Unexpected),
+            }
+        })
     }
 
-    pub async fn leave_session(&self, block: Uuid) -> Result<(), ClientError> {
-        self.connection()
-            .request(|request| ClientMessage::LeaveSession { request, block })
-            .await?;
-        Ok(())
+    pub fn leave_session(
+        &self,
+        block: Uuid,
+    ) -> Result<impl Future<Output = Result<(), ClientError>> + Send + use<S>, ClientError> {
+        let answer = self
+            .connection()
+            .send(|request| ClientMessage::LeaveSession { request, block })?;
+        Ok(async move { answer.await.map(|_| ()) })
     }
 
-    pub async fn claim_ownership(
+    pub fn claim_ownership(
         &self,
         block: Uuid,
         generation: u64,
-    ) -> Result<SessionState, ClientError> {
-        let response = self
+    ) -> Result<impl Future<Output = Result<SessionState, ClientError>> + Send + use<S>, ClientError>
+    {
+        let answer = self
             .connection()
-            .request(|request| ClientMessage::ClaimOwnership {
+            .send(|request| ClientMessage::ClaimOwnership {
                 request,
                 block,
                 generation,
-            })
-            .await?;
-        match response {
-            ServerMessage::Session { state, .. } => Ok(state),
-            _ => Err(ClientError::Unexpected),
-        }
+            })?;
+        Ok(async move {
+            match answer.await? {
+                ServerMessage::Session { state, .. } => Ok(state),
+                _ => Err(ClientError::Unexpected),
+            }
+        })
     }
 
     pub fn heartbeat(

@@ -350,6 +350,7 @@ pub(crate) struct Shared {
     pub(crate) saves: u64,
     pub(crate) owing: usize,
     pub(crate) connected: bool,
+    pub(crate) connection: Option<Arc<be_client::connection::Connection>>,
     #[cfg(test)]
     pub(crate) connection_due: Option<tokio::sync::watch::Receiver<Duration>>,
     pub(crate) reached: bool,
@@ -463,6 +464,7 @@ pub(super) async fn serve<S: Fn() -> Result<Store, String>>(
             line: Line::down(&config, 0, Duration::ZERO),
             tasks: Tasks::new(),
             drained_at: Duration::ZERO,
+            rejoin: false,
         };
         session.run(open).await;
         forget_what_is_not_kept(&peer);
@@ -652,6 +654,7 @@ struct Session<'a> {
     line: Line,
     tasks: (Tasks, UnboundedReceiver<()>),
     drained_at: Duration,
+    rejoin: bool,
 }
 
 impl Session<'_> {
@@ -679,18 +682,19 @@ impl Session<'_> {
                         tasks: &self.tasks.0,
                     })
                     .await;
-                report(peer, shared, false);
+                report(peer, shared);
                 self.changed.notify_all();
                 crate::host::wake();
             }
         }
         let mut flushes = Vec::new();
+        let mut kept_for_flushes = false;
         let mut keyed: HashMap<Uuid, Uuid> = HashMap::new();
         let mut stopping = false;
         loop {
             if stopping && (self.uploads.is_empty() || !self.line.is_up()) {
-                self.replicas.seal_all((peer, shared)).await;
-                report(peer, shared, false);
+                self.replicas.keep_all((peer, shared)).await;
+                report(peer, shared);
                 return;
             }
             let retry_at = self.retry_at();
@@ -741,6 +745,10 @@ impl Session<'_> {
                     true
                 }
                 Woken::Reached(Ok(link)) => {
+                    shared
+                        .lock()
+                        .unwrap_or_else(PoisonError::into_inner)
+                        .connection = Some(Arc::clone(&link.connection));
                     let open = link.open_organization().await;
                     match peer
                         .attach(link.connection, self.config.token.clone())
@@ -831,7 +839,7 @@ impl Session<'_> {
                     for event in heard_all {
                         match &event {
                             Some(message) => self.replicas.heard((peer, shared), message),
-                            None => self.replicas.resynchronize((peer, shared)).await,
+                            None => self.replicas.resynchronize((peer, shared)),
                         }
                         heard(peer, shared, &self.tasks.0, event).await;
                     }
@@ -848,11 +856,12 @@ impl Session<'_> {
                 .is_some_and(|at| at <= self.config.clock.now())
             {
                 self.drained_at = self.config.clock.now();
-                sync_outbox(peer, self.replicas, shared).await;
+                self.tasks.0.sync(peer, shared);
                 moved = true;
             }
             moved |= pumped;
             moved |= self.replicas.pump((peer, shared)).await;
+            moved |= self.settle_outbox().await;
             rekey_changed(peer, self.replicas, &mut keyed);
             let before = version_revisions(shared);
             self.versions
@@ -870,12 +879,20 @@ impl Session<'_> {
                 && (self.uploads.is_empty() || !self.line.is_up())
                 && !flushes.is_empty()
             {
-                self.replicas.seal_all((peer, shared)).await;
-                for done in flushes.drain(..) {
-                    let _ = done.send(());
+                if !std::mem::replace(&mut kept_for_flushes, true) {
+                    self.replicas.keep_all((peer, shared)).await;
+                    if self.replicas.take_kept() {
+                        self.tasks.0.sync(peer, shared);
+                    }
+                }
+                if !self.tasks.0.syncing() || !self.line.is_up() {
+                    kept_for_flushes = false;
+                    for done in flushes.drain(..) {
+                        let _ = done.send(());
+                    }
                 }
             }
-            moved |= report(peer, shared, false);
+            moved |= report(peer, shared);
             let typing = !self.replicas.modules.settled();
             let was_typing = std::mem::replace(
                 &mut shared.lock().unwrap_or_else(PoisonError::into_inner).typing,
@@ -889,8 +906,34 @@ impl Session<'_> {
     }
 
     fn retry_at(&self) -> Option<Duration> {
-        (self.line.is_up() && self.peer.pending().operations > 0)
+        (self.line.is_up() && !self.tasks.0.syncing() && self.peer.pending().operations > 0)
             .then(|| self.drained_at + OUTBOX_RETRY)
+    }
+
+    async fn settle_outbox(&mut self) -> bool {
+        let (peer, shared) = (self.peer, self.shared);
+        if self.replicas.take_kept() {
+            self.tasks.0.sync(peer, shared);
+        }
+        let diverged = self.tasks.0.take_diverged();
+        let merged = !diverged.is_empty();
+        for (block, remote) in diverged {
+            if let Err(error) = self
+                .replicas
+                .merge_diverged((peer, shared), block, remote)
+                .await
+            {
+                record(shared, error);
+            }
+        }
+        if !self.rejoin || self.tasks.0.syncing() {
+            return merged;
+        }
+        self.rejoin = false;
+        if self.line.is_up() {
+            self.replicas.reconnect((peer, shared));
+        }
+        true
     }
 
     fn failures(&self) -> u32 {
@@ -908,6 +951,7 @@ impl Session<'_> {
             failures => reconnect_delay(failures - 1, jitter()),
         };
         self.line = Line::down(self.config, failures, delay);
+        self.rejoin = false;
         if was_up {
             self.replicas.disconnected();
         }
@@ -922,6 +966,7 @@ impl Session<'_> {
         {
             let mut held = shared.lock().unwrap_or_else(PoisonError::into_inner);
             held.connected = true;
+            held.connection = Some(peer.connection());
             #[cfg(test)]
             {
                 held.connection_due = Some(peer.connection().due());
@@ -932,12 +977,13 @@ impl Session<'_> {
         self.changed.notify_all();
         crate::host::wake();
         self.drained_at = self.config.clock.now();
-        sync_outbox(peer, self.replicas, shared).await;
+        self.tasks.0.sync(peer, shared);
         want_open(shared, &self.wanted.blocks());
         relist(shared);
         spawn_listings(peer, shared, &self.tasks.0);
         self.tasks.0.contacts(peer, shared);
-        self.replicas.reconnect((peer, shared));
+        self.rejoin = true;
+        self.settle_outbox().await;
         for (block, content_type) in self.wanted.blocks() {
             open_wanted(
                 peer,
@@ -958,39 +1004,32 @@ impl Session<'_> {
                 tasks: &self.tasks.0,
             })
             .await;
-        report(peer, shared, false);
+        report(peer, shared);
         self.changed.notify_all();
         crate::host::wake();
     }
 }
 
 fn shared_offline(shared: &Arc<Mutex<Shared>>) {
-    shared
-        .lock()
-        .unwrap_or_else(PoisonError::into_inner)
-        .connected = false;
+    let mut held = shared.lock().unwrap_or_else(PoisonError::into_inner);
+    held.connected = false;
+    held.connection = None;
 }
 
-async fn sync_outbox(
+async fn drain_outbox(
     peer: &Arc<Peer<Store>>,
-    replicas: &mut Replicas,
     shared: &Arc<Mutex<Shared>>,
-) {
+) -> Vec<(Uuid, Option<CommitId>)> {
+    let mut diverged = Vec::new();
     if peer.pending().operations == 0 {
-        return;
+        return diverged;
     }
-    report(peer, shared, true);
-    crate::host::wake();
     match peer.drain(|_| false).await {
         Ok(drained) => {
             for outcome in drained {
                 match outcome {
                     be_client::Drained::Diverged { block, remote, .. } => {
-                        if let Err(error) =
-                            replicas.merge_diverged((peer, shared), block, remote).await
-                        {
-                            record(shared, error);
-                        }
+                        diverged.push((block, remote));
                     }
                     be_client::Drained::Refused { block, code } => record(
                         shared,
@@ -1010,7 +1049,16 @@ async fn sync_outbox(
         }
         Err(error) => record(shared, error),
     }
-    report(peer, shared, false);
+    report(peer, shared);
+    diverged
+}
+
+fn set_draining(shared: &Arc<Mutex<Shared>>, draining: bool) {
+    shared
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .draining = draining;
+    crate::host::wake();
 }
 
 pub(super) fn expired_unsent(
@@ -1039,7 +1087,7 @@ pub(super) fn expire_unsent(peer: &Peer<Store>, now: i64) {
     }
 }
 
-fn report(peer: &Peer<Store>, shared: &Arc<Mutex<Shared>>, syncing: bool) -> bool {
+fn report(peer: &Peer<Store>, shared: &Arc<Mutex<Shared>>) -> bool {
     let now = shared
         .lock()
         .unwrap_or_else(PoisonError::into_inner)
@@ -1048,8 +1096,8 @@ fn report(peer: &Peer<Store>, shared: &Arc<Mutex<Shared>>, syncing: bool) -> boo
     expire_unsent(peer, now);
     let counts = peer.pending();
     let mut held = shared.lock().unwrap_or_else(PoisonError::into_inner);
-    let mut changed = (held.waiting, held.draining) != (counts.operations, syncing);
-    (held.waiting, held.draining) = (counts.operations, syncing);
+    let mut changed = held.waiting != counts.operations;
+    held.waiting = counts.operations;
     if held.unsent.len() != counts.unsent {
         held.unsent = peer.unsent();
         changed = true;
@@ -1720,8 +1768,8 @@ async fn apply(
                 true => peer.restore_unsent(block),
                 false => peer.discard_unsent(block),
             };
-            if restore && peer.is_attached() {
-                sync_outbox(peer, replicas, shared).await;
+            if restore {
+                tasks.sync(peer, shared);
             }
             let mut held = shared.lock().unwrap_or_else(PoisonError::into_inner);
             if let Err(error) = done {
@@ -2077,7 +2125,10 @@ async fn apply(
         }
         Command::Import(_) => false,
         Command::Flush(done) => {
-            replicas.seal_all(ctx).await;
+            replicas.keep_all(ctx).await;
+            if replicas.take_kept() {
+                tasks.sync(peer, shared);
+            }
             flushes.push(done);
             true
         }
@@ -2366,13 +2417,72 @@ pub(super) fn spawn_listings(peer: &Arc<Peer<Store>>, shared: &Arc<Mutex<Shared>
 pub(super) struct Tasks {
     finished: tokio::sync::mpsc::UnboundedSender<()>,
     contacts: Arc<tokio::sync::Mutex<()>>,
+    outbox: std::rc::Rc<std::cell::RefCell<Outbox>>,
+}
+
+#[derive(Default)]
+struct Outbox {
+    draining: bool,
+    again: bool,
+    diverged: Vec<(Uuid, Option<CommitId>)>,
 }
 
 impl Tasks {
     fn new() -> (Self, UnboundedReceiver<()>) {
         let (finished, receiver) = tokio::sync::mpsc::unbounded_channel();
         let contacts = Arc::new(tokio::sync::Mutex::new(()));
-        (Self { finished, contacts }, receiver)
+        let outbox = Default::default();
+        (
+            Self {
+                finished,
+                contacts,
+                outbox,
+            },
+            receiver,
+        )
+    }
+
+    fn sync(&self, peer: &Arc<Peer<Store>>, shared: &Arc<Mutex<Shared>>) {
+        if !peer.is_attached() {
+            return;
+        }
+        {
+            let mut outbox = self.outbox.borrow_mut();
+            if outbox.draining {
+                outbox.again = true;
+                return;
+            }
+            if peer.pending().operations == 0 {
+                return;
+            }
+            outbox.draining = true;
+        }
+        set_draining(shared, true);
+        let (peer, shared, outbox) = (
+            Arc::clone(peer),
+            Arc::clone(shared),
+            std::rc::Rc::clone(&self.outbox),
+        );
+        self.spawn(async move {
+            loop {
+                let diverged = drain_outbox(&peer, &shared).await;
+                let mut held = outbox.borrow_mut();
+                held.diverged.extend(diverged);
+                if !std::mem::take(&mut held.again) || !peer.is_attached() {
+                    held.draining = false;
+                    break;
+                }
+            }
+            set_draining(&shared, false);
+        });
+    }
+
+    fn syncing(&self) -> bool {
+        self.outbox.borrow().draining
+    }
+
+    fn take_diverged(&self) -> Vec<(Uuid, Option<CommitId>)> {
+        std::mem::take(&mut self.outbox.borrow_mut().diverged)
     }
 
     pub(super) fn spawn(&self, task: impl Future<Output = ()> + 'static) {

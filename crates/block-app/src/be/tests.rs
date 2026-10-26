@@ -56,6 +56,7 @@ mod an_organizations_unsent_edits_are_discarded_once_the_grace_period_passes;
 mod an_unknown_content_type_has_no_content_in_the_new_stack;
 mod backing_off_waits_longer_after_each_failure_up_to_a_ceiling;
 mod blocks_moved_renamed_and_deleted_offline_reach_the_server_on_reconnect;
+mod closing_a_block_while_the_server_is_silent_holds_up_no_edit;
 mod flushing_seals_what_the_sessions_hold_and_leaves_them_live;
 mod presence_crosses_between_this_peer_and_another;
 mod replacing_content_reaches_a_block_open_or_not;
@@ -66,6 +67,7 @@ mod taking_a_share_back_rotates_its_keys_and_reseals_the_open_block;
 mod two_accounts_become_contacts_by_a_link_and_share_a_block;
 mod two_devices_that_edit_one_note_offline_merge_once_both_reconnect;
 mod two_peers_of_one_organization_share_a_counter;
+mod typing_shows_while_a_silent_server_holds_a_seal_and_stopping_keeps_it_here;
 mod undo_steps_back_through_what_this_peer_did;
 
 struct Editor<C: LiveEdit> {
@@ -353,7 +355,7 @@ impl Drop for Harness {
         if std::thread::panicking() {
             abandon();
         } else {
-            stop();
+            stop_and_wait();
         }
         let _ = std::fs::remove_dir_all(&self.directory);
     }

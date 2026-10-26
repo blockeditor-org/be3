@@ -27,6 +27,6 @@ fn two_peers_of_one_organization_share_a_counter() {
     open(block, CounterContent::CONTENT_TYPE);
 
     wait_for_count(block, 7);
-    stop();
+    stop_and_wait();
     let _ = std::fs::remove_dir_all(&elsewhere);
 }

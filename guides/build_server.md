@@ -56,7 +56,8 @@ server through `scripts/internal/re-relay`, whose errors are in
   five minutes, and it is reported as `re-relay: unexpected EOF`. When only a
   test command fails this way, build its binary with `./scripts/buck build
   //crates/X:test --show-full-output` and run the printed path here with a name
-  filter. If it hangs here too, the test hangs, and `gdb -p PID -batch -ex
+  filter and `CARGO_MANIFEST_DIR=$PWD/crates/X` set (painting tests find their
+  snapshots through it, and fail in paint-snapshot without it). If it hangs here too, the test hangs, and `gdb -p PID -batch -ex
   'thread apply all bt'` shows what it waits on.
 - **`the proxy answered 401 Unauthorized`**: the proxy has no key for the host
   (`credentials missing`) or refused the one it has (`invalid token`): the

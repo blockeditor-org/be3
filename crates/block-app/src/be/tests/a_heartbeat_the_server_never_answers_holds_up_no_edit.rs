@@ -22,9 +22,11 @@ fn a_heartbeat_the_server_never_answers_holds_up_no_edit() {
     wait_for_count(block, 3);
     harness.clock.advance(early);
     let beat = runtime().block_on(async {
-        tokio::time::timeout(PATIENCE, heartbeats.wait_for(|beats| *beats > 0)).await
+        tokio::time::timeout(PATIENCE, heartbeats.wait_for(|beats| *beats > 0))
+            .await
+            .is_ok_and(|seen| seen.is_ok())
     });
-    assert!(beat.is_ok(), "the counter's owner never sent a heartbeat");
+    assert!(beat, "the counter's owner never sent a heartbeat");
 
     add(block, 4);
     wait_for_count(block, 7);
@@ -32,5 +34,4 @@ fn a_heartbeat_the_server_never_answers_holds_up_no_edit() {
         status().connected,
         "the edit was taken while the heartbeat was still unanswered"
     );
-    harness.relay().cut();
 }

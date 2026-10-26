@@ -4,6 +4,7 @@ use std::{
     time::Instant,
 };
 
+use std::sync::PoisonError;
 use wasi_threads::Mutex;
 
 use be_client::{ClientError, Peer, Reconciled, Saved, Sealed, connection::Answer};
@@ -67,25 +68,64 @@ fn unreachable(error: &ClientError) -> bool {
     error.is_unreachable()
 }
 
+const PUBLISHING: u8 = 0;
+const RELEASED: u8 = 1;
+const SETTLED: u8 = 2;
+
+#[derive(Default)]
+struct Publishing {
+    state: std::sync::atomic::AtomicU8,
+    kept: Mutex<Option<CommitId>>,
+}
+
+impl Publishing {
+    fn keep(&self, commit: CommitId) {
+        *self.kept.lock().unwrap_or_else(PoisonError::into_inner) = Some(commit);
+    }
+
+    fn kept(&self) -> Option<CommitId> {
+        *self.kept.lock().unwrap_or_else(PoisonError::into_inner)
+    }
+
+    fn release(&self) -> bool {
+        self.moved(RELEASED)
+    }
+
+    fn settle(&self) -> bool {
+        self.moved(SETTLED)
+    }
+
+    fn moved(&self, to: u8) -> bool {
+        use std::sync::atomic::Ordering::SeqCst;
+        self.state
+            .compare_exchange(PUBLISHING, to, SeqCst, SeqCst)
+            .is_ok()
+    }
+}
+
+struct Unanswered {
+    replica: ReplicaId,
+    module: usize,
+    generation: u64,
+    epoch: u64,
+    reply: Reply<Result<PublishOutcome, String>>,
+    publishing: Arc<Publishing>,
+}
+
 pub enum Answered {
     Read(Reply<Result<Vec<u8>, String>>, Result<Vec<u8>, String>),
-    Publish(
-        Reply<Result<PublishOutcome, String>>,
-        Result<PublishOutcome, String>,
-    ),
     Stash(Reply<Result<CommitId, String>>, Result<CommitId, String>),
     Resume(Reply<Result<Resume, String>>, Result<Resume, String>),
 }
 
 impl Answered {
     fn heads(&self) -> bool {
-        matches!(self, Answered::Publish(..) | Answered::Stash(..))
+        matches!(self, Answered::Stash(..))
     }
 
     fn send(self, connection: &mut Connection) {
         match self {
             Answered::Read(reply, result) => reply.send(connection, &result),
-            Answered::Publish(reply, result) => reply.send(connection, &result),
             Answered::Stash(reply, result) => reply.send(connection, &result),
             Answered::Resume(reply, result) => reply.send(connection, &result),
         }
@@ -104,7 +144,14 @@ pub enum Io {
     Locked {
         replica: ReplicaId,
     },
+    Published {
+        publish: u64,
+        result: Result<PublishOutcome, String>,
+        published: Option<CommitId>,
+        kept: bool,
+    },
     Relayed,
+    Left,
     Sealed,
     Keyed {
         block: Uuid,
@@ -120,6 +167,14 @@ pub enum Io {
         block: Uuid,
         rejoin: u64,
         joined: Box<Rejoined>,
+    },
+    Claimed {
+        replica: ReplicaId,
+        claimed: Box<Result<SessionState, ClientError>>,
+    },
+    Resynchronized {
+        replica: ReplicaId,
+        joined: Box<Result<(ClientId, SessionState), ClientError>>,
     },
 }
 
@@ -261,9 +316,14 @@ pub struct Replicas<H: Host> {
     asked: HashMap<(usize, OpId), (ReplicaId, Asked)>,
     pending: Vec<Io>,
     relaying: usize,
+    left: usize,
     unsealing: HashMap<Uuid, VecDeque<ServerMessage>>,
     leaving: Vec<Uuid>,
     rejoins: u64,
+    publishes: HashMap<u64, Unanswered>,
+    published: u64,
+    keeping: bool,
+    kept: bool,
     changed: bool,
     pub handled: u64,
     host: std::marker::PhantomData<fn() -> H>,
@@ -287,9 +347,14 @@ impl<H: Host> Replicas<H> {
             asked: HashMap::new(),
             pending: Vec::new(),
             relaying: 0,
+            left: 0,
             unsealing: HashMap::new(),
             leaving: Vec::new(),
             rejoins: 0,
+            publishes: HashMap::new(),
+            published: 0,
+            keeping: false,
+            kept: false,
             changed: false,
             handled: 0,
             host: std::marker::PhantomData,
@@ -298,6 +363,27 @@ impl<H: Host> Replicas<H> {
 
     pub fn relaying(&self) -> bool {
         self.relaying > 0
+    }
+
+    pub fn leaving(&self) -> bool {
+        self.left > 0
+    }
+
+    fn leave(&mut self, peer: &Peer<H::Store>, block: Uuid) {
+        let left = peer.leave_session(block);
+        let unwatched = peer.unwatch(block);
+        self.left += 1;
+        let io = self.io.clone();
+        H::spawn(async move {
+            if let Ok(left) = left {
+                let _ = left.await;
+            }
+            if let Ok(unwatched) = unwatched {
+                let _ = unwatched.await;
+            }
+            let _ = io.send(Io::Left);
+            H::wake();
+        });
     }
 
     fn relay(&mut self, shared: &Arc<Mutex<H>>, sent: Result<Answer, ClientError>) {
@@ -354,8 +440,7 @@ impl<H: Host> Replicas<H> {
                 self.answered(ctx, io);
             }
             for block in std::mem::take(&mut self.leaving) {
-                let _ = ctx.0.leave_session(block).await;
-                let _ = ctx.0.unwatch(block).await;
+                self.leave(ctx.0, block);
             }
             for (module, heard) in heard {
                 self.changed |= self.heard_from(ctx, module, heard).await;
@@ -452,7 +537,7 @@ impl<H: Host> Replicas<H> {
                 async move {
                     peer.ensure_type(block, content_type, BlockParent::Detached)
                         .await?;
-                    let (client, session) = peer.join_session(block).await?;
+                    let (client, session) = peer.join_session(block)?.await?;
                     peer.watch(block).await?;
                     let head = peer.remote_head(block).await?;
                     Ok((client, session, head, ahead(&peer, block)))
@@ -491,7 +576,7 @@ impl<H: Host> Replicas<H> {
                 if owned && H::reshaped(shared, block, &kind.schema) {
                     reset::<H>(peer, block, &kind).await?;
                 }
-                let (client, session) = peer.join_session(block).await?;
+                let (client, session) = peer.join_session(block)?.await?;
                 peer.watch(block).await?;
                 let head = peer.remote_head(block).await?;
                 Ok::<_, ClientError>((client, session, head, false))
@@ -1037,6 +1122,72 @@ impl<H: Host> Replicas<H> {
         }
     }
 
+    pub async fn keep_all(&mut self, ctx: Ctx<'_, H>) {
+        self.keeping = true;
+        self.release();
+        self.seal_all(ctx).await;
+        self.keeping = false;
+    }
+
+    pub fn take_kept(&mut self) -> bool {
+        std::mem::take(&mut self.kept)
+    }
+
+    fn release(&mut self) {
+        if !self.keeping {
+            return;
+        }
+        let ready: Vec<(u64, CommitId)> = self
+            .publishes
+            .iter()
+            .filter_map(|(publish, unanswered)| Some((*publish, unanswered.publishing.kept()?)))
+            .collect();
+        for (publish, commit) in ready {
+            if !self.publishes[&publish].publishing.release() {
+                continue;
+            }
+            if let Some(unanswered) = self.publishes.remove(&publish) {
+                self.kept = true;
+                self.answer_publish(unanswered, Ok(PublishOutcome::Published(commit)), None);
+            }
+        }
+    }
+
+    fn answer_publish(
+        &mut self,
+        unanswered: Unanswered,
+        result: Result<PublishOutcome, String>,
+        published: Option<CommitId>,
+    ) {
+        let Unanswered {
+            replica,
+            module,
+            generation,
+            epoch,
+            reply,
+            ..
+        } = unanswered;
+        if self.modules.generation(module) == generation {
+            self.modules
+                .call(module, |connection| reply.send(connection, &result));
+        }
+        let Some(open) = self.open.get_mut(&replica) else {
+            return;
+        };
+        if open.epoch != epoch {
+            return;
+        }
+        open.publishing = open.publishing.saturating_sub(1);
+        if let Some(head) = published {
+            open.published.push(head);
+        }
+        if open.publishing == 0 {
+            for head in std::mem::take(&mut open.moved) {
+                self.moved(replica, head, false);
+            }
+        }
+    }
+
     pub async fn merge(
         &mut self,
         ctx: Ctx<'_, H>,
@@ -1305,7 +1456,7 @@ impl<H: Host> Replicas<H> {
         }
     }
 
-    pub async fn resynchronize(&mut self, (peer, shared): Ctx<'_, H>) {
+    pub fn resynchronize(&mut self, (peer, shared): Ctx<'_, H>) {
         for (replica, block) in self
             .open
             .iter()
@@ -1313,21 +1464,74 @@ impl<H: Host> Replicas<H> {
             .map(|(replica, open)| (*replica, open.block))
             .collect::<Vec<_>>()
         {
-            let session = match peer.join_session(block).await {
-                Ok((_, session)) => session,
+            let joining = match peer.join_session(block) {
+                Ok(joining) => joining,
                 Err(error) => {
                     H::record(shared, error);
                     continue;
                 }
             };
-            let Some(open) = self.open.get_mut(&replica) else {
-                continue;
-            };
-            open.session = session.clone();
-            self.with_replica(replica, |handle, connection| {
-                handle.lease(connection, session, true);
+            let io = self.io.clone();
+            H::spawn(async move {
+                let joined = joining.await;
+                let _ = io.send(Io::Resynchronized {
+                    replica,
+                    joined: Box::new(joined),
+                });
+                H::wake();
             });
         }
+    }
+
+    fn resynchronized(
+        &mut self,
+        shared: &Arc<Mutex<H>>,
+        replica: ReplicaId,
+        joined: Result<(ClientId, SessionState), ClientError>,
+    ) {
+        let session = match joined {
+            Ok((_, session)) => session,
+            Err(error) if unreachable(&error) => return,
+            Err(error) => return H::record(shared, error),
+        };
+        let Some(open) = self.open.get_mut(&replica) else {
+            return;
+        };
+        if open.joining || session.generation < open.session.generation {
+            return;
+        }
+        open.session = session.clone();
+        self.with_replica(replica, |handle, connection| {
+            handle.lease(connection, session, true);
+        });
+    }
+
+    fn claimed(
+        &mut self,
+        shared: &Arc<Mutex<H>>,
+        replica: ReplicaId,
+        claimed: Result<SessionState, ClientError>,
+    ) {
+        let state = match claimed {
+            Ok(state) => state,
+            Err(error) if unreachable(&error) => return,
+            Err(error) => return H::record(shared, error),
+        };
+        let Some(open) = self.open.get_mut(&replica) else {
+            return;
+        };
+        let replayed = Replayed::Lease {
+            session: state.clone(),
+            resynchronize: false,
+        };
+        if open.joining {
+            return open.early.push(replayed);
+        }
+        if state.generation < open.session.generation {
+            return;
+        }
+        open.session = state;
+        self.replay(replica, replayed);
     }
 
     fn answered(&mut self, (peer, shared): Ctx<'_, H>, io: Io) {
@@ -1371,8 +1575,20 @@ impl<H: Host> Replicas<H> {
                     H::set_locked(shared, open.block);
                 }
             }
+            Io::Published {
+                publish,
+                result,
+                published,
+                kept,
+            } => {
+                self.kept |= kept;
+                if let Some(unanswered) = self.publishes.remove(&publish) {
+                    self.answer_publish(unanswered, result, published);
+                }
+            }
             Io::Relayed => self.relaying -= 1,
-            Io::Sealed => {}
+            Io::Left => self.left -= 1,
+            Io::Sealed => self.release(),
             Io::Keyed { block, error } => {
                 if let Some(error) = error
                     && !unreachable(&error)
@@ -1394,6 +1610,8 @@ impl<H: Host> Replicas<H> {
                 rejoin,
                 joined,
             } => self.rejoined(shared, replica, block, rejoin, *joined),
+            Io::Claimed { replica, claimed } => self.claimed(shared, replica, *claimed),
+            Io::Resynchronized { replica, joined } => self.resynchronized(shared, replica, *joined),
         }
     }
 
@@ -1425,7 +1643,7 @@ impl<H: Host> Replicas<H> {
             let io = self.io.clone();
             H::spawn(async move {
                 let joined = async {
-                    let (client, session) = peer.join_session(block).await?;
+                    let (client, session) = peer.join_session(block)?.await?;
                     peer.watch(block).await?;
                     let head = peer.remote_head(block).await?;
                     Ok::<_, ClientError>((client, session, head))
@@ -1648,8 +1866,7 @@ impl<H: Host> Replicas<H> {
         self.asked.retain(|_, (to, _)| *to != replica);
         self.blocks.remove(&open.block);
         if !open.joining {
-            let _ = peer.leave_session(open.block).await;
-            let _ = peer.unwatch(open.block).await;
+            self.leave(peer, open.block);
         }
         if open.reopen {
             self.open((peer, shared), open.block, open.content_type, open.reader)
@@ -1744,12 +1961,30 @@ impl<H: Host> Replicas<H> {
                 merging,
                 content,
             } => {
-                if let Some(open) = self.open.get_mut(&replica) {
-                    open.publishing += 1;
-                }
+                let Some(open) = self.open.get_mut(&replica) else {
+                    return false;
+                };
+                open.publishing += 1;
+                let epoch = open.epoch;
+                let local = made_up || self.keeping || !peer.pending_commits(block).is_empty();
+                let publishing = Arc::new(Publishing::default());
+                self.published += 1;
+                let publish = self.published;
+                self.publishes.insert(
+                    publish,
+                    Unanswered {
+                        replica,
+                        module,
+                        generation: self.modules.generation(module),
+                        epoch,
+                        reply,
+                        publishing: Arc::clone(&publishing),
+                    },
+                );
                 let peer = Arc::clone(peer);
-                let sealed = self.io.clone();
-                self.answer_later(replica, module, async move {
+                let io = self.io.clone();
+                H::spawn(async move {
+                    let sealed = io.clone();
                     let saved = commit::<H>(
                         &peer,
                         block,
@@ -1757,11 +1992,16 @@ impl<H: Host> Replicas<H> {
                         content,
                         expected,
                         merging.map(|merging| (merging.base, merging.ours)),
+                        local,
+                        &publishing,
                         move || {
                             let _ = sealed.send(Io::Sealed);
                         },
                     )
                     .await;
+                    let kept = publishing
+                        .kept()
+                        .is_some_and(|commit| peer.pending_commits(block).contains(&commit));
                     let (result, published) = match saved {
                         Ok(Saved::Published(head)) => {
                             (Ok(PublishOutcome::Published(head)), Some(head))
@@ -1770,7 +2010,13 @@ impl<H: Host> Replicas<H> {
                         Ok(Saved::Rejected { head }) => (Ok(PublishOutcome::Rejected(head)), None),
                         Err(error) => (Err(error.to_string()), None),
                     };
-                    (Answered::Publish(reply, result), published)
+                    let _ = io.send(Io::Published {
+                        publish,
+                        result,
+                        published,
+                        kept,
+                    });
+                    H::wake();
                 });
                 false
             }
@@ -1828,22 +2074,23 @@ impl<H: Host> Replicas<H> {
                 if !peer.is_attached() || made_up {
                     return false;
                 }
-                match peer.claim_ownership(block, generation).await {
-                    Ok(state) => {
-                        if let Some(open) = self.open.get_mut(&replica) {
-                            open.session = state.clone();
-                        }
-                        self.replay(
-                            replica,
-                            Replayed::Lease {
-                                session: state,
-                                resynchronize: false,
-                            },
-                        );
+                let claiming = match peer.claim_ownership(block, generation) {
+                    Ok(claiming) => claiming,
+                    Err(error) if unreachable(&error) => return false,
+                    Err(error) => {
+                        H::record(shared, error);
+                        return false;
                     }
-                    Err(error) if unreachable(&error) => {}
-                    Err(error) => H::record(shared, error),
-                }
+                };
+                let io = self.io.clone();
+                H::spawn(async move {
+                    let claimed = claiming.await;
+                    let _ = io.send(Io::Claimed {
+                        replica,
+                        claimed: Box::new(claimed),
+                    });
+                    H::wake();
+                });
                 false
             }
             Call::ReportClean {
@@ -1975,6 +2222,7 @@ fn known_head_of<S: be_store::ObjectStore>(peer: &Peer<S>, block: Uuid) -> Optio
         .or_else(|| peer.known_summary(block).and_then(|summary| summary.head))
 }
 
+#[allow(clippy::too_many_arguments)]
 async fn commit<H: Host>(
     peer: &Peer<H::Store>,
     block: Uuid,
@@ -1982,6 +2230,8 @@ async fn commit<H: Host>(
     content: block_type_api::Written,
     expected: Option<CommitId>,
     merging: Option<(Option<CommitId>, CommitId)>,
+    local: bool,
+    publishing: &Publishing,
     sealed: impl FnOnce(),
 ) -> Result<Saved, ClientError> {
     let before = peer.local_head(block);
@@ -2000,11 +2250,16 @@ async fn commit<H: Host>(
         Sealed::Unchanged(head) => return Ok(Saved::Unchanged(head)),
         Sealed::Sealed(commit) => commit,
     };
+    publishing.keep(commit);
     sealed();
-    if !peer.is_attached() {
+    if local || !peer.is_attached() {
         return Ok(Saved::Unchanged(commit));
     }
-    match peer.publish_sealed(block, commit).await {
+    let saved = peer.publish_sealed(block, commit).await;
+    if !publishing.settle() {
+        return Ok(Saved::Unchanged(commit));
+    }
+    match saved {
         Ok(Saved::Rejected { head }) => {
             peer.withdraw(block, commit, before)?;
             Ok(Saved::Rejected { head })

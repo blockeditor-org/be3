@@ -34,8 +34,10 @@ const AWAITING_PREVIOUS: Duration = Duration::from_millis(5);
 pub(super) struct Running;
 
 impl Running {
-    pub(super) fn finish(&mut self) {}
+    pub(super) fn stop(&mut self) {}
 }
+
+pub(super) fn wait_for_stopped() {}
 
 pub(super) fn spawn(
     config: Config,

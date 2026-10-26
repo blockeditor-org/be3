@@ -1716,18 +1716,33 @@ joining); the host answers `Publish` with
 `Peer::seal_encoded` (a local commit in the outbox) and reports it as the new
 head, `Resume` treats the local head as the remote one, and heartbeats, claims
 and relays are skipped. A publish whose connection dies after the commit was
-sealed keeps the commit the same way. On each connection the worker first
-drains the outbox (`Peer::drain`), merges every `Diverged` block with
+sealed keeps the commit the same way, and so does any `Publish` while the
+block still has commits in the outbox (they go out in order with the drain) or
+while the host keeps (`Replicas::keep_all`, which flushing and stopping use:
+it answers every publish already sealed locally at once, as kept, and seals
+the rest into local commits, so neither waits on the server; `take_kept` tells
+the worker to drain). On each connection the worker
+drains the outbox (`Peer::drain`) in a task (`Tasks::sync`, one at a time,
+`Shared.draining` meanwhile), merges every `Diverged` block it reports with
 `Replicas::merge_diverged` (`Peer::reconcile`, then a three-way merge by the type module, published
 with the remote head expected and the local commit as an extra parent; a
-conflicted merge reaches `Host::conflict`), then reloads the graph and rejoins
-the open blocks, whose `Moved` to the merged head fast-forwards them. It drains
-again after restoring unsent edits, and every `OUTBOX_RETRY` (30 s on the
-config clock) while connected with something still in the outbox. A block
+conflicted merge reaches `Host::conflict`), and only then rejoins
+the open blocks, whose `Moved` to the merged head fast-forwards them; until
+then they stay on their made-up sessions. It drains
+again after restoring unsent edits, after anything kept, and every `OUTBOX_RETRY` (30 s on the
+config clock) while connected with something still in the outbox. A flush
+answers once everything is kept and that drain is over (or the connection is
+down). A block
 opened while connected with local commits still waiting opens from its local
 head and is then moved to the remote one, so its next publish builds on them.
 Heartbeats (`Peer::heartbeat` sends at once and returns the answer to await)
-are answered off the worker loop, like relays. A relayed message is unsealed
+are answered off the worker loop, like relays; so are lease claims
+(`Peer::claim_ownership`, `Io::Claimed`), leaving and unwatching a closed
+block (`leave_session`, `unwatch`) and the joins after the host fell behind the
+broadcast (`Replicas::resynchronize`, `Io::Resynchronized`): these session
+requests are written the moment they are made, so a block's leave and its next
+join reach the server in order, and an answer older than the replica's session
+is dropped. A relayed message is unsealed
 on the spot (`Peer::unseal`, no network); one whose key this device lacks
 (`ClientError::Locked`) and has not yet looked for (`Peer::first_search_for`)
 fetches the keys in a task, and that block's later events wait behind it so
@@ -1737,9 +1752,13 @@ row, randomly shortened by up to half so that clients a server dropped together
 do not come back together (`reconnect_delay`), and starts over once a connection
 succeeds. `be::retry_now()` cuts the wait short: the app calls it whenever its
 window gains focus, and it is the hook for network-change and foreground
-events. `be::stop` never waits for a connection: stopping while connecting or
-backing off returns at once, sealing what the open replicas hold into local
-commits first.
+events. `be::stop` never waits on the server: it closes the connection
+(`Connection::close`, through `Shared.connection`), so whatever the worker was
+waiting on fails at once, and the worker keeps what the open replicas hold as
+local commits before it ends. It returns without waiting for the worker; the
+next stack's worker waits for it on its own thread (the web serialises stacks
+the same way), and `be::stop_and_wait` waits for it where the process is about
+to end or its files to go.
 
 `be::status()` reports `connected`, `syncing` (the outbox is being drained),
 `waiting` (outbox operations: local commits and queued graph changes not yet on
@@ -2147,7 +2166,8 @@ pixel art export regenerate this way.
   command, opening a block this device has never listed) still waits on it in
   the worker's loop, so on a server that has stopped answering, commands queued
   behind it wait until the connection is declared lost; so do `peer.attach`
-  after a reconnect and the drain of the outbox.
+  after a reconnect, opening a block this device does not know yet, and the
+  merge of a block a drain found diverged.
 - A move into another scope lists the moved subtree one level at a time
   (`ListChildren`), and the old data keys of a block this device cannot open
   are not rewrapped, so that block's history stays closed to its new scope.

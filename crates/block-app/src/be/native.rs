@@ -17,10 +17,22 @@ const FLUSH_TIMEOUT: Duration = Duration::from_secs(5);
 
 pub(super) struct Running(Option<JoinHandle<()>>);
 
+fn stopping() -> std::sync::MutexGuard<'static, Vec<JoinHandle<()>>> {
+    static STOPPING: std::sync::Mutex<Vec<JoinHandle<()>>> = std::sync::Mutex::new(Vec::new());
+    STOPPING.lock().unwrap_or_else(PoisonError::into_inner)
+}
+
+pub(super) fn wait_for_stopped() {
+    let workers = std::mem::take(&mut *stopping());
+    for worker in workers {
+        let _ = worker.join();
+    }
+}
+
 impl Running {
-    pub(super) fn finish(&mut self) {
+    pub(super) fn stop(&mut self) {
         if let Some(worker) = self.0.take() {
-            let _ = worker.join();
+            stopping().push(worker);
         }
     }
 
@@ -36,9 +48,13 @@ pub(super) fn spawn(
     shared: Arc<Mutex<Shared>>,
     changed: Arc<Condvar>,
 ) -> Running {
+    let previous = std::mem::take(&mut *stopping());
     let worker = thread::Builder::new()
         .name("block-app-be".into())
         .spawn(move || {
+            for worker in previous {
+                let _ = worker.join();
+            }
             let runtime = match tokio::runtime::Builder::new_current_thread()
                 .enable_all()
                 .build()

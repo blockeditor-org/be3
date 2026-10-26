@@ -242,7 +242,11 @@ sequencing, follower rebase and `apply_beneath`, the 1 MiB relay limit (a follow
 queued edits are absorbed into pieces no larger), `Snapshot`/`Sealed`/`reload`,
 `Replaced`, `Moved`, `Kept`/`Saved`, takeover with `Sequencer::continuing`, presence
 and channel messages. Its rules: an owner that owes a seal seals `SEAL_INTERVAL`
-(750 ms) after it started owing; a rejected seal reconciles and seals once more;
+(750 ms) after it started owing; while a seal's publish is unanswered the
+replica goes on taking its editors' edits, child changes, undo and redo (they show
+at once, held back from the sequence so peers hear `Sealed` before them, and are
+sequenced and sealed next once the answer comes), and only what could move its
+base waits; a rejected seal reconciles and seals once more;
 reconcile merges unsaved work into whatever it fast-forwards or merges onto and
 stashes our side when the merge conflicts; a head moved from elsewhere reconciles an
 owner, and one this device published outside the session (`from_this_device`) sends

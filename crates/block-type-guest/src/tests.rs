@@ -62,6 +62,7 @@ mod edits_are_sealed_once_they_rest_for_the_seal_interval;
 mod peer_messages_reach_one_peer_or_all_of_them;
 mod presence_reaches_late_joiners_and_leaves_with_its_client;
 mod typing_behind_an_unconfirmed_edit_goes_out_as_one_edit;
+mod typing_while_a_seal_waits_for_the_server_shows_at_once;
 mod undo_reverts_only_this_devices_edit;
 
 #[derive(Clone, Debug, Default, Eq, Model, PartialEq)]
@@ -350,6 +351,7 @@ struct Sim<C: LiveEdit + Clone + Default> {
     errors: Vec<(usize, String)>,
     quiet: bool,
     stalled: bool,
+    held: Vec<(usize, Call)>,
     deaf: BTreeSet<usize>,
     largest_relay: usize,
     written: u64,
@@ -390,6 +392,7 @@ impl<C: LiveEdit + Clone + Default> Sim<C> {
             errors: Vec::new(),
             quiet: false,
             stalled: false,
+            held: Vec::new(),
             deaf: BTreeSet::new(),
             largest_relay: 0,
             written: 0,
@@ -815,7 +818,7 @@ impl<C: LiveEdit + Clone + Default> Sim<C> {
                     self.moved(head, Some(device));
                 }
             }
-            Call::Publish { .. } => {}
+            call @ Call::Publish { .. } => self.held.push((device, call)),
             Call::Stash {
                 reply,
                 parent,
@@ -861,6 +864,14 @@ impl<C: LiveEdit + Clone + Default> Sim<C> {
             } => self.conflicts.push((device, ours, theirs, count as usize)),
             Call::Error { message } => self.errors.push((device, message)),
         }
+    }
+
+    fn unstall(&mut self) {
+        self.stalled = false;
+        for (device, call) in std::mem::take(&mut self.held) {
+            self.act(device, call);
+        }
+        self.settle();
     }
 
     fn relay(&mut self, to: usize, from: ClientId, bytes: Vec<u8>) {

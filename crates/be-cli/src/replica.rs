@@ -255,7 +255,7 @@ impl<S: ObjectStore + 'static, C: LiveEdit + Clone + Default> Session<S, C> {
             Woken::Closed => return Err("the connection to the server closed".to_owned()),
             Woken::Event(event) => match *event {
                 Some(event) => self.replicas.heard(ctx, &event),
-                None => self.replicas.resynchronize(ctx).await,
+                None => self.replicas.resynchronize(ctx),
             },
             Woken::Deadline | Woken::Module => self.replicas.modules.tick_due(),
         }
@@ -296,7 +296,7 @@ impl<S: ObjectStore + 'static, C: LiveEdit + Clone + Default> Session<S, C> {
     pub async fn close(mut self) {
         self.replicas.close(self.block);
         let closing = async {
-            while !held(&self.shared).released {
+            while !held(&self.shared).released || self.replicas.leaving() {
                 let woken = self.next().await;
                 if self.handle(woken).await.is_err() {
                     return;

@@ -136,6 +136,26 @@ enum Job<C> {
     Release,
 }
 
+impl<C> Job<C> {
+    fn passes_a_seal(&self) -> bool {
+        matches!(
+            self,
+            Job::Input(
+                Input::Message {
+                    from: Endpoint::Editor(_),
+                    ..
+                } | Input::Attach { .. }
+                    | Input::Detach { .. }
+                    | Input::Content { .. }
+                    | Input::Change {
+                        change: Change::Child(_) | Change::Undo | Change::Redo,
+                        ..
+                    }
+            )
+        )
+    }
+}
+
 #[derive(Clone, Copy)]
 struct Handed {
     commit: CommitId,
@@ -278,6 +298,7 @@ pub(crate) struct Replica<C: LiveEdit, H> {
     confirmed: C,
     visible: C,
     unsent: VecDeque<(C::Op, usize, u64)>,
+    held: Vec<C::Op>,
     in_flight: u64,
     covered: bool,
     base: Option<CommitId>,
@@ -403,6 +424,7 @@ where
             visible: empty.clone(),
             confirmed: empty,
             unsent: VecDeque::new(),
+            held: Vec::new(),
             in_flight: 0,
             covered: true,
             base: opened.head,
@@ -449,7 +471,13 @@ where
     fn run(&mut self, out: &mut Vec<Effect>) {
         loop {
             self.flush_editors();
-            if self.waiting.is_some() || self.released {
+            if self.released {
+                break;
+            }
+            let Some(job) = self.jobs.front() else {
+                break;
+            };
+            if self.waiting.is_some() && !(self.sealing_out() && job.passes_a_seal()) {
                 break;
             }
             let Some(job) = self.jobs.pop_front() else {
@@ -465,6 +493,35 @@ where
         }
         self.report();
         out.append(&mut self.out);
+    }
+
+    fn sealing_out(&self) -> bool {
+        matches!(
+            self.waiting,
+            Some(Wait::Publish {
+                then: AfterPublish::Seal { .. },
+                ..
+            })
+        )
+    }
+
+    fn sequence_held(&mut self) {
+        for operation in std::mem::take(&mut self.held) {
+            let Role::Owner(sequencer) = &mut self.role else {
+                let size = C::encode_operation(&operation).len();
+                self.unsent.push_back((operation, size, 1));
+                continue;
+            };
+            let id = OpId {
+                client: self.client,
+                counter: sequencer.sequence() + 1,
+            };
+            if let Some(op) = sequencer.accept(id, C::encode_operation(&operation)) {
+                self.confirmed.apply(&operation);
+                self.broadcast(&SessionMessage::Accepted { op });
+            }
+        }
+        self.flush();
     }
 
     fn beat_at(&self) -> Option<u64> {
@@ -946,6 +1003,14 @@ where
         if !answered {
             return;
         }
+        let sealed = self.sealing_out();
+        self.answer_awaited(event);
+        if sealed {
+            self.sequence_held();
+        }
+    }
+
+    fn answer_awaited(&mut self, event: HeadEvent) {
         match (self.waiting.take(), event) {
             (Some(Wait::Publish { then, .. }), HeadEvent::Published { head, .. }) => {
                 self.published(then, Some(head));
@@ -1278,13 +1343,14 @@ where
 
     fn is_clean(&self) -> bool {
         match &self.role {
-            Role::Owner(sequencer) => sequencer.is_clean(),
+            Role::Owner(sequencer) => sequencer.is_clean() && self.held.is_empty(),
             Role::Follower(follower) => follower.pending() == 0 && self.unsent.is_empty(),
         }
     }
 
     fn has_unsealed_work(&self) -> bool {
         matches!(&self.role, Role::Owner(sequencer) if !sequencer.is_clean())
+            || !self.held.is_empty()
     }
 
     fn unsettled(&self) -> u64 {
@@ -1391,7 +1457,9 @@ where
             self.hand_over_oversized();
             return true;
         }
+        let holding = self.sealing_out();
         match &mut self.role {
+            Role::Owner(_) if holding => self.held.push(operation),
             Role::Owner(sequencer) => {
                 let id = OpId {
                     client: self.client,
@@ -2377,7 +2445,7 @@ where
 
     fn has_unsaved(&self) -> bool {
         match &self.role {
-            Role::Owner(sequencer) => !sequencer.is_clean(),
+            Role::Owner(sequencer) => !sequencer.is_clean() || !self.held.is_empty(),
             Role::Follower(follower) => !self.is_clean() || follower.applied() > self.sealed,
         }
     }

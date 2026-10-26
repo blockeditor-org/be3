@@ -138,8 +138,15 @@ is left is marked below.
   session, keeping edits made meanwhile. The worker fetches listings in
   tasks of their own, so a stalled listing no longer holds up an open or an
   edit, and so do summary refreshes, contact syncs, key tending, version
-  watches and the rejoin after a reconnect (`worker::Tasks`). Still to do:
-  commands that need the server themselves hold the loop while it is silent.
+  watches, the rejoin after a reconnect, the outbox drain, lease claims,
+  leaves and resynchronizing joins (`worker::Tasks`, `Io::Claimed`,
+  `Io::Resynchronized`). A replica takes edits while its seal's publish is
+  unanswered, and flushing and stopping keep commits locally
+  (`Replicas::keep_all`) instead of waiting on the server; `be::stop` closes
+  the connection and returns without waiting for the worker. Still to do:
+  commands that need the server themselves hold the loop while it is silent,
+  as do `peer.attach` after a reconnect, opening a block never seen before and
+  merging a block a drain found diverged.
 - **Editing offline seals local commits.**
   - Done: the replica host seals with `Peer::seal_encoded` and publishes
     only while attached; a replica that loses its connection is handed a
@@ -154,7 +161,8 @@ is left is marked below.
 
 ### Connection
 
-- Done: a connect timeout so `be::stop` never hangs. Requests have no timeout
+- Done: a connect timeout so `be::stop` never hangs (and `be::stop` closes
+  the connection rather than waiting on it). Requests have no timeout
   of their own: an unanswered ping closes the connection and fails them.
 - Done: client pings every ~15 s; a pong missing `PONG_WAIT` after the ping was
   written marks the connection lost, so a suspended process keeps a live one.

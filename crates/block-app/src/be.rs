@@ -197,7 +197,7 @@ impl Drop for Stack {
     fn drop(&mut self) {
         self.commands = None;
         self.nudges = None;
-        self.running.finish();
+        self.running.stop();
     }
 }
 
@@ -253,7 +253,23 @@ pub(crate) fn stop() {
         .lock()
         .unwrap_or_else(PoisonError::into_inner)
         .take();
+    if let Some(stack) = &stack {
+        let connection = stack
+            .shared
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .connection
+            .take();
+        if let Some(connection) = connection {
+            connection.close();
+        }
+    }
     drop(stack);
+}
+
+pub(crate) fn stop_and_wait() {
+    stop();
+    platform::wait_for_stopped();
 }
 
 #[cfg(all(test, not(target_arch = "wasm32")))]

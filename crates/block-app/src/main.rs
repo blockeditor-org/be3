@@ -454,7 +454,7 @@ impl beui::App for Shell {
             self.app.desktop = None;
         }
         be::flush();
-        be::stop();
+        be::stop_and_wait();
     }
 }
 
@@ -3517,7 +3517,7 @@ impl BlockApp {
 
     #[cfg(not(target_arch = "wasm32"))]
     fn delete_server_database(&mut self) {
-        be::stop();
+        be::stop_and_wait();
         self.embedded_server = None;
         let path = self.data_dir.join("server");
         if let Err(error) = std::fs::remove_dir_all(&path)

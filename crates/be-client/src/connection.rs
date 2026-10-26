@@ -35,6 +35,7 @@ struct Outbound {
 
 pub struct Connection {
     commands: mpsc::UnboundedSender<Outbound>,
+    shut: mpsc::UnboundedSender<()>,
     events: broadcast::Sender<ServerMessage>,
     closed: watch::Receiver<bool>,
     due: watch::Receiver<Duration>,
@@ -53,12 +54,14 @@ impl Connection {
             Either::Right(_) => return Err(ClientError::TimedOut("connecting to the server")),
         };
         let (commands, receiver) = mpsc::unbounded_channel();
+        let (shut, shutting) = mpsc::unbounded_channel();
         let (events, _) = broadcast::channel(EVENT_CAPACITY);
         let (closing, closed) = watch::channel(false);
         let opened = clock.now();
         let (due, watched) = watch::channel(opened + PING_INTERVAL);
         let connection = Arc::new(Self {
             commands,
+            shut,
             events: events.clone(),
             closed,
             due: watched,
@@ -69,6 +72,7 @@ impl Connection {
                 writer,
                 reader,
                 commands: receiver,
+                shut: shutting,
                 events,
                 clock: clock.clone(),
                 opened,
@@ -81,11 +85,13 @@ impl Connection {
 
     pub fn offline() -> Arc<Self> {
         let (commands, _) = mpsc::unbounded_channel();
+        let (shut, _) = mpsc::unbounded_channel();
         let (events, _) = broadcast::channel(1);
         let (_, closed) = watch::channel(true);
         let (_, due) = watch::channel(Duration::MAX);
         Arc::new(Self {
             commands,
+            shut,
             events,
             closed,
             due,
@@ -107,6 +113,10 @@ impl Connection {
 
     pub fn is_closed(&self) -> bool {
         *self.closed.borrow()
+    }
+
+    pub fn close(&self) {
+        let _ = self.shut.send(());
     }
 
     pub async fn request(
@@ -203,6 +213,7 @@ struct Carried {
     writer: Writer,
     reader: Reader,
     commands: mpsc::UnboundedReceiver<Outbound>,
+    shut: mpsc::UnboundedReceiver<()>,
     events: broadcast::Sender<ServerMessage>,
     clock: Clock,
     opened: Duration,
@@ -241,6 +252,7 @@ enum Woke {
     Command(Option<Outbound>),
     Frame(Option<Frame>),
     Timer,
+    Shut(bool),
 }
 
 async fn carry(
@@ -248,6 +260,7 @@ async fn carry(
         writer,
         mut reader,
         mut commands,
+        shut,
         events,
         clock,
         opened,
@@ -267,6 +280,7 @@ async fn carry(
     let mut owed = false;
     let mut pinged: Option<Duration> = None;
     let mut reading_first = false;
+    let mut shut = Some(shut);
     loop {
         let now = clock.now();
         if !owed && pinged.is_none() && now >= heard + PING_INTERVAL {
@@ -295,6 +309,11 @@ async fn carry(
             let mut timer = std::pin::pin!(clock.sleep_until(next));
             let accepting = sending.is_none();
             std::future::poll_fn(|context| {
+                if let Some(shutting) = &mut shut
+                    && let Poll::Ready(shutting) = shutting.poll_recv(context)
+                {
+                    return Poll::Ready(Woke::Shut(shutting.is_some()));
+                }
                 if let Some((write, _)) = &mut sending
                     && let Poll::Ready((writer, ping, written)) = write.as_mut().poll(context)
                 {
@@ -315,6 +334,8 @@ async fn carry(
         };
         reading_first = matches!(woke, Woke::Command(_));
         match woke {
+            Woke::Shut(true) => return,
+            Woke::Shut(false) => shut = None,
             Woke::Wrote(_, _, Err(_)) => return,
             Woke::Wrote(idle, ping, Ok(())) => {
                 writer = Some(idle);
