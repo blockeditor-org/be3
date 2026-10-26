@@ -393,6 +393,7 @@ pub(super) fn route(
         let Some(on_forward) = hit::interactive(doc, sink).map(|catcher| catcher.on_forward) else {
             continue;
         };
+        let events = into_window(doc, doc.window_of(sink), events);
         on_forward.call(ForwardedInput {
             events,
             rect: rects.get(&sink).unwrap_or(Rect::NOTHING),
@@ -402,6 +403,25 @@ pub(super) fn route(
             modifiers,
         });
     }
+}
+
+fn into_window(doc: &Document, home: WindowId, mut events: Vec<Forwarded>) -> Vec<Forwarded> {
+    let Some(ctx) = doc.context() else {
+        return events;
+    };
+    for forwarded in &mut events {
+        let Forwarded::Pointer { event, .. } = forwarded else {
+            continue;
+        };
+        if event.window == home {
+            continue;
+        }
+        if let (Some(from), Some(to)) = (ctx.window_origin(event.window), ctx.window_origin(home)) {
+            event.pos += from - to;
+            event.window = home;
+        }
+    }
+    events
 }
 
 #[cfg(test)]

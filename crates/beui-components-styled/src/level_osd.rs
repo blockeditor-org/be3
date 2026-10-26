@@ -11,7 +11,7 @@ use crate::theme::use_theme;
 use beui_core::base::overlay::{OverlayAnchor, Placement};
 use beui_core::color::Color32;
 use beui_core::font::TextAlign;
-use beui_core::geometry::{Rect, pos2};
+use beui_core::geometry::{Pos2, Rect};
 use beui_core::node::NodeId;
 use beui_view::components::overlay::Overlay;
 use beui_view::primitives::*;
@@ -20,7 +20,6 @@ use beui_view::reactive::*;
 pub const OSD_DURATION: Duration = Duration::from_millis(1500);
 
 const FADE: Duration = Duration::from_millis(250);
-const SCREEN_HEIGHT_FRACTION: f32 = 0.85;
 const MARGIN: f32 = 48.0;
 const BOTTOM_MARGIN: f32 = 96.0;
 const PADDING_HORIZONTAL: f32 = 20.0;
@@ -43,6 +42,7 @@ pub fn LevelOsd(
     level: Prop<Option<OsdLevel>>,
     shown: Prop<u64>,
     #[prop(default = OSD_DURATION)] duration: Duration,
+    #[prop(default = None)] area: Prop<Option<Rect>>,
     #[prop(default = "level-osd".to_owned())] id: String,
 ) -> NodeId {
     let since = StoredCell::new(None::<Instant>);
@@ -89,36 +89,33 @@ pub fn LevelOsd(
     });
     let level = create_memo(move || level.get());
     let open = create_memo(move || opacity.get() > 0.0 && level.with(Option::is_some));
-    let screens = use_screens();
-    let places = create_memo(move || (0..screens.with(Vec::len)).collect::<Vec<usize>>());
+    let inset = create_memo(move || {
+        area.get().map_or(Sides::ZERO, |area| {
+            Sides::new(area.left(), area.top(), 0.0, 0.0)
+        })
+    });
+    let outer = create_memo(move || match area.get() {
+        Some(_) => Align2::START,
+        None => Align2::new(Align::Center, Align::End),
+    });
+    let width = create_memo(move || area.get().map(|area| area.width()));
+    let height = create_memo(move || area.get().map(|area| area.height()));
     view! {
-        <List spacing=0.0>
-            <ForEach keys={places}>|index: usize| {
-                let anchored = create_memo(move || {
-                    let screen = screens.with(|screens| {
-                        screens.get(index).map_or(Rect::ZERO, |screen| screen.rect)
-                    });
-                    OverlayAnchor::Point(pos2(
-                        screen.center().x,
-                        screen.top() + screen.height() * SCREEN_HEIGHT_FRACTION,
-                    ))
-                });
-                let id = format!("{id}.{index}");
-                view! {
-                    <Overlay
-                        anchor={anchored}
-                        placement=Placement::Around
-                        policy=LayerPolicy::Inert
-                        level=LayerLevel::Top
-                        traps_focus=false
-                        open={open}
-                        content={move || { let id = id.clone(); view! {
-                            <OsdCard level opacity={opacity.read_only()} id />
-                        } }}
-                    />
-                }
-            }</ForEach>
-        </List>
+        <Overlay
+            anchor=OverlayAnchor::Point(Pos2::ZERO)
+            placement=Placement::Fill
+            policy=LayerPolicy::Inert
+            level=LayerLevel::Top
+            traps_focus=false
+            open={open}
+            content={move || { let id = id.clone(); view! {
+                <Frame padding=inset align={outer}>
+                    <Frame width=width height=height align={Align2::new(Align::Center, Align::End)}>
+                        <OsdCard level opacity={opacity.read_only()} id />
+                    </Frame>
+                </Frame>
+            } }}
+        />
     }
 }
 

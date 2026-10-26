@@ -37,7 +37,7 @@ fn a_driver_answers_a_save_dialog_by_writing_the_file() {
     let file = directory.join("saved.txt");
 
     let changed = driven
-        .ask(&["save", &file.display().to_string(), "\"Export\""])
+        .ask(&["screen", "save", &file.display().to_string(), "\"Export\""])
         .expect("the save dialog the click opened is answered");
     assert!(changed.contains("the export was saved"), "{changed}");
     assert_eq!(
@@ -45,20 +45,20 @@ fn a_driver_answers_a_save_dialog_by_writing_the_file() {
         b"hello"
     );
     assert!(
-        driven.ask(&["dismiss"]).is_err(),
+        driven.ask(&["screen", "dismiss"]).is_err(),
         "no dialog is left open to dismiss"
     );
 
     driven
-        .ask(&["click", "\"Export\""])
+        .ask(&["app", "click", "\"Export\""])
         .expect("the button opens another save dialog");
-    let state = driven.ask(&["state"]).expect("the state is read");
+    let state = driven.ask(&["app", "state"]).expect("the state is read");
     assert!(
         state.contains("save dialog open for notes.txt (text/plain, 5 bytes)"),
         "{state}"
     );
     let changed = driven
-        .ask(&["dismiss"])
+        .ask(&["screen", "dismiss"])
         .expect("the open save dialog is cancelled");
     assert!(changed.contains("the export was cancelled"), "{changed}");
     let _ = std::fs::remove_dir_all(&directory);

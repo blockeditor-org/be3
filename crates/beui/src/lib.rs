@@ -10,7 +10,6 @@ pub use beui_components_unstyled::datetime;
 pub use beui_core::accessibility;
 pub use beui_core::animation;
 pub use beui_core::app::accessibility_dump;
-pub use beui_core::app::automation;
 pub use beui_core::app::{App, FrameTimes, Lifecycle, Setup, Waker};
 pub use beui_core::base::overlay::{OverlayAnchor, Placement};
 pub use beui_core::base::turn::TurnNode;
@@ -69,8 +68,6 @@ pub use beui_core::preferences::{
 };
 pub use beui_core::rich;
 pub use beui_core::runner::environment;
-pub use beui_core::screens::Screen;
-pub use beui_core::testing;
 pub use beui_core::touch_cursor;
 #[cfg(not(target_arch = "wasm32"))]
 pub use beui_font_freetype::system::SystemFonts;
@@ -78,6 +75,8 @@ pub use beui_font_freetype::{
     FontBytes, FontData, FontLibrary, FontSources, FreetypeFonts, ICONS_FONT,
 };
 pub use beui_inspector::install as install_inspector;
+pub use beui_layer_drive as drive;
+pub use beui_platform_headless::testing;
 #[cfg(feature = "render")]
 pub use beui_renderer_wgpu::present::{GpuSetup, OpenDevice};
 #[cfg(feature = "render")]
@@ -88,28 +87,30 @@ pub use beui_renderer_wgpu::{
 pub use beui_view::primitives;
 pub use beui_view::{child_type, value_child_type};
 
-#[cfg(all(feature = "window", target_os = "android"))]
-pub use beui_adapter_android::AndroidApp;
-#[cfg(all(any(feature = "web", feature = "dom"), target_arch = "wasm32"))]
-pub use beui_adapter_web::accessibility_tree;
-#[cfg(all(feature = "window", not(target_os = "android")))]
-pub use beui_adapter_winit::winit;
 pub use beui_core::runner::{
-    Adapter, HostView, Hosted, HostedAdapter, Incoming, Launch, Platform, RunOptions, Running,
-    Units, WindowHost, panic_message,
+    Incoming, Launch, Layer, LayerFrame, LayerView, Platform, PlatformServices, RunOptions,
+    Running, Shown, Units, panic_message,
 };
 pub use beui_core::window::{
-    HostPlacement, WindowEdge, WindowId, WindowPlacement, WindowReport, WindowRequest,
+    HostPlacement, Resize, WindowEdge, WindowHosting, WindowId, WindowPlacement, WindowReport,
+    WindowRequest, WindowSize,
 };
+#[cfg(all(feature = "window", target_os = "android"))]
+pub use beui_platform_android::AndroidApp;
+pub use beui_platform_headless::Simulation;
 #[cfg(all(any(feature = "web", feature = "dom"), target_arch = "wasm32"))]
-pub use web::{WebRenderer, run_web, web_adapter};
+pub use beui_platform_web::accessibility_tree;
+#[cfg(all(feature = "window", not(target_os = "android")))]
+pub use beui_platform_winit::winit;
+#[cfg(all(any(feature = "web", feature = "dom"), target_arch = "wasm32"))]
+pub use web::{WebRenderer, run_web, web_platform};
 
 #[cfg(all(any(feature = "web", feature = "dom"), target_arch = "wasm32"))]
 mod web;
 
 mod keyboard;
 #[cfg(all(feature = "window", not(target_arch = "wasm32")))]
-pub use window::{WindowRenderer, run_on, run_with, run_with_renderers, window_adapter};
+pub use window::{WindowRenderer, native_platform, run_on, run_with, run_with_renderers};
 
 #[cfg(all(feature = "window", not(target_arch = "wasm32")))]
 mod saved_preferences;
@@ -120,7 +121,7 @@ mod window;
     feature = "window",
     not(any(target_os = "android", target_arch = "wasm32"))
 ))]
-pub use beui_adapter_headless::Headless;
+pub use beui_platform_headless::Headless;
 
 pub mod reactive {
     pub use beui_view::reactive::*;

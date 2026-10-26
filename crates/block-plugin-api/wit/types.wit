@@ -114,19 +114,12 @@ interface types {
         top-bar: top-bar,
     }
 
-    record monitor {
-        id: string,
-        name: string,
-        rect: rect,
-    }
-
     record viewport-metrics {
         logical: size,
         visible: pos2,
         pixel-width: u32,
         pixel-height: u32,
         scale-factor: f32,
-        monitors: list<monitor>,
     }
 
     record screen-request {

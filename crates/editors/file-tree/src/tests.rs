@@ -60,8 +60,9 @@ impl Fixture {
         let document = self.test.document();
         let item = document
             .root()
-            .and_then(|root| open_item(document, root, label, false))
+            .and_then(|root| open_item(&document, root, label, false))
             .unwrap_or_else(|| panic!("right clicking a row opens a menu that offers {label}"));
+        drop(document);
         self.test.click(item);
         self.settle();
     }
@@ -89,8 +90,9 @@ impl Fixture {
         let document = self.test.document();
         let item = document
             .root()
-            .and_then(|root| open_item(document, root, label, false))
+            .and_then(|root| open_item(&document, root, label, false))
             .unwrap_or_else(|| panic!("an open menu offers {label}"));
+        drop(document);
         self.test.click(item);
         self.settle();
     }
@@ -99,7 +101,7 @@ impl Fixture {
         let document = self.test.document();
         document
             .root()
-            .and_then(|root| open_item(document, root, label, false))
+            .and_then(|root| open_item(&document, root, label, false))
             .is_some()
     }
 
@@ -107,7 +109,7 @@ impl Fixture {
         let document = self.test.document();
         document
             .root()
-            .is_some_and(|root| says_within(document, root, words))
+            .is_some_and(|root| says_within(&document, root, words))
     }
 
     fn opened(&mut self) -> Vec<Uuid> {
@@ -258,7 +260,7 @@ fn open_item(document: &Document, node: NodeId, label: &str, open: bool) -> Opti
     document
         .children(node)
         .into_iter()
-        .find_map(|child| open_item(document, child, label, open))
+        .find_map(|child| open_item(&document, child, label, open))
 }
 
 fn says_within(document: &Document, node: NodeId, words: &str) -> bool {
@@ -269,5 +271,5 @@ fn says_within(document: &Document, node: NodeId, words: &str) -> bool {
         || document
             .children(node)
             .into_iter()
-            .any(|child| says_within(document, child, words))
+            .any(|child| says_within(&document, child, words))
 }

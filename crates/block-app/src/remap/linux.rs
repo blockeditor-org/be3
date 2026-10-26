@@ -9,7 +9,7 @@ use be_remap_host::Remapper;
 use be_remap_host::be_remap::protocol::{decode, encode};
 use be_remap_host::be_remap::rules::exe_name;
 use be_remap_host::be_remap::{Input, Output, Source, Window};
-use beui_adapter_drm::{InputControl, InputFilter, RawInput};
+use beui_platform_drm::{InputControl, InputFilter, RawInput};
 use block_plugin_api::{RemapState, RemapsWatch};
 use uuid::Uuid;
 

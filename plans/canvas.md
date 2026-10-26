@@ -176,7 +176,7 @@ can change freely until step 8.
   draws, selects or zooms. No palm rejection: heuristics misfire, which is why
   people draw in gloves even on devices known for good palm rejection.
 - Web: read coalesced and predicted pointer events (`getCoalescedEvents`,
-  `getPredictedEvents`) in `beui-adapter-web`, for smoother strokes and less
+  `getPredictedEvents`) in `beui-platform-web`, for smoother strokes and less
   latency.
 - Touch: long press opens the context menu; check what one finger does in
   every tool.

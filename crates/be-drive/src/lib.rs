@@ -10,8 +10,8 @@ use std::process::ExitCode;
 pub use driven::Driven;
 use std::time::Duration;
 
-use beui_core::app::automation::socket::{read_reply, write_request};
-use beui_core::app::automation::{Reply, USAGE};
+use beui_layer_drive::socket::{read_reply, write_request};
+use beui_layer_drive::{Reply, USAGE};
 
 pub(crate) const TIMEOUT: Duration = Duration::from_secs(30);
 const ANSWER_GRACE: Duration = Duration::from_secs(5);
@@ -56,10 +56,10 @@ fn run(mut arguments: Vec<String>) -> Result<(), String> {
         return Err(format!(
             "usage: drive [--timeout=SECONDS] [--socket=PATH] [--no-settle] [--changes=N|all] COMMAND [ARGUMENTS]\n\
              \x20      drive [--timeout=SECONDS] [--socket=PATH] - < COMMANDS\n\
-             `shot` takes the file to write the PNG to first: shot FILE [TARGET].\n\
-             `paint` takes the .paint file to write the paint snapshot to first: paint FILE.paint [TARGET].\n\
+             `screen shot` takes the file to write the PNG to first: screen shot FILE [TARGET].\n\
+             `app paint` takes the .paint file to write the paint snapshot to first: app paint FILE.paint [TARGET] [in WINDOW].\n\
              `-` reads one command a line from standard input, quoted as a shell would, and stops at the first that fails.\n\
-             `env` prints the app's environment for programs as export lines, for `eval \"$(drive env)\"`.\n\
+             `app env` prints the app's environment for programs as export lines, for `eval \"$(drive app env)\"`.\n\
              `exec PROGRAM [ARGUMENTS]` runs PROGRAM in that environment, so its windows open inside the app.\n\
              {USAGE}"
         ));
@@ -111,10 +111,14 @@ pub(crate) fn script(socket: &Path, options: &[String], timeout: Duration) -> Re
 }
 
 fn command(socket: &Path, mut arguments: Vec<String>, timeout: Duration) -> Result<(), String> {
-    let first = arguments
+    let options = arguments
         .iter()
         .take_while(|word| *word == "--no-settle" || word.starts_with("--changes="))
         .count();
+    let first = match arguments.get(options).map(String::as_str) {
+        Some("screen" | "app") => options + 1,
+        _ => options,
+    };
     let absolute = |path: &String| {
         std::path::absolute(path)
             .map(|path| path.display().to_string())
@@ -146,7 +150,7 @@ fn command(socket: &Path, mut arguments: Vec<String>, timeout: Duration) -> Resu
         }
         file = Some(written(arguments.remove(first + 1), "paint", "paint")?);
     }
-    if arguments.get(first).map(String::as_str) == Some("env") {
+    if first > options && arguments.get(first).map(String::as_str) == Some("env") {
         for (name, value) in environment(socket, timeout)? {
             println!("export {name}={}", quoted(&value));
         }
@@ -191,7 +195,9 @@ fn command(socket: &Path, mut arguments: Vec<String>, timeout: Duration) -> Resu
 }
 
 fn environment(socket: &Path, timeout: Duration) -> Result<Vec<(String, String)>, String> {
-    match request(socket, &["env".to_owned()], timeout).map_err(|error| error.to_string())? {
+    match request(socket, &["app".to_owned(), "env".to_owned()], timeout)
+        .map_err(|error| error.to_string())?
+    {
         Reply::Text(text) => Ok(text
             .lines()
             .filter_map(|line| line.split_once('='))

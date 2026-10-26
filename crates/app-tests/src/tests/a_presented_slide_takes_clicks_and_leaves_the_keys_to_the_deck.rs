@@ -23,7 +23,7 @@ fn a_presented_slide_takes_clicks_and_leaves_the_keys_to_the_deck() {
     app.wait("Label value=\"Header\"");
     let (x, y, width, height) = app.place("#infinite-canvas.canvas");
     let middle = format!("{:.0},{:.0}", x + width / 2.0, y + height / 2.0);
-    app.run(&["click", &middle]);
+    app.run(&["app", "click", &middle]);
     app.key("ArrowLeft");
     app.wait("Label value=\"Title\"");
     assert!(

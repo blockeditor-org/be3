@@ -6,7 +6,7 @@ fn a_frame_callback_waits_for_the_flip_of_the_screen_the_window_is_on() {
     harness.compositor().pace_to_flips();
     let left = Rect::from_min_size(Pos2::ZERO, Vec2::new(SCREEN.x / 2.0, SCREEN.y));
     let right = Rect::from_min_max(pos2(SCREEN.x / 2.0, 0.0), pos2(SCREEN.x, SCREEN.y));
-    harness.compositor().set_screens(vec![left, right]);
+    harness.compositor().set_monitors(monitors(&[left, right]));
     let (window, id) = harness.open();
     assert!(
         left.contains(harness.window(id).center()),

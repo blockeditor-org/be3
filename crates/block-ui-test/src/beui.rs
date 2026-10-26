@@ -49,7 +49,7 @@ use uuid::Uuid;
 use crate::document::FRAME_INTERVAL;
 use crate::link::Sent;
 use crate::{ContentStore, overflow, snapshot};
-use beui::automation::gestures::{Frames, Gestures};
+use beui::drive::gestures::{Frames, Gestures};
 
 pub(crate) mod capture;
 
@@ -72,7 +72,6 @@ pub struct BeuiTest<A: BeuiApp> {
     store: ContentStore,
     size: Vec2,
     scale_factor: f32,
-    monitors: Vec<block_plugin_api::Monitor>,
     frame: Option<block_plugin_api::FrameSpec>,
     gestures: Gestures,
     steps: Vec<String>,
@@ -110,6 +109,7 @@ pub struct BeuiTest<A: BeuiApp> {
         std::collections::HashMap<block_plugin_api::ops::OpId, block_plugin_api::ops::Outcome>,
     menu: Vec<MenuEntry>,
     output: Option<beui::FrameOutput>,
+    shown_window: Option<beui::WindowId>,
     drew: bool,
     recording: Option<snapshot::Snapshot>,
     overflows: Vec<String>,
@@ -274,7 +274,6 @@ impl<A: BeuiApp> BeuiTest<A> {
             store,
             size: SIZE,
             scale_factor: 1.0,
-            monitors: Vec::new(),
             frame,
             steps: Vec::new(),
             gestures: Gestures::default(),
@@ -296,6 +295,7 @@ impl<A: BeuiApp> BeuiTest<A> {
             completed: std::collections::HashMap::new(),
             menu: Vec::new(),
             output: None,
+            shown_window: None,
             drew: false,
             recording: None,
             overflows: Vec::new(),
@@ -354,7 +354,6 @@ impl<A: BeuiApp> BeuiTest<A> {
             pixel_width: (self.size.x * self.scale_factor).round() as u32,
             pixel_height: (self.size.y * self.scale_factor).round() as u32,
             scale_factor: self.scale_factor,
-            monitors: self.monitors.clone(),
         };
         let screens = vec![ScreenRequest {
             screen: SCREEN,
@@ -542,19 +541,6 @@ impl<A: BeuiApp> BeuiTest<A> {
         self
     }
 
-    pub fn set_monitors(&mut self, monitors: Vec<(&str, Rect)>) {
-        self.monitors = monitors
-            .into_iter()
-            .map(|(id, rect)| block_plugin_api::Monitor {
-                id: id.to_owned(),
-                name: id.to_owned(),
-                rect,
-            })
-            .collect();
-        self.place();
-        self.run();
-    }
-
     pub fn block_types(&mut self, descriptors: Vec<BlockTypeDescriptor>) {
         self.catalog(Catalog {
             types: descriptors,
@@ -593,17 +579,32 @@ impl<A: BeuiApp> BeuiTest<A> {
 
     pub fn wants_another_frame(&self) -> bool {
         self.output.as_ref().is_some_and(|output| {
-            output.main().changed || output.repaint_after < std::time::Duration::MAX
+            self.shown_changed() || output.repaint_after < std::time::Duration::MAX
         })
     }
 
-    pub fn drawn(&self) -> Option<&beui::FrameOutput> {
-        self.output.as_ref().filter(|_| self.drew)
+    pub fn drawn(&self) -> Option<&beui::WindowOutput> {
+        self.shown_output().filter(|_| self.drew)
     }
 
-    pub fn document(&self) -> &Document {
+    pub fn test_ids(&self) -> std::rc::Rc<beui::accessibility_dump::TestIds> {
+        self.output
+            .as_ref()
+            .expect("the editor has not drawn a frame yet")
+            .test_ids()
+    }
+
+    fn shown_output(&self) -> Option<&beui::WindowOutput> {
+        self.output.as_ref()?.window(self.shown_window?)
+    }
+
+    fn shown_changed(&self) -> bool {
+        self.shown_output().is_some_and(|shown| shown.changed)
+    }
+
+    pub fn document(&self) -> std::cell::Ref<'_, Document> {
         self.plugin
-            .document(INSTANCE, self.region())
+            .document()
             .expect("the editor has not built its view yet")
     }
 
@@ -812,7 +813,7 @@ impl<A: BeuiApp> BeuiTest<A> {
     pub fn settle(&mut self) {
         self.settle_until("its animations to finish", |test| {
             test.output.as_ref().is_none_or(|output| {
-                !output.main().changed && output.repaint_after > std::time::Duration::ZERO
+                !test.shown_changed() && output.repaint_after > std::time::Duration::ZERO
             })
         });
     }
@@ -830,7 +831,7 @@ impl<A: BeuiApp> BeuiTest<A> {
                 .output
                 .as_ref()
                 .map_or((false, std::time::Duration::MAX), |output| {
-                    (output.main().changed, output.repaint_after)
+                    (self.shown_changed(), output.repaint_after)
                 });
             if changed && eager < EAGER_FRAMES {
                 eager += 1;
@@ -906,15 +907,18 @@ impl<A: BeuiApp> BeuiTest<A> {
             self.deliver(message);
         }
         self.hear();
-        let output = self
-            .plugin
-            .draw()
-            .into_iter()
-            .find(|(placement, _)| placement.screen == SCREEN)
-            .map(|(_, output)| output);
-        self.drew = output.is_some();
-        if output.is_some() {
-            self.output = output;
+        let drawn = self.plugin.draw().and_then(|drawn| {
+            let window = drawn
+                .windows
+                .iter()
+                .find(|(placement, _)| placement.screen == SCREEN)
+                .map(|(_, window)| *window)?;
+            Some((drawn.output, window))
+        });
+        self.drew = drawn.is_some();
+        if let Some((output, window)) = drawn {
+            self.output = Some(output);
+            self.shown_window = Some(window);
         }
         if let Some(commit) = self.plugin.outbound() {
             self.committed(roundtrip(commit, "the plugin's frame"));
@@ -1582,7 +1586,7 @@ impl<A: BeuiApp> BeuiTest<A> {
             .find_test_id(test_id)
             .unwrap_or_else(|| panic!("no element with test id {test_id:?}"));
         let mut collected = Vec::new();
-        collect_text(self.document(), node, &mut collected);
+        collect_text(&self.document(), node, &mut collected);
         collected.join(" ")
     }
 
@@ -1606,6 +1610,14 @@ impl<A: BeuiApp> BeuiTest<A> {
             .unwrap_or_else(|| panic!("no element with test id {test_id:?}\n{}", self.replay()))
     }
 
+    pub fn rects_of(&self, test_id: &str) -> Vec<Rect> {
+        self.test_ids()
+            .iter()
+            .find(|(named, _)| *named == test_id)
+            .map(|(_, shown)| shown.iter().map(|at| at.rect).collect())
+            .unwrap_or_default()
+    }
+
     pub fn point_of(&self, test_id: &str) -> Pos2 {
         let rect = self.rect_of(test_id);
         let shown = rect.intersect(self.rect());
@@ -1619,21 +1631,22 @@ impl<A: BeuiApp> BeuiTest<A> {
         if self.rect_of(test_id).intersect(self.rect()).is_positive() {
             return;
         }
-        let region = self.region();
-        let document = self
-            .plugin
-            .document_mut(INSTANCE, region)
-            .expect("the editor has not built its view yet");
-        let node = document
-            .find_test_id(test_id)
-            .unwrap_or_else(|| panic!("no element with test id {test_id:?}"));
-        document.reveal_node(node);
+        {
+            let mut document = self
+                .plugin
+                .document_mut()
+                .expect("the editor has not built its view yet");
+            let node = document
+                .find_test_id(test_id)
+                .unwrap_or_else(|| panic!("no element with test id {test_id:?}"));
+            document.reveal_node(node);
+        }
         self.run();
     }
 
     pub fn secondary_drag(&mut self, from: Pos2, to: Pos2) {
         self.steps.push(format!(
-            "drive down {} right; drive up {} right",
+            "drive app down {} right; drive app up {} right",
             Target::point(from).word(1.0),
             Target::point(to).word(1.0)
         ));
@@ -1765,7 +1778,7 @@ impl<A: BeuiApp> BeuiTest<A> {
             TouchPhase::Cancel => "cancel",
         };
         self.steps
-            .push(format!("drive touch {phase_name} {}", named.join(" ")));
+            .push(format!("drive app touch {phase_name} {}", named.join(" ")));
         let at: Vec<(u64, Option<Pos2>)> = fingers
             .iter()
             .zip(targets)
@@ -1779,15 +1792,15 @@ impl<A: BeuiApp> BeuiTest<A> {
     }
 
     pub fn type_text(&mut self, text: &str) {
-        self.steps.push(format!("drive type {text:?}"));
+        self.steps.push(format!("drive app type {text:?}"));
         let frames = self.gestures.type_text(text);
         self.perform(frames);
     }
 
     pub fn key(&mut self, key: Key, modifiers: Modifiers) {
-        let chord = beui::automation::keys::chord_name(key, modifiers)
+        let chord = beui_core::input::typing::chord_name(key, modifiers)
             .unwrap_or_else(|| format!("{modifiers:?}+{key:?}"));
-        self.steps.push(format!("drive key {chord}"));
+        self.steps.push(format!("drive app key {chord}"));
         let frames = self.gestures.chord(key, modifiers);
         self.perform(frames);
     }
@@ -1803,7 +1816,7 @@ impl<A: BeuiApp> BeuiTest<A> {
     fn held_key(&mut self, key: Key, pressed: bool) {
         let command = if pressed { "keydown" } else { "keyup" };
         let name = key.name().unwrap_or_else(|| format!("{key:?}"));
-        self.steps.push(format!("drive {command} {name}"));
+        self.steps.push(format!("drive app {command} {name}"));
         let frames = self
             .gestures
             .key(key, pressed)
@@ -1816,7 +1829,7 @@ impl<A: BeuiApp> BeuiTest<A> {
     }
 
     fn locate(&mut self, command: &str, targets: &[Target], rest: &[String]) -> Vec<Pos2> {
-        let mut step = format!("drive {command}");
+        let mut step = format!("drive app {command}");
         for word in targets
             .iter()
             .map(|target| target.word(1.0))
@@ -1861,7 +1874,7 @@ impl<A: BeuiApp> BeuiTest<A> {
 
     pub fn record(&mut self) {
         let frame = self.painted();
-        let found = overflow::overflows(self.document());
+        let found = overflow::overflows(&self.document());
         self.overflows.extend(found);
         match &mut self.recording {
             Some(recording) => recording.append(frame),
@@ -1873,7 +1886,7 @@ impl<A: BeuiApp> BeuiTest<A> {
         let painting = match self.recording.take() {
             Some(recording) => recording,
             None => {
-                let found = overflow::overflows(self.document());
+                let found = overflow::overflows(&self.document());
                 self.overflows.extend(found);
                 self.painted()
             }
@@ -1888,7 +1901,10 @@ impl<A: BeuiApp> BeuiTest<A> {
             .output
             .as_ref()
             .expect("the editor has not drawn a frame yet");
-        capture::capture(output, self.size, output.pixels_per_point(), behind)
+        let shown = self
+            .shown_output()
+            .expect("the editor has not drawn its window yet");
+        capture::capture(shown, self.size, output.pixels_per_point(), behind)
             .expect("the painting could not be rendered")
     }
 }

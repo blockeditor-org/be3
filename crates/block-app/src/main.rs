@@ -141,7 +141,7 @@ fn run_app(arguments: arguments::Arguments) -> Result<(), Box<dyn Error>> {
 #[cfg(target_os = "linux")]
 fn run_shell(options: beui::RunOptions, shell: Shell, session: bool) -> Result<(), Box<dyn Error>> {
     if session {
-        return beui::run_on(Box::new(beui_adapter_drm::Drm), options, shell);
+        return beui::run_on(Box::new(beui_platform_drm::Drm), options, shell);
     }
     let renderer = beui::WindowRenderer::Wgpu {
         open_device: Some(std::sync::Arc::new(be_dmabuf::open_device)),
@@ -170,7 +170,7 @@ pub async fn run_web(canvas_id: String) -> Result<(), wasm_bindgen::JsValue> {
     editors::plugin::discovery::load().await;
     let mut app =
         BlockApp::new().map_err(|error| wasm_bindgen::JsValue::from_str(&error.to_string()))?;
-    let mut options = run_options();
+    let options = run_options();
     let location = web_sys::window()
         .map(|window| window.location())
         .ok_or("no browser window is available")?;
@@ -188,11 +188,15 @@ pub async fn run_web(canvas_id: String) -> Result<(), wasm_bindgen::JsValue> {
         page.set_hash("");
         location.replace(&page.href())?;
     }
-    options.automation = automation()?;
+    let mut layers: Vec<Box<dyn beui::Layer>> = Vec::new();
+    if let Some(inbox) = automation()? {
+        layers.push(Box::new(beui::drive::Drive::new(inbox)));
+    }
     beui::run_web(
         &canvas_id,
         vec![beui::WebRenderer::Wgpu],
         options,
+        layers,
         Shell::new(app),
     )
     .await
@@ -201,12 +205,12 @@ pub async fn run_web(canvas_id: String) -> Result<(), wasm_bindgen::JsValue> {
 
 #[cfg(target_arch = "wasm32")]
 thread_local! {
-    static AUTOMATION: std::cell::RefCell<Option<beui::automation::Inbox>> =
+    static AUTOMATION: std::cell::RefCell<Option<beui::drive::Inbox>> =
         const { std::cell::RefCell::new(None) };
 }
 
 #[cfg(target_arch = "wasm32")]
-fn automation() -> Result<Option<beui::automation::Inbox>, wasm_bindgen::JsValue> {
+fn automation() -> Result<Option<beui::drive::Inbox>, wasm_bindgen::JsValue> {
     let location = web_sys::window()
         .map(|window| window.location())
         .ok_or("no browser window is available")?;
@@ -229,7 +233,7 @@ pub async fn automate(
 ) -> Result<String, wasm_bindgen::JsValue> {
     use wasm_bindgen::JsCast;
     let inbox = automation()?.ok_or("the page was not opened with ?automation")?;
-    let answered = beui::automation::ask(&inbox, words);
+    let answered = beui::drive::ask(&inbox, words);
     let canceller = answered.canceller();
     let late = wasm_bindgen::closure::Closure::once_into_js(move || {
         canceller.cancel(format!(
@@ -244,13 +248,13 @@ pub async fn automate(
             timeout_milliseconds,
         )?;
     match answered.await {
-        beui::automation::Reply::Text(text) => Ok(text),
-        beui::automation::Reply::Error(error) => Err(error.into()),
-        beui::automation::Reply::Image { .. } => {
-            Err("the browser takes screenshots itself: use drive shot".into())
+        beui::drive::Reply::Text(text) => Ok(text),
+        beui::drive::Reply::Error(error) => Err(error.into()),
+        beui::drive::Reply::Image { .. } => {
+            Err("the browser takes screenshots itself: use drive screen shot".into())
         }
-        beui::automation::Reply::Painting(_) => {
-            Err("the web build does not answer paint; run the app natively".into())
+        beui::drive::Reply::Painting(_) => {
+            Err("the web build does not answer app paint; run the app natively".into())
         }
     }
 }
@@ -291,11 +295,12 @@ impl Shell {
             compositor::install();
             wayland::create();
             surfaces::create_handles();
+            display::create_handle();
             let store = AppViewStore::new(AppView::default());
             view = Some(store);
             beui::reactive::view! {
                 <beui::styled::Root title="Block">
-                    <ui::Root view={store} />
+                    <ui::Displays view={store} />
                 </beui::styled::Root>
             }
         });
@@ -319,7 +324,7 @@ impl beui::App for Shell {
         wayland::start(setup);
         input::start(setup);
         #[cfg(target_os = "linux")]
-        if let Some(problems) = setup.get::<beui_adapter_drm::Problems>() {
+        if let Some(problems) = setup.get::<beui_platform_drm::Problems>() {
             problems.listen(notices::report);
         }
         #[cfg(target_os = "linux")]
@@ -382,7 +387,10 @@ impl beui::App for Shell {
         wayland::set_owned(view.screen == ui::Screen::Organization && self.app.shell.is_some());
         let store = self.view;
         compositor::notify();
-        beui::reactive::enter(&mut self.document, || store.set(view));
+        beui::reactive::enter(&mut self.document, || {
+            display::apply_shown();
+            store.set(view);
+        });
         #[cfg(target_arch = "wasm32")]
         plugin_host::place_screens(
             &plugin_host::shown_blits(),

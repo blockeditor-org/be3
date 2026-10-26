@@ -1344,7 +1344,7 @@ when it is not open, into the copy's id before anything opens the copy.
 The app can read a block itself, not only through an editor:
 `sync_local_settings` hands the input settings (keymap, key repeat, and
 pointer settings for every pointer with per-device overrides) to the `--session`
-seat through `beui_adapter_drm::InputControl` and to the nested Wayland clients'
+seat through `beui_platform_drm::InputControl` and to the nested Wayland clients'
 keyboard, and the display settings to the app and the seat. `DisplaySettings` is
 one block for everything about what the device shows: the theme, motion and scale,
 which `sync_ui_settings` takes from the display settings last applied (the theme,
@@ -1354,7 +1354,7 @@ this device only; the scale is beui's zoom factor, multiplied into the screen's 
 per point); a
 `ScreenSettings` per screen (a mode and a rotation, keyed by the monitor's EDID
 make, model and serial, or by its connector when it has no EDID), whose modes and
-rotations go to the seat's outputs through `beui_adapter_drm::DisplayControl`,
+rotations go to the seat's outputs through `beui_platform_drm::DisplayControl`,
 which switches both live (guides/linux_desktop.md says how a screen is turned),
 and which reports each monitor's applied rotation with its modes; whether the
 bar shows a rotate button; and when the screens turn off and lock. Every setting is an `Option`, and an unset one means the default:

@@ -47,7 +47,7 @@ fn leaving_a_workspace_someone_shared_asks_first() {
     app.type_text("Team");
     app.key("Enter");
     app.wait("TreeItem \"Team\"");
-    app.run(&["click", "TreeItem \"Team\"", "right"]);
+    app.run(&["app", "click", "TreeItem \"Team\"", "right"]);
     app.click("#file-tree.section.share");
     app.click("#share.query");
     app.type_text("dev");
@@ -61,7 +61,7 @@ fn leaving_a_workspace_someone_shared_asks_first() {
     app.click("#account.open.Dev");
     app.gone("#account.open.Dev");
     app.wait("TreeItem \"Team\"");
-    app.run(&["click", "TreeItem \"Team\"", "right"]);
+    app.run(&["app", "click", "TreeItem \"Team\"", "right"]);
     app.click("#file-tree.section.leave");
     app.wait("Dialog \"Leave?\"");
     app.crop("Dialog \"Leave?\"");

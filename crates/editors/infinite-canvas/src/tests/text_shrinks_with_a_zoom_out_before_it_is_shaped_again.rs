@@ -6,7 +6,7 @@ const WRITTEN: &str = "Zooming out shrinks this note";
 fn text_width(editor: &BeuiTest<CanvasApp>) -> f32 {
     let output = editor.drawn().expect("the canvas has drawn");
     let mut shapes = Vec::new();
-    for layer in output.main().layers.iter() {
+    for layer in output.layers.iter() {
         layer.flatten(&mut shapes);
     }
     let laid = shapes
@@ -23,7 +23,7 @@ fn text_width(editor: &BeuiTest<CanvasApp>) -> f32 {
             _ => None,
         })
         .unwrap_or_else(|| panic!("the note is drawn"));
-    let (left, right) = quads(output.main(), 1.0)
+    let (left, right) = quads(output, 1.0)
         .list
         .iter()
         .filter_map(|quad| match quad {

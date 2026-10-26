@@ -1,4 +1,4 @@
-use beui::automation::WindowSize;
+use beui::WindowSize;
 use beui::testing::{Showing, Stepped};
 use beui::{Context, FreetypeFonts, Rect, pos2, vec2};
 

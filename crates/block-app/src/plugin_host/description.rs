@@ -67,6 +67,7 @@ pub(crate) fn describe(context: &beui::Context) {
             );
             let actions = ActionGroup {
                 name: name.clone(),
+                window: None,
                 actions: described
                     .actions
                     .iter()
@@ -100,8 +101,8 @@ pub(crate) fn describe(context: &beui::Context) {
         }
     });
     regions.sort_by_key(|region| region.document);
-    for requested in context.action_requests() {
-        let (pane, id) = match requested.split_once(beui::automation::PANE) {
+    for (_, requested) in context.action_requests() {
+        let (pane, id) = match requested.split_once(beui::drive::PANE) {
             Some((pane, id)) => (Some(pane), id),
             None => (None, requested.as_str()),
         };

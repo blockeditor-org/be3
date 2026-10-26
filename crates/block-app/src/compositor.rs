@@ -1,3 +1,4 @@
+mod desktop;
 mod editors;
 mod intercept;
 pub(crate) mod region;
@@ -11,6 +12,7 @@ use beui::reactive::*;
 
 use crate::editors::EditorAction;
 
+pub(crate) use desktop::{DesktopMount, DesktopPlace};
 pub(crate) use editors::{ConflictSurface, OwnedEditors, PresentingSurface, ShellSurface};
 pub(crate) use region::{ChildView, PluginRegion, RegionEditor};
 
@@ -29,6 +31,7 @@ thread_local! {
 }
 
 pub(crate) fn install() {
+    desktop::install();
     let signal = create_signal(0u64);
     ANY.with(|any| *any.borrow_mut() = Some(signal));
     let shell = create_signal(None);

@@ -46,6 +46,7 @@ mod a_windows_tab_menu_makes_it_full_screen;
 mod alt_tab_or_a_click_brings_a_fullscreen_window_back_in_front;
 mod alt_tab_switches_to_the_window_two_back_once_alt_is_let_go;
 mod clicking_the_clock_opens_the_desktops_calendar_and_clicking_away_closes_it;
+mod each_display_shows_its_own_bar_at_its_own_foot;
 mod escape_closes_the_launcher_and_gives_the_focus_back_to_its_button;
 mod escape_leaves_the_window_switcher_without_switching;
 mod picking_a_turned_monitor_writes_its_rotation_for_every_device;
@@ -322,19 +323,20 @@ impl Fixture {
         let document = self.test.document();
         document
             .root()
-            .is_some_and(|root| text_within(document, root, words).is_some())
+            .is_some_and(|root| text_within(&document, root, words).is_some())
     }
 
     fn click_text(&mut self, words: &str) {
         let document = self.test.document();
         let node = document
             .root()
-            .and_then(|root| text_within(document, root, words))
+            .and_then(|root| text_within(&document, root, words))
             .unwrap_or_else(|| panic!("{words:?} is on screen"));
         let center = document
             .node_rect(node)
             .expect("the text is laid out")
             .center();
+        drop(document);
         self.test.click(center);
         self.settle();
     }
@@ -372,12 +374,24 @@ impl Fixture {
             .filter_map(|tab| document.find_test_id(&format!("dock.tab.{tab}.close")))
             .find_map(|close| document.node_rect(close))
             .expect("an open tab can be closed");
+        drop(document);
         self.test.click(cross.center());
         self.settle();
     }
 }
 
 const PANEL: &str = "DPI-1";
+
+fn monitor(id: &str, rect: Rect, scale: f32) -> HostDisplay {
+    HostDisplay {
+        id: id.to_owned(),
+        name: id.to_owned(),
+        connector: id.to_owned(),
+        rect,
+        scale,
+        ..epaper_panel()
+    }
+}
 
 fn epaper_panel() -> HostDisplay {
     let mode = DisplayMode {
@@ -393,6 +407,8 @@ fn epaper_panel() -> HostDisplay {
         default: mode,
         current: mode,
         rotation: Default::default(),
+        rect: block_editor_beui::Rect::ZERO,
+        scale: 1.0,
     }
 }
 
@@ -541,7 +557,7 @@ fn text_within(document: &Document, id: NodeId, words: &str) -> Option<NodeId> {
     document
         .children(id)
         .into_iter()
-        .find_map(|child| text_within(document, child, words))
+        .find_map(|child| text_within(&document, child, words))
 }
 
 fn text_under(document: &Document, id: NodeId) -> Option<String> {
@@ -551,7 +567,7 @@ fn text_under(document: &Document, id: NodeId) -> Option<String> {
     document
         .children(id)
         .into_iter()
-        .find_map(|child| text_under(document, child))
+        .find_map(|child| text_under(&document, child))
 }
 
 fn toast(id: u32) -> String {

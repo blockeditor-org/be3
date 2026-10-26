@@ -223,7 +223,7 @@ sysroot.
 ## Tests
 
 Most tests run on the workers, including beui-renderer-wgpu's, be-dmabuf's, be-wayland's and
-beui-adapter-drm's, which draw
+beui-platform-drm's, which draw
 through lavapipe from `buck/sysroot:amd64-test`; a test whose `env` names
 `LD_LIBRARY_PATH` is built as a harness binary and run through
 `library_path_test`, since the workers replace that variable
@@ -326,7 +326,7 @@ A native target depends on a wasm one through a transition in
 - The APK is assembled on a worker without Gradle (`buck-tools apk`):
   aapt2, javac and d8, block-app's `[cdylib]` and `libc++_shared.so`, the
   plugins precompiled for arm64 (only the `.cwasm`s), and `zipalign -P 16`. The Java is
-  the app's own and beui's (`//crates/beui-adapter-android:android-java`), against the
+  the app's own and beui's (`//crates/beui-platform-android:android-java`), against the
   platform alone: the APK carries no libraries. Every Android target builds
   an aligned unsigned template without build metadata. `buck2 run` appends
   metadata and signs on the requesting machine with `local-tools apk-sign`. `:android` uses `target/android-debug.keystore`, made on first use.

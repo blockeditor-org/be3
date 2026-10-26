@@ -1,6 +1,6 @@
 use beui::{Event, Pos2, Rect, Replay, Replayed, Vec2};
 use block_plugin_api::{
-    DroppedFile, Input, InputBatch, Monitor, Pasted, ScreenId, Size, TimedInput, ViewportMetrics,
+    DroppedFile, Input, InputBatch, Pasted, ScreenId, Size, TimedInput, ViewportMetrics,
 };
 use uuid::Uuid;
 
@@ -64,11 +64,11 @@ fn read_path(path: &std::path::Path) -> Option<Vec<u8>> {
 }
 
 #[derive(Default)]
-pub(super) struct InputAdapter {
+pub(super) struct InputForwarder {
     replay: Replay,
 }
 
-impl InputAdapter {
+impl InputForwarder {
     pub(super) fn focused(&self) -> bool {
         self.replay.focused()
     }
@@ -113,12 +113,7 @@ impl InputAdapter {
     }
 }
 
-pub(super) fn viewport_metrics(
-    size: Vec2,
-    visible: Rect,
-    scale_factor: f32,
-    monitors: Vec<Monitor>,
-) -> ViewportMetrics {
+pub(super) fn viewport_metrics(size: Vec2, visible: Rect, scale_factor: f32) -> ViewportMetrics {
     let logical = Size {
         width: size.x.max(0.0),
         height: size.y.max(0.0),
@@ -130,6 +125,5 @@ pub(super) fn viewport_metrics(
         pixel_width: (visible.width().max(0.0) * scale_factor).round() as u32,
         pixel_height: (visible.height().max(0.0) * scale_factor).round() as u32,
         scale_factor,
-        monitors,
     }
 }
