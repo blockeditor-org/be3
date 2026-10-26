@@ -61,7 +61,11 @@ fn a_window_is_a_region_of_its_own_only_where_the_host_opens_windows() {
     let shown = Region {
         region: EditorRegion::Window(window),
         scale_factor: 2.0,
-        ..region(Rect::from_min_size(pos2(0.0, 0.0), vec2(120.0, 80.0)), [240, 160])
+        raster: 2.0,
+        ..region(
+            Rect::from_min_size(pos2(0.0, 0.0), vec2(120.0, 80.0)),
+            [240, 160],
+        )
     };
     let first = surface.update_window(window, &shown);
     assert_eq!(
@@ -71,7 +75,10 @@ fn a_window_is_a_region_of_its_own_only_where_the_host_opens_windows() {
     );
     surface.update(&framed);
     let drawn = surface.update_window(window, &shown);
-    assert!(drawn.changed, "the window's own output is drawn on its region");
+    assert!(
+        drawn.changed,
+        "the window's own output is drawn on its region"
+    );
     let painting = surface
         .window_painting(window)
         .expect("the window paints on its own");

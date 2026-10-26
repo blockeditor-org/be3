@@ -1827,7 +1827,10 @@ pub(crate) fn plugin_windows(
     plugin_id: &str,
     instance: EditorInstanceId,
 ) -> Vec<super::instances::PluginWindow> {
-    with(plugin_id, |runtime| runtime.instances.plugin_windows(instance)).unwrap_or_default()
+    with(plugin_id, |runtime| {
+        runtime.instances.plugin_windows(instance)
+    })
+    .unwrap_or_default()
 }
 
 pub(crate) fn report_window(

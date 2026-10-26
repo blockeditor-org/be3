@@ -1692,9 +1692,10 @@ impl Instances {
         let mut changed = false;
         for ScreenWindowRequest { screen, request } in requests {
             let Some(entry) = self.entries.values_mut().find(|entry| {
-                entry.screens.values().any(|placed| {
-                    placed.request.screen == screen && placed.request.opens_windows
-                })
+                entry
+                    .screens
+                    .values()
+                    .any(|placed| placed.request.screen == screen && placed.request.opens_windows)
             }) else {
                 continue;
             };
@@ -1720,7 +1721,10 @@ impl Instances {
                     });
                     true
                 }
-                (WindowRequest::Open { size, .. } | WindowRequest::Resize { size, .. }, Some(at)) => {
+                (
+                    WindowRequest::Open { size, .. } | WindowRequest::Resize { size, .. },
+                    Some(at),
+                ) => {
                     let changed = windows[at].size != size;
                     windows[at].size = size;
                     changed

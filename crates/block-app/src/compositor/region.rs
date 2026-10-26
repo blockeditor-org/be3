@@ -646,44 +646,44 @@ fn RegionWindows(
     };
     view! {
         <Layers>
-        <ForEach keys={keys}>|key: WindowId| {
-            let id = WindowId::next();
-            hosted.with(|hosted| hosted.borrow_mut().insert(key, id));
-            on_cleanup(move || {
-                hosted.with(|hosted| hosted.borrow_mut().remove(&key));
-            });
-            let window = create_memo(move || {
-                windows.with(|windows| windows.iter().find(|window| window.window == key).cloned())
-            });
-            let size = create_memo(move || window.with(|window| window.as_ref().map_or(Vec2::ZERO, |window| window.size)));
-            let placement = window
-                .with_untracked(|window| window.as_ref().map(|window| window.placement.clone()))
-                .map_or(WindowPlacement::AtPointer, placed);
-            let report = move |report: WindowReport| {
-                let report = match report {
-                    WindowReport::Placed { placement, .. } => WindowReport::Placed {
-                        window: key,
-                        placement,
-                    },
-                    WindowReport::Closed(_) => WindowReport::Closed(key),
-                    _ => return,
+            <ForEach keys={keys}>|key: WindowId| {
+                let id = WindowId::next();
+                hosted.with(|hosted| hosted.borrow_mut().insert(key, id));
+                on_cleanup(move || {
+                    hosted.with(|hosted| hosted.borrow_mut().remove(&key));
+                });
+                let window = create_memo(move || {
+                    windows.with(|windows| windows.iter().find(|window| window.window == key).cloned())
+                });
+                let size = create_memo(move || window.with(|window| window.as_ref().map_or(Vec2::ZERO, |window| window.size)));
+                let placement = window
+                    .with_untracked(|window| window.as_ref().map(|window| window.placement.clone()))
+                    .map_or(WindowPlacement::AtPointer, placed);
+                let report = move |report: WindowReport| {
+                    let report = match report {
+                        WindowReport::Placed { placement, .. } => WindowReport::Placed {
+                            window: key,
+                            placement,
+                        },
+                        WindowReport::Closed(_) => WindowReport::Closed(key),
+                        _ => return,
+                    };
+                    plugin_host::report_window(&plugin_id.value(), instance, report);
                 };
-                plugin_host::report_window(&plugin_id.value(), instance, report);
-            };
-            view! {
-                <Window id={Some(id)} size placement on_report={report}>|handle: WindowHandle| {
-                    follow_window_asks(window, handle);
-                    view! {
-                        <PluginRegion
-                            editor={editor.with(RegionEditor::clone)}
-                            region={EditorRegion::Window(key)}
-                            on_focus
-                            child_view
-                        />
-                    }
-                }</Window>
-            }
-        }</ForEach>
+                view! {
+                    <Window id={Some(id)} size placement on_report={report}>|handle: WindowHandle| {
+                        follow_window_asks(window, handle);
+                        view! {
+                            <PluginRegion
+                                editor={editor.with(RegionEditor::clone)}
+                                region={EditorRegion::Window(key)}
+                                on_focus
+                                child_view
+                            />
+                        }
+                    }</Window>
+                }
+            }</ForEach>
         </Layers>
     }
 }

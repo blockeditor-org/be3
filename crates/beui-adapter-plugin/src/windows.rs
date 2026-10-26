@@ -91,7 +91,9 @@ impl WindowHost for PluginWindows {
 
     fn frame(&mut self, output: &FrameOutput, _view: &HostView) -> Hosted {
         let mut windows = self.0.borrow_mut();
-        windows.requests.extend(output.window_requests.iter().cloned());
+        windows
+            .requests
+            .extend(output.window_requests.iter().cloned());
         for window in output.windows.iter().filter(|window| !window.id.is_main()) {
             let shown = windows.shown(window.id);
             shown.surface.borrow_mut().note(
