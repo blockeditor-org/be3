@@ -26,7 +26,7 @@ mod a_carried_panel_stays_in_front_of_the_panel_it_is_carried_over_and_after_rel
 mod a_carried_panel_swings_about_the_view_s_up_with_the_head_rolled;
 mod a_carried_panel_turns_smoothly_to_face_the_viewer_while_carried;
 mod a_click_on_the_panel_reaches_the_app_where_the_ray_hits;
-mod a_cursor_turned_out_of_view_is_drawn_inside_the_edge_and_clicks_there;
+mod a_cursor_turned_out_of_view_shows_a_mouse_at_the_edge_pointing_at_it;
 mod a_driver_pointing_at_a_window_shows_its_icon;
 mod a_laser_drags_once_it_turns_past_where_the_trigger_froze_it;
 mod a_laser_is_smoothed_and_takes_a_jump_at_once;
@@ -34,22 +34,29 @@ mod a_layered_panel_is_left_clear_in_the_eyes_and_copied_into_its_layer;
 mod a_miss_keeps_the_cursor_as_far_away_as_it_last_hit;
 mod a_miss_leaves_the_panel;
 mod a_miss_while_a_button_is_held_leaves_the_window_and_keeps_the_drag;
+mod a_move_asked_for_after_its_click_was_let_go_carries_nothing;
 mod a_nearer_panel_is_drawn_at_more_pixels_per_point;
 mod a_new_pixels_per_point_waits_for_the_panel_to_settle_and_not_while_it_is_resized;
 mod a_panel_carried_above_eye_level_tilts_to_face_the_eye;
 mod a_panel_carried_by_its_grip;
+mod a_panel_carried_close_behind_another_comes_in_front_of_it;
+mod a_panel_carried_far_behind_another_stays_behind_it;
 mod a_panel_carried_to_each_corner_with_the_head_rolled_and_pitched_stays_upright_to_the_view;
 mod a_panel_carried_under_the_floor_stays_visible_and_can_be_picked;
 mod a_panel_carried_with_the_head_rolled_rolls_to_match;
 mod a_panel_is_rastered_at_the_most_any_view_needs;
 mod a_panel_keeps_its_pixels_per_point_until_its_size_on_screen_changes_a_step;
 mod a_pulled_trigger_touches_the_window_where_its_laser_hits;
+mod a_ray_between_a_window_and_its_chrome_never_falls_through_to_a_window_behind;
 mod a_ray_hits_a_curved_panel_on_its_bent_surface;
 mod a_ray_hits_the_nearest_panel_where_it_points;
 mod a_released_panel_turns_to_face_the_viewer;
 mod a_resized_panel_keeps_its_renderer_and_draws_at_the_new_size;
 mod a_scrolled_panel_copies_what_it_showed_and_paints_what_a_full_repaint_would;
+mod a_touchpad_scroll_pushes_a_carried_panel_through_another_only_once_past_it;
+mod a_wheel_line_moves_a_carried_panel_a_step_and_pixels_in_proportion;
 mod a_window_asked_to_resize_keeps_its_top_left_corner_and_reports_the_size;
+mod a_window_carried_from_a_press_in_another_gives_that_one_its_release;
 mod a_window_carried_over_the_main_panel_and_let_go_is_drawn_in_front;
 mod a_window_moved_by_a_laser_touch_is_carried_along_that_laser;
 mod a_window_opened_at_a_host_placement_lands_on_that_pose;
@@ -62,11 +69,14 @@ mod an_off_axis_view_projects_its_field_of_view_tangents_to_the_edges_of_its_tar
 mod clicking_a_panel_or_its_chrome_focuses_it_until_another_or_nothing_is_clicked;
 mod closing_a_window_removes_its_panel;
 mod dragging_a_corner_handle_scales_the_panel_and_keeps_its_points;
+mod dragging_a_side_of_the_main_panel_resizes_its_window_and_keeps_its_scale;
 mod dragging_the_move_control_carries_the_panel;
 mod dragging_the_roll_control_rolls_the_panel_and_the_rotate_control_never_does;
 mod dragging_the_roll_control_with_the_head_rolled_rolls_the_panel_about_its_normal;
+mod dragging_the_rotate_control_keeps_the_cursor_on_the_button;
 mod dragging_the_rotate_control_turns_the_panel_as_seen_from_the_eye_wherever_it_is_on_screen;
 mod dragging_the_rotate_control_turns_the_panel_until_it_is_carried;
+mod each_panel_shows_its_window_s_title_and_dragging_the_title_carries_it;
 mod each_tracked_view_is_drawn_into_its_own_target_through_its_own_field_of_view;
 mod holding_ctrl_and_shift_steers_the_head;
 mod holding_escape_lets_the_pointer_go_until_the_next_click;
@@ -74,8 +84,8 @@ mod input_reaches_the_window_whose_panel_the_ray_hits_in_its_points;
 mod keys_a_driver_sends_steer_too;
 mod losing_focus_lets_the_pointer_go_and_the_click_back_is_swallowed;
 mod motion_a_driver_sends_turns_the_head_while_steering;
+mod mouse_motion_up_moves_the_cursor_toward_the_sky_however_the_head_is_tilted;
 mod moving_a_window_carries_its_panel;
-mod moving_the_mouse_from_the_edge_starts_where_the_cursor_is_drawn;
 mod panels_get_layers_only_where_their_order_to_the_eye_is_plain;
 mod panels_through_each_other_are_painted_nearest_first_at_every_pixel;
 mod q_and_e_roll_the_head_while_steering;
@@ -88,14 +98,17 @@ mod steering_with_a_headset_moves_the_body_the_views_are_tracked_in;
 mod switching_the_cursor_icon_keeps_the_cursor_renderer;
 mod tapping_escape_reaches_the_app_and_keeps_the_grab;
 mod the_chrome_around_a_curved_panel;
+mod the_chrome_keeps_its_size_to_the_eye_at_any_distance;
 mod the_chrome_of_a_near_panel_draws_its_icons_at_the_panel_s_raster;
-mod the_cursor_moves_along_the_screen_with_the_head_rolled;
+mod the_cursor_is_drawn_only_while_the_pointer_is_grabbed;
 mod the_cursor_shows_the_icon_the_window_under_it_asks_for_and_hides_the_platform_one;
 mod the_cursor_sits_just_in_front_of_the_panel_at_the_same_size_to_the_eye;
 mod the_cursor_sprite_draws_the_icon_around_its_hotspot;
 mod the_curve_slider_bends_the_panel_and_clicks_land_on_the_curve;
 mod the_keyboard_opens_under_the_focused_field_and_never_takes_the_focus;
 mod the_lasers_are_drawn_to_where_they_hit;
+mod the_mirror_shows_a_notice_over_the_scene;
+mod the_mouse_moves_the_cursor_past_the_edge_of_the_view;
 mod the_platform_dropping_the_lock_lets_the_pointer_go;
 mod tracked_views_move_the_head_to_their_centre_and_set_the_rasters;
 mod turning_away_and_back_leaves_the_cursor_where_it_was;
@@ -330,9 +343,12 @@ fn screen(space: &Space, world: Vec3) -> Pos2 {
 
 fn part_pos(panel: &Panel, part: Part, slider: bool) -> Pos2 {
     let metres = panel.metres();
-    let (_, rect) = chrome::layout(vec2(metres.x, metres.y), slider)
-        .parts
+    let layout = chrome::layout(vec2(metres.x, metres.y), panel.chrome, slider);
+    let (_, rect) = layout
+        .buttons
         .into_iter()
+        .chain([(Part::Slider, layout.track)])
+        .chain(layout.parts)
         .find(|(found, _)| *found == part)
         .expect("the chrome has that part");
     let centre = rect.center();

@@ -61,8 +61,8 @@ fn dragging_the_roll_control_rolls_the_panel_and_the_rotate_control_never_does()
 
     let middle = centre();
     send(&mut space, now, [Input::PointerMoved(middle)]);
-    space.request(&WindowRequest::BeginMove(WindowId::MAIN));
     send(&mut space, now, [button(middle, true)]);
+    space.request(&WindowRequest::BeginMove(WindowId::MAIN));
     send(&mut space, later(now, 1.0), [button(middle, false)]);
     assert!(
         tilt(main(&space)).abs() < 1e-4,

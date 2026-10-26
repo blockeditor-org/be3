@@ -44,7 +44,7 @@ impl Renderer for OffscreenSurface {
     }
 
     fn recover(&mut self) -> Result<bool, Box<dyn Error>> {
-        if !self.gpu.lost() {
+        if !self.gpu.stale() {
             return Ok(false);
         }
         let (width, height) = self.target.size();

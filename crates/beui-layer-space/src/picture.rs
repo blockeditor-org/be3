@@ -78,6 +78,19 @@ pub fn painting(frame: &Frame, rect: Rect) -> Option<Painting> {
     }
     scene.paint(&mut out, scale);
     out.beams(frame, rect);
+    if let (Some(cursor), Some(output)) = (&frame.cursor, &frame.sprite) {
+        let picture = painting::painting(
+            output,
+            output.size,
+            scale,
+            Color32::TRANSPARENT,
+            Punches::Shown,
+        )
+        .ok()?;
+        let mut over = Scene::new(frame, rect);
+        over.surface(cursor, picture, [0.0, 0.0, 1.0, 1.0], 0.0, 1.0);
+        over.paint(&mut out, scale);
+    }
     Some(Painting {
         frame: Paint {
             size: [

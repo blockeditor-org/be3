@@ -11,6 +11,7 @@ pub const TURN_PER_PIXEL: f32 = 0.0025;
 pub const MAX_PITCH: f32 = 1.5;
 pub const WALK_SPEED: f32 = 1.5;
 pub const ROLL_PER_SECOND: f32 = 1.0;
+pub const MOST_ELEVATION: f32 = 1.48;
 
 #[derive(Clone, Copy, PartialEq, Debug)]
 pub struct Ray {
@@ -252,6 +253,20 @@ impl Head {
             (across.x + 1.0) / 2.0 * screen.x,
             (1.0 - across.y) / 2.0 * screen.y,
         )
+    }
+
+    pub fn pixels_per_radian(screen: Vec2) -> f32 {
+        screen.y.max(1.0) / 2.0 / (FOV_Y / 2.0).tan()
+    }
+
+    pub fn swing(&self, direction: Vec3, angles: glam::Vec2) -> Vec3 {
+        let from = direction.y.clamp(-1.0, 1.0).asin();
+        let to = (from + angles.y).clamp(-MOST_ELEVATION, MOST_ELEVATION);
+        let level =
+            Vec3::new(direction.x, 0.0, direction.z).normalize_or(self.facing() * Vec3::NEG_Z);
+        let across = angles.x / ((from + to) / 2.0).cos().max(MOST_ELEVATION.cos());
+        let level = Quat::from_rotation_y(-across) * level;
+        level * to.cos() + Vec3::Y * to.sin()
     }
 
     pub fn ray(&self, screen: Vec2, at: Vec2) -> Ray {

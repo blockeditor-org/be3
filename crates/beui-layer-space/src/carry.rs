@@ -10,9 +10,10 @@ use crate::panel::Panel;
 
 pub const NEAREST: f32 = 0.3;
 pub const FARTHEST: f32 = 20.0;
-pub const STEP_PER_LINE: f32 = 0.9;
+pub const STEP_PER_LINE: f32 = 0.95;
 pub const TURN_SECONDS: f32 = 0.3;
 pub const IN_FRONT: f32 = 0.015;
+pub const CLOSE: f32 = 0.1;
 pub const RAMP: f32 = 1.0;
 const SAMPLES: usize = 5;
 const STEPS: usize = 12;
@@ -24,6 +25,7 @@ pub struct Carry {
     pub distance: f32,
     pub at: f32,
     pub behind: Vec<WindowId>,
+    pushing: bool,
     rotation: Quat,
     grab: Vec3,
     direction: Vec3,
@@ -99,6 +101,7 @@ impl Carry {
             distance,
             at: distance,
             behind: Vec::new(),
+            pushing: false,
             rotation: inverse * panel.pose.rotation,
             grab: panel.pose.rotation.inverse() * (grab - panel.pose.position),
             direction: (inverse * to_grab).normalize_or(Vec3::NEG_Z),
@@ -154,38 +157,40 @@ impl Carry {
         others: &[Panel],
         now: Option<Instant>,
     ) {
-        let mut distance = (self.at / STEP_PER_LINE.powf(lines)).clamp(NEAREST, FARTHEST);
         let eye = head.position;
-        if lines > 0.0 {
-            for _ in 0..others.len() {
-                let placed = self.placed(head, panel, distance, now);
-                let Some(through) = self
-                    .blocking(others)
-                    .find(|other| gaps(&placed, other, eye).any(|gap| gap.pull() > 0.0))
-                    .copied()
-                else {
-                    break;
-                };
-                self.behind.push(through.window);
-                for _ in 0..STEPS {
-                    let placed = self.placed(head, panel, distance, now);
-                    let short = IN_FRONT - clearance(&placed, &through, eye);
-                    if short <= SETTLED || distance >= FARTHEST {
-                        break;
-                    }
-                    distance = (distance + short).min(FARTHEST);
-                }
-            }
-        } else {
-            let placed = self.placed(head, panel, distance, now);
+        if lines == 0.0 {
+            return;
+        }
+        if lines < 0.0 {
+            self.pushing = false;
+            self.distance = (self.at * STEP_PER_LINE.powf(-lines)).clamp(NEAREST, FARTHEST);
+            let placed = self.placed(head, panel, self.distance, now);
             self.behind.retain(|window| {
                 others
                     .iter()
                     .find(|other| other.window == *window)
                     .is_some_and(|other| clearance(&placed, other, eye) >= IN_FRONT)
             });
+            return;
         }
-        self.distance = distance;
+        let from = match self.pushing {
+            true => self.distance.max(self.at),
+            false => self.at,
+        };
+        self.distance = (from / STEP_PER_LINE.powf(lines)).clamp(NEAREST, FARTHEST);
+        let placed = self.placed(head, panel, self.distance, now);
+        let held: Vec<Panel> = self
+            .blocking(others)
+            .filter(|other| close(&placed, other, eye).any(|gap| gap.pull() > 0.0))
+            .copied()
+            .collect();
+        self.pushing = false;
+        for other in held {
+            match clearance(&placed, &other, eye) >= IN_FRONT {
+                true => self.behind.push(other.window),
+                false => self.pushing = true,
+            }
+        }
     }
 
     pub fn grabbed_at(&self, head: &Head) -> Vec3 {
@@ -213,7 +218,7 @@ impl Carry {
         let pull = |distance: f32| {
             let placed = self.placed(head, panel, distance, now);
             self.blocking(others)
-                .flat_map(|other| gaps(&placed, other, head.position))
+                .flat_map(|other| close(&placed, other, head.position))
                 .map(Gap::pull)
                 .fold(f32::NEG_INFINITY, f32::max)
         };
@@ -256,12 +261,17 @@ impl Carry {
 struct Gap {
     behind: f32,
     outside: f32,
+    depth: f32,
 }
 
 impl Gap {
     fn pull(self) -> f32 {
         self.behind + IN_FRONT - RAMP * self.outside
     }
+}
+
+fn close<'a>(carried: &'a Panel, other: &'a Panel, eye: Vec3) -> impl Iterator<Item = Gap> + 'a {
+    gaps(carried, other, eye).filter(|gap| gap.behind <= CLOSE * gap.depth)
 }
 
 fn clearance(carried: &Panel, other: &Panel, eye: Vec3) -> f32 {
@@ -309,6 +319,7 @@ fn gaps<'a>(carried: &'a Panel, other: &'a Panel, eye: Vec3) -> impl Iterator<It
         Some(Gap {
             behind: point.distance(eye) - hit.distance,
             outside: outside(other, whole, hit.pos),
+            depth: hit.distance,
         })
     });
     let back = samples(whole).filter_map(move |pos| {
@@ -317,6 +328,7 @@ fn gaps<'a>(carried: &'a Panel, other: &'a Panel, eye: Vec3) -> impl Iterator<It
         Some(Gap {
             behind: hit.distance - point.distance(eye),
             outside: outside(carried, reach, hit.pos),
+            depth: point.distance(eye),
         })
     });
     forward.chain(back)

@@ -1,11 +1,10 @@
 use std::collections::HashMap;
 use std::error::Error;
-use std::ffi::{CStr, CString};
+use std::ffi::CString;
 use std::sync::{Arc, Mutex, MutexGuard};
 use std::time::{Duration, Instant};
 
 use ash::vk::{self, Handle};
-use beui_renderer_wgpu::present::OpenDevice;
 use glam::{Quat, Vec3};
 use openxr as xr;
 use wgpu::hal::api::Vulkan as Api;
@@ -52,7 +51,19 @@ impl Shared {
     }
 }
 
-impl Xr {
+pub(crate) struct Runtime {
+    instance: xr::Instance,
+    name: String,
+    application: String,
+    loaded: Loaded,
+}
+
+pub(crate) enum Missing {
+    Runtime(String),
+    Headset(Runtime, String),
+}
+
+impl Runtime {
     pub fn open(application: &str) -> Result<Self, String> {
         let application = application_name(application);
         let loaded = runtime::load()?;
@@ -90,15 +101,32 @@ impl Xr {
                 &[],
                 &(),
             )
-            .map_err(|error| format!("the OpenXR instance did not open: {error}"))?;
-        let runtime = instance.properties().map_or_else(
-            |_| "an OpenXR runtime".to_owned(),
+            .map_err(|error| format!("the OpenXR runtime is not running ({error})"))?;
+        let name = instance.properties().map_or_else(
+            |_| "the OpenXR runtime".to_owned(),
             |properties| format!("{} {}", properties.runtime_name, properties.runtime_version),
         );
-        let system = instance
-            .system(xr::FormFactor::HEAD_MOUNTED_DISPLAY)
-            .map_err(|error| format!("{runtime} has no headset: {error}"))?;
-        let blend = instance
+        Ok(Self {
+            instance,
+            name,
+            application,
+            loaded,
+        })
+    }
+
+    pub fn system(self) -> Result<Xr, Missing> {
+        let system = match self.instance.system(xr::FormFactor::HEAD_MOUNTED_DISPLAY) {
+            Ok(system) => system,
+            Err(xr::sys::Result::ERROR_FORM_FACTOR_UNAVAILABLE) => {
+                let why = format!("{} finds no headset", self.name);
+                return Err(Missing::Headset(self, why));
+            }
+            Err(error) => {
+                return Err(Missing::Runtime(format!("{} stopped ({error})", self.name)));
+            }
+        };
+        let blend = self
+            .instance
             .enumerate_environment_blend_modes(system, VIEWS)
             .ok()
             .and_then(|modes| {
@@ -109,26 +137,25 @@ impl Xr {
                     .or_else(|| modes.first().copied())
             })
             .unwrap_or(xr::EnvironmentBlendMode::OPAQUE);
-        Ok(Self(Arc::new(Shared {
+        Ok(Xr(Arc::new(Shared {
             state: Mutex::default(),
-            instance,
+            instance: self.instance,
             system,
-            application: CString::new(application).unwrap_or_default(),
+            application: CString::new(self.application).unwrap_or_default(),
             blend,
-            runtime,
-            _loaded: loaded,
+            runtime: self.name,
+            _loaded: self.loaded,
         })))
+    }
+}
+
+impl Xr {
+    pub fn same(&self, other: &Xr) -> bool {
+        Arc::ptr_eq(&self.0, &other.0)
     }
 
     pub fn runtime(&self) -> &str {
         &self.0.runtime
-    }
-
-    pub fn open_device(&self, extensions: &'static [&'static CStr]) -> OpenDevice {
-        OpenDevice {
-            extensions,
-            gpu: Some(Arc::new(self.clone())),
-        }
     }
 
     pub fn headset(&self) -> Headset {
@@ -138,6 +165,7 @@ impl Xr {
             anchor: None,
             display: None,
             tried: None,
+            lost: None,
         }
     }
 }
@@ -161,8 +189,7 @@ pub(crate) struct Session {
     controllers: Option<Controllers>,
     system: xr::SystemId,
     running: bool,
-    lost: bool,
-    returns: bool,
+    lost: Option<Lost>,
     waited: Option<xr::FrameState>,
     begun: Option<Begun>,
     swapchains: Vec<Swapchain>,
@@ -245,8 +272,7 @@ impl Session {
             space,
             system,
             running: false,
-            lost: false,
-            returns: false,
+            lost: None,
             waited: None,
             begun: None,
             swapchains: Vec::new(),
@@ -265,10 +291,9 @@ impl Session {
         }
     }
 
-    fn lose(&mut self, returns: bool) {
+    fn lose(&mut self, lost: Lost) {
         self.running = false;
-        self.lost = true;
-        self.returns = returns;
+        self.lost.get_or_insert(lost);
     }
 
     fn end_unsubmitted(&mut self, blend: xr::EnvironmentBlendMode) {
@@ -297,6 +322,14 @@ pub struct Headset {
     anchor: Option<(xr::Time, Instant)>,
     display: Option<Instant>,
     tried: Option<Instant>,
+    lost: Option<Lost>,
+}
+
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum Lost {
+    Session,
+    Instance,
+    Ended,
 }
 
 pub const RETRY: Duration = Duration::from_secs(2);
@@ -333,33 +366,38 @@ impl Headset {
             .map_or(0, |session| session.layered)
     }
 
-    pub fn lost(&self) -> bool {
-        self.xr
-            .0
-            .state()
-            .session
-            .as_ref()
-            .is_some_and(|session| session.lost)
+    pub fn lost(&self) -> Option<Lost> {
+        self.lost.or_else(|| {
+            self.xr
+                .0
+                .state()
+                .session
+                .as_ref()
+                .and_then(|session| session.lost)
+        })
     }
 
-    pub fn returns(&self) -> bool {
-        self.xr
-            .0
-            .state()
-            .session
-            .as_ref()
-            .is_some_and(|session| session.lost && session.returns)
+    pub fn xr(&self) -> &Xr {
+        &self.xr
     }
 
     pub fn reopen(&mut self, device: &wgpu::Device) -> bool {
-        if !self.returns() || self.tried.is_some_and(|tried| tried.elapsed() < RETRY) {
+        if self.lost() != Some(Lost::Session)
+            || self.tried.is_some_and(|tried| tried.elapsed() < RETRY)
+        {
             return false;
         }
         self.tried = Some(Instant::now());
         let xr = self.xr.clone();
         let shared = &xr.0;
-        let Ok(system) = shared.instance.system(xr::FormFactor::HEAD_MOUNTED_DISPLAY) else {
-            return false;
+        let system = match shared.instance.system(xr::FormFactor::HEAD_MOUNTED_DISPLAY) {
+            Ok(system) => system,
+            Err(xr::sys::Result::ERROR_FORM_FACTOR_UNAVAILABLE) => return false,
+            Err(error) => {
+                eprintln!("beui-layer-xr: {} stopped: {error}", shared.runtime);
+                self.lost = Some(Lost::Instance);
+                return false;
+            }
         };
         let _ = device.poll(wgpu::PollType::Wait {
             submission_index: None,
@@ -368,6 +406,7 @@ impl Headset {
         let mut state = shared.state();
         state.session = None;
         let (Some(vulkan), Some(made)) = (&state.vulkan, state.device) else {
+            self.lost = Some(Lost::Ended);
             return false;
         };
         let (vk_instance, physical) = (vulkan.instance, vulkan.physical);
@@ -383,6 +422,7 @@ impl Headset {
                 eprintln!(
                     "beui-layer-xr: the headset is back but its session did not start: {error}"
                 );
+                self.lost = Some(Lost::Ended);
                 false
             }
         }
@@ -396,7 +436,7 @@ impl Headset {
                 Ok(None) => break,
                 Err(error) => {
                     eprintln!("beui-layer-xr: OpenXR events stopped: {error}");
-                    session.lose(false);
+                    session.lose(Lost::Instance);
                     break;
                 }
             };
@@ -413,11 +453,11 @@ impl Headset {
                         session.running = false;
                         session.waited = None;
                     }
-                    xr::SessionState::EXITING => session.lose(false),
-                    xr::SessionState::LOSS_PENDING => session.lose(true),
+                    xr::SessionState::EXITING => session.lose(Lost::Ended),
+                    xr::SessionState::LOSS_PENDING => session.lose(Lost::Session),
                     _ => {}
                 },
-                xr::Event::InstanceLossPending(_) => session.lose(false),
+                xr::Event::InstanceLossPending(_) => session.lose(Lost::Instance),
                 _ => {}
             }
         }
@@ -429,7 +469,7 @@ impl Headset {
         let session = state.session.as_mut()?;
         session.end_unsubmitted(xr.0.blend);
         self.poll(session);
-        if !session.running || session.lost {
+        if !session.running || session.lost.is_some() {
             return None;
         }
         let frame = match session.waited {
@@ -438,7 +478,10 @@ impl Headset {
                 Ok(frame) => frame,
                 Err(error) => {
                     eprintln!("beui-layer-xr: waiting for the frame failed: {error}");
-                    session.lose(error != xr::sys::Result::ERROR_INSTANCE_LOST);
+                    session.lose(match error {
+                        xr::sys::Result::ERROR_INSTANCE_LOST => Lost::Instance,
+                        _ => Lost::Session,
+                    });
                     return None;
                 }
             },
@@ -563,7 +606,7 @@ impl Headset {
             }
             Err(error) => {
                 eprintln!("beui-layer-xr: the swapchains were not made: {error}");
-                session.lose(false);
+                session.lose(Lost::Ended);
                 false
             }
         }

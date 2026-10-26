@@ -8,7 +8,7 @@ use beui_core::font::{FontId, TextLayout};
 use beui_core::geometry::{Pos2, Rect, Rotation, Vec2, pos2, vec2};
 use beui_core::icons::{ICON_MOVE, ICON_ROTATE_3D, ICON_ROTATE_CW_SQUARE, ICON_SPLINE};
 use beui_core::painter::{Corners, Shape};
-use beui_core::window::{WindowId, WindowState};
+use beui_core::window::{WindowEdge, WindowId, WindowState};
 use std::f32::consts::{PI, TAU};
 
 use glam::{Quat, Vec3};
@@ -31,6 +31,11 @@ pub const TURN_GAIN: f32 = 2.0;
 pub const SMALLEST_SCALE: f32 = 0.2;
 pub const LARGEST_SCALE: f32 = 8.0;
 pub const LIFT: f32 = 0.001;
+pub const TITLE: f32 = 0.016;
+pub const TITLE_PADDING: f32 = 0.012;
+pub const REFERENCE: f32 = 0.6;
+pub const KEPT: f32 = 1.05;
+const NEAREST: f32 = 0.05;
 
 const HANDLE: Color32 = Color32::from_rgba_unmultiplied(214, 220, 232, 220);
 const ACCENT: Color32 = Color32::from_rgb(132, 170, 255);
@@ -85,8 +90,69 @@ impl Corner {
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
+pub enum Side {
+    Top,
+    Bottom,
+    Left,
+    Right,
+}
+
+impl Side {
+    pub const ALL: [Self; 4] = [Self::Top, Self::Bottom, Self::Left, Self::Right];
+
+    pub fn edge(self) -> WindowEdge {
+        match self {
+            Self::Top => WindowEdge::Top,
+            Self::Bottom => WindowEdge::Bottom,
+            Self::Left => WindowEdge::Left,
+            Self::Right => WindowEdge::Right,
+        }
+    }
+
+    pub fn of(edge: WindowEdge) -> Option<Self> {
+        match edge {
+            WindowEdge::Top => Some(Self::Top),
+            WindowEdge::Bottom => Some(Self::Bottom),
+            WindowEdge::Left => Some(Self::Left),
+            WindowEdge::Right => Some(Self::Right),
+            _ => None,
+        }
+    }
+}
+
+#[derive(Clone, Copy, PartialEq, Debug)]
+pub struct Fit {
+    pub scale: f32,
+    pub title: f32,
+}
+
+impl Default for Fit {
+    fn default() -> Self {
+        Self {
+            scale: 1.0,
+            title: 0.0,
+        }
+    }
+}
+
+pub fn fitted(panel: &Panel, eye: Vec3) -> f32 {
+    let held = panel.chrome.scale;
+    let wanted = (panel
+        .world(pos2(panel.size.x / 2.0, panel.size.y / 2.0))
+        .distance(eye)
+        / REFERENCE)
+        .max(NEAREST);
+    match (wanted / held).max(held / wanted) > KEPT {
+        true => wanted,
+        false => held,
+    }
+}
+
+#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
 pub enum Part {
     Scale(Corner),
+    Resize(Side),
+    Title,
     Move,
     Turn,
     Roll,
@@ -103,12 +169,19 @@ pub enum Gesture {
     },
     Move {
         window: WindowId,
+        by: Part,
+    },
+    Resize {
+        window: WindowId,
+        side: Side,
     },
     Turn {
         window: WindowId,
         rotation: Quat,
         start: Ray,
         sight: Sight,
+        aim: Vec3,
+        grab: Option<Pos2>,
     },
     Roll {
         original: Panel,
@@ -128,7 +201,10 @@ impl Gesture {
             Self::Scale { original, .. }
             | Self::Roll { original, .. }
             | Self::Bend { original } => original.window,
-            Self::Move { window } | Self::Turn { window, .. } | Self::Press { window } => *window,
+            Self::Move { window, .. }
+            | Self::Resize { window, .. }
+            | Self::Turn { window, .. }
+            | Self::Press { window } => *window,
         }
     }
 
@@ -142,7 +218,8 @@ impl Gesture {
                     .find(|corner| corner.opposite().of(original.size) == *anchor)
                     .unwrap_or(Corner::BottomRight),
             ),
-            Self::Move { .. } => Part::Move,
+            Self::Move { by, .. } => *by,
+            Self::Resize { side, .. } => Part::Resize(*side),
             Self::Turn { .. } => Part::Turn,
             Self::Roll { .. } => Part::Roll,
             Self::Bend { .. } => Part::Slider,
@@ -157,9 +234,11 @@ pub struct Chrome {
     pub slider: Option<WindowId>,
 }
 
-#[derive(Clone, Copy, PartialEq, Debug)]
+#[derive(Clone, PartialEq, Debug)]
 pub struct Look {
     pub metres: Vec2,
+    pub fit: Fit,
+    pub title: Option<String>,
     pub hovered: Option<Part>,
     pub held: Option<Part>,
     pub slider: bool,
@@ -169,9 +248,12 @@ pub struct Look {
 
 pub struct Layout {
     pub parts: Vec<(Part, Rect)>,
+    pub buttons: Vec<(Part, Rect)>,
     pub brackets: Vec<(Corner, [Rect; 2])>,
+    pub sides: Vec<(Side, Rect)>,
     pub pill: Rect,
     pub track: Rect,
+    pub title: Option<Rect>,
     pub bounds: Rect,
 }
 
@@ -182,66 +264,193 @@ fn between(a: Pos2, b: Pos2) -> Rect {
     )
 }
 
-pub fn layout(metres: Vec2, slider: bool) -> Layout {
+pub fn layout(metres: Vec2, fit: Fit, slider: bool) -> Layout {
+    let scale = fit.scale;
+    let (thickness, slop) = (THICKNESS * scale, SLOP * scale);
+    let (bar, button) = (BAR * scale, BUTTON * scale);
+    let reach = (GAP + THICKNESS) * scale;
+    let arm = (ARM * scale).min(reach + metres.x.min(metres.y) / 2.0);
     let mut parts = Vec::new();
+
+    let padding = (bar - button) / 2.0;
+    let top = metres.y + BAR_GAP * scale;
+    let middle = top + bar / 2.0;
+    let centre = metres.x / 2.0;
+    let kinds = [Part::Move, Part::Turn, Part::Roll, Part::Bend];
+    let step = button + padding;
+    let first = centre - step * (kinds.len() - 1) as f32 / 2.0;
+    let buttons = kinds.map(|part| {
+        let at = kinds.iter().position(|each| *each == part).unwrap_or(0);
+        let x = first + step * at as f32;
+        (
+            part,
+            Rect::from_center_size(pos2(x, middle), vec2(button, button)),
+        )
+    });
+    let last = buttons.len() - 1;
+    let closed = Rect::from_min_max(
+        pos2(buttons[0].1.min.x - padding, top),
+        pos2(buttons[last].1.max.x + padding, top + bar),
+    );
+    let track = Rect::from_min_max(
+        pos2(closed.max.x, top),
+        pos2(closed.max.x + TRACK * scale, top + bar),
+    );
+    let open = Rect::from_min_max(closed.min, pos2(track.max.x + padding, closed.max.y));
+    let below = top + bar + slop;
+    let split = |rect: Rect| rect.max.x + padding / 2.0;
+    for (at, (part, rect)) in buttons.iter().enumerate() {
+        let left = match at {
+            0 => closed.min.x - slop,
+            _ => split(buttons[at - 1].1),
+        };
+        let right = match (at == last, slider) {
+            (true, false) => closed.max.x + slop,
+            _ => split(*rect),
+        };
+        parts.push((
+            *part,
+            Rect::from_min_max(pos2(left, metres.y), pos2(right, below)),
+        ));
+    }
+    let sliding = Rect::from_min_max(
+        pos2(split(buttons[last].1), metres.y),
+        pos2(open.max.x + slop, below),
+    );
+    if slider {
+        parts.push((Part::Slider, sliding));
+    }
+
+    let tip = arm - reach;
+    let label = Some((fit.title + 2.0 * TITLE_PADDING) * scale)
+        .filter(|_| fit.title > 0.0)
+        .map(|width| width.min(metres.x - 2.0 * tip))
+        .filter(|width| *width >= button)
+        .map(|width| {
+            Rect::from_min_max(
+                pos2(centre - width / 2.0, -(BAR_GAP * scale) - bar),
+                pos2(centre + width / 2.0, -(BAR_GAP * scale)),
+            )
+        });
+    if let Some(label) = label {
+        parts.push((
+            Part::Title,
+            Rect::from_min_max(label.min - vec2(slop, slop), pos2(label.max.x + slop, 0.0)),
+        ));
+    }
+
     let mut brackets = Vec::new();
-    let mut bounds = Rect::NOTHING;
-    let reach = GAP + THICKNESS;
     for corner in Corner::ALL {
         let (x, y) = corner.signs();
         let at = corner.of(metres);
         let outer = pos2(at.x + x * reach, at.y + y * reach);
-        let across = between(outer, pos2(outer.x - x * ARM, outer.y - y * THICKNESS));
-        let down = between(outer, pos2(outer.x - x * THICKNESS, outer.y - y * ARM));
-        for arm in [across, down] {
-            let hit = arm.expand(SLOP);
-            bounds = bounds.union(hit);
-            parts.push((Part::Scale(corner), hit));
-        }
+        let across = between(outer, pos2(outer.x - x * arm, outer.y - y * thickness));
+        let down = between(outer, pos2(outer.x - x * thickness, outer.y - y * arm));
+        let beyond = pos2(outer.x + x * slop, outer.y + y * slop);
+        parts.push((
+            Part::Scale(corner),
+            between(beyond, pos2(outer.x - x * (arm + slop), at.y)),
+        ));
+        parts.push((
+            Part::Scale(corner),
+            between(beyond, pos2(at.x, outer.y - y * (arm + slop))),
+        ));
         brackets.push((corner, [across, down]));
     }
-    let padding = (BAR - BUTTON) / 2.0;
-    let top = metres.y + BAR_GAP;
-    let middle = top + BAR / 2.0;
-    let centre = metres.x / 2.0;
-    let button = |x: f32| Rect::from_center_size(pos2(x, middle), vec2(BUTTON, BUTTON));
-    let buttons = [Part::Move, Part::Turn, Part::Roll, Part::Bend];
-    let step = BUTTON + padding;
-    let first = centre - step * (buttons.len() - 1) as f32 / 2.0;
-    let buttons = buttons.map(|part| {
-        let at = buttons.iter().position(|each| *each == part).unwrap_or(0);
-        (part, button(first + step * at as f32))
-    });
-    let closed = Rect::from_min_max(
-        pos2(buttons[0].1.min.x - padding, top),
-        pos2(buttons[buttons.len() - 1].1.max.x + padding, top + BAR),
-    );
-    let track = Rect::from_min_max(
-        pos2(closed.max.x, top),
-        pos2(closed.max.x + TRACK, top + BAR),
-    );
-    let open = Rect::from_min_max(closed.min, pos2(track.max.x + padding, closed.max.y));
-    parts.extend(buttons);
-    if slider {
-        parts.push((Part::Slider, track));
+
+    let (width, height) = (metres.x, metres.y);
+    let mut sides = Vec::new();
+    for side in Side::ALL {
+        let (drawn, hit) = match side {
+            Side::Top => (
+                between(pos2(tip, -reach), pos2(width - tip, thickness - reach)),
+                between(pos2(0.0, -reach - slop), pos2(width, 0.0)),
+            ),
+            Side::Bottom => (
+                between(
+                    pos2(tip, height + reach - thickness),
+                    pos2(width - tip, height + reach),
+                ),
+                between(pos2(0.0, height), pos2(width, height + reach + slop)),
+            ),
+            Side::Left => (
+                between(pos2(-reach, tip), pos2(thickness - reach, height - tip)),
+                between(pos2(-reach - slop, 0.0), pos2(0.0, height)),
+            ),
+            Side::Right => (
+                between(
+                    pos2(width + reach - thickness, tip),
+                    pos2(width + reach, height - tip),
+                ),
+                between(pos2(width, 0.0), pos2(width + reach + slop, height)),
+            ),
+        };
+        parts.push((Part::Resize(side), hit));
+        if (width - 2.0 * tip).min(height - 2.0 * tip) > 0.0 {
+            sides.push((side, drawn));
+        }
     }
-    let bounds = bounds.union(open.expand(SLOP));
+
+    let bounds = parts
+        .iter()
+        .fold(sliding.union(open.expand(slop)), |bounds, (_, rect)| {
+            bounds.union(*rect)
+        });
     Layout {
         parts,
+        buttons: buttons.to_vec(),
         brackets,
+        sides,
         pill: if slider { open } else { closed },
         track,
+        title: label,
         bounds,
     }
 }
 
+fn elided(context: &Context, title: &str, font: FontId, room: f32) -> String {
+    let width = |text: &str| context.layout(text, font, TextLayout::DEFAULT).size().x;
+    if width(title) <= room {
+        return title.to_owned();
+    }
+    let chars: Vec<char> = title.chars().collect();
+    let cut = |kept: usize| {
+        let mut text: String = chars[..kept].iter().collect();
+        text.truncate(text.trim_end().len());
+        text.push('…');
+        text
+    };
+    let (mut fits, mut over) = (0, chars.len());
+    while over - fits > 1 {
+        let middle = (fits + over) / 2;
+        match width(&cut(middle)) <= room {
+            true => fits = middle,
+            false => over = middle,
+        }
+    }
+    cut(fits)
+}
+
+pub fn title_width(context: &Context, title: &str) -> f32 {
+    let galley = context.layout(
+        title,
+        FontId::proportional(TITLE * POINTS_PER_METRE),
+        TextLayout::DEFAULT,
+    );
+    galley.size().x / POINTS_PER_METRE
+}
+
+fn inset(track: Rect) -> f32 {
+    (KNOB / 2.0 + 0.004) * track.height() / BAR
+}
+
 pub fn fraction(track: Rect, x: f32) -> f32 {
-    let inset = KNOB / 2.0 + 0.004;
+    let inset = inset(track);
     ((x - track.min.x - inset) / (track.width() - 2.0 * inset)).clamp(0.0, 1.0)
 }
 
 fn knob(track: Rect, fraction: f32) -> Pos2 {
-    let inset = KNOB / 2.0 + 0.004;
+    let inset = inset(track);
     pos2(
         track.min.x + inset + fraction * (track.width() - 2.0 * inset),
         track.center().y,
@@ -254,7 +463,7 @@ fn metres_of(panel: &Panel) -> Vec2 {
 }
 
 pub fn bounds(panel: &Panel) -> Rect {
-    layout(metres_of(panel), true).bounds
+    layout(metres_of(panel), panel.chrome, true).bounds
 }
 
 pub fn pixels_per_point(panel: &Panel, window: f32) -> f32 {
@@ -271,7 +480,7 @@ pub fn part_at(panel: &Panel, pos: Pos2, slider: bool) -> Option<Part> {
         pos.x * panel.metres_per_point,
         pos.y * panel.metres_per_point,
     );
-    layout(metres_of(panel), slider)
+    layout(metres_of(panel), panel.chrome, slider)
         .parts
         .into_iter()
         .find(|(_, rect)| rect.contains(at))
@@ -290,7 +499,7 @@ pub fn pick(panels: &[Panel], ray: Ray, slider: Option<WindowId>) -> Option<(Par
 }
 
 pub fn bend_of(original: &Panel, pos: Pos2) -> f32 {
-    let track = layout(metres_of(original), true).track;
+    let track = layout(metres_of(original), original.chrome, true).track;
     fraction(track, pos.x * original.metres_per_point) * MOST_BEND
 }
 
@@ -371,10 +580,18 @@ pub fn span(panel: &Panel) -> [f32; 4] {
     ]
 }
 
-pub fn look(panel: &Panel, chrome: &Chrome, held: Option<Part>, pixels_per_point: f32) -> Look {
+pub fn look(
+    panel: &Panel,
+    chrome: &Chrome,
+    held: Option<Part>,
+    pixels_per_point: f32,
+    title: Option<&str>,
+) -> Look {
     let mine = |window: WindowId| window == panel.window;
     Look {
         metres: metres_of(panel),
+        fit: panel.chrome,
+        title: title.map(str::to_owned),
         hovered: chrome
             .hovered
             .filter(|(window, _)| mine(*window))
@@ -387,7 +604,8 @@ pub fn look(panel: &Panel, chrome: &Chrome, held: Option<Part>, pixels_per_point
 }
 
 pub fn output(window: WindowId, look: &Look, context: Option<&Context>) -> WindowOutput {
-    let layout = layout(look.metres, look.slider);
+    let layout = layout(look.metres, look.fit, look.slider);
+    let scale = look.fit.scale;
     let origin = layout.bounds.min;
     let point = |at: Pos2| {
         pos2(
@@ -401,7 +619,7 @@ pub fn output(window: WindowId, look: &Look, context: Option<&Context>) -> Windo
     let mut fill = |rect: Rect, radius: f32, color: Color32| {
         layers.push(Layer::Shape(Shape::Rect {
             rect: points(rect),
-            corner_radius: Corners::all(radius * POINTS_PER_METRE),
+            corner_radius: Corners::all(radius * scale * POINTS_PER_METRE),
             stroke_width: 0.0,
             color,
             rotation: Rotation::NONE,
@@ -410,6 +628,11 @@ pub fn output(window: WindowId, look: &Look, context: Option<&Context>) -> Windo
     };
     let hot =
         |part: Part| look.held == Some(part) || (look.held.is_none() && look.hovered == Some(part));
+    for (side, drawn) in &layout.sides {
+        if hot(Part::Resize(*side)) {
+            fill(*drawn, THICKNESS / 2.0, ACCENT);
+        }
+    }
     for (corner, arms) in &layout.brackets {
         let color = if hot(Part::Scale(*corner)) {
             ACCENT
@@ -421,12 +644,13 @@ pub fn output(window: WindowId, look: &Look, context: Option<&Context>) -> Windo
         }
     }
     fill(layout.pill, BAR / 2.0, PILL);
-    let buttons = layout
-        .parts
-        .iter()
-        .filter(|(part, _)| matches!(part, Part::Move | Part::Turn | Part::Roll | Part::Bend));
+    let title = layout.title.zip(look.title.as_deref());
+    if let Some((label, _)) = title {
+        let color = if hot(Part::Title) { BUTTON_HOT } else { PILL };
+        fill(label, BAR / 2.0, color);
+    }
     let mut icons = Vec::new();
-    for (part, rect) in buttons {
+    for (part, rect) in &layout.buttons {
         let on = *part == Part::Bend && look.slider;
         if on {
             fill(*rect, BUTTON / 2.0, BUTTON_ON);
@@ -443,27 +667,26 @@ pub fn output(window: WindowId, look: &Look, context: Option<&Context>) -> Windo
     }
     if look.slider {
         let track = layout.track;
-        let groove =
-            Rect::from_center_size(track.center(), vec2(track.width() - KNOB, GROOVE_HEIGHT));
+        let (knob_size, groove_height) = (KNOB * scale, GROOVE_HEIGHT * scale);
+        let groove = Rect::from_center_size(
+            track.center(),
+            vec2(track.width() - knob_size, groove_height),
+        );
         fill(groove, GROOVE_HEIGHT / 2.0, GROOVE);
         let at = knob(track, look.bend);
         let filled = Rect::from_min_max(groove.min, pos2(at.x, groove.max.y));
         fill(filled, GROOVE_HEIGHT / 2.0, ACCENT);
         let color = if hot(Part::Slider) { ACCENT } else { GLYPH };
         fill(
-            Rect::from_center_size(at, vec2(KNOB, KNOB)),
+            Rect::from_center_size(at, vec2(knob_size, knob_size)),
             KNOB / 2.0,
             color,
         );
     }
     if let Some(context) = context {
         let raster = look.pixels_per_point / context.pixels_per_point();
-        for (glyph, centre) in icons {
-            let galley = context.layout(
-                glyph.as_str(),
-                FontId::icons(ICON * POINTS_PER_METRE),
-                TextLayout::DEFAULT,
-            );
+        let mut text = |text: &str, font: FontId, centre: Pos2, clip: Rect| {
+            let galley = context.layout(text, font, TextLayout::DEFAULT);
             let galley = context.rastered(&galley, raster);
             let centre = point(centre);
             layers.push(Layer::Shape(Shape::Text {
@@ -472,8 +695,19 @@ pub fn output(window: WindowId, look: &Look, context: Option<&Context>) -> Windo
                 scale: 1.0,
                 color: GLYPH,
                 rotation: Rotation::NONE,
-                clip: Rect::EVERYTHING,
+                clip,
             }));
+        };
+        for (glyph, centre) in icons {
+            let font = FontId::icons(ICON * scale * POINTS_PER_METRE);
+            text(glyph.as_str(), font, centre, Rect::EVERYTHING);
+        }
+        if let Some((label, title)) = title {
+            let font = FontId::proportional(TITLE * scale * POINTS_PER_METRE);
+            let clip = points(label);
+            let room = clip.width() - TITLE_PADDING * scale * POINTS_PER_METRE;
+            let title = elided(context, title, font, room);
+            text(&title, font, label.center(), clip);
         }
     }
     let mut state = WindowState::default();

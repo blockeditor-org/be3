@@ -5,7 +5,7 @@ fn dragging_a_corner_handle_scales_the_panel_and_keeps_its_points() {
     let (mut space, now) = space();
     let start = *main(&space);
     let kept = start.world(Pos2::ZERO);
-    let out = (chrome::GAP + chrome::THICKNESS / 2.0) / start.metres_per_point;
+    let out = (chrome::GAP + chrome::THICKNESS / 2.0) * start.chrome.scale / start.metres_per_point;
     let handle = pos2(start.size.x + out, start.size.y + out);
     assert_eq!(
         chrome::part_at(&start, handle, false),

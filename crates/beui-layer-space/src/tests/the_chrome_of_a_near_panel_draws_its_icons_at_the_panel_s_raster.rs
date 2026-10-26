@@ -52,7 +52,11 @@ fn the_chrome_of_a_near_panel_draws_its_icons_at_the_panel_s_raster() {
         "each icon is rasterised at the chrome's pixels per point, not stretched: {icons:?}"
     );
 
-    let layout = chrome::layout(vec2(panel.metres().x, panel.metres().y), false);
+    let layout = chrome::layout(
+        vec2(panel.metres().x, panel.metres().y),
+        panel.chrome,
+        false,
+    );
     let pill = layout
         .pill
         .translate(-layout.bounds.min.to_vec2())

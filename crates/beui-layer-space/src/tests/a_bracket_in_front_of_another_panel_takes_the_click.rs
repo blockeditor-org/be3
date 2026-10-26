@@ -12,7 +12,7 @@ fn a_bracket_in_front_of_another_panel_takes_the_click() {
         },
     );
     let panel = *space.panel(over).unwrap();
-    let out = (chrome::GAP + chrome::THICKNESS / 2.0) / panel.metres_per_point;
+    let out = (chrome::GAP + chrome::THICKNESS / 2.0) * panel.chrome.scale / panel.metres_per_point;
     let bracket = screen(&space, panel.world(pos2(-out, -out)));
     let aside = screen(&space, main(&space).world(pos2(60.0, 60.0)));
     let got = delivered(&send(

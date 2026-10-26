@@ -3185,15 +3185,20 @@ it, and all its 3D (`glam`) stays in the crate.
   panel, the point of the curved surface the ray meets). A press's own
   position is ignored. An absolute position, a `PointerMoved` in pixels or in a
   window's points (a driver's, mapped onto that window's panel), puts the
-  cursor where its ray hits; `PointerMotion` moves it from where it is drawn by
-  as many screen pixels (no further than `CURSOR_MARGIN` points inside the
-  edge); either saves it `CURSOR_LIFT` (1%) of the distance in front of what
+  cursor where its ray hits; `PointerMotion` swings its ray about the eye,
+  gravity-aligned whatever the head's pitch and roll (`Head::swing`): motion
+  across turns it about the vertical, keeping its height, and motion up raises
+  it toward the sky along its line to the zenith, short of
+  `head::MOST_ELEVATION`, both at a fixed angle per pixel
+  (`Head::pixels_per_radian`, so near the middle of an unrolled view a pixel
+  of motion is a pixel on screen), the same in the simulator and under a
+  headset. Either saves it `CURSOR_LIFT` (1%) of the distance in front of what
   it hits, or on a miss at the last hit's distance (`OPEN_DISTANCE` before any
   hit). Turning the head and walking leave it at its point, so it slides
-  across the view; one that would leave the view is drawn, and points, just
-  inside the edge without moving its point, so turning back finds it where it
-  was, and moving the mouse from the edge starts from where it is drawn. While
-  a panel is carried the cursor stays on its grabbed point. Moving onto another
+  across the view, and nothing holds it inside the view: motion or a turn can
+  take it anywhere around the viewer, it still points (and clicks) where it
+  is, and turning back or moving the mouse back finds it. While a panel is
+  carried the cursor stays on its grabbed point. Moving onto another
   panel just names the new window, held button or not (no `PointerLeft`), so
   a drag goes on across windows. Moving off every panel sends the last window
   `PointerLeft`; while a button is held, moves and the release then go to the
@@ -3208,8 +3213,8 @@ it, and all its 3D (`glam`) stays in the crate.
   place, walk along the floor relative to where the head faces, and Q and E
   roll it left and right (`Head::roll`, `ROLL_PER_SECOND`), all timed from
   `LayerView::now`. `Head::rotation` is yaw, then pitch, then roll about the
-  view direction; the view, cursor rays, the screen edge clamp and `scale`
-  all go through it, so the cursor moves along the rolled screen's axes.
+  view direction; the view, cursor rays and `scale` all go through it, but
+  the cursor's motion does not (see Pointer).
   Mouse steering with the head rolled first turns the motion by the roll
   into the level frame, so moving the mouse along the screen turns the view
   along the screen while yaw stays about the vertical and the roll stays put. No key pressed while steering reaches the app, nor its
@@ -3237,28 +3242,57 @@ it, and all its 3D (`glam`) stays in the crate.
   window that changed; the platform window is still drawn by the `Drawing`
   `Space::frame` returns.
 - Headsets: `BEUI_LAYERS=xr`, in space's place, shows space on
-  an OpenXR headset through `crates/beui-layer-xr`; with no runtime or no headset
-  `beui::window`'s `open_xr` says why and space runs as the simulator, and a
-  session the runtime ends later (`Headset::lost`) leaves the simulator's
-  head where the headset left it. A session lost with its instance still
-  there (`LOSS_PENDING`: the headset unplugged; `Headset::returns`) is
-  opened again on the same device once `xrGetSystem` finds the headset,
-  tried every `RETRY` (2 s, `Headset::reopen`); a lost instance (the runtime
-  quit) or `EXITING` is not, since a new instance would start SteamVR again.
-  `Xr::open` takes the app's name for the runtime's dashboard
-  (`RunOptions::app_id`, else the program's name). `Xr::open` loads the runtime with the
+  an OpenXR headset through `crates/beui-layer-xr`, and waits for one when
+  there is none; `BEUI_LAYERS=space` is the simulator. `beui::window` makes
+  a `Link` (`Link::new(app name)`: `RunOptions::app_id`, else the program's
+  name, for the runtime's dashboard), which tries once at once and then, on
+  a thread of its own, every `RETRY` (2 s): load the runtime and make an
+  instance (`Runtime::open`), then ask it for a headset (`xrGetSystem`),
+  keeping the instance while the answer is `FORM_FACTOR_UNAVAILABLE`, so
+  SteamVR started later or a headset plugged in later are both found without
+  starting SteamVR again. `Link::status()` is `Found`, `Missing(why)` or
+  `Failed(why)` (the runtime could not make or share the GPU; it then stops
+  looking), and each change wakes the loop through the `Waker` the layer
+  hands it in `setup`. The `Link` is the renderers' `OpenGpu`
+  (`Link::open_device`): it opens the device through the `Xr` it found,
+  else a plain one, and reports itself `OpenGpu::stale` once it has found
+  an `Xr` the device was not opened through. A renderer whose `OpenDevice`
+  is stale reopens its device as after a lost GPU (`Renderer::recover`,
+  `Gpu::reopen`, which asks the `OpenGpu` for a fresh instance), and the
+  runner hands the app (`App::renderer_replaced`) and the layers the new
+  device; `XrSpace::setup` then takes a `Headset` for `Link::opened()`.
+  While there is no headset, or its session is lost or not yet running,
+  `XrSpace` hands space a `notice::Notice` ("Waiting for a headset" and
+  why) that space draws over the mirror window (`Space::set_notice`), and
+  space is the simulator meanwhile: its head at eye height looking at the
+  main panel, the mouse and keyboard on the panels, no pacing and no
+  polling. `Headset::lost()` says how a session ended: `Lost::Session`
+  (`LOSS_PENDING`, the headset unplugged) is opened again on the same device
+  once `xrGetSystem` finds the headset, tried every `RETRY`
+  (`Headset::reopen`); `Lost::Instance` (the runtime quit: an instance
+  loss event, `ERROR_INSTANCE_LOST`, or `xrGetSystem` failing otherwise)
+  drops the headset, its session and instance (the device holds its `Xr`
+  only weakly, since the Khronos loader allows one instance at a time) and
+  sends the `Link` looking again (`Link::lost`), which reopens the device
+  through the next instance; `Lost::Ended` (`EXITING`, or swapchains or a
+  session that could not be made) leaves the simulator for the rest of the
+  run, so a runtime that closes the app is not answered by opening it
+  again. The mirror keeps the simulator's head where the headset left it.
+  The runtime is loaded with the
   `openxr` crate's `loaded` feature: the system's `openxr_loader` if there is
   one, else the active runtime's own library, found as the Khronos loader
   finds it (`XR_RUNTIME_JSON`, then `active_runtime.json` under the XDG
   config directories on Linux, the `ActiveRuntime` registry value on
   Windows) and negotiated with directly (`runtime.rs`), since Windows has no
   system loader and SteamVR ships none. It builds on Linux and Windows; on
-  other platforms `Xr::open` refuses. The runtime picks the GPU, so `Xr`
-  is an `OpenGpu` (`beui_renderer_wgpu::present`): `OpenDevice { extensions,
+  other platforms the `Link` fails at once and space stays the simulator.
+  The runtime picks the GPU, so the `Link` is an `OpenGpu`
+  (`beui_renderer_wgpu::present`): `OpenDevice { extensions,
   gpu }` says how a renderer opens its device, the Vulkan device extensions
   it wants where the adapter has them (be-dmabuf's `DEVICE_EXTENSIONS`, which
   block-app passes, enabled through `open_vulkan_device`) and, when set, the
-  `OpenGpu` that makes the instance, adapter and device itself. `Xr` makes
+  `OpenGpu` that makes the instance and may make the adapter and device
+  itself (`None` leaves them to wgpu). `Xr` makes
   the VkInstance and VkDevice through `XR_KHR_vulkan_enable2` with the
   extensions wgpu wants (`desired_extensions`, `required_device_extensions`)
   and those, and hands them to wgpu (`Instance::from_raw`, `expose_adapter`,
@@ -3306,7 +3340,7 @@ it, and all its 3D (`glam`) stays in the crate.
   The mouse and keyboard work exactly as in the simulator: the mirror window
   keeps the keyboard focus and the pointer, and the cursor's screen is the
   mirror, the centre eye at `FOV_Y`, which lies inside a headset's field, so
-  the cursor never strays into the periphery. Tracked views are in the
+  the marker of a cursor out of view (see Cursor) never sits in the periphery. Tracked views are in the
   tracking space, and `Space::body` (`head::Body { position, yaw }`) places
   that space in the world (`Views::placed`, and each hand's poses through
   `Body::place`); while views are tracked,
@@ -3321,9 +3355,12 @@ it, and all its 3D (`glam`) stays in the crate.
   Reality profiles, read at the predicted display time in the eyes' space
   and pushed into the frame's input as `Incoming::Controller` (see Lasers),
   with `Lost` once when a hand's aim stops being tracked.
-  `beui-layer-xr`'s test runs Monado's service with its null compositor on
-  lavapipe (`//buck/sysroot:amd64-xr`) and has it show frames, the main
-  panel as a quad layer.
+  `beui-layer-xr`'s tests run Monado's service with its null compositor on
+  lavapipe (`//buck/sysroot:amd64-xr`) and have it show frames, the main
+  panel as a quad layer; one starts the `Link` before the service, then
+  stops and starts the service again, reopening the device as the runner
+  would (`Gpu::stale`, `Gpu::reopen`, `XrSpace::setup`). They share
+  `XDG_RUNTIME_DIR`, so each holds the tests' `MONADO` lock.
 - Carry: on `WindowRequest::BeginMove` (for any window) the panel keeps its pose relative to the
   head, with the grabbed point on the cursor's ray at a fixed distance, so
   moving the mouse or steering carries it. As the mouse swings the ray around
@@ -3340,30 +3377,50 @@ it, and all its 3D (`glam`) stays in the crate.
   grab offset, and the one turn left about the line to the eye is the one
   that keeps the panel's right perpendicular to the head's up), and then
   keeps facing them, so letting go turns it no further.
-  The carry keeps the panel really in front of what it is carried over:
-  `Carry::distance` is the wanted distance (where it was picked up, changed
-  by scroll) and `Carry::at` the one it is drawn at, the largest no farther
-  than the wanted one at which every other panel is at least `IN_FRONT`
-  (1.5 cm) behind it, solved afresh every frame (`Carry::reach`: a step
-  along the worst ray, then bisection). Rays from the eye go through a 5x5
-  grid of the carried panel's surface with its chrome, onto each other
-  panel's surface, and through a grid of each other panel onto the carried
-  one, flat or bent (`Panel::intersect`). A ray that lands outside the
-  other rectangle counts less by `RAMP` (1) times how far outside, so the
-  panel comes forward as its edge nears another panel and goes back as it
-  leaves: the drawn distance is continuous, with no easing and no jump.
-  So it is in front because it is nearer, drawn and picked by depth like any
-  panel, and letting go changes nothing. Picking a panel up that another
-  covers brings it in front of that one at once, as a desktop raises a
-  dragged window. Scroll changes the distance from where it is drawn (`at`)
-  and does not reach the app; the app sees no pointer moves meanwhile. A
-  scroll farther that some panel would stop takes the carried panel through
-  it to `IN_FRONT` behind it, and it stays behind that panel
-  (`Carry::behind`) for the rest of the carry, until a scroll nearer leaves
-  it less than `IN_FRONT` behind; that is the only way to put a carried
-  panel behind another. Letting go of the
-  button that was down when it began (or, if none was, the next click) ends it:
-  the app gets that release where it grabbed, the turn to face the viewer
+  The carry keeps the panel really in front of what it is carried over
+  when the two are close in depth: `Carry::distance` is the wanted distance
+  (where it was picked up, changed by scroll) and `Carry::at` the one it is
+  drawn at, the largest no farther than the wanted one at which every other
+  close panel is at least `IN_FRONT` (1.5 cm) behind it, solved afresh every
+  frame (`Carry::reach`: a step along the worst ray, then bisection). Rays
+  from the eye go through a 5x5 grid of the carried panel's surface with its
+  chrome, onto each other panel's surface, and through a grid of each other
+  panel onto the carried one, flat or bent (`Panel::intersect`). A ray counts
+  only where the carried panel is less than `CLOSE` (10%) of that panel's
+  distance from the eye behind it (`carry::close`): 10 cm at arm's length,
+  30 cm at 3 m, two scroll lines anywhere, since the eye judges depth, and
+  scroll steps it, relative to distance. So a carried panel overlapping on
+  screen one that is far nearer stays at its distance, behind it, and only
+  one it is about to meet or pass is pushed behind it. A ray that lands
+  outside the other rectangle counts less by `RAMP` (1) times how far
+  outside, so the panel comes forward as its edge nears a close panel and
+  goes back as it leaves: the drawn distance is continuous, with no easing
+  and no jump. So it is in front because it is nearer, drawn and picked by
+  depth like any panel, and letting go changes nothing. Picking a panel up
+  that a close one covers brings it in front of that one at once, as a
+  desktop raises a dragged window. Scroll changes the distance by
+  `STEP_PER_LINE` (0.95) per line, about 5%, from where it is drawn (`at`);
+  a touchpad's pixels move it by their share of a line (`SCROLL_LINE`
+  points), so it glides in proportion. It does not reach the app, which sees
+  no pointer moves meanwhile. A scroll farther that a close panel would stop
+  leaves it held in front until the distance asked for is `IN_FRONT` behind
+  that panel (further scrolls farther go on from the distance asked for,
+  `Carry::pushing`), then it is drawn there, behind that panel, and stays
+  behind it (`Carry::behind`) for the rest of the carry, until a scroll
+  nearer leaves it less than `IN_FRONT` behind; that is the only way to put
+  a carried panel behind a close one. A wheel line usually takes it through
+  at once; a touchpad's small deltas push until it is past.
+  An app's `BeginMove` or `BeginResize` starts a carry or resize only while
+  a press it was given is held (any window's, since one app's drag can open
+  and carry another window; for a laser, while its trigger holds that
+  window), as Wayland ties a move to its press: a plugin's request reaches
+  block-app a frame or two after the press it answers, and one that arrives
+  after that click was let go is dropped rather than leaving the window
+  stuck to the cursor until the next click. Letting go of the button that
+  was down when it began (or, for a carry begun with none, as
+  `Space::begin_carry` can, the next click) ends it: the app gets that
+  release in the window that took the press, where it grabbed when that is
+  the carried one, the turn to face the viewer
   finishes at once (`Carry::finish`) and the panel is placed once more, its
   distance solved for that facing, so a carry let go mid-turn lands where it
   would have after the turn, in front of what it is over, and the host reports `WindowReport::Placed` with the panel's placement,
@@ -3371,7 +3428,8 @@ it, and all its 3D (`glam`) stays in the crate.
   and `bend` (`Panel::placement`, read back by `Panel::placed`). The app keeps
   it in memory (the dock does) and hands it back when it opens the window
   again. Nothing keeps a placement across restarts yet (plans/vr.md).
-- Resize: on `WindowRequest::BeginResize { window, edge }` (`resize::Resize`)
+- Resize: on `WindowRequest::BeginResize { window, edge }`, or a drag on a
+  side of a panel's chrome (`resize::Resize`)
   the cursor's ray meets the panel's surface as it was, and that edge or corner
   follows it while the opposite one stays put, no smaller than
   `resize::SMALLEST`. Each new size is reported as `Resized` at once, so the
@@ -3445,11 +3503,20 @@ it, and all its 3D (`glam`) stays in the crate.
   at its centre. A tile drops everything under the last opaque cell
   covering it all, so an intersection costs a few primitives per pixel
   along its line, and a scene with none paints as one tile.
-- Cursor: the host asks the platform for `CursorIcon::None` and draws its own
-  in the scene, last and over everything, as a quad facing the head with its
-  hotspot on the cursor's point (`Space::cursor_at`), or when that is out of
-  view on the clamped ray, just in front of what it hits there. It goes only
-  when the pointer leaves the platform window. Its size grows with
+- Cursor: while space holds the pointer (Grab) or an app locks it
+  (`Space::cursor_shown`), the host asks the platform for `CursorIcon::None`
+  and draws its own in the scene, last and over everything, as a quad facing
+  the head with its hotspot on the cursor's point (`Space::cursor_at`). Once
+  the grab lets go it draws none and asks the platform's own cursor for the
+  icon it would have drawn, since the platform then moves the pointer. When
+  the cursor's point is out of the view (off the screen or behind the eye),
+  it draws instead a marker inside the edge (`Space::cursor_away`,
+  `cursor::Look::Away`): `beui_core::icons::ICON_MOUSE` with an
+  `ICON_ARROW_UP` turned toward the cursor, on the line from the view's
+  middle toward where the cursor projects, `cursor::AWAY_INSET` (36) points
+  inside the edge, just in front of what it hits there; the arrow's angle
+  is kept in `AWAY_STEPS` (90) steps a turn so the sprite repaints only when
+  it moves a step. It goes only when the pointer leaves the platform window. Its size grows with
   distance (`Space::cursor_scale`, metres per point) so it covers as many
   pixels as it has points at any depth. It shows the icon that the window
   under it, holding the press, or being carried or resized asks for
@@ -3458,7 +3525,9 @@ it, and all its 3D (`glam`) stays in the crate.
   icon with `beui_core::drawn_cursor::paint`, the same drawing the inspector's
   mouse simulation shows on a touchscreen, through a `Context` of its own with
   only the icon font, and the compositor draws it into a texture like a window
-  only when the icon or the scale changes, under a `WindowId` of its own. A new
+  only when its look (icon or marker) or the scale changes, under a
+  `WindowId` of its own, and the paintings draw its last output over
+  everything (`render::Frame::sprite`). A new
   icon repaints into the same texture with the same renderer; building a
   renderer for each icon cost about 30 ms a switch.
 - Pointers: the mouse and each controller's laser are pointers of their own
@@ -3534,23 +3603,40 @@ it, and all its 3D (`glam`) stays in the crate.
   window. Nothing is raised: panels have no stacking order in 3D, only depth.
   Closing the focused panel focuses the main one.
 - Chrome: the host draws and handles controls of its own around every panel
-  (`chrome.rs`), sized in metres so they keep their size however the panel
-  is scaled: an L bracket just outside each corner, and under the bottom edge
+  (`chrome.rs`): an L bracket just outside each corner, the window's title
+  (its `WindowState` appearance title, which the `Window` component's
+  `title` sets) in a pill centred above the top edge, cut short with an
+  ellipsis to fit between the top brackets, and under the bottom edge
   a pill with a move button (`ICON_MOVE`), a rotate button (`ICON_ROTATE_3D`),
   a roll button (`ICON_ROTATE_CW_SQUARE`) and a curvature button
-  (`ICON_SPLINE`). They are faint (`FAINT`) except on the focused panel, which
+  (`ICON_SPLINE`). They keep one size to the eye wherever the panel is, as
+  the cursor does: their lengths are metres at `REFERENCE` (0.6 m) times
+  `Fit::scale`, the eye's distance to the panel's centre over `REFERENCE`
+  (`chrome::fitted`), which `Space` sets on each panel (`Panel::chrome`)
+  every input and frame and changes only once it is off by more than `KEPT`
+  (5%), so a head that moves a little never paints the chrome again.
+  `Fit::title` is the title's width at that reference, measured with the
+  app's `Context` when the title changes. They are faint (`FAINT`) except on the focused panel, which
   keeps them lit wherever the cursor goes until another press moves the focus.
-  `chrome::layout` places the parts (each bracket's two arms, `SLOP` wider,
-  and the buttons) and `chrome::part_at` finds one at a window point outside
-  the window's rectangle. Picking is by depth alone: the cursor's ray takes
+  `chrome::layout` places the parts and `chrome::part_at` finds one at a
+  window point outside the window's rectangle. Their hit areas leave no gap
+  next to the window for a ray to fall through to a panel behind: each
+  bracket's arms take the band from the window's edge out to the bracket
+  (and `SLOP` beyond), the sides between the brackets take that band too,
+  and the buttons, the slider and the title take everything between them
+  and the window's edge, edge to edge with each other. Picking is by depth alone: the cursor's ray takes
   the chrome on a panel's extended surface when it is nearer than any panel
-  (`chrome::pick`), focused or not, so a bracket of a window popped out in
-  front of another takes the click over the content behind it; the arms'
-  small margin is what keeps a dock window popped out over the main one from
-  covering its tab bar. A driver's point outside its window picks too. Input
+  (`chrome::pick`), focused or not, so the chrome of a window popped out in
+  front of another takes the click over the content behind it. A driver's point outside its window picks too. Input
   on chrome never reaches the app (the window under it last gets
   `PointerLeft`), and the cursor shows what a part does. While an app holds a
-  button, chrome is ignored. Dragging a bracket scales the panel
+  button, chrome is ignored. Dragging a side between the brackets
+  (`Part::Resize`, lit while hovered or held) resizes the window from that
+  edge as a `BeginResize` would (`Gesture::Resize` while it lasts), the main
+  window too: its size in space is its logical size, reported as `Resized`,
+  while the platform window keeps its own size and stays the mirror.
+  Dragging the title carries the panel as the move button does.
+  Dragging a bracket scales the panel
   (`Gesture::Scale`): `metres_per_point` grows or shrinks with how far the
   cursor goes along the diagonal from the opposite corner, which stays put,
   between `SMALLEST_SCALE` and `LARGEST_SCALE` of where it began, so the
@@ -3562,7 +3648,7 @@ it, and all its 3D (`glam`) stays in the crate.
   `chrome::Sight`, `chrome::turned`), like a trackball: when the drag begins
   it takes the sight line from the eye to the panel's centre, the head's up
   made perpendicular to it (the sight's up) and their cross product (the
-  sight's right, along the screen's right). The cursor ray's change from
+  sight's right, along the screen's right). The aim's change (the cursor's ray; see below) from
   where the drag began is measured on the screen: its direction is the
   change of the ray's point on the head's image plane, its size the angle
   between the rays, times `TURN_GAIN` (2). Its horizontal part turns the
@@ -3572,10 +3658,14 @@ it, and all its 3D (`glam`) stays in the crate.
   a panel's edge level to the view stays level, wherever the panel is on
   screen and however the head is rolled or pitched. For a panel straight ahead of a
   level head and facing it, that is yaw about the vertical and pitch about the panel's own
-  horizontal axis. The gain is fixed rather than keeping the button under
-  the cursor: the button sits on the panel's vertical centre line, so a
-  turn about the sight's up hardly moves it on screen. The panel never rolls however the cursor
-  circles. Dragging the roll button rolls it about its
+  horizontal axis. With the mouse the cursor stays on the button meanwhile:
+  `PointerMotion` swings the gesture's own aim (`Gesture::Turn::aim`, as it
+  would swing the cursor) and the turn follows that aim, while the cursor is
+  put back on the button's point (`grab`) as the panel turns, so the mouse
+  turns the panel without the cursor wandering off, and lets go on the button.
+  An absolute position (the platform's own pointer, not grabbed, or a driver)
+  aims it directly. A laser's turn follows its ray. The panel never rolls
+  however the cursor circles. Dragging the roll button rolls it about its
   normal through its centre (`Gesture::Roll`, `chrome::roll_angle`,
   `chrome::rolled`) by the change in the cursor's angle around the centre on
   the panel's surface as it was, so the button, below the centre, stays under

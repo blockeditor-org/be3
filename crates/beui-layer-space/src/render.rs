@@ -97,6 +97,7 @@ pub struct Frame {
     pub right: Vec3,
     pub up: Vec3,
     pub cursor: Option<PanelFrame>,
+    pub sprite: Option<WindowOutput>,
     pub beams: Vec<Beam>,
     pub panels: Vec<PanelFrame>,
 }

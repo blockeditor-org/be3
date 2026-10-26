@@ -10,6 +10,7 @@ pub const SIZE: f32 = 26.0;
 pub const EXTENT: f32 = SIZE * 3.0;
 pub const SHADOW_OFFSET: f32 = 1.5;
 pub const SHADOW: Color32 = Color32::from_rgba_unmultiplied(0, 0, 0, 190);
+pub const CENTRE: Vec2 = vec2(0.48, 0.56);
 const IBEAM_HEIGHT: f32 = 18.0;
 const IBEAM_SERIF: f32 = 3.5;
 const IBEAM_WIDTH: f32 = 1.5;
@@ -42,7 +43,7 @@ pub fn paint(painter: &Painter, at: Pos2, icon: CursorIcon, color: Color32) -> R
 }
 
 fn glyph(icon: CursorIcon) -> (icons::Glyph, Vec2, f32) {
-    let center = vec2(0.48, 0.56);
+    let center = CENTRE;
     let diagonal = std::f32::consts::FRAC_PI_4;
     match icon {
         CursorIcon::Default | CursorIcon::None | CursorIcon::Text => {

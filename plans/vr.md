@@ -20,7 +20,7 @@ popups, a window over it (guides/linux_desktop.md, "Program windows"). It draws 
 number of views, each a pose with an off-axis field of view (`head::View`,
 `head::Fov`): the simulator's one, or tracked views an XR layer hands
 `Space::set_views` and draws with `Space::draw` (guides/beui.md, "Views"), and
-`BEUI_LAYERS=xr` shows it on an OpenXR headset (`crates/beui-layer-xr`; guides/beui.md, "Headsets"), with panels as composition layers where their order is plain.
+`BEUI_LAYERS=xr` shows it on an OpenXR headset (`crates/beui-layer-xr`; guides/beui.md, "Headsets"), waiting for one to appear, with panels as composition layers where their order is plain.
 Input is a mouse pointer, a keyboard, and a laser per controller that acts as
 a finger, with grips that carry, scale and turn panels (guides/beui.md,
 "Lasers"), fed from OpenXR's controller actions or `drive xr`. While a
@@ -41,10 +41,13 @@ compositor and compiled for Windows by `./scripts/verify`. What remains:
 - **Multiview.** Each eye is its own pass and swapchain; one pass with
   wgpu's `multiview_mask` and `@builtin(view_index)` into a two-layer
   swapchain would halve the draw calls.
-- **A lost runtime.** A lost session comes back when the headset does, but a
-  lost instance (SteamVR quit) leaves the simulator for the rest of the run:
-  a new instance would start SteamVR again, so it needs a way to tell when
-  the runtime is back without one.
+- **Waiting on hardware.** `BEUI_LAYERS=xr` waits for a runtime and
+  headset (`Link`), checked only against Monado started late and stopped:
+  whether SteamVR returns `FORM_FACTOR_UNAVAILABLE` with the Beyond
+  unplugged, and quits with an instance loss rather than `EXITING`, is
+  untried. Finding one reopens the GPU device as a lost GPU does, so
+  whatever the app keeps on the old device (plugin textures, dmabuf imports)
+  must follow `App::renderer_replaced`.
 - **Layers on hardware.** Composition layers (`Space::layers`) are checked
   only against Monado's null compositor, which accepts them but draws
   nothing; how SteamVR shows them under the projection layer (hole edges
@@ -53,7 +56,7 @@ compositor and compiled for Windows by `./scripts/verify`. What remains:
   layer swapchains have one mip level.
 - **Other platforms.** beui-layer-xr is compiled for Linux and Windows, but
   `./scripts/verify` cross-checks only `windows_x86_64`; `windows_arm64` is
-  untried. Elsewhere `Xr::open` refuses (Android is M9).
+  untried. Elsewhere the `Link` fails at once (Android is M9).
 - **Blocking.** `xrWaitFrame` blocks the main loop, which also runs plugins and
   the Wayland server; waiting on another thread and waking the loop would
   free it.
@@ -110,8 +113,8 @@ The riskiest: wgpu has no WebXR binding, the WebGL route needs an
 
 - **Plugin windows.** Outside space they stay overlays inside their region's
   window; making them OS windows there is deferred. Drags a plugin starts on a window's bar reach block-app
-  a frame or two late, so a press let go before `BeginMove` arrives starts a
-  carry that ends at the next click. Drag and drop over a plugin window, and a
+  a frame or two late, so a press let go before `BeginMove` arrives moves
+  nothing (space drops it). Drag and drop over a plugin window, and a
   window's accessibility (its nodes show in the frame's tree at the window's
   own coordinates), are not handled yet.
 
