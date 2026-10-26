@@ -1851,14 +1851,12 @@ impl DockState {
         {
             let kept = self.homes.clone();
             self.homes.retain(|home| !incoming.contains(&home.tab));
-            self.homes.extend(incoming.iter().map(|tab| {
-                Home {
-                    tab: *tab,
-                    place: DockHome::Group(group),
-                    pinned: !kept.iter().any(|home| {
-                        home.tab == *tab && home.place == DockHome::Group(group) && !home.pinned
-                    }),
-                }
+            self.homes.extend(incoming.iter().map(|tab| Home {
+                tab: *tab,
+                place: DockHome::Group(group),
+                pinned: !kept.iter().any(|home| {
+                    home.tab == *tab && home.place == DockHome::Group(group) && !home.pinned
+                }),
             }));
         }
         self.normalize();

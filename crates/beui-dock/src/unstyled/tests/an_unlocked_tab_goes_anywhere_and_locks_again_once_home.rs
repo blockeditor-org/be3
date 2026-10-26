@@ -33,6 +33,9 @@ fn an_unlocked_tab_goes_anywhere_and_locks_again_once_home() {
     state.drop_tab(TabId::new(1), DockDrop::Pane { leaf: files });
     assert!(state.at_home(TabId::new(1)));
     state.set_tab_pinned(TabId::new(1), true);
-    assert!(state.is_tab_pinned(TabId::new(1)), "back home it locks again");
+    assert!(
+        state.is_tab_pinned(TabId::new(1)),
+        "back home it locks again"
+    );
     assert!(!state.admits(Entry::Tab(TabId::new(1)), DockDrop::Pane { leaf: editors }));
 }

@@ -19,7 +19,11 @@ fn a_locked_tab_found_outside_its_area_is_moved_back_home() {
             pos: Pos2::new(40.0, 40.0),
         },
     );
-    assert_eq!(state.leaves(state.main()), vec![editors], "the files pane is gone");
+    assert_eq!(
+        state.leaves(state.main()),
+        vec![editors],
+        "the files pane is gone"
+    );
 
     state.reconcile(&sidebar_and_editors(&[1, 2], &[10]));
 
