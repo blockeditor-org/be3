@@ -1,10 +1,10 @@
+use crate::reactive::Callback;
+use crate::reactive::Child;
+use crate::reactive::Prop;
 use beui_core::base::list::Direction;
 use beui_core::base::offset::ScrollPosition;
 use beui_core::node::NodeId;
 use beui_macros::component;
-use crate::reactive::Callback;
-use crate::reactive::Child;
-use crate::reactive::Prop;
 
 #[component]
 pub fn Offset(
@@ -13,7 +13,7 @@ pub fn Offset(
     #[prop(default = false)] fit: bool,
     #[prop(default = false)] follow_end: Prop<bool>,
     on_change: Callback<ScrollPosition>,
-    children: Child
+    children: Child,
 ) -> NodeId {
     crate::core::offset(offset, direction, fit, follow_end, on_change, children)
 }

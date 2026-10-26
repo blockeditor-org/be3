@@ -1,5 +1,3 @@
-use std::cell::Cell;
-use std::rc::Rc;
 use crate::reactive::Callback;
 use crate::reactive::Child;
 use crate::reactive::ClickCallback;
@@ -9,6 +7,8 @@ use crate::reactive::create_binding;
 use crate::reactive::create_effect;
 use crate::reactive::on_cleanup;
 use crate::reactive::with_document;
+use beui_core::focus::ImeCursor;
+use beui_core::base::interactive::InteractiveNode;
 use beui_core::base::list::Direction;
 use beui_core::clipboard::PasteKind;
 use beui_core::clipboard::Pasted;
@@ -25,10 +25,10 @@ use beui_core::input::PointerPress;
 use beui_core::input::ScrollGesture;
 use beui_core::input::SecondaryDrag;
 use beui_core::input::ZoomGesture;
-use beui_core::node::NodeId;
-use beui_core::focus::ImeCursor;
-use beui_core::base::interactive::InteractiveNode;
 use beui_core::interact::forward::ForwardedInput;
+use beui_core::node::NodeId;
+use std::cell::Cell;
+use std::rc::Rc;
 
 pub fn interactive(
     focusable: bool,
@@ -92,7 +92,7 @@ pub fn interactive(
     claim_modifiers: Prop<Option<Modifiers>>,
     claim_at: Callback<(Pos2, Modifiers), bool>,
     on_press_outside: Callback<Pos2>,
-    children: Option<Child>
+    children: Option<Child>,
 ) -> NodeId {
     assert!(
         focusable

@@ -1,4 +1,3 @@
-use std::time::Duration;
 use crate::reactive::Callback;
 use crate::reactive::Child;
 use crate::reactive::Children;
@@ -16,6 +15,7 @@ use beui_core::geometry::Rect;
 use beui_core::geometry::Vec2;
 use beui_core::geometry::pos2;
 use beui_core::node::NodeId;
+use std::time::Duration;
 
 pub type CanvasItem = Placed<CanvasNode>;
 
@@ -27,7 +27,7 @@ pub fn canvas(
     height: Prop<f32>,
     scrolls_across: bool,
     on_reveal: Callback<Vec2>,
-    children: Children<CanvasItem>
+    children: Children<CanvasItem>,
 ) -> NodeId {
     let canvas = with_document(Document::create_canvas);
     with_document(|document| {
@@ -68,7 +68,7 @@ pub fn canvas_item(
     clip: Prop<bool>,
     pointer: Prop<bool>,
     scales: Prop<bool>,
-    children: Option<Child>
+    children: Option<Child>,
 ) -> CanvasItem {
     let item = with_document(|document| {
         let item = document.create_canvas_item();

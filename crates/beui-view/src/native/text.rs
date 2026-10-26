@@ -1,4 +1,3 @@
-use std::rc::Rc;
 use crate::reactive::Child;
 use crate::reactive::ChildSegment;
 use crate::reactive::ChildValue;
@@ -21,6 +20,7 @@ use crate::reactive::SlotId;
 use crate::reactive::create_binding;
 use crate::reactive::create_effect;
 use crate::reactive::with_document;
+use beui_core::base::text::DEFAULT_FONT_SIZE;
 use beui_core::base::text::FontPatch;
 use beui_core::base::text::IconSpan;
 use beui_core::base::text::SpanContent;
@@ -31,6 +31,8 @@ use beui_core::base::text::TextStyle;
 use beui_core::color::Color32;
 use beui_core::font::FontFamily;
 use beui_core::font::FontId;
+use beui_core::font::Overflow;
+use beui_core::font::TextAlign;
 use beui_core::icons::Glyph;
 use beui_core::node::NodeId;
 use beui_core::node::NodeOf;
@@ -38,9 +40,7 @@ use beui_core::rich::SpanBackground;
 use beui_core::rich::TextCaret;
 use beui_core::rich::TextGlyph;
 use beui_core::rich::TextMark;
-use beui_core::base::text::DEFAULT_FONT_SIZE;
-use beui_core::font::Overflow;
-use beui_core::font::TextAlign;
+use std::rc::Rc;
 
 pub fn text(
     font: Prop<FontId>,
@@ -55,7 +55,7 @@ pub fn text(
     marks: Prop<Vec<TextMark>>,
     glyphs: Prop<Vec<TextGlyph>>,
     carets: Prop<Vec<TextCaret>>,
-    children: Children<TextChild>
+    children: Children<TextChild>,
 ) -> NodeId {
     let (string, children) = match children.into_only() {
         Ok(TextChild::Span(span)) if span.is_plain() => (span.text, Children::default()),
@@ -364,7 +364,7 @@ pub fn span(
     strikethrough: Prop<Option<bool>>,
     background: Prop<Option<SpanBackground>>,
     break_after: Prop<bool>,
-    children: Children<SpanText>
+    children: Children<SpanText>,
 ) -> Span {
     let text = match children.into_only() {
         Ok(SpanText(text)) => text,
@@ -408,7 +408,7 @@ pub fn icon(
     size: Prop<Option<f32>>,
     scale: f32,
     spacing_em: f32,
-    color: Prop<Option<Color32>>
+    color: Prop<Option<Color32>>,
 ) -> Span {
     Span {
         font: size.map(|size| FontPatch {
@@ -429,9 +429,7 @@ pub struct Gap {
 
 impl ChildValue for Gap {}
 
-pub fn gap(
-    width: f32
-) -> Gap {
+pub fn gap(width: f32) -> Gap {
     Gap { width }
 }
 
@@ -452,7 +450,7 @@ pub type TextItem = Placed<TextNode>;
 pub fn text_item(
     at: Option<Prop<Option<usize>>>,
     text: Option<Prop<Option<Rc<str>>>>,
-    children: Option<Child>
+    children: Option<Child>,
 ) -> TextItem {
     let item = with_document(|document| {
         let item = document.create_text_item();
@@ -481,9 +479,7 @@ pub struct Break {}
 
 impl ChildValue for Break {}
 
-pub fn line_break(
-    
-) -> Break {
+pub fn line_break() -> Break {
     Break {}
 }
 

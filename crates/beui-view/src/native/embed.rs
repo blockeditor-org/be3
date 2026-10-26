@@ -10,7 +10,7 @@ pub fn embed(
     slot: EmbedSlot,
     punch: Prop<bool>,
     rotation: Prop<f32>,
-    children: Option<Child>
+    children: Option<Child>,
 ) -> NodeId {
     let state = slot.0.value();
     let embed = with_document(move |document| {

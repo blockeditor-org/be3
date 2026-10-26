@@ -7,9 +7,7 @@ use beui_core::node::NodeId;
 
 pub type Fitting = Placed<FirstFitNode>;
 
-pub fn first_fit(
-    children: Children<Fitting>
-) -> NodeId {
+pub fn first_fit(children: Children<Fitting>) -> NodeId {
     let fit = with_document(Document::create_first_fit);
     children.mount(fit);
     fit.id()

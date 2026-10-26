@@ -1,5 +1,3 @@
-use beui_core::color::Color32;
-use std::cell::RefCell;
 use crate::reactive::Callback;
 use crate::reactive::Get;
 use crate::reactive::Memo;
@@ -21,11 +19,13 @@ use crate::reactive::use_context;
 use crate::reactive::with_document;
 use beui_core::base::overlay::OverlayAnchor;
 use beui_core::base::overlay::Placement;
+use beui_core::color::Color32;
 use beui_core::layer::Dismiss;
 use beui_core::layer::LayerLevel;
 use beui_core::layer::LayerPolicy;
 use beui_core::node::NodeId;
 use beui_core::window::WindowId;
+use std::cell::RefCell;
 
 #[derive(Clone, Copy)]
 pub struct OverlayPresence {
@@ -65,7 +65,7 @@ pub fn overlay(
     open: Prop<bool>,
     keep_alive: bool,
     on_dismiss: Callback<Dismiss>,
-    content: RenderFn<()>
+    content: RenderFn<()>,
 ) -> NodeId {
     let overlay = with_document(|document| {
         let overlay = document.create_overlay(anchor.get_untracked(), Placement::BelowStart);

@@ -1,11 +1,11 @@
-use beui_core::node::NodeId;
-use beui_macros::component;
 use crate::types::Align;
 use crate::reactive::Children;
 use crate::types::Direction;
 use crate::types::Justify;
 use crate::reactive::ListChild;
 use crate::reactive::Prop;
+use beui_core::node::NodeId;
+use beui_macros::component;
 
 #[component]
 pub fn List(
@@ -14,14 +14,12 @@ pub fn List(
     #[prop(default = Justify::Start)] justify: Prop<Justify>,
     #[prop(default = false)] wrap: Prop<bool>,
     spacing: Prop<f32>,
-    children: Children<ListChild>
+    children: Children<ListChild>,
 ) -> NodeId {
     crate::core::list(direction, align, justify, wrap, spacing, children)
 }
 
 #[component]
-pub fn Spacer(
-    
-) -> NodeId {
+pub fn Spacer() -> NodeId {
     crate::core::spacer()
 }

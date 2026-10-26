@@ -1,3 +1,7 @@
+pub use crate::core::text::{Break, Gap, Span, SpanText, TextChild, TextItem};
+use crate::reactive::Child;
+use crate::reactive::Children;
+use crate::reactive::Prop;
 use beui_core::base::text::DEFAULT_FONT_SIZE;
 use beui_core::color::Color32;
 use beui_core::font::FontFamily;
@@ -11,11 +15,7 @@ use beui_core::rich::TextCaret;
 use beui_core::rich::TextGlyph;
 use beui_core::rich::TextMark;
 use beui_macros::component;
-use crate::reactive::Child;
-use crate::reactive::Children;
-use crate::reactive::Prop;
 use std::rc::Rc;
-pub use crate::core::text::{TextChild, SpanText, Span, Gap, TextItem, Break};
 
 #[component]
 pub fn Text(
@@ -31,9 +31,23 @@ pub fn Text(
     #[prop(default = Vec::new())] marks: Prop<Vec<TextMark>>,
     #[prop(default = Vec::new())] glyphs: Prop<Vec<TextGlyph>>,
     #[prop(default = Vec::new())] carets: Prop<Vec<TextCaret>>,
-    children: Children<TextChild>
+    children: Children<TextChild>,
 ) -> NodeId {
-    crate::core::text(font, line_height, color, align, vertical_align, overflow, underline, line_padding, hang, marks, glyphs, carets, children)
+    crate::core::text(
+        font,
+        line_height,
+        color,
+        align,
+        vertical_align,
+        overflow,
+        underline,
+        line_padding,
+        hang,
+        marks,
+        glyphs,
+        carets,
+        children,
+    )
 }
 
 #[component]
@@ -48,9 +62,21 @@ pub fn Span(
     #[prop(default = None)] strikethrough: Prop<Option<bool>>,
     #[prop(default = None)] background: Prop<Option<SpanBackground>>,
     #[prop(default = false)] break_after: Prop<bool>,
-    children: Children<SpanText>
+    children: Children<SpanText>,
 ) -> Span {
-    crate::core::span(font, size, family, bold, italic, color, underline, strikethrough, background, break_after, children)
+    crate::core::span(
+        font,
+        size,
+        family,
+        bold,
+        italic,
+        color,
+        underline,
+        strikethrough,
+        background,
+        break_after,
+        children,
+    )
 }
 
 #[component]
@@ -59,15 +85,13 @@ pub fn Icon(
     #[prop(default = None)] size: Prop<Option<f32>>,
     #[prop(default = 1.0)] scale: f32,
     #[prop(default = 0.0)] spacing_em: f32,
-    #[prop(default = None)] color: Prop<Option<Color32>>
+    #[prop(default = None)] color: Prop<Option<Color32>>,
 ) -> Span {
     crate::core::icon(glyph, size, scale, spacing_em, color)
 }
 
 #[component]
-pub fn Gap(
-    width: f32
-) -> Gap {
+pub fn Gap(width: f32) -> Gap {
     crate::core::gap(width)
 }
 
@@ -75,14 +99,12 @@ pub fn Gap(
 pub fn TextItem(
     at: Option<Prop<Option<usize>>>,
     text: Option<Prop<Option<Rc<str>>>>,
-    children: Option<Child>
+    children: Option<Child>,
 ) -> TextItem {
     crate::core::text_item(at, text, children)
 }
 
 #[component]
-pub fn Break(
-    
-) -> Break {
+pub fn Break() -> Break {
     crate::core::line_break()
 }

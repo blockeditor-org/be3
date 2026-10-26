@@ -305,11 +305,10 @@ fn core_cfg_uses(tree: &SourceFile, source: &str, relative: &str) -> Vec<String>
         .descendants()
         .filter_map(ast::Attr::cast)
         .filter(|attribute| {
-            attribute
-                .path()
-                .and_then(|path| path.segment())
-                .and_then(|segment| segment.name_ref())
-                .is_some_and(|name| matches!(name.text().as_str(), "cfg" | "cfg_attr"))
+            matches!(
+                attribute.meta(),
+                Some(ast::Meta::CfgMeta(_) | ast::Meta::CfgAttrMeta(_))
+            )
         })
         .map(|attribute| attribute.syntax().clone());
     let macros = tree
@@ -318,9 +317,7 @@ fn core_cfg_uses(tree: &SourceFile, source: &str, relative: &str) -> Vec<String>
         .filter_map(ast::MacroCall::cast)
         .filter(|call| {
             call.path()
-                .and_then(|path| path.segment())
-                .and_then(|segment| segment.name_ref())
-                .is_some_and(|name| name.text() == "cfg")
+                .is_some_and(|path| path.syntax().text() == "cfg")
         })
         .filter_map(|call| call.token_tree())
         .map(|tokens| tokens.syntax().clone());

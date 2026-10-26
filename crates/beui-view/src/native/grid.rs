@@ -16,7 +16,7 @@ pub fn grid(
     columns: Prop<Vec<Track>>,
     column_spacing: Prop<f32>,
     row_spacing: Prop<f32>,
-    children: Children<GridCell>
+    children: Children<GridCell>,
 ) -> NodeId {
     let grid = with_document(Document::create_grid);
     create_effect(move || {
@@ -31,10 +31,7 @@ pub fn grid(
     grid.id()
 }
 
-pub fn grid_cell(
-    span: Prop<usize>,
-    children: Child
-) -> GridCell {
+pub fn grid_cell(span: Prop<usize>, children: Child) -> GridCell {
     GridCell {
         node: children,
         data: span,

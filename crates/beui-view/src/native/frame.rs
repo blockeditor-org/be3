@@ -39,7 +39,7 @@ pub fn frame(
     radius: Prop<Corners>,
     outline: Prop<Option<Outline>>,
     pointer: Prop<f32>,
-    children: Option<Child>
+    children: Option<Child>,
 ) -> NodeId {
     let frame = with_document(|document| {
         let frame = document.create_frame();

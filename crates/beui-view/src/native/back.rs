@@ -12,7 +12,7 @@ pub fn back_handler(
     enabled: Prop<bool>,
     on_back: ClickCallback,
     on_gesture: Callback<BackGesture>,
-    children: Child
+    children: Child,
 ) -> NodeId {
     let handler =
         with_document(|document| document.create_back_handler(children, on_back, on_gesture));

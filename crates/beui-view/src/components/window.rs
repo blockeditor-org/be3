@@ -1,16 +1,62 @@
-use beui_core::geometry::Pos2;
-use beui_core::geometry::Vec2;
-use beui_core::layer::LayerLevel;
+use beui_core::base::overlay::{OverlayAnchor, Placement};
+use beui_core::geometry::{Pos2, Vec2};
+use beui_core::layer::{LayerLevel, LayerPolicy};
 use beui_core::node::NodeId;
-use beui_core::window::WindowId;
-use beui_core::window::WindowPlacement;
-use beui_core::window::WindowReport;
-use beui_core::window::WindowRole;
-use beui_macros::component;
-use crate::reactive::Callback;
-use crate::reactive::Prop;
-use crate::reactive::RenderFn;
-pub use crate::core::window::{WindowHandle, use_window, opens_windows};
+use beui_core::window::{
+    WindowEdge, WindowId, WindowPlacement, WindowReport, WindowRequest, WindowRole,
+};
+use beui_macros::{component, view};
+
+use crate::components::frame::Frame;
+use crate::components::overlay::Overlay;
+use crate::reactive::{
+    Callback, Get, IntoProp, Memo, Prop, RenderFn, Set, create_memo, create_signal,
+    provide_context, use_context,
+};
+
+pub use crate::core::window::opens_windows;
+
+#[derive(Clone, Copy)]
+pub struct WindowHandle {
+    pub id: WindowId,
+    pub size: Memo<Vec2>,
+    hosted: Memo<bool>,
+    real: Memo<Option<WindowId>>,
+}
+
+impl WindowHandle {
+    pub fn is_window(self) -> bool {
+        self.hosted.get()
+    }
+
+    pub fn real_window(self) -> Option<WindowId> {
+        self.real.get_untracked()
+    }
+
+    pub fn begin_move(self) -> bool {
+        crate::core::request_window(WindowRequest::BeginMove(self.id))
+    }
+
+    pub fn begin_resize(self, edge: WindowEdge) -> bool {
+        crate::core::request_window(WindowRequest::BeginResize {
+            window: self.id,
+            edge,
+        })
+    }
+
+    pub fn close(self) -> bool {
+        crate::core::request_window(WindowRequest::Close(self.id))
+    }
+}
+
+fn provided(handle: WindowHandle, content: RenderFn<WindowHandle>) -> NodeId {
+    provide_context(handle);
+    content.call(handle)
+}
+
+pub fn use_window() -> Option<WindowHandle> {
+    use_context::<WindowHandle>()
+}
 
 #[component]
 pub fn Window(
@@ -24,7 +70,53 @@ pub fn Window(
     #[prop(default = LayerLevel::Normal)] level: Prop<LayerLevel>,
     #[prop(default = false)] keep_alive: bool,
     on_report: Callback<WindowReport>,
-    #[prop(children)] content: RenderFn<WindowHandle>
+    #[prop(children)] content: RenderFn<WindowHandle>,
 ) -> NodeId {
-    crate::core::window(id, size, placement, at, title, role, open, level, keep_alive, on_report, content)
+    let id = id.unwrap_or_else(WindowId::next);
+    let opens = opens_windows();
+    let placed = crate::core::placed_windows();
+    let asked = placement.clone();
+    let hosted = create_memo(move || {
+        opens.get() || (placed.get() && matches!(asked.get(), WindowPlacement::Host(_)))
+    });
+    let outer = use_window();
+    let real = create_memo(move || match hosted.get() {
+        true => Some(id),
+        false => outer.and_then(|outer| outer.real.get()),
+    });
+    let reported = create_signal(None::<Vec2>);
+    let shown = create_memo(move || match (hosted.get(), reported.get()) {
+        (true, Some(reported)) => reported,
+        _ => size.get(),
+    });
+    let handle = WindowHandle {
+        id,
+        size: shown,
+        hosted,
+        real,
+    };
+    let heard = Callback::new(move |report: WindowReport| {
+        if let WindowReport::Resized { size, .. } = report {
+            reported.set(Some(size));
+        }
+        on_report.call(report);
+    });
+    let width = create_memo(move || shown.get().x);
+    let height = create_memo(move || shown.get().y);
+    let anchor = create_memo(move || OverlayAnchor::Point(at.get())).into_prop();
+    let node = view! {
+        <Overlay
+            anchor={anchor}
+            placement=Placement::At
+            policy=LayerPolicy::Pass
+            level={level}
+            traps_focus=false
+            open={open}
+            keep_alive={keep_alive}
+        >
+            <Frame width=width height=height>{provided(handle, content)}</Frame>
+        </Overlay>
+    };
+    crate::core::host_window(node, id, size, placement, title, role, heard);
+    node
 }

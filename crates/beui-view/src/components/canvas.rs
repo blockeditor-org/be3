@@ -1,12 +1,12 @@
-use beui_core::base::canvas::CanvasView;
-use beui_core::geometry::Vec2;
-use beui_core::node::NodeId;
-use beui_macros::component;
+pub use crate::core::canvas::CanvasItem;
 use crate::reactive::Callback;
 use crate::reactive::Child;
 use crate::reactive::Children;
 use crate::reactive::Prop;
-pub use crate::core::canvas::{CanvasItem};
+use beui_core::base::canvas::CanvasView;
+use beui_core::geometry::Vec2;
+use beui_core::node::NodeId;
+use beui_macros::component;
 
 #[component]
 pub fn Canvas(
@@ -15,7 +15,7 @@ pub fn Canvas(
     #[prop(default = 0.0)] height: Prop<f32>,
     #[prop(default = false)] scrolls_across: bool,
     on_reveal: Callback<Vec2>,
-    children: Children<CanvasItem>
+    children: Children<CanvasItem>,
 ) -> NodeId {
     crate::core::canvas(view, width, height, scrolls_across, on_reveal, children)
 }
@@ -29,7 +29,7 @@ pub fn CanvasItem(
     #[prop(default = true)] clip: Prop<bool>,
     #[prop(default = true)] pointer: Prop<bool>,
     #[prop(default = false)] scales: Prop<bool>,
-    children: Option<Child>
+    children: Option<Child>,
 ) -> CanvasItem {
     crate::core::canvas_item(x, y, width, height, clip, pointer, scales, children)
 }

@@ -14,7 +14,7 @@ pub fn offset(
     fit: bool,
     follow_end: Prop<bool>,
     on_change: Callback<ScrollPosition>,
-    children: Child
+    children: Child,
 ) -> NodeId {
     let node = with_document(|document| {
         let node = document.create_offset(children);

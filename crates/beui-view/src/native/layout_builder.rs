@@ -7,9 +7,7 @@ use beui_core::geometry::Rect;
 use beui_core::geometry::Vec2;
 use beui_core::node::NodeId;
 
-pub fn layout_builder(
-    content: Render<ReadSignal<Vec2>>
-) -> NodeId {
+pub fn layout_builder(content: Render<ReadSignal<Vec2>>) -> NodeId {
     let size = create_signal(Vec2::ZERO);
     let builder = with_document(|document| document.create_layout_builder(size));
     let (child, context) = child_scope(|| content.call(size.read_only()));
@@ -20,9 +18,7 @@ pub fn layout_builder(
     builder.id()
 }
 
-pub fn placement_builder(
-    content: Render<ReadSignal<Rect>>
-) -> NodeId {
+pub fn placement_builder(content: Render<ReadSignal<Rect>>) -> NodeId {
     let (builder, placed) = with_document(beui_core::document::Document::create_placement_builder);
     let child = content.call(placed);
     with_document(|document| document.set_layout_builder_child(builder, child));

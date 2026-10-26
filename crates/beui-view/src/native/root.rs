@@ -36,7 +36,7 @@ pub fn root(
     clear_color: Prop<Color32>,
     title: Option<Prop<String>>,
     system_bars: Prop<SystemBars>,
-    children: Child
+    children: Child,
 ) -> Root {
     let handle = crate::components::window::use_window();
     let window = move || {

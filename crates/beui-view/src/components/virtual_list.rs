@@ -1,10 +1,10 @@
-use beui_core::base::list::Direction;
-use beui_core::node::NodeId;
-use beui_macros::component;
 use crate::reactive::Callback;
 use crate::reactive::Prop;
 use crate::reactive::ReadSignal;
 use crate::reactive::RenderFn;
+use beui_core::base::list::Direction;
+use beui_core::node::NodeId;
+use beui_macros::component;
 use std::hash::Hash;
 
 #[component]
@@ -14,7 +14,7 @@ pub fn VirtualList<K>(
     #[prop(default = Direction::Vertical)] direction: Prop<Direction>,
     #[prop(default = 0.0)] overscan: Prop<f32>,
     text: Callback<K, String>,
-    #[prop(children)] item: RenderFn<ReadSignal<K>>
+    #[prop(children)] item: RenderFn<ReadSignal<K>>,
 ) -> NodeId
 where
     K: Clone + Hash + Eq + 'static,

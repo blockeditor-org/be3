@@ -7,9 +7,7 @@ use beui_core::node::NodeId;
 
 pub type Layer = Placed<LayersNode>;
 
-pub fn layers(
-    children: Children<Layer>
-) -> NodeId {
+pub fn layers(children: Children<Layer>) -> NodeId {
     let layers = with_document(Document::create_layers);
     children.mount(layers);
     layers.id()

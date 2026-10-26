@@ -1,3 +1,7 @@
+use crate::reactive::Callback;
+use crate::reactive::Child;
+use crate::reactive::ClickCallback;
+use crate::reactive::Prop;
 use beui_core::focus::ImeCursor;
 use beui_core::base::list::Direction;
 use beui_core::clipboard::PasteKind;
@@ -18,10 +22,6 @@ use beui_core::input::ZoomGesture;
 use beui_core::interact::forward::ForwardedInput;
 use beui_core::node::NodeId;
 use beui_macros::component;
-use crate::reactive::Callback;
-use crate::reactive::Child;
-use crate::reactive::ClickCallback;
-use crate::reactive::Prop;
 
 #[component]
 pub fn Interactive(
@@ -86,7 +86,70 @@ pub fn Interactive(
     #[prop(default = None)] claim_modifiers: Prop<Option<Modifiers>>,
     claim_at: Callback<(Pos2, Modifiers), bool>,
     on_press_outside: Callback<Pos2>,
-    children: Option<Child>
+    children: Option<Child>,
 ) -> NodeId {
-    crate::core::interactive(focusable, tab_stop, yields_tab_stop, press_focus, focused, ime, keyboard_on_focus, keyboard_asks, ime_keyboard, ime_cursor, ime_text, on_focus_change, on_activate_change, on_activate, on_step, on_text, takes_text, pastes, on_paste, on_ime, on_key, on_motion, cursor, pointer_locked, key_active, capture_presses, repeat_drag, touch_drags, touch_drag_axis, claims_touch, drawing, every_sample, scroll_axis, on_click, on_click_at, on_hover_change, on_hover_move, on_active_change, on_cancel, on_middle_click, on_press, on_secondary_press, on_secondary_drag, on_drag, on_pan_drag, on_pan_active_change, on_scroll, on_scroll_drag, on_autoscroll, on_zoom, capture_at, gestures_at, hit_at, drawing_at, on_forward, inhibits_shortcuts, clipboard_keys, forwards_wheel, claim_modifiers, claim_at, on_press_outside, children)
+    crate::core::interactive(
+        focusable,
+        tab_stop,
+        yields_tab_stop,
+        press_focus,
+        focused,
+        ime,
+        keyboard_on_focus,
+        keyboard_asks,
+        ime_keyboard,
+        ime_cursor,
+        ime_text,
+        on_focus_change,
+        on_activate_change,
+        on_activate,
+        on_step,
+        on_text,
+        takes_text,
+        pastes,
+        on_paste,
+        on_ime,
+        on_key,
+        on_motion,
+        cursor,
+        pointer_locked,
+        key_active,
+        capture_presses,
+        repeat_drag,
+        touch_drags,
+        touch_drag_axis,
+        claims_touch,
+        drawing,
+        every_sample,
+        scroll_axis,
+        on_click,
+        on_click_at,
+        on_hover_change,
+        on_hover_move,
+        on_active_change,
+        on_cancel,
+        on_middle_click,
+        on_press,
+        on_secondary_press,
+        on_secondary_drag,
+        on_drag,
+        on_pan_drag,
+        on_pan_active_change,
+        on_scroll,
+        on_scroll_drag,
+        on_autoscroll,
+        on_zoom,
+        capture_at,
+        gestures_at,
+        hit_at,
+        drawing_at,
+        on_forward,
+        inhibits_shortcuts,
+        clipboard_keys,
+        forwards_wheel,
+        claim_modifiers,
+        claim_at,
+        on_press_outside,
+        children,
+    )
 }

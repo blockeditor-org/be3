@@ -1,9 +1,3 @@
-use std::cell::Cell;
-use std::cell::RefCell;
-use std::collections::HashMap;
-use std::hash::Hash;
-use std::rc::Rc;
-use std::rc::Weak;
 use crate::reactive::Callback;
 use crate::reactive::Get;
 use crate::reactive::OwnedSignal;
@@ -24,6 +18,12 @@ use crate::selection::register_rows;
 use crate::selection::unregister_rows;
 use beui_core::base::list::Direction;
 use beui_core::node::NodeId;
+use std::cell::Cell;
+use std::cell::RefCell;
+use std::collections::HashMap;
+use std::hash::Hash;
+use std::rc::Rc;
+use std::rc::Weak;
 
 struct Slot<K: 'static> {
     node: NodeId,
@@ -46,7 +46,7 @@ pub fn virtual_list<K>(
     direction: Prop<Direction>,
     overscan: Prop<f32>,
     text: Callback<K, String>,
-    item: RenderFn<ReadSignal<K>>
+    item: RenderFn<ReadSignal<K>>,
 ) -> NodeId
 where
     K: Clone + Hash + Eq + 'static,
