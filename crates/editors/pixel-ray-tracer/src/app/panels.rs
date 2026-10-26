@@ -1,4 +1,3 @@
-use beui::Wrap;
 use block_editor_beui::beui::Color32;
 use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::accesskit::{Node, Role};
@@ -21,7 +20,7 @@ pub(crate) fn ToolsPanel(state: RayState) -> NodeId {
             <ForEach keys={Tool::ALL.to_vec()}>|tool: Tool|
                 <ToolButton state tool />
             </ForEach>
-            <Text style=TextStyle::CAPTION wrap=Wrap::Words>
+            <Text style=TextStyle::CAPTION>
                 "Scroll: pan · Ctrl scroll: zoom · Middle drag: pan · Delete: remove entity"
             </Text>
         </List>

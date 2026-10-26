@@ -1,4 +1,3 @@
-use beui::Wrap;
 use std::rc::Rc;
 
 use beui::dock::styled::Docking;
@@ -118,11 +117,7 @@ fn PaintReview(
                             >
                                 "The paintings could not be loaded"
                             </Text>
-                            <Text
-                                style=TextStyle::CAPTION
-                                wrap=Wrap::Words
-                                align=beui::TextAlign::Center
-                            >
+                            <Text style=TextStyle::CAPTION align=beui::TextAlign::Center>
                                 {reason}
                             </Text>
                         </List>

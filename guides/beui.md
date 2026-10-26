@@ -640,9 +640,22 @@ as the demo's Paths page does) rather than spilling past it.
 Text is never one of those. A base `Text` takes concrete values and knows
 nothing about the theme: a `font` (a `FontId`, 14 points proportional unless
 given), a `color` and `underline`, and the props that shape the paragraph -
-alignment, `wrap` (a `Wrap`: `Off`, the default, lays each line out
-unbroken; `Words` and `Anywhere` below), `ellipsis`, `clip`, `line_height`,
-`line_padding`, `marks`, `glyphs` and `carets`. Its content is its children: string literals and
+alignment, `overflow`, `line_height`, `line_padding`, `marks`, `glyphs` and
+`carets`. `overflow` is an `Overflow`:
+
+- `Wrap { at, max_lines }`, the default with `at: WrapAt::Words` and no
+  `max_lines`, breaks lines to the width the text is given (`WrapAt` below).
+  With `max_lines` it lays out no more than that many, and the last one ends
+  in an ellipsis that stands for the rest.
+- `Ellipsis` keeps a label to one line, cut to its width with an ellipsis. A
+  newline or a `Break` still starts a new line, and each line is cut on its
+  own.
+- `Visible` lays each line out unbroken at its natural width and paints it
+  whole, for text inside something that scrolls or clips for it: a text
+  area with wrapping off, a terminal's screen rows, a map label.
+
+There is no clip mode: text that has to be cut is `Visible` inside something
+that clips. Its content is its children: string literals and
 `Prop<String>`s in its own style, `Span`s - value children with no node, each
 overriding its Text's `font` whole or any of its `size`, `family`, `bold` and
 `italic`, and its `color`, `underline` or `strikethrough`, giving it a
@@ -653,7 +666,7 @@ given width that holds no bytes, so the indices on either side of one are the
 same, and `Break`s, which end the visual line wrapped or not and likewise hold
 no bytes: the index at a break starts the next line, the caret steps over it,
 and a selection or copy across one carries no newline, so a soft-wrapped
-terminal row drawn with `wrap=Wrap::Off` copies as one line. A newline in a
+terminal row drawn with `Overflow::Visible` copies as one line. A newline in a
 span's text is a real line break that a copy keeps. A tab in a span's text is laid out as its own run that reaches the next
 tab stop, every `TAB_COLUMNS` (4) spaces of its span's font from the start of
 its line. An unset span prop takes its Text's. A Text whose only child is a
@@ -672,15 +685,19 @@ icon and its label is layout rather than a space a selection could take, and
 an icon alone keeps none; an icon whose glyph is empty takes no room at all.
 Underline and strikethrough never cross one. Computed runs are a
 `ForEach` of `Span`s over the caller's own tokens. The Text lays the runs out
-and wraps them itself: `Wrap::Words` breaks after whitespace, `-`, `/` or `\`,
+and wraps them itself: `WrapAt::Words` breaks after whitespace, `-`, `/` or `\`,
 or after a `break_after` span, and between letters when no such break fits;
-`Wrap::Anywhere` breaks between any two grapheme clusters, so each line holds
+`WrapAt::Anywhere` breaks between any two grapheme clusters, so each line holds
 as many as fit (in a monospace font at a width of `cols` advances, exactly
 `cols` characters; measure the advance as `cursor_pos(_, 1).x` of one
 character, since a galley's `size()` is rounded up to a pixel). Each run is as
 wide as its text's advance, so spans in a monospace font stay on its grid.
 It lays text out with `line_padding` above and below each line, and aligns, truncates with an
-ellipsis and spaces lines by `line_height` whatever its content. It caches each
+ellipsis and spaces lines by `line_height` whatever its content. Offered an
+unbounded width, wrapping text measures at its natural width, each paragraph
+on one line; its `min_width` (see [Develop a base component](#develop-a-base-component)) is its longest
+run that cannot be broken, a word and the space after it, so a row never
+squeezes it into a column of letters. It caches each
 span's shaping, so a span whose props change is the only one shaped again, and
 line breaking resumes from the line that span is on; a colour or decoration
 change, and any change to `marks`, `glyphs` or `carets`, only repaints. It paints each span's `background` behind the span's
@@ -768,7 +785,8 @@ A child's `@sizing` is an `ItemSize` - `Intrinsic`, `Fixed` or `Percent`, the
 last a weight in the bounded space left over - or a `Sizing` built from one:
 `.min(..)` and `.max(..)` bound its length, `.shrink(weight)` lets it give up
 length down to its `min` when the row overflows (the label beside a fixed-size
-button), `.align(..)` overrides the list's `align` for that child, and
+button), and neither a shrinking child nor a `Percent` one in a row gets less
+than its own `Element::min_width` (wrapping text's longest word), `.align(..)` overrides the list's `align` for that child, and
 `.gap(..)` replaces the list's `spacing` before it:
 `@sizing={ItemSize::Percent(100.0).max(320.0)}`.
 
@@ -3981,8 +3999,10 @@ resolve their tokens into a base `Text`'s `font` and `color`:
   returns a `TextColor`.
 - `style`, a `TextStyle` preset: `BODY`, `CAPTION` (small and muted),
   `HEADING`, `TITLE`, `DISPLAY`, `CODE` (small and monospace) and `PARAGRAPH`
-  (muted); give a paragraph `wrap=Wrap::Words` as well. A prop given beside a preset
-  wins over it.
+  (muted). A prop given beside a preset wins over it.
+- `overflow`, as on the base `Text`: text wraps unless told otherwise, so a
+  paragraph needs nothing, and a one-line label (a button's, a row's, a
+  title in a bar) takes `overflow=Overflow::Ellipsis`.
 
 A styled `Icon` is sized from the text it sits in, `ICON_SCALE` times its font
 size, unless given a `size` token, and keeps `ICON_SPACING_EM` from its
@@ -4113,6 +4133,14 @@ width answers an offer of exactly `s` with `s` (likewise for height). That is
 what keeps a list from measuring a child again at the length it just measured,
 so `measure` has to agree - offering a node more room than its size must not
 change its size unless that room is unbounded.
+
+`min_width` answers the least width the node can be laid out at without
+breaking what must not break. It defaults to nothing; `Text` answers with its
+longest run that cannot be wrapped when it wraps, a node that wraps one child
+forwards the child's answer (a `Frame` adding its padding, or answering its
+own fixed width), and a `List` adds up a row and takes the widest of a
+column. A row reads it for its `Percent` and shrinking children only, and it
+is memoised beside the measurements.
 
 `baseline` answers where the node's first line of text sits below its top when
 it is offered a size, for a row aligned to `Align::Baseline`. It defaults to

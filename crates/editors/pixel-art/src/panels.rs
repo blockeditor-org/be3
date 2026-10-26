@@ -1,4 +1,3 @@
-use beui::Wrap;
 use block_editor_beui::Toolbar;
 use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::icons::Glyph;
@@ -441,7 +440,7 @@ pub(crate) fn Dialogs(tools: Tools, size: Memo<(u16, u16)>) -> NodeId {
                         <AnchorRow tools={tools} row={row} />
                     </ForEach>
                     <Show condition={cropping}>
-                        <Text style=TextStyle::CAPTION color=TextColor::Warning wrap=Wrap::Words>
+                        <Text style=TextStyle::CAPTION color=TextColor::Warning>
                             "Shrinking crops pixels outside the anchored region."
                         </Text>
                     </Show>
@@ -469,9 +468,7 @@ pub(crate) fn Dialogs(tools: Tools, size: Memo<(u16, u16)>) -> NodeId {
                 on_dismiss={dismiss_clear}
             >
                 <List spacing=SPACING>
-                    <Text style=TextStyle::CAPTION wrap=Wrap::Words>
-                        "This makes every pixel transparent."
-                    </Text>
+                    <Text style=TextStyle::CAPTION>"This makes every pixel transparent."</Text>
                     <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
                         <Button
                             label="Clear"

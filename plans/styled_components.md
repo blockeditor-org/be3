@@ -298,6 +298,17 @@ Styled has about 190 of those consts of its own.
 
 ## 8. One `overflow` prop for text, defaulting to wrap
 
+**Done.** `Overflow` and `WrapAt` live in `beui_core::font` (re-exported as
+`beui::Overflow` and `beui::WrapAt`); `Wrap`, `clip` and `ellipsis` are gone
+from the base node, `primitives::Text` and `styled::Text`. Measuring added
+`Element::min_width` (memoised like baselines), which `Text`, `Frame`,
+`List` and the one-child wrappers answer; a horizontal list floors its
+`Percent` and shrinking children at it. The terminal's screen rows stay
+`Visible`: `Ellipsis` cuts each `Break`-separated row on its own, but would
+draw an ellipsis the terminal's cells don't hold while the view is narrower
+than the grid. The paintings are beui-demo's "Wrapping and ellipsis" sample
+on the Text nodes page.
+
 beui text overflows its container by default. `primitives::Text` and
 `styled::Text` default to `wrap: Wrap::Off`, `clip: false` and
 `ellipsis: false`. Text is measured at its natural width and painted

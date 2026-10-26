@@ -1,4 +1,4 @@
-use beui::Wrap;
+use beui::Overflow;
 use beui::icons::{ICON_CHEVRON_LEFT, ICON_CHEVRON_RIGHT};
 use beui::reactive::*;
 use beui::styled::*;
@@ -77,7 +77,7 @@ fn Header(review: Review) -> NodeId {
                         @sizing={ItemSize::Intrinsic.shrink(1.0)}
                         style=TextStyle::HEADING
                         family=Family::Mono
-                        ellipsis=true
+                        overflow=Overflow::Ellipsis
                         @test_id={"paint_review.name"}
                     >
                         {name}
@@ -87,13 +87,7 @@ fn Header(review: Review) -> NodeId {
                     </Dynamic>
                 </List>
                 <Show condition={detailed}>
-                    <Text
-                        style=TextStyle::CAPTION
-                        wrap=Wrap::Words
-                        @test_id={"paint_review.detail"}
-                    >
-                        {detail}
-                    </Text>
+                    <Text style=TextStyle::CAPTION @test_id={"paint_review.detail"}>{detail}</Text>
                 </Show>
             </List>
         </Frame>

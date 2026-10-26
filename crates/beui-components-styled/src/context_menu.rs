@@ -1,4 +1,5 @@
 use crate::frame::{Border, ColorRole, Frame, Radius};
+use beui_core::font::Overflow;
 use beui_core::icons::Glyph;
 use beui_macros::{component, view};
 
@@ -262,13 +263,15 @@ fn MenuRowFace(handle: MenuRowHandle) -> NodeId {
                         <GlyphSlot glyph color={icon_color} />
                     </Show>
                     <List @sizing=ItemSize::Percent(100.0) spacing=2.0>
-                        <Text color align=TextAlign::Start ellipsis=true>{label}</Text>
+                        <Text color align=TextAlign::Start overflow=Overflow::Ellipsis>
+                            {label}
+                        </Text>
                         <Show condition={has_detail}>
                             <Text
                                 size=TextSize::Sm
                                 color=TextColor::Muted
                                 align=TextAlign::Start
-                                ellipsis=true
+                                overflow=Overflow::Ellipsis
                             >
                                 {detail}
                             </Text>
@@ -387,7 +390,7 @@ fn MenuCaptionFace(handle: MenuRowHandle, padding: f32, spacing: f32) -> NodeId 
                     weight=Weight::Bold
                     color=TextColor::Muted
                     align=TextAlign::Start
-                    ellipsis=true
+                    overflow=Overflow::Ellipsis
                 >
                     {label}
                 </Text>
@@ -426,7 +429,9 @@ fn MenuTileFace(handle: MenuRowHandle, padding: Sides) -> NodeId {
                 <Text size=TextSize::Xl color={icon_color} align=TextAlign::Center>
                     <Icon glyph={glyph} />
                 </Text>
-                <Text size=TextSize::Sm color align=TextAlign::Center ellipsis=true>{label}</Text>
+                <Text size=TextSize::Sm color align=TextAlign::Center overflow=Overflow::Ellipsis>
+                    {label}
+                </Text>
             </List>
         </Frame>
     }

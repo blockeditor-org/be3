@@ -1,4 +1,5 @@
 use crate::frame::{Border, ColorRole, Frame, Radius};
+use beui_core::font::Overflow;
 use beui_core::icons::Glyph;
 use beui_macros::{component, view};
 
@@ -162,7 +163,7 @@ pub fn ButtonFace(
                             @sizing={ItemSize::Intrinsic.shrink(1.0)}
                             color={label_color}
                             align=TextAlign::Center
-                            ellipsis=true
+                            overflow=Overflow::Ellipsis
                         >
                             {label}
                         </Text>

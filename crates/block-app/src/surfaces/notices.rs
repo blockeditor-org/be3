@@ -3,7 +3,7 @@ use beui::icons::{
 };
 use beui::reactive::*;
 use beui::styled::*;
-use beui::{Align, NodeId, TextAlign, Wrap};
+use beui::{Align, NodeId, TextAlign};
 
 const PADDING: f32 = 16.0;
 const SPACING: f32 = 8.0;
@@ -31,12 +31,7 @@ pub(crate) fn CrashNotice(
                 </Text>
                 <Text style=TextStyle::HEADING align=TextAlign::Center>{title}</Text>
                 <Show condition={has_detail}>
-                    <Text
-                        size=TextSize::Sm
-                        color=TextColor::Muted
-                        align=TextAlign::Center
-                        wrap=Wrap::Words
-                    >
+                    <Text size=TextSize::Sm color=TextColor::Muted align=TextAlign::Center>
                         {detail}
                     </Text>
                 </Show>
@@ -78,12 +73,7 @@ pub(crate) fn StaleNotice(
                     <Icon glyph=ICON_ROTATE_CCW_CLOCK />
                 </Text>
                 <Text style=TextStyle::HEADING align=TextAlign::Center>{title}</Text>
-                <Text
-                    size=TextSize::Sm
-                    color=TextColor::Muted
-                    align=TextAlign::Center
-                    wrap=Wrap::Words
-                >
+                <Text size=TextSize::Sm color=TextColor::Muted align=TextAlign::Center>
                     {create_memo(move || detail.get())}
                 </Text>
                 <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>

@@ -1,4 +1,5 @@
 use beui_components_styled::frame::{Border, ColorRole, Frame, Radius, focus_border};
+use beui_core::font::Overflow;
 use beui_macros::{component, view};
 
 use crate::styled::{BarRoom, DockMenu, title_action};
@@ -153,7 +154,7 @@ fn DockTitle(title: Memo<String>, icon: Memo<Option<Glyph>>, opens: Prop<bool>) 
                     <Icon glyph={icon} />
                 </Text>
             </Show>
-            <Text ellipsis=true>{title}</Text>
+            <Text overflow=Overflow::Ellipsis>{title}</Text>
             <Show condition={opens}>
                 <Text color=TextColor::Muted align=TextAlign::Center>
                     <Icon glyph=ICON_CHEVRON_DOWN />
@@ -307,7 +308,7 @@ fn DockSwitcherCard(handle: DockSwitcherCardHandle) -> NodeId {
                                     <Icon glyph={icon} />
                                 </Text>
                             </List>
-                            <Text ellipsis=true>{title}</Text>
+                            <Text overflow=Overflow::Ellipsis>{title}</Text>
                         </List>
                     </Frame>
                 </ListRow>

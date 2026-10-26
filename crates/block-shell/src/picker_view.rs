@@ -1,4 +1,4 @@
-use beui::Wrap;
+use beui::Overflow;
 use block_editor_beui::beui::dock::unstyled::{
     DockDialog, DockDialogPresentation, DockNode, TabId,
 };
@@ -554,9 +554,7 @@ fn SurfaceHeader(
                         variant=ButtonVariant::Ghost
                         on_click={move || act.call(PickAction::Stage(Stage::Menu))}
                     />
-                    <Text @sizing=ItemSize::Percent(100.0) style=TextStyle::TITLE wrap=Wrap::Words>
-                        {title}
-                    </Text>
+                    <Text @sizing=ItemSize::Percent(100.0) style=TextStyle::TITLE>{title}</Text>
                 </List>
                 <TextInput
                     @node_ref={&field}
@@ -741,7 +739,9 @@ fn ChoiceFace(
                 <Text color={glyph_color} align=TextAlign::Center>
                     <Icon glyph={glyph} />
                 </Text>
-                <Text @sizing=ItemSize::Percent(100.0) color ellipsis=true>{label}</Text>
+                <Text @sizing=ItemSize::Percent(100.0) color overflow=Overflow::Ellipsis>
+                    {label}
+                </Text>
                 <Text size=TextSize::Sm color=TextColor::Muted>{detail}</Text>
             </List>
         </Frame>
@@ -853,12 +853,14 @@ fn LinkBody(workspace: Workspace, held: Memo<Option<Pick>>, act: Act) -> NodeId 
             }</Tree>
             <SurfaceFooter>
                 <Show condition={has_above}>
-                    <Text size=TextSize::Sm color=TextColor::Muted ellipsis=true>{above}</Text>
+                    <Text size=TextSize::Sm color=TextColor::Muted overflow=Overflow::Ellipsis>
+                        {above}
+                    </Text>
                     <Text size=TextSize::Sm color=TextColor::Muted>
                         <Icon glyph=ICON_CHEVRON_RIGHT />
                     </Text>
                 </Show>
-                <Text size=TextSize::Sm ellipsis=true>{name}</Text>
+                <Text size=TextSize::Sm overflow=Overflow::Ellipsis>{name}</Text>
                 <Spacer @sizing=ItemSize::Percent(100.0) />
                 <Button
                     label="Cancel"
@@ -904,7 +906,9 @@ fn LinkRowFace(row: Memo<Option<TreeRow>>) -> NodeId {
             <Text color=TextColor::Muted size=TextSize::Sm align=TextAlign::Center>
                 <Icon glyph={glyph} />
             </Text>
-            <Text @sizing=ItemSize::Percent(100.0) color weight ellipsis=true>{label}</Text>
+            <Text @sizing=ItemSize::Percent(100.0) color weight overflow=Overflow::Ellipsis>
+                {label}
+            </Text>
             <Text size=TextSize::Sm color=TextColor::Muted>{detail}</Text>
         </List>
     }

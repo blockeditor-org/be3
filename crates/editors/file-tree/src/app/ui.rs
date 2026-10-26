@@ -1,4 +1,4 @@
-use beui::Wrap;
+use beui::Overflow;
 use std::collections::HashSet;
 
 use block_editor_beui::BlockParent;
@@ -362,7 +362,6 @@ fn Field(label: Prop<String>, value: Memo<String>, named: String) -> NodeId {
                 style=TextStyle::PARAGRAPH
                 color=TextColor::Default
                 @test_id={format!("file-tree.inspect.{named}")}
-                wrap=Wrap::Words
             >
                 {value}
             </Text>
@@ -490,9 +489,9 @@ fn TreeRow(
                 </Text>
             </Show>
             <List @sizing=ItemSize::Percent(100.0) spacing=0.0>
-                <Text color={color} weight={weight} ellipsis=true>{label}</Text>
+                <Text color={color} weight={weight} overflow=Overflow::Ellipsis>{label}</Text>
                 <Show condition={detailed}>
-                    <Text style=TextStyle::CAPTION ellipsis=true>{detail}</Text>
+                    <Text style=TextStyle::CAPTION overflow=Overflow::Ellipsis>{detail}</Text>
                 </Show>
             </List>
             <Show condition={generated}>
@@ -553,9 +552,9 @@ fn SectionRow(
                 </Text>
             </Show>
             <List @sizing=ItemSize::Percent(100.0) spacing=0.0>
-                <Text weight=Weight::Bold ellipsis=true>{label}</Text>
+                <Text weight=Weight::Bold overflow=Overflow::Ellipsis>{label}</Text>
                 <Show condition={detailed}>
-                    <Text style=TextStyle::CAPTION ellipsis=true>{detail}</Text>
+                    <Text style=TextStyle::CAPTION overflow=Overflow::Ellipsis>{detail}</Text>
                 </Show>
             </List>
             <Show condition={can_add}>

@@ -1,4 +1,4 @@
-use beui::Wrap;
+use beui::Overflow;
 use beui::icons::Glyph;
 use beui::icons::{ICON_CIRCLE_MINUS, ICON_CIRCLE_PLUS, ICON_DIFF, ICON_IMAGE_OFF};
 use beui::reactive::*;
@@ -69,11 +69,7 @@ pub(crate) fn PaintingList(review: Review) -> NodeId {
             <Frame padding={Sides::all(PADDING)}>
                 <List spacing=ROW_SPACING>
                     <Text style=TextStyle::HEADING>"Paintings"</Text>
-                    <Text
-                        style=TextStyle::CAPTION
-                        wrap=Wrap::Words
-                        @test_id={"paint_review.summary"}
-                    >
+                    <Text style=TextStyle::CAPTION @test_id={"paint_review.summary"}>
                         {summary}
                     </Text>
                 </List>
@@ -157,7 +153,7 @@ fn PaintingRow(review: Review, index: usize, name: Memo<String>, selected: Memo<
             on_click={move || review.select(index)}
             on_activate={move || review.select(index)}
         >
-            <Text ellipsis=true family=Family::Mono size=TextSize::Sm>{name}</Text>
+            <Text overflow=Overflow::Ellipsis family=Family::Mono size=TextSize::Sm>{name}</Text>
         </ListRow>
     }
 }

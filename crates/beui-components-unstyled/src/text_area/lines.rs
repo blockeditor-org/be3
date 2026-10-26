@@ -1,4 +1,4 @@
-use beui_core::font::Wrap;
+use beui_core::font::Overflow;
 use beui_core::layer::LayerPolicy;
 use std::collections::HashMap;
 use std::rc::Rc;
@@ -577,8 +577,8 @@ fn RowText(
     });
     let wraps = create_memo(
         move || match wrap && cx.prose.get().is_none_or(|prose| prose.wrap) {
-            true => Wrap::Words,
-            false => Wrap::Off,
+            true => Overflow::default(),
+            false => Overflow::Visible,
         },
     );
     let align = create_memo(move || cx.prose.get().map(|prose| prose.align));
@@ -673,7 +673,7 @@ fn RowText(
     let shown = view! {
         <Text
             @node_ref=&node
-            wrap={wraps}
+            overflow={wraps}
             align={align}
             vertical_align={Some(TextAlign::Start)}
             line_padding={padding}

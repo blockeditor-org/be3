@@ -1,5 +1,4 @@
 use beui::NodeId;
-use beui::Wrap;
 use beui::icons::{ICON_KEY_ROUND, ICON_PLAY, ICON_TERMINAL};
 use beui::reactive::*;
 use beui::styled::*;
@@ -104,12 +103,12 @@ pub(crate) fn Notes(
     view! {
         <List spacing=8.0>
             <Show condition={fork}>
-                <Text style=TextStyle::CAPTION wrap=Wrap::Words>
+                <Text style=TextStyle::CAPTION>
                     "It comes from a fork, so the build helper does not build it."
                 </Text>
             </Show>
             <Show condition={deleted}>
-                <Text style=TextStyle::CAPTION wrap=Wrap::Words>
+                <Text style=TextStyle::CAPTION>
                     "Its branch was deleted, so there is nothing to build."
                 </Text>
             </Show>
@@ -134,9 +133,7 @@ pub(crate) fn MainActions(model: Model) -> NodeId {
     view! {
         <List spacing=8.0>
             <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
-                <Text style=TextStyle::CAPTION @sizing=ItemSize::Percent(100.0) wrap=Wrap::Words>
-                    {summary}
-                </Text>
+                <Text style=TextStyle::CAPTION @sizing=ItemSize::Percent(100.0)>{summary}</Text>
                 <RunButton
                     model
                     slot={Slot::Main}
@@ -166,7 +163,7 @@ fn KeyEntry(runs: Runs) -> DynamicSegment<ListChild> {
     view! {
         <Show condition={shown}>
             <List spacing=8.0>
-                <Text style=TextStyle::CAPTION wrap=Wrap::Words>
+                <Text style=TextStyle::CAPTION>
                     "The build helper is behind the API gateway: enter its key to build."
                 </Text>
                 <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
@@ -239,7 +236,7 @@ fn SlotNotes(model: Model, slot: Slot) -> NodeId {
                 </List>
             </Show>
             <Show condition={failed}>
-                <Text color=TextColor::Danger wrap=Wrap::Words>{problem}</Text>
+                <Text color=TextColor::Danger>{problem}</Text>
             </Show>
             <SlotLog model slot />
         </List>

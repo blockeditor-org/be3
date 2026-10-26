@@ -1,4 +1,5 @@
 use crate::frame::{Border, ColorRole, Frame, Radius, focus_border};
+use beui_core::font::Overflow;
 use beui_core::icons::Glyph;
 use beui_macros::{component, view};
 
@@ -91,7 +92,7 @@ fn MainFace(handle: ButtonHandle, variant: ButtonVariant) -> NodeId {
                         <Icon glyph={glyph} />
                     </Text>
                 </Show>
-                <Text color={ink} align=TextAlign::Center>{label}</Text>
+                <Text overflow=Overflow::Ellipsis color={ink} align=TextAlign::Center>{label}</Text>
             </List>
         </HalfFace>
     }

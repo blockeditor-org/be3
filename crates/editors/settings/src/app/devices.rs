@@ -1,4 +1,3 @@
-use beui::Wrap;
 use std::collections::BTreeSet;
 use std::rc::Rc;
 
@@ -315,9 +314,7 @@ pub(super) fn DevicesTable(editor: Editor, settings: ContentProjection<SettingsC
     view! {
         <List spacing=0.0>
             <Show condition={same}>
-                <Text style=TextStyle::CAPTION wrap=Wrap::Words @test_id={"devices.same"}>
-                    {NOTHING_DIFFERS}
-                </Text>
+                <Text style=TextStyle::CAPTION @test_id={"devices.same"}>{NOTHING_DIFFERS}</Text>
             </Show>
             <Show condition={differs}>
                 <Frame fill=ColorRole::Surface border={Border::DEFAULT} radius=Radius::Lg>

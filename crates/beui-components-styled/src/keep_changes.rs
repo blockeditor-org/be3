@@ -1,7 +1,6 @@
 use crate::dialog::{DialogActions, DialogSurface};
 use crate::frame::Frame;
 use crate::theme::use_theme;
-use beui_core::font::Wrap;
 use beui_core::layer::Dismiss;
 use std::time::{Duration, Instant};
 
@@ -171,11 +170,7 @@ fn KeepChangesCard(
                     actions={actions}
                     surface_id={id.clone()}
                 >
-                    <Text
-                        style=TextStyle::PARAGRAPH
-                        @test_id={format!("{id}.countdown")}
-                        wrap=Wrap::Words
-                    >
+                    <Text style=TextStyle::PARAGRAPH @test_id={format!("{id}.countdown")}>
                         {message}
                     </Text>
                 </DialogSurface>

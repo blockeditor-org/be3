@@ -2,7 +2,6 @@ use crate::frame::{Border, ColorRole, Frame, Radius, focus_border};
 use crate::text::{Icon, TextColor};
 use crate::theme::use_theme;
 use beui_core::color::Color32;
-use beui_core::font::Wrap;
 use beui_core::icons::{ICON_CHEVRON_RIGHT, ICON_ELLIPSIS};
 use beui_macros::{component, view};
 
@@ -93,10 +92,10 @@ pub fn SettingsSection(
                     <Frame padding={header_inset}>
                         <List spacing=HEADER_SPACING>
                             <Show condition={titled}>
-                                <Text style=SECTION_TITLE wrap=Wrap::Words>{title}</Text>
+                                <Text style=SECTION_TITLE>{title}</Text>
                             </Show>
                             <Show condition={described}>
-                                <Text style=TextStyle::CAPTION wrap=Wrap::Words>{description}</Text>
+                                <Text style=TextStyle::CAPTION>{description}</Text>
                             </Show>
                         </List>
                     </Frame>
@@ -191,12 +190,12 @@ pub fn SettingsRow(
                 >
                     <unstyled::Stack spacing={spacing} narrow={narrow}>
                         <List @sizing={label_size} justify=Justify::Center spacing=LABEL_SPACING>
-                            <Text wrap=Wrap::Words>{label}</Text>
+                            <Text>{label}</Text>
                             <Show condition={described}>
-                                <Text style=TextStyle::CAPTION wrap=Wrap::Words>{description}</Text>
+                                <Text style=TextStyle::CAPTION>{description}</Text>
                             </Show>
                             <Show condition={noted}>
-                                <Text style=NOTE wrap=Wrap::Words>{note}</Text>
+                                <Text style=NOTE>{note}</Text>
                             </Show>
                         </List>
                         <List
@@ -302,9 +301,9 @@ fn SettingsLinkFace(handle: unstyled::ButtonHandle, description: Memo<String>) -
                             justify=Justify::Center
                             spacing=LABEL_SPACING
                         >
-                            <Text color={text_color} wrap=Wrap::Words>{label}</Text>
+                            <Text color={text_color}>{label}</Text>
                             <Show condition={described}>
-                                <Text style=TextStyle::CAPTION wrap=Wrap::Words>{description}</Text>
+                                <Text style=TextStyle::CAPTION>{description}</Text>
                             </Show>
                         </List>
                         <Text color=TextColor::Muted>

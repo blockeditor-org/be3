@@ -1,4 +1,5 @@
 use beui::NodeId;
+use beui::Overflow;
 use beui::dock::styled::Docking;
 use beui::dock::unstyled::{
     DockDocument, DockDocumentBody, DockDocumentTabs, DockEntry, DockPane, DockTab,
@@ -28,7 +29,11 @@ pub(crate) fn Workspace(model: Model) -> NodeId {
         <List spacing=0.0>
             <Frame padding={Sides::symmetric(PADDING, 12.0)}>
                 <List direction=Direction::Horizontal align=Align::Center spacing=12.0>
-                    <Text style=TextStyle::CAPTION @sizing=ItemSize::Percent(100.0) ellipsis=true>
+                    <Text
+                        style=TextStyle::CAPTION
+                        @sizing=ItemSize::Percent(100.0)
+                        overflow=Overflow::Ellipsis
+                    >
                         {status}
                     </Text>
                     <Show condition={working}>

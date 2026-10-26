@@ -7,8 +7,8 @@ use beui::reactive::*;
 use beui::rich::{SpanBackground, TextCaret};
 use beui::styled::*;
 use beui::{
-    Key, KeyPress, NodeId, PasteKind, Pasted, PointerPress, Pos2, ScrollGesture, TextLayout, Vec2,
-    Wrap, primitives,
+    Key, KeyPress, NodeId, Overflow, PasteKind, Pasted, PointerPress, Pos2, ScrollGesture,
+    TextLayout, Vec2, primitives,
 };
 use terminal_types::{TerminalColors, TerminalCursor, TerminalLine, TerminalWheel};
 
@@ -233,8 +233,12 @@ fn TerminalRow(key: ReadSignal<ObjectId>, table: Table) -> NodeId {
                 .collect::<Vec<_>>()
         })
     });
-    let wrap = create_memo(move || {
-        shown.with(|shown| shown.as_ref().map_or(Wrap::Off, |shown| shown.wrap))
+    let overflow = create_memo(move || {
+        shown.with(|shown| {
+            shown
+                .as_ref()
+                .map_or(Overflow::Visible, |shown| shown.overflow)
+        })
     });
     let foreground = create_memo(move || color(colors.get().foreground));
     let carets = create_memo(move || {
@@ -244,7 +248,7 @@ fn TerminalRow(key: ReadSignal<ObjectId>, table: Table) -> NodeId {
     });
     let text_color = create_memo(move || TextColor::Custom(foreground.get()));
     view! {
-        <Text style=TEXT color={text_color} wrap carets>
+        <Text style=TEXT color={text_color} overflow carets>
             <ForEach keys={pieces}>|(_, piece): (usize, Piece)|
                 <TerminalPiece piece />
             </ForEach>

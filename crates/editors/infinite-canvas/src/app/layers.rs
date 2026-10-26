@@ -1,4 +1,3 @@
-use beui::Wrap;
 use block_editor_beui::beui::icons::{ICON_EYE, ICON_EYE_OFF};
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
@@ -28,9 +27,7 @@ pub(crate) fn LayersSection(state: CanvasState) -> NodeId {
         <Accordion title="Layers" open={open}>
             <List spacing=2.0 @test_id={"infinite-canvas.layers"}>
                 <Show condition={empty}>
-                    <Text style=TextStyle::CAPTION wrap=Wrap::Words>
-                        "Nothing on the canvas yet."
-                    </Text>
+                    <Text style=TextStyle::CAPTION>"Nothing on the canvas yet."</Text>
                 </Show>
                 <ForEach keys={ids}>|id: Uuid|
                     <LayerRow state id />

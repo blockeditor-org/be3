@@ -1,4 +1,4 @@
-use beui::Wrap;
+use beui::Overflow;
 use std::collections::BTreeMap;
 
 use beui::datetime::DateTime;
@@ -585,9 +585,7 @@ fn RelationValue(
     view! {
         <List spacing=SPACING>
             <Show condition={unlinked}>
-                <Text style=TextStyle::CAPTION wrap=Wrap::Words>
-                    "Choose the database this column links to."
-                </Text>
+                <Text style=TextStyle::CAPTION>"Choose the database this column links to."</Text>
             </Show>
             <Select
                 options={view! {
@@ -690,7 +688,9 @@ fn LinksValue(
                 };
                 view! {
                     <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
-                        <Text @sizing=ItemSize::Percent(100.0)>{label}</Text>
+                        <Text overflow=Overflow::Ellipsis @sizing=ItemSize::Percent(100.0)>
+                            {label}
+                        </Text>
                         <IconButton
                             glyph=ICON_X
                             label="Remove link"

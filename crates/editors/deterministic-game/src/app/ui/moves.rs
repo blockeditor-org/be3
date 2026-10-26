@@ -1,3 +1,4 @@
+use beui::Overflow;
 use block_editor_beui::beui::icons::{
     ICON_CHEVRON_FIRST, ICON_CHEVRON_LAST, ICON_CHEVRON_LEFT, ICON_CHEVRON_RIGHT,
 };
@@ -117,7 +118,12 @@ pub(crate) fn MoveTable(table: Memo<Table>, shown: Memo<usize>, steps: Steps) ->
                         columns.with(|columns| columns.get(column).cloned().unwrap_or_default())
                     });
                     view! {
-                        <Text size=TextSize::Sm color={muted} @sizing=ItemSize::Percent(100.0)>
+                        <Text
+                            overflow=Overflow::Ellipsis
+                            size=TextSize::Sm
+                            color={muted}
+                            @sizing=ItemSize::Percent(100.0)
+                        >
                             {name}
                         </Text>
                     }

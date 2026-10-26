@@ -1,4 +1,4 @@
-use beui::Wrap;
+use beui::Overflow;
 use std::any::Any;
 use std::cell::RefCell;
 use std::rc::Rc;
@@ -167,7 +167,7 @@ fn resize_paragraphs(frames: usize) -> Report {
                         <List spacing=8.0>
                             <ForEach keys={(0..20).collect::<Vec<usize>>()}>|_: usize| {
                                 let text = text.clone(); view! {
-                                    <Text wrap=Wrap::Words>{text}</Text>
+                                    <Text>{text}</Text>
                                 }
                             }</ForEach>
                         </List>
@@ -203,7 +203,9 @@ fn resize_labels(frames: usize) -> Report {
                     <Frame width={create_memo(move || Some(read.get()))}>
                         <List spacing=0.0>
                             <ForEach keys={(0..2000).collect::<Vec<usize>>()}>|index: usize|
-                                <Text ellipsis=true>{format!("label number {index}")}</Text>
+                                <Text overflow=Overflow::Ellipsis>
+                                    {format!("label number {index}")}
+                                </Text>
                             </ForEach>
                         </List>
                     </Frame>
@@ -235,7 +237,7 @@ fn edit_plain_paragraph(frames: usize) -> Report {
             *content.borrow_mut() = Some(read);
             view! {
                 <Root>
-                    <Text wrap=Wrap::Words>{read}</Text>
+                    <Text>{read}</Text>
                 </Root>
             }
         }
@@ -278,7 +280,7 @@ fn edit_one_span(frames: usize) -> Report {
             let keys = (0..initial.len()).collect::<Vec<usize>>();
             view! {
                 <Root>
-                    <Text wrap=Wrap::Words>
+                    <Text>
                         <ForEach keys={keys}>|index: usize| {
                             let word = create_memo(move || {
                                 read.get().get(index).cloned().unwrap_or_default()

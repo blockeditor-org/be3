@@ -1,6 +1,5 @@
 use super::*;
 use beui::Rect;
-use beui::Wrap;
 use beui::unstyled::{
     ButtonHandle, ChoiceKind, ChoiceOptionHandle, DisclosureHandle, DragHandle, DragPoint,
     DropHandle, MenuButtonHandle, MenuRowHandle, PopoverTriggerHandle, ScrollHandle,
@@ -552,7 +551,7 @@ fn DetailsDisclosure() -> NodeId {
                 }
             }}
         >
-            <Text color={body} wrap=Wrap::Words>
+            <Text color={body}>
                 "A disclosure only knows whether it is open. The header and the body are \
                  whatever you give it."
             </Text>
@@ -642,7 +641,7 @@ fn InfoPopover() -> NodeId {
                 view! {
                     <PopupPanel>
                         <List spacing=SECTION_SPACING>
-                            <Text wrap=Wrap::Words>
+                            <Text>
                                 "A popover places its content below the trigger and closes on Escape or a click outside."
                             </Text>
                             <unstyled::Button
@@ -1470,7 +1469,7 @@ fn PullUpSheet() -> NodeId {
             >
                 <Frame padding=PAGE_PADDING>
                     <List spacing=SECTION_SPACING>
-                        <Text color={ink} wrap=Wrap::Words>
+                        <Text color={ink}>
                             "Swipe the sheet down, tap above, or press Escape to close."
                         </Text>
                         <List direction=Direction::Horizontal spacing=0.0>
@@ -1505,7 +1504,7 @@ fn FolderPages() -> NodeId {
         let label = folder_label(depth.get_untracked().saturating_sub(1));
         view! {
             <Frame fill={ColorRole::custom(page)}>
-                <Text color={ink} wrap=Wrap::Words>{label}</Text>
+                <Text color={ink}>{label}</Text>
             </Frame>
         }
     };
@@ -1518,7 +1517,7 @@ fn FolderPages() -> NodeId {
         >
             <Frame fill={ColorRole::custom(page)}>
                 <List spacing=SECTION_SPACING>
-                    <Text color={ink} wrap=Wrap::Words>{label}</Text>
+                    <Text color={ink}>{label}</Text>
                     <List direction=Direction::Horizontal spacing=0.0>
                         <unstyled::Button
                             on_click={move || depth.set(depth.get_untracked() + 1)}

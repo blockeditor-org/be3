@@ -19,11 +19,32 @@ pub enum TextAlign {
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug, Default)]
-pub enum Wrap {
+pub enum WrapAt {
     #[default]
-    Off,
     Words,
     Anywhere,
+}
+
+#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
+pub enum Overflow {
+    Wrap { at: WrapAt, max_lines: Option<u32> },
+    Ellipsis,
+    Visible,
+}
+
+impl Overflow {
+    pub fn wraps(self) -> bool {
+        matches!(self, Overflow::Wrap { .. })
+    }
+}
+
+impl Default for Overflow {
+    fn default() -> Self {
+        Overflow::Wrap {
+            at: WrapAt::Words,
+            max_lines: None,
+        }
+    }
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
@@ -934,6 +955,7 @@ impl Fonts {
             style,
             hang: 0,
             anywhere: false,
+            least: false,
         };
         let mut shaper = LineShaper {
             fonts: self,

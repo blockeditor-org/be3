@@ -1,4 +1,5 @@
 use crate::frame::{Border, ColorRole, Frame, Radius};
+use beui_core::font::Overflow;
 use beui_macros::{component, view};
 
 use crate::focus_ring::FocusRing;
@@ -96,6 +97,7 @@ fn CheckboxFace(handle: ToggleHandle, size: Prop<TextSize>) -> NodeId {
                 </Frame>
                 <Show condition={labeled}>
                     <Text
+                        overflow=Overflow::Ellipsis
                         @sizing=ItemSize::Percent(100.0)
                         color={label_color}
                         align=TextAlign::Start

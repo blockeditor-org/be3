@@ -2,7 +2,6 @@ use crate::border::Separator;
 use crate::frame::Frame;
 use crate::text::{Text, TextColor, TextStyle};
 use accesskit::{Node, Role};
-use beui_core::font::Wrap;
 use beui_core::node::NodeId;
 use beui_macros::{component, view};
 use beui_view::primitives::*;
@@ -96,9 +95,9 @@ fn ColumnHeading(weight: f32, column: Memo<TableColumn>) -> ListChild {
     }));
     view! {
         <List @sizing=ItemSize::Percent(weight) spacing=0.0>
-            <Text style=COLUMN_TITLE wrap=Wrap::Words>{title}</Text>
+            <Text style=COLUMN_TITLE>{title}</Text>
             <Show condition={captioned}>
-                <Text style=TextStyle::CAPTION wrap=Wrap::Words>{caption}</Text>
+                <Text style=TextStyle::CAPTION>{caption}</Text>
             </Show>
         </List>
     }
@@ -132,7 +131,7 @@ fn RowHeading(label: Memo<String>) -> ListChild {
     }));
     view! {
         <List @sizing=ItemSize::Percent(LABEL_WEIGHT) spacing=0.0>
-            <Text wrap=Wrap::Words>{label}</Text>
+            <Text>{label}</Text>
         </List>
     }
 }
@@ -153,9 +152,9 @@ pub fn TableCell(
     }));
     view! {
         <List @sizing=ItemSize::Percent(CELL_WEIGHT) spacing=CAPTION_SPACING>
-            <Text color={color} wrap=Wrap::Words>{text}</Text>
+            <Text color={color}>{text}</Text>
             <Show condition={captioned}>
-                <Text style=TextStyle::CAPTION wrap=Wrap::Words>{caption}</Text>
+                <Text style=TextStyle::CAPTION>{caption}</Text>
             </Show>
         </List>
     }

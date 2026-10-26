@@ -1,5 +1,5 @@
 use beui_core::color::Color32;
-use beui_core::font::{FontFamily, FontId, TextAlign, Wrap};
+use beui_core::font::{FontFamily, FontId, Overflow, TextAlign};
 use beui_core::node::NodeId;
 use beui_core::rich::{TextCaret, TextMark};
 use beui_macros::{component, view};
@@ -307,9 +307,7 @@ pub fn Text(
     #[prop(default = false)] underline: Prop<bool>,
     #[prop(default = None)] align: Prop<Option<TextAlign>>,
     #[prop(default = None)] vertical_align: Prop<Option<TextAlign>>,
-    #[prop(default = Wrap::Off)] wrap: Prop<Wrap>,
-    #[prop(default = false)] clip: Prop<bool>,
-    #[prop(default = false)] ellipsis: Prop<bool>,
+    #[prop(default = Overflow::default())] overflow: Prop<Overflow>,
     #[prop(default = Vec::new())] marks: Prop<Vec<TextMark>>,
     #[prop(default = Vec::new())] carets: Prop<Vec<TextCaret>>,
     children: Children<TextChild>,
@@ -325,7 +323,7 @@ pub fn Text(
             .resolve(&theme)
     });
     view! {
-        <primitives::Text font color underline align vertical_align wrap clip ellipsis marks carets>
+        <primitives::Text font color underline align vertical_align overflow marks carets>
             {children}
         </primitives::Text>
     }

@@ -1,5 +1,4 @@
 use beui::NodeId;
-use beui::Wrap;
 use beui::reactive::*;
 use beui::styled::*;
 
@@ -67,15 +66,15 @@ pub(super) fn RecoveryScreen(view: AppViewStore) -> NodeId {
         <Column>
             <Text style=TextStyle::TITLE>{title}</Text>
             <Show condition={replacing}>
-                <Text style=TextStyle::PARAGRAPH wrap=Wrap::Words>
+                <Text style=TextStyle::PARAGRAPH>
                     "Once you save this phrase, your old one stops working. Every key sealed to the old phrase is sealed to this one instead, and your other devices will ask to be unlocked again."
                 </Text>
             </Show>
-            <Text style=TextStyle::PARAGRAPH wrap=Wrap::Words>
+            <Text style=TextStyle::PARAGRAPH>
                 "Your notes are encrypted with a key the server never sees. These twelve words are the only way to open them on a new device when no other device of yours is at hand. Write them down and keep them somewhere safe: nobody can recover them for you."
             </Text>
             <Card>
-                <Text style=TextStyle::PARAGRAPH wrap=Wrap::Words>{phrase}</Text>
+                <Text style=TextStyle::PARAGRAPH>{phrase}</Text>
             </Card>
             <Text style=TextStyle::HEADING>"Check that you saved them"</Text>
             <Text style=TextStyle::CAPTION>{first_label}</Text>
@@ -137,7 +136,7 @@ pub(super) fn UnlockScreen(view: AppViewStore) -> NodeId {
     view! {
         <Column>
             <Text style=TextStyle::TITLE>{title}</Text>
-            <Text style=TextStyle::PARAGRAPH wrap=Wrap::Words>
+            <Text style=TextStyle::PARAGRAPH>
                 "This device does not have this account's key yet, so it cannot open anything the account keeps."
             </Text>
             <List spacing=8.0>
@@ -161,11 +160,7 @@ pub(super) fn UnlockScreen(view: AppViewStore) -> NodeId {
             <Text style=TextStyle::HEADING>"With another device"</Text>
             <Show condition={idle}>
                 <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
-                    <Text
-                        style=TextStyle::PARAGRAPH
-                        @sizing=ItemSize::Percent(100.0)
-                        wrap=Wrap::Words
-                    >
+                    <Text style=TextStyle::PARAGRAPH @sizing=ItemSize::Percent(100.0)>
                         "Open any organization of this account on a device that is unlocked, and it will ask for a code."
                     </Text>
                     <Button
@@ -177,9 +172,7 @@ pub(super) fn UnlockScreen(view: AppViewStore) -> NodeId {
             </Show>
             <Show condition={waiting}>
                 <List spacing=8.0>
-                    <Text style=TextStyle::PARAGRAPH wrap=Wrap::Words>
-                        "Type this code on the other device:"
-                    </Text>
+                    <Text style=TextStyle::PARAGRAPH>"Type this code on the other device:"</Text>
                     <Text style=TextStyle::TITLE>{code}</Text>
                     <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
                         <Progress width=INLINE_PROGRESS_WIDTH />
@@ -251,7 +244,7 @@ pub(super) fn PairingDialog(view: AppViewStore) -> NodeId {
             on_confirm={approve}
             on_dismiss={dismiss}
         >
-            <Text style=TextStyle::PARAGRAPH wrap=Wrap::Words>{message}</Text>
+            <Text style=TextStyle::PARAGRAPH>{message}</Text>
             <TextInput value={code} label="Code" placeholder="XXXX-XXXX" />
         </Dialog>
     }

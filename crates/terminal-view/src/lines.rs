@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use std::rc::Rc;
 
 use be_block::ObjectId;
-use beui::{Color32, Wrap};
+use beui::{Color32, Overflow, WrapAt};
 use terminal_types::{
     TerminalColor, TerminalColors, TerminalCursor, TerminalLine, TerminalStyle, logical_lines,
 };
@@ -51,13 +51,13 @@ impl PartialEq for Lines {
 #[derive(Clone)]
 pub(crate) struct Shown {
     lines: Vec<Rc<TerminalLine>>,
-    pub(crate) wrap: Wrap,
+    pub(crate) overflow: Overflow,
     cursor: Option<(usize, usize)>,
 }
 
 impl PartialEq for Shown {
     fn eq(&self, other: &Self) -> bool {
-        self.wrap == other.wrap
+        self.overflow == other.overflow
             && self.cursor == other.cursor
             && self.lines.len() == other.lines.len()
             && self
@@ -88,7 +88,10 @@ impl Shown {
     pub(crate) fn history(line: Rc<TerminalLine>) -> Self {
         Self {
             lines: vec![line],
-            wrap: Wrap::Anywhere,
+            overflow: Overflow::Wrap {
+                at: WrapAt::Anywhere,
+                max_lines: None,
+            },
             cursor: None,
         }
     }
@@ -155,7 +158,7 @@ pub(crate) fn screen(
                     .iter()
                     .map(|(_, line)| Rc::clone(line))
                     .collect(),
-                wrap: Wrap::Off,
+                overflow: Overflow::Visible,
                 cursor,
             },
         );

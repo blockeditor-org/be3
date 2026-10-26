@@ -1,5 +1,6 @@
 use crate::frame::{Border, ColorRole, Frame, Radius};
 use accesskit::Role;
+use beui_core::font::Overflow;
 use beui_core::icons::Glyph;
 use beui_macros::{component, view};
 
@@ -91,7 +92,7 @@ fn ToggleButtonFace(handle: ToggleHandle, icon_only: Memo<bool>) -> NodeId {
                         </Text>
                     </Show>
                     <Show condition={named}>
-                        <Text color={text_color}>{label}</Text>
+                        <Text overflow=Overflow::Ellipsis color={text_color}>{label}</Text>
                     </Show>
                 </List>
             </Frame>

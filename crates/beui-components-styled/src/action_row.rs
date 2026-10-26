@@ -1,4 +1,5 @@
 use crate::frame::{Border, ColorRole, Frame, Radius, focus_border};
+use beui_core::font::Overflow;
 use beui_core::icons::Glyph;
 use beui_macros::{component, view};
 
@@ -135,9 +136,11 @@ pub(crate) fn ActionRowFace(
                     <GlyphSlot glyph color={icon_color} />
                 </Show>
                 <List @sizing=ItemSize::Percent(100.0) spacing=2.0>
-                    <Text color={text_color} ellipsis=true>{label}</Text>
+                    <Text color={text_color} overflow=Overflow::Ellipsis>{label}</Text>
                     <Show condition={has_detail}>
-                        <Text size=TextSize::Sm color=TextColor::Muted ellipsis=true>{detail}</Text>
+                        <Text size=TextSize::Sm color=TextColor::Muted overflow=Overflow::Ellipsis>
+                            {detail}
+                        </Text>
                     </Show>
                 </List>
                 <Show condition={ticked}>

@@ -1,5 +1,5 @@
 use beui::NodeId;
-use beui::Wrap;
+use beui::Overflow;
 use beui::reactive::*;
 use beui::styled::*;
 use block_plugin_api::HostPanel;
@@ -157,7 +157,7 @@ fn LineView(line: Memo<Option<Line>>) -> NodeId {
     });
     view! {
         <Frame padding=indent>
-            <Text size color weight family wrap=Wrap::Words>{text}</Text>
+            <Text size color weight family>{text}</Text>
         </Frame>
     }
 }
@@ -214,7 +214,14 @@ fn PerformanceLine(row: Memo<Option<PerformanceRow>>) -> NodeId {
     });
     view! {
         <List direction=Direction::Horizontal spacing=8.0>
-            <Text @sizing=ItemSize::Percent(100.0) size=TextSize::Sm weight={weight}>{name}</Text>
+            <Text
+                overflow=Overflow::Ellipsis
+                @sizing=ItemSize::Percent(100.0)
+                size=TextSize::Sm
+                weight={weight}
+            >
+                {name}
+            </Text>
             <Text
                 @sizing=ItemSize::Fixed(90.0)
                 size=TextSize::Sm

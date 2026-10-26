@@ -1,4 +1,5 @@
 use crate::frame::{Border, ColorRole, Frame, Radius};
+use beui_core::font::Overflow;
 use beui_macros::{component, view};
 
 use crate::context_menu::MenuCheck;
@@ -116,7 +117,12 @@ fn PaletteRow(handle: CommandRowHandle) -> NodeId {
                         <Icon glyph={glyph} />
                     </Text>
                 </Frame>
-                <Text @sizing=ItemSize::Percent(100.0) color={text_color} align=TextAlign::Start>
+                <Text
+                    overflow=Overflow::Ellipsis
+                    @sizing=ItemSize::Percent(100.0)
+                    color={text_color}
+                    align=TextAlign::Start
+                >
                     {label}
                 </Text>
                 <Text size=TextSize::Sm color=TextColor::Muted align=TextAlign::End>

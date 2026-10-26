@@ -1,5 +1,4 @@
 use super::*;
-use beui::Wrap;
 
 #[component]
 pub(crate) fn ScrollPage(children: Children<ListChild>) -> NodeId {
@@ -19,9 +18,7 @@ pub(crate) fn Sample(title: &'static str, code: Vec<&'static str>, children: Chi
     view! {
         <List spacing=SECTION_SPACING>
             <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
-                <Text style=TextStyle::HEADING @sizing=ItemSize::Percent(100.0) wrap=Wrap::Words>
-                    {title}
-                </Text>
+                <Text style=TextStyle::HEADING @sizing=ItemSize::Percent(100.0)>{title}</Text>
                 <ToggleButton
                     @test_id={format!("demo.code.{title}")}
                     label="Code"
@@ -55,7 +52,7 @@ fn CodeBlock(source: String) -> NodeId {
             padding=CODE_PADDING
         >
             <SelectableText @test_id="demo.code" child_size=ItemSize::Percent(100.0)>
-                <Text size=TextSize::Sm family=Family::Mono wrap=Wrap::Words>
+                <Text size=TextSize::Sm family=Family::Mono>
                     <ForEach keys={tokens}>|(start, end, color): (usize, usize, Color32)| {
                         let piece = source[start..end].to_owned(); view! {
                             <Span color={TextColor::Custom(color)}>{piece}</Span>

@@ -1,3 +1,4 @@
+use beui::Overflow;
 use block_editor_beui::beui::icons::{
     ICON_ARROW_DOWN, ICON_ARROW_UP, ICON_SQUARE, ICON_SQUARE_CHECK,
 };
@@ -359,7 +360,11 @@ fn Cell(
                                 radius=Radius::Xs
                             />
                         </Show>
-                        <Text @sizing=ItemSize::Percent(100.0) align={align} ellipsis=true>
+                        <Text
+                            @sizing=ItemSize::Percent(100.0)
+                            align={align}
+                            overflow=Overflow::Ellipsis
+                        >
                             {text}
                         </Text>
                     </List>

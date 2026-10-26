@@ -1,3 +1,4 @@
+use beui::Overflow;
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 use workspace_ui_types::ViewState;
@@ -205,8 +206,8 @@ pub(crate) fn ZoomBar(
                     on_click={move || zoom.up()}
                 />
                 <List @sizing=ItemSize::Percent(100.0) spacing=0.0>
-                    <Text style=TextStyle::CAPTION ellipsis=true>{path}</Text>
-                    <Text style=TextStyle::HEADING ellipsis=true>{name}</Text>
+                    <Text style=TextStyle::CAPTION overflow=Overflow::Ellipsis>{path}</Text>
+                    <Text style=TextStyle::HEADING overflow=Overflow::Ellipsis>{name}</Text>
                 </List>
                 <Show condition={addable}>
                     <IconButton

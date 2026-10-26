@@ -1,4 +1,3 @@
-use beui::Wrap;
 use std::cell::Cell;
 use std::sync::{Arc, RwLock};
 use std::time::Duration;
@@ -223,7 +222,7 @@ pub(crate) fn ConcurrentEditing(rich: bool) -> NodeId {
 
     view! {
         <List spacing=SECTION_SPACING>
-            <Text style=TextStyle::CAPTION wrap=Wrap::Words>
+            <Text style=TextStyle::CAPTION>
                 "The left side orders every edit, as a session's owner does. The right \
                 side shows its own edits at once and holds them until the left has ordered \
                 them. Pause the network to type on both sides, then send each side's edits \
@@ -268,7 +267,7 @@ pub(crate) fn ConcurrentEditing(rich: bool) -> NodeId {
                     rich
                 />
             </unstyled::Stack>
-            <Text style=TextStyle::CAPTION wrap=Wrap::Words>{status}</Text>
+            <Text style=TextStyle::CAPTION>{status}</Text>
         </List>
     }
 }

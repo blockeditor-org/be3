@@ -1,3 +1,4 @@
+use beui::Overflow;
 use std::cell::Cell;
 use std::rc::Rc;
 
@@ -334,7 +335,9 @@ fn Clip(
                                     on_state={move |_| {}}
                                 />
                             </Frame>
-                            <Text @sizing=ItemSize::Percent(100.0)>{name}</Text>
+                            <Text overflow=Overflow::Ellipsis @sizing=ItemSize::Percent(100.0)>
+                                {name}
+                            </Text>
                             <TrimHandle state={state} id={id} scale={scale} />
                         </List>
                     </Frame>

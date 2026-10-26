@@ -1,4 +1,3 @@
-use beui::Wrap;
 use block_editor_beui::be_block::settings::SettingsProfile;
 use block_editor_beui::be_block::{
     BlockContent, DeviceClass, DisplaySettings, DisplaySettingsContent, Edit, SettingsContent,
@@ -169,7 +168,7 @@ pub(super) fn SetUpHeading() -> NodeId {
         <Frame padding={Sides::horizontal(HEADER_INSET)}>
             <List spacing=HEADER_SPACING>
                 <Text style=TextStyle::HEADING>{SET_UP}</Text>
-                <Text style=TextStyle::CAPTION wrap=Wrap::Words>{SET_UP_CAPTION}</Text>
+                <Text style=TextStyle::CAPTION>{SET_UP_CAPTION}</Text>
             </List>
         </Frame>
     }

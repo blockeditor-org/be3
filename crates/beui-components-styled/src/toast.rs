@@ -1,5 +1,4 @@
 use crate::frame::{Border, ColorRole, Frame, Radius};
-use beui_core::font::Wrap;
 use beui_core::layer::{LayerLevel, LayerPolicy};
 use beui_macros::{component, view};
 
@@ -160,16 +159,12 @@ fn ToastCard(
             <List @sizing=ItemSize::Percent(100.0) spacing=TEXT_SPACING>
                 <Show condition={titled}>|| {
                     let title = title.clone(); view! {
-                        <Text color={title_color} weight=Weight::Bold wrap=Wrap::Words>
-                            {title}
-                        </Text>
+                        <Text color={title_color} weight=Weight::Bold>{title}</Text>
                     }
                 }</Show>
                 <Show condition={said}>|| {
                     let message = message.clone(); view! {
-                        <Text size={message_size} color={message_color} wrap=Wrap::Words>
-                            {message}
-                        </Text>
+                        <Text size={message_size} color={message_color}>{message}</Text>
                     }
                 }</Show>
             </List>

@@ -1,3 +1,4 @@
+use beui::Overflow;
 use block_editor_beui::be_block::{BlockContent, ObjectId};
 use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::icons::{
@@ -298,7 +299,7 @@ fn Property(data: Data, row: ObjectId, field: Uuid) -> NodeId {
     view! {
         <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
             <Frame @sizing=ItemSize::Fixed(LABEL_WIDTH)>
-                <Text style=TextStyle::CAPTION ellipsis=true>{name}</Text>
+                <Text style=TextStyle::CAPTION overflow=Overflow::Ellipsis>{name}</Text>
             </Frame>
             <Frame @sizing=ItemSize::Percent(100.0)>
                 <List spacing=0.0>
@@ -505,7 +506,10 @@ fn LinkedRow(
                         </Layers>
                     </Frame>
                     <Text style=TextStyle::CAPTION>{code}</Text>
-                    <Text @sizing={ItemSize::Percent(100.0).shrink(1.0)} ellipsis=true>
+                    <Text
+                        @sizing={ItemSize::Percent(100.0).shrink(1.0)}
+                        overflow=Overflow::Ellipsis
+                    >
                         {label}
                     </Text>
                 </List>

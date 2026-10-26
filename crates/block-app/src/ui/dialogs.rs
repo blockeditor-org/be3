@@ -1,6 +1,6 @@
 use be_protocol::OrganizationRole;
 use beui::NodeId;
-use beui::Wrap;
+use beui::Overflow;
 use beui::icons::{ICON_TRASH, ICON_USER_MINUS};
 use beui::reactive::*;
 use beui::styled::*;
@@ -123,7 +123,7 @@ fn MembersPanel(view: AppViewStore) -> NodeId {
     view! {
         <Frame>
             <List spacing=8.0>
-                <Text style=TextStyle::CAPTION wrap=Wrap::Words>
+                <Text style=TextStyle::CAPTION>
                     "Administrators can open every block in this organization. Removing someone takes away what was shared with them here, and gives new keys to everything they could open."
                 </Text>
                 <ForEach keys={keys}>|account: Uuid| {
@@ -175,7 +175,7 @@ fn MembersPanel(view: AppViewStore) -> NodeId {
                 }</ForEach>
                 <Show condition={asks_removal}>
                     <List spacing=6.0>
-                        <Text style=TextStyle::PARAGRAPH wrap=Wrap::Words>{removing}</Text>
+                        <Text style=TextStyle::PARAGRAPH>{removing}</Text>
                         <List direction=Direction::Horizontal spacing=8.0>
                             <Button
                                 label="Remove"
@@ -244,7 +244,7 @@ fn ContactsPanel(view: AppViewStore) -> NodeId {
     view! {
         <Frame>
             <List spacing=8.0>
-                <Text style=TextStyle::CAPTION wrap=Wrap::Words>
+                <Text style=TextStyle::CAPTION>
                     "You can share only with your contacts. Someone becomes one when you send them a contact link yourself, through an app you trust, and they open it, or when they send you theirs."
                 </Text>
                 <Show condition={none}>
@@ -285,7 +285,7 @@ fn ContactsPanel(view: AppViewStore) -> NodeId {
                 }</ForEach>
                 <Show condition={asks_removal}>
                     <List spacing=6.0>
-                        <Text style=TextStyle::PARAGRAPH wrap=Wrap::Words>{removing}</Text>
+                        <Text style=TextStyle::PARAGRAPH>{removing}</Text>
                         <List direction=Direction::Horizontal spacing=8.0>
                             <Button
                                 label="Remove"
@@ -315,11 +315,7 @@ fn ContactsPanel(view: AppViewStore) -> NodeId {
                 </List>
                 <Show condition={has_link}>
                     <List spacing=6.0>
-                        <Text
-                            style=TextStyle::PARAGRAPH
-                            @test_id={"app.contacts.link-help"}
-                            wrap=Wrap::Words
-                        >
+                        <Text style=TextStyle::PARAGRAPH @test_id={"app.contacts.link-help"}>
                             "Send this link yourself, through an app you trust, to the one person you want to connect with. It works once, and it is shown only once."
                         </Text>
                         <TextInput
@@ -349,11 +345,7 @@ fn ContactsPanel(view: AppViewStore) -> NodeId {
                 </List>
                 <Show condition={offered}>
                     <List spacing=6.0>
-                        <Text
-                            style=TextStyle::PARAGRAPH
-                            @test_id={"app.contacts.offer"}
-                            wrap=Wrap::Words
-                        >
+                        <Text style=TextStyle::PARAGRAPH @test_id={"app.contacts.offer"}>
                             {offer}
                         </Text>
                         <List direction=Direction::Horizontal spacing=8.0>
@@ -372,7 +364,7 @@ fn ContactsPanel(view: AppViewStore) -> NodeId {
                     </List>
                 </Show>
                 <Show condition={has_connected}>
-                    <Text style=TextStyle::PARAGRAPH wrap=Wrap::Words>{connected}</Text>
+                    <Text style=TextStyle::PARAGRAPH>{connected}</Text>
                 </Show>
                 <ErrorText text={error} />
             </List>
@@ -412,7 +404,7 @@ fn AgentsPanel(view: AppViewStore) -> NodeId {
                 <Show condition={creating}>
                     <List spacing=8.0>
                         <Text style=TextStyle::CAPTION>{organization}</Text>
-                        <Text style=TextStyle::CAPTION wrap=Wrap::Words>
+                        <Text style=TextStyle::CAPTION>
                             "An agent is an account for a program, such as a coding agent. It sees only the blocks you share with it. Share a workspace or blocks with it from this device after setup. This list shows the agents you created."
                         </Text>
                         <Show condition={none}>
@@ -434,7 +426,12 @@ fn AgentsPanel(view: AppViewStore) -> NodeId {
                                     align=Align::Center
                                     spacing=8.0
                                 >
-                                    <Text @sizing=ItemSize::Percent(100.0)>{label}</Text>
+                                    <Text
+                                        overflow=Overflow::Ellipsis
+                                        @sizing=ItemSize::Percent(100.0)
+                                    >
+                                        {label}
+                                    </Text>
                                     <IconButton
                                         glyph=ICON_TRASH
                                         label="Remove agent"
@@ -501,11 +498,7 @@ fn AgentCredentials(created: Memo<Option<super::CreatedAgent>>) -> NodeId {
     let header = field(|created| format!("Bearer {}", created.token));
     view! {
         <List spacing=6.0>
-            <Text
-                style=TextStyle::PARAGRAPH
-                wrap=Wrap::Words
-                @test_id={"app.agents.credentials-help"}
-            >
+            <Text style=TextStyle::PARAGRAPH @test_id={"app.agents.credentials-help"}>
                 {heading}
             </Text>
             <Checkbox
@@ -515,7 +508,7 @@ fn AgentCredentials(created: Memo<Option<super::CreatedAgent>>) -> NodeId {
             />
             <Show condition={proxy}>
                 <List spacing=6.0>
-                    <Text style=TextStyle::PARAGRAPH wrap=Wrap::Words>
+                    <Text style=TextStyle::PARAGRAPH>
                         "Add a proxy rule for the server in these credentials (api.be3.pfg.pw for the hosted service). Set its Authorization header to the value below and keep it outside the agent container. If a gateway secret is required, add Be3-Gateway-Authorization: Bearer <gateway secret> as a separate rule."
                     </Text>
                     <TextInput
@@ -618,11 +611,7 @@ fn InvitePanel(view: AppViewStore) -> NodeId {
                 <ErrorText text={error} />
                 <Show condition={has_link}>
                     <List spacing=6.0>
-                        <Text
-                            style=TextStyle::PARAGRAPH
-                            @test_id={"app.invite.help"}
-                            wrap=Wrap::Words
-                        >
+                        <Text style=TextStyle::PARAGRAPH @test_id={"app.invite.help"}>
                             "Send them this link yourself, through an app you trust. Only their account can use it, and only once. It is shown only once."
                         </Text>
                         <TextInput
@@ -642,7 +631,7 @@ fn AboutPanel() -> NodeId {
     view! {
         <Frame>
             <List spacing=8.0>
-                <Text style=TextStyle::PARAGRAPH wrap=Wrap::Words>"Block"</Text>
+                <Text style=TextStyle::PARAGRAPH>"Block"</Text>
                 <Text style=TextStyle::CAPTION>"Version"</Text>
                 <Text style=TextStyle::CODE>{env!("CARGO_PKG_VERSION").to_owned()}</Text>
                 <Text style=TextStyle::CAPTION>"Build"</Text>
@@ -667,7 +656,7 @@ fn LeaveDialog(view: AppViewStore) -> NodeId {
             on_confirm={|| send(UiCommand::ConfirmLeave)}
             on_dismiss={|| send(UiCommand::CancelLeave)}
         >
-            <Text style=TextStyle::PARAGRAPH wrap=Wrap::Words>
+            <Text style=TextStyle::PARAGRAPH>
                 "You will no longer see this or anything inside it, unless someone shares it with you again. Whoever can edit it gives it new keys."
             </Text>
         </Dialog>
@@ -706,7 +695,7 @@ fn DiscardDialog(view: AppViewStore) -> NodeId {
             on_confirm={|| send(UiCommand::Discard)}
             on_dismiss={|| send(UiCommand::CancelDiscard)}
         >
-            <Text style=TextStyle::PARAGRAPH wrap=Wrap::Words>{message}</Text>
+            <Text style=TextStyle::PARAGRAPH>{message}</Text>
         </Dialog>
     }
 }

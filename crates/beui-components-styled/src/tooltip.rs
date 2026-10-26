@@ -1,5 +1,4 @@
 use crate::frame::{Border, ColorRole, Frame, Radius};
-use beui_core::font::Wrap;
 use beui_macros::{component, view};
 
 use crate::text::{Text, TextColor, TextStyle};
@@ -50,9 +49,7 @@ fn TooltipBubble(handle: TooltipHandle) -> NodeId {
                     radius=Radius::Md
                     padding={Sides::symmetric(PADDING_HORIZONTAL, PADDING_VERTICAL)}
                 >
-                    <Text style=TextStyle::CAPTION color=TextColor::Default wrap=Wrap::Words>
-                        {label}
-                    </Text>
+                    <Text style=TextStyle::CAPTION color=TextColor::Default>{label}</Text>
                 </Frame>
             </List>
         </Frame>

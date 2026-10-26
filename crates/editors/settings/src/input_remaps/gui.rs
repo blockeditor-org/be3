@@ -1,6 +1,5 @@
 use be_remap::edit::{Does, Editing, GroupField, GroupOutline, RuleEdit, RuleOutline, StepOutline};
 use be_remap::text;
-use beui::Wrap;
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
 use block_editor_beui::beui::unstyled::ChoiceOption;
@@ -127,9 +126,7 @@ pub(super) fn EditorTab(shared: Shared) -> NodeId {
             <Show condition={warned}>
                 <SettingsSection>
                     <SettingsRow label="Problem">
-                        <Text style={TextStyle::CAPTION.color(TextColor::Danger)} wrap=Wrap::Words>
-                            {message}
-                        </Text>
+                        <Text style={TextStyle::CAPTION.color(TextColor::Danger)}>{message}</Text>
                     </SettingsRow>
                 </SettingsSection>
             </Show>

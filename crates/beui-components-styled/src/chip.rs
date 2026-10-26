@@ -1,4 +1,5 @@
 use crate::frame::{Border, ColorRole, Frame, Radius};
+use beui_core::font::Overflow;
 use beui_macros::{component, view};
 
 use crate::text::{Text, TextSize};
@@ -19,7 +20,9 @@ pub fn Chip(label: Prop<String>) -> NodeId {
             radius=Radius::Sm
             padding={Sides::symmetric(PADDING_HORIZONTAL, PADDING_VERTICAL)}
         >
-            <Text size=TextSize::Sm align=TextAlign::Center>{label_text}</Text>
+            <Text overflow=Overflow::Ellipsis size=TextSize::Sm align=TextAlign::Center>
+                {label_text}
+            </Text>
         </Frame>
     }
 }

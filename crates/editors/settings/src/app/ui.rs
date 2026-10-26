@@ -1,4 +1,4 @@
-use beui::Wrap;
+use beui::Overflow;
 use block_editor_beui::be_block::settings::{Settings, SettingsProfile};
 use block_editor_beui::be_block::{
     BlockContent, DisplaySettingsContent, InputSettingsContent, LiveEdit, SettingsContent,
@@ -78,7 +78,7 @@ pub fn SettingsView(editor: Editor) -> NodeId {
             <Frame padding=PADDING>
                 <List spacing=SECTION_SPACING>
                     <Show condition={others}>
-                        <Text style=TextStyle::CAPTION wrap=Wrap::Words>{NOT_OURS}</Text>
+                        <Text style=TextStyle::CAPTION>{NOT_OURS}</Text>
                     </Show>
                     <Show condition={here}>
                         <Section
@@ -252,7 +252,7 @@ pub fn SettingsProfileView(editor: Editor) -> NodeId {
         <SettingsPage>
             <Show condition={others}>
                 <Frame padding={Sides::horizontal(NOTICE_INSET)}>
-                    <Text style=TextStyle::CAPTION wrap=Wrap::Words>{NOT_OURS}</Text>
+                    <Text style=TextStyle::CAPTION>{NOT_OURS}</Text>
                 </Frame>
             </Show>
             <Show condition={setting_up}>
@@ -307,7 +307,7 @@ fn Section(title: &'static str, caption: &'static str, children: Child) -> NodeI
             <List spacing=CAPTION_SPACING>
                 <Text style=TextStyle::HEADING>{title}</Text>
                 <Show condition={captioned}>
-                    <Text style=TextStyle::CAPTION wrap=Wrap::Words>{caption}</Text>
+                    <Text style=TextStyle::CAPTION>{caption}</Text>
                 </Show>
             </List>
             {children}
@@ -345,9 +345,11 @@ fn SettingRow(
                         <Icon glyph={glyph} />
                     </Text>
                     <List @sizing=ItemSize::Percent(100.0) spacing=0.0>
-                        <Text color={text_color} ellipsis=true>{label}</Text>
+                        <Text color={text_color} overflow=Overflow::Ellipsis>{label}</Text>
                         <Show condition={has_detail}>
-                            <Text style=TextStyle::CAPTION ellipsis=true>{detail}</Text>
+                            <Text style=TextStyle::CAPTION overflow=Overflow::Ellipsis>
+                                {detail}
+                            </Text>
                         </Show>
                     </List>
                 </List>

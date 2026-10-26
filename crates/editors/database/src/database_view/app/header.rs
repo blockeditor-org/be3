@@ -1,4 +1,3 @@
-use beui::Wrap;
 use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::icons::{ICON_PLUS, ICON_SEARCH, ICON_SLIDERS_HORIZONTAL};
 use block_editor_beui::beui::reactive::*;
@@ -34,11 +33,7 @@ pub fn ViewHeader(data: Data) -> NodeId {
             <Show condition={failed}>
                 <Frame padding={Sides::symmetric(GUTTER, 6.0)}>
                     <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
-                        <Text
-                            @sizing=ItemSize::Percent(100.0)
-                            color=TextColor::Danger
-                            wrap=Wrap::Words
-                        >
+                        <Text @sizing=ItemSize::Percent(100.0) color=TextColor::Danger>
                             {message}
                         </Text>
                         <Button

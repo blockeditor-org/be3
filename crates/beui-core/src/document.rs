@@ -129,6 +129,7 @@ pub struct Document {
     measurements: NodeMap<Vec<Measurement>>,
     offer_dependent: bool,
     baselines: NodeMap<Vec<(Vec2, Option<f32>)>>,
+    min_widths: NodeMap<f32>,
     layout_parent: Option<NodeId>,
     placed_children: NodeMap<Vec<NodeId>>,
     placing: Vec<NodeId>,
@@ -356,6 +357,7 @@ impl Document {
             measurements: NodeMap::default(),
             offer_dependent: false,
             baselines: NodeMap::default(),
+            min_widths: NodeMap::default(),
             layout_parent: None,
             placed_children: NodeMap::default(),
             placing: Vec::new(),
@@ -1108,6 +1110,7 @@ impl Document {
         self.text_bounds.remove(&id);
         self.measurements.remove(&id);
         self.baselines.remove(&id);
+        self.min_widths.remove(&id);
         self.component_states.remove(&id);
         self.component_names.remove(&id);
         self.placed_children.remove(&id);
@@ -1868,6 +1871,7 @@ impl Document {
         if self.arena.stale(id) {
             self.measurements.remove(&id);
             self.baselines.remove(&id);
+            self.min_widths.remove(&id);
             return None;
         }
         let held = self.measurements.get(&id)?;
@@ -1949,6 +1953,20 @@ impl Document {
             held.remove(0);
         }
         held.push((available, baseline));
+    }
+
+    pub fn measured_min_width(&self, id: NodeId) -> Option<f32> {
+        if self.arena.stale(id) {
+            return None;
+        }
+        self.min_widths.get(&id).copied()
+    }
+
+    pub fn remember_min_width(&mut self, id: NodeId, width: f32, watermark: u64) {
+        if self.arena.layout_revision != watermark || self.arena.stale(id) {
+            return;
+        }
+        self.min_widths.insert(id, width);
     }
 
     pub fn note_measured(&self, reused: bool) {

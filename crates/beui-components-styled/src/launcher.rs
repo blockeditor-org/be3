@@ -1,4 +1,5 @@
 use crate::frame::{Border, ColorRole, Frame, Radius};
+use beui_core::font::Overflow;
 use beui_core::icons::Glyph;
 use beui_core::layer::Dismiss;
 use std::rc::Rc;
@@ -423,9 +424,9 @@ fn LauncherRowFace(
                     </List>
                 </Frame>
                 <List @sizing=ItemSize::Percent(100.0) spacing=2.0>
-                    <Text align=TextAlign::Start ellipsis=true>{title}</Text>
+                    <Text align=TextAlign::Start overflow=Overflow::Ellipsis>{title}</Text>
                     <Show condition={described}>
-                        <Text style=TextStyle::CAPTION ellipsis=true>{detail}</Text>
+                        <Text style=TextStyle::CAPTION overflow=Overflow::Ellipsis>{detail}</Text>
                     </Show>
                 </List>
             </List>

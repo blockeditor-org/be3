@@ -1,4 +1,5 @@
 use crate::frame::{Border, ColorRole, Frame, Radius, focus_border};
+use beui_core::font::Overflow;
 use beui_macros::{component, view};
 
 use crate::button::{Button, ButtonVariant};
@@ -471,6 +472,7 @@ fn TimeOptionFace(handle: TimeOptionHandle, centred: bool) -> NodeId {
             padding={Sides::horizontal(10.0)}
         >
             <Text
+                overflow=Overflow::Ellipsis
                 color={ink}
                 align={if centred { TextAlign::Center } else { TextAlign::Start }}
                 vertical_align=TextAlign::Center

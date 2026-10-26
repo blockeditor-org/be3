@@ -1,6 +1,6 @@
 use beui::reactive::*;
 use beui::styled::*;
-use beui::{NodeId, TextAlign};
+use beui::{NodeId, Overflow, TextAlign};
 use block_editor_beui::{
     ChildBlock, ChildMode, ChildState, ChildTarget, InteractionMode,
     block_ui::{EMBEDDED_EDITOR_PADDING, EMBEDDED_EDITOR_TITLE_GAP, EMBEDDED_EDITOR_TITLE_HEIGHT},
@@ -75,7 +75,7 @@ pub(crate) fn LargeEmbed(state: State, embed: ResolvedEmbed) -> NodeId {
                             @sizing=ItemSize::Percent(100.0)
                             size=TextSize::Lg
                             italic={automatic}
-                            clip=true
+                            overflow=Overflow::Ellipsis
                         >
                             {label}
                         </Text>

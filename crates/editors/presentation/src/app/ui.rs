@@ -1,4 +1,4 @@
-use beui::Wrap;
+use beui::Overflow;
 use std::cell::Cell;
 use std::rc::Rc;
 
@@ -158,7 +158,7 @@ fn SlideStatus(state: ReadSignal<ChildState>) -> NodeId {
     view! {
         <Layers>
             <Show condition={hidden}>
-                <Text size=TextSize::Sm color=TextColor::Muted wrap=Wrap::Words>{message}</Text>
+                <Text size=TextSize::Sm color=TextColor::Muted>{message}</Text>
             </Show>
         </Layers>
     }
@@ -402,7 +402,11 @@ fn SlideTile(editor: Editor, slides: Slides, selected: Prop<bool>, id: Uuid) -> 
                     </DropTarget>
                     <List direction=Direction::Horizontal align=Align::Center spacing=6.0>
                         <Text style=TextStyle::CAPTION>{number}</Text>
-                        <Text style=TextStyle::CAPTION @sizing=ItemSize::Percent(100.0)>
+                        <Text
+                            overflow=Overflow::Ellipsis
+                            style=TextStyle::CAPTION
+                            @sizing=ItemSize::Percent(100.0)
+                        >
                             {name}
                         </Text>
                         <IconButton

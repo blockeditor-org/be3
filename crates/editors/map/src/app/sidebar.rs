@@ -1,4 +1,4 @@
-use beui::Wrap;
+use beui::Overflow;
 use block_editor_beui::beui::Color32;
 use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::accesskit::{Node, Role};
@@ -272,7 +272,7 @@ fn PointList(state: MapState) -> NodeId {
         <List spacing=6.0>
             <Text>"Points of interest"</Text>
             <Show condition={empty}>
-                <Text style=TextStyle::CAPTION wrap=Wrap::Words color={hint}>
+                <Text style=TextStyle::CAPTION color={hint}>
                     "Add blocks with the + button, by dragging them in from Files, or by pasting an image."
                 </Text>
             </Show>
@@ -308,7 +308,7 @@ fn PointRow(state: MapState, id: Uuid) -> NodeId {
             on_activate={move || {}}
         >
             <List direction=Direction::Horizontal align=Align::Center spacing=6.0>
-                <Text @sizing=ItemSize::Percent(100.0)>{label}</Text>
+                <Text overflow=Overflow::Ellipsis @sizing=ItemSize::Percent(100.0)>{label}</Text>
                 <Swatch color={swatch} />
             </List>
         </ListRow>
@@ -356,7 +356,7 @@ fn PointDetails(state: MapState, selected: Memo<Option<Uuid>>) -> NodeId {
                     @test_id={"map.point.back"}
                     on_click={move || state.select(None)}
                 />
-                <Text @sizing=ItemSize::Percent(100.0)>{label}</Text>
+                <Text overflow=Overflow::Ellipsis @sizing=ItemSize::Percent(100.0)>{label}</Text>
             </List>
             <Frame height=PREVIEW_HEIGHT radius=Radius::Sm>
                 <ChildBlock

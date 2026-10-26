@@ -2,6 +2,7 @@ use base_pages::{
     ControlFlowPage, FramesPage, InteractionPage, LayeringPage, ListsPage, PathsPage, TextNodesPage,
 };
 use beui::KeyAt;
+use beui::Overflow;
 use beui::datetime::{Date, DateTime, HourCycle, Time};
 use beui::dock::styled::Docking;
 use beui::dock::unstyled::{
@@ -896,7 +897,7 @@ fn CatalogGroup(
             <Frame padding=CATALOG_GROUP_PADDING>
                 <List spacing=2.0>
                     <Text style=TextStyle::HEADING>{title}</Text>
-                    <Text style=TextStyle::CAPTION ellipsis=true>{summary}</Text>
+                    <Text style=TextStyle::CAPTION overflow=Overflow::Ellipsis>{summary}</Text>
                 </List>
             </Frame>
             <ForEach keys={listed}>|page: Page| {
@@ -924,7 +925,9 @@ fn CatalogRow(page: Page, pages: Pages, selected: Memo<bool>) -> NodeId {
                 </Text>
                 <List @sizing=ItemSize::Percent(100.0) spacing=0.0>
                     <Text>{page.title()}</Text>
-                    <Text style=TextStyle::CAPTION ellipsis=true>{page.summary()}</Text>
+                    <Text style=TextStyle::CAPTION overflow=Overflow::Ellipsis>
+                        {page.summary()}
+                    </Text>
                 </List>
             </List>
         </ListRow>

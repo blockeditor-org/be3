@@ -2,7 +2,6 @@ use super::*;
 use beui::KeyPress;
 use beui::Sides;
 use beui::Vec2;
-use beui::Wrap;
 use beui::primitives::Drawing;
 use beui::primitives::Frame;
 use beui::primitives::Icon;
@@ -10,6 +9,7 @@ use beui::primitives::Span;
 use beui::primitives::Text;
 use beui::primitives::{Window, WindowHandle};
 use beui::{Color32, FillRule, LineCap, LineJoin, Painter, Path, Pos2, Stroke, vec2};
+use beui::{Overflow, WrapAt};
 
 const SWATCH: f32 = 72.0;
 const BADGE: f32 = 22.0;
@@ -117,9 +117,7 @@ fn FrameSizes() -> NodeId {
                 radius={Radius::Md.px()}
                 padding={Sides::symmetric(12.0, 8.0)}
             >
-                <Text color={theme.text} wrap=Wrap::Words>
-                    "This frame stops growing at 320 points wide."
-                </Text>
+                <Text color={theme.text}>"This frame stops growing at 320 points wide."</Text>
             </Frame>
             <Frame
                 width=160.0
@@ -185,7 +183,7 @@ fn TextIcons() -> NodeId {
                 <Icon glyph=ICON_STAR color={theme.warning} spacing_em=0.25 />
                 "An icon is a span that holds no bytes"
             </Text>
-            <Text color={theme.text} font={FontId::proportional(20.0)} wrap=Wrap::Words>
+            <Text color={theme.text} font={FontId::proportional(20.0)}>
                 "It takes its size from the text"
                 <Icon glyph=ICON_STAR scale=1.25 spacing_em=0.25 />
                 "scaled, and its room from both sides"
@@ -198,12 +196,29 @@ fn TextIcons() -> NodeId {
 #[component]
 fn TextWrapping() -> NodeId {
     let theme = use_theme();
-    let long = "A text node lays out on one line unless it wraps, and a line that does not \
-                fit can end in an ellipsis instead of spilling out of its frame.";
+    let wraps = "Text wraps to the width it is given, breaking after spaces and hyphens, \
+                 and between letters only when a word is wider than a line.";
+    let clamped = "With a maximum number of lines, whatever does not fit on them is left out, \
+                   and the last line that shows ends in an ellipsis to say so.";
+    let labels = "An ellipsis keeps a label to one line and cuts what does not fit\n\
+                  A hard line break still starts a new line, cut on its own";
+    let two_lines = Overflow::Wrap {
+        at: WrapAt::Words,
+        max_lines: Some(2),
+    };
     view! {
-        <List spacing=SECTION_SPACING>
-            <Text color={theme.text} wrap=Wrap::Words>{long.to_owned()}</Text>
-            <Text color={theme.text_muted} ellipsis=true>{long.to_owned()}</Text>
+        <List @test_id="demo.text.wrapping" spacing=SECTION_SPACING>
+            <Frame width=260.0 fill={theme.surface_raised}>
+                <Text color={theme.text}>{wraps.to_owned()}</Text>
+            </Frame>
+            <Frame width=260.0 fill={theme.surface_raised}>
+                <Text color={theme.text} overflow={two_lines}>{clamped.to_owned()}</Text>
+            </Frame>
+            <Frame width=260.0 fill={theme.surface_raised}>
+                <Text color={theme.text_muted} overflow=Overflow::Ellipsis>
+                    {labels.to_owned()}
+                </Text>
+            </Frame>
             <Text color={theme.text} align=TextAlign::Center>"Centered"</Text>
             <Text color={theme.text} align=TextAlign::End>"At the end"</Text>
         </List>
@@ -215,7 +230,7 @@ fn TextWrapping() -> NodeId {
 fn TextRuns() -> NodeId {
     let theme = use_theme();
     view! {
-        <Text color={theme.text} wrap=Wrap::Words>
+        <Text color={theme.text}>
             "Spans give "
             <Span color={theme.accent}>"color"</Span>
             ", "
@@ -248,7 +263,11 @@ fn TextBreaks() -> NodeId {
                 "so a copy reads one line."
             </Text>
             <Frame width=200.0 fill={theme.surface_raised}>
-                <Text color={theme.text} font={mono} wrap=Wrap::Anywhere>
+                <Text
+                    color={theme.text}
+                    font={mono}
+                    overflow={Overflow::Wrap { at: WrapAt::Anywhere, max_lines: None }}
+                >
                     "Breaking anywhere fills each line to its last column: /usr/local/share"
                 </Text>
             </Frame>
@@ -291,7 +310,7 @@ fn Tile(label: Prop<String>) -> NodeId {
             padding={Sides::horizontal(12.0)}
             align={Align2::vertical(Align::Center)}
         >
-            <Text color={theme.text} wrap=Wrap::Words>{label}</Text>
+            <Text color={theme.text}>{label}</Text>
         </Frame>
     }
 }
@@ -525,9 +544,7 @@ fn InteractiveCard() -> NodeId {
                     <Text color={theme.text}>{log}</Text>
                 </Frame>
             </Interactive>
-            <Text color={theme.text_muted} wrap=Wrap::Words font={FontId::monospace(14.0)}>
-                {state}
-            </Text>
+            <Text color={theme.text_muted} font={FontId::monospace(14.0)}>{state}</Text>
         </List>
     }
 }
@@ -709,7 +726,7 @@ fn AnchoredOverlay() -> NodeId {
                         radius={Radius::Lg.px()}
                         padding=12.0
                     >
-                        <Text color={theme.text} wrap=Wrap::Words>
+                        <Text color={theme.text}>
                             "An overlay floats above the document, placed against its anchor. Escape or a click outside dismisses it."
                         </Text>
                     </Frame>
@@ -758,7 +775,7 @@ fn FloatingWindow() -> NodeId {
                     radius={Radius::Lg.px()}
                     padding=12.0
                 >
-                    <Text color={theme.text} wrap=Wrap::Words>
+                    <Text color={theme.text}>
                         "A window of its own where a host opens windows, an overlay elsewhere."
                     </Text>
                 </Frame>

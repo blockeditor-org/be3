@@ -1,4 +1,4 @@
-use beui::Wrap;
+use beui::Overflow;
 use block_editor_beui::be_block::ObjectId;
 use block_editor_beui::beui::icons::{ICON_CHEVRON_DOWN, ICON_FILE_TEXT, ICON_LINK, ICON_PLUS};
 use block_editor_beui::beui::reactive::*;
@@ -370,10 +370,13 @@ fn RowLine(data: Data, row: Memo<Option<ObjectId>>) -> NodeId {
                 <Show condition={wide}>
                     <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
                         <Frame @sizing=ItemSize::Fixed(CODE_WIDTH)>
-                            <Text style=TextStyle::CAPTION ellipsis=true>{code}</Text>
+                            <Text style=TextStyle::CAPTION overflow=Overflow::Ellipsis>{code}</Text>
                         </Frame>
                         <Marks data={data} entry={entry} marks={marks} />
-                        <Text @sizing={ItemSize::Percent(100.0).shrink(1.0)} ellipsis=true>
+                        <Text
+                            @sizing={ItemSize::Percent(100.0).shrink(1.0)}
+                            overflow=Overflow::Ellipsis
+                        >
                             {title}
                         </Text>
                         <Parts parts={parts} keys={part_keys} />
@@ -383,7 +386,7 @@ fn RowLine(data: Data, row: Memo<Option<ObjectId>>) -> NodeId {
                     <List spacing=4.0>
                         <List direction=Direction::Horizontal align=Align::Start spacing=SPACING>
                             <Marks data={data} entry={entry} marks={marks} />
-                            <Text @sizing=ItemSize::Percent(100.0) wrap=Wrap::Words>{title}</Text>
+                            <Text @sizing=ItemSize::Percent(100.0)>{title}</Text>
                         </List>
                         <List
                             direction=Direction::Horizontal
@@ -489,7 +492,7 @@ fn RowPart(part: Memo<Option<Part>>) -> NodeId {
                         </Text>
                     },
                     PartKind::Plain => view! {
-                        <Text style=TextStyle::CAPTION ellipsis=true>{text}</Text>
+                        <Text style=TextStyle::CAPTION overflow=Overflow::Ellipsis>{text}</Text>
                     },
                     PartKind::Chip => view! {
                         <Chip part={part} text={text} />

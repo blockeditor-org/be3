@@ -1,4 +1,4 @@
-use beui::Wrap;
+use beui::Overflow;
 use std::cell::RefCell;
 use std::collections::{HashMap, HashSet};
 use std::rc::Rc;
@@ -214,7 +214,9 @@ pub(crate) fn MapLabel(
                 padding={Sides::horizontal(HALO_PADDING)}
                 @test_id={element_test_id}
             >
-                <Text size align=TextAlign::Center color={color} wrap=Wrap::Off>{text}</Text>
+                <Text size align=TextAlign::Center color={color} overflow=Overflow::Visible>
+                    {text}
+                </Text>
             </Frame>
         </CanvasItem>
     }

@@ -286,6 +286,11 @@ impl Element for InteractiveNode {
         }
     }
 
+    fn min_width(&self, doc: &mut Document, painter: &Painter) -> f32 {
+        self.child
+            .map_or(0.0, |child| crate::layout::min_width(doc, painter, child))
+    }
+
     fn baseline(&self, doc: &mut Document, painter: &Painter, available: Vec2) -> Option<f32> {
         crate::layout::baseline(doc, painter, self.child?, available)
     }

@@ -1,4 +1,3 @@
-use beui::Wrap;
 use uuid::Uuid;
 
 use block_editor_beui::Editor;
@@ -148,7 +147,7 @@ fn LevelRow(
                 let goal = goal.clone(); view! {
                     <Frame padding={Sides::new(INDENT, 0.0, 0.0, 0.0)}>
                         <List spacing=ROW_SPACING>
-                            <Text style=TextStyle::CAPTION wrap=Wrap::Words>{goal}</Text>
+                            <Text style=TextStyle::CAPTION>{goal}</Text>
                             <Show condition={shows_quiz}>
                                 <BinaryAddition editor={editor} block={block} />
                             </Show>

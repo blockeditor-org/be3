@@ -1,6 +1,7 @@
 use crate::frame::{Border, ColorRole, Frame, Radius, focus_border};
 use beui_core::base::TextAlign;
 use beui_core::color::Color32;
+use beui_core::font::Overflow;
 use beui_core::node::NodeId;
 use beui_macros::{component, view};
 
@@ -61,7 +62,9 @@ fn ChoiceLabel(
             <Show condition={kind == Kind::Radio}>
                 <RadioMark checked={checked} />
             </Show>
-            <Text @sizing=ItemSize::Percent(100.0) color align>{label}</Text>
+            <Text overflow=Overflow::Ellipsis @sizing=ItemSize::Percent(100.0) color align>
+                {label}
+            </Text>
         </List>
     }
 }

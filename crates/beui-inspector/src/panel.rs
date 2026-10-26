@@ -1,4 +1,4 @@
-use beui_core::font::Wrap;
+use beui_core::font::Overflow;
 use std::collections::HashMap;
 use std::time::Duration;
 
@@ -717,7 +717,7 @@ fn GuideSection(title: &'static str, lines: &'static [&'static str]) -> NodeId {
         <List spacing=FOOTER_SPACING>
             <Text style=TextStyle::CAPTION color=TextColor::Default>{title.to_owned()}</Text>
             <ForEach keys={lines.to_vec()}>|line: &'static str|
-                <Text style=TextStyle::CAPTION wrap=Wrap::Words>{line.to_owned()}</Text>
+                <Text style=TextStyle::CAPTION>{line.to_owned()}</Text>
             </ForEach>
         </List>
     }
@@ -896,7 +896,6 @@ fn LabeledRow(label: String, value: String) -> NodeId {
                 style=TextStyle::CAPTION
                 @sizing=ItemSize::Percent(100.0)
                 color=TextColor::Default
-                wrap=Wrap::Words
             >
                 {value}
             </Text>
@@ -927,7 +926,13 @@ fn TimingRow(label: String, values: [Memo<String>; 3]) -> NodeId {
     let [current, average, peak] = values;
     view! {
         <List direction=Direction::Horizontal spacing=TIMING_SPACING>
-            <Text style=TextStyle::CAPTION @sizing=ItemSize::Percent(100.0)>{label}</Text>
+            <Text
+                overflow=Overflow::Ellipsis
+                style=TextStyle::CAPTION
+                @sizing=ItemSize::Percent(100.0)
+            >
+                {label}
+            </Text>
             <Text style=TextStyle::CODE @sizing=ItemSize::Fixed(54.0) align=TextAlign::End>
                 {current}
             </Text>
@@ -1019,7 +1024,12 @@ fn TreeCells(row_key: Key, entries: Entries) -> NodeId {
             spacing=ROW_SPACING
         >
             <Text style=TextStyle::CODE>{kind}</Text>
-            <Text style=TextStyle::CODE @sizing=ItemSize::Percent(100.0) color=TextColor::Muted>
+            <Text
+                overflow=Overflow::Ellipsis
+                style=TextStyle::CODE
+                @sizing=ItemSize::Percent(100.0)
+                color=TextColor::Muted
+            >
                 {detail}
             </Text>
             <Text style=TextStyle::CODE color=TextColor::Muted align=TextAlign::End>{size}</Text>

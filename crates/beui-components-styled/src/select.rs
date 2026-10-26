@@ -1,4 +1,5 @@
 use crate::frame::{Border, ColorRole, Frame, Radius, focus_border};
+use beui_core::font::Overflow;
 use beui_macros::{component, view};
 
 use crate::scroll::scrollbar_style;
@@ -115,7 +116,7 @@ fn SelectTrigger(
                     <Text
                         color={text_color}
                         align=TextAlign::Start
-                        ellipsis=true
+                        overflow=Overflow::Ellipsis
                         @sizing=ItemSize::Percent(100.0)
                     >
                         {label_text}
@@ -168,7 +169,7 @@ fn SelectOption(handle: SelectOptionHandle) -> NodeId {
             radius=Radius::Md
             padding={Sides::symmetric(PADDING_HORIZONTAL, OPTION_PADDING_VERTICAL)}
         >
-            <Text align=TextAlign::Start>{label}</Text>
+            <Text overflow=Overflow::Ellipsis align=TextAlign::Start>{label}</Text>
         </Frame>
     }
 }

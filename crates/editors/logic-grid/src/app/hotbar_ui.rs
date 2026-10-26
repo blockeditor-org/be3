@@ -1,3 +1,4 @@
+use beui::Overflow;
 use beui::icons::{ICON_ARROW_UP, ICON_PLUS};
 use beui::reactive::*;
 use beui::styled::*;
@@ -132,7 +133,13 @@ pub(super) fn Hotbar(session: Session) -> NodeId {
                             on_click={up}
                         />
                     </SlotDrop>
-                    <Text style=TextStyle::CAPTION @sizing=ItemSize::Percent(100.0)>{title}</Text>
+                    <Text
+                        overflow=Overflow::Ellipsis
+                        style=TextStyle::CAPTION
+                        @sizing=ItemSize::Percent(100.0)
+                    >
+                        {title}
+                    </Text>
                     <MenuButton
                         label="Hotbar actions"
                         glyph=ICON_PLUS
@@ -394,7 +401,7 @@ fn SlotFace(shown: Memo<Option<SlotView>>, hovered: ReadSignal<bool>) -> NodeId 
                         color={text}
                         align=TextAlign::Center
                         vertical_align=TextAlign::Center
-                        ellipsis=true
+                        overflow=Overflow::Ellipsis
                     >
                         {label}
                     </Text>

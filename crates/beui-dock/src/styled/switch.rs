@@ -1,4 +1,5 @@
 use beui_components_styled::frame::{Border, ColorRole, Frame, Radius};
+use beui_core::font::Overflow;
 use beui_macros::{component, view};
 
 use crate::unstyled::{DockSwitchHandle, DockSwitchRowHandle, TabId};
@@ -56,7 +57,7 @@ fn DockSwitchRow(handle: DockSwitchRowHandle) -> NodeId {
                     <Text color=TextColor::Accent align=TextAlign::Center>
                         <Icon glyph={icon} />
                     </Text>
-                    <Text ellipsis=true>{title}</Text>
+                    <Text overflow=Overflow::Ellipsis>{title}</Text>
                 </List>
             </Frame>
         </ListRow>

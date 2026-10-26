@@ -1,4 +1,3 @@
-use beui::Wrap;
 use beui::icons::Glyph;
 #[cfg(target_os = "android")]
 use beui::icons::ICON_ARROW_LEFT;
@@ -214,7 +213,7 @@ fn Sidebar(model: Model) -> NodeId {
                         </List>
                     </Show>
                     <Show condition={failed}>
-                        <Text color=TextColor::Danger wrap=Wrap::Words>{error}</Text>
+                        <Text color=TextColor::Danger>{error}</Text>
                     </Show>
                     <Show condition={empty}>
                         <Text style=TextStyle::CAPTION>{empty_text}</Text>
@@ -278,7 +277,7 @@ fn PullRequestRow(model: Model, pull_request: Memo<PullRequest>) -> NodeId {
             <List direction=Direction::Horizontal spacing=8.0>
                 <StateIcon state />
                 <List @sizing=ItemSize::Percent(100.0) spacing=ROW_SPACING>
-                    <Text wrap=Wrap::Words>{title}</Text>
+                    <Text>{title}</Text>
                     <Text style=TextStyle::CAPTION>{details}</Text>
                     <Show condition={has_tags}>
                         <Labels labels={labels} checked_out={checked_out} />

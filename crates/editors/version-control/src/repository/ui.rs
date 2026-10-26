@@ -1,4 +1,4 @@
-use beui::Wrap;
+use beui::Overflow;
 use block_editor_beui::be_block::Root as _;
 use block_editor_beui::be_block::{Repository, RepositoryContent};
 use block_editor_beui::beui::NodeId;
@@ -81,11 +81,7 @@ pub fn RepositoryView(editor: Editor) -> NodeId {
                         <List spacing=6.0>
                             <Text style=TextStyle::HEADING>"Repository"</Text>
                             <Show condition={has_note}>
-                                <Text
-                                    style=TextStyle::CAPTION
-                                    wrap=Wrap::Words
-                                    @test_id={"repository.note"}
-                                >
+                                <Text style=TextStyle::CAPTION @test_id={"repository.note"}>
                                     {note}
                                 </Text>
                             </Show>
@@ -94,7 +90,7 @@ pub fn RepositoryView(editor: Editor) -> NodeId {
                             <Card>
                                 <List spacing=10.0>
                                     <Text>"Nothing is versioned here yet."</Text>
-                                    <Text style=TextStyle::CAPTION wrap=Wrap::Words>
+                                    <Text style=TextStyle::CAPTION>
                                         "Choose a block, and everything inside it is saved as the first change. From then on its edits gather into changes you describe and save, and any step can be undone."
                                     </Text>
                                     <Button
@@ -127,7 +123,7 @@ pub fn RepositoryView(editor: Editor) -> NodeId {
                                     />
                                 </Show>
                                 <Show condition={no_upstream}>
-                                    <Text style=TextStyle::CAPTION wrap=Wrap::Words>
+                                    <Text style=TextStyle::CAPTION>
                                         "A copy of a repository follows the one it was made from: it can bring in its changes and send its own back."
                                     </Text>
                                 </Show>
@@ -195,7 +191,7 @@ fn BranchRow(editor: Editor, blocked: Memo<bool>, name: String, head: String) ->
             spacing=10.0
             @test_id=branch_test_id
         >
-            <Text @sizing=ItemSize::Percent(100.0)>{name}</Text>
+            <Text overflow=Overflow::Ellipsis @sizing=ItemSize::Percent(100.0)>{name}</Text>
             <Text style=TextStyle::CAPTION>{head}</Text>
             <Button
                 label="Open a copy to edit"

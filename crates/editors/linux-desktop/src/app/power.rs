@@ -1,4 +1,3 @@
-use beui::Wrap;
 use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::icons::Glyph;
 use block_editor_beui::beui::icons::{
@@ -129,7 +128,7 @@ pub(crate) fn PowerMenu(editor: Editor) -> NodeId {
                 on_dismiss={dismiss}
             >
                 <List spacing=DIALOG_SPACING @test_id={"desktop.power.dialog"}>
-                    <Text style=TextStyle::PARAGRAPH wrap=Wrap::Words>{explained}</Text>
+                    <Text style=TextStyle::PARAGRAPH>{explained}</Text>
                 </List>
             </Dialog>
         </List>

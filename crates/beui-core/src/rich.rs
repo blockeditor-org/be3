@@ -240,6 +240,7 @@ pub struct RichOptions {
     pub style: SpanStyle,
     pub hang: usize,
     pub anywhere: bool,
+    pub least: bool,
 }
 
 #[derive(Clone)]
@@ -309,6 +310,7 @@ pub struct RichLine {
     pub range: Range<usize>,
     reach: f32,
     limit: f32,
+    least: f32,
     pub top: f32,
     pub left: f32,
     pub height: f32,
@@ -340,6 +342,92 @@ impl RichLine {
                 || self.x_of(index),
                 |run| self.left + run.x_of(index.min(run.range.end)),
             )
+    }
+
+    fn ellipsize(&mut self, width: f32, shaper: &mut dyn Shaper) {
+        let Some(style) = self
+            .runs
+            .iter()
+            .rev()
+            .find(|run| run.kind == SpanKind::Text)
+            .or(self.runs.last())
+            .map(|run| run.style)
+        else {
+            return;
+        };
+        let ellipsis = shaper.galley(ELLIPSIS, style.font);
+        let budget = width - ellipsis.size().x;
+        let mut runs = Vec::with_capacity(self.runs.len() + 1);
+        let mut cut = self.range.start;
+        let mut style = style;
+        let mut piece = self.runs.last().map_or(0, |run| run.piece);
+        for run in &self.runs {
+            if run.x + run.width <= budget {
+                cut = run.range.end;
+                if run.kind == SpanKind::Text {
+                    style = run.style;
+                    piece = run.piece;
+                }
+                runs.push(run.clone());
+                continue;
+            }
+            if let Some(galley) = run.galley.as_ref().filter(|_| run.text()) {
+                let kept = galley.lines().first().map_or(0, |first| {
+                    first
+                        .cursors
+                        .iter()
+                        .filter(|(_, x)| run.x + x <= budget)
+                        .map(|(at, _)| *at)
+                        .max()
+                        .unwrap_or(0)
+                });
+                let kept = galley.text().get(..kept).unwrap_or_default().trim_end();
+                if !kept.is_empty() {
+                    let shaped = shaper.galley(kept, run.style.font);
+                    cut = run.range.start + kept.len();
+                    style = run.style;
+                    piece = run.piece;
+                    runs.push(RichRun {
+                        range: run.range.start..cut,
+                        width: shaped.size().x,
+                        galley: Some(shaped),
+                        ..run.clone()
+                    });
+                }
+            }
+            break;
+        }
+        let joined = match runs.last() {
+            Some(RichRun {
+                galley: Some(last),
+                kind: SpanKind::Text,
+                ..
+            }) => Some(shaper.galley(&format!("{}{ELLIPSIS}", last.text().trim_end()), style.font)),
+            _ => None,
+        };
+        match (joined, runs.last_mut()) {
+            (Some(joined), Some(last)) => {
+                last.range.end = self.range.end;
+                last.width = joined.size().x;
+                last.galley = Some(joined);
+            }
+            _ => {
+                let x = runs.last().map_or(0.0, |run: &RichRun| run.x + run.width);
+                runs.push(RichRun {
+                    piece,
+                    range: cut..self.range.end,
+                    style,
+                    kind: SpanKind::Text,
+                    x,
+                    width: ellipsis.size().x,
+                    height: ellipsis.line_height(),
+                    galley: Some(ellipsis),
+                    inner: Vec::new(),
+                });
+            }
+        }
+        self.width = runs.last().map_or(0.0, |run| run.x + run.width);
+        self.runs = runs;
     }
 
     pub fn run_left(&self, run: &RichRun) -> f32 {
@@ -644,6 +732,17 @@ impl Builder<'_> {
         Some((byte, reach, limit))
     }
 
+    fn least(&self, stops: &[(usize, f32)], start: usize, end: usize) -> f32 {
+        let (mut longest, mut from) = (0.0f32, 0.0f32);
+        for &(byte, x) in stops {
+            if byte > start && (byte >= end || self.good(byte)) {
+                longest = longest.max(x - from);
+                from = x;
+            }
+        }
+        longest
+    }
+
     fn good(&self, byte: usize) -> bool {
         self.anywhere
             || self.breaks_after(byte)
@@ -804,6 +903,11 @@ impl RichLayout {
             builder.paragraph = start..end;
             builder.segment = segment.spans.clone();
             let whole = builder.runs(start, end);
+            let least = match options.least {
+                true => builder.least(&builder.stops(&whole), start, end),
+                false => 0.0,
+            };
+            let first_line = lines.len();
             let total = whole.last().map_or(0.0, |run| run.x + run.width);
             let stops = match total > options.wrap_width + WRAP_SLACK || from != start {
                 true => builder.stops(&whole),
@@ -845,6 +949,9 @@ impl RichLayout {
                 line.limit = limit + indent - WRAP_SLACK;
                 lines.push(line);
                 from = to;
+            }
+            if let Some(line) = lines.get_mut(first_line) {
+                line.least = least;
             }
         }
         let width = lines.iter().map(|line| line.width).fold(0.0, f32::max);
@@ -908,94 +1015,32 @@ impl RichLayout {
         wrap_width >= self.reach && wrap_width < self.limit
     }
 
+    pub fn least_width(&self) -> f32 {
+        self.lines.iter().map(|line| line.least).fold(0.0, f32::max)
+    }
+
     pub fn truncate(&mut self, width: f32, shaper: &mut dyn Shaper) {
         for line in &mut self.lines {
-            if line.width <= width {
-                continue;
+            if line.width > width {
+                line.ellipsize(width, shaper);
             }
-            let Some(style) = line
-                .runs
-                .iter()
-                .rev()
-                .find(|run| run.kind == SpanKind::Text)
-                .or(line.runs.last())
-                .map(|run| run.style)
-            else {
-                continue;
-            };
-            let ellipsis = shaper.galley(ELLIPSIS, style.font);
-            let budget = width - ellipsis.size().x;
-            let mut runs = Vec::with_capacity(line.runs.len() + 1);
-            let mut cut = line.range.start;
-            let mut style = style;
-            let mut piece = line.runs.last().map_or(0, |run| run.piece);
-            for run in &line.runs {
-                if run.x + run.width <= budget {
-                    cut = run.range.end;
-                    if run.kind == SpanKind::Text {
-                        style = run.style;
-                        piece = run.piece;
-                    }
-                    runs.push(run.clone());
-                    continue;
-                }
-                if let Some(galley) = run.galley.as_ref().filter(|_| run.text()) {
-                    let kept = galley.lines().first().map_or(0, |first| {
-                        first
-                            .cursors
-                            .iter()
-                            .filter(|(_, x)| run.x + x <= budget)
-                            .map(|(at, _)| *at)
-                            .max()
-                            .unwrap_or(0)
-                    });
-                    let kept = galley.text().get(..kept).unwrap_or_default().trim_end();
-                    if !kept.is_empty() {
-                        let shaped = shaper.galley(kept, run.style.font);
-                        cut = run.range.start + kept.len();
-                        style = run.style;
-                        piece = run.piece;
-                        runs.push(RichRun {
-                            range: run.range.start..cut,
-                            width: shaped.size().x,
-                            galley: Some(shaped),
-                            ..run.clone()
-                        });
-                    }
-                }
-                break;
-            }
-            let joined = match runs.last() {
-                Some(RichRun {
-                    galley: Some(last),
-                    kind: SpanKind::Text,
-                    ..
-                }) => Some(shaper.galley(&format!("{}{ELLIPSIS}", last.text()), style.font)),
-                _ => None,
-            };
-            match (joined, runs.last_mut()) {
-                (Some(joined), Some(last)) => {
-                    last.range.end = line.range.end;
-                    last.width = joined.size().x;
-                    last.galley = Some(joined);
-                }
-                _ => {
-                    let x = runs.last().map_or(0.0, |run: &RichRun| run.x + run.width);
-                    runs.push(RichRun {
-                        piece,
-                        range: cut..line.range.end,
-                        style,
-                        kind: SpanKind::Text,
-                        x,
-                        width: ellipsis.size().x,
-                        height: ellipsis.line_height(),
-                        galley: Some(ellipsis),
-                        inner: Vec::new(),
-                    });
-                }
-            }
-            line.width = runs.last().map_or(0.0, |run| run.x + run.width);
-            line.runs = runs;
+        }
+        self.size.x = self.lines.iter().map(|line| line.width).fold(0.0, f32::max);
+    }
+
+    pub fn clamp(&mut self, max_lines: usize, width: f32, shaper: &mut dyn Shaper) {
+        let max_lines = max_lines.max(1);
+        let Some(end) = self.lines.last().map(|line| line.range.end) else {
+            return;
+        };
+        if self.lines.len() <= max_lines {
+            return;
+        }
+        self.lines.truncate(max_lines);
+        if let Some(last) = self.lines.last_mut() {
+            last.range.end = end;
+            last.ellipsize(width, shaper);
+            self.size.y = last.top + last.height;
         }
         self.size.x = self.lines.iter().map(|line| line.width).fold(0.0, f32::max);
     }
@@ -1144,6 +1189,7 @@ fn line(
         range,
         reach: 0.0,
         limit: f32::INFINITY,
+        least: 0.0,
         top,
         left: 0.0,
         height: ascent + descent + padding.0 + padding.1,

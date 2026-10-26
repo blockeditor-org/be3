@@ -1,4 +1,3 @@
-use beui::Wrap;
 use block_editor_beui::beui::Color32;
 use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::icons::ICON_DROPLET_OFF;
@@ -67,9 +66,7 @@ fn Inspector(state: CanvasState) -> NodeId {
         <List spacing=SPACING>
             <SelectionSummary state={state} />
             <Show condition={empty}>
-                <Text style=TextStyle::CAPTION wrap=Wrap::Words>
-                    "Select an object to edit its appearance."
-                </Text>
+                <Text style=TextStyle::CAPTION>"Select an object to edit its appearance."</Text>
             </Show>
             <Show condition={chosen}>
                 <List spacing=SPACING>
@@ -136,7 +133,7 @@ fn FrameSection(state: CanvasState) -> NodeId {
                             @test_id={"infinite-canvas.frame.name"}
                         />
                         <Show condition={first}>
-                            <Text style=TextStyle::CAPTION wrap=Wrap::Words>
+                            <Text style=TextStyle::CAPTION>
                                 "The first frame is what other editors show when they embed this canvas."
                             </Text>
                         </Show>
@@ -279,7 +276,7 @@ fn TransformSection(state: CanvasState) -> NodeId {
         <Accordion title="Transform" open={open}>
             <List spacing=6.0>
                 <Show condition={many}>
-                    <Text style=TextStyle::CAPTION wrap=Wrap::Words>
+                    <Text style=TextStyle::CAPTION>
                         "Select one object to edit exact transform values."
                     </Text>
                 </Show>
@@ -1166,7 +1163,7 @@ fn TextOptions(state: CanvasState) -> NodeId {
                         checked={Binding::new(wrap, wrapped)}
                         @test_id={"infinite-canvas.wrap"}
                     />
-                    <Text style=TextStyle::CAPTION wrap=Wrap::Words>
+                    <Text style=TextStyle::CAPTION>
                         "Resize to wrap; hold Alt while resizing to scale text."
                     </Text>
                 </List>

@@ -1,3 +1,4 @@
+use beui::Overflow;
 use uuid::Uuid;
 
 use block_editor_beui::beui::icons::{ICON_ARROW_DOWN, ICON_ARROW_UP, ICON_FOLDER};
@@ -241,7 +242,11 @@ fn EntryRows(cells: Cells) -> NodeId {
                     >
                         <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
                             <EntryGlyph entry={entry} size=ROW_ICON />
-                            <Text @sizing=ItemSize::Percent(100.0) color={name_color(entry)}>
+                            <Text
+                                overflow=Overflow::Ellipsis
+                                @sizing=ItemSize::Percent(100.0)
+                                color={name_color(entry)}
+                            >
                                 {name_of(entry)}
                             </Text>
                             <Text style=TextStyle::CAPTION>{type_of(entry)}</Text>

@@ -46,6 +46,24 @@ pub fn baseline(doc: &mut Document, painter: &Painter, id: NodeId, available: Ve
     baseline
 }
 
+pub fn min_width(doc: &mut Document, painter: &Painter, id: NodeId) -> f32 {
+    if !doc.arena.contains(id) {
+        return 0.0;
+    }
+    if let Some(width) = doc.measured_min_width(id) {
+        return width;
+    }
+    let watermark = doc.arena.layout_revision;
+    let element = doc.arena.take(id);
+    let outer = doc.enter_measure(id);
+    let width = element.min_width(doc, painter);
+    doc.leave_measure(outer);
+    doc.arena.put_back(id, element);
+    let width = doc.pixel_grid().snap_up(width);
+    doc.remember_min_width(id, width, watermark);
+    width
+}
+
 pub fn layout(doc: &mut Document, painter: &Painter, id: NodeId, rect: Rect, out: &Rects) {
     if !doc.arena.contains(id) {
         return;

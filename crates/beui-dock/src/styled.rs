@@ -1,3 +1,4 @@
+use beui_core::font::Overflow;
 use beui_core::icons::Glyph;
 mod stack;
 mod switch;
@@ -376,7 +377,7 @@ fn DockTabChrome(
                 <Show condition={shows_picture}>
                     <TabPicture picture={picture} />
                 </Show>
-                <Text color={label} clip=true @sizing={title_size}>{title}</Text>
+                <Text color={label} overflow=Overflow::Ellipsis @sizing={title_size}>{title}</Text>
                 <Show condition={waiting}>
                     <Frame
                         @test_id={waiting_test_id.clone()}
@@ -542,7 +543,9 @@ fn DockWindowFace(handle: DockDialogHandle) -> NodeId {
                                 <Icon glyph={icon} />
                             </Text>
                         </Show>
-                        <Text clip=true @sizing=ItemSize::Percent(100.0)>{title}</Text>
+                        <Text overflow=Overflow::Ellipsis @sizing=ItemSize::Percent(100.0)>
+                            {title}
+                        </Text>
                         <Show condition={closable}>
                             <IconButton
                                 @test_id={format!("dock.dialog.{}.close", tab.value())}
@@ -614,7 +617,9 @@ fn DockTitleBar(
                         {tabs} @sizing=ItemSize::Percent(100.0)
                         <Show condition={titled}>|| {
                             let title = title.clone(); view! {
-                                <Text @sizing=ItemSize::Percent(100.0)>{title}</Text>
+                                <Text overflow=Overflow::Ellipsis @sizing=ItemSize::Percent(100.0)>
+                                    {title}
+                                </Text>
                             }
                         }</Show>
                         <DockMenu menu room=BarRoom::Wide />
@@ -674,7 +679,7 @@ fn DockSideBar(
                     {tabs} @sizing=ItemSize::Percent(100.0)
                     <Show condition={titled}>|| {
                         let title = title.clone(); view! {
-                            <Text>{title}</Text>
+                            <Text overflow=Overflow::Ellipsis>{title}</Text>
                         }
                     }</Show>
                     <Show condition={icons_only}>
@@ -953,7 +958,7 @@ fn DockDragPreview(title: Prop<String>, icon: Memo<Option<Glyph>>, grouped: bool
                         <Icon glyph={icon} />
                     </Text>
                 </Show>
-                <Text>{title}</Text>
+                <Text overflow=Overflow::Ellipsis>{title}</Text>
             </List>
         </Frame>
     }

@@ -1,4 +1,3 @@
-use beui_core::font::Wrap;
 use beui_macros::{component, view};
 
 use crate::Chip;
@@ -20,7 +19,6 @@ pub fn Shortcut(keys: Prop<String>, description: Prop<String>) -> NodeId {
                 size=TextSize::Sm
                 color=TextColor::Muted
                 align=TextAlign::Start
-                wrap=Wrap::Words
             >
                 {description}
             </Text>

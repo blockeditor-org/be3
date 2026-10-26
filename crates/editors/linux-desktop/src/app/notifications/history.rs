@@ -1,4 +1,3 @@
-use beui::Wrap;
 use std::time::Duration;
 
 use block_editor_beui::beui::NodeId;
@@ -136,14 +135,10 @@ fn NotificationRow(
             >
                 <List spacing=ROW_SPACING>
                     <Text style=TextStyle::CAPTION>{source}</Text>
-                    <Text color={summary_color} weight=Weight::Bold wrap=Wrap::Words>
-                        {summary}
-                    </Text>
+                    <Text color={summary_color} weight=Weight::Bold>{summary}</Text>
                     <Show condition={said}>|| {
                         let body = body.clone(); view! {
-                            <Text size=TextSize::Sm color={body_color} wrap=Wrap::Words>
-                                {body}
-                            </Text>
+                            <Text size=TextSize::Sm color={body_color}>{body}</Text>
                         }
                     }</Show>
                 </List>

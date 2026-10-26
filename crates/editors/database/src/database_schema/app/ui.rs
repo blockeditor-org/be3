@@ -1,4 +1,3 @@
-use beui::Wrap;
 use block_editor_beui::be_block::BlockContent;
 use block_editor_beui::be_block::Edit;
 use block_editor_beui::beui::icons::Glyph;
@@ -507,7 +506,7 @@ fn EnumOptions(
                     <Text>"Add option"</Text>
                     <Spacer @sizing=ItemSize::Percent(100.0) />
                 </List>
-                <Text style=TextStyle::CAPTION wrap=Wrap::Words>
+                <Text style=TextStyle::CAPTION>
                     "A closed option marks a row finished: views can hide closed rows, the board folds their columns, and a merged pull request moves rows to the first one. New rows start at the default."
                 </Text>
             </List>

@@ -1,5 +1,4 @@
 use be_block::display_settings::Rotation;
-use beui::Wrap;
 use beui::accesskit::{Node as AccessNode, Role, Toggled};
 use beui::reactive::*;
 use beui::styled::*;
@@ -146,9 +145,7 @@ fn RotationTile(
                                 </Frame>
                             </Turn>
                         </Frame>
-                        <Text style=TextStyle::CAPTION wrap=Wrap::Words align=TextAlign::Center>
-                            {label}
-                        </Text>
+                        <Text style=TextStyle::CAPTION align=TextAlign::Center>{label}</Text>
                         <Show condition={now}>
                             <Text size=TextSize::Xs color=TextColor::Accent>"Now"</Text>
                         </Show>

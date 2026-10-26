@@ -1,4 +1,3 @@
-use beui::Wrap;
 use std::cell::RefCell;
 use std::sync::Arc;
 
@@ -82,9 +81,7 @@ pub(super) fn TomlTab(shared: Shared) -> NodeId {
                     emoji=false
                 />
                 <Show condition={failed}>
-                    <Text style={TextStyle::CAPTION.color(TextColor::Danger)} wrap=Wrap::Words>
-                        {problem}
-                    </Text>
+                    <Text style={TextStyle::CAPTION.color(TextColor::Danger)}>{problem}</Text>
                 </Show>
                 <List direction=Direction::Horizontal spacing=ROW_SPACING>
                     <Button

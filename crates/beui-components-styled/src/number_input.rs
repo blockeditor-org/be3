@@ -1,4 +1,5 @@
 use crate::frame::{Border, ColorRole, Frame, Radius};
+use beui_core::font::Overflow;
 use beui_macros::{component, view};
 
 use crate::button::ButtonVariant;
@@ -108,7 +109,12 @@ fn NumberFace(handle: NumberFaceHandle, shown: NodeRef, placeholder: Prop<String
                 radius=Radius::Md
                 padding={Sides::horizontal(PADDING_HORIZONTAL)}
             >
-                <Text @node_ref=&shown color={color} align=TextAlign::Center clip=true>
+                <Text
+                    @node_ref=&shown
+                    color={color}
+                    align=TextAlign::Center
+                    overflow=Overflow::Ellipsis
+                >
                     {string}
                 </Text>
             </Frame>

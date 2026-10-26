@@ -3,7 +3,6 @@ use crate::primitives::Span;
 use crate::primitives::*;
 use crate::reactive::*;
 use crate::{Color32, FontId};
-use beui::Wrap;
 
 const WRAP: f32 = 90.0;
 const BOX: f32 = 20.0;
@@ -19,7 +18,7 @@ fn text_with_spans_wraps_places_inline_items_and_answers_where_indices_are() {
         view! {
             <List spacing=0.0>
                 <Frame width=WRAP>
-                    <Text @node_ref=&text color=Color32::WHITE wrap=Wrap::Words>
+                    <Text @node_ref=&text color=Color32::WHITE>
                         "hello "
                         <TextItem>
                             <Frame @node_ref=&item width=BOX height=BOX />
