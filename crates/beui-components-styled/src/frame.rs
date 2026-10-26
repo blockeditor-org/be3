@@ -212,10 +212,6 @@ impl Radius {
         }
     }
 
-    pub const fn custom(radius: f32) -> Self {
-        Radius::Custom(radius)
-    }
-
     pub const fn corners(self) -> Corners {
         Corners::all(self.px())
     }
@@ -268,16 +264,16 @@ impl Border {
         }
     }
 
-    pub fn width(self, width: impl Into<Stroke>) -> Self {
+    pub const fn width(self, width: Stroke) -> Self {
         Self {
-            width: width.into(),
+            width,
             ..self
         }
     }
 
-    pub fn offset(self, offset: impl Into<Stroke>) -> Self {
+    pub const fn offset(self, offset: Stroke) -> Self {
         Self {
-            offset: offset.into(),
+            offset,
             ..self
         }
     }

@@ -10,7 +10,7 @@ fn field() -> DocumentTest {
     let document = build(move || {
         view! {
             <Root>
-                <Frame fill=ColorRole::Background padding=Sides::all(16.0)>
+                <Frame fill=ColorRole::Background padding=Space::Xl>
                     <TextInput
                         @test_id={"test.field"}
                         value=String::new()

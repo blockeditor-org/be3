@@ -52,8 +52,8 @@ fn the_inspector_paints_the_component_shadow_tree() {
     let document = build(|| {
         view! {
             <Root>
-                <styled::Frame padding={Sides::all(24.0)}>
-                    <styled::List spacing=16.0>
+                <styled::Frame padding=styled::Space::Xl3>
+                    <styled::List spacing=styled::Space::Xl>
                         <styled::Text
                             @test_id="example.heading"
                             size=TextSize::Xl
@@ -62,7 +62,7 @@ fn the_inspector_paints_the_component_shadow_tree() {
                             "Release checklist"
                         </styled::Text>
                         <styled::Card @test_id="example.card">
-                            <styled::List spacing=12.0>
+                            <styled::List spacing=styled::Space::Lg>
                                 <styled::Text weight=Weight::Bold>"Ready for review"</styled::Text>
                                 <styled::Text color=TextColor::Muted>
                                     "Check the build, then publish the release."

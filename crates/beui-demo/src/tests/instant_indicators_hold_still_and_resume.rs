@@ -7,8 +7,8 @@ fn instant_indicators_hold_still_and_resume() {
     let document = build(move || {
         view! {
             <Root>
-                <Frame fill=ColorRole::Background padding=16.0>
-                    <List spacing=12.0>
+                <Frame fill=ColorRole::Background padding=Space::Xl>
+                    <List spacing=Space::Lg>
                         <Progress label="Loading" />
                         <TextInput @test_id="instant.input" value="A visible caret" />
                     </List>

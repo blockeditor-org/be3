@@ -16,8 +16,8 @@ impl SurveyApp {
             let state = create_signal("Hello, world!".to_owned());
             view! {
                 <Root title="beui survey">
-                    <Frame padding=16.0>
-                        <List spacing=8.0>
+                    <Frame padding=Space::Xl>
+                        <List spacing=Space::Md>
                             <Text>{state}</Text>
                             <TextInput value={state} label="Text" />
                         </List>

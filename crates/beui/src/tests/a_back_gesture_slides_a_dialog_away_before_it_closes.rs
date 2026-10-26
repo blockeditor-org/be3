@@ -16,7 +16,7 @@ fn a_back_gesture_slides_a_dialog_away_before_it_closes() {
             <List spacing=0.0>
                 <Dialog
                     open={open}
-                    width=300.0
+                    width={Size::Custom(300.0)}
                     on_dismiss={move || {
                         dismissed.update(|dismissed| *dismissed += 1);
                         open.set(false);

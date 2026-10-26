@@ -17,7 +17,7 @@ use canvas::Artwork;
 use panels::{PropertiesPanel, ToolsPanel};
 use state::RayState;
 
-const TOOLS_WIDTH: f32 = 148.0;
+const TOOLS_WIDTH: Size = Size::Custom(148.0);
 
 pub struct PixelRayTracerApp;
 

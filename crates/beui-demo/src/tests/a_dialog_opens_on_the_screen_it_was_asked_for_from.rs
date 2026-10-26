@@ -10,7 +10,7 @@ fn a_dialog_opens_on_the_screen_it_was_asked_for_from() {
         let open = create_signal(false);
         view! {
             <Root>
-                <List direction=beui::Direction::Horizontal justify=Justify::End spacing=0.0>
+                <List direction=beui::Direction::Horizontal justify=Justify::End spacing=Space::None>
                     <Button
                         label="About"
                         variant=ButtonVariant::Secondary
@@ -20,7 +20,7 @@ fn a_dialog_opens_on_the_screen_it_was_asked_for_from() {
                     <Dialog
                         open={open}
                         title="About"
-                        width=320.0
+                        width=Size::Popover
                         on_dismiss={move || open.set(false)}
                     >
                         <Text style=TextStyle::PARAGRAPH @test_id={"test.body"}>

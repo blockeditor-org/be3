@@ -30,7 +30,7 @@ fn a_centred_dialog_opens_on_the_screen_it_was_opened_from() {
                         on_click={move || open.set(true)}
                     />
                 </List>
-                <Dialog open={open} title="About" width=300.0 on_dismiss={|| {}}>
+                <Dialog open={open} title="About" width={Size::Custom(300.0)} on_dismiss={|| {}}>
                     <Text color=Color32::WHITE @node_ref={&body}>"Body"</Text>
                 </Dialog>
             </List>

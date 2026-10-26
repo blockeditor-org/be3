@@ -25,7 +25,7 @@ fn a_catcher_under_an_open_dialog_hears_no_press() {
                         </Interactive>
                     </CanvasItem>
                 </Canvas>
-                <Dialog open={open} title="Event" width=300.0 on_dismiss={|| {}}>
+                <Dialog open={open} title="Event" width={Size::Custom(300.0)} on_dismiss={|| {}}>
                     <Text color=Color32::WHITE>"Body"</Text>
                 </Dialog>
             </List>

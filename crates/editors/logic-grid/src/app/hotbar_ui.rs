@@ -15,7 +15,7 @@ const COLUMN_WIDTH: f32 = 84.0;
 const COLUMN_GAP: Space = Space::Md;
 const COLUMN_PADDING: Space = Space::Sm;
 const SPACING: Space = Space::Md;
-pub(super) const HOTBAR_WIDTH: f32 = COLUMN_WIDTH * 2.0 + COLUMN_GAP.px() + 28.0;
+pub(super) const HOTBAR_WIDTH: Size = Size::Custom(COLUMN_WIDTH * 2.0 + COLUMN_GAP.px() + 28.0);
 
 #[derive(Clone, Debug, PartialEq)]
 struct ColumnView {

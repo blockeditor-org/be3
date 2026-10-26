@@ -29,7 +29,7 @@ use state::Tools;
 
 const EMBEDDED_LONG_SIDE: f32 = 256.0;
 const EMBEDDED_SHORT_SIDE: f32 = 24.0;
-const TOOLS_WIDTH: f32 = 180.0;
+const TOOLS_WIDTH: Size = Size::Custom(180.0);
 
 pub struct PixelArtApp;
 

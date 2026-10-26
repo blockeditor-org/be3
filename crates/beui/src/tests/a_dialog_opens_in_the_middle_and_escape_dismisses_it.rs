@@ -16,7 +16,7 @@ fn a_dialog_opens_in_the_middle_and_escape_dismisses_it() {
                 <Dialog
                     open={open}
                     title="Event"
-                    width=300.0
+                    width={Size::Custom(300.0)}
                     on_dismiss={move || dismissed.update(|dismissed| *dismissed += 1)}
                 >
                     <Text color=Color32::WHITE @node_ref={&surface}>"Body"</Text>

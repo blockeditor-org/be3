@@ -16,7 +16,6 @@ pub enum Space {
     Xl2,
     Xl3,
     Custom(f32),
-    Px(f32),
 }
 
 impl Space {
@@ -55,7 +54,7 @@ impl Space {
             Space::Xl2 => 20.0,
             Space::Xl3 if comfortable => 32.0,
             Space::Xl3 => 24.0,
-            Space::Custom(px) | Space::Px(px) => px,
+            Space::Custom(px) => px,
         }
     }
 
@@ -71,7 +70,6 @@ impl Space {
             Space::Xl2 => "2xl",
             Space::Xl3 => "3xl",
             Space::Custom(_) => "custom",
-            Space::Px(_) => "px",
         }
     }
 }
@@ -149,15 +147,6 @@ impl Padding {
             Space::Custom(sides.bottom),
         )
     }
-
-    const fn from_sides(sides: Sides) -> Self {
-        Self::new(
-            Space::Px(sides.left),
-            Space::Px(sides.top),
-            Space::Px(sides.right),
-            Space::Px(sides.bottom),
-        )
-    }
 }
 
 impl Default for Padding {
@@ -184,7 +173,6 @@ pub enum Size {
     Popover,
     Dialog,
     Custom(f32),
-    Px(f32),
 }
 
 impl Size {
@@ -229,7 +217,7 @@ impl Size {
             Size::Menu => 200.0,
             Size::Popover => 320.0,
             Size::Dialog => 360.0,
-            Size::Custom(px) | Size::Px(px) => px,
+            Size::Custom(px) => px,
         }
     }
 
@@ -251,7 +239,6 @@ impl Size {
             Size::Popover => "popover",
             Size::Dialog => "dialog",
             Size::Custom(_) => "custom",
-            Size::Px(_) => "px",
         }
     }
 }
@@ -286,7 +273,6 @@ pub enum Stroke {
     Hairline,
     Focus,
     Custom(f32),
-    Px(f32),
 }
 
 impl Stroke {
@@ -295,14 +281,8 @@ impl Stroke {
             Stroke::None => 0.0,
             Stroke::Hairline => 1.0,
             Stroke::Focus => 2.0,
-            Stroke::Custom(px) | Stroke::Px(px) => px,
+            Stroke::Custom(px) => px,
         }
-    }
-}
-
-impl From<f32> for Stroke {
-    fn from(px: f32) -> Self {
-        Stroke::Px(px)
     }
 }
 
@@ -419,14 +399,3 @@ macro_rules! into_prop_via {
 into_prop_via!(Padding, Space, Padding::all);
 into_prop_via!(Length, Size, Length::Size);
 into_prop_via!(Length, Extent, Length::Extent);
-
-into_prop_via!(Space, f32, Space::Px);
-into_prop_via!(Padding, f32, |px| Padding::all(Space::Px(px)));
-into_prop_via!(Padding, Sides, Padding::from_sides);
-into_prop_via!(Size, f32, Size::Px);
-into_prop_via!(Length, f32, |px| Length::Size(Size::Px(px)));
-into_prop_via!(Length, Option<f32>, |px: Option<f32>| match px {
-    Some(px) => Length::Size(Size::Px(px)),
-    None => Length::INTRINSIC,
-});
-into_prop_via!(Stroke, f32, Stroke::Px);
