@@ -35,13 +35,14 @@ be_ops_bindgen::generate!({
         "power-availability", "media-level", "audio-output", "media-levels", "wifi-security",
         "wifi-network", "wifi-link", "wifi-status", "incoming-notification", "notification-inbox",
         "notification-report", "host-program", "tray-toggle", "tray-menu-item", "host-tray-item",
+        "dialog-status", "dialog-frame",
     ],
     inline: [
         "rename-command", "artifact-command", "unlink-command",
         "delete-command", "move-command", "place-command", "app-menu-command", "adopt-command",
         "finish-command", "branch-command", "create-branch-command", "resolve-command",
         "undo-operation-command", "performance-duration", "performance-count", "view-zoom",
-        "rename-dialog", "creation-options",
+        "rename-dialog",
         "block-child", "creation-child", "artifact-settings-child",
         "window-fullscreen", "wifi-connect", "notification-closed", "notification-action-invoked",
         "program-list", "program-launch", "program-exec", "tray-scroll", "tray-menu-chosen",
@@ -66,21 +67,21 @@ pub use host_services::{
 pub use shared::access::AccessLevel;
 pub use shell_types::{
     ArtifactDescription, AudioCommand, AudioSource, AudioStatus, BarAction, Catalog, ChildPreview,
-    CreationProgress, DroppedFile, EditorDescriptor, FitArea, MenuCheck, MenuCommand, MenuHeading,
-    MenuItem, MenuItemKind, MenuPin, PreviewImage, SettingsProgress, ShellCommand, Stopped,
-    TemplateDescriptor, ViewChange, WebViewEvent,
+    CreationProgress, DialogAnswer, DialogStatus, DroppedFile, EditorDescriptor, FitArea,
+    MenuCheck, MenuCommand, MenuHeading, MenuItem, MenuItemKind, MenuPin, PreviewImage,
+    ShellCommand, Stopped, TemplateDescriptor, ViewChange, WebViewEvent,
 };
 pub use shell_types::{
     BlockTypeDescriptor, ChildOperations, ChildStatus, EditorCapabilities, Edits, InteractionMode,
     PanMode, Press, ResizeMode, TemplateCategory,
 };
 pub use types::{
-    ChildContent, ChildLayer, ChildMode, ChildPlacement, ChildPlacements, EditorRegion, Failure,
-    FontFace, FontRole, Fonts, FrameChrome, FrameCommit, FrameReport, FrameSpec, Hello,
-    HelloAccepted, HostPanel, InputBatch, Occluder, OpenArtifact, OpenBlock, OpenCreation, Opening,
-    PluginIdentity, PresentedFrame, PressClaim, RegionSize, ScreenDamage, ScreenLayout,
-    ScreenPlacement, ScreenRequest, ScreenWindow, Size, SurfaceFormat, SurfaceRect, SurfaceSpec,
-    SurfaceSupport, TimedInput, TopBar, ViewportMetrics,
+    ChildContent, ChildLayer, ChildMode, ChildPlacement, ChildPlacements, DialogFrame,
+    EditorRegion, Failure, FontFace, FontRole, Fonts, FrameChrome, FrameCommit, FrameReport,
+    FrameSpec, Hello, HelloAccepted, HostPanel, InputBatch, Occluder, OpenArtifact, OpenBlock,
+    OpenCreation, Opening, PluginIdentity, PresentedFrame, PressClaim, RegionSize, ScreenDamage,
+    ScreenLayout, ScreenPlacement, ScreenRequest, ScreenWindow, Size, SurfaceFormat, SurfaceRect,
+    SurfaceSpec, SurfaceSupport, TimedInput, TopBar, ViewportMetrics,
 };
 pub use types::{
     RegionRef, WindowEdge, WindowOpen, WindowOver, WindowPlacement, WindowRequest, WindowResize,

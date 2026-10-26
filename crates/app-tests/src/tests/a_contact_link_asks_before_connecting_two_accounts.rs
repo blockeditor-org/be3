@@ -37,10 +37,11 @@ fn a_contact_link_asks_before_connecting_two_accounts() {
     app.type_text(&link);
     app.click("#app.contacts.open");
     app.wait("#app.contacts.offer");
-    app.crop("Dialog \"Contacts\"");
+    app.crop("AlertDialog \"Connect?\"");
     app.snapshot("a_contact_link_asks_before_connecting_two_accounts");
-    app.click("#app.contacts.accept");
+    app.click("#app.contacts.offered.accept");
     app.wait("Label value=\"Dev\"");
+    app.crop("Dialog \"Contacts\"");
     app.snapshot("a_contact_link_asks_before_connecting_two_accounts_and_lists_the_contact");
     app.close();
 }

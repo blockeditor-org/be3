@@ -1,5 +1,5 @@
 use super::*;
-use crate::unstyled::{DockApi, TabId};
+use crate::dock::unstyled::{DockApi, TabId};
 
 #[test]
 fn a_dock_tab_in_a_window_opens_its_menu_over_the_window() {

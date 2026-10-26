@@ -7,7 +7,7 @@ fn responsive_design_mode_lays_the_app_out_at_the_chosen_device_size() {
     let root = harness.document().root().expect("the column was built");
 
     harness.toggle_inspector();
-    harness.click(harness.simulation_tab_center());
+    harness.show_inspector_tab(crate::inspector::InspectorTab::Simulation);
     harness.frame(vec![]);
     harness.click(harness.inspector_center("inspector.simulation.responsive"));
     harness.frame(vec![]);

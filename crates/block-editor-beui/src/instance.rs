@@ -12,6 +12,7 @@ use block_editor_plugin::{Artifact, EditorHost, EditorInstanceId, EditorRegion, 
 use uuid::Uuid;
 
 use crate::beui_frame::{self, BeuiFrame, FrameBar, FrameChrome};
+use crate::dialog::{DialogControl, PluginDialog, SettingsDialog};
 use crate::editor::BeuiScale;
 use crate::module::{Module, Shown};
 use crate::{Artifacts, BeuiApp, Creation, Editor, OwnedEditor};
@@ -34,6 +35,9 @@ pub(crate) struct BeuiInstance<A: BeuiApp> {
 struct Parts<A: BeuiApp> {
     host: EditorHost,
     dialog: Rc<Cell<Option<beui::NodeId>>>,
+    dialog_control: Rc<Cell<Option<DialogControl>>>,
+    settings: Rc<Cell<Option<beui::NodeId>>>,
+    settings_control: Rc<Cell<Option<DialogControl>>>,
     scale: Rc<Cell<BeuiScale>>,
     views: RefCell<Views<A>>,
     generation: beui::reactive::OwnedSignal<u64>,
@@ -79,11 +83,20 @@ impl<A: BeuiApp> Parts<A> {
                 return empty();
             };
             let dialog = Rc::clone(&self.dialog);
+            let control = Rc::clone(&self.dialog_control);
+            let host = self.host.clone();
             return RenderFn::new(move |_: WindowHandle| {
                 let creation = creation.clone();
+                let host = host.clone();
+                let control = Rc::clone(&control);
                 let node = beui::reactive::view! {
-                    <beui::styled::Root clear_color=beui::styled::ColorRole::None>
-                        <A::Creation creation={creation} />
+                    <beui::styled::Root clear_color=beui::styled::ColorRole::SurfaceRaised>
+                        <PluginDialog host control>|| {
+                            let creation = creation.clone();
+                            beui::reactive::view! {
+                                <A::Creation creation />
+                            }
+                        }</PluginDialog>
                     </beui::styled::Root>
                 }
                 .child();
@@ -159,14 +172,32 @@ impl<A: BeuiApp> Parts<A> {
         let Some(artifacts) = self.views.borrow().artifacts.clone() else {
             return empty();
         };
+        let settings = Rc::clone(&self.settings);
+        let control = Rc::clone(&self.settings_control);
+        let host = self.host.clone();
         RenderFn::new(move |_: WindowHandle| {
             let artifacts = artifacts.clone();
-            beui::reactive::view! {
-                <beui::styled::Root clear_color=beui::styled::ColorRole::None>
-                    <A::ArtifactSettings artifacts={artifacts} />
+            let host = host.clone();
+            let control = Rc::clone(&control);
+            let node = beui::reactive::view! {
+                <beui::styled::Root clear_color=beui::styled::ColorRole::SurfaceRaised>
+                    <PluginDialog host control>|| {
+                        let outer = artifacts.clone();
+                        let inner = artifacts.clone();
+                        beui::reactive::view! {
+                            <SettingsDialog artifacts={outer}>|| {
+                                let inner = inner.clone();
+                                beui::reactive::view! {
+                                    <A::ArtifactSettings artifacts={inner} />
+                                }
+                            }</SettingsDialog>
+                        }
+                    }</PluginDialog>
                 </beui::styled::Root>
             }
-            .child()
+            .child();
+            settings.set(Some(node));
+            node
         })
     }
 
@@ -199,6 +230,31 @@ impl<A: BeuiApp> Parts<A> {
         };
         (report, views.chrome.exit().take())
     }
+}
+
+fn steer(document: &mut Document, control: Option<DialogControl>, host: &EditorHost, view: &View) {
+    let Some(control) = control else {
+        return;
+    };
+    let dismissed = host.take_dismiss_request();
+    beui::reactive::with_reactive_scope(document, || {
+        control.frame(view.spec.dialog);
+        if dismissed {
+            control.dismiss();
+        }
+    });
+}
+
+fn measured(
+    document: &mut Document,
+    context: &beui::Context,
+    node: Option<beui::NodeId>,
+    width: f32,
+) -> Option<beui::Rect> {
+    document
+        .measure_node(context, node?, beui::vec2(width, f32::INFINITY))
+        .filter(|measured| measured.y.is_finite())
+        .map(|measured| beui::Rect::from_min_size(beui::Pos2::ZERO, beui::vec2(width, measured.y)))
 }
 
 fn empty() -> RenderFn<WindowHandle> {
@@ -243,6 +299,7 @@ impl<A: BeuiApp> Shown for Parts<A> {
         let views = self.views.borrow();
         match view.id.region {
             EditorRegion::Frame if views.creating => {
+                steer(document, self.dialog_control.get(), &self.host, view);
                 if let Some(creation) = &views.creation {
                     creation.begin_frame();
                 }
@@ -275,11 +332,14 @@ impl<A: BeuiApp> Shown for Parts<A> {
             }
             EditorRegion::Display(_) | EditorRegion::Window(_) => {}
             EditorRegion::ArtifactSettings => {
-                if let (Some(artifacts), Some(draft)) =
+                if let (Some(artifacts), Some(settings)) =
                     (views.artifacts.as_ref(), self.host.settings_draft())
                 {
-                    artifacts.receive_settings(&draft);
+                    beui::reactive::with_reactive_scope(document, || {
+                        artifacts.receive_settings(&settings.saved, &settings.draft);
+                    });
                 }
+                steer(document, self.settings_control.get(), &self.host, view);
             }
         }
     }
@@ -294,21 +354,11 @@ impl<A: BeuiApp> Shown for Parts<A> {
         let creating = self.views.borrow().creating;
         match view.id.region {
             EditorRegion::Frame if creating => {
-                let Some(dialog) = self.dialog.get() else {
-                    return Report::default();
-                };
-                let width = view.size.x;
-                let measured =
-                    document.measure_node(context, dialog, beui::vec2(width, f32::INFINITY));
+                if self.dialog_control.get().is_some() {
+                    context.want_keyboard();
+                }
                 Report {
-                    content: measured
-                        .filter(|measured| measured.y.is_finite())
-                        .map(|measured| {
-                            beui::Rect::from_min_size(
-                                beui::Pos2::ZERO,
-                                beui::vec2(width, measured.y),
-                            )
-                        }),
+                    content: measured(document, context, self.dialog.get(), view.size.x),
                     ..Report::default()
                 }
             }
@@ -338,7 +388,11 @@ impl<A: BeuiApp> Shown for Parts<A> {
                         .unwrap_or_else(|| artifacts.settings().get_untracked());
                     self.host.set_settings_draft(draft);
                 }
-                Report::default()
+                context.want_keyboard();
+                Report {
+                    content: measured(document, context, self.settings.get(), view.size.x),
+                    ..Report::default()
+                }
             }
         }
     }
@@ -374,6 +428,9 @@ impl<A: BeuiApp> BeuiInstance<A> {
             parts: Rc::new(Parts {
                 host: host.clone(),
                 dialog: Rc::default(),
+                dialog_control: Rc::default(),
+                settings: Rc::default(),
+                settings_control: Rc::default(),
                 scale: Rc::default(),
                 views: RefCell::new(Views::empty()),
                 generation: beui::reactive::OwnedSignal::new(0),

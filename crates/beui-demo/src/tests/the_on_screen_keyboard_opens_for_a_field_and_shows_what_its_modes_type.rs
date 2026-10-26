@@ -1,5 +1,5 @@
-use beui::styled::software_keyboard::{BAR_HEIGHT, PADDING, key_center};
-use beui::unstyled::software_keyboard::{Layer, Modifier, Value};
+use beui::keyboard::styled::{BAR_HEIGHT, PADDING, key_center};
+use beui::keyboard::unstyled::{Layer, Modifier, Value};
 use beui::vec2;
 
 use super::*;
@@ -10,7 +10,7 @@ fn field() -> DocumentTest {
     let document = build(move || {
         view! {
             <Root>
-                <Frame fill=ColorRole::Background padding=Sides::all(16.0)>
+                <Frame fill=ColorRole::Background padding=Space::Xl>
                     <TextInput
                         @test_id={"test.field"}
                         value=String::new()
@@ -108,8 +108,8 @@ fn the_on_screen_keyboard_opens_for_a_field_and_shows_what_its_modes_type() {
     test.snapshot("software_keyboard_emoji");
 
     let close = pos2(
-        keyboard.right() - PADDING - BAR_HEIGHT / 2.0,
-        keyboard.top() + PADDING + BAR_HEIGHT / 2.0,
+        keyboard.right() - PADDING.px() - BAR_HEIGHT / 2.0,
+        keyboard.top() + PADDING.px() + BAR_HEIGHT / 2.0,
     );
     test.click(close);
     test.frame(Vec::new());

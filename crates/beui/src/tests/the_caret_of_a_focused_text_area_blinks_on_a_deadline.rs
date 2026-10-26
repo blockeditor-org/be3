@@ -12,7 +12,14 @@ fn the_caret_of_a_focused_text_area_blinks_on_a_deadline() {
         let state = TextAreaState::new(document);
         view! {
             <List spacing=0.0>
-                <TextArea state={state} single_line=true />
+                <TextArea
+                    colors={area_colors()}
+                    look={area_look()}
+                    font_size=AREA_FONT_SIZE
+                    padding=AREA_PADDING
+                    state={state}
+                    single_line=true
+                />
                 <Interactive focusable=true>
                     <Frame width=20.0 height=20.0 />
                 </Interactive>

@@ -13,7 +13,7 @@ fn the_components_tab_lists_components_instead_of_base_nodes() {
     harness.toggle_inspector();
     assert_eq!(harness.tree(), ["list", "  frame", "    text"]);
 
-    harness.click(harness.components_tab_center());
+    harness.show_inspector_tab(crate::inspector::InspectorTab::Components);
     harness.frame(Vec::new());
 
     assert_eq!(

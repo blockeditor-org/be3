@@ -124,7 +124,7 @@ impl App for Windowed {
                 });
                 view! {
                     <styled::Root>
-                        <styled::List spacing=0.0>
+                        <styled::List spacing=styled::Space::None>
                             <ForEach keys>|id: RegionId|
                                 <Shown
                                     id

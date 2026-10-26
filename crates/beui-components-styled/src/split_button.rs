@@ -1,29 +1,30 @@
 use crate::frame::{Border, ColorRole, Frame, Radius, focus_border};
+use beui_core::font::Overflow;
 use beui_core::icons::Glyph;
 use beui_macros::{component, view};
 
 use crate::button::ButtonVariant;
 use crate::context_menu::menu_style;
 use crate::text::{Icon, Text};
-use crate::theme::{ThemeStore, use_theme};
 use crate::tooltip::Tooltip;
 use beui_components_unstyled as unstyled;
-use beui_components_unstyled::{ButtonHandle, MenuButtonHandle, MenuItem};
+use beui_components_unstyled::{ButtonHandle, MenuItem, PopupTriggerHandle};
 use beui_core::base::TextAlign;
-use beui_core::color::Color32;
 use beui_core::icons::ICON_CHEVRON_DOWN;
 use beui_core::node::NodeId;
-use beui_view::primitives::*;
+use beui_view::primitives::Fade;
+
+use crate::list::List;
+use crate::tokens::{CornerSet, Padding, Size, Space, Stroke};
 use beui_view::reactive::*;
 
-const INSET: f32 = 2.0;
-const GLYPH_SPACING: f32 = 6.0;
-const LABEL_PADDING_HORIZONTAL: f32 = 14.0;
-const ARROW_PADDING_HORIZONTAL: f32 = 4.0;
-const PADDING_VERTICAL: f32 = 7.0;
-const DIVIDER_WIDTH: f32 = 1.0;
-const DIVIDER_INSET: f32 = 6.0;
-const FOCUS_RING_OFFSET: f32 = 2.0;
+const INSET: Space = Space::Xs2;
+const GLYPH_SPACING: Space = Space::Sm;
+const LABEL_PADDING_HORIZONTAL: Space = Space::Lg;
+const ARROW_PADDING_HORIZONTAL: Space = Space::Xs;
+const PADDING_VERTICAL: Space = Space::Sm;
+const DIVIDER_INSET: Space = Space::Sm;
+const DIVIDER_ON_ACCENT_OPACITY: f32 = 0.43;
 
 #[component]
 pub fn SplitButton(
@@ -37,11 +38,10 @@ pub fn SplitButton(
     on_select: Callback<Vec<usize>>,
 ) -> NodeId {
     let disabled = create_memo(move || disabled.get());
-    let theme = use_theme();
-    let fill = create_memo(move || variant.fill(&theme, disabled.get(), false, false));
+    let fill = create_memo(move || variant.fill(disabled.get(), false, false));
     view! {
         <Frame
-            fill={ColorRole::custom(fill)}
+            fill={fill}
             border={(variant == ButtonVariant::Secondary).then_some(Border::DEFAULT)}
             radius=Radius::Md
             padding=INSET
@@ -56,7 +56,7 @@ pub fn SplitButton(
                 main={move |handle: ButtonHandle| view! {
                     <MainFace handle variant />
                 }}
-                arrow={move |handle: MenuButtonHandle| view! {
+                arrow={move |handle: PopupTriggerHandle| view! {
                     <ArrowFace handle variant />
                 }}
                 on_click={on_click}
@@ -77,10 +77,7 @@ fn MainFace(handle: ButtonHandle, variant: ButtonVariant) -> NodeId {
         glyph,
         ..
     } = handle;
-    let theme = use_theme();
-    let fill = create_memo(move || {
-        half_fill(&theme, variant, disabled.get(), hovered.get(), active.get())
-    });
+    let fill = create_memo(move || half_fill(variant, disabled.get(), hovered.get(), active.get()));
     let ink = create_memo(move || variant.label(disabled.get()));
     let has_glyph = create_memo(move || glyph.get().is_some());
     view! {
@@ -91,15 +88,15 @@ fn MainFace(handle: ButtonHandle, variant: ButtonVariant) -> NodeId {
                         <Icon glyph={glyph} />
                     </Text>
                 </Show>
-                <Text color={ink} align=TextAlign::Center>{label}</Text>
+                <Text overflow=Overflow::Ellipsis color={ink} align=TextAlign::Center>{label}</Text>
             </List>
         </HalfFace>
     }
 }
 
 #[component]
-fn ArrowFace(handle: MenuButtonHandle, variant: ButtonVariant) -> NodeId {
-    let MenuButtonHandle {
+fn ArrowFace(handle: PopupTriggerHandle, variant: ButtonVariant) -> NodeId {
+    let PopupTriggerHandle {
         open,
         button:
             ButtonHandle {
@@ -107,14 +104,12 @@ fn ArrowFace(handle: MenuButtonHandle, variant: ButtonVariant) -> NodeId {
                 active,
                 focused,
                 disabled,
-                label,
+                tooltip,
                 ..
             },
     } = handle;
-    let theme = use_theme();
     let fill = create_memo(move || {
         half_fill(
-            &theme,
             variant,
             disabled.get(),
             hovered.get(),
@@ -122,15 +117,19 @@ fn ArrowFace(handle: MenuButtonHandle, variant: ButtonVariant) -> NodeId {
         )
     });
     let ink = create_memo(move || variant.label(disabled.get()));
-    let divider = create_memo(move || divider_color(&theme, variant, disabled.get()));
+    let divider = create_memo(move || divider(variant, disabled.get()));
+    let divider_fill = create_memo(move || divider.get().0);
+    let divider_opacity = create_memo(move || divider.get().1);
     view! {
-        <List direction=Direction::Horizontal spacing=0.0>
-            <Frame padding={Sides::vertical(DIVIDER_INSET)}>
-                <Frame width=DIVIDER_WIDTH fill={ColorRole::custom(divider)} />
+        <List direction=Direction::Horizontal spacing=Space::None>
+            <Frame padding={Padding::vertical(DIVIDER_INSET)}>
+                <Fade opacity={divider_opacity}>
+                    <Frame width={Size::Custom(Stroke::Hairline.px())} fill={divider_fill} />
+                </Fade>
             </Frame>
-            <Tooltip label disabled={open}>
+            <Tooltip label={tooltip}>
                 <HalfFace fill focused side=Side::Trailing padding=ARROW_PADDING_HORIZONTAL>
-                    <List direction=Direction::Horizontal align=Align::Center spacing=0.0>
+                    <List direction=Direction::Horizontal align=Align::Center spacing=Space::None>
                         <Text color={ink} align=TextAlign::Center>
                             <Icon glyph=ICON_CHEVRON_DOWN />
                         </Text>
@@ -148,33 +147,33 @@ enum Side {
 }
 
 impl Side {
-    fn corners(self, radius: f32) -> (f32, f32) {
+    fn corners(self) -> CornerSet {
         match self {
-            Side::Leading => (radius, 0.0),
-            Side::Trailing => (0.0, radius),
+            Side::Leading => CornerSet::LEFT,
+            Side::Trailing => CornerSet::RIGHT,
         }
     }
 }
 
 #[component]
 fn HalfFace(
-    fill: Memo<Color32>,
+    fill: Memo<ColorRole>,
     focused: ReadSignal<bool>,
     side: Side,
-    padding: f32,
+    padding: Space,
     children: beui_view::reactive::Child,
 ) -> NodeId {
-    let (ring_left, ring_right) = side.corners(Radius::Md.px());
-    let (fill_left, fill_right) = side.corners(Radius::Md.px() - INSET);
     view! {
         <Frame
-            border={focus_border(focused, Border::FOCUS.offset(FOCUS_RING_OFFSET))}
-            radius={Radius::Custom(Corners::new(ring_left, ring_right, ring_right, ring_left))}
+            border={focus_border(focused, Border::FOCUS.offset(Stroke::Focus))}
+            radius=Radius::Md
+            corners={side.corners()}
         >
             <Frame
-                fill={ColorRole::custom(fill)}
-                radius={Radius::Custom(Corners::new(fill_left, fill_right, fill_right, fill_left))}
-                padding={Sides::symmetric(padding, PADDING_VERTICAL)}
+                fill={fill}
+                radius=Radius::Sm
+                corners={side.corners()}
+                padding={Padding::symmetric(padding, PADDING_VERTICAL)}
             >
                 {children}
             </Frame>
@@ -182,25 +181,16 @@ fn HalfFace(
     }
 }
 
-fn half_fill(
-    theme: &ThemeStore,
-    variant: ButtonVariant,
-    disabled: bool,
-    hovered: bool,
-    active: bool,
-) -> Color32 {
+fn half_fill(variant: ButtonVariant, disabled: bool, hovered: bool, active: bool) -> ColorRole {
     if disabled || !(hovered || active) {
-        return Color32::TRANSPARENT;
+        return ColorRole::None;
     }
-    variant.fill(theme, false, hovered, active)
+    variant.fill(false, hovered, active)
 }
 
-fn divider_color(theme: &ThemeStore, variant: ButtonVariant, disabled: bool) -> Color32 {
+fn divider(variant: ButtonVariant, disabled: bool) -> (ColorRole, f32) {
     match (variant, disabled) {
-        (ButtonVariant::Primary, false) => {
-            let [red, green, blue, _] = theme.on_accent.get().to_array();
-            Color32::from_rgba_unmultiplied(red, green, blue, 110)
-        }
-        _ => theme.border.get(),
+        (ButtonVariant::Primary, false) => (ColorRole::OnAccent, DIVIDER_ON_ACCENT_OPACITY),
+        _ => (ColorRole::Border, 1.0),
     }
 }

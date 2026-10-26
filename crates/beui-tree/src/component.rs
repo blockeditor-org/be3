@@ -23,6 +23,11 @@ impl ComponentInfo {
             "beui_components_styled" => format!("styled::{}", self.name),
             "beui_components_unstyled" => format!("unstyled::{}", self.name),
             "beui_view" => format!("primitives::{}", self.name),
+            "beui_dock" | "beui_keyboard" => {
+                let layer = rest.split("::").next().unwrap_or(rest);
+                let facade = prefix.trim_start_matches("beui_");
+                format!("{facade}::{layer}::{}", self.name)
+            }
             _ if rest.is_empty() => format!("{prefix}::{}", self.name),
             _ => format!("{}::{}", self.module, self.name),
         }

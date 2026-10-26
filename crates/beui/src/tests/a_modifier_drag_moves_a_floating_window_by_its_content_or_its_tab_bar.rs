@@ -1,35 +1,35 @@
 use super::*;
+use crate::dock::unstyled::DockApi;
 use crate::reactive::*;
-use crate::unstyled::DockApi;
 
 #[test]
 fn a_modifier_drag_moves_a_floating_window_by_its_content_or_its_tab_bar() {
     let _root = crate::reactive::RootScope::new();
     let dock = NodeRef::new();
     let document = build_node(move || {
-        let layout = unstyled::DockingLayout::new();
+        let layout = dock::unstyled::DockingLayout::new();
         view! {
-            <styled::Docking @node_ref=&dock layout drag_modifier={Some(Modifiers::LOGO)}>
-                <unstyled::DockPane
+            <dock::styled::Docking @node_ref=&dock layout drag_modifier={Some(Modifiers::LOGO)}>
+                <dock::unstyled::DockPane
                     id="desktop"
                     empty={|| view! {
                         <Frame />
                     }}
                 />
-                <unstyled::DockWindow
+                <dock::unstyled::DockWindow
                     id="window"
                     rect={Rect::from_min_size(pos2(100.0, 80.0), vec2(360.0, 240.0))}
                 >
-                    <unstyled::DockPane id="program">
-                        <unstyled::DockTab id=1u64 title="Program">
+                    <dock::unstyled::DockPane id="program">
+                        <dock::unstyled::DockTab id=1u64 title="Program">
                             <Frame @test_id="content" />
-                        </unstyled::DockTab>
-                        <unstyled::DockTab id=2u64 title="Other">
+                        </dock::unstyled::DockTab>
+                        <dock::unstyled::DockTab id=2u64 title="Other">
                             <Frame @test_id="other" />
-                        </unstyled::DockTab>
-                    </unstyled::DockPane>
-                </unstyled::DockWindow>
-            </styled::Docking>
+                        </dock::unstyled::DockTab>
+                    </dock::unstyled::DockPane>
+                </dock::unstyled::DockWindow>
+            </dock::styled::Docking>
         }
     });
     let dock = dock.get();

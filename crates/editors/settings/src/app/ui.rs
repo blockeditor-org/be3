@@ -1,4 +1,4 @@
-use beui::Wrap;
+use beui::Overflow;
 use block_editor_beui::be_block::settings::{Settings, SettingsProfile};
 use block_editor_beui::be_block::{
     BlockContent, DisplaySettingsContent, InputSettingsContent, LiveEdit, SettingsContent,
@@ -22,15 +22,15 @@ use super::devices::DevicesTable;
 use super::organization::{OfflineSection, OrganizationSection};
 use super::setup::{DeviceSection, DeviceSetup, DifferencesSection, SetUpDone, SetUpHeading};
 
-const PADDING: f32 = 16.0;
-const SPACING: f32 = 10.0;
-const SECTION_SPACING: f32 = 24.0;
-const CAPTION_SPACING: f32 = 2.0;
-const ROW_SPACING: f32 = 2.0;
-const ROW_PADDING: f32 = 4.0;
-const ROW_GAP: f32 = 12.0;
-const CARD_PADDING: f32 = 6.0;
-const NOTICE_INSET: f32 = 24.0;
+const PADDING: Space = Space::Xl;
+const SPACING: Space = Space::Md;
+const SECTION_SPACING: Space = Space::Xl3;
+const CAPTION_SPACING: Space = Space::Xs2;
+const ROW_SPACING: Space = Space::Xs2;
+const ROW_PADDING: Space = Space::Xs;
+const ROW_GAP: Space = Space::Lg;
+const CARD_PADDING: Space = Space::Sm;
+const NOTICE_INSET: Space = Space::Xl3;
 
 const NOT_OURS: &str = "These settings belong to another account. This device never uses them, and they stay as they are.";
 
@@ -81,7 +81,7 @@ pub fn SettingsView(editor: Editor) -> NodeId {
             <Frame padding=PADDING>
                 <List spacing=SECTION_SPACING>
                     <Show condition={others}>
-                        <Text style=TextStyle::CAPTION wrap=Wrap::Words>{NOT_OURS}</Text>
+                        <Text style=TextStyle::CAPTION>{NOT_OURS}</Text>
                     </Show>
                     <Show condition={here}>
                         <Section
@@ -170,7 +170,7 @@ fn Workspaces(editor: Editor) -> NodeId {
     });
     let listed = create_memo(move || !workspaces.with(Vec::is_empty));
     view! {
-        <List spacing=0.0>
+        <List spacing=Space::None>
             <Show condition={listed}>
                 <Section
                     title="Workspaces"
@@ -221,7 +221,7 @@ fn DevicesAndProfiles(
     let children = editor.watch_blocks(BlockQuery::Children(block));
     view! {
         <List spacing=SECTION_SPACING>
-            <List direction=Direction::Horizontal spacing=0.0>
+            <List direction=Direction::Horizontal spacing=Space::None>
                 <Button
                     label="Settings"
                     glyph=ICON_ARROW_LEFT
@@ -340,8 +340,8 @@ pub fn SettingsProfileView(editor: Editor) -> NodeId {
     view! {
         <SettingsPage>
             <Show condition={others}>
-                <Frame padding={Sides::horizontal(NOTICE_INSET)}>
-                    <Text style=TextStyle::CAPTION wrap=Wrap::Words>{NOT_OURS}</Text>
+                <Frame padding={Padding::horizontal(NOTICE_INSET)}>
+                    <Text style=TextStyle::CAPTION>{NOT_OURS}</Text>
                 </Frame>
             </Show>
             <Show condition={setting_up}>
@@ -396,7 +396,7 @@ pub(super) fn Section(title: &'static str, caption: &'static str, children: Chil
             <List spacing=CAPTION_SPACING>
                 <Text style=TextStyle::HEADING>{title}</Text>
                 <Show condition={captioned}>
-                    <Text style=TextStyle::CAPTION wrap=Wrap::Words>{caption}</Text>
+                    <Text style=TextStyle::CAPTION>{caption}</Text>
                 </Show>
             </List>
             {children}
@@ -428,15 +428,17 @@ fn SettingRow(
     });
     view! {
         <ListRow selected disabled={off} on_click={on_click}>
-            <Frame padding={Sides::vertical(ROW_PADDING)}>
+            <Frame padding={Padding::vertical(ROW_PADDING)}>
                 <List direction=Direction::Horizontal align=Align::Center spacing=ROW_GAP>
                     <Text color={icon_color} align=TextAlign::Center>
                         <Icon glyph={glyph} />
                     </Text>
-                    <List @sizing=ItemSize::Percent(100.0) spacing=0.0>
-                        <Text color={text_color} ellipsis=true>{label}</Text>
+                    <List @sizing=ItemSize::Percent(100.0) spacing=Space::None>
+                        <Text color={text_color} overflow=Overflow::Ellipsis>{label}</Text>
                         <Show condition={has_detail}>
-                            <Text style=TextStyle::CAPTION ellipsis=true>{detail}</Text>
+                            <Text style=TextStyle::CAPTION overflow=Overflow::Ellipsis>
+                                {detail}
+                            </Text>
                         </Show>
                     </List>
                 </List>

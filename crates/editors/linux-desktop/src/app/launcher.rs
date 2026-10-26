@@ -1,14 +1,13 @@
 use beui::KeyAt;
-use block_editor_beui::linux_desktop;
-use std::rc::Rc;
-
-use block_editor_beui::beui::icons::ICON_LAYOUT_GRID;
+use block_editor_beui::beui::icons::{ICON_LAYOUT_GRID, ICON_TERMINAL};
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
 use block_editor_beui::beui::{Image, Key, NodeId};
+use block_editor_beui::linux_desktop;
 use block_editor_beui::{Editor, HostProgram, ProgramAction, ProgramsWatch};
 
 const ICON_POINTS: f32 = 32.0;
+const RUN: &str = "run";
 
 #[derive(Clone, Copy)]
 pub(crate) struct ProgramLauncher {
@@ -42,6 +41,13 @@ impl ProgramLauncher {
         self.show(!self.open.get_untracked());
     }
 
+    fn choose(&self, key: String, query: &str) {
+        match key == RUN {
+            true => self.run(query.trim().to_owned()),
+            false => self.launch(key),
+        }
+    }
+
     fn launch(&self, id: String) {
         self.show(false);
         self.editor.act(move || {
@@ -59,13 +65,13 @@ impl ProgramLauncher {
     }
 }
 
-fn item(program: &HostProgram) -> LauncherItem {
+fn item(program: &HostProgram) -> PaletteItem {
     let detail = match program.comment.is_empty() {
         true => program.generic_name.clone(),
         false => program.comment.clone(),
     };
     let id = program.id.trim_end_matches(".desktop").to_owned();
-    LauncherItem {
+    PaletteItem {
         key: program.id.clone(),
         title: program.name.clone(),
         detail,
@@ -73,11 +79,30 @@ fn item(program: &HostProgram) -> LauncherItem {
             .chain(program.keywords.iter().cloned())
             .chain(std::iter::once(id))
             .collect(),
+        glyph: Some(ICON_LAYOUT_GRID),
         image: program
             .icon
             .as_ref()
             .filter(|icon| icon.is_whole())
             .map(|icon| Image::from_rgba(icon.width, icon.height, icon.rgba.clone())),
+        ..PaletteItem::default()
+    }
+}
+
+fn run_item(query: &str) -> PaletteItem {
+    PaletteItem {
+        key: RUN.to_owned(),
+        title: format!("Run \u{201c}{}\u{201d}", query.trim()),
+        detail: "Run it as a command".to_owned(),
+        glyph: Some(ICON_TERMINAL),
+        ..PaletteItem::default()
+    }
+}
+
+fn score(item: &PaletteItem, query: &str) -> Option<u32> {
+    match item.key == RUN {
+        true => Some(0),
+        false => item.fuzzy_score(query),
     }
 }
 
@@ -92,18 +117,28 @@ pub(super) fn ProgramLauncherOverlay(launcher: ProgramLauncher) -> NodeId {
     .capture()
     .register();
     let programs = launcher.editor.watch::<ProgramsWatch>();
+    let query = create_signal(String::new());
     let items = create_memo(move || {
-        programs.with(|programs| Rc::new(programs.iter().map(item).collect::<Vec<_>>()))
+        let query = query.get();
+        programs.with(|programs| {
+            programs
+                .iter()
+                .map(item)
+                .chain((!query.trim().is_empty()).then(|| run_item(&query)))
+                .collect::<Vec<_>>()
+        })
     });
-    let open = launcher.open;
+    let open = Binding::new(launcher.open, move |open: bool| launcher.show(open));
     view! {
-        <Launcher
-            open={open}
-            items={items}
+        <CommandPalette
+            open
+            items={PaletteItems::list(items)}
+            score
+            query
             placeholder="Search programs, or type a command"
-            on_launch={move |id: String| launcher.launch(id)}
-            on_run={move |line: String| launcher.run(line)}
-            on_close={move || launcher.show(false)}
+            label="Search programs"
+            id="launcher"
+            on_choose={move |key: String| launcher.choose(key, &query.get_untracked())}
         />
     }
 }

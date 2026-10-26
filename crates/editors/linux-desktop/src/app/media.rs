@@ -1,3 +1,4 @@
+use super::osd::{LevelOsd, OsdLevel};
 use beui::KeyAt;
 use block_editor_beui::beui::icons::Glyph;
 use block_editor_beui::beui::icons::{
@@ -5,7 +6,7 @@ use block_editor_beui::beui::icons::{
     ICON_SUN_DIM, ICON_VOLUME_1, ICON_VOLUME_2, ICON_VOLUME_X,
 };
 use block_editor_beui::beui::reactive::*;
-use block_editor_beui::beui::styled::*;
+use block_editor_beui::beui::styled::Frame;
 use block_editor_beui::beui::{Key, NodeId, Rect};
 use block_editor_beui::linux_desktop;
 use block_editor_beui::{Editor, MediaLevel, MediaLevels, MediaRequest, MediaWatch, PlayerCommand};
@@ -202,12 +203,11 @@ pub(super) fn MediaKeys(editor: Editor, osd: Osd) -> NodeId {
 
 #[component]
 pub(super) fn LevelDisplay(osd: Osd, area: Memo<Rect>, display: u32) -> NodeId {
-    let area = create_memo(move || Some(area.get()));
     view! {
         <LevelOsd
             level={osd.level}
-            shown={osd.shows}
-            area={area}
+            shown={osd.shows.read_only()}
+            area
             id={format!("desktop.osd.{display}")}
         />
     }

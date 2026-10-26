@@ -53,14 +53,9 @@ pub fn tags_of(metadata: &BlockMetadata) -> Vec<Uuid> {
 pub fn TagDot(color: Prop<TagColor>, #[prop(default = TextSize::Sm)] size: TextSize) -> NodeId {
     let theme = use_theme();
     let fill = create_memo(move || tag_color(color.get(), theme.kind.get()));
-    let dot = (size.icon_px() * 0.6).round();
+    let dot = Size::Custom((size.icon_px() * 0.6).round());
     view! {
-        <Frame
-            width=dot
-            height=dot
-            radius={Radius::custom((dot / 2.0).floor())}
-            fill={ColorRole::custom(fill)}
-        />
+        <Frame width=dot height=dot radius=Radius::Full fill={ColorRole::custom(fill)} />
     }
 }
 
@@ -70,7 +65,7 @@ pub fn TagChip(tag: Prop<ShownTag>, #[prop(default = TextSize::Sm)] size: TextSi
     let color = create_memo(move || tag.with(|tag| tag.color));
     let name = create_memo(move || tag.with(|tag| tag.name.clone()));
     view! {
-        <List direction=Direction::Horizontal align=Align::Center spacing=4.0>
+        <List direction=Direction::Horizontal align=Align::Center spacing=Space::Xs>
             <TagDot color={color} size={size} />
             <Text size={size} color=TextColor::Muted>{name}</Text>
         </List>

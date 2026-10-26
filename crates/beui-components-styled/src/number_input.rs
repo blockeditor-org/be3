@@ -1,20 +1,21 @@
-use crate::frame::{Border, ColorRole, Frame, Radius};
+use crate::frame::{Border, Frame, Radius};
+use beui_core::font::Overflow;
 use beui_macros::{component, view};
 
 use crate::button::ButtonVariant;
 use crate::focus_ring::FocusRing;
 use crate::text::{Text, TextColor};
 use crate::text_input::TextInput;
-use crate::theme::use_theme;
 use beui_components_unstyled as unstyled;
 use beui_components_unstyled::{NumberDrag, NumberFaceHandle, NumberFieldHandle};
 use beui_core::base::TextAlign;
 use beui_core::node::NodeId;
 use beui_view::reactive::*;
 
-const HEIGHT: f32 = 34.0;
-const PADDING_HORIZONTAL: f32 = 10.0;
-const FOCUS_RING_OFFSET: f32 = 3.0;
+use crate::tokens::{Padding, Size, Space, Stroke};
+
+const HEIGHT: Size = Size::Field;
+const PADDING_HORIZONTAL: Space = Space::Md;
 
 #[component]
 pub fn NumberInput(
@@ -83,7 +84,6 @@ fn NumberFace(handle: NumberFaceHandle, shown: NodeRef, placeholder: Prop<String
         focused,
         disabled,
     } = handle;
-    let theme = use_theme();
     let placeholder = create_memo(move || placeholder.get());
     let string = create_memo(move || {
         let text = text.get();
@@ -97,18 +97,23 @@ fn NumberFace(handle: NumberFaceHandle, shown: NodeRef, placeholder: Prop<String
         false => ButtonVariant::Secondary.label(disabled.get()),
     });
     let fill = create_memo(move || {
-        ButtonVariant::Secondary.fill(&theme, disabled.get(), hovered.get(), active.get())
+        ButtonVariant::Secondary.fill(disabled.get(), hovered.get(), active.get())
     });
     view! {
-        <FocusRing focused offset=FOCUS_RING_OFFSET>
+        <FocusRing focused offset=Stroke::Focus>
             <Frame
                 height=HEIGHT
-                fill={ColorRole::custom(fill)}
+                fill={fill}
                 border={Border::DEFAULT}
                 radius=Radius::Md
-                padding={Sides::horizontal(PADDING_HORIZONTAL)}
+                padding={Padding::horizontal(PADDING_HORIZONTAL)}
             >
-                <Text @node_ref=&shown color={color} align=TextAlign::Center clip=true>
+                <Text
+                    @node_ref=&shown
+                    color={color}
+                    align=TextAlign::Center
+                    overflow=Overflow::Ellipsis
+                >
                     {string}
                 </Text>
             </Frame>

@@ -299,7 +299,7 @@ order, each one deeper than the submenu it is in; the host builds that list stra
 dbusmenu's layout, and the shell nests it into `TrayMenuEntry` trees with
 `HostTrayItem::entries`, the helper the shell's own menus nest with (block-plugin-api's
 `nesting.rs`), which refuses a menu nested deeper than `MAX_MENU_DEPTH`. linux-desktop's `src/app/tray.rs` shows each
-item that is not `Passive` as a `PictureMenuButton` in the bar: a click is `Activate` (or opens
+item that is not `Passive` as a `MenuButton` with a picture face in the bar: a click is `Activate` (or opens
 the menu of an `ItemIsMenu` item), a right click opens the menu, a middle click is
 `SecondaryActivate` and the wheel `Scroll`s, 120 to a notch. Opening the menu sends
 `MenuOpened`, which the host turns into `AboutToShow` and the `opened` event, or into the item's
@@ -317,8 +317,8 @@ linux-desktop binds the volume, mute, mic mute, brightness and media transport k
 (`BINDINGS` in its `app/media.rs`, the one place that says which key does what) as
 intercepting actions, so the host hands them to the shell even while a program has the keyboard,
 and a held key repeats. Each key sends a `MediaRequest` (`media::request` inside
-`editor.act`), and a volume, mute or brightness key shows `beui::styled::LevelOsd`, an icon and
-a level bar on every display (one `LevelOsd` per display's rect, `desktop.osd.{index}`) that fades out after 1.5 seconds, with the levels the host reports
+`editor.act`), and a volume, mute or brightness key shows `LevelOsd` (`app/osd.rs`), an icon and
+a `styled::Progress` bar on every display (one card in each display's region, `desktop.osd.{n}`) that fades out after 1.5 seconds, with the levels the host reports
 (`editor.watch::<MediaWatch>()`). The bar's volume item (`app/volume.rs`) shows
 the same output level while the host reports one, and its popup sets the volume, the mute and
 the default output (`MediaRequest::SetVolume`, `SetMute`, `ChooseOutput`) from the sinks the
@@ -449,8 +449,9 @@ turn off), and, under `--session`, logind's `Lock` for the app's own session (`l
 lock-session`) and before every suspend: `DesktopSession` holds a logind `delay` inhibitor for
 sleep and lets it go once the lock screen has been drawn twice (`src/session/sleep.rs`), taking it
 again on waking. `src/session/lock.rs` is the state machine, `src/session.rs`'s `ScreenLock` runs
-it, and `src/ui/lock.rs` shows it as `styled::LockScreen`, a card over an opaque scrim in
-every display's window (one in the main window elsewhere). logind's `Unlock` is not obeyed: only a password unlocks.
+it, and `src/ui/lock.rs` shows it as its `LockScreen`: a `Modal` filling its window at
+`LayerLevel::Lock` over an opaque scrim, in every display's window (one in the main window
+elsewhere). logind's `Unlock` is not obeyed: only a password unlocks.
 
 The password is checked by PAM on a thread of its own, with the service `block-app` when
 `/etc/pam.d/block-app` exists (`--install-session` writes it unless one is there, as

@@ -1,5 +1,5 @@
 use super::*;
-use crate::unstyled::{DockApi, Entry, TabId};
+use crate::dock::unstyled::{DockApi, Entry, TabId};
 
 fn choose(harness: &mut Harness, dock: NodeId, pos: Pos2, item: &str) {
     harness.frame(vec![Input::PointerMoved(pos)]);

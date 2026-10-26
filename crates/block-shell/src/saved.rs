@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use block_editor_beui::beui::unstyled::{DockingSnapshot, TabId};
+use block_editor_beui::beui::dock::styled::{DockingSnapshot, TabId};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 use workspace_ui_types::ViewState;

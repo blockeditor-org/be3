@@ -1,7 +1,6 @@
 use block_editor_beui::Fit;
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
-use block_editor_beui::beui::unstyled::Picture;
 use block_editor_beui::beui::{Image, ImageFit, NodeId, Pos2, Rect, Thumbhash, Vec2};
 use block_editor_beui::{Editor, FileChooser, Sidebar, fit_content};
 
@@ -45,7 +44,7 @@ pub fn ImageEditor(editor: Editor) -> NodeId {
     editor.content(&content);
     editor.keep_fitted(|| Some(Fit::World));
     view! {
-        <List direction=Direction::Horizontal spacing=0.0>
+        <List direction=Direction::Horizontal spacing=Space::None>
             <Frame @sizing=ItemSize::Percent(100.0) @node_ref={&content}>
                 <Layers>
                     <Loading fallback>|| {
@@ -95,7 +94,7 @@ fn ImageArea(
     let failed = create_memo(move || error.with(Option::is_some));
     let reason = create_memo(move || error.get().unwrap_or_default());
     view! {
-        <List align=Align::Stretch spacing=0.0>
+        <List align=Align::Stretch spacing=Space::None>
             <Artwork
                 @sizing=ItemSize::Percent(100.0)
                 editor={editor}

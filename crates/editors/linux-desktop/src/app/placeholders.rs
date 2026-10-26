@@ -1,17 +1,16 @@
 use block_editor_beui::beui::icons::{ICON_APP_WINDOW, ICON_EXTERNAL_LINK};
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
-use block_editor_beui::beui::unstyled::Picture;
 use block_editor_beui::beui::{Image, NodeId};
 use block_editor_beui::linux_desktop;
 use block_editor_beui::{HostProgram, HostWindowId, ProgramAction, ProgramsWatch};
 use block_shell::{KeptWindow, Workspace};
 
 const ICON_POINTS: f32 = 64.0;
-const PICTURE_SIZE: f32 = 64.0;
-const BODY_SPACING: f32 = 12.0;
-const BUTTON_SPACING: f32 = 8.0;
-const BODY_PADDING: f32 = 24.0;
+const PICTURE_SIZE: Size = Size::Xl3;
+const BODY_SPACING: Space = Space::Lg;
+const BUTTON_SPACING: Space = Space::Md;
+const BODY_PADDING: Space = Space::Xl3;
 
 #[derive(Clone, Copy)]
 pub(crate) struct Placeholders {
@@ -267,7 +266,8 @@ pub(crate) fn OpenAllButton(placeholders: Placeholders) -> NodeId {
         count => format!("Open the {count} windows from last time"),
     });
     view! {
-        <IconButton
+        <Button
+            icon_only=true
             glyph=ICON_APP_WINDOW
             label={label}
             @test_id={"desktop.placeholders.open_all"}

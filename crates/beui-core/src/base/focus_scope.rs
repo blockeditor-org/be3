@@ -73,6 +73,9 @@ impl Document {
     }
 
     pub(crate) fn note_focus_outside_scopes(&mut self, focus: NodeId) {
+        if self.root.is_none_or(|root| !self.is_within(focus, root)) {
+            return;
+        }
         let outside: Vec<bool> = self
             .focus_scopes
             .0

@@ -10,6 +10,7 @@ mod a_drag_across_an_empty_map_pans_it;
 mod a_local_account_needs_only_a_display_name;
 mod a_new_beui_demo_opens_its_gallery_in_a_tab;
 mod a_new_folder_opens_its_editor;
+mod a_new_image_asks_for_its_file_in_the_image_editors_own_dialog;
 mod a_new_text_block_opens_in_a_tab_beside_the_files;
 mod a_pen_draws_a_line_on_a_canvas_with_the_pen_tool;
 mod a_personal_organization_can_create_an_agent;

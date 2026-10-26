@@ -9,7 +9,6 @@ use beui::NodeId;
 use beui::icons::{ICON_PIN, ICON_PIN_OFF, ICON_ROTATE_CCW};
 use beui::reactive::*;
 use beui::styled::*;
-use beui::unstyled::MenuItem;
 use uuid::Uuid;
 
 use crate::Editor;
@@ -18,6 +17,7 @@ use crate::root_settings::{RootSetting, SettingsGraph, own_settings_blocks};
 const KEPT: &str = "Kept on this device";
 const IN_PROFILE: &str = "Kept in this profile";
 const ONLY_HERE: &str = "This device only";
+const DEVELOPER_OVERRIDE: &str = "Overridden by developer tools";
 const ORGANIZATION: &str = "Set by your organization";
 const KEEP_ACTION: &str = "keep";
 const UNDO_ACTION: &str = "undo";

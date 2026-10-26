@@ -4,7 +4,6 @@ use block_editor_beui::be_block::{
 use block_editor_beui::beui::icons::{ICON_PLUS, ICON_TRASH};
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
-use block_editor_beui::beui::unstyled::ChoiceOption;
 use block_editor_beui::beui::{NodeId, Vec2};
 use block_editor_beui::tags::TagDot;
 use block_editor_beui::{BlockQuery, Editor, Loaded};
@@ -12,6 +11,8 @@ use uuid::Uuid;
 
 const INTRINSIC_WIDTH: f32 = 360.0;
 const INTRINSIC_HEIGHT: f32 = 360.0;
+const NAME_WIDTH: Size = Size::Custom(110.0);
+const COLOR_WIDTH: Size = Size::Custom(100.0);
 
 pub struct TagsApp;
 
@@ -83,14 +84,15 @@ pub fn TagsView(editor: Editor) -> NodeId {
                     <TagRow editor={editor} tag={tag} />
                 </ForEach>
                 <SettingsRow label="New tag">
-                    <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
+                    <List direction=Direction::Horizontal align=Align::Center spacing=Space::Md>
                         <TextInput
                             value={Binding::new(name, move |text: String| name.set(text))}
                             placeholder="Name"
                             disabled={locked}
                             @test_id={"tags.new-name"}
                         />
-                        <IconButton
+                        <Button
+                            icon_only=true
                             glyph=ICON_PLUS
                             label="Add tag"
                             disabled={unnamed}
@@ -137,18 +139,18 @@ fn TagRow(editor: Editor, tag: Uuid) -> NodeId {
         count => format!("On {count} blocks"),
     });
     view! {
-        <List spacing=0.0>
+        <List spacing=Space::None>
             <SettingsRow label={name} description={count}>
-                <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
+                <List direction=Direction::Horizontal align=Align::Center spacing=Space::Md>
                     <TagDot color={color} size=TextSize::Base />
-                    <Frame width=110.0>
+                    <Frame width=NAME_WIDTH>
                         <TextInput
                             value={Binding::new(name, rename)}
                             disabled={locked}
                             @test_id={format!("tags.tag.{tag}.name")}
                         />
                     </Frame>
-                    <Frame width=100.0>
+                    <Frame width=COLOR_WIDTH>
                         <Select
                             label="Color"
                             options={view! {
@@ -163,7 +165,8 @@ fn TagRow(editor: Editor, tag: Uuid) -> NodeId {
                             @test_id={format!("tags.tag.{tag}.color")}
                         />
                     </Frame>
-                    <IconButton
+                    <Button
+                        icon_only=true
                         glyph=ICON_TRASH
                         label="Remove tag"
                         disabled={locked}

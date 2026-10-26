@@ -8,8 +8,8 @@ use beui::reactive::*;
 use beui::{Document, Pos2, Rect, Vec2};
 use block_plugin_api::{
     BarAction, ChildContent, ChildId, ChildLayer, ChildMode, ChildPreview, CreationProgress,
-    EditorCapabilities, HostPanel, HostWindowId, InteractionMode, MenuEntry, ResizeMode,
-    SettingsProgress, TopBar, Watched, WebViewId,
+    DialogFrame, DialogStatus, EditorCapabilities, HostPanel, HostWindowId, InteractionMode,
+    MenuEntry, ResizeMode, TopBar, Watched, WebViewId,
 };
 use block_ui::BlockCatalog;
 use uuid::Uuid;
@@ -34,6 +34,7 @@ struct ArtifactState {
     regenerate: RefCell<Option<Regenerate>>,
     poll: RefCell<Option<PollArtifact>>,
     settings: OwnedSignal<Vec<u8>>,
+    saved: OwnedSignal<Vec<u8>>,
     edit: RefCell<Option<Vec<u8>>>,
 }
 
@@ -52,6 +53,7 @@ impl Artifacts {
             regenerate: RefCell::new(None),
             poll: RefCell::new(None),
             settings: OwnedSignal::new(Vec::new()),
+            saved: OwnedSignal::new(Vec::new()),
             edit: RefCell::new(None),
         }))
     }
@@ -65,9 +67,16 @@ impl Artifacts {
         *self.0.edit.borrow_mut() = Some(data);
     }
 
-    pub fn receive_settings(&self, data: &[u8]) {
-        if self.0.settings.get_untracked() != data {
-            self.0.settings.set(data.to_vec());
+    pub fn saved_settings(&self) -> ReadSignal<Vec<u8>> {
+        self.0.saved.read_only()
+    }
+
+    pub fn receive_settings(&self, saved: &[u8], draft: &[u8]) {
+        if self.0.saved.get_untracked() != saved {
+            self.0.saved.set(saved.to_vec());
+        }
+        if self.0.settings.get_untracked() != draft {
+            self.0.settings.set(draft.to_vec());
         }
     }
 
@@ -206,8 +215,8 @@ pub struct ChildState {
     pub child: Option<ChildId>,
     pub menu: Vec<MenuEntry>,
     pub creation: Option<CreationProgress>,
-    pub settings: Option<SettingsProgress>,
     pub preview: ChildPreview,
+    pub dialog: DialogStatus,
 }
 
 impl ChildState {
@@ -234,8 +243,8 @@ impl ChildState {
             child,
             menu: block_plugin_api::MenuEntry::nest(status.menu).unwrap_or_default(),
             creation: status.creation,
-            settings: status.settings,
             preview: status.preview,
+            dialog: status.dialog,
         }
     }
 }
@@ -250,6 +259,7 @@ struct ChildRecord {
     rotation: Prop<f32>,
     opacity: Prop<f32>,
     intrinsic: Prop<Option<Vec2>>,
+    dialog: Prop<Option<DialogFrame>>,
     state: Signal<ChildState>,
     report: Callback<ChildState>,
     bar: Callback<BarAction>,
@@ -889,6 +899,7 @@ impl Editor {
         rotation: Prop<f32>,
         opacity: Prop<f32>,
         intrinsic: Prop<Option<Vec2>>,
+        dialog: Prop<Option<DialogFrame>>,
         report: Callback<ChildState>,
         bar: Callback<BarAction>,
         focus: Callback<()>,
@@ -909,6 +920,7 @@ impl Editor {
                 rotation,
                 opacity,
                 intrinsic,
+                dialog,
                 state,
                 report,
                 bar,
@@ -1298,6 +1310,9 @@ impl Editor {
         let placement = record.slot.placement()?;
         let content = record.content.get_untracked()?;
         let unscale = self.ratio().recip();
+        let shown = document
+            .window_rect(document.window_of(node))
+            .unwrap_or_else(|| document.viewport_rect());
         Some(state.host.place_child(
             content.wire(),
             rect.scaled(unscale),
@@ -1310,6 +1325,10 @@ impl Editor {
             record.opacity.get_untracked(),
             record.intrinsic.get_untracked(),
             document.panned_by_canvas(node),
+            record.dialog.get_untracked().map(|dialog| DialogFrame {
+                bottom_inset: dialog.bottom_inset.max(rect.max.y - shown.max.y) * unscale,
+                ..dialog
+            }),
         ))
     }
 }
@@ -1365,8 +1384,16 @@ impl Creation {
         self.0.host.seed_content(block, content);
     }
 
-    pub fn set_ready(&self, ready: bool) {
-        self.0.host.set_creation_ready(ready);
+    pub fn accept(&self) {
+        self.0
+            .host
+            .close_dialog(block_plugin_api::DialogAnswer::Accepted);
+    }
+
+    pub fn cancel(&self) {
+        self.0
+            .host
+            .close_dialog(block_plugin_api::DialogAnswer::Dismissed);
     }
 
     pub fn on_create(&self, make: impl Fn() -> Result<Uuid, String> + 'static) {

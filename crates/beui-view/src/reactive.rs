@@ -11,7 +11,7 @@ pub use beui_core::tree::{
 pub use beui_tree::reactive::*;
 
 use beui_core::document::Document;
-use beui_core::geometry::Rect;
+use beui_core::geometry::{Rect, Vec2};
 use beui_core::input::Key;
 use beui_core::node::NodeId;
 
@@ -132,8 +132,16 @@ pub fn pixels_per_point() -> ReadSignal<f32> {
     with_document(|document| document.watch_pixels_per_point())
 }
 
+pub fn use_viewport_size() -> ReadSignal<Vec2> {
+    with_document(|document| document.watch_viewport_size())
+}
+
 pub fn use_fullscreen() -> ReadSignal<bool> {
     with_document(|document| document.watch_fullscreen())
+}
+
+pub fn touched_by_finger() -> bool {
+    try_with_document(|document| document.touched_by_finger()).unwrap_or(false)
 }
 
 pub fn use_keyboard() -> ReadSignal<bool> {

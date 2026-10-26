@@ -6,6 +6,7 @@ use beui_core::node::NodeId;
 use beui_view::reactive::*;
 
 use crate::frame::{Border, ColorRole};
+use crate::tokens::{Size, Space};
 
 pub use beui_core::preferences::ThemeKind;
 
@@ -24,6 +25,7 @@ pub struct Theme {
     pub accent_hover: Color32,
     pub accent_active: Color32,
     pub accent_soft: Color32,
+    pub accent_soft_hover: Color32,
     pub on_accent: Color32,
     pub danger: Color32,
     pub danger_fill: Color32,
@@ -71,6 +73,7 @@ impl Theme {
         accent_hover: Color32::from_rgb(110, 159, 255),
         accent_active: Color32::from_rgb(58, 106, 212),
         accent_soft: Color32::from_rgb(33, 48, 84),
+        accent_soft_hover: Color32::from_rgb(44, 63, 108),
         on_accent: Color32::from_rgb(247, 250, 255),
         danger: Color32::from_rgb(255, 118, 117),
         danger_fill: Color32::from_rgb(214, 62, 62),
@@ -91,7 +94,7 @@ impl Theme {
         scrim: Color32::from_rgba_unmultiplied(0, 0, 0, 150),
         scrim_soft: Color32::from_rgba_unmultiplied(0, 0, 0, 90),
         scrim_strong: Color32::from_rgba_unmultiplied(0, 0, 0, 230),
-        syntax: SyntaxColors::DEFAULT,
+        syntax: DARK_SYNTAX,
     };
 
     pub const OLED: Theme = Theme {
@@ -108,6 +111,7 @@ impl Theme {
         accent_hover: Color32::from_rgb(110, 159, 255),
         accent_active: Color32::from_rgb(58, 106, 212),
         accent_soft: Color32::from_rgb(22, 34, 62),
+        accent_soft_hover: Color32::from_rgb(32, 48, 86),
         on_accent: Color32::from_rgb(247, 250, 255),
         danger: Color32::from_rgb(255, 118, 117),
         danger_fill: Color32::from_rgb(214, 62, 62),
@@ -128,7 +132,7 @@ impl Theme {
         scrim: Color32::from_rgba_unmultiplied(0, 0, 0, 150),
         scrim_soft: Color32::from_rgba_unmultiplied(0, 0, 0, 90),
         scrim_strong: Color32::from_rgba_unmultiplied(0, 0, 0, 230),
-        syntax: SyntaxColors::DEFAULT,
+        syntax: DARK_SYNTAX,
     };
 
     pub const LIGHT: Theme = Theme {
@@ -145,6 +149,7 @@ impl Theme {
         accent_hover: Color32::from_rgb(29, 84, 210),
         accent_active: Color32::from_rgb(24, 70, 180),
         accent_soft: Color32::from_rgb(214, 228, 255),
+        accent_soft_hover: Color32::from_rgb(196, 214, 252),
         on_accent: Color32::WHITE,
         danger: Color32::from_rgb(200, 40, 40),
         danger_fill: Color32::from_rgb(200, 40, 40),
@@ -182,6 +187,7 @@ impl Theme {
         accent_hover: Color32::from_gray(64),
         accent_active: Color32::from_gray(100),
         accent_soft: Color32::from_gray(212),
+        accent_soft_hover: Color32::from_gray(192),
         on_accent: Color32::WHITE,
         danger: Color32::BLACK,
         danger_fill: Color32::BLACK,
@@ -209,6 +215,29 @@ impl Theme {
 const fn rgb(hex: u32) -> Color32 {
     Color32::from_rgb((hex >> 16) as u8, (hex >> 8) as u8, hex as u8)
 }
+
+const DARK_SYNTAX: SyntaxColors = SyntaxColors {
+    invalid: rgb(0xff0000),
+    keyword: rgb(0x5ec4ff),
+    keyword_storage: rgb(0x008b94),
+    keyword_primitive_type: rgb(0x70e1e8),
+    literal: rgb(0xe27e8d),
+    literal_string: rgb(0x68a1f0),
+    comment: rgb(0xff9d1c),
+    punctuation: rgb(0x718ca1),
+    punctuation_important: rgb(0xb7c5d3),
+    variable: rgb(0x718ca1),
+    variable_constant: rgb(0x8bd49c),
+    variable_function: rgb(0x70e1e8),
+    variable_mutable: rgb(0xb7c5d3),
+    variable_parameter: rgb(0xebbf83),
+    markdown_plain_text: rgb(0xffffff),
+    markdown_symbol: rgb(0x5a6579),
+    markdown_link: rgb(0x7aa5ff),
+    markdown_code: rgb(0x8bd49c),
+    unstyled: rgb(0xb7c5d3),
+    invisible: rgb(0x43515c),
+};
 
 const LIGHT_SYNTAX: SyntaxColors = SyntaxColors {
     invalid: rgb(0xd1242f),
@@ -260,27 +289,23 @@ pub fn control_border(theme: &ThemeStore) -> Memo<Option<Border>> {
     create_memo(move || {
         outline
             .get()
-            .map(|color| Border::new(ColorRole::Custom(color)))
+            .map(|_| Border::new(ColorRole::ControlOutline))
     })
 }
 
 pub fn knob_border(theme: &ThemeStore) -> Memo<Option<Border>> {
     let outline = theme.knob_outline;
-    create_memo(move || {
-        outline
-            .get()
-            .map(|color| Border::new(ColorRole::Custom(color)))
-    })
+    create_memo(move || outline.get().map(|_| Border::new(ColorRole::KnobOutline)))
 }
 
-pub fn field_border(theme: &ThemeStore, disabled: bool, focused: bool, hovered: bool) -> Color32 {
+pub fn field_border(disabled: bool, focused: bool, hovered: bool) -> ColorRole {
     if disabled {
-        return theme.border.get();
+        return ColorRole::Border;
     }
     match (focused, hovered) {
-        (true, _) => theme.accent.get(),
-        (false, true) => theme.text_muted.get(),
-        (false, false) => theme.border.get(),
+        (true, _) => ColorRole::Accent,
+        (false, true) => ColorRole::TextMuted,
+        (false, false) => ColorRole::Border,
     }
 }
 
@@ -313,19 +338,15 @@ pub fn provide_density(density: Memo<Density>) {
 }
 
 pub fn use_density() -> Memo<Density> {
-    match use_context::<DensityContext>() {
-        Some(DensityContext(density)) => density,
-        None => create_memo(|| Density::Compact),
-    }
+    density_context().unwrap_or_else(|| create_memo(|| Density::Compact))
+}
+
+pub(crate) fn density_context() -> Option<Memo<Density>> {
+    use_context::<DensityContext>().map(|DensityContext(density)| density)
 }
 
 pub const NARROW_WIDTH: f32 = 700.0;
 
-pub const BORDER_WIDTH: f32 = 1.0;
-pub const FOCUS_RING_WIDTH: f32 = 2.0;
-pub const SEPARATOR_THICKNESS: f32 = 1.0;
 pub const POINTER_REACH: f32 = 10.0;
-pub const SCROLLBAR_TRACK_WIDTH: f32 = 6.0;
-pub const SCROLLBAR_INSET: f32 = 2.0;
-pub const SCROLLBAR_WIDTH: f32 = SCROLLBAR_TRACK_WIDTH + SCROLLBAR_INSET;
+pub const SCROLLBAR_WIDTH: f32 = Size::Track.px() + Space::Xs2.px();
 pub const SCROLL_FADE: f32 = 24.0;

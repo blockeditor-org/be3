@@ -1,3 +1,4 @@
+use beui::Overflow;
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 use workspace_ui_types::ViewState;
@@ -11,7 +12,7 @@ use block_editor_beui::block_ui::Press;
 
 use super::rows::{Row, RowKey, Tree as FileTree};
 
-const PADDING: f32 = 8.0;
+const PADDING: Space = Space::Md;
 const ZOOMED: &str = "zoomed";
 
 #[derive(Clone, PartialEq)]
@@ -197,19 +198,21 @@ pub(crate) fn ZoomBar(
     let name = create_memo(move || focus.get().map(|focus| focus.row.label).unwrap_or_default());
     view! {
         <Frame fill=ColorRole::Background padding=PADDING>
-            <List direction=Direction::Horizontal align=Align::Center spacing=4.0>
-                <IconButton
+            <List direction=Direction::Horizontal align=Align::Center spacing=Space::Xs>
+                <Button
+                    icon_only=true
                     @test_id={"file-tree.back"}
                     glyph=ICON_ARROW_UP
                     label="Up one level"
                     on_click={move || zoom.up()}
                 />
-                <List @sizing=ItemSize::Percent(100.0) spacing=0.0>
-                    <Text style=TextStyle::CAPTION ellipsis=true>{path}</Text>
-                    <Text style=TextStyle::HEADING ellipsis=true>{name}</Text>
+                <List @sizing=ItemSize::Percent(100.0) spacing=Space::None>
+                    <Text style=TextStyle::CAPTION overflow=Overflow::Ellipsis>{path}</Text>
+                    <Text style=TextStyle::HEADING overflow=Overflow::Ellipsis>{name}</Text>
                 </List>
                 <Show condition={addable}>
-                    <IconButton
+                    <Button
+                        icon_only=true
                         @node_ref={&new_button}
                         @test_id={"file-tree.new"}
                         glyph=ICON_PLUS

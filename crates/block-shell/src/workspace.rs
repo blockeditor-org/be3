@@ -10,18 +10,18 @@ use std::collections::{HashMap, HashSet};
 use std::rc::Rc;
 use workspace_ui_types::{EditorView, EditorViewContent, ViewState};
 
+use block_editor_beui::beui::dock::styled::{
+    DockDialog, DockEntry, DockNode, DockPane, DockTab, DockWindow, DockingLayout, TabId,
+};
 use block_editor_beui::beui::icons::ICON_APP_WINDOW;
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
-use block_editor_beui::beui::unstyled::{
-    DockDialog, DockEntry, DockNode, DockPane, DockTab, DockWindow, DockingLayout, TabId,
-};
 use block_editor_beui::beui::{NodeId, Rect, Vec2};
 use block_editor_beui::block_ui::{BlockCatalog, BlockLabel, BlockTypes};
 use block_editor_beui::{
-    AccessLevel, BlockFilter, ChildState, ContactsWatch, Editor, EditorHost, Failure, FocusedBlock,
-    HostPanel, HostWindow, HostWindowId, PickedBlock, Pushed, ShellDialog, WindowAction,
-    WindowsWatch,
+    AccessLevel, BlockFilter, ChildState, ContactsWatch, DialogAnswer, Editor, EditorHost, Failure,
+    FocusedBlock, HostPanel, HostWindow, HostWindowId, PickedBlock, Pushed, ShellDialog,
+    WindowAction, WindowsWatch,
 };
 use block_editor_beui::{BlockInfo, BlockList, BlockParent, BlockQuery, Blocks};
 use uuid::Uuid;
@@ -45,8 +45,8 @@ pub const SETTINGS: TabId = TabId::new(1 << 39);
 pub const REVISIONS: TabId = TabId::new((1 << 39) + 1);
 const FIRST_BLOCK_TAB: u64 = 2;
 const MAX_OPENED_VIA_HOPS: usize = 64;
-const PANEL_PADDING: f32 = 14.0;
-const PANEL_SPACING: f32 = 6.0;
+const PANEL_PADDING: Space = Space::Lg;
+const PANEL_SPACING: Space = Space::Sm;
 
 type Tabs = HashMap<TabId, TabItem>;
 
@@ -808,7 +808,19 @@ impl Workspace {
         };
         if let Some(creating) = &mut held.creating {
             creating.child = state.child;
+            creating.height = state.intrinsic_size.map(|size| size.y.max(1.0));
         }
+        let held = match state.dialog.answer {
+            Some(DialogAnswer::Dismissed) => {
+                return self.pick_action(pick, PickAction::CancelCreation);
+            }
+            Some(DialogAnswer::Accepted) => match held.act(PickAction::Create) {
+                PickOutcome::Open(held) => *held,
+                answered => return self.resolve(answered),
+            },
+            None => held,
+        };
+        let mut held = held;
         self.send_commit(&mut held);
         match &state.creation {
             Some(progress) => self.resolve(held.progressed(progress)),

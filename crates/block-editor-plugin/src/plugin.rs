@@ -86,6 +86,12 @@ pub trait Regions: std::any::Any {
     fn paint(&mut self, region: RegionId, target: &PaintTarget<'_>) -> Vec<SurfaceRect>;
 }
 
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct SettingsDraft {
+    pub saved: Vec<u8>,
+    pub draft: Vec<u8>,
+}
+
 #[derive(Clone, Debug, PartialEq)]
 pub struct Region {
     pub instance: EditorInstanceId,

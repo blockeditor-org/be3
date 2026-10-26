@@ -1,10 +1,7 @@
+use beui::Overflow;
 use beui::icons::{ICON_ARROW_UP, ICON_PLUS};
 use beui::reactive::*;
 use beui::styled::*;
-use beui::unstyled::Picture;
-use beui::unstyled::{
-    ChoiceOption, DragHandle, DragPoint, Draggable, DropHandle, DropTarget, MenuItem,
-};
 use beui::{CursorIcon, ImageFit, NodeId, TextAlign};
 
 use super::glyph::{GLYPH_HEIGHT, GLYPH_WIDTH, Glyph};
@@ -15,11 +12,10 @@ const SLOT_SIZE: f32 = 64.0;
 const SLOT_INSET: f32 = 4.0;
 const BADGE_SIZE: f32 = 15.0;
 const COLUMN_WIDTH: f32 = 84.0;
-const COLUMN_GAP: f32 = 8.0;
-const COLUMN_PADDING: f32 = 6.0;
-const SPACING: f32 = 8.0;
-const DIALOG_WIDTH: f32 = 300.0;
-pub(super) const HOTBAR_WIDTH: f32 = COLUMN_WIDTH * 2.0 + COLUMN_GAP + 28.0;
+const COLUMN_GAP: Space = Space::Md;
+const COLUMN_PADDING: Space = Space::Sm;
+const SPACING: Space = Space::Md;
+pub(super) const HOTBAR_WIDTH: Size = Size::Custom(COLUMN_WIDTH * 2.0 + COLUMN_GAP.px() + 28.0);
 
 #[derive(Clone, Debug, PartialEq)]
 struct ColumnView {
@@ -122,9 +118,10 @@ pub(super) fn Hotbar(session: Session) -> NodeId {
     view! {
         <List spacing=SPACING>
             <HotbarHeader session={session}>
-                <List direction=Direction::Horizontal align=Align::Center spacing=4.0>
+                <List direction=Direction::Horizontal align=Align::Center spacing=Space::Xs>
                     <SlotDrop session={session} target={parent} folder=true>
-                        <IconButton
+                        <Button
+                            icon_only=true
                             glyph=ICON_ARROW_UP
                             label="Up to the parent folder"
                             disabled={top}
@@ -132,7 +129,13 @@ pub(super) fn Hotbar(session: Session) -> NodeId {
                             on_click={up}
                         />
                     </SlotDrop>
-                    <Text style=TextStyle::CAPTION @sizing=ItemSize::Percent(100.0)>{title}</Text>
+                    <Text
+                        overflow=Overflow::Ellipsis
+                        style=TextStyle::CAPTION
+                        @sizing=ItemSize::Percent(100.0)
+                    >
+                        {title}
+                    </Text>
                     <MenuButton
                         label="Hotbar actions"
                         glyph=ICON_PLUS
@@ -184,7 +187,7 @@ fn SlotDrop(session: Session, target: Memo<Vec<usize>>, folder: bool, children: 
             let DropHandle { over, .. } = handle;
             view! {
                 <Frame
-                    border={create_memo(move || over.get().then_some(Border::new(ColorRole::Accent).width(2.0).offset(2.0)))}
+                    border={create_memo(move || over.get().then_some(Border::new(ColorRole::Accent).width(Stroke::Focus).offset(Stroke::Focus)))}
                     radius=Radius::Sm
                 >
                     {children}
@@ -209,24 +212,23 @@ fn HotbarColumn(session: Session, column: usize) -> NodeId {
     let title = create_memo(move || shown.get().title);
     let entries = create_memo(move || shown.get().entries);
     let empty = create_memo(move || entries.get().is_empty());
-    let theme = use_theme();
     let fill = create_memo(move || match shown.get().active {
-        true => theme.accent_soft.get(),
-        false => theme.surface_raised.get(),
+        true => ColorRole::AccentSoft,
+        false => ColorRole::SurfaceRaised,
     });
 
     view! {
         <SlotDrop session={session} target={folder} folder=true>
             <Frame
                 @test_id={format!("logic-grid.column.{column}")}
-                fill={ColorRole::custom(fill)}
+                fill={fill}
                 radius=Radius::Sm
                 padding=COLUMN_PADDING
             >
-                <List align=Align::Center spacing=4.0>
+                <List align=Align::Center spacing=Space::Xs>
                     <Text style=TextStyle::CAPTION align=TextAlign::Center>{title}</Text>
                     <Show condition={empty}>
-                        <Frame width=SLOT_SIZE height=SLOT_SIZE />
+                        <Frame width={Size::Custom(SLOT_SIZE)} height={Size::Custom(SLOT_SIZE)} />
                     </Show>
                     <ForEach keys={entries}>|path: Vec<usize>|
                         <HotbarSlotButton session={session} path={path} />
@@ -325,28 +327,27 @@ fn HotbarSlotButton(session: Session, path: Vec<usize>) -> NodeId {
 
 #[component]
 fn SlotFace(shown: Memo<Option<SlotView>>, hovered: ReadSignal<bool>) -> NodeId {
-    let theme = use_theme();
     let fill = create_memo(move || {
         let Some(slot) = shown.get() else {
-            return theme.surface.get();
+            return ColorRole::Surface;
         };
         if slot.selected {
-            theme.accent_soft.get()
+            ColorRole::AccentSoft
         } else if slot.open_folder {
-            theme.pressed.get()
+            ColorRole::Pressed
         } else if slot.disabled || slot.dragging {
-            theme.surface.get()
+            ColorRole::Surface
         } else if hovered.get() {
-            theme.hover.get()
+            ColorRole::Hover
         } else {
-            theme.surface_raised.get()
+            ColorRole::SurfaceRaised
         }
     });
     let outline = create_memo(move || match shown.get() {
         Some(slot) if slot.selected || slot.open_folder || slot.dragging || slot.droppable => {
-            theme.accent.get()
+            ColorRole::Accent
         }
-        _ => theme.border.get(),
+        _ => ColorRole::Border,
     });
     let text = create_memo(move || {
         match shown
@@ -373,10 +374,10 @@ fn SlotFace(shown: Memo<Option<SlotView>>, hovered: ReadSignal<bool>) -> NodeId 
     let badged = create_memo(move || !hotkey.get().is_empty());
     view! {
         <Frame
-            width=SLOT_SIZE
-            height=SLOT_SIZE
-            fill={ColorRole::custom(fill)}
-            border={create_memo(move || Some(Border::new(ColorRole::Custom(outline.get())).width(1.5)))}
+            width={Size::Custom(SLOT_SIZE)}
+            height={Size::Custom(SLOT_SIZE)}
+            fill={fill}
+            border={create_memo(move || Some(Border::new(outline.get()).width(Stroke::Focus)))}
             radius=Radius::Sm
         >
             <Canvas width=SLOT_SIZE height=SLOT_SIZE>
@@ -394,14 +395,14 @@ fn SlotFace(shown: Memo<Option<SlotView>>, hovered: ReadSignal<bool>) -> NodeId 
                         color={text}
                         align=TextAlign::Center
                         vertical_align=TextAlign::Center
-                        ellipsis=true
+                        overflow=Overflow::Ellipsis
                     >
                         {label}
                     </Text>
                 </CanvasItem>
                 <Show condition={badged}>
                     <CanvasItem x=SLOT_INSET y=SLOT_INSET width=BADGE_SIZE height=BADGE_SIZE>
-                        <Frame fill=ColorRole::Background radius={Radius::custom(3.0)}>
+                        <Frame fill=ColorRole::Background radius=Radius::Xs>
                             <Text
                                 size=TextSize::Xs
                                 color={text}
@@ -433,13 +434,10 @@ fn ResetDialog(session: Session) -> NodeId {
     view! {
         <Dialog
             open={open}
+            kind=DialogKind::Alert
             title="Reset hotbar?"
-            width=DIALOG_WIDTH
             id="logic-grid.hotbar-reset"
-            confirm="Reset"
-            cancel="Cancel"
-            destructive=true
-            on_confirm={reset}
+            actions={vec![DialogAction::destructive("Reset", reset), DialogAction::cancel("Cancel")]}
             on_dismiss={dismiss}
         >
             <Text>"This will restore the default hotbar layout."</Text>
@@ -463,13 +461,13 @@ pub(super) fn ToolSettings(session: Session) -> NodeId {
     view! {
         <List spacing=SPACING>
             <Show condition={single}>
-                <List spacing=4.0>
+                <List spacing=Space::Xs>
                     <Text style=TextStyle::CAPTION>"Scale"</Text>
                     <ScalePicker session={session} output=false />
                 </List>
             </Show>
             <Show condition={merger}>
-                <List spacing=4.0>
+                <List spacing=Space::Xs>
                     <Text style=TextStyle::CAPTION>"Input scale"</Text>
                     <ScalePicker session={session} output=false />
                     <Text style=TextStyle::CAPTION>"Output scale"</Text>

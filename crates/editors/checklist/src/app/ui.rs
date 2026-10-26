@@ -5,8 +5,8 @@ use block_editor_beui::beui::{NodeId, TextAlign};
 use block_editor_beui::{ContentProjection, Editor};
 use checklist_types::{Checklist as ChecklistModel, ChecklistContent, ChecklistItem};
 
-const PAGE_PADDING: f32 = 24.0;
-const SECTION_SPACING: f32 = 18.0;
+const PAGE_PADDING: Space = Space::Xl3;
+const SECTION_SPACING: Space = Space::Xl;
 
 type List = ContentProjection<ChecklistContent>;
 
@@ -56,8 +56,8 @@ pub fn Checklist(editor: Editor) -> NodeId {
         })
     });
     let progress = create_memo(move || match total.get() {
-        0 => 0.0,
-        total => done_count.get() as f32 / total as f32,
+        0 => Some(0.0),
+        total => Some(done_count.get() as f32 / total as f32),
     });
     let summary = create_memo(move || match total.get() {
         0 => "Add your first task below".to_owned(),
@@ -75,14 +75,14 @@ pub fn Checklist(editor: Editor) -> NodeId {
     view! {
         <Frame padding=PAGE_PADDING>
             <List spacing=SECTION_SPACING>
-                <List spacing=6.0>
+                <List spacing=Space::Sm>
                     <Text style=TextStyle::HEADING>"Checklist"</Text>
                     <Text style=TextStyle::CAPTION>{summary}</Text>
                     <Progress value={progress} label="Checklist completion" />
                 </List>
                 <Card>
-                    <List spacing=12.0>
-                        <List direction=Direction::Horizontal align=Align::Center spacing=10.0>
+                    <List spacing=Space::Lg>
+                        <List direction=Direction::Horizontal align=Align::Center spacing=Space::Md>
                             <TextInput
                                 @sizing=ItemSize::Percent(100.0)
                                 value={draft}
@@ -102,12 +102,12 @@ pub fn Checklist(editor: Editor) -> NodeId {
                                 }}
                             />
                         </List>
-                        <List direction=Direction::Horizontal align=Align::Center spacing=10.0>
+                        <List direction=Direction::Horizontal align=Align::Center spacing=Space::Md>
                             <List
                                 @sizing=ItemSize::Percent(100.0)
                                 direction=Direction::Horizontal
                                 align=Align::Center
-                                spacing=6.0
+                                spacing=Space::Sm
                             >
                                 <ToggleButton
                                     label="All"
@@ -140,12 +140,12 @@ pub fn Checklist(editor: Editor) -> NodeId {
                     </List>
                 </Card>
                 <Card @sizing=ItemSize::Percent(100.0)>
-                    <List spacing=10.0>
+                    <List spacing=Space::Md>
                         <Show condition={empty}>
                             <Text align=TextAlign::Center>"No tasks match this view."</Text>
                         </Show>
                         <Scroll @sizing=ItemSize::Percent(100.0)>
-                            <List spacing=8.0>
+                            <List spacing=Space::Md>
                                 <ForEach keys={visible} view={rows} />
                             </List>
                         </Scroll>
@@ -180,9 +180,9 @@ fn ChecklistRow(checklist: List, id: ObjectId) -> NodeId {
         <Frame
             fill=ColorRole::SurfaceRaised
             radius=Radius::Md
-            padding={Sides::symmetric(12.0, 10.0)}
+            padding={Padding::symmetric(Space::Lg, Space::Md)}
         >
-            <List direction=Direction::Horizontal align=Align::Center spacing=10.0>
+            <List direction=Direction::Horizontal align=Align::Center spacing=Space::Md>
                 <Checkbox
                     @sizing=ItemSize::Percent(100.0)
                     label={label}

@@ -1,22 +1,17 @@
 use crate as unstyled;
 use crate::ChoiceOption;
+use crate::anchored::{Anchored, AnchoredHandle, AnchoredStyle};
 use crate::button::ButtonHandle;
 use crate::scroll::ScrollbarStyle;
+use crate::search_list::{SearchList, SearchListApi, SearchRowHandle};
 use crate::text_input::{TextInputHandle, TextInputStyle};
-use beui_core::base::overlay::Placement;
 use beui_core::input::{Key, KeyPress};
-use beui_core::keys::{KeyAt, KeyPhase};
-use beui_core::layer::Dismiss;
 use beui_core::node::NodeId;
 use beui_macros::{component, view};
-use beui_view::components::overlay::Overlay;
 use beui_view::primitives::*;
 use beui_view::reactive::*;
-use std::cell::RefCell;
 
 use accesskit::{Node, Role};
-
-const OPTIONS_MAX_HEIGHT: f32 = 240.0;
 
 pub struct SelectTriggerHandle {
     pub selected: Binding<Option<usize>>,
@@ -32,7 +27,6 @@ pub struct SelectOptionHandle {
     pub label: Prop<String>,
     pub highlighted: Memo<bool>,
     pub hovered: ReadSignal<bool>,
-    pub focused: ReadSignal<bool>,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]
@@ -41,20 +35,15 @@ enum Focus {
     Search,
 }
 
-struct Row {
-    button: NodeRef,
-    label: Memo<String>,
-}
-
 #[derive(Clone, Copy)]
 struct State {
     trigger: NodeRef,
-    search: NodeRef,
     options: Stored<Run<ChoiceOption>>,
-    rows: Stored<RefCell<Vec<Row>>>,
+    lists: [ComponentRef<SearchListApi<usize>>; 2],
+    sheet: Signal<bool>,
     open: Signal<bool>,
     focus: Signal<Focus>,
-    search_text: Signal<String>,
+    query: Signal<String>,
     selected: Binding<Option<usize>>,
     highlighted: Signal<Option<usize>>,
 }
@@ -67,56 +56,40 @@ pub fn Select(
     #[prop(default = String::new())] label: Prop<String>,
     #[prop(default = false)] disabled: Prop<bool>,
     search_placeholder: Prop<String>,
-    search_content: Option<RenderFn<TextInputHandle>>,
-    #[prop(default = TextInputStyle::default())] search_style: TextInputStyle,
+    search_content: RenderFn<TextInputHandle>,
+    search_style: TextInputStyle,
     #[prop(default = ScrollbarStyle::default())] scrollbar: ScrollbarStyle,
-    trigger: Option<Render<SelectTriggerHandle>>,
-    option: Option<RenderFn<SelectOptionHandle>>,
-    #[prop(children)] popup: Option<RenderFn<Child>>,
+    list_height: Prop<f32>,
+    spacing: f32,
+    trigger: Render<SelectTriggerHandle>,
+    option: RenderFn<SelectOptionHandle>,
+    surface: AnchoredStyle,
     accessibility: Option<Prop<Node>>,
 ) -> NodeId {
     let options = options.into_run();
     let initial = selected
         .get_untracked()
         .filter(|index| *index < options.get_untracked().len());
-    let option = option.unwrap_or_else(|| {
-        RenderFn::new(|_| {
-            view! {
-                <List spacing=0.0 />
-            }
-        })
-    });
-    let popup = popup.unwrap_or_else(|| RenderFn::new(|content| content));
 
-    let highlighted = create_signal(initial);
     let search_placeholder = create_memo(move || search_placeholder.get());
-    let highlight = create_selector(move || highlighted.get());
     let is_open = create_signal(false);
     let focus = create_signal(Focus::Away);
     let focused = create_selector(move || focus.get());
-    let search_text = create_signal(String::new());
     let disabled = create_memo(move || disabled.get());
 
     let state = State {
         trigger: NodeRef::new(),
-        search: NodeRef::new(),
         options: store(options.clone()),
-        rows: store(RefCell::default()),
+        lists: [ComponentRef::new(), ComponentRef::new()],
+        sheet: create_signal(false),
         open: is_open,
         focus,
-        search_text,
+        query: create_signal(String::new()),
         selected,
-        highlighted,
+        highlighted: create_signal(initial),
     };
     api.fill(SelectApi(state));
 
-    let trigger_view = trigger.unwrap_or_else(|| {
-        Render::new(|_| {
-            view! {
-                <List spacing=0.0 />
-            }
-        })
-    });
     let accessibility = crate::labelled_node(Role::ComboBox, accessibility, label);
     let labelled = options.clone();
     let label = create_memo(move || {
@@ -135,7 +108,7 @@ pub fn Select(
         node
     });
     let trigger_content = move |handle: ButtonHandle| {
-        trigger_view.call(SelectTriggerHandle {
+        trigger.call(SelectTriggerHandle {
             selected,
             label,
             hovered: handle.hovered,
@@ -145,46 +118,36 @@ pub fn Select(
         })
     };
 
-    let rows = options.clone();
-    let items = RenderFn::new(move |()| {
-        rows.build_each(
-            state.rows,
-            |_, option| Row {
-                button: NodeRef::new(),
-                label: option.label(),
-            },
-            move |index| {
-                view! {
-                    <SelectRow state={state} index option={option} highlight={highlight} />
-                }
-            },
-        )
-    });
-
-    create_effect(move || {
-        let query = state.search_text.get().to_lowercase();
-        let shown: Vec<usize> = state
+    let rank = move |query: String| {
+        let options = state.options.value().items();
+        crate::search_list::rank(&options, &query, |option, query| {
+            crate::search_list::substring_score(&option.label().get(), query)
+        })
+    };
+    let row_accessibility = move |index: usize| {
+        let mut node = Node::new(Role::ListBoxOption);
+        if let Some(option) = state.options.value().items().get(index) {
+            node.set_label(option.label().get());
+        }
+        node.set_selected(state.selected.get() == Some(index));
+        node
+    };
+    let row = move |handle: SearchRowHandle<usize>| {
+        let index = handle.key;
+        let label = state
             .options
             .value()
-            .items()
-            .iter()
-            .enumerate()
-            .filter(|(_, option)| shows(&query, &option.label().get()))
-            .map(|(index, _)| index)
-            .collect();
-        let hidden = state
-            .highlighted
             .get_untracked()
-            .is_some_and(|index| !shown.contains(&index));
-        if hidden {
-            untrack(|| state.highlighted.set(shown.first().copied()));
-        }
-    });
-
-    let reveal = reveal_reader(state);
-    on_key(KeyAt::Node(state.search), KeyPhase::Capture, move |event| {
-        event.press().is_some_and(|press| navigate(state, press))
-    });
+            .get(index)
+            .map(|option| option.label())
+            .unwrap_or_else(|| create_memo(String::new));
+        option.call(SelectOptionHandle {
+            index,
+            label: label.into_prop(),
+            highlighted: handle.highlighted,
+            hovered: handle.hovered,
+        })
+    };
 
     view! {
         <List spacing=0.0>
@@ -196,117 +159,46 @@ pub fn Select(
                 on_click={move || open(state)}
                 on_key={move |press: KeyPress| trigger_key(state, press)}
             />
-            <Overlay
+            <Anchored
+                style={surface}
                 anchor={state.trigger}
-                placement=Placement::BelowStart
                 open={is_open}
-                on_dismiss={move |_: Dismiss| dismiss(state)}
-                content={move || popup.call(view! {
-                    <List spacing=6.0>
-                        <unstyled::TextInput
-                            @node_ref={&state.search}
-                            value={Binding::new(search_text, move |text: String| filter(state, &text))}
-                            focused={focused.memo(Focus::Search)}
-                            keyboard_on_focus=false
-                            placeholder={search_placeholder}
-                            style={search_style}
-                            content={Render::new(move |handle: TextInputHandle| match search_content {
-                                Some(search) => search.call(handle),
-                                None => handle.field,
-                            })}
-                            on_focus_change={move |has_focus: bool| blur(state, has_focus, Focus::Search)}
-                            on_submit={move |_text: String| {
-                                if let Some(index) = state.highlighted.get_untracked() {
-                                    confirm(state, index);
-                                }
-                            }}
-                        />
-                        <unstyled::Scroll
-                            @sizing=ItemSize::Fixed(OPTIONS_MAX_HEIGHT)
-                            reveal
-                            scrollbar={scrollbar}
-                            children={items.call(())}
-                        />
-                    </List>
-                })}
-            />
+                on_dismiss={move || dismiss(state)}
+            >|handle: AnchoredHandle| {
+                let AnchoredHandle { sheet, shown } = handle;
+                create_effect(move || {
+                    if shown.get() {
+                        state.sheet.set(sheet);
+                    }
+                });
+                view! {
+                    <SearchList
+                        api={state.lists[usize::from(sheet)]}
+                        query={state.query}
+                        highlighted={state.highlighted}
+                        rank
+                        highlight_first=false
+                        on_choose={move |index: usize| confirm(state, index)}
+                        focused={create_memo(move || shown.get() && focused.is_selected(&Focus::Search))}
+                        keyboard_on_focus=false
+                        on_focus_change={move |has_focus: bool| blur(state, has_focus)}
+                        placeholder={search_placeholder}
+                        style={search_style}
+                        field={search_content}
+                        list_height
+                        spacing
+                        scrollbar
+                        accessibility={row_accessibility}
+                        row
+                    />
+                }
+            }</Anchored>
         </List>
     }
 }
 
-#[component]
-fn SelectRow(
-    state: State,
-    index: usize,
-    option: RenderFn<SelectOptionHandle>,
-    highlight: Selector<Option<usize>>,
-) -> NodeId {
-    let (button, label) = {
-        let rows = state.rows.value();
-        let row = &rows.borrow()[index];
-        (row.button, row.label)
-    };
-    let visible = create_memo(move || shows(&state.search_text.get().to_lowercase(), &label.get()));
-    let accessibility = create_memo(move || {
-        let mut node = Node::new(Role::ListBoxOption);
-        node.set_label(label.get());
-        node.set_selected(state.selected.get() == Some(index));
-        node
-    });
-    view! {
-        <Layers>
-            <ShowKeepAlive condition={visible}>
-                <unstyled::Button
-                    @node_ref={&button}
-                    accessibility
-                    tab_stop=false
-                    on_click={move || confirm(state, index)}
-                >|button: ButtonHandle| {
-                    let hovered = button.hovered;
-                    create_effect(move || {
-                        if hovered.get() {
-                            state.highlighted.set(Some(index));
-                        }
-                    });
-                    option.call(SelectOptionHandle {
-                        index,
-                        label: label.into_prop(),
-                        highlighted: highlight.memo(Some(index)),
-                        hovered: button.hovered,
-                        focused: button.focused,
-                    })
-                }</unstyled::Button>
-            </ShowKeepAlive>
-        </Layers>
-    }
-}
-
-fn reveal_reader(state: State) -> Prop<Option<usize>> {
-    Prop::dynamic(move || {
-        state.search_text.with(|_| ());
-        state.highlighted.get()
-    })
-}
-
-fn shows(query: &str, label: &str) -> bool {
-    query.is_empty() || label.to_lowercase().contains(query)
-}
-
-fn visible_rows(state: State) -> Vec<usize> {
-    let query = state.search_text.get_untracked().to_lowercase();
-    state
-        .options
-        .value()
-        .get_untracked()
-        .iter()
-        .enumerate()
-        .filter(|(_, option)| shows(&query, &option.label().get_untracked()))
-        .map(|(index, _)| index)
-        .collect()
-}
-
-fn blur(state: State, has_focus: bool, target: Focus) {
-    if !has_focus && state.focus.get_untracked() == target {
+fn blur(state: State, has_focus: bool) {
+    if !has_focus && state.focus.get_untracked() == Focus::Search {
         state.focus.set(Focus::Away);
     }
 }
@@ -326,15 +218,23 @@ fn trigger_key(state: State, press: KeyPress) -> bool {
     }
     if press.pressed {
         open(state);
-        navigate(state, press);
+        let count = state.options.value().get_untracked().len();
+        let current = state.highlighted.get_untracked();
+        let next = match press.key {
+            Key::ArrowDown => current.map_or(0, |at| (at + 1).min(count.saturating_sub(1))),
+            Key::ArrowUp => current.map_or(0, |at| at.saturating_sub(1)),
+            Key::Home => 0,
+            _ => count.saturating_sub(1),
+        };
+        state.highlighted.set((count > 0).then_some(next));
     }
     true
 }
 
 fn open(state: State) {
-    state.open.set(true);
-    filter(state, "");
+    state.query.set(String::new());
     state.highlighted.set(state.selected.get_untracked());
+    state.open.set(true);
     state.focus.set(Focus::Search);
 }
 
@@ -348,43 +248,14 @@ fn confirm(state: State, index: usize) {
     dismiss(state);
 }
 
-fn filter(state: State, text: &str) {
-    state.search_text.set(text.to_owned());
-    let shown = visible_rows(state);
-    let still_shown = state
-        .highlighted
-        .get_untracked()
-        .is_some_and(|index| shown.contains(&index));
-    if !still_shown {
-        state.highlighted.set(shown.first().copied());
-    }
-}
-
-fn navigate(state: State, press: KeyPress) -> bool {
-    if !press.pressed || press.modifiers.ctrl || press.modifiers.alt {
-        return false;
-    }
-    let visible = visible_rows(state);
-    if visible.is_empty() {
-        return false;
-    }
-    let current = state.highlighted.get_untracked();
-    let position = current.and_then(|index| visible.iter().position(|&i| i == index));
-    let next = match press.key {
-        Key::ArrowDown => visible[position.map_or(0, |p| (p + 1).min(visible.len() - 1))],
-        Key::ArrowUp => visible[position.map_or(0, |p| p.saturating_sub(1))],
-        Key::Home => visible[0],
-        Key::End => *visible.last().expect("checked non-empty"),
-        _ => return false,
-    };
-    state.highlighted.set(Some(next));
-    true
-}
-
 #[derive(Clone, Copy)]
 pub struct SelectApi(State);
 
 impl SelectApi {
+    fn list(&self) -> ComponentRef<SearchListApi<usize>> {
+        self.0.lists[usize::from(self.0.sheet.get_untracked())]
+    }
+
     pub fn selected(&self) -> Option<usize> {
         let state = self.0;
         state
@@ -402,11 +273,11 @@ impl SelectApi {
     }
 
     pub fn search(&self) -> NodeId {
-        self.0.search.get()
+        self.list().get().search()
     }
 
-    pub fn option_button(&self, index: usize) -> NodeId {
-        self.0.rows.value().borrow()[index].button.get()
+    pub fn option_button(&self, index: usize) -> Option<NodeId> {
+        self.list().try_get()?.row(&index)
     }
 
     pub fn highlighted(&self) -> Option<usize> {

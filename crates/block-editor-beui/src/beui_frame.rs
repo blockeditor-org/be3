@@ -7,7 +7,6 @@ use beui::icons::{
 };
 use beui::reactive::*;
 use beui::styled::*;
-use beui::unstyled::Container;
 use beui::{Key, KeyAt, KeyPhase, Pos2, Rect, Vec2, pos2};
 use block_plugin_api::{BarAction, MenuCheck, MenuCommand, MenuEntry, MenuPin, MenuSubmenu};
 
@@ -111,7 +110,7 @@ pub(crate) fn FrameChrome(
     let frame = view! {
         <Layers>
             <PlacedHole editor />
-            <List spacing=0.0>
+            <List spacing=Space::None>
                 <FrameMenu
                     editor
                     bar={bar.read_only()}
@@ -405,7 +404,7 @@ pub(crate) fn FrameMenu(
         host.set_menu(entries);
     });
     view! {
-        <List spacing=0.0 />
+        <List spacing=Space::None />
     }
 }
 

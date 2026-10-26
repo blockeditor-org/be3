@@ -113,7 +113,8 @@ fn Placed(editor: Editor, block: Uuid, place: Place) -> NodeId {
     };
     view! {
         <SettingsRow label={name}>
-            <IconButton
+            <Button
+                icon_only=true
                 glyph=ICON_X
                 label="Remove"
                 disabled={locked}

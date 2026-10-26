@@ -355,6 +355,7 @@ pub struct SwatchHandle {
 pub fn Swatches(
     picker: ColorPickerState,
     swatches: Vec<Color32>,
+    spacing: f32,
     #[prop(children)] content: RenderFn<SwatchHandle>,
 ) -> NodeId {
     let shown = picker.shown();
@@ -381,6 +382,7 @@ pub fn Swatches(
             kind=ChoiceKind::Radio
             direction=Direction::Horizontal
             wrap=true
+            spacing
         >|option: ChoiceOptionHandle| {
             let color = swatches[option.index];
             content.call(SwatchHandle { color, option })

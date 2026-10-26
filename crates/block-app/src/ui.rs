@@ -1,5 +1,6 @@
 mod debug;
 mod dialogs;
+mod keep_changes;
 mod keys;
 mod lock;
 mod onboarding;
@@ -11,7 +12,6 @@ use std::cell::RefCell;
 use be_protocol::OrganizationRole;
 use beui::reactive::*;
 use beui::styled::*;
-use beui::unstyled::Edge;
 use beui::{ItemSize, NodeId};
 use block_plugin_api::HostPanel;
 use uuid::Uuid;
@@ -538,7 +538,7 @@ fn SecondaryDisplay(view: AppViewStore, index: Memo<usize>) -> NodeId {
     });
     view! {
         <Frame @node_ref=&area>
-            <List spacing=0.0>
+            <List spacing=Space::None>
                 <Show condition={desktop}>
                     <Dynamic value={index}>|index: usize| {
                         let display = u32::try_from(index).unwrap_or(u32::MAX);
@@ -563,7 +563,7 @@ pub(crate) fn Root(view: AppViewStore) -> NodeId {
     let area = NodeRef::new();
     view! {
         <Frame @node_ref=&area>
-            <List spacing=0.0>
+            <List spacing=Space::None>
                 <Dynamic value={screen}>|screen: Screen| {
                     match screen {
                         Screen::Error => view! {
@@ -617,7 +617,7 @@ fn DisplayChrome(view: AppViewStore, area: NodeRef, primary: bool) -> NodeId {
         false => Vec::new(),
     });
     view! {
-        <List spacing=0.0>
+        <List spacing=Space::None>
             <Toasts
                 anchor={area}
                 edge=Edge::TopEnd
@@ -634,7 +634,7 @@ fn DisplayChrome(view: AppViewStore, area: NodeRef, primary: bool) -> NodeId {
                     }
                 }}
             />
-            <KeepChanges
+            <keep_changes::KeepChanges
                 open={asking}
                 title="Keep these display settings?"
                 timeout=crate::display::ANSWER_WITHIN

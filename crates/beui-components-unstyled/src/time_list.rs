@@ -41,7 +41,7 @@ pub fn TimeList(
     #[prop(default = 15)] step_minutes: u32,
     #[prop(default = HourCycle::H24)] hour_cycle: HourCycle,
     #[prop(default = false)] focused: Prop<bool>,
-    #[prop(default = 32.0)] row_height: f32,
+    row_height: f32,
     #[prop(default = 1)] max_columns: usize,
     #[prop(default = 0.0)] spacing: f32,
     #[prop(default = String::new())] label: Prop<String>,

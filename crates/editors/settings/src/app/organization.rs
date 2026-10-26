@@ -7,7 +7,6 @@ use block_editor_beui::be_block::{
 use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
-use block_editor_beui::beui::unstyled::ChoiceOption;
 use block_editor_beui::{BlockParent, BlockQuery, Editor, LayeredSettings};
 use uuid::Uuid;
 
@@ -194,7 +193,7 @@ pub(super) fn OrganizationSection(editor: Editor) -> NodeId {
             .is_some_and(|settings| editor.blocks().access(settings).can_manage())
     });
     view! {
-        <List spacing=0.0>
+        <List spacing=Space::None>
             <Show condition={shown}>
                 <Section title="Organization" caption={ABOUT}>
                     <Card>
@@ -361,7 +360,7 @@ pub(super) fn OfflineSection(editor: Editor) -> NodeId {
     let layered = LayeredSettings::<OfflineSettings>::this_device(editor);
     let resolved = editor.resolved_settings::<OfflineSettings>(editor.block_id());
     view! {
-        <List spacing=0.0>
+        <List spacing=Space::None>
             <Show condition={listed}>
                 <Section title="Offline" caption={OFFLINE_ABOUT}>
                     <Card>
@@ -409,7 +408,7 @@ pub(super) fn OfflineSection(editor: Editor) -> NodeId {
 fn Card(children: Children<ListChild>) -> NodeId {
     view! {
         <Frame fill=ColorRole::Surface border={Some(Border::DEFAULT)} radius=Radius::Lg>
-            <List spacing=0.0>{children}</List>
+            <List spacing=Space::None>{children}</List>
         </Frame>
     }
 }

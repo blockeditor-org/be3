@@ -162,6 +162,7 @@ fn child(rect: Rect, follows_view: bool) -> ChildPlacements {
             rotation: 0.0,
             opacity: 1.0,
             follows_view,
+            dialog: None,
         }],
         occluders: Vec::new(),
     }

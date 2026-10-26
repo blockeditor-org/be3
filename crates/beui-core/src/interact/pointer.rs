@@ -1,7 +1,7 @@
 use std::collections::VecDeque;
 use std::time::{Duration, Instant};
 
-use crate::base::interactive::{InteractiveNode, press_at};
+use crate::base::interactive::{InteractiveNode, local_in, press_at};
 use crate::base::list::Direction;
 use crate::base::overlay::OverlayNode;
 use crate::context::Context;
@@ -182,13 +182,14 @@ struct Session {
 }
 
 impl Session {
-    fn press(&self, rect: Rect, pos: Pos2) -> PointerPress {
+    fn press(&self, (rect, scale): (Rect, f32), pos: Pos2) -> PointerPress {
         PointerPress {
             window: self.window,
             pen: self.pen,
             predicted: self.predicted,
             ..press_at(
                 rect,
+                scale,
                 pos,
                 self.clicks,
                 self.modifiers,
@@ -437,15 +438,17 @@ fn node_mut(doc: &mut Document, id: NodeId) -> Option<&mut InteractiveNode> {
         .downcast_mut::<InteractiveNode>()
 }
 
-fn rect_of(doc: &Document, rects: &Rects, id: NodeId) -> Option<Rect> {
+fn rect_of(doc: &Document, rects: &Rects, id: NodeId) -> Option<(Rect, f32)> {
     interactive(doc, id)?;
-    rects.get(&id)
+    rects.scaled(&id)
 }
 
 fn local(rects: &Rects, id: NodeId, pos: Pos2) -> (Pos2, Vec2) {
-    rects.get(&id).map_or((pos, Vec2::ZERO), |rect| {
-        (pos - rect.min.to_vec2(), rect.size())
-    })
+    rects
+        .scaled(&id)
+        .map_or((pos, Vec2::ZERO), |(rect, scale)| {
+            (local_in(rect, scale, pos), rect.size() / scale)
+        })
 }
 
 fn over(rects: &Rects, id: NodeId, pos: Pos2) -> bool {
@@ -476,7 +479,8 @@ fn down(
         let stale = doc.pointers.sessions.remove(index);
         end(doc, frame, stale, true);
     }
-    doc.touched = event.pointer != PointerId::Mouse;
+    doc.set_touched(event.pointer != PointerId::Mouse);
+    doc.finger_pressed = event.pointer.is_touch();
     let kind = Kind::of(event.pointer);
     let role = match button {
         _ if kind.finger && primary_touch(doc).is_some() => Role::Finger,
@@ -930,12 +934,13 @@ fn scroll_drag(
         return;
     };
     let started = !std::mem::replace(&mut session.drag_started, true);
+    let scale = doc.rects.scale_of(&target);
     node.on_scroll_drag.clone().call(DragGesture {
         started,
         ended,
         cancelled,
-        delta,
-        velocity: session.velocity,
+        delta: delta / scale,
+        velocity: session.velocity / scale,
     });
 }
 
@@ -1149,12 +1154,13 @@ pub(crate) fn long_pressed(doc: &mut Document, frame: &Frame, pressed: Vec<LongP
             if !over(frame.rects, *id, pos) {
                 continue;
             }
-            let (Some(node), Some(rect)) = (interactive(doc, *id), frame.rects.get(id)) else {
+            let (Some(node), Some((rect, scale))) = (interactive(doc, *id), frame.rects.scaled(id))
+            else {
                 continue;
             };
-            node.on_secondary_press
-                .clone()
-                .call(press_at(rect, pos, clicks, modifiers, true, frame.now));
+            node.on_secondary_press.clone().call(press_at(
+                rect, scale, pos, clicks, modifiers, true, frame.now,
+            ));
         }
     }
 }
@@ -1599,7 +1605,7 @@ fn hover(doc: &mut Document, frame: &Frame, pointer: Option<(WindowId, Pos2)>) {
     }
     if let Some((_, pos)) = pointer {
         for id in path.iter().rev() {
-            let Some(rect) = frame.rects.get(id) else {
+            let Some((rect, scale)) = frame.rects.scaled(id) else {
                 continue;
             };
             let Some(node) = node_mut(doc, *id) else {
@@ -1616,6 +1622,7 @@ fn hover(doc: &mut Document, frame: &Frame, pointer: Option<(WindowId, Pos2)>) {
                 node.hover_pos = Some(pos);
                 let press = press_at(
                     rect,
+                    scale,
                     pos,
                     0,
                     frame.ctx.input(|input| input.modifiers),

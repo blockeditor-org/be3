@@ -40,8 +40,8 @@ fn a_live_editor_works_in_place_and_a_pan_and_zoom_one_takes_the_frame_when_clic
             error: None,
             menu: Vec::new(),
             creation: None,
-            settings: None,
             preview: Default::default(),
+            dialog: Default::default(),
         });
         editor.run();
     };

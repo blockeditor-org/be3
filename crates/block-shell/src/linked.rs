@@ -4,7 +4,6 @@ use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::icons::{ICON_LINK, ICON_UNLINK};
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
-use block_editor_beui::beui::unstyled::MenuItem;
 use uuid::Uuid;
 
 use super::menu::ReferenceMenuItem;
@@ -13,9 +12,9 @@ use super::panel::{Info, Refs};
 use super::workspace::Workspace;
 use block_editor_beui::beui::TextAlign;
 
-const PADDING_HORIZONTAL: f32 = 8.0;
-const PADDING_VERTICAL: f32 = 5.0;
-const SPACING: f32 = 8.0;
+const PADDING_HORIZONTAL: Space = Space::Md;
+const PADDING_VERTICAL: Space = Space::Xs;
+const SPACING: Space = Space::Md;
 
 #[component]
 pub(crate) fn LinkedBar(
@@ -78,7 +77,7 @@ pub(crate) fn LinkedBar(
         <Show condition={shown}>
             <Frame
                 fill=ColorRole::Surface
-                padding={Sides::symmetric(PADDING_HORIZONTAL, PADDING_VERTICAL)}
+                padding={Padding::symmetric(PADDING_HORIZONTAL, PADDING_VERTICAL)}
             >
                 <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
                     <Text size=TextSize::Xs color={heading_color} align=TextAlign::Center>

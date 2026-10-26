@@ -16,6 +16,7 @@ pub struct ButtonHandle {
     pub disabled: Memo<bool>,
     pub label: Memo<String>,
     pub glyph: Memo<Option<Glyph>>,
+    pub icon_only: Memo<bool>,
     pub tooltip: Memo<String>,
 }
 
@@ -38,6 +39,8 @@ pub fn Button(
     #[prop(default = true)] tab_stop: Prop<bool>,
     #[prop(default = true)] press_focus: Prop<bool>,
     #[prop(default = false)] focused: Prop<bool>,
+    #[prop(default = false)] icon_only: Prop<bool>,
+    expanded: Option<Prop<bool>>,
     on_click: ClickCallback,
     on_click_at: Callback<PointerPress>,
     on_press: Callback<PointerPress>,
@@ -59,12 +62,23 @@ pub fn Button(
     let disabled = create_memo(move || disabled.get());
     let label = create_memo(move || label.get());
     let glyph = create_memo(move || glyph.get());
-    let tooltip = create_memo(move || tooltip.get());
+    let icon_only = create_memo(move || icon_only.get());
+    let expanded = expanded.map(|expanded| create_memo(move || expanded.get()));
+    let tooltip = create_memo(move || {
+        let quiet = !icon_only.get() || expanded.is_some_and(|expanded| expanded.get());
+        match quiet {
+            true => String::new(),
+            false => tooltip.get(),
+        }
+    });
     let accessibility = accessibility.unwrap_or_else(|| Prop::Static(Node::new(role)));
     component_accessibility(create_memo(move || {
         let mut node = accessibility.get();
         if node.label().is_none() && !label.get().is_empty() {
             node.set_label(label.get());
+        }
+        if let Some(expanded) = expanded {
+            node.set_expanded(expanded.get());
         }
         if disabled.get() {
             node.set_disabled();
@@ -82,6 +96,7 @@ pub fn Button(
             disabled,
             label,
             glyph,
+            icon_only,
             tooltip,
         })
     });

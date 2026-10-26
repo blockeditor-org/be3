@@ -13,8 +13,8 @@ pub mod replicas;
 
 pub use block_type_api::{Plain, PlainFile};
 pub use modules::{
-    Kind, Modules, Source, in_process, is_known, kind_of, plain_forms_revision, plain_of, started,
-    tag_of,
+    Kind, Modules, Source, hold_clock, in_process, is_known, kind_of, plain_forms_revision,
+    plain_of, started, tag_of,
 };
 pub use replicas::{Ctx, EARLY_OPEN, HOST_EDITOR, Replicas};
 

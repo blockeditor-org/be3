@@ -68,7 +68,7 @@ fn PrefixesView(editor: Editor) -> NodeId {
                     });
                     view! {
                         <SettingsRow label={prefix.clone()} description={note}>
-                            <List spacing=2.0>
+                            <List spacing=Space::Xs2>
                                 <ForEach keys={databases}>|database: Uuid|
                                     <DatabaseName editor={editor} database={database} />
                                 </ForEach>

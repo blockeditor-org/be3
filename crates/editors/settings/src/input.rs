@@ -25,7 +25,7 @@ impl block_editor_beui::BeuiApp for InputSettingsApp {
                     let settings = LayeredSettings::<InputSettings>::page(editor);
                     let device = settings.on_this_device();
                     view! {
-                        <List spacing=0.0>
+                        <List spacing=Space::None>
                             <Keyed
                                 value={device}
                                 key={|device: bool| device}

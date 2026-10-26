@@ -26,6 +26,7 @@ fn a_field_left_at_its_default_is_not_written() {
         fade: Fade {
             rect: [0.0, 0.0, 8.0, 8.0],
             widths: [0.0, 2.0, 0.0, 2.0],
+            opacity: 1.0,
         },
         ..primitive
     };

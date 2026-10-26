@@ -3,11 +3,17 @@ use std::{cell::RefCell, collections::HashMap};
 use beui::reactive::*;
 use beui::styled::*;
 use beui::{Align, NodeId, TextAlign};
-use block_plugin_api::{BlockCommand, BlockLocation, EditorInstanceId, EditorRegion, FrameSpec};
+use block_plugin_api::{
+    BlockCommand, BlockLocation, DialogFrame, EditorInstanceId, EditorRegion, FrameSpec,
+};
 use uuid::Uuid;
 
 use crate::compositor::{ChildView, PluginRegion, RegionEditor, ShellSurface};
 use crate::host::HostItem;
+
+mod notices;
+
+pub(crate) use notices::{CrashNotice, StaleNotice};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub(crate) enum SurfaceId {
@@ -102,7 +108,10 @@ pub(crate) fn MainSurface() -> NodeId {
 }
 
 #[component]
-pub(crate) fn HostedSurface(id: SurfaceId) -> NodeId {
+pub(crate) fn HostedSurface(
+    id: SurfaceId,
+    #[prop(default = None)] dialog: Prop<Option<DialogFrame>>,
+) -> NodeId {
     let region = hosted(id).region;
     let keys = create_memo(move || {
         region.with(|held| {
@@ -123,13 +132,16 @@ pub(crate) fn HostedSurface(id: SurfaceId) -> NodeId {
                 let child_view: ChildView = store(Box::new(|_, _, _| view! {
                     <Frame />
                 }));
+                let frame = hosted.frame;
+                let frame = Prop::dynamic(move || match dialog.get() {
+                    Some(dialog) => Some(FrameSpec {
+                        dialog: Some(dialog),
+                        ..frame.clone().unwrap_or_default()
+                    }),
+                    None => frame.clone(),
+                });
                 view! {
-                    <PluginRegion
-                        editor={hosted.editor}
-                        region={hosted.region}
-                        frame={hosted.frame}
-                        child_view
-                    />
+                    <PluginRegion editor={hosted.editor} region={hosted.region} frame child_view />
                 }
             }</ForEach>
         </Layers>
@@ -147,8 +159,7 @@ pub(crate) fn HostItemFace(content: Memo<HostItem>) -> NodeId {
         HostItem::Unsupported { block_type, .. } => format!("Type: {block_type}"),
         _ => String::new(),
     });
-    let spinning =
-        create_memo(move || matches!(content.get(), HostItem::Notice { spinner: true, .. }));
+    let busy = create_memo(move || matches!(content.get(), HostItem::Notice { busy: true, .. }));
     let glyph = create_memo(move || match content.get() {
         HostItem::Notice { icon, .. } => icon,
         HostItem::Unsupported { .. } => None,
@@ -156,8 +167,8 @@ pub(crate) fn HostItemFace(content: Memo<HostItem>) -> NodeId {
     let has_glyph = create_memo(move || glyph.get().is_some());
     let unsupported = matches!(kind, HostItem::Unsupported { .. });
     view! {
-        <Frame padding=12.0>
-            <List spacing=8.0 align=Align::Center>
+        <Frame padding=Space::Lg>
+            <List spacing=Space::Md align=Align::Center>
                 <Show condition={unsupported}>
                     <Text style=TextStyle::HEADING align=TextAlign::Center>
                         "Unsupported block type"
@@ -172,8 +183,8 @@ pub(crate) fn HostItemFace(content: Memo<HostItem>) -> NodeId {
                 <Show condition={unsupported}>
                     <Text style=TextStyle::CAPTION align=TextAlign::Center>{detail}</Text>
                 </Show>
-                <Show condition={spinning}>
-                    <Spinner />
+                <Show condition={busy}>
+                    <Progress width=INLINE_PROGRESS_WIDTH />
                 </Show>
             </List>
         </Frame>
@@ -232,15 +243,20 @@ pub(crate) fn ConflictNotice(block: Uuid, count: usize) -> NodeId {
         count => format!("Merged with {count} conflicting changes from another device"),
     };
     view! {
-        <Frame align={Align2::new(Align::Center, Align::Start)} padding={Sides::all(8.0)}>
+        <Frame align={Align2::new(Align::Center, Align::Start)} padding={Padding::all(Space::Md)}>
             <Frame
                 @test_id={format!("conflict.{block}")}
                 fill=ColorRole::SurfaceRaised
                 border={Border::DEFAULT}
                 radius=Radius::Md
-                padding={Sides::symmetric(12.0, 6.0)}
+                padding={Padding::symmetric(Space::Lg, Space::Sm)}
             >
-                <List direction=Direction::Horizontal align=Align::Center spacing=8.0 wrap=true>
+                <List
+                    direction=Direction::Horizontal
+                    align=Align::Center
+                    spacing=Space::Md
+                    wrap=true
+                >
                     <Text color=TextColor::Muted>
                         <Icon glyph=beui::icons::ICON_GIT_MERGE_CONFLICT />
                     </Text>

@@ -22,9 +22,9 @@ fn BarParent(editor: Editor) -> NodeId {
     let target = Some(ChildTarget::new(SLIDE, SLIDE_TYPE));
     let heard = create_signal(String::from("nothing"));
     view! {
-        <List spacing=0.0>
+        <List spacing=Space::None>
             <Text @test_id={"bar.heard"}>{heard}</Text>
-            <Frame width=320.0 height=180.0>
+            <Frame width=Size::Popover height={Size::Custom(180.0)}>
                 <ChildBlock
                     editor={editor}
                     block={target}

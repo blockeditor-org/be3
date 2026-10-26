@@ -1,5 +1,5 @@
 use super::*;
-use crate::unstyled::DockApi;
+use crate::dock::unstyled::DockApi;
 
 #[test]
 fn a_finger_moves_a_window_up_and_down_by_its_bar() {

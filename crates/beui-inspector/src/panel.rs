@@ -1,4 +1,4 @@
-use beui_core::font::Wrap;
+use beui_core::font::Overflow;
 use std::collections::HashMap;
 use std::time::Duration;
 
@@ -15,24 +15,26 @@ use beui_core::node::NodeId;
 use beui_core::performance::PerformanceSnapshot;
 use beui_core::performance::PerformanceTimings;
 use beui_core::preferences::{Motion, PreferenceLayer, ThemeKind};
+use beui_dock::styled::Docking;
+use beui_dock::unstyled::{DockPane, DockTab, DockingLayout, dock_menu};
 use beui_view::reactive::*;
 
 use super::tree::{Entry, Key};
 use super::{InspectorTab, State, entry_label};
 
-const HEADER_PADDING: f32 = 12.0;
-const HEADER_SPACING: f32 = 8.0;
-const BODY_PADDING: f32 = 8.0;
-const FOOTER_PADDING: f32 = 10.0;
-const FOOTER_SPACING: f32 = 3.0;
-const ROW_SPACING: f32 = 6.0;
-const PERFORMANCE_SPACING: f32 = 10.0;
-const TIMING_SPACING: f32 = 4.0;
+const HEADER_PADDING: Space = Space::Lg;
+const HEADER_SPACING: Space = Space::Md;
+const BODY_PADDING: Space = Space::Md;
+const FOOTER_PADDING: Space = Space::Md;
+const FOOTER_SPACING: Space = Space::Xs2;
+const ROW_SPACING: Space = Space::Sm;
+const PERFORMANCE_SPACING: Space = Space::Md;
+const TIMING_SPACING: Space = Space::Xs;
 const BLUR_MIDPOINT: f32 = 12.0;
 const RENDERER_LABEL_WIDTH: f32 = 104.0;
 const PROPERTIES_SHARE: f32 = 45.0;
-const BAR_PADDING_HORIZONTAL: f32 = 8.0;
-const BAR_PADDING_VERTICAL: f32 = 6.0;
+pub const PICK: &str = "inspector.pick";
+const BAR_PADDING: Padding = Padding::symmetric(Space::Md, Space::Sm);
 const PIXEL_RATIOS: [(&str, Option<f32>); 5] = [
     ("Native", None),
     ("1x", Some(1.0)),
@@ -92,12 +94,10 @@ const TOUCH_GUIDE: [&str; 5] = [
 
 #[derive(Clone, Default, PartialEq)]
 pub struct Summary {
-    pub total: usize,
     pub native_pixel_ratio: String,
     pub picking: bool,
     pub responsive: bool,
     pub handles_back: bool,
-    pub selection: String,
     pub bounds: String,
     pub properties: Vec<(String, String)>,
 }
@@ -169,192 +169,115 @@ impl From<PerformanceSnapshot> for PerformanceSummary {
 type Entries = Signal<HashMap<Key, Entry>>;
 pub type RendererRows = Vec<(&'static str, String)>;
 
+#[derive(Clone, Copy)]
+pub struct TreeView {
+    pub keys: Signal<Vec<Key>>,
+    pub entries: Entries,
+    pub selection: Signal<Vec<Key>>,
+    pub selection_text: Signal<String>,
+    pub total: Signal<usize>,
+    pub tree: ComponentRef<beui_components_styled::TreeApi<Key>>,
+}
+
+impl TreeView {
+    fn new() -> Self {
+        Self {
+            keys: create_signal(Vec::new()),
+            entries: create_signal(HashMap::new()),
+            selection: create_signal(Vec::new()),
+            selection_text: create_signal(String::new()),
+            total: create_signal(0),
+            tree: ComponentRef::new(),
+        }
+    }
+}
+
 pub struct Panel {
     pub document: Document,
     pub scope: Scope,
-    pub keys: Signal<Vec<Key>>,
-    pub entries: Signal<HashMap<Key, Entry>>,
+    pub trees: [TreeView; 3],
+    pub tools: DockingLayout<InspectorTab>,
     pub summary: Signal<Summary>,
     pub performance: Signal<PerformanceSummary>,
     pub renderer: Signal<RendererRows>,
     pub renderers: Signal<RendererChoices>,
-    pub selection: Signal<Vec<Key>>,
     pub compact: Signal<bool>,
-    pub tree: ComponentRef<beui_components_styled::TreeApi<Key>>,
 }
 
 pub fn build(state: Stored<State>) -> Panel {
     let owner = RootScope::new();
-    let keys = create_signal(Vec::<Key>::new());
-    let entries = create_signal(HashMap::<Key, Entry>::new());
+    let trees = [TreeView::new(), TreeView::new(), TreeView::new()];
+    let tools = DockingLayout::new();
     let summary = create_signal(Summary::default());
     let performance = create_signal(PerformanceSummary::default());
     let renderer = create_signal(RendererRows::new());
     let renderers = create_signal(RendererChoices::default());
-    let tab = create_signal(InspectorTab::default());
-    let tab_index = create_signal(0usize);
-    let selection = create_signal(Vec::<Key>::new());
     let compact = create_signal(false);
-    let tree = ComponentRef::new();
 
     let mut document = Document::new();
     let root = enter(&mut document, || {
         provide_context(ThemeStore::new(Theme::DARK));
-        let count_text = create_memo(move || match tab.get() {
-            InspectorTab::Performance => {
-                performance.with(|performance| performance.samples.clone())
-            }
-            InspectorTab::Simulation => String::new(),
-            InspectorTab::Components => {
-                total_label(summary.with(|summary| summary.total), "component")
-            }
-            _ => total_label(summary.with(|summary| summary.total), "node"),
-        });
-        let tree_visible = create_memo(move || {
-            matches!(
-                tab.get(),
-                InspectorTab::Beui | InspectorTab::Components | InspectorTab::AccessKit
-            )
-        });
-        let performance_visible = create_memo(move || tab.get() == InspectorTab::Performance);
-        let simulation_visible = create_memo(move || tab.get() == InspectorTab::Simulation);
-        let native_pixel_ratio_text =
-            create_memo(move || summary.with(|summary| summary.native_pixel_ratio.clone()));
-        let picking = create_memo(move || summary.with(|summary| summary.picking));
-        let responsive = create_memo(move || summary.with(|summary| summary.responsive));
-        let handles_back = create_memo(move || summary.with(|summary| summary.handles_back));
-        let selection_text = create_memo(move || summary.with(|summary| summary.selection.clone()));
-        let bounds_text = create_memo(move || summary.with(|summary| summary.bounds.clone()));
-        let properties = create_memo(move || summary.with(|summary| summary.properties.clone()));
-        let has_properties =
-            create_memo(move || properties.with(|properties| !properties.is_empty()));
-        let selected = create_memo(move || selection.with(|path| path.last().copied()));
+        let [beui, components, accesskit] = trees;
         view! {
-            <List direction=Direction::Horizontal spacing=0.0>
+            <List direction=Direction::Horizontal spacing=Space::None>
                 <Separator direction=Direction::Vertical />
                 <Frame @sizing=ItemSize::Percent(100.0) fill=ColorRole::Surface>
-                    <List spacing=0.0>
+                    <List spacing=Space::None>
                         <Frame padding=HEADER_PADDING>
-                            <List spacing=HEADER_SPACING>
-                                <List
-                                    direction=Direction::Horizontal
-                                    align=Align::Center
-                                    spacing=HEADER_SPACING
-                                >
-                                    <Text style=TextStyle::HEADING>"Inspector"</Text>
-                                    <Text
-                                        style=TextStyle::CAPTION
-                                        @sizing=ItemSize::Percent(100.0)
-                                        align=TextAlign::End
+                            <List
+                                direction=Direction::Horizontal
+                                align=Align::Center
+                                spacing=HEADER_SPACING
+                            >
+                                <Text style=TextStyle::HEADING @sizing=ItemSize::Percent(100.0)>
+                                    "Inspector"
+                                </Text>
+                                <Show condition={create_memo(move || !compact.get())}>
+                                    <CloseButton @test_id={"inspector.close"} state={state} />
+                                </Show>
+                            </List>
+                        </Frame>
+                        <Separator />
+                        <Frame @sizing=ItemSize::Percent(100.0) @test_id={"inspector.tools"}>
+                            <Docking layout=tools>
+                                <DockPane id="tools">
+                                    <DockTab
+                                        id=InspectorTab::Beui
+                                        title={InspectorTab::Beui.title()}
                                     >
-                                        {count_text}
-                                    </Text>
-                                    <ShowKeepAlive condition={tree_visible}>
-                                        <PickToggle state={state} picking />
-                                    </ShowKeepAlive>
-                                    <Show condition={create_memo(move || !compact.get())}>
-                                        <CloseButton @test_id={"inspector.close"} state={state} />
-                                    </Show>
-                                </List>
-                                <Tabs
-                                    @test_id={"inspector.tabs"}
-                                    options={view! {
-                                        <ChoiceOption label="Beui" />
-                                        <ChoiceOption label="Comp" />
-                                        <ChoiceOption label="A11y" />
-                                        <ChoiceOption label="Perf" />
-                                        <ChoiceOption label="Sim" />
-                                    }}
-                                    selected={Binding::new(tab_index, move |index| {
-                                        tab_index.set(index);
-                                        state.value().set_tab(index);
-                                        tab.set(InspectorTab::from_index(index));
-                                    })}
-                                />
-                            </List>
-                        </Frame>
-                        <Separator />
-                        <Frame @sizing=ItemSize::Percent(100.0)>
-                            <List spacing=0.0>
-                                <ShowKeepAlive condition={tree_visible}>
-                                    <List @sizing=ItemSize::Percent(100.0) spacing=0.0>
-                                        <Tree
-                                            @sizing=ItemSize::Percent(100.0 - PROPERTIES_SHARE)
-                                            api=tree
-                                            keys
-                                            item={move |key: Key| item(&entries, key)}
-                                            selected={selected}
-                                            ancestors={move |key: Key| ancestors(selection.read_only(), key)}
-                                            padding=BODY_PADDING
-                                            row_test_id={move |key: Key| key.test_id()}
-                                            reveal_test_id={"inspector.reveal".to_owned()}
-                                            on_select={move |key: Key| state.value().select_row(key)}
-                                            on_expand={move |(key, expanded): (Key, bool)| {
-                                                state.value().set_expanded(key, expanded);
-                                            }}
-                                            on_reveal={move |key: Key| {
-                                                state.value().expand_ancestors(&ancestors(selection.read_only(), key));
-                                            }}
-                                            on_hover_change={move |(key, hovered): (Key, bool)| {
-                                                state.value().hover(key.node(), hovered);
-                                            }}
-                                        >|row: TreeRowFace<Key>|
-                                            <TreeCells row_key={row.key} entries={entries} />
-                                        </Tree>
-                                        <Show condition={has_properties}>
-                                            <Frame
-                                                @sizing={ItemSize::Percent(PROPERTIES_SHARE)}
-                                                @test_id={"inspector.properties"}
-                                            >
-                                                <PropertiesSection properties />
-                                            </Frame>
-                                        </Show>
-                                    </List>
-                                </ShowKeepAlive>
-                                <ShowKeepAlive condition={performance_visible}>
-                                    <PerformancePanel
-                                        @sizing=ItemSize::Percent(100.0)
-                                        @test_id={"inspector.performance"}
-                                        performance={performance.read_only()}
-                                        renderer={renderer.read_only()}
-                                        renderers={renderers.read_only()}
-                                        state={state}
-                                    />
-                                </ShowKeepAlive>
-                                <ShowKeepAlive condition={simulation_visible}>
-                                    <SimulationPanel
-                                        @sizing=ItemSize::Percent(100.0)
-                                        state={state}
-                                        responsive={responsive}
-                                        handles_back={handles_back}
-                                    />
-                                </ShowKeepAlive>
-                            </List>
-                        </Frame>
-                        <Separator />
-                        <Frame padding=FOOTER_PADDING>
-                            <List spacing=0.0>
-                                <ShowKeepAlive condition={tree_visible}>
-                                    <List spacing=FOOTER_SPACING>
-                                        <Text style=TextStyle::CODE>{selection_text}</Text>
-                                        <Text style=TextStyle::CODE color=TextColor::Muted>
-                                            {bounds_text}
-                                        </Text>
-                                    </List>
-                                </ShowKeepAlive>
-                                <ShowKeepAlive condition={performance_visible}>
-                                    <Button
-                                        label="Reset samples"
-                                        variant=ButtonVariant::Secondary
-                                        on_click={move || state.value().reset_performance()}
-                                    />
-                                </ShowKeepAlive>
-                                <ShowKeepAlive condition={simulation_visible}>
-                                    <Text style=TextStyle::CODE color=TextColor::Muted>
-                                        {native_pixel_ratio_text}
-                                    </Text>
-                                </ShowKeepAlive>
-                            </List>
+                                        <TreePanel view=beui noun="node" state summary />
+                                    </DockTab>
+                                    <DockTab
+                                        id=InspectorTab::Components
+                                        title={InspectorTab::Components.title()}
+                                    >
+                                        <TreePanel view=components noun="component" state summary />
+                                    </DockTab>
+                                    <DockTab
+                                        id=InspectorTab::AccessKit
+                                        title={InspectorTab::AccessKit.title()}
+                                    >
+                                        <TreePanel view=accesskit noun="node" state summary />
+                                    </DockTab>
+                                    <DockTab
+                                        id=InspectorTab::Performance
+                                        title={InspectorTab::Performance.title()}
+                                    >
+                                        <PerformanceTool
+                                            performance={performance.read_only()}
+                                            renderer={renderer.read_only()}
+                                            renderers={renderers.read_only()}
+                                            state
+                                        />
+                                    </DockTab>
+                                    <DockTab
+                                        id=InspectorTab::Simulation
+                                        title={InspectorTab::Simulation.title()}
+                                    >
+                                        <SimulationTool state summary />
+                                    </DockTab>
+                                </DockPane>
+                            </Docking>
                         </Frame>
                     </List>
                 </Frame>
@@ -366,15 +289,155 @@ pub fn build(state: Stored<State>) -> Panel {
     Panel {
         document,
         scope: owner.into_scope(),
-        keys,
-        entries,
+        trees,
+        tools,
         summary,
         performance,
         renderer,
         renderers,
-        selection,
         compact,
+    }
+}
+
+#[component]
+fn TreePanel(
+    view: TreeView,
+    noun: &'static str,
+    state: Stored<State>,
+    summary: Signal<Summary>,
+) -> NodeId {
+    let TreeView {
+        keys,
+        entries,
+        selection,
+        selection_text,
+        total,
         tree,
+    } = view;
+    let count_text = create_memo(move || total_label(total.get(), noun));
+    let bounds_text = create_memo(move || summary.with(|summary| summary.bounds.clone()));
+    let properties = create_memo(move || summary.with(|summary| summary.properties.clone()));
+    let has_properties = create_memo(move || properties.with(|properties| !properties.is_empty()));
+    let selected = create_memo(move || selection.with(|path| path.last().copied()));
+    let picking = create_memo(move || summary.with(|summary| summary.picking));
+    let pick = Action::new(PICK, "Pick", move || state.value().toggle_picking())
+        .glyph(ICON_MOUSE_POINTER_2)
+        .checked(picking)
+        .pin(Pin::Icon)
+        .detached();
+    dock_menu(create_memo(move || vec![MenuNode::action(&pick)]));
+    view! {
+        <List spacing=Space::None>
+            <List @sizing=ItemSize::Percent(100.0) spacing=Space::None>
+                <Tree
+                    @sizing=ItemSize::Percent(100.0 - PROPERTIES_SHARE)
+                    api=tree
+                    keys
+                    item={move |key: Key| item(&entries, key)}
+                    selected={selected}
+                    ancestors={move |key: Key| ancestors(selection.read_only(), key)}
+                    padding=BODY_PADDING
+                    row_test_id={move |key: Key| key.test_id()}
+                    reveal_test_id={"inspector.reveal".to_owned()}
+                    on_select={move |key: Key| state.value().select_row(key)}
+                    on_expand={move |(key, expanded): (Key, bool)| {
+                        state.value().set_expanded(key, expanded);
+                    }}
+                    on_reveal={move |key: Key| {
+                        state.value().expand_ancestors(&ancestors(selection.read_only(), key));
+                    }}
+                    on_hover_change={move |(key, hovered): (Key, bool)| {
+                        state.value().hover(key.node(), hovered);
+                    }}
+                >|row: TreeRowFace<Key>|
+                    <TreeCells row_key={row.key} entries={entries} />
+                </Tree>
+                <Show condition={has_properties}>
+                    <Frame
+                        @sizing={ItemSize::Percent(PROPERTIES_SHARE)}
+                        @test_id={"inspector.properties"}
+                    >
+                        <PropertiesSection properties />
+                    </Frame>
+                </Show>
+            </List>
+            <Separator />
+            <Frame padding=FOOTER_PADDING>
+                <List spacing=FOOTER_SPACING>
+                    <Text style=TextStyle::CODE>{selection_text}</Text>
+                    <List
+                        direction=Direction::Horizontal
+                        align=Align::Center
+                        spacing=HEADER_SPACING
+                    >
+                        <Text
+                            style=TextStyle::CODE
+                            color=TextColor::Muted
+                            @sizing=ItemSize::Percent(100.0)
+                        >
+                            {bounds_text}
+                        </Text>
+                        <Text style=TextStyle::CAPTION>{count_text}</Text>
+                    </List>
+                </List>
+            </Frame>
+        </List>
+    }
+}
+
+#[component]
+fn PerformanceTool(
+    performance: ReadSignal<PerformanceSummary>,
+    renderer: ReadSignal<RendererRows>,
+    renderers: ReadSignal<RendererChoices>,
+    state: Stored<State>,
+) -> NodeId {
+    let samples = create_memo(move || performance.with(|performance| performance.samples.clone()));
+    view! {
+        <List spacing=Space::None>
+            <PerformancePanel
+                @sizing=ItemSize::Percent(100.0)
+                @test_id={"inspector.performance"}
+                performance
+                renderer
+                renderers
+                state
+            />
+            <Separator />
+            <Frame padding=FOOTER_PADDING>
+                <List direction=Direction::Horizontal align=Align::Center spacing=HEADER_SPACING>
+                    <Button
+                        label="Reset samples"
+                        variant=ButtonVariant::Secondary
+                        on_click={move || state.value().reset_performance()}
+                    />
+                    <Text
+                        style=TextStyle::CAPTION
+                        @sizing=ItemSize::Percent(100.0)
+                        align=TextAlign::End
+                    >
+                        {samples}
+                    </Text>
+                </List>
+            </Frame>
+        </List>
+    }
+}
+
+#[component]
+fn SimulationTool(state: Stored<State>, summary: Signal<Summary>) -> NodeId {
+    let native_pixel_ratio_text =
+        create_memo(move || summary.with(|summary| summary.native_pixel_ratio.clone()));
+    let responsive = create_memo(move || summary.with(|summary| summary.responsive));
+    let handles_back = create_memo(move || summary.with(|summary| summary.handles_back));
+    view! {
+        <List spacing=Space::None>
+            <SimulationPanel @sizing=ItemSize::Percent(100.0) state responsive handles_back />
+            <Separator />
+            <Frame padding=FOOTER_PADDING>
+                <Text style=TextStyle::CODE color=TextColor::Muted>{native_pixel_ratio_text}</Text>
+            </Frame>
+        </List>
     }
 }
 
@@ -392,11 +455,8 @@ pub fn build_bar(state: Stored<State>) -> Bar {
         provide_context(ThemeStore::new(Theme::DARK));
         view! {
             <Frame fill=ColorRole::Surface>
-                <List spacing=0.0>
-                    <Frame
-                        @sizing=ItemSize::Percent(100.0)
-                        padding={Sides::symmetric(BAR_PADDING_HORIZONTAL, BAR_PADDING_VERTICAL)}
-                    >
+                <List spacing=Space::None>
+                    <Frame @sizing=ItemSize::Percent(100.0) padding=BAR_PADDING>
                         <List
                             direction=Direction::Horizontal
                             align=Align::Center
@@ -717,7 +777,7 @@ fn GuideSection(title: &'static str, lines: &'static [&'static str]) -> NodeId {
         <List spacing=FOOTER_SPACING>
             <Text style=TextStyle::CAPTION color=TextColor::Default>{title.to_owned()}</Text>
             <ForEach keys={lines.to_vec()}>|line: &'static str|
-                <Text style=TextStyle::CAPTION wrap=Wrap::Words>{line.to_owned()}</Text>
+                <Text style=TextStyle::CAPTION>{line.to_owned()}</Text>
             </ForEach>
         </List>
     }
@@ -869,7 +929,7 @@ fn RendererSection(
 #[component]
 fn PropertiesSection(properties: Memo<Vec<(String, String)>>) -> NodeId {
     view! {
-        <List spacing=0.0>
+        <List spacing=Space::None>
             <Separator />
             <Scroll @sizing=ItemSize::Percent(100.0)>
                 <Frame padding=BODY_PADDING>
@@ -896,7 +956,6 @@ fn LabeledRow(label: String, value: String) -> NodeId {
                 style=TextStyle::CAPTION
                 @sizing=ItemSize::Percent(100.0)
                 color=TextColor::Default
-                wrap=Wrap::Words
             >
                 {value}
             </Text>
@@ -927,7 +986,13 @@ fn TimingRow(label: String, values: [Memo<String>; 3]) -> NodeId {
     let [current, average, peak] = values;
     view! {
         <List direction=Direction::Horizontal spacing=TIMING_SPACING>
-            <Text style=TextStyle::CAPTION @sizing=ItemSize::Percent(100.0)>{label}</Text>
+            <Text
+                overflow=Overflow::Ellipsis
+                style=TextStyle::CAPTION
+                @sizing=ItemSize::Percent(100.0)
+            >
+                {label}
+            </Text>
             <Text style=TextStyle::CODE @sizing=ItemSize::Fixed(54.0) align=TextAlign::End>
                 {current}
             </Text>
@@ -972,25 +1037,14 @@ fn percentage(count: usize, total: usize) -> usize {
 }
 
 #[component]
-fn PickToggle(state: Stored<State>, picking: Memo<bool>) -> NodeId {
-    view! {
-        <ToggleButton
-            label="Pick"
-            glyph=ICON_MOUSE_POINTER_2
-            icon_only=true
-            pressed={Binding::new(picking, move |_| state.value().toggle_picking())}
-        />
-    }
-}
-
-#[component]
 fn CloseButton(state: Stored<State>) -> NodeId {
     view! {
-        <IconButton
+        <Button
+            icon_only=true
             glyph=ICON_X
             label="Close inspector"
             variant=ButtonVariant::Ghost
-            size=IconButtonSize::Compact
+            size=ButtonSize::Small
             on_click={move || state.value().close()}
         />
     }
@@ -1019,7 +1073,12 @@ fn TreeCells(row_key: Key, entries: Entries) -> NodeId {
             spacing=ROW_SPACING
         >
             <Text style=TextStyle::CODE>{kind}</Text>
-            <Text style=TextStyle::CODE @sizing=ItemSize::Percent(100.0) color=TextColor::Muted>
+            <Text
+                overflow=Overflow::Ellipsis
+                style=TextStyle::CODE
+                @sizing=ItemSize::Percent(100.0)
+                color=TextColor::Muted
+            >
                 {detail}
             </Text>
             <Text style=TextStyle::CODE color=TextColor::Muted align=TextAlign::End>{size}</Text>

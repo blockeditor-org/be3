@@ -1,5 +1,4 @@
 use super::*;
-use beui::Wrap;
 
 #[component]
 pub(crate) fn ScrollPage(children: Children<ListChild>) -> NodeId {
@@ -18,10 +17,8 @@ pub(crate) fn Sample(title: &'static str, code: Vec<&'static str>, children: Chi
     let source = code.join("\n\n");
     view! {
         <List spacing=SECTION_SPACING>
-            <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
-                <Text style=TextStyle::HEADING @sizing=ItemSize::Percent(100.0) wrap=Wrap::Words>
-                    {title}
-                </Text>
+            <List direction=Direction::Horizontal align=Align::Center spacing=Space::Md>
+                <Text style=TextStyle::HEADING @sizing=ItemSize::Percent(100.0)>{title}</Text>
                 <ToggleButton
                     @test_id={format!("demo.code.{title}")}
                     label="Code"
@@ -50,12 +47,12 @@ fn CodeBlock(source: String) -> NodeId {
     view! {
         <Frame
             fill=ColorRole::Surface
-            border={Border::new(ColorRole::Border).width(1.0)}
+            border={Border::new(ColorRole::Border).width(Stroke::Hairline)}
             radius=Radius::Md
             padding=CODE_PADDING
         >
             <SelectableText @test_id="demo.code" child_size=ItemSize::Percent(100.0)>
-                <Text size=TextSize::Sm family=Family::Mono wrap=Wrap::Words>
+                <Text size=TextSize::Sm family=Family::Mono>
                     <ForEach keys={tokens}>|(start, end, color): (usize, usize, Color32)| {
                         let piece = source[start..end].to_owned(); view! {
                             <Span color={TextColor::Custom(color)}>{piece}</Span>
@@ -75,7 +72,7 @@ pub(crate) fn code_tokens(
     let [red, green, blue, _] = background.to_array();
     let dark = u32::from(red) + u32::from(green) + u32::from(blue) < DARK_BACKGROUND;
     let colors = match dark {
-        true => SyntaxColors::DEFAULT,
+        true => Theme::DARK.syntax,
         false => SyntaxColors::uniform(text),
     };
     let document = Arc::new(TextBuffer::new(source)) as Arc<dyn text_editor_core::Document>;

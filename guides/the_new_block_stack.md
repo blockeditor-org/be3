@@ -911,7 +911,7 @@ what an older build saved. Every save stamps the derived `SCHEMA` key with
 wrongly. `be::staleness` calls an unfrozen block stale when its replica could
 not read it (`Status::unreadable`, kept in `Shared::unreadable`) or its stamp is another schema's; a block
 with no stamp is not stale. A stale block's frame shows `StaleNotice`
-(`surfaces::StaleBlock`) instead of its editor: Reset publishes the type's
+(`surfaces::StaleBlock`, with the notice in `surfaces/notices.rs`) instead of its editor: Reset publishes the type's
 default content (`be::reset`), Delete deletes it as the shell would, and Try
 anyway shows the editor for the rest of the session (`be::try_anyway`). A block
 the app holds itself (`be::hold`: settings, the shell's session) is reset by
@@ -1096,7 +1096,7 @@ one either way. `BlockMetadata::name` is `NAME` when someone named the
 block and `INTRINSIC_NAME` otherwise. Plugins get both maps in `BlockInfo`, read
 them through its `name`, `thumbhash` and `artifact`, and set a defined key with
 `Blocks::define`; the host never lets a plugin set `LOCAL_ID`. A beui
-`unstyled::Picture` given an image's thumbhash as a `beui::Thumbhash` lays out
+`styled::Picture` given an image's thumbhash as a `beui::Thumbhash` lays out
 at the image's size and paints the blurred placeholder until the image arrives.
 
 Metadata travels with content. Every commit carries the encoded metadata of the
@@ -1372,7 +1372,7 @@ Display settings may not until someone keeps them: a change of mode that moves w
 connected monitor shows (a rotation applies and saves at once), or a monitor showing a mode
 other than its preferred one that this device never kept it at (an untried fastest default, or
 a mode another device chose for that monitor), opens the host's "Keep these display
-settings?" prompt (`styled::KeepChanges`, a card on every screen) in
+settings?" prompt (block-app's `ui/keep_changes.rs`, an alert on every screen) in
 `display::guard`. It is the host's because it must work before any shell plugin
 runs. Each change is a round (`Guard::prompt`): another change while asking
 starts a new round and a full countdown, and an answer counts only for the

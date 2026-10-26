@@ -20,6 +20,7 @@ fn host_panel_messages_round_trip() {
                 rotation: 0.0,
                 opacity: 1.0,
                 follows_view: false,
+                dialog: None,
             }],
             occluders: Vec::new(),
         });

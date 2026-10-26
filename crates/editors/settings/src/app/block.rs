@@ -5,7 +5,6 @@ use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::icons::{ICON_EXTERNAL_LINK, ICON_TRASH};
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
-use block_editor_beui::beui::unstyled::ChoiceOption;
 use block_editor_beui::block_ui::BlockTypes;
 use block_editor_beui::{AccessLevel, AccessListing, BlockParent, BlockQuery, Editor, SetKind};
 use uuid::Uuid;
@@ -202,7 +201,7 @@ fn KindHere(editor: Editor, kind: Uuid, block: Memo<Option<Uuid>>, manages: Memo
     let remove = move || editor.clear_block_kind(editor.block_id(), kind);
     view! {
         <SettingsRow label={label} description={"Set here".to_owned()}>
-            <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
+            <List direction=Direction::Horizontal align=Align::Center spacing=Space::Md>
                 <Select
                     label="Who can read it"
                     options={view! {
@@ -213,13 +212,15 @@ fn KindHere(editor: Editor, kind: Uuid, block: Memo<Option<Uuid>>, manages: Memo
                     disabled={unchangeable}
                     @test_id={format!("settings.kind.{kind}.visibility")}
                 />
-                <IconButton
+                <Button
+                    icon_only=true
                     glyph=ICON_EXTERNAL_LINK
                     label="Open"
                     @test_id={format!("settings.kind.{kind}.open")}
                     on_click={open}
                 />
-                <IconButton
+                <Button
+                    icon_only=true
                     glyph=ICON_TRASH
                     label="Remove"
                     disabled={unremovable}

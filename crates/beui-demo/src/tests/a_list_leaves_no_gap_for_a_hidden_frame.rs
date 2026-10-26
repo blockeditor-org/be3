@@ -1,5 +1,5 @@
 use super::*;
-use beui::styled::{Frame, List};
+use beui::styled::{Frame, List, Size, Space};
 use beui_macros::view;
 
 #[test]
@@ -7,12 +7,12 @@ fn a_list_leaves_no_gap_for_a_hidden_frame() {
     let document = build(|| {
         view! {
             <Root>
-                <List spacing=10.0>
-                    <Frame @test_id="first" height=20.0 />
+                <List spacing=Space::Md>
+                    <Frame @test_id="first" height=Size::Sm />
                     <Show condition=false>
-                        <Frame height=20.0 />
+                        <Frame height=Size::Sm />
                     </Show>
-                    <Frame @test_id="last" height=20.0 />
+                    <Frame @test_id="last" height=Size::Sm />
                 </List>
             </Root>
         }
@@ -21,7 +21,7 @@ fn a_list_leaves_no_gap_for_a_hidden_frame() {
 
     assert_eq!(
         test.rect_of("last").top() - test.rect_of("first").bottom(),
-        10.0,
+        Space::Md.px(),
         "a frame a Show hides is out of the tree, so it takes no room and adds no spacing"
     );
 }

@@ -1,16 +1,14 @@
-use beui::Wrap;
+use beui::Overflow;
 use std::collections::HashSet;
 
 use block_editor_beui::BlockParent;
 use block_editor_beui::be_block::{BlockMetadata, Root, WORKSPACE_TYPE, settings::Settings};
-use block_editor_beui::beui::accesskit::{Node as AccessNode, Role};
 use block_editor_beui::beui::icons::{
     Glyph, ICON_BOXES, ICON_CIRCLE_USER_ROUND, ICON_DOWNLOAD, ICON_MOVE, ICON_PLUS, ICON_SETTINGS,
     ICON_SHARE_2, ICON_SPARKLES,
 };
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
-use block_editor_beui::beui::unstyled::{self, BackSlide, ButtonHandle, MenuItem, TreeItem};
 use block_editor_beui::beui::{Color32, NodeId, Rect};
 use block_editor_beui::block_ui::BlockTypes;
 use block_editor_beui::tags::{ShownTag, TagChip};
@@ -26,11 +24,10 @@ use super::rows::{Inspection, Row, RowKey, Tree as FileTree, access_hint, access
 use super::zoom::{Zoom, ZoomBar, zooms};
 use block_editor_beui::beui::TextAlign;
 
-const PADDING: f32 = 8.0;
-const ROW_SPACING: f32 = 6.0;
-const ADD_WIDTH: f32 = 20.0;
-const INSPECT_WIDTH: f32 = 420.0;
-const FIELD_SPACING: f32 = 2.0;
+const PADDING: Space = Space::Md;
+const ROW_SPACING: Space = Space::Sm;
+const INSPECT_WIDTH: Size = Size::Dialog;
+const FIELD_SPACING: Space = Space::Xs2;
 const SETTINGS_TYPE: Uuid = <Settings as Root>::CONTENT_TYPE;
 
 #[component]
@@ -127,12 +124,11 @@ pub fn FileTreeEditor(editor: Editor) -> NodeId {
     let failed = create_memo(move || failure.get().is_some());
     let reason = create_memo(move || failure.get().unwrap_or_default());
 
-    let theme = use_theme();
     let outline = move |key: RowKey| {
         let (landed, accepts) = arriving.get()?;
-        (landed == key).then(|| match accepts {
-            true => theme.accent.get(),
-            false => theme.danger.get(),
+        (landed == key).then_some(match accepts {
+            true => ColorRole::Accent,
+            false => ColorRole::Danger,
         })
     };
     let start = move |key: RowKey| {
@@ -188,16 +184,18 @@ pub fn FileTreeEditor(editor: Editor) -> NodeId {
         landing.set(landed);
     });
     view! {
-        <List spacing=0.0>
+        <List spacing=Space::None>
             <Toolbar shown={toolbar}>
-                <IconButton
+                <Button
+                    icon_only=true
                     glyph=ICON_BOXES
                     label="New workspace"
                     @test_id={"file-tree.new-workspace"}
                     on_click={new_workspace}
                 />
                 <Spacer @sizing=ItemSize::Percent(100.0) />
-                <IconButton
+                <Button
+                    icon_only=true
                     @node_ref={&desktop_menu}
                     glyph=ICON_CIRCLE_USER_ROUND
                     label="Account and settings"
@@ -215,7 +213,7 @@ pub fn FileTreeEditor(editor: Editor) -> NodeId {
             <Frame @sizing=ItemSize::Percent(100.0) @node_ref={&content}>
                 <BackSlide enabled={swipes} on_back={move || zoom.up()}>
                     <Frame fill=ColorRole::Background>
-                        <List spacing=0.0>
+                        <List spacing=Space::None>
                             <Show condition={zoomed}>
                                 <ZoomBar zoom addable new_button on_new={adding} />
                             </Show>
@@ -238,7 +236,7 @@ pub fn FileTreeEditor(editor: Editor) -> NodeId {
                                 item={item}
                                 selected={focused}
                                 ancestors={move |key: RowKey| ancestors(&key)}
-                                spacing=2.0
+                                spacing=Space::Xs2
                                 padding=PADDING
                                 row_test_id={move |key: RowKey| row_test_id(&key)}
                                 reveal_test_id={"file-tree.reveal".to_owned()}
@@ -293,17 +291,22 @@ fn PhoneTitle(
 ) -> NodeId {
     view! {
         <Frame fill=ColorRole::Background padding=PADDING>
-            <List direction=Direction::Horizontal align=Align::Center spacing=4.0>
-                <Frame @sizing=ItemSize::Percent(100.0) padding={Sides::symmetric(PADDING, 4.0)}>
+            <List direction=Direction::Horizontal align=Align::Center spacing=Space::Xs>
+                <Frame
+                    @sizing=ItemSize::Percent(100.0)
+                    padding={Padding::symmetric(PADDING, Space::Xs)}
+                >
                     <Text style=TextStyle::TITLE>"Files"</Text>
                 </Frame>
-                <IconButton
+                <Button
+                    icon_only=true
                     @test_id={"file-tree.new-workspace"}
                     glyph=ICON_BOXES
                     label="New workspace"
                     on_click={on_new_workspace}
                 />
-                <IconButton
+                <Button
+                    icon_only=true
                     @node_ref={&menu_button}
                     @test_id={"file-tree.app-menu"}
                     glyph=ICON_CIRCLE_USER_ROUND
@@ -339,7 +342,6 @@ fn Inspector(inspecting: Signal<Option<Inspection>>) -> NodeId {
             title="Inspect"
             width=INSPECT_WIDTH
             id="file-tree.inspect"
-            cancel="Close"
             on_dismiss={dismiss}
         >
             <List spacing=ROW_SPACING>
@@ -366,7 +368,6 @@ fn Field(label: Prop<String>, value: Memo<String>, named: String) -> NodeId {
                 style=TextStyle::PARAGRAPH
                 color=TextColor::Default
                 @test_id={format!("file-tree.inspect.{named}")}
-                wrap=Wrap::Words
             >
                 {value}
             </Text>
@@ -504,10 +505,10 @@ fn TreeRow(
                     <Icon glyph={glyph} />
                 </Text>
             </Show>
-            <List @sizing=ItemSize::Percent(100.0) spacing=0.0>
-                <Text color={color} weight={weight} ellipsis=true>{label}</Text>
+            <List @sizing=ItemSize::Percent(100.0) spacing=Space::None>
+                <Text color={color} weight={weight} overflow=Overflow::Ellipsis>{label}</Text>
                 <Show condition={detailed}>
-                    <Text style=TextStyle::CAPTION ellipsis=true>{detail}</Text>
+                    <Text style=TextStyle::CAPTION overflow=Overflow::Ellipsis>{detail}</Text>
                 </Show>
             </List>
             <ForEach keys={tag_keys}>|tag: Uuid| {
@@ -589,10 +590,10 @@ fn SectionRow(
                     <Icon glyph={glyph} />
                 </Text>
             </Show>
-            <List @sizing=ItemSize::Percent(100.0) spacing=0.0>
-                <Text weight=Weight::Bold ellipsis=true>{label}</Text>
+            <List @sizing=ItemSize::Percent(100.0) spacing=Space::None>
+                <Text weight=Weight::Bold overflow=Overflow::Ellipsis>{label}</Text>
                 <Show condition={detailed}>
-                    <Text style=TextStyle::CAPTION ellipsis=true>{detail}</Text>
+                    <Text style=TextStyle::CAPTION overflow=Overflow::Ellipsis>{detail}</Text>
                 </Show>
             </List>
             <Show condition={actions}>
@@ -787,67 +788,20 @@ fn RowButton(
     let focused = create_signal(false);
     let reachable = create_memo(move || row_focused.get() || focused.get());
     let shown = create_memo(move || always || hovered.get() || reachable.get());
-    let accessibility = create_memo(move || {
-        let mut node = AccessNode::new(Role::Button);
-        node.set_label(label.get());
-        node
-    });
     view! {
-        <Frame width=ADD_WIDTH>
-            <List spacing=0.0>
-                <unstyled::Button
-                    @test_id={named}
-                    tab_stop={reachable}
-                    capture_presses=true
-                    accessibility={accessibility}
-                    on_focus_change={focused}
-                    on_click={on_click}
-                    content={move |button: ButtonHandle| view! {
-                        <RowButtonFace handle={button} glyph={glyph} shown={shown} label={label} />
-                    }}
-                />
-            </List>
-        </Frame>
-    }
-}
-
-#[component]
-fn RowButtonFace(
-    handle: ButtonHandle,
-    glyph: Glyph,
-    shown: Memo<bool>,
-    label: Memo<String>,
-) -> NodeId {
-    let ButtonHandle {
-        hovered,
-        active,
-        focused,
-        ..
-    } = handle;
-    let theme = use_theme();
-    let color = create_memo(move || match (shown.get(), hovered.get() || active.get()) {
-        (false, _) => TextColor::Custom(Color32::TRANSPARENT),
-        (true, true) => TextColor::Default,
-        (true, false) => TextColor::Muted,
-    });
-    let fill = create_memo(move || match active.get() {
-        true => theme.pressed.get(),
-        false => Color32::TRANSPARENT,
-    });
-    view! {
-        <Tooltip label={label}>
-            <Frame
-                width=ADD_WIDTH
-                height=ADD_WIDTH
-                fill={ColorRole::custom(fill)}
-                border={focus_border(focused, Border::new(ColorRole::Accent).width(1.0))}
-                radius={Radius::custom(3.0)}
-            >
-                <Text size=TextSize::Xs color={color} align=TextAlign::Center>
-                    <Icon glyph={glyph} />
-                </Text>
-            </Frame>
-        </Tooltip>
+        <Button
+            @test_id={named}
+            icon_only=true
+            glyph={glyph}
+            label={label}
+            variant=ButtonVariant::Ghost
+            size=ButtonSize::Small
+            tab_stop={reachable}
+            revealed={shown}
+            capture_presses=true
+            on_focus_change={focused}
+            on_click={on_click}
+        />
     }
 }
 
@@ -884,7 +838,7 @@ fn RowActions(
         }
     };
     view! {
-        <List direction=Direction::Horizontal align=Align::Center spacing=0.0>
+        <List direction=Direction::Horizontal align=Align::Center spacing=Space::None>
             <Show condition={shared}>
                 <RowButton
                     hovered={hovered}

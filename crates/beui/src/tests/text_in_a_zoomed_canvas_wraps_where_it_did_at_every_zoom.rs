@@ -2,7 +2,6 @@ use super::*;
 use crate::painter::Shape;
 use crate::primitives::*;
 use crate::reactive::*;
-use beui::Wrap;
 
 fn wraps(output: &FrameOutput) -> Vec<(Vec<std::ops::Range<usize>>, Vec2)> {
     output
@@ -31,9 +30,7 @@ fn text_in_a_zoomed_canvas_wraps_where_it_did_at_every_zoom() {
         view! {
             <Canvas view={view}>
                 <CanvasItem x=10.0 y=10.0 width=130.0 height=120.0 scales=true>
-                    <Text wrap=Wrap::Words>
-                        "Pinching a canvas zooms its words without moving where they wrap"
-                    </Text>
+                    <Text>"Pinching a canvas zooms its words without moving where they wrap"</Text>
                 </CanvasItem>
             </Canvas>
         }

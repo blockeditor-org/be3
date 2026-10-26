@@ -16,6 +16,7 @@ fn wrapped_rich_text_lines_hang_under_the_byte_they_are_told_to() {
         style,
         hang: 2,
         anywhere: false,
+        least: false,
     };
     let layout = RichLayout::new(&[Piece::text(text, style)], options, &mut shaper);
 

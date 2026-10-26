@@ -1,9 +1,7 @@
-use beui::Wrap;
 use block_editor_beui::beui::icons::{ICON_EYE, ICON_EYE_OFF};
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
-use block_editor_beui::beui::unstyled::{DragHandle, DragPoint, Draggable, DropHandle, DropTarget};
-use block_editor_beui::beui::{Color32, CursorIcon, NodeId};
+use block_editor_beui::beui::{CursorIcon, NodeId};
 use infinite_canvas_types::{CanvasEntity, CanvasShape};
 use uuid::Uuid;
 
@@ -11,8 +9,8 @@ use crate::geometry::entity_kind_label;
 
 use super::state::CanvasState;
 
-const ROW_PADDING: f32 = 4.0;
-const ROW_RADIUS: f32 = 4.0;
+const ROW_PADDING: Space = Space::Xs;
+const ROW_RADIUS: Radius = Radius::Sm;
 
 #[derive(Clone, Copy, PartialEq)]
 struct Layer(Uuid);
@@ -26,11 +24,9 @@ pub(crate) fn LayersSection(state: CanvasState) -> NodeId {
     let empty = create_memo(move || ids.with(Vec::is_empty));
     view! {
         <Accordion title="Layers" open={open}>
-            <List spacing=2.0 @test_id={"infinite-canvas.layers"}>
+            <List spacing=Space::Xs2 @test_id={"infinite-canvas.layers"}>
                 <Show condition={empty}>
-                    <Text style=TextStyle::CAPTION wrap=Wrap::Words>
-                        "Nothing on the canvas yet."
-                    </Text>
+                    <Text style=TextStyle::CAPTION>"Nothing on the canvas yet."</Text>
                 </Show>
                 <ForEach keys={ids}>|id: Uuid|
                     <LayerRow state id />
@@ -59,7 +55,6 @@ fn LayerRow(state: CanvasState, id: Uuid) -> NodeId {
         true => "Show".to_owned(),
         false => "Hide".to_owned(),
     });
-    let theme = use_theme();
     let text = create_memo(move || match hidden.get() {
         true => TextColor::Muted,
         false => TextColor::Default,
@@ -78,20 +73,21 @@ fn LayerRow(state: CanvasState, id: Uuid) -> NodeId {
     view! {
         <DropTarget on_drop={dropped}>|handle: DropHandle| {
             let fill = create_memo(move || match selected.get() {
-                true => theme.accent_soft.get(),
-                false => Color32::TRANSPARENT,
+                true => ColorRole::AccentSoft,
+                false => ColorRole::None,
             });
             view! {
                 <Frame
-                    fill={ColorRole::custom(fill)}
-                    radius={Radius::custom(ROW_RADIUS)}
-                    border={create_memo(move || handle.over.get().then_some(Border::new(ColorRole::Accent).width(1.0)))}
+                    fill={fill}
+                    radius=ROW_RADIUS
+                    border={create_memo(move || handle.over.get().then_some(Border::new(ColorRole::Accent)))}
                 >
-                    <List direction=Direction::Horizontal align=Align::Center spacing=4.0>
-                        <IconButton
+                    <List direction=Direction::Horizontal align=Align::Center spacing=Space::Xs>
+                        <Button
+                            icon_only=true
                             glyph={glyph}
                             label={toggle_label}
-                            size=IconButtonSize::Compact
+                            size=ButtonSize::Small
                             variant=ButtonVariant::Ghost
                             capture_presses=true
                             @test_id={format!("infinite-canvas.layer.{id}.visibility")}
@@ -105,7 +101,7 @@ fn LayerRow(state: CanvasState, id: Uuid) -> NodeId {
                             on_click={select}
                             @test_id={format!("infinite-canvas.layer.{id}")}
                         >|_: DragHandle|
-                            <Frame padding={Sides::vertical(ROW_PADDING)}>
+                            <Frame padding={Padding::vertical(ROW_PADDING)}>
                                 <Text color={text}>{label}</Text>
                             </Frame>
                         </Draggable>
@@ -121,8 +117,8 @@ fn LayerGhost(label: block_editor_beui::beui::reactive::Memo<String>) -> NodeId 
     view! {
         <Frame
             fill=ColorRole::SurfaceRaised
-            radius={Radius::custom(ROW_RADIUS)}
-            padding={Sides::symmetric(8.0, ROW_PADDING)}
+            radius=ROW_RADIUS
+            padding={Padding::symmetric(Space::Md, ROW_PADDING)}
         >
             <Text>{label}</Text>
         </Frame>

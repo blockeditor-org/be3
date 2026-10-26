@@ -12,7 +12,7 @@ mod ui;
 use block::{BlockSettingsView, is_block_settings};
 use block_editor_beui::BlockQuery;
 use block_editor_beui::beui::ItemSize;
-use block_editor_beui::beui::styled::{Frame, List};
+use block_editor_beui::beui::styled::{Frame, List, Space};
 use ui::{SettingsProfileView, SettingsView};
 use uuid::Uuid;
 
@@ -31,7 +31,7 @@ impl block_editor_beui::BeuiApp for SettingsApp {
         view! {
             <Root>
                 <Loaded>
-                    <List spacing=0.0>
+                    <List spacing=Space::None>
                         <Dynamic value={shown}>|shown: Option<Option<Uuid>>| {
                             match shown {
                                 Some(Some(owner)) => view! {

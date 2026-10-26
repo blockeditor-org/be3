@@ -6,9 +6,9 @@ use block_editor_beui::beui::styled::*;
 use super::panel::Info;
 use super::workspace::Workspace;
 
-const PADDING_HORIZONTAL: f32 = 8.0;
-const PADDING_VERTICAL: f32 = 5.0;
-const SPACING: f32 = 8.0;
+const PADDING_HORIZONTAL: Space = Space::Md;
+const PADDING_VERTICAL: Space = Space::Xs;
+const SPACING: Space = Space::Md;
 
 #[component]
 pub(crate) fn DeletedBar(
@@ -44,7 +44,7 @@ pub(crate) fn DeletedBar(
         <Show condition={shown}>
             <Frame
                 fill=ColorRole::Surface
-                padding={Sides::symmetric(PADDING_HORIZONTAL, PADDING_VERTICAL)}
+                padding={Padding::symmetric(PADDING_HORIZONTAL, PADDING_VERTICAL)}
                 @test_id={"workspace.deleted"}
             >
                 <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>

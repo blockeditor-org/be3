@@ -1,12 +1,12 @@
 use std::cell::RefCell;
 
 use block_editor_beui::beui::NodeId;
+use block_editor_beui::beui::dock::styled::TabId;
 use block_editor_beui::beui::icons::{
     ICON_FILE_PLUS, ICON_PENCIL_LINE, ICON_SHARE_2, ICON_TRASH, ICON_UNLINK,
 };
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
-use block_editor_beui::beui::unstyled::TabId;
 use block_editor_beui::{BlockInfo, BlockParent};
 use uuid::Uuid;
 
@@ -16,8 +16,8 @@ use super::tab::TabItem;
 use super::workspace::{PhoneSheet, Workspace};
 use block_editor_beui::beui::TextAlign;
 
-const SHEET_PADDING: f32 = 12.0;
-const SECTION_PADDING: f32 = 8.0;
+const SHEET_PADDING: Space = Space::Lg;
+const SECTION_PADDING: Space = Space::Md;
 
 #[component]
 pub(crate) fn DetailsSheet(workspace: Workspace, tab: TabId) -> NodeId {
@@ -37,7 +37,7 @@ pub(crate) fn DetailsSheet(workspace: Workspace, tab: TabId) -> NodeId {
                 }
             }}
         >
-            <List spacing=0.0>
+            <List spacing=Space::None>
                 <Dynamic value={shown}>|tab: Option<TabId>| {
                     match tab {
                         Some(tab) => view! {
@@ -140,13 +140,13 @@ fn DetailsBody(workspace: Workspace, tab: TabId) -> NodeId {
     };
     view! {
         <Frame padding=SECTION_PADDING>
-            <List spacing=0.0>
-                <Frame padding={Sides::symmetric(SHEET_PADDING, SECTION_PADDING)}>
-                    <List direction=Direction::Horizontal align=Align::Center spacing=12.0>
+            <List spacing=Space::None>
+                <Frame padding={Padding::symmetric(SHEET_PADDING, SECTION_PADDING)}>
+                    <List direction=Direction::Horizontal align=Align::Center spacing=Space::Lg>
                         <Text color=TextColor::Accent align=TextAlign::Center>
                             <Icon glyph={glyph} />
                         </Text>
-                        <List @sizing=ItemSize::Percent(100.0) spacing=2.0>
+                        <List @sizing=ItemSize::Percent(100.0) spacing=Space::Xs2>
                             <Text style=TextStyle::HEADING>{name}</Text>
                             <Text style=TextStyle::CAPTION>{kind}</Text>
                         </List>
@@ -221,10 +221,10 @@ fn RelatedBlocks(workspace: Workspace, title: String, refs: Memo<Refs>, named: S
     });
     let some = create_memo(move || !ids.get().is_empty());
     view! {
-        <List spacing=0.0>
+        <List spacing=Space::None>
             <Show condition={some}>|| {
                 let title = title.clone(); view! {
-                    <Frame padding={Sides::symmetric(SHEET_PADDING, SECTION_PADDING)}>
+                    <Frame padding={Padding::symmetric(SHEET_PADDING, SECTION_PADDING)}>
                         <Text style=TextStyle::CAPTION>{title}</Text>
                     </Frame>
                 }

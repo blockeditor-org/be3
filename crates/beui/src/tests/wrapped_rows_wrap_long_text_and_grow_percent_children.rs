@@ -1,7 +1,6 @@
 use super::*;
 use crate::primitives::*;
 use crate::reactive::*;
-use beui::Wrap;
 
 const LONG: &str = "a caption far too long to sit on one line of this narrow wrapping row";
 
@@ -12,7 +11,7 @@ fn wrapped_rows_wrap_long_text_and_grow_percent_children() {
     let document = build_node(move || {
         view! {
             <List direction=Direction::Horizontal wrap=true spacing=10.0>
-                <Text @node_ref=&caption wrap=Wrap::Words>{LONG}</Text>
+                <Text @node_ref=&caption>{LONG}</Text>
                 <Frame @sizing=ItemSize::Percent(100.0) @node_ref=&grown width=40.0 height=20.0 />
                 <Frame @node_ref=&fixed width=40.0 height=20.0 />
             </List>

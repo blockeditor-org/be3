@@ -121,6 +121,10 @@ pub trait Element: Any {
         None
     }
 
+    fn min_width(&self, _doc: &mut Document, _painter: &Painter) -> f32 {
+        0.0
+    }
+
     fn paint(&self, doc: &Document, painter: &Painter, rects: &Rects, rect: Rect);
 
     fn unplaced(&mut self, _doc: &mut Document) {}
@@ -431,6 +435,18 @@ impl Rects {
     pub fn get(&self, id: &NodeId) -> Option<Rect> {
         let placed = self.placed(id)?;
         Some(self.transform(placed.space).rect(placed.rect))
+    }
+
+    pub fn scaled(&self, id: &NodeId) -> Option<(Rect, f32)> {
+        let placed = self.placed(id)?;
+        let transform = self.transform(placed.space);
+        Some((transform.rect(placed.rect), transform.scale))
+    }
+
+    pub fn local_to_window(&self, id: &NodeId, local: Rect) -> Option<Rect> {
+        let placed = self.placed(id)?;
+        let transform = self.transform(placed.space);
+        Some(transform.rect(local.translate(placed.rect.min.to_vec2())))
     }
 
     pub fn scale_of(&self, id: &NodeId) -> f32 {

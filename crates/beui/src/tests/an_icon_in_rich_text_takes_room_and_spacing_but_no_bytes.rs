@@ -25,6 +25,7 @@ fn an_icon_in_rich_text_takes_room_and_spacing_but_no_bytes() {
         style,
         hang: 0,
         anywhere: false,
+        least: false,
     };
     let width = shaper(ICON_STAR.as_str(), FontId::icons(18.0)).size().x;
     let plain = RichLayout::new(&[Piece::text("Save", style)], options, &mut shaper);

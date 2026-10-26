@@ -4,7 +4,7 @@ use std::rc::Rc;
 use std::sync::Arc;
 
 use beui::reactive::*;
-use beui::unstyled::TextAreaState;
+use beui::styled::TextAreaState;
 use beui::{Rect, Vec2};
 use block_editor_beui::BlockQuery;
 use block_editor_beui::SharedCaret;

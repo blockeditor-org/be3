@@ -326,13 +326,13 @@ impl VideoState {
             self.playing.set(false);
             return None;
         }
-        let now = Instant::now();
+        let ticked = now();
         let (origin_time, origin_frame) = inner
             .play_origin
             .get()
-            .unwrap_or((now, self.playhead.get_untracked()));
+            .unwrap_or((ticked, self.playhead.get_untracked()));
         inner.play_origin.set(Some((origin_time, origin_frame)));
-        let elapsed = now.duration_since(origin_time).as_secs_f64();
+        let elapsed = ticked.duration_since(origin_time).as_secs_f64();
         let frame = origin_frame.saturating_add(self.frame_rate.get_untracked().frames(elapsed));
         if frame >= duration {
             self.playhead.set(duration);

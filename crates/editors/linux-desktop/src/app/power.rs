@@ -1,4 +1,3 @@
-use beui::Wrap;
 use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::icons::Glyph;
 use block_editor_beui::beui::icons::{
@@ -6,11 +5,10 @@ use block_editor_beui::beui::icons::{
 };
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
-use block_editor_beui::beui::unstyled::MenuItem;
 use block_editor_beui::linux_desktop;
 use block_editor_beui::{Editor, PowerAction, PowerAvailability, PowerWatch};
 
-const DIALOG_SPACING: f32 = 16.0;
+const DIALOG_SPACING: Space = Space::Xl;
 
 fn label(action: PowerAction) -> &'static str {
     match action {
@@ -103,7 +101,7 @@ pub(crate) fn PowerMenu(editor: Editor) -> NodeId {
         editor.act(move || linux_desktop::power::request(confirming.get_untracked()));
     };
     view! {
-        <List spacing=0.0>
+        <List spacing=Space::None>
             <MenuButton
                 label="Power"
                 glyph=ICON_POWER
@@ -122,14 +120,13 @@ pub(crate) fn PowerMenu(editor: Editor) -> NodeId {
             <Dialog
                 open
                 title
+                kind=DialogKind::Alert
                 id="desktop.power"
-                confirm={verb}
-                cancel="Cancel"
-                on_confirm={confirm}
+                actions={vec![DialogAction::primary(verb, confirm), DialogAction::cancel("Cancel")]}
                 on_dismiss={dismiss}
             >
                 <List spacing=DIALOG_SPACING @test_id={"desktop.power.dialog"}>
-                    <Text style=TextStyle::PARAGRAPH wrap=Wrap::Words>{explained}</Text>
+                    <Text style=TextStyle::PARAGRAPH>{explained}</Text>
                 </List>
             </Dialog>
         </List>

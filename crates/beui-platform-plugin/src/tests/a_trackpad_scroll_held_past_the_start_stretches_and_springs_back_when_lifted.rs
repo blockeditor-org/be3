@@ -1,7 +1,6 @@
 use std::time::Duration;
 
 use beui::styled::*;
-use beui::unstyled::Scroll;
 use block_editor_plugin::{ScrollDelta, TimedInput};
 
 use super::*;
@@ -15,10 +14,10 @@ fn a_trackpad_scroll_held_past_the_start_stretches_and_springs_back_when_lifted(
         &EditorHost::default(),
         Windowed::new(move |_| {
             view! {
-                <List spacing=0.0>
+                <List spacing=Space::None>
                     <Scroll @sizing=ItemSize::Percent(100.0) @node_ref=&scroll>
                         <ForEach keys={(0..40).collect::<Vec<usize>>()}>|_: usize|
-                            <Frame padding={Sides::symmetric(0.0, 20.0)}>
+                            <Frame padding={Padding::vertical(Space::Xl2)}>
                                 <Spacer />
                             </Frame>
                         </ForEach>
