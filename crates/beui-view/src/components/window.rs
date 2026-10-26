@@ -29,7 +29,7 @@ impl WindowHandle {
     }
 
     pub fn begin_resize(self, edge: WindowEdge) -> bool {
-        self.ask(WindowRequest::BeginResize(self.id, edge))
+        self.ask(WindowRequest::BeginResize { window: self.id, edge })
     }
 
     pub fn close(self) -> bool {

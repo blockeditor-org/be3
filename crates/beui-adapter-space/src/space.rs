@@ -1030,7 +1030,7 @@ impl Space {
                 size,
             } => self.open(*window, placement, *size),
             WindowRequest::BeginMove(window) => self.begin_carry(self.pointer_in(*window), *window),
-            WindowRequest::BeginResize(window, edge) => {
+            WindowRequest::BeginResize { window, edge } => {
                 self.begin_resize(self.pointer_in(*window), *window, *edge)
             }
             WindowRequest::Resize { window, size } => self.resize_window(*window, *size),

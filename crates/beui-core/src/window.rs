@@ -1,11 +1,11 @@
 pub(crate) mod hosted;
 
-use std::sync::atomic::{AtomicU64, Ordering};
-
 use crate::color::Color32;
-use crate::geometry::{Pos2, Vec2};
 
-pub use ui_types::window::WindowRequests;
+pub use ui_types::window::{
+    HostPlacement, WindowEdge, WindowId, WindowPlacement, WindowReport, WindowRequest,
+    WindowRequests,
+};
 
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct WindowState {
@@ -128,112 +128,5 @@ impl WindowReports {
 
     pub(crate) fn take_raster(&self) -> Option<f32> {
         self.0.raster.take()
-    }
-}
-
-#[derive(Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Debug)]
-pub struct WindowId(u64);
-
-static NEXT_WINDOW: AtomicU64 = AtomicU64::new(1);
-
-impl WindowId {
-    pub const MAIN: Self = Self(0);
-
-    pub fn next() -> Self {
-        Self(NEXT_WINDOW.fetch_add(1, Ordering::Relaxed))
-    }
-
-    pub fn is_main(self) -> bool {
-        self == Self::MAIN
-    }
-
-    pub fn raw(self) -> u64 {
-        self.0
-    }
-}
-
-impl Default for WindowId {
-    fn default() -> Self {
-        Self::MAIN
-    }
-}
-
-#[derive(Clone, PartialEq, Eq, Hash, Debug)]
-pub struct HostPlacement(pub String);
-
-#[derive(Clone, PartialEq, Debug)]
-pub enum WindowPlacement {
-    AtPointer,
-    Over { window: WindowId, at: Pos2 },
-    Host(HostPlacement),
-}
-
-#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
-pub enum WindowEdge {
-    Top,
-    Bottom,
-    Left,
-    Right,
-    TopLeft,
-    TopRight,
-    BottomLeft,
-    BottomRight,
-}
-
-#[derive(Clone, PartialEq, Debug)]
-pub enum WindowRequest {
-    Open {
-        window: WindowId,
-        placement: WindowPlacement,
-        size: Vec2,
-    },
-    BeginMove(WindowId),
-    BeginResize(WindowId, WindowEdge),
-    Resize {
-        window: WindowId,
-        size: Vec2,
-    },
-    Close(WindowId),
-}
-
-impl WindowRequest {
-    pub fn window(&self) -> WindowId {
-        match self {
-            Self::Open { window, .. } | Self::Resize { window, .. } => *window,
-            Self::BeginMove(window) | Self::BeginResize(window, _) | Self::Close(window) => *window,
-        }
-    }
-}
-
-#[derive(Clone, PartialEq, Debug)]
-pub enum WindowReport {
-    Resized {
-        window: WindowId,
-        size: Vec2,
-    },
-    Placed {
-        window: WindowId,
-        placement: HostPlacement,
-    },
-    Rastered {
-        window: WindowId,
-        pixels_per_point: f32,
-    },
-    Closed(WindowId),
-    Focused {
-        window: WindowId,
-        focused: bool,
-    },
-}
-
-impl WindowReport {
-    pub fn window(&self) -> WindowId {
-        match self {
-            Self::Resized { window, .. }
-            | Self::Placed { window, .. }
-            | Self::Rastered { window, .. }
-            | Self::Focused { window, .. } => *window,
-            Self::Closed(window) => *window,
-        }
     }
 }

@@ -13,7 +13,7 @@ fn resizing_a_window_drags_its_edge_and_reports_the_new_size() {
         now,
         [Input::PointerMoved(grip), button(grip, true)],
     );
-    space.request(&WindowRequest::BeginResize(window, WindowEdge::BottomRight));
+    space.request(&WindowRequest::BeginResize { window, edge: WindowEdge::BottomRight });
 
     let dragged = grip + vec2(60.0, 30.0);
     let sent = send(&mut space, now, [Input::PointerMoved(dragged)]);
@@ -51,7 +51,7 @@ fn resizing_a_window_drags_its_edge_and_reports_the_new_size() {
     assert_eq!(*to, window);
     assert_eq!(placed(&released).len(), 1, "and the panel's new place");
 
-    space.request(&WindowRequest::BeginResize(window, WindowEdge::Left));
+    space.request(&WindowRequest::BeginResize { window, edge: WindowEdge::Left });
     let shrunk = send(
         &mut space,
         now,

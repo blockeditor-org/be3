@@ -228,7 +228,7 @@ impl WindowHost for TestHost {
                     windows.outputs.retain(|output| output.id != *window);
                 }
                 WindowRequest::Resize { window, size } => windows.resized(*window, *size),
-                WindowRequest::BeginMove(_) | WindowRequest::BeginResize(..) => {}
+                WindowRequest::BeginMove(_) | WindowRequest::BeginResize { .. } => {}
             }
         }
         for window in output.windows.iter().filter(|window| !window.id.is_main()) {

@@ -28,7 +28,7 @@ fn a_hosted_dock_windows_grip_asks_its_host_to_resize_it() {
     assert!(
         harness
             .take_window_requests()
-            .contains(&WindowRequest::BeginResize(window, WindowEdge::BottomRight)),
+            .contains(&WindowRequest::BeginResize { window, edge: WindowEdge::BottomRight }),
         "a press on the corner grip hands the resize to the host"
     );
     let state = harness.document().api::<DockApi>(dock).state();

@@ -49,7 +49,7 @@ fn closing_a_window_asks_its_host_and_a_close_by_the_host_reaches_the_app() {
         harness.take_window_requests(),
         [
             WindowRequest::BeginMove(window),
-            WindowRequest::BeginResize(window, WindowEdge::BottomRight),
+            WindowRequest::BeginResize { window, edge: WindowEdge::BottomRight },
         ]
     );
 
