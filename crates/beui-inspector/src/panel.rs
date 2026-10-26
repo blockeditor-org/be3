@@ -248,16 +248,28 @@ pub fn build(state: Stored<State>) -> Panel {
                         <Frame @sizing=ItemSize::Percent(100.0) @test_id={"inspector.tools"}>
                             <Docking layout=tools stack_below=0.0>
                                 <DockPane id="tools">
-                                    <DockTab id=InspectorTab::Beui title={InspectorTab::Beui.title()}>
+                                    <DockTab
+                                        id=InspectorTab::Beui
+                                        title={InspectorTab::Beui.title()}
+                                    >
                                         <TreePanel view=beui noun="node" state summary />
                                     </DockTab>
-                                    <DockTab id=InspectorTab::Components title={InspectorTab::Components.title()}>
+                                    <DockTab
+                                        id=InspectorTab::Components
+                                        title={InspectorTab::Components.title()}
+                                    >
                                         <TreePanel view=components noun="component" state summary />
                                     </DockTab>
-                                    <DockTab id=InspectorTab::AccessKit title={InspectorTab::AccessKit.title()}>
+                                    <DockTab
+                                        id=InspectorTab::AccessKit
+                                        title={InspectorTab::AccessKit.title()}
+                                    >
                                         <TreePanel view=accesskit noun="node" state summary />
                                     </DockTab>
-                                    <DockTab id=InspectorTab::Performance title={InspectorTab::Performance.title()}>
+                                    <DockTab
+                                        id=InspectorTab::Performance
+                                        title={InspectorTab::Performance.title()}
+                                    >
                                         <PerformanceTool
                                             performance={performance.read_only()}
                                             renderer={renderer.read_only()}
@@ -265,7 +277,10 @@ pub fn build(state: Stored<State>) -> Panel {
                                             state
                                         />
                                     </DockTab>
-                                    <DockTab id=InspectorTab::Simulation title={InspectorTab::Simulation.title()}>
+                                    <DockTab
+                                        id=InspectorTab::Simulation
+                                        title={InspectorTab::Simulation.title()}
+                                    >
                                         <SimulationTool state summary />
                                     </DockTab>
                                 </DockPane>
@@ -351,7 +366,11 @@ fn TreePanel(
             <Frame padding=FOOTER_PADDING>
                 <List spacing=FOOTER_SPACING>
                     <Text style=TextStyle::CODE>{selection_text}</Text>
-                    <List direction=Direction::Horizontal align=Align::Center spacing=HEADER_SPACING>
+                    <List
+                        direction=Direction::Horizontal
+                        align=Align::Center
+                        spacing=HEADER_SPACING
+                    >
                         <Text
                             style=TextStyle::CODE
                             color=TextColor::Muted
@@ -414,12 +433,7 @@ fn SimulationTool(state: Stored<State>, summary: Signal<Summary>) -> NodeId {
     let handles_back = create_memo(move || summary.with(|summary| summary.handles_back));
     view! {
         <List spacing=0.0>
-            <SimulationPanel
-                @sizing=ItemSize::Percent(100.0)
-                state
-                responsive
-                handles_back
-            />
+            <SimulationPanel @sizing=ItemSize::Percent(100.0) state responsive handles_back />
             <Separator />
             <Frame padding=FOOTER_PADDING>
                 <Text style=TextStyle::CODE color=TextColor::Muted>{native_pixel_ratio_text}</Text>

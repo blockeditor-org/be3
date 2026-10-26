@@ -5,8 +5,8 @@ use beui_core::font::Overflow;
 use beui_core::node::NodeId;
 use beui_macros::{component, view};
 
-use crate::theme::{ThemeStore, use_theme};
 use crate::select::Select;
+use crate::theme::{ThemeStore, use_theme};
 use beui_components_unstyled::{ChoiceOption, ChoiceOptionHandle};
 use beui_view::primitives::*;
 use beui_view::reactive::*;

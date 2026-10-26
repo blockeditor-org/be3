@@ -17,7 +17,13 @@ pub fn Tabs(
     let choice = ComponentRef::new();
     let built = view! {
         <Collapsing options selected label>|wide: Wide|
-            <Choice api=choice options={wide.options} selected={wide.selected} kind=Kind::Tabs label>|handle|
+            <Choice
+                api=choice
+                options={wide.options}
+                selected={wide.selected}
+                kind=Kind::Tabs
+                label
+            >|handle|
                 <OptionFace kind=Kind::Tabs handle />
             </Choice>
         </Collapsing>

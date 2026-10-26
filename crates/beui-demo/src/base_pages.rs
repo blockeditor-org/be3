@@ -323,7 +323,7 @@ fn Tile(label: Prop<String>) -> NodeId {
 #[component]
 fn FittingLabels() -> NodeId {
     view! {
-        <List direction=Direction::Horizontal spacing=8.0>
+        <List @test_id="demo.lists.first_fit" direction=Direction::Horizontal spacing=8.0>
             <Frame width={Extent::px(PANEL_WIDTH)}>
                 <FirstFit>
                     <Tile label="Mercury, Venus, Earth" />

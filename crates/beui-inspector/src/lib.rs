@@ -946,8 +946,11 @@ impl Inspector {
                     .map(|entry| (entry.key, entry.clone()))
                     .collect(),
             );
-            view.selection_text
-                .set(self.selection_text(target, &entries, selected_key(&selection)));
+            view.selection_text.set(self.selection_text(
+                target,
+                &entries,
+                selected_key(&selection),
+            ));
             view.total.set(total(target, tab));
             view.selection.set(selection);
             if current == Some(index) {
@@ -972,14 +975,22 @@ impl Inspector {
         self.entries = current_entries;
     }
 
-    fn selection_text(&self, target: &Document, entries: &[Entry], selected_key: Option<Key>) -> String {
-        self.state().selected.get().map_or_else(nothing_selected, |id| {
-            entries
-                .iter()
-                .find(|entry| Some(entry.key) == selected_key)
-                .or_else(|| entries.iter().find(|entry| entry.key.node() == id))
-                .map_or_else(|| tree::label(target, id), entry_label)
-        })
+    fn selection_text(
+        &self,
+        target: &Document,
+        entries: &[Entry],
+        selected_key: Option<Key>,
+    ) -> String {
+        self.state()
+            .selected
+            .get()
+            .map_or_else(nothing_selected, |id| {
+                entries
+                    .iter()
+                    .find(|entry| Some(entry.key) == selected_key)
+                    .or_else(|| entries.iter().find(|entry| entry.key.node() == id))
+                    .map_or_else(|| tree::label(target, id), entry_label)
+            })
     }
 
     fn summary(&self, target: &Document, ctx: &Context) -> Summary {
