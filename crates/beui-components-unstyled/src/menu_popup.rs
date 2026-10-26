@@ -100,7 +100,7 @@ pub fn MenuPopup(
             row,
             AnchoredStyle {
                 dropdown: panel,
-                sheet: RenderFn::new(|handle: AnchoredSheetHandle| handle.content),
+                sheet: RenderFn::new(|handle: AnchoredSheetHandle| handle.content.call(())),
             },
             Prop::Static(SheetWhen::Never),
         ),

@@ -66,6 +66,7 @@ pub struct Document {
     pub composed: String,
     pub(crate) keyboard_held: bool,
     touched: ::reactive::OwnedSignal<bool>,
+    pub(crate) finger_pressed: bool,
     pub(crate) keyboard_asks: u32,
     pub activated: Option<NodeId>,
     pub activation_key: Option<Key>,
@@ -294,6 +295,7 @@ impl Document {
             composed: String::new(),
             keyboard_held: false,
             touched: ::reactive::OwnedSignal::new(false),
+            finger_pressed: false,
             keyboard_asks: 0,
             activated: None,
             activation_key: None,
@@ -569,6 +571,10 @@ impl Document {
 
     pub fn touched(&self) -> bool {
         self.touched.get_untracked()
+    }
+
+    pub fn touched_by_finger(&self) -> bool {
+        self.finger_pressed && self.touched()
     }
 
     pub fn watch_touched(&self) -> ::reactive::ReadSignal<bool> {

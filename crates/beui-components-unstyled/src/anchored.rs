@@ -9,7 +9,7 @@ use beui_view::reactive::*;
 pub struct AnchoredSheetHandle {
     pub open: Memo<bool>,
     pub on_close: ClickCallback,
-    pub content: Child,
+    pub content: Render,
 }
 
 #[derive(Clone, Copy)]
@@ -59,13 +59,12 @@ pub fn Anchored(
     on_dismiss: ClickCallback,
     #[prop(children)] content: RenderFn<AnchoredHandle>,
 ) -> NodeId {
-    let touch = use_touch();
     let mut was_open = false;
     let mut touched = false;
     let as_sheet = create_memo(move || {
         let now = open.get();
         if now && !was_open {
-            touched = touch.get_untracked();
+            touched = untrack(touched_by_finger);
         }
         was_open = now;
         match sheet.get() {
@@ -102,9 +101,11 @@ pub fn Anchored(
                 style.sheet.call(AnchoredSheetHandle {
                     open: raised,
                     on_close: ClickCallback::new(move || on_dismiss.call()),
-                    content: content.call(AnchoredHandle {
-                        sheet: true,
-                        shown: raised,
+                    content: Render::new(move |()| {
+                        content.call(AnchoredHandle {
+                            sheet: true,
+                            shown: raised,
+                        })
                     }),
                 })
             }</Show>

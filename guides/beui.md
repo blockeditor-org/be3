@@ -1003,11 +1003,12 @@ features. That choice is `unstyled::Anchored`'s, the one surface every anchored
 popup sits on (`MenuPopup`, `Select`'s options, `Popover`, and through it the
 date and colour pickers): an overlay under `anchor` at `placement`, or the same
 content in a sheet. It looks at whether the press that opened it was a
-finger's or a pen's (`use_touch`, which a key press clears), so no trigger
+finger's (`touched_by_finger`, `Document::touched_by_finger`: `use_touch`
+narrowed to fingers, since a pen points as precisely as a mouse), so no trigger
 tracks touch itself; `sheet` (`SheetWhen::Touched` by
 default, `Always` or `Never`) overrides that. Its `AnchoredStyle` takes both
 looks with no default: `dropdown` wraps the content in a panel and `sheet`
-renders an `AnchoredSheetHandle` (`open`, `on_close`, `content`), styled as a
+renders an `AnchoredSheetHandle` (`open`, `on_close`, and `content`, a `Render` the sheet builds inside itself so focus lands within it), styled as a
 fitted `ModalSheet` (`styled::popover_surface(max_width)` for a popover's).
 Its content is a `RenderFn<AnchoredHandle>`, built once per look the first
 time that look opens; the handle's `sheet` says which and `shown` holds while

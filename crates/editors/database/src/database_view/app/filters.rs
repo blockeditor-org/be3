@@ -283,10 +283,7 @@ fn AddFilter(data: Data) -> NodeId {
         >|_: PopoverHandle|
             <List spacing=0.0>
                 <Show condition={choosing}>
-                    <FieldChoices
-                        data={data}
-                        on_pick={move |id: ObjectId| adding.set(Some(id))}
-                    />
+                    <FieldChoices data={data} on_pick={move |id: ObjectId| adding.set(Some(id))} />
                 </Show>
                 <Show condition={has_editing}>|| {
                     let id = editing.get_untracked();

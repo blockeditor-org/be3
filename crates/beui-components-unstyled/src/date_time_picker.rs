@@ -2,10 +2,10 @@ use std::time::Duration;
 
 use beui_macros::{component, view};
 
+use crate::anchored::AnchoredStyle;
 use crate::date_time_field::{
     DateDraft, DateSegment, DateSegmentHandle, DateTimeField, DateTimeParts,
 };
-use crate::anchored::AnchoredStyle;
 use crate::datetime::{Date, DateTime, HourCycle, Time};
 use crate::popover::{Popover, PopoverHandle, PopoverPlacement};
 use crate::popup_trigger::PopupTriggerHandle;

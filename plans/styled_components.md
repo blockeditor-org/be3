@@ -176,8 +176,8 @@ the colour picker on it.
 
 **Done.** `unstyled::Anchored` (`anchored.rs`) with `AnchoredStyle::new(dropdown,
 sheet)`, `AnchoredSheetHandle`, `AnchoredHandle { sheet, shown }` and
-`SheetWhen`. It samples `use_touch()` (the same signal §1's `Dialog` reads) when it
-opens, so `MenuButton`,
+`SheetWhen`. It samples `touched_by_finger()` (§1's `use_touch` narrowed to fingers,
+so a pen's barrel button still drops a menu down) when it opens, so `MenuButton`,
 `PopupTrigger` (its `on_press` is gone), `ContextMenu` and block-app's app menu
 no longer track touch. `Popover` (and so `DateTimePicker` and `ColorInput`) and
 `Select` take a required `surface: AnchoredStyle` in place of wrapping their

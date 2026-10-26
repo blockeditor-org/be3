@@ -477,6 +477,7 @@ fn down(
         end(doc, frame, stale, true);
     }
     doc.set_touched(event.pointer != PointerId::Mouse);
+    doc.finger_pressed = event.pointer.is_touch();
     let kind = Kind::of(event.pointer);
     let role = match button {
         _ if kind.finger && primary_touch(doc).is_some() => Role::Finger,
