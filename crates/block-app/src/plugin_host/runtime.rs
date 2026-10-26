@@ -1254,10 +1254,18 @@ pub(crate) fn frame_placement(
     plugin_id: &str,
     instance: EditorInstanceId,
 ) -> Option<FramePlacement> {
+    region_placement(plugin_id, instance, EditorRegion::Frame)
+}
+
+pub(crate) fn region_placement(
+    plugin_id: &str,
+    instance: EditorInstanceId,
+    region: EditorRegion,
+) -> Option<FramePlacement> {
     with(plugin_id, |runtime| {
         runtime
             .placements
-            .get(&(instance, EditorRegion::Frame))
+            .get(&(instance, region))
             .map(|placed| FramePlacement {
                 rect: placed.rect,
                 zoom: placed.zoom,

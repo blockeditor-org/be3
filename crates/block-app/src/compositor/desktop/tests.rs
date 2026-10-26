@@ -1,2 +1,3 @@
 use super::*;
+mod a_window_shown_in_the_app_is_kept_inside_it_and_shrinks_rather_than_covering_its_opener;
 mod a_window_shows_on_the_display_holding_most_of_it_and_on_both_while_it_is_moved;

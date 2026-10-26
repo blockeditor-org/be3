@@ -8,9 +8,9 @@ use std::{
 use beui::reactive::*;
 use beui::styled::*;
 use beui::{
-    Align, CursorIcon, Forwarded, ForwardedInput, ImeCursor, Modifiers, NodeId, PointerButton,
-    PointerEvent, PointerId, PointerPhase, Pos2, Rect, Region, Vec2, WindowId, WindowPlacement,
-    WindowReport, WindowRole, pos2,
+    Align, CursorIcon, Forwarded, ForwardedInput, ImeCursor, LayerPolicy, Modifiers, NodeId,
+    OverlayAnchor, Placement, PointerButton, PointerEvent, PointerId, PointerPhase, Pos2, Rect,
+    Region, Vec2, WindowId, WindowPlacement, WindowReport, WindowRole, pos2,
 };
 use block_plugin_api::{ChildId, EditorInstanceId, EditorRegion, FrameSpec, PluginManifest};
 use uuid::Uuid;
@@ -269,8 +269,7 @@ pub(crate) fn PluginRegion(
                 clip: placement.clip,
                 zoom: zoom.get_untracked(),
                 raster: placement.raster,
-                windows: hosts_windows
-                    || (region == EditorRegion::Frame && crate::host::opens_windows()),
+                windows: hosts_windows || (region == EditorRegion::Frame && !offscreen),
                 placement: stored_key
                     .with(|key| key.as_ref().and_then(super::desktop::placement_of)),
             },
@@ -669,8 +668,17 @@ pub(crate) fn PluginRegion(
         !passive.get_untracked() && state.with_untracked(|view| view.draws(position))
     };
     let windows = windowing.map(|editor| {
+        let overlaid = (!shows_desktop).then(|| {
+            let editor = editor.clone();
+            view! {
+                <OverlaidWindows editor />
+            }
+        });
         view! {
-            <PanelWindows editor rect />
+            <Layers>
+                <PanelWindows editor rect />
+                {overlaid}
+            </Layers>
         }
     });
     view! {
@@ -773,6 +781,59 @@ fn DesktopWindows(editor: RegionEditor, state: Memo<RegionView>, rect: Memo<Rect
                 }
             }</ForEach>
         </Canvas>
+    }
+}
+
+#[component]
+fn OverlaidWindows(editor: RegionEditor) -> NodeId {
+    let block = editor.role.block().map(|block| block.id);
+    let keys = super::desktop::overlaid(editor.plugin_id().to_owned(), editor.instance);
+    let viewport = use_viewport_size();
+    let editor = store(editor);
+    view! {
+        <Layers>
+            <ForEach keys={keys}>|window: u64| {
+                let editor = editor.with(Clone::clone);
+                let key = super::desktop::FloatedKey {
+                    plugin: editor.plugin_id().to_owned(),
+                    instance: editor.instance,
+                    window,
+                };
+                let asked = super::desktop::rect_of(key);
+                let shown = create_memo(move || {
+                    asked.get().map_or(Rect::ZERO, |rect| super::desktop::clamped(rect, viewport.get()))
+                });
+                let anchor = create_memo(move || OverlayAnchor::Point(shown.get().min));
+                let width = create_memo(move || Size::Custom(shown.get().width()));
+                let height = create_memo(move || Size::Custom(shown.get().height()));
+                let region = EditorRegion::Window(window);
+                let child_view: ChildView = match block {
+                    Some(block) => super::editors::child_view(block, region),
+                    None => store(Box::new(|_, _, _| view! {
+                        <Frame />
+                    })),
+                };
+                let held = store(editor);
+                view! {
+                    <Overlay
+                        anchor
+                        placement=Placement::At
+                        policy=LayerPolicy::Pass
+                        traps_focus=false
+                        open=true
+                    >
+                        <Frame width height>
+                            <PluginRegion
+                                editor={held.with(Clone::clone)}
+                                region
+                                child_view
+                                on_focus={Callback::new(|()| {})}
+                            />
+                        </Frame>
+                    </Overlay>
+                }
+            }</ForEach>
+        </Layers>
     }
 }
 
