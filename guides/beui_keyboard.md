@@ -5,8 +5,8 @@ The styled controls follow the keyboard conventions in the [W3C Authoring Practi
 | Control | Keyboard behavior |
 | --- | --- |
 | Buttons, links, toggle buttons, checkboxes, switches, list rows, disclosure and accordion headers | Space or Enter activates on release. Escape or focus loss cancels a held activation. Repeated key-down events do not activate repeatedly. |
-| Tabs | One Tab stop, at the selected tab. Left/Right wrap and select immediately. Home/End select the first/last tab. Up/Down leave the horizontal tab selection alone. |
-| Radio groups | One Tab stop, at the selected option or the first option when unselected. Arrows wrap and select; Space selects without clearing an existing selection. Home/End select the first/last option. |
+| Tabs | One Tab stop, at the selected tab. Left/Right wrap and select immediately. Home/End select the first/last tab. Up/Down leave the horizontal tab selection alone. Tabs and segmented controls without room for their options become a Select, with its keys. |
+| Radio groups and segmented controls | One Tab stop, at the selected option or the first option when unselected. Arrows wrap and select; Space selects without clearing an existing selection. Home/End select the first/last option. |
 | Single-select listboxes | One Tab stop. Up/Down select the previous/next option and stop at the ends. Home/End select the first/last option. Typing searches case-insensitive prefixes; repeated letters cycle matches. The search resets after one second or when focus leaves. |
 | Sliders | Right/Up increase and Left/Down decrease by 5% of the track. Home/End select minimum/maximum. Page Up/Down adjust by 20% of the track. Values remain within the range, which is `min` to `max` and defaults to 0 to 1. A curved `scale` keeps the steps even along the track, so they are small where the track is fine and large where it is coarse. |
 | Text inputs | Left/Right, Home/End, Shift-selection, Ctrl/Alt word navigation and deletion, Ctrl+A, Ctrl+C/X, Ctrl+Z, Ctrl+Shift+Z/Ctrl+Y, and Enter to submit; a single-line input with no `on_submit` leaves Enter to what is around it, such as a dialog's confirm action. Up and Down move to the start and the end of the text, as they would on the one line of a multiline area. Space inserts text. Paste replaces the selection. A secondary click opens the Copy, Cut, Paste and Select All menu that a touch tap on the selection or the caret handle opens. The desktop runner maps Command to Ctrl on macOS; Super chords type nothing. A multiline text area takes Tab and Shift+Tab to indent; Escape then Tab or Shift+Tab moves the focus out of it instead. It registers Find (Ctrl+F), Find and replace (Ctrl+H), the next and previous match (Ctrl+G, Ctrl+Shift+G), Duplicate the line (Ctrl+Shift+D), Select the next occurrence (Ctrl+D) and folding (Ctrl+Shift+[) as actions, which answer while the focus is in it. |
@@ -386,7 +386,7 @@ resolved.
 
 `<Select>` takes `options` and `selected` and opens a popup with a search box
 over the option list. Its options, and those of `<Tabs>`, `<Listbox>`,
-`<RadioGroup>` and `<ResponsiveTabs>`, are a `Children<unstyled::ChoiceOption>`
+`<RadioGroup>` and `<SegmentedControl>`, are a `Children<unstyled::ChoiceOption>`
 written as `<ChoiceOption>` tags, with each label a prop that follows its
 signal. A list that comes from runtime data builds a `Vec` of those tags rather
 than a `Vec` of labels, so an option is one thing everywhere it is written.

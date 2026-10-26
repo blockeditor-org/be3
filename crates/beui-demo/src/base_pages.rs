@@ -3,6 +3,7 @@ use beui::KeyPress;
 use beui::Sides;
 use beui::Vec2;
 use beui::primitives::Drawing;
+use beui::primitives::FirstFit;
 use beui::primitives::Frame;
 use beui::primitives::Icon;
 use beui::primitives::Span;
@@ -294,6 +295,9 @@ pub(crate) fn ListsPage() -> NodeId {
             <Sample title="LayoutBuilder" code={vec![ColumnsForWidth::SOURCE, Tile::SOURCE]}>
                 <ColumnsForWidth />
             </Sample>
+            <Sample title="FirstFit" code={vec![FittingLabels::SOURCE, Tile::SOURCE]}>
+                <FittingLabels />
+            </Sample>
         </ScrollPage>
     }
 }
@@ -312,6 +316,27 @@ fn Tile(label: Prop<String>) -> NodeId {
         >
             <Text color={theme.text}>{label}</Text>
         </Frame>
+    }
+}
+
+#[sample]
+#[component]
+fn FittingLabels() -> NodeId {
+    view! {
+        <List direction=Direction::Horizontal spacing=8.0>
+            <Frame width={Extent::px(PANEL_WIDTH)}>
+                <FirstFit>
+                    <Tile label="Mercury, Venus, Earth" />
+                    <Tile label="Mercury" />
+                </FirstFit>
+            </Frame>
+            <Frame width={Extent::px(PANEL_WIDTH / 2.0)}>
+                <FirstFit>
+                    <Tile label="Mercury, Venus, Earth" />
+                    <Tile label="Mercury" />
+                </FirstFit>
+            </Frame>
+        </List>
     }
 }
 

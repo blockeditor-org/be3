@@ -116,6 +116,7 @@ pub fn CalendarEditor(editor: Editor) -> NodeId {
                 />
                 <Text>{header}</Text>
                 <SegmentedControl
+                    @sizing={ItemSize::Intrinsic.shrink(1.0)}
                     label="View"
                     options={view! {
                         <ChoiceOption label={CalendarView::Day.label()} />

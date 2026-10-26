@@ -26,6 +26,7 @@ use beui_core::document::{Document, Tools, trim_bottom};
 use beui_core::node::NodeId;
 use beui_core::preferences::{PreferenceLayer, PreferenceSource};
 use beui_core::screen_simulation::ScreenSimulation;
+use beui_dock::unstyled::{DockMode, DockingLayout};
 use beui_view::reactive::*;
 
 use panel::Summary;
@@ -43,7 +44,7 @@ const HANDLE_THICKNESS: f32 = 4.0;
 const HANDLE_LENGTH: f32 = 40.0;
 const HANDLE_CORNER: f32 = 14.0;
 
-#[derive(Clone, Copy, Default, PartialEq, Eq)]
+#[derive(Clone, Copy, Default, PartialEq, Eq, Hash, Debug)]
 pub enum InspectorTab {
     #[default]
     Beui,
@@ -54,20 +55,32 @@ pub enum InspectorTab {
 }
 
 impl InspectorTab {
-    fn from_index(index: usize) -> Self {
-        match index {
-            1 => Self::Components,
-            2 => Self::AccessKit,
-            3 => Self::Performance,
-            4 => Self::Simulation,
-            _ => Self::Beui,
+    pub const ALL: [InspectorTab; 5] = [
+        InspectorTab::Beui,
+        InspectorTab::Components,
+        InspectorTab::AccessKit,
+        InspectorTab::Performance,
+        InspectorTab::Simulation,
+    ];
+    pub const TREES: [InspectorTab; 3] = [
+        InspectorTab::Beui,
+        InspectorTab::Components,
+        InspectorTab::AccessKit,
+    ];
+
+    pub fn title(self) -> &'static str {
+        match self {
+            InspectorTab::Beui => "Beui",
+            InspectorTab::Components => "Comp",
+            InspectorTab::AccessKit => "A11y",
+            InspectorTab::Performance => "Perf",
+            InspectorTab::Simulation => "Sim",
         }
     }
 }
 
 pub struct State {
     expansion: RefCell<HashMap<Key, bool>>,
-    tab: Cell<InspectorTab>,
     pub hovered: Cell<Option<NodeId>>,
     pub selected: Cell<Option<NodeId>>,
     selected_component: Cell<Option<Key>>,
@@ -100,7 +113,6 @@ impl State {
     fn new(ctx: &Context) -> Self {
         Self {
             expansion: RefCell::new(HashMap::new()),
-            tab: Cell::new(InspectorTab::default()),
             hovered: Cell::new(None),
             selected: Cell::new(None),
             selected_component: Cell::new(None),
@@ -149,11 +161,6 @@ impl State {
             expansion.insert(*key, true);
         }
         drop(expansion);
-        self.touch();
-    }
-
-    fn set_tab(&self, index: usize) {
-        self.tab.set(InspectorTab::from_index(index));
         self.touch();
     }
 
@@ -378,16 +385,16 @@ pub struct Inspector {
     pub document: Document,
     pub entries: Vec<Entry>,
     reader: ScreenReader,
-    keys: Signal<Vec<Key>>,
-    entry_map: Signal<HashMap<Key, Entry>>,
+    trees: [panel::TreeView; 3],
+    tools: DockingLayout<InspectorTab>,
+    tree_shown: Signal<bool>,
+    synced_shown: [bool; 3],
     summary: Signal<Summary>,
     performance: Signal<panel::PerformanceSummary>,
     renderer: Signal<panel::RendererRows>,
     renderers: Signal<RendererChoices>,
-    selection: Signal<Vec<Key>>,
     panel_compact: Signal<bool>,
     shown_compact: bool,
-    tree: ComponentRef<beui_components_styled::TreeApi<Key>>,
     bar: panel::Bar,
     toolbar: responsive::Toolbar,
     resizing: Option<Resize>,
@@ -420,16 +427,16 @@ impl Inspector {
             document: panel.document,
             _panel_scope: panel.scope,
             entries: Vec::new(),
-            tree: panel.tree,
+            trees: panel.trees,
+            tools: panel.tools,
+            tree_shown: panel.tree_shown,
+            synced_shown: [false; 3],
             state,
             reader: ScreenReader::default(),
-            keys: panel.keys,
-            entry_map: panel.entries,
             summary: panel.summary,
             performance: panel.performance,
             renderer: panel.renderer,
             renderers: panel.renderers,
-            selection: panel.selection,
             panel_compact: panel.compact,
             shown_compact: false,
             width: DEFAULT_WIDTH,
@@ -455,14 +462,17 @@ impl Inspector {
             .unwrap_or_else(|| panic!("the inspector has no node with test id {test_id:?}"))
     }
 
-    pub fn option_node(&self, test_id: &str, index: usize) -> NodeId {
-        self.document.children(self.find(test_id))[index]
+    pub fn tab_node(&self, tab: InspectorTab) -> NodeId {
+        let root = self.document.root().expect("the inspector has a root");
+        placed_text(&self.document, root, tab.title())
+            .unwrap_or_else(|| panic!("the inspector shows no {} tab", tab.title()))
     }
 
     pub fn bar_option_rect(&self, index: usize) -> Option<Rect> {
         let document = &self.bar.document;
         let bar = document.find_test_id("inspector.bar")?;
-        document.node_rect(document.children(bar)[index])
+        let tabs = *document.children(bar).first()?;
+        document.node_rect(*document.children(tabs).get(index)?)
     }
 
     pub fn bar_rect(&self, test_id: &str) -> Option<Rect> {
@@ -486,7 +496,8 @@ impl Inspector {
     }
 
     pub fn selected_row(&self, target: &Document) -> Option<String> {
-        let key = self.selection_path(target).last().copied()?;
+        let tab = InspectorTab::TREES[self.current_tree()?];
+        let key = self.selection_path(target, tab).last().copied()?;
         let entry = self.entries.iter().find(|entry| entry.key == key)?;
         Some(entry.kind.clone())
     }
@@ -658,6 +669,9 @@ impl Inspector {
             });
         } else {
             document.hide();
+        }
+        if self.tools_shown() != self.synced_shown {
+            ctx.request_repaint();
         }
         self.show_bar(ctx, bar);
         if self.state().reset_performance.take() {
@@ -885,63 +899,96 @@ impl Inspector {
         }
     }
 
+    fn tools_shown(&self) -> [bool; 3] {
+        let tools = self.tools;
+        let stacked = tools.mode().get_untracked() == DockMode::Stacked;
+        tools.state().with_untracked(|state| {
+            InspectorTab::TREES.map(|tab| match state.is_empty() {
+                true => tab == InspectorTab::default(),
+                false => tools
+                    .tab_of(&tab)
+                    .is_some_and(|id| state.is_shown(id, stacked)),
+            })
+        })
+    }
+
+    fn current_tree(&self) -> Option<usize> {
+        let shown = self.tools_shown();
+        let focused = self
+            .tools
+            .focused()
+            .and_then(|tab| InspectorTab::TREES.iter().position(|tree| *tree == tab))
+            .filter(|index| shown[*index]);
+        focused.or_else(|| shown.iter().position(|shown| *shown))
+    }
+
     fn sync(&mut self, target: &Document, ctx: &Context) {
-        let entries = match self.state().tab.get() {
-            InspectorTab::Beui => tree::collect(target, &self.state()),
-            InspectorTab::Components => tree::collect_components(target, &self.state()),
-            InspectorTab::AccessKit => tree::collect_accesskit(target, &self.state()),
-            InspectorTab::Performance | InspectorTab::Simulation => Vec::new(),
-        };
-        let selection = self.selection_path(target);
-        let summary = self.summary(target, ctx, &entries, selection.last().copied());
+        let shown = self.tools_shown();
+        let current = self.current_tree();
+        let selected_key = |selection: &[Key]| selection.last().copied();
+        let mut current_entries = Vec::new();
+        for (index, tab) in InspectorTab::TREES.into_iter().enumerate() {
+            if !shown[index] {
+                continue;
+            }
+            let entries = match tab {
+                InspectorTab::Beui => tree::collect(target, &self.state()),
+                InspectorTab::Components => tree::collect_components(target, &self.state()),
+                _ => tree::collect_accesskit(target, &self.state()),
+            };
+            let selection = self.selection_path(target, tab);
+            let view = self.trees[index];
+            view.keys
+                .set(entries.iter().map(|entry| entry.key).collect());
+            view.entries.set(
+                entries
+                    .iter()
+                    .map(|entry| (entry.key, entry.clone()))
+                    .collect(),
+            );
+            view.selection_text
+                .set(self.selection_text(target, &entries, selected_key(&selection)));
+            view.total.set(total(target, tab));
+            view.selection.set(selection);
+            if current == Some(index) {
+                current_entries = entries;
+            }
+        }
+        self.synced_shown = shown;
+        let any_tree = shown.contains(&true);
+        if self.tree_shown.get_untracked() != any_tree {
+            self.tree_shown.set(any_tree);
+        }
+        let summary = self.summary(target, ctx);
         let performance = panel::PerformanceSummary::from(target.performance());
         let renderer = ctx
             .renderer_info()
             .map(|info| info.rows)
             .unwrap_or_default();
-        self.keys
-            .set(entries.iter().map(|entry| entry.key).collect());
-        self.entry_map.set(
-            entries
-                .iter()
-                .map(|entry| (entry.key, entry.clone()))
-                .collect(),
-        );
         self.summary.set(summary);
         self.performance.set(performance);
         self.renderer.set(renderer);
         self.renderers.set(ctx.renderers());
-        self.selection.set(selection);
-        self.entries = entries;
+        self.entries = current_entries;
     }
 
-    fn summary(
-        &self,
-        target: &Document,
-        ctx: &Context,
-        entries: &[Entry],
-        selected_key: Option<Key>,
-    ) -> Summary {
-        let selected = self.state().selected.get();
-        let selection = selected.map_or_else(nothing_selected, |id| {
+    fn selection_text(&self, target: &Document, entries: &[Entry], selected_key: Option<Key>) -> String {
+        self.state().selected.get().map_or_else(nothing_selected, |id| {
             entries
                 .iter()
                 .find(|entry| Some(entry.key) == selected_key)
                 .or_else(|| entries.iter().find(|entry| entry.key.node() == id))
                 .map_or_else(|| tree::label(target, id), entry_label)
-        });
+        })
+    }
+
+    fn summary(&self, target: &Document, ctx: &Context) -> Summary {
+        let selected = self.state().selected.get();
         Summary {
-            total: match self.state().tab.get() {
-                InspectorTab::Beui => target.root().map_or(0, |root| tree::count(target, root)),
-                InspectorTab::Components => tree::component_count(target),
-                InspectorTab::AccessKit => tree::accesskit_count(target),
-                InspectorTab::Performance | InspectorTab::Simulation => 0,
-            },
             native_pixel_ratio: native_pixel_ratio_label(ctx.native_pixels_per_point()),
             picking: self.state().picking.get(),
             responsive: self.state().screen_simulation.get().is_some(),
             handles_back: target.handles_back(),
-            selection,
             bounds: selected
                 .and_then(|id| target.node_rect(id))
                 .map(bounds_label)
@@ -990,7 +1037,8 @@ impl Inspector {
     }
 
     fn tree_api(&self) -> Option<beui_components_styled::TreeApi<Key>> {
-        self.tree
+        self.trees[self.current_tree()?]
+            .tree
             .try_get()
             .filter(|tree| self.document.contains(tree.node()))
     }
@@ -1036,11 +1084,11 @@ impl Inspector {
         }
     }
 
-    fn selection_path(&self, target: &Document) -> Vec<Key> {
+    fn selection_path(&self, target: &Document, tab: InspectorTab) -> Vec<Key> {
         let Some(id) = self.state().selected.get() else {
             return Vec::new();
         };
-        match self.state().tab.get() {
+        match tab {
             InspectorTab::Beui => tree::path(target, id),
             InspectorTab::Components => {
                 tree::component_path(target, id, self.state().selected_component.get())
@@ -1175,6 +1223,30 @@ fn cancelled(event: &Event) -> bool {
     event
         .press()
         .is_some_and(|press| press.key == InputKey::Escape && press.pressed)
+}
+
+fn total(target: &Document, tab: InspectorTab) -> usize {
+    match tab {
+        InspectorTab::Beui => target.root().map_or(0, |root| tree::count(target, root)),
+        InspectorTab::Components => tree::component_count(target),
+        InspectorTab::AccessKit => tree::accesskit_count(target),
+        InspectorTab::Performance | InspectorTab::Simulation => 0,
+    }
+}
+
+fn placed_text(document: &Document, root: NodeId, text: &str) -> Option<NodeId> {
+    if document
+        .arena
+        .kind_of::<beui_core::base::text::TextNode>(root)
+        .is_some_and(|node| document.text(node) == text)
+        && document.node_rect(root).is_some()
+    {
+        return Some(root);
+    }
+    document
+        .children(root)
+        .into_iter()
+        .find_map(|child| placed_text(document, child, text))
 }
 
 fn nothing_selected() -> String {

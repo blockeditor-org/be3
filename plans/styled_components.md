@@ -196,28 +196,42 @@ user that has no scroll, no disabled rows and no Page keys.
 
 ### 4.3 Tabs
 
-- **Merge `ResponsiveTabs` into `Tabs`.** `Tabs` always collapses into a Select
+- **Done.** **Merge `ResponsiveTabs` into `Tabs`.** `Tabs` always collapses into a Select
   when it's narrow, the way a menu always adapts to touch. Today only the
   demo and its own test use `ResponsiveTabs`, and the real uses of `Tabs`
-  never collapse.
-- **Move the beui-inspector tool tabs to dock tabs.** Beui/Comp/A11y/Perf/Sim
+  never collapse. It collapses when its row of tabs doesn't fit the width it
+  is given, not below a breakpoint: a new base node, `FirstFit`, lays out the
+  first child whose natural width fits and leaves the rest unplaced (no paint,
+  input or Tab stop). A fixed breakpoint would have collapsed the inspector's
+  and the date picker's tabs, which sit in narrow panels with room to spare.
+- **Done.** **Move the beui-inspector tool tabs to dock tabs.** Beui/Comp/A11y/Perf/Sim
   (`beui-inspector/src/panel.rs:259`) are independent panels, and side by side
-  is useful. This needs `beui-dock` (§3).
+  is useful. This needs `beui-dock` (§3). The tools are `DockTab`s of one
+  pane in a styled `Docking` with `stack_below=0.0` (a new prop; it defaults
+  to `NARROW_WIDTH`), so the narrow panel tiles rather than stacking. Each
+  tree tool has its own rows, and the inspector collects rows only for the
+  tree tools on show. Its layout isn't saved, like the rest of the
+  inspector's state.
 - **Later, maybe: the inspector's App/Inspector bar.** That compact-mode bar
   (`panel.rs:405`) is the dock's phone layout with the app as a pane. Revisit
-  it once the inspector is a dock.
-- **The block-app invite role is not tabs.** Editor/Administrator
+  it once the inspector is a dock. Left as `Tabs`: the app isn't a beui node
+  the inspector's document can hold, so it can't be a dock pane without the
+  dock learning to reserve a pane for an outside surface.
+- **Done.** **The block-app invite role is not tabs.** Editor/Administrator
   (`block-app/src/ui/dialogs.rs:596`) is a form value. It moves to the
   segmented control below.
-- **Keep these as `Tabs`:** the input-remaps Editor/TOML views
+- **Done.** **Keep these as `Tabs`:** the input-remaps Editor/TOML views
   (`editors/settings/src/input_remaps/ui.rs`) and the `DateTimeField` paged
   Date/Time picker.
-- **Add a styled segmented control** over `Choice`'s `Radio` kind, so it has
+- **Done.** **Add a styled segmented control** over `Choice`'s `Radio` kind, so it has
   radio semantics. Tabs switch a panel; a segmented control picks a value.
   Move calendar's Day/Week/Month, be-launcher's Open/Closed and block-app's
   invite role onto it. Today they use `Tabs` and report tab roles with no tab
   panel. It collapses into a Select when narrow, as `Tabs` does. Add it to
-  beui-demo.
+  beui-demo. It is `styled::SegmentedControl` (`options`, `selected: usize`,
+  `label`); `Tabs` takes the same `label`, which names the tab list or radio
+  group and the Select it becomes. `unstyled::Choice` gained `label` and
+  `spacing`.
 
 ### 4.4 One Progress
 
@@ -275,6 +289,7 @@ Following the first rule, these become required props and styled passes them:
 - `TimeList`'s 32px `row_height`
 - the empty `<List/>` placeholders that are used when a trigger, row or option
   renderer isn't passed (`Select`, `CommandPalette`); make these required
+- `unstyled::Choice`'s `spacing`, which defaults to the 6px it used to hard-code
 
 Look for others while doing this, and list any you find here.
 

@@ -1,6 +1,6 @@
 use super::*;
 use beui::styled::{self, ButtonVariant, TextColor, TextSize, Weight};
-use beui_inspector::{Inspector, InspectorTools, scale};
+use beui_inspector::{Inspector, InspectorTab, InspectorTools, scale};
 
 fn inspector(test: &DocumentTest) -> &Inspector {
     test.document()
@@ -99,7 +99,7 @@ fn the_inspector_paints_the_component_shadow_tree() {
     ]);
     test.frame(Vec::new());
     let panel = inspector(&test);
-    let tab = panel.option_node("inspector.tabs", 1);
+    let tab = panel.tab_node(InspectorTab::Components);
     let center = panel
         .document
         .node_rect(tab)

@@ -1513,7 +1513,8 @@ impl Harness {
     }
 
     pub(crate) fn tab_node(&self, index: usize) -> NodeId {
-        self.inspector().option_node("inspector.tabs", index)
+        self.inspector()
+            .tab_node(crate::inspector::InspectorTab::ALL[index])
     }
 
     pub(crate) fn inspector_center(&self, test_id: &str) -> Pos2 {

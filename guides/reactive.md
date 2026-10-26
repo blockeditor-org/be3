@@ -781,8 +781,8 @@ fn Legend(entries: Children<Note>) -> NodeId {
 ```
 
 A `Run<T>` is cheap to clone and fills a `Children<T>` slot again, which is how
-one set of options reaches two controls: `styled::ResponsiveTabs` hands the same
-run to its tabs and to the select it collapses into.
+one set of options reaches two controls: `styled::Tabs` hands the same run to
+its tab list and to the select it collapses into.
 
 ```rust
 let toolbar = view! {

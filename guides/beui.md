@@ -610,7 +610,7 @@ need:
 - **Need new behavior?** Add an unstyled component composed from base
   components.
 - **Tempted to add a base component?** Almost always, add an unstyled one
-  instead. The base layer is small on purpose — `Frame`, `List`, `Layers`, `Grid`, `Text`,
+  instead. The base layer is small on purpose — `Frame`, `List`, `Layers`, `FirstFit`, `Grid`, `Text`,
   `Offset`, `VirtualList`, `Canvas`, `Drawing`, `Overlay`, `Interactive`, `Embed`,
   `Portal`, `BackHandler`, `Shift`, `Turn`, `Fade` — and it stays small because most things are
   compositions of those. `unstyled::Picture` is one: a `Drawing` with a size.
@@ -2070,7 +2070,7 @@ only floating windows and cards keep a border, rounded corners and a focus outli
 A dock narrower than `NARROW_WIDTH` stacks: it draws the same state as one screen, the focused tab
 filling the dock, edge to edge, with no tab bars, splitters or windows, and everything else in
 the state is kept, so widening it tiles the layout again. The dock picks the mode
-from its own width (the unstyled `Docking` stacks below its `stack_below`), and
+from its own width (both `Docking`s stack below their `stack_below`, which the styled one defaults to `NARROW_WIDTH`), and
 `DockingLayout::mode()` reads it, which is how the workspace knows it is on a phone.
 The dock draws the stacked screen's bar itself: the tab's icon and title, a
 square counting the open tabs that can be closed, the one on show included, always shown
@@ -3395,7 +3395,11 @@ inspector's Sim tab has a button that opens it over the inspected app.
 ### The inspector
 
 Ctrl+Shift+I in a standalone beui window opens the node, component,
-accessibility, and performance inspector. Its Comp tab lists the
+accessibility, and performance inspector. Its tools (Beui, Comp, A11y, Perf
+and Sim) are tabs of a `dock::styled::Docking` that never stacks
+(`stack_below=0.0`), so two can be dragged side by side; each tree tool keeps
+its own rows, and the inspector collects rows only for the tree tools on show.
+Its Comp tab lists the
 `#[component]`s that built the tree rather than its base nodes: every
 component records its name against the node it returns, so components that
 return the same node nest there, outermost first. Ctrl+Shift+C enables node picking. Ctrl+Shift+F moves
@@ -3642,6 +3646,15 @@ is laid out within it, so the outer box is the only place the number belongs.
 `Container`, `narrower_than` and `shorter_than` provide container-responsive
 state; `unstyled::Stack` and `styled::Stack` switch between a row and a column
 without rebuilding their children.
+`FirstFit` is the base node for "this, or that when it does not fit": it holds
+its children built, measures each but the last at an unbounded width and lays
+out the first one that fits the width it is offered, or the last. The others
+stay unplaced, so they paint nothing and take no input or Tab stop, and its
+minimum width is the last child's. That is how `styled::Tabs` and
+`styled::SegmentedControl` become a `Select` of the same options, sharing one
+`selected`, when their row of options does not fit: from the room they are
+given, not from a breakpoint. In a horizontal row, give one a share or
+`.shrink()` so the row offers it less than its natural width when it is short of room.
 
 ### One layout per frame
 

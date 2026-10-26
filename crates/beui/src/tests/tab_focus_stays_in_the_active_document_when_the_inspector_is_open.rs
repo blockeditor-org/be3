@@ -25,6 +25,8 @@ fn tab_focus_stays_in_the_active_document_when_the_inspector_is_open() {
 
     let accesskit_tab = harness.accesskit_tab_center();
     harness.click(accesskit_tab);
+    harness.frame(Vec::new());
+    harness.click(harness.row_center(0));
     let inspector_focus = harness.inspector().document.focused_node();
     assert!(inspector_focus.is_some());
     assert_eq!(harness.document().focused_node(), None);
