@@ -8,7 +8,9 @@ load("//buck/cargo/buckify.bxl", buckify = "generate")
 # crates/verify, for the machine that asked (--host, a platform in
 # buck/platforms), which reads the rest afterwards, running crates/local-tools
 # for the previews. It prints what that reads,
-# "kind<TAB>path" a line; with --keep-going it prints them all even when some
+# "kind<TAB>path" a line, or for a test's paintings
+# "paintings<TAB>package<TAB>path", the package holding the snapshots/ they
+# belong in; with --keep-going it prints them all even when some
 # fail to build, and crates/verify reads what was built. A path whose action
 # failed can still hold an earlier run's output, so crates/verify writes a fix
 # or a painting only where the checkout still holds what it was made from.
@@ -149,7 +151,8 @@ def _impl(ctx: bxl.Context):
     if args.tests:
         built.extend(_outputs(ctx, "^test_run$", "//crates/... + //compile_fail/..."))
     if args.plugin_tests:
-        printed.extend([("paintings", paintings) for paintings in _outputs(ctx, "^(plugin_test_run|painting_test_run)$", "//crates/...")])
+        targets = ctx.cquery().kind("^(plugin_test_run|painting_test_run)$", ctx.cquery().eval("//crates/..."))
+        printed.extend([("paintings\t" + target.label.package, ctx.analysis(target).providers()[DefaultInfo].default_outputs[0]) for target in targets])
     if args.previews:
         printed.append(("local-tools", _host_output(ctx, "root//crates/local-tools:release", args.host)))
         printed.append(("browser-rasterizer", _host_output(ctx, "root//crates/browser-rasterizer:release", args.host)))

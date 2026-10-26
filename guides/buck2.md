@@ -241,13 +241,13 @@ hundreds of megabytes for block-app's. A test's `ExternalRunnerTestInfo` is
 the command, unless it has a `RemoteTestInfo` (`buck/cargo/defs.bzl`), as the
 tests that paint do, naming the accepted paintings and the worker's lavapipe.
 
-**Plugin tests** read and write the accepted paintings in `snapshots/`. Each is the crate's tests compiled to wasm and run by `plugin-test-runner`,
+**Plugin tests** read and write the accepted paintings in their crate's `snapshots/`, and only those, so a painting one crate accepts leaves every other crate's tests cached. Each is the crate's tests compiled to wasm and run by `plugin-test-runner`,
 the host `block-app` runs a plugin in, so they paint with the FreeType and
 HarfBuzz the plugin ships. `./scripts/test --update` copies what a crate's
-`:test` accepted on a worker into `snapshots/`. `./scripts/verify` builds each
+`:test` accepted on a worker into the crate's `snapshots/`. `./scripts/verify` builds each
 crate's `:test-run`, an action that runs them on a worker and is cached like
 any other: it outputs the paintings that changed and the names of the ones it
-compared, and `./scripts/verify` copies the first into `snapshots/` and
+compared, and `./scripts/verify` copies the first into the crate's `snapshots/` and
 deletes the paintings no test named.
 
 **Native tests that paint**, `cargo_test(paints = True, run_env = ...)`, are

@@ -96,40 +96,11 @@ fn record_use(accepted: &Path) {
 }
 
 fn accepted_path(name: &str) -> PathBuf {
-    let manifest = manifest();
-    directory(&manifest).join(format!("{}.{name}.paint", crate_name(&manifest)))
-}
-
-fn manifest() -> PathBuf {
     let manifest = std::env::var("CARGO_MANIFEST_DIR")
         .expect("CARGO_MANIFEST_DIR is not set, run these tests through cargo");
     PathBuf::from(manifest)
-}
-
-fn crate_name(manifest: &Path) -> String {
-    manifest
-        .file_name()
-        .unwrap_or_else(|| panic!("{} names no crate", manifest.display()))
-        .to_string_lossy()
-        .into_owned()
-}
-
-fn directory(manifest: &Path) -> PathBuf {
-    manifest
-        .ancestors()
-        .find(|directory| holds_the_workspace(directory))
-        .unwrap_or_else(|| {
-            panic!(
-                "no workspace holds {}, run these tests through cargo",
-                manifest.display()
-            )
-        })
         .join("snapshots")
-}
-
-fn holds_the_workspace(directory: &Path) -> bool {
-    std::fs::read_to_string(directory.join("Cargo.toml"))
-        .is_ok_and(|manifest| manifest.contains("[workspace]"))
+        .join(format!("{name}.paint"))
 }
 
 fn write(path: &Path, bytes: &[u8]) {

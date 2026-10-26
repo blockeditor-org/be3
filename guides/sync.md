@@ -24,7 +24,7 @@ should use the same requests rather than writing another mapping.
   the block named, and must be a directory.
 - A file's bytes are `to-file` of its block's content (guides/type_modules.md): a text block's
   body, the data of an image, PDF, audio or file block (a file block holds any
-  bytes, such as `snapshots/*.paint`).
+  bytes, such as a crate's `snapshots/*.paint`).
 - A new file on disk becomes a block of the first type that `claims`
   it by its name and first 64 KiB: an image, PDF or audio block by its
   extension (and a PDF's magic), a text block when it is UTF-8 without a NUL

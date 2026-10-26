@@ -7,8 +7,8 @@ load("//buck/cargo:defs.bzl", "RemoteTestInfo")
 # changed comes from the cache. Each prints "<target><TAB><directory>", which
 # holds status, the test's exit status, log, its output, and changed/, the
 # paintings it accepted under --update with each one's .why
-# (crates/paint-snapshot), for crates/bootstrap to print and copy into
-# snapshots/. The action succeeds when the test fails, so that its output is
+# (crates/paint-snapshot), for crates/bootstrap to print and copy into the
+# crate's snapshots/. The action succeeds when the test fails, so that its output is
 # kept, and so a failure is cached like a pass: --nonce, which goes into every
 # test's environment, is how crates/bootstrap runs again tests whose last run
 # failed.
@@ -16,7 +16,7 @@ load("//buck/cargo:defs.bzl", "RemoteTestInfo")
 #   ./scripts/buck bxl //buck/dev/test.bxl:main -- --target //crates/geometry:test --name rotates
 #
 # The command is the test's own, from its ExternalRunnerTestInfo, unless it
-# has a RemoteTestInfo: a painting test, which also reads snapshots/, and a
+# has a RemoteTestInfo: a painting test, which also reads the crate's snapshots/, and a
 # plugin test, which draws through the sysroot's lavapipe on a worker.
 
 _RUN = 'out="$1" && shift && mkdir -p "$out/changed" && CHANGED_PAINTINGS="$out/changed" && export CHANGED_PAINTINGS && { "$@" > "$out/log" 2>&1; echo "$?" > "$out/status"; }'

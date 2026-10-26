@@ -46,7 +46,7 @@ pub fn kind(path: &str) -> Option<Kind> {
             .is_some_and(|rest| rest.starts_with('/'))
     };
     let name = path.rsplit('/').next().unwrap_or(path);
-    if under("snapshots") {
+    if name.ends_with(".paint") && path.split('/').any(|part| part == "snapshots") {
         return None;
     }
     if name.ends_with(".md") {

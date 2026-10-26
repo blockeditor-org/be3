@@ -1,4 +1,8 @@
-use std::{path::Path, sync::Arc, time::Duration};
+use std::{
+    path::{Path, PathBuf},
+    sync::Arc,
+    time::Duration,
+};
 
 use wasmtime::{Linker, Module, Store, Trap, TypedFunc, WasmBacktrace};
 use wasmtime_wasi::p2::pipe::MemoryOutputPipe;
@@ -28,16 +32,16 @@ impl Host {
         &self,
         wasm: &Path,
         arguments: &[String],
-        root: &Path,
+        directories: &[PathBuf],
         precompiled: Option<&Path>,
     ) -> Result<i32, String> {
         let module = test_module(&self.engine, wasm, precompiled)?;
-        match self.run_instance(&module, arguments, root, None, &Tee::default()) {
+        match self.run_instance(&module, arguments, directories, None, &Tee::default()) {
             Ok(0) => return Ok(0),
             Ok(_) => {}
             Err(failure) => eprintln!("{failure}"),
         }
-        let names = self.list_tests(&module, arguments, root)?;
+        let names = self.list_tests(&module, arguments, directories)?;
         eprintln!(
             "a panic ends a wasm test run, so the {} tests run again one at a time",
             names.len()
@@ -54,12 +58,17 @@ impl Host {
             single.extend(["--test-threads=1".to_owned(), "--nocapture".to_owned()]);
             let stdout = MemoryOutputPipe::new(usize::MAX);
             let stderr = Tee::held();
-            let failure =
-                match self.run_instance(&module, &single, root, Some(stdout.clone()), &stderr) {
-                    Ok(0) => continue,
-                    Ok(code) => format!("exit {code}"),
-                    Err(failure) => failure,
-                };
+            let failure = match self.run_instance(
+                &module,
+                &single,
+                directories,
+                Some(stdout.clone()),
+                &stderr,
+            ) {
+                Ok(0) => continue,
+                Ok(code) => format!("exit {code}"),
+                Err(failure) => failure,
+            };
             print!("{}", String::from_utf8_lossy(&stdout.contents()));
             eprint!("{}", stderr.contents());
             eprintln!("{failure}");
@@ -84,7 +93,7 @@ impl Host {
         &self,
         module: &Module,
         arguments: &[String],
-        root: &Path,
+        directories: &[PathBuf],
     ) -> Result<Vec<String>, String> {
         let mut listing: Vec<String> = arguments
             .iter()
@@ -98,7 +107,7 @@ impl Host {
         let code = self.run_instance(
             module,
             &listing,
-            root,
+            directories,
             Some(output.clone()),
             &Tee::default(),
         )?;
@@ -116,27 +125,30 @@ impl Host {
         &self,
         module: &Module,
         arguments: &[String],
-        root: &Path,
+        directories: &[PathBuf],
         stdout: Option<MemoryOutputPipe>,
         stderr: &Tee,
     ) -> Result<i32, String> {
         let memory = shared_memory(&self.engine, module)?;
-        let directory = root
-            .to_str()
-            .ok_or_else(|| format!("{} is not a usable path", root.display()))?;
         let mut builder = WasiCtxBuilder::new();
         builder
             .inherit_stdio()
             .stderr(stderr.clone())
             .inherit_env()
-            .args(arguments)
-            .preopened_dir(root, directory, FsPerms::ReadWrite)
-            .map_err(|error| {
-                format!(
-                    "{} could not be opened for the tests: {error}",
-                    root.display()
-                )
-            })?;
+            .args(arguments);
+        for directory in directories {
+            let guest = directory
+                .to_str()
+                .ok_or_else(|| format!("{} is not a usable path", directory.display()))?;
+            builder
+                .preopened_dir(directory, guest, FsPerms::ReadWrite)
+                .map_err(|error| {
+                    format!(
+                        "{} could not be opened for the tests: {error}",
+                        directory.display()
+                    )
+                })?;
+        }
         if let Some(stdout) = stdout {
             builder.stdout(stdout);
         }
