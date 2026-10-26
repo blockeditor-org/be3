@@ -182,27 +182,28 @@ pub const HANDLE_RADIUS: f32 = 9.0;
 pub const HANDLE_GAP: f32 = 4.0;
 pub const TOOLBAR_GAP: f32 = 8.0;
 
-pub fn toolbar_anchor(carets: Rect) -> Rect {
+pub fn toolbar_anchor(carets: Rect, scale: f32) -> Rect {
     Rect::from_min_max(
         pos2(carets.min.x, carets.min.y - TOOLBAR_GAP),
         pos2(
             carets.max.x,
-            carets.max.y + HANDLE_GAP + HANDLE_RADIUS * (1.0 + SQRT_2) + TOOLBAR_GAP,
+            carets.max.y + (HANDLE_GAP + HANDLE_RADIUS * (1.0 + SQRT_2)) * scale + TOOLBAR_GAP,
         ),
     )
 }
 
-pub fn handle_center(caret: Rect, handle: CaretHandle) -> Vec2 {
-    let anchor = vec2(caret.min.x, caret.max.y + HANDLE_GAP);
+pub fn handle_center(caret: Rect, handle: CaretHandle, scale: f32) -> Vec2 {
+    let (gap, radius) = (HANDLE_GAP * scale, HANDLE_RADIUS * scale);
+    let anchor = vec2(caret.min.x, caret.max.y + gap);
     match handle {
-        CaretHandle::Start => anchor + vec2(-HANDLE_RADIUS, HANDLE_RADIUS),
-        CaretHandle::End => anchor + vec2(HANDLE_RADIUS, HANDLE_RADIUS),
-        CaretHandle::Middle => anchor + vec2(caret.width() / 2.0, HANDLE_RADIUS * SQRT_2),
+        CaretHandle::Start => anchor + vec2(-radius, radius),
+        CaretHandle::End => anchor + vec2(radius, radius),
+        CaretHandle::Middle => anchor + vec2(caret.width() / 2.0, radius * SQRT_2),
     }
 }
 
 pub fn handle_shape(caret: Rect, handle: CaretHandle) -> (Rect, Corners, f32) {
-    let center = handle_center(caret, handle);
+    let center = handle_center(caret, handle, 1.0);
     let rect = Rect::from_center_size(pos2(center.x, center.y), Vec2::splat(HANDLE_RADIUS * 2.0));
     let round = Corners::all(HANDLE_RADIUS);
     match handle {

@@ -169,7 +169,10 @@ fn handles_drawing(
                 let Some(caret) = text.caret_rect(*at, caret_width) else {
                     continue;
                 };
-                let caret = caret.translate(rect.min - laid.min);
+                let caret = caret
+                    .translate(-laid.min.to_vec2())
+                    .scaled(text.scale().recip())
+                    .translate(rect.min.to_vec2());
                 let (shape, corners, angle) = handle_shape(caret, *handle);
                 painter
                     .rotated(shape.center(), angle)
@@ -890,7 +893,7 @@ fn marker(cx: Context, model: Memo<Rc<Row>>, item: Memo<Option<InlineItem>>) -> 
         depth: create_memo(move || model.get().look.depth),
         style,
         checked,
-        disabled: cx.disabled,
+        disabled: cx.locked,
     }
 }
 

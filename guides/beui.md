@@ -946,6 +946,19 @@ document behind it - adopting an edit that arrived from someone else - calls
 since nothing polls the document for changes. It shows a `placeholder` while
 the document is empty, masks every character under `password`, and leaves a
 caret handle under a touch tap that drags the caret and opens its menu.
+`disabled` takes the area out of focus, pointer and keys and reads as disabled;
+`read_only` keeps it focusable and selectable (arrows, Ctrl+A, copy, find) but
+refuses every edit (typing, IME, paste, cut, undo, checklist boxes, the
+duplicate-line and replace actions, the text menu's Cut and Paste), and reads as
+read-only, not disabled. `find=false` registers none of the find actions, so
+Ctrl+F, Ctrl+H and Ctrl+G reach the surrounding app. `styled::TextArea` takes
+the same `disabled`, `read_only`, `focused`, `line_numbers`, `prose`,
+`on_content_size` and `find` (false also drops its find bar), a `size` for the
+body text (a `TextSize`, `Custom` for a size that comes from content) and a
+`color` (a `TextColor`): `Default` keeps the theme's syntax colours and muted
+placeholder, and any other colour draws all the text in it with the
+placeholder a faded copy. It has no font-size or scale prop: text drawn zoomed
+sits in a scaled space.
 `single_line` is the same control laid out on one unwrapped line with no
 gutter, scrolled sideways to keep the caret in view, where Enter submits and
 Tab leaves; `frame` wraps the field in the caller's chrome inside the area's
@@ -964,8 +977,8 @@ Nothing measures text off the tree: a `TextArea` reports the size its laid-out
 rows reach through `on_content_size` (padding included, read from the rows'
 `text_bounds`), and a caller sizes a box from that. The infinite canvas grows a
 text entity this way while it is edited, and draws each text and label as a
-read-only rich `TextArea` over a `LiveText`, the same area whether or not it is
-being edited, with `styled::text_area_look()`, so a checklist shows the styled
+rich `TextArea` over a `LiveText`, the same area whether or not it is
+being edited (disabled while it is not), with `styled::text_area_look()`, so a checklist shows the styled
 `Checkbox` at the size of its text (a `Checkbox`'s `size` is the `TextSize` it sits beside). Its export is the one place text is laid out away from the tree
 (`TextAreaState::lay_out_prose`): it gives every marker a square the height of
 a line and paints it, and each quote's bar, as a pink box, since export does
@@ -3953,7 +3966,14 @@ Pointer callbacks are handed positions in the coordinates of the node that
 hears them as well as the document's: `PointerPress`, `ScrollGesture` and
 `ZoomGesture` carry `local` and `size` beside `pos`, and a drop target's
 `DragPoint` is in its own coordinates. A component that only needs to know
-where on itself it was pressed reads those rather than its rect.
+where on itself it was pressed reads those rather than its rect. `pos`, rects
+(`node_rect`, `placements().rect`) and text geometry (`TextGeometry`) are in
+the window's coordinates, through every space's scale as well as its
+translation; `local`, `size` and a `hit_at` test's point are in the node's own
+layout units, so a node inside a zoomed `CanvasItem scales=true` hears a press
+the same as it would unzoomed (guides/pan_and_zoom.md). A length of the node's
+own (a padding, a radius) compared with window positions is multiplied by
+`placements().scale(node)` first.
 
 `Document::on_interacted` runs a callback once the frame's input has been
 dispatched and before anything is laid out, for an app that wants work started

@@ -191,8 +191,9 @@ impl OffsetNode {
             return 0.0;
         };
         let extent = doc.outlined_extent(out, node).unwrap_or(rect);
-        let end = start + self.direction.main(extent.max - rect.min);
-        let start = start - self.direction.main(rect.min - extent.min);
+        let scale = out.transform(Some(SpaceId::inside(host, 1))).scale;
+        let end = start + self.direction.main(extent.max - rect.min) / scale;
+        let start = start - self.direction.main(rect.min - extent.min) / scale;
         let Some(revealed) = revealed_offset(start, end, self.offset, main) else {
             return 0.0;
         };

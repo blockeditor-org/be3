@@ -67,7 +67,7 @@ pub use beui_components_unstyled::{
 pub use beui_components_unstyled::{
     BackSlide, ChoiceOption, Container, DragHandle, DragPoint, Draggable, DropHandle, DropTarget,
     Edge, Floating, MenuCaption, MenuGrid, MenuItem, MenuNodes, MenuThen, PanZoom, PanZoomHandle,
-    PanZoomView, PointerLock, PointerLockHandle, PopoverHandle, Pressable, ProseLine,
+    PanZoomView, PointerLock, PointerLockHandle, PopoverHandle, Pressable, Prose, ProseLine,
     RemoteTextCursor, SliderScale, SyntaxColors, TextAreaColors, TextAreaState, TextWidget,
     TreeItem, container_size, narrower_than,
 };

@@ -137,6 +137,7 @@ struct Surface {
     anchor: NodeId,
     masked: Memo<bool>,
     disabled: Memo<bool>,
+    locked: Memo<bool>,
     remote_cursors: Memo<Vec<RemoteTextCursor>>,
     drop_caret: Memo<Option<usize>>,
     text_extent: Signal<Vec2>,
@@ -170,7 +171,10 @@ impl AreaGeometry for Surface {
     fn caret_rect(&self, byte: usize) -> Option<Rect> {
         let canvas = self.canvas_rect()?;
         match self.caret_rect_at(byte) {
-            Some(rect) => Some(rect.translate(-canvas.min.to_vec2())),
+            Some(rect) => Some(
+                rect.translate(-canvas.min.to_vec2())
+                    .scaled(self.scale().recip()),
+            ),
             None => {
                 let y = self.estimated_y(byte)?;
                 Some(Rect::from_min_size(
@@ -189,6 +193,13 @@ impl AreaGeometry for Surface {
 impl Surface {
     fn caret_width(&self) -> f32 {
         self.geometry.get_untracked().caret_width
+    }
+
+    fn scale(&self) -> f32 {
+        self.state
+            .canvas()
+            .try_get()
+            .map_or(1.0, |canvas| self.held.value().placements.scale(canvas))
     }
 
     fn canvas_rect(&self) -> Option<Rect> {
@@ -233,7 +244,7 @@ impl Surface {
         let canvas = self.canvas_rect()?;
         let rect = self.held.value().placements.rect(list)?;
         let offset = list.row_offset(&line)?;
-        Some(rect.min.y - canvas.min.y + offset)
+        Some((rect.min.y - canvas.min.y) / self.scale() + offset)
     }
 
     fn row_at(&self, pos: Pos2) -> Option<RowEntry> {
@@ -257,7 +268,8 @@ impl Surface {
         let (Some(canvas), Some(laid)) = (self.canvas_rect(), text.rect()) else {
             return pos;
         };
-        let wanted = canvas.min.x + self.padding.get_untracked().x - self.shift.get_untracked();
+        let wanted = canvas.min.x
+            + (self.padding.get_untracked().x - self.shift.get_untracked()) * self.scale();
         Pos2::new(pos.x + laid.min.x - wanted, pos.y)
     }
 
@@ -289,7 +301,8 @@ impl Surface {
     }
 
     fn gutter_arrow_at(&self, pos: Pos2) -> Option<usize> {
-        let gutter = self.gutter.get_untracked();
+        let scale = self.scale();
+        let gutter = self.gutter.get_untracked() * scale;
         let entry = self.row_at(pos)?;
         let rect = entry.rect(&self.held.value().placements)?;
         if pos.x < rect.min.x || pos.x > rect.min.x + gutter {
@@ -306,10 +319,10 @@ impl Surface {
         let size = geometry.gutter_arrow;
         let arrow = Rect::from_min_size(
             Pos2::new(
-                rect.min.x + geometry.gutter_padding.0,
-                rect.min.y + (row.line_height - size) / 2.0,
+                rect.min.x + geometry.gutter_padding.0 * scale,
+                rect.min.y + (row.line_height - size) / 2.0 * scale,
             ),
-            Vec2::splat(size),
+            Vec2::splat(size * scale),
         );
         (collapsible && arrow.contains(pos)).then_some(start)
     }
@@ -348,7 +361,11 @@ impl Surface {
         };
         let canvas = self.canvas_rect();
         let (rect, exact) = match (self.caret_rect_at(byte), canvas) {
-            (Some(rect), Some(canvas)) => (rect.translate(-canvas.min.to_vec2()), true),
+            (Some(rect), Some(canvas)) => (
+                rect.translate(-canvas.min.to_vec2())
+                    .scaled(self.scale().recip()),
+                true,
+            ),
             _ => match self.estimated_y(byte) {
                 Some(y) => (
                     Rect::from_min_size(Pos2::new(0.0, y), Vec2::new(0.0, self.row_estimate())),
@@ -442,7 +459,7 @@ impl Surface {
         let entry = self.entry(self.line_of(byte))?;
         let text = entry.text()?;
         let caret = text.caret_rect(entry.row().to_display(byte), self.caret_width())?;
-        Some(caret.min.x - text.rect()?.min.x)
+        Some((caret.min.x - text.rect()?.min.x) / text.scale())
     }
 
     fn reveal_across(&self) {
@@ -540,7 +557,7 @@ impl Surface {
                 if pos.y < caret.max.y {
                     return None;
                 }
-                let center = handle_center(caret, handle);
+                let center = handle_center(caret, handle, self.scale());
                 let distance = (Vec2::new(pos.x, pos.y) - center).length();
                 (distance <= TOUCH_HANDLE_HIT_RADIUS).then_some((handle, distance))
             })
@@ -556,7 +573,7 @@ impl Surface {
                 .union(self.caret_rect_at(range.end)?),
             (None, None) => return None,
         };
-        Some(toolbar_anchor(carets))
+        Some(toolbar_anchor(carets, self.scale()))
     }
 
     fn show_toolbar(&self) {
@@ -570,8 +587,10 @@ impl Surface {
         else {
             return false;
         };
-        let center = handle_center(caret, CaretHandle::Middle);
-        (Vec2::new(pos.x, pos.y) - center).length() <= HANDLE_RADIUS + CARET_HANDLE_TAP_SLACK
+        let scale = self.scale();
+        let center = handle_center(caret, CaretHandle::Middle, scale);
+        (Vec2::new(pos.x, pos.y) - center).length()
+            <= HANDLE_RADIUS * scale + CARET_HANDLE_TAP_SLACK
     }
 
     fn inside(&self, pos: Pos2) -> (Pos2, Option<Beyond>) {
@@ -936,7 +955,7 @@ fn release(cx: &Context, active: bool) {
 }
 
 fn insert_text(cx: &Context, text: &str) {
-    if cx.disabled.get_untracked() {
+    if cx.locked.get_untracked() {
         return;
     }
     let text = match cx.single_line {
@@ -953,7 +972,7 @@ fn insert_text(cx: &Context, text: &str) {
 }
 
 fn ime(cx: &Context, event: ImeEvent, key: impl Fn(KeyPress) -> bool) {
-    if cx.disabled.get_untracked() {
+    if cx.locked.get_untracked() {
         return;
     }
     let typed = |text: &str| -> String {
@@ -1073,6 +1092,8 @@ pub fn TextArea(
     #[prop(default = false)] focused: Prop<bool>,
     #[prop(default = true)] keyboard_on_focus: bool,
     #[prop(default = false)] disabled: Prop<bool>,
+    #[prop(default = false)] read_only: Prop<bool>,
+    #[prop(default = true)] find: bool,
     font_size: Prop<f32>,
     padding: Prop<Vec2>,
     #[prop(default = None)] prose: Prop<Option<Prose>>,
@@ -1121,6 +1142,8 @@ pub fn TextArea(
                 let masked = create_memo(move || password.get());
                 let placeholder = create_memo(move || placeholder.get());
                 let disabled = create_memo(move || disabled.get());
+                let read_only = create_memo(move || read_only.get());
+                let locked = create_memo(move || disabled.get() || read_only.get());
                 let font_size = create_memo(move || font_size.get());
                 let prose = create_memo(move || prose.get());
                 let padding = create_memo(move || padding.get());
@@ -1171,6 +1194,10 @@ pub fn TextArea(
                             true => node.set_disabled(),
                             false => node.clear_disabled(),
                         }
+                        match read_only.get() && !disabled.get() {
+                            true => node.set_read_only(),
+                            false => node.clear_read_only(),
+                        }
                         node
                     },
                 );
@@ -1216,7 +1243,7 @@ pub fn TextArea(
                     let trigger = trigger?;
                     state.cursors().get();
                     state.content().get();
-                    if !focused.get() || state.with_core(|core| core.composition()).is_some() {
+                    if !focused.get() || locked.get() || state.with_core(|core| core.composition()).is_some() {
                         return None;
                     }
                     query(state, trigger)
@@ -1283,6 +1310,7 @@ pub fn TextArea(
                     anchor,
                     masked,
                     disabled,
+                    locked,
                     remote_cursors,
                     drop_caret,
                     text_extent,
@@ -1409,7 +1437,7 @@ pub fn TextArea(
                 let menu = create_memo(move || has_menu && completing.get());
                 if multi_line {
                     action_scope(&outer);
-                    actions::register(state, disabled);
+                    actions::register(state, locked, find);
                 }
 
                 view! {
@@ -1482,12 +1510,13 @@ fn Editing(field: Field) -> NodeId {
     component_accessibility(described);
     let single_line = cx.single_line;
     let disabled = cx.disabled;
+    let locked = cx.locked;
     view! {
         <Interactive
             focusable=true
             focused
             tab_stop
-            ime={create_memo(move || !disabled.get())}
+            ime={create_memo(move || !locked.get())}
             keyboard_on_focus
             ime_cursor
             ime_text
@@ -1502,7 +1531,8 @@ fn Editing(field: Field) -> NodeId {
             pastes
             on_paste={move |pasted: Pasted| match pasted {
                 Pasted::Text(typed) => insert_text(&cx, &typed),
-                Pasted::Image(image) => on_image_paste.call(image),
+                Pasted::Image(image) if !cx.locked.get_untracked() => on_image_paste.call(image),
+                Pasted::Image(_) => {}
             }}
             on_ime={move |event: ImeEvent| {
                 ime(&cx, event, |press| field_key(&cx, press))
@@ -1633,7 +1663,7 @@ impl TextAreaApi {
                         .contains(&caret.min.x),
                     false => caret.max.y > viewport.min.y && caret.min.y < viewport.max.y,
                 });
-                let center = handle_center(caret, handle);
+                let center = handle_center(caret, handle, cx.scale());
                 shown.then_some(Pos2::new(center.x, center.y))
             })
             .collect()

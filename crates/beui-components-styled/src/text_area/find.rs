@@ -26,13 +26,14 @@ const BAR_SPACING: Space = Space::Sm;
 const QUERY_WIDTH: Size = Size::Custom(180.0);
 
 #[component]
-pub fn FindBar(state: TextAreaState) -> NodeId {
+pub fn FindBar(state: TextAreaState, #[prop(default = false)] read_only: Prop<bool>) -> NodeId {
     let open = state.find_open();
+    let read_only = create_memo(move || read_only.get());
     view! {
         <BackHandler enabled={open} on_back={move || state.close_find()}>
             <List spacing=Space::None>
                 <Show condition={open}>
-                    <FindBarRows state={state} />
+                    <FindBarRows state={state} read_only />
                 </Show>
             </List>
         </BackHandler>
@@ -40,7 +41,7 @@ pub fn FindBar(state: TextAreaState) -> NodeId {
 }
 
 #[component]
-fn FindBarRows(state: TextAreaState) -> NodeId {
+fn FindBarRows(state: TextAreaState, read_only: Memo<bool>) -> NodeId {
     let summary = create_memo(move || state.find_summary());
     let no_matches = create_memo(move || !state.find_has_matches());
     let no_current = create_memo(move || !state.find_has_current());
@@ -49,6 +50,7 @@ fn FindBarRows(state: TextAreaState) -> NodeId {
     let case_sensitive = state.find().case_sensitive;
     let focus_query = state.find().focus_query;
     let show_replace = state.find().show_replace;
+    let show_replace = create_memo(move || show_replace.get() && !read_only.get());
     view! {
         <Frame fill=ColorRole::Surface>
             <List spacing=Space::None>

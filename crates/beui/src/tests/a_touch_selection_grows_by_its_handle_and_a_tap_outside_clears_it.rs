@@ -59,7 +59,7 @@ fn a_touch_selection_grows_by_its_handle_and_a_tap_outside_clears_it() {
         .document()
         .text_caret_rect(first, "hello".len(), 2.0)
         .expect("the selection's end has a place");
-    let grip = handle_center(caret, CaretHandle::End);
+    let grip = handle_center(caret, CaretHandle::End, 1.0);
     let grip = pos2(grip.x, grip.y);
     let target = pos2(bottom.right() + 20.0, bottom.center().y) + (grip - caret.min);
     harness.touch(TouchPhase::Start, grip);

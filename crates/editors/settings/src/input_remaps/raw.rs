@@ -77,6 +77,7 @@ pub(super) fn TomlTab(shared: Shared) -> NodeId {
                     @test_id={"input-remaps.text"}
                     state={state}
                     placeholder={EXAMPLE.to_owned()}
+                    read_only={shared.read_only}
                     emoji=false
                 />
                 <Show condition={failed}>
