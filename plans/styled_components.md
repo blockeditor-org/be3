@@ -346,8 +346,8 @@ Convert every use:
   `checkbox.rs`, and row labels in editors and block-app. Read each one;
   don't convert them blindly.
 
-Add paintings for wrap, for wrap with a maximum number of lines, for
-and for ellipsis. Update guides/beui.md, which says to give paragraphs
+Add paintings for wrap, for wrap with a maximum number of lines, and for
+ellipsis. Update guides/beui.md, which says to give paragraphs
 `wrap=Wrap::Words` (around line 3693) and describes the base `Text` props
 (around line 640).
 
