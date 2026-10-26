@@ -188,7 +188,12 @@ where
                 on_focus_change={move |has_focus: bool| on_focus_change.call(has_focus)}
                 on_submit={move |_: String| state.submit()}
             />
-            <Scroll @sizing={list_height.map(ItemSize::Fixed)} reveal scrollbar>
+            <Scroll
+                @sizing={list_height.map(|height| ItemSize::Intrinsic.max(height).shrink(1.0))}
+                fit=true
+                reveal
+                scrollbar
+            >
                 <ForEach keys={shown}>|key: K|
                     <SearchRow state key accessibility row highlight />
                 </ForEach>

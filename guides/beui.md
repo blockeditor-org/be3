@@ -888,7 +888,11 @@ keeps the surface whole, for something the host draws over it instead.
 `direction` and shows it from an offset; a run of rows goes in a `List` inside
 it. It answers no input at all, so nothing scrolls by putting one in a view
 (see [Scrolling](#scrolling)). With `fit` it measures as long as its child,
-so a box sized by what it holds can still scroll once it is squeezed. Rows far
+so a box sized by what it holds can still scroll once it is squeezed. Without
+`fit` it measures nothing along its direction (it fills what it is given),
+except when it is measured with no limit along it, as a `Percent` child is
+inside a box sized by its content (a fitted sheet): then it measures as long as
+its child, since nothing else could give it a length. Rows far
 outside its viewport are culled like any other node out of sight. `Fade` paints
 its one child faded out toward each edge over the widths its `edges` name. `Shift`
 lays its child out moved `by` a vector without moving the space it takes, and

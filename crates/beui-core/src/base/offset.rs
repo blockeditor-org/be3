@@ -257,7 +257,8 @@ impl Element for OffsetNode {
             )
         });
         let (length, content) = self.direction.main_and_cross(size);
-        let length = match self.fits {
+        let unbounded = !self.direction.main_and_cross(available).0.is_finite();
+        let length = match self.fits || unbounded {
             true => length,
             false => 0.0,
         };
