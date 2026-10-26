@@ -144,9 +144,7 @@ impl ModuleRunner {
     }
 
     fn ratio(&self, regions: &[Region]) -> f32 {
-        let scale = regions
-            .first()
-            .map_or(1.0, |region| region.scale_factor);
+        let scale = regions.first().map_or(1.0, |region| region.scale_factor);
         let context = self.runner.context();
         context.set_pixels_per_point(scale);
         self.runner.reports().scaled(scale);
@@ -285,7 +283,10 @@ impl ModuleRunner {
             state.requests.pointer_locked |= main.pointer_locked;
             state.requests.handles_back = main.handles_back;
             state.requests.wants_keyboard = main.wants_keyboard;
-            state.requests.intercepted_keys.clone_from(&main.intercepted_keys);
+            state
+                .requests
+                .intercepted_keys
+                .clone_from(&main.intercepted_keys);
             state.requests.pastes.clone_from(&main.pastes);
             state.requests.clipboard_keys = main.clipboard_keys;
             *toggles = main.keyboard_toggles;
@@ -453,9 +454,7 @@ impl Regions for ModuleRunner {
                         })
                         .collect(),
                     window: self.requests(id, keyboard, ratio),
-                    description: region
-                        .describe
-                        .map(|_| self.describe(id, region, ratio)),
+                    description: region.describe.map(|_| self.describe(id, region, ratio)),
                     stopped: None,
                 }
             })

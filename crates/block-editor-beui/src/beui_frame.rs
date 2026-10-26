@@ -90,10 +90,12 @@ pub(crate) fn FrameChrome(
         false => Density::Compact,
     }));
     let palette = create_signal(false);
-    let opener = Action::new("editor.palette", "Command palette", move || palette.set(true))
-        .glyph(ICON_TERMINAL)
-        .shortcut(PALETTE)
-        .register();
+    let opener = Action::new("editor.palette", "Command palette", move || {
+        palette.set(true)
+    })
+    .glyph(ICON_TERMINAL)
+    .shortcut(PALETTE)
+    .register();
     let escaping = exit_writer.clone();
     on_key(KeyAt::Window, KeyPhase::Bubble, move |event| {
         let escaped = event

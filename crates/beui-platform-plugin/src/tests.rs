@@ -41,7 +41,11 @@ fn region(size: Vec2, visible: Vec2, pixels: [u32; 2]) -> Region {
 }
 
 fn whole(width: f32, height: f32) -> Region {
-    region(vec2(width, height), Vec2::ZERO, [width as u32, height as u32])
+    region(
+        vec2(width, height),
+        Vec2::ZERO,
+        [width as u32, height as u32],
+    )
 }
 
 fn one(surface: &mut ModuleRunner, region: &Region) -> Frame {
@@ -111,13 +115,19 @@ impl App for Windowed {
         let content = Rc::clone(&self.content);
         let document = held.get_or_insert_with(move || {
             build(move || {
-                let keys =
-                    create_memo(move || requested.with(|views| views.iter().map(|view| view.id).collect::<Vec<_>>()));
+                let keys = create_memo(move || {
+                    requested.with(|views| views.iter().map(|view| view.id).collect::<Vec<_>>())
+                });
                 view! {
                     <styled::Root>
                         <styled::List spacing=0.0>
                             <ForEach keys>|id: RegionId|
-                                <Shown id requested views={views.clone()} content={Rc::clone(&content)} />
+                                <Shown
+                                    id
+                                    requested
+                                    views={views.clone()}
+                                    content={Rc::clone(&content)}
+                                />
                             </ForEach>
                         </styled::List>
                     </styled::Root>
@@ -144,9 +154,9 @@ fn Shown(id: RegionId, requested: ReadSignal<Vec<View>>, views: Views, content: 
         })
     });
     view! {
-        <Window size={size} placement={views.placement(id)}>|_window: WindowHandle|
-            {content(id)}
-        </Window>
+        <Window size={size} placement={views.placement(id)}>|_window: WindowHandle| {
+            content(id)
+        }</Window>
     }
 }
 

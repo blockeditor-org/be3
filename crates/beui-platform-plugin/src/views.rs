@@ -93,8 +93,5 @@ impl Views {
 }
 
 fn placement_of(id: RegionId) -> HostPlacement {
-    HostPlacement(format!(
-        "plugin view {} {:?}",
-        id.instance.0, id.region
-    ))
+    HostPlacement(format!("plugin view {} {:?}", id.instance.0, id.region))
 }

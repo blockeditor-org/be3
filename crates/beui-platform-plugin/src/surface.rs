@@ -111,7 +111,10 @@ impl Surface {
     pub(crate) fn settle(&mut self) {}
 
     #[cfg(target_arch = "wasm32")]
-    pub(crate) fn paint(&mut self, target: &block_editor_plugin::PaintTarget<'_>) -> Vec<SurfaceRect> {
+    pub(crate) fn paint(
+        &mut self,
+        target: &block_editor_plugin::PaintTarget<'_>,
+    ) -> Vec<SurfaceRect> {
         self.age = target.age;
         let painted = self.prepare();
         self.present(target, painted);

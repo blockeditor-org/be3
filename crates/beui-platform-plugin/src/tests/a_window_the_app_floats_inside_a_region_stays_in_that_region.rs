@@ -31,5 +31,8 @@ fn a_window_the_app_floats_inside_a_region_stays_in_that_region() {
         .output()
         .map(|output| output.windows.len())
         .unwrap_or_default();
-    assert_eq!(windows, 2, "only the main window and the region's are shown");
+    assert_eq!(
+        windows, 2,
+        "only the main window and the region's are shown"
+    );
 }

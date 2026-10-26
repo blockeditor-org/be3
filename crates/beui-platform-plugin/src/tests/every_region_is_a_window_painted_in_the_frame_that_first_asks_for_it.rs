@@ -16,7 +16,10 @@ fn every_region_is_a_window_painted_in_the_frame_that_first_asks_for_it() {
     preview.region = EditorRegion::Preview;
 
     let first = surface.frame(std::slice::from_ref(&frame));
-    assert!(first[0].changed, "a region is drawn in the frame that first shows it");
+    assert!(
+        first[0].changed,
+        "a region is drawn in the frame that first shows it"
+    );
     let framed = surface
         .window(frame.id())
         .expect("the app opened a window for the region in that same frame");

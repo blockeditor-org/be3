@@ -49,7 +49,9 @@ fn a_trackpad_scroll_held_past_the_start_stretches_and_springs_back_when_lifted(
         document
             .borrow()
             .as_ref()
-            .map_or(f32::NAN, |document: &Document| document.scroll_overscroll(scroll))
+            .map_or(f32::NAN, |document: &Document| {
+                document.scroll_overscroll(scroll)
+            })
     };
     for _ in 0..3 {
         frame(&mut surface, std::slice::from_ref(&wheel));

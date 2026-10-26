@@ -69,7 +69,9 @@ impl<A: BeuiApp> Views<A> {
 
 impl<A: BeuiApp> Parts<A> {
     fn rebuild(&self) {
-        self.generation.handle().update(|generation| *generation += 1);
+        self.generation
+            .handle()
+            .update(|generation| *generation += 1);
     }
 
     fn frame_content(&self) -> RenderFn<WindowHandle> {
@@ -262,11 +264,14 @@ impl<A: BeuiApp> Shown for Parts<A> {
                 let measured =
                     document.measure_node(context, dialog, beui::vec2(width, f32::INFINITY));
                 Report {
-                    content: measured.filter(|measured| measured.y.is_finite()).map(
-                        |measured| {
-                            beui::Rect::from_min_size(beui::Pos2::ZERO, beui::vec2(width, measured.y))
-                        },
-                    ),
+                    content: measured
+                        .filter(|measured| measured.y.is_finite())
+                        .map(|measured| {
+                            beui::Rect::from_min_size(
+                                beui::Pos2::ZERO,
+                                beui::vec2(width, measured.y),
+                            )
+                        }),
                     ..Report::default()
                 }
             }
