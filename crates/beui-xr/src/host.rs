@@ -94,7 +94,7 @@ impl WindowHost for XrSpace {
         if let Some(frame) = &self.frame {
             incoming.extend(frame.controllers.iter().copied().map(Incoming::Controller));
         }
-                let views = self
+        let views = self
             .frame
             .as_ref()
             .map(|frame| Self::views(frame.display, &frame.views));
