@@ -5,8 +5,8 @@ use crate::frame::{Border, Frame, Radius};
 use crate::list::List;
 use crate::tokens::{Space, use_space};
 use beui_components_unstyled::{Choice, ChoiceOption};
-use beui_core::base::Direction;
-use beui_core::node::NodeId;
+use beui_view::types::Direction;
+use beui_view::reactive::NodeId;
 use beui_view::reactive::*;
 
 const TRACK_PADDING: Space = Space::Xs2;

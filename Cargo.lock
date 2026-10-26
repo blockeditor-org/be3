@@ -1209,6 +1209,7 @@ version = "0.1.0"
 dependencies = [
  "accesskit",
  "beui-tree",
+ "beui-types",
  "foldhash 0.2.0",
  "geometry",
  "grapheme-segmentation",
@@ -1470,12 +1471,24 @@ dependencies = [
 ]
 
 [[package]]
+name = "beui-types"
+version = "0.1.0"
+dependencies = [
+ "beui-tree",
+ "geometry",
+ "lucide",
+ "thumbhash",
+ "ui-types",
+]
+
+[[package]]
 name = "beui-view"
 version = "0.1.0"
 dependencies = [
  "accesskit",
  "beui-core",
  "beui-tree",
+ "beui-types",
  "beui_macros",
  "reactive",
 ]

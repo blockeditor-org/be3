@@ -1,20 +1,22 @@
-use beui_core::font::Overflow;
-use beui_core::layer::LayerPolicy;
+use beui_view::types::Overflow;
+use beui_view::types::LayerPolicy;
 use std::collections::HashMap;
 use std::rc::Rc;
 
 use beui_macros::{component, view};
 
-use beui_core::base::drawing::Draw;
-use beui_core::base::overlay::{OverlayAnchor, Placement};
-use beui_core::base::{Align, ItemSize};
-use beui_core::color::Color32;
-use beui_core::font::{FontFamily, FontId, TextAlign};
-use beui_core::geometry::{Rect, Vec2};
-use beui_core::icons::{ICON_CHEVRON_DOWN, ICON_CHEVRON_RIGHT};
-use beui_core::node::NodeId;
+use beui_view::reactive::Draw;
+use beui_view::reactive::OverlayAnchor;
+use beui_view::types::Placement;
+use beui_view::types::{Align, ItemSize};
+use beui_view::types::Color32;
+use beui_view::types::{FontFamily, FontId, TextAlign};
+use beui_view::types::{Rect, Vec2};
+use beui_view::types::icons::{ICON_CHEVRON_DOWN, ICON_CHEVRON_RIGHT};
+use beui_view::reactive::NodeId;
 use beui_core::painter::Painter;
-use beui_core::rich::{SpanStyle, TextCaret, TextGlyph, TextMark, handle_shape};
+use beui_view::types::{SpanStyle, TextCaret, TextGlyph, TextMark};
+use beui_core::rich::handle_shape;
 use beui_view::components::overlay::Overlay;
 use text_editor_core::{SynHlColorScope, SynHlStyle, TextLanguage};
 
@@ -284,7 +286,7 @@ fn AreaRow(cx: Context, line: ReadSignal<usize>) -> NodeId {
     });
     view! {
         <Frame @node_ref=&row>
-            <List direction=beui_core::base::Direction::Horizontal spacing=0.0>
+            <List direction=beui_view::types::Direction::Horizontal spacing=0.0>
                 <Show condition={numbered}>
                     <Frame width=gutter>
                         <Gutter cx={cx} model={model} />
@@ -362,7 +364,7 @@ struct RowCursors {
     selection: Vec<std::ops::Range<usize>>,
     carets: Vec<usize>,
     anchor: Option<usize>,
-    handles: Vec<(beui_core::rich::CaretHandle, usize)>,
+    handles: Vec<(beui_view::types::CaretHandle, usize)>,
 }
 
 impl RowCursors {
@@ -987,7 +989,7 @@ fn WidgetPill(cx: Context, item: Memo<Option<InlineItem>>) -> NodeId {
     let pill = NodeRef::new();
     view! {
         <Frame @node_ref=&pill height fill=fill radius>
-            <List direction=beui_core::base::Direction::Horizontal spacing=0.0>
+            <List direction=beui_view::types::Direction::Horizontal spacing=0.0>
                 <Show condition={has_icon}>||
                     <Frame width=icon_width>
                         <Text font=icon_font color={color} align=TextAlign::Center>
@@ -1063,7 +1065,7 @@ fn Gutter(cx: Context, model: Memo<Rc<Row>>) -> NodeId {
     let number_color = create_memo(move || cx.colors.get().gutter_text);
     view! {
         <Frame padding=above>
-            <List direction=beui_core::base::Direction::Horizontal spacing=0.0>
+            <List direction=beui_view::types::Direction::Horizontal spacing=0.0>
                 <Frame width=arrow_width height=height>
                     <Text font=arrow_font color={arrow_color} align=TextAlign::Center>
                         <Icon glyph={arrow} />

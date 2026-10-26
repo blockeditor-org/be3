@@ -1,11 +1,12 @@
-use beui_core::layer::{Dismiss, LayerLevel, LayerPolicy};
+use beui_view::types::{Dismiss, LayerLevel, LayerPolicy};
 use beui_macros::{component, view};
 
 use super::back_slide::BackSlide;
-use beui_core::base::overlay::{OverlayAnchor, Placement};
-use beui_core::color::Color32;
-use beui_core::geometry::Pos2;
-use beui_core::node::NodeId;
+use beui_view::reactive::OverlayAnchor;
+use beui_view::types::Placement;
+use beui_view::types::Color32;
+use beui_view::types::Pos2;
+use beui_view::reactive::NodeId;
 use beui_view::components::overlay::{Overlay, use_overlay_presence};
 use beui_view::reactive::*;
 

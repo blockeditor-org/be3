@@ -1,4 +1,4 @@
-use beui_core::layer::LayerPolicy;
+use beui_view::types::LayerPolicy;
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 use std::time::{Duration, Instant};
@@ -8,16 +8,16 @@ use beui_macros::{component, view};
 
 use super::fling::Fling;
 use super::rubber_band::{MINIMUM_VELOCITY, bounce, rubber_band};
-use beui_core::base::Sides;
-use beui_core::base::overlay::{OverlayAnchor, Placement};
-use beui_core::base::{Direction, ItemSize, Justify, ScrollPosition, Sizing};
-use beui_core::geometry::Pos2;
-use beui_core::input::{
-    AutoscrollGesture, DragGesture, Key, KeyPress, PointerPress, ScrollGesture,
-};
+use beui_view::types::Sides;
+use beui_view::reactive::OverlayAnchor;
+use beui_view::types::Placement;
+use beui_view::types::{Direction, ItemSize, Justify, ScrollPosition, Sizing};
+use beui_view::types::Pos2;
+use beui_view::types::{AutoscrollGesture, DragGesture, Key, KeyPress, PointerPress, ScrollGesture};
 use beui_core::interact::autoscroll::AUTOSCROLL_DEAD_ZONE;
-use beui_core::keys::{KeyAt, KeyPhase};
-use beui_core::node::NodeId;
+use beui_view::reactive::KeyAt;
+use beui_view::types::KeyPhase;
+use beui_view::reactive::NodeId;
 use beui_view::components::overlay::Overlay;
 use beui_view::primitives::*;
 use beui_view::reactive::*;
@@ -93,7 +93,7 @@ impl Reveal {
     }
 
     fn poke(&self) {
-        self.poked.set(beui_core::timer::now());
+        self.poked.set(beui_view::reactive::now());
         if let Some(animation) = self.animation.get() {
             animation.stop();
         }
@@ -108,7 +108,7 @@ impl Reveal {
             self.show();
             return None;
         }
-        let elapsed = beui_core::timer::now().duration_since(self.poked.get());
+        let elapsed = beui_view::reactive::now().duration_since(self.poked.get());
         if elapsed < SCROLLBAR_LINGER {
             self.show();
             return Some(SCROLLBAR_LINGER - elapsed);
@@ -582,7 +582,7 @@ fn Scrolling(
     let reveal = store(Reveal {
         held: create_memo(move || near.get() || engaged.get()),
         visibility: create_signal(0.0),
-        poked: Cell::new(beui_core::timer::now()),
+        poked: Cell::new(beui_view::reactive::now()),
         timer: Cell::default(),
         animation: Cell::default(),
     });
@@ -669,7 +669,7 @@ fn Scrolling(
                     on_key={move |press: KeyPress| motion.value().key(press)}
                     scroll_axis={axis}
                     @node_ref=&catcher
-                    claim_at={move |(pos, _): (Pos2, beui_core::input::Modifiers)| {
+                    claim_at={move |(pos, _): (Pos2, beui_view::types::Modifiers)| {
                         motion.value().coasting() && under(&catcher, pos)
                     }}
                     on_press={move |_: PointerPress| motion.value().stop_fling()}

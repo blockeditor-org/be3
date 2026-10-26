@@ -3,9 +3,10 @@ use std::collections::HashMap;
 use std::hash::Hash;
 
 use accesskit::{Node, Role};
-use beui_core::input::{Key, KeyPress};
-use beui_core::keys::{KeyAt, KeyPhase};
-use beui_core::node::NodeId;
+use beui_view::types::{Key, KeyPress};
+use beui_view::reactive::KeyAt;
+use beui_view::types::KeyPhase;
+use beui_view::reactive::NodeId;
 use beui_macros::{component, view};
 use beui_view::primitives::*;
 use beui_view::reactive::*;

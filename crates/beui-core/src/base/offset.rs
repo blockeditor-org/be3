@@ -9,38 +9,7 @@ use crate::callback::Callback;
 use crate::document::Document;
 use crate::node::{Element, NodeId, NodeOf, Rects, SpaceId};
 
-#[derive(Clone, Copy, PartialEq, Debug)]
-pub struct ScrollPosition {
-    pub offset: f32,
-    pub content: f32,
-    pub viewport: f32,
-}
-
-impl ScrollPosition {
-    pub const ZERO: Self = Self {
-        offset: 0.0,
-        content: 0.0,
-        viewport: 0.0,
-    };
-
-    pub fn max_offset(&self) -> f32 {
-        (self.content - self.viewport).max(0.0)
-    }
-
-    pub fn clamped(&self) -> f32 {
-        self.offset.clamp(0.0, self.max_offset())
-    }
-
-    pub fn overscroll(&self) -> f32 {
-        self.offset - self.clamped()
-    }
-}
-
-impl Default for ScrollPosition {
-    fn default() -> Self {
-        Self::ZERO
-    }
-}
+pub use beui_types::layout::ScrollPosition;
 
 struct OffsetAnchor {
     id: NodeId,

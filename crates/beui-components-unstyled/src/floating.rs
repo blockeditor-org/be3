@@ -1,8 +1,8 @@
-use beui_core::layer::LayerPolicy;
+use beui_view::types::LayerPolicy;
 use beui_macros::{component, view};
 
-use beui_core::base::overlay::Placement;
-use beui_core::node::NodeId;
+use beui_view::types::Placement;
+use beui_view::reactive::NodeId;
 use beui_view::components::overlay::Overlay;
 use beui_view::reactive::*;
 

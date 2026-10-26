@@ -6,9 +6,9 @@ use crate::theme::use_theme;
 use beui_components_unstyled as unstyled;
 use beui_components_unstyled::selectable::{COPY_KEY, SELECT_ALL_KEY};
 use beui_components_unstyled::{MenuItem, SelectableState, copy_selection, select_all};
-use beui_core::base::ItemSize;
-use beui_core::geometry::Rect;
-use beui_core::node::NodeId;
+use beui_view::types::ItemSize;
+use beui_view::types::Rect;
+use beui_view::reactive::NodeId;
 use beui_view::actions::Chord;
 use beui_view::reactive::*;
 

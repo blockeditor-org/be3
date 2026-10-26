@@ -1,4 +1,4 @@
-use beui_core::window::SystemBars;
+use beui_view::types::SystemBars;
 use beui_macros::{component, view};
 use beui_view::primitives;
 use beui_view::reactive::{Child, Get, Prop, create_memo};

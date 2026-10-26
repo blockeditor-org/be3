@@ -2,7 +2,7 @@ use beui_macros::{component, view};
 
 use crate::dialog::{Modal, Scrim};
 use beui_components_unstyled::ModalPlacement;
-use beui_core::node::NodeId;
+use beui_view::reactive::NodeId;
 use beui_view::reactive::*;
 
 #[component]

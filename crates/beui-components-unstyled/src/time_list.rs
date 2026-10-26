@@ -5,9 +5,9 @@ use crate as unstyled;
 use crate::ButtonHandle;
 use crate::datetime::{HourCycle, MINUTES_PER_DAY, Time};
 use crate::scroll::ScrollbarStyle;
-use beui_core::base::Direction;
-use beui_core::input::{Key, KeyPress};
-use beui_core::node::NodeId;
+use beui_view::types::Direction;
+use beui_view::types::{Key, KeyPress};
+use beui_view::reactive::NodeId;
 use beui_view::primitives::*;
 use beui_view::reactive::*;
 

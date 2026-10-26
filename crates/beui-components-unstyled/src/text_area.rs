@@ -26,16 +26,18 @@ use beui_macros::{component, view};
 
 use crate::{Scroll, ScrollbarStyle};
 use beui_core::base::text::TextGeometry;
-use beui_core::base::{ImeCursor, ItemSize, ScrollPosition};
-use beui_core::clipboard::{PasteKind, Pasted};
-use beui_core::color::Color32;
-use beui_core::file_picker::PickedFile;
-use beui_core::font::FontId;
-use beui_core::geometry::{Pos2, Rect, Vec2};
-use beui_core::input::{CursorIcon, ImeEvent, ImeText, Key, KeyPress, PointerPress};
-use beui_core::layer::Dismiss;
-use beui_core::node::NodeId;
-use beui_core::rich::{CaretHandle, HANDLE_RADIUS, handle_center, toolbar_anchor};
+use beui_view::reactive::ImeCursor;
+use beui_view::types::{ItemSize, ScrollPosition};
+use beui_view::types::{PasteKind, Pasted};
+use beui_view::types::Color32;
+use beui_view::types::PickedFile;
+use beui_view::types::FontId;
+use beui_view::types::{Pos2, Rect, Vec2};
+use beui_view::types::{CursorIcon, ImeEvent, ImeText, Key, KeyPress, PointerPress};
+use beui_view::types::Dismiss;
+use beui_view::reactive::NodeId;
+use beui_view::types::CaretHandle;
+use beui_core::rich::{HANDLE_RADIUS, handle_center, toolbar_anchor};
 use beui_view::primitives::*;
 use beui_view::reactive::*;
 
@@ -1543,7 +1545,7 @@ fn Editing(field: Field) -> NodeId {
             cursor
             repeat_drag={autoscroll}
             capture_presses={create_memo(move || !disabled.get())}
-            claim_at={move |(pos, _): (Pos2, beui_core::input::Modifiers)| {
+            claim_at={move |(pos, _): (Pos2, beui_view::types::Modifiers)| {
                 !cx.disabled.get_untracked() && cx.handle_at(pos).is_some()
             }}
             on_press={move |event: PointerPress| press(&cx, event)}

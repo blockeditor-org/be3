@@ -1,5 +1,5 @@
 use crate::frame::{Border, ColorRole, Frame, Radius, focus_border};
-use beui_core::icons::Glyph;
+use beui_view::types::icons::Glyph;
 use beui_macros::{component, view};
 
 use crate::list::List;
@@ -7,9 +7,9 @@ use crate::text::{Icon, Text, TextColor, TextSize};
 use crate::tokens::{Padding, Space, Stroke, use_space};
 use beui_components_unstyled as unstyled;
 use beui_components_unstyled::DisclosureHandle;
-use beui_core::base::TextAlign;
-use beui_core::icons::{ICON_CHEVRON_DOWN, ICON_CHEVRON_UP};
-use beui_core::node::NodeId;
+use beui_view::types::TextAlign;
+use beui_view::types::icons::{ICON_CHEVRON_DOWN, ICON_CHEVRON_UP};
+use beui_view::reactive::NodeId;
 use beui_view::reactive::*;
 
 const SPACING: Space = Space::Md;

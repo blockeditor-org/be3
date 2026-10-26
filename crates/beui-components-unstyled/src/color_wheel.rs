@@ -3,10 +3,10 @@ use std::f32::consts::TAU;
 use accesskit::{Node, Role};
 use beui_macros::{component, view};
 
-use beui_core::color::{Hsva, Oklch};
-use beui_core::geometry::{Pos2, Rect, Vec2, vec2};
-use beui_core::input::{CursorIcon, Key, KeyPress, PointerPress};
-use beui_core::node::NodeId;
+use beui_view::types::{Hsva, Oklch};
+use beui_view::types::{Pos2, Rect, Vec2, vec2};
+use beui_view::types::{CursorIcon, Key, KeyPress, PointerPress};
+use beui_view::reactive::NodeId;
 use beui_view::primitives::*;
 use beui_view::reactive::*;
 

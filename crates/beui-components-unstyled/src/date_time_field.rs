@@ -5,9 +5,9 @@ use accesskit::{Node, Role};
 use beui_macros::{component, view};
 
 use crate::datetime::{Date, DateTime, HourCycle, MONTH_NAMES, Time, days_in_month, twelve_hour};
-use beui_core::base::Direction;
-use beui_core::input::{CursorIcon, Key, KeyPress};
-use beui_core::node::NodeId;
+use beui_view::types::Direction;
+use beui_view::types::{CursorIcon, Key, KeyPress};
+use beui_view::reactive::NodeId;
 use beui_view::primitives::*;
 use beui_view::reactive::*;
 

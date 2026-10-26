@@ -2,10 +2,10 @@ use std::collections::HashMap;
 use std::rc::Rc;
 
 use accesskit::{Node, Role, Toggled};
-use beui_core::color::Color32;
-use beui_core::icons::Glyph;
-use beui_core::image::Image;
-use beui_core::node::NodeId;
+use beui_view::types::Color32;
+use beui_view::types::icons::Glyph;
+use beui_view::types::Image;
+use beui_view::reactive::NodeId;
 use beui_macros::{component, view};
 use beui_view::reactive::*;
 

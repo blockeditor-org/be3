@@ -12,9 +12,9 @@ use beui_components_unstyled as unstyled;
 use beui_components_unstyled::{
     CommandPaletteApi, CommandRowHandle, PaletteItem, PaletteItems, PaletteScore, TextInputHandle,
 };
-use beui_core::base::TextAlign;
-use beui_core::icons::ICON_SEARCH;
-use beui_core::node::NodeId;
+use beui_view::types::TextAlign;
+use beui_view::types::icons::ICON_SEARCH;
+use beui_view::reactive::NodeId;
 use beui_view::reactive::*;
 
 const WIDTH: f32 = 560.0;

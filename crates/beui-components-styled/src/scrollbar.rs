@@ -1,14 +1,14 @@
 use crate::frame::{ColorRole, Frame, Radius};
 use beui_macros::{component, view};
 
-use beui_core::color::Color32;
+use beui_view::types::Color32;
 
 use crate::theme::{ThemeStore, use_theme};
 use crate::tokens::{Padding, Size, Space};
 use beui_components_unstyled as unstyled;
 use beui_components_unstyled::{ScrollbarHandle, ScrollbarThumb};
-use beui_core::base::{Direction, ScrollPosition};
-use beui_core::node::NodeId;
+use beui_view::types::{Direction, ScrollPosition};
+use beui_view::reactive::NodeId;
 use beui_view::reactive::*;
 
 const INSET: Space = Space::Xs2;

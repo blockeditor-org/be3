@@ -8,12 +8,12 @@ use super::back_slide::BACK_DRAG_SHARE;
 use super::fling::Fling;
 use super::modal::{Modal, ModalHandle, ModalMotion, ModalPlacement};
 use super::rubber_band::{SCROLL_SPRING, WINDOW_SPRING, bounce, rubber_band, spring_back, unband};
-use beui_core::base::Direction;
-use beui_core::base::offset::ScrollPosition;
-use beui_core::color::Color32;
-use beui_core::geometry::{Pos2, Rect, Vec2, vec2};
-use beui_core::input::{BackGesture, CursorIcon, DragGesture, PointerPress, ScrollGesture};
-use beui_core::node::NodeId;
+use beui_view::types::Direction;
+use beui_view::types::ScrollPosition;
+use beui_view::types::Color32;
+use beui_view::types::{Pos2, Rect, Vec2, vec2};
+use beui_view::types::{BackGesture, CursorIcon, DragGesture, PointerPress, ScrollGesture};
+use beui_view::reactive::NodeId;
 use beui_view::components::overlay::use_overlay_presence;
 use beui_view::primitives::*;
 use beui_view::reactive::*;
@@ -1200,7 +1200,7 @@ pub fn Sheet(
                                 <Interactive
                                     scroll_axis={axis}
                                     @node_ref=&catcher
-                                    claim_at={move |(pos, _): (Pos2, beui_core::input::Modifiers)| {
+                                    claim_at={move |(pos, _): (Pos2, beui_view::types::Modifiers)| {
                                         motion.value().flinging() && super::scroll::under(&catcher, pos)
                                     }}
                                     on_press={move |_: PointerPress| motion.value().stop_fling()}

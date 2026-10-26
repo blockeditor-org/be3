@@ -11,9 +11,9 @@ use crate::tokens::{Length, Size, Space, Stroke, use_space};
 use beui_components_unstyled as unstyled;
 use beui_components_unstyled::datetime::{Date, Weekday};
 use beui_components_unstyled::{CalendarCellHandle, CalendarHeaderHandle, CalendarMode};
-use beui_core::base::{Align, Direction, Justify, TextAlign};
-use beui_core::icons::{ICON_CHEVRON_DOWN, ICON_CHEVRON_LEFT, ICON_CHEVRON_RIGHT, ICON_CHEVRON_UP};
-use beui_core::node::NodeId;
+use beui_view::types::{Align, Direction, Justify, TextAlign};
+use beui_view::types::icons::{ICON_CHEVRON_DOWN, ICON_CHEVRON_LEFT, ICON_CHEVRON_RIGHT, ICON_CHEVRON_UP};
+use beui_view::reactive::NodeId;
 use beui_view::reactive::*;
 
 pub const CALENDAR_WIDTH: f32 = 7.0 * DAY_SIZE + 6.0 * SPACING.px();

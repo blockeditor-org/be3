@@ -1,10 +1,10 @@
 use crate::frame::{Border, ColorRole, Frame, Radius};
-use beui_core::font::Overflow;
+use beui_view::types::Overflow;
 use beui_macros::{component, view};
 
 use crate::text::{Text, TextSize};
-use beui_core::base::TextAlign;
-use beui_core::node::NodeId;
+use beui_view::types::TextAlign;
+use beui_view::reactive::NodeId;
 use beui_view::reactive::*;
 
 use crate::tokens::{Padding, Space};

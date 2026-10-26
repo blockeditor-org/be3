@@ -5,7 +5,7 @@ use std::rc::Rc;
 
 use beui_tree::reactive::{
     ChildSegment, ChildValue, Children, ComponentContext, Get, IntoChild, IntoProp, IntoSegment,
-    IntoSlotHost, Memo, Prop, ReadSignal, ScopeContext, Set, Signal, SlotChild, SlotHost, SlotId,
+    IntoSlotHost, Prop, ReadSignal, ScopeContext, Set, Signal, SlotChild, SlotHost, SlotId,
     create_effect, create_signal, current_component, on_cleanup,
 };
 
@@ -16,7 +16,7 @@ use crate::base::grid::{GridItem, GridNode};
 use crate::base::layers::LayersNode;
 use crate::base::list::{ListItem, ListNode};
 use crate::base::text::{TextNode, TextPart};
-use crate::base::{ItemSize, Sizing};
+use crate::base::Sizing;
 use crate::current::with_document;
 use crate::document::Document;
 use crate::node::{NodeId, NodeOf};
@@ -454,32 +454,3 @@ pub fn with_sizing<C: WithSizing>(child: C, size: impl IntoProp<Sizing>) -> C::S
     child.with_sizing(size.into_prop())
 }
 
-impl IntoProp<Sizing> for ItemSize {
-    fn into_prop(self) -> Prop<Sizing> {
-        Prop::Static(self.into())
-    }
-}
-
-impl IntoProp<Sizing> for Prop<ItemSize> {
-    fn into_prop(self) -> Prop<Sizing> {
-        self.map(Sizing::from)
-    }
-}
-
-impl IntoProp<Sizing> for ReadSignal<ItemSize> {
-    fn into_prop(self) -> Prop<Sizing> {
-        Prop::dynamic(move || self.get().into())
-    }
-}
-
-impl IntoProp<Sizing> for Signal<ItemSize> {
-    fn into_prop(self) -> Prop<Sizing> {
-        Prop::dynamic(move || self.get().into())
-    }
-}
-
-impl IntoProp<Sizing> for Memo<ItemSize> {
-    fn into_prop(self) -> Prop<Sizing> {
-        Prop::dynamic(move || self.get().into())
-    }
-}

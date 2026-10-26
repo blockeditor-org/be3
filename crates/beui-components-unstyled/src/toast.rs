@@ -2,10 +2,11 @@ use std::hash::{Hash, Hasher};
 use std::time::Duration;
 
 use accesskit::{Live, Node, Role};
-use beui_core::base::overlay::{OverlayAnchor, Placement};
-use beui_core::image::Image;
-use beui_core::layer::{LayerLevel, LayerPolicy};
-use beui_core::node::NodeId;
+use beui_view::reactive::OverlayAnchor;
+use beui_view::types::Placement;
+use beui_view::types::Image;
+use beui_view::types::{LayerLevel, LayerPolicy};
+use beui_view::reactive::NodeId;
 use beui_macros::{component, view};
 use beui_view::components::overlay::Overlay;
 use beui_view::primitives::*;

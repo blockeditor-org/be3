@@ -1,9 +1,9 @@
 use std::rc::Rc;
 
-use beui_core::color::Color32;
-use beui_core::geometry::{Pos2, Rect, Vec2, pos2};
-use beui_core::image::{Image, ImageFit, Thumbhash};
-use beui_core::node::NodeId;
+use beui_view::types::Color32;
+use beui_view::types::{Pos2, Rect, Vec2, pos2};
+use beui_view::types::{Image, ImageFit, Thumbhash};
+use beui_view::reactive::NodeId;
 use beui_core::painter::Painter;
 use beui_macros::{component, view};
 use beui_view::primitives::*;

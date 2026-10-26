@@ -87,24 +87,7 @@ impl Default for OverlayAnchor {
     }
 }
 
-#[derive(Clone, Copy, PartialEq, Eq, Debug)]
-pub enum Placement {
-    At,
-    Above,
-    Over(u16),
-    Around,
-    BelowStart,
-    RightStart,
-    Center,
-    Fill,
-    InsideTop,
-    InsideTopEnd,
-    InsideBottom,
-    InsideBottomEnd,
-    CenterOn,
-    HangFrom(u16),
-    Popover { gap: u16, margin: u16 },
-}
+pub use beui_types::layer::Placement;
 
 #[derive(Clone)]
 pub struct WindowSpec {

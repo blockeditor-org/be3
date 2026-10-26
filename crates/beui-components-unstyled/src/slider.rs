@@ -4,9 +4,9 @@ use std::rc::Rc;
 use accesskit::{Node, Role};
 use beui_macros::{component, view};
 
-use beui_core::input::{CursorIcon, Key, KeyPress, PointerPress};
+use beui_view::types::{CursorIcon, Key, KeyPress, PointerPress};
 
-use beui_core::node::NodeId;
+use beui_view::reactive::NodeId;
 use beui_view::primitives::*;
 use beui_view::reactive::*;
 

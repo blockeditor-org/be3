@@ -13,9 +13,9 @@ use beui_components_unstyled::{
     ButtonHandle, ColorInputFieldHandle, ColorInputHandle, ColorInputPickerHandle,
     ColorInputSwatchHandle,
 };
-use beui_core::base::{Align, Direction};
-use beui_core::color::Color32;
-use beui_core::node::NodeId;
+use beui_view::types::{Align, Direction};
+use beui_view::types::Color32;
+use beui_view::reactive::NodeId;
 use beui_view::reactive::*;
 
 const SWATCH_WIDTH: Size = Size::Lg;

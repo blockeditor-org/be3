@@ -3,12 +3,12 @@ use std::rc::Rc;
 
 use beui_macros::{component, view};
 
-use beui_core::base::drawing::Draw;
-use beui_core::base::{Direction, ScrollPosition};
-use beui_core::color::Color32;
-use beui_core::geometry::{Pos2, Rect, pos2};
-use beui_core::input::PointerPress;
-use beui_core::node::NodeId;
+use beui_view::reactive::Draw;
+use beui_view::types::{Direction, ScrollPosition};
+use beui_view::types::Color32;
+use beui_view::types::{Pos2, Rect, pos2};
+use beui_view::types::PointerPress;
+use beui_view::reactive::NodeId;
 use beui_core::painter::Painter;
 use beui_view::primitives::*;
 use beui_view::reactive::*;

@@ -1,6 +1,6 @@
 use crate::frame::{Border, ColorRole, Frame, Radius};
-use beui_core::icons::ICON_X;
-use beui_core::layer::LayerLevel;
+use beui_view::types::icons::ICON_X;
+use beui_view::types::LayerLevel;
 use beui_macros::{component, view};
 
 use crate::button::{Button, ButtonSize, ButtonVariant};
@@ -13,8 +13,8 @@ use beui_components_unstyled::{
     ActionRole, DialogAction, DialogBodyHandle, DialogKind, DialogLayout, DialogSheetHandle,
     ModalHandle, ModalMotion, ModalPlacement,
 };
-use beui_core::base::ItemSize;
-use beui_core::node::NodeId;
+use beui_view::types::ItemSize;
+use beui_view::reactive::NodeId;
 use beui_view::primitives::Spacer;
 
 use crate::list::List;

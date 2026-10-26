@@ -1,10 +1,10 @@
 use std::cell::{Cell, RefCell};
 use std::time::Duration;
 
-use beui_core::color::Color32;
-use beui_core::geometry::{Vec2, vec2};
-use beui_core::input::{BackEdge, BackGesture};
-use beui_core::node::NodeId;
+use beui_view::types::Color32;
+use beui_view::types::{Vec2, vec2};
+use beui_view::types::{BackEdge, BackGesture};
+use beui_view::reactive::NodeId;
 use beui_macros::{component, view};
 use beui_view::primitives::*;
 use beui_view::reactive::*;

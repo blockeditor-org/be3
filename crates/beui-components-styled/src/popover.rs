@@ -1,5 +1,5 @@
 use crate::frame::{Border, ColorRole, Frame, Radius};
-use beui_core::icons::Glyph;
+use beui_view::types::icons::Glyph;
 use beui_macros::{component, view};
 
 use crate::button::{ButtonSize, ButtonVariant};
@@ -7,7 +7,7 @@ use crate::menu_button::PopupButtonFace;
 use crate::sheet::AnchoredSheet;
 use beui_components_unstyled as unstyled;
 use beui_components_unstyled::{AnchoredStyle, PopoverHandle, PopupTriggerHandle};
-use beui_core::node::NodeId;
+use beui_view::reactive::NodeId;
 use beui_view::reactive::*;
 
 use crate::theme::Density;

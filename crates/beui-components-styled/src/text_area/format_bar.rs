@@ -1,9 +1,9 @@
-use beui_core::icons::Glyph;
+use beui_view::types::icons::Glyph;
 use beui_macros::{component, view};
 
 use crate::ToggleButton;
 use beui_components_unstyled::TextAreaState;
-use beui_core::node::NodeId;
+use beui_view::reactive::NodeId;
 
 use crate::list::List;
 use crate::tokens::Space;

@@ -1,6 +1,6 @@
 use text_editor_core::SynHlColorScope;
 
-use beui_core::color::Color32;
+use beui_view::types::Color32;
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub struct SyntaxColors {

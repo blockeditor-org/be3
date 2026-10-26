@@ -8,30 +8,7 @@ use crate::window::WindowId;
 
 use crate::node::ANCESTOR_LIMIT;
 
-#[derive(Clone, Copy, Default, PartialEq, Eq, Debug)]
-pub enum LayerPolicy {
-    Inert,
-    Pass,
-    BlocksParent,
-    #[default]
-    BlocksAll,
-}
-
-#[derive(Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Debug)]
-pub enum LayerLevel {
-    #[default]
-    Normal,
-    Top,
-    Lock,
-}
-
-#[derive(Clone, Copy, PartialEq, Eq, Debug)]
-pub enum Dismiss {
-    Escape,
-    Back,
-    OutsidePress,
-    WithParent,
-}
+pub use beui_types::layer::{Dismiss, LayerLevel, LayerPolicy};
 
 #[derive(Default)]
 pub struct OpenLayers {

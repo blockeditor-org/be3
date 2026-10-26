@@ -1,10 +1,11 @@
 use accesskit::{Node, Role};
 use beui_macros::{component, view};
 
-use beui_core::geometry::Pos2;
-use beui_core::input::{CursorIcon, Key, PointerPress};
-use beui_core::keys::{KeyAt, KeyEvent, KeyPhase};
-use beui_core::node::NodeId;
+use beui_view::types::Pos2;
+use beui_view::types::{CursorIcon, Key, PointerPress};
+use beui_view::reactive::{KeyAt, KeyEvent};
+use beui_view::types::KeyPhase;
+use beui_view::reactive::NodeId;
 use beui_core::tree::component_node;
 use beui_view::primitives::*;
 use beui_view::reactive::*;

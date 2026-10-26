@@ -9,9 +9,9 @@ use crate::date_time_field::{
 use crate::datetime::{Date, DateTime, HourCycle, Time};
 use crate::popover::{Popover, PopoverHandle, PopoverPlacement};
 use crate::popup_trigger::PopupTriggerHandle;
-use beui_core::geometry::Vec2;
-use beui_core::input::{CursorIcon, PointerPress};
-use beui_core::node::NodeId;
+use beui_view::types::Vec2;
+use beui_view::types::{CursorIcon, PointerPress};
+use beui_view::reactive::NodeId;
 use beui_view::primitives::*;
 use beui_view::reactive::*;
 

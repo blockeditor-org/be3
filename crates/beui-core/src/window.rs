@@ -62,12 +62,7 @@ pub struct WindowState {
     pub appearance: Appearance,
 }
 
-#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug, Default)]
-pub enum SystemBars {
-    Light,
-    #[default]
-    Dark,
-}
+pub use beui_types::window::SystemBars;
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct Appearance {

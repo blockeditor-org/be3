@@ -6,10 +6,12 @@ use text_editor_core::{
 };
 
 use beui_core::base::text::DEFAULT_FONT_SIZE;
-use beui_core::color::Color32;
-use beui_core::font::{FontId, Galley, TextAlign, TextLayout};
-use beui_core::geometry::Vec2;
-use beui_core::rich::{Piece, SpanStyle};
+use beui_view::types::Color32;
+use beui_view::types::{FontId, TextAlign};
+use beui_core::font::{Galley, TextLayout};
+use beui_view::types::Vec2;
+use beui_core::rich::Piece;
+use beui_view::types::SpanStyle;
 use beui_view::reactive::*;
 
 use super::colors::TextAreaColors;
@@ -35,7 +37,7 @@ const DELETED_PREVIEW: usize = 48;
 pub struct TextWidget {
     pub range: Range<usize>,
     pub label: String,
-    pub icon: Option<beui_core::icons::Glyph>,
+    pub icon: Option<beui_view::types::icons::Glyph>,
     pub italic: bool,
     pub broken: bool,
     pub block_size: Option<Vec2>,

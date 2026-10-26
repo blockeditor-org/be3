@@ -1,7 +1,7 @@
 use std::time::Duration;
 
 use super::*;
-use beui_core::geometry::pos2;
+use beui_view::types::pos2;
 
 #[test]
 fn a_band_released_while_moving_along_the_edge_carries_on_along_it() {

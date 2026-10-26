@@ -12,24 +12,7 @@ const SPAN_LINE_THICKNESS: f32 = 1.0 / 16.0;
 pub const TAB_COLUMNS: f32 = 4.0;
 const WRAP_SLACK: f32 = 1.0 / 1024.0;
 
-#[derive(Clone, Copy, PartialEq, Debug)]
-pub struct SpanStyle {
-    pub font: FontId,
-    pub color: Color32,
-    pub underline: bool,
-    pub strikethrough: bool,
-}
-
-impl SpanStyle {
-    pub fn new(font: FontId, color: Color32) -> Self {
-        Self {
-            font,
-            color,
-            underline: false,
-            strikethrough: false,
-        }
-    }
-}
+pub use beui_types::text::{CaretHandle, SpanBackground, SpanStyle, TextCaret, TextGlyph, TextMark};
 
 pub const OBJECT: &str = "\u{fffc}";
 
@@ -105,78 +88,6 @@ struct TextSpan {
     break_after: bool,
 }
 
-#[derive(Clone, PartialEq, Debug)]
-pub struct TextMark {
-    pub range: Range<usize>,
-    pub color: Color32,
-}
-
-impl TextMark {
-    pub fn new(range: Range<usize>, color: Color32) -> Self {
-        Self { range, color }
-    }
-}
-
-#[derive(Clone, PartialEq, Debug)]
-pub struct TextGlyph {
-    pub range: Range<usize>,
-    pub glyph: String,
-    pub font: FontId,
-    pub color: Color32,
-}
-
-impl TextGlyph {
-    pub fn new(
-        range: Range<usize>,
-        glyph: impl Into<String>,
-        font: FontId,
-        color: Color32,
-    ) -> Self {
-        Self {
-            range,
-            glyph: glyph.into(),
-            font,
-            color,
-        }
-    }
-}
-
-#[derive(Clone, Copy, PartialEq, Debug)]
-pub struct SpanBackground {
-    pub color: Color32,
-    pub radius: f32,
-    pub outset: Vec2,
-}
-
-#[derive(Clone, Copy, PartialEq, Eq, Debug)]
-pub enum CaretHandle {
-    Start,
-    End,
-    Middle,
-}
-
-#[derive(Clone, Copy, PartialEq, Debug)]
-pub struct TextCaret {
-    pub at: usize,
-    pub color: Color32,
-    pub width: f32,
-    pub blink: bool,
-    pub flag: bool,
-    pub handle: Option<CaretHandle>,
-}
-
-impl TextCaret {
-    pub fn new(at: usize, color: Color32, width: f32) -> Self {
-        Self {
-            at,
-            color,
-            width,
-            blink: false,
-            flag: false,
-            handle: None,
-        }
-    }
-}
 
 pub const HANDLE_RADIUS: f32 = 9.0;
 pub const HANDLE_GAP: f32 = 4.0;

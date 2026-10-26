@@ -2,10 +2,11 @@ use accesskit::{Node, Role};
 use beui_macros::{component, view};
 
 use super::modal::{Modal, ModalHandle};
-use beui_core::color::Color32;
-use beui_core::input::Key;
-use beui_core::keys::{KeyAt, KeyPhase};
-use beui_core::node::NodeId;
+use beui_view::types::Color32;
+use beui_view::types::Key;
+use beui_view::reactive::KeyAt;
+use beui_view::types::KeyPhase;
+use beui_view::reactive::NodeId;
 use beui_view::components::portal::Portal;
 use beui_view::primitives::*;
 use beui_view::reactive::*;

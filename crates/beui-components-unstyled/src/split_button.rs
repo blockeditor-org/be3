@@ -1,5 +1,5 @@
 use accesskit::{Node, Role};
-use beui_core::icons::Glyph;
+use beui_view::types::icons::Glyph;
 use beui_macros::{component, view};
 
 use crate as unstyled;
@@ -7,8 +7,8 @@ use crate::ButtonHandle;
 use crate::menu::MenuItem;
 use crate::menu_popup::MenuStyle;
 use crate::popup_trigger::PopupTriggerHandle;
-use beui_core::base::Direction;
-use beui_core::node::NodeId;
+use beui_view::types::Direction;
+use beui_view::reactive::NodeId;
 use beui_view::primitives::*;
 use beui_view::reactive::*;
 

@@ -5,9 +5,9 @@ use crate::list::List;
 use crate::text::{Text, TextColor, TextSize};
 use crate::tokens::{Padding, Size, Space, Stroke};
 use beui_components_unstyled::{CompletionMenu, CompletionRowHandle};
-use beui_core::base::{Align, Direction};
-use beui_core::font::TextAlign;
-use beui_core::node::NodeId;
+use beui_view::types::{Align, Direction};
+use beui_view::types::TextAlign;
+use beui_view::reactive::NodeId;
 use beui_view::reactive::*;
 
 const MENU_WIDTH: Size = Size::Custom(240.0);

@@ -7,12 +7,7 @@ use crate::geometry::{Rect, Vec2, pos2, vec2};
 use crate::node::{Element, NodeId, NodeOf, Rects};
 use crate::painter::Painter;
 
-#[derive(Clone, Copy, PartialEq, Debug)]
-pub enum Track {
-    Fixed(f32),
-    Intrinsic,
-    Fraction(f32),
-}
+pub use beui_types::layout::Track;
 
 #[derive(Clone, Copy)]
 pub struct GridItem {

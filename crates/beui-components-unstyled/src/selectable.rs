@@ -10,12 +10,14 @@ use beui::selection::{
     RowKey, RowWatcher, SelectableRows, SelectionItem, rows_of, scroll_toward, selection_items,
     texts_under,
 };
-use beui_core::color::Color32;
-use beui_core::geometry::{Pos2, Rect, Vec2};
-use beui_core::input::{Key, KeyPress, PointerPress};
-use beui_core::keys::{KeyAt, KeyPhase};
-use beui_core::node::NodeId;
-use beui_core::rich::{CaretHandle, handle_center, toolbar_anchor};
+use beui_view::types::Color32;
+use beui_view::types::{Pos2, Rect, Vec2};
+use beui_view::types::{Key, KeyPress, PointerPress};
+use beui_view::reactive::KeyAt;
+use beui_view::types::KeyPhase;
+use beui_view::reactive::NodeId;
+use beui_view::types::CaretHandle;
+use beui_core::rich::{handle_center, toolbar_anchor};
 use beui_macros::{component, view};
 
 const HANDLE_HIT_RADIUS: f32 = 24.0;
@@ -966,7 +968,7 @@ pub fn Selectable(
             tab_stop=false
             claims_touch=false
             repeat_drag={autoscroll}
-            claim_at={move |(pos, _): (Pos2, beui_core::input::Modifiers)| {
+            claim_at={move |(pos, _): (Pos2, beui_view::types::Modifiers)| {
                 state.handle_at(pos).is_some()
             }}
             on_press={move |event: PointerPress| press(state, &focusable, on_toolbar, event)}

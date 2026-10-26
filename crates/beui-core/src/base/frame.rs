@@ -7,28 +7,8 @@ use crate::geometry::{Rect, Vec2, pos2, vec2};
 use crate::node::{Element, NodeId, NodeOf, Outlined, Rects};
 use crate::painter::{Corners, Painter};
 use crate::pixel_grid::PixelGrid;
-use beui_tree::reactive::{IntoProp, Memo, Prop, ReadSignal, Signal};
 
-#[derive(Clone, Copy, PartialEq, Debug)]
-pub struct Outline {
-    pub color: Color32,
-    pub width: f32,
-    pub offset: f32,
-}
-
-impl Outline {
-    pub const fn new(color: Color32, width: f32) -> Self {
-        Self {
-            color,
-            width,
-            offset: 0.0,
-        }
-    }
-
-    pub const fn offset(self, offset: f32) -> Self {
-        Self { offset, ..self }
-    }
-}
+pub use beui_types::layout::{Align2, Extent, Outline, Sides};
 
 const TIP_RADIUS: f32 = 2.0;
 
@@ -63,205 +43,6 @@ impl Default for FrameStyle {
     }
 }
 
-#[derive(Clone, Copy, PartialEq, Eq, Debug)]
-pub struct Align2 {
-    pub horizontal: Align,
-    pub vertical: Align,
-}
-
-impl Align2 {
-    pub const STRETCH: Align2 = Align2::all(Align::Stretch);
-    pub const CENTER: Align2 = Align2::all(Align::Center);
-    pub const START: Align2 = Align2::all(Align::Start);
-
-    pub const fn new(horizontal: Align, vertical: Align) -> Self {
-        Self {
-            horizontal,
-            vertical,
-        }
-    }
-
-    pub const fn all(align: Align) -> Self {
-        Self::new(align, align)
-    }
-
-    pub const fn horizontal(horizontal: Align) -> Self {
-        Self::new(horizontal, Align::Stretch)
-    }
-
-    pub const fn vertical(vertical: Align) -> Self {
-        Self::new(Align::Stretch, vertical)
-    }
-}
-
-impl Default for Align2 {
-    fn default() -> Self {
-        Self::STRETCH
-    }
-}
-
-#[derive(Clone, Copy, PartialEq, Debug, Default)]
-pub struct Sides {
-    pub left: f32,
-    pub top: f32,
-    pub right: f32,
-    pub bottom: f32,
-}
-
-impl std::ops::Neg for Sides {
-    type Output = Sides;
-
-    fn neg(self) -> Sides {
-        Sides::new(-self.left, -self.top, -self.right, -self.bottom)
-    }
-}
-
-impl Sides {
-    pub const ZERO: Sides = Sides::all(0.0);
-
-    pub const fn new(left: f32, top: f32, right: f32, bottom: f32) -> Self {
-        Self {
-            left,
-            top,
-            right,
-            bottom,
-        }
-    }
-
-    pub const fn all(amount: f32) -> Self {
-        Self::symmetric(amount, amount)
-    }
-
-    pub const fn symmetric(horizontal: f32, vertical: f32) -> Self {
-        Self::new(horizontal, vertical, horizontal, vertical)
-    }
-
-    pub const fn horizontal(horizontal: f32) -> Self {
-        Self::symmetric(horizontal, 0.0)
-    }
-
-    pub const fn vertical(vertical: f32) -> Self {
-        Self::symmetric(0.0, vertical)
-    }
-
-    pub const fn left(self, left: f32) -> Self {
-        Self { left, ..self }
-    }
-
-    pub const fn top(self, top: f32) -> Self {
-        Self { top, ..self }
-    }
-
-    pub const fn right(self, right: f32) -> Self {
-        Self { right, ..self }
-    }
-
-    pub const fn bottom(self, bottom: f32) -> Self {
-        Self { bottom, ..self }
-    }
-
-    fn snapped(self, grid: PixelGrid) -> Self {
-        Self {
-            left: grid.snap(self.left),
-            top: grid.snap(self.top),
-            right: grid.snap(self.right),
-            bottom: grid.snap(self.bottom),
-        }
-    }
-
-    fn start(self) -> Vec2 {
-        vec2(self.left, self.top)
-    }
-
-    fn amount(self) -> Vec2 {
-        vec2(self.left + self.right, self.top + self.bottom)
-    }
-}
-
-#[derive(Clone, Copy, PartialEq, Debug, Default)]
-pub struct Extent {
-    pub exact: Option<f32>,
-    pub fraction: Option<f32>,
-    pub min: Option<f32>,
-    pub max: Option<f32>,
-}
-
-impl Extent {
-    pub const INTRINSIC: Extent = Extent {
-        exact: None,
-        fraction: None,
-        min: None,
-        max: None,
-    };
-
-    pub const fn px(length: f32) -> Self {
-        Self {
-            exact: Some(length),
-            ..Self::INTRINSIC
-        }
-    }
-
-    pub const fn fraction(fraction: f32) -> Self {
-        Self {
-            fraction: Some(fraction),
-            ..Self::INTRINSIC
-        }
-    }
-
-    pub const fn at_least(min: f32) -> Self {
-        Self::INTRINSIC.min(min)
-    }
-
-    pub const fn at_most(max: f32) -> Self {
-        Self::INTRINSIC.max(max)
-    }
-
-    pub const fn min(self, min: f32) -> Self {
-        Self {
-            min: Some(min),
-            ..self
-        }
-    }
-
-    pub const fn max(self, max: f32) -> Self {
-        Self {
-            max: Some(max),
-            ..self
-        }
-    }
-
-    fn scales_with(self, available: f32) -> bool {
-        self.exact.is_none() && self.fraction.is_some() && available.is_finite()
-    }
-
-    fn within(self, available: f32, intrinsic: f32) -> f32 {
-        let fraction = self
-            .fraction
-            .filter(|_| available.is_finite())
-            .map(|fraction| fraction * available);
-        let length = match (self.exact.or(fraction), self.max) {
-            (Some(length), _) => length,
-            (None, Some(_)) => available,
-            (None, None) => intrinsic,
-        };
-        let length = self.max.map_or(length, |max| length.min(max));
-        self.min.map_or(length, |min| length.max(min))
-    }
-
-    fn offered(self, available: f32) -> f32 {
-        let length = self.exact.unwrap_or(available);
-        self.max.map_or(length, |max| length.min(max))
-    }
-
-    fn offered_to_content(self, available: f32) -> f32 {
-        let fraction = self
-            .fraction
-            .filter(|_| available.is_finite())
-            .map(|fraction| fraction * available);
-        let length = self.exact.or(fraction).unwrap_or(available);
-        self.max.map_or(length, |max| length.min(max))
-    }
-}
 
 pub struct FrameNode {
     pub child: Option<NodeId>,
@@ -321,7 +102,7 @@ impl FrameNode {
     }
 
     fn padding(&self, grid: PixelGrid) -> Sides {
-        self.padding.snapped(grid)
+        snapped(self.padding, grid)
     }
 
     fn size(&self, grid: PixelGrid, available: Vec2) -> Vec2 {
@@ -694,45 +475,11 @@ impl Document {
     }
 }
 
-macro_rules! into_prop_via {
-    ($target:ty, $value:ty, $convert:expr) => {
-        impl IntoProp<$target> for $value {
-            fn into_prop(self) -> Prop<$target> {
-                Prop::Static(self).map($convert)
-            }
-        }
-
-        impl IntoProp<$target> for Prop<$value> {
-            fn into_prop(self) -> Prop<$target> {
-                self.map($convert)
-            }
-        }
-
-        impl IntoProp<$target> for Memo<$value> {
-            fn into_prop(self) -> Prop<$target> {
-                IntoProp::<$value>::into_prop(self).map($convert)
-            }
-        }
-
-        impl IntoProp<$target> for ReadSignal<$value> {
-            fn into_prop(self) -> Prop<$target> {
-                IntoProp::<$value>::into_prop(self).map($convert)
-            }
-        }
-
-        impl IntoProp<$target> for Signal<$value> {
-            fn into_prop(self) -> Prop<$target> {
-                IntoProp::<$value>::into_prop(self).map($convert)
-            }
-        }
-    };
+fn snapped(sides: Sides, grid: PixelGrid) -> Sides {
+    Sides {
+        left: grid.snap(sides.left),
+        top: grid.snap(sides.top),
+        right: grid.snap(sides.right),
+        bottom: grid.snap(sides.bottom),
+    }
 }
-
-into_prop_via!(Extent, f32, Extent::px);
-into_prop_via!(Extent, Option<f32>, |exact| Extent {
-    exact,
-    ..Extent::INTRINSIC
-});
-into_prop_via!(Sides, f32, Sides::all);
-into_prop_via!(Corners, f32, Corners::all);
-into_prop_via!(Align2, Align, Align2::all);

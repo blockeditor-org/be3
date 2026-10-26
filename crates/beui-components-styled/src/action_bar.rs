@@ -1,8 +1,8 @@
 use accesskit::Role;
 use beui_components_unstyled as unstyled;
 use beui_components_unstyled::{ActionBarHandle, MenuNodes, ToggleHandle};
-use beui_core::icons::ICON_ELLIPSIS_VERTICAL;
-use beui_core::node::NodeId;
+use beui_view::types::icons::ICON_ELLIPSIS_VERTICAL;
+use beui_view::reactive::NodeId;
 use beui_macros::{component, view};
 use beui_view::actions::{Action, MenuNode};
 use beui_view::reactive::*;

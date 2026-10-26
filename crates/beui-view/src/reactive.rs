@@ -13,7 +13,9 @@ pub use beui_tree::reactive::*;
 use beui_core::document::Document;
 use beui_core::geometry::{Rect, Vec2};
 use beui_core::input::Key;
-use beui_core::node::NodeId;
+pub use beui_core::base::ImeCursor;
+pub use beui_core::keys::{KeyAt, KeyEvent};
+pub use beui_core::node::NodeId;
 
 pub use beui_core::animation::{
     Animation, AnimationFrame, Easing, Fling, Motion, Spring, create_animation, motion, tween,

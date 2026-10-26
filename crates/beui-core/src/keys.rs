@@ -12,12 +12,7 @@ pub enum KeyInput {
     Tap(Key),
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum KeyPhase {
-    Capture,
-    Bubble,
-    Held,
-}
+pub use beui_types::input::KeyPhase;
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct KeyTarget {

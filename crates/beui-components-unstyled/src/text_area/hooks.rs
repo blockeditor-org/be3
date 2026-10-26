@@ -1,10 +1,10 @@
 use beui_macros::{component, view};
 
-use beui_core::base::Align;
-use beui_core::color::Color32;
-use beui_core::node::NodeId;
-use beui_core::painter::Corners;
-use beui_core::rich::{SpanBackground, SpanStyle};
+use beui_view::types::Align;
+use beui_view::types::Color32;
+use beui_view::reactive::NodeId;
+use beui_view::types::Corners;
+use beui_view::types::{SpanBackground, SpanStyle};
 use beui_view::components::text::Span;
 use beui_view::primitives::*;
 use beui_view::reactive::*;

@@ -4,14 +4,14 @@ mod tests;
 use std::collections::VecDeque;
 use std::time::Instant;
 
-use beui_core::geometry::{Pos2, Vec2, vec2};
+use beui_view::types::{Pos2, Vec2, vec2};
 
 const RUBBER_BAND_FACTOR: f32 = 0.55;
 const VELOCITY_WINDOW: f32 = 0.08;
 const GLIDE_FRICTION: f32 = 9.0;
 pub const MINIMUM_VELOCITY: f32 = 5.0;
 
-pub use beui_core::animation::Spring;
+pub use beui_view::reactive::Spring;
 
 pub const SCROLL_SPRING: Spring = Spring {
     stiffness: 180.0,
@@ -91,7 +91,7 @@ impl Band {
             offset: Vec2::ZERO,
             velocity: Vec2::ZERO,
             held: false,
-            stepped: beui_core::timer::now(),
+            stepped: beui_view::reactive::now(),
             samples: VecDeque::new(),
             spring,
         }

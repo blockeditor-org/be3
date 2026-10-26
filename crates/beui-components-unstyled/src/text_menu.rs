@@ -6,9 +6,9 @@ use crate::ContextMenu;
 use crate::MenuItem;
 use crate::TextAreaState;
 use crate::menu_popup::MenuStyle;
-use beui_core::base::ItemSize;
-use beui_core::geometry::Rect;
-use beui_core::node::NodeId;
+use beui_view::types::ItemSize;
+use beui_view::types::Rect;
+use beui_view::reactive::NodeId;
 use beui_view::primitives::*;
 use beui_view::reactive::*;
 

@@ -1,10 +1,10 @@
 use accesskit::{Node, Role};
-use beui_core::icons::Glyph;
+use beui_view::types::icons::Glyph;
 use beui_macros::{component, view};
 
-use beui_core::input::{CursorIcon, KeyPress, PointerPress};
+use beui_view::types::{CursorIcon, KeyPress, PointerPress};
 
-use beui_core::node::NodeId;
+use beui_view::reactive::NodeId;
 use beui_view::primitives::*;
 use beui_view::reactive::*;
 

@@ -1,8 +1,8 @@
 use std::ops::Range;
 
-use beui_core::color::Color32;
-use beui_core::font::FontId;
-use beui_core::rich::SpanStyle;
+use beui_view::types::Color32;
+use beui_view::types::FontId;
+use beui_view::types::SpanStyle;
 use text_editor_core::{SynHlColorScope, SynHlStyle, TableLine, TableRow};
 
 use super::{Builder, RowInputs, SpanKind, galley, next_character, style_font};

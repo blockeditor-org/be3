@@ -1,5 +1,5 @@
 use crate::frame::{Border, ColorRole, Frame, Radius, focus_border};
-use beui_core::font::Overflow;
+use beui_view::types::Overflow;
 use beui_macros::{component, view};
 
 use crate::button::{Button, ButtonVariant};
@@ -21,9 +21,9 @@ use beui_components_unstyled::{
     DateTimeTriggerHandle, PopoverPlacement, PopupTriggerHandle, TimeOptionHandle, grid_columns,
     narrower_than,
 };
-use beui_core::base::{Align, Direction, Justify, TextAlign};
-use beui_core::icons::{ICON_CALENDAR_DAYS, ICON_CLOCK};
-use beui_core::node::NodeId;
+use beui_view::types::{Align, Direction, Justify, TextAlign};
+use beui_view::types::icons::{ICON_CALENDAR_DAYS, ICON_CLOCK};
+use beui_view::reactive::NodeId;
 use beui_view::reactive::*;
 
 const HEIGHT: Size = Size::Field;

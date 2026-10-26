@@ -1,14 +1,14 @@
 use beui_macros::component;
 
 use beui_components_unstyled::SyntaxColors;
-use beui_core::color::Color32;
-use beui_core::node::NodeId;
+use beui_view::types::Color32;
+use beui_view::reactive::NodeId;
 use beui_view::reactive::*;
 
 use crate::frame::{Border, ColorRole};
 use crate::tokens::{Size, Space};
 
-pub use beui_core::preferences::ThemeKind;
+pub use beui_view::types::ThemeKind;
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug, Store)]
 pub struct Theme {

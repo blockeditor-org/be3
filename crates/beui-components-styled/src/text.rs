@@ -1,7 +1,7 @@
-use beui_core::color::Color32;
-use beui_core::font::{FontFamily, FontId, Overflow, TextAlign};
-use beui_core::node::NodeId;
-use beui_core::rich::{TextCaret, TextMark};
+use beui_view::types::Color32;
+use beui_view::types::{FontFamily, FontId, Overflow, TextAlign};
+use beui_view::reactive::NodeId;
+use beui_view::types::{TextCaret, TextMark};
 use beui_macros::{component, view};
 use beui_view::primitives;
 use beui_view::primitives::*;
@@ -10,8 +10,8 @@ use beui_view::reactive::*;
 use crate::frame::ColorRole;
 use crate::theme::{ThemeStore, use_theme};
 use crate::tokens::{Space, use_space};
-use beui_core::geometry::Vec2;
-use beui_core::rich::SpanBackground;
+use beui_view::types::Vec2;
+use beui_view::types::SpanBackground;
 
 #[derive(Clone, Copy, PartialEq, Debug)]
 pub enum TextSize {
@@ -409,7 +409,7 @@ pub fn Span(
 
 #[component]
 pub fn Icon(
-    glyph: Prop<Option<beui_core::icons::Glyph>>,
+    glyph: Prop<Option<beui_view::types::icons::Glyph>>,
     size: Option<Prop<TextSize>>,
     color: Option<Prop<TextColor>>,
 ) -> primitives::Span {

@@ -1,10 +1,10 @@
 use accesskit::{HasPopup, Node, Role};
-use beui_core::icons::Glyph;
+use beui_view::types::icons::Glyph;
 use beui_macros::{component, view};
 
 use crate as unstyled;
 use crate::ButtonHandle;
-use beui_core::node::NodeId;
+use beui_view::reactive::NodeId;
 use beui_view::reactive::*;
 
 #[derive(Clone, Copy)]

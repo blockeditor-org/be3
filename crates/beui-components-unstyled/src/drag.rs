@@ -1,16 +1,18 @@
-use beui_core::layer::{LayerLevel, LayerPolicy};
+use beui_view::types::{LayerLevel, LayerPolicy};
 use std::any::Any;
 use std::rc::Rc;
 
 use beui_macros::{component, view};
 
-use beui_core::base::Direction;
-use beui_core::base::overlay::{OverlayAnchor, Placement};
+use beui_view::types::Direction;
+use beui_view::reactive::OverlayAnchor;
+use beui_view::types::Placement;
 use beui_core::drag_board::{DragPoint, Pending, Target};
-use beui_core::geometry::{Pos2, Vec2};
-use beui_core::input::CursorIcon;
-use beui_core::input::{PointerPress, TOUCH_DRAG_THRESHOLD};
-use beui_core::node::NodeId;
+use beui_view::types::{Pos2, Vec2};
+use beui_view::types::CursorIcon;
+use beui_view::types::PointerPress;
+use beui_core::input::TOUCH_DRAG_THRESHOLD;
+use beui_view::reactive::NodeId;
 use beui_core::tree::component_node;
 use beui_view::components::overlay::Overlay;
 use beui_view::primitives::*;
