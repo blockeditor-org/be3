@@ -449,8 +449,8 @@ Outcomes, by crate group (each also migrated onto §7's tokens):
   embedded-editor geometry (`block_ui::EMBEDDED_EDITOR_*`), the timeline's
   lane geometry and the hex view's measured size are `Space::Custom` and
   `Size::Custom`, since other code computes with the same pixels.
-- **Done: block-app, block-shell, block-editor-beui, block-ui-test,
-  paint-review, be-wayland, beui-adapter-plugin's tests** (paint-review-web and
+- **Done.** block-app, block-shell, block-editor-beui, block-ui-test,
+  paint-review, be-wayland and beui-adapter-plugin's tests (paint-review-web and
   beui-web-demo had nothing to move). None imports `unstyled::` any more, and
   they build without the §7 conversions.
   - New styled components: `TileButton` (a square pressable tile around any

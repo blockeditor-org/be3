@@ -4,9 +4,9 @@ use beui::styled::*;
 
 use crate::chrome::sheet_open;
 
-const DOCK_MARGIN: Space = Space::Lg;
-const DOCK_PADDING: Space = Space::Sm;
-const DOCK_SPACING: Space = Space::Xs;
+const DOCK_MARGIN: Space = Space::Md;
+const DOCK_PADDING: Space = Space::Xs;
+const DOCK_SPACING: Space = Space::Xs2;
 
 #[component]
 pub fn BottomDock(
