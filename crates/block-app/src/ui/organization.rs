@@ -56,21 +56,14 @@ fn pick(command: UiCommand) {
 fn AppMenu(status: Memo<StatusView>, menu: Prop<Option<AppMenuView>>) -> NodeId {
     let menu = create_memo(move || menu.get());
     let open = create_memo(move || menu.with(Option::is_some));
-    let placed = create_memo(move || {
-        let opened = menu.get()?;
-        let pointer = untrack(last_pointer);
-        let anchor = match opened.at {
-            Some(rect) => OverlayAnchor::Rect(rect),
-            None => OverlayAnchor::Point(pointer.map_or(Pos2::ZERO, |pointer| pointer.pos)),
-        };
-        Some((anchor, pointer.is_some_and(|pointer| pointer.touch)))
-    });
     let anchor = create_memo(move || {
-        placed
-            .get()
-            .map_or(OverlayAnchor::Point(Pos2::ZERO), |(anchor, _)| anchor)
+        let pointer = || untrack(last_pointer).map_or(Pos2::ZERO, |pointer| pointer.pos);
+        match menu.get().map(|opened| opened.at) {
+            Some(Some(rect)) => OverlayAnchor::Rect(rect),
+            Some(None) => OverlayAnchor::Point(pointer()),
+            None => OverlayAnchor::Point(Pos2::ZERO),
+        }
     });
-    let sheet = create_memo(move || placed.get().is_some_and(|(_, touch)| touch));
     let saved = create_memo(move || status.get().changes_saved);
     let unsaved = create_memo(move || !saved.get());
     let saved_label = create_memo(move || match saved.get() {
@@ -93,7 +86,6 @@ fn AppMenu(status: Memo<StatusView>, menu: Prop<Option<AppMenuView>>) -> NodeId 
         <MenuPopup
             anchor
             open
-            sheet
             on_dismiss={|| send(UiCommand::AppMenu(false))}
             items={view! {
                 <MenuItem

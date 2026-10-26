@@ -1,12 +1,12 @@
 use accesskit::{HasPopup, Node, Role};
 use beui_core::icons::Glyph;
-use beui_core::layer::{Dismiss, LayerPolicy};
+use beui_core::layer::LayerPolicy;
 use beui_macros::{component, view};
 
+use crate::anchored::{Anchored, AnchoredHandle, AnchoredStyle};
 use crate::popup_trigger::{PopupTrigger, PopupTriggerHandle};
 use beui_core::base::overlay::Placement;
 use beui_core::node::NodeId;
-use beui_view::components::overlay::Overlay;
 use beui_view::primitives::*;
 use beui_view::reactive::*;
 
@@ -20,6 +20,7 @@ pub enum PopoverPlacement {
 #[derive(Clone, Copy)]
 pub struct PopoverHandle {
     pub open: Binding<bool>,
+    pub shown: Memo<bool>,
     pub close: Callback<()>,
 }
 
@@ -33,7 +34,8 @@ struct State {
 pub fn Popover(
     #[prop(default = ComponentRef::new())] api: ComponentRef<PopoverApi>,
     trigger: Render<PopupTriggerHandle>,
-    #[prop(children)] content: Render<PopoverHandle>,
+    surface: AnchoredStyle,
+    #[prop(children)] content: RenderFn<PopoverHandle>,
     #[prop(default = false)] disabled: Prop<bool>,
     #[prop(default = String::new())] label: Prop<String>,
     #[prop(default = None)] glyph: Prop<Option<Glyph>>,
@@ -59,8 +61,6 @@ pub fn Popover(
         }
     });
 
-    let content = content.once();
-
     let refocus_trigger = create_memo(move || refocus_trigger.get());
     let close = Callback::new(move |()| {
         if open.get_untracked() {
@@ -75,7 +75,6 @@ pub fn Popover(
         PopoverPlacement::Below => Placement::BelowStart,
         PopoverPlacement::Over(inset) => Placement::Over(inset),
     };
-    let handle = PopoverHandle { open, close };
     view! {
         <List spacing=0.0>
             <PopupTrigger
@@ -95,22 +94,29 @@ pub fn Popover(
                 }}
                 content={trigger}
             />
-            <Overlay
+            <Anchored
+                style={surface}
                 anchor=anchor
                 placement
                 policy=LayerPolicy::Pass
                 trigger={trigger_ref}
-                open={open}
+                open={create_memo(move || open.get())}
                 keep_alive=true
-                on_dismiss={move |_: Dismiss| {
+                on_dismiss={move || {
                     open.set(false);
                     if refocus_trigger.get_untracked() {
                         refocus.set(true);
                     }
                 }}
-            >
-                <PopoverSurface label>{content.call(handle)}</PopoverSurface>
-            </Overlay>
+            >|handle: AnchoredHandle|
+                <PopoverSurface label>
+                    {content.call(PopoverHandle {
+                        open,
+                        shown: handle.shown,
+                        close,
+                    })}
+                </PopoverSurface>
+            </Anchored>
         </List>
     }
 }

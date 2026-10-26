@@ -5,7 +5,7 @@ use beui_macros::{component, view};
 use crate::button::{Button, ButtonVariant};
 use crate::calendar::{CALENDAR_WIDTH, Calendar};
 use crate::focus_ring::FocusRing;
-use crate::popover::{PANEL_PADDING, PopoverPanel};
+use crate::popover::{PANEL_PADDING, popover_surface};
 use crate::scroll::scrollbar_style;
 use crate::tabs::Tabs;
 use crate::text::{Icon, Text, TextColor};
@@ -71,6 +71,7 @@ pub fn DateTimeField(
             today
             paged={narrow}
             placement={PopoverPlacement::Over(PANEL_PADDING as u16)}
+            surface={popover_surface(None)}
             segment={|handle: DateSegmentHandle| view! {
                 <SegmentFace handle />
             }}
@@ -87,9 +88,7 @@ pub fn DateTimeField(
                 <PickerTrigger handle parts />
             }}
             panel={move |handle: DateTimePanelHandle| view! {
-                <PopoverPanel>
-                    <PickerPanel handle clearable first_weekday step_minutes />
-                </PopoverPanel>
+                <PickerPanel handle clearable first_weekday step_minutes />
             }}
         />
     }

@@ -3,6 +3,7 @@ use beui_core::node::NodeId;
 use beui_macros::{component, view};
 use beui_view::reactive::*;
 
+use crate::anchored::AnchoredStyle;
 use crate::color_picker::HexText;
 use crate::popover::{Popover, PopoverHandle};
 use crate::popup_trigger::PopupTriggerHandle;
@@ -22,7 +23,7 @@ pub struct ColorInputSwatchHandle {
 pub struct ColorInputPickerHandle {
     pub value: Binding<Color32>,
     pub alpha: bool,
-    pub open: Binding<bool>,
+    pub shown: Memo<bool>,
     pub on_preview: Callback<Option<Color32>>,
 }
 
@@ -41,7 +42,8 @@ pub fn ColorInput(
     #[prop(default = true)] alpha: bool,
     on_preview: Callback<Option<Color32>>,
     swatch: Render<ColorInputSwatchHandle>,
-    picker: Render<ColorInputPickerHandle>,
+    surface: AnchoredStyle,
+    picker: RenderFn<ColorInputPickerHandle>,
     field: Render<ColorInputFieldHandle>,
     #[prop(children)] content: Render<ColorInputHandle>,
 ) -> NodeId {
@@ -63,6 +65,7 @@ pub fn ColorInput(
             label={picker_label}
             icon_only=true
             disabled={disabled}
+            surface
             trigger={move |trigger: PopupTriggerHandle| swatch.call(ColorInputSwatchHandle {
                 trigger,
                 color: shown,
@@ -71,7 +74,7 @@ pub fn ColorInput(
             picker.call(ColorInputPickerHandle {
                 value,
                 alpha,
-                open: popover.open,
+                shown: popover.shown,
                 on_preview: preview,
             })
         }</Popover>

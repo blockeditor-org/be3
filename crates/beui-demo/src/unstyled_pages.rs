@@ -1,7 +1,7 @@
 use super::*;
 use beui::Rect;
 use beui::unstyled::{
-    ButtonHandle, ChoiceKind, ChoiceOptionHandle, DisclosureHandle, DragHandle, DragPoint,
+    AnchoredSheetHandle, AnchoredStyle, ButtonHandle, ChoiceKind, ChoiceOptionHandle, DisclosureHandle, DragHandle, DragPoint,
     DropHandle, MenuRowHandle, PopupTriggerHandle, ScrollHandle, ScrollbarHandle, ScrollbarStyle,
     SliderHandle, TextInputHandle, TextInputStyle, ToggleHandle, TooltipHandle,
 };
@@ -615,6 +615,26 @@ pub(crate) fn PopupsPage() -> NodeId {
     }
 }
 
+fn popup_surface() -> AnchoredStyle {
+    AnchoredStyle::new(
+        |content: Child| view! {
+            <PopupPanel>{content}</PopupPanel>
+        },
+        |handle: AnchoredSheetHandle| {
+            let AnchoredSheetHandle {
+                open,
+                on_close,
+                content,
+            } = handle;
+            view! {
+                <beui::styled::ModalSheet open={open} fit=true on_close={on_close}>
+                    <Frame padding=12.0>{content}</Frame>
+                </beui::styled::ModalSheet>
+            }
+        },
+    )
+}
+
 #[sample]
 #[component]
 fn PopupPanel(children: Child) -> NodeId {
@@ -638,24 +658,23 @@ fn InfoPopover() -> NodeId {
         <List direction=Direction::Horizontal spacing=0.0>
             <unstyled::Popover
                 label="About"
+                surface={popup_surface()}
                 trigger={move |handle: PopupTriggerHandle| view! {
                     <PillFace handle={handle.button} label="About" />
                 }}
             >|handle: PopoverHandle| {
                 let close = handle.close;
                 view! {
-                    <PopupPanel>
-                        <List spacing=SECTION_SPACING>
-                            <Text>
-                                "A popover places its content below the trigger and closes on Escape or a click outside."
-                            </Text>
-                            <unstyled::Button
-                                on_click={move || close.call(())}
-                            >|handle: ButtonHandle|
-                                <PillFace handle label="Got it" />
-                            </unstyled::Button>
-                        </List>
-                    </PopupPanel>
+                    <List spacing=SECTION_SPACING>
+                        <Text>
+                            "A popover places its content below the trigger, or in a sheet when a finger opened it, and closes on Escape or a click outside."
+                        </Text>
+                        <unstyled::Button
+                            on_click={move || close.call(())}
+                        >|handle: ButtonHandle|
+                            <PillFace handle label="Got it" />
+                        </unstyled::Button>
+                    </List>
                 }
             }</unstyled::Popover>
         </List>
@@ -1577,6 +1596,7 @@ fn DeadlinePicker() -> NodeId {
                     value={deadline}
                     parts=DateTimeParts::Date
                     label="Deadline"
+                    surface={popup_surface()}
                     segment={move |handle: DateSegmentHandle| view! {
                         <DateSegmentFace handle />
                     }}
@@ -1679,8 +1699,7 @@ fn DatePresets(handle: DateTimePanelHandle) -> NodeId {
         }
     };
     view! {
-        <PopupPanel>
-            <List spacing=SECTION_SPACING>
+        <List spacing=SECTION_SPACING>
                 {field}
                 {preset("In a week", start.add_days(7))}
                 {preset("In a month", start.add_months(1))}
@@ -1693,6 +1712,5 @@ fn DatePresets(handle: DateTimePanelHandle) -> NodeId {
                     </unstyled::Button>
                 </List>
             </List>
-        </PopupPanel>
     }
 }

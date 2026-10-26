@@ -1216,6 +1216,7 @@ fn FruitSelect() -> NodeId {
                 }}
                 selected={fruit}
                 label="Favorite fruit"
+                @test_id="demo.fruit"
             />
             <Text style=TextStyle::CAPTION>{fruit_text}</Text>
             <Select
@@ -2249,7 +2250,7 @@ pub(crate) fn OverlaysPage() -> NodeId {
 fn FiltersButton() -> NodeId {
     view! {
         <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
-            <Popover label="Filters">|handle: PopoverHandle|
+            <Popover label="Filters" @test_id="demo.filters">|handle: PopoverHandle|
                 <FilterPopover handle />
             </Popover>
         </List>

@@ -5,7 +5,8 @@ use beui_macros::{component, view};
 use crate::button::{ButtonSize, ButtonVariant};
 use crate::menu_button::PopupButtonFace;
 use beui_components_unstyled as unstyled;
-use beui_components_unstyled::{PopoverHandle, PopupTriggerHandle};
+use crate::sheet::AnchoredSheet;
+use beui_components_unstyled::{AnchoredStyle, PopoverHandle, PopupTriggerHandle};
 use beui_core::node::NodeId;
 use beui_view::reactive::*;
 
@@ -22,9 +23,10 @@ pub fn Popover(
     #[prop(default = false)] disabled: Prop<bool>,
     #[prop(default = PANEL_MAX_WIDTH)] max_width: Prop<f32>,
     #[prop(default = false)] open: Binding<bool>,
-    #[prop(children)] content: Render<PopoverHandle>,
+    #[prop(children)] content: RenderFn<PopoverHandle>,
 ) -> NodeId {
     let max_width = create_memo(move || Some(max_width.get()));
+    let surface = popover_surface(max_width);
     view! {
         <unstyled::Popover
             label
@@ -32,13 +34,30 @@ pub fn Popover(
             icon_only
             disabled
             open
+            surface
             trigger={move |handle: PopupTriggerHandle| view! {
                 <PopupButtonFace handle variant size />
             }}
-        >|handle: PopoverHandle|
-            <PopoverPanel max_width={max_width}>{content.call(handle)}</PopoverPanel>
-        </unstyled::Popover>
+        >|handle: PopoverHandle| {
+            content.call(handle)
+        }</unstyled::Popover>
     }
+}
+
+pub fn popover_surface(max_width: impl IntoProp<Option<f32>>) -> AnchoredStyle {
+    let max_width = max_width.into_prop();
+    AnchoredStyle::new(
+        move |content| {
+            view! {
+                <PopoverPanel max_width={max_width}>{content}</PopoverPanel>
+            }
+        },
+        |handle| {
+            view! {
+                <AnchoredSheet handle padding=PANEL_PADDING />
+            }
+        },
+    )
 }
 
 #[component]

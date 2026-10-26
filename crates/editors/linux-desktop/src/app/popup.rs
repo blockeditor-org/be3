@@ -12,7 +12,7 @@ pub(crate) fn BarPopup(
     #[prop(default = false)] icon_only: Prop<bool>,
     #[prop(default = PANEL_MAX_WIDTH - 2.0 * PANEL_PADDING)] width: f32,
     #[prop(default = false)] open: Binding<bool>,
-    #[prop(children)] content: Render<PopoverHandle>,
+    #[prop(children)] content: RenderFn<PopoverHandle>,
 ) -> NodeId {
     view! {
         <Popover

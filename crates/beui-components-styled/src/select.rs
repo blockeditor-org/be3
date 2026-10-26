@@ -3,12 +3,13 @@ use beui_core::font::Overflow;
 use beui_macros::{component, view};
 
 use crate::scroll::scrollbar_style;
+use crate::sheet::AnchoredSheet;
 use crate::text::{Icon, Text, TextColor};
 use crate::text_input::text_input_style;
 use crate::theme::{ThemeStore, field_border, use_theme};
 use beui_components_unstyled as unstyled;
 use beui_components_unstyled::{
-    ChoiceOption, SelectOptionHandle, SelectTriggerHandle, TextInputHandle,
+    AnchoredStyle, ChoiceOption, SelectOptionHandle, SelectTriggerHandle, TextInputHandle,
 };
 use beui_core::base::TextAlign;
 use beui_core::color::Color32;
@@ -61,9 +62,15 @@ pub fn Select(
             option={|handle| view! {
                 <SelectOption handle />
             }}
-        >|content|
-            <SelectPopup>{content}</SelectPopup>
-        </unstyled::Select>
+            surface={AnchoredStyle::new(
+                |content| view! {
+                    <SelectPopup>{content}</SelectPopup>
+                },
+                |handle| view! {
+                    <AnchoredSheet handle padding=POPUP_PADDING />
+                },
+            )}
+        />
     }
 }
 

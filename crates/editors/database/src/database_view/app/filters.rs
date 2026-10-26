@@ -4,7 +4,7 @@ use block_editor_beui::be_block::ObjectId;
 use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::icons::{ICON_LIST_FILTER, ICON_PLUS, ICON_X};
 use block_editor_beui::beui::reactive::*;
-use block_editor_beui::beui::styled::popover::PopoverPanel;
+use block_editor_beui::beui::styled::popover::popover_surface;
 use block_editor_beui::beui::styled::*;
 use block_editor_beui::beui::unstyled::{self, ChoiceOption, PopoverHandle, PopupTriggerHandle};
 use block_editor_beui::block_ui::database::{
@@ -223,6 +223,7 @@ fn FilterChip(data: Data, id: ObjectId) -> NodeId {
                 <unstyled::Popover
                     label={text}
                     @test_id={format!("database-view.filter.{}", id.as_uuid())}
+                    surface={popover_surface(Some(EDITOR_WIDTH + 24.0))}
                     trigger={move |handle: PopupTriggerHandle| {
                         view! {
                             <ControlFace handle={handle.button}>
@@ -231,9 +232,7 @@ fn FilterChip(data: Data, id: ObjectId) -> NodeId {
                         }
                     }}
                 >|_: PopoverHandle|
-                    <PopoverPanel max_width={Some(EDITOR_WIDTH + 24.0)}>
-                        <FilterEditor data={data} id={id} />
-                    </PopoverPanel>
+                    <FilterEditor data={data} id={id} />
                 </unstyled::Popover>
                 <Button
                     icon_only=true
@@ -270,6 +269,7 @@ fn AddFilter(data: Data) -> NodeId {
             disabled={read_only}
             @test_id={"database-view.filters.add"}
             open
+            surface={popover_surface(Some(EDITOR_WIDTH + 24.0))}
             trigger={move |handle: PopupTriggerHandle| view! {
                 <ControlFace handle={handle.button}>
                     <List direction=Direction::Horizontal align=Align::Center spacing=4.0>
@@ -281,27 +281,25 @@ fn AddFilter(data: Data) -> NodeId {
                 </ControlFace>
             }}
         >|_: PopoverHandle|
-            <PopoverPanel max_width={Some(EDITOR_WIDTH + 24.0)}>
-                <List spacing=0.0>
-                    <Show condition={choosing}>
-                        <FieldChoices
-                            data={data}
-                            on_pick={move |id: ObjectId| adding.set(Some(id))}
-                        />
-                    </Show>
-                    <Show condition={has_editing}>|| {
-                        let id = editing.get_untracked();
-                        match id {
-                            Some(id) => view! {
-                                <FilterEditor data={data} id={id} />
-                            },
-                            None => view! {
-                                <Frame />
-                            },
-                        }
-                    }</Show>
-                </List>
-            </PopoverPanel>
+            <List spacing=0.0>
+                <Show condition={choosing}>
+                    <FieldChoices
+                        data={data}
+                        on_pick={move |id: ObjectId| adding.set(Some(id))}
+                    />
+                </Show>
+                <Show condition={has_editing}>|| {
+                    let id = editing.get_untracked();
+                    match id {
+                        Some(id) => view! {
+                            <FilterEditor data={data} id={id} />
+                        },
+                        None => view! {
+                            <Frame />
+                        },
+                    }
+                }</Show>
+            </List>
         </unstyled::Popover>
     }
 }

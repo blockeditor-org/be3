@@ -174,6 +174,18 @@ dropdown look and a sheet look, the way `MenuStyle` does, and it tracks touch
 itself. Build `MenuPopup`, `Select`, `Popover`, the date and time picker and
 the colour picker on it.
 
+**Done.** `unstyled::Anchored` (`anchored.rs`) with `AnchoredStyle::new(dropdown,
+sheet)`, `AnchoredSheetHandle`, `AnchoredHandle { sheet, shown }` and
+`SheetWhen`. It samples `use_touch()` (the same signal §1's `Dialog` reads) when it
+opens, so `MenuButton`,
+`PopupTrigger` (its `on_press` is gone), `ContextMenu` and block-app's app menu
+no longer track touch. `Popover` (and so `DateTimePicker` and `ColorInput`) and
+`Select` take a required `surface: AnchoredStyle` in place of wrapping their
+own panel; `styled::popover_surface(max_width)` is the popover's, and
+`MenuStyle::with_sheet` now takes an `AnchoredSheetHandle` (`MenuSheetHandle`
+is gone). `MenuStyle::default()` still renders empty rows; making the menu's
+style required is left for §5's pass over unstyled defaults.
+
 ### 4.2 One searchable list
 
 `unstyled::Select`, `unstyled::CommandPalette` and `styled::Launcher` each

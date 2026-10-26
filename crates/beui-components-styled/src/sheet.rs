@@ -3,7 +3,7 @@ use beui_macros::{component, view};
 
 use crate::theme::BORDER_WIDTH;
 use beui_components_unstyled as unstyled;
-use beui_components_unstyled::SheetGripHandle;
+use beui_components_unstyled::{AnchoredSheetHandle, SheetGripHandle};
 use beui_core::node::NodeId;
 use beui_view::primitives::*;
 use beui_view::reactive::*;
@@ -13,6 +13,7 @@ pub const SHEET_STOPS: [f32; 3] = [0.3, 0.5, 0.9];
 const HANDLE_HEIGHT: f32 = 24.0;
 const GRIP_WIDTH: f32 = 36.0;
 const GRIP_HEIGHT: f32 = 4.0;
+const ANCHORED_STOPS: [f32; 2] = [0.5, 0.9];
 
 #[component]
 pub fn Sheet(
@@ -74,6 +75,26 @@ pub fn ModalSheet(
         >|| {
             content.call(())
         }</unstyled::ModalSheet>
+    }
+}
+
+#[component]
+pub(crate) fn AnchoredSheet(handle: AnchoredSheetHandle, padding: f32) -> NodeId {
+    let AnchoredSheetHandle {
+        open,
+        on_close,
+        content,
+    } = handle;
+    view! {
+        <ModalSheet
+            open={open}
+            rest={ANCHORED_STOPS[0]}
+            stops={ANCHORED_STOPS.to_vec()}
+            fit=true
+            on_close={on_close}
+        >
+            <Frame padding>{content}</Frame>
+        </ModalSheet>
     }
 }
 

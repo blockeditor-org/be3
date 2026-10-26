@@ -4,6 +4,7 @@ use std::rc::Rc;
 use beui_macros::{component, view};
 
 use crate as unstyled;
+use crate::anchored::SheetWhen;
 use crate::button::ButtonHandle;
 use crate::menu::MenuItem;
 use crate::menu_popup::{MenuPopup, MenuStyle};
@@ -43,7 +44,6 @@ pub fn ContextMenu(
     on_toolbar_close: ClickCallback,
 ) -> NodeId {
     let open = create_signal(false);
-    let touched = create_signal(false);
     let focusing = create_signal(true);
     let position = create_signal(Pos2::ZERO);
     let anchor = create_memo(move || OverlayAnchor::Point(position.get()));
@@ -56,19 +56,20 @@ pub fn ContextMenu(
         more: more_button,
     }));
 
-    let (requested, requested_touch, requested_position, requested_focusing) =
-        (open, touched, position, focusing);
+    let (requested, requested_position, requested_focusing) = (open, position, focusing);
     create_effect(move || {
         let Some(at) = open_at.get() else {
             return;
         };
         requested_position.set(at);
-        requested_touch.set(last_pointer().is_some_and(|pointer| pointer.touch));
         requested_focusing.set(open_at_focuses);
         requested.set(true);
     });
     let shown = create_memo(move || open.get());
-    let touch_shown = create_memo(move || !selection && touched.get());
+    let sheet = match selection {
+        true => SheetWhen::Never,
+        false => SheetWhen::Touched,
+    };
     let mut ever_open = false;
     let built = create_memo(move || {
         ever_open |= shown.get();
@@ -83,7 +84,6 @@ pub fn ContextMenu(
         create_memo(move || OverlayAnchor::Rect(toolbar_at.get().unwrap_or(Rect::NOTHING)));
     let more = Callback::new(move |at: Pos2| {
         position.set(at);
-        touched.set(true);
         focusing.set(false);
         open.set(true);
         on_toolbar_close.call();
@@ -109,7 +109,6 @@ pub fn ContextMenu(
                     return;
                 }
                 position.set(press.pos);
-                touched.set(press.touch);
                 focusing.set(true);
                 open.set(true);
             }}
@@ -136,7 +135,7 @@ pub fn ContextMenu(
                         menu={menu}
                         anchor
                         open={shown}
-                        touched={touch_shown}
+                        sheet
                         focusing
                         on_dismiss={move || {
                             open.set(false);

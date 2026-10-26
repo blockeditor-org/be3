@@ -1,15 +1,13 @@
 use crate as unstyled;
 use crate::ChoiceOption;
+use crate::anchored::{Anchored, AnchoredHandle, AnchoredStyle};
 use crate::button::ButtonHandle;
 use crate::scroll::ScrollbarStyle;
 use crate::search_list::{SearchList, SearchListApi, SearchRowHandle};
 use crate::text_input::{TextInputHandle, TextInputStyle};
-use beui_core::base::overlay::Placement;
 use beui_core::input::{Key, KeyPress};
-use beui_core::layer::Dismiss;
 use beui_core::node::NodeId;
 use beui_macros::{component, view};
-use beui_view::components::overlay::Overlay;
 use beui_view::primitives::*;
 use beui_view::reactive::*;
 
@@ -41,7 +39,8 @@ enum Focus {
 struct State {
     trigger: NodeRef,
     options: Stored<Run<ChoiceOption>>,
-    list: ComponentRef<SearchListApi<usize>>,
+    lists: [ComponentRef<SearchListApi<usize>>; 2],
+    sheet: Signal<bool>,
     open: Signal<bool>,
     focus: Signal<Focus>,
     query: Signal<String>,
@@ -64,14 +63,13 @@ pub fn Select(
     spacing: f32,
     trigger: Render<SelectTriggerHandle>,
     option: RenderFn<SelectOptionHandle>,
-    #[prop(children)] popup: Option<RenderFn<Child>>,
+    surface: AnchoredStyle,
     accessibility: Option<Prop<Node>>,
 ) -> NodeId {
     let options = options.into_run();
     let initial = selected
         .get_untracked()
         .filter(|index| *index < options.get_untracked().len());
-    let popup = popup.unwrap_or_else(|| RenderFn::new(|content| content));
 
     let search_placeholder = create_memo(move || search_placeholder.get());
     let is_open = create_signal(false);
@@ -82,7 +80,8 @@ pub fn Select(
     let state = State {
         trigger: NodeRef::new(),
         options: store(options.clone()),
-        list: ComponentRef::new(),
+        lists: [ComponentRef::new(), ComponentRef::new()],
+        sheet: create_signal(false),
         open: is_open,
         focus,
         query: create_signal(String::new()),
@@ -160,20 +159,27 @@ pub fn Select(
                 on_click={move || open(state)}
                 on_key={move |press: KeyPress| trigger_key(state, press)}
             />
-            <Overlay
+            <Anchored
+                style={surface}
                 anchor={state.trigger}
-                placement=Placement::BelowStart
                 open={is_open}
-                on_dismiss={move |_: Dismiss| dismiss(state)}
-                content={move || popup.call(view! {
+                on_dismiss={move || dismiss(state)}
+            >|handle: AnchoredHandle| {
+                let AnchoredHandle { sheet, shown } = handle;
+                create_effect(move || {
+                    if shown.get() {
+                        state.sheet.set(sheet);
+                    }
+                });
+                view! {
                     <SearchList
-                        api={state.list}
+                        api={state.lists[usize::from(sheet)]}
                         query={state.query}
                         highlighted={state.highlighted}
                         rank
                         highlight_first=false
                         on_choose={move |index: usize| confirm(state, index)}
-                        focused={focused.memo(Focus::Search)}
+                        focused={create_memo(move || shown.get() && focused.is_selected(&Focus::Search))}
                         keyboard_on_focus=false
                         on_focus_change={move |has_focus: bool| blur(state, has_focus)}
                         placeholder={search_placeholder}
@@ -185,8 +191,8 @@ pub fn Select(
                         accessibility={row_accessibility}
                         row
                     />
-                })}
-            />
+                }
+            }</Anchored>
         </List>
     }
 }
@@ -246,6 +252,10 @@ fn confirm(state: State, index: usize) {
 pub struct SelectApi(State);
 
 impl SelectApi {
+    fn list(&self) -> ComponentRef<SearchListApi<usize>> {
+        self.0.lists[usize::from(self.0.sheet.get_untracked())]
+    }
+
     pub fn selected(&self) -> Option<usize> {
         let state = self.0;
         state
@@ -263,11 +273,11 @@ impl SelectApi {
     }
 
     pub fn search(&self) -> NodeId {
-        self.0.list.get().search()
+        self.list().get().search()
     }
 
     pub fn option_button(&self, index: usize) -> Option<NodeId> {
-        self.0.list.try_get()?.row(&index)
+        self.list().try_get()?.row(&index)
     }
 
     pub fn highlighted(&self) -> Option<usize> {

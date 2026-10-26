@@ -31,7 +31,6 @@ pub fn MenuButton(
     #[prop(default = false)] open: Binding<bool>,
     on_select: Callback<Vec<usize>>,
 ) -> NodeId {
-    let touched = create_signal(false);
     let button = NodeRef::new();
     let shown = create_memo(move || open.get());
     let disabled = create_memo(move || disabled.get());
@@ -48,7 +47,6 @@ pub fn MenuButton(
             tab_stop
             capture_presses
             accessibility={accessibility.unwrap_or_else(|| Prop::Static(Node::new(Role::Button)))}
-            on_press={move |press: PointerPress| touched.set(press.touch)}
             on_click={on_click}
             content={trigger}
         />
@@ -56,15 +54,12 @@ pub fn MenuButton(
     if !on_secondary_click.is_empty() || !matches!(secondary_opens, Prop::Static(false)) {
         trigger_node = view! {
             <Interactive
-                on_secondary_press={move |press: PointerPress| {
+                on_secondary_press={move |_: PointerPress| {
                     if disabled.get_untracked() {
                         return;
                     }
                     match secondary_opens.get_untracked() {
-                        true => {
-                            touched.set(press.touch);
-                            open.set(true);
-                        }
+                        true => open.set(true),
                         false => on_secondary_click.call(),
                     }
                 }}
@@ -107,7 +102,6 @@ pub fn MenuButton(
                 menu
                 anchor={button}
                 open={shown}
-                touched={create_memo(move || touched.get())}
                 on_dismiss={move || open.set(false)}
                 on_select={on_select}
             />

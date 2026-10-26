@@ -3,7 +3,7 @@ use beui_macros::{component, view};
 
 use crate::color_picker::{ColorPicker, ColorSwatch};
 use crate::focus_ring::FocusRing;
-use crate::popover::PopoverPanel;
+use crate::popover::popover_surface;
 use crate::text_input::TextInput;
 use crate::tooltip::Tooltip;
 use beui_components_unstyled as unstyled;
@@ -40,15 +40,14 @@ pub fn ColorInput(
             swatch={move |handle: ColorInputSwatchHandle| view! {
                 <SwatchTrigger handle />
             }}
+            surface={popover_surface(None)}
             picker={move |handle: ColorInputPickerHandle| view! {
-                <PopoverPanel>
-                    <ColorPicker
-                        value={handle.value}
-                        alpha={handle.alpha}
-                        focused={handle.open}
-                        on_preview={handle.on_preview}
-                    />
-                </PopoverPanel>
+                <ColorPicker
+                    value={handle.value}
+                    alpha={handle.alpha}
+                    focused={handle.shown}
+                    on_preview={handle.on_preview}
+                />
             }}
             field={move |handle: ColorInputFieldHandle| {
                 let ColorInputFieldHandle { hex, label, disabled } = handle;

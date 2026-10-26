@@ -5,6 +5,7 @@ use beui_macros::{component, view};
 use crate::date_time_field::{
     DateDraft, DateSegment, DateSegmentHandle, DateTimeField, DateTimeParts,
 };
+use crate::anchored::AnchoredStyle;
 use crate::datetime::{Date, DateTime, HourCycle, Time};
 use crate::popover::{Popover, PopoverHandle, PopoverPlacement};
 use crate::popup_trigger::PopupTriggerHandle;
@@ -97,7 +98,8 @@ pub fn DateTimePicker(
     segments: RenderFn<Child>,
     field: RenderFn<DateTimeBoxHandle>,
     trigger: Render<DateTimeTriggerHandle>,
-    panel: Render<DateTimePanelHandle>,
+    surface: AnchoredStyle,
+    panel: RenderFn<DateTimePanelHandle>,
 ) -> NodeId {
     let min = create_memo(move || min.get());
     let max = create_memo(move || max.get());
@@ -187,6 +189,7 @@ pub fn DateTimePicker(
                                 open={open}
                                 anchor=anchor
                                 placement
+                                surface
                                 refocus_trigger
                                 trigger={move |handle: PopupTriggerHandle| trigger.call(DateTimeTriggerHandle {
                                     popover: handle,
@@ -293,9 +296,11 @@ fn PickerPanel(
     min: Memo<Option<Date>>,
     max: Memo<Option<Date>>,
     today: Memo<Option<Date>>,
-    panel: Render<DateTimePanelHandle>,
+    panel: RenderFn<DateTimePanelHandle>,
 ) -> NodeId {
-    let PopoverHandle { open, close } = popover;
+    let PopoverHandle {
+        shown: open, close, ..
+    } = popover;
     let Field {
         current,
         parts,

@@ -86,7 +86,7 @@ pub use link::Link;
 pub use list_row::ListRow;
 pub use menu_button::MenuButton;
 pub use number_input::{NumberInput, NumberInputTextApi};
-pub use popover::Popover;
+pub use popover::{Popover, popover_surface};
 pub use progress::{INLINE_PROGRESS_WIDTH, Progress};
 pub use root::Root;
 pub use row::{RowFace, RowSize, RowTrailing};

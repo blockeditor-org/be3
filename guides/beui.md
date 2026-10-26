@@ -999,7 +999,20 @@ and hands every other marker to `DocumentMarker`. Copying and pasting
 carries the text without its marks. A menu is never asked for as a dropdown
 or as a sheet: every menu opens as a dropdown when a mouse opened it and as the
 same items in a `ModalSheet` when a finger did, so the two show the same
-features. A `MenuStyle` carries both looks and the spacing between rows
+features. That choice is `unstyled::Anchored`'s, the one surface every anchored
+popup sits on (`MenuPopup`, `Select`'s options, `Popover`, and through it the
+date and colour pickers): an overlay under `anchor` at `placement`, or the same
+content in a sheet. It looks at whether the press that opened it was a
+finger's or a pen's (`use_touch`, which a key press clears), so no trigger
+tracks touch itself; `sheet` (`SheetWhen::Touched` by
+default, `Always` or `Never`) overrides that. Its `AnchoredStyle` takes both
+looks with no default: `dropdown` wraps the content in a panel and `sheet`
+renders an `AnchoredSheetHandle` (`open`, `on_close`, `content`), styled as a
+fitted `ModalSheet` (`styled::popover_surface(max_width)` for a popover's).
+Its content is a `RenderFn<AnchoredHandle>`, built once per look the first
+time that look opens; the handle's `sheet` says which and `shown` holds while
+that one is showing, so focus binds to it rather than to `open`. A
+`MenuStyle` carries the menu's rows for both looks and the spacing between rows
 (`MenuStyle::new(spacing, row, panel)`; the styled `menu_style()`), and an
 unstyled one without a sheet stays a dropdown. Every component with a menu
 requires its `MenuStyle`; a text field's context menu is
@@ -1028,12 +1041,11 @@ name). The dropdown is as wide as its widest row, between a least width and a
 greatest one past which labels end in an ellipsis, is never taller than a fixed
 height, and scrolls the row the keyboard is on into view. `MenuPopup` is the same menu
 opened by something other than a button, such as a model holding a request: it
-shows while `open` holds, under `anchor` at `placement`, as the sheet while
-`sheet` holds, at least `min_width` wide, and reports `on_dismiss` for Escape or a press
+shows while `open` holds, under `anchor` at `placement`, as a sheet when a
+finger opened it or `sheet` holds, at least `min_width` wide, and reports `on_dismiss` for Escape or a press
 outside. A host that opens one for a plugin's button (block-app's app menu)
-anchors it to the button's rect, which the plugin sends from `node_anchor`, and
-sets `sheet` from `last_pointer` (`Document::last_pointer`): the host routed that
-press, so it knows whether a finger made it. `MenuButton` is the button that
+anchors it to the button's rect, which the plugin sends from `node_anchor`; the
+host routed that press, so the surface knows whether a finger made it. `MenuButton` is the button that
 opens a menu under itself, which is what a toolbar reaches for where `Select`
 would imply the choice sticks. Its face is text, an icon (`icon_only`) or a
 picture (`image`, the tray's icons), in any `ButtonSize`, and it looks pressed
@@ -1506,8 +1518,10 @@ click closes it rather than reopening it. Whether it is open is its `open`
 binding, as with `MenuButton`'s: a caller that opens it, or does something when
 it opens or closes, passes a signal rather than listening for a change. What
 it holds decides where the focus lands when it opens, by binding a `focused`
-prop to the handle's `open`, as the calendar, the time list and the color area
-all take.
+prop to the handle's `shown`, as the calendar, the time list and the color area
+all take. It is an `Anchored`, so a finger opens it as a sheet; its required
+`surface` is the `AnchoredStyle`, so its content is only what goes inside the
+panel (`styled::popover_surface`).
 
 ### Tooltips
 

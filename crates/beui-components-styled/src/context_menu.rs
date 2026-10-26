@@ -6,12 +6,12 @@ use beui_macros::{component, view};
 use crate::border::Separator;
 use crate::button::{ButtonFace, ButtonVariant};
 use crate::row::{RowFace, RowSize, RowTrailing};
-use crate::sheet::ModalSheet;
+use crate::sheet::AnchoredSheet;
 use crate::text::{Icon, Text, TextColor, TextSize, Weight};
 use crate::theme::{SCROLL_FADE, ThemeStore, use_theme};
 use beui_components_unstyled as unstyled;
 use beui_components_unstyled::{
-    ButtonHandle, MenuItem, MenuRowHandle, MenuRowKind, MenuSheetHandle, MenuStyle, ScrollbarStyle,
+    ButtonHandle, MenuItem, MenuRowHandle, MenuRowKind, MenuStyle, ScrollbarStyle, SheetWhen,
 };
 use beui_core::base::TextAlign;
 use beui_core::base::overlay::{OverlayAnchor, Placement};
@@ -32,7 +32,6 @@ const MENU_MAX_WIDTH: f32 = 400.0;
 const SUBMENU_SPACING: f32 = 8.0;
 const SHORTCUT_SPACING: f32 = 24.0;
 const SHEET_PADDING: f32 = 8.0;
-const SHEET_STOPS: [f32; 2] = [0.5, 0.9];
 const MENU_ROW_SPACING: f32 = 2.0;
 const SHEET_SEPARATOR_SPACING: f32 = 4.0;
 const SHEET_CAPTION_PADDING: f32 = 12.0;
@@ -91,7 +90,10 @@ pub fn MenuPopup(
     on_select: Callback<Vec<usize>>,
 ) -> NodeId {
     let open = create_memo(move || open.get());
-    let sheet = create_memo(move || sheet.get());
+    let sheet = create_memo(move || match sheet.get() {
+        true => SheetWhen::Always,
+        false => SheetWhen::Touched,
+    });
     view! {
         <unstyled::MenuPopup
             items={items.into_run()}
@@ -99,7 +101,7 @@ pub fn MenuPopup(
             anchor
             placement
             open={open}
-            touched={sheet}
+            sheet={sheet}
             on_dismiss={on_dismiss}
             on_select={on_select}
         />
@@ -132,7 +134,7 @@ fn sized_menu_style(min_width: f32) -> MenuStyle {
         },
         |handle| {
             view! {
-                <MenuSheetPanel handle />
+                <AnchoredSheet handle padding=SHEET_PADDING />
             }
         },
     )
@@ -511,26 +513,6 @@ fn MenuSheetRowFace(handle: MenuRowHandle) -> NodeId {
                 toggle
             />
         </List>
-    }
-}
-
-#[component]
-fn MenuSheetPanel(handle: MenuSheetHandle) -> NodeId {
-    let MenuSheetHandle {
-        open,
-        on_close,
-        menu,
-    } = handle;
-    view! {
-        <ModalSheet
-            open={open}
-            rest={SHEET_STOPS[0]}
-            stops={SHEET_STOPS.to_vec()}
-            fit=true
-            on_close={on_close}
-        >
-            <Frame padding=SHEET_PADDING>{menu}</Frame>
-        </ModalSheet>
     }
 }
 
