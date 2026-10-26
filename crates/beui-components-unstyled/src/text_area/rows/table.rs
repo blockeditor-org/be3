@@ -7,7 +7,6 @@ use text_editor_core::{SynHlColorScope, SynHlStyle, TableLine, TableRow};
 
 use super::{Builder, RowInputs, SpanKind, galley, next_character, style_font};
 
-
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum CellAlign {
     Start,

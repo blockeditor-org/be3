@@ -471,8 +471,10 @@ impl Surface {
     }
 
     fn room(&self) -> f32 {
-        (self.view_width.get_untracked() - self.padding.get_untracked().x * 2.0 - self.caret_width())
-            .max(0.0)
+        (self.view_width.get_untracked()
+            - self.padding.get_untracked().x * 2.0
+            - self.caret_width())
+        .max(0.0)
     }
 
     fn selection_handles(&self) -> Option<Range<usize>> {
@@ -1023,8 +1025,8 @@ fn field_key(cx: &Context, press: KeyPress) -> bool {
 }
 
 fn gutter_width(line_count: usize, font_size: f32, geometry: &TextAreaGeometry) -> f32 {
-    let digit = galley("0", FontId::monospace(font_size))
-        .map_or(font_size * 0.6, |galley| galley.size().x);
+    let digit =
+        galley("0", FontId::monospace(font_size)).map_or(font_size * 0.6, |galley| galley.size().x);
     let mut digits = 1;
     let mut value = line_count.max(1);
     while value >= 10 {

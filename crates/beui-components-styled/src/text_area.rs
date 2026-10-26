@@ -16,8 +16,8 @@ use crate::theme::{Theme, use_theme};
 use beui_components_unstyled as unstyled;
 use beui_components_unstyled::{
     BlockGeometry, ChipGeometry, Completer, MarkerColumn, MarkerKind, QuoteBar, RemoteTextCursor,
-    TableFill, TableLines, TextAreaColors, TextAreaGeometry, TextAreaLook, TextAreaState,
-    TextLeaf, TextLine, TextMarker, TextWidget, WidgetGeometry,
+    TableFill, TableLines, TextAreaColors, TextAreaGeometry, TextAreaLook, TextAreaState, TextLeaf,
+    TextLine, TextMarker, TextWidget, WidgetGeometry,
 };
 use beui_core::base::{Align, Direction, ItemSize};
 use beui_core::color::Color32;

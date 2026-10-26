@@ -909,12 +909,7 @@ fn RunChip(cx: Context, item: Memo<Option<InlineItem>>) -> NodeId {
     let font = create_memo(move || FontId::monospace(chip.get().font_size));
     view! {
         <Frame height fill=fill radius padding>
-            <Text
-                font
-                color={color}
-                align=TextAlign::Center
-                vertical_align=TextAlign::Center
-            >
+            <Text font color={color} align=TextAlign::Center vertical_align=TextAlign::Center>
                 {label}
             </Text>
         </Frame>
@@ -946,9 +941,10 @@ fn WidgetPill(cx: Context, item: Memo<Option<InlineItem>>) -> NodeId {
             .map_or(Color32::TRANSPARENT, |item| item.style.color)
     });
     let font = create_memo(move || {
-        item.get().map_or(FontId::proportional(cx.font_size.get()), |item| {
-            item.style.font
-        })
+        item.get()
+            .map_or(FontId::proportional(cx.font_size.get()), |item| {
+                item.style.font
+            })
     });
     let shape = create_memo(move || cx.geometry.get().widget);
     let height = create_memo(move || Extent::px(shape.get().height));
@@ -975,11 +971,7 @@ fn WidgetPill(cx: Context, item: Memo<Option<InlineItem>>) -> NodeId {
             <List direction=beui_core::base::Direction::Horizontal spacing=0.0>
                 <Show condition={has_icon}>||
                     <Frame width=icon_width>
-                        <Text
-                            font=icon_font
-                            color={color}
-                            align=TextAlign::Center
-                        >
+                        <Text font=icon_font color={color} align=TextAlign::Center>
                             <Icon glyph={icon} />
                         </Text>
                     </Frame>
@@ -1054,22 +1046,12 @@ fn Gutter(cx: Context, model: Memo<Rc<Row>>) -> NodeId {
         <Frame padding=above>
             <List direction=beui_core::base::Direction::Horizontal spacing=0.0>
                 <Frame width=arrow_width height=height>
-                    <Text
-                        font=arrow_font
-                        color={arrow_color}
-                        align=TextAlign::Center
-                    >
+                    <Text font=arrow_font color={arrow_color} align=TextAlign::Center>
                         <Icon glyph={arrow} />
                     </Text>
                 </Frame>
                 <Frame @sizing=ItemSize::Percent(100.0) height=height>
-                    <Text
-                        font=number_font
-                        color={number_color}
-                        align=TextAlign::End
-                    >
-                        {number}
-                    </Text>
+                    <Text font=number_font color={number_color} align=TextAlign::End>{number}</Text>
                 </Frame>
             </List>
         </Frame>

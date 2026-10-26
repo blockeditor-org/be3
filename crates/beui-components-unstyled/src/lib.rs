@@ -137,8 +137,8 @@ pub use text_area::{
     BlockGeometry, ChipGeometry, Completer, Completion, CompletionMenu, CompletionRowHandle,
     LeafSpan, Margin, MarkerColumn, MarkerKind, PlainLine, Prose, ProseLine, QuoteBar,
     RemoteTextCursor, RowTable, SyntaxColors, TableFill, TableLines, TextArea, TextAreaApi,
-    TextAreaColors, TextAreaGeometry, TextAreaLayout, TextAreaLook, WidgetGeometry, TextAreaState, TextLeaf, TextLine, TextMarker, TextWidget, emoji_completer,
-    search_emoji,
+    TextAreaColors, TextAreaGeometry, TextAreaLayout, TextAreaLook, TextAreaState, TextLeaf,
+    TextLine, TextMarker, TextWidget, WidgetGeometry, emoji_completer, search_emoji,
 };
 pub use text_input::{TextInput, TextInputApi, TextInputHandle, TextInputStyle};
 pub use text_menu::TextContextMenu;
