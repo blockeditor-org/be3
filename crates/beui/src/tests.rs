@@ -1392,9 +1392,7 @@ impl Harness {
 
     pub(crate) fn enable_mouse_simulation(&mut self) {
         self.toggle_inspector();
-        let tab = self.simulation_tab_center();
-        self.click(tab);
-        self.frame(Vec::new());
+        self.show_inspector_tab(crate::inspector::InspectorTab::Simulation);
         let toggle = self.mouse_toggle_center();
         self.click(toggle);
         self.key(Key::Escape, Modifiers::NONE);
@@ -1434,9 +1432,7 @@ impl Harness {
 
     pub(crate) fn enable_screen_reader(&mut self) {
         self.toggle_inspector();
-        let tab = self.simulation_tab_center();
-        self.click(tab);
-        self.frame(Vec::new());
+        self.show_inspector_tab(crate::inspector::InspectorTab::Simulation);
         let toggle = self.inspector_center("inspector.screen_reader.enabled");
         self.click(toggle);
         self.key(Key::Escape, Modifiers::NONE);
@@ -1445,9 +1441,7 @@ impl Harness {
 
     pub(crate) fn disable_accessibility(&mut self) {
         self.toggle_inspector();
-        let tab = self.simulation_tab_center();
-        self.click(tab);
-        self.frame(Vec::new());
+        self.show_inspector_tab(crate::inspector::InspectorTab::Simulation);
         let toggle = self.inspector().find("inspector.accessibility.enabled");
         self.click_in_inspector(toggle);
         self.toggle_inspector();
@@ -1494,24 +1488,25 @@ impl Harness {
         self.inspector_center("inspector.performance.flash_damage")
     }
 
-    pub(crate) fn accesskit_tab_center(&self) -> Pos2 {
-        self.node_center(self.tab_node(2))
-    }
-
-    pub(crate) fn components_tab_center(&self) -> Pos2 {
-        self.node_center(self.tab_node(1))
-    }
-
-    pub(crate) fn performance_tab_center(&self) -> Pos2 {
-        self.node_center(self.tab_node(3))
-    }
-
-    pub(crate) fn simulation_tab_center(&self) -> Pos2 {
-        self.node_center(self.simulation_tab_node())
-    }
-
-    pub(crate) fn simulation_tab_node(&self) -> NodeId {
-        self.tab_node(4)
+    pub(crate) fn show_inspector_tab(&mut self, tab: crate::inspector::InspectorTab) {
+        if self.inspector().tools_stacked() {
+            self.click(self.inspector_center("dock.switch"));
+            self.settle();
+        }
+        let panel = self.inspector().panel_rect().expect("the inspector is open");
+        for _ in 0..4 {
+            let row = self.inspector().tab_node(tab);
+            let rect = self.inspector().document.node_rect(row).expect("the tab is laid out");
+            if rect.bottom() <= panel.bottom() {
+                break;
+            }
+            let at = self.node_center(row);
+            let at = pos2(at.x, panel.bottom() - 8.0);
+            self.scroll_at(at, Vec2::new(0.0, panel.bottom() - rect.bottom()), Modifiers::NONE);
+            self.settle();
+        }
+        self.click(self.node_center(self.inspector().tab_node(tab)));
+        self.settle();
     }
 
     pub(crate) fn drag_simulation_slider(&mut self, control: &str, fraction: f32) {
@@ -1537,11 +1532,6 @@ impl Harness {
             .find_test_id("inspector.performance")
             .and_then(|panel| inspector.document.node_rect(panel))
             .is_some()
-    }
-
-    pub(crate) fn tab_node(&self, index: usize) -> NodeId {
-        self.inspector()
-            .tab_node(crate::inspector::InspectorTab::ALL[index])
     }
 
     pub(crate) fn inspector_center(&self, test_id: &str) -> Pos2 {

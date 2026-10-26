@@ -11,6 +11,17 @@ fn inspector(test: &DocumentTest) -> &Inspector {
         .unwrap()
 }
 
+fn click_inspector(test: &mut DocumentTest, node: NodeId) {
+    let center = inspector(test)
+        .document
+        .node_rect(node)
+        .unwrap()
+        .scaled(scale(test.context()))
+        .center();
+    test.click(center);
+    test.settle();
+}
+
 fn expand_internals(test: &mut DocumentTest, component: &str, test_id: &str) {
     let inspector = inspector(test);
     let component = inspector
@@ -98,16 +109,12 @@ fn the_inspector_paints_the_component_shadow_tree() {
         Input::Modifiers(beui::Modifiers::NONE),
     ]);
     test.frame(Vec::new());
-    let panel = inspector(&test);
-    let tab = panel.tab_node(InspectorTab::Components);
-    let center = panel
-        .document
-        .node_rect(tab)
-        .unwrap()
-        .scaled(scale(test.context()))
-        .center();
-    test.click(center);
-    test.frame(Vec::new());
+    if inspector(&test).tools_stacked() {
+        let switch = inspector(&test).find("dock.switch");
+        click_inspector(&mut test, switch);
+    }
+    let tab = inspector(&test).tab_node(InspectorTab::Components);
+    click_inspector(&mut test, tab);
 
     expand_internals(&mut test, "styled::Text", "example.heading");
     expand_internals(&mut test, "styled::Card", "example.card");

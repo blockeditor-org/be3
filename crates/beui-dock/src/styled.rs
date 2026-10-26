@@ -77,7 +77,6 @@ pub fn Docking<K>(
     layout: DockingLayout<K>,
     #[prop(default = None)] focus: Prop<Option<K>>,
     #[prop(default = None)] drag_modifier: Prop<Option<Modifiers>>,
-    #[prop(default = NARROW_WIDTH)] stack_below: f32,
     children: Children<DockNode<K>>,
 ) -> NodeId
 where
@@ -94,7 +93,7 @@ where
     view! {
         <dock::Docking
             layout
-            stack_below
+            stack_below=NARROW_WIDTH
             focus
             drag_modifier
             splitter_thickness=SPLITTER_LINE

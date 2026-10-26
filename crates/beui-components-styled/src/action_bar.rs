@@ -1,5 +1,6 @@
 use beui_components_unstyled as unstyled;
-use beui_components_unstyled::{ActionBarHandle, MenuNodes};
+use accesskit::Role;
+use beui_components_unstyled::{ActionBarHandle, MenuNodes, ToggleHandle};
 use beui_core::icons::ICON_ELLIPSIS_VERTICAL;
 use beui_core::node::NodeId;
 use beui_macros::{component, view};
@@ -7,7 +8,7 @@ use beui_view::actions::{Action, MenuNode};
 use beui_view::reactive::*;
 
 use crate::border::Separator;
-use crate::button::{Button, ButtonSize, ButtonVariant};
+use crate::button::{Button, ButtonFace, ButtonSize, ButtonVariant};
 use crate::frame::Frame;
 use crate::list::List;
 use crate::menu_button::MenuButton;
@@ -118,25 +119,61 @@ fn ActionBarFace(
 #[component]
 fn ActionPin(action: Action, labelled: bool, size: ButtonSize, prefix: String) -> NodeId {
     let id = format!("{prefix}.pin.{}", action.id());
-    match labelled {
-        true => view! {
-            <Frame padding={Padding::horizontal(LABEL_MARGIN)}>
-                <Button
-                    @test_id={id}
-                    action={action}
-                    variant=ButtonVariant::Primary
-                    size=ButtonSize::Compact
-                />
-            </Frame>
+    let (variant, size) = match labelled {
+        true => (ButtonVariant::Primary, ButtonSize::Compact),
+        false => (ButtonVariant::Ghost, size),
+    };
+    let button = match action.checked() {
+        Some(_) => view! {
+            <unstyled::Toggle
+                @test_id={id}
+                checked=false
+                role=Role::Button
+                icon_only={!labelled}
+                action={action}
+            >|handle: ToggleHandle| {
+                let ToggleHandle {
+                    checked,
+                    hovered,
+                    active,
+                    focused,
+                    disabled,
+                    label,
+                    glyph,
+                    icon_only,
+                    tooltip,
+                    ..
+                } = handle;
+                let face = unstyled::ButtonHandle {
+                    hovered,
+                    active,
+                    focused,
+                    disabled,
+                    label,
+                    glyph,
+                    icon_only,
+                    tooltip,
+                };
+                let pressed = create_memo(move || checked.get());
+                view! {
+                    <ButtonFace handle={face} variant size pressed={pressed} />
+                }
+            }</unstyled::Toggle>
         },
-        false => view! {
+        None => view! {
             <Button
-                icon_only=true
+                icon_only={!labelled}
                 @test_id={id}
                 action={action}
-                variant=ButtonVariant::Ghost
+                variant
                 size
             />
         },
+    };
+    match labelled {
+        true => view! {
+            <Frame padding={Padding::horizontal(LABEL_MARGIN)}>{button}</Frame>
+        },
+        false => button,
     }
 }

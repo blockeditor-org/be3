@@ -387,7 +387,6 @@ pub struct Inspector {
     reader: ScreenReader,
     trees: [panel::TreeView; 3],
     tools: DockingLayout<InspectorTab>,
-    tree_shown: Signal<bool>,
     synced_shown: [bool; 3],
     summary: Signal<Summary>,
     performance: Signal<panel::PerformanceSummary>,
@@ -429,7 +428,6 @@ impl Inspector {
             entries: Vec::new(),
             trees: panel.trees,
             tools: panel.tools,
-            tree_shown: panel.tree_shown,
             synced_shown: [false; 3],
             state,
             reader: ScreenReader::default(),
@@ -462,7 +460,15 @@ impl Inspector {
             .unwrap_or_else(|| panic!("the inspector has no node with test id {test_id:?}"))
     }
 
+    pub fn tools_stacked(&self) -> bool {
+        self.tools.mode().get_untracked() == DockMode::Stacked
+    }
+
     pub fn tab_node(&self, tab: InspectorTab) -> NodeId {
+        if self.tools_stacked() {
+            let id = self.tools.tab_of(&tab).expect("every tool is a tab");
+            return self.find(&format!("dock.switcher.tab.{}", id.value()));
+        }
         let root = self.document.root().expect("the inspector has a root");
         placed_text(&self.document, root, tab.title())
             .unwrap_or_else(|| panic!("the inspector shows no {} tab", tab.title()))
@@ -958,10 +964,6 @@ impl Inspector {
             }
         }
         self.synced_shown = shown;
-        let any_tree = shown.contains(&true);
-        if self.tree_shown.get_untracked() != any_tree {
-            self.tree_shown.set(any_tree);
-        }
         let summary = self.summary(target, ctx);
         let performance = panel::PerformanceSummary::from(target.performance());
         let renderer = ctx

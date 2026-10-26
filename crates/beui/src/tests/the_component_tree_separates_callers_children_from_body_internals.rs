@@ -35,7 +35,7 @@ fn the_component_tree_separates_callers_children_from_body_internals() {
     assert!(full.contains("      styled::Text\n        internals\n          primitives::Text\n        \"Inside\"\n"), "{full}");
     let mut harness = Harness::new(document);
     harness.toggle_inspector();
-    harness.click(harness.components_tab_center());
+    harness.show_inspector_tab(crate::inspector::InspectorTab::Components);
     harness.frame(Vec::new());
     assert_eq!(
         harness.tree(),

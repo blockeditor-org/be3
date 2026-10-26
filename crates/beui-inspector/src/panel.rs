@@ -16,7 +16,7 @@ use beui_core::performance::PerformanceSnapshot;
 use beui_core::performance::PerformanceTimings;
 use beui_core::preferences::{Motion, PreferenceLayer, ThemeKind};
 use beui_dock::styled::Docking;
-use beui_dock::unstyled::{DockPane, DockTab, DockingLayout};
+use beui_dock::unstyled::{DockPane, DockTab, DockingLayout, dock_menu};
 use beui_view::reactive::*;
 
 use super::tree::{Entry, Key};
@@ -33,6 +33,7 @@ const TIMING_SPACING: Space = Space::Xs;
 const BLUR_MIDPOINT: f32 = 12.0;
 const RENDERER_LABEL_WIDTH: f32 = 104.0;
 const PROPERTIES_SHARE: f32 = 45.0;
+pub const PICK: &str = "inspector.pick";
 const BAR_PADDING: Padding = Padding::symmetric(Space::Md, Space::Sm);
 const PIXEL_RATIOS: [(&str, Option<f32>); 5] = [
     ("Native", None),
@@ -196,7 +197,6 @@ pub struct Panel {
     pub scope: Scope,
     pub trees: [TreeView; 3],
     pub tools: DockingLayout<InspectorTab>,
-    pub tree_shown: Signal<bool>,
     pub summary: Signal<Summary>,
     pub performance: Signal<PerformanceSummary>,
     pub renderer: Signal<RendererRows>,
@@ -208,7 +208,6 @@ pub fn build(state: Stored<State>) -> Panel {
     let owner = RootScope::new();
     let trees = [TreeView::new(), TreeView::new(), TreeView::new()];
     let tools = DockingLayout::new();
-    let tree_shown = create_signal(true);
     let summary = create_signal(Summary::default());
     let performance = create_signal(PerformanceSummary::default());
     let renderer = create_signal(RendererRows::new());
@@ -218,8 +217,6 @@ pub fn build(state: Stored<State>) -> Panel {
     let mut document = Document::new();
     let root = enter(&mut document, || {
         provide_context(ThemeStore::new(Theme::DARK));
-        let picking = create_memo(move || summary.with(|summary| summary.picking));
-        let tree_visible = create_memo(move || tree_shown.get());
         let [beui, components, accesskit] = trees;
         view! {
             <List direction=Direction::Horizontal spacing=Space::None>
@@ -235,9 +232,6 @@ pub fn build(state: Stored<State>) -> Panel {
                                 <Text style=TextStyle::HEADING @sizing=ItemSize::Percent(100.0)>
                                     "Inspector"
                                 </Text>
-                                <ShowKeepAlive condition={tree_visible}>
-                                    <PickToggle state={state} picking />
-                                </ShowKeepAlive>
                                 <Show condition={create_memo(move || !compact.get())}>
                                     <CloseButton @test_id={"inspector.close"} state={state} />
                                 </Show>
@@ -245,7 +239,7 @@ pub fn build(state: Stored<State>) -> Panel {
                         </Frame>
                         <Separator />
                         <Frame @sizing=ItemSize::Percent(100.0) @test_id={"inspector.tools"}>
-                            <Docking layout=tools stack_below=0.0>
+                            <Docking layout=tools>
                                 <DockPane id="tools">
                                     <DockTab
                                         id=InspectorTab::Beui
@@ -297,7 +291,6 @@ pub fn build(state: Stored<State>) -> Panel {
         scope: owner.into_scope(),
         trees,
         tools,
-        tree_shown,
         summary,
         performance,
         renderer,
@@ -326,6 +319,13 @@ fn TreePanel(
     let properties = create_memo(move || summary.with(|summary| summary.properties.clone()));
     let has_properties = create_memo(move || properties.with(|properties| !properties.is_empty()));
     let selected = create_memo(move || selection.with(|path| path.last().copied()));
+    let picking = create_memo(move || summary.with(|summary| summary.picking));
+    let pick = Action::new(PICK, "Pick", move || state.value().toggle_picking())
+        .glyph(ICON_MOUSE_POINTER_2)
+        .checked(picking)
+        .pin(Pin::Icon)
+        .detached();
+    dock_menu(create_memo(move || vec![MenuNode::action(&pick)]));
     view! {
         <List spacing=Space::None>
             <List @sizing=ItemSize::Percent(100.0) spacing=Space::None>
@@ -1034,18 +1034,6 @@ fn format_duration(duration: Duration) -> String {
 
 fn percentage(count: usize, total: usize) -> usize {
     count.saturating_mul(100) / total.max(1)
-}
-
-#[component]
-fn PickToggle(state: Stored<State>, picking: Memo<bool>) -> NodeId {
-    view! {
-        <ToggleButton
-            label="Pick"
-            glyph=ICON_MOUSE_POINTER_2
-            icon_only=true
-            pressed={Binding::new(picking, move |_| state.value().toggle_picking())}
-        />
-    }
 }
 
 #[component]

@@ -2172,7 +2172,7 @@ only floating windows and cards keep a border, rounded corners and a focus outli
 A dock narrower than `NARROW_WIDTH` stacks: it draws the same state as one screen, the focused tab
 filling the dock, edge to edge, with no tab bars, splitters or windows, and everything else in
 the state is kept, so widening it tiles the layout again. The dock picks the mode
-from its own width (both `Docking`s stack below their `stack_below`, which the styled one defaults to `NARROW_WIDTH`), and
+from its own width (the unstyled `Docking` stacks below its `stack_below`, which the styled one sets to `NARROW_WIDTH`), and
 `DockingLayout::mode()` reads it, which is how the workspace knows it is on a phone.
 The dock draws the stacked screen's bar itself: the tab's icon and title, a
 square counting the open tabs that can be closed, the one on show included, always shown
@@ -2201,7 +2201,7 @@ label pins fit (`labels`) and whether the caller shows the title pin itself
 (`title`, then `unstyled::title_action` finds it), its handle holds the `icons`
 and `labels` to pin and the `overflow` for the More menu. `styled::ActionBar`
 draws it, with `ActionLabels::Shown`, `Icons` or `Overflow` for the label pins,
-a `direction` and a button `size`, and names its parts `<test_prefix>.pin.<id>`
+a `direction` and a button `size` (a pinned action built with `.checked(..)` is a toggle that looks pressed while it is on), and names its parts `<test_prefix>.pin.<id>`
 and `<test_prefix>.menu`; the dock's bars are styled action bars. A tiled bar is 40 points with its rule, its tabs 30; its controls are
 `ButtonSize::Toolbar` icon-only buttons (30 square) and the labelled pins compact
 `Button`s of the same height, while a tab's own close button stays compact. The
@@ -3620,9 +3620,12 @@ inspector's Sim tab has a button that opens it over the inspected app.
 
 Ctrl+Shift+I in a standalone beui window opens the node, component,
 accessibility, and performance inspector. Its tools (Beui, Comp, A11y, Perf
-and Sim) are tabs of a `dock::styled::Docking` that never stacks
-(`stack_below=0.0`), so two can be dragged side by side; each tree tool keeps
-its own rows, and the inspector collects rows only for the tree tools on show.
+and Sim) are tabs of a `dock::styled::Docking` like any other: in its usual narrow panel the
+dock stacks, so the bar names the tool on show and its count square opens the switcher, and a panel
+widened past `NARROW_WIDTH` tiles, so two can be dragged side by side. Each tree tool keeps
+its own rows, and the inspector collects rows only for the tree tools on show. The tree tools pin a
+Pick toggle (`inspector.pick`, an icon pin, checked while picking) to the dock's bar, so the
+header above the dock holds only the title and the close button and never changes size.
 Its Comp tab lists the
 `#[component]`s that built the tree rather than its base nodes: every
 component records its name against the node it returns, so components that

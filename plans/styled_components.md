@@ -236,11 +236,23 @@ user that has no scroll, no disabled rows and no Page keys.
 - **Done.** **Move the beui-inspector tool tabs to dock tabs.** Beui/Comp/A11y/Perf/Sim
   (`beui-inspector/src/panel.rs:259`) are independent panels, and side by side
   is useful. This needs `beui-dock` (§3). The tools are `DockTab`s of one
-  pane in a styled `Docking` with `stack_below=0.0` (a new prop; it defaults
-  to `NARROW_WIDTH`), so the narrow panel tiles rather than stacking. Each
+  pane in a styled `Docking`, which treats it like any other dock: in the
+  narrow panel it stacks. (An earlier `stack_below=0.0` prop on the styled
+  `Docking` kept it tiled; it was a special mode for the inspector and is
+  gone.) The tree tools pin a Pick toggle to the dock's bar
+  (`inspector.pick`, a checked `Pin::Icon` action) instead of a toggle above
+  the dock that came and went as tools were switched. Each
   tree tool has its own rows, and the inspector collects rows only for the
   tree tools on show. Its layout isn't saved, like the rest of the
   inspector's state.
+- **Later: make a stacked dock look better in a narrow panel.** The
+  inspector's stacked dock spends a lot of height on its regular-sized bar
+  and padding, and its switcher sheet opens half-height with an "Open tabs"
+  heading and "Nothing else is open." over the rows of its unclosable tools,
+  so in a short window the rows sit below the fold until the sheet is
+  scrolled or dragged up. A denser stacked bar and switcher for narrow panels
+  (less tall, less padding) would serve the inspector and any other dock in
+  a side panel.
 - **Later, maybe: the inspector's App/Inspector bar.** That compact-mode bar
   (`panel.rs:405`) is the dock's phone layout with the app as a pane. Revisit
   it once the inspector is a dock. Left as `Tabs`: the app isn't a beui node

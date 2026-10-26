@@ -10,7 +10,7 @@ fn picking_a_node_in_the_components_tab_selects_the_component_that_built_it() {
     });
     let mut harness = Harness::sized(document, WIDE_VIEWPORT);
     harness.toggle_inspector();
-    harness.click(harness.components_tab_center());
+    harness.show_inspector_tab(crate::inspector::InspectorTab::Components);
     harness.frame(Vec::new());
 
     harness.toggle_picking();
