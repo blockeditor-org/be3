@@ -44,7 +44,11 @@ pub fn VersionHistory(log: Memo<Vec<VersionCommit>>) -> NodeId {
                     false => message,
                 };
                 view! {
-                    <List direction=Direction::Horizontal spacing=Space::Md @test_id={commit_test_id}>
+                    <List
+                        direction=Direction::Horizontal
+                        spacing=Space::Md
+                        @test_id={commit_test_id}
+                    >
                         <Text style=TextStyle::CAPTION>{short_id(&change)}</Text>
                         <Text>{message}</Text>
                         <beui::reactive::Show condition={conflicted}>

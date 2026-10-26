@@ -522,7 +522,12 @@ fn AgentCredentials(created: Memo<Option<super::CreatedAgent>>) -> NodeId {
 fn AboutDialog(view: AppViewStore) -> NodeId {
     let open = view.about;
     view! {
-        <Dialog open={open} title="About" width={Size::Custom(420.0)} on_dismiss={|| send(UiCommand::About(false))}>
+        <Dialog
+            open={open}
+            title="About"
+            width={Size::Custom(420.0)}
+            on_dismiss={|| send(UiCommand::About(false))}
+        >
             <AboutPanel />
         </Dialog>
     }

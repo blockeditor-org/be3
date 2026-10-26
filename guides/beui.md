@@ -4160,6 +4160,13 @@ and activation), `ActionRow` (an action, `Touch`), `SettingsLink` (a page of
 settings, with a chevron), the menu sheet's rows and the launcher's rows are all
 built on it.
 
+A pick among pictures is a row of `TileButton`s: a square tile (`size`, `Xl` by
+default) around any child, filled `AccentSoft` and ringed in the accent when
+`selected`, with `outlined` for a hairline border at rest and `radio=true` for
+radio semantics (`description` reads after the label). The rename card's icons
+and the display settings' rotation picker use it. A colour pick is a row of
+`SwatchButton`s.
+
 ### Text
 
 Styled text is written in tokens, never pixels or colors. `styled::Text`,

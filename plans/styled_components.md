@@ -449,6 +449,26 @@ Outcomes, by crate group (each also migrated onto §7's tokens):
   embedded-editor geometry (`block_ui::EMBEDDED_EDITOR_*`), the timeline's
   lane geometry and the hex view's measured size are `Space::Custom` and
   `Size::Custom`, since other code computes with the same pixels.
+- **Done: block-app, block-shell, block-editor-beui, block-ui-test,
+  paint-review, be-wayland, beui-adapter-plugin's tests** (paint-review-web and
+  beui-web-demo had nothing to move). None imports `unstyled::` any more, and
+  they build without the §7 conversions.
+  - New styled components: `TileButton` (a square pressable tile around any
+    picture, `selected`, `outlined`, `radio` for radio semantics, `description`,
+    `size`), used by block-shell's rename icon grid and block-editor-beui's
+    rotation picker; `SwatchButton` (the same one the canvas group added), used
+    by the rename colours. `ListRow` gained `glyph_color` and `size`, so the
+    picker's More stage rows are `ListRow`s rather than a face of their own.
+  - Re-exported from styled, since they carry no look: `Container`,
+    `container_size`, `narrower_than`, `Edge`, `Floating`, `MenuItem`,
+    `MenuCaption`, `MenuGrid`, `MenuThen`, `TreeItem`, `ChoiceOption`,
+    `DragPoint`, `DropHandle`, `DropTarget`, `PanZoom`, `PanZoomHandle`,
+    `PanZoomView`, `RemoteTextCursor`, `TextAreaState`; and from
+    `dock::styled`, `DockDialog`, `DockDialogPresentation` and `DockEntry`
+    beside the dock model types.
+  - block-editor-beui's `Sidebar` takes `width: Size` (`SIDEBAR_WIDTH` is
+    `Size::Custom(260)`) and `Toolbar` takes `spacing: Space`; editors that pass
+    pixels still compile through the temporary conversions.
 
 ## 7. Styled components take design tokens, not raw values
 
@@ -794,10 +814,16 @@ plugin's `editor.dismiss`, and `child-status.dialog` (`dialog-status`);
 `creation-ready` went, since the plugin now enables its own Create, and
 `creation-progress.options` lost its `ready`. block-editor-beui hands the
 plugin's `DialogBody` a `DialogLayout` and an `unstyled::DialogDismissal`
-(`crates/block-editor-beui/src/dialog.rs`). The artifact settings dialog is
-still the shell's `Dialog` around a plugin `Subregion`: its Apply commits a
-child the shell owns, so moving it means the plugin asking the shell to
-commit through `close-dialog(accepted)` as the creation dialogs do.
+(`crates/block-editor-beui/src/dialog.rs`). **Done:** the artifact settings
+dialog is the same: block-shell shows a `DialogFrame` around a `Subregion
+dialog=true` of `ArtifactSettings`, and block-editor-beui puts the editor's
+`ArtifactSettings` component inside a `DialogBody` ("Dynamic artifact
+settings", Cancel and Apply) whose Apply is enabled once the copy differs from
+the stored settings (a plugin's `update` now gets a `SettingsDraft` with both)
+and answers `close-dialog(accepted)`; the shell then commits the child as
+before. The host reports the artifact instance's `dialog-status` on the
+settings child, routes a `dismiss-child` of it to that instance, and forgets
+its answer once the settings close.
 
 - **Done.** **Back and dismiss go to the plugin first.** Back already reaches a plugin
   as input. Escape, back and a press on the scrim reach the plugin, whose

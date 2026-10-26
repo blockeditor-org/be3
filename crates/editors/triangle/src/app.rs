@@ -1,7 +1,7 @@
 use block_editor_plugin::wgpu;
 use block_editor_plugin::{
-    BlockParent, EditorHost, Frame, Instance, PaintTarget, Plugin, Region, SettingsDraft, SurfaceRect,
-    TimedInput,
+    BlockParent, EditorHost, Frame, Instance, PaintTarget, Plugin, Region, SettingsDraft,
+    SurfaceRect, TimedInput,
 };
 use triangle_types::TriangleContent;
 use uuid::Uuid;

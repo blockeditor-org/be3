@@ -174,10 +174,7 @@ pub(crate) fn Stage(review: Review) -> NodeId {
                                 </Show>
                             </List>
                         </Frame>
-                        <Frame
-                            align={Align2::new(Align::End, Align::End)}
-                            padding=Space::Lg
-                        >
+                        <Frame align={Align2::new(Align::End, Align::End)} padding=Space::Lg>
                             <List direction=Direction::Horizontal spacing=Space::Md>
                                 <Button
                                     variant=ButtonVariant::Secondary

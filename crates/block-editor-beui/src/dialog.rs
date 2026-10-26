@@ -79,7 +79,8 @@ pub(crate) fn PluginDialog(
 pub(crate) fn SettingsDialog(artifacts: Artifacts, #[prop(children)] content: Render) -> NodeId {
     let settings = artifacts.settings();
     let saved = artifacts.saved_settings();
-    let unchanged = create_memo(move || settings.with(|settings| saved.with(|saved| settings == saved)));
+    let unchanged =
+        create_memo(move || settings.with(|settings| saved.with(|saved| settings == saved)));
     let cancel = artifacts.host().clone();
     let apply = artifacts.host().clone();
     let body = content.call(());

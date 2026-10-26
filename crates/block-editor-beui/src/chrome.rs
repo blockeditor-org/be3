@@ -90,9 +90,7 @@ pub(crate) fn ChromeRoot(
                     <Show condition={bare}>
                         <Frame fill=ColorRole::Surface>
                             <List spacing=Space::None>
-                                <Frame
-                                    padding=BAND_PADDING
-                                >
+                                <Frame padding=BAND_PADDING>
                                     <List
                                         direction=Direction::Horizontal
                                         align=Align::Center
@@ -273,10 +271,12 @@ fn ToolbarFrame(shown: Prop<bool>, fit: Prop<bool>, children: Child) -> DynamicS
             <Frame fill=ColorRole::Surface>
                 <List spacing=Space::None>
                     <Show condition={roomy}>
-                        <Frame
-                            padding=BAND_PADDING
-                        >
-                            <List direction=Direction::Horizontal align=Align::Center spacing=Space::None>
+                        <Frame padding=BAND_PADDING>
+                            <List
+                                direction=Direction::Horizontal
+                                align=Align::Center
+                                spacing=Space::None
+                            >
                                 <Portal @sizing=ItemSize::Percent(100.0) node={spread} />
                                 <Show condition={fitted_toggle}>
                                     <Frame padding={Padding::horizontal(Space::Lg)}>
@@ -287,21 +287,21 @@ fn ToolbarFrame(shown: Prop<bool>, fit: Prop<bool>, children: Child) -> DynamicS
                         </Frame>
                     </Show>
                     <Show condition={narrow}>
-                        <List direction=Direction::Horizontal align=Align::Center spacing=Space::None>
+                        <List
+                            direction=Direction::Horizontal
+                            align=Align::Center
+                            spacing=Space::None
+                        >
                             <Scroll
                                 @sizing=ItemSize::Percent(100.0)
                                 direction=Direction::Horizontal
                             >
-                                <Frame
-                                    padding=BAND_PADDING
-                                >
+                                <Frame padding=BAND_PADDING>
                                     <Portal node={scrolled} />
                                 </Frame>
                             </Scroll>
                             <Show condition={offers}>
-                                <Frame
-                                    padding=BAND_PADDING
-                                >
+                                <Frame padding=BAND_PADDING>
                                     <SheetToggle />
                                 </Frame>
                             </Show>

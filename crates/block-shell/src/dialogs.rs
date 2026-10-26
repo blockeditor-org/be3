@@ -95,7 +95,9 @@ fn ArtifactSettingsDialog(workspace: Workspace) -> NodeId {
         match state.dialog.answer {
             Some(DialogAnswer::Accepted) => {
                 if let Some(child) = state.child {
-                    workspace.host().commit_child(child, BlockParent::Root, None);
+                    workspace
+                        .host()
+                        .commit_child(child, BlockParent::Root, None);
                 }
                 workspace.close_dialog();
             }
@@ -452,7 +454,11 @@ fn MemberRow(member: Memo<Option<Member>>, act: ShareAct) -> NodeId {
                         </List>
                         <Text style=TextStyle::CAPTION>{email}</Text>
                         <Show condition={is_fixed}>
-                            <List direction=Direction::Horizontal align=Align::Center spacing=Space::Xs>
+                            <List
+                                direction=Direction::Horizontal
+                                align=Align::Center
+                                spacing=Space::Xs
+                            >
                                 <Text size=TextSize::Sm align=TextAlign::Center>
                                     <Icon glyph=ICON_LOCK />
                                 </Text>

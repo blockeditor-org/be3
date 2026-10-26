@@ -1,8 +1,6 @@
 use beui::Overflow;
 use block_editor_beui::beui::dock::styled::CHROME_BORDER;
-use block_editor_beui::beui::dock::styled::{
-    DockDialog, DockDialogPresentation, DockNode, TabId,
-};
+use block_editor_beui::beui::dock::styled::{DockDialog, DockDialogPresentation, DockNode, TabId};
 use block_editor_beui::beui::icons::{
     ICON_ARROW_LEFT, ICON_BLOCKS, ICON_CHEVRON_RIGHT, ICON_FILE_UP, ICON_FOLDER, ICON_LINK,
     ICON_SEARCH,
@@ -255,11 +253,7 @@ fn MoreItem(act: Act, label: &'static str) -> MenuItem {
 }
 
 #[component]
-fn SlideItems(
-    workspace: Workspace,
-    held: Memo<Option<Pick>>,
-    act: Act,
-) -> Children<MenuItem> {
+fn SlideItems(workspace: Workspace, held: Memo<Option<Pick>>, act: Act) -> Children<MenuItem> {
     let slides = create_memo(move || {
         let types = workspace.types();
         held.with(|held| {
@@ -872,7 +866,8 @@ fn creation_content(creating: &Creating) -> SubregionContent {
 fn CreateBody(workspace: Workspace, pick: u64, held: Memo<Option<Pick>>) -> NodeId {
     let creating =
         create_memo(move || held.with(|held| held.as_ref().and_then(|held| held.creating.clone())));
-    let height = create_memo(move || Length::Size(Size::Custom(creation_height(held.get().as_ref()))));
+    let height =
+        create_memo(move || Length::Size(Size::Custom(creation_height(held.get().as_ref()))));
     let placed = create_memo(move || {
         creating.with(|creating| {
             creating

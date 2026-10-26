@@ -7,7 +7,6 @@ use beui::{ForwardedInput, Key, NodeId, Pos2, Rect};
 use crate::state::WindowId;
 use crate::windows::Windows;
 
-
 #[component]
 pub fn WindowView(
     windows: Windows,

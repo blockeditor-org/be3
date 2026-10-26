@@ -122,12 +122,7 @@ pub fn ChoiceMark(
                 </Show>
                 <Show condition={dotted}>
                     <Frame align=Align::Center>
-                        <Frame
-                            width=dot
-                            height=dot
-                            radius=Radius::Full
-                            fill={dot_color}
-                        />
+                        <Frame width=dot height=dot radius=Radius::Full fill={dot_color} />
                     </Frame>
                 </Show>
             </Layers>

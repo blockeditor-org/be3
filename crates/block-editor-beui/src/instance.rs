@@ -7,8 +7,7 @@ use std::rc::Rc;
 
 use beui_adapter_plugin::PluginSurface;
 use block_editor_plugin::{
-    Artifact, ArtifactDescription, EditorHost, EditorRegion, Frame, Instance, Region,
-    SettingsDraft,
+    Artifact, ArtifactDescription, EditorHost, EditorRegion, Frame, Instance, Region, SettingsDraft,
 };
 #[cfg(target_arch = "wasm32")]
 use block_editor_plugin::{PaintTarget, SurfaceRect};

@@ -33,7 +33,10 @@ pub(super) fn Column(children: beui::reactive::Children<beui::reactive::ListChil
     view! {
         <Scroll>
             <List spacing=Space::None align=Align::Center>
-                <Frame width={Extent::at_most(COLUMN_WIDTH)} padding={Padding::symmetric(Space::Xl, Space::Xl3)}>
+                <Frame
+                    width={Extent::at_most(COLUMN_WIDTH)}
+                    padding={Padding::symmetric(Space::Xl, Space::Xl3)}
+                >
                     <List spacing=Space::Lg>{children}</List>
                 </Frame>
             </List>

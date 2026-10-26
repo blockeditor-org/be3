@@ -28,6 +28,7 @@ pub fn ListRow(
     let selected = create_memo(move || selected.get());
     view! {
         <unstyled::ListRow
+            label={label.clone()}
             selected={selected}
             disabled
             activates

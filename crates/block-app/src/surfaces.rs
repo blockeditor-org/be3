@@ -141,12 +141,7 @@ pub(crate) fn HostedSurface(
                     None => frame.clone(),
                 });
                 view! {
-                    <PluginRegion
-                        editor={hosted.editor}
-                        region={hosted.region}
-                        frame
-                        child_view
-                    />
+                    <PluginRegion editor={hosted.editor} region={hosted.region} frame child_view />
                 }
             }</ForEach>
         </Layers>

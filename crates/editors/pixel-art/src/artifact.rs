@@ -150,9 +150,7 @@ pub fn Settings(artifacts: Artifacts) -> NodeId {
                     @test_id={"pixel-art.export-scale"}
                 />
             </Show>
-            <Text style=TextStyle::CAPTION @test_id={"pixel-art.export-summary"}>
-                {caption}
-            </Text>
+            <Text style=TextStyle::CAPTION @test_id={"pixel-art.export-summary"}>{caption}</Text>
         </List>
     }
 }

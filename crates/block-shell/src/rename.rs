@@ -1,7 +1,5 @@
 use block_editor_beui::be_block::metadata::{ICON, ICON_COLOR, MATERIAL_ICON, MAX_NAME_BYTES};
-use block_editor_beui::beui::dock::styled::{
-    DockDialog, DockDialogPresentation, DockNode, TabId,
-};
+use block_editor_beui::beui::dock::styled::{DockDialog, DockDialogPresentation, DockNode, TabId};
 use block_editor_beui::beui::icons::Glyph;
 use block_editor_beui::beui::icons::{ALL, ICON_SEARCH, named};
 use block_editor_beui::beui::reactive::*;
@@ -253,10 +251,7 @@ fn RenameBody(
                     <Show condition={empty}>
                         <Text style=TextStyle::CAPTION>"No icons match."</Text>
                     </Show>
-                    <VirtualList
-                        keys={rows}
-                        item_size={row_size}
-                    >|row: ReadSignal<Vec<Tile>>|
+                    <VirtualList keys={rows} item_size={row_size}>|row: ReadSignal<Vec<Tile>>|
                         <List direction=Direction::Horizontal spacing=TILE_SPACING>
                             <ForEach keys={create_memo(move || row.get())}>|tile: Tile|
                                 <IconTile tile look shown set_icon />
