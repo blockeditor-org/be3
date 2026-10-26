@@ -1,6 +1,6 @@
 use super::*;
-use crate::reactive::*;
 use crate::dock::unstyled::{DockApi, DockPane, DockTab, DockingLayout, TabId};
+use crate::reactive::*;
 
 #[test]
 fn closing_a_dock_tab_asks_its_owner_to_remove_it() {

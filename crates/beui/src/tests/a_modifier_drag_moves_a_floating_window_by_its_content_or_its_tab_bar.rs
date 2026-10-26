@@ -1,6 +1,6 @@
 use super::*;
-use crate::reactive::*;
 use crate::dock::unstyled::DockApi;
+use crate::reactive::*;
 
 #[test]
 fn a_modifier_drag_moves_a_floating_window_by_its_content_or_its_tab_bar() {

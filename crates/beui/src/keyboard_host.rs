@@ -1,8 +1,8 @@
-use beui_keyboard::styled::SoftwareKeyboard;
 use beui_core::context::Context;
 use beui_core::document::Document;
 use beui_core::geometry::Rect;
 use beui_core::software_keyboard::KeyboardHost;
+use beui_keyboard::styled::SoftwareKeyboard;
 use beui_macros::view;
 use beui_view::reactive::enter;
 

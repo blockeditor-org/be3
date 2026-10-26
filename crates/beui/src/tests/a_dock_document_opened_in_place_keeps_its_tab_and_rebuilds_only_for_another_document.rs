@@ -15,8 +15,11 @@ fn a_dock_document_opened_in_place_keeps_its_tab_and_rebuilds_only_for_another_d
         let held = held.clone();
         build_node(move || {
             let layout = dock::unstyled::DockingLayout::new();
-            let documents =
-                dock::unstyled::DockDocuments::new(layout, |slot| 100 + slot.value(), |doc: &Doc| doc.0);
+            let documents = dock::unstyled::DockDocuments::new(
+                layout,
+                |slot| 100 + slot.value(),
+                |doc: &Doc| doc.0,
+            );
             held.set(Some(documents));
             view! {
                 <dock::styled::Docking layout>
@@ -32,7 +35,9 @@ fn a_dock_document_opened_in_place_keeps_its_tab_and_rebuilds_only_for_another_d
                                 title="Document"
                                 on_close={move || document.close()}
                             >
-                                <dock::unstyled::DockDocumentBody document>|content: ReadSignal<Doc>| {
+                                <dock::unstyled::DockDocumentBody
+                                    document
+                                >|content: ReadSignal<Doc>| {
                                     built.update(|built| built.push(content.get_untracked().0));
                                     view! {
                                         <Frame />

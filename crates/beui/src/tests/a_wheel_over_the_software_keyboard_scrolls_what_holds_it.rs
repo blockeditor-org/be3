@@ -1,9 +1,9 @@
 use super::*;
-use crate::reactive::*;
 use crate::keyboard::styled::SoftwareKeyboard;
 use crate::keyboard::styled::key_center;
-use crate::unstyled::Scroll;
 use crate::keyboard::unstyled::{Layer, Value};
+use crate::reactive::*;
+use crate::unstyled::Scroll;
 
 #[test]
 fn a_wheel_over_the_software_keyboard_scrolls_what_holds_it() {

@@ -1,6 +1,6 @@
 use super::*;
-use crate::reactive::*;
 use crate::dock::unstyled::{DockPane, DockTab, DockingLayout, dock_menu};
+use crate::reactive::*;
 
 const PLAIN: u64 = 1;
 

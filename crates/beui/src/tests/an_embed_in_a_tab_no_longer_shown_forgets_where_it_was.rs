@@ -1,7 +1,7 @@
 use super::*;
+use crate::dock::unstyled::{DockGroup, DockPane, DockTab, DockingLayout};
 use crate::primitives::*;
 use crate::reactive::*;
-use crate::dock::unstyled::{DockGroup, DockPane, DockTab, DockingLayout};
 
 #[test]
 fn an_embed_in_a_tab_no_longer_shown_forgets_where_it_was() {

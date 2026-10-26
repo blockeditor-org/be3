@@ -1,7 +1,7 @@
 use super::*;
+use crate::dock::unstyled::{DockApi, DockPane, DockTab, DockWindow, DockingLayout};
 use crate::primitives::*;
 use crate::reactive::*;
-use crate::dock::unstyled::{DockApi, DockPane, DockTab, DockWindow, DockingLayout};
 
 #[test]
 fn closing_a_fullscreen_tab_leaves_the_tab_beside_it_in_its_window() {

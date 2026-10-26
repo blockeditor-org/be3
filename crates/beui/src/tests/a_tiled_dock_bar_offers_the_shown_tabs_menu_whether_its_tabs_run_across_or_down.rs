@@ -1,6 +1,6 @@
 use super::*;
-use crate::reactive::*;
 use crate::dock::unstyled::{DockApi, DockPane, DockTab, DockingLayout, dock_menu};
+use crate::reactive::*;
 
 fn laid_out(harness: &Harness, test_id: &str) -> bool {
     harness

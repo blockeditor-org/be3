@@ -1,6 +1,6 @@
 use super::*;
-use crate::reactive::*;
 use crate::dock::unstyled::{DockPane, DockSplit, DockTab, DockWindow, DockingLayout};
+use crate::reactive::*;
 use crate::{Rect, vec2};
 
 #[test]

@@ -17,7 +17,11 @@ fn closing_a_panes_last_tab_keeps_its_bar_tall_and_darkens_it_without_a_border()
                     }}
                 >
                     <Show condition={open}>
-                        <dock::unstyled::DockTab id=1u64 title="Tab 1" on_close={move || open.set(false)}>
+                        <dock::unstyled::DockTab
+                            id=1u64
+                            title="Tab 1"
+                            on_close={move || open.set(false)}
+                        >
                             <Frame @test_id={"content.1"} />
                         </dock::unstyled::DockTab>
                     </Show>

@@ -1,8 +1,8 @@
 use super::*;
-use crate::reactive::*;
 use crate::keyboard::styled::key_center;
-use crate::styled::*;
 use crate::keyboard::unstyled::{Layer, Value};
+use crate::reactive::*;
+use crate::styled::*;
 
 #[test]
 fn a_tapped_field_opens_the_software_keyboard_and_its_keys_type_into_it() {

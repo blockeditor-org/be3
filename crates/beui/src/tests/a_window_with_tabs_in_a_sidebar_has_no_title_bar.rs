@@ -1,6 +1,6 @@
 use super::*;
-use crate::geometry::vec2;
 use crate::dock::unstyled::{DockApi, DockPane, DockTab, DockWindow, DockingLayout};
+use crate::geometry::vec2;
 
 #[test]
 fn a_window_with_tabs_in_a_sidebar_has_no_title_bar() {

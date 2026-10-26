@@ -1,6 +1,8 @@
 use super::*;
+use crate::dock::unstyled::{
+    DockApi, DockPane, DockTab, DockWindow, DockingLayout, MIN_SIDEBAR_WIDTH, SIDEBAR_WIDTH,
+};
 use crate::geometry::vec2;
-use crate::dock::unstyled::{DockApi, DockPane, DockTab, DockWindow, DockingLayout, MIN_SIDEBAR_WIDTH, SIDEBAR_WIDTH};
 
 #[test]
 fn dragging_the_edge_of_a_windows_sidebar_resizes_it_without_moving_the_window() {

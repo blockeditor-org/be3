@@ -1,7 +1,7 @@
 use super::*;
+use crate::dock::unstyled::{DockApi, DockPane, DockTab, DockingLayout, TabId};
 use crate::reactive::*;
 use crate::styled::*;
-use crate::dock::unstyled::{DockApi, DockPane, DockTab, DockingLayout, TabId};
 
 #[test]
 fn ctrl_tab_walks_the_tabs_of_the_pane_the_focus_is_in() {

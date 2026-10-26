@@ -1,6 +1,6 @@
 use super::*;
-use crate::painter::Shape;
 use crate::dock::unstyled::DockApi;
+use crate::painter::Shape;
 
 #[test]
 fn dragging_a_tab_over_a_window_bar_marks_where_it_lands() {

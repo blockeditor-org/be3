@@ -1,9 +1,9 @@
 use std::cell::Cell;
 
 use super::*;
+use crate::dock::unstyled::{DockPane, DockTab, DockWindow, DockingLayout};
 use crate::primitives::*;
 use crate::reactive::*;
-use crate::dock::unstyled::{DockPane, DockTab, DockWindow, DockingLayout};
 
 #[component]
 fn HoverInto(hovered: Rc<Cell<bool>>) -> NodeId {

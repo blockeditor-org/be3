@@ -1,7 +1,7 @@
 use super::*;
+use crate::dock::unstyled::{DockPane, DockTab, DockTabControl, DockingLayout, use_dock_tab};
 use crate::primitives::*;
 use crate::reactive::*;
-use crate::dock::unstyled::{DockPane, DockTab, DockTabControl, DockingLayout, use_dock_tab};
 
 #[test]
 fn a_dock_tab_made_fullscreen_from_inside_covers_only_the_area_it_names() {

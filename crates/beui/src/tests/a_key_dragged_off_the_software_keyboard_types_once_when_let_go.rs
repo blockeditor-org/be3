@@ -1,8 +1,8 @@
 use super::*;
-use crate::reactive::*;
 use crate::keyboard::styled::key_center;
-use crate::styled::*;
 use crate::keyboard::unstyled::{Layer, Value};
+use crate::reactive::*;
+use crate::styled::*;
 
 #[test]
 fn a_key_dragged_off_the_software_keyboard_types_once_when_let_go() {

@@ -1,8 +1,8 @@
 use super::*;
 use crate::ForwardedInput;
+use crate::dock::unstyled::{DockPane, DockTab, DockingLayout};
 use crate::primitives::*;
 use crate::reactive::*;
-use crate::dock::unstyled::{DockPane, DockTab, DockingLayout};
 
 #[test]
 fn escape_cancels_a_dock_switch_even_from_a_focused_program() {

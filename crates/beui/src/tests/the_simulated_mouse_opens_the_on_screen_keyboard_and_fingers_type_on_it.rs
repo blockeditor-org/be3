@@ -1,8 +1,8 @@
 use super::*;
-use crate::reactive::*;
 use crate::keyboard::styled::key_center;
-use crate::styled::*;
 use crate::keyboard::unstyled::{Layer, Value};
+use crate::reactive::*;
+use crate::styled::*;
 
 #[test]
 fn the_simulated_mouse_opens_the_on_screen_keyboard_and_fingers_type_on_it() {

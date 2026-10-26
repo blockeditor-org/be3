@@ -2,8 +2,8 @@ use std::cell::RefCell;
 use std::rc::Rc;
 
 use super::*;
-use crate::reactive::*;
 use crate::dock::unstyled::{DockPane, DockTab, DockingLayout};
+use crate::reactive::*;
 
 type Heard = Rc<RefCell<Vec<(u64, bool)>>>;
 

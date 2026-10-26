@@ -1,12 +1,12 @@
 use std::cell::RefCell;
 
 use block_editor_beui::beui::NodeId;
+use block_editor_beui::beui::dock::unstyled::TabId;
 use block_editor_beui::beui::icons::{
     ICON_FILE_PLUS, ICON_PENCIL_LINE, ICON_SHARE_2, ICON_TRASH, ICON_UNLINK,
 };
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
-use block_editor_beui::beui::dock::unstyled::TabId;
 use block_editor_beui::{BlockInfo, BlockParent};
 use uuid::Uuid;
 

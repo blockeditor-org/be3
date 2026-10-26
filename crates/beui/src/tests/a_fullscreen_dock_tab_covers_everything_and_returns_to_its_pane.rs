@@ -1,7 +1,7 @@
 use super::*;
+use crate::dock::unstyled::{DockPane, DockTab, DockingLayout};
 use crate::primitives::*;
 use crate::reactive::*;
-use crate::dock::unstyled::{DockPane, DockTab, DockingLayout};
 
 #[derive(Default)]
 struct Heard {

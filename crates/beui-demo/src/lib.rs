@@ -3,6 +3,12 @@ use base_pages::{
 };
 use beui::KeyAt;
 use beui::datetime::{Date, DateTime, HourCycle, Time};
+use beui::dock::styled::Docking;
+use beui::dock::unstyled::{
+    DockDialog, DockDialogPresentation, DockDocument, DockDocumentBody, DockDocumentTabs,
+    DockDocuments, DockOpened, DockPane, DockSlot, DockSplit, DockTab, DockTabControl,
+    DockingLayout, TabId, dock_menu, use_dock_tab,
+};
 use beui::icons::Glyph;
 use beui::icons::{
     ICON_ARROW_UP_DOWN, ICON_BLOCKS, ICON_BOLD, ICON_BRING_TO_FRONT, ICON_BUG, ICON_CALENDAR_DAYS,
@@ -17,9 +23,10 @@ use beui::icons::{
 use beui::reactive::*;
 use beui::styled::theme::NARROW_WIDTH;
 use beui::styled::*;
-use beui::unstyled::{ChoiceOption, Container, DateTimeParts, MAX_SCALE, MIN_SCALE, PanZoom, PanZoomHandle, PanZoomView, PopoverHandle, SliderScale, SyntaxColors, TextAreaState, TreeItem, narrower_than};
-use beui::dock::styled::Docking;
-use beui::dock::unstyled::{DockDialog, DockDialogPresentation, DockDocument, DockDocumentBody, DockDocumentTabs, DockDocuments, DockOpened, DockPane, DockSlot, DockSplit, DockTab, DockTabControl, DockingLayout, TabId, dock_menu, use_dock_tab};
+use beui::unstyled::{
+    ChoiceOption, Container, DateTimeParts, MAX_SCALE, MIN_SCALE, PanZoom, PanZoomHandle,
+    PanZoomView, PopoverHandle, SliderScale, SyntaxColors, TextAreaState, TreeItem, narrower_than,
+};
 use beui::{
     Color32, Context, Direction, Document, FontId, Image, ItemSize, Key, Modifiers, NodeId,
     PreferenceLayer, PreferenceSource, Rect, ScrollGesture, TextAlign, unstyled,

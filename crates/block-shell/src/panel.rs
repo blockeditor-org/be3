@@ -1,10 +1,10 @@
 use std::cell::RefCell;
 
 use block_editor_beui::beui::NodeId;
+use block_editor_beui::beui::dock::unstyled::{TabId, dock_menu, use_dock_tab};
 use block_editor_beui::beui::icons::ICON_LOCK;
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
-use block_editor_beui::beui::dock::unstyled::{TabId, dock_menu, use_dock_tab};
 use block_editor_beui::block_ui::BlockTypes;
 use block_editor_beui::{AccessLevel, BlockInfo, BlockList, BlockParent, BlockQuery, Blocks};
 use block_editor_beui::{

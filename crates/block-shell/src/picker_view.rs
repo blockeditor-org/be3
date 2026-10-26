@@ -1,4 +1,7 @@
 use beui::Wrap;
+use block_editor_beui::beui::dock::unstyled::{
+    DockDialog, DockDialogPresentation, DockNode, TabId,
+};
 use block_editor_beui::beui::icons::Glyph;
 use block_editor_beui::beui::icons::{
     ICON_ARROW_LEFT, ICON_BLOCKS, ICON_CHEVRON_RIGHT, ICON_FILE_UP, ICON_FOLDER, ICON_LINK,
@@ -7,7 +10,6 @@ use block_editor_beui::beui::icons::{
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
 use block_editor_beui::beui::unstyled::{self, ButtonHandle, MenuThen, TreeItem};
-use block_editor_beui::beui::dock::unstyled::{DockDialog, DockDialogPresentation, DockNode, TabId};
 use block_editor_beui::beui::{Color32, NodeId, OverlayAnchor, Placement, Pos2, TextAlign, Vec2};
 use block_editor_beui::block_ui::TemplateEntry;
 use block_editor_beui::{

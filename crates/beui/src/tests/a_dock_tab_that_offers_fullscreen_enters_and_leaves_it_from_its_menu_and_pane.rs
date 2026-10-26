@@ -1,6 +1,6 @@
 use super::*;
-use crate::reactive::*;
 use crate::dock::unstyled::{DockPane, DockTab, DockingLayout, use_dock_tab};
+use crate::reactive::*;
 
 #[component]
 fn Offered() -> NodeId {

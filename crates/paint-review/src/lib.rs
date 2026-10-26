@@ -1,10 +1,10 @@
 use beui::Wrap;
 use std::rc::Rc;
 
-use beui::reactive::*;
-use beui::styled::*;
 use beui::dock::styled::Docking;
 use beui::dock::unstyled::{DockPane, DockSplit, DockTab};
+use beui::reactive::*;
+use beui::styled::*;
 use beui::{Context, Document, Key, KeyPress, NodeId, Rect};
 
 mod images;

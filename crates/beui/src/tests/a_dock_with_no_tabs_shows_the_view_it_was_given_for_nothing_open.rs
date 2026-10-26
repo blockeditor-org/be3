@@ -15,7 +15,11 @@ fn a_dock_with_no_tabs_shows_the_view_it_was_given_for_nothing_open() {
                     }}
                 >
                     <Show condition={open}>
-                        <dock::unstyled::DockTab id=1u64 title="Tab 1" on_close={move || open.set(false)}>
+                        <dock::unstyled::DockTab
+                            id=1u64
+                            title="Tab 1"
+                            on_close={move || open.set(false)}
+                        >
                             <Frame @test_id={"content.1"} />
                         </dock::unstyled::DockTab>
                     </Show>

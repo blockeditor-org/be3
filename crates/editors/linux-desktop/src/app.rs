@@ -15,11 +15,11 @@ mod tray;
 mod volume;
 mod wifi;
 
-use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::dock::styled::Docking;
+use block_editor_beui::beui::dock::unstyled::{DockNode, DockPane, DockWindow, TabId};
+use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
 use block_editor_beui::beui::unstyled::{Container, container_size};
-use block_editor_beui::beui::dock::unstyled::{DockNode, DockPane, DockWindow, TabId};
 use block_editor_beui::beui::{Modifiers, NodeId, Rect, Vec2, pos2, vec2};
 use block_editor_beui::{Editor, Loaded};
 use block_editor_beui::{HostPanel, HostWindowId};

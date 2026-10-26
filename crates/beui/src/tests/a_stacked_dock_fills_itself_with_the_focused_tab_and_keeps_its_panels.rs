@@ -1,6 +1,6 @@
 use super::*;
-use crate::reactive::*;
 use crate::dock::unstyled::{DockPane, DockSplit, DockTab, DockingLayout};
+use crate::reactive::*;
 
 const PHONE: Vec2 = Vec2::new(390.0, 600.0);
 

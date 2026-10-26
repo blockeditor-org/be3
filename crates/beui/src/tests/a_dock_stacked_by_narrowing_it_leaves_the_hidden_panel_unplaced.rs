@@ -1,6 +1,6 @@
 use super::*;
-use crate::reactive::*;
 use crate::dock::unstyled::{DockPane, DockSplit, DockTab, DockingLayout};
+use crate::reactive::*;
 
 #[test]
 fn a_dock_stacked_by_narrowing_it_leaves_the_hidden_panel_unplaced() {

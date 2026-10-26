@@ -1,9 +1,11 @@
 use beui::NodeId;
+use beui::dock::styled::Docking;
+use beui::dock::unstyled::{
+    DockDocument, DockDocumentBody, DockDocumentTabs, DockEntry, DockPane, DockTab,
+};
 use beui::icons::ICON_TERMINAL;
 use beui::reactive::*;
 use beui::styled::*;
-use beui::dock::styled::Docking;
-use beui::dock::unstyled::{DockDocument, DockDocumentBody, DockDocumentTabs, DockEntry, DockPane, DockTab};
 
 use crate::actions::describe;
 use crate::detail::Detail;

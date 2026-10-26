@@ -1,6 +1,6 @@
 use super::*;
-use crate::styled::*;
 use crate::dock::unstyled::{DockPane, DockTab, DockWindow, DockingLayout};
+use crate::styled::*;
 
 #[component]
 fn Input(id: u64) -> NodeId {

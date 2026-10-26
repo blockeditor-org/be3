@@ -9,10 +9,12 @@ use std::collections::{HashMap, HashSet};
 use std::rc::Rc;
 use workspace_ui_types::{EditorView, EditorViewContent, ViewState};
 
+use block_editor_beui::beui::dock::unstyled::{
+    DockDialog, DockEntry, DockNode, DockPane, DockTab, DockWindow, DockingLayout, TabId,
+};
 use block_editor_beui::beui::icons::ICON_APP_WINDOW;
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
-use block_editor_beui::beui::dock::unstyled::{DockDialog, DockEntry, DockNode, DockPane, DockTab, DockWindow, DockingLayout, TabId};
 use block_editor_beui::beui::{NodeId, Rect, Vec2};
 use block_editor_beui::block_ui::{BlockCatalog, BlockLabel, BlockTypes};
 use block_editor_beui::{

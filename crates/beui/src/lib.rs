@@ -7,8 +7,6 @@ pub use accesskit;
 pub use beui_components_styled as styled;
 pub use beui_components_unstyled as unstyled;
 pub use beui_components_unstyled::datetime;
-pub use beui_dock as dock;
-pub use beui_keyboard as keyboard;
 pub use beui_core::accessibility;
 pub use beui_core::animation;
 pub use beui_core::app::accessibility_dump;
@@ -74,12 +72,14 @@ pub use beui_core::runner::environment;
 pub use beui_core::screens::Screen;
 pub use beui_core::testing;
 pub use beui_core::touch_cursor;
+pub use beui_dock as dock;
 #[cfg(not(target_arch = "wasm32"))]
 pub use beui_font_freetype::system::SystemFonts;
 pub use beui_font_freetype::{
     FontBytes, FontData, FontLibrary, FontSources, FreetypeFonts, ICONS_FONT,
 };
 pub use beui_inspector::install as install_inspector;
+pub use beui_keyboard as keyboard;
 #[cfg(feature = "render")]
 pub use beui_renderer_wgpu::present::{GpuSetup, OpenDevice};
 #[cfg(feature = "render")]
