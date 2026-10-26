@@ -711,9 +711,7 @@ fn ConflictSide(
                             },
                             Some(Err(error)) => view! {
                                 <Frame align=beui::Align::Center padding={Padding::all(Space::Lg)}>
-                                    <Text color=TextColor::Muted>
-                                        {error}
-                                    </Text>
+                                    <Text color=TextColor::Muted>{error}</Text>
                                 </Frame>
                             },
                             Some(Ok(preview)) => view! {

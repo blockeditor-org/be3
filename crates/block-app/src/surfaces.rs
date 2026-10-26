@@ -268,7 +268,12 @@ pub(crate) fn ConflictNotice(block: Uuid, count: usize) -> NodeId {
                 radius=Radius::Md
                 padding={Padding::symmetric(Space::Lg, Space::Sm)}
             >
-                <List direction=Direction::Horizontal align=Align::Center spacing=Space::Md wrap=true>
+                <List
+                    direction=Direction::Horizontal
+                    align=Align::Center
+                    spacing=Space::Md
+                    wrap=true
+                >
                     <Text color=TextColor::Muted>
                         <Icon glyph=beui::icons::ICON_GIT_MERGE_CONFLICT />
                     </Text>

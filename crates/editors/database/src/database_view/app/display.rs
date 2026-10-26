@@ -1,11 +1,11 @@
 use block_editor_beui::BlockQuery;
+use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::icons::Glyph;
 use block_editor_beui::beui::icons::{
     ICON_ARROW_DOWN, ICON_ARROW_UP, ICON_CHART_SCATTER, ICON_GRID_3X3, ICON_KANBAN, ICON_LIST,
     ICON_TABLE_PROPERTIES,
 };
 use block_editor_beui::beui::reactive::*;
-use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::styled::*;
 use database_types::database_schema::{DatabaseField, DatabaseFieldType};
 use database_types::database_view::{
@@ -85,9 +85,7 @@ pub fn DisplayOptions(data: Data) -> NodeId {
             </List>
             <Show condition={shared}>
                 <List spacing=Space::Xs2 @test_id={"database-view.prefix-shared"}>
-                    <Text style=TextStyle::CAPTION color=TextColor::Muted>
-                        {sharing}
-                    </Text>
+                    <Text style=TextStyle::CAPTION color=TextColor::Muted>{sharing}</Text>
                     <ForEach keys={others}>|other: Uuid| {
                         let editor = data.editor();
                         let found = editor.watch_blocks(BlockQuery::Block(other));

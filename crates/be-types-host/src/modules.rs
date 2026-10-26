@@ -69,11 +69,15 @@ pub fn plain_forms_revision() -> u64 {
 static HELD: wasi_threads::Mutex<Option<Instant>> = wasi_threads::Mutex::new(None);
 
 pub fn hold_clock(at: Option<Instant>) {
-    *HELD.lock().unwrap_or_else(std::sync::PoisonError::into_inner) = at;
+    *HELD
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner) = at;
 }
 
 fn held() -> Option<Instant> {
-    *HELD.lock().unwrap_or_else(std::sync::PoisonError::into_inner)
+    *HELD
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner)
 }
 
 pub type Boxed = Box<dyn Channel<Presented = Infallible>>;
