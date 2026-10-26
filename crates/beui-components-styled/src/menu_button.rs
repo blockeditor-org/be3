@@ -47,7 +47,15 @@ pub fn MenuButton(
             secondary_opens
             menu={menu_style()}
             trigger={move |handle: PopupTriggerHandle| view! {
-                <PopupButtonFace handle variant size image={image} arrow={arrow} placeholder leading />
+                <PopupButtonFace
+                    handle
+                    variant
+                    size
+                    image={image}
+                    arrow={arrow}
+                    placeholder
+                    leading
+                />
             }}
             on_click={on_click}
             on_secondary_click={on_secondary_click}

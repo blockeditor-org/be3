@@ -47,9 +47,7 @@ fn BannerBar(
         <unstyled::Banner label={text} @test_id={id}>
             <Frame fill=ColorRole::DangerSoft padding={Padding::symmetric(Space::Lg, Space::Sm)}>
                 <List direction=Direction::Horizontal align=Align::Center spacing=Space::Md>
-                    <Text @sizing={ItemSize::Percent(100.0)} color=TextColor::Danger>
-                        {text}
-                    </Text>
+                    <Text @sizing={ItemSize::Percent(100.0)} color=TextColor::Danger>{text}</Text>
                     <Show condition=dismissable>
                         <Button
                             label={dismiss_label.clone()}

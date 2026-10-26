@@ -5,6 +5,7 @@ use block_ui_test::DocumentTest;
 use super::*;
 use crate::{DemoApp, PAGES, Page};
 
+mod a_banner_says_what_failed_until_it_is_dismissed;
 mod a_card_floats_from_its_tab_and_waits_while_another_tab_is_shown;
 mod a_card_keeps_inside_a_small_window;
 mod a_card_opened_from_a_button_flips_above_it_near_the_bottom;
@@ -28,9 +29,8 @@ mod a_modal_dialog_blocks_its_tab_and_stacks_a_nested_one;
 mod a_pane_shows_its_tabs_as_icons_across_the_top_or_in_a_narrow_sidebar;
 mod a_sample_carries_the_source_it_was_written_with;
 mod a_sample_shows_its_code_when_asked;
-mod a_banner_says_what_failed_until_it_is_dismissed;
-mod a_selected_row_stays_selected_under_the_pointer;
 mod a_scrollbar_shows_over_a_page_as_it_scrolls_and_widens_to_a_track_under_the_pointer;
+mod a_selected_row_stays_selected_under_the_pointer;
 mod a_sheet_rises_from_the_bottom_on_a_phone;
 mod a_swatch_button_rings_the_colour_picked;
 mod a_table_lines_its_cells_up_under_its_columns;

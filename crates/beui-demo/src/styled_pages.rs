@@ -2371,11 +2371,7 @@ fn FailedImport() -> NodeId {
     let dismissed = create_memo(move || failure.with(Option::is_none));
     view! {
         <List spacing=Space::Md>
-            <Banner
-                message={failure}
-                id="demo.banner"
-                on_dismiss={move || failure.set(None)}
-            />
+            <Banner message={failure} id="demo.banner" on_dismiss={move || failure.set(None)} />
             <Show condition={dismissed}>
                 <Button
                     label="Import again"

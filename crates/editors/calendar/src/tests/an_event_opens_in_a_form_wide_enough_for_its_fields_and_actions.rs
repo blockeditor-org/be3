@@ -18,7 +18,9 @@ fn an_event_opens_in_a_form_wide_enough_for_its_fields_and_actions() {
         .events
         .last_id()
         .expect("the event was added");
-    calendar.editor.click(format!("calendar.event.{id}").as_str());
+    calendar
+        .editor
+        .click(format!("calendar.event.{id}").as_str());
     calendar.run();
 
     assert!(calendar.editor.shown("calendar.form.delete"));
