@@ -1312,14 +1312,9 @@ impl Editor {
             record.opacity.get_untracked(),
             record.intrinsic.get_untracked(),
             document.panned_by_canvas(node),
-            record.dialog.get_untracked().map(|dialog| {
-                DialogFrame {
-                    bottom_inset: dialog
-                        .bottom_inset
-                        .max(rect.max.y - shown.max.y)
-                        * unscale,
-                    ..dialog
-                }
+            record.dialog.get_untracked().map(|dialog| DialogFrame {
+                bottom_inset: dialog.bottom_inset.max(rect.max.y - shown.max.y) * unscale,
+                ..dialog
             }),
         ))
     }
