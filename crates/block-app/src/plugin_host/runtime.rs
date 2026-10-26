@@ -1032,6 +1032,7 @@ impl Runtime {
     }
 
     fn template(&self, screen: ScreenId, drawn: Option<(u32, u32)>) -> Blit {
+        let placement = self.layout.placement(screen);
         Blit {
             surface: self.surface,
             status: self.status.clone(),
@@ -1044,10 +1045,13 @@ impl Runtime {
                 .sent
                 .iter()
                 .find(|request| request.screen == screen)
-                .map(|request| (request.metrics.pixel_width, request.metrics.pixel_height)),
-            placed: self
-                .layout
-                .placement(screen)
+                .map(|request| match placement {
+                    Some(placement) => {
+                        super::input::requested_at(&request.metrics, placement.raster())
+                    }
+                    None => (request.metrics.pixel_width, request.metrics.pixel_height),
+                }),
+            placed: placement
                 .map(|placement| [placement.surface, placement.width, placement.height]),
         }
     }
@@ -2029,6 +2033,7 @@ pub(crate) struct RegionPlacement {
     pub(crate) rect: Rect,
     pub(crate) clip: Rect,
     pub(crate) zoom: f32,
+    pub(crate) raster: f32,
     pub(crate) screens: Vec<beui::Screen>,
 }
 
@@ -2094,6 +2099,7 @@ fn apply_offers(runtime: &mut Runtime, instance: EditorInstanceId, region: Edito
         rect,
         clip,
         zoom,
+        raster,
         ref screens,
     } = chosen.placement;
     let screens = screens.clone();
@@ -2118,6 +2124,11 @@ fn apply_offers(runtime: &mut Runtime, instance: EditorInstanceId, region: Edito
         ),
         _ => (rect.size() / zoom, host::pixels_per_point() * zoom),
     };
+    let raster = match (raster.is_finite() && raster > 0.0, region) {
+        (false, _) => scale_factor,
+        (true, EditorRegion::Preview) => preview_scale(rect.size(), scale_factor * raster),
+        (true, _) => scale_factor * raster,
+    };
     let visible = shown.map_or(Rect::ZERO, |source| scale_rect(source, size));
     let monitors = region_monitors(&screens, rect, size);
     runtime.instances.place_mounted(
@@ -2127,6 +2138,7 @@ fn apply_offers(runtime: &mut Runtime, instance: EditorInstanceId, region: Edito
         size,
         visible,
         scale_factor,
+        raster,
         monitors,
     );
     if let Some(view) = view {
@@ -2390,9 +2402,7 @@ fn placed_view(
         let chosen = (placement.rect, placement.clip);
         let (rect, clip) = own.map_or(chosen, |own| (own.rect, own.clip));
         let screen = runtime.instances.screen_id(instance, region);
-        let drawn = screen
-            .and_then(|screen| runtime.layout.placement(screen))
-            .map(|placement| (placement.width, placement.height));
+        let painted = screen.and_then(|screen| runtime.layout.placement(screen));
         let visible = rect.intersect(clip);
         let shown = runtime
             .placements
@@ -2405,7 +2415,13 @@ fn placed_view(
         let held = match (rect, clip) == chosen {
             true => runtime
                 .instances
-                .held(instance, region, Some(visible), clip, drawn),
+                .held(
+                    instance,
+                    region,
+                    Some(visible),
+                    clip,
+                    painted.map(|placement| ((placement.width, placement.height), placement.raster())),
+                ),
             false => None,
         };
         let (children, holes) = runtime

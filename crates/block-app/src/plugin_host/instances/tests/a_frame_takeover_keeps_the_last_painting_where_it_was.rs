@@ -34,14 +34,14 @@ fn a_frame_takeover_keeps_the_last_painting_where_it_was() {
 
     assert!(
         instances
-            .held(INSTANCE, REGION, Some(CARD), CARD, Some(card))
+            .held(INSTANCE, REGION, Some(CARD), CARD, Some((card, 1.0)))
             .is_none()
     );
 
     instances.hold(INSTANCE, REGION);
     resize(&mut instances, FRAME);
     let held = instances
-        .held(INSTANCE, REGION, Some(FRAME), FRAME, Some(card))
+        .held(INSTANCE, REGION, Some(FRAME), FRAME, Some((card, 1.0)))
         .expect("the painting made for the card is kept on the card");
 
     assert_eq!(held.rect, CARD);
@@ -49,12 +49,12 @@ fn a_frame_takeover_keeps_the_last_painting_where_it_was() {
 
     assert!(
         instances
-            .held(INSTANCE, REGION, Some(FRAME), FRAME, Some(frame))
+            .held(INSTANCE, REGION, Some(FRAME), FRAME, Some((frame, 1.0)))
             .is_none()
     );
     assert!(
         instances
-            .held(INSTANCE, REGION, Some(FRAME), FRAME, Some(card))
+            .held(INSTANCE, REGION, Some(FRAME), FRAME, Some((card, 1.0)))
             .is_none()
     );
 }

@@ -28,6 +28,7 @@ fn placement(rect: Rect, clip: Rect) -> RegionPlacement {
         rect,
         clip,
         zoom: 1.0,
+        raster: 1.0,
         screens: Vec::new(),
     }
 }

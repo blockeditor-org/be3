@@ -72,6 +72,7 @@ pub struct BeuiTest<A: BeuiApp> {
     store: ContentStore,
     size: Vec2,
     scale_factor: f32,
+    raster: Option<f32>,
     monitors: Vec<block_plugin_api::Monitor>,
     frame: Option<block_plugin_api::FrameSpec>,
     gestures: Gestures,
@@ -271,6 +272,7 @@ impl<A: BeuiApp> BeuiTest<A> {
             store,
             size: SIZE,
             scale_factor: 1.0,
+            raster: None,
             monitors: Vec::new(),
             frame,
             steps: Vec::new(),
@@ -342,15 +344,17 @@ impl<A: BeuiApp> BeuiTest<A> {
 
     fn place(&mut self) {
         let region = self.region();
+        let raster = self.raster.unwrap_or(self.scale_factor);
         let metrics = ViewportMetrics {
             logical: block_plugin_api::Size {
                 width: self.size.x,
                 height: self.size.y,
             },
             visible: block_plugin_api::Pos2::ZERO,
-            pixel_width: (self.size.x * self.scale_factor).round() as u32,
-            pixel_height: (self.size.y * self.scale_factor).round() as u32,
+            pixel_width: (self.size.x * raster).round() as u32,
+            pixel_height: (self.size.y * raster).round() as u32,
             scale_factor: self.scale_factor,
+            raster,
             monitors: self.monitors.clone(),
         };
         let screens = vec![ScreenRequest {
@@ -537,6 +541,12 @@ impl<A: BeuiApp> BeuiTest<A> {
         self.place();
         self.run();
         self
+    }
+
+    pub fn set_raster(&mut self, raster: f32) {
+        self.raster = Some(raster);
+        self.place();
+        self.run();
     }
 
     pub fn set_monitors(&mut self, monitors: Vec<(&str, Rect)>) {
@@ -1878,7 +1888,7 @@ impl<A: BeuiApp> BeuiTest<A> {
             .output
             .as_ref()
             .expect("the editor has not drawn a frame yet");
-        capture::capture(output, self.size, output.pixels_per_point(), behind)
+        capture::capture(output, self.size, output.main().pixels_per_point, behind)
             .expect("the painting could not be rendered")
     }
 }

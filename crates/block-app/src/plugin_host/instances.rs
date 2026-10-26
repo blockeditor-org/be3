@@ -570,7 +570,7 @@ impl Screen {
 
     fn unplace(&mut self) {
         self.placement = None;
-        self.request.metrics = viewport_metrics(Vec2::ZERO, Rect::ZERO, 1.0, Vec::new());
+        self.request.metrics = viewport_metrics(Vec2::ZERO, Rect::ZERO, 1.0, 1.0, Vec::new());
     }
 }
 
@@ -818,7 +818,7 @@ impl Instances {
                     screen: ScreenId(*next_screen),
                     instance,
                     region,
-                    metrics: viewport_metrics(size, visible, scale_factor, Vec::new()),
+                    metrics: viewport_metrics(size, visible, scale_factor, scale_factor, Vec::new()),
                     frame,
                 },
                 last_seen: pass,
@@ -842,7 +842,8 @@ impl Instances {
             }
         });
         let monitors = std::mem::take(&mut screen.request.metrics.monitors);
-        screen.request.metrics = viewport_metrics(size, visible, scale_factor, monitors);
+        screen.request.metrics =
+            viewport_metrics(size, visible, scale_factor, scale_factor, monitors);
         screen.request.frame = frame;
         screen.last_seen = pass;
         screen.request.screen
@@ -917,12 +918,13 @@ impl Instances {
         size: Vec2,
         visible: Rect,
         scale_factor: f32,
+        raster: f32,
         monitors: Vec<Monitor>,
     ) {
         let Some(screen) = self.screen_mut(instance, region) else {
             return;
         };
-        let metrics = viewport_metrics(size, visible, scale_factor, monitors);
+        let metrics = viewport_metrics(size, visible, scale_factor, raster, monitors);
         if screen.request.metrics != metrics || screen.request.frame != frame {
             screen.request.metrics = metrics;
             screen.request.frame = frame;
@@ -1120,17 +1122,17 @@ impl Instances {
         region: EditorRegion,
         rect: Option<Rect>,
         clip: Rect,
-        drawn: Option<(u32, u32)>,
+        drawn: Option<((u32, u32), f32)>,
     ) -> Option<Held> {
         let screen = self
             .entries
             .get_mut(&instance)
             .and_then(|entry| entry.screens.get_mut(&region))?;
-        let requested = (
-            screen.request.metrics.pixel_width,
-            screen.request.metrics.pixel_height,
-        );
-        let stale = drawn.filter(|drawn| *drawn != requested);
+        let stale = drawn
+            .filter(|(drawn, raster)| {
+                *drawn != super::input::requested_at(&screen.request.metrics, *raster)
+            })
+            .map(|(drawn, _)| drawn);
         if screen.holding
             && let (Some(drawn), Some((rect, _))) = (stale, screen.presented)
         {
@@ -2187,6 +2189,7 @@ impl Instances {
                             logical: vec2(metrics.logical.width, metrics.logical.height),
                             pixels: [metrics.pixel_width, metrics.pixel_height],
                             scale_factor: metrics.scale_factor,
+                            raster: metrics.raster,
                             used: screen.used,
                             placement,
                             drawn: screen.mounted > 0 || screen.last_seen >= pass,

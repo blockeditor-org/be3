@@ -220,6 +220,7 @@ pub(crate) struct ScreenStatus {
     pub(crate) logical: Vec2,
     pub(crate) pixels: [u32; 2],
     pub(crate) scale_factor: f32,
+    pub(crate) raster: f32,
     pub(crate) used: Option<Vec2>,
     pub(crate) placement: Option<[u32; 3]>,
     pub(crate) drawn: bool,

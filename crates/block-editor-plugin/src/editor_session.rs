@@ -630,6 +630,11 @@ impl EditorSession {
             .map_or(1.0, |placement| placement.scale_factor())
     }
 
+    fn raster(&self, region: EditorRegion) -> f32 {
+        self.placement(region)
+            .map_or(1.0, |placement| placement.raster())
+    }
+
     fn placement(&self, region: EditorRegion) -> Option<&ScreenPlacement> {
         self.regions
             .get(&region)
@@ -674,6 +679,7 @@ impl EditorSession {
             region,
             rect: self.rect(region),
             scale_factor: self.scale_factor(region),
+            raster: self.raster(region),
             pixels: self
                 .placement(region)
                 .map_or([0, 0], |placement| [placement.width, placement.height]),

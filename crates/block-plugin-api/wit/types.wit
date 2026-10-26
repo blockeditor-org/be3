@@ -125,7 +125,13 @@ interface types {
         visible: pos2,
         pixel-width: u32,
         pixel-height: u32,
+        /// Pixels per logical point the screen is laid out at.
         scale-factor: f32,
+        /// Pixels per logical point the screen is drawn at, which the pixel
+        /// size counts. It differs from the scale factor where the host shows
+        /// the screen at another size than it lays it out at, as a panel in VR
+        /// does; a change of raster alone needs no new layout, only a painting.
+        raster: f32,
         monitors: list<monitor>,
     }
 
@@ -145,6 +151,7 @@ interface types {
         width: u32,
         height: u32,
         scale-factor-millis: u32,
+        raster-millis: u32,
     }
 
     record screen-layout {

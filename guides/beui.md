@@ -371,7 +371,11 @@ hooks the higher crates fill in:
   hands one to its `fullscreenchange` listener): `resized` with its size in
   physical pixels, `scaled` with its pixels per point (winit's scale factor,
   the browser's device pixel ratio, Android's density, a plugin region's
-  scale factor, the DRM displays' scale), and `fullscreen`. The runner
+  scale factor, the DRM displays' scale), `rastered` with the pixels per
+  point it draws the main window at when that is not the scale it lays out
+  at (a plugin region's raster: physical pixels then count raster pixels,
+  and the runner reports `WindowReport::Rastered` for the main window, so the
+  app repaints at it without laying anything out), and `fullscreen`. The runner
   applies them at the start of the next frame, resizing the renderers and
   setting `Context::set_pixels_per_point` before the app lays out, so no
   adapter resizes a renderer or passes a scale itself. A report made during
@@ -833,7 +837,11 @@ subtree lives as long as the scope that built it. `Embed` reserves a rectangle
 for something outside the document — an editor the host composites behind the
 surface — publishing the rectangle and the clip it was laid out in through the
 `EmbedSlot` it was given (a `Copy` handle owned by the scope that made it) and cutting that rectangle out of the surface so what
-is behind shows through. `punch=false`
+is behind shows through. The placement also carries its window's raster over
+the document's scale (`EmbedPlacement::raster`, 1 unless a host draws the
+window finer or coarser), announced again when a `WindowReport::Rastered`
+changes it, so whatever the host composites there can be drawn as sharp as
+the window around it. `punch=false`
 keeps the surface whole, for something the host draws over it instead.
 `Offset` takes exactly one child, lays it out at its full length along a
 `direction` and shows it from an offset; a run of rows goes in a `List` inside
@@ -3146,7 +3154,10 @@ all its 3D (`glam`) stays in the crate.
   reported as `WindowReport::Rastered` (`Space::scale` reads it), which is
   only the window's raster: the app repaints the window at it without laying
   anything out, so its text stays where it was and only gets sharper or
-  softer. A new window takes its scale at once.
+  softer. A new window takes its scale at once. An `Embed` in the window
+  hears the new raster (`EmbedPlacement::raster`), which is how block-app
+  sends a plugin region in it its raster beside its scale (the protocol's
+  `raster`), so plugin content in space is as sharp as the window.
 - Drawing: each window's display is drawn by its own
   `beui_renderer_wgpu::Renderer` into a mipmapped texture at its output's
   `pixels_per_point`, only when that window's output changed, repainting only

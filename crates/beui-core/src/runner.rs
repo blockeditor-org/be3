@@ -189,6 +189,7 @@ pub struct Runner {
     background: crate::color::Color32,
     reports: WindowReports,
     native: f32,
+    raster: Option<f32>,
     output: Option<FrameOutput>,
     reports_screens: bool,
     exited: bool,
@@ -247,6 +248,7 @@ impl Runner {
             background: crate::color::Color32::BLACK,
             reports: WindowReports::default(),
             native: 1.0,
+            raster: None,
             output: None,
             reports_screens: false,
             exited: false,
@@ -488,6 +490,9 @@ impl Runner {
         if let Some(scale) = self.reports.take_scale() {
             self.native = scale;
         }
+        if let Some(raster) = self.reports.take_raster() {
+            self.raster = Some(raster).filter(|raster| *raster > 0.0 && raster.is_finite());
+        }
         if let Some(attached) = self.reports.take_keyboard() {
             self.context.set_keyboard_attached(attached);
         }
@@ -503,6 +508,10 @@ impl Runner {
         };
         self.context.set_pixels_per_point(pixels_per_point);
         let scale = self.context.pixels_per_point();
+        let drawn = match (&self.host, self.raster) {
+            (None, Some(raster)) => raster * scale / self.native,
+            _ => scale,
+        };
         let view = HostView {
             platform: physical,
             pixels_per_point: scale,
@@ -519,7 +528,7 @@ impl Runner {
                 window_size: &|window| {
                     self.context
                         .window_size(window)
-                        .or((window == WindowId::MAIN).then_some(physical / scale))
+                        .or((window == WindowId::MAIN).then_some(physical / drawn))
                 },
             },
             &mut self.events,
@@ -535,7 +544,13 @@ impl Runner {
                 SafeArea::default(),
             ),
             None => {
-                let screen = physical / scale;
+                let screen = physical / drawn;
+                if self.raster.is_some() {
+                    self.context.window_reported(WindowReport::Rastered {
+                        window: WindowId::MAIN,
+                        pixels_per_point: drawn,
+                    });
+                }
                 self.context.window_reported(WindowReport::Resized {
                     window: WindowId::MAIN,
                     size: screen,
@@ -548,7 +563,7 @@ impl Runner {
                 self.context.set_screens(
                     screens
                         .iter()
-                        .map(|screen| screen.scaled(scale.recip()))
+                        .map(|screen| screen.scaled(drawn.recip()))
                         .collect(),
                 );
                 self.reports_screens = true;
@@ -568,7 +583,7 @@ impl Runner {
         self.context.set_accessibility_viewport(screen);
         let app = &mut self.app;
         let mut output = self.context.run_with(events, view.now, |context| {
-            app.update(context, safe_rect(screen, safe_area, scale));
+            app.update(context, safe_rect(screen, safe_area, drawn));
         });
         if self.publishing_accessibility {
             let title = output
@@ -648,9 +663,9 @@ impl Runner {
 
         let background = self.background;
         let pending = match seen {
-            true => renderers.prepare(shown, scale, background),
+            true => renderers.prepare(shown, drawn, background),
             false => {
-                renderers.note(shown, scale, background);
+                renderers.note(shown, drawn, background);
                 false
             }
         };

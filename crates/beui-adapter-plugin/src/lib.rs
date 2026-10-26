@@ -128,7 +128,7 @@ impl PluginSurface {
                 .iter()
                 .map(|monitor| {
                     Screen::new(&monitor.id, &monitor.name, monitor.rect)
-                        .scaled(region.scale_factor)
+                        .scaled(region.raster)
                 })
                 .collect();
             let resized = surface.size != Some((width, height));
@@ -139,12 +139,13 @@ impl PluginSurface {
             self.runner.reports().resized(width, height);
         }
         self.runner.reports().scaled(region.scale_factor);
+        self.runner.reports().rastered(region.raster);
         self.runner.set_occluded(!region.seen);
         if let Some(now) = block_editor_plugin::frame_time() {
             self.runner.context().set_clock(now);
             beui_core::timer::pin_wall_clock(Some((now, block_editor_plugin::wall_clock())));
         }
-        let scale = region.scale_factor;
+        let scale = region.raster;
         let rect = region.rect;
         let area = SafeArea {
             left: rect.min.x * scale,
@@ -229,7 +230,7 @@ impl PluginSurface {
     pub fn painting(&self) -> Option<beui_core::painting::Painting> {
         let output = self.runner.output()?;
         let (width, height) = self.surface.borrow().size?;
-        let pixels_per_point = output.pixels_per_point();
+        let pixels_per_point = output.main().pixels_per_point;
         beui_core::painting::painting(
             output.main(),
             beui_core::geometry::vec2(

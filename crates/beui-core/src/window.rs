@@ -64,6 +64,7 @@ struct Reported {
     fullscreen: std::cell::Cell<Option<bool>>,
     size: std::cell::Cell<Option<(u32, u32)>>,
     scale: std::cell::Cell<Option<f32>>,
+    raster: std::cell::Cell<Option<f32>>,
     keyboard: std::cell::Cell<Option<bool>>,
     preferences: std::cell::Cell<Option<crate::preferences::PreferenceLayer>>,
 }
@@ -82,6 +83,10 @@ impl WindowReports {
 
     pub fn scaled(&self, pixels_per_point: f32) {
         self.0.scale.set(Some(pixels_per_point));
+    }
+
+    pub fn rastered(&self, pixels_per_point: f32) {
+        self.0.raster.set(Some(pixels_per_point));
     }
 
     pub fn keyboard_attached(&self, attached: bool) {
@@ -104,6 +109,7 @@ impl WindowReports {
         self.0.fullscreen.get().is_some()
             || self.0.size.get().is_some()
             || self.0.scale.get().is_some()
+            || self.0.raster.get().is_some()
             || self.0.keyboard.get().is_some()
             || self.0.preferences.get().is_some()
     }
@@ -118,6 +124,10 @@ impl WindowReports {
 
     pub(crate) fn take_scale(&self) -> Option<f32> {
         self.0.scale.take()
+    }
+
+    pub(crate) fn take_raster(&self) -> Option<f32> {
+        self.0.raster.take()
     }
 }
 

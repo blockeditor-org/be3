@@ -243,6 +243,7 @@ pub(crate) fn PluginRegion(
                 rect: placement.rect,
                 clip: placement.clip,
                 zoom: zoom.get_untracked(),
+                raster: placement.raster,
                 screens: screens.get_untracked(),
             },
             frame.get_untracked(),

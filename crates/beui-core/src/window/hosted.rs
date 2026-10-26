@@ -187,6 +187,7 @@ impl Document {
         }
         let mut heard = Vec::new();
         let mut unfocused = Vec::new();
+        let mut rastered = false;
         for report in reports {
             let node = self.window_node(report.window());
             match &report {
@@ -201,6 +202,7 @@ impl Document {
                     }
                 }
                 WindowReport::Rastered { .. } => {
+                    rastered = true;
                     if let Some(shown) = node.map(NodeId::from).or(self.root) {
                         self.arena.repaint_node(shown);
                     }
@@ -224,6 +226,9 @@ impl Document {
             }
         });
         drop(guard);
+        if rastered {
+            crate::current::run_in(self, Document::rerasterise_embeds);
+        }
         for node in unfocused {
             let root = node.into();
             if self.contains(root)

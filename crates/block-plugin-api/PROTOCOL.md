@@ -493,6 +493,13 @@ child the placement says follows the view is moved from the view sent at that
 serial to the one the host is showing, so a child keeps up with a pan the
 plugin has not drawn yet.
 
+A screen also carries its raster: the pixel density the host draws it at,
+which its pixel size counts. It differs from its scale where the host shows
+the screen larger or smaller than it lays it out at, as a panel in VR does. A
+plugin lays out at the scale and paints at the raster, so a change of raster
+alone moves nothing; until a painting at the new raster arrives, the host
+shows the last one at the same size in points.
+
 A child the user has selected, or one an instance declares as the whole of
 what it shows, becomes a frame owner of its own: it is handed the same frame
 as the instance that placed it, takes over every chrome band, and draws its
@@ -627,7 +634,7 @@ own under wasmtime, a worker of its own in the browser - and either side may
 send at any time.
 
 Every host call that changes what a plugin lays out against - the screens,
-which carries each screen's size, scale and frame, and a view - is followed by
+which carries each screen's size, scale, raster and frame, and a view - is followed by
 a configure carrying a serial, one higher each time, which says the host has
 sent everything up to it. A plugin answers no configure: each frame it commits
 names the last serial it had received when it laid out, so the host knows

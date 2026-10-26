@@ -113,10 +113,22 @@ impl InputAdapter {
     }
 }
 
+pub(super) fn requested_at(metrics: &ViewportMetrics, raster: f32) -> (u32, u32) {
+    let scale = raster / metrics.raster;
+    match scale.is_finite() && (scale - 1.0).abs() > 1e-3 {
+        true => (
+            (metrics.pixel_width as f32 * scale).round() as u32,
+            (metrics.pixel_height as f32 * scale).round() as u32,
+        ),
+        false => (metrics.pixel_width, metrics.pixel_height),
+    }
+}
+
 pub(super) fn viewport_metrics(
     size: Vec2,
     visible: Rect,
     scale_factor: f32,
+    raster: f32,
     monitors: Vec<Monitor>,
 ) -> ViewportMetrics {
     let logical = Size {
@@ -127,9 +139,10 @@ pub(super) fn viewport_metrics(
     ViewportMetrics {
         logical,
         visible: Pos2::new(visible.min.x.max(0.0), visible.min.y.max(0.0)),
-        pixel_width: (visible.width().max(0.0) * scale_factor).round() as u32,
-        pixel_height: (visible.height().max(0.0) * scale_factor).round() as u32,
+        pixel_width: (visible.width().max(0.0) * raster).round() as u32,
+        pixel_height: (visible.height().max(0.0) * raster).round() as u32,
         scale_factor,
+        raster,
         monitors,
     }
 }

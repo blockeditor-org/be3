@@ -79,6 +79,7 @@ pub struct Region {
     pub region: EditorRegion,
     pub rect: Rect,
     pub scale_factor: f32,
+    pub raster: f32,
     pub pixels: [u32; 2],
     pub age: u32,
     pub spec: FrameSpec,
