@@ -1,6 +1,7 @@
 use block_editor_plugin::wgpu;
 use block_editor_plugin::{
-    BlockParent, EditorHost, Frame, Instance, PaintTarget, Plugin, Region, SurfaceRect, TimedInput,
+    BlockParent, EditorHost, EditorRegion, Frame, Instance, PaintTarget, Plugin, Region,
+    RegionHandler, SurfaceRect, TimedInput,
 };
 use triangle_types::TriangleContent;
 use uuid::Uuid;
@@ -15,18 +16,18 @@ impl Plugin for TrianglePlugin {
 
 pub(crate) struct Triangle {
     host: EditorHost,
-    painted: bool,
-    pipeline: Option<(wgpu::TextureFormat, wgpu::RenderPipeline)>,
 }
 
 impl Triangle {
     pub(crate) fn new(host: EditorHost) -> Self {
-        Self {
-            host,
-            painted: false,
-            pipeline: None,
-        }
+        Self { host }
     }
+}
+
+#[derive(Default)]
+pub(crate) struct TriangleRegion {
+    painted: bool,
+    pipeline: Option<(wgpu::TextureFormat, wgpu::RenderPipeline)>,
 }
 
 impl Instance for Triangle {
@@ -39,9 +40,16 @@ impl Instance for Triangle {
             .create(&TriangleContent::default(), BlockParent::Detached))
     }
 
+    fn open_region(&mut self, region: EditorRegion) {
+        self.host
+            .handle_region(region, Box::new(TriangleRegion::default()));
+    }
+}
+
+impl RegionHandler for TriangleRegion {
     fn input(&mut self, _region: &Region, _event: &TimedInput) {}
 
-    fn update(&mut self, region: &Region, _settings: Option<&mut Vec<u8>>) -> Frame {
+    fn update(&mut self, region: &Region) -> Frame {
         Frame {
             changed: !self.painted,
             painted: vec![region.rect],

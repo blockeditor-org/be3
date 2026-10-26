@@ -498,6 +498,8 @@ pub struct EditorHost {
     graph: Rc<crate::graph::GraphState>,
     account: Rc<Cell<Uuid>>,
     organization: Rc<Cell<Uuid>>,
+    region_handlers: Rc<RefCell<Vec<(EditorRegion, Box<dyn crate::RegionHandler>)>>>,
+    settings_draft: Rc<RefCell<Option<Vec<u8>>>>,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -1697,6 +1699,32 @@ impl EditorHost {
 
     pub fn take_paste_request(&self) -> bool {
         self.paste_requested.take()
+    }
+
+    pub fn handle_region(&self, region: EditorRegion, handler: Box<dyn crate::RegionHandler>) {
+        self.region_handlers.borrow_mut().push((region, handler));
+    }
+
+    pub fn take_region_handlers(&self) -> Vec<(EditorRegion, Box<dyn crate::RegionHandler>)> {
+        std::mem::take(&mut self.region_handlers.borrow_mut())
+    }
+
+    pub fn settings_draft(&self) -> Option<Vec<u8>> {
+        self.settings_draft.borrow().clone()
+    }
+
+    pub fn set_settings_draft(&self, draft: Vec<u8>) {
+        if let Some(open) = self.settings_draft.borrow_mut().as_mut() {
+            *open = draft;
+        }
+    }
+
+    pub(crate) fn open_settings_draft(&self, draft: Option<Vec<u8>>) {
+        *self.settings_draft.borrow_mut() = draft;
+    }
+
+    pub(crate) fn close_settings_draft(&self) -> Option<Vec<u8>> {
+        self.settings_draft.borrow_mut().take()
     }
 
     pub fn leave_frame(&self) {

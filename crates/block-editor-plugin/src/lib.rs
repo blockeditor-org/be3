@@ -70,7 +70,7 @@ pub use host::{
     PerformanceMeasurementGuard, PerformanceReporter, PickRequest, PickedFile, Pushed, SavedFile,
     SeededContent, SentToPeers, ShowRequest, ShownPresence, StoredHead, Waker,
 };
-pub use plugin::{Claim, Frame, Instance, Plugin, Region, RegionMonitor};
+pub use plugin::{Claim, Frame, Instance, Plugin, Region, RegionHandler, RegionMonitor};
 #[cfg(target_arch = "wasm32")]
 pub use plugin::{PaintTarget, SurfaceGpu, surface_gpu};
 pub use preferences::host_preferences;

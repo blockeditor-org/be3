@@ -2,7 +2,7 @@ use std::cell::Cell;
 
 use beui_core::geometry::{pos2, vec2};
 use beui_core::input::Event;
-use block_editor_plugin::{EditorRegion, FrameSpec, Input};
+use block_editor_plugin::{FrameSpec, Input};
 
 use super::*;
 
@@ -28,6 +28,25 @@ fn region(rect: Rect, pixels: [u32; 2]) -> Region {
         describe: None,
         seen: true,
     }
+}
+
+fn launched(host: &EditorHost, context: Context, app: impl App + 'static) -> Box<RegionRunner> {
+    launch(
+        host,
+        EditorRegion::Frame,
+        RunOptions::default(),
+        context,
+        app,
+    )
+    .expect("a plugin region starts");
+    let (_, handler) = host
+        .take_region_handlers()
+        .pop()
+        .expect("the platform registers a handler for its region");
+    let handler: Box<dyn Any> = handler;
+    handler
+        .downcast()
+        .expect("the plugin platform's handler is a RegionRunner")
 }
 
 struct Recording {

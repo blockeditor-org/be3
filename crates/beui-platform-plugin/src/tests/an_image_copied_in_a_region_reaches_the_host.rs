@@ -13,8 +13,8 @@ impl App for CopiesImage {
 #[test]
 fn an_image_copied_in_a_region_reaches_the_host() {
     let host = EditorHost::default();
-    let mut surface = PluginSurface::launch(
-        host.clone(),
+    let mut surface = launched(
+        &host,
         beui::context(),
         CopiesImage(Some(vec![137, 80, 78, 71])),
     );

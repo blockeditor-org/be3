@@ -5,7 +5,7 @@ fn shown(document: &beui::Document, id: beui::NodeId, out: &mut String) {
         out.push_str(document.text(node));
     }
     for child in document.children(id) {
-        shown(document, child, out);
+        shown(&document, child, out);
     }
 }
 
@@ -26,7 +26,7 @@ fn a_rewrite_refused_while_read_only_leaves_the_text_as_it_was() {
     assert_eq!(text(&editor), original);
     let root = editor.document().root().expect("the editor built a root");
     let mut painted = String::new();
-    shown(editor.document(), root, &mut painted);
+    shown(&editor.document(), root, &mut painted);
     assert!(
         !painted.contains(&new.to_string()),
         "the editor shows a rewrite its block never took"

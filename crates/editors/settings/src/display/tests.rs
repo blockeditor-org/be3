@@ -212,7 +212,7 @@ impl Harness {
         let document = self.editor.document();
         document
             .root()
-            .is_some_and(|root| text_within(document, root, words))
+            .is_some_and(|root| text_within(&document, root, words))
     }
 }
 
@@ -236,7 +236,7 @@ fn turns_within(document: &Document, id: NodeId) -> Option<u8> {
     document
         .children(id)
         .into_iter()
-        .find_map(|child| turns_within(document, child))
+        .find_map(|child| turns_within(&document, child))
 }
 
 fn text_within(document: &Document, id: NodeId, words: &str) -> bool {
@@ -247,7 +247,7 @@ fn text_within(document: &Document, id: NodeId, words: &str) -> bool {
         || document
             .children(id)
             .into_iter()
-            .any(|child| text_within(document, child, words))
+            .any(|child| text_within(&document, child, words))
 }
 
 fn mode(width: u32, height: u32, refresh_millihertz: u32) -> DisplayMode {

@@ -35,8 +35,7 @@ fn a_region_describes_itself_and_does_what_a_screen_reader_asks() {
             </styled::Root>
         }
     });
-    let mut surface =
-        PluginSurface::launch(EditorHost::default(), beui::context(), Shown(document));
+    let mut surface = launched(&EditorHost::default(), beui::context(), Shown(document));
     let mut described = region(
         Rect::from_min_size(pos2(10.0, 20.0), vec2(100.0, 60.0)),
         [120, 80],
@@ -74,12 +73,15 @@ fn a_region_describes_itself_and_does_what_a_screen_reader_asks() {
         "an unchanged button is not sent again"
     );
 
-    surface.node_action(ActionRequest {
-        action: Action::Click,
-        target_tree: TreeId::ROOT,
-        target_node: save,
-        data: None,
-    });
+    surface.node_action(
+        &described,
+        ActionRequest {
+            action: Action::Click,
+            target_tree: TreeId::ROOT,
+            target_node: save,
+            data: None,
+        },
+    );
     surface.update(&described);
     assert_eq!(clicks.get(), 1);
 

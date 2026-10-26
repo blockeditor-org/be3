@@ -17,8 +17,8 @@ impl App for Locking {
 fn a_region_tells_the_host_it_locks_the_pointer_and_when_it_stops() {
     let step = Rc::new(Cell::new(0));
     let whole = Rect::from_min_size(pos2(0.0, 0.0), vec2(40.0, 30.0));
-    let mut surface = PluginSurface::launch(
-        EditorHost::default(),
+    let mut surface = launched(
+        &EditorHost::default(),
         beui::context(),
         Locking(step.clone()),
     );
@@ -45,8 +45,8 @@ fn a_region_tells_the_host_it_locks_the_pointer_and_when_it_stops() {
         Some(block_plugin_api::Stopped::Closed)
     );
 
-    let mut surface = PluginSurface::launch(
-        EditorHost::default(),
+    let mut surface = launched(
+        &EditorHost::default(),
         beui::context(),
         Locking(Rc::new(Cell::new(3))),
     );

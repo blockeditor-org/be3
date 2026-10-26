@@ -322,19 +322,20 @@ impl Fixture {
         let document = self.test.document();
         document
             .root()
-            .is_some_and(|root| text_within(document, root, words).is_some())
+            .is_some_and(|root| text_within(&document, root, words).is_some())
     }
 
     fn click_text(&mut self, words: &str) {
         let document = self.test.document();
         let node = document
             .root()
-            .and_then(|root| text_within(document, root, words))
+            .and_then(|root| text_within(&document, root, words))
             .unwrap_or_else(|| panic!("{words:?} is on screen"));
         let center = document
             .node_rect(node)
             .expect("the text is laid out")
             .center();
+        drop(document);
         self.test.click(center);
         self.settle();
     }
@@ -372,6 +373,7 @@ impl Fixture {
             .filter_map(|tab| document.find_test_id(&format!("dock.tab.{tab}.close")))
             .find_map(|close| document.node_rect(close))
             .expect("an open tab can be closed");
+        drop(document);
         self.test.click(cross.center());
         self.settle();
     }
@@ -541,7 +543,7 @@ fn text_within(document: &Document, id: NodeId, words: &str) -> Option<NodeId> {
     document
         .children(id)
         .into_iter()
-        .find_map(|child| text_within(document, child, words))
+        .find_map(|child| text_within(&document, child, words))
 }
 
 fn text_under(document: &Document, id: NodeId) -> Option<String> {
@@ -551,7 +553,7 @@ fn text_under(document: &Document, id: NodeId) -> Option<String> {
     document
         .children(id)
         .into_iter()
-        .find_map(|child| text_under(document, child))
+        .find_map(|child| text_under(&document, child))
 }
 
 fn toast(id: u32) -> String {

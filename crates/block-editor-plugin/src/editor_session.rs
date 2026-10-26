@@ -20,7 +20,7 @@ use uuid::Uuid;
 
 #[cfg(target_arch = "wasm32")]
 use crate::plugin::PaintTarget;
-use crate::plugin::{Frame, Instance, Region, RegionMonitor};
+use crate::plugin::{Frame, Instance, Region, RegionHandler, RegionMonitor};
 use crate::{EditorHost, Waker, host::BlockDrag};
 
 pub type Open = fn(EditorHost) -> Box<dyn Instance>;
@@ -28,6 +28,7 @@ pub type Open = fn(EditorHost) -> Box<dyn Instance>;
 static NEXT_EPOCH: AtomicU64 = AtomicU64::new(1);
 
 pub struct EditorSession {
+    handlers: HashMap<EditorRegion, Box<dyn RegionHandler>>,
     app: Box<dyn Instance>,
     instance: EditorInstanceId,
     regions: HashMap<EditorRegion, RegionState>,
@@ -109,6 +110,7 @@ impl EditorSession {
     pub fn adopt(instance: EditorInstanceId, app: Box<dyn Instance>, host: EditorHost) -> Self {
         host.set_instance(instance);
         Self {
+            handlers: HashMap::new(),
             app,
             instance,
             regions: HashMap::new(),
@@ -141,6 +143,24 @@ impl EditorSession {
 
     pub fn instance_mut(&mut self) -> &mut dyn Instance {
         self.app.as_mut()
+    }
+
+    pub fn region_handler_mut(&mut self, region: EditorRegion) -> Option<&mut dyn RegionHandler> {
+        self.registered();
+        Some(self.handlers.get_mut(&region)?.as_mut())
+    }
+
+    fn registered(&mut self) {
+        self.handlers.extend(self.host.take_region_handlers());
+    }
+
+    fn handler(&mut self, region: EditorRegion) -> Option<&mut dyn RegionHandler> {
+        self.registered();
+        if !self.handlers.contains_key(&region) {
+            self.app.open_region(region);
+            self.registered();
+        }
+        Some(self.handlers.get_mut(&region)?.as_mut())
     }
 
     pub(crate) fn set_view_block(&self, view_block: Option<Uuid>) {
@@ -698,7 +718,7 @@ impl EditorSession {
         let context = self.context(region);
         let host = context.rect;
         let origin = host.min.to_vec2();
-        let mut draft = self
+        let draft = self
             .artifact
             .as_ref()
             .filter(|_| region == EditorRegion::ArtifactSettings)
@@ -724,7 +744,12 @@ impl EditorSession {
         let delivered_files = files.as_ref().is_some_and(|files| files.dropped);
         self.host.set_files(files);
 
-        let mut frame = self.app.update(&context, draft.as_mut());
+        self.host.open_settings_draft(draft);
+        let mut frame = self
+            .handler(region)
+            .map(|handler| handler.update(&context))
+            .unwrap_or_default();
+        let draft = self.host.close_settings_draft();
         if let Some(state) = self.regions.get_mut(&region)
             && state.stopped.is_none()
         {
@@ -800,31 +825,42 @@ impl EditorSession {
     }
 
     pub(crate) fn painting(&mut self, region: EditorRegion) -> Option<paint_format::Painting> {
-        self.app.painting(region)
+        self.region_handler_mut(region)?.painting()
     }
 
     pub(crate) fn overflows(&mut self, region: EditorRegion) -> Vec<String> {
-        self.app.overflows(region)
+        self.region_handler_mut(region)
+            .map(|handler| handler.overflows())
+            .unwrap_or_default()
     }
 
     #[cfg(target_arch = "wasm32")]
     pub fn paint(&mut self, target: &PaintTarget<'_>) -> Vec<block_plugin_api::SurfaceRect> {
-        self.app.paint(target)
+        match self.region_handler_mut(target.region) {
+            Some(handler) => handler.paint(target),
+            None => Vec::new(),
+        }
     }
 
     pub(crate) fn input(&mut self, region: EditorRegion, event: &TimedInput) {
         let context = self.context(region);
-        self.app.input(&context, event);
+        if let Some(handler) = self.handler(region) {
+            handler.input(&context, event);
+        }
     }
 
     pub(crate) fn node_action(&mut self, region: EditorRegion, request: ActionRequest) {
         let context = self.context(region);
-        self.app.node_action(&context, request);
+        if let Some(handler) = self.handler(region) {
+            handler.node_action(&context, request);
+        }
     }
 
     pub(crate) fn run_action(&mut self, region: EditorRegion, id: &str) {
         let context = self.context(region);
-        self.app.run_action(&context, id);
+        if let Some(handler) = self.handler(region) {
+            handler.run_action(&context, id);
+        }
     }
 
     pub fn report(&self, region: EditorRegion) -> Option<&FrameReport> {

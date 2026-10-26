@@ -38,8 +38,8 @@ fn a_trackpad_scroll_held_past_the_start_stretches_and_springs_back_when_lifted(
         }
     })));
     let scroll = scroll.get();
-    let mut surface = PluginSurface::launch(
-        EditorHost::default(),
+    let mut surface = launched(
+        &EditorHost::default(),
         beui::context(),
         Shared(Rc::clone(&document)),
     );
@@ -54,7 +54,7 @@ fn a_trackpad_scroll_held_past_the_start_stretches_and_springs_back_when_lifted(
         &shown,
         &TimedInput::from(Input::PointerMoved(pos2(50.0, 50.0))),
     );
-    let frame = |surface: &mut PluginSurface, events: &[TimedInput]| {
+    let frame = |surface: &mut RegionRunner, events: &[TimedInput]| {
         surface.context().advance_clock(Duration::from_millis(16));
         for event in events {
             surface.input(&shown, event);

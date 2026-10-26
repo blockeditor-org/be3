@@ -8,18 +8,26 @@ use crate::editor_session::EditorSession;
 use crate::screens::Screens;
 use crate::wasm::{Surfaces, surface_gpu};
 use crate::wire::Delivery;
-use crate::{EditorHost, Frame, Instance, Region, Waker};
+use crate::{EditorHost, Frame, Instance, Region, RegionHandler, Waker};
 
 const INSTANCE: EditorInstanceId = EditorInstanceId(1);
 
-struct Unpainted;
+struct Unpainted(EditorHost);
 
 impl Instance for Unpainted {
     fn connect(&mut self, _block_id: Uuid) {}
 
+    fn open_region(&mut self, region: EditorRegion) {
+        self.0.handle_region(region, Box::new(UnpaintedRegion));
+    }
+}
+
+struct UnpaintedRegion;
+
+impl RegionHandler for UnpaintedRegion {
     fn input(&mut self, _region: &Region, _event: &TimedInput) {}
 
-    fn update(&mut self, region: &Region, _settings: Option<&mut Vec<u8>>) -> Frame {
+    fn update(&mut self, region: &Region) -> Frame {
         Frame {
             changed: true,
             painted: vec![region.rect],
@@ -44,13 +52,10 @@ fn a_surface_the_host_does_not_render_runs_its_frames_without_a_gpu() {
         surface: Some(spec),
         preferences: block_plugin_api::Preferences::default(),
     }));
+    let host = EditorHost::new(Waker::default());
     screens.adopt(
         INSTANCE,
-        EditorSession::adopt(
-            INSTANCE,
-            Box::new(Unpainted),
-            EditorHost::new(Waker::default()),
-        ),
+        EditorSession::adopt(INSTANCE, Box::new(Unpainted(host.clone())), host),
     );
     for delivery in [
         Delivery::Open(Opening::Block(OpenBlock {

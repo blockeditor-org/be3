@@ -598,7 +598,7 @@ impl<A: BeuiApp> BeuiTest<A> {
         self.output.as_ref().filter(|_| self.drew)
     }
 
-    pub fn document(&self) -> &Document {
+    pub fn document(&self) -> std::cell::Ref<'_, Document> {
         self.plugin
             .document(INSTANCE, self.region())
             .expect("the editor has not built its view yet")
@@ -1572,7 +1572,7 @@ impl<A: BeuiApp> BeuiTest<A> {
             .find_test_id(test_id)
             .unwrap_or_else(|| panic!("no element with test id {test_id:?}"));
         let mut collected = Vec::new();
-        collect_text(self.document(), node, &mut collected);
+        collect_text(&self.document(), node, &mut collected);
         collected.join(" ")
     }
 
@@ -1610,14 +1610,16 @@ impl<A: BeuiApp> BeuiTest<A> {
             return;
         }
         let region = self.region();
-        let document = self
-            .plugin
-            .document_mut(INSTANCE, region)
-            .expect("the editor has not built its view yet");
-        let node = document
-            .find_test_id(test_id)
-            .unwrap_or_else(|| panic!("no element with test id {test_id:?}"));
-        document.reveal_node(node);
+        {
+            let mut document = self
+                .plugin
+                .document_mut(INSTANCE, region)
+                .expect("the editor has not built its view yet");
+            let node = document
+                .find_test_id(test_id)
+                .unwrap_or_else(|| panic!("no element with test id {test_id:?}"));
+            document.reveal_node(node);
+        }
         self.run();
     }
 
@@ -1851,7 +1853,7 @@ impl<A: BeuiApp> BeuiTest<A> {
 
     pub fn record(&mut self) {
         let frame = self.painted();
-        let found = overflow::overflows(self.document());
+        let found = overflow::overflows(&self.document());
         self.overflows.extend(found);
         match &mut self.recording {
             Some(recording) => recording.append(frame),
@@ -1863,7 +1865,7 @@ impl<A: BeuiApp> BeuiTest<A> {
         let painting = match self.recording.take() {
             Some(recording) => recording,
             None => {
-                let found = overflow::overflows(self.document());
+                let found = overflow::overflows(&self.document());
                 self.overflows.extend(found);
                 self.painted()
             }

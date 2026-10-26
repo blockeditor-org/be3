@@ -1,10 +1,10 @@
 use block_plugin_api::{
-    EditorInstanceId, Fonts, FrameCommit, Hello, HelloAccepted, InputBatch, Opening, Preferences,
-    ScreenLayout, ScreenPlacement, ScreenRequest, ops::guest::Executor,
+    EditorInstanceId, EditorRegion, Fonts, FrameCommit, Hello, HelloAccepted, InputBatch, Opening,
+    Preferences, ScreenLayout, ScreenPlacement, ScreenRequest, ops::guest::Executor,
 };
 
 use crate::{
-    EditorHost, Frame, Instance, Waker,
+    EditorHost, Frame, Instance, RegionHandler, Waker,
     editor_session::EditorSession,
     screens::Screens,
     session::{ClientSession, State},
@@ -152,6 +152,14 @@ impl HeadlessPlugin {
 
     pub fn instance_mut(&mut self, instance: EditorInstanceId) -> Option<&mut dyn Instance> {
         Some(self.screens.session(instance)?.instance_mut())
+    }
+
+    pub fn region_handler_mut(
+        &mut self,
+        instance: EditorInstanceId,
+        region: EditorRegion,
+    ) -> Option<&mut dyn RegionHandler> {
+        self.screens.session(instance)?.region_handler_mut(region)
     }
 }
 

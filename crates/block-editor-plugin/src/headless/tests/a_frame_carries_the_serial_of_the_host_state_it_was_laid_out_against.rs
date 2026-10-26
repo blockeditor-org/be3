@@ -5,19 +5,27 @@ use block_plugin_api::{
 use uuid::Uuid;
 
 use crate::headless::HeadlessPlugin;
-use crate::{EditorHost, Frame, Instance, Region, Waker};
+use crate::{EditorHost, Frame, Instance, Region, RegionHandler, Waker};
 
 const INSTANCE: EditorInstanceId = EditorInstanceId(1);
 const SCREEN: ScreenId = ScreenId(1);
 
-struct Still;
+struct Still(EditorHost);
 
 impl Instance for Still {
     fn connect(&mut self, _block_id: Uuid) {}
 
+    fn open_region(&mut self, region: EditorRegion) {
+        self.0.handle_region(region, Box::new(StillRegion));
+    }
+}
+
+struct StillRegion;
+
+impl RegionHandler for StillRegion {
     fn input(&mut self, _region: &Region, _event: &TimedInput) {}
 
-    fn update(&mut self, region: &Region, _settings: Option<&mut Vec<u8>>) -> Frame {
+    fn update(&mut self, region: &Region) -> Frame {
         Frame {
             painted: vec![region.rect],
             ..Frame::default()
@@ -71,7 +79,8 @@ fn a_frame_carries_the_serial_of_the_host_state_it_was_laid_out_against() {
             preferences: block_plugin_api::Preferences::default(),
         })
         .unwrap();
-    plugin.adopt(INSTANCE, Box::new(Still), EditorHost::new(Waker::default()));
+    let host = EditorHost::new(Waker::default());
+    plugin.adopt(INSTANCE, Box::new(Still(host.clone())), host);
     plugin
         .open(Opening::Block(OpenBlock {
             instance: INSTANCE,

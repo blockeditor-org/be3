@@ -98,7 +98,7 @@ About 1k lines. Needs M1.
 
 ## M6. Windows from plugins
 
-`PluginSurface::launch` (`crates/beui-platform-plugin`) passes `host: None`, so
+`beui_platform_plugin::launch` (`crates/beui-platform-plugin`) passes `host: None`, so
 `opens_windows` is false in a plugin and every plugin `Window` (the workspace
 dock, linux-desktop) is an overlay inside block-app's one panel.
 

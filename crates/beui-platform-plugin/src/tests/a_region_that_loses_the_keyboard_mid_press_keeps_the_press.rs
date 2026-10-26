@@ -30,8 +30,8 @@ fn a_region_that_loses_the_keyboard_mid_press_keeps_the_press() {
     let phases = Rc::new(std::cell::RefCell::new(Vec::new()));
     let whole = Rect::from_min_size(pos2(0.0, 0.0), vec2(80.0, 60.0));
     let shown = region(whole, [80, 60]);
-    let mut surface = PluginSurface::launch(
-        EditorHost::default(),
+    let mut surface = launched(
+        &EditorHost::default(),
         beui::context(),
         Watching(events.clone(), phases.clone()),
     );

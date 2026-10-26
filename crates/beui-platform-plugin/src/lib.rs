@@ -1,8 +1,11 @@
 mod input;
 mod platform;
 mod surface;
+mod view;
 
+use std::any::Any;
 use std::cell::RefCell;
+use std::error::Error;
 use std::rc::Rc;
 use std::task::{Context as TaskContext, Poll, Waker as TaskWaker};
 
@@ -14,17 +17,26 @@ use beui_core::runner::{Incoming, Launch, Platform, RunOptions, Runner, Running}
 use beui_core::screens::Screen;
 use beui_core::window::WindowState;
 use block_editor_plugin::accesskit::{ActionRequest, Affine, TreeUpdate};
-use block_editor_plugin::{DescribedAction, Description, EditorHost, Frame, Region, TimedInput};
+use block_editor_plugin::{
+    Claim, DescribedAction, Description, EditorHost, EditorRegion, Frame, Region, RegionHandler,
+    TimedInput,
+};
 #[cfg(target_arch = "wasm32")]
 use block_editor_plugin::{PaintTarget, SurfaceRect};
 
 use platform::HostPlatform;
 use surface::{Surface, SurfaceRenderer};
+pub use view::{PluginView, Report};
 
 pub struct PluginPlatform {
     host: EditorHost,
-    surface: Rc<RefCell<Surface>>,
-    launched: Rc<RefCell<Option<Runner>>>,
+    region: EditorRegion,
+}
+
+impl PluginPlatform {
+    pub fn new(host: EditorHost, region: EditorRegion) -> Self {
+        Self { host, region }
+    }
 }
 
 impl Platform for PluginPlatform {
@@ -34,87 +46,104 @@ impl Platform for PluginPlatform {
 
     fn run(self: Box<Self>, launch: Launch) -> Running {
         Box::pin(async move {
+            let surface = Rc::new(RefCell::new(Surface::default()));
+            let view = PluginView::default();
             let mut runner = Runner::new(launch);
             let waker = self.host.waker();
             let loaded = Loaded {
-                renderer: Box::new(SurfaceRenderer::new(Rc::clone(&self.surface))),
+                renderer: Box::new(SurfaceRenderer::new(Rc::clone(&surface))),
                 fonts: None,
             };
-            runner.start(vec![loaded], Setup::new(Waker::new(move || waker.wake())))?;
-            *self.launched.borrow_mut() = Some(runner);
+            let mut setup = Setup::new(Waker::new(move || waker.wake()));
+            setup.provide(view.clone());
+            runner.start(vec![loaded], setup)?;
+            let handler = RegionRunner {
+                runner,
+                services: HostPlatform::new(self.host.clone()),
+                surface,
+                view,
+                described: None,
+            };
+            self.host.handle_region(self.region, Box::new(handler));
             Ok(())
         })
     }
 }
 
-pub struct PluginSurface {
+pub fn launch(
+    host: &EditorHost,
+    region: EditorRegion,
+    options: RunOptions,
+    context: Context,
+    app: impl App + 'static,
+) -> Result<(), Box<dyn Error>> {
+    let launch = Launch {
+        options,
+        context,
+        app: Box::new(app),
+        host: None,
+    };
+    let mut running = Box::new(PluginPlatform::new(host.clone(), region)).run(launch);
+    match running
+        .as_mut()
+        .poll(&mut TaskContext::from_waker(TaskWaker::noop()))
+    {
+        Poll::Ready(result) => result,
+        Poll::Pending => Err("the plugin platform starts without waiting".into()),
+    }
+}
+
+pub struct RegionRunner {
     runner: Runner,
-    platform: HostPlatform,
+    services: HostPlatform,
     surface: Rc<RefCell<Surface>>,
+    view: PluginView,
     described: Option<u64>,
 }
 
-impl PluginSurface {
-    pub fn launch(host: EditorHost, context: Context, app: impl App + 'static) -> Self {
-        let surface = Rc::new(RefCell::new(Surface::default()));
-        let launched = Rc::new(RefCell::new(None));
-        let platform = Box::new(PluginPlatform {
-            host: host.clone(),
-            surface: Rc::clone(&surface),
-            launched: Rc::clone(&launched),
-        });
-        let launch = Launch {
-            options: RunOptions::default(),
-            context,
-            app: Box::new(app),
-            host: None,
-        };
-        let mut running = platform.run(launch);
-        match running
-            .as_mut()
-            .poll(&mut TaskContext::from_waker(TaskWaker::noop()))
-        {
-            Poll::Ready(Ok(())) => {}
-            Poll::Ready(Err(error)) => panic!("a plugin surface could not start: {error}"),
-            Poll::Pending => panic!("a plugin surface starts without waiting"),
-        }
-        let runner = launched
-            .take()
-            .expect("the plugin platform hands its runner back once it has started");
-        Self {
-            runner,
-            platform: HostPlatform::new(host),
-            surface,
-            described: None,
-        }
+impl RegionRunner {
+    pub fn of(handler: &mut dyn RegionHandler) -> Option<&mut Self> {
+        (handler as &mut dyn Any).downcast_mut()
     }
 
     pub fn context(&self) -> &Context {
         self.runner.context()
     }
 
-    pub fn ratio(&self, region: &Region) -> f32 {
+    pub fn take_output(&mut self) -> Option<FrameOutput> {
+        self.runner.take_output()
+    }
+
+    fn ratio(&self, region: &Region) -> f32 {
         let context = self.runner.context();
         context.set_pixels_per_point(region.scale_factor);
         region.scale_factor / context.pixels_per_point()
     }
 
-    pub fn node_action(&mut self, request: ActionRequest) {
-        self.runner.accessibility_action(request);
+    fn to_region(&self, region: &Region, rect: Rect) -> Rect {
+        let context = self.runner.context();
+        rect.scaled(context.pixels_per_point() / region.scale_factor)
     }
 
-    pub fn run_action(&mut self, id: &str) {
-        self.runner.context().request_action(id.to_owned());
+    fn reported(&self, region: &Region, frame: &mut Frame) {
+        let report = self.view.take_report();
+        let to_region = |rect: Rect| self.to_region(region, rect);
+        frame.content = report.content.map(to_region);
+        frame.painted = report.painted.into_iter().map(to_region).collect();
+        frame.floating = report.floating.into_iter().map(to_region).collect();
+        frame.drawing = report.drawing.into_iter().map(to_region).collect();
+        frame.every_sample = report.every_sample;
+        frame.claims = report
+            .claims
+            .into_iter()
+            .map(|claim| Claim {
+                modifiers: claim.modifiers,
+                rect: to_region(claim.rect),
+            })
+            .collect();
     }
 
-    pub fn input(&mut self, region: &Region, event: &TimedInput) {
-        self.runner.push(input::translate(region, event));
-        if let Some(at) = input::time(event) {
-            self.runner.push(Incoming::Time(at));
-        }
-    }
-
-    pub fn update(&mut self, region: &Region) -> Frame {
+    fn frame(&mut self, region: &Region) -> Frame {
         self.runner
             .reports()
             .system_preferences(block_editor_plugin::host_preferences().into());
@@ -162,7 +191,7 @@ impl PluginSurface {
                 .context()
                 .set_automated(region.describe.is_some());
         }
-        let Some(frame) = self.runner.frame(&mut self.platform, area) else {
+        let Some(frame) = self.runner.frame(&mut self.services, area) else {
             return Frame {
                 stopped: self.runner.exited().then(|| match self.runner.failure() {
                     Some(failure) => block_plugin_api::Stopped::Failed(failure.to_owned()),
@@ -179,7 +208,7 @@ impl PluginSurface {
 
     fn describe(&mut self, region: &Region) -> Description {
         let tree = self
-            .platform
+            .services
             .take_tree()
             .map(|tree| self.placed(region, tree));
         let actions = self
@@ -220,13 +249,33 @@ impl PluginSurface {
         }
         tree
     }
+}
 
-    pub fn to_region(&self, region: &Region, rect: Rect) -> Rect {
-        let context = self.runner.context();
-        rect.scaled(context.pixels_per_point() / region.scale_factor)
+impl RegionHandler for RegionRunner {
+    fn input(&mut self, region: &Region, event: &TimedInput) {
+        self.runner.push(input::translate(region, event));
+        if let Some(at) = input::time(event) {
+            self.runner.push(Incoming::Time(at));
+        }
     }
 
-    pub fn painting(&self) -> Option<beui_core::painting::Painting> {
+    fn run_action(&mut self, _region: &Region, id: &str) {
+        self.runner.context().request_action(id.to_owned());
+    }
+
+    fn node_action(&mut self, _region: &Region, request: ActionRequest) {
+        self.runner.accessibility_action(request);
+    }
+
+    fn update(&mut self, region: &Region) -> Frame {
+        let ratio = self.ratio(region);
+        self.view.begin(region, ratio);
+        let mut frame = self.frame(region);
+        self.reported(region, &mut frame);
+        frame
+    }
+
+    fn painting(&mut self) -> Option<beui_core::painting::Painting> {
         let output = self.runner.output()?;
         let (width, height) = self.surface.borrow().size?;
         let pixels_per_point = output.pixels_per_point();
@@ -243,19 +292,15 @@ impl PluginSurface {
         .ok()
     }
 
-    pub fn overflows(&self) -> Vec<String> {
+    fn overflows(&mut self) -> Vec<String> {
         self.runner
             .output()
             .map(|output| output.overflows.clone())
             .unwrap_or_default()
     }
 
-    pub fn take_output(&mut self) -> Option<FrameOutput> {
-        self.runner.take_output()
-    }
-
     #[cfg(target_arch = "wasm32")]
-    pub fn paint(&mut self, target: &PaintTarget<'_>) -> Vec<SurfaceRect> {
+    fn paint(&mut self, target: &PaintTarget<'_>) -> Vec<SurfaceRect> {
         self.surface.borrow_mut().aim(target);
         self.runner.present();
         self.surface.borrow_mut().take_drawn()

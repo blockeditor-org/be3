@@ -3,8 +3,8 @@ use super::*;
 #[test]
 fn a_region_lays_out_over_its_whole_rect_not_just_what_shows() {
     let laid = Rc::new(Cell::new(None));
-    let mut surface = PluginSurface::launch(
-        EditorHost::default(),
+    let mut surface = launched(
+        &EditorHost::default(),
         beui::context(),
         Recording {
             laid: Rc::clone(&laid),

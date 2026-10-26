@@ -1,6 +1,8 @@
 use std::any::Any;
+use std::cell::{Ref, RefMut};
 use std::collections::HashMap;
 
+use beui_platform_plugin::RegionRunner;
 use block_editor_plugin::Instance;
 use block_editor_plugin::headless::HeadlessPlugin as Core;
 use block_plugin_api::{EditorInstanceId, EditorRegion, ScreenLayout, ScreenPlacement};
@@ -28,50 +30,34 @@ impl Adopted {
 }
 
 pub(crate) trait Parts {
-    fn document(&self, region: EditorRegion) -> Option<&beui::Document>;
-    fn document_mut(&mut self, region: EditorRegion) -> Option<&mut beui::Document>;
+    fn document(&self, region: EditorRegion) -> Option<Ref<'_, beui::Document>>;
+    fn document_mut(&self, region: EditorRegion) -> Option<RefMut<'_, beui::Document>>;
     fn editor(&self) -> Option<Editor>;
-    fn take_output(&mut self, region: EditorRegion) -> Option<beui::FrameOutput>;
 }
 
 impl<A: BeuiApp> Parts for BeuiInstance<A> {
-    fn document(&self, region: EditorRegion) -> Option<&beui::Document> {
+    fn document(&self, region: EditorRegion) -> Option<Ref<'_, beui::Document>> {
         BeuiInstance::document(self, region)
     }
 
-    fn document_mut(&mut self, region: EditorRegion) -> Option<&mut beui::Document> {
+    fn document_mut(&self, region: EditorRegion) -> Option<RefMut<'_, beui::Document>> {
         BeuiInstance::document_mut(self, region)
     }
 
     fn editor(&self) -> Option<Editor> {
         BeuiInstance::editor(self)
     }
-
-    fn take_output(&mut self, region: EditorRegion) -> Option<beui::FrameOutput> {
-        BeuiInstance::take_output(self, region)
-    }
 }
 
-struct Access {
-    shared: fn(&dyn Instance) -> &dyn Parts,
-    unique: fn(&mut dyn Instance) -> &mut dyn Parts,
-}
-
-fn shared<A: BeuiApp>(instance: &dyn Instance) -> &dyn Parts {
+fn parts<A: BeuiApp>(instance: &dyn Instance) -> &dyn Parts {
     (instance as &dyn Any)
         .downcast_ref::<BeuiInstance<A>>()
         .expect("an adopted instance keeps its app")
 }
 
-fn unique<A: BeuiApp>(instance: &mut dyn Instance) -> &mut dyn Parts {
-    (instance as &mut dyn Any)
-        .downcast_mut::<BeuiInstance<A>>()
-        .expect("an adopted instance keeps its app")
-}
-
 pub struct HeadlessPlugin {
     core: Core,
-    access: HashMap<EditorInstanceId, Access>,
+    access: HashMap<EditorInstanceId, fn(&dyn Instance) -> &dyn Parts>,
 }
 
 impl std::ops::Deref for HeadlessPlugin {
@@ -104,13 +90,7 @@ impl HeadlessPlugin {
             Box::new(BeuiInstance::<A>::adopting(adopted)),
             host,
         );
-        self.access.insert(
-            instance,
-            Access {
-                shared: shared::<A>,
-                unique: unique::<A>,
-            },
-        );
+        self.access.insert(instance, parts::<A>);
     }
 
     pub fn draw(&mut self) -> Vec<(ScreenPlacement, beui::FrameOutput)> {
@@ -123,9 +103,10 @@ impl HeadlessPlugin {
         placements
             .into_iter()
             .filter_map(|placement| {
-                let output = self
-                    .parts_mut(placement.instance)?
-                    .take_output(placement.region)?;
+                let handler = self
+                    .core
+                    .region_handler_mut(placement.instance, placement.region)?;
+                let output = RegionRunner::of(handler)?.take_output()?;
                 Some((placement, output))
             })
             .collect()
@@ -139,16 +120,16 @@ impl HeadlessPlugin {
         &self,
         instance: EditorInstanceId,
         region: EditorRegion,
-    ) -> Option<&beui::Document> {
+    ) -> Option<Ref<'_, beui::Document>> {
         self.parts(instance)?.document(region)
     }
 
     pub fn document_mut(
-        &mut self,
+        &self,
         instance: EditorInstanceId,
         region: EditorRegion,
-    ) -> Option<&mut beui::Document> {
-        self.parts_mut(instance)?.document_mut(region)
+    ) -> Option<RefMut<'_, beui::Document>> {
+        self.parts(instance)?.document_mut(region)
     }
 
     pub fn host(&self, instance: EditorInstanceId) -> Option<EditorHost> {
@@ -161,11 +142,6 @@ impl HeadlessPlugin {
 
     fn parts(&self, instance: EditorInstanceId) -> Option<&dyn Parts> {
         let access = self.access.get(&instance)?;
-        Some((access.shared)(self.core.instance(instance)?))
-    }
-
-    fn parts_mut(&mut self, instance: EditorInstanceId) -> Option<&mut dyn Parts> {
-        let unique = self.access.get(&instance)?.unique;
-        Some(unique(self.core.instance_mut(instance)?))
+        Some(access(self.core.instance(instance)?))
     }
 }

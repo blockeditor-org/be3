@@ -16,6 +16,7 @@ fn whitespace_markers_sit_over_real_spaces() {
         .surface();
     let state = document.api::<beui::unstyled::TextAreaApi>(surface).state();
     state.select(0..LINE.len() + 1);
+    drop(document);
     editor.run();
 
     editor.snapshot("whitespace_markers_sit_over_real_spaces");

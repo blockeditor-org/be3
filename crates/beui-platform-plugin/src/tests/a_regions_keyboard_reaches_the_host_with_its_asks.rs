@@ -17,8 +17,7 @@ impl App for Field {
 #[test]
 fn a_regions_keyboard_reaches_the_host_with_its_asks() {
     let asks = Rc::new(Cell::new(0));
-    let mut surface =
-        PluginSurface::launch(EditorHost::default(), beui::context(), Field(asks.clone()));
+    let mut surface = launched(&EditorHost::default(), beui::context(), Field(asks.clone()));
     let whole = Rect::from_min_size(pos2(0.0, 0.0), vec2(40.0, 30.0));
     let keyboard = |frame: Frame| frame.window.ime.map(|ime| ime.keyboard);
     assert_eq!(

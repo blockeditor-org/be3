@@ -49,6 +49,10 @@ pub trait Instance: std::any::Any {
         false
     }
 
+    fn open_region(&mut self, _region: EditorRegion) {}
+}
+
+pub trait RegionHandler: std::any::Any {
     fn input(&mut self, region: &Region, event: &TimedInput);
 
     fn run_action(&mut self, _region: &Region, _id: &str) {}
@@ -60,13 +64,13 @@ pub trait Instance: std::any::Any {
     ) {
     }
 
-    fn update(&mut self, region: &Region, settings: Option<&mut Vec<u8>>) -> Frame;
+    fn update(&mut self, region: &Region) -> Frame;
 
-    fn painting(&mut self, _region: EditorRegion) -> Option<paint_format::Painting> {
+    fn painting(&mut self) -> Option<paint_format::Painting> {
         None
     }
 
-    fn overflows(&mut self, _region: EditorRegion) -> Vec<String> {
+    fn overflows(&mut self) -> Vec<String> {
         Vec::new()
     }
 
