@@ -1149,7 +1149,6 @@ dependencies = [
  "beui-components-unstyled",
  "beui-core",
  "beui-dock",
- "beui-font-browser",
  "beui-font-freetype",
  "beui-inspector",
  "beui-keyboard",
@@ -1160,7 +1159,6 @@ dependencies = [
  "beui-platform-headless",
  "beui-platform-web",
  "beui-platform-winit",
- "beui-renderer-dom",
  "beui-renderer-wgpu",
  "beui-view",
  "beui_macros",
@@ -1446,17 +1444,6 @@ dependencies = [
  "pollster",
  "rfd",
  "winit",
-]
-
-[[package]]
-name = "beui-renderer-dom"
-version = "0.1.0"
-dependencies = [
- "beui-core",
- "beui-font-browser",
- "js-sys",
- "wasm-bindgen",
- "web-sys",
 ]
 
 [[package]]
@@ -1909,12 +1896,10 @@ dependencies = [
  "be-store",
  "beui",
  "beui-core",
- "beui-renderer-dom",
  "block-editor-beui",
  "block-plugin-api",
  "block-type-guest",
  "host-types",
- "image",
  "paint-snapshot",
  "serde",
  "text-block-types",

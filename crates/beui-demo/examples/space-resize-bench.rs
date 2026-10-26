@@ -69,10 +69,10 @@ mod bench {
             };
             runner
                 .start(
-                    vec![Loaded {
+                    Loaded {
                         renderer,
                         fonts: None,
-                    }],
+                    },
                     Setup::new(Waker::new(|| {})),
                 )
                 .expect("the bench's renderer starts");

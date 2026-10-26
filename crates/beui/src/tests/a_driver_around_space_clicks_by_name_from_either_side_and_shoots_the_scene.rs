@@ -69,10 +69,10 @@ fn a_driver_around_space_clicks_by_name_from_either_side_and_shoots_the_scene() 
     .expect("no graphics adapter is available");
     runner
         .start(
-            vec![Loaded {
+            Loaded {
                 renderer: Box::new(surface),
                 fonts: None,
-            }],
+            },
             Setup::new(Waker::new(|| {})),
         )
         .expect("the renderer loads");

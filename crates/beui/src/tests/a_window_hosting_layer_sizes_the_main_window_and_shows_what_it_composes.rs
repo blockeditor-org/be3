@@ -8,10 +8,6 @@ use beui_core::window::{WindowHosting, WindowId, WindowReport, WindowState};
 struct Screen(Rc<RefCell<Vec<Color32>>>);
 
 impl Renderer for Screen {
-    fn name(&self) -> &'static str {
-        "screen"
-    }
-
     fn info(&self) -> RendererInfo {
         RendererInfo::default()
     }
@@ -103,10 +99,10 @@ fn a_window_hosting_layer_sizes_the_main_window_and_shows_what_it_composes() {
     );
     runner
         .start(
-            vec![Loaded {
+            Loaded {
                 renderer: Box::new(Screen(Rc::clone(&backgrounds))),
                 fonts: None,
-            }],
+            },
             Setup::new(Waker::new(|| {})),
         )
         .expect("the renderer loads");

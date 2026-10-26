@@ -1,18 +1,11 @@
 #![cfg(target_arch = "wasm32")]
 
 #[wasm_bindgen::prelude::wasm_bindgen]
-pub async fn run_demo(root_id: String, icons_font: String) -> Result<(), wasm_bindgen::JsValue> {
+pub async fn run_demo(root_id: String) -> Result<(), wasm_bindgen::JsValue> {
     wasi_threads::initialize_main_thread();
     let options = beui::RunOptions::default();
-    let renderers = vec![
-        beui::WebRenderer::Dom {
-            icons_font: Some(icons_font),
-        },
-        beui::WebRenderer::Wgpu,
-    ];
     beui::run_web(
         &root_id,
-        renderers,
         options,
         Vec::new(),
         beui_demo::DemoApp::new(),

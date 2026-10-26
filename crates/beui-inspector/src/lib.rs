@@ -11,7 +11,7 @@ use std::cell::{Cell, RefCell};
 use std::collections::HashMap;
 use std::rc::Rc;
 
-use beui_core::context::{Context, RendererChoices};
+use beui_core::context::Context;
 use beui_core::filter::{ColorVision, Filter};
 use beui_core::flash;
 use beui_core::geometry::{Pos2, Rect, Vec2, pos2, vec2};
@@ -100,7 +100,6 @@ pub struct State {
     back_gestures: RefCell<Vec<BackGesture>>,
     pub developer: Cell<PreferenceLayer>,
     requested_developer: Cell<Option<PreferenceLayer>>,
-    requested_renderer: Cell<Option<usize>>,
     revision: Cell<u64>,
     reset_performance: Cell<bool>,
     closed: Cell<bool>,
@@ -132,7 +131,6 @@ impl State {
             back_gestures: RefCell::new(Vec::new()),
             developer: Cell::new(ctx.preference_layer(PreferenceSource::Developer)),
             requested_developer: Cell::new(None),
-            requested_renderer: Cell::new(None),
             revision: Cell::new(0),
             reset_performance: Cell::new(false),
             closed: Cell::new(false),
@@ -262,11 +260,6 @@ impl State {
         self.touch();
     }
 
-    fn choose_renderer(&self, index: usize) {
-        self.requested_renderer.set(Some(index));
-        self.touch();
-    }
-
     fn hover(&self, id: NodeId, hovered: bool) {
         match hovered {
             true => self.hovered.set(Some(id)),
@@ -391,7 +384,6 @@ pub struct Inspector {
     summary: Signal<Summary>,
     performance: Signal<panel::PerformanceSummary>,
     renderer: Signal<panel::RendererRows>,
-    renderers: Signal<RendererChoices>,
     panel_compact: Signal<bool>,
     shown_compact: bool,
     bar: panel::Bar,
@@ -434,7 +426,6 @@ impl Inspector {
             summary: panel.summary,
             performance: panel.performance,
             renderer: panel.renderer,
-            renderers: panel.renderers,
             panel_compact: panel.compact,
             shown_compact: false,
             width: DEFAULT_WIDTH,
@@ -696,9 +687,6 @@ impl Inspector {
         target.track_changes(self.state().flash_changes.get());
         target.track_damage(self.state().flash_damage.get());
         ctx.set_simulated_pixels_per_point(self.state().simulated_pixels_per_point.get());
-        if let Some(index) = self.state().requested_renderer.take() {
-            ctx.choose_renderer(index);
-        }
         if app_visible {
             self.resize(target, ctx, content);
             self.pick(target, ctx, content);
@@ -973,7 +961,6 @@ impl Inspector {
         self.summary.set(summary);
         self.performance.set(performance);
         self.renderer.set(renderer);
-        self.renderers.set(ctx.renderers());
         self.entries = current_entries;
     }
 

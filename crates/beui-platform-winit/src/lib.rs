@@ -58,7 +58,7 @@ use wheel::{Wheel, Wheeled};
 const BUTTON_EVDEV_FIRST: u16 = 0x110;
 const XKB_AUDIO_MIC_MUTE: u32 = 0x1008_ffb2;
 
-type Load = Box<dyn FnOnce(Arc<dyn WindowHandle>) -> Result<Vec<Loaded>, Box<dyn Error>>>;
+type Load = Box<dyn FnOnce(Arc<dyn WindowHandle>) -> Result<Loaded, Box<dyn Error>>>;
 
 type Outcome = Rc<RefCell<Option<Result<(), String>>>>;
 
@@ -68,7 +68,7 @@ pub struct Winit {
 
 impl Winit {
     pub fn new(
-        load: impl FnOnce(Arc<dyn WindowHandle>) -> Result<Vec<Loaded>, Box<dyn Error>> + 'static,
+        load: impl FnOnce(Arc<dyn WindowHandle>) -> Result<Loaded, Box<dyn Error>> + 'static,
     ) -> Self {
         Self {
             load: Box::new(load),
@@ -311,14 +311,14 @@ impl Runner {
     }
 
     fn attach(&mut self) -> Result<(), Box<dyn Error>> {
-        let (Some(surface), Some(renderers)) = (&self.surface, self.runner.renderers()) else {
+        let (Some(surface), Some(rendering)) = (&self.surface, self.runner.rendering()) else {
             return Ok(());
         };
-        if renderers.attached() {
+        if rendering.attached() {
             return Ok(());
         }
         let size = surface.window.surface_size();
-        renderers.attach(Arc::new(surface.window.clone()), size.width, size.height)?;
+        rendering.attach(Arc::new(surface.window.clone()), size.width, size.height)?;
         surface.window.request_redraw();
         Ok(())
     }
@@ -598,8 +598,8 @@ impl ApplicationHandler for Runner {
     }
 
     fn destroy_surfaces(&mut self, _event_loop: &dyn ActiveEventLoop) {
-        if let Some(renderers) = self.runner.renderers() {
-            renderers.detach();
+        if let Some(rendering) = self.runner.rendering() {
+            rendering.detach();
         }
     }
 

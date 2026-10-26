@@ -35,10 +35,10 @@ fn the_window_is_shown_the_ime_again_after_typing_into_it() {
     });
     runner
         .start(
-            vec![Loaded {
+            Loaded {
                 renderer: Box::new(crate::testing::Screen(vec2(200.0, 100.0))),
                 fonts: None,
-            }],
+            },
             Setup::new(Waker::new(|| {})),
         )
         .expect("the renderer loads");

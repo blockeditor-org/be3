@@ -38,10 +38,6 @@ enum Hosting {
 }
 
 impl Renderer for Screen {
-    fn name(&self) -> &'static str {
-        "screen"
-    }
-
     fn info(&self) -> RendererInfo {
         RendererInfo::default()
     }
@@ -139,8 +135,6 @@ impl From<Pos2> for Target {
         Self::point(at)
     }
 }
-
-type Observer = Box<dyn FnMut(&FrameOutput)>;
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct HostedWindow {
@@ -264,7 +258,6 @@ pub struct Stepped<A: App = Showing> {
     size: Vec2,
     painted: bool,
     settling: bool,
-    observers: Vec<Observer>,
     inbox: Inbox,
     steps: Vec<String>,
     closed: bool,
@@ -352,10 +345,10 @@ impl<A: App + 'static> Stepped<A> {
         let window = window(&runner);
         runner
             .start(
-                vec![Loaded {
+                Loaded {
                     renderer: Box::new(Screen(size * scale)),
                     fonts: None,
-                }],
+                },
                 setup,
             )
             .expect("a screen without a gpu always loads");
@@ -368,7 +361,6 @@ impl<A: App + 'static> Stepped<A> {
             size,
             painted: false,
             settling: true,
-            observers: Vec::new(),
             inbox,
             steps: Vec::new(),
             closed: false,
@@ -478,10 +470,6 @@ impl<A: App + 'static> Stepped<A> {
         windows.reports.push(report);
     }
 
-    pub fn observe(&mut self, observer: impl FnMut(&FrameOutput) + 'static) {
-        self.observers.push(Box::new(observer));
-    }
-
     pub fn advance(&mut self, by: Duration) {
         self.runner.context().advance_clock(by);
     }
@@ -532,11 +520,6 @@ impl<A: App + 'static> Stepped<A> {
             Window::Other(platform) => &mut **platform,
         };
         self.runner.frame(platform, SafeArea::default());
-        if let Some(output) = self.runner.output() {
-            for observer in &mut self.observers {
-                observer(output);
-            }
-        }
         self.closed |= self.runner.exited();
         if let Some(failure) = self.runner.failure() {
             panic!("the app panicked: {failure}\n{}", self.replay());

@@ -225,10 +225,6 @@ fn blank(size: Vec2) -> WindowOutput {
 pub struct DisplayRenderer(pub Rc<RefCell<Outputs>>);
 
 impl Renderer for DisplayRenderer {
-    fn name(&self) -> &'static str {
-        "drm"
-    }
-
     fn info(&self) -> RendererInfo {
         RendererInfo {
             rows: vec![("Surface format", format!("{FORMAT:?}"))],

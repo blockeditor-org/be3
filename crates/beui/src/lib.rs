@@ -20,7 +20,7 @@ pub use beui_core::base::{
 pub use beui_core::clipboard::{PasteAnswer, PasteKind, PasteRequest, Pasted};
 pub use beui_core::color::{Color32, Hsva, Oklch, format_hex, parse_hex};
 pub use beui_core::context::{
-    ActionGroup, ActionInfo, Context, FrameOutput, InputSimulation, Moved, RendererChoices,
+    ActionGroup, ActionInfo, Context, FrameOutput, InputSimulation, Moved,
     RendererInfo, WindowOutput,
 };
 pub use beui_core::damage::Region;
@@ -102,19 +102,19 @@ pub use beui_core::window::{
 #[cfg(all(feature = "window", target_os = "android"))]
 pub use beui_platform_android::AndroidApp;
 pub use beui_platform_headless::Simulation;
-#[cfg(all(any(feature = "web", feature = "dom"), target_arch = "wasm32"))]
+#[cfg(all(feature = "web", target_arch = "wasm32"))]
 pub use beui_platform_web::accessibility_tree;
 #[cfg(all(feature = "window", not(target_os = "android")))]
 pub use beui_platform_winit::winit;
-#[cfg(all(any(feature = "web", feature = "dom"), target_arch = "wasm32"))]
-pub use web::{WebRenderer, run_web, web_platform};
+#[cfg(all(feature = "web", target_arch = "wasm32"))]
+pub use web::{run_web, web_platform};
 
-#[cfg(all(any(feature = "web", feature = "dom"), target_arch = "wasm32"))]
+#[cfg(all(feature = "web", target_arch = "wasm32"))]
 mod web;
 
 mod keyboard_host;
 #[cfg(all(feature = "window", not(target_arch = "wasm32")))]
-pub use window::{WindowRenderer, native_platform, run_on, run_with, run_with_renderers};
+pub use window::{native_platform, run_on, run_with, run_with_device};
 
 #[cfg(all(feature = "window", not(target_arch = "wasm32")))]
 mod saved_preferences;

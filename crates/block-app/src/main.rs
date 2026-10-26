@@ -143,13 +143,11 @@ fn run_shell(options: beui::RunOptions, shell: Shell, session: bool) -> Result<(
     if session {
         return beui::run_on(Box::new(beui_platform_drm::Drm), options, shell);
     }
-    let renderer = beui::WindowRenderer::Wgpu {
-        open_device: beui::OpenDevice {
-            extensions: &be_dmabuf::DEVICE_EXTENSIONS,
-            gpu: None,
-        },
+    let open_device = beui::OpenDevice {
+        extensions: &be_dmabuf::DEVICE_EXTENSIONS,
+        gpu: None,
     };
-    beui::run_with_renderers(options, vec![renderer], shell)
+    beui::run_with_device(options, open_device, shell)
 }
 
 #[cfg(all(
@@ -197,7 +195,6 @@ pub async fn run_web(canvas_id: String) -> Result<(), wasm_bindgen::JsValue> {
     }
     beui::run_web(
         &canvas_id,
-        vec![beui::WebRenderer::Wgpu],
         options,
         layers,
         Shell::new(app),

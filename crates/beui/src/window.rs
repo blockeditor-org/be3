@@ -2,7 +2,7 @@ use std::error::Error;
 use std::sync::Arc;
 
 use beui_core::app::App;
-use beui_core::renderer::{Loaded, WindowHandle, any_loaded};
+use beui_core::renderer::{Loaded, WindowHandle};
 use beui_layer_xr::Link;
 use beui_renderer_wgpu::present::OpenDevice;
 use beui_renderer_wgpu::window::WindowSurface;
@@ -11,42 +11,20 @@ use beui_core::runner::{Launch, Layer, Platform, RunOptions};
 
 use beui_core::runner::environment::{Base, Choice, Stacked};
 
-pub enum WindowRenderer {
-    Wgpu { open_device: OpenDevice },
-}
-
-impl WindowRenderer {
-    pub fn wgpu() -> Self {
-        Self::Wgpu {
-            open_device: OpenDevice::default(),
-        }
-    }
-}
-
 pub fn run_with(options: RunOptions, app: impl App + 'static) -> Result<(), Box<dyn Error>> {
-    run_with_renderers(options, vec![WindowRenderer::wgpu()], app)
+    run_with_device(options, OpenDevice::default(), app)
 }
 
-pub fn run_with_renderers(
+pub fn run_with_device(
     options: RunOptions,
-    mut renderers: Vec<WindowRenderer>,
+    mut open_device: OpenDevice,
     app: impl App + 'static,
 ) -> Result<(), Box<dyn Error>> {
     let choice = from_environment(NATIVE)?;
     let link = link(choice.as_ref(), &application_name(&options));
     if let Some(link) = &link {
-        for renderer in &mut renderers {
-            let WindowRenderer::Wgpu { open_device } = renderer;
-            *open_device = link.open_device(open_device.extensions);
-        }
+        open_device = link.open_device(open_device.extensions);
     }
-    let open_device = renderers
-        .iter()
-        .map(|renderer| match renderer {
-            WindowRenderer::Wgpu { open_device } => open_device.clone(),
-        })
-        .next()
-        .unwrap_or_default();
     let app: Box<dyn App> = match (&choice, options.saved_preferences.clone()) {
         (
             Some(Choice {
@@ -59,7 +37,9 @@ pub fn run_with_renderers(
         _ => Box::new(app),
     };
     let (platform, layers) =
-        choose_platform(choice, link, open_device, || native_platform(renderers))?;
+        choose_platform(choice, link, open_device.clone(), || {
+            native_platform(open_device)
+        })?;
     let launch = Launch {
         options,
         context: crate::system_context(),
@@ -201,28 +181,17 @@ fn serve(_path: &std::path::Path) -> Result<beui_layer_drive::Inbox, Box<dyn Err
     Err("BEUI_DRIVE_SOCKET needs a Unix socket, which this platform lacks".into())
 }
 
-pub fn native_platform(renderers: Vec<WindowRenderer>) -> Box<dyn Platform> {
-    let load = move |window: Arc<dyn WindowHandle>| {
-        let results = renderers
-            .into_iter()
-            .map(|renderer| load(renderer, window.clone()));
-        any_loaded(results, |error| {
-            eprintln!("beui: a renderer did not load: {error}");
+pub fn native_platform(open_device: OpenDevice) -> Box<dyn Platform> {
+    let load = move |window: Arc<dyn WindowHandle>| -> Result<Loaded, Box<dyn Error>> {
+        Ok(Loaded {
+            renderer: Box::new(pollster::block_on(WindowSurface::new(window, open_device))?),
+            fonts: None,
         })
     };
     #[cfg(target_os = "android")]
     return Box::new(beui_platform_android::Android::new(load));
     #[cfg(not(target_os = "android"))]
     return Box::new(beui_platform_winit::Winit::new(load));
-}
-
-fn load(renderer: WindowRenderer, window: Arc<dyn WindowHandle>) -> Result<Loaded, Box<dyn Error>> {
-    match renderer {
-        WindowRenderer::Wgpu { open_device } => Ok(Loaded {
-            renderer: Box::new(pollster::block_on(WindowSurface::new(window, open_device))?),
-            fonts: None,
-        }),
-    }
 }
 
 pub fn run_on(

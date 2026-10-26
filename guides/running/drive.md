@@ -41,7 +41,7 @@ else, or `--into` on a command that is not input, is an error that says what it 
 
 ## Starting any beui program
 
-beui's run functions (`beui::run`, `run_with`, `run_with_renderers`, `run_on`) read these
+beui's run functions (`beui::run`, `run_with`, `run_with_device`, `run_on`) read these
 variables (on every platform but Android, which reads none), so a program needs nothing of its
 own to be driven:
 

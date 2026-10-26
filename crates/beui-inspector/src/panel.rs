@@ -6,7 +6,6 @@ use crate::screen_reader::Command;
 use beui_components_styled::*;
 use beui_components_unstyled::{ChoiceOption, SliderScale, TreeItem};
 use beui_core::base::TextAlign;
-use beui_core::context::RendererChoices;
 use beui_core::document::Document;
 use beui_core::filter::{ColorVision, MAX_BLUR};
 use beui_core::icons::{ICON_MOUSE_POINTER_2, ICON_X};
@@ -200,7 +199,6 @@ pub struct Panel {
     pub summary: Signal<Summary>,
     pub performance: Signal<PerformanceSummary>,
     pub renderer: Signal<RendererRows>,
-    pub renderers: Signal<RendererChoices>,
     pub compact: Signal<bool>,
 }
 
@@ -211,7 +209,6 @@ pub fn build(state: Stored<State>) -> Panel {
     let summary = create_signal(Summary::default());
     let performance = create_signal(PerformanceSummary::default());
     let renderer = create_signal(RendererRows::new());
-    let renderers = create_signal(RendererChoices::default());
     let compact = create_signal(false);
 
     let mut document = Document::new();
@@ -266,7 +263,6 @@ pub fn build(state: Stored<State>) -> Panel {
                                         <PerformanceTool
                                             performance={performance.read_only()}
                                             renderer={renderer.read_only()}
-                                            renderers={renderers.read_only()}
                                             state
                                         />
                                     </DockTab>
@@ -294,7 +290,6 @@ pub fn build(state: Stored<State>) -> Panel {
         summary,
         performance,
         renderer,
-        renderers,
         compact,
     }
 }
@@ -389,7 +384,6 @@ fn TreePanel(
 fn PerformanceTool(
     performance: ReadSignal<PerformanceSummary>,
     renderer: ReadSignal<RendererRows>,
-    renderers: ReadSignal<RendererChoices>,
     state: Stored<State>,
 ) -> NodeId {
     let samples = create_memo(move || performance.with(|performance| performance.samples.clone()));
@@ -400,7 +394,6 @@ fn PerformanceTool(
                 @test_id={"inspector.performance"}
                 performance
                 renderer
-                renderers
                 state
             />
             <Separator />
@@ -818,7 +811,6 @@ pub fn total_label(total: usize, noun: &str) -> String {
 fn PerformancePanel(
     performance: ReadSignal<PerformanceSummary>,
     renderer: ReadSignal<RendererRows>,
-    renderers: ReadSignal<RendererChoices>,
     state: Stored<State>,
 ) -> NodeId {
     let latest_work = performance_text(performance, |summary| &summary.latest_work);
@@ -879,8 +871,6 @@ fn PerformancePanel(
                     <RendererSection
                         @test_id={"inspector.performance.renderer"}
                         rows={renderer}
-                        renderers
-                        state={state}
                     />
                 </List>
             </Frame>
@@ -889,33 +879,11 @@ fn PerformancePanel(
 }
 
 #[component]
-fn RendererSection(
-    rows: ReadSignal<RendererRows>,
-    renderers: ReadSignal<RendererChoices>,
-    state: Stored<State>,
-) -> NodeId {
+fn RendererSection(rows: ReadSignal<RendererRows>) -> NodeId {
     let missing = create_memo(move || rows.with(Vec::is_empty));
-    let names = create_memo(move || renderers.with(|renderers| renderers.names.clone()));
-    let choosable = create_memo(move || names.with(|names| names.len() > 1));
-    let active = create_memo(move || Some(renderers.with(|renderers| renderers.active)));
     view! {
         <List spacing=TIMING_SPACING>
             <Text style=TextStyle::HEADING>"Renderer"</Text>
-            <Show condition={choosable}>
-                <RadioGroup
-                    @test_id={"inspector.performance.renderer.choice"}
-                    options={view! {
-                        <ForEach keys={names}>|label: &'static str|
-                            <ChoiceOption label />
-                        </ForEach>
-                    }}
-                    selected={Binding::new(active, move |index: Option<usize>| {
-                        if let Some(index) = index {
-                            state.value().choose_renderer(index);
-                        }
-                    })}
-                />
-            </Show>
             <Show condition={missing}>
                 <Text style=TextStyle::CAPTION>"Not reported by this host"</Text>
             </Show>

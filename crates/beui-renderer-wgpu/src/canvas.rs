@@ -20,7 +20,6 @@ impl wgpu::rwh::HasDisplayHandle for Display {
 
 pub struct CanvasSurface {
     canvas: web_sys::HtmlCanvasElement,
-    display: Option<String>,
     info: RendererInfo,
     _instance: wgpu::Instance,
     _adapter: wgpu::Adapter,
@@ -87,7 +86,6 @@ impl CanvasSurface {
         };
         Ok(Self {
             canvas,
-            display: None,
             info,
             _instance: instance,
             _adapter: adapter,
@@ -143,34 +141,12 @@ impl CanvasSurface {
 }
 
 impl renderer::Renderer for CanvasSurface {
-    fn name(&self) -> &'static str {
-        "wgpu"
-    }
-
     fn info(&self) -> RendererInfo {
         self.info.clone()
     }
 
     fn provide(&self, setup: &mut Setup) {
         setup.provide(self.gpu());
-    }
-
-    fn set_active(&mut self, active: bool) {
-        let style = self.canvas.style();
-        match active {
-            true => {
-                if let Some(display) = self.display.take() {
-                    let _ = style.set_property("display", &display);
-                }
-            }
-            false => {
-                if self.display.is_none() {
-                    self.display = style.get_property_value("display").ok();
-                }
-                let _ = style.set_property("display", "none");
-            }
-        }
-        self.prepared = None;
     }
 
     fn resize(&mut self, width: u32, height: u32) {

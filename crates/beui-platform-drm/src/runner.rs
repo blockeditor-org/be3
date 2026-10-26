@@ -230,10 +230,10 @@ pub fn run(launch: Launch) -> Result<(), Box<dyn Error>> {
     let flips = outputs.borrow().flips.clone();
     setup.provide(flips.clone());
     runner.start(
-        vec![Loaded {
+        Loaded {
             renderer: Box::new(DisplayRenderer(Rc::clone(&outputs))),
             fonts: None,
-        }],
+        },
         setup,
     )?;
     runner.reports().fullscreen(true);

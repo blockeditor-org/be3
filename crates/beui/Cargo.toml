@@ -23,13 +23,6 @@ web = [
     "dep:wasm-bindgen",
     "dep:web-sys",
 ]
-dom = [
-    "dep:beui-platform-web",
-    "dep:beui-font-browser",
-    "dep:beui-renderer-dom",
-    "beui-renderer-dom/web",
-    "dep:web-sys",
-]
 
 [dependencies]
 accesskit = "0.24.1"
@@ -61,8 +54,6 @@ beui-platform-winit = { path = "../beui-platform-winit", optional = true }
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 beui-platform-web = { path = "../beui-platform-web", optional = true }
-beui-font-browser = { path = "../beui-font-browser", optional = true }
-beui-renderer-dom = { path = "../beui-renderer-dom", optional = true }
 wasm-bindgen = { version = "0.2", optional = true }
 web-sys = { version = "0.3", optional = true, features = [
     "CssStyleDeclaration",

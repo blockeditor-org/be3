@@ -36,10 +36,10 @@ fn the_window_is_told_where_the_caret_is_in_its_own_units() {
     });
     runner
         .start(
-            vec![Loaded {
+            Loaded {
                 renderer: Box::new(crate::testing::Screen(vec2(300.0, 150.0))),
                 fonts: None,
-            }],
+            },
             Setup::new(Waker::new(|| {})),
         )
         .expect("the renderer loads");

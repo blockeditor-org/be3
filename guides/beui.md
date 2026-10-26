@@ -297,7 +297,7 @@ direction:
 | `beui-tree` | what makes a tree of components, whatever it is made of: `#[component]` and `view!`'s runtime, `Prop`, child slots (`Children`, `Run`, `SlotChild`, `SlotHost`) and `Show`, `ShowKeepAlive`, `Dynamic`, `Keyed` and `ForEach` |
 | `beui-core` | `Document` and `Context`, the retained nodes and their layout, input and its dispatch, accessibility, paint output and damage, the font and image interfaces, the icon codepoints, the `App` contract, and the `Runner` every platform drives it through |
 | `beui-font-freetype` | `FreetypeFonts`: FreeType and HarfBuzz shaping and rasterizing, and the fonts beui compiles in |
-| `beui-font-browser` | `BrowserFonts`: text measured with the browser's own fonts through a canvas, for the DOM renderer; no fonts in the module |
+| `beui-font-browser` | `BrowserFonts`: text measured with the browser's own fonts through a canvas; no fonts in the module, and nothing uses it yet |
 | `beui-view` | `beui::reactive`: `beui-tree` re-exported with the rest of the framework (actions, timers, `NodeRef`, layout values such as `Align`, `Align2`, `Extent`, `Sides`, `Corners` and `Outline`, and the node functions and `Inspect` through which components reach the tree); `beui::primitives`: the base components (`Frame`, `List`, `Text`, ...) that wrap core's nodes; `beui_core::tree` is what makes a `NodeId` a child |
 | `beui-components-unstyled` | `beui::unstyled` and `beui::datetime` |
 | `beui-components-styled` | `beui::styled`: themes, styled controls, the styled `Frame`, `Text`, `Span` and `Icon`, and every primitive with no styled version re-exported unchanged |
@@ -305,7 +305,6 @@ direction:
 | `beui-dock` | `beui::dock`: the dock, as `dock::unstyled` (the tree, the dragging, the keyboard and the layout state, painting nothing) and `dock::styled` (`Docking` painted with theme tokens) |
 | `beui-keyboard` | `beui::keyboard`: the on-screen keyboard, as `keyboard::unstyled` (layouts, tables and the gesture engine) and `keyboard::styled`; the facade installs it on every document |
 | `beui-renderer-wgpu` | the wgpu renderer, its shaders and filters, and presenting to a surface |
-| `beui-renderer-dom` | the DOM renderer: the display tree as nested absolutely positioned elements |
 | `beui-platform-winit`, `beui-platform-android`, `beui-platform-web` | each platform's `Platform` and `PlatformServices`: its event loop, window or view, input, IME, clipboard, file picker and accessibility adapter (winit's is its own `accessibility.rs` over `accesskit_unix`, `accesskit_windows` and `accesskit_macos`, since `accesskit_winit` has no release for winit 0.31) |
 | `beui-platform-drm` | Linux's displays and input devices through DRM/KMS and libinput: a `Platform`, `PlatformServices` and `Renderer` that shows one window per display (see Displays under beui-platform-drm below), each display keeping a retained frame of its window, drawn when the display flips (the app's frames are paced to the flips too, by `pacing.rs`: at most one per flip, none while nothing changes), handing the flip a fence (or, without atomic fences, waiting for it in the event loop) instead of blocking on the GPU; callers run it with `beui::run_on` |
 | `beui-layer-space` | the VR simulator `Layer` that `BEUI_LAYERS=space` stacks over a native or headless platform: the app's windows as panels in a 3D scene ("Space: the VR simulator layer" below) |
@@ -547,25 +546,16 @@ hooks the higher crates fill in:
   returns that as an error (`Runner::finish`), so whatever owns the screen is
   let go of in order. An app that can carry on after a panic in one part
   catches it there itself.
-- Every platform draws through `beui_core::renderer::Renderer` trait objects and
-  names no renderer crate: wgpu's `WindowSurface` (native windows),
-  `CanvasSurface` (a browser canvas) and `DomRenderer` implement it, and the
-  facade hands the runner the ones to load. A renderer is told where to draw
-  with `attach` (a raw-window-handle `WindowHandle`) or is made with its element,
-  and draws a frame in two steps, `prepare` and then `present`.
-- `DomRenderer` builds its elements through the `Dom` trait: `WebDom` is the
-  page's DOM (the crate's `web` feature, which beui's `dom` feature turns on),
-  and `MemoryDom` an in-memory one that writes itself out as HTML, which is how
-  tests paint through it (guides/testing_a_gui.md). It keeps an element for
-  each display it has shown, keyed by `Display::document` and `Display::node`:
-  every document numbers its nodes from zero, so the node alone does not
-  identify a display once the inspector paints beside the app.
-  `beui_core::renderer::Renderers` holds what a runner loaded, each with the
-  `FontBackend` its text is measured with if it needs its own, and shows one.
-  `Context::choose_renderer` (the inspector's Perf tab offers it when more
-  than one is loaded) hides and detaches the shown one, attaches or resizes
-  the chosen one, and swaps the context's fonts with `Context::replace_fonts`,
-  which lays all text out again.
+- Every platform draws through a `beui_core::renderer::Renderer` trait object
+  and names no renderer crate: wgpu's `WindowSurface` (native windows) and
+  `CanvasSurface` (a browser canvas) implement it, and the facade hands the
+  runner a function that loads one (`Loaded`: the renderer, and the
+  `FontBackend` its text is measured with if it needs its own, which
+  `Runner::start` installs with `Context::replace_fonts`). The runner keeps it
+  in a `Rendering`, which the platform attaches and detaches through
+  `Runner::rendering`. A renderer is told where to draw with `attach` (a
+  raw-window-handle `WindowHandle`) or is made with its element, and draws a
+  frame in two steps, `prepare` and then `present`.
 
 Inside the family, crates name each other directly (`beui_core::document::Document`),
 and the component crates declare `extern crate beui_view as beui;` so the
@@ -753,8 +743,7 @@ rasterises it unhinted from the outline at the laid-out size scaled by the
 raster (`GlyphId::raster`, the factor's bits; `GlyphId::LAID_OUT` is 1), so the
 outlines match the scaled advances. The result's `Galley::pixels_per_point` is
 the layout scale times the raster. A backend without glyphs of its own (the
-browser's, whose text the DOM renderer draws with CSS and scales with the
-group's transform) keeps the galley as it is.
+browser's) keeps the galley as it is.
 
 `unstyled::Button` shows the split. It is a focusable `Interactive`,
 and owns button semantics, disabled behavior, pointer and keyboard activation,
@@ -1442,8 +1431,7 @@ its edge still reads as scrollable. The styled layer's scrollbar style fades by
 fade. `unstyled::Scroll` works the widths out from the position its offset
 reports and wraps the offset in a base `Fade`, which paints its child inside a
 mask group (`Painter::faded`, `Group::Mask`): the wgpu renderer multiplies the
-alpha of everything in that group by it in the shader, and the DOM renderer
-masks the group's element with a gradient. Custom `Drawing`s are not faded.
+alpha of everything in that group by it in the shader. Custom `Drawing`s are not faded.
 
 Under both sits the base `Offset`, which is named for what
 it does rather than for what it is used for: it shows its one child along a
@@ -1578,8 +1566,7 @@ and reported clamped to the most colorful color at its lightness and hue
 saturation and value) and leaves the color model to its caller, and
 `ColorPickerState` is generic over the model (`Hsva` or `Oklch`). The faces are
 a `Drawing` that a shader paints on the wgpu renderer, behind
-beui-components-styled's `gpu` feature; the DOM renderer cannot run it and
-fills it with magenta.
+beui-components-styled's `gpu` feature.
 
 `unstyled::Popover` is what both open: a trigger and an overlay, built the
 first time it opens, that traps Tab, closes on Escape, a press outside or its
@@ -2738,8 +2725,7 @@ gpu resources belong to the `Draw` rather than to the drawing: keep them in an
 `Rc<RefCell<Option<..>>>` the drawing clones, build them on the first `prepare`
 from the format `DrawAt` names, and a headless test - which never builds a
 `Renderer` - never opens a device at all. The `scene_3d` editor is the worked
-example. The DOM renderer cannot run a `Draw`, so it fills a drawing's
-rectangle with magenta instead; a crate that draws with the gpu does so behind
+example. A crate that draws with the gpu does so behind
 a feature that beui's `render` feature turns on, as beui-components-styled's
 `gpu` does.
 
@@ -2865,30 +2851,17 @@ Android its inset joins the safe area, and on the web the pages' viewport meta
 asks for `interactive-widget=resizes-content`. When the rectangle a document is
 shown in changes size while the focus takes text, the document scrolls the
 focused field into what is left, through every scroll it sits in.
-- `web` and `dom` add the browser runner,
-  `beui::run_web(element_id, renderers, options, app)`, which loads each
-  `beui::WebRenderer` it is given into the element, shows the first that
-  loads, and skips (with a console warning) any that fail. `web` enables
-  `render` and adds `WebRenderer::Wgpu`, which draws into the element if it is
-  a canvas and into a canvas it adds otherwise.
-- `dom` adds `WebRenderer::Dom { icons_font }`, which draws with DOM
-  elements instead of wgpu. Layout, input and focus are beui's as everywhere
-  else. Each `Display` in the frame's display tree keeps one element across
-  frames (by `Display::key`), holding its shapes and its children's elements
-  placed at their translations, and each group in it (a clip, a scroll, a
-  mask, a scale) is an element of its own; a display whose `Rc` is unchanged is not
-  looked at, so scrolling moves the rows' elements and rewrites nothing
-  inside them. Text is measured and drawn with the browser's fonts
-  (`beui-font-browser`), and the browser fetches the icon font from the URL
-  `icons_font` names. A `Drawing`, a `Punch` and a `Filter` draw nothing there.
-  `crates/beui-web-demo` is the demo with both renderers, DOM first:
+- `web` enables `render` and adds the browser runner,
+  `beui::run_web(element_id, options, layers, app)`, which draws with wgpu
+  into the element if it is a canvas and into a canvas it adds otherwise.
+  `crates/beui-web-demo` is the demo in a browser:
   `./scripts/buck run //crates/beui-web-demo:web` serves it on
   http://127.0.0.1:8070.
 
 `beui::run_with` takes `RunOptions` (app id, starting size) where
 `beui::run` takes only the app; both load wgpu, and
-`beui::run_with_renderers` takes the `beui::WindowRenderer`s to load instead
-(block-app's opens its device itself, to import Wayland clients' buffers), and
+`beui::run_with_device` takes the `beui::OpenDevice` to open wgpu's device
+with instead (block-app's opens its device itself, to import Wayland clients' buffers), and
 `beui::run_on` runs on a platform of the caller's choosing, such as
 `beui_platform_drm::Drm`, which drives the displays and input devices itself, or
 `beui::Headless`, which draws offscreen with no window or display server. The rest of
@@ -5072,7 +5045,7 @@ failure.
 
 `beui-html` builds ordinary HTML elements, laid out by the browser's CSS. It
 uses `beui-tree` components and control flow, independently of the GUI's paints
-and layout and of `beui-renderer-dom`.
+and layout.
 
 ```rust
 use beui_html::{elements as html, Text, render, view};

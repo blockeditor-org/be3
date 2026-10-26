@@ -10,7 +10,7 @@ use wasm_bindgen::{JsCast, JsValue};
 use wasm_bindgen_futures::JsFuture;
 
 #[wasm_bindgen]
-pub async fn run_review(root_id: String, icons_font: String) -> Result<(), JsValue> {
+pub async fn run_review(root_id: String) -> Result<(), JsValue> {
     wasi_threads::initialize_main_thread();
     let window = web_sys::window().ok_or_else(|| JsValue::from_str("no browser window"))?;
     let page = web_sys::Url::new(&window.location().href()?)?;
@@ -55,13 +55,7 @@ pub async fn run_review(root_id: String, icons_font: String) -> Result<(), JsVal
     });
 
     let options = beui::RunOptions::default();
-    let renderers = vec![
-        beui::WebRenderer::Dom {
-            icons_font: Some(icons_font),
-        },
-        beui::WebRenderer::Wgpu,
-    ];
-    beui::run_web(&root_id, renderers, options, Vec::new(), app)
+    beui::run_web(&root_id, options, Vec::new(), app)
         .await
         .map_err(|error| JsValue::from_str(&error.to_string()))
 }

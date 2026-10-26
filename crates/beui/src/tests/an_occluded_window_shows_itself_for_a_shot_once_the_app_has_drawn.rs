@@ -15,10 +15,6 @@ struct Screen {
 }
 
 impl Renderer for Screen {
-    fn name(&self) -> &'static str {
-        "screen"
-    }
-
     fn info(&self) -> RendererInfo {
         RendererInfo::default()
     }
@@ -110,12 +106,12 @@ fn an_occluded_window_shows_itself_for_a_shot_once_the_app_has_drawn() {
     );
     runner
         .start(
-            vec![Loaded {
+            Loaded {
                 renderer: Box::new(Screen {
                     prepared: Rc::clone(&prepared),
                 }),
                 fonts: None,
-            }],
+            },
             Setup::new(Waker::new(|| {})),
         )
         .expect("the renderer loads");

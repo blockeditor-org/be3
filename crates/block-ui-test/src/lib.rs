@@ -1,6 +1,5 @@
 mod beui;
 mod document;
-mod dom;
 mod link;
 mod overflow;
 

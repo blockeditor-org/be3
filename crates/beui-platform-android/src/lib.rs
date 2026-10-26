@@ -154,7 +154,7 @@ fn send(message: Message) -> bool {
     shared().sender.send(message).is_ok()
 }
 
-type Load = Box<dyn FnOnce(Arc<dyn WindowHandle>) -> Result<Vec<Loaded>, Box<dyn Error>>>;
+type Load = Box<dyn FnOnce(Arc<dyn WindowHandle>) -> Result<Loaded, Box<dyn Error>>>;
 
 pub struct Android {
     load: Load,
@@ -162,7 +162,7 @@ pub struct Android {
 
 impl Android {
     pub fn new(
-        load: impl FnOnce(Arc<dyn WindowHandle>) -> Result<Vec<Loaded>, Box<dyn Error>> + 'static,
+        load: impl FnOnce(Arc<dyn WindowHandle>) -> Result<Loaded, Box<dyn Error>> + 'static,
     ) -> Self {
         Self {
             load: Box::new(load),
@@ -582,8 +582,8 @@ impl Runner {
                 density,
             } => self.surface(window, width, height, density),
             Message::SurfaceGone(done) => {
-                if let Some(renderers) = self.runner.renderers() {
-                    renderers.detach();
+                if let Some(rendering) = self.runner.rendering() {
+                    rendering.detach();
                 }
                 self.window = None;
                 let _ = done.send(());
@@ -690,16 +690,16 @@ impl Runner {
         {
             return self.fail(error);
         }
-        let Some(renderers) = self.runner.renderers() else {
+        let Some(rendering) = self.runner.rendering() else {
             return;
         };
-        if renderers.attached() && self.window.as_ref() == Some(&window) {
+        if rendering.attached() && self.window.as_ref() == Some(&window) {
             return;
         }
-        renderers.detach();
+        rendering.detach();
         self.window = None;
         let handle = Arc::new(SurfaceWindow(window.clone()));
-        if let Err(error) = renderers.attach(handle, width, height) {
+        if let Err(error) = rendering.attach(handle, width, height) {
             return self.fail(error);
         }
         self.window = Some(window);

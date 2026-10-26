@@ -132,8 +132,6 @@ struct Inner {
     accessibility_published: RefCell<HashSet<u32>>,
     kept: RefCell<Option<Kept>>,
     renderer_info: RefCell<Option<RendererInfo>>,
-    renderers: RefCell<RendererChoices>,
-    renderer_choice: Cell<Option<usize>>,
     clock: Cell<Option<Instant>>,
     now: Cell<Instant>,
 }
@@ -179,12 +177,6 @@ impl Inner {
 #[derive(Clone, Debug, PartialEq, Default)]
 pub struct RendererInfo {
     pub rows: Vec<(&'static str, String)>,
-}
-
-#[derive(Clone, Debug, PartialEq, Default)]
-pub struct RendererChoices {
-    pub names: Vec<&'static str>,
-    pub active: usize,
 }
 
 #[derive(Clone, Copy, PartialEq, Debug)]
@@ -421,8 +413,6 @@ impl Context {
                 accessibility_published: RefCell::new(HashSet::default()),
                 kept: RefCell::new(Some(Kept::default())),
                 renderer_info: RefCell::new(None),
-                renderers: RefCell::new(RendererChoices::default()),
-                renderer_choice: Cell::new(None),
                 clock: Cell::new(None),
                 now: Cell::new(Instant::now()),
             }),
@@ -435,25 +425,6 @@ impl Context {
 
     pub fn renderer_info(&self) -> Option<RendererInfo> {
         self.inner.renderer_info.borrow().clone()
-    }
-
-    pub fn set_renderers(&self, renderers: RendererChoices) {
-        *self.inner.renderers.borrow_mut() = renderers;
-    }
-
-    pub fn renderers(&self) -> RendererChoices {
-        self.inner.renderers.borrow().clone()
-    }
-
-    pub fn choose_renderer(&self, index: usize) {
-        if index != self.inner.renderers.borrow().active {
-            self.inner.renderer_choice.set(Some(index));
-            self.request_repaint();
-        }
-    }
-
-    pub fn take_renderer_choice(&self) -> Option<usize> {
-        self.inner.renderer_choice.take()
     }
 
     pub fn replace_fonts(&self, fonts: Box<dyn FontBackend>) -> Box<dyn FontBackend> {

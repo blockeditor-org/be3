@@ -45,7 +45,6 @@ members = [
     "crates/beui-inspector",
     "crates/beui-keyboard",
     "crates/beui-macros",
-    "crates/beui-renderer-dom",
     "crates/beui-renderer-wgpu",
     "crates/beui-tree",
     "crates/beui-html",

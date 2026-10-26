@@ -29,7 +29,7 @@ use beui_core::window::{Appearance, WindowReports, WindowState};
 use crate::lock::Lock;
 use crate::wheel::{Pinch, wheel};
 
-type Loading = Pin<Box<dyn Future<Output = Result<Vec<Loaded>, Box<dyn Error>>>>>;
+type Loading = Pin<Box<dyn Future<Output = Result<Loaded, Box<dyn Error>>>>>;
 type Load = Box<dyn FnOnce(web_sys::HtmlElement) -> Loading>;
 
 pub struct Web {
@@ -43,7 +43,7 @@ impl Web {
         load: impl FnOnce(web_sys::HtmlElement) -> F + 'static,
     ) -> Self
     where
-        F: Future<Output = Result<Vec<Loaded>, Box<dyn Error>>> + 'static,
+        F: Future<Output = Result<Loaded, Box<dyn Error>>> + 'static,
     {
         Self {
             element_id: element_id.into(),

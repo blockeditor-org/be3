@@ -257,15 +257,6 @@ where the test hovers. Its clock is a frame clock too: every frame is one frame 
 later, and advance(by) moves it on without painting. settle() waits as drive does, which a
 page that animates forever, such as one showing a spinner, never finishes.
 
-DocumentTest paints through the DOM renderer too: render_dom() starts feeding every frame
-to a `DomRenderer` over an in-memory DOM, and snapshot_dom(name) saves what it built as the
-browser painting `name.browser` (below). It first checks that the elements the renderer
-updated frame by frame are those it builds from the last frame alone, so a test that
-opens and closes something catches an element the DOM renderer lost or left behind. Its
-HTML names the page's fonts but carries none, so a preview draws text in the rasterizer's
-fonts and icons as stray letters. crates/beui-demo's
-the_inspector_opens_and_closes_beside_the_demo_in_the_dom is one.
-
 A snapshot never holds the glyph atlases. Each glyph carries its own image - coverage, or
 colour for an emoji from a colour font - keyed by what is in it, so where a glyph happened
 to land in an atlas cannot reach the file: text an earlier frame drew - a temporary directory's name, a uuid, the time - repacks the atlases

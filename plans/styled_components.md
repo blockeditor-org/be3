@@ -981,7 +981,7 @@ Problems earlier steps found in the beui crates, fixed at their source:
   on a phone (a fitted sheet) its rows.
 - **Done.** **Subtree opacity.** The base `Fade` takes `opacity` (1 by
   default) besides `edges`: the mask's `Fade` carries it through the wgpu
-  shader, the DOM renderer (CSS `opacity`), and paintings (`paint_format::Fade`
+  shader and paintings (`paint_format::Fade`
   gained a defaulted `opacity`). An opacity change damages the fade's
   rectangle. The level OSD, the dock's drop highlight and drag preview, and
   the split button's divider use it with colour roles. It multiplies each

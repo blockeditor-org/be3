@@ -1,6 +1,4 @@
-use std::cell::RefCell;
 use std::ops::{Deref, DerefMut};
-use std::rc::Rc;
 use std::time::Duration;
 
 use beui::WindowSize;
@@ -8,7 +6,6 @@ use beui::testing::{Showing, Stepped, Target};
 use beui::{Color32, Context, Document, FontLibrary, FrameOutput, FreetypeFonts, Rect, Vec2};
 
 use crate::beui::capture;
-use crate::dom::DomPainting;
 use crate::overflow;
 use crate::snapshot;
 
@@ -18,7 +15,6 @@ pub struct DocumentTest {
     stepped: Stepped,
     fonts: FontLibrary,
     latest: Option<FrameOutput>,
-    dom: Option<Rc<RefCell<DomPainting>>>,
 }
 
 impl Deref for DocumentTest {
@@ -58,7 +54,6 @@ impl DocumentTest {
             stepped,
             fonts,
             latest: None,
-            dom: None,
         };
         test.frame(Vec::new());
         test
@@ -70,18 +65,6 @@ impl DocumentTest {
 
     pub fn frame(&mut self, inputs: Vec<beui::Input>) {
         self.latest = Some(self.stepped.frame(inputs));
-    }
-
-    pub fn render_dom(&mut self) {
-        let dom = Rc::new(RefCell::new(DomPainting::new(self.size())));
-        self.refresh();
-        if let Some(output) = &self.latest {
-            dom.borrow_mut().show(output, background(output));
-        }
-        let shown = Rc::clone(&dom);
-        self.stepped
-            .observe(move |output| shown.borrow_mut().show(output, background(output)));
-        self.dom = Some(dom);
     }
 
     pub fn shows(&self, test_id: &str) -> bool {
@@ -160,21 +143,6 @@ impl DocumentTest {
         let painting = capture::capture_window(&output, 1.0, background)
             .expect("the painting could not be rendered");
         snapshot::assert_snapshot(name, &painting);
-    }
-
-    pub fn snapshot_dom(&mut self, name: &str) {
-        let size = self.size();
-        self.refresh();
-        let output = self
-            .latest
-            .as_ref()
-            .expect("the document has not drawn a frame yet");
-        let dom = self
-            .dom
-            .as_ref()
-            .expect("call render_dom before the frames a DOM snapshot shows");
-        dom.borrow()
-            .snapshot(name, output, size, background(output));
     }
 
     fn refresh(&mut self) {

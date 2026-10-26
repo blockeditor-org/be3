@@ -52,8 +52,8 @@ layer should be.
   `<textarea>` `beui-platform-web` uses today, and later from EditContext.
   Offsets must agree across cores (UTF-8 in Rust, UTF-16 in DOM ranges, and
   how a `glyphs` replacement counts). Line breaking and shaping come from the
-  browser on the HTML core, the same split `beui-renderer-dom` already lives
-  with through `beui-font-browser`; the editor only asks for geometry and
+  browser on the HTML core, which `beui-font-browser` (written for the DOM
+  renderer this plan replaced) already measures; the editor only asks for geometry and
   never computes it. Editors get real DOM text, so find-in-page, translation
   and screen readers see their content.
 - **Read-only selection is the browser's.** Selection is a core feature

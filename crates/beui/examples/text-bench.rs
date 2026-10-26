@@ -47,10 +47,10 @@ impl Bench {
         });
         runner
             .start(
-                vec![Loaded {
+                Loaded {
                     renderer: Box::new(Screen(VIEWPORT)),
                     fonts: None,
-                }],
+                },
                 Setup::new(Waker::new(|| {})),
             )
             .expect("a screen without a gpu always starts");

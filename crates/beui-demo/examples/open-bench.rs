@@ -102,10 +102,6 @@ mod bench {
     }
 
     impl Renderer for Timing {
-        fn name(&self) -> &'static str {
-            "timing"
-        }
-
         fn info(&self) -> RendererInfo {
             RendererInfo::default()
         }
@@ -169,10 +165,10 @@ mod bench {
             };
             runner
                 .start(
-                    vec![Loaded {
+                    Loaded {
                         renderer: Box::new(timing),
                         fonts: None,
-                    }],
+                    },
                     Setup::new(Waker::new(|| {})),
                 )
                 .expect("the bench's renderer starts");

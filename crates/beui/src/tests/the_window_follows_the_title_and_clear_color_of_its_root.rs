@@ -7,10 +7,6 @@ use beui_core::window::WindowState;
 struct Screen(Rc<RefCell<Vec<Color32>>>);
 
 impl Renderer for Screen {
-    fn name(&self) -> &'static str {
-        "screen"
-    }
-
     fn info(&self) -> RendererInfo {
         RendererInfo::default()
     }
@@ -62,10 +58,10 @@ fn the_window_follows_the_title_and_clear_color_of_its_root() {
         app: Box::new(crate::testing::Showing(document)),
         layers: Vec::new(),
     });
-    let loaded = vec![Loaded {
+    let loaded = Loaded {
         renderer: Box::new(Screen(Rc::clone(&backgrounds))),
         fonts: None,
-    }];
+    };
     runner
         .start(loaded, Setup::new(Waker::new(|| {})))
         .expect("the renderer loads");

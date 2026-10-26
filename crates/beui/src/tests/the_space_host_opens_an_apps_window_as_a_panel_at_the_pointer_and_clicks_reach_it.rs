@@ -8,10 +8,6 @@ use beui_core::runner::{Launch, RunOptions, Runner};
 struct Screen;
 
 impl Renderer for Screen {
-    fn name(&self) -> &'static str {
-        "screen"
-    }
-
     fn info(&self) -> RendererInfo {
         RendererInfo::default()
     }
@@ -68,10 +64,10 @@ fn the_space_host_opens_an_apps_window_as_a_panel_at_the_pointer_and_clicks_reac
     });
     runner
         .start(
-            vec![Loaded {
+            Loaded {
                 renderer: Box::new(Screen),
                 fonts: None,
-            }],
+            },
             Setup::new(Waker::new(|| {})),
         )
         .expect("the renderer loads");

@@ -806,7 +806,6 @@ mod swiping_left_with_the_screen_reader_does_not_read_what_the_finger_crosses;
 mod swiping_the_simulated_middle_button_scrolls_in_ticks;
 mod switching_a_show_damages_both_panels;
 mod switching_dock_tabs_keeps_the_panel_it_hides;
-mod switching_renderers_moves_the_window_and_the_fonts_to_the_chosen_one;
 mod tab_builds_the_virtual_rows_beyond_the_ones_in_view;
 mod tab_focus_stays_in_the_active_document_when_the_inspector_is_open;
 mod tab_is_trapped_inside_an_open_context_menu;
@@ -2608,10 +2607,10 @@ impl Intaken {
         });
         runner
             .start(
-                vec![beui_core::renderer::Loaded {
+                beui_core::renderer::Loaded {
                     renderer: Box::new(crate::testing::Screen(VIEWPORT)),
                     fonts: None,
-                }],
+                },
                 Setup::new(Waker::new(|| {})),
             )
             .expect("the screen loads");
@@ -2821,10 +2820,6 @@ pub(crate) const SPACE_SCREEN: Vec2 = Vec2::new(800.0, 600.0);
 struct SpaceScreen;
 
 impl beui_core::renderer::Renderer for SpaceScreen {
-    fn name(&self) -> &'static str {
-        "screen"
-    }
-
     fn info(&self) -> RendererInfo {
         RendererInfo::default()
     }
@@ -2880,10 +2875,10 @@ impl InSpace {
         });
         runner
             .start(
-                vec![beui_core::renderer::Loaded {
+                beui_core::renderer::Loaded {
                     renderer: Box::new(SpaceScreen),
                     fonts: None,
-                }],
+                },
                 Setup::new(Waker::new(|| {})),
             )
             .expect("the renderer loads");
