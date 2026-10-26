@@ -2146,10 +2146,7 @@ fn apply_offers(runtime: &mut Runtime, instance: EditorInstanceId, region: Edito
             rect.size(),
             preview_scale(rect.size(), host::pixels_per_point()),
         ),
-        _ => (
-            rect.size() / zoom,
-            host::pixels_per_point() * zoom,
-        ),
+        _ => (rect.size() / zoom, host::pixels_per_point() * zoom),
     };
     let raster = match (raster, region) {
         (None, _) => scale_factor,
