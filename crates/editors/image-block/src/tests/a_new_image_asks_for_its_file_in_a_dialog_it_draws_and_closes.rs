@@ -32,6 +32,7 @@ fn a_new_image_asks_for_its_file_in_a_dialog_it_draws_and_closes() {
         "Cancel, the host's dismissal and Escape each ask the host to close it"
     );
 
+    dialog.set_size(vec2(360.0, 260.0));
     dialog.set_dialog(DialogFrame {
         narrow: true,
         bottom_inset: 24.0,
