@@ -1,5 +1,5 @@
-use beui_components_unstyled as unstyled;
 use accesskit::Role;
+use beui_components_unstyled as unstyled;
 use beui_components_unstyled::{ActionBarHandle, MenuNodes, ToggleHandle};
 use beui_core::icons::ICON_ELLIPSIS_VERTICAL;
 use beui_core::node::NodeId;
@@ -161,13 +161,7 @@ fn ActionPin(action: Action, labelled: bool, size: ButtonSize, prefix: String) -
             }</unstyled::Toggle>
         },
         None => view! {
-            <Button
-                icon_only={!labelled}
-                @test_id={id}
-                action={action}
-                variant
-                size
-            />
+            <Button icon_only={!labelled} @test_id={id} action={action} variant size />
         },
     };
     match labelled {

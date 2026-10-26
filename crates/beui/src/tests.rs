@@ -849,6 +849,7 @@ mod the_inspector_shows_the_accesskit_tree;
 mod the_inspector_shows_the_base_nodes_of_a_styled_component;
 mod the_inspector_shows_the_renderer_the_host_reports;
 mod the_inspector_swipes_back_as_far_as_its_slider_is_dragged;
+mod the_inspectors_dock_bar_holds_a_pick_toggle_on_its_tree_tools;
 mod the_inspectors_theme_overrides_the_apps_until_it_is_cleared;
 mod the_keyboard_is_asked_for_at_the_caret_and_after_an_ime_composition;
 mod the_keyboard_opening_scrolls_the_focused_field_into_what_is_left;
@@ -1493,16 +1494,27 @@ impl Harness {
             self.click(self.inspector_center("dock.switch"));
             self.settle();
         }
-        let panel = self.inspector().panel_rect().expect("the inspector is open");
+        let panel = self
+            .inspector()
+            .panel_rect()
+            .expect("the inspector is open");
         for _ in 0..4 {
             let row = self.inspector().tab_node(tab);
-            let rect = self.inspector().document.node_rect(row).expect("the tab is laid out");
+            let rect = self
+                .inspector()
+                .document
+                .node_rect(row)
+                .expect("the tab is laid out");
             if rect.bottom() <= panel.bottom() {
                 break;
             }
             let at = self.node_center(row);
             let at = pos2(at.x, panel.bottom() - 8.0);
-            self.scroll_at(at, Vec2::new(0.0, panel.bottom() - rect.bottom()), Modifiers::NONE);
+            self.scroll_at(
+                at,
+                Vec2::new(0.0, panel.bottom() - rect.bottom()),
+                Modifiers::NONE,
+            );
             self.settle();
         }
         self.click(self.node_center(self.inspector().tab_node(tab)));
