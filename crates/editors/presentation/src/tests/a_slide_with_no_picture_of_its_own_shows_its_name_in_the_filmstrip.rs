@@ -55,7 +55,6 @@ fn a_slide_with_no_picture_of_its_own_shows_its_name_in_the_filmstrip() {
         error: None,
         menu: Vec::new(),
         creation: None,
-        settings: None,
         preview: match placement.mode {
             ChildMode::Preview => ChildPreview::Label,
             _ => ChildPreview::Hosted,

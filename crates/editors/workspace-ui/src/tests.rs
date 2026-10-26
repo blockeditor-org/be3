@@ -424,7 +424,6 @@ fn report_creation_dialog(
                 block_editor_beui::ChildContent::Creation { .. }
             )
             .then(|| progress.clone()),
-            settings: None,
             preview: Default::default(),
             dialog,
         });

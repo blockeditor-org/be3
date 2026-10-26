@@ -129,7 +129,6 @@ fn a_phone_shows_one_file_at_a_time_and_the_dock_bar_goes_back_or_switches() {
             false => Vec::new(),
         },
         creation: None,
-        settings: None,
         preview: Default::default(),
         dialog: Default::default(),
     });
