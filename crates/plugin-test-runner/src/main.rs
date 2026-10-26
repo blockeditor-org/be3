@@ -101,32 +101,27 @@ fn usage(program: &str) -> ! {
 }
 
 fn run(wasm: &Path, arguments: &[String], precompiled: Option<&Path>) -> Result<i32, String> {
-    let root = workspace()?;
+    let directories = guest_directories()?;
     let host = Host::on_demand(gpu, None)?;
-    host.run_tests(wasm, arguments, &root, precompiled)
+    host.run_tests(wasm, arguments, &directories, precompiled)
 }
 
-fn workspace() -> Result<PathBuf, String> {
-    let start = match std::env::var_os("CARGO_MANIFEST_DIR") {
-        Some(directory) => PathBuf::from(directory),
-        None => std::env::current_dir()
-            .map_err(|error| format!("the working directory is unreadable: {error}"))?,
-    };
-    start
-        .ancestors()
-        .find(|directory| holds_the_workspace(directory))
-        .map(Path::to_path_buf)
-        .ok_or_else(|| {
-            format!(
-                "no workspace holds {}, run these tests through cargo",
-                start.display()
-            )
-        })
-}
-
-fn holds_the_workspace(directory: &Path) -> bool {
-    std::fs::read_to_string(directory.join("Cargo.toml"))
-        .is_ok_and(|manifest| manifest.contains("[workspace]"))
+fn guest_directories() -> Result<Vec<PathBuf>, String> {
+    let mut directories: Vec<PathBuf> = GUEST_PATHS
+        .iter()
+        .filter_map(|name| std::env::var_os(name).map(PathBuf::from))
+        .collect();
+    if std::env::var_os("CARGO_MANIFEST_DIR").is_none() {
+        directories.push(
+            std::env::current_dir()
+                .map_err(|error| format!("the working directory is unreadable: {error}"))?,
+        );
+    }
+    for directory in &directories {
+        std::fs::create_dir_all(directory)
+            .map_err(|error| format!("could not create {}: {error}", directory.display()))?;
+    }
+    Ok(directories)
 }
 
 fn gpu() -> Result<(wgpu::Device, wgpu::Queue), String> {

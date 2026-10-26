@@ -21,7 +21,11 @@ fn each_changed_file_counts_toward_one_kind_of_line() {
         ("crates/block-app/web/index.js", Some(Kind::Other)),
         ("crates/editors/pdf/manifest.json", Some(Kind::Other)),
         ("scriptsx/run", Some(Kind::Other)),
-        ("snapshots/beui-demo.buttons.paint", None),
+        ("crates/beui-demo/snapshots/buttons.paint", None),
+        (
+            "crates/editors/checklist/snapshots/adding_an_item_puts_it_on_the_list.paint",
+            None,
+        ),
     ] {
         assert_eq!(kind(path), expected, "{path}");
     }
