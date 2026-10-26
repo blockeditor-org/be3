@@ -13,7 +13,7 @@ use bytemuck::{Pod, Zeroable};
 use glam::{Mat4, Vec3};
 
 use crate::floor;
-use crate::head::EYE_HEIGHT;
+use crate::head::{EYE_HEIGHT, View};
 use crate::space::SKY;
 
 const DEPTH: wgpu::TextureFormat = wgpu::TextureFormat::Depth32Float;
@@ -37,6 +37,25 @@ pub struct PanelFrame {
     pub chrome: Option<ChromeFrame>,
 }
 
+#[derive(Clone, Copy, PartialEq, Debug)]
+pub struct Sight {
+    pub view_projection: Mat4,
+    pub eye: Vec3,
+    pub right: Vec3,
+    pub up: Vec3,
+}
+
+impl Sight {
+    pub fn of(view: &View) -> Self {
+        Self {
+            view_projection: view.view_projection(),
+            eye: view.position,
+            right: view.rotation * Vec3::X,
+            up: view.rotation * Vec3::Y,
+        }
+    }
+}
+
 #[derive(Clone)]
 pub struct Frame {
     pub pixels_per_point: f32,
@@ -48,6 +67,31 @@ pub struct Frame {
     pub up: Vec3,
     pub cursor: Option<PanelFrame>,
     pub panels: Vec<PanelFrame>,
+}
+
+impl Frame {
+    fn sight(&self) -> Sight {
+        Sight {
+            view_projection: self.view_projection,
+            eye: self.eye,
+            right: self.right,
+            up: self.up,
+        }
+    }
+}
+
+struct Destination<'a> {
+    sight: Sight,
+    viewport: Viewport,
+    size: (u32, u32),
+    format: wgpu::TextureFormat,
+    resolve: Option<&'a wgpu::TextureView>,
+}
+
+#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
+enum Viewport {
+    Window,
+    View(usize),
 }
 
 #[repr(C)]
@@ -100,14 +144,15 @@ struct Panel {
 
 struct Target {
     size: (u32, u32),
+    format: wgpu::TextureFormat,
     color: wgpu::TextureView,
-    resolved: wgpu::TextureView,
+    resolved: Option<(wgpu::TextureView, wgpu::BindGroup)>,
     depth: wgpu::TextureView,
-    group: wgpu::BindGroup,
+    scene_uniform: wgpu::Buffer,
+    scene_group: wgpu::BindGroup,
 }
 
 struct Pipelines {
-    format: wgpu::TextureFormat,
     background: wgpu::RenderPipeline,
     grid: wgpu::RenderPipeline,
     panel: wgpu::RenderPipeline,
@@ -127,12 +172,10 @@ struct Gpu {
     texture_layout: wgpu::BindGroupLayout,
     mip_layout: wgpu::BindGroupLayout,
     blit_layout: wgpu::BindGroupLayout,
-    scene_uniform: wgpu::Buffer,
-    scene_group: wgpu::BindGroup,
     blit_uniform: wgpu::Buffer,
     mip: wgpu::RenderPipeline,
-    pipelines: Option<Pipelines>,
-    target: Option<Target>,
+    pipelines: HashMap<wgpu::TextureFormat, Pipelines>,
+    targets: HashMap<Viewport, Target>,
     panels: HashMap<WindowId, Panel>,
     pending: HashMap<WindowId, Pending>,
     chrome: HashMap<WindowId, Panel>,
@@ -180,6 +223,33 @@ impl Compositor {
         gpu.pending.remove(&window);
         gpu.chrome.remove(&window);
         gpu.chrome_pending.remove(&window);
+    }
+
+    pub fn draw_views(
+        &self,
+        encoder: &mut wgpu::CommandEncoder,
+        frame: &Frame,
+        targets: &[(usize, &View, &wgpu::TextureView, wgpu::TextureFormat)],
+    ) {
+        let mut gpu = self.0.borrow_mut();
+        gpu.paint_windows(encoder);
+        for &(index, view, texture, format) in targets {
+            let size = (
+                (view.size.x.round() as u32).max(1),
+                (view.size.y.round() as u32).max(1),
+            );
+            gpu.render(
+                encoder,
+                frame,
+                Destination {
+                    sight: Sight::of(view),
+                    viewport: Viewport::View(index),
+                    size,
+                    format,
+                    resolve: Some(texture),
+                },
+            );
+        }
     }
 
     pub fn drawing(&self, frame: Frame) -> Drawing {
@@ -235,19 +305,45 @@ impl Draw for SpaceDraw {
     ) {
         let mut gpu = self.gpu.0.borrow_mut();
         gpu.paint_windows(encoder);
-        gpu.render(encoder, &self.frame, at);
+        let size = (at.width().max(1), at.height().max(1));
+        gpu.render(
+            encoder,
+            &self.frame,
+            Destination {
+                sight: self.frame.sight(),
+                viewport: Viewport::Window,
+                size,
+                format: at.format,
+                resolve: None,
+            },
+        );
+        gpu.queue.write_buffer(
+            &gpu.blit_uniform,
+            0,
+            bytemuck::bytes_of(&BlitUniform {
+                rect: at.rect,
+                screen: [at.screen.x, at.screen.y, 0.0, 0.0],
+            }),
+        );
     }
 
     fn paint(&self, pass: &mut wgpu::RenderPass<'_>, at: DrawAt) {
         let gpu = self.gpu.0.borrow();
-        let (Some(pipelines), Some(target)) = (&gpu.pipelines, &gpu.target) else {
+        let (Some(pipelines), Some(target)) = (
+            gpu.pipelines.get(&at.format),
+            gpu.targets.get(&Viewport::Window),
+        ) else {
             return;
         };
-        if pipelines.format != at.format {
+        let Some((_, group)) = target
+            .resolved
+            .as_ref()
+            .filter(|_| target.format == at.format)
+        else {
             return;
-        }
+        };
         pass.set_pipeline(&pipelines.blit);
-        pass.set_bind_group(0, &target.group, &[]);
+        pass.set_bind_group(0, group, &[]);
         pass.draw(0..4, 0..1);
     }
 }
@@ -402,15 +498,6 @@ impl Gpu {
             min_filter: wgpu::FilterMode::Linear,
             ..wgpu::SamplerDescriptor::default()
         });
-        let scene_uniform = uniform_buffer(&device, "space scene", size_of::<SceneUniform>());
-        let scene_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
-            label: Some("space scene"),
-            layout: &scene_layout,
-            entries: &[wgpu::BindGroupEntry {
-                binding: 0,
-                resource: scene_uniform.as_entire_binding(),
-            }],
-        });
         let blit_uniform = uniform_buffer(&device, "space blit", size_of::<BlitUniform>());
         let mip = pipeline(
             &device,
@@ -437,12 +524,10 @@ impl Gpu {
             texture_layout,
             mip_layout,
             blit_layout,
-            scene_uniform,
-            scene_group,
             blit_uniform,
             mip,
-            pipelines: None,
-            target: None,
+            pipelines: HashMap::new(),
+            targets: HashMap::new(),
             panels: HashMap::new(),
             pending: HashMap::new(),
             chrome: HashMap::new(),
@@ -451,11 +536,7 @@ impl Gpu {
     }
 
     fn pipelines(&mut self, format: wgpu::TextureFormat) {
-        if self
-            .pipelines
-            .as_ref()
-            .is_some_and(|pipelines| pipelines.format == format)
-        {
+        if self.pipelines.contains_key(&format) {
             return;
         }
         let device = &self.device;
@@ -490,9 +571,7 @@ impl Gpu {
             depth: Some(true),
             blend: None,
         };
-        self.target = None;
-        self.pipelines = Some(Pipelines {
-            format,
+        let pipelines = Pipelines {
             background: pipeline_comparing(
                 device,
                 shader,
@@ -544,14 +623,15 @@ impl Gpu {
                     blend: None,
                 },
             ),
-        });
+        };
+        self.pipelines.insert(format, pipelines);
     }
 
-    fn target(&mut self, size: (u32, u32), format: wgpu::TextureFormat) {
+    fn target(&mut self, viewport: Viewport, size: (u32, u32), format: wgpu::TextureFormat) {
         if self
-            .target
-            .as_ref()
-            .is_some_and(|target| target.size == size)
+            .targets
+            .get(&viewport)
+            .is_some_and(|target| target.size == size && target.format == format)
         {
             return;
         }
@@ -579,43 +659,63 @@ impl Gpu {
             SAMPLES,
             wgpu::TextureUsages::RENDER_ATTACHMENT,
         );
-        let resolved = texture(
-            "space scene",
-            format,
-            1,
-            wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::TEXTURE_BINDING,
-        );
         let depth = texture(
             "space depth",
             DEPTH,
             SAMPLES,
             wgpu::TextureUsages::RENDER_ATTACHMENT,
         );
-        let group = self.device.create_bind_group(&wgpu::BindGroupDescriptor {
-            label: Some("space blit"),
-            layout: &self.blit_layout,
-            entries: &[
-                wgpu::BindGroupEntry {
-                    binding: 0,
-                    resource: self.blit_uniform.as_entire_binding(),
-                },
-                wgpu::BindGroupEntry {
-                    binding: 1,
-                    resource: wgpu::BindingResource::TextureView(&resolved),
-                },
-                wgpu::BindGroupEntry {
-                    binding: 2,
-                    resource: wgpu::BindingResource::Sampler(&self.linear),
-                },
-            ],
+        let resolved = (viewport == Viewport::Window).then(|| {
+            let resolved = texture(
+                "space scene",
+                format,
+                1,
+                wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::TEXTURE_BINDING,
+            );
+            let group = self.device.create_bind_group(&wgpu::BindGroupDescriptor {
+                label: Some("space blit"),
+                layout: &self.blit_layout,
+                entries: &[
+                    wgpu::BindGroupEntry {
+                        binding: 0,
+                        resource: self.blit_uniform.as_entire_binding(),
+                    },
+                    wgpu::BindGroupEntry {
+                        binding: 1,
+                        resource: wgpu::BindingResource::TextureView(&resolved),
+                    },
+                    wgpu::BindGroupEntry {
+                        binding: 2,
+                        resource: wgpu::BindingResource::Sampler(&self.linear),
+                    },
+                ],
+            });
+            (resolved, group)
         });
-        self.target = Some(Target {
-            size,
-            color: multisampled,
-            resolved,
-            depth,
-            group,
+        let scene_uniform = match self.targets.remove(&viewport) {
+            Some(target) => target.scene_uniform,
+            None => uniform_buffer(&self.device, "space scene", size_of::<SceneUniform>()),
+        };
+        let scene_group = self.device.create_bind_group(&wgpu::BindGroupDescriptor {
+            label: Some("space scene"),
+            layout: &self.scene_layout,
+            entries: &[wgpu::BindGroupEntry {
+                binding: 0,
+                resource: scene_uniform.as_entire_binding(),
+            }],
         });
+        self.targets.insert(
+            viewport,
+            Target {
+                size,
+                format,
+                color: multisampled,
+                resolved,
+                depth,
+                scene_uniform,
+                scene_group,
+            },
+        );
     }
 
     fn sheets(&mut self, chrome: bool) -> &mut HashMap<WindowId, Panel> {
@@ -798,18 +898,29 @@ impl Gpu {
         }
     }
 
-    fn render(&mut self, encoder: &mut wgpu::CommandEncoder, frame: &Frame, at: DrawAt) {
-        let size = (at.width().max(1), at.height().max(1));
-        self.pipelines(at.format);
-        self.target(size, at.format);
-        let (Some(pipelines), Some(target)) = (&self.pipelines, &self.target) else {
+    fn render(&mut self, encoder: &mut wgpu::CommandEncoder, frame: &Frame, into: Destination) {
+        let Destination {
+            sight,
+            viewport,
+            size,
+            format,
+            resolve,
+        } = into;
+        self.pipelines(format);
+        self.target(viewport, size, format);
+        let (Some(pipelines), Some(target)) =
+            (self.pipelines.get(&format), self.targets.get(&viewport))
+        else {
+            return;
+        };
+        let Some(resolve) = resolve.or(target.resolved.as_ref().map(|(view, _)| view)) else {
             return;
         };
         let scene = SceneUniform {
-            view_projection: frame.view_projection.to_cols_array_2d(),
-            eye: frame.eye.extend(1.0).to_array(),
-            right: frame.right.extend(0.0).to_array(),
-            up: frame.up.extend(0.0).to_array(),
+            view_projection: sight.view_projection.to_cols_array_2d(),
+            eye: sight.eye.extend(1.0).to_array(),
+            right: sight.right.extend(0.0).to_array(),
+            up: sight.up.extend(0.0).to_array(),
             sky: SKY.to_linear_f32(),
             ground: floor::GROUND.to_linear_f32(),
             grid: floor::GRID.to_linear_f32(),
@@ -820,19 +931,11 @@ impl Gpu {
                 floor::FADE_END,
                 EYE_HEIGHT,
             ],
-            inverse: frame.view_projection.inverse().to_cols_array_2d(),
-            options: [f32::from(u8::from(at.format.is_srgb())), 0.0, 0.0, 0.0],
+            inverse: sight.view_projection.inverse().to_cols_array_2d(),
+            options: [f32::from(u8::from(format.is_srgb())), 0.0, 0.0, 0.0],
         };
         self.queue
-            .write_buffer(&self.scene_uniform, 0, bytemuck::bytes_of(&scene));
-        self.queue.write_buffer(
-            &self.blit_uniform,
-            0,
-            bytemuck::bytes_of(&BlitUniform {
-                rect: at.rect,
-                screen: [at.screen.x, at.screen.y, 0.0, 0.0],
-            }),
-        );
+            .write_buffer(&target.scene_uniform, 0, bytemuck::bytes_of(&scene));
         for panel in frame.panels.iter().chain(&frame.cursor) {
             let uniform = |lift: f32, span: [f32; 4], opacity: f32| PanelUniform {
                 model: panel.model.to_cols_array_2d(),
@@ -860,9 +963,9 @@ impl Gpu {
             color_attachments: &[Some(wgpu::RenderPassColorAttachment {
                 view: &target.color,
                 depth_slice: None,
-                resolve_target: Some(&target.resolved),
+                resolve_target: Some(resolve),
                 ops: wgpu::Operations {
-                    load: wgpu::LoadOp::Clear(wgpu_color_in(at.format, SKY)),
+                    load: wgpu::LoadOp::Clear(wgpu_color_in(format, SKY)),
                     store: wgpu::StoreOp::Discard,
                 },
             })],
@@ -878,7 +981,7 @@ impl Gpu {
             occlusion_query_set: None,
             multiview_mask: None,
         });
-        pass.set_bind_group(0, &self.scene_group, &[]);
+        pass.set_bind_group(0, &target.scene_group, &[]);
         pass.set_pipeline(&pipelines.background);
         pass.draw(0..4, 0..1);
         pass.set_pipeline(&pipelines.grid);

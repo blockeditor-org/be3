@@ -12,23 +12,14 @@ Space already shows every window as a panel the viewer can carry, face, roll,
 scale, bend and resize through host chrome, with a drawn 3D cursor, a held
 pointer, per-window rasters that change without relayout, and placements
 (scale and bend included) that reopen a window where it was within a run
-(PR #691); nothing keeps them across restarts yet. It draws through one
-eye: `Head` has a single pose and a fixed symmetric projection
-(`head::FOV_Y`, `Head::view_projection`), and `scale::wanted` sizes rasters
-from that one view. Input is one mouse pointer and a keyboard.
+(PR #691); nothing keeps them across restarts yet. It draws through any
+number of views, each a pose with an off-axis field of view (`head::View`,
+`head::Fov`): the simulator's one, or tracked views an XR host hands
+`Space::set_views` and draws with `Space::draw` (guides/beui.md, "Views").
+Input is one mouse pointer and a keyboard.
 
 The simulator stays a first-class backend throughout: every space test keeps
 running without a headset.
-
-## M0. Viewers in space
-
-Space renders N views, each an off-axis projection built from asymmetric field
-of view tangents (left, right, up, down), from a pose source: the simulator's
-mouse, WASD and Q/E steering, or XR's `xrLocateViews` against a `LOCAL_FLOOR`
-or `STAGE` space. `scale::wanted` takes the most any view needs. Code that
-reads `self.head` keeps working off the centre eye. No behaviour change.
-
-About 0.8k lines. Blocks M1, M3 and M11.
 
 ## M1. OpenXR on Linux
 
@@ -45,6 +36,10 @@ loader; no C++ build).
 - **Pacing.** A host pacing hook: `xrWaitFrame` drives frames, winit runs in
   `Poll`, the mirror presents without vsync, and the predicted display time
   is `HostView::now` and the frame clock.
+- **Views.** `xrLocateViews` against a `LOCAL_FLOOR` or `STAGE` space at the
+  predicted display time, handed to `Space::set_views` as `head::Views`
+  (`Fov::from_angles` takes `XrFovf`), and each eye drawn with `Space::draw`
+  into its swapchain image.
 - **Drawing.** Multiview (wgpu 29's `multiview_mask`, `@builtin(view_index)`)
   with a two-pass fallback; MSAA resolves into the swapchain.
 - **Mirror.** A desktop window mirrors the view and keeps keyboard focus.
@@ -57,7 +52,7 @@ Risks:
 - `xrWaitFrame` blocks the main loop, which also runs plugins and the Wayland
   server.
 
-About 3-4k lines. Needs M0.
+About 3-4k lines.
 
 CI: a smoke test against Monado's headless (null) compositor on lavapipe,
 landed with M1.
@@ -67,15 +62,14 @@ landed with M1.
 - **beui-core.** A ray pointer kind (`PointerId::Ray(TouchId)`, next to
   `Mouse`, `Touch` and `Pen`) that hovers, and presses like touch: a drag
   scrolls, a long press opens the context menu. Hover paths, scroll and
-  cursors become per pointer (`WindowRequests::cursor` per pointer). This part
-  can start before M0.
+  cursors become per pointer (`WindowRequests::cursor` per pointer).
 - **Space.** Per-laser state replaces the single `carry`, `resize`,
   `chrome.gesture`, `hovered` and `captured` on `Space`. Grip carries; two
   hands scale and rotate. Rays are smoothed (One-Euro) and frozen at a
   trigger press so the click lands where it was aimed.
 - **drive.** `drive xr …` commands set controller poses and buttons.
 
-About 2k lines. Needs M0. **(ask)** whether a laser acts as touch or as a
+About 2k lines. **(ask)** whether a laser acts as touch or as a
 hovering mouse, and whether the second hand is a full pointer.
 
 ## M5. Keyboard panel
@@ -151,11 +145,11 @@ The riskiest: wgpu has no WebXR binding, the WebGL route needs an
 `xrCompatible` WebGL2 context, and space must build for wasm and be wired into
 `run_web` (`crates/beui/src/web.rs`, which launches with `host: None`).
 
-2k lines or more. Needs M0 and M3. **(ask)** whether WebXR is in scope.
+2k lines or more. Needs M3. **(ask)** whether WebXR is in scope.
 
 ## Suggested order
 
-M0, M1, M3, M5, M8, M6, M7, M9, M10, M11.
+M1, M3, M5, M8, M6, M7, M9, M10, M11.
 
 ## Smaller follow-ups
 

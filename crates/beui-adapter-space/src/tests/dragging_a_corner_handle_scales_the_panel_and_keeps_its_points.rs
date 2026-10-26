@@ -45,7 +45,8 @@ fn dragging_a_corner_handle_scales_the_panel_and_keeps_its_points() {
         "the handle stays under the cursor"
     );
 
-    let sharper = |panel: &Panel| crate::scale::wanted(panel, &space.head, PLATFORM).unwrap();
+    let sharper =
+        |panel: &Panel| crate::scale::wanted(panel, &[space.head.view(PLATFORM)]).unwrap();
     assert!(
         (sharper(&panel) / sharper(&start) - 0.8).abs() < 0.01,
         "its texture gets as many fewer pixels per point as it shrank"

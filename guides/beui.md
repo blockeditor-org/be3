@@ -3055,6 +3055,24 @@ all its 3D (`glam`) stays in the crate.
   go through the same rule (a driver's motion is in points, scaled to pixels
   first), so `drive keydown ctrl; drive keydown shift; drive keydown w` walks
   and `drive motion 200 0` while Ctrl and Shift are held turns the head.
+- Views: what the scene is drawn through is a list of `head::View { position,
+  rotation, fov, size }`, a pose with an off-axis `head::Fov` (built from the
+  tangents of its left, right, up and down edges, `Fov::tangents`, or from
+  OpenXR's angles, `Fov::from_angles`; `Fov::projection` is right-handed with
+  depth 0 to 1 between `NEAR` and `FAR`) and its target's size in pixels.
+  `Space::views` is the pose source's: the simulator's one view, the head over
+  the platform window (`Head::view`, a symmetric `FOV_Y`), or the tracked
+  `head::Views { display_time, views }` an XR host hands `Space::set_views`
+  each frame (`None` goes back to the simulator), in world space, whose floor
+  is y = 0. Tracked views move `Space::head` to their centre (mean position,
+  averaged rotation, `Head::posed`), so everything that reads the head (cursor
+  rays, carry, chrome, the window, which mirrors that centre eye at
+  `FOV_Y`) works off the centre eye. `Space::draw(encoder, targets)` draws
+  each `ViewTarget { view, texture, format }` (a 2D texture view of that
+  view's size, such as an XR swapchain image) through its own view: a 4x
+  multisampled pass per view resolved into the texture, after painting any
+  window that changed; the platform window is still drawn by the `Drawing`
+  `Space::frame` returns.
 - Carry: on `WindowRequest::BeginMove` (for any window) the panel keeps its pose relative to the
   head, with the grabbed point on the cursor's ray at a fixed distance, so
   moving the mouse or steering carries it. As the mouse swings the ray around
@@ -3107,11 +3125,12 @@ all its 3D (`glam`) stays in the crate.
   app lays out at it the same frame; the app sees no moves meanwhile, and the
   carry's rule for letting go ends it, with a `Placed` for the panel's new
   centre.
-- Sharpness (`scale`): each frame `Space` gives every panel the pixels per
-  point it shows at on screen: the frustum-clipped panel's nearest depth
+- Sharpness (`scale`): each frame `Space` gives every panel the most pixels per
+  point any of its views shows it at (`scale::wanted`): per view, the frustum-clipped panel's nearest depth
   (its outline sampled along the top and bottom edges, so a bent panel's
-  nearer sides count), as screen pixels per point there (so a panel scaled
-  up by its chrome gets more), times `SUPERSAMPLE` (1.25, so the main
+  nearer sides count), as the view's pixels per point there (so a panel scaled
+  up by its chrome gets more; a view's pixels per unit of tangent,
+  `Fov::pixels_per_tangent`, is the larger of across and down), times `SUPERSAMPLE` (1.25, so the main
   panel's first 80% view is drawn at exactly the platform's scale), rounded
   up to a step of `STEPS_PER_DOUBLING` (4) per doubling, between
   `LEAST_SCALE` (0.5) and `MOST_SCALE` (4) and no larger than

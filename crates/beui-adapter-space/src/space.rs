@@ -19,7 +19,7 @@ use glam::{Mat4, Quat, Vec3};
 use crate::carry::{Carry, NEAREST};
 use crate::chrome::{self, Chrome, Corner, Gesture, Look, Part};
 use crate::cursor::{self, Sprite};
-use crate::head::{Head, Ray};
+use crate::head::{Head, Ray, View, Views};
 use crate::hold::Hold;
 use crate::panel::{Hit, Panel, Pose, pick};
 use crate::render::{ChromeFrame, Compositor, Frame, PanelFrame};
@@ -62,6 +62,7 @@ struct Shown {
 
 pub struct Space {
     pub head: Head,
+    tracked: Option<Views>,
     pub panels: Vec<Panel>,
     pub carry: Option<Carry>,
     pub resize: Option<Resize>,
@@ -108,6 +109,7 @@ impl Space {
     pub fn new() -> Self {
         Self {
             head: Head::default(),
+            tracked: None,
             panels: Vec::new(),
             carry: None,
             resize: None,
@@ -149,6 +151,24 @@ impl Space {
         self.modifiers.ctrl && self.modifiers.shift
     }
 
+    pub fn set_views(&mut self, views: Option<Views>) {
+        if let Some((position, rotation)) = views.as_ref().and_then(Views::centre) {
+            self.head = Head::posed(position, rotation);
+        }
+        self.tracked = views;
+    }
+
+    pub fn tracked(&self) -> Option<&Views> {
+        self.tracked.as_ref()
+    }
+
+    pub fn views(&self) -> Vec<View> {
+        match &self.tracked {
+            Some(tracked) => tracked.views.clone(),
+            None => vec![self.head.view(self.platform)],
+        }
+    }
+
     pub fn scale(&self, window: WindowId) -> Option<f32> {
         self.scales
             .iter()
@@ -161,10 +181,11 @@ impl Space {
             self.gripped(),
             self.chrome.gesture.as_ref().map(Gesture::window),
         ];
+        let views = self.views();
         for panel in &self.panels {
             let window = panel.window;
             let held = self.scale(window);
-            let wanted = crate::scale::wanted(panel, &self.head, self.platform);
+            let wanted = crate::scale::wanted(panel, &views);
             let scale = crate::scale::chosen(held, wanted, panel.size, self.pixels_per_point);
             if held.is_some() {
                 if held == Some(scale) || gripped.contains(&Some(window)) {
@@ -1195,7 +1216,36 @@ impl WindowHost for Space {
     }
 }
 
+pub struct ViewTarget<'a> {
+    pub view: usize,
+    pub texture: &'a wgpu::TextureView,
+    pub format: wgpu::TextureFormat,
+}
+
 impl Space {
+    pub fn draw(&mut self, encoder: &mut wgpu::CommandEncoder, targets: &[ViewTarget<'_>]) {
+        let (Some(compositor), Some(now)) = (self.compositor.clone(), self.clock) else {
+            return;
+        };
+        let views = self.views();
+        let frame = self.scene(
+            &[],
+            &HostView {
+                platform: self.platform,
+                pixels_per_point: self.pixels_per_point,
+                now,
+            },
+        );
+        let targets: Vec<_> = targets
+            .iter()
+            .filter_map(|target| {
+                let view = views.get(target.view)?;
+                Some((target.view, view, target.texture, target.format))
+            })
+            .collect();
+        compositor.draw_views(encoder, &frame, &targets);
+    }
+
     pub(crate) fn scene(&mut self, windows: &[WindowOutput], view: &HostView) -> Frame {
         self.refresh_chrome(view.pixels_per_point);
         Frame {
