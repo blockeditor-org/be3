@@ -4,20 +4,21 @@ use beui_core::color::Color32;
 use beui_core::context::WindowOutput;
 use beui_core::geometry::Rect;
 use beui_core::painting::{
-    self, Content, Fade, Frame as Paint, Painting, Pixels, Placement, Primitive, Punches,
-    RoundedRect, Triangle, Turn, Vertex,
+    self, Content, Fade, Frame as Paint, Painting, Pixels, Primitive, Punches, RoundedRect,
+    Triangle, Turn, Vertex,
 };
 use glam::Vec3;
 
 use crate::chrome::LIFT;
 use crate::floor;
 use crate::head::NEAR;
-use crate::panel::bent;
 use crate::render::{Frame, PanelFrame};
 use crate::space::SKY;
 
-const COLUMNS: usize = 24;
-const ROWS: usize = 4;
+mod scene;
+
+use scene::Scene;
+
 const WHITE: u64 = u64::MAX;
 const BACKDROP: usize = 16;
 const GRID_REACH: f32 = 20.0;
@@ -42,6 +43,7 @@ pub fn painting(frame: &Frame, rect: Rect) -> Option<Painting> {
     };
     out.backdrop(frame, rect);
     out.grid(frame, rect);
+    let mut scene = Scene::new(frame, rect);
     let eye = frame.eye;
     let mut panels: Vec<&PanelFrame> = frame.panels.iter().collect();
     let distance = |panel: &PanelFrame| panel.model.w_axis.truncate().distance(eye);
@@ -57,7 +59,7 @@ pub fn painting(frame: &Frame, rect: Rect) -> Option<Painting> {
             let background = output.window.appearance.clear_color;
             let picture =
                 painting::painting(&output, output.size, scale, background, Punches::Shown).ok()?;
-            out.place(frame, rect, panel, &picture, [0.0, 0.0, 1.0, 1.0], 0.0, 1.0);
+            scene.surface(panel, picture, [0.0, 0.0, 1.0, 1.0], 0.0, 1.0);
         }
         if let Some(chrome) = panel.chrome
             && let Some(output) = find(&frame.chrome, panel)
@@ -70,17 +72,10 @@ pub fn painting(frame: &Frame, rect: Rect) -> Option<Painting> {
                 Punches::Shown,
             )
             .ok()?;
-            out.place(
-                frame,
-                rect,
-                panel,
-                &picture,
-                chrome.span,
-                LIFT,
-                chrome.opacity,
-            );
+            scene.surface(panel, picture, chrome.span, LIFT, chrome.opacity);
         }
     }
+    scene.paint(&mut out, scale);
     Some(Painting {
         frame: Paint {
             size: [
@@ -255,116 +250,6 @@ impl Out {
             }
         }
         self.mesh(rect, triangles);
-    }
-
-    #[allow(clippy::too_many_arguments)]
-    fn place(
-        &mut self,
-        frame: &Frame,
-        rect: Rect,
-        panel: &PanelFrame,
-        picture: &Painting,
-        span: [f32; 4],
-        lift: f32,
-        opacity: f32,
-    ) {
-        let screen = |u: f32, v: f32| -> Option<[f32; 2]> {
-            let u = span[0] + (span[2] - span[0]) * u;
-            let v = span[1] + (span[3] - span[1]) * v;
-            let local = bent(
-                panel.metres.x,
-                panel.bend,
-                (u - 0.5) * panel.metres.x,
-                (0.5 - v) * panel.metres.y,
-                lift,
-            );
-            let world: Vec3 = panel.model.transform_point3(local);
-            let clip = frame.view_projection * world.extend(1.0);
-            if clip.w <= NEAR {
-                return None;
-            }
-            let (x, y) = (clip.x / clip.w, clip.y / clip.w);
-            Some([
-                rect.min.x + (x + 1.0) / 2.0 * rect.width(),
-                rect.min.y + (1.0 - y) / 2.0 * rect.height(),
-            ])
-        };
-        let mut cells = Vec::new();
-        for column in 0..COLUMNS {
-            for row in 0..ROWS {
-                let (left, right) = (
-                    column as f32 / COLUMNS as f32,
-                    (column + 1) as f32 / COLUMNS as f32,
-                );
-                let (top, bottom) = (row as f32 / ROWS as f32, (row + 1) as f32 / ROWS as f32);
-                let (Some(c0), Some(c1), Some(c2), Some(c3)) = (
-                    screen(left, top),
-                    screen(right, top),
-                    screen(right, bottom),
-                    screen(left, bottom),
-                ) else {
-                    continue;
-                };
-                let facing = (c1[0] - c0[0]) * (c3[1] - c0[1]) - (c1[1] - c0[1]) * (c3[0] - c0[0]);
-                if facing <= 0.0 {
-                    continue;
-                }
-                let xs = [c0[0], c1[0], c2[0], c3[0]];
-                let ys = [c0[1], c1[1], c2[1], c3[1]];
-                let clip = [
-                    xs.into_iter().fold(f32::MAX, f32::min).max(rect.min.x),
-                    ys.into_iter().fold(f32::MAX, f32::min).max(rect.min.y),
-                    xs.into_iter().fold(f32::MIN, f32::max).min(rect.max.x),
-                    ys.into_iter().fold(f32::MIN, f32::max).min(rect.max.y),
-                ];
-                if clip[2] > clip[0] && clip[3] > clip[1] {
-                    cells.push(([left, top, right, bottom], [c0, c1, c2, c3], clip));
-                }
-            }
-        }
-        let mut background = picture.frame.background;
-        background[3] = (f32::from(background[3]) * opacity).round() as u8;
-        if background[3] > 0 {
-            self.white();
-            let vertex = |pos: [f32; 2]| Vertex {
-                pos,
-                uv: [0.0, 0.0],
-                color: background,
-            };
-            let triangles = cells
-                .iter()
-                .flat_map(|(_, [c0, c1, c2, c3], _)| {
-                    [[*c0, *c1, *c2], [*c0, *c2, *c3]].map(|corners| Triangle {
-                        texture: WHITE,
-                        corners: corners.map(vertex),
-                    })
-                })
-                .collect();
-            self.primitives.push(Primitive {
-                clip: [rect.min.x, rect.min.y, rect.max.x, rect.max.y],
-                fade: Fade::NONE,
-                content: Content::Mesh(triangles),
-            });
-        }
-        let mut picture = picture.clone();
-        picture.frame.background = [0; 4];
-        for (source, corners, clip) in cells {
-            let placed = picture.placed(Placement {
-                source,
-                corners,
-                clip,
-            });
-            for mut primitive in placed {
-                if !overlaps(&primitive) {
-                    continue;
-                }
-                faded(&mut primitive.content, opacity);
-                self.primitives.push(primitive);
-            }
-        }
-        for (key, pixels) in &picture.textures {
-            self.textures.entry(*key).or_insert_with(|| pixels.clone());
-        }
     }
 }
 

@@ -167,8 +167,6 @@ M1, M3, M5, M8, M6, M7, M9, M10, M11.
 - **Scroll copy** (`moved`) is used only by the wgpu window renderer: the web
   canvas always repaints everything, plugin surfaces fold moves into damage,
   and DRM screens do not copy. Plugin surfaces matter most, for block-app.
-- **Scene painting** (`picture.rs`) orders panels by centre distance, not per
-  pixel depth.
 - **Restored focus.** A restored session focuses the last window reopened,
   even when it is out of view.
 - **Untried on hardware.** winit's lock release on focus loss (X11, macOS,

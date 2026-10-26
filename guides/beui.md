@@ -3186,8 +3186,20 @@ all its 3D (`glam`) stays in the crate.
   mesh of the screen with each vertex's direction's colour, the grid lines
   within 20 m as thin quads (fading out by 20 m, where the GPU's go on to
   `floor::EXTENT`), then each panel's and its chrome's paintings placed onto
-  the projected surface cell by cell, far to near, which is what the crate's
-  painting tests compare.
+  the projected surface cell by cell (`picture::scene`), which is what the
+  crate's painting tests compare. Cells are ordered by depth per pixel, as
+  the GPU's depth test does: each cell is a flat quad, and two cells
+  overlapping on screen are in a fixed order wherever the difference of
+  their planes' depths along the eye's rays keeps one sign over their
+  overlap (checked at its corners, since it changes sign only along a
+  straight line). A cell with nothing to draw takes no part. When every
+  pair is decided, the cells are drawn in an order that keeps all of them
+  (far centres first where nothing decides); where panels pass through
+  each other or the pairs cycle, the screen is split into quarters on the
+  pixel grid until each is decided or one pixel, which takes the nearest
+  at its centre. A tile drops everything under the last opaque cell
+  covering it all, so an intersection costs a few primitives per pixel
+  along its line, and a scene with none paints as one tile.
 - Cursor: the host asks the platform for `CursorIcon::None` and draws its own
   in the scene, last and over everything, as a quad facing the head with its
   hotspot on the cursor's point (`Space::cursor_at`), or when that is out of
