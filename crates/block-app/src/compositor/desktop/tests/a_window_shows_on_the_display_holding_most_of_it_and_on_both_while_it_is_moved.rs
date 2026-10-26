@@ -63,16 +63,8 @@ fn a_window_shows_on_the_display_holding_most_of_it_and_on_both_while_it_is_move
         display("right", right, 2.0),
     ]);
     crate::display::apply_shown();
-    let on_left = shown_on(
-        place(left, &[left, right]),
-        PLUGIN.to_owned(),
-        INSTANCE,
-    );
-    let on_right = shown_on(
-        place(right, &[left, right]),
-        PLUGIN.to_owned(),
-        INSTANCE,
-    );
+    let on_left = shown_on(place(left, &[left, right]), PLUGIN.to_owned(), INSTANCE);
+    let on_right = shown_on(place(right, &[left, right]), PLUGIN.to_owned(), INSTANCE);
     note_origin(PLUGIN, INSTANCE, EditorRegion::Frame, left.min);
     request(
         PLUGIN,

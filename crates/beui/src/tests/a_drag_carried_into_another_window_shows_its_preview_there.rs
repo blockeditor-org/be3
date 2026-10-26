@@ -1,7 +1,9 @@
 use super::*;
 use crate::WindowId;
 use crate::primitives::{Window, WindowHandle};
-use crate::unstyled::{DRAG_PREVIEW_OFFSET, DragHandle, DragPoint, Draggable, DropHandle, DropTarget};
+use crate::unstyled::{
+    DRAG_PREVIEW_OFFSET, DragHandle, DragPoint, Draggable, DropHandle, DropTarget,
+};
 
 #[test]
 fn a_drag_carried_into_another_window_shows_its_preview_there() {
@@ -43,7 +45,10 @@ fn a_drag_carried_into_another_window_shows_its_preview_there() {
     let shown = |harness: &Harness| {
         let node = preview.get();
         let document = harness.document();
-        (document.window_of(node), document.node_rect(node).map(|rect| rect.min))
+        (
+            document.window_of(node),
+            document.node_rect(node).map(|rect| rect.min),
+        )
     };
     assert_eq!(
         shown(&harness),

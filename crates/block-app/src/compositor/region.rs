@@ -867,10 +867,7 @@ fn PanelWindows(editor: RegionEditor, rect: Memo<Rect>) -> NodeId {
     }
 }
 
-fn follow_panel_asks(
-    panel: Memo<Option<(Vec2, super::desktop::Panel)>>,
-    handle: WindowHandle,
-) {
+fn follow_panel_asks(panel: Memo<Option<(Vec2, super::desktop::Panel)>>, handle: WindowHandle) {
     let asked = create_memo(move || {
         panel.with(|panel| {
             panel

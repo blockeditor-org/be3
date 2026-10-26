@@ -148,7 +148,6 @@ struct Instance {
     stale: bool,
 }
 
-
 struct ContentLink {
     content_type: Uuid,
     attached: Option<bool>,

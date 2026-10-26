@@ -41,10 +41,6 @@ pub(crate) struct Floated {
     pub(crate) panel: Option<Panel>,
 }
 
-/// A window shown as a beui `Window` of its own where the host opens windows
-/// (space's panels), rather than drawn on the desktop: it opens where the
-/// plugin asked, the host of the `Window` moves and resizes it, and `placed`
-/// is where that host last put it.
 #[derive(Clone, Debug, PartialEq)]
 pub(crate) struct Panel {
     pub(crate) opened: WindowPlacement,
@@ -58,7 +54,10 @@ impl Floated {
     pub(crate) fn placement(&self) -> Option<String> {
         match &self.panel {
             Some(panel) => panel.placed.clone(),
-            None => Some(format!("{PLACEMENT} {} {}", self.rect.min.x, self.rect.min.y)),
+            None => Some(format!(
+                "{PLACEMENT} {} {}",
+                self.rect.min.x, self.rect.min.y
+            )),
         }
     }
 }
@@ -282,8 +281,8 @@ pub(crate) fn apply() {
                 }
             }
             WindowRequest::BeginMove(window) => {
-                if let Some(panel) = find(&windows, window)
-                    .and_then(|index| windows[index].panel.as_mut())
+                if let Some(panel) =
+                    find(&windows, window).and_then(|index| windows[index].panel.as_mut())
                 {
                     panel.moves += 1;
                 } else if let Some(index) = find(&windows, window) {
@@ -296,8 +295,8 @@ pub(crate) fn apply() {
                 }
             }
             WindowRequest::BeginResize(resize) => {
-                if let Some(panel) = find(&windows, resize.window)
-                    .and_then(|index| windows[index].panel.as_mut())
+                if let Some(panel) =
+                    find(&windows, resize.window).and_then(|index| windows[index].panel.as_mut())
                 {
                     panel.resizes = (panel.resizes.0 + 1, resize.edge);
                 } else if let Some(index) = find(&windows, resize.window) {

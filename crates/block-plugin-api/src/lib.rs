@@ -79,8 +79,8 @@ pub use types::{
     FontFace, FontRole, Fonts, FrameChrome, FrameCommit, FrameReport, FrameSpec, Hello,
     HelloAccepted, HostPanel, InputBatch, Occluder, OpenArtifact, OpenBlock, OpenCreation, Opening,
     PluginIdentity, PresentedFrame, PressClaim, RegionSize, ScreenDamage, ScreenLayout,
-    ScreenPlacement, ScreenRequest, ScreenWindow, Size, SurfaceFormat,
-    SurfaceRect, SurfaceSpec, SurfaceSupport, TimedInput, TopBar, ViewportMetrics,
+    ScreenPlacement, ScreenRequest, ScreenWindow, Size, SurfaceFormat, SurfaceRect, SurfaceSpec,
+    SurfaceSupport, TimedInput, TopBar, ViewportMetrics,
 };
 pub use types::{
     RegionRef, WindowEdge, WindowOpen, WindowOver, WindowPlacement, WindowRequest, WindowResize,
