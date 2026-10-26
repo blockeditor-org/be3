@@ -1,11 +1,11 @@
 {
-  "id": "be3.linux-desktop",
-  "name": "Linux desktop",
+  "id": "be3.desktop",
+  "name": "Desktop",
   "version": "0.1.0",
   "editors": {
     "desktop": {
       "id": "378d6c68-d52a-4781-addb-fde9a8aff2e2",
-      "display_name": "Linux desktop",
+      "display_name": "Desktop",
       "icon": "\ue11d",
       "interaction": "Live",
       "resize": "None",
@@ -21,6 +21,6 @@
       ]
     }
   },
-  "extensions": ["be3:linux-desktop"],
-  "entry_point": "linux_desktop.wasm"
+  "extensions": ["be3:desktop"],
+  "entry_point": "desktop.wasm"
 }

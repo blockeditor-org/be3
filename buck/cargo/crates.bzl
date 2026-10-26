@@ -17103,16 +17103,16 @@ crates = {
         "profile_flags": [],
         "version": "0.1.0",
     },
-    "crates/editors/linux-desktop": {
+    "crates/editors/desktop": {
         "binaries": [],
         "edition": "2024",
         "examples": [],
         "library": {
-            "crate": "linux_desktop",
+            "crate": "desktop",
             "crate_root": "src/lib.rs",
             "proc_macro": False,
         },
-        "name": "linux_desktop",
+        "name": "desktop",
         "platforms": {
             "wasi-guest": {
                 "binaries": {},

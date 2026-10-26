@@ -1,5 +1,5 @@
 load("@root//buck/wasm:defs.bzl", "editor")
 
 editor(
-    module = "linux_desktop",
+    module = "desktop",
 )

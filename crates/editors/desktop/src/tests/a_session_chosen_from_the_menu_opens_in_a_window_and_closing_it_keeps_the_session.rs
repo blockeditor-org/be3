@@ -5,7 +5,7 @@ fn a_session_chosen_from_the_menu_opens_in_a_window_and_closing_it_keeps_the_ses
     let (mut fixture, sessions) = Fixture::new().with_sessions(&[
         ("Laptop", WORKSPACE_EDITOR),
         ("Desk", WORKSPACE_EDITOR),
-        ("Other desktop", LINUX_DESKTOP_EDITOR),
+        ("Other desktop", DESKTOP_EDITOR),
     ]);
     fixture.settle();
 

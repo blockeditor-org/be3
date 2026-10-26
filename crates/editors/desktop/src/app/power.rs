@@ -5,7 +5,7 @@ use block_editor_beui::beui::icons::{
 };
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
-use block_editor_beui::linux_desktop;
+use block_editor_beui::desktop;
 use block_editor_beui::{Editor, PowerAction, PowerAvailability, PowerWatch};
 
 const DIALOG_SPACING: Space = Space::Xl;
@@ -84,7 +84,7 @@ pub(crate) fn PowerMenu(editor: Editor) -> NodeId {
         }
         match action {
             PowerAction::Lock | PowerAction::Suspend => {
-                editor.act(move || linux_desktop::power::request(action))
+                editor.act(move || desktop::power::request(action))
             }
             _ => {
                 confirming.set(action);
@@ -98,7 +98,7 @@ pub(crate) fn PowerMenu(editor: Editor) -> NodeId {
     let dismiss = move || open.set(false);
     let confirm = move || {
         open.set(false);
-        editor.act(move || linux_desktop::power::request(confirming.get_untracked()));
+        editor.act(move || desktop::power::request(confirming.get_untracked()));
     };
     view! {
         <List spacing=Space::None>

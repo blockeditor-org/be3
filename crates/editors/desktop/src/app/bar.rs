@@ -1,4 +1,4 @@
-use block_editor_beui::linux_desktop;
+use block_editor_beui::desktop;
 use std::time::Duration;
 
 use block_editor_beui::be_block::DisplaySettings;
@@ -77,7 +77,7 @@ pub(crate) fn DesktopBar(
     let notified = notifications.offered;
     let powered = editor.offered::<PowerWatch>();
     let epaper = editor.watch::<EpaperWatch>();
-    let refresh = move || editor.act(linux_desktop::epaper::refresh);
+    let refresh = move || editor.act(desktop::epaper::refresh);
     let displays = editor.watch::<DisplaysWatch>();
     let screen =
         create_memo(move || displays.with(|displays| displays.get(display as usize).cloned()));

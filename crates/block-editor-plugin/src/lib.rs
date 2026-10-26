@@ -31,7 +31,7 @@ mod wire;
 
 pub use asked::{Asked, Task};
 pub use block_plugin_api::accesskit;
-pub use block_plugin_api::guest::linux_desktop;
+pub use block_plugin_api::guest::desktop;
 pub use block_plugin_api::{
     AccessGrant, AccessLevel, AccessListing, AdministratorWatch, ArtifactAction, AudioCommand,
     AudioOutput, AudioSource, AudioStatus, BarAction, BlockCommand, BlockFilter, BlockLocation,

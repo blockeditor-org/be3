@@ -39,10 +39,10 @@ const WINDOW_CASCADE: f32 = 32.0;
 const WINDOW_CASCADES: u64 = 8;
 const WINDOW_SIZE: Vec2 = vec2(960.0, 640.0);
 
-pub struct LinuxDesktopApp;
+pub struct DesktopApp;
 
 #[component]
-impl block_editor_beui::BeuiApp for LinuxDesktopApp {
+impl block_editor_beui::BeuiApp for DesktopApp {
     #[component]
     fn View(editor: Editor) -> Root {
         view! {

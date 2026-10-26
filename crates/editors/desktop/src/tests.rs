@@ -1,7 +1,7 @@
 use block_editor_beui::be_block::BlockMetadata;
 use block_editor_beui::be_block::display_settings::{DisplayMode, Rotation};
 use block_editor_beui::be_block::{
-    DisplaySettings, DisplaySettingsContent, LINUX_DESKTOP_EDITOR, Root, Settings, SettingsContent,
+    DisplaySettings, DisplaySettingsContent, DESKTOP_EDITOR, Root, Settings, SettingsContent,
     SettingsProfile, SettingsProfileContent, VIEW_EDITOR, WORKSPACE_EDITOR,
 };
 use block_editor_beui::beui::{Document, Key, KeyChord, Modifiers, NodeId, Rect, Vec2};
@@ -19,7 +19,7 @@ use block_ui_test::BeuiTest;
 use uuid::Uuid;
 use workspace_ui_types::{EditorView, EditorViewContent};
 
-use crate::app::LinuxDesktopApp;
+use crate::app::DesktopApp;
 use crate::app::media::{BINDINGS, BRIGHTNESS_STEP, VOLUME_STEP};
 
 mod a_block_shown_on_the_desktop_opens_in_its_own_window;
@@ -93,7 +93,7 @@ const SPEAKERS: &str = "alsa_output.pci-0000_00_1f.3.analog-stereo";
 const HEADPHONES: &str = "bluez_output.headphones";
 
 struct Fixture {
-    test: BeuiTest<LinuxDesktopApp>,
+    test: BeuiTest<DesktopApp>,
     host: EditorHost,
     client: Uuid,
     settings: Uuid,

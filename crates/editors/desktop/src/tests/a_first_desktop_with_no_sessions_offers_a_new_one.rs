@@ -2,7 +2,7 @@ use super::*;
 
 #[test]
 fn a_first_desktop_with_no_sessions_offers_a_new_one() {
-    let (mut fixture, _) = Fixture::new().with_sessions(&[("Desktop", LINUX_DESKTOP_EDITOR)]);
+    let (mut fixture, _) = Fixture::new().with_sessions(&[("Desktop", DESKTOP_EDITOR)]);
     fixture.settle();
 
     fixture.test.click("desktop.sessions");

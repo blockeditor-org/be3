@@ -25,7 +25,7 @@ impl AppTest {
     }
 
     pub fn start_desktop() -> Self {
-        Self::start_with(&["--desktop"], "Pane \"Linux desktop\"")
+        Self::start_with(&["--desktop"], "Pane \"Desktop\"")
     }
 
     pub fn start_in_space() -> Self {

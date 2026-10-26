@@ -5,7 +5,7 @@ use block_editor_beui::beui::icons::{
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
 use block_editor_beui::beui::{Image, NodeId, ScrollGesture};
-use block_editor_beui::linux_desktop;
+use block_editor_beui::desktop;
 use block_editor_beui::{
     Editor, HostImage, HostTrayItem, TrayMenuEntry, TrayRequest, TrayStatus, TrayToggle, TrayWatch,
 };
@@ -99,7 +99,7 @@ fn TrayButton(editor: Editor, listed: Memo<Vec<HostTrayItem>>, id: String) -> No
         let (editor, id) = (editor, id.clone());
         move |request: fn(String) -> TrayRequest| {
             let request = request(id.clone());
-            editor.act(move || linux_desktop::tray::request(request))
+            editor.act(move || desktop::tray::request(request))
         }
     };
     let (click, secondary, middle) = (request.clone(), request.clone(), request);
@@ -109,7 +109,7 @@ fn TrayButton(editor: Editor, listed: Memo<Vec<HostTrayItem>>, id: String) -> No
             item: chosen_id.clone(),
             entry,
         };
-        editor.act(move || linux_desktop::tray::request(request));
+        editor.act(move || desktop::tray::request(request));
     });
     let prefix = format!("desktop.tray.{id}");
     let open = create_signal(false);
@@ -123,7 +123,7 @@ fn TrayButton(editor: Editor, listed: Memo<Vec<HostTrayItem>>, id: String) -> No
                     true => TrayRequest::MenuOpened(opened_id.clone()),
                     false => TrayRequest::MenuClosed(opened_id.clone()),
                 };
-                editor.act(move || linux_desktop::tray::request(request))
+                editor.act(move || desktop::tray::request(request))
             });
         }
     });
@@ -154,7 +154,7 @@ fn TrayButton(editor: Editor, listed: Memo<Vec<HostTrayItem>>, id: String) -> No
                         delta,
                         horizontal,
                     };
-                    editor.act(move || linux_desktop::tray::request(request));
+                    editor.act(move || desktop::tray::request(request));
                 }
             }}
             open

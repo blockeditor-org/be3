@@ -842,7 +842,7 @@ impl BlockApp {
 
     #[cfg(all(not(target_os = "android"), not(target_arch = "wasm32")))]
     fn run_as_desktop(&mut self) {
-        self.root_settings = RootSettings::new(be_block::LINUX_DESKTOP_EDITOR);
+        self.root_settings = RootSettings::new(be_block::DESKTOP_EDITOR);
         #[cfg(target_os = "linux")]
         {
             self.screen_lock = Some(session::ScreenLock::start());

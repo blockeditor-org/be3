@@ -3,7 +3,7 @@ mod history;
 mod markup;
 mod toasts;
 
-use block_editor_beui::linux_desktop;
+use block_editor_beui::desktop;
 use std::cell::{Cell, RefCell};
 use std::time::{Duration, Instant};
 
@@ -214,7 +214,7 @@ impl Shared {
         if received.is_some() || !signals.is_empty() || moved {
             self.reported.replace(kept.clone());
             self.editor.act(move || {
-                linux_desktop::notifications::report(NotificationReport {
+                desktop::notifications::report(NotificationReport {
                     received,
                     signals,
                     kept,

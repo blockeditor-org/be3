@@ -1,5 +1,5 @@
 [package]
-name = "linux_desktop"
+name = "desktop"
 edition.workspace = true
 version.workspace = true
 license.workspace = true

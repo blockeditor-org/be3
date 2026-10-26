@@ -2,7 +2,7 @@ use block_editor_beui::beui::icons::{ICON_APP_WINDOW, ICON_EXTERNAL_LINK};
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
 use block_editor_beui::beui::{Image, NodeId};
-use block_editor_beui::linux_desktop;
+use block_editor_beui::desktop;
 use block_editor_beui::{HostProgram, HostWindowId, ProgramAction, ProgramsWatch};
 use block_shell::{KeptWindow, Workspace};
 
@@ -35,7 +35,7 @@ impl Placeholders {
             let icon_size = (ICON_POINTS * scale.get_untracked()).ceil() as u32;
             untrack(|| {
                 editor.act(move || {
-                    linux_desktop::programs::request(ProgramAction::List { icon_size })
+                    desktop::programs::request(ProgramAction::List { icon_size })
                 })
             });
         });
@@ -72,7 +72,7 @@ impl Placeholders {
         if let Some(action) = action {
             self.workspace
                 .editor()
-                .act(move || linux_desktop::programs::request(action));
+                .act(move || desktop::programs::request(action));
         }
     }
 

@@ -3,7 +3,7 @@ use block_editor_beui::be_block::{
     BlockContent, BlockMetadata, FILES_EDITOR, Home, PREFERRED_EDITOR, Recents, VIEW_EDITOR,
     WORKSPACE_TYPE,
 };
-use block_editor_beui::linux_desktop;
+use block_editor_beui::desktop;
 use settings_types::EditorSettings;
 use std::cell::{Cell, RefCell};
 use std::collections::{HashMap, HashSet};
@@ -220,7 +220,7 @@ impl Workspace {
                 if fullscreen {
                     let window = *window;
                     self.host().act(move || {
-                        linux_desktop::windows::request(WindowAction::Fullscreen {
+                        desktop::windows::request(WindowAction::Fullscreen {
                             window,
                             fullscreen: true,
                         })
@@ -1244,11 +1244,11 @@ impl Workspace {
             match self.desk.with_untracked(|desk| desk.window(key)) {
                 Some(window) => self
                     .host()
-                    .act(move || linux_desktop::windows::request(WindowAction::Close(window))),
+                    .act(move || desktop::windows::request(WindowAction::Close(window))),
                 None if self.keeps_windows => self.dismiss(key),
                 None => self
                     .host()
-                    .act(move || linux_desktop::windows::request(WindowAction::Close(key))),
+                    .act(move || desktop::windows::request(WindowAction::Close(key))),
             }
             return;
         }

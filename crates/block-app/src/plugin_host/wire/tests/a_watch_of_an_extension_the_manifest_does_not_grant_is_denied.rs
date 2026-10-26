@@ -2,7 +2,7 @@ use std::{cell::RefCell, rc::Rc};
 
 use block_plugin_api::{
     AdministratorWatch, PowerAction, PowerWatch, Watched,
-    guest::linux_desktop::power,
+    guest::desktop::power,
     ops::{
         OpError,
         guest::{Executor, Serve, spawn, with_parent},
@@ -92,7 +92,7 @@ fn a_watch_of_an_extension_the_manifest_does_not_grant_is_denied() {
     );
     assert_eq!(*administrator.borrow(), None, "it waits for the value");
 
-    let mut wire = Wire::granting(vec!["be3:linux-desktop".to_owned()]);
+    let mut wire = Wire::granting(vec!["be3:desktop".to_owned()]);
     let (guest, editor, mut heard) = opened(&mut wire);
     let power = watched::<PowerWatch>(&guest, editor);
     guest.enter(|| with_parent(editor, || power::request(PowerAction::PowerOff)));

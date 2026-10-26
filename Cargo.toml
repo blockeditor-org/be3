@@ -97,7 +97,7 @@ members = [
     "crates/editors/image-block/types",
     "crates/editors/infinite-canvas",
     "crates/editors/infinite-canvas/types",
-    "crates/editors/linux-desktop",
+    "crates/editors/desktop",
     "crates/editors/logic-grid",
     "crates/editors/logic-grid/types",
     "crates/editors/map",

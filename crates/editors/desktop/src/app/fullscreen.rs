@@ -2,7 +2,7 @@ use beui::KeyAt;
 use block_editor_beui::beui::Key;
 use block_editor_beui::beui::icons::ICON_MAXIMIZE;
 use block_editor_beui::beui::reactive::*;
-use block_editor_beui::linux_desktop;
+use block_editor_beui::desktop;
 use block_editor_beui::{Editor, WindowAction, WindowsWatch};
 
 pub(super) fn bind_fullscreen(editor: Editor) {
@@ -16,7 +16,7 @@ pub(super) fn bind_fullscreen(editor: Editor) {
         });
         if let Some((window, fullscreen)) = focused {
             editor.act(move || {
-                linux_desktop::windows::request(WindowAction::Fullscreen {
+                desktop::windows::request(WindowAction::Fullscreen {
                     window,
                     fullscreen: !fullscreen,
                 })

@@ -206,7 +206,7 @@ pub(crate) fn PluginRegion(
     };
     let shell = super::shell();
     let shows_desktop = matches!(region, EditorRegion::Frame | EditorRegion::Display(_))
-        && matches!(editor.role, InstanceRole::Editor(id, block) if id == be_block::LINUX_DESKTOP_EDITOR && shell.get_untracked() == Some(block.id));
+        && matches!(editor.role, InstanceRole::Editor(id, block) if id == be_block::DESKTOP_EDITOR && shell.get_untracked() == Some(block.id));
     let hosts_windows = shows_desktop || floated_key.is_some();
     let primary = match (&floated_key, place) {
         (Some(key), Some(place)) => super::desktop::owns(place, key.clone()),

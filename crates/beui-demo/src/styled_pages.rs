@@ -372,7 +372,7 @@ fn ContentDrag() -> NodeId {
                  While it is held, dragging anywhere in a window, its bar and tabs included, \
                  moves the whole window, and dragging with the right button resizes it from \
                  its nearest edge or corner, or moves the split nearest the pointer in a docked \
-                 pane. Nothing in the dock or its tabs sees those presses. The Linux desktop \
+                 pane. Nothing in the dock or its tabs sees those presses. The desktop shell \
                  uses Super."
             </Text>
         </List>

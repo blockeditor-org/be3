@@ -93,7 +93,7 @@ pub use be_ops::Watched;
 pub use contacts::HostContact;
 pub use guest::account::{AdministratorWatch, LinkBaseWatch, PreferenceSourcesWatch};
 pub use guest::contacts::ContactsWatch;
-pub use guest::linux_desktop::{
+pub use guest::desktop::{
     displays::DisplaysWatch,
     epaper::EpaperWatch,
     input::{InputDevicesWatch, RemapsWatch},
@@ -106,8 +106,8 @@ pub use guest::linux_desktop::{
     wifi::WifiWatch,
     windows::WindowsWatch,
 };
-pub use linux::TrayMenuEntry;
-pub use linux_desktop::{
+pub use desktop_types::TrayMenuEntry;
+pub use desktop::{
     displays::HostDisplay,
     input::{HostInputDevice, RemapState},
     media::{AudioOutput, MediaLevel, MediaLevels, MediaRequest, PlayerCommand},
@@ -126,7 +126,7 @@ pub use linux_desktop::{
 mod accesskit_mirror;
 mod block_ids;
 mod input;
-mod linux;
+mod desktop_types;
 mod manifest;
 mod nesting;
 mod opening;
@@ -392,7 +392,7 @@ pub struct PluginManifest {
     pub extensions: Vec<String>,
 }
 
-pub const EXTENSIONS: &[&str] = &["be3:linux-desktop"];
+pub const EXTENSIONS: &[&str] = &["be3:desktop"];
 
 pub fn is_published(interface: &str) -> bool {
     interface == AdministratorWatch::INTERFACE

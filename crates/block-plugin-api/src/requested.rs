@@ -1,4 +1,4 @@
-use crate::embed::linux_desktop::{
+use crate::embed::desktop::{
     epaper, media, notifications, power, programs, tray, wifi, windows,
 };
 use crate::ops::Called;

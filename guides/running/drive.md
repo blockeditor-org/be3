@@ -110,7 +110,7 @@ Arguments after `--` go to the launcher, which passes on those it does not know:
   keep it in `~/.cache/be3/NAME/data` through `XDG_DATA_HOME`).
 - `--stop` stops it.
 - `--size=WIDTHxHEIGHT[@SCALE]` (1100x720 by default) and `--screen=WIDTHxHEIGHT` (1440x900).
-- Anything else, such as block-app's `--desktop` (guides/linux_desktop.md), goes to the program.
+- Anything else, such as block-app's `--desktop` (guides/desktop.md), goes to the program.
 
 A program's output goes to `~/.cache/be3/NAME/app.log`. `BE_DRIVE_DIR` moves the directory,
 for two copies of one program at once, so agents sharing a machine each give theirs a

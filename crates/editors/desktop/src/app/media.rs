@@ -8,7 +8,7 @@ use block_editor_beui::beui::icons::{
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::Frame;
 use block_editor_beui::beui::{Key, NodeId, Rect};
-use block_editor_beui::linux_desktop;
+use block_editor_beui::desktop;
 use block_editor_beui::{Editor, MediaLevel, MediaLevels, MediaRequest, MediaWatch, PlayerCommand};
 
 pub(crate) const VOLUME_STEP: f32 = 0.05;
@@ -185,7 +185,7 @@ pub(super) fn MediaKeys(editor: Editor, osd: Osd) -> NodeId {
     for (key, media_key) in BINDINGS {
         Action::new(media_key.id(), media_key.label(), move || {
             let (request, showing) = media_key.request();
-            editor.act(move || linux_desktop::media::request(request));
+            editor.act(move || desktop::media::request(request));
             if let Some(showing) = showing {
                 osd.show(showing);
             }

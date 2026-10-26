@@ -2067,7 +2067,7 @@ and kept inside the window. Where an app shows one window per monitor (block-app
 under `--session`, one per display), each window is a monitor, so a dialog opened
 in it stays on it. `use_viewport_size()` is the size of the main window a
 document is shown in (a `Dialog` reads it, or its hosted window's size, to become
-a sheet on a narrow one). `styled::Toasts` takes any anchor this way, so linux-desktop stacks its toasts in the
+a sheet on a narrow one). `styled::Toasts` takes any anchor this way, so the desktop plugin stacks its toasts in the
 corner of a display above its bar. A toast goes after its `duration` unless it is `sticky` or
 `danger`: an error stays until it is dismissed, so it cannot be missed. All of that is
 `unstyled::Toasts`: the overlay at an `edge` that lets input through, the stack, each
@@ -2077,7 +2077,7 @@ spacing and draws each card from a `ToastHandle` (the `Toast`, `dismiss`, `activ
 `act`).
 block-app's keep-changes prompt and lock screen are one card in a `Modal` that
 fills (or centres in) its window; block-app puts one in each display's window.
-linux-desktop's `LevelOsd` is one card in an inert `Fill` overlay, shown in each
+The desktop plugin's `LevelOsd` is one card in an inert `Fill` overlay, shown in each
 display's region.
 
 ### Docking and windows
@@ -2259,11 +2259,11 @@ wherever the focus is (a program's window included): the overlay holds no focus
 for Escape to find it by, so the dock listens for Escape at the window while it
 is open and asks the overlay to close (`Document::dismiss_overlay`), as a press
 outside or back does. A dock in a plugin only hears a key a program has the
-keyboard for when it intercepts the chord, so linux-desktop also registers
+keyboard for when it intercepts the chord, so the desktop plugin also registers
 Alt+Escape as an intercepting action that cancels. The dock binds no other key: whoever binds it decides the
 keys, usually a chord that begins or steps the switch while a modifier is held,
 and `held_modifiers()` letting go of that modifier to commit,
-as linux-desktop does with Alt+Tab and the demo with Alt+Q.
+as the desktop plugin does with Alt+Tab and the demo with Alt+Q.
 
 Each surface - the main one and one per window - lays its tree out over the
 rectangle it was given, so panes and the bars between them are canvas items at
@@ -2277,8 +2277,8 @@ A dock window is a `Window` (see "Windows and window hosts") sized to its rect
 plus the reach of its resize grips, which lie around it. Where nothing opens
 windows it is that `Window`'s overlay and the dock moves, clamps, springs back
 and resizes it itself. Where a host opens windows each dock window is a real
-window (space's panels, or block-app's windows on the desktop for linux-desktop's
-dock, guides/linux_desktop.md, Displays): a press on its bar calls `begin_move()` and a grip `begin_resize(edge)`
+window (space's panels, or block-app's windows on the desktop for the desktop plugin's
+dock, guides/desktop.md, Displays): a press on its bar calls `begin_move()` and a grip `begin_resize(edge)`
 (as does a secondary drag with `drag_modifier`, from the nearest edge or
 corner), so the host moves and resizes it. A size set from inside, such as
 `DockTabControl::resize_window`, changes the rect and so the `Window`'s `size`,
@@ -2413,7 +2413,7 @@ the pointer, and a primary drag does nothing: it is swallowed rather than handed
 to the content, since a press made with the modifier is never meant for it.
 Each window and each docked pane claims those presses (`claim_modifiers`), so
 neither the tabs nor the content see them. The code is
-`beui-dock/src/unstyled/modifier_drag.rs`; linux-desktop sets Super, and the demo's Docking page
+`beui-dock/src/unstyled/modifier_drag.rs`; the desktop plugin sets Super, and the demo's Docking page
 has a switch for Alt.
 
 A `DockDialog`, declared beside the dock's other children, is a window attached
@@ -4461,7 +4461,7 @@ signal. Work on another thread takes its `Waker` from `editor.woken()`,
 whose signal ticks once the work has woken the editor, and an effect that
 reads that signal collects the result.
 
-A plugin's frame can open windows (a dock's floating window, linux-desktop's).
+A plugin's frame can open windows (a dock's floating window, the desktop plugin's).
 Outside space and the desktop shell a `Window` is an overlay inside its
 region's window. Where the host shows windows as its own (the screen request's
 `windows`, `Region::windows`; guides/adding_a_plugin_editor.md), each becomes a

@@ -3,7 +3,7 @@ use block_editor_beui::beui::icons::{ICON_LAYOUT_GRID, ICON_TERMINAL};
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
 use block_editor_beui::beui::{Image, Key, NodeId};
-use block_editor_beui::linux_desktop;
+use block_editor_beui::desktop;
 use block_editor_beui::{Editor, HostProgram, ProgramAction, ProgramsWatch};
 
 const ICON_POINTS: f32 = 32.0;
@@ -32,7 +32,7 @@ impl ProgramLauncher {
         if open && !self.open.get_untracked() {
             let icon_size = (ICON_POINTS * self.scale.get_untracked()).ceil() as u32;
             self.editor
-                .act(move || linux_desktop::programs::request(ProgramAction::List { icon_size }));
+                .act(move || desktop::programs::request(ProgramAction::List { icon_size }));
         }
         self.open.set(open);
     }
@@ -51,7 +51,7 @@ impl ProgramLauncher {
     fn launch(&self, id: String) {
         self.show(false);
         self.editor.act(move || {
-            linux_desktop::programs::request(ProgramAction::Launch {
+            desktop::programs::request(ProgramAction::Launch {
                 program: id,
                 launch: None,
             })
@@ -61,7 +61,7 @@ impl ProgramLauncher {
     fn run(&self, line: String) {
         self.show(false);
         self.editor
-            .act(move || linux_desktop::programs::request(ProgramAction::Run(line)));
+            .act(move || desktop::programs::request(ProgramAction::Run(line)));
     }
 }
 

@@ -1,6 +1,6 @@
 # The PineNote
 
-block-app runs as the desktop (`--session`, guides/linux_desktop.md) on a Pine64 PineNote with
+block-app runs as the desktop (`--session`, guides/desktop/linux.md) on a Pine64 PineNote with
 hrdl's Arch Linux (https://git.sr.ht/~hrdl/pinenote-dist): hrdl's kernel with its `rockchip_ebc`
 e-paper driver, greetd with gtkgreet as the login screen, and sway as the session it ships.
 
@@ -20,7 +20,7 @@ smithay's `GbmBufferedSurface` on the display device. simpledrm and evdi display
 path. Each frame carries `FB_DAMAGE_CLIPS` (both paths): the renderer's scissors for a partial
 repaint plus where the pointer was and is (`Screen::draw`), so the driver reads only what
 changed; a full repaint sends none, which means the whole plane. A turned screen (the display
-settings' rotation, guides/linux_desktop.md) is turned on the GPU before the buffer reaches the
+settings' rotation, guides/desktop/linux.md) is turned on the GPU before the buffer reaches the
 panel, clips included, so the driver always reads a framebuffer in the panel's own 1872×1404
 orientation.
 
@@ -48,7 +48,7 @@ in `FrameCommit::animating`. A Wayland window counts as still.
 Fast waveforms leave ghosts. The platform provides `beui_platform_drm::Epaper`, whose `refresh()`
 runs the driver's global refresh, a full redraw that clears them. block-app publishes the
 `Epaper` host value (`true`) when the platform provides one and turns each `EpaperRequest::Refresh`
-into a refresh (`display/linux.rs`); linux-desktop shows a refresh button (`desktop.refresh`)
+into a refresh (`display/linux.rs`); the desktop plugin shows a refresh button (`desktop.refresh`)
 beside the keyboard button while the value is true.
 
 ## Input
@@ -58,7 +58,7 @@ gives it the calibration matrix that matches the panel unturned. The stylus is a
 tool, which the platform turns into beui pen events (`Event::Pen`). Keep both matrices lined up with
 the panel's own orientation: the platform turns touch, the pen and its tilt by the screen's rotation
 itself, so a matrix that also turned them would turn them twice. The panel is the one display, so
-block-app opens one window for it (guides/linux_desktop.md, Displays), and touch, the pen and the
+block-app opens one window for it (guides/desktop/linux.md, Displays), and touch, the pen and the
 on-screen keyboard all land in that window. No input device has letter keys, so the on-screen keyboard
 opens by itself when a field is tapped, along the foot of the panel's window. With no keyboard for Ctrl+Alt+Backspace, holding four
 fingers on the screen for three seconds ends the session (`escape.rs`), which works as long as
@@ -67,7 +67,7 @@ the platform's event loop runs. The power button is logind's, which powers off b
 ## Reading books
 
 The PineNote's reader is KOReader, a Wayland program that opens in the tab of the book's block
-(guides/linux_desktop.md, Files opened in programs). Install a KOReader build that comes with a `.desktop` entry
+(guides/desktop/linux.md, Files opened in programs). Install a KOReader build that comes with a `.desktop` entry
 whose `MimeType` lists `application/epub+zip` (a distribution package or the AppImage with an
 entry written for it), and keep
 `shared-mime-info`, whose `globs2` turns that into `.epub`. A book synced into a workspace

@@ -25,7 +25,7 @@ pub(super) fn interface_of(called: &Called) -> Option<&str> {
 }
 
 pub(super) fn offered(extension: &str) -> bool {
-    extension == "be3:linux-desktop" && cfg!(target_os = "linux")
+    extension == "be3:desktop" && cfg!(target_os = "linux")
 }
 
 fn shell_only(open: MethodId) -> bool {

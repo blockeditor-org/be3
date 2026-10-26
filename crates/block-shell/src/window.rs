@@ -1,4 +1,4 @@
-use block_editor_beui::linux_desktop;
+use block_editor_beui::desktop;
 use std::cell::Cell;
 
 use block_editor_beui::beui::dock::styled::WINDOW_CHROME;
@@ -99,7 +99,7 @@ pub(crate) fn WindowPanel(
         create_effect(move || {
             let shown = shown.get();
             if settled.replace(true) && shown && !focused.get_untracked() {
-                host.act(move || linux_desktop::windows::request(WindowAction::Focus(window)));
+                host.act(move || desktop::windows::request(WindowAction::Focus(window)));
             }
         });
         create_effect(move || match fullscreen.get() {
@@ -110,14 +110,14 @@ pub(crate) fn WindowPanel(
         let host = editor.host();
         create_effect(move || {
             if given.get().is_some() {
-                host.act(move || linux_desktop::windows::request(WindowAction::Focus(window)));
+                host.act(move || desktop::windows::request(WindowAction::Focus(window)));
             }
         });
         let called = create_memo(move || tab.attention());
         let host = editor.host();
         create_effect(move || {
             if called.get().is_some() {
-                host.act(move || linux_desktop::windows::request(WindowAction::Focus(window)));
+                host.act(move || desktop::windows::request(WindowAction::Focus(window)));
             }
         });
         let shown = create_memo(move || tab.fullscreen());
@@ -126,7 +126,7 @@ pub(crate) fn WindowPanel(
             let shown = shown.get();
             if shown != fullscreen.get_untracked().is_some() {
                 host.act(move || {
-                    linux_desktop::windows::request(WindowAction::Fullscreen {
+                    desktop::windows::request(WindowAction::Fullscreen {
                         window,
                         fullscreen: shown,
                     })
@@ -144,7 +144,7 @@ pub(crate) fn WindowPanel(
     let banner = create_memo(move || !responding.get() && !waited.get());
     let host = editor.host();
     let force_close = ClickCallback::new(move || {
-        host.act(move || linux_desktop::windows::request(WindowAction::Close(window)))
+        host.act(move || desktop::windows::request(WindowAction::Close(window)))
     });
     view! {
         <Layers>

@@ -1,14 +1,14 @@
-package be3:linux-desktop@0.1.0;
+package be3:desktop@0.1.0;
 
-/// Shapes the Linux desktop's interfaces share.
+/// Shapes the desktop's interfaces share.
 ///
-/// `be3:linux-desktop` is an extension beside the core plugin protocol, not part
-/// of it: what a host that runs a Linux desktop session (block-app's, or a
-/// compositor written in another language) offers the editors that draw the
-/// desktop, one interface per part of the session. An editor names the package
-/// in its manifest's `extensions` to use it; the host answers a call from any
-/// other with `denied`, and a host with no Linux session answers every watch
-/// `unsupported`. A watch the host has nothing for yet is not answered.
+/// `be3:desktop` is an extension beside the core plugin protocol, not part
+/// of it: what a host that runs a desktop (block-app's Linux session or its
+/// Windows host, or a compositor written in another language) offers the
+/// editors that draw the desktop, one interface per part of the session. An
+/// editor names the package in its manifest's `extensions` to use it; the host
+/// answers a call from any other with `denied`, and a host with no desktop
+/// answers every watch `unsupported`. A watch the host has nothing for yet is not answered.
 interface types {
     /// An image a program gave the host, as rows of rgba pixels.
     record host-image {

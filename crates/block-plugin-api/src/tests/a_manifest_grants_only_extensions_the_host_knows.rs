@@ -19,22 +19,22 @@ fn a_manifest_grants_only_extensions_the_host_knows() {
     }"#;
     let read = |extensions: &str| manifest_from_json(&document.replace("EXTENSIONS", extensions));
 
-    let granted = read(r#"["be3:linux-desktop"]"#).unwrap();
-    assert!(granted.grants("be3:linux-desktop"));
+    let granted = read(r#"["be3:desktop"]"#).unwrap();
+    assert!(granted.grants("be3:desktop"));
     assert_eq!(
-        extension_of("be3:linux-desktop/power@0.1.0"),
-        Some("be3:linux-desktop")
+        extension_of("be3:desktop/power@0.1.0"),
+        Some("be3:desktop")
     );
     assert_eq!(
         extension_of("be3:plugin/account@0.1.0"),
         None,
         "core is no extension"
     );
-    assert!(!read("[]").unwrap().grants("be3:linux-desktop"));
+    assert!(!read("[]").unwrap().grants("be3:desktop"));
 
     for refused in [
         r#"["be3:plugin"]"#,
-        r#"["be3:linux-desktop", "be3:linux-desktop"]"#,
+        r#"["be3:desktop", "be3:desktop"]"#,
     ] {
         assert_eq!(
             read(refused),
