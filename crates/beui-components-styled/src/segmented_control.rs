@@ -24,19 +24,19 @@ pub fn SegmentedControl(
     let built = view! {
         <Collapsing options selected label>|wide: Wide|
             <List direction=Direction::Horizontal spacing=0.0>
-            <Frame border=Border::DEFAULT radius=Radius::Md padding={Sides::all(TRACK_PADDING)}>
-                <Choice
-                    api=choice
-                    options={wide.options}
-                    selected={wide.selected}
-                    kind=Kind::Radio
-                    direction=Direction::Horizontal
-                    spacing=SEGMENT_SPACING
-                    label
-                >|handle|
-                    <SegmentFace handle />
-                </Choice>
-            </Frame>
+                <Frame border=Border::DEFAULT radius=Radius::Md padding={Sides::all(TRACK_PADDING)}>
+                    <Choice
+                        api=choice
+                        options={wide.options}
+                        selected={wide.selected}
+                        kind=Kind::Radio
+                        direction=Direction::Horizontal
+                        spacing=SEGMENT_SPACING
+                        label
+                    >|handle|
+                        <SegmentFace handle />
+                    </Choice>
+                </Frame>
             </List>
         </Collapsing>
     };

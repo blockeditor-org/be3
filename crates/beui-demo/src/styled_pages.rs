@@ -1283,7 +1283,11 @@ fn PeriodSegments() -> NodeId {
 #[component]
 fn NarrowChoices() -> NodeId {
     view! {
-        <List @test_id="demo.choices.narrow" direction=Direction::Horizontal spacing=SECTION_SPACING>
+        <List
+            @test_id="demo.choices.narrow"
+            direction=Direction::Horizontal
+            spacing=SECTION_SPACING
+        >
             <Frame width={Extent::px(NARROW_CHOICE_WIDTH)}>
                 <Tabs
                     label="Section"
