@@ -3,9 +3,7 @@ use beui::native::with_document;
 use beui::reactive::*;
 
 use beui::styled::*;
-use beui::{
-    ForwardedInput, Key, NodeId, Pos2, Rect, Vec2, WindowPlacement, WindowReport, WindowRole,
-};
+use beui::{ForwardedInput, Key, NodeId, Rect, Vec2, WindowPlacement, WindowReport, WindowRole};
 
 use crate::state::WindowId;
 use crate::windows::Windows;
@@ -57,13 +55,13 @@ pub fn WindowView(
     let cursor = windows.cursor();
     let asks = signals.typing;
     let typing = create_memo(move || asks.get().is_some());
-    let takes = move |local: Pos2| {
-        let position = local + rect.get_untracked().min.to_vec2();
-        !occluders
-            .get_untracked()
-            .iter()
-            .any(|occluder| occluder.contains(position))
-    };
+    let takes = create_memo(move || {
+        let origin = rect.get().min.to_vec2();
+        beui::Area::Within(occluders.get().iter().fold(
+            beui::HitRegion::rect(Rect::EVERYTHING),
+            |takes, occluder| takes.without(occluder.translate(-origin)),
+        ))
+    });
     let popups = signals.popups;
     let shown =
         create_memo(move || popups.with(|popups| popups.as_ref().map(|popups| popups.rect)));
@@ -87,13 +85,16 @@ pub fn WindowView(
     };
     let popup_cursor = windows.cursor();
     let areas = signals.popups;
-    let on_popup = move |local: Pos2| {
-        areas.with_untracked(|popups| {
-            popups
-                .as_ref()
-                .is_some_and(|popups| popups.areas.iter().any(|area| area.contains(local)))
+    let on_popup = create_memo(move || {
+        areas.with(|popups| {
+            beui::Area::Within(popups.as_ref().map_or_else(beui::HitRegion::new, |popups| {
+                popups
+                    .areas
+                    .iter()
+                    .fold(beui::HitRegion::new(), |on, area| on.with(*area))
+            }))
         })
-    };
+    });
     on_cleanup(move || windows.unplaced(id, [catcher.try_get(), popup_catcher.try_get()]));
     let built = view! {
         <Layers>
@@ -107,7 +108,7 @@ pub fn WindowView(
                 inhibits_shortcuts={inhibits}
                 ime={typing}
                 keyboard_asks={asks}
-                hit_at={takes}
+                hit_area={takes}
             >
                 <Layers>
                     <Drawing draw={Prop::dynamic(move || draw_gpu(signals.drawing.get()))} />
@@ -144,7 +145,7 @@ pub fn WindowView(
                                 @test_id={format!("wayland.popups.{}", id.0)}
                                 cursor={popup_cursor}
                                 on_forward={into_window}
-                                hit_at={on_popup}
+                                hit_area={on_popup}
                             >
                                 <Drawing
                                     draw={Prop::dynamic(move || {

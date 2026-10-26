@@ -664,12 +664,77 @@ pub(crate) fn PluginRegion(
     let pressed_outside = move |_: Pos2| {
         plugin_host::pressed_outside_region(&plugin_id.value(), instance, region);
     };
-    let claims = move |(position, held): (Pos2, beui::Modifiers)| {
-        !passive.get_untracked() && state.with_untracked(|view| view.claims(position, held))
-    };
-    let pen_surface = move |position: Pos2| {
-        !passive.get_untracked() && state.with_untracked(|view| view.draws(position))
-    };
+    let hit_area = create_memo(move || {
+        if passive.get() {
+            return beui::Area::Nowhere;
+        }
+        revision.get();
+        let content = frame.get().and_then(|frame| frame.content);
+        let beyond = match (region == EditorRegion::Frame, content) {
+            (true, Some(placed)) => plugin_host::frame_rects(&plugin_id.value(), instance)
+                .map_or_else(beui::HitRegion::new, |frame| {
+                    frame.floating.iter().fold(
+                        beui::HitRegion::rect(frame.content).without(placed),
+                        |beyond, floating| beyond.without(*floating),
+                    )
+                }),
+            _ => beui::HitRegion::new(),
+        };
+        let occluders = occluded.map(|occluded| occluded.get()).unwrap_or_default();
+        state.with(|view| {
+            let origin = view.rect.min.to_vec2();
+            let mut takes = beui::HitRegion::rect(Rect::EVERYTHING);
+            for (hole, covers) in &view.holes {
+                let open = covers
+                    .iter()
+                    .fold(beui::HitRegion::rect(*hole), |open, cover| {
+                        open.without(*cover)
+                    });
+                for piece in open.rects() {
+                    takes = takes.without(piece.translate(-origin));
+                }
+            }
+            for piece in beyond.rects() {
+                takes = takes.without(*piece);
+            }
+            for occluder in &occluders {
+                takes = takes.without(occluder.translate(-origin));
+            }
+            beui::Area::Within(takes)
+        })
+    });
+    let claims = create_memo(move || {
+        if passive.get() {
+            return Vec::new();
+        }
+        state.with(|view| {
+            let origin = view.rect.min.to_vec2();
+            view.claims
+                .iter()
+                .filter(|(held, _)| held.any())
+                .map(|(held, rect)| {
+                    beui::Claim::holding(*held, beui::HitRegion::rect(rect.translate(-origin)))
+                })
+                .collect::<Vec<_>>()
+        })
+    });
+    let pen_surface = create_memo(move || {
+        if passive.get() {
+            return beui::Area::Nowhere;
+        }
+        state.with(|view| {
+            let origin = view.rect.min.to_vec2();
+            let drawn = view
+                .drawing
+                .iter()
+                .fold(beui::HitRegion::new(), |drawn, rect| {
+                    drawn.with(rect.translate(-origin))
+                });
+            beui::Area::Within(view.floating_rects.iter().fold(drawn, |drawn, floating| {
+                drawn.without(floating.translate(-origin))
+            }))
+        })
+    });
     let windows = windowing.map(|editor| {
         view! {
             <PanelWindows editor rect />
@@ -692,9 +757,9 @@ pub(crate) fn PluginRegion(
                     pastes={pastes}
                     clipboard_keys={clipboard_keys}
                     on_forward={forward}
-                    hit_at={takes}
-                    claim_at={claims}
-                    drawing_at={pen_surface}
+                    hit_area={hit_area}
+                    claims={claims}
+                    drawing={pen_surface}
                     on_press_outside={pressed_outside}
                     on_focus_change={move |focused: bool| {
                         if focused {

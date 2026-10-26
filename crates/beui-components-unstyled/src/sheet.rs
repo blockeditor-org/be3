@@ -1,8 +1,9 @@
-use std::cell::{Cell, RefCell};
+use std::cell::Cell;
 use std::rc::Rc;
 use std::time::Duration;
 
 use crate::gestures;
+use crate::watched::Watched;
 use beui_macros::{component, view};
 
 use super::back_slide::BACK_DRAG_SHARE;
@@ -13,12 +14,13 @@ use beui_view::components::overlay::use_overlay_presence;
 use beui_view::primitives::*;
 use beui_view::reactive::NodeId;
 use beui_view::reactive::*;
+use beui_view::types::Claim;
 use beui_view::types::Color32;
 use beui_view::types::Direction;
 use beui_view::types::ItemSize;
 use beui_view::types::ScrollPosition;
 use beui_view::types::{BackGesture, CursorIcon, DragGesture, PointerPress, ScrollGesture};
-use beui_view::types::{Pos2, Rect, vec2};
+use beui_view::types::{Rect, vec2};
 
 const CLOSE_SHARE: f32 = 0.4;
 const CLOSE_DISTANCE: f32 = 96.0;
@@ -119,6 +121,12 @@ fn offer(handoff: Handoff) {
     handoffs().0.set(Some(handoff));
 }
 
+impl Held {
+    fn flinging(&self) -> bool {
+        matches!(self.phase, Phase::Fling(_) | Phase::SheetBounce { .. })
+    }
+}
+
 struct Held {
     travel: Option<f32>,
     handle: Option<f32>,
@@ -140,7 +148,7 @@ struct Motion {
     chrome: Cell<f32>,
     dragging: Signal<bool>,
     content: NodeRef,
-    held: RefCell<Held>,
+    held: Watched<Held>,
     animation: Cell<Option<Animation>>,
     open: Prop<bool>,
     shift: Signal<f32>,
@@ -759,13 +767,6 @@ impl Motion {
         animation.start();
     }
 
-    fn flinging(&self) -> bool {
-        matches!(
-            self.held.borrow().phase,
-            Phase::Fling(_) | Phase::SheetBounce { .. }
-        )
-    }
-
     fn stop_fling(&self) {
         let mut held = self.held.borrow_mut();
         let bouncing = matches!(held.phase, Phase::SheetBounce { .. });
@@ -1135,15 +1136,18 @@ pub fn Sheet(
         chrome: Cell::default(),
         dragging,
         content,
-        held: RefCell::new(Held {
-            travel: None,
-            handle: None,
-            dismiss_drag: false,
-            phase: Phase::Still,
-            slide: Slide::Gone,
-            flung: 0.0,
-            backing: false,
-        }),
+        held: Watched::new(
+            Held {
+                travel: None,
+                handle: None,
+                dismiss_drag: false,
+                phase: Phase::Still,
+                slide: Slide::Gone,
+                flung: 0.0,
+                backing: false,
+            },
+            Held::flinging,
+        ),
         animation: Cell::default(),
         open,
         shift,
@@ -1180,6 +1184,11 @@ pub fn Sheet(
             false => motion.value().leave(motion),
         });
     });
+    let flinging = motion.with(|motion| motion.held.flag());
+    let flinging = create_memo(move || match flinging.get() {
+        true => vec![Claim::always(true)],
+        false => Vec::new(),
+    });
     let shifted = create_memo(move || vec2(0.0, shift.get()));
     let axis = create_memo(|| Some(Direction::Vertical));
     let catcher = NodeRef::new();
@@ -1195,9 +1204,7 @@ pub fn Sheet(
                         <Frame>
                             <Interactive
                                 @node_ref=&catcher
-                                claim_at={move |(pos, _): (Pos2, beui_view::types::Modifiers)| {
-                                    motion.value().flinging() && super::scroll::under(&catcher, pos)
-                                }}
+                                claims={flinging}
                                 on_press={move |_: PointerPress| motion.value().stop_fling()}
                                 on_wheel={gestures::scroll_wheel(axis, move |gesture: ScrollGesture| motion.value().wheel(gesture))}
                                 on_pointer={gestures::scroll_drag(axis, move |gesture: DragGesture| motion.value().drag(gesture))}

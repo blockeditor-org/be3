@@ -18,12 +18,12 @@ use beui_core::input::CursorIcon;
 use beui_core::input::ImeEvent;
 use beui_core::input::ImeText;
 use beui_core::input::KeyPress;
-use beui_core::input::Modifiers;
 use beui_core::input::PointerInput;
 use beui_core::input::PointerPress;
 use beui_core::input::WheelInput;
 use beui_core::interact::forward::ForwardedInput;
 use beui_core::node::NodeId;
+use beui_types::region::{Area, Claim};
 use std::cell::Cell;
 use std::rc::Rc;
 
@@ -44,7 +44,6 @@ pub fn interactive(
     on_activate: ClickCallback,
     on_step: Callback<f32>,
     on_text: Callback<String>,
-    takes_text: bool,
     pastes: Prop<Vec<PasteKind>>,
     on_paste: Callback<Pasted>,
     on_ime: Callback<ImeEvent>,
@@ -53,12 +52,12 @@ pub fn interactive(
     cursor: Prop<Option<CursorIcon>>,
     pointer_locked: Prop<bool>,
     key_active: Prop<bool>,
-    capture_presses: Prop<bool>,
+    capture_presses: Prop<Area>,
     repeat_drag: Prop<bool>,
     touch_drags: Prop<bool>,
     touch_drag_axis: Prop<Option<Direction>>,
     claims_touch: Prop<bool>,
-    drawing: Prop<bool>,
+    drawing: Prop<Area>,
     every_sample: Prop<bool>,
     grabs_pointer: Prop<bool>,
     on_click: ClickCallback,
@@ -73,16 +72,13 @@ pub fn interactive(
     on_drag: Callback<PointerPress>,
     on_pointer: Callback<PointerInput, bool>,
     on_wheel: Callback<WheelInput, bool>,
-    capture_at: Callback<Pos2, bool>,
-    gestures_at: Callback<Pos2, bool>,
-    hit_at: Callback<Pos2, bool>,
-    drawing_at: Callback<Pos2, bool>,
+    gesture_area: Prop<Area>,
+    hit_area: Prop<Area>,
     on_forward: Callback<ForwardedInput>,
     inhibits_shortcuts: Prop<bool>,
     clipboard_keys: Prop<bool>,
     forwards_wheel: Prop<bool>,
-    claim_modifiers: Prop<Option<Modifiers>>,
-    claim_at: Callback<(Pos2, Modifiers), bool>,
+    claims: Prop<Vec<Claim>>,
     on_press_outside: Callback<Pos2>,
     children: Option<Child>,
 ) -> NodeId {
@@ -126,9 +122,7 @@ pub fn interactive(
             focus.on_activate_change = on_activate_change;
             focus.on_activate = on_activate;
             focus.on_step = on_step;
-            if takes_text {
-                focus.on_text = on_text;
-            }
+            focus.on_text = on_text;
             focus.on_paste = on_paste;
             focus.on_ime = on_ime;
             focus.on_key = on_key;
@@ -146,12 +140,7 @@ pub fn interactive(
         node.on_drag = on_drag;
         node.on_pointer = on_pointer;
         node.on_wheel = on_wheel;
-        node.capture_at = capture_at;
-        node.gestures_at = gestures_at;
-        node.hit_at = hit_at;
-        node.drawing_at = drawing_at;
         node.on_forward = on_forward;
-        document.set_interactive_claim_at(interactive, claim_at);
         document.set_interactive_on_press_outside(interactive, on_press_outside);
         if let Some(child) = children {
             document.set_interactive_child(interactive, child);
@@ -202,37 +191,40 @@ pub fn interactive(
         with_document(|document| document.set_interactive_cursor(interactive, cursor))
     });
     create_binding(move || {
-        let (capture, repeat, touch) =
-            (capture_presses.get(), repeat_drag.get(), touch_drags.get());
+        let (repeat, touch) = (repeat_drag.get(), touch_drags.get());
         let pressing = press_focus.get();
         let (axis, claims, grabs) = (
             touch_drag_axis.get(),
             claims_touch.get(),
             grabs_pointer.get(),
         );
-        let (draws, every) = (drawing.get(), every_sample.get());
-        let (active, inhibits, claimed) = (
-            key_active.get(),
-            inhibits_shortcuts.get(),
-            claim_modifiers.get(),
-        );
+        let every = every_sample.get();
+        let (active, inhibits) = (key_active.get(), inhibits_shortcuts.get());
         let wheel = forwards_wheel.get();
         let clipboard = clipboard_keys.get();
         with_document(|document| {
             document.set_interactive_clipboard_keys(interactive, clipboard);
-            document.set_interactive_capture_presses(interactive, capture);
             document.set_interactive_press_focus(interactive, pressing);
             document.set_interactive_repeat_drag(interactive, repeat);
             document.set_interactive_touch_drags(interactive, touch);
             document.set_interactive_touch_drag_axis(interactive, axis);
             document.set_interactive_claims_touch(interactive, claims);
-            document.set_interactive_drawing(interactive, draws);
             document.set_interactive_every_sample(interactive, every);
             document.set_interactive_grabs_pointer(interactive, grabs);
             document.set_interactive_key_active(interactive, active);
             document.set_interactive_inhibits_shortcuts(interactive, inhibits);
-            document.set_interactive_claim_modifiers(interactive, claimed);
             document.set_interactive_forwards_wheel(interactive, wheel);
+        })
+    });
+    create_binding(move || {
+        let (hit, captures, gestures) = (hit_area.get(), capture_presses.get(), gesture_area.get());
+        let (draws, claimed) = (drawing.get(), claims.get());
+        with_document(|document| {
+            document.set_interactive_hit_area(interactive, hit);
+            document.set_interactive_captures(interactive, captures);
+            document.set_interactive_gesture_area(interactive, gestures);
+            document.set_interactive_drawing(interactive, draws);
+            document.set_interactive_claims(interactive, claimed);
         })
     });
     interactive.id()

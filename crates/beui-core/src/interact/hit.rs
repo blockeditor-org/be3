@@ -1,7 +1,7 @@
 use foldhash::HashSet;
 
 use crate::base::embed::EmbedNode;
-use crate::base::interactive::InteractiveNode;
+use crate::base::interactive::{InteractiveNode, local_in};
 use crate::base::overlay::OverlayNode;
 use crate::document::Document;
 use crate::geometry::{Pos2, Rect, Vec2};
@@ -9,6 +9,7 @@ use crate::input::Modifiers;
 use crate::layer::LayerPolicy;
 use crate::node::{NodeId, NodeOf, Rects};
 use crate::window::WindowId;
+use beui_types::region::Area;
 
 use super::TOUCH_REACH;
 
@@ -25,6 +26,49 @@ enum Walk {
     Found(Vec<NodeId>, bool),
     Declined,
     Nothing,
+}
+
+pub(crate) fn covers(doc: &Document, rects: &Rects, id: NodeId, area: &Area, pos: Pos2) -> bool {
+    match area {
+        Area::Nowhere => false,
+        Area::Whole => rects
+            .visible(&id)
+            .is_some_and(|rect| rect.contains_half_open(pos)),
+        Area::Within(region) => rects
+            .scaled(&id)
+            .is_some_and(|(rect, scale)| region.contains(local_in(rect, scale, pos))),
+        Area::CaretHandles => crate::base::text::handle_under(doc, rects, id, pos),
+    }
+}
+
+fn hits(doc: &Document, rects: &Rects, id: NodeId, pos: Pos2) -> bool {
+    interactive(doc, id).is_none_or(|node| match &node.hit_area {
+        Area::Whole => true,
+        area => covers(doc, rects, id, area, pos),
+    })
+}
+
+pub(crate) fn captures(doc: &Document, rects: &Rects, id: NodeId, pos: Pos2) -> bool {
+    rects.visible(&id).is_some()
+        && interactive(doc, id).is_some_and(|node| covers(doc, rects, id, &node.captures, pos))
+}
+
+pub(crate) fn draws_at(doc: &Document, rects: &Rects, id: NodeId, pos: Pos2) -> bool {
+    rects.visible(&id).is_some()
+        && interactive(doc, id).is_some_and(|node| covers(doc, rects, id, &node.drawing, pos))
+}
+
+pub(crate) fn takes_gestures_at(doc: &Document, rects: &Rects, id: NodeId, pos: Pos2) -> bool {
+    interactive(doc, id).is_some_and(|node| covers(doc, rects, id, &node.gesture_area, pos))
+}
+
+fn claims(doc: &Document, rects: &Rects, id: NodeId, pos: Pos2, held: Modifiers) -> bool {
+    rects.visible(&id).is_some()
+        && interactive(doc, id).is_some_and(|node| {
+            node.claims.iter().any(|claim| {
+                held.holds(claim.modifiers) && covers(doc, rects, id, &claim.area, pos)
+            })
+        })
 }
 
 pub fn interactive(doc: &Document, id: NodeId) -> Option<&InteractiveNode> {
@@ -194,9 +238,7 @@ fn claiming(
     if !lines.contains(&id) && !bounds(doc, rects, id).contains_half_open(pos) {
         return None;
     }
-    if let (Some(node), Some(rect)) = (interactive(doc, id), rects.visible(&id))
-        && node.claims(pos, rect, held)
-    {
+    if claims(doc, rects, id, pos, held) {
         return Some(id);
     }
     doc.arena
@@ -216,10 +258,7 @@ pub fn sink(doc: &Document, rects: &Rects, path: &[NodeId], pos: Pos2) -> Option
         if node.forwards() {
             return Some(*id);
         }
-        if rects
-            .visible(id)
-            .is_some_and(|rect| node.captures(pos, rect))
-        {
+        if captures(doc, rects, *id, pos) {
             return None;
         }
     }
@@ -290,9 +329,8 @@ fn walk(doc: &mut Document, rects: &Rects, id: NodeId, pos: Pos2) -> Walk {
         }
         match walk(doc, rects, child, pos) {
             Walk::Found(mut path, embed) => {
-                if let (Some(node), Some((rect, scale))) = (interactive(doc, id), rects.scaled(&id))
-                {
-                    match node.hits(pos, rect, scale) {
+                if interactive(doc, id).is_some() && rects.scaled(&id).is_some() {
+                    match hits(doc, rects, id, pos) {
                         true => path.push(id),
                         false if path.is_empty() => return Walk::Declined,
                         false => {}
@@ -307,11 +345,14 @@ fn walk(doc: &mut Document, rects: &Rects, id: NodeId, pos: Pos2) -> Walk {
     let inside = rects
         .visible(&id)
         .is_some_and(|rect| rect.contains_half_open(pos));
-    if inside && let (Some(node), Some((rect, scale))) = (interactive(doc, id), rects.scaled(&id)) {
-        if !node.hits(pos, rect, scale) {
+    if inside
+        && let Some(node) = interactive(doc, id)
+        && rects.scaled(&id).is_some()
+    {
+        if !hits(doc, rects, id, pos) {
             return Walk::Declined;
         }
-        if declined && !node.forwards() && !node.captures(pos, rect) {
+        if declined && !node.forwards() && !captures(doc, rects, id, pos) {
             return Walk::Declined;
         }
         return Walk::Found(vec![id], false);
@@ -458,11 +499,8 @@ fn handlers(node: &InteractiveNode) -> Vec<&'static str> {
         ),
         ("forwarded input", node.forwards()),
         ("focus", node.focus.is_some()),
-        (
-            "capturing presses",
-            node.capture_presses || !node.capture_at.is_empty(),
-        ),
-        ("its own hit test", !node.hit_at.is_empty()),
+        ("capturing presses", node.captures != Area::Nowhere),
+        ("its own hit test", node.hit_area != Area::Whole),
     ]
     .into_iter()
     .filter_map(|(name, handles)| handles.then_some(name))

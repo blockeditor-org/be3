@@ -150,7 +150,7 @@ fn Shown(windows: Windows) -> NodeId {
         let ids = create_memo(clone_list(&windows));
         view! {
             <Interactive
-                claim_modifiers={Some(beui::Modifiers::LOGO)}
+                claims={vec![beui::Claim::holding(beui::Modifiers::LOGO, true)]}
                 claims_touch=false
                 on_press={|press: beui::PointerPress| {
                     if press.modifiers.logo {

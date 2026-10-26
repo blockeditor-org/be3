@@ -11,7 +11,7 @@ use beui_view::reactive::*;
 use beui_view::types::Color32;
 use beui_view::types::PointerPress;
 use beui_view::types::{Direction, ScrollPosition};
-use beui_view::types::{Pos2, Rect, pos2};
+use beui_view::types::{Rect, pos2};
 
 const MINIMUM_THUMB: f32 = 0.08;
 
@@ -184,9 +184,7 @@ pub fn Scrollbar(
                     hovered.set(false);
                 }
             }}
-            hit_at={move |_: Pos2| {
-                shown.get_untracked() && position.get_untracked().max_offset() > 0.0
-            }}
+            hit_area={create_memo(move || shown.get() && position.get().max_offset() > 0.0)}
             on_active_change={move |active: bool| {
                 held.set(active);
                 dragging.set(active && active_grab.get().is_some());

@@ -3,6 +3,7 @@ pub mod image;
 pub mod input;
 pub mod layer;
 pub mod layout;
+pub mod region;
 pub mod text;
 pub mod window;
 
@@ -29,6 +30,7 @@ pub use layout::{
     Align, Align2, Corners, Direction, Extent, ItemSize, Justify, Outline, ScrollPosition, Sides,
     Sizing, Track,
 };
+pub use region::{Area, Claim, HitRegion};
 pub use text::{
     CaretHandle, FontFamily, FontId, LineBox, Overflow, SpanBackground, SpanStyle, TextAlign,
     TextCaret, TextGlyph, TextMark, WrapAt,

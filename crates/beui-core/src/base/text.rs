@@ -1390,3 +1390,56 @@ impl TextGeometry {
         &self.layout
     }
 }
+
+pub(crate) fn handle_under(doc: &Document, rects: &Rects, id: NodeId, pos: Pos2) -> bool {
+    let mut stack = vec![id];
+    while let Some(node) = stack.pop() {
+        if !doc.arena.contains(node) {
+            continue;
+        }
+        doc.arena
+            .get(node)
+            .for_each_child(&mut |child| stack.push(child));
+        let Some(text) = doc.arena.kind_of::<TextNode>(node) else {
+            continue;
+        };
+        let Some(visible) = rects.visible(&node) else {
+            continue;
+        };
+        let state = doc.arena.get_as::<TextNode>(text);
+        let handles = state
+            .carets
+            .iter()
+            .filter_map(|caret| Some((caret.at, caret.width, caret.handle?)))
+            .chain(
+                state
+                    .handles
+                    .iter()
+                    .map(|(at, handle, _)| (*at, 0.0, *handle)),
+            );
+        let Some(geometry) = doc.text_geometry(text) else {
+            continue;
+        };
+        let scale = geometry.scale();
+        for (at, width, handle) in handles {
+            let Some(caret) = geometry.caret_rect(at, width) else {
+                continue;
+            };
+            let shown = caret.max.y > visible.min.y
+                && caret.min.y < visible.max.y
+                && (visible.min.x - HANDLE_SLACK..=visible.max.x + HANDLE_SLACK)
+                    .contains(&caret.min.x);
+            if !shown || pos.y < caret.max.y {
+                continue;
+            }
+            let center = crate::rich::handle_center(caret, handle, scale);
+            if (pos.to_vec2() - center).length() <= HANDLE_HIT_RADIUS {
+                return true;
+            }
+        }
+    }
+    false
+}
+
+const HANDLE_HIT_RADIUS: f32 = 24.0;
+const HANDLE_SLACK: f32 = 0.5;

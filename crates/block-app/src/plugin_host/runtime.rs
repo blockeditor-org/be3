@@ -2321,22 +2321,6 @@ impl RegionView {
         }
     }
 
-    pub(crate) fn claims(&self, position: Pos2, held: beui::Modifiers) -> bool {
-        self.claims.iter().any(|(claimed, rect)| {
-            claimed.any() && held.holds(*claimed) && rect.contains_half_open(position)
-        })
-    }
-
-    pub(crate) fn draws(&self, position: Pos2) -> bool {
-        self.drawing
-            .iter()
-            .any(|rect| rect.contains_half_open(position))
-            && !self
-                .floating_rects
-                .iter()
-                .any(|rect| rect.contains_half_open(position))
-    }
-
     pub(crate) fn takes(&self, local: Pos2) -> bool {
         let position = local + self.rect.min.to_vec2();
         !self.holes.iter().any(|(hole, occluders)| {

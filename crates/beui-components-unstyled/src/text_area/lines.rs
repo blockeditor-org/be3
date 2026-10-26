@@ -5,10 +5,7 @@ use std::rc::Rc;
 
 use beui_macros::{component, view};
 
-use beui_core::painter::Painter;
-use beui_core::rich::handle_shape;
 use beui_view::components::overlay::Overlay;
-use beui_view::reactive::Draw;
 use beui_view::reactive::NodeId;
 use beui_view::reactive::OverlayAnchor;
 use beui_view::types::Color32;
@@ -31,12 +28,6 @@ use super::rows::{
 };
 use super::{Context, GeometryCell, Held, RowEntry};
 use beui_view::types::{Align2, Extent, Sides};
-
-#[derive(Clone, Copy, PartialEq, Eq)]
-pub(super) enum Layer {
-    All,
-    Text,
-}
 
 #[component]
 pub(super) fn Lines(cx: Context) -> NodeId {
@@ -173,63 +164,15 @@ pub(super) fn SingleLine(cx: Context) -> NodeId {
     });
     let text_width = create_memo(move || text.get().x + cx.geometry.get().caret_width);
     let text_height = create_memo(move || text.get().y);
-    let handles = handles_drawing(cx, model, geometry.clone(), bounds.read_only());
     let built = view! {
         <Canvas @node_ref=&canvas width={canvas_width} height={canvas_height} scrolls_across=true>
-            <CanvasItem x={x} y={y} width={text_width} height={text_height}>
+            <CanvasItem x={x} y={y} width={text_width} height={text_height} clip=false>
                 <AreaText cx={cx} model={model} geometry bounds />
-            </CanvasItem>
-            <CanvasItem x y width={text_width} height={text_height} clip=false>
-                <Drawing draw={handles} />
             </CanvasItem>
         </Canvas>
     };
     cx.held.with(|held| held.track(built));
     built
-}
-
-fn handles_drawing(
-    cx: Context,
-    model: Memo<Rc<Row>>,
-    geometry: GeometryCell,
-    bounds: ReadSignal<Rect>,
-) -> ReadSignal<Draw> {
-    let cursors = row_cursors(cx, model, Layer::All);
-    let draw = create_signal::<Draw>(Rc::new(|_: &Painter, _: Rect| {}));
-    create_effect(move || {
-        bounds.get();
-        let measured = geometry
-            .get()
-            .and_then(|text| Some((measure_text(text).get()?, measure(text).get()?)));
-        let row = model.get();
-        let color = cx.colors.get().caret;
-        let caret_width = cx.geometry.get().caret_width;
-        let handles: Vec<_> = cursors
-            .get()
-            .handles
-            .iter()
-            .map(|(handle, byte)| (*handle, row.to_display(*byte)))
-            .collect();
-        draw.set_unconditionally(Rc::new(move |painter: &Painter, rect: Rect| {
-            let Some((text, laid)) = measured.clone() else {
-                return;
-            };
-            for (handle, at) in &handles {
-                let Some(caret) = text.caret_rect(*at, caret_width) else {
-                    continue;
-                };
-                let caret = caret
-                    .translate(-laid.min.to_vec2())
-                    .scaled(text.scale().recip())
-                    .translate(rect.min.to_vec2());
-                let (shape, corners, angle) = handle_shape(caret, *handle);
-                painter
-                    .rotated(shape.center(), angle)
-                    .rect_filled(shape, corners, color);
-            }
-        }));
-    });
-    draw.read_only()
 }
 
 #[component]
@@ -356,7 +299,6 @@ fn AreaText(
                 model
                 text={geometry}
                 wrap=false
-                layer=Layer::Text
                 on_bounds={move |laid: Rect| bounds.set(laid)}
             />
         </Frame>
@@ -417,7 +359,7 @@ impl RowCursors {
     }
 }
 
-fn row_cursors(cx: Context, model: Memo<Rc<Row>>, layer: Layer) -> Memo<RowCursors> {
+fn row_cursors(cx: Context, model: Memo<Rc<Row>>) -> Memo<RowCursors> {
     let span = create_memo(move || {
         let row = model.get();
         (row.start, row.end)
@@ -427,7 +369,7 @@ fn row_cursors(cx: Context, model: Memo<Rc<Row>>, layer: Layer) -> Memo<RowCurso
         let (start, end) = span.get();
         let contains = |byte: &usize| *byte >= start && *byte <= end;
         let carets = cx.state.caret_indices();
-        let touch = cx.state.touch_mode().get() && layer != Layer::Text;
+        let touch = cx.state.touch_mode().get();
         let handles = match touch {
             true => {
                 cx.state.caret_handle().get();
@@ -615,12 +557,11 @@ fn RowText(
     model: Memo<Rc<Row>>,
     text: GeometryCell,
     wrap: bool,
-    #[prop(default = Layer::All)] layer: Layer,
     on_bounds: Callback<Rect>,
 ) -> NodeId {
     let node = NodeRef::new();
     let keys = create_memo(move || piece_keys(&model.get()));
-    let cursors = row_cursors(cx, model, layer);
+    let cursors = row_cursors(cx, model);
     let padding = create_memo(move || match (cx.single_line, cx.prose.get()) {
         (true, _) => (0.0, 0.0),
         (false, Some(prose)) => prose.line_padding,

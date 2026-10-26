@@ -89,7 +89,8 @@ pub use beui_renderer_wgpu::{
 };
 pub use beui_view::primitives;
 pub use beui_view::types::{
-    Align2, CaretHandle, Extent, Outline, SpanBackground, SpanStyle, TextCaret, TextGlyph, TextMark,
+    Align2, Area, CaretHandle, Claim, Extent, HitRegion, Outline, PointerInput, PointerStage,
+    SpanBackground, SpanStyle, TextCaret, TextGlyph, TextMark, WheelInput,
 };
 pub use beui_view::window::{Window, WindowHandle, opens_windows, use_window};
 pub use beui_view::{CORE, Core, child_type, value_child_type};

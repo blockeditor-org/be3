@@ -434,12 +434,12 @@ fn pointer_event(doc: &mut Document, frame: &Frame, event: PointerEvent) -> Opti
         }
         PointerPhase::Zoom(factor) => {
             let path = hit(doc, frame.rects, event.window, event.pos, false).path;
-            let sink = match gesture_claimant(doc, &path, event.pos) {
+            let sink = match gesture_claimant(doc, frame.rects, &path, event.pos) {
                 Some(_) => None,
                 None => wheel_sink(doc, frame, event.window, event.pos),
             };
             doc.pointers.route(sink);
-            let candidates = match gesture_claimant(doc, &path, event.pos) {
+            let candidates = match gesture_claimant(doc, frame.rects, &path, event.pos) {
                 Some(claimant) => vec![claimant],
                 None => path,
             };
@@ -489,7 +489,7 @@ fn on_drawing(doc: &mut Document, frame: &Frame, window: WindowId, pos: Pos2) ->
     hit.path.iter().any(|id| {
         interactive(doc, *id)
             .zip(frame.rects.visible(id))
-            .is_some_and(|(node, rect)| node.draws_at(at, rect))
+            .is_some_and(|_| hit::draws_at(doc, frame.rects, *id, at))
     })
 }
 
@@ -575,7 +575,7 @@ fn down(
         Role::Press
             if kind.buttons
                 && doc.pointers.space
-                && gesture_claimant(doc, &hit.path, event.pos).is_some() =>
+                && gesture_claimant(doc, frame.rects, &hit.path, event.pos).is_some() =>
         {
             Role::Middle
         }
@@ -622,7 +622,7 @@ fn press_down(doc: &mut Document, frame: &Frame, down: Down) {
         _ => None,
     };
     let panned = match role {
-        Role::Middle => gesture_claimant(doc, &hit.path, pos),
+        Role::Middle => gesture_claimant(doc, frame.rects, &hit.path, pos),
         _ => None,
     };
     let sink = kind
@@ -705,7 +705,7 @@ fn reached(doc: &Document, rects: &Rects, path: &[NodeId], pos: Pos2) -> (Vec<No
     for id in path {
         reached.push(*id);
         let captures = match (interactive(doc, *id), rects.visible(id)) {
-            (Some(node), Some(rect)) => node.captures(pos, rect),
+            (Some(_), Some(_)) => hit::captures(doc, rects, *id, pos),
             _ => false,
         };
         if captures {
@@ -1345,17 +1345,17 @@ fn finger_lifted(
     }
 }
 
-fn gesture_claimant(doc: &Document, path: &[NodeId], pos: Pos2) -> Option<NodeId> {
+fn gesture_claimant(doc: &Document, rects: &Rects, path: &[NodeId], pos: Pos2) -> Option<NodeId> {
     path.iter()
         .rev()
         .copied()
-        .find(|id| interactive(doc, *id).is_some_and(|node| node.takes_gestures_at(pos)))
+        .find(|id| hit::takes_gestures_at(doc, rects, *id, pos))
 }
 
 fn wheel(doc: &mut Document, frame: &Frame, event: PointerEvent, delta: Vec2, fling: Vec2) {
     let pos = event.pos;
     let path = hit(doc, frame.rects, event.window, pos, false).path;
-    let claimed = gesture_claimant(doc, &path, pos);
+    let claimed = gesture_claimant(doc, frame.rects, &path, pos);
     let sink = match claimed {
         Some(_) => None,
         None => wheel_sink(doc, frame, event.window, pos),

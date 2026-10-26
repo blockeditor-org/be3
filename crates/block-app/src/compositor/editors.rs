@@ -1542,20 +1542,23 @@ fn BlockFrameView(
             command(Command::Pan(delta));
         }
     };
-    let gestures_at = move |pos: Pos2| {
-        let origin = rect.get_untracked().min.to_vec2();
-        gestures
-            && viewport_rect.get_untracked().contains(pos)
-            && !steered
-                .get_untracked()
-                .is_some_and(|rect| rect.contains(pos))
-            && !plugin_host::frame_rects(&plugin_id.value(), instance).is_some_and(|frame| {
-                frame
-                    .floating
-                    .iter()
-                    .any(|floating| floating.translate(origin).contains(pos))
-            })
-    };
+    let gesture_area = create_memo(move || {
+        if !gestures {
+            return beui::Area::Nowhere;
+        }
+        revision.get();
+        let origin = rect.get().min.to_vec2();
+        let mut area = beui::HitRegion::rect(viewport_rect.get().translate(-origin));
+        if let Some(steered) = steered.get() {
+            area = area.without(steered.translate(-origin));
+        }
+        if let Some(frame) = plugin_host::frame_rects(&plugin_id.value(), instance) {
+            for floating in frame.floating {
+                area = area.without(floating);
+            }
+        }
+        beui::Area::Within(area)
+    });
     let recognised = beui::unstyled::gestures::pan_zoom(pan, zoom);
     let placed_zoom = create_memo(move || {
         if handle.pan_and_zoom || !embedded || content.get().is_some() {
@@ -1577,7 +1580,7 @@ fn BlockFrameView(
                 beui::unstyled::gestures::scroll_wheel(None, scroll),
             ])}
             on_pointer={recognised.pointer}
-            gestures_at={gestures_at}
+            gesture_area={gesture_area}
         >
             <PluginRegion
                 editor={region_editor}

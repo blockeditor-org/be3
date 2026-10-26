@@ -17,6 +17,7 @@ use beui_view::reactive::NodeId;
 use beui_view::types::CaretHandle;
 use beui_view::types::Color32;
 use beui_view::types::KeyPhase;
+use beui_view::types::{Area, Claim};
 use beui_view::types::{Key, KeyPress, PointerPress};
 use beui_view::types::{Pos2, Rect, Vec2};
 
@@ -976,9 +977,7 @@ pub fn Selectable(
             tab_stop=false
             claims_touch=false
             repeat_drag={autoscroll}
-            claim_at={move |(pos, _): (Pos2, beui_view::types::Modifiers)| {
-                state.handle_at(pos).is_some()
-            }}
+            claims={vec![Claim::always(Area::CaretHandles)]}
             on_press={move |event: PointerPress| press(state, &focusable, on_toolbar, event)}
             on_drag={move |event: PointerPress| drag(state, autoscroll, event)}
             on_click_at={move |event: PointerPress| tap(state, on_toolbar, event)}

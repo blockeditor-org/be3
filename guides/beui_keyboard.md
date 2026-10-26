@@ -289,7 +289,7 @@ button.
 
 Every embedded editor - a plugin's region, and in `block-app --session` and
 `--desktop` each Wayland program's window - is a forwarding catcher: an
-`Interactive` with `on_forward` (and `hit_at` for the points it takes),
+`Interactive` with `on_forward` (and `hit_area` for the points it takes),
 handed what beui routes to it as a `ForwardedInput`: the pointer events beui
 resolved for it (`Forwarded::Pointer`, with `over`, the catcher under the
 event whatever holds the press, which a drag between Wayland windows needs),
@@ -330,7 +330,7 @@ What one event goes through, in order:
 3. `interact`: the document counts the frame as input (`Document::input_frames`,
    which the compositor's idle time reads), and for each pointer event hit
    tests it over the layers once, asks the layers it is outside of to close,
-   finds a modifier claim (`claim_modifiers`, `claim_at`) or a capture for a
+   finds a modifier claim (`claims`) or a capture for a
    press, hands it to the pointer's session (one per pointer and button, which
    also counts the fingers for pinches and two-finger gestures), and moves the
    focus.
@@ -342,7 +342,7 @@ What one event goes through, in order:
    release when they come. A key bound for an app goes no further; any other
    key goes on down the tree and back up, and types its text unless something
    on the way took it.
-5. `forward::route`: the pointer goes to the catcher under it (`hit_at`
+5. `forward::route`: the pointer goes to the catcher under it (`hit_area`
    says no where something else is drawn over it), a press stays with the
    catcher its pointer's down reached until every button is let go, a claimed
    press goes to its claimant, wheel and drop events to the catcher under the pointer, and

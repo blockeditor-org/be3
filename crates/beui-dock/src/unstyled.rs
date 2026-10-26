@@ -44,6 +44,7 @@ use beui_core::window::{WindowEdge, WindowId, WindowPlacement, WindowReport};
 use beui_view::components::overlay::Overlay;
 use beui_view::primitives::*;
 use beui_view::reactive::*;
+use beui_view::types::{Area, Claim, HitRegion};
 use beui_view::window::{Window, WindowHandle, opens_windows, use_window};
 
 use dialog::{DialogParts, DockDialogs};
@@ -603,6 +604,37 @@ impl State {
             Some(window) => measure(window).get_untracked(),
             None => self.pane_rect(Tree::Surface(surface)),
         }
+    }
+
+    fn window_bar(&self, surface: SurfaceId) -> Option<HitRegion> {
+        let pane = self
+            .panes
+            .value()
+            .borrow()
+            .get(&Tree::Surface(surface))?
+            .try_get()?;
+        let window = self
+            .windows
+            .value()
+            .borrow()
+            .get(&surface)
+            .and_then(NodeRef::try_get)
+            .unwrap_or(pane);
+        let mut bar = HitRegion::rect(tracked_rect(window)?).without(tracked_rect(pane)?);
+        for leaf in self.state.with(|state| state.leaves(surface)) {
+            let tabs = self
+                .bars
+                .value()
+                .borrow()
+                .get(&leaf)
+                .and_then(|bar| bar.tabs.try_get());
+            for tab in tabs.map(|tabs| tabs.children()).unwrap_or_default() {
+                if let Some(rect) = tracked_rect(tab) {
+                    bar = bar.without(rect);
+                }
+            }
+        }
+        Some(bar)
     }
 
     fn tab_rects(&self, leaf: LeafId) -> Vec<Rect> {
@@ -2128,12 +2160,12 @@ fn DockPanelView(dock: State, tree: Tree, leaf: LeafId, hoisted: bool) -> NodeId
     let close = ClickCallback::new(move || dock.close_leaf(leaf));
     let menu = dock.leaf_menu(Some(leaf));
     let closable = dock.all_closable(contents);
-    let claimed = dock.drag_modifier;
+    let claimed = modifier_claims(dock.drag_modifier);
     let resized = modifier_resize(dock, Resized::Docked);
     view! {
         <Interactive
             claims_touch=false
-            claim_modifiers={claimed}
+            claims={claimed}
             on_pointer={beui_components_unstyled::gestures::secondary_drag(resized)}
             on_press={move |press: PointerPress| {
                 if dock.modifier_held(press.modifiers) {
@@ -2992,7 +3024,7 @@ fn DockWindowView(dock: State, surface: SurfaceId) -> NodeId {
             untrack(|| dock.raise_window(overlay));
         }
     });
-    let claimed = dock.drag_modifier;
+    let claimed = modifier_claims(dock.drag_modifier);
     let view = view! {
         <Window
             @node_ref=&overlay
@@ -3004,6 +3036,15 @@ fn DockWindowView(dock: State, surface: SurfaceId) -> NodeId {
         >|handle: WindowHandle| {
             let grabbed = StoredCell::new(None::<(Rect, Pos2)>);
             let resized = Callback::new(modifier_resize(dock, Resized::Window(surface, handle)));
+            let catcher = NodeRef::new();
+            let window_bar = create_signal(Area::Nowhere);
+            create_effect(move || {
+                let bar = catcher.try_get().and_then(|catcher| {
+                    let origin = tracked_rect(catcher)?.min.to_vec2();
+                    Some(dock.window_bar(surface)?.translate(-origin))
+                });
+                window_bar.set(bar.map_or(Area::Nowhere, Area::Within));
+            });
             view! {
                 <DropTarget
                     on_over={move |point: Option<(DockDragged, DragPoint)>| dock.drag_over(point.map(|(_, point)| point))}
@@ -3016,11 +3057,9 @@ fn DockWindowView(dock: State, surface: SurfaceId) -> NodeId {
                                     <Canvas>
                                         <CanvasItem x=0.0 y=0.0 width={width} height={height}>
                                             <Interactive
-                                                capture_at={move |pos: Pos2| {
-                                                    dock.surface_rect(surface).is_some_and(|window| window.contains(pos))
-                                                        && dock.over_window_bar(surface, pos)
-                                                }}
-                                                claim_modifiers={claimed}
+                                                @node_ref=&catcher
+                                                capture_presses={window_bar}
+                                                claims={claimed}
                                                 on_pointer={beui_components_unstyled::gestures::secondary_drag(resized)}
                                                 on_press={move |press: PointerPress| {
                                                     let carried = dock.modifier_held(press.modifiers);
@@ -3275,4 +3314,18 @@ impl DockApi {
     pub fn state(&self) -> DockState {
         self.0.state.get()
     }
+}
+
+fn tracked_rect(node: NodeId) -> Option<Rect> {
+    measure(node).get()
+}
+
+fn modifier_claims(modifiers: Memo<Option<Modifiers>>) -> Memo<Vec<Claim>> {
+    create_memo(move || {
+        modifiers
+            .get()
+            .filter(|held| held.any())
+            .map(|held| vec![Claim::holding(held, true)])
+            .unwrap_or_default()
+    })
 }

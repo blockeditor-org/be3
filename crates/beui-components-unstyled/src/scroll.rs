@@ -1,5 +1,5 @@
 use beui_view::types::LayerPolicy;
-use std::cell::{Cell, RefCell};
+use std::cell::Cell;
 use std::rc::Rc;
 use std::time::{Duration, Instant};
 
@@ -8,6 +8,7 @@ use beui_macros::{component, view};
 
 use super::fling::Fling;
 use super::rubber_band::{MINIMUM_VELOCITY, bounce, rubber_band};
+use super::watched::Watched;
 use crate::gestures::{self, AUTOSCROLL_DEAD_ZONE};
 use beui_view::components::overlay::Overlay;
 use beui_view::primitives::*;
@@ -15,6 +16,7 @@ use beui_view::reactive::KeyAt;
 use beui_view::reactive::NodeId;
 use beui_view::reactive::OverlayAnchor;
 use beui_view::reactive::*;
+use beui_view::types::Claim;
 use beui_view::types::KeyPhase;
 use beui_view::types::Outline;
 use beui_view::types::Placement;
@@ -259,7 +261,7 @@ struct Motion {
     node: Option<NodeId>,
     reported: ReadSignal<Option<ScrollPosition>>,
     direction: Prop<Direction>,
-    momentum: RefCell<Momentum>,
+    momentum: Watched<Momentum>,
     animation: Cell<Option<Animation>>,
     autoscrolling: Cell<Option<Timer>>,
     autoscrolled: Cell<Instant>,
@@ -300,10 +302,6 @@ impl Motion {
             node.drive_offset(position.clamped());
         }
         stray
-    }
-
-    fn coasting(&self) -> bool {
-        self.momentum.borrow().coasting()
     }
 
     fn stop_fling(&self) {
@@ -542,7 +540,7 @@ fn Scrolling(
         node: node.first_offset_within(),
         reported: reported.read_only(),
         direction,
-        momentum: RefCell::new(Momentum::new()),
+        momentum: Watched::new(Momentum::new(), Momentum::coasting),
         animation: Cell::default(),
         autoscrolling: Cell::default(),
         autoscrolled: Cell::new(now()),
@@ -685,6 +683,11 @@ fn Scrolling(
             Direction::Horizontal => CursorIcon::ResizeHorizontal,
         })
     });
+    let coasting = motion.with(|motion| motion.momentum.flag());
+    let coasting = create_memo(move || match coasting.get() {
+        true => vec![Claim::always(true)],
+        false => Vec::new(),
+    });
     let outset = create_memo(move || -bleed.get());
     view! {
         <Frame padding={outset}>
@@ -698,9 +701,7 @@ fn Scrolling(
                     cursor={cursor}
                     grabs_pointer={autoscroll.active}
                     @node_ref=&catcher
-                    claim_at={move |(pos, _): (Pos2, beui_view::types::Modifiers)| {
-                        motion.value().coasting() && under(&catcher, pos)
-                    }}
+                    claims={coasting}
                     on_press={move |_: PointerPress| motion.value().stop_fling()}
                     on_hover_move={move |press: PointerPress| {
                         let at_edge = bar_width > 0.0
@@ -874,14 +875,6 @@ fn across(direction: &Prop<Direction>) -> Memo<Direction> {
     create_memo(move || match direction.get() {
         Direction::Horizontal => Direction::Vertical,
         Direction::Vertical => Direction::Horizontal,
-    })
-}
-
-pub(crate) fn under(node: &NodeRef, pos: Pos2) -> bool {
-    node.try_get().is_some_and(|node| {
-        measure(node)
-            .get_untracked()
-            .is_some_and(|rect| rect.contains(pos))
     })
 }
 

@@ -35,6 +35,7 @@ use beui_view::types::Color32;
 use beui_view::types::Dismiss;
 use beui_view::types::FontId;
 use beui_view::types::PickedFile;
+use beui_view::types::{Area, Claim};
 use beui_view::types::{CursorIcon, ImeEvent, ImeText, Key, KeyPress, PointerPress};
 use beui_view::types::{ItemSize, ScrollPosition};
 use beui_view::types::{PasteKind, Pasted};
@@ -1573,9 +1574,10 @@ fn Editing(field: Field) -> NodeId {
             cursor
             repeat_drag={autoscroll}
             capture_presses={create_memo(move || !disabled.get())}
-            claim_at={move |(pos, _): (Pos2, beui_view::types::Modifiers)| {
-                !cx.disabled.get_untracked() && cx.handle_at(pos).is_some()
-            }}
+            claims={create_memo(move || match cx.disabled.get() {
+                true => Vec::new(),
+                false => vec![Claim::always(Area::CaretHandles)],
+            })}
             on_press={move |event: PointerPress| press(&cx, event)}
             on_click_at={move |event: PointerPress| tap(&cx, event)}
             on_secondary_press={move |event: PointerPress| hold(&cx, event)}

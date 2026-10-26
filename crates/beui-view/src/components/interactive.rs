@@ -12,13 +12,13 @@ use beui_core::input::CursorIcon;
 use beui_core::input::ImeEvent;
 use beui_core::input::ImeText;
 use beui_core::input::KeyPress;
-use beui_core::input::Modifiers;
 use beui_core::input::PointerInput;
 use beui_core::input::PointerPress;
 use beui_core::input::WheelInput;
 use beui_core::interact::forward::ForwardedInput;
 use beui_core::node::NodeId;
 use beui_macros::component;
+use beui_types::region::{Area, Claim};
 
 #[component]
 pub fn Interactive(
@@ -38,7 +38,6 @@ pub fn Interactive(
     on_activate: ClickCallback,
     on_step: Callback<f32>,
     on_text: Callback<String>,
-    #[prop(default = true)] takes_text: bool,
     #[prop(default = Vec::new())] pastes: Prop<Vec<PasteKind>>,
     on_paste: Callback<Pasted>,
     on_ime: Callback<ImeEvent>,
@@ -47,12 +46,12 @@ pub fn Interactive(
     #[prop(default = None)] cursor: Prop<Option<CursorIcon>>,
     #[prop(default = false)] pointer_locked: Prop<bool>,
     #[prop(default = false)] key_active: Prop<bool>,
-    #[prop(default = false)] capture_presses: Prop<bool>,
+    #[prop(default = Area::Nowhere)] capture_presses: Prop<Area>,
     #[prop(default = false)] repeat_drag: Prop<bool>,
     #[prop(default = false)] touch_drags: Prop<bool>,
     #[prop(default = None)] touch_drag_axis: Prop<Option<Direction>>,
     #[prop(default = true)] claims_touch: Prop<bool>,
-    #[prop(default = false)] drawing: Prop<bool>,
+    #[prop(default = Area::Nowhere)] drawing: Prop<Area>,
     #[prop(default = false)] every_sample: Prop<bool>,
     #[prop(default = false)] grabs_pointer: Prop<bool>,
     on_click: ClickCallback,
@@ -67,16 +66,13 @@ pub fn Interactive(
     on_drag: Callback<PointerPress>,
     on_pointer: Callback<PointerInput, bool>,
     on_wheel: Callback<WheelInput, bool>,
-    capture_at: Callback<Pos2, bool>,
-    gestures_at: Callback<Pos2, bool>,
-    hit_at: Callback<Pos2, bool>,
-    drawing_at: Callback<Pos2, bool>,
+    #[prop(default = Area::Nowhere)] gesture_area: Prop<Area>,
+    #[prop(default = Area::Whole)] hit_area: Prop<Area>,
     on_forward: Callback<ForwardedInput>,
     #[prop(default = false)] inhibits_shortcuts: Prop<bool>,
     #[prop(default = false)] clipboard_keys: Prop<bool>,
     #[prop(default = true)] forwards_wheel: Prop<bool>,
-    #[prop(default = None)] claim_modifiers: Prop<Option<Modifiers>>,
-    claim_at: Callback<(Pos2, Modifiers), bool>,
+    #[prop(default = Vec::new())] claims: Prop<Vec<Claim>>,
     on_press_outside: Callback<Pos2>,
     children: Option<Child>,
 ) -> NodeId {
@@ -97,7 +93,6 @@ pub fn Interactive(
         on_activate,
         on_step,
         on_text,
-        takes_text,
         pastes,
         on_paste,
         on_ime,
@@ -126,16 +121,13 @@ pub fn Interactive(
         on_drag,
         on_pointer,
         on_wheel,
-        capture_at,
-        gestures_at,
-        hit_at,
-        drawing_at,
+        gesture_area,
+        hit_area,
         on_forward,
         inhibits_shortcuts,
         clipboard_keys,
         forwards_wheel,
-        claim_modifiers,
-        claim_at,
+        claims,
         on_press_outside,
         children,
     )

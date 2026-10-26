@@ -1976,14 +1976,15 @@ sits in does not open as well.
 
 A press made with modifiers held can be claimed from everything inside a
 region, which is how a window manager takes Super+drag from the windows it
-holds. An `Interactive` given `claim_modifiers` takes every primary or secondary
-press in its rectangle while all of those modifiers are held, and `claim_at`
-decides the same per point. The claim is searched for from the top of the tree
+holds. An `Interactive` given `claims` (a list of `Claim`s, each modifiers and
+an `Area`) takes every primary or secondary press in a claim's area while all
+of its modifiers are held; a claim with no modifiers takes every press there.
+The claim is searched for from the top of the tree
 down, before `capture_presses`, so the outermost claimant wins; the press, its
 drag and its release reach the claimant alone, none of its descendants, and no
 forwarding catcher under it unless the claimant is that catcher.
-`Document::press_claims` lists the `claim_modifiers` rectangles laid out this
-frame, which a plugin reports to its host. A Wayland program's window is a
+`Document::press_claims` lists the rectangles of the claims that need
+modifiers, laid out this frame, which a plugin reports to its host. A Wayland program's window is a
 forwarding catcher like a plugin's region, so a press claimed over it never
 reaches the program. `on_press_outside` hears every primary press outside the
 `Interactive`'s visible rectangle, wherever it goes and whatever takes it, at
@@ -1995,8 +1996,8 @@ child back when someone clicks elsewhere. A secondary drag stays with the node t
 took it while the pointer crosses a floating window above that node; only the
 start of one is hidden from what a floating window covers.
 
-A canvas a pen draws on is an `Interactive` with `drawing` (or `drawing_at` per
-point). While the `canvas_touch` preference is `CanvasTouch::Off`, a finger that
+A canvas a pen draws on is an `Interactive` with `drawing` (an `Area`: `true`
+for all of it, or a `HitRegion` of it). While the `canvas_touch` preference is `CanvasTouch::Off`, a finger that
 lands on one reaches nothing at all: no press, drag, long press, scroll or pinch,
 for that node or any around it, until it lifts. A pen, a mouse and a touchpad
 are untouched, and so is a finger on anything the drawing surface does not
@@ -2436,7 +2437,7 @@ a secondary drag resizes it from the edge or corner nearest the pointer (by
 thirds of the window). On a docked pane a secondary drag moves the split nearest
 the pointer, and a primary drag does nothing: it is swallowed rather than handed
 to the content, since a press made with the modifier is never meant for it.
-Each window and each docked pane claims those presses (`claim_modifiers`), so
+Each window and each docked pane claims those presses (a `Claim` with those modifiers), so
 neither the tabs nor the content see them. The code is
 `beui-dock/src/unstyled/modifier_drag.rs`; linux-desktop sets Super, and the demo's Docking page
 has a switch for Alt.
@@ -4390,7 +4391,7 @@ hears them as well as the document's: `PointerPress`, `ScrollGesture` and
 where on itself it was pressed reads those rather than its rect. `pos`, rects
 (`measure`) and text geometry (`measure_text`) are in
 the window's coordinates, through every space's scale as well as its
-translation; `local`, `size` and a `hit_at` test's point are in the node's own
+translation; `local`, `size` and a `HitRegion` are in the node's own
 layout units, so a node inside a zoomed `CanvasItem scales=true` hears a press
 the same as it would unzoomed (guides/pan_and_zoom.md). A length of the node's
 own (a padding, a radius) compared with window positions is multiplied by
@@ -4591,6 +4592,15 @@ wheel over a horizontal strip passes through to whatever is around it, and a
 drag reaches the innermost catcher that scrolls that way. `unstyled::Scroll` is
 `scroll_wheel`, `scroll_drag` and `autoscroll`; `PanZoom` is `pan_zoom`.
 
+Where a catcher hears the pointer is declared, never asked at the moment of a
+press: `hit_area`, `capture_presses`, `gesture_area`, `drawing` and each
+`Claim` of `claims` take an `Area`: `Nowhere`, `Whole`, `Within(HitRegion)`
+(rectangles in the node's own layout units, built with `HitRegion::rect`,
+`with` and `without`, and allowed past the node's rectangle) or
+`CaretHandles`. A component derives them as memos of its state (a `bool`
+converts to `Whole` or `Nowhere`), so a core whose hit testing runs before
+any handler, the browser's, knows them ahead of time.
+
 Pointer input takes one path. Each mouse button and each finger is a pointer
 of its own, and the document sees their downs, moves and ups in the order they
 happened (`InputState::pointer_events`), so a press, a move and a release that
@@ -4600,16 +4610,15 @@ their policies, and in the first one the pointer lands on, the hit is the
 topmost `Interactive` under it together with every `Interactive` around it,
 its path. The same walk collects the layers the press is outside of, which it
 then asks to close. Any other node is transparent, and so is an `Interactive`
-at a point its `hit_at` turns down, along with the catchers around it up to one
+at a point outside its `hit_area`, along with the catchers around it up to one
 that captures or forwards; a passing layer whose content turns a point down
 lets it through to what is beneath.
 
 The pointer keeps what its down reached until it is let go. A modifier claim
-(`claim_modifiers`, `claim_at`) is looked for first, from the top of the tree
-down and past `hit_at`, and a claimed press reaches its claimant alone.
-Otherwise the press goes up the path from the topmost catcher and stops at the
-first that captures it (`capture_presses`, or `capture_at` at the points its
-callback accepts). Every catcher it reached that
+(`claims`) is looked for first, from the top of the tree down and past
+`hit_area`, and a claimed press reaches its claimant alone. Otherwise the press
+goes up the path from the topmost catcher and stops at the first whose
+`capture_presses` area holds it. Every catcher it reached that
 handles presses arms: it hears `on_press`, `on_drag` wherever the pointer goes
 (once in the frame of the press too), and `on_click` when it is let go over the
 catcher, or for a finger, let go without having been dragged. The press then
@@ -4653,7 +4662,10 @@ under it), and stays latched to it for
 `WHEEL_LATCH_TIMEOUT` while the pointer holds still.
 
 Parts a catcher draws outside its own rectangle, such as the touch selection
-handles of `unstyled::TextArea`, take their presses with `claim_at`. Paint
+handles of `unstyled::TextArea`, take their presses with a claim on
+`Area::CaretHandles`: the handles that the `Text` inside the catcher paints on
+its carets, within reach of a finger below each caret, while the caret is in
+the text's visible rectangle. Paint
 order is the tree's order, so paint such parts from a node that comes after
 whatever they must cover, or from a `CanvasItem` with `clip=false`, which a
 canvas paints without cutting it to its own rectangle. Those handles are carets

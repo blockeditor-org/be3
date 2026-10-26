@@ -155,7 +155,6 @@ pub fn SoftwareKeyboard(cap: RenderFn<KeyCapHandle>, emoji: RenderFn<KeyboardHan
                             press_focus=false
                             forwards_wheel=false
                             on_forward={forward}
-                            hit_at={|_| true}
                         >
                             <KeyRows layout={layout::layout(layer)} keyboard cap />
                         </Interactive>

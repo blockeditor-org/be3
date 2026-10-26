@@ -58,6 +58,7 @@ pub mod toggle;
 pub mod tooltip;
 pub mod tree;
 pub mod typeahead;
+mod watched;
 
 pub use accessibility::labelled_node;
 pub use action_bar::{ActionBar, ActionBarHandle, title_action};
