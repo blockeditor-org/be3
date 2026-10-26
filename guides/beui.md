@@ -1037,8 +1037,8 @@ features. That choice is `unstyled::Anchored`'s, the one surface every anchored
 popup sits on (`MenuPopup`, `Select`'s options, `Popover`, and through it the
 date and colour pickers): an overlay under `anchor` at `placement`, or the same
 content in a sheet. It looks at whether the press that opened it was a
-finger's (`touched_by_finger`, `Document::touched_by_finger`: `use_touch`
-narrowed to fingers, since a pen points as precisely as a mouse), so no trigger
+finger's (`touched_by_finger`, `Document::touched_by_finger`: whether the last
+press was a finger's, until a key is pressed; a pen points as precisely as a mouse), so no trigger
 tracks touch itself; `sheet` (`SheetWhen::Touched` by
 default, `Always` or `Never`) overrides that. Its `AnchoredStyle` takes both
 looks with no default: `dropdown` wraps the content in a panel and `sheet`
@@ -1866,8 +1866,8 @@ inside a dialog is an alert of its own, opened over it; a control or row action
 `styled::Dialog` is the two parts together: `DialogFrame`, the outer part, and
 `DialogBody`, the inner part. `DialogFrame` (on `unstyled::Dialog`) is a centred
 `DialogCard` in a `Modal`, or, for a `Dialog` kind when the widest screen is
-narrower than `SHEET_BELOW` or the press that opened it was a touch (`use_touch()`:
-whether the last press was not the mouse, until a key is pressed), a fitted
+narrower than `SHEET_BELOW` or the press that opened it was a finger's
+(`touched_by_finger()`, the same rule as `Anchored`'s), a fitted
 `ModalSheet`; an alert is always a card. It builds its content once, when it first
 opens, and moves it between the card and the sheet with a `Portal` if that changes
 while it is open; it provides the `DialogLayout` (`narrow`, `sheet`, `bottom_inset`)

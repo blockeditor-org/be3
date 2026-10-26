@@ -140,10 +140,6 @@ pub fn use_fullscreen() -> ReadSignal<bool> {
     with_document(|document| document.watch_fullscreen())
 }
 
-pub fn use_touch() -> ReadSignal<bool> {
-    with_document(|document| document.watch_touched())
-}
-
 pub fn touched_by_finger() -> bool {
     try_with_document(|document| document.touched_by_finger()).unwrap_or(false)
 }

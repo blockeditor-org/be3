@@ -577,10 +577,6 @@ impl Document {
         self.finger_pressed && self.touched()
     }
 
-    pub fn watch_touched(&self) -> ::reactive::ReadSignal<bool> {
-        self.touched.read_only()
-    }
-
     pub(crate) fn set_touched(&self, touched: bool) {
         if self.touched() != touched {
             self.touched.set(touched);

@@ -355,11 +355,10 @@ pub fn Dialog(
         });
         widest > 0.0 && widest < sheet_below
     });
-    let touch = use_touch();
     let touched = create_signal(false);
     create_effect(move || {
         if open.get() {
-            let touched_now = untrack(|| touch.get());
+            let touched_now = untrack(touched_by_finger);
             untrack(|| touched.set(touched_now));
         }
     });
