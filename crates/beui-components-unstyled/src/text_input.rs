@@ -8,7 +8,7 @@ use text_editor_core::{EditorCommand, TextBuffer, TextLanguage};
 
 use beui_core::base::ItemSize;
 use beui_core::color::Color32;
-use beui_core::geometry::{Pos2, Rect, Vec2};
+use beui_core::geometry::{Pos2, Rect};
 
 use crate::ContextMenuApi;
 use crate::MenuListApi;
@@ -198,8 +198,8 @@ pub fn TextInput(
         wrap(field, padded)
     };
     let padding = create_memo(move || match multiline {
-        true => Vec2::new(padding_horizontal.get(), padding_vertical.get()),
-        false => Vec2::ZERO,
+        true => Sides::symmetric(padding_horizontal.get(), padding_vertical.get()),
+        false => Sides::ZERO,
     });
     let submit = match on_submit.is_empty() {
         true => ClickCallback::empty(),

@@ -388,8 +388,8 @@ sizes and its minimum pane sizes.
 
 ## 6. Get code outside beui onto the styled layer
 
-**Done.** Outside beui's own crates, the only `unstyled::` import left is
-infinite-canvas's text (`app/text.rs`, below), and nothing imports
+**Done.** Outside beui's own crates nothing imports `unstyled::` (the
+canvas's text, the last one, moved onto `styled::TextArea` in §10) or
 `primitives::` (the source lint holds that).
 
 About 29 crates import `unstyled::` directly. The biggest are block-shell (13
@@ -448,11 +448,9 @@ Outcomes, by crate group (each also migrated onto §7's tokens):
   `DragPoint`, `Floating`, `Edge`, `PointerLock`, `PointerLockHandle`,
   `ChoiceOption`, `MenuNodes` and the text area's data types
   (`TextAreaState`, `TextAreaColors`, `SyntaxColors`, `TextWidget`,
-  `ProseLine`, `RemoteTextCursor`). One import stays on unstyled: the
-  canvas's text (`infinite-canvas/src/app/text.rs`) is an `unstyled::TextArea`
-  with `Prose`, because its font size, padding, colours and placeholder come
-  from the canvas item and its zoom, and it has none of the styled text
-  area's find bar or context menu. Colours left as `Custom` come from
+  `ProseLine`, `RemoteTextCursor`). The canvas's text
+  (`infinite-canvas/src/app/text.rs`) stayed an `unstyled::TextArea` with
+  `Prose` until §10 put it on `styled::TextArea`. Colours left as `Custom` come from
   content: canvas, presentation and video colours, the PDF page, the black of
   a presented deck and its playback shade, and the video stage. The shared
   embedded-editor geometry (`block_ui::EMBEDDED_EDITOR_*`), the timeline's
@@ -1001,9 +999,9 @@ Problems earlier steps found in the beui crates, fixed at their source:
 
 ## 10. Canvas text on the styled text area, edited in its scaled item
 
-Canvas text is the last import of `unstyled::` outside beui
+**Done.** Canvas text was the last import of `unstyled::` outside beui
 (`infinite-canvas/src/app/text.rs`). It already draws with styled's look and
-colours. What keeps it on the unstyled `TextArea`:
+colours. What kept it on the unstyled `TextArea`:
 
 - **Text being edited can't stay in its scaled item.** Read-only canvas text sits
   in a `scales=true` canvas item: it is laid out at its own size and kept crisp
@@ -1047,9 +1045,21 @@ Changes:
    and `find`, and `TextContextMenu` `read_only`. The canvas still passes its
    own padding (`TEXT_INSET`); step 3 decides whether that becomes a `padding`
    prop or the canvas drops it.
-3. **Canvas text is a `styled::TextArea`** in its scaled item while edited and
+3. **Done.** **Canvas text is a `styled::TextArea`** in its scaled item while edited and
    while read-only, with `find=false`. It gains the text menu and the emoji
-   completer, and its wrap no longer changes when editing starts.
+   completer, and its wrap no longer changes when editing starts. The entity's
+   item scales whether or not its text is edited (no `unit`, no
+   `font_size = size × zoom`), and only takes presses while edited
+   (`pointer`). The text takes `size=TextSize::Custom`, `color=TextColor::Custom`
+   (the entity's colour) and `disabled` while not edited. `styled::TextArea`
+   gained `padding: Padding` (default `Lg` across, `Md` down, resolved for the
+   density); the canvas passes its 4px `TEXT_INSET` as `Space::Custom`.
+   `unstyled::TextArea`'s `padding` became `Sides`, so all four sides of a
+   `Padding` reach it. Its reported content size, and a single line's
+   measured text, are now in the text area's own units inside a scaled space
+   (they were window pixels). Text still straightens while it is edited
+   (`Turn` 0), as before. A label whose text overflows its box now fades at
+   the bottom edge, as any overflowing styled text area does.
 
 ## Order
 

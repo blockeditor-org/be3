@@ -2,7 +2,7 @@ use super::*;
 use block_editor_beui::be_block::Edit;
 use block_editor_beui::be_block::be_model::ObjectId;
 use block_editor_beui::beui::pos2;
-use block_editor_beui::beui::styled::TextAreaApi;
+use block_editor_beui::beui::styled::{TextAreaApi, TextAreaSurfaceApi};
 use infinite_canvas_types::Entity;
 
 fn peer_types(editor: &mut BeuiTest<CanvasApp>, entity: Uuid, at: usize, typed: &str) {
@@ -54,7 +54,10 @@ fn a_peer_types_into_the_text_being_edited() {
         .find_test_id(&format!("infinite-canvas.text.{}", other.id))
         .expect("the other text is drawn");
     assert_eq!(
-        editor.document().api::<TextAreaApi>(shown).shown(),
+        editor
+            .document()
+            .api::<TextAreaApi>(editor.document().api::<TextAreaSurfaceApi>(shown).surface())
+            .shown(),
         "Worlds",
         "text nobody here edits shows the peer's edit too"
     );

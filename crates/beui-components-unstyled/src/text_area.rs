@@ -123,7 +123,7 @@ struct Surface {
     prose: Memo<Option<Prose>>,
     metrics: Memo<(f32, u64)>,
     gutter: Memo<f32>,
-    padding: Memo<Vec2>,
+    padding: Memo<Sides>,
     scroll: ReadSignal<ScrollPosition>,
     offset: Signal<f32>,
     shift: Signal<f32>,
@@ -178,7 +178,7 @@ impl AreaGeometry for Surface {
             None => {
                 let y = self.estimated_y(byte)?;
                 Some(Rect::from_min_size(
-                    Pos2::new(self.padding.get_untracked().x, y),
+                    Pos2::new(self.padding.get_untracked().left, y),
                     Vec2::new(self.caret_width(), self.row_estimate()),
                 ))
             }
@@ -269,7 +269,7 @@ impl Surface {
             return pos;
         };
         let wanted = canvas.min.x
-            + (self.padding.get_untracked().x - self.shift.get_untracked()) * self.scale();
+            + (self.padding.get_untracked().left - self.shift.get_untracked()) * self.scale();
         Pos2::new(pos.x + laid.min.x - wanted, pos.y)
     }
 
@@ -488,9 +488,8 @@ impl Surface {
     }
 
     fn room(&self) -> f32 {
-        (self.view_width.get_untracked()
-            - self.padding.get_untracked().x * 2.0
-            - self.caret_width())
+        let padding = self.padding.get_untracked();
+        (self.view_width.get_untracked() - padding.left - padding.right - self.caret_width())
         .max(0.0)
     }
 
@@ -1095,7 +1094,7 @@ pub fn TextArea(
     #[prop(default = false)] read_only: Prop<bool>,
     #[prop(default = true)] find: bool,
     font_size: Prop<f32>,
-    padding: Prop<Vec2>,
+    padding: Prop<Sides>,
     #[prop(default = None)] prose: Prop<Option<Prose>>,
     #[prop(default = false)] show_runs: Prop<bool>,
     #[prop(default = Vec::new())] client_colors: Prop<Vec<(u64, Color32)>>,

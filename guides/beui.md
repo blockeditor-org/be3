@@ -957,8 +957,9 @@ the same `disabled`, `read_only`, `focused`, `line_numbers`, `prose`,
 body text (a `TextSize`, `Custom` for a size that comes from content) and a
 `color` (a `TextColor`): `Default` keeps the theme's syntax colours and muted
 placeholder, and any other colour draws all the text in it with the
-placeholder a faded copy. It has no font-size or scale prop: text drawn zoomed
-sits in a scaled space.
+placeholder a faded copy, and a `padding` (a `Padding`, `Space::Custom` for
+an inset that comes from content; the unstyled area takes `Sides`). It has no
+font-size or scale prop: text drawn zoomed sits in a scaled space.
 `single_line` is the same control laid out on one unwrapped line with no
 gutter, scrolled sideways to keep the caret in view, where Enter submits and
 Tab leaves; `frame` wraps the field in the caller's chrome inside the area's
@@ -975,10 +976,11 @@ A `TextInput` face gets `clear` and `copy` in its `TextInputHandle`, so
 `styled::TextInput`'s `clearable` and `copyable` buttons only draw them.
 Nothing measures text off the tree: a `TextArea` reports the size its laid-out
 rows reach through `on_content_size` (padding included, read from the rows'
-`text_bounds`), and a caller sizes a box from that. The infinite canvas grows a
+`text_bounds` and divided by the scale of a scaled space, so it is in the
+area's own units), and a caller sizes a box from that. The infinite canvas grows a
 text entity this way while it is edited, and draws each text and label as a
-rich `TextArea` over a `LiveText`, the same area whether or not it is
-being edited (disabled while it is not), with `styled::text_area_look()`, so a checklist shows the styled
+rich `styled::TextArea` over a `LiveText` in the entity's scaled item, the same area whether or not it is
+being edited (disabled while it is not, `find=false`), so a checklist shows the styled
 `Checkbox` at the size of its text (a `Checkbox`'s `size` is the `TextSize` it sits beside). Its export is the one place text is laid out away from the tree
 (`TextAreaState::lay_out_prose`): it gives every marker a square the height of
 a line and paints it, and each quote's bar, as a pink box, since export does

@@ -28,7 +28,7 @@ use beui_core::node::NodeId;
 use beui_view::primitives::{self, Layers, Span};
 
 use crate::list::List;
-use crate::tokens::{CornerSet, Padding, Size, Space, Stroke};
+use crate::tokens::{CornerSet, Padding, Size, Space, Stroke, resolved};
 use beui_view::reactive::*;
 use emoji::emoji_menu;
 
@@ -114,6 +114,7 @@ pub fn TextArea(
     #[prop(default = false)] password: Prop<bool>,
     #[prop(default = TextColor::Default)] color: Prop<TextColor>,
     #[prop(default = TextSize::Base)] size: Prop<TextSize>,
+    #[prop(default = TEXT_PADDING)] padding: Prop<Padding>,
     #[prop(default = None)] prose: Prop<Option<Prose>>,
     #[prop(default = false)] disabled: Prop<bool>,
     #[prop(default = false)] read_only: Prop<bool>,
@@ -150,6 +151,7 @@ pub fn TextArea(
         }
     });
     let font_size = create_memo(move || size.get().px());
+    let padding = resolved(padding, Padding::resolve);
     let disabled = create_memo(move || disabled.get());
     let read_only = create_memo(move || read_only.get());
     let surface = NodeRef::new();
@@ -183,7 +185,7 @@ pub fn TextArea(
                     widgets
                     colors
                     font_size
-                    padding=TEXT_PADDING
+                    padding
                     prose
                     disabled
                     read_only
@@ -218,7 +220,7 @@ pub fn TextArea(
 }
 
 const PLACEHOLDER_ALPHA: f32 = 0.4;
-const TEXT_PADDING: Vec2 = Vec2::new(Space::Lg.px(), Space::Md.px());
+const TEXT_PADDING: Padding = Padding::symmetric(Space::Lg, Space::Md);
 const CARET_WIDTH: f32 = Stroke::Focus.px();
 const LINE_PADDING: (f32, f32) = (3.0, Space::Xs.px());
 const END_ROOM: f32 = Space::Xl.px();

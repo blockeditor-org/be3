@@ -41,10 +41,10 @@ pub(super) fn Lines(cx: Context) -> NodeId {
     let fill = create_memo(move || Some(cx.view_height.get()));
     let list = cx.list;
     let keys = cx.visible;
-    let top = create_memo(move || Some(cx.padding.get().y));
+    let top = create_memo(move || Some(cx.padding.get().top));
     let bottom = create_memo(move || match cx.prose.get() {
-        Some(_) => Some(cx.padding.get().y),
-        None => Some((cx.geometry.get().end_room - cx.padding.get().y).max(0.0)),
+        Some(_) => Some(cx.padding.get().bottom),
+        None => Some((cx.geometry.get().end_room - cx.padding.get().bottom).max(0.0)),
     });
     let align = create_memo(move || match cx.prose.get() {
         Some(prose) => Align2::new(
@@ -82,9 +82,10 @@ pub(super) fn Lines(cx: Context) -> NodeId {
             .rights
             .with(|rights| rights.values().copied().reduce(f32::max))?;
         let below = bottom.get().unwrap_or(0.0);
+        let scale = scale_of(cx, canvas);
         Some(Vec2::new(
-            right.max(left) - left + padding.x,
-            padding.y + rows.get().height() + below,
+            (right.max(left) - left) / scale + padding.right,
+            padding.top + rows.get().height() / scale + below,
         ))
     });
     create_effect(move || {
@@ -95,6 +96,13 @@ pub(super) fn Lines(cx: Context) -> NodeId {
     lines
 }
 
+fn scale_of(cx: Context, canvas: NodeRef) -> f32 {
+    canvas
+        .try_get()
+        .map_or(1.0, |canvas| cx.held.with(|held| held.placements.scale(canvas)))
+        .max(f32::EPSILON)
+}
+
 #[component]
 pub(super) fn SingleLine(cx: Context) -> NodeId {
     let canvas = cx.state.canvas();
@@ -102,7 +110,8 @@ pub(super) fn SingleLine(cx: Context) -> NodeId {
     let bounds = create_signal(Rect::ZERO);
     let geometry = GeometryCell::default();
     let text = create_memo(move || {
-        let laid = bounds.get().size();
+        let scale = scale_of(cx, canvas);
+        let laid = bounds.get().size() / scale;
         cx.metrics.get();
         let body = galley("", FontId::proportional(cx.font_size.get()))
             .map_or(0.0, |galley| galley.line_height());
@@ -110,17 +119,21 @@ pub(super) fn SingleLine(cx: Context) -> NodeId {
     });
     create_effect(move || cx.text_extent.set(text.get()));
     let canvas_width = create_memo(move || {
-        text.get().x + cx.padding.get().x * 2.0 + cx.geometry.get().caret_width
+        let padding = cx.padding.get();
+        text.get().x + padding.left + padding.right + cx.geometry.get().caret_width
     });
-    let canvas_height = create_memo(move || text.get().y + cx.padding.get().y * 2.0);
-    let x = create_memo(move || cx.padding.get().x - cx.shift.get());
+    let canvas_height = create_memo(move || {
+        let padding = cx.padding.get();
+        text.get().y + padding.top + padding.bottom
+    });
+    let x = create_memo(move || cx.padding.get().left - cx.shift.get());
     let y = create_memo(move || {
         let padding = cx.padding.get();
         let line = text.get().y;
         let height = cx.view_height.get();
-        match height > line + padding.y * 2.0 {
+        match height > line + padding.top + padding.bottom {
             true => (height - line) / 2.0,
-            false => padding.y,
+            false => padding.top,
         }
     });
     let text_width = create_memo(move || text.get().x + cx.geometry.get().caret_width);
@@ -189,7 +202,7 @@ fn AreaRow(cx: Context, line: ReadSignal<usize>) -> NodeId {
     let gutter = create_memo(move || Some(cx.gutter.get()));
     let numbered = create_memo(move || cx.gutter.get() > 0.0);
     let look = create_memo(move || model.get().look.clone());
-    let padding = create_memo(move || cx.padding.get().x);
+    let padding = create_memo(move || cx.padding.get());
     let block = create_memo(move || model.get().block);
     let renders = cx.block.is_some();
     let shown_block = create_memo(move || block.get().filter(|_| renders).map(|(index, _)| index));
@@ -246,7 +259,8 @@ fn AreaRow(cx: Context, line: ReadSignal<usize>) -> NodeId {
             return Margin::default();
         }
         let size = cx.font_size.get();
-        let width = cx.view_width.get() - cx.gutter.get() - cx.padding.get().x * 2.0;
+        let padding = cx.padding.get();
+        let width = cx.view_width.get() - cx.gutter.get() - padding.left - padding.right;
         Margin::centered(
             width,
             size,

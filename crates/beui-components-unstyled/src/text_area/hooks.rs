@@ -135,7 +135,7 @@ pub struct TextLine {
     pub line: Memo<usize>,
     pub start: Memo<usize>,
     pub look: Memo<LineLook>,
-    pub padding: Memo<f32>,
+    pub padding: Memo<Sides>,
     pub size: Memo<f32>,
     pub margin: Memo<Margin>,
     pub outdent: Memo<f32>,
@@ -173,7 +173,7 @@ impl TextLine {
 
     pub fn column(&self) -> Memo<f32> {
         let (padding, margin) = (self.padding, self.margin);
-        create_memo(move || padding.get() + margin.get().left)
+        create_memo(move || padding.get().left + margin.get().left)
     }
 
     pub fn right(&self) -> Memo<f32> {
@@ -181,12 +181,13 @@ impl TextLine {
         let left = self.left();
         create_memo(move || {
             let margin = margin.get();
-            let end = padding.get() + margin.left + margin.column;
+            let padding = padding.get();
+            let end = padding.left + margin.left + margin.column;
             let wanted = table
                 .get()
                 .and_then(|table| table.edges.last().map(|edge| edge.0))
                 .map_or(0.0, |last| left.get() + last + size.get() - end);
-            padding.get() + (margin.right - wanted.max(0.0)).max(0.0)
+            padding.right + (margin.right - wanted.max(0.0)).max(0.0)
         })
     }
 
@@ -209,7 +210,7 @@ impl TextLine {
 
     pub fn left(&self) -> Memo<f32> {
         let (padding, indent) = (self.padding, self.indent());
-        create_memo(move || (padding.get() + indent.get()).max(0.0))
+        create_memo(move || (padding.get().left + indent.get()).max(0.0))
     }
 
     pub fn code_padding(&self) -> Memo<f32> {

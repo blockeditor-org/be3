@@ -996,7 +996,7 @@ fn touch_event(finger: u64, phase: TouchPhase, pos: Pos2) -> Input {
 }
 
 pub(crate) const AREA_FONT_SIZE: f32 = 14.0;
-pub(crate) const AREA_PADDING: Vec2 = Vec2::new(12.0, 8.0);
+pub(crate) const AREA_PADDING: Sides = Sides::symmetric(12.0, 8.0);
 
 pub(crate) fn area_colors() -> unstyled::TextAreaColors {
     styled::text_area_colors(&styled::Theme::DARK)

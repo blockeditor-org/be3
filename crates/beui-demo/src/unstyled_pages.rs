@@ -1401,7 +1401,7 @@ fn PlainNote() -> NodeId {
                     colors={create_memo(move || beui::styled::text_area_colors(&theme.get()))}
                     look={beui::styled::text_area_look()}
                     font_size=14.0
-                    padding={beui::Vec2::new(12.0, 8.0)}
+                    padding={beui::Sides::symmetric(12.0, 8.0)}
                     completer={emoji_completer()}
                     completion_menu={CompletionMenu::new(
                         |handle: CompletionRowHandle| view! {
