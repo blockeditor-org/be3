@@ -35,6 +35,7 @@ dependency is declared, and buck2 reads it through cargo's own plans.
 | `./scripts/buck run //:buckify` | regenerates `buck/cargo/crates.bzl` and `Cargo.lock` from the manifests |
 | `./scripts/buck run //:rust-project` | writes `rust-project.json` for rust-analyzer |
 | `./scripts/buck run //:lock-sysroot` | re-resolves `buck/sysroot/packages.bzl` |
+| `./scripts/buck run //:pdfium -- REVISION` | regenerates `third-party/pdfium/sources.bzl` from PDFium's GN build at REVISION (a commit, or a branch such as `chromium/8046`), which is how PDFium is updated; it checks PDFium and its DEPS out under `target/pdfium` and needs git, curl and python3 |
 
 `--target-platforms root//buck/platforms:<p>` builds for another platform, and
 `-m release` with cargo's release profile, on whichever platform it is. The
@@ -224,7 +225,9 @@ sysroot.
 
 Most tests run on the workers, including beui-renderer-wgpu's, be-dmabuf's, be-wayland's and
 beui-platform-drm's, which draw
-through lavapipe from `buck/sysroot:amd64-test`; a test whose `env` names
+through lavapipe from `buck/sysroot:amd64-test` (beui-layer-xr's from
+`buck/sysroot:amd64-xr`, the same set with Monado's OpenXR runtime and
+service, which its test runs headless); a test whose `env` names
 `LD_LIBRARY_PATH` is built as a harness binary and run through
 `library_path_test`, since the workers replace that variable
 (guides/build_server.md). buck2 runs a test again every
@@ -290,7 +293,10 @@ turns.
 | `wasi_guest` | the WASI sysroot | rust-lld through crates/wasm-link (the plugins and their SDK) |
 | `wasm32` | nothing | rust-lld (the games, the gpu shim) |
 
-All of them build on the same Linux workers. CI ships nothing built for a
+All of them build on the same Linux workers. `./scripts/verify` also runs
+rustc's check pass over beui for Windows x86_64 (`_CROSS_CHECKS` in
+`buck/dev/verify.bxl`), where beui-layer-xr's first headset is, in its one buck2
+command. CI ships nothing built for a
 device: the build helper (guides/build_server.md) builds the Android app and
 launcher (`:android-dist`) and the desktop app for any platform when
 be-launcher asks for a commit; releases are built by hand. Apple's SDK licence allows it on Apple hardware only, so release builds

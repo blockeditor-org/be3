@@ -56,6 +56,8 @@ type HeadReply = Box<dyn FnOnce(Result<Vec<u8>, String>) + Send>;
 
 type PlainReply = Box<dyn FnOnce(Result<be_types_host::PlainFile, String>) + Send>;
 
+type ContentReply = Box<dyn FnOnce(Result<(Uuid, Vec<u8>), String>) + Send>;
+
 pub(super) enum Command {
     Unsent {
         block: Uuid,
@@ -83,6 +85,12 @@ pub(super) enum Command {
         block: Uuid,
         content_type: Uuid,
         change: block_type_api::ChildChange,
+    },
+    FromFile {
+        block: Uuid,
+        content_type: Uuid,
+        name: String,
+        bytes: Vec<u8>,
     },
     Attach {
         block: Uuid,
@@ -172,6 +180,11 @@ pub(super) enum Command {
         reply: PlainReply,
     },
     Import(Vec<(be_client::transfer::Saved, BlockParent)>),
+    ContentOfFile {
+        name: String,
+        bytes: Vec<u8>,
+        reply: ContentReply,
+    },
     Version {
         block: Uuid,
         command: block_plugin_api::VersionCommand,
@@ -234,6 +247,7 @@ impl Command {
             | Command::History { block, .. }
             | Command::Attach { block, .. }
             | Command::ChangeChild { block, .. }
+            | Command::FromFile { block, .. }
             | Command::Detach { block, .. }
             | Command::FromEditor { block, .. }
             | Command::Create { block, .. }
@@ -258,6 +272,7 @@ impl Command {
             Command::Export { .. }
             | Command::Unsent { .. }
             | Command::Import(_)
+            | Command::ContentOfFile { .. }
             | Command::Flush(_)
             | Command::ApprovePairing { .. }
             | Command::DismissPairing(_)
@@ -1876,6 +1891,21 @@ async fn apply(
             replicas.change_later(block, change);
             false
         }
+        Command::FromFile {
+            block,
+            content_type,
+            name,
+            bytes,
+        } => {
+            if !replicas.is_open(block) {
+                wanted.open.entry(block).or_insert(content_type);
+                want_open(shared, &wanted.blocks());
+                open_wanted(peer, shared, wanted, replicas, block, content_type).await;
+            }
+            let change = Change::FromFile(block_type_api::FileChange { name, bytes });
+            replicas.change_later(block, change);
+            false
+        }
         Command::Operate(block, operation, at) => {
             replicas.send_as_host(block, &FromEditor::Operate(operation), at);
             false
@@ -2124,6 +2154,11 @@ async fn apply(
             false
         }
         Command::Import(_) => false,
+        Command::ContentOfFile { name, bytes, reply } => {
+            reply(replicas.from_file(ctx, &name, bytes).await);
+            crate::host::wake();
+            false
+        }
         Command::Flush(done) => {
             replicas.keep_all(ctx).await;
             if replicas.take_kept() {

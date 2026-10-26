@@ -252,6 +252,9 @@ interface shell-types {
         edits: edits,
         name: string,
         icon-codepoint: string,
+        /// The file extensions, without the dot, a program editor opens: a
+        /// block whose file name ends in one opens in it. Empty for a plugin.
+        extensions: list<string>,
     }
 
     /// The block types, templates and editors the host has.

@@ -12,8 +12,8 @@ fn a_carried_panel_follows_the_cursor_and_the_head() {
     let grabbed = main(&space)
         .hit(space.head.ray(PLATFORM, grab.to_vec2()))
         .unwrap();
-    space.begin_carry(WindowId::MAIN);
-    let distance = space.carry.as_ref().unwrap().distance;
+    space.begin_carry(Pointer::Mouse, WindowId::MAIN);
+    let distance = space.mouse.carry.as_ref().unwrap().distance;
 
     let facing = |space: &Space, at: Pos2| {
         let panel = main(space);
@@ -60,7 +60,7 @@ fn a_carried_panel_follows_the_cursor_and_the_head() {
     send(&mut space, now, steer(false));
 
     let released = send(&mut space, now, [button(moved, false)]);
-    assert_eq!(space.carry, None, "letting go ends the carry");
+    assert_eq!(space.mouse.carry, None, "letting go ends the carry");
     let got = delivered(&released);
     let [
         (

@@ -3,7 +3,9 @@ package be3:plugin@0.1.0;
 /// What the host and an editor plugin share.
 interface types {
     use accessibility.{description};
-    use be3:ui/types@0.1.0.{modifiers, pos2, rect, input, preferences, window-requests};
+    use be3:ui/types@0.1.0.{
+        modifiers, pos2, rect, input, preferences, window-requests, window-role,
+    };
 
     use be3:shared/ids@0.1.0.{
         account-id, block-id, block-type-id, organization-id, surface-id, uuid,
@@ -141,7 +143,13 @@ interface types {
         visible: pos2,
         pixel-width: u32,
         pixel-height: u32,
+        /// Pixels per logical point the screen is laid out at.
         scale-factor: f32,
+        /// Pixels per logical point the screen is drawn at, which the pixel
+        /// size counts. It differs from the scale factor where the host shows
+        /// the screen at another size than it lays it out at, as a panel in VR
+        /// does; a change of raster alone needs no new layout, only a painting.
+        raster: f32,
     }
 
     /// `windows` says the host shows the windows the plugin opens from this
@@ -167,6 +175,7 @@ interface types {
         width: u32,
         height: u32,
         scale-factor-millis: u32,
+        raster-millis: u32,
     }
 
     record screen-layout {
@@ -344,11 +353,14 @@ interface types {
         host(string),
     }
 
+    /// `role` says what the window is for, as beui's own windows do: a host
+    /// that shows windows in space never focuses a keyboard or a popup.
     record window-open {
         window: u64,
         opener: region-ref,
         placement: window-placement,
         size: size,
+        role: window-role,
     }
 
     enum window-edge {

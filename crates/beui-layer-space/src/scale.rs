@@ -3,7 +3,7 @@ use std::time::Duration;
 use beui_core::geometry::{Pos2, Vec2, pos2};
 use glam::Vec4;
 
-use crate::head::{FOV_Y, Head};
+use crate::head::View;
 use crate::panel::Panel;
 
 pub const SUPERSAMPLE: f32 = 1.25;
@@ -16,11 +16,18 @@ pub const LARGEST_TEXTURE: f32 = 4096.0;
 const OUTLINE_STEPS: usize = 8;
 pub const SETTLE: Duration = Duration::from_millis(250);
 
-pub fn wanted(panel: &Panel, head: &Head, platform: Vec2) -> Option<f32> {
-    if platform.x < 1.0 || platform.y < 1.0 {
+pub fn wanted(panel: &Panel, views: &[View]) -> Option<f32> {
+    views
+        .iter()
+        .filter_map(|view| wanted_by(panel, view))
+        .reduce(f32::max)
+}
+
+fn wanted_by(panel: &Panel, view: &View) -> Option<f32> {
+    if view.size.x < 1.0 || view.size.y < 1.0 {
         return None;
     }
-    let view_projection = head.view_projection(platform);
+    let view_projection = view.view_projection();
     let along = |step: usize| panel.size.x * step as f32 / OUTLINE_STEPS as f32;
     let outline: Vec<Vec4> = (0..=OUTLINE_STEPS)
         .map(|step| pos2(along(step), 0.0))
@@ -35,7 +42,7 @@ pub fn wanted(panel: &Panel, head: &Head, platform: Vec2) -> Option<f32> {
         .iter()
         .map(|corner| corner.w)
         .reduce(f32::min)?;
-    let focal = platform.y / 2.0 / (FOV_Y / 2.0).tan();
+    let focal = view.fov.pixels_per_tangent(view.size);
     Some(SUPERSAMPLE * focal / nearest.max(f32::EPSILON) * panel.metres_per_point)
 }
 

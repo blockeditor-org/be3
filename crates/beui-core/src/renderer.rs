@@ -56,6 +56,8 @@ pub trait Renderer {
 
     fn present(&mut self, background: Color32) -> bool;
 
+    fn set_vsync(&mut self, _vsync: bool) {}
+
     fn capture(&mut self) -> Option<Capture> {
         None
     }
@@ -142,6 +144,7 @@ pub struct Renderers {
     shared_fonts: Option<Box<dyn FontBackend>>,
     window: Option<Arc<dyn WindowHandle>>,
     size: Option<(u32, u32)>,
+    vsync: bool,
 }
 
 impl Renderers {
@@ -163,6 +166,7 @@ impl Renderers {
             shared_fonts: None,
             window: None,
             size: None,
+            vsync: true,
         };
         for slot in &mut renderers.slots[1..] {
             slot.renderer.set_active(false);
@@ -234,6 +238,12 @@ impl Renderers {
         self.active_mut().capture()
     }
 
+    pub fn set_vsync(&mut self, vsync: bool) {
+        if vsync != std::mem::replace(&mut self.vsync, vsync) {
+            self.active_mut().set_vsync(vsync);
+        }
+    }
+
     pub fn follow_choice(&mut self, context: &Context) -> Result<bool, Box<dyn Error>> {
         match context.take_renderer_choice() {
             Some(index) => self.choose(context, index),
@@ -267,6 +277,7 @@ impl Renderers {
     fn show(&mut self, index: usize) -> Result<(), Box<dyn Error>> {
         let renderer = &mut self.slots[index].renderer;
         renderer.set_active(true);
+        renderer.set_vsync(self.vsync);
         match (&self.window, self.size) {
             (Some(window), Some((width, height))) => renderer.attach(window.clone(), width, height),
             (None, Some((width, height))) => {

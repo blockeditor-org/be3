@@ -82,6 +82,7 @@ fn region_screen(
             pixel_width,
             pixel_height,
             scale_factor,
+            raster: scale_factor,
         },
         windows: false,
         placement: None,

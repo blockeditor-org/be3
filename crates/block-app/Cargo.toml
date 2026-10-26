@@ -135,6 +135,9 @@ be-dmabuf = { path = "../be-dmabuf" }
 be-wayland = { path = "../be-wayland" }
 be-remap-host = { path = "../remap/host" }
 beui-platform-drm = { path = "../beui-platform-drm" }
+# Files a block is written to for a program to open are watched, so what the
+# program saves is taken back into the block.
+notify = "8"
 pollster = "0.4"
 # The PulseAudio protocol, which pipewire-pulse serves, in pure Rust: the volume
 # keys set the default sink's and source's volume and mute through it.

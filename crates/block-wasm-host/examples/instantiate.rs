@@ -171,6 +171,7 @@ fn metrics() -> ViewportMetrics {
         pixel_width: WIDTH,
         pixel_height: HEIGHT,
         scale_factor: 1.0,
+        raster: 1.0,
     }
 }
 

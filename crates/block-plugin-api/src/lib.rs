@@ -146,7 +146,7 @@ pub use ui_types::{
     CanvasTouch, DisplayMode, InputDevice, Motion, PointerSettings, PointerSpeed, PreferenceLayer,
     Preferences, Rotation, ThemeKind,
 };
-pub use ui_types::{ImeArea, WindowRequests};
+pub use ui_types::{ImeArea, WindowRequests, WindowRole};
 pub use watch::{Encoded, WAITING_WEB_VIEW_EVENTS, Watch};
 
 pub const MAX_COLLECTION_ITEMS: usize = 1024;
@@ -294,6 +294,14 @@ impl ScreenPlacement {
     pub fn scale_factor(&self) -> f32 {
         self.scale_factor_millis as f32 / 1000.0
     }
+
+    pub fn raster(&self) -> f32 {
+        self.raster_millis as f32 / 1000.0
+    }
+}
+
+fn millis(value: f32) -> u32 {
+    (value * 1000.0).round().max(1.0) as u32
 }
 
 impl ScreenLayout {
@@ -312,8 +320,8 @@ impl ScreenLayout {
                     surface: surface(request.screen),
                     width: request.metrics.pixel_width,
                     height: request.metrics.pixel_height,
-                    scale_factor_millis: (request.metrics.scale_factor * 1000.0).round().max(1.0)
-                        as u32,
+                    scale_factor_millis: millis(request.metrics.scale_factor),
+                    raster_millis: millis(request.metrics.raster),
                 })
                 .collect(),
         }

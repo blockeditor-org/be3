@@ -62,6 +62,8 @@ const SPLITTER_HELD: f32 = 3.0;
 const GROUP_GLYPH: Size = Size::Xs;
 pub const WINDOW_CHROME: beui_core::geometry::Vec2 =
     beui_core::geometry::Vec2::new(2.0 * CHROME_BORDER, BAR_HEIGHT + 2.0 * CHROME_BORDER + RULE);
+const DIALOG_CHROME: beui_core::geometry::Vec2 =
+    beui_core::geometry::Vec2::new(2.0 * CHROME_BORDER, TAB_HEIGHT.px() + 2.0 * CHROME_BORDER);
 const DROP_OPACITY: f32 = 0.25;
 const AWAY_SPACING: Space = Space::Lg;
 const AWAY_PADDING: Space = Space::Xl3;
@@ -131,6 +133,7 @@ where
             dialog_scrim={dialog_scrim}
             dialog_margin=CARD_MARGIN
             dialog_gap=CARD_GAP
+            dialog_outset=DIALOG_CHROME
             tab={move |handle: DockTabHandle| view! {
                 <DockTabFace handle />
             }}

@@ -1,5 +1,6 @@
 use std::{
     cell::{Cell, RefCell},
+    collections::HashMap,
     rc::Rc,
     sync::Arc,
 };
@@ -8,7 +9,8 @@ use beui::reactive::*;
 use beui::styled::*;
 use beui::{
     Align, CursorIcon, Forwarded, ForwardedInput, ImeCursor, Modifiers, NodeId, PointerButton,
-    PointerEvent, PointerId, PointerPhase, Pos2, Rect, Region, Vec2, pos2,
+    PointerEvent, PointerId, PointerPhase, Pos2, Rect, Region, Vec2, WindowId, WindowPlacement,
+    WindowReport, WindowRole, pos2,
 };
 use block_plugin_api::{ChildId, EditorInstanceId, EditorRegion, FrameSpec, PluginManifest};
 use uuid::Uuid;
@@ -192,6 +194,7 @@ pub(crate) fn PluginRegion(
 ) -> NodeId {
     let instance = editor.instance;
     let place = super::desktop::place();
+    let windowing = (region == EditorRegion::Frame && !offscreen).then(|| editor.clone());
     let plugin_id = editor.plugin_id().to_owned();
     let floated_key = match region {
         EditorRegion::Window(window) => Some(super::desktop::FloatedKey {
@@ -210,6 +213,7 @@ pub(crate) fn PluginRegion(
         _ => create_memo(|| true),
     };
     let floated_rect = floated_key.clone().map(super::desktop::rect_of);
+    let floated_placement = floated_key.clone().map(super::desktop::placement_memo);
     let desktop_editor = store(editor.clone());
     let name = editor.plugin.identity.name.clone();
     let crash_id = format!("{plugin_id}.{}.{region:?}.crashed", instance.0);
@@ -264,8 +268,9 @@ pub(crate) fn PluginRegion(
                 rect: placement.rect,
                 clip: placement.clip,
                 zoom: zoom.get_untracked(),
-                raster: place.map(|place| place.scale.get_untracked()),
-                windows: hosts_windows,
+                raster: placement.raster,
+                windows: hosts_windows
+                    || (region == EditorRegion::Frame && crate::host::opens_windows()),
                 placement: stored_key
                     .with(|key| key.as_ref().and_then(super::desktop::placement_of)),
             },
@@ -283,8 +288,8 @@ pub(crate) fn PluginRegion(
         let _ = frame.get();
         let _ = view.get();
         let _ = zoom.get();
-        let _ = place.map(|place| place.scale.get());
         let _ = floated_rect.map(|rect| rect.get());
+        let _ = floated_placement.map(|placement| placement.get());
         placer.call(placed.with(Cell::get));
     });
     if shows_desktop {
@@ -364,6 +369,10 @@ pub(crate) fn PluginRegion(
         revision.get();
         plugin_host::frames(&plugin_id.value())
     });
+    let placed = create_memo(move || {
+        revision.get();
+        plugin_host::region_placed(&plugin_id.value(), instance, region)
+    });
     let drawing = |floating: bool| {
         let shown = create_memo(move || {
             let (pieces, loading, drawn, held, size) = state.with(|view| {
@@ -385,12 +394,13 @@ pub(crate) fn PluginRegion(
                 opacity.get(),
                 pieces,
                 (loading, drawn, held, size),
+                placed.get(),
             )
         });
         let held: Rc<RefCell<Option<(DrawingKey, beui::Drawing, u64)>>> =
             Rc::new(RefCell::new(None));
         let drawn = create_memo(move || {
-            let (_, rotation, opacity, pieces, _) = shown.get();
+            let (_, rotation, opacity, pieces, _, placed) = shown.get();
             let (drawn, held_rect, size) =
                 state.with_untracked(|view| (view.drawn, view.held, view.rect.size()));
             let key = DrawingKey {
@@ -400,7 +410,7 @@ pub(crate) fn PluginRegion(
                 drawn,
                 held: held_rect,
                 size,
-                placed: plugin_host::region_placed(&plugin_id.value(), instance, region),
+                placed,
             };
             let previous = held.borrow().clone();
             let published = plugin_host::region_published(&plugin_id.value());
@@ -658,6 +668,11 @@ pub(crate) fn PluginRegion(
     let pen_surface = move |position: Pos2| {
         !passive.get_untracked() && state.with_untracked(|view| view.draws(position))
     };
+    let windows = windowing.map(|editor| {
+        view! {
+            <PanelWindows editor rect />
+        }
+    });
     view! {
         <DropTarget on_over={over} on_drop={dropped}>|_: DropHandle|
             <Layers>
@@ -697,6 +712,7 @@ pub(crate) fn PluginRegion(
                 </Show>
                 <RegionChildren state rect child_view below=false />
                 <Drawing draw={floating} />
+                {windows}
             </Layers>
         </DropTarget>
     }
@@ -709,7 +725,6 @@ fn DesktopWindows(editor: RegionEditor, state: Memo<RegionView>, rect: Memo<Rect
         super::desktop::DesktopPlace {
             display,
             displays: create_memo(move || vec![display.get()]),
-            scale: create_memo(|| crate::host::pixels_per_point()),
         }
     });
     provide_context(place);
@@ -758,6 +773,136 @@ fn DesktopWindows(editor: RegionEditor, state: Memo<RegionView>, rect: Memo<Rect
                 }
             }</ForEach>
         </Canvas>
+    }
+}
+
+#[component]
+fn PanelWindows(editor: RegionEditor, rect: Memo<Rect>) -> NodeId {
+    let instance = editor.instance;
+    let plugin = editor.plugin_id().to_owned();
+    let block = editor.role.block().map(|block| block.id);
+    let keys = super::desktop::panels(plugin.clone(), instance);
+    let plugin = store(plugin);
+    let editor = store(editor);
+    let hosted: Stored<RefCell<HashMap<u64, WindowId>>> = store(RefCell::default());
+    let within = use_window().map_or(WindowId::MAIN, |handle| handle.id);
+    let placed = move |placement: block_plugin_api::WindowPlacement| match placement {
+        block_plugin_api::WindowPlacement::AtPointer => WindowPlacement::AtPointer,
+        block_plugin_api::WindowPlacement::Host(placement) => {
+            WindowPlacement::Host(beui::HostPlacement(placement))
+        }
+        block_plugin_api::WindowPlacement::Over(over) => match over.region.region {
+            EditorRegion::Window(window) => {
+                match hosted.with(|hosted| hosted.borrow().get(&window).copied()) {
+                    Some(window) => WindowPlacement::Over {
+                        window,
+                        at: over.at,
+                    },
+                    None => WindowPlacement::AtPointer,
+                }
+            }
+            EditorRegion::Frame if over.region.instance == instance => WindowPlacement::Over {
+                window: within,
+                at: over.at + rect.get_untracked().min.to_vec2(),
+            },
+            _ => WindowPlacement::AtPointer,
+        },
+    };
+    view! {
+        <Layers>
+            <ForEach keys={keys}>|window: u64| {
+                let id = WindowId::next();
+                hosted.with(|hosted| hosted.borrow_mut().insert(window, id));
+                on_cleanup(move || {
+                    hosted.with(|hosted| hosted.borrow_mut().remove(&window));
+                });
+                let key = super::desktop::FloatedKey {
+                    plugin: plugin.value().to_string(),
+                    instance,
+                    window,
+                };
+                let panel = super::desktop::panel_of(key.clone());
+                let size = create_memo(move || panel.with(|panel| panel.as_ref().map_or(Vec2::ZERO, |(size, _)| *size)));
+                let (placement, role) = panel.with_untracked(|panel| match panel {
+                    Some((_, panel)) => (placed(panel.opened.clone()), panel.role),
+                    None => (WindowPlacement::AtPointer, WindowRole::Normal),
+                });
+                let reported = key.clone();
+                let report = move |report: WindowReport| match report {
+                    WindowReport::Placed { placement, .. } => {
+                        super::desktop::panel_placed(&reported, placement.0);
+                    }
+                    WindowReport::Closed(_) => super::desktop::panel_closed(&reported),
+                    _ => {}
+                };
+                let region = EditorRegion::Window(window);
+                let child_view: ChildView = match block {
+                    Some(block) => super::editors::child_view(block, region),
+                    None => store(Box::new(|_, _, _| view! {
+                        <Frame />
+                    })),
+                };
+                view! {
+                    <Window
+                        id={Some(id)}
+                        size
+                        placement
+                        role
+                        on_report={report}
+                    >|handle: WindowHandle| {
+                        follow_panel_asks(panel, handle);
+                        view! {
+                            <PluginRegion
+                                editor={editor.with(RegionEditor::clone)}
+                                region
+                                child_view
+                                on_focus={Callback::new(|()| {})}
+                            />
+                        }
+                    }</Window>
+                }
+            }</ForEach>
+        </Layers>
+    }
+}
+
+fn follow_panel_asks(panel: Memo<Option<(Vec2, super::desktop::Panel)>>, handle: WindowHandle) {
+    let asked = create_memo(move || {
+        panel.with(|panel| {
+            panel
+                .as_ref()
+                .map_or((0, 0, beui::WindowEdge::BottomRight), |(_, panel)| {
+                    (panel.moves, panel.resizes.0, edge_of(panel.resizes.1))
+                })
+        })
+    });
+    let seen = StoredCell::new(asked.get_untracked());
+    create_effect(move || {
+        let (moves, resizes, edge) = asked.get();
+        let (moved, resized, _) = seen.get();
+        seen.set((moves, resizes, edge));
+        untrack(|| {
+            if moves != moved {
+                handle.begin_move();
+            }
+            if resizes != resized {
+                handle.begin_resize(edge);
+            }
+        });
+    });
+}
+
+fn edge_of(edge: block_plugin_api::WindowEdge) -> beui::WindowEdge {
+    use block_plugin_api::WindowEdge as Edge;
+    match edge {
+        Edge::Top => beui::WindowEdge::Top,
+        Edge::Bottom => beui::WindowEdge::Bottom,
+        Edge::Left => beui::WindowEdge::Left,
+        Edge::Right => beui::WindowEdge::Right,
+        Edge::TopLeft => beui::WindowEdge::TopLeft,
+        Edge::TopRight => beui::WindowEdge::TopRight,
+        Edge::BottomLeft => beui::WindowEdge::BottomLeft,
+        Edge::BottomRight => beui::WindowEdge::BottomRight,
     }
 }
 

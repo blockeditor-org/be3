@@ -18,7 +18,7 @@ fn a_window_carried_over_the_main_panel_and_let_go_is_drawn_in_front() {
     let to = centre() + vec2(120.0, 60.0);
     send(&mut space, now, [Input::PointerMoved(to)]);
     send(&mut space, now, [button(to, false)]);
-    assert_eq!(space.carry, None);
+    assert_eq!(space.mouse.carry, None);
 
     let windows = [
         window(&context, WindowId::MAIN, PLATFORM, "Main"),

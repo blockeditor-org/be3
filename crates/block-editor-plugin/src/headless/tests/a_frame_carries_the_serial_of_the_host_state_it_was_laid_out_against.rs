@@ -63,6 +63,7 @@ fn configure(plugin: &mut HeadlessPlugin, height: f32, serial: u64) {
                 pixel_width: 100,
                 pixel_height: height as u32,
                 scale_factor: 1.0,
+                raster: 1.0,
             },
             windows: false,
             placement: None,

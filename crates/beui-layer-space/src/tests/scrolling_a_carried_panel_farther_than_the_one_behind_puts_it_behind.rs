@@ -33,7 +33,7 @@ fn scrolling_a_carried_panel_farther_than_the_one_behind_puts_it_behind() {
     assert_eq!(hit(&space), Some(WindowId::MAIN));
 
     send(&mut space, later(now, 0.5), [button(centre(), false)]);
-    assert_eq!(space.carry, None);
+    assert_eq!(space.mouse.carry, None);
     assert_eq!(
         hit(&space),
         Some(WindowId::MAIN),

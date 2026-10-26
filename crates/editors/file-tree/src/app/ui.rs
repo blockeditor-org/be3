@@ -675,11 +675,12 @@ pub(crate) fn OpenWith(editor: Editor, row: Memo<Option<Row>>) -> MenuItem {
             .filter(|row| row.access.can_view())
             .and_then(|row| Some((row.id?, row.block_type)))
     });
+    let file_name = create_memo(move || row.get().and_then(|row| row.file_name));
     let editors = create_memo(move || {
         let types = editor.block_types();
         block.get().map_or_else(Vec::new, |(_, block_type)| {
             types
-                .editors_for(block_type)
+                .editors_for(block_type, file_name.get().as_deref())
                 .into_iter()
                 .map(|entry| (entry.editor, entry.name.clone()))
                 .collect::<Vec<_>>()

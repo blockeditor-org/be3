@@ -8,14 +8,16 @@ use std::time::{Duration, Instant};
 use beui_core::app::FrameTimes;
 use beui_core::app::accessibility_dump::{ACTIONS, AccessibilityDump, Line, Rendered};
 use beui_core::clipboard::{PasteAnswer, PasteKind, Pasted};
-use beui_core::context::{ActionGroup, Context, FrameOutput};
+use beui_core::context::{ActionGroup, Context, FrameOutput, WindowOutput};
 use beui_core::file_picker::{FilePickAnswer, FilePickRequest, PickedFile};
 use beui_core::file_saver::{FileSave, FileSaveAnswer, FileSaveRequest};
-use beui_core::geometry::{Pos2, Rect, Vec2, vec2};
+use beui_core::geometry::{Pos2, Rect, Vec2, pos2, vec2};
 use beui_core::input::Keyboard;
 use beui_core::input::{BackEdge, DroppedFile, FileDrag, Input, Key, PointerButton, TouchPhase};
 use beui_core::renderer::Capture;
-use beui_core::runner::{Frame, Incoming, Layer, LayerFrame, PlatformServices, Shown};
+use beui_core::runner::{
+    Above, Frame, Incoming, Layer, LayerFrame, PlatformServices, Shown, Units,
+};
 use beui_core::window::{Resize, WindowId, WindowSize, WindowState};
 
 use crate::gestures::{Frames, Gestures};
@@ -26,11 +28,7 @@ const CHANGES: usize = 60;
 const FRAME: Duration = Duration::from_micros(16_667);
 const CLIPBOARD_WAIT: Duration = Duration::from_secs(5);
 
-pub const USAGE: &str = "Every command names where it goes: the screen tap, nearest the platform, takes
-coordinates and stands in for the platform's services; the app tap, nearest the app, reads the
-accessibility tree and names targets in it; the session's own commands name no tap. With one
-drive layer in the stack both taps are that one layer, and either name reaches every command.
-Session:
+pub const USAGE: &str = "Session:
   settle                    wait until nothing is left to draw
   pause MILLISECONDS        let that much time pass, by the app's clock
   clock stop / clock run    stop the app's clock, so time passes only with pause, frame by frame
@@ -41,7 +39,7 @@ Session:
   close                     ask the window to close, as its close button does; an app that stays
                             open, to ask about unsaved changes, answers with what changed
   help                      this
-app (reading):
+Reading the app:
   tree                      the accessibility tree, one node per line
   ids                       every test id on screen, with where it is
   find TARGET               where TARGET is
@@ -59,11 +57,13 @@ app (reading):
                             such as WAYLAND_DISPLAY; empty when the app hosts no programs
   windows                   the app's windows, each one's number and size
   paint [TARGET] [in WINDOW]   what a window of the app paints (the main one unless WINDOW names
-                            another), plugins included, as a paint snapshot, of TARGET only when given
+                            another), plugins included, as a paint snapshot, of TARGET only when given;
+                            in platform, what reaches the platform instead, below the layers that
+                            compose the app's windows, such as space's 3D scene
   overflows                 what the app shows out of bounds, plugins included, one per line:
                             cut off where nothing scrolls to it, drawn outside its own box, or
                             with its outline cut while its box shows
-screen (the platform's side):
+The platform's side:
   shot [TARGET]             a screenshot of what the platform shows, of TARGET only when given
   resize WIDTHxHEIGHT[@SCALE]   resize the headless window, and its scale when given
   resize screen WIDTHxHEIGHT    the screen a fullscreen headless window fills
@@ -75,9 +75,17 @@ screen (the platform's side):
   dismiss                   cancel the oldest open file or save dialog
   grab FILE...              drag FILEs in from outside, over where the pointer is; move carries them
   drop [TARGET]             drop the grabbed files; ungrab takes them away again
-Either tap (input enters the stack at the tap; state is what that tap sees). Any of these may
-end with in WINDOW, a number `windows` lists: its targets are then found among that window's
-nodes and its input goes to that window, in its points:
+  xr HAND pose X Y Z [YAW PITCH]   a controller, as a layer that shows windows in 3D (space) reads
+                            it: HAND (left or right) at X, Y, Z metres, its laser turned YAW
+                            degrees left and PITCH up from straight ahead (-Z)
+  xr HAND point TARGET      aim HAND's laser, from where the hand is, at TARGET in the app's tree
+  xr HAND trigger VALUE / xr HAND squeeze VALUE   pull the trigger or the grip, from 0 to 1
+  xr HAND click TARGET      point at TARGET, then pull and let go of the trigger
+  xr HAND lost              the controller is no longer tracked
+Input (it reaches the app, unless --into=LAYER before the command sends it into LAYER from below,
+where the platform's input would come from; state is what that place sees). Any of these may end
+with in WINDOW, a number `windows` lists: its targets are then found among that window's nodes and
+its input goes to that window, in its points:
   state                     window, cursor, pointer, fingers, held keys, input method, dialogs
   click TARGET [right|middle|double]
   move TARGET               move the pointer onto TARGET (hover)
@@ -114,93 +122,65 @@ nodes and its input goes to that window, in its points:
   keydown KEY... / keyup KEY...   hold keys down and let go; keydown on a held key repeats it
   ime compose TEXT / ime commit [TEXT] / ime cancel   an input method's composition
 A TARGET is #TEST_ID, #TEST_ID+X,Y (that far from its top left corner), X,Y or X,Y,WIDTH,HEIGHT
-in the tree's pixels, or text found in one line of the tree. Where another layer sits between
-the taps, the screen tap takes only X,Y and X,Y,WIDTH,HEIGHT, in the platform window's pixels.
+in the tree's pixels, or text found in one line of the tree. Below another layer (--into, or a
+shot under one), a named target is found in the app and carried down to where it shows there,
+while X,Y and X,Y,WIDTH,HEIGHT are that place's own pixels, such as the platform window's.
 Every command that gives input waits for the app to settle and answers with what changed in the tree,
-at most 60 lines of it; before the tap, --changes=N|all changes that (--changes=0 answers with
+at most 60 lines of it; before the command, --changes=N|all changes that (--changes=0 answers with
 nothing, without comparing the trees), and --no-settle answers after the frame that took the input
 instead of waiting.";
 
 pub const PANE: char = '\u{1f}';
 
-#[derive(Clone, Copy, PartialEq, Eq, Debug)]
-enum Tap {
-    Screen,
-    App,
-}
-
-impl Tap {
-    fn name(self) -> &'static str {
-        match self {
-            Self::Screen => "screen",
-            Self::App => "app",
-        }
-    }
-}
+const PLATFORM: u64 = u64::MAX;
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum Kind {
     Session,
-    Only(Tap),
-    Either,
+    Reading,
+    Platform,
+    Input,
 }
 
 fn kind(command: &str) -> Option<Kind> {
     Some(match command {
         "help" | "settle" | "pause" | "clock" | "hurry" | "frames" | "close" => Kind::Session,
         "tree" | "ids" | "find" | "comps" | "hit" | "actions" | "act" | "a11y" | "wait"
-        | "gone" | "env" | "windows" | "paint" | "overflows" => Kind::Only(Tap::App),
+        | "gone" | "env" | "windows" | "paint" | "overflows" => Kind::Reading,
         "shot" | "resize" | "focus" | "blur" | "clipboard" | "upload" | "save" | "dismiss"
-        | "grab" | "drop" | "ungrab" => Kind::Only(Tap::Screen),
+        | "grab" | "drop" | "ungrab" | "xr" => Kind::Platform,
         "state" | "click" | "move" | "down" | "up" | "drag" | "wheel" | "scroll" | "zoom"
         | "leave" | "motion" | "tap" | "swipe" | "pinch" | "touch" | "pen" | "back" | "type"
-        | "key" | "keydown" | "keyup" | "ime" => Kind::Either,
+        | "key" | "keydown" | "keyup" | "ime" => Kind::Input,
         _ => return None,
     })
 }
 
-#[derive(Clone, Copy, PartialEq, Eq)]
-enum Serves {
-    Both,
-    Only(Tap),
-}
-
-impl Serves {
-    fn serves(self, tap: Tap) -> bool {
-        match self {
-            Self::Both => true,
-            Self::Only(only) => only == tap,
-        }
-    }
-}
-
 pub struct Drive {
     session: Rc<RefCell<Session>>,
-    serves: Serves,
+    tap: usize,
     context: Option<Context>,
 }
 
 impl Drive {
     pub fn new(inbox: Inbox) -> Self {
-        Self {
-            session: Rc::new(RefCell::new(Session::new(inbox, false))),
-            serves: Serves::Both,
-            context: None,
-        }
+        Self::taps(inbox, &[None]).remove(0)
     }
 
-    pub fn taps(inbox: Inbox) -> (Self, Self) {
-        let session = Rc::new(RefCell::new(Session::new(inbox, true)));
-        let tap = |tap: Tap| Self {
-            session: Rc::clone(&session),
-            serves: Serves::Only(tap),
-            context: None,
-        };
-        (tap(Tap::Screen), tap(Tap::App))
+    pub fn taps(inbox: Inbox, under: &[Option<&str>]) -> Vec<Self> {
+        let names = under.iter().map(|name| name.map(str::to_owned)).collect();
+        let session = Rc::new(RefCell::new(Session::new(inbox, names)));
+        (0..under.len())
+            .map(|tap| Self {
+                session: Rc::clone(&session),
+                tap,
+                context: None,
+            })
+            .collect()
     }
 
-    fn screen(&self) -> bool {
-        self.serves.serves(Tap::Screen)
+    fn bottom(&self) -> bool {
+        self.tap == 0
     }
 }
 
@@ -216,7 +196,7 @@ impl Layer for Drive {
     }
 
     fn now(&mut self, now: Instant) -> Instant {
-        match (self.screen(), &self.context) {
+        match (self.bottom(), &self.context) {
             (true, Some(context)) => self.session.borrow().step_clock(now, context),
             _ => now,
         }
@@ -224,26 +204,23 @@ impl Layer for Drive {
 
     fn input(&mut self, incoming: &mut Vec<Incoming>, frame: &mut LayerFrame<'_>) {
         let mut session = self.session.borrow_mut();
-        if self.screen() {
-            let context = frame.context;
-            if let Some(dump) = context.kept_accessibility() {
-                let view = View::of(&dump, frame);
+        let context = frame.context;
+        if let Some(dump) = context.kept_accessibility() {
+            let view = View::of(&dump, frame);
+            if self.bottom() {
                 session.begin(&view, frame);
             }
+            session.start_pending(self.tap, &view, frame);
         }
-        session.push_steps(self.serves, incoming);
+        session.push_steps(self.tap, incoming);
     }
 
     fn output(&mut self, shown: &mut Shown, _output: &FrameOutput, _frame: &mut LayerFrame<'_>) {
-        if self.serves == Serves::Only(Tap::Screen)
-            && let Some(main) = shown.main()
-        {
-            self.session.borrow_mut().screen_window = Some(main.window.clone());
-        }
+        self.session.borrow_mut().shown[self.tap] = shown.main().cloned();
     }
 
     fn framed(&mut self, run: &mut Frame, output: &FrameOutput, frame: &mut LayerFrame<'_>) {
-        if !self.screen() {
+        if !self.bottom() {
             return;
         }
         let context = frame.context;
@@ -251,17 +228,16 @@ impl Layer for Drive {
             return;
         };
         let mut session = self.session.borrow_mut();
-        session.app_window = output.main().window.clone();
         let view = View::of(&dump, frame);
         session.end(&view, run, output, frame);
     }
 
     fn wants_sight(&self) -> bool {
-        self.screen() && self.session.borrow().wants_sight()
+        self.bottom() && self.session.borrow().wants_sight()
     }
 
     fn wants_capture(&self) -> bool {
-        self.screen() && self.session.borrow().wants_capture()
+        self.bottom() && self.session.borrow().wants_capture()
     }
 
     fn captured(&mut self, capture: Option<Capture>) {
@@ -274,7 +250,7 @@ impl Layer for Drive {
         answer: FilePickAnswer,
         below: &mut dyn PlatformServices,
     ) {
-        match self.screen() && !cfg!(target_arch = "wasm32") {
+        match self.bottom() && !cfg!(target_arch = "wasm32") {
             true => self.session.borrow_mut().pick_file(request, answer),
             false => below.pick_file(request, answer),
         }
@@ -286,7 +262,7 @@ impl Layer for Drive {
         answer: FileSaveAnswer,
         below: &mut dyn PlatformServices,
     ) {
-        match self.screen() && !cfg!(target_arch = "wasm32") {
+        match self.bottom() && !cfg!(target_arch = "wasm32") {
             true => self.session.borrow_mut().save_file(request, answer),
             false => below.save_file(request, answer),
         }
@@ -388,9 +364,17 @@ enum Phase {
 struct Active {
     request: Request,
     phase: Phase,
-    tap: Tap,
+    tap: usize,
     immediate: bool,
     changes: Option<usize>,
+}
+
+struct Pending {
+    request: Request,
+    tap: usize,
+    immediate: bool,
+    changes: Option<usize>,
+    skipped: usize,
 }
 
 enum Started {
@@ -400,10 +384,11 @@ enum Started {
 
 struct Session {
     inbox: Inbox,
-    split: bool,
+    taps: Vec<Option<String>>,
     active: Option<Active>,
-    flush: Option<(Tap, Vec<Incoming>)>,
-    gestures: [Gestures; 2],
+    pending: Option<Pending>,
+    flush: Option<(usize, Vec<Incoming>)>,
+    gestures: Vec<Gestures>,
     grabbed: Vec<DroppedFile>,
     clock_stopped: bool,
     unhurried: bool,
@@ -413,19 +398,20 @@ struct Session {
     dialogs: u64,
     frames: FrameTimes,
     other_frames: BTreeMap<String, FrameTimes>,
-    screen_window: Option<WindowState>,
-    app_window: WindowState,
+    shown: Vec<Option<WindowOutput>>,
     windows: Vec<(WindowId, Rc<std::collections::HashSet<accesskit::NodeId>>)>,
 }
 
 impl Session {
-    fn new(inbox: Inbox, split: bool) -> Self {
+    fn new(inbox: Inbox, taps: Vec<Option<String>>) -> Self {
         Self {
             inbox,
-            split,
+            gestures: taps.iter().map(|_| Gestures::default()).collect(),
+            shown: taps.iter().map(|_| None).collect(),
+            taps,
             active: None,
+            pending: None,
             flush: None,
-            gestures: [Gestures::default(), Gestures::default()],
             grabbed: Vec::new(),
             clock_stopped: false,
             unhurried: false,
@@ -435,20 +421,42 @@ impl Session {
             dialogs: 0,
             frames: FrameTimes::default(),
             other_frames: BTreeMap::new(),
-            screen_window: None,
-            app_window: WindowState::default(),
             windows: Vec::new(),
         }
     }
 
-    fn reads_tree(&self, tap: Tap) -> bool {
-        tap == Tap::App || !self.split
+    fn top(&self) -> usize {
+        self.taps.len() - 1
     }
 
-    fn gesture_index(&self, tap: Tap) -> usize {
-        match (self.split, tap) {
-            (true, Tap::App) => 1,
-            _ => 0,
+    fn tap(&self, command: &str, into: Option<&str>) -> Result<usize, String> {
+        let kind = kind(command).ok_or_else(|| format!("unknown command {command}\n{USAGE}"))?;
+        match (kind, into) {
+            (Kind::Session | Kind::Platform, None) => Ok(0),
+            (Kind::Reading, None) | (Kind::Input, None) => Ok(self.top()),
+            (Kind::Session, Some(_)) => Err(format!("{command} is the session's; it takes no --into")),
+            (Kind::Platform, Some(_)) => Err(format!(
+                "{command} goes to the platform, below every layer; it takes no --into"
+            )),
+            (Kind::Reading, Some(_)) => {
+                Err(format!("{command} reads the app itself; it takes no --into"))
+            }
+            (Kind::Input, Some(into)) => self
+                .taps
+                .iter()
+                .position(|name| name.as_deref() == Some(into))
+                .ok_or_else(|| {
+                    let names: Vec<&str> = self.taps.iter().flatten().map(String::as_str).collect();
+                    match names.is_empty() {
+                        true => format!(
+                            "--into={into} names no layer: no other layer is stacked, so input goes straight to the app"
+                        ),
+                        false => format!(
+                            "--into takes a layer with a drive tap under it ({}), not {into}",
+                            names.join(", ")
+                        ),
+                    }
+                }),
         }
     }
 
@@ -491,7 +499,7 @@ impl Session {
         {
             self.flush = Some((active.tap, steps.into_iter().flatten().collect()));
         }
-        while self.active.is_none() {
+        while self.active.is_none() && self.pending.is_none() {
             let Some(request) = self.inbox.take() else {
                 break;
             };
@@ -500,11 +508,14 @@ impl Session {
             }
             let mut immediate = false;
             let mut changes = Some(CHANGES);
+            let mut into = None;
             let mut skipped = 0;
             let mut failed = None;
             for word in &request.words {
                 if word == "--no-settle" {
                     immediate = true;
+                } else if let Some(layer) = word.strip_prefix("--into=") {
+                    into = Some(layer.to_owned());
                 } else if let Some(count) = word.strip_prefix("--changes=") {
                     changes = match count {
                         "all" => None,
@@ -522,23 +533,44 @@ impl Session {
                 }
                 skipped += 1;
             }
-            let started = match failed {
-                Some(error) => Err(error),
-                None => self.start(&request.words[skipped..], view, frame),
+            let tap = match (failed, request.words.get(skipped)) {
+                (Some(error), _) => Err(error),
+                (None, None) => Err(USAGE.to_owned()),
+                (None, Some(command)) => self.tap(command, into.as_deref()),
             };
-            match started {
-                Ok((_, Started::Done(reply))) => (request.reply)(reply),
-                Ok((tap, Started::Phase(phase))) => {
-                    self.active = Some(Active {
+            match tap {
+                Ok(tap) => {
+                    self.pending = Some(Pending {
                         request,
-                        phase,
                         tap,
                         immediate,
                         changes,
+                        skipped,
                     });
+                    self.start_pending(0, view, frame);
                 }
                 Err(error) => (request.reply)(Reply::Error(error)),
             }
+        }
+    }
+
+    fn start_pending(&mut self, tap: usize, view: &View<'_>, frame: &mut LayerFrame<'_>) {
+        let Some(pending) = self.pending.take_if(|pending| pending.tap == tap) else {
+            return;
+        };
+        let words = &pending.request.words[pending.skipped..];
+        match self.start(tap, words, view, frame) {
+            Ok(Started::Done(reply)) => (pending.request.reply)(reply),
+            Ok(Started::Phase(phase)) => {
+                self.active = Some(Active {
+                    request: pending.request,
+                    phase,
+                    tap,
+                    immediate: pending.immediate,
+                    changes: pending.changes,
+                });
+            }
+            Err(error) => (pending.request.reply)(Reply::Error(error)),
         }
         if let Some(Active {
             phase: Phase::Painting { asked, .. },
@@ -551,11 +583,8 @@ impl Session {
         }
     }
 
-    fn push_steps(&mut self, serves: Serves, incoming: &mut Vec<Incoming>) {
-        if let Some((tap, _)) = &self.flush
-            && serves.serves(*tap)
-            && let Some((_, events)) = self.flush.take()
-        {
+    fn push_steps(&mut self, at: usize, incoming: &mut Vec<Incoming>) {
+        if let Some((_, events)) = self.flush.take_if(|(tap, _)| *tap == at) {
             incoming.extend(events);
         }
         let Some(Active {
@@ -566,7 +595,7 @@ impl Session {
         else {
             return;
         };
-        if !serves.serves(*tap) {
+        if *tap != at {
             return;
         }
         let Some(step) = steps.pop_front() else {
@@ -596,7 +625,10 @@ impl Session {
 
     fn wants_frame(&self, now: Instant) -> Option<Duration> {
         let stopped = self.clock_stopped;
-        match &self.active.as_ref()?.phase {
+        let Some(active) = &self.active else {
+            return self.inbox.waiting().then_some(Duration::ZERO);
+        };
+        match &active.phase {
             Phase::Input { steps, .. } if !steps.is_empty() => Some(Duration::ZERO),
             Phase::Pausing { .. } if stopped => Some(Duration::ZERO),
             Phase::Pausing { until } => Some(until.saturating_duration_since(now)),
@@ -637,13 +669,17 @@ impl Session {
                 false => run.again(),
             },
         };
-        self.settle(view, settled, output);
+        self.settle(view, settled, output, &frame.above);
         if let Some(after) = self.wants_frame(view.now) {
             run.repaint |= after.is_zero();
             run.repaint_after = run.repaint_after.min(after);
         }
         if let Some(window) = self.wants_painting() {
-            let painting = match output.windows.iter().find(|shown| shown.id.raw() == window) {
+            let shown = match window {
+                PLATFORM => self.shown[0].as_ref(),
+                window => output.windows.iter().find(|shown| shown.id.raw() == window),
+            };
+            let painting = match shown {
                 Some(shown) => beui_core::painting::painting(
                     shown,
                     shown.size,
@@ -665,12 +701,17 @@ impl Session {
         }
     }
 
-    fn settle(&mut self, view: &View<'_>, settled: Settled, output: &FrameOutput) {
+    fn settle(
+        &mut self,
+        view: &View<'_>,
+        settled: Settled,
+        output: &FrameOutput,
+        above: &Above<'_>,
+    ) {
         let quiet = !settled.again && !settled.busy;
         let Some(active) = &mut self.active else {
             return;
         };
-        let reads = !self.split || active.tap == Tap::App;
         let settling = |before: &mut Rc<Rendered>| Phase::Settling {
             before: Some(Rc::clone(before)),
         };
@@ -683,7 +724,7 @@ impl Session {
             } => {
                 *drawn = !settled.drawing;
                 if *drawn && let Some(target) = target {
-                    match place(reads, target, view) {
+                    match shown_at(target, self.taps[0].as_deref(), view, above) {
                         Ok(rect) => *crop = Some(rect),
                         Err(error) => failed = Some(error),
                     }
@@ -694,11 +735,16 @@ impl Session {
                 ready,
                 target,
                 crop,
+                window,
                 ..
             } => {
                 *ready = quiet;
                 if *ready && let Some(target) = target {
-                    match place(reads, target, view) {
+                    let placed = match *window {
+                        PLATFORM => shown_at(target, self.taps[0].as_deref(), view, above),
+                        _ => locate(target, view.rendered().lines()),
+                    };
+                    match placed {
                         Ok(rect) => *crop = Some(in_points(rect, view.pixels_per_point)),
                         Err(error) => failed = Some(error),
                     }
@@ -939,61 +985,16 @@ impl Session {
 
     fn start(
         &mut self,
+        tap: usize,
         words: &[String],
         view: &View<'_>,
         frame: &mut LayerFrame<'_>,
-    ) -> Result<(Tap, Started), String> {
-        let (first, rest) = words.split_first().ok_or_else(|| USAGE.to_owned())?;
-        let named = match first.as_str() {
-            "screen" => Some(Tap::Screen),
-            "app" => Some(Tap::App),
-            _ => None,
-        };
-        let (command, arguments) = match named {
-            Some(tap) => rest
-                .split_first()
-                .ok_or_else(|| format!("{} needs a command; `help` lists them", tap.name()))?,
-            None => (first, rest),
-        };
-        let Some(kind) = kind(command) else {
-            return Err(format!("unknown command {command}\n{USAGE}"));
-        };
-        let tap = match (kind, named) {
-            (Kind::Session, None) => {
-                return self
-                    .session(command, arguments, view, frame)
-                    .map(|started| (Tap::Screen, started));
-            }
-            (Kind::Session, Some(tap)) => {
-                return Err(format!(
-                    "{command} is the session's, not the {} tap's: drive {command}",
-                    tap.name()
-                ));
-            }
-            (Kind::Only(only), None) => {
-                return Err(format!(
-                    "{command} goes to the {} tap: drive {} {command}",
-                    only.name(),
-                    only.name()
-                ));
-            }
-            (Kind::Either, None) => {
-                return Err(format!(
-                    "{command} goes to a tap: drive screen {command}, where the platform's input enters, or drive app {command}, just below the app"
-                ));
-            }
-            (Kind::Only(only), Some(tap)) if only != tap && self.split => {
-                return Err(format!(
-                    "the {} tap cannot {command}; it is the {} tap's: drive {} {command}",
-                    tap.name(),
-                    only.name(),
-                    only.name()
-                ));
-            }
-            (_, Some(tap)) => tap,
-        };
-        self.command(tap, command, arguments, view, frame)
-            .map(|started| (tap, started))
+    ) -> Result<Started, String> {
+        let (command, arguments) = words.split_first().ok_or_else(|| USAGE.to_owned())?;
+        match kind(command) {
+            Some(Kind::Session) => self.session(command, arguments, view, frame),
+            _ => self.command(tap, command, arguments, view, frame),
+        }
     }
 
     fn session(
@@ -1056,18 +1057,16 @@ impl Session {
 
     fn command(
         &mut self,
-        tap: Tap,
+        tap: usize,
         command: &String,
         arguments: &[String],
         view: &View<'_>,
         frame: &mut LayerFrame<'_>,
     ) -> Result<Started, String> {
-        let reads = self.reads_tree(tap);
-        let gesture = self.gesture_index(tap);
+        let gesture = tap;
+        let under = self.taps[tap].clone();
         let (arguments, window) = match arguments {
-            [rest @ .., word, window]
-                if word == "in" && kind(command) == Some(Kind::Either) && command != "paint" =>
-            {
+            [rest @ .., word, window] if word == "in" && kind(command) == Some(Kind::Input) => {
                 let raw: u64 = window.parse().map_err(|_| {
                     format!("{command} takes in WINDOW, a number `windows` lists, not {window}")
                 })?;
@@ -1087,33 +1086,83 @@ impl Session {
                 .map(String::as_str)
                 .ok_or_else(|| format!("{command} needs more arguments\n{USAGE}"))
         };
+        let rendered = view.rendered();
         let within = window.as_ref().map(|(_, nodes)| {
-            view.rendered()
+            rendered
                 .lines()
                 .iter()
                 .filter(|line| nodes.contains(&line.id))
                 .cloned()
                 .collect::<Vec<_>>()
         });
-        let at = |target: &str| match (&within, reads) {
-            (Some(lines), true) => point(target, lines, view.pixels_per_point),
-            _ => aim(reads, target, view),
-        };
+        let lines = within.as_deref().unwrap_or(rendered.lines());
         let shown_in = window.as_ref().map(|(id, _)| *id);
-        let incoming = |steps: Vec<Vec<Incoming>>| {
-            let steps: Vec<Vec<Incoming>> = match shown_in {
-                Some(window) => steps
-                    .into_iter()
-                    .map(|step| {
-                        step.into_iter()
-                            .map(|incoming| incoming.in_window(window))
-                            .collect()
-                    })
-                    .collect(),
-                None => steps,
+        let scale = view.pixels_per_point;
+        let above = &frame.above;
+        let entered = std::cell::Cell::new(None);
+        let at = |target: &str| -> Result<Pos2, String> {
+            let Some(under) = &under else {
+                return point(target, lines, scale);
             };
+            if let Some(rect) = coordinates(target) {
+                if shown_in.is_some() {
+                    return Err(format!(
+                        "in WINDOW finds named targets in that window of the app; under {under}, X,Y is in the pixels where the input enters"
+                    ));
+                }
+                return Ok(Pos2::new(rect.center().x / scale, rect.center().y / scale));
+            }
+            let (window, at) = above
+                .from_app(
+                    shown_in.unwrap_or(WindowId::MAIN),
+                    point(target, lines, scale)?,
+                )
+                .ok_or_else(|| format!("{target} does not show under {under}"))?;
+            match entered.get() {
+                Some(earlier) if earlier != window => Err(format!(
+                    "{target} shows in another window under {under} than the targets before it"
+                )),
+                _ => {
+                    entered.set(Some(window));
+                    Ok(at)
+                }
+            }
+        };
+        let app_point = |target: &str| point(target, lines, scale);
+        let entering = |steps: Vec<Vec<Incoming>>| -> VecDeque<Vec<Incoming>> {
+            let window = match under {
+                Some(_) => entered.get(),
+                None => shown_in,
+            };
+            let enter = |incoming: Incoming| {
+                let incoming = match (&under, incoming) {
+                    (
+                        Some(_),
+                        Incoming::Input {
+                            units: Units::Points,
+                            window,
+                            input,
+                        },
+                    ) => Incoming::Input {
+                        units: Units::Physical,
+                        window,
+                        input: input.scaled(scale),
+                    },
+                    (_, incoming) => incoming,
+                };
+                match window {
+                    Some(window) => incoming.in_window(window),
+                    None => incoming,
+                }
+            };
+            steps
+                .into_iter()
+                .map(|step| step.into_iter().map(enter).collect())
+                .collect()
+        };
+        let incoming = |steps: Vec<Vec<Incoming>>| {
             Ok(Started::Phase(Phase::Input {
-                steps: steps.into(),
+                steps: entering(steps),
                 before: view.rendered(),
                 then: None,
             }))
@@ -1142,7 +1191,7 @@ impl Session {
                 Ok(Started::Done(Reply::Text(text)))
             }
             "find" => {
-                let rect = place(reads, argument(0)?, view)?;
+                let rect = locate(argument(0)?, rendered.lines())?;
                 Ok(Started::Done(Reply::Text(format!("{}\n", describe(rect)))))
             }
             "comps" => {
@@ -1154,7 +1203,7 @@ impl Session {
                 Ok(Started::Phase(Phase::Components))
             }
             "hit" => {
-                frame.context.request_hit(at(argument(0)?)?);
+                frame.context.request_hit(app_point(argument(0)?)?);
                 Ok(Started::Phase(Phase::Hitting))
             }
             "state" => Ok(Started::Done(Reply::Text(self.state(tap, view)))),
@@ -1398,6 +1447,7 @@ impl Session {
                 input(frames)
             }
             "focus" | "blur" => input(self.gestures[gesture].focus(command == "focus")),
+            "xr" => incoming(controller(arguments, app_point)?),
             "resize" => {
                 let resize = match argument(0)? {
                     "screen" => Resize::Screen(
@@ -1437,12 +1487,11 @@ impl Session {
                     Some(target) => {
                         let at = at(target)?;
                         Ok(Started::Phase(Phase::Input {
-                            steps: points(self.gestures[gesture].click(
+                            steps: entering(points(self.gestures[gesture].click(
                                 at,
                                 PointerButton::Primary,
                                 1,
-                            ))
-                            .into(),
+                            ))),
                             before: before.clone(),
                             then: Some(Box::new(Phase::Uploading { file, before })),
                         }))
@@ -1460,12 +1509,11 @@ impl Session {
                     Some(target) => {
                         let at = at(target)?;
                         Ok(Started::Phase(Phase::Input {
-                            steps: points(self.gestures[gesture].click(
+                            steps: entering(points(self.gestures[gesture].click(
                                 at,
                                 PointerButton::Primary,
                                 1,
-                            ))
-                            .into(),
+                            ))),
                             before: before.clone(),
                             then: Some(Box::new(Phase::Saving { file, before })),
                         }))
@@ -1594,7 +1642,7 @@ impl Session {
             "wait" | "gone" => {
                 let (text, over) = match arguments {
                     [text @ .., over, at] if !text.is_empty() && over == "over" => {
-                        let at = place(reads, at, view)?;
+                        let at = locate(at, rendered.lines())?;
                         (text, Some(at.center()))
                     }
                     text => (text, None),
@@ -1608,7 +1656,7 @@ impl Session {
             "shot" => {
                 let target = arguments.first().cloned();
                 let crop = match &target {
-                    Some(target) => Some(place(reads, target, view)?),
+                    Some(target) => Some(shown_at(target, under.as_deref(), view, above)?),
                     None => None,
                 };
                 Ok(Started::Phase(Phase::Capturing {
@@ -1619,10 +1667,15 @@ impl Session {
             }
             "paint" => {
                 let (target, window) = match arguments {
+                    [target @ .., word, window] if word == "in" && window == "platform" => {
+                        (target, PLATFORM)
+                    }
                     [target @ .., word, window] if word == "in" => (
                         target,
                         window.parse().map_err(|_| {
-                            format!("paint takes in WINDOW, a number `windows` lists, not {window}")
+                            format!(
+                                "paint takes in WINDOW, a number `windows` lists or platform, not {window}"
+                            )
                         })?,
                     ),
                     target => (target, WindowId::MAIN.raw()),
@@ -1630,14 +1683,14 @@ impl Session {
                 let target = match target {
                     [] => None,
                     [target] => Some(target.clone()),
-                    _ => return Err("usage: paint [TARGET] [in WINDOW]".to_owned()),
+                    _ => return Err("usage: paint [TARGET] [in WINDOW|platform]".to_owned()),
                 };
-                let crop = match &target {
-                    Some(target) => Some(in_points(
-                        place(reads, target, view)?,
+                let crop = match (&target, window) {
+                    (Some(target), window) if window != PLATFORM => Some(in_points(
+                        locate(target, rendered.lines())?,
                         view.pixels_per_point,
                     )),
-                    None => None,
+                    _ => None,
                 };
                 Ok(Started::Phase(Phase::Painting {
                     asked: false,
@@ -1660,16 +1713,17 @@ impl Session {
         }
     }
 
-    fn state(&self, tap: Tap, view: &View<'_>) -> String {
-        let gestures = &self.gestures[self.gesture_index(tap)];
-        let screen = !self.split || tap == Tap::Screen;
-        let window = match (self.split, tap, &self.screen_window) {
-            (true, Tap::Screen, Some(shown)) => shown,
-            _ => &self.app_window,
+    fn state(&self, tap: usize, view: &View<'_>) -> String {
+        let gestures = &self.gestures[tap];
+        let screen = tap == 0;
+        let fallback = WindowState::default();
+        let (window, size) = match &self.shown[tap] {
+            Some(shown) => (&shown.window, shown.size),
+            None => (&fallback, view.app),
         };
-        let size = match (self.split, tap) {
-            (true, Tap::App) => view.app,
-            _ => view.platform,
+        let size = match screen {
+            true => view.platform,
+            false => size,
         };
         let yes = |value: bool| if value { "yes" } else { "no" };
         let mut text = String::new();
@@ -1844,7 +1898,7 @@ fn capped(changes: String, limit: Option<usize>) -> String {
         .flat_map(|line| [line, "\n"])
         .collect();
     text.push_str(&format!(
-        "... and {} more changed lines; --changes=all prints them, and `drive app tree` the whole tree\n",
+        "... and {} more changed lines; --changes=all prints them, and `drive tree` the whole tree\n",
         total - limit
     ));
     text
@@ -1881,6 +1935,88 @@ fn shown(view: &View<'_>, text: &str, over: Option<Pos2>) -> bool {
         .lines()
         .iter()
         .any(|line| matches(line) && reaches(line))
+}
+
+fn controller(
+    arguments: &[String],
+    at: impl Fn(&str) -> Result<Pos2, String>,
+) -> Result<Vec<Vec<Incoming>>, String> {
+    use beui_core::runner::{Controller, Hand, HandPose};
+    let usage = "xr takes HAND pose X Y Z [YAW PITCH], HAND point TARGET, HAND trigger VALUE, \
+                 HAND squeeze VALUE, HAND click TARGET or HAND lost, where HAND is left or right";
+    let word = |index: usize| arguments.get(index).map(String::as_str).ok_or(usage);
+    let number = |index: usize, default: Option<f32>| -> Result<f32, String> {
+        match (arguments.get(index), default) {
+            (Some(text), _) => text
+                .parse::<f32>()
+                .ok()
+                .filter(|value| value.is_finite())
+                .ok_or_else(|| format!("{text} is not a number")),
+            (None, Some(default)) => Ok(default),
+            (None, None) => Err(usage.to_owned()),
+        }
+    };
+    let hand = Hand::named(word(0)?).ok_or(usage)?;
+    let value = |index: usize| {
+        number(index, None).and_then(|value| match (0.0..=1.0).contains(&value) {
+            true => Ok(value),
+            false => Err(format!("{value} is not from 0 to 1")),
+        })
+    };
+    let once = |controller: Controller| vec![vec![Incoming::Controller(controller)]];
+    Ok(match word(1)? {
+        "pose" => {
+            let position = [number(2, None)?, number(3, None)?, number(4, None)?];
+            let (yaw, pitch) = (
+                number(5, Some(0.0))?.to_radians() / 2.0,
+                number(6, Some(0.0))?.to_radians() / 2.0,
+            );
+            let orientation = [
+                yaw.cos() * pitch.sin(),
+                yaw.sin() * pitch.cos(),
+                -yaw.sin() * pitch.sin(),
+                yaw.cos() * pitch.cos(),
+            ];
+            let pose = HandPose {
+                position,
+                orientation,
+            };
+            once(Controller::Pose {
+                hand,
+                aim: pose,
+                grip: pose,
+            })
+        }
+        "point" => once(Controller::Toward {
+            hand,
+            window: WindowId::MAIN,
+            at: at(word(2)?)?,
+        }),
+        "trigger" => once(Controller::Trigger {
+            hand,
+            value: value(2)?,
+        }),
+        "squeeze" => once(Controller::Squeeze {
+            hand,
+            value: value(2)?,
+        }),
+        "click" => {
+            let toward = Controller::Toward {
+                hand,
+                window: WindowId::MAIN,
+                at: at(word(2)?)?,
+            };
+            [
+                toward,
+                Controller::Trigger { hand, value: 1.0 },
+                Controller::Trigger { hand, value: 0.0 },
+            ]
+            .map(|controller| vec![Incoming::Controller(controller)])
+            .into()
+        }
+        "lost" => once(Controller::Lost { hand }),
+        _ => return Err(usage.to_owned()),
+    })
 }
 
 fn finger(argument: Option<&String>) -> Result<u64, String> {
@@ -1973,27 +2109,36 @@ fn points(frames: Frames) -> Vec<Vec<Incoming>> {
         .collect()
 }
 
-fn place(reads: bool, target: &str, view: &View<'_>) -> Result<Rect, String> {
-    match reads {
-        true => locate(target, view.rendered().lines()),
-        false => coordinates(target).ok_or_else(|| {
-            format!(
-                "the screen tap takes X,Y or X,Y,WIDTH,HEIGHT in the platform window's pixels, not {target}; \
-                 the app tap finds names and test ids: drive app ..."
-            )
-        }),
+fn shown_at(
+    target: &str,
+    under: Option<&str>,
+    view: &View<'_>,
+    above: &Above<'_>,
+) -> Result<Rect, String> {
+    let Some(under) = under else {
+        return locate(target, view.rendered().lines());
+    };
+    if let Some(rect) = coordinates(target) {
+        return Ok(rect);
     }
-}
-
-fn aim(reads: bool, target: &str, view: &View<'_>) -> Result<Pos2, String> {
-    match reads {
-        true => point(target, view.rendered().lines(), view.pixels_per_point),
-        false => {
-            let center = place(reads, target, view)?.center();
-            Ok(Pos2::new(
-                center.x / view.pixels_per_point,
-                center.y / view.pixels_per_point,
-            ))
-        }
+    let rect = locate(target, view.rendered().lines())?;
+    let scale = view.pixels_per_point;
+    let corners = [
+        rect.min,
+        rect.max,
+        pos2(rect.min.x, rect.max.y),
+        pos2(rect.max.x, rect.min.y),
+    ];
+    let mut shown: Option<Rect> = None;
+    for corner in corners {
+        let (_, at) = above
+            .from_app(WindowId::MAIN, pos2(corner.x / scale, corner.y / scale))
+            .ok_or_else(|| format!("{target} does not show under {under}"))?;
+        let at = pos2(at.x * scale, at.y * scale);
+        shown = Some(match shown {
+            Some(shown) => shown.union(Rect::from_min_max(at, at)),
+            None => Rect::from_min_max(at, at),
+        });
     }
+    Ok(shown.unwrap_or(rect))
 }

@@ -1,6 +1,7 @@
 use super::entry::DesktopEntry;
 
-const FILE_CODES: [char; 10] = ['f', 'F', 'u', 'U', 'd', 'D', 'n', 'N', 'v', 'm'];
+const FILE_CODES: [char; 4] = ['f', 'F', 'u', 'U'];
+const DEPRECATED_CODES: [char; 6] = ['d', 'D', 'n', 'N', 'v', 'm'];
 
 #[derive(Clone, Debug, PartialEq)]
 struct Token {
@@ -105,8 +106,10 @@ fn expand(text: &str, entry: &DesktopEntry) -> String {
     out
 }
 
-pub fn arguments(entry: &DesktopEntry) -> Result<Vec<String>, ExecError> {
+pub fn arguments(entry: &DesktopEntry, file: Option<&str>) -> Result<Vec<String>, ExecError> {
     let mut out = Vec::new();
+    let mut given = false;
+    let mut named = false;
     for token in tokens(&entry.exec)? {
         if !token.quoted {
             let mut code = token.text.strip_prefix('%').map(|rest| rest.chars());
@@ -114,7 +117,14 @@ pub fn arguments(entry: &DesktopEntry) -> Result<Vec<String>, ExecError> {
                 .as_mut()
                 .and_then(|chars| Some((chars.next()?, chars.next().is_none())));
             match single {
-                Some((code, true)) if FILE_CODES.contains(&code) => continue,
+                Some((code, true)) if FILE_CODES.contains(&code) => {
+                    if let Some(file) = file.filter(|_| !given) {
+                        out.push(file.to_owned());
+                        given = true;
+                    }
+                    continue;
+                }
+                Some((code, true)) if DEPRECATED_CODES.contains(&code) => continue,
                 Some(('i', true)) => {
                     if let Some(icon) = &entry.icon {
                         out.push("--icon".to_owned());
@@ -126,18 +136,23 @@ pub fn arguments(entry: &DesktopEntry) -> Result<Vec<String>, ExecError> {
             }
         }
         out.push(expand(&token.text, entry));
+        named = true;
     }
-    match out.is_empty() {
-        true => Err(ExecError::Empty),
-        false => Ok(out),
+    if !named {
+        return Err(ExecError::Empty);
     }
+    if let Some(file) = file.filter(|_| !given) {
+        out.push(file.to_owned());
+    }
+    Ok(out)
 }
 
 pub fn command(
     entry: &DesktopEntry,
     terminal: Option<&[String]>,
+    file: Option<&str>,
 ) -> Result<Vec<String>, ExecError> {
-    let arguments = arguments(entry)?;
+    let arguments = arguments(entry, file)?;
     if !entry.terminal {
         return Ok(arguments);
     }

@@ -48,6 +48,10 @@ pub trait Layer {
 
     fn setup(&mut self, _setup: &Setup) {}
 
+    fn pace(&mut self) -> Option<Instant> {
+        None
+    }
+
     fn now(&mut self, now: Instant) -> Instant {
         now
     }
@@ -60,6 +64,10 @@ pub trait Layer {
 
     fn wants_sight(&self) -> bool {
         false
+    }
+
+    fn keyboard_attached(&self) -> Option<bool> {
+        None
     }
 
     fn wants_capture(&self) -> bool {
@@ -327,6 +335,10 @@ impl<L: Layer> Layer for std::rc::Rc<std::cell::RefCell<L>> {
         self.borrow_mut().setup(setup);
     }
 
+    fn pace(&mut self) -> Option<Instant> {
+        self.borrow_mut().pace()
+    }
+
     fn now(&mut self, now: Instant) -> Instant {
         self.borrow_mut().now(now)
     }
@@ -345,6 +357,10 @@ impl<L: Layer> Layer for std::rc::Rc<std::cell::RefCell<L>> {
 
     fn wants_sight(&self) -> bool {
         self.borrow().wants_sight()
+    }
+
+    fn keyboard_attached(&self) -> Option<bool> {
+        self.borrow().keyboard_attached()
     }
 
     fn wants_capture(&self) -> bool {

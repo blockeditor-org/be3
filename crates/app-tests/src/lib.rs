@@ -16,6 +16,7 @@ pub struct AppTest {
     crop: Option<String>,
     started: Instant,
     reported: Cell<bool>,
+    space: bool,
 }
 
 impl AppTest {
@@ -27,14 +28,28 @@ impl AppTest {
         Self::start_with(&["--desktop"], "Pane \"Linux desktop\"")
     }
 
+    pub fn start_in_space() -> Self {
+        Self::launch(&[], "Pane \"Files\"", true)
+    }
+
     pub fn start_with(arguments: &[&str], ready: &str) -> Self {
+        Self::launch(arguments, ready, false)
+    }
+
+    fn launch(arguments: &[&str], ready: &str, space: bool) -> Self {
         let started = Instant::now();
         let program = std::env::var("BLOCK_APP")
             .expect("BLOCK_APP names the app to test; run these through ./scripts/buck test //crates/app-tests:test");
         let mut all = vec!["--dev-workspace"];
         all.extend_from_slice(arguments);
-        let app = Driven::start(&program, &all, SIZE, std::env::var("APP_LIBRARIES").ok())
-            .unwrap_or_else(|error| panic!("block-app did not start: {error}"));
+        let app = Driven::start(
+            &program,
+            &all,
+            SIZE,
+            std::env::var("APP_LIBRARIES").ok(),
+            space,
+        )
+        .unwrap_or_else(|error| panic!("block-app did not start: {error}"));
         let mut test = Self {
             app: Some(app),
             steps: Vec::new(),
@@ -43,6 +58,7 @@ impl AppTest {
             crop: None,
             started,
             reported: Cell::new(false),
+            space,
         };
         test.wait(ready);
         test.run(&["clock", "stop"]);
@@ -62,29 +78,29 @@ impl AppTest {
     }
 
     pub fn wait(&mut self, target: &str) {
-        self.run(&["app", "wait", target]);
+        self.run(&["wait", target]);
     }
 
     pub fn gone(&mut self, target: &str) {
-        self.run(&["app", "gone", target]);
+        self.run(&["gone", target]);
     }
 
     pub fn click(&mut self, target: &str) -> String {
         self.wait(target);
-        self.run(&["app", "click", target])
+        self.run(&["click", target])
     }
 
     pub fn double_click(&mut self, target: &str) -> String {
         self.wait(target);
-        self.run(&["app", "click", target, "double"])
+        self.run(&["click", target, "double"])
     }
 
     pub fn type_text(&mut self, text: &str) -> String {
-        self.run(&["app", "type", text])
+        self.run(&["type", text])
     }
 
     pub fn key(&mut self, chord: &str) -> String {
-        self.run(&["app", "key", chord])
+        self.run(&["key", chord])
     }
 
     pub fn pause(&mut self, milliseconds: u32) {
@@ -92,11 +108,11 @@ impl AppTest {
     }
 
     pub fn tree(&mut self) -> String {
-        self.run(&["app", "tree"])
+        self.run(&["tree"])
     }
 
     pub fn place(&mut self, target: &str) -> (f32, f32, f32, f32) {
-        let found = self.run(&["app", "find", target]);
+        let found = self.run(&["find", target]);
         let numbers: Vec<f32> = found
             .split(|character: char| {
                 !character.is_ascii_digit() && character != '-' && character != '.'
@@ -126,7 +142,7 @@ impl AppTest {
 
     pub fn record(&mut self) {
         let painted = self.paint();
-        let found = self.run(&["app", "overflows"]);
+        let found = self.run(&["overflows"]);
         self.overflows.extend(found.lines().map(str::to_owned));
         match &mut self.recorded {
             Some(recorded) => recorded.append(painted),
@@ -165,8 +181,11 @@ impl AppTest {
 
     fn paint(&mut self) -> Snapshot {
         self.gone("#editor.loading");
-        let mut words = vec!["app", "paint"];
+        let mut words = vec!["paint"];
         words.extend(self.crop.as_deref());
+        if self.space {
+            words.extend(["in", "platform"]);
+        }
         self.steps
             .push(line(&words).replacen("paint", "paint painted.paint", 1));
         let painted = match self.driven().request(&words) {
@@ -191,7 +210,7 @@ impl AppTest {
             .app
             .as_ref()
             .map(|app| {
-                let tree = match app.request(&["app", "tree"]) {
+                let tree = match app.request(&["tree"]) {
                     Ok(Reply::Text(tree)) => tree,
                     _ => "(the app did not answer)".to_owned(),
                 };

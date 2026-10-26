@@ -108,6 +108,7 @@ mod a_dock_tab_that_offers_fullscreen_enters_and_leaves_it_from_its_menu_and_pan
 mod a_dock_with_no_tabs_shows_the_view_it_was_given_for_nothing_open;
 mod a_docked_pane_lays_its_content_edge_to_edge;
 mod a_double_tap_on_the_simulated_trackpad_locks_the_left_button_until_the_next_tap;
+mod a_drag_carried_into_another_window_shows_its_preview_there;
 mod a_drag_in_a_text_area_selects_and_reaches_nothing_around_it;
 mod a_drag_on_the_board_drops_nothing_when_its_touch_is_cancelled;
 mod a_drag_preview_follows_the_pointer_until_the_drop;
@@ -117,10 +118,11 @@ mod a_drawing_given_less_room_than_its_size_keeps_to_that_room;
 mod a_drawing_paints_what_its_callback_puts_in_the_rectangle_it_is_given;
 mod a_drawing_repaints_on_its_deadline_without_repeating_layout;
 mod a_driver_acts_on_a_slider_the_way_a_screen_reader_does;
+mod a_driver_aims_and_pulls_a_controller_through_the_host;
 mod a_driver_answers_a_file_dialog_in_a_window_that_is_not_simulated;
 mod a_driver_answers_a_file_dialog_with_a_file;
 mod a_driver_answers_a_save_dialog_by_writing_the_file;
-mod a_driver_around_space_clicks_by_name_through_its_app_tap_and_shoots_the_scene_through_its_screen_tap;
+mod a_driver_around_space_clicks_by_name_from_either_side_and_shoots_the_scene;
 mod a_driver_cancels_the_fingers_the_system_takes_back;
 mod a_driver_carries_grabbed_files_and_drops_them;
 mod a_driver_clicks_a_button_by_its_label_and_hears_what_changed;
@@ -260,6 +262,7 @@ mod a_node_taking_clipboard_keys_tells_the_platform_while_the_focus_is_inside_it
 mod a_node_whose_scope_is_disposed_leaves_the_parent_that_held_it;
 mod a_number_input_reports_what_was_typed_within_its_range;
 mod a_number_input_shows_its_value_to_the_decimals_asked;
+mod a_paced_host_goes_on_while_its_window_is_minimised;
 mod a_page_item_opens_its_page_on_a_click_not_a_hover_and_left_arrow_goes_back;
 mod a_pan_zoom_follows_the_view_its_caller_sets;
 mod a_panel_between_two_damaged_ones_is_left_alone;
@@ -478,6 +481,7 @@ mod an_app_that_inhibits_shortcuts_gets_every_chord_but_the_escape_hatch;
 mod an_aspect_ratio_frame_centres_the_largest_box_that_fits;
 mod an_effect_bound_to_a_node_stops_with_the_scope_that_owns_the_node;
 mod an_embed_in_a_tab_no_longer_shown_forgets_where_it_was;
+mod an_embed_in_a_window_drawn_at_a_new_raster_reports_it_without_moving;
 mod an_embed_outliving_the_scope_that_listens_to_it_does_not_call_the_listener;
 mod an_embed_punches_a_hole_in_the_surface_it_sits_on;
 mod an_embed_replaced_by_another_on_its_slot_leaves_the_new_one_placed;
@@ -485,6 +489,7 @@ mod an_embed_reports_a_rect_on_the_pixel_grid;
 mod an_embed_reports_its_placement_when_it_moves;
 mod an_embed_reports_the_rect_and_the_clip_it_was_laid_out_in;
 mod an_embed_taken_out_of_the_tree_forgets_where_it_was;
+mod an_embed_that_appears_in_a_rastered_window_is_placed_at_its_raster;
 mod an_empty_field_shows_its_placeholder_until_something_is_typed;
 mod an_empty_view_builds_a_children_prop_with_nothing_in_it;
 mod an_error_toast_stays_until_it_is_dismissed;
@@ -607,6 +612,7 @@ mod dragging_across_an_icon_and_its_label_copies_only_the_label;
 mod dragging_across_texts_selects_them_and_ctrl_c_copies_the_selection;
 mod dragging_again_during_overscroll_continues_from_the_band;
 mod dragging_onto_a_drop_target_hands_it_the_payload;
+mod dragging_past_a_color_wheels_triangle_picks_the_nearest_edge_point;
 mod dragging_past_the_bottom_of_a_selectable_virtual_list_scrolls_it_and_selects_rows_out_of_view;
 mod dragging_slowly_with_the_screen_reader_reads_what_the_finger_is_on;
 mod dragging_the_bar_between_two_panes_moves_the_boundary;
@@ -727,6 +733,7 @@ mod picking_a_hidden_node_reveals_it_when_the_reveal_button_is_clicked;
 mod picking_a_node_in_the_components_tab_selects_the_component_that_built_it;
 mod picking_a_node_leaves_the_document_alone;
 mod picking_in_a_narrow_window_returns_to_the_inspector;
+mod pinching_a_pan_zoom_in_space_with_two_lasers_zooms_it;
 mod pinching_a_pan_zoom_with_two_fingers_zooms_and_pans_it;
 mod pinching_a_pan_zoom_zooms_around_the_pointer;
 mod platform_scrolls_arrive_in_points;
@@ -754,6 +761,7 @@ mod resizing_a_window_in_space_lays_out_and_paints_only_that_window;
 mod resizing_an_element_damages_where_it_was_and_where_it_moved_to;
 mod resizing_rows_preserves_the_scroll_anchor;
 mod resizing_scaling_and_replacing_the_root_invalidate_the_cache;
+mod resizing_the_main_panel_in_space_lays_the_main_window_out_at_its_new_size;
 mod responsive_design_mode_lays_the_app_out_at_the_chosen_device_size;
 mod returning_to_the_inspector_tab_repaints_the_whole_panel;
 mod right_arrow_opens_a_submenu_and_left_arrow_closes_it_and_refocuses_the_parent_item;
@@ -876,6 +884,7 @@ mod the_simulated_mouse_opens_the_on_screen_keyboard_and_fingers_type_on_it;
 mod the_software_keyboard_covers_the_share_of_the_screen_it_is_set_to;
 mod the_space_host_carries_the_main_window_its_app_asks_to_move;
 mod the_space_host_opens_an_apps_window_as_a_panel_at_the_pointer_and_clicks_reach_it;
+mod the_space_host_opens_the_keyboard_as_a_panel_lasers_type_on_only_while_controllers_are_active;
 mod the_top_layer_takes_a_click_over_the_layer_below;
 mod the_window_follows_the_title_and_clear_color_of_its_root;
 mod the_window_is_asked_for_fullscreen_and_says_when_it_is;
@@ -2899,10 +2908,39 @@ impl InSpace {
         self.runner.output().expect("the runner has run a frame")
     }
 
+    pub(crate) fn controllers(
+        &mut self,
+        controllers: impl IntoIterator<Item = beui_core::runner::Controller>,
+    ) {
+        for controller in controllers {
+            self.runner.push(controller);
+        }
+        self.runner
+            .frame(&mut Nowhere, beui_core::app::SafeArea::default());
+        ::reactive::flush();
+    }
+
     pub(crate) fn settle(&mut self) {
         for _ in 0..4 {
             self.frame([]);
         }
+    }
+
+    pub(crate) fn aim(&mut self, hand: beui_core::runner::Hand, window: crate::WindowId, at: Pos2) {
+        self.controllers([beui_core::runner::Controller::Toward { hand, window, at }]);
+        for _ in 0..40 {
+            self.runner
+                .context()
+                .advance_clock(std::time::Duration::from_millis(50));
+            self.frame([]);
+        }
+    }
+
+    pub(crate) fn tap(&mut self, hand: beui_core::runner::Hand) {
+        for value in [1.0, 0.0] {
+            self.controllers([beui_core::runner::Controller::Trigger { hand, value }]);
+        }
+        self.settle();
     }
 
     pub(crate) fn on_screen(&self, window: crate::WindowId, pos: Pos2) -> Pos2 {

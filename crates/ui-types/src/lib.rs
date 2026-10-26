@@ -10,17 +10,22 @@ be_ops_bindgen::generate!({
         "size": usize,
         "range": core::ops::Range<usize>,
         "pointer-speed": crate::pointer::PointerSpeed,
+        "window-id": crate::window::WindowId,
+        "host-placement": crate::window::HostPlacement,
     },
-    copy: ["vec2", "pos2", "rect", "size", "pointer-speed"],
+    copy: ["vec2", "pos2", "rect", "size", "pointer-speed", "window-id"],
     default: [
         "rotation", "file-filter", "modifiers", "back-edge", "ime-text", "cursor-icon", "pen",
         "keystroke", "pointer-settings", "theme-kind", "motion", "canvas-touch", "preferences",
-        "preference-layer", "window-requests",
+        "preference-layer", "window-requests", "window-role",
     ],
     inline: [
         "back-gesture-started", "ime-event-replace-text", "ime-event-delete-surrounding",
         "ime-event-set-selection", "keyboard-shown", "input-pointer-button", "input-touch",
-        "input-pen", "input-intercepted-key",
+        "input-pen", "input-intercepted-key", "window-placement-over", "window-request-open",
+        "window-request-begin-resize", "window-request-resize", "window-report-resized",
+        "window-report-placed", "window-report-rastered", "window-report-moved",
+        "window-report-focused",
     ],
     lenient: ["preference-layer"],
     ordered: ["input-device"],
@@ -43,4 +48,7 @@ pub use input::{
 };
 pub use pointer::{InputDevice, PointerSetting, PointerSettings, PointerSpeed};
 pub use preferences::{CanvasTouch, Motion, PreferenceLayer, Preferences, ThemeKind};
-pub use window::{ImeArea, WindowRequests};
+pub use window::{
+    HostPlacement, ImeArea, WindowEdge, WindowId, WindowPlacement, WindowReport, WindowRequest,
+    WindowRequests, WindowRole,
+};

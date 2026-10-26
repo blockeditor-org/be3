@@ -46,10 +46,10 @@ index ec9f8da..42b7447 100644
              .name = "calloc",
              .linkage = .weak,
 diff --git a/src/build/GhosttyLibVt.zig b/src/build/GhosttyLibVt.zig
-index 690f864..c675721 100644
+index 690f864..fe4cc29 100644
 --- a/src/build/GhosttyLibVt.zig
 +++ b/src/build/GhosttyLibVt.zig
-@@ -241,7 +241,11 @@ fn initLib(
+@@ -241,14 +241,22 @@ fn initLib(
          // Otherwise, you get undefined symbol errors. This could cause
          // problems if you're linking multiple static Zig libraries but
          // we'll cross that bridge when we get to it.
@@ -62,6 +62,18 @@ index 690f864..c675721 100644
          lib.bundle_ubsan_rt = true;
  
          // Enable PIC so the static library can be linked into PIE
+         // executables, which is the default on most Linux distributions.
+         // Native freestanding targets don't have a dynamic loader and some,
+         // such as Xtensa, don't support PIC relocations.
+-        lib.root_module.pic = target.result.os.tag != .freestanding;
++        //
++        // WebAssembly does, and a module linked as a shared library (a
++        // plugin linked against the plugin SDK) can only take PIC objects.
++        lib.root_module.pic = target.result.os.tag != .freestanding or
++            target.result.cpu.arch.isWasm();
+     }
+ 
+     if (target.result.os.tag == .windows) {
 diff --git a/src/lib_vt.zig b/src/lib_vt.zig
 index a0227ae..6c2c628 100644
 --- a/src/lib_vt.zig

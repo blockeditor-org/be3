@@ -15,6 +15,7 @@ fn a_block_opens_in_the_editor_it_keeps_for_itself() {
         edits: block_editor_beui::Edits::Type(SHOWN_TYPE.into_bytes()),
         name: name.to_owned(),
         icon_codepoint: String::new(),
+        extensions: Vec::new(),
     };
     catalog.editors = vec![edits(BUILT_IN, "List"), edits(BOARD, "Board")];
     fixture.test.catalog(catalog);

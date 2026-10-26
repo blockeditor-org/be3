@@ -1189,12 +1189,11 @@ impl Workspace {
 
     pub(crate) fn editor_of(&self, item: &TabItem) -> Option<Uuid> {
         let types = self.types();
+        let file_name = self.info(item.id).and_then(|info| info.file_name());
+        let file_name = file_name.as_deref();
+        let edits = |editor: &Uuid| types.edits(*editor, item.block_type, file_name);
         item.editor
-            .filter(|editor| {
-                types
-                    .editor(*editor)
-                    .is_some_and(|entry| entry.edits(item.block_type))
-            })
+            .filter(edits)
             .or_else(|| {
                 (item.block_type == EditorViewContent::CONTENT_TYPE)
                     .then(|| self.info(item.id)?.metadata.get(&VIEW_EDITOR))
@@ -1205,22 +1204,14 @@ impl Workspace {
                 self.info(item.id)?
                     .metadata
                     .get(&PREFERRED_EDITOR)
-                    .filter(|editor| {
-                        types
-                            .editor(*editor)
-                            .is_some_and(|entry| entry.edits(item.block_type))
-                    })
+                    .filter(edits)
             })
             .or_else(|| {
                 self.default_editors
                     .with(|defaults| defaults.default_editor(item.block_type))
-                    .filter(|editor| {
-                        types
-                            .editor(*editor)
-                            .is_some_and(|entry| entry.edits(item.block_type))
-                    })
+                    .filter(edits)
             })
-            .or_else(|| types.built_in_editor(item.block_type))
+            .or_else(|| types.own_editor(item.block_type, file_name))
     }
 
     pub(crate) fn set_sheet(&self, sheet: PhoneSheet) {

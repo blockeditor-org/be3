@@ -1,10 +1,13 @@
-load("@root//buck/cargo:defs.bzl", "cargo_binary", "cargo_library")
+load("@root//buck/cargo:defs.bzl", "cargo_binary", "cargo_library", "cargo_test")
 
 # The build's own tools: generate (crates.bzl, which buck/cargo/buckify.bxl
 # builds with cargo, since it runs before the rules exist), rust-project (for //:rust-project), compile-fail (the tests in
 # compile_fail/), resolve (the sysroot's lockfile), apk and archive (the zips
-# ./scripts/deploy uploads).
+# ./scripts/deploy uploads), and pdfium (third-party/pdfium/sources.bzl, for
+# //:pdfium).
 
 cargo_library()
+
+cargo_test()
 
 cargo_binary()

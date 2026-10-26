@@ -225,6 +225,7 @@ impl EditorRegistry {
                     edits: editor.edits,
                     name: editor.name.clone(),
                     icon_codepoint: editor.icon.clone(),
+                    extensions: Vec::new(),
                 })
                 .collect(),
         };

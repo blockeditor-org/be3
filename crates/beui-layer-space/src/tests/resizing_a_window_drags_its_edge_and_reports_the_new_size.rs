@@ -13,7 +13,10 @@ fn resizing_a_window_drags_its_edge_and_reports_the_new_size() {
         now,
         [Input::PointerMoved(grip), button(grip, true)],
     );
-    space.request(&WindowRequest::BeginResize(window, WindowEdge::BottomRight));
+    space.request(&WindowRequest::BeginResize {
+        window,
+        edge: WindowEdge::BottomRight,
+    });
 
     let dragged = grip + vec2(60.0, 30.0);
     let sent = send(&mut space, now, [Input::PointerMoved(dragged)]);
@@ -43,7 +46,7 @@ fn resizing_a_window_drags_its_edge_and_reports_the_new_size() {
     assert!(panel.pose.rotation.angle_between(start.pose.rotation) < 1e-6);
 
     let released = send(&mut space, now, [button(dragged, false)]);
-    assert_eq!(space.resize, None, "letting go ends the resize");
+    assert_eq!(space.mouse.resize, None, "letting go ends the resize");
     let got = delivered(&released);
     let [(to, Input::PointerButton { pressed: false, .. })] = got.as_slice() else {
         panic!("the app gets the release, not {got:?}");
@@ -51,7 +54,15 @@ fn resizing_a_window_drags_its_edge_and_reports_the_new_size() {
     assert_eq!(*to, window);
     assert_eq!(placed(&released).len(), 1, "and the panel's new place");
 
-    space.request(&WindowRequest::BeginResize(window, WindowEdge::Left));
+    send(
+        &mut space,
+        now,
+        [Input::PointerMoved(centre()), button(centre(), true)],
+    );
+    space.request(&WindowRequest::BeginResize {
+        window,
+        edge: WindowEdge::Left,
+    });
     let shrunk = send(
         &mut space,
         now,

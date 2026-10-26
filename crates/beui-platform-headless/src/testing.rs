@@ -31,6 +31,12 @@ const ANSWER_FRAMES: usize = 600;
 
 pub struct Screen(pub Vec2);
 
+enum Hosting {
+    Alone,
+    Tested(Rc<RefCell<Windows>>),
+    By(Box<dyn Layer>, Setup),
+}
+
 impl Renderer for Screen {
     fn name(&self) -> &'static str {
         "screen"
@@ -45,7 +51,7 @@ impl Renderer for Screen {
     }
 
     fn physical(&self) -> Option<Vec2> {
-        Some(self.0)
+        (self.0.x > 0.0 && self.0.y > 0.0).then_some(self.0)
     }
 
     fn prepare(&mut self, output: &WindowOutput, _scale: f32, _background: Color32) -> bool {
@@ -148,6 +154,7 @@ pub struct Windows {
     pub open: Vec<HostedWindow>,
     pub requests: Vec<WindowRequest>,
     pub outputs: Vec<WindowOutput>,
+    pub controllers: Vec<beui_core::runner::Controller>,
     reports: Vec<WindowReport>,
     main: Option<Vec2>,
 }
@@ -212,6 +219,13 @@ impl Layer for TestHost {
                 }),
             );
         }
+        incoming.retain(|item| match item {
+            Incoming::Controller(controller) => {
+                windows.controllers.push(*controller);
+                false
+            }
+            _ => true,
+        });
         incoming.extend(windows.reports.drain(..).map(Incoming::Window));
     }
 
@@ -224,13 +238,14 @@ impl Layer for TestHost {
                     window,
                     placement,
                     size,
+                    ..
                 } => windows.opened(*window, placement, *size),
                 WindowRequest::Close(window) => {
                     windows.open.retain(|open| open.id != *window);
                     windows.outputs.retain(|output| output.id != *window);
                 }
                 WindowRequest::Resize { window, size } => windows.resized(*window, *size),
-                WindowRequest::BeginMove(_) | WindowRequest::BeginResize(..) => {}
+                WindowRequest::BeginMove(_) | WindowRequest::BeginResize { .. } => {}
             }
         }
         for window in shown.windows.iter().filter(|window| !window.id.is_main()) {
@@ -257,9 +272,14 @@ pub struct Stepped<A: App = Showing> {
 
 impl<A: App + 'static> Stepped<A> {
     pub fn new(context: Context, app: A, window: WindowSize, screen: Option<Vec2>) -> Self {
-        Self::start(context, app, window.size, window.scale, None, |runner| {
-            Window::Simulated(Simulation::new(window, screen, runner.reports().clone()))
-        })
+        Self::start(
+            context,
+            app,
+            window.size,
+            window.scale,
+            Hosting::Alone,
+            |runner| Window::Simulated(Simulation::new(window, screen, runner.reports().clone())),
+        )
     }
 
     pub fn hosting_windows(context: Context, app: A, window: WindowSize) -> Self {
@@ -269,7 +289,24 @@ impl<A: App + 'static> Stepped<A> {
             app,
             window.size,
             window.scale,
-            Some(windows),
+            Hosting::Tested(windows),
+            |runner| Window::Simulated(Simulation::new(window, None, runner.reports().clone())),
+        )
+    }
+
+    pub fn hosted(
+        context: Context,
+        app: A,
+        window: WindowSize,
+        host: Box<dyn Layer>,
+        setup: Setup,
+    ) -> Self {
+        Self::start(
+            context,
+            app,
+            window.size,
+            window.scale,
+            Hosting::By(host, setup),
             |runner| Window::Simulated(Simulation::new(window, None, runner.reports().clone())),
         )
     }
@@ -280,7 +317,7 @@ impl<A: App + 'static> Stepped<A> {
         size: Vec2,
         platform: impl PlatformServices + 'static,
     ) -> Self {
-        Self::start(context, app, size, 1.0, None, |_| {
+        Self::start(context, app, size, 1.0, Hosting::Alone, |_| {
             Window::Other(Box::new(platform))
         })
     }
@@ -290,16 +327,21 @@ impl<A: App + 'static> Stepped<A> {
         app: A,
         size: Vec2,
         scale: f32,
-        windows: Option<Rc<RefCell<Windows>>>,
+        hosting: Hosting,
         window: impl FnOnce(&Runner) -> Window,
     ) -> Self {
         let inbox = Inbox::default();
+        let (windows, host, setup) = match hosting {
+            Hosting::Alone => (None, None, Setup::new(Waker::new(|| {}))),
+            Hosting::Tested(windows) => (
+                Some(windows.clone()),
+                Some(Box::new(TestHost(windows)) as Box<dyn Layer>),
+                Setup::new(Waker::new(|| {})),
+            ),
+            Hosting::By(host, setup) => (None, Some(host), setup),
+        };
         let layers = std::iter::once(Box::new(Drive::new(inbox.clone())) as Box<dyn Layer>)
-            .chain(
-                windows
-                    .clone()
-                    .map(|windows| Box::new(TestHost(windows)) as Box<dyn Layer>),
-            )
+            .chain(host)
             .collect();
         let mut runner = Runner::new(Launch {
             options: RunOptions::default(),
@@ -314,7 +356,7 @@ impl<A: App + 'static> Stepped<A> {
                     renderer: Box::new(Screen(size * scale)),
                     fonts: None,
                 }],
-                Setup::new(Waker::new(|| {})),
+                setup,
             )
             .expect("a screen without a gpu always loads");
         runner.context().stop_clock();
@@ -425,7 +467,7 @@ impl<A: App + 'static> Stepped<A> {
                     open.placement = placement.clone();
                 }
             }
-            WindowReport::Scaled { .. }
+            WindowReport::Rastered { .. }
             | WindowReport::Moved { .. }
             | WindowReport::Focused { .. } => {}
             WindowReport::Closed(window) => {
@@ -502,6 +544,24 @@ impl<A: App + 'static> Stepped<A> {
     }
 
     pub fn ask(&mut self, words: &[&str]) -> Result<String, String> {
+        match self.reply(words) {
+            Reply::Text(text) => Ok(text),
+            Reply::Error(error) => Err(error),
+            Reply::Image { .. } => Err("the answer is an image".to_owned()),
+            Reply::Painting(_) => Err("the answer is a painting".to_owned()),
+        }
+    }
+
+    pub fn painting(&mut self) -> beui_core::painting::Painting {
+        let painted = match self.reply(&["paint", "in", "platform"]) {
+            Reply::Painting(bytes) => beui_core::painting::Painting::decode(&bytes),
+            Reply::Error(error) => Err(error),
+            Reply::Text(_) | Reply::Image { .. } => Err("the answer is not a painting".to_owned()),
+        };
+        painted.unwrap_or_else(|error| panic!("{error}\n{}", self.replay()))
+    }
+
+    fn reply(&mut self, words: &[&str]) -> Reply {
         self.steps.push(
             std::iter::once("drive")
                 .chain(words.iter().copied())
@@ -518,12 +578,7 @@ impl<A: App + 'static> Stepped<A> {
         for _ in 0..ANSWER_FRAMES {
             self.paint();
             if let Poll::Ready(reply) = answered.as_mut().poll(&mut waiting) {
-                return match reply {
-                    Reply::Text(text) => Ok(text),
-                    Reply::Error(error) => Err(error),
-                    Reply::Image { .. } => Err("the answer is an image".to_owned()),
-                    Reply::Painting(_) => Err("the answer is a painting".to_owned()),
-                };
+                return reply;
             }
         }
         panic!(
@@ -542,7 +597,7 @@ impl<A: App + 'static> Stepped<A> {
     }
 
     pub fn click(&mut self, target: impl Into<Target>) -> String {
-        self.gesture(&["app", "click"], &[target.into()], &[])
+        self.gesture(&["click"], &[target.into()], &[])
     }
 
     pub fn click_with(&mut self, target: impl Into<Target>, button: PointerButton) -> String {
@@ -552,33 +607,33 @@ impl<A: App + 'static> Stepped<A> {
             PointerButton::Middle => Some("middle"),
             other => panic!("drive clicks the primary, right and middle buttons, not {other:?}"),
         };
-        self.gesture(&["app", "click"], &[target.into()], button.as_slice())
+        self.gesture(&["click"], &[target.into()], button.as_slice())
     }
 
     pub fn double_click(&mut self, target: impl Into<Target>) -> String {
-        self.gesture(&["app", "click"], &[target.into()], &["double"])
+        self.gesture(&["click"], &[target.into()], &["double"])
     }
 
     pub fn hover(&mut self, target: impl Into<Target>) -> String {
-        self.gesture(&["app", "move"], &[target.into()], &[])
+        self.gesture(&["move"], &[target.into()], &[])
     }
 
     pub fn leave(&mut self) -> String {
-        self.gesture(&["app", "leave"], &[], &[])
+        self.gesture(&["leave"], &[], &[])
     }
 
     pub fn down(&mut self, target: impl Into<Target>, button: PointerButton) -> String {
         let button = button_name(button);
-        self.gesture(&["app", "down"], &[target.into()], &[&button])
+        self.gesture(&["down"], &[target.into()], &[&button])
     }
 
     pub fn up(&mut self, target: impl Into<Target>, button: PointerButton) -> String {
         let button = button_name(button);
-        self.gesture(&["app", "up"], &[target.into()], &[&button])
+        self.gesture(&["up"], &[target.into()], &[&button])
     }
 
     pub fn drag(&mut self, from: impl Into<Target>, to: impl Into<Target>) -> String {
-        self.gesture(&["app", "drag"], &[from.into(), to.into()], &[])
+        self.gesture(&["drag"], &[from.into(), to.into()], &[])
     }
 
     pub fn drag_in(
@@ -588,42 +643,42 @@ impl<A: App + 'static> Stepped<A> {
         steps: usize,
     ) -> String {
         let steps = steps.to_string();
-        self.gesture(&["app", "drag"], &[from.into(), to.into()], &[&steps])
+        self.gesture(&["drag"], &[from.into(), to.into()], &[&steps])
     }
 
     pub fn scroll(&mut self, target: impl Into<Target>, by: Vec2) -> String {
         let scale = self.runner.context().pixels_per_point();
         let (down, right) = ((by.y * scale).to_string(), (by.x * scale).to_string());
-        self.gesture(&["app", "scroll"], &[target.into()], &[&down, &right])
+        self.gesture(&["scroll"], &[target.into()], &[&down, &right])
     }
 
     pub fn motion(&mut self, by: Vec2) -> String {
         let scale = self.runner.context().pixels_per_point();
         let (right, down) = ((by.x * scale).to_string(), (by.y * scale).to_string());
-        self.gesture(&["app", "motion"], &[], &[&right, &down])
+        self.gesture(&["motion"], &[], &[&right, &down])
     }
 
     pub fn wheel(&mut self, target: impl Into<Target>, down: i32, right: i32) -> String {
         let (down, right) = (down.to_string(), right.to_string());
-        self.gesture(&["app", "wheel"], &[target.into()], &[&down, &right])
+        self.gesture(&["wheel"], &[target.into()], &[&down, &right])
     }
 
     pub fn zoom(&mut self, target: impl Into<Target>, factor: f32) -> String {
         let factor = factor.to_string();
-        self.gesture(&["app", "zoom"], &[target.into()], &[&factor])
+        self.gesture(&["zoom"], &[target.into()], &[&factor])
     }
 
     pub fn pinch(&mut self, target: impl Into<Target>, factor: f32) -> String {
         let factor = factor.to_string();
-        self.gesture(&["app", "pinch"], &[target.into()], &[&factor])
+        self.gesture(&["pinch"], &[target.into()], &[&factor])
     }
 
     pub fn tap(&mut self, target: impl Into<Target>) -> String {
-        self.gesture(&["app", "tap"], &[target.into()], &[])
+        self.gesture(&["tap"], &[target.into()], &[])
     }
 
     pub fn swipe(&mut self, from: impl Into<Target>, to: impl Into<Target>) -> String {
-        self.gesture(&["app", "swipe"], &[from.into(), to.into()], &[])
+        self.gesture(&["swipe"], &[from.into(), to.into()], &[])
     }
 
     pub fn fingers<T: Into<Target> + Clone>(
@@ -642,39 +697,39 @@ impl<A: App + 'static> Stepped<A> {
             .map(|(finger, target)| format!("{finger}={}", self.word(target.clone().into())))
             .collect();
         let fingers: Vec<&str> = fingers.iter().map(String::as_str).collect();
-        self.gesture(&["app", "touch", phase], &[], &fingers)
+        self.gesture(&["touch", phase], &[], &fingers)
     }
 
     pub fn type_text(&mut self, text: &str) -> String {
-        self.gesture(&["app", "type"], &[], &[text])
+        self.gesture(&["type"], &[], &[text])
     }
 
     pub fn key(&mut self, key: Key, modifiers: Modifiers) -> String {
         let chord = typing::chord_name(key, modifiers)
             .unwrap_or_else(|| panic!("drive has no name for {key:?}"));
-        self.gesture(&["app", "key"], &[], &[&chord])
+        self.gesture(&["key"], &[], &[&chord])
     }
 
     pub fn key_down(&mut self, key: Key) -> String {
         let name = key
             .name()
             .unwrap_or_else(|| panic!("drive has no name for {key:?}"));
-        self.gesture(&["app", "keydown"], &[], &[&name])
+        self.gesture(&["keydown"], &[], &[&name])
     }
 
     pub fn key_up(&mut self, key: Key) -> String {
         let name = key
             .name()
             .unwrap_or_else(|| panic!("drive has no name for {key:?}"));
-        self.gesture(&["app", "keyup"], &[], &[&name])
+        self.gesture(&["keyup"], &[], &[&name])
     }
 
     pub fn wait(&mut self, target: impl Into<Target>) -> String {
-        self.gesture(&["app", "wait"], &[target.into()], &[])
+        self.gesture(&["wait"], &[target.into()], &[])
     }
 
     pub fn gone(&mut self, target: impl Into<Target>) -> String {
-        self.gesture(&["app", "gone"], &[target.into()], &[])
+        self.gesture(&["gone"], &[target.into()], &[])
     }
 
     pub fn pause(&mut self, by: Duration) -> String {

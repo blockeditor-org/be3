@@ -148,12 +148,9 @@ def plugin_sdk():
 # :manifest, and its wasm :test. test_env is extra environment for compiling the
 # tests, which is how a test names a module it loads with include_bytes!.
 # extra_deps are what cargo cannot name, such as a C library the plugin links.
-# A plugin is linked against the plugin SDK unless shared_sdk is False, which a
-# plugin needs when it links a library that is not position-independent (the
-# PDF plugin's PDFium): it then carries everything it uses itself. types is the
-# plugin's type module (a wasm32_module, such as checklist's
-# //crates/editors/checklist/types:module), which :types names for the app to
-# stage beside :module.
+# A plugin is linked against the plugin SDK. types is the plugin's type module
+# (a wasm32_module, such as checklist's //crates/editors/checklist/types:module),
+# which :types names for the app to stage beside :module.
 #
 # Outside a release build the plugin crate itself is compiled at opt-level 0,
 # like its tests below, while its dependencies keep the plugin profile's 2.
@@ -168,7 +165,7 @@ def plugin_sdk():
 # plans it there), as the library named after its package, and each
 # examples/NAME.rs is :example-NAME on the host, such as a benchmark that
 # drives the editor through block-ui-test.
-def editor(module, visibility = ["PUBLIC"], test_env = {}, data = {}, extra_deps = [], shared_sdk = True, types = None):
+def editor(module, visibility = ["PUBLIC"], test_env = {}, data = {}, extra_deps = [], types = None):
     facts = cargo_wasm_facts()
     native.rust_library(
         name = "wasm",
@@ -178,7 +175,7 @@ def editor(module, visibility = ["PUBLIC"], test_env = {}, data = {}, extra_deps
         edition = facts.edition,
         env = facts.env,
         features = facts.features,
-        linker_flags = ["--be3-plugin=$(location {})".format(PLUGIN_SDK)] if shared_sdk else [],
+        linker_flags = ["--be3-plugin=$(location {})".format(PLUGIN_SDK)],
         mapped_srcs = cargo_manifest_sources(),
         preferred_linkage = "shared",
         rustc_flags = plugin_exports + dev_only(["-Copt-level=0"]),

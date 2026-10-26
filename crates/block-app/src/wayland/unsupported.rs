@@ -29,7 +29,11 @@ pub(crate) fn revision() -> u64 {
     0
 }
 
-pub(crate) fn listed() -> Vec<HostWindow> {
+pub(crate) fn listed(_hidden: &[HostWindowId]) -> Vec<HostWindow> {
+    Vec::new()
+}
+
+pub(crate) fn opening_windows() -> Vec<(uuid::Uuid, HostWindowId)> {
     Vec::new()
 }
 
@@ -62,10 +66,33 @@ pub(crate) fn WindowSurface(window: HostWindowId) -> NodeId {
     }
 }
 
+pub(crate) struct Opener {
+    pub(crate) id: String,
+    pub(crate) name: String,
+    pub(crate) extensions: Vec<String>,
+}
+
 #[derive(Default)]
 pub(crate) struct Programs;
 
 impl Programs {
+    pub(crate) fn scanned(&self) -> bool {
+        false
+    }
+
+    pub(crate) fn openers(&self) -> Vec<Opener> {
+        Vec::new()
+    }
+
+    pub(crate) fn open_file(
+        &mut self,
+        _key: &str,
+        _file: &std::path::Path,
+        _block: uuid::Uuid,
+    ) -> Result<(), String> {
+        Err("Programs cannot run here.".to_owned())
+    }
+
     pub(crate) fn scan(&mut self, _pixels: u32) {}
 
     pub(crate) fn receive(&mut self) -> bool {

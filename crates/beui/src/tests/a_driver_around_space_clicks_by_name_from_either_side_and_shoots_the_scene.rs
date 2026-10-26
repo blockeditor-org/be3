@@ -13,10 +13,10 @@ const WIDTH: u32 = 640;
 const HEIGHT: u32 = 480;
 
 #[test]
-fn a_driver_around_space_clicks_by_name_through_its_app_tap_and_shoots_the_scene_through_its_screen_tap()
- {
+fn a_driver_around_space_clicks_by_name_from_either_side_and_shoots_the_scene() {
     let document = build_node(|| {
         let pressed = create_signal(false);
+        let then = create_signal(false);
         view! {
             <styled::List spacing=Space::Md>
                 <Button
@@ -27,11 +27,21 @@ fn a_driver_around_space_clicks_by_name_through_its_app_tap_and_shoots_the_scene
                 <ShowKeepAlive condition={pressed}>
                     <Text>"Pressed"</Text>
                 </ShowKeepAlive>
+                <Button
+                    label="Then me"
+                    variant=ButtonVariant::Primary
+                    on_click={move || then.set(true)}
+                />
+                <ShowKeepAlive condition={then}>
+                    <Text>"Then pressed"</Text>
+                </ShowKeepAlive>
             </styled::List>
         }
     });
     let inbox = Inbox::default();
-    let (screen, app) = Drive::taps(inbox.clone());
+    let mut taps = Drive::taps(inbox.clone(), &[Some("space"), None]);
+    let app = taps.pop().expect("the tap under the app");
+    let screen = taps.pop().expect("the tap under space");
     let mut runner = Runner::new(Launch {
         options: RunOptions::default(),
         context: context(),
@@ -52,7 +62,9 @@ fn a_driver_around_space_clicks_by_name_through_its_app_tap_and_shoots_the_scene
         runner.reports().clone(),
     );
     let surface = pollster::block_on(beui_renderer_wgpu::offscreen::OffscreenSurface::new(
-        WIDTH, HEIGHT, None,
+        WIDTH,
+        HEIGHT,
+        Default::default(),
     ))
     .expect("no graphics adapter is available");
     runner
@@ -86,28 +98,42 @@ fn a_driver_around_space_clicks_by_name_through_its_app_tap_and_shoots_the_scene
     };
 
     text(drive(&["clock", "stop"]));
-    let changed = text(drive(&["app", "click", "\"Press me\""]));
+    let changed = text(drive(&["click", "\"Press me\""]));
     assert!(
         changed.contains("Label value=\"Pressed\""),
-        "the app tap finds the button by name in the app's own tree and clicks it there:\n{changed}"
+        "input reaches the app by default, by name in the app's own tree:\n{changed}"
     );
 
-    match drive(&["app", "shot"]) {
-        Reply::Error(error) => assert!(error.contains("drive screen shot"), "{error}"),
-        _ => panic!("the app tap takes no shots: a shot is what the platform shows"),
+    let changed = text(drive(&["--into=space", "click", "\"Then me\""]));
+    assert!(
+        changed.contains("Label value=\"Then pressed\""),
+        "into space, the name is carried down to where space shows it, and space's click reaches it:\n{changed}"
+    );
+
+    match drive(&["--into=xr", "click", "\"Then me\""]) {
+        Reply::Error(error) => assert!(error.contains("space"), "{error}"),
+        _ => panic!("--into names only a layer with a tap under it"),
     }
-    match drive(&["screen", "click", "\"Press me\""]) {
-        Reply::Error(error) => assert!(error.contains("X,Y"), "{error}"),
-        _ => panic!("below space, the screen tap cannot find the app's names"),
+    match drive(&["--into=space", "tree"]) {
+        Reply::Error(error) => assert!(error.contains("--into"), "{error}"),
+        _ => panic!("reading the app goes nowhere but the app"),
     }
+
+    let Reply::Image { width, .. } = drive(&["shot", "\"Press me\""]) else {
+        panic!("a named target is shot where space shows it");
+    };
+    assert!(
+        width > 0 && width < WIDTH,
+        "the shot is cropped to the button, not the whole window: {width}"
+    );
 
     let Reply::Image {
         width,
         height,
         rgba,
-    } = drive(&["screen", "shot"])
+    } = drive(&["shot"])
     else {
-        panic!("the screen tap's shot is an image");
+        panic!("a shot is an image");
     };
     assert_eq!(
         (width, height),

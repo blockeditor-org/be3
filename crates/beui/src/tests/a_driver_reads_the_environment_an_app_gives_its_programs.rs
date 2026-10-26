@@ -27,7 +27,7 @@ fn a_driver_reads_the_environment_an_app_gives_its_programs() {
     let mut driven = stepped(Hosting(document));
     assert_eq!(
         driven
-            .ask(&["app", "env"])
+            .ask(&["env"])
             .expect("the driver reads the environment"),
         "XDG_RUNTIME_DIR=/tmp/be-wayland-1\nWAYLAND_DISPLAY=wayland-0\n",
         "a program started with these variables shows its windows inside the app"
@@ -41,7 +41,7 @@ fn a_driver_reads_the_environment_an_app_gives_its_programs() {
     let mut driven = stepped(crate::testing::Showing(plain));
     assert_eq!(
         driven
-            .ask(&["app", "env"])
+            .ask(&["env"])
             .expect("the driver reads the environment"),
         "",
         "an app that hosts no programs gives them nothing"

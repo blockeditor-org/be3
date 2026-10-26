@@ -57,7 +57,7 @@ fn each_display_shows_its_own_lock_screen_at_its_own_scale() {
         "a window opens for each display, at its size"
     );
     for ((window, _), scale) in opened.iter().zip([2.0, 1.0]) {
-        stepped.report_window(WindowReport::Scaled {
+        stepped.report_window(WindowReport::Rastered {
             window: *window,
             pixels_per_point: scale,
         });

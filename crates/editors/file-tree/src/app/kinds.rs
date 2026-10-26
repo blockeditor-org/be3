@@ -88,11 +88,12 @@ pub(crate) fn TagsMenu(editor: Editor, row: Memo<Option<Row>>) -> MenuItem {
 #[component]
 pub(crate) fn OpensIn(editor: Editor, row: Memo<Option<Row>>) -> MenuItem {
     let block = shown_block(row);
+    let file_name = row.get_untracked().and_then(|row| row.file_name);
     let editors = create_memo(move || {
         let types = editor.block_types();
         block.map_or_else(Vec::new, |(_, block_type)| {
             types
-                .editors_for(block_type)
+                .editors_for(block_type, file_name.as_deref())
                 .into_iter()
                 .map(|entry| (entry.editor, entry.name.clone()))
                 .collect::<Vec<_>>()
