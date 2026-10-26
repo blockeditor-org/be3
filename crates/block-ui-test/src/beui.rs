@@ -1720,7 +1720,7 @@ impl<A: BeuiApp> BeuiTest<A> {
 
     pub fn secondary_drag(&mut self, from: Pos2, to: Pos2) {
         self.steps.push(format!(
-            "drive app down {} right; drive app up {} right",
+            "drive down {} right; drive up {} right",
             Target::point(from).word(1.0),
             Target::point(to).word(1.0)
         ));
@@ -1852,7 +1852,7 @@ impl<A: BeuiApp> BeuiTest<A> {
             TouchPhase::Cancel => "cancel",
         };
         self.steps
-            .push(format!("drive app touch {phase_name} {}", named.join(" ")));
+            .push(format!("drive touch {phase_name} {}", named.join(" ")));
         let at: Vec<(u64, Option<Pos2>)> = fingers
             .iter()
             .zip(targets)
@@ -1866,7 +1866,7 @@ impl<A: BeuiApp> BeuiTest<A> {
     }
 
     pub fn type_text(&mut self, text: &str) {
-        self.steps.push(format!("drive app type {text:?}"));
+        self.steps.push(format!("drive type {text:?}"));
         let frames = self.gestures.type_text(text);
         self.perform(frames);
     }
@@ -1874,7 +1874,7 @@ impl<A: BeuiApp> BeuiTest<A> {
     pub fn key(&mut self, key: Key, modifiers: Modifiers) {
         let chord = beui_core::input::typing::chord_name(key, modifiers)
             .unwrap_or_else(|| format!("{modifiers:?}+{key:?}"));
-        self.steps.push(format!("drive app key {chord}"));
+        self.steps.push(format!("drive key {chord}"));
         let frames = self.gestures.chord(key, modifiers);
         self.perform(frames);
     }
@@ -1890,7 +1890,7 @@ impl<A: BeuiApp> BeuiTest<A> {
     fn held_key(&mut self, key: Key, pressed: bool) {
         let command = if pressed { "keydown" } else { "keyup" };
         let name = key.name().unwrap_or_else(|| format!("{key:?}"));
-        self.steps.push(format!("drive app {command} {name}"));
+        self.steps.push(format!("drive {command} {name}"));
         let frames = self
             .gestures
             .key(key, pressed)
@@ -1903,7 +1903,7 @@ impl<A: BeuiApp> BeuiTest<A> {
     }
 
     fn locate(&mut self, command: &str, targets: &[Target], rest: &[String]) -> Vec<Pos2> {
-        let mut step = format!("drive app {command}");
+        let mut step = format!("drive {command}");
         for word in targets
             .iter()
             .map(|target| target.word(1.0))

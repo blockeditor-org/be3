@@ -25,7 +25,7 @@ fn hurry_off_tells_a_driven_app_to_wait_as_for_a_person() {
     driven.ask(&["hurry", "off"]).expect("hurrying stops");
     driven.ask(&["settle"]).expect("the app settles");
     assert_eq!(seen.get_untracked().last(), Some(&false));
-    let state = driven.ask(&["app", "state"]).expect("the state is read");
+    let state = driven.ask(&["state"]).expect("the state is read");
     assert!(state.contains("hurry off"), "{state}");
 
     driven.ask(&["hurry", "on"]).expect("hurrying starts again");

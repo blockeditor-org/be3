@@ -125,7 +125,7 @@ fn an_occluded_window_shows_itself_for_a_shot_once_the_app_has_drawn() {
     assert_eq!(seen.take(), [false], "nobody looks at an occluded window");
     assert_eq!(prepared.get(), 0, "an unseen frame is not drawn");
 
-    let mut answered = std::pin::pin!(ask(&inbox, vec!["screen".to_owned(), "shot".to_owned()]));
+    let mut answered = std::pin::pin!(ask(&inbox, vec!["shot".to_owned()]));
     let mut waiting = std::task::Context::from_waker(std::task::Waker::noop());
     let mut frames = 0;
     let reply = loop {

@@ -93,24 +93,18 @@ fn choose_platform(
             native()
         }
     };
-    let drives = choice
-        .layers
-        .iter()
-        .filter(|layer| **layer == Stacked::Drive)
-        .count();
-    let mut taps: Vec<beui_layer_drive::Drive> = match drives {
-        0 => Vec::new(),
-        _ => {
+    let above = beui_core::runner::environment::drive_taps(&choice.layers);
+    let mut taps: Vec<beui_layer_drive::Drive> = match above.is_empty() {
+        true => Vec::new(),
+        false => {
             let path = std::env::var_os(beui_core::runner::environment::DRIVE_SOCKET)
                 .ok_or("BEUI_LAYERS names drive without BEUI_DRIVE_SOCKET")?;
             let inbox = serve(std::path::Path::new(&path))?;
-            match drives {
-                1 => vec![beui_layer_drive::Drive::new(inbox)],
-                _ => {
-                    let (screen, app) = beui_layer_drive::Drive::taps(inbox);
-                    vec![app, screen]
-                }
-            }
+            let names: Vec<Option<&'static str>> =
+                above.iter().map(|layer| layer.map(Stacked::name)).collect();
+            let mut taps = beui_layer_drive::Drive::taps(inbox, &names);
+            taps.reverse();
+            taps
         }
     };
     let layers = choice

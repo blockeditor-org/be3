@@ -5,7 +5,7 @@ fn the_rename_card_from_the_files_reaches_past_them() {
     let mut app = AppTest::start();
     add_to_my_files(&mut app, "Text");
     app.wait("Tab \"Text\"");
-    app.run(&["app", "click", "TreeItem \"Text\"", "right"]);
+    app.run(&["click", "TreeItem \"Text\"", "right"]);
     app.click("#file-tree.appearance");
     app.wait("#rename.search");
     let (_, row_y, _, row_height) = app.place("TreeItem \"Text\"");

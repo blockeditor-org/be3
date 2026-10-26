@@ -400,7 +400,7 @@ which close() checks, so a test that ends without calling it fails too.
   differs every run: crop(target) paints only that target's area, such as `#workspace.block`,
   the block a tab shows.
 - record() and snapshot() are a painting as in an editor test (4), named
-  snapshots/app-tests.<name>.paint and accepted the same way. The painting is `drive app paint`: the
+  snapshots/app-tests.<name>.paint and accepted the same way. The painting is `drive paint`: the
   host's own document with each plugin's painting put where the host composites its surface,
   and each preview a plugin shows, which its painting marks with `paint_format::preview_key`,
   replaced by the painting of the preview it shows. A preview waits out its cooldown before it
@@ -412,7 +412,7 @@ which close() checks, so a test that ends without calling it fails too.
 - ./scripts/verify runs each test as an action of its own, so a test that fails leaves the
   paintings of the others to be accepted.
 - Any failure, a plain `assert!` or a painting as much as a step, prints the steps so far as `drive` commands, which replay against
-  `./scripts/buck run //crates/block-app:dev -- --fresh`, what the app shows (`drive app tree`), and
+  `./scripts/buck run //crates/block-app:dev -- --fresh`, what the app shows (`drive tree`), and
   the end of the app's log, after every panic the app logged before it with its message. A step
   that times out while the tree shows nothing pending means the app never settled: something
   asks for a frame every frame.

@@ -542,7 +542,7 @@ impl<A: App + 'static> Stepped<A> {
     }
 
     pub fn click(&mut self, target: impl Into<Target>) -> String {
-        self.gesture(&["app", "click"], &[target.into()], &[])
+        self.gesture(&["click"], &[target.into()], &[])
     }
 
     pub fn click_with(&mut self, target: impl Into<Target>, button: PointerButton) -> String {
@@ -552,33 +552,33 @@ impl<A: App + 'static> Stepped<A> {
             PointerButton::Middle => Some("middle"),
             other => panic!("drive clicks the primary, right and middle buttons, not {other:?}"),
         };
-        self.gesture(&["app", "click"], &[target.into()], button.as_slice())
+        self.gesture(&["click"], &[target.into()], button.as_slice())
     }
 
     pub fn double_click(&mut self, target: impl Into<Target>) -> String {
-        self.gesture(&["app", "click"], &[target.into()], &["double"])
+        self.gesture(&["click"], &[target.into()], &["double"])
     }
 
     pub fn hover(&mut self, target: impl Into<Target>) -> String {
-        self.gesture(&["app", "move"], &[target.into()], &[])
+        self.gesture(&["move"], &[target.into()], &[])
     }
 
     pub fn leave(&mut self) -> String {
-        self.gesture(&["app", "leave"], &[], &[])
+        self.gesture(&["leave"], &[], &[])
     }
 
     pub fn down(&mut self, target: impl Into<Target>, button: PointerButton) -> String {
         let button = button_name(button);
-        self.gesture(&["app", "down"], &[target.into()], &[&button])
+        self.gesture(&["down"], &[target.into()], &[&button])
     }
 
     pub fn up(&mut self, target: impl Into<Target>, button: PointerButton) -> String {
         let button = button_name(button);
-        self.gesture(&["app", "up"], &[target.into()], &[&button])
+        self.gesture(&["up"], &[target.into()], &[&button])
     }
 
     pub fn drag(&mut self, from: impl Into<Target>, to: impl Into<Target>) -> String {
-        self.gesture(&["app", "drag"], &[from.into(), to.into()], &[])
+        self.gesture(&["drag"], &[from.into(), to.into()], &[])
     }
 
     pub fn drag_in(
@@ -588,42 +588,42 @@ impl<A: App + 'static> Stepped<A> {
         steps: usize,
     ) -> String {
         let steps = steps.to_string();
-        self.gesture(&["app", "drag"], &[from.into(), to.into()], &[&steps])
+        self.gesture(&["drag"], &[from.into(), to.into()], &[&steps])
     }
 
     pub fn scroll(&mut self, target: impl Into<Target>, by: Vec2) -> String {
         let scale = self.runner.context().pixels_per_point();
         let (down, right) = ((by.y * scale).to_string(), (by.x * scale).to_string());
-        self.gesture(&["app", "scroll"], &[target.into()], &[&down, &right])
+        self.gesture(&["scroll"], &[target.into()], &[&down, &right])
     }
 
     pub fn motion(&mut self, by: Vec2) -> String {
         let scale = self.runner.context().pixels_per_point();
         let (right, down) = ((by.x * scale).to_string(), (by.y * scale).to_string());
-        self.gesture(&["app", "motion"], &[], &[&right, &down])
+        self.gesture(&["motion"], &[], &[&right, &down])
     }
 
     pub fn wheel(&mut self, target: impl Into<Target>, down: i32, right: i32) -> String {
         let (down, right) = (down.to_string(), right.to_string());
-        self.gesture(&["app", "wheel"], &[target.into()], &[&down, &right])
+        self.gesture(&["wheel"], &[target.into()], &[&down, &right])
     }
 
     pub fn zoom(&mut self, target: impl Into<Target>, factor: f32) -> String {
         let factor = factor.to_string();
-        self.gesture(&["app", "zoom"], &[target.into()], &[&factor])
+        self.gesture(&["zoom"], &[target.into()], &[&factor])
     }
 
     pub fn pinch(&mut self, target: impl Into<Target>, factor: f32) -> String {
         let factor = factor.to_string();
-        self.gesture(&["app", "pinch"], &[target.into()], &[&factor])
+        self.gesture(&["pinch"], &[target.into()], &[&factor])
     }
 
     pub fn tap(&mut self, target: impl Into<Target>) -> String {
-        self.gesture(&["app", "tap"], &[target.into()], &[])
+        self.gesture(&["tap"], &[target.into()], &[])
     }
 
     pub fn swipe(&mut self, from: impl Into<Target>, to: impl Into<Target>) -> String {
-        self.gesture(&["app", "swipe"], &[from.into(), to.into()], &[])
+        self.gesture(&["swipe"], &[from.into(), to.into()], &[])
     }
 
     pub fn fingers<T: Into<Target> + Clone>(
@@ -642,39 +642,39 @@ impl<A: App + 'static> Stepped<A> {
             .map(|(finger, target)| format!("{finger}={}", self.word(target.clone().into())))
             .collect();
         let fingers: Vec<&str> = fingers.iter().map(String::as_str).collect();
-        self.gesture(&["app", "touch", phase], &[], &fingers)
+        self.gesture(&["touch", phase], &[], &fingers)
     }
 
     pub fn type_text(&mut self, text: &str) -> String {
-        self.gesture(&["app", "type"], &[], &[text])
+        self.gesture(&["type"], &[], &[text])
     }
 
     pub fn key(&mut self, key: Key, modifiers: Modifiers) -> String {
         let chord = typing::chord_name(key, modifiers)
             .unwrap_or_else(|| panic!("drive has no name for {key:?}"));
-        self.gesture(&["app", "key"], &[], &[&chord])
+        self.gesture(&["key"], &[], &[&chord])
     }
 
     pub fn key_down(&mut self, key: Key) -> String {
         let name = key
             .name()
             .unwrap_or_else(|| panic!("drive has no name for {key:?}"));
-        self.gesture(&["app", "keydown"], &[], &[&name])
+        self.gesture(&["keydown"], &[], &[&name])
     }
 
     pub fn key_up(&mut self, key: Key) -> String {
         let name = key
             .name()
             .unwrap_or_else(|| panic!("drive has no name for {key:?}"));
-        self.gesture(&["app", "keyup"], &[], &[&name])
+        self.gesture(&["keyup"], &[], &[&name])
     }
 
     pub fn wait(&mut self, target: impl Into<Target>) -> String {
-        self.gesture(&["app", "wait"], &[target.into()], &[])
+        self.gesture(&["wait"], &[target.into()], &[])
     }
 
     pub fn gone(&mut self, target: impl Into<Target>) -> String {
-        self.gesture(&["app", "gone"], &[target.into()], &[])
+        self.gesture(&["gone"], &[target.into()], &[])
     }
 
     pub fn pause(&mut self, by: Duration) -> String {

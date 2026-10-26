@@ -58,6 +58,15 @@ impl Stacked {
     }
 }
 
+pub fn drive_taps(layers: &[Stacked]) -> Vec<Option<Stacked>> {
+    layers
+        .iter()
+        .enumerate()
+        .filter(|(_, layer)| **layer == Stacked::Drive)
+        .map(|(index, _)| layers.get(index + 1).copied())
+        .collect()
+}
+
 pub fn choose(native: &str, var: impl Fn(&str) -> Option<String>) -> Result<Choice, String> {
     let headless = match var(PLATFORM).as_deref() {
         None => false,
@@ -95,9 +104,23 @@ pub fn choose(native: &str, var: impl Fn(&str) -> Option<String>) -> Result<Choi
         .iter()
         .filter(|layer| **layer == Stacked::Drive)
         .count();
-    if drives > 2 {
+    if layers
+        .windows(2)
+        .any(|pair| pair == [Stacked::Drive, Stacked::Drive])
+    {
         return Err(format!(
-            "{LAYERS} names drive {drives} times; one drive layer, or two (its screen tap below and its app tap above), make one session"
+            "{LAYERS} names drive twice in a row; a drive tap goes under each layer it reaches, with that layer between it and the next"
+        ));
+    }
+    let above: Vec<Option<Stacked>> = drive_taps(&layers);
+    if let Some(twice) = above
+        .iter()
+        .enumerate()
+        .find_map(|(index, layer)| above[..index].contains(layer).then_some(*layer))
+    {
+        return Err(format!(
+            "{LAYERS} puts two drive taps under {}; --into could not tell them apart",
+            twice.map_or("the app", Stacked::name)
         ));
     }
     if drives > 0 && var(DRIVE_SOCKET).is_none() {

@@ -9,14 +9,14 @@ fn an_active_child_pans_in_the_frame_its_canvas_pans() {
     add_to_canvas(&mut app, "Pixel Art");
     let card = app.place("GenericContainer #infinite-canvas.entity.");
     let inside = format!("{:.0},{:.0}", card.0 + card.2 / 2.0, card.1 + card.3 * 0.6);
-    app.run(&["app", "click", &inside]);
+    app.run(&["click", &inside]);
     app.wait("Pane \"Pixel Art\"");
     app.gone("#infinite-canvas.dock");
     app.run(&["settle"]);
 
     for _ in 0..3 {
         let before = app.place(ARTWORK);
-        app.run(&["--no-settle", "app", "wheel", &inside, "1"]);
+        app.run(&["--no-settle", "wheel", &inside, "1"]);
         let first = app.place(ARTWORK);
         app.run(&["settle"]);
         let settled = app.place(ARTWORK);

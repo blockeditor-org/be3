@@ -62,29 +62,29 @@ impl AppTest {
     }
 
     pub fn wait(&mut self, target: &str) {
-        self.run(&["app", "wait", target]);
+        self.run(&["wait", target]);
     }
 
     pub fn gone(&mut self, target: &str) {
-        self.run(&["app", "gone", target]);
+        self.run(&["gone", target]);
     }
 
     pub fn click(&mut self, target: &str) -> String {
         self.wait(target);
-        self.run(&["app", "click", target])
+        self.run(&["click", target])
     }
 
     pub fn double_click(&mut self, target: &str) -> String {
         self.wait(target);
-        self.run(&["app", "click", target, "double"])
+        self.run(&["click", target, "double"])
     }
 
     pub fn type_text(&mut self, text: &str) -> String {
-        self.run(&["app", "type", text])
+        self.run(&["type", text])
     }
 
     pub fn key(&mut self, chord: &str) -> String {
-        self.run(&["app", "key", chord])
+        self.run(&["key", chord])
     }
 
     pub fn pause(&mut self, milliseconds: u32) {
@@ -92,11 +92,11 @@ impl AppTest {
     }
 
     pub fn tree(&mut self) -> String {
-        self.run(&["app", "tree"])
+        self.run(&["tree"])
     }
 
     pub fn place(&mut self, target: &str) -> (f32, f32, f32, f32) {
-        let found = self.run(&["app", "find", target]);
+        let found = self.run(&["find", target]);
         let numbers: Vec<f32> = found
             .split(|character: char| {
                 !character.is_ascii_digit() && character != '-' && character != '.'
@@ -126,7 +126,7 @@ impl AppTest {
 
     pub fn record(&mut self) {
         let painted = self.paint();
-        let found = self.run(&["app", "overflows"]);
+        let found = self.run(&["overflows"]);
         self.overflows.extend(found.lines().map(str::to_owned));
         match &mut self.recorded {
             Some(recorded) => recorded.append(painted),
@@ -165,7 +165,7 @@ impl AppTest {
 
     fn paint(&mut self) -> Snapshot {
         self.gone("#editor.loading");
-        let mut words = vec!["app", "paint"];
+        let mut words = vec!["paint"];
         words.extend(self.crop.as_deref());
         self.steps
             .push(line(&words).replacen("paint", "paint painted.paint", 1));
@@ -191,7 +191,7 @@ impl AppTest {
             .app
             .as_ref()
             .map(|app| {
-                let tree = match app.request(&["app", "tree"]) {
+                let tree = match app.request(&["tree"]) {
                     Ok(Reply::Text(tree)) => tree,
                     _ => "(the app did not answer)".to_owned(),
                 };

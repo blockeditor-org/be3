@@ -6,12 +6,12 @@ import { createRequire } from "node:module";
 const require = createRequire(import.meta.url);
 const { chromium } = require("playwright");
 
-const usage = `usage: drive [--timeout=SECONDS] [--no-settle] [--changes=N|all] [screen|app] COMMAND, or drive - < COMMANDS
+const usage = `usage: drive [--timeout=SECONDS] [--no-settle] [--changes=N|all] COMMAND, or drive - < COMMANDS
 The app answers the same commands as the native app's drive (help lists them),
-such as app tree, app click TARGET, app type TEXT, app wait TEXT and settle. The
-browser is the platform here, so it answers these screen commands itself:
-  screen shot FILE [TARGET] save a screenshot, of TARGET only when given
-  screen upload FILE TARGET click TARGET and answer the file chooser with FILE
+such as tree, click TARGET, type TEXT, wait TEXT and settle. The browser is the
+platform here, so it answers these of the platform's commands itself:
+  shot FILE [TARGET]        save a screenshot, of TARGET only when given
+  upload FILE TARGET        click TARGET and answer the file chooser with FILE
 and these of its own:
   eval EXPRESSION           evaluate JavaScript in the page and print the result
   reload                    reload the page and wait until the app answers
@@ -24,7 +24,11 @@ const options = [];
 while (args[0]?.startsWith("--")) {
     if (args[0].startsWith("--timeout=")) {
         timeout = Number(args[0].slice("--timeout=".length));
-    } else if (args[0] === "--no-settle" || args[0].startsWith("--changes=")) {
+    } else if (
+        args[0] === "--no-settle" ||
+        args[0].startsWith("--changes=") ||
+        args[0].startsWith("--into=")
+    ) {
         options.push(args[0]);
     } else {
         break;
@@ -87,7 +91,7 @@ const answer = async (words) => {
     return text;
 };
 const place = async (target) => {
-    const reply = await answer(["app", "find", target]);
+    const reply = await answer(["find", target]);
     const found = reply.match(/at (-?[\d.]+),(-?[\d.]+) size ([\d.]+)x([\d.]+)/);
     if (found === null) {
         console.error(`${target} has no place on screen: ${reply.trim()}`);
@@ -115,7 +119,7 @@ switch (command) {
             const app = await import(new URL("block_app_lib.js", document.baseURI).href);
             const deadline = performance.now() + timeoutMs;
             while (performance.now() < deadline) {
-                const tree = await app.automate(["app", "tree"], 1000);
+                const tree = await app.automate(["tree"], 1000);
                 if (/https?:\/\/[^\s"]+\/auth\?code=[a-f0-9-]+/.test(tree) || tree.includes('"My files"')) return tree;
                 await new Promise(requestAnimationFrame);
             }
@@ -155,16 +159,14 @@ switch (command) {
         break;
     }
 
-    case "screen":
-        return screen(rest[0], rest.slice(1));
     default:
-        if (!(await browserCommand(command, rest, number))) {
+        if (!(await platform(command, rest)) && !(await browserCommand(command, rest, number))) {
             process.stdout.write(await answer([...options, command, ...rest]));
         }
 }
 }
 
-async function screen(command, rest) {
+async function platform(command, rest) {
 switch (command) {
     case "shot":
         await page.screenshot({
@@ -188,8 +190,9 @@ switch (command) {
         process.exit(1);
         break;
     default:
-        process.stdout.write(await answer([...options, "screen", command, ...rest]));
+        return false;
 }
+return true;
 }
 
 async function browserCommand(command, rest, number) {
@@ -199,7 +202,7 @@ switch (command) {
         break;
     case "reload":
         await page.reload();
-        await answer(["--no-settle", "app", "tree"]);
+        await answer(["--no-settle", "tree"]);
         break;
     case "size": {
         const session = await page.context().newCDPSession(page);

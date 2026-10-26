@@ -12,22 +12,20 @@ fn a_driver_lets_go_of_its_held_keys_and_pointers_when_the_window_loses_focus() 
     });
     let mut driven = stepped(crate::testing::Showing(document));
     driven
-        .ask(&["app", "click", "#field"])
+        .ask(&["click", "#field"])
         .expect("the field is focused");
     driven
-        .ask(&["app", "keydown", "ctrl", "a"])
+        .ask(&["keydown", "ctrl", "a"])
         .expect("keys are held");
     driven
-        .ask(&["app", "down", "#field"])
+        .ask(&["down", "#field"])
         .expect("the mouse button is held");
-    let state = driven.ask(&["app", "state"]).expect("the state is read");
+    let state = driven.ask(&["state"]).expect("the state is read");
     assert!(state.contains("keys down ctrl, A"), "{state}");
     assert!(state.contains("holding Primary"), "{state}");
 
-    driven
-        .ask(&["screen", "blur"])
-        .expect("the window loses focus");
-    let state = driven.ask(&["app", "state"]).expect("the state is read");
+    driven.ask(&["blur"]).expect("the window loses focus");
+    let state = driven.ask(&["state"]).expect("the state is read");
     assert!(
         !state.contains("keys down"),
         "the runner lets go of held modifiers when the window loses focus, and so does the \
@@ -38,17 +36,15 @@ fn a_driver_lets_go_of_its_held_keys_and_pointers_when_the_window_loses_focus() 
         "a window blur cancels the pointers, and the driver lets go of its button:\n{state}"
     );
     assert!(
-        driven.ask(&["app", "keyup", "a"]).is_err(),
+        driven.ask(&["keyup", "a"]).is_err(),
         "a key held when the window lost focus is no longer held"
     );
 
+    driven.ask(&["focus"]).expect("the window gains focus");
     driven
-        .ask(&["screen", "focus"])
-        .expect("the window gains focus");
-    driven
-        .ask(&["app", "click", "#field"])
+        .ask(&["click", "#field"])
         .expect("the field is focused");
-    let changed = driven.ask(&["app", "type", "b"]).expect("b is typed");
+    let changed = driven.ask(&["type", "b"]).expect("b is typed");
     assert!(
         changed.contains("value=\"b\""),
         "a key typed after focus comes back carries no modifier from before:\n{changed}"

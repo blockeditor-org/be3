@@ -69,7 +69,7 @@ platform's `Displays` handle (`display/linux.rs` offers them to `display/shown.r
 first display's window holds the host's whole UI (`ui::Root`: sign-in, the shell, dialogs); every
 display's window holds its own lock screen and display-settings prompt (`DisplayChrome`), and the
 host's toasts stand in the first's. Their test ids repeat from one display's window to the next:
-`drive app click ID in WINDOW` (guides/running/drive.md) finds a target among one window's
+`drive click ID in WINDOW` (guides/running/drive.md) finds a target among one window's
 nodes. Every display has its own scale: `BEUI_SCALE`, or what
 `DisplayConfig::scales` names for its monitor. Elsewhere (a window, headless, the web, Android)
 there are no displays and the UI is the main window's, as it always was.
@@ -338,7 +338,7 @@ the levels back. The backends run as tasks on the D-Bus thread:
 
 To try them under `:dev -- --desktop`, run `pipewire`, `wireplumber` and `pipewire-pulse`
 with `XDG_RUNTIME_DIR` and `DBUS_SESSION_BUS_ADDRESS` set for the app, and press them with
-`drive app key volumeup` (or `micmute`, `play`, ...). The VM has no sound card, so give it outputs with
+`drive key volumeup` (or `micmute`, `play`, ...). The VM has no sound card, so give it outputs with
 `pactl load-module module-null-sink sink_name=speakers sink_properties=device.description=Speakers`,
 and change them from outside the app with `pactl set-sink-volume`, `set-sink-mute` and
 `set-default-sink`.
@@ -491,8 +491,8 @@ command, with the variables of `Compositor::environment` (`XDG_RUNTIME_DIR`, `WA
 `.desktop` files and their icons and starts the programs (`ProgramsWatch` and
 `programs::request(ProgramAction)`, guides/adding_a_plugin_editor.md). The workspace shell has no launcher. A
 program can also be started against a driven app directly: the app hands the same variables to
-`drive app env` (`App::environment`), so `drive exec foot` runs `foot` inside it, and
-`eval "$(drive app env)"` sets them in a shell for anything else, such as `wl-paste`.
+`drive env` (`App::environment`), so `drive exec foot` runs `foot` inside it, and
+`eval "$(drive env)"` sets them in a shell for anything else, such as `wl-paste`.
 
 A top-level window opens as a tab in the workspace shell and floats in a dock window of its own in the desktop shell. A window with a parent (`xdg_toplevel.set_parent`) instead hangs over its parent's tab as a dock dialog (see the dock in guides/beui.md), showing and hiding with it. `xdg-dialog-v1` (be-wayland's `dialog.rs`) lets a program mark such a window modal (an XWayland window's parent is its `WM_TRANSIENT_FOR` and its modal flag `_NET_WM_STATE_MODAL`, which smithay's `X11Surface::is_popup` reads): `WindowInfo::modal` is set, and `Windows::blocked_by` names the innermost modal dialog of a window, to which be-wayland gives the keyboard whenever the parent would get it, and for which it drops the parent's pointer input. `weston-simple-shm` (from the `weston` package)
 and `foot` are small clients to try it with. `foot --fullscreen` starts one fullscreen, and in the desktop shell Super+F toggles fullscreen on the focused
@@ -503,14 +503,14 @@ included, moves the window, and Super+right-drag resizes it from its nearest edg
 or moves the split beside a docked one. In the desktop shell Alt+Tab, with Alt held, opens the window switcher and walks the
 windows from the one used last (Alt+Shift+Tab the other way); letting go of Alt focuses and
 raises the chosen one and Alt+Escape stays where it was. To drive it, hold Alt across the
-presses: `drive app keydown alt; drive app key tab tab; drive app keyup alt`.
+presses: `drive keydown alt; drive key tab tab; drive keyup alt`.
 
 Each window is a `be_wayland::WindowView`, a forwarding catcher like a plugin's region (see
 guides/beui_keyboard.md, One input path): beui decides which window a press, motion, scroll or key
 goes to, and `Compositor::after` turns what each window was forwarded into `wl_pointer` and
 `wl_keyboard` events, keys by their evdev codes (`Event::Key`'s `evdev`) and buttons by theirs: a
 button beyond beui's five is `PointerButton::Other` carrying its evdev code, which the DRM platform
-reads from libinput and the window gets unchanged (`drive app down TARGET button:0x115`). Where the shell draws over a
+reads from libinput and the window gets unchanged (`drive down TARGET button:0x115`). Where the shell draws over a
 window (a floating window's tab, say) the window takes nothing (`occluders`, from the region's
 occlusion), and a press keeps going to the window or plugin it began on until it is let go.
 
@@ -696,7 +696,7 @@ their own `PRIMARY` in Xwayland, which nothing bridges to Wayland, so they can s
 middle-click paste among themselves.
 
 To try them, run `wl-copy TEXT` and `wl-paste` (the `wl-clipboard` package) with
-`drive exec`, and copy or paste in the app with `drive app key ctrl+c`
+`drive exec`, and copy or paste in the app with `drive key ctrl+c`
 and `ctrl+v`.
 
 A window's drag (`wl_data_device.start_drag`) goes to the window under the pointer: the press
