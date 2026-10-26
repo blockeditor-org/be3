@@ -1297,6 +1297,9 @@ impl Editor {
         let placement = record.slot.placement()?;
         let content = record.content.get_untracked()?;
         let unscale = self.ratio().recip();
+        let shown = document
+            .window_rect(document.window_of(node))
+            .unwrap_or_else(|| document.viewport_rect());
         Some(state.host.place_child(
             content.wire(),
             rect.scaled(unscale),
@@ -1313,7 +1316,7 @@ impl Editor {
                 DialogFrame {
                     bottom_inset: dialog
                         .bottom_inset
-                        .max(rect.max.y - document.viewport_rect().max.y)
+                        .max(rect.max.y - shown.max.y)
                         * unscale,
                     ..dialog
                 }
