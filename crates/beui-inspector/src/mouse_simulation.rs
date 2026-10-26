@@ -5,6 +5,7 @@ use beui_components_styled::Radius;
 use beui_components_styled::{TextSize, Theme};
 use beui_core::color::Color32;
 use beui_core::context::{Context, InputSimulation};
+use beui_core::drawn_cursor;
 use beui_core::font::FontId;
 use beui_core::geometry::{Pos2, Rect, Vec2, pos2, vec2};
 use beui_core::icons;
@@ -15,20 +16,14 @@ const BAR_HEIGHT: f32 = 56.0;
 const BAR_PADDING: f32 = 6.0;
 const BAR_SPACING: f32 = 6.0;
 const BAR_WIDTH: f32 = 520.0;
-const CURSOR_SIZE: f32 = 26.0;
-const CURSOR_SHADOW: f32 = 1.5;
 const TAP_DISTANCE: f32 = 10.0;
 const TAP_TRAVEL: f32 = 4.0;
-const IBEAM_HEIGHT: f32 = 18.0;
-const IBEAM_SERIF: f32 = 3.5;
-const IBEAM_WIDTH: f32 = 1.5;
 const TAP_TIME: Duration = Duration::from_millis(300);
 pub const DOUBLE_TAP_TIME: Duration = Duration::from_millis(250);
 const MIDDLE_HOLD: Duration = Duration::from_millis(180);
 pub const SCROLL_TICK: f32 = 22.0;
 pub const WHEEL_LINE: f32 = 40.0;
 const BORDER_WIDTH: f32 = 1.0;
-const SHADOW: Color32 = Color32::from_rgba_unmultiplied(0, 0, 0, 190);
 
 const BUTTONS: [PointerButton; 3] = [
     PointerButton::Primary,
@@ -613,91 +608,12 @@ impl MouseSimulation {
     }
 
     fn paint_cursor(&self, painter: &Painter, icon: CursorIcon) -> Rect {
-        let at = self.local(self.cursor);
         let color = if self.held(0) {
             Theme::DARK.accent
         } else {
             Theme::DARK.knob
         };
-        let shadow = vec2(CURSOR_SHADOW, CURSOR_SHADOW);
-        match icon {
-            CursorIcon::None => {}
-            CursorIcon::Touch => {
-                beui_core::touch_cursor::paint(painter, at);
-            }
-            CursorIcon::Text => {
-                ibeam(painter, at + shadow, SHADOW);
-                ibeam(painter, at, color);
-            }
-            icon => {
-                let (text, hotspot, angle) = cursor_glyph(icon);
-                let painter = painter.rotated(at, angle);
-                let galley =
-                    painter.layout(text.as_str(), FontId::icons(CURSOR_SIZE), f32::INFINITY);
-                let origin = at - hotspot * CURSOR_SIZE;
-                painter.galley(origin + shadow, galley.clone(), SHADOW);
-                painter.galley(origin, galley, color);
-            }
-        }
-        Rect::from_center_size(at, vec2(CURSOR_SIZE, CURSOR_SIZE) * 3.0)
-    }
-}
-
-fn cursor_glyph(icon: CursorIcon) -> (icons::Glyph, Vec2, f32) {
-    let center = vec2(0.48, 0.56);
-    let diagonal = std::f32::consts::FRAC_PI_4;
-    match icon {
-        CursorIcon::Default | CursorIcon::None | CursorIcon::Text => {
-            (icons::ICON_MOUSE_POINTER_2, vec2(0.23, 0.19), 0.0)
-        }
-        CursorIcon::PointingHand => (icons::ICON_POINTER, vec2(0.29, 0.15), 0.0),
-        CursorIcon::Crosshair | CursorIcon::Touch => (icons::ICON_PLUS, center, 0.0),
-        CursorIcon::Grab => (icons::ICON_HAND, center, 0.0),
-        CursorIcon::Grabbing => (icons::ICON_HAND, center, 0.0),
-        CursorIcon::NotAllowed => (icons::ICON_BAN, center, 0.0),
-        CursorIcon::ResizeHorizontal => (icons::ICON_MOVE_HORIZONTAL, center, 0.0),
-        CursorIcon::ResizeVertical => (icons::ICON_MOVE_VERTICAL, center, 0.0),
-        CursorIcon::ResizeNwSe => (icons::ICON_MOVE_HORIZONTAL, center, diagonal),
-        CursorIcon::ResizeNeSw => (icons::ICON_MOVE_HORIZONTAL, center, -diagonal),
-        CursorIcon::Wait => (icons::ICON_HOURGLASS, center, 0.0),
-        CursorIcon::Progress => (icons::ICON_LOADER_CIRCLE, center, 0.0),
-        CursorIcon::Move => (icons::ICON_MOVE, center, 0.0),
-        CursorIcon::Help => (icons::ICON_CIRCLE_QUESTION_MARK, center, 0.0),
-        CursorIcon::Alias => (icons::ICON_CORNER_UP_RIGHT, center, 0.0),
-        CursorIcon::ContextMenu => (icons::ICON_MENU, center, 0.0),
-        CursorIcon::Cell => (icons::ICON_GRID_3X3, center, 0.0),
-        CursorIcon::VerticalText => (icons::ICON_ARROW_DOWN_A_Z, center, 0.0),
-        CursorIcon::Copy => (icons::ICON_COPY, center, 0.0),
-        CursorIcon::NoDrop => (icons::ICON_CIRCLE_MINUS, center, 0.0),
-        CursorIcon::AllScroll => (icons::ICON_MOVE, center, 0.0),
-        CursorIcon::ZoomIn => (icons::ICON_ZOOM_IN, center, 0.0),
-        CursorIcon::ZoomOut => (icons::ICON_ZOOM_OUT, center, 0.0),
-        CursorIcon::ResizeColumn | CursorIcon::ResizeEast | CursorIcon::ResizeWest => {
-            (icons::ICON_MOVE_HORIZONTAL, center, 0.0)
-        }
-        CursorIcon::ResizeRow | CursorIcon::ResizeNorth | CursorIcon::ResizeSouth => {
-            (icons::ICON_MOVE_VERTICAL, center, 0.0)
-        }
-        CursorIcon::ResizeNorthWest | CursorIcon::ResizeSouthEast => {
-            (icons::ICON_MOVE_HORIZONTAL, center, diagonal)
-        }
-        CursorIcon::ResizeNorthEast | CursorIcon::ResizeSouthWest => {
-            (icons::ICON_MOVE_HORIZONTAL, center, -diagonal)
-        }
-    }
-}
-
-fn ibeam(painter: &Painter, at: Pos2, color: Color32) {
-    let half = IBEAM_HEIGHT / 2.0;
-    let (top, bottom) = (at.y - half, at.y + half);
-    painter.line(pos2(at.x, top), pos2(at.x, bottom), IBEAM_WIDTH, color);
-    for y in [top, bottom] {
-        painter.line(
-            pos2(at.x - IBEAM_SERIF, y),
-            pos2(at.x + IBEAM_SERIF, y),
-            IBEAM_WIDTH,
-            color,
-        );
+        drawn_cursor::paint(painter, self.local(self.cursor), icon, color)
     }
 }
 

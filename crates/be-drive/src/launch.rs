@@ -6,6 +6,8 @@ use std::process::{Child, Command, Stdio};
 use std::sync::mpsc;
 use std::time::{Duration, Instant};
 
+use beui_core::runner::environment;
+
 use crate::request;
 
 const USAGE: &str = "usage: be-drive launch --program=PATH [--name=NAME] [--data] [--libraries=DIR]
@@ -13,7 +15,6 @@ const USAGE: &str = "usage: be-drive launch --program=PATH [--name=NAME] [--data
 Starts a beui program headless with an automation socket, waits until it settles, and writes
 an env file that puts `drive` on PATH pointed at it. Arguments it does not know go to the program.";
 const STARTUP: Duration = Duration::from_secs(120);
-const SIZE: &str = "1100x720";
 const SOCKET_PATH: usize = 107;
 const SCREEN: &str = "1440x900";
 
@@ -103,14 +104,25 @@ impl Launch {
         }
         let _ = fs::remove_file(&socket);
         let mut command = Command::new(program);
+        let slot = if std::env::var(environment::ADAPTER).as_deref() == Ok("space") {
+            environment::SPACE_ADAPTER
+        } else {
+            environment::ADAPTER
+        };
         command
             .args(&self.arguments)
-            .env("BEUI_HEADLESS", self.size.as_deref().unwrap_or(SIZE))
+            .env(slot, "headless")
             .env(
-                "BEUI_HEADLESS_SCREEN",
+                environment::HEADLESS_WINDOW,
+                self.size
+                    .as_deref()
+                    .unwrap_or(environment::HEADLESS_WINDOW_SIZE),
+            )
+            .env(
+                environment::HEADLESS_SCREEN,
                 self.screen.as_deref().unwrap_or(SCREEN),
             )
-            .env("BEUI_AUTOMATION", &socket)
+            .env(environment::AUTOMATION, &socket)
             .env_remove("DISPLAY")
             .env_remove("WAYLAND_DISPLAY")
             .stdin(Stdio::null())

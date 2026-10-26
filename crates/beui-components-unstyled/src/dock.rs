@@ -806,10 +806,21 @@ impl State {
         });
     }
 
-    fn placement(&self, surface: SurfaceId) -> WindowPlacement {
-        self.placements
+    fn placement(&self, surface: SurfaceId, parent: WindowId) -> WindowPlacement {
+        if let Some(placement) = self
+            .placements
             .with(|placements| placements.get(&surface).cloned())
-            .unwrap_or(WindowPlacement::Beside(WindowId::MAIN))
+        {
+            return placement;
+        }
+        let rect = self
+            .state
+            .with(|state| state.window_rect(surface))
+            .unwrap_or(Rect::ZERO);
+        WindowPlacement::Over {
+            window: parent,
+            at: self.rect.get().min + rect.min.to_vec2() - Vec2::splat(HANDLE_REACH),
+        }
     }
 
     fn window_reported(&self, surface: SurfaceId, report: WindowReport) {
@@ -823,11 +834,40 @@ impl State {
             WindowReport::Placed { placement, .. } => self.placements.update(|placements| {
                 placements.insert(surface, WindowPlacement::Host(placement));
             }),
+            WindowReport::Focused { focused: true, .. } => self.window_focused(surface),
+            WindowReport::Scaled { .. } | WindowReport::Focused { .. } => {}
             WindowReport::Closed(_) => {
                 for tab in self.state.get_untracked().surface_tabs(surface) {
                     self.close_tab(tab);
                 }
             }
+        }
+    }
+
+    fn window_focused(&self, surface: SurfaceId) {
+        let frame = self
+            .windows
+            .value()
+            .borrow()
+            .get(&surface)
+            .and_then(|frame| frame.try_get());
+        if frame.is_none_or(|frame| frame.focus_is_within()) {
+            return;
+        }
+        let leaf = self.state.with_untracked(|state| {
+            state
+                .focused_leaf()
+                .filter(|leaf| state.surface_of(*leaf) == Some(surface))
+                .or_else(|| state.leaves(surface).first().copied())
+        });
+        let Some(leaf) = leaf else {
+            return;
+        };
+        if self.state.with_untracked(|state| state.focused_leaf()) != Some(leaf) {
+            self.edit(|state| state.focus(leaf));
+        }
+        if let Some(tab) = self.state.with_untracked(|state| state.active_tab(leaf)) {
+            self.give_keyboard(tab);
         }
     }
 
@@ -2870,7 +2910,8 @@ fn DockWindowView(dock: State, surface: SurfaceId) -> NodeId {
             .unwrap_or_default()
     });
     let window_title = create_memo(move || Some(title.get()));
-    let placement = create_memo(move || dock.placement(surface));
+    let parent = use_window().map_or(WindowId::MAIN, |window| window.id);
+    let placement = create_memo(move || dock.placement(surface, parent));
     let contents = create_memo(move || state.with(|state| state.surface_tabs(surface)));
     let vacant = create_memo(move || contents.with(Vec::is_empty));
     let close = ClickCallback::new(move || {

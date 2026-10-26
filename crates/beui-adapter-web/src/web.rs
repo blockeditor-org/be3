@@ -26,6 +26,7 @@ use beui_core::renderer::Loaded;
 use beui_core::runner::{Adapter, Incoming, Launch, Platform, Running};
 use beui_core::window::{Appearance, WindowReports, WindowState};
 
+use crate::lock::Lock;
 use crate::wheel::{Pinch, wheel};
 
 type Loading = Pin<Box<dyn Future<Output = Result<Vec<Loaded>, Box<dyn Error>>>>>;
@@ -64,14 +65,12 @@ impl Adapter for Web {
 
 struct Pending {
     inputs: RefCell<Vec<Incoming>>,
-    locked: Cell<bool>,
     scheduled: Cell<bool>,
 }
 
 thread_local! {
     static INPUT: Pending = const { Pending {
         inputs: RefCell::new(Vec::new()),
-        locked: Cell::new(false),
         scheduled: Cell::new(false),
     } };
     static RUNNER: RefCell<Option<Rc<RefCell<Runner>>>> = const { RefCell::new(None) };
@@ -84,6 +83,7 @@ thread_local! {
     static CLIPBOARD_KEYS: Cell<bool> = const { Cell::new(false) };
     static PASTE_KINDS: RefCell<Vec<PasteKind>> = const { RefCell::new(Vec::new()) };
     static PINCH: RefCell<Pinch> = RefCell::new(Pinch::default());
+    static LOCK: RefCell<Lock> = RefCell::new(Lock::default());
     static TOUCHES: RefCell<Vec<i32>> = const { RefCell::new(Vec::new()) };
 }
 
@@ -289,6 +289,7 @@ impl Platform for WebPlatform {
             let _ = self.surface.style().set_property("cursor", &cursor);
         }
         if window.requests.pointer_locked != shown.requests.pointer_locked {
+            LOCK.with(|lock| lock.borrow_mut().want(window.requests.pointer_locked));
             match window.requests.pointer_locked {
                 true => self.surface.request_pointer_lock(),
                 false => {
@@ -758,6 +759,10 @@ fn listen(
                 return;
             }
             if let Some(button) = pointer_button(event.button()) {
+                if LOCK.with(|lock| lock.borrow_mut().press(button)) {
+                    surface.request_pointer_lock();
+                    return;
+                }
                 push_sample(button_event(pos, button, true), &event);
             }
         }
@@ -765,7 +770,7 @@ fn listen(
     on(surface_target, "pointermove", {
         let surface = surface.clone();
         move |event: web_sys::PointerEvent| {
-            if INPUT.with(|input| input.locked.get()) {
+            if LOCK.with(|lock| lock.borrow().held()) {
                 push_logical(Input::PointerMotion(vec2(
                     event.movement_x() as f32,
                     event.movement_y() as f32,
@@ -824,6 +829,9 @@ fn listen(
                     return;
                 }
                 if let Some(button) = pointer_button(event.button()) {
+                    if LOCK.with(|lock| lock.borrow_mut().release(button)) {
+                        return;
+                    }
                     push_sample(button_event(pos, button, false), &event);
                 }
             }
@@ -1013,10 +1021,21 @@ fn listen(
             let locked = document
                 .pointer_lock_element()
                 .is_some_and(|element| element == surface);
-            INPUT.with(|input| input.locked.set(locked));
-            schedule();
+            match LOCK.with(|lock| lock.borrow_mut().changed(locked)) {
+                Some(lost) => push(lost),
+                None => schedule(),
+            }
         }
     })?;
+    on(
+        document_target,
+        "pointerlockerror",
+        |_event: web_sys::Event| {
+            if let Some(refused) = LOCK.with(|lock| lock.borrow_mut().refused()) {
+                push(refused);
+            }
+        },
+    )?;
     on(document_target, "fullscreenchange", {
         let document = document.clone();
         let reports = reports.clone();

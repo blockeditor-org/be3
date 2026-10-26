@@ -116,6 +116,15 @@ pub struct GlyphId {
     pub subpixel: u32,
     pub bold: bool,
     pub italic: bool,
+    pub raster: u32,
+}
+
+impl GlyphId {
+    pub const LAID_OUT: u32 = 0x3f80_0000;
+
+    pub fn raster(self) -> f32 {
+        f32::from_bits(self.raster)
+    }
 }
 
 pub struct GlyphImage {
@@ -385,6 +394,32 @@ impl PartialEq for Galley {
 }
 
 impl Galley {
+    pub fn with_glyphs(&self, glyphs: Vec<Glyph>, pixels_per_point: f32) -> Galley {
+        let inner = &self.inner;
+        Galley {
+            inner: Rc::new(GalleyData {
+                text: Rc::clone(&inner.text),
+                font: inner.font,
+                size: inner.size,
+                line_height: inner.line_height,
+                baseline: inner.baseline,
+                pixel_bounds: pixel_bounds(&glyphs),
+                pixels_per_point,
+                glyphs,
+                lines: inner
+                    .lines
+                    .iter()
+                    .map(|line| GalleyLine {
+                        top: line.top,
+                        range: line.range.clone(),
+                        cursors: line.cursors.clone(),
+                    })
+                    .collect(),
+                wraps: inner.wraps,
+            }),
+        }
+    }
+
     pub fn same_layout(&self, other: &Self) -> bool {
         let (left, right) = (&self.inner, &other.inner);
         Rc::ptr_eq(left, right)
@@ -704,6 +739,10 @@ pub trait FontBackend {
         pixels_per_point: f32,
     ) -> Galley;
 
+    fn raster(&mut self, galley: &Galley, _raster: f32) -> Galley {
+        galley.clone()
+    }
+
     fn generation(&self) -> u64 {
         0
     }
@@ -855,6 +894,14 @@ impl Fonts {
         let galley = self.lay_out(text, font, layout, pixels_per_point);
         self.wrapped.remember(hash, request.key(), galley.clone());
         galley
+    }
+
+    pub fn rastered(&mut self, galley: &Galley, raster: f32) -> Galley {
+        if raster == 1.0 || !raster.is_finite() || raster <= 0.0 || galley.glyphs().is_empty() {
+            return galley.clone();
+        }
+        self.generation();
+        self.backend.raster(galley, raster)
     }
 
     fn line(&mut self, request: Request, pixels_per_point: f32) -> Galley {

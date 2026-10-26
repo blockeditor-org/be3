@@ -245,6 +245,7 @@ impl Intake {
                 events.push(Event::Focus(false));
             }
             Input::Focus(true) => events.push(Event::Focus(true)),
+            Input::PointerUnlocked => events.push(Event::PointerUnlocked),
             Input::InterceptedKey {
                 key,
                 pressed,

@@ -123,6 +123,7 @@ struct Surface {
     window: Arc<dyn Window>,
     touch_cursor: Option<CustomCursor>,
     fullscreen: bool,
+    focused: bool,
     accessibility: Accessibility,
 }
 
@@ -196,7 +197,10 @@ impl Platform for WinitPlatform<'_> {
     fn show_window(&mut self, window: &WindowState, shown: &WindowState) {
         let surface = &*self.surface;
         if window.requests.pointer_locked != shown.requests.pointer_locked {
-            lock_pointer(&*surface.window, window.requests.pointer_locked);
+            lock_pointer(
+                &*surface.window,
+                window.requests.pointer_locked && surface.focused,
+            );
         }
         if (window.requests.cursor, window.requests.pointer_locked)
             != (shown.requests.cursor, shown.requests.pointer_locked)
@@ -263,6 +267,11 @@ impl Runner {
 
     fn push(&mut self, input: impl Into<Incoming>) {
         self.runner.push(input);
+    }
+
+    fn locked(&self) -> bool {
+        self.runner.window().requests.pointer_locked
+            && self.surface.as_ref().is_some_and(|surface| surface.focused)
     }
 
     fn request_redraw(&self) {
@@ -409,7 +418,9 @@ impl Runner {
                 }
                 _ => {
                     self.pointer = physical(position);
-                    self.push(Input::PointerMoved(self.pointer));
+                    if !self.locked() {
+                        self.push(Input::PointerMoved(self.pointer));
+                    }
                 }
             },
             WindowEvent::PointerLeft {
@@ -575,6 +586,7 @@ impl ApplicationHandler for Runner {
             window,
             touch_cursor,
             fullscreen: false,
+            focused: true,
             accessibility,
         });
         if let Err(error) = self.runner.start(loaded, setup) {
@@ -650,6 +662,14 @@ impl ApplicationHandler for Runner {
                 if !focused {
                     self.pressed = 0;
                     self.push(Input::PointersCancelled);
+                }
+                if let Some(surface) = &mut self.surface {
+                    surface.focused = focused;
+                    let state = self.runner.window();
+                    if state.requests.pointer_locked {
+                        lock_pointer(&*surface.window, focused);
+                        show_cursor(surface, state);
+                    }
                 }
                 self.push(Input::Focus(focused));
             }
@@ -781,7 +801,7 @@ impl ApplicationHandler for Runner {
         let DeviceEvent::PointerMotion { delta } = event else {
             return;
         };
-        if !self.runner.window().requests.pointer_locked {
+        if !self.locked() {
             return;
         }
         self.push(Input::PointerMotion(vec2(delta.0 as f32, delta.1 as f32)));
@@ -883,17 +903,18 @@ fn logical_key(logical: &winit::keyboard::Key, physical: Option<Key>) -> Option<
 
 fn show_cursor(surface: &Surface, state: &WindowState) {
     let window = &surface.window;
+    let locked = state.requests.pointer_locked && surface.focused;
     if state.requests.cursor == CursorIcon::Touch
         && let Some(touch) = &surface.touch_cursor
     {
         window.set_cursor(touch.clone().into());
-        window.set_cursor_visible(!state.requests.pointer_locked);
+        window.set_cursor_visible(!locked);
         return;
     }
     match cursor(state.requests.cursor) {
         Some(icon) => {
             window.set_cursor(icon.into());
-            window.set_cursor_visible(!state.requests.pointer_locked);
+            window.set_cursor_visible(!locked);
         }
         None => window.set_cursor_visible(false),
     }

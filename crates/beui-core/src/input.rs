@@ -118,6 +118,7 @@ pub enum Event {
     PointerGone,
     PointersCancelled,
     PointerMotion(Vec2),
+    PointerUnlocked,
     PointerMoved(Pos2),
     ScrollStarted,
     Scroll(Vec2),

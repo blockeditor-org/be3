@@ -1,10 +1,14 @@
 struct Scene {
     view_projection: mat4x4<f32>,
     eye: vec4<f32>,
-    cursor: vec4<f32>,
     right: vec4<f32>,
     up: vec4<f32>,
     sky: vec4<f32>,
+    ground: vec4<f32>,
+    grid: vec4<f32>,
+    axis: vec4<f32>,
+    floor: vec4<f32>,
+    inverse: mat4x4<f32>,
     options: vec4<f32>,
 };
 
@@ -23,44 +27,76 @@ fn encode(color: vec3<f32>) -> vec3<f32> {
     return select(high, low, color <= vec3<f32>(0.0031308));
 }
 
-const FLOOR_EXTENT: f32 = 60.0;
+struct BackgroundOut {
+    @builtin(position) position: vec4<f32>,
+    @location(0) ndc: vec2<f32>,
+};
 
-struct FloorOut {
+@vertex
+fn background_vertex(@builtin(vertex_index) index: u32) -> BackgroundOut {
+    let ndc = corner(index) * 2.0 - 1.0;
+    var out: BackgroundOut;
+    out.position = vec4<f32>(ndc, 0.0, 1.0);
+    out.ndc = ndc;
+    return out;
+}
+
+fn fade(distance: f32) -> f32 {
+    return 1.0 - smoothstep(scene.floor.y, scene.floor.z, distance);
+}
+
+@fragment
+fn background_fragment(input: BackgroundOut) -> @location(0) vec4<f32> {
+    let far = scene.inverse * vec4<f32>(input.ndc, 0.5, 1.0);
+    let direction = far.xyz / far.w - scene.eye.xyz;
+    let down = -direction.y;
+    let along = length(direction.xz);
+    var share = 0.0;
+    if down > 0.0 {
+        share = fade(scene.floor.w * along / down);
+    }
+    let color = mix(scene.sky.rgb, scene.ground.rgb, share);
+    return vec4<f32>(encode(color), 1.0);
+}
+
+struct GridOut {
     @builtin(position) position: vec4<f32>,
     @location(0) world: vec3<f32>,
 };
 
 @vertex
-fn floor_vertex(@builtin(vertex_index) index: u32) -> FloorOut {
-    let at = (corner(index) * 2.0 - 1.0) * FLOOR_EXTENT;
+fn grid_vertex(@builtin(vertex_index) index: u32) -> GridOut {
+    let at = (corner(index) * 2.0 - 1.0) * scene.floor.x;
     let world = vec3<f32>(scene.eye.x + at.x, 0.0, scene.eye.z - at.y);
-    var out: FloorOut;
+    var out: GridOut;
     out.position = scene.view_projection * vec4<f32>(world, 1.0);
     out.world = world;
     return out;
 }
 
 @fragment
-fn floor_fragment(input: FloorOut) -> @location(0) vec4<f32> {
+fn grid_fragment(input: GridOut) -> @location(0) vec4<f32> {
     let coord = input.world.xz;
     let width = fwidth(coord);
     let cell = abs(fract(coord - 0.5) - 0.5) / max(width, vec2<f32>(1e-4));
     let line = 1.0 - min(min(cell.x, cell.y), 1.0);
     let axis_cell = abs(coord) / max(width, vec2<f32>(1e-4));
     let axis = 1.0 - min(min(axis_cell.x, axis_cell.y), 1.0);
-    let distance = length(input.world.xz - scene.eye.xz);
-    let fade = 1.0 - smoothstep(8.0, FLOOR_EXTENT * 0.9, distance);
     let detail = 1.0 - smoothstep(0.3, 1.0, max(width.x, width.y));
-    let ground = vec3<f32>(0.012, 0.014, 0.018);
-    let grid = vec3<f32>(0.10, 0.12, 0.15);
-    var color = mix(ground, grid, line * detail);
-    color = mix(color, vec3<f32>(0.16, 0.20, 0.30), axis * detail);
-    color = mix(scene.sky.rgb, color, fade);
-    return vec4<f32>(encode(color), 1.0);
+    let shown = fade(length(input.world.xz - scene.eye.xz)) * detail;
+    let weight = max(line, axis);
+    let color = mix(scene.grid.rgb, scene.axis.rgb, axis / max(weight, 1e-4));
+    let alpha = weight * shown;
+    return vec4<f32>(encode(color) * alpha, alpha);
 }
+
+const SHARPEN: f32 = -0.5;
 
 struct Panel {
     model: mat4x4<f32>,
+    shape: vec4<f32>,
+    span: vec4<f32>,
+    extra: vec4<f32>,
 };
 
 @group(1) @binding(0) var<uniform> panel: Panel;
@@ -72,48 +108,49 @@ struct PanelOut {
     @location(0) uv: vec2<f32>,
 };
 
+const SEGMENTS: u32 = 48u;
+
 @vertex
 fn panel_vertex(@builtin(vertex_index) index: u32) -> PanelOut {
-    let at = corner(index);
+    let weight = vec2<f32>(f32(index / 2u) / f32(SEGMENTS), f32(index & 1u));
+    let at = mix(panel.span.xy, panel.span.zw, weight);
+    let width = panel.shape.x;
+    let bend = panel.shape.z;
+    let across = (at.x - 0.5) * width;
+    let up = (0.5 - at.y) * panel.shape.y;
+    var local = vec3<f32>(across, up, panel.shape.w);
+    if bend > 1e-4 {
+        let radius = width / bend;
+        let angle = across / radius;
+        let normal = vec3<f32>(-sin(angle), 0.0, cos(angle));
+        local = vec3<f32>(radius * sin(angle), up, radius * (1.0 - cos(angle))) + normal * panel.shape.w;
+    }
     var out: PanelOut;
-    out.position = scene.view_projection * panel.model * vec4<f32>(at - 0.5, 0.0, 1.0);
-    out.uv = vec2<f32>(at.x, 1.0 - at.y);
+    out.position = scene.view_projection * panel.model * vec4<f32>(local, 1.0);
+    out.uv = weight;
     return out;
 }
 
 @fragment
 fn panel_fragment(input: PanelOut, @builtin(front_facing) front: bool) -> @location(0) vec4<f32> {
-    let color = textureSample(panel_texture, panel_sampler, input.uv);
+    let color = textureSampleBias(panel_texture, panel_sampler, input.uv, SHARPEN);
     if !front {
         return vec4<f32>(encode(vec3<f32>(0.05, 0.055, 0.065)), 1.0);
     }
     return vec4<f32>(color.rgb, 1.0);
 }
 
-struct CursorOut {
-    @builtin(position) position: vec4<f32>,
-    @location(0) at: vec2<f32>,
-};
-
-@vertex
-fn cursor_vertex(@builtin(vertex_index) index: u32) -> CursorOut {
-    let at = corner(index) * 2.0 - 1.0;
-    let radius = scene.cursor.w;
-    let world = scene.cursor.xyz + (scene.right.xyz * at.x + scene.up.xyz * at.y) * radius;
-    var out: CursorOut;
-    out.position = scene.view_projection * vec4<f32>(world, 1.0);
-    out.at = at;
-    return out;
+@fragment
+fn chrome_fragment(input: PanelOut, @builtin(front_facing) front: bool) -> @location(0) vec4<f32> {
+    if !front {
+        discard;
+    }
+    return textureSample(panel_texture, panel_sampler, input.uv) * panel.extra.x;
 }
 
 @fragment
-fn cursor_fragment(input: CursorOut) -> @location(0) vec4<f32> {
-    let distance = length(input.at);
-    let edge = fwidth(distance);
-    let disc = 1.0 - smoothstep(1.0 - edge, 1.0, distance);
-    let inner = 1.0 - smoothstep(0.62 - edge, 0.62, distance);
-    let color = mix(vec3<f32>(0.0, 0.0, 0.0), vec3<f32>(1.0, 1.0, 1.0), inner);
-    return vec4<f32>(encode(color), disc * 0.95);
+fn cursor_fragment(input: PanelOut) -> @location(0) vec4<f32> {
+    return textureSample(panel_texture, panel_sampler, input.uv);
 }
 
 struct Blit {
@@ -142,7 +179,9 @@ fn blit_vertex(@builtin(vertex_index) index: u32) -> BlitOut {
 
 @fragment
 fn blit_fragment(input: BlitOut) -> @location(0) vec4<f32> {
-    return textureSample(source, source_sampler, input.uv);
+    let size = vec2<i32>(textureDimensions(source)) - 1;
+    let texel = clamp(vec2<i32>(floor(input.position.xy - blit.rect.xy)), vec2<i32>(0), size);
+    return textureLoad(source, texel, 0);
 }
 
 @vertex
