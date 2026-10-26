@@ -13,8 +13,5 @@ fn a_popup_sits_at_its_offset_from_its_window_in_the_panels_scale() {
         popup_point(frame, menu, Vec2::new(100.0, 200.0), Pos2::new(50.0, 100.0)),
         Point::new(80, 300)
     );
-    assert_eq!(
-        popup_rect(Rect::default(), menu, panel).size(),
-        Vec2::ZERO
-    );
+    assert_eq!(popup_rect(Rect::default(), menu, panel).size(), Vec2::ZERO);
 }

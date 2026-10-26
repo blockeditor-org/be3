@@ -1,5 +1,5 @@
-use be_win32::{Entry, EntryId, EntryKind, FocusError, Point, Program, Rect, Snapshot};
 use super::win32_shape::Shaping;
+use be_win32::{Entry, EntryId, EntryKind, FocusError, Point, Program, Rect, Snapshot};
 use block_plugin_api::{
     HostImage, HostProgram, HostWindow, HostWindowId, Vec2, WindowKind, WindowOrigin,
 };
@@ -184,10 +184,7 @@ pub(crate) fn popup_point(
     local: block_plugin_api::Pos2,
 ) -> Point {
     let at = frame_point(popup, shown, local);
-    Point::new(
-        popup.left - frame.left + at.x,
-        popup.top - frame.top + at.y,
-    )
+    Point::new(popup.left - frame.left + at.x, popup.top - frame.top + at.y)
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]

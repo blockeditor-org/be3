@@ -14,11 +14,20 @@ fn a_window_covering_a_monitor_or_maximized_by_the_shell_fills_the_shell() {
     let host = host_window(&snapshot, &covering, &shaping);
     assert_eq!(host.size, Vec2::new(1000.0, 800.0));
     assert_eq!(host.fullscreen, Some(area));
-    assert_eq!(host_window(&snapshot, &maximized, &shaping).fullscreen, None);
+    assert_eq!(
+        host_window(&snapshot, &maximized, &shaping).fullscreen,
+        None
+    );
     snapshot.entries[1].maximized = true;
     maximized.maximized = true;
-    assert_eq!(host_window(&snapshot, &maximized, &shaping).fullscreen, None);
+    assert_eq!(
+        host_window(&snapshot, &maximized, &shaping).fullscreen,
+        None
+    );
     assert_eq!(shaping.enter_fullscreen(&snapshot, EntryId(6)), None);
-    assert_eq!(host_window(&snapshot, &maximized, &shaping).fullscreen, Some(area));
+    assert_eq!(
+        host_window(&snapshot, &maximized, &shaping).fullscreen,
+        Some(area)
+    );
     assert_eq!(shaping.enter_fullscreen(&snapshot, EntryId(5)), None);
 }

@@ -41,8 +41,11 @@ pub(crate) fn covers_a_monitor(snapshot: &Snapshot, entry: &Entry) -> bool {
 
 impl Shaping {
     pub(crate) fn observe(&mut self, snapshot: &Snapshot) {
-        self.sizes
-            .retain(|id, _| snapshot.entry(*id).is_some_and(|entry| entry.kind == EntryKind::Window));
+        self.sizes.retain(|id, _| {
+            snapshot
+                .entry(*id)
+                .is_some_and(|entry| entry.kind == EntryKind::Window)
+        });
         for entry in &snapshot.entries {
             if entry.kind != EntryKind::Window || entry.minimized {
                 continue;
@@ -76,7 +79,12 @@ impl Shaping {
             .map_or_else(|| frame_size(entry), |sizing| sizing.own)
     }
 
-    pub(crate) fn placed(&mut self, snapshot: &Snapshot, id: EntryId, size: Vec2) -> Option<Pixels> {
+    pub(crate) fn placed(
+        &mut self,
+        snapshot: &Snapshot,
+        id: EntryId,
+        size: Vec2,
+    ) -> Option<Pixels> {
         let entry = snapshot.entry(id)?;
         if entry.kind != EntryKind::Window
             || entry.minimized

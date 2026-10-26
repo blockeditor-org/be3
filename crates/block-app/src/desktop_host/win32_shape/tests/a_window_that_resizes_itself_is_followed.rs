@@ -12,7 +12,10 @@ fn a_window_that_resizes_itself_is_followed() {
     snapshot.entries[0].frame = Rect::new(100, 100, 700, 500);
     shaping.observe(&snapshot);
     assert_eq!(shaping.own_size(&snapshot.entries[0]), (600, 400));
-    assert_eq!(shaping.placed(&snapshot, EntryId(1), Vec2::new(300.0, 200.0)), None);
+    assert_eq!(
+        shaping.placed(&snapshot, EntryId(1), Vec2::new(300.0, 200.0)),
+        None
+    );
     snapshot.entries.clear();
     shaping.observe(&snapshot);
     let gone = window(1, Rect::new(0, 0, 10, 10));

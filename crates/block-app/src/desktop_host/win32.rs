@@ -230,8 +230,9 @@ pub(crate) fn before(_context: &Context, rect: Rect, document: &mut Document) {
                             captured.cursor = false;
                             return true;
                         }
-                        Err(error) => win32_map::recovery(Some(&error), true, &captured.title)
-                            .notice(),
+                        Err(error) => {
+                            win32_map::recovery(Some(&error), true, &captured.title).notice()
+                        }
                     },
                 };
                 if let Some(notice) = notice {
@@ -585,7 +586,10 @@ fn popup_forwarded(entry: EntryId, handle: Handle, input: ForwardedInput) {
         let local = over.map_or(event.pos - input.rect.min.to_vec2(), |over| over.local);
         let snapshot = snapshot();
         let at = snapshot.entry(entry).and_then(|toplevel| {
-            let popup = toplevel.popups.iter().find(|popup| popup.handle == handle)?;
+            let popup = toplevel
+                .popups
+                .iter()
+                .find(|popup| popup.handle == handle)?;
             Some(win32_map::popup_point(
                 toplevel.frame,
                 popup.frame,
@@ -753,11 +757,9 @@ pub(crate) fn WindowSurface(window: HostWindowId) -> NodeId {
                                 open
                                 role={WindowRole::Popup}
                                 on_report={|_: WindowReport| {}}
-                            >|_: WindowHandle| {
-                                view! {
-                                    <PopupSurface entry={id} handle />
-                                }
-                            }</Window>
+                            >|_: WindowHandle|
+                                <PopupSurface entry={id} handle />
+                            </Window>
                         }
                     }</ForEach>
                 </Layers>
