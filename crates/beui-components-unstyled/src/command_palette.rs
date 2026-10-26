@@ -126,7 +126,9 @@ pub fn CommandPalette(
     let actions = create_signal(Rc::new(Vec::<Action>::new()));
     let listed = create_memo(move || match &items {
         PaletteItems::List(items) => items.get(),
-        PaletteItems::Actions => actions.with(|actions| actions.iter().map(PaletteItem::from_action).collect()),
+        PaletteItems::Actions => {
+            actions.with(|actions| actions.iter().map(PaletteItem::from_action).collect())
+        }
     });
     let by_key = create_memo(move || {
         listed.with(|items| {

@@ -76,7 +76,7 @@ impl<K: Clone + Eq + Hash + 'static> State<K> {
         }
         let moves = matches!(
             press.key,
-            Key::ArrowDown | Key::ArrowUp | Key::PageDown | Key::PageUp
+            Key::ArrowDown | Key::ArrowUp | Key::PageDown | Key::PageUp | Key::Home | Key::End
         );
         let choosable = self.choosable();
         if !moves || choosable.is_empty() {
@@ -91,7 +91,9 @@ impl<K: Clone + Eq + Hash + 'static> State<K> {
             Key::ArrowDown => at.map_or(0, |at| (at + 1).min(last)),
             Key::ArrowUp => at.map_or(0, |at| at.saturating_sub(1)),
             Key::PageDown => at.map_or(0, |at| (at + self.page).min(last)),
-            _ => at.map_or(0, |at| at.saturating_sub(self.page)),
+            Key::PageUp => at.map_or(0, |at| at.saturating_sub(self.page)),
+            Key::Home => 0,
+            _ => last,
         };
         self.highlighted.set(Some(choosable[next].clone()));
         true
@@ -207,11 +209,7 @@ where
     K: Clone + Eq + Hash + 'static,
 {
     let button = NodeRef::new();
-    state
-        .rows
-        .value()
-        .borrow_mut()
-        .insert(key.clone(), button);
+    state.rows.value().borrow_mut().insert(key.clone(), button);
     on_cleanup({
         let key = key.clone();
         move || {

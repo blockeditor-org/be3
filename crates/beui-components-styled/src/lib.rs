@@ -54,6 +54,7 @@ pub use accordion::Accordion;
 pub use action_row::ActionRow;
 pub use beui_components_unstyled::NumberDrag;
 pub use beui_components_unstyled::SHEET_STOPS;
+pub use beui_components_unstyled::{PaletteItem, PaletteItems, PaletteScore};
 pub use beui_components_unstyled::{emoji_completer, search_emoji};
 pub use beui_view::primitives::{
     BackHandler, Break, Canvas, CanvasItem, Drawing, Embed, Fade, Gap, Grid, GridCell, Interactive,
@@ -70,7 +71,6 @@ pub use color_input::ColorInput;
 pub use color_picker::{ColorPicker, DEFAULT_SWATCHES, PICKER_WIDTH};
 pub use color_wheel::{ColorWheel, OklchColorWheel, WHEEL_SIZE};
 pub use command_palette::CommandPalette;
-pub use beui_components_unstyled::{PaletteItem, PaletteItems, PaletteScore};
 pub use context_menu::{ContextMenu, MenuPopup};
 pub use date_time_field::DateTimeField;
 pub use dialog::Dialog;

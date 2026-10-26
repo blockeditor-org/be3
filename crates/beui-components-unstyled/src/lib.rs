@@ -64,8 +64,8 @@ pub use color_wheel::{
     ColorWheel, ColorWheelApi, ColorWheelHandle, OKLCH_TIP_CHROMA, OklchTriangle, WheelGeometry,
     WheelPoint,
 };
-pub use command_palette::{CommandPalette, CommandPaletteApi, CommandRowHandle, PaletteItem, PaletteItems,
-    PaletteScore,
+pub use command_palette::{
+    CommandPalette, CommandPaletteApi, CommandRowHandle, PaletteItem, PaletteItems, PaletteScore,
 };
 pub use container::{Container, ContainerSize, container_size, narrower_than, shorter_than};
 pub use context_menu::{ContextMenu, ContextMenuApi};

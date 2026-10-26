@@ -174,13 +174,12 @@ fits too.
 
 **Done.** `unstyled::SearchList<K>` (`search_list.rs`) owns the query field,
 the shown keys (from a `rank: Func<String, Vec<K>>` the caller passes),
-the highlight, which skips disabled rows, Up/Down/Page Up/Page Down,
+the highlight, which skips disabled rows, Up/Down/Page Up/Page Down/Home/End,
 scroll-to-row, Enter, clicks and hover. `rank`, `substring_score` and
 `fuzzy_score` are the ranking helpers. `Select` and `CommandPalette` (and
 through it linux-desktop's launcher) are built on it; their trigger,
-popup, panel, search field and rows stay theirs. Home and End are no
-longer taken from a Select's search field, so they move its caret; they
-still open a closed Select at its first or last option. Filtered-out rows
+popup, panel, search field and rows stay theirs. Home and End move the
+highlight in every search field, as they did in Select's (not the caret). Filtered-out rows
 are no longer built, so `SelectApi::option_button` returns an `Option`.
 
 The completion menu doesn't fit, so it keeps its own list. Its query is a
