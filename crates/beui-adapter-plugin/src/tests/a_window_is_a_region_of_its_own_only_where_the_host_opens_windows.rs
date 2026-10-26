@@ -1,6 +1,5 @@
 use std::cell::RefCell;
 
-use beui::primitives::Window;
 use beui::reactive::*;
 use beui::styled;
 use beui::styled::*;
@@ -28,7 +27,7 @@ fn a_window_is_a_region_of_its_own_only_where_the_host_opens_windows() {
                     id={Some(window)}
                     size={vec2(120.0, 80.0)}
                     on_report={|_: WindowReport| {}}
-                >|_: beui::primitives::WindowHandle|
+                >|_: WindowHandle|
                     <Text>"Inspector"</Text>
                 </Window>
             </styled::Root>

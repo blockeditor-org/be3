@@ -44,7 +44,10 @@ fn a_new_pixels_per_point_waits_for_the_panel_to_settle_and_not_while_it_is_resi
         now,
         [Input::PointerMoved(grip), button(grip, true)],
     );
-    space.request(&WindowRequest::BeginResize { window, edge: WindowEdge::BottomRight });
+    space.request(&WindowRequest::BeginResize {
+        window,
+        edge: WindowEdge::BottomRight,
+    });
     space.head.position.z += 3.0;
     for step in 1..=20 {
         now = later(now, 0.1);

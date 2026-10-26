@@ -265,7 +265,9 @@ impl<A: BeuiApp> BeuiInstance<A> {
 
     pub(crate) fn document(&self, region: EditorRegion) -> Option<&beui::Document> {
         match (region, self.views.creating) {
-            (EditorRegion::Frame | EditorRegion::Window(_), false) => self.views.chrome.as_ref().map(BeuiFrame::document),
+            (EditorRegion::Frame | EditorRegion::Window(_), false) => {
+                self.views.chrome.as_ref().map(BeuiFrame::document)
+            }
             (EditorRegion::Frame | EditorRegion::Window(_), true) => self.views.dialog.as_ref(),
             (EditorRegion::Preview, _) => self.views.preview_document.as_ref(),
             (EditorRegion::ArtifactSettings, _) => self.views.settings.as_ref(),
@@ -274,7 +276,9 @@ impl<A: BeuiApp> BeuiInstance<A> {
 
     pub(crate) fn document_mut(&mut self, region: EditorRegion) -> Option<&mut beui::Document> {
         match (region, self.views.creating) {
-            (EditorRegion::Frame | EditorRegion::Window(_), false) => self.views.chrome.as_mut().map(BeuiFrame::document_mut),
+            (EditorRegion::Frame | EditorRegion::Window(_), false) => {
+                self.views.chrome.as_mut().map(BeuiFrame::document_mut)
+            }
             (EditorRegion::Frame | EditorRegion::Window(_), true) => self.views.dialog.as_mut(),
             (EditorRegion::Preview, _) => self.views.preview_document.as_mut(),
             (EditorRegion::ArtifactSettings, _) => self.views.settings.as_mut(),

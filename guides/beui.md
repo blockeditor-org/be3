@@ -293,7 +293,7 @@ direction:
 
 | Crate | Owns |
 | --- | --- |
-| `ui-types` | the vocabulary beui shares with the plugin protocol, which depends on nothing but serde and `geometry`: `Key` (with its names for drive, `Key::from_name` and `Key::name`, its evdev code, `Key::evdev`, and what every adapter names keys with: `Key::from_typed`, the one rule for a character key, `Key::from_value` for a W3C key value, and `Key::evdev_from_code` and `Key::from_evdev` for a physical place), `Modifiers`, `KeyChord`, `PointerButton`, the touch, pen and back phases, `ImeEvent`, `CursorIcon`, `Pasted` and `PickedFile`; `Input`, the raw input every platform adapter, drive's gestures, the on-screen keyboard and the plugin protocol produce; `WindowRequests` and `ImeArea`, what an app asks of its window; the preferences (`ThemeKind`, `Motion`, `Preferences`, `PreferenceLayer`); and the display and pointer settings `beui-adapter-drm` applies and block settings store (`DisplayMode`, `Rotation`, `InputDevice`, `PointerSettings`) |
+| `ui-types` | the vocabulary beui shares with the plugin protocol, which depends on nothing but serde and `geometry`: `Key` (with its names for drive, `Key::from_name` and `Key::name`, its evdev code, `Key::evdev`, and what every adapter names keys with: `Key::from_typed`, the one rule for a character key, `Key::from_value` for a W3C key value, and `Key::evdev_from_code` and `Key::from_evdev` for a physical place), `Modifiers`, `KeyChord`, `PointerButton`, the touch, pen and back phases, `ImeEvent`, `CursorIcon`, `Pasted` and `PickedFile`; `Input`, the raw input every platform adapter, drive's gestures, the on-screen keyboard and the plugin protocol produce; `WindowRequests` and `ImeArea`, what an app asks of its window; the window vocabulary of window hosts (`WindowId`, `WindowPlacement`, `HostPlacement`, `WindowEdge`, `WindowRequest`, `WindowReport`, which `beui_core::window` re-exports); the preferences (`ThemeKind`, `Motion`, `Preferences`, `PreferenceLayer`); and the display and pointer settings `beui-adapter-drm` applies and block settings store (`DisplayMode`, `Rotation`, `InputDevice`, `PointerSettings`) |
 | `beui-tree` | what makes a tree of components, whatever it is made of: `#[component]` and `view!`'s runtime, `Prop`, child slots (`Children`, `Run`, `SlotChild`, `SlotHost`) and `Show`, `ShowKeepAlive`, `Dynamic`, `Keyed` and `ForEach` |
 | `beui-core` | `Document` and `Context`, the retained nodes and their layout, input and its dispatch, accessibility, paint output and damage, the font and image interfaces, the icon codepoints, the `App` contract, and the `Runner` every adapter drives it through |
 | `beui-font-freetype` | `FreetypeFonts`: FreeType and HarfBuzz shaping and rasterizing, and the fonts beui compiles in |
@@ -2805,7 +2805,7 @@ actions, accessibility) stays on `FrameOutput`. A renderer, `painting` and
 
 The app asks its host for windows with `Context::request_window`, which
 collects `WindowRequest`s into `FrameOutput::window_requests`: `Open { window,
-placement, size }`, `BeginMove(window)`, `BeginResize(window, WindowEdge)`
+placement, size }`, `BeginMove(window)`, `BeginResize { window, edge }`
 (the host then moves or resizes it, as an OS does after winit's
 `drag_window`), `Resize { window, size }` (the app wants another size; the
 host answers with the size it gives) and `Close(window)`. A `WindowPlacement` is `AtPointer`,
@@ -2944,8 +2944,11 @@ plugin protocol's input too, and a plugin region is always one window.
 
 A `beui_core::runner::WindowHost` sits between one platform window and an
 app with many windows, on any adapter. It goes in `Launch::host`, or wraps an
-adapter as a `HostedAdapter { adapter, host }`. The runner calls it at three
-points:
+adapter as a `HostedAdapter { adapter, host }`. `opens_windows()` (true unless
+the host says otherwise, read every frame) is what `Context::opens_windows`
+follows, and `passes_main_through()` (false unless it says otherwise) keeps the
+platform window as the main window, its size and safe area included, as a
+plugin region's host does. The runner calls it at three points:
 
 - `setup(&Setup)` after the renderers load and whenever the GPU is replaced;
   `setup.get::<beui::GpuSetup>()` is the wgpu device, queue and surface format,
@@ -2964,7 +2967,8 @@ points:
   a `repaint_after` that keeps frames coming while the host animates.
 
 With a host, the main window's size is the one the host reports, not the
-platform window's, and the app gets no safe area. A wgpu host draws each
+platform window's, and the app gets no safe area, unless it passes the main
+window through. A wgpu host draws each
 window into a texture of its own and composites them through a `Drawing`
 (`beui::drawing`, whose `Draw::prepare` has the device, queue and an
 encoder) in a `Layer::Shape(Shape::Drawing { .. })` covering the returned
@@ -3177,7 +3181,7 @@ all its 3D (`glam`) stays in the crate.
   and `bend` (`Panel::placement`, read back by `Panel::placed`). The app keeps
   it in memory (the dock does) and hands it back when it opens the window
   again. Nothing keeps a placement across restarts yet (plans/vr.md).
-- Resize: on `WindowRequest::BeginResize(window, edge)` (`resize::Resize`)
+- Resize: on `WindowRequest::BeginResize { window, edge }` (`resize::Resize`)
   the cursor's ray meets the panel's surface as it was, and that edge or corner
   follows it while the opposite one stays put, no smaller than
   `resize::SMALLEST`. Each new size is reported as `Resized` at once, so the
@@ -3930,6 +3934,23 @@ frame as signals on the `Editor`: `drag()` and `files()` carry a drag or a file 
 signal. Work on another thread takes its `Waker` from `editor.woken()`,
 whose signal ticks once the work has woken the editor, and an effect that
 reads that signal collects the result.
+
+A plugin's frame can open windows (a dock's floating window, linux-desktop's):
+each region's `PluginSurface` runs under a `WindowHost` of its own
+(`beui-adapter-plugin`'s `windows.rs`) whose `opens_windows` is what the host's
+screen request says (`Region::opens_windows`). Where it is off, as everywhere
+outside space, a `Window` is an overlay inside the frame. Where it is on, the
+frame's `WindowRequest`s go to the host (`Frame::window_requests`), the host
+opens a window whose screen is the region `EditorRegion::Window(id)`, and the
+frame's document draws that window's output on that screen's surface
+(`PluginSurface::update_window`, `paint_window`); input on it is the window's
+(`window_input`, a focus change a `WindowReport::Focused`), the screen's size and
+scale are reported as `Resized` and `Scaled`, and the host's `Placed` and
+`Closed` arrive through `Instance::window_reported`. A child placed inside a
+window is placed on the window's region (`EditorHost::place_child` takes the
+window). block-app opens a beui `Window` holding a `PluginRegion` for each
+(`RegionWindows` in `compositor/region.rs`), so under space every plugin window
+is a panel of its own.
 
 The counter editor under `crates/editors/counter` is the reference integration.
 The [plugin editor guide](adding_a_plugin_editor.md) covers the manifest,

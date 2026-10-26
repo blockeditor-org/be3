@@ -1249,8 +1249,8 @@ impl Editor {
                 .slot
                 .node()
                 .map_or(beui::WindowId::MAIN, |node| document.window_of(node));
-            while let Some((_, rect)) = overlays
-                .next_if(|(layer, _)| window.is_main() && *layer < order)
+            while let Some((_, rect)) =
+                overlays.next_if(|(layer, _)| window.is_main() && *layer < order)
             {
                 state.host.occlude(rect.scaled(unscale));
             }

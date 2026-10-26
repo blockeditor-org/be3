@@ -12,7 +12,9 @@ Space already shows every window as a panel the viewer can carry, face, roll,
 scale, bend and resize through host chrome, with a drawn 3D cursor, a held
 pointer, per-window rasters that change without relayout, and placements
 (scale and bend included) that reopen a window where it was within a run
-(PR #691); nothing keeps them across restarts yet. It draws through any
+(PR #691); nothing keeps them across restarts yet. A plugin's windows (the
+workspace dock's floating windows, linux-desktop's) are windows of block-app,
+and so panels of their own in space. It draws through any
 number of views, each a pose with an off-axis field of view (`head::View`,
 `head::Fov`): the simulator's one, or tracked views an XR host hands
 `Space::set_views` and draws with `Space::draw` (guides/beui.md, "Views"), and
@@ -67,33 +69,13 @@ fall back to the eye buffer.
 
 About 1k lines. Needs M1.
 
-## M6. Windows from plugins
-
-`PluginSurface::launch` (`crates/beui-adapter-plugin`) passes `host: None`, so
-`opens_windows` is false in a plugin and every plugin `Window` (the workspace
-dock, linux-desktop) is an overlay inside block-app's one panel.
-
-- Move the framework-free window vocabulary (`WindowId`, `WindowPlacement`,
-  `HostPlacement`, `WindowEdge`, `WindowRequest`, `WindowReport`, today in
-  `beui_core::window`) to ui-types.
-- block-plugin-api carries window requests and reports, and a window region
-  kind.
-- Each plugin window gets its own screen surface; textures stay on the GPU.
-- beui-adapter-plugin gets a `WindowHost` that forwards to the plugin
-  protocol.
-- block-app opens a beui `Window` holding a `PluginRegion` for each plugin
-  window.
-- Plugin windows' host placements then reach the dock, which can keep them
-  across restarts (see "Placements across restarts").
-
-About 3-4k lines. Independent of XR. **(ask)** whether plugin windows also
-become real OS windows outside VR.
-
 ## M7. Wayland toplevels and popups as panels
 
-Each Wayland toplevel is a panel; popups become `Over` windows.
+Each Wayland toplevel is a panel; popups become `Over` windows. Plugin
+windows (`EditorRegion::Window`, block-app's `RegionWindows`) show the way:
+linux-desktop's `Window`s already become panels in space.
 
-About 0.7k lines. Needs M6.
+About 0.7k lines.
 
 ## M9. Quest standalone
 
@@ -127,7 +109,7 @@ The riskiest: wgpu has no WebXR binding, the WebGL route needs an
 
 ## Suggested order
 
-M5, M8, M6, M7, M9, M10, M11.
+M5, M8, M7, M9, M10, M11.
 
 ## Smaller follow-ups
 
@@ -135,12 +117,20 @@ M5, M8, M6, M7, M9, M10, M11.
   Keeping placements must live in block-app's session (the shell's view
   block, `RootSettings::ensure_session`), not in beui or the space host: no
   file under the config folder, so a plain beui app such as beui-demo keeps
-  nothing. block-app has only its main panel in space today, so it needs the
-  `Placed` reports for `WindowId::MAIN` (`Context::window_placement`) saved in
-  the session, and a canonical way to hand a placement back for the main
-  window, which space opens on its own before the session is known (a
-  `WindowRequest` that places `MAIN`, say). Floating dock windows' placements
-  join the shell's saved `DockState` once plugin windows are real (M6).
+  nothing. It needs the `Placed` reports for `WindowId::MAIN`
+  (`Context::window_placement`) saved in the session, and a canonical way to
+  hand a placement back for the main window, which space opens on its own
+  before the session is known (a `WindowRequest` that places `MAIN`, say).
+  Floating dock windows' `Placed` reports now reach the workspace dock
+  through the plugin protocol (`window-reported`), which keeps them only in
+  memory (`DockState` holds none); they join the shell's saved `DockState`.
+
+- **Plugin windows.** Outside space they stay overlays inside block-app's
+  panel; making them OS windows there is deferred. Drags a plugin starts on a window's bar reach block-app
+  a frame or two late, so a press let go before `BeginMove` arrives starts a
+  carry that ends at the next click. Drag and drop over a plugin window, and a
+  window's accessibility (its nodes show in the frame's tree at the window's
+  own coordinates), are not handled yet.
 
 - **Scroll copy** (`moved`) is used only by the wgpu window renderer: the web
   canvas always repaints everything, plugin surfaces fold moves into damage,
@@ -156,7 +146,4 @@ M5, M8, M6, M7, M9, M10, M11.
 ## Open questions
 
 - **(ask)** Which headset and runtime first: Linux PC VR, or Quest?
-- **(ask)** Is block-app the single XR shell, with other apps as Wayland or
-  plugin windows? Should plugin windows (M6) also become real OS windows
-  outside VR?
 - **(ask)** Is WebXR in scope? (M11)

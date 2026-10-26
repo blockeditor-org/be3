@@ -48,7 +48,7 @@ impl AppTest {
             std::env::var("APP_LIBRARIES").ok(),
             space,
         )
-            .unwrap_or_else(|error| panic!("block-app did not start: {error}"));
+        .unwrap_or_else(|error| panic!("block-app did not start: {error}"));
         let mut test = Self {
             app: Some(app),
             steps: Vec::new(),

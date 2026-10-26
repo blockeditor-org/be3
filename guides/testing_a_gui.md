@@ -406,6 +406,9 @@ which close() checks, so a test that ends without calling it fails too.
   `PREVIEW_COOLDOWN` first.
   They also fail, as in an editor test, on what the window shows out of bounds (`drive
   overflows`), in the host or in any plugin shown, whatever the crop.
+- `AppTest::start_in_space()` starts the app in the VR simulator (`BEUI_ADAPTER=space` on the
+  headless adapter), where the painting is the 3D view and targets and points are the main
+  panel's, so it shows what happens between panels, such as a plugin's window becoming one.
 - ./scripts/verify runs each test as an action of its own, so a test that fails leaves the
   paintings of the others to be accepted.
 - Any failure, a plain `assert!` or a painting as much as a step, prints the steps so far as `drive` commands, which replay against

@@ -180,6 +180,22 @@ which only the host can put on the window. The request names what the cursor
 means rather than any one toolkit's spelling of it, is sent only when the
 cursor changes, and is honoured only while the pointer is over that region.
 
+A screen's content may open windows of its own, as a dock floats a tab: the
+screen request says whether the host shows them as windows (`opens-windows`),
+and only where it does does the content ask for any. Each request rides on the
+frame (`window-requests`, naming the screen that asked): opening a window with
+where it goes and its size, moving or resizing it under the user's hand,
+resizing it, closing it. The vocabulary is the one beui's own window hosts
+speak (`window-request`, `window-report` in `be3:ui`). The host opens a window
+of its own for each, and that window is a screen of the same instance whose
+region is `window` with the window's number, drawn by the same document as the
+screen that asked, so it gets its own surface, input, cursor and children. Its
+size and scale are the screen's; the host reports the rest through the editor's
+`window-reported`: where it placed the window (a placement only it reads, which
+the content keeps and hands back when it opens the window again) and that it
+closed it. A host that shows no windows of its own leaves `opens-windows` off,
+and the content draws its windows inside the screen.
+
 An editor instance may report the area its text input occupies and where its
 caret sits inside it, in the region's own logical coordinates, which is what an
 operating system's input method needs to place its candidate window. Only the
