@@ -7,6 +7,7 @@ pub const RENDERER: &str = "BEUI_RENDERER";
 pub const HEADLESS_WINDOW: &str = "BEUI_HEADLESS_WINDOW";
 pub const HEADLESS_SCREEN: &str = "BEUI_HEADLESS_SCREEN";
 pub const AUTOMATION: &str = "BEUI_AUTOMATION";
+pub const AUTOMATION_LISTENER: &str = "BEUI_AUTOMATION_LISTENER";
 
 pub const VARIABLES: &[&str] = &[
     ADAPTER,
@@ -15,6 +16,7 @@ pub const VARIABLES: &[&str] = &[
     HEADLESS_WINDOW,
     HEADLESS_SCREEN,
     AUTOMATION,
+    AUTOMATION_LISTENER,
 ];
 
 pub const HEADLESS_WINDOW_SIZE: &str = "1100x720";

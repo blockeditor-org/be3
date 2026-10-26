@@ -115,8 +115,24 @@ fn adapt(
 
 #[cfg(all(unix, not(target_os = "android")))]
 fn serve(path: &std::path::Path) -> Result<beui_core::app::automation::Inbox, Box<dyn Error>> {
+    use beui_core::app::automation::socket;
     let inbox = beui_core::app::automation::Inbox::default();
-    beui_core::app::automation::socket::serve(path, inbox.clone()).map_err(|error| {
+    let served = match std::env::var(beui_core::runner::environment::AUTOMATION_LISTENER) {
+        Ok(fd) => {
+            let fd: std::os::fd::RawFd = fd.parse().map_err(|_| {
+                format!("BEUI_AUTOMATION_LISTENER takes a file descriptor, not {fd}")
+            })?;
+            // unsafe(ffi)
+            let inherited = unsafe {
+                <std::os::unix::net::UnixListener as std::os::fd::FromRawFd>::from_raw_fd(fd)
+            };
+            inherited
+                .try_clone()
+                .and_then(|listener| socket::serve_on(listener, path, inbox.clone()))
+        }
+        Err(_) => socket::serve(path, inbox.clone()),
+    };
+    served.map_err(|error| {
         format!(
             "{}: could not listen on {}: {error}",
             beui_core::runner::environment::AUTOMATION,

@@ -8,24 +8,35 @@ use beui_core::app::automation::Reply;
 use infinite_canvas_types::{CanvasContent, CanvasEntity, CanvasShape};
 use paint_snapshot::{Painting, Snapshot};
 
+mod cores;
 mod latency;
 mod server;
 
 const SIZE: &str = "1100x720";
 const ONE_WAY: Duration = Duration::from_millis(15);
 const POINTS: usize = 10_000;
-const SAMPLES_PER_FRAME: usize = 1_000;
+const STRETCH: usize = 400;
+const STYLUS_PER_FRAME: usize = 4;
+const BULK_PER_FRAME: usize = 1_000;
 const CANVAS_PLUGIN: &str = "be3.infinite-canvas";
 const TEXT_BYTES: usize = 50 * 1024 * 1024;
 const LONG: Duration = Duration::from_secs(600);
 const BLOCK: &str = "#workspace.block";
-const SHAPE: &str = "#infinite-canvas.entity.";
-const POLL: Duration = Duration::from_millis(5);
+const SHAPE: &str = "infinite-canvas.entity.";
 
 fn main() -> ExitCode {
-    // unsafe(env)
-    unsafe { std::env::set_var("BEUI_RENDERER", "none") };
-    match run() {
+    let arguments: Vec<String> = std::env::args().skip(1).collect();
+    let ran = match arguments.as_slice() {
+        [serve, build_info, data] if serve == server::SERVE => {
+            server::serve(Path::new(build_info), Path::new(data))
+        }
+        _ => {
+            // unsafe(env)
+            unsafe { std::env::set_var("BEUI_RENDERER", "none") };
+            run()
+        }
+    };
+    match ran {
         Ok(()) => ExitCode::SUCCESS,
         Err(error) => {
             eprintln!("{error}");
@@ -80,10 +91,11 @@ fn run() -> Result<(), String> {
 
 fn measure(settings: &Settings) -> Result<(), String> {
     let build_info = Path::new(&settings.program).with_file_name(build_id::FILE);
-    let server = server::Server::start(&build_info, settings.out.join("server"))?;
-    let proxy = latency::start(server.address, ONE_WAY)
-        .map_err(|error| format!("could not start the latency proxy: {error}"))?;
-    let url = format!("http://{proxy}");
+    let cores = cores::Cores::split()?;
+    eprintln!("{}", cores.describe());
+    let server = server::Server::start(&build_info, &settings.out.join("server"), &cores)?;
+    cores.keep_to_app()?;
+    let url = server.url.clone();
     let (first, stroke) = first_device(settings, &server, &url)?;
     let second = second_device(settings, &server, &url, &first.phrase)?;
     validate(&first, &second)?;
@@ -125,49 +137,18 @@ fn first_device(
 
     app.add("Canvas", "canvas")?;
     let canvas = app.place("#infinite-canvas.canvas")?;
-    let at = |x: f32, y: f32| {
-        format!(
-            "{:.0},{:.0}",
-            canvas.0 + canvas.2 * x,
-            canvas.1 + canvas.3 * y
-        )
-    };
+    let at = |x: f32, y: f32| (canvas.0 + canvas.2 * x, canvas.1 + canvas.3 * y);
     app.click("#infinite-canvas.dock.tool.Rectangle")?;
-    app.run(&["--no-settle", "drag", &at(0.2, 0.2), &at(0.4, 0.4)])?;
-    app.until("the rectangle", |tree| tree.matches(SHAPE).count() == 1)?;
+    app.run(&[
+        "--no-settle",
+        "drag",
+        &target(at(0.2, 0.2)),
+        &target(at(0.4, 0.4)),
+    ])?;
+    app.wait(SHAPE)?;
     app.save("canvas.rectangle-save")?;
     app.click("#infinite-canvas.dock.tool.Pen")?;
-    let (from, to) = (at(0.1, 0.6), at(0.9, 0.7));
-    let stroke = Stroke::sent(&from, &to, settings.points, app.scale()?)?;
-    app.run(&["frames"])?;
-    let drawing = Instant::now();
-    app.within(
-        LONG,
-        &[
-            "--no-settle",
-            "pen",
-            "draw",
-            &from,
-            &to,
-            &settings.points.to_string(),
-            &SAMPLES_PER_FRAME.to_string(),
-        ],
-    )?;
-    let end = canvas.0 + canvas.2 * 0.9 - 2.0;
-    app.until("the whole line", |tree| {
-        tree.lines()
-            .filter(|line| line.contains(SHAPE))
-            .filter_map(right_edge)
-            .any(|right| right >= end)
-    })?;
-    bench::time("canvas.line-draw", drawing.elapsed());
-    let frames = app.run(&["frames"])?;
-    bench::time("canvas.line-longest-frame", longest(&frames, "window")?);
-    bench::time(
-        "canvas.line-longest-plugin-frame",
-        longest(&frames, CANVAS_PLUGIN)?,
-    );
-    app.save("canvas.line-save")?;
+    let stroke = draw_stroke(&mut app, settings.points, at(0.1, 0.6), at(0.9, 0.7))?;
     app.run(&["pen", "leave"])?;
     app.click("#infinite-canvas.dock.tool.Select")?;
     app.paint("canvas.paint", &settings.out.join("first-canvas.paint"))?;
@@ -178,9 +159,7 @@ fn first_device(
     app.within(LONG, &["clipboard", &text(settings.text_bytes)])?;
     let pasting = Instant::now();
     app.within(LONG, &["--no-settle", "key", "ctrl+v"])?;
-    app.until("the pasted text", |tree| {
-        tree.contains("The quick brown fox")
-    })?;
+    app.within(LONG, &["wait", "The quick brown fox"])?;
     bench::time("text.paste", pasting.elapsed());
     app.save("text.paste-save")?;
     app.paint("text.paint", &settings.out.join("first-text.paint"))?;
@@ -211,6 +190,64 @@ fn first_device(
         },
         stroke,
     ))
+}
+
+fn draw_stroke(
+    app: &mut App,
+    points: usize,
+    from: (f32, f32),
+    to: (f32, f32),
+) -> Result<Stroke, String> {
+    let stretch = STRETCH.min(points / 3).max(1);
+    let along = |sample: usize| {
+        let fraction = sample as f32 / points as f32;
+        (
+            from.0 + (to.0 - from.0) * fraction,
+            from.1 + (to.1 - from.1) * fraction,
+        )
+    };
+    let stretches = [
+        (
+            Some("canvas.stroke-start"),
+            along(stretch),
+            stretch,
+            STYLUS_PER_FRAME,
+        ),
+        (
+            None,
+            along(points - stretch),
+            points - 2 * stretch,
+            BULK_PER_FRAME,
+        ),
+        (Some("canvas.stroke-end"), to, stretch, STYLUS_PER_FRAME),
+    ];
+    let from = target(from);
+    let stretches =
+        stretches.map(|(metric, to, steps, per_frame)| (metric, target(to), steps, per_frame));
+    let stroke = Stroke::sent(
+        &from,
+        &stretches
+            .each_ref()
+            .map(|(_, to, steps, _)| (to.as_str(), *steps)),
+        app.scale()?,
+    )?;
+    app.run(&["--no-settle", "pen", "down", &from])?;
+    for (metric, to, steps, per_frame) in &stretches {
+        app.stretch(*metric, to, *steps, *per_frame)?;
+    }
+    app.run(&["frames"])?;
+    app.run(&["--no-settle", "pen", "up"])?;
+    app.save("canvas.stroke-save")?;
+    let frames = app.run(&["frames"])?;
+    bench::time(
+        "canvas.stroke-lift-longest-plugin-frame",
+        longest(&frames, CANVAS_PLUGIN)?,
+    );
+    Ok(stroke)
+}
+
+fn target((x, y): (f32, f32)) -> String {
+    format!("{x:.2},{y:.2}")
 }
 
 fn second_device(
@@ -307,7 +344,10 @@ impl App {
     fn within(&mut self, timeout: Duration, words: &[&str]) -> Result<String, String> {
         let driven = self.driven();
         driven.set_timeout(timeout);
-        let reply = driven.request(words);
+        let unread: Vec<&str> = std::iter::once("--changes=0")
+            .chain(words.iter().copied())
+            .collect();
+        let reply = driven.request(&unread);
         driven.set_timeout(Duration::from_secs(30));
         match reply {
             Ok(Reply::Text(text)) => Ok(text),
@@ -343,18 +383,47 @@ impl App {
         self.run(&["click", target]).map(drop)
     }
 
-    fn until(&mut self, what: &str, done: impl Fn(&str) -> bool) -> Result<(), String> {
-        let started = Instant::now();
-        loop {
-            let tree = self.run(&["tree"])?;
-            if done(&tree) {
-                return Ok(());
-            }
-            if started.elapsed() > LONG {
-                return Err(format!("{what} did not show within {LONG:?}:\n{tree}"));
-            }
-            std::thread::sleep(POLL);
-        }
+    fn stretch(
+        &mut self,
+        metric: Option<&str>,
+        to: &str,
+        steps: usize,
+        per_frame: usize,
+    ) -> Result<(), String> {
+        let (x, y) = to
+            .split_once(',')
+            .and_then(|(x, y)| Some((x.parse::<f32>().ok()?, y.parse::<f32>().ok()?)))
+            .ok_or_else(|| format!("{to} is not a point"))?;
+        let inked = target((x - 2.0, y));
+        self.run(&["frames"])?;
+        self.within(
+            LONG,
+            &[
+                "--no-settle",
+                "pen",
+                "move",
+                to,
+                "0.5",
+                &steps.to_string(),
+                &per_frame.to_string(),
+            ],
+        )?;
+        let moved = Instant::now();
+        self.within(LONG, &["wait", SHAPE, "over", &inked])?;
+        let Some(metric) = metric else {
+            return Ok(());
+        };
+        bench::time(&format!("{metric}-catch-up"), moved.elapsed());
+        let frames = self.run(&["frames"])?;
+        bench::time(
+            &format!("{metric}-longest-frame"),
+            longest(&frames, "window")?,
+        );
+        bench::time(
+            &format!("{metric}-longest-plugin-frame"),
+            longest(&frames, CANVAS_PLUGIN)?,
+        );
+        Ok(())
     }
 
     fn scale(&mut self) -> Result<f32, String> {
@@ -542,14 +611,6 @@ impl App {
     }
 }
 
-fn right_edge(line: &str) -> Option<f32> {
-    let (_, place) = line.split_once(" at ")?;
-    let (at, size) = place.split_once(" size ")?;
-    let x: f32 = at.split(',').next()?.parse().ok()?;
-    let width: f32 = size.split(['x', ' ']).next()?.parse().ok()?;
-    Some(x + width)
-}
-
 fn longest(frames: &str, name: &str) -> Result<Duration, String> {
     frames
         .lines()
@@ -569,7 +630,7 @@ struct Stroke {
 }
 
 impl Stroke {
-    fn sent(from: &str, to: &str, steps: usize, scale: f32) -> Result<Self, String> {
+    fn sent(from: &str, stretches: &[(&str, usize)], scale: f32) -> Result<Self, String> {
         let place = |target: &str| -> Result<(f32, f32), String> {
             let (x, y) = target
                 .split_once(',')
@@ -581,24 +642,30 @@ impl Stroke {
             };
             Ok((number(x)?, number(y)?))
         };
-        let (from, to) = (place(from)?, place(to)?);
-        let steps = steps.max(1);
-        let mut kept = vec![from];
-        for step in 1..=steps {
-            let fraction = step as f32 / steps as f32;
-            let at = (
-                from.0 + (to.0 - from.0) * fraction,
-                from.1 + (to.1 - from.1) * fraction,
-            );
-            let last = kept[kept.len() - 1];
-            if (at.0 - last.0).hypot(at.1 - last.1) > 1.0 {
-                kept.push(at);
+        let first = place(from)?;
+        let mut kept = vec![first];
+        let mut at = first;
+        let mut sent = 1;
+        for (to, steps) in stretches {
+            let (start, end) = (at, place(to)?);
+            for step in 1..=*steps {
+                let fraction = step as f32 / *steps as f32;
+                let next = (
+                    start.0 + (end.0 - start.0) * fraction,
+                    start.1 + (end.1 - start.1) * fraction,
+                );
+                let last = kept[kept.len() - 1];
+                if (next.0 - last.0).hypot(next.1 - last.1) > 1.0 {
+                    kept.push(next);
+                }
             }
+            sent += steps;
+            at = end;
         }
         Ok(Self {
             kept,
-            sent: steps + 1,
-            spacing: (to.0 - from.0).hypot(to.1 - from.1) / steps as f32,
+            sent,
+            spacing: (at.0 - first.0).hypot(at.1 - first.1) / (sent - 1).max(1) as f32,
         })
     }
 
