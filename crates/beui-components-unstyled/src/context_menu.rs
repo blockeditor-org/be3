@@ -30,7 +30,7 @@ pub fn ContextMenu(
     #[prop(default = ComponentRef::new())] api: ComponentRef<ContextMenuApi>,
     children: Child,
     items: Children<MenuItem>,
-    #[prop(default = MenuStyle::default())] menu: MenuStyle,
+    menu: MenuStyle,
     #[prop(default = ItemSize::Intrinsic)] child_size: Prop<ItemSize>,
     #[prop(default = false)] disabled: Prop<bool>,
     #[prop(default = None)] open_at: Prop<Option<Pos2>>,

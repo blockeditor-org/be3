@@ -58,7 +58,7 @@ pub fn Select(
     #[prop(default = false)] disabled: Prop<bool>,
     search_placeholder: Prop<String>,
     search_content: RenderFn<TextInputHandle>,
-    #[prop(default = TextInputStyle::default())] search_style: TextInputStyle,
+    search_style: TextInputStyle,
     #[prop(default = ScrollbarStyle::default())] scrollbar: ScrollbarStyle,
     list_height: Prop<f32>,
     spacing: f32,

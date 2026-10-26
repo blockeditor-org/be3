@@ -187,6 +187,6 @@ pub fn text_input_style() -> TextInputStyle {
         padding_horizontal: Prop::Static(PADDING_HORIZONTAL),
         padding_vertical: Prop::Static(0.0),
         prose: Prop::Static(None),
-        menu: menu_style(),
+        menu: Some(menu_style()),
     }
 }

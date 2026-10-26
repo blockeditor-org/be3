@@ -12,7 +12,7 @@ use crate::context_menu::menu_style;
 use crate::frame::ColorRole;
 use crate::scroll::scrollbar_style;
 use crate::text::{Text, TextColor, TextSize};
-use crate::theme::use_theme;
+use crate::theme::{Theme, use_theme};
 use beui_components_unstyled as unstyled;
 use beui_components_unstyled::{
     Completer, MarkerColumn, MarkerKind, QUOTE_BAR_WIDTH, QuoteBar, RULE_WIDTH, RemoteTextCursor,
@@ -30,6 +30,21 @@ use beui_view::reactive::*;
 use emoji::emoji_menu;
 
 use find::FindBar;
+
+pub fn text_area_colors(theme: &Theme) -> TextAreaColors {
+    TextAreaColors {
+        gutter_border: theme.border,
+        gutter_text: theme.text_muted,
+        gutter_arrow: theme.text_muted,
+        code_background: theme.surface_raised,
+        widget: theme.pressed,
+        broken_widget: theme.danger_soft,
+        selection: theme.accent_soft,
+        caret: theme.accent,
+        placeholder: theme.text_muted,
+        syntax: theme.syntax,
+    }
+}
 
 #[component]
 pub fn TextArea(
@@ -54,18 +69,7 @@ pub fn TextArea(
     on_image_paste: Callback<PickedFile>,
 ) -> NodeId {
     let theme = use_theme();
-    let colors = create_memo(move || TextAreaColors {
-        gutter_border: theme.border.get(),
-        gutter_text: theme.text_muted.get(),
-        gutter_arrow: theme.text_muted.get(),
-        code_background: theme.surface_raised.get(),
-        widget: theme.pressed.get(),
-        broken_widget: theme.danger_soft.get(),
-        selection: theme.accent_soft.get(),
-        caret: theme.accent.get(),
-        placeholder: theme.text_muted.get(),
-        syntax: theme.syntax.get(),
-    });
+    let colors = create_memo(move || text_area_colors(&theme.get()));
     let surface = NodeRef::new();
     api.fill(TextAreaSurfaceApi(surface));
     let block = block.unwrap_or_else(blank_widget);
@@ -97,7 +101,7 @@ pub fn TextArea(
             <unstyled::TextContextMenu
                 @sizing=ItemSize::Percent(100.0)
                 state={state}
-                menu={menu_style()}
+                menu={Some(menu_style())}
                 masked={password}
                 child_size=ItemSize::Percent(100.0)
             >|open_menu: Callback<Option<Rect>>|
@@ -106,6 +110,8 @@ pub fn TextArea(
                     state={state}
                     widgets
                     colors
+                    font_size={TextSize::Base.px()}
+                    padding=TEXT_PADDING
                     remote_cursors
                     drop_caret
                     placeholder
@@ -134,6 +140,7 @@ pub fn TextArea(
     }
 }
 
+const TEXT_PADDING: Vec2 = Vec2::new(12.0, 8.0);
 const CODE_INSET: f32 = 3.0;
 const CODE_RADIUS: Radius = Radius::Sm;
 const CODE_BLOCK_RADIUS: Radius = Radius::Md;

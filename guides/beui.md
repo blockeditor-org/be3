@@ -992,14 +992,18 @@ aligned so numbers line up on the dot (a wider marker widens only its own line),
 `QUOTE_INDENT_EM` per quote, whatever the source's spaces. A markdown line that continues a list
 item (`LineLook::continues`) hides its indentation the same way and is indented to its item's
 text. The
-unstyled defaults draw from `TextAreaColors`; `styled::TextArea` draws with `DocumentLeaf`,
+unstyled defaults draw from the `TextAreaColors` the caller passes (with its `font_size` and
+`padding`, all required; `styled::text_area_colors(&theme)` builds them from a theme); `styled::TextArea` draws with `DocumentLeaf`,
 `DocumentMarker` and `DocumentLine`, which use theme tokens, and a caller that draws voids handles `MarkerKind::Void`
 and hands every other marker to `DocumentMarker`. Copying and pasting
 carries the text without its marks. A menu is never asked for as a dropdown
 or as a sheet: every menu opens as a dropdown when a mouse opened it and as the
 same items in a `ModalSheet` when a finger did, so the two show the same
-features. A `MenuStyle` carries both looks (the styled `menu_style()`), and an
-unstyled one without a sheet stays a dropdown. An item's children cascade as a
+features. A `MenuStyle` carries both looks and the spacing between rows
+(`MenuStyle::new(spacing, row, panel)`; the styled `menu_style()`), and an
+unstyled one without a sheet stays a dropdown. Every component with a menu
+requires its `MenuStyle`; a text field's context menu is
+`TextInputStyle::menu: Option<MenuStyle>`, where `None` means no menu. An item's children cascade as a
 submenu in a dropdown; in a sheet, or with `page`, they open in place of the menu as a page led by a back row
 titled by the item (`<id>.back` for an item with a `row_test_id`); Left, Escape
 and the back row return to the item, and the dropdown or sheet resizes to each
@@ -1754,7 +1758,7 @@ let go, it carries on off the edge before `on_back` runs and the next page
 slides in behind it, and a cancelled gesture eases it back. Given `behind`, a
 function that builds the page back goes to, it builds that page under the
 moving one for as long as the gesture lasts, shaded and coming in from the
-side, so `on_back` swaps in what was already showing and nothing slides in
+side under the `shade` colour (transparent unless given), so `on_back` swaps in what was already showing and nothing slides in
 afterwards; the page that moves needs an opaque background, and a page that
 must keep its state (a scroll position) is built once and handed to a `Portal`
 in both places. The stacked dock shows the tab back goes to behind the tab it leaves
@@ -1906,8 +1910,8 @@ pressing the highlighted row beside it selects. The content builder gets a
 `on_select`, as a `ContextMenu` takes them) or `None`, every row with one shows
 a "…" button at its end, on a desktop too, and the same menu opens from it, a
 right click or a long press: a dropdown under a mouse and a sheet under a finger.
-Row menus are `unstyled::Tree`'s: given `menu` (and the `menu_style` to draw it
-with) it wraps each row that has one in a `ContextMenu` and hands the face a
+Row menus are `unstyled::Tree`'s: given `menu`, a `TreeMenus::new(style, menu)`
+pairing the `MenuStyle` with the function, it wraps each row that has one in a `ContextMenu` and hands the face a
 `TreeRowMenu` in the handle's `menu`, which `unstyled::TreeRowMenuButton` turns
 into a menu button anchored to itself, so the dropdown hangs from the "…"
 button.
@@ -3898,7 +3902,15 @@ filled in. Asking the host works there too, through `creation.then(...)`.
 
 ## Develop an unstyled component
 
-An unstyled component owns semantics and interaction, not appearance. Put it in
+An unstyled component owns semantics and interaction, not appearance, and has
+no appearance defaults: colours, sizes, spacing, paddings, font sizes, scrims and
+the renderers for anything it must draw to work (rows, triggers, a menu's
+`MenuStyle`, a field's `TextInputStyle`, a text area's `TextAreaColors`, a
+sheet's `stops`) are required props the styled layer fills from theme tokens.
+Defaults that draw nothing stay: zero spacing, no scrollbar, no focus ring, a
+transparent shade, a pass-through panel, an empty optional decoration. So do
+behaviour defaults (the drag threshold, zoom limits, a slider's range, the
+tooltip delay). Put it in
 `crates/beui-components-unstyled/src/<name>.rs`, declare it in `lib.rs`, and re-export
 the public component, handles, state readers, and supporting types there.
 

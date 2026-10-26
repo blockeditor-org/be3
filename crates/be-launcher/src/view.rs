@@ -54,7 +54,9 @@ pub(crate) fn Launcher(model: Model) -> NodeId {
     let sidebar = view! {
         <Sidebar model={model} />
     };
-    let page = use_theme().background;
+    let theme = use_theme();
+    let page = theme.background;
+    let shade = theme.scrim_soft;
     view! {
         <List spacing=0.0>
             <Show condition={listing}>
@@ -64,6 +66,7 @@ pub(crate) fn Launcher(model: Model) -> NodeId {
                 <BackSlide
                     @sizing=ItemSize::Percent(100.0)
                     on_back={back}
+                    shade={shade}
                     behind={move || view! {
                         <Portal node={Some(sidebar)} />
                     }}

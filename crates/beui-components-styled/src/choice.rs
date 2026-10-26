@@ -14,6 +14,7 @@ use beui_view::reactive::*;
 use crate::text::{Text, TextColor};
 pub(super) use beui_components_unstyled::ChoiceKind as Kind;
 
+pub(crate) const OPTION_SPACING: f32 = 6.0;
 const MARK_SPACING: f32 = 10.0;
 const MARK_BOX: f32 = 18.0;
 const MARK_DOT: f32 = 8.0;

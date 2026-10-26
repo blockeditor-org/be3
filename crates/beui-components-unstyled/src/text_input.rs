@@ -7,7 +7,6 @@ use accesskit::{Node, Role};
 use text_editor_core::{EditorCommand, TextBuffer, TextLanguage};
 
 use beui_core::base::ItemSize;
-use beui_core::base::text::DEFAULT_FONT_SIZE;
 use beui_core::color::Color32;
 use beui_core::geometry::{Pos2, Rect, Vec2};
 
@@ -26,9 +25,6 @@ use beui_macros::{component, view};
 
 use beui_view::primitives::*;
 use beui_view::reactive::*;
-
-const PLACEHOLDER_COLOR: Color32 = Color32::from_gray(140);
-const SELECTION_COLOR: Color32 = Color32::from_rgba_unmultiplied(120, 160, 255, 90);
 
 pub struct TextInputHandle {
     pub field: Child,
@@ -50,23 +46,7 @@ pub struct TextInputStyle {
     pub padding_horizontal: Prop<f32>,
     pub padding_vertical: Prop<f32>,
     pub prose: Prop<Option<Prose>>,
-    pub menu: MenuStyle,
-}
-
-impl Default for TextInputStyle {
-    fn default() -> Self {
-        Self {
-            font_size: Prop::Static(DEFAULT_FONT_SIZE),
-            color: Prop::Static(Color32::WHITE),
-            placeholder_color: Prop::Static(PLACEHOLDER_COLOR),
-            selection_color: Prop::Static(SELECTION_COLOR),
-            caret_color: Prop::Static(Color32::WHITE),
-            padding_horizontal: Prop::Static(0.0),
-            padding_vertical: Prop::Static(0.0),
-            prose: Prop::Static(None),
-            menu: MenuStyle::default(),
-        }
-    }
+    pub menu: Option<MenuStyle>,
 }
 
 #[derive(Clone, Copy)]
@@ -90,7 +70,7 @@ pub fn TextInput(
     #[prop(children)] content: Option<Render<TextInputHandle>>,
     placeholder: Prop<String>,
     #[prop(default = String::new())] label: Prop<String>,
-    #[prop(default = TextInputStyle::default())] style: TextInputStyle,
+    style: TextInputStyle,
     on_submit: Callback<String>,
     on_hover_change: Callback<bool>,
     on_focus_change: Callback<bool>,
@@ -147,7 +127,12 @@ pub fn TextInput(
         caret: caret_color.get(),
         placeholder: placeholder_color.get(),
         syntax: SyntaxColors::uniform(color.get()),
-        ..TextAreaColors::DEFAULT
+        gutter_border: Color32::TRANSPARENT,
+        gutter_text: Color32::TRANSPARENT,
+        gutter_arrow: Color32::TRANSPARENT,
+        code_background: Color32::TRANSPARENT,
+        widget: Color32::TRANSPARENT,
+        broken_widget: Color32::TRANSPARENT,
     });
     let role = match multiline {
         true => Role::MultilineTextInput,

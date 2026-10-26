@@ -15,7 +15,6 @@ use beui_view::reactive::*;
 use std::cell::RefCell;
 use std::rc::Rc;
 
-const ROW_SPACING: f32 = 2.0;
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum MenuRowKind {
@@ -292,6 +291,7 @@ struct State {
     titled: bool,
     pages: bool,
     glyphs: Memo<bool>,
+    spacing: f32,
     on_select: Callback<(Vec<usize>, MenuThen)>,
 }
 
@@ -301,6 +301,7 @@ pub(crate) fn MenuList(
     items: Run<MenuItem>,
     row: Option<RenderFn<MenuRowHandle>>,
     panel: Option<RenderFn<Child>>,
+    spacing: f32,
     #[prop(default = MenuParent::default())] parent: MenuParent,
     #[prop(default = None)] title: Option<Memo<String>>,
     #[prop(default = String::new())] title_test_id: String,
@@ -333,6 +334,7 @@ pub(crate) fn MenuList(
                     .any(|item| item.is_row() && item.glyph.get().is_some())
             })
         },
+        spacing,
         on_select,
     };
     api.fill(MenuListApi(state));
@@ -399,7 +401,7 @@ pub(crate) fn MenuList(
                 let title_test_id = title_test_id.clone();
                 let lines = lines();
                 view! {
-                    <List spacing=ROW_SPACING>
+                    <List spacing={state.spacing}>
                         <Show condition={state.titled}>
                             <MenuBackRow
                                 state={state}
@@ -438,6 +440,7 @@ fn MenuPage(state: State, row: RenderFn<MenuRowHandle>, panel: RenderFn<Child>) 
             items={item.children.clone()}
             row
             panel
+            spacing={state.spacing}
             parent={leave}
             title={Some(item.spoken())}
             title_test_id
@@ -604,14 +607,14 @@ fn MenuGridRow(
         },
     );
     let built = view! {
-        <List spacing=ROW_SPACING>
+        <List spacing={state.spacing}>
             <Show condition={separated}>
                 {row.call(quiet_handle(MenuRowKind::Separator, Prop::Static(String::new())))}
             </Show>
             <Grid
                 columns={vec![Track::Fraction(1.0); columns]}
-                column_spacing=ROW_SPACING
-                row_spacing=ROW_SPACING
+                column_spacing={state.spacing}
+                row_spacing={state.spacing}
                 children={cells}
             />
         </List>
@@ -748,6 +751,7 @@ fn MenuRow(
                                     items={children}
                                     row
                                     panel={panel}
+                                    spacing={state.spacing}
                                     parent={leave}
                                     active={open}
                                     focus_first=true

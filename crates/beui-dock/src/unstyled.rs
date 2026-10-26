@@ -67,14 +67,11 @@ pub use state::{MIN_PANE_LENGTH, MIN_SIDEBAR_WIDTH, SIDEBAR_WIDTH};
 use switch::DockSwitchView;
 pub use switch::{DockSwitchHandle, DockSwitchRowHandle};
 
-pub const SPLITTER_THICKNESS: f32 = 6.0;
 const EDGE_ZONE: f32 = 0.22;
 const HANDLE_REACH: f32 = 8.0;
 const GRIP_CORNER: f32 = 24.0;
-const MARKER_WIDTH: f32 = 3.0;
 const SPLIT_STEP: f32 = 0.02;
 const SIDEBAR_STEP: f32 = 16.0;
-pub const ICON_SIDEBAR_WIDTH: f32 = 40.0;
 const SIDEBAR_SECONDS: f32 = 0.18;
 const FLOAT_INSET: Vec2 = Vec2::new(64.0, 48.0);
 const GRAB_OFFSET: Vec2 = Vec2::new(72.0, 14.0);
@@ -372,6 +369,9 @@ struct State {
     thickness: f32,
     reach: f32,
     group_inset: f32,
+    tab_spacing: f32,
+    marker_width: f32,
+    back_shade: Memo<Color32>,
     icon_sidebar_width: f32,
     rect: ReadSignal<Rect>,
     opens: ReadSignal<bool>,
@@ -1087,7 +1087,7 @@ impl State {
                 };
                 return (
                     DockDrop::Tab { leaf, index },
-                    marker_rect(direction, at, bar),
+                    marker_rect(direction, at, bar, self.marker_width),
                 );
             }
         }
@@ -1097,7 +1097,7 @@ impl State {
                 leaf,
                 index: rects.len(),
             },
-            marker_rect(direction, end, bar),
+            marker_rect(direction, end, bar, self.marker_width),
         )
     }
 
@@ -1138,20 +1138,20 @@ fn edge(rect: Rect, pos: Pos2) -> Option<Side> {
         .map(|(_, side)| side)
 }
 
-fn marker_rect(direction: Direction, at: f32, bar: Rect) -> Rect {
+fn marker_rect(direction: Direction, at: f32, bar: Rect, width: f32) -> Rect {
     match direction {
         Direction::Horizontal => {
             let x = at.clamp(bar.left(), bar.right());
             Rect::from_min_max(
-                pos2(x - MARKER_WIDTH / 2.0, bar.top()),
-                pos2(x + MARKER_WIDTH / 2.0, bar.bottom()),
+                pos2(x - width / 2.0, bar.top()),
+                pos2(x + width / 2.0, bar.bottom()),
             )
         }
         Direction::Vertical => {
             let y = at.clamp(bar.top(), bar.bottom());
             Rect::from_min_max(
-                pos2(bar.left(), y - MARKER_WIDTH / 2.0),
-                pos2(bar.right(), y + MARKER_WIDTH / 2.0),
+                pos2(bar.left(), y - width / 2.0),
+                pos2(bar.right(), y + width / 2.0),
             )
         }
     }
@@ -1325,6 +1325,9 @@ pub(crate) struct DockConfig {
     pub(crate) splitter_thickness: f32,
     pub(crate) splitter_reach: f32,
     pub(crate) group_inset: f32,
+    pub(crate) tab_spacing: f32,
+    pub(crate) marker_width: f32,
+    pub(crate) back_shade: Memo<Color32>,
     pub(crate) icon_sidebar_width: f32,
     pub(crate) inset: Prop<f32>,
     pub(crate) tab: RenderFn<DockTabHandle>,
@@ -1368,6 +1371,9 @@ pub(crate) fn Dock(config: DockConfig) -> NodeId {
         splitter_thickness,
         splitter_reach,
         group_inset,
+        tab_spacing,
+        marker_width,
+        back_shade,
         icon_sidebar_width,
         inset,
         tab,
@@ -1446,6 +1452,9 @@ pub(crate) fn Dock(config: DockConfig) -> NodeId {
                 thickness: splitter_thickness,
                 reach: splitter_reach,
                 group_inset,
+                tab_spacing,
+                marker_width,
+                back_shade,
                 icon_sidebar_width,
                 rect: dock_rect,
                 opens: opens_windows(),
@@ -1637,6 +1646,7 @@ fn DockStack(dock: State) -> NodeId {
     view! {
         <BackSlide
             enabled={backward}
+            shade={dock.back_shade}
             behind={move || {
                 let dock = dock;
                 view! {
@@ -2314,6 +2324,7 @@ fn DockTabBar(dock: State, leaf: LeafId, vertical: bool) -> NodeId {
                 })}
                 kind=ChoiceKind::Tabs
                 direction
+                spacing={dock.tab_spacing}
             >|handle: ChoiceOptionHandle| {
                 let dock = dock;
                 let entry = dock.state.get_untracked().entries(leaf).get(handle.index).copied();

@@ -91,7 +91,7 @@ impl Theme {
         scrim: Color32::from_rgba_unmultiplied(0, 0, 0, 150),
         scrim_soft: Color32::from_rgba_unmultiplied(0, 0, 0, 90),
         scrim_strong: Color32::from_rgba_unmultiplied(0, 0, 0, 230),
-        syntax: SyntaxColors::DEFAULT,
+        syntax: DARK_SYNTAX,
     };
 
     pub const OLED: Theme = Theme {
@@ -128,7 +128,7 @@ impl Theme {
         scrim: Color32::from_rgba_unmultiplied(0, 0, 0, 150),
         scrim_soft: Color32::from_rgba_unmultiplied(0, 0, 0, 90),
         scrim_strong: Color32::from_rgba_unmultiplied(0, 0, 0, 230),
-        syntax: SyntaxColors::DEFAULT,
+        syntax: DARK_SYNTAX,
     };
 
     pub const LIGHT: Theme = Theme {
@@ -209,6 +209,29 @@ impl Theme {
 const fn rgb(hex: u32) -> Color32 {
     Color32::from_rgb((hex >> 16) as u8, (hex >> 8) as u8, hex as u8)
 }
+
+const DARK_SYNTAX: SyntaxColors = SyntaxColors {
+    invalid: rgb(0xff0000),
+    keyword: rgb(0x5ec4ff),
+    keyword_storage: rgb(0x008b94),
+    keyword_primitive_type: rgb(0x70e1e8),
+    literal: rgb(0xe27e8d),
+    literal_string: rgb(0x68a1f0),
+    comment: rgb(0xff9d1c),
+    punctuation: rgb(0x718ca1),
+    punctuation_important: rgb(0xb7c5d3),
+    variable: rgb(0x718ca1),
+    variable_constant: rgb(0x8bd49c),
+    variable_function: rgb(0x70e1e8),
+    variable_mutable: rgb(0xb7c5d3),
+    variable_parameter: rgb(0xebbf83),
+    markdown_plain_text: rgb(0xffffff),
+    markdown_symbol: rgb(0x5a6579),
+    markdown_link: rgb(0x7aa5ff),
+    markdown_code: rgb(0x8bd49c),
+    unstyled: rgb(0xb7c5d3),
+    invisible: rgb(0x43515c),
+};
 
 const LIGHT_SYNTAX: SyntaxColors = SyntaxColors {
     invalid: rgb(0xd1242f),

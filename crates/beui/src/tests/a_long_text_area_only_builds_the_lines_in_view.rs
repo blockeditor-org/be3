@@ -34,7 +34,7 @@ fn a_long_text_area_only_builds_the_lines_in_view() {
         held.update(|held| *held = Some(state));
         view! {
             <Frame @node_ref=&area width=500.0 height=300.0>
-                <TextArea state={state} />
+                <TextArea colors={area_colors()} font_size=AREA_FONT_SIZE padding=AREA_PADDING state={state} />
             </Frame>
         }
     });

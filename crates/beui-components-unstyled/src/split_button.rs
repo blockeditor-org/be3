@@ -19,7 +19,7 @@ pub fn SplitButton(
     #[prop(default = String::from("More options"))] menu_label: Prop<String>,
     #[prop(default = false)] disabled: Prop<bool>,
     items: Children<MenuItem>,
-    #[prop(default = MenuStyle::default())] menu: MenuStyle,
+    menu: MenuStyle,
     main: Render<ButtonHandle>,
     arrow: Render<PopupTriggerHandle>,
     on_click: ClickCallback,

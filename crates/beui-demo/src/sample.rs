@@ -72,7 +72,7 @@ pub(crate) fn code_tokens(
     let [red, green, blue, _] = background.to_array();
     let dark = u32::from(red) + u32::from(green) + u32::from(blue) < DARK_BACKGROUND;
     let colors = match dark {
-        true => SyntaxColors::DEFAULT,
+        true => Theme::DARK.syntax,
         false => SyntaxColors::uniform(text),
     };
     let document = Arc::new(TextBuffer::new(source)) as Arc<dyn text_editor_core::Document>;

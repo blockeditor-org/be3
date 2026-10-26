@@ -21,7 +21,7 @@ fn a_drag_in_a_text_area_selects_and_reaches_nothing_around_it() {
                 on_press={move |_: PointerPress| around.update(|count| *count += 1)}
                 on_drag={move |_: PointerPress| around.update(|count| *count += 1)}
             >
-                <TextArea @node_ref=&area state={state} line_numbers=false disabled />
+                <TextArea colors={area_colors()} font_size=AREA_FONT_SIZE padding=AREA_PADDING @node_ref=&area state={state} line_numbers=false disabled />
             </Interactive>
         }
     });

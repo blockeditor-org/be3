@@ -18,7 +18,6 @@ use beui_view::components::overlay::use_overlay_presence;
 use beui_view::primitives::*;
 use beui_view::reactive::*;
 
-pub const SHEET_STOPS: [f32; 3] = [0.3, 0.5, 0.9];
 
 const CLOSE_SHARE: f32 = 0.4;
 const CLOSE_DISTANCE: f32 = 96.0;
@@ -186,7 +185,7 @@ impl Motion {
                 .set(body.top() - sheet.top() - self.shifted.get());
         }
         let chrome = self.chrome.get();
-        let highest = self.shares.last().copied().unwrap_or(SHEET_STOPS[2]);
+        let highest = self.shares.last().copied().unwrap_or(1.0);
         let top = (chrome + position.content).min(highest * extent);
         let stops = match self.fit {
             true => vec![(top, Rest::Fitted)],
@@ -209,7 +208,7 @@ impl Motion {
     fn top_rest(&self) -> Rest {
         match self.fit {
             true => Rest::Fitted,
-            false => Rest::Share(self.shares.last().copied().unwrap_or(SHEET_STOPS[2])),
+            false => Rest::Share(self.shares.last().copied().unwrap_or(1.0)),
         }
     }
 
@@ -1094,8 +1093,8 @@ impl Motion {
 pub fn Sheet(
     extent: Prop<f32>,
     #[prop(default = true)] open: Prop<bool>,
-    #[prop(default = SHEET_STOPS[1])] rest: f32,
-    #[prop(default = SHEET_STOPS.to_vec())] stops: Vec<f32>,
+    rest: f32,
+    stops: Vec<f32>,
     #[prop(default = false)] fit: bool,
     #[prop(default = 0.0)] fade: f32,
     grip: Render<SheetGripHandle>,
@@ -1105,10 +1104,7 @@ pub fn Sheet(
     on_close: ClickCallback,
     children: Child,
 ) -> NodeId {
-    let mut stops = match stops.is_empty() {
-        true => SHEET_STOPS.to_vec(),
-        false => stops,
-    };
+    let mut stops = stops;
     stops.sort_by(f32::total_cmp);
     let shares: Rc<[f32]> = Rc::from(stops);
     let resting = match fit {
@@ -1251,11 +1247,11 @@ pub fn Sheet(
 #[component]
 pub fn ModalSheet(
     open: Prop<bool>,
-    #[prop(default = SHEET_STOPS[2])] rest: f32,
-    #[prop(default = SHEET_STOPS.to_vec())] stops: Vec<f32>,
+    rest: f32,
+    stops: Vec<f32>,
     #[prop(default = false)] fit: bool,
     #[prop(default = 0.0)] fade: f32,
-    #[prop(default = Color32::TRANSPARENT)] scrim: Prop<Color32>,
+    scrim: Prop<Color32>,
     grip: Render<SheetGripHandle>,
     panel: Render<Child>,
     on_close: ClickCallback,
@@ -1319,7 +1315,7 @@ fn ModalSheetBody(
     view! {
         <LayoutBuilder>|size: ReadSignal<Vec2>| {
             let extent = create_memo(move || size.get().y);
-            let highest = stops.iter().copied().fold(SHEET_STOPS[0], f32::max);
+            let highest = stops.iter().copied().fold(0.0, f32::max);
             let room = create_memo(move || {
                 ItemSize::Percent(100.0).min(extent.get() * (1.0 - highest))
             });

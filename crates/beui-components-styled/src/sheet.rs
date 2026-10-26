@@ -3,10 +3,12 @@ use beui_macros::{component, view};
 
 use crate::theme::BORDER_WIDTH;
 use beui_components_unstyled as unstyled;
-use beui_components_unstyled::{SHEET_STOPS, SheetGripHandle};
+use beui_components_unstyled::SheetGripHandle;
 use beui_core::node::NodeId;
 use beui_view::primitives::*;
 use beui_view::reactive::*;
+
+pub const SHEET_STOPS: [f32; 3] = [0.3, 0.5, 0.9];
 
 const HANDLE_HEIGHT: f32 = 24.0;
 const GRIP_WIDTH: f32 = 36.0;

@@ -13,7 +13,7 @@ pub fn RadioGroup(
     #[prop(default = None)] selected: Binding<Option<usize>>,
 ) -> NodeId {
     view! {
-        <Choice api options selected kind=Kind::Radio>|handle|
+        <Choice api options selected kind=Kind::Radio spacing=crate::choice::OPTION_SPACING>|handle|
             <OptionFace kind=Kind::Radio handle />
         </Choice>
     }

@@ -90,7 +90,7 @@ pub fn ColorPicker(
                 <ColorFields picker={picker} alpha />
                 <Show condition=has_swatches>|| {
                     let swatches = swatches.clone(); view! {
-                        <Swatches picker={picker} swatches>|handle: SwatchHandle|
+                        <Swatches picker={picker} swatches spacing=crate::choice::OPTION_SPACING>|handle: SwatchHandle|
                             <SwatchFace handle />
                         </Swatches>
                     }

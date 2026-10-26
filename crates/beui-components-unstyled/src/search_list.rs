@@ -114,7 +114,7 @@ pub fn SearchList<K>(
     #[prop(default = true)] keyboard_on_focus: bool,
     on_focus_change: Callback<bool>,
     placeholder: Prop<String>,
-    #[prop(default = TextInputStyle::default())] style: TextInputStyle,
+    style: TextInputStyle,
     search_accessibility: Option<Prop<Node>>,
     field: RenderFn<TextInputHandle>,
     list_height: Prop<f32>,

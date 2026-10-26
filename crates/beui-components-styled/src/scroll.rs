@@ -16,6 +16,8 @@ use beui_core::node::NodeId;
 use beui_view::primitives::*;
 use beui_view::reactive::*;
 
+const FOCUS_RING_WIDTH: f32 = 2.0;
+const FOCUS_RING_OFFSET: f32 = -1.0;
 const MARKER_SIZE: f32 = 28.0;
 const MARKER_RADIUS: f32 = 14.0;
 
@@ -107,7 +109,7 @@ pub fn Scroll(
             fit={fit || max_length.is_some()}
             follow_end
             bleed={bleed.map(|bleed| bleed.reach)}
-            focus_color={theme.accent}
+            focus_ring={create_memo(move || Some(Outline::new(theme.accent.get(), FOCUS_RING_WIDTH).offset(FOCUS_RING_OFFSET)))}
             scrollbar={scrollbar_style()}
             marker={|axis: Memo<Direction>| view! {
                 <AutoscrollMarker axis />

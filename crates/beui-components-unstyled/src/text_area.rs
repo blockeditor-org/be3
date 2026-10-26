@@ -54,7 +54,6 @@ pub use hooks::{
 pub use rows::{Prose, RowTable, TextWidget};
 pub use state::{ProseLine, TextAreaLayout, TextAreaState};
 
-pub const PADDING: Vec2 = Vec2::new(12.0, 8.0);
 pub const CARET_WIDTH: f32 = 2.0;
 const GUTTER_PADDING_LEFT: f32 = 10.0;
 const GUTTER_PADDING_RIGHT: f32 = 10.0;
@@ -179,7 +178,7 @@ impl AreaGeometry for Surface {
             None => {
                 let y = self.estimated_y(byte)?;
                 Some(Rect::from_min_size(
-                    Pos2::new(PADDING.x, y),
+                    Pos2::new(self.padding.get_untracked().x, y),
                     Vec2::new(CARET_WIDTH, self.row_estimate()),
                 ))
             }
@@ -1060,7 +1059,7 @@ pub fn TextArea(
     #[prop(default = false)] single_line: bool,
     #[prop(default = true)] line_numbers: bool,
     #[prop(default = Vec::new())] widgets: Prop<Vec<TextWidget>>,
-    #[prop(default = TextAreaColors::DEFAULT)] colors: Prop<TextAreaColors>,
+    colors: Prop<TextAreaColors>,
     #[prop(default = Vec::new())] remote_cursors: Prop<Vec<RemoteTextCursor>>,
     #[prop(default = None)] drop_caret: Prop<Option<usize>>,
     #[prop(default = String::new())] placeholder: Prop<String>,
@@ -1068,8 +1067,8 @@ pub fn TextArea(
     #[prop(default = false)] focused: Prop<bool>,
     #[prop(default = true)] keyboard_on_focus: bool,
     #[prop(default = false)] disabled: Prop<bool>,
-    #[prop(default = BODY_SIZE)] font_size: Prop<f32>,
-    #[prop(default = PADDING)] padding: Prop<Vec2>,
+    font_size: Prop<f32>,
+    padding: Prop<Vec2>,
     #[prop(default = None)] prose: Prop<Option<Prose>>,
     #[prop(default = false)] show_runs: Prop<bool>,
     #[prop(default = Vec::new())] client_colors: Prop<Vec<(u64, Color32)>>,
@@ -1429,7 +1428,6 @@ pub fn TextArea(
                                     <CanvasItem x=0.0 y=0.0 width={width} height={height}>
                                         <Scroll
                                             offset={offset}
-                                            focus_color={Color32::TRANSPARENT}
                                             scrollbar
                                             on_change={scroll}
                                         >

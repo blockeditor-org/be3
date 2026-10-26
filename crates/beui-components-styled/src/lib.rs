@@ -54,7 +54,6 @@ pub use action_bar::{ActionBar, ActionLabels};
 pub use action_row::ActionRow;
 pub use beui_components_unstyled::DialogLayout;
 pub use beui_components_unstyled::NumberDrag;
-pub use beui_components_unstyled::SHEET_STOPS;
 pub use beui_components_unstyled::{
     ActionRole, DialogAction, DialogKind, EveryScreen, ModalMotion, ModalPlacement, ScreenSlot,
 };
@@ -97,7 +96,7 @@ pub use segmented_control::SegmentedControl;
 pub use select::Select;
 pub use selectable_text::SelectableText;
 pub use settings::{SettingsLink, SettingsPage, SettingsRow, SettingsSection};
-pub use sheet::{ModalSheet, Sheet};
+pub use sheet::{ModalSheet, SHEET_STOPS, Sheet};
 pub use shortcut::Shortcut;
 pub use slider::Slider;
 pub use split_button::SplitButton;
@@ -111,7 +110,9 @@ pub use text::{
 };
 pub use text_area::emoji::emoji_menu;
 pub use text_area::format_bar::FormatBar;
-pub use text_area::{DocumentLeaf, DocumentLine, DocumentMarker, TextArea, TextAreaSurfaceApi};
+pub use text_area::{
+    DocumentLeaf, DocumentLine, DocumentMarker, TextArea, TextAreaSurfaceApi, text_area_colors,
+};
 pub use text_input::TextInput;
 pub use theme::{
     Density, Theme, ThemeKind, ThemeProvider, ThemeStore, provide_density, use_density, use_theme,

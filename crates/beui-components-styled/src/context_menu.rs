@@ -33,6 +33,7 @@ const SUBMENU_SPACING: f32 = 8.0;
 const SHORTCUT_SPACING: f32 = 24.0;
 const SHEET_PADDING: f32 = 8.0;
 const SHEET_STOPS: [f32; 2] = [0.5, 0.9];
+const MENU_ROW_SPACING: f32 = 2.0;
 const SHEET_SEPARATOR_SPACING: f32 = 4.0;
 const SHEET_CAPTION_PADDING: f32 = 12.0;
 const SHEET_TILE_PADDING: f32 = 14.0;
@@ -111,6 +112,7 @@ pub fn menu_style() -> MenuStyle {
 
 fn sized_menu_style(min_width: f32) -> MenuStyle {
     MenuStyle::new(
+        MENU_ROW_SPACING,
         |handle| {
             view! {
                 <MenuRow handle />

@@ -126,7 +126,7 @@ pub use search_list::{
 };
 pub use select::{Select, SelectApi, SelectOptionHandle, SelectTriggerHandle};
 pub use selectable::{Selectable, SelectableState, copy_selection, select_all};
-pub use sheet::{ModalSheet, SHEET_STOPS, Sheet, SheetGripHandle};
+pub use sheet::{ModalSheet, Sheet, SheetGripHandle};
 pub use slider::{Slider, SliderApi, SliderHandle, SliderScale};
 pub use split_button::SplitButton;
 pub use stack::Stack;
@@ -145,7 +145,7 @@ pub use toast::{TOAST_DURATION, Toast, ToastAction, ToastHandle, Toasts};
 pub use toggle::{Toggle, ToggleApi, ToggleHandle};
 pub use tooltip::{TOOLTIP_DELAY, Tooltip, TooltipHandle};
 pub use tree::{
-    Tree, TreeApi, TreeItem, TreeMenu, TreeReveal, TreeRevealHandle, TreeRowArea, TreeRowEdit,
+    Tree, TreeApi, TreeItem, TreeMenu, TreeMenus, TreeReveal, TreeRevealHandle, TreeRowArea, TreeRowEdit,
     TreeRowEditor, TreeRowHandle, TreeRowMenu, TreeRowMenuButton, TreeRowTarget, TreeToggle,
     TreeToggleHandle,
 };

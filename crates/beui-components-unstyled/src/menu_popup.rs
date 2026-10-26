@@ -17,27 +17,27 @@ pub struct MenuSheetHandle {
 }
 
 #[derive(Clone, Copy)]
-struct MenuParts {
+pub struct MenuStyle {
+    spacing: f32,
     row: RenderFn<MenuRowHandle>,
     panel: RenderFn<Child>,
     sheet: Option<(RenderFn<MenuRowHandle>, RenderFn<MenuSheetHandle>)>,
     toolbar: Option<(RenderFn<ButtonHandle>, RenderFn<Child>)>,
 }
 
-#[derive(Clone, Copy, Default)]
-pub struct MenuStyle(Option<MenuParts>);
-
 impl MenuStyle {
     pub fn new(
+        spacing: f32,
         row: impl Fn(MenuRowHandle) -> NodeId + 'static,
         panel: impl Fn(Child) -> NodeId + 'static,
     ) -> Self {
-        Self(Some(MenuParts {
+        Self {
+            spacing,
             row: RenderFn::new(row),
             panel: RenderFn::new(panel),
             sheet: None,
             toolbar: None,
-        }))
+        }
     }
 
     pub fn with_sheet(
@@ -45,13 +45,10 @@ impl MenuStyle {
         row: impl Fn(MenuRowHandle) -> NodeId + 'static,
         sheet: impl Fn(MenuSheetHandle) -> NodeId + 'static,
     ) -> Self {
-        let (dropdown_row, panel) = self.parts();
-        Self(Some(MenuParts {
-            row: dropdown_row,
-            panel,
+        Self {
             sheet: Some((RenderFn::new(row), RenderFn::new(sheet))),
-            toolbar: self.toolbar(),
-        }))
+            ..self
+        }
     }
 
     pub fn with_toolbar(
@@ -59,39 +56,26 @@ impl MenuStyle {
         button: impl Fn(ButtonHandle) -> NodeId + 'static,
         panel: impl Fn(Child) -> NodeId + 'static,
     ) -> Self {
-        let (row, menu_panel) = self.parts();
-        Self(Some(MenuParts {
-            row,
-            panel: menu_panel,
-            sheet: self.sheet(),
+        Self {
             toolbar: Some((RenderFn::new(button), RenderFn::new(panel))),
-        }))
-    }
-
-    pub(crate) fn toolbar(&self) -> Option<(RenderFn<ButtonHandle>, RenderFn<Child>)> {
-        self.0.as_ref().and_then(|parts| parts.toolbar)
-    }
-
-    pub fn is_some(&self) -> bool {
-        self.0.is_some()
-    }
-
-    pub(crate) fn parts(&self) -> (RenderFn<MenuRowHandle>, RenderFn<Child>) {
-        match &self.0 {
-            Some(parts) => (parts.row, parts.panel),
-            None => (
-                RenderFn::new(|_| {
-                    view! {
-                        <List spacing=0.0 />
-                    }
-                }),
-                RenderFn::new(|content| content),
-            ),
+            ..self
         }
     }
 
+    pub(crate) fn toolbar(&self) -> Option<(RenderFn<ButtonHandle>, RenderFn<Child>)> {
+        self.toolbar
+    }
+
+    pub(crate) fn spacing(&self) -> f32 {
+        self.spacing
+    }
+
+    pub(crate) fn parts(&self) -> (RenderFn<MenuRowHandle>, RenderFn<Child>) {
+        (self.row, self.panel)
+    }
+
     fn sheet(&self) -> Option<(RenderFn<MenuRowHandle>, RenderFn<MenuSheetHandle>)> {
-        self.0.as_ref().and_then(|parts| parts.sheet)
+        self.sheet
     }
 }
 
@@ -110,6 +94,7 @@ pub fn MenuPopup(
     on_select: Callback<Vec<usize>>,
 ) -> NodeId {
     let (row, panel) = menu.parts();
+    let spacing = menu.spacing();
     let sheet = menu.sheet();
     let sheeted = sheet.is_some();
     let dropped = create_memo(move || open.get() && !(sheeted && touched.get()));
@@ -145,6 +130,7 @@ pub fn MenuPopup(
                             items
                             row
                             panel={panel}
+                            spacing
                             active
                             on_select={choose}
                         />
@@ -161,6 +147,7 @@ pub fn MenuPopup(
                             items={sheet_items.clone()}
                             row
                             panel={sheet_panel}
+                            spacing
                             active={raised}
                             pages=true
                             on_select={sheet_choose}

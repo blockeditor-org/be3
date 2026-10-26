@@ -66,7 +66,7 @@ pub fn Choice(
     kind: ChoiceKind,
     direction: Option<Direction>,
     #[prop(default = false)] wrap: bool,
-    #[prop(default = 6.0)] spacing: f32,
+    spacing: f32,
     #[prop(default = String::new())] label: Prop<String>,
     #[prop(children)] option: Option<RenderFn<ChoiceOptionHandle>>,
 ) -> NodeId {

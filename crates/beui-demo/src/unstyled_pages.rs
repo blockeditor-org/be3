@@ -295,7 +295,10 @@ fn UnderlinedInput() -> NodeId {
                     placeholder_color: theme.text_muted.into_prop(),
                     selection_color: theme.accent_soft.into_prop(),
                     caret_color: theme.accent.into_prop(),
-                    ..TextInputStyle::default()
+                    padding_horizontal: Prop::Static(0.0),
+                    padding_vertical: Prop::Static(0.0),
+                    prose: Prop::Static(None),
+                    menu: None,
                 }}
                 on_submit={move |value: String| submitted.set(format!("Searched for {value}"))}
             >|handle: TextInputHandle|
@@ -323,6 +326,7 @@ fn ProseInput() -> NodeId {
                     selection_color: theme.accent_soft.into_prop(),
                     caret_color: theme.accent.into_prop(),
                     padding_horizontal: Prop::Static(8.0),
+                    padding_vertical: Prop::Static(0.0),
                     prose: Prop::Static(Some(beui::unstyled::Prose {
                         bold: true,
                         align: TextAlign::Center,
@@ -330,7 +334,7 @@ fn ProseInput() -> NodeId {
                         line_padding: (4.0, 4.0),
                         wrap: true,
                     })),
-                    ..TextInputStyle::default()
+                    menu: None,
                 }}
             />
         </Frame>
@@ -416,6 +420,7 @@ fn SegmentedControl() -> NodeId {
                     selected=Some(0)
                     kind=ChoiceKind::Tabs
                     direction=Direction::Horizontal
+                    spacing=6.0
                 >|handle: ChoiceOptionHandle|
                     <SegmentFace handle />
                 </unstyled::Choice>
@@ -478,6 +483,7 @@ fn SizeRadios() -> NodeId {
                 }}
                 selected={size}
                 kind=ChoiceKind::Radio
+                spacing=6.0
             >|handle: ChoiceOptionHandle|
                 <RadioFace handle />
             </unstyled::Choice>
@@ -702,6 +708,7 @@ fn ExportMenu() -> NodeId {
                         <PillFace handle={handle.button} label="Export" />
                     }}
                     menu={MenuStyle::new(
+    2.0,
                         |handle: MenuRowHandle| view! {
                             <MenuRow handle />
                         },
@@ -736,6 +743,7 @@ fn RunSplit() -> NodeId {
                         <unstyled::MenuItem label="Run in the background" />
                     }}
                     menu={MenuStyle::new(
+    2.0,
                         |handle: MenuRowHandle| view! {
                             <MenuRow handle />
                         },
@@ -1105,7 +1113,10 @@ fn underlined_style() -> TextInputStyle {
         placeholder_color: theme.text_muted.into_prop(),
         selection_color: theme.accent_soft.into_prop(),
         caret_color: theme.accent.into_prop(),
-        ..TextInputStyle::default()
+        padding_horizontal: Prop::Static(0.0),
+        padding_vertical: Prop::Static(0.0),
+        prose: Prop::Static(None),
+        menu: None,
     }
 }
 
@@ -1129,7 +1140,7 @@ fn HueAndHex() -> NodeId {
             <HueSlider picker={picker}>|handle: SliderHandle|
                 <MeterFace handle />
             </HueSlider>
-            <Swatches picker={picker} swatches={SWATCHES.to_vec()}>|handle: SwatchHandle|
+            <Swatches picker={picker} swatches={SWATCHES.to_vec()} spacing=6.0>|handle: SwatchHandle|
                 <SwatchDot handle />
             </Swatches>
             <List direction=Direction::Horizontal align=Align::Center spacing=ROW_SPACING>
@@ -1366,6 +1377,7 @@ fn ToolbarStrip(children: Child) -> NodeId {
 #[sample]
 #[component]
 fn PlainNote() -> NodeId {
+    let theme = use_theme();
     let document = Arc::new(TextBuffer::new(
         b"Right-click for Copy and Paste, or type :tada",
     )) as Arc<dyn text_editor_core::Document>;
@@ -1378,7 +1390,8 @@ fn PlainNote() -> NodeId {
         >
             <unstyled::TextContextMenu
                 state
-                menu={MenuStyle::new(
+                menu={Some(MenuStyle::new(
+    2.0,
                     |handle: MenuRowHandle| view! {
                         <MenuRow handle />
                     },
@@ -1393,11 +1406,14 @@ fn PlainNote() -> NodeId {
                     |keys: Child| view! {
                         <ToolbarStrip>{keys}</ToolbarStrip>
                     },
-                )}
+                ))}
                 child_size=ItemSize::Percent(100.0)
             >|open_menu: Callback<Option<Rect>>|
                 <unstyled::TextArea
                     state
+                    colors={create_memo(move || beui::styled::text_area_colors(&theme.get()))}
+                    font_size=14.0
+                    padding={beui::Vec2::new(12.0, 8.0)}
                     completer={emoji_completer()}
                     completion_menu={CompletionMenu::new(
                         |handle: CompletionRowHandle| view! {
@@ -1457,6 +1473,8 @@ fn PullUpSheet() -> NodeId {
             <unstyled::ModalSheet
                 open={open}
                 fit=true
+                rest=0.9
+                stops={vec![0.9]}
                 scrim={Color32::from_rgba_unmultiplied(0, 0, 0, 120)}
                 grip={move |_: SheetGripHandle| view! {
                     <SheetGrip />

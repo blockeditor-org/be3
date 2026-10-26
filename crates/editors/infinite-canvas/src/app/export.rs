@@ -513,7 +513,7 @@ fn written(painter: &Painter, entity: &CanvasEntity, ink: Color32, camera: Camer
         .shrink(TEXT_INSET * camera.scale);
     let colors = TextAreaColors {
         syntax: SyntaxColors::uniform(ink),
-        ..TextAreaColors::DEFAULT
+        ..text_area_colors(&Theme::DARK)
     };
     let square = line_height(px);
     let Some(lines) = rich_state(entity).lay_out_prose(

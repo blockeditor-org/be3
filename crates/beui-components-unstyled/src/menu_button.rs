@@ -14,7 +14,7 @@ use beui_view::reactive::*;
 pub fn MenuButton(
     items: Children<MenuItem>,
     trigger: Render<PopupTriggerHandle>,
-    #[prop(default = MenuStyle::default())] menu: MenuStyle,
+    menu: MenuStyle,
     #[prop(default = String::new())] label: Prop<String>,
     #[prop(default = None)] glyph: Prop<Option<Glyph>>,
     #[prop(default = false)] icon_only: Prop<bool>,

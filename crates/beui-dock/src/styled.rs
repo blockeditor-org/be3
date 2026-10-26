@@ -47,6 +47,8 @@ const PREVIEW_PADDING: f32 = 8.0;
 pub const CHROME_BORDER: f32 = 2.0;
 const RULE: f32 = 1.0;
 const SPLITTER_LINE: f32 = 1.0;
+const TAB_STRIP_SPACING: f32 = 6.0;
+const DROP_MARKER: f32 = 3.0;
 const SPLITTER_REACH: f32 = 3.0;
 const SPLITTER_HELD: f32 = 3.0;
 const GROUP_GLYPH: f32 = 16.0;
@@ -76,6 +78,7 @@ where
     let theme = use_theme();
     let backdrop = theme.background;
     let dialog_scrim = create_memo(move || theme.scrim.get());
+    let back_shade = create_memo(move || theme.scrim_soft.get());
     let fill = create_memo(move || match mode.get() {
         DockMode::Tiled => Color32::TRANSPARENT,
         DockMode::Stacked => theme.background.get(),
@@ -89,6 +92,9 @@ where
             splitter_thickness=SPLITTER_LINE
             splitter_reach=SPLITTER_REACH
             icon_sidebar_width=ICON_SIDEBAR
+            tab_spacing=TAB_STRIP_SPACING
+            drop_marker_width=DROP_MARKER
+            back_shade={back_shade}
             menu={menu_style()}
             children
             frame={move |body: NodeId| view! {

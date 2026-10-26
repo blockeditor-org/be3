@@ -15,7 +15,7 @@ fn an_ime_correction_replaces_the_word_it_names() {
         let state = TextAreaState::new(document);
         held.update(|held| *held = Some(state));
         view! {
-            <TextArea state={state} single_line=true />
+            <TextArea colors={area_colors()} font_size=AREA_FONT_SIZE padding=AREA_PADDING state={state} single_line=true />
         }
     });
     let mut harness = Harness::new(document);

@@ -39,6 +39,25 @@ pub struct TreeMenu {
 
 impl ChildValue for TreeMenu {}
 
+pub struct TreeMenus<K> {
+    style: MenuStyle,
+    menu: Func<K, Option<TreeMenu>>,
+}
+
+impl<K> TreeMenus<K> {
+    pub fn new(style: MenuStyle, menu: Func<K, Option<TreeMenu>>) -> Self {
+        Self { style, menu }
+    }
+}
+
+impl<K> Clone for TreeMenus<K> {
+    fn clone(&self) -> Self {
+        *self
+    }
+}
+
+impl<K> Copy for TreeMenus<K> {}
+
 #[derive(Clone)]
 pub struct TreeRowMenu {
     items: Run<MenuItem>,
@@ -105,8 +124,7 @@ struct State<K> {
     on_edit: Callback<K>,
     on_rename: Callback<(K, String)>,
     on_cancel_edit: Callback<K>,
-    menu: Option<Func<K, Option<TreeMenu>>>,
-    menu_style: MenuStyle,
+    menu: Option<TreeMenus<K>>,
     typeahead: Stored<RefCell<Typeahead>>,
 }
 
@@ -129,8 +147,7 @@ pub fn Tree<K>(
     #[prop(default = None)] ancestors: Option<Func<K, Vec<K>>>,
     #[prop(default = 0.0)] spacing: f32,
     #[prop(default = None)] editing: Prop<Option<K>>,
-    #[prop(default = None)] menu: Option<Func<K, Option<TreeMenu>>>,
-    #[prop(default = MenuStyle::default())] menu_style: MenuStyle,
+    #[prop(default = None)] menu: Option<TreeMenus<K>>,
     on_select: Callback<K>,
     on_open: Callback<K>,
     on_expand: Callback<(K, bool)>,
@@ -196,7 +213,6 @@ where
         on_rename,
         on_cancel_edit,
         menu,
-        menu_style,
         typeahead: store(RefCell::default()),
     };
     api.fill(TreeApi(state));
@@ -299,13 +315,16 @@ where
             move |finish: Finish| finish_edit(state, &key, item, finish)
         }),
     };
-    let menu = state.menu.and_then(|menu| menu.call(row_key.clone())).map(
-        |TreeMenu { items, on_select }| TreeRowMenu {
-            items: items.into_run(),
-            on_select,
-            style: state.menu_style,
-        },
-    );
+    let menu = state.menu.and_then(|menus| {
+        menus
+            .menu
+            .call(row_key.clone())
+            .map(|TreeMenu { items, on_select }| TreeRowMenu {
+                items: items.into_run(),
+                on_select,
+                style: menus.style,
+            })
+    });
     let has_focus = create_signal(false);
     let built = NodeRef::new();
     nodes.value().borrow_mut().insert(nodes_key, built);
@@ -485,7 +504,7 @@ pub fn TreeRowArea(target: TreeRowTarget, children: Child) -> NodeId {
 pub fn TreeRowEditor(
     edit: TreeRowEdit,
     #[prop(default = String::from("Name"))] label: Prop<String>,
-    #[prop(default = TextInputStyle::default())] style: TextInputStyle,
+    style: TextInputStyle,
     #[prop(children)] content: Render<TextInputHandle>,
 ) -> NodeId {
     let TreeRowEdit { item, finish } = edit;

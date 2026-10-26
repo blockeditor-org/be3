@@ -288,19 +288,74 @@ countdown.
 
 ## 5. Remove appearance defaults from unstyled
 
-Following the first rule, these become required props and styled passes them:
+**Done.** Following the first rule, these became required props and styled
+passes them:
 
-- `TextInputStyle::default()` (white text, fixed placeholder, selection and
-  caret colours)
-- `TextAreaColors::DEFAULT`
-- `SHEET_STOPS` as the default `stops` and `rest` of `Sheet` and `ModalSheet`
-- the text area's `BODY_SIZE` font size and `PADDING`
-- `TimeList`'s 32px `row_height`
-- the empty `<List/>` placeholders that are used when a trigger, row or option
-  renderer isn't passed (`Select`, `CommandPalette`); make these required
-- `unstyled::Choice`'s `spacing`, which defaults to the 6px it used to hard-code
+- **Done.** `TextInputStyle::default()` is gone (white text, a fixed
+  placeholder, selection and caret colours): `TextInput`'s `style`,
+  `SearchList`'s `style`, `Select`'s and `CommandPalette`'s `search_style`
+  and `TreeRowEditor`'s `style` are required. `TextInputStyle::menu` is an
+  `Option<MenuStyle>`: `None` says the field has no context menu.
+- **Done.** `TextAreaColors::DEFAULT` and `SyntaxColors::DEFAULT` are gone.
+  `TextArea`'s `colors` is required; `styled::text_area_colors(&Theme)` builds
+  them from a theme, and the old dark syntax palette is the dark themes'
+  `DARK_SYNTAX` in styled. A text input fills the area colours it has no use
+  for (gutter, code, widgets) with transparent.
+- **Done.** `SHEET_STOPS` as the default `stops` and `rest` of `Sheet` and
+  `ModalSheet`: both are required at the unstyled layer, and `SHEET_STOPS`
+  moved to styled (`styled::SHEET_STOPS`), whose `Sheet` and `ModalSheet`
+  keep it as their default.
+- **Done.** The text area's `BODY_SIZE` font size and `PADDING`: `font_size`
+  and `padding` are required. `BODY_SIZE` stays inside the text area only as
+  the reference size its heading and table ratios scale from.
+- **Done.** `TimeList`'s 32px `row_height`.
+- **Done.** The empty `<List/>` placeholders used when a trigger, row or
+  option renderer isn't passed (`Select`, `CommandPalette`) were made
+  required by §4.2.
+- **Done.** `unstyled::Choice`'s `spacing`, which defaulted to 6px. The
+  `Swatches` and the dock's tab strip, which are built on it, take a
+  `spacing` and a `tab_spacing` of their own.
 
-Look for others while doing this, and list any you find here.
+Found while doing it, and done the same way:
+
+- **Done.** `MenuStyle::default()`, whose rows were empty placeholder lists,
+  and the menu's hard-coded 2px row spacing. `MenuStyle` always has its row
+  and panel renderers and is built with `MenuStyle::new(spacing, row,
+  panel)`; `ContextMenu`, `MenuButton` and `SplitButton` require `menu`, and
+  dock `Docking` requires `menu`. `Tree`'s `menu` and `menu_style` became one
+  `menu: Option<TreeMenus<K>>`, made with `TreeMenus::new(style, menu)`, so a
+  tree with row menus always has their style.
+- **Done.** `CommandPalette`'s and `ModalSheet`'s `scrim` and dock
+  `Docking`'s `dialog_scrim`, which defaulted to transparent, are required,
+  like `Modal`'s.
+- **Done.** `Selectable`'s blue selection `color` and `handle_color`.
+- **Done.** Dock `Docking`'s `splitter_thickness` (`SPLITTER_THICKNESS`, 6px)
+  and `icon_sidebar_width` (`ICON_SIDEBAR_WIDTH`, 40px), and the 3px width of
+  the drop marker between tabs, now `drop_marker_width`; and the shade over
+  the page behind the stacked dock's back gesture, now `back_shade`.
+- **Done.** `BackSlide`'s hard-coded black shade over the page behind it is
+  its `shade` prop, transparent unless given; be-launcher and the dock pass
+  the theme's `scrim_soft`.
+- **Done.** `Scroll`'s keyboard focus ring, a hard-coded 2px ring inset 1px
+  in `focus_color`: it takes `focus_ring: Prop<Option<Outline>>` (none by
+  default), and styled passes the accent ring.
+
+Kept as defaults because they draw nothing: zero spacings, thumbs, radii,
+insets and fades; `ScrollbarStyle::default()` (no bar); a picture's white
+tint; pass-through panels; and the dock's optional pieces (frame, splitter,
+grip, highlight, preview, ...) that draw nothing when not given. Kept as
+behaviour: the drag and row-drag thresholds, zoom limits, slider range,
+tooltip and toast durations, the dock's starting sidebar and floating window
+sizes and its minimum pane sizes.
+
+Left: the text area's rich-document renderer still draws with constants of
+its own. Its default `leaf`, `marker` and `line` renderers (the markdown
+checkbox at 18px with a white tick, code and quote radii and bars) and its
+document geometry (`DOCUMENT_PADDING`, run chips, inline widgets, table cell
+padding) read their colours from `TextAreaColors` but their sizes from
+consts. Making them required would make every plain text area and text
+input supply a markdown renderer; it wants its own pass, perhaps a
+`TextAreaLook` beside `TextAreaColors`.
 
 ## 6. Get code outside beui onto the styled layer
 

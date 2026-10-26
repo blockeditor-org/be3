@@ -114,8 +114,7 @@ where
                         ancestors
                         spacing
                         editing
-                        menu={menu.unwrap_or_else(|| Func::new(|_| None))}
-                        menu_style={menu_style()}
+                        menu={menu.map(|menu| unstyled::TreeMenus::new(menu_style(), menu))}
                         on_select={on_select}
                         on_open={on_open}
                         on_expand={on_expand}

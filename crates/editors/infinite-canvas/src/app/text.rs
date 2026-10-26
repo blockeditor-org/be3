@@ -218,7 +218,7 @@ pub(crate) fn EntityText(
         caret: theme.accent.get(),
         placeholder: with_opacity(color.get(), PLACEHOLDER_OPACITY),
         syntax: SyntaxColors::uniform(color.get()),
-        ..TextAreaColors::DEFAULT
+        ..text_area_colors(&theme.get())
     });
     let marker = RenderFn::new(|marker: TextMarker| {
         view! {
