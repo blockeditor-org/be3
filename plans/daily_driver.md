@@ -153,8 +153,10 @@ is left is marked below.
 
 ### Connection
 
-- Done: a request timeout, and a connect timeout so `be::stop` never hangs.
-- Done: client pings every ~15 s; a missing pong marks the connection lost.
+- Done: a connect timeout so `be::stop` never hangs. Requests have no timeout
+  of their own: an unanswered ping closes the connection and fails them.
+- Done: client pings every ~15 s; a pong missing `PONG_WAIT` after the ping was
+  written marks the connection lost, so a suspended process keeps a live one.
   The server answers pings out of order, so a slow request does not delay
   them, and the client reads waiting frames before judging silence.
 - Done: reconnect with exponential backoff and jitter, plus an immediate retry

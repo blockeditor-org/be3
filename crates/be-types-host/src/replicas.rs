@@ -6,7 +6,7 @@ use std::{
 
 use wasi_threads::Mutex;
 
-use be_client::{ClientError, Peer, Saved, Sealed, connection::Answer};
+use be_client::{ClientError, Peer, Reconciled, Saved, Sealed, connection::Answer};
 use be_commit::CommitId;
 use be_graph::BlockParent;
 use be_protocol::{ClientId, ServerMessage, SessionState};
@@ -55,7 +55,7 @@ fn joining_session(head: Option<CommitId>) -> SessionState {
     }
 }
 
-type Joined = Result<(ClientId, SessionState, Option<CommitId>), ClientError>;
+type Joined = Result<(ClientId, SessionState, Option<CommitId>, Option<CommitId>), ClientError>;
 
 type Pending<T> = std::pin::Pin<Box<dyn Future<Output = T>>>;
 
@@ -439,13 +439,13 @@ impl<H: Host> Replicas<H> {
                     let (client, session) = peer.join_session(block).await?;
                     peer.watch(block).await?;
                     let head = peer.remote_head(block).await?;
-                    Ok((client, session, head))
+                    Ok((client, session, head, ahead(&peer, block)))
                 }
             });
             let waited = self.modules.clock().sleep(EARLY_OPEN);
             match futures_util::future::select(joining, waited).await {
                 futures_util::future::Either::Left((joined, _)) => {
-                    joined.map(|(client, session, head)| (client, session, head, false))
+                    joined.map(|(client, session, head, _)| (client, session, head, false))
                 }
                 futures_util::future::Either::Right((_, joining)) => {
                     let head = known_head_of(peer, block);
@@ -503,6 +503,11 @@ impl<H: Host> Replicas<H> {
                 return;
             }
         };
+        let remote = head;
+        let head = match offline {
+            true => head,
+            false => ahead(peer, block).or(head),
+        };
         let Some(replica) = self.start(peer, block, content_type, reader, client, session, head)
         else {
             return;
@@ -510,12 +515,15 @@ impl<H: Host> Replicas<H> {
         if let Some(open) = self.open.get_mut(&replica) {
             open.made_up = offline;
         }
-        let current = H::known_head(shared, block);
-        if let Some(current) = current
-            && Some(current) != head
-            && !offline
-        {
-            self.moved(replica, current, false);
+        if offline {
+            return;
+        }
+        let mut heads = vec![remote, H::known_head(shared, block)];
+        heads.dedup();
+        for moved in heads.into_iter().flatten() {
+            if Some(moved) != head {
+                self.moved(replica, moved, false);
+            }
         }
     }
 
@@ -616,7 +624,7 @@ impl<H: Host> Replicas<H> {
             return;
         }
         let block = open.block;
-        let (client, session, head) = match joined {
+        let (client, session, head, ahead) = match joined {
             Ok(joined) => joined,
             Err(error) if unreachable(&error) => return,
             Err(error) => {
@@ -642,7 +650,7 @@ impl<H: Host> Replicas<H> {
                 _ => true,
             })
             .collect();
-        let from = match edited {
+        let from = match edited || ahead.is_some() {
             true => open.status.head,
             false => head,
         };
@@ -1021,7 +1029,6 @@ impl<H: Host> Replicas<H> {
         &mut self,
         (peer, shared): Ctx<'_, H>,
         block: Uuid,
-        local: CommitId,
         remote: Option<CommitId>,
     ) -> Result<Option<CommitId>, ClientError> {
         let Some(content_type) = peer
@@ -1032,14 +1039,9 @@ impl<H: Host> Replicas<H> {
         };
         let mut remote = remote;
         for _ in 0..4 {
-            let Some(theirs) = remote else {
-                return Ok(None);
-            };
-            peer.fetch_history(theirs).await?;
-            let be_session::Resume::Merge { base, ours, theirs } =
-                be_session::resume(peer.commits(), Some(local), Some(theirs))?
-            else {
-                return Ok(None);
+            let (base, ours, theirs) = match peer.reconcile(block, remote).await? {
+                Reconciled::Done => return Ok(peer.known_remote_head(block)),
+                Reconciled::Merge { base, ours, theirs } => (base, ours, theirs),
             };
             let mut sides = Vec::new();
             for commit in [base, Some(ours), Some(theirs)] {
@@ -1091,7 +1093,7 @@ impl<H: Host> Replicas<H> {
                             },
                         );
                     }
-                    return Ok(Some(head));
+                    remote = Some(head);
                 }
                 Saved::Rejected { head } => remote = head,
             }
@@ -1733,11 +1735,22 @@ impl<H: Host> Replicas<H> {
                 if !peer.is_attached() || made_up {
                     return false;
                 }
-                if let Err(error) = peer.heartbeat(block, generation, clean_at).await
-                    && !unreachable(&error)
-                {
-                    H::record(shared, error);
-                }
+                let answer = match peer.heartbeat(block, generation, clean_at) {
+                    Ok(answer) => answer,
+                    Err(error) if unreachable(&error) => return false,
+                    Err(error) => {
+                        H::record(shared, error);
+                        return false;
+                    }
+                };
+                let shared = Arc::clone(shared);
+                H::spawn(async move {
+                    if let Err(error) = answer.await
+                        && !unreachable(&error)
+                    {
+                        H::record(&shared, error);
+                    }
+                });
                 false
             }
             Call::ReportStatus { status } => {
@@ -1880,6 +1893,13 @@ async fn commit<H: Host>(
         }
         Err(error) if unreachable(&error) => Ok(Saved::Unchanged(commit)),
         saved => saved,
+    }
+}
+
+fn ahead<S: be_store::ObjectStore>(peer: &Peer<S>, block: Uuid) -> Option<CommitId> {
+    match peer.pending_commits(block).is_empty() {
+        true => None,
+        false => peer.local_head(block),
     }
 }
 

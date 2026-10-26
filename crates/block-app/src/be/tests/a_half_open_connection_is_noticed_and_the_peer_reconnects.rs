@@ -1,5 +1,3 @@
-use be_client::connection::{PING_INTERVAL, PONG_WAIT};
-
 use super::*;
 
 #[test]
@@ -14,7 +12,7 @@ fn a_half_open_connection_is_noticed_and_the_peer_reconnects() {
     flush();
 
     harness.relay().stall();
-    harness.clock.advance(PING_INTERVAL + PONG_WAIT);
+    harness.miss_a_ping();
     wait_until("noticed the connection went quiet", |shared| {
         !shared.connected
     });

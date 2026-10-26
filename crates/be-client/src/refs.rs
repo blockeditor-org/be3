@@ -157,7 +157,7 @@ impl RefsDb {
 
     pub(crate) fn scope(&self, scope: Scope) -> Result<Refs, StoreError> {
         let rows = self.backend.load(&scope)?;
-        let state = State::load(rows)?;
+        let state = State::load(rows);
         Ok(Refs {
             backend: Arc::clone(&self.backend),
             scope,
@@ -275,47 +275,49 @@ struct State {
 }
 
 impl State {
-    fn load(rows: Vec<Row>) -> Result<Self, StoreError> {
+    fn load(rows: Vec<Row>) -> Self {
         let mut state = Self::default();
         for row in rows {
-            let Some(value) = row.value else { continue };
-            match row.table {
-                Table::Session => state.session = Some(decode(&value)?),
-                Table::Head => {
-                    state.heads.insert(uuid_key(&row.key)?, decode(&value)?);
-                }
-                Table::Remote => {
-                    state.remotes.insert(uuid_key(&row.key)?, decode(&value)?);
-                }
-                Table::Listing => {
-                    state
-                        .listings
-                        .insert(decode_raw(&row.key)?, decode(&value)?);
-                }
-                Table::Key => {
-                    let key: KeyRow = decode(&value)?;
-                    state.keys.insert(key.id, key);
-                }
-                Table::Wrap => {
-                    let (sequence, wrap): (u64, WrappedKey) = decode(&value)?;
-                    state.next = state.next.max(sequence + 1);
-                    state
-                        .wraps
-                        .insert((wrap.key, wrap.wrapped_by), (sequence, wrap));
-                }
-                Table::Contacts => state.contacts = decode(&value)?,
-                Table::Outbox => {
-                    let sequence = sequence_key(&row.key)?;
-                    state.next = state.next.max(sequence + 1);
-                    state.outbox.insert(sequence, decode(&value)?);
-                }
-                Table::Unsent => {
-                    state.unsent.insert(uuid_key(&row.key)?, decode(&value)?);
-                }
-                Table::Workspaces => {}
-            }
+            let Some(value) = &row.value else { continue };
+            let _ = state.add(&row, value);
         }
-        Ok(state)
+        state
+    }
+
+    fn add(&mut self, row: &Row, value: &[u8]) -> Result<(), StoreError> {
+        match row.table {
+            Table::Session => self.session = Some(decode(value)?),
+            Table::Head => {
+                self.heads.insert(uuid_key(&row.key)?, decode(value)?);
+            }
+            Table::Remote => {
+                self.remotes.insert(uuid_key(&row.key)?, decode(value)?);
+            }
+            Table::Listing => {
+                self.listings.insert(decode_raw(&row.key)?, decode(value)?);
+            }
+            Table::Key => {
+                let key: KeyRow = decode(value)?;
+                self.keys.insert(key.id, key);
+            }
+            Table::Wrap => {
+                let (sequence, wrap): (u64, WrappedKey) = decode(value)?;
+                self.next = self.next.max(sequence + 1);
+                self.wraps
+                    .insert((wrap.key, wrap.wrapped_by), (sequence, wrap));
+            }
+            Table::Contacts => self.contacts = decode(value)?,
+            Table::Outbox => {
+                let sequence = sequence_key(&row.key)?;
+                self.next = self.next.max(sequence + 1);
+                self.outbox.insert(sequence, decode(value)?);
+            }
+            Table::Unsent => {
+                self.unsent.insert(uuid_key(&row.key)?, decode(value)?);
+            }
+            Table::Workspaces => {}
+        }
+        Ok(())
     }
 
     fn take(&mut self) -> u64 {
@@ -619,6 +621,32 @@ impl Refs {
         Ok(sequences)
     }
 
+    pub fn push_publish(&self, pending: Pending) -> Result<u64, StoreError> {
+        let (block, head) = (pending.block, pending.commit);
+        let op = Op::Publish(pending);
+        let (sequence, rows) = {
+            let mut state = self.state.lock().unwrap();
+            let sequence = state.take();
+            let rows = vec![
+                row(Table::Outbox, sequence.to_be_bytes().to_vec(), &op),
+                row(Table::Head, block.as_bytes().to_vec(), &head),
+            ];
+            state.outbox.insert(sequence, op);
+            state.heads.insert(block, head);
+            (sequence, rows)
+        };
+        self.write(rows)?;
+        Ok(sequence)
+    }
+
+    pub fn creating(&self, block: Uuid) -> bool {
+        let state = self.state.lock().unwrap();
+        state
+            .outbox
+            .values()
+            .any(|op| matches!(op, Op::Create(creation) if creation.block == block))
+    }
+
     pub fn outbox(&self) -> Vec<(u64, Op)> {
         let state = self.state.lock().unwrap();
         state
@@ -813,6 +841,32 @@ impl Refs {
             .iter()
             .map(|(block, unsent)| (*block, unsent.clone()))
             .collect()
+    }
+
+    pub fn restore_unsent(&self, block: Uuid) -> Result<bool, StoreError> {
+        let rows = {
+            let mut state = self.state.lock().unwrap();
+            let Some(unsent) = state.unsent.remove(&block) else {
+                return Ok(false);
+            };
+            let mut rows = vec![Row {
+                table: Table::Unsent,
+                key: block.as_bytes().to_vec(),
+                value: None,
+            }];
+            for op in unsent.ops {
+                let sequence = state.take();
+                rows.push(row(Table::Outbox, sequence.to_be_bytes().to_vec(), &op));
+                state.outbox.insert(sequence, op);
+            }
+            if let Some(head) = unsent.head {
+                rows.push(row(Table::Head, block.as_bytes().to_vec(), &head));
+                state.heads.insert(block, head);
+            }
+            rows
+        };
+        self.write(rows)?;
+        Ok(true)
     }
 
     pub fn take_unsent(&self, block: Uuid) -> Result<Option<Unsent>, StoreError> {

@@ -1,5 +1,5 @@
 use block_editor_beui::Editor;
-use block_editor_beui::be_block::{BlockContent, SettingsContent};
+use block_editor_beui::be_block::{self, BlockContent, SettingsContent};
 use block_editor_beui::beui::icons::{
     ICON_FILE_PLUS, ICON_INFO, ICON_LOG_OUT, ICON_MOVE_UP, ICON_PALETTE, ICON_PENCIL_LINE,
     ICON_ROTATE_CCW_CLOCK, ICON_SETTINGS, ICON_SHARE_2, ICON_TRASH, ICON_UNLINK, ICON_ZOOM_IN,
@@ -89,6 +89,17 @@ fn SectionMenu<F: Fn() + 'static>(
     let edit = create_memo(move || !row.get().is_some_and(|row| row.can_edit));
     let unshareable = create_memo(move || !row.get().is_some_and(|row| row.access.can_manage()));
     let deletable = create_memo(move || !row.get().is_some_and(|row| row.can_delete));
+    let my_files = be_block::my_files(editor.host().organization_id(), editor.host().account_id());
+    let offers_delete = create_memo(move || !row.get().is_some_and(|row| row.id == Some(my_files)));
+    let delete = move || {
+        if let Some(shown) = row.get_untracked()
+            && let Some(id) = shown.id
+        {
+            editor
+                .host()
+                .delete_block(id, shown.block_type, shown.source);
+        }
+    };
     let leavable = leavable(editor, row);
     let leave = move || {
         if let Some(id) = row.get_untracked().and_then(|row| row.id) {
@@ -107,9 +118,6 @@ fn SectionMenu<F: Fn() + 'static>(
             [1] => add_to_section(editor, picker, id, picker.row_anchor(&shown.key)),
             [2] => renaming.start(shown.key),
             [3] => editor.host().share_block(id),
-            [4] => editor
-                .host()
-                .delete_block(id, shown.block_type, shown.source),
             _ => {}
         }
     };
@@ -134,13 +142,16 @@ fn SectionMenu<F: Fn() + 'static>(
                 disabled={unshareable}
                 row_test_id={"file-tree.section.share".to_owned()}
             />
-            <MenuItem
-                label="Delete"
-                glyph=ICON_TRASH
-                disabled={deletable}
-                danger=true
-                row_test_id={"file-tree.section.delete".to_owned()}
-            />
+            <Show condition={offers_delete}>
+                <MenuItem
+                    label="Delete"
+                    glyph=ICON_TRASH
+                    disabled={deletable}
+                    danger=true
+                    row_test_id={"file-tree.section.delete".to_owned()}
+                    on_click={delete}
+                />
+            </Show>
             <Appearance editor picker row />
             <BlockSettings editor row row_test_id={"file-tree.section.settings".to_owned()} />
             <Show condition={leavable}>

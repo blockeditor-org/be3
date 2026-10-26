@@ -4,6 +4,7 @@ use std::{
         Arc,
         atomic::{AtomicU64, Ordering},
     },
+    task::Poll,
     time::Duration,
 };
 
@@ -19,7 +20,6 @@ use crate::{
 const EVENT_CAPACITY: usize = 4096;
 
 pub const CONNECT_TIMEOUT: Duration = Duration::from_secs(15);
-pub const REQUEST_TIMEOUT: Duration = Duration::from_secs(60);
 pub const PING_INTERVAL: Duration = Duration::from_secs(15);
 pub const PONG_WAIT: Duration = Duration::from_secs(20);
 
@@ -67,6 +67,7 @@ impl Connection {
                 commands: receiver,
                 events,
                 clock: clock.clone(),
+                opened: clock.now(),
             },
             closing,
         ));
@@ -193,6 +194,7 @@ struct Carried {
     commands: mpsc::UnboundedReceiver<Outbound>,
     events: broadcast::Sender<ServerMessage>,
     clock: Clock,
+    opened: Duration,
 }
 
 async fn worker(carried: Carried, closing: watch::Sender<bool>) {
@@ -213,15 +215,15 @@ async fn carry(
         mut commands,
         events,
         clock,
+        opened,
     }: Carried,
 ) {
-    let mut pending: HashMap<u64, (Duration, Reply)> = HashMap::new();
-    let mut heard = clock.now();
-    let mut pinged = false;
+    let mut pending: HashMap<u64, Reply> = HashMap::new();
+    let mut heard = opened;
+    let mut pinged: Option<Duration> = None;
+    let mut reading_first = false;
     loop {
-        let deadline = |written: Duration, heard: Duration| written.max(heard) + REQUEST_TIMEOUT;
-        pending.retain(|_, (_, reply)| !reply.is_closed());
-        if !pinged && clock.now() >= heard + PING_INTERVAL {
+        if pinged.is_none() && clock.now() >= heard + PING_INTERVAL {
             let Ok(ping) = encode(&ClientMessage::Ping {
                 request: PING_REQUEST,
             }) else {
@@ -230,56 +232,49 @@ async fn carry(
             if writer.send(ping).await.is_err() {
                 return;
             }
-            pinged = true;
+            pinged = Some(clock.now());
         }
-        let next = if pinged {
-            heard + PING_INTERVAL + PONG_WAIT
-        } else {
-            heard + PING_INTERVAL
+        let next = match pinged {
+            Some(sent) => sent + PONG_WAIT,
+            None => heard + PING_INTERVAL,
         };
-        let next = pending
-            .values()
-            .map(|(written, _)| deadline(*written, heard))
-            .fold(next, Duration::min);
         let woke = {
-            let command = std::pin::pin!(commands.recv());
-            let frame = std::pin::pin!(reader.next());
-            let timer = clock.sleep_until(next);
-            match select(select(command, frame), timer).await {
-                Either::Left((Either::Left((command, _)), _)) => Woke::Command(command),
-                Either::Left((Either::Right((frame, _)), _)) => Woke::Frame(frame),
-                Either::Right(_) => Woke::Timer,
-            }
-        };
-        match woke {
-            Woke::Timer => {
-                let now = clock.now();
-                let expired: Vec<u64> = pending
-                    .iter()
-                    .filter(|(_, (written, _))| deadline(*written, heard) <= now)
-                    .map(|(request, _)| *request)
-                    .collect();
-                for request in expired {
-                    if let Some((_, reply)) = pending.remove(&request) {
-                        let _ = reply.send(Err(ClientError::TimedOut("a request to the server")));
+            let mut frame = std::pin::pin!(reader.next());
+            let mut timer = std::pin::pin!(clock.sleep_until(next));
+            std::future::poll_fn(|context| {
+                for reading in [reading_first, !reading_first] {
+                    if reading {
+                        if let Poll::Ready(frame) = frame.as_mut().poll(context) {
+                            return Poll::Ready(Woke::Frame(frame));
+                        }
+                    } else if let Poll::Ready(command) = commands.poll_recv(context) {
+                        return Poll::Ready(Woke::Command(command));
                     }
                 }
-                if now >= heard + PING_INTERVAL + PONG_WAIT {
+                timer.as_mut().poll(context).map(|()| Woke::Timer)
+            })
+            .await
+        };
+        reading_first = matches!(woke, Woke::Command(_));
+        match woke {
+            Woke::Timer => {
+                if pinged.is_some_and(|sent| clock.now() >= sent + PONG_WAIT) {
                     return;
                 }
             }
             Woke::Command(None) => return,
             Woke::Command(Some(command)) => {
-                let started = clock.now();
-                pending.insert(command.request, (started, command.reply));
+                if command.reply.is_closed() {
+                    continue;
+                }
+                pending.insert(command.request, command.reply);
                 if writer.send(command.bytes).await.is_err() {
                     return;
                 }
-                heard += clock.now().saturating_sub(started);
             }
             Woke::Frame(frame) => {
                 heard = clock.now();
-                pinged = false;
+                pinged = None;
                 match frame {
                     Some(Frame::Binary(bytes)) => {
                         let Ok(message) = decode::<ServerMessage>(&bytes) else {
@@ -292,7 +287,7 @@ async fn carry(
                             .request()
                             .and_then(|request| pending.remove(&request))
                         {
-                            Some((_, reply)) => {
+                            Some(reply) => {
                                 let _ = reply.send(Ok(message));
                             }
                             None => {

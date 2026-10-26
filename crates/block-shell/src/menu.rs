@@ -1,4 +1,4 @@
-use block_editor_beui::be_block::{BlockContent, SettingsContent};
+use block_editor_beui::be_block::{self, BlockContent, SettingsContent};
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::unstyled::MenuItem;
 use block_editor_beui::block_ui::BlockTypes;
@@ -28,6 +28,7 @@ pub(crate) struct Permissions {
     pub(crate) share: bool,
     pub(crate) settings: bool,
     pub(crate) delete: bool,
+    pub(crate) offers_delete: bool,
     pub(crate) unlink: Result<(), &'static str>,
     pub(crate) is_reference: bool,
     pub(crate) source: Option<BlockParent>,
@@ -41,9 +42,9 @@ pub(crate) fn action_for(path: &[usize]) -> Option<Action> {
         [3] => Some(Action::Rename),
         [4] => Some(Action::Share),
         [5] => Some(Action::Unlink),
-        [6] => Some(Action::Delete),
-        [7] => Some(Action::Restore),
-        [8] => Some(Action::Settings),
+        [6] => Some(Action::Restore),
+        [7] => Some(Action::Settings),
+        [8] => Some(Action::Delete),
         _ => None,
     }
 }
@@ -89,15 +90,21 @@ pub(crate) fn permissions(
     let is_reference =
         containing.is_some_and(|id| reference.parent != Some(BlockParent::Block(id)));
     let types = workspace.types();
+    let host = workspace.host();
+    let offers_delete = is_reference
+        || reference.id != be_block::my_files(host.organization_id(), host.account_id());
     Permissions {
         add: types.child_edits(reference.block_type).add && can_edit,
         edit: can_edit,
         share: workspace.can_manage(reference.id),
         settings: workspace.can_manage(reference.id)
             || workspace.editor().settings_block(reference.id).is_some(),
-        delete: source.is_some_and(|source| {
-            source != BlockParent::Detached && can_delete_from(workspace, source)
-        }) && (is_reference || can_edit),
+        delete: offers_delete
+            && source.is_some_and(|source| {
+                source != BlockParent::Detached && can_delete_from(workspace, source)
+            })
+            && (is_reference || can_edit),
+        offers_delete,
         unlink: unlink_permission(workspace, containing),
         is_reference,
         source,
@@ -183,6 +190,7 @@ pub(crate) fn ReferenceMenuItem(
                     permissions.is_reference,
                     !permissions.share,
                     !permissions.settings,
+                    permissions.offers_delete,
                 )
             })
         })
@@ -193,6 +201,7 @@ pub(crate) fn ReferenceMenuItem(
     let unlink = create_memo(move || rights.get().is_none_or(|rights| rights.3));
     let share = create_memo(move || rights.get().is_none_or(|rights| rights.6));
     let settings = create_memo(move || rights.get().is_none_or(|rights| rights.7));
+    let offers_delete = create_memo(move || rights.get().is_none_or(|rights| rights.8));
     let files = create_memo(move || workspace.my_files());
     let rooted = create_memo(move || {
         let files = files.get();
@@ -237,9 +246,11 @@ pub(crate) fn ReferenceMenuItem(
             <MenuItem label="Rename" disabled={edit} />
             <MenuItem label="Share" disabled={share} />
             <MenuItem label="Unlink" disabled={unlink} />
-            <MenuItem label={delete_label} disabled={delete} />
             <MenuItem label="Restore" disabled={restore} />
             <MenuItem label="Settings" disabled={settings} />
+            <Show condition={offers_delete}>
+                <MenuItem label={delete_label} disabled={delete} />
+            </Show>
         </MenuItem>
     }
 }

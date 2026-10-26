@@ -92,6 +92,7 @@ fn DetailsBody(workspace: Workspace, tab: TabId) -> NodeId {
                     allowed.is_reference && allowed.unlink.is_ok(),
                     allowed.is_reference,
                     allowed.share,
+                    allowed.offers_delete,
                 ))
             })
         })
@@ -99,6 +100,7 @@ fn DetailsBody(workspace: Workspace, tab: TabId) -> NodeId {
     let rename_off = create_memo(move || !rights.get().is_some_and(|r| r.0));
     let delete_off = create_memo(move || !rights.get().is_some_and(|r| r.1));
     let share_off = create_memo(move || !rights.get().is_some_and(|r| r.4));
+    let offers_delete = create_memo(move || rights.get().is_none_or(|r| r.5));
     let unlinkable = create_memo(move || rights.get().is_some_and(|r| r.2));
     let delete_label = create_memo(move || match rights.get().is_some_and(|r| r.3) {
         true => "Remove link".to_owned(),
@@ -178,14 +180,16 @@ fn DetailsBody(workspace: Workspace, tab: TabId) -> NodeId {
                         on_click={move || act(Action::Unlink)}
                     />
                 </Show>
-                <ActionRow
-                    @test_id={"workspace.details.delete"}
-                    label={delete_label}
-                    glyph=ICON_TRASH
-                    disabled={delete_off}
-                    danger=true
-                    on_click={move || act(Action::Delete)}
-                />
+                <Show condition={offers_delete}>
+                    <ActionRow
+                        @test_id={"workspace.details.delete"}
+                        label={delete_label}
+                        glyph=ICON_TRASH
+                        disabled={delete_off}
+                        danger=true
+                        on_click={move || act(Action::Delete)}
+                    />
+                </Show>
                 <RelatedBlocks
                     workspace={workspace}
                     title="References"

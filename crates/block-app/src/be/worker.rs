@@ -30,6 +30,7 @@ use uploads::Uploads;
 
 const RECONNECT_FIRST: Duration = Duration::from_millis(500);
 const RECONNECT_MOST: Duration = Duration::from_secs(30);
+pub(super) const OUTBOX_RETRY: Duration = Duration::from_secs(30);
 
 pub(super) fn reconnect_delay(failures: u32, jitter: f64) -> Duration {
     let ceiling = RECONNECT_FIRST
@@ -459,6 +460,7 @@ pub(super) async fn serve<S: Fn() -> Result<Store, String>>(
             versions: Versions::default(),
             line: Line::down(&config, 0, Duration::ZERO),
             listed: tokio::sync::mpsc::unbounded_channel(),
+            drained_at: Duration::ZERO,
         };
         session.run(open).await;
         forget_what_is_not_kept(&peer);
@@ -650,6 +652,7 @@ struct Session<'a> {
         tokio::sync::mpsc::UnboundedSender<()>,
         UnboundedReceiver<()>,
     ),
+    drained_at: Duration,
 }
 
 impl Session<'_> {
@@ -690,7 +693,11 @@ impl Session<'_> {
                 report(peer, shared, false);
                 return;
             }
-            let wake_at = self.replicas.modules.wake_at();
+            let retry_at = self.retry_at();
+            let wake_at = match (self.replicas.modules.wake_at(), retry_at) {
+                (Some(module), Some(retry)) => Some(module.min(retry)),
+                (module, retry) => module.or(retry),
+            };
             let woken = {
                 let waited = std::pin::pin!(wait(
                     self.commands,
@@ -833,6 +840,14 @@ impl Session<'_> {
                 }
                 Woken::Listed => true,
             };
+            if self
+                .retry_at()
+                .is_some_and(|at| at <= self.config.clock.now())
+            {
+                self.drained_at = self.config.clock.now();
+                sync_outbox(peer, self.replicas, shared).await;
+                moved = true;
+            }
             moved |= pumped;
             moved |= self.replicas.pump((peer, shared)).await;
             rekey_changed(peer, self.replicas, &mut keyed, shared).await;
@@ -869,6 +884,11 @@ impl Session<'_> {
         }
     }
 
+    fn retry_at(&self) -> Option<Duration> {
+        (self.line.is_up() && self.peer.pending().operations > 0)
+            .then(|| self.drained_at + OUTBOX_RETRY)
+    }
+
     fn failures(&self) -> u32 {
         match self.line {
             Line::Down { failures, .. } => failures,
@@ -903,6 +923,7 @@ impl Session<'_> {
         }
         self.changed.notify_all();
         crate::host::wake();
+        self.drained_at = self.config.clock.now();
         sync_outbox(peer, self.replicas, shared).await;
         want_open(shared, &self.wanted.blocks());
         relist(shared);
@@ -955,14 +976,9 @@ async fn sync_outbox(
         Ok(drained) => {
             for outcome in drained {
                 match outcome {
-                    be_client::Drained::Diverged {
-                        block,
-                        local,
-                        remote,
-                    } => {
-                        if let Err(error) = replicas
-                            .merge_diverged((peer, shared), block, local, remote)
-                            .await
+                    be_client::Drained::Diverged { block, remote, .. } => {
+                        if let Err(error) =
+                            replicas.merge_diverged((peer, shared), block, remote).await
                         {
                             record(shared, error);
                         }
@@ -974,6 +990,11 @@ async fn sync_outbox(
                             format!("a change made offline to block {block} was refused"),
                         ),
                     ),
+                    be_client::Drained::Failed { block } => {
+                        shared.lock().unwrap_or_else(PoisonError::into_inner).error = Some(
+                            format!("a change made offline to block {block} could not be sent yet"),
+                        );
+                    }
                     _ => {}
                 }
             }
@@ -1687,6 +1708,9 @@ async fn apply(
                 true => peer.restore_unsent(block),
                 false => peer.discard_unsent(block),
             };
+            if restore && peer.is_attached() {
+                sync_outbox(peer, replicas, shared).await;
+            }
             let mut held = shared.lock().unwrap_or_else(PoisonError::into_inner);
             if let Err(error) = done {
                 held.error = Some(error.to_string());
