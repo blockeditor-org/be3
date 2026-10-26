@@ -122,6 +122,32 @@ impl View {
     }
 }
 
+#[derive(Clone, Copy, Default, PartialEq, Debug)]
+pub struct Body {
+    pub position: Vec3,
+    pub yaw: f32,
+}
+
+impl Body {
+    pub fn rotation(&self) -> Quat {
+        Quat::from_rotation_y(-self.yaw)
+    }
+
+    pub fn place(&self, position: Vec3, rotation: Quat) -> (Vec3, Quat) {
+        (
+            self.position + self.rotation() * position,
+            self.rotation() * rotation,
+        )
+    }
+
+    pub fn moved(&self, pivot: Vec3, turn: f32, step: Vec3) -> Self {
+        Self {
+            position: pivot + Quat::from_rotation_y(-turn) * (self.position - pivot) + step,
+            yaw: self.yaw + turn,
+        }
+    }
+}
+
 #[derive(Clone, PartialEq, Debug)]
 pub struct Views {
     pub display_time: Instant,
@@ -129,6 +155,13 @@ pub struct Views {
 }
 
 impl Views {
+    pub fn placed(mut self, body: &Body) -> Self {
+        for view in &mut self.views {
+            (view.position, view.rotation) = body.place(view.position, view.rotation);
+        }
+        self
+    }
+
     pub fn centre(&self) -> Option<(Vec3, Quat)> {
         let first = self.views.first()?;
         let mut position = Vec3::ZERO;

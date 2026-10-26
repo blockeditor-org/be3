@@ -1,9 +1,9 @@
 use std::ffi::CStr;
-use std::time::Instant;
+use std::time::{Duration, Instant};
 
 use beui_renderer_wgpu::present::OpenDevice;
 
-use crate::{Frame, Target};
+use crate::{Frame, Target, View};
 
 #[derive(Clone)]
 pub struct Xr(());
@@ -29,6 +29,8 @@ impl Xr {
     }
 }
 
+pub const RETRY: Duration = Duration::from_secs(2);
+
 pub struct Headset(());
 
 impl Headset {
@@ -46,6 +48,18 @@ impl Headset {
 
     pub fn lost(&self) -> bool {
         true
+    }
+
+    pub fn returns(&self) -> bool {
+        false
+    }
+
+    pub fn reopen(&mut self, _device: &wgpu::Device) -> bool {
+        false
+    }
+
+    pub fn relocate(&mut self) -> Option<Vec<View>> {
+        None
     }
 
     pub fn pace(&mut self) -> Option<Instant> {

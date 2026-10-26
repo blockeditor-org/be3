@@ -21,7 +21,7 @@ use glam::{Mat4, Quat, Vec3};
 use crate::carry::{Carry, NEAREST};
 use crate::chrome::{self, Chrome, Corner, Gesture, Look, Part};
 use crate::cursor::{self, Sprite};
-use crate::head::{Head, Ray, View, Views};
+use crate::head::{Body, Head, Ray, TURN_PER_PIXEL, View, Views};
 use crate::hold::Hold;
 use crate::laser::{self, Ending, Laser};
 use crate::panel::{Hit, Panel, Pose, pick};
@@ -130,7 +130,9 @@ struct Shown {
 
 pub struct Space {
     pub head: Head,
+    pub body: Body,
     tracked: Option<Views>,
+    raw: Option<Views>,
     pub panels: Vec<Panel>,
     pub mouse: Held,
     pub lasers: Vec<Laser>,
@@ -175,7 +177,9 @@ impl Space {
     pub fn new() -> Self {
         Self {
             head: Head::default(),
+            body: Body::default(),
             tracked: None,
+            raw: None,
             panels: Vec::new(),
             mouse: Held::default(),
             lasers: Vec::new(),
@@ -216,10 +220,27 @@ impl Space {
     }
 
     pub fn set_views(&mut self, views: Option<Views>) {
-        if let Some((position, rotation)) = views.as_ref().and_then(Views::centre) {
+        self.raw = views;
+        self.place_views();
+    }
+
+    fn place_views(&mut self) {
+        self.tracked = self.raw.clone().map(|views| views.placed(&self.body));
+        if let Some((position, rotation)) = self.tracked.as_ref().and_then(Views::centre) {
             self.head = Head::posed(position, rotation);
         }
-        self.tracked = views;
+    }
+
+    fn move_body(&mut self, turn: f32, step: Vec3) {
+        self.body = self.body.moved(self.head.position, turn, step);
+        self.place_views();
+    }
+
+    fn look(&mut self, motion: Vec2) {
+        match self.tracked {
+            None => self.head.look(motion),
+            Some(_) => self.move_body(motion.x * TURN_PER_PIXEL, Vec3::ZERO),
+        }
     }
 
     pub fn tracked(&self) -> Option<&Views> {
@@ -509,6 +530,12 @@ impl Space {
         let held = |key| f32::from(u8::from(self.walking.contains(&key)));
         let strafe = held(Key::D) - held(Key::A);
         let forward = held(Key::W) - held(Key::S);
+        if self.tracked.is_some() {
+            let mut walked = self.head;
+            walked.walk(strafe, forward, seconds);
+            self.move_body(0.0, walked.position - self.head.position);
+            return;
+        }
         self.head.walk(strafe, forward, seconds);
         self.head.tilt(held(Key::Q) - held(Key::E), seconds);
     }
@@ -549,7 +576,7 @@ impl Space {
             Input::Key(keystroke) => self.key(units, keystroke, out),
             Input::Modifiers(modifiers) => self.modifiers(units, modifiers, out),
             Input::PointerMotion(motion) if self.steering() => {
-                self.head.look(self.pixels(units, motion));
+                self.look(self.pixels(units, motion));
             }
             Input::PointerMotion(motion) if !self.app_locked => {
                 self.move_cursor(self.pixels(units, motion), out);
@@ -1703,6 +1730,11 @@ impl Space {
                     return;
                 };
                 let grip = laser::pose_of(grip).unwrap_or(aim);
+                let placed = |pose: Pose| {
+                    let (position, rotation) = self.body.place(pose.position, pose.rotation);
+                    Pose { position, rotation }
+                };
+                let (aim, grip) = (placed(aim), placed(grip));
                 self.laser_mut(hand).pose(aim, grip);
                 self.aim_laser(hand, out);
             }

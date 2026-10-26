@@ -1,5 +1,5 @@
 use std::error::Error;
-use std::ffi::CStr;
+use std::ffi::{CStr, CString};
 use std::sync::{Arc, Mutex, MutexGuard};
 use std::time::{Duration, Instant};
 
@@ -23,6 +23,7 @@ pub(crate) struct Shared {
     state: Mutex<State>,
     pub instance: xr::Instance,
     pub system: xr::SystemId,
+    pub application: CString,
     blend: xr::EnvironmentBlendMode,
     runtime: String,
     _loaded: Loaded,
@@ -31,7 +32,14 @@ pub(crate) struct Shared {
 #[derive(Default)]
 pub(crate) struct State {
     pub vulkan: Option<Vulkan>,
+    pub device: Option<Device>,
     pub session: Option<Session>,
+}
+
+#[derive(Clone, Copy)]
+pub(crate) struct Device {
+    pub raw: vk::Device,
+    pub family: u32,
 }
 
 impl Shared {
@@ -44,6 +52,7 @@ impl Shared {
 
 impl Xr {
     pub fn open(application: &str) -> Result<Self, String> {
+        let application = application_name(application);
         let loaded = runtime::load()?;
         let available = loaded
             .entry
@@ -68,7 +77,7 @@ impl Xr {
             .entry
             .create_instance(
                 &xr::ApplicationInfo {
-                    application_name: application,
+                    application_name: &application,
                     application_version: 0,
                     engine_name: "beui",
                     engine_version: 0,
@@ -101,6 +110,7 @@ impl Xr {
             state: Mutex::default(),
             instance,
             system,
+            application: CString::new(application).unwrap_or_default(),
             blend,
             runtime,
             _loaded: loaded,
@@ -124,7 +134,19 @@ impl Xr {
             events: xr::EventDataBuffer::new(),
             anchor: None,
             display: None,
+            tried: None,
         }
+    }
+}
+
+fn application_name(name: &str) -> String {
+    let mut name: String = name.chars().filter(|c| *c != '\0').collect();
+    while name.len() >= xr::sys::MAX_APPLICATION_NAME_SIZE {
+        name.pop();
+    }
+    match name.is_empty() {
+        true => "beui".to_owned(),
+        false => name,
     }
 }
 
@@ -134,8 +156,10 @@ pub(crate) struct Session {
     stream: xr::FrameStream<xr::Vulkan>,
     space: xr::Space,
     controllers: Option<Controllers>,
+    system: xr::SystemId,
     running: bool,
     lost: bool,
+    returns: bool,
     waited: Option<xr::FrameState>,
     begun: Option<Begun>,
     swapchains: Vec<Swapchain>,
@@ -157,6 +181,7 @@ struct Swapchain {
 impl Session {
     pub fn new(
         instance: &xr::Instance,
+        system: xr::SystemId,
         session: xr::Session<xr::Vulkan>,
         waiter: xr::FrameWaiter,
         stream: xr::FrameStream<xr::Vulkan>,
@@ -192,13 +217,21 @@ impl Session {
             waiter,
             stream,
             space,
+            system,
             running: false,
             lost: false,
+            returns: false,
             waited: None,
             begun: None,
             swapchains: Vec::new(),
             shown: 0,
         })
+    }
+
+    fn lose(&mut self, returns: bool) {
+        self.running = false;
+        self.lost = true;
+        self.returns = returns;
     }
 
     fn end_unsubmitted(&mut self, blend: xr::EnvironmentBlendMode) {
@@ -224,7 +257,10 @@ pub struct Headset {
     events: xr::EventDataBuffer,
     anchor: Option<(xr::Time, Instant)>,
     display: Option<Instant>,
+    tried: Option<Instant>,
 }
+
+pub const RETRY: Duration = Duration::from_secs(2);
 
 impl Headset {
     pub fn runtime(&self) -> &str {
@@ -258,6 +294,54 @@ impl Headset {
             .is_some_and(|session| session.lost)
     }
 
+    pub fn returns(&self) -> bool {
+        self.xr
+            .0
+            .state()
+            .session
+            .as_ref()
+            .is_some_and(|session| session.lost && session.returns)
+    }
+
+    pub fn reopen(&mut self, device: &wgpu::Device) -> bool {
+        if !self.returns()
+            || self
+                .tried
+                .is_some_and(|tried| tried.elapsed() < RETRY)
+        {
+            return false;
+        }
+        self.tried = Some(Instant::now());
+        let xr = self.xr.clone();
+        let shared = &xr.0;
+        let Ok(system) = shared.instance.system(xr::FormFactor::HEAD_MOUNTED_DISPLAY) else {
+            return false;
+        };
+        let _ = device.poll(wgpu::PollType::Wait {
+            submission_index: None,
+            timeout: None,
+        });
+        let mut state = shared.state();
+        state.session = None;
+        let (Some(vulkan), Some(made)) = (&state.vulkan, state.device) else {
+            return false;
+        };
+        let (vk_instance, physical) = (vulkan.instance, vulkan.physical);
+        let opened = reopen(shared, system, vk_instance, physical, made);
+        match opened {
+            Ok(session) => {
+                state.session = Some(session);
+                self.anchor = None;
+                self.display = None;
+                true
+            }
+            Err(error) => {
+                eprintln!("beui-xr: the headset is back but its session did not start: {error}");
+                false
+            }
+        }
+    }
+
     fn poll(&mut self, session: &mut Session) {
         let instance = &self.xr.0.instance;
         loop {
@@ -266,7 +350,7 @@ impl Headset {
                 Ok(None) => break,
                 Err(error) => {
                     eprintln!("beui-xr: OpenXR events stopped: {error}");
-                    session.lost = true;
+                    session.lose(false);
                     break;
                 }
             };
@@ -281,16 +365,11 @@ impl Headset {
                         session.running = false;
                         session.waited = None;
                     }
-                    xr::SessionState::EXITING | xr::SessionState::LOSS_PENDING => {
-                        session.running = false;
-                        session.lost = true;
-                    }
+                    xr::SessionState::EXITING => session.lose(false),
+                    xr::SessionState::LOSS_PENDING => session.lose(true),
                     _ => {}
                 },
-                xr::Event::InstanceLossPending(_) => {
-                    session.running = false;
-                    session.lost = true;
-                }
+                xr::Event::InstanceLossPending(_) => session.lose(false),
                 _ => {}
             }
         }
@@ -311,7 +390,7 @@ impl Headset {
                 Ok(frame) => frame,
                 Err(error) => {
                     eprintln!("beui-xr: waiting for the frame failed: {error}");
-                    session.lost = true;
+                    session.lose(error != xr::sys::Result::ERROR_INSTANCE_LOST);
                     return None;
                 }
             },
@@ -367,6 +446,12 @@ impl Headset {
                 .unwrap_or_default(),
             false => Vec::new(),
         };
+        if views.len() != session.swapchains.len() && !session.swapchains.is_empty() {
+            let _ = session
+                .stream
+                .end(waited.predicted_display_time, xr.0.blend, &[]);
+            return None;
+        }
         if views.is_empty() || !self.swapchains(session, device) {
             let _ = session
                 .stream
@@ -382,31 +467,7 @@ impl Headset {
         };
         let frame = Frame {
             display,
-            views: views
-                .iter()
-                .zip(&session.swapchains)
-                .map(|(view, swapchain)| View {
-                    position: Vec3::new(
-                        view.pose.position.x,
-                        view.pose.position.y,
-                        view.pose.position.z,
-                    ),
-                    orientation: Quat::from_xyzw(
-                        view.pose.orientation.x,
-                        view.pose.orientation.y,
-                        view.pose.orientation.z,
-                        view.pose.orientation.w,
-                    )
-                    .normalize(),
-                    fov: Fov {
-                        left: view.fov.angle_left,
-                        right: view.fov.angle_right,
-                        up: view.fov.angle_up,
-                        down: view.fov.angle_down,
-                    },
-                    size: swapchain.size,
-                })
-                .collect(),
+            views: seen(&views, &session.swapchains),
             format: session.swapchains[0].format,
             controllers: match &mut session.controllers {
                 Some(controllers) => controllers.read(
@@ -424,6 +485,24 @@ impl Headset {
         Some(frame)
     }
 
+    pub fn relocate(&mut self) -> Option<Vec<View>> {
+        let xr = self.xr.clone();
+        let mut state = xr.0.state();
+        let session = state.session.as_mut()?;
+        let begun = session.begun.as_mut()?;
+        let (flags, views) = session
+            .session
+            .locate_views(VIEWS, begun.state.predicted_display_time, &session.space)
+            .ok()?;
+        if !flags.contains(xr::ViewStateFlags::ORIENTATION_VALID)
+            || views.len() != begun.views.len()
+        {
+            return None;
+        }
+        begun.views = views;
+        Some(seen(&begun.views, &session.swapchains))
+    }
+
     fn swapchains(&self, session: &mut Session, device: &wgpu::Device) -> bool {
         if !session.swapchains.is_empty() {
             return true;
@@ -435,7 +514,7 @@ impl Headset {
             }
             Err(error) => {
                 eprintln!("beui-xr: the swapchains were not made: {error}");
-                session.lost = true;
+                session.lose(false);
                 false
             }
         }
@@ -526,6 +605,63 @@ impl Headset {
     }
 }
 
+fn seen(views: &[xr::View], swapchains: &[Swapchain]) -> Vec<View> {
+    views
+        .iter()
+        .zip(swapchains)
+        .map(|(view, swapchain)| View {
+            position: Vec3::new(
+                view.pose.position.x,
+                view.pose.position.y,
+                view.pose.position.z,
+            ),
+            orientation: Quat::from_xyzw(
+                view.pose.orientation.x,
+                view.pose.orientation.y,
+                view.pose.orientation.z,
+                view.pose.orientation.w,
+            )
+            .normalize(),
+            fov: Fov {
+                left: view.fov.angle_left,
+                right: view.fov.angle_right,
+                up: view.fov.angle_up,
+                down: view.fov.angle_down,
+            },
+            size: swapchain.size,
+        })
+        .collect()
+}
+
+// unsafe(ffi)
+fn reopen(
+    shared: &Shared,
+    system: xr::SystemId,
+    vk_instance: vk::Instance,
+    physical: vk::PhysicalDevice,
+    device: Device,
+) -> Result<Session, Box<dyn Error>> {
+    shared.instance.graphics_requirements::<xr::Vulkan>(system)?;
+    let picked =
+        unsafe { shared.instance.vulkan_graphics_device(system, vk_instance.as_raw() as _) }?;
+    if vk::PhysicalDevice::from_raw(picked as u64) != physical {
+        return Err("it wants another GPU".into());
+    }
+    let (session, waiter, stream) = unsafe {
+        shared.instance.create_session::<xr::Vulkan>(
+            system,
+            &xr::vulkan::SessionCreateInfo {
+                instance: vk_instance.as_raw() as _,
+                physical_device: physical.as_raw() as _,
+                device: device.raw.as_raw() as _,
+                queue_family_index: device.family,
+                queue_index: 0,
+            },
+        )
+    }?;
+    Session::new(&shared.instance, system, session, waiter, stream)
+}
+
 const FORMATS: [(vk::Format, wgpu::TextureFormat); 4] = [
     (
         vk::Format::R8G8B8A8_SRGB,
@@ -552,7 +688,7 @@ fn create_swapchains(
         .ok_or("the OpenXR runtime offers no 8-bit RGBA swapchain")?;
     let views = shared
         .instance
-        .enumerate_view_configuration_views(shared.system, VIEWS)?;
+        .enumerate_view_configuration_views(session.system, VIEWS)?;
     let mut swapchains = Vec::new();
     for view in views {
         let size = (

@@ -37,19 +37,13 @@ compositor and compiled for Windows by `./scripts/verify`. What remains:
 - **Multiview.** Each eye is its own pass and swapchain; one pass with
   wgpu's `multiview_mask` and `@builtin(view_index)` into a two-layer
   swapchain would halve the draw calls.
-- **A hidden mirror.** The runner skips a frame while the platform window has
-  no size (`Renderers::physical`), so minimising the mirror stops the
-  headset's frames; a paced host should keep running then.
+- **A lost runtime.** A lost session comes back when the headset does, but a
+  lost instance (SteamVR quit) leaves the simulator for the rest of the run:
+  a new instance would start SteamVR again, so it needs a way to tell when
+  the runtime is back without one.
 - **Blocking.** `xrWaitFrame` blocks the main loop, which also runs plugins and
   the Wayland server; waiting on another thread and waking the loop would
   free it.
-- **Late poses.** The eyes are located when input begins, before the app's
-  frame; locating them again just before drawing would cut latency.
-- **A lost session** falls back to the simulator for the rest of the run;
-  nothing opens a new one when the runtime comes back.
-- **Body offset.** The simulator's Ctrl+Shift look and walk do nothing on a
-  headset; turning and walking (M10's snap turn and recenter) need an offset
-  between the tracking space and the world.
 
 ## M5. Keyboard panel
 

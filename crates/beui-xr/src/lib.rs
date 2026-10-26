@@ -15,10 +15,10 @@ mod runtime;
 mod unsupported;
 
 #[cfg(any(windows, target_os = "linux"))]
-pub use headset::{Headset, Xr};
+pub use headset::{Headset, RETRY, Xr};
 pub use host::{IDLE_POLL, XrSpace};
 #[cfg(not(any(windows, target_os = "linux")))]
-pub use unsupported::{Headset, Xr};
+pub use unsupported::{Headset, RETRY, Xr};
 
 #[derive(Clone, Copy, PartialEq, Debug)]
 pub struct Fov {

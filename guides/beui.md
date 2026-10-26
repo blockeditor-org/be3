@@ -3090,7 +3090,13 @@ all its 3D (`glam`) stays in the crate.
   an OpenXR headset through `crates/beui-xr`; with no runtime or no headset
   `beui::window`'s `open_xr` says why and space runs as the simulator, and a
   session the runtime ends later (`Headset::lost`) leaves the simulator's
-  head where the headset left it. `Xr::open` loads the runtime with the
+  head where the headset left it. A session lost with its instance still
+  there (`LOSS_PENDING`: the headset unplugged; `Headset::returns`) is
+  opened again on the same device once `xrGetSystem` finds the headset,
+  tried every `RETRY` (2 s, `Headset::reopen`); a lost instance (the runtime
+  quit) or `EXITING` is not, since a new instance would start SteamVR again.
+  `Xr::open` takes the app's name for the runtime's dashboard
+  (`RunOptions::app_id`, else the program's name). `Xr::open` loads the runtime with the
   `openxr` crate's `loaded` feature: the system's `openxr_loader` if there is
   one, else the active runtime's own library, found as the Khronos loader
   finds it (`XR_RUNTIME_JSON`, then `active_runtime.json` under the XDG
@@ -3116,7 +3122,9 @@ all its 3D (`glam`) stays in the crate.
   (`Renderer::set_vsync`, `AutoNoVsync`) and the host asks for the next
   frame at once. Input locates the eyes in a `LOCAL_FLOOR` space (`STAGE`,
   else `LOCAL` lowered by eye height) and hands them to `Space::set_views`;
-  the frame then draws them into each eye's swapchain image (imported with
+  just before drawing, the frame locates them again for the same display
+  time (`Headset::relocate`, which the projection layer then names) and
+  hands those over instead, then draws them into each eye's swapchain image (imported with
   `create_texture_from_hal`, one swapchain per eye, sRGB where offered),
   submits, releases the images and ends the frame with a projection layer.
   A frame begun and not submitted is ended empty at the next `pace`. While
@@ -3124,15 +3132,22 @@ all its 3D (`glam`) stays in the crate.
   The mouse and keyboard work exactly as in the simulator: the mirror window
   keeps the keyboard focus and the pointer, and the cursor's screen is the
   mirror, the centre eye at `FOV_Y`, which lies inside a headset's field, so
-  the cursor never strays into the periphery. Steering is the headset's: the
-  simulator's Ctrl+Shift look and walk are overwritten by the next frame's
-  pose. Controllers come from an action set (`controllers.rs`) attached when
+  the cursor never strays into the periphery. Tracked views are in the
+  tracking space, and `Space::body` (`head::Body { position, yaw }`) places
+  that space in the world (`Views::placed`, and each hand's poses through
+  `Body::place`); while views are tracked,
+  Ctrl+Shift steering moves the body instead of the head: mouse motion
+  across turns it about the eyes (motion up and down, and Q and E, do
+  nothing), and W, A, S and D walk it the way the head faces. The body stays
+  while the headset is away. The runner keeps framing a paced host while the
+  platform window has no size (minimised), at the window's last size and
+  unseen, so the headset's frames go on. Controllers come from an action set (`controllers.rs`) attached when
   the session starts: per hand, the aim and grip poses, trigger and squeeze,
   bound for the simple controller, Index, Touch, Vive and Windows Mixed
   Reality profiles, read at the predicted display time in the eyes' space
   and pushed into the frame's input as `Incoming::Controller` (see Lasers),
   with `Lost` once when a hand's aim stops being tracked.
-  pose. `beui-xr`'s test runs Monado's service with its null compositor on
+  `beui-xr`'s test runs Monado's service with its null compositor on
   lavapipe (`//buck/sysroot:amd64-xr`) and has it show frames.
 - Carry: on `WindowRequest::BeginMove` (for any window) the panel keeps its pose relative to the
   head, with the grabbed point on the cursor's ray at a fixed distance, so

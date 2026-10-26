@@ -33,7 +33,7 @@ pub fn run_with_renderers(
     app: impl App + 'static,
 ) -> Result<(), Box<dyn Error>> {
     let choice = from_environment(&mut options, NATIVE)?;
-    let xr = open_xr(choice.as_ref());
+    let xr = open_xr(choice.as_ref(), &application_name(&options));
     if let Some(xr) = &xr {
         for renderer in &mut renderers {
             let WindowRenderer::Wgpu { open_device } = renderer;
@@ -95,11 +95,22 @@ fn from_environment(
     Ok(None)
 }
 
-fn open_xr(choice: Option<&Choice>) -> Option<Xr> {
+fn application_name(options: &RunOptions) -> String {
+    options
+        .app_id
+        .clone()
+        .or_else(|| {
+            let program = std::env::current_exe().ok()?;
+            Some(program.file_stem()?.to_str()?.to_owned())
+        })
+        .unwrap_or_else(|| "beui".to_owned())
+}
+
+fn open_xr(choice: Option<&Choice>, application: &str) -> Option<Xr> {
     if !choice.is_some_and(|choice| choice.xr) {
         return None;
     }
-    match Xr::open("beui") {
+    match Xr::open(application) {
         Ok(xr) => {
             eprintln!("beui: showing space on {}", xr.runtime());
             Some(xr)

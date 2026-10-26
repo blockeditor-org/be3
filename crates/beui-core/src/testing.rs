@@ -39,7 +39,7 @@ impl Renderer for Screen {
     }
 
     fn physical(&self) -> Option<Vec2> {
-        Some(self.0)
+        (self.0.x > 0.0 && self.0.y > 0.0).then_some(self.0)
     }
 
     fn prepare(&mut self, output: &WindowOutput, _scale: f32, _background: Color32) -> bool {

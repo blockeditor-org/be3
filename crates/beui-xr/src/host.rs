@@ -8,7 +8,7 @@ use beui_core::geometry::vec2;
 use beui_core::runner::{HostView, Hosted, Incoming, WindowHost};
 use beui_renderer_wgpu::present::GpuSetup;
 
-use crate::{Frame, Headset};
+use crate::{Frame, Headset, RETRY};
 
 pub const IDLE_POLL: Duration = Duration::from_millis(100);
 
@@ -37,11 +37,10 @@ impl XrSpace {
         }
     }
 
-    fn views(frame: &Frame) -> Views {
+    fn views(display_time: Instant, views: &[crate::View]) -> Views {
         Views {
-            display_time: frame.display,
-            views: frame
-                .views
+            display_time,
+            views: views
                 .iter()
                 .map(|view| View {
                     position: view.position,
@@ -69,8 +68,12 @@ impl WindowHost for XrSpace {
         let paced = self.headset.pace();
         self.paced = paced.is_some();
         if self.headset.lost() && !std::mem::replace(&mut self.warned, true) {
+            let until = match self.headset.returns() {
+                true => " until the headset is back",
+                false => "",
+            };
             eprintln!(
-                "beui-xr: {} stopped; space goes on as the simulator",
+                "beui-xr: {} stopped; space goes on as the simulator{until}",
                 self.headset.runtime()
             );
         }
@@ -78,6 +81,12 @@ impl WindowHost for XrSpace {
     }
 
     fn input(&mut self, incoming: &mut Vec<Incoming>, view: &HostView) {
+        if let Some(gpu) = &self.gpu
+            && self.headset.reopen(&gpu.device)
+        {
+            eprintln!("beui-xr: the headset is back");
+            self.warned = false;
+        }
         self.frame = match (&self.gpu, self.paced) {
             (Some(gpu), true) => self.headset.begin(&gpu.device),
             _ => None,
@@ -85,7 +94,10 @@ impl WindowHost for XrSpace {
         if let Some(frame) = &self.frame {
             incoming.extend(frame.controllers.iter().copied().map(Incoming::Controller));
         }
-        let views = self.frame.as_ref().map(Self::views);
+                let views = self
+            .frame
+            .as_ref()
+            .map(|frame| Self::views(frame.display, &frame.views));
         if views.is_some() || self.space.tracked().is_some() {
             self.space.set_views(views);
         }
@@ -95,6 +107,10 @@ impl WindowHost for XrSpace {
     fn frame(&mut self, output: &FrameOutput, view: &HostView) -> Hosted {
         let mut hosted = self.space.frame(output, view);
         if let (Some(frame), Some(gpu)) = (self.frame.take(), &self.gpu) {
+            if let Some(views) = self.headset.relocate() {
+                self.space
+                    .set_views(Some(Self::views(frame.display, &views)));
+            }
             let commands = gpu
                 .device
                 .create_command_encoder(&wgpu::CommandEncoderDescriptor {
@@ -127,6 +143,8 @@ impl WindowHost for XrSpace {
             hosted.repaint_after = Duration::ZERO;
         } else if !self.headset.lost() {
             hosted.repaint_after = hosted.repaint_after.min(IDLE_POLL);
+        } else if self.headset.returns() {
+            hosted.repaint_after = hosted.repaint_after.min(RETRY);
         }
         hosted
     }

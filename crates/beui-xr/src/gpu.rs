@@ -6,7 +6,7 @@ use beui_renderer_wgpu::present::OpenGpu;
 use openxr as xr;
 use wgpu::hal::api::Vulkan as Api;
 
-use crate::headset::{Session, Xr};
+use crate::headset::{Device, Session, Xr};
 
 const LOWEST: u32 = vk::API_VERSION_1_1;
 const HIGHEST: u32 = vk::API_VERSION_1_3;
@@ -52,7 +52,7 @@ impl OpenGpu for Xr {
         let extensions = wgpu::hal::vulkan::Instance::desired_extensions(&entry, api, flags)?;
         let names: Vec<*const c_char> = extensions.iter().map(|name| name.as_ptr()).collect();
         let application = vk::ApplicationInfo::default()
-            .application_name(c"beui")
+            .application_name(&shared.application)
             .engine_name(c"beui")
             .api_version(api);
         let info = vk::InstanceCreateInfo::default()
@@ -166,7 +166,10 @@ impl OpenGpu for Xr {
             hal.device_from_raw(
                 ash_device,
                 Some(Box::new(move || {
-                    owner.0.state().session = None;
+                    let mut state = owner.0.state();
+                    state.session = None;
+                    state.device = None;
+                    drop(state);
                     destroyed.destroy_device(None);
                 })),
                 &enabled,
@@ -192,7 +195,19 @@ impl OpenGpu for Xr {
             )
         }
         .map_err(|error| format!("the OpenXR session did not start: {error}"))?;
-        shared.state().session = Some(Session::new(&shared.instance, session, waiter, stream)?);
+        let mut state = shared.state();
+        state.device = Some(Device {
+            raw: vk::Device::from_raw(raw as u64),
+            family,
+        });
+        state.session = Some(Session::new(
+            &shared.instance,
+            shared.system,
+            session,
+            waiter,
+            stream,
+        )?);
+        drop(state);
         Ok((device, queue))
     }
 }

@@ -193,6 +193,7 @@ pub struct Runner {
     output: Option<FrameOutput>,
     reports_screens: bool,
     paced: Option<Instant>,
+    last_physical: Option<Vec2>,
     exited: bool,
     failure: Option<String>,
 }
@@ -253,6 +254,7 @@ impl Runner {
             output: None,
             reports_screens: false,
             paced: None,
+            last_physical: None,
             exited: false,
             failure: None,
         }
@@ -503,11 +505,17 @@ impl Runner {
                 .set_preference_layer(crate::preferences::PreferenceSource::System, preferences);
         }
         let pixels_per_point = self.native;
-        let Some(physical) = renderers.physical() else {
+        let visible = renderers.physical();
+        let paced = match (visible, self.last_physical) {
+            (Some(_), _) | (None, Some(_)) => self.host.as_mut().and_then(|host| host.pace()),
+            (None, None) => None,
+        };
+        let Some(physical) = visible.or(self.last_physical.filter(|_| paced.is_some())) else {
             self.events.clear();
             self.intake.incoming.clear();
             return None;
         };
+        self.last_physical = Some(physical);
         self.context.set_pixels_per_point(pixels_per_point);
         let scale = self.context.pixels_per_point();
         let through = self
@@ -518,7 +526,6 @@ impl Runner {
             (true, Some(raster)) => raster * scale / self.native,
             _ => scale,
         };
-        let paced = self.host.as_mut().and_then(|host| host.pace());
         renderers.set_vsync(paced.is_none());
         let now = match paced {
             Some(at) if !self.context.clock_stopped() => {
@@ -591,7 +598,7 @@ impl Runner {
             None => {}
         }
         let events = next_batch(&mut self.events);
-        let seen = !self.occluded
+        let seen = (!self.occluded && visible.is_some())
             || self
                 .automation
                 .as_ref()
