@@ -967,7 +967,15 @@ does a `create_block` made offline (`refs::Op::Create`). `Peer::drain` publishes
 the outbox in order once attached and reports, per block, `Drained::Published`,
 `Created`, `Moved`, `Defined`, `Diverged { local, remote }` (left in the outbox for the replica host to
 merge: a publish whose parents include the local commit settles it), `Refused`
-(an operation the server turned down for another reason, dropped) or `Unsent`.
+(an operation the server turned down for another reason: a move or define is
+dropped, a create or publish is kept and the rest of that block waits for the
+next drain), `Failed` (any other error, kept likewise) or `Unsent`. A lost
+connection ends the drain. A rejected publish whose remote head, once its
+history is fetched, already contains the commit is settled rather than diverged.
+`Peer::reconcile(block, remote)` finishes a diverged block: it settles what the
+remote head contains, sends a waiting commit that builds on it (such as a merge
+whose publish was lost), and otherwise answers `Reconciled::Merge { base, ours,
+theirs }` for the replica host to merge.
 Graph operations queue the same way while detached: `set_parent` (moving and
 deleting) queues `refs::Op::Move` and `define` on a block with no content
 `Op::Define`, and both rewrite the cached summary so listings show the change
@@ -977,12 +985,17 @@ offline. Sharing, access lists, members, invites, agents, contacts and pairing
 need the server, and the worker answers them offline with "This needs a
 connection to the server".
 An outbox entry is settled once a published head descends from it. A block
-whose access is refused (on a publish, a create or `summary`), or whose summary
-arrives without edit access, moves its entries to the unsent area
+whose access is refused (on a publish, a create or `summary`; a drain refused
+`PermissionDenied` or `BlockNotFound` reads the summary again first, and only a
+move or define refused to someone who may still edit is dropped), or whose
+summary arrives without edit access, moves its entries to the unsent area
 (`Peer::unsent`, `restore_unsent`, `discard_unsent`); nothing there is ever
 deleted except by `discard_unsent`, and `UnsentBlock::offerable` says the cached
-summary allows editing again. `Peer::pending` counts outbox operations, local
-commits, their blocks and unsent blocks.
+summary allows editing again. `summary` of a block whose `Op::Create` still
+waits is not lost access. `Peer::pending` counts outbox operations, local
+commits, their blocks and unsent blocks. A sealed commit and its local head are
+written in one transaction (`Refs::push_publish`), as is a restore from the
+unsent area, and a refs record that no longer decodes is skipped on load.
 
 ### The graph mirror
 
@@ -1670,10 +1683,16 @@ head, `Resume` treats the local head as the remote one, and heartbeats, claims
 and relays are skipped. A publish whose connection dies after the commit was
 sealed keeps the commit the same way. On each connection the worker first
 drains the outbox (`Peer::drain`), merges every `Diverged` block with
-`Replicas::merge_diverged` (a three-way merge by the type module, published
+`Replicas::merge_diverged` (`Peer::reconcile`, then a three-way merge by the type module, published
 with the remote head expected and the local commit as an extra parent; a
 conflicted merge reaches `Host::conflict`), then reloads the graph and rejoins
-the open blocks, whose `Moved` to the merged head fast-forwards them. The wait
+the open blocks, whose `Moved` to the merged head fast-forwards them. It drains
+again after restoring unsent edits, and every `OUTBOX_RETRY` (30 s on the
+config clock) while connected with something still in the outbox. A block
+opened while connected with local commits still waiting opens from its local
+head and is then moved to the remote one, so its next publish builds on them.
+Heartbeats (`Peer::heartbeat` sends at once and returns the answer to await)
+are answered off the worker loop, like relays. The wait
 before each attempt doubles from 0.5 s to at most 30 s with each failure in a
 row, randomly shortened by up to half so that clients a server dropped together
 do not come back together (`reconnect_delay`), and starts over once a connection

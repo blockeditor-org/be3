@@ -24,7 +24,7 @@ use crate::{
     ClientError,
     connection::{Answer, Connection},
     keys::KeyBook,
-    refs::{Creation, Op, Pending, Refs, RefsDb, Scope, Session},
+    refs::{Creation, Pending, Refs, RefsDb, Scope, Session},
 };
 
 const CARRIED_BYTES: usize = be_protocol::MAX_FRAME_BYTES / 2;
@@ -141,6 +141,19 @@ pub enum Drained {
     Refused {
         block: Uuid,
         code: ErrorCode,
+    },
+    Failed {
+        block: Uuid,
+    },
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum Reconciled {
+    Done,
+    Merge {
+        base: Option<CommitId>,
+        ours: CommitId,
+        theirs: CommitId,
     },
 }
 
@@ -883,13 +896,14 @@ impl<S: ObjectStore> Peer<S> {
                 Some(summary) => Ok(self.refs.current(vec![summary]).remove(0)),
                 None => Err(error),
             },
-            Err(error) => {
-                if offline::lost_access(&error) {
+            Err(ClientError::Refused(code, message)) => {
+                if offline::lost_access(code) && !self.refs.creating(block) {
                     let _ = self.refs.lose_access(block);
                     let _ = self.move_to_unsent(block);
                 }
-                Err(error)
+                Err(ClientError::Refused(code, message))
             }
+            Err(error) => Err(error),
         }
     }
 
@@ -1421,7 +1435,8 @@ impl<S: ObjectStore> Peer<S> {
         references.extend(self.resolve(block, metadata.references()));
         let references = deduplicated(references);
         let encoded = metadata.encode();
-        if let Some(previous) = &previous
+        if extra_parents.is_empty()
+            && let Some(previous) = &previous
             && previous.manifest == manifest
             && previous.references == references
             && previous.metadata == encoded
@@ -1451,7 +1466,7 @@ impl<S: ObjectStore> Peer<S> {
         let id = self.commits.put(key, &commit)?;
         let sealed = self.commits.vault().seal(key, &metadata.encode())?;
         self.commits.vault().store().sync()?;
-        self.refs.push(Op::Publish(Pending {
+        self.refs.push_publish(Pending {
             block,
             commit: id,
             expected,
@@ -1461,8 +1476,7 @@ impl<S: ObjectStore> Peer<S> {
             pinned,
             references,
             metadata: sealed.clone(),
-        }))?;
-        self.refs.set_head(block, id)?;
+        })?;
         if !self.is_attached()
             && let Some(mut summary) = self.refs.summary(block)
         {
@@ -2079,25 +2093,25 @@ impl<S: ObjectStore> Peer<S> {
         }
     }
 
-    pub async fn heartbeat(
+    pub fn heartbeat(
         &self,
         block: Uuid,
         generation: u64,
         clean_at: Option<CommitId>,
-    ) -> Result<SessionState, ClientError> {
-        let response = self
-            .connection()
-            .request(|request| ClientMessage::Heartbeat {
-                request,
-                block,
-                generation,
-                clean_at,
-            })
-            .await?;
-        match response {
-            ServerMessage::Session { state, .. } => Ok(state),
-            _ => Err(ClientError::Unexpected),
-        }
+    ) -> Result<impl Future<Output = Result<SessionState, ClientError>> + Send + use<S>, ClientError>
+    {
+        let answer = self.connection().send(|request| ClientMessage::Heartbeat {
+            request,
+            block,
+            generation,
+            clean_at,
+        })?;
+        Ok(async move {
+            match answer.await? {
+                ServerMessage::Session { state, .. } => Ok(state),
+                _ => Err(ClientError::Unexpected),
+            }
+        })
     }
 
     pub async fn relay(

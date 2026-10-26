@@ -6,7 +6,7 @@ use be_protocol::{BlockSummary, ClientMessage, ErrorCode, Listing, ServerMessage
 use be_store::ObjectStore;
 use uuid::Uuid;
 
-use super::{Drained, Peer, Saved};
+use super::{Drained, Peer, Reconciled, Saved};
 use crate::{
     ClientError,
     refs::{Creation, Defining, Moving, Op, Pending, PendingCounts, UnsentBlock},
@@ -269,11 +269,24 @@ impl<S: ObjectStore> Peer<S> {
             if skip(block) || stopped.contains(&block) || !self.refs.holds(sequence) {
                 continue;
             }
-            let outcome = match op {
-                Op::Create(creation) => self.send_creation(sequence, creation).await?,
-                Op::Publish(pending) => self.drain_publish(sequence, pending).await?,
-                Op::Move(moving) => self.drain_move(sequence, moving).await?,
-                Op::Define(defining) => self.drain_define(sequence, defining).await?,
+            let sent = match op {
+                Op::Create(creation) => self.send_creation(sequence, creation).await,
+                Op::Publish(pending) => self.drain_publish(sequence, pending).await,
+                Op::Move(moving) => self.drain_move(sequence, moving).await,
+                Op::Define(defining) => self.drain_define(sequence, defining).await,
+            };
+            let outcome = match sent {
+                Ok(outcome) => outcome,
+                Err(error) if error.is_unreachable() && outcomes.is_empty() => return Err(error),
+                Err(error) if error.is_unreachable() => break,
+                Err(ClientError::Refused(code, _)) => {
+                    stopped.insert(block);
+                    Drained::Refused { block, code }
+                }
+                Err(_) => {
+                    stopped.insert(block);
+                    Drained::Failed { block }
+                }
             };
             match outcome {
                 Drained::Published { .. } => {
@@ -287,11 +300,95 @@ impl<S: ObjectStore> Peer<S> {
                 Drained::Created { .. }
                 | Drained::Moved { .. }
                 | Drained::Defined { .. }
-                | Drained::Refused { .. } => {}
+                | Drained::Refused { .. }
+                | Drained::Failed { .. } => {}
             }
             outcomes.push(outcome);
         }
         Ok(outcomes)
+    }
+
+    pub async fn reconcile(
+        &self,
+        block: Uuid,
+        remote: Option<CommitId>,
+    ) -> Result<Reconciled, ClientError> {
+        let mut remote = remote;
+        for _ in 0..4 {
+            if let Some(theirs) = remote {
+                self.fetch_history(theirs).await?;
+                self.settle_reached(block, theirs)?;
+            }
+            let waiting: Vec<(u64, Pending)> = self
+                .refs
+                .pending_for(block)
+                .into_iter()
+                .filter_map(|(sequence, op)| match op {
+                    Op::Publish(pending) => Some((sequence, pending)),
+                    _ => None,
+                })
+                .collect();
+            let Some((_, newest)) = waiting.last() else {
+                return Ok(Reconciled::Done);
+            };
+            let ours = match self.local_head(block) {
+                Some(local) if waiting.iter().any(|(_, pending)| pending.commit == local) => local,
+                _ => newest.commit,
+            };
+            if let Some(theirs) = remote
+                && !self.commits.is_ancestor(theirs, ours)?
+            {
+                let base = self.commits.common_ancestor(ours, theirs)?;
+                return Ok(Reconciled::Merge { base, ours, theirs });
+            }
+            let Some((sequence, pending)) = waiting
+                .iter()
+                .find(|(_, pending)| pending.expected == remote)
+            else {
+                return Ok(match remote {
+                    Some(theirs) => Reconciled::Merge {
+                        base: Some(theirs),
+                        ours,
+                        theirs,
+                    },
+                    None => Reconciled::Done,
+                });
+            };
+            match self.send_pending(pending).await? {
+                Saved::Published(head) | Saved::Unchanged(head) => {
+                    self.settle(*sequence, pending, head, true)?;
+                    remote = Some(head);
+                }
+                Saved::Rejected { head } => remote = head,
+            }
+        }
+        Err(ClientError::Contended)
+    }
+
+    fn settle_reached(&self, block: Uuid, head: CommitId) -> Result<(), ClientError> {
+        let waiting: Vec<(u64, CommitId)> = self
+            .refs
+            .pending_for(block)
+            .into_iter()
+            .filter_map(|(sequence, op)| match op {
+                Op::Publish(pending) => Some((sequence, pending.commit)),
+                _ => None,
+            })
+            .collect();
+        let targets: HashSet<CommitId> = waiting.iter().map(|(_, commit)| *commit).collect();
+        let reached = self.ancestors_among(head, &targets)?;
+        let settled: Vec<u64> = waiting
+            .iter()
+            .filter(|(_, commit)| reached.contains(commit))
+            .map(|(sequence, _)| *sequence)
+            .collect();
+        let local = self.local_head(block);
+        self.refs.remove(&settled)?;
+        self.refs.set_remote(block, head)?;
+        if local.is_none_or(|local| local == head || reached.contains(&local)) {
+            self.refs.set_head(block, head)?;
+        }
+        Ok(())
     }
 
     pub async fn drain_block(&self, block: Uuid) -> Result<Vec<Drained>, ClientError> {
@@ -328,7 +425,9 @@ impl<S: ObjectStore> Peer<S> {
                 self.refs.remove(&[sequence])?;
                 Ok(Drained::Created { block })
             }
-            Err(error) if lost_access(&error) => self.lose_access(block),
+            Err(ClientError::Refused(code, _)) if lost_access(code) => {
+                self.refused(sequence, block, code).await
+            }
             Err(error) => Err(error),
         }
     }
@@ -340,7 +439,9 @@ impl<S: ObjectStore> Peer<S> {
                 self.refs.remove(&[sequence])?;
                 Ok(Drained::Moved { block })
             }
-            Err(error) if lost_access(&error) => self.lose_access(block),
+            Err(ClientError::Refused(code, _)) if lost_access(code) => {
+                self.refused(sequence, block, code).await
+            }
             Err(ClientError::Refused(code, _)) => {
                 self.refs.remove(&[sequence])?;
                 Ok(Drained::Refused { block, code })
@@ -383,7 +484,9 @@ impl<S: ObjectStore> Peer<S> {
                     .await?;
                 Ok(Drained::Defined { block })
             }
-            Err(error) if lost_access(&error) => self.lose_access(block),
+            Err(ClientError::Refused(code, _)) if lost_access(code) => {
+                self.refused(sequence, block, code).await
+            }
             Err(ClientError::Refused(code, _)) => {
                 self.refs.remove(&[sequence])?;
                 Ok(Drained::Refused { block, code })
@@ -400,9 +503,7 @@ impl<S: ObjectStore> Peer<S> {
                 Ok(Drained::Published { block, head })
             }
             Ok(Saved::Rejected { head: Some(head) })
-                if self
-                    .ancestors_among(head, &HashSet::from([pending.commit]))?
-                    .contains(&pending.commit) =>
+                if self.contains(head, pending.commit).await? =>
             {
                 self.settle(sequence, &pending, head, false)?;
                 Ok(Drained::Published { block, head })
@@ -412,8 +513,58 @@ impl<S: ObjectStore> Peer<S> {
                 local: self.local_head(block).unwrap_or(pending.commit),
                 remote: head,
             }),
-            Err(error) if lost_access(&error) => self.lose_access(block),
+            Err(ClientError::Refused(code, _)) if lost_access(code) => {
+                self.refused(sequence, block, code).await
+            }
             Err(error) => Err(error),
+        }
+    }
+
+    async fn contains(&self, head: CommitId, commit: CommitId) -> Result<bool, ClientError> {
+        if head == commit {
+            return Ok(true);
+        }
+        self.fetch_history(head).await?;
+        Ok(self
+            .ancestors_among(head, &HashSet::from([commit]))?
+            .contains(&commit))
+    }
+
+    async fn refused(
+        &self,
+        sequence: u64,
+        block: Uuid,
+        code: ErrorCode,
+    ) -> Result<Drained, ClientError> {
+        let summary = match self.summary(block).await {
+            Ok(summary) => summary,
+            Err(ClientError::Refused(code, _)) if lost_access(code) => {
+                return self.lose_access(block);
+            }
+            Err(error) => return Err(error),
+        };
+        if !summary.access.can_edit() {
+            self.move_to_unsent(block)?;
+            return Ok(Drained::Unsent { block });
+        }
+        match self
+            .refs
+            .outbox()
+            .into_iter()
+            .find(|(held, _)| *held == sequence)
+        {
+            Some((_, Op::Create(_))) => {
+                self.refs.remove(&[sequence])?;
+                Ok(Drained::Created { block })
+            }
+            Some((_, Op::Move(_) | Op::Define(_))) => {
+                self.refs.remove(&[sequence])?;
+                Ok(Drained::Refused { block, code })
+            }
+            Some((_, Op::Publish(_))) | None => Err(ClientError::Refused(
+                code,
+                format!("block {block} refused a change this account may otherwise make"),
+            )),
         }
     }
 
@@ -471,16 +622,7 @@ impl<S: ObjectStore> Peer<S> {
     }
 
     pub fn restore_unsent(&self, block: Uuid) -> Result<bool, ClientError> {
-        let Some(unsent) = self.refs.take_unsent(block)? else {
-            return Ok(false);
-        };
-        for op in unsent.ops {
-            self.refs.push(op)?;
-        }
-        if let Some(head) = unsent.head {
-            self.refs.set_head(block, head)?;
-        }
-        Ok(true)
+        Ok(self.refs.restore_unsent(block)?)
     }
 
     pub fn discard_unsent(&self, block: Uuid) -> Result<bool, ClientError> {
@@ -492,9 +634,6 @@ pub(crate) fn unreachable(error: &ClientError) -> bool {
     error.is_unreachable()
 }
 
-pub(super) fn lost_access(error: &ClientError) -> bool {
-    matches!(
-        error,
-        ClientError::Refused(ErrorCode::PermissionDenied | ErrorCode::BlockNotFound, _)
-    )
+pub(super) fn lost_access(code: ErrorCode) -> bool {
+    matches!(code, ErrorCode::PermissionDenied | ErrorCode::BlockNotFound)
 }
