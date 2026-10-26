@@ -77,7 +77,7 @@ impl From<Input> for Replayed {
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum Aim {
     Own,
-    Other { node: NodeId, zoom: f32 },
+    Other { node: NodeId, at: Pos2 },
     Away,
 }
 
@@ -125,15 +125,10 @@ impl Replay {
                             }
                             self.pointer(event, input.rect, zoom, None, &mut out);
                         }
-                        Aim::Other { node, zoom: theirs } => {
+                        Aim::Other { node, at } => {
                             self.away = false;
-                            let local = over.map_or(Pos2::ZERO, |over| over.local);
-                            let theirs = match theirs.is_finite() && theirs > 0.0 {
-                                true => theirs,
-                                false => 1.0,
-                            };
                             let aimed = PointerEvent {
-                                pos: Pos2::ZERO + local.to_vec2() / theirs,
+                                pos: at,
                                 predicted: None,
                                 ..*event
                             };

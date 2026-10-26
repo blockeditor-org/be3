@@ -64,6 +64,9 @@ pub(crate) struct Occlusion(pub(crate) Memo<Vec<Rect>>);
 struct Presented(Memo<bool>);
 
 #[derive(Clone, Copy)]
+struct Enclosing(NodeRef);
+
+#[derive(Clone, Copy)]
 pub(crate) struct PanDrag {
     pub(crate) asked: ReadSignal<u64>,
     pub(crate) pan: Callback<Vec2>,
@@ -456,6 +459,8 @@ pub(crate) fn PluginRegion(
     let clipboard_keys = create_memo(move || state.with(|view| view.clipboard_keys));
     let intercepted = create_memo(move || state.with(|view| view.intercepted_keys.clone()));
     let catcher = NodeRef::new();
+    let enclosing = use_context::<Enclosing>();
+    provide_context(Enclosing(catcher));
     super::intercept::intercept_keys(plugin_id, instance, region, intercepted, move || {
         primary.get_untracked()
             && (hosts_windows
@@ -471,8 +476,21 @@ pub(crate) fn PluginRegion(
     create_effect(move || {
         revision.get();
         let zoom = catcher_zoom.get();
+        let rect = state.with(|view| view.rect);
         if let Some(node) = catcher.try_get() {
-            untrack(|| super::desktop::register_catcher(node, &plugin_id.value(), instance, region, zoom));
+            untrack(|| {
+                super::desktop::register_catcher(
+                    node,
+                    super::desktop::Catcher {
+                        plugin: plugin_id.value().to_string(),
+                        instance,
+                        region,
+                        zoom,
+                        rect,
+                        parent: enclosing.and_then(|Enclosing(parent)| parent.try_get()),
+                    },
+                )
+            });
         }
     });
     on_cleanup(move || {
@@ -544,26 +562,10 @@ pub(crate) fn PluginRegion(
             let own = catcher.try_get();
             let rect = input.rect;
             let aim = move |over: Option<beui::Over>, pos: Pos2| {
-                if let Some(over) = over {
-                    if Some(over.node) == own {
-                        return beui::Aim::Own;
-                    }
-                    if let Some((plugin, _, _, zoom)) = super::desktop::catcher(over.node)
-                        && plugin_id.with(|own| *own == plugin)
-                    {
-                        return beui::Aim::Other {
-                            node: over.node,
-                            zoom,
-                        };
-                    }
-                }
-                match rect.contains(pos) {
-                    true => beui::Aim::Own,
-                    false => beui::Aim::Away,
-                }
+                plugin_id.with(|plugin| super::desktop::aim(plugin, own, rect, over, pos))
             };
             let target = |node: beui::NodeId| {
-                super::desktop::catcher(node).map(|(_, instance, region, _)| (instance, region))
+                super::desktop::catcher(node).map(|held| (held.instance, held.region))
             };
             plugin_host::forward_region(&plugin_id.value(), instance, region, &input, &aim, &target);
         }

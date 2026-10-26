@@ -67,12 +67,12 @@ thread_local! {
     static FLOATED: Cell<Option<Signal<Vec<Floated>>>> = const { Cell::new(None) };
     static GESTURE: Cell<Option<Signal<Option<Gesture>>>> = const { Cell::new(None) };
     static PENDING: RefCell<Vec<(String, WindowRequest)>> = const { RefCell::new(Vec::new()) };
+    static PRESSED: RefCell<Option<(FloatedKey, Pos2, Rect)>> = const { RefCell::new(None) };
     static FORGOTTEN: RefCell<Vec<String>> = const { RefCell::new(Vec::new()) };
     static POINTER: Cell<Pos2> = const { Cell::new(Pos2::ZERO) };
     static ORIGINS: RefCell<HashMap<(String, EditorInstanceId, EditorRegion), Pos2>> =
         RefCell::new(HashMap::new());
-    static CATCHERS: RefCell<HashMap<NodeId, (String, EditorInstanceId, EditorRegion, f32)>> =
-        RefCell::new(HashMap::new());
+    static CATCHERS: RefCell<HashMap<NodeId, Catcher>> = RefCell::new(HashMap::new());
     static STATUSES: RefCell<HashMap<StatusKey, BTreeMap<u64, Vec<HostChildStatus>>>> =
         RefCell::new(HashMap::new());
 }
@@ -135,26 +135,66 @@ pub(crate) fn forget_origin(plugin: &str, instance: EditorInstanceId, region: Ed
     });
 }
 
-pub(crate) fn register_catcher(
-    node: NodeId,
-    plugin: &str,
-    instance: EditorInstanceId,
-    region: EditorRegion,
-    zoom: f32,
-) {
-    CATCHERS.with(|catchers| {
-        catchers
-            .borrow_mut()
-            .insert(node, (plugin.to_owned(), instance, region, zoom))
-    });
+#[derive(Clone, Debug, PartialEq)]
+pub(crate) struct Catcher {
+    pub(crate) plugin: String,
+    pub(crate) instance: EditorInstanceId,
+    pub(crate) region: EditorRegion,
+    pub(crate) zoom: f32,
+    pub(crate) rect: Rect,
+    pub(crate) parent: Option<NodeId>,
+}
+
+pub(crate) fn register_catcher(node: NodeId, catcher: Catcher) {
+    CATCHERS.with(|catchers| catchers.borrow_mut().insert(node, catcher));
 }
 
 pub(crate) fn forget_catcher(node: NodeId) {
     CATCHERS.with(|catchers| catchers.borrow_mut().remove(&node));
 }
 
-pub(crate) fn catcher(node: NodeId) -> Option<(String, EditorInstanceId, EditorRegion, f32)> {
+pub(crate) fn catcher(node: NodeId) -> Option<Catcher> {
     CATCHERS.with(|catchers| catchers.borrow().get(&node).cloned())
+}
+
+pub(crate) fn aim(
+    plugin: &str,
+    own: Option<NodeId>,
+    rect: Rect,
+    over: Option<beui::Over>,
+    pos: Pos2,
+) -> beui::Aim {
+    if let Some(over) = over {
+        let mut node = over.node;
+        let mut at = None;
+        for _ in 0..16 {
+            if Some(node) == own {
+                return beui::Aim::Own;
+            }
+            let Some(held) = catcher(node) else {
+                break;
+            };
+            let absolute = *at.get_or_insert(held.rect.min + over.local.to_vec2());
+            if held.plugin == plugin {
+                let zoom = match held.zoom.is_finite() && held.zoom > 0.0 {
+                    true => held.zoom,
+                    false => 1.0,
+                };
+                return beui::Aim::Other {
+                    node,
+                    at: Pos2::ZERO + (absolute - held.rect.min) / zoom,
+                };
+            }
+            let Some(parent) = held.parent else {
+                break;
+            };
+            node = parent;
+        }
+    }
+    match rect.contains(pos) {
+        true => beui::Aim::Own,
+        false => beui::Aim::Away,
+    }
 }
 
 pub(crate) fn apply() {
@@ -206,7 +246,7 @@ pub(crate) fn apply() {
                         key: windows[index].key.clone(),
                         kind: Kind::Move,
                         began_on: None,
-                        start: None,
+                        start: pressed_on(&windows[index].key),
                     });
                 }
             }
@@ -216,7 +256,7 @@ pub(crate) fn apply() {
                         key: windows[index].key.clone(),
                         kind: Kind::Resize(resize.edge),
                         began_on: None,
-                        start: None,
+                        start: pressed_on(&windows[index].key),
                     });
                 }
             }
@@ -243,6 +283,16 @@ pub(crate) fn apply() {
         gesture.began_on = owner_index(&gesture.key);
         gesture_signal().set(Some(gesture));
     }
+}
+
+fn pressed_on(key: &FloatedKey) -> Option<(Pos2, Rect)> {
+    PRESSED.with(|pressed| {
+        pressed
+            .borrow()
+            .as_ref()
+            .filter(|(held, _, _)| held == key)
+            .map(|(_, at, rect)| (*at, *rect))
+    })
 }
 
 fn owner_index(key: &FloatedKey) -> Option<usize> {
@@ -374,6 +424,15 @@ pub(crate) fn follow(key: &FloatedKey, input: ForwardedInput, origin: Vec2) -> F
         POINTER.set(at);
         if matches!(event.phase, PointerPhase::Down(_)) {
             raise(key);
+            let rect = floated.with_untracked(|windows| {
+                windows
+                    .iter()
+                    .find(|window| window.key == *key)
+                    .map(|window| window.rect)
+            });
+            if let Some(rect) = rect {
+                PRESSED.with(|pressed| *pressed.borrow_mut() = Some((key.clone(), at, rect)));
+            }
         }
         let held = gesture.with_untracked(|held| held.clone().filter(|held| held.key == *key));
         let Some(mut held) = held else {

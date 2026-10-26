@@ -709,7 +709,12 @@ impl EditorSession {
                 .and_then(|state| state.frame)
                 .unwrap_or_default(),
             describe: state
-                .filter(|_| region == EditorRegion::Frame && crate::screens::describing())
+                .filter(|_| {
+                    matches!(
+                        region,
+                        EditorRegion::Frame | EditorRegion::Display(_) | EditorRegion::Window(_)
+                    ) && crate::screens::describing()
+                })
                 .map(|state| state.epoch),
             seen: crate::screens::seen(),
             windows: state.is_some_and(|state| state.windows),
