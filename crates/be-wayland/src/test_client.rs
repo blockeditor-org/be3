@@ -2,8 +2,8 @@ use std::io::Write as _;
 use std::os::unix::net::UnixStream;
 
 use wayland_client::protocol::{
-    wl_buffer, wl_callback, wl_compositor, wl_keyboard, wl_pointer, wl_registry, wl_seat, wl_shm,
-    wl_shm_pool, wl_surface,
+    wl_buffer, wl_callback, wl_compositor, wl_keyboard, wl_output, wl_pointer, wl_registry,
+    wl_seat, wl_shm, wl_shm_pool, wl_surface,
 };
 use wayland_client::{Connection, Dispatch, EventQueue, QueueHandle, WEnum};
 use wayland_protocols::xdg::shell::client::{
@@ -51,6 +51,10 @@ pub(crate) enum Seen {
 #[derive(Default)]
 pub(crate) struct Received {
     pub(crate) globals: Vec<(u32, String, u32)>,
+    pub(crate) entered: Vec<u32>,
+    pub(crate) removed: Vec<u32>,
+    pub(crate) output_names: Vec<(u32, String)>,
+    pub(crate) outputs: Vec<(u32, wl_output::WlOutput)>,
     pub(crate) configured: Option<u32>,
     pub(crate) size: Option<(i32, i32)>,
     pub(crate) activated: bool,
@@ -170,6 +174,43 @@ impl TestClient {
             .unwrap_or_else(|| panic!("the server advertises {interface}"));
         self.registry
             .bind::<I, _, _>(*name, version.min(*available), &self.handle, ())
+    }
+
+    pub(crate) fn outputs(&self) -> Vec<u32> {
+        self.received
+            .globals
+            .iter()
+            .filter(|(_, interface, _)| interface == "wl_output")
+            .map(|(name, _, _)| *name)
+            .collect()
+    }
+
+    pub(crate) fn bind_outputs(&mut self) {
+        for (name, interface, version) in self.received.globals.clone() {
+            let bound = self.received.output_names.iter().any(|(held, _)| *held == name);
+            if interface == "wl_output" && !bound {
+                let output = self.registry.bind::<wl_output::WlOutput, u32, Received>(
+                    name,
+                    version.min(4),
+                    &self.handle,
+                    name,
+                );
+                self.received.outputs.push((name, output));
+            }
+        }
+    }
+
+    pub(crate) fn output_named(&self, wanted: &str) -> Option<wl_output::WlOutput> {
+        let received = &self.received;
+        let (global, _) = received
+            .output_names
+            .iter()
+            .find(|(_, name)| name == wanted)?;
+        received
+            .outputs
+            .iter()
+            .find(|(held, _)| held == global)
+            .map(|(_, output)| output.clone())
     }
 
     pub(crate) fn exchange(&mut self, server: &mut Server) {
@@ -548,13 +589,19 @@ impl Dispatch<wl_registry::WlRegistry, ()> for Received {
         _: &Connection,
         _: &QueueHandle<Self>,
     ) {
-        if let wl_registry::Event::Global {
-            name,
-            interface,
-            version,
-        } = event
-        {
-            state.globals.push((name, interface, version));
+        match event {
+            wl_registry::Event::Global {
+                name,
+                interface,
+                version,
+            } => state.globals.push((name, interface, version)),
+            wl_registry::Event::GlobalRemove { name } => {
+                state.globals.retain(|(held, _, _)| *held != name);
+                state.removed.push(name);
+                state.output_names.retain(|(held, _)| *held != name);
+                state.entered.retain(|held| *held != name);
+            }
+            _ => {}
         }
     }
 }
@@ -729,7 +776,42 @@ impl Dispatch<wl_callback::WlCallback, ()> for Received {
 }
 
 wayland_client::delegate_noop!(Received: ignore wl_compositor::WlCompositor);
-wayland_client::delegate_noop!(Received: ignore wl_surface::WlSurface);
+impl Dispatch<wl_output::WlOutput, u32> for Received {
+    fn event(
+        state: &mut Self,
+        _: &wl_output::WlOutput,
+        event: wl_output::Event,
+        global: &u32,
+        _: &Connection,
+        _: &QueueHandle<Self>,
+    ) {
+        if let wl_output::Event::Name { name } = event {
+            state.output_names.retain(|(held, _)| held != global);
+            state.output_names.push((*global, name));
+        }
+    }
+}
+
+impl Dispatch<wl_surface::WlSurface, ()> for Received {
+    fn event(
+        state: &mut Self,
+        _: &wl_surface::WlSurface,
+        event: wl_surface::Event,
+        _: &(),
+        _: &Connection,
+        _: &QueueHandle<Self>,
+    ) {
+        let output_name = |output: &wl_output::WlOutput| wayland_client::Proxy::data::<u32>(output).copied();
+        match event {
+            wl_surface::Event::Enter { output } => state.entered.extend(output_name(&output)),
+            wl_surface::Event::Leave { output } => {
+                let left = output_name(&output);
+                state.entered.retain(|held| Some(*held) != left);
+            }
+            _ => {}
+        }
+    }
+}
 wayland_client::delegate_noop!(Received: ignore wl_shm::WlShm);
 wayland_client::delegate_noop!(Received: ignore wl_shm_pool::WlShmPool);
 impl Dispatch<wl_buffer::WlBuffer, ()> for Received {
