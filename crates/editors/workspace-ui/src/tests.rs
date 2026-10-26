@@ -10,7 +10,6 @@ use uuid::Uuid;
 
 use crate::app::WorkspaceUiApp;
 
-mod a_hidden_window_and_its_dialog_have_no_tab_until_shown;
 mod a_block_opened_while_another_is_shown_gets_its_own_tab;
 mod a_block_opens_in_the_editor_it_keeps_for_itself;
 mod a_block_tab_asks_its_editor_for_the_top_bar;
@@ -20,6 +19,7 @@ mod a_deleted_block_says_so_above_it_and_can_be_restored;
 mod a_failed_creation_is_shown_and_dismissing_it_cancels_the_pick;
 mod a_file_with_no_editor_of_its_own_opens_in_the_program_for_its_extension;
 mod a_folder_chosen_on_the_location_page_holds_the_block_made_there;
+mod a_hidden_window_and_its_dialog_have_no_tab_until_shown;
 mod a_host_panel_the_host_asks_for_is_placed_in_its_own_window;
 mod a_modal_window_sends_presses_on_its_parent_to_itself;
 mod a_phone_shows_one_file_at_a_time_and_the_dock_bar_goes_back_or_switches;

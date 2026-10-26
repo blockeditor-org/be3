@@ -36,8 +36,8 @@ use super::saved::{self, LAYOUT, TITLES};
 use super::share::{Share, ShareAction};
 use super::tab::TabItem;
 use super::window::{
-    WindowPanel, floating_window, kept_window, shown_size, shown_windows, tab_window, window_picture,
-    window_tab, window_title,
+    WindowPanel, floating_window, kept_window, shown_size, shown_windows, tab_window,
+    window_picture, window_tab, window_title,
 };
 
 pub const FILES: TabId = TabId::new(1);

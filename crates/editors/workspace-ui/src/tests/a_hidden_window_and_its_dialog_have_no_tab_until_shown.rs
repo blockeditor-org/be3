@@ -31,6 +31,9 @@ fn a_hidden_window_and_its_dialog_have_no_tab_until_shown() {
         window(7, "Terminal", None),
     ]);
     fixture.settle();
-    assert!(fixture.says("Paint"), "shown again, the window has its tab back");
+    assert!(
+        fixture.says("Paint"),
+        "shown again, the window has its tab back"
+    );
     assert!(fixture.says("Save as"), "and its dialog is back");
 }

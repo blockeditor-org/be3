@@ -1,7 +1,7 @@
+use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::icons::{ICON_APP_WINDOW, ICON_EYE_OFF, ICON_LAYERS, ICON_MONITOR};
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
-use block_editor_beui::beui::NodeId;
 use block_editor_beui::desktop;
 use block_editor_beui::{HostWindow, HostWindowId, WindowAction, WindowKind};
 use block_shell::{Workspace, window_picture, window_title};
@@ -25,13 +25,13 @@ pub(crate) fn picked(entries: &[HostWindow]) -> Vec<HostWindowId> {
 pub(crate) fn WindowPicker(workspace: Workspace) -> NodeId {
     view! {
         <BarPopup
-                label="Windows"
-                glyph={Some(ICON_LAYERS)}
-                icon_only=true
-                @test_id={"desktop.windows"}
-            >|handle: PopoverHandle|
-                <WindowList workspace handle />
-            </BarPopup>
+            label="Windows"
+            glyph={Some(ICON_LAYERS)}
+            icon_only=true
+            @test_id={"desktop.windows"}
+        >|handle: PopoverHandle|
+            <WindowList workspace handle />
+        </BarPopup>
     }
 }
 
@@ -67,9 +67,17 @@ fn EntryRow(workspace: Workspace, id: HostWindowId, handle: PopoverHandle) -> No
     let entry = create_memo(move || {
         entries.with(|entries| entries.iter().find(|entry| entry.id == id).cloned())
     });
-    let title = create_memo(move || entry.with(|entry| entry.as_ref().map(window_title)).unwrap_or_default());
+    let title = create_memo(move || {
+        entry
+            .with(|entry| entry.as_ref().map(window_title))
+            .unwrap_or_default()
+    });
     let display = create_memo(move || {
-        entry.with(|entry| entry.as_ref().is_some_and(|entry| entry.kind == WindowKind::Display))
+        entry.with(|entry| {
+            entry
+                .as_ref()
+                .is_some_and(|entry| entry.kind == WindowKind::Display)
+        })
     });
     let glyph = create_memo(move || match display.get() {
         true => Some(ICON_MONITOR),
@@ -78,7 +86,8 @@ fn EntryRow(workspace: Workspace, id: HostWindowId, handle: PopoverHandle) -> No
     let image = create_memo(move || {
         entry.with(|entry| entry.as_ref()?.icon.as_ref().and_then(window_picture))
     });
-    let shown = create_memo(move || entry.with(|entry| entry.as_ref().is_some_and(|entry| entry.shown)));
+    let shown =
+        create_memo(move || entry.with(|entry| entry.as_ref().is_some_and(|entry| entry.shown)));
     let focused = create_memo(move || {
         shown.get() && entry.with(|entry| entry.as_ref().is_some_and(|entry| entry.focused))
     });

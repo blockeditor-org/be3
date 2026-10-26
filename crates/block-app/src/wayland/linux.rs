@@ -3,12 +3,12 @@ use std::collections::HashMap;
 use std::sync::mpsc::{Receiver, TryRecvError};
 use std::time::Duration;
 
+use super::shown::Shown;
 use be_wayland::programs::{DesktopEntry, Environment, IconThemes, MimeGlobs, load_icon};
 use be_wayland::{Compositor, Launch, Server, WindowId, WindowView, Windows};
 use beui::reactive::*;
 use beui::styled::*;
 use beui::{Context, Document, NodeId, Rect, Setup};
-use super::shown::Shown;
 use block_plugin_api::{
     HostImage, HostProgram, HostWindow, HostWindowId, WindowKind, WindowOrigin,
 };

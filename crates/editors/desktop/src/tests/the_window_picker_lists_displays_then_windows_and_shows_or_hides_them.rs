@@ -39,11 +39,8 @@ fn the_window_picker_lists_displays_then_windows_and_shows_or_hides_them() {
 
     fixture.test.click("desktop.windows");
     fixture.settle();
-    let row = |fixture: &Fixture, id: u64| {
-        fixture
-            .test
-            .rect_of(&format!("desktop.windows.entry.{id}"))
-    };
+    let row =
+        |fixture: &Fixture, id: u64| fixture.test.rect_of(&format!("desktop.windows.entry.{id}"));
     assert!(
         row(&fixture, 3).top() < row(&fixture, 1).top()
             && row(&fixture, 1).top() < row(&fixture, 2).top(),
