@@ -2,6 +2,9 @@ use super::*;
 use crate::FontId;
 
 mod a_back_gesture_lowers_a_sheet_and_it_slides_away_from_there;
+mod a_tree_rows_more_button_opens_its_menu_below_itself_and_a_right_click_opens_it_too;
+mod an_action_bar_keeps_the_pins_it_has_room_for_and_offers_the_rest;
+mod toasts_read_as_a_live_log_with_errors_as_alerts;
 mod a_back_gesture_slides_a_dialog_away_before_it_closes;
 mod a_back_handler_goes_back_while_enabled_without_moving_its_content;
 mod a_back_handler_hidden_in_a_kept_alive_list_row_takes_no_back;

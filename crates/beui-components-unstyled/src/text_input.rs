@@ -37,6 +37,7 @@ pub struct TextInputHandle {
     pub disabled: Memo<bool>,
     pub empty: Memo<bool>,
     pub clear: ClickCallback,
+    pub copy: ClickCallback,
 }
 
 #[derive(Clone, Copy)]
@@ -134,6 +135,7 @@ pub fn TextInput(
     let clear = ClickCallback::new(move || {
         state.execute(EditorCommand::ReplaceWholeFile(b""));
     });
+    let copy = ClickCallback::new(move || copy_text(text_of(state)));
     let content_changed = state.content();
     create_effect(move || {
         content_changed.get();
@@ -191,6 +193,7 @@ pub fn TextInput(
                         disabled,
                         empty,
                         clear,
+                        copy,
                     }),
                     None => field,
                 }

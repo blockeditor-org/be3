@@ -1,6 +1,7 @@
 extern crate beui_view as beui;
 
 pub mod accordion;
+pub mod action_bar;
 pub mod action_row;
 pub mod border;
 pub mod button;
@@ -63,6 +64,7 @@ pub use beui_view::primitives::{
     Layer, Layers, LayoutBuilder, List, Offset, Overlay, PlacementBuilder, Portal, Shift, Spacer,
     SystemBars, TextItem, Turn, VirtualList,
 };
+pub use action_bar::{ActionBar, ActionLabels};
 pub use border::Separator;
 pub use button::{Button, ButtonSize, ButtonVariant};
 pub use calendar::Calendar;
@@ -114,9 +116,9 @@ pub use text_input::TextInput;
 pub use theme::{
     Density, Theme, ThemeKind, ThemeProvider, ThemeStore, provide_density, use_density, use_theme,
 };
-pub use toast::{TOAST_DURATION, Toast, ToastAction, Toasts};
+pub use toast::Toasts;
 pub use tooltip::Tooltip;
-pub use tree::{Tree, TreeMenu, TreeRowFace};
+pub use tree::{Tree, TreeRowFace};
 
 pub mod choice;
 pub mod listbox;
@@ -126,7 +128,7 @@ pub use beui_components_unstyled::{
     ButtonApi, CalendarApi, ChoiceApi, ColorAreaApi, ColorWheelApi, CommandPaletteApi,
     ContextMenuApi, DateTimeFieldApi, DisclosureApi, MenuListApi, NumberInputApi, PanZoomApi,
     PopoverApi, ScrollApi, SelectApi, SelectableState, SliderApi, TextAreaApi, TextInputApi,
-    TimeListApi, ToggleApi, TreeApi,
+    TOAST_DURATION, TimeListApi, Toast, ToastAction, ToggleApi, TreeApi, TreeMenu,
 };
 pub use listbox::Listbox;
 pub use radio_group::RadioGroup;

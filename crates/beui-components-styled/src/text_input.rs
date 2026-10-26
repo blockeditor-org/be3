@@ -51,7 +51,6 @@ pub fn TextInput(
     let glyph = create_memo(move || glyph.get());
     let clearable = create_memo(move || clearable.get());
     let copyable = create_memo(move || copyable.get());
-    let copied = create_memo(move || value.get());
     let named = label.clone();
     let copy_label = create_memo(move || match named.get().is_empty() {
         true => "Copy".to_owned(),
@@ -78,7 +77,6 @@ pub fn TextInput(
                 glyph={glyph}
                 clearable={clearable}
                 copyable={copyable}
-                copied={copied}
                 copy_label={copy_label}
                 multiline
             />
@@ -93,7 +91,6 @@ fn TextInputFrame(
     glyph: Memo<Option<Glyph>>,
     clearable: Memo<bool>,
     copyable: Memo<bool>,
-    copied: Memo<String>,
     copy_label: Memo<String>,
     multiline: bool,
 ) -> NodeId {
@@ -104,6 +101,7 @@ fn TextInputFrame(
         disabled,
         empty,
         clear,
+        copy,
     } = handle;
     let clearable = create_memo(move || clearable.get() && !empty.get());
     let theme = use_theme();
@@ -168,7 +166,7 @@ fn TextInputFrame(
                                 size=ButtonSize::Small
                                 press_focus=false
                                 capture_presses=true
-                                on_click={move || copy_text(copied.get_untracked())}
+                                on_click={copy}
                             />
                         </Frame>
                     </Show>

@@ -25,6 +25,8 @@ pub fn PopupTrigger(
     #[prop(default = false)] disabled: Prop<bool>,
     #[prop(default = true)] click_opens: Prop<bool>,
     #[prop(default = false)] focused: Prop<bool>,
+    #[prop(default = true)] tab_stop: Prop<bool>,
+    #[prop(default = false)] capture_presses: Prop<bool>,
     #[prop(default = Node::new(Role::Button))] accessibility: Prop<Node>,
     on_click: ClickCallback,
     on_press: Callback<PointerPress>,
@@ -42,6 +44,8 @@ pub fn PopupTrigger(
             icon_only
             disabled
             focused
+            tab_stop
+            capture_presses
             expanded={open}
             accessibility={accessibility}
             on_press={on_press}

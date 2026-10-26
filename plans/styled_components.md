@@ -44,11 +44,14 @@ into a new unstyled component, then rebuild the styled one on top of it.
   that. It became `unstyled::Dialog` (the outer part, card or sheet) and
   `unstyled::DialogBody` (keys, accessibility, action order), with the
   styled `DialogFrame`, `DialogCard` and `DialogBody` placeable by anyone.
-- **`unstyled::Toasts`**: the stack, each toast's expiry timer, the rule that
+- **Done.** **`unstyled::Toasts`**: the stack, each toast's expiry timer, the rule that
   sticky and danger toasts don't expire, edge placement, the overlay that lets
   input pass through, and an accessibility live region. Toasts have no role
   today. Keep `Toast`'s notification fields (image, actions, activates,
-  sticky). Toasts are generally useful with them.
+  sticky). Toasts are generally useful with them. It takes the stack's
+  `width`, `margin` and `spacing` and an `edge`, draws each card from a
+  `ToastHandle`, and reads as a `Log` live region of `Status` toasts, with
+  `danger` ones assertive `Alert`s.
 - **Done.** **Indeterminate progress**: the phase animation, the reduced-motion check and
   the busy accessibility node from `styled::Spinner`. This becomes part of the
   merged `Progress` (§4.4). It is `unstyled::Progress`, whose handle carries
@@ -57,23 +60,29 @@ into a new unstyled component, then rebuild the styled one on top of it.
   each given its screen's rectangle relative to the bounds of all screens.
   `KeepChanges`, `LockScreen` and `LevelOsd` each repeat this. All three are
   moving out of beui (§3), but they still need it, in two different crates.
-- **Low priority:** an unstyled `Table` for the Table, Row, ColumnHeader,
+- **Done.** **Low priority:** an unstyled `Table` for the Table, Row, ColumnHeader,
   RowHeader and Cell accessibility nodes that `styled::Table` builds. An
   unstyled `ColorInput` for the preview state and the popover plus hex-field
   composition. Most of that is already in `HexText` and `Popover`.
+  They are `unstyled::{Table, TableRow, TableColumnHeader, TableRowHeader,
+  TableCell}` and `unstyled::ColorInput` (`swatch`, `picker` and `field`
+  renders, laid out by its children).
 
 ## 2. Move behaviour out of styled components
 
-- **An unstyled action bar.** `DockMenu` (`beui-dock/src/styled.rs`, about lines
+- **Done.** **An unstyled action bar.** `DockMenu` (`beui-dock/src/styled.rs`, about lines
   690-850) decides which actions are pinned to the bar and which overflow into
   a "More" menu, by available room (`pinned`, `unpinned`, `BarRoom::shows`,
   `title_action`). Make that an unstyled action bar the dock uses. Any other
-  toolbar can use it too.
-- **Tree row menus.** `TreeRowChrome` and `RowMenuButton` (`styled/tree.rs`
+  toolbar can use it too. It is `unstyled::ActionBar` (with
+  `unstyled::title_action`), drawn by `styled::ActionBar`, which the dock's
+  bars and beui-demo's Menus page use.
+- **Done.** **Tree row menus.** `TreeRowChrome` and `RowMenuButton` (`styled/tree.rs`
   240-357) wire each row's context menu. The More button finds its own
   rectangle with `placements().rect` and opens a context menu at that point.
   Make per-row menus a feature of `unstyled::Tree`, and make the More button a
-  menu button anchored to itself.
+  menu button anchored to itself. `TreeMenu` is unstyled's; the row handle
+  carries a `TreeRowMenu` for `unstyled::TreeRowMenuButton`.
 - **Done.** **Tooltips on icon-only buttons.** "Show the tooltip only when the button is
   icon-only and its popup is closed" is repeated in `MenuButton`, `Popover`,
   `ToggleButton` and `IconButton`. `ButtonHandle` already carries `tooltip`,
@@ -85,7 +94,7 @@ into a new unstyled component, then rebuild the styled one on top of it.
   colour input's triggers lost their copies too.
 - **Done.** **Dialog Enter handling**: moves with §1's `unstyled::Dialog`.
 - **Done.** **Spinner animation**: moves with §1's indeterminate progress.
-- **TextInput clear and copy.** `styled::TextInput`'s clear and copy buttons
+- **Done.** **TextInput clear and copy.** `styled::TextInput`'s clear and copy buttons
   (`copy_text`) are behaviour. Expose them from `unstyled::TextInput` as
   handle callbacks, and leave only the buttons' look in styled.
 

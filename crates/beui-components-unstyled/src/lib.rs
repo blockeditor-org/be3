@@ -1,11 +1,13 @@
 extern crate beui_view as beui;
 
 pub mod accessibility;
+pub mod action_bar;
 pub mod back_slide;
 pub mod button;
 pub mod calendar;
 pub mod choice;
 pub mod color_area;
+pub mod color_input;
 pub mod color_picker;
 pub mod color_wheel;
 pub mod command_palette;
@@ -43,21 +45,27 @@ pub mod sheet;
 pub mod slider;
 pub mod split_button;
 pub mod stack;
+pub mod table;
 pub mod text_area;
 pub mod text_input;
 pub mod text_menu;
 pub mod time_list;
+pub mod toast;
 pub mod toggle;
 pub mod tooltip;
 pub mod tree;
 pub mod typeahead;
 
 pub use accessibility::labelled_node;
+pub use action_bar::{ActionBar, ActionBarHandle, title_action};
 pub use back_slide::BackSlide;
 pub use beui_core::drag_board::DragPoint;
 pub use button::{Button, ButtonApi, ButtonHandle};
 pub use calendar::{Calendar, CalendarApi, CalendarCellHandle, CalendarHeaderHandle, CalendarMode};
 pub use choice::{Choice, ChoiceApi, ChoiceKind, ChoiceOption, ChoiceOptionHandle};
+pub use color_input::{
+    ColorInput, ColorInputFieldHandle, ColorInputHandle, ColorInputPickerHandle, ColorInputSwatchHandle,
+};
 pub use color_area::{ColorArea, ColorAreaApi, ColorAreaHandle};
 pub use color_picker::{
     AlphaSlider, ColorModel, ColorPickerArea, ColorPickerState, HexText, HueSlider, SwatchHandle,
@@ -121,6 +129,7 @@ pub use sheet::{ModalSheet, SHEET_STOPS, Sheet, SheetGripHandle};
 pub use slider::{Slider, SliderApi, SliderHandle, SliderScale};
 pub use split_button::SplitButton;
 pub use stack::Stack;
+pub use table::{Table, TableCell, TableColumnHeader, TableRow, TableRowHeader};
 pub use text_area::{
     Completer, Completion, CompletionMenu, CompletionRowHandle, LeafSpan, Margin, MarkerColumn,
     MarkerKind, Prose, ProseLine, QUOTE_BAR_WIDTH, QuoteBar, RULE_WIDTH, RemoteTextCursor,
@@ -131,9 +140,11 @@ pub use text_area::{
 pub use text_input::{TextInput, TextInputApi, TextInputHandle, TextInputStyle};
 pub use text_menu::TextContextMenu;
 pub use time_list::{TimeList, TimeListApi, TimeOptionHandle, grid_columns};
+pub use toast::{TOAST_DURATION, Toast, ToastAction, ToastHandle, Toasts};
 pub use toggle::{Toggle, ToggleApi, ToggleHandle};
 pub use tooltip::{TOOLTIP_DELAY, Tooltip, TooltipHandle};
 pub use tree::{
-    Tree, TreeApi, TreeItem, TreeReveal, TreeRevealHandle, TreeRowArea, TreeRowEdit, TreeRowEditor,
-    TreeRowHandle, TreeRowTarget, TreeToggle, TreeToggleHandle,
+    Tree, TreeApi, TreeItem, TreeMenu, TreeReveal, TreeRevealHandle, TreeRowArea, TreeRowEdit,
+    TreeRowEditor, TreeRowHandle, TreeRowMenu, TreeRowMenuButton, TreeRowTarget, TreeToggle,
+    TreeToggleHandle,
 };

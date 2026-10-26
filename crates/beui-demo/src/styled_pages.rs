@@ -1528,6 +1528,9 @@ pub(crate) fn MenusPage() -> NodeId {
             <Sample title="Menus built from actions" code={vec![ActionMenu::SOURCE]}>
                 <ActionMenu />
             </Sample>
+            <Sample title="Action bar" code={vec![EditorActions::SOURCE]}>
+                <EditorActions />
+            </Sample>
             <Sample title="Menu buttons" code={vec![SortMenus::SOURCE]}>
                 <SortMenus />
             </Sample>
@@ -1553,6 +1556,47 @@ pub(crate) fn MenusPage() -> NodeId {
                 <GlobalActions />
             </Sample>
         </ScrollPage>
+    }
+}
+
+#[sample]
+#[component]
+fn EditorActions() -> NodeId {
+    let said = create_signal("Nothing run yet".to_owned());
+    let action = move |id: &str, label: &'static str, glyph: Glyph| {
+        Action::new(id, label, move || said.set(format!("Ran {label}"))).glyph(glyph)
+    };
+    let undo = action("toolbar.undo", "Undo", ICON_UNDO_2)
+        .pin(Pin::Icon)
+        .register();
+    let share = action("toolbar.share", "Share", ICON_SHARE_2)
+        .pin(Pin::Label)
+        .register();
+    let rename = action("toolbar.rename", "Rename", ICON_PENCIL).register();
+    let delete = action("toolbar.delete", "Delete", ICON_TRASH).register();
+    let menu = vec![
+        MenuNode::action(&undo),
+        MenuNode::action(&share),
+        MenuNode::Separator,
+        MenuNode::action(&rename),
+        MenuNode::action(&delete),
+    ];
+    view! {
+        <List spacing=SECTION_SPACING>
+            <Text style=TextStyle::PARAGRAPH>
+                "An action bar shows the actions pinned to it and offers the rest under More. \
+                 Where there is no room for labels, the actions pinned with one move into the \
+                 menu too."
+            </Text>
+            <ActionBar menu={menu.clone()} test_prefix={"bar".to_owned()} />
+            <ActionBar
+                menu
+                labels=ActionLabels::Overflow
+                size=ButtonSize::Regular
+                test_prefix={"bar.narrow".to_owned()}
+            />
+            <Text style=TextStyle::CAPTION>{said}</Text>
+        </List>
     }
 }
 

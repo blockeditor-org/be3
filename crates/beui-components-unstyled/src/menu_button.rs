@@ -21,6 +21,8 @@ pub fn MenuButton(
     #[prop(default = false)] disabled: Prop<bool>,
     #[prop(default = true)] click_opens: Prop<bool>,
     #[prop(default = false)] secondary_opens: Prop<bool>,
+    #[prop(default = true)] tab_stop: Prop<bool>,
+    #[prop(default = false)] capture_presses: Prop<bool>,
     accessibility: Option<Prop<Node>>,
     on_click: ClickCallback,
     on_secondary_click: ClickCallback,
@@ -43,6 +45,8 @@ pub fn MenuButton(
             icon_only
             disabled={disabled}
             click_opens
+            tab_stop
+            capture_presses
             accessibility={accessibility.unwrap_or_else(|| Prop::Static(Node::new(Role::Button)))}
             on_press={move |press: PointerPress| touched.set(press.touch)}
             on_click={on_click}

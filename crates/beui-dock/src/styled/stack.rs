@@ -2,7 +2,8 @@ use beui_components_styled::frame::{Border, ColorRole, Frame, Radius, focus_bord
 use beui_core::font::Overflow;
 use beui_macros::{component, view};
 
-use crate::styled::{BarRoom, DockMenu, title_action};
+use crate::styled::{BarRoom, DockMenu};
+use beui_components_unstyled::title_action;
 use crate::unstyled::{DockStackHandle, DockSwitcherCardHandle, DockSwitcherHandle, TabId};
 use beui_components_styled::action_row::ActionRow;
 use beui_components_styled::border::Separator;

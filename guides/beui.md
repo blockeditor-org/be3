@@ -844,7 +844,10 @@ a `List` or a `VirtualList`.
 A table of values to compare is `styled::Table`: column headings along the
 top (each a `TableColumn`, which can carry a caption), a `TableRow` per row with its heading down the side, and a `TableCell`
 per column, each with an optional caption under its value; every row shares the
-column weights, so its cells line up, and it reads as a table to assistive tech.
+column weights, so its cells line up, and it reads as a table to assistive tech:
+the Table, Row, ColumnHeader, RowHeader and Cell nodes are `unstyled::Table`,
+`TableRow`, `TableColumnHeader`, `TableRowHeader` and `TableCell`, each one
+wrapping whatever its face lays out.
 `Text` carries its own decoration too: `underline` is painted from the galley's
 baseline, so switching it on never moves anything. `Portal` shows a subtree that belongs to
 someone else: it takes a `NodeId`, lays it out and paints it where the portal
@@ -918,6 +921,8 @@ chrome wraps the whole scrolling area rather than one line. `prose` (a `Prose`, 
 rather than a document: no whitespace markers and no document padding, with
 the weight, horizontal alignment, padding around each line, wrapping, and where
 the lines sit when they are shorter than the area that it names.
+A `TextInput` face gets `clear` and `copy` in its `TextInputHandle`, so
+`styled::TextInput`'s `clearable` and `copyable` buttons only draw them.
 Nothing measures text off the tree: a `TextArea` reports the size its laid-out
 rows reach through `on_content_size` (padding included, read from the rows'
 `text_bounds`), and a caller sizes a box from that. The infinite canvas grows a
@@ -1468,7 +1473,9 @@ through grey or black, and a drag is reported through `on_preview` while it
 moves and written to `value` once, when it ends, the way `NumberInput`
 writes a scrub - so an edit lands in the undo history once per gesture.
 That state is `unstyled::ColorPickerState`, and `unstyled::HexText` keeps a hex
-field in step with a color for both.
+field in step with a color for both. `unstyled::ColorInput` holds the preview
+and puts the popover and the hex field together; its `swatch`, `picker` and
+`field` renders draw the parts and its children lay them out.
 
 `styled::ColorWheel` is a hue ring around a triangle whose tip points at the
 hue, and `styled::OklchColorWheel` is the same wheel over OKLCH: the triangle is
@@ -1899,6 +1906,11 @@ pressing the highlighted row beside it selects. The content builder gets a
 `on_select`, as a `ContextMenu` takes them) or `None`, every row with one shows
 a "…" button at its end, on a desktop too, and the same menu opens from it, a
 right click or a long press: a dropdown under a mouse and a sheet under a finger.
+Row menus are `unstyled::Tree`'s: given `menu` (and the `menu_style` to draw it
+with) it wraps each row that has one in a `ContextMenu` and hands the face a
+`TreeRowMenu` in the handle's `menu`, which `unstyled::TreeRowMenuButton` turns
+into a menu button anchored to itself, so the dropdown hangs from the "…"
+button.
 Row height follows `use_density()`: `Density::Compact` rows for a desktop and
 `Density::Comfortable` ones, tall enough to tap, where `provide_density` asks for
 them, which a plugin's frame does when its host says the window is a phone's. It owns the drag gesture
@@ -1957,7 +1969,12 @@ anchored to a rect (`OverlayAnchor::Rect`, in document coordinates) on the scree
 most of that rect is on, placed against the rect as it would be against a node.
 `styled::Toasts` takes any anchor this way, so linux-desktop stacks its toasts in the
 corner of a screen above its bar. A toast goes after its `duration` unless it is `sticky` or
-`danger`: an error stays until it is dismissed, so it cannot be missed.
+`danger`: an error stays until it is dismissed, so it cannot be missed. All of that is
+`unstyled::Toasts`: the overlay at an `edge` that lets input through, the stack, each
+toast's timer on the frame clock, and a live region (a `Log`, with each toast a `Status`,
+or an assertive `Alert` when it is `danger`); the styled one passes its width, margin and
+spacing and draws each card from a `ToastHandle` (the `Toast`, `dismiss`, `activate` and
+`act`).
 `Fill`, `At` and `Around` use the whole document, so something meant for every
 screen - block-app's keep-changes prompt and lock screen - puts an `EveryScreen` in a
 `Modal` with `ModalPlacement::AllScreens`, one card per entry of `use_screens()`,
@@ -2093,7 +2110,14 @@ pin as an icon; the stacked bar shows only the icon pins and leaves the label pi
 in its menu. An action built with `.pin(Pin::Title)` belongs to the tab's name: the
 stacked bar draws the name as a button with a chevron after it that runs the
 action (the workspace's Rename), and leaves it out of its menu, while tiled bars
-keep it in theirs. A tiled bar is 40 points with its rule, its tabs 30; its controls are
+keep it in theirs. Splitting a menu between the bar and More is
+`unstyled::ActionBar`'s, which any toolbar can use: given the `menu`, whether
+label pins fit (`labels`) and whether the caller shows the title pin itself
+(`title`, then `unstyled::title_action` finds it), its handle holds the `icons`
+and `labels` to pin and the `overflow` for the More menu. `styled::ActionBar`
+draws it, with `ActionLabels::Shown`, `Icons` or `Overflow` for the label pins,
+a `direction` and a button `size`, and names its parts `<test_prefix>.pin.<id>`
+and `<test_prefix>.menu`; the dock's bars are styled action bars. A tiled bar is 40 points with its rule, its tabs 30; its controls are
 `ButtonSize::Toolbar` icon-only buttons (30 square) and the labelled pins compact
 `Button`s of the same height, while a tab's own close button stays compact. The
 stacked bar keeps regular-sized buttons. Pinning is how a tab puts its few most used controls in reach without

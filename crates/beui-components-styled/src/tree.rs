@@ -4,7 +4,7 @@ use std::hash::Hash;
 use beui_macros::{component, view};
 
 use crate::button::{Button, ButtonVariant};
-use crate::context_menu::ContextMenu;
+use crate::context_menu::menu_style;
 use crate::scroll::Scroll;
 use crate::text::{Icon, Text, TextColor, TextSize};
 use crate::text_input::text_input_style;
@@ -12,12 +12,11 @@ use crate::theme::{Density, ThemeStore, use_density, use_theme};
 use crate::tooltip::Tooltip;
 use beui_components_unstyled as unstyled;
 use beui_components_unstyled::{
-    ButtonHandle, Edge, MenuItem, TextInputHandle, TreeItem, TreeRevealHandle, TreeRowEdit,
+    ButtonHandle, Edge, PopupTriggerHandle, TextInputHandle, TreeMenu, TreeItem, TreeRevealHandle, TreeRowEdit,
     TreeRowHandle, TreeToggleHandle,
 };
 use beui_core::color::Color32;
 use beui_core::font::TextAlign;
-use beui_core::geometry::{Pos2, pos2};
 use beui_core::icons::{
     ICON_ARROW_DOWN, ICON_ARROW_UP, ICON_CHEVRON_DOWN, ICON_CHEVRON_RIGHT, ICON_ELLIPSIS,
 };
@@ -62,13 +61,6 @@ fn metrics(density: Density) -> Metrics {
     }
 }
 
-pub struct TreeMenu {
-    pub items: Children<MenuItem>,
-    pub on_select: Callback<Vec<usize>>,
-}
-
-impl ChildValue for TreeMenu {}
-
 pub struct TreeRowFace<K> {
     pub key: K,
     pub item: Memo<TreeItem>,
@@ -110,7 +102,6 @@ where
     let outline = outline.unwrap_or_else(|| Func::new(|_| None));
     let viewport = NodeRef::new();
     let ancestors = ancestors.unwrap_or_else(|| Func::new(|_| Vec::new()));
-    let menu = Func::new(move |key: K| menu.and_then(|menu| menu.call(key)));
     view! {
         <List spacing=0.0>
             <Scroll @sizing=ItemSize::Percent(100.0) @node_ref={&viewport}>
@@ -123,6 +114,8 @@ where
                         ancestors
                         spacing
                         editing
+                        menu={menu.unwrap_or_else(|| Func::new(|_| None))}
+                        menu_style={menu_style()}
                         on_select={on_select}
                         on_open={on_open}
                         on_expand={on_expand}
@@ -134,7 +127,7 @@ where
                     >|handle: TreeRowHandle<K>| {
                         let named = row_test_id.call(handle.key.clone());
                         view! {
-                            <TreeRowChrome handle named outline={outline} content={content} menu />
+                            <TreeRowChrome handle named outline={outline} content={content} />
                         }
                     }</unstyled::Tree>
                 </Frame>
@@ -184,7 +177,6 @@ fn TreeRowChrome<K>(
     named: String,
     outline: Func<K, Option<Color32>>,
     content: RenderFn<TreeRowFace<K>>,
-    menu: Func<K, Option<TreeMenu>>,
 ) -> NodeId
 where
     K: Clone + 'static,
@@ -201,6 +193,7 @@ where
         target,
         editing,
         edit,
+        menu,
         ..
     } = handle;
     let theme = use_theme();
@@ -215,7 +208,6 @@ where
     let outline_color = create_memo(move || highlight.get().unwrap_or_else(|| theme.accent.get()));
     let ring = focus_ring(focused);
     let outlined = create_memo(move || highlight.get().is_some() || ring.get());
-    let menu = menu.call(key.clone());
     let face = TreeRowFace {
         key,
         item,
@@ -243,38 +235,27 @@ where
                 </Show>
             </List>
         },
-        Some(TreeMenu { items, on_select }) => {
-            let menu_at = create_signal(None::<Pos2>);
+        Some(menu) => {
             let more = more_id(&named);
             view! {
-                <ContextMenu
-                    child_size=ItemSize::Percent(100.0)
-                    items
-                    open_at={menu_at}
-                    on_close={move || menu_at.set(None)}
-                    on_select
-                >
-                    <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
-                        <ShowKeepAlive condition={shown}>
-                            <unstyled::TreeRowArea @sizing=ItemSize::Percent(100.0) target>
-                                {content.call(face)}
-                            </unstyled::TreeRowArea>
-                        </ShowKeepAlive>
-                        <Show condition={editing}>
-                            <RowEditField
-                                @sizing=ItemSize::Percent(100.0)
-                                @test_id={renaming.clone()}
-                                edit
-                                sized={sized}
-                            />
-                        </Show>
-                        <RowMenuButton
-                            named={more}
+                <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
+                    <ShowKeepAlive condition={shown}>
+                        <unstyled::TreeRowArea @sizing=ItemSize::Percent(100.0) target>
+                            {content.call(face)}
+                        </unstyled::TreeRowArea>
+                    </ShowKeepAlive>
+                    <Show condition={editing}>
+                        <RowEditField
+                            @sizing=ItemSize::Percent(100.0)
+                            @test_id={renaming.clone()}
+                            edit
                             sized={sized}
-                            on_open={move |at: Pos2| menu_at.set(Some(at))}
                         />
-                    </List>
-                </ContextMenu>
+                    </Show>
+                    <unstyled::TreeRowMenuButton @test_id={more} menu>|handle: PopupTriggerHandle|
+                        <RowMenuFace handle sized={sized} />
+                    </unstyled::TreeRowMenuButton>
+                </List>
             }
         }
     };
@@ -332,52 +313,32 @@ fn RowEditField(edit: TreeRowEdit, sized: Memo<Metrics>) -> NodeId {
 }
 
 #[component]
-fn RowMenuButton(named: String, sized: Memo<Metrics>, on_open: Callback<Pos2>) -> NodeId {
-    let button = NodeRef::new();
-    let open = move || {
-        let placed = button.try_get().and_then(|node| placements().rect(node));
-        if let Some(rect) = placed {
-            on_open.call(pos2(rect.left(), rect.bottom()));
-        }
-    };
-    view! {
-        <unstyled::Button
-            @node_ref=&button
-            @test_id={named}
-            label="More actions"
-            tab_stop=false
-            capture_presses=true
-            on_click={open}
-            content={move |handle: ButtonHandle| view! {
-                <RowMenuFace handle sized={sized} />
-            }}
-        />
-    }
-}
-
-#[component]
-fn RowMenuFace(handle: ButtonHandle, sized: Memo<Metrics>) -> NodeId {
-    let ButtonHandle {
-        hovered,
-        active,
-        focused,
-        label,
-        ..
+fn RowMenuFace(handle: PopupTriggerHandle, sized: Memo<Metrics>) -> NodeId {
+    let PopupTriggerHandle {
+        open,
+        button:
+            ButtonHandle {
+                hovered,
+                active,
+                focused,
+                tooltip,
+                ..
+            },
     } = handle;
     let theme = use_theme();
-    let fill = create_memo(move || match (active.get(), hovered.get()) {
+    let fill = create_memo(move || match (active.get() || open.get(), hovered.get()) {
         (true, _) => theme.pressed.get(),
         (false, true) => theme.hover.get(),
         (false, false) => Color32::TRANSPARENT,
     });
-    let color = create_memo(move || match hovered.get() || active.get() {
+    let color = create_memo(move || match hovered.get() || active.get() || open.get() {
         true => TextColor::Default,
         false => TextColor::Muted,
     });
     let extent = create_memo(move || Extent::px(sized.get().menu));
     let glyph_size = create_memo(move || sized.get().glyph);
     view! {
-        <Tooltip label={label}>
+        <Tooltip label={tooltip}>
             <Frame
                 width={extent}
                 height={extent}

@@ -7,7 +7,10 @@ use crate::popover::PopoverPanel;
 use crate::text_input::TextInput;
 use crate::tooltip::Tooltip;
 use beui_components_unstyled as unstyled;
-use beui_components_unstyled::{ButtonHandle, HexText, PopoverHandle, PopupTriggerHandle};
+use beui_components_unstyled::{
+    ButtonHandle, ColorInputFieldHandle, ColorInputHandle, ColorInputPickerHandle,
+    ColorInputSwatchHandle,
+};
 use beui_core::base::{Align, Direction};
 use beui_core::color::Color32;
 use beui_core::node::NodeId;
@@ -27,54 +30,56 @@ pub fn ColorInput(
     #[prop(default = true)] alpha: bool,
     on_preview: Callback<Option<Color32>>,
 ) -> NodeId {
-    let previewed = create_signal(None::<Color32>);
-    let shown = create_memo(move || previewed.get().unwrap_or_else(|| value.get()));
-    let hex = HexText::new(shown, alpha, value.into_callback());
-    let label = create_memo(move || label.get());
-    let picker_label = create_memo(move || match label.get() {
-        label if label.is_empty() => "Choose a color".to_owned(),
-        label => format!("Choose {label}"),
-    });
-    let disabled = create_memo(move || disabled.get());
     view! {
-        <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
-            <unstyled::Popover
-                label={picker_label}
-                icon_only=true
-                disabled={disabled}
-                trigger={move |handle: PopupTriggerHandle| view! {
-                    <SwatchTrigger handle color={shown} />
-                }}
-            >|popover: PopoverHandle|
+        <unstyled::ColorInput
+            value
+            label
+            disabled
+            alpha
+            on_preview
+            swatch={move |handle: ColorInputSwatchHandle| view! {
+                <SwatchTrigger handle />
+            }}
+            picker={move |handle: ColorInputPickerHandle| view! {
                 <PopoverPanel>
                     <ColorPicker
-                        value
-                        alpha
-                        focused={popover.open}
-                        on_preview={move |preview: Option<Color32>| {
-                            previewed.set(preview);
-                            on_preview.call(preview);
-                        }}
+                        value={handle.value}
+                        alpha={handle.alpha}
+                        focused={handle.open}
+                        on_preview={handle.on_preview}
                     />
                 </PopoverPanel>
-            </unstyled::Popover>
-            <TextInput
-                @sizing=ItemSize::Percent(100.0)
-                value={hex.text()}
-                label={label}
-                placeholder={hex.placeholder()}
-                disabled={disabled}
-                on_submit={move |typed: String| hex.submit(typed)}
-            />
-        </List>
+            }}
+            field={move |handle: ColorInputFieldHandle| {
+                let ColorInputFieldHandle { hex, label, disabled } = handle;
+                view! {
+                    <TextInput
+                        value={hex.text()}
+                        label={label}
+                        placeholder={hex.placeholder()}
+                        disabled={disabled}
+                        on_submit={move |typed: String| hex.submit(typed)}
+                    />
+                }
+            }}
+        >|handle: ColorInputHandle| {
+            let ColorInputHandle { swatch, field } = handle;
+            view! {
+                <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
+                    {swatch}
+                    {field} @sizing=ItemSize::Percent(100.0)
+                </List>
+            }
+        }</unstyled::ColorInput>
     }
 }
 
 #[component]
-fn SwatchTrigger(handle: PopupTriggerHandle, color: Memo<Color32>) -> NodeId {
+fn SwatchTrigger(handle: ColorInputSwatchHandle) -> NodeId {
+    let ColorInputSwatchHandle { trigger, color } = handle;
     let ButtonHandle {
         focused, tooltip, ..
-    } = handle.button;
+    } = trigger.button;
     view! {
         <Tooltip label={tooltip}>
             <FocusRing

@@ -16,17 +16,17 @@ use crate::unstyled::{
 };
 use beui_components_styled::button::{Button, ButtonSize, ButtonVariant};
 use beui_components_styled::context_menu::menu_style;
-use beui_components_styled::menu_button::MenuButton;
+use beui_components_styled::action_bar::{ActionBar, ActionLabels};
 use beui_components_styled::text::{Icon, Text, TextColor, TextSize};
 use beui_components_styled::theme::{NARROW_WIDTH, POINTER_REACH, use_theme};
 use beui_components_styled::tooltip::Tooltip;
-use beui_components_unstyled::{MenuNodes, Picture};
+use beui_components_unstyled::Picture;
 use beui_core::base::frame::Align2;
 use beui_core::base::{Align, Direction, ItemSize, Justify};
 use beui_core::color::Color32;
 use beui_core::font::TextAlign;
 use beui_core::icons::{
-    ICON_APP_WINDOW, ICON_ELLIPSIS_VERTICAL, ICON_GRIP_VERTICAL, ICON_MAXIMIZE, ICON_MINIMIZE,
+    ICON_APP_WINDOW, ICON_GRIP_VERTICAL, ICON_MAXIMIZE, ICON_MINIMIZE,
     ICON_X,
 };
 use beui_core::image::Image;
@@ -44,9 +44,6 @@ const TAB_SPACING: f32 = 8.0;
 const BAR_HEIGHT: f32 = 39.0;
 const BAR_PADDING: f32 = 4.0;
 const BAR_SPACING: f32 = 2.0;
-const DIVIDER_HEIGHT: f32 = 18.0;
-const DIVIDER_MARGIN: f32 = 4.0;
-const SHARE_MARGIN: f32 = 2.0;
 const GRIP_WIDTH: f32 = 16.0;
 const ICON_SIDEBAR: f32 = TAB_HEIGHT + 2.0 * BAR_PADDING;
 const PREVIEW_PADDING: f32 = 8.0;
@@ -704,160 +701,31 @@ pub(crate) enum BarRoom {
     Phone,
 }
 
-impl BarRoom {
-    fn button(self) -> ButtonSize {
-        match self {
-            BarRoom::Wide | BarRoom::Narrow | BarRoom::Column => ButtonSize::Toolbar,
-            BarRoom::Phone => ButtonSize::Regular,
-        }
-    }
-
-    fn direction(self) -> Direction {
-        match self {
-            BarRoom::Column => Direction::Vertical,
-            BarRoom::Wide | BarRoom::Narrow | BarRoom::Phone => Direction::Horizontal,
-        }
-    }
-
-    fn shows(self, pin: Pin) -> bool {
-        match pin {
-            Pin::Icon => true,
-            Pin::Label => self != BarRoom::Phone,
-            Pin::Title => self == BarRoom::Phone,
-        }
-    }
-}
-
 #[component]
 pub(crate) fn DockMenu(menu: Memo<Vec<MenuNode>>, room: BarRoom) -> NodeId {
-    let pins = create_memo(move || {
-        menu.with(|nodes| {
-            pinned(nodes)
-                .into_iter()
-                .filter(|action| {
-                    action
-                        .pinned()
-                        .is_some_and(|pin| pin != Pin::Title && room.shows(pin))
-                })
-                .collect::<Vec<_>>()
-        })
-    });
-    let keys_of = move |labelled: bool| {
-        create_memo(move || {
-            pins.with(|pins| {
-                pins.iter()
-                    .filter(|pin| (pin.pinned() == Some(Pin::Label)) == labelled)
-                    .map(Action::key)
-                    .collect::<Vec<_>>()
-            })
-        })
+    let labels = match room {
+        BarRoom::Wide => ActionLabels::Shown,
+        BarRoom::Narrow | BarRoom::Column => ActionLabels::Icons,
+        BarRoom::Phone => ActionLabels::Overflow,
     };
-    let icons = keys_of(false);
-    let labels = keys_of(true);
-    let divided = create_memo(move || {
-        room == BarRoom::Wide
-            && icons.with(|icons| !icons.is_empty())
-            && labels.with(|labels| !labels.is_empty())
-    });
-    let rest = create_memo(move || unpinned(menu.get(), room));
-    let offered = create_memo(move || rest.with(|items| !items.is_empty()));
-    let pin = move |key: u64| {
-        let action = pins.with_untracked(|pins| pins.iter().find(|pin| pin.key() == key).cloned());
-        match action {
-            Some(action) => view! {
-                <DockPin action room />
-            },
-            None => view! {
-                <Frame />
-            },
-        }
+    let direction = match room {
+        BarRoom::Column => Direction::Vertical,
+        BarRoom::Wide | BarRoom::Narrow | BarRoom::Phone => Direction::Horizontal,
+    };
+    let size = match room {
+        BarRoom::Wide | BarRoom::Narrow | BarRoom::Column => ButtonSize::Toolbar,
+        BarRoom::Phone => ButtonSize::Regular,
     };
     view! {
-        <List direction={room.direction()} align=Align::Center spacing=BAR_SPACING>
-            <ForEach keys={icons}>|key: u64| { pin(key) }</ForEach>
-            <Show condition={divided}>
-                <Frame padding={Sides::horizontal(DIVIDER_MARGIN)}>
-                    <Frame width=RULE height=DIVIDER_HEIGHT fill=ColorRole::Border />
-                </Frame>
-            </Show>
-            <ForEach keys={labels}>|key: u64| { pin(key) }</ForEach>
-            <Show condition={offered}>
-                <MenuButton
-                    icon_only=true
-                    variant=ButtonVariant::Ghost
-                    @test_id={"dock.menu"}
-                    label="More"
-                    glyph=ICON_ELLIPSIS_VERTICAL
-                    size={room.button()}
-                    items={view! {
-                        <MenuNodes nodes={rest} test_prefix={"dock.menu".to_owned()} />
-                    }}
-                />
-            </Show>
-        </List>
+        <ActionBar
+            menu
+            labels
+            title={room == BarRoom::Phone}
+            direction
+            size
+            test_prefix={"dock".to_owned()}
+        />
     }
-}
-
-#[component]
-fn DockPin(action: Action, room: BarRoom) -> NodeId {
-    let id = format!("dock.pin.{}", action.id());
-    match room == BarRoom::Wide && action.pinned() == Some(Pin::Label) {
-        true => view! {
-            <Frame padding={Sides::horizontal(SHARE_MARGIN)}>
-                <Button
-                    @test_id={id}
-                    action={action}
-                    variant=ButtonVariant::Primary
-                    size=ButtonSize::Compact
-                />
-            </Frame>
-        },
-        false => view! {
-            <Button
-                icon_only=true
-                @test_id={id}
-                action={action}
-                variant=ButtonVariant::Ghost
-                size={room.button()}
-            />
-        },
-    }
-}
-
-pub(crate) fn title_action(nodes: &[MenuNode]) -> Option<Action> {
-    pinned(nodes)
-        .into_iter()
-        .find(|action| action.pinned() == Some(Pin::Title))
-}
-
-fn pinned(nodes: &[MenuNode]) -> Vec<Action> {
-    nodes
-        .iter()
-        .flat_map(|node| match node {
-            MenuNode::Action { action, .. } if action.pinned().is_some() => vec![action.clone()],
-            MenuNode::Submenu(submenu) => pinned(&submenu.items),
-            MenuNode::Action { .. } | MenuNode::Separator => Vec::new(),
-        })
-        .collect()
-}
-
-fn unpinned(nodes: Vec<MenuNode>, room: BarRoom) -> Vec<MenuNode> {
-    let kept = nodes
-        .into_iter()
-        .filter_map(|node| match node {
-            MenuNode::Action { action, .. }
-                if action.pinned().is_some_and(|pin| room.shows(pin)) =>
-            {
-                None
-            }
-            MenuNode::Submenu(mut submenu) => {
-                submenu.items = unpinned(std::mem::take(&mut submenu.items), room);
-                Some(MenuNode::Submenu(submenu))
-            }
-            node => Some(node),
-        })
-        .collect();
-    tidy_menu(kept)
 }
 
 #[component]
