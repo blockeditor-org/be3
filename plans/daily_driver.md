@@ -137,8 +137,9 @@ is left is marked below.
   owner and joins in the background (`Io::Joined`), then reopens with the real
   session, keeping edits made meanwhile. The worker fetches listings in
   tasks of their own, so a stalled listing no longer holds up an open or an
-  edit. Still to do: other requests the loop awaits inline (a summary refresh,
-  `ReadHead`, versions) still hold it while the server is silent.
+  edit, and so do summary refreshes, contact syncs, key tending, version
+  watches and the rejoin after a reconnect (`worker::Tasks`). Still to do:
+  commands that need the server themselves hold the loop while it is silent.
 - **Editing offline seals local commits.**
   - Done: the replica host seals with `Peer::seal_encoded` and publishes
     only while attached; a replica that loses its connection is handed a

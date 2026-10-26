@@ -57,6 +57,8 @@ fn joining_session(head: Option<CommitId>) -> SessionState {
 
 type Joined = Result<(ClientId, SessionState, Option<CommitId>, Option<CommitId>), ClientError>;
 
+type Rejoined = Result<(ClientId, SessionState, Option<CommitId>), ClientError>;
+
 type Pending<T> = std::pin::Pin<Box<dyn Future<Output = T>>>;
 
 type Waiting = tokio::sync::oneshot::Sender<Outcome>;
@@ -108,6 +110,12 @@ pub enum Io {
         replica: ReplicaId,
         block: Uuid,
         joined: Box<Joined>,
+    },
+    Rejoined {
+        replica: ReplicaId,
+        block: Uuid,
+        rejoin: u64,
+        joined: Box<Rejoined>,
     },
 }
 
@@ -230,6 +238,7 @@ struct Open {
     reopen: bool,
     epoch: u64,
     joining: bool,
+    rejoining: Option<u64>,
     made_up: bool,
     early: Vec<Replayed>,
     unreported: bool,
@@ -249,6 +258,7 @@ pub struct Replicas<H: Host> {
     pending: Vec<Io>,
     relaying: usize,
     leaving: Vec<Uuid>,
+    rejoins: u64,
     changed: bool,
     pub handled: u64,
     host: std::marker::PhantomData<fn() -> H>,
@@ -273,6 +283,7 @@ impl<H: Host> Replicas<H> {
             pending: Vec::new(),
             relaying: 0,
             leaving: Vec::new(),
+            rejoins: 0,
             changed: false,
             handled: 0,
             host: std::marker::PhantomData,
@@ -584,6 +595,7 @@ impl<H: Host> Replicas<H> {
                 reopen: false,
                 epoch: 0,
                 joining,
+                rejoining: None,
                 made_up: joining,
                 early: Vec::new(),
                 unreported: false,
@@ -619,7 +631,7 @@ impl<H: Host> Replicas<H> {
             }
             return;
         };
-        if !open.joining {
+        if !open.joining || open.rejoining.is_some() {
             return;
         }
         let block = open.block;
@@ -979,16 +991,39 @@ impl<H: Host> Replicas<H> {
     }
 
     pub async fn seal(&mut self, ctx: Ctx<'_, H>, block: Uuid, force: bool) {
+        if self.ready_to_seal(block) {
+            let _ = self.on_replica::<()>(ctx, block, Asked::Seal(force)).await;
+        }
+    }
+
+    pub fn seal_later(&mut self, block: Uuid, force: bool) {
+        if !self.ready_to_seal(block) {
+            return;
+        }
+        let Some((replica, open)) = self.replica_of(block) else {
+            return;
+        };
+        let (module, handle) = (open.module, open.handle);
+        let asked = Asked::Seal(force);
+        if let Some(op) = self
+            .modules
+            .call(module, |connection| asked.send(handle, connection))
+        {
+            self.asked.insert((module, op), (replica, asked));
+        }
+    }
+
+    fn ready_to_seal(&mut self, block: Uuid) -> bool {
         if let Some((replica, open)) = self.replica_of(block)
             && open.joining
             && open.session.owner == Some(JOINING_OWNER)
         {
             if open.status.clean {
-                return;
+                return false;
             }
             self.make_up_session(replica);
         }
-        let _ = self.on_replica::<()>(ctx, block, Asked::Seal(force)).await;
+        true
     }
 
     pub async fn seal_all(&mut self, ctx: Ctx<'_, H>) {
@@ -1317,6 +1352,12 @@ impl<H: Host> Replicas<H> {
                 block,
                 joined,
             } => self.joined(shared, replica, block, *joined),
+            Io::Rejoined {
+                replica,
+                block,
+                rejoin,
+                joined,
+            } => self.rejoined(shared, replica, block, rejoin, *joined),
         }
     }
 
@@ -1327,6 +1368,7 @@ impl<H: Host> Replicas<H> {
                 continue;
             };
             let joining = std::mem::replace(&mut open.joining, false);
+            open.rejoining = None;
             open.early.clear();
             self.make_up_session(replica);
             if joining {
@@ -1335,43 +1377,86 @@ impl<H: Host> Replicas<H> {
         }
     }
 
-    pub async fn reconnect(&mut self, (peer, shared): Ctx<'_, H>) {
-        let replicas: Vec<ReplicaId> = self.open.keys().copied().collect();
-        for replica in replicas {
-            let Some(block) = self.open.get(&replica).map(|open| open.block) else {
-                continue;
-            };
-            let joined = async {
-                let (client, session) = peer.join_session(block).await?;
-                peer.watch(block).await?;
-                let head = peer.remote_head(block).await?;
-                Ok::<_, ClientError>((client, session, head))
-            }
-            .await;
-            let (client, session, head) = match joined {
-                Ok(joined) => joined,
-                Err(error) => {
-                    H::record(shared, error);
-                    continue;
-                }
-            };
-            let Some(open) = self.open.get_mut(&replica) else {
-                continue;
-            };
-            let joining = std::mem::replace(&mut open.joining, false);
-            open.made_up = false;
+    pub fn reconnect(&mut self, (peer, _): Ctx<'_, H>) {
+        self.rejoins += 1;
+        let rejoin = self.rejoins;
+        for (replica, open) in &mut self.open {
+            open.joining = true;
+            open.rejoining = Some(rejoin);
             open.early.clear();
-            let known = open.status.head;
-            self.reopen_joined(replica, client, session, known);
-            if let Some(head) = head
-                && Some(head) != known
-            {
-                self.moved(replica, head, false);
-            }
-            if joining {
-                self.close_if_asked(replica);
-            }
+            let (replica, block) = (*replica, open.block);
+            let peer = Arc::clone(peer);
+            let io = self.io.clone();
+            H::spawn(async move {
+                let joined = async {
+                    let (client, session) = peer.join_session(block).await?;
+                    peer.watch(block).await?;
+                    let head = peer.remote_head(block).await?;
+                    Ok::<_, ClientError>((client, session, head))
+                }
+                .await;
+                let _ = io.send(Io::Rejoined {
+                    replica,
+                    block,
+                    rejoin,
+                    joined: Box::new(joined),
+                });
+                H::wake();
+            });
         }
+    }
+
+    fn rejoined(
+        &mut self,
+        shared: &Arc<Mutex<H>>,
+        replica: ReplicaId,
+        block: Uuid,
+        rejoin: u64,
+        joined: Rejoined,
+    ) {
+        let Some(open) = self.open.get_mut(&replica) else {
+            if joined.is_ok() && rejoin == self.rejoins && !self.blocks.contains_key(&block) {
+                self.leaving.push(block);
+            }
+            return;
+        };
+        if open.rejoining != Some(rejoin) {
+            return;
+        }
+        open.joining = false;
+        open.rejoining = None;
+        let early = std::mem::take(&mut open.early);
+        let (client, session, head) = match joined {
+            Ok(joined) => joined,
+            Err(error) => {
+                H::record(shared, error);
+                for replayed in early {
+                    self.replay(replica, replayed);
+                }
+                self.close_if_asked(replica);
+                return;
+            }
+        };
+        open.made_up = false;
+        let generation = session.generation;
+        let early: Vec<Replayed> = early
+            .into_iter()
+            .filter(|replayed| match replayed {
+                Replayed::Lease { session, .. } => session.generation >= generation,
+                _ => true,
+            })
+            .collect();
+        let known = open.status.head;
+        self.reopen_joined(replica, client, session, known);
+        for replayed in early {
+            self.replay(replica, replayed);
+        }
+        if let Some(head) = head
+            && Some(head) != known
+        {
+            self.moved(replica, head, false);
+        }
+        self.close_if_asked(replica);
     }
 
     pub async fn restart(&mut self, module: usize) {

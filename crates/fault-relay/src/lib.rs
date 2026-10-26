@@ -22,6 +22,7 @@ struct State {
     upstream: SocketAddr,
     links: Mutex<Vec<Link>>,
     holding: Mutex<bool>,
+    stalling: Mutex<bool>,
     heard: watch::Sender<u64>,
     pings: watch::Sender<u64>,
 }
@@ -49,6 +50,7 @@ impl Relay {
             upstream,
             links: Mutex::new(Vec::new()),
             holding: Mutex::new(false),
+            stalling: Mutex::new(false),
             heard: watch::Sender::new(0),
             pings: watch::Sender::new(0),
         });
@@ -72,6 +74,14 @@ impl Relay {
         for link in self.state.links() {
             link.stalled.send_replace(true);
         }
+    }
+
+    pub fn stall_at_next_request(&self) {
+        *self
+            .state
+            .stalling
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner) = true;
     }
 
     pub fn cut(&self) {
@@ -194,6 +204,16 @@ async fn pump(
             Ok(read) => read,
         };
         if let Some(state) = heard {
+            if std::mem::take(
+                &mut *state
+                    .stalling
+                    .lock()
+                    .unwrap_or_else(PoisonError::into_inner),
+            ) {
+                for link in state.links() {
+                    link.stalled.send_replace(true);
+                }
+            }
             state.heard.send_modify(|heard| *heard += read as u64);
             let pings = frames.pings_in(&buffer[..read]);
             if pings > 0 {
