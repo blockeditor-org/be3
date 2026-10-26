@@ -285,8 +285,9 @@ pub fn show_with_keyboard(
     if let Some(mut host) = host {
         ctx.with_input(
             |input| {
-                let input =
-                    input.only(|event| !event.is_key() && !matches!(event, Event::Focus(_)));
+                let input = input
+                    .seen_from(window)
+                    .only(|event| !event.is_key() && !matches!(event, Event::Focus(_)));
                 match owns {
                     true => input,
                     false => input.without_pointer(was),

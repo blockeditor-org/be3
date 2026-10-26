@@ -13,7 +13,7 @@ mod shown;
 
 pub(crate) use guard::{ANSWER_WITHIN, Prompt, Screen};
 use guard::{Guard, ModeChange, written};
-pub(crate) use shown::{apply as apply_shown, create_handle, desktop, owner, shown};
+pub(crate) use shown::{ShownDisplay, apply as apply_shown, create_handle, desktop, offer, owner, shown};
 
 #[cfg(target_os = "linux")]
 mod linux;

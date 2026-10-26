@@ -584,3 +584,6 @@ fn DisplayChrome(view: AppViewStore, area: NodeRef, primary: bool) -> NodeId {
         </List>
     }
 }
+
+#[cfg(test)]
+mod tests;

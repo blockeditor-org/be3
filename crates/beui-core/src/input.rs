@@ -362,6 +362,26 @@ impl InputState {
         input
     }
 
+    pub fn seen_from(&self, window: crate::window::WindowId) -> Self {
+        if window.is_main() {
+            return self.clone();
+        }
+        let mut input = self.only(|event| !matches!(event, Event::PointerWindow(_)));
+        input.pointer_events.retain(|event| event.window == window);
+        for event in &mut input.pointer_events {
+            event.window = crate::window::WindowId::MAIN;
+        }
+        match input.pointer.window == window {
+            true => input.pointer.window = crate::window::WindowId::MAIN,
+            false => {
+                input.pointer.pos = None;
+                input.pointer.motion = Vec2::ZERO;
+            }
+        }
+        input.window = crate::window::WindowId::MAIN;
+        input
+    }
+
     pub fn without_pointer(&self, leaving: bool) -> Self {
         let mut input = self.only(|event| !event.is_pointer());
         input.pointer_events.clear();

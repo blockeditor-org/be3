@@ -27,7 +27,7 @@ pub(crate) fn shown() -> Signal<Vec<ShownDisplay>> {
         .expect("the displays are created while the document is built")
 }
 
-#[cfg_attr(not(target_os = "linux"), allow(dead_code))]
+#[cfg_attr(not(any(target_os = "linux", test)), allow(dead_code))]
 pub(crate) fn offer(displays: Vec<ShownDisplay>) {
     PENDING.with(|pending| *pending.borrow_mut() = Some(displays));
     crate::host::wake();
