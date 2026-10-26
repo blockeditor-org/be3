@@ -1,13 +1,13 @@
 use super::*;
 use crate::reactive::*;
-use crate::styled::Spinner;
+use crate::styled::Progress;
 use crate::{PreferenceLayer, PreferenceSource};
 
 #[test]
-fn an_instant_spinner_stops_and_resumes_with_the_preference() {
+fn an_instant_indeterminate_progress_stops_and_resumes_with_the_preference() {
     let document = build_node(move || {
         view! {
-            <Spinner />
+            <Progress />
         }
     });
     let mut harness = Harness::new(document);

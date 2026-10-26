@@ -4,6 +4,7 @@ mod fullscreen;
 pub(crate) mod launcher;
 pub(crate) mod media;
 mod notifications;
+pub(crate) mod osd;
 mod placeholders;
 mod popup;
 mod power;

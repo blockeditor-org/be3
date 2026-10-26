@@ -241,8 +241,8 @@ linux-desktop binds the volume, mute, mic mute, brightness and media transport k
 (`BINDINGS` in its `app/media.rs`, the one place that says which key does what) as
 intercepting actions, so the host hands them to the shell even while a program has the keyboard,
 and a held key repeats. Each key sends a `MediaRequest` (`media::request` inside
-`editor.act`), and a volume, mute or brightness key shows `beui::styled::LevelOsd`, an icon and
-a level bar on every monitor that fades out after 1.5 seconds, with the levels the host reports
+`editor.act`), and a volume, mute or brightness key shows `LevelOsd` (`app/osd.rs`), an icon and
+a `styled::Progress` bar on every monitor that fades out after 1.5 seconds, with the levels the host reports
 (`editor.watch::<MediaWatch>()`). The bar's volume item (`app/volume.rs`) shows
 the same output level while the host reports one, and its popup sets the volume, the mute and
 the default output (`MediaRequest::SetVolume`, `SetMute`, `ChooseOutput`) from the sinks the

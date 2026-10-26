@@ -55,6 +55,7 @@ mod the_calendar_popup_fits_a_narrow_screen;
 mod the_desktop_away_from_linux_hides_what_its_host_does_not_offer;
 mod the_desktop_keeps_each_programs_window_to_bring_back;
 mod the_desktop_starts_with_nothing_open_but_its_bar;
+mod the_level_stays_up_while_keys_keep_coming_and_fades_rather_than_vanishing;
 mod the_media_keys_ask_the_host_even_from_a_program_with_the_keyboard;
 mod the_notifications_button_lists_what_arrived_and_answers_it;
 mod the_power_menu_asks_before_ending_the_session;
@@ -70,6 +71,7 @@ mod the_volume_shows_on_every_monitor;
 mod the_wifi_in_the_bar_lists_the_networks_the_host_reports;
 mod the_wifi_popup_asks_the_host_to_connect;
 mod windows_that_close_as_the_session_ends_are_kept;
+mod with_instant_motion_the_level_keeps_its_time_and_goes_without_fading;
 
 const MAX_TAB: u64 = 64;
 const WINDOW_TABS: u64 = 1 << 41;

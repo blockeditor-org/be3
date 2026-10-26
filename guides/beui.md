@@ -1515,7 +1515,7 @@ its reactive scope at the top of a frame and asks the context for a repaint
 at the next deadline, so nothing is drawn while no timer is due. `work`
 returns `Some(delay)` to run again - an animation returns
 `Some(Duration::ZERO)` for the next frame - and `None` once it has settled,
-which is what lets a scroll fling or a spinner stop costing frames. Start a
+which is what lets a scroll fling or an indeterminate progress stop costing frames. Start a
 timer from the event or effect that begins the motion rather than leaving one
 running.
 
@@ -1537,7 +1537,7 @@ interaction decisions and semantic completion actions, not their own frame sched
 `Motion::Instant` finishes active animations and completes new ones without scheduling
 animation frames; the default is `Animated`. It is one of the preferences (below). Each
 document exposes `motion()` and the reactive `watch_motion()`. Instant mode disables inertia
-and rubber-banding, keeps carets visible and spinners static, and leaves held gestures
+and rubber-banding, keeps carets visible and indeterminate progress bars still, and leaves held gestures
 following input normally. Functional timers (expiry, key repeat, media and clocks) still
 run; keep visibility delays separate from the fade that follows them. Switching back does
 not replay completed transitions; repeating indicators explicitly resume. Appearance and
@@ -1567,9 +1567,7 @@ Set a layer with `Context::set_preference_layer(source, layer)` and read them wi
 `watch_theme()`, `watch_motion()` and `watch_canvas_touch()` for one each);
 `Document::watch_preference_layers()` is that, reactively, for settings that show where a value
 comes from; components read these as `use_preferences()` and `use_preference_layers()`, and
-write a layer through `use_preference_layer(source)`. `styled::PreferencesSection` is a settings section over the app layer, with a
-`styled::ThemeSelect` and `styled::MotionSelect` whose first option is the value inherited from
-below, and notes a developer override. An app that keeps its own choices passes
+write a layer through `use_preference_layer(source)`. An app that keeps its own choices passes
 `RunOptions::saving_preferences(name)`, which loads and saves the app layer in the platform's
 config folder (beui-demo does); one that does not still follows the system. block-app stores
 them in its display settings instead (guides/the_new_block_stack.md).
@@ -1898,7 +1896,7 @@ most of that rect is on, placed against the rect as it would be against a node.
 corner of a screen above its bar. A toast goes after its `duration` unless it is `sticky` or
 `danger`: an error stays until it is dismissed, so it cannot be missed.
 `Fill`, `At` and `Around` use the whole document, so something meant for every
-screen - `styled::KeepChanges`, `styled::LockScreen`, `styled::LevelOsd` - lays
+screen - `styled::KeepChanges`, `styled::LockScreen`, linux-desktop's `LevelOsd` - lays
 out one card per entry of `use_screens()`, which is a single card everywhere
 but a desktop with several monitors.
 
@@ -2321,11 +2319,17 @@ full screen button), seen where the fullscreen area does not cover it, such as a
 A tab's content calls `DockTabControl::offer_fullscreen` to add Full screen / Leave full screen
 to the tab's right-click menu; only content that has its own way out should.
 
-### Spinners
+### Progress
 
-`styled::Spinner` is an indeterminate progress bar. It animates only while it is
-laid out: a spinner behind a `Show` that is false, or in a tab nobody is
-looking at, asks for no frames. It uses `node_placed`, which works for any
+`styled::Progress` is a progress bar over `unstyled::Progress`. `value` is
+`Some(fraction)` for progress that is known and `None` (the default) for
+progress that is not: then the accessibility node is busy and a segment
+sweeps along the bar, read from the frame clock through the handle's `phase`.
+It fills its width unless given one; `INLINE_PROGRESS_WIDTH` is the width for
+one beside a label or a button. The sweep runs only while the bar is laid out
+and motion is animated: an indeterminate progress behind a `Show` that is
+false, in a tab nobody is looking at, or under reduced motion asks for no
+frames and rests in the middle. It uses `component_placed` (`node_placed` for a node), which works for any
 component that should only work while it is on screen.
 
 ### Drag and drop

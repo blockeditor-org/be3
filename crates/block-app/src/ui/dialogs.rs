@@ -202,7 +202,7 @@ fn MembersPanel(view: AppViewStore) -> NodeId {
                         }}
                     />
                     <Show condition={busy}>
-                        <Spinner />
+                        <Progress width=INLINE_PROGRESS_WIDTH />
                     </Show>
                 </List>
                 <ErrorText text={error} />
@@ -310,7 +310,7 @@ fn ContactsPanel(view: AppViewStore) -> NodeId {
                         on_click={|| send(UiCommand::NewContactLink)}
                     />
                     <Show condition={busy}>
-                        <Spinner />
+                        <Progress width=INLINE_PROGRESS_WIDTH />
                     </Show>
                 </List>
                 <Show condition={has_link}>
@@ -455,7 +455,7 @@ fn AgentsPanel(view: AppViewStore) -> NodeId {
                                 on_click={move || send(UiCommand::CreateAgent(name.get_untracked()))}
                             />
                             <Show condition={busy}>
-                                <Spinner />
+                                <Progress width=INLINE_PROGRESS_WIDTH />
                             </Show>
                             <Spacer @sizing=ItemSize::Percent(100.0) />
                         </List>
@@ -612,7 +612,7 @@ fn InvitePanel(view: AppViewStore) -> NodeId {
                         }}
                     />
                     <Show condition={busy}>
-                        <Spinner />
+                        <Progress width=INLINE_PROGRESS_WIDTH />
                     </Show>
                 </List>
                 <ErrorText text={error} />

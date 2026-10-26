@@ -209,7 +209,7 @@ fn Sidebar(model: Model) -> NodeId {
                     </List>
                     <Show condition={loading}>
                         <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
-                            <Spinner width=20.0 label="Loading pull requests" />
+                            <Progress width=20.0 label="Loading pull requests" />
                             <Text style=TextStyle::CAPTION>"Loading pull requests"</Text>
                         </List>
                     </Show>

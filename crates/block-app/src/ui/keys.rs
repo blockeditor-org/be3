@@ -91,7 +91,7 @@ pub(super) fn RecoveryScreen(view: AppViewStore) -> NodeId {
             <ErrorText text={error} />
             <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
                 <Show condition={busy}>
-                    <Spinner />
+                    <Progress width=INLINE_PROGRESS_WIDTH />
                 </Show>
                 <Spacer @sizing=ItemSize::Percent(100.0) />
                 <Show condition={first_time}>
@@ -182,7 +182,7 @@ pub(super) fn UnlockScreen(view: AppViewStore) -> NodeId {
                     </Text>
                     <Text style=TextStyle::TITLE>{code}</Text>
                     <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
-                        <Spinner />
+                        <Progress width=INLINE_PROGRESS_WIDTH />
                         <Text style=TextStyle::CAPTION>"Waiting for the other device…"</Text>
                         <Spacer @sizing=ItemSize::Percent(100.0) />
                         <Button

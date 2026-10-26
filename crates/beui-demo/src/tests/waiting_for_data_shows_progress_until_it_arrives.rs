@@ -1,7 +1,7 @@
 use super::*;
 
 #[test]
-fn waiting_for_data_shows_a_spinner_until_it_arrives() {
+fn waiting_for_data_shows_progress_until_it_arrives() {
     let mut test = alone(WIDE, Page::Inputs);
     let root = test.document().root().expect("the demo built a root");
     reveal(&mut test, "demo.loading.arrive");

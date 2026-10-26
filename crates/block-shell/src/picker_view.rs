@@ -1011,7 +1011,7 @@ fn CreateBody(workspace: Workspace, pick: u64, held: Memo<Option<Pick>>, act: Ac
                 <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
                     <Show condition={working}>
                         <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
-                            <Spinner />
+                            <Progress width=INLINE_PROGRESS_WIDTH />
                             <Text style=TextStyle::CAPTION>{waiting_label}</Text>
                         </List>
                     </Show>

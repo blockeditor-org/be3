@@ -23,7 +23,7 @@ const DEFAULT_VOLUME: f32 = 0.6;
 const NESTED_SCROLL_HEIGHT: f32 = 160.0;
 const NESTED_SCROLL_ROWS: usize = 30;
 const SWATCH_HEIGHT: f32 = 28.0;
-const SPINNER_WIDTH: f32 = 120.0;
+const PROGRESS_WIDTH: f32 = 120.0;
 const DIALOG_WIDTH: f32 = 380.0;
 const LAUNCHER_ICON_PIXELS: u32 = 64;
 const LAUNCHER_ICON_BORDER: u32 = 6;
@@ -968,7 +968,7 @@ fn LoadSliders() -> NodeId {
                 </Text>
             </List>
             <Slider value={load} label="Load" />
-            <Progress value={load} />
+            <Progress value={create_memo(move || Some(load.get()))} label="Load" />
             <List direction=Direction::Horizontal align=Align::Center spacing=ROW_SPACING>
                 <Text style=TextStyle::CAPTION>"Zoom, with 1x in the middle"</Text>
                 <Text
@@ -987,7 +987,7 @@ fn LoadSliders() -> NodeId {
                 label="Zoom"
             />
             <Text style=TextStyle::CAPTION>"Something that takes as long as it takes"</Text>
-            <Spinner width=SPINNER_WIDTH label="Working" />
+            <Progress width=PROGRESS_WIDTH label="Working" />
         </List>
     }
 }
@@ -1000,7 +1000,7 @@ fn SlowGreeting() -> NodeId {
     let fail = move || answer.set(Err(Pending::Failed("The server said no".to_owned())));
     let fallback = |pending: Pending| match pending {
         Pending::Loading => view! {
-            <Spinner width=SPINNER_WIDTH label="Waiting" />
+            <Progress width=PROGRESS_WIDTH label="Waiting" />
         },
         Pending::Failed(error) => view! {
             <Text style=TextStyle::CAPTION>{error}</Text>
@@ -2102,9 +2102,6 @@ pub(crate) fn OverlaysPage() -> NodeId {
             <Sample title="Launcher" code={vec![ProgramLauncher::SOURCE, program::SOURCE]}>
                 <ProgramLauncher />
             </Sample>
-            <Sample title="Level display" code={vec![VolumeDisplay::SOURCE]}>
-                <VolumeDisplay />
-            </Sample>
             <Sample title="Menu as a sheet" code={vec![ActionsSheet::SOURCE]}>
                 <ActionsSheet />
             </Sample>
@@ -2120,46 +2117,7 @@ pub(crate) fn OverlaysPage() -> NodeId {
             <Sample title="Toasts" code={vec![ToastArea::SOURCE]}>
                 <ToastArea />
             </Sample>
-            <Sample title="Crash notice" code={vec![CrashedEditor::SOURCE]}>
-                <CrashedEditor />
-            </Sample>
-            <Sample title="Stale notice" code={vec![StaleBlock::SOURCE]}>
-                <StaleBlock />
-            </Sample>
         </ScrollPage>
-    }
-}
-
-#[sample]
-#[component]
-fn CrashedEditor() -> NodeId {
-    let reloads = create_signal(0_u32);
-    let detail = create_memo(move || match reloads.get() {
-        0 => "the count overflowed\n(at src/counter.rs:12:9)".to_owned(),
-        1 => "It stopped again after a reload.".to_owned(),
-        reloads => format!("It stopped again after {reloads} reloads."),
-    });
-    view! {
-        <CrashNotice
-            title="Counter stopped"
-            detail={detail}
-            on_reload={move || reloads.update(|reloads| *reloads += 1)}
-        />
-    }
-}
-
-#[sample]
-#[component]
-fn StaleBlock() -> NodeId {
-    let outcome = create_signal("Saved by another build".to_owned());
-    view! {
-        <StaleNotice
-            title={outcome}
-            detail="This build cannot read what another build saved here."
-            on_reset={move || outcome.set("Reset to empty".to_owned())}
-            on_delete={move || outcome.set("Deleted".to_owned())}
-            on_try={move || outcome.set("Opened anyway".to_owned())}
-        />
     }
 }
 
@@ -2622,60 +2580,6 @@ fn message_toast(id: u64) -> Toast {
         activates: true,
         sticky: true,
         ..Toast::default()
-    }
-}
-
-#[sample]
-#[component]
-fn VolumeDisplay() -> NodeId {
-    let volume = create_signal(0.4_f32);
-    let muted = create_signal(false);
-    let shown = create_signal(0_u64);
-    let level = create_memo(move || {
-        let (volume, muted) = (volume.get(), muted.get());
-        let glyph = match volume {
-            _ if muted || volume == 0.0 => ICON_VOLUME_X,
-            volume if volume < 0.5 => ICON_VOLUME_1,
-            _ => ICON_VOLUME_2,
-        };
-        Some(OsdLevel {
-            glyph: glyph.to_owned(),
-            label: "Volume".to_owned(),
-            level: volume,
-            muted,
-        })
-    });
-    let step = move |by: f32| {
-        volume.update(|volume| *volume = (*volume + by).clamp(0.0, 1.0));
-        shown.update(|shown| *shown += 1);
-    };
-    view! {
-        <List spacing=0.0>
-            <List direction=Direction::Horizontal align=Align::Start wrap=true spacing=8.0>
-                <Button
-                    @test_id={"demo.osd.down"}
-                    label="Volume down"
-                    variant=ButtonVariant::Secondary
-                    on_click={move || step(-0.05)}
-                />
-                <Button
-                    @test_id={"demo.osd.up"}
-                    label="Volume up"
-                    variant=ButtonVariant::Secondary
-                    on_click={move || step(0.05)}
-                />
-                <Button
-                    @test_id={"demo.osd.mute"}
-                    label="Mute"
-                    variant=ButtonVariant::Secondary
-                    on_click={move || {
-                        muted.update(|muted| *muted = !*muted);
-                        shown.update(|shown| *shown += 1);
-                    }}
-                />
-            </List>
-            <LevelOsd level={level} shown={shown} id="demo.osd" />
-        </List>
     }
 }
 
@@ -3516,11 +3420,9 @@ fn Separators() -> NodeId {
                 <Text>"Three"</Text>
             </List>
             <Separator />
-            <Bordered corner_radius=Radius::Lg>
-                <Frame padding=ROW_SPACING>
-                    <Text>"A border drawn around whatever it holds"</Text>
-                </Frame>
-            </Bordered>
+            <Frame border={Border::DEFAULT} radius=Radius::Lg padding=ROW_SPACING>
+                <Text>"A border drawn around whatever it holds"</Text>
+            </Frame>
         </List>
     }
 }
@@ -3736,25 +3638,7 @@ pub(crate) fn ThemesPage() -> NodeId {
                     <WindowSample />
                 </Sample>
             </Show>
-            <Sample title="Preferences" code={vec![PreferenceSettings::SOURCE]}>
-                <PreferenceSettings />
-            </Sample>
         </ScrollPage>
-    }
-}
-
-#[sample]
-#[component]
-fn PreferenceSettings() -> NodeId {
-    view! {
-        <List spacing=SECTION_SPACING>
-            <Text style=TextStyle::PARAGRAPH wrap=Wrap::Words>
-                "The theme and motion this app chooses, over what the system prefers. \
-                 The demo saves them in its config folder; the inspector's Simulation tab \
-                 overrides them until it is set back to no override."
-            </Text>
-            <PreferencesSection />
-        </List>
     }
 }
 
@@ -3824,7 +3708,7 @@ fn ThemeSample(name: &'static str) -> NodeId {
                     <Checkbox label="A checkbox" checked=true />
                     <LabelledSwitch label="A switch" on=true />
                     <Slider value=0.6 label="A slider" />
-                    <Progress value=0.6 />
+                    <Progress value={Some(0.6)} />
                     <List direction=Direction::Horizontal align=Align::Center spacing=8.0 wrap=true>
                         <Button label="Primary" variant=ButtonVariant::Primary />
                         <Button label="Secondary" variant=ButtonVariant::Secondary />

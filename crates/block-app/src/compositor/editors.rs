@@ -977,7 +977,7 @@ fn BlockFrameBody(
                     Resolution::NoAccess => {
                         let item = HostItem::Notice {
                             text: "No access".to_owned(),
-                            spinner: false,
+                            busy: false,
                             icon: Some(beui::icons::ICON_LOCK),
                         };
                         view! {
@@ -991,7 +991,7 @@ fn BlockFrameBody(
                         let item = HostItem::Notice {
                             text: "Locked: its key has not been shared with you yet"
                                 .to_owned(),
-                            spinner: false,
+                            busy: false,
                             icon: Some(beui::icons::ICON_LOCK),
                         };
                         view! {

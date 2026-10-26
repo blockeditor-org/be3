@@ -56,8 +56,8 @@ pub fn Checklist(editor: Editor) -> NodeId {
         })
     });
     let progress = create_memo(move || match total.get() {
-        0 => 0.0,
-        total => done_count.get() as f32 / total as f32,
+        0 => Some(0.0),
+        total => Some(done_count.get() as f32 / total as f32),
     });
     let summary = create_memo(move || match total.get() {
         0 => "Add your first task below".to_owned(),

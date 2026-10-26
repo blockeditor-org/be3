@@ -140,7 +140,7 @@ fn PullRequestView(model: Model, pull_request: Memo<PullRequest>) -> NodeId {
                         <Separator />
                         <Show condition={loading}>
                             <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
-                                <Spinner width=20.0 label="Loading the conversation" />
+                                <Progress width=20.0 label="Loading the conversation" />
                                 <Text style=TextStyle::CAPTION>"Loading the conversation"</Text>
                             </List>
                         </Show>
@@ -493,7 +493,7 @@ fn WebImage(model: Model, url: String, alt: String) -> NodeId {
             <Show condition={waiting}>|| {
                 let described = described.clone(); view! {
                     <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
-                        <Spinner width=18.0 label="Loading an image" />
+                        <Progress width=18.0 label="Loading an image" />
                         <Text style=TextStyle::CAPTION>{described}</Text>
                     </List>
                 }

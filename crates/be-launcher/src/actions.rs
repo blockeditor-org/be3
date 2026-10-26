@@ -234,7 +234,7 @@ fn SlotNotes(model: Model, slot: Slot) -> NodeId {
         <List spacing=8.0>
             <Show condition={working}>
                 <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
-                    <Spinner width=18.0 label="Working on the build" />
+                    <Progress width=18.0 label="Working on the build" />
                     <Text style=TextStyle::CAPTION>{progress}</Text>
                 </List>
             </Show>

@@ -1,16 +1,9 @@
-use crate::frame::{Border, ColorRole, Frame, Radius};
+use crate::frame::{ColorRole, Frame};
 use beui_macros::{component, view};
 
 use crate::theme::SEPARATOR_THICKNESS;
 use beui_core::node::NodeId;
 use beui_view::reactive::*;
-
-#[component]
-pub fn Bordered(corner_radius: Radius, children: Child) -> NodeId {
-    view! {
-        <Frame border={Border::DEFAULT} radius=corner_radius>{children}</Frame>
-    }
-}
 
 fn measurement_along(
     axis: Direction,

@@ -16,6 +16,7 @@ use crate::root_settings::{RootSetting, SettingsGraph, own_settings_blocks};
 const KEPT: &str = "Kept on this device";
 const IN_PROFILE: &str = "Kept in this profile";
 const ONLY_HERE: &str = "This device only";
+const DEVELOPER_OVERRIDE: &str = "Overridden by developer tools";
 const KEEP_ACTION: &str = "keep";
 const UNDO_ACTION: &str = "undo";
 

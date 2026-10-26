@@ -1,6 +1,6 @@
 use std::time::Duration;
 
-use block_editor_beui::beui::styled::*;
+use crate::app::osd::OSD_DURATION;
 
 use super::*;
 

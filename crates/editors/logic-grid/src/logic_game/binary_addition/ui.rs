@@ -81,18 +81,16 @@ pub(crate) fn BinaryAddition(editor: Editor, block: crate::logic_game::app::Game
     view! {
         <List spacing=ROW_SPACING>
             <Text>{title}</Text>
-            <Bordered corner_radius={Radius::custom(8.0)}>
-                <Frame padding=PADDING>
-                    <ProblemGrid
-                        quiz={quiz}
-                        block={block}
-                        page={page.read_only()}
-                        answers={answers}
-                        checked={checked.read_only()}
-                        read_only={read_only}
-                    />
-                </Frame>
-            </Bordered>
+            <Frame border={Border::DEFAULT} radius={Radius::custom(8.0)} padding=PADDING>
+                <ProblemGrid
+                    quiz={quiz}
+                    block={block}
+                    page={page.read_only()}
+                    answers={answers}
+                    checked={checked.read_only()}
+                    read_only={read_only}
+                />
+            </Frame>
             <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
                 <Button
                     label="Check"

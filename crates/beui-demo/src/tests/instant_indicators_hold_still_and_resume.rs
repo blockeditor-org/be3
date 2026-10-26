@@ -9,7 +9,7 @@ fn instant_indicators_hold_still_and_resume() {
             <Root>
                 <Frame fill=ColorRole::Background padding=16.0>
                     <List spacing=12.0>
-                        <Spinner label="Loading" />
+                        <Progress label="Loading" />
                         <TextInput @test_id="instant.input" value="A visible caret" />
                     </List>
                 </Frame>

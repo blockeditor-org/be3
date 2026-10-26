@@ -4,8 +4,6 @@ use block_ui_test::DocumentTest;
 
 use super::*;
 use crate::{DemoApp, PAGES, Page};
-use beui::icons::ICON_VOLUME_2;
-use std::time::Duration;
 
 mod a_card_floats_from_its_tab_and_waits_while_another_tab_is_shown;
 mod a_card_keeps_inside_a_small_window;
@@ -36,7 +34,6 @@ mod a_table_lines_its_cells_up_under_its_columns;
 mod a_tabs_pinned_action_sits_in_its_bar_tiled_and_stacked;
 mod a_toast_shows_over_an_open_dialog_and_takes_a_press;
 mod a_tooltip_is_as_wide_as_its_label_up_to_a_cap;
-mod an_instant_level_display_keeps_its_duration_without_fading;
 mod animations_paint_their_progress_and_instant_targets;
 mod closing_the_rich_text_tab_disposes_its_editors;
 mod dragging_across_the_lines_of_a_long_list_selects_them;
@@ -56,7 +53,6 @@ mod the_arrow_keys_move_across_a_menu_grid_and_on_to_the_rows_below;
 mod the_catalog_shows_a_page_in_place_of_the_one_shown_unless_ctrl_is_held;
 mod the_code_of_a_sample_can_be_selected;
 mod the_command_palette_ticks_what_a_menu_ticks;
-mod the_crash_notice_sample_reloads_from_its_button;
 mod the_demo_leaves_a_pane_saying_nothing_is_open;
 mod the_demo_opens_every_page_from_its_catalog;
 mod the_demo_pages_scroll_rather_than_spilling_off_a_small_window;
@@ -69,8 +65,6 @@ mod the_keep_changes_prompt_shows_on_every_screen;
 mod the_keep_changes_sample_keeps_on_enter_and_reverts_on_escape;
 mod the_keep_changes_sample_reverts_once_its_countdown_runs_out;
 mod the_launcher_sample_narrows_its_programs_as_a_name_is_typed;
-mod the_level_display_shows_on_a_change_and_fades_out;
-mod the_level_display_shows_on_every_screen;
 mod the_lock_screen_sample_stays_locked_until_its_password_is_typed;
 mod the_lock_screen_shows_on_every_screen;
 mod the_lock_screens_actions_are_told_apart_by_place;
@@ -80,13 +74,12 @@ mod the_overlay_sample_closes_on_escape_and_a_click_outside;
 mod the_rich_text_bar_styles_a_selection_and_shows_the_style_under_the_caret;
 mod the_rich_text_page_renders_its_blocks_and_voids_and_edits_them_through_them;
 mod the_runs_toggle_shows_where_each_side_typed_and_deleted;
-mod the_stale_notice_sample_answers_each_of_its_buttons;
 mod the_tree_sample_opens_on_the_left_of_a_row_and_its_menu_from_its_button;
 mod the_window_sample_floats_beside_its_button_where_nothing_opens_windows;
 mod the_window_sample_opens_a_window_of_its_own_where_a_host_opens_windows;
 mod toasts_on_the_top_edge_stack_in_the_top_corner;
 mod typing_a_fahrenheit_temperature_moves_the_celsius_one;
-mod waiting_for_data_shows_a_spinner_until_it_arrives;
+mod waiting_for_data_shows_progress_until_it_arrives;
 
 const TODAY: (i32, u8, u8) = (2026, 1, 15);
 const WIDE: Vec2 = Vec2::new(1100.0, 800.0);
@@ -254,32 +247,6 @@ fn lowest_edge(document: &Document, id: NodeId, clip: f32) -> f32 {
 
 fn over_the_page(size: Vec2) -> Pos2 {
     pos2(size.x * 0.7, size.y * 0.6)
-}
-
-fn level_display() -> DocumentTest {
-    let document = build(move || {
-        let shown = create_signal(0_u64);
-        let level = Some(OsdLevel {
-            glyph: ICON_VOLUME_2.to_owned(),
-            label: "Volume".to_owned(),
-            level: 0.65,
-            muted: false,
-        });
-        view! {
-            <Root>
-                <List spacing=0.0>
-                    <Button
-                        @test_id={"test.show"}
-                        label="Turn it up"
-                        variant=ButtonVariant::Secondary
-                        on_click={move || shown.update(|shown| *shown += 1)}
-                    />
-                    <LevelOsd level={level} shown={shown} />
-                </List>
-            </Root>
-        }
-    });
-    DocumentTest::new(document, Vec2::new(1100.0, 480.0))
 }
 
 fn tab(page: Page) -> u64 {

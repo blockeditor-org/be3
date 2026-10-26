@@ -98,7 +98,7 @@ fn PaintReview(
                             spacing=MESSAGE_SPACING
                             @test_id={"paint_review.loading"}
                         >
-                            <Spinner label="Loading the paintings" />
+                            <Progress width=INLINE_PROGRESS_WIDTH label="Loading the paintings" />
                             <Text style=TextStyle::CAPTION>"Loading the paintings"</Text>
                         </List>
                     </Frame>

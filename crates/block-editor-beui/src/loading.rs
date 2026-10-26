@@ -21,7 +21,7 @@ pub fn LoadingPane(#[prop(default = "Loading".to_owned())] label: Prop<String>) 
             <List spacing=0.0 align=Align::Center>
                 <Spacer @sizing=ItemSize::Percent(100.0) />
                 <Show condition={late}>
-                    <Spinner label={label} />
+                    <Progress width=INLINE_PROGRESS_WIDTH label={label} />
                 </Show>
                 <Spacer @sizing=ItemSize::Percent(100.0) />
             </List>

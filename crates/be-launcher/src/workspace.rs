@@ -31,7 +31,7 @@ pub(crate) fn Workspace(model: Model) -> NodeId {
                         {status}
                     </Text>
                     <Show condition={working}>
-                        <Spinner width=18.0 label="A build is running" />
+                        <Progress width=18.0 label="A build is running" />
                     </Show>
                 </List>
             </Frame>

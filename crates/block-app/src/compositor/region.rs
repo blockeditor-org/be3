@@ -19,7 +19,7 @@ use crate::plugin_host::{
     self, BlockDrag, EditorView, HostChild, InstanceRole, Piece, RegionPlacement, RegionSlot,
     RegionView,
 };
-use crate::surfaces::HostItemFace;
+use crate::surfaces::{CrashNotice, HostItemFace};
 
 #[derive(Clone, Debug, PartialEq)]
 struct Failure {
@@ -703,7 +703,7 @@ fn Notices(loading: Memo<bool>, failure: Memo<Option<Failure>>, id: String) -> N
     };
     let loading_item = create_memo(|| HostItem::Notice {
         text: "Loading plugin…".to_owned(),
-        spinner: true,
+        busy: true,
         icon: None,
     });
     view! {

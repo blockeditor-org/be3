@@ -28,6 +28,7 @@ pub mod pan_zoom;
 pub mod picture;
 pub mod pointer_lock;
 pub mod popover;
+pub mod progress;
 pub mod pressable;
 pub mod rubber_band;
 pub mod scroll;
@@ -105,6 +106,7 @@ pub use picture::Picture;
 pub use pointer_lock::{PointerLock, PointerLockHandle};
 pub use popover::{Popover, PopoverApi, PopoverHandle, PopoverPlacement, PopoverTriggerHandle};
 pub use pressable::Pressable;
+pub use progress::{Progress, ProgressHandle};
 pub use scroll::{
     SCROLLBAR_FADE_OUT, SCROLLBAR_LINGER, Scroll, ScrollApi, ScrollHandle, ScrollbarStyle,
 };

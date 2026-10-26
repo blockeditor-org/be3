@@ -846,7 +846,7 @@ what an older build saved. Every save stamps the derived `SCHEMA` key with
 wrongly. `be::staleness` calls an unfrozen block stale when its replica could
 not read it (`Status::unreadable`, kept in `Shared::unreadable`) or its stamp is another schema's; a block
 with no stamp is not stale. A stale block's frame shows `StaleNotice`
-(`surfaces::StaleBlock`) instead of its editor: Reset publishes the type's
+(`surfaces::StaleBlock`, with the notice in `surfaces/notices.rs`) instead of its editor: Reset publishes the type's
 default content (`be::reset`), Delete deletes it as the shell would, and Try
 anyway shows the editor for the rest of the session (`be::try_anyway`). A block
 the app holds itself (`be::hold`: settings, the shell's session) is reset by

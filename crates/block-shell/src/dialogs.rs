@@ -277,7 +277,7 @@ fn ShareDialog(workspace: Workspace) -> NodeId {
                 </Show>
                 <Show condition={loading}>
                     <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
-                        <Spinner />
+                        <Progress width=INLINE_PROGRESS_WIDTH />
                         <Text style=TextStyle::CAPTION>"Loading members…"</Text>
                     </List>
                 </Show>
@@ -373,7 +373,7 @@ fn ShareDialog(workspace: Workspace) -> NodeId {
                         on_click={move || act.call(ShareAction::InviteNew)}
                     />
                     <Show condition={inviting}>
-                        <Spinner />
+                        <Progress width=INLINE_PROGRESS_WIDTH />
                     </Show>
                 </List>
                 <Show condition={invited}>

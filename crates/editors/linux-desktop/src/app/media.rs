@@ -5,9 +5,9 @@ use block_editor_beui::beui::icons::{
     ICON_SUN_DIM, ICON_VOLUME_1, ICON_VOLUME_2, ICON_VOLUME_X,
 };
 use block_editor_beui::beui::reactive::*;
-use block_editor_beui::beui::styled::*;
 use block_editor_beui::beui::{Key, NodeId};
 use block_editor_beui::linux_desktop;
+use super::osd::{LevelOsd, OsdLevel};
 use block_editor_beui::{Editor, MediaLevel, MediaLevels, MediaRequest, MediaWatch, PlayerCommand};
 
 pub(crate) const VOLUME_STEP: f32 = 0.05;
@@ -176,6 +176,6 @@ pub(super) fn MediaKeys(editor: Editor) -> NodeId {
     }
     let level = create_memo(move || osd_level(shown.get()?, levels.get()));
     view! {
-        <LevelOsd level={level} shown={shows} id="desktop.osd" />
+        <LevelOsd level shown={shows.read_only()} id={"desktop.osd".to_owned()} />
     }
 }

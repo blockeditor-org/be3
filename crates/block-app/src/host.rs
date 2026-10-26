@@ -338,7 +338,7 @@ pub(crate) fn take_commands() -> Vec<HostCommand> {
 pub(crate) enum HostItem {
     Notice {
         text: String,
-        spinner: bool,
+        busy: bool,
         icon: Option<beui::icons::Glyph>,
     },
     Unsupported {

@@ -797,7 +797,7 @@ pub(super) fn SessionsScreen(view: AppViewStore) -> NodeId {
             <Text style=TextStyle::TITLE>{title}</Text>
             <Show condition={loading}>
                 <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
-                    <Spinner />
+                    <Progress width=INLINE_PROGRESS_WIDTH />
                     <Text style=TextStyle::CAPTION>"Loading sessions and profiles…"</Text>
                 </List>
             </Show>
@@ -929,7 +929,7 @@ fn OrganizationsPlaceholder(state: Memo<OrganizationsState>) -> NodeId {
             </Show>
             <Show condition={loading}>
                 <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
-                    <Spinner />
+                    <Progress width=INLINE_PROGRESS_WIDTH />
                     <Text style=TextStyle::CAPTION>"Loading organizations…"</Text>
                 </List>
             </Show>

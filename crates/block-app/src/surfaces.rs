@@ -9,6 +9,10 @@ use uuid::Uuid;
 use crate::compositor::{ChildView, PluginRegion, RegionEditor, ShellSurface};
 use crate::host::HostItem;
 
+mod notices;
+
+pub(crate) use notices::{CrashNotice, StaleNotice};
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub(crate) enum SurfaceId {
     ArtifactSettings,
@@ -147,8 +151,8 @@ pub(crate) fn HostItemFace(content: Memo<HostItem>) -> NodeId {
         HostItem::Unsupported { block_type, .. } => format!("Type: {block_type}"),
         _ => String::new(),
     });
-    let spinning =
-        create_memo(move || matches!(content.get(), HostItem::Notice { spinner: true, .. }));
+    let busy =
+        create_memo(move || matches!(content.get(), HostItem::Notice { busy: true, .. }));
     let glyph = create_memo(move || match content.get() {
         HostItem::Notice { icon, .. } => icon,
         HostItem::Unsupported { .. } => None,
@@ -172,8 +176,8 @@ pub(crate) fn HostItemFace(content: Memo<HostItem>) -> NodeId {
                 <Show condition={unsupported}>
                     <Text style=TextStyle::CAPTION align=TextAlign::Center>{detail}</Text>
                 </Show>
-                <Show condition={spinning}>
-                    <Spinner />
+                <Show condition={busy}>
+                    <Progress width=INLINE_PROGRESS_WIDTH />
                 </Show>
             </List>
         </Frame>

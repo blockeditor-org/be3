@@ -45,9 +45,10 @@ into a new unstyled component, then rebuild the styled one on top of it.
   input pass through, and an accessibility live region. Toasts have no role
   today. Keep `Toast`'s notification fields (image, actions, activates,
   sticky). Toasts are generally useful with them.
-- **Indeterminate progress**: the phase animation, the reduced-motion check and
+- **Done.** **Indeterminate progress**: the phase animation, the reduced-motion check and
   the busy accessibility node from `styled::Spinner`. This becomes part of the
-  merged `Progress` (§4.4).
+  merged `Progress` (§4.4). It is `unstyled::Progress`, whose handle carries
+  the clamped `value` and the sweep's `phase`.
 - **`EveryScreen`**: one copy of something per screen, from `use_screens()`,
   each given its screen's rectangle relative to the bounds of all screens.
   `KeepChanges`, `LockScreen` and `LevelOsd` each repeat this. All three are
@@ -74,7 +75,7 @@ into a new unstyled component, then rebuild the styled one on top of it.
   `ToggleButton` and `IconButton`. `ButtonHandle` already carries `tooltip`,
   so let the unstyled button decide when it shows.
 - **Dialog Enter handling**: moves with §1's `unstyled::Dialog`.
-- **Spinner animation**: moves with §1's indeterminate progress.
+- **Done.** **Spinner animation**: moves with §1's indeterminate progress.
 - **TextInput clear and copy.** `styled::TextInput`'s clear and copy buttons
   (`copy_text`) are behaviour. Expose them from `unstyled::TextInput` as
   handle callbacks, and leave only the buttons' look in styled.
@@ -88,8 +89,10 @@ into a new unstyled component, then rebuild the styled one on top of it.
 - **`LockScreen` → block-app.** Only block-app uses it (`ui/lock.rs`), and
   nothing else ever would. Build it in block-app from styled pieces and §1's
   `EveryScreen`.
-- **`LevelOsd`.** Its bar becomes `Progress` (§4.4). What's left is an OSD card
-  used only by linux-desktop (`app/media.rs`), so move it there.
+- **Done.** **`LevelOsd`.** Its bar becomes `Progress` (§4.4). What's left is an OSD card
+  used only by linux-desktop (`app/media.rs`), so move it there. It is in
+  `app/osd.rs` now, with its tests in linux-desktop's; it still lays out one
+  card per screen itself, so switch it to `EveryScreen` once that exists.
 - **`Launcher`.** Its core joins the command palette (§4.2): a styled
   searchable palette with pluggable ranking and rows that show a picture or
   icon and a detail line. Also move `launcher_score` there as one of the
@@ -102,13 +105,15 @@ into a new unstyled component, then rebuild the styled one on top of it.
   ranking stay in beui.
   `plans/command_palette.md` also builds on `styled::CommandPalette`, so keep
   the two plans in step.
-- **`CrashNotice` and `StaleNotice` → block-app.** Only block-app uses them
+- **Done.** **`CrashNotice` and `StaleNotice` → block-app.** Only block-app uses them
   (`compositor/region.rs`, `surfaces.rs`). Their text is about plugins.
-- **`ThemeSelect` and `MotionSelect` → next to the settings editor** (the only
+  They are in `surfaces/notices.rs`.
+- **Done.** **`ThemeSelect` and `MotionSelect` → next to the settings editor** (the only
   user, `editors/settings/src/display/appearance.rs`), or into
   `block-editor-beui` beside `LayeredSettingsRow`. Delete
   `PreferencesSection`: only the demo uses it, and `LayeredSettingsRow`
-  already does its job.
+  already does its job. They are private to the settings editor's
+  `display/appearance.rs`.
 - **Dock → a new `beui-dock` crate** with an `unstyled` module and a `styled`
   module. Any beui user can then use the dock with their own styles. That is
   about 9,000 lines of unstyled (`dock.rs`, `dock/state.rs`, `docking.rs`,
@@ -119,7 +124,7 @@ into a new unstyled component, then rebuild the styled one on top of it.
 - **Software keyboard → a new `beui-keyboard` crate**, the same shape as
   `beui-dock`. beui itself depends on it (`beui/src/keyboard.rs`), like
   beui-inspector.
-- **Delete `Bordered`.** It is `Frame border=Border::DEFAULT radius=…`, and its
+- **Done.** **Delete `Bordered`.** It is `Frame border=Border::DEFAULT radius=…`, and its
   one user is logic-grid.
 - **Keep `styled::Stack`.** Its breakpoint is a style choice, so it belongs in
   styled (see the rules above).
@@ -174,9 +179,12 @@ fits too.
 
 ### 4.4 One Progress
 
-Merge `Spinner` into `Progress`: `value: Option<f32>`, where `None` is
+**Done.** Merge `Spinner` into `Progress`: `value: Option<f32>`, where `None` is
 indeterminate. Use §1's indeterminate progress for it. linux-desktop's OSD
 card (§3) uses `Progress` for its bar, not a hand-drawn track and fill.
+`Progress` takes `fill` and `track` colour roles, which the OSD uses to fade
+and to grey the bar when muted, and a `width` that defaults to filling;
+`INLINE_PROGRESS_WIDTH` stands in for the size token §7 adds.
 
 ### 4.5 One button, one menu button
 
