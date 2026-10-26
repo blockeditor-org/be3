@@ -34,9 +34,7 @@ impl Placeholders {
             listed.set(true);
             let icon_size = (ICON_POINTS * scale.get_untracked()).ceil() as u32;
             untrack(|| {
-                editor.act(move || {
-                    desktop::programs::request(ProgramAction::List { icon_size })
-                })
+                editor.act(move || desktop::programs::request(ProgramAction::List { icon_size }))
             });
         });
         Self {

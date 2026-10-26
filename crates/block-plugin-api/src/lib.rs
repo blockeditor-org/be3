@@ -91,22 +91,6 @@ pub use types::{
 pub use account::HostPreferenceSources;
 pub use be_ops::Watched;
 pub use contacts::HostContact;
-pub use guest::account::{AdministratorWatch, LinkBaseWatch, PreferenceSourcesWatch};
-pub use guest::contacts::ContactsWatch;
-pub use guest::desktop::{
-    displays::DisplaysWatch,
-    epaper::EpaperWatch,
-    input::{InputDevicesWatch, RemapsWatch},
-    media::MediaWatch,
-    notifications::NotificationsWatch,
-    power::PowerWatch,
-    programs::ProgramsWatch,
-    screen_lock::ScreenLockedWatch,
-    tray::TrayWatch,
-    wifi::WifiWatch,
-    windows::WindowsWatch,
-};
-pub use desktop_types::TrayMenuEntry;
 pub use desktop::{
     displays::HostDisplay,
     input::{HostInputDevice, RemapState},
@@ -122,11 +106,27 @@ pub use desktop::{
     wifi::{WifiLink, WifiNetwork, WifiRequest, WifiSecurity, WifiStatus},
     windows::{HostWindow, WindowAction, WindowOrigin},
 };
+pub use desktop_types::TrayMenuEntry;
+pub use guest::account::{AdministratorWatch, LinkBaseWatch, PreferenceSourcesWatch};
+pub use guest::contacts::ContactsWatch;
+pub use guest::desktop::{
+    displays::DisplaysWatch,
+    epaper::EpaperWatch,
+    input::{InputDevicesWatch, RemapsWatch},
+    media::MediaWatch,
+    notifications::NotificationsWatch,
+    power::PowerWatch,
+    programs::ProgramsWatch,
+    screen_lock::ScreenLockedWatch,
+    tray::TrayWatch,
+    wifi::WifiWatch,
+    windows::WindowsWatch,
+};
 
 mod accesskit_mirror;
 mod block_ids;
-mod input;
 mod desktop_types;
+mod input;
 mod manifest;
 mod nesting;
 mod opening;

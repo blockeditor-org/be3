@@ -3,8 +3,8 @@ use std::collections::HashMap;
 
 use be_block::settings::{Settings, SettingsProfile};
 use be_block::{
-    BlockContent, BlockMetadata, DeviceClass, DisplaySettingsContent, DESKTOP_EDITOR,
-    LiveEdit, NAME, OfflineSettings, OfflineSettingsContent, Resolution, ResolutionLayers, Root,
+    BlockContent, BlockMetadata, DESKTOP_EDITOR, DeviceClass, DisplaySettingsContent, LiveEdit,
+    NAME, OfflineSettings, OfflineSettingsContent, Resolution, ResolutionLayers, Root,
     SettingsContent, SettingsProfileContent, VIEW_EDITOR, VIEW_TYPE, WORKSPACE_EDITOR,
     WORKSPACE_TYPE, organization_settings,
 };

@@ -1,7 +1,7 @@
 use block_editor_beui::be_block::BlockMetadata;
 use block_editor_beui::be_block::display_settings::{DisplayMode, Rotation};
 use block_editor_beui::be_block::{
-    DisplaySettings, DisplaySettingsContent, DESKTOP_EDITOR, Root, Settings, SettingsContent,
+    DESKTOP_EDITOR, DisplaySettings, DisplaySettingsContent, Root, Settings, SettingsContent,
     SettingsProfile, SettingsProfileContent, VIEW_EDITOR, WORKSPACE_EDITOR,
 };
 use block_editor_beui::beui::{Document, Key, KeyChord, Modifiers, NodeId, Rect, Vec2};

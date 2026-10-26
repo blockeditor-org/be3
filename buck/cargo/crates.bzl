@@ -16193,6 +16193,39 @@ crates = {
         "profile_flags": [],
         "version": "0.1.0",
     },
+    "crates/editors/desktop": {
+        "binaries": [],
+        "edition": "2024",
+        "examples": [],
+        "library": {
+            "crate": "desktop",
+            "crate_root": "src/lib.rs",
+            "proc_macro": False,
+        },
+        "name": "desktop",
+        "platforms": {
+            "wasi-guest": {
+                "binaries": {},
+                "deps": [
+                    "//crates/beui:beui",
+                    "//crates/block-editor-beui:block-editor-beui",
+                    "//crates/block-shell:block-shell",
+                    "//crates/editors/calendar/types:calendar-types",
+                    "//crates/editors/workspace-ui/types:workspace-ui-types",
+                    "//third-party/rust:uuid-1.23.2",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [
+                    "//crates/block-plugin-api:block-plugin-api",
+                    "//crates/block-ui-test:block-ui-test",
+                ],
+                "test_features": [],
+            },
+        },
+        "profile_flags": [],
+        "version": "0.1.0",
+    },
     "crates/editors/deterministic-game": {
         "binaries": [],
         "edition": "2024",
@@ -17096,39 +17129,6 @@ crates = {
                 "features": [],
                 "test_deps": [
                     "//crates/be-commit:be-commit",
-                ],
-                "test_features": [],
-            },
-        },
-        "profile_flags": [],
-        "version": "0.1.0",
-    },
-    "crates/editors/desktop": {
-        "binaries": [],
-        "edition": "2024",
-        "examples": [],
-        "library": {
-            "crate": "desktop",
-            "crate_root": "src/lib.rs",
-            "proc_macro": False,
-        },
-        "name": "desktop",
-        "platforms": {
-            "wasi-guest": {
-                "binaries": {},
-                "deps": [
-                    "//crates/beui:beui",
-                    "//crates/block-editor-beui:block-editor-beui",
-                    "//crates/block-shell:block-shell",
-                    "//crates/editors/calendar/types:calendar-types",
-                    "//crates/editors/workspace-ui/types:workspace-ui-types",
-                    "//third-party/rust:uuid-1.23.2",
-                ],
-                "examples": {},
-                "features": [],
-                "test_deps": [
-                    "//crates/block-plugin-api:block-plugin-api",
-                    "//crates/block-ui-test:block-ui-test",
                 ],
                 "test_features": [],
             },

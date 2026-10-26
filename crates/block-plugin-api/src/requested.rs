@@ -1,6 +1,4 @@
-use crate::embed::desktop::{
-    epaper, media, notifications, power, programs, tray, wifi, windows,
-};
+use crate::embed::desktop::{epaper, media, notifications, power, programs, tray, wifi, windows};
 use crate::ops::Called;
 use crate::{
     MediaRequest, NotificationReport, PowerAction, ProgramAction, TrayRequest, WifiRequest,
