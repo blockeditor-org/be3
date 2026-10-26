@@ -120,7 +120,7 @@ into a new unstyled component, then rebuild the styled one on top of it.
   itself. The beui run-as-command test was a copy of linux-desktop's
   `a_query_no_program_matches_runs_as_a_command`, so it went; the reopening
   tests and the filter test now drive the palette. The palette's rows are
-  still its own face: build them on §4.6's row once it lands.
+  `RowFace`s (`RowSize::Large`), which gained a `shortcut` slot for them.
 - **Done.** **`CrashNotice` and `StaleNotice` → block-app.** Only block-app uses them
   (`compositor/region.rs`, `surfaces.rs`). Their text is about plugins.
   They are in `surfaces/notices.rs`.
