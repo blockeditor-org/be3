@@ -489,7 +489,9 @@ impl EditorSession {
     }
 
     pub(crate) fn window_reported(&mut self, report: WindowReport) {
-        self.app.window_reported(report);
+        let instance = self.instance;
+        self.module
+            .with_handler(|handler| handler.window_reported(instance, report));
     }
 
     fn window_requests(&mut self) -> Vec<ScreenWindowRequest> {
@@ -805,7 +807,7 @@ impl EditorSession {
         let host = self.rect(region);
         let draft = match region {
             EditorRegion::ArtifactSettings => self.host.close_settings_draft(),
-            EditorRegion::Frame | EditorRegion::Preview => None,
+            EditorRegion::Frame | EditorRegion::Preview | EditorRegion::Window(_) => None,
         };
         let delivered_drop = self
             .drag

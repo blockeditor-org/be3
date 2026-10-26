@@ -33,11 +33,13 @@ fn region(size: Vec2, visible: Vec2, pixels: [u32; 2]) -> Region {
         rect: Rect::from_min_size(Pos2::ZERO, size),
         visible,
         scale_factor: 1.0,
+        raster: 1.0,
         pixels,
         age: 0,
         spec: FrameSpec::default(),
         describe: None,
         seen: true,
+        opens_windows: false,
     }
 }
 

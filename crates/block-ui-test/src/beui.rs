@@ -1898,11 +1898,10 @@ impl<A: BeuiApp> BeuiTest<A> {
 
     fn painted(&mut self) -> snapshot::Snapshot {
         let behind = beui::styled::Theme::of(self.document().preferences().theme).background;
-        let output = self
-            .output
-            .as_ref()
-            .expect("the editor has not drawn a frame yet");
-        capture::capture(output, self.size, output.main().pixels_per_point, behind)
+        let shown = self
+            .shown_output()
+            .expect("the editor has not drawn its window yet");
+        capture::capture(shown, self.size, shown.pixels_per_point, behind)
             .expect("the painting could not be rendered")
     }
 }

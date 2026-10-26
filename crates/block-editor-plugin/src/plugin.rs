@@ -62,7 +62,7 @@ pub struct RegionId {
 }
 
 pub trait Regions: std::any::Any {
-    fn window_reported(&mut self, _report: WindowReport) {}
+    fn window_reported(&mut self, _instance: EditorInstanceId, _report: WindowReport) {}
 
     fn input(&mut self, region: &Region, event: &TimedInput);
 

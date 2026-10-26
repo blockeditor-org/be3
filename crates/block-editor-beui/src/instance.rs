@@ -196,6 +196,7 @@ impl<A: BeuiApp> Shown for Parts<A> {
             EditorRegion::Frame => self.frame_content(),
             EditorRegion::Preview => self.preview_content(),
             EditorRegion::ArtifactSettings => self.settings_content(),
+            EditorRegion::Window(_) => empty(),
         }
     }
 
@@ -244,6 +245,7 @@ impl<A: BeuiApp> Shown for Parts<A> {
                     artifacts.receive_settings(&draft);
                 }
             }
+            EditorRegion::Window(_) => {}
         }
     }
 
@@ -297,6 +299,7 @@ impl<A: BeuiApp> Shown for Parts<A> {
                 }
                 Report::default()
             }
+            EditorRegion::Window(_) => Report::default(),
         }
     }
 }

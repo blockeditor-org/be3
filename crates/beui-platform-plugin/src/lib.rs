@@ -428,6 +428,7 @@ impl Regions for ModuleRunner {
                         })
                         .collect(),
                     window: self.requests(id, keyboard, ratio),
+                    window_requests: Vec::new(),
                     description: region.describe.map(|_| self.describe(id, region, ratio)),
                     stopped: None,
                 }
