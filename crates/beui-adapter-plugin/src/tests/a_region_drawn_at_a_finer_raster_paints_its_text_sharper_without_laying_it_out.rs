@@ -42,7 +42,11 @@ fn a_region_drawn_at_a_finer_raster_paints_its_text_sharper_without_laying_it_ou
     let rect = Rect::from_min_size(pos2(0.0, 0.0), vec2(120.0, 40.0));
     surface.update(&region(rect, [120, 40]));
     let output = surface.take_output().expect("the first frame paints");
-    assert_eq!(rasters(&output), [1.0], "text is drawn at the scale it is laid out at");
+    assert_eq!(
+        rasters(&output),
+        [1.0],
+        "text is drawn at the scale it is laid out at"
+    );
 
     let mut finer = region(rect, [360, 120]);
     finer.raster = 3.0;
@@ -60,5 +64,9 @@ fn a_region_drawn_at_a_finer_raster_paints_its_text_sharper_without_laying_it_ou
         rect.size(),
         "the region keeps its size in points"
     );
-    assert_eq!(rasters(&output), [3.0], "its text is rasterised three times as finely");
+    assert_eq!(
+        rasters(&output),
+        [3.0],
+        "its text is rasterised three times as finely"
+    );
 }

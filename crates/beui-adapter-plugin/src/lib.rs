@@ -127,8 +127,7 @@ impl PluginSurface {
                 .monitors
                 .iter()
                 .map(|monitor| {
-                    Screen::new(&monitor.id, &monitor.name, monitor.rect)
-                        .scaled(region.raster)
+                    Screen::new(&monitor.id, &monitor.name, monitor.rect).scaled(region.raster)
                 })
                 .collect();
             let resized = surface.size != Some((width, height));

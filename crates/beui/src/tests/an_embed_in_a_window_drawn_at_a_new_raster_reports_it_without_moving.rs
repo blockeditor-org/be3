@@ -26,7 +26,10 @@ fn an_embed_in_a_window_drawn_at_a_new_raster_reports_it_without_moving() {
         .copied()
         .flatten()
         .expect("the embed is placed in its window");
-    assert_eq!(first.raster, 1.0, "a window not yet rastered draws at the document's scale");
+    assert_eq!(
+        first.raster, 1.0,
+        "a window not yet rastered draws at the document's scale"
+    );
 
     harness.report_window(WindowReport::Rastered {
         window,

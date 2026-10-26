@@ -2413,15 +2413,13 @@ fn placed_view(
             rect.min + vec2(shown.max.x * rect.width(), shown.max.y * rect.height()),
         );
         let held = match (rect, clip) == chosen {
-            true => runtime
-                .instances
-                .held(
-                    instance,
-                    region,
-                    Some(visible),
-                    clip,
-                    painted.map(|placement| ((placement.width, placement.height), placement.raster())),
-                ),
+            true => runtime.instances.held(
+                instance,
+                region,
+                Some(visible),
+                clip,
+                painted.map(|placement| ((placement.width, placement.height), placement.raster())),
+            ),
             false => None,
         };
         let (children, holes) = runtime
