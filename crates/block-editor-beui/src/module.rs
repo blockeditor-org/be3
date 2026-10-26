@@ -27,10 +27,20 @@ pub(crate) trait Shown {
     ) -> Report;
 }
 
-pub(crate) struct Module {
+struct Registry {
     shown: RefCell<HashMap<EditorInstanceId, Rc<dyn Shown>>>,
     windows: RefCell<HashMap<RegionId, WindowId>>,
     revision: OwnedSignal<u64>,
+}
+
+impl Registry {
+    fn shown(&self, instance: EditorInstanceId) -> Option<Rc<dyn Shown>> {
+        self.shown.borrow().get(&instance).cloned()
+    }
+}
+
+pub(crate) struct Module {
+    registry: Rc<Registry>,
     pub(crate) document: RefCell<Option<Document>>,
     launched: std::cell::Cell<bool>,
 }
@@ -38,9 +48,11 @@ pub(crate) struct Module {
 impl Default for Module {
     fn default() -> Self {
         Self {
-            shown: RefCell::default(),
-            windows: RefCell::default(),
-            revision: OwnedSignal::new(0),
+            registry: Rc::new(Registry {
+                shown: RefCell::default(),
+                windows: RefCell::default(),
+                revision: OwnedSignal::new(0),
+            }),
             document: RefCell::new(None),
             launched: std::cell::Cell::new(false),
         }
@@ -59,7 +71,7 @@ impl Module {
         host: &EditorHost,
         keeps_accessibility: bool,
     ) {
-        self.shown.borrow_mut().insert(instance, shown);
+        self.registry.shown.borrow_mut().insert(instance, shown);
         self.touch();
         if self.launched.replace(true) {
             return;
@@ -81,21 +93,24 @@ impl Module {
     }
 
     pub(crate) fn hide(&self, instance: EditorInstanceId) {
-        let hidden = self.shown.borrow_mut().remove(&instance);
+        let hidden = self.registry.shown.borrow_mut().remove(&instance);
         drop(hidden);
         self.touch();
     }
 
     fn touch(&self) {
-        self.revision.handle().update(|revision| *revision += 1);
+        self.registry
+            .revision
+            .handle()
+            .update(|revision| *revision += 1);
     }
 
     fn shown(&self, instance: EditorInstanceId) -> Option<Rc<dyn Shown>> {
-        self.shown.borrow().get(&instance).cloned()
+        self.registry.shown(instance)
     }
 
     pub(crate) fn window(&self, region: RegionId) -> Option<WindowId> {
-        self.windows.borrow().get(&region).copied()
+        self.registry.windows.borrow().get(&region).copied()
     }
 }
 
@@ -126,12 +141,12 @@ impl beui::App for ModuleApp {
         let mut held = module.document.borrow_mut();
         let document = held.get_or_insert_with(|| {
             let requested = self.requested.read_only();
-            let module = Rc::clone(&module);
+            let registry = Rc::clone(&module.registry);
             let views = views.clone();
             beui::reactive::build(move || {
                 view! {
                     <beui::styled::Root clear_color=ColorRole::None>
-                        <ModuleWindows module requested views />
+                        <ModuleWindows registry requested views />
                     </beui::styled::Root>
                 }
             })
@@ -160,9 +175,13 @@ impl beui::App for ModuleApp {
 }
 
 #[component]
-fn ModuleWindows(module: Rc<Module>, requested: ReadSignal<Vec<View>>, views: Views) -> beui::NodeId {
-    let revision = module.revision.read_only();
-    let generations = Rc::clone(&module);
+fn ModuleWindows(
+    registry: Rc<Registry>,
+    requested: ReadSignal<Vec<View>>,
+    views: Views,
+) -> beui::NodeId {
+    let revision = registry.revision.read_only();
+    let generations = Rc::clone(&registry);
     let keys = create_memo(move || {
         revision.get();
         requested.with(|requested| {
@@ -180,7 +199,7 @@ fn ModuleWindows(module: Rc<Module>, requested: ReadSignal<Vec<View>>, views: Vi
     view! {
         <List spacing=0.0>
             <ForEach keys>|(id, _generation): (RegionId, u64)|
-                <RegionWindow module={Rc::clone(&module)} id requested views={views.clone()} />
+                <RegionWindow registry={Rc::clone(&registry)} id requested views={views.clone()} />
             </ForEach>
         </List>
     }
@@ -188,14 +207,14 @@ fn ModuleWindows(module: Rc<Module>, requested: ReadSignal<Vec<View>>, views: Vi
 
 #[component]
 fn RegionWindow(
-    module: Rc<Module>,
+    registry: Rc<Registry>,
     id: RegionId,
     requested: ReadSignal<Vec<View>>,
     views: Views,
 ) -> beui::NodeId {
     let window = WindowId::next();
-    module.windows.borrow_mut().insert(id, window);
-    let held = Rc::clone(&module);
+    registry.windows.borrow_mut().insert(id, window);
+    let held = Rc::clone(&registry);
     on_cleanup(move || {
         let mut windows = held.windows.borrow_mut();
         if windows.get(&id) == Some(&window) {
@@ -216,7 +235,7 @@ fn RegionWindow(
                 .map_or(initial, |view| view.size)
         })
     });
-    let shown = module.shown(id.instance);
+    let shown = registry.shown(id.instance);
     view! {
         <Window id={Some(window)} size={size} placement={views.placement(id)}>|_window: WindowHandle|
             {match &shown {

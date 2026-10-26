@@ -76,8 +76,7 @@ fn the_frame_and_the_preview_of_one_block_both_load_its_content() {
     deck.apply(&edit);
     session.host().set_block_content(HostContent::of(&deck));
 
-    session.run(EditorRegion::Frame, 0);
-    session.run(EditorRegion::Preview, 0);
+    session.frame(&[(EditorRegion::Frame, 0), (EditorRegion::Preview, 0)]);
 
     let seen: Vec<_> = SEEN.with(|held| {
         held.borrow()

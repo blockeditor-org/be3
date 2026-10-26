@@ -809,6 +809,7 @@ impl Context {
                 pixels_per_point: window_scale,
             });
         }
+        let window_overflows = std::mem::take(&mut *self.inner.overflows.borrow_mut());
         FrameOutput {
             windows,
             window_requests: std::mem::take(&mut *self.inner.window_requests.borrow_mut()),
@@ -839,14 +840,11 @@ impl Context {
                 .comps_query
                 .take()
                 .map(|_| std::mem::take(&mut *self.inner.comps_answers.borrow_mut())),
-            overflows: self
-                .inner
-                .overflows
-                .borrow()
+            overflows: window_overflows
                 .iter()
                 .map(|(_, found)| found.clone())
                 .collect(),
-            window_overflows: std::mem::take(&mut *self.inner.overflows.borrow_mut()),
+            window_overflows,
             typed: self.inner.keyboard.borrow_mut().take_typed(),
             pixels_per_point: scale,
         }
