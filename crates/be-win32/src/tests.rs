@@ -1,0 +1,26 @@
+use super::*;
+use crate::filter::{Windows, alt_tab};
+use crate::integrity::control;
+use crate::testing::*;
+use std::path::PathBuf;
+use std::sync::Arc;
+
+mod a_dialog_is_a_modal_child_of_its_disabled_owner;
+mod a_launch_gives_its_windows_their_origin;
+mod alt_tab_lists_plain_windows_and_skips_tool_cloaked_and_hidden_ones;
+mod an_elevated_window_cannot_be_controlled;
+mod an_icon_becomes_rgba_with_alpha_from_its_mask;
+mod an_owned_window_is_listed_only_as_a_dialog_or_when_its_owner_is_hidden;
+mod arguments_are_quoted_and_split_as_windows_does;
+mod displays_come_first_and_keep_their_ids_when_handles_change;
+mod entries_keep_their_ids_and_the_revision_counts_changes;
+mod focus_follows_the_foreground_and_counts_raises;
+mod icons_and_processes_are_read_once_until_the_window_shows_again;
+mod monitors_sort_primary_first_and_are_named;
+mod popups_belong_to_their_owner_or_to_their_threads_window;
+mod shown_entries_stay_shown_until_hidden_or_gone;
+mod start_menu_programs_are_listed_by_name_with_the_users_first;
+mod the_app_id_is_the_app_user_model_id_else_the_executable;
+mod the_hosts_own_windows_are_never_entries;
+mod the_secure_desktop_is_any_input_desktop_but_default;
+mod win_events_about_whole_windows_become_events;
