@@ -390,7 +390,7 @@ impl DockState {
         leaf
     }
 
-    fn build_group(
+    pub(super) fn build_group(
         &mut self,
         key: &str,
         pinned: bool,
@@ -413,6 +413,7 @@ impl DockState {
                     tab,
                     place: DockHome::Group(group),
                     pinned: true,
+                    within: None,
                 });
             }
         }
@@ -435,7 +436,7 @@ impl DockState {
         self.roots().any(|root| has_split(root, key))
     }
 
-    fn group_by_key(&self, key: &str) -> Option<GroupId> {
+    pub(super) fn group_by_key(&self, key: &str) -> Option<GroupId> {
         self.groups
             .iter()
             .find(|group| group.key.as_deref() == Some(key))
@@ -684,6 +685,7 @@ impl DockState {
                                 tab: *tab,
                                 place: DockHome::Group(group),
                                 pinned: true,
+                                within: None,
                             });
                         }
                     }
@@ -749,13 +751,23 @@ impl DockState {
             DockHome::Area(area) => declared_in.get(&home.tab) == Some(&area.as_str()),
         });
         for (tab, area) in &declared {
-            if self.contains(*tab) && self.home(*tab).is_none() {
-                self.homes.push(Home {
-                    tab: *tab,
-                    place: DockHome::Area(area.clone()),
-                    pinned: true,
-                });
+            if !self.contains(*tab) || matches!(self.home(*tab), Some(DockHome::Area(_))) {
+                continue;
             }
+            let pinned = self.home(*tab).is_none() || self.is_tab_pinned(*tab);
+            let within = match self.home(*tab) {
+                Some(DockHome::Group(group)) => Some(group),
+                _ => self
+                    .locate(Entry::Tab(*tab))
+                    .and_then(|(leaf, _)| self.pinned_group_of(leaf)),
+            };
+            self.homes.retain(|home| home.tab != *tab);
+            self.homes.push(Home {
+                tab: *tab,
+                place: DockHome::Area(area.clone()),
+                pinned,
+                within,
+            });
         }
         for (tab, area) in declared {
             if !self.is_tab_pinned(tab)

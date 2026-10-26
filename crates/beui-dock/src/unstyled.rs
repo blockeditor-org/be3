@@ -359,6 +359,7 @@ struct State {
     drag: Signal<Option<Drag>>,
     title: Func<TabId, String>,
     group_title: Func<GroupId, Option<String>>,
+    group_host: Func<GroupId, Option<TabId>>,
     icon: Func<TabId, Option<Glyph>>,
     picture: Func<TabId, Option<Image>>,
     closable: Func<TabId, bool>,
@@ -758,6 +759,9 @@ impl State {
         if let Entry::Group(group) = entry
             && self.state.with_untracked(|state| state.is_pinned(group))
         {
+            if let Some(host) = untrack(|| self.group_host.call(group)) {
+                self.close_tab(host);
+            }
             return;
         }
         let tabs = self.state.with_untracked(|state| state.entry_tabs(entry));
@@ -1325,6 +1329,8 @@ pub(crate) struct DockConfig {
     pub(crate) on_close: Callback<TabId>,
     pub(crate) title: Func<TabId, String>,
     pub(crate) group_title: Func<GroupId, Option<String>>,
+    pub(crate) group_host: Func<GroupId, Option<TabId>>,
+    pub(crate) hosts: Memo<Vec<TabId>>,
     pub(crate) icon: Func<TabId, Option<Glyph>>,
     pub(crate) picture: Func<TabId, Option<Image>>,
     pub(crate) closable: Func<TabId, bool>,
@@ -1372,6 +1378,8 @@ pub(crate) fn Dock(config: DockConfig) -> NodeId {
         on_close,
         title,
         group_title,
+        group_host,
+        hosts,
         icon,
         picture,
         closable,
@@ -1436,6 +1444,7 @@ pub(crate) fn Dock(config: DockConfig) -> NodeId {
                 drag,
                 title,
                 group_title,
+                group_host,
                 icon,
                 picture,
                 closable,
@@ -1538,7 +1547,8 @@ pub(crate) fn Dock(config: DockConfig) -> NodeId {
                 dock.cycle(press.modifiers.shift)
             });
             create_effect(move || {
-                let tabs = state.with(DockState::all_tabs);
+                let mut tabs = state.with(DockState::all_tabs);
+                tabs.extend(hosts.get());
                 dock.keep_panels(&tabs);
             });
             on_cleanup(move || dock.keep_panels(&[]));
@@ -2424,7 +2434,11 @@ fn DockTabView(
         Entry::Group(_) => None,
     });
     let locks = create_memo(move || match entry {
-        Entry::Tab(tab) => state.with(|state| matches!(state.home(tab), Some(DockHome::Area(_)))),
+        Entry::Tab(tab) => match state.with(|state| state.home(tab)) {
+            Some(DockHome::Area(_)) => true,
+            Some(DockHome::Group(group)) => dock.group_host.call(group).is_some(),
+            None => false,
+        },
         Entry::Group(_) => false,
     });
     let toggle_held = ClickCallback::new(move || {
@@ -2442,8 +2456,13 @@ fn DockTabView(
                 .and_then(|surface| state.window_rect(surface))
                 .is_some()
     });
-    let closable = create_memo(move || {
-        !pinned && tabs.with(|tabs| tabs.iter().all(|tab| dock.closable.call(*tab)))
+    let host = match entry {
+        Entry::Group(group) => untrack(|| dock.group_host.call(group)),
+        Entry::Tab(_) => None,
+    };
+    let closable = create_memo(move || match host {
+        Some(host) => dock.closable.call(host),
+        None => !pinned && tabs.with(|tabs| tabs.iter().all(|tab| dock.closable.call(*tab))),
     });
     let waiting = create_memo(move || tabs.with(|tabs| dock.waiting(tabs)));
     let icons_only = dock.icons_only(Some(leaf));

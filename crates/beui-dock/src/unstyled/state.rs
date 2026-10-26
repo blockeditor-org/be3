@@ -8,10 +8,12 @@ use beui_core::geometry::{Pos2, Rect, Vec2};
 use serde::{Deserialize, Serialize};
 
 mod history;
+mod joined;
 mod spec;
 mod switch;
 
 pub use history::DockVisit;
+pub use joined::{DockMapping, joined_host, joined_key, joined_prefix};
 pub use spec::{DockSpec, DockSpecEntry, DockSpecNode, DockSpecPane, DockSpecWindow};
 pub use switch::DockSwitch;
 
@@ -422,6 +424,8 @@ struct Home {
     tab: TabId,
     place: DockHome,
     pinned: bool,
+    #[serde(default)]
+    within: Option<GroupId>,
 }
 
 #[derive(Debug, Default, PartialEq)]
@@ -1725,7 +1729,7 @@ impl DockState {
             return false;
         }
         tabs.into_iter()
-            .all(|tab| self.home(tab) == Some(DockHome::Group(destination)))
+            .all(|tab| self.home_group(tab) == Some(destination))
     }
 
     pub fn admits_leaf(&self, leaf: LeafId, target: DockDrop) -> bool {
@@ -1857,6 +1861,7 @@ impl DockState {
                 pinned: !kept.iter().any(|home| {
                     home.tab == *tab && home.place == DockHome::Group(group) && !home.pinned
                 }),
+                within: None,
             }));
         }
         self.normalize();
