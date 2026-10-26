@@ -17,9 +17,9 @@ use beui::icons::{
     ICON_EXTERNAL_LINK, ICON_GRIP_VERTICAL, ICON_HEADING, ICON_LAYERS, ICON_LAYOUT_DASHBOARD,
     ICON_LAYOUT_GRID, ICON_LAYOUT_PANEL_LEFT, ICON_LINK, ICON_LIST, ICON_LOCK, ICON_LOG_IN,
     ICON_MAIL, ICON_MENU, ICON_MOUSE, ICON_MOUSE_POINTER_CLICK, ICON_NETWORK, ICON_PALETTE,
-    ICON_PANELS_TOP_LEFT, ICON_PEN_TOOL, ICON_PENCIL, ICON_PLAY, ICON_POINTER, ICON_SHARE_2, ICON_SLIDERS_HORIZONTAL,
-    ICON_SPLINE, ICON_SPLIT, ICON_SQUARE, ICON_STAR, ICON_TEXT_ALIGN_START, ICON_TOGGLE_RIGHT,
-    ICON_TRASH, ICON_TYPE,
+    ICON_PANELS_TOP_LEFT, ICON_PEN_TOOL, ICON_PENCIL, ICON_PLAY, ICON_POINTER, ICON_SHARE_2,
+    ICON_SLIDERS_HORIZONTAL, ICON_SPLINE, ICON_SPLIT, ICON_SQUARE, ICON_STAR,
+    ICON_TEXT_ALIGN_START, ICON_TOGGLE_RIGHT, ICON_TRASH, ICON_TYPE,
 };
 use beui::reactive::*;
 use beui::styled::theme::NARROW_WIDTH;
@@ -40,8 +40,8 @@ use std::rc::Rc;
 use std::sync::Arc;
 use styled_pages::{
     AttachedCard, AttachedDialog, ButtonsPage, CanvasPage, ChoicesPage, ColorsPage, DockingPage,
-    EditorPage, InputsPage, LabelledSwitch, LayoutPage, MenusPage, NestedDocksPage, OverlaysPage, PickersPage,
-    RowsPage, TextPage, ThemesPage, TreePage,
+    EditorPage, InputsPage, LabelledSwitch, LayoutPage, MenusPage, NestedDocksPage, OverlaysPage,
+    PickersPage, RowsPage, TextPage, ThemesPage, TreePage,
 };
 use text_editor_core::{
     EditorCommand, Highlighter, Language, MarkdownCommand, TextBuffer, TextLanguage,

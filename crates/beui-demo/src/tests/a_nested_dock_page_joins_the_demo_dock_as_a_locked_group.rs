@@ -17,7 +17,10 @@ fn a_nested_dock_page_joins_the_demo_dock_as_a_locked_group() {
     );
     let root = document.root().expect("the demo built a root");
     for title in ["Nested docks", "Outline", "Preview", "Notes"] {
-        assert!(showing(document, root, title) >= 1, "the demo shows {title}");
+        assert!(
+            showing(document, root, title) >= 1,
+            "the demo shows {title}"
+        );
     }
     test.snapshot("a_nested_dock_page_joins_the_demo_dock_as_a_locked_group");
 

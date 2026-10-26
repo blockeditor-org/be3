@@ -34,7 +34,10 @@ fn a_dock_inside_a_dock_tab_joins_it_as_a_locked_group() {
         "the inner dock draws no pane of its own"
     );
     assert_eq!(
-        harness.document().find_test_ids("dock.grip.joined:2/inner").len(),
+        harness
+            .document()
+            .find_test_ids("dock.grip.joined:2/inner")
+            .len(),
         1,
         "the outer dock draws the inner dock's pane"
     );

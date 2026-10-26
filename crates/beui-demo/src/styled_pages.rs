@@ -4118,15 +4118,21 @@ pub(crate) fn NestedDocksPage() -> NodeId {
             <DockSplit id="nested" fraction=0.3>
                 <DockPane id="outline" locked=true>
                     <DockTab id=1u64 title="Outline" icon=beui::icons::ICON_LIST_TREE>
-                        <NestedNote text="This page is a Docking of its own. Inside a tab of the demo's dock it joins that dock: its tabs are a locked group in place of the page's tab, and the demo's dock draws their bars." />
+                        <NestedNote
+                            text="This page is a Docking of its own. Inside a tab of the demo's dock it joins that dock: its tabs are a locked group in place of the page's tab, and the demo's dock draws their bars."
+                        />
                     </DockTab>
                 </DockPane>
                 <DockPane id="views">
                     <DockTab id=2u64 title="Preview" icon=beui::icons::ICON_EYE>
-                        <NestedNote text="Right-click a tab here and pick Unlock to drag it anywhere in the demo's dock. Lock it again once it is back in the group." />
+                        <NestedNote
+                            text="Right-click a tab here and pick Unlock to drag it anywhere in the demo's dock. Lock it again once it is back in the group."
+                        />
                     </DockTab>
                     <DockTab id=3u64 title="Notes" icon=beui::icons::ICON_STICKY_NOTE>
-                        <NestedNote text="The Outline pane is locked, so its tab stays in its area inside the group." />
+                        <NestedNote
+                            text="The Outline pane is locked, so its tab stays in its area inside the group."
+                        />
                     </DockTab>
                 </DockPane>
             </DockSplit>

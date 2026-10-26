@@ -1035,7 +1035,10 @@ where
         }
     });
     if let Some(link) = use_dock_join().and_then(|join| join.claim()) {
-        return joined(layout, link, nodes, found, body, Callback::new(on_close));
+        let on_close = Callback::new(on_close);
+        return view! {
+            <JoinedDock layout link nodes found body on_close />
+        };
     }
     let registry = Rc::clone(&layout.inner().registry);
     let version = registry.version;
@@ -1223,14 +1226,18 @@ where
     }
 }
 
-fn joined<K: DockKey>(
+#[component]
+fn JoinedDock<K>(
     layout: DockingLayout<K>,
     link: Rc<dyn DockHostLink>,
     nodes: Run<DockNode<K>>,
     found: Signal<Rc<Found<K>>>,
     body: RenderFn<TabId, NodeId>,
     on_close: Callback<TabId>,
-) -> NodeId {
+) -> NodeId
+where
+    K: DockKey,
+{
     *layout.inner().host.borrow_mut() = Some(Rc::clone(&link));
     if layout.state.with_untracked(DockState::is_seeded) {
         link.request(DockRequest::Restore(layout.state.get_untracked()));

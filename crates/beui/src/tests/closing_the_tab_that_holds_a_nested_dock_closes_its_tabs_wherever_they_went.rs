@@ -21,7 +21,11 @@ fn closing_the_tab_that_holds_a_nested_dock_closes_its_tabs_wherever_they_went()
     pick_dock_tab_menu(&mut harness, nested.node, "Nested", "Close group");
     harness.frame(Vec::new());
     let state = nested.outer.state().get_untracked();
-    assert_eq!(nested.hosts.get_untracked(), Vec::<u64>::new(), "closing the group closes the hosting tab");
+    assert_eq!(
+        nested.hosts.get_untracked(),
+        Vec::<u64>::new(),
+        "closing the group closes the hosting tab"
+    );
     assert_eq!(
         state.all_tabs(),
         vec![TabId::new(1)],
