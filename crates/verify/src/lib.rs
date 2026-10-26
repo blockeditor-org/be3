@@ -120,9 +120,22 @@ impl Run {
             self.paintings();
             self.unpainted();
         }
+        self.painting_references();
         if self.options.previews.is_some() {
             self.local_tools();
         }
+    }
+
+    fn painting_references(&mut self) {
+        let missing = docs::missing_paintings(Path::new("guides"), Path::new("snapshots"));
+        if missing.is_empty() {
+            return;
+        }
+        println!("The docs show these paintings, which no test wrote (guides/code_samples.md):");
+        for each in &missing {
+            println!("  {each}");
+        }
+        self.failed = true;
     }
 
     fn local_tools(&mut self) {
@@ -637,6 +650,7 @@ fn clear_executable(_: &Path) -> io::Result<()> {
 }
 
 mod bootstrap;
+mod docs;
 
 #[cfg(test)]
 mod tests;

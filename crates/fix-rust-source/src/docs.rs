@@ -140,27 +140,38 @@ impl Fence {
 
 pub fn example_body(source: &str, name: &str) -> Result<Option<String>, Box<dyn Error>> {
     let tree = parse(source.as_bytes())?;
-    let mut found = tree
-        .syntax()
-        .descendants()
-        .filter_map(ast::Fn::cast)
-        .filter(|function| function.name().is_some_and(|each| each.text() == name));
-    let Some(function) = found.next() else {
+    let mut found = tree.syntax().descendants().filter_map(|node| {
+        if let Some(function) = ast::Fn::cast(node.clone()) {
+            return is_named(&function, name).then(|| {
+                function
+                    .body()
+                    .and_then(|body| body.stmt_list())
+                    .map(|statements| statements.syntax().text().to_string())
+            });
+        }
+        let module = ast::Module::cast(node)?;
+        is_named(&module, name).then(|| {
+            module
+                .item_list()
+                .map(|items| items.syntax().text().to_string())
+        })
+    });
+    let Some(braced) = found.next() else {
         return Ok(None);
     };
     if found.next().is_some() {
-        return Err(format!("more than one fn {name}").into());
+        return Err(format!("more than one fn or mod {name}").into());
     }
-    let statements = function
-        .body()
-        .and_then(|body| body.stmt_list())
-        .ok_or_else(|| format!("fn {name} has no body"))?;
-    let text = statements.syntax().text().to_string();
-    let inner = text
+    let braced = braced.ok_or_else(|| format!("{name} has no body"))?;
+    let inner = braced
         .strip_prefix('{')
         .and_then(|text| text.strip_suffix('}'))
-        .unwrap_or(&text);
+        .unwrap_or(&braced);
     Ok(Some(dedented(inner)))
+}
+
+fn is_named(node: &impl HasName, name: &str) -> bool {
+    node.name().is_some_and(|each| each.text() == name)
 }
 
 fn dedented(text: &str) -> String {
@@ -218,11 +229,11 @@ fn find_example(
     }
     match found.len() {
         0 => Err(format!(
-            "example={id}: crate {package} has no fn {function}"
+            "example={id}: crate {package} has no fn or mod {function}"
         )),
         1 => Ok(found.remove(0)),
         _ => Err(format!(
-            "example={id}: crate {package} has more than one fn {function}"
+            "example={id}: crate {package} has more than one fn or mod {function}"
         )),
     }
 }

@@ -14,6 +14,7 @@ fn formatted(source: &str) -> String {
 
 mod a_component_method_needs_a_component_block;
 mod example_body_is_the_function_body_dedented;
+mod example_body_of_a_module_is_its_items;
 mod fix_docs_finds_an_example_anywhere_in_its_crate;
 mod fix_repository_accepts_tagged_unsafe;
 mod fix_repository_check_reports_without_changes;

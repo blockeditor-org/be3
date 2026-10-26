@@ -44,7 +44,7 @@ fn fix_docs_finds_an_example_anywhere_in_its_crate() {
     let error = fix_docs(&docs, &code).unwrap_err().to_string();
     assert!(
         error.contains(
-            "guides/widget.md:1: example=widget.gone: crate widget has no fn example_gone"
+            "guides/widget.md:1: example=widget.gone: crate widget has no fn or mod example_gone"
         ),
         "{error}"
     );
