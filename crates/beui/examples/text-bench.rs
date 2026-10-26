@@ -5,14 +5,16 @@ use std::rc::Rc;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
+use beui::native::Document;
+use beui::native::enter;
 use beui::primitives::{Span, Text};
 use beui::reactive::*;
 use beui::styled::*;
 use beui::testing::{Screen, Showing};
 use beui::unstyled::TextAreaState;
 use beui::{
-    Document, Incoming, Input, Launch, PlatformServices, PointerButton, Pos2, RunOptions, Setup,
-    Vec2, Waker, pos2,
+    Incoming, Input, Launch, PlatformServices, PointerButton, Pos2, RunOptions, Setup, Vec2, Waker,
+    pos2,
 };
 use beui_core::app::SafeArea;
 use beui_core::renderer::Loaded;

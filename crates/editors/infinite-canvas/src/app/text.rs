@@ -2,6 +2,7 @@ use std::cell::Cell;
 use std::sync::Arc;
 
 use block_editor_beui::be_block::be_model::ObjectId;
+use block_editor_beui::beui::native::with_document;
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
 use block_editor_beui::beui::{
@@ -21,6 +22,7 @@ use crate::geometry::{TEXT_INSET, WorldRect, flattened};
 
 use super::paint::{path_middle, resolve_color, with_opacity};
 use super::state::{CanvasState, TextEntry};
+use beui::Sides;
 
 pub(crate) fn font_px(entity: &CanvasEntity, scale: f32) -> f32 {
     (entity.style.text_size.px() * scale).clamp(4.0, 256.0)

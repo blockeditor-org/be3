@@ -13,6 +13,7 @@ use beui_view::reactive::*;
 
 use crate::text::{Text, TextColor};
 pub(super) use beui_components_unstyled::ChoiceKind as Kind;
+use beui_view::types::{Align, Direction, ItemSize};
 
 pub(crate) const OPTION_SPACING: Space = Space::Sm;
 const MARK_SPACING: Space = Space::Md;

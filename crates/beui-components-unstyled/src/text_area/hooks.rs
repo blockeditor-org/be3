@@ -13,6 +13,7 @@ use text_editor_core::{LineLook, ListMarker, MarkSet, SynHlStyle, SyntaxHighligh
 
 use super::rows::RowTable;
 use super::state::TextAreaState;
+use beui_view::types::{Align2, Extent, Sides};
 
 pub const MARKER_COLUMN_EM: f32 = 1.15;
 pub const MARKER_GAP_EM: f32 = 0.55;

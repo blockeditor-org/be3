@@ -4,6 +4,7 @@ use beui::styled::*;
 
 use super::onboarding::{Column, ErrorText};
 use super::{AppViewStore, UiCommand, send};
+use beui::{Align, Direction, ItemSize};
 
 #[component]
 pub(super) fn RecoveryScreen(view: AppViewStore) -> NodeId {

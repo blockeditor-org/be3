@@ -25,6 +25,7 @@ use beui_view::reactive::NodeId;
 use beui_view::reactive::*;
 use beui_view::types::icons::{ICON_CALENDAR_DAYS, ICON_CLOCK};
 use beui_view::types::{Align, Direction, Justify, TextAlign};
+use beui_view::types::{Align2, Extent, ItemSize};
 
 const HEIGHT: Size = Size::Field;
 const PADDING_HORIZONTAL: Space = Space::Md;

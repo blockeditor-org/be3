@@ -1,6 +1,7 @@
 use block_editor_beui::linux_desktop;
 use std::cell::Cell;
 
+use beui::{Align, Direction};
 use block_editor_beui::beui::dock::styled::WINDOW_CHROME;
 use block_editor_beui::beui::dock::styled::{TabId, use_dock_tab};
 use block_editor_beui::beui::reactive::*;

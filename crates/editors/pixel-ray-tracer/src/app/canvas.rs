@@ -7,6 +7,7 @@ use block_editor_beui::beui::{
 use crate::geometry::{artwork_rect, screen_to_world};
 
 use super::state::{RayState, Tool};
+use beui::ItemSize;
 
 #[component]
 pub(crate) fn Artwork(state: RayState) -> NodeId {

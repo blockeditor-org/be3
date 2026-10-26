@@ -12,6 +12,7 @@ use beui_components_unstyled::{Toggle, ToggleHandle};
 use beui_view::primitives::Layers;
 use beui_view::reactive::NodeId;
 use beui_view::reactive::*;
+use beui_view::types::{Align, Direction, ItemSize};
 
 const BOX_SIZE: f32 = 18.0;
 const MARK_SIZE: f32 = 10.0;

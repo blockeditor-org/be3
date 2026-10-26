@@ -3,7 +3,8 @@ use block_editor_beui::be_block::{
     DisplaySettings, DisplaySettingsContent, Root, Settings, SettingsContent, SettingsProfile,
     SettingsProfileContent, ThemeKind,
 };
-use block_editor_beui::beui::{Document, Key, Modifiers, NodeId, TurnNode, Vec2};
+use block_editor_beui::beui::native::Document;
+use block_editor_beui::beui::{Key, Modifiers, NodeId, TurnNode, Vec2};
 use block_editor_beui::{
     BlockInfo, BlockParent, DisplaysWatch, EditorHost, HostDisplay, OwnedEditor, PowerAvailability,
     PowerWatch,

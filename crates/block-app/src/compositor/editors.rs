@@ -5,6 +5,7 @@ use std::{
 };
 
 use be_graph::Access;
+use beui::native::with_document;
 use beui::reactive::*;
 use beui::styled::*;
 use beui::{
@@ -30,6 +31,7 @@ use crate::surfaces::{
     ConflictNotice, HostItemFace, HostedRegion, HostedSurface, StaleBlock, SurfaceId,
 };
 use crate::ui::HostPanelSurface;
+use beui::{Align, Direction, ItemSize, Placement};
 
 const MIN_ZOOM: f32 = 1.0 / 64.0;
 const MAX_ZOOM: f32 = 32.0;

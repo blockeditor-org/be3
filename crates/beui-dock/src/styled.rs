@@ -37,6 +37,7 @@ use beui_core::input::Modifiers;
 use beui_core::node::NodeId;
 use beui_view::primitives::{Fade, Layers};
 use beui_view::reactive::*;
+use beui_view::types::Sides;
 use stack::{DockStackBar, DockSwitcher};
 use switch::DockSwitchPanel;
 

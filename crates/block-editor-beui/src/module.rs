@@ -2,9 +2,10 @@ use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;
 
+use beui::WindowId;
+use beui::native::Document;
 use beui::reactive::*;
 use beui::styled::*;
-use beui::{Document, WindowId};
 use beui_platform_plugin::{Report, View, Views};
 use block_editor_plugin::{EditorHost, EditorInstanceId, EditorRegion, RegionId};
 
@@ -152,7 +153,7 @@ impl beui::App for ModuleApp {
                 }
             })
         });
-        beui::reactive::with_reactive_scope(document, || {});
+        beui::native::with_reactive_scope(document, || {});
         for view in &shown_views {
             if let Some(shown) = module.shown(view.id.instance) {
                 shown

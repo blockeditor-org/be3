@@ -20,6 +20,7 @@ use super::picker::{
     link_rows, place_rows, slides, tile_key,
 };
 use super::workspace::Workspace;
+use beui::{Align, Direction, ItemSize};
 
 const MENU_WIDTH: Size = Size::Custom(256.0);
 const SURFACE_SIZE: Vec2 = Vec2::new(520.0, 560.0);
@@ -608,7 +609,7 @@ fn SurfaceHeader(
         </List>
     };
     if let Some(node) = field.try_get() {
-        with_document(|document| document.focus_into(node));
+        node.focus_into();
     }
     built
 }

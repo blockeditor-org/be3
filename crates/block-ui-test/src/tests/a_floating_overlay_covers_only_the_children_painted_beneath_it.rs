@@ -2,6 +2,7 @@ use beui::pos2;
 use beui::styled::Root;
 
 use super::*;
+use beui::LayerPolicy;
 
 const WINDOWED: Uuid = Uuid::from_u128(0x0011);
 const BENEATH: Uuid = Uuid::from_u128(0x0012);

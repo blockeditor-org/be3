@@ -13,6 +13,7 @@ use crate::drawing::{ActiveDrawing, MAX_BRUSH_SIZE, PixelTool, rasterize_drawing
 
 use super::pane::{Pane, Shown};
 use super::state::Tools;
+use beui::ItemSize;
 
 const GRID_MIN_CELL: f32 = 6.0;
 const GRID_ALPHA: u8 = 60;

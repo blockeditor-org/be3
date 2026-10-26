@@ -15,6 +15,7 @@ use crate::tiles::TileId;
 use super::labels::{self, MapLabel};
 use super::state::MapState;
 use super::tiles::{self, Tile};
+use beui::{ItemSize, PasteKind, Pasted};
 
 pub(crate) const REGION_COLOR: Color32 = Color32::from_rgb(245, 180, 60);
 const ATTRIBUTION: &str = "© OpenStreetMap contributors";

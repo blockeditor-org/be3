@@ -8,6 +8,7 @@ use block_editor_beui::{Editor, LayeredSettings};
 mod remapper;
 mod ui;
 
+use beui::ItemSize;
 use ui::InputSettingsView;
 
 const INTRINSIC_WIDTH: f32 = 420.0;

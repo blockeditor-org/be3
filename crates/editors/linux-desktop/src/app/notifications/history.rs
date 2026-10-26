@@ -9,6 +9,7 @@ use block_editor_beui::beui::styled::*;
 use super::{DesktopNotifications, Listed};
 use crate::app::bar::local_minutes;
 use crate::app::popup::BarPopup;
+use beui::{Align, Direction, ItemSize};
 
 const LIST_HEIGHT: Size = Size::Custom(420.0);
 const SPACING: Space = Space::Md;

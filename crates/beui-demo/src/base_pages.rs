@@ -11,6 +11,7 @@ use beui::primitives::Span;
 use beui::primitives::Text;
 use beui::primitives::{Grid, List};
 use beui::primitives::{Window, WindowHandle};
+use beui::{Align, Align2, Corners, Dismiss, Extent, Justify, Outline, Placement, Track};
 use beui::{Color32, FillRule, LineCap, LineJoin, Painter, Path, Pos2, Stroke, vec2};
 use beui::{Overflow, WrapAt};
 
@@ -863,19 +864,17 @@ fn AnimationSample() -> NodeId {
             spring_position.set(target.get());
         },
     );
-    let preference = with_document(|document| document.watch_motion());
+    let preferences = use_preferences();
+    let app_layer = use_preference_layer(PreferenceSource::App);
     view! {
         <List spacing={SECTION_SPACING.px()}>
             <Checkbox
                 @test_id="animation.instant"
                 label="Disable animations"
-                checked={Binding::new(create_memo(move || !preference.get().animates()), move |disabled: bool| with_document(|document| {
-                    if let Some(context) = document.context() {
-                        let app = context.preference_layer(PreferenceSource::App);
-                        let motion = disabled.then_some(Motion::Instant);
-                        context.set_preference_layer(PreferenceSource::App, PreferenceLayer { motion, ..app });
-                    }
-                }))}
+                checked={Binding::new(create_memo(move || !preferences.get().motion.animates()), move |disabled: bool| {
+                    let motion = disabled.then_some(Motion::Instant);
+                    app_layer.set(PreferenceLayer { motion, ..app_layer.get_untracked() });
+                })}
             />
             <Button
                 @test_id="animation.retarget"

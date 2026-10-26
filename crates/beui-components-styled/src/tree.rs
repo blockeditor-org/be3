@@ -24,6 +24,7 @@ use beui_view::types::TextAlign;
 use beui_view::types::icons::{
     ICON_ARROW_DOWN, ICON_ARROW_UP, ICON_CHEVRON_DOWN, ICON_CHEVRON_RIGHT, ICON_ELLIPSIS,
 };
+use beui_view::types::{Align, Direction, ItemSize};
 
 const INDENT: Space = Space::Lg;
 const CHEVRON_RADIUS: Radius = Radius::Sm;

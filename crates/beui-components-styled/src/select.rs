@@ -17,6 +17,7 @@ use beui_view::reactive::NodeId;
 use beui_view::reactive::*;
 use beui_view::types::TextAlign;
 use beui_view::types::icons::ICON_CHEVRON_DOWN;
+use beui_view::types::{Align, Direction, Extent, ItemSize};
 
 const TRIGGER_MAX_WIDTH: f32 = 220.0;
 const POPUP_WIDTH: Size = Size::Custom(220.0);

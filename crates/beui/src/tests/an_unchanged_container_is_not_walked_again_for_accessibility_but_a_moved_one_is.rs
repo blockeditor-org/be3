@@ -1,4 +1,5 @@
 use super::*;
+use crate::native::Document;
 
 const GROUPS: usize = 30;
 

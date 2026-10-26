@@ -17,6 +17,7 @@ use crate::database_view::app::data::Data;
 use crate::database_view::app::row::RowPanel;
 use crate::database_view::groups::{Group, GroupKey};
 use crate::database_view::sort::BlockLabels;
+use beui::{Align, Direction, ItemSize};
 
 const PANEL_WIDTH: f32 = 460.0;
 const LINE_HEIGHT: f32 = 38.0;

@@ -2,8 +2,9 @@ use std::ops::{Deref, DerefMut};
 use std::time::Duration;
 
 use beui::WindowSize;
+use beui::native::Document;
 use beui::testing::{Showing, Stepped, Target};
-use beui::{Color32, Context, Document, FontLibrary, FrameOutput, FreetypeFonts, Rect, Vec2};
+use beui::{Color32, Context, FontLibrary, FrameOutput, FreetypeFonts, Rect, Vec2};
 
 use crate::beui::capture;
 use crate::overflow;

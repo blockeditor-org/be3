@@ -18,6 +18,7 @@ use super::{Caret, Side, SideDocument, Simulation};
 use crate::rich_text::{GLYPHS, render_marker};
 use crate::sample::{Sample, ScrollPage};
 use crate::{ROW_SPACING, SECTION_SPACING};
+use beui::Align;
 
 const TEXT: &str = "# Shared notes\n\nType on both sides. Each side keeps its own copy and \
 sends its edits over a simulated network.\n\n- [ ] type at the same place on both sides\n";

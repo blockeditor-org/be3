@@ -16,6 +16,7 @@ use super::keys::PairingDialog;
 use super::{AppMenuView, AppViewStore, StatusView, SyncState, UiCommand, send};
 use crate::compositor::{ConflictSurface, PresentingSurface};
 use crate::surfaces::MainSurface;
+use beui::ItemSize;
 
 #[component]
 pub(super) fn OrganizationScreen(view: AppViewStore) -> NodeId {

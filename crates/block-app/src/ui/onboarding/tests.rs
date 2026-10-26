@@ -47,11 +47,16 @@ fn painting_sized(
     painting_of_sized(name, document, select_default, size);
 }
 
-fn painting_of(name: &str, document: beui::Document, select_default: bool) {
+fn painting_of(name: &str, document: beui::native::Document, select_default: bool) {
     painting_of_sized(name, document, select_default, vec2(1100.0, 720.0));
 }
 
-fn painting_of_sized(name: &str, document: beui::Document, select_default: bool, size: beui::Vec2) {
+fn painting_of_sized(
+    name: &str,
+    document: beui::native::Document,
+    select_default: bool,
+    size: beui::Vec2,
+) {
     let window = WindowSize { size, scale: 1.0 };
     let context = Context::new(FreetypeFonts::default());
     let mut stepped = Stepped::new(context, Showing(document), window, None);

@@ -1,12 +1,9 @@
 pub mod back;
 pub mod canvas;
-pub mod child_list;
 pub mod drawing;
 pub mod embed;
 pub mod fade;
 pub mod first_fit;
-pub mod focus;
-pub mod focus_scope;
 pub mod frame;
 pub mod grid;
 pub mod interactive;
@@ -16,14 +13,12 @@ pub mod list;
 pub mod offset;
 pub mod overlay;
 pub mod portal;
-pub mod share;
 pub mod shift;
 pub mod text;
 pub mod turn;
 pub mod virtual_list;
 
 pub use crate::font::TextAlign;
-pub use focus::{ImeCursor, focus_within};
 pub use frame::Sides;
 pub use grid::Track;
 pub use list::{Align, Direction, ItemSize, Justify, Sizing};

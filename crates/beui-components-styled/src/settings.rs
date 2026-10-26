@@ -17,6 +17,7 @@ use beui_view::reactive::NodeId;
 use crate::list::List;
 use crate::tokens::{Padding, Size, Space, use_space};
 use beui_view::reactive::*;
+use beui_view::types::{Align, Align2, Direction, Extent, ItemSize, Justify};
 
 const PAGE_MAX_WIDTH: f32 = 680.0;
 const SECTION_INSET: Space = Space::Xl2;

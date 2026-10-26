@@ -20,6 +20,7 @@ use beui_components_styled::frame::{ColorRole, Frame, Radius};
 use beui_components_styled::scroll::Scroll;
 use beui_components_styled::text::{Icon, Text, TextColor, TextSize};
 use beui_components_styled::tokens::{Padding, Size, Space, Stroke};
+use beui_view::types::{Align, Align2, Direction, ItemSize, Justify};
 
 pub const BAR_HEIGHT: f32 = 32.0;
 pub const PADDING: Space = Space::Xs;

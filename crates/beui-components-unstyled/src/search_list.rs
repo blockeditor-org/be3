@@ -14,6 +14,7 @@ use beui_view::types::{Key, KeyPress};
 use crate::button::{Button, ButtonHandle};
 use crate::scroll::{Scroll, ScrollbarStyle};
 use crate::text_input::{TextInput, TextInputHandle, TextInputStyle};
+use beui_view::types::ItemSize;
 
 const EXACT: u32 = 100;
 const PREFIX: u32 = 90;

@@ -6,6 +6,7 @@ use beui::{FontId, NodeId, Painter, PointerPress};
 
 use super::session::Session;
 use super::*;
+use beui::{Align, Direction, ItemSize};
 
 const SPACING: Space = Space::Md;
 const LABEL_WIDTH: f32 = 110.0;

@@ -1,6 +1,7 @@
 use super::*;
 use beui::reactive::*;
 use beui::styled::*;
+use beui::{Direction, ItemSize};
 
 struct SidebarApp;
 

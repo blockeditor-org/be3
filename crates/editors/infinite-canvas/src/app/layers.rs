@@ -8,6 +8,7 @@ use uuid::Uuid;
 use crate::geometry::entity_kind_label;
 
 use super::state::CanvasState;
+use beui::{Align, Direction, ItemSize};
 
 const ROW_PADDING: Space = Space::Xs;
 const ROW_RADIUS: Radius = Radius::Sm;

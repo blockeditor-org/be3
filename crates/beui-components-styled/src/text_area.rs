@@ -32,6 +32,7 @@ use crate::tokens::{CornerSet, Padding, Size, Space, Stroke, resolved};
 use beui_view::reactive::*;
 use emoji::emoji_menu;
 
+use beui_view::types::{Align2, Sides, SpanBackground};
 use find::FindBar;
 
 pub fn text_area_colors(theme: &Theme) -> TextAreaColors {

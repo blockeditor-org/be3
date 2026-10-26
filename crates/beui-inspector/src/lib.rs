@@ -22,6 +22,7 @@ use beui_core::painter::Painter;
 
 use crate::screen_reader::{Command, ScreenReader};
 use beui_components_styled::Theme;
+use beui_core::current::{with_document, with_reactive_scope};
 use beui_core::document::{Document, Tools, trim_bottom};
 use beui_core::node::NodeId;
 use beui_core::preferences::{PreferenceLayer, PreferenceSource};

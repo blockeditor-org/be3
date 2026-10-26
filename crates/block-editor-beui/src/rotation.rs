@@ -4,6 +4,7 @@ use beui::styled::*;
 use beui::{NodeId, TextAlign};
 
 use crate::HostDisplay;
+use beui::{Align, Align2, Direction, ItemSize};
 
 const ITEM_WIDTH: Size = Size::Xl3;
 const TILE: Size = Size::Custom(56.0);

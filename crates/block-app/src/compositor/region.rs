@@ -5,6 +5,7 @@ use std::{
     sync::Arc,
 };
 
+use beui::native::try_with_document;
 use beui::reactive::*;
 use beui::styled::*;
 use beui::{

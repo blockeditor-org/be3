@@ -1,17 +1,15 @@
 use std::cell::Cell;
 use std::rc::Rc;
 
-pub use beui_core::base::frame::{Align2, Extent, Outline, Sides};
-pub use beui_core::base::{Align, Direction, ItemSize, Justify, Sizing, Track};
-pub use beui_core::painter::Corners;
+use crate::types::{Direction, Outline};
 pub use beui_core::tree::{
     BareChild, BuildsNode, FromPlaced, ListChild, ParentKind, Placed, WithSizing,
     component_accessibility, component_placed, with_sizing,
 };
 pub use beui_tree::reactive::*;
 
-pub use beui_core::base::ImeCursor;
 use beui_core::document::Document;
+pub use beui_core::focus::ImeCursor;
 use beui_core::geometry::{Rect, Vec2};
 use beui_core::input::Key;
 pub use beui_core::keys::{KeyAt, KeyEvent};
@@ -23,8 +21,7 @@ pub use beui_core::animation::{
 pub use beui_core::callback::NodeRef;
 pub use beui_core::timer::{Timer, create_timer, now, pin_wall_clock, wall_clock};
 
-pub use beui_core::current::enter;
-pub use beui_core::current::{try_with_document, with_document, with_reactive_scope};
+pub(crate) use beui_core::current::{enter, try_with_document, with_document};
 
 pub type Child = NodeId;
 
@@ -91,8 +88,6 @@ pub fn copy_text(text: impl Into<String>) {
 pub fn copy_image(png: Vec<u8>) {
     with_document(|document| document.copy_image(png));
 }
-
-pub use beui_core::clipboard::{PasteKind, Pasted};
 
 pub fn request_paste() {
     with_document(Document::request_paste);
@@ -335,17 +330,11 @@ pub use crate::actions::{
     active_actions_from, add_to_menu, document_menu, menu_action, tidy_menu,
 };
 pub use crate::component_ref::ComponentRef;
-pub use crate::file_picker::{
-    FileFilter, FilePick, FilePicker, PickedFile, create_file_picker, pick_file,
-};
+pub use crate::file_picker::{FileFilter, FilePick, FilePicker, create_file_picker, pick_file};
 pub use crate::file_saver::{FileSave, SavedFile, save_file};
 pub use crate::nodes::*;
 pub use beui_core::base::canvas::CanvasView;
 pub use beui_core::base::drawing::{Draw, draw_gpu};
 pub use beui_core::base::embed::{EmbedPlacement, EmbedSlot};
-pub use beui_core::base::overlay::{OverlayAnchor, Placement};
-pub use beui_core::layer::{Dismiss, LayerLevel, LayerPolicy};
-pub use beui_core::rich::{
-    CaretHandle, Piece, RichLayout, SpanBackground, SpanKind, SpanStyle, TextCaret, TextGlyph,
-    TextMark,
-};
+pub use beui_core::base::overlay::OverlayAnchor;
+pub use beui_core::rich::{Piece, RichLayout, SpanKind};

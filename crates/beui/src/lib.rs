@@ -14,8 +14,7 @@ pub use beui_core::app::{App, FrameTimes, Lifecycle, Setup, Waker};
 pub use beui_core::base::overlay::{OverlayAnchor, Placement};
 pub use beui_core::base::turn::TurnNode;
 pub use beui_core::base::{
-    Align, Direction, ImeCursor, ItemSize, Justify, ScrollPosition, Sides, Sizing, Track,
-    focus_within,
+    Align, Direction, ItemSize, Justify, ScrollPosition, Sides, Sizing, Track,
 };
 pub use beui_core::clipboard::{PasteAnswer, PasteKind, PasteRequest, Pasted};
 pub use beui_core::color::{Color32, Hsva, Oklch, format_hex, parse_hex};
@@ -25,7 +24,7 @@ pub use beui_core::context::{
 };
 pub use beui_core::damage::Region;
 pub use beui_core::document::{
-    Document, OverRepaint, Tools, detect_over_repaint, fail_unsettled_layout, take_over_repaints,
+    OverRepaint, Tools, detect_over_repaint, fail_unsettled_layout, take_over_repaints,
     verify_paint,
 };
 pub use beui_core::draw::{Quad, Quads, Turn, quads};
@@ -36,6 +35,7 @@ pub use beui_core::file_picker::{
 };
 pub use beui_core::file_saver::{FileSave, FileSaveAnswer, FileSaveId, FileSaveRequest, SavedFile};
 pub use beui_core::filter::{ColorVision, Filter, MAX_BLUR};
+pub use beui_core::focus::{ImeCursor, focus_within};
 pub use beui_core::font::{
     FontBackend, FontFamily, FontId, Galley, GalleyLine, Glyph, GlyphId, GlyphImage, Overflow,
     Shaping, TextAlign, TextLayout, WrapAt, Wraps, line_height,
@@ -89,6 +89,9 @@ pub use beui_renderer_wgpu::{
     wgpu_color,
 };
 pub use beui_view::primitives;
+pub use beui_view::types::{
+    Align2, CaretHandle, Extent, Outline, SpanBackground, SpanStyle, TextCaret, TextGlyph, TextMark,
+};
 pub use beui_view::{child_type, value_child_type};
 
 pub use beui_core::runner::{
@@ -126,6 +129,11 @@ mod window;
     not(any(target_os = "android", target_arch = "wasm32"))
 ))]
 pub use beui_platform_headless::Headless;
+
+pub mod native {
+    pub use beui_core::current::{enter, try_with_document, with_document, with_reactive_scope};
+    pub use beui_core::document::Document;
+}
 
 pub mod reactive {
     pub use beui_view::reactive::*;

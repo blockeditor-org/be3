@@ -1,3 +1,4 @@
+use beui::Align;
 use beui::TextAlign;
 use beui::icons::Glyph;
 use beui::icons::{

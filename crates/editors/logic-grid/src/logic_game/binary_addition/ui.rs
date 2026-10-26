@@ -6,6 +6,7 @@ use block_editor_beui::beui::{NodeId, TextAlign};
 use logic_grid_types::QuizRow;
 
 use super::{BinaryAdditionQuiz, next_answer};
+use beui::{Align, Direction, ItemSize};
 
 type Answers = (Vec<Option<bool>>, Vec<Option<bool>>);
 

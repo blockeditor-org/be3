@@ -1,6 +1,7 @@
 use base_pages::{
     ControlFlowPage, FramesPage, InteractionPage, LayeringPage, ListsPage, PathsPage, TextNodesPage,
 };
+use beui::Align;
 use beui::KeyAt;
 use beui::Overflow;
 use beui::datetime::{Date, DateTime, HourCycle, Time};
@@ -21,6 +22,8 @@ use beui::icons::{
     ICON_SPLINE, ICON_SPLIT, ICON_SQUARE, ICON_STAR, ICON_TEXT_ALIGN_START, ICON_TOGGLE_RIGHT,
     ICON_TRASH, ICON_TYPE,
 };
+use beui::native::Document;
+use beui::native::with_document;
 use beui::reactive::*;
 use beui::styled::theme::NARROW_WIDTH;
 use beui::styled::*;
@@ -29,8 +32,8 @@ use beui::unstyled::{
     SyntaxColors, narrower_than,
 };
 use beui::{
-    Color32, Context, Direction, Document, FontId, Image, ImageFit, ItemSize, Key, Modifiers,
-    NodeId, PreferenceLayer, PreferenceSource, Rect, ScrollGesture, TextAlign, unstyled,
+    Color32, Context, Direction, FontId, Image, ImageFit, ItemSize, Key, Modifiers, NodeId,
+    PreferenceLayer, PreferenceSource, Rect, ScrollGesture, TextAlign, unstyled,
 };
 use beui_macros::{component, sample};
 use collaboration::CollaborationPage;
@@ -797,9 +800,9 @@ fn PageView(page: Page) -> NodeId {
 
 #[component]
 fn DemoToolbar(pages: Pages) -> NodeId {
-    let layers = with_document(|document| document.watch_preference_layers());
+    let app_layer = use_preference_layer(PreferenceSource::App);
     let selected_theme = create_memo(move || {
-        let theme = layers.get().layer(PreferenceSource::App).theme;
+        let theme = app_layer.get().theme;
         Some(
             theme
                 .and_then(|theme| ThemeKind::ALL.iter().position(|kind| *kind == theme))
@@ -827,12 +830,7 @@ fn DemoToolbar(pages: Pages) -> NodeId {
                     let theme = index
                         .and_then(|index| index.checked_sub(1))
                         .and_then(|index| ThemeKind::ALL.get(index).copied());
-                    with_document(|document| {
-                        if let Some(context) = document.context() {
-                            let app = context.preference_layer(PreferenceSource::App);
-                            context.set_preference_layer(PreferenceSource::App, PreferenceLayer { theme, ..app });
-                        }
-                    });
+                    app_layer.set(PreferenceLayer { theme, ..app_layer.get_untracked() });
                 })}
             />
             <Button

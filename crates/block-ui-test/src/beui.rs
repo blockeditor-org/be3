@@ -1,7 +1,7 @@
+use beui::native::Document;
 use beui::testing::{Target, button_name};
 use beui::{
-    Document, Input, Key, KeyChord, Modifiers, Pen, PenPhase, PointerButton, Pos2, Rect,
-    TouchPhase, Vec2,
+    Input, Key, KeyChord, Modifiers, Pen, PenPhase, PointerButton, Pos2, Rect, TouchPhase, Vec2,
 };
 use block_editor_beui::FromEditor;
 use block_editor_beui::be_block::{LiveEdit, Merge};

@@ -19,6 +19,7 @@ use beui_view::primitives::Drawing;
 use beui_view::reactive::NodeId;
 use beui_view::reactive::*;
 use beui_view::types::{Align, Direction};
+use beui_view::types::{Align2, ItemSize, Track};
 use beui_view::types::{Color32, Hsva};
 use beui_view::types::{Pos2, Rect, Vec2, pos2};
 

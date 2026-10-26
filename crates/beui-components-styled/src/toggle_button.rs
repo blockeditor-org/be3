@@ -13,6 +13,7 @@ use beui_view::types::{Overflow, TextAlign};
 use crate::list::List;
 use crate::tokens::{Padding, Space, Stroke};
 use beui_view::reactive::*;
+use beui_view::types::{Align, Direction};
 
 #[component]
 pub fn ToggleButton(

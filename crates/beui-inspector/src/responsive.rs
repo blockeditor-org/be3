@@ -1,5 +1,6 @@
 use beui_components_styled::*;
 use beui_components_unstyled::ChoiceOption;
+use beui_core::current::enter;
 use beui_core::document::Document;
 use beui_core::geometry::{Vec2, vec2};
 use beui_core::icons::{ICON_ROTATE_CW_SQUARE, ICON_X};
@@ -8,6 +9,7 @@ use beui_core::screen_simulation::{MAXIMUM_SIZE, MINIMUM_SIZE, ScreenSimulation}
 use beui_view::reactive::*;
 
 use super::State;
+use beui_view::types::{Align, Direction, ItemSize};
 
 pub const HEIGHT: f32 = 51.0;
 const PADDING: Space = Space::Md;

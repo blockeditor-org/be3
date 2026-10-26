@@ -10,6 +10,7 @@ use block_editor_beui::linux_desktop;
 use block_editor_beui::{Editor, WifiLink, WifiNetwork, WifiRequest, WifiSecurity, WifiStatus};
 
 use super::popup::BarPopup;
+use beui::{Align, Direction, ItemSize};
 
 const LIST_HEIGHT: Size = Size::Custom(360.0);
 const SPACING: Space = Space::Md;

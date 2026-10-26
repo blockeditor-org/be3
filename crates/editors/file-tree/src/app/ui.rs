@@ -22,6 +22,7 @@ use super::menu::{RowMenu, RowTools};
 use super::rename::Renaming;
 use super::rows::{Inspection, Row, RowKey, Tree as FileTree, access_hint, access_marker};
 use super::zoom::{Zoom, ZoomBar, zooms};
+use beui::{Align, Direction, ItemSize};
 use block_editor_beui::beui::TextAlign;
 
 const PADDING: Space = Space::Md;

@@ -13,6 +13,7 @@ use crate::frame::Frame;
 use crate::list::List;
 use crate::menu_button::MenuButton;
 use crate::tokens::{Padding, Size, Space};
+use beui_view::types::{Align, Direction};
 
 const SPACING: Space = Space::Xs2;
 const DIVIDER_HEIGHT: Size = Size::Custom(18.0);

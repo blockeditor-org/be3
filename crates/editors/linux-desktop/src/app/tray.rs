@@ -1,3 +1,4 @@
+use beui::{Align, Direction};
 use block_editor_beui::beui::icons::Glyph;
 use block_editor_beui::beui::icons::{
     ICON_BLOCKS, ICON_CIRCLE, ICON_CIRCLE_DOT, ICON_SQUARE, ICON_SQUARE_CHECK,

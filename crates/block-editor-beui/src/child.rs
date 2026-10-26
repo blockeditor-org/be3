@@ -11,6 +11,7 @@ use block_plugin_api::{
 };
 
 use crate::{ChildState, ChildTarget, Editor, SubregionContent, watch_block_label};
+use beui::{Align, Align2};
 
 #[derive(Clone)]
 pub struct ChildHandle {

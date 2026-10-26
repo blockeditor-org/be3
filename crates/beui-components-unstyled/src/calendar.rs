@@ -10,6 +10,7 @@ use beui_view::primitives::*;
 use beui_view::reactive::NodeId;
 use beui_view::reactive::*;
 use beui_view::types::Direction;
+use beui_view::types::ItemSize;
 use beui_view::types::{Key, KeyPress};
 
 const WEEKS: usize = 6;

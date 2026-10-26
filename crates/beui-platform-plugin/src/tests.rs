@@ -1,6 +1,7 @@
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 
+use beui::native::with_reactive_scope;
 use beui::reactive::*;
 use beui::styled;
 use beui::styled::{Window, WindowHandle};

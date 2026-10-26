@@ -2,9 +2,9 @@ use beui_core::document::Document;
 use beui_core::node::NodeId;
 use beui_macros::component;
 
-use crate::reactive::{
-    Align, Children, Direction, Get, Justify, ListChild, Prop, create_binding, with_document,
-};
+use crate::reactive::{Children, Get, ListChild, Prop, create_binding, with_document};
+
+use crate::types::{Align, Direction, Justify};
 
 #[component]
 pub fn List(

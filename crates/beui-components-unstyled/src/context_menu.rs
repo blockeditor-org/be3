@@ -16,6 +16,7 @@ use beui_view::reactive::*;
 use beui_view::types::Placement;
 use beui_view::types::PointerPress;
 use beui_view::types::icons::ICON_ELLIPSIS;
+use beui_view::types::{Align, Direction, ItemSize};
 use beui_view::types::{Dismiss, LayerPolicy};
 use beui_view::types::{Pos2, Rect, pos2};
 

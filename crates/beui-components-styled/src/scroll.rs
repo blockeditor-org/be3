@@ -14,6 +14,7 @@ use beui_components_unstyled::{ScrollHandle, ScrollbarStyle};
 use beui_view::primitives::Spacer;
 use beui_view::reactive::NodeId;
 use beui_view::reactive::*;
+use beui_view::types::Outline;
 use beui_view::types::TextAlign;
 use beui_view::types::icons::{ICON_MOVE_HORIZONTAL, ICON_MOVE_VERTICAL};
 use beui_view::types::{Align, Direction, ItemSize, ScrollPosition, Sides};

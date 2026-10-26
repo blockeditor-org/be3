@@ -16,6 +16,7 @@ use beui_view::reactive::NodeId;
 use beui_view::reactive::OverlayAnchor;
 use beui_view::reactive::*;
 use beui_view::types::KeyPhase;
+use beui_view::types::Outline;
 use beui_view::types::Placement;
 use beui_view::types::Pos2;
 use beui_view::types::Sides;

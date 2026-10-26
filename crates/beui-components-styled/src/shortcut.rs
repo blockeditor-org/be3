@@ -7,6 +7,7 @@ use crate::tokens::Space;
 use beui_view::reactive::NodeId;
 use beui_view::reactive::*;
 use beui_view::types::TextAlign;
+use beui_view::types::{Align, Direction, ItemSize};
 
 const SPACING: Space = Space::Md;
 

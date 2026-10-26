@@ -8,6 +8,7 @@ use crate::tokens::{Size, Space, Stroke};
 use beui_components_unstyled::{Toggle, ToggleHandle};
 use beui_view::reactive::NodeId;
 use beui_view::reactive::*;
+use beui_view::types::{Align, Align2};
 
 const WIDTH: Size = Size::Custom(42.0);
 const HEIGHT: Size = Size::Md;

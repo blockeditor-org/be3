@@ -38,7 +38,7 @@ fn each_display_shows_its_own_lock_screen_at_its_own_scale() {
         display("laptop", laptop, 2.0),
         display("monitor", monitor, 1.0),
     ]);
-    beui::reactive::enter(&mut document, crate::display::apply_shown);
+    beui::native::enter(&mut document, crate::display::apply_shown);
     let window = WindowSize {
         size: vec2(960.0, 600.0),
         scale: 2.0,

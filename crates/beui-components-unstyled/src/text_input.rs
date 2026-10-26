@@ -27,6 +27,7 @@ use beui_view::reactive::NodeId;
 
 use beui_view::primitives::*;
 use beui_view::reactive::*;
+use beui_view::types::Sides;
 
 pub struct TextInputHandle {
     pub field: Child,

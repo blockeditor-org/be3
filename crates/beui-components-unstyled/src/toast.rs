@@ -13,6 +13,7 @@ use beui_view::types::Placement;
 use beui_view::types::{LayerLevel, LayerPolicy};
 
 use crate::floating::Edge;
+use beui_view::types::{Extent, Sides};
 
 pub const TOAST_DURATION: Duration = Duration::from_secs(8);
 

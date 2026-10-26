@@ -47,6 +47,7 @@ use rows::{BODY_SIZE, Composition, Inline, InlineItem, Row, galley, line_of};
 use state::{AreaGeometry, Grab};
 use text_editor_core::ListMarker;
 
+use beui_view::types::{Extent, Sides};
 pub use colors::{SyntaxColors, TextAreaColors};
 pub use completion::{Completer, Completion, CompletionMenu, CompletionRowHandle};
 pub use emoji::{emoji_completer, search_emoji};

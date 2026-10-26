@@ -9,7 +9,7 @@ use std::time::Instant;
 use accesskit::Node;
 
 use crate::accessibility::{self, AccessibilityTree};
-use crate::base::child_list::{ChildHost, NodeChildren, SlotId};
+use crate::child_list::{ChildHost, NodeChildren, SlotId};
 use crate::context::{Context, Moved};
 use crate::damage::{Damage, Region};
 use crate::file_picker::{FileFilter, FilePick, FilePickId};
@@ -79,7 +79,7 @@ pub struct Document {
     placement: Option<(Rect, Option<Placement>)>,
     pub portal_holders: foldhash::HashMap<NodeId, NodeOf<crate::base::portal::PortalNode>>,
     pub(crate) layer_state: crate::layer::OpenLayers,
-    pub(crate) focus_scopes: crate::base::focus_scope::FocusScopes,
+    pub(crate) focus_scopes: crate::focus_scope::FocusScopes,
     pub(crate) focus_dirty: bool,
     pub(crate) focus_wanted: Option<NodeId>,
     pub(crate) focus_into: Option<(NodeId, u64)>,

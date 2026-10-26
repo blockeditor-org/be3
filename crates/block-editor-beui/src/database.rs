@@ -19,6 +19,7 @@ use uuid::Uuid;
 
 mod choice;
 
+use beui::{Align, Direction, ItemSize};
 pub use choice::{ChoiceMark, choice_color, choice_color_label, choice_glyph, choice_icon_label};
 
 const SPACING: Space = Space::Sm;

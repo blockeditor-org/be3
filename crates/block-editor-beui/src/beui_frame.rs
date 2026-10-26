@@ -12,6 +12,7 @@ use block_plugin_api::{BarAction, MenuCheck, MenuCommand, MenuEntry, MenuPin, Me
 
 use crate::chrome::ChromeRoot;
 use crate::{BlockInfo, BlockList, BlockQuery, Editor};
+use beui::ItemSize;
 
 const PALETTE: Chord = Chord::ctrl(Key::P).shift();
 

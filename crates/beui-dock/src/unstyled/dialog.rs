@@ -16,6 +16,7 @@ use beui_view::primitives::*;
 use beui_view::reactive::*;
 
 use super::{DockMode, DockState, DockTabControl, State, TabId};
+use beui_view::types::Extent;
 
 const ATTENTION: Duration = Duration::from_millis(400);
 

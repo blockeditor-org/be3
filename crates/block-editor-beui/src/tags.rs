@@ -12,6 +12,7 @@ use uuid::Uuid;
 
 use crate::database::choice_color;
 use crate::{BlockInfo, BlockParent, Editor};
+use beui::{Align, Direction};
 
 pub fn tag_color(color: TagColor, kind: ThemeKind) -> Color32 {
     let choice = match color {

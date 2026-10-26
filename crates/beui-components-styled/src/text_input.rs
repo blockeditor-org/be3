@@ -17,6 +17,7 @@ use beui_view::reactive::*;
 use crate::button::{Button, ButtonSize};
 use crate::text::{Icon, Text, TextColor, TextSize};
 use beui_view::types::TextAlign;
+use beui_view::types::{Align, Direction, ItemSize};
 
 const HEIGHT: Size = Size::Field;
 const MULTILINE_HEIGHT: Size = Size::Custom(104.0);

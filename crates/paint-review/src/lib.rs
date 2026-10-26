@@ -2,9 +2,10 @@ use std::rc::Rc;
 
 use beui::dock::styled::Docking;
 use beui::dock::styled::{DockPane, DockSplit, DockTab};
+use beui::native::Document;
 use beui::reactive::*;
 use beui::styled::*;
-use beui::{Context, Document, Key, KeyPress, NodeId, Rect};
+use beui::{Context, Key, KeyPress, NodeId, Rect};
 
 mod images;
 mod painting;
@@ -14,6 +15,7 @@ mod stage;
 
 pub use images::{ImageRequest, ImageState, Images};
 
+use beui::{Align, ItemSize};
 use paint_review_manifest::Manifest;
 use painting::PaintingView;
 use review::{Mode, Review};

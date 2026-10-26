@@ -4,8 +4,8 @@ use std::time::{Duration, Instant};
 
 use foldhash::{HashMap, HashSet};
 
-use crate::base::child_list::{ChildHost, ChildList, NodeChildren};
 use crate::callback::Callback;
+use crate::child_list::{ChildHost, ChildList, NodeChildren};
 use crate::current::with_document;
 use crate::document::Document;
 use crate::geometry::{Pos2, Rect, Vec2, pos2};
@@ -523,7 +523,7 @@ impl Element for CanvasNode {
     }
 
     fn remove_child(&mut self, child: NodeId) {
-        crate::base::child_list::remove_hosted(self, child);
+        crate::child_list::remove_hosted(self, child);
     }
 
     fn kind(&self) -> &'static str {

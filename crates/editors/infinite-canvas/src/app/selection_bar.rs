@@ -3,6 +3,7 @@ use super::paint::resolve_color;
 use super::sidebar::{set_foreground, styled_entities};
 use super::state::{CanvasState, CommonValue, common_value};
 use super::style::{STROKES, StylePopover};
+use beui::{Align, Direction};
 use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::icons::ICON_SLIDERS_HORIZONTAL;
 use block_editor_beui::beui::reactive::*;

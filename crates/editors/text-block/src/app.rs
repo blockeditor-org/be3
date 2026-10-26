@@ -17,6 +17,7 @@ use uuid::Uuid;
 
 use crate::hex::HexView;
 
+use beui::ItemSize;
 use import_error::ImportError;
 use state::State;
 use surface::TextSurface;

@@ -7,6 +7,7 @@ use beui_view::primitives::*;
 use beui_view::reactive::*;
 
 use super::{DockEntry, DockKey, DockingLayout};
+use beui_view::types::ItemSize;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct DockSlot(u64);

@@ -17,6 +17,7 @@ pub(crate) mod player;
 pub(crate) mod state;
 pub(crate) mod timeline;
 
+use beui::{Align, Direction, ItemSize};
 use effects::EffectsPanel;
 use player::Player;
 use state::{VideoState, ZOOM_STEP};

@@ -10,6 +10,7 @@ use uuid::Uuid;
 
 use super::picker::PickAnchor;
 use super::workspace::Workspace;
+use beui::{Align, Align2, Direction, ItemSize};
 
 pub(crate) const RENAME: TabId = TabId::new((1 << 39) + 2);
 const SIZE: Vec2 = Vec2::new(392.0, 620.0);
@@ -263,7 +264,7 @@ fn RenameBody(
         </DialogBody>
     };
     if let Some(node) = field.try_get() {
-        with_document(|document| document.focus_into(node));
+        node.focus_into();
     }
     built
 }

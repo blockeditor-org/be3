@@ -14,8 +14,8 @@ use beui_core::input::{
 };
 use beui_core::node::NodeId;
 
-use beui_core::base::focus::ImeCursor;
 use beui_core::base::interactive::InteractiveNode;
+use beui_core::focus::ImeCursor;
 use beui_core::interact::forward::ForwardedInput;
 use beui_macros::component;
 

@@ -19,6 +19,7 @@ use super::paint::resolve_color;
 use super::selection_bar::Swatch;
 use super::state::{Alignment, CanvasCommand, CanvasState, CommonValue, common_value};
 use super::style::{BACKGROUNDS as SOFT, STROKES};
+use beui::{Align, Align2, Direction, ItemSize, Track};
 
 const SPACING: Space = Space::Md;
 

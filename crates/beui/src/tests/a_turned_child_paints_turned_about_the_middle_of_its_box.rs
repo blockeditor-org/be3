@@ -1,4 +1,5 @@
 use super::*;
+use crate::native::with_reactive_scope;
 use crate::primitives::*;
 use crate::reactive::*;
 use beui_core::display::flatten;

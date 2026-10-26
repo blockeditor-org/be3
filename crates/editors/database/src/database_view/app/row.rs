@@ -18,6 +18,7 @@ use uuid::Uuid;
 use crate::database_view::app::controls::{ChoicePicker, MARK, MARK_SIZE};
 use crate::database_view::app::data::Data;
 use crate::database_view::app::list::{iconic, row_title, visible_groups};
+use beui::{Align, Direction, ItemSize};
 use text_block_types::TextContent;
 
 const PADDING: Space = Space::Xl2;

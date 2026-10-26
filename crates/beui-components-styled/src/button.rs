@@ -14,6 +14,7 @@ use beui_view::reactive::NodeId;
 use beui_view::reactive::*;
 use beui_view::types::Align2;
 use beui_view::types::Image;
+use beui_view::types::{Align, Direction, Justify};
 use beui_view::types::{ItemSize, TextAlign};
 
 const GLYPH_SPACING: Space = Space::Sm;

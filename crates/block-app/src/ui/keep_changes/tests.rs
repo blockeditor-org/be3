@@ -1,6 +1,8 @@
 use std::time::Duration;
 
-use beui::{Document, Key, Modifiers, Vec2};
+use beui::{Key, Modifiers, Vec2};
+
+use beui::native::Document;
 use block_ui_test::DocumentTest;
 
 use super::*;

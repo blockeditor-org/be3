@@ -1,6 +1,6 @@
 use std::any::Any;
 
-use crate::base::child_list::{ChildHost, ChildItem, ChildList, NodeChildren};
+use crate::child_list::{ChildHost, ChildItem, ChildList, NodeChildren};
 use crate::document::Document;
 use crate::geometry::{Rect, Vec2, vec2};
 use crate::node::{Element, FocusChild, NodeId, NodeOf, Rects};
@@ -102,7 +102,7 @@ impl Element for FirstFitNode {
     }
 
     fn remove_child(&mut self, child: NodeId) {
-        crate::base::child_list::remove_hosted(self, child);
+        crate::child_list::remove_hosted(self, child);
     }
 
     fn kind(&self) -> &'static str {

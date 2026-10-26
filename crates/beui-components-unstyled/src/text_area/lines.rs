@@ -30,6 +30,7 @@ use super::rows::{
     galley, line_range, row_key, table_columns,
 };
 use super::{Context, GeometryCell, RowEntry};
+use beui_view::types::{Align2, Extent, Sides};
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub(super) enum Layer {

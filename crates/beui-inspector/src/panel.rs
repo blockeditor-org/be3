@@ -6,6 +6,7 @@ use crate::screen_reader::Command;
 use beui_components_styled::*;
 use beui_components_unstyled::{ChoiceOption, SliderScale, TreeItem};
 use beui_core::base::TextAlign;
+use beui_core::current::enter;
 use beui_core::document::Document;
 use beui_core::filter::{ColorVision, MAX_BLUR};
 use beui_core::icons::{ICON_MOUSE_POINTER_2, ICON_X};
@@ -20,6 +21,7 @@ use beui_view::reactive::*;
 
 use super::tree::{Entry, Key};
 use super::{InspectorTab, State, entry_label};
+use beui_view::types::{Align, Direction, ItemSize};
 
 const HEADER_PADDING: Space = Space::Lg;
 const HEADER_SPACING: Space = Space::Md;

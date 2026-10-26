@@ -7,6 +7,7 @@ use block_editor_beui::beui::styled::*;
 
 use super::modes::{LOCK_AFTER, SCREEN_OFF, lock_after_label, screen_off_label};
 use super::ui::Settings;
+use beui::{Extent, ItemSize};
 
 #[component]
 pub(super) fn PowerSection(settings: Settings, read_only: Memo<bool>) -> NodeId {

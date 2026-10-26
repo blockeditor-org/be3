@@ -5,9 +5,11 @@ use beui::icons::{
     ICON_CIRCLE_X, ICON_FILE, ICON_MERGE, ICON_REFRESH_CW, ICON_SCAN_SEARCH, ICON_SEARCH,
     ICON_SPLIT,
 };
+use beui::native::Document;
+use beui::native::with_document;
 use beui::reactive::*;
 use beui::styled::*;
-use beui::{Color32, Document, NodeId};
+use beui::{Color32, NodeId};
 
 use crate::actions::MainActions;
 #[cfg(target_os = "android")]
@@ -19,6 +21,7 @@ use crate::viewer::ImageViewer;
 #[cfg(not(target_os = "android"))]
 use crate::workspace::Workspace;
 use beui::TextAlign;
+use beui::{Align, Direction, ItemSize};
 
 #[cfg(not(target_os = "android"))]
 const SIDEBAR_WIDTH: f32 = 380.0;

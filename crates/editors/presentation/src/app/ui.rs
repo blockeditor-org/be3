@@ -12,6 +12,7 @@ use block_editor_beui::{ChildBlock, ChildBlockHandle, ChildMode, ChildState, Edi
 use uuid::Uuid;
 
 use super::slides::Slides;
+use beui::{Align, Direction, ItemSize};
 
 const FILMSTRIP_WIDTH: Size = Size::Custom(210.0);
 const THUMBNAIL_WIDTH: Size = Size::Custom(176.0);

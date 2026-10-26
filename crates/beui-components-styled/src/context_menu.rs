@@ -23,6 +23,7 @@ use beui_view::types::TextAlign;
 use beui_view::types::icons::{
     ICON_CHECK, ICON_CHEVRON_DOWN, ICON_CHEVRON_LEFT, ICON_CHEVRON_RIGHT, ICON_DOT,
 };
+use beui_view::types::{Align, Align2, Direction, ItemSize};
 use beui_view::types::{Pos2, Rect};
 
 const PADDING_HORIZONTAL: Space = Space::Lg;

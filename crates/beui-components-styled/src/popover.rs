@@ -12,6 +12,7 @@ use beui_view::reactive::*;
 
 use crate::theme::Density;
 use crate::tokens::{Length, Size, Space};
+use beui_view::types::Extent;
 
 pub const PANEL_PADDING: Space = Space::Lg;
 pub const PANEL_MAX_WIDTH: Size = Size::Popover;

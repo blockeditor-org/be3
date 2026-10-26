@@ -19,6 +19,7 @@ use super::sketch::{Sketch, SketchKey, rough_reach};
 use super::state::{CanvasState, Gesture};
 use super::text::{EntityText, path_label_reach, text_region, writes};
 use crate::freehand::LiveStroke;
+use beui::{PasteKind, Pasted, Sides};
 
 const ITEM_MARGIN: f32 = 2.0;
 

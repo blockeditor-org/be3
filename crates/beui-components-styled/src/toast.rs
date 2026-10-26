@@ -17,6 +17,7 @@ use beui_view::types::Image;
 use beui_view::types::Justify;
 use beui_view::types::TextAlign;
 use beui_view::types::icons::{ICON_CIRCLE_ALERT, ICON_INFO, ICON_X};
+use beui_view::types::{Align, Direction, ItemSize};
 use std::time::Duration;
 
 const MARGIN: Space = Space::Xl;

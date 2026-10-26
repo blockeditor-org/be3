@@ -1,6 +1,7 @@
 use block_editor_beui::be_block::BlockContent;
 use logic_grid_types::CompiledLogicContent;
 
+use beui::{Align, Direction, ItemSize};
 use block_editor_beui::be_block::Item;
 use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::TextAlign;

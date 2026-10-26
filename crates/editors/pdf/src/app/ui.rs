@@ -7,6 +7,7 @@ use block_editor_beui::{Editor, FileChooser, Sidebar, Toolbar};
 
 use super::pages::{Pages, Shown, Viewport};
 use super::{filter, imported};
+use beui::{Direction, ItemSize};
 use pdf_types::PdfContent;
 
 const PAGE_FILL: Color32 = Color32::from_rgb(255, 255, 255);

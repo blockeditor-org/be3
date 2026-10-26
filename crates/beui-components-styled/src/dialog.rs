@@ -21,6 +21,7 @@ use crate::list::List;
 use crate::theme::Density;
 use crate::tokens::{Length, Padding, Size, Space};
 use beui_view::reactive::*;
+use beui_view::types::{Align, Direction, Extent, Justify};
 
 pub(crate) const PADDING: Padding = Padding::symmetric(Space::Xl2, Space::Xl);
 pub(crate) const SPACING: Space = Space::Lg;

@@ -59,7 +59,7 @@ use app_state::{AppStateStore, SavedAccount, ServerLocation};
 use be_block::{DisplaySettings, InputSettings, Root, WORKSPACE_EDITOR};
 use be_graph::{Access, BlockParent};
 use be_protocol::{Organization, OrganizationInvitation, OrganizationRole};
-use beui::Document;
+use beui::native::Document;
 use block_plugin_api::{
     AccessLevel, ArtifactAction, BlockCommand, BlockLocation, HostPanel, ShellDialog, ShellRequest,
 };
@@ -382,7 +382,7 @@ impl beui::App for Shell {
         wayland::set_owned(view.screen == ui::Screen::Organization && self.app.shell.is_some());
         let store = self.view;
         compositor::notify();
-        beui::reactive::enter(&mut self.document, || {
+        beui::native::enter(&mut self.document, || {
             display::apply_shown();
             store.set(view);
         });

@@ -9,6 +9,7 @@ use uuid::Uuid;
 use super::onboarding::ErrorText;
 
 use super::{AppViewStore, UiCommand, send};
+use beui::{Align, Direction, ItemSize};
 
 #[component]
 pub(super) fn Dialogs(view: AppViewStore) -> NodeId {

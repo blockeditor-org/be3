@@ -16,6 +16,7 @@ use beui_view::primitives::*;
 use beui_view::reactive::*;
 use reactive::{Stored, store};
 
+use beui_view::types::{Direction, ItemSize};
 pub use compose::{Preview, preview};
 pub use engine::{Engine, Latch, Mods, modify};
 pub use layout::{Action, KeyAt, KeyDef, Layer, Layout, Modifier, Role, Slider, Slot, Value};

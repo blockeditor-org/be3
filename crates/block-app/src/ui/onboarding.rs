@@ -12,6 +12,7 @@ use super::{
 };
 use crate::platform;
 use crate::root_settings::{SESSION_TYPES, session_type_name};
+use beui::{Align, Direction, Extent, ItemSize, Justify};
 
 const COLUMN_WIDTH: f32 = 460.0;
 

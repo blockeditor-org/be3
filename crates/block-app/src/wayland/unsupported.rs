@@ -1,6 +1,7 @@
+use beui::native::Document;
 use beui::reactive::*;
 use beui::styled::*;
-use beui::{Context, Document, NodeId, Rect, Setup};
+use beui::{Context, NodeId, Rect, Setup};
 use block_plugin_api::{HostWindow, HostWindowId};
 
 pub(crate) fn create() {}

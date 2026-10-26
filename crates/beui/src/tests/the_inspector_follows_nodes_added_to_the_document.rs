@@ -1,4 +1,5 @@
 use super::*;
+use crate::native::Document;
 
 #[test]
 fn the_inspector_follows_nodes_added_to_the_document() {

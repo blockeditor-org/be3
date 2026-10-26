@@ -12,6 +12,7 @@ use uuid::Uuid;
 use crate::points::marker_color;
 
 use super::state::MapState;
+use beui::{Align, Direction, ItemSize};
 use block_editor_beui::beui::TextAlign;
 
 const PREVIEW_HEIGHT: Size = Size::Custom(130.0);

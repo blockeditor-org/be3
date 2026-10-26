@@ -6,6 +6,7 @@ use database_types::database_schema::DatabaseField;
 use uuid::Uuid;
 
 use crate::database_view::app::data::Data;
+use beui::ItemSize;
 
 const AXIS_LEFT: f32 = 48.0;
 const AXIS_BOTTOM: f32 = 32.0;

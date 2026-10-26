@@ -8,6 +8,7 @@ use beui_view::reactive::NodeId;
 use crate::list::List;
 use crate::tokens::Space;
 use beui_view::reactive::*;
+use beui_view::types::{Align, Direction};
 use text_editor_core::Tool;
 
 const BAR_SPACING: Space = Space::Xs;

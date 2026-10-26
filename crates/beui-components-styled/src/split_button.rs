@@ -17,6 +17,7 @@ use beui_view::types::icons::ICON_CHEVRON_DOWN;
 use crate::list::List;
 use crate::tokens::{CornerSet, Padding, Size, Space, Stroke};
 use beui_view::reactive::*;
+use beui_view::types::{Align, Direction};
 
 const INSET: Space = Space::Xs2;
 const GLYPH_SPACING: Space = Space::Sm;

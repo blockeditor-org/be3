@@ -10,6 +10,7 @@ use crate::model::{Loaded, Model};
 #[cfg(target_os = "android")]
 use crate::pane::TerminalPane;
 use crate::runs::{Runs, Stage, Work};
+use beui::{Align, Direction, ItemSize};
 
 const MEGABYTE: f64 = 1_000_000.0;
 #[cfg(target_os = "android")]

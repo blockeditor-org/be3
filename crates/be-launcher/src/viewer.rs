@@ -4,6 +4,7 @@ use beui::styled::*;
 use beui::{CursorIcon, Image, ImageFit, Key, KeyPress, NodeId, TextAlign, Vec2};
 
 use crate::model::{Loaded, Model};
+use beui::{Align, Direction, ItemSize};
 
 const PADDING: Space = Space::Xl;
 const HINT_HEIGHT: f32 = 18.0;

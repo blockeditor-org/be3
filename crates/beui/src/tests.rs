@@ -1595,7 +1595,7 @@ impl Harness {
 
 fn selected_text(harness: &mut Harness, region: NodeId) -> String {
     let state = harness.document().api::<unstyled::SelectableState>(region);
-    crate::reactive::with_reactive_scope(harness.document_mut(), || state.selected_text())
+    crate::native::with_reactive_scope(harness.document_mut(), || state.selected_text())
 }
 
 fn pressed_with(key: Key, modifiers: Modifiers) -> Vec<Input> {
@@ -1615,7 +1615,7 @@ fn key_event(key: Key, pressed: bool) -> Input {
 }
 
 pub(crate) fn with_installed<R>(document: &mut Document, f: impl FnOnce(&mut Document) -> R) -> R {
-    crate::reactive::with_reactive_scope(document, || crate::reactive::with_document(f))
+    crate::native::with_reactive_scope(document, || crate::native::with_document(f))
 }
 
 #[component]
@@ -2310,6 +2310,7 @@ fn counted_with_measures(document: &mut Document, node: impl Into<NodeId>) -> Co
 }
 
 use crate::interact::WHEEL_LATCH_TIMEOUT;
+use crate::native::Document;
 use crate::unstyled::Scroll;
 
 fn nested() -> Document {

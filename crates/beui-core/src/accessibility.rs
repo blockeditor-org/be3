@@ -8,10 +8,10 @@ use accesskit::{
     Role, Tree, TreeId, TreeUpdate,
 };
 
-use crate::base::focus::focus_of;
 use crate::base::list::Direction;
 use crate::base::offset::OffsetNode;
 use crate::base::overlay::OverlayNode;
+use crate::focus::focus_of;
 
 pub const LAYER_CLASS: &str = "beui-layer";
 pub const TEST_ID_SEPARATOR: char = '\u{1f}';

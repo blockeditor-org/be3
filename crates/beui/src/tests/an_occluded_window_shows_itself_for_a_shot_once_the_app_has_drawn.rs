@@ -1,4 +1,5 @@
 use super::*;
+use crate::native::Document;
 use beui::drive::{Drive, Reply, ask};
 use beui::{Simulation, WindowSize};
 use beui_core::app::SafeArea;

@@ -5,6 +5,7 @@ use block_editor_beui::beui::styled::*;
 use block_editor_beui::{Editor, Subregion, SubregionContent, Toolbar};
 
 use super::session::{PAGE, Session};
+use beui::{Align, ItemSize, Justify};
 
 #[component]
 pub fn BrowserTab(editor: Editor) -> NodeId {

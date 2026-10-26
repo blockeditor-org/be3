@@ -1,3 +1,4 @@
+use beui::Align;
 use block_editor_beui::beui::icons::ICON_MAP_PIN;
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;

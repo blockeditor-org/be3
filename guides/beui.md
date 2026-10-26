@@ -288,14 +288,19 @@ is the cost.
 
 Beui is a family of crates. `beui` is the facade every app and editor depends
 on: it re-exports the others under the paths this guide uses (`beui::reactive`,
-`beui::styled`, `beui::unstyled`, `beui::dock`, `beui::Document`, ...) and assembles them,
-so code outside beui names only `beui`. The rest depend on each other in one
+`beui::styled`, `beui::unstyled`, `beui::dock`, ...) and assembles them,
+so code outside beui names only `beui`. Plain values (`beui-types`) sit at its root
+(`beui::Sides`, `beui::Align`), never under `beui::reactive`. What reaches the
+native document directly (`Document`, `with_document`, `try_with_document`,
+`enter`, `with_reactive_scope`) lives in `beui::native`, so code that needs it
+is visibly native; prefer a `beui::reactive` API (`TreeNode`, `set_focus`,
+`use_preferences`, ...) where one exists. The rest depend on each other in one
 direction:
 
 | Crate | Owns |
 | --- | --- |
 | `ui-types` | the vocabulary beui shares with the plugin protocol, which depends on nothing but serde and `geometry`: `Key` (with its names for drive, `Key::from_name` and `Key::name`, its evdev code, `Key::evdev`, and what every platform names keys with: `Key::from_typed`, the one rule for a character key, `Key::from_value` for a W3C key value, and `Key::evdev_from_code` and `Key::from_evdev` for a physical place), `Modifiers`, `KeyChord`, `PointerButton`, the touch, pen and back phases, `ImeEvent`, `CursorIcon`, `Pasted` and `PickedFile`; `Input`, the raw input every platform, drive's gestures, the on-screen keyboard and the plugin protocol produce; `WindowRequests` and `ImeArea`, what an app asks of its window; the window vocabulary of window-hosting layers (`WindowId`, `WindowPlacement`, `HostPlacement`, `WindowEdge`, `WindowRole`, `WindowRequest`, `WindowReport`, which `beui_core::window` re-exports); the preferences (`ThemeKind`, `Motion`, `Preferences`, `PreferenceLayer`); and the display and pointer settings `beui-platform-drm` applies and block settings store (`DisplayMode`, `Rotation`, `InputDevice`, `PointerSettings`) |
-| `beui-types` | the plain values components share whichever core draws them, with no nodes in them: colours (`Color32`, `Hsva`, `Oklch`), `Image` and `Thumbhash`, the layout values (`Direction`, `Align`, `Justify`, `ItemSize`, `Sizing`, `Sides`, `Extent`, `Track`, `ScrollPosition`, `Corners`, `Outline`), the text values (`FontId`, `TextAlign`, `Overflow`, `SpanStyle`, `TextMark`, `TextGlyph`, `TextCaret`), the layer values (`Placement`, `LayerPolicy`, `LayerLevel`, `Dismiss`), the gestures (`PointerPress`, `ScrollGesture`, `DragGesture`, `ZoomGesture`), `KeyPhase` and `SystemBars`, with `geometry`, `ui-types`' input values and lucide's `icons` re-exported. beui-core re-exports each where it used to live; unstyled and styled reach them as `beui_view::types`, and values that hold a node (`NodeId`, `OverlayAnchor`, `KeyAt`, `KeyEvent`, `ImeCursor`) through `beui::reactive` |
+| `beui-types` | the plain values components share whichever core draws them, with no nodes in them: colours (`Color32`, `Hsva`, `Oklch`), `Image` and `Thumbhash`, the layout values (`Direction`, `Align`, `Justify`, `ItemSize`, `Sizing`, `Sides`, `Extent`, `Track`, `ScrollPosition`, `Corners`, `Outline`), the text values (`FontId`, `TextAlign`, `Overflow`, `SpanStyle`, `TextMark`, `TextGlyph`, `TextCaret`), the layer values (`Placement`, `LayerPolicy`, `LayerLevel`, `Dismiss`), the gestures (`PointerPress`, `ScrollGesture`, `DragGesture`, `ZoomGesture`), `KeyPhase` and `SystemBars`, with `geometry`, `ui-types`' input values and lucide's `icons` re-exported. beui-core re-exports each where it used to live; unstyled and styled reach them as `beui_view::types` and apps as `beui::`, and values that hold a node (`NodeId`, `OverlayAnchor`, `KeyAt`, `KeyEvent`, `ImeCursor`) through `beui::reactive` |
 | `beui-tree` | what makes a tree of components, whatever it is made of: `#[component]` and `view!`'s runtime, `Prop`, child slots (`Children`, `Run`, `SlotChild`, `SlotHost`) and `Show`, `ShowKeepAlive`, `Dynamic`, `Keyed` and `ForEach` |
 | `beui-core` | `Document` and `Context`, the retained nodes and their layout, input and its dispatch, accessibility, paint output and damage, the font and image interfaces, the icon codepoints, the `App` contract, and the `Runner` every platform drives it through |
 | `beui-font-freetype` | `FreetypeFonts`: FreeType and HarfBuzz shaping and rasterizing, and the fonts beui compiles in |
@@ -1814,7 +1819,7 @@ what opened them, and a forwarding catcher (a plugin's region, a Wayland
 window) gets the keyboard back.
 
 What a layer remembers is a focus scope, and the document keeps one stack of
-them (`base/focus_scope.rs`): an open layer pushes one and closing pops it.
+them (`focus_scope.rs`): an open layer pushes one and closing pops it.
 Anything else that takes the focus for a while and gives it back pushes its
 own with `Document::push_focus_scope(holder)` and pops it with
 `pop_focus_scope(holder)`, which refocuses what had the focus only if the focus

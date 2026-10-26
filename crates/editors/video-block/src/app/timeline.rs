@@ -14,6 +14,7 @@ use crate::timeline::{
 };
 
 use super::state::{ClipDrag, VideoState};
+use beui::{Align, Direction, ItemSize};
 
 const THUMBNAIL_MARGIN: Space = Space::Xs2;
 const CLIP_RADIUS: Radius = Radius::Sm;

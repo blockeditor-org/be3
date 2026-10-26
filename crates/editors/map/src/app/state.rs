@@ -14,6 +14,7 @@ use uuid::Uuid;
 use crate::geo::MapView;
 use crate::raster::{TILE_PIXELS, TileLabel};
 use crate::tiles::{TileId, TileWorker};
+use beui::Pasted;
 use image_block_types::{ImageContent, ImageFile};
 
 pub(crate) const WORLD_POINTS: f32 = 1024.0;

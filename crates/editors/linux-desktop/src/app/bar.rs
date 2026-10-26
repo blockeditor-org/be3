@@ -25,6 +25,7 @@ use super::sessions::Sessions;
 use super::tray::TrayItems;
 use super::volume::VolumeButton;
 use super::wifi::WifiButton;
+use beui::{Align, Direction, ItemSize};
 
 const BAR_PADDING: Space = Space::Sm;
 const BAR_SPACING: Space = Space::Md;

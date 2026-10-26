@@ -4,9 +4,9 @@ use crate::geometry::{Rect, Vec2, pos2};
 use crate::painter::Painter;
 use crate::pixel_grid::PixelGrid;
 
-use crate::base::child_list::{ChildHost, ChildItem, ChildList, NodeChildren};
-use crate::base::share::{Part, share, snapped_run};
+use crate::child_list::{ChildHost, ChildItem, ChildList, NodeChildren};
 use crate::document::Document;
+use crate::layout::share::{Part, share, snapped_run};
 use crate::node::{Element, NodeId, NodeOf, Rects};
 
 pub use beui_types::layout::{Align, Direction, ItemSize, Justify, Sizing};
@@ -430,7 +430,7 @@ impl Element for ListNode {
     }
 
     fn remove_child(&mut self, child: NodeId) {
-        crate::base::child_list::remove_hosted(self, child);
+        crate::child_list::remove_hosted(self, child);
     }
 
     fn passes_scroll_anchor(&self) -> bool {

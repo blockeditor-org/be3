@@ -16,6 +16,7 @@ use beui_components_unstyled::{
 use beui_view::reactive::NodeId;
 use beui_view::reactive::*;
 use beui_view::types::Color32;
+use beui_view::types::ItemSize;
 use beui_view::types::{Align, Direction};
 
 const SWATCH_WIDTH: Size = Size::Lg;

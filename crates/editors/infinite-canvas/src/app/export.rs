@@ -23,6 +23,7 @@ use super::state::CanvasState;
 use super::text::{
     font_px, prose, rich_state, text_box, text_region, text_style, text_turn, writes,
 };
+use beui::{Align, Direction, ItemSize};
 use image_block_types::ImageContent;
 
 pub(crate) const PADDING: f32 = 16.0;

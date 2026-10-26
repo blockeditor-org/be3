@@ -11,7 +11,7 @@ use crate::font::{Overflow, TextAlign, WrapAt};
 use crate::geometry::{Pos2, Rect, Vec2, pos2};
 use crate::painter::Painter;
 
-use crate::base::child_list::{ChildHost, ChildItem, ChildList, NodeChildren};
+use crate::child_list::{ChildHost, ChildItem, ChildList, NodeChildren};
 use crate::document::Document;
 use crate::node::{Element, NodeId, NodeOf, Rects, SpaceTransform};
 use crate::rich::{
@@ -863,7 +863,7 @@ impl Element for TextNode {
     }
 
     fn remove_child(&mut self, child: NodeId) {
-        crate::base::child_list::remove_hosted(self, child);
+        crate::child_list::remove_hosted(self, child);
     }
 
     fn kind(&self) -> &'static str {

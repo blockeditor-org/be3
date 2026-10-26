@@ -27,8 +27,9 @@ use beui::styled::*;
 use std::path::PathBuf;
 use std::sync::mpsc::{Receiver, channel};
 
+use beui::native::Document;
 use beui::reactive::*;
-use beui::{App, Context, Document, Rect, Setup};
+use beui::{App, Context, Rect, Setup};
 
 use model::Model;
 use pane::{Pane, Session};

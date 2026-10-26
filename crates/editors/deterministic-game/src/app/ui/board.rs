@@ -17,6 +17,7 @@ use super::layout::{Layout, Look, Placed, SpotPlace, movable};
 use super::motion::{Motion, flights, sightings};
 use super::play::{Dragging, Mark, Play};
 use super::skin::paint_sprite;
+use beui::ItemSize;
 
 const DRAG_THRESHOLD: f32 = 6.0;
 const LABEL_SIZE: f32 = 13.0;

@@ -1,5 +1,6 @@
 use super::*;
 use crate::base::Align;
+use crate::native::Document;
 
 const DEPTH: usize = 24;
 

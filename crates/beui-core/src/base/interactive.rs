@@ -1,9 +1,9 @@
 use crate::window::WindowId;
 use std::any::Any;
 
-use crate::base::focus::Focus;
 use crate::base::list::Direction;
 use crate::base::overlay::OverlayNode;
+use crate::focus::Focus;
 use crate::geometry::{Pos2, Rect, Vec2};
 use crate::input::{
     AutoscrollGesture, CursorIcon, DragGesture, Modifiers, PointerPress, ScrollGesture,

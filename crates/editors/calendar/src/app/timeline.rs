@@ -9,6 +9,7 @@ use super::model::{
     SECONDS_PER_DAY, Shown, WEEKDAY_ABBR, assign_lanes, events_on, today_days_since_epoch,
     weekday_from_days,
 };
+use beui::{Direction, ItemSize};
 
 const HEADER_HEIGHT: Size = Size::Custom(22.0);
 const HOUR_HEIGHT: f32 = 40.0;

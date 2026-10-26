@@ -1,5 +1,6 @@
 use beui::datetime::Date;
-use beui::{Document, Input, NodeId, Pos2, Vec2, pos2};
+use beui::native::Document;
+use beui::{Input, NodeId, Pos2, Vec2, pos2};
 use block_ui_test::DocumentTest;
 
 use super::*;
@@ -182,7 +183,7 @@ fn selected_text(test: &mut DocumentTest, region: beui::NodeId) -> String {
     let state = test
         .document()
         .api::<beui::unstyled::SelectableState>(region);
-    beui::reactive::with_reactive_scope(test.document_mut(), || state.selected_text())
+    beui::native::with_reactive_scope(test.document_mut(), || state.selected_text())
 }
 
 fn focused(test: &DocumentTest, test_id: &str) -> bool {

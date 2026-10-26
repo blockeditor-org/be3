@@ -20,6 +20,7 @@ use beui_view::types::icons::{
 use crate::list::List;
 use crate::tokens::{Padding, Size, Space};
 use beui_view::reactive::*;
+use beui_view::types::{Align, Direction};
 
 const BAR_PADDING: Padding = Padding::symmetric(Space::Lg, Space::Sm);
 const BAR_SPACING: Space = Space::Sm;

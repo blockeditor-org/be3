@@ -1,3 +1,5 @@
+pub mod share;
+
 use crate::geometry::{Pos2, Rect, Vec2};
 use crate::painter::Painter;
 

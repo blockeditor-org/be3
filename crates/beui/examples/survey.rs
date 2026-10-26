@@ -1,6 +1,7 @@
+use beui::native::Document;
 use beui::reactive::*;
 use beui::styled::*;
-use beui::{App, Context, Document, Rect};
+use beui::{App, Context, Rect};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     beui::run(SurveyApp::new())

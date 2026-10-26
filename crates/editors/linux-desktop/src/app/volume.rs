@@ -7,6 +7,7 @@ use block_editor_beui::{Editor, MediaLevel, MediaLevels, MediaRequest};
 
 use super::media::volume_glyph;
 use super::popup::BarPopup;
+use beui::{Align, Direction, ItemSize};
 
 const SPACING: Space = Space::Lg;
 const LABEL_SPACING: Space = Space::Xs;

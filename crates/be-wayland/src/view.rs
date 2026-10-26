@@ -1,4 +1,5 @@
 use beui::KeyAt;
+use beui::native::with_document;
 use beui::reactive::*;
 
 use beui::styled::*;
@@ -175,7 +176,7 @@ pub fn WindowView(
                     return;
                 };
                 answered.set(asked);
-                untrack(|| with_document(|document| document.focus_focusable(node)));
+                untrack(|| node.focus());
             });
             built
         }</PlacementBuilder>

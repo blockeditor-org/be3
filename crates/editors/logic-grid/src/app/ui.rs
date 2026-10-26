@@ -11,6 +11,7 @@ use super::panels::Panels;
 use super::session::Session;
 use super::*;
 use crate::renderer::GridScene;
+use beui::{Direction, ItemSize};
 
 const ZOOM_STEP: f32 = 1.25;
 

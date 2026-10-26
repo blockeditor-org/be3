@@ -5,9 +5,10 @@ use std::time::Duration;
 
 use be_wayland::programs::{DesktopEntry, Environment, IconThemes, MimeGlobs, load_icon};
 use be_wayland::{Compositor, Launch, Server, WindowId, WindowView, Windows};
+use beui::native::Document;
 use beui::reactive::*;
 use beui::styled::*;
-use beui::{Context, Document, NodeId, Rect, Setup};
+use beui::{Context, NodeId, Rect, Setup};
 use block_plugin_api::{HostImage, HostProgram, HostWindow, HostWindowId, WindowOrigin};
 
 struct Running {

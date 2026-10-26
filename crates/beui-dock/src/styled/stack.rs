@@ -22,6 +22,7 @@ use beui_core::base::{Align, Direction, ItemSize, TextAlign};
 use beui_core::icons::{Glyph, ICON_ARROW_LEFT, ICON_CHEVRON_DOWN, ICON_ELLIPSIS_VERTICAL, ICON_X};
 use beui_core::node::NodeId;
 use beui_view::reactive::*;
+use beui_view::types::Track;
 
 const BAR_PADDING: Space = Space::Xs;
 const BAR_SPACING: Space = Space::Xs2;

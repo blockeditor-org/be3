@@ -1,4 +1,5 @@
 use super::*;
+use crate::native::with_reactive_scope;
 use crate::primitives::Text;
 use crate::reactive::*;
 use crate::styled::*;

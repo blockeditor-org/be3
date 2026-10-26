@@ -86,6 +86,7 @@ use beui::{FrameOutput, Input, Key, Keystroke, NodeId, pos2};
 
 use crate::test_client::{TestClient, TestWindow};
 use crate::view::WindowView;
+use beui::{LayerLevel, Placement};
 
 const SCREEN: Vec2 = Vec2::new(1000.0, 700.0);
 const SHOWN: Vec2 = Vec2::new(400.0, 300.0);
@@ -126,7 +127,7 @@ fn Shown(windows: Windows) -> NodeId {
                 .iter()
                 .any(|info| info.id == id && info.fullscreen.is_some());
             windows.request_fullscreen(id, !fullscreen);
-            beui::reactive::try_with_document(|document| {
+            beui::native::try_with_document(|document| {
                 document.request_repaint_after(std::time::Duration::ZERO);
             });
         })

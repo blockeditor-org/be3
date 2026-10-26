@@ -126,11 +126,11 @@ impl HeadlessPlugin {
         self.core.layout()
     }
 
-    pub fn document(&self) -> Option<Ref<'_, beui::Document>> {
+    pub fn document(&self) -> Option<Ref<'_, beui::native::Document>> {
         Ref::filter_map(self.module.document.borrow(), Option::as_ref).ok()
     }
 
-    pub fn document_mut(&self) -> Option<RefMut<'_, beui::Document>> {
+    pub fn document_mut(&self) -> Option<RefMut<'_, beui::native::Document>> {
         RefMut::filter_map(self.module.document.borrow_mut(), Option::as_mut).ok()
     }
 
