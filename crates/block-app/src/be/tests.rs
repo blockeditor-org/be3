@@ -201,6 +201,19 @@ impl Harness {
             .expect("the harness was started with a relay")
     }
 
+    fn open_until_it_joins(&self, block: Uuid, content_type: Uuid) {
+        let mut joins = self
+            .relay()
+            .count(|message| matches!(message, be_protocol::ClientMessage::JoinSession { .. }));
+        open(block, content_type);
+        let joined = runtime().block_on(async {
+            tokio::time::timeout(PATIENCE, joins.wait_for(|joins| *joins > 0))
+                .await
+                .is_ok_and(|seen| seen.is_ok())
+        });
+        assert!(joined, "opening the block never asked to join its session");
+    }
+
     fn miss_a_ping(&self) {
         let mut due = wait_for(PATIENCE, |shared| {
             shared

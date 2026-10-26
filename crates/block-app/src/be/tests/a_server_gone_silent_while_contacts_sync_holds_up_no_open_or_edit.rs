@@ -42,9 +42,7 @@ fn a_server_gone_silent_while_contacts_sync_holds_up_no_open_or_edit() {
     };
     heard_beyond(heard);
 
-    let heard = harness.relay().heard();
-    open(block, CounterContent::CONTENT_TYPE);
-    heard_beyond(heard);
+    harness.open_until_it_joins(block, CounterContent::CONTENT_TYPE);
     harness.clock.advance(be_types_host::EARLY_OPEN);
     wait_for_count(block, 4);
     add(block, 2);

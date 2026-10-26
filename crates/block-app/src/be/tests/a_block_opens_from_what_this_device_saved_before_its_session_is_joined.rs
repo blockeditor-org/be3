@@ -16,9 +16,7 @@ fn a_block_opens_from_what_this_device_saved_before_its_session_is_joined() {
     });
 
     harness.relay().stall();
-    let heard = harness.relay().heard();
-    open(block, CounterContent::CONTENT_TYPE);
-    runtime().block_on(harness.relay().heard_beyond(heard));
+    harness.open_until_it_joins(block, CounterContent::CONTENT_TYPE);
     harness.clock.advance(be_types_host::EARLY_OPEN);
     wait_for_count(block, 4);
     add(block, 2);
