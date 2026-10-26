@@ -33,23 +33,37 @@ layer should be.
   blank space on fast flings, which overscan mitigates. CSS anchor positioning
   covers anchored popovers. A test-only option that delays measurement in
   headless keeps the late path exercised on native.
-- **Escape hatches where beui is stronger than the web.** `Drawing` and
-  `Canvas`-style painting (a `<canvas>` on the HTML core), and text editing.
-- **The first version keeps owning text editing.** On the HTML core,
-  `TextArea` (and `TextInput`, built on it) is an island: one DOM element
-  hosting a beui `Document` laid out by beui's own core, painted by
-  `beui-renderer-dom`, measured with `beui-font-browser` so its text matches
-  the CSS around it, and fed typing and IME through the hidden `<textarea>`
-  `beui-platform-web` already uses. `text_editor_core`, `rich::`, caret
-  handles and completion run unchanged. Edges: CSS gives the island its width
-  through `ResizeObserver` and the island sets its height, before paint; the
-  island's element is one real DOM focus stop and beui's focus works inside
-  it; keys the editor ignores continue up the DOM; completion and the text
-  menu go through the HTML core's `Overlay` so the island's box doesn't clip
-  them; SSR sends the content as static text, which the island takes over on
-  hydration. The island needs accessibility of its own (role, value, caret
-  and selection as ARIA). Browser-native editing (EditContext, DOM spans, a
-  real `<input type=password>`) is a follow-up.
+- **Escape hatches are pink in the first version.** `Drawing`, and what
+  paints through it (`Picture`, the scrollbar thumb), draw a pink TODO
+  rectangle of the right size on the HTML core. Follow-ups give each a real
+  implementation: an `<img>` or an image primitive for pictures, a `Frame`
+  for the thumb, and `<canvas>` or SVG for drawings (open question 6).
+- **Text editing stays in unstyled.** `TextArea` and `TextInput`, with
+  `text_editor_core`, rows, `VirtualList`, completion and handles, are shared
+  by both cores. They rely on base `Text`'s declarative props, which the HTML
+  core implements: `marks` as the CSS Custom Highlight API (`::highlight()`),
+  `glyphs` as `<span>`s replacing their range, `carets` as positioned
+  elements placed from a DOM `Range`'s rect, `hang` as a negative
+  `text-indent` with `padding-left`. Two base contracts are new: text
+  geometry (point to offset, offset to caret rect, line boxes), which native
+  answers from `RichLayout` and the HTML core from `caretPositionFromPoint`
+  and `Range.getClientRects()`, synchronously in both; and text input and
+  IME on `Interactive`, which the HTML core feeds from the hidden
+  `<textarea>` `beui-platform-web` uses today, and later from EditContext.
+  Offsets must agree across cores (UTF-8 in Rust, UTF-16 in DOM ranges, and
+  how a `glyphs` replacement counts). Line breaking and shaping come from the
+  browser on the HTML core, the same split `beui-renderer-dom` already lives
+  with through `beui-font-browser`; the editor only asks for geometry and
+  never computes it. Editors get real DOM text, so find-in-page, translation
+  and screen readers see their content.
+- **Read-only selection is the browser's.** Selection is a core feature
+  (`beui-view`'s `selection.rs`), so on the HTML core display text is
+  selected and copied by the browser. Inside editors `TextArea` owns
+  selection on both cores.
+- **No `<input type=password>` in the first version.** `TextInput`'s
+  `password` mode stays beui's own. A real password input, for
+  password-manager autofill, is a follow-up switch in unstyled, like
+  `Scroll`'s.
 - **The first version keeps owning scrolling.** `Scroll` stays in unstyled,
   built on `Offset` and `Interactive`. The HTML core implements `Offset` as an
   `overflow: hidden` element moved through `scrollTop` and `scrollLeft`, not
@@ -89,7 +103,7 @@ contract; what native keeps), **hatch** (core-implemented), **unclear**.
 | `Layers` / `Layer` | children over one box, sized to the largest | 3 | 3 | 4 | 24 | CSS grid, every child in `grid-area: 1/1` | — |
 | `FirstFit` / `Fitting` | the first child whose natural width fits, else the last | 0 | 1 | 1 | 0 | **late**: measure natural widths (`ResizeObserver` on `max-content` probes); native keeps same-frame choice | One user (`styled/choice.rs`). Move to unstyled over the measurement API |
 | `Grid` / `GridCell` | shared columns of `Track`s (fixed, intrinsic, fraction), spans | 1 | 1 | 1 | 0 | CSS grid: `grid-template-columns` px / `max-content` / `fr`, `grid-column: span n` | — |
-| `Text` | a paragraph: font, colour, align, `Overflow` (wrap, max lines, ellipsis, visible), line height and padding, `hang`, `marks`, `glyphs`, `carets` | 1 | 2 | 2 | 0* | CSS for display text: `white-space`, `text-overflow: ellipsis`, `line-clamp`, `overflow-wrap: anywhere`, `line-height`, `tab-size`. `marks`/`glyphs`/`carets` are editing: **hatch** | Move `marks`, `glyphs`, `carets` into the editing components |
+| `Text` | a paragraph: font, colour, align, `Overflow` (wrap, max lines, ellipsis, visible), line height and padding, `hang`, `marks`, `glyphs`, `carets` | 1 | 2 | 2 | 0* | CSS for display text: `white-space`, `text-overflow: ellipsis`, `line-clamp`, `overflow-wrap: anywhere`, `line-height`, `tab-size`. `marks` as `::highlight()`, `glyphs` as replacing `<span>`s, `carets` as positioned elements; text geometry from `Range` | Pin down `marks`, `glyphs`, `carets` for both cores |
 | `Span` | styled run inside `Text`, with `background` and `break_after` | 2 | 2 | 2 | 0* | CSS: `<span>`, `box-decoration-break: clone` for the background; `break_after` is `<wbr>` | — |
 | `Icon` | one icon-font glyph, holds no bytes | 1 | 1 | 1 | 0* | CSS: `<span aria-hidden>` in the icon font, `user-select: none` | — |
 | `Gap` | inline room holding no bytes | 1 | 1 | 1 | 0* | CSS: `inline-block` with a width, `user-select: none` | — |
@@ -98,10 +112,10 @@ contract; what native keeps), **hatch** (core-implemented), **unclear**.
 | `Offset` | shows its one child from an offset; no input; scroll anchoring, `follow_end`, reveal | 2 | 0 | 0 | 0 | CSS: an `overflow: hidden` element moved through `scrollTop`/`scrollLeft` | Only `unstyled::Scroll` and `Sheet` use it. Stays shared; `Scroll` stays in unstyled |
 | `VirtualList` | builds only rows the viewport reaches; remembers measured rows; anchors the scroll | 1 | 0 | 1 | 6 | **late**: row sizes from `ResizeObserver` (same frame, before paint), overscan for flings; native keeps synchronous measurement and anchoring | — |
 | `Canvas` / `CanvasItem` | a pan/zoom view of absolutely placed items, raster settling | 2 | 0 | 2 | 22 | CSS: absolutely positioned items in a container with `transform: translate() scale()`; raster settling falls to the browser. `on_reveal` is **late** | — |
-| `Drawing` | a `Draw` callback handed the `Painter` and its rect | 3 | 2 | 1 | 12 | **hatch**: a `<canvas>` | Unstyled uses it for a scrollbar thumb and `Picture`'s image; neither should be a canvas on HTML (§4) |
+| `Drawing` | a `Draw` callback handed the `Painter` and its rect | 3 | 2 | 1 | 12 | **hatch**: a pink TODO rectangle first; `<canvas>` or SVG later | Unstyled uses it for a scrollbar thumb and `Picture`'s image; neither should be a canvas on HTML (§4) |
 | `Overlay` | a layer anchored to a node, rect or point: placement, scrim, policy, level, focus trap, dismiss, keep-alive | 11 | 0 | 4 | 2 | CSS + top layer: `popover`/`<dialog>`, CSS anchor positioning with `position-try-fallbacks`, `::backdrop` for the scrim, `showModal()`/`inert` for `BlocksAll` and the trap | `Window` is an `Overlay` mode |
 | `Window` / `WindowHandle` | an `Overlay` that becomes an OS window where the platform opens windows | 0 | 0 | 4 | 4 | CSS (as an `Overlay`); the web opens no windows | Keep as a `beui-view` composition of `Overlay`, not a primitive |
-| `Interactive` | focus, keys, text, IME, paste, pointer, gestures, hit tests: 61 props | 23 | 0 | 4 | 22 | DOM events for focus (`tabindex`, `focus()`, `focusin/out`), keys, pointer (`setPointerCapture`), paste. IME is **hatch** (EditContext). Custom hit tests (`hit_at`, `capture_at`, `gestures_at`, `drawing_at`, `claim_at`): **unclear** | Split; move gesture recognisers up (§4) |
+| `Interactive` | focus, keys, text, IME, paste, pointer, gestures, hit tests: 61 props | 23 | 0 | 4 | 22 | DOM events for focus (`tabindex`, `focus()`, `focusin/out`), keys, pointer (`setPointerCapture`), paste. IME through the hidden `<textarea>`, later EditContext. Custom hit tests (`hit_at`, `capture_at`, `gestures_at`, `drawing_at`, `claim_at`): **unclear** | Split; move gesture recognisers up (§4) |
 | `Embed` | reserves a rect for something composited outside the document, punches a hole, reports placement | 0 | 0 | 0 | 3 | **late** (placement via `ResizeObserver`); the content would be an iframe | Product-only (block-app, block-editor-beui); plugins are out of scope |
 | `Portal` | shows a subtree it doesn't own, moving it without a rebuild | 2 | 0 | 2 | 3 | DOM: move the element (`moveBefore` keeps focus and iframe state) | — |
 | `BackHandler` | the innermost enabled handler gets Back and the back gesture | 2 | 1 | 0 | 3 | No layout. `popstate`/history and Escape; the back gesture has no web equivalent | A pass-through node for routing only: make it a hook like `on_key` |
@@ -179,6 +193,8 @@ holds a `beui_core::drawing::Drawing` (a GPU drawing), which is a hatch.
 `text_area/lines.rs`, `selectable.rs` (`Piece`, `RichLayout`, `RichOptions`,
 `CaretHandle`, `handle_center`, `toolbar_anchor`, `HANDLE_RADIUS`). Styled's
 `text.rs` uses only the value types `SpanBackground`, `TextCaret`, `TextMark`.
+With text editing shared, these go behind the text geometry API and base
+`Text`'s props; `selectable.rs` is the native core's selection only.
 
 ### 2.5 Tree, document and interaction internals
 
@@ -226,7 +242,7 @@ Patterns in unstyled, with the files that use them:
 - **Key routing** (`on_key=` 16 files, `on_key(KeyAt, KeyPhase)` 7):
   `keydown` listeners in capture or bubble phase on the node or the window.
 - **IME** (`ime`, `ime_cursor`, `ime_text`: `text_area.rs`,
-  `date_time_field.rs`): editing only, a hatch.
+  `date_time_field.rs`): the hidden `<textarea>`, later EditContext.
 - **Focus ancestry** (`focus_ancestry`, command palette): walk
   `document.activeElement`'s parents.
 - **Focus scopes** (`push_focus_scope`): no unstyled user; block-app's
@@ -267,9 +283,9 @@ Everything except IME maps onto DOM focus.
   `Drawing`, and `ScrollbarThumb` paints a rounded rect through one. On HTML
   those would be `<canvas>`es for what `<img>` and a `Frame` do.
 - **Text editing is built from base text.** `TextInput` (37 users) is a
-  `TextArea` with a `password` mask, so the HTML core cannot give it a real
-  `<input type=password>` without core-implementing it. `selectable.rs` (988
-  lines) builds cross-node selection that the browser has natively.
+  `TextArea` with a `password` mask, so a real `<input type=password>` is a
+  switch in unstyled. `selectable.rs` (988 lines) builds cross-node selection
+  that the browser has natively.
 - **Styled re-exports most primitives** (`BackHandler`, `Canvas`, `Drawing`,
   `Embed`, `Fade`, `Interactive`, `Layers`, `LayoutBuilder`, `Offset`,
   `Overlay`, `PlacementBuilder`, `Portal`, `Shift`, `Turn`, `VirtualList`,
@@ -301,13 +317,16 @@ Shared API, implemented by both cores:
   `text_bounds`: a signal that is `None` until the first layout and then
   follows it. Native fills it in the same frame; HTML from `ResizeObserver`.
 
+`Text` keeps `marks`, `glyphs`, `carets` and `hang`, with semantics pinned
+down for both cores, and text geometry joins the measurement API. The
+`rich::` internals unstyled uses today go behind those.
+
 Core-implemented components (one API, each core its own implementation):
 
-- `Drawing` (`<canvas>` on HTML).
-- `TextArea` and `TextInput`: beui's own on native, the island on HTML.
-  `marks`, `glyphs`, `carets`, `TextItem at`, the `rich::` internals and text
-  geometry move behind them.
-- `Picture` (`<img>` on HTML), or a base `Image`.
+- `Drawing`: a pink TODO rectangle on HTML at first.
+- Read-only text selection: the browser's on HTML.
+- `Picture` (`<img>` on HTML), or a base `Image`; pink at first, since it
+  paints through `Drawing`.
 
 Moves up or out:
 
@@ -336,15 +355,12 @@ Moves up or out:
    Keep the beak, or move it into the overlay?
 5. Is `Break`'s "copies without a newline" a requirement on the web, where
    only the terminal's soft-wrapped rows depend on it?
-6. Read-only selectable text: on the HTML core display text is DOM text the
-   browser already selects, while `selectable.rs` selects across beui's own
-   text nodes. Recommended: browser selection on the HTML core, beui's
-   selection inside editors only, since beui-owned selection over DOM text
-   would mean hit-testing it.
-7. Should `TextInput`'s `password` mode use a real `<input type=password>`
-   in the first version, for password-manager autofill? It is self-contained,
-   unlike general editing.
-8. Is `Canvas` shared base (CSS transforms) or core-implemented, given its
+6. Should `Drawing` become SVG or `<canvas>` on the HTML core? SVG is crisp
+   at any zoom and stays in the DOM, but a drawing that redraws often (a plot
+   while panning, anything culled to its clip) rebuilds many elements each
+   time; `<canvas>` is cheap to redraw but blurry until re-rendered at the
+   new scale. Undecided; the first version draws pink TODO rectangles.
+7. Is `Canvas` shared base (CSS transforms) or core-implemented, given its
    raster settling and scaled spaces have no CSS counterpart to test against?
 
 ## Next steps
@@ -359,7 +375,8 @@ Moves up or out:
    one sign-in-style screen.
 5. Shared drive-script tests across native headless and the HTML core under
    Playwright.
-6. Port unstyled bottom-up; the `TextArea` island last.
-7. Follow-ups: browser-native editing, and unstyled and styled switching
-   `Scroll` to a real scroller on the HTML core.
+6. Port unstyled bottom-up; `TextArea` last.
+7. Follow-ups: real implementations for the pink escape hatches; unstyled
+   and styled switching `Scroll` to a real scroller and `TextInput`'s
+   `password` mode to `<input type=password>`; EditContext for text input.
 8. A "cores" section in guides/beui.md, and settle VISION's open question.
