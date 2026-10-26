@@ -3260,7 +3260,11 @@ all its 3D (`glam`) stays in the crate.
   roll and slider drags map the ray onto the panel as it was when they began.
   Each panel's chrome is a display list (`chrome::output`, icons laid out
   with the app's `Context`, which `Setup` provides) drawn into a texture of
-  its own only when its `Look` changes, on the extended surface `LIFT` in
+  its own only when its `Look` changes, at as many pixels per metre as its
+  window's scale gives the window (`chrome::pixels_per_point`, no more than
+  `LARGEST_TEXTURE` texels a side) with its icons rasterised at that
+  (`Context::rastered`), so they sharpen with the window instead of
+  stretching, on the extended surface `LIFT` in
   front of the panel, after every panel.
 
 ### The on-screen keyboard

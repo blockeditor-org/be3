@@ -258,6 +258,12 @@ pub fn bounds(panel: &Panel) -> Rect {
     layout(metres_of(panel), true).bounds
 }
 
+pub fn pixels_per_point(panel: &Panel, window: f32) -> f32 {
+    let size = bounds(panel).size() * POINTS_PER_METRE;
+    let largest = crate::scale::LARGEST_TEXTURE / size.x.max(size.y).max(1.0);
+    (window / (panel.metres_per_point * POINTS_PER_METRE)).min(largest)
+}
+
 pub fn part_at(panel: &Panel, pos: Pos2, slider: bool) -> Option<Part> {
     if panel.contains(pos) {
         return None;
@@ -455,12 +461,14 @@ pub fn output(window: WindowId, look: &Look, context: Option<&Context>) -> Windo
         );
     }
     if let Some(context) = context {
+        let raster = look.pixels_per_point / context.pixels_per_point();
         for (glyph, centre) in icons {
             let galley = context.layout(
                 glyph.as_str(),
                 FontId::icons(ICON * POINTS_PER_METRE),
                 TextLayout::DEFAULT,
             );
+            let galley = context.rastered(&galley, raster);
             let centre = point(centre);
             layers.push(Layer::Shape(Shape::Text {
                 origin: centre - galley.size() / 2.0,

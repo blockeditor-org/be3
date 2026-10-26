@@ -168,8 +168,6 @@ M1, M3, M5, M8, M6, M7, M9, M10, M11.
   (`ScreenPlacement::scale_factor_millis`), so plugin content in space is as
   soft at a high raster as before. block-app's host must send each region's
   raster next to its scale.
-- **Chrome labels** are raw `Shape::Text` (`chrome::output`), stretched rather
-  than rerasterised.
 - **Scroll copy** (`moved`) is used only by the wgpu window renderer: the web
   canvas always repaints everything, plugin surfaces fold moves into damage,
   and DRM screens do not copy. Plugin surfaces matter most, for block-app.

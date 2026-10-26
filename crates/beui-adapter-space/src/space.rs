@@ -1296,10 +1296,13 @@ impl Space {
         let mut changed = false;
         let mut shown = Vec::with_capacity(self.panels.len());
         for panel in &self.panels {
-            let scale = self
-                .context
-                .as_ref()
-                .map_or(pixels_per_point, Context::pixels_per_point);
+            let scale = match self.scale(panel.window) {
+                Some(window) => chrome::pixels_per_point(panel, window),
+                None => self
+                    .context
+                    .as_ref()
+                    .map_or(pixels_per_point, Context::pixels_per_point),
+            };
             let look = chrome::look(panel, &self.chrome, scale);
             let held = self
                 .chrome_shown
