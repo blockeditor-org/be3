@@ -2058,8 +2058,7 @@ pub(crate) struct RegionPlacement {
     pub(crate) rect: Rect,
     pub(crate) clip: Rect,
     pub(crate) zoom: f32,
-    pub(crate) raster: Option<f32>,
-    pub(crate) finer: f32,
+    pub(crate) raster: f32,
 }
 
 pub(super) struct Offer {
@@ -2120,16 +2119,13 @@ fn apply_offers(runtime: &mut Runtime, instance: EditorInstanceId, region: Edito
     };
     let raster = offers
         .iter()
-        .filter_map(|offer| offer.placement.raster)
+        .map(|offer| offer.placement.raster)
+        .filter(|raster| raster.is_finite() && *raster > 0.0)
         .reduce(f32::max);
     let frame = chosen.frame;
     let view = chosen.view;
     let RegionPlacement {
-        rect,
-        clip,
-        zoom,
-        finer,
-        ..
+        rect, clip, zoom, ..
     } = chosen.placement;
     runtime.placed = host::pass();
     let zoom = match zoom.is_finite() && zoom > 0.0 && region != EditorRegion::Preview {
@@ -2152,13 +2148,13 @@ fn apply_offers(runtime: &mut Runtime, instance: EditorInstanceId, region: Edito
         ),
         _ => (
             rect.size() / zoom,
-            raster.unwrap_or_else(host::pixels_per_point) * zoom,
+            host::pixels_per_point() * zoom,
         ),
     };
-    let raster = match (finer.is_finite() && finer > 0.0, region) {
-        (false, _) => scale_factor,
-        (true, EditorRegion::Preview) => preview_scale(rect.size(), scale_factor * finer),
-        (true, _) => scale_factor * finer,
+    let raster = match (raster, region) {
+        (None, _) => scale_factor,
+        (Some(raster), EditorRegion::Preview) => preview_scale(rect.size(), scale_factor * raster),
+        (Some(raster), _) => scale_factor * raster,
     };
     let visible = shown.map_or(Rect::ZERO, |source| scale_rect(source, size));
     runtime

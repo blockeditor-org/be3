@@ -12,7 +12,6 @@ pub(crate) struct DesktopPlace {
     pub(crate) display: Memo<Rect>,
     pub(crate) desktop: Memo<Rect>,
     pub(crate) displays: Memo<Vec<Rect>>,
-    pub(crate) scale: Memo<f32>,
     pub(crate) primary: Memo<bool>,
 }
 

@@ -169,7 +169,11 @@ impl ModuleRunner {
         for region in regions {
             let id = region.id();
             if let Some(window) = self.windows.get(&id).copied() {
-                let sized = (region.rect.size() * ratio, region.scale_factor / ratio);
+                let raster = match region.raster.is_finite() && region.raster > 0.0 {
+                    true => region.raster,
+                    false => region.scale_factor,
+                };
+                let sized = (region.rect.size() * ratio, raster / ratio);
                 if self.sized.insert(window, sized) != Some(sized) {
                     self.runner.push(Incoming::Window(WindowReport::Resized {
                         window,

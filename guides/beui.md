@@ -374,11 +374,10 @@ hooks the higher crates fill in:
   hands one to its `fullscreenchange` listener): `resized` with its size in
   physical pixels, `scaled` with its pixels per point (winit's scale factor,
   the browser's device pixel ratio, Android's density, a plugin region's
-  scale factor, the DRM displays' scale), `rastered` with the pixels per
-  point it draws the main window at when that is not the scale it lays out
-  at (a plugin region's raster: physical pixels then count raster pixels,
-  and the runner reports `WindowReport::Rastered` for the main window, so the
-  app repaints at it without laying anything out), and `fullscreen`. The runner
+  scale factor, the DRM displays' scale), and `fullscreen`. A window drawn at
+  a raster other than that scale hears it as an `Incoming::Window` of
+  `WindowReport::Rastered` instead (a DRM display's window, a plugin region's
+  window at the region's raster). The runner
   applies them at the start of the next frame, resizing the renderers and
   setting `Context::set_pixels_per_point` before the app lays out, so no
   platform resizes a renderer or passes a scale itself. A report made during
@@ -3375,7 +3374,9 @@ it, and all its 3D (`glam`) stays in the crate.
   softer. A new window takes its scale at once. An `Embed` in the window
   hears the new raster (`EmbedPlacement::raster`), which is how block-app
   sends a plugin region in it its raster beside its scale (the protocol's
-  `raster`), so plugin content in space is as sharp as the window.
+  `raster`, `RegionPlacement::raster`), and beui-platform-plugin reports it
+  to the region's window as its `WindowReport::Rastered`, so plugin content
+  in space is as sharp as the window and is not laid out again.
 - Drawing: each window's display is drawn by its own
   `beui_renderer_wgpu::Renderer` into a mipmapped texture at its output's
   `pixels_per_point`, only when that window's output changed, repainting only

@@ -58,11 +58,10 @@ compositor and compiled for Windows by `./scripts/verify`. What remains:
   the Wayland server; waiting on another thread and waking the loop would
   free it.
 
-## Plugin windows and rasters on one app per module
+## Plugin windows on one app per module
 
 Merging main's one-app-per-module plugin platform (#696) dropped the plugin
-side of two VR features; the protocol and block-app's side of both are still
-there:
+side of a VR feature; the protocol and block-app's side are still there:
 
 - **Plugin windows (M6).** block-plugin-api keeps `EditorRegion::Window(id)`,
   `screen-request.opens-windows`, `frame-commit.window-requests` and the
@@ -78,13 +77,6 @@ there:
   and the test `a_window_is_a_region_of_its_own_only_where_the_host_opens_windows`
   in claude/blissful-cerf-zssskg before the merge; app-tests'
   `a_tab_popped_out_in_space_is_a_panel_of_its_own` checks it end to end.
-- **Raster.** The protocol carries `viewport-metrics.raster` and
-  `screen-placement.raster-millis` (`Region::raster`), and block-app sends the
-  embed's raster (`RegionPlacement::finer`, beside main's display
-  `RegionPlacement::raster`). beui-platform-plugin must draw each region's
-  window at its raster without laying it out again (the window's
-  `WindowReport::Rastered`); the old test is
-  `a_region_drawn_at_a_finer_raster_paints_its_text_sharper_without_laying_it_out`.
 
 ## Deferred milestones
 

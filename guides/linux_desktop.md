@@ -90,8 +90,9 @@ The desktop is one space in points: the displays side by side along their bottom
 shell's region spans all of it, so its coordinates are the desktop's, and every display's window
 shows its own part of that one region (`MainSurface` lays the shell out at the desktop's size,
 shifted by the display's position; `compositor/desktop.rs`): each window mounts the region, the
-host draws the plugin's one surface into each, rendered at the largest display scale
-(`RegionPlacement::raster`), and each mount builds only the region's children (program windows,
+host draws the plugin's one surface into each, laid out at the document's scale and rendered at
+the largest display's raster over it (`RegionPlacement::raster`, each mount's
+`EmbedPlacement::raster`), and each mount builds only the region's children (program windows,
 block editors) that its display owns, the display holding most of a child, or every display a child
 overlaps while a press is held on the shell, so a window dragged across displays is drawn in both
 until it is let go. Mounts after the first only draw and forward input: the shell's keyboard

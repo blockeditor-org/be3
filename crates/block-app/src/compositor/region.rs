@@ -247,8 +247,7 @@ pub(crate) fn PluginRegion(
                 rect: placement.rect,
                 clip: placement.clip,
                 zoom: zoom.get_untracked(),
-                raster: desktop.map(|place| place.scale.get_untracked()),
-                finer: placement.raster,
+                raster: placement.raster,
             },
             frame.get_untracked(),
             view.get_untracked(),
@@ -264,7 +263,6 @@ pub(crate) fn PluginRegion(
         let _ = frame.get();
         let _ = view.get();
         let _ = zoom.get();
-        let _ = desktop.map(|place| place.scale.get());
         place.call(placed.with(Cell::get));
     });
     let state = create_memo(move || {

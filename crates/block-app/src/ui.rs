@@ -448,14 +448,12 @@ fn DisplayWindow(view: AppViewStore, id: String) -> NodeId {
     let displays = create_memo(move || {
         shown.with(|shown| shown.iter().map(|display| display.rect).collect::<Vec<_>>())
     });
-    let scale = create_memo(move || display.get().map_or(1.0, |display| display.scale));
     view! {
         <Window size={size} placement={placement} title={title}>|_handle: WindowHandle| {
             provide_context(crate::compositor::DesktopPlace {
                 display: rect,
                 desktop,
                 displays,
-                scale,
                 primary,
             });
             view! {
