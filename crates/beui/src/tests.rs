@@ -214,11 +214,10 @@ mod a_key_let_go_over_the_inspector_is_not_left_held;
 mod a_key_pressed_in_a_held_select_search_shows_the_keyboard;
 mod a_key_typed_before_a_click_in_one_frame_reaches_the_field_focused_before_it;
 mod a_keyed_view_rebuilds_only_when_its_key_changes;
-mod a_launcher_closed_by_a_click_outside_opens_again;
-mod a_launcher_closed_by_a_click_outside_within_one_frame_opens_again;
-mod a_launcher_closed_by_escape_opens_again;
-mod a_launcher_query_that_matches_nothing_runs_as_a_command_and_escape_closes;
-mod a_launcher_ranks_names_above_keywords_and_comments;
+mod a_command_palette_closed_by_a_click_outside_opens_again;
+mod a_command_palette_closed_by_a_click_outside_within_one_frame_opens_again;
+mod a_command_palette_closed_by_escape_opens_again;
+mod fuzzy_ranking_puts_names_above_keywords_and_comments;
 mod a_layout_builder_built_inside_another_settles_in_one_layout;
 mod a_layout_builder_in_a_scroll_rebuilds_for_the_width_it_is_given;
 mod a_layout_builder_in_a_wrapping_row_builds_only_for_the_width_it_is_laid_out_at;
@@ -838,7 +837,7 @@ mod the_inspector_swipes_back_as_far_as_its_slider_is_dragged;
 mod the_inspectors_theme_overrides_the_apps_until_it_is_cleared;
 mod the_keyboard_is_asked_for_at_the_caret_and_after_an_ime_composition;
 mod the_keyboard_opening_scrolls_the_focused_field_into_what_is_left;
-mod the_launcher_filters_as_it_is_typed_and_launches_with_enter;
+mod a_fuzzy_command_palette_filters_as_it_is_typed_and_chooses_with_enter;
 mod the_left_and_right_arrows_collapse_and_expand_an_inspector_row;
 mod the_menu_of_a_selectable_text_copies_what_is_selected;
 mod the_more_button_of_a_selection_toolbar_opens_the_full_menu;
@@ -1292,7 +1291,8 @@ impl Harness {
             .inspector()
             .document
             .api::<crate::unstyled::SelectApi>(select)
-            .option_button(index);
+            .option_button(index)
+            .expect("the option is shown");
         self.click(self.node_center(option));
         self.frame(Vec::new());
     }
@@ -2315,19 +2315,19 @@ fn reopens_after(close: impl Fn(&mut Harness)) {
                     @test_id={"reopen"}
                     on_click={move || open.set(true)}
                 />
-                <Launcher
-                    open={open}
-                    items={Rc::new(vec![LauncherItem {
+                <CommandPalette
+                    open={Binding::new(open, move |value: bool| {
+                        if !value {
+                            heard.update(|heard| heard.push("close".to_owned()));
+                        }
+                        open.set(value);
+                    })}
+                    items={PaletteItems::list(vec![PaletteItem {
                         key: "files".to_owned(),
                         title: "Files".to_owned(),
-                        ..LauncherItem::default()
+                        ..PaletteItem::default()
                     }])}
-                    on_launch={|_: String| {}}
-                    on_run={move |line: String| heard.update(|heard| heard.push(format!("run {line}")))}
-                    on_close={move || {
-                        heard.update(|heard| heard.push("close".to_owned()));
-                        open.set(false);
-                    }}
+                    on_choose={move |key: String| heard.update(|heard| heard.push(format!("choose {key}")))}
                 />
             </List>
         }
@@ -2344,10 +2344,10 @@ fn reopens_after(close: impl Fn(&mut Harness)) {
     harness.click(button);
     harness.frame(Vec::new());
     harness.frame(Vec::new());
-    harness.type_text("true");
+    harness.type_text("fi");
     harness.frame(Vec::new());
     harness.key(Key::Enter, Modifiers::NONE);
-    assert_eq!(heard.get_untracked(), ["close", "run true"]);
+    assert_eq!(heard.get_untracked(), ["close", "close", "choose files"]);
 }
 
 #[derive(Default)]

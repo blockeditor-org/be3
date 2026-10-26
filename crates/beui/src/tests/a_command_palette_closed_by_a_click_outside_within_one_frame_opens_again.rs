@@ -1,7 +1,7 @@
 use super::*;
 
 #[test]
-fn a_launcher_closed_by_a_click_outside_within_one_frame_opens_again() {
+fn a_command_palette_closed_by_a_click_outside_within_one_frame_opens_again() {
     reopens_after(|harness| {
         let pos = Pos2::new(2.0, 2.0);
         harness.frame(vec![Input::PointerMoved(pos)]);

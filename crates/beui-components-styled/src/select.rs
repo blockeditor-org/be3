@@ -20,6 +20,7 @@ use beui_view::reactive::*;
 const TRIGGER_MAX_WIDTH: f32 = 220.0;
 const POPUP_WIDTH: f32 = 220.0;
 const POPUP_PADDING: f32 = 6.0;
+const OPTIONS_MAX_HEIGHT: f32 = 240.0;
 const HEIGHT: f32 = 34.0;
 const PADDING_HORIZONTAL: f32 = 10.0;
 const OPTION_PADDING_VERTICAL: f32 = 6.0;
@@ -52,6 +53,8 @@ pub fn Select(
             }}
             search_style={text_input_style()}
             scrollbar={scrollbar_style()}
+            list_height=OPTIONS_MAX_HEIGHT
+            spacing=POPUP_PADDING
             trigger={move |handle| view! {
                 <SelectTrigger handle placeholder={placeholder} width={width} />
             }}

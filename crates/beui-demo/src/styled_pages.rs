@@ -2365,7 +2365,7 @@ fn program(
     detail: &str,
     terms: &[&str],
     color: Option<Color32>,
-) -> LauncherItem {
+) -> PaletteItem {
     let side = LAUNCHER_ICON_PIXELS;
     let image = color.map(|color| {
         let pixels = (0..side * side)
@@ -2380,12 +2380,14 @@ fn program(
             .collect();
         Image::from_rgba(side, side, pixels)
     });
-    LauncherItem {
+    PaletteItem {
         key: key.to_owned(),
         title: title.to_owned(),
         detail: detail.to_owned(),
         terms: terms.iter().map(|term| (*term).to_owned()).collect(),
+        glyph: Some(ICON_LAYOUT_GRID),
         image,
+        ..PaletteItem::default()
     }
 }
 
@@ -2394,7 +2396,7 @@ fn program(
 fn ProgramLauncher() -> NodeId {
     let launcher = create_signal(false);
     let outcome = create_signal("Nothing launched".to_owned());
-    let items = Rc::new(vec![
+    let items = vec![
         program(
             "calculator",
             "Calculator",
@@ -2430,7 +2432,7 @@ fn ProgramLauncher() -> NodeId {
             &["notepad"],
             Some(Color32::from_rgb(90, 180, 110)),
         ),
-    ]);
+    ];
     view! {
         <List spacing=SECTION_SPACING>
             <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
@@ -2442,19 +2444,14 @@ fn ProgramLauncher() -> NodeId {
                 />
             </List>
             <Text style=TextStyle::CAPTION>{outcome}</Text>
-            <Launcher
+            <CommandPalette
                 open={launcher}
-                items
+                items={PaletteItems::list(items)}
+                score={PaletteItem::fuzzy_score as PaletteScore}
                 placeholder="Search programs"
-                on_launch={move |key: String| {
-                    outcome.set(format!("Launched {key}"));
-                    launcher.set(false);
-                }}
-                on_run={move |line: String| {
-                    outcome.set(format!("Ran {line}"));
-                    launcher.set(false);
-                }}
-                on_close={move || launcher.set(false)}
+                label="Search programs"
+                id="launcher"
+                on_choose={move |key: String| outcome.set(format!("Launched {key}"))}
             />
         </List>
     }

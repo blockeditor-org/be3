@@ -104,6 +104,7 @@ pub fn RowFace(
     #[prop(default = String::new())] label: Prop<String>,
     #[prop(default = String::new())] detail: Prop<String>,
     #[prop(default = String::new())] lead: Prop<String>,
+    #[prop(default = String::new())] shortcut: Prop<String>,
     #[prop(default = None)] glyph: Prop<Option<Glyph>>,
     #[prop(default = None)] glyph_color: Prop<Option<TextColor>>,
     #[prop(default = None)] image: Prop<Option<Image>>,
@@ -146,6 +147,8 @@ pub fn RowFace(
     let has_leading = create_memo(move || leading.get() || pictured.get() || glyph.get().is_some());
     let lead = create_memo(move || lead.get());
     let has_lead = create_memo(move || !lead.get().is_empty());
+    let shortcut = create_memo(move || shortcut.get());
+    let has_shortcut = create_memo(move || !shortcut.get().is_empty());
     let trailing = create_memo(move || trailing.get());
     let trailing_glyph = create_memo(move || trailing.get().glyph());
     let trailing_color = create_memo(move || trailing.get().color());
@@ -198,6 +201,11 @@ pub fn RowFace(
                 <Frame @sizing=ItemSize::Percent(100.0)>
                     <RowLabel size label detail color={text_color} />
                 </Frame>
+                <Show condition={has_shortcut}>
+                    <Text size=TextSize::Sm color=TextColor::Muted align=TextAlign::End>
+                        {shortcut}
+                    </Text>
+                </Show>
                 <Show condition={has_trailing}>
                     <Text color={trailing_color} align=TextAlign::Center>
                         <Icon glyph={trailing_glyph} />

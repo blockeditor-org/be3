@@ -33,6 +33,7 @@ pub mod progress;
 pub mod rubber_band;
 pub mod scroll;
 pub mod scrollbar;
+pub mod search_list;
 pub mod select;
 pub mod selectable;
 pub mod sheet;
@@ -63,7 +64,9 @@ pub use color_wheel::{
     ColorWheel, ColorWheelApi, ColorWheelHandle, OKLCH_TIP_CHROMA, OklchTriangle, WheelGeometry,
     WheelPoint,
 };
-pub use command_palette::{CommandPalette, CommandPaletteApi, CommandRowHandle};
+pub use command_palette::{CommandPalette, CommandPaletteApi, CommandRowHandle, PaletteItem, PaletteItems,
+    PaletteScore,
+};
 pub use container::{Container, ContainerSize, container_size, narrower_than, shorter_than};
 pub use context_menu::{ContextMenu, ContextMenuApi};
 pub use date_time_field::{
@@ -99,6 +102,9 @@ pub use scroll::{
 };
 pub use scrollbar::{
     Scrollbar, ScrollbarHandle, ScrollbarThumb, thumb_length, thumb_rect, thumb_start,
+};
+pub use search_list::{
+    SearchList, SearchListApi, SearchRowHandle, fuzzy_score, rank, substring_score,
 };
 pub use select::{Select, SelectApi, SelectOptionHandle, SelectTriggerHandle};
 pub use selectable::{Selectable, SelectableState, copy_selection, select_all};

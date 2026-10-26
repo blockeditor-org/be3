@@ -1,24 +1,24 @@
 use crate::styled::*;
 
-fn item(key: &str, title: &str, detail: &str, terms: &[&str]) -> LauncherItem {
-    LauncherItem {
+fn item(key: &str, title: &str, detail: &str, terms: &[&str]) -> PaletteItem {
+    PaletteItem {
         key: key.to_owned(),
         title: title.to_owned(),
         detail: detail.to_owned(),
         terms: terms.iter().map(|term| (*term).to_owned()).collect(),
-        image: None,
+        ..PaletteItem::default()
     }
 }
 
-fn ranked(items: &[LauncherItem], query: &str) -> Vec<String> {
-    launcher_rank(items, query)
+fn ranked(items: &[PaletteItem], query: &str) -> Vec<String> {
+    crate::unstyled::rank(items, query, PaletteItem::fuzzy_score)
         .into_iter()
         .map(|index| items[index].key.clone())
         .collect()
 }
 
 #[test]
-fn a_launcher_ranks_names_above_keywords_and_comments() {
+fn fuzzy_ranking_puts_names_above_keywords_and_comments() {
     let items = [
         item(
             "files",
