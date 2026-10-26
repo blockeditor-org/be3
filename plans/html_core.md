@@ -97,7 +97,7 @@ contract; what native keeps), **hatch** (core-implemented), **unclear**.
 
 | Primitive | What it does | U | S | B | O | HTML core | Merge / remove |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| `Frame` | one child: size (`Extent`), aspect ratio, padding, align, fill, radius, outline, overlay `pointer` beak | 12 | 3 | 6 | 0* | CSS: box, `aspect-ratio`, `padding`, `place-self`, `background`, `border-radius`, `outline`+`outline-offset`. The beak follows the side the overlay chose: **unclear** (needs the chosen anchor fallback) | Absorb `Shift`, `Turn.angle`, `Fade` as props |
+| `Frame` | one child: size (`Extent`), aspect ratio, padding, align, fill, radius, outline, overlay `pointer` beak (moving to the overlay) | 12 | 3 | 6 | 0* | CSS: box, `aspect-ratio`, `padding`, `place-self`, `background`, `border-radius`, `outline`+`outline-offset`. The beak moves to the overlay (§5) | Absorb `Shift`, `Turn.angle`, `Fade` as props |
 | `List` | children in a line: direction, align (incl. baseline), justify, wrap, spacing; children's `@sizing` | 28 | 1 | 5 | 0* | CSS flexbox: `flex-direction`, `align-items: baseline`, `justify-content`, `flex-wrap`, `gap`; `Percent` is `flex-grow` from basis 0, `shrink` is `flex-shrink`, `min`/`max` are `min-`/`max-width`; beui's min-width rule is CSS's `min-width: auto` | — |
 | `Spacer` | an empty `Frame` | 1 | 4 | 5 | 31 | CSS: empty flex item | Keep: fills the rest of a row (`Percent`, ~70 uses) or stands in for nothing (bare, 51). Its ~6 fixed-pixel uses outside beui become a styled `Spacer` taking a `Space` token, as styled `Gap` does |
 | `Layers` / `Layer` | children over one box, sized to the largest | 3 | 3 | 4 | 24 | CSS grid, every child in `grid-area: 1/1` | — |
@@ -360,26 +360,15 @@ Moves up or out:
    model. A Playwright test across Chromium, Firefox and WebKit decides.
 5. **`Drawing` as SVG or `<canvas>`** is not decided yet; the first version
    draws pink TODO rectangles.
-
-### Open questions
-
-1. `Frame`'s `pointer` draws a beak: the small triangle on a tooltip or
-   popover that points at what it's attached to. When the overlay has no
-   room on its preferred side and flips (below to above), native layout
-   knows the side it chose, and the beak moves to that edge. On the HTML
-   core, CSS anchor positioning chooses the fallback in the browser, and the
-   page isn't told which one won. The beak can follow through anchored
-   container queries (`@container anchored(fallback: ...)`, Chromium only
-   so far), or by measuring after layout. Should the beak stay a `Frame`
-   prop, or move into the overlay, which is the one that knows its side?
-2. Is `Canvas` (the pan and zoom surface) shared base, implemented as a
-   container with `transform: translate() scale()`, or a component each core
-   implements? Natively beui decides when zoomed items are re-rendered sharp
-   (`raster`: scaled as bitmaps while zooming, re-rendered when it settles).
-   With a CSS transform the browser decides that, and nothing in CSS sets
-   it. Nearly all of its 22 outside users are plugin editors, which stay on
-   wgpu in the first version, so on the HTML core only block-app and
-   block-editor-beui use it at first.
+6. **The overlay beak moves out of `Frame` into the overlay.** The overlay
+   chooses the side it opens on, so it draws the beak there. On the HTML
+   core the browser chooses that side through CSS anchor positioning, so the
+   overlay follows it with anchored container queries where they exist, or
+   by measuring after layout.
+7. **`Canvas` is shared base**: a container with
+   `transform: translate() scale()` on the HTML core. When zoomed items are
+   re-rendered sharp is the browser's choice there, so `raster` is a hint on
+   the web.
 
 ## Next steps
 
