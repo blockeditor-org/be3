@@ -6,14 +6,13 @@ use beui::icons::{
     ICON_A_LARGE_SMALL, ICON_CIRCLE, ICON_CIRCLE_CHECK, ICON_CLOCK, ICON_COPY_PLUS, ICON_FILE_UP,
     ICON_FOLDER, ICON_IMAGE, ICON_INFO, ICON_PAPERCLIP, ICON_PLUS, ICON_QUOTE, ICON_SAVE,
     ICON_SQUARE, ICON_STAR, ICON_TABLE, ICON_TEXT_ALIGN_START, ICON_TRIANGLE, ICON_TRIANGLE_ALERT,
-    ICON_UNDO_2, ICON_WIFI, ICON_X,
+    ICON_UNDO_2, ICON_WIFI, ICON_X, ICON_ZOOM_IN, ICON_ZOOM_OUT,
 };
 use beui::keyboard::styled::SoftwareKeyboard;
-use beui::unstyled::MenuThen;
 
 const COLUMN_SPACING: Space = Space::Xl2;
 const COLUMNS_BREAKPOINT: f32 = 460.0;
-const NARROW_CHOICE_WIDTH: f32 = 180.0;
+const NARROW_CHOICE_WIDTH: Size = Size::Custom(180.0);
 const ICON_BUTTON_WIDTH: f32 = 44.0;
 const TOOLBAR_RULE_LENGTH: Size = Size::Sm;
 const ZOOM_MIN: f32 = 0.5;
@@ -678,6 +677,9 @@ pub(crate) fn ButtonsPage() -> NodeId {
             <Sample title="Toggle button" code={vec![PinToggle::SOURCE]}>
                 <PinToggle />
             </Sample>
+            <Sample title="Tool pill" code={vec![ZoomControls::SOURCE]}>
+                <ZoomControls />
+            </Sample>
             <Sample title="Tooltips" code={vec![HoverTooltip::SOURCE]}>
                 <HoverTooltip />
             </Sample>
@@ -845,6 +847,42 @@ fn PinToggle() -> NodeId {
                 <ToggleButton label="Pin selection" pressed />
             </List>
             <Text style=TextStyle::CAPTION>{pinned}</Text>
+        </List>
+    }
+}
+
+#[sample]
+#[component]
+fn ZoomControls() -> NodeId {
+    let zoom = create_signal(100);
+    let readout = create_memo(move || format!("{}%", zoom.get()));
+    view! {
+        <List direction=Direction::Horizontal spacing=Space::None>
+            <ToolPill @test_id="demo.tool-pill">
+                <Button
+                    icon_only=true
+                    glyph=ICON_ZOOM_OUT
+                    label="Zoom out"
+                    variant=ButtonVariant::Ghost
+                    size=ButtonSize::Toolbar
+                    on_click={move || zoom.update(|zoom| *zoom = (*zoom - 25).max(25))}
+                />
+                <Button
+                    label={readout}
+                    variant=ButtonVariant::Ghost
+                    size=ButtonSize::Toolbar
+                    on_click={move || zoom.set(100)}
+                />
+                <Button
+                    icon_only=true
+                    glyph=ICON_ZOOM_IN
+                    label="Zoom in"
+                    variant=ButtonVariant::Ghost
+                    size=ButtonSize::Toolbar
+                    @test_id="demo.tool-pill.zoom-in"
+                    on_click={move || zoom.update(|zoom| *zoom += 25)}
+                />
+            </ToolPill>
         </List>
     }
 }
@@ -1322,7 +1360,7 @@ fn NarrowChoices() -> NodeId {
             direction=Direction::Horizontal
             spacing=SECTION_SPACING
         >
-            <Frame width={Extent::px(NARROW_CHOICE_WIDTH)}>
+            <Frame width=NARROW_CHOICE_WIDTH>
                 <Tabs
                     label="Section"
                     options={view! {
@@ -1332,7 +1370,7 @@ fn NarrowChoices() -> NodeId {
                     }}
                 />
             </Frame>
-            <Frame width={Extent::px(NARROW_CHOICE_WIDTH)}>
+            <Frame width=NARROW_CHOICE_WIDTH>
                 <SegmentedControl
                     label="Sort"
                     options={view! {
@@ -1777,7 +1815,7 @@ fn ActionMenu() -> NodeId {
         <List spacing=SECTION_SPACING>
             <ContextMenu
                 items={view! {
-                    <unstyled::MenuNodes nodes test_prefix="demo.actions" />
+                    <MenuNodes nodes test_prefix="demo.actions" />
                 }}
             >
                 <Card @test_id="demo.actions">
@@ -1804,18 +1842,18 @@ fn CardMenu() -> NodeId {
         <List spacing=SECTION_SPACING>
             <ContextMenu
                 items={view! {
-                    <unstyled::MenuItem label="Copy" glyph=ICON_COPY detail="Ctrl+C" />
-                    <unstyled::MenuItem
+                    <MenuItem label="Copy" glyph=ICON_COPY detail="Ctrl+C" />
+                    <MenuItem
                         label="Paste"
                         glyph=ICON_CLIPBOARD
                         detail="Ctrl+V"
                         disabled={nothing_copied}
                     />
-                    <unstyled::MenuItem label="Share" glyph=ICON_SHARE_2>
-                        <unstyled::MenuItem label="Email" glyph=ICON_MAIL />
-                        <unstyled::MenuItem label="Link" glyph=ICON_LINK />
-                    </unstyled::MenuItem>
-                    <unstyled::MenuItem
+                    <MenuItem label="Share" glyph=ICON_SHARE_2>
+                        <MenuItem label="Email" glyph=ICON_MAIL />
+                        <MenuItem label="Link" glyph=ICON_LINK />
+                    </MenuItem>
+                    <MenuItem
                         label="Delete"
                         glyph=ICON_TRASH
                         danger=true
@@ -1892,8 +1930,8 @@ fn TrayIcons() -> NodeId {
                     image={Some(badge(Color32::from_rgb(0x58, 0x65, 0xf2)))}
                     click_opens=false
                     items={view! {
-                        <unstyled::MenuItem label="Open" />
-                        <unstyled::MenuItem label="Quit" separated=true />
+                        <MenuItem label="Open" />
+                        <MenuItem label="Quit" separated=true />
                     }}
                     on_click={move || outcome.set("Clicked Chat".to_owned())}
                     on_middle_click={move || outcome.set("Middle-clicked Chat".to_owned())}
@@ -1916,7 +1954,7 @@ fn TrayIcons() -> NodeId {
                     image={None}
                     glyph=ICON_BLOCKS
                     items={view! {
-                        <unstyled::MenuItem label="Pause syncing" />
+                        <MenuItem label="Pause syncing" />
                     }}
                 />
             </List>
@@ -1951,9 +1989,9 @@ fn SortMenus() -> NodeId {
                 <MenuButton
                     label="Sort"
                     items={view! {
-                        <unstyled::MenuItem label="By name" />
-                        <unstyled::MenuItem label="By date" />
-                        <unstyled::MenuItem label="By size" />
+                        <MenuItem label="By name" />
+                        <MenuItem label="By date" />
+                        <MenuItem label="By size" />
                     }}
                     on_select={move |path: Vec<usize>| {
                         let by = match path.as_slice() {
@@ -1971,7 +2009,7 @@ fn SortMenus() -> NodeId {
                     arrow=false
                     variant=ButtonVariant::Ghost
                     items={view! {
-                        <unstyled::MenuItem label="Reverse the order" />
+                        <MenuItem label="Reverse the order" />
                     }}
                     on_select={move |_: Vec<usize>| sort_text.set("Sorted in reverse".to_owned())}
                 />
@@ -1988,8 +2026,8 @@ fn SortMenus() -> NodeId {
                         />
                     }}
                     items={view! {
-                        <unstyled::MenuItem label="In progress" />
-                        <unstyled::MenuItem label="Done" />
+                        <MenuItem label="In progress" />
+                        <MenuItem label="Done" />
                     }}
                     on_select={move |path: Vec<usize>| done.set(path.as_slice() == [1])}
                 />
@@ -1999,9 +2037,9 @@ fn SortMenus() -> NodeId {
                     variant=ButtonVariant::Ghost
                     arrow=false
                     items={view! {
-                        <unstyled::MenuItem label="High" />
-                        <unstyled::MenuItem label="Low" />
-                        <unstyled::MenuItem label="Clear" separated=true />
+                        <MenuItem label="High" />
+                        <MenuItem label="Low" />
+                        <MenuItem label="Clear" separated=true />
                     }}
                     on_select={move |path: Vec<usize>| {
                         priority.set(match path.as_slice() {
@@ -2082,7 +2120,7 @@ fn FolderRow(
     folder: usize,
     location: Signal<usize>,
     expanded: Signal<Vec<usize>>,
-) -> unstyled::MenuItem {
+) -> MenuItem {
     let (name, depth, _) = FOLDERS[folder];
     let branch = FOLDERS.iter().any(|(_, _, parent)| *parent == Some(folder));
     let open = Binding::new(
@@ -2096,7 +2134,7 @@ fn FolderRow(
     );
     let checked = create_memo(move || Some(location.get() == folder));
     view! {
-        <unstyled::MenuItem
+        <MenuItem
             label=name
             glyph=ICON_FOLDER
             depth={Some(depth)}
@@ -2132,7 +2170,7 @@ fn NewBlockMenu() -> NodeId {
                     label="Add block"
                     glyph=ICON_PLUS
                     items={view! {
-                        <unstyled::MenuItem
+                        <MenuItem
                             lead="New in"
                             label={place}
                             glyph=ICON_FOLDER
@@ -2142,17 +2180,17 @@ fn NewBlockMenu() -> NodeId {
                             <ForEach keys={shown}>|folder: usize|
                                 <FolderRow folder location expanded />
                             </ForEach>
-                        </unstyled::MenuItem>
-                        <unstyled::MenuItem
+                        </MenuItem>
+                        <MenuItem
                             label="Text"
                             glyph=ICON_TEXT_ALIGN_START
                             glyph_color={text_icon_color}
                             separated=true
                         />
-                        <unstyled::MenuItem label="Canvas" glyph=ICON_PEN_TOOL />
-                        <unstyled::MenuItem label="Folder" glyph=ICON_FOLDER />
-                        <unstyled::MenuItem label="Database" glyph=ICON_TABLE />
-                        <unstyled::MenuItem
+                        <MenuItem label="Canvas" glyph=ICON_PEN_TOOL />
+                        <MenuItem label="Folder" glyph=ICON_FOLDER />
+                        <MenuItem label="Database" glyph=ICON_TABLE />
+                        <MenuItem
                             label="More blocks…"
                             glyph=ICON_BLOCKS
                             separated=true
@@ -2160,11 +2198,11 @@ fn NewBlockMenu() -> NodeId {
                             row_test_id="demo.new.more"
                         >
                             <ForEach keys={(0..MORE_BLOCKS.len()).collect::<Vec<_>>()}>|kind: usize|
-                                <unstyled::MenuItem label={MORE_BLOCKS[kind]} />
+                                <MenuItem label={MORE_BLOCKS[kind]} />
                             </ForEach>
-                        </unstyled::MenuItem>
-                        <unstyled::MenuItem label="Link existing…" glyph=ICON_LINK />
-                        <unstyled::MenuItem label="Import a .block file…" glyph=ICON_FILE_UP />
+                        </MenuItem>
+                        <MenuItem label="Link existing…" glyph=ICON_LINK />
+                        <MenuItem label="Import a .block file…" glyph=ICON_FILE_UP />
                     }}
                     on_select={move |path: Vec<usize>| {
                         let kind = match path.as_slice() {
@@ -2219,9 +2257,9 @@ fn HeldMenu() -> NodeId {
                     chosen.set(format!("Chose {colour}"));
                 }}
                 items={view! {
-                    <unstyled::MenuItem label="Red" lead="Paint it" />
-                    <unstyled::MenuItem label="Green" lead="Paint it" />
-                    <unstyled::MenuItem label="Blue" lead="Paint it" />
+                    <MenuItem label="Red" lead="Paint it" />
+                    <MenuItem label="Green" lead="Paint it" />
+                    <MenuItem label="Blue" lead="Paint it" />
                 }}
             />
             <Text style=TextStyle::CAPTION>
@@ -2244,20 +2282,20 @@ fn NewSlideMenu() -> NodeId {
                     label="New slide"
                     glyph=ICON_PLUS
                     items={view! {
-                        <unstyled::MenuCaption label="New slide" />
-                        <unstyled::MenuGrid columns=2>
+                        <MenuCaption label="New slide" />
+                        <MenuGrid columns=2>
                             <ForEach
                                 keys={(0..SLIDE_LAYOUTS.len()).collect::<Vec<_>>()}
                             >|layout: usize|
-                                <unstyled::MenuItem
+                                <MenuItem
                                     label={SLIDE_LAYOUTS[layout].0}
                                     glyph={SLIDE_LAYOUTS[layout].1}
                                     row_test_id={format!("demo.slide.{layout}")}
                                 />
                             </ForEach>
-                        </unstyled::MenuGrid>
-                        <unstyled::MenuItem label="Other blocks…" separated=true />
-                        <unstyled::MenuItem label="Link existing…" glyph=ICON_LINK />
+                        </MenuGrid>
+                        <MenuItem label="Other blocks…" separated=true />
+                        <MenuItem label="Link existing…" glyph=ICON_LINK />
                     }}
                     on_select={move |path: Vec<usize>| {
                         let what = match path.as_slice() {
@@ -2292,8 +2330,8 @@ fn RunButtons() -> NodeId {
                     variant=ButtonVariant::Primary
                     menu_label="More ways to run it"
                     items={view! {
-                        <unstyled::MenuItem label="Run with fresh data" />
-                        <unstyled::MenuItem label="Run on the web" />
+                        <MenuItem label="Run with fresh data" />
+                        <MenuItem label="Run on the web" />
                     }}
                     on_click={move || run_text.set("Running the app".to_owned())}
                     on_select={move |path: Vec<usize>| {
@@ -2309,7 +2347,7 @@ fn RunButtons() -> NodeId {
                     variant=ButtonVariant::Secondary
                     menu_label="More ways to save"
                     items={view! {
-                        <unstyled::MenuItem label="Save as a copy" />
+                        <MenuItem label="Save as a copy" />
                     }}
                     on_click={move || save_text.set("Saved".to_owned())}
                     on_select={move |_: Vec<usize>| save_text.set("Saved a copy".to_owned())}
@@ -2709,10 +2747,10 @@ fn ActionsSheet() -> NodeId {
                 <MenuButton
                     label="Show actions"
                     items={view! {
-                        <unstyled::MenuItem label="Duplicate" glyph=ICON_COPY_PLUS />
-                        <unstyled::MenuItem label="Rename" glyph=ICON_PENCIL detail="Ctrl+R" />
-                        <unstyled::MenuItem label="Share" glyph=ICON_SHARE_2 disabled=true />
-                        <unstyled::MenuItem
+                        <MenuItem label="Duplicate" glyph=ICON_COPY_PLUS />
+                        <MenuItem label="Rename" glyph=ICON_PENCIL detail="Ctrl+R" />
+                        <MenuItem label="Share" glyph=ICON_SHARE_2 disabled=true />
+                        <MenuItem
                             label="Delete"
                             glyph=ICON_TRASH
                             danger=true
@@ -3277,12 +3315,12 @@ fn ProjectTree() -> NodeId {
                 row_test_id={|row: usize| format!("demo.tree.{row}")}
                 menu={move |row: usize| Some(TreeMenu {
                     items: view! {
-                        <unstyled::MenuItem
+                        <MenuItem
                             label="Rename"
                             glyph=ICON_PENCIL
                             row_test_id={"demo.tree.rename".to_owned()}
                         />
-                        <unstyled::MenuItem label="Delete" glyph=ICON_TRASH danger=true />
+                        <MenuItem label="Delete" glyph=ICON_TRASH danger=true />
                     },
                     on_select: Callback::new(move |path: Vec<usize>| match path.as_slice() {
                         [0] => editing.set(Some(row)),
@@ -3666,7 +3704,7 @@ fn SettingsSections() -> NodeId {
                     separated=true
                     modified={volume_changed}
                     menu={view! {
-                        <unstyled::MenuItem
+                        <MenuItem
                             label="Reset to default"
                             glyph={beui::icons::ICON_ROTATE_CCW.to_owned()}
                             on_click={move || volume.set(DEFAULT_VOLUME)}
@@ -3686,7 +3724,7 @@ fn SettingsSections() -> NodeId {
                     separated=true
                     modified={size_changed}
                     menu={view! {
-                        <unstyled::MenuItem
+                        <MenuItem
                             label="Reset to default"
                             glyph={beui::icons::ICON_ROTATE_CCW.to_owned()}
                             on_click={move || size.set(Some(1))}
@@ -3712,13 +3750,13 @@ fn SettingsSections() -> NodeId {
                     modified={haptics_changed}
                     note={note}
                     menu={view! {
-                        <unstyled::MenuItem
+                        <MenuItem
                             label="Keep on this device"
                             glyph={beui::icons::ICON_PIN.to_owned()}
                             checked={pinned}
                             on_click={move || haptics_pinned.update(|on| *on = !*on)}
                         />
-                        <unstyled::MenuItem
+                        <MenuItem
                             label="Reset to default"
                             glyph={beui::icons::ICON_ROTATE_CCW.to_owned()}
                             on_click={move || haptics.set(false)}

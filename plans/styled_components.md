@@ -382,6 +382,10 @@ sizes and its minimum pane sizes.
 
 ## 6. Get code outside beui onto the styled layer
 
+**Done.** Outside beui's own crates, the only `unstyled::` import left is
+infinite-canvas's text (`app/text.rs`, below), and nothing imports
+`primitives::` (the source lint holds that).
+
 About 29 crates import `unstyled::` directly. The biggest are block-shell (13
 files), linux-desktop (12), settings (10), block-editor-beui (7),
 infinite-canvas (6), database (6) and be-launcher (6). Audit each import: it
@@ -467,10 +471,27 @@ Outcomes, by crate group (each also migrated onto §7's tokens):
     `dock::styled`, `DockDialog`, `DockDialogPresentation` and `DockEntry`
     beside the dock model types.
   - block-editor-beui's `Sidebar` takes `width: Size` (`SIDEBAR_WIDTH` is
-    `Size::Custom(260)`) and `Toolbar` takes `spacing: Space`; editors that pass
-    pixels still compile through the temporary conversions.
+    `Size::Custom(260)`) and `Toolbar` takes `spacing: Space`.
+- **Done.** Leftovers. block-editor-beui's `BottomDock` and infinite-canvas's
+  `ZoomPill` drew the same floating pill, so it is one styled component,
+  `ToolPill` (a raised, bordered, fully rounded row of tools with arrow-key
+  focus that scrolls sideways when squeezed; beui-demo Buttons page "Tool
+  pill"). The dock's corners went from `Lg` to `Full` to match the pill. The
+  plugin protocol's `settings-progress` (`changed`, `summary`) is gone: since
+  artifact settings became a plugin dialog nothing read it, and the host's
+  `ArtifactSession::summary` went with it. beui-demo's styled pages use the
+  styled re-exports (`MenuThen`, `MenuItem`, `MenuNodes`, `MenuCaption`,
+  `MenuGrid`) rather than `unstyled::`; their two custom button faces on
+  `unstyled::Button` stay, as samples of building a face on the unstyled
+  layer. Dock-like bars under comfortable density: block-editor-beui's
+  `Toolbar` scrolls when chrome is narrow and text-block's format bar
+  scrolls, so neither can overflow a phone; linux-desktop's bar and
+  be-launcher never resolve comfortable (only `BeuiFrame` on a phone
+  provides it, and the desktop is a root editor without a phone top bar).
 
 ## 7. Styled components take design tokens, not raw values
+
+**Done.**
 
 Text already takes tokens: `TextSize`, `Weight`, `Family`, `TextColor`. The
 rest of the styled layer still takes raw values. Outside beui, about 205 files
@@ -510,7 +531,7 @@ Styled has about 190 of those consts of its own.
   `scrim_strong`, `control_outline` and `knob_outline`. Add them, so code
   never reads a theme colour to hand back as a custom one. Do the same for
   `TextColor`.
-- **Colours from content.** After that, `ColorRole::Custom` and
+- **Done.** **Colours from content.** After that, `ColorRole::Custom` and
   `TextColor::Custom` stay as escape hatches. They are for colours that come
   from content: a user's tag colour, a remote cursor, a presentation
   background, a chart series, a colour swatch. Don't use them for a colour
@@ -525,8 +546,11 @@ Styled has about 190 of those consts of its own.
 - **Done.** **Inside styled too.** Rewrite the private consts in styled (button and
   row paddings, gaps, focus offsets) in tokens. Tokens that styled itself
   doesn't use aren't real.
-- **The types enforce it.** Once styled props take token types, a raw `8.0`
-  doesn't compile, and no lint is needed. Unstyled and base components keep
+- **Done.** **The types enforce it.** Once styled props take token types, a raw `8.0`
+  doesn't compile. One lint is still needed: a styled `Length` takes an
+  `Extent`, and `Extent::px` writes pixels into it, so fix-rust-source rejects
+  `Extent::px` outside beui's own crates (the same files the primitives rule
+  covers; beui's crates hand `Extent::px` to base frames legitimately). Unstyled and base components keep
   taking concrete values, as the design principles say.
 
 ### What landed (the token foundation)
@@ -592,8 +616,13 @@ keep taking pixels; styled resolves tokens before handing them down.
 
 ### The temporary conversion, and migrating a crate
 
-So that crates outside beui keep compiling while they are migrated one at a
-time, these conversions exist and are temporary. Each maps a raw value to a
+**Done.** The conversions below are deleted, along with the `Px` variants,
+`Radius::custom`, `Padding::from_sides`, and `Border::width`/`offset`'s
+`impl Into<Stroke>` (they are `const fn`s taking a `Stroke`). The value-to-token
+table in steps 1 to 5 still holds for new code.
+
+So that crates outside beui kept compiling while they were migrated one at a
+time, these conversions existed and were temporary. Each maps a raw value to a
 `Px` variant (`Space::Px`, `Size::Px`, `Stroke::Px`) that
 behaves like a fixed length:
 
@@ -644,7 +673,10 @@ variants of `Space`/`Size`/`Stroke`, `Radius::custom` (its callers write
 a token, or `Radius::Custom` for a corner from content),
 `Padding::from_sides`, and make `Border::width`/`offset` take `Stroke`
 again (they take `impl Into<Stroke>` only for the conversion). Then
-consider a source lint against `Extent::px` on a styled `Frame`.
+consider a source lint against `Extent::px` on a styled `Frame`. **Done**:
+the last callers were beui's own tests and examples, beui-demo's tests, and
+pixel-art's, pixel-ray-tracer's and logic-grid's sidebar widths
+(`Size::Custom`); the lint is above, under "The types enforce it".
 
 ### Polish after the migrations
 

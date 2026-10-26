@@ -52,6 +52,7 @@ pub mod theme;
 pub mod tile_button;
 pub mod toast;
 pub mod tokens;
+pub mod tool_pill;
 pub mod tooltip;
 pub mod tree;
 
@@ -137,6 +138,7 @@ pub use theme::{
 };
 pub use tile_button::TileButton;
 pub use toast::Toasts;
+pub use tool_pill::ToolPill;
 pub use tokens::{CornerSet, Length, Padding, Size, Space, Stroke, use_size, use_space};
 pub use tooltip::Tooltip;
 pub use tree::{Tree, TreeRowFace};

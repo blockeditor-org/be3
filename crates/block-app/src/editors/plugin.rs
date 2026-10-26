@@ -609,10 +609,6 @@ impl ArtifactSession for PluginArtifact {
         .map_or(ARTIFACT_SETTINGS_HEIGHT, |size| size.y.max(1.0))
     }
 
-    fn summary(&self, _draft: &[u8]) -> Option<String> {
-        None
-    }
-
     fn cancel_settings(&mut self) {
         self.resync = true;
         self.close_dialog();

@@ -152,11 +152,6 @@ interface shell-types {
         failed(string),
     }
 
-    record settings-progress {
-        changed: bool,
-        summary: option<string>,
-    }
-
     /// A picture of a child the host painted, offered to the plugin as a texture.
     record preview-image {
         image: image-id,
@@ -204,7 +199,6 @@ interface shell-types {
         error: option<string>,
         menu: list<menu-item>,
         creation: option<creation-progress>,
-        settings: option<settings-progress>,
         preview: child-preview,
         dialog: dialog-status,
     }

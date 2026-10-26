@@ -113,6 +113,7 @@ pub(crate) fn beui_violations(tree: &SourceFile, source: &str, relative: &str) -
         .any(|allowed| relative.starts_with(allowed))
     {
         violations.extend(primitive_uses(tree, source, relative));
+        violations.extend(fixed_extent_uses(tree, source, relative));
     }
     if !test_source {
         violations.extend(component_uses(tree, source, relative));
@@ -249,6 +250,26 @@ fn primitive_uses(tree: &SourceFile, source: &str, relative: &str) -> Vec<String
             let line = source[..offset].matches('\n').count() + 1;
             format!(
                 "primitive outside beui: {relative}:{line} only beui's own crates use beui::primitives; import beui::styled::* instead"
+            )
+        })
+        .collect()
+}
+
+fn fixed_extent_uses(tree: &SourceFile, source: &str, relative: &str) -> Vec<String> {
+    let tokens: Vec<_> = tree
+        .syntax()
+        .descendants_with_tokens()
+        .filter_map(|element| element.into_token())
+        .filter(|token| !token.kind().is_trivia() && !matches!(token.text(), ":" | "::"))
+        .collect();
+    tokens
+        .windows(2)
+        .filter(|pair| pair[0].text() == "Extent" && pair[1].text() == "px")
+        .map(|pair| {
+            let offset = u32::from(pair[1].text_range().start()) as usize;
+            let line = source[..offset].matches('\n').count() + 1;
+            format!(
+                "fixed extent outside beui: {relative}:{line} a styled length takes a Size for a fixed length (Size::Custom for one that comes from content); keep Extent for intrinsic, fill, fraction and bounds"
             )
         })
         .collect()

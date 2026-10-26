@@ -30,7 +30,6 @@ fn a_restarted_plugin_hears_its_childrens_statuses_again() {
         error: None,
         menu: Vec::new(),
         creation: None,
-        settings: None,
         preview: Default::default(),
         dialog: Default::default(),
     };

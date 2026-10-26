@@ -2085,7 +2085,6 @@ impl Instances {
                 error: status.error,
                 menu: MenuEntry::flatten(&status.menu),
                 creation: status.creation,
-                settings: status.settings,
                 preview: status.preview,
                 dialog: status.dialog,
             };

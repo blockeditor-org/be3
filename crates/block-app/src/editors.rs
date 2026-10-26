@@ -97,7 +97,6 @@ pub(super) trait ArtifactSession {
     fn settings_region(&mut self, registry: &EditorRegistry) -> HostedRegion;
     fn take_draft(&mut self) -> Option<Vec<u8>>;
     fn settings_height(&self) -> f32;
-    fn summary(&self, draft: &[u8]) -> Option<String>;
     fn cancel_settings(&mut self);
     fn dialog(&self) -> block_plugin_api::DialogStatus;
     fn dismiss(&mut self);

@@ -9,7 +9,7 @@ use beui::{Document, Pos2, Rect, Vec2};
 use block_plugin_api::{
     BarAction, ChildContent, ChildId, ChildLayer, ChildMode, ChildPreview, CreationProgress,
     DialogFrame, DialogStatus, EditorCapabilities, HostPanel, HostWindowId, InteractionMode,
-    MenuEntry, ResizeMode, SettingsProgress, TopBar, Watched, WebViewId,
+    MenuEntry, ResizeMode, TopBar, Watched, WebViewId,
 };
 use block_ui::BlockCatalog;
 use uuid::Uuid;
@@ -211,7 +211,6 @@ pub struct ChildState {
     pub child: Option<ChildId>,
     pub menu: Vec<MenuEntry>,
     pub creation: Option<CreationProgress>,
-    pub settings: Option<SettingsProgress>,
     pub preview: ChildPreview,
     pub dialog: DialogStatus,
 }
@@ -240,7 +239,6 @@ impl ChildState {
             child,
             menu: block_plugin_api::MenuEntry::nest(status.menu).unwrap_or_default(),
             creation: status.creation,
-            settings: status.settings,
             preview: status.preview,
             dialog: status.dialog,
         }

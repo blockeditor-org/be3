@@ -166,7 +166,6 @@ pub(crate) struct HostChildStatus {
     pub(crate) error: Option<String>,
     pub(crate) menu: Vec<block_plugin_api::MenuEntry>,
     pub(crate) creation: Option<block_plugin_api::CreationProgress>,
-    pub(crate) settings: Option<block_plugin_api::SettingsProgress>,
     pub(crate) preview: block_plugin_api::ChildPreview,
     pub(crate) dialog: block_plugin_api::DialogStatus,
 }

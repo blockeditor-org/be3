@@ -13,7 +13,7 @@ use beui::{
 use block_plugin_api::{
     BarAction, ChildId, ChildMode, ChildPreview, CreationProgress, DialogFrame, DialogStatus,
     EditorInstanceId, EditorRegion, FitArea, FrameChrome, FrameSpec, HostPanel, HostWindowId,
-    PanMode, SettingsProgress, TopBar, ViewChange,
+    PanMode, TopBar, ViewChange,
 };
 use uuid::Uuid;
 
@@ -43,7 +43,7 @@ pub(crate) struct State {
     commits: RefCell<HashMap<(Uuid, ChildId), ChildCommit>>,
     settings_children: RefCell<HashMap<(Uuid, ChildId), Uuid>>,
     settings_shown: RefCell<HashMap<CreationKey, Uuid>>,
-    settings_status: RefCell<Option<(Uuid, SettingsProgress, f32, DialogStatus)>>,
+    settings_status: RefCell<Option<(Uuid, f32, DialogStatus)>>,
 }
 
 pub(crate) type CreationKey = (Uuid, EditorRegion, ChildId);
@@ -360,7 +360,7 @@ impl Editors {
 
     pub(crate) fn set_settings_status(
         &self,
-        status: Option<(Uuid, SettingsProgress, f32, DialogStatus)>,
+        status: Option<(Uuid, f32, DialogStatus)>,
     ) {
         let state = self.0.value();
         if *state.settings_status.borrow() == status {
@@ -370,14 +370,14 @@ impl Editors {
         super::changed();
     }
 
-    fn settings_status(&self, block: Uuid) -> Option<(SettingsProgress, f32, DialogStatus)> {
+    fn settings_status(&self, block: Uuid) -> Option<(f32, DialogStatus)> {
         let state = self.0.value();
         state
             .settings_status
             .borrow()
             .as_ref()
-            .filter(|(shown, _, _, _)| *shown == block)
-            .map(|(_, progress, height, dialog)| (progress.clone(), *height, *dialog))
+            .filter(|(shown, _, _)| *shown == block)
+            .map(|(_, height, dialog)| (*height, *dialog))
     }
 
     pub(crate) fn creation_pick_sources(&self) -> Vec<PickSource> {
@@ -1472,9 +1472,8 @@ fn HostedChild(
                 status.dialog = dialog;
             }
             if let Kind::ArtifactSettings(block) = kind.get()
-                && let Some((progress, height, dialog)) = editors.settings_status(block)
+                && let Some((height, dialog)) = editors.settings_status(block)
             {
-                status.settings = Some(progress);
                 status.intrinsic = Some(vec2(0.0, height));
                 status.dialog = dialog;
             }
@@ -1716,7 +1715,6 @@ fn status_of(editors: &Editors, child: &HostChild, available: bool) -> HostChild
         error: crate::be::revisions::error(block)
             .or_else(|| (!available).then(|| CHILD_UNAVAILABLE.to_owned())),
         creation: None,
-        settings: None,
         preview: ChildPreview::Hosted,
         dialog: DialogStatus::default(),
         menu: match available && child.frame_owner {

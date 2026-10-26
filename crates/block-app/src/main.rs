@@ -2469,13 +2469,8 @@ impl BlockApp {
         if let Some(edited) = session.take_draft() {
             *draft = edited;
         }
-        let progress = block_plugin_api::SettingsProgress {
-            changed: *draft != descriptor.data,
-            summary: session.summary(draft),
-        };
         self.editors.set_settings_status(Some((
             id,
-            progress,
             session.settings_height(),
             session.dialog(),
         )));

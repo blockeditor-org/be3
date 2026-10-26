@@ -836,7 +836,11 @@ or a signal of one.
 step larger and a `Size::Row` is tall enough to tap. `Space::Custom` and
 `Size::Custom` are for lengths that come from content (a measured indent, a
 board cell, a canvas), never for a gap the scale has. `use_space` and
-`use_size` resolve a token to the pixels an unstyled prop takes. Styled `List`
+`use_size` resolve a token to the pixels an unstyled prop takes. A styled prop
+never takes a raw number: `8.0` where a `Space`, `Padding`, `Size`, `Length`
+or `Stroke` goes does not compile. The one way to write pixels into a styled
+`Length` is `Extent::px`, so the source lint rejects `Extent::px` outside
+beui's own crates; write a `Size` (`Size::Custom` for content). Styled `List`
 and `Grid` take their `spacing`, `column_spacing` and `row_spacing` as `Space`,
 and styled `Gap` its `width`; the base ones keep taking pixels.
 A `FocusRing` takes the `radius` of what it rings and an `offset` `Stroke`,
@@ -4177,6 +4181,11 @@ a load) until the user dismisses it: its `message` is an `Option<String>`, and
 it shows nothing while that is `None`. Its test ids are `{id}` and
 `{id}.dismiss`. `unstyled::Banner` gives it the alert role, an assertive live
 region labelled with the message.
+
+`ToolPill` is the raised, bordered, fully rounded bar a floating set of tools
+sits in (a canvas's zoom controls, block-editor-beui's `BottomDock`): its
+children in a row with arrow-key focus, scrolling sideways when the bar is
+offered less than it needs. Placing it (a `Floating`, a margin) is the caller's.
 
 ### Text
 

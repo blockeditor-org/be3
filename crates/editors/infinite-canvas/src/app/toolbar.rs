@@ -21,7 +21,6 @@ const TOOLS: [(Tool, &str); 10] = [
     (Tool::Eraser, "Eraser"),
 ];
 const PILL_MARGIN: Space = Space::Lg;
-const PILL_PADDING: Space = Space::Xs;
 
 #[component]
 pub(crate) fn ToolDock(state: CanvasState, anchor: NodeRef, shown: Prop<bool>) -> NodeId {
@@ -106,14 +105,7 @@ pub(crate) fn ZoomPill(state: CanvasState, anchor: NodeRef, shown: Prop<bool>) -
     let content = Render::new(move |()| {
         view! {
             <Frame padding=PILL_MARGIN>
-                <Frame
-                    fill=ColorRole::SurfaceRaised
-                    border={Border::DEFAULT}
-                    radius=Radius::Full
-                    padding=PILL_PADDING
-                    @test_id={"infinite-canvas.zoom-pill"}
-                >
-                    <List direction=Direction::Horizontal align=Align::Center spacing=Space::Xs2>
+                <ToolPill @test_id={"infinite-canvas.zoom-pill"}>
                         <Button
                             icon_only=true
                             @test_id={"infinite-canvas.pill.zoom-out"}
@@ -137,8 +129,7 @@ pub(crate) fn ZoomPill(state: CanvasState, anchor: NodeRef, shown: Prop<bool>) -
                             @test_id={"infinite-canvas.pill.fit"}
                             action={actions.fit_all}
                         />
-                    </List>
-                </Frame>
+                                    </ToolPill>
             </Frame>
         }
     })
