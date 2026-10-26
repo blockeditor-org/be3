@@ -87,10 +87,7 @@ pub(crate) fn KeepChanges(
                             focuses={slot.index == 0}
                             on_dismiss={revert}
                         >
-                            <Text
-                                style=TextStyle::PARAGRAPH
-                                @test_id={countdown_id}
-                            >
+                            <Text style=TextStyle::PARAGRAPH @test_id={countdown_id}>
                                 {message}
                             </Text>
                         </DialogBody>

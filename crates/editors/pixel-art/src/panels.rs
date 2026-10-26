@@ -468,9 +468,7 @@ pub(crate) fn Dialogs(tools: Tools, size: Memo<(u16, u16)>) -> NodeId {
                 ]}
                 on_dismiss={dismiss}
             >
-                <Text style=TextStyle::PARAGRAPH>
-                    "This makes every pixel transparent."
-                </Text>
+                <Text style=TextStyle::PARAGRAPH>"This makes every pixel transparent."</Text>
             </styled::Dialog>
         </List>
     }

@@ -371,12 +371,7 @@ fn ContactsPanel(view: AppViewStore) -> NodeId {
                     ]}
                     on_dismiss={|| send(UiCommand::DeclineContact)}
                 >
-                    <Text
-                        style=TextStyle::PARAGRAPH
-                        @test_id={"app.contacts.offer"}
-                    >
-                        {offer}
-                    </Text>
+                    <Text style=TextStyle::PARAGRAPH @test_id={"app.contacts.offer"}>{offer}</Text>
                 </Dialog>
                 <Show condition={has_connected}>
                     <Text style=TextStyle::PARAGRAPH>{connected}</Text>
