@@ -20,6 +20,7 @@ mod a_region_tells_the_host_it_locks_the_pointer_and_when_it_stops;
 mod a_region_that_loses_the_keyboard_mid_press_keeps_the_press;
 mod a_regions_keyboard_reaches_the_host_with_its_asks;
 mod a_trackpad_scroll_held_past_the_start_stretches_and_springs_back_when_lifted;
+mod a_window_is_a_region_of_its_own_only_where_the_host_opens_windows;
 mod a_window_the_app_floats_inside_a_region_stays_in_that_region;
 mod an_image_copied_in_a_region_reaches_the_host;
 mod every_region_is_a_window_painted_in_the_frame_that_first_asks_for_it;
@@ -120,7 +121,13 @@ impl App for Windowed {
         let document = held.get_or_insert_with(move || {
             build(move || {
                 let keys = create_memo(move || {
-                    requested.with(|views| views.iter().map(|view| view.id).collect::<Vec<_>>())
+                    requested.with(|views| {
+                        views
+                            .iter()
+                            .map(|view| view.id)
+                            .filter(|id| !matches!(id.region, EditorRegion::Window(_)))
+                            .collect::<Vec<_>>()
+                    })
                 });
                 view! {
                     <styled::Root>

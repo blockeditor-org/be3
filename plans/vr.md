@@ -58,26 +58,6 @@ compositor and compiled for Windows by `./scripts/verify`. What remains:
   the Wayland server; waiting on another thread and waking the loop would
   free it.
 
-## Plugin windows on one app per module
-
-Merging main's one-app-per-module plugin platform (#696) dropped the plugin
-side of a VR feature; the protocol and block-app's side are still there:
-
-- **Plugin windows (M6).** block-plugin-api keeps `EditorRegion::Window(id)`,
-  `screen-request.opens-windows`, `frame-commit.window-requests` and the
-  editor's `window-reported`, and block-app still opens a `Window` holding a
-  `PluginRegion` per plugin window (`RegionWindows`). What is missing is the
-  module's side: beui-platform-plugin must set `WindowHosting::Any` while a
-  region's host opens windows, send the app's own `WindowRequest::Open` of a
-  window that is not a region's (a dock's floating window, linux-desktop's) as
-  `Frame::window_requests` of the region it was opened from, and draw and feed
-  that window when the host shows it as the `EditorRegion::Window(id)` region
-  (`Regions::window_reported` gets `Placed` and `Closed`). The old version,
-  under one runner per region, is `crates/beui-adapter-plugin/src/windows.rs`
-  and the test `a_window_is_a_region_of_its_own_only_where_the_host_opens_windows`
-  in claude/blissful-cerf-zssskg before the merge; app-tests'
-  `a_tab_popped_out_in_space_is_a_panel_of_its_own` checks it end to end.
-
 ## Deferred milestones
 
 The user has deferred these three; do not start them without asking.

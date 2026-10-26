@@ -109,7 +109,10 @@ impl Module {
     }
 
     pub(crate) fn window(&self, region: RegionId) -> Option<WindowId> {
-        self.registry.windows.borrow().get(&region).copied()
+        match region.region {
+            EditorRegion::Window(window) => Some(window),
+            _ => self.registry.windows.borrow().get(&region).copied(),
+        }
     }
 }
 
@@ -186,6 +189,7 @@ fn ModuleWindows(
         requested.with(|requested| {
             requested
                 .iter()
+                .filter(|view| !matches!(view.id.region, EditorRegion::Window(_)))
                 .map(|view| {
                     let generation = generations
                         .shown(view.id.instance)

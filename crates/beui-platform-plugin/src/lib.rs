@@ -10,7 +10,7 @@ use std::task::{Context as TaskContext, Poll, Waker as TaskWaker};
 
 use beui_core::app::{App, SafeArea, Setup, Waker};
 use beui_core::context::{Context, FrameOutput};
-use beui_core::geometry::{Rect, Vec2, vec2};
+use beui_core::geometry::{Pos2, Rect, Vec2, vec2};
 use beui_core::renderer::Loaded;
 use beui_core::runner::{Incoming, Launch, Platform, RunOptions, Runner, Running};
 use beui_core::window::{
@@ -19,8 +19,8 @@ use beui_core::window::{
 };
 use block_editor_plugin::accesskit::{ActionRequest, Affine, TreeUpdate};
 use block_editor_plugin::{
-    Claim, DescribedAction, Description, EditorHost, Frame, Input, Region, RegionId, Regions,
-    TimedInput,
+    Claim, DescribedAction, Description, EditorHost, EditorInstanceId, EditorRegion, Frame, Input,
+    Region, RegionId, Regions, TimedInput,
 };
 #[cfg(target_arch = "wasm32")]
 use block_editor_plugin::{PaintTarget, SurfaceRect};
@@ -73,6 +73,9 @@ impl Platform for PluginPlatform {
                 active: None,
                 toggles: HashMap::new(),
                 overflows: Vec::new(),
+                opens: false,
+                owners: HashMap::new(),
+                asked: Vec::new(),
             };
             self.host.handle_regions(Box::new(handler));
             Ok(())
@@ -114,6 +117,9 @@ pub struct ModuleRunner {
     active: Option<RegionId>,
     toggles: HashMap<RegionId, u32>,
     overflows: Vec<(WindowId, String)>,
+    opens: bool,
+    owners: HashMap<WindowId, RegionId>,
+    asked: Vec<(RegionId, WindowRequest)>,
 }
 
 impl ModuleRunner {
@@ -145,6 +151,18 @@ impl ModuleRunner {
         scale / context.pixels_per_point()
     }
 
+    fn host_windows(&mut self, regions: &[Region]) {
+        let opens = regions.iter().any(|region| region.opens_windows);
+        if opens == self.opens {
+            return;
+        }
+        self.opens = opens;
+        self.runner.context().set_window_hosting(match opens {
+            true => WindowHosting::Any,
+            false => WindowHosting::Placed,
+        });
+    }
+
     fn show(&mut self, regions: &[Region], ratio: f32) {
         self.views.set(
             regions
@@ -168,6 +186,9 @@ impl ModuleRunner {
         self.sized.retain(|window, _| windows.contains(window));
         for region in regions {
             let id = region.id();
+            if let EditorRegion::Window(window) = id.region {
+                self.windows.insert(id, window);
+            }
             if let Some(window) = self.windows.get(&id).copied() {
                 let raster = match region.raster.is_finite() && region.raster > 0.0 {
                     true => region.raster,
@@ -208,29 +229,104 @@ impl ModuleRunner {
         self.described = described;
     }
 
-    fn match_windows(&mut self) {
+    fn match_windows(&mut self, regions: &[Region], ratio: f32) {
         let Some(output) = self.runner.output() else {
             return;
         };
         let requests = output.window_requests.clone();
         for request in requests {
-            match request {
-                WindowRequest::Open {
-                    window,
-                    placement: WindowPlacement::Host(placement),
-                    ..
-                } => {
-                    if let Some(id) = self.views.placed(&placement) {
-                        self.windows.insert(id, window);
-                    }
-                }
-                WindowRequest::Close(window) => {
-                    self.windows.retain(|_, held| *held != window);
-                    self.sized.remove(&window);
-                }
-                _ => {}
+            if let WindowRequest::Open {
+                window,
+                placement: WindowPlacement::Host(placement),
+                ..
+            } = &request
+                && let Some(id) = self.views.placed(placement)
+            {
+                self.windows.insert(id, *window);
+                continue;
+            }
+            let window = request.window();
+            if self.opens
+                && let Some(owner) = self.owner(&request, regions)
+            {
+                self.owners.insert(window, owner);
+                self.asked
+                    .push((owner, self.hosted(request.clone(), ratio.recip())));
+            }
+            if let WindowRequest::Close(window) = request {
+                self.windows.retain(|_, held| *held != window);
+                self.sized.remove(&window);
+                self.owners.remove(&window);
             }
         }
+    }
+
+    fn owner(&self, request: &WindowRequest, regions: &[Region]) -> Option<RegionId> {
+        if let Some(owner) = self.owners.get(&request.window()) {
+            return Some(*owner);
+        }
+        let WindowRequest::Open { placement, .. } = request else {
+            return None;
+        };
+        let opening = |id: &RegionId| {
+            regions
+                .iter()
+                .any(|region| region.id() == *id && region.opens_windows)
+        };
+        let over = match placement {
+            WindowPlacement::Over { window, .. } => self
+                .windows
+                .iter()
+                .find(|(_, held)| *held == window)
+                .map(|(id, _)| *id)
+                .or_else(|| self.owners.get(window).copied()),
+            _ => None,
+        };
+        over.or(self.active)
+            .filter(opening)
+            .or_else(|| regions.iter().map(Region::id).find(opening))
+    }
+
+    fn hosted(&self, request: WindowRequest, scale: f32) -> WindowRequest {
+        match request {
+            WindowRequest::Open {
+                window,
+                placement,
+                size,
+                role,
+            } => WindowRequest::Open {
+                window,
+                placement: match placement {
+                    WindowPlacement::Over { window, at } => WindowPlacement::Over {
+                        window: self
+                            .windows
+                            .iter()
+                            .find(|(_, held)| **held == window)
+                            .map_or(window, |(id, _)| match id.region {
+                                EditorRegion::Window(window) => window,
+                                _ => WindowId::MAIN,
+                            }),
+                        at: Pos2::ZERO + at.to_vec2() * scale,
+                    },
+                    placement => placement,
+                },
+                size: size * scale,
+                role,
+            },
+            WindowRequest::Resize { window, size } => WindowRequest::Resize {
+                window,
+                size: size * scale,
+            },
+            request => request,
+        }
+    }
+
+    fn take_asked(&mut self, id: RegionId) -> Vec<WindowRequest> {
+        let (asked, kept) = std::mem::take(&mut self.asked)
+            .into_iter()
+            .partition(|(owner, _)| *owner == id);
+        self.asked = kept;
+        asked.into_iter().map(|(_, request)| request).collect()
     }
 
     fn keyboard_region(&self, regions: &[Region]) -> Option<RegionId> {
@@ -380,6 +476,7 @@ impl Regions for ModuleRunner {
             .reports()
             .system_preferences(block_editor_plugin::host_preferences().into());
         let ratio = self.ratio(regions);
+        self.host_windows(regions);
         self.show(regions, ratio);
         self.runner
             .set_occluded(!regions.iter().any(|region| region.seen));
@@ -391,7 +488,7 @@ impl Regions for ModuleRunner {
         let Some(frame) = self.runner.frame(&mut self.services, SafeArea::default()) else {
             return self.stopped(regions);
         };
-        self.match_windows();
+        self.match_windows(regions, ratio);
         self.overflows = self
             .runner
             .output()
@@ -432,7 +529,7 @@ impl Regions for ModuleRunner {
                         })
                         .collect(),
                     window: self.requests(id, keyboard, ratio),
-                    window_requests: Vec::new(),
+                    window_requests: self.take_asked(id),
                     description: region.describe.map(|_| self.describe(id, region, ratio)),
                     stopped: None,
                 }
@@ -440,17 +537,28 @@ impl Regions for ModuleRunner {
             .collect()
     }
 
+    fn window_reported(&mut self, _instance: EditorInstanceId, report: WindowReport) {
+        if let WindowReport::Closed(window) = report {
+            self.owners.remove(&window);
+        }
+        self.runner.push(Incoming::Window(report));
+    }
+
     fn painting(&mut self, region: RegionId) -> Option<beui_core::painting::Painting> {
         let surface = self.surfaces.get(&region)?;
         let output = surface.output()?;
         let (width, height) = surface.size;
         let pixels_per_point = output.pixels_per_point;
-        beui_core::painting::painting(
-            output,
-            vec2(
+        let size = match region.region {
+            EditorRegion::Window(_) => output.size,
+            _ => vec2(
                 width as f32 / pixels_per_point,
                 height as f32 / pixels_per_point,
             ),
+        };
+        beui_core::painting::painting(
+            output,
+            size,
             pixels_per_point,
             output.window.appearance.clear_color,
             beui_core::painting::Punches::Erase,

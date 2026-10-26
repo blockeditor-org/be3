@@ -4131,9 +4131,15 @@ a window whose screen is the region `EditorRegion::Window(id)` and reports
 `Placed` and `Closed` back (`Regions::window_reported`); block-app opens a beui
 `Window` holding a `PluginRegion` for each (`RegionWindows` in
 `compositor/region.rs`), so under space every plugin window is a panel of its
-own. The plugin side of this, the module's app opening such a window as a
-region window of its own, is not yet ported to the one-app-per-module platform
-(plans/vr.md).
+own. On the plugin side, beui-platform-plugin sets `WindowHosting::Any` while
+any region it frames opens windows, and sends each window request of a window
+that is not a region's in the frame of the region it was opened over (the
+active region for one opened at the pointer); an `Over` a region's window
+becomes `Over` `WindowId::MAIN`, the region itself. The region
+`EditorRegion::Window(id)` is that window of the module's app, not a window
+opened for it: the app skips it among `Views` when opening region windows, and
+block-editor-beui places the children laid out in it on that region
+(`Editor::end_frame` places only the children in the window it is given).
 
 The counter editor under `crates/editors/counter` is the reference integration.
 The [plugin editor guide](adding_a_plugin_editor.md) covers the manifest,

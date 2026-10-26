@@ -149,18 +149,25 @@ impl<A: BeuiApp> Parts<A> {
         document: &mut Document,
         window: WindowId,
     ) -> (Report, bool) {
-        let views = self.views.borrow();
-        let editor = views.editor.as_deref().copied();
-        if let Some(editor) = &editor {
-            editor.end_frame(document, window);
-        }
-        let rect = beui::Rect::from_min_size(beui::Pos2::ZERO, view.size);
         let report = Report {
-            content: views
+            content: self
+                .views
+                .borrow()
                 .chrome
                 .content()
                 .and_then(|content| document.node_rect(content)),
-            painted: vec![rect],
+            ..self.window_report(view, document, window)
+        };
+        (report, self.views.borrow().chrome.exit().take())
+    }
+
+    fn window_report(&self, view: &View, document: &mut Document, window: WindowId) -> Report {
+        if let Some(editor) = self.views.borrow().editor.as_deref() {
+            editor.end_frame(document, window);
+        }
+        Report {
+            content: None,
+            painted: vec![beui::Rect::from_min_size(beui::Pos2::ZERO, view.size)],
             floating: document.overlay_rects(window),
             drawing: document.drawing_rects(window),
             every_sample: document.wants_every_sample(window),
@@ -169,8 +176,7 @@ impl<A: BeuiApp> Parts<A> {
                 .into_iter()
                 .map(|(modifiers, rect)| block_editor_plugin::Claim { modifiers, rect })
                 .collect(),
-        };
-        (report, views.chrome.exit().take())
+        }
     }
 }
 
@@ -299,7 +305,7 @@ impl<A: BeuiApp> Shown for Parts<A> {
                 }
                 Report::default()
             }
-            EditorRegion::Window(_) => Report::default(),
+            EditorRegion::Window(window) => self.window_report(view, document, window),
         }
     }
 }
