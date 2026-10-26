@@ -16,10 +16,7 @@ fn the_inspectors_dock_bar_holds_a_pick_toggle_on_its_tree_tools() {
     );
     harness.click(harness.inspector_center("dock.pin.inspector.pick"));
     harness.settle();
-    assert!(
-        !harness.inspector().state().picking.get(),
-        "and off again"
-    );
+    assert!(!harness.inspector().state().picking.get(), "and off again");
 
     harness.show_inspector_tab(crate::inspector::InspectorTab::AccessKit);
     assert!(
