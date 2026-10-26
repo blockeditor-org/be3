@@ -288,7 +288,10 @@ fn PhoneTitle(
     view! {
         <Frame fill=ColorRole::Background padding=PADDING>
             <List direction=Direction::Horizontal align=Align::Center spacing=Space::Xs>
-                <Frame @sizing=ItemSize::Percent(100.0) padding={Padding::symmetric(PADDING, Space::Xs)}>
+                <Frame
+                    @sizing=ItemSize::Percent(100.0)
+                    padding={Padding::symmetric(PADDING, Space::Xs)}
+                >
                     <Text style=TextStyle::TITLE>"Files"</Text>
                 </Frame>
                 <Button

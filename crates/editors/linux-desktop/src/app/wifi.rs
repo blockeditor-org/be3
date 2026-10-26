@@ -93,13 +93,7 @@ pub(crate) fn WifiButton(editor: Editor, status: Memo<WifiStatus>) -> NodeId {
         }
     });
     view! {
-        <BarPopup
-            label
-            glyph
-            icon_only=true
-            @test_id={"desktop.wifi"}
-            open
-        >|_: PopoverHandle|
+        <BarPopup label glyph icon_only=true @test_id={"desktop.wifi"} open>|_: PopoverHandle|
             <WifiPanel editor={editor} status={status} />
         </BarPopup>
     }

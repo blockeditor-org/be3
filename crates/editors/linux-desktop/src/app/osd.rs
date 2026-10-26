@@ -146,7 +146,9 @@ fn OsdCard(
         })
     });
     view! {
-        <Frame padding={create_memo(move || Padding::custom(Sides::all(MARGIN).bottom(below.get())))}>
+        <Frame
+            padding={create_memo(move || Padding::custom(Sides::all(MARGIN).bottom(below.get())))}
+        >
             <Frame
                 fill=card
                 border={create_memo(move || Some(Border::new(ColorRole::Custom(outline.get()))))}

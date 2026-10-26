@@ -9,9 +9,9 @@ use beui_view::reactive::*;
 
 use crate::frame::ColorRole;
 use crate::theme::{ThemeStore, use_theme};
+use crate::tokens::{Space, use_space};
 use beui_core::geometry::Vec2;
 use beui_core::rich::SpanBackground;
-use crate::tokens::{Space, use_space};
 
 #[derive(Clone, Copy, PartialEq, Debug)]
 pub enum TextSize {
@@ -391,7 +391,17 @@ pub fn Span(
         }),
     };
     view! {
-        <primitives::Span size family bold italic color underline strikethrough background break_after>
+        <primitives::Span
+            size
+            family
+            bold
+            italic
+            color
+            underline
+            strikethrough
+            background
+            break_after
+        >
             {children}
         </primitives::Span>
     }
