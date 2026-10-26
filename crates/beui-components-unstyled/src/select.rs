@@ -138,7 +138,7 @@ pub fn Select(
         let label = state
             .options
             .value()
-            .items()
+            .get_untracked()
             .get(index)
             .map(|option| option.label())
             .unwrap_or_else(|| create_memo(String::new));
