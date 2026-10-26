@@ -5,6 +5,15 @@ import { bindMemory, bindFiles, CONTROL } from "./wasi.js";
 
             const status = document.getElementById("status");
 
+            // Resolved once the module can be called, so drive waits for it
+            // after a reload; automation asks made before the app runs wait
+            // in its inbox.
+            let started;
+            globalThis.blockStarted = new Promise((resolve, reject) => {
+                started = { resolve, reject };
+            });
+            globalThis.blockStarted.catch(() => {});
+
             function fail(heading, detail) {
                 status.hidden = false;
                 status.innerHTML = "";
@@ -94,11 +103,13 @@ import { bindMemory, bindFiles, CONTROL } from "./wasi.js";
                 bindThreads(module, wasm.memory);
                 files.worker.postMessage({ memory: wasm.memory });
                 bindFiles(files.channel);
+                started.resolve();
 
                 status.hidden = true;
                 await run_web("block");
             } catch (error) {
                 console.error(error);
+                started.reject(error);
                 fail(
                     "Block could not start.",
                     `${error}\n\nBlock draws with WebGPU or WebGL through a canvas. ` +

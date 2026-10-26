@@ -45,7 +45,8 @@ the page, except those of the headless window: the browser is the window here. I
 commands take their place (`drive` with no command lists them):
 - `drive shot FILE [TARGET]` saves a screenshot through Playwright, of TARGET only when given.
 - `drive upload FILE TARGET` clicks TARGET and answers the file chooser that opens with FILE.
-- `drive size W H` resizes the page, and `drive reload` reloads it.
+- `drive size W H` resizes the page. `drive reload` reloads it and returns once the app answers
+  again; any command waits for the module to start, so one sent mid-reload is not lost.
 - `drive eval EXPRESSION` evaluates JavaScript in the page and prints the result.
 
 The tree's coordinates are the page's CSS pixels when the device pixel ratio is 1, as it is in

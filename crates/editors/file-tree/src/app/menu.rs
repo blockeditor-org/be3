@@ -43,13 +43,8 @@ pub(crate) fn RowMenu(tools: RowTools, key: RowKey) -> Option<TreeMenu> {
         (None, _) if !shown.section => None,
         (None, _) => Some(TreeMenu {
             items: Children::from([into_segment(view! {
-                <ZoomIn disabled={unzoomable} />
+                <ZoomIn disabled={unzoomable} on_click={zoom_in} />
             })]),
-            on_select: Callback::new(move |path: Vec<usize>| {
-                if path == [0] {
-                    zoom_in();
-                }
-            }),
         }),
         (Some(_), true) => Some(view! {
             <SectionMenu tools row unzoomable zoom_in />
@@ -61,13 +56,14 @@ pub(crate) fn RowMenu(tools: RowTools, key: RowKey) -> Option<TreeMenu> {
 }
 
 #[component]
-fn ZoomIn(disabled: Memo<bool>) -> MenuItem {
+fn ZoomIn(disabled: Memo<bool>, on_click: ClickCallback) -> MenuItem {
     view! {
         <MenuItem
             label="Zoom in"
             glyph=ICON_ZOOM_IN
             disabled={disabled}
             row_test_id={"file-tree.zoom-in".to_owned()}
+            on_click
         />
     }
 }
@@ -106,41 +102,45 @@ fn SectionMenu<F: Fn() + 'static>(
             editor.host().leave_block(id);
         }
     };
-    let chose = move |path: Vec<usize>| {
-        let Some(shown) = row.get_untracked() else {
-            return;
-        };
-        let Some(id) = shown.id else {
-            return;
-        };
-        match path.as_slice() {
-            [0] => zoom_in(),
-            [1] => add_to_section(editor, picker, id, picker.row_anchor(&shown.key)),
-            [2] => renaming.start(shown.key),
-            [3] => editor.host().share_block(id),
-            _ => {}
+    let shown = move || row.get_untracked().and_then(|row| Some((row.id?, row)));
+    let add = move || {
+        if let Some((id, shown)) = shown() {
+            add_to_section(editor, picker, id, picker.row_anchor(&shown.key));
+        }
+    };
+    let rename = move || {
+        if let Some((_, shown)) = shown() {
+            renaming.start(shown.key);
+        }
+    };
+    let share = move || {
+        if let Some((id, _)) = shown() {
+            editor.host().share_block(id);
         }
     };
     TreeMenu {
         items: view! {
-            <ZoomIn disabled={unzoomable} />
+            <ZoomIn disabled={unzoomable} on_click={zoom_in} />
             <MenuItem
                 label="Add"
                 glyph=ICON_FILE_PLUS
                 disabled={unaddable}
                 row_test_id={"file-tree.section.add".to_owned()}
+                on_click={add}
             />
             <MenuItem
                 label="Rename"
                 glyph=ICON_PENCIL_LINE
                 disabled={edit}
                 row_test_id={"file-tree.section.rename".to_owned()}
+                on_click={rename}
             />
             <MenuItem
                 label="Share"
                 glyph=ICON_SHARE_2
                 disabled={unshareable}
                 row_test_id={"file-tree.section.share".to_owned()}
+                on_click={share}
             />
             <Show condition={offers_delete}>
                 <MenuItem
@@ -164,7 +164,6 @@ fn SectionMenu<F: Fn() + 'static>(
                 />
             </Show>
         },
-        on_select: Callback::new(chose),
     }
 }
 
@@ -242,40 +241,51 @@ fn BlockMenu<F: Fn() + 'static>(
     let destination_keys = create_memo(move || {
         destinations.with(|shown| shown.iter().map(|(id, _)| *id).collect::<Vec<_>>())
     });
-    let chose = move |path: Vec<usize>| {
-        let Some(shown) = row.get_untracked() else {
-            return;
-        };
-        let Some(id) = shown.id else {
-            return;
-        };
-        match path.as_slice() {
-            [0] => zoom_in(),
-            [2] => picker.open(
+    let shown = move || row.get_untracked().and_then(|row| Some((row.id?, row)));
+    let add_into = move || {
+        if let Some((id, shown)) = shown() {
+            picker.open(
                 editor,
                 id,
                 [id].into_iter().collect(),
                 picker.row_anchor(&shown.key),
-            ),
-            [4] => renaming.start(shown.key),
-            [5] => editor.host().share_block(id),
-            [6] => {
-                if let Some(container) = shown.container {
-                    editor.host().unlink_block(id, container);
-                }
-            }
-            [7] => editor
+            );
+        }
+    };
+    let rename = move || {
+        if let Some((_, shown)) = shown() {
+            renaming.start(shown.key);
+        }
+    };
+    let share = move || {
+        if let Some((id, _)) = shown() {
+            editor.host().share_block(id);
+        }
+    };
+    let unlink = move || {
+        if let Some((id, shown)) = shown()
+            && let Some(container) = shown.container
+        {
+            editor.host().unlink_block(id, container);
+        }
+    };
+    let delete = move || {
+        if let Some((id, shown)) = shown() {
+            editor
                 .host()
-                .delete_block(id, shown.block_type, shown.source),
-            [8] => inspect.set(shown.inspection),
-            _ => {}
+                .delete_block(id, shown.block_type, shown.source);
+        }
+    };
+    let inspecting = move || {
+        if let Some((_, shown)) = shown() {
+            inspect.set(shown.inspection);
         }
     };
     TreeMenu {
         items: view! {
-            <ZoomIn disabled={unzoomable} />
+            <ZoomIn disabled={unzoomable} on_click={zoom_in} />
             <OpenWith editor={editor} row={row} />
-            <MenuItem label="Add" glyph=ICON_FILE_PLUS disabled={add} />
+            <MenuItem label="Add" glyph=ICON_FILE_PLUS disabled={add} on_click={add_into} />
             <MenuItem
                 label="Move to"
                 glyph=ICON_MOVE_UP
@@ -313,11 +323,22 @@ fn BlockMenu<F: Fn() + 'static>(
                     }
                 }</ForEach>
             </MenuItem>
-            <MenuItem label="Rename" glyph=ICON_PENCIL_LINE disabled={edit} />
-            <MenuItem label="Share" glyph=ICON_SHARE_2 disabled={unshareable} />
-            <MenuItem label="Unlink" glyph=ICON_UNLINK disabled={unlinkable} />
-            <MenuItem label={delete_label} glyph=ICON_TRASH disabled={deletable} danger=true />
-            <MenuItem label="Inspect" glyph=ICON_INFO disabled={uninspectable} />
+            <MenuItem label="Rename" glyph=ICON_PENCIL_LINE disabled={edit} on_click={rename} />
+            <MenuItem label="Share" glyph=ICON_SHARE_2 disabled={unshareable} on_click={share} />
+            <MenuItem label="Unlink" glyph=ICON_UNLINK disabled={unlinkable} on_click={unlink} />
+            <MenuItem
+                label={delete_label}
+                glyph=ICON_TRASH
+                disabled={deletable}
+                danger=true
+                on_click={delete}
+            />
+            <MenuItem
+                label="Inspect"
+                glyph=ICON_INFO
+                disabled={uninspectable}
+                on_click={inspecting}
+            />
             <ExportAs exporter row row_test_id={"file-tree.export".to_owned()} />
             <Show condition={restorable}>
                 <MenuItem
@@ -348,7 +369,6 @@ fn BlockMenu<F: Fn() + 'static>(
                 />
             </Show>
         },
-        on_select: Callback::new(chose),
     }
 }
 

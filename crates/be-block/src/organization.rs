@@ -18,7 +18,7 @@ pub fn organization_settings(organization: Uuid) -> Uuid {
 
 const MY_FILES_MASK: u128 = 0x6d79_2d66_696c_6573_2d6f_662d_6163_6374;
 
-pub fn my_files(organization: Uuid, account: Uuid) -> Uuid {
+pub const fn my_files(organization: Uuid, account: Uuid) -> Uuid {
     Uuid::from_u128(organization.as_u128() ^ account.as_u128() ^ MY_FILES_MASK)
 }
 

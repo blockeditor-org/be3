@@ -622,13 +622,13 @@ impl Workspace {
     }
 
     pub(crate) fn my_files(&self) -> Option<Uuid> {
-        let account = self.host().account_id();
+        let host = self.host();
+        let mine = block_editor_beui::be_block::my_files(host.organization_id(), host.account_id());
         self.top()
             .0
             .into_iter()
-            .filter(|block| block_editor_beui::sections::is_my_files(block, account))
-            .map(|block| block.id)
-            .min()
+            .any(|block| block.id == mine && block_editor_beui::sections::is_workspace(&block))
+            .then_some(mine)
     }
 
     fn top(&self) -> (Vec<BlockInfo>, Vec<BlockInfo>) {
@@ -670,6 +670,7 @@ impl Workspace {
             })
             .collect();
         Graph {
+            organization: self.host().organization_id(),
             account: self.host().account_id(),
             roots,
             shared,

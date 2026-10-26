@@ -2,7 +2,7 @@ use block_editor_beui::be_block::{self, BlockContent, SettingsContent};
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::unstyled::MenuItem;
 use block_editor_beui::block_ui::BlockTypes;
-use block_editor_beui::{BlockInfo, BlockParent, Rect};
+use block_editor_beui::{BlockInfo, BlockParent, Rect, node_anchor};
 use uuid::Uuid;
 
 use super::dialogs::OpenDialog;
@@ -32,21 +32,6 @@ pub(crate) struct Permissions {
     pub(crate) unlink: Result<(), &'static str>,
     pub(crate) is_reference: bool,
     pub(crate) source: Option<BlockParent>,
-}
-
-pub(crate) fn action_for(path: &[usize]) -> Option<Action> {
-    match path {
-        [0] => Some(Action::Open),
-        [1] => Some(Action::Picker),
-        [2, 0] => Some(Action::MoveToMyFiles),
-        [3] => Some(Action::Rename),
-        [4] => Some(Action::Share),
-        [5] => Some(Action::Unlink),
-        [6] => Some(Action::Restore),
-        [7] => Some(Action::Settings),
-        [8] => Some(Action::Delete),
-        _ => None,
-    }
 }
 
 pub(crate) fn unlink_permission(
@@ -166,7 +151,19 @@ pub(crate) fn ReferenceMenuItem(
     workspace: Workspace,
     reference: Memo<Option<BlockInfo>>,
     containing: Memo<Option<Uuid>>,
+    anchor: NodeRef,
 ) -> MenuItem {
+    let act = move |action: Action| {
+        if let Some(reference) = reference.get_untracked() {
+            apply(
+                &workspace,
+                &reference,
+                containing.get_untracked(),
+                action,
+                node_anchor(&anchor),
+            );
+        }
+    };
     let label = create_memo(move || {
         let types = workspace.types();
         reference.with(|reference| {
@@ -238,18 +235,30 @@ pub(crate) fn ReferenceMenuItem(
     });
     view! {
         <MenuItem label={label} detail={detail}>
-            <MenuItem label="Open" />
-            <MenuItem label="Add" disabled={add} />
+            <MenuItem label="Open" on_click={move || act(Action::Open)} />
+            <MenuItem label="Add" disabled={add} on_click={move || act(Action::Picker)} />
             <MenuItem label="Set parent" disabled={edit}>
-                <MenuItem label="My files" disabled={rooted} />
+                <MenuItem
+                    label="My files"
+                    disabled={rooted}
+                    on_click={move || act(Action::MoveToMyFiles)}
+                />
             </MenuItem>
-            <MenuItem label="Rename" disabled={edit} />
-            <MenuItem label="Share" disabled={share} />
-            <MenuItem label="Unlink" disabled={unlink} />
-            <MenuItem label="Restore" disabled={restore} />
-            <MenuItem label="Settings" disabled={settings} />
+            <MenuItem label="Rename" disabled={edit} on_click={move || act(Action::Rename)} />
+            <MenuItem label="Share" disabled={share} on_click={move || act(Action::Share)} />
+            <MenuItem label="Unlink" disabled={unlink} on_click={move || act(Action::Unlink)} />
+            <MenuItem label="Restore" disabled={restore} on_click={move || act(Action::Restore)} />
+            <MenuItem
+                label="Settings"
+                disabled={settings}
+                on_click={move || act(Action::Settings)}
+            />
             <Show condition={offers_delete}>
-                <MenuItem label={delete_label} disabled={delete} />
+                <MenuItem
+                    label={delete_label}
+                    disabled={delete}
+                    on_click={move || act(Action::Delete)}
+                />
             </Show>
         </MenuItem>
     }

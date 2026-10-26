@@ -289,7 +289,12 @@ impl Tree {
             };
             let listed = clock.listed(&roots);
             let held = listed.clone().unwrap_or_default();
-            let sections = workspaces(held.clone(), host.account_id(), types.as_ref());
+            let sections = workspaces(
+                held.clone(),
+                host.organization_id(),
+                host.account_id(),
+                types.as_ref(),
+            );
             let system = listed
                 .as_ref()
                 .map(|_| own_system(held.clone(), host.account_id()))

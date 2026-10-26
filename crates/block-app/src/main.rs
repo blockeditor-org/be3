@@ -188,11 +188,7 @@ pub async fn run_web(canvas_id: String) -> Result<(), wasm_bindgen::JsValue> {
         page.set_hash("");
         location.replace(&page.href())?;
     }
-    if page.search_params().has("automation") {
-        let inbox = beui::automation::Inbox::default();
-        AUTOMATION.with(|automation| *automation.borrow_mut() = Some(inbox.clone()));
-        options.automation = Some(inbox);
-    }
+    options.automation = automation()?;
     beui::run_web(
         &canvas_id,
         vec![beui::WebRenderer::Wgpu],
@@ -210,15 +206,29 @@ thread_local! {
 }
 
 #[cfg(target_arch = "wasm32")]
+fn automation() -> Result<Option<beui::automation::Inbox>, wasm_bindgen::JsValue> {
+    let location = web_sys::window()
+        .map(|window| window.location())
+        .ok_or("no browser window is available")?;
+    if !web_sys::Url::new(&location.href()?)?
+        .search_params()
+        .has("automation")
+    {
+        return Ok(None);
+    }
+    Ok(Some(AUTOMATION.with(|automation| {
+        automation.borrow_mut().get_or_insert_default().clone()
+    })))
+}
+
+#[cfg(target_arch = "wasm32")]
 #[wasm_bindgen::prelude::wasm_bindgen]
 pub async fn automate(
     words: Vec<String>,
     timeout_milliseconds: i32,
 ) -> Result<String, wasm_bindgen::JsValue> {
     use wasm_bindgen::JsCast;
-    let inbox = AUTOMATION
-        .with(|automation| automation.borrow().clone())
-        .ok_or("the page was not opened with ?automation")?;
+    let inbox = automation()?.ok_or("the page was not opened with ?automation")?;
     let answered = beui::automation::ask(&inbox, words);
     let canceller = answered.canceller();
     let late = wasm_bindgen::closure::Closure::once_into_js(move || {

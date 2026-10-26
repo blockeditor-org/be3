@@ -4,9 +4,9 @@ use std::collections::HashMap;
 use be_block::settings::{Settings, SettingsProfile};
 use be_block::{
     BlockContent, BlockMetadata, DeviceClass, DisplaySettingsContent, LINUX_DESKTOP_EDITOR,
-    LiveEdit, MY_FILES, NAME, OfflineSettings, OfflineSettingsContent, Resolution,
-    ResolutionLayers, Root, SettingsContent, SettingsProfileContent, VIEW_EDITOR, VIEW_TYPE,
-    WORKSPACE_EDITOR, WORKSPACE_TYPE, organization_settings,
+    LiveEdit, NAME, OfflineSettings, OfflineSettingsContent, Resolution, ResolutionLayers, Root,
+    SettingsContent, SettingsProfileContent, VIEW_EDITOR, VIEW_TYPE, WORKSPACE_EDITOR,
+    WORKSPACE_TYPE, organization_settings,
 };
 use be_graph::BlockParent;
 use uuid::Uuid;
@@ -57,7 +57,6 @@ fn decode<C: BlockContent>(block: Uuid) -> Option<C> {
 #[derive(Default)]
 struct Cache {
     owned: Option<(u64, Vec<Uuid>)>,
-    my_files: Option<(u64, Option<Uuid>)>,
     settings: HashMap<Uuid, (u64, Settings)>,
     profiles: HashMap<Uuid, (u64, SettingsProfile)>,
     editors: HashMap<Uuid, (u64, Uuid)>,
@@ -156,23 +155,12 @@ impl RootSettings {
     }
 
     pub(crate) fn my_files(&self) -> Option<Uuid> {
-        let account = be::account()?;
-        let revision = be::graph_revision();
-        let mut cache = self.cache.borrow_mut();
-        if let Some((seen, found)) = cache.my_files
-            && seen == revision
-        {
-            return found.or_else(|| self.created_files());
-        }
-        let found = be::query(be::Query::Roots)
-            .into_iter()
-            .filter(|node| {
-                node.author == Some(account) && node.metadata.get(&MY_FILES) == Some(true)
-            })
-            .map(|node| node.id)
-            .min();
-        cache.my_files = Some((revision, found));
-        found.or_else(|| self.created_files())
+        let (account, organization) = be::identity()?;
+        let block = be_block::my_files(organization, account);
+        be::node(block)
+            .is_some_and(|node| node.parent == Some(BlockParent::Root))
+            .then_some(block)
+            .or_else(|| self.created_files())
     }
 
     fn created_files(&self) -> Option<Uuid> {
@@ -197,7 +185,6 @@ impl RootSettings {
             }
             let mut metadata = BlockMetadata::default();
             metadata.insert(&NAME, &"My files".to_owned());
-            metadata.insert(&MY_FILES, &true);
             be::create(block, WORKSPACE_TYPE, BlockParent::Root, metadata, None);
             self.created_files = Some(block);
         }

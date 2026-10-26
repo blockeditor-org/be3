@@ -119,7 +119,7 @@ impl Fixture {
     }
 }
 
-const MY_FILES: Uuid = Uuid::from_u128(0x006d_7966_696c_6573);
+const MY_FILES: Uuid = block_editor_beui::be_block::my_files(Uuid::nil(), Uuid::nil());
 
 fn files_workspace(
     host: &EditorHost,
@@ -127,12 +127,13 @@ fn files_workspace(
 ) -> block_editor_beui::BlockInfo {
     use block_editor_beui::be_block::BlockContent;
     use block_editor_beui::{BlockInfo, BlockParent};
+    assert_eq!(
+        MY_FILES,
+        block_editor_beui::be_block::my_files(host.organization_id(), host.account_id())
+    );
     let mut files = BlockInfo::new(MY_FILES, WorkspaceContent::CONTENT_TYPE, BlockParent::Root);
     files.author = Some(host.account_id());
     files.set_name("My files");
-    files
-        .metadata
-        .insert(&block_editor_beui::be_block::MY_FILES, &true);
     files.references = inside.iter().map(|block| block.id).collect();
     files
 }
