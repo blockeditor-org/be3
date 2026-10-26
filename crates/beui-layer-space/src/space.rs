@@ -14,8 +14,7 @@ use beui_core::runner::{
     scrolled,
 };
 use beui_core::window::{
-    WindowEdge, WindowHosting, WindowId, WindowPlacement, WindowReport, WindowRequest,
-    WindowState,
+    WindowEdge, WindowHosting, WindowId, WindowPlacement, WindowReport, WindowRequest, WindowState,
 };
 use beui_renderer_wgpu::present::GpuSetup;
 use glam::{Mat4, Quat, Vec3};
@@ -1244,7 +1243,12 @@ impl beui_core::runner::Layer for Space {
         shown.requests.clear();
     }
 
-    fn framed(&mut self, frame: &mut RunnerFrame, _output: &FrameOutput, _layer: &mut LayerFrame<'_>) {
+    fn framed(
+        &mut self,
+        frame: &mut RunnerFrame,
+        _output: &FrameOutput,
+        _layer: &mut LayerFrame<'_>,
+    ) {
         frame.repaint_after = frame.repaint_after.min(self.wait);
     }
 

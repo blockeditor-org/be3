@@ -66,14 +66,14 @@ impl Layer for Host {
         let mut window = WindowState::default();
         window.appearance.clear_color = Color32::WHITE;
         shown.windows = vec![crate::WindowOutput {
-                id: WindowId::MAIN,
-                size: view.platform / view.pixels_per_point,
-                layers: Rc::new(Vec::new()),
-                window,
-                changed: true,
-                damage: Region::NOTHING,
-                moved: None,
-                pixels_per_point: view.pixels_per_point,
+            id: WindowId::MAIN,
+            size: view.platform / view.pixels_per_point,
+            layers: Rc::new(Vec::new()),
+            window,
+            changed: true,
+            damage: Region::NOTHING,
+            moved: None,
+            pixels_per_point: view.pixels_per_point,
         }];
     }
 }
@@ -97,7 +97,10 @@ fn a_window_hosting_layer_sizes_the_main_window_and_shows_what_it_composes() {
             seen: Rc::clone(&seen),
         })],
     });
-    assert!(context.opens_windows(), "a window hosting layer opens the app's windows");
+    assert!(
+        context.opens_windows(),
+        "a window hosting layer opens the app's windows"
+    );
     runner
         .start(
             vec![Loaded {

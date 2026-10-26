@@ -56,8 +56,7 @@ pub trait Layer {
 
     fn output(&mut self, _shown: &mut Shown, _output: &FrameOutput, _frame: &mut LayerFrame<'_>) {}
 
-    fn framed(&mut self, _frame: &mut Frame, _output: &FrameOutput, _layer: &mut LayerFrame<'_>) {
-    }
+    fn framed(&mut self, _frame: &mut Frame, _output: &FrameOutput, _layer: &mut LayerFrame<'_>) {}
 
     fn wants_sight(&self) -> bool {
         false
@@ -85,7 +84,12 @@ pub trait Layer {
         below.copy_image(png);
     }
 
-    fn paste(&mut self, kinds: &[PasteKind], answer: PasteAnswer, below: &mut dyn PlatformServices) {
+    fn paste(
+        &mut self,
+        kinds: &[PasteKind],
+        answer: PasteAnswer,
+        below: &mut dyn PlatformServices,
+    ) {
         below.paste(kinds, answer);
     }
 
@@ -367,7 +371,12 @@ impl<L: Layer> Layer for std::rc::Rc<std::cell::RefCell<L>> {
         self.borrow_mut().copy_image(png, below);
     }
 
-    fn paste(&mut self, kinds: &[PasteKind], answer: PasteAnswer, below: &mut dyn PlatformServices) {
+    fn paste(
+        &mut self,
+        kinds: &[PasteKind],
+        answer: PasteAnswer,
+        below: &mut dyn PlatformServices,
+    ) {
         self.borrow_mut().paste(kinds, answer, below);
     }
 

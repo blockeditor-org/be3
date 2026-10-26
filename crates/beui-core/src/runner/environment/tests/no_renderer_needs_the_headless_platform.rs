@@ -9,8 +9,6 @@ fn no_renderer_needs_the_headless_platform() {
     );
     assert_eq!(
         choose("winit", with(&[(RENDERER, "none")])),
-        Err(
-"BEUI_RENDERER=none needs the headless platform: BEUI_PLATFORM=headless".to_owned()
-        )
+        Err("BEUI_RENDERER=none needs the headless platform: BEUI_PLATFORM=headless".to_owned())
     );
 }

@@ -811,7 +811,10 @@ fn services<'a>(
 }
 
 fn capture_for(layers: &mut [Box<dyn Layer>], capture: Option<Capture>) {
-    let mut wanting = layers.iter_mut().filter(|layer| layer.wants_capture()).peekable();
+    let mut wanting = layers
+        .iter_mut()
+        .filter(|layer| layer.wants_capture())
+        .peekable();
     while let Some(layer) = wanting.next() {
         match wanting.peek() {
             Some(_) => layer.captured(capture.clone()),

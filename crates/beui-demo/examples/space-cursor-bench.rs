@@ -25,7 +25,7 @@ mod bench {
 
     impl PlatformServices for Bare {}
 
-        struct Bench {
+    struct Bench {
         runner: Runner,
         space: Rc<RefCell<Space>>,
     }
