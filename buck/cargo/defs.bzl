@@ -76,12 +76,20 @@ def _target_sources(crate, root):
         return native.glob([root.removesuffix("main.rs") + "**"])
     return [root]
 
-# Cargo.toml's [profile.dev.package] settings for the crate, ahead of the flags
-# its BUCK file passes.
+# The cfg that picks beui's HTML core, which the plans for its platforms
+# (buck/constraints:html) were made under.
+def _core_flags():
+    return select({
+        "DEFAULT": [],
+        "root//buck/constraints:html": ["--cfg", "beui_html"],
+    })
+
+# Cargo.toml's [profile.dev.package] settings for the crate and the core's cfg,
+# ahead of the flags its BUCK file passes.
 def _rustc_flags(crate, kwargs):
     if "srcs" in kwargs:
         fail("Rust sources are inferred; srcs is not supported")
-    return dev_only(crate.get("profile_flags", [])) + kwargs.pop("rustc_flags", [])
+    return dev_only(crate.get("profile_flags", [])) + _core_flags() + kwargs.pop("rustc_flags", [])
 
 # The crate's library, named after the package. Another build of it, such as
 # one for a fuzz target, takes a name and extra_features.

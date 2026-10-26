@@ -292,10 +292,13 @@ turns.
 | `wasi` | the WASI sysroot | rust-lld (block-app on the web) |
 | `wasi_guest` | the WASI sysroot | rust-lld through crates/wasm-link (the plugins and their SDK) |
 | `wasm32` | nothing | rust-lld (the games, the gpu shim) |
+| `wasi_html` | the WASI sysroot | rust-lld (crates on beui's HTML core, in the browser) |
+| `linux_x86_64_html` | `buck/sysroot:amd64` | lld (crates on beui's HTML core, on the host: server rendering, string tests) |
 
 All of them build on the same Linux workers. `./scripts/verify` also runs
 rustc's check pass over beui for Windows x86_64 (`_CROSS_CHECKS` in
-`buck/dev/verify.bxl`), where beui-layer-xr's first headset is, in its one buck2
+`buck/dev/verify.bxl`), where beui-layer-xr's first headset is, and over every
+library planned for beui's HTML core on its two platforms, in its one buck2
 command. CI ships nothing built for a
 device: the build helper (guides/build_server.md) builds the Android app and
 launcher (`:android-dist`) and the desktop app for any platform when
@@ -307,6 +310,20 @@ Microsoft's Build Tools licence.
 backend and a plugin only wgpu's `custom` one, and the two cannot be unified.
 A `guest` constraint (`buck/constraints`) tells them apart, and `crates.bzl`
 has a plan for each.
+
+`wasi_html` and `linux_x86_64_html` are `wasi` and the host with the `html`
+constraint (`buck/constraints`), which picks beui's HTML core
+(plans/html_core.md). Their plans, `wasi-html` and `linux-x86_64-html`, are
+cargo's for the crates `html_packages` in `buck/cargo/buckify.sh` names, run
+with `RUSTFLAGS="--cfg beui_html"`; cargo evaluates
+`[target.'cfg(beui_html)'.dependencies]` against it, so a manifest says what
+each core links (beui-view takes `beui-core` only under
+`cfg(not(beui_html))`), and `defs.bzl` passes `--cfg beui_html` to every
+first-party rustc on those platforms. Nothing transitions to them yet:
+`buck/cargo/html.bzl` lists the libraries in those plans, and `//:check` and
+`./scripts/verify` check each on its platform. Code chooses a core with
+`if CORE == Core::Html` (`beui::CORE`); `#[cfg(beui_html)]` belongs only in
+beui-view, beui and beui-core-html, which fix-rust-source enforces.
 
 A native target depends on a wasm one through a transition in
 `buck/wasm/defs.bzl`: a game's test says
@@ -368,7 +385,12 @@ extension ships: the toolchain's panics on this workspace.
 - **Features.** Every crate has the features cargo's plan for the platform
   gives it, and the plans are `cargo test` for the host and each cross
   platform, so what a dev-dependency turns on is on for the library too, as
-  under cargo. What cargo builds for the machine running the build - proc
+  under cargo. One plan covers every crate built for its platform, so
+  features merge across apps: the `wasi` plan is block-app's, beui-web-demo's
+  and paint-review-web's at once, and a feature one of them turns on is on
+  for all three. What has to differ between builds for one triple needs a
+  platform and plan of its own, told apart by a constraint, as `wasi_guest`
+  and `wasi_html` are. What cargo builds for the machine running the build - proc
   macros, build scripts and their dependencies - is one build here, the
   `linux-x86_64` one, with the union of what every plan asks of it.
 - **Pipelining.** `nightly_features = True` in `buck/toolchains/BUCK`, so a
@@ -405,8 +427,9 @@ extension ships: the toolchain's panics on this workspace.
   crate's sources, output as the files that changed. A fix that makes another
   possible shows up on the next run.
 - **Lints** are rustc's, and a warning fails the compile that finds it, so
-  `./scripts/verify` sees them only in what its tests compile: `linux_x86_64`
-  and `wasi_guest`. It neither typechecks other configurations (Android, the
+  `./scripts/verify` sees them only in what its tests compile, `linux_x86_64`
+  and `wasi_guest`, and in what it checks: beui for Windows and the HTML
+  core's libraries. It neither typechecks other configurations (Android, the
   web's wasm32, host wasi, release copies) nor runs clippy: each was a second
   compile of every target, which doubled what a change cost. `//:check`
   still typechecks every configuration, and code behind `cfg(windows)` or

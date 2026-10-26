@@ -85,6 +85,13 @@ plan test --target x86_64-unknown-linux-gnu $host_packages > "$scratch/host.json
 plan build --target wasm32-wasip1-threads -p block-app -p beui-web-demo -p paint-review-web -p beui-html --lib > "$scratch/wasi.json"
 plan test --target wasm32-wasip1-threads $plugins -p block-editor-plugin -p block-editor-beui -p beui-demo -p paint-review > "$scratch/wasi-guest.json"
 plan build --target wasm32-unknown-unknown $games $types -p block-gpu-shim -p be-remap-module -p block-guest-echo > "$scratch/wasm32.json"
+# beui's HTML core (buck/constraints:html): the crates that build on it, for
+# the browser and for the host, under the cfg that picks it. cargo evaluates
+# [target.'cfg(beui_html)'.dependencies] against RUSTFLAGS, so each core's
+# dependencies drop out of the other's plans.
+html_packages="-p beui-view"
+RUSTFLAGS="--cfg beui_html" plan build --target wasm32-wasip1-threads $html_packages --lib > "$scratch/wasi-html.json"
+RUSTFLAGS="--cfg beui_html" plan test --target x86_64-unknown-linux-gnu $html_packages > "$scratch/linux-x86_64-html.json"
 cross=""
 for platform in "$@"; do
     name="${platform%%=*}"
@@ -95,6 +102,7 @@ CARGO_TARGET_DIR="$scratch/target" PATH="$toolchain/bin:$PATH" \
     "$toolchain/bin/cargo" build --quiet --release --locked -p buck-tools
 "$scratch/target/release/buck-tools" generate "$scratch/metadata.json" Cargo.lock "$scratch/sizes" Cargo.toml \
     "linux-x86_64=$scratch/host.json" "wasi=$scratch/wasi.json" "wasi-guest=$scratch/wasi-guest.json" "wasm32=$scratch/wasm32.json" \
+    "wasi-html=$scratch/wasi-html.json" "linux-x86_64-html=$scratch/linux-x86_64-html.json" \
     $cross \
     > "$out/crates.bzl"
 rm -rf "$scratch"

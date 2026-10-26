@@ -92,7 +92,7 @@ pub use beui_view::primitives;
 pub use beui_view::types::{
     Align2, CaretHandle, Extent, Outline, SpanBackground, SpanStyle, TextCaret, TextGlyph, TextMark,
 };
-pub use beui_view::{child_type, value_child_type};
+pub use beui_view::{CORE, Core, child_type, value_child_type};
 
 pub use beui_core::runner::{
     Incoming, Launch, Layer, LayerFrame, LayerView, Platform, PlatformServices, RunOptions,

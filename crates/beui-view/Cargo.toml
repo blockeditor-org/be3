@@ -6,11 +6,13 @@ license.workspace = true
 
 [dependencies]
 accesskit = "0.24.1"
-beui-core = { path = "../beui-core" }
 beui-tree = { path = "../beui-tree" }
 beui-types = { path = "../beui-types" }
 beui_macros = { path = "../beui-macros" }
 reactive = { path = "../reactive" }
+
+[target.'cfg(not(beui_html))'.dependencies]
+beui-core = { path = "../beui-core" }
 
 [lints]
 workspace = true

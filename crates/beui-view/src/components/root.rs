@@ -1,68 +1,16 @@
-use crate::reactive::{
-    Child, ChildValue, ComponentContext, Get, Prop, ScopeContext, create_effect, with_document,
-};
 use beui_core::color::Color32;
-use beui_core::node::NodeId;
-pub use beui_core::window::SystemBars;
 use beui_macros::component;
-
-pub struct Root {
-    child: NodeId,
-}
-
-impl ChildValue for Root {
-    fn finish_component(&mut self, component: &ComponentContext, scope: &ScopeContext) {
-        if component.has_extensions() {
-            self.child.finish_component(component, scope);
-        }
-    }
-}
-
-impl Root {
-    pub fn child(&self) -> NodeId {
-        self.child
-    }
-
-    pub fn holding(self, child: NodeId) -> Root {
-        Root { child }
-    }
-}
+use crate::reactive::Child;
+use crate::reactive::Prop;
+pub use beui_core::window::SystemBars;
+pub use crate::core::root::{Root};
 
 #[component]
 pub fn Root(
     clear_color: Prop<Color32>,
     title: Option<Prop<String>>,
     #[prop(default = SystemBars::default())] system_bars: Prop<SystemBars>,
-    children: Child,
+    children: Child
 ) -> Root {
-    let handle = crate::components::window::use_window();
-    let window = move || {
-        handle
-            .filter(|handle| handle.is_window())
-            .map(|handle| handle.id)
-    };
-    create_effect(move || {
-        let color = clear_color.get();
-        let window = window();
-        with_document(|document| {
-            document.update_appearance(window, |appearance| appearance.clear_color = color)
-        });
-    });
-    if let Some(title) = title {
-        create_effect(move || {
-            let title = title.get();
-            let window = window();
-            with_document(|document| {
-                document.update_appearance(window, |appearance| appearance.title = Some(title))
-            });
-        });
-    }
-    create_effect(move || {
-        let bars = system_bars.get();
-        let window = window();
-        with_document(|document| {
-            document.update_appearance(window, |appearance| appearance.system_bars = bars)
-        });
-    });
-    Root { child: children }
+    crate::core::root(clear_color, title, system_bars, children)
 }

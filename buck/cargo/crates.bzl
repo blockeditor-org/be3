@@ -3457,6 +3457,20 @@ crates = {
                 "test_deps": [],
                 "test_features": [],
             },
+            "linux-x86_64-html": {
+                "binaries": {},
+                "deps": [
+                    "//third-party/rust:heck-0.5.0",
+                    "//third-party/rust:proc-macro2-1.0.106",
+                    "//third-party/rust:quote-1.0.45",
+                    "//third-party/rust:syn-2.0.117",
+                    "//third-party/rust:wit-parser-0.254.0",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
             "macos-arm64": {
                 "binaries": {},
                 "deps": [
@@ -3500,6 +3514,20 @@ crates = {
                 "test_features": [],
             },
             "wasi-guest": {
+                "binaries": {},
+                "deps": [
+                    "//third-party/rust:heck-0.5.0",
+                    "//third-party/rust:proc-macro2-1.0.106",
+                    "//third-party/rust:quote-1.0.45",
+                    "//third-party/rust:syn-2.0.117",
+                    "//third-party/rust:wit-parser-0.254.0",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "wasi-html": {
                 "binaries": {},
                 "deps": [
                     "//third-party/rust:heck-0.5.0",
@@ -9094,6 +9122,19 @@ crates = {
                 "test_deps": [],
                 "test_features": [],
             },
+            "linux-x86_64-html": {
+                "binaries": {},
+                "deps": [
+                    "//third-party/rust:proc-macro-crate-3.5.0",
+                    "//third-party/rust:proc-macro2-1.0.106",
+                    "//third-party/rust:quote-1.0.45",
+                    "//third-party/rust:syn-2.0.117",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
             "macos-arm64": {
                 "binaries": {},
                 "deps": [
@@ -9134,6 +9175,19 @@ crates = {
                 "test_features": [],
             },
             "wasi-guest": {
+                "binaries": {},
+                "deps": [
+                    "//third-party/rust:proc-macro-crate-3.5.0",
+                    "//third-party/rust:proc-macro2-1.0.106",
+                    "//third-party/rust:quote-1.0.45",
+                    "//third-party/rust:syn-2.0.117",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "wasi-html": {
                 "binaries": {},
                 "deps": [
                     "//third-party/rust:proc-macro-crate-3.5.0",
@@ -10100,6 +10154,17 @@ crates = {
                 "test_deps": [],
                 "test_features": [],
             },
+            "linux-x86_64-html": {
+                "binaries": {},
+                "deps": [
+                    "//crates/beui-macros:beui_macros",
+                    "//crates/reactive:reactive",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
             "macos-arm64": {
                 "binaries": {},
                 "deps": [
@@ -10134,6 +10199,17 @@ crates = {
                 "test_features": [],
             },
             "wasi-guest": {
+                "binaries": {},
+                "deps": [
+                    "//crates/beui-macros:beui_macros",
+                    "//crates/reactive:reactive",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "wasi-html": {
                 "binaries": {},
                 "deps": [
                     "//crates/beui-macros:beui_macros",
@@ -10223,6 +10299,20 @@ crates = {
                 "test_deps": [],
                 "test_features": [],
             },
+            "linux-x86_64-html": {
+                "binaries": {},
+                "deps": [
+                    "//crates/beui-tree:beui-tree",
+                    "//crates/geometry:geometry",
+                    "//crates/lucide:lucide",
+                    "//crates/ui-types:ui-types",
+                    "//third-party/rust:thumbhash-0.1.0",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
             "macos-arm64": {
                 "binaries": {},
                 "deps": [
@@ -10266,6 +10356,20 @@ crates = {
                 "test_features": [],
             },
             "wasi-guest": {
+                "binaries": {},
+                "deps": [
+                    "//crates/beui-tree:beui-tree",
+                    "//crates/geometry:geometry",
+                    "//crates/lucide:lucide",
+                    "//crates/ui-types:ui-types",
+                    "//third-party/rust:thumbhash-0.1.0",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "wasi-html": {
                 "binaries": {},
                 "deps": [
                     "//crates/beui-tree:beui-tree",
@@ -10367,6 +10471,20 @@ crates = {
                 "test_deps": [],
                 "test_features": [],
             },
+            "linux-x86_64-html": {
+                "binaries": {},
+                "deps": [
+                    "//crates/beui-macros:beui_macros",
+                    "//crates/beui-tree:beui-tree",
+                    "//crates/beui-types:beui-types",
+                    "//crates/reactive:reactive",
+                    "//third-party/rust:accesskit-0.24.1",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
             "macos-arm64": {
                 "binaries": {},
                 "deps": [
@@ -10416,6 +10534,20 @@ crates = {
                 "binaries": {},
                 "deps": [
                     "//crates/beui-core:beui-core",
+                    "//crates/beui-macros:beui_macros",
+                    "//crates/beui-tree:beui-tree",
+                    "//crates/beui-types:beui-types",
+                    "//crates/reactive:reactive",
+                    "//third-party/rust:accesskit-0.24.1",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "wasi-html": {
+                "binaries": {},
+                "deps": [
                     "//crates/beui-macros:beui_macros",
                     "//crates/beui-tree:beui-tree",
                     "//crates/beui-types:beui-types",
@@ -20250,6 +20382,16 @@ crates = {
                 "test_deps": [],
                 "test_features": [],
             },
+            "linux-x86_64-html": {
+                "binaries": {},
+                "deps": [
+                    "//third-party/rust:serde-1.0.228",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
             "macos-arm64": {
                 "binaries": {},
                 "deps": [
@@ -20281,6 +20423,16 @@ crates = {
                 "test_features": [],
             },
             "wasi-guest": {
+                "binaries": {},
+                "deps": [
+                    "//third-party/rust:serde-1.0.228",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "wasi-html": {
                 "binaries": {},
                 "deps": [
                     "//third-party/rust:serde-1.0.228",
@@ -21147,6 +21299,14 @@ crates = {
                 "test_deps": [],
                 "test_features": [],
             },
+            "linux-x86_64-html": {
+                "binaries": {},
+                "deps": [],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
             "macos-arm64": {
                 "binaries": {},
                 "deps": [],
@@ -21172,6 +21332,14 @@ crates = {
                 "test_features": [],
             },
             "wasi-guest": {
+                "binaries": {},
+                "deps": [],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "wasi-html": {
                 "binaries": {},
                 "deps": [],
                 "examples": {},
@@ -22190,6 +22358,17 @@ crates = {
                 "test_deps": [],
                 "test_features": [],
             },
+            "linux-x86_64-html": {
+                "binaries": {},
+                "deps": [
+                    "//crates/reactive-macros:reactive_macros",
+                    "//third-party/rust:foldhash-0.2.0",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
             "macos-arm64": {
                 "binaries": {},
                 "deps": [
@@ -22240,6 +22419,17 @@ crates = {
                 "test_features": [],
             },
             "wasi-guest": {
+                "binaries": {},
+                "deps": [
+                    "//crates/reactive-macros:reactive_macros",
+                    "//third-party/rust:foldhash-0.2.0",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "wasi-html": {
                 "binaries": {},
                 "deps": [
                     "//crates/reactive-macros:reactive_macros",
@@ -22339,6 +22529,18 @@ crates = {
                 "test_deps": [],
                 "test_features": [],
             },
+            "linux-x86_64-html": {
+                "binaries": {},
+                "deps": [
+                    "//third-party/rust:proc-macro2-1.0.106",
+                    "//third-party/rust:quote-1.0.45",
+                    "//third-party/rust:syn-2.0.117",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
             "macos-arm64": {
                 "binaries": {},
                 "deps": [
@@ -22376,6 +22578,18 @@ crates = {
                 "test_features": [],
             },
             "wasi-guest": {
+                "binaries": {},
+                "deps": [
+                    "//third-party/rust:proc-macro2-1.0.106",
+                    "//third-party/rust:quote-1.0.45",
+                    "//third-party/rust:syn-2.0.117",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "wasi-html": {
                 "binaries": {},
                 "deps": [
                     "//third-party/rust:proc-macro2-1.0.106",
@@ -24537,6 +24751,19 @@ crates = {
                 "test_deps": [],
                 "test_features": [],
             },
+            "linux-x86_64-html": {
+                "binaries": {},
+                "deps": [
+                    "//crates/be-ops-bindgen:be-ops-bindgen",
+                    "//crates/geometry:geometry",
+                    "//third-party/rust:serde-1.0.228",
+                    "//third-party/rust:serde_bytes-0.11.19",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
             "macos-arm64": {
                 "binaries": {},
                 "deps": [
@@ -24577,6 +24804,19 @@ crates = {
                 "test_features": [],
             },
             "wasi-guest": {
+                "binaries": {},
+                "deps": [
+                    "//crates/be-ops-bindgen:be-ops-bindgen",
+                    "//crates/geometry:geometry",
+                    "//third-party/rust:serde-1.0.228",
+                    "//third-party/rust:serde_bytes-0.11.19",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "wasi-html": {
                 "binaries": {},
                 "deps": [
                     "//crates/be-ops-bindgen:be-ops-bindgen",
@@ -25212,6 +25452,11 @@ third_party = {
                     "serde",
                 ],
             },
+            "linux-x86_64-html": {
+                "deps": [
+                    ":uuid-1.23.2",
+                ],
+            },
             "macos-arm64": {
                 "deps": [
                     ":enumn-0.1.14",
@@ -25254,6 +25499,11 @@ third_party = {
                 "features": [
                     "enumn",
                     "serde",
+                ],
+            },
+            "wasi-html": {
+                "deps": [
+                    ":uuid-1.23.2",
                 ],
             },
             "windows-arm64": {
@@ -39404,6 +39654,12 @@ third_party = {
                     "std",
                 ],
             },
+            "linux-x86_64-html": {
+                "features": [
+                    "default",
+                    "std",
+                ],
+            },
             "macos-arm64": {
                 "features": [
                     "default",
@@ -39423,6 +39679,12 @@ third_party = {
                 ],
             },
             "wasi-guest": {
+                "features": [
+                    "default",
+                    "std",
+                ],
+            },
+            "wasi-html": {
                 "features": [
                     "default",
                     "std",
@@ -63145,6 +63407,19 @@ third_party = {
                     "std",
                 ],
             },
+            "linux-x86_64-html": {
+                "deps": [
+                    ":serde_core-1.0.228",
+                    ":serde_derive-1.0.228",
+                ],
+                "features": [
+                    "default",
+                    "derive",
+                    "rc",
+                    "serde_derive",
+                    "std",
+                ],
+            },
             "macos-arm64": {
                 "deps": [
                     ":serde_core-1.0.228",
@@ -63194,6 +63469,19 @@ third_party = {
                 ],
                 "features": [
                     "alloc",
+                    "default",
+                    "derive",
+                    "rc",
+                    "serde_derive",
+                    "std",
+                ],
+            },
+            "wasi-html": {
+                "deps": [
+                    ":serde_core-1.0.228",
+                    ":serde_derive-1.0.228",
+                ],
+                "features": [
                     "default",
                     "derive",
                     "rc",
@@ -63296,6 +63584,15 @@ third_party = {
                     "std",
                 ],
             },
+            "linux-x86_64-html": {
+                "deps": [
+                    ":serde_core-1.0.228",
+                ],
+                "features": [
+                    "default",
+                    "std",
+                ],
+            },
             "macos-arm64": {
                 "deps": [
                     ":serde_core-1.0.228",
@@ -63324,6 +63621,15 @@ third_party = {
                 ],
             },
             "wasi-guest": {
+                "deps": [
+                    ":serde_core-1.0.228",
+                ],
+                "features": [
+                    "default",
+                    "std",
+                ],
+            },
+            "wasi-html": {
                 "deps": [
                     ":serde_core-1.0.228",
                 ],
@@ -63413,6 +63719,13 @@ third_party = {
                     "std",
                 ],
             },
+            "linux-x86_64-html": {
+                "features": [
+                    "rc",
+                    "result",
+                    "std",
+                ],
+            },
             "macos-arm64": {
                 "features": [
                     "alloc",
@@ -63440,6 +63753,13 @@ third_party = {
             "wasi-guest": {
                 "features": [
                     "alloc",
+                    "rc",
+                    "result",
+                    "std",
+                ],
+            },
+            "wasi-html": {
+                "features": [
                     "rc",
                     "result",
                     "std",
@@ -68278,10 +68598,12 @@ third_party = {
             "android-arm64": {},
             "linux-arm64": {},
             "linux-x86_64": {},
+            "linux-x86_64-html": {},
             "macos-arm64": {},
             "macos-x86_64": {},
             "wasi": {},
             "wasi-guest": {},
+            "wasi-html": {},
             "windows-arm64": {},
             "windows-x86_64": {},
         },
@@ -73257,6 +73579,7 @@ third_party = {
                     "v7",
                 ],
             },
+            "linux-x86_64-html": {},
             "macos-arm64": {
                 "deps": [
                     ":getrandom-0.4.2",
@@ -73313,6 +73636,7 @@ third_party = {
                     "v7",
                 ],
             },
+            "wasi-html": {},
             "wasm32": {
                 "deps": [
                     ":serde_core-1.0.228",

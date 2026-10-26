@@ -177,6 +177,9 @@ edition = "2024"
 version = "0.1.0"
 license = "MIT"
 
+[workspace.lints.rust]
+unexpected_cfgs = { level = "warn", check-cfg = ["cfg(beui_html)"] }
+
 [workspace.lints.clippy]
 too_many_arguments = "allow"
 
