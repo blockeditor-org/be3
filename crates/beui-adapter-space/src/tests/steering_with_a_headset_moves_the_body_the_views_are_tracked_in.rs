@@ -51,6 +51,16 @@ fn steering_with_a_headset_moves_the_body_the_views_are_tracked_in() {
         "and stays turned: {}",
         space.head.yaw
     );
+    drive(&mut space, at, [hand_pose(eyes, eyes + Vec3::NEG_Z)]);
+    let aim = space
+        .laser(Hand::Right)
+        .and_then(|laser| laser.aim)
+        .expect("the hand is tracked");
+    assert!(
+        close(aim.position, space.head.position)
+            && (aim.rotation * Vec3::NEG_Z).distance(forward) < 1e-3,
+        "a hand tracked where the eyes are is placed with them, by the body: {aim:?}"
+    );
     send(&mut space, at, [key(Key::W, 17, false)]);
     send(&mut space, at, steer(false));
 
