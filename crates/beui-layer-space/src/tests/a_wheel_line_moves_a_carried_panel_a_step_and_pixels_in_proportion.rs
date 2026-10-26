@@ -28,7 +28,10 @@ fn a_wheel_line_moves_a_carried_panel_a_step_and_pixels_in_proportion() {
         send(
             &mut space,
             now,
-            [Input::Scroll(ScrollDelta::Pixels(vec2(0.0, SCROLL_LINE / 10.0)))],
+            [Input::Scroll(ScrollDelta::Pixels(vec2(
+                0.0,
+                SCROLL_LINE / 10.0,
+            )))],
         );
         seen.push(distance(&space));
     }

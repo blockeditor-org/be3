@@ -13,8 +13,16 @@ fn a_panel_carried_far_behind_another_stays_behind_it() {
     );
     space.request(&WindowRequest::BeginMove(WindowId::MAIN));
     let now = later(now, TURN_SECONDS);
-    send(&mut space, now, [Input::PointerMoved(grab + vec2(60.0, 40.0))]);
-    let carry = space.mouse.carry.as_ref().expect("the main panel is carried");
+    send(
+        &mut space,
+        now,
+        [Input::PointerMoved(grab + vec2(60.0, 40.0))],
+    );
+    let carry = space
+        .mouse
+        .carry
+        .as_ref()
+        .expect("the main panel is carried");
     assert!(
         (carry.at - carry.distance).abs() < 1e-4,
         "a panel far nearer than the carried one does not pull it forward: {} {}",

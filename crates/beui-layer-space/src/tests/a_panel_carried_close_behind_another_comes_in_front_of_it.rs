@@ -15,7 +15,11 @@ fn a_panel_carried_close_behind_another_comes_in_front_of_it() {
     );
     space.request(&WindowRequest::BeginMove(WindowId::MAIN));
     let now = later(now, TURN_SECONDS);
-    send(&mut space, now, [Input::PointerMoved(grab + vec2(10.0, 0.0))]);
+    send(
+        &mut space,
+        now,
+        [Input::PointerMoved(grab + vec2(10.0, 0.0))],
+    );
     let ray = space.head.ray(PLATFORM, centre().to_vec2());
     assert_eq!(
         space.pick(ray).map(|hit| hit.window),
