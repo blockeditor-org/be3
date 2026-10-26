@@ -573,7 +573,10 @@ impl State {
     }
 
     pub fn take_fullscreen_output(&mut self, id: WindowId) -> Option<Rectangle<i32, Logical>> {
-        let at = self.fullscreen_on.iter().position(|(held, _)| *held == id)?;
+        let at = self
+            .fullscreen_on
+            .iter()
+            .position(|(held, _)| *held == id)?;
         Some(self.fullscreen_on.remove(at).1)
     }
 

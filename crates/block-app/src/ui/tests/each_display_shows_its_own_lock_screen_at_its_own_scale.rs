@@ -66,10 +66,10 @@ fn each_display_shows_its_own_lock_screen_at_its_own_scale() {
         stepped.advance(Duration::from_millis(300));
         stepped.frame(Vec::new());
     }
-    for ((window, size), (name, scale)) in opened
-        .iter()
-        .zip([("lock_screen_on_a_doubled_laptop", 2.0), ("lock_screen_on_a_monitor", 1.0)])
-    {
+    for ((window, size), (name, scale)) in opened.iter().zip([
+        ("lock_screen_on_a_doubled_laptop", 2.0),
+        ("lock_screen_on_a_monitor", 1.0),
+    ]) {
         let windows = stepped.windows();
         let output = windows.output(*window).expect("each display window paints");
         assert_eq!(output.pixels_per_point, scale, "at its display's own scale");

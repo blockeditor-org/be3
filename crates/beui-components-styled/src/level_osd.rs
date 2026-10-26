@@ -90,8 +90,9 @@ pub fn LevelOsd(
     let level = create_memo(move || level.get());
     let open = create_memo(move || opacity.get() > 0.0 && level.with(Option::is_some));
     let inset = create_memo(move || {
-        area.get()
-            .map_or(Sides::ZERO, |area| Sides::new(area.left(), area.top(), 0.0, 0.0))
+        area.get().map_or(Sides::ZERO, |area| {
+            Sides::new(area.left(), area.top(), 0.0, 0.0)
+        })
     });
     let outer = create_memo(move || match area.get() {
         Some(_) => Align2::START,
@@ -109,11 +110,7 @@ pub fn LevelOsd(
             open={open}
             content={move || { let id = id.clone(); view! {
                 <Frame padding=inset align={outer}>
-                    <Frame
-                        width=width
-                        height=height
-                        align={Align2::new(Align::Center, Align::End)}
-                    >
+                    <Frame width=width height=height align={Align2::new(Align::Center, Align::End)}>
                         <OsdCard level opacity={opacity.read_only()} id />
                     </Frame>
                 </Frame>

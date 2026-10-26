@@ -45,6 +45,10 @@ fn the_on_screen_keyboard_opens_along_the_foot_of_its_fields_window() {
         .context()
         .keyboard_rect()
         .expect("tapping the field opens the keyboard");
-    assert_eq!(keyboard.bottom(), 360.0, "along the foot of the field's window");
+    assert_eq!(
+        keyboard.bottom(),
+        360.0,
+        "along the foot of the field's window"
+    );
     test.snapshot_window("on_screen_keyboard_in_its_fields_window", window);
 }

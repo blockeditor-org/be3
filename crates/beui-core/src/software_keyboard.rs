@@ -111,7 +111,10 @@ impl KeyboardState {
     }
 
     pub(crate) fn trimmed(&self, window: WindowId, rect: Rect) -> Rect {
-        match self.rect.filter(|_| self.window == window && !window.is_main()) {
+        match self
+            .rect
+            .filter(|_| self.window == window && !window.is_main())
+        {
             Some(keyboard) => trim_bottom(rect, keyboard.height()).0,
             None => rect,
         }
@@ -246,7 +249,11 @@ pub fn show_with_keyboard(
         let moved = (before != after).then_some([before.0, after.0]);
         (placed, changed, moved)
     });
-    for window in moved.into_iter().flatten().filter(|window| !window.is_main()) {
+    for window in moved
+        .into_iter()
+        .flatten()
+        .filter(|window| !window.is_main())
+    {
         document.relayout_window(window);
     }
     if changed {

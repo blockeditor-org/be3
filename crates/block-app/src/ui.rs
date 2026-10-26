@@ -396,27 +396,27 @@ pub(crate) fn Displays(view: AppViewStore) -> NodeId {
     let windowed = create_memo(move || shown.with(|shown| !shown.is_empty()));
     view! {
         <Layers>
-        <Dynamic value={windowed}>|windowed: bool| {
-            match windowed {
-                false => view! {
-                    <Root view />
-                },
-                true => {
-                    let keys = create_memo(move || {
-                        shown.with(|shown| {
-                            shown.iter().map(|display| display.id.clone()).collect::<Vec<_>>()
-                        })
-                    });
-                    view! {
-                        <Layers>
-                            <ForEach keys={keys}>|id: String|
-                                <DisplayWindow view id />
-                            </ForEach>
-                        </Layers>
+            <Dynamic value={windowed}>|windowed: bool| {
+                match windowed {
+                    false => view! {
+                        <Root view />
+                    },
+                    true => {
+                        let keys = create_memo(move || {
+                            shown.with(|shown| {
+                                shown.iter().map(|display| display.id.clone()).collect::<Vec<_>>()
+                            })
+                        });
+                        view! {
+                            <Layers>
+                                <ForEach keys={keys}>|id: String|
+                                    <DisplayWindow view id />
+                                </ForEach>
+                            </Layers>
+                        }
                     }
                 }
-            }
-        }</Dynamic>
+            }</Dynamic>
         </Layers>
     }
 }
@@ -432,11 +432,17 @@ fn DisplayWindow(view: AppViewStore, id: String) -> NodeId {
     let primary = create_memo(move || {
         shown.with(|shown| shown.first().is_some_and(|display| display.id == key))
     });
-    let rect = create_memo(move || display.get().map_or(beui::Rect::ZERO, |display| display.rect));
+    let rect = create_memo(move || {
+        display
+            .get()
+            .map_or(beui::Rect::ZERO, |display| display.rect)
+    });
     let size = create_memo(move || rect.get().size());
     let placement = display
         .get_untracked()
-        .map_or(beui::WindowPlacement::AtPointer, |display| display.placement);
+        .map_or(beui::WindowPlacement::AtPointer, |display| {
+            display.placement
+        });
     let title = display.get_untracked().map(|display| display.name);
     let desktop = create_memo(move || shown.with(|shown| crate::display::desktop(shown)));
     let displays = create_memo(move || {
@@ -555,32 +561,32 @@ fn DisplayChrome(view: AppViewStore, area: NodeRef, primary: bool) -> NodeId {
     });
     view! {
         <List spacing=0.0>
-                <Toasts
-                    anchor={area}
-                    edge=Edge::TopEnd
-                    toasts={toasts}
-                    on_dismiss={move |id: u64| match id {
-                        saving::TOAST_ID => slow_save.dismiss(),
-                        id => send(UiCommand::DismissToast(id)),
-                    }}
-                    on_action={move |(id, key): (u64, String)| {
-                        if key == crate::notices::COPY_REPORT
-                            && let Some(report) = crate::notices::report_of(id)
-                        {
-                            copy_text(report);
-                        }
-                    }}
-                />
-                <KeepChanges
-                    open={asking}
-                    title="Keep these display settings?"
-                    timeout=crate::display::ANSWER_WITHIN
-                    round={round}
-                    id="display.keep"
-                    on_keep={move || send(UiCommand::KeepDisplay(round.get_untracked()))}
-                    on_revert={move || send(UiCommand::RevertDisplay(round.get_untracked()))}
-                />
-                <lock::SessionLock view={view} shortcut={primary} />
+            <Toasts
+                anchor={area}
+                edge=Edge::TopEnd
+                toasts={toasts}
+                on_dismiss={move |id: u64| match id {
+                    saving::TOAST_ID => slow_save.dismiss(),
+                    id => send(UiCommand::DismissToast(id)),
+                }}
+                on_action={move |(id, key): (u64, String)| {
+                    if key == crate::notices::COPY_REPORT
+                        && let Some(report) = crate::notices::report_of(id)
+                    {
+                        copy_text(report);
+                    }
+                }}
+            />
+            <KeepChanges
+                open={asking}
+                title="Keep these display settings?"
+                timeout=crate::display::ANSWER_WITHIN
+                round={round}
+                id="display.keep"
+                on_keep={move || send(UiCommand::KeepDisplay(round.get_untracked()))}
+                on_revert={move || send(UiCommand::RevertDisplay(round.get_untracked()))}
+            />
+            <lock::SessionLock view={view} shortcut={primary} />
         </List>
     }
 }

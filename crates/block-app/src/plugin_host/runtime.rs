@@ -10,9 +10,9 @@ use beui::reactive::EmbedPlacement;
 use beui::{Pos2, Rect, Vec2, pos2, vec2};
 use block_plugin_api::{
     ArtifactDescription, BlockPick, ChildPlacements, ChildPreview, EditorInstanceId, EditorRegion,
-    FrameCommit, FrameSpec, HostPanel, Opening, PluginManifest, PresentedFrame,
-    PreviewImage, RegionSize, ScreenDamage, ScreenId, ScreenLayout, ScreenPlacement, ScreenRequest,
-    ScreenWindow, SurfaceFormat, SurfaceSpec, ViewChange, Watched,
+    FrameCommit, FrameSpec, HostPanel, Opening, PluginManifest, PresentedFrame, PreviewImage,
+    RegionSize, ScreenDamage, ScreenId, ScreenLayout, ScreenPlacement, ScreenRequest, ScreenWindow,
+    SurfaceFormat, SurfaceSpec, ViewChange, Watched,
 };
 use uuid::Uuid;
 
@@ -2122,14 +2122,9 @@ fn apply_offers(runtime: &mut Runtime, instance: EditorInstanceId, region: Edito
         ),
     };
     let visible = shown.map_or(Rect::ZERO, |source| scale_rect(source, size));
-    runtime.instances.place_mounted(
-        instance,
-        region,
-        frame,
-        size,
-        visible,
-        scale_factor,
-    );
+    runtime
+        .instances
+        .place_mounted(instance, region, frame, size, visible, scale_factor);
     if let Some(view) = view {
         runtime.instances.set_view(instance, view);
     }

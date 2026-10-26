@@ -842,7 +842,9 @@ impl State {
                 placements.insert(surface, WindowPlacement::Host(placement));
             }),
             WindowReport::Focused { focused: true, .. } => self.window_focused(surface),
-            WindowReport::Scaled { .. } | WindowReport::Moved { .. } | WindowReport::Focused { .. } => {}
+            WindowReport::Scaled { .. }
+            | WindowReport::Moved { .. }
+            | WindowReport::Focused { .. } => {}
             WindowReport::Closed(_) => {
                 for tab in self.state.get_untracked().surface_tabs(surface) {
                     self.close_tab(tab);

@@ -30,10 +30,7 @@ fn the_lock_screen_sample_stays_locked_until_its_password_is_typed() {
 
     test.click("demo.lock.open");
     test.frame(Vec::new());
-    assert!(
-        test.shows("demo.lock"),
-        "the lock screen covers the window"
-    );
+    assert!(test.shows("demo.lock"), "the lock screen covers the window");
 
     type_password(&mut test, "hunter2");
     assert!(test.shows("demo.lock.error"), "a wrong password says so");

@@ -30,7 +30,11 @@ fn each_screen_shows_its_own_window_at_its_own_scale() {
     let mut right = Screen::new(&gpu, (WIDTH, HEIGHT), Rotation::Normal);
     right.scale = 2.0;
     right.rect = Rect::from_min_size(pos2(32.0, 0.0), right.size());
-    assert_eq!(right.size(), vec2(16.0, 12.0), "a doubled screen is half as many points");
+    assert_eq!(
+        right.size(),
+        vec2(16.0, 12.0),
+        "a doubled screen is half as many points"
+    );
     left.prepare(&gpu, &filled(left.size(), Color32::from_rgb(255, 0, 0)));
     right.prepare(&gpu, &filled(right.size(), Color32::from_rgb(0, 0, 255)));
     let frame = Frame {
@@ -55,7 +59,11 @@ fn each_screen_shows_its_own_window_at_its_own_scale() {
     );
 
     assert_eq!(pixel(&left_pixels, 10, 20), RED);
-    assert_eq!(pixel(&left_pixels, 20, 20), [0, 0, 0, 255], "its window's right half is empty");
+    assert_eq!(
+        pixel(&left_pixels, 20, 20),
+        [0, 0, 0, 255],
+        "its window's right half is empty"
+    );
     assert_eq!(
         pixel(&right_pixels, 12, 20),
         BLUE,

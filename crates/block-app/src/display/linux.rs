@@ -119,7 +119,12 @@ fn publish() {
             monitors
                 .borrow()
                 .iter()
-                .map(|monitor| host_display(monitor, shown.iter().find(|display| display.id == monitor.id)))
+                .map(|monitor| {
+                    host_display(
+                        monitor,
+                        shown.iter().find(|display| display.id == monitor.id),
+                    )
+                })
                 .collect::<Vec<_>>()
         })
     });

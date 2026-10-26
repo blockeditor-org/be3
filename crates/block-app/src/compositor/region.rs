@@ -313,7 +313,11 @@ pub(crate) fn PluginRegion(
         plugin_host::report_children(&plugin_id.value(), instance, region, statuses);
     });
     on_cleanup(move || {
-        super::desktop::merged_statuses((plugin_id.value().to_string(), instance, region), mount, None);
+        super::desktop::merged_statuses(
+            (plugin_id.value().to_string(), instance, region),
+            mount,
+            None,
+        );
     });
     if offscreen {
         return view! {

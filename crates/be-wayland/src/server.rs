@@ -1,9 +1,9 @@
+use std::cell::RefCell;
 use std::error::Error;
 use std::ffi::{OsStr, OsString};
 use std::os::fd::{AsFd, BorrowedFd, OwnedFd};
 use std::os::unix::net::UnixStream;
 use std::path::Path;
-use std::cell::RefCell;
 use std::rc::Rc;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
@@ -143,10 +143,13 @@ impl Server {
         for fd in fds {
             let wake = wake.clone();
             handle
-                .insert_source(Generic::new(fd, Interest::READ, Mode::Edge), move |_, _, _| {
-                    wake();
-                    Ok(PostAction::Continue)
-                })
+                .insert_source(
+                    Generic::new(fd, Interest::READ, Mode::Edge),
+                    move |_, _, _| {
+                        wake();
+                        Ok(PostAction::Continue)
+                    },
+                )
                 .map_err(|error| std::io::Error::other(error.to_string()))?;
         }
         let handle = handle.clone();

@@ -164,7 +164,8 @@ pub(crate) fn before(context: &Context, rect: Rect, _document: &mut Document) {
         }
         if let Some(flips) = &running.flips {
             for flip in flips.take() {
-                let Some(monitor) = monitors.iter().find(|monitor| monitor.id == flip.screen) else {
+                let Some(monitor) = monitors.iter().find(|monitor| monitor.id == flip.screen)
+                else {
                     continue;
                 };
                 running.compositor.presented(

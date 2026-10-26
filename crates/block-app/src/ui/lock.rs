@@ -48,10 +48,7 @@ fn clock() -> ReadSignal<DateTime> {
 }
 
 #[component]
-pub(crate) fn SessionLock(
-    view: AppViewStore,
-    #[prop(default = true)] shortcut: bool,
-) -> NodeId {
+pub(crate) fn SessionLock(view: AppViewStore, #[prop(default = true)] shortcut: bool) -> NodeId {
     let lock = view.lock;
     let available = create_memo(move || lock.get().available && !lock.get().locked);
     if shortcut {

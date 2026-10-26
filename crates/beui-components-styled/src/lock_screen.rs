@@ -115,57 +115,57 @@ fn LockCard(
     let card_id = id.clone();
     view! {
         <Frame align=Align::Center @test_id=card_id>
-                <List spacing=GROUP_SPACING align=Align::Center>
-                    <List spacing=SPACING align=Align::Center>
-                        <Text style=TextStyle::DISPLAY>{time}</Text>
-                        <Text color=TextColor::Muted>{date}</Text>
-                    </List>
-                    <List spacing=SPACING align=Align::Center>
-                        <Text style=TextStyle::TITLE>{user}</Text>
-                        <Frame width=FIELD_WIDTH>
-                            <TextInput
-                                value={password}
-                                placeholder="Password"
-                                label="Password"
-                                password=true
-                                disabled={busy}
-                                focused={focused}
-                                @test_id={format!("{id}.password")}
-                                on_submit={on_submit}
-                            />
-                        </Frame>
-                        <Show condition={checking}>
-                            <Text style=TextStyle::CAPTION>"Checking…"</Text>
-                        </Show>
-                        <Show condition={failed}>
-                            <Text
-                                style=TextStyle::CAPTION
-                                color=TextColor::Danger
-                                @test_id={error_id.clone()}
-                            >
-                                {reason}
-                            </Text>
-                        </Show>
-                    </List>
-                    <List direction=Direction::Horizontal spacing=ACTION_SPACING>
-                        <ForEach keys={slots}>|index: usize| {
-                            let glyph = create_memo(move || {
-                                actions.with(|actions| actions.get(index).map(|action| action.glyph))
-                            });
-                            let label = create_memo(move || {
-                                actions.with(|actions| actions.get(index).map(|action| action.label.clone()).unwrap_or_default())
-                            });
-                            view! {
-                                <IconButton
-                                    glyph
-                                    label
-                                    @test_id={format!("{action_id}.action.{index}")}
-                                    on_click={move || on_action.call(index)}
-                                />
-                            }
-                        }</ForEach>
-                    </List>
+            <List spacing=GROUP_SPACING align=Align::Center>
+                <List spacing=SPACING align=Align::Center>
+                    <Text style=TextStyle::DISPLAY>{time}</Text>
+                    <Text color=TextColor::Muted>{date}</Text>
                 </List>
+                <List spacing=SPACING align=Align::Center>
+                    <Text style=TextStyle::TITLE>{user}</Text>
+                    <Frame width=FIELD_WIDTH>
+                        <TextInput
+                            value={password}
+                            placeholder="Password"
+                            label="Password"
+                            password=true
+                            disabled={busy}
+                            focused={focused}
+                            @test_id={format!("{id}.password")}
+                            on_submit={on_submit}
+                        />
+                    </Frame>
+                    <Show condition={checking}>
+                        <Text style=TextStyle::CAPTION>"Checking…"</Text>
+                    </Show>
+                    <Show condition={failed}>
+                        <Text
+                            style=TextStyle::CAPTION
+                            color=TextColor::Danger
+                            @test_id={error_id.clone()}
+                        >
+                            {reason}
+                        </Text>
+                    </Show>
+                </List>
+                <List direction=Direction::Horizontal spacing=ACTION_SPACING>
+                    <ForEach keys={slots}>|index: usize| {
+                        let glyph = create_memo(move || {
+                            actions.with(|actions| actions.get(index).map(|action| action.glyph))
+                        });
+                        let label = create_memo(move || {
+                            actions.with(|actions| actions.get(index).map(|action| action.label.clone()).unwrap_or_default())
+                        });
+                        view! {
+                            <IconButton
+                                glyph
+                                label
+                                @test_id={format!("{action_id}.action.{index}")}
+                                on_click={move || on_action.call(index)}
+                            />
+                        }
+                    }</ForEach>
+                </List>
+            </List>
         </Frame>
     }
 }

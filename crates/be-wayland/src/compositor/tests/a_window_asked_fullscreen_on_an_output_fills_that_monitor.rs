@@ -15,7 +15,11 @@ fn a_window_asked_fullscreen_on_an_output_fills_that_monitor() {
         .output_named("monitor 1")
         .expect("the client bound the right monitor's output");
 
-    window.toplevel.as_ref().unwrap().set_fullscreen(Some(&output));
+    window
+        .toplevel
+        .as_ref()
+        .unwrap()
+        .set_fullscreen(Some(&output));
     harness.acknowledge(&window);
     let listed = harness.compositor().windows().list().get_untracked();
     assert_eq!(

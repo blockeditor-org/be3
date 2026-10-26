@@ -113,11 +113,7 @@ impl InputForwarder {
     }
 }
 
-pub(super) fn viewport_metrics(
-    size: Vec2,
-    visible: Rect,
-    scale_factor: f32,
-) -> ViewportMetrics {
+pub(super) fn viewport_metrics(size: Vec2, visible: Rect, scale_factor: f32) -> ViewportMetrics {
     let logical = Size {
         width: size.x.max(0.0),
         height: size.y.max(0.0),

@@ -4,7 +4,7 @@ use crate::{Forwarded, ForwardedInput, HostPlacement, WindowId, WindowPlacement,
 
 #[test]
 fn a_press_held_in_one_window_is_forwarded_in_its_coordinates_once_the_pointer_crosses_into_another()
-{
+ {
     let _root = crate::reactive::RootScope::new();
     let (left, right) = (WindowId::next(), WindowId::next());
     let forwarded = create_signal(Vec::<ForwardedInput>::new());
@@ -12,14 +12,22 @@ fn a_press_held_in_one_window_is_forwarded_in_its_coordinates_once_the_pointer_c
         let placed = |name: &str| WindowPlacement::Host(HostPlacement(name.to_owned()));
         view! {
             <Layers>
-                <Window id={Some(left)} size={vec2(400.0, 300.0)} placement={placed("left")}>|_handle: WindowHandle|
+                <Window
+                    id={Some(left)}
+                    size={vec2(400.0, 300.0)}
+                    placement={placed("left")}
+                >|_handle: WindowHandle|
                     <Interactive
                         on_forward={move |input| forwarded.update(|forwarded| forwarded.push(input))}
                     >
                         <Frame />
                     </Interactive>
                 </Window>
-                <Window id={Some(right)} size={vec2(400.0, 300.0)} placement={placed("right")}>|_handle: WindowHandle|
+                <Window
+                    id={Some(right)}
+                    size={vec2(400.0, 300.0)}
+                    placement={placed("right")}
+                >|_handle: WindowHandle|
                     <Frame />
                 </Window>
             </Layers>

@@ -16,11 +16,11 @@ use beui_core::app::SafeArea;
 use beui_core::clipboard::{PasteAnswer, PasteKind, Pasted};
 use beui_core::preferences::{Motion, PreferenceLayer, ThemeKind};
 use beui_core::renderer::Loaded;
+use beui_core::runner::Incoming;
 use beui_core::runner::{Runner, panic_message};
 use beui_core::window::{
     WindowHosting, WindowId, WindowPlacement, WindowReport, WindowRequest, WindowState,
 };
-use beui_core::runner::Incoming;
 use smithay::backend::allocator::gbm::GbmDevice;
 use smithay::backend::drm::{
     DrmDevice, DrmDeviceFd, DrmEvent, DrmEventMetadata, DrmEventTime, DrmNode, NodeType,
@@ -53,7 +53,6 @@ use be_dmabuf::{Vulkan, adapter_for, open_device};
 
 use crate::display::{DisplayConfig, DisplayControl};
 use crate::displays::{Display, Displays};
-use crate::outputs::{DisplayRenderer, Outputs};
 use crate::epaper::{Change, Epaper, Panel};
 use crate::escape::{Escape, FINGERS as ESCAPE_FINGERS, HOLD as ESCAPE_HOLD};
 use crate::flips::{Flip, Flips};
@@ -65,6 +64,7 @@ use crate::input::{
 use crate::keyboard::Keyboard;
 use crate::layout::{absolute, arrange, bounds, clamp, moved};
 use crate::output::{Buffers, Output, connected, wait_for};
+use crate::outputs::{DisplayRenderer, Outputs};
 use crate::pacing::{Lane, Pacer, Wait};
 use crate::problems::Problems;
 use crate::recovery::{Card, Recovery};
@@ -843,7 +843,10 @@ impl Session {
             .map(|output| Display {
                 id: output.id().to_owned(),
                 name: output.name().to_owned(),
-                position: beui::pos2(output.screen.rect.min.x / zoom, output.screen.rect.min.y / zoom),
+                position: beui::pos2(
+                    output.screen.rect.min.x / zoom,
+                    output.screen.rect.min.y / zoom,
+                ),
                 size: output.screen.rect.size() / zoom,
                 scale: output.screen.scale * zoom,
             })

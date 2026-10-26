@@ -187,7 +187,11 @@ impl TestClient {
 
     pub(crate) fn bind_outputs(&mut self) {
         for (name, interface, version) in self.received.globals.clone() {
-            let bound = self.received.output_names.iter().any(|(held, _)| *held == name);
+            let bound = self
+                .received
+                .output_names
+                .iter()
+                .any(|(held, _)| *held == name);
             if interface == "wl_output" && !bound {
                 let output = self.registry.bind::<wl_output::WlOutput, u32, Received>(
                     name,
@@ -801,7 +805,8 @@ impl Dispatch<wl_surface::WlSurface, ()> for Received {
         _: &Connection,
         _: &QueueHandle<Self>,
     ) {
-        let output_name = |output: &wl_output::WlOutput| wayland_client::Proxy::data::<u32>(output).copied();
+        let output_name =
+            |output: &wl_output::WlOutput| wayland_client::Proxy::data::<u32>(output).copied();
         match event {
             wl_surface::Event::Enter { output } => state.entered.extend(output_name(&output)),
             wl_surface::Event::Leave { output } => {

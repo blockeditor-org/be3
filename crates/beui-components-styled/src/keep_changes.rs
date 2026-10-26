@@ -132,21 +132,21 @@ fn KeepChangesCard(
     };
     view! {
         <Frame align=Align::Center>
-                <DialogSurface
-                    width=WIDTH
-                    title={title}
-                    role=Role::AlertDialog
-                    actions={actions}
-                    surface_id={id.clone()}
+            <DialogSurface
+                width=WIDTH
+                title={title}
+                role=Role::AlertDialog
+                actions={actions}
+                surface_id={id.clone()}
+            >
+                <Text
+                    style=TextStyle::PARAGRAPH
+                    @test_id={format!("{id}.countdown")}
+                    wrap=Wrap::Words
                 >
-                    <Text
-                        style=TextStyle::PARAGRAPH
-                        @test_id={format!("{id}.countdown")}
-                        wrap=Wrap::Words
-                    >
-                        {message}
-                    </Text>
-                </DialogSurface>
+                    {message}
+                </Text>
+            </DialogSurface>
         </Frame>
     }
 }

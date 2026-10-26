@@ -1501,7 +1501,12 @@ impl Document {
         let mut roots = Vec::new();
         if let Some(root) = self.root.filter(|_| ctx.shows_window(ctx.drawing_window())) {
             self.paint_cache.get_mut().paint_into(WindowId::MAIN);
-            paint::paint(self, &ctx.window_painter(ctx.drawing_window()), &self.rects, root);
+            paint::paint(
+                self,
+                &ctx.window_painter(ctx.drawing_window()),
+                &self.rects,
+                root,
+            );
             roots.push((WindowId::MAIN, root));
         }
         let layers = self.layers();

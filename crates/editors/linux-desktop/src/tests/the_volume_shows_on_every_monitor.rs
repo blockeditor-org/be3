@@ -8,7 +8,10 @@ fn the_volume_shows_on_every_monitor() {
     let right = Rect::from_min_size(pos2(800.0, 200.0), vec2(560.0, 400.0));
     let mut fixture = Fixture::new();
     fixture.test.set_size(vec2(1360.0, 600.0));
-    fixture.report_screens(vec![monitor("left", left, 1.0), monitor("right", right, 2.0)]);
+    fixture.report_screens(vec![
+        monitor("left", left, 1.0),
+        monitor("right", right, 2.0),
+    ]);
     fixture.test.set_watched::<MediaWatch>(&MediaLevels {
         output: Some(MediaLevel {
             level: 0.4,

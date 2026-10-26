@@ -12,8 +12,8 @@ use beui::reactive::*;
 
 use crate::editors::EditorAction;
 
-pub(crate) use editors::{OwnedEditors, PresentingSurface, ShellSurface};
 pub(crate) use desktop::{DesktopMount, DesktopPlace};
+pub(crate) use editors::{OwnedEditors, PresentingSurface, ShellSurface};
 pub(crate) use region::{ChildView, PluginRegion, RegionEditor};
 
 type Listeners = HashMap<String, Vec<(u64, Signal<u64>)>>;

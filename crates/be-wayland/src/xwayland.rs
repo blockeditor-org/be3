@@ -325,15 +325,13 @@ impl State {
 
     pub(crate) fn send_overlay_frames(&self, id: WindowId, time: Duration) {
         for overlay in self.xwayland.overlays.iter().filter(|o| o.owner == id) {
-            if let (Some(surface), Some(output)) = (overlay.surface.wl_surface(), self.output_of(id)) {
+            if let (Some(surface), Some(output)) =
+                (overlay.surface.wl_surface(), self.output_of(id))
+            {
                 let sent = output.clone();
-                send_frames_surface_tree(
-                    &surface,
-                    &output,
-                    time,
-                    Some(Duration::ZERO),
-                    |_, _| Some(sent.clone()),
-                );
+                send_frames_surface_tree(&surface, &output, time, Some(Duration::ZERO), |_, _| {
+                    Some(sent.clone())
+                });
             }
         }
     }
