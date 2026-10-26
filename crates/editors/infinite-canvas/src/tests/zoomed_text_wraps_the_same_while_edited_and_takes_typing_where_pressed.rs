@@ -19,7 +19,7 @@ fn index_at(editor: &BeuiTest<CanvasApp>, field: &str, at: Pos2) -> usize {
     let document = editor.document();
     let node = document.find_test_id(field).expect("the text is drawn");
     let surface = document.api::<TextAreaSurfaceApi>(node).surface();
-    document.api::<TextAreaApi>(surface).index_at(document, at)
+    document.api::<TextAreaApi>(surface).index_at(&*document, at)
 }
 
 fn layout(editor: &BeuiTest<CanvasApp>, field: &str) -> Vec<usize> {
@@ -60,7 +60,11 @@ fn zoomed_text_wraps_the_same_while_edited_and_takes_typing_where_pressed() {
     assert!(starts >= 3, "the text wraps onto several lines: {shown:?}");
     editor.double_click(pos2(resting.left() + 8.0, resting.top() + 8.0));
     editor.run();
-    assert_eq!(editor.rect_of(&field), resting, "the text stays put to edit");
+    assert_eq!(
+        editor.rect_of(&field),
+        resting,
+        "the text stays put to edit"
+    );
     assert_eq!(
         layout(&editor, &field),
         shown,

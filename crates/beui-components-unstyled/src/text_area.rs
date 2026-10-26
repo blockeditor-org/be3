@@ -490,7 +490,7 @@ impl Surface {
     fn room(&self) -> f32 {
         let padding = self.padding.get_untracked();
         (self.view_width.get_untracked() - padding.left - padding.right - self.caret_width())
-        .max(0.0)
+            .max(0.0)
     }
 
     fn selection_handles(&self) -> Option<Range<usize>> {

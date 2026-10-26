@@ -99,7 +99,9 @@ pub(super) fn Lines(cx: Context) -> NodeId {
 fn scale_of(cx: Context, canvas: NodeRef) -> f32 {
     canvas
         .try_get()
-        .map_or(1.0, |canvas| cx.held.with(|held| held.placements.scale(canvas)))
+        .map_or(1.0, |canvas| {
+            cx.held.with(|held| held.placements.scale(canvas))
+        })
         .max(f32::EPSILON)
 }
 

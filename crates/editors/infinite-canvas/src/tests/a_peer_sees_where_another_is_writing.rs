@@ -9,7 +9,10 @@ fn shown_carets(editor: &BeuiTest<CanvasApp>, id: Uuid) -> Vec<RemoteTextCursor>
         .find_test_id(&format!("infinite-canvas.text.{id}"))
         .expect("the text is drawn");
     let surface = editor.document().api::<TextAreaSurfaceApi>(area).surface();
-    editor.document().api::<TextAreaApi>(surface).remote_cursors()
+    editor
+        .document()
+        .api::<TextAreaApi>(surface)
+        .remote_cursors()
 }
 
 fn shown_cursor(editor: &mut BeuiTest<CanvasApp>) -> Option<CanvasCursor> {
