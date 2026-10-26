@@ -35,8 +35,9 @@ attribute is what makes the function usable as a tag, gives it `@test_id`,
 `@node_ref` and `@sizing`, makes `ComponentRef::fill`, `component_accessibility`
 and `component_placed` available inside it (they panic anywhere else), and
 gives it a scope of its own, so the contexts it provides reach only what it
-builds rather than its siblings. Nothing checks for the attribute; a plain
-function that writes a `view!` builds into its caller's scope.
+builds rather than its siblings. `./scripts/verify`'s fix-rust-source
+rejects a function that writes a `view!` without it (see below), since such a
+function would build into its caller's scope.
 
 Nodes and effects live and die together whether or not a function is a
 component: a node belongs to the reactive scope it was created in, and
