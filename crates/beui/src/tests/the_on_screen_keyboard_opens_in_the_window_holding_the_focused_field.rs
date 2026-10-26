@@ -1,8 +1,8 @@
 use super::*;
-use crate::reactive::*;
 use crate::keyboard::styled::key_center;
-use crate::styled::*;
 use crate::keyboard::unstyled::{Layer as KeyLayer, Value};
+use crate::reactive::*;
+use crate::styled::*;
 use crate::{HostPlacement, WindowId, WindowPlacement};
 
 #[test]

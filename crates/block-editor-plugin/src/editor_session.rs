@@ -767,13 +767,10 @@ impl EditorSession {
             .and_then(|(dropped, files)| (*dropped == region).then(|| files.clone()));
         self.host.set_files(region, files);
         if region == EditorRegion::ArtifactSettings {
-            let draft = self
-                .artifact
-                .as_ref()
-                .map(|artifact| crate::SettingsDraft {
-                    saved: artifact.data.clone(),
-                    draft: artifact.draft.clone(),
-                });
+            let draft = self.artifact.as_ref().map(|artifact| crate::SettingsDraft {
+                saved: artifact.data.clone(),
+                draft: artifact.draft.clone(),
+            });
             self.host.open_settings_draft(draft);
         }
         context

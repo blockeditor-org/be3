@@ -149,25 +149,25 @@ pub(crate) fn LockScreen(
             level=LayerLevel::Lock
             motion=ModalMotion::Still
         >|| {
-                let focused = create_memo(move || open.get() && !busy.get());
-                let submit = submit.clone();
-                view! {
-                    <Frame align={Align2::CENTER}>
-                        <LockCard
-                            time
-                            date
-                            user
-                            error
-                            busy
-                            actions
-                            password
-                            focused
-                            id={id.clone()}
-                            on_submit={move |typed: String| submit(typed)}
-                            on_action
-                        />
-                    </Frame>
-                }
+            let focused = create_memo(move || open.get() && !busy.get());
+            let submit = submit.clone();
+            view! {
+                <Frame align={Align2::CENTER}>
+                    <LockCard
+                        time
+                        date
+                        user
+                        error
+                        busy
+                        actions
+                        password
+                        focused
+                        id={id.clone()}
+                        on_submit={move |typed: String| submit(typed)}
+                        on_action
+                    />
+                </Frame>
+            }
         }</Modal>
     }
 }

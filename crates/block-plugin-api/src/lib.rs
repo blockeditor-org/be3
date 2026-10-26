@@ -77,10 +77,10 @@ pub use shell_types::{
 pub use types::{
     ChildContent, ChildLayer, ChildMode, ChildPlacement, ChildPlacements, DialogFrame,
     EditorRegion, Failure, FontFace, FontRole, Fonts, FrameChrome, FrameCommit, FrameReport,
-    FrameSpec, Hello, HelloAccepted, HostPanel, InputBatch, Occluder, OpenArtifact,
-    OpenBlock, OpenCreation, Opening, PluginIdentity, PresentedFrame, PressClaim, RegionSize,
-    ScreenDamage, ScreenLayout, ScreenPlacement, ScreenRequest, ScreenWindow, Size, SurfaceFormat,
-    SurfaceRect, SurfaceSpec, SurfaceSupport, TimedInput, TopBar, ViewportMetrics,
+    FrameSpec, Hello, HelloAccepted, HostPanel, InputBatch, Occluder, OpenArtifact, OpenBlock,
+    OpenCreation, Opening, PluginIdentity, PresentedFrame, PressClaim, RegionSize, ScreenDamage,
+    ScreenLayout, ScreenPlacement, ScreenRequest, ScreenWindow, Size, SurfaceFormat, SurfaceRect,
+    SurfaceSpec, SurfaceSupport, TimedInput, TopBar, ViewportMetrics,
 };
 
 pub use account::HostPreferenceSources;

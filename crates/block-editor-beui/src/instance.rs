@@ -205,12 +205,7 @@ impl<A: BeuiApp> Parts<A> {
     }
 }
 
-fn steer(
-    document: &mut Document,
-    control: Option<DialogControl>,
-    host: &EditorHost,
-    view: &View,
-) {
+fn steer(document: &mut Document, control: Option<DialogControl>, host: &EditorHost, view: &View) {
     let Some(control) = control else {
         return;
     };
