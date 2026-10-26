@@ -358,10 +358,7 @@ impl Editors {
             .copied()
     }
 
-    pub(crate) fn set_settings_status(
-        &self,
-        status: Option<(Uuid, f32, DialogStatus)>,
-    ) {
+    pub(crate) fn set_settings_status(&self, status: Option<(Uuid, f32, DialogStatus)>) {
         let state = self.0.value();
         if *state.settings_status.borrow() == status {
             return;

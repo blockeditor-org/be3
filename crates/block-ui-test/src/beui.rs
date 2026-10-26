@@ -813,7 +813,6 @@ impl<A: BeuiApp> BeuiTest<A> {
             error: None,
             menu: Vec::new(),
             creation: None,
-            settings: None,
             preview: Default::default(),
             dialog: Default::default(),
         });

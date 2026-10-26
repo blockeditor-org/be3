@@ -35,6 +35,8 @@ const COMPONENT_CRATES: [&str; 8] = [
     "crates\\beui-keyboard\\",
 ];
 
+const BASE_CRATES: [&str; 2] = ["crates/beui-core/", "crates\\beui-core\\"];
+
 const DOCUMENT_ACCESS: [&str; 5] = [
     "with_document",
     "try_with_document",
@@ -113,7 +115,9 @@ pub(crate) fn beui_violations(tree: &SourceFile, source: &str, relative: &str) -
         .any(|allowed| relative.starts_with(allowed))
     {
         violations.extend(primitive_uses(tree, source, relative));
-        violations.extend(fixed_extent_uses(tree, source, relative));
+        if !BASE_CRATES.iter().any(|base| relative.starts_with(base)) {
+            violations.extend(fixed_extent_uses(tree, source, relative));
+        }
     }
     if !test_source {
         violations.extend(component_uses(tree, source, relative));

@@ -2469,11 +2469,8 @@ impl BlockApp {
         if let Some(edited) = session.take_draft() {
             *draft = edited;
         }
-        self.editors.set_settings_status(Some((
-            id,
-            session.settings_height(),
-            session.dialog(),
-        )));
+        self.editors
+            .set_settings_status(Some((id, session.settings_height(), session.dialog())));
         self.dynamic_artifact_sessions.insert(id, session);
     }
 

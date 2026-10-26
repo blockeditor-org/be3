@@ -138,8 +138,8 @@ pub use theme::{
 };
 pub use tile_button::TileButton;
 pub use toast::Toasts;
-pub use tool_pill::ToolPill;
 pub use tokens::{CornerSet, Length, Padding, Size, Space, Stroke, use_size, use_space};
+pub use tool_pill::ToolPill;
 pub use tooltip::Tooltip;
 pub use tree::{Tree, TreeRowFace};
 

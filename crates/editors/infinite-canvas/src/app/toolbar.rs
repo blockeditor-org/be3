@@ -106,30 +106,30 @@ pub(crate) fn ZoomPill(state: CanvasState, anchor: NodeRef, shown: Prop<bool>) -
         view! {
             <Frame padding=PILL_MARGIN>
                 <ToolPill @test_id={"infinite-canvas.zoom-pill"}>
-                        <Button
-                            icon_only=true
-                            @test_id={"infinite-canvas.pill.zoom-out"}
-                            action={actions.zoom_out}
-                        />
-                        <Button
-                            label={readout}
-                            variant=ButtonVariant::Ghost
-                            @test_id={"infinite-canvas.pill.zoom"}
-                            on_click={move || {
-                                reset.run();
-                            }}
-                        />
-                        <Button
-                            icon_only=true
-                            @test_id={"infinite-canvas.pill.zoom-in"}
-                            action={actions.zoom_in}
-                        />
-                        <Button
-                            icon_only=true
-                            @test_id={"infinite-canvas.pill.fit"}
-                            action={actions.fit_all}
-                        />
-                                    </ToolPill>
+                    <Button
+                        icon_only=true
+                        @test_id={"infinite-canvas.pill.zoom-out"}
+                        action={actions.zoom_out}
+                    />
+                    <Button
+                        label={readout}
+                        variant=ButtonVariant::Ghost
+                        @test_id={"infinite-canvas.pill.zoom"}
+                        on_click={move || {
+                            reset.run();
+                        }}
+                    />
+                    <Button
+                        icon_only=true
+                        @test_id={"infinite-canvas.pill.zoom-in"}
+                        action={actions.zoom_in}
+                    />
+                    <Button
+                        icon_only=true
+                        @test_id={"infinite-canvas.pill.fit"}
+                        action={actions.fit_all}
+                    />
+                </ToolPill>
             </Frame>
         }
     })

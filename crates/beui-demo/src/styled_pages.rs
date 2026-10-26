@@ -1853,12 +1853,7 @@ fn CardMenu() -> NodeId {
                         <MenuItem label="Email" glyph=ICON_MAIL />
                         <MenuItem label="Link" glyph=ICON_LINK />
                     </MenuItem>
-                    <MenuItem
-                        label="Delete"
-                        glyph=ICON_TRASH
-                        danger=true
-                        separated=true
-                    />
+                    <MenuItem label="Delete" glyph=ICON_TRASH danger=true separated=true />
                 }}
                 on_select={move |path: Vec<usize>| {
                     let label = match path.as_slice() {
@@ -2116,11 +2111,7 @@ fn folder_shown(folder: usize, expanded: &[usize]) -> bool {
 
 #[sample]
 #[component]
-fn FolderRow(
-    folder: usize,
-    location: Signal<usize>,
-    expanded: Signal<Vec<usize>>,
-) -> MenuItem {
+fn FolderRow(folder: usize, location: Signal<usize>, expanded: Signal<Vec<usize>>) -> MenuItem {
     let (name, depth, _) = FOLDERS[folder];
     let branch = FOLDERS.iter().any(|(_, _, parent)| *parent == Some(folder));
     let open = Binding::new(
@@ -2750,12 +2741,7 @@ fn ActionsSheet() -> NodeId {
                         <MenuItem label="Duplicate" glyph=ICON_COPY_PLUS />
                         <MenuItem label="Rename" glyph=ICON_PENCIL detail="Ctrl+R" />
                         <MenuItem label="Share" glyph=ICON_SHARE_2 disabled=true />
-                        <MenuItem
-                            label="Delete"
-                            glyph=ICON_TRASH
-                            danger=true
-                            separated=true
-                        />
+                        <MenuItem label="Delete" glyph=ICON_TRASH danger=true separated=true />
                     }}
                     on_select={move |path: Vec<usize>| {
                         let done = match path.as_slice() {

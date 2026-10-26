@@ -21,9 +21,7 @@ pub fn BottomDock(
             <Frame padding=DOCK_MARGIN>
                 <List align=Align::Center spacing=Space::None>
                     {above.map(|above| above.call(())).unwrap_or_default()}
-                    <ToolPill @test_id={name}>
-                        {tools.call(())}
-                    </ToolPill>
+                    <ToolPill @test_id={name}>{tools.call(())}</ToolPill>
                 </List>
             </Frame>
         }

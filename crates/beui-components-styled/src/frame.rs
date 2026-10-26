@@ -265,17 +265,11 @@ impl Border {
     }
 
     pub const fn width(self, width: Stroke) -> Self {
-        Self {
-            width,
-            ..self
-        }
+        Self { width, ..self }
     }
 
     pub const fn offset(self, offset: Stroke) -> Self {
-        Self {
-            offset,
-            ..self
-        }
+        Self { offset, ..self }
     }
 
     fn outline(self, theme: &ThemeStore) -> Outline {
