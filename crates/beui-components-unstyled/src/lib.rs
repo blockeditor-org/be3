@@ -134,10 +134,10 @@ pub use split_button::SplitButton;
 pub use stack::Stack;
 pub use table::{Table, TableCell, TableColumnHeader, TableRow, TableRowHeader};
 pub use text_area::{
-    Completer, Completion, CompletionMenu, CompletionRowHandle, LeafSpan, Margin, MarkerColumn,
-    MarkerKind, Prose, ProseLine, QUOTE_BAR_WIDTH, QuoteBar, RULE_WIDTH, RemoteTextCursor,
-    RowTable, SyntaxColors, TableFill, TableLines, TextArea, TextAreaApi, TextAreaColors,
-    TextAreaLayout, TextAreaState, TextLeaf, TextLine, TextMarker, TextWidget, emoji_completer,
+    BlockGeometry, ChipGeometry, Completer, Completion, CompletionMenu, CompletionRowHandle,
+    LeafSpan, Margin, MarkerColumn, MarkerKind, PlainLine, Prose, ProseLine, QuoteBar,
+    RemoteTextCursor, RowTable, SyntaxColors, TableFill, TableLines, TextArea, TextAreaApi,
+    TextAreaColors, TextAreaGeometry, TextAreaLayout, TextAreaLook, WidgetGeometry, TextAreaState, TextLeaf, TextLine, TextMarker, TextWidget, emoji_completer,
     search_emoji,
 };
 pub use text_input::{TextInput, TextInputApi, TextInputHandle, TextInputStyle};

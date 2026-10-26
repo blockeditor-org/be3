@@ -299,6 +299,7 @@ fn UnderlinedInput() -> NodeId {
                     padding_horizontal: Prop::Static(0.0),
                     padding_vertical: Prop::Static(0.0),
                     prose: Prop::Static(None),
+                    geometry: Prop::Static(text_area_geometry()),
                     menu: None,
                 }}
                 on_submit={move |value: String| submitted.set(format!("Searched for {value}"))}
@@ -335,6 +336,7 @@ fn ProseInput() -> NodeId {
                         line_padding: (4.0, 4.0),
                         wrap: true,
                     })),
+                    geometry: Prop::Static(text_area_geometry()),
                     menu: None,
                 }}
             />
@@ -1136,6 +1138,7 @@ fn underlined_style() -> TextInputStyle {
         padding_horizontal: Prop::Static(0.0),
         padding_vertical: Prop::Static(0.0),
         prose: Prop::Static(None),
+        geometry: Prop::Static(text_area_geometry()),
         menu: None,
     }
 }
@@ -1436,6 +1439,7 @@ fn PlainNote() -> NodeId {
                 <unstyled::TextArea
                     state
                     colors={create_memo(move || beui::styled::text_area_colors(&theme.get()))}
+                    look={beui::styled::text_area_look()}
                     font_size=14.0
                     padding={beui::Vec2::new(12.0, 8.0)}
                     completer={emoji_completer()}

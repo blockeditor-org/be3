@@ -522,6 +522,7 @@ fn written(painter: &Painter, entity: &CanvasEntity, ink: Color32, camera: Camer
         "",
         inner.width(),
         &colors,
+        text_area_geometry(),
         square,
         |pieces, options| Some(painter.rich_layout(pieces, options)),
     ) else {

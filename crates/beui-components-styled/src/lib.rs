@@ -112,6 +112,7 @@ pub use text_area::emoji::emoji_menu;
 pub use text_area::format_bar::FormatBar;
 pub use text_area::{
     DocumentLeaf, DocumentLine, DocumentMarker, TextArea, TextAreaSurfaceApi, text_area_colors,
+    text_area_geometry, text_area_look,
 };
 pub use text_input::TextInput;
 pub use theme::{

@@ -928,7 +928,7 @@ rows reach through `on_content_size` (padding included, read from the rows'
 `text_bounds`), and a caller sizes a box from that. The infinite canvas grows a
 text entity this way while it is edited, and draws each text and label as a
 read-only rich `TextArea` over a `LiveText`, the same area whether or not it is
-being edited, with `styled::DocumentMarker` as its marker hook, so a checklist shows the styled
+being edited, with `styled::text_area_look()`, so a checklist shows the styled
 `Checkbox` at the size of its text (a `Checkbox`'s `size` is the `TextSize` it sits beside). Its export is the one place text is laid out away from the tree
 (`TextAreaState::lay_out_prose`): it gives every marker a square the height of
 a line and paints it, and each quote's bar, as a pink box, since export does
@@ -992,8 +992,15 @@ aligned so numbers line up on the dot (a wider marker widens only its own line),
 `QUOTE_INDENT_EM` per quote, whatever the source's spaces. A markdown line that continues a list
 item (`LineLook::continues`) hides its indentation the same way and is indented to its item's
 text. The
-unstyled defaults draw from the `TextAreaColors` the caller passes (with its `font_size` and
-`padding`, all required; `styled::text_area_colors(&theme)` builds them from a theme); `styled::TextArea` draws with `DocumentLeaf`,
+three hooks come in a required `TextAreaLook` beside the required `TextAreaColors`, `font_size`
+and `padding`, with the area's `TextAreaGeometry`: every absolute size it draws or lays out with
+(caret width, padding around a document line, room below the last line, the gutter, run chips,
+inline widget pills, and block spacing and table cell padding, which are given for
+`BODY_SIZE` text and scale with `font_size`). Unstyled keeps only proportions of the text size
+(list and quote indents, margins, heading sizes). `TextAreaLook::plain(geometry)` draws text and
+nothing else (no code backgrounds, bars or markers), which is what `TextInput` uses with
+`TextInputStyle::geometry`. `styled::text_area_colors(&theme)`, `styled::text_area_geometry()` and
+`styled::text_area_look()` build them for a theme; the styled look draws with `DocumentLeaf`,
 `DocumentMarker` and `DocumentLine`, which use theme tokens, and a caller that draws voids handles `MarkerKind::Void`
 and hands every other marker to `DocumentMarker`. Copying and pasting
 carries the text without its marks. A menu is never asked for as a dropdown

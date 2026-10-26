@@ -989,6 +989,10 @@ pub(crate) fn area_colors() -> unstyled::TextAreaColors {
     styled::text_area_colors(&styled::Theme::DARK)
 }
 
+pub(crate) fn area_look() -> unstyled::TextAreaLook {
+    styled::text_area_look()
+}
+
 pub(crate) fn build_node(view: impl FnOnce() -> NodeId) -> Document {
     build(|| {
         let content = view();

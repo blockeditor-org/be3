@@ -15,6 +15,7 @@ fn up_and_down_in_a_single_line_text_area_move_to_its_ends() {
         view! {
             <TextArea
                 colors={area_colors()}
+                look={area_look()}
                 font_size=AREA_FONT_SIZE
                 padding=AREA_PADDING
                 state={state}

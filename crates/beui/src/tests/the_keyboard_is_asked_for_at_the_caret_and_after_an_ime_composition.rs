@@ -14,6 +14,7 @@ fn the_keyboard_is_asked_for_at_the_caret_and_after_an_ime_composition() {
         view! {
             <TextArea
                 colors={area_colors()}
+                look={area_look()}
                 font_size=AREA_FONT_SIZE
                 padding=AREA_PADDING
                 state={state}

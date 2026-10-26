@@ -5,6 +5,7 @@ pub mod emoji;
 pub mod hooks;
 pub mod keys;
 mod lines;
+pub mod look;
 pub mod rows;
 pub mod state;
 
@@ -40,7 +41,7 @@ use beui_view::reactive::*;
 
 use completion::{Completions, Query, query};
 use lines::{Lines, SingleLine};
-use rows::{BODY_SIZE, Composition, Inline, InlineItem, LINE_PADDING, Row, galley, line_of};
+use rows::{BODY_SIZE, Composition, Inline, InlineItem, Row, galley, line_of};
 use state::{AreaGeometry, Grab};
 use text_editor_core::ListMarker;
 
@@ -48,21 +49,15 @@ pub use colors::{SyntaxColors, TextAreaColors};
 pub use completion::{Completer, Completion, CompletionMenu, CompletionRowHandle};
 pub use emoji::{emoji_completer, search_emoji};
 pub use hooks::{
-    LeafSpan, Margin, MarkerColumn, MarkerKind, QUOTE_BAR_WIDTH, QuoteBar, RULE_WIDTH, TableFill,
-    TableLines, TextLeaf, TextLine, TextMarker,
+    LeafSpan, Margin, MarkerColumn, MarkerKind, PlainLine, QuoteBar, TableFill, TableLines,
+    TextLeaf, TextLine, TextMarker,
 };
+pub use look::{BlockGeometry, ChipGeometry, TextAreaGeometry, TextAreaLook, WidgetGeometry};
 pub use rows::{Prose, RowTable, TextWidget};
 pub use state::{ProseLine, TextAreaLayout, TextAreaState};
 
-pub const CARET_WIDTH: f32 = 2.0;
-const GUTTER_PADDING_LEFT: f32 = 10.0;
-const GUTTER_PADDING_RIGHT: f32 = 10.0;
-const GUTTER_ARROW_SIZE: f32 = 14.0;
 const TOUCH_HANDLE_HIT_RADIUS: f32 = 24.0;
 const CARET_HANDLE_TAP_SLACK: f32 = 4.0;
-const INLINE_WIDGET_RADIUS: f32 = 5.0;
-const RUN_CHIP_RADIUS: f32 = 3.0;
-const REMOTE_SELECTION_ALPHA: u8 = 70;
 const REVEAL_MARGIN: Vec2 = Vec2::new(8.0, 3.0);
 const REVEAL_ATTEMPTS: u8 = 3;
 const SELECT_ALL_CLICKS: u32 = 4;
@@ -121,6 +116,7 @@ struct Surface {
     widgets: Memo<Vec<TextWidget>>,
     client_colors: Memo<Vec<(u64, Color32)>>,
     colors: Memo<TextAreaColors>,
+    geometry: Memo<TextAreaGeometry>,
     composition: Memo<Option<Composition>>,
     placeholder: Memo<String>,
     font_size: Memo<f32>,
@@ -179,7 +175,7 @@ impl AreaGeometry for Surface {
                 let y = self.estimated_y(byte)?;
                 Some(Rect::from_min_size(
                     Pos2::new(self.padding.get_untracked().x, y),
-                    Vec2::new(CARET_WIDTH, self.row_estimate()),
+                    Vec2::new(self.caret_width(), self.row_estimate()),
                 ))
             }
         }
@@ -191,6 +187,10 @@ impl AreaGeometry for Surface {
 }
 
 impl Surface {
+    fn caret_width(&self) -> f32 {
+        self.geometry.get_untracked().caret_width
+    }
+
     fn canvas_rect(&self) -> Option<Rect> {
         self.held
             .value()
@@ -208,7 +208,7 @@ impl Surface {
         let padding = match (self.single_line, self.prose.get_untracked()) {
             (true, _) => (0.0, 0.0),
             (false, Some(prose)) => prose.line_padding,
-            (false, None) => LINE_PADDING,
+            (false, None) => self.geometry.get_untracked().line_padding,
         };
         body + padding.0 + padding.1
     }
@@ -224,7 +224,7 @@ impl Surface {
     fn caret_rect_at(&self, byte: usize) -> Option<Rect> {
         let entry = self.entry(self.line_of(byte))?;
         let display = entry.row().to_display(byte);
-        entry.text()?.caret_rect(display, CARET_WIDTH)
+        entry.text()?.caret_rect(display, self.caret_width())
     }
 
     fn estimated_y(&self, byte: usize) -> Option<f32> {
@@ -302,12 +302,14 @@ impl Surface {
             .sections()
             .iter()
             .any(|section| section.line_start == start);
+        let geometry = self.geometry.get_untracked();
+        let size = geometry.gutter_arrow;
         let arrow = Rect::from_min_size(
             Pos2::new(
-                rect.min.x + GUTTER_PADDING_LEFT,
-                rect.min.y + (row.line_height - GUTTER_ARROW_SIZE) / 2.0,
+                rect.min.x + geometry.gutter_padding.0,
+                rect.min.y + (row.line_height - size) / 2.0,
             ),
-            Vec2::splat(GUTTER_ARROW_SIZE),
+            Vec2::splat(size),
         );
         (collapsible && arrow.contains(pos)).then_some(start)
     }
@@ -439,7 +441,7 @@ impl Surface {
     fn caret_x(&self, byte: usize) -> Option<f32> {
         let entry = self.entry(self.line_of(byte))?;
         let text = entry.text()?;
-        let caret = text.caret_rect(entry.row().to_display(byte), CARET_WIDTH)?;
+        let caret = text.caret_rect(entry.row().to_display(byte), self.caret_width())?;
         Some(caret.min.x - text.rect()?.min.x)
     }
 
@@ -469,7 +471,7 @@ impl Surface {
     }
 
     fn room(&self) -> f32 {
-        (self.view_width.get_untracked() - self.padding.get_untracked().x * 2.0 - CARET_WIDTH)
+        (self.view_width.get_untracked() - self.padding.get_untracked().x * 2.0 - self.caret_width())
             .max(0.0)
     }
 
@@ -1020,16 +1022,17 @@ fn field_key(cx: &Context, press: KeyPress) -> bool {
         && (cx.completion_key(press) || keys::key(cx, press))
 }
 
-fn gutter_width(line_count: usize) -> f32 {
-    let digit =
-        galley("0", FontId::monospace(BODY_SIZE)).map_or(BODY_SIZE * 0.6, |galley| galley.size().x);
+fn gutter_width(line_count: usize, font_size: f32, geometry: &TextAreaGeometry) -> f32 {
+    let digit = galley("0", FontId::monospace(font_size))
+        .map_or(font_size * 0.6, |galley| galley.size().x);
     let mut digits = 1;
     let mut value = line_count.max(1);
     while value >= 10 {
         value /= 10;
         digits += 1;
     }
-    GUTTER_PADDING_LEFT + GUTTER_ARROW_SIZE + digit * digits as f32 + GUTTER_PADDING_RIGHT
+    let (left, right) = geometry.gutter_padding;
+    left + geometry.gutter_arrow + digit * digits as f32 + right
 }
 
 #[derive(Clone, Copy)]
@@ -1060,6 +1063,7 @@ pub fn TextArea(
     #[prop(default = true)] line_numbers: bool,
     #[prop(default = Vec::new())] widgets: Prop<Vec<TextWidget>>,
     colors: Prop<TextAreaColors>,
+    look: TextAreaLook,
     #[prop(default = Vec::new())] remote_cursors: Prop<Vec<RemoteTextCursor>>,
     #[prop(default = None)] drop_caret: Prop<Option<usize>>,
     #[prop(default = String::new())] placeholder: Prop<String>,
@@ -1077,9 +1081,6 @@ pub fn TextArea(
     frame: Option<Render<Child>>,
     block: Option<RenderFn<usize>>,
     selected_widget: Option<RenderFn<usize>>,
-    leaf: Option<RenderFn<TextLeaf, beui_view::components::text::Span>>,
-    marker: Option<RenderFn<TextMarker>>,
-    line: Option<RenderFn<TextLine>>,
     on_content_size: Callback<Vec2>,
     #[prop(default = Completer::none())] completer: Completer,
     completion_menu: Option<CompletionMenu>,
@@ -1123,6 +1124,8 @@ pub fn TextArea(
                 let padding = create_memo(move || padding.get());
                 let widgets = create_memo(move || widgets.get());
                 let colors = create_memo(move || colors.get());
+                let geometry = look.geometry;
+                let geometry = create_memo(move || geometry.get());
                 let remote_cursors = create_memo(move || remote_cursors.get());
                 let drop_caret = create_memo(move || drop_caret.get());
                 let text_extent = create_signal(Vec2::ZERO);
@@ -1197,7 +1200,7 @@ pub fn TextArea(
                     let rich = state.with_snapshot(|snapshot| snapshot.language == TextLanguage::RichText);
                     match single_line || !line_numbers || rich {
                         true => 0.0,
-                        false => gutter_width(starts.get().len()),
+                        false => gutter_width(starts.get().len(), font_size.get(), &geometry.get()),
                     }
                 });
                 let composition = create_memo(move || {
@@ -1236,8 +1239,9 @@ pub fn TextArea(
                         None => dismissed.set(None),
                     }
                 });
+                let caret_width = create_memo(move || Extent::px(geometry.get().caret_width));
                 let anchor = view! {
-                    <Frame width=CARET_WIDTH />
+                    <Frame width=caret_width />
                 };
 
                 let cx = Surface {
@@ -1256,6 +1260,7 @@ pub fn TextArea(
                     widgets,
                     client_colors,
                     colors,
+                    geometry,
                     composition,
                     placeholder,
                     font_size,
@@ -1281,9 +1286,9 @@ pub fn TextArea(
                     text_extent,
                     block,
                     selected_widget,
-                    leaf: leaf.unwrap_or_else(|| hooks::default_leaf(colors)),
-                    marker: marker.unwrap_or_else(|| hooks::default_marker(colors)),
-                    line: line.unwrap_or_else(|| hooks::default_line(colors)),
+                    leaf: look.leaf,
+                    marker: look.marker,
+                    line: look.line,
                     rights: create_signal(BTreeMap::new()),
                     on_content_size,
                     completion,
@@ -1619,7 +1624,7 @@ impl TextAreaApi {
                 let entry = rows.get(&line)?;
                 let caret = entry
                     .text()?
-                    .caret_rect(entry.row().to_display(byte), CARET_WIDTH)?;
+                    .caret_rect(entry.row().to_display(byte), cx.caret_width())?;
                 let viewport = cx.viewport.try_get().and_then(|node| tree.node_rect(node));
                 let shown = viewport.is_none_or(|viewport| match cx.single_line {
                     true => (viewport.min.x - HANDLE_SLACK..=viewport.max.x + HANDLE_SLACK)

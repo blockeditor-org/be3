@@ -14,6 +14,7 @@ fn the_caret_of_a_focused_text_area_blinks_on_a_deadline() {
             <List spacing=0.0>
                 <TextArea
                     colors={area_colors()}
+                    look={area_look()}
                     font_size=AREA_FONT_SIZE
                     padding=AREA_PADDING
                     state={state}

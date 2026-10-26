@@ -38,6 +38,7 @@ fn a_text_area_in_a_scaled_canvas_item_is_not_laid_out_again_by_a_pan_or_zoom() 
                 <CanvasItem x=10.0 y=10.0 width=120.0 height=40.0 scales=true>
                     <TextArea
                         colors={area_colors()}
+                        look={area_look()}
                         font_size=AREA_FONT_SIZE
                         padding=AREA_PADDING
                         state

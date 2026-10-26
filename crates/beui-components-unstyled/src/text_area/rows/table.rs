@@ -5,10 +5,8 @@ use beui_core::font::FontId;
 use beui_core::rich::SpanStyle;
 use text_editor_core::{SynHlColorScope, SynHlStyle, TableLine, TableRow};
 
-use super::{BODY_SIZE, Builder, RowInputs, SpanKind, galley, next_character, style_font};
+use super::{Builder, RowInputs, SpanKind, galley, next_character, style_font};
 
-const CELL_PADDING: f32 = 12.0;
-const DELIMITER_SIZE: f32 = 11.0;
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum CellAlign {
@@ -113,7 +111,8 @@ fn text_width(text: &str, font: FontId) -> f32 {
 }
 
 fn delimiter_font(inputs: &RowInputs) -> FontId {
-    FontId::monospace(DELIMITER_SIZE * inputs.options.body_size / BODY_SIZE)
+    let size = inputs.options.geometry.blocks.delimiter_size * inputs.options.scale();
+    FontId::monospace(size.max(1.0))
 }
 
 pub(super) fn delimiter_height(inputs: &RowInputs) -> f32 {
@@ -240,8 +239,7 @@ impl Builder<'_> {
     ) {
         let inputs = self.inputs;
         let bytes = &inputs.snapshot.bytes;
-        let scale = inputs.options.body_size / BODY_SIZE;
-        let padding = CELL_PADDING * scale;
+        let padding = inputs.options.geometry.blocks.cell_padding * inputs.options.scale();
         let symbol = SynHlStyle::plain(SynHlColorScope::MarkdownSymbol);
         let pipe = text_width("|", font_of(inputs, table.row, symbol));
         let body_pipe = text_width("|", font_of(inputs, TableRow::Body, symbol));

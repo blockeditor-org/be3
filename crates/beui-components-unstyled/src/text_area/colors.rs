@@ -89,5 +89,6 @@ pub struct TextAreaColors {
     pub selection: Color32,
     pub caret: Color32,
     pub placeholder: Color32,
+    pub remote_selection_alpha: u8,
     pub syntax: SyntaxColors,
 }

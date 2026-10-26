@@ -23,6 +23,7 @@ fn a_drag_in_a_text_area_selects_and_reaches_nothing_around_it() {
             >
                 <TextArea
                     colors={area_colors()}
+                    look={area_look()}
                     font_size=AREA_FONT_SIZE
                     padding=AREA_PADDING
                     @node_ref=&area

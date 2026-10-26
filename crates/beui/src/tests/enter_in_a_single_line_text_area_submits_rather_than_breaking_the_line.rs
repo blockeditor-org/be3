@@ -16,6 +16,7 @@ fn enter_in_a_single_line_text_area_submits_rather_than_breaking_the_line() {
         view! {
             <TextArea
                 colors={area_colors()}
+                look={area_look()}
                 font_size=AREA_FONT_SIZE
                 padding=AREA_PADDING
                 state={state}

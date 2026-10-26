@@ -5,6 +5,7 @@ use beui_macros::{component, view};
 use beui_core::color::Color32;
 
 use crate::context_menu::menu_style;
+use crate::text_area::text_area_geometry;
 use crate::theme::{field_border, use_theme};
 use beui_components_unstyled as unstyled;
 use beui_components_unstyled::{TextInputHandle, TextInputStyle};
@@ -187,6 +188,7 @@ pub fn text_input_style() -> TextInputStyle {
         padding_horizontal: Prop::Static(PADDING_HORIZONTAL),
         padding_vertical: Prop::Static(0.0),
         prose: Prop::Static(None),
+        geometry: Prop::Static(text_area_geometry()),
         menu: Some(menu_style()),
     }
 }

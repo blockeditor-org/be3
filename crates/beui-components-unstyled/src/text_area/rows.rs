@@ -13,6 +13,7 @@ use beui_core::rich::{Piece, SpanStyle};
 use beui_view::reactive::*;
 
 use super::colors::TextAreaColors;
+use super::look::{BlockGeometry, TextAreaGeometry};
 use super::state::Snapshot;
 
 mod table;
@@ -21,9 +22,6 @@ pub use table::{CellAlign, RowTable, TableColumns, table_columns};
 
 pub const BODY_SIZE: f32 = DEFAULT_FONT_SIZE;
 pub const CODE_SIZE: f32 = BODY_SIZE;
-pub const RUN_CHIP_SIZE: f32 = 10.0;
-pub const DOCUMENT_PADDING: Vec2 = Vec2::new(24.0, 16.0);
-pub const LINE_PADDING: (f32, f32) = (3.0, 4.0);
 
 const MASK: &str = "*";
 const OBJECT: &str = "\u{fffc}";
@@ -31,7 +29,6 @@ const NEWLINE_MARKER: &str = "\u{23ce}";
 const NEWLINE_SLOT: &str = "mm";
 const CARRIAGE_RETURN: &str = "\u{200b}";
 const ELLIPSIS: &str = "...";
-const ELLIPSIS_GAP: f32 = 6.0;
 const DELETED_PREVIEW: usize = 48;
 
 #[derive(Clone, Debug, Default, PartialEq)]
@@ -82,6 +79,7 @@ pub struct RowOptions {
     pub mask: bool,
     pub single_line: bool,
     pub prose: Option<Prose>,
+    pub geometry: TextAreaGeometry,
 }
 
 impl RowOptions {
@@ -89,8 +87,12 @@ impl RowOptions {
         match (self.single_line, self.prose) {
             (true, _) => (0.0, 0.0),
             (false, Some(prose)) => prose.line_padding,
-            (false, None) => LINE_PADDING,
+            (false, None) => self.geometry.line_padding,
         }
+    }
+
+    pub fn scale(&self) -> f32 {
+        self.body_size / BODY_SIZE
     }
 
     fn bold(&self) -> bool {
@@ -569,7 +571,10 @@ impl Builder<'_> {
             if !run.visible && run.deleted.is_empty() {
                 label.push_str(&format!(" -{}", run.len));
             }
-            let chip = SpanStyle::new(FontId::monospace(RUN_CHIP_SIZE), color);
+            let chip = SpanStyle::new(
+                FontId::monospace(self.inputs.options.geometry.run_chip.font_size),
+                color,
+            );
             self.inline(Inline::Run, at..at, chip, label);
             if !run.visible && !run.deleted.is_empty() {
                 let struck = SpanStyle {
@@ -801,7 +806,7 @@ pub fn build_row(inputs: &RowInputs, line: usize, start: usize, end: usize, newl
             builder.marker(&look, marker.clone(), body);
         }
         builder.table_row(table, marker.end..end, &columns, body);
-        builder.row.space = line_space(&look, line, options.body_size / BODY_SIZE);
+        builder.row.space = line_space(&look, line, &options);
         let delimiter = table.row == TableRow::Delimiter;
         let mut row = finish(builder, body);
         if delimiter {
@@ -932,8 +937,8 @@ pub fn build_row(inputs: &RowInputs, line: usize, start: usize, end: usize, newl
     if invisibles {
         builder.row.invisibles = invisibles_of(&builder.row, bytes, &marker, trailing_from);
     }
-    hang_into_margin(&mut builder.row, &look);
-    builder.row.space = line_space(&look, line, options.body_size / BODY_SIZE);
+    hang_into_margin(&mut builder.row, &look, &options);
+    builder.row.space = line_space(&look, line, &options);
     if newline && invisibles {
         let style = SpanStyle {
             color: Color32::TRANSPARENT,
@@ -956,20 +961,17 @@ pub fn build_row(inputs: &RowInputs, line: usize, start: usize, end: usize, newl
         .iter()
         .any(|section| section.collapsed && section.line_start == start)
     {
-        builder.gap(ELLIPSIS_GAP, body);
-        let style = SpanStyle::new(FontId::monospace(BODY_SIZE), inputs.colors.gutter_arrow);
+        builder.gap(options.geometry.ellipsis_gap, body);
+        let style = SpanStyle::new(
+            FontId::monospace(options.body_size),
+            inputs.colors.gutter_arrow,
+        );
         builder.push(ELLIPSIS, end..end, false, style, SpanKind::Text);
     }
     finish(builder, body)
 }
 
-const RULE_GAP: f32 = 8.0;
-const HEADING_SPACE: [f32; 3] = [16.0, 12.0, 6.0];
-const QUOTE_SPACE: f32 = 7.0;
-const CODE_SPACE: f32 = 5.0;
-const TABLE_SPACE: f32 = 4.0;
-
-fn hang_into_margin(row: &mut Row, look: &LineLook) {
+fn hang_into_margin(row: &mut Row, look: &LineLook, options: &RowOptions) {
     if look.hang.is_empty() || !look.marker.is_empty() {
         return;
     }
@@ -984,36 +986,44 @@ fn hang_into_margin(row: &mut Row, look: &LineLook) {
         })
         .sum();
     row.outdent = match look.rule {
-        true => width + RULE_GAP,
+        true => width + options.geometry.blocks.rule_gap * options.scale(),
         false => width,
     };
     row.hang = end;
 }
 
-fn line_space(look: &LineLook, line: usize, scale: f32) -> (f32, f32) {
+fn line_space(look: &LineLook, line: usize, options: &RowOptions) -> (f32, f32) {
+    let BlockGeometry {
+        heading_space,
+        quote_space,
+        code_space,
+        table_space,
+        ..
+    } = options.geometry.blocks;
+    let scale = options.scale();
     let mut above = match look.heading {
-        1..=3 if line > 0 => HEADING_SPACE[usize::from(look.heading) - 1],
+        1..=3 if line > 0 => heading_space[usize::from(look.heading) - 1],
         _ => 0.0,
     };
     let mut below = 0.0;
     if look.quote > 0 && look.quote_above == 0 {
-        above += QUOTE_SPACE;
+        above += quote_space;
     }
     if look.quote > 0 && look.quote_below == 0 {
-        below += QUOTE_SPACE;
+        below += quote_space;
     }
     if look.code_block && !look.code_above {
-        above += CODE_SPACE;
+        above += code_space;
     }
     if look.code_block && !look.code_below {
-        below += CODE_SPACE;
+        below += code_space;
     }
     if look
         .table
         .is_some_and(|table| table.row != TableRow::Delimiter)
     {
-        above += TABLE_SPACE;
-        below += TABLE_SPACE;
+        above += table_space;
+        below += table_space;
     }
     (above * scale, below * scale)
 }

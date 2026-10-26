@@ -15,6 +15,7 @@ fn a_new_line_typed_into_an_empty_text_area_paints_one_caret() {
             <Frame width=500.0 height=300.0>
                 <TextArea
                     colors={area_colors()}
+                    look={area_look()}
                     font_size=AREA_FONT_SIZE
                     padding=AREA_PADDING
                     state={state}

@@ -17,6 +17,7 @@ fn an_ime_composition_pushes_the_text_after_the_caret_along() {
         view! {
             <TextArea
                 colors={area_colors()}
+                look={area_look()}
                 font_size=AREA_FONT_SIZE
                 padding=AREA_PADDING
                 state={state}

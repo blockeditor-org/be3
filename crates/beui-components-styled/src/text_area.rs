@@ -15,9 +15,9 @@ use crate::text::{Text, TextColor, TextSize};
 use crate::theme::{Theme, use_theme};
 use beui_components_unstyled as unstyled;
 use beui_components_unstyled::{
-    Completer, MarkerColumn, MarkerKind, QUOTE_BAR_WIDTH, QuoteBar, RULE_WIDTH, RemoteTextCursor,
-    TableFill, TableLines, TextAreaColors, TextAreaState, TextLeaf, TextLine, TextMarker,
-    TextWidget,
+    BlockGeometry, ChipGeometry, Completer, MarkerColumn, MarkerKind, QuoteBar, RemoteTextCursor,
+    TableFill, TableLines, TextAreaColors, TextAreaGeometry, TextAreaLook, TextAreaState,
+    TextLeaf, TextLine, TextMarker, TextWidget, WidgetGeometry,
 };
 use beui_core::base::{Align, Direction, ItemSize};
 use beui_core::color::Color32;
@@ -42,7 +42,61 @@ pub fn text_area_colors(theme: &Theme) -> TextAreaColors {
         selection: theme.accent_soft,
         caret: theme.accent,
         placeholder: theme.text_muted,
+        remote_selection_alpha: REMOTE_SELECTION_ALPHA,
         syntax: theme.syntax,
+    }
+}
+
+pub fn text_area_geometry() -> TextAreaGeometry {
+    TextAreaGeometry {
+        caret_width: CARET_WIDTH,
+        line_padding: LINE_PADDING,
+        end_room: END_ROOM,
+        gutter_padding: (GUTTER_PADDING, GUTTER_PADDING),
+        gutter_arrow: TextSize::Base.px(),
+        ellipsis_gap: ELLIPSIS_GAP,
+        run_chip: ChipGeometry {
+            height: RUN_CHIP_HEIGHT,
+            padding: RUN_CHIP_PADDING,
+            radius: RUN_CHIP_RADIUS,
+            font_size: TextSize::Xs.px(),
+        },
+        widget: WidgetGeometry {
+            height: WIDGET_HEIGHT,
+            radius: WIDGET_RADIUS,
+            icon_width: WIDGET_ICON_WIDTH,
+            icon_size: TextSize::Lg.px(),
+        },
+        blocks: BlockGeometry {
+            heading_space: HEADING_SPACE,
+            quote_space: QUOTE_SPACE,
+            code_space: CODE_SPACE,
+            table_space: TABLE_SPACE,
+            rule_gap: RULE_GAP,
+            cell_padding: CELL_PADDING,
+            delimiter_size: DELIMITER_SIZE,
+        },
+    }
+}
+
+pub fn text_area_look() -> TextAreaLook {
+    TextAreaLook {
+        leaf: RenderFn::new(|leaf: TextLeaf| {
+            view! {
+                <DocumentLeaf leaf />
+            }
+        }),
+        marker: RenderFn::new(|marker: TextMarker| {
+            view! {
+                <DocumentMarker marker />
+            }
+        }),
+        line: RenderFn::new(|line: TextLine| {
+            view! {
+                <DocumentLine line />
+            }
+        }),
+        geometry: Prop::Static(text_area_geometry()),
     }
 }
 
@@ -74,27 +128,13 @@ pub fn TextArea(
     api.fill(TextAreaSurfaceApi(surface));
     let block = block.unwrap_or_else(blank_widget);
     let selected_widget = selected_widget.unwrap_or_else(blank_widget);
-    let leaf = leaf.unwrap_or_else(|| {
-        RenderFn::new(|leaf: TextLeaf| {
-            view! {
-                <DocumentLeaf leaf />
-            }
-        })
-    });
-    let marker = marker.unwrap_or_else(|| {
-        RenderFn::new(|marker: TextMarker| {
-            view! {
-                <DocumentMarker marker />
-            }
-        })
-    });
-    let line = line.unwrap_or_else(|| {
-        RenderFn::new(|line: TextLine| {
-            view! {
-                <DocumentLine line />
-            }
-        })
-    });
+    let document = text_area_look();
+    let look = TextAreaLook {
+        leaf: leaf.unwrap_or(document.leaf),
+        marker: marker.unwrap_or(document.marker),
+        line: line.unwrap_or(document.line),
+        ..document
+    };
     view! {
         <List spacing=0.0>
             <FindBar state={state} />
@@ -126,9 +166,7 @@ pub fn TextArea(
                     on_toolbar={move |at: Option<Rect>| open_menu.call(at)}
                     block={block}
                     selected_widget={selected_widget}
-                    leaf
-                    marker
-                    line
+                    look
                     completer={match emoji {
                         true => unstyled::emoji_completer(),
                         false => Completer::none(),
@@ -141,6 +179,27 @@ pub fn TextArea(
 }
 
 const TEXT_PADDING: Vec2 = Vec2::new(12.0, 8.0);
+const CARET_WIDTH: f32 = 2.0;
+const LINE_PADDING: (f32, f32) = (3.0, 4.0);
+const END_ROOM: f32 = 16.0;
+const GUTTER_PADDING: f32 = 10.0;
+const ELLIPSIS_GAP: f32 = 6.0;
+const RUN_CHIP_HEIGHT: f32 = 16.0;
+const RUN_CHIP_PADDING: f32 = 4.0;
+const RUN_CHIP_RADIUS: f32 = 3.0;
+const WIDGET_HEIGHT: f32 = 24.0;
+const WIDGET_RADIUS: f32 = 5.0;
+const WIDGET_ICON_WIDTH: f32 = 26.0;
+const HEADING_SPACE: [f32; 3] = [16.0, 12.0, 6.0];
+const QUOTE_SPACE: f32 = 7.0;
+const CODE_SPACE: f32 = 5.0;
+const TABLE_SPACE: f32 = 4.0;
+const RULE_GAP: f32 = 8.0;
+const CELL_PADDING: f32 = 12.0;
+const DELIMITER_SIZE: f32 = 11.0;
+const REMOTE_SELECTION_ALPHA: u8 = 70;
+const RULE_WIDTH: f32 = 1.0;
+const QUOTE_BAR_WIDTH: f32 = 3.0;
 const CODE_INSET: f32 = 3.0;
 const CODE_RADIUS: Radius = Radius::Sm;
 const CODE_BLOCK_RADIUS: Radius = Radius::Md;
@@ -298,7 +357,7 @@ pub fn DocumentLine(line: TextLine) -> NodeId {
             <Frame padding=outer>
                 <Frame fill=code radius padding=inner>{text}</Frame>
             </Frame>
-            <TableLines line color=border />
+            <TableLines line color=border rule=RULE_WIDTH />
             <Show condition={opens}>
                 <Frame padding=corner align={Align2::new(Align::End, Align::Start)}>
                     <List direction=Direction::Horizontal spacing=COPY_INSET align=Align::Center>

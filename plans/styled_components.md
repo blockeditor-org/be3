@@ -360,14 +360,23 @@ behaviour: the drag and row-drag thresholds, zoom limits, slider range,
 tooltip and toast durations, the dock's starting sidebar and floating window
 sizes and its minimum pane sizes.
 
-Left: the text area's rich-document renderer still draws with constants of
-its own. Its default `leaf`, `marker` and `line` renderers (the markdown
-checkbox at 18px with a white tick, code and quote radii and bars) and its
-document geometry (`DOCUMENT_PADDING`, run chips, inline widgets, table cell
-padding) read their colours from `TextAreaColors` but their sizes from
-consts. Making them required would make every plain text area and text
-input supply a markdown renderer; it wants its own pass, perhaps a
-`TextAreaLook` beside `TextAreaColors`.
+- **Done.** The text area's rich-document renderer drew with constants of
+  its own: its default `leaf`, `marker` and `line` renderers (the markdown
+  checkbox at 18px with a white tick, code and quote radii and bars) and its
+  document geometry (`DOCUMENT_PADDING`, `LINE_PADDING`, run chips, inline
+  widget pills and their white icon, the gutter, block spacing, table cell
+  padding and delimiter size, `CARET_WIDTH`, the remote selection alpha).
+  `TextArea` requires a `look: TextAreaLook` (the `leaf`, `marker` and
+  `line` renderers and a `geometry: Prop<TextAreaGeometry>`); the default
+  renderers are gone. `TextAreaLook::plain(geometry)` draws text and nothing
+  else, and `TextInput` uses it with the new `TextInputStyle::geometry`, so a
+  plain field never supplies a markdown renderer. Styled builds them with
+  `styled::text_area_geometry()` and `styled::text_area_look()`, and
+  `TextAreaColors` gained `remote_selection_alpha`. Kept in unstyled as
+  proportions of the given `font_size`: the list, quote and margin `_EM`
+  ratios and the heading size ratios. Block spacing and table padding in the
+  geometry are given at `BODY_SIZE` and scale with `font_size`, so a zoomed
+  canvas text keeps its proportions.
 
 ## 6. Get code outside beui onto the styled layer
 

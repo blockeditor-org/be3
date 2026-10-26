@@ -14,6 +14,7 @@ fn a_text_area_shows_its_placeholder_until_something_is_typed() {
         view! {
             <TextArea
                 colors={area_colors()}
+                look={area_look()}
                 font_size=AREA_FONT_SIZE
                 padding=AREA_PADDING
                 @node_ref=&area

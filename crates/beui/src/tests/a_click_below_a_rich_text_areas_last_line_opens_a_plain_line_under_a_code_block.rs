@@ -21,6 +21,7 @@ fn a_click_below_a_rich_text_areas_last_line_opens_a_plain_line_under_a_code_blo
             <List spacing=0.0>
                 <TextArea
                     colors={area_colors()}
+                    look={area_look()}
                     font_size=AREA_FONT_SIZE
                     padding=AREA_PADDING
                     @sizing=ItemSize::Fixed(300.0)

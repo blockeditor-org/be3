@@ -17,6 +17,7 @@ fn an_ime_correction_replaces_the_word_it_names() {
         view! {
             <TextArea
                 colors={area_colors()}
+                look={area_look()}
                 font_size=AREA_FONT_SIZE
                 padding=AREA_PADDING
                 state={state}

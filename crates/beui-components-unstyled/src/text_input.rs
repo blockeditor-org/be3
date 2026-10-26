@@ -17,6 +17,8 @@ use crate::SyntaxColors;
 use crate::TextArea;
 use crate::TextAreaApi;
 use crate::TextAreaColors;
+use crate::TextAreaGeometry;
+use crate::TextAreaLook;
 use crate::TextAreaState;
 use crate::menu_popup::MenuStyle;
 use crate::text_menu::TextContextMenu;
@@ -46,6 +48,7 @@ pub struct TextInputStyle {
     pub padding_horizontal: Prop<f32>,
     pub padding_vertical: Prop<f32>,
     pub prose: Prop<Option<Prose>>,
+    pub geometry: Prop<TextAreaGeometry>,
     pub menu: Option<MenuStyle>,
 }
 
@@ -85,6 +88,7 @@ pub fn TextInput(
         padding_horizontal,
         padding_vertical,
         prose,
+        geometry,
         menu,
     } = style;
     let initial = value.get_untracked();
@@ -133,6 +137,7 @@ pub fn TextInput(
         code_background: Color32::TRANSPARENT,
         widget: Color32::TRANSPARENT,
         broken_widget: Color32::TRANSPARENT,
+        remote_selection_alpha: 0,
     });
     let role = match multiline {
         true => Role::MultilineTextInput,
@@ -207,6 +212,7 @@ pub fn TextInput(
             single_line={!multiline}
             line_numbers=false
             colors
+            look={TextAreaLook::plain(geometry)}
             placeholder
             password={masked}
             focused

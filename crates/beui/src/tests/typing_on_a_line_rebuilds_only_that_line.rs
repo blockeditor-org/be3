@@ -22,6 +22,7 @@ fn typing_on_a_line_rebuilds_only_that_line() {
             <Frame width=500.0 height=600.0>
                 <TextArea
                     colors={area_colors()}
+                    look={area_look()}
                     font_size=AREA_FONT_SIZE
                     padding=AREA_PADDING
                     state={state}

@@ -36,6 +36,7 @@ fn a_long_text_area_only_builds_the_lines_in_view() {
             <Frame @node_ref=&area width=500.0 height=300.0>
                 <TextArea
                     colors={area_colors()}
+                    look={area_look()}
                     font_size=AREA_FONT_SIZE
                     padding=AREA_PADDING
                     state={state}
