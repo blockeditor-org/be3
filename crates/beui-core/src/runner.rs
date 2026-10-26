@@ -21,6 +21,7 @@ use crate::input::{Event, Input};
 use crate::renderer::{Loaded, Renderers};
 use crate::window::{WindowId, WindowReport, WindowReports, WindowState};
 
+pub mod environment;
 mod host;
 mod intake;
 
@@ -268,6 +269,7 @@ impl Runner {
     pub fn start(&mut self, loaded: Vec<Loaded>, mut setup: Setup) -> Result<(), Box<dyn Error>> {
         let renderers = Renderers::new(&self.context, loaded)?;
         renderers.provide(&mut setup);
+        setup.provide(self.context.clone());
         self.renderers = Some(renderers);
         self.waker = Some(setup.waker.clone());
         self.context.set_waker(setup.waker.clone());
@@ -419,6 +421,7 @@ impl Runner {
                 if let Some(waker) = &self.waker {
                     let mut setup = Setup::new(waker.clone());
                     renderers.provide(&mut setup);
+                    setup.provide(self.context.clone());
                     self.app.renderer_replaced(&setup);
                     if let Some(host) = &mut self.host {
                         host.setup(&setup);
@@ -501,7 +504,7 @@ impl Runner {
         let view = HostView {
             platform: physical,
             pixels_per_point: scale,
-            now: self.context.now(),
+            now: self.context.frame_time(),
         };
         if let Some(host) = &mut self.host {
             host.input(&mut self.intake.incoming, &view);
@@ -562,7 +565,7 @@ impl Runner {
         self.context.set_seen(seen);
         self.context.set_accessibility_viewport(screen);
         let app = &mut self.app;
-        let mut output = self.context.run_with(events, |context| {
+        let mut output = self.context.run_with(events, view.now, |context| {
             app.update(context, safe_rect(screen, safe_area, scale));
         });
         if self.publishing_accessibility {

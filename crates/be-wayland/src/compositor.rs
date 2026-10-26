@@ -265,6 +265,9 @@ impl Compositor {
         if let Some(dir) = &launch.working_dir {
             process.current_dir(dir);
         }
+        for variable in beui::environment::VARIABLES {
+            process.env_remove(variable);
+        }
         process
             .args(arguments)
             .env("XDG_ACTIVATION_TOKEN", &token)
@@ -272,10 +275,6 @@ impl Compositor {
             .env_remove("WAYLAND_DISPLAY")
             .env_remove("DISPLAY")
             .envs(self.environment())
-            .env_remove("BEUI_AUTOMATION")
-            .env_remove("BEUI_AUTOMATION_LISTENER")
-            .env_remove("BEUI_HEADLESS")
-            .env_remove("BEUI_HEADLESS_SCREEN")
             .env("GDK_BACKEND", "wayland")
             .env("QT_QPA_PLATFORM", "wayland")
             .env("SDL_VIDEODRIVER", "wayland")

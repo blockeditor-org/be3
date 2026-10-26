@@ -962,6 +962,10 @@ impl Renderer {
         );
     }
 
+    pub fn id(&self) -> u64 {
+        self.id
+    }
+
     pub fn set_origin(&mut self, origin: Vec2) {
         self.origin = origin;
     }

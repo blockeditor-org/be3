@@ -7,11 +7,11 @@ fn a_click_on_the_panel_reaches_the_app_where_the_ray_hits() {
     let mut incoming = Vec::new();
     space.input(&mut incoming, &view(now));
     assert_eq!(
-        incoming,
-        [Incoming::Window(WindowReport::Resized {
+        reports(&incoming),
+        [WindowReport::Resized {
             window: WindowId::MAIN,
             size: PLATFORM,
-        })],
+        }],
         "the main window is sized like the platform window"
     );
     let panel = main(&space);

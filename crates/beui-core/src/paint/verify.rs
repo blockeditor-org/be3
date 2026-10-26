@@ -8,8 +8,17 @@ use crate::fade::Fade;
 use crate::geometry::{Pos2, Rect, Vec2};
 use crate::node::NodeId;
 use crate::painter::{Shape, placed_shape};
+use crate::window::WindowId;
 
 type Key = (NodeId, u32);
+
+pub struct Check {
+    pub window: WindowId,
+    pub viewport: Rect,
+    pub previous: Vec<(Rc<Display>, Vec2)>,
+    pub region: Region,
+    pub moved: Option<Moved>,
+}
 
 pub struct Seen {
     nodes: HashMap<Key, Node>,
