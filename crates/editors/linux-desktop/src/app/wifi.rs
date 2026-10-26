@@ -11,7 +11,7 @@ use block_editor_beui::{Editor, WifiLink, WifiNetwork, WifiRequest, WifiSecurity
 
 use super::popup::BarPopup;
 
-const LIST_HEIGHT: f32 = 360.0;
+const LIST_HEIGHT: Size = Size::Custom(360.0);
 const SPACING: Space = Space::Md;
 const ROW_SPACING: Space = Space::Xs2;
 const MIN_PASSWORD: usize = 8;

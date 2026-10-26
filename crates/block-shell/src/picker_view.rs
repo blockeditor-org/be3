@@ -28,6 +28,7 @@ const HEADER_SPACING: Space = Space::Md;
 const ROW_SPACING: Space = Space::Md;
 const GROUP_SPACING: Space = Space::Xs;
 const CREATION_HEIGHT: f32 = 96.0;
+const CREATION_INSET: Space = Space::Sm;
 const PICKER_TABS: u64 = 1 << 42;
 
 type Act = Callback<PickAction>;
@@ -878,15 +879,17 @@ fn CreateBody(workspace: Workspace, pick: u64, held: Memo<Option<Pick>>) -> Node
     });
     let editor = workspace.editor();
     view! {
-        <Frame height=height>
-            <Subregion
-                editor={editor}
-                placed={placed}
-                mode=ChildMode::Live
-                dialog=true
-                @test_id={"picker.creation"}
-                on_state={move |next: ChildState| workspace.creation_state(pick, &next)}
-            />
+        <Frame padding=CREATION_INSET>
+            <Frame height=height>
+                <Subregion
+                    editor={editor}
+                    placed={placed}
+                    mode=ChildMode::Live
+                    dialog=true
+                    @test_id={"picker.creation"}
+                    on_state={move |next: ChildState| workspace.creation_state(pick, &next)}
+                />
+            </Frame>
         </Frame>
     }
 }

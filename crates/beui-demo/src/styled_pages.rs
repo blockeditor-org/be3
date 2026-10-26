@@ -37,7 +37,7 @@ const COMPACT_ROW_PADDING_VERTICAL: Space = Space::Xs;
 const STRIP_COUNT: usize = 200;
 const STRIP_HEIGHT: f32 = 52.0;
 const STRIP_ITEM_WIDTH: f32 = 120.0;
-const FITTED_SCROLL_HEIGHT: f32 = 200.0;
+const FITTED_SCROLL_HEIGHT: Size = Size::Custom(200.0);
 const FITTED_SCROLL_ROWS: usize = 3;
 const LOG_HEIGHT: Size = Size::Custom(200.0);
 const LOG_LINE_ESTIMATE: f32 = 20.0;
@@ -54,7 +54,7 @@ const LOG_WORDS: [&str; 8] = [
     "a moment.",
 ];
 const SERVER_LINES: usize = 5_000;
-const SERVER_LOG_HEIGHT: f32 = 200.0;
+const SERVER_LOG_HEIGHT: Size = Size::Custom(200.0);
 const SERVER_LINE_HEIGHT: f32 = 20.0;
 const SERVER_MESSAGES: [&str; 6] = [
     "listening on 127.0.0.1:8080",

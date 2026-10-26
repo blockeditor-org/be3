@@ -29,12 +29,13 @@ use beui_components_styled::tooltip::Tooltip;
 use beui_components_unstyled::Picture;
 use beui_core::base::frame::Align2;
 use beui_core::base::{Align, Direction, ItemSize, Justify};
-use beui_core::color::Color32;
+
 use beui_core::font::TextAlign;
 use beui_core::icons::{ICON_APP_WINDOW, ICON_GRIP_VERTICAL, ICON_MAXIMIZE, ICON_MINIMIZE, ICON_X};
 use beui_core::image::Image;
 use beui_core::input::Modifiers;
 use beui_core::node::NodeId;
+use beui_view::primitives::{Fade, Layers};
 use beui_view::reactive::*;
 use stack::{DockStackBar, DockSwitcher};
 use switch::DockSwitchPanel;
@@ -55,16 +56,16 @@ const CHROME_PADDING: Space = Space::Xs2;
 const RULE: f32 = 1.0;
 const SPLITTER_LINE: f32 = 1.0;
 const TAB_STRIP_SPACING: Space = Space::Sm;
-const DROP_MARKER: f32 = 3.0;
+const DROP_MARKER: Stroke = Stroke::Focus;
 const SPLITTER_REACH: f32 = 3.0;
 const SPLITTER_HELD: f32 = 3.0;
 const GROUP_GLYPH: Size = Size::Xs;
 pub const WINDOW_CHROME: beui_core::geometry::Vec2 =
     beui_core::geometry::Vec2::new(2.0 * CHROME_BORDER, BAR_HEIGHT + 2.0 * CHROME_BORDER + RULE);
-const DROP_ALPHA: u8 = 64;
+const DROP_OPACITY: f32 = 0.25;
 const AWAY_SPACING: Space = Space::Lg;
 const AWAY_PADDING: Space = Space::Xl3;
-const PREVIEW_ALPHA: u8 = 235;
+const PREVIEW_OPACITY: f32 = 0.92;
 const WAITING_DOT: Size = Size::Custom(6.0);
 const CARD_POINTER_ROOM: Sides = Sides::all(POINTER_REACH);
 const CARD_MARGIN: u16 =
@@ -100,7 +101,7 @@ where
             splitter_reach=SPLITTER_REACH
             icon_sidebar_width=ICON_SIDEBAR
             tab_spacing={TAB_STRIP_SPACING.px()}
-            drop_marker_width=DROP_MARKER
+            drop_marker_width={DROP_MARKER.px()}
             back_shade={back_shade}
             menu={menu_style()}
             children
@@ -796,27 +797,24 @@ fn DockSplitterFace(handle: DockSplitterHandle) -> NodeId {
 
 #[component]
 fn DockDropHighlight() -> NodeId {
-    let theme = use_theme();
-    let fill = create_memo(move || translucent(theme.accent.get(), DROP_ALPHA));
     view! {
-        <Frame
-            @test_id={"dock.drop"}
-            fill={ColorRole::custom(fill)}
-            border={Border::FOCUS}
-            radius=Radius::Md
-        />
+        <Layers>
+            <Fade opacity=DROP_OPACITY>
+                <Frame fill=ColorRole::Accent radius=Radius::Md />
+            </Fade>
+            <Frame @test_id={"dock.drop"} border={Border::FOCUS} radius=Radius::Md />
+        </Layers>
     }
 }
 
 #[component]
 fn DockDragPreview(title: Prop<String>, icon: Memo<Option<Glyph>>, grouped: bool) -> NodeId {
-    let theme = use_theme();
-    let fill = create_memo(move || translucent(theme.surface_raised.get(), PREVIEW_ALPHA));
     let pictured = create_memo(move || !grouped && icon.get().is_some());
     let pictured_color = TextColor::Default;
     view! {
+        <Fade opacity=PREVIEW_OPACITY>
         <Frame
-            fill={ColorRole::custom(fill)}
+            fill=ColorRole::SurfaceRaised
             border={Border::FOCUS}
             radius=TAB_RADIUS
             height=TAB_HEIGHT
@@ -836,6 +834,7 @@ fn DockDragPreview(title: Prop<String>, icon: Memo<Option<Glyph>>, grouped: bool
                 <Text overflow=Overflow::Ellipsis>{title}</Text>
             </List>
         </Frame>
+        </Fade>
     }
 }
 
@@ -865,9 +864,4 @@ fn bar_rule(vacant: Memo<bool>) -> Memo<ColorRole> {
         true => ColorRole::Background,
         false => ColorRole::Border,
     })
-}
-
-fn translucent(color: Color32, alpha: u8) -> Color32 {
-    let [red, green, blue, _] = color.to_array();
-    Color32::from_rgba_unmultiplied(red, green, blue, alpha)
 }

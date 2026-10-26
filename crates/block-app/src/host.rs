@@ -151,6 +151,7 @@ pub(crate) fn begin(context: &beui::Context) {
     for (deliver, save) in saved {
         deliver(save);
     }
+    be_types_host::hold_clock(context.clock_stopped().then(|| context.now()));
     let mut frame = Frame {
         now: Some(context.now()),
         seen: context.seen(),

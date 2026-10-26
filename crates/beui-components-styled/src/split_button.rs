@@ -6,12 +6,11 @@ use beui_macros::{component, view};
 use crate::button::ButtonVariant;
 use crate::context_menu::menu_style;
 use crate::text::{Icon, Text};
-use crate::theme::{ThemeStore, use_theme};
 use crate::tooltip::Tooltip;
+use beui_view::primitives::Fade;
 use beui_components_unstyled as unstyled;
 use beui_components_unstyled::{ButtonHandle, MenuItem, PopupTriggerHandle};
 use beui_core::base::TextAlign;
-use beui_core::color::Color32;
 use beui_core::icons::ICON_CHEVRON_DOWN;
 use beui_core::node::NodeId;
 
@@ -25,6 +24,7 @@ const LABEL_PADDING_HORIZONTAL: Space = Space::Lg;
 const ARROW_PADDING_HORIZONTAL: Space = Space::Xs;
 const PADDING_VERTICAL: Space = Space::Sm;
 const DIVIDER_INSET: Space = Space::Sm;
+const DIVIDER_ON_ACCENT_OPACITY: f32 = 0.43;
 
 #[component]
 pub fn SplitButton(
@@ -108,7 +108,6 @@ fn ArrowFace(handle: PopupTriggerHandle, variant: ButtonVariant) -> NodeId {
                 ..
             },
     } = handle;
-    let theme = use_theme();
     let fill = create_memo(move || {
         half_fill(
             variant,
@@ -118,14 +117,15 @@ fn ArrowFace(handle: PopupTriggerHandle, variant: ButtonVariant) -> NodeId {
         )
     });
     let ink = create_memo(move || variant.label(disabled.get()));
-    let divider = create_memo(move || divider_color(&theme, variant, disabled.get()));
+    let divider = create_memo(move || divider(variant, disabled.get()));
+    let divider_fill = create_memo(move || divider.get().0);
+    let divider_opacity = create_memo(move || divider.get().1);
     view! {
         <List direction=Direction::Horizontal spacing=Space::None>
             <Frame padding={Padding::vertical(DIVIDER_INSET)}>
-                <Frame
-                    width={Size::Custom(Stroke::Hairline.px())}
-                    fill={ColorRole::custom(divider)}
-                />
+                <Fade opacity={divider_opacity}>
+                    <Frame width={Size::Custom(Stroke::Hairline.px())} fill={divider_fill} />
+                </Fade>
             </Frame>
             <Tooltip label={tooltip}>
                 <HalfFace fill focused side=Side::Trailing padding=ARROW_PADDING_HORIZONTAL>
@@ -188,12 +188,9 @@ fn half_fill(variant: ButtonVariant, disabled: bool, hovered: bool, active: bool
     variant.fill(false, hovered, active)
 }
 
-fn divider_color(theme: &ThemeStore, variant: ButtonVariant, disabled: bool) -> Color32 {
+fn divider(variant: ButtonVariant, disabled: bool) -> (ColorRole, f32) {
     match (variant, disabled) {
-        (ButtonVariant::Primary, false) => {
-            let [red, green, blue, _] = theme.on_accent.get().to_array();
-            Color32::from_rgba_unmultiplied(red, green, blue, 110)
-        }
-        _ => theme.border.get(),
+        (ButtonVariant::Primary, false) => (ColorRole::OnAccent, DIVIDER_ON_ACCENT_OPACITY),
+        _ => (ColorRole::Border, 1.0),
     }
 }

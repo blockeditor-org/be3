@@ -54,6 +54,16 @@ impl Corners {
         Self::new(0.0, radius, radius, 0.0)
     }
 
+    pub fn fitted(self, rect: Rect) -> Self {
+        let limit = (rect.width().min(rect.height()) / 2.0).max(0.0);
+        Self::new(
+            self.top_left.min(limit),
+            self.top_right.min(limit),
+            self.bottom_right.min(limit),
+            self.bottom_left.min(limit),
+        )
+    }
+
     pub fn to_array(self) -> [f32; 4] {
         [
             self.top_left,
@@ -490,7 +500,7 @@ impl Painter {
         }
         self.push(Shape::Rect {
             rect,
-            corner_radius: corner_radius.into(),
+            corner_radius: corner_radius.into().fitted(rect),
             stroke_width: 0.0,
             color,
             rotation: self.state.rotation,
@@ -510,7 +520,7 @@ impl Painter {
         }
         self.push(Shape::Rect {
             rect,
-            corner_radius: corner_radius.into(),
+            corner_radius: corner_radius.into().fitted(rect.expand(width)),
             stroke_width: width,
             color,
             rotation: self.state.rotation,

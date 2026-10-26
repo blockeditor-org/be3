@@ -22,7 +22,7 @@ use block_editor_beui::beui::TextAlign;
 const SPACING: Space = Space::Sm;
 const EDITOR_WIDTH: f32 = 300.0;
 const EDITOR_POPOVER_WIDTH: Size = Size::Custom(EDITOR_WIDTH + PANEL_PADDING.px() * 2.0);
-const CHOICES_HEIGHT: f32 = 280.0;
+const CHOICES_HEIGHT: Size = Size::Custom(280.0);
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Kind {

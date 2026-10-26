@@ -1,6 +1,7 @@
 use beui_macros::{component, view};
 
 use crate::ContextMenu;
+use crate::text_area::text_area_geometry;
 use crate::theme::use_theme;
 use beui_components_unstyled as unstyled;
 use beui_components_unstyled::selectable::{COPY_KEY, SELECT_ALL_KEY};
@@ -49,6 +50,7 @@ pub fn SelectableText(
                 state
                 color
                 handle_color
+                caret_width={text_area_geometry().caret_width}
                 copy_key
                 select_all_key
                 on_toolbar={toolbar_at}

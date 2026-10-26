@@ -17,7 +17,6 @@ use crate::lines::{Lines, Look, Piece, Shown, color, screen};
 
 const TEXT: TextStyle = TextStyle::CODE;
 const PADDING: Space = Space::Sm;
-const CARET_WIDTH: f32 = 2.0;
 const COPY_KEY: Chord = Chord::ctrl(Key::C).shift();
 
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
@@ -243,9 +242,10 @@ fn TerminalRow(key: ReadSignal<ObjectId>, table: Table) -> NodeId {
         })
     });
     let foreground = create_memo(move || color(colors.get().foreground));
+    let caret_width = text_area_geometry().caret_width;
     let carets = create_memo(move || {
         let at = shown.with(|shown| shown.as_ref().and_then(Shown::caret));
-        at.map(|at| vec![TextCaret::new(at, foreground.get(), CARET_WIDTH)])
+        at.map(|at| vec![TextCaret::new(at, foreground.get(), caret_width)])
             .unwrap_or_default()
     });
     let text_color = create_memo(move || TextColor::Custom(foreground.get()));

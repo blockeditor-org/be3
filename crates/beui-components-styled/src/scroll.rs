@@ -8,7 +8,7 @@ use crate::list::List;
 use crate::popover::PANEL_PADDING;
 use crate::text::{Icon, Text};
 use crate::theme::{SCROLL_FADE, SCROLLBAR_WIDTH, use_theme};
-use crate::tokens::{Padding, Size, Space, Stroke};
+use crate::tokens::{Padding, Size, Space, Stroke, use_size};
 use beui_components_unstyled as unstyled;
 use beui_components_unstyled::{ScrollHandle, ScrollbarStyle};
 use beui_core::base::{Align, Direction, ItemSize, ScrollPosition, Sides};
@@ -99,7 +99,7 @@ pub fn Scroll(
     #[prop(default = None)] reveal: Prop<Option<usize>>,
     #[prop(default = Direction::Vertical)] direction: Prop<Direction>,
     #[prop(default = false)] fit: bool,
-    #[prop(default = None)] max_length: Option<f32>,
+    #[prop(default = None)] max_length: Option<Size>,
     #[prop(default = false)] follow_end: Prop<bool>,
     #[prop(default = Bleed::NONE)] bleed: Prop<Bleed>,
     on_change: Callback<ScrollPosition>,
@@ -128,9 +128,11 @@ pub fn Scroll(
     let Some(max_length) = max_length else {
         return scroll;
     };
+    let max_length = use_size(max_length);
+    let bounded = create_memo(move || ItemSize::Intrinsic.max(max_length.get()));
     view! {
         <List direction={direction} spacing=Space::None>
-            {scroll} @sizing={ItemSize::Intrinsic.max(max_length)}
+            {scroll} @sizing={bounded}
         </List>
     }
 }

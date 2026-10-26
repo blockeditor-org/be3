@@ -10,7 +10,7 @@ use super::{DesktopNotifications, Listed};
 use crate::app::bar::local_minutes;
 use crate::app::popup::BarPopup;
 
-const LIST_HEIGHT: f32 = 420.0;
+const LIST_HEIGHT: Size = Size::Custom(420.0);
 const SPACING: Space = Space::Md;
 const ROW_SPACING: Space = Space::Xs2;
 

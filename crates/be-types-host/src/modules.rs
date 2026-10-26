@@ -70,8 +70,17 @@ pub fn millis(at: Instant) -> u64 {
     at.saturating_duration_since(*EPOCH).as_millis() as u64
 }
 
+static HELD: AtomicU64 = AtomicU64::new(u64::MAX);
+
+pub fn hold_clock(at: Option<Instant>) {
+    HELD.store(at.map_or(u64::MAX, millis), Ordering::Relaxed);
+}
+
 pub fn now_millis() -> u64 {
-    millis(Instant::now())
+    match HELD.load(Ordering::Relaxed) {
+        u64::MAX => millis(Instant::now()),
+        held => held,
+    }
 }
 
 pub type Boxed = Box<dyn Channel<Presented = Infallible>>;
