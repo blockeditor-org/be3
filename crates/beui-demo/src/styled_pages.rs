@@ -3314,6 +3314,31 @@ fn FrameTokens() -> NodeId {
                 </ForEach>
             </List>
             <List direction=Direction::Horizontal wrap=true spacing=ROW_SPACING>
+                <ForEach keys={(0..Space::ALL.len()).collect::<Vec<_>>()}>|index: usize|
+                    <List spacing=Space::Xs>
+                        <Frame fill=ColorRole::Surface border=Border::DEFAULT radius=Radius::Sm>
+                            <Frame padding={Space::ALL[index]}>
+                                <Frame width=Size::Xs height=Size::Xs fill=ColorRole::AccentSoft />
+                            </Frame>
+                        </Frame>
+                        <Text style=TextStyle::CAPTION>{Space::ALL[index].name()}</Text>
+                    </List>
+                </ForEach>
+            </List>
+            <List direction=Direction::Horizontal wrap=true align=Align::End spacing=ROW_SPACING>
+                <ForEach keys={(0..7).collect::<Vec<_>>()}>|index: usize|
+                    <List spacing=Space::Xs>
+                        <Frame
+                            width={Size::ALL[index]}
+                            height={Size::ALL[index]}
+                            fill=ColorRole::AccentSoft
+                            radius=Radius::Sm
+                        />
+                        <Text style=TextStyle::CAPTION>{Size::ALL[index].name()}</Text>
+                    </List>
+                </ForEach>
+            </List>
+            <List direction=Direction::Horizontal wrap=true spacing=ROW_SPACING>
                 <ForEach keys={(0..BORDERS.len()).collect::<Vec<_>>()}>|index: usize|
                     <List spacing=Space::Xs>
                         <Frame
