@@ -7,10 +7,12 @@ use super::*;
 #[test]
 fn with_instant_motion_the_level_keeps_its_time_and_goes_without_fading() {
     let mut fixture = Fixture::new();
-    fixture.test.set_preferences(block_editor_beui::Preferences {
-        motion: block_editor_beui::Motion::Instant,
-        ..Default::default()
-    });
+    fixture
+        .test
+        .set_preferences(block_editor_beui::Preferences {
+            motion: block_editor_beui::Motion::Instant,
+            ..Default::default()
+        });
     fixture.settle();
     fixture.test.set_watched::<MediaWatch>(&MediaLevels {
         output: Some(MediaLevel {
@@ -23,7 +25,9 @@ fn with_instant_motion_the_level_keeps_its_time_and_goes_without_fading() {
     });
     assert!(fixture.test.app_key(Modifiers::NONE, Key::VolumeUp));
     fixture.settle();
-    fixture.test.advance(OSD_DURATION - Duration::from_millis(100));
+    fixture
+        .test
+        .advance(OSD_DURATION - Duration::from_millis(100));
     fixture.settle();
     assert!(
         fixture.test.shown("desktop.osd.0"),

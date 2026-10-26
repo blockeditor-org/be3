@@ -151,7 +151,10 @@ pub(crate) fn Stage(review: Review) -> NodeId {
                                         spacing=MESSAGE_SPACING
                                         @test_id={"paint_review.image.loading"}
                                     >
-                                        <Progress width=INLINE_PROGRESS_WIDTH label="Loading the image" />
+                                        <Progress
+                                            width=INLINE_PROGRESS_WIDTH
+                                            label="Loading the image"
+                                        />
                                         <Text style=TextStyle::CAPTION>"Loading the image"</Text>
                                     </List>
                                 </Show>

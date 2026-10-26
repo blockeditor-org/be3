@@ -151,8 +151,7 @@ pub(crate) fn HostItemFace(content: Memo<HostItem>) -> NodeId {
         HostItem::Unsupported { block_type, .. } => format!("Type: {block_type}"),
         _ => String::new(),
     });
-    let busy =
-        create_memo(move || matches!(content.get(), HostItem::Notice { busy: true, .. }));
+    let busy = create_memo(move || matches!(content.get(), HostItem::Notice { busy: true, .. }));
     let glyph = create_memo(move || match content.get() {
         HostItem::Notice { icon, .. } => icon,
         HostItem::Unsupported { .. } => None,

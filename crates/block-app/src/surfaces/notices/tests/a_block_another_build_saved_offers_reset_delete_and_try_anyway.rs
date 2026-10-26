@@ -20,7 +20,11 @@ fn a_block_another_build_saved_offers_reset_delete_and_try_anyway() {
         }
     });
     snapshot(&mut stepped, "a_block_another_build_saved");
-    for button in ["stale-notice.reset", "stale-notice.delete", "stale-notice.try"] {
+    for button in [
+        "stale-notice.reset",
+        "stale-notice.delete",
+        "stale-notice.try",
+    ] {
         click(&mut stepped, button);
     }
     assert_eq!(*pressed.borrow(), ["reset", "delete", "try"]);

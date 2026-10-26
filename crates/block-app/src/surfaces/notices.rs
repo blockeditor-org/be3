@@ -1,4 +1,6 @@
-use beui::icons::{ICON_CIRCLE_ALERT, ICON_REFRESH_CW, ICON_ROTATE_CCW, ICON_ROTATE_CCW_CLOCK, ICON_TRASH};
+use beui::icons::{
+    ICON_CIRCLE_ALERT, ICON_REFRESH_CW, ICON_ROTATE_CCW, ICON_ROTATE_CCW_CLOCK, ICON_TRASH,
+};
 use beui::reactive::*;
 use beui::styled::*;
 use beui::{Align, NodeId, TextAlign, Wrap};

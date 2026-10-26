@@ -1,3 +1,4 @@
+use super::osd::{LevelOsd, OsdLevel};
 use beui::KeyAt;
 use block_editor_beui::beui::icons::Glyph;
 use block_editor_beui::beui::icons::{
@@ -7,7 +8,6 @@ use block_editor_beui::beui::icons::{
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::{Key, NodeId};
 use block_editor_beui::linux_desktop;
-use super::osd::{LevelOsd, OsdLevel};
 use block_editor_beui::{Editor, MediaLevel, MediaLevels, MediaRequest, MediaWatch, PlayerCommand};
 
 pub(crate) const VOLUME_STEP: f32 = 0.05;

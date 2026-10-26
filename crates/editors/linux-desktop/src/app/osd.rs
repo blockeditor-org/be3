@@ -27,7 +27,11 @@ pub(crate) struct OsdLevel {
 }
 
 #[component]
-pub(crate) fn LevelOsd(level: Memo<Option<OsdLevel>>, shown: ReadSignal<u64>, id: String) -> NodeId {
+pub(crate) fn LevelOsd(
+    level: Memo<Option<OsdLevel>>,
+    shown: ReadSignal<u64>,
+    id: String,
+) -> NodeId {
     let since = StoredCell::new(None::<Instant>);
     let opacity = create_signal(0.0_f32);
     let step = move |at: Instant| {
@@ -132,7 +136,12 @@ fn OsdCard(level: Memo<Option<OsdLevel>>, opacity: ReadSignal<f32>, id: String) 
     let glyph = create_memo(move || level.with(|level| level.as_ref().map(|level| level.glyph)));
     let value = create_memo(move || level.with(|level| level.as_ref().map(|level| level.level)));
     let label = create_memo(move || {
-        level.with(|level| level.as_ref().map(|level| level.label.clone()).unwrap_or_default())
+        level.with(|level| {
+            level
+                .as_ref()
+                .map(|level| level.label.clone())
+                .unwrap_or_default()
+        })
     });
     view! {
         <Frame padding={Sides::all(MARGIN).bottom(BOTTOM_MARGIN)}>
