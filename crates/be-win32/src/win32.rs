@@ -1,4 +1,5 @@
 mod desktop;
+mod focus;
 mod icons;
 mod power;
 mod programs;

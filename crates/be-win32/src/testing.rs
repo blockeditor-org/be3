@@ -148,3 +148,27 @@ pub fn titles(snapshot: &crate::Snapshot) -> Vec<String> {
         .map(|entry| entry.title.clone())
         .collect()
 }
+
+pub fn entry(id: u64, kind: crate::EntryKind, frame: Rect) -> crate::Entry {
+    crate::Entry {
+        id: crate::EntryId(id),
+        kind,
+        handle: Handle(id * 10),
+        title: format!("entry {id}"),
+        frame,
+        responding: true,
+        ..crate::Entry::default()
+    }
+}
+
+pub fn desk(entries: Vec<crate::Entry>) -> crate::Snapshot {
+    crate::Snapshot {
+        revision: 1,
+        monitors: vec![
+            monitor(1, "\\\\.\\DISPLAY1", Rect::new(0, 0, 1920, 1080), true),
+            monitor(2, "\\\\.\\DISPLAY2", Rect::new(1920, 0, 3840, 1080), false),
+        ],
+        entries,
+        input_desktop: crate::InputDesktop::Default,
+    }
+}

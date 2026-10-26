@@ -1,6 +1,9 @@
 pub mod command_line;
+pub mod cursor;
 pub mod events;
 pub mod filter;
+pub mod focus;
+pub mod hotkey;
 pub mod icon;
 pub mod integrity;
 pub mod launches;
@@ -12,7 +15,12 @@ pub mod programs;
 #[cfg(windows)]
 mod win32;
 
+pub use cursor::{Cursor, Over};
 pub use events::Event;
+pub use focus::{
+    Command, EndReason, FocusError, FocusEvent, FocusMode, Focused, Foreground, Output,
+};
+pub use hotkey::{Hotkey, HotkeyError, Modifiers};
 pub use integrity::{Control, InputDesktop, IntegrityLevel};
 pub use launches::{Launch, Launches, Origin};
 pub use model::{Entry, EntryId, EntryKind, Model, Popup, Snapshot};
@@ -30,6 +38,18 @@ use std::sync::Arc;
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct Handle(pub u64);
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+pub struct Point {
+    pub x: i32,
+    pub y: i32,
+}
+
+impl Point {
+    pub fn new(x: i32, y: i32) -> Self {
+        Self { x, y }
+    }
+}
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
 pub struct Rect {
@@ -63,6 +83,46 @@ impl Rect {
 
     pub fn contains(&self, x: i32, y: i32) -> bool {
         x >= self.left && x < self.right && y >= self.top && y < self.bottom
+    }
+
+    pub fn origin(&self) -> Point {
+        Point::new(self.left, self.top)
+    }
+
+    pub fn centre(&self) -> Point {
+        Point::new(self.left + self.width() / 2, self.top + self.height() / 2)
+    }
+
+    pub fn union(&self, other: &Rect) -> Rect {
+        if self.is_empty() {
+            return *other;
+        }
+        if other.is_empty() {
+            return *self;
+        }
+        Rect::new(
+            self.left.min(other.left),
+            self.top.min(other.top),
+            self.right.max(other.right),
+            self.bottom.max(other.bottom),
+        )
+    }
+
+    pub fn intersection(&self, other: &Rect) -> Option<Rect> {
+        let rect = Rect::new(
+            self.left.max(other.left),
+            self.top.max(other.top),
+            self.right.min(other.right),
+            self.bottom.min(other.bottom),
+        );
+        (!rect.is_empty()).then_some(rect)
+    }
+
+    pub fn clamp(&self, point: Point) -> Point {
+        Point::new(
+            point.x.clamp(self.left, (self.right - 1).max(self.left)),
+            point.y.clamp(self.top, (self.bottom - 1).max(self.top)),
+        )
     }
 }
 

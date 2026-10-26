@@ -14,6 +14,7 @@ pub const EVENT_OBJECT_NAMECHANGE: u32 = 0x800C;
 pub const EVENT_OBJECT_CLOAKED: u32 = 0x8017;
 pub const EVENT_OBJECT_UNCLOAKED: u32 = 0x8018;
 pub const OBJID_WINDOW: i32 = 0;
+pub const OBJID_CURSOR: i32 = -9;
 pub const CHILDID_SELF: i32 = 0;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -32,6 +33,14 @@ pub enum Event {
     DesktopSwitched,
     DisplaysChanged,
     Tick,
+}
+
+pub fn is_cursor_event(event: u32, object: i32) -> bool {
+    object == OBJID_CURSOR
+        && matches!(
+            event,
+            EVENT_OBJECT_LOCATIONCHANGE | EVENT_OBJECT_SHOW | EVENT_OBJECT_HIDE
+        )
 }
 
 impl Event {

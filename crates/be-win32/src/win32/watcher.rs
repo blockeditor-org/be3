@@ -6,7 +6,7 @@ use std::thread::JoinHandle;
 
 use windows::Win32::Foundation::{HWND, LPARAM, LRESULT, WPARAM};
 use windows::Win32::System::LibraryLoader::GetModuleHandleW;
-use windows::Win32::System::Threading::GetCurrentThreadId;
+use windows::Win32::System::Threading::{GetCurrentProcessId, GetCurrentThreadId};
 use windows::Win32::UI::Accessibility::{HWINEVENTHOOK, SetWinEventHook, UnhookWinEvent};
 use windows::Win32::UI::HiDpi::{
     DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2, SetThreadDpiAwarenessContext,
@@ -15,29 +15,41 @@ use windows::Win32::UI::WindowsAndMessaging::{
     CreateWindowExW, DefWindowProcW, DestroyWindow, DispatchMessageW, GA_ROOT, GetAncestor,
     GetMessageW, KillTimer, MSG, PM_NOREMOVE, PeekMessageW, PostThreadMessageW, RegisterClassW,
     SetTimer, WINDOW_EX_STYLE, WINEVENT_OUTOFCONTEXT, WM_APP, WM_DISPLAYCHANGE, WM_DPICHANGED,
-    WM_QUIT, WM_SETTINGCHANGE, WM_TIMER, WM_USER, WNDCLASSW, WS_POPUP,
+    WM_HOTKEY, WM_QUIT, WM_SETTINGCHANGE, WM_TIMER, WM_USER, WNDCLASSW, WS_POPUP,
 };
 use windows::core::w;
 
 use super::desktop::Win32Desktop;
-use super::{Com, handle};
+use super::focus::{self, HOTKEY_ID};
+use super::{Com, handle, hwnd};
 use crate::events::{
     EVENT_OBJECT_CREATE, EVENT_OBJECT_DESTROY, EVENT_OBJECT_UNCLOAKED, EVENT_SYSTEM_DESKTOPSWITCH,
-    EVENT_SYSTEM_FOREGROUND,
+    EVENT_SYSTEM_FOREGROUND, is_cursor_event,
 };
-use crate::{EntryId, Event, Launch, Model, Snapshot};
+use crate::{
+    Cursor, EndReason, EntryId, Event, FocusError, FocusEvent, FocusMode, Focused, Handle, Hotkey,
+    HotkeyError, Launch, Model, Output, Point, Snapshot,
+};
 
 const WM_REFRESH: u32 = WM_APP + 1;
+const WM_CURSOR: u32 = WM_APP + 2;
 const TICK_MS: u32 = 1000;
 
 enum Request {
     Show(EntryId),
     Hide(EntryId),
     Launched(Launch),
+    Focus(EntryId, Option<Point>),
+    Release,
+    Host(Option<Handle>),
+    Hotkey(Option<Hotkey>, mpsc::Sender<Result<(), HotkeyError>>),
 }
 
 struct Shared {
     snapshot: Mutex<Arc<Snapshot>>,
+    focused: Mutex<Option<Focused>>,
+    cursor: Mutex<Option<Cursor>>,
+    events: Mutex<Vec<FocusEvent>>,
     requests: Mutex<Vec<Request>>,
     wake: Box<dyn Fn() + Send + Sync>,
 }
@@ -45,6 +57,17 @@ struct Shared {
 thread_local! {
     static PENDING: RefCell<Vec<Event>> = const { RefCell::new(Vec::new()) };
     static POSTED: Cell<bool> = const { Cell::new(false) };
+    static CURSOR_POSTED: Cell<bool> = const { Cell::new(false) };
+}
+
+struct State<'a> {
+    shared: &'a Shared,
+    desktop: Win32Desktop,
+    model: Model,
+    mode: FocusMode,
+    host: Option<Handle>,
+    hotkey: Option<Hotkey>,
+    own_process: u32,
 }
 
 pub struct Watcher {
@@ -57,6 +80,9 @@ impl Watcher {
     pub fn spawn(wake: impl Fn() + Send + Sync + 'static) -> io::Result<Self> {
         let shared = Arc::new(Shared {
             snapshot: Mutex::new(Arc::new(Snapshot::default())),
+            focused: Mutex::new(None),
+            cursor: Mutex::new(None),
+            events: Mutex::new(Vec::new()),
             requests: Mutex::new(Vec::new()),
             wake: Box::new(wake),
         });
@@ -91,6 +117,45 @@ impl Watcher {
 
     pub fn launched(&self, launch: Launch) {
         self.request(Request::Launched(launch));
+    }
+
+    pub fn focus(&self, id: EntryId, at: Option<Point>) -> Result<(), FocusError> {
+        let snapshot = self.snapshot();
+        let entry = FocusMode::check(&snapshot, id)?;
+        focus::raise(&snapshot, entry)?;
+        self.request(Request::Focus(id, at));
+        Ok(())
+    }
+
+    pub fn release(&self) {
+        self.request(Request::Release);
+    }
+
+    pub fn set_host_window(&self, window: Option<Handle>) {
+        self.request(Request::Host(window));
+    }
+
+    pub fn set_hotkey(&self, hotkey: Option<Hotkey>) -> Result<(), HotkeyError> {
+        if let Some(hotkey) = hotkey {
+            hotkey.check()?;
+        }
+        let (reply, answer) = mpsc::channel();
+        self.request(Request::Hotkey(hotkey, reply));
+        answer
+            .recv()
+            .unwrap_or_else(|_| Err(HotkeyError::Failed("the windows thread stopped".to_owned())))
+    }
+
+    pub fn focused(&self) -> Option<Focused> {
+        self.shared.focused.lock().expect("focus lock").clone()
+    }
+
+    pub fn cursor(&self) -> Option<Cursor> {
+        *self.shared.cursor.lock().expect("cursor lock")
+    }
+
+    pub fn take_focus_events(&self) -> Vec<FocusEvent> {
+        std::mem::take(&mut *self.shared.events.lock().expect("events lock"))
     }
 
     // unsafe(ffi)
@@ -148,9 +213,16 @@ fn run(shared: &Shared, ready: &mpsc::Sender<io::Result<u32>>) {
     let timer = unsafe { SetTimer(None, 0, TICK_MS, None) };
     let _ = ready.send(Ok(thread_id));
 
-    let desktop = Win32Desktop::new();
-    let mut model = Model::new();
-    publish(shared, &mut model, &desktop, &[]);
+    let mut state = State {
+        shared,
+        desktop: Win32Desktop::new(),
+        model: Model::new(),
+        mode: FocusMode::new(),
+        host: None,
+        hotkey: None,
+        own_process: unsafe { GetCurrentProcessId() },
+    };
+    state.refresh(&[]);
     loop {
         let got = unsafe { GetMessageW(&mut message, None, 0, 0) };
         if got.0 <= 0 {
@@ -160,25 +232,38 @@ fn run(shared: &Shared, ready: &mpsc::Sender<io::Result<u32>>) {
             WM_REFRESH => {
                 POSTED.set(false);
                 let events = PENDING.take();
-                for request in std::mem::take(&mut *shared.requests.lock().expect("requests lock"))
-                {
-                    match request {
-                        Request::Show(id) => model.show(id),
-                        Request::Hide(id) => model.hide(id),
-                        Request::Launched(launch) => model.launched(launch),
-                    }
+                let requests = std::mem::take(&mut *shared.requests.lock().expect("requests lock"));
+                for request in requests {
+                    state.handle(request);
                 }
-                publish(shared, &mut model, &desktop, &events);
+                state.refresh(&events);
             }
             WM_TIMER if message.hwnd.0.is_null() => {
                 let mut events = PENDING.take();
                 events.push(Event::Tick);
-                publish(shared, &mut model, &desktop, &events);
+                state.refresh(&events);
+            }
+            WM_CURSOR => {
+                CURSOR_POSTED.set(false);
+                if state.read_cursor() {
+                    (shared.wake)();
+                }
+            }
+            WM_HOTKEY if message.hwnd.0.is_null() && message.wParam.0 == HOTKEY_ID as usize => {
+                state.events(vec![FocusEvent::Hotkey]);
+                state.release(EndReason::Hotkey);
+                state.refresh(&PENDING.take());
             }
             _ => {
                 unsafe { DispatchMessageW(&message) };
             }
         }
+    }
+    if state.mode.focused().is_some() {
+        focus::apply(crate::Command::Unclip);
+    }
+    if state.hotkey.is_some() {
+        focus::unregister();
     }
     for hook in hooks {
         let _ = unsafe { UnhookWinEvent(hook) };
@@ -189,10 +274,92 @@ fn run(shared: &Shared, ready: &mpsc::Sender<io::Result<u32>>) {
     let _ = unsafe { DestroyWindow(listener) };
 }
 
-fn publish(shared: &Shared, model: &mut Model, desktop: &Win32Desktop, events: &[Event]) {
-    if model.update(desktop, events) {
-        *shared.snapshot.lock().expect("snapshot lock") = model.snapshot();
-        (shared.wake)();
+impl State<'_> {
+    fn handle(&mut self, request: Request) {
+        match request {
+            Request::Show(id) => self.model.show(id),
+            Request::Hide(id) => self.model.hide(id),
+            Request::Launched(launch) => self.model.launched(launch),
+            Request::Focus(id, at) => {
+                let snapshot = self.model.snapshot();
+                match self.mode.start(&snapshot, id, at) {
+                    Ok(out) => self.output(out),
+                    Err(_) => self.events(vec![FocusEvent::Ended {
+                        entry: id,
+                        reason: EndReason::Closed,
+                    }]),
+                }
+            }
+            Request::Release => self.release(EndReason::Released),
+            Request::Host(window) => self.host = window,
+            Request::Hotkey(hotkey, reply) => {
+                if self.hotkey.take().is_some() {
+                    focus::unregister();
+                }
+                let result = match hotkey {
+                    Some(hotkey) => focus::register(hotkey).map(|()| self.hotkey = Some(hotkey)),
+                    None => Ok(()),
+                };
+                let _ = reply.send(result);
+            }
+        }
+    }
+
+    fn release(&mut self, reason: EndReason) {
+        let out = self.mode.release(reason);
+        focus::apply(crate::Command::Unclip);
+        self.output(out);
+        if let Some(host) = self.host
+            && !focus::bring_forward(hwnd(host))
+        {
+            self.events(vec![FocusEvent::HostForegroundRefused]);
+        }
+    }
+
+    fn refresh(&mut self, events: &[Event]) {
+        let mut changed = false;
+        if self.model.update(&self.desktop, events) {
+            *self.shared.snapshot.lock().expect("snapshot lock") = self.model.snapshot();
+            changed = true;
+            changed |= self.read_cursor();
+        }
+        let snapshot = self.model.snapshot();
+        let foreground = focus::foreground(&snapshot, self.own_process);
+        let out = self.mode.step(&snapshot, foreground, events);
+        changed |= !out.events.is_empty();
+        self.output(out);
+        if changed {
+            (self.shared.wake)();
+        }
+    }
+
+    fn output(&mut self, out: Output) {
+        for command in out.commands {
+            focus::apply(command);
+        }
+        *self.shared.focused.lock().expect("focus lock") = self.mode.focused().cloned();
+        if !out.events.is_empty() {
+            self.events(out.events);
+        }
+    }
+
+    fn events(&self, events: Vec<FocusEvent>) {
+        self.shared
+            .events
+            .lock()
+            .expect("events lock")
+            .extend(events);
+        (self.shared.wake)();
+    }
+
+    fn read_cursor(&mut self) -> bool {
+        let cursor = focus::cursor(&self.model.snapshot());
+        let mut current = self.shared.cursor.lock().expect("cursor lock");
+        if *current == cursor {
+            return false;
+        }
+        *current = cursor;
+        true
     }
 }
 
@@ -215,6 +382,14 @@ unsafe extern "system" fn on_win_event(
     _thread: u32,
     _time: u32,
 ) {
+    if is_cursor_event(event, object) {
+        if !CURSOR_POSTED.replace(true) {
+            let _ = unsafe {
+                PostThreadMessageW(GetCurrentThreadId(), WM_CURSOR, WPARAM(0), LPARAM(0))
+            };
+        }
+        return;
+    }
     let whole = event == EVENT_OBJECT_DESTROY
         || event == EVENT_SYSTEM_DESKTOPSWITCH
         || window.0.is_null()
