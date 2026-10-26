@@ -81,6 +81,7 @@ thread_local! {
     static MIRROR: RefCell<ImeMirror> = RefCell::new(ImeMirror::default());
     static HELD_FIELD: Cell<Option<Rect>> = const { Cell::new(None) };
     static REFOCUSING: Cell<bool> = const { Cell::new(false) };
+    static IME_SHOWN: Cell<bool> = const { Cell::new(false) };
     static LEAVING: Cell<bool> = const { Cell::new(false) };
     static CLIPBOARD_KEYS: Cell<bool> = const { Cell::new(false) };
     static PASTE_KINDS: RefCell<Vec<PasteKind>> = const { RefCell::new(Vec::new()) };
@@ -360,6 +361,19 @@ impl WebPlatform {
             let style = self.agent.style();
             let _ = style.set_property("left", &format!("{}px", area.cursor.min.x));
             let _ = style.set_property("top", &format!("{}px", area.cursor.max.y));
+        }
+        if ime.is_some() && !IME_SHOWN.replace(true) {
+            let agent: &web_sys::Element = &self.agent;
+            let focused = web_sys::window()
+                .and_then(|window| window.document())
+                .and_then(|document| document.active_element())
+                .is_some_and(|active| &active == agent);
+            if !focused {
+                let _ = self.agent.focus();
+            }
+        }
+        if ime.is_none() {
+            IME_SHOWN.set(false);
         }
     }
 
