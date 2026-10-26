@@ -373,8 +373,9 @@ turn off), and, under `--session`, logind's `Lock` for the app's own session (`l
 lock-session`) and before every suspend: `DesktopSession` holds a logind `delay` inhibitor for
 sleep and lets it go once the lock screen has been drawn twice (`src/session/sleep.rs`), taking it
 again on waking. `src/session/lock.rs` is the state machine, `src/session.rs`'s `ScreenLock` runs
-it, and `src/ui/lock.rs` shows it as `styled::LockScreen`, a card on every screen of
-the document (`use_screens()`) over an opaque scrim. logind's `Unlock` is not obeyed: only a password unlocks.
+it, and `src/ui/lock.rs` shows it as its `LockScreen`: a `Modal` at `LayerLevel::Lock` over
+an opaque scrim with an `EveryScreen` inside, so a card on every screen of the document
+(`use_screens()`). logind's `Unlock` is not obeyed: only a password unlocks.
 
 The password is checked by PAM on a thread of its own, with the service `block-app` when
 `/etc/pam.d/block-app` exists (`--install-session` writes it unless one is there, as

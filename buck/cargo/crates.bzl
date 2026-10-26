@@ -10034,6 +10034,7 @@ crates = {
                 "features": [],
                 "test_deps": [
                     "//crates/block-editor-plugin:block-editor-plugin",
+                    "//crates/block-ui-test:block-ui-test",
                     "//crates/editors/browser-tab/types:browser-tab-types",
                     "//crates/editors/calendar/types:calendar-types",
                     "//crates/editors/checklist/types:checklist-types",
@@ -10154,6 +10155,7 @@ crates = {
                 "test_deps": [
                     "//crates/be-cli:be-cli",
                     "//crates/block-editor-plugin:block-editor-plugin",
+                    "//crates/block-ui-test:block-ui-test",
                     "//crates/editors/browser-tab/types:browser-tab-types",
                     "//crates/editors/calendar/types:calendar-types",
                     "//crates/editors/checklist/types:checklist-types",
@@ -10273,6 +10275,7 @@ crates = {
                 "test_deps": [
                     "//crates/be-cli:be-cli",
                     "//crates/block-editor-plugin:block-editor-plugin",
+                    "//crates/block-ui-test:block-ui-test",
                     "//crates/editors/browser-tab/types:browser-tab-types",
                     "//crates/editors/calendar/types:calendar-types",
                     "//crates/editors/checklist/types:checklist-types",
@@ -10372,6 +10375,7 @@ crates = {
                 "test_deps": [
                     "//crates/be-cli:be-cli",
                     "//crates/block-editor-plugin:block-editor-plugin",
+                    "//crates/block-ui-test:block-ui-test",
                     "//crates/editors/browser-tab/types:browser-tab-types",
                     "//crates/editors/calendar/types:calendar-types",
                     "//crates/editors/checklist/types:checklist-types",
@@ -10472,6 +10476,7 @@ crates = {
                 "test_deps": [
                     "//crates/be-cli:be-cli",
                     "//crates/block-editor-plugin:block-editor-plugin",
+                    "//crates/block-ui-test:block-ui-test",
                     "//crates/editors/browser-tab/types:browser-tab-types",
                     "//crates/editors/calendar/types:calendar-types",
                     "//crates/editors/checklist/types:checklist-types",
@@ -10611,6 +10616,7 @@ crates = {
                 "test_deps": [
                     "//crates/be-cli:be-cli",
                     "//crates/block-editor-plugin:block-editor-plugin",
+                    "//crates/block-ui-test:block-ui-test",
                     "//crates/editors/browser-tab/types:browser-tab-types",
                     "//crates/editors/calendar/types:calendar-types",
                     "//crates/editors/checklist/types:checklist-types",
@@ -10709,6 +10715,7 @@ crates = {
                 "test_deps": [
                     "//crates/be-cli:be-cli",
                     "//crates/block-editor-plugin:block-editor-plugin",
+                    "//crates/block-ui-test:block-ui-test",
                     "//crates/editors/browser-tab/types:browser-tab-types",
                     "//crates/editors/calendar/types:calendar-types",
                     "//crates/editors/checklist/types:checklist-types",

@@ -6,6 +6,7 @@ use beui_macros::{component, view};
 use beui_core::color::Color32;
 
 use crate::focus_ring::FocusRing;
+use crate::progress::{INLINE_PROGRESS_WIDTH, Progress};
 use crate::text::{Icon, Text, TextColor, TextSize};
 use crate::theme::{ThemeStore, use_theme};
 use crate::tooltip::Tooltip;
@@ -147,12 +148,16 @@ pub fn Button(
     #[prop(default = None)] glyph: Prop<Option<Glyph>>,
     #[prop(default = false)] icon_only: Prop<bool>,
     #[prop(default = false)] disabled: Prop<bool>,
+    #[prop(default = false)] busy: Prop<bool>,
+    #[prop(default = false)] wide: Prop<bool>,
     #[prop(default = false)] focused: Prop<bool>,
     #[prop(default = false)] capture_presses: Prop<bool>,
     #[prop(default = true)] press_focus: Prop<bool>,
     action: Option<Action>,
     on_click: ClickCallback,
 ) -> NodeId {
+    let busy = create_memo(move || busy.get());
+    let disabled = create_memo(move || disabled.get() || busy.get());
     view! {
         <unstyled::Button
             label
@@ -165,7 +170,7 @@ pub fn Button(
             press_focus
             on_click={on_click}
         >|handle|
-            <ButtonFace handle variant size />
+            <ButtonFace handle variant size busy wide />
         </unstyled::Button>
     }
 }
@@ -178,6 +183,8 @@ pub fn ButtonFace(
     #[prop(default = None)] trailing_glyph: Prop<Option<Glyph>>,
     #[prop(default = None)] image: Prop<Option<Image>>,
     #[prop(default = false)] pressed: Prop<bool>,
+    #[prop(default = false)] busy: Prop<bool>,
+    #[prop(default = false)] wide: Prop<bool>,
 ) -> NodeId {
     let unstyled::ButtonHandle {
         hovered,
@@ -205,6 +212,11 @@ pub fn ButtonFace(
     let trailing = create_memo(move || trailing_glyph.get());
     let has_trailing = create_memo(move || trailing.get().is_some());
     let labelled = create_memo(move || !icon_only.get());
+    let busy = create_memo(move || busy.get());
+    let justify = create_memo(move || match wide.get() {
+        true => Justify::Center,
+        false => Justify::Start,
+    });
     let padding = create_memo(move || size.padding(icon_only.get()));
     let width = create_memo(move || size.width(icon_only.get()));
     let offset = create_memo(move || size.focus_ring_offset(icon_only.get()));
@@ -226,7 +238,15 @@ pub fn ButtonFace(
                     align={size.align()}
                     padding={padding}
                 >
-                    <List direction=Direction::Horizontal align=Align::Center spacing=GLYPH_SPACING>
+                    <List
+                        direction=Direction::Horizontal
+                        align=Align::Center
+                        justify={justify}
+                        spacing=GLYPH_SPACING
+                    >
+                        <Show condition={busy}>
+                            <Progress width=INLINE_PROGRESS_WIDTH />
+                        </Show>
                         <Show condition={pictured}>
                             <Frame width=picture height=picture>
                                 <Picture image />

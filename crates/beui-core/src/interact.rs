@@ -139,7 +139,7 @@ fn key_event(doc: &mut Document, ctx: &Context, event: &Event) -> Result<bool, F
             if press.pressed {
                 doc.acted = Acted::Keys;
                 if !press.key.is_media() {
-                    doc.touched = false;
+                    doc.set_touched(false);
                     doc.keyboard_held = false;
                 }
             }

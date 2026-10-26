@@ -238,10 +238,11 @@ pub(super) fn PairingDialog(view: AppViewStore) -> NodeId {
             open={open}
             title="Add a device"
             width=340.0
-            confirm="Approve"
-            cancel="Ignore"
-            confirm_disabled={cannot}
-            on_confirm={approve}
+            kind=DialogKind::Alert
+            actions={vec![
+                DialogAction::primary("Approve", approve).disabled(cannot),
+                DialogAction::cancel("Ignore"),
+            ]}
             on_dismiss={dismiss}
         >
             <Text style=TextStyle::PARAGRAPH>{message}</Text>

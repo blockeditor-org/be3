@@ -36,7 +36,7 @@ fn leaving_a_workspace_someone_shared_asks_first() {
     app.click("#app.contacts.paste");
     app.type_text(&link);
     app.click("#app.contacts.open");
-    app.click("#app.contacts.accept");
+    app.click("#app.contacts.offered.accept");
     app.wait("Label value=\"Dev\"");
     app.key("Escape");
     app.pause(500);
@@ -54,7 +54,7 @@ fn leaving_a_workspace_someone_shared_asks_first() {
     app.click("Button \"Dev\"");
     app.click("#share.add");
     app.wait("Label value=\"Dev\"");
-    app.click("Button \"Done\"");
+    app.click("#share.close");
 
     app.click("#file-tree.desktop-app-menu");
     app.click("#app.menu.accounts");
@@ -75,10 +75,10 @@ fn leaving_a_workspace_someone_shared_asks_first() {
     app.wait("TreeItem \"Team\"");
     app.run(&["click", "TreeItem \"Team\"", "right"]);
     app.click("#file-tree.section.leave");
-    app.wait("Dialog \"Leave?\"");
-    app.crop("Dialog \"Leave?\"");
+    app.wait("AlertDialog \"Leave?\"");
+    app.crop("AlertDialog \"Leave?\"");
     app.snapshot("leaving_a_workspace_someone_shared_asks_first");
     app.click("Button \"Stay\"");
-    app.gone("Dialog \"Leave?\"");
+    app.gone("AlertDialog \"Leave?\"");
     app.close();
 }

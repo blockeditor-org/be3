@@ -2141,11 +2141,8 @@ pub(crate) fn OverlaysPage() -> NodeId {
             <Sample title="Dialog with a field" code={vec![RenameDialog::SOURCE]}>
                 <RenameDialog />
             </Sample>
-            <Sample title="Keep changes" code={vec![KeepModeChange::SOURCE]}>
-                <KeepModeChange />
-            </Sample>
-            <Sample title="Lock screen" code={vec![ScreenLock::SOURCE]}>
-                <ScreenLock />
+            <Sample title="Dialog with busy and nested actions" code={vec![InviteDialog::SOURCE]}>
+                <InviteDialog />
             </Sample>
             <Sample title="Launcher" code={vec![ProgramLauncher::SOURCE, program::SOURCE]}>
                 <ProgramLauncher />
@@ -2221,14 +2218,15 @@ fn DiscardDialog() -> NodeId {
                 open={dialog}
                 title="Discard changes?"
                 width=DIALOG_WIDTH
+                kind=DialogKind::Alert
                 id="demo.discard"
-                confirm="Discard"
-                cancel="Keep"
-                destructive=true
-                on_confirm={move || {
-                    outcome.set("Discarded the changes".to_owned());
-                    dialog.set(false);
-                }}
+                actions={vec![
+                    DialogAction::destructive("Discard", move || {
+                        outcome.set("Discarded the changes".to_owned());
+                        dialog.set(false);
+                    }),
+                    DialogAction::cancel("Keep"),
+                ]}
                 on_dismiss={move || dialog.set(false)}
             >
                 <Text style=TextStyle::PARAGRAPH>
@@ -2269,10 +2267,10 @@ fn RenameDialog() -> NodeId {
                 title="Rename"
                 width=DIALOG_WIDTH
                 id="demo.rename"
-                confirm="Rename"
-                cancel="Cancel"
-                confirm_disabled={blank}
-                on_confirm={rename}
+                actions={vec![
+                    DialogAction::cancel("Cancel"),
+                    DialogAction::primary("Rename", rename).disabled(blank),
+                ]}
                 on_dismiss={move || dialog.set(false)}
             >
                 <TextInput
@@ -2288,72 +2286,61 @@ fn RenameDialog() -> NodeId {
 
 #[sample]
 #[component]
-fn KeepModeChange() -> NodeId {
+fn InviteDialog() -> NodeId {
+    let dialog = create_signal(false);
+    let email = create_signal(String::new());
+    let sending = create_signal(false);
     let asking = create_signal(false);
-    let outcome = create_signal("Showing 1920 × 1080 at 60 Hz".to_owned());
+    let blank = create_memo(move || email.get().trim().is_empty());
     view! {
         <List spacing=SECTION_SPACING>
             <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
                 <Button
-                    @test_id={"demo.keep_changes.open"}
-                    label="Switch to 144 Hz"
+                    @test_id={"demo.invite.open"}
+                    label="Invite…"
                     variant=ButtonVariant::Secondary
-                    on_click={move || asking.set(true)}
+                    on_click={move || dialog.set(true)}
                 />
             </List>
-            <Text style=TextStyle::CAPTION @test_id={"demo.keep_changes.outcome"}>{outcome}</Text>
-            <KeepChanges
-                open={asking}
-                title="Keep these display settings?"
-                on_keep={move || {
-                    outcome.set("Kept 1920 × 1080 at 144 Hz".to_owned());
-                    asking.set(false);
+            <Dialog
+                open={dialog}
+                title="Invite member"
+                width=DIALOG_WIDTH
+                id="demo.invite"
+                actions={vec![
+                    DialogAction::secondary("Clear", move || asking.set(true))
+                        .disabled(blank)
+                        .named("clear"),
+                    DialogAction::cancel("Cancel"),
+                    DialogAction::primary("Send", move || sending.set(true))
+                        .disabled(blank)
+                        .busy(sending),
+                ]}
+                on_dismiss={move || {
+                    sending.set(false);
+                    dialog.set(false);
                 }}
-                on_revert={move || {
-                    outcome.set("Went back to 1920 × 1080 at 60 Hz".to_owned());
-                    asking.set(false);
-                }}
-            />
-        </List>
-    }
-}
-
-#[sample]
-#[component]
-fn ScreenLock() -> NodeId {
-    let locked = create_signal(false);
-    let error = create_signal(None::<String>);
-    view! {
-        <List spacing=SECTION_SPACING>
-            <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
-                <Button
-                    @test_id={"demo.lock.open"}
-                    label="Lock"
-                    glyph=ICON_LOCK
-                    variant=ButtonVariant::Secondary
-                    on_click={move || {
-                        error.set(None);
-                        locked.set(true);
-                    }}
-                />
-            </List>
-            <Text style=TextStyle::CAPTION>"The password is beui."</Text>
-            <LockScreen
-                open={locked}
-                time="09:41"
-                date="Thursday, 8 October"
-                user="Ada Lovelace"
-                error={error}
-                actions={vec![LockAction {
-                    label: "Power off".to_owned(),
-                    glyph: ICON_POWER.to_owned(),
-                }]}
-                id="demo.lock"
-                on_submit={move |typed: String| match typed == "beui" {
-                    true => locked.set(false),
-                    false => error.set(Some("That password is not right.".to_owned())),
-                }}
-            />
+            >
+                <TextInput value={email} label="Email address" @test_id={"demo.invite.email"} />
+                <Dialog
+                    open={asking}
+                    kind=DialogKind::Alert
+                    title="Clear the address?"
+                    id="demo.invite.clear"
+                    actions={vec![
+                        DialogAction::destructive("Clear", move || {
+                            email.set(String::new());
+                            asking.set(false);
+                        }),
+                        DialogAction::cancel("Keep"),
+                    ]}
+                    on_dismiss={move || asking.set(false)}
+                >
+                    <Text style=TextStyle::PARAGRAPH>
+                        "A confirmation inside a dialog is an alert of its own."
+                    </Text>
+                </Dialog>
+            </Dialog>
         </List>
     }
 }

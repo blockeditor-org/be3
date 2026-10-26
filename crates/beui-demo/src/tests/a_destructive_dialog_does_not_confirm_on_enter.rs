@@ -11,12 +11,19 @@ fn a_destructive_dialog_does_not_confirm_on_enter() {
     test.snapshot("a_destructive_dialog_does_not_confirm_on_enter");
 
     press_key(&mut test, Key::Enter);
+    test.settle();
     assert!(
-        test.shows("demo.discard.confirm"),
-        "Enter leaves the dialog open"
+        !test.shows("demo.discard.confirm"),
+        "Enter presses Cancel, where the focus starts, and closes the dialog"
     );
-    assert_eq!(showing(test.document(), root, "Nothing discarded"), 1);
+    assert_eq!(
+        showing(test.document(), root, "Nothing discarded"),
+        1,
+        "and discards nothing"
+    );
 
+    test.click("demo.discard.open");
+    test.frame(Vec::new());
     test.click("demo.discard.confirm");
     test.frame(Vec::new());
     assert!(

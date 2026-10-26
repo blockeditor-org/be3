@@ -1752,34 +1752,71 @@ afterwards; the page that moves needs an opaque background, and a page that
 must keep its state (a scroll position) is built once and handed to a `Portal`
 in both places. The stacked dock shows the tab back goes to behind the tab it leaves
 this way. A back with no gesture before it (a key, Escape, a press outside)
-carries the page off from where it rests in the same slide-away. `styled::Dialog` and
-`Fullscreen` slide away the same way and fade their scrim, and a `Sheet`
+carries the page off from where it rests in the same slide-away. `unstyled::Modal`, under
+`styled::Dialog` and `Fullscreen`, slides away the same way and fades its scrim, and a `Sheet`
 sinks with the gesture and slides on down from where it was. On Android the
 runner passes `handles_back` to the activity's `setBackHandled`, and when
 nothing takes it the system's own back (to the home screen) plays instead.
 
 A `Center` overlay is never larger than its screen: content that measures taller
 or wider is laid out in the screen's size, so its bottom cannot fall off a short
-window. `styled::Dialog` puts its title and body in a fitted `Scroll` with
-`Bleed::DIALOG` that gives up length when the screen is short, so every dialog
-scrolls rather than spilling over the edge.
+window.
 
-A dialog's buttons are props of `styled::Dialog`, never buttons in its body, so
-every dialog places and draws them the same way: a footer under the scroll that
-stays in view while the body scrolls. `confirm` names the action (drawn primary,
-or `ButtonVariant::Danger` with `destructive`; `confirm_disabled` greys it) and
-runs `on_confirm`; `cancel` names the dismissal (always secondary, alone too,
-such as "Close" or "Done") and runs `on_dismiss`. An empty label
-leaves its button out. Confirm is rightmost and cancel beside it, and
-`extra_actions` (such as Delete in an edit form) start the row on the left.
-The row wraps rather than stacking, so the buttons stay side by side until they
-no longer fit. Enter that nothing in the dialog takes runs the
-confirm action, unless it is disabled or destructive, so a field needs no
-`on_submit` of its own. With `id`, the buttons are `{id}.confirm` and
-`{id}.cancel`. `KeepChanges` draws its prompt with the same surface and footer.
+`unstyled::Modal` is every modal's outer part: an overlay with a scrim that fades
+with the modal's presence, and dismissal (Escape, a press on the scrim, back) through
+`on_dismiss`. `placement` is `ModalPlacement::Center`, `Fill`, or `AllScreens`, which
+covers the box around every screen for an `EveryScreen` inside it. `motion` is
+`ModalMotion::Slides` (the content goes in a `BackSlide`), `Still`, or `Reported`, where
+the content reports its own presence through the `ModalHandle` it is given, as
+`ModalSheet`'s sheet does. `styled::Modal` picks the scrim by `Scrim` (`Soft`, `Dim`,
+`Strong`, `Opaque`), and `Fullscreen` is one that fills the screen over `Scrim::Strong`.
+`EveryScreen` builds its content once per entry of `use_screens()`, each in that screen's
+rectangle relative to the box around all of them (`ScreenSlot { index, rect }`), aligned
+by `align` (centred by default).
+
+A dialog's buttons are data, never buttons in its body: `actions` is a list of
+`DialogAction`s, each a label, an `ActionRole` (`Primary`, `Destructive`,
+`Secondary`, `Cancel`), and `disabled`, `busy` and `shown` (`DialogAction::primary(label,
+on_click).disabled(blank)`, `DialogAction::cancel(label)`). The dialog places,
+orders, draws, focuses and binds them (`unstyled::DialogBody`, painted by
+`styled::DialogBody`), so every modal lays its buttons out the same way. Cancel runs
+the dialog's `on_dismiss`, the same as Escape, back, a press on the scrim and the
+close button. There are two kinds. A `DialogKind::Alert` is a decision (leave,
+discard, delete): its actions are its only way out, its role is AlertDialog, and the
+focus starts on its primary action, or on Cancel when that action is destructive. A
+`DialogKind::Dialog` (the default) is content (settings, members, inspect): a title
+row with a close button, and a footer only when it has actions. Enter that nothing in
+the dialog takes runs the `Primary` action unless it is disabled or busy, so a field
+needs no `on_submit` of its own; a `Destructive` one never runs on Enter. A wide
+footer is right-aligned with `Secondary` actions (and a `Destructive` one beside a
+`Primary` one) on the left, then Cancel, then the primary (macOS and GNOME's order),
+and it wraps rather than stacking. A narrow or touched one stacks its buttons full width,
+primary first. `busy` disables an action and shows progress in its button
+(`Button`'s `busy`). With `id`, the buttons are `{id}.{name}`: `confirm` for the
+primary or destructive action, `cancel`, and what `named` gives a secondary one;
+the close button is `{id}.close` and the footer `{id}.actions`. A confirmation
+inside a dialog is an alert of its own, opened over it; a control or row action
+(a member's role, share's Add) stays in the content.
+
+`styled::Dialog` is the two parts together: `DialogFrame`, the outer part, and
+`DialogBody`, the inner part. `DialogFrame` (on `unstyled::Dialog`) is a centred
+`DialogCard` in a `Modal`, or, for a `Dialog` kind when the widest screen is
+narrower than `SHEET_BELOW` or the press that opened it was a touch (`use_touch()`:
+whether the last press was not the mouse, until a key is pressed), a fitted
+`ModalSheet`; an alert is always a card. It builds its content once, when it first
+opens, and moves it between the card and the sheet with a `Portal` if that changes
+while it is open; it provides the `DialogLayout` (`narrow`, `sheet`) to what it
+holds. `DialogBody` is the title row, the content in a fitted `Scroll` with
+`Bleed::dialog` that gives up length when the screen is short (or, with
+`scrolls=false`, the content given the rest of the height to scroll itself), and the
+pinned footer; it reads `narrow` from the `DialogLayout` it is in. Code that places
+its own body uses the parts: block-app's keep-changes prompt is a `DialogCard` with a
+`DialogBody` in each `EveryScreen` slot of a `Modal`, and the dock's Rename card is a
+`DialogBody` in a `DockDialog`. A sheet is fitted to the screen beui's on-screen
+keyboard leaves, so its footer stays above it.
 
 A layer at `LayerLevel::Lock` that blocks everything is a lock screen
-(`styled::LockScreen`): it is above every other layer, so anything opened while
+(block-app's `LockScreen`): it is above every other layer, so anything opened while
 it is up opens beneath it; it is never dismissable; the focus cannot leave it,
 not even to nothing; `Document::locked` is true; and while it is, the
 listeners above the tree (`on_global_key`, window and host actions) hear
@@ -1922,9 +1959,10 @@ most of that rect is on, placed against the rect as it would be against a node.
 corner of a screen above its bar. A toast goes after its `duration` unless it is `sticky` or
 `danger`: an error stays until it is dismissed, so it cannot be missed.
 `Fill`, `At` and `Around` use the whole document, so something meant for every
-screen - `styled::KeepChanges`, `styled::LockScreen`, linux-desktop's `LevelOsd` - lays
-out one card per entry of `use_screens()`, which is a single card everywhere
-but a desktop with several monitors.
+screen - block-app's keep-changes prompt and lock screen - puts an `EveryScreen` in a
+`Modal` with `ModalPlacement::AllScreens`, one card per entry of `use_screens()`,
+which is a single card everywhere but a desktop with several monitors.
+linux-desktop's `LevelOsd` opens one overlay per screen instead.
 
 ### Docking and windows
 

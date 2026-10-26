@@ -451,39 +451,25 @@ fn PlaceItem(
 #[component]
 fn CentredSurface(workspace: Workspace, pick: u64, held: Memo<Option<Pick>>) -> NodeId {
     let open = create_memo(move || held.with(|held| held.as_ref().is_some_and(Pick::surface_open)));
-    let phone = workspace.phone;
-    let wide = create_memo(move || open.get() && !phone.get());
-    let narrow = create_memo(move || open.get() && phone.get());
-    let mut built = false;
-    let body = create_memo(move || {
-        built |= open.get();
-        built
-    });
-    let surface = create_signal(None);
-    create_binding(move || {
-        if body.get() {
-            let node = untrack(|| {
-                view! {
-                    <PickerSurface workspace pick />
-                }
-            });
-            surface.set(Some(node));
-        }
-    });
-    let in_dialog = create_memo(move || wide.get().then(|| surface.get()).flatten());
-    let in_sheet = create_memo(move || narrow.get().then(|| surface.get()).flatten());
     let close = move || close_surface(workspace, pick);
     view! {
-        <List spacing=0.0>
-            <Dialog open={wide} width={SURFACE_SIZE.x} id="picker" on_dismiss={close}>
-                <Frame height=DIALOG_HEIGHT>
-                    <Portal node={in_dialog} />
+        <DialogFrame
+            open={open}
+            width={SURFACE_SIZE.x}
+            narrow={workspace.phone}
+            on_dismiss={close}
+        >|| {
+            let layout = use_context::<DialogLayout>();
+            let height = create_memo(move || match layout.is_some_and(|layout| layout.sheet.get()) {
+                true => Extent::INTRINSIC,
+                false => Extent::px(DIALOG_HEIGHT),
+            });
+            view! {
+                <Frame height>
+                    <PickerSurface workspace pick />
                 </Frame>
-            </Dialog>
-            <ModalSheet open={narrow} fit=true on_close={close}>
-                <Portal node={in_sheet} />
-            </ModalSheet>
-        </List>
+            }
+        }</DialogFrame>
     }
 }
 
@@ -1052,7 +1038,8 @@ fn PickerError(error: Memo<Option<String>>, act: Act) -> NodeId {
             open={open}
             title="Block picker error"
             width=320.0
-            cancel="Dismiss"
+            kind=DialogKind::Alert
+            actions={vec![DialogAction::cancel("Dismiss")]}
             on_dismiss={move || act.call(PickAction::DismissError)}
         >
             <Text style=TextStyle::CAPTION color=TextColor::Danger>{text}</Text>

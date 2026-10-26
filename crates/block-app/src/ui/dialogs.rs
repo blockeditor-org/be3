@@ -30,14 +30,36 @@ pub(super) fn Dialogs(view: AppViewStore) -> NodeId {
 fn InviteDialog(view: AppViewStore) -> NodeId {
     let invite = view.invite;
     let open = create_memo(move || invite.get().is_some());
+    let busy = create_memo(move || invite.get().is_some_and(|invite| invite.busy));
+    let sent = create_memo(move || invite.get().map(|invite| invite.sent));
+    let email = create_signal(String::new());
+    let administrator = create_signal(false);
+    create_effect(move || {
+        sent.get();
+        untrack(|| email.set(String::new()));
+    });
+    let role = create_memo(move || match administrator.get() {
+        true => OrganizationRole::Administrator,
+        false => OrganizationRole::Editor,
+    });
+    let cannot = create_memo(move || email.get().trim().is_empty());
     view! {
         <Dialog
             open={open}
             title="Invite member"
             width=380.0
+            id="app.invite"
+            actions={vec![
+                DialogAction::primary("Create invite link", move || {
+                    send(UiCommand::SendInvite(email.get_untracked(), role.get_untracked()))
+                })
+                .disabled(cannot)
+                .busy(busy)
+                .named("send"),
+            ]}
             on_dismiss={|| send(UiCommand::CloseInvite)}
         >
-            <InvitePanel view />
+            <InvitePanel view email administrator role />
         </Dialog>
     }
 }
@@ -52,22 +74,33 @@ fn AgentsDialog(view: AppViewStore) -> NodeId {
             None => "Agents".to_owned(),
         },
     );
-    let done = create_memo(
-        move || match agents.get().and_then(|agents| agents.created) {
-            Some(_) => "Done".to_owned(),
-            None => String::new(),
-        },
-    );
+    let made = create_memo(move || agents.get().and_then(|agents| agents.created).is_some());
+    let creating = create_memo(move || !made.get());
+    let busy = create_memo(move || agents.get().is_some_and(|agents| agents.busy));
+    let name = create_signal(String::new());
+    create_effect(move || {
+        if made.get() {
+            untrack(|| name.set(String::new()));
+        }
+    });
+    let cannot = create_memo(move || name.get().trim().is_empty());
     view! {
         <Dialog
             open={open}
             title={title}
             width=460.0
             id="app.agents"
-            cancel={done}
+            actions={vec![
+                DialogAction::primary("Add agent", move || send(UiCommand::CreateAgent(name.get_untracked())))
+                    .disabled(cannot)
+                    .busy(busy)
+                    .shown(creating)
+                    .named("add"),
+                DialogAction::cancel("Done").shown(made),
+            ]}
             on_dismiss={|| send(UiCommand::CloseAgents)}
         >
-            <AgentsPanel view />
+            <AgentsPanel view name />
         </Dialog>
     }
 }
@@ -76,11 +109,18 @@ fn AgentsDialog(view: AppViewStore) -> NodeId {
 fn ContactsDialog(view: AppViewStore) -> NodeId {
     let contacts = view.contacts;
     let open = create_memo(move || contacts.get().is_some());
+    let busy = create_memo(move || contacts.get().is_some_and(|contacts| contacts.busy));
     view! {
         <Dialog
             open={open}
             title="Contacts"
             width=460.0
+            id="app.contacts"
+            actions={vec![
+                DialogAction::primary("New contact link", || send(UiCommand::NewContactLink))
+                    .busy(busy)
+                    .named("new-link"),
+            ]}
             on_dismiss={|| send(UiCommand::CloseContacts)}
         >
             <ContactsPanel view />
@@ -97,6 +137,14 @@ fn MembersDialog(view: AppViewStore) -> NodeId {
             open={open}
             title="Members"
             width=480.0
+            id="app.members"
+            actions={vec![
+                DialogAction::primary("Invite member", || {
+                    send(UiCommand::CloseMembers);
+                    send(UiCommand::InviteMember);
+                })
+                .named("invite"),
+            ]}
             on_dismiss={|| send(UiCommand::CloseMembers)}
         >
             <MembersPanel view />
@@ -174,39 +222,23 @@ fn MembersPanel(view: AppViewStore) -> NodeId {
                         </List>
                     }
                 }</ForEach>
-                <Show condition={asks_removal}>
-                    <List spacing=6.0>
-                        <Text style=TextStyle::PARAGRAPH>{removing}</Text>
-                        <List direction=Direction::Horizontal spacing=8.0>
-                            <Button
-                                label="Remove"
-                                variant=ButtonVariant::Primary
-                                @test_id={"app.members.remove.confirm"}
-                                on_click={|| send(UiCommand::ConfirmRemoveMember)}
-                            />
-                            <Button
-                                label="Keep"
-                                variant=ButtonVariant::Secondary
-                                on_click={|| send(UiCommand::CancelRemoveMember)}
-                            />
-                        </List>
-                    </List>
+                <Show condition={busy}>
+                    <Progress width=INLINE_PROGRESS_WIDTH />
                 </Show>
-                <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
-                    <Button
-                        label="Invite member"
-                        variant=ButtonVariant::Primary
-                        @test_id={"app.members.invite"}
-                        on_click={|| {
-                            send(UiCommand::CloseMembers);
-                            send(UiCommand::InviteMember);
-                        }}
-                    />
-                    <Show condition={busy}>
-                        <Progress width=INLINE_PROGRESS_WIDTH />
-                    </Show>
-                </List>
                 <ErrorText text={error} />
+                <Dialog
+                    open={asks_removal}
+                    kind=DialogKind::Alert
+                    title="Remove member?"
+                    id="app.members.remove"
+                    actions={vec![
+                        DialogAction::destructive("Remove", || send(UiCommand::ConfirmRemoveMember)),
+                        DialogAction::cancel("Keep"),
+                    ]}
+                    on_dismiss={|| send(UiCommand::CancelRemoveMember)}
+                >
+                    <Text style=TextStyle::PARAGRAPH>{removing}</Text>
+                </Dialog>
             </List>
         </Frame>
     }
@@ -285,36 +317,19 @@ fn ContactsPanel(view: AppViewStore) -> NodeId {
                         </List>
                     }
                 }</ForEach>
-                <Show condition={asks_removal}>
-                    <List spacing=6.0>
-                        <Text style=TextStyle::PARAGRAPH>{removing}</Text>
-                        <List direction=Direction::Horizontal spacing=8.0>
-                            <Button
-                                label="Remove"
-                                variant=ButtonVariant::Primary
-                                @test_id={"app.contacts.remove.confirm"}
-                                on_click={|| send(UiCommand::ConfirmRemoveContact)}
-                            />
-                            <Button
-                                label="Keep"
-                                variant=ButtonVariant::Secondary
-                                on_click={|| send(UiCommand::CancelRemoveContact)}
-                            />
-                        </List>
-                    </List>
-                </Show>
-                <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
-                    <Button
-                        label="New contact link"
-                        variant=ButtonVariant::Primary
-                        disabled={busy}
-                        @test_id={"app.contacts.new-link"}
-                        on_click={|| send(UiCommand::NewContactLink)}
-                    />
-                    <Show condition={busy}>
-                        <Progress width=INLINE_PROGRESS_WIDTH />
-                    </Show>
-                </List>
+                <Dialog
+                    open={asks_removal}
+                    kind=DialogKind::Alert
+                    title="Remove contact?"
+                    id="app.contacts.remove"
+                    actions={vec![
+                        DialogAction::destructive("Remove", || send(UiCommand::ConfirmRemoveContact)),
+                        DialogAction::cancel("Keep"),
+                    ]}
+                    on_dismiss={|| send(UiCommand::CancelRemoveContact)}
+                >
+                    <Text style=TextStyle::PARAGRAPH>{removing}</Text>
+                </Dialog>
                 <Show condition={has_link}>
                     <List spacing=6.0>
                         <Text style=TextStyle::PARAGRAPH @test_id={"app.contacts.link-help"}>
@@ -345,26 +360,24 @@ fn ContactsPanel(view: AppViewStore) -> NodeId {
                         on_click={move || send(UiCommand::OpenContactLink(pasted.get_untracked()))}
                     />
                 </List>
-                <Show condition={offered}>
-                    <List spacing=6.0>
-                        <Text style=TextStyle::PARAGRAPH @test_id={"app.contacts.offer"}>
-                            {offer}
-                        </Text>
-                        <List direction=Direction::Horizontal spacing=8.0>
-                            <Button
-                                label="Connect"
-                                variant=ButtonVariant::Primary
-                                @test_id={"app.contacts.accept"}
-                                on_click={|| send(UiCommand::AcceptContact)}
-                            />
-                            <Button
-                                label="Cancel"
-                                variant=ButtonVariant::Secondary
-                                on_click={|| send(UiCommand::DeclineContact)}
-                            />
-                        </List>
-                    </List>
-                </Show>
+                <Dialog
+                    open={offered}
+                    kind=DialogKind::Alert
+                    title="Connect?"
+                    id="app.contacts.offered"
+                    actions={vec![
+                        DialogAction::primary("Connect", || send(UiCommand::AcceptContact)).named("accept"),
+                        DialogAction::cancel("Cancel"),
+                    ]}
+                    on_dismiss={|| send(UiCommand::DeclineContact)}
+                >
+                    <Text
+                        style=TextStyle::PARAGRAPH
+                        @test_id={"app.contacts.offer"}
+                    >
+                        {offer}
+                    </Text>
+                </Dialog>
                 <Show condition={has_connected}>
                     <Text style=TextStyle::PARAGRAPH>{connected}</Text>
                 </Show>
@@ -375,11 +388,10 @@ fn ContactsPanel(view: AppViewStore) -> NodeId {
 }
 
 #[component]
-fn AgentsPanel(view: AppViewStore) -> NodeId {
+fn AgentsPanel(view: AppViewStore, name: Signal<String>) -> NodeId {
     let agents = view.agents;
     let shown = create_memo(move || agents.get().unwrap_or_default());
     let organization = create_memo(move || format!("Organization: {}", shown.get().organization));
-    let busy = create_memo(move || shown.get().busy);
     let error = create_memo(move || shown.get().error);
     let created = create_memo(move || shown.get().created);
     let made = create_memo(move || created.get().is_some());
@@ -393,13 +405,6 @@ fn AgentsPanel(view: AppViewStore) -> NodeId {
             .collect::<Vec<Uuid>>()
     });
     let none = create_memo(move || keys.with(Vec::is_empty));
-    let name = create_signal(String::new());
-    create_effect(move || {
-        if made.get() {
-            untrack(|| name.set(String::new()));
-        }
-    });
-    let cannot = create_memo(move || busy.get() || name.get().trim().is_empty());
     view! {
         <Frame>
             <List spacing=8.0>
@@ -446,19 +451,6 @@ fn AgentsPanel(view: AppViewStore) -> NodeId {
                         }</ForEach>
                         <Text style=TextStyle::CAPTION>"Name"</Text>
                         <TextInput value={name} label="Agent name" @test_id={"app.agents.name"} />
-                        <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
-                            <Button
-                                label="Add agent"
-                                variant=ButtonVariant::Primary
-                                disabled={cannot}
-                                @test_id={"app.agents.add"}
-                                on_click={move || send(UiCommand::CreateAgent(name.get_untracked()))}
-                            />
-                            <Show condition={busy}>
-                                <Progress width=INLINE_PROGRESS_WIDTH />
-                            </Show>
-                            <Spacer @sizing=ItemSize::Percent(100.0) />
-                        </List>
                         <ErrorText text={error} />
                     </List>
                 </Show>
@@ -543,7 +535,12 @@ fn AboutDialog(view: AppViewStore) -> NodeId {
 }
 
 #[component]
-fn InvitePanel(view: AppViewStore) -> NodeId {
+fn InvitePanel(
+    view: AppViewStore,
+    email: Signal<String>,
+    administrator: Signal<bool>,
+    role: Memo<OrganizationRole>,
+) -> NodeId {
     let invite = view.invite;
     let organization = create_memo(move || {
         format!(
@@ -554,9 +551,7 @@ fn InvitePanel(view: AppViewStore) -> NodeId {
                 .unwrap_or_default()
         )
     });
-    let busy = create_memo(move || invite.get().is_some_and(|invite| invite.busy));
     let error = create_memo(move || invite.get().and_then(|invite| invite.error));
-    let sent = create_memo(move || invite.get().map(|invite| invite.sent));
     let link = create_memo(move || {
         invite
             .get()
@@ -564,16 +559,6 @@ fn InvitePanel(view: AppViewStore) -> NodeId {
             .unwrap_or_default()
     });
     let has_link = create_memo(move || !link.get().is_empty());
-    let email = create_signal(String::new());
-    let administrator = create_signal(false);
-    create_effect(move || {
-        sent.get();
-        untrack(|| email.set(String::new()));
-    });
-    let role = create_memo(move || match administrator.get() {
-        true => OrganizationRole::Administrator,
-        false => OrganizationRole::Editor,
-    });
     let role_index = create_memo(move || usize::from(administrator.get()));
     let description = create_memo(move || match role.get() {
         OrganizationRole::Administrator => "Can open every block in the organization.".to_owned(),
@@ -581,7 +566,6 @@ fn InvitePanel(view: AppViewStore) -> NodeId {
             "Can only open blocks they create or are given access to.".to_owned()
         }
     });
-    let cannot = create_memo(move || busy.get() || email.get().trim().is_empty());
     view! {
         <Frame>
             <List spacing=8.0>
@@ -597,20 +581,6 @@ fn InvitePanel(view: AppViewStore) -> NodeId {
                     }}
                 />
                 <Text style=TextStyle::CAPTION>{description}</Text>
-                <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
-                    <Button
-                        label="Create invite link"
-                        variant=ButtonVariant::Primary
-                        disabled={cannot}
-                        @test_id={"app.invite.send"}
-                        on_click={move || {
-                            send(UiCommand::SendInvite(email.get_untracked(), role.get_untracked()))
-                        }}
-                    />
-                    <Show condition={busy}>
-                        <Progress width=INLINE_PROGRESS_WIDTH />
-                    </Show>
-                </List>
                 <ErrorText text={error} />
                 <Show condition={has_link}>
                     <List spacing=6.0>
@@ -651,12 +621,13 @@ fn LeaveDialog(view: AppViewStore) -> NodeId {
     view! {
         <Dialog
             open={open}
+            kind=DialogKind::Alert
             title="Leave?"
             id="app.leave"
-            confirm="Leave"
-            cancel="Stay"
-            destructive=true
-            on_confirm={|| send(UiCommand::ConfirmLeave)}
+            actions={vec![
+                DialogAction::destructive("Leave", || send(UiCommand::ConfirmLeave)),
+                DialogAction::cancel("Stay"),
+            ]}
             on_dismiss={|| send(UiCommand::CancelLeave)}
         >
             <Text style=TextStyle::PARAGRAPH>
@@ -691,11 +662,12 @@ fn DiscardDialog(view: AppViewStore) -> NodeId {
     view! {
         <Dialog
             open={open}
+            kind=DialogKind::Alert
             title={title}
-            confirm={button}
-            cancel="Cancel"
-            destructive=true
-            on_confirm={|| send(UiCommand::Discard)}
+            actions={vec![
+                DialogAction::destructive(button, || send(UiCommand::Discard)),
+                DialogAction::cancel("Cancel"),
+            ]}
             on_dismiss={|| send(UiCommand::CancelDiscard)}
         >
             <Text style=TextStyle::PARAGRAPH>{message}</Text>

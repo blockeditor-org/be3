@@ -29,17 +29,21 @@ changes. Not implemented yet.
 Each styled component below builds its own behaviour today. Move that behaviour
 into a new unstyled component, then rebuild the styled one on top of it.
 
-- **`unstyled::Modal`**: an Overlay, a `BackSlide`, a scrim that fades with
+- **Done.** **`unstyled::Modal`**: an Overlay, a `BackSlide`, a scrim that fades with
   presence, and dismiss handling. `styled::Dialog` and `styled::Fullscreen`
   (`dialog.rs`, `fullscreen.rs`) copy this today. `ModalSheet` and the launcher
-  overlay should share it where they can.
-- **`unstyled::Dialog`** on top of `Modal`: Enter confirms unless the action is
+  overlay should share it where they can. `ModalSheet` is built on it
+  (`ModalMotion::Reported`); the launcher overlay is left for the launcher
+  move in §3.
+- **Done.** **`unstyled::Dialog`** on top of `Modal`: Enter confirms unless the action is
   destructive or disabled (`DialogActions::enter`), Dialog or AlertDialog
   accessibility with the title as its label, confirm and cancel callbacks.
   Make it placeable in a given rectangle and not only centred, so block-app
   can build keep-changes and the lock screen out of it (see §3).
   `DialogSurface` is `pub(crate)` today, so nothing outside styled can do
-  that.
+  that. It became `unstyled::Dialog` (the outer part, card or sheet) and
+  `unstyled::DialogBody` (keys, accessibility, action order), with the
+  styled `DialogFrame`, `DialogCard` and `DialogBody` placeable by anyone.
 - **`unstyled::Toasts`**: the stack, each toast's expiry timer, the rule that
   sticky and danger toasts don't expire, edge placement, the overlay that lets
   input pass through, and an accessibility live region. Toasts have no role
@@ -49,7 +53,7 @@ into a new unstyled component, then rebuild the styled one on top of it.
   the busy accessibility node from `styled::Spinner`. This becomes part of the
   merged `Progress` (§4.4). It is `unstyled::Progress`, whose handle carries
   the clamped `value` and the sweep's `phase`.
-- **`EveryScreen`**: one copy of something per screen, from `use_screens()`,
+- **Done.** **`EveryScreen`**: one copy of something per screen, from `use_screens()`,
   each given its screen's rectangle relative to the bounds of all screens.
   `KeepChanges`, `LockScreen` and `LevelOsd` each repeat this. All three are
   moving out of beui (§3), but they still need it, in two different crates.
@@ -79,7 +83,7 @@ into a new unstyled component, then rebuild the styled one on top of it.
   closed. The styled faces wrap themselves in a `Tooltip` of that text, since
   the bubble is a look; `SplitButton`'s arrow, the date picker's and the
   colour input's triggers lost their copies too.
-- **Dialog Enter handling**: moves with §1's `unstyled::Dialog`.
+- **Done.** **Dialog Enter handling**: moves with §1's `unstyled::Dialog`.
 - **Done.** **Spinner animation**: moves with §1's indeterminate progress.
 - **TextInput clear and copy.** `styled::TextInput`'s clear and copy buttons
   (`copy_text`) are behaviour. Expose them from `unstyled::TextInput` as
@@ -87,11 +91,11 @@ into a new unstyled component, then rebuild the styled one on top of it.
 
 ## 3. Move components out of styled
 
-- **`KeepChanges` → block-app.** It is a timed AlertDialog and only block-app's
+- **Done.** **`KeepChanges` → block-app.** It is a timed AlertDialog and only block-app's
   display settings use it. Once §1's Dialog and `EveryScreen` exist, it should
   be a few lines in block-app. Delete `styled::KeepChanges` and its demo page;
   move its tests with it.
-- **`LockScreen` → block-app.** Only block-app uses it (`ui/lock.rs`), and
+- **Done.** **`LockScreen` → block-app.** Only block-app uses it (`ui/lock.rs`), and
   nothing else ever would. Build it in block-app from styled pieces and §1's
   `EveryScreen`.
 - **Done.** **`LevelOsd`.** Its bar becomes `Progress` (§4.4). What's left is an OSD card
@@ -255,7 +259,7 @@ face, which has shortcuts and a different highlight.
 
 ### 4.7 Dialog, Fullscreen and KeepChanges share Modal
 
-These are covered by §1 and §3: `Dialog` and `Fullscreen` sit on
+**Done.** These are covered by §1 and §3: `Dialog` and `Fullscreen` sit on
 `unstyled::Modal`, and block-app's keep-changes prompt is a `Dialog` with a
 countdown.
 
@@ -446,12 +450,12 @@ on who wrote it:
 
 ### Actions are data with roles; the modal places them
 
-- **Actions are data.** An action has a label, a role (`Primary`, `Cancel`,
+- **Done.** **Actions are data.** An action has a label, a role (`Primary`, `Cancel`,
   `Destructive`, `Secondary`), `disabled`, `busy` and `on_click`. The modal
   decides placement, order, style, focus and keys. This replaces `confirm`,
   `cancel`, `destructive` and `extra_actions`. It lives in §1's
   `unstyled::Dialog`, and styled paints it.
-- **Two kinds**, as GNOME's libadwaita has them.
+- **Done.** **Two kinds**, as GNOME's libadwaita has them.
   - **An alert** is a decision: leave, discard, delete, approve. Its actions
     go in the footer and its role is AlertDialog. Enter does the primary
     unless it's destructive. A destructive primary is red, and focus starts
@@ -459,20 +463,29 @@ on who wrote it:
   - **A dialog** is content: settings, members, inspect, about. It has a
     title row with a close X, and a footer only when there's something to
     confirm. Every modal has a visible way out.
-- **Wide layout.** The footer is right-aligned: secondary actions on the left,
+- **Done.** **Wide layout.** The footer is right-aligned: secondary actions on the left,
   then Cancel, then Primary (the macOS and GNOME order). It stays put while
   the content scrolls.
-- **Narrow or touch layout.** A dialog becomes a sheet on its own, the way
+- **Done.** **Narrow or touch layout.** A dialog becomes a sheet on its own, the way
   menus do, so the picker's hand-written switch goes. An alert stays a
   centred card. In both, the footer is pinned to the bottom with full-width
-  buttons, primary first, and stays above the on-screen keyboard.
-- **Busy actions.** `busy` disables the action and shows progress in its
-  button. This replaces the hand-placed spinners.
-- **Confirmations inside a dialog are nested alerts.** Members' Remove/Keep
+  buttons, primary first, and stays above the on-screen keyboard. Narrow is
+  the widest screen under `SHEET_BELOW` (400, so a narrow desktop window;
+  phones are caught by touch), touch is the press that opened it. beui's own
+  keyboard shortens the screen, so the sheet sits above it; a platform
+  keyboard does the same only where the platform resizes the window.
+- **Done.** **Busy actions.** `busy` disables the action and shows progress in its
+  button. This replaces the hand-placed spinners. `Button` has `busy` for
+  the same thing outside a footer (share's Invite).
+- **Done.** **Confirmations inside a dialog are nested alerts.** Members' Remove/Keep
   becomes an alert with a red Remove.
-- **Row and control actions stay in the content**: a member's role, removing
+- **Done.** **Row and control actions stay in the content**: a member's role, removing
   a member, share's Add. Only the modal's own actions go in the footer.
-- **Convert every modal listed above**, the dock's Rename included.
+- **Done.** **Convert every modal listed above**, the dock's Rename included.
+  Left as they are: the block picker's stage footers (Cancel, Create), which
+  it shares with its dock card and which should move onto `DialogBody` with
+  the plugin half below; phone details, which is a menu sheet of rows rather
+  than a dialog; members' busy spinner, which shows row actions in flight.
 
 ### The dialog's inside is one component that plugins use too
 
@@ -480,9 +493,11 @@ Split the dialog into an outer part and an inner part:
 
 - **The outer part** belongs to whoever shows the dialog: placement, scrim,
   presence, the card or sheet frame, back and dismiss.
-- **The inner part** is a styled `DialogBody`: the title row with its close
+- **Done.** **The inner part** is a styled `DialogBody`: the title row with its close
   X, the scrolling content, and the pinned footer with role actions, laid out
-  wide or narrow. `Dialog` and `ModalSheet` use it.
+  wide or narrow. `Dialog` and `ModalSheet` use it. (`DialogFrame` is the
+  outer part: a card, or a `ModalSheet` holding the body. The rest of this
+  section, the plugin protocol, is not done yet.)
 
 A plugin opened as a dialog gets the whole area inside the frame, with no
 padding and no shell title bar. A beui plugin builds its contents with the

@@ -14,14 +14,17 @@ pub mod context_menu;
 pub mod date_time_field;
 pub mod date_time_picker;
 pub mod datetime;
+pub mod dialog;
 pub mod disclosure;
 pub mod drag;
+pub mod every_screen;
 pub mod fling;
 pub mod floating;
 pub mod list_row;
 pub mod menu;
 pub mod menu_button;
 pub mod menu_popup;
+pub mod modal;
 pub mod number_input;
 pub mod pan_zoom;
 pub mod picture;
@@ -76,10 +79,15 @@ pub use date_time_picker::{
     DateTimeBoxHandle, DateTimeCalendarHandle, DateTimePanelHandle, DateTimePanelLayout,
     DateTimePicker, DateTimeTimesHandle, DateTimeTriggerHandle,
 };
+pub use dialog::{
+    ActionRole, Dialog, DialogAction, DialogBody, DialogBodyHandle, DialogKind, DialogLayout,
+    DialogSheetHandle, FooterOrder, footer_order,
+};
 pub use disclosure::{Disclosure, DisclosureApi, DisclosureHandle};
 pub use drag::{
     DRAG_PREVIEW_OFFSET, DRAG_THRESHOLD, DragHandle, Draggable, DropHandle, DropTarget,
 };
+pub use every_screen::{EveryScreen, ScreenSlot};
 pub use floating::{Edge, Floating};
 pub use list_row::ListRow;
 pub use menu::{
@@ -87,6 +95,7 @@ pub use menu::{
 };
 pub use menu_button::MenuButton;
 pub use menu_popup::{MenuPopup, MenuSheetHandle, MenuStyle};
+pub use modal::{Modal, ModalHandle, ModalMotion, ModalPlacement};
 pub use number_input::{
     NumberDrag, NumberFaceHandle, NumberFieldHandle, NumberInput, NumberInputApi,
 };

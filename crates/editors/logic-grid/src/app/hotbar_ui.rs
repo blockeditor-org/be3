@@ -441,13 +441,11 @@ fn ResetDialog(session: Session) -> NodeId {
     view! {
         <Dialog
             open={open}
+            kind=DialogKind::Alert
             title="Reset hotbar?"
             width=DIALOG_WIDTH
             id="logic-grid.hotbar-reset"
-            confirm="Reset"
-            cancel="Cancel"
-            destructive=true
-            on_confirm={reset}
+            actions={vec![DialogAction::destructive("Reset", reset), DialogAction::cancel("Cancel")]}
             on_dismiss={dismiss}
         >
             <Text>"This will restore the default hotbar layout."</Text>

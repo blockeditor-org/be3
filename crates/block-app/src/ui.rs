@@ -1,5 +1,6 @@
 mod debug;
 mod dialogs;
+mod keep_changes;
 mod keys;
 mod lock;
 mod onboarding;
@@ -449,7 +450,7 @@ pub(crate) fn Root(view: AppViewStore) -> NodeId {
                         }
                     }}
                 />
-                <KeepChanges
+                <keep_changes::KeepChanges
                     open={asking}
                     title="Keep these display settings?"
                     timeout=crate::display::ANSWER_WITHIN

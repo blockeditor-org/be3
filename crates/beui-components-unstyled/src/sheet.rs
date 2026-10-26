@@ -1,4 +1,3 @@
-use beui_core::layer::Dismiss;
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 use std::time::Duration;
@@ -7,15 +6,15 @@ use beui_macros::{component, view};
 
 use super::back_slide::BACK_DRAG_SHARE;
 use super::fling::Fling;
+use super::modal::{Modal, ModalHandle, ModalMotion, ModalPlacement};
 use super::rubber_band::{SCROLL_SPRING, WINDOW_SPRING, bounce, rubber_band, spring_back, unband};
 use beui_core::base::Direction;
 use beui_core::base::offset::ScrollPosition;
-use beui_core::base::overlay::{OverlayAnchor, Placement};
 use beui_core::color::Color32;
 use beui_core::geometry::{Pos2, Rect, Vec2, vec2};
 use beui_core::input::{BackGesture, CursorIcon, DragGesture, PointerPress, ScrollGesture};
 use beui_core::node::NodeId;
-use beui_view::components::overlay::{Overlay, use_overlay_presence};
+use beui_view::components::overlay::use_overlay_presence;
 use beui_view::primitives::*;
 use beui_view::reactive::*;
 
@@ -1262,11 +1261,15 @@ pub fn ModalSheet(
     on_close: ClickCallback,
     #[prop(children)] content: Render,
 ) -> NodeId {
-    let presence = create_signal(0.0_f32);
-    let faded = create_memo(move || scrim.get().scale_alpha(presence.get()));
     let shown = open;
-    let body = Render::new(move |()| {
-        view! {
+    view! {
+        <Modal
+            open
+            scrim
+            placement=ModalPlacement::Fill
+            motion=ModalMotion::Reported
+            on_dismiss={on_close}
+        >|modal: ModalHandle|
             <ModalSheetBody
                 open={shown}
                 rest
@@ -1275,24 +1278,12 @@ pub fn ModalSheet(
                 fade
                 grip
                 panel
-                on_presence={presence}
+                on_presence={modal.presence}
                 on_close={on_close}
             >
                 {content.call(())}
             </ModalSheetBody>
-        }
-    })
-    .once();
-    view! {
-        <Overlay
-            anchor=OverlayAnchor::Point(Pos2::ZERO)
-            open={open}
-            keep_alive=true
-            placement=Placement::Fill
-            scrim={faded}
-            on_dismiss={move |_: Dismiss| on_close.call()}
-            content={move || body.call(())}
-        />
+        </Modal>
     }
 }
 

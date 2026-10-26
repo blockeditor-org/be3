@@ -3,17 +3,18 @@ use beui::{Rect, Screen};
 use super::*;
 
 #[test]
-fn the_keep_changes_prompt_shows_on_every_screen() {
+fn it_shows_on_every_screen() {
     let left = Rect::from_min_size(pos2(0.0, 0.0), Vec2::new(640.0, 480.0));
     let right = Rect::from_min_size(pos2(640.0, 0.0), Vec2::new(460.0, 320.0));
     let document = build(move || {
         view! {
             <Root>
-                <KeepChanges
+                <LockScreen
                     open=true
-                    title="Keep these display settings?"
-                    on_keep={|| {}}
-                    on_revert={|| {}}
+                    time="09:41"
+                    date="Thursday, 8 October"
+                    user="Ada Lovelace"
+                    actions={vec![suspend()]}
                 />
             </Root>
         }
@@ -23,7 +24,8 @@ fn the_keep_changes_prompt_shows_on_every_screen() {
         Screen::new("left", "Left", left),
         Screen::new("right", "Right", right),
     ]);
-    assert!(left.contains(test.rect_of("keep-changes.0").center()));
-    assert!(right.contains(test.rect_of("keep-changes.1").center()));
-    test.snapshot("keep_changes_on_two_screens");
+    assert!(left.contains(test.rect_of("lock.0").center()));
+    assert!(right.contains(test.rect_of("lock.1").center()));
+    assert!(test.shows("lock.0.password"));
+    assert!(test.shows("lock.1.action.0"));
 }

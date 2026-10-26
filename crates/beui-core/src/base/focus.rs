@@ -675,7 +675,7 @@ impl Document {
             self.note_focus_outside_scopes(new);
         }
         self.watch_focus();
-        self.keyboard_held = self.touched
+        self.keyboard_held = self.touched()
             && new_focus.is_some_and(|focused| {
                 self.contains(focused)
                     && focus_of(self.arena.get(focused)).is_some_and(|node| !node.keyboard_on_focus)

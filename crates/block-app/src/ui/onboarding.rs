@@ -115,11 +115,12 @@ pub(super) fn ErrorScreen(view: AppViewStore) -> NodeId {
             </List>
             <Dialog
                 open={asking}
+                kind=DialogKind::Alert
                 title={title}
-                confirm="Delete"
-                cancel="Cancel"
-                destructive=true
-                on_confirm={|| send(UiCommand::ConfirmErrorAction)}
+                actions={vec![
+                    DialogAction::destructive("Delete", || send(UiCommand::ConfirmErrorAction)),
+                    DialogAction::cancel("Cancel"),
+                ]}
                 on_dismiss={|| send(UiCommand::CancelErrorAction)}
             >
                 <Text style=TextStyle::PARAGRAPH>{confirmation}</Text>
@@ -385,29 +386,26 @@ pub(super) fn AddAccountDialog(
             title={title}
             width=460.0
             id="account"
-            confirm={footer_primary}
-            cancel="Cancel"
-            confirm_disabled={primary_disabled}
-            on_confirm={move || {
-                if waiting.get_untracked() {
-                    send(UiCommand::OpenLoginBrowser);
-                } else {
-                    submit();
-                }
-            }}
+            actions={vec![
+                DialogAction::secondary("Back", move || {
+                    selection.set(None);
+                    send(UiCommand::RetryAccount);
+                })
+                .shown(editing)
+                .named("back"),
+                DialogAction::cancel("Cancel"),
+                DialogAction::primary(footer_primary, move || {
+                    if waiting.get_untracked() {
+                        send(UiCommand::OpenLoginBrowser);
+                    } else {
+                        submit();
+                    }
+                })
+                .disabled(primary_disabled)
+                .busy(connecting)
+                .shown(create_memo(move || !footer_primary.get().is_empty())),
+            ]}
             on_dismiss={|| send(UiCommand::CloseAddAccount)}
-            extra_actions={move || view! {
-                <Show condition={editing}>
-                    <Button
-                        label="Back"
-                        variant=ButtonVariant::Secondary
-                        on_click={move || {
-                            selection.set(None);
-                            send(UiCommand::RetryAccount);
-                        }}
-                    />
-                </Show>
-            }}
         >
             <List spacing=20.0>
                 <Show condition={choosing}>
@@ -983,17 +981,14 @@ pub(super) fn ReauthDialog(view: AppViewStore) -> NodeId {
             open={open}
             title="Session expired"
             width=460.0
-            confirm="Continue in browser"
-            confirm_disabled={busy}
-            on_confirm={|| send(UiCommand::ReauthSubmit)}
+            kind=DialogKind::Alert
+            id="reauth"
+            actions={vec![
+                DialogAction::secondary("Log out", || send(UiCommand::ReauthLogOut)).named("log-out"),
+                DialogAction::cancel("Not now"),
+                DialogAction::primary("Continue in browser", || send(UiCommand::ReauthSubmit)).busy(busy),
+            ]}
             on_dismiss={|| send(UiCommand::ReauthClose)}
-            extra_actions={|| view! {
-                <Button
-                    label="Log out"
-                    variant=ButtonVariant::Secondary
-                    on_click={|| send(UiCommand::ReauthLogOut)}
-                />
-            }}
         >
             <List spacing=20.0>
                 <Text style=TextStyle::PARAGRAPH>{message}</Text>

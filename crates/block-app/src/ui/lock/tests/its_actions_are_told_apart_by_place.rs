@@ -1,20 +1,14 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use beui::icons::ICON_MOON;
-
 use super::*;
 
 #[test]
-fn the_lock_screens_actions_are_told_apart_by_place() {
+fn its_actions_are_told_apart_by_place() {
     let chosen = Rc::new(RefCell::new(Vec::new()));
     let document = build({
         let chosen = chosen.clone();
         move || {
-            let same = LockAction {
-                label: "Suspend".to_owned(),
-                glyph: ICON_MOON.to_owned(),
-            };
             view! {
                 <Root>
                     <LockScreen
@@ -22,7 +16,7 @@ fn the_lock_screens_actions_are_told_apart_by_place() {
                         time="09:41"
                         date="Thursday, 8 October"
                         user="Ada Lovelace"
-                        actions={vec![same.clone(), same]}
+                        actions={vec![suspend(), suspend()]}
                         on_action={move |index: usize| chosen.borrow_mut().push(index)}
                     />
                 </Root>

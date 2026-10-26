@@ -50,18 +50,19 @@ fn UnlinkDialog(workspace: Workspace) -> NodeId {
     view! {
         <Dialog
             open={open}
+            kind=DialogKind::Alert
             title="Unlink from the source block?"
             width=360.0
             id="workspace"
-            confirm="Unlink"
-            cancel="Cancel"
-            destructive=true
-            on_confirm={move || {
-                if let Some(block) = block.get_untracked() {
-                    workspace.host().unlink_artifact(block);
-                }
-                workspace.close_dialog();
-            }}
+            actions={vec![
+                DialogAction::destructive("Unlink", move || {
+                    if let Some(block) = block.get_untracked() {
+                        workspace.host().unlink_artifact(block);
+                    }
+                    workspace.close_dialog();
+                }),
+                DialogAction::cancel("Cancel"),
+            ]}
             on_dismiss={move || workspace.close_dialog()}
         >
             <Text style=TextStyle::PARAGRAPH>
@@ -117,15 +118,16 @@ fn ArtifactSettingsDialog(workspace: Workspace) -> NodeId {
             title="Dynamic artifact settings"
             width=360.0
             id="artifact-settings"
-            confirm="Apply"
-            cancel="Cancel"
-            confirm_disabled={unchanged}
-            on_confirm={move || {
-                if let Some(child) = state.with_untracked(|state| state.child) {
-                    workspace.host().commit_child(child, BlockParent::Root, None);
-                }
-                workspace.close_dialog();
-            }}
+            actions={vec![
+                DialogAction::cancel("Cancel"),
+                DialogAction::primary("Apply", move || {
+                    if let Some(child) = state.with_untracked(|state| state.child) {
+                        workspace.host().commit_child(child, BlockParent::Root, None);
+                    }
+                    workspace.close_dialog();
+                })
+                .disabled(unchanged),
+            ]}
             on_dismiss={move || workspace.close_dialog()}
         >
             <Frame height=height>
@@ -265,7 +267,7 @@ fn ShareDialog(workspace: Workspace) -> NodeId {
             open={open}
             title={title}
             width=460.0
-            cancel="Done"
+            id="share"
             on_dismiss={move || workspace.close_dialog()}
         >
             <List spacing=10.0>
@@ -366,13 +368,10 @@ fn ShareDialog(workspace: Workspace) -> NodeId {
                         label="Invite someone new"
                         glyph=ICON_LINK
                         variant=ButtonVariant::Secondary
-                        disabled={inviting}
+                        busy={inviting}
                         @test_id={"share.invite"}
                         on_click={move || act.call(ShareAction::InviteNew)}
                     />
-                    <Show condition={inviting}>
-                        <Progress width=INLINE_PROGRESS_WIDTH />
-                    </Show>
                 </List>
                 <Show condition={invited}>
                     <List spacing=6.0>

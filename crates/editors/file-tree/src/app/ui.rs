@@ -339,7 +339,6 @@ fn Inspector(inspecting: Signal<Option<Inspection>>) -> NodeId {
             title="Inspect"
             width=INSPECT_WIDTH
             id="file-tree.inspect"
-            cancel="Close"
             on_dismiss={dismiss}
         >
             <List spacing=ROW_SPACING>

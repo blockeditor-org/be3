@@ -9,7 +9,7 @@ use block_editor_beui::beui::icons::{
     ICON_ZOOM_OUT,
 };
 use block_editor_beui::beui::reactive::*;
-use block_editor_beui::beui::styled::Dialog as Modal;
+use block_editor_beui::beui::styled;
 use block_editor_beui::beui::styled::*;
 use block_editor_beui::beui::unstyled::Pressable;
 use pixel_art_types::{
@@ -412,17 +412,19 @@ pub(crate) fn Dialogs(tools: Tools, size: Memo<(u16, u16)>) -> NodeId {
         tools.operate(PixelArtOperation::Clear);
         tools.close_dialog();
     };
-    let cancel_resize = move || tools.close_dialog();
-    let dismiss_resize = move || tools.close_dialog();
-    let cancel_clear = move || tools.close_dialog();
-    let dismiss_clear = move || tools.close_dialog();
+    let dismiss = move || tools.close_dialog();
     view! {
         <List spacing=0.0>
-            <Modal
+            <styled::Dialog
                 open={resizing}
                 title="Resize pixel art"
                 width=DIALOG_WIDTH
-                on_dismiss={dismiss_resize}
+                id="pixel-art.resize"
+                actions={vec![
+                    DialogAction::cancel("Cancel"),
+                    DialogAction::primary("Resize", apply).named("apply"),
+                ]}
+                on_dismiss={dismiss}
             >
                 <List spacing=SPACING>
                     <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
@@ -452,48 +454,24 @@ pub(crate) fn Dialogs(tools: Tools, size: Memo<(u16, u16)>) -> NodeId {
                             "Shrinking crops pixels outside the anchored region."
                         </Text>
                     </Show>
-                    <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
-                        <Button
-                            label="Resize"
-                            variant=ButtonVariant::Primary
-                            @test_id={"pixel-art.resize-apply"}
-                            on_click={apply}
-                        />
-                        <Button
-                            label="Cancel"
-                            variant=ButtonVariant::Secondary
-                            @test_id={"pixel-art.resize-cancel"}
-                            on_click={cancel_resize}
-                        />
-                        <Spacer @sizing=ItemSize::Percent(100.0) />
-                    </List>
                 </List>
-            </Modal>
-            <Modal
+            </styled::Dialog>
+            <styled::Dialog
                 open={clearing}
+                kind=DialogKind::Alert
                 title="Clear pixel art?"
                 width=DIALOG_WIDTH
-                on_dismiss={dismiss_clear}
+                id="pixel-art.clear"
+                actions={vec![
+                    DialogAction::destructive("Clear", clear).named("apply"),
+                    DialogAction::cancel("Cancel"),
+                ]}
+                on_dismiss={dismiss}
             >
-                <List spacing=SPACING>
-                    <Text style=TextStyle::CAPTION>"This makes every pixel transparent."</Text>
-                    <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
-                        <Button
-                            label="Clear"
-                            variant=ButtonVariant::Primary
-                            @test_id={"pixel-art.clear-apply"}
-                            on_click={clear}
-                        />
-                        <Button
-                            label="Cancel"
-                            variant=ButtonVariant::Secondary
-                            @test_id={"pixel-art.clear-cancel"}
-                            on_click={cancel_clear}
-                        />
-                        <Spacer @sizing=ItemSize::Percent(100.0) />
-                    </List>
-                </List>
-            </Modal>
+                <Text style=TextStyle::PARAGRAPH>
+                    "This makes every pixel transparent."
+                </Text>
+            </styled::Dialog>
         </List>
     }
 }

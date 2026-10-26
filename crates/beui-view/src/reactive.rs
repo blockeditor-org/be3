@@ -140,6 +140,10 @@ pub fn use_fullscreen() -> ReadSignal<bool> {
     with_document(|document| document.watch_fullscreen())
 }
 
+pub fn use_touch() -> ReadSignal<bool> {
+    with_document(|document| document.watch_touched())
+}
+
 pub fn use_keyboard() -> ReadSignal<bool> {
     with_document(|document| document.watch_keyboard())
 }

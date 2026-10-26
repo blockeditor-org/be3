@@ -1589,6 +1589,7 @@ dependencies = [
  "block-plugin-api",
  "block-type-api",
  "block-type-guest",
+ "block-ui-test",
  "block-wasm-host",
  "browser-tab-types",
  "build-id",

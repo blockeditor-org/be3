@@ -1223,7 +1223,7 @@ Display settings may not until someone keeps them: a change of mode that moves w
 connected monitor shows (a rotation applies and saves at once), or a monitor showing a mode
 other than its preferred one that this device never kept it at (an untried fastest default, or
 a mode another device chose for that monitor), opens the host's "Keep these display
-settings?" prompt (`styled::KeepChanges`, a card on every screen) in
+settings?" prompt (block-app's `ui/keep_changes.rs`, an alert on every screen) in
 `display::guard`. It is the host's because it must work before any shell plugin
 runs. Each change is a round (`Guard::prompt`): another change while asking
 starts a new round and a full countdown, and an answer counts only for the

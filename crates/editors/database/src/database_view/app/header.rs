@@ -112,31 +112,17 @@ fn NarrowHeader(data: Data) -> NodeId {
                         on_click={open}
                     />
                 </List>
-                <ModalSheet open={sheet} on_close={close}>
-                    <Frame padding={Sides::horizontal(GUTTER * 1.5).bottom(GUTTER * 2.0)}>
-                        <List spacing=GUTTER>
-                            <List
-                                direction=Direction::Horizontal
-                                align=Align::Center
-                                spacing=SPACING
-                            >
-                                <Text style=TextStyle::HEADING @sizing=ItemSize::Percent(100.0)>
-                                    "Filter and display"
-                                </Text>
-                                <Button
-                                    label="Done"
-                                    variant=ButtonVariant::Ghost
-                                    @test_id={"database-view.sheet.done"}
-                                    on_click={close}
-                                />
-                            </List>
-                            <Text style=TextStyle::CAPTION>"Filters"</Text>
-                            <FilterList data={data} />
-                            <Separator />
-                            <DisplayOptions data={data} />
-                        </List>
-                    </Frame>
-                </ModalSheet>
+                <Dialog
+                    open={sheet}
+                    title="Filter and display"
+                    id="database-view.sheet"
+                    on_dismiss={close}
+                >
+                    <Text style=TextStyle::CAPTION>"Filters"</Text>
+                    <FilterList data={data} />
+                    <Separator />
+                    <DisplayOptions data={data} />
+                </Dialog>
             </List>
         </Frame>
     }

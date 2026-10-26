@@ -121,10 +121,9 @@ pub(crate) fn PowerMenu(editor: Editor) -> NodeId {
             <Dialog
                 open
                 title
+                kind=DialogKind::Alert
                 id="desktop.power"
-                confirm={verb}
-                cancel="Cancel"
-                on_confirm={confirm}
+                actions={vec![DialogAction::primary(verb, confirm), DialogAction::cancel("Cancel")]}
                 on_dismiss={dismiss}
             >
                 <List spacing=DIALOG_SPACING @test_id={"desktop.power.dialog"}>

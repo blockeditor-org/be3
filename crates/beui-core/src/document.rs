@@ -65,7 +65,7 @@ pub struct Document {
     pub(crate) focus_before: Option<NodeId>,
     pub composed: String,
     pub(crate) keyboard_held: bool,
-    pub(crate) touched: bool,
+    touched: ::reactive::OwnedSignal<bool>,
     pub(crate) keyboard_asks: u32,
     pub activated: Option<NodeId>,
     pub activation_key: Option<Key>,
@@ -293,7 +293,7 @@ impl Document {
             focus_before: None,
             composed: String::new(),
             keyboard_held: false,
-            touched: false,
+            touched: ::reactive::OwnedSignal::new(false),
             keyboard_asks: 0,
             activated: None,
             activation_key: None,
@@ -565,6 +565,20 @@ impl Document {
 
     pub fn watch_keyboard(&self) -> ::reactive::ReadSignal<bool> {
         self.keyboard.read_only()
+    }
+
+    pub fn touched(&self) -> bool {
+        self.touched.get_untracked()
+    }
+
+    pub fn watch_touched(&self) -> ::reactive::ReadSignal<bool> {
+        self.touched.read_only()
+    }
+
+    pub(crate) fn set_touched(&self, touched: bool) {
+        if self.touched() != touched {
+            self.touched.set(touched);
+        }
     }
 
     pub(crate) fn set_keyboard(&self, keyboard: bool) {

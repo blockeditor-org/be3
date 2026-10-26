@@ -3,7 +3,7 @@ use block_editor_beui::beui::dock::unstyled::{
     DockDialog, DockDialogPresentation, DockNode, TabId,
 };
 use block_editor_beui::beui::icons::Glyph;
-use block_editor_beui::beui::icons::{ALL, ICON_SEARCH, ICON_X, named};
+use block_editor_beui::beui::icons::{ALL, ICON_SEARCH, named};
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
 use block_editor_beui::beui::unstyled::{self, ButtonHandle};
@@ -16,7 +16,6 @@ use super::workspace::Workspace;
 
 pub(crate) const RENAME: TabId = TabId::new((1 << 39) + 2);
 const SIZE: Vec2 = Vec2::new(392.0, 620.0);
-const PADDING: f32 = 16.0;
 const SPACING: f32 = 10.0;
 const COLUMNS: usize = 8;
 const TILE: f32 = 40.0;
@@ -186,108 +185,87 @@ fn RenameBody(
     let tinted = create_memo(move || shown.get().map_or(TextColor::Muted, TextColor::Custom));
     let field = NodeRef::new();
     let built = view! {
-        <List spacing=0.0>
-            <Frame padding={Sides::new(PADDING, PADDING, PADDING, 0.0)}>
-                <List spacing=SPACING>
-                    <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
-                        <Text @sizing=ItemSize::Percent(100.0) style=TextStyle::TITLE>
-                            "Rename"
-                        </Text>
-                        <Button
-                            icon_only=true
-                            @test_id={"rename.close"}
-                            glyph=ICON_X
-                            label="Close"
-                            variant=ButtonVariant::Ghost
-                            on_click={move || done.call(())}
-                        />
-                    </List>
-                    <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
-                        <Frame
-                            width=TILE
-                            height=TILE
-                            radius=Radius::Md
-                            fill=ColorRole::SurfaceRaised
-                            align={Align2::CENTER}
-                        >
-                            <Text color={tinted} size=TextSize::Xl align=TextAlign::Center>
-                                <Icon glyph={pictured} />
-                            </Text>
-                        </Frame>
-                        <TextInput
-                            @sizing=ItemSize::Percent(100.0)
-                            @node_ref={&field}
-                            @test_id={"rename.name"}
-                            value={name}
-                            label="Name"
-                            select_on_focus=true
-                            on_submit={move |_: String| done.call(())}
-                        />
-                    </List>
-                    <Show condition={invalid}>
-                        <Text style=TextStyle::CAPTION>{error}</Text>
-                    </Show>
-                    <Text style=TextStyle::CAPTION>"Color"</Text>
-                    <List
-                        direction=Direction::Horizontal
-                        align=Align::Center
-                        spacing=SWATCH_SPACING
+        <DialogBody title="Rename" id="rename" scrolls=false on_dismiss={move || done.call(())}>
+            <List spacing=SPACING>
+                <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
+                    <Frame
+                        width=TILE
+                        height=TILE
+                        radius=Radius::Md
+                        fill=ColorRole::SurfaceRaised
+                        align={Align2::CENTER}
                     >
-                        <Swatch
-                            id={"default".to_owned()}
-                            label="Block type color"
-                            color={create_memo(move || look.get().type_color)}
-                            chosen={create_memo(move || look.get().color.is_none())}
-                            on_pick={move || set_color.call(None)}
-                        />
-                        <ForEach keys={COLORS.to_vec()}>|(name, color): (&'static str, [u8; 3])|
-                            <Swatch
-                                id={name.to_lowercase()}
-                                label={name}
-                                color={create_memo(move || Some(color))}
-                                chosen={create_memo(move || look.get().color == Some(color))}
-                                on_pick={move || set_color.call(Some(color))}
-                            />
-                        </ForEach>
-                    </List>
-                    <ColorInput
-                        @test_id={"rename.custom"}
-                        value={custom}
-                        label="Custom color"
-                        alpha=false
-                        on_preview={move |preview: Option<Color32>| previewed.set(preview)}
-                    />
-                    <Text style=TextStyle::CAPTION>"Icon"</Text>
+                        <Text color={tinted} size=TextSize::Xl align=TextAlign::Center>
+                            <Icon glyph={pictured} />
+                        </Text>
+                    </Frame>
                     <TextInput
-                        value={search}
-                        placeholder="Search icons"
-                        label="Search icons"
-                        glyph=ICON_SEARCH
-                        clearable=true
-                        @test_id={"rename.search"}
+                        @sizing=ItemSize::Percent(100.0)
+                        @node_ref={&field}
+                        @test_id={"rename.name"}
+                        value={name}
+                        label="Name"
+                        select_on_focus=true
+                        on_submit={move |_: String| done.call(())}
                     />
                 </List>
-            </Frame>
-            <Scroll @sizing=ItemSize::Percent(100.0)>
-                <Frame padding=PADDING>
-                    <List spacing=TILE_SPACING>
-                        <Show condition={empty}>
-                            <Text style=TextStyle::CAPTION>"No icons match."</Text>
-                        </Show>
-                        <VirtualList
-                            keys={rows}
-                            item_size={TILE + TILE_SPACING}
-                        >|row: ReadSignal<Vec<Tile>>|
-                            <List direction=Direction::Horizontal spacing=TILE_SPACING>
-                                <ForEach keys={create_memo(move || row.get())}>|tile: Tile|
-                                    <IconTile tile look shown set_icon />
-                                </ForEach>
-                            </List>
-                        </VirtualList>
-                    </List>
-                </Frame>
+                <Show condition={invalid}>
+                    <Text style=TextStyle::CAPTION>{error}</Text>
+                </Show>
+                <Text style=TextStyle::CAPTION>"Color"</Text>
+                <List direction=Direction::Horizontal align=Align::Center spacing=SWATCH_SPACING>
+                    <Swatch
+                        id={"default".to_owned()}
+                        label="Block type color"
+                        color={create_memo(move || look.get().type_color)}
+                        chosen={create_memo(move || look.get().color.is_none())}
+                        on_pick={move || set_color.call(None)}
+                    />
+                    <ForEach keys={COLORS.to_vec()}>|(name, color): (&'static str, [u8; 3])|
+                        <Swatch
+                            id={name.to_lowercase()}
+                            label={name}
+                            color={create_memo(move || Some(color))}
+                            chosen={create_memo(move || look.get().color == Some(color))}
+                            on_pick={move || set_color.call(Some(color))}
+                        />
+                    </ForEach>
+                </List>
+                <ColorInput
+                    @test_id={"rename.custom"}
+                    value={custom}
+                    label="Custom color"
+                    alpha=false
+                    on_preview={move |preview: Option<Color32>| previewed.set(preview)}
+                />
+                <Text style=TextStyle::CAPTION>"Icon"</Text>
+                <TextInput
+                    value={search}
+                    placeholder="Search icons"
+                    label="Search icons"
+                    glyph=ICON_SEARCH
+                    clearable=true
+                    @test_id={"rename.search"}
+                />
+            </List>
+            <Scroll @sizing=ItemSize::Percent(100.0) bleed={Bleed::DIALOG.top(false)}>
+                <List spacing=TILE_SPACING>
+                    <Show condition={empty}>
+                        <Text style=TextStyle::CAPTION>"No icons match."</Text>
+                    </Show>
+                    <VirtualList
+                        keys={rows}
+                        item_size={TILE + TILE_SPACING}
+                    >|row: ReadSignal<Vec<Tile>>|
+                        <List direction=Direction::Horizontal spacing=TILE_SPACING>
+                            <ForEach keys={create_memo(move || row.get())}>|tile: Tile|
+                                <IconTile tile look shown set_icon />
+                            </ForEach>
+                        </List>
+                    </VirtualList>
+                </List>
             </Scroll>
-        </List>
+        </DialogBody>
     };
     if let Some(node) = field.try_get() {
         with_document(|document| document.focus_into(node));

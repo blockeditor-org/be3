@@ -29,9 +29,21 @@ impl Bleed {
     pub const POPOVER: Bleed = Bleed::new(PANEL_PADDING, PANEL_PADDING);
     pub const CARD: Bleed = Bleed::new(card::PADDING_HORIZONTAL, card::PADDING_VERTICAL);
     pub const DIALOG: Bleed = Bleed::new(dialog::PADDING_HORIZONTAL, dialog::PADDING_VERTICAL);
-    pub const DIALOG_ABOVE_ACTIONS: Bleed = Bleed {
-        reach: Bleed::DIALOG.reach.bottom(dialog::SPACING),
-    };
+
+    pub(crate) const fn dialog(below_title: bool, above_actions: bool) -> Self {
+        let reach = Bleed::DIALOG.reach;
+        let reach = if below_title {
+            reach.top(dialog::SPACING)
+        } else {
+            reach
+        };
+        let reach = if above_actions {
+            reach.bottom(dialog::SPACING)
+        } else {
+            reach
+        };
+        Self { reach }
+    }
 
     const fn new(horizontal: f32, vertical: f32) -> Self {
         Self {

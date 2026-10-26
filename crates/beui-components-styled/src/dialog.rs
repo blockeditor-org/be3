@@ -1,19 +1,20 @@
 use crate::frame::{Border, ColorRole, Frame, Radius};
-use accesskit::{Node, Role};
-use beui_core::layer::Dismiss;
+use beui_core::icons::ICON_X;
+use beui_core::layer::LayerLevel;
 use beui_macros::{component, view};
 
-use crate::button::{Button, ButtonVariant};
+use crate::button::{Button, ButtonSize, ButtonVariant};
 use crate::scroll::{Bleed, Scroll};
+use crate::sheet::ModalSheet;
 use crate::text::{Text, TextStyle};
-use beui_components_unstyled::BackSlide;
+use crate::theme::use_theme;
+use beui_components_unstyled as unstyled;
+use beui_components_unstyled::{
+    ActionRole, DialogAction, DialogBodyHandle, DialogKind, DialogLayout, DialogSheetHandle,
+    ModalHandle, ModalMotion, ModalPlacement,
+};
 use beui_core::base::ItemSize;
-use beui_core::base::overlay::{OverlayAnchor, Placement};
-use beui_core::geometry::Pos2;
-use beui_core::input::Key;
-use beui_core::keys::{KeyAt, KeyPhase};
 use beui_core::node::NodeId;
-use beui_view::components::overlay::Overlay;
 use beui_view::primitives::*;
 use beui_view::reactive::*;
 
@@ -22,143 +23,104 @@ pub(crate) const PADDING_VERTICAL: f32 = 18.0;
 pub(crate) const SPACING: f32 = 12.0;
 pub const MARGIN: f32 = 12.0;
 const ACTION_SPACING: f32 = 8.0;
+pub const DIALOG_WIDTH: f32 = 360.0;
+pub const SHEET_BELOW: f32 = 400.0;
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Scrim {
+    Soft,
+    Dim,
+    Strong,
+    Opaque,
+}
+
+#[component]
+pub fn Modal(
+    open: Prop<bool>,
+    #[prop(default = Scrim::Dim)] scrim: Scrim,
+    #[prop(default = ModalPlacement::Center)] placement: ModalPlacement,
+    #[prop(default = LayerLevel::Normal)] level: Prop<LayerLevel>,
+    #[prop(default = ModalMotion::Slides)] motion: ModalMotion,
+    on_dismiss: ClickCallback,
+    #[prop(children)] content: Render,
+) -> NodeId {
+    let theme = use_theme();
+    let color = create_memo(move || match scrim {
+        Scrim::Soft => theme.scrim_soft.get(),
+        Scrim::Dim => theme.scrim.get(),
+        Scrim::Strong => theme.scrim_strong.get(),
+        Scrim::Opaque => theme.background.get(),
+    });
+    view! {
+        <unstyled::Modal
+            open
+            scrim={color}
+            placement
+            level
+            motion
+            on_dismiss={on_dismiss}
+        >|_: ModalHandle| {
+            content.call(())
+        }</unstyled::Modal>
+    }
+}
 
 #[component]
 pub fn Dialog(
     open: Prop<bool>,
+    #[prop(default = DialogKind::Dialog)] kind: DialogKind,
     #[prop(default = String::new())] title: Prop<String>,
-    #[prop(default = 360.0)] width: Prop<f32>,
+    #[prop(default = DIALOG_WIDTH)] width: Prop<f32>,
     #[prop(default = String::new())] id: Prop<String>,
-    #[prop(default = String::new())] confirm: Prop<String>,
-    #[prop(default = String::new())] cancel: Prop<String>,
-    #[prop(default = false)] destructive: Prop<bool>,
-    #[prop(default = false)] confirm_disabled: Prop<bool>,
-    on_confirm: ClickCallback,
+    #[prop(default = Vec::new())] actions: Vec<DialogAction>,
+    #[prop(default = true)] scrolls: bool,
     on_dismiss: ClickCallback,
-    extra_actions: Option<Render<(), Children<ListChild>>>,
     #[prop(children)] content: Render<(), Children<ListChild>>,
 ) -> NodeId {
-    let presence = create_signal(1.0_f32);
-    let theme = crate::theme::use_theme();
-    let scrim = create_memo(move || theme.scrim.get().scale_alpha(presence.get()));
-    let actions = DialogActions {
-        id: create_memo(move || id.get()),
-        confirm: create_memo(move || confirm.get()),
-        cancel: create_memo(move || cancel.get()),
-        destructive: create_memo(move || destructive.get()),
-        confirm_disabled: create_memo(move || confirm_disabled.get()),
-        focus_confirm: create_memo(|| false),
-        on_confirm,
-        on_cancel: on_dismiss,
-    };
-    let body = Render::new(move |()| {
-        view! {
-            <BackSlide enters=false on_back={on_dismiss} on_presence={presence}>
-                <DialogSurface
-                    width={width}
-                    title={title}
-                    role=Role::Dialog
-                    actions={actions}
-                    extra={ExtraActions(extra_actions)}
-                >
-                    {content.call(())}
-                </DialogSurface>
-            </BackSlide>
-        }
-    })
-    .once();
     view! {
-        <Overlay
-            anchor=OverlayAnchor::Point(Pos2::ZERO)
-            open={open}
-            keep_alive=true
-            placement=Placement::Center
-            scrim={scrim}
-            on_dismiss={move |_: Dismiss| on_dismiss.call()}
-            content={move || body.call(())}
-        />
-    }
-}
-
-#[derive(Clone, Copy)]
-pub(crate) struct DialogActions {
-    pub(crate) id: Memo<String>,
-    pub(crate) confirm: Memo<String>,
-    pub(crate) cancel: Memo<String>,
-    pub(crate) destructive: Memo<bool>,
-    pub(crate) confirm_disabled: Memo<bool>,
-    pub(crate) focus_confirm: Memo<bool>,
-    pub(crate) on_confirm: ClickCallback,
-    pub(crate) on_cancel: ClickCallback,
-}
-
-impl DialogActions {
-    fn shown(&self) -> Memo<bool> {
-        let confirm = self.confirm;
-        let cancel = self.cancel;
-        create_memo(move || !confirm.get().is_empty() || !cancel.get().is_empty())
-    }
-
-    fn confirm(&self) {
-        match self.on_confirm.is_empty() {
-            true => self.on_cancel.call(),
-            false => self.on_confirm.call(),
-        }
-    }
-
-    fn enter(&self) -> bool {
-        if self.confirm.get_untracked().is_empty()
-            || self.destructive.get_untracked()
-            || self.confirm_disabled.get_untracked()
-        {
-            return false;
-        }
-        self.confirm();
-        true
+        <DialogFrame open kind width on_dismiss={on_dismiss}>
+            <DialogBody kind title id actions scrolls on_dismiss={on_dismiss}>
+                {content.call(())}
+            </DialogBody>
+        </DialogFrame>
     }
 }
 
 #[component]
-pub(crate) fn DialogSurface(
-    width: Prop<f32>,
-    title: Prop<String>,
-    role: Role,
-    actions: DialogActions,
-    #[prop(default = ExtraActions(None))] extra: ExtraActions,
-    #[prop(default = String::new())] surface_id: String,
-    children: Children<ListChild>,
+pub fn DialogFrame(
+    open: Prop<bool>,
+    #[prop(default = DialogKind::Dialog)] kind: DialogKind,
+    #[prop(default = DIALOG_WIDTH)] width: Prop<f32>,
+    #[prop(default = false)] narrow: Prop<bool>,
+    on_dismiss: ClickCallback,
+    #[prop(children)] content: Render,
 ) -> NodeId {
-    let label = create_memo(move || title.get());
-    let titled = create_memo(move || !label.get().is_empty());
-    let footed = actions.shown();
-    let bleed = create_memo(move || match footed.get() {
-        true => Bleed::DIALOG_ABOVE_ACTIONS,
-        false => Bleed::DIALOG,
-    });
-    component_accessibility(create_memo(move || {
-        let mut node = Node::new(role);
-        let title = label.get();
-        if !title.is_empty() {
-            node.set_label(title);
-        }
-        node
-    }));
-    let enter = actions;
-    on_key(
-        KeyAt::Node(beui_core::tree::component_node()),
-        KeyPhase::Bubble,
-        move |event| {
-            event.press().is_some_and(|press| {
-                press.key == Key::Enter
-                    && press.pressed
-                    && !press.repeat
-                    && !press.modifiers.ctrl
-                    && !press.modifiers.alt
-                    && !press.modifiers.shift
-                    && enter.enter()
-            })
-        },
-    );
+    let theme = use_theme();
+    let scrim = create_memo(move || theme.scrim.get());
+    view! {
+        <unstyled::Dialog
+            open
+            kind
+            scrim={scrim}
+            sheet_below=SHEET_BELOW
+            narrow
+            on_dismiss={on_dismiss}
+            card={move |body: Child| view! {
+                <DialogCard width>{body}</DialogCard>
+            }}
+            sheet={|handle: DialogSheetHandle| {
+                let DialogSheetHandle { open, close, body } = handle;
+                view! {
+                    <ModalSheet open fit=true on_close={close}>{body}</ModalSheet>
+                }
+            }}
+            body={move |_: DialogLayout| content.call(())}
+        />
+    }
+}
+
+#[component]
+pub fn DialogCard(#[prop(default = DIALOG_WIDTH)] width: Prop<f32>, children: Child) -> NodeId {
     view! {
         <Frame padding=MARGIN>
             <Frame
@@ -166,91 +128,166 @@ pub(crate) fn DialogSurface(
                 fill=ColorRole::SurfaceRaised
                 border={Border::DEFAULT}
                 radius=Radius::Lg
-                padding={Sides::symmetric(PADDING_HORIZONTAL, PADDING_VERTICAL)}
-                @test_id=surface_id
             >
-                <List spacing=0.0>
-                    <Scroll @sizing={ItemSize::Intrinsic.shrink(1.0)} fit=true bleed={bleed}>
-                        <List spacing=SPACING>
-                            <Show condition={titled}>
-                                <Text style=TextStyle::TITLE>{label}</Text>
-                            </Show>
-                            {children}
-                        </List>
-                    </Scroll>
-                    <ShowKeepAlive condition={footed}>
-                        <Frame padding={Sides::new(0.0, SPACING, 0.0, 0.0)}>
-                            <DialogFooter actions={actions} extra={extra} />
-                        </Frame>
-                    </ShowKeepAlive>
-                </List>
+                {children}
             </Frame>
         </Frame>
     }
 }
 
-pub(crate) struct ExtraActions(Option<Render<(), Children<ListChild>>>);
+#[component]
+pub fn DialogBody(
+    #[prop(default = DialogKind::Dialog)] kind: DialogKind,
+    #[prop(default = String::new())] title: Prop<String>,
+    #[prop(default = String::new())] id: Prop<String>,
+    #[prop(default = Vec::new())] actions: Vec<DialogAction>,
+    #[prop(default = true)] focuses: Prop<bool>,
+    #[prop(default = true)] scrolls: bool,
+    on_dismiss: ClickCallback,
+    #[prop(children)] content: Render<(), Children<ListChild>>,
+) -> NodeId {
+    let id = create_memo(move || id.get());
+    let layout = use_context::<DialogLayout>();
+    let narrow = create_memo(move || layout.is_some_and(|layout| layout.narrow.get()));
+    view! {
+        <unstyled::DialogBody
+            kind
+            title
+            actions
+            narrow
+            focuses
+            on_dismiss={on_dismiss}
+            face={move |handle: DialogBodyHandle| view! {
+                <DialogBodyFace handle id scrolls>{content.call(())}</DialogBodyFace>
+            }}
+        />
+    }
+}
+
+fn named(id: Memo<String>, name: &'static str) -> Memo<String> {
+    create_memo(move || match id.get().is_empty() {
+        true => String::new(),
+        false => format!("{}.{name}", id.get()),
+    })
+}
 
 #[component]
-fn DialogFooter(actions: DialogActions, extra: ExtraActions) -> NodeId {
-    let ExtraActions(extra) = extra;
-    let extra = extra.map(|extra| {
-        view! {
-            <List direction=Direction::Horizontal align=Align::Center spacing=ACTION_SPACING>
-                {extra.call(())}
-            </List>
-        }
-    });
-    let spacer = extra.is_some().then(|| {
-        view! {
-            <Spacer @sizing=ItemSize::Percent(100.0) />
-        }
-    });
-    let confirming = create_memo(move || !actions.confirm.get().is_empty());
-    let cancelling = create_memo(move || !actions.cancel.get().is_empty());
-    let confirm_variant = create_memo(move || match actions.destructive.get() {
-        true => ButtonVariant::Danger,
-        false => ButtonVariant::Primary,
-    });
-    let id = actions.id;
-    let named = move |name: &'static str| {
-        create_memo(move || match id.get().is_empty() {
-            true => String::new(),
-            false => format!("{}.{name}", id.get()),
-        })
+fn DialogBodyFace(
+    handle: DialogBodyHandle,
+    id: Memo<String>,
+    scrolls: bool,
+    children: Children<ListChild>,
+) -> NodeId {
+    let title = handle.title;
+    let closable = handle.kind == DialogKind::Dialog;
+    let titled = create_memo(move || !title.get().is_empty());
+    let footer = handle.footer;
+    let footed = create_memo(move || !footer.get().is_empty());
+    let bleed = create_memo(move || Bleed::dialog(titled.get(), footed.get()));
+    let dismiss = handle.dismiss;
+    let content = match scrolls {
+        true => view! {
+            <Scroll @sizing={ItemSize::Intrinsic.shrink(1.0)} fit=true bleed={bleed}>
+                <List spacing=SPACING>{children}</List>
+            </Scroll>
+        },
+        false => view! {
+            <List @sizing=ItemSize::Percent(100.0) spacing=SPACING>{children}</List>
+        },
     };
-    let cancel_id = named("cancel");
-    let footer_id = named("actions");
-    let confirm_id = named("confirm");
     view! {
-        <List
-            direction=Direction::Horizontal
-            align=Align::Center
-            justify=Justify::End
-            wrap=true
-            spacing=ACTION_SPACING
-            @test_id=footer_id
-        >
-            {extra}
-            {spacer}
-            <Show condition={cancelling}>
-                <Button
-                    label={actions.cancel}
-                    variant=ButtonVariant::Secondary
-                    @test_id={cancel_id}
-                    on_click={actions.on_cancel}
-                />
+        <Frame padding={Sides::symmetric(PADDING_HORIZONTAL, PADDING_VERTICAL)}>
+            <List spacing=SPACING>
+                <Show condition={titled}>
+                    <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
+                        <Text @sizing=ItemSize::Percent(100.0) style=TextStyle::TITLE>{title}</Text>
+                        <Show condition={create_memo(move || closable)}>
+                            <Button
+                                icon_only=true
+                                glyph=ICON_X
+                                label="Close"
+                                variant=ButtonVariant::Ghost
+                                size=ButtonSize::Small
+                                @test_id={named(id, "close")}
+                                on_click={dismiss}
+                            />
+                        </Show>
+                    </List>
+                </Show>
+                {content}
+                <ShowKeepAlive condition={footed}>
+                    <DialogFooter handle id />
+                </ShowKeepAlive>
+            </List>
+        </Frame>
+    }
+}
+
+#[component]
+fn DialogFooter(handle: DialogBodyHandle, id: Memo<String>) -> NodeId {
+    let footer = handle.footer;
+    let narrow = handle.narrow;
+    let wide = create_memo(move || !narrow.get());
+    let start = create_memo(move || footer.get().start);
+    let end = create_memo(move || footer.get().end);
+    let leading = create_memo(move || !start.with(Vec::is_empty));
+    view! {
+        <List spacing=0.0 @test_id={named(id, "actions")}>
+            <Show condition={wide}>
+                <List
+                    direction=Direction::Horizontal
+                    align=Align::Center
+                    justify=Justify::End
+                    wrap=true
+                    spacing=ACTION_SPACING
+                >
+                    <ForEach keys={start}>|index: usize|
+                        <ActionButton handle index id />
+                    </ForEach>
+                    <Show condition={leading}>
+                        <Spacer @sizing=ItemSize::Percent(100.0) />
+                    </Show>
+                    <ForEach keys={end}>|index: usize|
+                        <ActionButton handle index id />
+                    </ForEach>
+                </List>
             </Show>
-            <Show condition={confirming}>
-                <Button
-                    label={actions.confirm}
-                    variant={confirm_variant}
-                    disabled={actions.confirm_disabled}
-                    focused={actions.focus_confirm}
-                    @test_id={confirm_id}
-                    on_click={move || actions.confirm()}
-                />
+            <Show condition={narrow}>
+                <List spacing=ACTION_SPACING>
+                    <ForEach keys={end}>|index: usize|
+                        <ActionButton handle index id />
+                    </ForEach>
+                </List>
             </Show>
         </List>
+    }
+}
+
+fn variant(role: ActionRole) -> ButtonVariant {
+    match role {
+        ActionRole::Primary => ButtonVariant::Primary,
+        ActionRole::Destructive => ButtonVariant::Danger,
+        ActionRole::Secondary | ActionRole::Cancel => ButtonVariant::Secondary,
+    }
+}
+
+#[component]
+fn ActionButton(handle: DialogBodyHandle, index: usize, id: Memo<String>) -> NodeId {
+    let action = handle.action(index);
+    let focus = handle.focus;
+    let focused = create_memo(move || focus.get() == Some(index));
+    let run = handle.run;
+    let narrow = handle.narrow;
+    view! {
+        <Button
+            label={action.label}
+            wide={narrow}
+            variant={variant(action.role)}
+            disabled={action.disabled}
+            busy={action.busy}
+            focused={focused}
+            @test_id={named(id, action.name)}
+            on_click={move || run.call(index)}
+        />
     }
 }

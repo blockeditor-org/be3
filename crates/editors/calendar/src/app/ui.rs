@@ -258,21 +258,12 @@ fn EventDialog(
             title={title}
             width=FORM_WIDTH
             id="calendar.form"
-            confirm="Save"
-            cancel="Cancel"
-            confirm_disabled={blank}
-            on_confirm={save}
+            actions={vec![
+                DialogAction::destructive("Delete", delete).shown(editing).named("delete"),
+                DialogAction::cancel("Cancel"),
+                DialogAction::primary("Save", save).disabled(blank),
+            ]}
             on_dismiss={dismiss}
-            extra_actions={move || view! {
-                <Show condition={editing}>
-                    <Button
-                        label="Delete"
-                        variant=ButtonVariant::Danger
-                        @test_id={"calendar.form.delete"}
-                        on_click={delete}
-                    />
-                </Show>
-            }}
         >
             <List spacing=SPACING>
                 <TextInput

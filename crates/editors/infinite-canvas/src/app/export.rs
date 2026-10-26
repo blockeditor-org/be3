@@ -974,18 +974,12 @@ pub(crate) fn ExportDialog(exporter: Exporter) -> NodeId {
             title={title}
             width=DIALOG_WIDTH
             id="infinite-canvas.export"
-            confirm="Save…"
-            cancel="Cancel"
-            on_confirm={move || finish(ExportTo::File)}
+            actions={vec![
+                DialogAction::secondary("Copy", move || finish(ExportTo::Clipboard)).named("copy"),
+                DialogAction::cancel("Cancel"),
+                DialogAction::primary("Save…", move || finish(ExportTo::File)),
+            ]}
             on_dismiss={move || dialog.set(None)}
-            extra_actions={move || view! {
-                <Button
-                    label="Copy"
-                    variant=ButtonVariant::Secondary
-                    @test_id={"infinite-canvas.export.copy"}
-                    on_click={move || finish(ExportTo::Clipboard)}
-                />
-            }}
         >
             <List spacing=DIALOG_SPACING>
                 <Show condition={raster}>

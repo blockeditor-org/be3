@@ -154,12 +154,10 @@ pub(super) fn RemapperSetting(editor: Editor, settings: Settings, read_only: Mem
             />
             <Dialog
                 open={asking}
+                kind=DialogKind::Alert
                 title="Reset the remapper?"
                 id="input.remapper.reset"
-                confirm="Reset"
-                cancel="Cancel"
-                destructive=true
-                on_confirm={confirmed}
+                actions={vec![DialogAction::destructive("Reset", confirmed), DialogAction::cancel("Cancel")]}
                 on_dismiss={move || asking.set(false)}
             >
                 <Text style=TextStyle::PARAGRAPH>
