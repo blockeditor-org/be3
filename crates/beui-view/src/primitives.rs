@@ -6,6 +6,7 @@ pub use crate::components::fade::Fade;
 pub use crate::components::frame::Frame;
 pub use crate::components::grid::{Grid, GridCell};
 pub use crate::components::interactive::Interactive;
+pub use crate::components::first_fit::{FirstFit, Fitting};
 pub use crate::components::layers::{Layer, Layers};
 pub use crate::components::layout_builder::{LayoutBuilder, PlacementBuilder};
 pub use crate::components::list::{List, Spacer};

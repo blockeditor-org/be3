@@ -6,6 +6,7 @@ pub mod fade;
 pub mod frame;
 pub mod grid;
 pub mod interactive;
+pub mod first_fit;
 pub mod layers;
 pub mod layout_builder;
 pub mod list;

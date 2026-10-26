@@ -66,6 +66,8 @@ pub fn Choice(
     kind: ChoiceKind,
     direction: Option<Direction>,
     #[prop(default = false)] wrap: bool,
+    #[prop(default = 6.0)] spacing: f32,
+    #[prop(default = String::new())] label: Prop<String>,
     #[prop(children)] option: Option<RenderFn<ChoiceOptionHandle>>,
 ) -> NodeId {
     let option = option.expect("choice requires an `option` builder");
@@ -85,11 +87,15 @@ pub fn Choice(
     let focus = create_signal(None);
     let focused = create_selector(move || focus.get());
 
-    component_accessibility(Node::new(match kind {
-        ChoiceKind::Tabs => Role::TabList,
-        ChoiceKind::Radio => Role::RadioGroup,
-        ChoiceKind::Listbox => Role::ListBox,
-    }));
+    component_accessibility(crate::labelled_node(
+        match kind {
+            ChoiceKind::Tabs => Role::TabList,
+            ChoiceKind::Radio => Role::RadioGroup,
+            ChoiceKind::Listbox => Role::ListBox,
+        },
+        None,
+        label,
+    ));
 
     let state = State {
         options: store(options.clone()),
@@ -157,7 +163,7 @@ pub fn Choice(
     }
 
     view! {
-        <List direction wrap spacing=6.0 children={buttons} />
+        <List direction wrap spacing children={buttons} />
     }
 }
 

@@ -1,9 +1,6 @@
 use super::*;
 use crate::reactive::*;
 use crate::styled::*;
-use crate::unstyled::Container;
-
-const BREAKPOINT: f32 = 500.0;
 
 #[test]
 fn tabs_collapse_into_a_select_when_their_container_is_narrow() {
@@ -11,18 +8,15 @@ fn tabs_collapse_into_a_select_when_their_container_is_narrow() {
     let tabs = NodeRef::new();
     let document = build_node(move || {
         view! {
-            <Container>|_|
-                <ResponsiveTabs
-                    @node_ref=&tabs
-                    options={view! {
-                        <unstyled::ChoiceOption label="List" />
-                        <unstyled::ChoiceOption label="Load" />
-                        <unstyled::ChoiceOption label="Name" />
-                    }}
-                    selected=1
-                    breakpoint=BREAKPOINT
-                />
-            </Container>
+            <Tabs
+                @node_ref=&tabs
+                options={view! {
+                    <unstyled::ChoiceOption label="List" />
+                    <unstyled::ChoiceOption label="Load" />
+                    <unstyled::ChoiceOption label="Name" />
+                }}
+                selected=1
+            />
         }
     });
     let tabs = tabs.get();
@@ -30,30 +24,27 @@ fn tabs_collapse_into_a_select_when_their_container_is_narrow() {
     let mut harness = Harness::sized(document, WIDE_VIEWPORT);
     harness.frame(Vec::new());
 
-    let [wide] = harness.document().children(tabs)[..] else {
-        panic!("responsive tabs hold only the branch their width calls for");
+    let [wide, narrow] = harness.document().children(tabs)[..] else {
+        panic!("tabs hold their tab list and the select they collapse into");
     };
     assert!(harness.document().node_rect(wide).is_some());
+    assert!(
+        harness.document().node_rect(narrow).is_none(),
+        "tabs that fit lay out only the tab list"
+    );
     assert_eq!(
-        harness
-            .document()
-            .api::<styled::ResponsiveTabsApi>(tabs)
-            .selected(),
-        1
+        harness.document().api::<styled::ChoiceApi>(wide).selected(),
+        Some(1)
     );
 
-    harness.resize(VIEWPORT);
+    harness.resize(vec2(120.0, VIEWPORT.y));
     harness.frame(Vec::new());
 
-    let [narrow] = harness.document().children(tabs)[..] else {
-        panic!("the narrow branch takes the place of the wide one");
-    };
-    assert_ne!(
-        narrow, wide,
-        "a narrow container shows the branch built for it, not the one it replaced"
+    assert!(
+        harness.document().node_rect(wide).is_none(),
+        "tabs too wide for their container leave the tab list unplaced"
     );
     assert!(harness.document().node_rect(narrow).is_some());
-    assert!(harness.document().node_rect(wide).is_none());
     assert_eq!(
         harness
             .document()

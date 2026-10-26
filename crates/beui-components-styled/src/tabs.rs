@@ -1,6 +1,6 @@
 use beui_macros::{component, view};
 
-use crate::choice::{Kind, OptionFace};
+use crate::choice::{Collapsing, Kind, OptionFace, Wide};
 use beui_components_unstyled::{Choice, ChoiceOption};
 use beui_core::node::NodeId;
 use beui_view::reactive::*;
@@ -11,18 +11,17 @@ pub fn Tabs(
 
     options: Children<ChoiceOption>,
     #[prop(default = 0)] selected: Binding<usize>,
+    #[prop(default = String::new())] label: Prop<String>,
 ) -> NodeId {
-    let options = options.into_run();
-    let count = options.clone();
-    let shown = Prop::dynamic(move || Some(selected.get().min(count.len().saturating_sub(1))));
-    let chosen = Binding::new(shown, move |chosen: Option<usize>| {
-        if let Some(chosen) = chosen {
-            selected.set(chosen);
-        }
-    });
-    view! {
-        <Choice api options selected={chosen} kind=Kind::Tabs>|handle|
-            <OptionFace kind=Kind::Tabs handle />
-        </Choice>
-    }
+    let label = create_memo(move || label.get());
+    let choice = ComponentRef::new();
+    let built = view! {
+        <Collapsing options selected label>|wide: Wide|
+            <Choice api=choice options={wide.options} selected={wide.selected} kind=Kind::Tabs label>|handle|
+                <OptionFace kind=Kind::Tabs handle />
+            </Choice>
+        </Collapsing>
+    };
+    api.fill(choice.get());
+    built
 }

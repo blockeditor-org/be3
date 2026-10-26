@@ -568,7 +568,8 @@ fn InvitePanel(
                 <Text style=TextStyle::CAPTION>"Email address"</Text>
                 <TextInput value={email} label="Email address" @test_id={"app.invite.email"} />
                 <Text style=TextStyle::CAPTION>"Role"</Text>
-                <Tabs
+                <SegmentedControl
+                    label="Role"
                     selected={Binding::new(role_index, move |index: usize| administrator.set(index == 1))}
                     options={view! {
                         <ChoiceOption label={OrganizationRole::Editor.label()} />

@@ -195,7 +195,8 @@ fn Sidebar(model: Model) -> NodeId {
                         />
                     </List>
                     <MainActions model={model} />
-                    <Tabs
+                    <SegmentedControl
+                        label="State"
                         options={view! {
                             <ChoiceOption label="Open" />
                             <ChoiceOption label="Closed" />

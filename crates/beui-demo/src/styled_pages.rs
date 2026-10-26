@@ -12,7 +12,7 @@ use beui::unstyled::MenuThen;
 
 const COLUMN_SPACING: f32 = 20.0;
 const COLUMNS_BREAKPOINT: f32 = 460.0;
-const TABS_NARROW_WIDTH: f32 = 380.0;
+const NARROW_CHOICE_WIDTH: f32 = 180.0;
 const ICON_BUTTON_WIDTH: f32 = 44.0;
 const TOOLBAR_RULE_LENGTH: f32 = 20.0;
 const ZOOM_MIN: f32 = 0.5;
@@ -1135,8 +1135,11 @@ pub(crate) fn ChoicesPage() -> NodeId {
             <Sample title="Tabs" code={vec![ScaleTabs::SOURCE]}>
                 <ScaleTabs />
             </Sample>
-            <Sample title="Responsive tabs" code={vec![PeriodTabs::SOURCE]}>
-                <PeriodTabs />
+            <Sample title="Segmented control" code={vec![PeriodSegments::SOURCE]}>
+                <PeriodSegments />
+            </Sample>
+            <Sample title="Tabs and segments without room" code={vec![NarrowChoices::SOURCE]}>
+                <NarrowChoices />
             </Sample>
         </ScrollPage>
     }
@@ -1251,8 +1254,8 @@ fn ScaleTabs() -> NodeId {
 
 #[sample]
 #[component]
-fn PeriodTabs() -> NodeId {
-    let period = create_signal(0usize);
+fn PeriodSegments() -> NodeId {
+    let period = create_signal(1usize);
     let period_text = create_memo(move || {
         format!(
             "Showing the {} view",
@@ -1261,10 +1264,8 @@ fn PeriodTabs() -> NodeId {
     });
     view! {
         <List spacing=SECTION_SPACING>
-            <Text style=TextStyle::CAPTION>
-                "Tabs that turn into a select when there is no room for them"
-            </Text>
-            <ResponsiveTabs
+            <SegmentedControl
+                label="Period"
                 options={view! {
                     <ChoiceOption label="Day" />
                     <ChoiceOption label="Week" />
@@ -1272,9 +1273,38 @@ fn PeriodTabs() -> NodeId {
                     <ChoiceOption label="Year" />
                 }}
                 selected={period}
-                breakpoint=TABS_NARROW_WIDTH
             />
             <Text style=TextStyle::CAPTION>{period_text}</Text>
+        </List>
+    }
+}
+
+#[sample]
+#[component]
+fn NarrowChoices() -> NodeId {
+    view! {
+        <List direction=Direction::Horizontal spacing=SECTION_SPACING>
+            <Frame width={Extent::px(NARROW_CHOICE_WIDTH)}>
+                <Tabs
+                    label="Section"
+                    options={view! {
+                        <ChoiceOption label="Overview" />
+                        <ChoiceOption label="Details" />
+                        <ChoiceOption label="History" />
+                    }}
+                />
+            </Frame>
+            <Frame width={Extent::px(NARROW_CHOICE_WIDTH)}>
+                <SegmentedControl
+                    label="Sort"
+                    options={view! {
+                        <ChoiceOption label="Newest" />
+                        <ChoiceOption label="Oldest" />
+                        <ChoiceOption label="Largest" />
+                    }}
+                    selected=2
+                />
+            </Frame>
         </List>
     }
 }

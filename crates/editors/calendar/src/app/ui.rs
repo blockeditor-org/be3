@@ -115,7 +115,8 @@ pub fn CalendarEditor(editor: Editor) -> NodeId {
                     on_click={next}
                 />
                 <Text>{header}</Text>
-                <Tabs
+                <SegmentedControl
+                    label="View"
                     options={view! {
                         <ChoiceOption label={CalendarView::Day.label()} />
                         <ChoiceOption label={CalendarView::Week.label()} />

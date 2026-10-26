@@ -6,7 +6,8 @@ use beui_core::node::NodeId;
 use beui_macros::{component, view};
 
 use crate::theme::{ThemeStore, use_theme};
-use beui_components_unstyled::ChoiceOptionHandle;
+use crate::select::Select;
+use beui_components_unstyled::{ChoiceOption, ChoiceOptionHandle};
 use beui_view::primitives::*;
 use beui_view::reactive::*;
 
@@ -17,6 +18,8 @@ const MARK_SPACING: f32 = 10.0;
 const MARK_BOX: f32 = 18.0;
 const MARK_DOT: f32 = 8.0;
 const MARK_RADIUS: f32 = 9.0;
+const SEGMENT_PADDING_HORIZONTAL: f32 = 12.0;
+const SEGMENT_PADDING_VERTICAL: f32 = 4.0;
 
 #[component]
 pub(super) fn OptionFace(kind: Kind, handle: ChoiceOptionHandle) -> NodeId {
@@ -108,5 +111,67 @@ fn background(theme: &ThemeStore, active: bool, hovered: bool) -> Color32 {
         (true, _) => theme.accent_soft.get(),
         (false, true) => theme.hover.get(),
         _ => Color32::TRANSPARENT,
+    }
+}
+
+pub(super) struct Wide {
+    pub options: Run<ChoiceOption>,
+    pub selected: Binding<Option<usize>>,
+}
+
+#[component]
+pub(super) fn Collapsing(
+    options: Children<ChoiceOption>,
+    selected: Binding<usize>,
+    label: Memo<String>,
+    #[prop(children)] wide: Render<Wide>,
+) -> NodeId {
+    let options = options.into_run();
+    let count = options.clone();
+    let shown = Prop::dynamic(move || Some(selected.get().min(count.len().saturating_sub(1))));
+    let chosen = Binding::new(shown, move |chosen: Option<usize>| {
+        if let Some(chosen) = chosen {
+            selected.set(chosen);
+        }
+    });
+    let narrow = options.clone();
+    let wide = wide.call(Wide {
+        options,
+        selected: chosen,
+    });
+    view! {
+        <FirstFit>
+            {wide}
+            <Select options={narrow} selected={chosen} label />
+        </FirstFit>
+    }
+}
+
+#[component]
+pub(super) fn SegmentFace(handle: ChoiceOptionHandle) -> NodeId {
+    let ChoiceOptionHandle {
+        label,
+        selected,
+        hovered,
+        focused,
+        ..
+    } = handle;
+    let theme = use_theme();
+    let label_color = create_memo(move || match selected.get() {
+        true => TextColor::Default,
+        false => TextColor::Muted,
+    });
+    let fill_color = create_memo(move || background(&theme, selected.get(), hovered.get()));
+    view! {
+        <Frame
+            fill={ColorRole::custom(fill_color)}
+            border={focus_border(focused, Border::FOCUS.offset(1.0))}
+            radius=Radius::Sm
+            padding={Sides::symmetric(SEGMENT_PADDING_HORIZONTAL, SEGMENT_PADDING_VERTICAL)}
+        >
+            <Text overflow=Overflow::Ellipsis color={label_color} align=TextAlign::Center>
+                {label}
+            </Text>
+        </Frame>
     }
 }
