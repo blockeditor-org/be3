@@ -3364,7 +3364,8 @@ it, and all its 3D (`glam`) stays in the crate.
   and `bend` (`Panel::placement`, read back by `Panel::placed`). The app keeps
   it in memory (the dock does) and hands it back when it opens the window
   again. Nothing keeps a placement across restarts yet (plans/vr.md).
-- Resize: on `WindowRequest::BeginResize { window, edge }` (`resize::Resize`)
+- Resize: on `WindowRequest::BeginResize { window, edge }`, or a drag on a
+  side of a panel's chrome (`resize::Resize`)
   the cursor's ray meets the panel's surface as it was, and that edge or corner
   follows it while the opposite one stays put, no smaller than
   `resize::SMALLEST`. Each new size is reported as `Resized` at once, so the
@@ -3538,23 +3539,40 @@ it, and all its 3D (`glam`) stays in the crate.
   window. Nothing is raised: panels have no stacking order in 3D, only depth.
   Closing the focused panel focuses the main one.
 - Chrome: the host draws and handles controls of its own around every panel
-  (`chrome.rs`), sized in metres so they keep their size however the panel
-  is scaled: an L bracket just outside each corner, and under the bottom edge
+  (`chrome.rs`): an L bracket just outside each corner, the window's title
+  (its `WindowState` appearance title, which the `Window` component's
+  `title` sets) in a pill centred above the top edge, cut short with an
+  ellipsis to fit between the top brackets, and under the bottom edge
   a pill with a move button (`ICON_MOVE`), a rotate button (`ICON_ROTATE_3D`),
   a roll button (`ICON_ROTATE_CW_SQUARE`) and a curvature button
-  (`ICON_SPLINE`). They are faint (`FAINT`) except on the focused panel, which
+  (`ICON_SPLINE`). They keep one size to the eye wherever the panel is, as
+  the cursor does: their lengths are metres at `REFERENCE` (0.6 m) times
+  `Fit::scale`, the eye's distance to the panel's centre over `REFERENCE`
+  (`chrome::fitted`), which `Space` sets on each panel (`Panel::chrome`)
+  every input and frame and changes only once it is off by more than `KEPT`
+  (5%), so a head that moves a little never paints the chrome again.
+  `Fit::title` is the title's width at that reference, measured with the
+  app's `Context` when the title changes. They are faint (`FAINT`) except on the focused panel, which
   keeps them lit wherever the cursor goes until another press moves the focus.
-  `chrome::layout` places the parts (each bracket's two arms, `SLOP` wider,
-  and the buttons) and `chrome::part_at` finds one at a window point outside
-  the window's rectangle. Picking is by depth alone: the cursor's ray takes
+  `chrome::layout` places the parts and `chrome::part_at` finds one at a
+  window point outside the window's rectangle. Their hit areas leave no gap
+  next to the window for a ray to fall through to a panel behind: each
+  bracket's arms take the band from the window's edge out to the bracket
+  (and `SLOP` beyond), the sides between the brackets take that band too,
+  and the buttons, the slider and the title take everything between them
+  and the window's edge, edge to edge with each other. Picking is by depth alone: the cursor's ray takes
   the chrome on a panel's extended surface when it is nearer than any panel
-  (`chrome::pick`), focused or not, so a bracket of a window popped out in
-  front of another takes the click over the content behind it; the arms'
-  small margin is what keeps a dock window popped out over the main one from
-  covering its tab bar. A driver's point outside its window picks too. Input
+  (`chrome::pick`), focused or not, so the chrome of a window popped out in
+  front of another takes the click over the content behind it. A driver's point outside its window picks too. Input
   on chrome never reaches the app (the window under it last gets
   `PointerLeft`), and the cursor shows what a part does. While an app holds a
-  button, chrome is ignored. Dragging a bracket scales the panel
+  button, chrome is ignored. Dragging a side between the brackets
+  (`Part::Resize`, lit while hovered or held) resizes the window from that
+  edge as a `BeginResize` would (`Gesture::Resize` while it lasts), the main
+  window too: its size in space is its logical size, reported as `Resized`,
+  while the platform window keeps its own size and stays the mirror.
+  Dragging the title carries the panel as the move button does.
+  Dragging a bracket scales the panel
   (`Gesture::Scale`): `metres_per_point` grows or shrinks with how far the
   cursor goes along the diagonal from the opposite corner, which stays put,
   between `SMALLEST_SCALE` and `LARGEST_SCALE` of where it began, so the

@@ -18,6 +18,10 @@ use crate::panel::{Panel, Pose};
 use crate::{Pointer, Space};
 
 mod a_bracket_in_front_of_another_panel_takes_the_click;
+mod each_panel_shows_its_window_s_title_and_dragging_the_title_carries_it;
+mod dragging_a_side_of_the_main_panel_resizes_its_window_and_keeps_its_scale;
+mod a_ray_between_a_window_and_its_chrome_never_falls_through_to_a_window_behind;
+mod the_chrome_keeps_its_size_to_the_eye_at_any_distance;
 mod a_carried_panel_follows_the_cursor_and_the_head;
 mod a_carried_panel_let_go_mid_turn_lands_where_it_would_after_the_turn;
 mod a_carried_panel_moved_off_what_it_is_over_returns_smoothly_to_its_distance;
@@ -332,9 +336,12 @@ fn screen(space: &Space, world: Vec3) -> Pos2 {
 
 fn part_pos(panel: &Panel, part: Part, slider: bool) -> Pos2 {
     let metres = panel.metres();
-    let (_, rect) = chrome::layout(vec2(metres.x, metres.y), slider)
-        .parts
+    let layout = chrome::layout(vec2(metres.x, metres.y), panel.chrome, slider);
+    let (_, rect) = layout
+        .buttons
         .into_iter()
+        .chain([(Part::Slider, layout.track)])
+        .chain(layout.parts)
         .find(|(found, _)| *found == part)
         .expect("the chrome has that part");
     let centre = rect.center();
