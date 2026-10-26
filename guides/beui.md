@@ -3028,11 +3028,11 @@ all its 3D (`glam`) stays in the crate.
   focused field (the window whose output carries the IME area), centred under
   the field `KEYBOARD_GAP` (12) points below it, or with no field over the
   bottom of the focused panel; it never takes the focus, however it is opened,
-  pressed or carried, so its keys type into the field. A `WindowRole::Popup`
-  window opens where its placement says and never takes the focus either, so
-  the window it belongs to keeps it (a Wayland popup's grab ends when its
-  toplevel loses the keyboard). A hand's grip carries
-  it like any panel. `Resize` sets the panel's size,
+  pressed or carried, so its keys type into the field, and a hand's grip
+  carries it like any panel. A `WindowRole::Popup` window opens where its
+  placement says and never takes the focus either, so the window it belongs
+  to keeps it (a Wayland popup's grab ends when its toplevel loses the
+  keyboard). `Resize` sets the panel's size,
   keeping its top-left corner, and reports `Resized` the next frame. `Close`
   removes the panel and its texture; the main window's panel never closes.
 - Grab: while its window has focus the host holds the pointer

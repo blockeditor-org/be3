@@ -1,10 +1,11 @@
 # VR
 
-A plan to take the space host (`crates/beui-adapter-space`, `BEUI_ADAPTER=space`;
-guides/beui.md, "Space: the VR simulator host") from a simulator on a flat
-screen to real headsets. Each milestone says what it needs first and roughly
-how big it is. Items marked **(ask)** need a decision from the user during the
-work.
+What remains of the plan that took the space host (`crates/beui-adapter-space`,
+`BEUI_ADAPTER=space`; guides/beui.md, "Space: the VR simulator host") from a
+simulator on a flat screen to OpenXR headsets. The first headset is the
+Bigscreen Beyond on Windows through SteamVR, driven with a mouse and keyboard
+(no tracked controllers), then SteamVR and Monado on Linux. Items marked
+**(ask)** need a decision from the user during the work.
 
 ## Where it stands
 
@@ -14,13 +15,13 @@ pointer, per-window rasters that change without relayout, and placements
 (scale and bend included) that reopen a window where it was within a run
 (PR #691); nothing keeps them across restarts yet. A plugin's windows (the
 workspace dock's floating windows, linux-desktop's) are windows of block-app,
-and so panels of their own in space, as is every Wayland toplevel (a floating
-dock window, its dialogs windows over it) and its popups (a window over it;
-guides/linux_desktop.md, "Program windows"). It draws through any
+and so panels of their own in space. So is every Wayland toplevel, shown as a
+floating dock window with its dialogs as windows over it, and each of its
+popups, a window over it (guides/linux_desktop.md, "Program windows"). It draws through any
 number of views, each a pose with an off-axis field of view (`head::View`,
 `head::Fov`): the simulator's one, or tracked views an XR host hands
 `Space::set_views` and draws with `Space::draw` (guides/beui.md, "Views"), and
-`BEUI_XR=openxr` shows it on an OpenXR headset (`crates/beui-adapter-xr`, "Headsets"), with panels as composition layers where their order is plain.
+`BEUI_XR=openxr` shows it on an OpenXR headset (`crates/beui-adapter-xr`; guides/beui.md, "Headsets"), with panels as composition layers where their order is plain.
 Input is a mouse pointer, a keyboard, and a laser per controller that acts as
 a finger, with grips that carry, scale and turn panels (guides/beui.md,
 "Lasers"), fed from OpenXR's controller actions or `drive xr`. While a
@@ -30,7 +31,7 @@ it that never takes the focus (`WindowRole::Keyboard`).
 The simulator stays a first-class backend throughout: every space test keeps
 running without a headset.
 
-## M1 follow-ups: OpenXR
+## OpenXR follow-ups
 
 `BEUI_XR=openxr` shows space on a headset through `crates/beui-adapter-xr` on Linux
 and Windows (guides/beui.md, "Headsets"), checked in CI against Monado's null
@@ -51,11 +52,18 @@ compositor and compiled for Windows by `./scripts/verify`. What remains:
   while the head moves, cylinders) is untried. A panel that is carried or
   resized loses its layer and its swapchain is made again when let go;
   layer swapchains have one mip level.
+- **Other platforms.** beui-adapter-xr is compiled for Linux and Windows, but
+  `./scripts/verify` cross-checks only `windows_x86_64`; `windows_arm64` is
+  untried. Elsewhere `Xr::open` refuses (Android is M9).
 - **Blocking.** `xrWaitFrame` blocks the main loop, which also runs plugins and
   the Wayland server; waiting on another thread and waking the loop would
   free it.
 
-## M9. Quest standalone
+## Deferred milestones
+
+The user has deferred these three; do not start them without asking.
+
+### M9. Quest standalone
 
 The Android OpenXR loader in the APK, pacing in beui-adapter-android, the
 manifest, and the buck APK plumbing. First check whether today's APK runs as a
@@ -63,9 +71,9 @@ manifest, and the buck APK plumbing. First check whether today's APK runs as a
 (`from_environment` in `crates/beui/src/window.rs` returns `None` there), so
 space cannot be turned on there today.
 
-About 1.5k lines plus build work. Needs M1.
+About 1.5k lines plus build work.
 
-## M10. Comfort, passthrough, hands
+### M10. Comfort, passthrough, hands
 
 Each 0.3-1k lines:
 
@@ -75,19 +83,13 @@ Each 0.3-1k lines:
 - Hand tracking: a pinch is a trigger press of that hand's laser, a poke is
   touch.
 
-Needs M1.
-
-## M11. WebXR
+### M11. WebXR
 
 The riskiest: wgpu has no WebXR binding, the WebGL route needs an
 `xrCompatible` WebGL2 context, and space must build for wasm and be wired into
 `run_web` (`crates/beui/src/web.rs`, which launches with `host: None`).
 
 2k lines or more. **(ask)** whether WebXR is in scope.
-
-## Suggested order
-
-M9, M10, M11.
 
 ## Smaller follow-ups
 
@@ -132,8 +134,3 @@ M9, M10, M11.
 - **Deferred: a high-resolution inset**, rendering only the visible part of a
   close-up panel past `scale::LARGEST_TEXTURE`. Whatever does it must not
   render the same window twice.
-
-## Open questions
-
-- **(ask)** Which headset and runtime first: Linux PC VR, or Quest?
-- **(ask)** Is WebXR in scope? (M11)

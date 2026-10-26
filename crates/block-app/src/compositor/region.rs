@@ -328,6 +328,10 @@ pub(crate) fn PluginRegion(
         revision.get();
         plugin_host::frames(&plugin_id.value())
     });
+    let placed = create_memo(move || {
+        revision.get();
+        plugin_host::region_placed(&plugin_id.value(), instance, region)
+    });
     let drawing = |floating: bool| {
         let shown = create_memo(move || {
             let (pieces, loading, drawn, held, size) = state.with(|view| {
@@ -349,12 +353,13 @@ pub(crate) fn PluginRegion(
                 opacity.get(),
                 pieces,
                 (loading, drawn, held, size),
+                placed.get(),
             )
         });
         let held: Rc<RefCell<Option<(DrawingKey, beui::Drawing, u64)>>> =
             Rc::new(RefCell::new(None));
         let drawn = create_memo(move || {
-            let (_, rotation, opacity, pieces, _) = shown.get();
+            let (_, rotation, opacity, pieces, _, placed) = shown.get();
             let (drawn, held_rect, size) =
                 state.with_untracked(|view| (view.drawn, view.held, view.rect.size()));
             let key = DrawingKey {
@@ -364,7 +369,7 @@ pub(crate) fn PluginRegion(
                 drawn,
                 held: held_rect,
                 size,
-                placed: plugin_host::region_placed(&plugin_id.value(), instance, region),
+                placed,
             };
             let previous = held.borrow().clone();
             let published = plugin_host::region_published(&plugin_id.value());
