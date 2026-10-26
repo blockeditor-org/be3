@@ -17,7 +17,7 @@ be_ops_bindgen::generate!({
     default: [
         "rotation", "file-filter", "modifiers", "back-edge", "ime-text", "cursor-icon", "pen",
         "keystroke", "pointer-settings", "theme-kind", "motion", "canvas-touch", "preferences",
-        "preference-layer", "window-requests",
+        "preference-layer", "window-requests", "window-role",
     ],
     inline: [
         "back-gesture-started", "ime-event-replace-text", "ime-event-delete-surrounding",
@@ -49,5 +49,5 @@ pub use pointer::{InputDevice, PointerSetting, PointerSettings, PointerSpeed};
 pub use preferences::{CanvasTouch, Motion, PreferenceLayer, Preferences, ThemeKind};
 pub use window::{
     HostPlacement, ImeArea, WindowEdge, WindowId, WindowPlacement, WindowReport, WindowRequest,
-    WindowRequests,
+    WindowRequests, WindowRole,
 };

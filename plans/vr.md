@@ -21,7 +21,9 @@ number of views, each a pose with an off-axis field of view (`head::View`,
 `BEUI_XR=openxr` shows it on an OpenXR headset (`crates/beui-adapter-xr`, "Headsets"), with panels as composition layers where their order is plain.
 Input is a mouse pointer, a keyboard, and a laser per controller that acts as
 a finger, with grips that carry, scale and turn panels (guides/beui.md,
-"Lasers"), fed from OpenXR's controller actions or `drive xr`.
+"Lasers"), fed from OpenXR's controller actions or `drive xr`. While a
+laser is active, tapping a field opens the on-screen keyboard as a panel under
+it that never takes the focus (`WindowRole::Keyboard`).
 
 The simulator stays a first-class backend throughout: every space test keeps
 running without a headset.
@@ -50,15 +52,6 @@ compositor and compiled for Windows by `./scripts/verify`. What remains:
 - **Blocking.** `xrWaitFrame` blocks the main loop, which also runs plugins and
   the Wayland server; waiting on another thread and waking the loop would
   free it.
-
-## M5. Keyboard panel
-
-The on-screen keyboard (`SoftwareKeyboard`) as a window that never takes the
-focus (a flag or role on `WindowRequest::Open`), placed near the focused field
-or panel, or by a hand. Space reports no keyboard attached while controllers
-are active.
-
-About 0.5k lines.
 
 ## M7. Wayland toplevels and popups as panels
 
@@ -100,9 +93,13 @@ The riskiest: wgpu has no WebXR binding, the WebGL route needs an
 
 ## Suggested order
 
-M5, M7, M9, M10, M11.
+M7, M9, M10, M11.
 
 ## Smaller follow-ups
+
+- **Keyboard panel.** It is placed only when it opens; moving the focus to a
+  field on another panel leaves it where it was. A keyboard docked to the
+  off hand (following its grip pose) is untried.
 
 - **Placements across restarts.** Panels reopen in place only within a run.
   Keeping placements must live in block-app's session (the shell's view

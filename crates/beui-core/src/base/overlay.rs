@@ -113,6 +113,7 @@ pub struct WindowSpec {
     pub size: Vec2,
     pub placement: WindowPlacement,
     pub title: Option<String>,
+    pub role: crate::window::WindowRole,
     pub on_report: Callback<WindowReport>,
 }
 
@@ -122,6 +123,7 @@ impl PartialEq for WindowSpec {
             && self.size == other.size
             && self.placement == other.placement
             && self.title == other.title
+            && self.role == other.role
     }
 }
 

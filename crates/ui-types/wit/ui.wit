@@ -498,10 +498,18 @@ interface types {
         bottom-right,
     }
 
+    /// What a window is for. A `keyboard` is an on-screen keyboard: the
+    /// host never gives it the focus and places it by the field it types into.
+    enum window-role {
+        normal,
+        keyboard,
+    }
+
     record window-request-open {
         window: window-id,
         placement: window-placement,
         size: vec2,
+        role: window-role,
     }
 
     record window-request-begin-resize {

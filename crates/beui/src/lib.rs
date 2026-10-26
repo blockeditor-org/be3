@@ -99,7 +99,7 @@ pub use beui_core::runner::{
     Units, WindowHost, panic_message,
 };
 pub use beui_core::window::{
-    HostPlacement, WindowEdge, WindowId, WindowPlacement, WindowReport, WindowRequest,
+    HostPlacement, WindowEdge, WindowId, WindowPlacement, WindowReport, WindowRequest, WindowRole,
 };
 #[cfg(all(any(feature = "web", feature = "dom"), target_arch = "wasm32"))]
 pub use web::{WebRenderer, run_web, web_adapter};

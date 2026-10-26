@@ -11,7 +11,7 @@ use beui::unstyled::{DragPoint, DropHandle, DropTarget};
 use beui::{
     Align, CursorIcon, Forwarded, ForwardedInput, ImeCursor, Modifiers, NodeId, PointerButton,
     PointerEvent, PointerId, PointerPhase, Pos2, Rect, Region, Vec2, WindowId, WindowPlacement,
-    WindowReport, pos2,
+    WindowReport, WindowRole, pos2,
 };
 use block_plugin_api::{ChildId, EditorInstanceId, EditorRegion, FrameSpec, PluginManifest};
 use uuid::Uuid;
@@ -659,6 +659,7 @@ fn RegionWindows(
                 let placement = window
                     .with_untracked(|window| window.as_ref().map(|window| window.placement.clone()))
                     .map_or(WindowPlacement::AtPointer, placed);
+                let role = window.with_untracked(|window| window.as_ref().map_or(WindowRole::Normal, |window| window.role));
                 let report = move |report: WindowReport| {
                     let report = match report {
                         WindowReport::Placed { placement, .. } => WindowReport::Placed {
@@ -671,7 +672,13 @@ fn RegionWindows(
                     plugin_host::report_window(&plugin_id.value(), instance, report);
                 };
                 view! {
-                    <Window id={Some(id)} size placement on_report={report}>|handle: WindowHandle| {
+                    <Window
+                        id={Some(id)}
+                        size
+                        placement
+                        role
+                        on_report={report}
+                    >|handle: WindowHandle| {
                         follow_window_asks(window, handle);
                         view! {
                             <PluginRegion

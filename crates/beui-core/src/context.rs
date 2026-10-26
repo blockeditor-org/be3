@@ -1067,12 +1067,21 @@ impl Context {
         }
     }
 
-    pub fn take_window_reports(&self) -> Vec<WindowReport> {
-        std::mem::take(&mut *self.inner.window_reports.borrow_mut())
+    pub fn take_window_reports(&self, of: impl Fn(WindowId) -> bool) -> Vec<WindowReport> {
+        let mut reports = self.inner.window_reports.borrow_mut();
+        let (taken, left) = std::mem::take(&mut *reports)
+            .into_iter()
+            .partition(|report: &WindowReport| of(report.window()));
+        *reports = left;
+        taken
     }
 
     pub fn set_keyboard_window(&self, window: WindowId) {
         self.inner.keyboard_window.set(window);
+    }
+
+    pub fn keyboard_window(&self) -> WindowId {
+        self.inner.keyboard_window.get()
     }
 
     pub fn show_window(

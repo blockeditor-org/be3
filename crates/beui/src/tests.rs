@@ -862,6 +862,7 @@ mod the_simulated_mouse_opens_the_on_screen_keyboard_and_fingers_type_on_it;
 mod the_software_keyboard_covers_the_share_of_the_screen_it_is_set_to;
 mod the_space_host_carries_the_main_window_its_app_asks_to_move;
 mod the_space_host_opens_an_apps_window_as_a_panel_at_the_pointer_and_clicks_reach_it;
+mod the_space_host_opens_the_keyboard_as_a_panel_lasers_type_on_only_while_controllers_are_active;
 mod the_top_layer_takes_a_click_over_the_layer_below;
 mod the_window_follows_the_title_and_clear_color_of_its_root;
 mod the_window_is_asked_for_fullscreen_and_says_when_it_is;
@@ -2825,6 +2826,10 @@ impl beui_core::runner::WindowHost for SharedSpace {
         self.0.borrow_mut().input(incoming, view);
     }
 
+    fn keyboard_attached(&self) -> Option<bool> {
+        self.0.borrow().keyboard_attached()
+    }
+
     fn frame(
         &mut self,
         output: &crate::FrameOutput,
@@ -2909,6 +2914,23 @@ impl InSpace {
         for _ in 0..4 {
             self.frame([]);
         }
+    }
+
+    pub(crate) fn aim(&mut self, hand: beui_core::runner::Hand, window: crate::WindowId, at: Pos2) {
+        self.controllers([beui_core::runner::Controller::Toward { hand, window, at }]);
+        for _ in 0..40 {
+            self.runner
+                .context()
+                .advance_clock(std::time::Duration::from_millis(50));
+            self.frame([]);
+        }
+    }
+
+    pub(crate) fn tap(&mut self, hand: beui_core::runner::Hand) {
+        for value in [1.0, 0.0] {
+            self.controllers([beui_core::runner::Controller::Trigger { hand, value }]);
+        }
+        self.settle();
     }
 
     pub(crate) fn on_screen(&self, window: crate::WindowId, pos: Pos2) -> Pos2 {

@@ -222,6 +222,7 @@ impl WindowHost for TestHost {
                     window,
                     placement,
                     size,
+                    ..
                 } => windows.opened(*window, placement, *size),
                 WindowRequest::Close(window) => {
                     windows.open.retain(|open| open.id != *window);

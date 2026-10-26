@@ -3,7 +3,7 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use serde::{Deserialize, Serialize};
 
 pub use crate::types::{
-    ImeArea, WindowEdge, WindowPlacement, WindowReport, WindowRequest, WindowRequests,
+    ImeArea, WindowEdge, WindowPlacement, WindowReport, WindowRequest, WindowRequests, WindowRole,
 };
 
 impl ImeArea {

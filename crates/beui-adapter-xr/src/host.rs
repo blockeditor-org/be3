@@ -105,6 +105,10 @@ impl WindowHost for XrSpace {
         self.space.input(incoming, view);
     }
 
+    fn keyboard_attached(&self) -> Option<bool> {
+        self.space.keyboard_attached()
+    }
+
     fn frame(&mut self, output: &FrameOutput, view: &HostView) -> Hosted {
         let mut hosted = self.space.frame(output, view);
         if let (Some(frame), Some(gpu)) = (self.frame.take(), &self.gpu) {

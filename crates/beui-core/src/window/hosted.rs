@@ -181,7 +181,10 @@ impl Document {
             self.layers_changed();
             self.arena.invalidate();
         }
-        let reports = ctx.take_window_reports();
+        let keyboard = ctx.keyboard(|state| state.window());
+        let reports = ctx.take_window_reports(|window| {
+            Some(window) != keyboard || self.window_node(window).is_some()
+        });
         if reports.is_empty() {
             return;
         }
@@ -304,6 +307,7 @@ impl Document {
                     window: *window,
                     placement: spec.placement.clone(),
                     size,
+                    role: spec.role,
                 });
                 self.windows.asked.push(*window);
                 self.windows.wanted.insert(*window, size);

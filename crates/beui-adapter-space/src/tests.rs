@@ -8,7 +8,7 @@ use beui_core::input::{
 };
 use beui_core::runner::{Controller, Hand, HandPose, HostView, Incoming, Units, WindowHost};
 use beui_core::window::{
-    HostPlacement, WindowEdge, WindowId, WindowPlacement, WindowReport, WindowRequest,
+    HostPlacement, WindowEdge, WindowId, WindowPlacement, WindowReport, WindowRequest, WindowRole,
 };
 use glam::Vec3;
 
@@ -93,6 +93,7 @@ mod the_cursor_shows_the_icon_the_window_under_it_asks_for_and_hides_the_platfor
 mod the_cursor_sits_just_in_front_of_the_panel_at_the_same_size_to_the_eye;
 mod the_cursor_sprite_draws_the_icon_around_its_hotspot;
 mod the_curve_slider_bends_the_panel_and_clicks_land_on_the_curve;
+mod the_keyboard_opens_under_the_focused_field_and_never_takes_the_focus;
 mod the_lasers_are_drawn_to_where_they_hit;
 mod the_platform_dropping_the_lock_lets_the_pointer_go;
 mod tracked_views_move_the_head_to_their_centre_and_set_the_rasters;
@@ -232,6 +233,7 @@ fn open(space: &mut Space, now: Instant, placement: WindowPlacement) -> (WindowI
         window,
         placement,
         size: SMALL,
+        role: WindowRole::Normal,
     });
     (window, send(space, now, []))
 }

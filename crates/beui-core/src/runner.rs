@@ -194,6 +194,8 @@ pub struct Runner {
     reports_screens: bool,
     paced: Option<Instant>,
     last_physical: Option<Vec2>,
+    platform_keyboard: Option<bool>,
+    keyboard_attached: Option<bool>,
     exited: bool,
     failure: Option<String>,
 }
@@ -255,6 +257,8 @@ impl Runner {
             reports_screens: false,
             paced: None,
             last_physical: None,
+            platform_keyboard: None,
+            keyboard_attached: None,
             exited: false,
             failure: None,
         }
@@ -498,7 +502,7 @@ impl Runner {
             self.raster = Some(raster).filter(|raster| *raster > 0.0 && raster.is_finite());
         }
         if let Some(attached) = self.reports.take_keyboard() {
-            self.context.set_keyboard_attached(attached);
+            self.platform_keyboard = Some(attached);
         }
         if let Some(preferences) = self.reports.take_system_preferences() {
             self.context
@@ -543,6 +547,15 @@ impl Runner {
         if let Some(host) = &mut self.host {
             self.context.set_opens_windows(host.opens_windows());
             host.input(&mut self.intake.incoming, &view);
+        }
+        let attached = self
+            .host
+            .as_ref()
+            .and_then(|host| host.keyboard_attached())
+            .or(self.platform_keyboard);
+        if attached != self.keyboard_attached {
+            self.keyboard_attached = attached;
+            self.context.set_keyboard_attached(attached.unwrap_or(true));
         }
         self.intake.drain(
             &mut Drain {

@@ -33,6 +33,7 @@ fn a_hosted_window_asks_to_open_where_it_is_placed_and_paints_on_its_own() {
             window,
             placement: placed,
             size: vec2(120.0, 80.0),
+            role: crate::WindowRole::Normal,
         }],
         "the window asks its host to open it once, where it was placed"
     );

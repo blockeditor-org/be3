@@ -6813,6 +6813,9 @@ crates = {
                 "examples": {},
                 "features": [],
                 "test_deps": [
+                    "//crates/beui-components-styled:beui-components-styled",
+                    "//crates/beui-macros:beui_macros",
+                    "//crates/beui-view:beui-view",
                     "//crates/paint-snapshot:paint-snapshot",
                     "//third-party/rust:pollster-0.4.0",
                 ],
@@ -6831,6 +6834,9 @@ crates = {
                 "examples": {},
                 "features": [],
                 "test_deps": [
+                    "//crates/beui-components-styled:beui-components-styled",
+                    "//crates/beui-macros:beui_macros",
+                    "//crates/beui-view:beui-view",
                     "//crates/paint-snapshot:paint-snapshot",
                     "//third-party/rust:pollster-0.4.0",
                 ],
@@ -6849,6 +6855,9 @@ crates = {
                 "examples": {},
                 "features": [],
                 "test_deps": [
+                    "//crates/beui-components-styled:beui-components-styled",
+                    "//crates/beui-macros:beui_macros",
+                    "//crates/beui-view:beui-view",
                     "//crates/paint-snapshot:paint-snapshot",
                     "//third-party/rust:pollster-0.4.0",
                 ],
@@ -6867,6 +6876,9 @@ crates = {
                 "examples": {},
                 "features": [],
                 "test_deps": [
+                    "//crates/beui-components-styled:beui-components-styled",
+                    "//crates/beui-macros:beui_macros",
+                    "//crates/beui-view:beui-view",
                     "//crates/paint-snapshot:paint-snapshot",
                     "//third-party/rust:pollster-0.4.0",
                 ],
@@ -6885,6 +6897,9 @@ crates = {
                 "examples": {},
                 "features": [],
                 "test_deps": [
+                    "//crates/beui-components-styled:beui-components-styled",
+                    "//crates/beui-macros:beui_macros",
+                    "//crates/beui-view:beui-view",
                     "//crates/paint-snapshot:paint-snapshot",
                     "//third-party/rust:pollster-0.4.0",
                 ],
@@ -6903,6 +6918,9 @@ crates = {
                 "examples": {},
                 "features": [],
                 "test_deps": [
+                    "//crates/beui-components-styled:beui-components-styled",
+                    "//crates/beui-macros:beui_macros",
+                    "//crates/beui-view:beui-view",
                     "//crates/paint-snapshot:paint-snapshot",
                     "//third-party/rust:pollster-0.4.0",
                 ],
@@ -6921,6 +6939,9 @@ crates = {
                 "examples": {},
                 "features": [],
                 "test_deps": [
+                    "//crates/beui-components-styled:beui-components-styled",
+                    "//crates/beui-macros:beui_macros",
+                    "//crates/beui-view:beui-view",
                     "//crates/paint-snapshot:paint-snapshot",
                     "//third-party/rust:pollster-0.4.0",
                 ],

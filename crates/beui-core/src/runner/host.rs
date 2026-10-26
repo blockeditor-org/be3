@@ -35,6 +35,10 @@ pub trait WindowHost {
 
     fn input(&mut self, incoming: &mut Vec<Incoming>, view: &HostView);
 
+    fn keyboard_attached(&self) -> Option<bool> {
+        None
+    }
+
     fn frame(&mut self, output: &FrameOutput, view: &HostView) -> Hosted;
 }
 

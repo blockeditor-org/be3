@@ -26,6 +26,7 @@ fn a_panel_carried_under_the_floor_stays_visible_and_can_be_picked() {
         window: under,
         placement: WindowPlacement::Host(panel(under, pose).placement()),
         size: SIZE,
+        role: WindowRole::Normal,
     });
     send(&mut space, now, []);
 

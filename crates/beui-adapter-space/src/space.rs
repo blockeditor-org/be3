@@ -13,7 +13,7 @@ use beui_core::runner::{
     Controller, Hand, HostView, Hosted, Incoming, SCROLL_LINE, Units, WindowHost, scrolled,
 };
 use beui_core::window::{
-    WindowEdge, WindowId, WindowPlacement, WindowReport, WindowRequest, WindowState,
+    WindowEdge, WindowId, WindowPlacement, WindowReport, WindowRequest, WindowRole, WindowState,
 };
 use beui_renderer_wgpu::present::GpuSetup;
 use glam::{Mat4, Quat, Vec3};
@@ -38,6 +38,7 @@ pub const OPEN_GRAB: Pos2 = pos2(24.0, 16.0);
 pub const OVER_NEARER: f32 = 0.03;
 pub const CURSOR_LIFT: f32 = 0.01;
 pub const CURSOR_MARGIN: f32 = 2.0;
+pub const KEYBOARD_GAP: f32 = 12.0;
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 struct Stroke {
@@ -154,6 +155,8 @@ pub struct Space {
     app_locked: bool,
     sprite: Sprite,
     focused: Option<WindowId>,
+    keyboards: Vec<WindowId>,
+    typing: Option<(WindowId, Rect)>,
     pressed: u32,
     dropped: u32,
     grip_held: bool,
@@ -201,6 +204,8 @@ impl Space {
             app_locked: false,
             sprite: Sprite::new(),
             focused: None,
+            keyboards: Vec::new(),
+            typing: None,
             pressed: 0,
             dropped: 0,
             grip_held: false,
@@ -365,8 +370,19 @@ impl Space {
         self.focused
     }
 
+    pub fn keyboards(&self) -> &[WindowId] {
+        &self.keyboards
+    }
+
+    pub fn keyboard_attached(&self) -> Option<bool> {
+        self.lasers
+            .iter()
+            .any(|laser| laser.ray.is_some())
+            .then_some(false)
+    }
+
     fn focus(&mut self, window: Option<WindowId>) {
-        if self.focused == window {
+        if self.focused == window || window.is_some_and(|window| self.keyboards.contains(&window)) {
             return;
         }
         for (window, focused) in [(self.focused, false), (window, true)] {
@@ -1086,7 +1102,8 @@ impl Space {
                 window,
                 placement,
                 size,
-            } => self.open(*window, placement, *size),
+                role,
+            } => self.open(*window, placement, *size, *role),
             WindowRequest::BeginMove(window) => self.begin_carry(self.pointer_in(*window), *window),
             WindowRequest::BeginResize { window, edge } => {
                 self.begin_resize(self.pointer_in(*window), *window, *edge)
@@ -1096,11 +1113,31 @@ impl Space {
         }
     }
 
-    pub fn open(&mut self, window: WindowId, placement: &WindowPlacement, size: Vec2) {
+    pub fn open(
+        &mut self,
+        window: WindowId,
+        placement: &WindowPlacement,
+        size: Vec2,
+        role: WindowRole,
+    ) {
         let opening = self.panel(window).is_none();
         if opening {
             let mut panel = Panel::new(window, Pose::default(), size);
+            let beside = match role {
+                WindowRole::Keyboard => {
+                    self.keyboards.push(window);
+                    self.beside_typing(size)
+                }
+                WindowRole::Normal => None,
+            };
             let placed = match placement {
+                _ if beside.is_some() => {
+                    if let Some((pose, metres_per_point)) = beside {
+                        panel.pose = pose;
+                        panel.metres_per_point = metres_per_point;
+                    }
+                    true
+                }
                 WindowPlacement::Host(placement) => panel.placed(placement),
                 WindowPlacement::Over { window: other, at } => self
                     .over(*other, *at, size)
@@ -1175,6 +1212,29 @@ impl Space {
         panel.pose
     }
 
+    fn beside_typing(&self, size: Vec2) -> Option<(Pose, f32)> {
+        let typing = self
+            .typing
+            .filter(|(window, _)| self.panel(*window).is_some());
+        let (window, at) = match typing {
+            Some((window, field)) => (
+                window,
+                pos2(
+                    field.center().x - size.x / 2.0,
+                    field.bottom() + KEYBOARD_GAP,
+                ),
+            ),
+            None => {
+                let panel = self.panel(self.focused?)?;
+                (
+                    panel.window,
+                    pos2((panel.size.x - size.x) / 2.0, panel.size.y - size.y),
+                )
+            }
+        };
+        self.over(window, at, size)
+    }
+
     fn over(&self, other: WindowId, at: Pos2, size: Vec2) -> Option<(Pose, f32)> {
         let other = self.panel(other)?;
         let mut panel = Panel::new(WindowId::MAIN, other.pose, size);
@@ -1209,6 +1269,7 @@ impl Space {
             return;
         }
         self.panels.retain(|panel| panel.window != window);
+        self.keyboards.retain(|keyboard| *keyboard != window);
         self.scales.retain(|(held, _)| *held != window);
         self.rescaling.retain(|(waiting, ..)| *waiting != window);
         if let Some(compositor) = &self.compositor {
@@ -1349,6 +1410,10 @@ impl WindowHost for Space {
         self.chrome_shown.clear();
     }
 
+    fn keyboard_attached(&self) -> Option<bool> {
+        Space::keyboard_attached(self)
+    }
+
     fn input(&mut self, incoming: &mut Vec<Incoming>, view: &HostView) {
         self.platform = view.platform;
         self.pixels_per_point = view.pixels_per_point;
@@ -1381,6 +1446,10 @@ impl WindowHost for Space {
         self.platform = view.platform;
         self.pixels_per_point = view.pixels_per_point;
         self.clock = Some(view.now);
+        self.typing = output.windows.iter().find_map(|window| {
+            let area = window.window.requests.ime.as_ref()?;
+            Some((window.id, area.rect))
+        });
         for request in &output.window_requests {
             self.request(request);
         }

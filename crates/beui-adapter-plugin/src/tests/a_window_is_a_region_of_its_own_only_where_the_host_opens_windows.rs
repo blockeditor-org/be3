@@ -54,6 +54,7 @@ fn a_window_is_a_region_of_its_own_only_where_the_host_opens_windows() {
             window,
             placement: WindowPlacement::AtPointer,
             size: vec2(120.0, 80.0),
+            role: beui_core::window::WindowRole::Normal,
         }],
         "the window is asked for once the host opens windows"
     );

@@ -6,7 +6,7 @@ use block_plugin_api::{
     FrameReport, FrameSpec, MenuEntry, Monitor, Occluder, OpenArtifact, OpenBlock, OpenCreation,
     Opening, PerformanceMeasurement, RegionSize, ScreenId, ScreenLayout, ScreenRequest,
     ScreenWindow, ScreenWindowRequest, ShellCommand, Size, Stopped, ViewChange, WebViewEvent,
-    WebViewId, WindowEdge, WindowId, WindowPlacement, WindowReport, WindowRequest,
+    WebViewId, WindowEdge, WindowId, WindowPlacement, WindowReport, WindowRequest, WindowRole,
 };
 use block_plugin_api::{
     DescribedAction, WindowRequests,
@@ -155,6 +155,7 @@ pub(crate) struct PluginWindow {
     pub(crate) window: WindowId,
     pub(crate) placement: WindowPlacement,
     pub(crate) size: Vec2,
+    pub(crate) role: WindowRole,
     pub(crate) moves: u32,
     pub(crate) resizes: (u32, WindowEdge),
 }
@@ -1709,6 +1710,7 @@ impl Instances {
                         window,
                         placement,
                         size,
+                        role,
                     },
                     None,
                 ) => {
@@ -1716,6 +1718,7 @@ impl Instances {
                         window,
                         placement,
                         size,
+                        role,
                         moves: 0,
                         resizes: (0, WindowEdge::BottomRight),
                     });

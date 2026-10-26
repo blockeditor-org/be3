@@ -2805,7 +2805,9 @@ actions, accessibility) stays on `FrameOutput`. A renderer, `painting` and
 
 The app asks its host for windows with `Context::request_window`, which
 collects `WindowRequest`s into `FrameOutput::window_requests`: `Open { window,
-placement, size }`, `BeginMove(window)`, `BeginResize { window, edge }`
+placement, size, role }` (a `WindowRole`: `Normal`, or `Keyboard` for an
+on-screen keyboard, which the host never focuses and places by the field it
+types into; the `Window` component's `role`), `BeginMove(window)`, `BeginResize { window, edge }`
 (the host then moves or resizes it, as an OS does after winit's
 `drag_window`), `Resize { window, size }` (the app wants another size; the
 host answers with the size it gives) and `Close(window)`. A `WindowPlacement` is `AtPointer`,
@@ -2959,7 +2961,10 @@ plugin region's host does. The runner calls it at three points:
   window's coordinates, and push `WindowReport`s. `HostView` is the platform
   window's size in physical pixels, the pixels per point and the frame's time:
   the runner reads the clock once, before `input`, and the app's frame and
-  `frame` see that same time (`Context::now`).
+  `frame` see that same time (`Context::now`). Right after it the runner asks
+  `keyboard_attached()`: `Some` overrides whether the platform reports a
+  keyboard attached (see The on-screen keyboard), `None` (the default) leaves
+  it to the platform.
 - `frame(&FrameOutput, &HostView) -> Hosted` after the app's frame: it reads
   each window's output and requests and returns the one `WindowOutput` the
   platform window shows, which the runner hands to the platform
@@ -3013,7 +3018,13 @@ all its 3D (`glam`) stays in the crate.
   in front of the panel the ray hits or `OPEN_DISTANCE` (1 m) away when it hits
   none, turned to face the viewer as a carry leaves a panel (`Panel::face`, see Carry). A window that opens takes the
   focus (see Focus); a window asked for again keeps its panel and leaves the
-  focus alone. `Resize` sets the panel's size,
+  focus alone. A `WindowRole::Keyboard` window (`Space::keyboards`) ignores
+  its placement and opens as `Over` would put it on the panel holding the
+  focused field (the window whose output carries the IME area), centred under
+  the field `KEYBOARD_GAP` (12) points below it, or with no field over the
+  bottom of the focused panel; it never takes the focus, however it is opened,
+  pressed or carried, so its keys type into the field. A hand's grip carries
+  it like any panel. `Resize` sets the panel's size,
   keeping its top-left corner, and reports `Resized` the next frame. `Close`
   removes the panel and its texture; the main window's panel never closes.
 - Grab: while its window has focus the host holds the pointer
@@ -3362,6 +3373,10 @@ all its 3D (`glam`) stays in the crate.
   faint at the hand, blue, and white while pressed, with a dot `DOT` times
   its distance from the eye across where it hits; the paintings draw them
   over the panels.
+- Keyboard: while any laser has a ray, `Space::keyboard_attached` (its
+  `WindowHost::keyboard_attached`) says no keyboard is attached, so tapping a
+  field opens beui's on-screen keyboard as a panel (above); with only the
+  mouse and keyboard it says nothing and no panel opens.
 - Focus: like a desktop window manager, focus follows clicks, not the cursor
   (`Space::focused`, the main window's panel at first). A press on a panel's
   content or its chrome focuses that panel, as does starting to carry it and
@@ -3492,7 +3507,16 @@ It is three pieces:
   ignores it.
   The keyboard is a document of its own, shown after
   the app with the pointer only while a press began on it or the pointer is
-  over it, and with no keys.
+  over it, and with no keys. Where windows open (`Context::opens_windows`, a
+  host such as space) it takes nothing off the screen: `KeyboardHost::show`
+  gets a `WindowId` the context keeps for it, and `KeyboardWindow` shows the
+  keys in a `Window` of that id with `WindowRole::Keyboard`
+  (`keyboard::WINDOW_SIZE`), which the core closes with
+  `WindowRequest::Close` when the keyboard closes. The pointer counts as on it
+  while its window is the one the pointer is in. The keyboard's window reports go
+  only to the document that holds that window (`Context::take_window_reports`
+  takes those a filter keeps), so the keyboard's document hears its own
+  window's `Rastered`.
 
 There is one way to ask for an on-screen keyboard whatever shows it:
 `toggle_keyboard()` (or `Context::toggle_keyboard`) counts up
@@ -3504,7 +3528,8 @@ or blurs its hidden textarea, and a plugin passes it to its host as
 desktop bar's keyboard button, the inspector's Sim tab button and the mouse
 simulation's keyboard button all call it. While the platform reports that no keyboard is attached
 (`WindowReports::keyboard_attached`, which only `beui-adapter-drm` sends, from
-libinput devices that have an A key; every other platform counts as attached),
+libinput devices that have an A key; every other platform counts as attached,
+and a window host may override it, as space does while controllers are active),
 it opens whenever the focused field's `ImeArea::keyboard` turns `Shown` or its
 `asks` changes, and closes when the focus leaves for something that types
 nothing. Its close button (`close_keyboard()`) closes it until a field asks

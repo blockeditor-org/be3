@@ -142,7 +142,7 @@ pub use ui_types::{
 };
 pub use ui_types::{
     HostPlacement, ImeArea, WindowEdge, WindowId, WindowPlacement, WindowReport, WindowRequest,
-    WindowRequests,
+    WindowRequests, WindowRole,
 };
 pub use watch::{Encoded, WAITING_WEB_VIEW_EVENTS, Watch};
 

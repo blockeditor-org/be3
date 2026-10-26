@@ -1212,9 +1212,12 @@ dependencies = [
 name = "beui-adapter-space"
 version = "0.1.0"
 dependencies = [
+ "beui-components-styled",
  "beui-core",
  "beui-font-freetype",
  "beui-renderer-wgpu",
+ "beui-view",
+ "beui_macros",
  "bytemuck",
  "glam",
  "paint-snapshot",

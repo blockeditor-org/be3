@@ -4,7 +4,7 @@ use crate::color::Color32;
 
 pub use ui_types::window::{
     HostPlacement, WindowEdge, WindowId, WindowPlacement, WindowReport, WindowRequest,
-    WindowRequests,
+    WindowRequests, WindowRole,
 };
 
 #[derive(Clone, Debug, Default, PartialEq)]
