@@ -99,7 +99,7 @@ contract; what native keeps), **hatch** (core-implemented), **unclear**.
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | `Frame` | one child: size (`Extent`), aspect ratio, padding, align, fill, radius, outline, overlay `pointer` beak | 12 | 3 | 6 | 0* | CSS: box, `aspect-ratio`, `padding`, `place-self`, `background`, `border-radius`, `outline`+`outline-offset`. The beak follows the side the overlay chose: **unclear** (needs the chosen anchor fallback) | Absorb `Shift`, `Turn.angle`, `Fade` as props |
 | `List` | children in a line: direction, align (incl. baseline), justify, wrap, spacing; children's `@sizing` | 28 | 1 | 5 | 0* | CSS flexbox: `flex-direction`, `align-items: baseline`, `justify-content`, `flex-wrap`, `gap`; `Percent` is `flex-grow` from basis 0, `shrink` is `flex-shrink`, `min`/`max` are `min-`/`max-width`; beui's min-width rule is CSS's `min-width: auto` | — |
-| `Spacer` | an empty `Frame` | 1 | 4 | 5 | 31 | CSS: empty flex item | Duplicate of `<Frame/>` with `@sizing`; drop or document as the one spelling |
+| `Spacer` | an empty `Frame` | 1 | 4 | 5 | 31 | CSS: empty flex item | Keep: fills the rest of a row (`Percent`, ~70 uses) or stands in for nothing (bare, 51). Its ~6 fixed-pixel uses outside beui become a styled `Spacer` taking a `Space` token, as styled `Gap` does |
 | `Layers` / `Layer` | children over one box, sized to the largest | 3 | 3 | 4 | 24 | CSS grid, every child in `grid-area: 1/1` | — |
 | `FirstFit` / `Fitting` | the first child whose natural width fits, else the last | 0 | 1 | 1 | 0 | **late**: measure natural widths (`ResizeObserver` on `max-content` probes); native keeps same-frame choice | One user (`styled/choice.rs`). Move to unstyled over the measurement API |
 | `Grid` / `GridCell` | shared columns of `Track`s (fixed, intrinsic, fraction), spans | 1 | 1 | 1 | 0 | CSS grid: `grid-template-columns` px / `max-content` / `fr`, `grid-column: span n` | — |
@@ -263,7 +263,8 @@ Everything except IME maps onto DOM focus.
   labels as rendered children.
 - **Duplicates.** Three transforms (`Shift.by`, `Turn.angle`,
   `Embed.rotation`) and two single-child effect nodes (`Fade`, `Shift`) that
-  `Frame` could carry. Five layout queries (§2.2). `Spacer` is `<Frame/>`.
+  `Frame` could carry. Five layout queries (§2.2). `Spacer` is an empty `Frame`, kept as the one spelling for fill and empty
+children.
   `PlacementBuilder` is `node_rect` as a builder. `Container`/`narrower_than`
   (11 files) is a `LayoutBuilder` that is really a container query.
 - **`Interactive` has 61 props.** 16 are used by at most one tag in the
@@ -335,7 +336,9 @@ Moves up or out:
 - `FirstFit`: unstyled, over the measurement API.
 - `Turn` quarter turns: to their users (block-editor-beui, infinite-canvas).
 - `Embed`: product-facing, beside the plugin work it serves.
-- `Spacer`: removed in favour of `<Frame @sizing=..>`.
+- `Spacer`: stays base for fill and empty children; styled gains a `Spacer`
+  taking a `Space` token for fixed gaps, replacing the pixel sizes passed to
+  it outside beui.
 - Gesture recognisers on `Interactive`: unstyled.
 - `Container`/`narrower_than`: stays unstyled, rebuilt on the measurement API.
 - `focus.rs`, `focus_scope.rs`, `share.rs`, `child_list.rs`: out of `base/`.
