@@ -290,7 +290,8 @@ fn walk(doc: &mut Document, rects: &Rects, id: NodeId, pos: Pos2) -> Walk {
         }
         match walk(doc, rects, child, pos) {
             Walk::Found(mut path, embed) => {
-                if let (Some(node), Some((rect, scale))) = (interactive(doc, id), rects.scaled(&id)) {
+                if let (Some(node), Some((rect, scale))) = (interactive(doc, id), rects.scaled(&id))
+                {
                     match node.hits(pos, rect, scale) {
                         true => path.push(id),
                         false if path.is_empty() => return Walk::Declined,

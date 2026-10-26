@@ -585,10 +585,7 @@ impl Element for CanvasItemNode {
     }
 
     fn pointer_children(&self) -> Vec<NodeId> {
-        self.child
-            .filter(|_| self.pointer)
-            .into_iter()
-            .collect()
+        self.child.filter(|_| self.pointer).into_iter().collect()
     }
 
     fn remove_child(&mut self, child: NodeId) {

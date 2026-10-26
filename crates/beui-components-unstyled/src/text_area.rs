@@ -588,7 +588,8 @@ impl Surface {
         };
         let scale = self.scale();
         let center = handle_center(caret, CaretHandle::Middle, scale);
-        (Vec2::new(pos.x, pos.y) - center).length() <= HANDLE_RADIUS * scale + CARET_HANDLE_TAP_SLACK
+        (Vec2::new(pos.x, pos.y) - center).length()
+            <= HANDLE_RADIUS * scale + CARET_HANDLE_TAP_SLACK
     }
 
     fn inside(&self, pos: Pos2) -> (Pos2, Option<Beyond>) {

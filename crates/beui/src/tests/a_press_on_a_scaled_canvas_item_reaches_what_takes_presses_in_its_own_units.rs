@@ -29,7 +29,12 @@ fn a_press_on_a_scaled_canvas_item_reaches_what_takes_presses_in_its_own_units()
                     </Interactive>
                 </CanvasItem>
                 <CanvasItem x=10.0 y=50.0 width=40.0 height=20.0 scales=true>
-                    <Frame @node_ref=&drawing width=40.0 height=20.0 fill={Color32::from_gray(90)} />
+                    <Frame
+                        @node_ref=&drawing
+                        width=40.0
+                        height=20.0
+                        fill={Color32::from_gray(90)}
+                    />
                 </CanvasItem>
                 <CanvasItem x=10.0 y=90.0 width=40.0 height=20.0 scales=true pointer=false>
                     <Interactive
@@ -46,7 +51,11 @@ fn a_press_on_a_scaled_canvas_item_reaches_what_takes_presses_in_its_own_units()
     harness.frame(Vec::new());
 
     let rect = harness.rect(button.get());
-    assert_eq!(rect.size(), vec2(80.0, 40.0), "the item is shown at the zoom");
+    assert_eq!(
+        rect.size(),
+        vec2(80.0, 40.0),
+        "the item is shown at the zoom"
+    );
     let at = rect.min + vec2(10.0, 6.0);
     harness.click(at);
     let pressed = heard.get_untracked();

@@ -41,7 +41,8 @@ fn a_scroll_in_a_scaled_canvas_item_follows_the_finger_and_reveals_what_is_focus
     }
     let rect = harness.rect(buttons[7]);
     assert!(
-        harness.document().scroll_offset(scroll) > 0.0 && (rect.bottom() - shown.bottom()).abs() < 0.5,
+        harness.document().scroll_offset(scroll) > 0.0
+            && (rect.bottom() - shown.bottom()).abs() < 0.5,
         "tabbing down to a button scrolls the zoomed list just far enough to show it, \
          not {rect:?} in {shown:?}"
     );

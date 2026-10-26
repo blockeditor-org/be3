@@ -444,9 +444,11 @@ fn rect_of(doc: &Document, rects: &Rects, id: NodeId) -> Option<(Rect, f32)> {
 }
 
 fn local(rects: &Rects, id: NodeId, pos: Pos2) -> (Pos2, Vec2) {
-    rects.scaled(&id).map_or((pos, Vec2::ZERO), |(rect, scale)| {
-        (local_in(rect, scale, pos), rect.size() / scale)
-    })
+    rects
+        .scaled(&id)
+        .map_or((pos, Vec2::ZERO), |(rect, scale)| {
+            (local_in(rect, scale, pos), rect.size() / scale)
+        })
 }
 
 fn over(rects: &Rects, id: NodeId, pos: Pos2) -> bool {
@@ -1156,9 +1158,9 @@ pub(crate) fn long_pressed(doc: &mut Document, frame: &Frame, pressed: Vec<LongP
             else {
                 continue;
             };
-            node.on_secondary_press
-                .clone()
-                .call(press_at(rect, scale, pos, clicks, modifiers, true, frame.now));
+            node.on_secondary_press.clone().call(press_at(
+                rect, scale, pos, clicks, modifiers, true, frame.now,
+            ));
         }
     }
 }

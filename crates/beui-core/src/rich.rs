@@ -187,9 +187,7 @@ pub fn toolbar_anchor(carets: Rect, scale: f32) -> Rect {
         pos2(carets.min.x, carets.min.y - TOOLBAR_GAP),
         pos2(
             carets.max.x,
-            carets.max.y
-                + (HANDLE_GAP + HANDLE_RADIUS * (1.0 + SQRT_2)) * scale
-                + TOOLBAR_GAP,
+            carets.max.y + (HANDLE_GAP + HANDLE_RADIUS * (1.0 + SQRT_2)) * scale + TOOLBAR_GAP,
         ),
     )
 }
