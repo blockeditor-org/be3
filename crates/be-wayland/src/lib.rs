@@ -6,6 +6,7 @@ mod dialog;
 mod focus;
 mod foreign;
 mod gtk_settings;
+mod heads;
 mod held_view;
 mod idle;
 mod presentation;
@@ -26,7 +27,7 @@ mod view;
 mod windows;
 mod xwayland;
 
-pub use compositor::{Compositor, CursorImage};
+pub use compositor::{Compositor, CursorImage, Monitor};
 pub use presentation::Presented;
 pub use server::Server;
 pub use state::{KeyboardConfig, WindowId};

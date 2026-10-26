@@ -30,7 +30,14 @@ async fn removing_a_member_shuts_them_out_and_rotates_what_they_could_read() {
 
     admin.remove_member(removed.account()).await.unwrap();
     assert!(
-        removed.summary(note).await.is_err(),
+        removed
+            .connection()
+            .request(|request| be_protocol::ClientMessage::ReadBlock {
+                request,
+                block: note
+            })
+            .await
+            .is_err(),
         "a removed member's open connection kept reading"
     );
     let again = Peer::connect(
@@ -50,7 +57,11 @@ async fn removing_a_member_shuts_them_out_and_rotates_what_they_could_read() {
             .iter()
             .all(|member| member.account != removed.account())
     );
-    assert_eq!(admin.key_work().await.unwrap().rotations, [team]);
+    let mut rotations = admin.key_work().await.unwrap().rotations;
+    rotations.sort();
+    let mut expected = vec![team, admin.organization_settings()];
+    expected.sort();
+    assert_eq!(rotations, expected);
 
     admin.tend().await.unwrap();
     admin

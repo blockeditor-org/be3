@@ -1,6 +1,6 @@
 use be_block::{BlockContent, LiveEdit, Merge};
 use be_commit::MergeResult;
-use block_type_guest::api::{Change, Command, Event, PlainFile, Reply, Request};
+use block_type_guest::api::{Change, FileChange, PlainFile, guest::exports::replicas::Guest};
 
 use crate::{ImageContent, ImageFile, ImageHeader, ImageOp};
 
@@ -20,14 +20,4 @@ fn image(name: &str, payload: &[u8]) -> ImageContent {
         },
         payload.to_vec(),
     )
-}
-
-fn ask(request: Request) -> Reply {
-    match crate::block_types()
-        .handle(Event::Request { id: 1, request })
-        .as_slice()
-    {
-        [Command::Reply { id: 1, reply }] => reply.clone(),
-        other => panic!("expected one reply, got {other:?}"),
-    }
 }

@@ -1,10 +1,12 @@
 use beui::NodeId;
+use beui::Overflow;
+use beui::dock::styled::Docking;
+use beui::dock::styled::{
+    DockDocument, DockDocumentBody, DockDocumentTabs, DockEntry, DockPane, DockTab,
+};
 use beui::icons::ICON_TERMINAL;
 use beui::reactive::*;
 use beui::styled::*;
-use beui::unstyled::{
-    DockDocument, DockDocumentBody, DockDocumentTabs, DockEntry, DockPane, DockTab,
-};
 
 use crate::actions::describe;
 use crate::detail::Detail;
@@ -24,14 +26,18 @@ pub(crate) fn Workspace(model: Model) -> NodeId {
     });
     let pane = runs.pane;
     view! {
-        <List spacing=0.0>
-            <Frame padding={Sides::symmetric(PADDING, 12.0)}>
-                <List direction=Direction::Horizontal align=Align::Center spacing=12.0>
-                    <Text style=TextStyle::CAPTION @sizing=ItemSize::Percent(100.0) ellipsis=true>
+        <List spacing=Space::None>
+            <Frame padding={Padding::symmetric(PADDING, Space::Lg)}>
+                <List direction=Direction::Horizontal align=Align::Center spacing=Space::Lg>
+                    <Text
+                        style=TextStyle::CAPTION
+                        @sizing=ItemSize::Percent(100.0)
+                        overflow=Overflow::Ellipsis
+                    >
                         {status}
                     </Text>
                     <Show condition={working}>
-                        <Spinner width=18.0 label="A build is running" />
+                        <Progress width=Size::Sm label="A build is running" />
                     </Show>
                 </List>
             </Frame>

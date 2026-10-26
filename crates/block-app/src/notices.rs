@@ -1,4 +1,6 @@
-use std::sync::{Mutex, MutexGuard, PoisonError};
+use std::sync::{MutexGuard, PoisonError};
+
+use wasi_threads::Mutex;
 
 use beui::styled::*;
 

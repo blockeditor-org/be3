@@ -25,7 +25,7 @@ fn a_select_opened_with_a_key_shows_the_keyboard_for_its_search() {
     harness.touch(TouchPhase::End, at);
     harness.frame(Vec::new());
     harness.key(Key::Escape, Modifiers::NONE);
-    harness.frame(Vec::new());
+    harness.settle();
     assert!(!harness.document().api::<unstyled::SelectApi>(select).open());
     assert!(
         harness

@@ -1,7 +1,6 @@
 use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
-use block_editor_beui::beui::unstyled::ChoiceOption;
 use block_editor_beui::block_ui::BlockTypes;
 use block_editor_beui::{ChangesToast, Editor, LayeredSettings, LayeredSettingsRow};
 use settings_types::EditorSettings;

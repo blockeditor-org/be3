@@ -14,23 +14,25 @@ fn a_driver_types_into_a_field_found_by_its_test_id() {
 
     assert!(
         driven
-            .ask(&["ids"])
+            .ask(&["app", "ids"])
             .expect("the driver lists test ids")
             .starts_with("#form.name at "),
         "the field's test id is on screen"
     );
     driven
-        .ask(&["click", "#form.name"])
+        .ask(&["app", "click", "#form.name"])
         .expect("the field is clicked");
-    let changed = driven.ask(&["type", "Ada"]).expect("the text is typed");
+    let changed = driven
+        .ask(&["app", "type", "Ada"])
+        .expect("the text is typed");
     assert!(
         changed.contains("value=\"Ada\""),
         "the field reads what was typed:\n{changed}"
     );
     driven
-        .ask(&["key", "ctrl+a", "Backspace"])
+        .ask(&["app", "key", "ctrl+a", "Backspace"])
         .expect("the chords are pressed");
     driven
-        .ask(&["gone", "value=\"Ada\""])
+        .ask(&["app", "gone", "value=\"Ada\""])
         .expect("the text is deleted");
 }

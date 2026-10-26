@@ -1,7 +1,7 @@
 use beui::{Vec2, vec2};
 use block_plugin_api::{
-    BlockPick, EditorCapabilities, EditorInstanceId, EditorManifest, EditorRegion, FrameSpec,
-    HostPanel, InteractionMode, PluginManifest, ResizeMode,
+    BlockPick, DialogAnswer, DialogStatus, EditorCapabilities, EditorInstanceId, EditorManifest,
+    EditorRegion, FrameSpec, HostPanel, InteractionMode, PluginManifest, ResizeMode,
 };
 use std::sync::{
     Arc,
@@ -12,8 +12,8 @@ use uuid::Uuid;
 pub(crate) mod discovery;
 
 use super::{
-    ArtifactSession, ArtifactStatus, CreationStep, DirectEditorCapabilities,
-    DirectEditorInteraction, DirectEditorResize, EditorRegistry, FocusReport, PendingCreation,
+    ArtifactSession, ArtifactStatus, DirectEditorCapabilities, DirectEditorInteraction,
+    DirectEditorResize, EditorRegistry, FocusReport, PendingCreation,
 };
 use crate::{
     compositor::RegionEditor,
@@ -46,6 +46,7 @@ pub(super) struct PluginCreation {
     opened: bool,
     state: CreationState,
     committed: bool,
+    dismissed: bool,
 }
 
 impl PluginCreation {
@@ -57,6 +58,7 @@ impl PluginCreation {
             opened: false,
             state: CreationState::Starting,
             committed: false,
+            dismissed: false,
         }
     }
 
@@ -99,14 +101,13 @@ impl PendingCreation for PluginCreation {
         }
     }
 
-    fn step(&mut self, registry: &EditorRegistry, client_id: Uuid) -> CreationStep {
+    fn step(&mut self, registry: &EditorRegistry, client_id: Uuid) {
         self.opened = true;
         if self.target.dialog {
-            let ready = crate::plugin_host::creation_ready(&self.plugin.identity.id, self.instance);
-            if ready {
+            if self.dialog().answer == Some(DialogAnswer::Accepted) {
                 self.state = CreationState::Ready;
             }
-            return CreationStep::Options(ready);
+            return;
         }
         self.state = crate::plugin_host::creation(CreationSlot {
             plugin: &self.plugin,
@@ -115,7 +116,24 @@ impl PendingCreation for PluginCreation {
             instance: self.instance,
             role: self.role(),
         });
-        CreationStep::Working
+    }
+
+    fn dialog(&self) -> DialogStatus {
+        let mut status = crate::plugin_host::dialog_status(&self.plugin.identity.id, self.instance)
+            .unwrap_or_default();
+        if self.dismissed && status.answer.is_none() {
+            status.answer = Some(DialogAnswer::Dismissed);
+        }
+        status
+    }
+
+    fn dismiss(&mut self) {
+        match crate::plugin_host::dialog_status(&self.plugin.identity.id, self.instance) {
+            Some(status) if status.handles_dismiss => {
+                crate::plugin_host::dismiss(&self.plugin.identity.id, self.instance);
+            }
+            _ => self.dismissed = true,
+        }
     }
 
     fn height(&self) -> Option<f32> {
@@ -491,10 +509,12 @@ pub(super) struct PluginArtifact {
     plugin: Arc<PluginManifest>,
     editor: Uuid,
     block: EditorBlock,
+    source: Uuid,
     client_id: Uuid,
     instance: EditorInstanceId,
     opened: bool,
     resync: bool,
+    dismissed: bool,
     outcome: Option<Result<(), String>>,
     regenerating: bool,
 }
@@ -503,6 +523,7 @@ impl PluginArtifact {
     pub(super) fn new(
         plugin: Arc<PluginManifest>,
         editor: Uuid,
+        source: Uuid,
         target_id: Uuid,
         target_type: Uuid,
         client_id: Uuid,
@@ -510,6 +531,7 @@ impl PluginArtifact {
         Self {
             plugin,
             editor,
+            source,
             client_id,
             block: EditorBlock {
                 id: target_id,
@@ -519,6 +541,7 @@ impl PluginArtifact {
             instance: next_instance(),
             opened: false,
             resync: false,
+            dismissed: false,
             outcome: None,
             regenerating: false,
         }
@@ -543,6 +566,7 @@ impl ArtifactSession for PluginArtifact {
             instance: self.instance,
             editor: self.editor,
             block: self.block,
+            source: self.source,
             data,
             resync: std::mem::take(&mut self.resync),
         });
@@ -554,9 +578,7 @@ impl ArtifactSession for PluginArtifact {
         }
         match state {
             ArtifactState::Starting => ArtifactStatus::Starting,
-            ArtifactState::Described { source, summary } => {
-                ArtifactStatus::Described { source, summary }
-            }
+            ArtifactState::Described(summary) => ArtifactStatus::Described(summary),
             ArtifactState::Failed(error) => ArtifactStatus::Failed(error),
         }
     }
@@ -566,7 +588,7 @@ impl ArtifactSession for PluginArtifact {
         HostedRegion {
             editor: RegionEditor {
                 plugin: Arc::clone(&self.plugin),
-                role: InstanceRole::Artifact(self.editor, self.block),
+                role: InstanceRole::Artifact(self.editor, self.block, self.source),
                 instance: self.instance,
                 block_types: Arc::clone(registry.plugin_block_types()),
                 client_id: self.client_id,
@@ -589,12 +611,32 @@ impl ArtifactSession for PluginArtifact {
         .map_or(ARTIFACT_SETTINGS_HEIGHT, |size| size.y.max(1.0))
     }
 
-    fn summary(&self, _draft: &[u8]) -> Option<String> {
-        None
-    }
-
     fn cancel_settings(&mut self) {
         self.resync = true;
+        self.close_dialog();
+    }
+
+    fn dialog(&self) -> DialogStatus {
+        let mut status = crate::plugin_host::dialog_status(&self.plugin.identity.id, self.instance)
+            .unwrap_or_default();
+        if self.dismissed && status.answer.is_none() {
+            status.answer = Some(DialogAnswer::Dismissed);
+        }
+        status
+    }
+
+    fn dismiss(&mut self) {
+        match crate::plugin_host::dialog_status(&self.plugin.identity.id, self.instance) {
+            Some(status) if status.handles_dismiss => {
+                crate::plugin_host::dismiss(&self.plugin.identity.id, self.instance);
+            }
+            _ => self.dismissed = true,
+        }
+    }
+
+    fn close_dialog(&mut self) {
+        self.dismissed = false;
+        crate::plugin_host::forget_dialog_answer(&self.plugin.identity.id, self.instance);
     }
 
     fn regenerate(&mut self, data: &[u8]) {

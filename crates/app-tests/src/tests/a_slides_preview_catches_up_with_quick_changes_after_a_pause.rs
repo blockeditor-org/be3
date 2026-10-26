@@ -15,7 +15,7 @@ fn a_slides_preview_catches_up_with_quick_changes_after_a_pause() {
     let stage = app.place("#infinite-canvas.canvas");
     let at = |x: f32, y: f32| format!("{:.0},{:.0}", stage.0 + stage.2 * x, stage.1 + stage.3 * y);
     app.click("#infinite-canvas.dock.tool.Rectangle");
-    app.run(&["drag", &at(0.2, 0.3), &at(0.35, 0.45)]);
+    app.run(&["app", "drag", &at(0.2, 0.3), &at(0.35, 0.45)]);
     app.wait(SHAPE);
     let drawn = app.count(SHAPE);
     app.pause(600);

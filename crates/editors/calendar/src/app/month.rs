@@ -8,7 +8,7 @@ use block_ui::datetime::{civil_from_days, days_from_civil};
 use super::model::{Shown, WEEKDAY_ABBR, events_on, today_days_since_epoch, weekday_from_days};
 
 const CELL_HEIGHT: f32 = 92.0;
-const CELL_SPACING: f32 = 2.0;
+const CELL_SPACING: Space = Space::Xs2;
 const MAX_VISIBLE: usize = 3;
 const WEEKS: i64 = 6;
 
@@ -105,11 +105,10 @@ fn MonthCell(
             false => String::new(),
         }
     });
-    let theme = use_theme();
     let fill = create_memo(move || match (today, in_month.get()) {
-        (true, _) => theme.accent_soft.get(),
-        (false, true) => theme.surface.get(),
-        (false, false) => theme.background.get(),
+        (true, _) => ColorRole::AccentSoft,
+        (false, true) => ColorRole::Surface,
+        (false, false) => ColorRole::Background,
     });
     let number_color = create_memo(move || match in_month.get() {
         true => TextColor::Default,
@@ -118,12 +117,12 @@ fn MonthCell(
     let pick = move || on_pick_day.call(day);
     view! {
         <Frame
-            fill={ColorRole::custom(fill)}
-            border={Border::new(ColorRole::Border).width(1.0)}
+            fill={fill}
+            border={Border::new(ColorRole::Border).width(Stroke::Hairline)}
             radius=Radius::Sm
-            padding=4.0
+            padding=Space::Xs
         >
-            <List spacing=2.0>
+            <List spacing=Space::Xs2>
                 <ListRow
                     @test_id={format!("calendar.day.{day}")}
                     on_click={pick}
@@ -164,7 +163,7 @@ fn EventChip(
     on_click: block_editor_beui::beui::reactive::ClickCallback,
 ) -> NodeId {
     view! {
-        <Frame fill=ColorRole::Accent radius={Radius::custom(3.0)}>
+        <Frame fill=ColorRole::Accent radius=Radius::Xs>
             <ListRow on_click={on_click} on_activate={on_click}>
                 <Text style=TextStyle::CAPTION color=TextColor::OnAccent>{title}</Text>
             </ListRow>

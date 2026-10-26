@@ -13,4 +13,5 @@ wgpu = { version = "29", default-features = false, features = ["std", "wgsl"] }
 workspace = true
 
 [dev-dependencies]
+be-ops = { path = "../be-ops" }
 wgpu = { version = "29", default-features = false, features = ["noop", "std", "wgsl"] }

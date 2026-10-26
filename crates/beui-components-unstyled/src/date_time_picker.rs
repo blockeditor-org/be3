@@ -2,11 +2,13 @@ use std::time::Duration;
 
 use beui_macros::{component, view};
 
+use crate::anchored::AnchoredStyle;
 use crate::date_time_field::{
     DateDraft, DateSegment, DateSegmentHandle, DateTimeField, DateTimeParts,
 };
 use crate::datetime::{Date, DateTime, HourCycle, Time};
-use crate::popover::{Popover, PopoverHandle, PopoverPlacement, PopoverTriggerHandle};
+use crate::popover::{Popover, PopoverHandle, PopoverPlacement};
+use crate::popup_trigger::PopupTriggerHandle;
 use beui_core::geometry::Vec2;
 use beui_core::input::{CursorIcon, PointerPress};
 use beui_core::node::NodeId;
@@ -22,7 +24,7 @@ pub struct DateTimeBoxHandle {
 }
 
 pub struct DateTimeTriggerHandle {
-    pub popover: PopoverTriggerHandle,
+    pub popover: PopupTriggerHandle,
     pub label: Memo<String>,
 }
 
@@ -96,7 +98,8 @@ pub fn DateTimePicker(
     segments: RenderFn<Child>,
     field: RenderFn<DateTimeBoxHandle>,
     trigger: Render<DateTimeTriggerHandle>,
-    panel: Render<DateTimePanelHandle>,
+    surface: AnchoredStyle,
+    panel: RenderFn<DateTimePanelHandle>,
 ) -> NodeId {
     let min = create_memo(move || min.get());
     let max = create_memo(move || max.get());
@@ -181,12 +184,14 @@ pub fn DateTimePicker(
                         trigger={view! {
                             <Popover
                                 label={picker_label}
+                                icon_only=true
                                 disabled={disabled}
                                 open={open}
                                 anchor=anchor
                                 placement
+                                surface
                                 refocus_trigger
-                                trigger={move |handle: PopoverTriggerHandle| trigger.call(DateTimeTriggerHandle {
+                                trigger={move |handle: PopupTriggerHandle| trigger.call(DateTimeTriggerHandle {
                                     popover: handle,
                                     label: picker_label,
                                 })}
@@ -291,9 +296,11 @@ fn PickerPanel(
     min: Memo<Option<Date>>,
     max: Memo<Option<Date>>,
     today: Memo<Option<Date>>,
-    panel: Render<DateTimePanelHandle>,
+    panel: RenderFn<DateTimePanelHandle>,
 ) -> NodeId {
-    let PopoverHandle { open, close } = popover;
+    let PopoverHandle {
+        shown: open, close, ..
+    } = popover;
     let Field {
         current,
         parts,

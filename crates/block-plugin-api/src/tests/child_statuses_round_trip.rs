@@ -2,7 +2,7 @@ use super::*;
 
 #[test]
 fn child_statuses_round_trip() {
-    let message = Message::ChildStatuses(vec![
+    let statuses = vec![
         ChildStatus {
             instance: EditorInstanceId(4),
             region: EditorRegion::Frame,
@@ -18,23 +18,23 @@ fn child_statuses_round_trip() {
             capabilities: EditorCapabilities::default(),
             resize: ResizeMode::Both,
             error: None,
-            menu: vec![MenuEntry::Command(MenuCommand {
+            menu: MenuEntry::flatten(&[MenuEntry::Command(MenuCommand {
                 id: "editor.rename".into(),
                 label: "Rename".into(),
                 glyph: "edit".into(),
                 enabled: true,
                 ..MenuCommand::default()
-            })],
-            creation: Some(CreationProgress::Options { ready: true }),
-            settings: Some(SettingsProgress {
-                changed: true,
-                summary: Some("Every 5 minutes".into()),
-            }),
+            })]),
+            creation: Some(CreationProgress::Options),
             preview: ChildPreview::Image(PreviewImage {
                 image: 12,
                 width: 320,
                 height: 180,
             }),
+            dialog: DialogStatus {
+                handles_dismiss: true,
+                answer: Some(DialogAnswer::Accepted),
+            },
         },
         ChildStatus {
             instance: EditorInstanceId(4),
@@ -50,34 +50,13 @@ fn child_statuses_round_trip() {
             error: Some("the block is already open above this editor".into()),
             menu: Vec::new(),
             creation: None,
-            settings: None,
             preview: Default::default(),
+            dialog: DialogStatus::default(),
         },
-    ]);
+    ];
     assert_eq!(
-        decode_frame(&encode_frame(&message).unwrap()).unwrap(),
-        message
-    );
-
-    let oversized = Message::ChildStatuses(vec![ChildStatus {
-        instance: EditorInstanceId(4),
-        region: EditorRegion::Frame,
-        child: ChildId(3),
-        available: false,
-        intrinsic: None,
-        aspect_ratio: None,
-        active: false,
-        interaction: InteractionMode::Live,
-        capabilities: EditorCapabilities::default(),
-        resize: ResizeMode::Both,
-        error: Some("x".repeat(MAX_STRING_BYTES + 1)),
-        menu: Vec::new(),
-        creation: None,
-        settings: None,
-        preview: Default::default(),
-    }]);
-    assert_eq!(
-        encode_frame(&oversized),
-        Err(DecodeError::LimitExceeded("string"))
+        crate::ops::decode::<Vec<ChildStatus>>(&crate::ops::encode(&statuses)),
+        Some(statuses),
+        "statuses keep their menus, flattened"
     );
 }

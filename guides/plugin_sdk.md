@@ -99,9 +99,31 @@ bytes) and `block_guest_abi::guest!(Type)` exports it; the panic hook, the recei
 wake flag are the crate's. block-editor-plugin's `plugin!` is one such guest, plus the gpu, WASI
 and thread-local storage an editor has.
 
+### The gpu
+
+An editor's wgpu calls are the `be3:gpu` world (`crates/block-gpu-abi/wit`, shaped after
+wasi:webgpu), which be-ops-bindgen generates with `local` (guides/type_modules.md,
+"Operations and WIT"): its imports, module `be3:gpu/device@0.1.0`, are answered on the
+plugin's own thread, so they return their results, and a call made per draw takes only
+wasm values. block-gpu-guest is wgpu's custom backend over the guest bindings (a
+surface is the host's surface id; `release_surface` drops it), block-gpu-host's `Gpu`
+implements `Host` over a real wgpu device, block-wasm-host's `State` is the `Caller`
+and links the glue, and block-gpu-shim is the `Caller` in a browser worker and exports
+each import as `module#name`, which `plugin.js` binds every import it does not answer
+itself to. A call whose arguments cannot be read is refused into the device's error,
+which `take-error` and the step both report; natively a plugin that reaches for a gpu
+no device could be opened for stops with why. `example-gpu-calls` in block-wasm-host
+times the per-draw calls (guides/performance.md).
+
 A *pure guest* has only those imports: no gpu, no SDK, no WASI, no threads, no shared memory, no
 clock. It is a `wasm32_module` (wasm32-unknown-unknown) rather than an `editor()`, and exports its
-own memory. `crates/block-guest-echo` is the smallest one, which the tests start every way.
+own memory. `crates/block-guest-echo` is the smallest one, which the tests start every way. A
+type module is a pure guest whose ABI grows with its WIT world (guides/type_modules.md,
+"Operations and WIT"): its async calls are be-ops frames, and each sync func is a wasm
+import (`(has_parent: i32, parent: i64, pointer, length)`, with no result) or export
+(the same arguments, the host writing them into memory from `plugin_alloc`, returning
+the result's packed pointer and length). The host links `be3_host` and the world's imports (`PureHost::with_imports`,
+`WebGuest::start`'s list) and refuses any other.
 
 The host half is `crates/block-guest-host`, which the editor host and anything else that runs a
 guest share:

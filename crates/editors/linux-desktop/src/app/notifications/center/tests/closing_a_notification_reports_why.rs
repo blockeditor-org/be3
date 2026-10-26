@@ -15,14 +15,20 @@ fn closing_a_notification_reports_why() {
     assert_eq!(
         center.take_signals(),
         vec![
-            NotificationSignal::Closed(asked, NotificationCloseReason::Closed),
-            NotificationSignal::Closed(dismissed, NotificationCloseReason::Dismissed),
+            NotificationSignal::Closed {
+                id: asked,
+                reason: NotificationCloseReason::Closed
+            },
+            NotificationSignal::Closed {
+                id: dismissed,
+                reason: NotificationCloseReason::Dismissed
+            },
         ]
     );
     assert!(listed(&center).is_empty());
     assert!(toasted(&center).is_empty());
     assert!(center.kept_ids().is_empty());
-    assert_eq!(NotificationCloseReason::Expired as u32, 1);
-    assert_eq!(NotificationCloseReason::Dismissed as u32, 2);
-    assert_eq!(NotificationCloseReason::Closed as u32, 3);
+    assert_eq!(NotificationCloseReason::Expired.code(), 1);
+    assert_eq!(NotificationCloseReason::Dismissed.code(), 2);
+    assert_eq!(NotificationCloseReason::Closed.code(), 3);
 }

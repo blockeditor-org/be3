@@ -61,7 +61,7 @@ pub async fn run_review(root_id: String, icons_font: String) -> Result<(), JsVal
         },
         beui::WebRenderer::Wgpu,
     ];
-    beui::run_web(&root_id, renderers, options, app)
+    beui::run_web(&root_id, renderers, options, Vec::new(), app)
         .await
         .map_err(|error| JsValue::from_str(&error.to_string()))
 }

@@ -41,8 +41,10 @@ use crate::geometry::MIN_SIZE;
 
 pub struct CanvasApp;
 
+#[component]
 impl block_editor_beui::BeuiApp for CanvasApp {
-    fn view(editor: Editor) -> Root {
+    #[component]
+    fn View(editor: Editor) -> Root {
         let presented = editor.presenting();
         let editing = create_memo(move || !presented.get());
         view! {
@@ -61,7 +63,8 @@ impl block_editor_beui::BeuiApp for CanvasApp {
         }
     }
 
-    fn preview_view(editor: Editor) -> NodeId {
+    #[component]
+    fn Preview(editor: Editor) -> NodeId {
         view! {
             <Loaded>
                 <CanvasPreview editor={editor} />
@@ -100,11 +103,15 @@ fn CanvasEditor(editor: Editor) -> NodeId {
     let exporter = actions.exporter;
     provide_context(actions);
     view! {
-        <List @node_ref=&scope spacing=0.0>
+        <List @node_ref=&scope spacing=Space::None>
             <TouchSetting editor choice={touch} />
             <ImportError state={state} />
             <ExportDialog exporter />
-            <List @sizing=ItemSize::Percent(100.0) direction=Direction::Horizontal spacing=0.0>
+            <List
+                @sizing=ItemSize::Percent(100.0)
+                direction=Direction::Horizontal
+                spacing=Space::None
+            >
                 <CanvasStage @sizing=ItemSize::Percent(100.0) @node_ref={&content} state={state} />
                 <CanvasSidebar state={state} shown={inspected} />
             </List>

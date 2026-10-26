@@ -1,14 +1,22 @@
 use std::cell::RefCell;
-use std::collections::{BTreeMap, BTreeSet, VecDeque};
+use std::collections::{BTreeMap, BTreeSet};
 use std::rc::Rc;
 
 use be_store::Hash;
 use block_editor_beui::be_block::{LiveEdit, Merge, Undo};
 use block_editor_beui::{BlockInfo, BlockParent, BlockQuery, SeededContent};
-use block_plugin_api::{BlockCommand, EditorInstanceId, EditorMessage, Message, StoredHead};
+use block_plugin_api::{BlockCommand, EditorInstanceId, StoredHead};
 use block_type_guest::api::{
-    Change, ClientId, Command, CommitId, EditorId, Endpoint, Event, HeadEvent, Recipients,
-    ReplicaId, Reply, Request, RequestId, Resume, SessionState, SessionTag,
+    Change, ClientId, CommitId, EditorId, Endpoint, Opening, PublishOutcome, Recipients, Resume,
+    SessionState, SessionTag,
+    embed::{
+        exports::replicas::{self, Replica},
+        host::Call,
+    },
+    ops::{
+        Connection, DeserializeOwned, Incoming, Latest, OpError, OpId, Outcome, Side, Ticket,
+        guest::Executor,
+    },
 };
 use block_type_guest::editor::{EditorMirror, FromEditor, Gesture, ToEditor};
 use block_type_guest::wire::Wire;
@@ -31,7 +39,7 @@ fn every_type() -> Vec<Registration> {
 struct Block {
     content_type: Uuid,
     head: Option<CommitId>,
-    replica: Option<ReplicaId>,
+    replica: Option<Replica>,
     written: Vec<Vec<u8>>,
     unapplied: Vec<Vec<u8>>,
     followed: Vec<ToEditor>,
@@ -60,17 +68,18 @@ struct Inner {
     own: Option<Uuid>,
     organization: Uuid,
     module: Module,
+    executor: Executor,
+    host: Connection,
+    clock: Option<Latest<u64>>,
     now: u64,
-    replicas: BTreeMap<ReplicaId, Uuid>,
-    next_replica: ReplicaId,
+    replicas: BTreeMap<OpId, Uuid>,
     commits: BTreeMap<CommitId, Vec<u8>>,
     next_commit: u64,
     blocks: BTreeMap<Uuid, Block>,
     attached: BTreeMap<Uuid, BTreeSet<EditorId>>,
     presence: BTreeMap<Uuid, BTreeMap<(ClientId, Uuid), Vec<u8>>>,
     outbox: Vec<(Uuid, EditorId, Vec<u8>)>,
-    replies: BTreeMap<RequestId, Reply>,
-    next_request: RequestId,
+    replies: BTreeMap<OpId, Outcome>,
     elsewhere: u64,
     reverted: Option<Vec<Vec<u8>>>,
     seeded: Vec<SeededContent>,
@@ -82,17 +91,21 @@ struct Inner {
     watched_queries: Vec<BlockQuery>,
     answered: BTreeMap<BlockQuery, Vec<BlockInfo>>,
     deferred: Option<Vec<(Uuid, EditorId, FromEditor)>>,
+    known_elsewhere: Option<Rc<dyn Fn(Uuid) -> bool>>,
 }
 
 impl Default for Inner {
     fn default() -> Self {
-        Self {
+        let module = Module::new(every_type());
+        let mut inner = Self {
             own: None,
             organization: Uuid::nil(),
-            module: Module::new(every_type()),
+            executor: module.executor(),
+            module,
+            host: Connection::new(Side::Host),
+            clock: None,
             now: 0,
             replicas: BTreeMap::new(),
-            next_replica: 1,
             commits: BTreeMap::new(),
             next_commit: 0,
             blocks: BTreeMap::new(),
@@ -100,7 +113,6 @@ impl Default for Inner {
             presence: BTreeMap::new(),
             outbox: Vec::new(),
             replies: BTreeMap::new(),
-            next_request: 0,
             elsewhere: 0,
             reverted: None,
             seeded: Vec::new(),
@@ -112,7 +124,10 @@ impl Default for Inner {
             watched_queries: Vec::new(),
             answered: BTreeMap::new(),
             deferred: None,
-        }
+            known_elsewhere: None,
+        };
+        inner.ask(|host| replicas::start(host, vec![0; 32]));
+        inner
     }
 }
 
@@ -135,26 +150,81 @@ impl Inner {
         commit
     }
 
-    fn run(&mut self, event: Event) {
-        let mut queue = VecDeque::from([event]);
+    fn run(&mut self) {
         let mut handled = 0;
-        while let Some(event) = queue.pop_front() {
+        loop {
+            let frames = self.host.take_outbound();
+            if frames.is_empty() {
+                return;
+            }
             handled += 1;
             assert!(handled < 100_000, "the block's replica never settled");
-            for command in self.module.handle(event) {
-                self.act(command, &mut queue);
+            let mut outbound = Vec::new();
+            self.executor
+                .step(frames, &mut outbound)
+                .expect("the replica's frames decode");
+            for frame in outbound {
+                self.host
+                    .receive(&frame)
+                    .expect("the replica's frames decode");
+            }
+            while let Some(event) = self.host.next_event() {
+                self.heard(event);
             }
         }
     }
 
-    fn act(&mut self, command: Command, queue: &mut VecDeque<Event>) {
-        match command {
-            Command::Send {
-                replica,
+    fn heard(&mut self, event: Incoming) {
+        match event {
+            Incoming::Started(started) => {
+                let parent = started.parent;
+                if let Some(call) = Call::accept(&mut self.host, started) {
+                    let block = parent.and_then(|parent| self.replicas.get(&parent).copied());
+                    self.act(block, call);
+                }
+            }
+            Incoming::Completed { op, outcome } => match self.replicas.remove(&op) {
+                Some(block) => {
+                    if let Some(held) = self.blocks.get_mut(&block)
+                        && held.replica.map(Replica::op) == Some(op)
+                    {
+                        held.replica = None;
+                    }
+                }
+                None => {
+                    self.replies.insert(op, outcome);
+                }
+            },
+            Incoming::Canceled { op } => self.host.complete(op, Outcome::Err(OpError::Canceled)),
+            Incoming::Called(called) => {
+                if let Some(call) = Call::accept_direct(&called) {
+                    let block = called
+                        .parent
+                        .and_then(|parent| self.replicas.get(&parent).copied());
+                    self.act(block, call);
+                }
+            }
+            Incoming::Credited { op } => {
+                if let Some(clock) = &mut self.clock {
+                    clock.credited(&mut self.host, op);
+                }
+            }
+            Incoming::Yielded { .. } => {}
+        }
+    }
+
+    fn act(&mut self, block: Option<Uuid>, call: Call) {
+        match call {
+            Call::Clock { stream } => {
+                let mut clock = Latest::new(stream);
+                clock.send(&mut self.host, self.now);
+                self.clock = Some(clock);
+            }
+            Call::Send {
                 to: Recipients::One(Endpoint::Editor(editor)),
                 bytes,
             } => {
-                let Some(&block) = self.replicas.get(&replica) else {
+                let Some(block) = block else {
                     return;
                 };
                 if editor != STORE {
@@ -180,23 +250,18 @@ impl Inner {
                     held.followed.push(message);
                 }
             }
-            Command::Send { .. } => {}
-            Command::Publish {
-                replica,
-                token,
+            Call::Publish {
+                reply,
                 expected,
                 content,
                 ..
             } => {
-                let Some(&block) = self.replicas.get(&replica) else {
-                    return;
+                let Some(block) = block else {
+                    return reply.fail(&mut self.host, OpError::Canceled);
                 };
                 let head = self.blocks.get(&block).and_then(|held| held.head);
                 if expected != head {
-                    return queue.push_back(Event::Head {
-                        replica,
-                        event: HeadEvent::Rejected { token, head },
-                    });
+                    return reply.send(&mut self.host, &Ok(PublishOutcome::Rejected(head)));
                 }
                 let unchanged = head.is_some_and(|head| self.commits[&head] == content.bytes);
                 let head = match (unchanged, head) {
@@ -206,47 +271,23 @@ impl Inner {
                 if let Some(held) = self.blocks.get_mut(&block) {
                     held.head = Some(head);
                 }
-                queue.push_back(Event::Head {
-                    replica,
-                    event: HeadEvent::Published { token, head },
-                });
+                reply.send(&mut self.host, &Ok(PublishOutcome::Published(head)));
             }
-            Command::Stash {
-                replica,
-                token,
-                content,
-                ..
-            } => {
+            Call::Stash { reply, content, .. } => {
                 let commit = self.write(content.bytes);
-                queue.push_back(Event::Head {
-                    replica,
-                    event: HeadEvent::Stashed { token, commit },
-                });
+                reply.send(&mut self.host, &Ok(commit));
             }
-            Command::Read {
-                replica,
-                token,
-                commit,
-                ..
-            } => queue.push_back(Event::Read {
-                replica,
-                token,
-                result: self
+            Call::Read { reply, commit, .. } => {
+                let result = self
                     .commits
                     .get(&commit)
                     .cloned()
-                    .ok_or_else(|| "no such commit".to_owned()),
-            }),
-            Command::Resume {
-                replica,
-                token,
-                local,
-                ..
-            } => {
-                let head = self
-                    .replicas
-                    .get(&replica)
-                    .and_then(|block| self.blocks.get(block))
+                    .ok_or_else(|| "no such commit".to_owned());
+                reply.send(&mut self.host, &result);
+            }
+            Call::ResumeSession { reply, local } => {
+                let head = block
+                    .and_then(|block| self.blocks.get(&block))
                     .and_then(|held| held.head);
                 let resume = match (local, head) {
                     (None, None) => Resume::Empty,
@@ -254,51 +295,37 @@ impl Inner {
                     (_, Some(head)) => Resume::FastForward { to: head },
                     (Some(local), None) => Resume::Publish { from: local },
                 };
-                queue.push_back(Event::Resumed {
-                    replica,
-                    token,
-                    result: Ok(resume),
-                });
+                reply.send(&mut self.host, &Ok(resume));
             }
-            Command::Described {
-                replica,
-                description,
-            } => {
-                if let Some(held) = self
-                    .replicas
-                    .get(&replica)
-                    .and_then(|block| self.blocks.get_mut(block))
-                {
+            Call::Described { description } => {
+                if let Some(held) = block.and_then(|block| self.blocks.get_mut(&block)) {
                     held.references = Some(description.references);
                 }
             }
-            Command::Reply { id, reply } => {
-                self.replies.insert(id, reply);
-            }
-            Command::Release { replica } => {
-                if let Some(block) = self.replicas.remove(&replica)
-                    && let Some(held) = self.blocks.get_mut(&block)
-                    && held.replica == Some(replica)
-                {
-                    held.replica = None;
-                }
-            }
-            Command::Hello { .. }
-            | Command::ClaimLease { .. }
-            | Command::ReportClean { .. }
-            | Command::WakeAt { .. }
-            | Command::Status { .. }
-            | Command::History { .. }
-            | Command::Conflict { .. }
-            | Command::Error { .. } => {}
+            Call::SleepUntil { .. }
+            | Call::Send { .. }
+            | Call::ClaimLease { .. }
+            | Call::ReportClean { .. }
+            | Call::ReportStatus { .. }
+            | Call::History { .. }
+            | Call::Conflict { .. }
+            | Call::Error { .. } => {}
         }
     }
 
-    fn request(&mut self, request: Request) -> Reply {
-        self.next_request += 1;
-        let id = self.next_request;
-        self.run(Event::Request { id, request });
-        self.replies.remove(&id).unwrap_or(Reply::Unknown)
+    fn ask<T: DeserializeOwned>(
+        &mut self,
+        call: impl FnOnce(&mut Connection) -> Ticket<T>,
+    ) -> Option<T> {
+        let ticket = call(&mut self.host);
+        self.run();
+        let outcome = self.replies.remove(&ticket.op())?;
+        ticket.decode(outcome).ok()
+    }
+
+    fn on_replica(&mut self, replica: Replica, call: impl FnOnce(Replica, &mut Connection)) {
+        call(replica, &mut self.host);
+        self.run();
     }
 
     fn open(&mut self, block: Uuid) {
@@ -309,27 +336,27 @@ impl Inner {
         if held.replica.is_some() || !self.module.knows(held.content_type) {
             return;
         }
-        let replica = self.next_replica;
-        self.next_replica += 1;
-        held.replica = Some(replica);
         let (content_type, head) = (held.content_type, held.head);
         let unapplied = std::mem::take(&mut held.unapplied);
         held.followed.clear();
-        self.replicas.insert(replica, block);
-        self.run(Event::Open {
-            replica,
-            block,
-            content_type,
-            organization,
-            client: THIS_DEVICE,
-            tag: TAG,
-            head,
-            session: session(),
-        });
-        self.run(Event::Attach {
-            replica,
-            editor: STORE,
-            editable: false,
+        let replica = Replica::new(
+            &mut self.host,
+            Opening {
+                block,
+                content_type,
+                organization,
+                client: THIS_DEVICE,
+                tag: TAG,
+                head,
+                session: session(),
+            },
+        );
+        if let Some(held) = self.blocks.get_mut(&block) {
+            held.replica = Some(replica);
+        }
+        self.replicas.insert(replica.op(), block);
+        self.on_replica(replica, |replica, host| {
+            replica.attach(host, STORE, false);
         });
         let presence: Vec<((ClientId, Uuid), Vec<u8>)> = self
             .presence
@@ -356,10 +383,8 @@ impl Inner {
             .map(|held| held.iter().copied().collect())
             .unwrap_or_default();
         for editor in editors {
-            self.run(Event::Attach {
-                replica,
-                editor,
-                editable: true,
+            self.on_replica(replica, |replica, host| {
+                replica.attach(host, editor, true);
             });
         }
         for operation in unapplied {
@@ -371,8 +396,8 @@ impl Inner {
         let Some(replica) = self.blocks.get(&block).and_then(|held| held.replica) else {
             return;
         };
-        self.run(Event::Close { replica });
-        self.replicas.remove(&replica);
+        self.on_replica(replica, |replica, host| replica.resource_drop(host));
+        self.replicas.remove(&replica.op());
         if let Some(held) = self.blocks.get_mut(&block) {
             held.replica = None;
         }
@@ -380,14 +405,13 @@ impl Inner {
 
     fn peer_said(
         &mut self,
-        replica: ReplicaId,
+        replica: Replica,
         client: ClientId,
         message: be_session::SessionMessage,
     ) {
-        self.run(Event::Message {
-            replica,
-            from: Endpoint::Peer(client),
-            bytes: Wire::Session(message).encode(),
+        let bytes = Wire::Session(message).encode();
+        self.on_replica(replica, |replica, host| {
+            replica.message(host, Endpoint::Peer(client), bytes);
         });
     }
 
@@ -428,7 +452,7 @@ impl Inner {
 
     fn change(&mut self, block: Uuid, change: Change) {
         if let Some(replica) = self.blocks.get(&block).and_then(|held| held.replica) {
-            self.request(Request::Change { replica, change });
+            self.ask(|host| replica.change(host, change));
         }
     }
 
@@ -465,10 +489,8 @@ impl Inner {
             return false;
         }
         if let Some(replica) = self.blocks.get(&block).and_then(|held| held.replica) {
-            self.run(Event::Attach {
-                replica,
-                editor,
-                editable: true,
+            self.on_replica(replica, |replica, host| {
+                replica.attach(host, editor, true);
             });
         }
         true
@@ -483,7 +505,7 @@ impl Inner {
             removed,
             self.blocks.get(&block).and_then(|held| held.replica),
         ) {
-            self.run(Event::Detach { replica, editor });
+            self.on_replica(replica, |replica, host| replica.detach(host, editor));
         }
     }
 
@@ -511,18 +533,22 @@ impl Inner {
         let Some(replica) = self.blocks.get(&block).and_then(|held| held.replica) else {
             return;
         };
-        let event = Event::Message {
-            replica,
-            from: Endpoint::Editor(editor),
-            bytes: frame,
+        let send = move |inner: &mut Self| {
+            inner.on_replica(replica, |replica, host| {
+                replica.message(host, Endpoint::Editor(editor), frame);
+            });
         };
         match message {
-            FromEditor::Gesture(Gesture::Cancel) => {
-                self.reverting(block, |inner| inner.run(event));
-            }
-            _ => self.run(event),
+            FromEditor::Gesture(Gesture::Cancel) => self.reverting(block, send),
+            _ => send(self),
         }
     }
+}
+
+#[derive(Default)]
+pub(crate) struct Outgoing {
+    pub(crate) heads: Vec<(Uuid, Result<Option<StoredHead>, String>)>,
+    pub(crate) listings: Vec<(BlockQuery, Vec<block_plugin_api::BlockInfo>)>,
 }
 
 #[derive(Clone, Default)]
@@ -568,14 +594,14 @@ impl ContentStore {
     }
 
     pub fn register(&self, registrations: impl IntoIterator<Item = Registration>) {
-        let mut inner = self.0.borrow_mut();
+        let inner = self.0.borrow_mut();
         for registration in registrations {
             inner.module.register(registration.without_undo());
         }
     }
 
     fn know<C: LiveEdit + Merge + Clone + Default>(&self) {
-        let mut inner = self.0.borrow_mut();
+        let inner = self.0.borrow_mut();
         if !inner.module.knows(C::CONTENT_TYPE) {
             inner.module.register(Registration::of::<C>());
         }
@@ -599,7 +625,11 @@ impl ContentStore {
         let mut inner = self.0.borrow_mut();
         if now > inner.now {
             inner.now = now;
-            inner.run(Event::Tick { now });
+            if let Some(mut clock) = inner.clock.take() {
+                clock.send(&mut inner.host, now);
+                inner.clock = Some(clock);
+            }
+            inner.run();
         }
     }
 
@@ -769,187 +799,143 @@ impl ContentStore {
         }
     }
 
-    pub(crate) fn receive(&self, message: &EditorMessage) {
-        match message {
-            EditorMessage::Replica {
-                instance,
-                block_id,
-                frame,
-            } => {
-                if let Some(message) = FromEditor::from_frame(frame) {
-                    self.0.borrow_mut().editor_sent(
-                        Uuid::from_bytes(*block_id),
-                        instance.0,
-                        message,
-                    );
-                }
-            }
-            EditorMessage::BlockCommand {
-                block_id,
-                command: command @ (BlockCommand::Undo | BlockCommand::Redo),
-                ..
-            } => {
-                let block = Uuid::from_bytes(*block_id);
-                let change = match command {
-                    BlockCommand::Redo => Change::Redo,
-                    _ => Change::Undo,
-                };
-                self.0
-                    .borrow_mut()
-                    .reverting(block, |inner| inner.change(block, change));
-            }
-            EditorMessage::WatchContent { instance, blocks } => {
-                let watched: BTreeSet<Uuid> = blocks
-                    .iter()
-                    .map(|watched| Uuid::from_bytes(watched.block_id))
-                    .collect();
-                let mut inner = self.0.borrow_mut();
-                let previous = std::mem::replace(&mut inner.watched_content, watched.clone());
-                for block in previous.difference(&watched) {
-                    if inner.own != Some(*block) {
-                        inner.detach(*block, instance.0);
-                    }
-                }
-                for block in watched.difference(&previous) {
-                    inner.attach(*block, instance.0);
-                }
-            }
-            EditorMessage::SeedContent {
-                block_id,
-                content_type,
-                bytes,
-                ..
-            } => self.seed(
-                Uuid::from_bytes(*block_id),
-                Uuid::from_bytes(*content_type),
-                bytes.clone(),
-                false,
-            ),
-            EditorMessage::ReplaceContent {
-                block_id,
-                content_type,
-                bytes,
-                ..
-            } => self.seed(
-                Uuid::from_bytes(*block_id),
-                Uuid::from_bytes(*content_type),
-                bytes.clone(),
-                true,
-            ),
-            EditorMessage::CreateBlock {
-                block_id,
-                content_type,
-                parent,
-                defined,
-                content,
-                ..
-            } => {
-                let id = Uuid::from_bytes(*block_id);
-                let block_type = Uuid::from_bytes(*content_type);
-                let info = BlockInfo::decode(block_plugin_api::BlockInfo {
-                    block_id: *block_id,
-                    block_type: *content_type,
-                    author: Some(Uuid::nil().into_bytes()),
-                    parent: Some(*parent),
-                    references: Vec::new(),
-                    access: block_plugin_api::AccessLevel::Edit,
-                    metadata: block_plugin_api::BlockMetadata {
-                        defined: defined.clone(),
-                        ..block_plugin_api::BlockMetadata::default()
-                    },
-                    locked: false,
-                    deleted: false,
-                });
-                {
-                    let mut inner = self.0.borrow_mut();
-                    inner.graph.insert(id, info);
-                    inner.created.push(id);
-                }
-                match content {
-                    Some(bytes) => self.seed(id, block_type, bytes.to_vec(), false),
-                    None => {
-                        let mut inner = self.0.borrow_mut();
-                        if let Reply::Blank(bytes) = inner.request(Request::Blank {
-                            content_type: block_type,
-                        }) {
-                            inner.put(id, block_type, bytes);
-                        }
-                    }
-                }
-            }
-            EditorMessage::SetParent {
-                block_id, parent, ..
-            } => {
-                if let Some(info) = self
-                    .0
-                    .borrow_mut()
-                    .graph
-                    .get_mut(&Uuid::from_bytes(*block_id))
-                {
-                    info.parent = Some(BlockParent::decode(*parent));
-                }
-            }
-            EditorMessage::Define {
-                block_id,
-                key,
-                value,
-                ..
-            } => {
-                if let Some(info) = self
-                    .0
-                    .borrow_mut()
-                    .graph
-                    .get_mut(&Uuid::from_bytes(*block_id))
-                {
-                    info.metadata.define(&[(
-                        Uuid::from_bytes(*key),
-                        value.as_ref().map(|value| value.to_vec()),
-                    )]);
-                }
-            }
-            EditorMessage::WatchHeads { blocks, .. } => {
-                self.0.borrow_mut().watched_heads =
-                    blocks.iter().copied().map(Uuid::from_bytes).collect();
-            }
-            EditorMessage::WatchBlocks { queries, .. } => {
-                self.0.borrow_mut().watched_queries =
-                    queries.iter().copied().map(BlockQuery::decode).collect();
-            }
-            _ => {}
+    pub(crate) fn editor_sent(&self, block: Uuid, instance: EditorInstanceId, message: FromEditor) {
+        self.0.borrow_mut().editor_sent(block, instance.0, message);
+    }
+
+    pub(crate) fn command(&self, block: Uuid, command: BlockCommand) {
+        let change = match command {
+            BlockCommand::Undo => Change::Undo,
+            BlockCommand::Redo => Change::Redo,
+            _ => return,
+        };
+        self.0
+            .borrow_mut()
+            .reverting(block, |inner| inner.change(block, change));
+    }
+
+    pub(crate) fn watch_content(&self, instance: EditorInstanceId, block: Uuid, watched: bool) {
+        let mut inner = self.0.borrow_mut();
+        if inner.own == Some(block) {
+            return;
         }
+        match watched {
+            true => {
+                if inner.watched_content.insert(block) {
+                    inner.attach(block, instance.0);
+                }
+            }
+            false => {
+                if inner.watched_content.remove(&block) {
+                    inner.detach(block, instance.0);
+                }
+            }
+        }
+    }
+
+    pub(crate) fn seed_content(
+        &self,
+        block: Uuid,
+        content_type: Uuid,
+        bytes: Vec<u8>,
+        replace: bool,
+    ) {
+        self.seed(block, content_type, bytes, replace);
+    }
+
+    pub(crate) fn create_block(
+        &self,
+        block_id: [u8; 16],
+        content_type: [u8; 16],
+        parent: block_plugin_api::BlockLocation,
+        defined: block_plugin_api::MetadataEntries,
+        content: Option<Vec<u8>>,
+    ) {
+        let id = Uuid::from_bytes(block_id);
+        let block_type = Uuid::from_bytes(content_type);
+        let info = BlockInfo::decode(block_plugin_api::BlockInfo {
+            block_id,
+            block_type: content_type,
+            author: Some(Uuid::nil().into_bytes()),
+            parent: Some(parent),
+            references: Vec::new(),
+            access: block_plugin_api::AccessLevel::Manage,
+            metadata: block_plugin_api::BlockMetadata {
+                defined,
+                ..block_plugin_api::BlockMetadata::default()
+            },
+            locked: false,
+            deleted: false,
+            sets_access: false,
+        });
+        {
+            let mut inner = self.0.borrow_mut();
+            inner.graph.insert(id, info);
+            inner.created.push(id);
+        }
+        match content {
+            Some(bytes) => self.seed(id, block_type, bytes, false),
+            None => {
+                let mut inner = self.0.borrow_mut();
+                if let Some(Ok(bytes)) = inner.ask(|host| replicas::blank(host, block_type)) {
+                    inner.put(id, block_type, bytes);
+                }
+            }
+        }
+    }
+
+    pub(crate) fn set_parent(&self, block: Uuid, parent: block_plugin_api::BlockLocation) {
+        if let Some(info) = self.0.borrow_mut().graph.get_mut(&block) {
+            info.parent = Some(BlockParent::decode(parent));
+        }
+    }
+
+    pub(crate) fn define(&self, block: Uuid, key: Uuid, value: Option<Vec<u8>>) {
+        if let Some(info) = self.0.borrow_mut().graph.get_mut(&block) {
+            info.metadata.define(&[(key, value)]);
+        }
+    }
+
+    pub(crate) fn watch_heads(&self, blocks: BTreeSet<Uuid>) {
+        self.0.borrow_mut().watched_heads = blocks;
+    }
+
+    pub(crate) fn watch_queries(&self, queries: Vec<BlockQuery>) {
+        self.0.borrow_mut().watched_queries = queries;
     }
 
     fn head_bytes(inner: &mut Inner, block: Uuid) -> Option<(Uuid, Vec<u8>)> {
         let held = inner.blocks.get(&block)?;
         let content_type = held.content_type;
         let bytes = match held.replica {
-            Some(replica) => match inner.request(Request::Content { replica }) {
-                Reply::Content(bytes) => bytes,
-                _ => return None,
-            },
+            Some(replica) => inner.ask(|host| replica.content(host))??,
             None => inner.commits[&held.head?].clone(),
         };
         Some((content_type, bytes))
     }
 
-    pub(crate) fn outgoing(&self, instance: EditorInstanceId) -> Vec<Message> {
-        let mut messages = Vec::new();
+    pub(crate) fn outgoing(
+        &self,
+        instance: EditorInstanceId,
+        mut relay: impl FnMut(Uuid, &Vec<u8>) -> bool,
+    ) -> Outgoing {
+        let mut outgoing = Outgoing::default();
         {
             let mut inner = self.0.borrow_mut();
             let outbox = std::mem::take(&mut inner.outbox);
+            let mut blocked = BTreeSet::new();
             for (block, editor, frame) in outbox {
-                if editor != instance.0 {
+                if editor != instance.0 || blocked.contains(&block) {
                     inner.outbox.push((block, editor, frame));
                     continue;
                 }
                 let Some(message) = ToEditor::decode(&frame) else {
                     continue;
                 };
-                messages.push(Message::Editor(EditorMessage::Replica {
-                    instance,
-                    block_id: block.into_bytes(),
-                    frame: message.frame(),
-                }));
+                if !relay(block, &message.frame()) {
+                    blocked.insert(block);
+                    inner.outbox.push((block, editor, frame));
+                }
             }
             let watched: Vec<Uuid> = inner.watched_heads.iter().copied().collect();
             for block in watched {
@@ -966,28 +952,25 @@ impl ContentStore {
                         bytes,
                     }
                 });
-                messages.push(Message::Editor(EditorMessage::Head {
-                    instance,
-                    block_id: block.into_bytes(),
-                    head: Ok(head),
-                }));
+                outgoing.heads.push((block, Ok(head)));
             }
         }
         let queries = self.0.borrow().watched_queries.clone();
         for query in queries {
+            if self.leaves_to_the_test(query) {
+                continue;
+            }
             let listed = self.query(query);
             let mut inner = self.0.borrow_mut();
             if inner.answered.get(&query) == Some(&listed) {
                 continue;
             }
             inner.answered.insert(query, listed.clone());
-            messages.push(Message::Editor(EditorMessage::Blocks {
-                instance,
-                query: query.encode(),
-                blocks: listed.iter().map(BlockInfo::encode).collect(),
-            }));
+            outgoing
+                .listings
+                .push((query, listed.iter().map(BlockInfo::encode).collect()));
         }
-        messages
+        outgoing
     }
 
     pub(crate) fn pending(&self) -> bool {
@@ -1002,10 +985,30 @@ impl ContentStore {
         owed || {
             let queries = self.0.borrow().watched_queries.clone();
             queries.into_iter().any(|query| {
+                if self.leaves_to_the_test(query) {
+                    return false;
+                }
                 let listed = self.query(query);
                 self.0.borrow().answered.get(&query) != Some(&listed)
             })
         }
+    }
+
+    pub(crate) fn know_elsewhere(&self, known: impl Fn(Uuid) -> bool + 'static) {
+        self.0.borrow_mut().known_elsewhere = Some(Rc::new(known));
+    }
+
+    fn leaves_to_the_test(&self, query: BlockQuery) -> bool {
+        let (BlockQuery::Block(block) | BlockQuery::Parents(block)) = query else {
+            return false;
+        };
+        let inner = self.0.borrow();
+        if inner.graph.contains_key(&block) {
+            return false;
+        }
+        let known = inner.known_elsewhere.clone();
+        drop(inner);
+        known.is_some_and(|known| known(block))
     }
 
     fn held(&self, nodes: &[BlockInfo], node: &BlockInfo) -> bool {
@@ -1014,7 +1017,7 @@ impl ContentStore {
             Some(BlockParent::Detached) => false,
             Some(BlockParent::Block(parent)) => {
                 !nodes.iter().any(|above| above.id == parent)
-                    || self.references_of(parent).contains(&node.id)
+                    || self.links(parent).contains(&node.id)
             }
         }
     }
@@ -1044,6 +1047,14 @@ impl ContentStore {
             .and_then(|held| held.references.clone())
             .or_else(|| inner.graph.get(&id).map(|info| info.references.clone()))
             .unwrap_or_default()
+    }
+
+    fn links(&self, id: Uuid) -> Vec<Uuid> {
+        let mut links = self.references_of(id);
+        if let Some(info) = self.0.borrow().graph.get(&id) {
+            links.extend(info.metadata.references());
+        }
+        links
     }
 
     fn query(&self, query: BlockQuery) -> Vec<BlockInfo> {
@@ -1087,7 +1098,7 @@ impl ContentStore {
             }
             BlockQuery::Backrefs(block) => nodes
                 .iter()
-                .filter(|node| self.references_of(node.id).contains(&block))
+                .filter(|node| self.links(node.id).contains(&block))
                 .cloned()
                 .collect(),
             BlockQuery::Parents(block) => {
@@ -1107,6 +1118,7 @@ impl ContentStore {
                 chain
             }
             BlockQuery::Block(block) => known(&block).into_iter().collect(),
+            BlockQuery::OpenSettings(_) => Vec::new(),
         };
         listed
             .into_iter()

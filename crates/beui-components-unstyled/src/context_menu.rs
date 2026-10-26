@@ -4,6 +4,7 @@ use std::rc::Rc;
 use beui_macros::{component, view};
 
 use crate as unstyled;
+use crate::anchored::SheetWhen;
 use crate::button::ButtonHandle;
 use crate::menu::MenuItem;
 use crate::menu_popup::{MenuPopup, MenuStyle};
@@ -30,7 +31,7 @@ pub fn ContextMenu(
     #[prop(default = ComponentRef::new())] api: ComponentRef<ContextMenuApi>,
     children: Child,
     items: Children<MenuItem>,
-    #[prop(default = MenuStyle::default())] menu: MenuStyle,
+    menu: MenuStyle,
     #[prop(default = ItemSize::Intrinsic)] child_size: Prop<ItemSize>,
     #[prop(default = false)] disabled: Prop<bool>,
     #[prop(default = None)] open_at: Prop<Option<Pos2>>,
@@ -39,11 +40,10 @@ pub fn ContextMenu(
     #[prop(default = None)] toolbar_at: Prop<Option<Rect>>,
     #[prop(default = true)] opens_on_hold: bool,
     on_close: ClickCallback,
-    on_select: Callback<Vec<usize>>,
+    #[prop(default = Callback::default())] on_select: Callback<Vec<usize>>,
     on_toolbar_close: ClickCallback,
 ) -> NodeId {
     let open = create_signal(false);
-    let touched = create_signal(false);
     let focusing = create_signal(true);
     let position = create_signal(Pos2::ZERO);
     let anchor = create_memo(move || OverlayAnchor::Point(position.get()));
@@ -56,19 +56,20 @@ pub fn ContextMenu(
         more: more_button,
     }));
 
-    let (requested, requested_touch, requested_position, requested_focusing) =
-        (open, touched, position, focusing);
+    let (requested, requested_position, requested_focusing) = (open, position, focusing);
     create_effect(move || {
         let Some(at) = open_at.get() else {
             return;
         };
         requested_position.set(at);
-        requested_touch.set(last_pointer().is_some_and(|pointer| pointer.touch));
         requested_focusing.set(open_at_focuses);
         requested.set(true);
     });
     let shown = create_memo(move || open.get());
-    let touch_shown = create_memo(move || !selection && touched.get());
+    let sheet = match selection {
+        true => SheetWhen::Never,
+        false => SheetWhen::Touched,
+    };
     let mut ever_open = false;
     let built = create_memo(move || {
         ever_open |= shown.get();
@@ -83,7 +84,6 @@ pub fn ContextMenu(
         create_memo(move || OverlayAnchor::Rect(toolbar_at.get().unwrap_or(Rect::NOTHING)));
     let more = Callback::new(move |at: Pos2| {
         position.set(at);
-        touched.set(true);
         focusing.set(false);
         open.set(true);
         on_toolbar_close.call();
@@ -109,7 +109,6 @@ pub fn ContextMenu(
                     return;
                 }
                 position.set(press.pos);
-                touched.set(press.touch);
                 focusing.set(true);
                 open.set(true);
             }}
@@ -136,7 +135,7 @@ pub fn ContextMenu(
                         menu={menu}
                         anchor
                         open={shown}
-                        touched={touch_shown}
+                        sheet
                         focusing
                         on_dismiss={move || {
                             open.set(false);
@@ -222,6 +221,7 @@ fn Toolbar(
                         @node_ref=&more
                         label="More"
                         glyph=ICON_ELLIPSIS
+                        icon_only=true
                         tab_stop=false
                         press_focus=false
                         on_click_at={move |press: PointerPress| on_more.call(press.pos)}

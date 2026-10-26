@@ -8,8 +8,6 @@ license.workspace = true
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
-block-gpu-abi = { path = "../block-gpu-abi" }
-block-guest-abi = { path = "../block-guest-abi" }
 block-gpu-host = { path = "../block-gpu-host" }
 js-sys = "0.3"
 serde_json = "1"

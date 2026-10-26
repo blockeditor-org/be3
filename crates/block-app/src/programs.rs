@@ -8,7 +8,7 @@ use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 use std::sync::mpsc::Receiver;
 
-use block_plugin_api::{EditorDescriptor, Edits, HostWindowId, ProgramAction, Programs as Listed};
+use block_plugin_api::{EditorDescriptor, Edits, HostWindowId, ProgramAction, ProgramsWatch};
 use uuid::Uuid;
 
 use crate::{plugin_host, wayland};
@@ -251,7 +251,7 @@ impl Programs {
     }
 
     pub(crate) fn frame(&mut self) {
-        for action in plugin_host::take_actions::<ProgramAction>() {
+        for action in plugin_host::take_calls(block_plugin_api::requested::program) {
             match action {
                 ProgramAction::List { icon_size } if wayland::running() => {
                     self.programs
@@ -275,7 +275,7 @@ impl Programs {
             self.programs.scan(WAITING_ICON_SIZE);
         }
         if self.programs.receive() || offering {
-            plugin_host::publish::<Listed>(&self.programs.listed());
+            plugin_host::publish::<ProgramsWatch>(&self.programs.listed());
         }
         if self.programs.scanned() && !self.listed_editors {
             self.listed_editors = true;

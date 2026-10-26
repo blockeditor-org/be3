@@ -1,13 +1,16 @@
+use std::cell::RefCell;
 use std::error::Error;
 use std::ffi::{OsStr, OsString};
 use std::os::fd::{AsFd, BorrowedFd, OwnedFd};
 use std::os::unix::net::UnixStream;
 use std::path::Path;
+use std::rc::Rc;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 
 use rustix::event::{EventfdFlags, PollFd, PollFlags, eventfd, poll};
-use smithay::reexports::calloop::EventLoop;
+use smithay::reexports::calloop::generic::Generic;
+use smithay::reexports::calloop::{EventLoop, Interest, LoopHandle, Mode, PostAction};
 use smithay::reexports::wayland_server::{Client, Display, ListeningSocket};
 
 use crate::runtime_dir::RuntimeDir;
@@ -118,13 +121,60 @@ impl Server {
             fds.push(rustix::io::dup(socket.as_fd())?);
         }
         let waiter = self.state.waiter().clone();
-        let thread = waiter.clone();
+        let thread = Arc::clone(&waiter.waiting);
         std::thread::Builder::new()
             .name("wayland watch".to_owned())
             .spawn(move || watch(&fds, &thread, &wake))?;
         Ok(Watch { waiter })
     }
+
+    pub fn join_loop<D: 'static>(
+        &mut self,
+        handle: &LoopHandle<'static, D>,
+        wake: impl Fn() + Clone + 'static,
+    ) -> std::io::Result<()> {
+        let mut fds = vec![
+            rustix::io::dup(self.display.backend().poll_fd())?,
+            rustix::io::dup(self.event_loop.as_fd())?,
+        ];
+        if let Some(socket) = &self.socket {
+            fds.push(rustix::io::dup(socket.as_fd())?);
+        }
+        for fd in fds {
+            let wake = wake.clone();
+            handle
+                .insert_source(
+                    Generic::new(fd, Interest::READ, Mode::Edge),
+                    move |_, _, _| {
+                        wake();
+                        Ok(PostAction::Continue)
+                    },
+                )
+                .map_err(|error| std::io::Error::other(error.to_string()))?;
+        }
+        let handle = handle.clone();
+        let woken = wake.clone();
+        let sink: Sink = Box::new(move |fd: OwnedFd, ready: Arc<AtomicBool>| {
+            let wake = woken.clone();
+            let inserted = handle.insert_source(
+                Generic::new(fd, Interest::READ, Mode::OneShot),
+                move |_, _, _| {
+                    ready.store(true, Ordering::SeqCst);
+                    wake();
+                    Ok(PostAction::Remove)
+                },
+            );
+            if let Err(error) = inserted {
+                eprintln!("be-wayland: a buffer's fence could not be watched: {error}");
+            }
+        });
+        *self.state.waiter().sink.borrow_mut() = Some(sink);
+        wake();
+        Ok(())
+    }
 }
+
+type Sink = Box<dyn Fn(OwnedFd, Arc<AtomicBool>)>;
 
 pub struct Watch {
     waiter: Waiter,
@@ -132,15 +182,15 @@ pub struct Watch {
 
 impl Watch {
     pub fn resume(&self) {
-        self.waiter.0.resumed.store(true, Ordering::SeqCst);
-        self.waiter.kick();
+        self.waiter.waiting.resumed.store(true, Ordering::SeqCst);
+        self.waiter.waiting.kick();
     }
 }
 
 impl Drop for Watch {
     fn drop(&mut self) {
-        self.waiter.0.stopped.store(true, Ordering::SeqCst);
-        self.waiter.kick();
+        self.waiter.waiting.stopped.store(true, Ordering::SeqCst);
+        self.waiter.waiting.kick();
     }
 }
 
@@ -152,26 +202,38 @@ struct Waiting {
 }
 
 #[derive(Clone)]
-pub struct Waiter(Arc<Waiting>);
+pub struct Waiter {
+    waiting: Arc<Waiting>,
+    sink: Rc<RefCell<Option<Sink>>>,
+}
 
 impl Waiter {
     pub fn new() -> std::io::Result<Self> {
         let kick = eventfd(0, EventfdFlags::CLOEXEC | EventfdFlags::NONBLOCK)?;
-        Ok(Self(Arc::new(Waiting {
-            fds: Mutex::new(Vec::new()),
-            kick,
-            resumed: AtomicBool::new(false),
-            stopped: AtomicBool::new(false),
-        })))
+        Ok(Self {
+            waiting: Arc::new(Waiting {
+                fds: Mutex::new(Vec::new()),
+                kick,
+                resumed: AtomicBool::new(false),
+                stopped: AtomicBool::new(false),
+            }),
+            sink: Rc::default(),
+        })
     }
 
     pub fn wait(&self, fd: OwnedFd, ready: Arc<AtomicBool>) {
-        self.0.fds.lock().unwrap().push((fd, ready));
-        self.kick();
+        if let Some(sink) = &*self.sink.borrow() {
+            sink(fd, ready);
+            return;
+        }
+        self.waiting.fds.lock().unwrap().push((fd, ready));
+        self.waiting.kick();
     }
+}
 
+impl Waiting {
     fn kick(&self) {
-        let _ = rustix::io::write(&self.0.kick, &1u64.to_ne_bytes());
+        let _ = rustix::io::write(&self.kick, &1u64.to_ne_bytes());
     }
 }
 
@@ -185,19 +247,19 @@ pub fn readable(fd: BorrowedFd<'_>) -> bool {
         && !polled[0].revents().is_empty()
 }
 
-fn watch(fds: &[OwnedFd], waiter: &Waiter, wake: &dyn Fn()) {
+fn watch(fds: &[OwnedFd], waiter: &Waiting, wake: &dyn Fn()) {
     let mut paused = false;
     let mut blockers: Vec<(OwnedFd, Arc<AtomicBool>)> = Vec::new();
     loop {
-        if waiter.0.stopped.load(Ordering::SeqCst) {
+        if waiter.stopped.load(Ordering::SeqCst) {
             return;
         }
-        blockers.extend(waiter.0.fds.lock().unwrap().drain(..));
-        if waiter.0.resumed.swap(false, Ordering::SeqCst) {
+        blockers.extend(waiter.fds.lock().unwrap().drain(..));
+        if waiter.resumed.swap(false, Ordering::SeqCst) {
             paused = false;
         }
         let display = if paused { 0 } else { fds.len() };
-        let mut polled: Vec<PollFd<'_>> = std::iter::once(&waiter.0.kick)
+        let mut polled: Vec<PollFd<'_>> = std::iter::once(&waiter.kick)
             .chain(fds.iter().take(display))
             .chain(blockers.iter().map(|(fd, _)| fd))
             .map(|fd| PollFd::new(fd, PollFlags::IN))
@@ -211,7 +273,7 @@ fn watch(fds: &[OwnedFd], waiter: &Waiter, wake: &dyn Fn()) {
         drop(polled);
         if ready[0] {
             let mut count = [0u8; 8];
-            let _ = rustix::io::read(&waiter.0.kick, &mut count);
+            let _ = rustix::io::read(&waiter.kick, &mut count);
         }
         let mut woke = false;
         if ready[1..=display].iter().any(|ready| *ready) {

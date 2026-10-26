@@ -1,6 +1,9 @@
 use block_editor_plugin::wgpu;
+use std::collections::HashMap;
+
 use block_editor_plugin::{
-    BlockParent, EditorHost, Frame, Instance, PaintTarget, Plugin, Region, SurfaceRect, TimedInput,
+    BlockParent, EditorHost, EditorRegion, Frame, Instance, PaintTarget, Plugin, Region, RegionId,
+    Regions, SurfaceRect, TimedInput,
 };
 use triangle_types::TriangleContent;
 use uuid::Uuid;
@@ -15,18 +18,18 @@ impl Plugin for TrianglePlugin {
 
 pub(crate) struct Triangle {
     host: EditorHost,
-    painted: bool,
-    pipeline: Option<(wgpu::TextureFormat, wgpu::RenderPipeline)>,
 }
 
 impl Triangle {
     pub(crate) fn new(host: EditorHost) -> Self {
-        Self {
-            host,
-            painted: false,
-            pipeline: None,
-        }
+        Self { host }
     }
+}
+
+#[derive(Default)]
+pub(crate) struct TriangleRegions {
+    painted: HashMap<RegionId, bool>,
+    pipeline: Option<(wgpu::TextureFormat, wgpu::RenderPipeline)>,
 }
 
 impl Instance for Triangle {
@@ -39,17 +42,31 @@ impl Instance for Triangle {
             .create(&TriangleContent::default(), BlockParent::Detached))
     }
 
-    fn input(&mut self, _region: &Region, _event: &TimedInput) {}
-
-    fn update(&mut self, region: &Region, _settings: Option<&mut Vec<u8>>) -> Frame {
-        Frame {
-            changed: !self.painted,
-            painted: vec![region.rect],
-            ..Frame::default()
+    fn open_region(&mut self, _region: EditorRegion) {
+        if !self.host.handles_regions() {
+            self.host
+                .handle_regions(Box::new(TriangleRegions::default()));
         }
     }
+}
 
-    fn paint(&mut self, target: &PaintTarget<'_>) -> Vec<SurfaceRect> {
+impl Regions for TriangleRegions {
+    fn input(&mut self, _region: &Region, _event: &TimedInput, _over: Option<RegionId>) {}
+
+    fn frame(&mut self, regions: &[Region]) -> Vec<Frame> {
+        self.painted
+            .retain(|id, _| regions.iter().any(|region| region.id() == *id));
+        regions
+            .iter()
+            .map(|region| Frame {
+                changed: !self.painted.get(&region.id()).copied().unwrap_or_default(),
+                painted: vec![region.rect],
+                ..Frame::default()
+            })
+            .collect()
+    }
+
+    fn paint(&mut self, region: RegionId, target: &PaintTarget<'_>) -> Vec<SurfaceRect> {
         let (width, height) = (target.width, target.height);
         let side = width.min(height);
         if side == 0 {
@@ -94,7 +111,7 @@ impl Instance for Triangle {
             pass.draw(0..3, 0..1);
         }
         target.queue.submit([encoder.finish()]);
-        self.painted = true;
+        self.painted.insert(region, true);
         target.whole()
     }
 }

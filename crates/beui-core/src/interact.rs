@@ -122,6 +122,7 @@ fn key_event(doc: &mut Document, ctx: &Context, event: &Event) -> Result<bool, F
                 doc.update_focus(None);
             }
         }
+        Event::PointerUnlocked if ctx.pointer_locked() => doc.update_focus(None),
         Event::Back(gesture) => doc.back(*gesture),
         Event::InterceptedKey(press) => {
             from_app(doc, KeyInput::Press(*press));
@@ -138,7 +139,7 @@ fn key_event(doc: &mut Document, ctx: &Context, event: &Event) -> Result<bool, F
             if press.pressed {
                 doc.acted = Acted::Keys;
                 if !press.key.is_media() {
-                    doc.touched = false;
+                    doc.set_touched(false);
                     doc.keyboard_held = false;
                 }
             }
@@ -262,7 +263,9 @@ fn outer(doc: &Document, route: &Route, phase: KeyPhase) -> Vec<Placed> {
         reveal: true,
     };
     let listening = |stop: Stop| match route.window && !(stop == Stop::Window && route.inhibited) {
-        true => doc.keys.at(stop, phase),
+        true => doc.keys.at(stop, phase, doc.key_window(), &|window| {
+            doc.host_window_of(window)
+        }),
         false => Vec::new(),
     };
     let mut placed = Vec::new();

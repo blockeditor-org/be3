@@ -1,10 +1,7 @@
-use beui::Wrap;
 use block_editor_beui::be_block::BlockContent;
 use block_editor_beui::be_block::Edit;
 use block_editor_beui::beui::icons::Glyph;
-use block_editor_beui::beui::styled::context_menu::menu_style;
 use block_editor_beui::beui::styled::*;
-use block_editor_beui::beui::unstyled::{self, MenuButtonHandle, MenuItem};
 use block_editor_beui::database::{
     ChoiceMark, choice_color_label, choice_glyph, choice_icon_label,
 };
@@ -15,14 +12,12 @@ use database_types::database_schema::{
     DatabaseSchema, DatabaseSchemaContent,
 };
 
-use crate::database_view::app::controls::ControlFace;
 use block_editor_beui::beui::icons::{
     ICON_ARROW_DOWN, ICON_ARROW_UP, ICON_BLOCKS, ICON_CALENDAR, ICON_CIRCLE_CHEVRON_DOWN,
     ICON_HASH, ICON_LINK, ICON_PALETTE, ICON_PLUS, ICON_SQUARE_CHECK, ICON_TEXT_ALIGN_START,
     ICON_TRASH,
 };
 use block_editor_beui::beui::reactive::*;
-use block_editor_beui::beui::unstyled::ChoiceOption;
 use block_editor_beui::beui::{NodeId, Vec2};
 use block_editor_beui::{
     BlockFilter, ChildTarget, ContentProjection, Editor, node_anchor, watch_block_label,
@@ -48,12 +43,11 @@ impl Schema {
     }
 }
 
-const PADDING: f32 = 20.0;
-const SECTION_SPACING: f32 = 10.0;
-const ROW_SPACING: f32 = 8.0;
-const INDENT: f32 = 16.0;
-const NAME_WIDTH: f32 = 240.0;
-const NUMBER_WIDTH: f32 = 120.0;
+const PADDING: Space = Space::Xl2;
+const SECTION_SPACING: Space = Space::Md;
+const ROW_SPACING: Space = Space::Md;
+const NAME_WIDTH: Size = Size::Custom(240.0);
+const NUMBER_WIDTH: Size = Size::Custom(120.0);
 const INTRINSIC_WIDTH: f32 = 600.0;
 const ROW_HEIGHT: f32 = 40.0;
 
@@ -91,7 +85,7 @@ pub fn SchemaView(editor: Editor) -> NodeId {
                 rows.len(),
             )
         });
-        let height = ROW_HEIGHT * lines as f32 + SECTION_SPACING * count as f32;
+        let height = ROW_HEIGHT * lines as f32 + SECTION_SPACING.px() * count as f32;
         editor.set_intrinsic_size(Some(Vec2::new(INTRINSIC_WIDTH, height)));
     });
 
@@ -235,7 +229,8 @@ fn FieldRow(
                     @test_id={format!("database-schema.type.{id}")}
                 />
                 <Spacer @sizing=ItemSize::Percent(100.0) />
-                <IconButton
+                <Button
+                    icon_only=true
                     glyph=ICON_ARROW_UP
                     label="Move up"
                     variant=ButtonVariant::Ghost
@@ -243,7 +238,8 @@ fn FieldRow(
                     @test_id={format!("database-schema.up.{id}")}
                     on_click={move || mover(-1)}
                 />
-                <IconButton
+                <Button
+                    icon_only=true
                     glyph=ICON_ARROW_DOWN
                     label="Move down"
                     variant=ButtonVariant::Ghost
@@ -251,7 +247,8 @@ fn FieldRow(
                     @test_id={format!("database-schema.down.{id}")}
                     on_click={move || mover(1)}
                 />
-                <IconButton
+                <Button
+                    icon_only=true
                     glyph=ICON_TRASH
                     label="Delete field"
                     disabled={read_only}
@@ -319,7 +316,7 @@ fn NumberOptions(
     let scale_keys = create_memo(|| (0..NUMBER_SCALES.len()).collect::<Vec<usize>>());
     view! {
         <List spacing=ROW_SPACING>
-            <Frame padding={Sides::new(INDENT + ROW_SPACING, 0.0, 0.0, 0.0)}>
+            <Frame padding={Padding::ZERO.left(Space::Xl3)}>
                 <List spacing=ROW_SPACING>
                     <OptionalNumber
                         schema={schema}
@@ -485,7 +482,7 @@ fn EnumOptions(
         schema.operate(DatabaseSchema::add_enum_option(id, format!("Option {}", count + 1)).1);
     };
     view! {
-        <Frame padding={Sides::new(INDENT + ROW_SPACING, 0.0, 0.0, 0.0)}>
+        <Frame padding={Padding::ZERO.left(Space::Xl3)}>
             <List spacing=ROW_SPACING>
                 <ForEach keys={keys}>|option_id: Uuid|
                     <EnumOptionRow
@@ -497,7 +494,8 @@ fn EnumOptions(
                     />
                 </ForEach>
                 <List direction=Direction::Horizontal align=Align::Center spacing=ROW_SPACING>
-                    <IconButton
+                    <Button
+                        icon_only=true
                         glyph=ICON_PLUS
                         label="Add option"
                         disabled={read_only}
@@ -507,7 +505,7 @@ fn EnumOptions(
                     <Text>"Add option"</Text>
                     <Spacer @sizing=ItemSize::Percent(100.0) />
                 </List>
-                <Text style=TextStyle::CAPTION wrap=Wrap::Words>
+                <Text style=TextStyle::CAPTION>
                     "A closed option marks a row finished: views can hide closed rows, the board folds their columns, and a merged pull request moves rows to the first one. New rows start at the default."
                 </Text>
             </List>
@@ -579,14 +577,36 @@ fn EnumOptionRow(
         let after = to.checked_sub(1).map(|before| moved[before]);
         schema.operate(DatabaseSchema::move_enum_option(id, option_id, after));
     };
+    let color_label = create_memo(move || {
+        option.with(|option| {
+            option
+                .as_ref()
+                .map_or("Colour", |option| choice_color_label(option.color))
+                .to_owned()
+        })
+    });
+    let dotted = create_memo(move || {
+        option.with(|option| {
+            option.as_ref().map(|option| DatabaseEnumOption {
+                icon: ChoiceIcon::None,
+                ..option.clone()
+            })
+        })
+    });
     let icon_keys = create_memo(|| (0..ChoiceIcon::ALL.len()).collect::<Vec<usize>>());
     let color_keys = create_memo(|| (0..ChoiceColor::ALL.len()).collect::<Vec<usize>>());
     view! {
         <List direction=Direction::Horizontal align=Align::Center spacing=ROW_SPACING wrap=true>
-            <unstyled::MenuButton
+            <MenuButton
                 label="Icon"
                 disabled={read_only}
-                menu={menu_style()}
+                variant=ButtonVariant::Ghost
+                size=ButtonSize::Compact
+                icon_only=true
+                arrow=false
+                leading={view! {
+                    <ChoiceMark option={option} size=TextSize::Base />
+                }}
                 @test_id={format!("database-schema.enum.{id}.{option_id}.icon")}
                 items={view! {
                     <ForEach keys={icon_keys}>|index: usize| {
@@ -601,13 +621,6 @@ fn EnumOptionRow(
                         }
                     }</ForEach>
                 }}
-                trigger={move |handle: MenuButtonHandle| {
-                    view! {
-                        <ControlFace handle={handle.button}>
-                            <ChoiceMark option={option} size=TextSize::Base />
-                        </ControlFace>
-                    }
-                }}
             />
             <Frame width=NAME_WIDTH>
                 <TextInput
@@ -618,10 +631,15 @@ fn EnumOptionRow(
                     @test_id={format!("database-schema.enum.{id}.{option_id}.name")}
                 />
             </Frame>
-            <unstyled::MenuButton
-                label="Colour"
+            <MenuButton
+                label={color_label}
                 disabled={read_only}
-                menu={menu_style()}
+                variant=ButtonVariant::Ghost
+                size=ButtonSize::Compact
+                arrow=false
+                leading={view! {
+                    <ChoiceMark option={dotted} size=TextSize::Sm />
+                }}
                 @test_id={format!("database-schema.enum.{id}.{option_id}.color")}
                 items={view! {
                     <ForEach keys={color_keys}>|index: usize| {
@@ -634,22 +652,6 @@ fn EnumOptionRow(
                             />
                         }
                     }</ForEach>
-                }}
-                trigger={move |handle: MenuButtonHandle| {
-                    let label = create_memo(move || {
-                        option.with(|option| option.as_ref().map_or("", |option| choice_color_label(option.color)).to_owned())
-                    });
-                    let dotted = create_memo(move || {
-                        option.with(|option| option.as_ref().map(|option| DatabaseEnumOption { icon: ChoiceIcon::None, ..option.clone() }))
-                    });
-                    view! {
-                        <ControlFace handle={handle.button}>
-                            <List direction=Direction::Horizontal align=Align::Center spacing=6.0>
-                                <ChoiceMark option={dotted} size=TextSize::Sm />
-                                <Text>{label}</Text>
-                            </List>
-                        </ControlFace>
-                    }
                 }}
             />
             <ToggleButton
@@ -664,7 +666,8 @@ fn EnumOptionRow(
                 disabled={read_only}
                 @test_id={format!("database-schema.enum.{id}.{option_id}.default")}
             />
-            <IconButton
+            <Button
+                icon_only=true
                 glyph=ICON_ARROW_UP
                 label="Move up"
                 variant=ButtonVariant::Ghost
@@ -672,7 +675,8 @@ fn EnumOptionRow(
                 @test_id={format!("database-schema.enum.{id}.{option_id}.up")}
                 on_click={move || mover(-1)}
             />
-            <IconButton
+            <Button
+                icon_only=true
                 glyph=ICON_ARROW_DOWN
                 label="Move down"
                 variant=ButtonVariant::Ghost
@@ -680,7 +684,8 @@ fn EnumOptionRow(
                 @test_id={format!("database-schema.enum.{id}.{option_id}.down")}
                 on_click={move || mover(1)}
             />
-            <IconButton
+            <Button
+                icon_only=true
                 glyph=ICON_TRASH
                 label="Delete option"
                 variant=ButtonVariant::Ghost
@@ -757,7 +762,7 @@ fn BlockOptions(
         ));
     };
     view! {
-        <Frame padding={Sides::new(INDENT + ROW_SPACING, 0.0, 0.0, 0.0)}>
+        <Frame padding={Padding::ZERO.left(Space::Xl3)}>
             <List direction=Direction::Horizontal align=Align::Center spacing=ROW_SPACING>
                 <Text>"Block type"</Text>
                 <Select
@@ -837,7 +842,7 @@ fn RelationOptions(
                     schema.operate(DatabaseSchema::set_relation_options(
                         id,
                         DatabaseRelationOptions {
-                            database: Some(picked.id),
+                            database: Some(picked.id()),
                             ..current.clone()
                         },
                     ));
@@ -866,7 +871,7 @@ fn RelationOptions(
         ));
     };
     view! {
-        <Frame padding={Sides::new(INDENT + ROW_SPACING, 0.0, 0.0, 0.0)}>
+        <Frame padding={Padding::ZERO.left(Space::Xl3)}>
             <List spacing=ROW_SPACING>
                 <List direction=Direction::Horizontal align=Align::Center spacing=ROW_SPACING>
                     <Text>"Links to"</Text>

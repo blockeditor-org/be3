@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use std::sync::{Arc, PoisonError};
 
-use block_plugin_api::{HostImage, HostTrayItem, TrayMenuEntry, TrayRequest};
+use block_plugin_api::{HostImage, HostTrayItem, TrayMenuItem, TrayRequest};
 use futures_util::StreamExt;
 use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
 use zbus::fdo::{RequestNameFlags, RequestNameReply};
@@ -49,7 +49,7 @@ pub(crate) enum Event {
     Laid {
         key: String,
         ticket: u64,
-        menu: Vec<TrayMenuEntry>,
+        menu: Vec<TrayMenuItem>,
     },
     Request(TrayRequest),
 }

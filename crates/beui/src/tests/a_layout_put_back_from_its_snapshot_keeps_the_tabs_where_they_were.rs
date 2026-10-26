@@ -1,10 +1,10 @@
 use super::*;
-use crate::unstyled::{DockApi, DockPane, DockTab, DockingLayout, TabId};
+use crate::dock::unstyled::{DockApi, DockPane, DockTab, DockingLayout, TabId};
 
 #[component]
 fn TwoTabs(layout: DockingLayout<u64>) -> NodeId {
     view! {
-        <styled::Docking layout>
+        <dock::styled::Docking layout>
             <DockPane id="tabs">
                 <DockTab id=1u64 title="Tab 1">
                     <Frame @test_id="content.1" />
@@ -13,7 +13,7 @@ fn TwoTabs(layout: DockingLayout<u64>) -> NodeId {
                     <Frame @test_id="content.2" />
                 </DockTab>
             </DockPane>
-        </styled::Docking>
+        </dock::styled::Docking>
     }
 }
 

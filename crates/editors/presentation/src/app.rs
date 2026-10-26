@@ -14,8 +14,10 @@ use ui::{PresentationPreview, PresentationView};
 
 pub struct PresentationApp;
 
+#[component]
 impl block_editor_beui::BeuiApp for PresentationApp {
-    fn view(editor: Editor) -> Root {
+    #[component]
+    fn View(editor: Editor) -> Root {
         view! {
             <Root>
                 <Loaded>
@@ -25,7 +27,8 @@ impl block_editor_beui::BeuiApp for PresentationApp {
         }
     }
 
-    fn preview_view(editor: Editor) -> NodeId {
+    #[component]
+    fn Preview(editor: Editor) -> NodeId {
         view! {
             <Loaded>
                 <PresentationPreview editor={editor} />

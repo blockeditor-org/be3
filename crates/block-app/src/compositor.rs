@@ -1,3 +1,4 @@
+mod desktop;
 mod editors;
 mod intercept;
 pub(crate) mod region;
@@ -11,7 +12,10 @@ use beui::reactive::*;
 
 use crate::editors::EditorAction;
 
-pub(crate) use editors::{OwnedEditors, PresentingSurface, ShellSurface};
+pub(crate) use desktop::{DesktopPlace, forget as forget_windows, request as request_windows};
+pub(crate) use editors::{
+    ConflictSurface, OwnedEditors, PresentingSurface, ShellDisplay, ShellSurface,
+};
 pub(crate) use region::{ChildView, PluginRegion, RegionEditor};
 
 type Listeners = HashMap<String, Vec<(u64, Signal<u64>)>>;
@@ -29,6 +33,7 @@ thread_local! {
 }
 
 pub(crate) fn install() {
+    desktop::install();
     let signal = create_signal(0u64);
     ANY.with(|any| *any.borrow_mut() = Some(signal));
     let shell = create_signal(None);
@@ -107,6 +112,7 @@ pub(crate) fn notify() {
     crate::be::revisions::collect_released();
     OWED.with(|owed| owed.set(false));
     apply_shell();
+    desktop::apply();
     crate::surfaces::apply();
     notify_plugins();
 }

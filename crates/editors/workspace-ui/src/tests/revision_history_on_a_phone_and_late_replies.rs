@@ -1,5 +1,6 @@
 use super::*;
-use block_editor_beui::{HostReply, HostRequest, Revision};
+use block_editor_beui::Revision;
+use block_ui_test::HostCall;
 
 #[test]
 fn revision_history_on_a_phone_and_late_replies() {
@@ -9,17 +10,18 @@ fn revision_history_on_a_phone_and_late_replies() {
         .test
         .take_requests()
         .into_iter()
-        .find_map(|(id, request)| {
-            (request == HostRequest::ListRevisions(opened.into_bytes())).then_some(id)
+        .find_map(|call| match call {
+            HostCall::ListRevisions { reply, block } if block == opened.into_bytes() => Some(reply),
+            _ => None,
         })
         .unwrap();
-    fixture.test.reply(
+    fixture.test.answer(
         request,
-        HostReply::RevisionsListed(Ok(vec![Revision {
+        Ok(vec![Revision {
             commit: [3; 32],
             time: 1_800_000_000_000,
             current: true,
-        }])),
+        }]),
     );
     fixture.settle();
     fixture.show_history();
@@ -31,26 +33,21 @@ fn revision_history_on_a_phone_and_late_replies() {
         .test
         .take_requests()
         .into_iter()
-        .find_map(|(id, request)| {
-            matches!(request, HostRequest::PreviewRevision { .. }).then_some(id)
+        .find_map(|call| match call {
+            HostCall::PreviewRevision { reply, .. } => Some(reply),
+            _ => None,
         })
         .unwrap();
     let second = Uuid::new_v4();
     show(&mut fixture, second, None);
     let preview = Uuid::new_v4();
-    fixture.test.reply(
-        request,
-        HostReply::RevisionPreviewed(Ok(preview.into_bytes())),
-    );
+    fixture.test.answer(request, Ok(preview.into_bytes()));
     fixture.settle();
     assert!(!fixture.shown().contains(&preview));
-    assert!(
-        fixture
-            .test
-            .take_requests()
-            .iter()
-            .any(|(_, request)| *request == HostRequest::ReleaseRevision(preview.into_bytes()))
-    );
+    assert!(fixture.test.take_requests().iter().any(|call| matches!(
+        call,
+        HostCall::ReleaseRevision { preview: released } if *released == preview.into_bytes()
+    )));
     fixture.test.set_size(Vec2::new(390.0, 720.0));
     fixture.settle();
     fixture.test.click("dock.switch");

@@ -1,8 +1,10 @@
 use std::{
     cell::RefCell,
     collections::{BTreeMap, BTreeSet, HashMap, HashSet},
-    sync::{Arc, Mutex, PoisonError},
+    sync::{Arc, PoisonError},
 };
+
+use wasi_threads::Mutex;
 
 use be_block::{
     BlockContent, BlockMetadata, Checkout, CheckoutConflict, ConflictKind, MAIN_BRANCH, Repository,
@@ -38,7 +40,7 @@ pub(crate) struct VersionState {
 pub(super) struct Versions {
     trees: HashMap<CommitId, Tree>,
     commits: HashMap<CommitId, Commit>,
-    watching: HashSet<Uuid>,
+    watching: Arc<Mutex<HashSet<Uuid>>>,
     roots: HashSet<Uuid>,
     computed: HashMap<Uuid, (u64, u64, u64)>,
 }
@@ -93,6 +95,7 @@ pub(super) struct Context<'a> {
     pub(super) peer: &'a Arc<Peer<Store>>,
     pub(super) shared: &'a Arc<Mutex<Shared>>,
     pub(super) replicas: &'a mut Replicas,
+    pub(super) tasks: &'a super::worker::Tasks,
 }
 
 fn failed(error: ClientError) -> String {
@@ -1412,14 +1415,27 @@ impl Versions {
                     .unwrap_or_else(PoisonError::into_inner)
                     .graph
                     .want(Owner::Version, roots);
-                super::worker::fetch_listings(context.peer, context.shared).await;
             }
             blocks.extend(with_graph(context.shared, |graph| graph.subtree(root)));
         }
         for block in blocks {
-            if self.watching.insert(block) && context.peer.watch(block).await.is_err() {
-                self.watching.remove(&block);
+            if !self
+                .watching
+                .lock()
+                .unwrap_or_else(PoisonError::into_inner)
+                .insert(block)
+            {
+                continue;
             }
+            let (peer, watching) = (Arc::clone(context.peer), Arc::clone(&self.watching));
+            context.tasks.spawn(async move {
+                if peer.watch(block).await.is_err() {
+                    watching
+                        .lock()
+                        .unwrap_or_else(PoisonError::into_inner)
+                        .remove(&block);
+                }
+            });
         }
     }
 
@@ -2027,9 +2043,10 @@ async fn merge_content(
             sides[2].as_deref(),
         )
         .await;
-    let Some((bytes, conflicted)) = merged else {
+    let Some((bytes, conflicts)) = merged else {
         return Ok((merge.ours.clone(), Vec::new(), None, true));
     };
+    let conflicted = conflicts > 0;
     let manifest = context
         .peer
         .write_content(checkout, merge.content_type, &bytes)

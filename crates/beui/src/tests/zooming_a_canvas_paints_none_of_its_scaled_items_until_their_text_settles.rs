@@ -84,6 +84,11 @@ fn zooming_a_canvas_paints_none_of_its_scaled_items_until_their_text_settles() {
         work.painted_nodes > 1,
         "once the zoom settles, the scaled items paint their text again"
     );
+    assert_eq!(
+        (work.measured, work.placed),
+        (0, 0),
+        "and rasterising it again lays nothing out"
+    );
     assert!(
         tallest_glyph(&settled) >= crisp * 2 - 1,
         "text is rasterised again for the scale it is shown at"

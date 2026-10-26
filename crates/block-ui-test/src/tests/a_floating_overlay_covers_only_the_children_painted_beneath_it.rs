@@ -8,8 +8,10 @@ const BENEATH: Uuid = Uuid::from_u128(0x0012);
 
 struct WindowApp;
 
+#[component]
 impl BeuiApp for WindowApp {
-    fn view(editor: Editor) -> Root {
+    #[component]
+    fn View(editor: Editor) -> Root {
         view! {
             <Root>
                 <Window editor={editor} />
@@ -23,17 +25,17 @@ fn Window(editor: Editor) -> NodeId {
     let windowed = Some(ChildTarget::new(WINDOWED, SLIDE_TYPE));
     let beneath = Some(ChildTarget::new(BENEATH, SLIDE_TYPE));
     view! {
-        <List spacing=0.0>
+        <List spacing=Space::None>
             <Overlay
                 anchor={OverlayAnchor::Point(pos2(40.0, 40.0))}
                 policy=LayerPolicy::Pass
                 open=true
             >
-                <Frame width=200.0 height=120.0>
+                <Frame width=Size::Menu height={Size::Custom(120.0)}>
                     <ChildBlock editor={editor} block={windowed} mode=ChildMode::Live />
                 </Frame>
             </Overlay>
-            <Frame width=320.0 height=240.0>
+            <Frame width=Size::Popover height={Size::Custom(240.0)}>
                 <ChildBlock editor={editor} block={beneath} mode=ChildMode::Live />
             </Frame>
         </List>

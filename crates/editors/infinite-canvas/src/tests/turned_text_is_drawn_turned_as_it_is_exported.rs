@@ -7,7 +7,7 @@ const TURN: f32 = 0.5;
 fn turned(editor: &BeuiTest<CanvasApp>, written: &str) -> (f32, Rect, Rect) {
     let output = editor.drawn().expect("the canvas has drawn");
     let mut shapes = Vec::new();
-    for layer in output.main().layers.iter() {
+    for layer in output.layers.iter() {
         layer.flatten(&mut shapes);
     }
     shapes

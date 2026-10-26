@@ -3,14 +3,15 @@ use beui_macros::{component, view};
 
 use beui_core::color::Color32;
 
-use crate::theme::{SCROLLBAR_INSET, ThemeStore, use_theme};
+use crate::theme::{ThemeStore, use_theme};
+use crate::tokens::{Padding, Size, Space};
 use beui_components_unstyled as unstyled;
 use beui_components_unstyled::{ScrollbarHandle, ScrollbarThumb};
 use beui_core::base::{Direction, ScrollPosition};
 use beui_core::node::NodeId;
 use beui_view::reactive::*;
 
-const RADIUS: f32 = 3.0;
+const INSET: Space = Space::Xs2;
 
 #[component]
 pub fn Scrollbar(
@@ -25,7 +26,7 @@ pub fn Scrollbar(
     let ends_vertical = inset_when(&direction, Direction::Vertical);
     view! {
         <Frame
-            padding={create_memo(move || Sides::symmetric(ends_horizontal.get(), ends_vertical.get()))}
+            padding={create_memo(move || Padding::symmetric(ends_horizontal.get(), ends_vertical.get()))}
         >
             <unstyled::Scrollbar
                 position
@@ -40,19 +41,11 @@ pub fn Scrollbar(
     }
 }
 
-fn inset_when(direction: &Prop<Direction>, along: Direction) -> Memo<f32> {
+fn inset_when(direction: &Prop<Direction>, along: Direction) -> Memo<Space> {
     let direction = *direction;
     create_memo(move || match direction.get() == along {
-        true => SCROLLBAR_INSET,
-        false => 0.0,
-    })
-}
-
-fn outer_side_inset(direction: &Prop<Direction>, along: Direction) -> Memo<f32> {
-    let direction = *direction;
-    create_memo(move || match direction.get() == along {
-        true => SCROLLBAR_INSET,
-        false => 0.0,
+        true => INSET,
+        false => Space::None,
     })
 }
 
@@ -74,13 +67,13 @@ fn ScrollbarTrack(handle: ScrollbarHandle, visibility: Prop<f32>) -> NodeId {
     let track = create_memo(move || {
         track_color(&theme, position.get(), engaged.get()).scale_alpha(visibility.get())
     });
-    let right = outer_side_inset(&direction, Direction::Vertical);
-    let bottom = outer_side_inset(&direction, Direction::Horizontal);
+    let right = inset_when(&direction, Direction::Vertical);
+    let bottom = inset_when(&direction, Direction::Horizontal);
 
     view! {
-        <Frame padding={create_memo(move || Sides::new(0.0, 0.0, right.get(), bottom.get()))}>
-            <Frame fill={ColorRole::custom(track)} radius={Radius::custom(RADIUS)}>
-                <ScrollbarThumb position direction color radius=RADIUS />
+        <Frame padding={create_memo(move || Padding::ZERO.right(right.get()).bottom(bottom.get()))}>
+            <Frame fill={ColorRole::custom(track)} radius=Radius::Full>
+                <ScrollbarThumb position direction color radius={Size::Track.px() / 2.0} />
             </Frame>
         </Frame>
     }

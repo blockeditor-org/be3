@@ -30,17 +30,14 @@ fn frame_screens_and_reports_round_trip() {
             Vec2::new(300.0, 200.0),
         )),
         top_bar: TopBar::Phone,
+        dialog: Some(DialogFrame {
+            narrow: true,
+            bottom_inset: 24.0,
+        }),
     });
-    let screens = Message::Screens(ScreenSet {
-        request_id: 3,
-        screens: vec![request],
-    });
-    assert_eq!(
-        decode_frame(&encode_frame(&screens).unwrap()).unwrap(),
-        screens
-    );
+    round_trips(&vec![request]);
 
-    let frames = Message::Frame(FrameCommit {
+    let frames = FrameCommit {
         reports: vec![FrameReport {
             screen: ScreenId(1),
             content: Rect::from_min_size(Pos2::new(0.0, 40.0), Vec2::new(640.0, 440.0)),
@@ -64,8 +61,8 @@ fn frame_screens_and_reports_round_trip() {
                 },
                 rect: Rect::from_min_size(Pos2::new(0.0, 40.0), Vec2::new(320.0, 440.0)),
             }],
-            description: Some(Description {
-                tree: Some(checklist_tree()),
+            description: Some(crate::accessibility::Description {
+                tree: Some((&checklist_tree()).into()),
                 actions: vec![DescribedAction {
                     id: "checklist.clear".to_owned(),
                     label: "Clear completed".to_owned(),
@@ -77,10 +74,10 @@ fn frame_screens_and_reports_round_trip() {
             }),
         }],
         ..frame(1)
-    });
-    let encoded = encode_frame(&frames).unwrap();
+    };
+    let encoded = crate::ops::encode(&frames);
     assert_eq!(
-        encode_frame(&decode_frame(&encoded).unwrap()).unwrap(),
+        crate::ops::encode(&crate::ops::decode::<FrameCommit>(&encoded).unwrap()),
         encoded,
         "AccessKit compares nodes by the order their properties were set in, so compare encodings"
     );

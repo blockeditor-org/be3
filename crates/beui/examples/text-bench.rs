@@ -1,4 +1,4 @@
-use beui::Wrap;
+use beui::Overflow;
 use std::any::Any;
 use std::cell::RefCell;
 use std::rc::Rc;
@@ -11,8 +11,8 @@ use beui::styled::*;
 use beui::testing::{Screen, Showing};
 use beui::unstyled::TextAreaState;
 use beui::{
-    Document, Incoming, Input, Launch, Platform, PointerButton, Pos2, RunOptions, Setup, Vec2,
-    Waker, pos2,
+    Document, Incoming, Input, Launch, PlatformServices, PointerButton, Pos2, RunOptions, Setup,
+    Vec2, Waker, pos2,
 };
 use beui_core::app::SafeArea;
 use beui_core::renderer::Loaded;
@@ -28,7 +28,7 @@ const PARAGRAPH: &str = "A text node lays out on one line unless it wraps, and a
 
 struct Bare;
 
-impl Platform for Bare {}
+impl PlatformServices for Bare {}
 
 struct Bench {
     runner: Runner,
@@ -43,7 +43,7 @@ impl Bench {
             },
             context: beui::context(),
             app: Box::new(Showing(document)),
-            host: None,
+            layers: Vec::new(),
         });
         runner
             .start(
@@ -163,11 +163,11 @@ fn resize_paragraphs(frames: usize) -> Report {
             let text = PARAGRAPH.repeat(4);
             view! {
                 <Root>
-                    <Frame width={create_memo(move || Some(read.get()))}>
-                        <List spacing=8.0>
+                    <Frame width={create_memo(move || Length::Size(Size::Custom(read.get())))}>
+                        <List spacing=Space::Md>
                             <ForEach keys={(0..20).collect::<Vec<usize>>()}>|_: usize| {
                                 let text = text.clone(); view! {
-                                    <Text wrap=Wrap::Words>{text}</Text>
+                                    <Text>{text}</Text>
                                 }
                             }</ForEach>
                         </List>
@@ -200,10 +200,12 @@ fn resize_labels(frames: usize) -> Report {
             *width.borrow_mut() = Some(read);
             view! {
                 <Root>
-                    <Frame width={create_memo(move || Some(read.get()))}>
-                        <List spacing=0.0>
+                    <Frame width={create_memo(move || Length::Size(Size::Custom(read.get())))}>
+                        <List spacing=Space::None>
                             <ForEach keys={(0..2000).collect::<Vec<usize>>()}>|index: usize|
-                                <Text ellipsis=true>{format!("label number {index}")}</Text>
+                                <Text overflow=Overflow::Ellipsis>
+                                    {format!("label number {index}")}
+                                </Text>
                             </ForEach>
                         </List>
                     </Frame>
@@ -235,7 +237,7 @@ fn edit_plain_paragraph(frames: usize) -> Report {
             *content.borrow_mut() = Some(read);
             view! {
                 <Root>
-                    <Text wrap=Wrap::Words>{read}</Text>
+                    <Text>{read}</Text>
                 </Root>
             }
         }
@@ -278,7 +280,7 @@ fn edit_one_span(frames: usize) -> Report {
             let keys = (0..initial.len()).collect::<Vec<usize>>();
             view! {
                 <Root>
-                    <Text wrap=Wrap::Words>
+                    <Text>
                         <ForEach keys={keys}>|index: usize| {
                             let word = create_memo(move || {
                                 read.get().get(index).cloned().unwrap_or_default()

@@ -1,6 +1,7 @@
 use crate::geometry::{Pos2, Rect, Rotation, Vec2};
 use crate::painter::Shape;
 use crate::path::PathPaint;
+use crate::window::WindowId;
 
 const REGIONS: usize = 4;
 
@@ -116,45 +117,101 @@ fn area(rect: Rect) -> f32 {
     rect.width() * rect.height()
 }
 
+#[derive(Clone, Default, PartialEq, Debug)]
+pub struct WindowRegions(Vec<(WindowId, Region)>);
+
+impl WindowRegions {
+    pub fn add(&mut self, window: WindowId, rect: Rect) {
+        match self.0.iter_mut().find(|(held, _)| *held == window) {
+            Some((_, region)) => region.add(rect),
+            None => {
+                let mut region = Region::NOTHING;
+                region.add(rect);
+                if !region.is_empty() {
+                    self.0.push((window, region));
+                }
+            }
+        }
+    }
+
+    pub fn add_region(&mut self, window: WindowId, region: Region) {
+        for rect in region.rects() {
+            self.add(window, *rect);
+        }
+    }
+
+    pub fn union(&mut self, other: Self) {
+        for (window, region) in other.0 {
+            self.add_region(window, region);
+        }
+    }
+
+    pub fn set(&mut self, window: WindowId, region: Region) {
+        self.0.retain(|(held, _)| *held != window);
+        if !region.is_empty() {
+            self.0.push((window, region));
+        }
+    }
+
+    pub fn of(&self, window: WindowId) -> Region {
+        self.0
+            .iter()
+            .find(|(held, _)| *held == window)
+            .map_or(Region::NOTHING, |(_, region)| *region)
+    }
+}
+
+#[derive(Default)]
 pub struct Damage {
-    region: Region,
+    regions: WindowRegions,
     everything: bool,
 }
 
-impl Default for Damage {
-    fn default() -> Self {
-        Self {
-            region: Region::NOTHING,
-            everything: false,
-        }
-    }
+pub struct Taken {
+    regions: WindowRegions,
+    everything: bool,
 }
 
-impl Damage {
-    pub fn add(&mut self, rect: Rect) {
-        self.region.add(rect);
+impl Taken {
+    pub fn add(&mut self, window: WindowId, rect: Rect) {
+        self.regions.add(window, rect);
     }
 
-    pub fn add_region(&mut self, region: Region) {
-        self.region = self.region.union(region);
-    }
-
-    pub fn everything(&mut self) {
-        self.everything = true;
+    pub fn set(&mut self, window: WindowId, region: Region) {
+        self.regions.set(window, region);
     }
 
     pub fn is_everything(&self) -> bool {
         self.everything
     }
 
-    pub fn take(&mut self, viewport: Rect) -> Region {
-        let mut region = Region::NOTHING;
+    pub fn of(&self, window: WindowId, viewport: Rect) -> Region {
         match self.everything {
-            true => region.add(viewport),
-            false => region = self.region.clipped(viewport),
+            true => Region::from(viewport),
+            false => self.regions.of(window).clipped(viewport),
         }
-        *self = Self::default();
-        region
+    }
+}
+
+impl Damage {
+    pub fn add(&mut self, window: WindowId, rect: Rect) {
+        self.regions.add(window, rect);
+    }
+
+    pub fn add_regions(&mut self, regions: WindowRegions) {
+        self.regions.union(regions);
+    }
+
+    pub fn everything(&mut self) {
+        self.everything = true;
+    }
+
+    pub fn take(&mut self) -> Taken {
+        let taken = std::mem::take(self);
+        Taken {
+            regions: taken.regions,
+            everything: taken.everything,
+        }
     }
 }
 

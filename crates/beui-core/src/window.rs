@@ -3,9 +3,48 @@ pub(crate) mod hosted;
 use std::sync::atomic::{AtomicU64, Ordering};
 
 use crate::color::Color32;
-use crate::geometry::Vec2;
+use crate::geometry::{Pos2, Vec2};
 
 pub use ui_types::window::WindowRequests;
+
+pub const MAX_PIXELS: f32 = 8192.0;
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct WindowSize {
+    pub size: Vec2,
+    pub scale: f32,
+}
+
+impl WindowSize {
+    pub fn parse(text: &str) -> Option<Self> {
+        let (size, scale) = match text.split_once('@') {
+            Some((size, scale)) => (
+                size,
+                scale
+                    .parse::<f32>()
+                    .ok()
+                    .filter(|scale| scale.is_finite() && *scale > 0.0)?,
+            ),
+            None => (text, 1.0),
+        };
+        let (width, height) = size.split_once('x')?;
+        let size = Vec2::new(width.parse().ok()?, height.parse().ok()?);
+        Some(Self { size, scale }).filter(Self::fits)
+    }
+
+    pub fn fits(&self) -> bool {
+        let fits = |length: f32| {
+            (1.0..=MAX_PIXELS).contains(&length)
+                && (1.0..=MAX_PIXELS).contains(&(length * self.scale))
+        };
+        fits(self.size.x) && fits(self.size.y)
+    }
+}
+
+pub enum Resize {
+    Window(WindowSize),
+    Screen(Vec2),
+}
 
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct WindowState {
@@ -161,10 +200,18 @@ impl Default for WindowId {
 #[derive(Clone, PartialEq, Eq, Hash, Debug)]
 pub struct HostPlacement(pub String);
 
-#[derive(Clone, PartialEq, Eq, Hash, Debug)]
+#[derive(Clone, Copy, PartialEq, Eq, Debug, Default)]
+pub enum WindowHosting {
+    #[default]
+    None,
+    Placed,
+    Any,
+}
+
+#[derive(Clone, PartialEq, Debug)]
 pub enum WindowPlacement {
     AtPointer,
-    Beside(WindowId),
+    Over { window: WindowId, at: Pos2 },
     Host(HostPlacement),
 }
 
@@ -215,13 +262,29 @@ pub enum WindowReport {
         window: WindowId,
         placement: HostPlacement,
     },
+    Scaled {
+        window: WindowId,
+        pixels_per_point: f32,
+    },
+    Moved {
+        window: WindowId,
+        origin: Pos2,
+    },
     Closed(WindowId),
+    Focused {
+        window: WindowId,
+        focused: bool,
+    },
 }
 
 impl WindowReport {
     pub fn window(&self) -> WindowId {
         match self {
-            Self::Resized { window, .. } | Self::Placed { window, .. } => *window,
+            Self::Resized { window, .. }
+            | Self::Placed { window, .. }
+            | Self::Scaled { window, .. }
+            | Self::Moved { window, .. }
+            | Self::Focused { window, .. } => *window,
             Self::Closed(window) => *window,
         }
     }

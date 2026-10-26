@@ -1,14 +1,23 @@
-use std::collections::BTreeMap;
+use std::{
+    cell::{Cell, RefCell},
+    collections::BTreeMap,
+    future::Future,
+    rc::Rc,
+};
 
 use be_block::{BlockContent, LiveEdit, Merge, Undo, history::History};
 use be_commit::MergeResult;
 use block_type_api::{
-    Change, ChildChange, Command, Description, Event, Plain, PlainFile, ReplicaId, Reply, Request,
-    TypeInfo, decode_frame, encode_frame,
+    Change, ChildChange, ClientId, CommitId, Description, EditorId, Endpoint, FileChange, Merged,
+    Opening, Plain, PlainFile, PublishOutcome, ReplaceChild, ReplicaId, SessionState, TypeInfo,
+    guest::{exports::replicas, host},
+    ops::guest::{self as ops, Executor, Pending, Sender},
+    types::Failure,
 };
 use uuid::Uuid;
 
 pub mod editor;
+mod effect;
 #[cfg(all(target_arch = "wasm32", target_os = "unknown"))]
 mod entropy;
 mod file;
@@ -20,8 +29,9 @@ pub use block_guest_abi as abi;
 pub use block_type_api as api;
 pub use file::{BlobFile, DocumentFile, FileForm};
 pub use record::{NoHistory, Recorder};
-pub use replica::SEAL_INTERVAL;
+pub use replica::{HEARTBEAT_INTERVAL, SEAL_INTERVAL};
 
+use effect::{Answer, Effect, HeadEvent, RequestId};
 use replica::{AnyReplica, Input, Opened, Replica};
 
 type FromFileFn = fn(Option<&[u8]>, &str, Vec<u8>, u64) -> Option<Vec<u8>>;
@@ -157,7 +167,9 @@ pub(crate) fn be_child(change: ChildChange) -> be_block::ChildChange {
     match change {
         ChildChange::Add(block) => be_block::ChildChange::Add(block),
         ChildChange::Delete(block) => be_block::ChildChange::Delete(block),
-        ChildChange::Replace { old, new } => be_block::ChildChange::Replace { old, new },
+        ChildChange::Replace(ReplaceChild { old, new }) => {
+            be_block::ChildChange::Replace { old, new }
+        }
     }
 }
 
@@ -177,290 +189,597 @@ fn describe_bytes<C: BlockContent>(
     Ok(describe(&content, organization))
 }
 
-pub struct Module {
-    types: Vec<Registration>,
+struct State {
     replicas: BTreeMap<ReplicaId, Box<dyn AnyReplica>>,
+    epochs: BTreeMap<ReplicaId, u64>,
     now: u64,
     wake: Option<u64>,
+    sleep: Option<Pending<()>>,
+    waiting: BTreeMap<RequestId, (ReplicaId, Sender<Answer>)>,
+    closing: BTreeMap<ReplicaId, Sender<()>>,
+    requests: RequestId,
+}
+
+struct Shared {
+    types: RefCell<Vec<Registration>>,
+    state: RefCell<State>,
+    started: Cell<bool>,
+}
+
+#[derive(Clone)]
+pub struct Module {
+    shared: Rc<Shared>,
+}
+
+pub struct OpenReplica {
+    module: Module,
+    id: ReplicaId,
 }
 
 impl Module {
     pub fn new(types: Vec<Registration>) -> Self {
         Self {
-            types,
-            replicas: BTreeMap::new(),
-            now: 0,
-            wake: None,
+            shared: Rc::new(Shared {
+                types: RefCell::new(types),
+                state: RefCell::new(State {
+                    replicas: BTreeMap::new(),
+                    epochs: BTreeMap::new(),
+                    now: 0,
+                    wake: None,
+                    sleep: None,
+                    waiting: BTreeMap::new(),
+                    closing: BTreeMap::new(),
+                    requests: 0,
+                }),
+                started: Cell::new(false),
+            }),
         }
     }
 
-    pub fn hello(&self) -> Command {
-        Command::Hello {
-            types: self.types.iter().map(|kind| kind.info.clone()).collect(),
-        }
+    pub fn executor(&self) -> Executor {
+        block_type_api::guest::executor(self.clone())
     }
 
-    pub fn register(&mut self, registration: Registration) {
-        let content_type = registration.info.content_type;
-        match self
+    pub fn types(&self) -> Vec<TypeInfo> {
+        self.shared
             .types
+            .borrow()
+            .iter()
+            .map(|kind| kind.info.clone())
+            .collect()
+    }
+
+    pub fn register(&self, registration: Registration) {
+        let content_type = registration.info.content_type;
+        let mut types = self.shared.types.borrow_mut();
+        match types
             .iter_mut()
             .find(|kind| kind.info.content_type == content_type)
         {
             Some(held) => *held = registration,
-            None => self.types.push(registration),
+            None => types.push(registration),
         }
     }
 
     pub fn knows(&self, content_type: Uuid) -> bool {
-        self.kind(content_type).is_some()
+        self.with_kind(content_type, |_| ()).is_some()
     }
 
-    pub fn is_open(&self, replica: ReplicaId) -> bool {
-        self.replicas.contains_key(&replica)
+    fn with_kind<R>(&self, content_type: Uuid, run: impl FnOnce(&Registration) -> R) -> Option<R> {
+        self.shared
+            .types
+            .borrow()
+            .iter()
+            .find(|kind| kind.info.content_type == content_type)
+            .map(run)
     }
 
-    pub fn handle(&mut self, event: Event) -> Vec<Command> {
+    fn open(&self, replica: ReplicaId, opening: Opening) {
         let mut out = Vec::new();
-        match event {
-            Event::Entropy { seed } => {
-                #[cfg(all(target_arch = "wasm32", target_os = "unknown"))]
-                entropy::seed(seed);
-                #[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
-                let _ = seed;
-            }
-            Event::Tick { now } => {
-                self.now = self.now.max(now);
-                for replica in self.replicas.values_mut() {
-                    replica.tick(self.now, &mut out);
-                }
-            }
-            Event::Open {
+        let now = self.shared.state.borrow().now;
+        let opened = self.with_kind(opening.content_type, |kind| {
+            (kind.open)(Opened {
                 replica,
-                block: _,
-                content_type,
-                organization,
-                client,
-                tag,
-                head,
-                session,
-            } => match self
-                .types
-                .iter()
-                .find(|kind| kind.info.content_type == content_type)
-            {
-                Some(kind) => {
-                    let mut opened = (kind.open)(Opened {
-                        replica,
-                        content_type,
-                        organization,
-                        client,
-                        tag,
-                        head,
-                        session,
-                        from_file: kind.from_file,
-                        now: self.now,
-                    });
-                    opened.start(&mut out);
-                    self.replicas.insert(replica, opened);
-                }
-                None => {
-                    out.push(Command::Error {
-                        replica,
-                        message: format!("this module has no block type {content_type}"),
-                    });
-                    out.push(Command::Release { replica });
-                }
-            },
-            Event::Message {
-                replica,
-                from,
-                bytes,
-            } => self.input(replica, Input::Message { from, bytes }, &mut out),
-            Event::Attach {
-                replica,
-                editor,
-                editable,
-            } => self.input(replica, Input::Attach { editor, editable }, &mut out),
-            Event::Detach { replica, editor } => {
-                self.input(replica, Input::Detach { editor }, &mut out);
-            }
-            Event::Head { replica, event } => self.input(replica, Input::Head(event), &mut out),
-            Event::Lease {
-                replica,
-                session,
-                resynchronize,
-            } => self.input(
-                replica,
-                Input::Lease {
-                    session,
-                    resynchronize,
-                },
-                &mut out,
-            ),
-            Event::Read {
-                replica,
-                token,
-                result,
-            } => self.input(replica, Input::Read { token, result }, &mut out),
-            Event::Resumed {
-                replica,
-                token,
-                result,
-            } => self.input(replica, Input::Resumed { token, result }, &mut out),
-            Event::Close { replica } => self.input(replica, Input::Close, &mut out),
-            Event::Claim { replica } => self.input(replica, Input::Claim, &mut out),
-            Event::Request { id, request } => self.request(id, request, &mut out),
+                content_type: opening.content_type,
+                organization: opening.organization,
+                client: opening.client,
+                tag: opening.tag,
+                head: opening.head,
+                session: opening.session.clone(),
+                from_file: kind.from_file,
+                now,
+            })
+        });
+        let mut state = self.shared.state.borrow_mut();
+        *state.epochs.entry(replica).or_default() += 1;
+        let stale: Vec<RequestId> = state
+            .waiting
+            .iter()
+            .filter(|(_, (held, _))| *held == replica)
+            .map(|(id, _)| *id)
+            .collect();
+        for id in stale {
+            state.waiting.remove(&id);
         }
-        self.replicas.retain(|_, replica| !replica.released());
-        let wake = self
+        match opened {
+            Some(mut opened) => {
+                opened.start(&mut out);
+                state.replicas.insert(replica, opened);
+            }
+            None => {
+                state.replicas.remove(&replica);
+                out.push(Effect::Error {
+                    replica,
+                    message: format!("this module has no block type {}", opening.content_type),
+                });
+                out.push(Effect::Release { replica });
+            }
+        }
+        drop(state);
+        self.run(out);
+    }
+
+    fn input(&self, replica: ReplicaId, input: Input) {
+        let mut out = Vec::new();
+        let unknown = {
+            let mut state = self.shared.state.borrow_mut();
+            let now = state.now;
+            match state.replicas.get_mut(&replica) {
+                Some(open) => {
+                    open.input(now, input, &mut out);
+                    None
+                }
+                None => match input {
+                    Input::Change { id, .. } | Input::Content { id } | Input::Seal { id, .. } => {
+                        Some(id)
+                    }
+                    _ => None,
+                },
+            }
+        };
+        if let Some(id) = unknown {
+            out.push(Effect::Answer {
+                id,
+                answer: Answer::Unknown,
+            });
+        }
+        self.run(out);
+    }
+
+    fn answered(&self, replica: ReplicaId, epoch: u64, input: Input) {
+        let current = self.shared.state.borrow().epochs.get(&replica).copied();
+        if current == Some(epoch) {
+            self.input(replica, input);
+        }
+    }
+
+    fn tick(&self, now: u64) {
+        let mut out = Vec::new();
+        {
+            let mut state = self.shared.state.borrow_mut();
+            state.now = state.now.max(now);
+            let now = state.now;
+            for replica in state.replicas.values_mut() {
+                replica.tick(now, &mut out);
+            }
+        }
+        self.run(out);
+    }
+
+    fn ask(
+        &self,
+        replica: ReplicaId,
+        request: impl FnOnce(RequestId) -> Input,
+    ) -> ops::Oneshot<Answer> {
+        let (answer, answered) = ops::oneshot();
+        let id = {
+            let mut state = self.shared.state.borrow_mut();
+            state.requests += 1;
+            let id = state.requests;
+            state.waiting.insert(id, (replica, answer));
+            id
+        };
+        self.input(replica, request(id));
+        answered
+    }
+
+    fn epoch(&self, replica: ReplicaId) -> u64 {
+        self.shared
+            .state
+            .borrow()
+            .epochs
+            .get(&replica)
+            .copied()
+            .unwrap_or_default()
+    }
+
+    fn answer_later<T: serde::de::DeserializeOwned + 'static>(
+        &self,
+        replica: ReplicaId,
+        pending: Pending<T>,
+        input: impl FnOnce(Result<T, String>) -> Input + 'static,
+    ) {
+        let module = self.clone();
+        let epoch = self.epoch(replica);
+        ops::spawn(async move {
+            let result = pending.await.map_err(|error| error.to_string());
+            module.answered(replica, epoch, input(result));
+        });
+    }
+
+    fn run(&self, effects: Vec<Effect>) {
+        for effect in effects {
+            self.effect(effect);
+        }
+        let mut state = self.shared.state.borrow_mut();
+        state.replicas.retain(|_, replica| !replica.released());
+        let wake = state
             .replicas
             .values()
             .filter_map(|replica| replica.wake_at())
             .min();
-        if wake.is_some() && wake != self.wake {
-            out.push(Command::WakeAt {
-                at: wake.unwrap_or_default(),
-            });
+        if wake != state.wake {
+            state.wake = wake;
+            state.sleep = wake.map(host::sleep_until);
         }
-        self.wake = wake;
-        out
     }
 
-    fn input(&mut self, replica: ReplicaId, input: Input, out: &mut Vec<Command>) {
-        match self.replicas.get_mut(&replica) {
-            Some(open) => open.input(self.now, input, out),
-            None => {
-                if let Input::Change { id, .. } | Input::Content { id } | Input::Seal { id, .. } =
-                    input
-                {
-                    out.push(Command::Reply {
-                        id,
-                        reply: Reply::Unknown,
-                    });
+    fn effect(&self, effect: Effect) {
+        match effect {
+            Effect::Send { replica, to, bytes } => {
+                ops::with_parent(replica, || host::send(to, bytes));
+            }
+            Effect::Publish {
+                replica,
+                token,
+                expected,
+                merging,
+                content,
+            } => {
+                let pending =
+                    ops::with_parent(replica, || host::publish(expected, merging, content));
+                self.answer_later(replica, pending, move |result| {
+                    Input::Head(match result.and_then(|published| published) {
+                        Ok(PublishOutcome::Published(head)) => HeadEvent::Published { token, head },
+                        Ok(PublishOutcome::Rejected(head)) => HeadEvent::Rejected { token, head },
+                        Err(error) => HeadEvent::Failed { token, error },
+                    })
+                });
+            }
+            Effect::Stash {
+                replica,
+                token,
+                parent,
+                content,
+            } => {
+                let pending = ops::with_parent(replica, || host::stash(parent, content));
+                self.answer_later(replica, pending, move |result| {
+                    Input::Head(match result.and_then(|stashed| stashed) {
+                        Ok(commit) => HeadEvent::Stashed { token, commit },
+                        Err(error) => HeadEvent::Failed { token, error },
+                    })
+                });
+            }
+            Effect::Read {
+                replica,
+                token,
+                commit,
+            } => {
+                let pending = ops::with_parent(replica, || host::read(commit, None));
+                self.answer_later(replica, pending, move |result| Input::Read {
+                    token,
+                    result: result.and_then(|read| read),
+                });
+            }
+            Effect::Resume {
+                replica,
+                token,
+                local,
+            } => {
+                let pending = ops::with_parent(replica, || host::resume_session(local));
+                self.answer_later(replica, pending, move |result| Input::Resumed {
+                    token,
+                    result: result.and_then(|resumed| resumed),
+                });
+            }
+            Effect::ClaimLease {
+                replica,
+                generation,
+            } => ops::with_parent(replica, || host::claim_lease(generation)),
+            Effect::ReportClean {
+                replica,
+                generation,
+                clean_at,
+            } => ops::with_parent(replica, || host::report_clean(generation, clean_at)),
+            Effect::Release { replica } => {
+                let closing = self.shared.state.borrow_mut().closing.remove(&replica);
+                ops::end(replica);
+                if let Some(closing) = closing {
+                    closing.send(());
                 }
             }
-        }
-    }
-
-    fn kind(&self, content_type: Uuid) -> Option<&Registration> {
-        self.types
-            .iter()
-            .find(|kind| kind.info.content_type == content_type)
-    }
-
-    fn request(&mut self, id: u64, request: Request, out: &mut Vec<Command>) {
-        let reply = match request {
-            Request::Change { replica, change } => {
-                return self.input(replica, Input::Change { id, change }, out);
+            Effect::Status { replica, status } => {
+                ops::with_parent(replica, || host::report_status(status));
             }
-            Request::Content { replica } => return self.input(replica, Input::Content { id }, out),
-            Request::Seal { replica, force } => {
-                return self.input(replica, Input::Seal { id, force }, out);
-            }
-            Request::Claims {
-                name,
-                first,
-                directory,
-                fallback,
-            } => Reply::Claimed(
-                self.types
-                    .iter()
-                    .find(|kind| match directory {
-                        true => kind.claims_directories && !fallback,
-                        false => {
-                            kind.claims_any_file == fallback
-                                && kind.claims.is_some_and(|claims| claims(&name, &first))
-                        }
-                    })
-                    .map(|kind| kind.info.content_type),
-            ),
-            Request::Apply {
-                content_type,
-                bytes,
-                client,
-                change,
-            } => match self.kind(content_type) {
-                Some(kind) => apply(kind, bytes.as_deref(), client, change),
-                None => Reply::Unknown,
-            },
-            Request::Blank { content_type } => match self.kind(content_type) {
-                Some(kind) => Reply::Blank((kind.blank)()),
-                None => Reply::Unknown,
-            },
-            Request::Merge3 {
-                content_type,
-                base,
+            Effect::Described {
+                replica,
+                description,
+            } => ops::with_parent(replica, || host::described(description)),
+            Effect::History {
+                replica,
+                can_undo,
+                can_redo,
+            } => ops::with_parent(replica, || host::history(can_undo, can_redo)),
+            Effect::Conflict {
+                replica,
                 ours,
                 theirs,
-            } => match self.kind(content_type) {
-                Some(kind) => {
-                    match (kind.merge)(base.as_deref(), ours.as_deref(), theirs.as_deref()) {
-                        Ok((bytes, conflicts)) => Reply::Merged { bytes, conflicts },
-                        Err(error) => Reply::Malformed(error),
-                    }
+                count,
+            } => ops::with_parent(replica, || {
+                host::conflict(ours, theirs, count.try_into().unwrap_or(u32::MAX));
+            }),
+            Effect::Error { replica, message } => {
+                ops::with_parent(replica, || host::error(message));
+            }
+            Effect::Answer { id, answer } => {
+                let waiting = self.shared.state.borrow_mut().waiting.remove(&id);
+                if let Some((_, waiting)) = waiting {
+                    waiting.send(answer);
                 }
-                None => Reply::Unknown,
-            },
-            Request::Describe {
-                content_type,
-                bytes,
-                organization,
-            } => match self.kind(content_type) {
-                Some(kind) => match (kind.describe)(&bytes, organization) {
-                    Ok(description) => Reply::Described(description),
-                    Err(error) => Reply::Malformed(error),
-                },
-                None => Reply::Unknown,
-            },
-            Request::ToFile {
-                content_type,
-                bytes,
-            } => match self.kind(content_type) {
-                Some(kind) => match kind.to_file.map(|to_file| to_file(&bytes)) {
-                    None => Reply::File(None),
-                    Some(Ok(file)) => Reply::File(file),
-                    Some(Err(error)) => Reply::Malformed(error),
-                },
-                None => Reply::Unknown,
-            },
-        };
-        out.push(Command::Reply { id, reply });
+            }
+        }
     }
 }
 
-fn apply(kind: &Registration, bytes: Option<&[u8]>, client: u64, change: Change) -> Reply {
+fn changed(answer: Option<Answer>) -> bool {
+    matches!(answer, Some(Answer::Changed(true)))
+}
+
+impl replicas::Guest for Module {
+    type Replica = OpenReplica;
+
+    fn new_replica(&self, resource: ReplicaId, opening: Opening) -> OpenReplica {
+        self.open(resource, opening);
+        OpenReplica {
+            module: self.clone(),
+            id: resource,
+        }
+    }
+
+    fn start(&self, entropy: Vec<u8>) -> Vec<TypeInfo> {
+        #[cfg(all(target_arch = "wasm32", target_os = "unknown"))]
+        {
+            let mut seed = [0u8; 32];
+            for (held, byte) in seed.iter_mut().zip(entropy) {
+                *held = byte;
+            }
+            entropy::seed(seed);
+        }
+        #[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
+        let _ = entropy;
+        if !self.shared.started.replace(true) {
+            let module = self.clone();
+            ops::spawn(async move {
+                let mut clock = host::clock();
+                while let Some(now) = clock.recv().await {
+                    module.tick(now);
+                }
+            });
+        }
+        self.types()
+    }
+
+    fn blank(&self, content_type: Uuid) -> Result<Vec<u8>, Failure> {
+        self.with_kind(content_type, |kind| (kind.blank)())
+            .ok_or(Failure::UnknownType)
+    }
+
+    fn merge3(
+        &self,
+        content_type: Uuid,
+        base: Option<Vec<u8>>,
+        ours: Option<Vec<u8>>,
+        theirs: Option<Vec<u8>>,
+    ) -> Result<Merged, Failure> {
+        self.with_kind(content_type, |kind| {
+            (kind.merge)(base.as_deref(), ours.as_deref(), theirs.as_deref())
+        })
+        .ok_or(Failure::UnknownType)?
+        .map(|(bytes, conflicts)| Merged {
+            bytes,
+            conflicts: conflicts.try_into().unwrap_or(u32::MAX),
+        })
+        .map_err(Failure::Malformed)
+    }
+
+    fn describe(
+        &self,
+        content_type: Uuid,
+        bytes: Vec<u8>,
+        organization: Uuid,
+    ) -> Result<Description, Failure> {
+        self.with_kind(content_type, |kind| (kind.describe)(&bytes, organization))
+            .ok_or(Failure::UnknownType)?
+            .map_err(Failure::Malformed)
+    }
+
+    fn to_file(&self, content_type: Uuid, bytes: Vec<u8>) -> Result<Option<PlainFile>, Failure> {
+        match self.with_kind(content_type, |kind| {
+            kind.to_file.map(|to_file| to_file(&bytes))
+        }) {
+            None => Err(Failure::UnknownType),
+            Some(None) => Ok(None),
+            Some(Some(file)) => file.map_err(Failure::Malformed),
+        }
+    }
+
+    fn claims(
+        &self,
+        name: String,
+        first: Vec<u8>,
+        directory: bool,
+        fallback: bool,
+    ) -> Option<Uuid> {
+        self.shared
+            .types
+            .borrow()
+            .iter()
+            .find(|kind| match directory {
+                true => kind.claims_directories && !fallback,
+                false => {
+                    kind.claims_any_file == fallback
+                        && kind.claims.is_some_and(|claims| claims(&name, &first))
+                }
+            })
+            .map(|kind| kind.info.content_type)
+    }
+
+    fn apply(
+        &self,
+        content_type: Uuid,
+        bytes: Option<Vec<u8>>,
+        client: ClientId,
+        change: Change,
+    ) -> Result<Option<Vec<u8>>, Failure> {
+        self.with_kind(content_type, |kind| {
+            apply(kind, bytes.as_deref(), client, change)
+        })
+        .ok_or(Failure::UnknownType)?
+    }
+}
+
+impl replicas::GuestReplica for OpenReplica {
+    fn reopen(&self, opening: Opening) {
+        self.module.open(self.id, opening);
+    }
+
+    fn message(&self, from: Endpoint, bytes: Vec<u8>) {
+        self.module.input(self.id, Input::Message { from, bytes });
+    }
+
+    fn attach(&self, editor: EditorId, editable: bool) {
+        self.module
+            .input(self.id, Input::Attach { editor, editable });
+    }
+
+    fn detach(&self, editor: EditorId) {
+        self.module.input(self.id, Input::Detach { editor });
+    }
+
+    fn head_moved(&self, head: CommitId, from_this_device: bool) {
+        self.module.input(
+            self.id,
+            Input::Head(HeadEvent::Moved {
+                head,
+                from_this_device,
+            }),
+        );
+    }
+
+    fn lease(&self, session: SessionState, resynchronize: bool) {
+        self.module.input(
+            self.id,
+            Input::Lease {
+                session,
+                resynchronize,
+            },
+        );
+    }
+
+    fn claim(&self) {
+        self.module.input(self.id, Input::Claim);
+    }
+
+    fn change(&self, change: Change) -> impl Future<Output = bool> + 'static {
+        let answered = self.module.ask(self.id, |id| Input::Change { id, change });
+        async move { changed(answered.await) }
+    }
+
+    fn content(&self) -> impl Future<Output = Option<Vec<u8>>> + 'static {
+        let answered = self.module.ask(self.id, |id| Input::Content { id });
+        async move {
+            match answered.await {
+                Some(Answer::Content(bytes)) => Some(bytes),
+                _ => None,
+            }
+        }
+    }
+
+    fn seal(&self, force: bool) -> impl Future<Output = ()> + 'static {
+        let answered = self.module.ask(self.id, |id| Input::Seal { id, force });
+        async move {
+            answered.await;
+        }
+    }
+
+    fn on_drop(&self) -> impl Future<Output = ()> + 'static {
+        let (closed, closing) = ops::oneshot();
+        let open = {
+            let mut state = self.module.shared.state.borrow_mut();
+            let open = state.replicas.contains_key(&self.id);
+            if open {
+                state.closing.insert(self.id, closed);
+            }
+            open
+        };
+        if open {
+            self.module.input(self.id, Input::Close);
+        }
+        async move {
+            if open {
+                closing.await;
+            }
+        }
+    }
+}
+
+fn apply(
+    kind: &Registration,
+    bytes: Option<&[u8]>,
+    client: u64,
+    change: Change,
+) -> Result<Option<Vec<u8>>, Failure> {
     let applied = match change {
         Change::Child(change) => (kind.child)(bytes, change),
-        Change::FromFile { name, bytes: file } => match kind.from_file {
+        Change::FromFile(FileChange { name, bytes: file }) => match kind.from_file {
             Some(from_file) => Ok(from_file(bytes, &name, file, client)),
             None => Ok(None),
         },
-        Change::Replace(_) | Change::Undo | Change::Redo => return Reply::Unknown,
+        Change::Replace(_) | Change::Undo | Change::Redo => return Err(Failure::UnknownType),
     };
-    match applied {
-        Ok(Some(bytes)) => Reply::Content(bytes),
-        Ok(None) => Reply::Changed(false),
-        Err(error) => Reply::Malformed(error),
+    applied.map_err(Failure::Malformed)
+}
+
+pub struct Serving {
+    module: Module,
+    executor: Executor,
+}
+
+impl Serving {
+    pub fn new(module: Module) -> Self {
+        let executor = module.executor();
+        Self { module, executor }
+    }
+
+    pub fn module(&self) -> &Module {
+        &self.module
+    }
+
+    pub fn step(&self, inbound: Vec<Vec<u8>>, outbound: &mut Vec<Vec<u8>>) {
+        if let Err(error) = self.executor.step(inbound, outbound) {
+            self.executor
+                .enter(|| host::error(format!("a frame did not decode: {error}")));
+            let _ = self.executor.step(Vec::new(), outbound);
+        }
     }
 }
 
-impl Module {
-    pub fn hello_frame(&self) -> Vec<u8> {
-        encode_frame(&self.hello())
-    }
-
-    pub fn step(&mut self, frames: Vec<Vec<u8>>, outbound: &mut Vec<Vec<u8>>) {
-        for frame in frames {
-            match decode_frame::<Event>(&frame) {
-                Ok(event) => outbound.extend(self.handle(event).iter().map(encode_frame)),
-                Err(error) => outbound.push(encode_frame(&Command::Error {
-                    replica: 0,
-                    message: error.to_string(),
-                })),
-            }
-        }
-    }
+#[macro_export]
+macro_rules! type_module {
+    ($guest:ty) => {
+        $crate::api::export_type_module!();
+        $crate::abi::guest!($guest, __register_type_module);
+    };
 }
 
 #[macro_export]
@@ -476,16 +795,14 @@ macro_rules! be_block_types {
             $crate::Module::new(registrations())
         }
 
-        pub struct BlockTypes($crate::Module);
+        pub struct BlockTypes($crate::Serving);
 
         impl $crate::abi::Guest for BlockTypes {
             fn start(
                 _: $crate::abi::Waker,
-                outbound: &mut ::std::vec::Vec<::std::vec::Vec<u8>>,
+                _: &mut ::std::vec::Vec<::std::vec::Vec<u8>>,
             ) -> ::std::result::Result<Self, ::std::string::String> {
-                let module = block_types();
-                outbound.push(module.hello_frame());
-                ::std::result::Result::Ok(Self(module))
+                ::std::result::Result::Ok(Self($crate::Serving::new(block_types())))
             }
 
             fn step(

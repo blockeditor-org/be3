@@ -28,7 +28,9 @@ fn placement(rect: Rect, clip: Rect) -> RegionPlacement {
         rect,
         clip,
         zoom: 1.0,
-        screens: Vec::new(),
+        raster: None,
+        windows: false,
+        placement: None,
     }
 }
 
@@ -61,7 +63,7 @@ fn a_preview_shown_twice_is_drawn_whole_at_its_larger_place() {
         host.runtimes
             .insert(plugin.identity.id.clone(), Runtime::new(&plugin, 0));
     });
-    let block_types = Arc::new(block_plugin_api::Catalog::default());
+    let block_types = Arc::new(crate::editors::PluginCatalog::default());
     let role = InstanceRole::Editor(
         Uuid::nil(),
         EditorBlock {

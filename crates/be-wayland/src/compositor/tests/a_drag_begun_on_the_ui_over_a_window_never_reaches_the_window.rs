@@ -35,11 +35,11 @@ fn Covered(windows: Windows) -> NodeId {
                     HEARD.with(|heard| heard.borrow_mut().extend(buttons));
                 }}
             >
-                <Frame width={SCREEN.x} height={SCREEN.y} />
+                <Frame width={Size::Custom(SCREEN.x)} height={Size::Custom(SCREEN.y)} />
             </Interactive>
-            <List spacing=0.0>
+            <List spacing=Space::None>
                 <ForEach keys={ids}>|id: WindowId|
-                    <Frame width={SHOWN.x} height={SHOWN.y}>
+                    <Frame width={Size::Custom(SHOWN.x)} height={Size::Custom(SHOWN.y)}>
                         <WindowView windows id occluders={vec![tab()]} />
                     </Frame>
                 </ForEach>

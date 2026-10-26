@@ -47,7 +47,6 @@ use smithay::input::pointer::{
     AxisFrame, ButtonEvent, CursorImageStatus, Focus, MotionEvent, PointerHandle,
 };
 use smithay::input::{Seat, SeatHandler, SeatState};
-use smithay::output::{Mode, Output, PhysicalProperties, Scale, Subpixel};
 use smithay::reexports::calloop::LoopHandle;
 use smithay::reexports::wayland_protocols::xdg::shell::server::xdg_toplevel;
 use smithay::reexports::wayland_server::backend::{ClientData, ClientId, DisconnectReason};
@@ -114,6 +113,7 @@ pub(crate) struct ClientWindow {
     pub(crate) maximized: bool,
     pub(crate) position: Point<i32, Logical>,
     pub(crate) chosen: Option<Size<i32, Logical>>,
+    pub(crate) entered: Option<String>,
 }
 
 #[derive(Default)]
@@ -151,7 +151,7 @@ pub struct State {
     seat_state: SeatState<State>,
     pub(crate) selection: Selection,
     pub(crate) seat: Seat<State>,
-    pub(crate) output: Output,
+    pub(crate) heads: Vec<crate::heads::Head>,
     popups: PopupManager,
     popup_grab: Option<PopupGrab<State>>,
     pub(crate) windows: Vec<ClientWindow>,
@@ -159,9 +159,7 @@ pub struct State {
     pub(crate) events: Vec<ServerEvent>,
     committed: Vec<WlSurface>,
     pub(crate) cursor: CursorImageStatus,
-    pub(crate) scale: i32,
-    size: Size<i32, Logical>,
-    screens: Vec<Rectangle<i32, Logical>>,
+    fullscreen_on: Vec<(WindowId, Rectangle<i32, Logical>)>,
     pub(crate) pointer_window: Option<WindowId>,
     buttons: Vec<u32>,
     pub(crate) keyboard_window: Option<WindowId>,
@@ -221,18 +219,8 @@ impl State {
         seat.add_keyboard(XkbConfig::default(), 600, 25)
             .expect("the default keymap compiles");
         seat.add_pointer();
-        let output = Output::new(
-            "be-wayland".to_owned(),
-            PhysicalProperties {
-                size: (0, 0).into(),
-                subpixel: Subpixel::Unknown,
-                make: "BE3".to_owned(),
-                model: "Nested".to_owned(),
-            },
-        );
-        output.create_global::<Self>(handle);
         let xwayland = XWaylandState::new(handle, loop_handle);
-        let state = Self {
+        let mut state = Self {
             waiter,
             blocked: Vec::new(),
             dmabuf: DmabufState::new(),
@@ -255,7 +243,7 @@ impl State {
             seat_state,
             selection,
             seat,
-            output,
+            heads: Vec::new(),
             popups: PopupManager::default(),
             popup_grab: None,
             windows: Vec::new(),
@@ -263,9 +251,7 @@ impl State {
             events: Vec::new(),
             committed: Vec::new(),
             cursor: CursorImageStatus::default_named(),
-            scale: 1,
-            size: Size::from((1280, 800)),
-            screens: Vec::new(),
+            fullscreen_on: Vec::new(),
             pointer_window: None,
             buttons: Vec::new(),
             keyboard_window: None,
@@ -276,7 +262,12 @@ impl State {
             tablet: crate::tablet::Tablet::new(handle),
             touch: crate::touch::Touch::default(),
         };
-        state.set_output(state.size, state.scale);
+        state.set_heads(vec![crate::heads::HeadSpec {
+            id: "be-wayland".to_owned(),
+            name: "Nested".to_owned(),
+            rect: Rectangle::from_size((1280, 800).into()),
+            scale: 1,
+        }]);
         state
     }
 
@@ -513,56 +504,6 @@ impl State {
         self.window_of_root(&parent).map(|window| window.id)
     }
 
-    pub fn set_output(&self, size: Size<i32, Logical>, scale: i32) {
-        let mode = Mode {
-            size: (size.w.max(1) * scale, size.h.max(1) * scale).into(),
-            refresh: 60_000,
-        };
-        self.output.change_current_state(
-            Some(mode),
-            Some(Transform::Normal),
-            Some(Scale::Integer(scale)),
-            Some((0, 0).into()),
-        );
-        self.output.set_preferred(mode);
-    }
-
-    pub fn set_scale(&mut self, scale: i32, size: Size<i32, Logical>) {
-        if (scale, size) == (self.scale, self.size) {
-            return;
-        }
-        self.set_output(size, scale);
-        self.size = size;
-        if scale == self.scale {
-            return;
-        }
-        self.scale = scale;
-        for window in &self.windows {
-            window.window.with_surfaces(|surface, data| {
-                send_surface_state(surface, data, scale, Transform::Normal);
-            });
-        }
-    }
-
-    pub fn set_screens(&mut self, screens: Vec<Rectangle<i32, Logical>>) {
-        self.screens = screens;
-    }
-
-    fn screen_of(&self, window: Rectangle<i32, Logical>) -> Rectangle<i32, Logical> {
-        let output = Rectangle::from_size(self.size);
-        let shown = |screen: &Rectangle<i32, Logical>| {
-            screen
-                .intersection(window)
-                .map_or(0, |overlap| overlap.size.w * overlap.size.h)
-        };
-        self.screens
-            .iter()
-            .copied()
-            .max_by_key(shown)
-            .filter(|screen| shown(screen) > 0)
-            .unwrap_or(output)
-    }
-
     pub(crate) fn find(&self, id: WindowId) -> Option<&ClientWindow> {
         self.windows.iter().find(|window| window.id == id)
     }
@@ -629,6 +570,15 @@ impl State {
             window.position = position;
         }
         self.place_x11(id);
+        self.follow_heads();
+    }
+
+    pub fn take_fullscreen_output(&mut self, id: WindowId) -> Option<Rectangle<i32, Logical>> {
+        let at = self
+            .fullscreen_on
+            .iter()
+            .position(|(held, _)| *held == id)?;
+        Some(self.fullscreen_on.remove(at).1)
     }
 
     pub fn fullscreen(&self, id: WindowId) -> bool {
@@ -705,7 +655,7 @@ impl State {
                     window.window.geometry().size,
                 ))
             })
-            .unwrap_or_else(|| Rectangle::from_size(self.size));
+            .unwrap_or_else(|| self.first_screen());
         toplevel.with_pending_state(|state| {
             set_state(state, xdg_toplevel::State::Fullscreen, fullscreen);
             set_state(state, xdg_toplevel::State::Maximized, maximized);
@@ -867,19 +817,15 @@ impl State {
         layers
     }
 
-    pub(crate) fn output(&self) -> &Output {
-        &self.output
-    }
-
     pub fn send_frames(&self, id: WindowId, time: Duration) {
-        let Some(window) = self.find(id) else {
+        let (Some(window), Some(output)) = (self.find(id), self.output_of(id)) else {
             return;
         };
-        let output = self.output.clone();
+        let sent = output.clone();
         window
             .window
-            .send_frame(&self.output, time, Some(Duration::ZERO), |_, _| {
-                Some(output.clone())
+            .send_frame(&output, time, Some(Duration::ZERO), |_, _| {
+                Some(sent.clone())
             });
         self.send_overlay_frames(id, time);
     }
@@ -1053,11 +999,7 @@ impl State {
     }
 
     fn opened(&mut self, toplevel: ToplevelSurface) {
-        let screen = self
-            .screens
-            .first()
-            .copied()
-            .unwrap_or_else(|| Rectangle::from_size(self.size));
+        let screen = self.first_screen();
         toplevel.with_pending_state(|state| state.bounds = Some(screen.size));
         let id = WindowId(self.next_window);
         self.next_window += 1;
@@ -1069,6 +1011,7 @@ impl State {
             maximized: false,
             position: Point::default(),
             chosen: None,
+            entered: None,
         });
         self.events.push(ServerEvent::Opened(id));
     }
@@ -1096,10 +1039,13 @@ impl State {
         };
         let id = window.id;
         window.window.on_commit();
-        let output = self.output.clone();
-        let scale = self.scale;
+        let output = self.output_of(id);
+        let scale = self.scale_of(id);
+        let window = self.find(id).expect("the window committed");
         window.window.with_surfaces(|surface, data| {
-            output.enter(surface);
+            if let Some(output) = &output {
+                output.enter(surface);
+            }
             send_surface_state(surface, data, scale, Transform::Normal);
         });
         if let Some(toplevel) = window.window.toplevel()
@@ -1416,8 +1362,13 @@ impl XdgShellHandler for State {
     fn fullscreen_request(
         &mut self,
         surface: ToplevelSurface,
-        _output: Option<smithay::reexports::wayland_server::protocol::wl_output::WlOutput>,
+        output: Option<smithay::reexports::wayland_server::protocol::wl_output::WlOutput>,
     ) {
+        let on = output.and_then(|output| self.head_named(&output));
+        if let (Some(on), Some(window)) = (on, self.window_of(&surface).map(|window| window.id)) {
+            self.fullscreen_on.retain(|(held, _)| *held != window);
+            self.fullscreen_on.push((window, on));
+        }
         self.request_fullscreen(&surface, true);
     }
 

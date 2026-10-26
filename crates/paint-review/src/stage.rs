@@ -1,15 +1,13 @@
-use beui::Wrap;
 use beui::reactive::*;
 use beui::styled::*;
-use beui::unstyled::{Container, PanZoom, PanZoomHandle, PanZoomView, Picture};
 use beui::{ImageFit, NodeId, Vec2, pos2};
 
 use crate::images::ImageState;
 use crate::review::{Mode, Review};
 
 const GAP: f32 = 24.0;
-const MESSAGE_PADDING: f32 = 24.0;
-const MESSAGE_SPACING: f32 = 8.0;
+const MESSAGE_PADDING: Space = Space::Xl3;
+const MESSAGE_SPACING: Space = Space::Md;
 
 #[component]
 pub(crate) fn Stage(review: Review) -> NodeId {
@@ -136,22 +134,25 @@ pub(crate) fn Stage(review: Review) -> NodeId {
                         }</PanZoom>
                         <Show condition={side_by_side}>
                             <Frame align={Align2::new(Align::Center, Align::Start)}>
-                                <Frame padding={Sides::all(MESSAGE_PADDING / 2.0)}>
+                                <Frame padding=Space::Lg>
                                     <Text style=TextStyle::CAPTION>
                                         "Before on the left, after on the right"
                                     </Text>
                                 </Frame>
                             </Frame>
                         </Show>
-                        <Frame align=Align::Center padding={Sides::all(MESSAGE_PADDING)}>
-                            <List spacing=0.0>
+                        <Frame align=Align::Center padding=MESSAGE_PADDING>
+                            <List spacing=Space::None>
                                 <Show condition={loading}>
                                     <List
                                         align=Align::Center
                                         spacing=MESSAGE_SPACING
                                         @test_id={"paint_review.image.loading"}
                                     >
-                                        <Spinner label="Loading the image" />
+                                        <Progress
+                                            width=INLINE_PROGRESS_WIDTH
+                                            label="Loading the image"
+                                        />
                                         <Text style=TextStyle::CAPTION>"Loading the image"</Text>
                                     </List>
                                 </Show>
@@ -166,7 +167,6 @@ pub(crate) fn Stage(review: Review) -> NodeId {
                                 <Show condition={failed}>
                                     <Text
                                         color=TextColor::Danger
-                                        wrap=Wrap::Words
                                         @test_id={"paint_review.image.failed"}
                                     >
                                         {reason}
@@ -174,11 +174,8 @@ pub(crate) fn Stage(review: Review) -> NodeId {
                                 </Show>
                             </List>
                         </Frame>
-                        <Frame
-                            align={Align2::new(Align::End, Align::End)}
-                            padding={Sides::all(12.0)}
-                        >
-                            <List direction=Direction::Horizontal spacing=8.0>
+                        <Frame align={Align2::new(Align::End, Align::End)} padding=Space::Lg>
+                            <List direction=Direction::Horizontal spacing=Space::Md>
                                 <Button
                                     variant=ButtonVariant::Secondary
                                     label="Fit"

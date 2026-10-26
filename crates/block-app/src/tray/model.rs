@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use block_plugin_api::{
-    HostImage, HostTrayItem, MAX_MENU_DEPTH, TrayMenuEntry, TrayStatus, TrayToggle,
+    HostImage, HostTrayItem, MAX_MENU_DEPTH, TrayMenuItem, TrayStatus, TrayToggle,
 };
 use image::imageops::FilterType;
 use zbus::zvariant::{OwnedValue, Value};
@@ -302,17 +302,33 @@ fn raw_child<'a>(value: &'a Value<'a>, depth: usize) -> Option<RawEntry> {
     Some(raw_entry(*id, properties, children.inner().iter(), depth))
 }
 
-pub(super) fn menu(root: &RawEntry) -> Vec<TrayMenuEntry> {
-    root.children.iter().filter_map(entry).collect()
+pub(super) fn menu(root: &RawEntry) -> Vec<TrayMenuItem> {
+    let mut items = Vec::new();
+    flatten(root, 0, &mut items);
+    items
 }
 
-fn entry(raw: &RawEntry) -> Option<TrayMenuEntry> {
+fn flatten(parent: &RawEntry, depth: u32, items: &mut Vec<TrayMenuItem>) {
+    for raw in &parent.children {
+        let Some(item) = entry(raw, depth) else {
+            continue;
+        };
+        let separator = item.separator;
+        items.push(item);
+        if !separator {
+            flatten(raw, depth + 1, items);
+        }
+    }
+}
+
+fn entry(raw: &RawEntry, depth: u32) -> Option<TrayMenuItem> {
     if raw.visible == Some(false) {
         return None;
     }
     let separator = raw.kind == "separator";
     let on = raw.toggle_state == Some(1);
-    Some(TrayMenuEntry {
+    Some(TrayMenuItem {
+        depth,
         id: raw.id,
         label: match separator {
             true => String::new(),
@@ -324,10 +340,6 @@ fn entry(raw: &RawEntry) -> Option<TrayMenuEntry> {
             "checkmark" => TrayToggle::Check(on),
             "radio" => TrayToggle::Radio(on),
             _ => TrayToggle::None,
-        },
-        children: match separator {
-            true => Vec::new(),
-            false => menu(raw),
         },
     })
 }
@@ -354,7 +366,7 @@ pub(super) struct Item {
     pub(super) owner: String,
     pub(super) properties: Option<Properties>,
     pub(super) icon: Option<HostImage>,
-    pub(super) menu: Vec<TrayMenuEntry>,
+    pub(super) menu: Vec<TrayMenuItem>,
     pub(super) asked: u64,
     pub(super) menu_asked: u64,
 }

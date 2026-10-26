@@ -1,4 +1,3 @@
-use beui::Wrap;
 use std::time::Duration;
 
 use block_editor_beui::beui::NodeId;
@@ -6,16 +5,14 @@ use block_editor_beui::beui::datetime::{HourCycle, Time};
 use block_editor_beui::beui::icons::{ICON_BELL, ICON_BELL_RING, ICON_X};
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
-use block_editor_beui::beui::unstyled::PopoverHandle;
 
 use super::{DesktopNotifications, Listed};
 use crate::app::bar::local_minutes;
 use crate::app::popup::BarPopup;
 
-pub(crate) const NOTIFICATIONS_WIDTH: f32 = 360.0;
-const LIST_HEIGHT: f32 = 420.0;
-const SPACING: f32 = 8.0;
-const ROW_SPACING: f32 = 2.0;
+const LIST_HEIGHT: Size = Size::Custom(420.0);
+const SPACING: Space = Space::Md;
+const ROW_SPACING: Space = Space::Xs2;
 
 fn received_at(received: u64) -> String {
     let minutes = local_minutes(Duration::from_secs(received));
@@ -38,7 +35,6 @@ pub(crate) fn NotificationsButton(notifications: DesktopNotifications) -> NodeId
             label
             glyph
             icon_only=true
-            width=NOTIFICATIONS_WIDTH
             @test_id={"desktop.notifications"}
             open={notifications.browsing()}
         >|handle: PopoverHandle|
@@ -136,23 +132,20 @@ fn NotificationRow(
             >
                 <List spacing=ROW_SPACING>
                     <Text style=TextStyle::CAPTION>{source}</Text>
-                    <Text color={summary_color} weight=Weight::Bold wrap=Wrap::Words>
-                        {summary}
-                    </Text>
+                    <Text color={summary_color} weight=Weight::Bold>{summary}</Text>
                     <Show condition={said}>|| {
                         let body = body.clone(); view! {
-                            <Text size=TextSize::Sm color={body_color} wrap=Wrap::Words>
-                                {body}
-                            </Text>
+                            <Text size=TextSize::Sm color={body_color}>{body}</Text>
                         }
                     }</Show>
                 </List>
             </ListRow>
-            <IconButton
+            <Button
+                icon_only=true
                 glyph=ICON_X
                 label="Dismiss"
                 variant=ButtonVariant::Ghost
-                size=IconButtonSize::Compact
+                size=ButtonSize::Small
                 @test_id={format!("desktop.notifications.{id}.dismiss")}
                 on_click={move || notifications.dismiss(&[id])}
             />

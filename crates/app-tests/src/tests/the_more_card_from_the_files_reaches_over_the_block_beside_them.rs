@@ -28,14 +28,14 @@ fn the_more_card_from_the_files_reaches_over_the_block_beside_them() {
         block_x + block_width - 24.0,
         block_y + block_height - 24.0
     );
-    app.run(&["click", &beside]);
+    app.run(&["app", "click", &beside]);
     assert!(
         app.shown("#picker.search"),
         "a press on the block beside the card leaves it open"
     );
 
     let above = format!("{},{}", files_x + files_width / 2.0, files_y + 8.0);
-    app.run(&["click", &above]);
+    app.run(&["app", "click", &above]);
     app.gone("#picker.search");
     app.close();
 }

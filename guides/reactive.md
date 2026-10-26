@@ -3,7 +3,7 @@
 `crates/reactive` provides a dependency-free, single-threaded reactive graph. It
 is intended for retained UI bindings: create a node once, then use an effect to
 update its properties when the values it reads change. `beui::reactive` (in
-`crates/beui-tree` and `crates/beui-view/src/reactive.rs`) is the adapter that
+`crates/beui-tree` and `crates/beui-view/src/reactive.rs`) is the glue that
 connects it to beui's components and `Document`; see "beui integration" below.
 
 ## Example
@@ -322,7 +322,7 @@ the host has sent it once, and `ready()` is that state on its own.
 
 An editor shows nothing it would have to correct a moment later: not an empty
 or editable view before its content arrives, and not a placeholder ("no rows")
-that the next answer replaces. Every `BeuiApp::view` and `preview_view` wraps
+that the next answer replaces. Every `BeuiApp::View` and `Preview` wraps
 its component in `<Loaded label="...">`, the editor's `Loading` boundary (see
 Loading, below): it waits for whatever its content reads. The sources that
 wait are the editor's own: a projection of a block's content
@@ -486,7 +486,7 @@ document is installed, which is what lets a signal be written from anywhere on
 the thread: a write made while another document is installed, or none, does
 not run this document's effects outside it, and the document catches up the
 next time it is shown. Each document registers a wake for its zone with the
-`Context` that shows it, and the context passes it to the adapter's `Waker`,
+`Context` that shows it, and the context passes it to the platform's `Waker`,
 so the window draws a frame without the writer asking. A wake raised during a
 frame is held until the frame ends, and asks for one more frame only if the
 zone still has effects waiting, since a document shown later in the same frame
@@ -781,8 +781,8 @@ fn Legend(entries: Children<Note>) -> NodeId {
 ```
 
 A `Run<T>` is cheap to clone and fills a `Children<T>` slot again, which is how
-one set of options reaches two controls: `styled::ResponsiveTabs` hands the same
-run to its tabs and to the select it collapses into.
+one set of options reaches two controls: `styled::Tabs` hands the same run to
+its tab list and to the select it collapses into.
 
 ```rust
 let toolbar = view! {

@@ -8,13 +8,14 @@ use be_wayland::{Compositor, Launch, Server, WindowId, WindowView, Windows};
 use beui::reactive::*;
 use beui::styled::*;
 use beui::{Context, Document, NodeId, Rect, Setup};
-use block_plugin_api::{HostImage, HostProgram, HostWindow, HostWindowId, Size, WindowOrigin};
+use block_plugin_api::{HostImage, HostProgram, HostWindow, HostWindowId, WindowOrigin};
 
 struct Running {
     compositor: Compositor,
-    cursor: Option<beui_adapter_drm::SoftwareCursor>,
-    display: Option<beui_adapter_drm::DisplayControl>,
-    flips: Option<beui_adapter_drm::Flips>,
+    cursor: Option<beui_platform_drm::SoftwareCursor>,
+    display: Option<beui_platform_drm::DisplayControl>,
+    flips: Option<beui_platform_drm::Flips>,
+    displays: Option<beui_platform_drm::Displays>,
     blanked: bool,
     lock_due: bool,
     lock_noticed: bool,
@@ -97,18 +98,23 @@ pub(crate) fn start(setup: &Setup) {
         gpu.format,
         setup.waker.clone(),
     );
-    let cursor = setup.get::<beui_adapter_drm::SoftwareCursor>().cloned();
-    let display = setup.get::<beui_adapter_drm::DisplayControl>().cloned();
-    let flips = setup.get::<beui_adapter_drm::Flips>().cloned();
+    let cursor = setup.get::<beui_platform_drm::SoftwareCursor>().cloned();
+    let display = setup.get::<beui_platform_drm::DisplayControl>().cloned();
+    let flips = setup.get::<beui_platform_drm::Flips>().cloned();
     if flips.is_some() {
         compositor.pace_to_flips();
     }
+    if let Some(beui_platform_drm::Loop(handle)) = setup.get::<beui_platform_drm::Loop>() {
+        compositor.join_loop(handle);
+    }
+    let displays = setup.get::<beui_platform_drm::Displays>().cloned();
     RUNNING.with(|running| {
         *running.borrow_mut() = Some(Running {
             compositor,
             cursor,
             display,
             flips,
+            displays,
             blanked: false,
             lock_due: false,
             lock_noticed: false,
@@ -136,30 +142,39 @@ pub(crate) fn running() -> bool {
     with(|_| ()).is_some()
 }
 
-pub(crate) fn before(context: &Context, rect: Rect, document: &mut Document) {
+pub(crate) fn before(context: &Context, rect: Rect, _document: &mut Document) {
     with(|running| {
-        running.compositor.set_screens(
-            document
-                .screens()
-                .into_iter()
-                .map(|screen| screen.rect)
-                .collect(),
-        );
+        let monitors: Vec<be_wayland::Monitor> = running
+            .displays
+            .as_ref()
+            .map(|displays| {
+                displays
+                    .displays()
+                    .into_iter()
+                    .map(|display| be_wayland::Monitor {
+                        rect: display.rect(),
+                        id: display.id,
+                        name: display.name,
+                        scale: display.scale,
+                    })
+                    .collect()
+            })
+            .unwrap_or_default();
         if running
             .display
             .as_ref()
-            .is_some_and(beui_adapter_drm::DisplayControl::take_woken)
+            .is_some_and(beui_platform_drm::DisplayControl::take_woken)
         {
             running.compositor.woke();
         }
         if let Some(flips) = &running.flips {
-            let screens = document.screens();
             for flip in flips.take() {
-                let Some(screen) = screens.iter().find(|screen| screen.id == flip.screen) else {
+                let Some(monitor) = monitors.iter().find(|monitor| monitor.id == flip.screen)
+                else {
                     continue;
                 };
                 running.compositor.presented(
-                    screen.rect,
+                    monitor.rect,
                     be_wayland::Presented {
                         time: flip.time,
                         refresh: flip.refresh,
@@ -170,6 +185,7 @@ pub(crate) fn before(context: &Context, rect: Rect, document: &mut Document) {
                 );
             }
         }
+        running.compositor.set_monitors(monitors);
         running.compositor.before(context, rect);
     });
 }
@@ -195,7 +211,7 @@ pub(crate) fn after(context: &Context, document: &mut Document) {
         }
         if let Some(cursor) = &running.cursor {
             cursor.set(running.compositor.cursor_image().map(|image| {
-                beui_adapter_drm::CursorImage {
+                beui_platform_drm::CursorImage {
                     texture: image.texture,
                     size: image.size,
                     hotspot: image.hotspot,
@@ -277,10 +293,7 @@ pub(crate) fn listed(hidden: &[HostWindowId]) -> Vec<HostWindow> {
                     .filter(|parent| !opening.contains(parent))
                     .map(|parent| HostWindowId(parent.0)),
                 modal: info.modal,
-                size: Size {
-                    width: info.size.x,
-                    height: info.size.y,
-                },
+                size: info.size,
                 fullscreen: info.fullscreen,
                 responding: info.responding,
                 focused: windows.focused() == Some(info.id),

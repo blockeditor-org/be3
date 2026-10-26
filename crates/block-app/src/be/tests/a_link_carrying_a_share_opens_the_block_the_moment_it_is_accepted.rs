@@ -24,7 +24,7 @@ fn a_link_carrying_a_share_opens_the_block_the_moment_it_is_accepted() {
     );
     runtime
         .block_on(be_client::contacts::accept_link(
-            peer.connection(),
+            &peer.connection(),
             &guest.phrase.secret(),
             &guest.me().card(),
             &code,

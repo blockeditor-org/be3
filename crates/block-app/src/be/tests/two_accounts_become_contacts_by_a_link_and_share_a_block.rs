@@ -17,19 +17,19 @@ fn two_accounts_become_contacts_by_a_link_and_share_a_block() {
     let runtime = runtime();
     let peer = runtime.block_on(guest.peer(&harness.url, personal));
     let (_, card) = runtime
-        .block_on(be_client::contacts::open_link(peer.connection(), &code))
+        .block_on(be_client::contacts::open_link(&peer.connection(), &code))
         .expect("the guest opens the link");
     assert_eq!(card.email, "counter@example.com");
     assert_eq!(card.public, harness.phrase.secret().public());
     runtime
         .block_on(be_client::contacts::accept_link(
-            peer.connection(),
+            &peer.connection(),
             &guest.phrase.secret(),
             &guest.me().card(),
             &code,
         ))
         .expect("the guest accepts");
-    let again = runtime.block_on(be_client::contacts::open_link(peer.connection(), &code));
+    let again = runtime.block_on(be_client::contacts::open_link(&peer.connection(), &code));
     assert!(again.is_err(), "the link opened after it was used");
 
     wait_until("confirmed the guest as a contact", |shared| {
@@ -40,7 +40,7 @@ fn two_accounts_become_contacts_by_a_link_and_share_a_block() {
     });
     let theirs = runtime
         .block_on(be_client::contacts::contacts(
-            peer.connection(),
+            &peer.connection(),
             peer.account(),
             &guest.phrase.secret(),
         ))

@@ -6,7 +6,7 @@ fn the_simulate_tab_filters_the_document_without_the_screen_reader() {
     let _root = crate::reactive::RootScope::new();
     let mut harness = Harness::sized(hello_column().document, TALL_VIEWPORT);
     harness.toggle_inspector();
-    harness.click(harness.simulation_tab_center());
+    harness.show_inspector_tab(crate::inspector::InspectorTab::Simulation);
     harness.frame(Vec::new());
 
     assert!(harness.frame(Vec::new()).main().filters().is_empty());

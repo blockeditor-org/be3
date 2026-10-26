@@ -7,18 +7,21 @@ use be_session::{
     Follower, Inherited, KeptEdits, OpId, Resume, Sequencer, SessionMessage, SessionOp,
 };
 use block_type_api::{
-    Change, Command, EditorId, Endpoint, HeadEvent, Merging, Recipients, ReplicaId, Reply,
-    RequestId, SessionTag, Status, Token, Written,
+    Change, EditorId, Endpoint, FileChange, Merging, Recipients, ReplicaId, SessionTag, Status,
+    Written,
 };
 use uuid::Uuid;
 
 use crate::{
     FromFileFn, Recorder,
     editor::{EditorOperation, FromEditor, Gesture, PeerMessage, PeerPresence, Snapshot, ToEditor},
+    effect::{Answer, Effect, HeadEvent, RequestId, Token},
     wire::Wire,
 };
 
 pub const SEAL_INTERVAL: u64 = 750;
+
+pub const HEARTBEAT_INTERVAL: u64 = be_session::LEASE_MILLISECONDS as u64 / 2;
 
 const JOURNAL_LIMIT: usize = 1024;
 const LARGEST_RELAYED_OPERATION: usize = 1024 * 1024;
@@ -39,11 +42,11 @@ pub(crate) struct Opened {
 }
 
 pub(crate) trait AnyReplica {
-    fn start(&mut self, out: &mut Vec<Command>);
+    fn start(&mut self, out: &mut Vec<Effect>);
 
-    fn input(&mut self, now: u64, input: Input, out: &mut Vec<Command>);
+    fn input(&mut self, now: u64, input: Input, out: &mut Vec<Effect>);
 
-    fn tick(&mut self, now: u64, out: &mut Vec<Command>);
+    fn tick(&mut self, now: u64, out: &mut Vec<Effect>);
 
     fn wake_at(&self) -> Option<u64>;
 
@@ -131,6 +134,26 @@ enum Job<C> {
     Keep(Keeping),
     Oversized,
     Release,
+}
+
+impl<C> Job<C> {
+    fn passes_a_seal(&self) -> bool {
+        matches!(
+            self,
+            Job::Input(
+                Input::Message {
+                    from: Endpoint::Editor(_),
+                    ..
+                } | Input::Attach { .. }
+                    | Input::Detach { .. }
+                    | Input::Content { .. }
+                    | Input::Change {
+                        change: Change::Child(_) | Change::Undo | Change::Redo,
+                        ..
+                    }
+            )
+        )
+    }
 }
 
 #[derive(Clone, Copy)]
@@ -275,6 +298,7 @@ pub(crate) struct Replica<C: LiveEdit, H> {
     confirmed: C,
     visible: C,
     unsent: VecDeque<(C::Op, usize, u64)>,
+    held: Vec<C::Op>,
     in_flight: u64,
     covered: bool,
     base: Option<CommitId>,
@@ -302,6 +326,8 @@ pub(crate) struct Replica<C: LiveEdit, H> {
     tokens: Token,
     now: u64,
     owes_since: Option<u64>,
+    beaten: Option<u64>,
+    active: bool,
     sealing: bool,
     claimed: Option<u64>,
     replaced_at: u64,
@@ -314,7 +340,7 @@ pub(crate) struct Replica<C: LiveEdit, H> {
     loaded: bool,
     released: bool,
     reported: Reported,
-    out: Vec<Command>,
+    out: Vec<Effect>,
 }
 
 impl<C, H> AnyReplica for Replica<C, H>
@@ -322,7 +348,7 @@ where
     C: LiveEdit + Merge + Clone + Default,
     H: Recorder<C>,
 {
-    fn start(&mut self, out: &mut Vec<Command>) {
+    fn start(&mut self, out: &mut Vec<Effect>) {
         match self.base {
             Some(head) => self.read(vec![Some(head)], Then::Load),
             None => self.loaded(C::default()),
@@ -330,7 +356,7 @@ where
         self.run(out);
     }
 
-    fn input(&mut self, now: u64, input: Input, out: &mut Vec<Command>) {
+    fn input(&mut self, now: u64, input: Input, out: &mut Vec<Effect>) {
         self.now = self.now.max(now);
         match input {
             Input::Read { token, result } => self.answer_read(token, result),
@@ -346,7 +372,7 @@ where
         self.run(out);
     }
 
-    fn tick(&mut self, now: u64, out: &mut Vec<Command>) {
+    fn tick(&mut self, now: u64, out: &mut Vec<Effect>) {
         self.now = self.now.max(now);
         let due = self
             .owes_since
@@ -358,14 +384,18 @@ where
                 reply: None,
             });
         }
+        if self.beat_at().is_some_and(|at| self.now >= at) {
+            self.heartbeat();
+        }
         self.run(out);
     }
 
     fn wake_at(&self) -> Option<u64> {
-        match self.sealing {
+        let seal = match self.sealing {
             true => None,
             false => self.owes_since.map(|since| since + SEAL_INTERVAL),
-        }
+        };
+        seal.into_iter().chain(self.beat_at()).min()
     }
 
     fn released(&self) -> bool {
@@ -394,6 +424,7 @@ where
             visible: empty.clone(),
             confirmed: empty,
             unsent: VecDeque::new(),
+            held: Vec::new(),
             in_flight: 0,
             covered: true,
             base: opened.head,
@@ -419,6 +450,8 @@ where
             tokens: 0,
             now: opened.now,
             owes_since: None,
+            beaten: None,
+            active: false,
             sealing: false,
             claimed: None,
             replaced_at: 0,
@@ -435,10 +468,16 @@ where
         }
     }
 
-    fn run(&mut self, out: &mut Vec<Command>) {
+    fn run(&mut self, out: &mut Vec<Effect>) {
         loop {
             self.flush_editors();
-            if self.waiting.is_some() || self.released {
+            if self.released {
+                break;
+            }
+            let Some(job) = self.jobs.front() else {
+                break;
+            };
+            if self.waiting.is_some() && !(self.sealing_out() && job.passes_a_seal()) {
                 break;
             }
             let Some(job) = self.jobs.pop_front() else {
@@ -446,8 +485,61 @@ where
             };
             self.job(job);
         }
+        match self.loaded && self.is_owner() && !self.released {
+            true => {
+                self.beaten.get_or_insert(self.now);
+            }
+            false => self.beaten = None,
+        }
         self.report();
         out.append(&mut self.out);
+    }
+
+    fn sealing_out(&self) -> bool {
+        matches!(
+            self.waiting,
+            Some(Wait::Publish {
+                then: AfterPublish::Seal { .. },
+                ..
+            })
+        )
+    }
+
+    fn sequence_held(&mut self) {
+        for operation in std::mem::take(&mut self.held) {
+            let Role::Owner(sequencer) = &mut self.role else {
+                let size = C::encode_operation(&operation).len();
+                self.unsent.push_back((operation, size, 1));
+                continue;
+            };
+            let id = OpId {
+                client: self.client,
+                counter: sequencer.sequence() + 1,
+            };
+            if let Some(op) = sequencer.accept(id, C::encode_operation(&operation)) {
+                self.confirmed.apply(&operation);
+                self.broadcast(&SessionMessage::Accepted { op });
+            }
+        }
+        self.flush();
+    }
+
+    fn beat_at(&self) -> Option<u64> {
+        let busy = self.active || !self.is_clean();
+        self.beaten
+            .filter(|_| busy)
+            .map(|beaten| beaten + HEARTBEAT_INTERVAL)
+    }
+
+    fn heartbeat(&mut self) {
+        self.beaten = Some(self.now);
+        self.active = false;
+        let clean_at = self.base.filter(|_| self.is_clean());
+        self.out.push(Effect::ReportClean {
+            replica: self.id,
+            generation: self.state.generation,
+            clean_at,
+        });
     }
 
     fn job(&mut self, job: Job<C>) {
@@ -472,16 +564,16 @@ where
     fn job_while_unreadable(&mut self, job: Job<C>) {
         match job {
             Job::Input(Input::Close) | Job::Release => self.release(),
-            Job::Input(Input::Change { id, .. }) => self.reply(id, Reply::Changed(false)),
+            Job::Input(Input::Change { id, .. }) => self.reply(id, Answer::Changed(false)),
             Job::Input(Input::Content { id }) | Job::Input(Input::Seal { id, .. }) => {
-                self.reply(id, Reply::Unknown);
+                self.reply(id, Answer::Unknown);
             }
             Job::Seal {
                 reply: Some(id), ..
             }
             | Job::Replace {
                 reply: Some(id), ..
-            } => self.reply(id, Reply::Unknown),
+            } => self.reply(id, Answer::Unknown),
             _ => {}
         }
     }
@@ -490,7 +582,7 @@ where
         if self.released {
             return;
         }
-        self.out.push(Command::Release { replica: self.id });
+        self.out.push(Effect::Release { replica: self.id });
         self.released = true;
         for job in std::mem::take(&mut self.jobs) {
             self.job_while_unreadable(job);
@@ -518,6 +610,7 @@ where
                 if let Some(message) = FromEditor::decode(&bytes) {
                     self.handle_editor(editor, message);
                 }
+                self.reported.status = None;
             }
             Input::Message {
                 from: Endpoint::Host,
@@ -554,7 +647,7 @@ where
             Input::Change { id, change } => self.change(id, change),
             Input::Content { id } => {
                 let bytes = self.visible.encode();
-                self.reply(id, Reply::Content(bytes));
+                self.reply(id, Answer::Content(bytes));
             }
             Input::Seal { id, force } => self.jobs.push_front(Job::Seal {
                 sealing: match force {
@@ -566,12 +659,12 @@ where
         }
     }
 
-    fn reply(&mut self, id: RequestId, reply: Reply) {
-        self.out.push(Command::Reply { id, reply });
+    fn reply(&mut self, id: RequestId, reply: Answer) {
+        self.out.push(Effect::Answer { id, answer: reply });
     }
 
     fn error(&mut self, message: impl Into<String>) {
-        self.out.push(Command::Error {
+        self.out.push(Effect::Error {
             replica: self.id,
             message: message.into(),
         });
@@ -596,11 +689,10 @@ where
             .map(|commit| match commit {
                 Some(commit) => {
                     let token = self.token();
-                    self.out.push(Command::Read {
+                    self.out.push(Effect::Read {
                         replica: self.id,
                         token,
                         commit,
-                        range: None,
                     });
                     Slot::Waiting(token)
                 }
@@ -821,7 +913,7 @@ where
     }
 
     fn conflict(&mut self, ours: CommitId, theirs: CommitId, count: usize) {
-        self.out.push(Command::Conflict {
+        self.out.push(Effect::Conflict {
             replica: self.id,
             ours,
             theirs,
@@ -837,7 +929,7 @@ where
         then: AfterPublish<C>,
     ) {
         let token = self.token();
-        self.out.push(Command::Publish {
+        self.out.push(Effect::Publish {
             replica: self.id,
             token,
             expected,
@@ -849,7 +941,7 @@ where
 
     fn stash(&mut self, parent: Option<CommitId>, content: Written, then: AfterStash<C>) {
         let token = self.token();
-        self.out.push(Command::Stash {
+        self.out.push(Effect::Stash {
             replica: self.id,
             token,
             parent,
@@ -911,6 +1003,14 @@ where
         if !answered {
             return;
         }
+        let sealed = self.sealing_out();
+        self.answer_awaited(event);
+        if sealed {
+            self.sequence_held();
+        }
+    }
+
+    fn answer_awaited(&mut self, event: HeadEvent) {
         match (self.waiting.take(), event) {
             (Some(Wait::Publish { then, .. }), HeadEvent::Published { head, .. }) => {
                 self.published(then, Some(head));
@@ -928,7 +1028,7 @@ where
                         ..
                     }) => {
                         self.sealing = false;
-                        reply.map(|id| (id, Reply::Sealed))
+                        reply.map(|id| (id, Answer::Sealed))
                     }
                     Some(Wait::Publish {
                         then: AfterPublish::Replace { reply, .. },
@@ -937,7 +1037,7 @@ where
                     | Some(Wait::Stash {
                         then: AfterStash::Replace { reply, .. },
                         ..
-                    }) => reply.map(|id| (id, Reply::Changed(false))),
+                    }) => reply.map(|id| (id, Answer::Changed(false))),
                     _ => None,
                 };
                 if let Some((id, reply)) = reply {
@@ -957,7 +1057,7 @@ where
                 }
                 self.sealing = false;
                 if let Some(id) = reply {
-                    self.reply(id, Reply::Sealed);
+                    self.reply(id, Answer::Sealed);
                 }
             }
             AfterPublish::Replace {
@@ -1006,7 +1106,7 @@ where
                     }
                 }
                 if let Some(id) = reply {
-                    self.reply(id, Reply::Changed(true));
+                    self.reply(id, Answer::Changed(true));
                 }
             }
             AfterPublish::Merged { value } => self.take_merged(value, head),
@@ -1181,7 +1281,7 @@ where
             } => {
                 self.sealing = false;
                 if let Some(id) = reply {
-                    self.reply(id, Reply::Sealed);
+                    self.reply(id, Answer::Sealed);
                 }
             }
             AfterPublish::Replace {
@@ -1196,7 +1296,7 @@ where
                         "a replacement could not be saved; the block kept changing under it",
                     );
                     if let Some(id) = reply {
-                        self.reply(id, Reply::Changed(false));
+                        self.reply(id, Answer::Changed(false));
                     }
                     return;
                 }
@@ -1243,13 +1343,14 @@ where
 
     fn is_clean(&self) -> bool {
         match &self.role {
-            Role::Owner(sequencer) => sequencer.is_clean(),
+            Role::Owner(sequencer) => sequencer.is_clean() && self.held.is_empty(),
             Role::Follower(follower) => follower.pending() == 0 && self.unsent.is_empty(),
         }
     }
 
     fn has_unsealed_work(&self) -> bool {
         matches!(&self.role, Role::Owner(sequencer) if !sequencer.is_clean())
+            || !self.held.is_empty()
     }
 
     fn unsettled(&self) -> u64 {
@@ -1332,6 +1433,7 @@ where
     }
 
     fn edit(&mut self, operation: C::Op, origin: Option<EditorId>) -> bool {
+        self.active = true;
         if self.diverged {
             self.error(DIVERGED);
             return false;
@@ -1355,7 +1457,9 @@ where
             self.hand_over_oversized();
             return true;
         }
+        let holding = self.sealing_out();
         match &mut self.role {
+            Role::Owner(_) if holding => self.held.push(operation),
             Role::Owner(sequencer) => {
                 let id = OpId {
                     client: self.client,
@@ -1461,14 +1565,14 @@ where
             Change::Child(change) => {
                 let Some(operations) = self.visible.child_operations(crate::be_child(change))
                 else {
-                    return self.reply(id, Reply::Changed(false));
+                    return self.reply(id, Answer::Changed(false));
                 };
                 for operation in operations {
                     self.record_and_edit(operation, None);
                 }
-                self.reply(id, Reply::Changed(true));
+                self.reply(id, Answer::Changed(true));
             }
-            Change::FromFile { name, bytes } => {
+            Change::FromFile(FileChange { name, bytes }) => {
                 let current = self.visible.encode();
                 let content = self
                     .from_file
@@ -1496,12 +1600,12 @@ where
         for operation in operations {
             self.edit(operation, None);
         }
-        self.reply(id, Reply::Changed(changed));
+        self.reply(id, Answer::Changed(changed));
     }
 
     fn replace_with(&mut self, id: RequestId, content: Option<C>) {
         let Some(content) = content else {
-            return self.reply(id, Reply::Changed(false));
+            return self.reply(id, Answer::Changed(false));
         };
         self.history.clear();
         self.jobs.push_front(Job::Replace {
@@ -1544,7 +1648,7 @@ where
     }
 
     fn tell_editor(&mut self, editor: EditorId, message: &ToEditor) {
-        self.out.push(Command::Send {
+        self.out.push(Effect::Send {
             replica: self.id,
             to: Recipients::One(Endpoint::Editor(editor)),
             bytes: message.encode(),
@@ -1637,7 +1741,7 @@ where
         };
         if self.reported.status.as_ref() != Some(&status) {
             self.reported.status = Some(status.clone());
-            self.out.push(Command::Status {
+            self.out.push(Effect::Status {
                 replica: self.id,
                 status,
             });
@@ -1648,14 +1752,14 @@ where
         let history = (self.history.can_undo(), self.history.can_redo());
         if self.reported.history != Some(history) {
             self.reported.history = Some(history);
-            self.out.push(Command::History {
+            self.out.push(Effect::History {
                 replica: self.id,
                 can_undo: history.0,
                 can_redo: history.1,
             });
         }
         if std::mem::take(&mut self.described) {
-            self.out.push(Command::Described {
+            self.out.push(Effect::Described {
                 replica: self.id,
                 description: crate::describe(&self.visible, self.organization),
             });
@@ -1703,7 +1807,7 @@ where
     }
 
     fn send_wire(&mut self, to: Option<ClientId>, wire: &Wire) {
-        self.out.push(Command::Send {
+        self.out.push(Effect::Send {
             replica: self.id,
             to: match to {
                 Some(client) => Recipients::One(Endpoint::Peer(client)),
@@ -2221,7 +2325,7 @@ where
             return;
         }
         self.claimed = Some(self.state.generation);
-        self.out.push(Command::ClaimLease {
+        self.out.push(Effect::ClaimLease {
             replica: self.id,
             generation: self.state.generation,
         });
@@ -2239,7 +2343,7 @@ where
             return;
         }
         self.claimed = Some(self.state.generation);
-        self.out.push(Command::ClaimLease {
+        self.out.push(Effect::ClaimLease {
             replica: self.id,
             generation: self.state.generation,
         });
@@ -2341,14 +2445,14 @@ where
 
     fn has_unsaved(&self) -> bool {
         match &self.role {
-            Role::Owner(sequencer) => !sequencer.is_clean(),
+            Role::Owner(sequencer) => !sequencer.is_clean() || !self.held.is_empty(),
             Role::Follower(follower) => !self.is_clean() || follower.applied() > self.sealed,
         }
     }
 
     fn reconcile(&mut self) {
         let token = self.token();
-        self.out.push(Command::Resume {
+        self.out.push(Effect::Resume {
             replica: self.id,
             token,
             local: self.base,
@@ -2379,7 +2483,7 @@ where
         if skip {
             self.sealing = false;
             if let Some(id) = reply {
-                self.reply(id, Reply::Sealed);
+                self.reply(id, Answer::Sealed);
             }
             return;
         }
@@ -2387,7 +2491,7 @@ where
             self.sealing = false;
             self.error(DIVERGED);
             if let Some(id) = reply {
-                self.reply(id, Reply::Sealed);
+                self.reply(id, Answer::Sealed);
             }
             return;
         }
@@ -2416,7 +2520,7 @@ where
         if self.diverged {
             self.error(DIVERGED);
             if let Some(id) = reply {
-                self.reply(id, Reply::Changed(false));
+                self.reply(id, Answer::Changed(false));
             }
             return;
         }
@@ -2477,7 +2581,9 @@ where
             sequence,
             reload,
         });
-        self.out.push(Command::ReportClean {
+        self.beaten = Some(self.now);
+        self.active = false;
+        self.out.push(Effect::ReportClean {
             replica: self.id,
             generation: self.state.generation,
             clean_at: Some(head),

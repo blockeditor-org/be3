@@ -1,4 +1,3 @@
-use beui::Wrap;
 use std::cell::{OnceCell, RefCell};
 
 use beui::NodeId;
@@ -7,8 +6,7 @@ use beui::styled::*;
 
 use crate::Creation;
 
-const PADDING: f32 = 14.0;
-const SPACING: f32 = 10.0;
+const SPACING: Space = Space::Md;
 
 type Import<T> = Box<dyn Fn(PickedFile) -> Result<T, String>>;
 
@@ -127,6 +125,7 @@ impl<T: 'static> FileChooser<T> {
 pub fn ContentFileCreation<C>(
     creation: Creation,
     id_prefix: String,
+    title: String,
     filter: FileFilter,
     import: Func<PickedFile, Result<C, String>>,
 ) -> NodeId
@@ -134,8 +133,8 @@ where
     C: be_block::BlockContent + 'static,
 {
     let chooser = FileChooser::new(filter, move |file| import.call(file));
-    let host = creation.host().clone();
-    chooser.on_chosen(move |chooser| host.set_creation_ready(chooser.is_chosen()));
+    let chosen_file = create_signal(false);
+    chooser.on_chosen(move |chooser| chosen_file.set(chooser.is_chosen()));
     let creating = creation.clone();
     creation.on_create(move || {
         let chosen = chooser.take().ok_or("no file was chosen")?;
@@ -151,31 +150,39 @@ where
     let choose = move || chooser.open();
     let choose_id = format!("{id_prefix}.choose");
     let error_id = format!("{id_prefix}.error");
+    let accepted = create_signal(false);
+    let unready = create_memo(move || !chosen_file.get());
+    let accepting = creation.clone();
+    let cancelling = creation;
     view! {
-        <Frame padding=PADDING>
-            <List spacing=SPACING>
-                <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
-                    <Button
-                        label="Choose file…"
-                        variant=ButtonVariant::Primary
-                        disabled={busy}
-                        @test_id={choose_id}
-                        on_click={choose}
-                    />
-                    <Text style=TextStyle::CAPTION>{name}</Text>
-                    <Spacer @sizing=ItemSize::Percent(100.0) />
-                </List>
-                <Show condition={failed}>
-                    <Text
-                        style=TextStyle::CAPTION
-                        color=TextColor::Danger
-                        wrap=Wrap::Words
-                        @test_id={error_id.clone()}
-                    >
-                        {reason}
-                    </Text>
-                </Show>
+        <DialogBody
+            title
+            id="creation"
+            actions={vec![
+                DialogAction::cancel("Cancel"),
+                DialogAction::primary("Create", move || {
+                    accepted.set(true);
+                    accepting.accept();
+                })
+                .disabled(unready)
+                .busy(accepted),
+            ]}
+            on_dismiss={move || cancelling.cancel()}
+        >
+            <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
+                <Button
+                    label="Choose file…"
+                    disabled={busy}
+                    @test_id={choose_id}
+                    on_click={choose}
+                />
+                <Text @sizing=ItemSize::Percent(100.0) style=TextStyle::CAPTION>{name}</Text>
             </List>
-        </Frame>
+            <Show condition={failed}>
+                <Text style=TextStyle::CAPTION color=TextColor::Danger @test_id={error_id.clone()}>
+                    {reason}
+                </Text>
+            </Show>
+        </DialogBody>
     }
 }

@@ -25,6 +25,7 @@ fn child_placements_round_trip() {
                 rotation: 0.0,
                 opacity: 1.0,
                 follows_view: true,
+                dialog: None,
             },
             ChildPlacement {
                 child: ChildId(2),
@@ -45,6 +46,7 @@ fn child_placements_round_trip() {
                 rotation: 0.0,
                 opacity: 1.0,
                 follows_view: false,
+                dialog: None,
             },
             ChildPlacement {
                 child: ChildId(3),
@@ -65,6 +67,7 @@ fn child_placements_round_trip() {
                 rotation: 0.0,
                 opacity: 1.0,
                 follows_view: false,
+                dialog: None,
             },
         ],
         occluders: vec![Occluder {
@@ -72,15 +75,9 @@ fn child_placements_round_trip() {
             rect: Rect::from_min_size(Pos2::new(0.0, 0.0), Vec2::new(64.0, 480.0)),
         }],
     });
-    assert_eq!(
-        decode_frame(&encode_frame(&message).unwrap()).unwrap(),
-        message
-    );
+    round_trips(&message);
 
-    let Message::Frame(FrameCommit { children, .. }) = &message else {
-        panic!("the message is a frame");
-    };
-    let placements = &children[0];
+    let placements = &message.children[0];
     assert!(placements.occluded(0, Pos2::new(8.0, 8.0)));
     assert!(!placements.occluded(1, Pos2::new(8.0, 8.0)));
 }

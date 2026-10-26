@@ -1,9 +1,9 @@
 use be_block::presence::PresenceColor;
-use beui::unstyled::{RemoteTextCursor, TextAreaState};
 use serde::{Deserialize, Serialize};
 use text_editor_core::Position;
 
 use crate::presence_color;
+use beui::styled::{RemoteTextCursor, TextAreaState};
 
 #[derive(Clone, Copy, Debug, Deserialize, PartialEq, Eq, Serialize)]
 pub struct SharedCaret {

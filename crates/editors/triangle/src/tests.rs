@@ -1,6 +1,7 @@
 use block_editor_plugin::be_block::BlockContent;
 use block_editor_plugin::{
-    EditorHost, EditorRegion, FrameSpec, GraphCommand, Instance, Rect, Region, pos2, vec2,
+    EditorHost, EditorInstanceId, EditorRegion, FrameSpec, GraphCommand, Instance, Module, Rect,
+    Region, pos2, vec2,
 };
 use triangle_types::TriangleContent;
 
@@ -11,14 +12,18 @@ mod creating_a_triangle_makes_a_block_with_no_state;
 
 fn region() -> Region {
     Region {
+        instance: EditorInstanceId(1),
         region: EditorRegion::Frame,
+        block: None,
         rect: Rect::from_min_size(pos2(0.0, 0.0), vec2(400.0, 300.0)),
+        visible: vec2(0.0, 0.0),
         scale_factor: 1.0,
         pixels: [400, 300],
         age: 0,
         spec: FrameSpec::default(),
-        monitors: Vec::new(),
         describe: None,
         seen: true,
+        windows: false,
+        placement: None,
     }
 }

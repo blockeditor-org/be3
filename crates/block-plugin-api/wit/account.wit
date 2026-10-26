@@ -1,0 +1,49 @@
+package be3:plugin@0.1.0;
+
+/// What the host knows of the account it is signed in as and of the app,
+/// watched by any editor.
+interface account {
+    use be3:ui/types@0.1.0.{preference-layer};
+
+    /// Where the preferences an editor is drawn with come from, below the
+    /// user's own: the system's and the developer's.
+    record host-preference-sources {
+        system: preference-layer,
+        developer: preference-layer,
+    }
+
+    /// Whether the account administers the company it belongs to.
+    resource administrator-watch {
+        constructor();
+        next: async func() -> bool;
+    }
+
+    /// The base links to blocks are made from, empty on a local server.
+    resource link-base-watch {
+        constructor();
+        next: async func() -> string;
+    }
+
+    /// The system's and the developer's preference layers.
+    resource preference-sources-watch {
+        constructor();
+        next: async func() -> host-preference-sources;
+    }
+}
+
+/// The account's contacts, watched only by the shell's editor.
+interface contacts {
+    use be3:shared/ids@0.1.0.{account-id};
+
+    record host-contact {
+        account: account-id,
+        display-name: string,
+        email: string,
+        verified: bool,
+    }
+
+    resource contacts-watch {
+        constructor();
+        next: async func() -> list<host-contact>;
+    }
+}

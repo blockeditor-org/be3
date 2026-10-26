@@ -11,8 +11,10 @@ use ui::Counter;
 
 pub struct CounterApp;
 
+#[component]
 impl block_editor_beui::BeuiApp for CounterApp {
-    fn view(editor: Editor) -> Root {
+    #[component]
+    fn View(editor: Editor) -> Root {
         view! {
             <Root>
                 <Loaded>

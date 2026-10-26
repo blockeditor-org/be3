@@ -1,10 +1,8 @@
-use beui::Wrap;
 use block_editor_beui::be_block::{InputRemapper, InputRemapperContent};
 use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
-use block_editor_beui::beui::unstyled::ChoiceOption;
-use block_editor_beui::{ContentProjection, Editor, RemapState, Remaps};
+use block_editor_beui::{ContentProjection, Editor, RemapState, RemapsWatch};
 
 use super::gui::EditorTab;
 use super::raw::TomlTab;
@@ -34,8 +32,8 @@ impl Shared {
 pub fn InputRemapsView(editor: Editor) -> NodeId {
     let remapper = editor.block_content::<InputRemapperContent>();
     let read_only = editor.read_only();
-    let device = editor.host_value::<Remaps>();
-    let offered = editor.host_offers::<Remaps>();
+    let device = editor.watch::<RemapsWatch>();
+    let offered = editor.offered::<RemapsWatch>();
     let stored = remapper.project(|content| {
         content
             .root()
@@ -79,7 +77,7 @@ pub fn InputRemapsView(editor: Editor) -> NodeId {
                 </SettingsRow>
                 <Show condition={offered}>
                     <SettingsRow label="This device" separated=true>
-                        <Text style=TextStyle::CAPTION wrap=Wrap::Words>{status}</Text>
+                        <Text style=TextStyle::CAPTION>{status}</Text>
                     </SettingsRow>
                 </Show>
             </SettingsSection>

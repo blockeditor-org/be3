@@ -1,4 +1,5 @@
 use super::*;
+use crate::primitives::List;
 use crate::primitives::Text;
 use crate::reactive::*;
 use crate::styled::*;
@@ -27,21 +28,21 @@ fn a_long_change_is_cut_short_unless_asked_for_in_full() {
     let mut driven = stepped(crate::testing::Showing(document));
 
     let changed = driven
-        .ask(&["click", "\"Toggle\""])
+        .ask(&["app", "click", "\"Toggle\""])
         .expect("the rows appear");
     assert_eq!(
         changed.lines().count(),
         61,
         "sixty lines and a note:\n{changed}"
     );
-    assert!(changed.ends_with("--changes=all prints them, and `drive tree` the whole tree\n"));
+    assert!(changed.ends_with("--changes=all prints them, and `drive app tree` the whole tree\n"));
 
     let changed = driven
-        .ask(&["--changes=all", "click", "\"Toggle\""])
+        .ask(&["--changes=all", "app", "click", "\"Toggle\""])
         .expect("the rows go");
     assert!(changed.lines().count() >= 80, "every change is printed");
     let changed = driven
-        .ask(&["--changes=0", "click", "\"Toggle\""])
+        .ask(&["--changes=0", "app", "click", "\"Toggle\""])
         .expect("the rows come back");
-    assert!(changed.starts_with("... and "), "{changed}");
+    assert_eq!(changed, "", "--changes=0 answers with nothing");
 }

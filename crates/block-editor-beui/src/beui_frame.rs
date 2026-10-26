@@ -7,8 +7,7 @@ use beui::icons::{
 };
 use beui::reactive::*;
 use beui::styled::*;
-use beui::unstyled::Container;
-use beui::{Document, Key, KeyAt, KeyPhase, Pos2, Rect, Vec2, pos2};
+use beui::{Key, KeyAt, KeyPhase, Pos2, Rect, Vec2, pos2};
 use block_plugin_api::{BarAction, MenuCheck, MenuCommand, MenuEntry, MenuPin, MenuSubmenu};
 
 use crate::chrome::ChromeRoot;
@@ -35,98 +34,29 @@ pub fn phone_layout() -> Memo<bool> {
 }
 
 pub struct BeuiFrame {
-    document: Document,
-    content: NodeId,
+    content: Rc<Cell<Option<NodeId>>>,
     bar: Signal<FrameBar>,
     exit: Rc<Cell<bool>>,
     menu: Rc<RefCell<Vec<MenuNode>>>,
     _bar: OwnedSignal<FrameBar>,
 }
 
-impl BeuiFrame {
-    pub fn build(editor: Editor, view: impl FnOnce() -> beui::styled::Root + 'static) -> Self {
+impl Default for BeuiFrame {
+    fn default() -> Self {
         let owned_bar = OwnedSignal::new(FrameBar::default());
-        let bar = owned_bar.handle();
-        let exit = Rc::new(Cell::new(false));
-        let exit_writer = exit.clone();
-        let menu: Rc<RefCell<Vec<MenuNode>>> = Rc::default();
-        let published = Rc::clone(&menu);
-        let content_slot: Rc<Cell<Option<NodeId>>> = Rc::new(Cell::new(None));
-        let content_slot_writer = content_slot.clone();
-        let document = beui::reactive::build(move || {
-            provide_context(PhoneLayout(create_memo(move || bar.get().on_phone)));
-            let phone = create_memo(move || bar.get().on_phone);
-            provide_density(create_memo(move || match phone.get() {
-                true => Density::Comfortable,
-                false => Density::Compact,
-            }));
-            let palette = create_signal(false);
-            let opener = Action::new("editor.palette", "Command palette", move || {
-                palette.set(true)
-            })
-            .glyph(ICON_TERMINAL)
-            .shortcut(PALETTE)
-            .register();
-            let escaping = exit_writer.clone();
-            on_key(KeyAt::Window, KeyPhase::Bubble, move |event| {
-                let escaped = event
-                    .press()
-                    .is_some_and(|press| press.pressed && press.key == Key::Escape);
-                if escaped {
-                    escaping.set(true);
-                }
-                escaped
-            });
-            let root: Rc<Cell<Option<beui::styled::Root>>> = Rc::default();
-            let rooted = Rc::clone(&root);
-            let frame = view! {
-                <Layers>
-                    <PlacedHole editor />
-                    <List spacing=0.0>
-                        <FrameMenu
-                            editor
-                            bar={bar.read_only()}
-                            palette={opener}
-                            published
-                            on_exit={move || exit_writer.set(true)}
-                        />
-                        <CommandPalette open={palette} />
-                        <ChromeRoot @sizing=ItemSize::Percent(100.0) phone>|| {
-                            let built = view();
-                            let content = built.child();
-                            rooted.set(Some(built));
-                            content_slot_writer.set(Some(content));
-                            content
-                        }</ChromeRoot>
-                    </List>
-                </Layers>
-            };
-            root.take()
-                .expect("view() builds its root synchronously")
-                .holding(frame)
-        });
         Self {
-            document,
-            content: content_slot
-                .get()
-                .expect("view() builds its root node synchronously"),
-            bar,
-            exit,
-            menu,
+            content: Rc::default(),
+            bar: owned_bar.handle(),
+            exit: Rc::new(Cell::new(false)),
+            menu: Rc::default(),
             _bar: owned_bar,
         }
     }
+}
 
-    pub fn document(&self) -> &Document {
-        &self.document
-    }
-
-    pub fn document_mut(&mut self) -> &mut Document {
-        &mut self.document
-    }
-
-    pub fn content(&self) -> NodeId {
-        self.content
+impl BeuiFrame {
+    pub fn content(&self) -> Option<NodeId> {
+        self.content.get()
     }
 
     pub fn bar(&self) -> Signal<FrameBar> {
@@ -140,6 +70,68 @@ impl BeuiFrame {
     pub fn menu(&self) -> Rc<RefCell<Vec<MenuNode>>> {
         Rc::clone(&self.menu)
     }
+}
+
+#[component]
+pub(crate) fn FrameChrome(
+    chrome: Rc<BeuiFrame>,
+    editor: Editor,
+    view: Rc<dyn Fn() -> beui::styled::Root>,
+) -> beui::styled::Root {
+    let bar = chrome.bar;
+    let exit_writer = chrome.exit.clone();
+    let published = Rc::clone(&chrome.menu);
+    let content_slot_writer = chrome.content.clone();
+    provide_context(PhoneLayout(create_memo(move || bar.get().on_phone)));
+    let phone = create_memo(move || bar.get().on_phone);
+    provide_density(create_memo(move || match phone.get() {
+        true => Density::Comfortable,
+        false => Density::Compact,
+    }));
+    let palette = create_signal(false);
+    let opener = Action::new("editor.palette", "Command palette", move || {
+        palette.set(true)
+    })
+    .glyph(ICON_TERMINAL)
+    .shortcut(PALETTE)
+    .register();
+    let escaping = exit_writer.clone();
+    on_key(KeyAt::Window, KeyPhase::Bubble, move |event| {
+        let escaped = event
+            .press()
+            .is_some_and(|press| press.pressed && press.key == Key::Escape);
+        if escaped {
+            escaping.set(true);
+        }
+        escaped
+    });
+    let root: Rc<Cell<Option<beui::styled::Root>>> = Rc::default();
+    let rooted = Rc::clone(&root);
+    let frame = view! {
+        <Layers>
+            <PlacedHole editor />
+            <List spacing=Space::None>
+                <FrameMenu
+                    editor
+                    bar={bar.read_only()}
+                    palette={opener}
+                    published
+                    on_exit={move || exit_writer.set(true)}
+                />
+                <CommandPalette open={palette} />
+                <ChromeRoot @sizing=ItemSize::Percent(100.0) phone>|| {
+                    let built = view();
+                    let content = built.child();
+                    rooted.set(Some(built));
+                    content_slot_writer.set(Some(content));
+                    content
+                }</ChromeRoot>
+            </List>
+        </Layers>
+    };
+    root.take()
+        .expect("view() builds its root synchronously")
+        .holding(frame)
 }
 
 pub(crate) fn run_menu_pick(menu: &RefCell<Vec<MenuNode>>, id: &str) {
@@ -214,8 +206,11 @@ impl Watched {
     }
 
     fn can_edit(&self) -> bool {
-        self.info()
-            .is_none_or(|info| info.access == crate::AccessLevel::Edit)
+        self.info().is_none_or(|info| info.access.can_edit())
+    }
+
+    fn can_manage(&self) -> bool {
+        self.info().is_none_or(|info| info.access.can_manage())
     }
 
     fn read(&self) -> BarState {
@@ -232,7 +227,7 @@ impl Watched {
             can_undo,
             can_redo,
             can_rename: editable,
-            can_share: self.can_edit(),
+            can_share: self.can_manage(),
         }
     }
 
@@ -409,7 +404,7 @@ pub(crate) fn FrameMenu(
         host.set_menu(entries);
     });
     view! {
-        <List spacing=0.0 />
+        <List spacing=Space::None />
     }
 }
 

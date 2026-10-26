@@ -1,5 +1,5 @@
 use super::*;
-use block_type_api::ChildChange;
+use block_type_api::{ChildChange, ReplaceChild};
 
 #[test]
 fn child_changes_become_edits_of_the_parent() {
@@ -8,10 +8,7 @@ fn child_changes_become_edits_of_the_parent() {
     sim.open(1);
     let child = Uuid::from_u128(0xc41d);
     let other = Uuid::from_u128(0x07e5);
-    assert_eq!(
-        sim.change(1, Change::Child(ChildChange::Add(child))),
-        Reply::Changed(true)
-    );
+    assert!(sim.change(1, Change::Child(ChildChange::Add(child))));
     assert_eq!(sim.content(0).references(), [child]);
     assert_eq!(
         sim.devices[1]
@@ -22,10 +19,10 @@ fn child_changes_become_edits_of_the_parent() {
     );
     sim.change(
         0,
-        Change::Child(ChildChange::Replace {
+        Change::Child(ChildChange::Replace(ReplaceChild {
             old: child,
             new: other,
-        }),
+        })),
     );
     for device in 0..2 {
         assert_eq!(sim.content(device).references(), [other]);

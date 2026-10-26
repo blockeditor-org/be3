@@ -1,6 +1,6 @@
 use super::*;
 use crate::WindowRequest;
-use crate::unstyled::DockApi;
+use crate::dock::unstyled::DockApi;
 
 #[test]
 fn dragging_a_hosted_dock_windows_bar_asks_its_host_to_move_it() {

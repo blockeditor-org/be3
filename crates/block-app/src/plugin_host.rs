@@ -9,24 +9,27 @@ use uuid::Uuid;
 
 mod audio;
 mod backend;
+mod calls;
 mod description;
 mod fonts;
 pub(crate) mod graph;
 mod heads;
-mod host_values;
 mod input;
 mod instances;
 mod pieces;
 mod presenter;
 mod previews;
+mod published;
 mod runtime;
 mod sent;
+mod session;
 #[cfg(not(target_arch = "wasm32"))]
 mod surface;
 #[cfg(not(target_arch = "wasm32"))]
 mod wasm;
 #[cfg(target_arch = "wasm32")]
 mod web;
+mod wire;
 
 pub(crate) use description::describe;
 pub(crate) use input::BlockDrag;
@@ -40,16 +43,17 @@ pub(crate) use runtime::place_screens;
 pub(crate) use runtime::watched;
 pub(crate) use runtime::{
     PACING, Pick, artifact, artifact_draft, aspect_ratio, assigned_size, block_picked, busy, close,
-    commit_creation, crash, creation, creation_ready, drawing, flush, frame_child, frame_placement,
-    frame_rects, hold, in_use, install, intrinsic_size, kill, menu, menu_pick, poll, present,
-    presenting, preview_image, publish, reanchor, record_pacing, regenerate_artifact, region_size,
-    replace_child, replace_gpu, report_child_bars, report_child_focus, report_children,
-    request_painting, request_pick, resized, revoke_frame_child, running, set_artifact_states,
-    set_focus, set_presence_visible, set_presented, set_shell, settle, show_block, show_dialog,
-    show_panel, start_frames, take_actions, take_artifact_outcome, take_artifact_watch,
-    take_bar_actions, take_block_pick, take_child_commits, take_child_menu_picks, take_crashed,
-    take_created, take_focus_report, take_leaving, take_pick_answers, take_steps,
-    take_view_changes, warm,
+    commit_creation, crash, creation, dialog_status, dismiss, drawing, flush, forget_dialog_answer,
+    frame_child, frame_placement, frame_rects, hold, in_use, install, intrinsic_size, kill, menu,
+    menu_pick, poll, present, presenting, preview_image, publish, reanchor, record_pacing,
+    regenerate_artifact, region_size, replace_child, replace_gpu, report_child_bars,
+    report_child_focus, report_children, request_painting, request_pick, resized,
+    revoke_frame_child, running, set_artifact_states, set_focus, set_presence_visible,
+    set_presented, set_shell, settle, show_block, show_dialog, show_panel, start_frames,
+    take_artifact_outcome, take_artifact_watch, take_bar_actions, take_block_pick, take_calls,
+    take_child_commits, take_child_dismissals, take_child_menu_picks, take_crashed, take_created,
+    take_focus_report, take_leaving, take_pick_answers, take_steps, take_view_changes,
+    take_withdrawn_picks, warm, withdraw_pick,
 };
 pub(crate) use runtime::{
     RegionPlacement, RegionSlot, RegionView, back_region, drag_over_region, forward_region, frames,
@@ -90,6 +94,7 @@ pub(crate) struct HostChild {
     pub(crate) intrinsic: Option<Vec2>,
     pub(crate) rotation: f32,
     pub(crate) opacity: f32,
+    pub(crate) dialog: Option<block_plugin_api::DialogFrame>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
@@ -161,8 +166,8 @@ pub(crate) struct HostChildStatus {
     pub(crate) error: Option<String>,
     pub(crate) menu: Vec<block_plugin_api::MenuEntry>,
     pub(crate) creation: Option<block_plugin_api::CreationProgress>,
-    pub(crate) settings: Option<block_plugin_api::SettingsProgress>,
     pub(crate) preview: block_plugin_api::ChildPreview,
+    pub(crate) dialog: block_plugin_api::DialogStatus,
 }
 
 #[derive(Clone, Debug)]
@@ -173,7 +178,7 @@ pub(crate) struct ChildCommit {
 }
 
 pub(crate) struct BlockPickRequest {
-    pub(crate) request_id: u64,
+    pub(crate) op: u64,
     pub(crate) filter: block_plugin_api::BlockFilter,
 }
 
@@ -236,7 +241,7 @@ pub(crate) fn preview_scale(size: Vec2, scale_factor: f32) -> f32 {
 
 pub(crate) struct CreationSlot<'a> {
     pub(crate) plugin: &'a PluginManifest,
-    pub(crate) block_types: &'a Arc<block_plugin_api::Catalog>,
+    pub(crate) block_types: &'a Arc<crate::editors::PluginCatalog>,
     pub(crate) client_id: Uuid,
     pub(crate) instance: EditorInstanceId,
     pub(crate) role: InstanceRole,
@@ -259,13 +264,13 @@ pub(crate) struct EditorBlock {
 pub(crate) enum InstanceRole {
     Editor(Uuid, EditorBlock),
     Creation(Uuid, &'static str),
-    Artifact(Uuid, EditorBlock),
+    Artifact(Uuid, EditorBlock, Uuid),
 }
 
 impl InstanceRole {
     pub(crate) fn block(self) -> Option<EditorBlock> {
         match self {
-            Self::Editor(_, block) | Self::Artifact(_, block) => Some(block),
+            Self::Editor(_, block) | Self::Artifact(_, block, _) => Some(block),
             Self::Creation(..) => None,
         }
     }
@@ -273,17 +278,18 @@ impl InstanceRole {
 
 pub(crate) struct ArtifactSlot<'a> {
     pub(crate) plugin: &'a PluginManifest,
-    pub(crate) block_types: &'a Arc<block_plugin_api::Catalog>,
+    pub(crate) block_types: &'a Arc<crate::editors::PluginCatalog>,
     pub(crate) client_id: Uuid,
     pub(crate) instance: EditorInstanceId,
     pub(crate) editor: Uuid,
     pub(crate) block: EditorBlock,
+    pub(crate) source: Uuid,
     pub(crate) data: &'a [u8],
     pub(crate) resync: bool,
 }
 
 pub(crate) enum ArtifactState {
     Starting,
-    Described { source: Uuid, summary: String },
+    Described(String),
     Failed(String),
 }

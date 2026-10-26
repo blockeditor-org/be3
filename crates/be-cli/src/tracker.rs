@@ -8,7 +8,7 @@ use be_graph::BlockParent;
 use be_protocol::BlockSummary;
 use be_store::ObjectStore;
 use be_types_host::Modules;
-use block_type_api::{Change as Edit, ChildChange, Description};
+use block_type_api::{Change as Edit, ChildChange, Description, FileChange};
 use block_ui::database::{ValueLabels, database_value_text, parse_cell_value};
 use database_types::database::{
     Database, DatabaseContent, DatabaseValue, Inverse, RowRef, inverses, short_id,
@@ -24,6 +24,8 @@ use uuid::Uuid;
 use crate::blocks::{Entry, Found, Index, find_in, is_top, short_of};
 use crate::session::explain;
 use text_block_types::TextContent;
+
+mod prefixes;
 
 const ATTEMPTS: usize = 8;
 const CLIENT: u64 = 0x6265_2d63_6c69;
@@ -304,7 +306,7 @@ impl<S: ObjectStore> Tracker<S> {
     pub async fn types(&self) -> MappedMutexGuard<'_, Modules> {
         let mut held = self.types.lock().await;
         if held.is_none() {
-            *held = Some(be_types_host::started((self.sources)()).await);
+            *held = Some(be_types_host::started((self.sources)(), be_client::Clock::real()).await);
         }
         MutexGuard::map(held, |held| {
             held.as_mut().expect("the type modules started")
@@ -325,7 +327,7 @@ impl<S: ObjectStore> Tracker<S> {
             return Ok((None, None));
         };
         if let Some(head) = summary.head {
-            self.peer.remember(block, head);
+            self.peer.remember(block, head).map_err(explain)?;
         }
         Ok((summary.head, bytes))
     }
@@ -528,11 +530,6 @@ impl<S: ObjectStore> Tracker<S> {
             .await?;
             level = below.into_iter().flatten().collect();
         }
-        if looks_like_row(wanted) {
-            return Err(format!(
-                "a row is named within its database: be DATABASE row {wanted}"
-            ));
-        }
         Err(format!(
             "nothing is called {wanted}; `be ls` lists the blocks at the top"
         ))
@@ -595,6 +592,34 @@ impl<S: ObjectStore> Tracker<S> {
             true => Ok(()),
             false => Err(refused()),
         }
+    }
+
+    pub async fn move_block(&self, entry: &Entry, to: &Entry) -> Result<String, String> {
+        let moved = &self.outermost(entry).await?;
+        let from = self.peer.summary(moved.id).await.map_err(explain)?.parent;
+        let into = BlockParent::Block(to.id);
+        if from == Some(into) {
+            return Ok(format!("{} is already in {}", moved.label(), to.label()));
+        }
+        if self.lies_below(Some(moved.id), to.id).await || moved.id == to.id {
+            return Err(format!("{} cannot move into itself", moved.label()));
+        }
+        self.place(into, moved.id).await?;
+        self.peer
+            .set_parent(moved.id, into)
+            .await
+            .map_err(explain)?;
+        if let Some(from @ BlockParent::Block(_)) = from {
+            self.relist(from, ChildChange::Delete(moved.id)).await?;
+        }
+        self.invalidate().await;
+        Ok(format!(
+            "moved {} ({}) into {} ({})",
+            moved.label(),
+            moved.short,
+            to.label(),
+            to.short
+        ))
     }
 
     pub async fn delete_block(&self, entry: &Entry) -> Result<String, String> {
@@ -991,8 +1016,9 @@ impl<S: ObjectStore> Tracker<S> {
         columns.apply(&DatabaseSchema::add_field("Title", DatabaseFieldType::String).1);
         self.save(schema, &columns).await?;
         let mut content = DatabaseContent::new(&Database::with_schema(schema));
-        content.apply(&Database::set_prefix(prefix));
+        content.apply(&Database::set_prefix(prefix.clone()));
         self.save(database, &content).await?;
+        self.register(database, &prefix).await?;
         self.invalidate().await;
         Ok((view, database))
     }
@@ -1746,10 +1772,10 @@ impl<S: ObjectStore> Tracker<S> {
 
     async fn text_page(&self, text: &str) -> Result<(Vec<u8>, Description), String> {
         let mut types = self.types().await;
-        let change = Edit::FromFile {
+        let change = Edit::FromFile(FileChange {
             name: String::new(),
             bytes: text.as_bytes().to_vec(),
-        };
+        });
         let content = types
             .apply(TextContent::CONTENT_TYPE, None, CLIENT, change)
             .await?
@@ -1904,10 +1930,10 @@ impl<S: ObjectStore> Tracker<S> {
                 let Some(text) = wanted(&now) else {
                     return Ok(None);
                 };
-                let change = Edit::FromFile {
+                let change = Edit::FromFile(FileChange {
                     name: String::new(),
                     bytes: text.into_bytes(),
-                };
+                });
                 self.types()
                     .await
                     .apply(content_type, current, CLIENT, change)
@@ -1949,7 +1975,7 @@ fn yes(setting: &str, value: &str) -> Result<bool, String> {
     }
 }
 
-fn looks_like_row(text: &str) -> bool {
+pub(crate) fn looks_like_row(text: &str) -> bool {
     let Some((prefix, code)) = text.trim().rsplit_once('-') else {
         return false;
     };

@@ -3,7 +3,7 @@ use std::ops::{Deref, DerefMut};
 use std::rc::Rc;
 use std::time::Duration;
 
-use beui::automation::WindowSize;
+use beui::WindowSize;
 use beui::testing::{Showing, Stepped, Target};
 use beui::{Color32, Context, Document, FontLibrary, FrameOutput, FreetypeFonts, Rect, Vec2};
 
@@ -84,11 +84,6 @@ impl DocumentTest {
         self.dom = Some(dom);
     }
 
-    pub fn set_screens(&mut self, screens: Vec<beui::Screen>) {
-        self.context().set_screens(screens);
-        self.frame(Vec::new());
-    }
-
     pub fn shows(&self, test_id: &str) -> bool {
         let document = self.document();
         document
@@ -142,9 +137,13 @@ impl DocumentTest {
             .latest
             .as_ref()
             .expect("the document has not drawn a frame yet");
-        let painting =
-            capture::capture(output, size, output.pixels_per_point(), background(output))
-                .expect("the painting could not be rendered");
+        let painting = capture::capture(
+            output.main(),
+            size,
+            output.pixels_per_point(),
+            background(output),
+        )
+        .expect("the painting could not be rendered");
         snapshot::assert_snapshot(name, &painting);
         overflow::assert_fits(name, overflow::overflows(self.stepped.document()));
     }

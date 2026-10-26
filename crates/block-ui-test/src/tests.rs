@@ -29,8 +29,10 @@ const SLIDE_TYPE: Uuid = Uuid::from_u128(0x0002);
 
 struct ChildApp;
 
+#[component]
 impl BeuiApp for ChildApp {
-    fn view(editor: Editor) -> Root {
+    #[component]
+    fn View(editor: Editor) -> Root {
         view! {
             <Root>
                 <Slide editor={editor} />
@@ -43,7 +45,7 @@ impl BeuiApp for ChildApp {
 fn Slide(editor: Editor) -> NodeId {
     let target = Some(ChildTarget::new(SLIDE, SLIDE_TYPE));
     view! {
-        <Frame width=320.0 height=180.0>
+        <Frame width=Size::Popover height={Size::Custom(180.0)}>
             <ChildBlock
                 editor={editor}
                 block={target}

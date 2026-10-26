@@ -1,0 +1,6 @@
+use super::*;
+
+mod a_lock_the_browser_drops_while_asked_for_is_reported_once;
+mod a_lock_the_page_let_go_of_itself_is_not_reported;
+mod a_refused_lock_is_reported_like_a_dropped_one;
+mod the_next_press_takes_a_lock_still_asked_for_back_and_is_swallowed;

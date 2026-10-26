@@ -1,8 +1,4 @@
-use block_gpu_abi as abi;
-use block_gpu_host::{
-    Gpu,
-    calls::{self, Guest, Transport},
-};
+use block_gpu_host::{Gpu, block_gpu_abi::embed::device::Caller};
 use wasm_bindgen::JsCast;
 
 use crate::{Shim, with};
@@ -12,10 +8,8 @@ impl Shim {
         let memory = self.memory.as_ref()?;
         Some(js_sys::Uint8Array::new(&memory.buffer()))
     }
-}
 
-impl Guest for Shim {
-    fn read(&mut self, pointer: u32, length: u32) -> Result<Vec<u8>, String> {
+    fn range(&self, pointer: u32, length: u32) -> Result<(js_sys::Uint8Array, u32), String> {
         let bytes = self
             .guest_bytes()
             .ok_or("the plugin called its host before its memory was bound")?;
@@ -28,63 +22,58 @@ impl Guest for Shim {
                 bytes.length()
             ));
         }
+        Ok((bytes, end))
+    }
+}
+
+impl Caller for Shim {
+    type Host = Gpu;
+
+    fn read(&mut self, pointer: u32, length: u32) -> Result<Vec<u8>, String> {
+        let (bytes, end) = self.range(pointer, length)?;
         Ok(bytes.subarray(pointer, end).to_vec())
     }
 
-    fn write(&mut self, pointer: u32, capacity: u32, data: &[u8]) -> u32 {
-        let needed = data.len() as u32;
-        if needed > capacity {
-            return needed;
-        }
-        let Some(bytes) = self.guest_bytes() else {
-            return 0;
-        };
-        if pointer.saturating_add(needed) > bytes.length() {
-            return 0;
-        }
-        bytes.subarray(pointer, pointer + needed).copy_from(data);
-        needed
+    fn write(&mut self, pointer: u32, data: &[u8]) -> Result<(), String> {
+        let (bytes, end) = self.range(pointer, data.len() as u32)?;
+        bytes.subarray(pointer, end).copy_from(data);
+        Ok(())
     }
 
-    fn report(&mut self, message: String) {
-        self.failure.get_or_insert(message);
-    }
-
-    fn gpu<R: Default>(&mut self, call: impl FnOnce(&mut Gpu) -> R) -> R {
+    fn host<R>(&mut self, function: &'static str, call: impl FnOnce(&mut Gpu) -> R) -> Option<R> {
         let started = crate::now();
         let result = call(&mut self.gpu);
-        self.gpu_time += crate::now() - started;
-        result
+        let took = crate::now() - started;
+        self.gpu_time += took;
+        if function == "submit" {
+            self.submit_time += took;
+        }
+        Some(result)
     }
 
-    fn take_error(&mut self) -> Option<String> {
-        self.failure.take().or_else(|| self.gpu.take_error())
+    fn refuse(&mut self, message: String) {
+        self.gpu.report(message);
     }
 
-    fn transport(&mut self) -> &mut Transport {
-        &mut self.transport
-    }
-
-    fn submit(&mut self, handles: &[u32]) {
-        let started = crate::now();
-        self.gpu(|gpu| gpu.submit(handles));
-        self.submit_time += crate::now() - started;
+    fn returned(&mut self) -> &mut Vec<u8> {
+        &mut self.returned
     }
 }
 
-macro_rules! exported {
-    ($(fn $name:ident($($argument:ident: $kind:ty),* $(,)?) $(-> $result:ty)?;)+) => {
+macro_rules! exported_gpu {
+    ($($glue:path, $module:literal, $name:literal, $export:literal, ($($argument:ident: $kind:ty),*) $(-> $result:ty)?;)*) => {
         $(
-            #[unsafe(no_mangle)]
-            pub extern "C" fn $name($($argument: $kind),*) $(-> $result)? {
-                with(|shim| calls::$name(shim, $($argument),*), Default::default())
-            }
-        )+
+            const _: () = {
+                #[unsafe(export_name = $export)]
+                extern "C" fn exported($($argument: $kind),*) $(-> $result)? {
+                    with(|shim| $glue(shim, $($argument),*), Default::default())
+                }
+            };
+        )*
     };
 }
 
-abi::gpu_functions!(exported);
-block_guest_abi::transport_functions!(exported);
+block_gpu_host::block_gpu_abi::gpu_local_imports!(exported_gpu);
 
 // unsafe(ffi)
 #[unsafe(no_mangle)]

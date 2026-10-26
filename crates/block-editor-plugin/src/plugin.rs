@@ -2,11 +2,13 @@ use std::time::Duration;
 
 #[cfg(target_arch = "wasm32")]
 use block_plugin_api::SurfaceRect;
-use block_plugin_api::{EditorRegion, FrameChrome, FrameSpec, TimedInput, WindowRequests};
+use block_plugin_api::{
+    EditorInstanceId, EditorRegion, FrameChrome, FrameSpec, TimedInput, WindowRequests,
+};
 use geometry::{Rect, Vec2};
 use uuid::Uuid;
 
-use crate::{Artifact, ArtifactDescription, EditorHost};
+use crate::{Artifact, EditorHost};
 
 pub trait Plugin: 'static {
     fn open(host: EditorHost) -> Box<dyn Instance>;
@@ -23,7 +25,7 @@ pub trait Instance: std::any::Any {
 
     fn connect_artifact(&mut self, _artifact: Artifact) {}
 
-    fn describe_artifact(&mut self, _data: &[u8]) -> Result<ArtifactDescription, String> {
+    fn describe_artifact(&mut self, _data: &[u8]) -> Result<String, String> {
         Err("this editor does not generate artifacts".into())
     }
 
@@ -49,7 +51,17 @@ pub trait Instance: std::any::Any {
         false
     }
 
-    fn input(&mut self, region: &Region, event: &TimedInput);
+    fn open_region(&mut self, _region: EditorRegion) {}
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub struct RegionId {
+    pub instance: EditorInstanceId,
+    pub region: EditorRegion,
+}
+
+pub trait Regions: std::any::Any {
+    fn input(&mut self, region: &Region, event: &TimedInput, over: Option<RegionId>);
 
     fn run_action(&mut self, _region: &Region, _id: &str) {}
 
@@ -60,41 +72,51 @@ pub trait Instance: std::any::Any {
     ) {
     }
 
-    fn update(&mut self, region: &Region, settings: Option<&mut Vec<u8>>) -> Frame;
+    fn frame(&mut self, regions: &[Region]) -> Vec<Frame>;
 
-    fn painting(&mut self, _region: EditorRegion) -> Option<paint_format::Painting> {
+    fn painting(&mut self, _region: RegionId) -> Option<paint_format::Painting> {
         None
     }
 
-    fn overflows(&mut self, _region: EditorRegion) -> Vec<String> {
+    fn overflows(&mut self, _region: RegionId) -> Vec<String> {
         Vec::new()
     }
 
     #[cfg(target_arch = "wasm32")]
-    fn paint(&mut self, target: &PaintTarget<'_>) -> Vec<SurfaceRect>;
+    fn paint(&mut self, region: RegionId, target: &PaintTarget<'_>) -> Vec<SurfaceRect>;
+}
+
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct SettingsDraft {
+    pub saved: Vec<u8>,
+    pub draft: Vec<u8>,
 }
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct Region {
+    pub instance: EditorInstanceId,
     pub region: EditorRegion,
+    pub block: Option<Uuid>,
     pub rect: Rect,
+    pub visible: Vec2,
     pub scale_factor: f32,
     pub pixels: [u32; 2],
     pub age: u32,
     pub spec: FrameSpec,
-    pub monitors: Vec<RegionMonitor>,
     pub describe: Option<u64>,
     pub seen: bool,
-}
-
-#[derive(Clone, Debug, PartialEq)]
-pub struct RegionMonitor {
-    pub id: String,
-    pub name: String,
-    pub rect: Rect,
+    pub windows: bool,
+    pub placement: Option<String>,
 }
 
 impl Region {
+    pub fn id(&self) -> RegionId {
+        RegionId {
+            instance: self.instance,
+            region: self.region,
+        }
+    }
+
     pub fn chrome_drawn(&self) -> bool {
         self.spec.chrome == FrameChrome::Drawn
     }
@@ -114,6 +136,7 @@ pub struct Frame {
     pub window: WindowRequests,
     pub description: Option<block_plugin_api::Description>,
     pub stopped: Option<block_plugin_api::Stopped>,
+    pub asks: Vec<block_plugin_api::WindowRequest>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -130,7 +153,6 @@ pub struct PaintTarget<'a> {
     pub format: wgpu::TextureFormat,
     pub width: u32,
     pub height: u32,
-    pub region: EditorRegion,
     pub age: u32,
 }
 

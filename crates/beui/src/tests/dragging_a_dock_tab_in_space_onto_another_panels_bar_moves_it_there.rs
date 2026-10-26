@@ -1,5 +1,5 @@
 use super::*;
-use crate::unstyled::{DockApi, TabId};
+use crate::dock::unstyled::{DockApi, TabId};
 
 #[test]
 fn dragging_a_dock_tab_in_space_onto_another_panels_bar_moves_it_there() {

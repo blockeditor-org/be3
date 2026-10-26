@@ -11,30 +11,57 @@ use super::*;
 use image_block_types::{ImageContent, ImageHeader};
 
 mod a_block_a_shared_one_links_to_shows_only_that_it_exists;
+mod a_block_made_offline_keeps_its_edits_when_read_before_it_is_sent;
+mod a_block_made_offline_takes_the_access_the_server_will_give_it;
 mod a_block_moved_to_another_workspace_is_rewrapped_and_given_a_fresh_key;
+mod a_change_the_server_refuses_leaves_the_rest_of_the_outbox_to_send;
+mod a_connect_nobody_answers_times_out;
+mod a_connection_outlives_a_stall_of_this_process;
+mod a_device_that_starts_offline_reads_and_lists_what_it_saved;
 mod a_file_added_to_a_shared_folder_opens_and_saves_for_who_it_was_shared_with;
 mod a_folder_shared_with_a_contact_opens_for_them_alone;
+mod a_key_the_server_labels_as_the_organizations_settings_never_seals_another_block;
 mod a_key_the_server_or_a_stranger_seals_to_a_member_is_never_used;
 mod a_large_image_streams_without_downloading_all_of_it;
+mod a_link_carrying_access_is_refused_where_nothing_is_shared_outside;
+mod a_merge_left_waiting_is_sent_once_the_device_reconnects;
+mod a_move_refused_to_an_editor_drops_only_the_move;
+mod a_policy_outside_the_organizations_settings_is_not_enforced;
+mod a_reader_cannot_read_a_block_moved_out_of_what_they_were_shared;
 mod a_reader_taken_off_a_workspace_cannot_read_what_is_written_after;
 mod a_reordered_reference_list_keeps_its_new_order;
+mod a_request_fails_once_a_ping_goes_unanswered;
+mod a_request_stuck_in_a_full_socket_fails_once_the_server_goes_silent;
 mod a_save_keeps_defined_metadata_it_does_not_know_and_drops_stale_derived_metadata;
+mod a_saved_record_that_does_not_decode_leaves_the_rest_readable;
+mod a_second_administrator_edits_the_organizations_settings;
 mod a_stale_save_is_rejected_with_the_head_to_merge_against;
 mod a_summary_read_before_a_rotation_never_brings_back_the_old_key;
+mod a_workspace_not_kept_for_offline_use_is_forgotten_but_its_unsent_edits_stay;
 mod an_administrator_reads_a_workspace_nobody_shared_with_them;
+mod an_artifact_is_a_backref_of_the_block_it_describes;
+mod an_edit_the_server_kept_without_answering_settles_once_another_device_builds_on_it;
+mod an_editor_rotates_a_workspace_a_reader_was_taken_off;
 mod an_escrow_key_the_server_puts_in_place_is_refused;
+mod an_exported_artifact_imports_pointing_to_its_imported_source;
 mod an_image_round_trips_without_being_re_encoded;
+mod an_organizations_policies_are_read_by_its_members_and_enforced_by_the_server;
 mod contacts_keep_sharing_after_one_of_them_takes_a_new_recovery_phrase;
 mod contents_read_together_match_what_each_block_saved;
+mod edits_sealed_offline_are_published_when_the_device_reconnects;
+mod edits_to_a_block_whose_access_was_lost_wait_aside_until_it_returns;
 mod history_is_thinned_but_the_head_and_bookmarks_survive;
 mod leaving_a_shared_workspace_leaves_its_rotation_to_who_can_edit_it;
 mod metadata_is_sealed_on_the_server_and_opened_by_members;
 mod metadata_that_does_not_decode_is_an_error_rather_than_blank;
+mod moving_a_block_to_the_top_follows_who_may_make_workspaces;
 mod references_declared_by_content_reach_the_graph;
 mod relayed_messages_reach_one_peer_or_all_of_them_sealed;
+mod removing_a_member_rotates_the_organizations_settings;
 mod removing_a_member_shuts_them_out_and_rotates_what_they_could_read;
 mod swapping_ids_replaces_every_written_form_of_each;
 mod two_peers_of_one_account_read_each_others_blocks;
+mod what_a_policy_governs_waits_while_the_server_cannot_read_it;
 
 struct Harness {
     url: String,
@@ -123,7 +150,7 @@ impl Harness {
             "admin@example.com",
         );
         let code = crate::contacts::invite(
-            admin.connection(),
+            &admin.connection(),
             admin.keys().identity(),
             &card,
             admin.organization(),
@@ -134,11 +161,16 @@ impl Harness {
         .await
         .unwrap();
         let theirs = crate::contacts::card(own.account(), own.keys().identity(), email, email);
-        crate::contacts::accept_invitation(own.connection(), own.keys().identity(), &theirs, &code)
-            .await
-            .unwrap();
+        crate::contacts::accept_invitation(
+            &own.connection(),
+            own.keys().identity(),
+            &theirs,
+            &code,
+        )
+        .await
+        .unwrap();
         crate::contacts::finish_links(
-            admin.connection(),
+            &admin.connection(),
             admin.keys().identity(),
             admin.organization(),
         )
@@ -157,6 +189,51 @@ impl Harness {
         )
         .await
         .unwrap()
+    }
+
+    fn config(&self, like: &Peer<MemoryStore>, refs: &refs::RefsDb) -> PeerConfig {
+        PeerConfig::new(
+            &self.url,
+            like.keys().identity().clone(),
+            Credentials::Token(like.token()),
+        )
+        .organization(Some(like.organization()))
+        .chunker(ChunkerConfig::SMALL)
+        .refs(refs.clone())
+    }
+
+    async fn device(
+        &self,
+        like: &Peer<MemoryStore>,
+        refs: &refs::RefsDb,
+        store: &MemoryStore,
+    ) -> Peer<MemoryStore> {
+        Peer::connect(self.config(like, refs), store.clone())
+            .await
+            .unwrap()
+    }
+
+    fn offline(
+        &self,
+        like: &Peer<MemoryStore>,
+        refs: &refs::RefsDb,
+        store: &MemoryStore,
+    ) -> Peer<MemoryStore> {
+        Peer::cached(self.config(like, refs), like.account(), store.clone()).unwrap()
+    }
+
+    async fn reconnect(&self, peer: &Peer<MemoryStore>, token: String) {
+        let connection = Connection::connect(&self.url, &Clock::real())
+            .await
+            .unwrap();
+        let be_protocol::ServerMessage::Authenticated { token, .. } = connection
+            .request(|request| be_protocol::ClientMessage::Authenticate { request, token })
+            .await
+            .unwrap()
+        else {
+            panic!("the server did not sign the device in");
+        };
+        peer.attach(connection, token).await.unwrap();
     }
 
     fn database(&self) -> rusqlite::Connection {
@@ -181,6 +258,18 @@ async fn workspace(peer: &Peer<MemoryStore>, name: &str) -> Uuid {
         workspace_ui_types::WorkspaceContent::CONTENT_TYPE,
         BlockParent::Root,
         &be_block::BlockMetadata::named(name),
+    )
+    .await
+    .unwrap()
+    .id
+}
+
+async fn my_files(peer: &Peer<MemoryStore>) -> Uuid {
+    peer.create_block(
+        be_block::my_files(peer.organization(), peer.account()),
+        workspace_ui_types::WorkspaceContent::CONTENT_TYPE,
+        BlockParent::Root,
+        &be_block::BlockMetadata::named("My files"),
     )
     .await
     .unwrap()

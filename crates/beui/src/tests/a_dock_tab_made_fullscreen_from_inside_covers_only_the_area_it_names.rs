@@ -1,7 +1,7 @@
 use super::*;
+use crate::dock::unstyled::{DockPane, DockTab, DockTabControl, DockingLayout, use_dock_tab};
 use crate::primitives::*;
 use crate::reactive::*;
-use crate::unstyled::{DockPane, DockTab, DockTabControl, DockingLayout, use_dock_tab};
 
 #[test]
 fn a_dock_tab_made_fullscreen_from_inside_covers_only_the_area_it_names() {
@@ -16,7 +16,7 @@ fn a_dock_tab_made_fullscreen_from_inside_covers_only_the_area_it_names() {
                     <Frame height=40.0>
                         <Interactive @test_id="bar" on_hover_change={hovered} />
                     </Frame>
-                    <styled::Docking @sizing=ItemSize::Percent(100.0) layout>
+                    <dock::styled::Docking @sizing=ItemSize::Percent(100.0) layout>
                         <DockPane id="tabs">
                             <DockTab
                                 id=1u64
@@ -30,7 +30,7 @@ fn a_dock_tab_made_fullscreen_from_inside_covers_only_the_area_it_names() {
                                 }}
                             />
                         </DockPane>
-                    </styled::Docking>
+                    </dock::styled::Docking>
                 </List>
             }
         })

@@ -1,4 +1,5 @@
 use super::*;
+use crate::primitives::List;
 use crate::reactive::*;
 use crate::styled::*;
 
@@ -20,7 +21,7 @@ fn a_driver_holds_a_press_across_a_pause_and_taps_with_a_finger() {
     let mut driven = stepped(crate::testing::Showing(document));
 
     driven
-        .ask(&["down", "\"Press\""])
+        .ask(&["app", "down", "\"Press\""])
         .expect("the button is pressed");
     driven.ask(&["pause", "200"]).expect("time passes");
     assert_eq!(
@@ -28,13 +29,13 @@ fn a_driver_holds_a_press_across_a_pause_and_taps_with_a_finger() {
         0,
         "a held press has not clicked yet"
     );
-    let state = driven.ask(&["state"]).expect("the state is read");
+    let state = driven.ask(&["app", "state"]).expect("the state is read");
     assert!(state.contains("holding Primary"), "{state}");
-    driven.ask(&["up"]).expect("the button is let go");
+    driven.ask(&["app", "up"]).expect("the button is let go");
     assert_eq!(clicks.get_untracked(), 1, "letting go clicks");
 
     driven
-        .ask(&["tap", "\"Press\""])
+        .ask(&["app", "tap", "\"Press\""])
         .expect("a finger taps the button");
     assert_eq!(clicks.get_untracked(), 2, "a tap clicks too");
 }

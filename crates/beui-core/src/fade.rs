@@ -4,27 +4,60 @@ use crate::geometry::{Pos2, Rect, Vec2};
 pub struct Fade {
     pub rect: Rect,
     pub widths: [f32; 4],
+    pub opacity: f32,
 }
 
 impl Fade {
     pub const NONE: Self = Self {
         rect: Rect::EVERYTHING,
         widths: [0.0; 4],
+        opacity: 1.0,
     };
 
     pub fn new(rect: Rect, widths: [f32; 4]) -> Self {
+        Self::faded(rect, widths, 1.0)
+    }
+
+    pub fn faded(rect: Rect, widths: [f32; 4], opacity: f32) -> Self {
         let widths = widths.map(|width| match width.is_finite() {
             true => width.max(0.0),
             false => 0.0,
         });
-        match widths == [0.0; 4] {
+        let fade = Self {
+            rect,
+            widths,
+            opacity: 1.0,
+        }
+        .with_opacity(opacity);
+        match fade.is_none() {
             true => Self::NONE,
-            false => Self { rect, widths },
+            false => fade,
+        }
+    }
+
+    pub fn reach(self, other: Self) -> Vec<Rect> {
+        match self.opacity == other.opacity {
+            true => self.bands(),
+            false => vec![self.rect],
+        }
+    }
+
+    pub fn with_opacity(self, opacity: f32) -> Self {
+        Self {
+            opacity: match opacity.is_finite() {
+                true => opacity.clamp(0.0, 1.0),
+                false => 1.0,
+            },
+            ..self
         }
     }
 
     pub fn is_none(self) -> bool {
-        self.widths == [0.0; 4]
+        self.widths == [0.0; 4] && self.opacity >= 1.0
+    }
+
+    pub fn has_edges(self) -> bool {
+        self.widths != [0.0; 4]
     }
 
     pub fn translate(self, by: Vec2) -> Self {
@@ -32,7 +65,7 @@ impl Fade {
             true => self,
             false => Self {
                 rect: self.rect.translate(by),
-                widths: self.widths,
+                ..self
             },
         }
     }
@@ -46,16 +79,18 @@ impl Fade {
                     Pos2::new(self.rect.max.x * factor, self.rect.max.y * factor) + origin,
                 ),
                 widths: self.widths.map(|width| width * factor),
+                opacity: self.opacity,
             },
         }
     }
 
     pub fn within(self, inner: Self) -> Self {
-        if inner.is_none() {
-            return self;
+        let opacity = self.opacity * inner.opacity;
+        if !inner.has_edges() {
+            return self.with_opacity(opacity);
         }
-        if self.is_none() {
-            return inner;
+        if !self.has_edges() {
+            return inner.with_opacity(opacity);
         }
         let outer = self.sides();
         let inner = inner.sides();
@@ -79,11 +114,12 @@ impl Fade {
                 Pos2::new(sides[2].0, sides[3].0),
             ),
             widths: sides.map(|(_, width)| width),
+            opacity,
         }
     }
 
     pub fn bands(self) -> Vec<Rect> {
-        let Self { rect, widths } = self;
+        let Self { rect, widths, .. } = self;
         let [left, top, right, bottom] = widths;
         let bands = [
             (

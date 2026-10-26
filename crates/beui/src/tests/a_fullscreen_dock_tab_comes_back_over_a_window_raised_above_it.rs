@@ -1,9 +1,9 @@
 use std::cell::Cell;
 
 use super::*;
+use crate::dock::unstyled::{DockPane, DockTab, DockWindow, DockingLayout};
 use crate::primitives::*;
 use crate::reactive::*;
-use crate::unstyled::{DockPane, DockTab, DockWindow, DockingLayout};
 
 #[component]
 fn HoverInto(hovered: Rc<Cell<bool>>) -> NodeId {
@@ -28,7 +28,7 @@ fn a_fullscreen_dock_tab_comes_back_over_a_window_raised_above_it() {
         build_node(move || {
             let (program, other) = (program.clone(), other.clone());
             view! {
-                <styled::Docking layout>
+                <dock::styled::Docking layout>
                     <DockPane
                         id="desktop"
                         empty={|| view! {
@@ -63,7 +63,7 @@ fn a_fullscreen_dock_tab_comes_back_over_a_window_raised_above_it() {
                             />
                         </DockPane>
                     </DockWindow>
-                </styled::Docking>
+                </dock::styled::Docking>
             }
         })
     };

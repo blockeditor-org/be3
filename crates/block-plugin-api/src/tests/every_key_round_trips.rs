@@ -7,7 +7,7 @@ fn every_key_round_trips() {
         Key::ALL.iter().collect::<HashSet<_>>().len()
     );
     for key in Key::ALL {
-        let message = Message::Input(InputBatch {
+        let message = InputBatch {
             screen: ScreenId(1),
             every_sample: false,
             events: vec![
@@ -18,10 +18,7 @@ fn every_key_round_trips() {
                 })
                 .into(),
             ],
-        });
-        assert_eq!(
-            decode_frame(&encode_frame(&message).unwrap()).unwrap(),
-            message
-        );
+        };
+        round_trips(&message);
     }
 }

@@ -1,5 +1,5 @@
 use super::*;
-use crate::unstyled::{DockApi, TabId};
+use crate::dock::unstyled::{DockApi, TabId};
 use crate::{WindowId, WindowPlacement, WindowRequest};
 
 #[test]

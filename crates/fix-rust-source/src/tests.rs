@@ -12,6 +12,7 @@ fn formatted(source: &str) -> String {
     String::from_utf8(crate::format_views(source.as_bytes()).expect("source parses")).unwrap()
 }
 
+mod a_component_method_needs_a_component_block;
 mod fix_repository_accepts_tagged_unsafe;
 mod fix_repository_check_reports_without_changes;
 mod fix_repository_does_not_rewrite_compliant_repository;
@@ -22,6 +23,7 @@ mod fix_repository_keeps_a_public_test_module_declared_once;
 mod fix_repository_keeps_multiline_attributes_with_their_test_modules;
 mod fix_repository_merges_imports_without_repeating_them;
 mod fix_repository_removes_test_path_attributes;
+mod fix_repository_reports_a_fixed_extent_outside_beui;
 mod fix_repository_reports_a_primitive_used_outside_beui;
 mod fix_repository_reports_beui_rule_breaks;
 mod fix_repository_reports_document_use_in_a_component;

@@ -89,7 +89,13 @@ fn command(cx: &Context, press: KeyPress) -> bool {
             return true;
         }
         Key::X if command => {
-            copy(state, CopyMode::Cut);
+            copy(
+                state,
+                match cx.locked.get_untracked() {
+                    true => CopyMode::Copy,
+                    false => CopyMode::Cut,
+                },
+            );
             return true;
         }
         _ => {}
@@ -149,6 +155,16 @@ fn command(cx: &Context, press: KeyPress) -> bool {
             });
         }
         return true;
+    }
+
+    if cx.locked.get_untracked() {
+        return match press.key {
+            Key::A if command => {
+                state.execute(EditorCommand::SelectAll);
+                true
+            }
+            _ => false,
+        };
     }
 
     match press.key {

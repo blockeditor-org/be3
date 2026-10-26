@@ -1,19 +1,19 @@
-use beui::Wrap;
-use block_editor_beui::beui::icons::Glyph;
+use beui::Overflow;
+use block_editor_beui::beui::dock::styled::CHROME_BORDER;
+use block_editor_beui::beui::dock::styled::{DockDialog, DockDialogPresentation, DockNode, TabId};
 use block_editor_beui::beui::icons::{
-    ICON_ARROW_LEFT, ICON_BLOCKS, ICON_CHEVRON_RIGHT, ICON_FILE_UP, ICON_FOLDER, ICON_LINK,
-    ICON_SEARCH,
+    ICON_ARROW_LEFT, ICON_BLOCKS, ICON_CHEVRON_RIGHT, ICON_FILE_UP, ICON_FOLDER,
+    ICON_LAYOUT_TEMPLATE, ICON_LINK, ICON_SEARCH,
 };
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
-use block_editor_beui::beui::unstyled::{
-    self, ButtonHandle, DockDialog, DockDialogPresentation, DockNode, MenuThen, TabId, TreeItem,
-};
+
 use block_editor_beui::beui::{Color32, NodeId, OverlayAnchor, Placement, Pos2, TextAlign, Vec2};
 use block_editor_beui::block_ui::TemplateEntry;
 use block_editor_beui::{
-    BlockParent, ChildMode, ChildState, CreationProgress, Subregion, SubregionContent, label_glyph,
+    BlockParent, ChildMode, ChildState, Subregion, SubregionContent, label_glyph,
 };
+use uuid::Uuid;
 
 use super::picker::{
     Creating, Pick, PickAction, PickTree, Stage, TreeKey, TreeRow, TypeGroup, common, groups,
@@ -21,15 +21,15 @@ use super::picker::{
 };
 use super::workspace::Workspace;
 
-const MENU_WIDTH: f32 = 256.0;
+const MENU_WIDTH: Size = Size::Custom(256.0);
 const SURFACE_SIZE: Vec2 = Vec2::new(520.0, 560.0);
-const DIALOG_HEIGHT: f32 = 460.0;
-const SHEET_PADDING: f32 = 16.0;
-const HEADER_SPACING: f32 = 10.0;
-const ROW_SPACING: f32 = 10.0;
-const ROW_PADDING: f32 = 8.0;
-const GROUP_SPACING: f32 = 4.0;
+const DIALOG_HEIGHT: Size = Size::Custom(460.0);
+const SIDE_BLEED: Bleed = Bleed::DIALOG.top(false).bottom(false);
+const HEADER_SPACING: Space = Space::Md;
+const ROW_SPACING: Space = Space::Md;
+const GROUP_SPACING: Space = Space::Xs;
 const CREATION_HEIGHT: f32 = 96.0;
+const CREATION_INSET: Space = Space::Sm;
 const PICKER_TABS: u64 = 1 << 42;
 
 type Act = Callback<PickAction>;
@@ -57,7 +57,7 @@ pub fn Pickers(workspace: Workspace) -> NodeId {
         picks.with(|picks| picks.iter().map(|held| held.pick).collect::<Vec<_>>())
     });
     view! {
-        <List spacing=0.0>
+        <List spacing=Space::None>
             <ForEach keys={ids}>|pick: u64|
                 <Picker workspace pick />
             </ForEach>
@@ -73,12 +73,19 @@ pub fn PickerDialog(workspace: Workspace, pick: u64, tab: TabId) -> DockNode<Tab
             .is_some_and(|held| held.creating.is_none())
     });
     let anchor = workspace.pick_anchor(pick).and_then(|anchor| anchor.rect);
+    let size = create_memo(move || match choosing.get() {
+        true => SURFACE_SIZE,
+        false => Vec2::new(
+            SURFACE_SIZE.x,
+            creation_height(workspace.pick(pick).as_ref()) + 2.0 * CHROME_BORDER,
+        ),
+    });
     view! {
         <DockDialog
             id={picker_tab(pick)}
             parent={tab}
             title="Add block"
-            size=SURFACE_SIZE
+            size={size}
             presentation=DockDialogPresentation::Card
             anchor
             dismiss_on_outside_press={choosing}
@@ -90,14 +97,14 @@ pub fn PickerDialog(workspace: Workspace, pick: u64, tab: TabId) -> DockNode<Tab
 }
 
 fn close_surface(workspace: Workspace, pick: u64) {
-    let creating = untrack(|| workspace.pick(pick)).is_some_and(|held| held.creating.is_some());
-    workspace.pick_action(
-        pick,
-        match creating {
-            true => PickAction::CancelCreation,
-            false => PickAction::Close,
-        },
-    );
+    let creating = untrack(|| workspace.pick(pick)).and_then(|held| held.creating);
+    match creating {
+        Some(Creating {
+            child: Some(child), ..
+        }) => workspace.host().dismiss_child(child),
+        Some(_) => workspace.pick_action(pick, PickAction::CancelCreation),
+        None => workspace.pick_action(pick, PickAction::Close),
+    }
 }
 
 #[component]
@@ -123,7 +130,7 @@ fn Picker(workspace: Workspace, pick: u64) -> NodeId {
         .get_untracked()
         .is_some_and(|held| held.place.is_some());
     view! {
-        <List spacing=0.0>
+        <List spacing=Space::None>
             <PickerMenu workspace held act templates placing />
             {centred}
             <CreationChild workspace pick held />
@@ -187,7 +194,7 @@ fn TypeItems(
     held: Memo<Option<Pick>>,
     act: Act,
     placing: bool,
-) -> Children<unstyled::MenuItem> {
+) -> Children<MenuItem> {
     let common = create_memo(move || {
         let types = workspace.types();
         held.with(|held| {
@@ -197,6 +204,12 @@ fn TypeItems(
         })
     });
     let keys = create_memo(move || common.get().iter().map(tile_key).collect::<Vec<_>>());
+    let templated = create_memo(move || {
+        held.with(|held| {
+            held.as_ref()
+                .is_some_and(|held| !workspace.templates_for(held.import_parent()).is_empty())
+        })
+    });
     let first = create_memo(move || keys.get().first().cloned());
     let row = move |key: String| {
         let entry = create_memo({
@@ -221,12 +234,18 @@ fn TypeItems(
             <LocationItem workspace held act />
             <ForEach keys>|key: String| { row(key) }</ForEach>
             <MoreItem act label="More blocks…" />
+            <Show condition={templated}>
+                <TemplatesItem workspace held act />
+            </Show>
             <LinkItem act />
             <ImportItem held act />
         },
         false => view! {
             <ForEach keys>|key: String| { row(key) }</ForEach>
             <MoreItem act label="More blocks…" />
+            <Show condition={templated}>
+                <TemplatesItem workspace held act />
+            </Show>
             <LinkItem act />
             <ImportItem held act />
         },
@@ -234,9 +253,9 @@ fn TypeItems(
 }
 
 #[component]
-fn MoreItem(act: Act, label: &'static str) -> unstyled::MenuItem {
+fn MoreItem(act: Act, label: &'static str) -> MenuItem {
     view! {
-        <unstyled::MenuItem
+        <MenuItem
             label
             glyph=ICON_BLOCKS
             separated=true
@@ -248,11 +267,7 @@ fn MoreItem(act: Act, label: &'static str) -> unstyled::MenuItem {
 }
 
 #[component]
-fn SlideItems(
-    workspace: Workspace,
-    held: Memo<Option<Pick>>,
-    act: Act,
-) -> Children<unstyled::MenuItem> {
+fn SlideItems(workspace: Workspace, held: Memo<Option<Pick>>, act: Act) -> Children<MenuItem> {
     let slides = create_memo(move || {
         let types = workspace.types();
         held.with(|held| {
@@ -266,8 +281,8 @@ fn SlideItems(
         format!("New {}", held.filter.name.to_lowercase())
     });
     view! {
-        <unstyled::MenuCaption label={caption} />
-        <unstyled::MenuGrid columns=2 row_test_id="picker.slides">
+        <MenuCaption label={caption} />
+        <MenuGrid columns=2 row_test_id="picker.slides">
             <ForEach keys>|key: String| {
                 let entry = create_memo({ let key = key.clone(); move || {
                     slides.get().into_iter().find(|entry| tile_key(entry) == key)
@@ -276,7 +291,7 @@ fn SlideItems(
                     <TypeItem act key entry separated={create_memo(|| false)} />
                 }
             }</ForEach>
-        </unstyled::MenuGrid>
+        </MenuGrid>
         <MoreItem act label="Other blocks…" />
         <LinkItem act />
     }
@@ -288,7 +303,7 @@ fn TypeItem(
     key: String,
     entry: Memo<Option<TemplateEntry>>,
     separated: Memo<bool>,
-) -> unstyled::MenuItem {
+) -> MenuItem {
     let glyph_color = create_memo(move || {
         entry
             .get()
@@ -298,7 +313,7 @@ fn TypeItem(
     let label = create_memo(move || entry.get().map(|entry| entry.name).unwrap_or_default());
     let glyph = create_memo(move || entry.get().and_then(|entry| entry.icon));
     view! {
-        <unstyled::MenuItem
+        <MenuItem
             label
             glyph
             glyph_color
@@ -315,9 +330,49 @@ fn TypeItem(
 }
 
 #[component]
-fn LinkItem(act: Act) -> unstyled::MenuItem {
+fn TemplatesItem(workspace: Workspace, held: Memo<Option<Pick>>, act: Act) -> MenuItem {
+    let templates = create_memo(move || {
+        held.with(|held| {
+            held.as_ref()
+                .map(|held| workspace.templates_for(held.import_parent()))
+                .unwrap_or_default()
+        })
+    });
+    let disabled = create_memo(move || {
+        held.with(|held| held.as_ref().is_some_and(|held| held.importing.is_some()))
+    });
     view! {
-        <unstyled::MenuItem
+        <MenuItem
+            label="New from template"
+            glyph=ICON_LAYOUT_TEMPLATE
+            disabled
+            row_test_id="picker.templates"
+        >
+            <ForEach keys={templates}>|template: Uuid| {
+                let label = create_memo(move || {
+                    let types = workspace.types();
+                    workspace
+                        .info(template)
+                        .map(|info| info.label(types.as_ref()).name)
+                        .unwrap_or_else(|| "Template".to_owned())
+                });
+                view! {
+                    <MenuItem
+                        label
+                        then=MenuThen::Stay
+                        row_test_id={format!("picker.template.{template}")}
+                        on_click={move || act.call(PickAction::CopyTemplate(template))}
+                    />
+                }
+            }</ForEach>
+        </MenuItem>
+    }
+}
+
+#[component]
+fn LinkItem(act: Act) -> MenuItem {
+    view! {
+        <MenuItem
             label="Link existing…"
             glyph=ICON_LINK
             then=MenuThen::Stay
@@ -328,7 +383,7 @@ fn LinkItem(act: Act) -> unstyled::MenuItem {
 }
 
 #[component]
-fn ImportItem(held: Memo<Option<Pick>>, act: Act) -> unstyled::MenuItem {
+fn ImportItem(held: Memo<Option<Pick>>, act: Act) -> MenuItem {
     let importing = create_memo(move || {
         held.with(|held| held.as_ref().is_some_and(|held| held.importing.is_some()))
     });
@@ -337,7 +392,7 @@ fn ImportItem(held: Memo<Option<Pick>>, act: Act) -> unstyled::MenuItem {
         false => "Import a file…".to_owned(),
     });
     view! {
-        <unstyled::MenuItem
+        <MenuItem
             label
             glyph=ICON_FILE_UP
             disabled={importing}
@@ -349,7 +404,7 @@ fn ImportItem(held: Memo<Option<Pick>>, act: Act) -> unstyled::MenuItem {
 }
 
 #[component]
-fn LocationItem(workspace: Workspace, held: Memo<Option<Pick>>, act: Act) -> unstyled::MenuItem {
+fn LocationItem(workspace: Workspace, held: Memo<Option<Pick>>, act: Act) -> MenuItem {
     let place = create_memo(move || held.with(|held| held.as_ref().and_then(|held| held.place)));
     let label = create_memo(move || {
         let types = workspace.types();
@@ -388,7 +443,7 @@ fn LocationItem(workspace: Workspace, held: Memo<Option<Pick>>, act: Act) -> uns
             .collect::<Vec<_>>()
     });
     view! {
-        <unstyled::MenuItem lead="New in" label glyph page=true row_test_id="picker.location">
+        <MenuItem lead="New in" label glyph page=true row_test_id="picker.location">
             <ForEach keys>|key: TreeKey| {
                 let row = create_memo({ let key = key.clone(); move || {
                     rows.get().into_iter().find(|row| row.key == key)
@@ -397,7 +452,7 @@ fn LocationItem(workspace: Workspace, held: Memo<Option<Pick>>, act: Act) -> uns
                     <PlaceItem act place key row />
                 }
             }</ForEach>
-        </unstyled::MenuItem>
+        </MenuItem>
     }
 }
 
@@ -407,7 +462,7 @@ fn PlaceItem(
     place: Memo<Option<BlockParent>>,
     key: TreeKey,
     row: Memo<Option<TreeRow>>,
-) -> unstyled::MenuItem {
+) -> MenuItem {
     let id = key.id();
     let label = create_memo(move || row.get().map(|row| row.name).unwrap_or_default());
     let glyph = create_memo(move || row.get().and_then(|row| row.icon));
@@ -430,7 +485,7 @@ fn PlaceItem(
         create_memo(move || Some(id.is_some() && place.get().and_then(BlockParent::block) == id));
     let named = id.map_or_else(String::new, |id| format!("picker.place.{id}"));
     view! {
-        <unstyled::MenuItem
+        <MenuItem
             label
             glyph
             depth
@@ -450,39 +505,26 @@ fn PlaceItem(
 #[component]
 fn CentredSurface(workspace: Workspace, pick: u64, held: Memo<Option<Pick>>) -> NodeId {
     let open = create_memo(move || held.with(|held| held.as_ref().is_some_and(Pick::surface_open)));
-    let phone = workspace.phone;
-    let wide = create_memo(move || open.get() && !phone.get());
-    let narrow = create_memo(move || open.get() && phone.get());
-    let mut built = false;
-    let body = create_memo(move || {
-        built |= open.get();
-        built
-    });
-    let surface = create_signal(None);
-    create_binding(move || {
-        if body.get() {
-            let node = untrack(|| {
-                view! {
-                    <PickerSurface workspace pick />
-                }
-            });
-            surface.set(Some(node));
-        }
-    });
-    let in_dialog = create_memo(move || wide.get().then(|| surface.get()).flatten());
-    let in_sheet = create_memo(move || narrow.get().then(|| surface.get()).flatten());
     let close = move || close_surface(workspace, pick);
     view! {
-        <List spacing=0.0>
-            <Dialog open={wide} width={SURFACE_SIZE.x} id="picker" on_dismiss={close}>
-                <Frame height=DIALOG_HEIGHT>
-                    <Portal node={in_dialog} />
+        <DialogFrame
+            open={open}
+            width={Size::Custom(SURFACE_SIZE.x)}
+            narrow={workspace.phone}
+            on_dismiss={close}
+        >|| {
+            let layout = use_context::<DialogLayout>();
+            let creating = create_memo(move || held.with(|held| held.as_ref().is_some_and(|held| held.creating.is_some())));
+            let height = create_memo(move || match layout.is_some_and(|layout| layout.sheet.get()) || creating.get() {
+                true => Length::INTRINSIC,
+                false => Length::Size(DIALOG_HEIGHT),
+            });
+            view! {
+                <Frame height>
+                    <PickerSurface workspace pick />
                 </Frame>
-            </Dialog>
-            <ModalSheet open={narrow} fit=true on_close={close}>
-                <Portal node={in_sheet} />
-            </ModalSheet>
-        </List>
+            }
+        }</DialogFrame>
     }
 }
 
@@ -505,11 +547,11 @@ fn PickerSurface(workspace: Workspace, pick: u64) -> NodeId {
         })
     });
     view! {
-        <List spacing=0.0>
+        <List spacing=Space::None>
             <Dynamic value={shown}>|shown: Option<Option<Stage>>| {
                 match shown {
                     Some(None) => view! {
-                        <CreateBody @sizing=ItemSize::Intrinsic workspace pick held act />
+                        <CreateBody @sizing=ItemSize::Intrinsic workspace pick held />
                     },
                     Some(Some(Stage::Link)) => view! {
                         <LinkBody @sizing=ItemSize::Percent(100.0) workspace held act />
@@ -543,49 +585,32 @@ fn SurfaceHeader(
 ) -> NodeId {
     let field = NodeRef::new();
     let built = view! {
-        <Frame padding={Sides::new(SHEET_PADDING, SHEET_PADDING, SHEET_PADDING, 0.0)}>
-            <List spacing=HEADER_SPACING>
-                <List direction=Direction::Horizontal align=Align::Center spacing=HEADER_SPACING>
-                    <IconButton
-                        @test_id={"picker.back"}
-                        glyph=ICON_ARROW_LEFT
-                        label="Back to the menu"
-                        variant=ButtonVariant::Ghost
-                        on_click={move || act.call(PickAction::Stage(Stage::Menu))}
-                    />
-                    <Text @sizing=ItemSize::Percent(100.0) style=TextStyle::TITLE wrap=Wrap::Words>
-                        {title}
-                    </Text>
-                </List>
-                <TextInput
-                    @node_ref={&field}
-                    value={Binding::new(search, move |value: String| act.call(PickAction::Search(value)))}
-                    placeholder
-                    label="Search"
-                    glyph=ICON_SEARCH
-                    @test_id={"picker.search"}
+        <List spacing=HEADER_SPACING>
+            <List direction=Direction::Horizontal align=Align::Center spacing=HEADER_SPACING>
+                <Button
+                    icon_only=true
+                    @test_id={"picker.back"}
+                    glyph=ICON_ARROW_LEFT
+                    label="Back to the menu"
+                    variant=ButtonVariant::Ghost
+                    on_click={move || act.call(PickAction::Stage(Stage::Menu))}
                 />
+                <Text @sizing=ItemSize::Percent(100.0) style=TextStyle::TITLE>{title}</Text>
             </List>
-        </Frame>
+            <TextInput
+                @node_ref={&field}
+                value={Binding::new(search, move |value: String| act.call(PickAction::Search(value)))}
+                placeholder
+                label="Search"
+                glyph=ICON_SEARCH
+                @test_id={"picker.search"}
+            />
+        </List>
     };
     if let Some(node) = field.try_get() {
         with_document(|document| document.focus_into(node));
     }
     built
-}
-
-#[component]
-fn SurfaceFooter(children: Children<ListChild>) -> NodeId {
-    view! {
-        <List spacing=0.0>
-            <Separator />
-            <Frame padding=SHEET_PADDING>
-                <List direction=Direction::Horizontal align=Align::Center spacing=HEADER_SPACING>
-                    {children}
-                </List>
-            </Frame>
-        </List>
-    }
 }
 
 fn search_of(held: Memo<Option<Pick>>) -> Memo<String> {
@@ -624,35 +649,29 @@ fn MoreBody(workspace: Workspace, held: Memo<Option<Pick>>, act: Act) -> NodeId 
     });
     let empty = create_memo(move || titles.get().is_empty());
     view! {
-        <List spacing=0.0>
+        <DialogBody
+            id="picker"
+            scrolls=false
+            actions={vec![DialogAction::cancel("Cancel")]}
+            on_dismiss={move || act.call(PickAction::Close)}
+        >
             <SurfaceHeader title search={search_of(held)} placeholder="Search block types" act />
-            <Scroll @sizing=ItemSize::Percent(100.0)>
-                <Frame padding=SHEET_PADDING>
-                    <List spacing=ROW_SPACING>
-                        <Show condition={empty}>
-                            <Text style=TextStyle::CAPTION>"No block types match."</Text>
-                        </Show>
-                        <ForEach keys={titles}>|title: String| {
-                            let group = create_memo({ let title = title.clone(); move || {
-                                groups.get().into_iter().find(|group| group.title == title)
-                            } });
-                            view! {
-                                <TypeGroupView act group />
-                            }
-                        }</ForEach>
-                    </List>
-                </Frame>
+            <Scroll @sizing=ItemSize::Percent(100.0) bleed=SIDE_BLEED>
+                <List spacing=ROW_SPACING>
+                    <Show condition={empty}>
+                        <Text style=TextStyle::CAPTION>"No block types match."</Text>
+                    </Show>
+                    <ForEach keys={titles}>|title: String| {
+                        let group = create_memo({ let title = title.clone(); move || {
+                            groups.get().into_iter().find(|group| group.title == title)
+                        } });
+                        view! {
+                            <TypeGroupView act group />
+                        }
+                    }</ForEach>
+                </List>
             </Scroll>
-            <SurfaceFooter>
-                <Spacer @sizing=ItemSize::Percent(100.0) />
-                <Button
-                    label="Cancel"
-                    variant=ButtonVariant::Secondary
-                    @test_id={"picker.cancel"}
-                    on_click={move || act.call(PickAction::Close)}
-                />
-            </SurfaceFooter>
-        </List>
+        </DialogBody>
     }
 }
 
@@ -679,71 +698,26 @@ fn TypeGroupView(act: Act, group: Memo<Option<TypeGroup>>) -> NodeId {
 #[component]
 fn TypeRow(act: Act, key: String, entry: Memo<Option<TemplateEntry>>) -> NodeId {
     let glyph_color = create_memo(move || {
-        entry
-            .get()
-            .and_then(|entry| entry.color)
-            .map(|[r, g, b]| Color32::from_rgb(r, g, b))
+        let color = entry.get().and_then(|entry| entry.color);
+        Some(color.map_or(TextColor::Muted, |[r, g, b]| {
+            TextColor::Custom(Color32::from_rgb(r, g, b))
+        }))
     });
     let label = create_memo(move || entry.get().map(|entry| entry.name).unwrap_or_default());
     let glyph = create_memo(move || entry.get().and_then(|entry| entry.icon));
     view! {
-        <unstyled::Button
+        <ListRow
             @test_id={format!("picker.more.{key}")}
             label
+            glyph
+            glyph_color
+            size=RowSize::Regular
             on_click={move || {
                 if let Some(entry) = entry.get_untracked() {
                     act.call(PickAction::Make(entry));
                 }
             }}
-        >|handle: ButtonHandle|
-            <ChoiceFace
-                handle
-                label
-                glyph
-                glyph_color={create_memo(move || glyph_color.get().map_or(TextColor::Muted, TextColor::Custom))}
-                detail={create_memo(String::new)}
-                enabled={create_memo(|| true)}
-            />
-        </unstyled::Button>
-    }
-}
-
-#[component]
-fn ChoiceFace(
-    handle: ButtonHandle,
-    label: Memo<String>,
-    glyph: Memo<Option<Glyph>>,
-    #[prop(default = TextColor::Muted)] glyph_color: Prop<TextColor>,
-    detail: Memo<String>,
-    enabled: Memo<bool>,
-) -> NodeId {
-    let theme = use_theme();
-    let ButtonHandle {
-        hovered, focused, ..
-    } = handle;
-    let fill = create_memo(move || match hovered.get() || focused.get() {
-        true => theme.hover.get(),
-        false => Color32::TRANSPARENT,
-    });
-    let color = create_memo(move || match enabled.get() {
-        true => TextColor::Default,
-        false => TextColor::Muted,
-    });
-    view! {
-        <Frame
-            fill={ColorRole::custom(fill)}
-            radius=Radius::Md
-            border={focus_border(focused, Border::FOCUS)}
-            padding={Sides::symmetric(ROW_PADDING, ROW_PADDING)}
-        >
-            <List direction=Direction::Horizontal align=Align::Center spacing=ROW_SPACING>
-                <Text color={glyph_color} align=TextAlign::Center>
-                    <Icon glyph={glyph} />
-                </Text>
-                <Text @sizing=ItemSize::Percent(100.0) color ellipsis=true>{label}</Text>
-                <Text size=TextSize::Sm color=TextColor::Muted>{detail}</Text>
-            </List>
-        </Frame>
+        />
     }
 }
 
@@ -812,8 +786,22 @@ fn LinkBody(workspace: Workspace, held: Memo<Option<Pick>>, act: Act) -> NodeId 
             false => "No matching blocks.".to_owned(),
         }
     });
+    let named = create_memo(move || !name.get().is_empty());
     view! {
-        <List spacing=0.0>
+        <DialogBody
+            id="picker"
+            scrolls=false
+            actions={vec![
+                DialogAction::cancel("Cancel"),
+                DialogAction::primary("Link", move || {
+                    if let Some(row) = chosen.get_untracked() {
+                        link(row);
+                    }
+                })
+                .disabled(unready),
+            ]}
+            on_dismiss={move || act.call(PickAction::Close)}
+        >
             <SurfaceHeader
                 title
                 search={search_of(held)}
@@ -821,17 +809,15 @@ fn LinkBody(workspace: Workspace, held: Memo<Option<Pick>>, act: Act) -> NodeId 
                 act
             />
             <Show condition={empty}>
-                <Frame padding=SHEET_PADDING>
-                    <Text style=TextStyle::CAPTION>{empty_text}</Text>
-                </Frame>
+                <Text style=TextStyle::CAPTION>{empty_text}</Text>
             </Show>
             <Tree
                 @sizing=ItemSize::Percent(100.0)
                 keys
                 item
                 selected={selected_key}
-                spacing=2.0
-                padding=SHEET_PADDING
+                spacing=Space::Xs2
+                bleed=SIDE_BLEED
                 row_test_id={move |key: TreeKey| match key.id() {
                     Some(id) => format!("picker.link.{id}"),
                     None => "picker.link.shared".to_owned(),
@@ -850,34 +836,20 @@ fn LinkBody(workspace: Workspace, held: Memo<Option<Pick>>, act: Act) -> NodeId 
                     <LinkRowFace row />
                 }
             }</Tree>
-            <SurfaceFooter>
-                <Show condition={has_above}>
-                    <Text size=TextSize::Sm color=TextColor::Muted ellipsis=true>{above}</Text>
-                    <Text size=TextSize::Sm color=TextColor::Muted>
-                        <Icon glyph=ICON_CHEVRON_RIGHT />
-                    </Text>
-                </Show>
-                <Text size=TextSize::Sm ellipsis=true>{name}</Text>
-                <Spacer @sizing=ItemSize::Percent(100.0) />
-                <Button
-                    label="Cancel"
-                    variant=ButtonVariant::Secondary
-                    @test_id={"picker.cancel"}
-                    on_click={move || act.call(PickAction::Close)}
-                />
-                <Button
-                    label="Link"
-                    variant=ButtonVariant::Primary
-                    disabled={unready}
-                    @test_id={"picker.confirm"}
-                    on_click={move || {
-                        if let Some(row) = chosen.get_untracked() {
-                            link(row);
-                        }
-                    }}
-                />
-            </SurfaceFooter>
-        </List>
+            <Show condition={named}>
+                <List direction=Direction::Horizontal align=Align::Center spacing=HEADER_SPACING>
+                    <Show condition={has_above}>
+                        <Text size=TextSize::Sm color=TextColor::Muted overflow=Overflow::Ellipsis>
+                            {above}
+                        </Text>
+                        <Text size=TextSize::Sm color=TextColor::Muted>
+                            <Icon glyph=ICON_CHEVRON_RIGHT />
+                        </Text>
+                    </Show>
+                    <Text size=TextSize::Sm overflow=Overflow::Ellipsis>{name}</Text>
+                </List>
+            </Show>
+        </DialogBody>
     }
 }
 
@@ -899,11 +871,13 @@ fn LinkRowFace(row: Memo<Option<TreeRow>>) -> NodeId {
         false => Weight::Normal,
     });
     view! {
-        <List direction=Direction::Horizontal align=Align::Center spacing=6.0>
+        <List direction=Direction::Horizontal align=Align::Center spacing=Space::Sm>
             <Text color=TextColor::Muted size=TextSize::Sm align=TextAlign::Center>
                 <Icon glyph={glyph} />
             </Text>
-            <Text @sizing=ItemSize::Percent(100.0) color weight ellipsis=true>{label}</Text>
+            <Text @sizing=ItemSize::Percent(100.0) color weight overflow=Overflow::Ellipsis>
+                {label}
+            </Text>
             <Text size=TextSize::Sm color=TextColor::Muted>{detail}</Text>
         </List>
     }
@@ -921,8 +895,8 @@ fn CreationChild(workspace: Workspace, pick: u64, held: Memo<Option<Pick>>) -> N
     });
     let editor = workspace.editor();
     view! {
-        <Frame width=0.0 height=0.0>
-            <Frame width=1.0 height=1.0>
+        <Frame width=Size::Custom(0.0) height=Size::Custom(0.0)>
+            <Frame width=Size::Custom(1.0) height=Size::Custom(1.0)>
                 <Subregion
                     editor={editor}
                     placed={placed}
@@ -943,45 +917,11 @@ fn creation_content(creating: &Creating) -> SubregionContent {
 }
 
 #[component]
-fn CreateBody(workspace: Workspace, pick: u64, held: Memo<Option<Pick>>, act: Act) -> NodeId {
+fn CreateBody(workspace: Workspace, pick: u64, held: Memo<Option<Pick>>) -> NodeId {
     let creating =
         create_memo(move || held.with(|held| held.as_ref().and_then(|held| held.creating.clone())));
-    let state = create_signal(ChildState::default());
-    let title = create_memo(move || {
-        format!(
-            "New {}",
-            creating
-                .get()
-                .map(|creating| creating.template.name)
-                .unwrap_or_default()
-        )
-    });
-    let working = create_memo(move || {
-        creating.with(|creating| creating.as_ref().is_some_and(|creating| creating.committed))
-    });
-    let waiting_label = create_memo(move || {
-        format!(
-            "Creating {}...",
-            creating
-                .get()
-                .map(|creating| creating.template.name)
-                .unwrap_or_default()
-        )
-    });
-    let options = create_memo(move || !working.get());
-    let not_ready = create_memo(move || {
-        !matches!(
-            state.with(|state| state.creation.clone()),
-            Some(CreationProgress::Options { ready: true })
-        )
-    });
-    let height = create_memo(move || {
-        state.with(|state| {
-            state
-                .intrinsic_size
-                .map_or(CREATION_HEIGHT, |size| size.y.max(1.0))
-        })
-    });
+    let height =
+        create_memo(move || Length::Size(Size::Custom(creation_height(held.get().as_ref()))));
     let placed = create_memo(move || {
         creating.with(|creating| {
             creating
@@ -992,49 +932,25 @@ fn CreateBody(workspace: Workspace, pick: u64, held: Memo<Option<Pick>>, act: Ac
     });
     let editor = workspace.editor();
     view! {
-        <Frame padding=SHEET_PADDING>
-            <List spacing=HEADER_SPACING>
-                <Text style=TextStyle::TITLE>{title}</Text>
-                <Frame height=height>
-                    <Subregion
-                        editor={editor}
-                        placed={placed}
-                        mode=ChildMode::Live
-                        @test_id={"picker.creation"}
-                        on_state={move |next: ChildState| {
-                            workspace.creation_state(pick, &next);
-                            state.set(next);
-                        }}
-                    />
-                </Frame>
-                <Separator />
-                <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
-                    <Show condition={working}>
-                        <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
-                            <Spinner />
-                            <Text style=TextStyle::CAPTION>{waiting_label}</Text>
-                        </List>
-                    </Show>
-                    <Spacer @sizing=ItemSize::Percent(100.0) />
-                    <Button
-                        label="Cancel"
-                        variant=ButtonVariant::Secondary
-                        @test_id={"picker.cancel"}
-                        on_click={move || act.call(PickAction::CancelCreation)}
-                    />
-                    <Show condition={options}>
-                        <Button
-                            label="Create"
-                            variant=ButtonVariant::Primary
-                            disabled={not_ready}
-                            @test_id={"picker.create"}
-                            on_click={move || act.call(PickAction::Create)}
-                        />
-                    </Show>
-                </List>
-            </List>
+        <Frame padding=CREATION_INSET>
+            <Frame height=height>
+                <Subregion
+                    editor={editor}
+                    placed={placed}
+                    mode=ChildMode::Live
+                    dialog=true
+                    @test_id={"picker.creation"}
+                    on_state={move |next: ChildState| workspace.creation_state(pick, &next)}
+                />
+            </Frame>
         </Frame>
     }
+}
+
+fn creation_height(held: Option<&Pick>) -> f32 {
+    held.and_then(|held| held.creating.as_ref())
+        .and_then(|creating| creating.height)
+        .unwrap_or(CREATION_HEIGHT)
 }
 
 #[component]
@@ -1045,8 +961,9 @@ fn PickerError(error: Memo<Option<String>>, act: Act) -> NodeId {
         <Dialog
             open={open}
             title="Block picker error"
-            width=320.0
-            cancel="Dismiss"
+            width=Size::Popover
+            kind=DialogKind::Alert
+            actions={vec![DialogAction::cancel("Dismiss")]}
             on_dismiss={move || act.call(PickAction::DismissError)}
         >
             <Text style=TextStyle::CAPTION color=TextColor::Danger>{text}</Text>

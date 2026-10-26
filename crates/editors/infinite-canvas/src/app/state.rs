@@ -2007,7 +2007,7 @@ impl CanvasState {
             if let Ok(picked) = picked
                 && state.is_alive()
             {
-                state.place_picked_block(picked.id, center);
+                state.place_picked_block(picked.id(), center);
             }
         });
     }
@@ -2051,7 +2051,7 @@ impl CanvasState {
                 if let Ok(picked) = picked
                     && state.is_alive()
                 {
-                    state.attach_picked_component(&selected, picked.id);
+                    state.attach_picked_component(&selected, picked.id());
                 }
             },
         );
@@ -2086,7 +2086,7 @@ impl CanvasState {
             if let Ok(picked) = picked
                 && state.is_alive()
             {
-                state.set_picked_value(&selected, schema_id, field_id, picked.id);
+                state.set_picked_value(&selected, schema_id, field_id, picked.id());
             }
         });
     }

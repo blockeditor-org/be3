@@ -5,10 +5,9 @@ use block_editor_beui::be_block::input_settings::{
 use block_editor_beui::be_block::{InputSettings, Setting};
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
-use block_editor_beui::beui::unstyled::ChoiceOption;
 use block_editor_beui::beui::{NodeId, TextAlign};
 use block_editor_beui::{
-    ChangesToast, Editor, HostInputDevice, InputDevices, LayeredSettings, LayeredSettingsRow,
+    ChangesToast, Editor, HostInputDevice, InputDevicesWatch, LayeredSettings, LayeredSettingsRow,
     SettingHandle,
 };
 
@@ -22,7 +21,7 @@ type DeviceKey = (String, u32, u32);
 #[component]
 pub fn InputSettingsView(editor: Editor, settings: Settings) -> NodeId {
     let read_only = editor.read_only();
-    let devices = editor.host_value::<InputDevices>();
+    let devices = editor.watch::<InputDevicesWatch>();
     let effective = settings.effective();
     let layout = text_field(settings, InputSettings::layout_setting());
     let variant = text_field(settings, InputSettings::variant_setting());
@@ -41,7 +40,7 @@ pub fn InputSettingsView(editor: Editor, settings: Settings) -> NodeId {
     let set_delay = settings.setter(&delay_setting);
     let set_rate = settings.setter(&rate_setting);
     let set_paste = settings.setter(&paste_setting);
-    let offered = editor.host_offers::<InputDevices>();
+    let offered = editor.offered::<InputDevicesWatch>();
     let elsewhere = create_memo(move || !offered.get());
     let page = NodeRef::new();
     view! {
@@ -317,7 +316,7 @@ fn PointerRows(
         settings.setter(&natural_setting),
     );
     view! {
-        <List spacing=0.0>
+        <List spacing=Space::None>
             <Show condition={has_speed}>
                 <SliderSetting
                     label="Speed"

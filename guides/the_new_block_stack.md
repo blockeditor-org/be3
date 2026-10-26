@@ -125,9 +125,10 @@ Content-addressed, encrypted object storage.
 - `Lease` is ownership. The first participant owns the session; a claim succeeds
   only against the generation the claimant last saw, and only when the lease has
   expired or the owner is gone. Generation numbers stop a stale claim from
-  stomping a newer owner. Only a seal's heartbeat (`ReportClean`) renews the
-  lease, so an owner that edits nothing (a viewer) loses it to the next claim
-  once it lapses. Its length is `ServerConfig::lease`; tests that claim pass zero
+  stomping a newer owner. A heartbeat (`ReportClean`) renews the lease: the
+  owner sends one after every seal and, while it holds the session, every
+  `HEARTBEAT_INTERVAL` (half of `LEASE_MILLISECONDS`) on its replica's own
+  timer (`wake_at`), with `clean_at` set only while it has nothing unsealed. Its length is `ServerConfig::lease`; tests that claim pass zero
   (block-app's `Harness::lapsing`, `Lease::lasting(0)` in the replica's `Sim`)
   so a claim never waits on the clock.
 - `clean_at` is the commit the owner last reported its state durable at. It
@@ -208,11 +209,30 @@ time, so notifications wait for the next post.
   or `personal`, the server's one organization everyone may share, which
   `ServerStore::personal_organization` makes on demand; registering joins it
   as an editor, and nobody administers it.
-- Access is computed per member (`Visibility` in `blocks.rs`). An organization
-  administrator edits everything. Anyone else gets the best grant on the block
-  or an ancestor (a grant that can view is inherited down), and `Edit` on what
-  they authored when its parent is `Root` or `Detached` or they can view its
-  parent, so a member taken off a workspace loses what they wrote inside it.
+- Access is computed per member (`Visibility` in `blocks.rs`), as
+  `None < KnowExists < View < Edit < Manage`. An organization administrator
+  manages everything. Anyone else gets the best grant on the block or an
+  ancestor (a grant that can view is inherited down, and a lower grant never
+  reduces it), and `Manage` on what they authored when its parent is `Root` or
+  `Detached` or they can view its parent, so a member taken off a workspace
+  loses what they wrote inside it. A settings block (`be_graph::SETTINGS_TYPE`)
+  whose parent is a block is the exception: it is `Manage` to whoever manages
+  its parent, at most `View` to whoever can view the parent, and its own
+  grants never raise that, so changing, adding or moving in a block's
+  settings needs `Manage` on the block. The kinds an editor changes
+  (`be_graph::EDIT_KINDS`: the prefix registry and tag definitions) are not in
+  the settings block but are children of the block itself, so they inherit
+  `Edit` like any child, though a grant on one never raises it above its
+  parent's. Below a settings block or such a kind, every block has exactly
+  the access of its parent: neither authorship nor a grant raises it. Who
+  reads a kind is a manager's choice; the editor who made an edit kind may
+  only open it to anyone inside once, as it is made (its default).
+  Moving a block (`SetParent`) needs `Edit` on it and on the new parent, and
+  `Manage` on it to move a workspace (a root block) or to move it into another
+  workspace (`BlockGraph::move_refusal`); without `Manage` a move is also
+  refused if it would raise the mover's own access to the block (into a folder
+  they manage, say). An author manages what they made, so moving one's own
+  block anywhere one may edit is fine.
   A block they can view references gives them `KnowExists` on it, and on
   nothing that block references in turn. Of a block they may only know exists
   they are told its id, content type and access and nothing else
@@ -220,7 +240,7 @@ time, so notifications wait for the next post.
   metadata, key or scope), and are served none of its keys or objects. Ancestors
   are not shown: a block someone can see whose parent they cannot is an entry
   point, which the app lists under Shared with me. `SetAccess` grants, and only
-  someone who may edit a block may grant on it; a grant above `None` must also
+  someone who manages a block may grant on it or list its access; a grant above `None` must also
   name a member of the organization who is a contact of the granter (see
   Contacts). Anyone may revoke their own grant (leaving a block). `ListAccess`
   lists the block's author, grantees and viewers and the caller's contacts who
@@ -371,6 +391,48 @@ it sends; a browser cannot add one to a websocket. `Connection` above it is the 
 everywhere, and it waits on its command channel and its socket rather than
 polling either.
 
+`Connection` also decides when the server is gone, because a socket can stay
+open with nothing behind it (a laptop that slept, a Wi-Fi hop, a proxy that
+stopped forwarding) and the transport never says so:
+- Connecting, the socket plus the greeting, gives up after `CONNECT_TIMEOUT`
+  (15 s) with `ClientError::TimedOut`. Once connected, no request has a
+  deadline of its own: every one is answered or fails with `Disconnected` when
+  the connection closes. `ClientError::is_unreachable` covers both.
+- After `PING_INTERVAL` (15 s) with no frame of any kind from the server, it
+  sends `ClientMessage::Ping`. A browser cannot send websocket pings, so this
+  is a protocol message, and any frame proves the server is alive. The server
+  reads frames in a task of its own (`serve_socket`) and answers a `Ping` (and
+  a websocket ping) at once, ahead of the requests queued for its answering
+  loop, so a slow request does not make the client think the server is gone.
+  `PONG_WAIT` (20 s) after the ping was actually written, with still nothing
+  heard, the connection closes itself, and everything waiting on it sees a
+  disconnect. Only an unanswered ping closes it: a process that was suspended
+  or starved for longer than both pings when it wakes and keeps a live
+  connection. The timer only wins when no frame and no command is waiting, and
+  the worker alternates between reading frames and writing queued commands, so
+  neither a flood of requests nor of events stops the other side. It keeps
+  reading frames while a write is under way, and a write still stuck
+  `PONG_WAIT` after the ping fell due (a server that stopped reading, so the
+  socket's send buffer is full) closes the connection too.
+  `Connection::due()` watches the clock time at which the connection next acts
+  on silence (pings or gives up), so a test with a manual clock can advance
+  straight to it.
+- Each deadline is read from a `be_client::Clock`, passed to
+  `Connection::connect`: `Clock::real()` everywhere but tests, which pass
+  `Clock::manual()` and `advance` it, so none of this needs sleeping in a test.
+  `crates/fault-relay` is the other half of those tests: a TCP relay between a
+  client and a server that can `stall` its connections (read, count what it
+  heard and forward nothing, a half-open socket), `stall_at_next_request` (the
+  same, from the next bytes the client sends, so a test can silence the server
+  just as the client asks something), `cut` them, or `hold_new` ones it accepts
+  without ever reaching the server, or `jam_at_next_request` (stop reading
+  altogether, so the client's writes back up; it accepts with a 64 KiB receive
+  buffer so that takes megabytes, not tens of them). `count(predicate)` counts
+  the client messages that match from then on (a `watch` of the count), so a
+  test waits for a `Ping` or a `Heartbeat` to be sent. The block-app
+  `Harness::miss_a_ping` advances the manual clock to each `Connection::due()`
+  until the connection gives up.
+
 - `open` reads the head commit and its chunks with one `ReadContents` and decodes.
 - `save` chunks the content and publishes against the head it read, carrying in
   the `Publish` the commit and the chunks that head lacks, so a save is one round
@@ -432,7 +494,10 @@ leaving, makes its first seal a reload for the same reason.
 
 A merge that conflicts first writes the owner's unsaved side as a commit of its
 own (`Command::Stash`), so the merge commit has both sides as parents and neither
-is lost, and reports a `be_types_host::Conflict` to its host. A session message
+is lost, and reports a `be_types_host::Conflict` to its host. block-app keeps
+it per block (`be::conflicts`) and shows a notice on the block whose "See both
+versions" previews the two sides as revision previews; keeping the merge or
+restoring one side clears it. A session message
 or operation this version cannot decode marks the session incompatible. On a
 follower that also marks it diverged, because its copy may now be wrong, and a
 diverged session refuses to edit or seal.
@@ -683,8 +748,8 @@ type, its only live edit is `BlobOp::SetHeader` (the image editor records what
 it decoded that way), and an offline merge takes whichever side changed it.
 The payload never travels as an operation, because a session relays operations
 in frames of at most 8 MB. It arrives as a commit instead, which be-store has
-already cut into chunks: a new block's first content comes from `SeedContent`,
-and a new file for an existing block from `ReplaceContent` (below).
+already cut into chunks: a new block's first content comes from `seed-content`,
+and a new file for an existing block from `replace-content` (below).
 
 Test a type's helpers in `crates/be-block/src/tests/`; the model itself is
 tested in `crates/be-model/src/tests/`, and the round trip through a real server
@@ -694,7 +759,10 @@ through one in-process `block_type_guest::Module` (every be-block type is
 registered, and `hold::<C>` registers a type it does not know): one replica per
 block, owned by this device, a store of commits that takes every publish, the test's
 frame clock as the replica's time, and editors attached as endpoints on their first
-`Replica` frame, the way the app's host does. `edit` and `apply_elsewhere` are edits
+frame through a `replica` resource, the way the app's host does. `BeuiTest` plays
+the host's side of the `be3:plugin/blocks` interface over a be-ops connection to the
+headless plugin's executor (`block-ui-test/src/link.rs`), so a test runs the same
+calls and watches the app does. `edit` and `apply_elsewhere` are edits
 submitted by another participant, `set_peers` and `receive_from_peer` are presence and
 channel messages from one; `store()` hands a test fixture the same `ContentStore` to
 read or write between runs.
@@ -758,7 +826,7 @@ undone.
   one that was adopted into it, keeps its own id as its local id. The host
   translates every block id that crosses the plugin protocol for an instance
   whose block is inside a checkout (`Instances::translate`, over
-  `Message::visit_block_ids`), and the peer resolves the references it
+  the `BlockIds` of what crosses, in plugin_host/calls.rs), and the peer resolves the references it
   publishes the same way (`Peer::set_resolver`), so neither content nor editors
   know about checkouts. Resolution looks in the instance's own checkout first
   and falls back to the block with that id, which is how a reference out of the
@@ -769,14 +837,14 @@ undone.
   (`be_vcs::merge` over the trees, then each content type's `Merge::merge3`
   for a block both sides changed, with `before`, `yours` and `incoming` copies
   of a conflicted block left under the checkout), resolving, undoing,
-  forking, pulling and pushing. It pushes a `VersionStatus` for every
-  repository and checkout an editor is showing, recomputed when the mirror
+  forking, pulling and pushing. It answers a `version-watch` with the
+  `version-status` of every repository and checkout an editor is showing, recomputed when the mirror
   changes; it watches the checkout's blocks and holds each followed checkout's
   tree in the mirror (`Query::Subtree` under `Owner::Version`), re-listing it
   before each operation so every head is current.
 - A replica's owner reconciles when someone publishes past it (`HeadChanged`
-  → `HeadEvent::Moved`), which is what lets a checkout replace the content of a
-  block that someone has open; the worker sends `Moved` with `from_this_device`
+  → `head-moved`), which is what lets a checkout replace the content of a
+  block that someone has open; the worker calls `head-moved` with `from-this-device`
   for what it publishes itself.
 
 ## Running it
@@ -821,12 +889,12 @@ repository and the checkout, which the app reads itself and runs in process
 (`be::types::HostTypes`). What a type is called, its icon, color, child edits and
 press come from the manifest that declares it, or for the host's own types from
 `be::host_block_types`: discovery (`editors/plugin/discovery.rs`, `block_type`)
-holds that catalog, so a type is known before its module has said `Hello`, and
+holds that catalog, so a type is known before its module's `start` lists it, and
 refuses a plugin that declares a type someone else already has or edits one
 nobody declares. `be::provided` is whether some module will hold a content type,
 which is what the plugin host checks before following a block's content.
 The registry (`be_types_host::modules`, re-exported by `be/types.rs`, which
-lists the app's module sources) holds each module's `Hello`, with every type's blank
+lists the app's module sources) holds the types each module's `start` lists, with every type's blank
 content and its description asked for once at start, answers `be::kind_of` and
 `be::is_known` (frozen, schema fingerprint, blank, which module). Everything else
 about a type, merging, describing, validating bytes, is a request to its module,
@@ -843,33 +911,33 @@ what an older build saved. Every save stamps the derived `SCHEMA` key with
 wrongly. `be::staleness` calls an unfrozen block stale when its replica could
 not read it (`Status::unreadable`, kept in `Shared::unreadable`) or its stamp is another schema's; a block
 with no stamp is not stale. A stale block's frame shows `StaleNotice`
-(`surfaces::StaleBlock`) instead of its editor: Reset publishes the type's
+(`surfaces::StaleBlock`, with the notice in `surfaces/notices.rs`) instead of its editor: Reset publishes the type's
 default content (`be::reset`), Delete deletes it as the shell would, and Try
 anyway shows the editor for the rest of the session (`be::try_anyway`). A block
 the app holds itself (`be::hold`: settings, the shell's session) is reset by
 the worker without asking, with a notice, since the app needs it to work: it
 publishes the type's blank content and opens the replica again. The
-app also deletes its local caches (`be-objects/`, `plugin-cache/`) whenever its
-build id changes; when the app becomes offline-first, those will have to stay.
+app deletes `plugin-cache/` whenever its build id changes; it keeps
+`be-objects/` (objects are content-addressed and frozen) and the refs database.
 
 `crates/block-app/src/be/worker.rs` is the peer's loop and
 `be_types_host::Replicas` (shared with `be`, guides/type_modules.md "Hosts";
 `be/replicas.rs` is the app's `Host`, where reports land in `Shared`) the host
 half of every open block's replica: it opens a replica (joins the session,
-watches the block, sends `Open` with the head and `Moved` for a later one), answers
-its commands with the real primitives (`Read`, `Publish` and `Stash` through
-`Peer::publish_encoded` and `stash_encoded`, `Resume`, the lease, relaying
-sealed with the block key, `WakeAt` from the clock), and keeps what it reports
-(`Status`, `Described`, `History`, `Conflict`) in `Shared`. Natively the module
+watches the block, constructs the `replica` with the head and calls `head-moved` for
+a later one), answers its calls with the real primitives (`read`, `publish` through
+`Peer::seal_encoded` then `publish_sealed`, `stash` through `stash_encoded`,
+`resume-session`, the lease, relaying sealed with the block key, `sleep-until` from
+the clock), and keeps what it reports (`report-status`, `described`, `history`,
+`conflict`) in `Shared`. Natively the module
 runs on a thread of its own (`PureHost::spawn`), on the web in a web worker
 (`WebGuest`), and in the unit tests in process (`InProcess`); the worker never
-waits on one, since every module command and IO answer is an event in its loop.
+waits on one, since every call a module makes and every IO answer is an event in its loop.
 A module that stops (a panic, or a step past `STEP_TIMEOUT`) is started again,
 and every replica it held is opened again from its last head, with the editors
 attached and the messages relayed since its last seal replayed. `be/native.rs` runs the loop on a thread of its own with a `FileStore` under it,
-and `be/web.rs` runs it on the browser's own executor with a `MemoryStore`,
-because there is no file system to keep objects in there and every open fetches
-what it needs.
+and `be/web.rs` runs it in a web worker of its own with the same `FileStore`,
+whose directory is in the origin private file system (guides/running/web.md).
 
 The app holds one connection per signed-in account and server, in
 `crates/block-app/src/link.rs`, and keeps it until it closes. Sign-in hands its
@@ -882,6 +950,68 @@ for the last one to stop before it does (`Link::open_organization`). Opening it
 again, even the same one, drops the connection's watches and listings, so what
 needs the open organization's verified escrow key (inviting, creating an agent)
 goes through the worker's `Peer` rather than opening it.
+
+A `Peer` keeps what it learns in a local refs database (`be_client::refs`,
+`RefsDb`, passed in `PeerConfig::refs`; an in-memory one by default), keyed by
+server, account and organization: each block's local head and last-known remote
+head, the raw `BlockSummary` of every listing (metadata stays sealed), the key
+rows and wraps it was served, its verified contacts and escrow chain, the
+workspace list (`RefsDb::workspaces`), an outbox and an unsent area. It is
+SQLite on every platform (`RefsDb::open`), in the origin private file system on
+the web. `Peer::cached` builds a peer from it with no
+network, and `Peer::attach` hands it a signed-in connection later (again after
+every reconnect), which opens the organization and refreshes keys and contacts.
+While the connection is down, reads fall back to the cache: `summary`, the
+listings and `read_contents` answer from it on `ClientError::Disconnected`, and
+`open` reads the local head first while it has unpublished commits.
+
+The app keeps one refs database per device, `be-refs.sqlite3` beside
+`be-objects/` in the data directory (`be::refs_in`, `/block` on the web). The worker builds its `Peer` once per workspace: with
+`Peer::cached` when the database already holds a session for that server,
+account and workspace, so the graph, listings and open blocks come up with no
+network, and otherwise with `Peer::signed_in` on the first connection. Every
+later connection is handed to the same peer with `attach`. The workspace list is
+cached there too (`RefsDb::set_workspaces` after each load); when the list
+request fails the app shows the cached one and loads it again once the worker
+connects or the window gains focus.
+
+Saving is two steps: `Peer::seal_manifest` writes the commit, records it in the
+outbox and moves the local head, and `publish_sealed` sends it; `publish_manifest`
+does both, and on `Rejected` drops the commit from the outbox since its caller
+retries or merges. A commit whose publish fails offline stays in the outbox, as
+does a `create_block` made offline (`refs::Op::Create`). `Peer::drain` publishes
+the outbox in order once attached and reports, per block, `Drained::Published`,
+`Created`, `Moved`, `Defined`, `Diverged { local, remote }` (left in the outbox for the replica host to
+merge: a publish whose parents include the local commit settles it), `Refused`
+(an operation the server turned down for another reason: a move or define is
+dropped, a create or publish is kept and the rest of that block waits for the
+next drain), `Failed` (any other error, kept likewise) or `Unsent`. A lost
+connection ends the drain. A rejected publish whose remote head, once its
+history is fetched, already contains the commit is settled rather than diverged.
+`Peer::reconcile(block, remote)` finishes a diverged block: it settles what the
+remote head contains, sends a waiting commit that builds on it (such as a merge
+whose publish was lost), and otherwise answers `Reconciled::Merge { base, ours,
+theirs }` for the replica host to merge.
+Graph operations queue the same way while detached: `set_parent` (moving and
+deleting) queues `refs::Op::Move` and `define` on a block with no content
+`Op::Define`, and both rewrite the cached summary so listings show the change
+offline; while any of these wait for a block, later ones queue behind them.
+`define` on a block with content seals a local commit. `unlist` is a no-op
+offline. Sharing, access lists, members, invites, agents, contacts and pairing
+need the server, and the worker answers them offline with "This needs a
+connection to the server".
+An outbox entry is settled once a published head descends from it. A block
+whose access is refused (on a publish, a create or `summary`; a drain refused
+`PermissionDenied` or `BlockNotFound` reads the summary again first, and only a
+move or define refused to someone who may still edit is dropped), or whose
+summary arrives without edit access, moves its entries to the unsent area
+(`Peer::unsent`, `restore_unsent`, `discard_unsent`); nothing there is ever
+deleted except by `discard_unsent`, and `UnsentBlock::offerable` says the cached
+summary allows editing again. `summary` of a block whose `Op::Create` still
+waits is not lost access. `Peer::pending` counts outbox operations, local
+commits, their blocks and unsent blocks. A sealed commit and its local head are
+written in one transaction (`Refs::push_publish`), as is a restore from the
+unsent area, and a refs record that no longer decodes is skipped on load.
 
 ### The graph mirror
 
@@ -896,7 +1026,7 @@ that much), and is never `locked`. The app never lists the whole organization.
 `Parents`, `Block`, and the host's own `Subtree`) is how everything in the app
 asks the mirror a question, and `be::graph_revision` says when to ask again.
 Whoever asks first says what it wants with `be::want(owner, queries)`: each
-plugin instance its `WatchBlocks` queries, its own block's `Parents` and the
+plugin instance its `blocks-watch` queries, its own block's `Parents` and the
 blocks whose content it watches (`Owner::Editor`); the worker the parents of
 every open block and of every revision preview's source (`Owner::Open`) and the
 roots (`Owner::Host`, for Settings and My files); version control its
@@ -908,7 +1038,14 @@ are; the server stores references already resolved to real ids, checkouts'
 included), one block (`ReadBlock`) - expanding `Parents` and `Subtree` as the
 blocks they name arrive, and listing a block's references again when they
 change, and the worker fetches the new ones together
-(`fetch_listings`). A listing nobody wants any more is dropped, and with it
+(`fetch_listings`; its own loop spawns them as a task, `spawn_listings`, and is
+woken when they land, so a listing a silent server holds up never holds up an
+open or an edit). The loop's other background requests go the same way, as
+`worker::Tasks`: summary refreshes after a move or leave, contact syncs (one at a
+time), key tending, version-control watches, and the rejoin of every open
+replica after a reconnect (`Replicas::reconnect` spawns them, `Io::Rejoined`,
+holding the server's events for each until its own lands). A changed scope key
+asks for a seal without waiting for it (`Replicas::seal_later`). A listing nobody wants any more is dropped, and with it
 every block no other listing holds, so closing a folder in the files pane
 empties it from the mirror; the worker sends `Unlist` for it, ahead of that
 round's new listings, so the server stops announcing it. A block already held
@@ -939,17 +1076,27 @@ the edit is sealed.
 
 A block's metadata (`be_block::BlockMetadata`) is two maps from a key's UUID to a
 CBOR value: `defined`, what someone chose (a name typed by hand, the
-`ArtifactSource` a dynamic artifact was made from, a checkout copy's `LOCAL_ID`),
+`Artifact` naming the block a dynamic artifact was made from, a checkout copy's `LOCAL_ID`),
 and `derived`, what the content says about itself (`INTRINSIC_NAME`,
 `THUMBHASH`, `SCHEMA`). A key is declared once as a typed constant,
 `MetaKey::defined(id, name)` or `MetaKey::derived(id, name)`, and read and
 written through it (`get`, `insert`, `remove`, or `definition` for a change to
 send), so a new key, including one a third-party block type declares, needs no
-change to the format. `BlockMetadata::name` is `NAME` when someone named the
+change to the format. A value that holds a `be_model::BlockRef` points to that
+block: `BlockMetadata::references` finds every one, and the peer adds them to
+the references it publishes with the block (`Publish`, and `CreateBlock` and
+`SetMetadata` for a block with no content yet), so the graph's backrefs and
+`KnowExists` see them as they see content's, and a parent holds a child its
+metadata points to (a settings block, an edit kind). They are not the block's
+children, though: the host hands plugins only what the content refers to, as
+`BlockInfo::references` and `BlockQuery::References` (block-app `Node::contents`),
+so a canvas or a folder never lists the tags or settings its metadata names; read
+those from the metadata, and `BlockQuery::Backrefs` finds the blocks pointing to
+one either way. `BlockMetadata::name` is `NAME` when someone named the
 block and `INTRINSIC_NAME` otherwise. Plugins get both maps in `BlockInfo`, read
 them through its `name`, `thumbhash` and `artifact`, and set a defined key with
 `Blocks::define`; the host never lets a plugin set `LOCAL_ID`. A beui
-`unstyled::Picture` given an image's thumbhash as a `beui::Thumbhash` lays out
+`styled::Picture` given an image's thumbhash as a `beui::Thumbhash` lays out
 at the image's size and paints the blurred placeholder until the image arrives.
 
 Metadata travels with content. Every commit carries the encoded metadata of the
@@ -979,18 +1126,29 @@ changes (`Graph::derive`), until the save that publishes it.
 
 ### Content on the plugin protocol
 
+The blocks an editor reads and changes cross the plugin protocol in the
+`be3:plugin/blocks` WIT interface (`crates/block-plugin-api/wit/blocks.wit`),
+every call of which is made under the editor's resource, so the host knows the
+instance from the call's parent and closing the editor ends what it opened.
 An editor is a follower of the block's replica (guides/type_modules.md, "Editors
-are endpoints"), and everything about a block's content crosses the plugin protocol
-in one message, `EditorMessage::Replica { block_id, frame }`, in both directions.
-`frame` is one `block_type_api::encode_frame` of a `block_type_guest::editor::ToEditor`
-(host to plugin) or `FromEditor` (plugin to host) (`ToEditor::frame`, `from_frame`), and
-the host relays it unread between the instance and the block's replica.
+are endpoints"), and everything about a block's content crosses through a
+`replica` resource the editor opens for each block it holds: its own, the first
+time it sends that block a frame, and each block it watches. `replica.frames()` is
+a `stream<list<u8>>` of every frame the host relays to the editor, in order and
+back-pressured by be-ops credits (the host leaves frames with the session while the
+editor's window is full), and `replica.send(frame)` is an `async func` for each frame
+the editor sends, which the host answers once it has taken the frame in; the editor
+keeps no more than a window of frames unanswered and leaves the rest in its
+`EditorHost` until answers come. A frame is one `block_type_api::encode_frame` of a
+`block_type_guest::editor::ToEditor` (host to plugin) or `FromEditor` (plugin to
+host) (`ToEditor::frame`, `from_frame`), and the host relays it unread between the
+instance and the block's replica.
 
 - Plugin to host: `Operate`, `Gesture` (`Begin`, `Commit`, `Cancel`), `ShowPresence`,
   `SendToPeers` and `Resend`. An instance asks for a block's content by sending
   `Resend` when it first follows the block, and the host attaches the instance to the
-  replica on the first frame it sends for a block (its own or one in `WatchContent`),
-  with `editable` from the account's access, which it sends again when that changes.
+  replica on the first frame it sends for a block, with `editable` from the account's
+  access, which it sends again when that changes.
 - Host to plugin: `Snapshot { content_type, bytes, session, unsettled, applied }`, the
   settled content and the operations still unsettled on top of it; `applied` counts the
   operations *this instance* sent that the snapshot already holds, which is what lets a
@@ -999,19 +1157,19 @@ the host relays it unread between the instance and the block's replica.
   it, with how many operations are still unsettled after it (`unsettled`) and, for a
   peer's operation that goes beneath those, the unsettled operations as rebased
   (`beneath`). `Presence` and `PeerMessages` from the other participants.
-- `EditorMessage::WatchContent { blocks }` - plugin to host, the other blocks (and their
-  content types) the editor wants to follow. The host detaches the instance from a
-  block it drops, and from every block when it closes.
-- `SeedContent` and `ReplaceContent` write a block's content outright as host requests,
-  since they may name a block nothing follows; `ReplaceContent` becomes the replica's
+- Opening a `replica` for another block, with its content type, watches it; dropping
+  it lets go, and the host detaches the instance from that block, and from every
+  block when the editor closes. The editor session keeps one per block in
+  `editor.watched_content()` (`block-editor-plugin/src/link.rs`).
+- `seed-content` and `replace-content` write a block's content outright, since they
+  may name a block nothing follows; `replace-content` becomes the replica's
   `Change::Replace`.
 
 `editor.content_of::<C>(block)` is how an editor reads and edits another block:
-it registers the block with `WatchContent` and hands back the same
+it watches the block (a `replica` for it) and hands back the same
 `ContentProjection` an editor gets for its own block, keyed by that block. The
 host keeps a content link per block per instance beside the editor's own, opens
-a block's replica only when an instance first sends it a frame (a frame that
-arrives before its `WatchContent` waits for it), attaches it read-only unless
+a block's replica only when an instance first sends it a frame, attaches it read-only unless
 the account may edit the block, and closes the replica when no instance and
 nothing in the app holds it any more. A revision preview and a block still
 uploading from an import are answered with a `Snapshot` the host makes from the
@@ -1050,9 +1208,11 @@ without depending on the crate itself.
 
 ### The graph on the plugin protocol
 
-A plugin asks about the graph with `EditorMessage::WatchBlocks { queries }`, a
-list of `BlockQuery`s the host answers from its mirror with `Blocks { query,
-blocks }` whenever the answer changes (`plugin_host/graph.rs`). A `BlockInfo`
+A plugin asks about the graph with a `blocks-watch` resource per `BlockQuery`,
+whose `next` the host answers from its mirror with the query's `BlockInfo`s, or why
+it could not list them, whenever the answer changes (`plugin_host/graph.rs`); an
+editor watches a query while anything holds its `BlockList`, and the session drops
+the resource when nothing does. A `BlockInfo`
 carries the block's type, author, parent (`BlockLocation`: `Root`, `Detached` or
 a block), name and whether it was named by hand, references, the account's
 access, the artifact source and whether it is `locked`: the account may view
@@ -1078,24 +1238,25 @@ row is deleted), the shell's reference menus and phone details sheet list it
 last as "In Recently Deleted" and leave it out of the counts and the linked
 bar, pickers never offer it, and a deleted block opened in a tab has a bar
 above it saying so. Anything may ask the host to bring one back with
-`EditorHost::restore_block` (`BlockCommand::Restore`): the host finds the
+`EditorHost::restore_block` (`block-command::restore`): the host finds the
 block at the top of its chain and lists it in its parent again when that parent
 is live, editable and can add a child; a block with no parent goes back where
 the `DELETED_FROM` metadata key says it was deleted from (which `be::set_parent`
 records when it detaches a block, as deleting a top-level block does, and clears
 when it gives it a parent again), and otherwise into My files. It changes the graph with
-`CreateBlock { block_id, content_type, parent, name, artifact, content }`,
-`SetParent` and `SetName`, which the host takes only when the account may edit
-the block and the parent it names, and hands to `be::create`, `be::set_parent`
-and `be::set_name`. On the plugin side these are `editor.watch_blocks(query)` and
+`create-block(block, block-type, parent, defined, content)`, `set-parent` and
+`define`, which the host takes only when the account may edit the block and the
+parent it names, and hands to `be::create`, `be::set_parent` and `be::define`. They
+are sync calls that carry no answer: the plugin chooses a new block's id itself, so
+it can use the block before the host has seen it. On the plugin side these are `editor.watch_blocks(query)` and
 the `Blocks` handle from `editor.blocks()`.
 
 ### Creating, seeding and replacing
 
-A new block's first content travels with it: `CreateBlock` carries the encoded
+A new block's first content travels with it: `create-block` carries the encoded
 content, and the worker creates the block, then writes the content as its first
 commit, before any later command for that block runs. With no content the
-worker writes the type's blank content, which its type module made at `Hello`
+worker writes the type's blank content, which its type module made when it started
 (`Kind::blank`), so a host or plugin that makes a block of a type whose format
 it does not own names only the type's id: `Blocks::create_with(type, None, ..)`
 for the file tree's New workspace, `be::create(.., None)` for My files and a new
@@ -1107,13 +1268,13 @@ id. Creating a database makes two blocks this way:
 field and a database pointing at it, and makes the schema a child of the
 database, so the graph is right before any editor opens it.
 
-`editor.seed_content(block, &content)` sends `EditorMessage::SeedContent` for a
+`editor.seed_content(block, &content)` calls `seed-content` for a
 block that already exists; the peer writes it as the block's first commit, and
 ignores it for a block that already has content or is open, so it cannot
 overwrite anything.
 
 Replacing a block's whole content is `editor.replace_content(block, &content)`,
-which sends `EditorMessage::ReplaceContent`; the host takes it only for a block
+which calls `replace-content`; the host takes it only for a block
 the account may edit. The worker hands it to the open replica as
 `Change::Replace`, or publishes it straight to the server when nothing has the
 block open. The replica publishes the new content as a commit based on the head it
@@ -1131,7 +1292,7 @@ file type from the file the user picks.
 
 A block file (`be_client::transfer`, the file `be download` writes) carries a
 block and everything under it. A plugin asks the host for one with
-`HostRequest::ExportBlock`, answered like `SaveFile`: the worker lists the tree
+host-services' `export-block`, answered like `save-file`: the worker lists the tree
 a level at a time (starting from the view when asked for a database inside
 one), all of a level's `ListChildren` together, and fills in each block's
 bytes, from its open session or else its head, so it works for content types
@@ -1141,18 +1302,23 @@ the app does not know.
 commit and chunks (those that fit in half a frame, and none for a head the
 client says it already holds), and anything left out is fetched afterwards, so
 a tree costs one round trip, not three per block.
-`HostRequest::ImportBlocks(parent)`, the picker's "Import a file…", has the host
-pick any file. Anything but a `.block` file goes to `be::import_file`, which
+host-services' `import-blocks(parent)`, the picker's "Import a file…", has the
+host pick any file. Anything but a `.block` file goes to `be::import_file`, which
 turns it into one block the way `be sync` turns a new file into one (guides/sync.md:
-the first type that `Claims` it, an image for a `.png`, a file block for an
-`.epub`, its content `FromFile`, named after the file) and creates it with
+the first type that `claims` it, an image for a `.png`, a file block for an
+`.epub`, its content `from-file`, named after the file) and creates it with
 `be::create`. A `.block` file is `be::import`ed: every block gets a new id, old ids in the content bytes and references are
 swapped for the new ones, and each block is created and given its bytes as its first commit. The
-reply, `BlocksImported`, names the outermost block. The tree is in the mirror
+answer names the outermost block. The tree is in the mirror
 at once and uploads in the background, as a task beside the worker's loop
 (`worker/uploads.rs`), so commands for other blocks are not held up.
-`Peer::import_blocks` mints every block's keys and writes its commit locally,
-needing the server only for the scope of the folder it goes into, then sends
+`Peer::import_blocks` is `queue_import` then `upload_import`. `queue_import`
+mints every block's keys and writes its commit locally, needing the server only
+for the scope of the folder it goes into, and keeps each block in the outbox
+(`Op::Create` and `Op::Publish`, with the commit as its local head), so an
+import made offline or cut short by a quit is sent by the next drain;
+`upload_import` then removes each block's entries once the server answers, and
+sends
 the objects as `PutObjects` and every create and publish without waiting for
 the ones before: a tree costs a few round trips, not a few per block. `be
 upload` and the pages of `be import` go through it too. A
@@ -1176,13 +1342,13 @@ content type no module has.
 
 Duplicating a block is `be::duplicate`: it adds the copy to the mirror with the
 source's type, references and metadata (without its artifact source), and the
-worker copies what the source's replica shows (`Request::Content`), or its head
+worker copies what the source's replica shows (its `content`), or its head
 when it is not open, into the copy's id before anything opens the copy.
 
 The app can read a block itself, not only through an editor:
 `sync_local_settings` hands the input settings (keymap, key repeat, and
 pointer settings for every pointer with per-device overrides) to the `--session`
-seat through `beui_adapter_drm::InputControl` and to the nested Wayland clients'
+seat through `beui_platform_drm::InputControl` and to the nested Wayland clients'
 keyboard, and the display settings to the app and the seat. `DisplaySettings` is
 one block for everything about what the device shows: the theme, motion and scale,
 which `sync_ui_settings` takes from the display settings last applied (the theme,
@@ -1192,7 +1358,7 @@ this device only; the scale is beui's zoom factor, multiplied into the screen's 
 per point); a
 `ScreenSettings` per screen (a mode and a rotation, keyed by the monitor's EDID
 make, model and serial, or by its connector when it has no EDID), whose modes and
-rotations go to the seat's outputs through `beui_adapter_drm::DisplayControl`,
+rotations go to the seat's outputs through `beui_platform_drm::DisplayControl`,
 which switches both live (guides/linux_desktop.md says how a screen is turned),
 and which reports each monitor's applied rotation with its modes; whether the
 bar shows a rotate button; and when the screens turn off and lock. Every setting is an `Option`, and an unset one means the default:
@@ -1210,7 +1376,7 @@ Display settings may not until someone keeps them: a change of mode that moves w
 connected monitor shows (a rotation applies and saves at once), or a monitor showing a mode
 other than its preferred one that this device never kept it at (an untried fastest default, or
 a mode another device chose for that monitor), opens the host's "Keep these display
-settings?" prompt (`styled::KeepChanges`, a card on every screen) in
+settings?" prompt (block-app's `ui/keep_changes.rs`, an alert on every screen) in
 `display::guard`. It is the host's because it must work before any shell plugin
 runs. Each change is a round (`Guard::prompt`): another change while asking
 starts a new round and a full countdown, and an answer counts only for the
@@ -1246,9 +1412,9 @@ per register however many frames wrote it), and a cancel reverts the step and le
 nothing in the history. The replica publishes only once its edits have rested
 for the seal interval, so a gesture written every frame costs one publish, not
 one per frame.
-Plugins reach it with `BlockCommand::Undo` and `BlockCommand::Redo`, and watch
-whether either is possible with `EditorMessage::WatchHistory`, which the host
-answers with `HistoryStates` whenever they change. block-ui-test's replica keeps the same
+Plugins reach it with `act(block, block-command::undo)` and `redo`, and watch
+whether either is possible with a `history-watch` per block, whose `next` the host
+answers with the `block-history` whenever it changes. block-ui-test's replica keeps the same
 history (with the 750 ms bursts on the test's frame clock) for a block a test calls
 `ContentStore::keep_history::<C>` on, and none otherwise.
 
@@ -1352,6 +1518,53 @@ every layer resolves to, which is how workspace-ui reads `EditorSettings`: the d
 editor of each block type, keyed by the editor ids the host's catalog lists (see
 guides/adding_a_plugin_editor.md), and `Editor::inherited_settings` what the layers
 below an editor's block resolve to.
+
+A block may have settings too, which apply to everything inside it: a workspace's,
+a folder's, a game world's. They are a `Settings` block whose parent is that block,
+pointed to by the block's `SETTINGS` metadata (a `BlockRef`, so the block holds it),
+with one child block per kind in its `kinds` like the user's. Only a manager of the
+block makes, changes or lets go of them (be-graph's `level_below`, be-server's
+`require_parent_of` and `require_keeping_settings`). Each kind declares on `Layered`
+its `NAME`, whether it follows the block or the viewer (`FOLLOWS`: theme and input
+follow the viewer and never read a block's settings; the logic hotbar follows the
+block), whether a block's value is a default the user's layers override or a policy
+that fixes what it sets (`RULE`), and who may read it (`VISIBILITY`). Resolution
+(`be_block::Resolution::resolve`) stacks, from the bottom: the organization's defaults,
+the nearest block with settings for that kind, the every-device block, this device's,
+then whatever is a policy (a block's, for a policy kind, and the organization's), and
+says which layer set a field (`source_of`, `locked_by`). `Editor::kinds_above(block)`
+walks a block and its ancestors, stopping at the first the viewer can't view, and keeps
+the nearest kind blocks per block for the editor's life; `Editor::resolved_settings`
+keeps the resolution per block and kind; `Editor::effective_settings` is the resolution
+for the editor's own block; `Editor::organization_layers` is where the organization's
+two layers will come from, and gives none yet. `Editor::ensure_block_kind` makes the
+settings block and the kind, and `LayeredSettingsRow` says "Set by your organization"
+or "Set in *Folder*" for a field another layer fixes. A kind block granted View for
+the pseudo-account `be_graph::ANYONE_INSIDE` is readable by anyone who can view a block
+inside the settings' owner, not only by its members (`BlockGraph::views_inside`); the
+settings editor switches that grant per kind. Past the first ancestor the viewer can't
+view, the walk takes those from `BlockQuery::OpenSettings(block)` (the server's
+`Listing::OpenSettings`: the nearest open kind of each type above), and a `SetKind`
+found there names its settings block as its owner, since the owner is hidden.
+
+Two kinds change with `Edit` on their block rather than `Manage`, since anyone who
+adds a database or tags a block in a workspace changes them: `PrefixRegistry` (which
+databases use each row id prefix) and `Tags` (the tag definitions). A settings block's
+`kinds` only a manager writes, so these are children of the block itself instead,
+each pointed to by a metadata key of its own (`be_block::edit_kind_key(kind)`:
+`PREFIXES`, `TAG_DEFINITIONS`), which holds it; `kinds_above` reads both places, the
+file tree and the picker never list them, since metadata references aren't children,
+and `Editor::ensure_block_kind` makes either. Both default to anyone inside. A tag is
+a block of its own (`Tag`: a name and a `TagColor`) listed by `Tags`; a block carries
+the tags put on it as `TAGGED` metadata (references, so "every block with this tag" is
+`BlockQuery::Backrefs` on the tag), and the user's own tags are a `Tags` kind in their
+settings, resolved together with the workspace's (`Editor::available_tags`). `Home`
+(a manager's kind) holds a workspace's landing page, which workspace-ui opens when the
+workspace is shown, its pinned blocks, which the file tree lists first, and its
+templates, which the new-block menu copies (`HostRequest::CopyBlocks`). Which editor
+opens a block stays the viewer's choice (`EditorSettings`, no workspace layer), except
+that a block may keep its own (`PREFERRED_EDITOR` metadata, from Opens in in Files),
+which wins over the viewer's default.
 
 A change syncs by default: it is written to the every-device block. A setting is
 kept on this device exactly when this device's profile block sets it; then changes
@@ -1469,8 +1682,8 @@ The peer writes out what its sessions hold before it goes away: `flush()` seals
 and waits, `stop()` does the same and then joins the worker, and the close
 handler and every organization change go through one of them, because a session
 that is merely dropped loses everything since the last autosave
-(`status().unsealed` is what says whether anything is outstanding). The host
-refuses an `Operate`, a `ReplaceContent` and a graph command for a block the
+(`status().unsaved` is what says whether anything would be lost). The host
+refuses an `Operate`, a `replace-content` and a graph command for a block the
 account may only read: the plugin holds its own edits behind `editable()`, but
 the host does not trust it to, so `Instances::editable` asks the mirror's
 access. And nothing in the worker runs on a timer. It waits on its command
@@ -1483,10 +1696,84 @@ A connection that drops does not take the peer with it. `Connection::closed` is
 a watch the worker waits on beside its commands - the event broadcast outlives
 the socket, because the connection holds a sender of its own, so that is not the
 signal - and losing it leaves the last content on screen, backs off, connects
-again, reloads the graph and rejoins every block that was open. What a session
-had not sealed when the socket went is lost: recovering it wants the resume path
-(`clean_at`, `Peer::fetch_history`) that be-session already has and the app
-does not use yet.
+again, reloads the graph and rejoins every block that was open. While it is
+down the worker keeps serving from the same `Peer` (the session loop holds a
+`Line`, `Up` with the connection's events or `Down` with the next attempt as a
+future), and every open replica is handed a session it owns
+(`Replicas::disconnected`), so a follower takes over what it had not confirmed
+and seals it locally. A block this device already knows does not wait long for
+its session while connected: if `join_session`, `watch` and `remote_head` take
+longer than `EARLY_OPEN` (250 ms on the modules' clock), the replica starts
+from the local head as a follower of a placeholder owner (`JOINING_OWNER`, so it
+shows the content and holds edits without relaying them) and the join goes on
+in a spawned task (`Io::Joined`). When it lands the host opens the replica again
+with the real client and session, replaying the editor messages and host
+`Change` requests since it was clean (as reconnecting and restarting a module
+do), resending requests it had not answered, then the session changes, relays
+and heads heard meanwhile, and moves it to the remote head; a close asked for
+meanwhile waits for that. A seal asked of a
+joining replica with unconfirmed edits first hands it a session it owns, so a
+flush or a stop never waits for the join, and a join that fails for a reason
+other than the connection leaves it on that session. A block opened while down opens from its local head with
+`OFFLINE_CLIENT` owning a made-up session (`Open::made_up`, set also while
+joining); the host answers `Publish` with
+`Peer::seal_encoded` (a local commit in the outbox) and reports it as the new
+head, `Resume` treats the local head as the remote one, and heartbeats, claims
+and relays are skipped. A publish whose connection dies after the commit was
+sealed keeps the commit the same way, and so does any `Publish` while the
+block still has commits in the outbox (they go out in order with the drain) or
+while the host keeps (`Replicas::keep_all`, which flushing and stopping use:
+it answers every publish already sealed locally at once, as kept, and seals
+the rest into local commits, so neither waits on the server; `take_kept` tells
+the worker to drain). On each connection the worker
+drains the outbox (`Peer::drain`) in a task (`Tasks::sync`, one at a time,
+`Shared.draining` meanwhile), merges every `Diverged` block it reports with
+`Replicas::merge_diverged` (`Peer::reconcile`, then a three-way merge by the type module, published
+with the remote head expected and the local commit as an extra parent; a
+conflicted merge reaches `Host::conflict`), and only then rejoins
+the open blocks, whose `Moved` to the merged head fast-forwards them; until
+then they stay on their made-up sessions. It drains
+again after restoring unsent edits, after anything kept, and every `OUTBOX_RETRY` (30 s on the
+config clock) while connected with something still in the outbox. A flush
+answers once everything is kept and that drain is over (or the connection is
+down). A block
+opened while connected with local commits still waiting opens from its local
+head and is then moved to the remote one, so its next publish builds on them.
+Heartbeats (`Peer::heartbeat` sends at once and returns the answer to await)
+are answered off the worker loop, like relays; so are lease claims
+(`Peer::claim_ownership`, `Io::Claimed`), leaving and unwatching a closed
+block (`leave_session`, `unwatch`) and the joins after the host fell behind the
+broadcast (`Replicas::resynchronize`, `Io::Resynchronized`): these session
+requests are written the moment they are made, so a block's leave and its next
+join reach the server in order, and an answer older than the replica's session
+is dropped. A relayed message is unsealed
+on the spot (`Peer::unseal`, no network); one whose key this device lacks
+(`ClientError::Locked`) and has not yet looked for (`Peer::first_search_for`)
+fetches the keys in a task, and that block's later events wait behind it so
+they keep their order. The wait
+before each attempt doubles from 0.5 s to at most 30 s with each failure in a
+row, randomly shortened by up to half so that clients a server dropped together
+do not come back together (`reconnect_delay`), and starts over once a connection
+succeeds. `be::retry_now()` cuts the wait short: the app calls it whenever its
+window gains focus, and it is the hook for network-change and foreground
+events. `be::stop` never waits on the server: it closes the connection
+(`Connection::close`, through `Shared.connection`), so whatever the worker was
+waiting on fails at once, and the worker keeps what the open replicas hold as
+local commits before it ends. It returns without waiting for the worker; the
+next stack's worker waits for it on its own thread (the web serialises stacks
+the same way), and `be::stop_and_wait` waits for it where the process is about
+to end or its files to go.
+
+`be::status()` reports `connected`, `syncing` (the outbox is being drained),
+`waiting` (outbox operations: local commits and queued graph changes not yet on
+the server), `unsent` (blocks set aside in the unsent area), `conflicts` and
+`conflicted` (blocks a merge left conflicting), `kept` (outbox operations, safe
+on this device), `connecting` (no connection attempt has resolved yet), and
+`unsaved`: replicas with unsealed edits, queued commands and imports not yet in
+the outbox, which is what closing or switching would lose. The close and
+organization-switch guards flush and then ask only while `unsaved` is above
+zero; what waits in the outbox is kept and sent later. A type module's error
+(`Host::report` with its block) clears once that block saves again.
 
 ### Reaching the server
 
@@ -1531,7 +1818,9 @@ account-level cryptography, `be_store::Keyring` the content keys, and
   knows it (the server), is ignored and nothing is said about it. A key the
   device made, one sealed to it that way, or one wrapped under such a key is
   *trusted* (`KeyBook::trusted`); a key opened only through the escrow key
-  (below) is not. A device reads with any key it holds but seals content,
+  (below) is not, nor one the server sealed itself (it does so only for the
+  organization settings' scope key, whose rows it labels and so could label
+  any key that way), nor any key wrapped under one of those. A device reads with any key it holds but seals content,
   wraps or seals a key, or hands a key over (`seal_to`, `wrap`, `escrow_wrap`,
   `Peer::sealing_key`, `Peer::offer`) only with trusted ones, so a key the
   server made up never protects anything new. A rotation by such a device
@@ -1547,7 +1836,8 @@ account-level cryptography, `be_store::Keyring` the content keys, and
   may edit (for a move, the moved subtree), never replacing a sealed row, and a
   key wrapped under a new scope key loses its wraps under the old ones (escrow
   aside). Collecting a block drops its keys.
-- **On the client.** `Peer::signed_in` loads every row it is served and unwraps
+- **On the client.** `Peer::signed_in` loads every row it is served (and keeps it
+  in the refs database, so `Peer::cached` unwraps the same keys offline) and unwraps
   what it can (`KeyBook::absorb`: its own account's rows with the identity
   secret, then key under key). A read that meets an unknown key fetches the rows
   again once, and otherwise fails with `ClientError::Locked`; `Peer::learn`
@@ -1563,7 +1853,8 @@ account-level cryptography, `be_store::Keyring` the content keys, and
   only ever a contact's verified key (below). The server refuses to store a
   key sealed to any account but the caller's own and its contacts'.
 - **Rotation.** When an account stops being able to view a block (a grant
-  revoked or left, a contact removed, a member removed), the server records
+  revoked or left, the block moved out from under what it could view, a
+  contact removed, a member removed), the server records
   the block in `rotations`, drops that account's wraps of the block's keys and
   ends its sessions on what it can no longer see (a client must be in a
   session to speak in it). `GetKeyWork` tells a client what it can do about
@@ -1571,13 +1862,13 @@ account-level cryptography, `be_store::Keyring` the content keys, and
   not yet sealed to someone who should have them (`unsealed`), and scope keys
   not yet wrapped under the escrow key (`unescrowed`). `Peer::tend` does all of
   it; the app's worker calls it on connect, on `ContactsChanged`, on
-  `KeyWorkChanged` (sent to a block's audience when a revocation records a
-  rotation) and after its own changes. `Peer::rotate` walks the block's
+  `KeyWorkChanged` (sent to a block's audience when a revocation or move
+  records a rotation) and after its own changes. `Peer::rotate` walks the block's
   subtree and sends one `Rotate`: a new epoch of every scope key in it, each
   wrapped under its parent scope's new (or, above the block, current) key and
-  sealed to whoever may still open it (grantees, and the author of a root
-  block, by their verified keys), every data key of every block (old epochs
-  too) rewrapped under its scope's new key, and a new data key per block. The
+  sealed only to the rotating account, every data key of every block (old epochs
+  too) rewrapped under its scope's new key, and a new data key per block; `tend`
+  then seals the new scope keys through `unsealed` like any other. The
   server takes it only whole: every block below the root a new data key, every
   scope root a new scope key, in one transaction, and drops the account wraps
   of the old scope keys for anyone who can no longer view them. Content is
@@ -1587,6 +1878,14 @@ account-level cryptography, `be_store::Keyring` the content keys, and
   left cannot edit, or lacks a contact's key) waits in `rotations` until a
   client that may edit the block tends; grantees it could not seal to are
   listed as `unsealed` for any device that holds the key and the contact.
+  Whoever should hold a scope key is `keys::sealed_to`: its grantees, the author
+  of a root block, for a kind open inside everyone who views a block inside its
+  owner, and for the organization settings the server and every administrator.
+  A wrap the server sealed counts as unsealed, so an administrator still gets a
+  trusted copy from another. A kind open inside is also offered to anyone who
+  views it, for their own contacts among those viewers (`PutKeys` takes that
+  seal from a viewer), since its owner's editors may have none of them as
+  contacts; closing it rotates its key for everyone who no longer views it.
 - **Escrow** (company organizations). The escrow key is a 32-byte secret
   (`be_keys::EscrowSecret`) that is both an X25519 key and, through HKDF, an
   Ed25519 signing key. It is a key row of kind `escrow` (its block is the
@@ -1712,7 +2011,7 @@ public key it verified this way, never to one the server hands it.
   finishes) and seals a share only to those keys. The share dialog lists
   contacts and current grantees, lists them again when the `Contacts` host
   value changes and after each grant it makes, and its "Invite someone new"
-  makes a link carrying a pending grant of the block (`HostRequest::ContactLink`). Invite
+  makes a link carrying a pending grant of the block (host-services' `make-contact-link`). Invite
   member and Agents show only in a company organization, and Members (list,
   change a role, remove, invite) only to its administrators.
 
@@ -1762,7 +2061,7 @@ participant what it is showing, so a late joiner sees everyone at once; when a
 participant leaves, what it showed is dropped.
 
 A replica sends each editor attached to it the block's peers as
-`ToEditor::Presence` in a `Replica` frame when they change. A plugin shows presence with
+`ToEditor::Presence` in a replica frame when they change. A plugin shows presence with
 `FromEditor::ShowPresence`, which the replica sends to the other participants.
 `editor.peers` and `editor.on_peer_message` send `Resend` once, so an editor that
 never reads its content is still attached and hears its peers. On the
@@ -1863,12 +2162,16 @@ pixel art export regenerate this way.
   deleted block that is still linked and leave the link dangling, so the
   content that links it has to cope with a block that is gone, and it will race
   a new child its parent has not listed yet.
-- The browser peer keeps its objects in memory, so a reload refetches everything
-  and a tab that closes leaves whatever a session held since its last autosave
-  behind: `flush()` cannot wait there. An `ObjectStore` over IndexedDB is what
-  that wants.
-- Reconnecting rejoins from the server's head, so operations a session had not
-  sealed when the socket dropped are gone.
+- A tab that closes leaves whatever a session held since its last autosave
+  behind: `flush()` cannot wait there. A reload or close asks first while
+  anything is unsaved (`beforeunload`), an edit on its way to its module
+  included (`Replicas::counts`), and the worker seals meanwhile.
+- A command that itself needs the server (create, move, share, a version
+  command, opening a block this device has never listed) still waits on it in
+  the worker's loop, so on a server that has stopped answering, commands queued
+  behind it wait until the connection is declared lost; so do `peer.attach`
+  after a reconnect, opening a block this device does not know yet, and the
+  merge of a block a drain found diverged.
 - A move into another scope lists the moved subtree one level at a time
   (`ListChildren`), and the old data keys of a block this device cannot open
   are not rewrapped, so that block's history stays closed to its new scope.

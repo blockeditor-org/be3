@@ -16,12 +16,17 @@ use crate::reactive::{
 pub struct WindowHandle {
     pub id: WindowId,
     pub size: Memo<Vec2>,
-    hosted: ReadSignal<bool>,
+    hosted: Memo<bool>,
+    real: Memo<Option<WindowId>>,
 }
 
 impl WindowHandle {
     pub fn is_window(self) -> bool {
         self.hosted.get()
+    }
+
+    pub fn real_window(self) -> Option<WindowId> {
+        self.real.get_untracked()
     }
 
     pub fn begin_move(self) -> bool {
@@ -68,7 +73,17 @@ pub fn Window(
     #[prop(children)] content: RenderFn<WindowHandle>,
 ) -> NodeId {
     let id = id.unwrap_or_else(WindowId::next);
-    let hosted = opens_windows();
+    let opens = opens_windows();
+    let placed = with_document(|document| document.watch_placed_windows());
+    let asked = placement.clone();
+    let hosted = create_memo(move || {
+        opens.get() || (placed.get() && matches!(asked.get(), WindowPlacement::Host(_)))
+    });
+    let outer = use_window();
+    let real = create_memo(move || match hosted.get() {
+        true => Some(id),
+        false => outer.and_then(|outer| outer.real.get()),
+    });
     let reported = create_signal(None::<Vec2>);
     let shown = create_memo(move || match (hosted.get(), reported.get()) {
         (true, Some(reported)) => reported,
@@ -78,6 +93,7 @@ pub fn Window(
         id,
         size: shown,
         hosted,
+        real,
     };
     let heard = Callback::new(move |report: WindowReport| {
         if let WindowReport::Resized { size, .. } = report {

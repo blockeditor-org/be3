@@ -11,7 +11,9 @@ fn a_held_volume_key_keeps_turning_the_volume() {
     );
     fixture.settle();
     assert_eq!(
-        fixture.test.take_actions::<MediaRequest>(),
+        fixture
+            .test
+            .take_host_calls(block_ui_test::requested::media),
         vec![MediaRequest::StepVolume(-VOLUME_STEP); 4],
         "the press and each of its repeats turn the volume down"
     );

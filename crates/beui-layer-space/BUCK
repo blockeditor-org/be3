@@ -1,0 +1,14 @@
+load("@root//buck/cargo:defs.bzl", "cargo_library", "cargo_test")
+
+cargo_library()
+
+# The tests paint the scene natively (picture.rs) and compare the paintings in
+# snapshots/. The compositor's tests draw through a real graphics adapter, which
+# on a worker is lavapipe, as for beui's renderer tests.
+cargo_test(
+    paints = True,
+    run_env = {
+        "LD_LIBRARY_PATH": "$(location //buck/sysroot:amd64-test)/usr/lib/x86_64-linux-gnu",
+        "VK_ICD_FILENAMES": "$(location //buck/sysroot:lavapipe_icd.json)",
+    },
+)

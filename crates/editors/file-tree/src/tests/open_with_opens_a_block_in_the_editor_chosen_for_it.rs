@@ -50,8 +50,9 @@ fn open_with_opens_a_block_in_the_editor_chosen_for_it() {
     let document = fixture.test.document();
     let item = document
         .root()
-        .and_then(|root| open_item(document, root, "Debug view", false))
+        .and_then(|root| open_item(&document, root, "Debug view", false))
         .expect("Open with offers every editor of the block's type");
+    drop(document);
     fixture.test.click(item);
     fixture.settle();
 

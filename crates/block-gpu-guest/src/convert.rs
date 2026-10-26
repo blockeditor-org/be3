@@ -1,4 +1,4 @@
-use block_gpu_abi as abi;
+use block_gpu_abi::device as abi;
 
 use crate::objects::{
     BindGroupLayout, Buffer, PipelineLayout, Sampler, ShaderModule, Texture, TextureView,
@@ -139,8 +139,8 @@ pub(crate) fn mipmap_filter_mode(value: wgpu::MipmapFilterMode) -> abi::FilterMo
     }
 }
 
-pub(crate) fn label(value: Option<&str>) -> String {
-    value.unwrap_or_default().to_owned()
+pub(crate) fn label(value: Option<&str>) -> Option<String> {
+    value.map(str::to_owned)
 }
 
 pub(crate) fn texel_copy_texture(
@@ -149,9 +149,11 @@ pub(crate) fn texel_copy_texture(
     abi::TexelCopyTextureInfo {
         texture: texture_handle(value.texture),
         mip_level: value.mip_level,
-        origin_x: value.origin.x,
-        origin_y: value.origin.y,
-        origin_z: value.origin.z,
+        origin: abi::Origin3d {
+            x: value.origin.x,
+            y: value.origin.y,
+            z: value.origin.z,
+        },
         aspect: texture_aspect(value.aspect),
     }
 }
@@ -164,8 +166,8 @@ pub(crate) fn extent(value: wgpu::Extent3d) -> abi::Extent3d {
     }
 }
 
-pub(crate) fn size(value: Option<wgpu::BufferSize>) -> u64 {
-    value.map_or(abi::WHOLE_SIZE, |size| size.get())
+pub(crate) fn size(value: Option<wgpu::BufferSize>) -> Option<u64> {
+    value.map(wgpu::BufferSize::get)
 }
 
 pub(crate) fn binding_type(value: wgpu::BindingType) -> abi::BindingType {
@@ -174,7 +176,7 @@ pub(crate) fn binding_type(value: wgpu::BindingType) -> abi::BindingType {
             ty,
             has_dynamic_offset,
             min_binding_size,
-        } => abi::BindingType::Buffer {
+        } => abi::BindingType::Buffer(abi::BufferBindingLayout {
             kind: match ty {
                 wgpu::BufferBindingType::Uniform => abi::BufferBindingType::Uniform,
                 wgpu::BufferBindingType::Storage { read_only: false } => {
@@ -186,86 +188,84 @@ pub(crate) fn binding_type(value: wgpu::BindingType) -> abi::BindingType {
             },
             has_dynamic_offset,
             min_binding_size: size(min_binding_size),
-        },
+        }),
         wgpu::BindingType::Sampler(kind) => abi::BindingType::Sampler(sampler_binding(kind)),
         wgpu::BindingType::Texture {
             sample_type,
             view_dimension,
             multisampled,
-        } => abi::BindingType::Texture {
-            sample_kind: match sample_type {
+        } => abi::BindingType::Texture(abi::TextureBindingLayout {
+            sample_type: match sample_type {
                 wgpu::TextureSampleType::Float { filterable: true } => {
-                    abi::TextureSampleKind::FloatFilterable
+                    abi::TextureSampleType::FloatFilterable
                 }
                 wgpu::TextureSampleType::Float { filterable: false } => {
-                    abi::TextureSampleKind::FloatUnfilterable
+                    abi::TextureSampleType::FloatUnfilterable
                 }
-                wgpu::TextureSampleType::Depth => abi::TextureSampleKind::Depth,
-                wgpu::TextureSampleType::Sint => abi::TextureSampleKind::Sint,
-                wgpu::TextureSampleType::Uint => abi::TextureSampleKind::Uint,
+                wgpu::TextureSampleType::Depth => abi::TextureSampleType::Depth,
+                wgpu::TextureSampleType::Sint => abi::TextureSampleType::Sint,
+                wgpu::TextureSampleType::Uint => abi::TextureSampleType::Uint,
             },
             view_dimension: texture_view_dimension(view_dimension),
             multisampled,
-        },
+        }),
         wgpu::BindingType::StorageTexture {
             access,
             format,
             view_dimension,
-        } => abi::BindingType::StorageTexture {
+        } => abi::BindingType::StorageTexture(abi::StorageTextureBindingLayout {
             access: storage_access(access),
             format: texture_format(format),
             view_dimension: texture_view_dimension(view_dimension),
-        },
+        }),
         other => unsupported("binding type", &other),
     }
 }
 
 pub(crate) fn binding_resource(value: &wgpu::BindingResource<'_>) -> abi::BindingResource {
     match value {
-        wgpu::BindingResource::Buffer(binding) => abi::BindingResource::Buffer {
-            buffer: handle_of(binding.buffer.as_custom::<Buffer>()),
-            offset: binding.offset,
-            size: size(binding.size),
-        },
+        wgpu::BindingResource::Buffer(binding) => {
+            abi::BindingResource::Buffer(abi::BufferBinding {
+                buffer: custom::<Buffer>(binding.buffer.as_custom()).0.handle(),
+                offset: binding.offset,
+                size: size(binding.size),
+            })
+        }
         wgpu::BindingResource::Sampler(sampler) => {
-            abi::BindingResource::Sampler(handle_of(sampler.as_custom::<Sampler>()))
+            abi::BindingResource::Sampler(custom::<Sampler>(sampler.as_custom()).0.handle())
         }
         wgpu::BindingResource::TextureView(view) => {
-            abi::BindingResource::TextureView(handle_of(view.as_custom::<TextureView>()))
+            abi::BindingResource::TextureView(custom::<TextureView>(view.as_custom()).0.handle())
         }
         other => unsupported("binding resource", &other),
     }
 }
 
-pub(crate) trait Handled {
-    fn handle(&self) -> abi::Handle;
-}
-
-fn handle_of<T: Handled>(value: Option<&T>) -> abi::Handle {
+pub(crate) fn custom<T>(value: Option<&T>) -> &T {
     match value {
-        Some(value) => value.handle(),
+        Some(value) => value,
         None => panic!("a resource from another wgpu backend reached the plugin gpu abi"),
     }
 }
 
-pub(crate) fn texture_handle(value: &wgpu::Texture) -> abi::Handle {
-    handle_of(value.as_custom::<Texture>())
+pub(crate) fn texture_handle(value: &wgpu::Texture) -> abi::Texture {
+    custom::<Texture>(value.as_custom()).0.handle()
 }
 
-pub(crate) fn view_handle(value: &wgpu::TextureView) -> abi::Handle {
-    handle_of(value.as_custom::<TextureView>())
+pub(crate) fn view_handle(value: &wgpu::TextureView) -> abi::TextureView {
+    custom::<TextureView>(value.as_custom()).0.handle()
 }
 
-pub(crate) fn layout_handle(value: &wgpu::PipelineLayout) -> abi::Handle {
-    handle_of(value.as_custom::<PipelineLayout>())
+pub(crate) fn layout_handle(value: &wgpu::PipelineLayout) -> abi::PipelineLayout {
+    custom::<PipelineLayout>(value.as_custom()).0.handle()
 }
 
-pub(crate) fn group_layout_handle(value: &wgpu::BindGroupLayout) -> abi::Handle {
-    handle_of(value.as_custom::<BindGroupLayout>())
+pub(crate) fn group_layout_handle(value: &wgpu::BindGroupLayout) -> abi::BindGroupLayout {
+    custom::<BindGroupLayout>(value.as_custom()).0.handle()
 }
 
-pub(crate) fn module_handle(value: &wgpu::ShaderModule) -> abi::Handle {
-    handle_of(value.as_custom::<ShaderModule>())
+pub(crate) fn module_handle(value: &wgpu::ShaderModule) -> abi::ShaderModule {
+    custom::<ShaderModule>(value.as_custom()).0.handle()
 }
 
 pub(crate) fn blend_component(value: wgpu::BlendComponent) -> abi::BlendComponent {
@@ -287,9 +287,9 @@ pub(crate) fn stencil_face(value: wgpu::StencilFaceState) -> abi::StencilFaceSta
 
 pub(crate) fn color(value: wgpu::Color) -> abi::Color {
     abi::Color {
-        red: value.r,
-        green: value.g,
-        blue: value.b,
-        alpha: value.a,
+        r: value.r,
+        g: value.g,
+        b: value.b,
+        a: value.a,
     }
 }

@@ -13,6 +13,7 @@ mod a_block_another_build_saved_is_offered_for_reset_and_a_held_one_is_reset;
 mod a_block_file_brings_a_tree_back_as_a_copy;
 mod a_block_its_parent_stops_listing_is_deleted_until_it_is_listed_again;
 mod a_block_named_before_it_arrives_is_created_with_that_name;
+mod a_block_opens_from_what_this_device_saved_before_its_session_is_joined;
 mod a_block_shared_with_a_new_agent_at_once_is_sealed_to_it;
 mod a_block_with_a_plain_form_is_read_as_a_named_file;
 mod a_branch_is_combined_into_another;
@@ -25,15 +26,20 @@ mod a_deleted_block_remembers_where_it_was_until_it_is_restored;
 mod a_duplicated_block_carries_what_its_source_held;
 mod a_folder_lists_a_new_child_before_its_edit_is_sealed;
 mod a_fork_pulls_and_pushes_through_its_upstream;
+mod a_half_open_connection_is_noticed_and_the_peer_reconnects;
+mod a_heartbeat_the_server_never_answers_holds_up_no_edit;
 mod a_held_block_stays_open_when_its_editors_close;
 mod a_link_carrying_a_share_opens_the_block_the_moment_it_is_accepted;
+mod a_merge_conflict_shows_both_versions_and_keeps_the_one_chosen;
 mod a_new_device_gets_the_identity_secret_by_typing_its_code_on_an_open_one;
 mod a_paste_too_large_to_relay_is_acknowledged_to_its_editor;
 mod a_peer_rejoins_what_was_open_when_the_server_comes_back;
 mod a_peers_edit_during_a_gesture_here_reaches_editors_beneath_it;
 mod a_picked_file_becomes_a_block_of_the_type_that_claims_it;
 mod a_saved_change_is_undone_and_later_edits_stay;
+mod a_seal_the_connection_loses_is_kept_and_published_after_reconnect;
 mod a_second_checkout_copies_the_tree_under_the_same_local_ids;
+mod a_server_gone_silent_while_contacts_sync_holds_up_no_open_or_edit;
 mod a_session_owned_here_follows_a_peer_that_claims_it;
 #[cfg(not(target_os = "android"))]
 mod a_terminal_host_answers_this_peer_through_the_blocks_session;
@@ -41,18 +47,28 @@ mod a_terminal_host_answers_this_peer_through_the_blocks_session;
 mod a_terminal_host_takes_over_a_session_this_peer_opened_first;
 mod a_type_module_that_stops_is_started_again_with_the_edits_it_had_not_sealed;
 mod an_account_unlocks_with_its_recovery_phrase;
+mod an_edit_counts_as_unsaved_from_when_it_is_sent_until_it_is_sealed;
 mod an_edit_made_across_a_takeover_is_kept;
+mod an_edit_made_offline_survives_a_restart_and_reaches_the_server_on_reconnect;
 mod an_idle_peer_never_wakes_its_worker;
 mod an_imported_tree_shows_at_once_and_moves_once_it_is_uploaded;
 mod an_invite_link_joins_the_organization_and_makes_the_two_contacts;
+mod an_organizations_unsent_edits_are_discarded_once_the_grace_period_passes;
 mod an_unknown_content_type_has_no_content_in_the_new_stack;
+mod backing_off_waits_longer_after_each_failure_up_to_a_ceiling;
+mod blocks_moved_renamed_and_deleted_offline_reach_the_server_on_reconnect;
+mod closing_a_block_while_the_server_is_silent_holds_up_no_edit;
 mod flushing_seals_what_the_sessions_hold_and_leaves_them_live;
 mod presence_crosses_between_this_peer_and_another;
 mod replacing_content_reaches_a_block_open_or_not;
 mod revision_history_previews_and_restores_saved_content;
+mod rewrites_of_one_line_on_two_offline_devices_merge_with_a_conflict;
+mod stopping_returns_while_a_connect_goes_unanswered;
 mod taking_a_share_back_rotates_its_keys_and_reseals_the_open_block;
 mod two_accounts_become_contacts_by_a_link_and_share_a_block;
+mod two_devices_that_edit_one_note_offline_merge_once_both_reconnect;
 mod two_peers_of_one_organization_share_a_counter;
+mod typing_shows_while_a_silent_server_holds_a_seal_and_stopping_keeps_it_here;
 mod undo_steps_back_through_what_this_peer_did;
 
 struct Editor<C: LiveEdit> {
@@ -155,6 +171,8 @@ pub(crate) struct Harness {
     organization: Uuid,
     phrase: be_keys::RecoveryPhrase,
     lease: Duration,
+    relay: Option<fault_relay::Relay>,
+    clock: be_client::Clock,
     _one_stack: std::sync::MutexGuard<'static, ()>,
 }
 
@@ -165,6 +183,68 @@ impl Harness {
 
     pub(crate) fn lapsing() -> Self {
         Self::leasing(Duration::ZERO)
+    }
+
+    fn relayed() -> Self {
+        let mut harness = Self::start();
+        let server = harness
+            .address()
+            .parse()
+            .expect("the embedded server listens on an address");
+        harness.relay = Some(fault_relay::Relay::start(server));
+        harness.clock = be_client::Clock::manual();
+        harness
+    }
+
+    fn relay(&self) -> &fault_relay::Relay {
+        self.relay
+            .as_ref()
+            .expect("the harness was started with a relay")
+    }
+
+    fn open_until_it_joins(&self, block: Uuid, content_type: Uuid) {
+        let mut joins = self
+            .relay()
+            .count(|message| matches!(message, be_protocol::ClientMessage::JoinSession { .. }));
+        open(block, content_type);
+        let joined = runtime().block_on(async {
+            tokio::time::timeout(PATIENCE, joins.wait_for(|joins| *joins > 0))
+                .await
+                .is_ok_and(|seen| seen.is_ok())
+        });
+        assert!(joined, "opening the block never asked to join its session");
+    }
+
+    fn miss_a_ping(&self) {
+        let mut due = wait_for(PATIENCE, |shared| {
+            shared
+                .connected
+                .then(|| shared.connection_due.clone())
+                .flatten()
+        })
+        .expect("the stack is connected");
+        let missed = runtime().block_on(async {
+            tokio::time::timeout(PATIENCE, async {
+                loop {
+                    let at = *due.borrow_and_update();
+                    let now = self.clock.now();
+                    if at > now {
+                        self.clock.advance(at - now);
+                    }
+                    if due.changed().await.is_err() {
+                        return;
+                    }
+                }
+            })
+            .await
+        });
+        assert!(
+            missed.is_ok(),
+            "the connection never gave up on the silent server"
+        );
+        wait_until("noticed the connection was gone", |shared| {
+            !shared.connected
+        });
     }
 
     fn leasing(lease: Duration) -> Self {
@@ -212,6 +292,8 @@ impl Harness {
             organization,
             phrase: be_keys::RecoveryPhrase::generate(),
             lease,
+            relay: None,
+            clock: be_client::Clock::real(),
             _one_stack: one_stack,
         }
     }
@@ -240,7 +322,10 @@ impl Harness {
 
     fn config(&self, data_dir: PathBuf) -> Config {
         Config {
-            server_url: self.url.clone(),
+            server_url: match &self.relay {
+                Some(relay) => format!("http://{}", relay.address()),
+                None => self.url.clone(),
+            },
             token: self.token.clone(),
             account: self.account,
             organization: self.organization,
@@ -248,6 +333,7 @@ impl Harness {
             display_name: "Counter".to_owned(),
             email: "counter@example.com".to_owned(),
             data_dir,
+            clock: self.clock.clone(),
         }
     }
 
@@ -256,10 +342,9 @@ impl Harness {
     }
 
     fn outside_config(&self) -> be_client::PeerConfig {
-        let config = self.config(self.directory.join("outside"));
         be_client::PeerConfig::new(
-            config.socket_url(),
-            be_keys::RecoverySecret::from_bytes(config.identity),
+            crate::accounts::socket_url(&self.url),
+            be_keys::RecoverySecret::from_bytes(self.identity()),
             be_client::Credentials::Token(self.token.clone()),
         )
         .organization(Some(self.organization))
@@ -281,7 +366,11 @@ async fn outside_peer(
 
 impl Drop for Harness {
     fn drop(&mut self) {
-        stop();
+        if std::thread::panicking() {
+            abandon();
+        } else {
+            stop_and_wait();
+        }
         let _ = std::fs::remove_dir_all(&self.directory);
     }
 }
@@ -750,4 +839,109 @@ async fn read_text(peer: &be_client::Peer<be_store::MemoryStore>, block: Uuid) -
         .expect("the block opens with the keys it was given")
         .expect("the block has content");
     text_block_types::TextBlock::text(&text)
+}
+
+struct Device {
+    runtime: tokio::runtime::Runtime,
+    refs: be_client::RefsDb,
+    store: be_store::MemoryStore,
+    account: Uuid,
+    url: String,
+    config: Box<dyn Fn() -> be_client::PeerConfig>,
+    peer: std::cell::RefCell<std::sync::Arc<be_client::Peer<be_store::MemoryStore>>>,
+}
+
+impl Device {
+    fn online(harness: &Harness) -> Self {
+        let runtime = runtime();
+        let refs = be_client::RefsDb::memory();
+        let store = be_store::MemoryStore::new();
+        let (url, identity, token, organization) = (
+            harness.config(PathBuf::new()).socket_url(),
+            harness.identity(),
+            harness.token.clone(),
+            harness.organization,
+        );
+        let config = {
+            let url = url.clone();
+            move || {
+                be_client::PeerConfig::new(
+                    url.clone(),
+                    be_keys::RecoverySecret::from_bytes(identity),
+                    be_client::Credentials::Token(token.clone()),
+                )
+                .organization(Some(organization))
+            }
+        };
+        let peer = runtime
+            .block_on(be_client::Peer::connect(
+                config().refs(refs.clone()),
+                store.clone(),
+            ))
+            .expect("the other device signs in");
+        Self {
+            runtime,
+            refs,
+            store,
+            account: harness.account,
+            url,
+            config: Box::new(config),
+            peer: std::cell::RefCell::new(std::sync::Arc::new(peer)),
+        }
+    }
+
+    fn read(&self, block: Uuid) -> String {
+        let peer = std::sync::Arc::clone(&self.peer.borrow());
+        self.runtime.block_on(read_text(&peer, block))
+    }
+
+    fn save_offline(&self, block: Uuid, text: &str) {
+        let offline = be_client::Peer::cached(
+            (self.config)().refs(self.refs.clone()),
+            self.account,
+            self.store.clone(),
+        )
+        .expect("the other device starts from what it saved");
+        let base = offline.local_head(block);
+        let saved = self.runtime.block_on(offline.save(
+            block,
+            &text_block_types::TextBlock::of(text),
+            base,
+        ));
+        assert!(
+            matches!(saved, Err(be_client::ClientError::Disconnected(_))),
+            "the other device saved while it was meant to be offline: {saved:?}"
+        );
+        assert_ne!(offline.local_head(block), base, "the edit was not kept");
+        *self.peer.borrow_mut() = std::sync::Arc::new(offline);
+    }
+
+    fn reconnect(&self, harness: &Harness) {
+        let peer = std::sync::Arc::clone(&self.peer.borrow());
+        let token = harness.token.clone();
+        let drained = self.runtime.block_on(async {
+            let connection = be_client::Connection::connect(&self.url, &be_client::Clock::real())
+                .await
+                .expect("the other device reaches the server again");
+            let be_protocol::ServerMessage::Authenticated { token, .. } = connection
+                .request(|request| be_protocol::ClientMessage::Authenticate { request, token })
+                .await
+                .expect("the other device signs in again")
+            else {
+                panic!("the server did not sign the other device in");
+            };
+            peer.attach(connection, token)
+                .await
+                .expect("the other device opens the workspace again");
+            peer.drain(|_| false)
+                .await
+                .expect("the other device sends what waited")
+        });
+        assert!(
+            drained
+                .iter()
+                .all(|outcome| matches!(outcome, be_client::Drained::Published { .. })),
+            "the other device could not send what it wrote offline: {drained:?}"
+        );
+    }
 }

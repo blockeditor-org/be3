@@ -1,6 +1,6 @@
 use super::*;
+use crate::dock::unstyled::{DockPane, DockSplit, DockTab, DockingLayout};
 use crate::reactive::*;
-use crate::unstyled::{DockPane, DockSplit, DockTab, DockingLayout};
 
 const PHONE: Vec2 = Vec2::new(390.0, 600.0);
 
@@ -10,7 +10,7 @@ fn a_stacked_dock_fills_itself_with_the_focused_tab_and_keeps_its_panels() {
     let document = build_node(move || {
         let layout = DockingLayout::new();
         view! {
-            <styled::Docking layout focus=3u64>
+            <dock::styled::Docking layout focus=3u64>
                 <DockSplit id="split">
                     <DockPane id="left">
                         <DockTab id=1u64 title="Tab 1">
@@ -26,7 +26,7 @@ fn a_stacked_dock_fills_itself_with_the_focused_tab_and_keeps_its_panels() {
                         </DockTab>
                     </DockPane>
                 </DockSplit>
-            </styled::Docking>
+            </dock::styled::Docking>
         }
     });
     let mut harness = Harness::sized(document, PHONE);

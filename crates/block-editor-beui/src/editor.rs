@@ -8,16 +8,16 @@ use beui::reactive::*;
 use beui::{Document, Pos2, Rect, Vec2};
 use block_plugin_api::{
     BarAction, ChildContent, ChildId, ChildLayer, ChildMode, ChildPreview, CreationProgress,
-    EditorCapabilities, HostAction, HostPanel, HostValue, HostWindowId, InteractionMode, MenuEntry,
-    ResizeMode, SettingsProgress, TopBar, WebViewId,
+    DialogFrame, DialogStatus, EditorCapabilities, HostPanel, HostWindowId, InteractionMode,
+    MenuEntry, ResizeMode, TopBar, Watched, WebViewId,
 };
 use block_ui::BlockCatalog;
 use uuid::Uuid;
 use workspace_ui_types::{EditorViewContent, ViewState};
 
 use crate::{
-    BlockFilter, BlockList, BlockParent, BlockPicker, BlockQuery, Blocks, ContentProjection,
-    EditorHost, OwnedContentProjection, PickedBlock, Waker,
+    BlockFilter, BlockList, BlockParent, BlockQuery, Blocks, ContentProjection, EditorHost,
+    OwnedContentProjection, PickedBlock, Task, Waker,
 };
 use crate::{BlockHistory, FileDrop, FocusedBlock, Pushed};
 use block_plugin_api::{AudioStatus, FitArea};
@@ -34,6 +34,7 @@ struct ArtifactState {
     regenerate: RefCell<Option<Regenerate>>,
     poll: RefCell<Option<PollArtifact>>,
     settings: OwnedSignal<Vec<u8>>,
+    saved: OwnedSignal<Vec<u8>>,
     edit: RefCell<Option<Vec<u8>>>,
 }
 
@@ -52,6 +53,7 @@ impl Artifacts {
             regenerate: RefCell::new(None),
             poll: RefCell::new(None),
             settings: OwnedSignal::new(Vec::new()),
+            saved: OwnedSignal::new(Vec::new()),
             edit: RefCell::new(None),
         }))
     }
@@ -65,9 +67,16 @@ impl Artifacts {
         *self.0.edit.borrow_mut() = Some(data);
     }
 
-    pub fn receive_settings(&self, data: &[u8]) {
-        if self.0.settings.get_untracked() != data {
-            self.0.settings.set(data.to_vec());
+    pub fn saved_settings(&self) -> ReadSignal<Vec<u8>> {
+        self.0.saved.read_only()
+    }
+
+    pub fn receive_settings(&self, saved: &[u8], draft: &[u8]) {
+        if self.0.saved.get_untracked() != saved {
+            self.0.saved.set(saved.to_vec());
+        }
+        if self.0.settings.get_untracked() != draft {
+            self.0.settings.set(draft.to_vec());
         }
     }
 
@@ -89,6 +98,10 @@ impl Artifacts {
 
     pub fn block_type(&self) -> Uuid {
         self.0.artifact.block_type
+    }
+
+    pub fn source(&self) -> Uuid {
+        self.0.artifact.source
     }
 
     pub fn on_regenerate(&self, work: impl Fn(&[u8]) + 'static) {
@@ -202,8 +215,8 @@ pub struct ChildState {
     pub child: Option<ChildId>,
     pub menu: Vec<MenuEntry>,
     pub creation: Option<CreationProgress>,
-    pub settings: Option<SettingsProgress>,
     pub preview: ChildPreview,
+    pub dialog: DialogStatus,
 }
 
 impl ChildState {
@@ -228,10 +241,10 @@ impl ChildState {
             resize: status.resize,
             error: status.error,
             child,
-            menu: status.menu,
+            menu: block_plugin_api::MenuEntry::nest(status.menu).unwrap_or_default(),
             creation: status.creation,
-            settings: status.settings,
             preview: status.preview,
+            dialog: status.dialog,
         }
     }
 }
@@ -246,6 +259,7 @@ struct ChildRecord {
     rotation: Prop<f32>,
     opacity: Prop<f32>,
     intrinsic: Prop<Option<Vec2>>,
+    dialog: Prop<Option<DialogFrame>>,
     state: Signal<ChildState>,
     report: Callback<ChildState>,
     bar: Callback<BarAction>,
@@ -254,20 +268,21 @@ struct ChildRecord {
     zone: u64,
 }
 
-struct PendingPick {
-    picker: BlockPicker,
-    picked: Rc<dyn Fn(Result<PickedBlock, String>)>,
-}
-
 type Revision = OwnedSignal<u64>;
 
 type Wake = (Arc<AtomicU64>, Signal<u64>);
 
-fn watch_replies(replies: ReadSignal<u64>, replied: impl Fn() + 'static) {
-    create_effect(move || {
-        replies.get();
-        untrack(&replied);
-    });
+fn then<T: 'static>(
+    host: &EditorHost,
+    asked: impl std::future::Future<Output = Option<T>> + 'static,
+    answered: impl FnOnce(T) + 'static,
+) -> Task {
+    let owner = owner_scope();
+    host.then(asked, move |answer| {
+        if owner.as_ref().is_none_or(ScopeContext::is_alive) {
+            answered(answer);
+        }
+    })
 }
 
 struct Mirror([Revision; Pushed::ALL.len()]);
@@ -379,6 +394,7 @@ impl OwnedEditor {
             beui,
             block,
             roots: RefCell::new(None),
+            settings: RefCell::default(),
             canvas,
             world,
             scale,
@@ -407,7 +423,7 @@ impl OwnedEditor {
             children_moved: Cell::new(false),
             wakes: Rc::default(),
             pushed,
-            host_values: RefCell::default(),
+            watches: RefCell::default(),
             files,
             placed,
         });
@@ -440,6 +456,7 @@ struct EditorState {
     beui: Rc<Cell<BeuiScale>>,
     block: Uuid,
     roots: RefCell<Option<BlockList>>,
+    settings: RefCell<settings::SettingsCache>,
     canvas: Signal<Option<CanvasView>>,
     world: Signal<Option<Vec2>>,
     scale: Signal<f32>,
@@ -462,13 +479,13 @@ struct EditorState {
     intrinsic: Cell<Option<Vec2>>,
     children: RefCell<Vec<(u64, Rc<ChildRecord>)>>,
     next_child: Cell<u64>,
-    pick: RefCell<Option<PendingPick>>,
+    pick: RefCell<Option<Task>>,
     seen: Cell<Option<(u64, f32)>>,
     shown_rect: Cell<Option<Rect>>,
     children_moved: Cell<bool>,
     wakes: Rc<RefCell<Vec<Wake>>>,
     pushed: Mirror,
-    host_values: RefCell<std::collections::HashMap<&'static str, Revision>>,
+    watches: RefCell<std::collections::HashMap<std::any::TypeId, Revision>>,
     files: Signal<Option<FileDrop>>,
     placed: Signal<Rect>,
 }
@@ -665,12 +682,12 @@ impl Editor {
         self.state().pushed.watch(pushed)
     }
 
-    pub fn replies(&self) -> ReadSignal<u64> {
-        self.pushed(Pushed::Replies)
-    }
-
-    pub fn on_reply(&self, replied: impl Fn() + 'static) {
-        watch_replies(self.replies(), replied);
+    pub fn then<T: 'static>(
+        &self,
+        asked: impl std::future::Future<Output = Option<T>> + 'static,
+        answered: impl FnOnce(T) + 'static,
+    ) -> Task {
+        then(&self.state().host, asked, answered)
     }
 
     pub fn woken(&self) -> (Waker, ReadSignal<u64>) {
@@ -713,6 +730,7 @@ impl Editor {
 
     pub fn version_status(&self) -> Memo<block_editor_plugin::VersionStatus> {
         let host = self.state().host.clone();
+        host.watch_version();
         let revision = self.pushed(Pushed::Version);
         let known = create_memo({
             let host = host.clone();
@@ -756,36 +774,39 @@ impl Editor {
         self.state().host.take_panel_requests()
     }
 
-    pub fn host_value<T: HostValue>(&self) -> Memo<T::Value> {
+    pub fn watch<W: Watched>(&self) -> Memo<W::Value>
+    where
+        W::Value: Default,
+    {
         let host = self.state().host.clone();
-        let revision = self.host_value_revision(T::KEY);
+        let revision = self.watch_revision::<W>();
         create_memo(move || {
             revision.get();
-            host.host_value::<T>()
+            host.watched::<W>().unwrap_or_default()
         })
     }
 
-    pub fn host_offers<T: HostValue>(&self) -> Memo<bool> {
+    pub fn offered<W: Watched>(&self) -> Memo<bool> {
         let host = self.state().host.clone();
-        let revision = self.host_value_revision(T::KEY);
+        let revision = self.watch_revision::<W>();
         create_memo(move || {
             revision.get();
-            host.host_offers::<T>()
+            host.offers::<W>()
         })
     }
 
-    fn host_value_revision(&self, key: &'static str) -> ReadSignal<u64> {
+    fn watch_revision<W: Watched>(&self) -> ReadSignal<u64> {
         let host = &self.state().host;
         self.state()
-            .host_values
+            .watches
             .borrow_mut()
-            .entry(key)
-            .or_insert_with(|| OwnedSignal::new(host.host_value_revision(key)))
+            .entry(std::any::TypeId::of::<W>())
+            .or_insert_with(|| OwnedSignal::new(host.watch_revision::<W>()))
             .read_only()
     }
 
-    pub fn act<A: HostAction>(&self, action: A) {
-        self.state().host.act(action);
+    pub fn act(&self, call: impl FnOnce() + 'static) {
+        self.state().host.act(call);
     }
 
     pub fn web_view_events(&self) -> ReadSignal<u64> {
@@ -854,14 +875,17 @@ impl Editor {
     pub fn pick_block(
         &self,
         filter: BlockFilter,
-        picked: impl Fn(Result<PickedBlock, String>) + 'static,
+        picked: impl FnOnce(Result<PickedBlock, block_editor_plugin::Failure>) + 'static,
     ) {
-        let mut picker = BlockPicker::default();
-        picker.open(&self.state().host, filter);
-        *self.state().pick.borrow_mut() = Some(PendingPick {
-            picker,
-            picked: Rc::new(picked),
+        let asked = self.state().host.pick_block(filter);
+        let task = self.then(asked, move |answer| match answer {
+            Ok(Some(block)) => picked(Ok(block)),
+            Ok(None) => {}
+            Err(error) => picked(Err(error)),
         });
+        if let Some(earlier) = self.state().pick.replace(Some(task)) {
+            earlier.cancel();
+        }
     }
 
     pub(crate) fn register_child(
@@ -875,6 +899,7 @@ impl Editor {
         rotation: Prop<f32>,
         opacity: Prop<f32>,
         intrinsic: Prop<Option<Vec2>>,
+        dialog: Prop<Option<DialogFrame>>,
         report: Callback<ChildState>,
         bar: Callback<BarAction>,
         focus: Callback<()>,
@@ -895,6 +920,7 @@ impl Editor {
                 rotation,
                 opacity,
                 intrinsic,
+                dialog,
                 state,
                 report,
                 bar,
@@ -922,23 +948,6 @@ impl Editor {
             .iter()
             .map(|(_, record)| Rc::clone(record))
             .collect()
-    }
-
-    fn poll_pick(&self) {
-        let state = self.state();
-        let picked = {
-            let mut pending = state.pick.borrow_mut();
-            let Some(pick) = pending.as_mut() else {
-                return;
-            };
-            let Some(picked) = pick.picker.poll(&state.host) else {
-                return;
-            };
-            pending.take().map(|pick| (pick.picked, picked))
-        };
-        if let Some((callback, picked)) = picked {
-            callback(picked);
-        }
     }
 
     pub fn content(&self, node: &NodeRef) {
@@ -1144,14 +1153,14 @@ impl Editor {
         }
         if pushed {
             state.pushed.sync(&state.host);
-            let keys: Vec<_> = state
-                .host_values
+            let watches: Vec<_> = state
+                .watches
                 .borrow()
                 .iter()
-                .map(|(key, revision)| (*key, revision.handle()))
+                .map(|(watch, revision)| (*watch, revision.handle()))
                 .collect();
-            for (key, revision) in keys {
-                revision.set(state.host.host_value_revision(key));
+            for (watch, revision) in watches {
+                revision.set(state.host.watch_revision_of(watch));
             }
             state
                 .files
@@ -1195,9 +1204,6 @@ impl Editor {
         if pushed || state.children_moved.take() {
             self.follow_children();
         }
-        if pushed {
-            self.poll_pick();
-        }
     }
 
     fn pump(&self, blocks: Vec<Option<Uuid>>) {
@@ -1236,13 +1242,19 @@ impl Editor {
         }
     }
 
-    pub fn end_frame(&self, document: &Document) {
+    pub fn end_frame(&self, document: &Document, window: beui::WindowId) {
         let state = self.state();
         let zone = document.zone();
         let mut records: Vec<(Vec<usize>, Rc<ChildRecord>)> = self
             .records()
             .into_iter()
             .filter(|record| record.zone == 0 || record.zone == zone)
+            .filter(|record| {
+                record
+                    .slot
+                    .node()
+                    .is_none_or(|node| document.window_of(node) == window)
+            })
             .map(|record| {
                 let order = record
                     .slot
@@ -1254,7 +1266,7 @@ impl Editor {
             .collect();
         records.sort_by(|(left, _), (right, _)| left.cmp(right));
         let unscale = self.ratio().recip();
-        let overlays = document.overlay_layers();
+        let overlays = document.overlay_layers(window);
         let mut overlays = overlays.iter().peekable();
         for (order, record) in records {
             while let Some((_, rect)) = overlays.next_if(|(layer, _)| *layer < order) {
@@ -1273,7 +1285,8 @@ impl Editor {
             .borrow()
             .as_ref()
             .filter(|(_, owner)| *owner == 0 || *owner == zone)
-            .and_then(|(node, _)| node.try_get());
+            .and_then(|(node, _)| node.try_get())
+            .filter(|node| document.window_of(*node) == window);
         let Some(rect) = node.and_then(|node| document.node_rect(node)) else {
             return;
         };
@@ -1297,6 +1310,9 @@ impl Editor {
         let placement = record.slot.placement()?;
         let content = record.content.get_untracked()?;
         let unscale = self.ratio().recip();
+        let shown = document
+            .window_rect(document.window_of(node))
+            .unwrap_or_else(|| document.viewport_rect());
         Some(state.host.place_child(
             content.wire(),
             rect.scaled(unscale),
@@ -1309,6 +1325,10 @@ impl Editor {
             record.opacity.get_untracked(),
             record.intrinsic.get_untracked(),
             document.panned_by_canvas(node),
+            record.dialog.get_untracked().map(|dialog| DialogFrame {
+                bottom_inset: dialog.bottom_inset.max(rect.max.y - shown.max.y) * unscale,
+                ..dialog
+            }),
         ))
     }
 }
@@ -1364,20 +1384,28 @@ impl Creation {
         self.0.host.seed_content(block, content);
     }
 
-    pub fn set_ready(&self, ready: bool) {
-        self.0.host.set_creation_ready(ready);
+    pub fn accept(&self) {
+        self.0
+            .host
+            .close_dialog(block_plugin_api::DialogAnswer::Accepted);
+    }
+
+    pub fn cancel(&self) {
+        self.0
+            .host
+            .close_dialog(block_plugin_api::DialogAnswer::Dismissed);
     }
 
     pub fn on_create(&self, make: impl Fn() -> Result<Uuid, String> + 'static) {
         *self.0.maker.borrow_mut() = Some(Rc::new(make));
     }
 
-    pub fn replies(&self) -> ReadSignal<u64> {
-        self.0.pushed.watch(Pushed::Replies)
-    }
-
-    pub fn on_reply(&self, replied: impl Fn() + 'static) {
-        watch_replies(self.replies(), replied);
+    pub fn then<T: 'static>(
+        &self,
+        asked: impl std::future::Future<Output = Option<T>> + 'static,
+        answered: impl FnOnce(T) + 'static,
+    ) -> Task {
+        then(&self.0.host, asked, answered)
     }
 
     pub fn create_block(&self) -> Result<Uuid, String> {
@@ -1393,63 +1421,6 @@ impl Creation {
         if self.0.seen.replace(changes) != changes {
             self.0.pushed.sync(&self.0.host);
         }
-    }
-}
-
-impl Editor {
-    pub fn effective_settings<R>(&self) -> Memo<R>
-    where
-        R: be_block::Layered + PartialEq + 'static,
-        be_block::be_model::Document<R>: be_block::LiveEdit + Clone + Default,
-    {
-        let editor = *self;
-        create_memo(move || {
-            let layers = crate::root_settings::RootSettings::default()
-                .read(&editor)
-                .map(|held| {
-                    crate::root_settings::layers(
-                        &editor,
-                        &held,
-                        R::CONTENT_TYPE,
-                        editor.host().client_id(),
-                    )
-                })
-                .unwrap_or_default();
-            be_block::layered(layers.bottom_up().into_iter().filter_map(|block| {
-                editor
-                    .content_of::<be_block::be_model::Document<R>>(block)
-                    .read(|content| content.root())
-                    .ok()
-            }))
-        })
-    }
-
-    pub fn inherited_settings<R>(&self) -> Memo<R>
-    where
-        R: be_block::Layered + PartialEq + 'static,
-        be_block::be_model::Document<R>: be_block::LiveEdit + Clone + Default,
-    {
-        let editor = *self;
-        create_memo(move || {
-            let below = crate::root_settings::RootSettings::default()
-                .read(&editor)
-                .map(|held| {
-                    crate::root_settings::layers(
-                        &editor,
-                        &held,
-                        R::CONTENT_TYPE,
-                        editor.host().client_id(),
-                    )
-                    .below(editor.block_id())
-                })
-                .unwrap_or_default();
-            be_block::layered(below.into_iter().filter_map(|block| {
-                editor
-                    .content_of::<be_block::be_model::Document<R>>(block)
-                    .read(|content| content.root())
-                    .ok()
-            }))
-        })
     }
 }
 
@@ -1505,6 +1476,10 @@ pub fn node_anchor(node: &NodeRef) -> Option<Rect> {
     let node = node.try_get()?;
     try_with_document(|document| document.node_rect(node)).flatten()
 }
+
+mod settings;
+
+pub use settings::{KindsAbove, OrganizationLayers, SetKind};
 
 #[cfg(test)]
 mod tests;

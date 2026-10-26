@@ -1,0 +1,54 @@
+package be3:debug@0.1.0;
+
+/// An extension beside the core plugin protocol, not part of it: what the
+/// app's own debugging tools hear from a plugin and tell it. A host without
+/// those tools answers no watch here and ignores every call, and a plugin may
+/// leave all of it out; nothing in the core protocol depends on it. Every call
+/// is made under the editor resource it is for.
+interface debug {
+    use be3:shared/ids@0.1.0.{block-id, uuid};
+    use be3:shared/access@0.1.0.{access-level};
+
+    record performance-duration {
+        name: string,
+        nanoseconds: u64,
+    }
+
+    record performance-count {
+        name: string,
+        count: u64,
+    }
+
+    variant performance-measurement {
+        duration(performance-duration),
+        count(performance-count),
+    }
+
+    /// Measurements for the host's performance panel.
+    performance: func(group: string, measurements: list<performance-measurement>);
+
+    /// Shows the block as if the user had only `access` to it, until the
+    /// editor asks again with `edit`.
+    simulate-access: func(block: block-id, access: access-level);
+
+    /// A template of a debugging editor, which a picker lists apart: the
+    /// editor that declares it and the template's id.
+    record debug-template {
+        editor: uuid,
+        template: string,
+    }
+
+    /// The templates of the host's catalog that are for debugging, watched
+    /// like the catalog.
+    resource debug-templates-watch {
+        constructor();
+        next: async func() -> list<debug-template>;
+    }
+}
+
+/// What the host's tests ask of a plugin.
+interface paintings {
+    /// What the plugin's screens painted, in paint-format's encoding of screen
+    /// paintings, for the tests to compare.
+    paintings: async func() -> list<u8>;
+}

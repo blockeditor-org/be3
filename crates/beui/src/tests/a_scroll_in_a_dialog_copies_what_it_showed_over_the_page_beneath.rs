@@ -1,5 +1,6 @@
 use super::*;
 use crate::primitives::Frame;
+use crate::primitives::List;
 use crate::primitives::Text;
 use crate::reactive::*;
 use crate::styled::Scroll;
@@ -15,7 +16,7 @@ fn a_scroll_in_a_dialog_copies_what_it_showed_over_the_page_beneath() {
                 <ForEach keys={(0..40).collect::<Vec<usize>>()}>|line: usize|
                     <Text>{format!("the page beneath the dialog, line {line}")}</Text>
                 </ForEach>
-                <Dialog open=true title="Add block" width=300.0 on_dismiss={|| {}}>
+                <Dialog open=true title="Add block" width={Size::Custom(300.0)} on_dismiss={|| {}}>
                     <Frame height=200.0>
                         <Scroll>
                             <List spacing=8.0>

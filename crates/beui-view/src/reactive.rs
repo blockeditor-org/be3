@@ -11,7 +11,7 @@ pub use beui_core::tree::{
 pub use beui_tree::reactive::*;
 
 use beui_core::document::Document;
-use beui_core::geometry::Rect;
+use beui_core::geometry::{Rect, Vec2};
 use beui_core::input::Key;
 use beui_core::node::NodeId;
 
@@ -132,12 +132,16 @@ pub fn pixels_per_point() -> ReadSignal<f32> {
     with_document(|document| document.watch_pixels_per_point())
 }
 
-pub fn use_screens() -> ReadSignal<Vec<beui_core::screens::Screen>> {
-    with_document(|document| document.watch_screens())
+pub fn use_viewport_size() -> ReadSignal<Vec2> {
+    with_document(|document| document.watch_viewport_size())
 }
 
 pub fn use_fullscreen() -> ReadSignal<bool> {
     with_document(|document| document.watch_fullscreen())
+}
+
+pub fn touched_by_finger() -> bool {
+    try_with_document(|document| document.touched_by_finger()).unwrap_or(false)
 }
 
 pub fn use_keyboard() -> ReadSignal<bool> {
@@ -199,7 +203,10 @@ fn listen(
     handler: impl Fn(beui_core::keys::KeyEvent) -> bool + 'static,
 ) {
     let handler: Rc<beui_core::keys::KeyHandler> = Rc::new(handler);
-    with_document(|document| document.listen_keys(at, phase, reveal, Rc::downgrade(&handler)));
+    let window = crate::components::window::use_window().map(|window| window.id);
+    with_document(|document| {
+        document.listen_keys(at, phase, reveal, Rc::downgrade(&handler), window)
+    });
     on_cleanup(move || drop(handler));
 }
 

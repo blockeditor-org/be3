@@ -1,3 +1,4 @@
+use crate::window::WindowId;
 use std::any::Any;
 
 use crate::base::focus::Focus;
@@ -123,8 +124,8 @@ impl InteractiveNode {
         }
     }
 
-    pub fn hits(&self, pos: Pos2, rect: Rect) -> bool {
-        self.hit_at.is_empty() || self.hit_at.call(pos - rect.min.to_vec2())
+    pub fn hits(&self, pos: Pos2, rect: Rect, scale: f32) -> bool {
+        self.hit_at.is_empty() || self.hit_at.call(local_in(rect, scale, pos))
     }
 
     pub fn claims(&self, pos: Pos2, rect: Rect, held: Modifiers) -> bool {
@@ -239,6 +240,7 @@ impl InteractiveNode {
 
 pub fn press_at(
     rect: Rect,
+    scale: f32,
     pos: Pos2,
     clicks: u32,
     modifiers: Modifiers,
@@ -248,8 +250,8 @@ pub fn press_at(
     PointerPress {
         window: crate::window::WindowId::MAIN,
         pos,
-        local: pos - rect.min.to_vec2(),
-        size: rect.size(),
+        local: local_in(rect, scale, pos),
+        size: rect.size() / scale,
         fraction: fraction(rect, pos),
         clicks,
         modifiers,
@@ -258,6 +260,11 @@ pub fn press_at(
         predicted: None,
         time,
     }
+}
+
+pub fn local_in(rect: Rect, scale: f32, pos: Pos2) -> Pos2 {
+    let local = (pos - rect.min) / scale;
+    Pos2::new(local.x, local.y)
 }
 
 fn fraction(rect: Rect, pos: Pos2) -> Vec2 {
@@ -284,6 +291,11 @@ impl Element for InteractiveNode {
             Some(child) => crate::layout::measure(doc, painter, child, available),
             None => Vec2::ZERO,
         }
+    }
+
+    fn min_width(&self, doc: &mut Document, painter: &Painter) -> f32 {
+        self.child
+            .map_or(0.0, |child| crate::layout::min_width(doc, painter, child))
     }
 
     fn baseline(&self, doc: &mut Document, painter: &Painter, available: Vec2) -> Option<f32> {
@@ -541,16 +553,16 @@ impl Document {
         };
     }
 
-    pub fn wants_every_sample(&self) -> bool {
+    pub fn wants_every_sample(&self, window: WindowId) -> bool {
         self.every_sample_surfaces
             .iter()
-            .any(|id| self.arena.contains(*id))
+            .any(|id| self.arena.contains(*id) && self.window_of(*id) == window)
     }
 
-    pub fn drawing_rects(&self) -> Vec<Rect> {
+    pub fn drawing_rects(&self, window: WindowId) -> Vec<Rect> {
         self.drawing_surfaces
             .iter()
-            .filter(|id| self.arena.contains(**id))
+            .filter(|id| self.arena.contains(**id) && self.window_of(**id) == window)
             .filter_map(|id| self.rects.visible(id))
             .filter(|rect| rect.is_positive())
             .collect()
@@ -684,10 +696,10 @@ impl Document {
         }
     }
 
-    pub fn press_claims(&self) -> Vec<(Modifiers, Rect)> {
+    pub fn press_claims(&self, window: WindowId) -> Vec<(Modifiers, Rect)> {
         self.press_claimants
             .iter()
-            .filter(|id| self.arena.contains(**id))
+            .filter(|id| self.arena.contains(**id) && self.window_of(**id) == window)
             .filter_map(|id| {
                 let claimed = self
                     .arena

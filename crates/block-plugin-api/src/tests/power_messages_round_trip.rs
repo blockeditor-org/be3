@@ -10,9 +10,9 @@ fn power_messages_round_trip() {
         log_out: true,
         ending: false,
     };
-    host_value_round_trips::<Power>(available);
+    watched_round_trips::<PowerWatch>(available);
     for action in PowerAction::ALL {
-        host_action_round_trips(action);
+        round_trips(&action);
     }
     assert!(available.allows(PowerAction::Restart));
     assert!(!available.allows(PowerAction::PowerOff));

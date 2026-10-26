@@ -31,9 +31,9 @@ pub fn Scatter(data: Data) -> NodeId {
     let ready = create_memo(move || axes.get().is_some());
     view! {
         <Frame fill=ColorRole::Background>
-            <List spacing=0.0>
+            <List spacing=Space::None>
                 <Show condition={missing}>
-                    <Frame padding=12.0>
+                    <Frame padding=Space::Lg>
                         <Text style=TextStyle::CAPTION>
                             "Choose X and Y fields to use the scatter view."
                         </Text>
@@ -100,9 +100,6 @@ fn Plot(data: Data, axes: Memo<Option<(DatabaseField, DatabaseField)>>) -> NodeI
                     None => data.deselect(),
                 }
             };
-            let theme = use_theme();
-            let axis_color = theme.border;
-            let rule_color = theme.border;
             view! {
                 <Interactive
                     @test_id={"database-view.scatter"}
@@ -110,10 +107,10 @@ fn Plot(data: Data, axes: Memo<Option<(DatabaseField, DatabaseField)>>) -> NodeI
                 >
                     <Canvas>
                         <CanvasItem x=AXIS_LEFT y=AXIS_TOP width=RULE height={plot_height}>
-                            <Frame fill={ColorRole::custom(axis_color)} />
+                            <Frame fill=ColorRole::Border />
                         </CanvasItem>
                         <CanvasItem x=AXIS_LEFT y={rule_top} width={plot_width} height=RULE>
-                            <Frame fill={ColorRole::custom(rule_color)} />
+                            <Frame fill=ColorRole::Border />
                         </CanvasItem>
                         <CanvasItem x=AXIS_LEFT y={value_y} width=60.0 height=LABEL_HEIGHT>
                             <Text style=TextStyle::CAPTION>{x_low}</Text>
@@ -164,18 +161,16 @@ fn Dot(placed: Memo<Vec<Point>>, data: Data, row: usize) -> CanvasItem {
     });
     let x = create_memo(move || point.get().map_or(0.0, |point| point.x - side.get() * 0.5));
     let y = create_memo(move || point.get().map_or(0.0, |point| point.y - side.get() * 0.5));
-    let theme = use_theme();
     let color = create_memo(move || match selected.get() {
-        true => theme.accent.get(),
-        false => theme.text.get(),
+        true => ColorRole::Accent,
+        false => ColorRole::Text,
     });
-    let radius = create_memo(move || Radius::custom((side.get() * 0.5).floor()));
     view! {
         <CanvasItem x={x} y={y} width={side} height={side}>
             <Frame
                 @test_id={format!("database-view.point.{row}")}
-                fill={ColorRole::custom(color)}
-                radius=radius
+                fill={color}
+                radius=Radius::Full
             />
         </CanvasItem>
     }

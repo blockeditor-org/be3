@@ -5,7 +5,7 @@ use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
 use counter_types::{Counter as CounterModel, CounterContent};
 
-const PADDING: f32 = 20.0;
+const PADDING: Space = Space::Xl2;
 const BUTTON_WIDTH: f32 = 44.0;
 
 #[component]
@@ -22,9 +22,9 @@ pub fn Counter(editor: Editor) -> NodeId {
     };
     view! {
         <Frame padding=PADDING>
-            <List spacing=16.0>
+            <List spacing=Space::Xl>
                 <Text style=TextStyle::DISPLAY @test_id={"counter.value"}>{shown}</Text>
-                <List direction=Direction::Horizontal align=Align::Center spacing=10.0>
+                <List direction=Direction::Horizontal align=Align::Center spacing=Space::Md>
                     <Button
                         @sizing=ItemSize::Fixed(BUTTON_WIDTH)
                         label="-"

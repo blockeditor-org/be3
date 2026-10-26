@@ -43,6 +43,17 @@ struct Object {
     sql: String,
 }
 
+pub fn open(path: impl AsRef<std::path::Path>) -> rusqlite::Result<Connection> {
+    #[cfg(target_os = "wasi")]
+    {
+        Connection::open_with_flags_and_vfs(path, rusqlite::OpenFlags::default(), "unix-none")
+    }
+    #[cfg(not(target_os = "wasi"))]
+    {
+        Connection::open(path)
+    }
+}
+
 pub fn ensure(connection: &Connection, declared: &str) -> Result<(), SchemaError> {
     let wanted = Connection::open_in_memory()?;
     wanted.execute_batch(declared)?;

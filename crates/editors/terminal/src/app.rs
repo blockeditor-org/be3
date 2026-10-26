@@ -14,8 +14,10 @@ use ui::TerminalBlock;
 
 pub struct TerminalApp;
 
+#[component]
 impl block_editor_beui::BeuiApp for TerminalApp {
-    fn view(editor: Editor) -> Root {
+    #[component]
+    fn View(editor: Editor) -> Root {
         view! {
             <Root>
                 <Loaded label="Loading the terminal">

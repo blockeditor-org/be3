@@ -15,8 +15,10 @@ const INTRINSIC_SIZE: Vec2 = Vec2::new(320.0, 180.0);
 
 pub struct AudioApp;
 
+#[component]
 impl block_editor_beui::BeuiApp for AudioApp {
-    fn view(editor: Editor) -> Root {
+    #[component]
+    fn View(editor: Editor) -> Root {
         view! {
             <Root>
                 <Loaded>
@@ -26,9 +28,16 @@ impl block_editor_beui::BeuiApp for AudioApp {
         }
     }
 
-    fn creation_view(creation: Creation) -> NodeId {
+    #[component]
+    fn Creation(creation: Creation) -> NodeId {
         view! {
-            <ContentFileCreation creation id_prefix="audio" filter={filter()} import={decode} />
+            <ContentFileCreation
+                creation
+                title="New Audio"
+                id_prefix="audio"
+                filter={filter()}
+                import={decode}
+            />
         }
     }
 

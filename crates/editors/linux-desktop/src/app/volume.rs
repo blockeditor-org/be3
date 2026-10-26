@@ -2,15 +2,14 @@ use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::icons::ICON_VOLUME_X;
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
-use block_editor_beui::beui::unstyled::{ChoiceOption, PopoverHandle};
+use block_editor_beui::linux_desktop;
 use block_editor_beui::{Editor, MediaLevel, MediaLevels, MediaRequest};
 
 use super::media::volume_glyph;
 use super::popup::BarPopup;
 
-const VOLUME_WIDTH: f32 = 280.0;
-const SPACING: f32 = 12.0;
-const LABEL_SPACING: f32 = 4.0;
+const SPACING: Space = Space::Lg;
+const LABEL_SPACING: Space = Space::Xs;
 const PERCENT_WIDTH: f32 = 44.0;
 
 fn percent(level: MediaLevel) -> String {
@@ -23,7 +22,7 @@ pub(crate) fn VolumeButton(editor: Editor, levels: Memo<MediaLevels>) -> NodeId 
     let glyph = create_memo(move || output.get().map_or(ICON_VOLUME_X, volume_glyph).to_owned());
     let label = create_memo(move || output.get().map(percent).unwrap_or_default());
     view! {
-        <BarPopup label glyph width=VOLUME_WIDTH @test_id={"desktop.volume"}>|_: PopoverHandle|
+        <BarPopup label glyph @test_id={"desktop.volume"}>|_: PopoverHandle|
             <VolumePanel editor={editor} levels={levels} />
         </BarPopup>
     }
@@ -41,7 +40,7 @@ fn VolumePanel(editor: Editor, levels: Memo<MediaLevels>) -> NodeId {
             <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
                 <Slider
                     @sizing=ItemSize::Percent(100.0)
-                    value={Binding::new(volume, move |level: f32| editor.act(MediaRequest::SetVolume(level)))}
+                    value={Binding::new(volume, move |level: f32| editor.act(move || linux_desktop::media::request(MediaRequest::SetVolume(level))))}
                     label="Volume"
                     @test_id={"desktop.volume.level"}
                 />
@@ -50,7 +49,7 @@ fn VolumePanel(editor: Editor, levels: Memo<MediaLevels>) -> NodeId {
             <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
                 <Text @sizing=ItemSize::Percent(100.0)>"Mute"</Text>
                 <Switch
-                    on={Binding::new(muted, move |mute: bool| editor.act(MediaRequest::SetMute(mute)))}
+                    on={Binding::new(muted, move |mute: bool| editor.act(move || linux_desktop::media::request(MediaRequest::SetMute(mute))))}
                     label="Mute"
                     @test_id={"desktop.volume.mute"}
                 />
@@ -82,7 +81,7 @@ fn OutputPicker(editor: Editor, levels: Memo<MediaLevels>) -> NodeId {
             outputs.with_untracked(|outputs| outputs.get(index).map(|output| output.id.clone()))
         });
         if let Some(id) = chosen {
-            editor.act(MediaRequest::ChooseOutput(id));
+            editor.act(move || linux_desktop::media::request(MediaRequest::ChooseOutput(id)));
         }
     };
     view! {

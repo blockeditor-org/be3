@@ -2,7 +2,14 @@ use base_pages::{
     ControlFlowPage, FramesPage, InteractionPage, LayeringPage, ListsPage, PathsPage, TextNodesPage,
 };
 use beui::KeyAt;
+use beui::Overflow;
 use beui::datetime::{Date, DateTime, HourCycle, Time};
+use beui::dock::styled::Docking;
+use beui::dock::unstyled::{
+    DockDialog, DockDialogPresentation, DockDocument, DockDocumentBody, DockDocumentTabs,
+    DockDocuments, DockOpened, DockPane, DockSlot, DockSplit, DockTab, DockTabControl,
+    DockingLayout, TabId, dock_menu, use_dock_tab,
+};
 use beui::icons::Glyph;
 use beui::icons::{
     ICON_ARROW_UP_DOWN, ICON_BLOCKS, ICON_BOLD, ICON_BRING_TO_FRONT, ICON_BUG, ICON_CALENDAR_DAYS,
@@ -10,24 +17,20 @@ use beui::icons::{
     ICON_EXTERNAL_LINK, ICON_GRIP_VERTICAL, ICON_HEADING, ICON_LAYERS, ICON_LAYOUT_DASHBOARD,
     ICON_LAYOUT_GRID, ICON_LAYOUT_PANEL_LEFT, ICON_LINK, ICON_LIST, ICON_LOCK, ICON_LOG_IN,
     ICON_MAIL, ICON_MENU, ICON_MOUSE, ICON_MOUSE_POINTER_CLICK, ICON_NETWORK, ICON_PALETTE,
-    ICON_PEN_TOOL, ICON_PENCIL, ICON_PLAY, ICON_POINTER, ICON_POWER, ICON_SHARE_2,
-    ICON_SLIDERS_HORIZONTAL, ICON_SPLINE, ICON_SPLIT, ICON_SQUARE, ICON_STAR,
-    ICON_TEXT_ALIGN_START, ICON_TOGGLE_RIGHT, ICON_TRASH, ICON_TYPE, ICON_VOLUME_1, ICON_VOLUME_2,
-    ICON_VOLUME_X,
+    ICON_PEN_TOOL, ICON_PENCIL, ICON_PLAY, ICON_POINTER, ICON_SHARE_2, ICON_SLIDERS_HORIZONTAL,
+    ICON_SPLINE, ICON_SPLIT, ICON_SQUARE, ICON_STAR, ICON_TEXT_ALIGN_START, ICON_TOGGLE_RIGHT,
+    ICON_TRASH, ICON_TYPE,
 };
 use beui::reactive::*;
 use beui::styled::theme::NARROW_WIDTH;
 use beui::styled::*;
 use beui::unstyled::{
-    ChoiceOption, Container, DateTimeParts, DockDialog, DockDialogPresentation, DockDocument,
-    DockDocumentBody, DockDocumentTabs, DockDocuments, DockOpened, DockPane, DockSlot, DockSplit,
-    DockTab, DockTabControl, DockingLayout, MAX_SCALE, MIN_SCALE, PanZoom, PanZoomHandle,
-    PanZoomView, PopoverHandle, SliderScale, SyntaxColors, TabId, TextAreaState, TreeItem,
-    dock_menu, narrower_than, use_dock_tab,
+    DateTimeParts, MAX_SCALE, MIN_SCALE, PanZoom, PanZoomHandle, PanZoomView, SliderScale,
+    SyntaxColors, narrower_than,
 };
 use beui::{
-    Color32, Context, Direction, Document, FontId, Image, ItemSize, Key, Modifiers, NodeId,
-    PreferenceLayer, PreferenceSource, Rect, ScrollGesture, TextAlign, unstyled,
+    Color32, Context, Direction, Document, FontId, Image, ImageFit, ItemSize, Key, Modifiers,
+    NodeId, PreferenceLayer, PreferenceSource, Rect, ScrollGesture, TextAlign, unstyled,
 };
 use beui_macros::{component, sample};
 use collaboration::CollaborationPage;
@@ -60,16 +63,16 @@ const DIALOG_SIZE: beui::Vec2 = beui::Vec2::new(460.0, 120.0);
 const NESTED_DIALOG_INSET: beui::Vec2 = beui::Vec2::new(56.0, 16.0);
 const CARD_SIZE: beui::Vec2 = beui::Vec2::new(440.0, 300.0);
 const PAGE_SHARE: f32 = 0.76;
-const SHELL_PADDING: f32 = 10.0;
-const TOOLBAR_SPACING: f32 = 8.0;
-const CATALOG_PADDING: f32 = 4.0;
-const CATALOG_SPACING: f32 = 10.0;
-const CATALOG_GROUP_PADDING: f32 = 12.0;
-const PAGE_PADDING: f32 = 16.0;
-const PAGE_SPACING: f32 = 32.0;
-const SECTION_SPACING: f32 = 10.0;
-const ROW_SPACING: f32 = 12.0;
-const CODE_PADDING: f32 = 12.0;
+const SHELL_PADDING: Space = Space::Md;
+const TOOLBAR_SPACING: Space = Space::Md;
+const CATALOG_PADDING: Space = Space::Xs;
+const CATALOG_SPACING: Space = Space::Md;
+const CATALOG_GROUP_PADDING: Space = Space::Lg;
+const PAGE_PADDING: Space = Space::Xl;
+const PAGE_SPACING: Space = Space::Xl3;
+const SECTION_SPACING: Space = Space::Lg;
+const ROW_SPACING: Space = Space::Lg;
+const CODE_PADDING: Space = Space::Lg;
 const DARK_BACKGROUND: u32 = 384;
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
@@ -255,14 +258,14 @@ impl Page {
             Page::Text => "Text styles, sizes, colour roles, icons in text, links",
             Page::Buttons => "Buttons, icon buttons, tooltips",
             Page::Inputs => "Fields, switches, sliders, progress",
-            Page::Choices => "Radio groups, listboxes, tabs",
+            Page::Choices => "Radio groups, listboxes, tabs, tiles",
             Page::Pickers => "Dates and times",
-            Page::Colors => "Color inputs, pickers and wheels",
+            Page::Colors => "Color inputs, pickers, wheels and swatches",
             Page::Menus => "Context, menu and split buttons",
             Page::Overlays => "Popovers, dialogs, sheets",
             Page::Rows => "Virtual lists of thousands of rows",
             Page::Tree => "An expandable, keyboard-driven tree",
-            Page::Layout => "Cards, accordions, stacks, scrolls",
+            Page::Layout => "Cards, accordions, stacks, scrolls, pictures",
             Page::Editor => "A markdown text area",
             Page::RichText => "Formatted text, alone and shared live",
             Page::Collaboration => "Two editors over a simulated network",
@@ -624,7 +627,7 @@ fn DemoShell() -> NodeId {
     provide_context(dialogs);
     let attached = dialogs.open;
     view! {
-        <List spacing=0.0>
+        <List spacing=Space::None>
             <Frame padding=SHELL_PADDING>
                 <DemoToolbar pages />
             </Frame>
@@ -832,7 +835,8 @@ fn DemoToolbar(pages: Pages) -> NodeId {
                     });
                 })}
             />
-            <IconButton
+            <Button
+                icon_only=true
                 @test_id={"demo.inspector"}
                 glyph=ICON_BUG
                 label="Open the inspector"
@@ -853,7 +857,7 @@ fn CatalogPanel(pages: Pages, active: Selector<Option<Page>>) -> NodeId {
     view! {
         <Scroll>
             <Frame padding=CATALOG_PADDING>
-                <List spacing=0.0>
+                <List spacing=Space::None>
                     <CatalogGroup
                         title="Styled"
                         summary="Components painted with the theme"
@@ -890,11 +894,11 @@ fn CatalogGroup(
     active: Selector<Option<Page>>,
 ) -> NodeId {
     view! {
-        <List spacing=0.0>
+        <List spacing=Space::None>
             <Frame padding=CATALOG_GROUP_PADDING>
-                <List spacing=2.0>
+                <List spacing=Space::Xs2>
                     <Text style=TextStyle::HEADING>{title}</Text>
-                    <Text style=TextStyle::CAPTION ellipsis=true>{summary}</Text>
+                    <Text style=TextStyle::CAPTION overflow=Overflow::Ellipsis>{summary}</Text>
                 </List>
             </Frame>
             <ForEach keys={listed}>|page: Page| {
@@ -920,9 +924,11 @@ fn CatalogRow(page: Page, pages: Pages, selected: Memo<bool>) -> NodeId {
                 <Text align=TextAlign::Center>
                     <Icon glyph={page.icon()} />
                 </Text>
-                <List @sizing=ItemSize::Percent(100.0) spacing=0.0>
+                <List @sizing=ItemSize::Percent(100.0) spacing=Space::None>
                     <Text>{page.title()}</Text>
-                    <Text style=TextStyle::CAPTION ellipsis=true>{page.summary()}</Text>
+                    <Text style=TextStyle::CAPTION overflow=Overflow::Ellipsis>
+                        {page.summary()}
+                    </Text>
                 </List>
             </List>
         </ListRow>
@@ -933,7 +939,7 @@ fn CatalogRow(page: Page, pages: Pages, selected: Memo<bool>) -> NodeId {
 fn EmptyPanel() -> NodeId {
     view! {
         <Frame padding=PAGE_PADDING>
-            <List spacing=4.0 align=Align::Center>
+            <List spacing=Space::Xs align=Align::Center>
                 <Text style=TextStyle::HEADING>"Nothing open"</Text>
                 <Text style=TextStyle::CAPTION>"Open a page from Components to get started."</Text>
             </List>

@@ -48,10 +48,11 @@ fn open_with_offers_the_programs_that_open_a_files_extension() {
     assert!(
         document
             .root()
-            .and_then(|root| open_item(document, root, "KOReader", false))
+            .and_then(|root| open_item(&document, root, "KOReader", false))
             .is_none(),
         "a program is not offered for a file it does not read"
     );
+    drop(document);
     fixture
         .test
         .key(block_editor_beui::beui::Key::Escape, Modifiers::NONE);
@@ -65,14 +66,15 @@ fn open_with_offers_the_programs_that_open_a_files_extension() {
     assert!(
         document
             .root()
-            .and_then(|root| open_item(document, root, "Image Viewer", false))
+            .and_then(|root| open_item(&document, root, "Image Viewer", false))
             .is_none(),
         "only the programs for the file's extension are offered"
     );
     let item = document
         .root()
-        .and_then(|root| open_item(document, root, "KOReader", false))
+        .and_then(|root| open_item(&document, root, "KOReader", false))
         .expect("Open with offers the program whose extensions name the file");
+    drop(document);
     fixture.test.click(item);
     fixture.settle();
 

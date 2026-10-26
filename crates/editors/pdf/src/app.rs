@@ -12,8 +12,10 @@ use ui::{PdfEditor, PdfPreview};
 
 pub struct PdfApp;
 
+#[component]
 impl block_editor_beui::BeuiApp for PdfApp {
-    fn view(editor: Editor) -> Root {
+    #[component]
+    fn View(editor: Editor) -> Root {
         view! {
             <Root>
                 <Loaded>
@@ -23,7 +25,8 @@ impl block_editor_beui::BeuiApp for PdfApp {
         }
     }
 
-    fn preview_view(editor: Editor) -> NodeId {
+    #[component]
+    fn Preview(editor: Editor) -> NodeId {
         view! {
             <Loaded>
                 <PdfPreview editor={editor} />
@@ -31,9 +34,16 @@ impl block_editor_beui::BeuiApp for PdfApp {
         }
     }
 
-    fn creation_view(creation: Creation) -> NodeId {
+    #[component]
+    fn Creation(creation: Creation) -> NodeId {
         view! {
-            <ContentFileCreation creation id_prefix="pdf" filter={filter()} import={imported} />
+            <ContentFileCreation
+                creation
+                title="New PDF"
+                id_prefix="pdf"
+                filter={filter()}
+                import={imported}
+            />
         }
     }
 }

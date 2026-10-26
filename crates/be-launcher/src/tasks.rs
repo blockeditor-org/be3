@@ -160,10 +160,9 @@ pub(crate) fn start(program: &Path) -> Result<(), String> {
 #[cfg(not(target_os = "android"))]
 pub(crate) fn command(program: impl AsRef<std::ffi::OsStr>) -> Command {
     let mut command = Command::new(program);
-    command
-        .env_remove("BEUI_AUTOMATION")
-        .env_remove("BEUI_HEADLESS")
-        .env_remove("BEUI_HEADLESS_SCREEN");
+    for variable in beui::environment::VARIABLES {
+        command.env_remove(variable);
+    }
     #[cfg(windows)]
     {
         const CREATE_NO_WINDOW: u32 = 0x0800_0000;

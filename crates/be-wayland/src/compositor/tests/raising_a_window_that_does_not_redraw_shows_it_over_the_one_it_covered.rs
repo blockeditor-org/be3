@@ -20,7 +20,7 @@ fn Stacked(windows: Windows) -> NodeId {
     view! {
         <Layers>
             <ForEach keys={order}>|id: WindowId|
-                <Frame width={SHOWN.x} height={SHOWN.y}>
+                <Frame width={Size::Custom(SHOWN.x)} height={Size::Custom(SHOWN.y)}>
                     <WindowView windows id />
                 </Frame>
             </ForEach>

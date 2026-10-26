@@ -5,15 +5,15 @@ fn a_docked_pane_lays_its_content_edge_to_edge() {
     let _root = crate::reactive::RootScope::new();
     let dock = NodeRef::new();
     let document = build_node(move || {
-        let layout = unstyled::DockingLayout::new();
+        let layout = dock::unstyled::DockingLayout::new();
         view! {
-            <styled::Docking @node_ref=&dock layout>
-                <unstyled::DockPane id="tabs">
-                    <unstyled::DockTab id=1u64 title="Tab 1">
+            <dock::styled::Docking @node_ref=&dock layout>
+                <dock::unstyled::DockPane id="tabs">
+                    <dock::unstyled::DockTab id=1u64 title="Tab 1">
                         <Frame @test_id="content" />
-                    </unstyled::DockTab>
-                </unstyled::DockPane>
-            </styled::Docking>
+                    </dock::unstyled::DockTab>
+                </dock::unstyled::DockPane>
+            </dock::styled::Docking>
         }
     });
     let dock = dock.get();

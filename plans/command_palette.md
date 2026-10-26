@@ -17,7 +17,7 @@ marked **(ask)** need a decision from the user during the work.
   prop and an `in_menu` flag. `action_scope` ties a set of actions to a node.
   `active_actions_from(focus_path)` lists the ones live where the focus is,
   innermost first, deduplicated by id. `styled::CommandPalette` takes its rows
-  from that list when it opens.
+  from that list when it opens, unless it is handed `PaletteItems::list(..)`.
 - **One focused instance in the app.** block-app keeps a single
   `host.focus: Option<Target>` (`block-app/src/host.rs`). Key, text and IME
   events go only to that instance (`plugin_host/input.rs`). The app also knows
@@ -87,10 +87,12 @@ framework: a plugin written without beui can publish actions the same way.
 - Add the app's own actions: switch account, settings, theme, and the dialogs
   the app owns.
 - Draw the palette with `styled::CommandPalette`. Its rows come from an
-  explicit list instead of the document's registry: add an
-  `actions: Option<Prop<Vec<Action>>>` prop. Build the remote rows as proxy
-  `Action`s (an `ActionBuilder::build()` that does not register), each of
-  whose `run` sends `RunAction` to its instance.
+  explicit list instead of the document's registry: pass
+  `items={PaletteItems::list(..)}`, one `PaletteItem` per `ActionInfo`
+  (key, title, glyph, shortcut, checked, disabled), with the instance's
+  block name as the `detail` line. `on_choose` gets the chosen item's key;
+  make each key name its instance and action, and send `RunAction` from
+  there.
 - After a choice, give the focus back to the instance that had it, then send
   `RunAction`, the same order the frame palette uses today.
 

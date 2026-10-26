@@ -1,6 +1,4 @@
-use block_editor_beui::{
-    HostNotificationAction, NotificationCloseReason, NotificationReport, NotificationSignal,
-};
+use block_editor_beui::{HostNotificationAction, NotificationCloseReason, NotificationSignal};
 
 use super::*;
 
@@ -29,7 +27,9 @@ fn the_notifications_button_lists_what_arrived_and_answers_it() {
     fixture.test.settle();
     assert!(fixture.says("Updates are ready"));
     assert!(fixture.says("Lunch at noon?"), "the body loses its markup");
-    let reports = fixture.test.take_actions::<NotificationReport>();
+    let reports = fixture
+        .test
+        .take_host_calls(block_ui_test::requested::notification_report);
     assert_eq!(
         reports
             .last()
@@ -43,10 +43,10 @@ fn the_notifications_button_lists_what_arrived_and_answers_it() {
     fixture.settle();
     assert_eq!(
         fixture.signals(),
-        vec![NotificationSignal::Closed(
-            2,
-            NotificationCloseReason::Dismissed
-        )]
+        vec![NotificationSignal::Closed {
+            id: 2,
+            reason: NotificationCloseReason::Dismissed
+        }]
     );
 
     fixture.test.click("desktop.notifications.1");
@@ -54,8 +54,14 @@ fn the_notifications_button_lists_what_arrived_and_answers_it() {
     assert_eq!(
         fixture.signals(),
         vec![
-            NotificationSignal::ActionInvoked(1, DEFAULT_ACTION.to_owned()),
-            NotificationSignal::Closed(1, NotificationCloseReason::Dismissed),
+            NotificationSignal::ActionInvoked {
+                id: 1,
+                key: DEFAULT_ACTION.to_owned()
+            },
+            NotificationSignal::Closed {
+                id: 1,
+                reason: NotificationCloseReason::Dismissed
+            },
         ],
         "one with a default action is opened by a click"
     );
@@ -68,27 +74,29 @@ fn the_notifications_button_lists_what_arrived_and_answers_it() {
         notification(3, "Mail", "Third", ""),
         notification(4, "Mail", "Fourth", ""),
     ]);
-    fixture.test.take_actions::<NotificationReport>();
+    fixture
+        .test
+        .take_host_calls(block_ui_test::requested::notification_report);
     fixture.test.click("desktop.notifications");
     fixture.settle();
     fixture.test.click("desktop.notifications.3");
     fixture.settle();
     assert_eq!(
         fixture.signals(),
-        vec![NotificationSignal::Closed(
-            3,
-            NotificationCloseReason::Dismissed
-        )],
+        vec![NotificationSignal::Closed {
+            id: 3,
+            reason: NotificationCloseReason::Dismissed
+        }],
         "one with nothing to open is dismissed by a click"
     );
     fixture.test.click("desktop.notifications.clear");
     fixture.settle();
     assert_eq!(
         fixture.signals(),
-        vec![NotificationSignal::Closed(
-            4,
-            NotificationCloseReason::Dismissed
-        )]
+        vec![NotificationSignal::Closed {
+            id: 4,
+            reason: NotificationCloseReason::Dismissed
+        }]
     );
     assert!(fixture.says("Nothing new."));
 }

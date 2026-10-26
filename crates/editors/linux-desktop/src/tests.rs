@@ -4,16 +4,16 @@ use block_editor_beui::be_block::{
     DisplaySettings, DisplaySettingsContent, LINUX_DESKTOP_EDITOR, Root, Settings, SettingsContent,
     SettingsProfile, SettingsProfileContent, VIEW_EDITOR, WORKSPACE_EDITOR,
 };
-use block_editor_beui::beui::{Document, Key, KeyChord, Modifiers, NodeId, Rect};
+use block_editor_beui::beui::{Document, Key, KeyChord, Modifiers, NodeId, Rect, Vec2};
 use block_editor_beui::{
-    AudioOutput, BlockInfo, BlockParent, ChildContent, Displays, EditorHost, Epaper, EpaperRequest,
-    HostDisplay, HostImage, HostProgram, HostWindow, HostWindowId, HostWindows,
-    IncomingNotification, Media, MediaLevel, MediaLevels, MediaRequest, NotificationInbox,
-    NotificationReport, NotificationRequest, NotificationSignal, Notifications, OwnedEditor,
-    PlayerCommand, Power, PowerAction, PowerAvailability, ProgramAction, Programs, Wifi, WifiLink,
-    WifiNetwork, WifiRequest, WifiSecurity, WifiStatus, WindowAction, WindowOrigin,
+    AudioOutput, BlockInfo, BlockParent, ChildContent, DisplaysWatch, EditorHost, EpaperWatch,
+    HostDisplay, HostImage, HostProgram, HostWindow, HostWindowId, IncomingNotification,
+    MediaLevel, MediaLevels, MediaRequest, MediaWatch, NotificationInbox, NotificationRequest,
+    NotificationSignal, NotificationsWatch, OwnedEditor, PlayerCommand, PowerAction,
+    PowerAvailability, PowerWatch, ProgramAction, ProgramsWatch, WifiLink, WifiNetwork,
+    WifiRequest, WifiSecurity, WifiStatus, WifiWatch, WindowAction, WindowOrigin, WindowsWatch,
 };
-use block_plugin_api::Size;
+
 use block_shell::{KeptWindow, saved_windows};
 use block_ui_test::BeuiTest;
 use uuid::Uuid;
@@ -34,6 +34,7 @@ mod a_locked_screen_shows_no_notification_toasts;
 mod a_new_window_fills_the_oldest_placeholder_of_its_program;
 mod a_notification_that_arrives_on_an_idle_desktop_keeps_its_full_time;
 mod a_notification_toast_shows_above_the_bar_until_its_time_is_up;
+mod a_program_window_dragged_to_another_display_shows_on_both_on_the_way;
 mod a_query_no_program_matches_runs_as_a_command;
 mod a_session_chosen_from_the_menu_opens_in_a_window_and_closing_it_keeps_the_session;
 mod a_super_tap_toggles_the_launcher_even_from_a_program_with_the_keyboard;
@@ -41,11 +42,13 @@ mod a_toast_answers_its_actions_and_hides_while_the_history_is_open;
 mod a_volume_key_shows_the_level_the_host_reports_until_it_fades;
 mod a_window_launched_from_a_placeholder_takes_its_place;
 mod a_window_the_host_focuses_leads_the_window_switcher;
+mod a_windows_tab_dragged_onto_a_window_on_another_display_joins_it;
 mod a_windows_tab_dragged_onto_another_windows_bar_joins_it;
 mod a_windows_tab_menu_makes_it_full_screen;
 mod alt_tab_or_a_click_brings_a_fullscreen_window_back_in_front;
 mod alt_tab_switches_to_the_window_two_back_once_alt_is_let_go;
 mod clicking_the_clock_opens_the_desktops_calendar_and_clicking_away_closes_it;
+mod each_display_shows_its_own_bar_at_its_own_foot;
 mod escape_closes_the_launcher_and_gives_the_focus_back_to_its_button;
 mod escape_leaves_the_window_switcher_without_switching;
 mod picking_a_turned_monitor_writes_its_rotation_for_every_device;
@@ -55,6 +58,7 @@ mod the_calendar_popup_fits_a_narrow_screen;
 mod the_desktop_away_from_linux_hides_what_its_host_does_not_offer;
 mod the_desktop_keeps_each_programs_window_to_bring_back;
 mod the_desktop_starts_with_nothing_open_but_its_bar;
+mod the_level_stays_up_while_keys_keep_coming_and_fades_rather_than_vanishing;
 mod the_media_keys_ask_the_host_even_from_a_program_with_the_keyboard;
 mod the_notifications_button_lists_what_arrived_and_answers_it;
 mod the_power_menu_asks_before_ending_the_session;
@@ -70,6 +74,7 @@ mod the_volume_shows_on_every_monitor;
 mod the_wifi_in_the_bar_lists_the_networks_the_host_reports;
 mod the_wifi_popup_asks_the_host_to_connect;
 mod windows_that_close_as_the_session_ends_are_kept;
+mod with_instant_motion_the_level_keeps_its_time_and_goes_without_fading;
 
 const MAX_TAB: u64 = 64;
 const WINDOW_TABS: u64 = 1 << 41;
@@ -106,7 +111,7 @@ impl Fixture {
 
     fn resumed(saved: EditorViewContent) -> Self {
         let mut fixture = Self::holding(saved);
-        fixture.test.set_host_value::<Programs>(&programs());
+        fixture.test.set_watched::<ProgramsWatch>(&programs());
         fixture.settle();
         fixture
     }
@@ -124,7 +129,7 @@ impl Fixture {
     }
 
     fn show_windows(&mut self, windows: &[HostWindow]) {
-        self.test.set_host_value::<HostWindows>(&windows.to_vec());
+        self.test.set_watched::<WindowsWatch>(&windows.to_vec());
         self.settle();
     }
 
@@ -143,16 +148,16 @@ impl Fixture {
 
     fn holding(view: EditorViewContent) -> Self {
         let mut fixture = Self::unserved(view);
-        fixture.test.set_host_value::<Programs>(&Vec::new());
+        fixture.test.set_watched::<ProgramsWatch>(&Vec::new());
         fixture
             .test
-            .set_host_value::<Notifications>(&NotificationInbox::default());
+            .set_watched::<NotificationsWatch>(&NotificationInbox::default());
         fixture
             .test
-            .set_host_value::<Media>(&MediaLevels::default());
+            .set_watched::<MediaWatch>(&MediaLevels::default());
         fixture
             .test
-            .set_host_value::<Power>(&PowerAvailability::default());
+            .set_watched::<PowerWatch>(&PowerAvailability::default());
         fixture
     }
 
@@ -234,7 +239,7 @@ impl Fixture {
     }
 
     fn report_screens(&mut self, screens: Vec<HostDisplay>) {
-        self.test.set_host_value::<Displays>(&screens);
+        self.test.set_watched::<DisplaysWatch>(&screens);
         self.settle();
     }
 
@@ -246,16 +251,16 @@ impl Fixture {
                 .iter()
                 .map(|id| host_window(*id, focused == Some(*id)))
                 .collect();
-            fixture.test.set_host_value::<HostWindows>(&windows);
+            fixture.test.set_watched::<WindowsWatch>(&windows);
             fixture.settle();
         }
-        fixture.test.take_sent();
+        fixture.test.clear_calls();
         fixture
     }
 
     fn focused_windows(&self) -> Vec<HostWindowId> {
         self.test
-            .actions::<WindowAction>()
+            .host_calls(block_ui_test::requested::window)
             .into_iter()
             .filter_map(|action| match action {
                 WindowAction::Focus(window) => Some(window),
@@ -265,12 +270,12 @@ impl Fixture {
     }
 
     fn allow_power(&mut self, power: PowerAvailability) {
-        self.test.set_host_value::<Power>(&power);
+        self.test.set_watched::<PowerWatch>(&power);
         self.settle();
     }
 
     fn wifi(&mut self, status: WifiStatus) {
-        self.test.set_host_value::<Wifi>(&status);
+        self.test.set_watched::<WifiWatch>(&status);
         self.settle();
     }
 
@@ -279,7 +284,7 @@ impl Fixture {
     }
 
     fn hear(&mut self, level: f32, muted: bool, default_output: &str) {
-        self.test.set_host_value::<Media>(&MediaLevels {
+        self.test.set_watched::<MediaWatch>(&MediaLevels {
             output: Some(MediaLevel { level, muted }),
             outputs: vec![
                 AudioOutput {
@@ -302,20 +307,17 @@ impl Fixture {
             .iter()
             .map(|incoming| {
                 self.notified += 1;
-                (
-                    self.notified,
-                    NotificationRequest::Notify(Box::new(incoming.clone())),
-                )
+                (self.notified, NotificationRequest::Notify(incoming.clone()))
             })
             .collect();
         self.test
-            .set_host_value::<Notifications>(&NotificationInbox { requests });
+            .set_watched::<NotificationsWatch>(&NotificationInbox { requests });
         self.settle();
     }
 
     fn signals(&mut self) -> Vec<NotificationSignal> {
         self.test
-            .take_actions::<NotificationReport>()
+            .take_host_calls(block_ui_test::requested::notification_report)
             .into_iter()
             .flat_map(|report| report.signals)
             .collect()
@@ -325,21 +327,44 @@ impl Fixture {
         let document = self.test.document();
         document
             .root()
-            .is_some_and(|root| text_within(document, root, words).is_some())
+            .is_some_and(|root| text_within(&document, root, words).is_some())
     }
 
     fn click_text(&mut self, words: &str) {
         let document = self.test.document();
         let node = document
             .root()
-            .and_then(|root| text_within(document, root, words))
+            .and_then(|root| text_within(&document, root, words))
             .unwrap_or_else(|| panic!("{words:?} is on screen"));
         let center = document
             .node_rect(node)
             .expect("the text is laid out")
             .center();
+        drop(document);
         self.test.click(center);
         self.settle();
+    }
+
+    fn on_two_displays(&mut self, left: (Rect, f32), right: (Rect, f32)) {
+        self.report_screens(vec![
+            monitor("left", left.0, left.1),
+            monitor("right", right.0, right.1),
+        ]);
+        self.test.show_on_displays(&[left, right]);
+        self.settle();
+    }
+
+    fn desk_text(&self, words: &str) -> Rect {
+        let node = {
+            let document = self.test.document();
+            document
+                .root()
+                .and_then(|root| text_within(&document, root, words))
+                .unwrap_or_else(|| panic!("{words:?} is on screen"))
+        };
+        self.test
+            .desk_rect(node)
+            .unwrap_or_else(|| panic!("{words:?} is shown on a display"))
     }
 
     fn placed_blocks(&self) -> Vec<(Uuid, Option<Uuid>, Rect)> {
@@ -375,12 +400,24 @@ impl Fixture {
             .filter_map(|tab| document.find_test_id(&format!("dock.tab.{tab}.close")))
             .find_map(|close| document.node_rect(close))
             .expect("an open tab can be closed");
+        drop(document);
         self.test.click(cross.center());
         self.settle();
     }
 }
 
 const PANEL: &str = "DPI-1";
+
+fn monitor(id: &str, rect: Rect, scale: f32) -> HostDisplay {
+    HostDisplay {
+        id: id.to_owned(),
+        name: id.to_owned(),
+        connector: id.to_owned(),
+        rect,
+        scale,
+        ..epaper_panel()
+    }
+}
 
 fn epaper_panel() -> HostDisplay {
     let mode = DisplayMode {
@@ -396,6 +433,8 @@ fn epaper_panel() -> HostDisplay {
         default: mode,
         current: mode,
         rotation: Default::default(),
+        rect: block_editor_beui::Rect::ZERO,
+        scale: 1.0,
     }
 }
 
@@ -448,10 +487,7 @@ fn host_window(id: u64, focused: bool) -> HostWindow {
         app_id: "test".to_owned(),
         parent: None,
         modal: false,
-        size: Size {
-            width: 320.0,
-            height: 200.0,
-        },
+        size: Vec2::new(320.0, 200.0),
         fullscreen: None,
         responding: true,
         focused,
@@ -547,7 +583,7 @@ fn text_within(document: &Document, id: NodeId, words: &str) -> Option<NodeId> {
     document
         .children(id)
         .into_iter()
-        .find_map(|child| text_within(document, child, words))
+        .find_map(|child| text_within(&document, child, words))
 }
 
 fn text_under(document: &Document, id: NodeId) -> Option<String> {
@@ -557,7 +593,7 @@ fn text_under(document: &Document, id: NodeId) -> Option<String> {
     document
         .children(id)
         .into_iter()
-        .find_map(|child| text_under(document, child))
+        .find_map(|child| text_under(&document, child))
 }
 
 fn toast(id: u32) -> String {

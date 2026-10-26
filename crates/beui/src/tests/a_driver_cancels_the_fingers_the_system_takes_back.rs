@@ -1,4 +1,5 @@
 use super::*;
+use crate::primitives::List;
 use crate::reactive::*;
 use crate::styled::*;
 
@@ -19,15 +20,15 @@ fn a_driver_cancels_the_fingers_the_system_takes_back() {
     });
     let mut driven = stepped(crate::testing::Showing(document));
 
-    driven.run(&["touch", "down", "0=\"Press\""]);
-    driven.run(&["touch", "cancel"]);
+    driven.run(&["app", "touch", "down", "0=\"Press\""]);
+    driven.run(&["app", "touch", "cancel"]);
     assert_eq!(
         clicks.get_untracked(),
         0,
         "a finger the system takes back does not click"
     );
-    driven.run(&["touch", "down", "0=\"Press\""]);
-    driven.run(&["touch", "up"]);
+    driven.run(&["app", "touch", "down", "0=\"Press\""]);
+    driven.run(&["app", "touch", "up"]);
     assert_eq!(
         clicks.get_untracked(),
         1,

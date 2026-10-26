@@ -8,6 +8,7 @@ use beui_view::reactive::*;
 
 #[component]
 pub fn ListRow(
+    #[prop(default = String::new())] label: Prop<String>,
     #[prop(default = false)] selected: Prop<bool>,
     #[prop(default = false)] disabled: Prop<bool>,
     #[prop(default = true)] activates: bool,
@@ -23,6 +24,7 @@ pub fn ListRow(
     });
     view! {
         <Button
+            label
             accessibility
             disabled
             on_click={on_click}

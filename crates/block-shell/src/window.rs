@@ -1,9 +1,11 @@
+use block_editor_beui::linux_desktop;
 use std::cell::Cell;
 
+use block_editor_beui::beui::dock::styled::WINDOW_CHROME;
+use block_editor_beui::beui::dock::styled::{TabId, use_dock_tab};
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
-use block_editor_beui::beui::unstyled::{Edge, Floating, TabId, use_dock_tab};
-use block_editor_beui::beui::{Image, NodeId, Rect, Vec2, pos2, vec2};
+use block_editor_beui::beui::{Image, NodeId, Rect, Vec2, pos2};
 use block_editor_beui::{
     ChildMode, Editor, HostImage, HostWindow, HostWindowId, Subregion, SubregionContent,
     WindowAction,
@@ -13,9 +15,8 @@ const WINDOW_TABS: u64 = 1 << 41;
 const WINDOW_ORIGIN: f32 = 80.0;
 const WINDOW_CASCADE: f32 = 32.0;
 const WINDOW_CASCADES: u64 = 8;
-const BANNER_PADDING: f32 = 12.0;
-const BANNER_SPACING: f32 = 12.0;
-const BANNER_RADIUS: f32 = 8.0;
+const BANNER_PADDING: Space = Space::Lg;
+const BANNER_SPACING: Space = Space::Lg;
 const PLACEHOLDER_EDGE: f32 = 1.0;
 const PLACEHOLDER_SIZE: Vec2 = Vec2::new(800.0, 500.0);
 
@@ -31,7 +32,7 @@ pub(crate) fn tab_window(tab: TabId) -> Option<HostWindowId> {
 
 pub(crate) fn floating_window(window: &HostWindow) -> Rect {
     let step = (window.id.0 % WINDOW_CASCADES) as f32 * WINDOW_CASCADE;
-    let size = vec2(window.size.width, window.size.height);
+    let size = window.size;
     Rect::from_min_size(
         pos2(WINDOW_ORIGIN + step, WINDOW_ORIGIN + step),
         shown_size(size) + WINDOW_CHROME,
@@ -98,7 +99,7 @@ pub(crate) fn WindowPanel(
         create_effect(move || {
             let shown = shown.get();
             if settled.replace(true) && shown && !focused.get_untracked() {
-                host.act(WindowAction::Focus(window));
+                host.act(move || linux_desktop::windows::request(WindowAction::Focus(window)));
             }
         });
         create_effect(move || match fullscreen.get() {
@@ -109,14 +110,14 @@ pub(crate) fn WindowPanel(
         let host = editor.host();
         create_effect(move || {
             if given.get().is_some() {
-                host.act(WindowAction::Focus(window));
+                host.act(move || linux_desktop::windows::request(WindowAction::Focus(window)));
             }
         });
         let called = create_memo(move || tab.attention());
         let host = editor.host();
         create_effect(move || {
             if called.get().is_some() {
-                host.act(WindowAction::Focus(window));
+                host.act(move || linux_desktop::windows::request(WindowAction::Focus(window)));
             }
         });
         let shown = create_memo(move || tab.fullscreen());
@@ -124,9 +125,11 @@ pub(crate) fn WindowPanel(
         create_effect(move || {
             let shown = shown.get();
             if shown != fullscreen.get_untracked().is_some() {
-                host.act(WindowAction::Fullscreen {
-                    window,
-                    fullscreen: shown,
+                host.act(move || {
+                    linux_desktop::windows::request(WindowAction::Fullscreen {
+                        window,
+                        fullscreen: shown,
+                    })
                 });
             }
         });
@@ -140,7 +143,9 @@ pub(crate) fn WindowPanel(
     });
     let banner = create_memo(move || !responding.get() && !waited.get());
     let host = editor.host();
-    let force_close = ClickCallback::new(move || host.act(WindowAction::Close(window)));
+    let force_close = ClickCallback::new(move || {
+        host.act(move || linux_desktop::windows::request(WindowAction::Close(window)))
+    });
     view! {
         <Layers>
             <Subregion
@@ -171,8 +176,9 @@ fn NotResponding(
     view! {
         <Frame
             fill=ColorRole::Surface
-            border={Border::new(ColorRole::Border).width(1.0)}
-            radius={Radius::Custom(Corners::bottom(BANNER_RADIUS))}
+            border={Border::DEFAULT}
+            radius=Radius::Lg
+            corners=CornerSet::BOTTOM
             padding=BANNER_PADDING
             @test_id={"workspace.window.not_responding"}
         >

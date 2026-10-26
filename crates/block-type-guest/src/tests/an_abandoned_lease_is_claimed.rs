@@ -2,62 +2,46 @@ use be_protocol::SessionState;
 
 use super::*;
 
+fn abandoned(generation: u64, owner: ClientId) -> SessionState {
+    SessionState {
+        generation,
+        owner: Some(owner),
+        participants: vec![2],
+        clean_at: None,
+    }
+}
+
 #[test]
 fn an_abandoned_lease_is_claimed() {
-    let mut module = checklist_module();
-    let commands = module.handle(Event::Open {
-        replica: REPLICA,
-        block: BLOCK,
-        content_type: ChecklistContent::CONTENT_TYPE,
-        organization: ORGANIZATION,
-        client: 2,
-        tag: TAG,
-        head: None,
-        session: SessionState {
-            generation: 4,
-            owner: Some(1),
-            participants: vec![2],
-            clean_at: None,
+    let module = checklist_module();
+    let mut lone = Lone::new(&module);
+    let replica = Replica::new(
+        &mut lone.host,
+        Opening {
+            content_type: ChecklistContent::CONTENT_TYPE,
+            ..opening(2, None, abandoned(4, 1))
         },
-    });
-    let claims: Vec<_> = commands
-        .iter()
-        .filter(|command| matches!(command, Command::ClaimLease { .. }))
-        .collect();
-    assert_eq!(
-        claims,
-        [&Command::ClaimLease {
-            replica: REPLICA,
-            generation: 4,
-        }]
     );
-    let again = module.handle(Event::Lease {
-        replica: REPLICA,
-        session: SessionState {
-            generation: 4,
-            owner: Some(1),
-            participants: vec![2],
-            clean_at: None,
-        },
-        resynchronize: false,
-    });
+    let (calls, _) = lone.exchange();
+    let claims: Vec<_> = calls
+        .iter()
+        .filter(|call| matches!(call, Call::ClaimLease { .. }))
+        .collect();
+    assert!(matches!(
+        claims.as_slice(),
+        [Call::ClaimLease { generation: 4 }]
+    ));
+    replica.lease(&mut lone.host, abandoned(4, 1), false);
+    let (again, _) = lone.exchange();
     assert!(
         !again
             .iter()
-            .any(|command| matches!(command, Command::ClaimLease { .. }))
+            .any(|call| matches!(call, Call::ClaimLease { .. }))
     );
-    let granted = module.handle(Event::Lease {
-        replica: REPLICA,
-        session: SessionState {
-            generation: 5,
-            owner: Some(2),
-            participants: vec![2],
-            clean_at: None,
-        },
-        resynchronize: false,
-    });
-    assert!(granted.iter().any(|command| matches!(
-        command,
-        Command::Status { status, .. } if status.owner
+    replica.lease(&mut lone.host, abandoned(5, 2), false);
+    let (granted, _) = lone.exchange();
+    assert!(granted.iter().any(|call| matches!(
+        call,
+        Call::ReportStatus { status } if status.owner
     )));
 }

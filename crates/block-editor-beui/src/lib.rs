@@ -8,6 +8,7 @@ mod block_link;
 mod child;
 mod chrome;
 pub mod database;
+mod dialog;
 mod dock;
 mod editor;
 mod file_chooser;
@@ -18,11 +19,13 @@ mod instance;
 mod layered_settings;
 pub mod live_text;
 mod loading;
+mod module;
 mod preview;
 mod related_content;
 mod rotation;
 pub mod sections;
 mod shared_caret;
+pub mod tags;
 pub mod version_control;
 
 use be_block::presence::PresenceColor;
@@ -35,8 +38,8 @@ pub use chrome::{
 };
 pub use dock::BottomDock;
 pub use editor::{
-    Artifacts, ChildState, ChildTarget, Creation, Drag, Editor, OwnedEditor, SubregionContent,
-    fit_content, node_anchor,
+    Artifacts, ChildState, ChildTarget, Creation, Drag, Editor, KindsAbove, OrganizationLayers,
+    OwnedEditor, SetKind, SubregionContent, fit_content, node_anchor,
 };
 pub use file_chooser::{ContentFileCreation, FileChooser};
 pub use fitting::{Fit, Fitting};
@@ -50,14 +53,27 @@ pub use rotation::RotationPicker;
 pub use shared_caret::{SharedCaret, remote_carets};
 pub use version_control::{VersionHistory, VersionSteps, short_id};
 
+#[beui::reactive::component]
 pub trait BeuiApp: 'static {
-    fn view(editor: Editor) -> beui::styled::Root;
-    fn preview_view(_editor: Editor) -> beui::NodeId {
+    #[beui::reactive::component]
+    fn View(editor: Editor) -> beui::styled::Root;
+    #[beui::reactive::component]
+    fn Preview(editor: Editor) -> beui::NodeId {
+        let _ = editor;
         beui::reactive::view! {
             <beui::styled::Frame />
         }
     }
-    fn creation_view(_creation: Creation) -> beui::NodeId {
+    #[beui::reactive::component]
+    fn Display(editor: Editor, display: u32) -> beui::NodeId {
+        let _ = (editor, display);
+        beui::reactive::view! {
+            <beui::styled::Frame />
+        }
+    }
+    #[beui::reactive::component]
+    fn Creation(creation: Creation) -> beui::NodeId {
+        let _ = creation;
         beui::reactive::view! {
             <beui::styled::Frame />
         }
@@ -66,10 +82,12 @@ pub trait BeuiApp: 'static {
         creation.create_block()
     }
     fn connect_artifact(_artifacts: &Artifacts) {}
-    fn describe_artifact(_data: &[u8]) -> Result<ArtifactDescription, String> {
+    fn describe_artifact(_data: &[u8]) -> Result<String, String> {
         Err("this editor does not generate artifacts".into())
     }
-    fn artifact_settings_view(_artifacts: Artifacts) -> beui::NodeId {
+    #[beui::reactive::component]
+    fn ArtifactSettings(artifacts: Artifacts) -> beui::NodeId {
+        let _ = artifacts;
         beui::reactive::view! {
             <beui::styled::Frame />
         }

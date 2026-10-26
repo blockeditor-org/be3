@@ -1,19 +1,15 @@
 use be_block::display_settings::Rotation;
-use beui::Wrap;
-use beui::accesskit::{Node as AccessNode, Role, Toggled};
 use beui::reactive::*;
 use beui::styled::*;
-use beui::unstyled;
-use beui::unstyled::ButtonHandle;
 use beui::{NodeId, TextAlign};
 
 use crate::HostDisplay;
 
-const ITEM_WIDTH: f32 = 64.0;
-const TILE: f32 = 56.0;
+const ITEM_WIDTH: Size = Size::Xl3;
+const TILE: Size = Size::Custom(56.0);
 const SCREEN: f32 = 42.0;
-const TITLE_BAR: f32 = 7.0;
-const ITEM_SPACING: f32 = 4.0;
+const TITLE_BAR: Size = Size::Custom(7.0);
+const ITEM_SPACING: Space = Space::Xs;
 
 fn quarters(rotation: Rotation) -> u8 {
     (rotation.degrees() / 90) as u8
@@ -111,58 +107,43 @@ fn RotationTile(
     let now = create_memo(move || current.get() == rotation);
     let picked = create_memo(move || chosen.get() == rotation);
     let label = create_memo(move || rotation_name(rotation, landscape.get()).to_owned());
-    let accessibility = create_memo(move || {
-        let mut node = AccessNode::new(Role::RadioButton);
-        node.set_label(label.get());
-        node.set_toggled(Toggled::from(picked.get()));
-        if now.get() {
-            node.set_description("Now");
-        }
-        node
+    let description = create_memo(move || match now.get() {
+        true => "Now".to_owned(),
+        false => String::new(),
     });
     view! {
-        <unstyled::Button
-            @test_id={name}
-            accessibility={accessibility}
-            disabled={read_only}
-            on_click={move || on_pick.call(rotation)}
-        >|handle: ButtonHandle| {
-            let fill = create_memo(move || match (picked.get(), handle.hovered.get()) {
-                (true, _) => ColorRole::AccentSoft,
-                (false, true) => ColorRole::Hover,
-                (false, false) => ColorRole::None,
-            });
-            let border = create_memo(move || match picked.get() || handle.focused.get() {
-                true => Some(Border::new(ColorRole::Accent).width(2.0)),
-                false => Some(Border::DEFAULT),
-            });
-            view! {
-                <Frame width=ITEM_WIDTH>
-                    <List spacing=ITEM_SPACING align=Align::Center>
-                        <Frame width=TILE height=TILE radius=Radius::Md fill={fill} border={border}>
-                            <Turn quarter_turns={turns}>
-                                <Frame width=TILE height=TILE align=Align2::CENTER>
-                                    <LittleScreen size={size} />
-                                </Frame>
-                            </Turn>
+        <Frame width=ITEM_WIDTH>
+            <List spacing=ITEM_SPACING align=Align::Center>
+                <TileButton
+                    @test_id={name}
+                    label
+                    radio=true
+                    selected={picked}
+                    outlined=true
+                    description
+                    disabled={read_only}
+                    size=TILE
+                    on_click={move || on_pick.call(rotation)}
+                >
+                    <Turn quarter_turns={turns}>
+                        <Frame width=TILE height=TILE align=Align2::CENTER>
+                            <LittleScreen size={size} />
                         </Frame>
-                        <Text style=TextStyle::CAPTION wrap=Wrap::Words align=TextAlign::Center>
-                            {label}
-                        </Text>
-                        <Show condition={now}>
-                            <Text size=TextSize::Xs color=TextColor::Accent>"Now"</Text>
-                        </Show>
-                    </List>
-                </Frame>
-            }
-        }</unstyled::Button>
+                    </Turn>
+                </TileButton>
+                <Text style=TextStyle::CAPTION align=TextAlign::Center>{label}</Text>
+                <Show condition={now}>
+                    <Text size=TextSize::Xs color=TextColor::Accent>"Now"</Text>
+                </Show>
+            </List>
+        </Frame>
     }
 }
 
 #[component]
 fn LittleScreen(size: Memo<(f32, f32)>) -> NodeId {
-    let width = create_memo(move || Extent::px(size.get().0));
-    let height = create_memo(move || Extent::px(size.get().1));
+    let width = create_memo(move || Length::Size(Size::Custom(size.get().0)));
+    let height = create_memo(move || Length::Size(Size::Custom(size.get().1)));
     view! {
         <Frame
             width={width}
@@ -171,7 +152,7 @@ fn LittleScreen(size: Memo<(f32, f32)>) -> NodeId {
             border={Border::DEFAULT}
             radius=Radius::Xs
         >
-            <List spacing=0.0>
+            <List spacing=Space::None>
                 <Frame height=TITLE_BAR fill=ColorRole::Accent />
                 <Frame @sizing=ItemSize::Percent(100.0) align=Align2::CENTER>
                     <Text size=TextSize::Xs>"Aa"</Text>

@@ -1,37 +1,85 @@
 # Block plugin protocol
 
-Every wire message is a four-byte, network-order payload length followed by a
-bincode payload. A frame is bounded only by that length, so a message carrying
-a whole block or an imported file needs no chunking. Receivers reject
-truncated or trailing data, unknown message variants, and values exceeding the
-published string, collection, or opaque-descriptor limits. Implementations
-must also bound pending messages to `MAX_QUEUED_MESSAGES` and requests to
-`REQUEST_TIMEOUT_MILLISECONDS`.
+The host and a plugin speak the `be3:plugin` WIT world `editor-plugin`
+(`wit/`), carried by be-ops (guides/type_modules.md, "Operations and WIT"); the
+Rust on both sides is generated from it into this crate. The world imports:
+
+- `be3:gpu/device` (crates/block-gpu-abi/wit), the device the plugin draws with,
+  answered inside the plugin's own worker or thread;
+- `host` (`host.wit`): the handshake (`connect`, the plugin's first call), what a
+  frame tells the host besides itself (`layout`, `frame-needed`,
+  `missing-characters`) and the watches of preferences, the UTC offset, fonts
+  and input;
+- `blocks` (`blocks.wit`): the blocks an editor reads and changes, its replicas,
+  the graph, history, heads, artifact states and version control;
+- `shell` (`shell.wit`, with its shapes in `shell-types`): what an editor tells
+  the shell around it, its menus, children, audio, web views and creations;
+- `host-services` (`host-services.wit`): what an editor asks of the host and
+  waits for, files, picks, revisions, access, fetches and staged data;
+- `account` and `contacts` (`account.wit`): whether the account administers its
+  company, the base of block links, where preferences come from, and the
+  account's contacts, which the host answers only to the shell;
+- the interfaces of `be3:linux-desktop` (`wit/deps/linux-desktop`), an extension
+  beside the core protocol rather than part of it: what a host running a Linux
+  desktop session offers the editors that draw it, one interface per part of the
+  session (windows, input devices and remaps, displays, power, media, Wi-Fi,
+  e-paper, notifications, the screen lock, programs, the tray). A plugin's
+  manifest names the extensions it uses (`extensions`); the host answers a call
+  into one it did not name `denied`, and a host without the session answers its
+  watches `unsupported`;
+- `be3:debug/debug` (`wit/deps/debug`), the debugging extension, beside the core
+  protocol too: performance measurements, simulating a lower access to a block,
+  and which catalog templates are for debugging (the picker's Debug group). The
+  world also exports its `paintings`, what the plugin painted for the host's
+  tests. A host without these tools answers and asks none of it.
+
+Ids and access levels come from `be3:shared` (crates/be-ops/wit), which the
+type-module world and `be3:gpu` use too, so an id has one shape everywhere: a
+uuid is its 16 bytes and a hash its 32, each under the alias of what it names
+(`block-id`, `block-type-id`, `commit-id`, ...), and a number one side hands
+out is an alias named `<thing>-id` (`screen-id`, `child-id`, `pick-id`).
+
+It exports `plugin` (`plugin.wit`): `resource editor`, one open editor instance,
+whose methods are what the host says to that instance and whose drop closes it;
+the screens and their configure, `draw`, whose answer is the frame,
+description, and shutdown. What an editor asks for a block it draws goes two ways: `blocks.act` with a
+`block-command` changes the block (undo, redo, its artifact, unlink, delete,
+move, place, restore), and `shell.act` with a `shell-command` asks the app
+around it (share, leave, rename, close the editor, the app menu). Shapes shared by several
+interfaces are in `types.wit` and `accessibility.wit`, which mirrors AccessKit.
+
+Every call a plugin makes about an editor instance is made under that editor's
+resource, so the host knows the instance from the call's parent and closing an
+editor ends everything it opened. A value the plugin follows is a resource
+whose `next` answers with the latest value once it changed; a change made while
+the plugin does not ask is kept, folded into the ones after it, until it does.
+One named `*-watch` with a `constructor()` and `next` and nothing else is a
+latest-value watch, which be-ops-bindgen implements `be_ops::Watched` for, so
+an editor follows any of them with `editor.watch::<W>()`.
+Input is one of them: batches for one screen that the plugin has not taken yet
+merge, a run of pointer moves or pixel scrolls folding into its last unless the
+screen asked for every sample, everything else kept in order. A watch answered
+with a list of events has a merge rule that keeps it bounded: show requests keep
+each request once, at its latest place; web-view events fold a title, address or
+failure into one of its own kind just before it and keep at most 256.
+
+The host handles the calls a plugin makes in the order it made them, whatever
+interface each belongs to: one heard while the host draws a frame waits for the
+next frame together with every call after it, so a `create-block` is done before
+a `read-plain-file` or `pick-block` the plugin made after it. Only what a frame
+itself carries (its layout, `frame-needed`, paintings) is taken at once.
 
 The accepted handshake carries the theme the host is drawn in, which is what
 a plugin's own interface follows, so an editor looks the same as the app it is
 embedded in wherever it runs.
 
 The protocol has no version and the handshake checks none: the app and its
-plugins are built together, so a change to a message needs no bookkeeping.
-Unknown message variants are never silently ignored.
-
-Messages with request identifiers are answered with the same identifier by a
-response, `Acknowledged`, or `Error`. Lifecycle messages and input events are
-ordered as sent. Backpressure may coalesce or discard only the event classes
-defined by the session layer; it may not reorder retained messages. A request
-whose message is coalesced away is no longer waited on, since nothing will
-answer a message that never went out. A timeout, malformed frame, invalid
-ordering, or unsupported capability is reported with a structured error
-before disconnect when the transport remains usable.
-
-A message belongs either to the session - the handshake, acknowledgements,
-errors, ping and shutdown - or to what the host is showing. The session owns
-exactly the first kind and rejects anything else, so a receiver routes on that
-distinction rather than on a list of the messages it happens to expect. What
-is left is delivered to the host in the order it arrived, whatever class each
-message belongs to: a block a plugin wrote and the editor message that
-depends on it cannot swap places on the way.
+plugins are built together, so a change to a function needs no bookkeeping. A
+call the other side does not know is answered `unsupported`. The plugin checks
+the order of what the host asks of it (no screens before the handshake, input
+only for screens it was given, an editor opened once and closed once) and stops
+when it is broken; the host gives a plugin a few seconds to say hello and to
+shut down, and stops one that takes longer.
 
 Input events carry pointer, touch, wheel, key, text, focus and zoom-gesture
 input in the screen's own logical coordinates. Touch input preserves the
@@ -43,6 +91,14 @@ grow by; a wheel turned with the zoom modifier held stays a wheel event, which
 the receiver reads as a zoom of its own. Consecutive moves from one touch
 coalesce to their latest position and pressure. Consecutive zoom gestures
 coalesce by multiplying their factors.
+
+A press made in one screen keeps that screen's input while it is held, as an
+operating system keeps a press with the window it began in. While it is held
+and the pointer is over another screen of the same plugin, each pointer event
+names that screen (`over`) and carries its position in that screen's
+coordinates, so a drag carries across a plugin's screens; over none of them the
+host sends `pointer-left` once and goes on with positions in the holding
+screen's coordinates, outside its rectangle.
 
 A back gesture - the system's back button or swipe, or a Back key - is an
 input event of its own, carrying its phase: started from an edge, its
@@ -65,13 +121,13 @@ identity a block that stores one setting per client - the settings block -
 resolves against, which the instance's own tunnelled client cannot supply
 because the host opens a fresh one for every runtime.
 
-Client messages tunnel the block protocol between an editor instance's own
-block client and the host's server connection. Their payloads are opaque JSON
-of any length: the host forwards them in both directions without interpreting
-them, and the server treats each instance as a separate client of the one
-connection.
+An editor instance reaches the content of its blocks through `blocks`'
+`replica` resources: frames the host relays unread, in order and
+back-pressured both ways (a stream window to the editor, a window of unanswered
+`send`s from it), between the instance and the block's replica
+(guides/the_new_block_stack.md, "Content on the plugin protocol").
 
-A plugin may edit several block types, and every message that opens an
+A plugin may edit several block types, and every opening of an
 instance names the block type whose editor it is for, which is how the plugin
 picks the editor to run: the block's own type, the type of the editor whose
 template is being made, or the type of the block an artifact was generated
@@ -89,12 +145,26 @@ plugin found that names the type.
 Every block is made from a template the plugin's manifest declares, and an
 instance opened to make one is opened as a creation instance instead of on a
 block, naming the template it makes: it has a client of its own but no block,
-and a template the manifest marks as a dialog is also given a frame with no
-chrome bands, in which it asks what it needs first. It reports whether the dialog
-has been filled in, which is what lets the user accept it. On acceptance the
-host asks the instance to commit, and the instance creates the block through
-its own client and answers with the block's id, or with why it could not be
-created; the host then opens the block it was given.
+and a template the manifest marks as a dialog is also shown as a dialog, in
+which it asks what it needs first. When the user accepts it the instance asks
+to close with `close-dialog(accepted)`; the host then asks it to commit, and
+the instance creates the block through its own client and answers with the
+block's id, or with why it could not be created; the host then opens the block
+it was given.
+
+An instance shown as a dialog (its frame's `dialog` is set, which an editor
+asks for by placing a child with `dialog` set) gets the whole area inside the
+card or sheet, with no padding and no title bar of the host's: it draws the
+title, the content and the actions, and reports the height it wants as its
+content (the host passes the size it got as the frame's, and how much of its
+bottom is covered as `bottom-inset`). Escape, back and a press outside it go to
+the instance first, so a form with unsaved changes can ask before closing: the
+editor showing it calls `dismiss-child`, the host calls the instance's
+`dismiss`, and the instance answers with `close-dialog`, which reaches the
+editor showing it as the child's `dialog-status`. Whether an instance answers
+is decided up front rather than by waiting: it says `handles-dismiss(true)`
+while it can, and until it does the host answers a `dismiss-child` for it at
+once with `dismissed`, as it does for an instance that stopped.
 
 An editor whose block type generates dynamic artifacts is also opened on an
 artifact: an instance with a client of its own, the artifact's block and the
@@ -108,11 +178,11 @@ regeneration request carries the settings to rebuild from and is answered
 exactly once, after the instance has written the artifact through its own
 client, with success or with why it failed.
 
-Every block id a message carries is in the instance's own scope. An instance
+Every block id a call carries is in the instance's own scope. An instance
 whose block sits inside a version control checkout names the blocks of that
 checkout by the ids their content stores, which are the same in every checkout
 of the same history, and the host translates them to and from the blocks it
-actually holds at the boundary, in both directions and for every message. A
+actually holds at the boundary, in both directions and for every call. A
 plugin never sees the translation and needs nothing to take part in it.
 
 An editor of a repository or a checkout asks the host to act on it with a
@@ -121,8 +191,8 @@ version, saving the working change with a description, bringing the branch's
 changes in, switching, making a branch or a checkout, combining another branch
 in, resolving a conflict by taking one side or keeping the block as it is,
 undoing any recorded operation, and forking, pulling or pushing an upstream in
-the same organization. The host answers every instance whose block is a
-repository or a checkout with that block's status whenever it changes: whether
+the same organization. The host answers an instance watching the status of
+its block, when that block is a repository or a checkout, whenever it changes: whether
 it is busy, the last error, the branches, the working change and what it
 changed since its parent, whether the branch has moved past that parent, the
 history, and the operation log.
@@ -200,7 +270,7 @@ block of the tab that has focus, absent while none has - along with the chain
 of containers that block was opened through, innermost first. It is sent when
 it changes and whenever an instance opens, which is what lets an editor that
 lists the organization's blocks mark where the user is. The instance that owns
-the tabs reports it the other way, with the same message: only it knows which
+the tabs reports it the other way, with the same call: only it knows which
 tab has focus, and the host passes what it says on to every other instance.
 
 An editor instance may tell the host that it has started dragging one of the
@@ -233,12 +303,14 @@ changes: for each of those blocks, the block it was generated from, the block
 type that generated it, what its settings currently produce, why they cannot
 be read, and whether it is being rebuilt. Only the plugin that made an
 artifact can describe it, so the host keeps that instance open for as long as
-a block is named and answers on its behalf. Naming a block again leaves it
-where it is; leaving one out closes the instance describing it. That instance
+a block is watched and answers on its behalf. Each watched block is a watch of
+its own; dropping the last watch on a block closes the instance describing it. That instance
 also shows a block's artifact settings: an instance places a child showing
-them, whose status says whether the copy being edited differs from the stored
-settings and summarises what it would produce, and committing that child
-stores the copy.
+them, as a dialog, whose status says whether the copy being edited differs
+from the stored settings and summarises what it would produce. The settings
+instance draws the dialog and its Apply and Cancel, and answers with
+`close-dialog`; the editor showing it commits that child to store the copy
+when the answer is `accepted`, and closes it either way.
 
 The instance that draws the window may ask the host who can open a block,
 answered once with the people the account may share it with: whoever already
@@ -281,7 +353,7 @@ and when an instance asks it to paste, as a menu's Paste does.
 
 An editor instance may ask the host to play the audio in one of its blocks,
 which only the host can do: a plugin has no sound device on any platform, and
-an audio file is far larger than a message may carry. The request names the
+an audio file is far larger than one call should carry. The request names the
 block rather than its bytes, which the host already holds through its own
 client. The host answers with what its player is doing - whether it is
 playing, where it is, how long the audio is once it knows, and why it could
@@ -345,8 +417,19 @@ when it is let go, and reports that the drag has moved off the instance again.
 An instance answers with whether it would take the block, which only decides
 the cursor the host shows; a drop is delivered whether or not it was accepted.
 
-An instance is shown through screens of three kinds: a frame, a preview, and
-an artifact-settings region. A frame is the whole rectangle an editor is
+An instance is shown through screens of five kinds: a frame, a preview, an
+artifact-settings region, a display and a window. A host that shows a desktop
+on several displays shows the frame on its first display and a `display(n)`
+region on each further one, numbered from 1 in the order it lists them. A screen
+request may say the host shows the windows the plugin opens from it as windows
+of its own (`windows`): the plugin then asks for each with a `window-request`
+in its frame (`open`, naming the region it opens from and a placement: at the
+pointer, at a point of a region, or where a `placement` the host gave says;
+then `begin-move` and `begin-resize`, which hand the pointer to the host until
+the press is let go, `resize` and `close`), and the host shows it as a
+`window(w)` screen of that instance, whose size, scale and `placement` are the
+host's answer, whose focus arrives as input, and whose going away closes it.
+Without `windows` the plugin draws its windows inside the screen. A frame is the whole rectangle an editor is
 edited in, and an instance has at most one; the plugin lays its own toolbar
 row, sidebars and content out inside it, in one pass of one context. The host
 says, per frame, whether the instance owns the chrome bands this frame, where
@@ -569,7 +652,7 @@ with no chrome bands, so it draws its content the same way either way; only the
 size it is given changes.
 
 An editor instance may report named duration and count measurements under a
-named performance group. Durations are measured by the plugin and sent as
+named performance group, through the `be3:debug` extension's `performance`. Durations are measured by the plugin and sent as
 nanoseconds; the host only collects and displays the reported values. Reports
 are informational, require no response, and may arrive independently of a
 rendered frame.
@@ -578,7 +661,7 @@ Neither peer polls the other: a plugin runs beside the host - a thread of its
 own under wasmtime, a worker of its own in the browser - and either side may
 send at any time.
 
-Every host message that changes what a plugin lays out against - a screen set,
+Every host call that changes what a plugin lays out against - the screens,
 which carries each screen's size, scale and frame, and a view - is followed by
 a configure carrying a serial, one higher each time, which says the host has
 sent everything up to it. A plugin answers no configure: each frame it commits
@@ -596,7 +679,7 @@ plugin lays out again every instance whose host state changed. A frame may
 move children without painting anything, and may paint without moving any.
 
 The host decides when a plugin draws. A plugin paints only when the host asks
-it for a frame, and never on its own: when a message changes what it shows, or
+it for a frame, and never on its own: when a call changes what it shows, or
 something inside it wakes it, it says a frame is needed and waits to be asked.
 It says so once and not again until it has painted, so a plugin that hears
 about a pan sixty times before it can draw once paints one frame carrying all

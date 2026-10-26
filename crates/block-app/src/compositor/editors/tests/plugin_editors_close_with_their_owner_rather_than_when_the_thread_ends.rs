@@ -30,6 +30,7 @@ fn plugin_editors_close_with_their_owner_rather_than_when_the_thread_ends() {
             block_types: Vec::new(),
             entry_point: String::new(),
             network: Vec::new(),
+            extensions: Vec::new(),
         });
         let registry = Rc::new(EditorRegistry::from_manifests(vec![plugin]));
         let editors = OwnedEditors::install(registry, Uuid::new_v4());

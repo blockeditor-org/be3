@@ -1,16 +1,19 @@
 use std::time::Duration;
 
-use beui::automation::WindowSize;
+use beui::WindowSize;
 use beui::testing::{Showing, Stepped};
 use beui::{Context, FreetypeFonts, vec2};
 
 use super::*;
-use crate::ui::{AppView, Root as AppRoot, StatusView};
+use crate::ui::{AppView, Root as AppRoot, StatusView, SyncState};
 
 fn saving(saved: bool, saves: u64) -> AppView {
     AppView {
         status: StatusView {
-            changes_saved: saved,
+            sync: match saved {
+                true => SyncState::Saved,
+                false => SyncState::Syncing,
+            },
             saves,
             ..Default::default()
         },

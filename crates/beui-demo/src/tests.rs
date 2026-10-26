@@ -4,9 +4,8 @@ use block_ui_test::DocumentTest;
 
 use super::*;
 use crate::{DemoApp, PAGES, Page};
-use beui::icons::ICON_VOLUME_2;
-use std::time::Duration;
 
+mod a_banner_says_what_failed_until_it_is_dismissed;
 mod a_card_floats_from_its_tab_and_waits_while_another_tab_is_shown;
 mod a_card_keeps_inside_a_small_window;
 mod a_card_opened_from_a_button_flips_above_it_near_the_bottom;
@@ -16,9 +15,9 @@ mod a_card_opened_from_a_button_stands_apart_in_the_light_theme;
 mod a_destructive_dialog_does_not_confirm_on_enter;
 mod a_dialog_confirms_on_enter_from_its_field;
 mod a_dialog_hangs_from_the_tab_that_opened_it;
-mod a_dialog_keeps_its_buttons_side_by_side_on_a_narrow_screen;
-mod a_dialog_opens_on_the_screen_it_was_asked_for_from;
+mod a_dialog_on_a_narrow_screen_is_a_sheet_with_its_buttons_stacked;
 mod a_docked_page_shown_fullscreen_covers_the_dock_until_escape;
+mod a_fade_shows_what_it_holds_at_its_opacity;
 mod a_list_leaves_no_gap_for_a_hidden_frame;
 mod a_long_menu_page_scrolls_to_the_row_the_keyboard_is_on;
 mod a_long_press_on_the_code_of_a_sample_shows_its_selection_toolbar;
@@ -28,21 +27,26 @@ mod a_menu_page_opens_in_place_of_the_menu_in_a_sheet;
 mod a_menu_widens_to_show_a_long_label_and_its_shortcut;
 mod a_modal_dialog_blocks_its_tab_and_stacks_a_nested_one;
 mod a_pane_shows_its_tabs_as_icons_across_the_top_or_in_a_narrow_sidebar;
+mod a_read_only_text_area_keeps_its_text_when_typed_into;
 mod a_sample_carries_the_source_it_was_written_with;
 mod a_sample_shows_its_code_when_asked;
 mod a_scrollbar_shows_over_a_page_as_it_scrolls_and_widens_to_a_track_under_the_pointer;
+mod a_selected_row_stays_selected_under_the_pointer;
 mod a_sheet_rises_from_the_bottom_on_a_phone;
+mod a_swatch_button_rings_the_colour_picked;
 mod a_table_lines_its_cells_up_under_its_columns;
 mod a_tabs_pinned_action_sits_in_its_bar_tiled_and_stacked;
+mod a_tapped_popover_opens_in_a_sheet;
+mod a_tapped_select_opens_its_options_in_a_sheet;
 mod a_toast_shows_over_an_open_dialog_and_takes_a_press;
 mod a_tooltip_is_as_wide_as_its_label_up_to_a_cap;
-mod an_instant_level_display_keeps_its_duration_without_fading;
 mod animations_paint_their_progress_and_instant_targets;
 mod closing_the_rich_text_tab_disposes_its_editors;
 mod dragging_across_the_lines_of_a_long_list_selects_them;
 mod editing_a_tree_row_keeps_a_name_on_enter_or_a_click_away_and_escape_puts_it_back;
 mod every_demo_page_paints_as_accepted;
 mod every_demo_page_paints_as_accepted_on_a_phone;
+mod first_fit_lays_out_the_first_child_that_fits;
 mod holding_alt_and_pressing_q_switches_between_recent_tabs;
 mod holding_alt_moves_a_floating_demo_page_by_its_content;
 mod instant_indicators_hold_still_and_resume;
@@ -51,12 +55,13 @@ mod replacing_a_page_closes_the_dialogs_it_opened;
 mod rich_text_styled_on_both_sides_converges_once_sent_both_ways;
 mod swiping_back_on_a_phone_shows_the_catalog_behind_the_page;
 mod tabbing_through_every_page_shows_each_focus_ring_whole;
+mod tabs_and_segments_without_room_become_selects;
 mod text_breaks_end_lines_and_breaking_anywhere_fills_them;
+mod the_action_bar_sample_pins_what_fits_and_offers_the_rest;
 mod the_arrow_keys_move_across_a_menu_grid_and_on_to_the_rows_below;
 mod the_catalog_shows_a_page_in_place_of_the_one_shown_unless_ctrl_is_held;
 mod the_code_of_a_sample_can_be_selected;
 mod the_command_palette_ticks_what_a_menu_ticks;
-mod the_crash_notice_sample_reloads_from_its_button;
 mod the_demo_leaves_a_pane_saying_nothing_is_open;
 mod the_demo_opens_every_page_from_its_catalog;
 mod the_demo_pages_scroll_rather_than_spilling_off_a_small_window;
@@ -65,28 +70,21 @@ mod the_editor_takes_on_a_theme_chosen_while_it_is_open;
 mod the_inspector_opens_and_closes_beside_the_demo_in_the_dom;
 mod the_inspector_paints_the_component_shadow_tree;
 mod the_inspector_paints_with_the_styled_components;
-mod the_keep_changes_prompt_shows_on_every_screen;
-mod the_keep_changes_sample_keeps_on_enter_and_reverts_on_escape;
-mod the_keep_changes_sample_reverts_once_its_countdown_runs_out;
 mod the_launcher_sample_narrows_its_programs_as_a_name_is_typed;
-mod the_level_display_shows_on_a_change_and_fades_out;
-mod the_level_display_shows_on_every_screen;
-mod the_lock_screen_sample_stays_locked_until_its_password_is_typed;
-mod the_lock_screen_shows_on_every_screen;
-mod the_lock_screens_actions_are_told_apart_by_place;
 mod the_message_toast_sample_offers_its_actions;
+mod the_on_screen_keyboard_opens_along_the_foot_of_its_fields_window;
 mod the_on_screen_keyboard_opens_for_a_field_and_shows_what_its_modes_type;
 mod the_overlay_sample_closes_on_escape_and_a_click_outside;
 mod the_rich_text_bar_styles_a_selection_and_shows_the_style_under_the_caret;
 mod the_rich_text_page_renders_its_blocks_and_voids_and_edits_them_through_them;
 mod the_runs_toggle_shows_where_each_side_typed_and_deleted;
-mod the_stale_notice_sample_answers_each_of_its_buttons;
 mod the_tree_sample_opens_on_the_left_of_a_row_and_its_menu_from_its_button;
 mod the_window_sample_floats_beside_its_button_where_nothing_opens_windows;
 mod the_window_sample_opens_a_window_of_its_own_where_a_host_opens_windows;
+mod tile_buttons_pick_one_of_a_row_of_pictures;
 mod toasts_on_the_top_edge_stack_in_the_top_corner;
 mod typing_a_fahrenheit_temperature_moves_the_celsius_one;
-mod waiting_for_data_shows_a_spinner_until_it_arrives;
+mod waiting_for_data_shows_progress_until_it_arrives;
 
 const TODAY: (i32, u8, u8) = (2026, 1, 15);
 const WIDE: Vec2 = Vec2::new(1100.0, 800.0);
@@ -254,32 +252,6 @@ fn lowest_edge(document: &Document, id: NodeId, clip: f32) -> f32 {
 
 fn over_the_page(size: Vec2) -> Pos2 {
     pos2(size.x * 0.7, size.y * 0.6)
-}
-
-fn level_display() -> DocumentTest {
-    let document = build(move || {
-        let shown = create_signal(0_u64);
-        let level = Some(OsdLevel {
-            glyph: ICON_VOLUME_2.to_owned(),
-            label: "Volume".to_owned(),
-            level: 0.65,
-            muted: false,
-        });
-        view! {
-            <Root>
-                <List spacing=0.0>
-                    <Button
-                        @test_id={"test.show"}
-                        label="Turn it up"
-                        variant=ButtonVariant::Secondary
-                        on_click={move || shown.update(|shown| *shown += 1)}
-                    />
-                    <LevelOsd level={level} shown={shown} />
-                </List>
-            </Root>
-        }
-    });
-    DocumentTest::new(document, Vec2::new(1100.0, 480.0))
 }
 
 fn tab(page: Page) -> u64 {

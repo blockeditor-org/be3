@@ -328,7 +328,7 @@ pub(crate) fn Stage(
             on_secondary_drag={on_secondary_drag}
         >
             <Layers>
-                <List spacing=0.0>
+                <List spacing=Space::None>
                     <Canvas view={canvas} @sizing=ItemSize::Percent(100.0) @node_ref={&content}>
                         <ForEach keys={item_keys}>|id: ItemId|
                             <TableItem id layout={layout} play={play} hidden={hidden} />
