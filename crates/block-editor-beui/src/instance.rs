@@ -8,6 +8,7 @@ use std::rc::Rc;
 use beui_adapter_plugin::PluginSurface;
 use block_editor_plugin::{
     Artifact, ArtifactDescription, EditorHost, EditorRegion, Frame, Instance, Region,
+    SettingsDraft,
 };
 #[cfg(target_arch = "wasm32")]
 use block_editor_plugin::{PaintTarget, SurfaceRect};
@@ -15,7 +16,7 @@ use block_plugin_api::TimedInput;
 use uuid::Uuid;
 
 use crate::beui_frame::{self, BeuiFrame, FrameBar};
-use crate::dialog::{DialogControl, PluginDialog};
+use crate::dialog::{DialogControl, PluginDialog, SettingsDialog};
 use crate::editor::BeuiScale;
 use crate::{Artifacts, BeuiApp, Creation, Editor, OwnedEditor};
 
@@ -40,7 +41,7 @@ struct Lent<A: BeuiApp> {
     views: Views<A>,
     region: Region,
     picks: Vec<String>,
-    settings: Option<Vec<u8>>,
+    settings: Option<(Vec<u8>, Vec<u8>)>,
     shown: Shown,
 }
 
@@ -80,8 +81,8 @@ impl<A: BeuiApp> beui::App for RegionApp<A> {
             EditorRegion::Frame => views.frame(context, rect, region, picks, shown),
             EditorRegion::Preview => views.preview(context, rect),
             EditorRegion::ArtifactSettings => {
-                if let Some(draft) = settings {
-                    views.artifact_settings(context, rect, draft);
+                if let Some((saved, draft)) = settings {
+                    shown.content = views.artifact_settings(context, rect, region, saved, draft);
                 }
             }
         }
@@ -95,6 +96,7 @@ struct Views<A: BeuiApp> {
     dialog: Option<beui::Document>,
     dialog_control: Option<DialogControl>,
     settings: Option<beui::Document>,
+    settings_control: Option<DialogControl>,
     view: Option<crate::headless::View>,
     editor: Option<OwnedEditor>,
     preview: Option<OwnedEditor>,
@@ -146,38 +148,73 @@ impl<A: BeuiApp> Views<A> {
         if self.dialog_control.is_some() {
             context.want_keyboard();
         }
-        let measured = dialog.measure_root(context, beui::vec2(rect.width(), f32::INFINITY))?;
-        measured
-            .y
-            .is_finite()
-            .then(|| beui::Rect::from_min_size(rect.min, beui::vec2(rect.width(), measured.y)))
+        measured_height(dialog, context, rect)
     }
 
     fn artifact_settings(
         &mut self,
         context: &beui::Context,
         rect: beui::Rect,
+        region: &Region,
+        saved: &[u8],
         draft: &mut Vec<u8>,
-    ) {
-        let Some(artifacts) = self.artifacts.clone() else {
-            return;
-        };
-        let document = self.settings.get_or_insert_with(|| {
+    ) -> Option<beui::Rect> {
+        let artifacts = self.artifacts.clone()?;
+        if self.settings.is_none() {
             let built = artifacts.clone();
-            beui::reactive::build(move || {
+            let host = artifacts.host().clone();
+            let control = Rc::new(Cell::new(None));
+            let filled = Rc::clone(&control);
+            self.settings = Some(beui::reactive::build(move || {
                 beui::reactive::view! {
-                    <beui::styled::Root clear_color=beui::styled::ColorRole::None>
-                        <A::ArtifactSettings artifacts={built} />
+                    <beui::styled::Root clear_color=beui::styled::ColorRole::SurfaceRaised>
+                        <PluginDialog host control={filled}>|| {
+                            let built = built.clone();
+                            let inner = built.clone();
+                            beui::reactive::view! {
+                                <SettingsDialog artifacts={built}>|| {
+                                    let inner = inner.clone();
+                                    beui::reactive::view! {
+                                        <A::ArtifactSettings artifacts={inner} />
+                                    }
+                                }</SettingsDialog>
+                            }
+                        }</PluginDialog>
                     </beui::styled::Root>
                 }
-            })
+            }));
+            self.settings_control = control.take();
+        }
+        let document = self.settings.as_mut()?;
+        let dismissed = artifacts.host().take_dismiss_request();
+        beui::reactive::with_reactive_scope(document, || {
+            artifacts.receive_settings(saved, &std::mem::take(draft));
+            if let Some(control) = self.settings_control {
+                control.frame(region.spec.dialog);
+                if dismissed {
+                    control.dismiss();
+                }
+            }
         });
-        artifacts.receive_settings(&std::mem::take(draft));
         document.show(context, rect);
+        context.want_keyboard();
         *draft = artifacts
             .take_settings_edit()
             .unwrap_or_else(|| artifacts.settings().get_untracked());
+        measured_height(document, context, rect)
     }
+}
+
+fn measured_height(
+    document: &mut beui::Document,
+    context: &beui::Context,
+    rect: beui::Rect,
+) -> Option<beui::Rect> {
+    let measured = document.measure_root(context, beui::vec2(rect.width(), f32::INFINITY))?;
+    measured
+        .y
+        .is_finite()
+        .then(|| beui::Rect::from_min_size(rect.min, beui::vec2(rect.width(), measured.y)))
 }
 
 impl<A: BeuiApp> Views<A> {
@@ -193,6 +230,7 @@ impl<A: BeuiApp> Views<A> {
             dialog_control: None,
             artifacts: None,
             settings: None,
+            settings_control: None,
             view: None,
             app: PhantomData,
         }
@@ -459,7 +497,7 @@ impl<A: BeuiApp> Instance for BeuiInstance<A> {
         editor.replace_child(old, new)
     }
 
-    fn update(&mut self, region: &Region, settings: Option<&mut Vec<u8>>) -> Frame {
+    fn update(&mut self, region: &Region, settings: Option<SettingsDraft<'_>>) -> Frame {
         let picks = match region.region {
             EditorRegion::Frame => self.host.take_menu_picks(),
             _ => Vec::new(),
@@ -480,7 +518,9 @@ impl<A: BeuiApp> Instance for BeuiInstance<A> {
             views,
             region: region.clone(),
             picks,
-            settings: draft.as_deref_mut().map(std::mem::take),
+            settings: draft
+                .as_mut()
+                .map(|settings| (settings.saved.to_vec(), std::mem::take(settings.draft))),
             shown: Shown::default(),
         });
         let surface = self
@@ -494,8 +534,8 @@ impl<A: BeuiApp> Instance for BeuiInstance<A> {
             .take()
             .expect("the region gives back what it was lent");
         self.views = lent.views;
-        if let (Some(draft), Some(edited)) = (draft, lent.settings) {
-            *draft = edited;
+        if let (Some(settings), Some((_, edited))) = (draft, lent.settings) {
+            *settings.draft = edited;
         }
         let shown = lent.shown;
         if shown.exit {

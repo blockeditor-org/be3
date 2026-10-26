@@ -513,6 +513,7 @@ pub(super) struct PluginArtifact {
     instance: EditorInstanceId,
     opened: bool,
     resync: bool,
+    dismissed: bool,
     outcome: Option<Result<(), String>>,
     regenerating: bool,
 }
@@ -537,6 +538,7 @@ impl PluginArtifact {
             instance: next_instance(),
             opened: false,
             resync: false,
+            dismissed: false,
             outcome: None,
             regenerating: false,
         }
@@ -613,6 +615,30 @@ impl ArtifactSession for PluginArtifact {
 
     fn cancel_settings(&mut self) {
         self.resync = true;
+        self.close_dialog();
+    }
+
+    fn dialog(&self) -> DialogStatus {
+        let mut status = crate::plugin_host::dialog_status(&self.plugin.identity.id, self.instance)
+            .unwrap_or_default();
+        if self.dismissed && status.answer.is_none() {
+            status.answer = Some(DialogAnswer::Dismissed);
+        }
+        status
+    }
+
+    fn dismiss(&mut self) {
+        match crate::plugin_host::dialog_status(&self.plugin.identity.id, self.instance) {
+            Some(status) if status.handles_dismiss => {
+                crate::plugin_host::dismiss(&self.plugin.identity.id, self.instance);
+            }
+            _ => self.dismissed = true,
+        }
+    }
+
+    fn close_dialog(&mut self) {
+        self.dismissed = false;
+        crate::plugin_host::forget_dialog_answer(&self.plugin.identity.id, self.instance);
     }
 
     fn regenerate(&mut self, data: &[u8]) {

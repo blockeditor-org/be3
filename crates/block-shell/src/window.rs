@@ -2,10 +2,9 @@ use block_editor_beui::linux_desktop;
 use std::cell::Cell;
 
 use block_editor_beui::beui::dock::styled::WINDOW_CHROME;
-use block_editor_beui::beui::dock::unstyled::{TabId, use_dock_tab};
+use block_editor_beui::beui::dock::styled::{TabId, use_dock_tab};
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
-use block_editor_beui::beui::unstyled::{Edge, Floating};
 use block_editor_beui::beui::{Image, NodeId, Rect, Vec2, pos2};
 use block_editor_beui::{
     ChildMode, Editor, HostImage, HostWindow, HostWindowId, Subregion, SubregionContent,
@@ -16,8 +15,8 @@ const WINDOW_TABS: u64 = 1 << 41;
 const WINDOW_ORIGIN: f32 = 80.0;
 const WINDOW_CASCADE: f32 = 32.0;
 const WINDOW_CASCADES: u64 = 8;
-const BANNER_PADDING: f32 = 12.0;
-const BANNER_SPACING: f32 = 12.0;
+const BANNER_PADDING: Space = Space::Lg;
+const BANNER_SPACING: Space = Space::Lg;
 const PLACEHOLDER_EDGE: f32 = 1.0;
 const PLACEHOLDER_SIZE: Vec2 = Vec2::new(800.0, 500.0);
 
@@ -177,7 +176,7 @@ fn NotResponding(
     view! {
         <Frame
             fill=ColorRole::Surface
-            border={Border::new(ColorRole::Border).width(1.0)}
+            border={Border::DEFAULT}
             radius=Radius::Lg
             corners=CornerSet::BOTTOM
             padding=BANNER_PADDING

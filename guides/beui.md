@@ -2790,9 +2790,9 @@ and plugins ignore the title. A plugin pane has no title of its own and the
 plugin protocol carries none: `BeuiApp::View` returns the editor's own `Root`,
 whose `clear_color` the plugin's surface is cleared to (the theme's background
 unless the editor names another role), and block-editor-beui puts the frame's
-chrome around that root's child. The pieces drawn over something of the host's
-(a preview, a creation dialog, artifact settings) are rooted in a transparent
-one. Holes are cut from that colour, never left by it: a child editor's `Embed`
+chrome around that root's child. A preview, drawn over something of the
+host's, is rooted in a transparent one; a plugin dialog (a creation dialog,
+artifact settings) is rooted in `SurfaceRaised`, the card it fills. Holes are cut from that colour, never left by it: a child editor's `Embed`
 punches its rectangle, and a painting with holes records the colour as its first
 primitive so they cut it. Documents drawn over another one (the inspector's panels, the
 software keyboard) are built with `Document::new`, `enter` and `set_root` and

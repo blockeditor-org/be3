@@ -14,10 +14,10 @@ use super::{AppViewStore, UiCommand, send};
 use crate::password::Password;
 
 const SECONDS_PER_MINUTE: u64 = 60;
-const FIELD_WIDTH: f32 = 280.0;
-const SPACING: f32 = 8.0;
-const GROUP_SPACING: f32 = 28.0;
-const ACTION_SPACING: f32 = 4.0;
+const FIELD_WIDTH: Size = Size::Custom(280.0);
+const SPACING: Space = Space::Md;
+const GROUP_SPACING: Space = Space::Xl3;
+const ACTION_SPACING: Space = Space::Xs;
 
 #[derive(Clone, Debug, Hash, PartialEq, Eq)]
 pub(crate) struct LockAction {

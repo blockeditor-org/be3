@@ -47,6 +47,7 @@ pub mod tabs;
 pub mod text;
 pub mod text_area;
 pub mod text_input;
+pub mod tile_button;
 pub mod theme;
 pub mod toast;
 pub mod tokens;
@@ -62,9 +63,10 @@ pub use beui_components_unstyled::{
 };
 pub use beui_components_unstyled::{
     BackSlide, ChoiceOption, Container, DragHandle, DragPoint, Draggable, DropHandle, DropTarget,
-    Edge, Floating, MenuItem, MenuNodes, PointerLock, PointerLockHandle, PopoverHandle, Pressable,
-    ProseLine, RemoteTextCursor, SliderScale, SyntaxColors, TextAreaColors, TextAreaState,
-    TextWidget, TreeItem, container_size,
+    Edge, Floating, MenuCaption, MenuGrid, MenuItem, MenuNodes, MenuThen, PanZoom, PanZoomHandle,
+    PanZoomView, PointerLock, PointerLockHandle, PopoverHandle, Pressable, ProseLine,
+    RemoteTextCursor, SliderScale, SyntaxColors, TextAreaColors, TextAreaState, TextWidget,
+    TreeItem, container_size, narrower_than,
 };
 pub use beui_components_unstyled::{DialogDismissal, DialogLayout};
 pub use beui_components_unstyled::{PaletteItem, PaletteItems, PaletteScore};
@@ -128,6 +130,7 @@ pub use text_area::{
     text_area_geometry, text_area_look,
 };
 pub use text_input::TextInput;
+pub use tile_button::TileButton;
 pub use theme::{
     Density, Theme, ThemeKind, ThemeProvider, ThemeStore, provide_density, use_density, use_theme,
 };

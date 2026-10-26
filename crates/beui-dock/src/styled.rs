@@ -8,15 +8,15 @@ use beui_components_styled::sheet::ModalSheet;
 use beui_macros::{component, view};
 
 use crate::unstyled as dock;
-pub use crate::unstyled::{
-    DockApi, DockDocument, DockDocumentBody, DockDocumentTabs, DockDocuments, DockEntry, DockMode,
-    DockNode, DockPane, DockSlot, DockSplit, DockTab, DockWindow, DockingLayout, DockingSnapshot,
-    TabId, dock_menu, use_dock_tab,
-};
 use crate::unstyled::{
-    DockAwayHandle, DockBarHandle, DockChromeHandle, DockDialogHandle, DockDialogPresentation,
-    DockDragged, DockGripHandle, DockKey, DockPreviewHandle, DockSheetHandle, DockSplitterHandle,
+    DockAwayHandle, DockBarHandle, DockChromeHandle, DockDialogHandle, DockDragged,
+    DockGripHandle, DockKey, DockPreviewHandle, DockSheetHandle, DockSplitterHandle,
     DockStackHandle, DockSwitchHandle, DockSwitcherHandle, DockTabHandle, Entry,
+};
+pub use crate::unstyled::{
+    DockApi, DockDialog, DockDialogPresentation, DockDocument, DockDocumentBody, DockDocumentTabs,
+    DockDocuments, DockEntry, DockMode, DockNode, DockPane, DockSlot, DockSplit, DockTab,
+    DockWindow, DockingLayout, DockingSnapshot, TabId, dock_menu, use_dock_tab,
 };
 use beui_components_styled::List;
 use beui_components_styled::action_bar::{ActionBar, ActionLabels};

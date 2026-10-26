@@ -5,7 +5,7 @@ use block_plugin_api::{
 use uuid::Uuid;
 
 use crate::headless::HeadlessPlugin;
-use crate::{EditorHost, Frame, Instance, Region, Waker};
+use crate::{EditorHost, Frame, Instance, Region, SettingsDraft, Waker};
 
 const INSTANCE: EditorInstanceId = EditorInstanceId(1);
 const SCREEN: ScreenId = ScreenId(1);
@@ -17,7 +17,7 @@ impl Instance for Still {
 
     fn input(&mut self, _region: &Region, _event: &TimedInput) {}
 
-    fn update(&mut self, region: &Region, _settings: Option<&mut Vec<u8>>) -> Frame {
+    fn update(&mut self, region: &Region, _settings: Option<SettingsDraft<'_>>) -> Frame {
         Frame {
             painted: vec![region.rect],
             ..Frame::default()

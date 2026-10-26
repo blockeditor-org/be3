@@ -2247,6 +2247,12 @@ impl Instances {
         self.entries.get(&instance).map(|entry| entry.dialog)
     }
 
+    pub(super) fn forget_dialog_answer(&mut self, instance: EditorInstanceId) {
+        if let Some(entry) = self.entries.get_mut(&instance) {
+            entry.dialog.answer = None;
+        }
+    }
+
     pub(super) fn dismiss(&self, instance: EditorInstanceId) -> Vec<Outbound> {
         if !self.entries.contains_key(&instance) {
             return Vec::new();

@@ -99,6 +99,9 @@ pub(super) trait ArtifactSession {
     fn settings_height(&self) -> f32;
     fn summary(&self, draft: &[u8]) -> Option<String>;
     fn cancel_settings(&mut self);
+    fn dialog(&self) -> block_plugin_api::DialogStatus;
+    fn dismiss(&mut self);
+    fn close_dialog(&mut self);
     fn regenerate(&mut self, data: &[u8]);
     fn take_outcome(&mut self) -> Option<Result<(), String>>;
     fn regenerating(&self) -> bool;

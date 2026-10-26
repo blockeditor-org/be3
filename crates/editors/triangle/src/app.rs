@@ -1,6 +1,7 @@
 use block_editor_plugin::wgpu;
 use block_editor_plugin::{
-    BlockParent, EditorHost, Frame, Instance, PaintTarget, Plugin, Region, SurfaceRect, TimedInput,
+    BlockParent, EditorHost, Frame, Instance, PaintTarget, Plugin, Region, SettingsDraft, SurfaceRect,
+    TimedInput,
 };
 use triangle_types::TriangleContent;
 use uuid::Uuid;
@@ -41,7 +42,7 @@ impl Instance for Triangle {
 
     fn input(&mut self, _region: &Region, _event: &TimedInput) {}
 
-    fn update(&mut self, region: &Region, _settings: Option<&mut Vec<u8>>) -> Frame {
+    fn update(&mut self, region: &Region, _settings: Option<SettingsDraft<'_>>) -> Frame {
         Frame {
             changed: !self.painted,
             painted: vec![region.rect],

@@ -12,7 +12,6 @@ use std::cell::RefCell;
 use be_protocol::OrganizationRole;
 use beui::reactive::*;
 use beui::styled::*;
-use beui::unstyled::Edge;
 use beui::{ItemSize, NodeId};
 use block_plugin_api::HostPanel;
 use uuid::Uuid;
@@ -402,7 +401,7 @@ pub(crate) fn Root(view: AppViewStore) -> NodeId {
     let area = NodeRef::new();
     view! {
         <Frame @node_ref=&area>
-            <List spacing=0.0>
+            <List spacing=Space::None>
                 <Dynamic value={screen}>|screen: Screen| {
                     match screen {
                         Screen::Error => view! {

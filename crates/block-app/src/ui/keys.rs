@@ -88,7 +88,7 @@ pub(super) fn RecoveryScreen(view: AppViewStore) -> NodeId {
                 on_submit={move |_value: String| confirm()}
             />
             <ErrorText text={error} />
-            <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
+            <List direction=Direction::Horizontal align=Align::Center spacing=Space::Md>
                 <Show condition={busy}>
                     <Progress width=INLINE_PROGRESS_WIDTH />
                 </Show>
@@ -139,7 +139,7 @@ pub(super) fn UnlockScreen(view: AppViewStore) -> NodeId {
             <Text style=TextStyle::PARAGRAPH>
                 "This device does not have this account's key yet, so it cannot open anything the account keeps."
             </Text>
-            <List spacing=8.0>
+            <List spacing=Space::Md>
                 <Text style=TextStyle::HEADING>"With your recovery phrase"</Text>
                 <TextInput
                     value={phrase}
@@ -147,7 +147,7 @@ pub(super) fn UnlockScreen(view: AppViewStore) -> NodeId {
                     placeholder="twelve words"
                     on_submit={move |_value: String| open()}
                 />
-                <List direction=Direction::Horizontal spacing=8.0>
+                <List direction=Direction::Horizontal spacing=Space::Md>
                     <Spacer @sizing=ItemSize::Percent(100.0) />
                     <Button
                         label="Unlock"
@@ -159,7 +159,7 @@ pub(super) fn UnlockScreen(view: AppViewStore) -> NodeId {
             </List>
             <Text style=TextStyle::HEADING>"With another device"</Text>
             <Show condition={idle}>
-                <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
+                <List direction=Direction::Horizontal align=Align::Center spacing=Space::Md>
                     <Text style=TextStyle::PARAGRAPH @sizing=ItemSize::Percent(100.0)>
                         "Open any organization of this account on a device that is unlocked, and it will ask for a code."
                     </Text>
@@ -171,10 +171,10 @@ pub(super) fn UnlockScreen(view: AppViewStore) -> NodeId {
                 </List>
             </Show>
             <Show condition={waiting}>
-                <List spacing=8.0>
+                <List spacing=Space::Md>
                     <Text style=TextStyle::PARAGRAPH>"Type this code on the other device:"</Text>
                     <Text style=TextStyle::TITLE>{code}</Text>
-                    <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
+                    <List direction=Direction::Horizontal align=Align::Center spacing=Space::Md>
                         <Progress width=INLINE_PROGRESS_WIDTH />
                         <Text style=TextStyle::CAPTION>"Waiting for the other device…"</Text>
                         <Spacer @sizing=ItemSize::Percent(100.0) />
@@ -187,7 +187,7 @@ pub(super) fn UnlockScreen(view: AppViewStore) -> NodeId {
                 </List>
             </Show>
             <ErrorText text={error} />
-            <List direction=Direction::Horizontal spacing=8.0>
+            <List direction=Direction::Horizontal spacing=Space::Md>
                 <Button
                     label="Switch account"
                     variant=ButtonVariant::Ghost
@@ -237,7 +237,7 @@ pub(super) fn PairingDialog(view: AppViewStore) -> NodeId {
         <Dialog
             open={open}
             title="Add a device"
-            width=340.0
+            width={Size::Custom(340.0)}
             kind=DialogKind::Alert
             actions={vec![
                 DialogAction::primary("Approve", approve).disabled(cannot),

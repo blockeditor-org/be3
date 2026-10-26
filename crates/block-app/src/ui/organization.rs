@@ -6,7 +6,6 @@ use beui::icons::{
 };
 use beui::reactive::*;
 use beui::styled::*;
-use beui::unstyled::{Container, MenuItem};
 use beui::{NodeId, OverlayAnchor, Pos2};
 use block_plugin_api::HostPanel;
 
@@ -35,7 +34,7 @@ fn OrganizationBody(view: AppViewStore) -> NodeId {
     let status = create_memo(move || view.status.get());
     let menu = view.app_menu;
     view! {
-        <List spacing=0.0>
+        <List spacing=Space::None>
             <Show condition={normal}>
                 <MainSurface @sizing=ItemSize::Percent(100.0) />
             </Show>

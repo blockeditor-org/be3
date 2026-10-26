@@ -74,7 +74,7 @@ pub(crate) fn HostPanelSurface(panel: HostPanel) -> NodeId {
     let shown = create_memo(move || panel);
     view! {
         <Frame fill=ColorRole::Background>
-            <List spacing=0.0>
+            <List spacing=Space::None>
                 <Dynamic value={shown}>|panel: HostPanel| {
                     match panel {
                         HostPanel::BlockStack => {
@@ -107,7 +107,7 @@ fn debug(command: DebugCommand) {
 }
 
 const LINE_HEIGHT: f32 = 18.0;
-const PANEL_PADDING: f32 = 12.0;
+const PANEL_PADDING: Space = Space::Lg;
 const INDENT: f32 = 14.0;
 
 #[component]
@@ -128,13 +128,10 @@ fn LinesView(lines: Memo<Vec<Line>>) -> NodeId {
 #[component]
 fn LineView(line: Memo<Option<Line>>) -> NodeId {
     let indent = create_memo(move || {
-        Sides::new(
+        Padding::ZERO.left(Space::Custom(
             line.get()
                 .map_or(0.0, |line| f32::from(line.indent) * INDENT),
-            0.0,
-            0.0,
-            0.0,
-        )
+        ))
     });
     let text = create_memo(move || line.get().map(|line| line.text).unwrap_or_default());
     let style = create_memo(move || line.get().map_or(LineStyle::Body, |line| line.style));
@@ -213,7 +210,7 @@ fn PerformanceLine(row: Memo<Option<PerformanceRow>>) -> NodeId {
         false => Weight::Normal,
     });
     view! {
-        <List direction=Direction::Horizontal spacing=8.0>
+        <List direction=Direction::Horizontal spacing=Space::Md>
             <Text
                 overflow=Overflow::Ellipsis
                 @sizing=ItemSize::Percent(100.0)
@@ -320,9 +317,9 @@ fn RuntimeBlock(id: String, runtime: Memo<Option<RuntimeView>>) -> NodeId {
     let crash = id.clone();
     let crash_id = format!("debug.plugins.crash.{id}");
     view! {
-        <Frame padding={Sides::vertical(6.0)}>
-            <List spacing=2.0>
-                <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
+        <Frame padding={Padding::vertical(Space::Sm)}>
+            <List spacing=Space::Xs2>
+                <List direction=Direction::Horizontal align=Align::Center spacing=Space::Md>
                     <Text style=TextStyle::HEADING>{id}</Text>
                     <Text style=TextStyle::CAPTION @sizing=ItemSize::Percent(100.0)>{state}</Text>
                     <Button

@@ -5,7 +5,7 @@ use beui::reactive::*;
 use beui::styled::*;
 
 const SECOND: Duration = Duration::from_secs(1);
-const WIDTH: f32 = 400.0;
+const WIDTH: Size = Size::Custom(400.0);
 
 #[component]
 pub(crate) fn KeepChanges(

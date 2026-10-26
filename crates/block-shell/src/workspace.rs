@@ -9,7 +9,7 @@ use std::collections::{HashMap, HashSet};
 use std::rc::Rc;
 use workspace_ui_types::{EditorView, EditorViewContent, ViewState};
 
-use block_editor_beui::beui::dock::unstyled::{
+use block_editor_beui::beui::dock::styled::{
     DockDialog, DockEntry, DockNode, DockPane, DockTab, DockWindow, DockingLayout, TabId,
 };
 use block_editor_beui::beui::icons::ICON_APP_WINDOW;
@@ -44,8 +44,8 @@ pub const SETTINGS: TabId = TabId::new(1 << 39);
 pub const REVISIONS: TabId = TabId::new((1 << 39) + 1);
 const FIRST_BLOCK_TAB: u64 = 2;
 const MAX_OPENED_VIA_HOPS: usize = 64;
-const PANEL_PADDING: f32 = 14.0;
-const PANEL_SPACING: f32 = 6.0;
+const PANEL_PADDING: Space = Space::Lg;
+const PANEL_SPACING: Space = Space::Sm;
 
 type Tabs = HashMap<TabId, TabItem>;
 

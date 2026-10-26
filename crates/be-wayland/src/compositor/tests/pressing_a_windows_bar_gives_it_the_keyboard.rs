@@ -1,5 +1,5 @@
 use beui::dock::styled::Docking;
-use beui::dock::unstyled::{DockPane, DockTab, DockWindow, DockingLayout};
+use beui::dock::styled::{DockPane, DockTab, DockWindow, DockingLayout};
 use beui::styled::*;
 
 use super::*;

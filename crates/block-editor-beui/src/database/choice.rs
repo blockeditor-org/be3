@@ -91,8 +91,8 @@ pub fn ChoiceMark(
     let dot_color = create_memo(move || {
         let kind = theme.kind.get();
         option.with(|option| match option {
-            Some(option) => choice_color(option.color, kind),
-            None => theme.text_muted.get(),
+            Some(option) => ColorRole::Custom(choice_color(option.color, kind)),
+            None => ColorRole::TextMuted,
         })
     });
     let color = create_memo(move || {
@@ -110,8 +110,8 @@ pub fn ChoiceMark(
     });
     let dotted = create_memo(move || glyph.get().is_none());
     let iconic = create_memo(move || !dotted.get());
-    let mark = size.icon_px();
-    let dot = mark * 0.5;
+    let mark = Size::Custom(size.icon_px());
+    let dot = Size::Custom(size.icon_px() * 0.5);
     view! {
         <Frame width=mark height=mark>
             <Layers>
@@ -125,8 +125,8 @@ pub fn ChoiceMark(
                         <Frame
                             width=dot
                             height=dot
-                            radius={Radius::custom((dot / 2.0).floor())}
-                            fill={ColorRole::custom(dot_color)}
+                            radius=Radius::Full
+                            fill={dot_color}
                         />
                     </Frame>
                 </Show>

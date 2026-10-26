@@ -30,9 +30,9 @@ fn escape_stops_a_presentation_rather_than_reaching_the_editor() {
                         open=true
                         on_dismiss={move |_: Dismiss| stopped.set(stopped.get() + 1)}
                     >
-                        <List spacing=0.0>
+                        <List spacing=Space::None>
                             <Interactive @node_ref={&catcher} focusable=true on_forward={forward}>
-                                <Frame width=100.0 height=100.0 />
+                                <Frame width={Size::Custom(100.0)} height={Size::Custom(100.0)} />
                             </Interactive>
                             <Overlay
                                 anchor=OverlayAnchor::Point(Pos2::new(120.0, 10.0))
@@ -41,7 +41,7 @@ fn escape_stops_a_presentation_rather_than_reaching_the_editor() {
                                 on_dismiss={move |_: Dismiss| menu.set(false)}
                             >
                                 <Interactive @node_ref={&item} focusable=true>
-                                    <Frame width=40.0 height=20.0 />
+                                    <Frame width=Size::Xl height=Size::Sm />
                                 </Interactive>
                             </Overlay>
                         </List>

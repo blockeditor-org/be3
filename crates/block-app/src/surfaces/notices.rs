@@ -5,8 +5,8 @@ use beui::reactive::*;
 use beui::styled::*;
 use beui::{Align, NodeId, TextAlign};
 
-const PADDING: f32 = 16.0;
-const SPACING: f32 = 8.0;
+const PADDING: Space = Space::Xl;
+const SPACING: Space = Space::Md;
 
 #[component]
 pub(crate) fn CrashNotice(

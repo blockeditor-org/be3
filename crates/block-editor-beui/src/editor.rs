@@ -34,6 +34,7 @@ struct ArtifactState {
     regenerate: RefCell<Option<Regenerate>>,
     poll: RefCell<Option<PollArtifact>>,
     settings: OwnedSignal<Vec<u8>>,
+    saved: OwnedSignal<Vec<u8>>,
     edit: RefCell<Option<Vec<u8>>>,
 }
 
@@ -52,6 +53,7 @@ impl Artifacts {
             regenerate: RefCell::new(None),
             poll: RefCell::new(None),
             settings: OwnedSignal::new(Vec::new()),
+            saved: OwnedSignal::new(Vec::new()),
             edit: RefCell::new(None),
         }))
     }
@@ -65,9 +67,16 @@ impl Artifacts {
         *self.0.edit.borrow_mut() = Some(data);
     }
 
-    pub fn receive_settings(&self, data: &[u8]) {
-        if self.0.settings.get_untracked() != data {
-            self.0.settings.set(data.to_vec());
+    pub fn saved_settings(&self) -> ReadSignal<Vec<u8>> {
+        self.0.saved.read_only()
+    }
+
+    pub fn receive_settings(&self, saved: &[u8], draft: &[u8]) {
+        if self.0.saved.get_untracked() != saved {
+            self.0.saved.set(saved.to_vec());
+        }
+        if self.0.settings.get_untracked() != draft {
+            self.0.settings.set(draft.to_vec());
         }
     }
 

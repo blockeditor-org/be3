@@ -60,7 +60,7 @@ pub trait Instance: std::any::Any {
     ) {
     }
 
-    fn update(&mut self, region: &Region, settings: Option<&mut Vec<u8>>) -> Frame;
+    fn update(&mut self, region: &Region, settings: Option<SettingsDraft<'_>>) -> Frame;
 
     fn painting(&mut self, _region: EditorRegion) -> Option<paint_format::Painting> {
         None
@@ -72,6 +72,11 @@ pub trait Instance: std::any::Any {
 
     #[cfg(target_arch = "wasm32")]
     fn paint(&mut self, target: &PaintTarget<'_>) -> Vec<SurfaceRect>;
+}
+
+pub struct SettingsDraft<'a> {
+    pub saved: &'a [u8],
+    pub draft: &'a mut Vec<u8>,
 }
 
 #[derive(Clone, Debug, PartialEq)]

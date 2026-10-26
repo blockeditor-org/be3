@@ -298,9 +298,11 @@ artifact can describe it, so the host keeps that instance open for as long as
 a block is watched and answers on its behalf. Each watched block is a watch of
 its own; dropping the last watch on a block closes the instance describing it. That instance
 also shows a block's artifact settings: an instance places a child showing
-them, whose status says whether the copy being edited differs from the stored
-settings and summarises what it would produce, and committing that child
-stores the copy.
+them, as a dialog, whose status says whether the copy being edited differs
+from the stored settings and summarises what it would produce. The settings
+instance draws the dialog and its Apply and Cancel, and answers with
+`close-dialog`; the editor showing it commits that child to store the copy
+when the answer is `accepted`, and closes it either way.
 
 The instance that draws the window may ask the host who can open a block,
 answered once with the people the account may share it with: whoever already

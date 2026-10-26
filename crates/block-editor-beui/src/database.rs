@@ -5,7 +5,6 @@ use beui::datetime::DateTime;
 use beui::icons::ICON_X;
 use beui::reactive::*;
 use beui::styled::*;
-use beui::unstyled::ChoiceOption;
 use beui::{Color32, NodeId, Rect};
 pub use block_ui::database::ValueLabels;
 use block_ui::database::{DatabaseValueChange, block_reference_text, field_type_label};
@@ -22,8 +21,8 @@ mod choice;
 
 pub use choice::{ChoiceMark, choice_color, choice_color_label, choice_glyph, choice_icon_label};
 
-const SPACING: f32 = 6.0;
-const FIELD_SPACING: f32 = 12.0;
+const SPACING: Space = Space::Sm;
+const FIELD_SPACING: Space = Space::Lg;
 
 pub type RowValues = BTreeMap<Uuid, DatabaseValue>;
 
@@ -160,7 +159,7 @@ fn DatabaseValueControl(
         })
     });
     view! {
-        <List spacing=0.0>
+        <List spacing=Space::None>
             <Dynamic value={kind}>|kind: Option<Option<DatabaseFieldType>>| {
                 let test_id = id.clone();
                 let on_change = forward(on_change);
@@ -517,7 +516,7 @@ fn BlockValue(
         });
     };
     view! {
-        <List direction=Direction::Horizontal spacing=0.0>
+        <List direction=Direction::Horizontal spacing=Space::None>
             <Button
                 @node_ref={&button}
                 label={label}
@@ -985,7 +984,7 @@ pub fn DatabaseValueSummary(text: Prop<String>, aligned: Prop<bool>) -> NodeId {
         false => beui::TextAlign::Start,
     });
     view! {
-        <Frame padding={Sides::horizontal(SPACING)}>
+        <Frame padding={Padding::horizontal(SPACING)}>
             <Text align={align}>{text}</Text>
         </Frame>
     }

@@ -3,7 +3,9 @@ use std::{cell::RefCell, collections::HashMap};
 use beui::reactive::*;
 use beui::styled::*;
 use beui::{Align, NodeId, TextAlign};
-use block_plugin_api::{BlockCommand, BlockLocation, EditorInstanceId, EditorRegion, FrameSpec};
+use block_plugin_api::{
+    BlockCommand, BlockLocation, DialogFrame, EditorInstanceId, EditorRegion, FrameSpec,
+};
 use uuid::Uuid;
 
 use crate::compositor::{ChildView, PluginRegion, RegionEditor, ShellSurface};
@@ -106,7 +108,10 @@ pub(crate) fn MainSurface() -> NodeId {
 }
 
 #[component]
-pub(crate) fn HostedSurface(id: SurfaceId) -> NodeId {
+pub(crate) fn HostedSurface(
+    id: SurfaceId,
+    #[prop(default = None)] dialog: Prop<Option<DialogFrame>>,
+) -> NodeId {
     let region = hosted(id).region;
     let keys = create_memo(move || {
         region.with(|held| {
@@ -127,11 +132,19 @@ pub(crate) fn HostedSurface(id: SurfaceId) -> NodeId {
                 let child_view: ChildView = store(Box::new(|_, _, _| view! {
                     <Frame />
                 }));
+                let frame = hosted.frame;
+                let frame = Prop::dynamic(move || match dialog.get() {
+                    Some(dialog) => Some(FrameSpec {
+                        dialog: Some(dialog),
+                        ..frame.clone().unwrap_or_default()
+                    }),
+                    None => frame.clone(),
+                });
                 view! {
                     <PluginRegion
                         editor={hosted.editor}
                         region={hosted.region}
-                        frame={hosted.frame}
+                        frame
                         child_view
                     />
                 }
@@ -159,8 +172,8 @@ pub(crate) fn HostItemFace(content: Memo<HostItem>) -> NodeId {
     let has_glyph = create_memo(move || glyph.get().is_some());
     let unsupported = matches!(kind, HostItem::Unsupported { .. });
     view! {
-        <Frame padding=12.0>
-            <List spacing=8.0 align=Align::Center>
+        <Frame padding=Space::Lg>
+            <List spacing=Space::Md align=Align::Center>
                 <Show condition={unsupported}>
                     <Text style=TextStyle::HEADING align=TextAlign::Center>
                         "Unsupported block type"

@@ -708,10 +708,14 @@ impl EditorSession {
         let context = self.context(region);
         let host = context.rect;
         let origin = host.min.to_vec2();
-        let mut draft = self
+        let saved = self
             .artifact
             .as_ref()
             .filter(|_| region == EditorRegion::ArtifactSettings)
+            .map(|artifact| artifact.data.clone());
+        let mut draft = saved
+            .as_ref()
+            .and_then(|_| self.artifact.as_ref())
             .map(|artifact| artifact.draft.clone());
         self.host.begin_region(region, origin);
         self.host
@@ -734,7 +738,11 @@ impl EditorSession {
         let delivered_files = files.as_ref().is_some_and(|files| files.dropped);
         self.host.set_files(files);
 
-        let mut frame = self.app.update(&context, draft.as_mut());
+        let settings = saved
+            .as_deref()
+            .zip(draft.as_mut())
+            .map(|(saved, draft)| crate::SettingsDraft { saved, draft });
+        let mut frame = self.app.update(&context, settings);
         if let Some(state) = self.regions.get_mut(&region)
             && state.stopped.is_none()
         {

@@ -3,6 +3,7 @@ use beui_core::image::Image;
 use beui_macros::{component, view};
 
 use crate::row::{RowFace, RowSize, RowTrailing};
+use crate::text::TextColor;
 use beui_components_unstyled as unstyled;
 use beui_components_unstyled::ButtonHandle;
 use beui_core::node::NodeId;
@@ -13,10 +14,12 @@ pub fn ListRow(
     #[prop(default = String::new())] label: Prop<String>,
     #[prop(default = String::new())] detail: Prop<String>,
     #[prop(default = None)] glyph: Prop<Option<Glyph>>,
+    #[prop(default = None)] glyph_color: Prop<Option<TextColor>>,
     #[prop(default = None)] image: Prop<Option<Image>>,
     #[prop(default = RowTrailing::None)] trailing: Prop<RowTrailing>,
     #[prop(default = false)] selected: Prop<bool>,
     #[prop(default = false)] disabled: Prop<bool>,
+    #[prop(default = RowSize::Compact)] size: RowSize,
     on_click: ClickCallback,
     on_activate: ClickCallback,
     children: Option<Child>,
@@ -37,10 +40,11 @@ pub fn ListRow(
                 focused={handle.focused}
                 disabled={handle.disabled}
                 selected={selected}
-                size=RowSize::Compact
+                size
                 label
                 detail
                 glyph
+                glyph_color
                 image
                 trailing
                 children

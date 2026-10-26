@@ -4,7 +4,6 @@ use beui::Overflow;
 use beui::icons::{ICON_TRASH, ICON_USER_MINUS};
 use beui::reactive::*;
 use beui::styled::*;
-use beui::unstyled::ChoiceOption;
 use uuid::Uuid;
 
 use super::onboarding::ErrorText;
@@ -14,7 +13,7 @@ use super::{AppViewStore, UiCommand, send};
 #[component]
 pub(super) fn Dialogs(view: AppViewStore) -> NodeId {
     view! {
-        <List spacing=0.0>
+        <List spacing=Space::None>
             <DiscardDialog view={view} />
             <LeaveDialog view={view} />
             <InviteDialog view={view} />
@@ -47,7 +46,7 @@ fn InviteDialog(view: AppViewStore) -> NodeId {
         <Dialog
             open={open}
             title="Invite member"
-            width=380.0
+            width={Size::Custom(380.0)}
             id="app.invite"
             actions={vec![
                 DialogAction::primary("Create invite link", move || {
@@ -88,7 +87,7 @@ fn AgentsDialog(view: AppViewStore) -> NodeId {
         <Dialog
             open={open}
             title={title}
-            width=460.0
+            width={Size::Custom(460.0)}
             id="app.agents"
             actions={vec![
                 DialogAction::primary("Add agent", move || send(UiCommand::CreateAgent(name.get_untracked())))
@@ -114,7 +113,7 @@ fn ContactsDialog(view: AppViewStore) -> NodeId {
         <Dialog
             open={open}
             title="Contacts"
-            width=460.0
+            width={Size::Custom(460.0)}
             id="app.contacts"
             actions={vec![
                 DialogAction::primary("New contact link", || send(UiCommand::NewContactLink))
@@ -136,7 +135,7 @@ fn MembersDialog(view: AppViewStore) -> NodeId {
         <Dialog
             open={open}
             title="Members"
-            width=480.0
+            width={Size::Custom(480.0)}
             id="app.members"
             actions={vec![
                 DialogAction::primary("Invite member", || {
@@ -170,7 +169,7 @@ fn MembersPanel(view: AppViewStore) -> NodeId {
     let asks_removal = create_memo(move || !removing.get().is_empty());
     view! {
         <Frame>
-            <List spacing=8.0>
+            <List spacing=Space::Md>
                 <Text style=TextStyle::CAPTION>
                     "Administrators can open every block in this organization. Removing someone takes away what was shared with them here, and gives new keys to everything they could open."
                 </Text>
@@ -199,8 +198,8 @@ fn MembersPanel(view: AppViewStore) -> NodeId {
                     };
                     let unremovable = create_memo(move || row.get().me || busy.get());
                     view! {
-                        <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
-                            <List @sizing=ItemSize::Percent(100.0) spacing=2.0>
+                        <List direction=Direction::Horizontal align=Align::Center spacing=Space::Md>
+                            <List @sizing=ItemSize::Percent(100.0) spacing=Space::Xs2>
                                 <Text>{name}</Text>
                                 <Text style=TextStyle::CAPTION>{detail}</Text>
                             </List>
@@ -276,7 +275,7 @@ fn ContactsPanel(view: AppViewStore) -> NodeId {
     let cannot_open = create_memo(move || busy.get() || pasted.get().trim().is_empty());
     view! {
         <Frame>
-            <List spacing=8.0>
+            <List spacing=Space::Md>
                 <Text style=TextStyle::CAPTION>
                     "You can share only with your contacts. Someone becomes one when you send them a contact link yourself, through an app you trust, and they open it, or when they send you theirs."
                 </Text>
@@ -302,8 +301,8 @@ fn ContactsPanel(view: AppViewStore) -> NodeId {
                         }
                     });
                     view! {
-                        <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
-                            <List @sizing=ItemSize::Percent(100.0) spacing=2.0>
+                        <List direction=Direction::Horizontal align=Align::Center spacing=Space::Md>
+                            <List @sizing=ItemSize::Percent(100.0) spacing=Space::Xs2>
                                 <Text>{name}</Text>
                                 <Text style=TextStyle::CAPTION>{detail}</Text>
                             </List>
@@ -331,7 +330,7 @@ fn ContactsPanel(view: AppViewStore) -> NodeId {
                     <Text style=TextStyle::PARAGRAPH>{removing}</Text>
                 </Dialog>
                 <Show condition={has_link}>
-                    <List spacing=6.0>
+                    <List spacing=Space::Sm>
                         <Text style=TextStyle::PARAGRAPH @test_id={"app.contacts.link-help"}>
                             "Send this link yourself, through an app you trust, to the one person you want to connect with. It works once, and it is shown only once."
                         </Text>
@@ -344,7 +343,7 @@ fn ContactsPanel(view: AppViewStore) -> NodeId {
                     </List>
                 </Show>
                 <Text style=TextStyle::CAPTION>"Open a contact link someone sent you"</Text>
-                <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
+                <List direction=Direction::Horizontal align=Align::Center spacing=Space::Md>
                     <TextInput
                         @sizing=ItemSize::Percent(100.0)
                         value={pasted}
@@ -402,9 +401,9 @@ fn AgentsPanel(view: AppViewStore, name: Signal<String>) -> NodeId {
     let none = create_memo(move || keys.with(Vec::is_empty));
     view! {
         <Frame>
-            <List spacing=8.0>
+            <List spacing=Space::Md>
                 <Show condition={creating}>
-                    <List spacing=8.0>
+                    <List spacing=Space::Md>
                         <Text style=TextStyle::CAPTION>{organization}</Text>
                         <Text style=TextStyle::CAPTION>
                             "An agent is an account for a program, such as a coding agent. It sees only the blocks you share with it. Share a workspace or blocks with it from this device after setup. This list shows the agents you created."
@@ -426,7 +425,7 @@ fn AgentsPanel(view: AppViewStore, name: Signal<String>) -> NodeId {
                                 <List
                                     direction=Direction::Horizontal
                                     align=Align::Center
-                                    spacing=8.0
+                                    spacing=Space::Md
                                 >
                                     <Text
                                         overflow=Overflow::Ellipsis
@@ -487,7 +486,7 @@ fn AgentCredentials(created: Memo<Option<super::CreatedAgent>>) -> NodeId {
     });
     let header = field(|created| format!("Bearer {}", created.token));
     view! {
-        <List spacing=6.0>
+        <List spacing=Space::Sm>
             <Text style=TextStyle::PARAGRAPH @test_id={"app.agents.credentials-help"}>
                 {heading}
             </Text>
@@ -497,7 +496,7 @@ fn AgentCredentials(created: Memo<Option<super::CreatedAgent>>) -> NodeId {
                 @test_id={"app.agents.proxy"}
             />
             <Show condition={proxy}>
-                <List spacing=6.0>
+                <List spacing=Space::Sm>
                     <Text style=TextStyle::PARAGRAPH>
                         "Add a proxy rule for the server in these credentials (api.be3.pfg.pw for the hosted service). Set its Authorization header to the value below and keep it outside the agent container. If a gateway secret is required, add Be3-Gateway-Authorization: Bearer <gateway secret> as a separate rule."
                     </Text>
@@ -523,7 +522,7 @@ fn AgentCredentials(created: Memo<Option<super::CreatedAgent>>) -> NodeId {
 fn AboutDialog(view: AppViewStore) -> NodeId {
     let open = view.about;
     view! {
-        <Dialog open={open} title="About" width=420.0 on_dismiss={|| send(UiCommand::About(false))}>
+        <Dialog open={open} title="About" width={Size::Custom(420.0)} on_dismiss={|| send(UiCommand::About(false))}>
             <AboutPanel />
         </Dialog>
     }
@@ -563,7 +562,7 @@ fn InvitePanel(
     });
     view! {
         <Frame>
-            <List spacing=8.0>
+            <List spacing=Space::Md>
                 <Text style=TextStyle::CAPTION>{organization}</Text>
                 <Text style=TextStyle::CAPTION>"Email address"</Text>
                 <TextInput value={email} label="Email address" @test_id={"app.invite.email"} />
@@ -579,7 +578,7 @@ fn InvitePanel(
                 <Text style=TextStyle::CAPTION>{description}</Text>
                 <ErrorText text={error} />
                 <Show condition={has_link}>
-                    <List spacing=6.0>
+                    <List spacing=Space::Sm>
                         <Text style=TextStyle::PARAGRAPH @test_id={"app.invite.help"}>
                             "Send them this link yourself, through an app you trust. Only their account can use it, and only once. It is shown only once."
                         </Text>
@@ -599,7 +598,7 @@ fn InvitePanel(
 fn AboutPanel() -> NodeId {
     view! {
         <Frame>
-            <List spacing=8.0>
+            <List spacing=Space::Md>
                 <Text style=TextStyle::PARAGRAPH>"Block"</Text>
                 <Text style=TextStyle::CAPTION>"Version"</Text>
                 <Text style=TextStyle::CODE>{env!("CARGO_PKG_VERSION").to_owned()}</Text>

@@ -2299,8 +2299,19 @@ impl BlockApp {
             if !commits.is_empty() {
                 self.editors.commit_creations(*id, commits);
             }
-            let dismissed =
-                crate::plugin_host::take_child_dismissals(&source.plugin_id, source.instance);
+            let (settings, dismissed): (Vec<_>, Vec<_>) =
+                crate::plugin_host::take_child_dismissals(&source.plugin_id, source.instance)
+                    .into_iter()
+                    .partition(|child| self.editors.settings_block(*id, *child).is_some());
+            for child in settings {
+                if let Some(session) = self
+                    .editors
+                    .settings_block(*id, child)
+                    .and_then(|block| self.dynamic_artifact_sessions.get_mut(&block))
+                {
+                    session.dismiss();
+                }
+            }
             if !dismissed.is_empty() {
                 self.editors.dismiss_creations(*id, &dismissed);
             }
@@ -2462,8 +2473,12 @@ impl BlockApp {
             changed: *draft != descriptor.data,
             summary: session.summary(draft),
         };
-        self.editors
-            .set_settings_status(Some((id, progress, session.settings_height())));
+        self.editors.set_settings_status(Some((
+            id,
+            progress,
+            session.settings_height(),
+            session.dialog(),
+        )));
         self.dynamic_artifact_sessions.insert(id, session);
     }
 
@@ -2487,6 +2502,7 @@ impl BlockApp {
         );
         if let Some(session) = self.dynamic_artifact_sessions.get_mut(&id) {
             session.regenerate(&data);
+            session.close_dialog();
         }
         self.dynamic_artifact_errors.remove(&id);
         self.dynamic_artifact_settings_open = None;

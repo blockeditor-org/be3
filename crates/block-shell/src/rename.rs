@@ -1,12 +1,11 @@
 use block_editor_beui::be_block::metadata::{ICON, ICON_COLOR, MATERIAL_ICON, MAX_NAME_BYTES};
-use block_editor_beui::beui::dock::unstyled::{
+use block_editor_beui::beui::dock::styled::{
     DockDialog, DockDialogPresentation, DockNode, TabId,
 };
 use block_editor_beui::beui::icons::Glyph;
 use block_editor_beui::beui::icons::{ALL, ICON_SEARCH, named};
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
-use block_editor_beui::beui::unstyled::{self, ButtonHandle};
 use block_editor_beui::beui::{Color32, NodeId, TextAlign, Vec2};
 use block_editor_beui::block_ui::BlockTypes;
 use uuid::Uuid;
@@ -16,13 +15,11 @@ use super::workspace::Workspace;
 
 pub(crate) const RENAME: TabId = TabId::new((1 << 39) + 2);
 const SIZE: Vec2 = Vec2::new(392.0, 620.0);
-const SPACING: f32 = 10.0;
+const SPACING: Space = Space::Md;
 const COLUMNS: usize = 8;
-const TILE: f32 = 40.0;
-const TILE_SPACING: f32 = 4.0;
-const SWATCH: f32 = 22.0;
-const SWATCH_RING: f32 = 2.0;
-const SWATCH_SPACING: f32 = 6.0;
+const TILE: Size = Size::Xl;
+const TILE_SPACING: Space = Space::Xs;
+const SWATCH_SPACING: Space = Space::Xs2;
 const NEUTRAL: [u8; 3] = [135, 139, 148];
 
 pub(crate) const COLORS: [(&str, [u8; 3]); 8] = [
@@ -183,6 +180,9 @@ fn RenameBody(
         look.icon.and_then(named).or(look.type_icon)
     });
     let tinted = create_memo(move || shown.get().map_or(TextColor::Muted, TextColor::Custom));
+    let tile = use_size(TILE);
+    let gap = use_space(TILE_SPACING);
+    let row_size = create_memo(move || tile.get() + gap.get());
     let field = NodeRef::new();
     let built = view! {
         <DialogBody title="Rename" id="rename" scrolls=false on_dismiss={move || done.call(())}>
@@ -214,20 +214,20 @@ fn RenameBody(
                 </Show>
                 <Text style=TextStyle::CAPTION>"Color"</Text>
                 <List direction=Direction::Horizontal align=Align::Center spacing=SWATCH_SPACING>
-                    <Swatch
-                        id={"default".to_owned()}
+                    <SwatchButton
+                        @test_id={"rename.color.default"}
                         label="Block type color"
-                        color={create_memo(move || look.get().type_color)}
-                        chosen={create_memo(move || look.get().color.is_none())}
-                        on_pick={move || set_color.call(None)}
+                        color={create_memo(move || rgb(look.get().type_color.unwrap_or(NEUTRAL)))}
+                        selected={create_memo(move || look.get().color.is_none())}
+                        on_click={move || set_color.call(None)}
                     />
                     <ForEach keys={COLORS.to_vec()}>|(name, color): (&'static str, [u8; 3])|
-                        <Swatch
-                            id={name.to_lowercase()}
+                        <SwatchButton
+                            @test_id={format!("rename.color.{}", name.to_lowercase())}
                             label={name}
-                            color={create_memo(move || Some(color))}
-                            chosen={create_memo(move || look.get().color == Some(color))}
-                            on_pick={move || set_color.call(Some(color))}
+                            color={rgb(color)}
+                            selected={create_memo(move || look.get().color == Some(color))}
+                            on_click={move || set_color.call(Some(color))}
                         />
                     </ForEach>
                 </List>
@@ -255,7 +255,7 @@ fn RenameBody(
                     </Show>
                     <VirtualList
                         keys={rows}
-                        item_size={TILE + TILE_SPACING}
+                        item_size={row_size}
                     >|row: ReadSignal<Vec<Tile>>|
                         <List direction=Direction::Horizontal spacing=TILE_SPACING>
                             <ForEach keys={create_memo(move || row.get())}>|tile: Tile|
@@ -271,51 +271,6 @@ fn RenameBody(
         with_document(|document| document.focus_into(node));
     }
     built
-}
-
-#[component]
-fn Swatch<F: Fn() + 'static>(
-    id: String,
-    label: &'static str,
-    color: Memo<Option<[u8; 3]>>,
-    chosen: Memo<bool>,
-    on_pick: F,
-) -> NodeId {
-    let fill = create_memo(move || match color.get() {
-        Some(color) => ColorRole::Custom(rgb(color)),
-        None => ColorRole::TextMuted,
-    });
-    view! {
-        <unstyled::Button
-            @test_id={format!("rename.color.{id}")}
-            label
-            icon_only=true
-            on_click={on_pick}
-        >|handle: ButtonHandle| {
-            let ringed = create_memo(move || chosen.get() || handle.focused.get() || handle.hovered.get());
-            let ring = create_memo(move || match chosen.get() {
-                true => ColorRole::Accent,
-                false => ColorRole::Border,
-            });
-            view! {
-                <Tooltip label={handle.tooltip}>
-                    <Frame
-                        padding=SWATCH_RING
-                        radius=Radius::Full
-                        border={create_memo(move || ringed.get().then(|| Border::new(ring.get()).width(SWATCH_RING)))}
-                    >
-                        <Frame
-                            width=SWATCH
-                            height=SWATCH
-                            radius=Radius::Full
-                            fill
-                            border={Border::DEFAULT}
-                        />
-                    </Frame>
-                </Tooltip>
-            }
-        }</unstyled::Button>
-    }
 }
 
 #[component]
@@ -339,36 +294,19 @@ fn IconTile(
     });
     let color = create_memo(move || shown.get().map_or(TextColor::Muted, TextColor::Custom));
     view! {
-        <unstyled::Button
+        <TileButton
             @test_id={format!("rename.icon.{id}")}
             label
-            icon_only=true
+            selected={chosen}
+            size=TILE
             on_click={move || set_icon.call(match tile {
                 Tile::Default => None,
                 Tile::Icon(name) => Some(name),
             })}
-        >|handle: ButtonHandle| {
-            let fill = create_memo(move || match (chosen.get(), handle.hovered.get()) {
-                (true, _) => ColorRole::AccentSoft,
-                (false, true) => ColorRole::Hover,
-                (false, false) => ColorRole::None,
-            });
-            view! {
-                <Tooltip label={handle.tooltip}>
-                    <Frame
-                        width=TILE
-                        height=TILE
-                        radius=Radius::Md
-                        fill
-                        border={focus_border(handle.focused, Border::FOCUS)}
-                        align={Align2::CENTER}
-                    >
-                        <Text color size=TextSize::Xl align=TextAlign::Center>
-                            <Icon glyph />
-                        </Text>
-                    </Frame>
-                </Tooltip>
-            }
-        }</unstyled::Button>
+        >
+            <Text color size=TextSize::Xl align=TextAlign::Center>
+                <Icon glyph />
+            </Text>
+        </TileButton>
     }
 }

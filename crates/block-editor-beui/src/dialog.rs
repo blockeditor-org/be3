@@ -6,6 +6,8 @@ use beui::styled::*;
 use beui::{Key, KeyAt, KeyPhase, NodeId};
 use block_editor_plugin::{DialogAnswer, DialogFrame, EditorHost};
 
+use crate::Artifacts;
+
 #[derive(Clone, Copy)]
 pub(crate) struct DialogControl {
     narrow: Signal<bool>,
@@ -70,5 +72,29 @@ pub(crate) fn PluginDialog(
     let body = content.call(());
     view! {
         <BackHandler on_back={move || dismiss.call(())}>{body}</BackHandler>
+    }
+}
+
+#[component]
+pub(crate) fn SettingsDialog(artifacts: Artifacts, #[prop(children)] content: Render) -> NodeId {
+    let settings = artifacts.settings();
+    let saved = artifacts.saved_settings();
+    let unchanged = create_memo(move || settings.with(|settings| saved.with(|saved| settings == saved)));
+    let cancel = artifacts.host().clone();
+    let apply = artifacts.host().clone();
+    let body = content.call(());
+    view! {
+        <DialogBody
+            title="Dynamic artifact settings"
+            id="artifact-settings"
+            actions={vec![
+                DialogAction::cancel("Cancel"),
+                DialogAction::primary("Apply", move || apply.close_dialog(DialogAnswer::Accepted))
+                    .disabled(unchanged),
+            ]}
+            on_dismiss={move || cancel.close_dialog(DialogAnswer::Dismissed)}
+        >
+            {body}
+        </DialogBody>
     }
 }

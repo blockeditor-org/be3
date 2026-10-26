@@ -1,4 +1,4 @@
-use block_editor_beui::beui::dock::unstyled::TabId;
+use block_editor_beui::beui::dock::styled::TabId;
 use block_editor_beui::beui::icons::Glyph;
 use block_editor_beui::beui::icons::{ICON_GAUGE, ICON_LAYERS, ICON_PUZZLE};
 use block_editor_beui::beui::reactive::*;

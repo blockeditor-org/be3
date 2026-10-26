@@ -1731,6 +1731,10 @@ pub(crate) fn dialog_status(
     .flatten()
 }
 
+pub(crate) fn forget_dialog_answer(plugin_id: &str, instance: EditorInstanceId) {
+    with(plugin_id, |runtime| runtime.instances.forget_dialog_answer(instance));
+}
+
 pub(crate) fn dismiss(plugin_id: &str, instance: EditorInstanceId) {
     with(plugin_id, |runtime| {
         let messages = runtime.instances.dismiss(instance);

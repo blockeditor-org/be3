@@ -7,7 +7,6 @@ use beui::NodeId;
 use beui::icons::{ICON_PIN, ICON_PIN_OFF, ICON_ROTATE_CCW};
 use beui::reactive::*;
 use beui::styled::*;
-use beui::unstyled::MenuItem;
 use uuid::Uuid;
 
 use crate::Editor;

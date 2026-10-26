@@ -9,9 +9,9 @@ use super::tab::TabItem;
 use super::workspace::Workspace;
 use block_editor_beui::beui::TextAlign;
 
-const PADDING_HORIZONTAL: f32 = 8.0;
-const PADDING_VERTICAL: f32 = 5.0;
-const SPACING: f32 = 8.0;
+const PADDING_HORIZONTAL: Space = Space::Md;
+const PADDING_VERTICAL: Space = Space::Xs;
+const SPACING: Space = Space::Md;
 
 #[component]
 pub(crate) fn ArtifactBar(
@@ -93,7 +93,7 @@ pub(crate) fn ArtifactBar(
         <Show condition={shown}>
             <Frame
                 fill=ColorRole::Surface
-                padding={Sides::symmetric(PADDING_HORIZONTAL, PADDING_VERTICAL)}
+                padding={Padding::symmetric(PADDING_HORIZONTAL, PADDING_VERTICAL)}
             >
                 <List spacing=PADDING_VERTICAL>
                     <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>

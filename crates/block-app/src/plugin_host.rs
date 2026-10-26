@@ -43,7 +43,7 @@ pub(crate) use runtime::place_screens;
 pub(crate) use runtime::watched;
 pub(crate) use runtime::{
     PACING, Pick, artifact, artifact_draft, aspect_ratio, assigned_size, block_picked, busy, close,
-    commit_creation, crash, creation, dialog_status, dismiss, drawing, flush, frame_child,
+    commit_creation, crash, creation, dialog_status, dismiss, drawing, forget_dialog_answer, flush, frame_child,
     frame_placement, frame_rects, hold, in_use, install, intrinsic_size, kill, menu, menu_pick,
     poll, present, presenting, preview_image, publish, reanchor, record_pacing,
     regenerate_artifact, region_size, replace_child, replace_gpu, report_child_bars,

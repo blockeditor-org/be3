@@ -6,7 +6,7 @@ use beui::styled::*;
 
 use crate::Creation;
 
-const SPACING: f32 = 10.0;
+const SPACING: Space = Space::Md;
 
 type Import<T> = Box<dyn Fn(PickedFile) -> Result<T, String>>;
 

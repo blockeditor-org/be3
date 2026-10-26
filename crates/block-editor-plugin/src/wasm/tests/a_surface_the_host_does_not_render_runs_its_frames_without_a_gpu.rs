@@ -8,7 +8,7 @@ use crate::editor_session::EditorSession;
 use crate::screens::Screens;
 use crate::wasm::{Surfaces, surface_gpu};
 use crate::wire::Delivery;
-use crate::{EditorHost, Frame, Instance, Region, Waker};
+use crate::{EditorHost, Frame, Instance, Region, SettingsDraft, Waker};
 
 const INSTANCE: EditorInstanceId = EditorInstanceId(1);
 
@@ -19,7 +19,7 @@ impl Instance for Unpainted {
 
     fn input(&mut self, _region: &Region, _event: &TimedInput) {}
 
-    fn update(&mut self, region: &Region, _settings: Option<&mut Vec<u8>>) -> Frame {
+    fn update(&mut self, region: &Region, _settings: Option<SettingsDraft<'_>>) -> Frame {
         Frame {
             changed: true,
             painted: vec![region.rect],

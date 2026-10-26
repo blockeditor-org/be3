@@ -233,10 +233,10 @@ fn PreviewLabel(editor: Editor, target: Memo<Option<ChildTarget>>) -> NodeId {
             fill=ColorRole::SurfaceRaised
             border={Border::new(ColorRole::Border)}
             radius=Radius::Md
-            padding=12.0
+            padding=Space::Lg
             align=Align2::CENTER
         >
-            <List spacing=8.0 align=Align::Center>
+            <List spacing=Space::Md align=Align::Center>
                 <Show condition={has_glyph}>
                     <Text size=TextSize::Xl color=TextColor::Muted align=beui::TextAlign::Center>
                         <Icon glyph={glyph} />

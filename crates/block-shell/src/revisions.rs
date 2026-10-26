@@ -4,7 +4,7 @@ use std::{
 };
 
 use block_editor_beui::Revision;
-use block_editor_beui::beui::{NodeId, dock::unstyled::TabId, reactive::*, styled::*};
+use block_editor_beui::beui::{NodeId, dock::styled::TabId, reactive::*, styled::*};
 use block_editor_beui::block_ui::datetime::format_datetime_utc;
 use block_editor_beui::{ChildTarget, Editor, Failure, Pushed, Task};
 use uuid::Uuid;
@@ -278,8 +278,8 @@ pub fn RevisionHistoryPanel(workspace: Workspace) -> NodeId {
     });
     view! {
         <Scroll @test_id={"workspace.revisions"}>
-            <Frame padding=14.0>
-                <List spacing=8.0>
+            <Frame padding=Space::Lg>
+                <List spacing=Space::Md>
                     <Text style=TextStyle::HEADING>"Revision history"</Text>
                     <Show condition={no_file}>
                         <Text style=TextStyle::CAPTION>
@@ -299,7 +299,7 @@ pub fn RevisionHistoryPanel(workspace: Workspace) -> NodeId {
                         <Text style=TextStyle::CAPTION>"No saved revisions yet."</Text>
                     </Show>
                     <Show condition={failed}>
-                        <List spacing=8.0>
+                        <List spacing=Space::Md>
                             <Text style=TextStyle::CAPTION>{error}</Text>
                             <Button
                                 variant=ButtonVariant::Secondary
@@ -362,12 +362,12 @@ pub(crate) fn RevisionPreviewBar(
             .is_some_and(|item| workspace.can_edit(item.id))
     });
     view! {
-        <List spacing=0.0>
+        <List spacing=Space::None>
             <Show condition={visible}>
-                <Frame padding=14.0>
-                    <List spacing=8.0>
+                <Frame padding=Space::Lg>
+                    <List spacing=Space::Md>
                         <Text style=TextStyle::CAPTION>{label}</Text>
-                        <List direction=Direction::Horizontal spacing=8.0>
+                        <List direction=Direction::Horizontal spacing=Space::Md>
                             <Button
                                 label="Back to current"
                                 variant=ButtonVariant::Secondary
@@ -389,11 +389,11 @@ pub(crate) fn RevisionPreviewBar(
                             <Text style=TextStyle::CAPTION>{error}</Text>
                         </Show>
                         <Show condition={history.confirm}>
-                            <List spacing=8.0>
+                            <List spacing=Space::Md>
                                 <Text style=TextStyle::CAPTION>
                                     "Restore this file as a new revision? Current edits will be saved. Contained and linked files will stay unchanged."
                                 </Text>
-                                <List direction=Direction::Horizontal spacing=8.0>
+                                <List direction=Direction::Horizontal spacing=Space::Md>
                                     <Button
                                         variant=ButtonVariant::Primary
                                         label="Restore"

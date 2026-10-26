@@ -43,7 +43,7 @@ pub(crate) struct State {
     commits: RefCell<HashMap<(Uuid, ChildId), ChildCommit>>,
     settings_children: RefCell<HashMap<(Uuid, ChildId), Uuid>>,
     settings_shown: RefCell<HashMap<CreationKey, Uuid>>,
-    settings_status: RefCell<Option<(Uuid, SettingsProgress, f32)>>,
+    settings_status: RefCell<Option<(Uuid, SettingsProgress, f32, DialogStatus)>>,
 }
 
 pub(crate) type CreationKey = (Uuid, EditorRegion, ChildId);
@@ -358,7 +358,10 @@ impl Editors {
             .copied()
     }
 
-    pub(crate) fn set_settings_status(&self, status: Option<(Uuid, SettingsProgress, f32)>) {
+    pub(crate) fn set_settings_status(
+        &self,
+        status: Option<(Uuid, SettingsProgress, f32, DialogStatus)>,
+    ) {
         let state = self.0.value();
         if *state.settings_status.borrow() == status {
             return;
@@ -367,14 +370,14 @@ impl Editors {
         super::changed();
     }
 
-    fn settings_status(&self, block: Uuid) -> Option<(SettingsProgress, f32)> {
+    fn settings_status(&self, block: Uuid) -> Option<(SettingsProgress, f32, DialogStatus)> {
         let state = self.0.value();
         state
             .settings_status
             .borrow()
             .as_ref()
-            .filter(|(shown, _, _)| *shown == block)
-            .map(|(_, progress, height)| (progress.clone(), *height))
+            .filter(|(shown, _, _, _)| *shown == block)
+            .map(|(_, progress, height, dialog)| (progress.clone(), *height, *dialog))
     }
 
     pub(crate) fn creation_pick_sources(&self) -> Vec<PickSource> {
@@ -1469,10 +1472,11 @@ fn HostedChild(
                 status.dialog = dialog;
             }
             if let Kind::ArtifactSettings(block) = kind.get()
-                && let Some((progress, height)) = editors.settings_status(block)
+                && let Some((progress, height, dialog)) = editors.settings_status(block)
             {
                 status.settings = Some(progress);
                 status.intrinsic = Some(vec2(0.0, height));
+                status.dialog = dialog;
             }
             Some(status)
         });
@@ -1534,9 +1538,12 @@ fn HostedChild(
                             Kind::Window(window) => view! {
                                 <WindowSurface window={window} />
                             },
-                            Kind::ArtifactSettings(_) => view! {
-                                <HostedSurface id=SurfaceId::ArtifactSettings />
-                            },
+                            Kind::ArtifactSettings(_) => {
+                                let dialog = create_memo(move || child.get().and_then(|child| child.dialog));
+                                view! {
+                                    <HostedSurface id=SurfaceId::ArtifactSettings dialog />
+                                }
+                            }
                             Kind::Creation => match editors.creation_region(&creation_key) {
                                 Some(hosted) => {
                                     let dialog = create_memo(move || child.get().and_then(|child| child.dialog));

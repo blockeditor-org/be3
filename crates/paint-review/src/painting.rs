@@ -9,10 +9,10 @@ use crate::sidebar::{color, glyph, label, role};
 use crate::stage::Stage;
 use paint_review_manifest::Status;
 
-const PADDING: f32 = 16.0;
-const SPACING: f32 = 8.0;
-const HINT_SPACING: f32 = 4.0;
-const BADGE_PADDING: (f32, f32) = (8.0, 2.0);
+const PADDING: Space = Space::Xl;
+const SPACING: Space = Space::Md;
+const HINT_SPACING: Space = Space::Xs;
+const BADGE_PADDING: Padding = Padding::symmetric(Space::Md, Space::Xs2);
 const SHORTCUTS: [(&str, &str); 4] = [
     ("Space", "flip before and after"),
     ("1 2 3 4", "choose the view"),
@@ -25,7 +25,7 @@ pub(crate) fn PaintingView(review: Review) -> NodeId {
     let chosen = create_memo(move || review.painting.with(Option::is_some));
     let nothing = create_memo(move || !chosen.get());
     view! {
-        <List spacing=0.0>
+        <List spacing=Space::None>
             <Show condition={nothing}>
                 <Frame @sizing=ItemSize::Percent(100.0) align=Align::Center>
                     <Text style=TextStyle::PARAGRAPH @test_id={"paint_review.nothing"}>
@@ -70,7 +70,7 @@ fn Header(review: Review) -> NodeId {
     });
     let detailed = create_memo(move || !detail.get().is_empty());
     view! {
-        <Frame padding={Sides::all(PADDING).bottom(SPACING)}>
+        <Frame padding={Padding::all(PADDING).bottom(SPACING)}>
             <List spacing=SPACING>
                 <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
                     <Text
@@ -96,12 +96,11 @@ fn Header(review: Review) -> NodeId {
 
 #[component]
 fn StatusBadge(status: Status) -> NodeId {
-    let (horizontal, vertical) = BADGE_PADDING;
     view! {
         <Frame
             border={Some(Border::new(role(status)))}
             radius=Radius::Full
-            padding={Sides::symmetric(horizontal, vertical)}
+            padding=BADGE_PADDING
             @test_id={"paint_review.status"}
         >
             <Text size=TextSize::Sm color={color(status)} align=TextAlign::Center>
@@ -139,7 +138,7 @@ fn Controls(review: Review) -> NodeId {
     });
     let counted = create_memo(move || !pixels.get().is_empty());
     view! {
-        <Frame padding={Sides::horizontal(PADDING).bottom(SPACING)}>
+        <Frame padding={Padding::horizontal(PADDING).bottom(SPACING)}>
             <List direction=Direction::Horizontal align=Align::Center spacing=SPACING wrap=true>
                 <ModeButton review mode=Mode::Before />
                 <ModeButton review mode=Mode::After />
@@ -198,7 +197,7 @@ fn ModeButton(review: Review, mode: Mode) -> NodeId {
 fn Shortcuts() -> NodeId {
     let [flip, modes, paintings, frames] = SHORTCUTS;
     view! {
-        <Frame padding={Sides::symmetric(PADDING, SPACING)}>
+        <Frame padding={Padding::symmetric(PADDING, SPACING)}>
             <List
                 direction=Direction::Horizontal
                 align=Align::Center

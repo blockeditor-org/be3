@@ -2,12 +2,11 @@ use beui::KeyAt;
 use beui::reactive::*;
 
 use beui::styled::*;
-use beui::{Color32, ForwardedInput, Key, NodeId, Pos2, Rect};
+use beui::{ForwardedInput, Key, NodeId, Pos2, Rect};
 
 use crate::state::WindowId;
 use crate::windows::Windows;
 
-const FROZEN_DIM: Color32 = Color32::from_rgba_unmultiplied(0, 0, 0, 140);
 
 #[component]
 pub fn WindowView(
@@ -44,8 +43,8 @@ pub fn WindowView(
                         .is_none_or(|info| info.responding)
                 });
                 match responding {
-                    true => Color32::TRANSPARENT,
-                    false => FROZEN_DIM,
+                    true => ColorRole::None,
+                    false => ColorRole::Dim,
                 }
             });
             let cursor = windows.cursor();
@@ -67,8 +66,9 @@ pub fn WindowView(
                 let at = shown.get().unwrap_or(Rect::ZERO);
                 OverlayAnchor::Rect(at.translate(rect.get().min.to_vec2()))
             });
-            let width = create_memo(move || shown.get().map(|at| at.width()));
-            let height = create_memo(move || shown.get().map(|at| at.height()));
+            let length = |px: Option<f32>| px.map_or(Length::INTRINSIC, |px| Length::Size(Size::Custom(px)));
+            let width = create_memo(move || length(shown.get().map(|at| at.width())));
+            let height = create_memo(move || length(shown.get().map(|at| at.height())));
             let into_window = move |mut input: ForwardedInput| {
                 let at = shown.get_untracked().unwrap_or(Rect::ZERO);
                 input.rect = input.rect.translate(-at.min.to_vec2());
@@ -102,7 +102,7 @@ pub fn WindowView(
                             <Drawing
                                 draw={Prop::dynamic(move || draw_gpu(signals.drawing.get()))}
                             />
-                            <Frame fill={ColorRole::custom(dim)} />
+                            <Frame fill={dim} />
                         </Layers>
                     </Interactive>
                     <Overlay
