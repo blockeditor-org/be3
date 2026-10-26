@@ -216,7 +216,9 @@ way for the test to fail.
   pannable canvas or canvas its owner scrolls across (`Canvas scrolls_across`, as a single-line
   text field's) can move it out from under - the region's edge, a sidebar too narrow for a
   row of controls - text drawn outside its own box, and an outline drawn outside a frame (a
-  focus ring) that a clip cuts while the frame itself shows whole. Each line names the node, its
+  focus ring) that a clip cuts while the frame itself shows whole. A node culled out of sight is
+  checked only for being cut off, since its text keeps its last shape until it is laid out in
+  sight again. Each line names the node, its
   nearest ancestor with a test id, and the two rectangles. Fix the layout - wrap or ellipsize the
   text, let the row shrink (`ItemSize::Intrinsic.shrink(1.0)`), scroll it, put the padding
   inside a scroll around its content, or give a scroll inside a padded surface `bleed`, so a ring at its edge has room - rather than the test.
