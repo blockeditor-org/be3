@@ -957,7 +957,6 @@ impl<H: Host> Replicas<H> {
             .call(module, |connection| replayed.send(handle, connection))
             .flatten()?;
         let open = self.open.get_mut(&replica)?;
-        open.unreported = true;
         open.replay.push(match replayed {
             Replayed::Change { change, .. } => Replayed::Change {
                 change,

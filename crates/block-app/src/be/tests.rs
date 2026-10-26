@@ -199,10 +199,28 @@ impl Harness {
     }
 
     fn miss_a_ping(&self) {
-        let pings = self.relay().pings();
-        self.clock.advance(be_client::connection::PING_INTERVAL);
-        runtime().block_on(self.relay().pinged_beyond(pings));
-        self.clock.advance(be_client::connection::PONG_WAIT);
+        let runtime = runtime();
+        loop {
+            let pings = self.relay().pings();
+            self.clock.advance(be_client::connection::PING_INTERVAL);
+            let pinged = runtime.block_on(async {
+                tokio::time::timeout(
+                    Duration::from_millis(200),
+                    self.relay().pinged_beyond(pings),
+                )
+                .await
+            });
+            if pinged.is_err() {
+                continue;
+            }
+            self.clock.advance(be_client::connection::PONG_WAIT);
+            let gone = wait_for(Duration::from_millis(200), |shared| {
+                (!shared.connected).then_some(())
+            });
+            if gone.is_some() {
+                return;
+            }
+        }
     }
 
     fn leasing(lease: Duration) -> Self {
