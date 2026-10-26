@@ -174,7 +174,11 @@ fn pick(lines: &[Rc<Line>], found: &[usize]) -> Option<usize> {
     })
 }
 
-pub(crate) fn point(target: &str, lines: &[Rc<Line>], pixels_per_point: f32) -> Result<Pos2, String> {
+pub(crate) fn point(
+    target: &str,
+    lines: &[Rc<Line>],
+    pixels_per_point: f32,
+) -> Result<Pos2, String> {
     let center = locate(target, lines)?.center();
     Ok(pos2(
         center.x / pixels_per_point,

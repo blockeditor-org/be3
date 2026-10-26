@@ -117,9 +117,9 @@ fn serve(path: &std::path::Path) -> Result<beui_core::app::automation::Inbox, Bo
     let inbox = beui_core::app::automation::Inbox::default();
     let served = match std::env::var("BEUI_AUTOMATION_LISTENER") {
         Ok(fd) => {
-            let fd: std::os::fd::RawFd = fd
-                .parse()
-                .map_err(|_| format!("BEUI_AUTOMATION_LISTENER takes a file descriptor, not {fd}"))?;
+            let fd: std::os::fd::RawFd = fd.parse().map_err(|_| {
+                format!("BEUI_AUTOMATION_LISTENER takes a file descriptor, not {fd}")
+            })?;
             // unsafe(ffi)
             let inherited = unsafe {
                 <std::os::unix::net::UnixListener as std::os::fd::FromRawFd>::from_raw_fd(fd)

@@ -125,11 +125,9 @@ impl Launch {
             .process_group(0);
         // unsafe(ffi)
         unsafe {
-            command.pre_exec(move || {
-                match libc::fcntl(listening, libc::F_SETFD, 0) {
-                    -1 => Err(std::io::Error::last_os_error()),
-                    _ => Ok(()),
-                }
+            command.pre_exec(move || match libc::fcntl(listening, libc::F_SETFD, 0) {
+                -1 => Err(std::io::Error::last_os_error()),
+                _ => Ok(()),
             });
         }
         if let Some(log) = log {
@@ -153,9 +151,9 @@ impl Launch {
             kill_group(child.id());
             let status = child.wait().map_err(|error| error.to_string())?;
             return Err(match error {
-                Unanswered::Closed => format!(
-                    "{name} exited ({status}) before it answered; is it a beui app?{see}"
-                ),
+                Unanswered::Closed => {
+                    format!("{name} exited ({status}) before it answered; is it a beui app?{see}")
+                }
                 Unanswered::Failed(error) => format!("{error}{see}"),
             });
         }

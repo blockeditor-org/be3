@@ -515,19 +515,16 @@ impl Automation {
                 Phase::Settling { before } if quiet || (immediate && before.is_some()) => {
                     Some(Reply::Text(match (before.as_deref(), limit) {
                         (None, _) | (Some(_), Some(0)) => String::new(),
-                        (Some(before), limit) => capped(
-                            changes(before.text(), view.rendered().text()),
-                            limit,
-                        ),
+                        (Some(before), limit) => {
+                            capped(changes(before.text(), view.rendered().text()), limit)
+                        }
                     }))
                 }
                 Phase::Waiting {
                     text,
                     present,
                     over,
-                } if shown(view, text, *over) == *present => {
-                    Some(Reply::Text(String::new()))
-                }
+                } if shown(view, text, *over) == *present => Some(Reply::Text(String::new())),
                 Phase::Pausing { until } if view.now >= *until => Some(Reply::Text(String::new())),
                 Phase::Components => comps.map(|trees| Reply::Text(trees.join("\n"))),
                 Phase::Hitting => hits.map(|hits| {
@@ -685,7 +682,9 @@ impl Automation {
         let input = |frames: Frames| incoming(points(frames));
         match command.as_str() {
             "help" => Ok(Started::Done(Reply::Text(format!("{USAGE}\n")))),
-            "tree" => Ok(Started::Done(Reply::Text(view.rendered().text().to_owned()))),
+            "tree" => Ok(Started::Done(Reply::Text(
+                view.rendered().text().to_owned(),
+            ))),
             "frames" => Ok(Started::Done(Reply::Text(self.take_frames()))),
             "ids" => {
                 let rendered = view.rendered();

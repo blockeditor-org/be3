@@ -207,15 +207,28 @@ fn draw_stroke(
         )
     };
     let stretches = [
-        (Some("canvas.stroke-start"), along(stretch), stretch, STYLUS_PER_FRAME),
-        (None, along(points - stretch), points - 2 * stretch, BULK_PER_FRAME),
+        (
+            Some("canvas.stroke-start"),
+            along(stretch),
+            stretch,
+            STYLUS_PER_FRAME,
+        ),
+        (
+            None,
+            along(points - stretch),
+            points - 2 * stretch,
+            BULK_PER_FRAME,
+        ),
         (Some("canvas.stroke-end"), to, stretch, STYLUS_PER_FRAME),
     ];
     let from = target(from);
-    let stretches = stretches.map(|(metric, to, steps, per_frame)| (metric, target(to), steps, per_frame));
+    let stretches =
+        stretches.map(|(metric, to, steps, per_frame)| (metric, target(to), steps, per_frame));
     let stroke = Stroke::sent(
         &from,
-        &stretches.each_ref().map(|(_, to, steps, _)| (to.as_str(), *steps)),
+        &stretches
+            .each_ref()
+            .map(|(_, to, steps, _)| (to.as_str(), *steps)),
         app.scale()?,
     )?;
     app.run(&["--no-settle", "pen", "down", &from])?;
@@ -402,7 +415,10 @@ impl App {
         };
         bench::time(&format!("{metric}-catch-up"), moved.elapsed());
         let frames = self.run(&["frames"])?;
-        bench::time(&format!("{metric}-longest-frame"), longest(&frames, "window")?);
+        bench::time(
+            &format!("{metric}-longest-frame"),
+            longest(&frames, "window")?,
+        );
         bench::time(
             &format!("{metric}-longest-plugin-frame"),
             longest(&frames, CANVAS_PLUGIN)?,
