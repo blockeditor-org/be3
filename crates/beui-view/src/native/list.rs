@@ -1,12 +1,12 @@
-use crate::types::Align;
 use crate::reactive::Children;
-use crate::types::Direction;
 use crate::reactive::Get;
-use crate::types::Justify;
 use crate::reactive::ListChild;
 use crate::reactive::Prop;
 use crate::reactive::create_binding;
 use crate::reactive::with_document;
+use crate::types::Align;
+use crate::types::Direction;
+use crate::types::Justify;
 use beui_core::document::Document;
 use beui_core::node::NodeId;
 
