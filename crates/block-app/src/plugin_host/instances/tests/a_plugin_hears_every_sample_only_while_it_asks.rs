@@ -23,7 +23,10 @@ fn a_plugin_hears_every_sample_only_while_it_asks() {
             .collect()
     };
 
-    let (messages, _) = instances.forward(INSTANCE, REGION, &stroke(), &|_, _| beui::Aim::Own, &|_| None);
+    let (messages, _) =
+        instances.forward(INSTANCE, REGION, &stroke(), &|_, _| beui::Aim::Own, &|_| {
+            None
+        });
     assert_eq!(
         xs(&messages),
         [30.0],
@@ -40,7 +43,10 @@ fn a_plugin_hears_every_sample_only_while_it_asks() {
         claims: Vec::new(),
         description: None,
     }]);
-    let (messages, _) = instances.forward(INSTANCE, REGION, &stroke(), &|_, _| beui::Aim::Own, &|_| None);
+    let (messages, _) =
+        instances.forward(INSTANCE, REGION, &stroke(), &|_, _| beui::Aim::Own, &|_| {
+            None
+        });
     assert_eq!(
         xs(&messages),
         [10.0, 20.0, 30.0],

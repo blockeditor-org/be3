@@ -290,7 +290,10 @@ impl Screens {
                 };
                 for event in &batch.events {
                     let over = event.over.and_then(|over| {
-                        let (instance, region) = self.layout.placement(over).map(|placement| (placement.instance, placement.region))?;
+                        let (instance, region) = self
+                            .layout
+                            .placement(over)
+                            .map(|placement| (placement.instance, placement.region))?;
                         Some(crate::RegionId { instance, region })
                     });
                     session.input(region, event, over);

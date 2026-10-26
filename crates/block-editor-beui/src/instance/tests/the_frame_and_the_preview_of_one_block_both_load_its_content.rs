@@ -60,7 +60,8 @@ fn screen(region: EditorRegion, screen: u32) -> (ScreenPlacement, ScreenRequest)
             scale_factor: 1.0,
         },
         frame: (region == EditorRegion::Frame).then(FrameSpec::default),
-        windows: false, placement: None,
+        windows: false,
+        placement: None,
     };
     (placement, request)
 }

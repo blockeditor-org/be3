@@ -20,9 +20,9 @@ use block_editor_beui::beui::unstyled::{
     Container, DockNode, DockPane, DockWindow, TabId, container_size,
 };
 use block_editor_beui::beui::{Modifiers, NodeId, Pos2, Rect, Vec2, pos2, vec2};
-use block_editor_beui::{MediaWatch, PowerWatch};
 use block_editor_beui::{Editor, Loaded};
 use block_editor_beui::{HostPanel, HostWindowId};
+use block_editor_beui::{MediaWatch, PowerWatch};
 use block_shell::{
     AttachedWindow, BlockTab, Failure, FloatingWindow, PanelWindow, PickerDialog, Pickers,
     RenameDialog, Workspace, WorkspaceDialogs,
@@ -60,17 +60,17 @@ impl block_editor_beui::BeuiApp for LinuxDesktopApp {
         view! {
             <Layers>
                 <Show condition={ready}>|| {
-                let Some(desktop) = shared.get_untracked() else {
-                    return view! {
-                        <Frame />
+                    let Some(desktop) = shared.get_untracked() else {
+                        return view! {
+                            <Frame />
+                        };
                     };
-                };
-                view! {
-                    <Container>|_|
-                        <DisplayBody desktop display />
-                    </Container>
-                }
-            }</Show>
+                    view! {
+                        <Container>|_|
+                            <DisplayBody desktop display />
+                        </Container>
+                    }
+                }</Show>
             </Layers>
         }
     }

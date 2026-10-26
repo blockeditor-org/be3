@@ -130,8 +130,11 @@ impl Desk {
             pixel_height: (size.y * scale).round() as u32,
             scale_factor: scale,
         };
-        let displays = self.displays.iter().enumerate().map(|(index, display)| {
-            ScreenRequest {
+        let displays = self
+            .displays
+            .iter()
+            .enumerate()
+            .map(|(index, display)| ScreenRequest {
                 screen: display.screen,
                 instance: INSTANCE,
                 region: match index {
@@ -145,8 +148,7 @@ impl Desk {
                 },
                 windows: true,
                 placement: None,
-            }
-        });
+            });
         let windows = self.windows.iter().map(|window| ScreenRequest {
             screen: window.screen,
             instance: INSTANCE,
@@ -160,16 +162,14 @@ impl Desk {
     }
 
     fn ask(&mut self, request: WindowRequest) {
-        let find = |windows: &[Hosted], window: u64| {
-            windows.iter().position(|held| held.window == window)
-        };
+        let find =
+            |windows: &[Hosted], window: u64| windows.iter().position(|held| held.window == window);
         match request {
             WindowRequest::Open(open) => {
                 let origin = match open.placement {
                     WindowPlacement::Over(over) => {
                         let screen = self.region_screen(over.region.region);
-                        screen.map_or(Pos2::ZERO, |screen| self.origin(screen))
-                            + over.at.to_vec2()
+                        screen.map_or(Pos2::ZERO, |screen| self.origin(screen)) + over.at.to_vec2()
                     }
                     WindowPlacement::Host(placement) => {
                         read(&placement).unwrap_or(self.pointer - OPEN_GRAB)
@@ -261,13 +261,13 @@ fn placement(rect: Rect) -> String {
 fn read(placement: &str) -> Option<Pos2> {
     let mut words = placement.split_whitespace();
     (words.next()? == "desktop").then_some(())?;
-    Some(pos2(words.next()?.parse().ok()?, words.next()?.parse().ok()?))
+    Some(pos2(
+        words.next()?.parse().ok()?,
+        words.next()?.parse().ok()?,
+    ))
 }
 
 impl<A: BeuiApp> BeuiTest<A> {
-    /// Shows the editor as a desktop host with these displays (each a rect in the desktop's
-    /// points and its scale) does: the frame on the first display, a `display(n)` region on
-    /// each other, and every window the plugin opens as a window of the host's own.
     pub fn show_on_displays(&mut self, displays: &[(Rect, f32)]) {
         let desk = Desk::new(displays);
         self.size = desk.displays[0].rect.size();
@@ -294,8 +294,6 @@ impl<A: BeuiApp> BeuiTest<A> {
         self.place();
     }
 
-    /// The windows the host shows for the plugin, each its rect in the desktop's points,
-    /// bottom first.
     pub fn desk_windows(&self) -> Vec<Rect> {
         self.desk
             .as_ref()
@@ -303,7 +301,6 @@ impl<A: BeuiApp> BeuiTest<A> {
             .unwrap_or_default()
     }
 
-    /// The scale each window the host shows is drawn at, bottom first.
     pub fn desk_window_scales(&self) -> Vec<f32> {
         self.desk
             .as_ref()
@@ -316,8 +313,6 @@ impl<A: BeuiApp> BeuiTest<A> {
             .unwrap_or_default()
     }
 
-    /// Where a node is on the desktop: its rect in its window, moved by where the host shows
-    /// that window.
     pub fn desk_rect(&self, node: NodeId) -> Option<Rect> {
         let desk = self.desk.as_ref()?;
         let document = self.document();
@@ -332,7 +327,6 @@ impl<A: BeuiApp> BeuiTest<A> {
         Some(rect.translate(desk.origin(screen).to_vec2()))
     }
 
-    /// Every node with this test id, as rects on the desktop.
     pub fn desk_rects_of(&self, test_id: &str) -> Vec<Rect> {
         let nodes = self.document().find_test_ids(test_id);
         nodes
@@ -341,22 +335,18 @@ impl<A: BeuiApp> BeuiTest<A> {
             .collect()
     }
 
-    /// Presses at a point of the desktop, in a frame of its own.
     pub fn desk_press(&mut self, at: Pos2) {
         self.desk_pointer(at, Some(true));
     }
 
-    /// Moves the pointer to a point of the desktop, in a frame of its own.
     pub fn desk_move(&mut self, at: Pos2) {
         self.desk_pointer(at, None);
     }
 
-    /// Lets go at a point of the desktop, in a frame of its own.
     pub fn desk_release(&mut self, at: Pos2) {
         self.desk_pointer(at, Some(false));
     }
 
-    /// Drags from one point of the desktop to another in `steps` moves, a frame each.
     pub fn desk_drag(&mut self, from: Pos2, to: Pos2, steps: usize) {
         self.desk_press(from);
         for step in 1..=steps.max(1) {
@@ -437,10 +427,11 @@ impl<A: BeuiApp> BeuiTest<A> {
         self.step(Vec::new());
     }
 
-    /// Asserts what a display shows: the region on it and every window the host shows
-    /// there, each drawn at the display's scale.
     pub fn desk_snapshot(&mut self, name: &str, display: usize) {
-        let desk = self.desk.as_ref().expect("desk paintings need show_on_displays");
+        let desk = self
+            .desk
+            .as_ref()
+            .expect("desk paintings need show_on_displays");
         let shown = desk.displays[display];
         let output = self
             .output

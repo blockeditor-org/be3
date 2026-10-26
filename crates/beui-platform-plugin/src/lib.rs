@@ -253,7 +253,9 @@ impl ModuleRunner {
         let window = request.window();
         match request {
             WindowRequest::Open {
-                window, placement, size,
+                window,
+                placement,
+                size,
             } => {
                 let opener = match &placement {
                     WindowPlacement::Over { window, .. } => self.region_of(*window),
@@ -268,10 +270,12 @@ impl ModuleRunner {
                 let placement = match placement {
                     WindowPlacement::AtPointer => block_plugin_api::WindowPlacement::AtPointer,
                     WindowPlacement::Over { window: over, at } => match self.region_of(over) {
-                        Some(region) => block_plugin_api::WindowPlacement::Over(block_plugin_api::WindowOver {
-                            region: reference(region),
-                            at: beui_core::geometry::Pos2::new(at.x / ratio, at.y / ratio),
-                        }),
+                        Some(region) => {
+                            block_plugin_api::WindowPlacement::Over(block_plugin_api::WindowOver {
+                                region: reference(region),
+                                at: beui_core::geometry::Pos2::new(at.x / ratio, at.y / ratio),
+                            })
+                        }
                         None => block_plugin_api::WindowPlacement::AtPointer,
                     },
                     WindowPlacement::Host(HostPlacement(placement)) => {

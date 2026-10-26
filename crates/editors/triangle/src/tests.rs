@@ -23,6 +23,7 @@ fn region() -> Region {
         spec: FrameSpec::default(),
         describe: None,
         seen: true,
-        windows: false, placement: None,
+        windows: false,
+        placement: None,
     }
 }

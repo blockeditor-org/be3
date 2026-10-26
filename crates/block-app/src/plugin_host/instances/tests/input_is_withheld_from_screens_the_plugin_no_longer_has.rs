@@ -21,7 +21,13 @@ fn input_is_withheld_from_screens_the_plugin_no_longer_has() {
 
     instances.screen_set(Vec::new());
 
-    let (messages, _) = instances.forward(INSTANCE, REGION, &forwarded(Vec::new(), None, false), &|_, _| beui::Aim::Own, &|_| None);
+    let (messages, _) = instances.forward(
+        INSTANCE,
+        REGION,
+        &forwarded(Vec::new(), None, false),
+        &|_, _| beui::Aim::Own,
+        &|_| None,
+    );
     assert!(messages.is_empty());
     assert!(
         instances

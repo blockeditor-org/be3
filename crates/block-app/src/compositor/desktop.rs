@@ -107,9 +107,11 @@ pub(crate) fn request(plugin: &str, requests: Vec<WindowRequest>) {
         return;
     }
     PENDING.with(|pending| {
-        pending
-            .borrow_mut()
-            .extend(requests.into_iter().map(|request| (plugin.to_owned(), request)))
+        pending.borrow_mut().extend(
+            requests
+                .into_iter()
+                .map(|request| (plugin.to_owned(), request)),
+        )
     });
     crate::host::request_repaint();
 }
@@ -119,7 +121,12 @@ pub(crate) fn forget(plugin: &str) {
     crate::host::request_repaint();
 }
 
-pub(crate) fn note_origin(plugin: &str, instance: EditorInstanceId, region: EditorRegion, origin: Pos2) {
+pub(crate) fn note_origin(
+    plugin: &str,
+    instance: EditorInstanceId,
+    region: EditorRegion,
+    origin: Pos2,
+) {
     ORIGINS.with(|origins| {
         origins
             .borrow_mut()
@@ -306,9 +313,8 @@ fn owner_index(key: &FloatedKey) -> Option<usize> {
 }
 
 fn desktop_displays() -> Vec<Rect> {
-    crate::display::shown().with_untracked(|shown| {
-        shown.iter().map(|display| display.rect).collect()
-    })
+    crate::display::shown()
+        .with_untracked(|shown| shown.iter().map(|display| display.rect).collect())
 }
 
 fn origin_of(
@@ -325,7 +331,12 @@ fn origin_of(
         return held.rect.min;
     }
     ORIGINS
-        .with(|origins| origins.borrow().get(&(plugin.to_owned(), instance, region)).copied())
+        .with(|origins| {
+            origins
+                .borrow()
+                .get(&(plugin.to_owned(), instance, region))
+                .copied()
+        })
         .unwrap_or(Pos2::ZERO)
 }
 
@@ -375,9 +386,7 @@ pub(crate) fn shown_on(
                 .filter(|window| window.key.plugin == plugin && window.key.instance == instance)
                 .filter(|window| {
                     let owner = crate::display::owner(&displays, window.rect);
-                    let moving = gesture
-                        .as_ref()
-                        .filter(|gesture| gesture.key == window.key);
+                    let moving = gesture.as_ref().filter(|gesture| gesture.key == window.key);
                     match moving {
                         Some(gesture) => {
                             display.intersects(window.rect)

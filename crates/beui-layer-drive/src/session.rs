@@ -1104,7 +1104,11 @@ impl Session {
             let steps: Vec<Vec<Incoming>> = match shown_in {
                 Some(window) => steps
                     .into_iter()
-                    .map(|step| step.into_iter().map(|incoming| incoming.in_window(window)).collect())
+                    .map(|step| {
+                        step.into_iter()
+                            .map(|incoming| incoming.in_window(window))
+                            .collect()
+                    })
                     .collect(),
                 None => steps,
             };

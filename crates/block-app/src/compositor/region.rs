@@ -567,7 +567,14 @@ pub(crate) fn PluginRegion(
             let target = |node: beui::NodeId| {
                 super::desktop::catcher(node).map(|held| (held.instance, held.region))
             };
-            plugin_host::forward_region(&plugin_id.value(), instance, region, &input, &aim, &target);
+            plugin_host::forward_region(
+                &plugin_id.value(),
+                instance,
+                region,
+                &input,
+                &aim,
+                &target,
+            );
         }
     };
     if let Some(pan_drag) = pan_drag {
@@ -686,11 +693,9 @@ pub(crate) fn PluginRegion(
                     </Interactive>
                 </BackHandler>
                 <Notices loading failure id={crash_id.clone()} />
-                <Show condition={shows_desktop}>|| {
-                    view! {
-                        <DesktopWindows editor={desktop_editor.with(Clone::clone)} state rect />
-                    }
-                }</Show>
+                <Show condition={shows_desktop}>||
+                    <DesktopWindows editor={desktop_editor.with(Clone::clone)} state rect />
+                </Show>
                 <RegionChildren state rect child_view below=false />
                 <Drawing draw={floating} />
             </Layers>

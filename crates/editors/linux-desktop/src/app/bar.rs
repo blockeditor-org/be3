@@ -80,7 +80,8 @@ pub(crate) fn DesktopBar(
     let epaper = editor.watch::<EpaperWatch>();
     let refresh = move || editor.act(linux_desktop::epaper::refresh);
     let displays = editor.watch::<DisplaysWatch>();
-    let screen = create_memo(move || displays.with(|displays| displays.get(display as usize).cloned()));
+    let screen =
+        create_memo(move || displays.with(|displays| displays.get(display as usize).cloned()));
     let display_settings = editor.effective_settings::<DisplaySettings>();
     let rotatable = create_memo(move || {
         display_settings.with(DisplaySettings::rotate_in_bar) && screen.with(Option::is_some)

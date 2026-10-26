@@ -1407,8 +1407,8 @@ impl EditorHost {
             region,
             None | Some(EditorRegion::Frame | EditorRegion::Display(_))
         )
-            .then(|| self.view.get())
-            .flatten()
+        .then(|| self.view.get())
+        .flatten()
     }
 
     pub fn pan_view(&self, delta: Vec2) {

@@ -892,7 +892,12 @@ impl EditorSession {
             .unwrap_or_default()
     }
 
-    pub(crate) fn input(&mut self, region: EditorRegion, event: &TimedInput, over: Option<RegionId>) {
+    pub(crate) fn input(
+        &mut self,
+        region: EditorRegion,
+        event: &TimedInput,
+        over: Option<RegionId>,
+    ) {
         self.open(region);
         let context = self.context(region);
         self.module

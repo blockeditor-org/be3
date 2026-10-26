@@ -2132,18 +2132,16 @@ fn apply_offers(runtime: &mut Runtime, instance: EditorInstanceId, region: Edito
         ),
     };
     let visible = shown.map_or(Rect::ZERO, |source| scale_rect(source, size));
-    runtime
-        .instances
-        .place_mounted(
-            instance,
-            region,
-            frame,
-            size,
-            visible,
-            scale_factor,
-            windows,
-            host_placement,
-        );
+    runtime.instances.place_mounted(
+        instance,
+        region,
+        frame,
+        size,
+        visible,
+        scale_factor,
+        windows,
+        host_placement,
+    );
     if let Some(view) = view {
         runtime.instances.set_view(instance, view);
     }

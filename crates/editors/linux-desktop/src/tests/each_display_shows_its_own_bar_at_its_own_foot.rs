@@ -23,6 +23,10 @@ fn each_display_shows_its_own_bar_at_its_own_foot() {
         assert_eq!(bar.width(), display.width(), "and spans it");
         assert_eq!(bar.bottom(), display.bottom(), "along its foot");
     }
-    fixture.test.desk_snapshot("each_display_with_its_own_bar_left", 0);
-    fixture.test.desk_snapshot("each_display_with_its_own_bar_right", 1);
+    fixture
+        .test
+        .desk_snapshot("each_display_with_its_own_bar_left", 0);
+    fixture
+        .test
+        .desk_snapshot("each_display_with_its_own_bar_right", 1);
 }

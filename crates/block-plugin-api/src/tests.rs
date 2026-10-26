@@ -83,7 +83,8 @@ fn region_screen(
             pixel_height,
             scale_factor,
         },
-        windows: false, placement: None,
+        windows: false,
+        placement: None,
     }
 }
 

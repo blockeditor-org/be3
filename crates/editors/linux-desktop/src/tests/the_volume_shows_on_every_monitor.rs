@@ -35,6 +35,10 @@ fn the_volume_shows_on_every_monitor() {
         shown[1].iter().all(|rect| right.contains_rect(*rect)) && shown[1].len() == 1,
         "and on the second, in its own region: {shown:?}"
     );
-    fixture.test.desk_snapshot("the_volume_on_two_monitors_left", 0);
-    fixture.test.desk_snapshot("the_volume_on_two_monitors_right", 1);
+    fixture
+        .test
+        .desk_snapshot("the_volume_on_two_monitors_left", 0);
+    fixture
+        .test
+        .desk_snapshot("the_volume_on_two_monitors_right", 1);
 }

@@ -14,9 +14,11 @@ fn a_windows_tab_dragged_onto_a_window_on_another_display_joins_it() {
 
     let second = fixture.desk_text("Program 2");
     let grab = pos2(second.max.x + 80.0, second.center().y);
-    fixture
-        .test
-        .desk_drag(grab, grab + vec2(right.min.x - second.min.x + 40.0, 40.0), 6);
+    fixture.test.desk_drag(
+        grab,
+        grab + vec2(right.min.x - second.min.x + 40.0, 40.0),
+        6,
+    );
     fixture.settle();
     let moved = fixture.desk_text("Program 2");
     assert!(

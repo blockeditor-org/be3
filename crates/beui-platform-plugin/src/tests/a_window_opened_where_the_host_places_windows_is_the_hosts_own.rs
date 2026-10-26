@@ -25,12 +25,14 @@ fn a_window_opened_where_the_host_places_windows_is_the_hosts_own() {
                 },
             }
         })
-        .hooked(move |context| seen.set(context.input(|input| {
-            input
-                .pointer
-                .interact_pos()
-                .map(|pos| (input.pointer.window, pos))
-        }))),
+        .hooked(move |context| {
+            seen.set(context.input(|input| {
+                input
+                    .pointer
+                    .interact_pos()
+                    .map(|pos| (input.pointer.window, pos))
+            }))
+        }),
     );
     let mut frame = whole(400.0, 300.0);
     frame.windows = true;
