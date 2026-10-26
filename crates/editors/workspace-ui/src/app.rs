@@ -96,7 +96,7 @@ pub(crate) fn WorkspaceBody(workspace: Workspace) -> NodeId {
                 <Failure failed={failed} reason={reason} />
                 <Docking @sizing=ItemSize::Percent(100.0) layout>
                     <DockSplit id="workspace" fraction=FILES_SHARE>
-                        <DockPane id="files">
+                        <DockPane id="files" locked=true>
                             <DockTab id=FILES title="Files" icon=ICON_FOLDER>
                                 <FilesPanel workspace />
                             </DockTab>
@@ -109,6 +109,7 @@ pub(crate) fn WorkspaceBody(workspace: Workspace) -> NodeId {
                         </DockPane>
                         <DockPane
                             id="editors"
+                            locked=true
                             empty={move || view! {
                                 <EmptyPanel />
                             }}
