@@ -137,6 +137,7 @@ struct Surface {
     anchor: NodeId,
     masked: Memo<bool>,
     disabled: Memo<bool>,
+    locked: Memo<bool>,
     remote_cursors: Memo<Vec<RemoteTextCursor>>,
     drop_caret: Memo<Option<usize>>,
     text_extent: Signal<Vec2>,
@@ -954,7 +955,7 @@ fn release(cx: &Context, active: bool) {
 }
 
 fn insert_text(cx: &Context, text: &str) {
-    if cx.disabled.get_untracked() {
+    if cx.locked.get_untracked() {
         return;
     }
     let text = match cx.single_line {
@@ -971,7 +972,7 @@ fn insert_text(cx: &Context, text: &str) {
 }
 
 fn ime(cx: &Context, event: ImeEvent, key: impl Fn(KeyPress) -> bool) {
-    if cx.disabled.get_untracked() {
+    if cx.locked.get_untracked() {
         return;
     }
     let typed = |text: &str| -> String {
@@ -1091,6 +1092,8 @@ pub fn TextArea(
     #[prop(default = false)] focused: Prop<bool>,
     #[prop(default = true)] keyboard_on_focus: bool,
     #[prop(default = false)] disabled: Prop<bool>,
+    #[prop(default = false)] read_only: Prop<bool>,
+    #[prop(default = true)] find: bool,
     font_size: Prop<f32>,
     padding: Prop<Vec2>,
     #[prop(default = None)] prose: Prop<Option<Prose>>,
@@ -1139,6 +1142,8 @@ pub fn TextArea(
                 let masked = create_memo(move || password.get());
                 let placeholder = create_memo(move || placeholder.get());
                 let disabled = create_memo(move || disabled.get());
+                let read_only = create_memo(move || read_only.get());
+                let locked = create_memo(move || disabled.get() || read_only.get());
                 let font_size = create_memo(move || font_size.get());
                 let prose = create_memo(move || prose.get());
                 let padding = create_memo(move || padding.get());
@@ -1189,6 +1194,10 @@ pub fn TextArea(
                             true => node.set_disabled(),
                             false => node.clear_disabled(),
                         }
+                        match read_only.get() && !disabled.get() {
+                            true => node.set_read_only(),
+                            false => node.clear_read_only(),
+                        }
                         node
                     },
                 );
@@ -1234,7 +1243,7 @@ pub fn TextArea(
                     let trigger = trigger?;
                     state.cursors().get();
                     state.content().get();
-                    if !focused.get() || state.with_core(|core| core.composition()).is_some() {
+                    if !focused.get() || locked.get() || state.with_core(|core| core.composition()).is_some() {
                         return None;
                     }
                     query(state, trigger)
@@ -1301,6 +1310,7 @@ pub fn TextArea(
                     anchor,
                     masked,
                     disabled,
+                    locked,
                     remote_cursors,
                     drop_caret,
                     text_extent,
@@ -1427,7 +1437,7 @@ pub fn TextArea(
                 let menu = create_memo(move || has_menu && completing.get());
                 if multi_line {
                     action_scope(&outer);
-                    actions::register(state, disabled);
+                    actions::register(state, locked, find);
                 }
 
                 view! {
@@ -1500,12 +1510,13 @@ fn Editing(field: Field) -> NodeId {
     component_accessibility(described);
     let single_line = cx.single_line;
     let disabled = cx.disabled;
+    let locked = cx.locked;
     view! {
         <Interactive
             focusable=true
             focused
             tab_stop
-            ime={create_memo(move || !disabled.get())}
+            ime={create_memo(move || !locked.get())}
             keyboard_on_focus
             ime_cursor
             ime_text
@@ -1520,7 +1531,8 @@ fn Editing(field: Field) -> NodeId {
             pastes
             on_paste={move |pasted: Pasted| match pasted {
                 Pasted::Text(typed) => insert_text(&cx, &typed),
-                Pasted::Image(image) => on_image_paste.call(image),
+                Pasted::Image(image) if !cx.locked.get_untracked() => on_image_paste.call(image),
+                Pasted::Image(_) => {}
             }}
             on_ime={move |event: ImeEvent| {
                 ime(&cx, event, |press| field_key(&cx, press))

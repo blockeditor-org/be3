@@ -893,7 +893,7 @@ fn marker(cx: Context, model: Memo<Rc<Row>>, item: Memo<Option<InlineItem>>) -> 
         depth: create_memo(move || model.get().look.depth),
         style,
         checked,
-        disabled: cx.disabled,
+        disabled: cx.locked,
     }
 }
 

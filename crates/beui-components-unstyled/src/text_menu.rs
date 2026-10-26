@@ -37,6 +37,7 @@ pub fn TextContextMenu(
     menu: Option<MenuStyle>,
     #[prop(default = false)] masked: Prop<bool>,
     #[prop(default = false)] disabled: Prop<bool>,
+    #[prop(default = false)] read_only: Prop<bool>,
     #[prop(default = ItemSize::Intrinsic)] child_size: Prop<ItemSize>,
     #[prop(children)] content: Render<Callback<Option<Rect>>>,
 ) -> NodeId {
@@ -60,15 +61,17 @@ pub fn TextContextMenu(
             .selection_ranges()
             .iter()
             .any(|range| !range.is_empty());
-        match selected && !masked.get() {
-            true => vec![
-                MenuAction::Copy,
-                MenuAction::Cut,
-                MenuAction::Paste,
-                MenuAction::SelectAll,
-            ],
-            false => vec![MenuAction::Paste, MenuAction::SelectAll],
-        }
+        let copies = selected && !masked.get();
+        let edits = !read_only.get();
+        [
+            (MenuAction::Copy, copies),
+            (MenuAction::Cut, copies && edits),
+            (MenuAction::Paste, edits),
+            (MenuAction::SelectAll, true),
+        ]
+        .into_iter()
+        .filter_map(|(action, shown)| shown.then_some(action))
+        .collect::<Vec<_>>()
     });
     let off = create_memo(move || disabled.get());
     let open = Callback::new(move |at: Option<Rect>| {

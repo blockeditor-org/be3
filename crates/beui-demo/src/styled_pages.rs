@@ -65,6 +65,8 @@ const SERVER_MESSAGES: [&str; 6] = [
     "worker 2 idle",
 ];
 const EDITOR_HEIGHT: f32 = 320.0;
+const NOTE_HEIGHT: f32 = 96.0;
+const NOTE_TEXT: &str = "This note can be selected and copied, but not changed.\nIt has no line numbers or find bar, and draws in the accent colour at a larger size.\n";
 const STAGE_HEIGHT: f32 = 360.0;
 const STAGE_VIEW: PanZoomView = PanZoomView::new(beui::pos2(200.0, 120.0), 0.8);
 const STAGE_CARDS: [(f32, f32, f32, f32, &str); 4] = [
@@ -3830,6 +3832,9 @@ pub(crate) fn EditorPage() -> NodeId {
             <Sample title="Markdown editor" code={vec![MarkdownEditor::SOURCE]}>
                 <MarkdownEditor />
             </Sample>
+            <Sample title="Read-only text" code={vec![ReadOnlyNote::SOURCE]}>
+                <ReadOnlyNote />
+            </Sample>
         </ScrollPage>
     }
 }
@@ -3857,6 +3862,27 @@ fn MarkdownEditor() -> NodeId {
                 />
             </List>
             <TextArea @sizing=ItemSize::Fixed(EDITOR_HEIGHT) state={state} />
+        </List>
+    }
+}
+
+#[sample]
+#[component]
+fn ReadOnlyNote() -> NodeId {
+    let document = Arc::new(TextBuffer::new(NOTE_TEXT)) as Arc<dyn text_editor_core::Document>;
+    let state = TextAreaState::new(document);
+    view! {
+        <List spacing=Space::None>
+            <TextArea
+                @sizing=ItemSize::Fixed(NOTE_HEIGHT)
+                @test_id={"demo.read-only-note"}
+                state={state}
+                read_only=true
+                color=TextColor::Accent
+                size=TextSize::Lg
+                line_numbers=false
+                find=false
+            />
         </List>
     }
 }

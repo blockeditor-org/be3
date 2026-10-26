@@ -15,8 +15,8 @@ use crate::text::{Text, TextColor, TextSize};
 use crate::theme::{Theme, use_theme};
 use beui_components_unstyled as unstyled;
 use beui_components_unstyled::{
-    BlockGeometry, ChipGeometry, Completer, MarkerColumn, MarkerKind, QuoteBar, RemoteTextCursor,
-    TableFill, TableLines, TextAreaColors, TextAreaGeometry, TextAreaLook, TextAreaState, TextLeaf,
+    BlockGeometry, ChipGeometry, Completer, MarkerColumn, MarkerKind, Prose, QuoteBar,
+    RemoteTextCursor, SyntaxColors, TableFill, TableLines, TextAreaColors, TextAreaGeometry, TextAreaLook, TextAreaState, TextLeaf,
     TextLine, TextMarker, TextWidget, WidgetGeometry,
 };
 use beui_core::base::{Align, Direction, ItemSize};
@@ -112,6 +112,14 @@ pub fn TextArea(
     #[prop(default = None)] drop_caret: Prop<Option<usize>>,
     #[prop(default = String::new())] placeholder: Prop<String>,
     #[prop(default = false)] password: Prop<bool>,
+    #[prop(default = TextColor::Default)] color: Prop<TextColor>,
+    #[prop(default = TextSize::Base)] size: Prop<TextSize>,
+    #[prop(default = None)] prose: Prop<Option<Prose>>,
+    #[prop(default = false)] disabled: Prop<bool>,
+    #[prop(default = false)] read_only: Prop<bool>,
+    #[prop(default = false)] focused: Prop<bool>,
+    #[prop(default = true)] line_numbers: bool,
+    #[prop(default = true)] find: bool,
     #[prop(default = false)] show_runs: Prop<bool>,
     #[prop(default = Vec::new())] client_colors: Prop<Vec<(u64, Color32)>>,
     block: Option<RenderFn<usize>>,
@@ -123,10 +131,27 @@ pub fn TextArea(
     #[prop(default = false)] pastes_images: bool,
     on_widget_press: Callback<usize, bool>,
     on_focus_change: Callback<bool>,
+    on_content_size: Callback<Vec2>,
     on_image_paste: Callback<PickedFile>,
 ) -> NodeId {
     let theme = use_theme();
-    let colors = create_memo(move || text_area_colors(&theme.get()));
+    let colors = create_memo(move || {
+        let colors = text_area_colors(&theme.get());
+        match color.get() {
+            TextColor::Default => colors,
+            color => {
+                let text = color.resolve(&theme);
+                TextAreaColors {
+                    placeholder: text.scale_alpha(PLACEHOLDER_ALPHA),
+                    syntax: SyntaxColors::uniform(text),
+                    ..colors
+                }
+            }
+        }
+    });
+    let font_size = create_memo(move || size.get().px());
+    let disabled = create_memo(move || disabled.get());
+    let read_only = create_memo(move || read_only.get());
     let surface = NodeRef::new();
     api.fill(TextAreaSurfaceApi(surface));
     let block = block.unwrap_or_else(blank_widget);
@@ -140,12 +165,16 @@ pub fn TextArea(
     };
     view! {
         <List spacing=Space::None>
-            <FindBar state={state} />
+            <Show condition={find}>||
+                <FindBar state={state} read_only />
+            </Show>
             <unstyled::TextContextMenu
                 @sizing=ItemSize::Percent(100.0)
                 state={state}
                 menu={Some(menu_style())}
                 masked={password}
+                disabled
+                read_only
                 child_size=ItemSize::Percent(100.0)
             >|open_menu: Callback<Option<Rect>>|
                 <unstyled::TextArea
@@ -153,8 +182,15 @@ pub fn TextArea(
                     state={state}
                     widgets
                     colors
-                    font_size={TextSize::Base.px()}
+                    font_size
                     padding=TEXT_PADDING
+                    prose
+                    disabled
+                    read_only
+                    focused
+                    line_numbers
+                    find
+                    on_content_size
                     remote_cursors
                     drop_caret
                     placeholder
@@ -181,6 +217,7 @@ pub fn TextArea(
     }
 }
 
+const PLACEHOLDER_ALPHA: f32 = 0.4;
 const TEXT_PADDING: Vec2 = Vec2::new(Space::Lg.px(), Space::Md.px());
 const CARET_WIDTH: f32 = Stroke::Focus.px();
 const LINE_PADDING: (f32, f32) = (3.0, Space::Xs.px());

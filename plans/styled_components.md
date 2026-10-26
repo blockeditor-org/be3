@@ -1027,7 +1027,7 @@ Changes:
    Only nodes with an `Interactive` capture, so drawings stay transparent.
    Wheel deltas stay in window pixels. Selection handles grow with the zoom,
    as they are drawn in the scaled space.)
-2. **`styled::TextArea` gains:**
+2. **Done.** **`styled::TextArea` gains:**
    - `color: TextColor`, the text colour, with a placeholder derived from it;
    - `read_only` (shown normally, not editable, not reported as disabled),
      kept separate from `disabled`;
@@ -1038,6 +1038,12 @@ Changes:
    - `size` for the body text size (`TextSize`, `Custom` for content).
 
    There is no font-size or scale prop: zoom comes from the scaled space.
+   It also took `disabled` (canvas text that is not being edited must not take
+   presses, which `read_only` would) and `prose` (the canvas text style;
+   `Prose` is re-exported from styled). `unstyled::TextArea` gained `read_only`
+   and `find`, and `TextContextMenu` `read_only`. The canvas still passes its
+   own padding (`TEXT_INSET`); step 3 decides whether that becomes a `padding`
+   prop or the canvas drops it.
 3. **Canvas text is a `styled::TextArea`** in its scaled item while edited and
    while read-only, with `find=false`. It gains the text menu and the emoji
    completer, and its wrap no longer changes when editing starts.
