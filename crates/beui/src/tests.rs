@@ -37,7 +37,6 @@ mod a_catcher_that_declines_a_press_declines_the_embed_inside_it;
 mod a_catcher_that_lost_its_release_lets_go_of_the_pointer;
 mod a_catcher_under_a_dialog_that_is_under_another_hears_no_pointer;
 mod a_catcher_under_an_open_dialog_hears_no_press;
-mod a_centred_dialog_opens_on_the_screen_it_was_opened_from;
 mod a_change_inside_a_fixed_size_frame_lays_out_only_that_frame;
 mod a_change_inside_a_turned_child_still_paints_turned;
 mod a_child_tilted_by_an_angle_keeps_its_box_and_its_clips_take_the_tilt;
@@ -115,6 +114,7 @@ mod a_driver_acts_on_a_slider_the_way_a_screen_reader_does;
 mod a_driver_answers_a_file_dialog_in_a_window_that_is_not_simulated;
 mod a_driver_answers_a_file_dialog_with_a_file;
 mod a_driver_answers_a_save_dialog_by_writing_the_file;
+mod a_driver_around_space_clicks_by_name_through_its_app_tap_and_shoots_the_scene_through_its_screen_tap;
 mod a_driver_cancels_the_fingers_the_system_takes_back;
 mod a_driver_carries_grabbed_files_and_drops_them;
 mod a_driver_clicks_a_button_by_its_label_and_hears_what_changed;
@@ -198,7 +198,6 @@ mod a_half_typed_date_field_goes_back_to_its_value_when_the_focus_leaves;
 mod a_headless_window_fills_its_screen_when_the_app_goes_fullscreen;
 mod a_hidden_show_gives_its_share_of_the_space_to_its_visible_siblings;
 mod a_horizontal_scroll_lays_its_items_out_in_a_row;
-mod a_host_sees_the_time_of_the_frame_it_hosts;
 mod a_hosted_dock_window_keeps_the_size_and_place_its_host_reports_and_reopens_there;
 mod a_hosted_dock_window_opens_over_the_spot_it_has_in_the_dock;
 mod a_hosted_dock_window_resized_by_its_tab_asks_its_host_and_takes_the_size_it_reports;
@@ -219,6 +218,7 @@ mod a_launcher_closed_by_a_click_outside_within_one_frame_opens_again;
 mod a_launcher_closed_by_escape_opens_again;
 mod a_launcher_query_that_matches_nothing_runs_as_a_command_and_escape_closes;
 mod a_launcher_ranks_names_above_keywords_and_comments;
+mod a_layer_sees_the_time_of_the_frame_it_is_in;
 mod a_layout_builder_built_inside_another_settles_in_one_layout;
 mod a_layout_builder_in_a_scroll_rebuilds_for_the_width_it_is_given;
 mod a_layout_builder_in_a_wrapping_row_builds_only_for_the_width_it_is_laid_out_at;
@@ -285,6 +285,7 @@ mod a_press_and_release_in_one_frame_on_a_submenu_item_selects_it_once;
 mod a_press_below_a_text_areas_last_line_drags_a_selection_up_from_its_end;
 mod a_press_cancelled_after_the_pointer_left_does_not_wait_for_its_release;
 mod a_press_claimed_by_its_modifiers_goes_to_the_claimant_and_not_the_catcher_beneath;
+mod a_press_held_in_one_window_is_forwarded_in_its_coordinates_once_the_pointer_crosses_into_another;
 mod a_press_in_one_window_dragged_into_another_drops_on_a_target_there;
 mod a_press_inside_a_color_wheels_triangle_picks_saturation_and_value;
 mod a_press_is_reported_in_the_coordinates_of_the_interactive_it_lands_on;
@@ -434,7 +435,7 @@ mod a_wheel_over_the_software_keyboard_scrolls_what_holds_it;
 mod a_wheel_turned_before_the_pointer_moves_on_scrolls_what_it_was_over;
 mod a_window_dragged_far_away_keeps_its_grip_in_the_dock;
 mod a_window_drawn_at_a_new_raster_keeps_its_layout_and_lays_out_nothing;
-mod a_window_host_sizes_the_main_window_and_shows_what_it_composes;
+mod a_window_hosting_layer_sizes_the_main_window_and_shows_what_it_composes;
 mod a_window_larger_than_the_dock_is_drawn_no_larger_than_it;
 mod a_window_lays_out_and_paints_at_the_pixels_per_point_its_host_reports;
 mod a_window_released_past_the_edge_of_the_dock_springs_back_and_comes_to_rest;
@@ -840,6 +841,7 @@ mod the_launcher_filters_as_it_is_typed_and_launches_with_enter;
 mod the_left_and_right_arrows_collapse_and_expand_an_inspector_row;
 mod the_menu_of_a_selectable_text_copies_what_is_selected;
 mod the_more_button_of_a_selection_toolbar_opens_the_full_menu;
+mod the_on_screen_keyboard_opens_in_the_window_holding_the_focused_field;
 mod the_release_of_an_escape_that_closed_a_dialog_stays_out_of_the_app_it_returns_to;
 mod the_reveal_button_scrolls_the_inspector_tree_to_a_picked_row;
 mod the_right_arrow_scrolls_a_horizontal_scroll_the_focus_is_in;
@@ -1012,7 +1014,7 @@ impl Harness {
     pub(crate) fn sized(mut document: Document, viewport: Vec2) -> Self {
         crate::verify_paint(true);
         crate::inspector::install(&mut document);
-        let window = beui_core::app::automation::WindowSize {
+        let window = beui_core::window::WindowSize {
             size: viewport,
             scale: 1.0,
         };
@@ -1029,7 +1031,7 @@ impl Harness {
     pub(crate) fn hosting_windows(mut document: Document, viewport: Vec2) -> Self {
         crate::verify_paint(true);
         crate::inspector::install(&mut document);
-        let window = beui_core::app::automation::WindowSize {
+        let window = beui_core::window::WindowSize {
             size: viewport,
             scale: 1.0,
         };
@@ -2352,7 +2354,7 @@ struct DrivenPlatform {
     unanswered: Vec<crate::PasteAnswer>,
 }
 
-impl beui_core::runner::Platform for DrivenPlatform {
+impl beui_core::runner::PlatformServices for DrivenPlatform {
     fn paste(&mut self, _kinds: &[crate::PasteKind], answer: crate::PasteAnswer) {
         self.unanswered.push(answer);
     }
@@ -2366,7 +2368,7 @@ pub(crate) fn headless<A: App + 'static>(app: A) -> crate::testing::Stepped<A> {
     crate::testing::Stepped::new(
         context(),
         app,
-        beui_core::app::automation::WindowSize {
+        beui_core::window::WindowSize {
             size: VIEWPORT,
             scale: 1.0,
         },
@@ -2528,7 +2530,7 @@ pub(crate) struct IntakePlatform {
     pub(crate) pastes: Vec<Vec<crate::PasteKind>>,
 }
 
-impl beui_core::runner::Platform for IntakePlatform {
+impl beui_core::runner::PlatformServices for IntakePlatform {
     fn paste(&mut self, kinds: &[crate::PasteKind], answer: crate::PasteAnswer) {
         self.pastes.push(kinds.to_vec());
         answer.send(kinds.iter().find_map(|kind| match kind {
@@ -2561,7 +2563,7 @@ impl Intaken {
             options: beui_core::runner::RunOptions::default(),
             context: context(),
             app: Box::new(Seeing(Rc::clone(&seen), Rc::clone(&ask))),
-            host: None,
+            layers: Vec::new(),
         });
         runner
             .start(
@@ -2806,30 +2808,6 @@ impl beui_core::renderer::Renderer for SpaceScreen {
     }
 }
 
-struct SharedSpace(Rc<RefCell<beui_adapter_space::Space>>);
-
-impl beui_core::runner::WindowHost for SharedSpace {
-    fn setup(&mut self, setup: &Setup) {
-        self.0.borrow_mut().setup(setup);
-    }
-
-    fn input(
-        &mut self,
-        incoming: &mut Vec<beui_core::runner::Incoming>,
-        view: &beui_core::runner::HostView,
-    ) {
-        self.0.borrow_mut().input(incoming, view);
-    }
-
-    fn frame(
-        &mut self,
-        output: &crate::FrameOutput,
-        view: &beui_core::runner::HostView,
-    ) -> beui_core::runner::Hosted {
-        self.0.borrow_mut().frame(output, view)
-    }
-}
-
 struct SharedDocument(Rc<RefCell<Document>>);
 
 impl crate::App for SharedDocument {
@@ -2840,24 +2818,24 @@ impl crate::App for SharedDocument {
 
 struct Nowhere;
 
-impl beui_core::runner::Platform for Nowhere {}
+impl beui_core::runner::PlatformServices for Nowhere {}
 
 pub(crate) struct InSpace {
     runner: beui_core::runner::Runner,
-    pub(crate) space: Rc<RefCell<beui_adapter_space::Space>>,
+    pub(crate) space: Rc<RefCell<beui_layer_space::Space>>,
     pub(crate) document: Rc<RefCell<Document>>,
 }
 
 impl InSpace {
     pub(crate) fn new(document: Document) -> Self {
-        let space = Rc::new(RefCell::new(beui_adapter_space::Space::new()));
+        let space = Rc::new(RefCell::new(beui_layer_space::Space::new()));
         let document = Rc::new(RefCell::new(document));
         let context = context();
         let mut runner = beui_core::runner::Runner::new(beui_core::runner::Launch {
             options: beui_core::runner::RunOptions::default(),
             context: context.clone(),
             app: Box::new(SharedDocument(Rc::clone(&document))),
-            host: Some(Box::new(SharedSpace(Rc::clone(&space)))),
+            layers: vec![Box::new(Rc::clone(&space))],
         });
         runner
             .start(

@@ -275,7 +275,7 @@ dependencies = [
  "be-drive",
  "be-server",
  "bench",
- "beui-core",
+ "beui-layer-drive",
  "build-id",
  "infinite-canvas-types",
  "libc",
@@ -288,7 +288,7 @@ name = "app-tests"
 version = "0.1.0"
 dependencies = [
  "be-drive",
- "beui-core",
+ "beui-layer-drive",
  "paint-snapshot",
 ]
 
@@ -825,6 +825,7 @@ name = "be-drive"
 version = "0.1.0"
 dependencies = [
  "beui-core",
+ "beui-layer-drive",
  "image",
  "libc",
  "paint-snapshot",
@@ -1132,17 +1133,18 @@ version = "0.1.0"
 dependencies = [
  "accesskit",
  "bench",
- "beui-adapter-android",
- "beui-adapter-headless",
- "beui-adapter-space",
- "beui-adapter-web",
- "beui-adapter-winit",
  "beui-components-styled",
  "beui-components-unstyled",
  "beui-core",
  "beui-font-browser",
  "beui-font-freetype",
  "beui-inspector",
+ "beui-layer-drive",
+ "beui-layer-space",
+ "beui-platform-android",
+ "beui-platform-headless",
+ "beui-platform-web",
+ "beui-platform-winit",
  "beui-renderer-dom",
  "beui-renderer-wgpu",
  "beui-view",
@@ -1155,100 +1157,6 @@ dependencies = [
  "wasm-bindgen",
  "web-sys",
  "wgpu",
-]
-
-[[package]]
-name = "beui-adapter-android"
-version = "0.1.0"
-dependencies = [
- "accesskit",
- "accesskit_android",
- "beui-core",
- "jni 0.22.4",
- "libc",
- "ndk 0.9.0",
- "ndk-context",
- "ndk-sys 0.6.0+11769913",
- "raw-window-handle",
-]
-
-[[package]]
-name = "beui-adapter-drm"
-version = "0.1.0"
-dependencies = [
- "be-dmabuf",
- "beui",
- "beui-core",
- "bytemuck",
- "rustix 1.1.4",
- "smithay",
- "ui-types",
- "wgpu",
- "xcursor",
-]
-
-[[package]]
-name = "beui-adapter-headless"
-version = "0.1.0"
-dependencies = [
- "beui-core",
- "beui-renderer-wgpu",
- "pollster",
-]
-
-[[package]]
-name = "beui-adapter-plugin"
-version = "0.1.0"
-dependencies = [
- "beui",
- "beui-core",
- "beui-renderer-wgpu",
- "block-editor-plugin",
- "block-plugin-api",
- "wgpu",
-]
-
-[[package]]
-name = "beui-adapter-space"
-version = "0.1.0"
-dependencies = [
- "beui-core",
- "beui-font-freetype",
- "beui-renderer-wgpu",
- "bytemuck",
- "glam",
- "paint-snapshot",
- "pollster",
- "wgpu",
-]
-
-[[package]]
-name = "beui-adapter-web"
-version = "0.1.0"
-dependencies = [
- "beui-core",
- "js-sys",
- "wasm-bindgen",
- "wasm-bindgen-futures",
- "web-sys",
-]
-
-[[package]]
-name = "beui-adapter-winit"
-version = "0.1.0"
-dependencies = [
- "accesskit",
- "accesskit_macos",
- "accesskit_unix",
- "accesskit_windows",
- "arboard",
- "ashpd",
- "beui-core",
- "futures-util",
- "image",
- "pollster",
- "rfd",
- "winit",
 ]
 
 [[package]]
@@ -1308,9 +1216,9 @@ version = "0.1.0"
 dependencies = [
  "bench",
  "beui",
- "beui-adapter-space",
  "beui-core",
  "beui-inspector",
+ "beui-layer-space",
  "beui-renderer-wgpu",
  "beui_macros",
  "block-ui-test",
@@ -1369,6 +1277,110 @@ dependencies = [
  "beui-view",
  "beui_macros",
  "reactive",
+]
+
+[[package]]
+name = "beui-layer-drive"
+version = "0.1.0"
+dependencies = [
+ "accesskit",
+ "beui-core",
+]
+
+[[package]]
+name = "beui-layer-space"
+version = "0.1.0"
+dependencies = [
+ "beui-core",
+ "beui-font-freetype",
+ "beui-renderer-wgpu",
+ "bytemuck",
+ "glam",
+ "paint-snapshot",
+ "pollster",
+ "wgpu",
+]
+
+[[package]]
+name = "beui-platform-android"
+version = "0.1.0"
+dependencies = [
+ "accesskit",
+ "accesskit_android",
+ "beui-core",
+ "jni 0.22.4",
+ "libc",
+ "ndk 0.9.0",
+ "ndk-context",
+ "ndk-sys 0.6.0+11769913",
+ "raw-window-handle",
+]
+
+[[package]]
+name = "beui-platform-drm"
+version = "0.1.0"
+dependencies = [
+ "be-dmabuf",
+ "beui",
+ "beui-core",
+ "bytemuck",
+ "rustix 1.1.4",
+ "smithay",
+ "ui-types",
+ "wgpu",
+ "xcursor",
+]
+
+[[package]]
+name = "beui-platform-headless"
+version = "0.1.0"
+dependencies = [
+ "beui-core",
+ "beui-layer-drive",
+ "beui-renderer-wgpu",
+ "pollster",
+]
+
+[[package]]
+name = "beui-platform-plugin"
+version = "0.1.0"
+dependencies = [
+ "beui",
+ "beui-core",
+ "beui-renderer-wgpu",
+ "block-editor-plugin",
+ "block-plugin-api",
+ "uuid",
+ "wgpu",
+]
+
+[[package]]
+name = "beui-platform-web"
+version = "0.1.0"
+dependencies = [
+ "beui-core",
+ "js-sys",
+ "wasm-bindgen",
+ "wasm-bindgen-futures",
+ "web-sys",
+]
+
+[[package]]
+name = "beui-platform-winit"
+version = "0.1.0"
+dependencies = [
+ "accesskit",
+ "accesskit_macos",
+ "accesskit_unix",
+ "accesskit_windows",
+ "arboard",
+ "ashpd",
+ "beui-core",
+ "futures-util",
+ "image",
+ "pollster",
+ "rfd",
+ "winit",
 ]
 
 [[package]]
@@ -1555,7 +1567,7 @@ dependencies = [
  "be-vcs",
  "be-wayland",
  "beui",
- "beui-adapter-drm",
+ "beui-platform-drm",
  "block-editor-plugin",
  "block-guest-abi",
  "block-guest-host",
@@ -1630,7 +1642,7 @@ dependencies = [
  "be-block",
  "be-model",
  "beui",
- "beui-adapter-plugin",
+ "beui-platform-plugin",
  "beui-renderer-wgpu",
  "block-editor-plugin",
  "block-plugin-api",

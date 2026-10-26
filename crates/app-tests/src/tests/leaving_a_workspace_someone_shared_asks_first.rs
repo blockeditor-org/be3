@@ -47,7 +47,7 @@ fn leaving_a_workspace_someone_shared_asks_first() {
     app.type_text("Team");
     app.key("Enter");
     app.wait("TreeItem \"Team\"");
-    app.run(&["click", "TreeItem \"Team\"", "right"]);
+    app.run(&["app", "click", "TreeItem \"Team\"", "right"]);
     app.click("#file-tree.section.share");
     app.click("#share.query");
     app.type_text("dev");
@@ -71,9 +71,9 @@ fn leaving_a_workspace_someone_shared_asks_first() {
     let (x, y) = open.split_once(',').expect("a place is X,Y");
     let x: f32 = x.parse().unwrap();
     let y: f32 = y.parse().unwrap();
-    app.run(&["click", &format!("{},{}", x + 10.0, y + 10.0)]);
+    app.run(&["app", "click", &format!("{},{}", x + 10.0, y + 10.0)]);
     app.wait("TreeItem \"Team\"");
-    app.run(&["click", "TreeItem \"Team\"", "right"]);
+    app.run(&["app", "click", "TreeItem \"Team\"", "right"]);
     app.click("#file-tree.section.leave");
     app.wait("Dialog \"Leave?\"");
     app.crop("Dialog \"Leave?\"");

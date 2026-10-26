@@ -1,7 +1,7 @@
 use super::*;
 use crate::reactive::*;
 use crate::styled::*;
-use beui_core::app::automation::keys::typed;
+use beui_core::input::typing::typed;
 
 #[test]
 fn a_driver_types_key_by_key_and_sends_what_no_key_makes_as_text() {
@@ -60,10 +60,10 @@ fn a_driver_types_key_by_key_and_sends_what_no_key_makes_as_text() {
     });
     let mut driven = stepped(crate::testing::Showing(document));
     driven
-        .ask(&["click", "#form.name"])
+        .ask(&["app", "click", "#form.name"])
         .expect("the field is clicked");
     let changed = driven
-        .ask(&["type", "Hi, Ada! (é) {x}"])
+        .ask(&["app", "type", "Hi, Ada! (é) {x}"])
         .expect("the text is typed");
     assert!(
         changed.contains("value=\"Hi, Ada! (é) {x}\""),

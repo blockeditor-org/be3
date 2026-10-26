@@ -41,10 +41,10 @@ two parameters work on any page serving the bundle:
 ## Driving the page
 
 `drive` answers the native app's commands (guides/running/drive.md), run by the app itself in
-the page, except those of the headless window: the browser is the window here. Its own
-commands take their place (`drive` with no command lists them):
-- `drive shot FILE [TARGET]` saves a screenshot through Playwright, of TARGET only when given.
-- `drive upload FILE TARGET` clicks TARGET and answers the file chooser that opens with FILE.
+the page under one drive layer, except those of the headless window: the browser is the
+platform here. Its own commands take their place (`drive` with no command lists them):
+- `drive screen shot FILE [TARGET]` saves a screenshot through Playwright, of TARGET only when given.
+- `drive screen upload FILE TARGET` clicks TARGET and answers the file chooser that opens with FILE.
 - `drive size W H` resizes the page, and `drive reload` reloads it.
 - `drive eval EXPRESSION` evaluates JavaScript in the page and prints the result.
 

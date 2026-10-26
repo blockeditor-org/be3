@@ -1,6 +1,8 @@
 use super::*;
+use beui::drive::{Drive, Reply, ask};
+use beui::{Simulation, WindowSize};
 use beui_core::app::SafeArea;
-use beui_core::app::automation::{Capture, Reply, Simulation, WindowSize, ask};
+use beui_core::renderer::Capture;
 use beui_core::renderer::{Loaded, Renderer};
 use beui_core::runner::{Launch, RunOptions, Runner};
 use std::cell::Cell;
@@ -85,11 +87,8 @@ fn an_occluded_window_shows_itself_for_a_shot_once_the_app_has_drawn() {
     let prepared = Rc::new(Cell::new(0));
     let seen = Rc::new(Cell::new(Vec::new()));
     let drawing = Rc::new(Cell::new(3));
-    let inbox = beui_core::app::automation::Inbox::default();
-    let options = RunOptions {
-        automation: Some(inbox.clone()),
-        ..Default::default()
-    };
+    let inbox = beui::drive::Inbox::default();
+    let options = RunOptions::default();
     let mut runner = Runner::new(Launch {
         options,
         context: context(),
@@ -98,7 +97,7 @@ fn an_occluded_window_shows_itself_for_a_shot_once_the_app_has_drawn() {
             seen: Rc::clone(&seen),
             drawing: Rc::clone(&drawing),
         }),
-        host: None,
+        layers: vec![Box::new(Drive::new(inbox.clone()))],
     });
     runner.set_occluded(true);
     let mut window = Simulation::new(
@@ -126,7 +125,7 @@ fn an_occluded_window_shows_itself_for_a_shot_once_the_app_has_drawn() {
     assert_eq!(seen.take(), [false], "nobody looks at an occluded window");
     assert_eq!(prepared.get(), 0, "an unseen frame is not drawn");
 
-    let mut answered = std::pin::pin!(ask(&inbox, vec!["shot".to_owned()]));
+    let mut answered = std::pin::pin!(ask(&inbox, vec!["screen".to_owned(), "shot".to_owned()]));
     let mut waiting = std::task::Context::from_waker(std::task::Waker::noop());
     let mut frames = 0;
     let reply = loop {

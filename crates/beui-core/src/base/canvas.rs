@@ -329,7 +329,10 @@ impl Document {
             .take_while(|node| *node != canvas)
             .find(|node| rects.contains_key(node))?;
         let extent = self.outlined_extent(&rects, node)?;
-        let shown = clear_of(rects.get(&canvas)?, &self.floating_rects());
+        let shown = clear_of(
+            rects.get(&canvas)?,
+            &self.floating_rects(self.window_of(canvas)),
+        );
         let caret = (Some(target) == self.focused_node())
             .then(|| self.ime_cursor_in(&rects, target))
             .flatten();

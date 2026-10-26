@@ -30,23 +30,20 @@ fn the_lock_screen_sample_stays_locked_until_its_password_is_typed() {
 
     test.click("demo.lock.open");
     test.frame(Vec::new());
-    assert!(
-        test.shows("demo.lock.0"),
-        "the lock screen covers the window"
-    );
+    assert!(test.shows("demo.lock"), "the lock screen covers the window");
 
     type_password(&mut test, "hunter2");
-    assert!(test.shows("demo.lock.0.error"), "a wrong password says so");
+    assert!(test.shows("demo.lock.error"), "a wrong password says so");
     test.snapshot("lock_screen_after_a_wrong_password");
 
     press(&mut test, Key::Escape);
     test.click(pos2(4.0, 4.0));
     test.frame(Vec::new());
     assert!(
-        test.shows("demo.lock.0"),
+        test.shows("demo.lock"),
         "neither Escape nor a click outside the card unlocks"
     );
 
     type_password(&mut test, "beui");
-    assert!(!test.shows("demo.lock.0"), "the right password unlocks");
+    assert!(!test.shows("demo.lock"), "the right password unlocks");
 }

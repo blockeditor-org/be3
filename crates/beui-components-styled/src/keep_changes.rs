@@ -10,11 +10,9 @@ use beui_macros::{component, view};
 
 use crate::text::{Text, TextStyle};
 use beui_core::base::overlay::{OverlayAnchor, Placement};
-use beui_core::geometry::Rect;
+use beui_core::geometry::Pos2;
 use beui_core::node::NodeId;
-use beui_core::screens::bounds;
 use beui_view::components::overlay::Overlay;
-use beui_view::primitives::*;
 use beui_view::reactive::*;
 
 pub const KEEP_CHANGES_TIMEOUT: Duration = Duration::from_secs(15);
@@ -81,51 +79,26 @@ pub fn KeepChanges(
         stop();
         on_revert.call();
     };
-    let screens = use_screens();
-    let bounds = create_memo(move || screens.with(|screens| bounds(screens)));
-    let places = create_memo(move || (0..screens.with(Vec::len)).collect::<Vec<usize>>());
-    let anchor = create_memo(move || OverlayAnchor::Point(bounds.get().min));
-    let width = create_memo(move || Some(bounds.get().width()));
-    let height = create_memo(move || Some(bounds.get().height()));
     let title = create_memo(move || title.get());
     let theme = use_theme();
     let scrim = create_memo(move || theme.scrim.get());
     view! {
         <Overlay
-            anchor={anchor}
+            anchor=OverlayAnchor::Point(Pos2::ZERO)
             open={open}
-            placement=Placement::At
+            placement=Placement::Fill
             scrim={scrim}
             on_dismiss={move |_: Dismiss| revert()}
-            content={move || { let id = id.clone(); view! {
-                <Frame width=width height=height>
-                    <Layers>
-                        <ForEach keys={places}>|index: usize| {
-                            let place = create_memo(move || {
-                                let origin = bounds.get().min.to_vec2();
-                                screens.with(|screens| {
-                                    screens
-                                        .get(index)
-                                        .map_or(Rect::ZERO, |screen| screen.rect.translate(-origin))
-                                })
-                            });
-                            let card = view! {
-                                <KeepChangesCard
-                                    place={place}
-                                    title={title}
-                                    message={message}
-                                    focused={create_memo(move || index == 0 && open.get())}
-                                    id={format!("{}.{index}", id)}
-                                    on_keep={keep}
-                                    on_revert={revert}
-                                />
-                            };
-                            let layer: Layer = card.into_child();
-                            layer
-                        }</ForEach>
-                    </Layers>
-                </Frame>
-            } }}
+            content={move || view! {
+                <KeepChangesCard
+                    title={title}
+                    message={message}
+                    focused={open}
+                    id={id.clone()}
+                    on_keep={keep}
+                    on_revert={revert}
+                />
+            }}
         />
     }
 }
@@ -139,7 +112,6 @@ fn until_next_second(remaining: Duration) -> Duration {
 
 #[component]
 fn KeepChangesCard(
-    place: Memo<Rect>,
     title: Memo<String>,
     message: Memo<String>,
     focused: Memo<bool>,
@@ -147,9 +119,6 @@ fn KeepChangesCard(
     on_keep: ClickCallback,
     on_revert: ClickCallback,
 ) -> NodeId {
-    let inset = create_memo(move || Sides::new(place.get().left(), place.get().top(), 0.0, 0.0));
-    let width = create_memo(move || place.get().width());
-    let height = create_memo(move || place.get().height());
     let actions_id = id.clone();
     let actions = DialogActions {
         id: create_memo(move || actions_id.clone()),
@@ -162,24 +131,22 @@ fn KeepChangesCard(
         on_cancel: on_revert,
     };
     view! {
-        <Frame padding=inset align=Align::Start>
-            <Frame width=width height=height align=Align::Center>
-                <DialogSurface
-                    width=WIDTH
-                    title={title}
-                    role=Role::AlertDialog
-                    actions={actions}
-                    surface_id={id.clone()}
+        <Frame align=Align::Center>
+            <DialogSurface
+                width=WIDTH
+                title={title}
+                role=Role::AlertDialog
+                actions={actions}
+                surface_id={id.clone()}
+            >
+                <Text
+                    style=TextStyle::PARAGRAPH
+                    @test_id={format!("{id}.countdown")}
+                    wrap=Wrap::Words
                 >
-                    <Text
-                        style=TextStyle::PARAGRAPH
-                        @test_id={format!("{id}.countdown")}
-                        wrap=Wrap::Words
-                    >
-                        {message}
-                    </Text>
-                </DialogSurface>
-            </Frame>
+                    {message}
+                </Text>
+            </DialogSurface>
         </Frame>
     }
 }

@@ -3,7 +3,7 @@ use super::*;
 #[test]
 fn the_add_menu_fits_a_short_window_and_scrolls_inside_itself() {
     let mut app = AppTest::start();
-    app.run(&["resize", "1100x300"]);
+    app.run(&["screen", "resize", "1100x300"]);
     app.click(ADD_TO_MY_FILES);
     app.wait("#picker.more");
     let (_, y, _, height) = app.place("#picker.location");
@@ -20,7 +20,7 @@ fn the_add_menu_fits_a_short_window_and_scrolls_inside_itself() {
         "the rows that do not fit wait below, inside the menu's own scroll"
     );
     app.snapshot("the_add_menu_fits_a_short_window_and_scrolls_inside_itself");
-    app.run(&["wheel", "#picker.location", "3"]);
+    app.run(&["app", "wheel", "#picker.location", "3"]);
     assert!(
         app.tree()
             .lines()

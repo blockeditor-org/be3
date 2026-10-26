@@ -28,10 +28,11 @@ fn exporting_any_block_as_a_block_file_asks_the_host_for_it() {
     assert!(
         document
             .root()
-            .and_then(|root| open_item(document, root, "Text file", false))
+            .and_then(|root| open_item(&document, root, "Text file", false))
             .is_none(),
         "a folder has no format of its own to export as"
     );
+    drop(document);
     fixture.click_item("Block file");
 
     let exports: Vec<_> = fixture

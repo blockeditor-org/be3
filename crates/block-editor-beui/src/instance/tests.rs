@@ -44,7 +44,6 @@ fn frame(session: &mut EditorSession, content: Option<Rect>, top_bar: TopBar) {
                 pixel_width: 800,
                 pixel_height: 600,
                 scale_factor: 1.0,
-                monitors: Vec::new(),
             },
             frame: Some(FrameSpec {
                 chrome: FrameChrome::Drawn,

@@ -56,11 +56,12 @@ pub struct WindowSignals {
     pub(crate) painted: Rc<Cell<bool>>,
 }
 
-#[derive(Clone, Copy, Default, PartialEq)]
+#[derive(Clone, Default, PartialEq)]
 struct View {
     rect: Option<Rect>,
-    catcher: Option<NodeId>,
-    popups: Option<NodeId>,
+    catchers: Vec<NodeId>,
+    popups: Vec<NodeId>,
+    mounts: u32,
 }
 
 struct Inner {
@@ -314,14 +315,27 @@ impl Windows {
         }
     }
 
+    pub(crate) fn mounted(&self, id: WindowId) {
+        let inner = self.0.value();
+        inner.views.borrow_mut().entry(id).or_default().mounts += 1;
+    }
+
     pub(crate) fn caught_by(&self, id: WindowId, catcher: NodeId) {
         let inner = self.0.value();
-        inner.views.borrow_mut().entry(id).or_default().catcher = Some(catcher);
+        let mut views = inner.views.borrow_mut();
+        let catchers = &mut views.entry(id).or_default().catchers;
+        if !catchers.contains(&catcher) {
+            catchers.push(catcher);
+        }
     }
 
     pub(crate) fn popups_caught_by(&self, id: WindowId, catcher: NodeId) {
         let inner = self.0.value();
-        inner.views.borrow_mut().entry(id).or_default().popups = Some(catcher);
+        let mut views = inner.views.borrow_mut();
+        let popups = &mut views.entry(id).or_default().popups;
+        if !popups.contains(&catcher) {
+            popups.push(catcher);
+        }
     }
 
     pub(crate) fn caught_at(&self, catcher: NodeId) -> Option<(WindowId, Rect)> {
@@ -330,13 +344,22 @@ impl Windows {
             .views
             .borrow()
             .iter()
-            .find(|(_, view)| view.catcher == Some(catcher) || view.popups == Some(catcher))
+            .find(|(_, view)| view.catchers.contains(&catcher) || view.popups.contains(&catcher))
             .and_then(|(id, view)| Some((*id, view.rect?)))
     }
 
-    pub(crate) fn unplaced(&self, id: WindowId) {
+    pub(crate) fn unplaced(&self, id: WindowId, nodes: [Option<NodeId>; 2]) {
         let inner = self.0.value();
-        inner.views.borrow_mut().remove(&id);
+        let mut views = inner.views.borrow_mut();
+        let Some(view) = views.get_mut(&id) else {
+            return;
+        };
+        view.mounts = view.mounts.saturating_sub(1);
+        view.catchers.retain(|node| !nodes.contains(&Some(*node)));
+        view.popups.retain(|node| !nodes.contains(&Some(*node)));
+        if view.mounts == 0 {
+            views.remove(&id);
+        }
     }
 
     pub fn rect(&self, id: WindowId) -> Option<Rect> {

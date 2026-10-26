@@ -5,7 +5,7 @@ fn a_window_on_no_screen_has_its_presentation_discarded() {
     let (mut harness, device, queue) = Harness::with_gpu();
     harness.compositor().pace_to_flips();
     let right = Rect::from_min_max(pos2(SCREEN.x / 2.0, 0.0), pos2(SCREEN.x, SCREEN.y));
-    harness.compositor().set_screens(vec![right]);
+    harness.compositor().set_monitors(monitors(&[right]));
     let (window, id) = harness.open();
     assert!(
         !right.contains(harness.window(id).center()),

@@ -12,14 +12,14 @@ fn a_driver_pastes_the_headless_clipboard_with_ctrl_v() {
     });
     let mut driven = headless(crate::testing::Showing(document));
     driven
-        .ask(&["click", "#field"])
+        .ask(&["app", "click", "#field"])
         .expect("the field is focused");
     driven
-        .ask(&["clipboard", "pasted"])
+        .ask(&["screen", "clipboard", "pasted"])
         .expect("the clipboard is set");
 
     let changed = driven
-        .ask(&["key", "ctrl+v"])
+        .ask(&["app", "key", "ctrl+v"])
         .expect("the shortcut is pressed");
     assert!(
         changed.contains("pasted"),
