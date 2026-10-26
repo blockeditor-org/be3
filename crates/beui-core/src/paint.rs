@@ -2,13 +2,14 @@ use foldhash::{HashMap, HashSet};
 use std::rc::Rc;
 use std::time::Instant;
 
-use crate::damage::Region;
+use crate::damage::{Region, WindowRegions};
 use crate::display::{Display, Group, Part};
 use crate::document::Document;
 use crate::fade::Fade;
 use crate::geometry::{Pos2, Rect, Vec2};
 use crate::node::{ANCESTOR_LIMIT, Arena, NodeId, NodeMap, Rects, SpaceId};
 use crate::painter::{Painter, PainterState, Scope, Shape, placed_shape};
+use crate::window::WindowId;
 
 pub mod verify;
 
@@ -62,6 +63,7 @@ enum Visit {
 
 #[derive(Clone, Copy, PartialEq, Debug)]
 pub struct Move {
+    pub window: WindowId,
     pub space: SpaceId,
     pub viewport: Rect,
     pub by: Vec2,
@@ -69,6 +71,7 @@ pub struct Move {
 
 #[derive(Clone, Copy, PartialEq, Debug)]
 pub struct Stale {
+    pub window: WindowId,
     pub rect: Rect,
     pub scroll: Option<SpaceId>,
 }
@@ -82,7 +85,9 @@ pub struct PaintCache {
     roots: Vec<(NodeId, Rect)>,
     places: HashMap<NodeId, (Vec2, Rect)>,
     scrolls: HashMap<SpaceId, Option<SpaceId>>,
-    damage: Region,
+    root_windows: HashMap<NodeId, WindowId>,
+    window: WindowId,
+    damage: WindowRegions,
     stale: Vec<Stale>,
     recorded: bool,
 }
@@ -165,10 +170,16 @@ impl PaintCache {
         self.deadlines.values().min().copied()
     }
 
-    pub fn settle_roots(&mut self, roots: Vec<NodeId>) {
-        let roots: Vec<(NodeId, Rect)> = roots
-            .into_iter()
-            .map(|id| (id, self.absolute_bounds(id)))
+    pub fn settle_roots(&mut self, windows: &[(WindowId, NodeId)]) {
+        let window_of = |id: NodeId| {
+            windows
+                .iter()
+                .find(|(_, root)| *root == id)
+                .map_or(WindowId::MAIN, |(window, _)| *window)
+        };
+        let roots: Vec<(NodeId, Rect)> = windows
+            .iter()
+            .map(|(_, id)| (*id, self.absolute_bounds(*id)))
             .collect();
         let places: HashMap<NodeId, (Vec2, Rect)> = roots
             .iter()
@@ -183,10 +194,11 @@ impl PaintCache {
             {
                 if self.places.get(id) != places.get(id) {
                     self.stale.push(Stale {
+                        window: window_of(*id),
                         rect: *held,
                         scroll: None,
                     });
-                    self.damage.add(*bounds);
+                    self.damage.add(window_of(*id), *bounds);
                 }
                 self.recorded = true;
             }
@@ -203,11 +215,12 @@ impl PaintCache {
                 .unwrap_or(before.len());
             let added = roots.iter().filter(|root| !contains(&self.roots, root.0));
             let removed = self.roots.iter().filter(|root| !contains(&roots, root.0));
-            for (_, bounds) in added.chain(&after[reordered..]) {
-                self.damage.add(*bounds);
+            for (id, bounds) in added.chain(&after[reordered..]) {
+                self.damage.add(window_of(*id), *bounds);
             }
-            for (_, bounds) in removed.chain(&before[reordered..]) {
+            for (id, bounds) in removed.chain(&before[reordered..]) {
                 self.stale.push(Stale {
+                    window: self.root_windows.get(id).copied().unwrap_or(WindowId::MAIN),
                     rect: *bounds,
                     scroll: None,
                 });
@@ -215,10 +228,15 @@ impl PaintCache {
             self.recorded = true;
         }
         self.roots = roots;
+        self.root_windows = windows.iter().map(|(window, id)| (*id, *window)).collect();
     }
 
-    pub fn take_damage(&mut self) -> Region {
+    pub fn take_damage(&mut self) -> WindowRegions {
         std::mem::take(&mut self.damage)
+    }
+
+    pub fn paint_into(&mut self, window: WindowId) {
+        self.window = window;
     }
 
     pub fn take_stale(&mut self) -> Vec<Stale> {
@@ -256,6 +274,7 @@ impl PaintCache {
             !dirt.own
                 && painted.placement.size == placement.size
                 && painted.placement.own.settles(placement.own)
+                && painted.placement.own.raster == placement.own.raster
         }) else {
             return Visit::Record;
         };
@@ -384,7 +403,9 @@ impl PaintCache {
         let below = self.reads_below(&display);
         let old = self.entries.remove(&id);
         match &old {
-            None => self.damage.add(absolute(display.bounds, placement.own)),
+            None => self
+                .damage
+                .add(self.window, absolute(display.bounds, placement.own)),
             Some(old) => self.reconcile(old, placement.own, &display),
         }
         match recorded.deadline {
@@ -409,8 +430,10 @@ impl PaintCache {
         let still = old.placement.own.sees(now);
         let after = Elements::of(display, now.scroll, &[]);
         let before = Elements::of(&old.display, now.scroll, &after.scrolls);
+        let window = self.window;
         let stale = |stale: &mut Vec<Stale>, (rect, scroll): (Rect, Option<SpaceId>)| {
             stale.push(Stale {
+                window,
                 rect: absolute(rect, now),
                 scroll,
             });
@@ -421,7 +444,7 @@ impl PaintCache {
         }
         let (runs, drawings) = after.own();
         for (rect, _) in runs {
-            self.damage.add(absolute(rect, now));
+            self.damage.add(self.window, absolute(rect, now));
         }
         for drawing in drawings {
             let held = drawn
@@ -434,14 +457,15 @@ impl PaintCache {
             match redrawn {
                 Some(region) => {
                     for rect in region.rects() {
-                        self.damage.add(absolute(*rect, now));
+                        self.damage.add(self.window, absolute(*rect, now));
                     }
                 }
                 None => {
                     if let Some(held) = &held {
                         stale(&mut self.stale, before.drawn(held));
                     }
-                    self.damage.add(absolute(after.drawn(&drawing).0, now));
+                    self.damage
+                        .add(self.window, absolute(after.drawn(&drawing).0, now));
                 }
             }
         }
@@ -468,7 +492,7 @@ impl PaintCache {
                     if let Some(previous) = previous {
                         stale(&mut self.stale, (previous.placed, previous.scroll));
                     }
-                    self.damage.add(absolute(child.placed, now));
+                    self.damage.add(self.window, absolute(child.placed, now));
                 }
             }
         }
@@ -491,7 +515,7 @@ impl PaintCache {
                 let child = &after.children[*index];
                 let previous = &before.children[held[&child.id]];
                 stale(&mut self.stale, (previous.placed, previous.scroll));
-                self.damage.add(absolute(child.placed, now));
+                self.damage.add(self.window, absolute(child.placed, now));
             }
         }
         for mask in &after.masks {
@@ -508,7 +532,8 @@ impl PaintCache {
                 );
             }
             for band in mask.fade.bands() {
-                self.damage.add(absolute(after.place(mask.path, band), now));
+                self.damage
+                    .add(self.window, absolute(after.place(mask.path, band), now));
             }
         }
         for scroll in &after.scrolls {
@@ -525,13 +550,14 @@ impl PaintCache {
             let viewport = absolute(scroll.viewport, now);
             match still && previous.viewport == scroll.viewport && previous.scale == scroll.scale {
                 true => self.moves.push(Move {
+                    window: self.window,
                     space: scroll.space,
                     viewport,
                     by: (scroll.offset - previous.offset) * now.scale,
                 }),
                 false => {
                     stale(&mut self.stale, (previous.viewport, previous.around));
-                    self.damage.add(viewport);
+                    self.damage.add(self.window, viewport);
                 }
             }
         }
@@ -1117,9 +1143,7 @@ pub fn paint(doc: &Document, painter: &Painter, rects: &Rects, id: NodeId) {
             ctx.enter_paint(id);
             let outer = ctx.swap_space_read(false);
             let local = Rect::from_min_size(Pos2::ZERO, rect.size());
-            ctx.rastered(own.state().raster, || {
-                doc.arena.get(id).paint(doc, &own, rects, local)
-            });
+            doc.arena.get(id).paint(doc, &own, rects, local);
             let reads = ctx.swap_space_read(outer);
             let recorded = Recorded {
                 reads,

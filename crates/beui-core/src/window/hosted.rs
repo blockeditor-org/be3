@@ -4,8 +4,8 @@ use foldhash::{HashMap, HashSet};
 use reactive::{Get, Set};
 
 use crate::base::overlay::OverlayNode;
-use crate::context::Context;
-use crate::damage::Region;
+use crate::context::{Context, Moved};
+use crate::damage::{Region, Taken};
 use crate::display::Display;
 use crate::document::Document;
 use crate::geometry::{Pos2, Rect, Vec2};
@@ -25,7 +25,8 @@ pub(crate) struct Windows {
     requests: Vec<WindowRequest>,
     shown: HashMap<WindowId, Vec2>,
     pub(crate) paintings: Vec<(WindowId, Painting)>,
-    pub(crate) viewport: Option<Rect>,
+    pub(crate) viewport: Option<(WindowId, Rect)>,
+    kept_focus: HashMap<WindowId, NodeId>,
 }
 
 impl Default for Windows {
@@ -40,6 +41,7 @@ impl Default for Windows {
             shown: HashMap::default(),
             paintings: Vec::new(),
             viewport: None,
+            kept_focus: HashMap::default(),
         }
     }
 }
@@ -129,8 +131,21 @@ impl Document {
         Some(Rect::from_min_size(Pos2::ZERO, self.window_size(window)?))
     }
 
-    pub(crate) fn swap_window_viewport(&mut self, viewport: Option<Rect>) -> Option<Rect> {
+    pub(crate) fn swap_window_viewport(
+        &mut self,
+        viewport: Option<(WindowId, Rect)>,
+    ) -> Option<(WindowId, Rect)> {
         std::mem::replace(&mut self.windows.viewport, viewport)
+    }
+
+    pub(crate) fn viewport_window(&self) -> WindowId {
+        self.windows
+            .viewport
+            .map_or(WindowId::MAIN, |(window, _)| window)
+    }
+
+    pub(crate) fn window_viewport(&self, window: WindowId) -> Option<(WindowId, Rect)> {
+        self.window_rect(window).map(|rect| (window, rect))
     }
 
     pub(crate) fn in_window_viewport(&self) -> bool {
@@ -171,6 +186,7 @@ impl Document {
             return;
         }
         let mut heard = Vec::new();
+        let mut unfocused = Vec::new();
         for report in reports {
             let node = self.window_node(report.window());
             match &report {
@@ -184,19 +200,66 @@ impl Document {
                         self.arena.invalidate_node(node);
                     }
                 }
+                WindowReport::Scaled { .. } => {
+                    if let Some(shown) = node.map(NodeId::from).or(self.root) {
+                        self.arena.repaint_node(shown);
+                    }
+                }
                 WindowReport::Placed { .. } => {}
+                WindowReport::Focused { window, focused } => {
+                    if !self.window_focused(*window, *focused) {
+                        unfocused.extend(node);
+                    }
+                }
             }
             if let Some(spec) = node.and_then(|node| self.overlay_window(node)) {
                 heard.push((spec.on_report, report));
             }
         }
         let context = self.reactive_scope().context();
-        let _guard = crate::current::install(self);
+        let guard = crate::current::install(self);
         context.run(|| {
             for (on_report, report) in heard {
                 on_report.call(report);
             }
         });
+        drop(guard);
+        for node in unfocused {
+            let root = node.into();
+            if self.contains(root)
+                && !self.focus_is_within(root)
+                && !self.focus_pending_within(root)
+            {
+                crate::current::run_in(self, |document| document.focus_into(root));
+            }
+        }
+    }
+
+    fn window_focused(&mut self, window: WindowId, focused: bool) -> bool {
+        let current = self.focused.filter(|node| self.window_of(*node) == window);
+        match focused {
+            false => {
+                if let Some(node) = current {
+                    self.windows.kept_focus.insert(window, node);
+                    crate::current::run_in(self, |document| document.update_focus(None));
+                }
+                true
+            }
+            true => {
+                let kept = self.windows.kept_focus.remove(&window);
+                match kept.filter(|node| self.contains(*node)) {
+                    Some(node) => {
+                        if self.focused.is_none() {
+                            crate::current::run_in(self, |document| {
+                                document.update_focus(Some(node))
+                            });
+                        }
+                        true
+                    }
+                    None => false,
+                }
+            }
+        }
     }
 
     pub(crate) fn ask_for_windows(&mut self, ctx: &Context) {
@@ -256,7 +319,12 @@ impl Document {
         }
     }
 
-    pub(crate) fn show_windows(&mut self, ctx: &Context, damage: Region) {
+    pub(crate) fn show_windows(
+        &mut self,
+        ctx: &Context,
+        damage: Option<&Taken>,
+        moves: &[(WindowId, Moved)],
+    ) {
         let open = self.open_windows();
         self.windows.shown.retain(|window, _| open.contains(window));
         for window in open {
@@ -264,9 +332,15 @@ impl Document {
                 continue;
             };
             let resized = self.windows.shown.insert(window, rect.size()) != Some(rect.size());
-            let damage = match resized {
-                true => Region::from(rect),
-                false => damage.clipped(rect),
+            let (damage, moved) = match resized {
+                true => (Region::from(rect), None),
+                false => (
+                    damage.map_or(Region::NOTHING, |damage| damage.of(window, rect)),
+                    moves
+                        .iter()
+                        .find(|(held, _)| *held == window)
+                        .map(|(_, moved)| *moved),
+                ),
             };
             let painting = self
                 .windows
@@ -279,14 +353,7 @@ impl Document {
                 .window_node(window)
                 .and_then(|node| self.overlay_window(node))
                 .and_then(|spec| spec.title.clone());
-            ctx.show_window(window, rect.size(), &painting, damage, title);
+            ctx.show_window(window, rect.size(), &painting, damage, moved, title);
         }
-    }
-
-    pub(crate) fn window_bounds(&self, main: Rect) -> Rect {
-        self.open_windows()
-            .into_iter()
-            .filter_map(|window| self.window_rect(window))
-            .fold(main, |bounds, rect| bounds.union(rect))
     }
 }

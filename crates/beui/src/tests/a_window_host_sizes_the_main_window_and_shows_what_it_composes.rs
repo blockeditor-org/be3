@@ -70,6 +70,7 @@ impl WindowHost for Host {
                 changed: true,
                 damage: Region::NOTHING,
                 moved: None,
+                pixels_per_point: view.pixels_per_point,
             },
             repaint_after: std::time::Duration::MAX,
         }

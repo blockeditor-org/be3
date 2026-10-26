@@ -386,6 +386,7 @@ interface types {
         pointer-left,
         pointers-cancelled,
         pointer-motion(vec2),
+        pointer-unlocked,
         pointer-button(input-pointer-button),
         scroll-started,
         scroll(scroll-delta),

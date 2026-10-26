@@ -533,11 +533,14 @@ impl Element for OverlayNode {
         let Some(content) = self.content else {
             return;
         };
-        let painter = &painter.ctx().painter();
-        if let Some(window) = self.window.as_ref().filter(|_| doc.opens_windows()) {
+        let real = self.window.as_ref().filter(|_| doc.opens_windows());
+        let painter = &painter
+            .ctx()
+            .window_painter(real.map_or_else(|| doc.viewport_window(), |window| window.id));
+        if let Some(window) = real {
             let size = painter.ctx().window_size(window.id).unwrap_or(window.size);
             let rect = Rect::from_min_size(Pos2::ZERO, size);
-            let outer = doc.swap_window_viewport(Some(rect));
+            let outer = doc.swap_window_viewport(Some((window.id, rect)));
             crate::layout::layout(doc, painter, content, rect, out);
             doc.swap_window_viewport(outer);
             return;
@@ -648,15 +651,16 @@ impl Document {
     }
 
     pub(crate) fn place_moved_overlays(&mut self, ctx: &crate::context::Context, out: &Rects) {
-        let painter = ctx.painter();
         for overlay in self.open_overlays() {
             if !self.overlay_anchor_moved(overlay, out) {
                 continue;
             }
+            let window = self.window_of(overlay.id());
+            let painter = ctx.window_painter(window);
             let Some(content) = self.arena.get_as(overlay).content else {
                 continue;
             };
-            let viewport = self.window_rect(self.window_of(overlay.id()));
+            let viewport = self.window_viewport(window);
             let mut element = self.arena.take(overlay);
             let outer = self.enter_measure(overlay.id());
             let held = self.swap_window_viewport(viewport);

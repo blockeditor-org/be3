@@ -17,25 +17,46 @@ once it has settled; running it again restarts it, which is how to pick up a reb
 ## Starting any beui program
 
 beui's run functions (`beui::run`, `run_with`, `run_with_renderers`, `run_on`) read these
-variables, so a program needs nothing of its own to be driven:
+variables (on every platform but Android, which reads none), so a program needs nothing of its
+own to be driven:
 
-- `BEUI_HEADLESS=WIDTHxHEIGHT[@SCALE]` runs it on `beui::Headless` (crates/beui-adapter-headless),
-  which draws offscreen with wgpu and needs no display server. `BEUI_HEADLESS_SCREEN=WIDTHxHEIGHT`
-  is the screen a fullscreen window grows to. `BEUI_RENDERER=none` runs it headless with no GPU
-  at all (`beui_core::renderer::NoRenderer`): every frame is laid out and painted as usual, but
-  nothing draws the painting, so `drive paint` works and `drive shot` does not. block-app then
-  gives its plugins surfaces it does not render, so they run their frames without a GPU either.
+- `BEUI_ADAPTER` picks the adapter: the platform's own (`winit`, or the one the program hands
+  `run_on`, such as block-app's `drm`) by default, `headless`, or `space`. A
+  name it does not know is an error that lists the ones it takes
+  (`beui_core::runner::environment::choose`).
+- `BEUI_ADAPTER=headless` runs it on `beui::Headless` (crates/beui-adapter-headless), which draws
+  offscreen with wgpu and needs no display server. `BEUI_HEADLESS_WINDOW=WIDTHxHEIGHT[@SCALE]`
+  (1100x720 by default) is its window and `BEUI_HEADLESS_SCREEN=WIDTHxHEIGHT` the screen a
+  fullscreen window grows to; either is an error under another adapter.
+- `BEUI_RENDERER` picks the renderer: `wgpu` (the default) or `none`, which runs headless with no
+  GPU at all (`beui_core::renderer::NoRenderer`): every frame is laid out and painted as usual,
+  but nothing draws the painting, so `drive paint` works and `drive shot` does not. block-app
+  then gives its plugins surfaces it does not render, so they run their frames without a GPU
+  either. `none` needs the headless adapter.
 - `BEUI_AUTOMATION=PATH` answers `drive` on the Unix socket PATH. It works in a window too.
-- `BEUI_SPACE=1` shows it as a panel in the VR simulator (guides/beui.md, "Space: the VR simulator
-  host"), headless or in a window; `drive shot` takes the 3D view, every other command the app.
+- `BEUI_ADAPTER=space` shows it as a panel in the VR simulator (guides/beui.md, "Space: the VR
+  simulator host"), on the adapter `BEUI_SPACE_ADAPTER` names (the platform's own by default,
+  or `headless`); `drive shot` takes the 3D view, every other command the app.
   Targets, clicks and `find` are in the app's main window only: drive cannot reach what is in
   its other windows (the other panels), since only the 3D host knows where they are on screen.
   Test those through `Space` and a `Runner` instead (`InSpace` in crates/beui/src/tests.rs).
   Holding a walking key keeps frames coming, so the command waits out its settle timeout and
-  the head walks far; turn with `drive motion` while Ctrl and Shift are held instead.
+  the head walks far; turn with `drive motion` while Ctrl and Shift are held instead. To walk
+  or roll (Q/E) by a set amount, stop the clock and time the hold, with Ctrl and Shift held:
+  `drive clock stop; drive --no-settle keydown q; drive pause 500; drive --no-settle keyup q;
+  drive clock run`.
+  A driver's pointer goes through the same rule as the mouse's: a position puts the 3D cursor
+  on the main panel there, and the input goes to whatever panel or chrome is in front of it.
+  Holding Escape lets the pointer go: `drive keydown escape; drive pause 700; drive keyup
+  escape` (the app sees the press and the release). After that, or a lost focus, the next
+  click only grabs the pointer again and reaches nothing.
 
-`be-drive launch` (crates/be-drive) sets the first two, waits for the program to settle and writes the
-`env` file. `headless(...)` in buck/app/drive.bzl makes a crate's `:dev` target from it.
+`be-drive launch` (crates/be-drive) sets the headless adapter, its sizes and the socket (the
+headless adapter goes in `BEUI_SPACE_ADAPTER` when `BEUI_ADAPTER=space` is already set, so
+`BEUI_ADAPTER=space ./scripts/buck run //crates/block-app:dev` drives the VR simulator), waits
+for the program to settle and writes the `env` file. It listens on the automation socket itself
+and hands the program the listener (`BEUI_AUTOMATION_LISTENER`, its file descriptor), so it can
+ask the program to settle at once rather than watch for the socket to appear. `headless(...)` in buck/app/drive.bzl makes a crate's `:dev` target from it.
 Arguments after `--` go to the launcher, which passes on those it does not know:
 
 - `--fresh` deletes the program's data first (programs started with `--data`, which block-app is,
@@ -162,6 +183,8 @@ A command that acts on something takes a TARGET:
     drive pen draw FROM TO [STEPS [PER_FRAME]]   a stylus stroke of STEPS samples (8), its pressure
                                               rising and falling, PER_FRAME (1) in each frame
     drive pen move TARGET; drive pen down TARGET 0.8; drive pen move TARGET 0.3; drive pen up
+    drive pen move TARGET 0.5 400 4           there in 400 samples, 4 in each frame, as a stylus
+                                              sends them; down, this draws part of a stroke
     drive pen leave                           the pen goes out of range
     drive back                                the system back gesture; back 0.4 holds it part way,
                                               back commit and back cancel finish it
@@ -181,7 +204,7 @@ them back the way the system does when it claims a gesture. `keydown` on a key t
 is already down repeats it. `motion DX DY` is relative motion (`Input::PointerMotion`), what a
 locked pointer reports: it reaches what holds pointer lock, such as a 3D view's look, and turns
 the head in space while Ctrl and Shift are held (`drive keydown ctrl; drive keydown shift;
-drive motion 200 0; drive keyup shift; drive keyup ctrl`). `a11y TARGET` with no action prints the node a screen reader would
+drive motion 200 0; drive keyup shift; drive keyup ctrl`), and otherwise moves space's cursor. `a11y TARGET` with no action prints the node a screen reader would
 act on and the actions it offers; acting goes through the accessibility tree rather than the
 pointer or keys, the path a screen reader takes, and reaches plugins' nodes too.
 
@@ -191,7 +214,8 @@ shows only on hover, such as a scrollbar, is there to be pressed.
 
 Every command that gives input waits until the app has settled and prints what changed in
 the tree, `-` and `+` lines, so there is no need to wait or read the whole tree again. A long
-change is cut to its first 60 lines; `drive --changes=N COMMAND` (or `all`) prints more. The app
+change is cut to its first 60 lines; `drive --changes=N COMMAND` (or `all`) prints more, and
+`--changes=0` nothing, without comparing the trees, which a benchmark wants. The app
 has settled once a frame asks for no other and `App::busy` is false; block-app is busy while a
 plugin is starting, owes a frame, holds unanswered input or has yet to answer a `paint`, while
 an editor on screen waits for its block's content, while a plugin's change arrived after the
@@ -202,6 +226,8 @@ still loading the organization's graph, and never while it shows its error scree
 instead, to see the app part way through something, such as a plugin still loading. Work the
 app cannot see, such as a server push, is waited for with `drive wait TEXT` or `drive gone
 TEXT` (or `#TEST_ID`), which return once a line of the tree contains TEXT or none does;
+`drive wait TEXT over X,Y` also asks that the line's node cover that point, for something that
+moves or grows, such as a stroke reaching the pen;
 `drive settle` waits on its own, and `drive pause MILLISECONDS` lets time pass by the app's
 own clock. Each command gives up after 30 seconds, or `drive --timeout=SECONDS`.
 
@@ -261,7 +287,10 @@ real one:
 `beui_core::app::automation` runs the commands inside the runner every adapter shares
 (guides/beui.md), so input lands on the queue a window's own events go to and everything
 above it - the document, block-app's plugin host, the Wayland compositor - runs as it does
-with a window. What a headless run never exercises is the platform underneath: winit's
+with a window. A driven app keeps the accessibility tree a screen reader would get, as the app
+does in a window, but writes it out as text only when a command reads it (`tree`, a target, a
+`wait`, the changes it answers with), and then describes again only the nodes that changed
+or moved (`AccessibilityDump`), so what a frame costs is what it costs in a window. What a headless run never exercises is the platform underneath: winit's
 translation of the system's keys, its clipboard and file dialogs, the window's swapchain and
 real input methods. For those, run the program in a window (guides/running/native.md).
 The web build answers the same commands through Playwright (guides/running/web.md).

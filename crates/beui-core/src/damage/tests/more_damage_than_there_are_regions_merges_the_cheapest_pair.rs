@@ -5,10 +5,12 @@ fn more_damage_than_there_are_regions_merges_the_cheapest_pair() {
     let mut damage = Damage::default();
     for column in 0..4 {
         let left = column as f32 * 30.0;
-        damage.add(rect(left, 0.0, left + 5.0, 5.0));
+        damage.add(WindowId::MAIN, rect(left, 0.0, left + 5.0, 5.0));
     }
-    damage.add(rect(6.0, 0.0, 10.0, 5.0));
-    let region = damage.take(rect(0.0, 0.0, 100.0, 100.0));
+    damage.add(WindowId::MAIN, rect(6.0, 0.0, 10.0, 5.0));
+    let region = damage
+        .take()
+        .of(WindowId::MAIN, rect(0.0, 0.0, 100.0, 100.0));
 
     assert_eq!(
         region.rects(),

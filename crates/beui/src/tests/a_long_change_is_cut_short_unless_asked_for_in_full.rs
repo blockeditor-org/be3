@@ -43,5 +43,5 @@ fn a_long_change_is_cut_short_unless_asked_for_in_full() {
     let changed = driven
         .ask(&["--changes=0", "click", "\"Toggle\""])
         .expect("the rows come back");
-    assert!(changed.starts_with("... and "), "{changed}");
+    assert_eq!(changed, "", "--changes=0 answers with nothing");
 }

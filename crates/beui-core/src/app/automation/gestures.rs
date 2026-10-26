@@ -211,11 +211,27 @@ impl Gestures {
         Ok(vec![events])
     }
 
-    pub fn pen_move(&mut self, to: Pos2, pressure: Option<f32>) -> Frames {
-        let down = self.pen.is_some_and(|(_, down)| down);
+    pub fn pen_move(
+        &mut self,
+        to: Pos2,
+        pressure: Option<f32>,
+        steps: usize,
+        per_frame: usize,
+    ) -> Frames {
+        let (from, down) = self.pen.unwrap_or((to, false));
         let pressure = pressure.unwrap_or(if down { 0.5 } else { 0.0 });
+        let steps = steps.max(1);
+        let samples: Vec<Input> = (1..=steps)
+            .map(|step| {
+                let fraction = step as f32 / steps as f32;
+                pen(PenPhase::Move, from + (to - from) * fraction, pressure)
+            })
+            .collect();
         self.pen = Some((to, down));
-        vec![vec![pen(PenPhase::Move, to, pressure)]]
+        samples
+            .chunks(per_frame.max(1))
+            .map(<[Input]>::to_vec)
+            .collect()
     }
 
     pub fn pen_down(&mut self, to: Pos2, pressure: Option<f32>) -> Result<Frames, String> {

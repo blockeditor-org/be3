@@ -1,6 +1,8 @@
 #[cfg(any(target_arch = "wasm32", test))]
 mod keys;
 #[cfg(any(target_arch = "wasm32", test))]
+mod lock;
+#[cfg(any(target_arch = "wasm32", test))]
 mod wheel;
 
 #[cfg(target_arch = "wasm32")]
