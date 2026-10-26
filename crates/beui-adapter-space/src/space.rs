@@ -560,7 +560,7 @@ impl Space {
         let input = Input::PointerMoved(Pos2::ZERO);
         let direction = self.head.rotation().inverse() * ray.direction;
         match (&mut self.carry, self.resize) {
-            (Some(carry), _) => carry.aim(&self.head, direction),
+            (Some(carry), _) => carry.aim(direction),
             (None, Some(_)) => self.resize_to(ray, out),
             (None, None) => {
                 if !self.chrome_pointer(&input, out) {
@@ -1049,8 +1049,8 @@ impl Space {
         let Some(panel) = self.panel_mut(carry.window) else {
             return;
         };
+        carry.finish();
         carry.place(&head, panel, &others, now);
-        panel.face(head.position, head.up());
         out.push(Incoming::Window(WindowReport::Placed {
             window: carry.window,
             placement: panel.placement(),

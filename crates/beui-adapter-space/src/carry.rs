@@ -33,14 +33,21 @@ pub struct Carry {
 #[derive(Clone, Copy, PartialEq, Debug)]
 pub struct Turn {
     began: Option<Instant>,
+    finished: bool,
 }
 
 impl Turn {
     pub fn begin(now: Option<Instant>) -> Self {
-        Self { began: now }
+        Self {
+            began: now,
+            finished: false,
+        }
     }
 
     pub fn progress(&self, now: Option<Instant>) -> f32 {
+        if self.finished {
+            return 1.0;
+        }
         let (Some(began), Some(now)) = (self.began, now) else {
             return 0.0;
         };
@@ -102,15 +109,15 @@ impl Carry {
         self.turn.turning(now)
     }
 
-    pub fn aim(&mut self, head: &Head, direction: Vec3) {
+    pub fn finish(&mut self) {
+        self.turn.finished = true;
+    }
+
+    pub fn aim(&mut self, direction: Vec3) {
         let direction = direction.normalize_or(self.direction);
-        let turned = head.rotation();
-        let yaw = |toward: Vec3| {
-            let toward = turned * toward;
-            toward.x.atan2(toward.z)
-        };
+        let yaw = |toward: Vec3| toward.x.atan2(toward.z);
         let swing = Quat::from_rotation_y(yaw(direction) - yaw(self.direction));
-        self.rotation = turned.inverse() * swing * turned * self.rotation;
+        self.rotation = (swing * self.rotation).normalize();
         self.direction = direction;
     }
 

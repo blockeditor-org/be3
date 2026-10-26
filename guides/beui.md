@@ -3077,7 +3077,7 @@ all its 3D (`glam`) stays in the crate.
   head, with the grabbed point on the cursor's ray at a fixed distance, so
   moving the mouse or steering carries it. As the mouse swings the ray around
   the viewer the panel turns with it, by the ray's change of yaw about the
-  grabbed point (`Carry::aim`); steering turns it with the head instead. From
+  head's up, the up the facing below uses (`Carry::aim`); steering turns it with the head instead. From
   the moment it is grabbed it also turns, over `TURN_SECONDS` of
   `HostView::now` (smoothstep, `carry::Turn`), from that carried rotation
   to facing the viewer: a look-at basis whose normal through its centre
@@ -3112,8 +3112,10 @@ all its 3D (`glam`) stays in the crate.
   it less than `IN_FRONT` behind; that is the only way to put a carried
   panel behind another. Letting go of the
   button that was down when it began (or, if none was, the next click) ends it:
-  the app gets that release where it grabbed, the panel faces the viewer
-  (`Panel::face`, the same facing about its centre, at once: a carry let go mid-turn snaps to it rather than finishing the turn), and the host reports `WindowReport::Placed` with the panel's placement,
+  the app gets that release where it grabbed, the turn to face the viewer
+  finishes at once (`Carry::finish`) and the panel is placed once more, its
+  distance solved for that facing, so a carry let go mid-turn lands where it
+  would have after the turn, in front of what it is over, and the host reports `WindowReport::Placed` with the panel's placement,
   `space X Y Z QX QY QZ QW S B`: its position, rotation, `metres_per_point`
   and `bend` (`Panel::placement`, read back by `Panel::placed`). The app keeps
   it in memory (the dock does) and hands it back when it opens the window
