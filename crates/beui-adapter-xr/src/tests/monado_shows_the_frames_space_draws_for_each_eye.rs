@@ -12,7 +12,7 @@ const FRAMES: u64 = 30;
 
 #[test]
 fn monado_shows_the_frames_space_draws_for_each_eye() {
-    let runtime = std::env::temp_dir().join(format!("beui-xr-{}", std::process::id()));
+    let runtime = std::env::temp_dir().join(format!("beui-adapter-xr-{}", std::process::id()));
     std::fs::create_dir_all(&runtime).expect("a runtime directory");
     let log = runtime.join("monado.log");
     let mut service = Command::new(std::env::var_os("MONADO_SERVICE").expect("MONADO_SERVICE"))
@@ -38,7 +38,7 @@ fn monado_shows_the_frames_space_draws_for_each_eye() {
     // unsafe(env)
     unsafe { std::env::set_var("XDG_RUNTIME_DIR", &runtime) };
 
-    let xr = Xr::open("beui-xr test").expect("Monado opens");
+    let xr = Xr::open("beui-adapter-xr test").expect("Monado opens");
     let gpu = pollster::block_on(beui_renderer_wgpu::present::create_offscreen(
         beui_renderer_wgpu::offscreen::FORMAT,
         xr.open_device(&[]),

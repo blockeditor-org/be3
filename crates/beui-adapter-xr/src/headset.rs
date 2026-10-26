@@ -235,7 +235,7 @@ impl Session {
             ),
         };
         let controllers = Controllers::new(instance, &session)
-            .inspect_err(|error| eprintln!("beui-xr: no controllers: {error}"))
+            .inspect_err(|error| eprintln!("beui-adapter-xr: no controllers: {error}"))
             .ok();
         Ok(Self {
             controllers,
@@ -380,7 +380,9 @@ impl Headset {
                 true
             }
             Err(error) => {
-                eprintln!("beui-xr: the headset is back but its session did not start: {error}");
+                eprintln!(
+                    "beui-adapter-xr: the headset is back but its session did not start: {error}"
+                );
                 false
             }
         }
@@ -393,7 +395,7 @@ impl Headset {
                 Ok(Some(event)) => event,
                 Ok(None) => break,
                 Err(error) => {
-                    eprintln!("beui-xr: OpenXR events stopped: {error}");
+                    eprintln!("beui-adapter-xr: OpenXR events stopped: {error}");
                     session.lose(false);
                     break;
                 }
@@ -402,7 +404,9 @@ impl Headset {
                 xr::Event::SessionStateChanged(changed) => match changed.state() {
                     xr::SessionState::READY => match session.session.begin(VIEWS) {
                         Ok(_) => session.running = true,
-                        Err(error) => eprintln!("beui-xr: the session did not begin: {error}"),
+                        Err(error) => {
+                            eprintln!("beui-adapter-xr: the session did not begin: {error}")
+                        }
                     },
                     xr::SessionState::STOPPING => {
                         let _ = session.session.end();
@@ -433,7 +437,7 @@ impl Headset {
             None => match session.waiter.wait() {
                 Ok(frame) => frame,
                 Err(error) => {
-                    eprintln!("beui-xr: waiting for the frame failed: {error}");
+                    eprintln!("beui-adapter-xr: waiting for the frame failed: {error}");
                     session.lose(error != xr::sys::Result::ERROR_INSTANCE_LOST);
                     return None;
                 }
@@ -479,7 +483,7 @@ impl Headset {
         let session = state.session.as_mut()?;
         let waited = session.waited.take()?;
         if let Err(error) = session.stream.begin() {
-            eprintln!("beui-xr: the frame did not begin: {error}");
+            eprintln!("beui-adapter-xr: the frame did not begin: {error}");
             return None;
         }
         let views = match waited.should_render {
@@ -558,7 +562,7 @@ impl Headset {
                 true
             }
             Err(error) => {
-                eprintln!("beui-xr: the swapchains were not made: {error}");
+                eprintln!("beui-adapter-xr: the swapchains were not made: {error}");
                 session.lose(false);
                 false
             }
@@ -712,7 +716,7 @@ impl Headset {
                 session.shown += 1;
                 session.layered = order.len();
             }
-            Err(error) => eprintln!("beui-xr: the frame was not shown: {error}"),
+            Err(error) => eprintln!("beui-adapter-xr: the frame was not shown: {error}"),
         }
     }
 }
@@ -755,7 +759,7 @@ fn layers(session: &mut Session, device: &wgpu::Device, quads: &[Quad]) -> Chose
                     );
                 }
                 Err(error) => {
-                    eprintln!("beui-xr: a panel's layer was not made: {error}");
+                    eprintln!("beui-adapter-xr: a panel's layer was not made: {error}");
                     continue;
                 }
             }
@@ -779,12 +783,12 @@ fn acquire(handle: &mut xr::Swapchain<xr::Vulkan>) -> Option<usize> {
     let image = match handle.acquire_image() {
         Ok(image) => image as usize,
         Err(error) => {
-            eprintln!("beui-xr: no swapchain image: {error}");
+            eprintln!("beui-adapter-xr: no swapchain image: {error}");
             return None;
         }
     };
     if let Err(error) = handle.wait_image(xr::Duration::INFINITE) {
-        eprintln!("beui-xr: the swapchain image never came: {error}");
+        eprintln!("beui-adapter-xr: the swapchain image never came: {error}");
         let _ = handle.release_image();
         return None;
     }

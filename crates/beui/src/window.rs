@@ -1,11 +1,11 @@
 use std::error::Error;
 use std::sync::Arc;
 
+use beui_adapter_xr::Xr;
 use beui_core::app::App;
 use beui_core::renderer::{Loaded, WindowHandle, any_loaded};
 use beui_renderer_wgpu::present::OpenDevice;
 use beui_renderer_wgpu::window::WindowSurface;
-use beui_xr::Xr;
 
 use beui_core::runner::{Adapter, Launch, RunOptions};
 
@@ -151,7 +151,7 @@ fn adapt(
     }
     let space = beui_adapter_space::Space::new();
     let host: Box<dyn beui_core::runner::WindowHost> = match xr {
-        Some(xr) => Box::new(beui_xr::XrSpace::new(space, xr.headset())),
+        Some(xr) => Box::new(beui_adapter_xr::XrSpace::new(space, xr.headset())),
         None => Box::new(space),
     };
     Box::new(beui_core::runner::HostedAdapter { adapter, host })

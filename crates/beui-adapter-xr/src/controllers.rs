@@ -85,7 +85,9 @@ impl Controllers {
             if let Err(error) =
                 instance.suggest_interaction_profile_bindings(path(instance, profile)?, &bindings)
             {
-                eprintln!("beui-xr: the runtime turned down bindings for {profile}: {error}");
+                eprintln!(
+                    "beui-adapter-xr: the runtime turned down bindings for {profile}: {error}"
+                );
             }
         }
         session.attach_action_sets(&[&set])?;

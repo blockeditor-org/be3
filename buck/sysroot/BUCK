@@ -37,7 +37,7 @@ test_runtime = [
     "xkb-data",
 ]
 
-# What beui-xr's smoke test adds to that: the OpenXR loader, and Monado's
+# What beui-adapter-xr's smoke test adds to that: the OpenXR loader, and Monado's
 # runtime and service, which it runs with the null compositor on lavapipe.
 # Armadillo, which Monado's OpenCV links, is the one library outside the
 # multiarch directory.

@@ -1,5 +1,5 @@
 [package]
-name = "beui-xr"
+name = "beui-adapter-xr"
 edition.workspace = true
 version.workspace = true
 license.workspace = true

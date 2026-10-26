@@ -18,7 +18,7 @@ and so panels of their own in space. It draws through any
 number of views, each a pose with an off-axis field of view (`head::View`,
 `head::Fov`): the simulator's one, or tracked views an XR host hands
 `Space::set_views` and draws with `Space::draw` (guides/beui.md, "Views"), and
-`BEUI_XR=openxr` shows it on an OpenXR headset (`crates/beui-xr`, "Headsets"), with panels as composition layers where their order is plain.
+`BEUI_XR=openxr` shows it on an OpenXR headset (`crates/beui-adapter-xr`, "Headsets"), with panels as composition layers where their order is plain.
 Input is a mouse pointer, a keyboard, and a laser per controller that acts as
 a finger, with grips that carry, scale and turn panels (guides/beui.md,
 "Lasers"), fed from OpenXR's controller actions or `drive xr`.
@@ -28,7 +28,7 @@ running without a headset.
 
 ## M1 follow-ups: OpenXR
 
-`BEUI_XR=openxr` shows space on a headset through `crates/beui-xr` on Linux
+`BEUI_XR=openxr` shows space on a headset through `crates/beui-adapter-xr` on Linux
 and Windows (guides/beui.md, "Headsets"), checked in CI against Monado's null
 compositor and compiled for Windows by `./scripts/verify`. What remains:
 

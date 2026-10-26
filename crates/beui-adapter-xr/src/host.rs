@@ -74,7 +74,7 @@ impl WindowHost for XrSpace {
                 false => "",
             };
             eprintln!(
-                "beui-xr: {} stopped; space goes on as the simulator{until}",
+                "beui-adapter-xr: {} stopped; space goes on as the simulator{until}",
                 self.headset.runtime()
             );
         }
@@ -85,7 +85,7 @@ impl WindowHost for XrSpace {
         if let Some(gpu) = &self.gpu
             && self.headset.reopen(&gpu.device)
         {
-            eprintln!("beui-xr: the headset is back");
+            eprintln!("beui-adapter-xr: the headset is back");
             self.warned = false;
         }
         self.frame = match (&self.gpu, self.paced) {

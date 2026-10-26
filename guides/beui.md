@@ -307,7 +307,7 @@ direction:
 | `beui-adapter-winit`, `beui-adapter-android`, `beui-adapter-web` | each platform's `Adapter` and `Platform`: its event loop, window or view, input, IME, clipboard, file picker and accessibility adapter (winit's is its own `accessibility.rs` over `accesskit_unix`, `accesskit_windows` and `accesskit_macos`, since `accesskit_winit` has no release for winit 0.31) |
 | `beui-adapter-drm` | Linux's displays and input devices through DRM/KMS and libinput: an `Adapter`, `Platform` and `Renderer` whose screens each keep a retained frame and are drawn when their display flips (the app's frames are paced to the flips too, by `pacing.rs`: at most one per flip, none while nothing changes), handing the flip a fence (or, without atomic fences, waiting for it in the event loop) instead of blocking on the GPU; callers run it with `beui::run_on` |
 | `beui-adapter-space` | the VR simulator `WindowHost` that `BEUI_ADAPTER=space` wraps around a native or headless adapter: the app's windows as panels in a 3D scene ("Space: the VR simulator host" below) |
-| `beui-xr` | space on an OpenXR headset (`BEUI_XR=openxr`): the runtime, the Vulkan device it picks, its session, swapchains and frame pacing, and `XrSpace`, the `WindowHost` that drives `Space` from them ("Headsets" in the space section below) |
+| `beui-adapter-xr` | space on an OpenXR headset (`BEUI_XR=openxr`): the runtime, the Vulkan device it picks, its session, swapchains and frame pacing, and `XrSpace`, the `WindowHost` that drives `Space` from them ("Headsets" in the space section below) |
 | `beui-adapter-plugin` | the `Adapter`, `Platform` and `Renderer` for one region of a block editor plugin, which the plugin framework drives frame by frame (guides/adding_a_plugin_editor.md); it depends on the plugin framework, so the facade does not offer it |
 
 Core cannot see the crates above it, so the few places it used to reach up are
@@ -3087,7 +3087,7 @@ all its 3D (`glam`) stays in the crate.
   window that changed; the platform window is still drawn by the `Drawing`
   `Space::frame` returns.
 - Headsets: `BEUI_XR=openxr` (with `BEUI_ADAPTER=space` only) shows space on
-  an OpenXR headset through `crates/beui-xr`; with no runtime or no headset
+  an OpenXR headset through `crates/beui-adapter-xr`; with no runtime or no headset
   `beui::window`'s `open_xr` says why and space runs as the simulator, and a
   session the runtime ends later (`Headset::lost`) leaves the simulator's
   head where the headset left it. A session lost with its instance still
@@ -3139,7 +3139,7 @@ all its 3D (`glam`) stays in the crate.
   behind or in front of each other's planes, else the second keeps to the
   eye buffer. Each `PanelLayer` (pose, metres, bend, texture pixels and
   format, and a `version` the compositor bumps on each repaint) becomes a
-  `beui_xr::Quad`; `Headset::submit` keeps a swapchain per layered window (one no longer
+  `beui_adapter_xr::Quad`; `Headset::submit` keeps a swapchain per layered window (one no longer
   layered is dropped three frames later, once the GPU is done with it),
   acquires an image only when its version changed (an idle panel costs no
   copy), and `Space::draw`'s `LayerTarget`s have the compositor copy the
@@ -3171,7 +3171,7 @@ all its 3D (`glam`) stays in the crate.
   Reality profiles, read at the predicted display time in the eyes' space
   and pushed into the frame's input as `Incoming::Controller` (see Lasers),
   with `Lost` once when a hand's aim stops being tracked.
-  `beui-xr`'s test runs Monado's service with its null compositor on
+  `beui-adapter-xr`'s test runs Monado's service with its null compositor on
   lavapipe (`//buck/sysroot:amd64-xr`) and has it show frames, the main
   panel as a quad layer.
 - Carry: on `WindowRequest::BeginMove` (for any window) the panel keeps its pose relative to the

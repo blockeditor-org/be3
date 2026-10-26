@@ -42,7 +42,7 @@ def _outputs(ctx, kind: str, universe: str) -> list[Artifact]:
     return [ctx.analysis(target).providers()[DefaultInfo].default_outputs[0] for target in targets]
 
 # rustc's check pass over beui for the platforms the build server's tests do not
-# run on, so that beui-xr's OpenXR and the rest of beui's native stack keep
+# run on, so that beui-adapter-xr's OpenXR and the rest of beui's native stack keep
 # compiling there: Windows, where the first headset is.
 _CROSS_CHECKS = {
     "root//crates/beui:beui": ["windows_x86_64"],
