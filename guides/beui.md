@@ -23,6 +23,66 @@ cannot drift from its listing. The
 children and render props, controlled state, keyed lists, scopes, and context;
 this guide is about using beui itself.
 
+## A whole app
+
+```rust example=beui-demo.counter_app
+use beui::reactive::*;
+use beui::styled::*;
+use beui::{Context, Document, NodeId, Rect, Sides};
+use beui_macros::component;
+
+pub struct CounterApp {
+    pub document: Document,
+}
+
+impl CounterApp {
+    pub fn new() -> Self {
+        let document = build(|| {
+            view! {
+                <Root title={"Counter".to_owned()}>
+                    <Counter />
+                </Root>
+            }
+        });
+        Self { document }
+    }
+}
+
+impl beui::App for CounterApp {
+    fn update(&mut self, context: &Context, rect: Rect) {
+        self.document.show(context, rect);
+    }
+}
+
+#[component]
+fn Counter() -> NodeId {
+    let count = create_signal(0);
+    let label = create_memo(move || format!("Clicked {} times", count.get()));
+    view! {
+        <Frame padding={Sides::all(16.0)}>
+            <List spacing=8.0>
+                <Text>{label}</Text>
+                <Button
+                    @test_id="counter.add"
+                    label="Add one"
+                    variant=ButtonVariant::Primary
+                    on_click={move || count.update(|count| *count += 1)}
+                />
+            </List>
+        </Frame>
+    }
+}
+```
+
+![The counter after two clicks](paint:beui-demo.a_counter_app_counts_its_clicks)
+
+`build` runs the closure once and keeps the tree it returns in a `Document`;
+`App::update` shows that document every frame. `Counter` also runs once: a click
+sets `count`, the memo derived from it changes, and only the text node reading
+the memo updates. A native `main` opens the app in a window with
+`beui::run(CounterApp::new())`, as crates/beui-demo/src/main.rs does with
+`run_with`.
+
 ## The rules that matter most
 
 These four cover most review comments on beui code.

@@ -1,17 +1,29 @@
-use fix_rust_source::fix_repository;
+use fix_rust_source::{fix_docs, fix_repository};
 use std::env;
-use std::error::Error;
 use std::path::Path;
+use std::process::ExitCode;
 
-fn main() -> Result<(), Box<dyn Error>> {
-    let mut arguments = env::args().skip(1);
-    let check = match arguments.next().as_deref() {
-        None => false,
-        Some("--check") => true,
-        Some(argument) => return Err(format!("unknown argument: {argument}").into()),
+fn main() -> ExitCode {
+    let arguments: Vec<String> = env::args().skip(1).collect();
+    let result = match arguments
+        .iter()
+        .map(String::as_str)
+        .collect::<Vec<_>>()
+        .as_slice()
+    {
+        [] => fix_repository(Path::new("."), false),
+        ["--check"] => fix_repository(Path::new("."), true),
+        ["docs", code] => fix_docs(Path::new("."), Path::new(code)),
+        _ => Err(format!(
+            "usage: fix-rust-source [--check] | fix-rust-source docs CODE (got {arguments:?})"
+        )
+        .into()),
     };
-    if let Some(argument) = arguments.next() {
-        return Err(format!("unknown argument: {argument}").into());
+    match result {
+        Ok(()) => ExitCode::SUCCESS,
+        Err(error) => {
+            eprintln!("{error}");
+            ExitCode::FAILURE
+        }
     }
-    fix_repository(Path::new("."), check)
 }

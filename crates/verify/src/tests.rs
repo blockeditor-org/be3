@@ -1,2 +1,3 @@
 mod a_binary_the_pins_do_not_name_replaces_its_pin;
 mod a_release_that_matches_its_pins_is_current;
+mod the_docs_name_the_paintings_they_show;

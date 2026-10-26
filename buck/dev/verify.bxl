@@ -2,7 +2,7 @@ load("//buck/cargo/buckify.bxl", buckify = "generate")
 
 # Everything ./scripts/verify and ./scripts/ci build, in one buck2 command: the
 # generated rules and Cargo.lock, the sysroot's lockfile, the autofixes
-# (fix.sh), every test and plugin test, which of crates/bootstrap's binaries
+# (fix.sh, the docs' code samples among them), every test and plugin test, which of crates/bootstrap's binaries
 # scripts/internal/pins does not name (and with --bootstrap those binaries),
 # and on request the paint preview renderer; and
 # crates/verify, for the machine that asked (--host, a platform in
@@ -71,6 +71,28 @@ def _rust_fixes(ctx, actions) -> list[Artifact]:
         )
         fixes.append(out)
     return fixes
+
+# The code samples in guides/ (guides/code_samples.md), read from the crates as
+# the rust fixes leave them, so a sample never shows code the next run reformats.
+def _docs_fix(ctx, actions, rust_fixes: list[Artifact]) -> Artifact:
+    files = _files(ctx, "crates")
+    code = [path for path in files if path.endswith(".rs") or path.endswith("/Cargo.toml")]
+    docs = [path for path in _files(ctx, "guides") if path.endswith(".md")]
+    out = actions.declare_output("fix/docs/out", dir = True)
+    actions.run(
+        cmd_args(
+            "sh",
+            ctx.fs.source("buck/dev/fix.sh"),
+            "docs",
+            out.as_output(),
+            actions.copied_dir("fix/docs/sources", {path: ctx.fs.source(path) for path in docs}),
+            _output(ctx, "root//crates/fix-rust-source:bin"),
+            actions.copied_dir("fix/docs/code", {path: ctx.fs.source(path) for path in code}),
+            rust_fixes,
+        ),
+        category = "fix_docs",
+    )
+    return out
 
 def _starlark_files(ctx) -> list[str]:
     found = ["BUCK.v2", "PACKAGE"]
@@ -144,7 +166,9 @@ def _impl(ctx: bxl.Context):
     ]
     built = []
     if args.lint:
-        printed.extend([("fix", fix) for fix in _rust_fixes(ctx, actions)])
+        rust_fixes = _rust_fixes(ctx, actions)
+        printed.extend([("fix", fix) for fix in rust_fixes])
+        printed.append(("fix", _docs_fix(ctx, actions, rust_fixes)))
         printed.append(("fix", _starlark_fix(ctx, actions)))
     if args.tests:
         built.extend(_outputs(ctx, "^test_run$", "//crates/... + //compile_fail/..."))
