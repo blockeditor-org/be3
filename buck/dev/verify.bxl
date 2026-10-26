@@ -47,8 +47,8 @@ def _outputs(ctx, kind: str, universe: str) -> list[Artifact]:
 # run on, so that beui-layer-xr's OpenXR and the rest of beui's native stack keep
 # compiling there: Windows, where the first headset is.
 _CROSS_CHECKS = {
-    "root//crates/be-win32:be-win32": ["windows_x86_64"],
     "root//crates/be-win32-input:be-win32-input": ["windows_x86_64"],
+    "root//crates/be-win32:be-win32": ["windows_x86_64"],
     "root//crates/beui:beui": ["windows_x86_64"],
 }
 
