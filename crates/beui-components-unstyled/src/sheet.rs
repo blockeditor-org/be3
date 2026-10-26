@@ -1311,9 +1311,7 @@ fn ModalSheetBody(
     });
     let extent = create_signal(0.0);
     let highest = stops.iter().copied().fold(0.0, f32::max);
-    let room = create_memo(move || {
-        ItemSize::Percent(100.0).min(extent.get() * (1.0 - highest))
-    });
+    let room = create_memo(move || ItemSize::Percent(100.0).min(extent.get() * (1.0 - highest)));
     let built = view! {
         <List spacing=0.0>
             <Interactive

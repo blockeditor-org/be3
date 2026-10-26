@@ -164,10 +164,12 @@ pub fn PanZoom(
         move |gesture: ZoomGesture| camera.zoom(gesture.factor, gesture.pos),
     );
     let panning = recognised.panning;
-    let cursor = create_memo(move || if panning.get() {
-        CursorIcon::Grabbing
-    } else {
-        CursorIcon::Default
+    let cursor = create_memo(move || {
+        if panning.get() {
+            CursorIcon::Grabbing
+        } else {
+            CursorIcon::Default
+        }
     });
     let content_node = content.call(PanZoomHandle {
         view: create_memo(move || Some(current.get().canvas(rect.get()))),

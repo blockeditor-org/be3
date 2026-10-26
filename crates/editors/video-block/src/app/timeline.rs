@@ -44,15 +44,12 @@ pub(crate) fn Timeline(state: VideoState) -> NodeId {
             })
             .unwrap_or_default()
     });
-    let lanes = create_memo(move || {
-        rows.get().iter().map(|row| row.lane + 1).max().unwrap_or(1) + 1
-    });
+    let lanes =
+        create_memo(move || rows.get().iter().map(|row| row.lane + 1).max().unwrap_or(1) + 1);
     let ids = create_memo(move || rows.get().iter().map(|row| row.id).collect::<Vec<Uuid>>());
 
     let offset = create_signal(Vec2::ZERO);
-    let camera = create_memo(move || {
-        Some(CanvasView::new(placed.get().min - offset.get(), 1.0))
-    });
+    let camera = create_memo(move || Some(CanvasView::new(placed.get().min - offset.get(), 1.0)));
 
     let pixels_per_frame = state.pixels_per_frame;
     let duration = state.duration;
@@ -86,20 +83,21 @@ pub(crate) fn Timeline(state: VideoState) -> NodeId {
     let target_drag = state.drag;
     let host_drag = state.editor().drag();
     let target = create_memo(move || {
-            let _ = rows.get();
-            let video = state.video()?;
-            let rows: Vec<ClipRow> = timeline::lane_rows(&video);
-            let content = content.get();
-            let scale = pixels_per_frame.get();
-            if let Some(drag) = target_drag.get() {
-                let at = pointer.get()?;
-                return timeline::drop_target_at(&video, &rows, content, scale, at, Some(&drag));
-            }
-            let dragged = host_drag.get().filter(|drag| drag.block_id != state.block_id())?;
-            let at = dragged.position - placed.get_untracked().min.to_vec2()
-                + offset.get_untracked();
-            timeline::drop_target_at(&video, &rows, content, scale, at, None)
-        });
+        let _ = rows.get();
+        let video = state.video()?;
+        let rows: Vec<ClipRow> = timeline::lane_rows(&video);
+        let content = content.get();
+        let scale = pixels_per_frame.get();
+        if let Some(drag) = target_drag.get() {
+            let at = pointer.get()?;
+            return timeline::drop_target_at(&video, &rows, content, scale, at, Some(&drag));
+        }
+        let dragged = host_drag
+            .get()
+            .filter(|drag| drag.block_id != state.block_id())?;
+        let at = dragged.position - placed.get_untracked().min.to_vec2() + offset.get_untracked();
+        timeline::drop_target_at(&video, &rows, content, scale, at, None)
+    });
 
     let landing_drag = state.editor().drag();
     create_effect(move || {
@@ -151,9 +149,7 @@ pub(crate) fn Timeline(state: VideoState) -> NodeId {
     let lane_keys = create_memo(move || (0..lanes.get()).collect::<Vec<usize>>());
     let selection = create_selector(move || state.selected.get());
     let playhead = state.playhead;
-    let playhead_x = create_memo(move || {
-        playhead.get() as f32 * pixels_per_frame.get()
-    });
+    let playhead_x = create_memo(move || playhead.get() as f32 * pixels_per_frame.get());
     let playhead_height = create_memo(move || content.get().height());
 
     let built = view! {
@@ -184,13 +180,7 @@ pub(crate) fn Timeline(state: VideoState) -> NodeId {
                             })
                         });
                         view! {
-                            <Clip
-                                state
-                                id
-                                row
-                                selected
-                                scale={pixels_per_frame.read_only()}
-                            />
+                            <Clip state id row selected scale={pixels_per_frame.read_only()} />
                         }
                     }</ForEach>
                     <DropMarker target={target} scale={pixels_per_frame.read_only()} />

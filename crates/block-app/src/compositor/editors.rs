@@ -1367,8 +1367,8 @@ fn BlockFrameView(
     let content_size = create_memo(move || {
         revision.get();
         let size = viewport_rect.get().size().max(Vec2::splat(1.0));
-        let intrinsic = plugin_host::intrinsic_size(&plugin_id.value(), instance)
-            .unwrap_or(vec2(420.0, 240.0));
+        let intrinsic =
+            plugin_host::intrinsic_size(&plugin_id.value(), instance).unwrap_or(vec2(420.0, 240.0));
         vec2(size.x.max(intrinsic.x), size.y.max(intrinsic.y))
     });
     let content_rect = create_memo(move || {
@@ -1378,32 +1378,30 @@ fn BlockFrameView(
             content_size.get() * state.zoom,
         )
     });
-    let editor_view = create_memo(
-        move || {
-            if !handle.pan_and_zoom {
-                return None;
-            }
-            let origin = rect.get().min;
-            if !placed {
-                let state = viewport.get();
-                return Some(EditorView {
-                    rect: content_rect.get().translate(-origin.to_vec2()),
-                    scale: state.zoom,
-                });
-            }
-            revision.get();
-            let shown = content.get().unwrap_or(rect.get());
-            let scale = plugin_host::intrinsic_size(&plugin_id.value(), instance)
-                .filter(|intrinsic| intrinsic.x > 0.0 && intrinsic.y > 0.0)
-                .map_or(1.0, |intrinsic| {
-                    (shown.width() / intrinsic.x).min(shown.height() / intrinsic.y)
-                });
-            Some(EditorView {
-                rect: shown.translate(-origin.to_vec2()),
-                scale,
-            })
-        },
-    );
+    let editor_view = create_memo(move || {
+        if !handle.pan_and_zoom {
+            return None;
+        }
+        let origin = rect.get().min;
+        if !placed {
+            let state = viewport.get();
+            return Some(EditorView {
+                rect: content_rect.get().translate(-origin.to_vec2()),
+                scale: state.zoom,
+            });
+        }
+        revision.get();
+        let shown = content.get().unwrap_or(rect.get());
+        let scale = plugin_host::intrinsic_size(&plugin_id.value(), instance)
+            .filter(|intrinsic| intrinsic.x > 0.0 && intrinsic.y > 0.0)
+            .map_or(1.0, |intrinsic| {
+                (shown.width() / intrinsic.x).min(shown.height() / intrinsic.y)
+            });
+        Some(EditorView {
+            rect: shown.translate(-origin.to_vec2()),
+            scale,
+        })
+    });
     let fitted = create_signal(None::<FitArea>);
     let fit = move || {
         if !pan_and_zoom {
@@ -1424,71 +1422,67 @@ fn BlockFrameView(
     };
     let owner = use_context::<CameraOwner>();
     let command = move |command: Command| {
-            if !pan_and_zoom {
-                if let (Some(owner), true) = (owner, handle.pan_and_zoom) {
-                    owner.0.call(command);
-                }
-                return;
+        if !pan_and_zoom {
+            if let (Some(owner), true) = (owner, handle.pan_and_zoom) {
+                owner.0.call(command);
             }
-            let mut state = viewport.get_untracked();
-            settle(&mut state, command, viewport_rect.get_untracked(), max_zoom);
-            if state != viewport.get_untracked() {
-                viewport.set(state);
-            }
+            return;
+        }
+        let mut state = viewport.get_untracked();
+        settle(&mut state, command, viewport_rect.get_untracked(), max_zoom);
+        if state != viewport.get_untracked() {
+            viewport.set(state);
+        }
     };
     if pan_and_zoom {
         provide_context(CameraOwner(Callback::new(command)));
     }
-    create_effect(
-        move || {
-            if !pan_and_zoom {
-                return;
-            }
-            let rect = viewport_rect.get();
-            let content = content_size.get();
-            let area = fitted.get().filter(|_| chrome.get() == Chrome::Drawn);
-            let mut state = viewport.get_untracked();
-            if let Some(previous) = state.center.replace(rect.center()) {
-                state.pan += previous - rect.center();
-            }
-            follow(&mut state, area, rect, content, max_zoom);
-            if state != viewport.get_untracked() {
-                viewport.set(state);
-            }
-        },
-    );
+    create_effect(move || {
+        if !pan_and_zoom {
+            return;
+        }
+        let rect = viewport_rect.get();
+        let content = content_size.get();
+        let area = fitted.get().filter(|_| chrome.get() == Chrome::Drawn);
+        let mut state = viewport.get_untracked();
+        if let Some(previous) = state.center.replace(rect.center()) {
+            state.pan += previous - rect.center();
+        }
+        follow(&mut state, area, rect, content, max_zoom);
+        if state != viewport.get_untracked() {
+            viewport.set(state);
+        }
+    });
     let pan_drags = create_signal(0u64);
-    create_effect(
-        move || {
-            revision.get();
-            let rect = rect.get_untracked();
-            for change in plugin_host::take_view_changes(&plugin_id.value(), instance) {
-                command(match change {
-                    ViewChange::Pan(by) => Command::Pan(by),
-                    ViewChange::Zoom { factor, anchor } => Command::Zoom {
-                        factor,
-                        anchor: anchor.map(|at| rect.min + at.to_vec2()),
-                    },
-                    ViewChange::KeepFitted(area) => {
-                        fitted.set(area);
-                        continue;
-                    }
-                    ViewChange::Fit => {
-                        fit();
-                        continue;
-                    }
-                    ViewChange::PanDrag => {
-                        pan_drags.update(|asked| *asked += 1);
-                        continue;
-                    }
-                });
-            }
-            let actions = plugin_host::take_bar_actions(&plugin_id.value(), instance);
-            for action in actions {
-                on_bar_action.call(action);
-            }
-        },
-    );
+    create_effect(move || {
+        revision.get();
+        let rect = rect.get_untracked();
+        for change in plugin_host::take_view_changes(&plugin_id.value(), instance) {
+            command(match change {
+                ViewChange::Pan(by) => Command::Pan(by),
+                ViewChange::Zoom { factor, anchor } => Command::Zoom {
+                    factor,
+                    anchor: anchor.map(|at| rect.min + at.to_vec2()),
+                },
+                ViewChange::KeepFitted(area) => {
+                    fitted.set(area);
+                    continue;
+                }
+                ViewChange::Fit => {
+                    fit();
+                    continue;
+                }
+                ViewChange::PanDrag => {
+                    pan_drags.update(|asked| *asked += 1);
+                    continue;
+                }
+            });
+        }
+        let actions = plugin_host::take_bar_actions(&plugin_id.value(), instance);
+        for action in actions {
+            on_bar_action.call(action);
+        }
+    });
     if let Some(tab) = use_context::<TabContext>() {
         create_effect(move || {
             revision.get();
@@ -1511,18 +1505,19 @@ fn BlockFrameView(
             dialog: None,
         })
     });
-    let gestures = handle.pan != PanMode::None
-        && (pan_and_zoom || owner.is_some() && handle.pan_and_zoom);
+    let gestures =
+        handle.pan != PanMode::None && (pan_and_zoom || owner.is_some() && handle.pan_and_zoom);
     let pan_drag = (gestures && handle.pan == PanMode::OneFinger).then(|| PanDrag {
         asked: pan_drags.read_only(),
         pan: Callback::new(move |delta: Vec2| command(Command::Pan(delta))),
     });
-    let steered = create_memo(move || {
-        (!read_only && !handle.pan_and_zoom).then(|| content_rect.get())
-    });
+    let steered =
+        create_memo(move || (!read_only && !handle.pan_and_zoom).then(|| content_rect.get()));
     let scroll = move |gesture: ScrollGesture| {
         if !gestures
-            || steered.get_untracked().is_some_and(|rect| rect.contains(gesture.pos))
+            || steered
+                .get_untracked()
+                .is_some_and(|rect| rect.contains(gesture.pos))
         {
             return;
         }
@@ -1551,7 +1546,9 @@ fn BlockFrameView(
         let origin = rect.get_untracked().min.to_vec2();
         gestures
             && viewport_rect.get_untracked().contains(pos)
-            && !steered.get_untracked().is_some_and(|rect| rect.contains(pos))
+            && !steered
+                .get_untracked()
+                .is_some_and(|rect| rect.contains(pos))
             && !plugin_host::frame_rects(&plugin_id.value(), instance).is_some_and(|frame| {
                 frame
                     .floating
