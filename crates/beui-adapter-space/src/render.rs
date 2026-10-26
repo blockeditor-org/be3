@@ -121,7 +121,10 @@ struct Destination<'a> {
     holes: &'a [WindowId],
 }
 
-pub type Fill<'a> = (WindowId, Option<(&'a wgpu::TextureView, wgpu::TextureFormat)>);
+pub type Fill<'a> = (
+    WindowId,
+    Option<(&'a wgpu::TextureView, wgpu::TextureFormat)>,
+);
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
 enum Viewport {

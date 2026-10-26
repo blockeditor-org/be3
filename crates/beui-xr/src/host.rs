@@ -174,7 +174,9 @@ impl WindowHost for XrSpace {
                         .zip(&filled)
                         .map(|(fill, texture)| LayerTarget {
                             window: quads[fill.quad].window,
-                            fill: texture.as_ref().zip(fill.texture.map(|texture| texture.format())),
+                            fill: texture
+                                .as_ref()
+                                .zip(fill.texture.map(|texture| texture.format())),
                         })
                         .collect();
                     space.draw(commands, &targets, &layers);

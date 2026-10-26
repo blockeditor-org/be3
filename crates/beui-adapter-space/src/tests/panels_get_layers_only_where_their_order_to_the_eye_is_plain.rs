@@ -47,7 +47,7 @@ fn panels_get_layers_only_where_their_order_to_the_eye_is_plain() {
 
     let crossing = chosen(
         &[turned(back, 1.0, 0.6), turned(front, 1.0, -0.6)],
-        &ALLOWED
+        &ALLOWED,
     );
     assert_eq!(
         crossing.len(),
@@ -58,7 +58,11 @@ fn panels_get_layers_only_where_their_order_to_the_eye_is_plain() {
 
     let mut bent = panel(back, ahead(1.0));
     bent.bend = 1.0;
-    assert_eq!(chosen(&[bent], &ALLOWED), [back], "a bent panel is a cylinder");
+    assert_eq!(
+        chosen(&[bent], &ALLOWED),
+        [back],
+        "a bent panel is a cylinder"
+    );
     assert_eq!(
         chosen(
             &[bent],

@@ -609,12 +609,11 @@ impl Headset {
                 .iter()
                 .map(|&quad| Fill {
                     quad,
-                    texture: filled
-                        .iter()
-                        .find(|(filled, _)| *filled == quad)
-                        .map(|&(_, image)| {
+                    texture: filled.iter().find(|(filled, _)| *filled == quad).map(
+                        |&(_, image)| {
                             &session.chains[&quads[quad].window].swapchain.textures[image]
-                        }),
+                        },
+                    ),
                 })
                 .collect();
             draw(&targets, &fills, &mut commands);
@@ -716,7 +715,6 @@ impl Headset {
             Err(error) => eprintln!("beui-xr: the frame was not shown: {error}"),
         }
     }
-
 }
 
 type Chosen = (Vec<usize>, Vec<(usize, usize)>);
@@ -735,46 +733,46 @@ fn layers(session: &mut Session, device: &wgpu::Device, quads: &[Quad]) -> Chose
     for window in gone {
         session.retire(window);
     }
-        let mut shown = Vec::new();
-        let mut filled = Vec::new();
-        for (index, quad) in quads.iter().enumerate() {
-            let Some(format) = layer_format(&session.formats, quad.format) else {
-                continue;
-            };
-            let fits = session.chains.get(&quad.window).is_some_and(|chain| {
-                chain.swapchain.size == quad.pixels && chain.swapchain.format == format.1
-            });
-            if !fits {
-                session.retire(quad.window);
-                match swapchain(session, device, quad.pixels, format) {
-                    Ok(swapchain) => {
-                        session.chains.insert(
-                            quad.window,
-                            Chain {
-                                swapchain,
-                                version: None,
-                            },
-                        );
-                    }
-                    Err(error) => {
-                        eprintln!("beui-xr: a panel's layer was not made: {error}");
-                        continue;
-                    }
+    let mut shown = Vec::new();
+    let mut filled = Vec::new();
+    for (index, quad) in quads.iter().enumerate() {
+        let Some(format) = layer_format(&session.formats, quad.format) else {
+            continue;
+        };
+        let fits = session.chains.get(&quad.window).is_some_and(|chain| {
+            chain.swapchain.size == quad.pixels && chain.swapchain.format == format.1
+        });
+        if !fits {
+            session.retire(quad.window);
+            match swapchain(session, device, quad.pixels, format) {
+                Ok(swapchain) => {
+                    session.chains.insert(
+                        quad.window,
+                        Chain {
+                            swapchain,
+                            version: None,
+                        },
+                    );
+                }
+                Err(error) => {
+                    eprintln!("beui-xr: a panel's layer was not made: {error}");
+                    continue;
                 }
             }
-            let Some(chain) = session.chains.get_mut(&quad.window) else {
-                continue;
-            };
-            if chain.version == Some(quad.version) {
-                shown.push(index);
-                continue;
-            }
-            if let Some(image) = acquire(&mut chain.swapchain.handle) {
-                filled.push((index, image));
-                shown.push(index);
-            }
         }
-        (shown, filled)
+        let Some(chain) = session.chains.get_mut(&quad.window) else {
+            continue;
+        };
+        if chain.version == Some(quad.version) {
+            shown.push(index);
+            continue;
+        }
+        if let Some(image) = acquire(&mut chain.swapchain.handle) {
+            filled.push((index, image));
+            shown.push(index);
+        }
+    }
+    (shown, filled)
 }
 
 fn acquire(handle: &mut xr::Swapchain<xr::Vulkan>) -> Option<usize> {

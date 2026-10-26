@@ -59,9 +59,7 @@ impl Shape {
             .fold(back, f32::max);
         let margin = match panel.radius() {
             None => 0.0,
-            Some(radius) => {
-                radius * (1.0 - (panel.bend / (SAMPLES_ACROSS - 1) as f32 / 2.0).cos())
-            }
+            Some(radius) => radius * (1.0 - (panel.bend / (SAMPLES_ACROSS - 1) as f32 / 2.0).cos()),
         };
         let centre = points.iter().copied().sum::<Vec3>() / points.len() as f32;
         let reach = points
@@ -219,8 +217,8 @@ fn back_to_front(distances: &[f32], nearer: &[(usize, usize)]) -> Option<Vec<usi
     }
     let mut ready: Vec<usize> = (0..count).filter(|at| waiting[*at] == 0).collect();
     let mut sorted = Vec::with_capacity(count);
-    while let Some(farthest) = (0..ready.len())
-        .max_by(|a, b| distances[ready[*a]].total_cmp(&distances[ready[*b]]))
+    while let Some(farthest) =
+        (0..ready.len()).max_by(|a, b| distances[ready[*a]].total_cmp(&distances[ready[*b]]))
     {
         let at = ready.swap_remove(farthest);
         sorted.push(at);

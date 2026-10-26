@@ -14,8 +14,8 @@ pub mod scale;
 mod space;
 
 pub use space::{
-    Both, CURSOR_LIFT, CURSOR_MARGIN, Held, OPEN_DISTANCE, OPEN_GRAB, OPEN_NEARER, OVER_NEARER,
-    LayerTarget, Pointer, SKY, Space, ViewTarget,
+    Both, CURSOR_LIFT, CURSOR_MARGIN, Held, LayerTarget, OPEN_DISTANCE, OPEN_GRAB, OPEN_NEARER,
+    OVER_NEARER, Pointer, SKY, Space, ViewTarget,
 };
 
 #[cfg(test)]
