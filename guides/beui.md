@@ -307,7 +307,7 @@ direction:
 | `beui-platform-winit`, `beui-platform-android`, `beui-platform-web` | each platform's `Platform` and `PlatformServices`: its event loop, window or view, input, IME, clipboard, file picker and accessibility adapter (winit's is its own `accessibility.rs` over `accesskit_unix`, `accesskit_windows` and `accesskit_macos`, since `accesskit_winit` has no release for winit 0.31) |
 | `beui-platform-drm` | Linux's displays and input devices through DRM/KMS and libinput: a `Platform`, `PlatformServices` and `Renderer` whose screens each keep a retained frame and are drawn when their display flips (the app's frames are paced to the flips too, by `pacing.rs`: at most one per flip, none while nothing changes), handing the flip a fence (or, without atomic fences, waiting for it in the event loop) instead of blocking on the GPU; callers run it with `beui::run_on` |
 | `beui-layer-space` | the VR simulator `WindowHost` that `BEUI_PLATFORM=space` wraps around a native or headless platform: the app's windows as panels in a 3D scene ("Space: the VR simulator host" below) |
-| `beui-platform-plugin` | the `Platform`, `PlatformServices` and `Renderer` for one region of a block editor plugin: `launch` starts the app and registers its runner with the plugin framework as the region's handler, whose calls then drive its frames (guides/adding_a_plugin_editor.md); it depends on the plugin framework, so the facade does not offer it, and it reads no `BEUI_*` variable |
+| `beui-platform-plugin` | the `Platform`, `PlatformServices` and `Renderer` for a block editor plugin module: `launch` starts the module's one app and registers its runner with the plugin framework as the module's `Regions` handler, whose batched calls then drive its frames; every region the host shows is a window of that app, which the app opens from the `Views` handle the platform provides through `Setup` (guides/adding_a_plugin_editor.md); it depends on the plugin framework, so the facade does not offer it, and it reads no `BEUI_*` variable |
 
 Core cannot see the crates above it, so the few places it used to reach up are
 hooks the higher crates fill in:
@@ -2809,11 +2809,22 @@ placement }`, `Closed(window)` and `Focused { window, focused }` (the host's
 window focus, as a window manager moves it on a click or to a window it
 opens). The runner applies them before the frame
 lays out, and `Context::window_size` and `Context::window_placement` read
-them. `Context::opens_windows` says whether anything can open windows; where
-nothing can (every platform on its own), a window is shown inside the
-main one instead.
+them. `Context::window_hosting` says which windows a host opens, as a
+`WindowHosting`: `None` (every platform on its own: a window is shown inside
+the main one instead), `Any` (a `WindowHost` opens every window) or `Placed`
+(the platform opens only the windows it placed itself: a `Window` opened with
+a `WindowPlacement::Host` the platform handed out through a handle in `Setup`,
+as beui-platform-plugin's `Views` and its `views.placement(id)` do; every other
+`Window` is an overlay inside the window it was opened in, so a plugin's
+docked windows stay inside its region). `Context::opens_windows` is true only
+for `Any`. A platform with no main window of its own (beui-platform-plugin)
+sets `Context::set_shows_main(false)`: the document then paints neither the
+root nor anything opened in the main window, so the root just holds the app's
+`Window`s, and the document's screens are the context's as they are, in its
+windows' coordinates, rather than cut to the main window.
 
-An app makes a window with the `Window` component (`beui::primitives`):
+An app makes a window with the `Window` component (`beui::primitives`,
+`beui::styled`):
 
 ```rust
 view! {
@@ -2846,7 +2857,8 @@ again. Elsewhere it is an `Overlay` at `at` (`Placement::At`,
 how floating windows looked before there were windows, so an app looks the
 same either way. `WindowHandle` (also `use_window()` inside the content)
 carries the `id`, the shown `size` and `is_window()`, which says which of the
-two it is. `begin_move()`, `begin_resize(edge)` and `close()` ask the host and
+two it is (`real_window()` is the hosted window it is drawn in: its own, or the
+one around the overlay it is). `begin_move()`, `begin_resize(edge)` and `close()` ask the host and
 return whether it took the request: false means the window is an overlay and
 the caller moves or resizes it itself. Overlays opened inside a window (menus,
 tooltips) are laid out inside that window and paint into it.
@@ -2896,9 +2908,35 @@ nothing out: it repaints the window's tree at the new raster, and the window's
 output is damaged whole. `WindowOutput::pixels_per_point` is the
 scale the output was drawn for, which a host draws it at.
 The cursor goes to the window the pointer is over, the IME area to the window
-holding the focus, and the rest of `WindowState` stays on the main window.
-The accessibility tree stays one tree, with each window's nodes in its own
-coordinates.
+holding the focus, and the rest of `WindowState` stays on the main window,
+except the appearance: a `Root` built inside a hosted window sets that
+window's clear colour, title and system bars
+(`Document::update_appearance(Some(window), ..)`), and a window without one
+takes the main window's. The accessibility tree stays one tree, with each
+window's nodes in its own coordinates; `FrameOutput::window_accessibility_tree`
+is the part of it in one window (its nodes, rooted at the window, with the
+focus when the focus is there), and `FrameOutput::window_overflows` names the
+window of each overflow.
+
+What a host is told about one window is asked of the document by window:
+`overlay_rects(window)`, `floating_rects(window)` and `overlay_layers(window)`
+cover the overlays opened in it, `drawing_rects(window)`,
+`press_claims(window)` and `wants_every_sample(window)` the nodes in it, and
+`measure_node(ctx, node, available)` measures a node with the painter of its
+window. A key listener at `KeyAt::Window` and an action, registered inside a
+`Window`, belong to the hosted window that holds it
+(`Document::host_window_of`): they hear a key only while the key's window is
+theirs (`Document::key_window`: the window of the focused node, else the one
+the host focused last) or while no window is known, so two plugin regions each
+keep their own Escape and shortcuts. `Context::request_action_in(window, id)`
+runs that window's action of that id, and the actions the document describes
+come once more per window, as an `ActionGroup` whose `window` names it. Where
+the platform opens only the windows it placed (`Placed`), a host's `Focused {
+window, focused: true }` moves the focus into that window, keeping the focus it
+takes from another window for when that one is focused again and giving back
+the one this window last had, and focuses nothing else; `focused: false`
+leaves the focus where it is. A `Resized` report for the window holding the
+focus reveals a focused text field the way a resized main window does.
 
 Tests host windows with `testing::Stepped::hosting_windows` (block-ui-test's
 `DocumentTest::hosting_windows`), whose host opens every window asked for at
@@ -3717,8 +3755,12 @@ A beui editor is a component. It implements
 are trait components (see Components in traits and impls), and uses
 `block_editor_beui::beui_plugin!`.
 The type it names holds no state: the
-framework builds the view once, keeps the `Document` it produced, and shows it
-every frame.
+framework builds the view once and keeps it. A plugin module is one beui app,
+with one `Document` and one `Context`: every region the host shows of every
+instance (a frame, a preview, artifact settings) is one of its windows, a
+`Window` block-editor-beui opens from beui-platform-plugin's `Views` handle
+with `views.placement(id)` and the region's size, and its content is the
+region's view, so an editor only ever writes `View(editor)`.
 
 ```rust
 #[component]
@@ -3786,7 +3828,7 @@ The [plugin editor guide](adding_a_plugin_editor.md) covers the manifest,
 creation flow, host connection, and current beui plugin capability limits.
 
 A template the manifest marks `"dialog": true` is made through `BeuiApp::Creation` instead, one
-more component that the framework builds a separate document of
+more component that the framework builds into the frame's window
 and shows in the picker's creation dialog. It says what the dialog makes with
 `creation.on_create(...)` and answers `creation.set_ready(true)` once it has been
 filled in. Asking the host works there too, through `creation.then(...)`.

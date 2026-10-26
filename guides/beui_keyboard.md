@@ -36,7 +36,10 @@ tree from the document root to the focused node (the target), and back up
 again; with nothing focused, the target is the topmost layer that traps focus,
 or the root. Listeners sit at positions on it (`KeyAt`):
 
-- `KeyAt::Host` and `KeyAt::Window` are above the tree, on every path.
+- `KeyAt::Host` and `KeyAt::Window` are above the tree, on every path; a
+  `KeyAt::Window` listener or action registered inside a hosted `Window` is
+  only on the paths of keys meant for that window (see "Windows and window
+  hosts" in the beui guide), as is every action registered there.
 - `KeyAt::Root` and `KeyAt::Node(node_ref)` are tree nodes, on the path only
   when the focus is inside them. With nothing focused, every listener in the
   topmost trapping layer hears the key, as if the focus could be anywhere in it.
