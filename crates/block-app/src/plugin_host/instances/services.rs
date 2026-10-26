@@ -1,8 +1,8 @@
 use std::{collections::HashMap, marker::PhantomData};
 
 use block_plugin_api::{
-    AccessListing, BlockIdRole, BlockPick, EditorInstanceId, Failure, FileSave, ImportedBlock, PickedBlock,
-    SavedFile,
+    AccessListing, BlockIdRole, BlockPick, EditorInstanceId, Failure, FileSave, ImportedBlock,
+    PickedBlock, SavedFile,
     embed::host_services::Call,
     ops::{OpError, OpId, Outcome, Reply},
 };

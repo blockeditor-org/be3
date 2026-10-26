@@ -211,7 +211,6 @@ fn resend(
     }
 }
 
-
 struct Open {
     block: Uuid,
     module: usize,
@@ -989,9 +988,7 @@ impl<H: Host> Replicas<H> {
             }
             self.make_up_session(replica);
         }
-        let _ = self
-            .on_replica::<()>(ctx, block, Asked::Seal(force))
-            .await;
+        let _ = self.on_replica::<()>(ctx, block, Asked::Seal(force)).await;
     }
 
     pub async fn seal_all(&mut self, ctx: Ctx<'_, H>) {

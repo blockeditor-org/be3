@@ -47,28 +47,25 @@ pub(crate) fn grants_of(
     listed: Result<be_protocol::AccessList, String>,
 ) -> Result<block_plugin_api::AccessListing, String> {
     listed.map(|list| block_plugin_api::AccessListing {
-            grants: list
-                .entries
-                .into_iter()
-                .map(|entry| block_plugin_api::AccessGrant {
-                    account: entry.account.into_bytes(),
-                    email: entry.email,
-                    display_name: entry.display_name,
-                    administrator: matches!(
-                        entry.role,
-                        be_protocol::OrganizationRole::Administrator
-                    ),
-                    author: entry.author,
-                    granted: entry.granted.map(level_of),
-                    inherited: level_of(entry.inherited),
-                    effective: level_of(entry.effective),
-                    source: entry.source.map(Uuid::into_bytes),
-                    waiting: entry.waiting,
-                })
-                .collect(),
-            company: list.company,
-            set_inside: list.set_inside,
-        })
+        grants: list
+            .entries
+            .into_iter()
+            .map(|entry| block_plugin_api::AccessGrant {
+                account: entry.account.into_bytes(),
+                email: entry.email,
+                display_name: entry.display_name,
+                administrator: matches!(entry.role, be_protocol::OrganizationRole::Administrator),
+                author: entry.author,
+                granted: entry.granted.map(level_of),
+                inherited: level_of(entry.inherited),
+                effective: level_of(entry.effective),
+                source: entry.source.map(Uuid::into_bytes),
+                waiting: entry.waiting,
+            })
+            .collect(),
+        company: list.company,
+        set_inside: list.set_inside,
+    })
 }
 
 pub(crate) fn level_of(access: be_graph::Access) -> AccessLevel {

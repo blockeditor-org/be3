@@ -610,11 +610,7 @@ impl Workspace {
         self.share.set(Some(share));
     }
 
-    fn share_listed(
-        &self,
-        ask: u64,
-        listing: Result<block_editor_beui::AccessListing, Failure>,
-    ) {
+    fn share_listed(&self, ask: u64, listing: Result<block_editor_beui::AccessListing, Failure>) {
         let Some(mut share) = self.share.get_untracked() else {
             return;
         };

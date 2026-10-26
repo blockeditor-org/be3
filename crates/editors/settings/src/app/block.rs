@@ -164,14 +164,14 @@ fn KindHere(editor: Editor, kind: Uuid, block: Memo<Option<Uuid>>, manages: Memo
         if let (Some(block), true) = (block.get(), manages.get()) {
             let asked = untrack(|| editor.host().list_access(block));
             editor.then(asked, move |listed| {
-                    if let Ok(AccessListing { grants, .. }) = listed {
-                        let open = grants.iter().any(|grant| {
-                            Uuid::from_bytes(grant.account) == ANYONE_INSIDE
-                                && grant.granted.is_some_and(|level| level.can_view())
-                        });
-                        open_inside.set(Some(open));
-                    }
-                });
+                if let Ok(AccessListing { grants, .. }) = listed {
+                    let open = grants.iter().any(|grant| {
+                        Uuid::from_bytes(grant.account) == ANYONE_INSIDE
+                            && grant.granted.is_some_and(|level| level.can_view())
+                    });
+                    open_inside.set(Some(open));
+                }
+            });
         }
     });
     let selected = create_memo(move || {

@@ -60,7 +60,8 @@ pub use blocks::{
 };
 pub use debug::debug::{DebugTemplate, PerformanceMeasurement};
 pub use host_services::{
-    AccessGrant, AccessListing, BlockFilter, BlockPick, ImportedBlock, PickedBlock, Revision, ShellDialog,
+    AccessGrant, AccessListing, BlockFilter, BlockPick, ImportedBlock, PickedBlock, Revision,
+    ShellDialog,
 };
 pub use shared::access::AccessLevel;
 pub use shell_types::{

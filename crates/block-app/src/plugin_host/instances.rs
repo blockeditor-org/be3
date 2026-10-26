@@ -1450,17 +1450,19 @@ impl Instances {
                         organization_id,
                         client_id,
                     }),
-                    InstanceRole::Artifact(editor, block, source) => Opening::Artifact(OpenArtifact {
-                        instance,
-                        editor: editor.into_bytes(),
-                        block_id: block.id.into_bytes(),
-                        block_type: block.block_type.into_bytes(),
-                        source: source.into_bytes(),
-                        account_id,
-                        organization_id,
-                        client_id,
-                        data: entry.artifact.data.clone(),
-                    }),
+                    InstanceRole::Artifact(editor, block, source) => {
+                        Opening::Artifact(OpenArtifact {
+                            instance,
+                            editor: editor.into_bytes(),
+                            block_id: block.id.into_bytes(),
+                            block_type: block.block_type.into_bytes(),
+                            source: source.into_bytes(),
+                            account_id,
+                            organization_id,
+                            client_id,
+                            data: entry.artifact.data.clone(),
+                        })
+                    }
                 })));
                 let mut statuses: Vec<_> = entry
                     .screens
