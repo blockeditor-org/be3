@@ -3127,6 +3127,29 @@ all its 3D (`glam`) stays in the crate.
   hands those over instead, then draws them into each eye's swapchain image (imported with
   `create_texture_from_hal`, one swapchain per eye, sRGB where offered),
   submits, releases the images and ends the frame with a projection layer.
+  Panels whose order to the eye is plain are also shown as OpenXR
+  composition layers, sampled once by the runtime's compositor, so text stays
+  sharp: `Space::layers(&layers::Allowance { most, cylinders, largest })`
+  picks them (`layers::choose`): panels facing the eye, not held by a
+  carry, resize or gesture, no bigger than the runtime's swapchains, bent
+  ones only where `XR_KHR_composition_layer_cylinder` is enabled, those that
+  look biggest first, up to the runtime's layer count less the projection
+  layer (and `MOST_LAYERS`, 8, for memory), and none whose order to another
+  chosen one is unclear: two that can overlap on screen must lie wholly
+  behind or in front of each other's planes, else the second keeps to the
+  eye buffer. Each `PanelLayer` (pose, metres, bend, texture pixels and
+  format, and a `version` the compositor bumps on each repaint) becomes a
+  `beui_xr::Quad`; `Headset::submit` keeps a swapchain per layered window,
+  acquires an image only when its version changed (an idle panel costs no
+  copy), and `Space::draw`'s `LayerTarget`s have the compositor copy the
+  panel's texture into it (`fill`) and draw each layered panel's front as a
+  hole, cleared to transparent with depth, so nearer panels, chrome, beams
+  and the cursor drawn in the eye buffer still cover it. The layers go
+  under the projection layer, farthest first, as quads or cylinders (posed
+  at the cylinder's axis, `central_angle` = bend), and the projection layer
+  blends by its alpha (`BLEND_TEXTURE_SOURCE_ALPHA`). The mirror window
+  draws every panel itself. `Headset::layered` counts the last frame's
+  layers.
   A frame begun and not submitted is ended empty at the next `pace`. While
   the session is idle the host polls the runtime every `IDLE_POLL` (100 ms).
   The mouse and keyboard work exactly as in the simulator: the mirror window
@@ -3148,7 +3171,8 @@ all its 3D (`glam`) stays in the crate.
   and pushed into the frame's input as `Incoming::Controller` (see Lasers),
   with `Lost` once when a hand's aim stops being tracked.
   `beui-xr`'s test runs Monado's service with its null compositor on
-  lavapipe (`//buck/sysroot:amd64-xr`) and has it show frames.
+  lavapipe (`//buck/sysroot:amd64-xr`) and has it show frames, the main
+  panel as a quad layer.
 - Carry: on `WindowRequest::BeginMove` (for any window) the panel keeps its pose relative to the
   head, with the grabbed point on the cursor's ray at a fixed distance, so
   moving the mouse or steering carries it. As the mouse swings the ray around

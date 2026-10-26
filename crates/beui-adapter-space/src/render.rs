@@ -118,7 +118,10 @@ struct Destination<'a> {
     size: (u32, u32),
     format: wgpu::TextureFormat,
     resolve: Option<&'a wgpu::TextureView>,
+    holes: &'a [WindowId],
 }
+
+pub type Fill<'a> = (WindowId, Option<(&'a wgpu::TextureView, wgpu::TextureFormat)>);
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
 enum Viewport {
@@ -193,6 +196,7 @@ struct Pipelines {
     beam: wgpu::RenderPipeline,
     cursor: wgpu::RenderPipeline,
     blit: wgpu::RenderPipeline,
+    hole: wgpu::RenderPipeline,
 }
 
 struct Gpu {
@@ -214,6 +218,8 @@ struct Gpu {
     pending: HashMap<WindowId, Pending>,
     chrome: HashMap<WindowId, Panel>,
     chrome_pending: HashMap<WindowId, Pending>,
+    versions: HashMap<WindowId, u64>,
+    fills: HashMap<wgpu::TextureFormat, wgpu::RenderPipeline>,
 }
 
 #[derive(Clone)]
@@ -238,7 +244,22 @@ impl Compositor {
                 whole,
             },
         );
+        *gpu.versions.entry(output.id).or_default() += 1;
         true
+    }
+
+    pub fn content(&self, window: WindowId) -> Option<((u32, u32), u64)> {
+        let gpu = self.0.borrow();
+        let largest = gpu.device.limits().max_texture_dimension_2d;
+        let size = match gpu.pending.get(&window) {
+            Some(pending) => texture_size(&pending.output, largest),
+            None => gpu.panels.get(&window)?.size,
+        };
+        Some((size, gpu.versions.get(&window).copied().unwrap_or_default()))
+    }
+
+    pub fn format(&self) -> wgpu::TextureFormat {
+        self.0.borrow().format
     }
 
     pub fn update_chrome(&self, output: &WindowOutput) {
@@ -257,6 +278,7 @@ impl Compositor {
         gpu.pending.remove(&window);
         gpu.chrome.remove(&window);
         gpu.chrome_pending.remove(&window);
+        gpu.versions.remove(&window);
     }
 
     pub fn draw_views(
@@ -264,9 +286,16 @@ impl Compositor {
         encoder: &mut wgpu::CommandEncoder,
         frame: &Frame,
         targets: &[(usize, &View, &wgpu::TextureView, wgpu::TextureFormat)],
+        layers: &[Fill<'_>],
     ) {
         let mut gpu = self.0.borrow_mut();
         gpu.paint_windows(encoder);
+        for &(window, fill) in layers {
+            if let Some((texture, format)) = fill {
+                gpu.fill(encoder, window, texture, format);
+            }
+        }
+        let holes: Vec<WindowId> = layers.iter().map(|(window, _)| *window).collect();
         for &(index, view, texture, format) in targets {
             let size = (
                 (view.size.x.round() as u32).max(1),
@@ -281,6 +310,7 @@ impl Compositor {
                     size,
                     format,
                     resolve: Some(texture),
+                    holes: &holes,
                 },
             );
         }
@@ -349,6 +379,7 @@ impl Draw for SpaceDraw {
                 size,
                 format: at.format,
                 resolve: None,
+                holes: &[],
             },
         );
         gpu.queue.write_buffer(
@@ -566,6 +597,8 @@ impl Gpu {
             pending: HashMap::new(),
             chrome: HashMap::new(),
             chrome_pending: HashMap::new(),
+            versions: HashMap::new(),
+            fills: HashMap::new(),
         }
     }
 
@@ -656,6 +689,20 @@ impl Gpu {
                     blend: Some(wgpu::BlendState::PREMULTIPLIED_ALPHA_BLENDING),
                 },
                 wgpu::CompareFunction::Always,
+            ),
+            hole: pipeline(
+                device,
+                shader,
+                Stage {
+                    label: "space hole",
+                    vertex: "panel_vertex",
+                    fragment: "hole_fragment",
+                    layouts: &[&self.scene_layout, &self.texture_layout],
+                    format,
+                    samples: SAMPLES,
+                    depth: Some(true),
+                    blend: None,
+                },
             ),
             blit: pipeline(
                 device,
@@ -882,10 +929,7 @@ impl Gpu {
         for (chrome, window, pending) in pending {
             let output = &pending.output;
             let scale = output.pixels_per_point;
-            let size = (
-                ((output.size.x * scale).round() as u32).clamp(1, largest),
-                ((output.size.y * scale).round() as u32).clamp(1, largest),
-            );
+            let size = texture_size(output, largest);
             self.panel(chrome, window, size);
             let sheets = match chrome {
                 true => &mut self.chrome,
@@ -946,6 +990,71 @@ impl Gpu {
         }
     }
 
+    fn fill(
+        &mut self,
+        encoder: &mut wgpu::CommandEncoder,
+        window: WindowId,
+        texture: &wgpu::TextureView,
+        format: wgpu::TextureFormat,
+    ) {
+        if !self.fills.contains_key(&format) {
+            let fill = pipeline(
+                &self.device,
+                &self.shader,
+                Stage {
+                    label: "space layer",
+                    vertex: "mip_vertex",
+                    fragment: "mip_fragment",
+                    layouts: &[&self.mip_layout],
+                    format,
+                    samples: 1,
+                    depth: None,
+                    blend: None,
+                },
+            );
+            self.fills.insert(format, fill);
+        }
+        let (Some(fill), Some(panel)) = (
+            self.fills.get(&format),
+            self.panels.get(&window).filter(|panel| panel.painted),
+        ) else {
+            return;
+        };
+        let group = self.device.create_bind_group(&wgpu::BindGroupDescriptor {
+            label: Some("space layer"),
+            layout: &self.mip_layout,
+            entries: &[
+                wgpu::BindGroupEntry {
+                    binding: 1,
+                    resource: wgpu::BindingResource::TextureView(&panel.level),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 2,
+                    resource: wgpu::BindingResource::Sampler(&self.linear),
+                },
+            ],
+        });
+        let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+            label: Some("space layer"),
+            color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                view: texture,
+                depth_slice: None,
+                resolve_target: None,
+                ops: wgpu::Operations {
+                    load: wgpu::LoadOp::Clear(wgpu::Color::TRANSPARENT),
+                    store: wgpu::StoreOp::Store,
+                },
+            })],
+            depth_stencil_attachment: None,
+            timestamp_writes: None,
+            occlusion_query_set: None,
+            multiview_mask: None,
+        });
+        pass.set_pipeline(fill);
+        pass.set_bind_group(0, &group, &[]);
+        pass.draw(0..4, 0..1);
+    }
+
     fn render(&mut self, encoder: &mut wgpu::CommandEncoder, frame: &Frame, into: Destination) {
         let Destination {
             sight,
@@ -953,6 +1062,7 @@ impl Gpu {
             size,
             format,
             resolve,
+            holes,
         } = into;
         self.pipelines(format);
         self.target(viewport, size, format);
@@ -1036,15 +1146,18 @@ impl Gpu {
         pass.set_pipeline(&pipelines.grid);
         pass.draw(0..4, 0..1);
         let sheets = [
-            (&pipelines.panel, &self.panels),
-            (&pipelines.chrome, &self.chrome),
+            (&pipelines.panel, &pipelines.hole, &self.panels),
+            (&pipelines.chrome, &pipelines.chrome, &self.chrome),
         ];
-        for (pipeline, drawn) in sheets {
-            pass.set_pipeline(pipeline);
+        for (pipeline, hole, drawn) in sheets {
             for panel in &frame.panels {
                 if let Some(drawn) = drawn.get(&panel.window)
                     && drawn.painted
                 {
+                    pass.set_pipeline(match holes.contains(&panel.window) {
+                        true => hole,
+                        false => pipeline,
+                    });
                     pass.set_bind_group(1, &drawn.group, &[]);
                     pass.draw(0..VERTICES, 0..1);
                 }
@@ -1073,4 +1186,12 @@ fn beams(beams: &[Beam], eye: Vec3) -> [[f32; 4]; 3 * BEAMS] {
         out[index * 3 + 2] = beam.color().to_linear_f32();
     }
     out
+}
+
+fn texture_size(output: &WindowOutput, largest: u32) -> (u32, u32) {
+    let scale = output.pixels_per_point;
+    (
+        ((output.size.x * scale).round() as u32).clamp(1, largest),
+        ((output.size.y * scale).round() as u32).clamp(1, largest),
+    )
 }

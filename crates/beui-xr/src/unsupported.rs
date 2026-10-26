@@ -3,7 +3,7 @@ use std::time::{Duration, Instant};
 
 use beui_renderer_wgpu::present::OpenDevice;
 
-use crate::{Frame, Target, View};
+use crate::{Fill, Frame, Quad, Target, View};
 
 #[derive(Clone)]
 pub struct Xr(());
@@ -70,11 +70,17 @@ impl Headset {
         None
     }
 
+    pub fn layered(&self) -> usize {
+        0
+    }
+
     pub fn submit(
         &mut self,
+        _device: &wgpu::Device,
         queue: &wgpu::Queue,
         commands: wgpu::CommandEncoder,
-        _draw: &mut dyn FnMut(&[Target<'_>], &mut wgpu::CommandEncoder),
+        _quads: &[Quad],
+        _draw: &mut dyn FnMut(&[Target<'_>], &[Fill<'_>], &mut wgpu::CommandEncoder),
     ) {
         queue.submit([commands.finish()]);
     }

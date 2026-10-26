@@ -53,6 +53,7 @@ fn monado_shows_the_frames_space_draws_for_each_eye() {
     ));
     let output = Context::new(fonts).run(|_| {});
     let mut last = None;
+    let mut layered = 0;
     for _ in 0..10_000 {
         if host.headset().shown() >= FRAMES {
             break;
@@ -83,11 +84,16 @@ fn monado_shows_the_frames_space_draws_for_each_eye() {
         }
         host.frame(&output, &view);
         assert!(!host.headset().lost(), "the session goes on");
+        layered = layered.max(host.headset().layered());
     }
     assert!(
         host.headset().shown() >= FRAMES,
         "Monado showed {} frames",
         host.headset().shown()
+    );
+    assert_eq!(
+        layered, 1,
+        "the main panel, straight ahead, is shown as a layer of its own"
     );
     drop(host);
     drop(gpu);

@@ -65,7 +65,7 @@ fn each_tracked_view_is_drawn_into_its_own_target_through_its_own_field_of_view(
             format: gpu.format,
         })
         .collect();
-    space.draw(&mut encoder, &targets);
+    space.draw(&mut encoder, &targets, &[]);
     gpu.queue.submit([encoder.finish()]);
 
     let middle = |eye: &wgpu::Texture| {

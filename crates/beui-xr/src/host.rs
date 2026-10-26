@@ -1,14 +1,15 @@
 use std::time::{Duration, Instant};
 
 use beui_adapter_space::head::{Fov, View, Views};
-use beui_adapter_space::{Space, ViewTarget};
+use beui_adapter_space::layers::Allowance;
+use beui_adapter_space::{LayerTarget, Space, ViewTarget};
 use beui_core::app::Setup;
 use beui_core::context::FrameOutput;
 use beui_core::geometry::vec2;
 use beui_core::runner::{HostView, Hosted, Incoming, WindowHost};
 use beui_renderer_wgpu::present::GpuSetup;
 
-use crate::{Frame, Headset, RETRY};
+use crate::{Frame, Headset, Quad, RETRY};
 
 pub const IDLE_POLL: Duration = Duration::from_millis(100);
 
@@ -116,9 +117,33 @@ impl WindowHost for XrSpace {
                 .create_command_encoder(&wgpu::CommandEncoderDescriptor {
                     label: Some("xr views"),
                 });
+            let allowance = Allowance {
+                most: frame.layers.most,
+                cylinders: frame.layers.cylinders,
+                largest: frame.layers.largest,
+            };
+            let quads: Vec<Quad> = self
+                .space
+                .layers(&allowance)
+                .into_iter()
+                .map(|layer| Quad {
+                    window: layer.window,
+                    position: layer.position,
+                    orientation: layer.rotation,
+                    metres: (layer.metres.x, layer.metres.y),
+                    bend: layer.bend,
+                    pixels: layer.pixels,
+                    format: layer.format,
+                    version: layer.version,
+                })
+                .collect();
             let space = &mut self.space;
-            self.headset
-                .submit(&gpu.queue, commands, &mut |targets, commands| {
+            self.headset.submit(
+                &gpu.device,
+                &gpu.queue,
+                commands,
+                &quads,
+                &mut |targets, fills, commands| {
                     let views: Vec<wgpu::TextureView> = targets
                         .iter()
                         .map(|target| {
@@ -136,8 +161,25 @@ impl WindowHost for XrSpace {
                             format: frame.format,
                         })
                         .collect();
-                    space.draw(commands, &targets);
-                });
+                    let filled: Vec<Option<wgpu::TextureView>> = fills
+                        .iter()
+                        .map(|fill| {
+                            fill.texture.map(|texture| {
+                                texture.create_view(&wgpu::TextureViewDescriptor::default())
+                            })
+                        })
+                        .collect();
+                    let layers: Vec<LayerTarget<'_>> = fills
+                        .iter()
+                        .zip(&filled)
+                        .map(|(fill, texture)| LayerTarget {
+                            window: quads[fill.quad].window,
+                            fill: texture.as_ref().zip(fill.texture.map(|texture| texture.format())),
+                        })
+                        .collect();
+                    space.draw(commands, &targets, &layers);
+                },
+            );
         }
         if self.paced {
             hosted.repaint_after = Duration::ZERO;

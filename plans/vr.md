@@ -18,7 +18,7 @@ and so panels of their own in space. It draws through any
 number of views, each a pose with an off-axis field of view (`head::View`,
 `head::Fov`): the simulator's one, or tracked views an XR host hands
 `Space::set_views` and draws with `Space::draw` (guides/beui.md, "Views"), and
-`BEUI_XR=openxr` shows it on an OpenXR headset (`crates/beui-xr`, "Headsets").
+`BEUI_XR=openxr` shows it on an OpenXR headset (`crates/beui-xr`, "Headsets"), with panels as composition layers where their order is plain.
 Input is a mouse pointer, a keyboard, and a laser per controller that acts as
 a finger, with grips that carry, scale and turn panels (guides/beui.md,
 "Lasers"), fed from OpenXR's controller actions or `drive xr`.
@@ -41,6 +41,12 @@ compositor and compiled for Windows by `./scripts/verify`. What remains:
   lost instance (SteamVR quit) leaves the simulator for the rest of the run:
   a new instance would start SteamVR again, so it needs a way to tell when
   the runtime is back without one.
+- **Layers on hardware.** Composition layers (`Space::layers`) are checked
+  only against Monado's null compositor, which accepts them but draws
+  nothing; how SteamVR shows them under the projection layer (hole edges
+  while the head moves, cylinders) is untried. A panel that is carried or
+  resized loses its layer and its swapchain is made again when let go;
+  layer swapchains have one mip level.
 - **Blocking.** `xrWaitFrame` blocks the main loop, which also runs plugins and
   the Wayland server; waiting on another thread and waking the loop would
   free it.
@@ -53,15 +59,6 @@ or panel, or by a hand. Space reports no keyboard attached while controllers
 are active.
 
 About 0.5k lines.
-
-## M8. Composition layers
-
-A quad or cylinder OpenXR layer per panel (radius and angle from `bend`), for
-sharper text and idle panels that cost nothing to redraw. Layers have no depth
-between them, runtimes cap how many there are, and cylinder support varies, so
-fall back to the eye buffer.
-
-About 1k lines. Needs M1.
 
 ## M7. Wayland toplevels and popups as panels
 
@@ -79,7 +76,7 @@ manifest, and the buck APK plumbing. First check whether today's APK runs as a
 (`from_environment` in `crates/beui/src/window.rs` returns `None` there), so
 space cannot be turned on there today.
 
-About 1.5k lines plus build work. Needs M1, ideally M8.
+About 1.5k lines plus build work. Needs M1.
 
 ## M10. Comfort, passthrough, hands
 
@@ -103,7 +100,7 @@ The riskiest: wgpu has no WebXR binding, the WebGL route needs an
 
 ## Suggested order
 
-M5, M8, M7, M9, M10, M11.
+M5, M7, M9, M10, M11.
 
 ## Smaller follow-ups
 

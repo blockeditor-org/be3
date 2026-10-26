@@ -142,6 +142,14 @@ fn panel_fragment(input: PanelOut, @builtin(front_facing) front: bool) -> @locat
 }
 
 @fragment
+fn hole_fragment(input: PanelOut, @builtin(front_facing) front: bool) -> @location(0) vec4<f32> {
+    if !front {
+        return vec4<f32>(encode(vec3<f32>(0.05, 0.055, 0.065)), 1.0);
+    }
+    return vec4<f32>(0.0);
+}
+
+@fragment
 fn chrome_fragment(input: PanelOut, @builtin(front_facing) front: bool) -> @location(0) vec4<f32> {
     if !front {
         discard;

@@ -23,6 +23,7 @@ use crate::chrome::{self, Chrome, Corner, Gesture, Look, Part};
 use crate::cursor::{self, Sprite};
 use crate::head::{Body, Head, Ray, TURN_PER_PIXEL, View, Views};
 use crate::hold::Hold;
+use crate::layers::{Allowance, Candidate, PanelLayer};
 use crate::laser::{self, Ending, Laser};
 use crate::panel::{Hit, Panel, Pose, pick};
 use crate::render::{Beam, ChromeFrame, Compositor, Frame, PanelFrame};
@@ -261,13 +262,43 @@ impl Space {
             .map(|(_, scale)| *scale)
     }
 
-    fn rescale(&mut self) {
-        let gripped: Vec<WindowId> = self.holders().flat_map(Held::gripped).collect();
-        let gestured: Vec<WindowId> = self
-            .holders()
+    fn gestured(&self) -> Vec<WindowId> {
+        self.holders()
             .filter_map(|held| held.gesture.as_ref().map(Gesture::window))
             .chain(self.both.map(|both| both.window))
+            .collect()
+    }
+
+    pub fn layers(&self, allowance: &Allowance) -> Vec<PanelLayer> {
+        let Some(compositor) = &self.compositor else {
+            return Vec::new();
+        };
+        let held: Vec<WindowId> = self
+            .holders()
+            .flat_map(Held::gripped)
+            .chain(self.gestured())
             .collect();
+        let format = compositor.format();
+        let candidates: Vec<Candidate> = self
+            .panels
+            .iter()
+            .filter(|panel| !held.contains(&panel.window))
+            .filter_map(|panel| {
+                let (pixels, version) = compositor.content(panel.window)?;
+                Some(Candidate {
+                    panel: *panel,
+                    pixels,
+                    format,
+                    version,
+                })
+            })
+            .collect();
+        crate::layers::choose(&candidates, self.head.position, allowance)
+    }
+
+    fn rescale(&mut self) {
+        let gripped: Vec<WindowId> = self.holders().flat_map(Held::gripped).collect();
+        let gestured = self.gestured();
         let views = self.views();
         for panel in &self.panels {
             let window = panel.window;
@@ -1451,6 +1482,11 @@ impl WindowHost for Space {
     }
 }
 
+pub struct LayerTarget<'a> {
+    pub window: WindowId,
+    pub fill: Option<(&'a wgpu::TextureView, wgpu::TextureFormat)>,
+}
+
 pub struct ViewTarget<'a> {
     pub view: usize,
     pub texture: &'a wgpu::TextureView,
@@ -1458,7 +1494,12 @@ pub struct ViewTarget<'a> {
 }
 
 impl Space {
-    pub fn draw(&mut self, encoder: &mut wgpu::CommandEncoder, targets: &[ViewTarget<'_>]) {
+    pub fn draw(
+        &mut self,
+        encoder: &mut wgpu::CommandEncoder,
+        targets: &[ViewTarget<'_>],
+        layers: &[LayerTarget<'_>],
+    ) {
         let (Some(compositor), Some(now)) = (self.compositor.clone(), self.clock) else {
             return;
         };
@@ -1478,7 +1519,11 @@ impl Space {
                 Some((target.view, view, target.texture, target.format))
             })
             .collect();
-        compositor.draw_views(encoder, &frame, &targets);
+        let layers: Vec<_> = layers
+            .iter()
+            .map(|layer| (layer.window, layer.fill))
+            .collect();
+        compositor.draw_views(encoder, &frame, &targets, &layers);
     }
 
     pub(crate) fn scene(&mut self, windows: &[WindowOutput], view: &HostView) -> Frame {

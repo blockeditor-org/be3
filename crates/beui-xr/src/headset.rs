@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::error::Error;
 use std::ffi::{CStr, CString};
 use std::sync::{Arc, Mutex, MutexGuard};
@@ -12,7 +13,8 @@ use wgpu::hal::api::Vulkan as Api;
 use crate::controllers::Controllers;
 use crate::gpu::Vulkan;
 use crate::runtime::{self, Loaded};
-use crate::{Fov, Frame, Target, View};
+use crate::{Fill, Fov, Frame, Layers, MOST_LAYERS, Quad, Target, View};
+use beui_core::window::WindowId;
 
 const VIEWS: xr::ViewConfigurationType = xr::ViewConfigurationType::PRIMARY_STEREO;
 
@@ -64,6 +66,7 @@ impl Xr {
         let mut wanted = xr::ExtensionSet::default();
         wanted.khr_vulkan_enable2 = true;
         wanted.ext_local_floor = available.ext_local_floor;
+        wanted.khr_composition_layer_cylinder = available.khr_composition_layer_cylinder;
         #[cfg(windows)]
         {
             wanted.khr_win32_convert_performance_counter_time =
@@ -164,6 +167,15 @@ pub(crate) struct Session {
     begun: Option<Begun>,
     swapchains: Vec<Swapchain>,
     shown: u64,
+    formats: Vec<u32>,
+    allowance: Layers,
+    chains: HashMap<WindowId, Chain>,
+    layered: usize,
+}
+
+struct Chain {
+    swapchain: Swapchain,
+    version: Option<u64>,
 }
 
 struct Begun {
@@ -208,6 +220,19 @@ impl Session {
                 },
             )?,
         };
+        let formats = session.enumerate_swapchain_formats()?;
+        let properties = instance.system_properties(system)?;
+        let graphics = properties.graphics_properties;
+        let allowance = Layers {
+            most: (graphics.max_layer_count as usize)
+                .saturating_sub(1)
+                .min(MOST_LAYERS),
+            cylinders: instance.exts().khr_composition_layer_cylinder.is_some(),
+            largest: (
+                graphics.max_swapchain_image_width,
+                graphics.max_swapchain_image_height,
+            ),
+        };
         let controllers = Controllers::new(instance, &session)
             .inspect_err(|error| eprintln!("beui-xr: no controllers: {error}"))
             .ok();
@@ -225,6 +250,10 @@ impl Session {
             begun: None,
             swapchains: Vec::new(),
             shown: 0,
+            formats,
+            allowance,
+            chains: HashMap::new(),
+            layered: 0,
         })
     }
 
@@ -244,6 +273,7 @@ impl Session {
 }
 
 const STANDING_EYES: f32 = 1.6;
+const FLAT: f32 = 1e-4;
 
 impl Drop for Headset {
     fn drop(&mut self) {
@@ -283,6 +313,15 @@ impl Headset {
             .session
             .as_ref()
             .map_or(0, |session| session.shown)
+    }
+
+    pub fn layered(&self) -> usize {
+        self.xr
+            .0
+            .state()
+            .session
+            .as_ref()
+            .map_or(0, |session| session.layered)
     }
 
     pub fn lost(&self) -> bool {
@@ -473,6 +512,7 @@ impl Headset {
                 ),
                 None => Vec::new(),
             },
+            layers: session.allowance,
         };
         session.begun = Some(Begun {
             state: waited,
@@ -518,9 +558,11 @@ impl Headset {
 
     pub fn submit(
         &mut self,
+        device: &wgpu::Device,
         queue: &wgpu::Queue,
         mut commands: wgpu::CommandEncoder,
-        draw: &mut dyn FnMut(&[Target<'_>], &mut wgpu::CommandEncoder),
+        quads: &[Quad],
+        draw: &mut dyn FnMut(&[Target<'_>], &[Fill<'_>], &mut wgpu::CommandEncoder),
     ) {
         let xr = self.xr.clone();
         let mut state = xr.0.state();
@@ -534,21 +576,16 @@ impl Headset {
         };
         let mut images = Vec::new();
         for swapchain in &mut session.swapchains {
-            let image = match swapchain.handle.acquire_image() {
-                Ok(image) => image as usize,
-                Err(error) => {
-                    eprintln!("beui-xr: no swapchain image: {error}");
-                    break;
-                }
-            };
-            if let Err(error) = swapchain.handle.wait_image(xr::Duration::INFINITE) {
-                eprintln!("beui-xr: the swapchain image never came: {error}");
-                let _ = swapchain.handle.release_image();
-                break;
+            match acquire(&mut swapchain.handle) {
+                Some(image) => images.push(image),
+                None => break,
             }
-            images.push(image);
         }
         let complete = images.len() == session.swapchains.len();
+        let (shown, filled) = match complete {
+            true => layers(session, device, quads),
+            false => (Vec::new(), Vec::new()),
+        };
         if complete {
             let targets: Vec<Target<'_>> = images
                 .iter()
@@ -559,11 +596,29 @@ impl Headset {
                     texture: &swapchain.textures[image],
                 })
                 .collect();
-            draw(&targets, &mut commands);
+            let fills: Vec<Fill<'_>> = shown
+                .iter()
+                .map(|&quad| Fill {
+                    quad,
+                    texture: filled
+                        .iter()
+                        .find(|(filled, _)| *filled == quad)
+                        .map(|&(_, image)| {
+                            &session.chains[&quads[quad].window].swapchain.textures[image]
+                        }),
+                })
+                .collect();
+            draw(&targets, &fills, &mut commands);
         }
         queue.submit([commands.finish()]);
         for swapchain in session.swapchains.iter_mut().take(images.len()) {
             let _ = swapchain.handle.release_image();
+        }
+        for &(quad, _) in &filled {
+            if let Some(chain) = session.chains.get_mut(&quads[quad].window) {
+                let _ = chain.swapchain.handle.release_image();
+                chain.version = Some(quads[quad].version);
+            }
         }
         let time = begun.state.predicted_display_time;
         if !complete {
@@ -581,24 +636,142 @@ impl Headset {
                     .sub_image(
                         xr::SwapchainSubImage::new()
                             .swapchain(&swapchain.handle)
-                            .image_rect(xr::Rect2Di {
-                                offset: xr::Offset2Di { x: 0, y: 0 },
-                                extent: xr::Extent2Di {
-                                    width: swapchain.size.0 as i32,
-                                    height: swapchain.size.1 as i32,
-                                },
-                            }),
+                            .image_rect(whole(swapchain.size)),
                     )
             })
             .collect();
-        let layer = xr::CompositionLayerProjection::new()
+        let mut flats = Vec::new();
+        let mut cylinders = Vec::new();
+        let mut order = Vec::new();
+        for &index in &shown {
+            let quad = &quads[index];
+            let Some(chain) = session.chains.get(&quad.window) else {
+                continue;
+            };
+            let image = xr::SwapchainSubImage::new()
+                .swapchain(&chain.swapchain.handle)
+                .image_rect(whole(chain.swapchain.size));
+            let radius = quad.metres.0 / quad.bend;
+            match quad.bend > FLAT && radius.is_finite() {
+                false => {
+                    order.push((false, flats.len()));
+                    flats.push(
+                        xr::CompositionLayerQuad::new()
+                            .space(&session.space)
+                            .eye_visibility(xr::EyeVisibility::BOTH)
+                            .sub_image(image)
+                            .pose(posef(quad.position, quad.orientation))
+                            .size(xr::Extent2Df {
+                                width: quad.metres.0,
+                                height: quad.metres.1,
+                            }),
+                    );
+                }
+                true => {
+                    let axis = quad.position + quad.orientation * Vec3::new(0.0, 0.0, radius);
+                    order.push((true, cylinders.len()));
+                    cylinders.push(
+                        xr::CompositionLayerCylinderKHR::new()
+                            .space(&session.space)
+                            .eye_visibility(xr::EyeVisibility::BOTH)
+                            .sub_image(image)
+                            .pose(posef(axis, quad.orientation))
+                            .radius(radius)
+                            .central_angle(quad.bend)
+                            .aspect_ratio(quad.metres.0 / quad.metres.1),
+                    );
+                }
+            }
+        }
+        let flags = match order.is_empty() {
+            true => xr::CompositionLayerFlags::EMPTY,
+            false => xr::CompositionLayerFlags::BLEND_TEXTURE_SOURCE_ALPHA,
+        };
+        let projection = xr::CompositionLayerProjection::new()
+            .layer_flags(flags)
             .space(&session.space)
             .views(&views);
-        match session.stream.end(time, xr.0.blend, &[&layer]) {
-            Ok(()) => session.shown += 1,
+        let mut layers: Vec<&xr::CompositionLayerBase<'_, xr::Vulkan>> = order
+            .iter()
+            .map(|&(cylinder, at)| match cylinder {
+                false => &*flats[at],
+                true => &*cylinders[at],
+            })
+            .collect();
+        layers.push(&projection);
+        match session.stream.end(time, xr.0.blend, &layers) {
+            Ok(()) => {
+                session.shown += 1;
+                session.layered = order.len();
+            }
             Err(error) => eprintln!("beui-xr: the frame was not shown: {error}"),
         }
     }
+
+}
+
+type Chosen = (Vec<usize>, Vec<(usize, usize)>);
+
+fn layers(session: &mut Session, device: &wgpu::Device, quads: &[Quad]) -> Chosen {
+        session
+            .chains
+            .retain(|window, _| quads.iter().any(|quad| quad.window == *window));
+        let mut shown = Vec::new();
+        let mut filled = Vec::new();
+        for (index, quad) in quads.iter().enumerate() {
+            let Some(format) = layer_format(&session.formats, quad.format) else {
+                continue;
+            };
+            let fits = session.chains.get(&quad.window).is_some_and(|chain| {
+                chain.swapchain.size == quad.pixels && chain.swapchain.format == format.1
+            });
+            if !fits {
+                session.chains.remove(&quad.window);
+                match swapchain(session, device, quad.pixels, format) {
+                    Ok(swapchain) => {
+                        session.chains.insert(
+                            quad.window,
+                            Chain {
+                                swapchain,
+                                version: None,
+                            },
+                        );
+                    }
+                    Err(error) => {
+                        eprintln!("beui-xr: a panel's layer was not made: {error}");
+                        continue;
+                    }
+                }
+            }
+            let Some(chain) = session.chains.get_mut(&quad.window) else {
+                continue;
+            };
+            if chain.version == Some(quad.version) {
+                shown.push(index);
+                continue;
+            }
+            if let Some(image) = acquire(&mut chain.swapchain.handle) {
+                filled.push((index, image));
+                shown.push(index);
+            }
+        }
+        (shown, filled)
+}
+
+fn acquire(handle: &mut xr::Swapchain<xr::Vulkan>) -> Option<usize> {
+    let image = match handle.acquire_image() {
+        Ok(image) => image as usize,
+        Err(error) => {
+            eprintln!("beui-xr: no swapchain image: {error}");
+            return None;
+        }
+    };
+    if let Err(error) = handle.wait_image(xr::Duration::INFINITE) {
+        eprintln!("beui-xr: the swapchain image never came: {error}");
+        let _ = handle.release_image();
+        return None;
+    }
+    Some(image)
 }
 
 fn seen(views: &[xr::View], swapchains: &[Swapchain]) -> Vec<View> {
@@ -676,90 +849,150 @@ const FORMATS: [(vk::Format, wgpu::TextureFormat); 4] = [
     (vk::Format::B8G8R8A8_UNORM, wgpu::TextureFormat::Bgra8Unorm),
 ];
 
+fn swapchain(
+    session: &Session,
+    device: &wgpu::Device,
+    size: (u32, u32),
+    (vk_format, format): (vk::Format, wgpu::TextureFormat),
+) -> Result<Swapchain, Box<dyn Error>> {
+    let handle = session.session.create_swapchain(&xr::SwapchainCreateInfo {
+        create_flags: xr::SwapchainCreateFlags::EMPTY,
+        usage_flags: xr::SwapchainUsageFlags::COLOR_ATTACHMENT,
+        format: vk_format.as_raw() as u32,
+        sample_count: 1,
+        width: size.0,
+        height: size.1,
+        face_count: 1,
+        array_size: 1,
+        mip_count: 1,
+    })?;
+    let textures = handle
+        .enumerate_images()?
+        .into_iter()
+        .map(|image| import(device, image, size, format))
+        .collect::<Result<Vec<_>, Box<dyn Error>>>()?;
+    Ok(Swapchain {
+        handle,
+        size,
+        format,
+        textures,
+    })
+}
+
 // unsafe(ffi)
+fn import(
+    device: &wgpu::Device,
+    image: u64,
+    size: (u32, u32),
+    format: wgpu::TextureFormat,
+) -> Result<wgpu::Texture, Box<dyn Error>> {
+    let extent = wgpu::Extent3d {
+        width: size.0,
+        height: size.1,
+        depth_or_array_layers: 1,
+    };
+    let hal_descriptor = wgpu::hal::TextureDescriptor {
+        label: Some("xr swapchain"),
+        size: extent,
+        mip_level_count: 1,
+        sample_count: 1,
+        dimension: wgpu::TextureDimension::D2,
+        format,
+        usage: wgpu::TextureUses::COLOR_TARGET,
+        memory_flags: wgpu::hal::MemoryFlags::empty(),
+        view_formats: Vec::new(),
+    };
+    let hal = unsafe { device.as_hal::<Api>() }.ok_or("the device is not Vulkan")?;
+    let texture = unsafe {
+        hal.texture_from_raw(
+            vk::Image::from_raw(image),
+            &hal_descriptor,
+            Some(Box::new(|| {})),
+            wgpu::hal::vulkan::TextureMemory::External,
+        )
+    };
+    drop(hal);
+    Ok(unsafe {
+        device.create_texture_from_hal::<Api>(
+            texture,
+            &wgpu::TextureDescriptor {
+                label: Some("xr swapchain"),
+                size: extent,
+                mip_level_count: 1,
+                sample_count: 1,
+                dimension: wgpu::TextureDimension::D2,
+                format,
+                usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
+                view_formats: &[],
+            },
+        )
+    })
+}
+
 fn create_swapchains(
     shared: &Shared,
     session: &Session,
     device: &wgpu::Device,
 ) -> Result<Vec<Swapchain>, Box<dyn Error>> {
-    let offered = session.session.enumerate_swapchain_formats()?;
-    let (vk_format, format) = FORMATS
+    let format = FORMATS
         .into_iter()
-        .find(|(vk_format, _)| offered.contains(&(vk_format.as_raw() as u32)))
+        .find(|(vk_format, _)| session.formats.contains(&(vk_format.as_raw() as u32)))
         .ok_or("the OpenXR runtime offers no 8-bit RGBA swapchain")?;
-    let views = shared
+    shared
         .instance
-        .enumerate_view_configuration_views(session.system, VIEWS)?;
-    let mut swapchains = Vec::new();
-    for view in views {
-        let size = (
-            view.recommended_image_rect_width.max(1),
-            view.recommended_image_rect_height.max(1),
-        );
-        let handle = session.session.create_swapchain(&xr::SwapchainCreateInfo {
-            create_flags: xr::SwapchainCreateFlags::EMPTY,
-            usage_flags: xr::SwapchainUsageFlags::COLOR_ATTACHMENT,
-            format: vk_format.as_raw() as u32,
-            sample_count: 1,
-            width: size.0,
-            height: size.1,
-            face_count: 1,
-            array_size: 1,
-            mip_count: 1,
-        })?;
-        let extent = wgpu::Extent3d {
-            width: size.0,
-            height: size.1,
-            depth_or_array_layers: 1,
-        };
-        let textures = handle
-            .enumerate_images()?
-            .into_iter()
-            .map(|image| {
-                let hal_descriptor = wgpu::hal::TextureDescriptor {
-                    label: Some("xr swapchain"),
-                    size: extent,
-                    mip_level_count: 1,
-                    sample_count: 1,
-                    dimension: wgpu::TextureDimension::D2,
-                    format,
-                    usage: wgpu::TextureUses::COLOR_TARGET,
-                    memory_flags: wgpu::hal::MemoryFlags::empty(),
-                    view_formats: Vec::new(),
-                };
-                let hal = unsafe { device.as_hal::<Api>() }.ok_or("the device is not Vulkan")?;
-                let texture = unsafe {
-                    hal.texture_from_raw(
-                        vk::Image::from_raw(image),
-                        &hal_descriptor,
-                        Some(Box::new(|| {})),
-                        wgpu::hal::vulkan::TextureMemory::External,
-                    )
-                };
-                drop(hal);
-                Ok(unsafe {
-                    device.create_texture_from_hal::<Api>(
-                        texture,
-                        &wgpu::TextureDescriptor {
-                            label: Some("xr swapchain"),
-                            size: extent,
-                            mip_level_count: 1,
-                            sample_count: 1,
-                            dimension: wgpu::TextureDimension::D2,
-                            format,
-                            usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
-                            view_formats: &[],
-                        },
-                    )
-                })
-            })
-            .collect::<Result<Vec<_>, Box<dyn Error>>>()?;
-        swapchains.push(Swapchain {
-            handle,
-            size,
-            format,
-            textures,
-        });
+        .enumerate_view_configuration_views(session.system, VIEWS)?
+        .into_iter()
+        .map(|view| {
+            let size = (
+                view.recommended_image_rect_width.max(1),
+                view.recommended_image_rect_height.max(1),
+            );
+            swapchain(session, device, size, format)
+        })
+        .collect()
+}
+
+fn layer_format(
+    offered: &[u32],
+    content: wgpu::TextureFormat,
+) -> Option<(vk::Format, wgpu::TextureFormat)> {
+    let offered = |(vk_format, _): &(vk::Format, wgpu::TextureFormat)| {
+        offered.contains(&(vk_format.as_raw() as u32))
+    };
+    FORMATS
+        .into_iter()
+        .filter(offered)
+        .find(|(_, format)| *format == content)
+        .or_else(|| {
+            FORMATS
+                .into_iter()
+                .filter(offered)
+                .find(|(_, format)| format.is_srgb() == content.is_srgb())
+        })
+}
+
+fn posef(position: Vec3, orientation: Quat) -> xr::Posef {
+    xr::Posef {
+        orientation: xr::Quaternionf {
+            x: orientation.x,
+            y: orientation.y,
+            z: orientation.z,
+            w: orientation.w,
+        },
+        position: xr::Vector3f {
+            x: position.x,
+            y: position.y,
+            z: position.z,
+        },
     }
-    Ok(swapchains)
+}
+
+fn whole(size: (u32, u32)) -> xr::Rect2Di {
+    xr::Rect2Di {
+        offset: xr::Offset2Di { x: 0, y: 0 },
+        extent: xr::Extent2Di {
+            width: size.0 as i32,
+            height: size.1 as i32,
+        },
+    }
 }
