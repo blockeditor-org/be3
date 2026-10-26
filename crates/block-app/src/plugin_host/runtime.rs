@@ -609,6 +609,7 @@ impl Runtime {
         let _ = crate::panic_guard::contain(|| self.backend.shutdown());
         previews::forget(&self.plugin.identity.id);
         CRASHED.with(|crashed| crashed.borrow_mut().push(self.plugin.identity.id.clone()));
+        crate::compositor::forget_windows(&self.plugin.identity.id);
         mark(&self.plugin.identity.id);
         host::request_repaint();
     }
@@ -964,12 +965,13 @@ impl Runtime {
             sizes,
             reports,
             windows,
-            window_requests,
             children,
             repaint_after_micros,
             animating,
             presented,
+            window_requests,
         } = commit;
+        crate::compositor::request_windows(&self.plugin.identity.id, window_requests);
         self.pacing.animating = animating;
         self.await_next_frame(repaint_after_micros);
         if let Some(presented) = presented {
@@ -978,7 +980,6 @@ impl Runtime {
         let held = self.held_screens();
         let mut changed = self.instances.confirm(serial, &held);
         changed |= self.instances.set_frame_reports(reports);
-        changed |= self.instances.request_windows(window_requests);
         changed |= self.lay(Laid {
             serial,
             sizes,
@@ -1822,29 +1823,6 @@ pub(crate) fn replace_child(
     .flatten()
 }
 
-pub(crate) fn plugin_windows(
-    plugin_id: &str,
-    instance: EditorInstanceId,
-) -> Vec<super::instances::PluginWindow> {
-    with(plugin_id, |runtime| {
-        runtime.instances.plugin_windows(instance)
-    })
-    .unwrap_or_default()
-}
-
-pub(crate) fn report_window(
-    plugin_id: &str,
-    instance: EditorInstanceId,
-    report: block_plugin_api::WindowReport,
-) {
-    with(plugin_id, |runtime| {
-        let messages = runtime.instances.window_reported(instance, report);
-        runtime.send(messages);
-    });
-    mark(plugin_id);
-    host::request_repaint();
-}
-
 pub(crate) fn resized(plugin_id: &str, instance: EditorInstanceId, size: Vec2) {
     with(plugin_id, |runtime| {
         let messages = runtime.instances.resized(instance, size);
@@ -2058,6 +2036,8 @@ pub(crate) struct RegionPlacement {
     pub(crate) clip: Rect,
     pub(crate) zoom: f32,
     pub(crate) raster: f32,
+    pub(crate) windows: bool,
+    pub(crate) placement: Option<String>,
 }
 
 pub(super) struct Offer {
@@ -2116,11 +2096,17 @@ fn apply_offers(runtime: &mut Runtime, instance: EditorInstanceId, region: Edito
             })
             .reduce(|shown, source| shown.union(source)),
     };
+    let seen = |offer: &Offer| {
+        let shown = offer.placement.rect.intersect(offer.placement.clip);
+        shown.width().max(0.0) * shown.height().max(0.0)
+    };
     let raster = offers
         .iter()
-        .map(|offer| offer.placement.raster)
-        .filter(|raster| raster.is_finite() && *raster > 0.0)
-        .reduce(f32::max);
+        .filter(|offer| offer.placement.raster.is_finite() && offer.placement.raster > 0.0)
+        .max_by(|a, b| seen(a).total_cmp(&seen(b)))
+        .map(|offer| offer.placement.raster);
+    let windows = chosen.placement.windows;
+    let host_placement = chosen.placement.placement.clone();
     let frame = chosen.frame;
     let view = chosen.view;
     let RegionPlacement {
@@ -2153,9 +2139,17 @@ fn apply_offers(runtime: &mut Runtime, instance: EditorInstanceId, region: Edito
         (Some(raster), _) => scale_factor * raster,
     };
     let visible = shown.map_or(Rect::ZERO, |source| scale_rect(source, size));
-    runtime
-        .instances
-        .place_mounted(instance, region, frame, size, visible, scale_factor, raster);
+    runtime.instances.place_mounted(
+        instance,
+        region,
+        frame,
+        size,
+        visible,
+        scale_factor,
+        raster,
+        windows,
+        host_placement,
+    );
     if let Some(view) = view {
         runtime.instances.set_view(instance, view);
     }
@@ -2169,9 +2163,13 @@ pub(crate) fn forward_region(
     instance: EditorInstanceId,
     region: EditorRegion,
     input: &beui::ForwardedInput,
+    aim: &dyn Fn(Option<beui::Over>, beui::Pos2) -> beui::Aim,
+    target: &dyn Fn(beui::NodeId) -> Option<(EditorInstanceId, EditorRegion)>,
 ) {
     with(plugin_id, |runtime| {
-        let (messages, revoked) = runtime.instances.forward(instance, region, input);
+        let (messages, revoked) = runtime
+            .instances
+            .forward(instance, region, input, aim, target);
         runtime.pacing.needed |= !messages.is_empty();
         runtime.send(messages);
         if revoked {

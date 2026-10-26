@@ -52,7 +52,8 @@ fn frame(session: &mut EditorSession, content: Option<Rect>, top_bar: TopBar) {
                 content,
                 top_bar,
             }),
-            opens_windows: false,
+            windows: false,
+            placement: None,
         }],
     );
 }

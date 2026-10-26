@@ -128,11 +128,11 @@ impl Screens {
             sizes: Vec::new(),
             reports: Vec::new(),
             windows: Vec::new(),
-            window_requests: Vec::new(),
             children: Vec::new(),
             repaint_after_micros: None,
             animating: false,
             presented: None,
+            window_requests: Vec::new(),
         };
         let mut laid_out: Vec<_> = self.laid_out.drain().collect();
         laid_out.sort_by_key(|instance| instance.0);
@@ -289,7 +289,14 @@ impl Screens {
                     return false;
                 };
                 for event in &batch.events {
-                    session.input(region, event);
+                    let over = event.over.and_then(|over| {
+                        let (instance, region) = self
+                            .layout
+                            .placement(over)
+                            .map(|placement| (placement.instance, placement.region))?;
+                        Some(crate::RegionId { instance, region })
+                    });
+                    session.input(region, event, over);
                 }
                 self.mark(instance);
                 return true;

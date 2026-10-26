@@ -90,7 +90,6 @@ pub(super) enum EditorCall {
         block: [u8; 16],
         dialog: block_plugin_api::ShellDialog,
     },
-    WindowReported(block_plugin_api::WindowReport),
 }
 
 #[derive(Clone, Debug, PartialEq)]

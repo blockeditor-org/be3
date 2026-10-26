@@ -7,8 +7,7 @@ use block_plugin_api::{
     ArtifactDescription, BarAction, ChildId, ChildPlacement, ChildPlacements, ChildStatus,
     EditorInstanceId, EditorRegion, Failure, FrameChrome, FrameCommit, FrameReport, MAX_CHILDREN,
     MAX_COLLECTION_ITEMS, MenuEntry, Occluder, RegionSize, ScreenPlacement, ScreenRequest,
-    ScreenWindow, ScreenWindowRequest, Size, TimedInput, ViewportMetrics, WebViewId, WindowReport,
-    WindowRequest,
+    ScreenWindow, Size, TimedInput, ViewportMetrics, WebViewId,
 };
 use block_ui::BlockCatalog;
 use geometry::{Pos2, Rect, Vec2, vec2};
@@ -46,6 +45,7 @@ pub struct EditorSession {
     audio_watched: bool,
     web_views: HashMap<WebViewId, Rc<shell::WebView>>,
     link: crate::link::Link,
+    asks: Vec<block_plugin_api::WindowRequest>,
 }
 
 struct ArtifactState {
@@ -81,8 +81,6 @@ struct RegionState {
     placement: Option<ScreenPlacement>,
     metrics: Option<ViewportMetrics>,
     frame: Option<block_plugin_api::FrameSpec>,
-    opens_windows: bool,
-    window_requests: Vec<WindowRequest>,
     used: Option<Vec2>,
     reported: Option<Vec2>,
     report: Option<FrameReport>,
@@ -97,6 +95,8 @@ struct RegionState {
     occluders: Vec<Occluder>,
     reported_children: Option<ReportedChildren>,
     age: u32,
+    windows: bool,
+    placement_value: Option<String>,
 }
 
 impl Drop for EditorSession {
@@ -145,6 +145,7 @@ impl EditorSession {
             audio_watched: false,
             web_views: HashMap::new(),
             link: crate::link::Link::default(),
+            asks: Vec::new(),
         }
     }
 
@@ -347,7 +348,8 @@ impl EditorSession {
             state.placement = Some(*placement);
             state.metrics = Some(request.metrics.clone());
             state.frame = request.frame;
-            state.opens_windows = request.opens_windows;
+            state.windows = request.windows;
+            state.placement_value.clone_from(&request.placement);
         }
     }
 
@@ -355,8 +357,8 @@ impl EditorSession {
         commit.sizes.extend(self.region_sizes());
         commit.reports.extend(self.frame_reports());
         commit.windows.extend(self.windows());
-        commit.window_requests.extend(self.window_requests());
         commit.children.extend(self.children());
+        commit.window_requests.append(&mut self.asks);
         self.retain_child_statuses();
     }
 
@@ -480,31 +482,6 @@ impl EditorSession {
         for opening in self.host.take_watch_openings() {
             opening(&self.host, instance);
         }
-    }
-
-    pub(crate) fn window_reported(&mut self, report: WindowReport) {
-        let instance = self.instance;
-        self.module
-            .with_handler(|handler| handler.window_reported(instance, report));
-    }
-
-    fn window_requests(&mut self) -> Vec<ScreenWindowRequest> {
-        let mut requests = Vec::new();
-        for state in self.regions.values_mut() {
-            let Some(placement) = state.placement else {
-                continue;
-            };
-            requests.extend(
-                state
-                    .window_requests
-                    .drain(..)
-                    .map(|request| ScreenWindowRequest {
-                        screen: placement.screen,
-                        request,
-                    }),
-            );
-        }
-        requests
     }
 
     fn windows(&mut self) -> Vec<ScreenWindow> {
@@ -738,10 +715,16 @@ impl EditorSession {
                 .and_then(|state| state.frame)
                 .unwrap_or_default(),
             describe: state
-                .filter(|_| region == EditorRegion::Frame && crate::screens::describing())
+                .filter(|_| {
+                    matches!(
+                        region,
+                        EditorRegion::Frame | EditorRegion::Display(_) | EditorRegion::Window(_)
+                    ) && crate::screens::describing()
+                })
                 .map(|state| state.epoch),
             seen: crate::screens::seen(),
-            opens_windows: state.is_some_and(|state| state.opens_windows),
+            windows: state.is_some_and(|state| state.windows),
+            placement: state.and_then(|state| state.placement_value.clone()),
         }
     }
 
@@ -801,7 +784,7 @@ impl EditorSession {
         let host = self.rect(region);
         let draft = match region {
             EditorRegion::ArtifactSettings => self.host.close_settings_draft(),
-            EditorRegion::Frame | EditorRegion::Preview | EditorRegion::Window(_) => None,
+            _ => None,
         };
         let delivered_drop = self
             .drag
@@ -816,6 +799,7 @@ impl EditorSession {
             state.stopped = frame.stopped.take();
         }
 
+        self.asks.append(&mut frame.asks);
         if let Some(delay) = self.host.take_frame_request(region) {
             frame.repaint_after = Some(frame.repaint_after.map_or(delay, |held| held.min(delay)));
         }
@@ -844,11 +828,11 @@ impl EditorSession {
         if let (Some(state), Some(screen)) = (self.regions.get_mut(&region), screen) {
             state.children = placed;
             state.occluders = occluders;
-            state
-                .window_requests
-                .extend(std::mem::take(&mut frame.window_requests));
             state.window = frame.window.clone();
-            let reports = matches!(region, EditorRegion::Frame | EditorRegion::Window(_));
+            let reports = matches!(
+                region,
+                EditorRegion::Frame | EditorRegion::Display(_) | EditorRegion::Window(_)
+            );
             match frame.description.as_mut() {
                 Some(description) => {
                     if let Some(tree) = description.tree.take() {
@@ -914,11 +898,16 @@ impl EditorSession {
             .unwrap_or_default()
     }
 
-    pub(crate) fn input(&mut self, region: EditorRegion, event: &TimedInput) {
+    pub(crate) fn input(
+        &mut self,
+        region: EditorRegion,
+        event: &TimedInput,
+        over: Option<RegionId>,
+    ) {
         self.open(region);
         let context = self.context(region);
         self.module
-            .with_handler(|handler| handler.input(&context, event));
+            .with_handler(|handler| handler.input(&context, event, over));
     }
 
     pub(crate) fn node_action(&mut self, region: EditorRegion, request: ActionRequest) {

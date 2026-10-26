@@ -80,9 +80,11 @@ impl InputForwarder {
         screen: ScreenId,
         zoom: f32,
         every_sample: bool,
+        aim: &dyn Fn(Option<beui::Over>, Pos2) -> beui::Aim,
+        screen_of: &dyn Fn(beui::NodeId) -> Option<ScreenId>,
     ) -> Vec<super::calls::PluginCall> {
         let mut batch = InputBatch::new(screen, every_sample);
-        for Replayed { input, time } in self.replay.replay(input, zoom) {
+        for Replayed { input, time, over } in self.replay.replay(input, zoom, aim) {
             match input {
                 Input::Paste(Pasted::Text(text)) => {
                     for piece in block_plugin_api::paste_events(&text) {
@@ -92,6 +94,7 @@ impl InputForwarder {
                 input => batch.push(TimedInput {
                     input,
                     time_micros: time.map(crate::host::micros_at),
+                    over: over.and_then(screen_of),
                 }),
             }
         }

@@ -79,8 +79,12 @@ pub use types::{
     FontFace, FontRole, Fonts, FrameChrome, FrameCommit, FrameReport, FrameSpec, Hello,
     HelloAccepted, HostPanel, InputBatch, Occluder, OpenArtifact, OpenBlock, OpenCreation, Opening,
     PluginIdentity, PresentedFrame, PressClaim, RegionSize, ScreenDamage, ScreenLayout,
-    ScreenPlacement, ScreenRequest, ScreenWindow, ScreenWindowRequest, Size, SurfaceFormat,
+    ScreenPlacement, ScreenRequest, ScreenWindow, Size, SurfaceFormat,
     SurfaceRect, SurfaceSpec, SurfaceSupport, TimedInput, TopBar, ViewportMetrics,
+};
+pub use types::{
+    RegionRef, WindowEdge, WindowOpen, WindowOver, WindowPlacement, WindowRequest, WindowResize,
+    WindowResizeBegin,
 };
 
 pub use account::HostPreferenceSources;
@@ -141,10 +145,7 @@ pub use ui_types::{
     CanvasTouch, DisplayMode, InputDevice, Motion, PointerSettings, PointerSpeed, PreferenceLayer,
     Preferences, Rotation, ThemeKind,
 };
-pub use ui_types::{
-    HostPlacement, ImeArea, WindowEdge, WindowId, WindowPlacement, WindowReport, WindowRequest,
-    WindowRequests, WindowRole,
-};
+pub use ui_types::{ImeArea, WindowRequests, WindowRole};
 pub use watch::{Encoded, WAITING_WEB_VIEW_EVENTS, Watch};
 
 pub const MAX_COLLECTION_ITEMS: usize = 1024;
@@ -749,6 +750,7 @@ impl From<Input> for TimedInput {
         Self {
             input,
             time_micros: None,
+            over: None,
         }
     }
 }

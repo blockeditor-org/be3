@@ -62,7 +62,8 @@ fn screen(region: EditorRegion, screen: u32) -> (ScreenPlacement, ScreenRequest)
             raster: 1.0,
         },
         frame: (region == EditorRegion::Frame).then(FrameSpec::default),
-        opens_windows: false,
+        windows: false,
+        placement: None,
     };
     (placement, request)
 }

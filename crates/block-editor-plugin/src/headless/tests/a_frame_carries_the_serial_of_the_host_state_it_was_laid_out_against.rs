@@ -5,7 +5,7 @@ use block_plugin_api::{
 use uuid::Uuid;
 
 use crate::headless::HeadlessPlugin;
-use crate::{EditorHost, Frame, Instance, Region, Regions, Waker};
+use crate::{EditorHost, Frame, Instance, Region, RegionId, Regions, Waker};
 
 const INSTANCE: EditorInstanceId = EditorInstanceId(1);
 const SCREEN: ScreenId = ScreenId(1);
@@ -25,7 +25,7 @@ impl Instance for Still {
 struct StillRegions;
 
 impl Regions for StillRegions {
-    fn input(&mut self, _region: &Region, _event: &TimedInput) {}
+    fn input(&mut self, _region: &Region, _event: &TimedInput, _over: Option<RegionId>) {}
 
     fn frame(&mut self, regions: &[Region]) -> Vec<Frame> {
         regions
@@ -54,7 +54,6 @@ fn configure(plugin: &mut HeadlessPlugin, height: f32, serial: u64) {
             instance: INSTANCE,
             region: EditorRegion::Frame,
             frame: None,
-            opens_windows: false,
             metrics: ViewportMetrics {
                 logical: Size {
                     width: 100.0,
@@ -66,6 +65,8 @@ fn configure(plugin: &mut HeadlessPlugin, height: f32, serial: u64) {
                 scale_factor: 1.0,
                 raster: 1.0,
             },
+            windows: false,
+            placement: None,
         }])
         .unwrap();
     plugin.configure(serial).unwrap();

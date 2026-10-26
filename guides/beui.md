@@ -2092,7 +2092,8 @@ A dock window is a `Window` (see "Windows and window hosts") sized to its rect
 plus the reach of its resize grips, which lie around it. Where nothing opens
 windows it is that `Window`'s overlay and the dock moves, clamps, springs back
 and resizes it itself. Where a host opens windows each dock window is a real
-window: a press on its bar calls `begin_move()` and a grip `begin_resize(edge)`
+window (space's panels, or block-app's windows on the desktop for linux-desktop's
+dock, guides/linux_desktop.md, Displays): a press on its bar calls `begin_move()` and a grip `begin_resize(edge)`
 (as does a secondary drag with `drag_modifier`, from the nearest edge or
 corner), so the host moves and resizes it. A size set from inside, such as
 `DockTabControl::resize_window`, changes the rect and so the `Window`'s `size`,
@@ -2835,7 +2836,10 @@ the main one instead), `Any` (a layer opens every window, as space does) or `Pla
 a `WindowPlacement::Host` the platform handed out through a handle in `Setup`,
 as beui-platform-plugin's `Views` and its `views.placement(id)` do; every other
 `Window` is an overlay inside the window it was opened in, so a plugin's
-docked windows stay inside its region). `Context::opens_windows` is true only
+docked windows stay inside its region). A platform may move between them: the
+plugin platform hosts every window while its host shows the windows of one of
+its regions (guides/adding_a_plugin_editor.md), and a `Window` follows, opening
+as a real window or an overlay from the frame the hosting changes. `Context::opens_windows` is true only
 for `Any`. A platform with no main window of its own (beui-platform-plugin,
 beui-platform-drm) sets `Context::set_shows_main(false)`: the document then paints neither the
 root nor anything opened in the main window, so the root just holds the app's
@@ -2983,7 +2987,15 @@ release in the window the press began in). A forwarding catcher (a plugin
 region, a Wayland window) is handed those events in its own window's
 coordinates instead, when the host has reported both windows' `Moved` origins:
 the position moves by the difference between the origins and the event names the
-catcher's window, so a drag begun on one display goes on smoothly over the next. The drag board looks for drop
+catcher's window, so a drag begun on one display goes on smoothly over the next.
+Each pointer event a catcher is handed also names the node the pointer is over
+(`Forwarded::Pointer`'s `over`, an `Over`: the node and the pointer's position
+from that node's corner in the node's window), which is how a host hands a held
+press on to the region it is over: `Replay::replay(input, zoom, aim)` asks `aim`
+where each pointer event goes, `Aim::Own` (this catcher, from its corner),
+`Aim::Other { node, at }` (replayed at `at`, with `Replayed::over` naming the node)
+or `Aim::Away` (over nothing of its own: while a button is held, `PointerLeft` once,
+then the catcher's own coordinates). The drag board looks for drop
 targets only in the window the `DragPoint` names. A host signals that the pointer, holding a
 button, is over no window by sending `PointerLeft` (moves and the release then
 keep going to the window the press began in, outside its rect): the intake
@@ -2993,8 +3005,8 @@ reported size, the board (`Board::set_outside`, each frame) drops nothing:
 the target the pointer left hears `over(None)` and the drop calls the
 `Outside` callback given to `Board::begin` with the last point (inside or
 out, so a drag that leaves on its first move still has one), which
-`Draggable` passes on as `on_drop_outside`. Where nothing opens windows the
-flag is ignored, so dragging out of a platform window still drops at the last
+`Draggable` passes on as `on_drop_outside`. Unless a host opens every window
+(`Context::opens_windows`, `WindowHosting::Any`) the flag is ignored, so dragging out of a platform window still drops at the last
 point inside. `ui_types::Input` has no window: it is the
 plugin protocol's input too, and a plugin region is always one window.
 
@@ -4137,23 +4149,20 @@ whose signal ticks once the work has woken the editor, and an effect that
 reads that signal collects the result.
 
 A plugin's frame can open windows (a dock's floating window, linux-desktop's).
-Outside space a `Window` is an overlay inside its region's window. Where the
-host opens windows (the screen request's `opens_windows`, `Region::opens_windows`,
-true only under space), the protocol lets a frame's `WindowRequest`s go to the
-host (`Frame::window_requests`, `frame-commit.window-requests`), the host opens
-a window whose screen is the region `EditorRegion::Window(id)` and reports
-`Placed` and `Closed` back (`Regions::window_reported`); block-app opens a beui
-`Window` holding a `PluginRegion` for each (`RegionWindows` in
-`compositor/region.rs`), so under space every plugin window is a panel of its
-own. On the plugin side, beui-platform-plugin sets `WindowHosting::Any` while
-any region it frames opens windows, and sends each window request of a window
-that is not a region's in the frame of the region it was opened over (the
-active region for one opened at the pointer); an `Over` a region's window
-becomes `Over` `WindowId::MAIN`, the region itself. The region
-`EditorRegion::Window(id)` is that window of the module's app, not a window
-opened for it: the app skips it among `Views` when opening region windows, and
-block-editor-beui places the children laid out in it on that region
-(`Editor::end_frame` places only the children in the window it is given).
+Outside space and the desktop shell a `Window` is an overlay inside its
+region's window. Where the host shows windows as its own (the screen request's
+`windows`, `Region::windows`; guides/adding_a_plugin_editor.md), each becomes a
+`EditorRegion::Window(w)` region. block-app keeps every such window in
+`compositor/desktop.rs` (`Floated`): on the desktop shell it draws them on the
+displays (`DesktopWindows`), and under space, where it says `windows` for every
+frame region (`host::opens_windows()`), each is a `Panel`: a beui `Window` of
+its own holding a `PluginRegion` of the window region (`PanelWindows` in
+`compositor/region.rs`), opened where the plugin asked with its role, moved
+and resized by space on `BeginMove`/`BeginResize`, and its `Placed` answered as
+the window region's `placement`; closing the panel ends the region, which
+closes the app's window. block-editor-beui places the children laid out in a
+window on that window's region (`Editor::end_frame` places only the children
+in the window it is given).
 
 The counter editor under `crates/editors/counter` is the reference integration.
 The [plugin editor guide](adding_a_plugin_editor.md) covers the manifest,

@@ -307,9 +307,6 @@ impl Wire {
             EditorCall::ShowDialog { block, dialog } => {
                 editor.show_dialog(connection, block, dialog);
             }
-            EditorCall::WindowReported(report) => {
-                editor.window_reported(connection, report);
-            }
         }
     }
 

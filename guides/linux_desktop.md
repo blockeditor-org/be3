@@ -82,30 +82,58 @@ platform's `Displays` handle (`display/linux.rs` offers them to `display/shown.r
 `ui::Displays` opens a `Window` per display at its size, with `displays.placement(id)`). The
 first display's window holds the host's whole UI (`ui::Root`: sign-in, the shell, dialogs); every
 display's window holds its own lock screen and display-settings prompt (`DisplayChrome`), and the
-host's toasts stand in the first's. Every display has its own scale: `BEUI_SCALE`, or what
+host's toasts stand in the first's. Their test ids repeat from one display's window to the next:
+`drive app click ID in WINDOW` (guides/running/drive.md) finds a target among one window's
+nodes. Every display has its own scale: `BEUI_SCALE`, or what
 `DisplayConfig::scales` names for its monitor. Elsewhere (a window, headless, the web, Android)
 there are no displays and the UI is the main window's, as it always was.
 
-The desktop is one space in points: the displays side by side along their bottom edges. The
-shell's region spans all of it, so its coordinates are the desktop's, and every display's window
-shows its own part of that one region (`MainSurface` lays the shell out at the desktop's size,
-shifted by the display's position; `compositor/desktop.rs`): each window mounts the region, the
-host draws the plugin's one surface into each, laid out at the document's scale and rendered at
-the largest display's raster over it (`RegionPlacement::raster`, each mount's
-`EmbedPlacement::raster`), and each mount builds only the region's children (program windows,
-block editors) that its display owns, the display holding most of a child, or every display a child
-overlaps while a press is held on the shell, so a window dragged across displays is drawn in both
-until it is let go. Mounts after the first only draw and forward input: the shell's keyboard
-focus, intercepted keys and child statuses go through the first display's (statuses are merged
-across mounts). The pointer crosses between display windows with a press held, by beui's
-cross-window rules: the platform reports each window's desktop origin (`WindowReport::Moved`), so
-the region or Wayland window holding the press hears the pointer in its own window's coordinates.
+The desktop is one space in points: the displays side by side along their bottom edges. Each
+display's window shows its own region of the shell, macOS-like: the first display the shell's
+frame (`ui::Root`'s `MainSurface`), each further one a `display(n)` region of the same instance
+(`ui::SecondaryDisplay` mounts `compositor::ShellDisplay`, n being the display's place in the
+list from 1), each at its display's size and scale. The shell's windows are the host's own,
+placed in the desktop's points: the shell's regions say the host shows the windows the plugin
+opens from them (`windows` in the screen request, set for the shell's frame and display regions
+and for the windows themselves; guides/adding_a_plugin_editor.md), so every `Window` the shell
+opens, each of linux-desktop's dock windows, becomes a `window(w)` region that block-app keeps
+in `compositor/desktop.rs`: a list of `Floated` windows, each its rect in desktop points, in
+stacking order (a press raises one). The shell's region on each display draws, between its own
+surface and its floating layers (menus, popovers, toasts), the windows that display holds most
+of (`desktop::shown_on`, `DesktopWindows` in `compositor/region.rs`), each a `PluginRegion` of
+its window region placed at its rect less the display's corner, whose children are the program
+windows and block editors the shell placed in it. A window opens where the plugin asked: at a
+point of the region it opened from (`Over`, measured from that region's corner on the desktop),
+at the pointer, or at the `placement` it kept (`desktop X Y`); the host answers with that
+placement on the window's screen request, which the dock keeps. `BeginMove` and `BeginResize`
+hand the press to the host: the window follows the pointer from where it was pressed (the
+press's point and the window's rect are noted on the press, `desktop::follow`), the plugin sees
+no moves meanwhile, and the release ends it and gives the new placement. While one moves it is
+drawn on every display it overlaps and on the one the move began on, which holds the press;
+once let go it is drawn only on the display holding most of it. Each region is laid out at the
+document's scale and rendered at the raster of the display that shows most of it (each mount's
+`EmbedPlacement::raster`, `RegionPlacement::raster` of the offer whose clip is largest), so a window moved onto a display at another scale is rendered at that scale once
+it is mostly there; while it straddles two, the display that holds less of it shows the same
+texture scaled. Program windows and block editors are children of the windows they are tabs
+of, so they stack and take the focus with them. The pointer crosses between display windows
+with a press held, by beui's cross-window rules (the platform reports each window's desktop
+origin, `WindowReport::Moved`), and between the shell's regions by the protocol's `over`: a
+press held in one of the shell's regions names the region the pointer is over, so a tab dragged
+out of one window and over another, on any display, lands on that window's bar.
+
+`--desktop` in a window, or headless, is the same with one display, the window: the shell's frame
+fills it, and its windows are the host's own, drawn over it in that window's points. The plugin
+tests do the same through block-ui-test's `BeuiTest::show_on_displays`, which shows the regions
+and hosts the windows as block-app does, takes input in desktop points (`desk_press`,
+`desk_move`, `desk_release`, `desk_drag`) and paints a display with the windows on it
+(`desk_snapshot`); without it a plugin draws its windows inside its frame.
 
 The shell learns the displays from `DisplaysWatch`: each `HostDisplay` carries its `rect` in the
-desktop's points and its `scale`. linux-desktop lays out a bar along the foot of each display
-(one `DesktopBar` per display, in a row along the desktop's foot), its notification toasts above
-the first display's bar and a level display on each; with no display reported (`--desktop` in a
-window, tests) the whole region is one display.
+desktop's points and its `scale`. linux-desktop draws, in every region, a bar along its foot and
+a level display (`desktop.osd.{n}`, n the region's display), and in the frame alone its dock,
+launcher, pickers and notification toasts (above that display's bar); `BeuiApp::Display`
+draws the further displays' regions from what the frame's region shares (`app.rs`, `Desktop`).
+The dock fills the frame above the bar, and its windows open over it.
 
 be-wayland advertises one `wl_output` per display (`Compositor::set_monitors`, from the same
 handle; `heads.rs`), at its desktop position and its scale rounded up, and keeps every window

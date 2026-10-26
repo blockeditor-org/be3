@@ -44,7 +44,7 @@ fn a_region_that_loses_the_keyboard_mid_press_keeps_the_press() {
             ..Pen::default()
         },
     };
-    let mut send = |input: Input| surface.input(&shown, &TimedInput::from(input));
+    let mut send = |input: Input| surface.input(&shown, &TimedInput::from(input), None);
     send(Input::Focus(true));
     send(Input::PointerMoved(pos2(10.0, 10.0)));
     send(Input::PointerButton {
@@ -64,7 +64,7 @@ fn a_region_that_loses_the_keyboard_mid_press_keeps_the_press() {
     ));
     one(&mut surface, &shown);
 
-    let mut send = |input: Input| surface.input(&shown, &TimedInput::from(input));
+    let mut send = |input: Input| surface.input(&shown, &TimedInput::from(input), None);
     send(Input::Focus(false));
     send(Input::PointerMoved(pos2(40.0, 30.0)));
     send(Input::Touch {
@@ -88,7 +88,7 @@ fn a_region_that_loses_the_keyboard_mid_press_keeps_the_press() {
         phases.borrow()
     );
 
-    let mut send = |input: Input| surface.input(&shown, &TimedInput::from(input));
+    let mut send = |input: Input| surface.input(&shown, &TimedInput::from(input), None);
     send(Input::PointerButton {
         pos: pos2(40.0, 30.0),
         button: PointerButton::Primary,

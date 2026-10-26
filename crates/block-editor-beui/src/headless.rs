@@ -101,21 +101,24 @@ impl HeadlessPlugin {
             .into_iter()
             .map(|(placement, _)| placement)
             .collect();
-        let output = self
+        let (output, windows) = self
             .core
             .module()
-            .with_handler(|handler| ModuleRunner::of(handler)?.take_output())
-            .flatten()?;
-        let windows = placements
-            .into_iter()
-            .filter_map(|placement| {
-                let window = self.module.window(RegionId {
-                    instance: placement.instance,
-                    region: placement.region,
-                })?;
-                Some((placement, window))
+            .with_handler(|handler| {
+                let runner = ModuleRunner::of(handler)?;
+                let windows: Vec<(ScreenPlacement, beui::WindowId)> = placements
+                    .into_iter()
+                    .filter_map(|placement| {
+                        let window = runner.window(RegionId {
+                            instance: placement.instance,
+                            region: placement.region,
+                        })?;
+                        Some((placement, window))
+                    })
+                    .collect();
+                Some((runner.take_output()?, windows))
             })
-            .collect();
+            .flatten()?;
         Some(Drawn { output, windows })
     }
 

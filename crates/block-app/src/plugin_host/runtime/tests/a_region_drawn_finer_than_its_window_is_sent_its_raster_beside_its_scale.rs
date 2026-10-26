@@ -82,6 +82,8 @@ fn a_region_drawn_finer_than_its_window_is_sent_its_raster_beside_its_scale() {
                 clip: rect,
                 zoom: 1.0,
                 raster,
+                windows: false,
+                placement: None,
             },
             None,
             None,

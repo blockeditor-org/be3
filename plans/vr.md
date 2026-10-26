@@ -104,8 +104,8 @@ The riskiest: wgpu has no WebXR binding, the WebGL route needs an
   (`Context::window_placement`) saved in the session, and a canonical way to
   hand a placement back for the main window, which space opens on its own
   before the session is known (a `WindowRequest` that places `MAIN`, say).
-  Floating dock windows' `Placed` reports now reach the workspace dock
-  through the plugin protocol (`window-reported`), which keeps them only in
+  Floating dock windows' placements now reach the workspace dock
+  through the plugin protocol (the window region's `placement`), which keeps them only in
   memory (`DockState` holds none); they join the shell's saved `DockState`.
 
 - **Plugin windows.** Outside space they stay overlays inside their region's

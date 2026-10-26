@@ -24,6 +24,7 @@ fn region() -> Region {
         spec: FrameSpec::default(),
         describe: None,
         seen: true,
-        opens_windows: false,
+        windows: false,
+        placement: None,
     }
 }

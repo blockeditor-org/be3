@@ -5,8 +5,7 @@ use block_plugin_api::{
     ChildMode, ChildPlacement, ChildPlacements, ChildStatus, EditorInstanceId, EditorRegion,
     FrameReport, FrameSpec, MenuEntry, Occluder, OpenArtifact, OpenBlock, OpenCreation, Opening,
     PerformanceMeasurement, RegionSize, ScreenId, ScreenLayout, ScreenRequest, ScreenWindow,
-    ScreenWindowRequest, ShellCommand, Size, Stopped, ViewChange, WebViewEvent, WebViewId,
-    WindowEdge, WindowId, WindowPlacement, WindowReport, WindowRequest, WindowRole,
+    ShellCommand, Size, Stopped, ViewChange, WebViewEvent, WebViewId,
 };
 use block_plugin_api::{
     DescribedAction, WindowRequests,
@@ -147,18 +146,8 @@ struct Instance {
     blocks_seen: Option<u64>,
     version_sent: Option<u64>,
     stale: bool,
-    windows: Vec<PluginWindow>,
 }
 
-#[derive(Clone, Debug, PartialEq)]
-pub(crate) struct PluginWindow {
-    pub(crate) window: WindowId,
-    pub(crate) placement: WindowPlacement,
-    pub(crate) size: Vec2,
-    pub(crate) role: WindowRole,
-    pub(crate) moves: u32,
-    pub(crate) resizes: (u32, WindowEdge),
-}
 
 struct ContentLink {
     content_type: Uuid,
@@ -305,7 +294,6 @@ impl Instance {
             blocks_seen: None,
             version_sent: None,
             stale: true,
-            windows: Vec::new(),
             content: match role {
                 InstanceRole::Editor(_, block) => own_content_type(block).map(ContentLink::new),
                 InstanceRole::Creation(..) | InstanceRole::Artifact(..) => None,
@@ -833,7 +821,8 @@ impl Instances {
                     region,
                     metrics: viewport_metrics(size, visible, scale_factor, scale_factor),
                     frame,
-                    opens_windows: false,
+                    windows: false,
+                    placement: None,
                 },
                 last_seen: pass,
                 mounted: 0,
@@ -931,19 +920,22 @@ impl Instances {
         visible: Rect,
         scale_factor: f32,
         raster: f32,
+        windows: bool,
+        placement: Option<String>,
     ) {
         let Some(screen) = self.screen_mut(instance, region) else {
             return;
         };
         let metrics = viewport_metrics(size, visible, scale_factor, raster);
-        let opens_windows = region == EditorRegion::Frame && host::opens_windows();
         if screen.request.metrics != metrics
             || screen.request.frame != frame
-            || screen.request.opens_windows != opens_windows
+            || screen.request.windows != windows
+            || screen.request.placement != placement
         {
             screen.request.metrics = metrics;
             screen.request.frame = frame;
-            screen.request.opens_windows = opens_windows;
+            screen.request.windows = windows;
+            screen.request.placement = placement;
         }
     }
 
@@ -1080,7 +1072,27 @@ impl Instances {
         instance: EditorInstanceId,
         region: EditorRegion,
         input: &beui::ForwardedInput,
+        aim: &dyn Fn(Option<beui::Over>, beui::Pos2) -> beui::Aim,
+        target: &dyn Fn(beui::NodeId) -> Option<(EditorInstanceId, EditorRegion)>,
     ) -> (Vec<Outbound>, bool) {
+        let screens: Vec<(EditorInstanceId, EditorRegion, ScreenId)> = self
+            .entries
+            .iter()
+            .flat_map(|(instance, entry)| {
+                entry
+                    .screens
+                    .iter()
+                    .filter(|(_, screen)| self.announced.contains(&screen.request.screen))
+                    .map(|(region, screen)| (*instance, *region, screen.request.screen))
+            })
+            .collect();
+        let screen_of = |node: beui::NodeId| {
+            let (instance, region) = target(node)?;
+            screens
+                .iter()
+                .find(|(held, at, _)| *held == instance && *at == region)
+                .map(|(_, _, screen)| *screen)
+        };
         let announced = &self.announced;
         let Some(screen) = self
             .entries
@@ -1111,7 +1123,7 @@ impl Instances {
             .is_some_and(|report| report.every_sample);
         let mut messages: Vec<Outbound> = screen
             .input
-            .forward(input, id, zoom, every_sample)
+            .forward(input, id, zoom, every_sample, aim, &screen_of)
             .into_iter()
             .map(Outbound::from)
             .collect();
@@ -1682,96 +1694,6 @@ impl Instances {
             }
         }
         changed
-    }
-
-    pub(super) fn request_windows(&mut self, requests: Vec<ScreenWindowRequest>) -> bool {
-        let mut changed = false;
-        for ScreenWindowRequest { screen, request } in requests {
-            let Some(entry) = self.entries.values_mut().find(|entry| {
-                entry
-                    .screens
-                    .values()
-                    .any(|placed| placed.request.screen == screen && placed.request.opens_windows)
-            }) else {
-                continue;
-            };
-            let windows = &mut entry.windows;
-            let held = windows
-                .iter()
-                .position(|held| held.window == request.window());
-            changed |= match (request, held) {
-                (
-                    WindowRequest::Open {
-                        window,
-                        placement,
-                        size,
-                        role,
-                    },
-                    None,
-                ) => {
-                    windows.push(PluginWindow {
-                        window,
-                        placement,
-                        size,
-                        role,
-                        moves: 0,
-                        resizes: (0, WindowEdge::BottomRight),
-                    });
-                    true
-                }
-                (
-                    WindowRequest::Open { size, .. } | WindowRequest::Resize { size, .. },
-                    Some(at),
-                ) => {
-                    let changed = windows[at].size != size;
-                    windows[at].size = size;
-                    changed
-                }
-                (WindowRequest::BeginMove(_), Some(at)) => {
-                    windows[at].moves += 1;
-                    true
-                }
-                (WindowRequest::BeginResize { edge, .. }, Some(at)) => {
-                    let (count, _) = windows[at].resizes;
-                    windows[at].resizes = (count + 1, edge);
-                    true
-                }
-                (WindowRequest::Close(_), Some(at)) => {
-                    windows.remove(at);
-                    true
-                }
-                (_, None) => false,
-            };
-        }
-        changed
-    }
-
-    pub(super) fn plugin_windows(&self, instance: EditorInstanceId) -> Vec<PluginWindow> {
-        self.entries
-            .get(&instance)
-            .map(|entry| entry.windows.clone())
-            .unwrap_or_default()
-    }
-
-    pub(super) fn window_reported(
-        &mut self,
-        instance: EditorInstanceId,
-        report: WindowReport,
-    ) -> Vec<Outbound> {
-        let Some(entry) = self.entries.get_mut(&instance) else {
-            return Vec::new();
-        };
-        let window = report.window();
-        if !entry.windows.iter().any(|held| held.window == window) {
-            return Vec::new();
-        }
-        if let WindowReport::Closed(_) = report {
-            entry.windows.retain(|held| held.window != window);
-        }
-        vec![Outbound::Editor(
-            instance,
-            EditorCall::WindowReported(report),
-        )]
     }
 
     pub(super) fn set_windows(&mut self, windows: Vec<ScreenWindow>) -> bool {

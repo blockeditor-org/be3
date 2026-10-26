@@ -24,6 +24,8 @@ pub(crate) trait Shown {
         document: &mut Document,
         window: WindowId,
     ) -> Report;
+
+    fn floated(&self, document: &mut Document, window: WindowId, size: beui::Vec2) -> Report;
 }
 
 struct Registry {
@@ -109,10 +111,7 @@ impl Module {
     }
 
     pub(crate) fn window(&self, region: RegionId) -> Option<WindowId> {
-        match region.region {
-            EditorRegion::Window(window) => Some(window),
-            _ => self.registry.windows.borrow().get(&region).copied(),
-        }
+        self.registry.windows.borrow().get(&region).copied()
     }
 }
 
@@ -173,6 +172,16 @@ impl beui::App for ModuleApp {
             });
             views.report(view.id, report);
         }
+        for (id, window) in views.floated() {
+            let Some(shown) = module.shown(id.instance) else {
+                continue;
+            };
+            let size = context.window_size(window).unwrap_or_default();
+            let report = shown
+                .host()
+                .in_region(id.region, || shown.floated(document, window, size));
+            views.report(id, report);
+        }
     }
 }
 
@@ -189,7 +198,6 @@ fn ModuleWindows(
         requested.with(|requested| {
             requested
                 .iter()
-                .filter(|view| !matches!(view.id.region, EditorRegion::Window(_)))
                 .map(|view| {
                     let generation = generations
                         .shown(view.id.instance)

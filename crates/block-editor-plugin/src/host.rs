@@ -1403,9 +1403,12 @@ impl EditorHost {
 
     fn framed_view(&self) -> Option<View> {
         let region = self.region.get();
-        matches!(region, None | Some(EditorRegion::Frame))
-            .then(|| self.view.get())
-            .flatten()
+        matches!(
+            region,
+            None | Some(EditorRegion::Frame | EditorRegion::Display(_))
+        )
+        .then(|| self.view.get())
+        .flatten()
     }
 
     pub fn pan_view(&self, delta: Vec2) {

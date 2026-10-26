@@ -84,7 +84,9 @@ screen (the platform's side):
   xr HAND trigger VALUE / xr HAND squeeze VALUE   pull the trigger or the grip, from 0 to 1
   xr HAND click TARGET      point at TARGET, then pull and let go of the trigger
   xr HAND lost              the controller is no longer tracked
-Either tap (input enters the stack at the tap; state is what that tap sees):
+Either tap (input enters the stack at the tap; state is what that tap sees). Any of these may
+end with in WINDOW, a number `windows` lists: its targets are then found among that window's
+nodes and its input goes to that window, in its points:
   state                     window, cursor, pointer, fingers, held keys, input method, dialogs
   click TARGET [right|middle|double]
   move TARGET               move the pointer onto TARGET (hover)
@@ -428,6 +430,7 @@ struct Session {
     screen_window: Option<WindowState>,
     screen_shown: Option<WindowOutput>,
     app_window: WindowState,
+    windows: Vec<(WindowId, Rc<std::collections::HashSet<accesskit::NodeId>>)>,
 }
 
 impl Session {
@@ -450,6 +453,7 @@ impl Session {
             screen_window: None,
             screen_shown: None,
             app_window: WindowState::default(),
+            windows: Vec::new(),
         }
     }
 
@@ -626,6 +630,18 @@ impl Session {
     ) {
         let took = frame.started.elapsed();
         self.frames.add(took);
+        self.windows = match output.windows.len() > 1 {
+            true => output
+                .windows
+                .iter()
+                .map(|window| {
+                    let tree = output.window_accessibility_tree(window.id, "", window.size);
+                    let nodes = tree.nodes.into_iter().map(|(id, _)| id).collect();
+                    (window.id, Rc::new(nodes))
+                })
+                .collect(),
+            false => Vec::new(),
+        };
         for (name, times) in frame.app.other_frames() {
             self.other_frames.entry(name).or_default().merge(times);
         }
@@ -1068,14 +1084,54 @@ impl Session {
     ) -> Result<Started, String> {
         let reads = self.reads_tree(tap);
         let gesture = self.gesture_index(tap);
+        let (arguments, window) = match arguments {
+            [rest @ .., word, window]
+                if word == "in" && kind(command) == Some(Kind::Either) && command != "paint" =>
+            {
+                let raw: u64 = window.parse().map_err(|_| {
+                    format!("{command} takes in WINDOW, a number `windows` lists, not {window}")
+                })?;
+                let found = self
+                    .windows
+                    .iter()
+                    .find(|(id, _)| id.raw() == raw)
+                    .cloned()
+                    .ok_or_else(|| format!("no window {raw} is open; `windows` lists them"))?;
+                (rest, Some(found))
+            }
+            arguments => (arguments, None),
+        };
         let argument = |index: usize| -> Result<&str, String> {
             arguments
                 .get(index)
                 .map(String::as_str)
                 .ok_or_else(|| format!("{command} needs more arguments\n{USAGE}"))
         };
-        let at = |target: &str| aim(reads, target, view);
+        let within = window.as_ref().map(|(_, nodes)| {
+            view.rendered()
+                .lines()
+                .iter()
+                .filter(|line| nodes.contains(&line.id))
+                .cloned()
+                .collect::<Vec<_>>()
+        });
+        let at = |target: &str| match (&within, reads) {
+            (Some(lines), true) => point(target, lines, view.pixels_per_point),
+            _ => aim(reads, target, view),
+        };
+        let shown_in = window.as_ref().map(|(id, _)| *id);
         let incoming = |steps: Vec<Vec<Incoming>>| {
+            let steps: Vec<Vec<Incoming>> = match shown_in {
+                Some(window) => steps
+                    .into_iter()
+                    .map(|step| {
+                        step.into_iter()
+                            .map(|incoming| incoming.in_window(window))
+                            .collect()
+                    })
+                    .collect(),
+                None => steps,
+            };
             Ok(Started::Phase(Phase::Input {
                 steps: steps.into(),
                 before: view.rendered(),

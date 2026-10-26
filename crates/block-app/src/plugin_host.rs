@@ -33,7 +33,7 @@ mod wire;
 
 pub(crate) use description::describe;
 pub(crate) use input::BlockDrag;
-pub(crate) use instances::{EditorView, PluginWindow};
+pub(crate) use instances::EditorView;
 pub(crate) use presenter::Piece;
 #[cfg(target_arch = "wasm32")]
 pub(crate) use presenter::shown as shown_blits;
@@ -56,9 +56,9 @@ pub(crate) use runtime::{
 };
 pub(crate) use runtime::{
     RegionPlacement, RegionSlot, RegionView, back_region, drag_over_region, forward_region, frames,
-    intercept_region, intercept_tap, mount_region, place_region, plugin_windows,
+    intercept_region, intercept_tap, mount_region, place_region,
     pressed_outside_region, region_damage, region_drawing, region_placed, region_published,
-    region_view, report_window, take_block_drags, take_changed, take_focus_request,
+    region_view, take_block_drags, take_changed, take_focus_request,
     take_region_actions, unmount_region, unplace_region,
 };
 
