@@ -43,8 +43,8 @@ two parameters work on any page serving the bundle:
 `drive` answers the native app's commands (guides/running/drive.md), run by the app itself in
 the page under one drive layer, except those of the headless window: the browser is the
 platform here. Its own commands take their place (`drive` with no command lists them):
-- `drive screen shot FILE [TARGET]` saves a screenshot through Playwright, of TARGET only when given.
-- `drive screen upload FILE TARGET` clicks TARGET and answers the file chooser that opens with FILE.
+- `drive shot FILE [TARGET]` saves a screenshot through Playwright, of TARGET only when given.
+- `drive upload FILE TARGET` clicks TARGET and answers the file chooser that opens with FILE.
 - `drive size W H` resizes the page. `drive reload` reloads it and returns once the app answers
   again; any command waits for the module to start, so one sent mid-reload is not lost.
 - `drive eval EXPRESSION` evaluates JavaScript in the page and prints the result.
@@ -106,10 +106,10 @@ files.js answers from memory and nothing survives a reload.
 - No browser test runs in verify, so check offline typing by hand: open a
   text block, `kill -STOP` the instance's be-server (a silent server; killing
   it is a refused one) or call Playwright's `context.setOffline(true)`, click
-  the editor (`drive app click` or `page.mouse.click`) and type with
+  the editor (`drive click` or `page.mouse.click`) and type with
   `page.keyboard.type`, then `page.reload()` with a `dialog`
   handler that accepts the `beforeunload` prompt a second later, and read
-  the editor's value from `drive app tree`. Compare `performance.timeOrigin`
+  the editor's value from `drive tree`. Compare `performance.timeOrigin`
   before and after to be sure the page did reload. `kill -CONT` the server
   before stopping web-dev, whose stop waits for it.
 - The app closes its tab when it exits, except when the page is already

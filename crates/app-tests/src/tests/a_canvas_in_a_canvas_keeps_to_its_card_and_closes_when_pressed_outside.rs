@@ -13,14 +13,14 @@ fn a_canvas_in_a_canvas_keeps_to_its_card_and_closes_when_pressed_outside() {
     app.crop("#workspace.block");
 
     let inside = format!("{:.0},{:.0}", card.0 + card.2 / 2.0, card.1 + card.3 * 0.6);
-    app.run(&["app", "click", &inside]);
+    app.run(&["click", &inside]);
     assert_eq!(app.count(&full), 2, "the inner canvas takes the frame");
     app.click("#infinite-canvas.dock.tool.Rectangle");
     app.record();
 
     let outside = format!("{:.0},{:.0}", card.0 - 60.0, card.1 + card.3 / 2.0);
     let further = format!("{:.0},{:.0}", card.0 - 20.0, card.1 + card.3 / 2.0 + 60.0);
-    app.run(&["app", "drag", &outside, &further]);
+    app.run(&["drag", &outside, &further]);
     assert_eq!(
         app.count(&full),
         1,

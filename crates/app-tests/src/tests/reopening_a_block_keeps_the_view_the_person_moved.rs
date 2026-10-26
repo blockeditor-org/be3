@@ -17,9 +17,9 @@ fn reopening_a_block_keeps_the_view_the_person_moved() {
         stage.1 + stage.3 * 0.5
     );
 
-    app.run(&["app", "keydown", "ctrl"]);
-    app.run(&["app", "wheel", &middle, "-2"]);
-    app.run(&["app", "keyup", "ctrl"]);
+    app.run(&["keydown", "ctrl"]);
+    app.run(&["wheel", &middle, "-2"]);
+    app.run(&["keyup", "ctrl"]);
     app.run(&["settle"]);
     let zoomed = app.place(ARTWORK);
     assert!(
