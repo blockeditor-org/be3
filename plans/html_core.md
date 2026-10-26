@@ -343,28 +343,43 @@ Moves up or out:
 - `Container`/`narrower_than`: stays unstyled, rebuilt on the measurement API.
 - `focus.rs`, `focus_scope.rs`, `share.rs`, `child_list.rs`: out of `base/`.
 
+### Decided
+
+1. **Outside code gets a chosen set of primitives**, decided in step 3, not
+   everything styled re-exports today. It keeps an escape hatch for what beui
+   can't express: a GPU surface to draw on (scene-3d needs a wgpu canvas),
+   which on the HTML core is a `<canvas>` with a WebGPU context.
+2. **`Embed` and `Turn`'s quarter turns leave beui.**
+3. **`Interactive`'s custom hit tests are redesigned** in step 3.
+4. **`Break`'s "copies without a newline" is a requirement.** First
+   candidate: an empty element whose `::after` is `content: "\A";
+   white-space: pre`, since generated content is neither selected nor
+   copied. `display: table` on an empty span probably fails, because
+   selection serializes block-level boxes with newlines. If neither holds
+   in every engine, a `copy` handler writes the clipboard text from the
+   model. A Playwright test across Chromium, Firefox and WebKit decides.
+5. **`Drawing` as SVG or `<canvas>`** is not decided yet; the first version
+   draws pink TODO rectangles.
+
 ### Open questions
 
-1. Should outside code keep reaching primitives through styled's re-exports,
-   or should step 3 decide which of them (`Interactive`, `Canvas`, `Layers`,
-   `Drawing`) outside code may use?
-2. Do `Embed` and `Turn`'s quarter turns leave beui, given that no unstyled or
-   styled component uses them?
-3. `Interactive`'s custom hit tests (`hit_at`, `capture_at`, `gestures_at`,
-   `drawing_at`, `claim_at`) have no DOM equivalent short of re-dispatching
-   through `elementsFromPoint`. Keep them, or redesign them in step 3?
-4. `Frame`'s `pointer` beak follows the side the overlay chose. On the HTML
-   core that needs the chosen anchor fallback (anchored container queries).
-   Keep the beak, or move it into the overlay?
-5. Is `Break`'s "copies without a newline" a requirement on the web, where
-   only the terminal's soft-wrapped rows depend on it?
-6. Should `Drawing` become SVG or `<canvas>` on the HTML core? SVG is crisp
-   at any zoom and stays in the DOM, but a drawing that redraws often (a plot
-   while panning, anything culled to its clip) rebuilds many elements each
-   time; `<canvas>` is cheap to redraw but blurry until re-rendered at the
-   new scale. Undecided; the first version draws pink TODO rectangles.
-7. Is `Canvas` shared base (CSS transforms) or core-implemented, given its
-   raster settling and scaled spaces have no CSS counterpart to test against?
+1. `Frame`'s `pointer` draws a beak: the small triangle on a tooltip or
+   popover that points at what it's attached to. When the overlay has no
+   room on its preferred side and flips (below to above), native layout
+   knows the side it chose, and the beak moves to that edge. On the HTML
+   core, CSS anchor positioning chooses the fallback in the browser, and the
+   page isn't told which one won. The beak can follow through anchored
+   container queries (`@container anchored(fallback: ...)`, Chromium only
+   so far), or by measuring after layout. Should the beak stay a `Frame`
+   prop, or move into the overlay, which is the one that knows its side?
+2. Is `Canvas` (the pan and zoom surface) shared base, implemented as a
+   container with `transform: translate() scale()`, or a component each core
+   implements? Natively beui decides when zoomed items are re-rendered sharp
+   (`raster`: scaled as bitmaps while zooming, re-rendered when it settles).
+   With a CSS transform the browser decides that, and nothing in CSS sets
+   it. Nearly all of its 22 outside users are plugin editors, which stay on
+   wgpu in the first version, so on the HTML core only block-app and
+   block-editor-beui use it at first.
 
 ## Next steps
 
