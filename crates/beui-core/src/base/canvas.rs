@@ -586,7 +586,7 @@ impl Element for CanvasItemNode {
 
     fn pointer_children(&self) -> Vec<NodeId> {
         self.child
-            .filter(|_| self.pointer && !self.scales)
+            .filter(|_| self.pointer)
             .into_iter()
             .collect()
     }

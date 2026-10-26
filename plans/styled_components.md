@@ -1014,12 +1014,19 @@ colours. What keeps it on the unstyled `TextArea`:
 
 Changes:
 
-1. **Scaled spaces take input.** Map pointer input through a scaled space's
+1. **Done.** **Scaled spaces take input.** Map pointer input through a scaled space's
    scale as well as its translation: presses, drags, hover, caret placement and
    hit tests, selection handles, the IME and on-screen keyboard area, the
    anchors of overlays opened from inside (text menu, completion menu), and
    reveal/scroll-into-view. Update pan_and_zoom.md, which says a scaled item
-   takes no pointer input.
+   takes no pointer input. (Hit testing already went through `Rects::get`,
+   which applies the scale; what was missing was the canvas item's gate and the
+   places that mixed window positions with layout lengths: `local`/`size`,
+   `hit_at`, `TextGeometry`, touch-scroll deltas, reveal in a scroll, handle and
+   toolbar geometry, `ImeCursor.rect`, which is now in its node's own units.
+   Only nodes with an `Interactive` capture, so drawings stay transparent.
+   Wheel deltas stay in window pixels. Selection handles grow with the zoom,
+   as they are drawn in the scaled space.)
 2. **`styled::TextArea` gains:**
    - `color: TextColor`, the text colour, with a placeholder derived from it;
    - `read_only` (shown normally, not editable, not reported as disabled),

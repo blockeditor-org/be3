@@ -13,7 +13,7 @@ use crate::painter::Painter;
 
 use crate::base::child_list::{ChildHost, ChildItem, ChildList, NodeChildren};
 use crate::document::Document;
-use crate::node::{Element, NodeId, NodeOf, Rects};
+use crate::node::{Element, NodeId, NodeOf, Rects, SpaceTransform};
 use crate::rich::{
     CaretHandle, OBJECT, Piece, RichLayout, RichOptions, Shaper, SpanBackground, SpanStyle,
     TextCaret, TextGlyph, TextMark, handle_shape,
@@ -1327,35 +1327,44 @@ pub struct TextGeometry {
 }
 
 impl TextGeometry {
-    fn placement(&self) -> Option<(Vec2, Rc<RichLayout>)> {
-        let rect = self.rects.get(&self.node)?;
+    fn placement(&self) -> Option<(SpaceTransform, Rc<RichLayout>)> {
+        let laid = self.rects.placed(&self.node)?;
         let placed = self.placed.borrow();
         let placed = placed.as_ref()?;
-        let shift = rect.min - placed.rect.min + placed.origin.to_vec2();
-        Some((shift, Rc::clone(&placed.layout)))
+        let shift = laid.rect.min - placed.rect.min + placed.origin.to_vec2();
+        let space = self.rects.transform(laid.space);
+        let transform = SpaceTransform {
+            offset: space.offset + shift * space.scale,
+            scale: space.scale,
+        };
+        Some((transform, Rc::clone(&placed.layout)))
     }
 
     pub fn rect(&self) -> Option<Rect> {
         self.rects.get(&self.node)
     }
 
+    pub fn scale(&self) -> f32 {
+        self.rects.scale_of(&self.node)
+    }
+
     pub fn bounds(&self) -> Option<Rect> {
-        let (shift, layout) = self.placement()?;
-        Some(Rect::from_min_size(pos2(shift.x, shift.y), layout.size))
+        let (transform, layout) = self.placement()?;
+        Some(transform.rect(Rect::from_min_size(Pos2::ZERO, layout.size)))
     }
 
     pub fn caret_rect(&self, index: usize, width: f32) -> Option<Rect> {
-        let (shift, layout) = self.placement()?;
-        Some(layout.caret_rect(index, width).translate(shift))
+        let (transform, layout) = self.placement()?;
+        Some(transform.rect(layout.caret_rect(index, width)))
     }
 
     pub fn index_at(&self, pos: Pos2) -> Option<usize> {
-        let (shift, layout) = self.placement()?;
-        Some(layout.index_at(pos - shift))
+        let (transform, layout) = self.placement()?;
+        Some(layout.index_at(transform.local_pos(pos)))
     }
 
     pub fn inline_at(&self, pos: Pos2) -> Option<usize> {
-        let (shift, layout) = self.placement()?;
-        layout.inline_at(pos - shift)
+        let (transform, layout) = self.placement()?;
+        layout.inline_at(transform.local_pos(pos))
     }
 }

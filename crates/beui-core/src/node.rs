@@ -437,6 +437,18 @@ impl Rects {
         Some(self.transform(placed.space).rect(placed.rect))
     }
 
+    pub fn scaled(&self, id: &NodeId) -> Option<(Rect, f32)> {
+        let placed = self.placed(id)?;
+        let transform = self.transform(placed.space);
+        Some((transform.rect(placed.rect), transform.scale))
+    }
+
+    pub fn local_to_window(&self, id: &NodeId, local: Rect) -> Option<Rect> {
+        let placed = self.placed(id)?;
+        let transform = self.transform(placed.space);
+        Some(transform.rect(local.translate(placed.rect.min.to_vec2())))
+    }
+
     pub fn scale_of(&self, id: &NodeId) -> f32 {
         self.placed(id)
             .map_or(1.0, |placed| self.transform(placed.space).scale)

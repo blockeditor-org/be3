@@ -3853,7 +3853,14 @@ Pointer callbacks are handed positions in the coordinates of the node that
 hears them as well as the document's: `PointerPress`, `ScrollGesture` and
 `ZoomGesture` carry `local` and `size` beside `pos`, and a drop target's
 `DragPoint` is in its own coordinates. A component that only needs to know
-where on itself it was pressed reads those rather than its rect.
+where on itself it was pressed reads those rather than its rect. `pos`, rects
+(`node_rect`, `placements().rect`) and text geometry (`TextGeometry`) are in
+the window's coordinates, through every space's scale as well as its
+translation; `local`, `size` and a `hit_at` test's point are in the node's own
+layout units, so a node inside a zoomed `CanvasItem scales=true` hears a press
+the same as it would unzoomed (guides/pan_and_zoom.md). A length of the node's
+own (a padding, a radius) compared with window positions is multiplied by
+`placements().scale(node)` first.
 
 `Document::on_interacted` runs a callback once the frame's input has been
 dispatched and before anything is laid out, for an app that wants work started

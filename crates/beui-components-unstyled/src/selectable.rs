@@ -256,6 +256,12 @@ impl SelectableState {
         text.caret_rect(index, self.0.value().caret_width.get())
     }
 
+    fn caret_scale(caret: &Caret) -> f32 {
+        Self::resolve(caret)
+            .and_then(|(text, _)| text.text_geometry())
+            .map_or(1.0, |geometry| geometry.scale())
+    }
+
     fn toolbar_rect(&self) -> Option<Rect> {
         let items = self.items();
         let (start, end, ..) = self.ordered(&items)?;
@@ -264,7 +270,7 @@ impl SelectableState {
         }
         let first = self.caret_rect(&start)?;
         let last = self.caret_rect(&end)?;
-        Some(toolbar_anchor(first.union(last)))
+        Some(toolbar_anchor(first.union(last), Self::caret_scale(&end)))
     }
 
     fn order(items: &[SelectionItem], caret: &Caret) -> Option<Order> {
@@ -520,7 +526,8 @@ impl SelectableState {
                 if pos.y < rect.max.y {
                     return None;
                 }
-                let distance = (pos.to_vec2() - handle_center(rect, handle)).length();
+                let center = handle_center(rect, handle, Self::caret_scale(&caret));
+                let distance = (pos.to_vec2() - center).length();
                 (distance <= HANDLE_HIT_RADIUS).then_some((handle, caret, distance))
             })
             .min_by(|left, right| left.2.total_cmp(&right.2))
