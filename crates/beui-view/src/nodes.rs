@@ -238,6 +238,10 @@ pub fn viewport_rect() -> Rect {
     with_document(|document| document.viewport_rect())
 }
 
+pub fn window_of(node: NodeId) -> WindowId {
+    with_document(|document| document.window_of(node))
+}
+
 pub fn focused_node() -> Option<NodeId> {
     with_document(|document| document.focused_node())
 }

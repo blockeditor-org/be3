@@ -78,6 +78,8 @@ pub use beui_font_freetype::{
     FontBytes, FontData, FontLibrary, FontSources, FreetypeFonts, ICONS_FONT,
 };
 pub use beui_inspector::install as install_inspector;
+#[cfg(all(feature = "render", not(target_arch = "wasm32")))]
+pub use beui_renderer_wgpu::present::read_texture;
 #[cfg(feature = "render")]
 pub use beui_renderer_wgpu::present::{GpuSetup, OpenDevice, OpenGpu, open_vulkan_device};
 #[cfg(feature = "render")]

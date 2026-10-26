@@ -2805,9 +2805,10 @@ actions, accessibility) stays on `FrameOutput`. A renderer, `painting` and
 
 The app asks its host for windows with `Context::request_window`, which
 collects `WindowRequest`s into `FrameOutput::window_requests`: `Open { window,
-placement, size, role }` (a `WindowRole`: `Normal`, or `Keyboard` for an
+placement, size, role }` (a `WindowRole`: `Normal`, `Keyboard` for an
 on-screen keyboard, which the host never focuses and places by the field it
-types into; the `Window` component's `role`), `BeginMove(window)`, `BeginResize { window, edge }`
+types into, or `Popup` for a menu of the window it is placed over, which the
+host never focuses either; the `Window` component's `role`), `BeginMove(window)`, `BeginResize { window, edge }`
 (the host then moves or resizes it, as an OS does after winit's
 `drag_window`), `Resize { window, size }` (the app wants another size; the
 host answers with the size it gives) and `Close(window)`. A `WindowPlacement` is `AtPointer`,
@@ -2918,6 +2919,10 @@ its size and reports `Resized` and `Placed` back the next frame.
 reads what the app asked, `report_window` reports as a host would, `windows()`
 lists the open windows and each one's latest `WindowOutput`, and
 `DocumentTest::snapshot_window(name, id)` takes a window's painting.
+`Stepped::hosted(context, app, window, host, setup)` runs under a real host
+instead, such as `beui_adapter_space::Space`, with the `Setup` it is given
+(space wants `GpuSetup` and the `Context`), so a test can paint the scene from
+the main window's output, as be-wayland's space test does.
 
 Pointer input names its window: `Incoming::Input` carries a `window`
 (`Incoming::in_window`; every constructor starts with the main window), in
@@ -3023,7 +3028,10 @@ all its 3D (`glam`) stays in the crate.
   focused field (the window whose output carries the IME area), centred under
   the field `KEYBOARD_GAP` (12) points below it, or with no field over the
   bottom of the focused panel; it never takes the focus, however it is opened,
-  pressed or carried, so its keys type into the field. A hand's grip carries
+  pressed or carried, so its keys type into the field. A `WindowRole::Popup`
+  window opens where its placement says and never takes the focus either, so
+  the window it belongs to keeps it (a Wayland popup's grab ends when its
+  toplevel loses the keyboard). A hand's grip carries
   it like any panel. `Resize` sets the panel's size,
   keeping its top-left corner, and reports `Resized` the next frame. `Close`
   removes the panel and its texture; the main window's panel never closes.

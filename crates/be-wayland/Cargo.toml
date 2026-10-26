@@ -16,6 +16,8 @@ smithay = { version = "0.7", default-features = false, features = ["backend_drm"
 wgpu = { version = "29", default-features = false, features = ["vulkan"] }
 
 [dev-dependencies]
+beui-adapter-space = { path = "../beui-adapter-space" }
+paint-snapshot = { path = "../paint-snapshot" }
 rustix = { version = "1", features = ["event", "fs", "pipe", "process"] }
 wayland-client = "0.31"
 wayland-protocols = { version = "0.32", features = ["client", "staging", "unstable"] }

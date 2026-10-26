@@ -1109,9 +1109,11 @@ version = "0.1.0"
 dependencies = [
  "be-dmabuf",
  "beui",
+ "beui-adapter-space",
  "bytemuck",
  "gvdb",
  "image",
+ "paint-snapshot",
  "resvg",
  "rustix 1.1.4",
  "smithay",

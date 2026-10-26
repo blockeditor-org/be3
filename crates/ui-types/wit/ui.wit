@@ -500,9 +500,12 @@ interface types {
 
     /// What a window is for. A `keyboard` is an on-screen keyboard: the
     /// host never gives it the focus and places it by the field it types into.
+    /// A `popup` is a menu or tooltip of the window it is placed over, which
+    /// keeps the focus: the host never gives the popup the focus either.
     enum window-role {
         normal,
         keyboard,
+        popup,
     }
 
     record window-request-open {

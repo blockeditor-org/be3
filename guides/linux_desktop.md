@@ -60,6 +60,21 @@ Popups (xdg-popup, and Xwayland's override-redirect windows) are fitted to the s
 is on, not to the window, as the protocol intends, and are drawn and take input in a floating
 overlay above the document, so a menu can reach past its window's edge.
 
+Where the host opens windows (`opens_windows()`, true only in space), every toplevel is a
+window, and so a panel, of its own: workspace-ui shows each top program window as a floating dock
+window (`FloatingWindow`) instead of a tab, as linux-desktop always does, and the dock shows a
+window-presented dialog, which is how both shells show a program's dialogs (`AttachedWindow`), as
+a `Window` placed `Over` its parent's window, centred on it and `dialog_outset` (the chrome the
+styled dock draws around the body) larger than its body. A toplevel's popups are a `Window` of the
+`WindowView` (`WindowRole::Popup`, so the toplevel keeps the keyboard and the popup its grab), placed `Over` the window the toplevel is in where the overlay would be, and opened
+again whenever the popups' corner moves, as when a submenu grows them leftward or upward. The
+compositor still places each toplevel at its rectangle in its own window's coordinates, the
+keyboard follows the document's focus as anywhere, and a modal dialog still turns presses on its
+parent into raising the dialog. Outside space all of this stays an overlay or a tab, as above.
+
+A window's and its popups' drawings paint too (`Paints` on `WindowDraw`, which reads each surface's
+texture back, opaque), so paintings and `drive paint` show what programs drew.
+
 ## Installing it as a session
 
     ./scripts/buck run //crates/block-app:install-session [-- PREFIX]

@@ -156,6 +156,7 @@ pub struct Space {
     sprite: Sprite,
     focused: Option<WindowId>,
     keyboards: Vec<WindowId>,
+    popups: Vec<WindowId>,
     typing: Option<(WindowId, Rect)>,
     pressed: u32,
     dropped: u32,
@@ -205,6 +206,7 @@ impl Space {
             sprite: Sprite::new(),
             focused: None,
             keyboards: Vec::new(),
+            popups: Vec::new(),
             typing: None,
             pressed: 0,
             dropped: 0,
@@ -382,7 +384,11 @@ impl Space {
     }
 
     fn focus(&mut self, window: Option<WindowId>) {
-        if self.focused == window || window.is_some_and(|window| self.keyboards.contains(&window)) {
+        if self.focused == window
+            || window.is_some_and(|window| {
+                self.keyboards.contains(&window) || self.popups.contains(&window)
+            })
+        {
             return;
         }
         for (window, focused) in [(self.focused, false), (window, true)] {
@@ -1128,6 +1134,10 @@ impl Space {
                     self.keyboards.push(window);
                     self.beside_typing(size)
                 }
+                WindowRole::Popup => {
+                    self.popups.push(window);
+                    None
+                }
                 WindowRole::Normal => None,
             };
             let placed = match placement {
@@ -1270,6 +1280,7 @@ impl Space {
         }
         self.panels.retain(|panel| panel.window != window);
         self.keyboards.retain(|keyboard| *keyboard != window);
+        self.popups.retain(|popup| *popup != window);
         self.scales.retain(|(held, _)| *held != window);
         self.rescaling.retain(|(waiting, ..)| *waiting != window);
         if let Some(compositor) = &self.compositor {

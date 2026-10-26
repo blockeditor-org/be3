@@ -14,7 +14,9 @@ pointer, per-window rasters that change without relayout, and placements
 (scale and bend included) that reopen a window where it was within a run
 (PR #691); nothing keeps them across restarts yet. A plugin's windows (the
 workspace dock's floating windows, linux-desktop's) are windows of block-app,
-and so panels of their own in space. It draws through any
+and so panels of their own in space, as is every Wayland toplevel (a floating
+dock window, its dialogs windows over it) and its popups (a window over it;
+guides/linux_desktop.md, "Program windows"). It draws through any
 number of views, each a pose with an off-axis field of view (`head::View`,
 `head::Fov`): the simulator's one, or tracked views an XR host hands
 `Space::set_views` and draws with `Space::draw` (guides/beui.md, "Views"), and
@@ -53,14 +55,6 @@ compositor and compiled for Windows by `./scripts/verify`. What remains:
   the Wayland server; waiting on another thread and waking the loop would
   free it.
 
-## M7. Wayland toplevels and popups as panels
-
-Each Wayland toplevel is a panel; popups become `Over` windows. Plugin
-windows (`EditorRegion::Window`, block-app's `RegionWindows`) show the way:
-linux-desktop's `Window`s already become panels in space.
-
-About 0.7k lines.
-
 ## M9. Quest standalone
 
 The Android OpenXR loader in the APK, pacing in beui-adapter-android, the
@@ -93,7 +87,7 @@ The riskiest: wgpu has no WebXR binding, the WebGL route needs an
 
 ## Suggested order
 
-M7, M9, M10, M11.
+M9, M10, M11.
 
 ## Smaller follow-ups
 
@@ -119,6 +113,14 @@ M7, M9, M10, M11.
   carry that ends at the next click. Drag and drop over a plugin window, and a
   window's accessibility (its nodes show in the frame's tree at the window's
   own coordinates), are not handled yet.
+
+- **Wayland in space.** The compositor still gives every toplevel its
+  rectangle in its own window's coordinates and the main window's screens, so
+  toplevels overlap in the global space Xwayland and popup constraints see,
+  and a drag over a popup's panel maps through its toplevel's rectangle.
+  A card dialog anchored in another window (a rename card on a tab popped
+  out) is still an overlay of the main window, drawn on the wrong panel.
+  Fullscreen covers the main window's area.
 
 - **Scroll copy** (`moved`) is used only by the wgpu window renderer: the web
   canvas always repaints everything, plugin surfaces fold moves into damage,

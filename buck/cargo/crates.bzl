@@ -5352,6 +5352,8 @@ crates = {
                 "examples": {},
                 "features": [],
                 "test_deps": [
+                    "//crates/beui-adapter-space:beui-adapter-space",
+                    "//crates/paint-snapshot:paint-snapshot",
                     "//third-party/rust:wayland-client-0.31.14",
                     "//third-party/rust:wayland-protocols-0.32.12",
                     "//third-party/rust:wayland-protocols-misc-0.3.12",
@@ -5374,6 +5376,8 @@ crates = {
                 "examples": {},
                 "features": [],
                 "test_deps": [
+                    "//crates/beui-adapter-space:beui-adapter-space",
+                    "//crates/paint-snapshot:paint-snapshot",
                     "//third-party/rust:wayland-client-0.31.14",
                     "//third-party/rust:wayland-protocols-0.32.12",
                     "//third-party/rust:wayland-protocols-misc-0.3.12",
@@ -5396,6 +5400,8 @@ crates = {
                 "examples": {},
                 "features": [],
                 "test_deps": [
+                    "//crates/beui-adapter-space:beui-adapter-space",
+                    "//crates/paint-snapshot:paint-snapshot",
                     "//third-party/rust:wayland-client-0.31.14",
                     "//third-party/rust:wayland-protocols-0.32.12",
                     "//third-party/rust:wayland-protocols-misc-0.3.12",
@@ -5418,6 +5424,8 @@ crates = {
                 "examples": {},
                 "features": [],
                 "test_deps": [
+                    "//crates/beui-adapter-space:beui-adapter-space",
+                    "//crates/paint-snapshot:paint-snapshot",
                     "//third-party/rust:wayland-client-0.31.14",
                     "//third-party/rust:wayland-protocols-0.32.12",
                     "//third-party/rust:wayland-protocols-misc-0.3.12",
@@ -5440,6 +5448,8 @@ crates = {
                 "examples": {},
                 "features": [],
                 "test_deps": [
+                    "//crates/beui-adapter-space:beui-adapter-space",
+                    "//crates/paint-snapshot:paint-snapshot",
                     "//third-party/rust:wayland-client-0.31.14",
                     "//third-party/rust:wayland-protocols-0.32.12",
                     "//third-party/rust:wayland-protocols-misc-0.3.12",
@@ -5462,6 +5472,8 @@ crates = {
                 "examples": {},
                 "features": [],
                 "test_deps": [
+                    "//crates/beui-adapter-space:beui-adapter-space",
+                    "//crates/paint-snapshot:paint-snapshot",
                     "//third-party/rust:wayland-client-0.31.14",
                     "//third-party/rust:wayland-protocols-0.32.12",
                     "//third-party/rust:wayland-protocols-misc-0.3.12",
@@ -5484,6 +5496,8 @@ crates = {
                 "examples": {},
                 "features": [],
                 "test_deps": [
+                    "//crates/beui-adapter-space:beui-adapter-space",
+                    "//crates/paint-snapshot:paint-snapshot",
                     "//third-party/rust:wayland-client-0.31.14",
                     "//third-party/rust:wayland-protocols-0.32.12",
                     "//third-party/rust:wayland-protocols-misc-0.3.12",

@@ -404,6 +404,7 @@ struct State {
     dialog_scrim: Memo<Color32>,
     dialog_margin: u16,
     dialog_gap: u16,
+    dialog_outset: Vec2,
     dialog_frames: Stored<RefCell<HashMap<TabId, NodeRef>>>,
     dialog_bodies: Stored<RefCell<HashMap<TabId, NodeRef>>>,
     dialog_focus: Signal<Option<TabId>>,
@@ -1348,6 +1349,7 @@ pub(crate) struct DockConfig {
     pub(crate) dialog_scrim: Memo<Color32>,
     pub(crate) dialog_margin: u16,
     pub(crate) dialog_gap: u16,
+    pub(crate) dialog_outset: Vec2,
 }
 
 #[component]
@@ -1391,6 +1393,7 @@ pub(crate) fn Dock(config: DockConfig) -> NodeId {
         dialog_scrim,
         dialog_margin,
         dialog_gap,
+        dialog_outset,
     } = config;
     view! {
         <PlacementBuilder>|dock_rect: ReadSignal<Rect>| {
@@ -1437,6 +1440,7 @@ pub(crate) fn Dock(config: DockConfig) -> NodeId {
                 dialog_scrim,
                 dialog_margin,
                 dialog_gap,
+                dialog_outset,
                 dialog_frames: store(RefCell::default()),
                 dialog_bodies: store(RefCell::default()),
                 dialog_focus,
