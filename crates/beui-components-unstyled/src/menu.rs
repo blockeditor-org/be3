@@ -15,7 +15,6 @@ use beui_view::reactive::*;
 use std::cell::RefCell;
 use std::rc::Rc;
 
-
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum MenuRowKind {
     Row,

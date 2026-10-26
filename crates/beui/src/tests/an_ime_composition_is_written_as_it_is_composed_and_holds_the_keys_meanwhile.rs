@@ -14,7 +14,13 @@ fn an_ime_composition_is_written_as_it_is_composed_and_holds_the_keys_meanwhile(
         let state = TextAreaState::new(document);
         held.update(|held| *held = Some(state));
         view! {
-            <TextArea colors={area_colors()} font_size=AREA_FONT_SIZE padding=AREA_PADDING state={state} single_line=true />
+            <TextArea
+                colors={area_colors()}
+                font_size=AREA_FONT_SIZE
+                padding=AREA_PADDING
+                state={state}
+                single_line=true
+            />
         }
     });
     let mut harness = Harness::new(document);

@@ -43,9 +43,7 @@ pub fn TextContextMenu(
     let Some(menu) = menu else {
         let content = content.call(Callback::new(|_: Option<Rect>| ()));
         return view! {
-            <List spacing=0.0>
-                {content} @sizing={child_size}
-            </List>
+            <List spacing=0.0>{content} @sizing={child_size}</List>
         };
     };
     let requested = create_signal(None::<(Rect, u64)>);

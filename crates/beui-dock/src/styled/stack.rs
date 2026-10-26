@@ -4,6 +4,7 @@ use beui_macros::{component, view};
 
 use crate::styled::{BarRoom, DockMenu};
 use crate::unstyled::{DockStackHandle, DockSwitcherCardHandle, DockSwitcherHandle, TabId};
+use beui_components_styled::SHEET_STOPS;
 use beui_components_styled::action_row::ActionRow;
 use beui_components_styled::border::Separator;
 use beui_components_styled::button::Button;
@@ -14,7 +15,6 @@ use beui_components_styled::sheet::ModalSheet;
 use beui_components_styled::text::{Icon, Text, TextColor, TextSize, TextStyle};
 use beui_components_styled::theme::use_theme;
 use beui_components_unstyled as unstyled;
-use beui_components_styled::SHEET_STOPS;
 use beui_components_unstyled::title_action;
 use beui_core::base::frame::Align2;
 use beui_core::base::{Align, Direction, ItemSize, TextAlign};

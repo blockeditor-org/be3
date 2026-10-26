@@ -25,8 +25,7 @@ use super::state::{
 use super::{
     Dock, DockApi, DockAwayHandle, DockBarHandle, DockChromeHandle, DockConfig, DockGripHandle,
     DockMode, DockPreviewHandle, DockSplitterHandle, DockStackHandle, DockState, DockSwitchHandle,
-    DockSwitcherHandle, DockTabHandle, GroupId, LeafId, SIDEBAR_WIDTH,
-    TabId,
+    DockSwitcherHandle, DockTabHandle, GroupId, LeafId, SIDEBAR_WIDTH, TabId,
 };
 use beui_components_unstyled::menu_popup::MenuStyle;
 

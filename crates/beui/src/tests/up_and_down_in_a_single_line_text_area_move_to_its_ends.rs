@@ -13,7 +13,13 @@ fn up_and_down_in_a_single_line_text_area_move_to_its_ends() {
         let state = TextAreaState::new(document);
         held.update(|held| *held = Some(state));
         view! {
-            <TextArea colors={area_colors()} font_size=AREA_FONT_SIZE padding=AREA_PADDING state={state} single_line=true />
+            <TextArea
+                colors={area_colors()}
+                font_size=AREA_FONT_SIZE
+                padding=AREA_PADDING
+                state={state}
+                single_line=true
+            />
         }
     });
     let mut harness = Harness::new(document);

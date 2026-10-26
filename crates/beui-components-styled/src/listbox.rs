@@ -13,7 +13,13 @@ pub fn Listbox(
     #[prop(default = None)] selected: Binding<Option<usize>>,
 ) -> NodeId {
     view! {
-        <Choice api options selected kind=Kind::Listbox spacing=crate::choice::OPTION_SPACING>|handle|
+        <Choice
+            api
+            options
+            selected
+            kind=Kind::Listbox
+            spacing=crate::choice::OPTION_SPACING
+        >|handle|
             <OptionFace kind=Kind::Listbox handle />
         </Choice>
     }

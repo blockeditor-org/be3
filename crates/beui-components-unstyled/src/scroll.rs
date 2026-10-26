@@ -696,9 +696,7 @@ fn Scrolling(
                         motion.value().autoscroll(gesture);
                     }}
                 >
-                    <Frame
-                        outline={ring_when(focused, focus_ring)}
-                    >
+                    <Frame outline={ring_when(focused, focus_ring)}>
                         <List direction={marker_axis} spacing=0.0>
                             {node} @sizing={content_sizing(fit)}
                             <Overlay

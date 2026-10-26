@@ -708,14 +708,14 @@ fn ExportMenu() -> NodeId {
                         <PillFace handle={handle.button} label="Export" />
                     }}
                     menu={MenuStyle::new(
-    2.0,
-                        |handle: MenuRowHandle| view! {
-                            <MenuRow handle />
-                        },
-                        |menu: Child| view! {
-                            <PopupPanel>{menu}</PopupPanel>
-                        },
-                    )}
+                    2.0,
+                                        |handle: MenuRowHandle| view! {
+                                            <MenuRow handle />
+                                        },
+                                        |menu: Child| view! {
+                                            <PopupPanel>{menu}</PopupPanel>
+                                        },
+                                    )}
                     on_select={move |path: Vec<usize>| {
                         if let [index] = path.as_slice() {
                             exported.set(format!("Exported as {}", formats[*index]));
@@ -743,14 +743,14 @@ fn RunSplit() -> NodeId {
                         <unstyled::MenuItem label="Run in the background" />
                     }}
                     menu={MenuStyle::new(
-    2.0,
-                        |handle: MenuRowHandle| view! {
-                            <MenuRow handle />
-                        },
-                        |menu: Child| view! {
-                            <PopupPanel>{menu}</PopupPanel>
-                        },
-                    )}
+                    2.0,
+                                        |handle: MenuRowHandle| view! {
+                                            <MenuRow handle />
+                                        },
+                                        |menu: Child| view! {
+                                            <PopupPanel>{menu}</PopupPanel>
+                                        },
+                                    )}
                     main={move |handle: ButtonHandle| view! {
                         <PillFace handle label="Run" />
                     }}
@@ -1140,7 +1140,11 @@ fn HueAndHex() -> NodeId {
             <HueSlider picker={picker}>|handle: SliderHandle|
                 <MeterFace handle />
             </HueSlider>
-            <Swatches picker={picker} swatches={SWATCHES.to_vec()} spacing=6.0>|handle: SwatchHandle|
+            <Swatches
+                picker={picker}
+                swatches={SWATCHES.to_vec()}
+                spacing=6.0
+            >|handle: SwatchHandle|
                 <SwatchDot handle />
             </Swatches>
             <List direction=Direction::Horizontal align=Align::Center spacing=ROW_SPACING>
@@ -1391,22 +1395,22 @@ fn PlainNote() -> NodeId {
             <unstyled::TextContextMenu
                 state
                 menu={Some(MenuStyle::new(
-    2.0,
-                    |handle: MenuRowHandle| view! {
-                        <MenuRow handle />
-                    },
-                    |menu: Child| view! {
-                        <PopupPanel>{menu}</PopupPanel>
-                    },
-                )
-                .with_toolbar(
-                    |handle: ButtonHandle| view! {
-                        <ToolbarKey handle />
-                    },
-                    |keys: Child| view! {
-                        <ToolbarStrip>{keys}</ToolbarStrip>
-                    },
-                ))}
+                2.0,
+                                |handle: MenuRowHandle| view! {
+                                    <MenuRow handle />
+                                },
+                                |menu: Child| view! {
+                                    <PopupPanel>{menu}</PopupPanel>
+                                },
+                            )
+                            .with_toolbar(
+                                |handle: ButtonHandle| view! {
+                                    <ToolbarKey handle />
+                                },
+                                |keys: Child| view! {
+                                    <ToolbarStrip>{keys}</ToolbarStrip>
+                                },
+                            ))}
                 child_size=ItemSize::Percent(100.0)
             >|open_menu: Callback<Option<Rect>>|
                 <unstyled::TextArea

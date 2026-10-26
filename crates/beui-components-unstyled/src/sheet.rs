@@ -18,7 +18,6 @@ use beui_view::components::overlay::use_overlay_presence;
 use beui_view::primitives::*;
 use beui_view::reactive::*;
 
-
 const CLOSE_SHARE: f32 = 0.4;
 const CLOSE_DISTANCE: f32 = 96.0;
 const PROJECTION: f32 = 0.2;

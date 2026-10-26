@@ -12,7 +12,13 @@ fn instant_carets_do_not_request_blink_frames() {
         let state = TextAreaState::new(document);
         view! {
             <List spacing=0.0>
-                <TextArea colors={area_colors()} font_size=AREA_FONT_SIZE padding=AREA_PADDING state={state} single_line=true />
+                <TextArea
+                    colors={area_colors()}
+                    font_size=AREA_FONT_SIZE
+                    padding=AREA_PADDING
+                    state={state}
+                    single_line=true
+                />
                 <Interactive focusable=true>
                     <Frame width=20.0 height=20.0 />
                 </Interactive>

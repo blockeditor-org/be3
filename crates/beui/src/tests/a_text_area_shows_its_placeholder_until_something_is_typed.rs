@@ -12,7 +12,14 @@ fn a_text_area_shows_its_placeholder_until_something_is_typed() {
         let document = Arc::new(TextBuffer::new(b"")) as Arc<dyn text_editor_core::Document>;
         let state = TextAreaState::new(document);
         view! {
-            <TextArea colors={area_colors()} font_size=AREA_FONT_SIZE padding=AREA_PADDING @node_ref=&area state={state} placeholder="Write something" />
+            <TextArea
+                colors={area_colors()}
+                font_size=AREA_FONT_SIZE
+                padding=AREA_PADDING
+                @node_ref=&area
+                state={state}
+                placeholder="Write something"
+            />
         }
     });
     let mut harness = Harness::new(document);

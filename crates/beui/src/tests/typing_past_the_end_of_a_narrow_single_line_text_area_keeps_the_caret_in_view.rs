@@ -17,7 +17,14 @@ fn typing_past_the_end_of_a_narrow_single_line_text_area_keeps_the_caret_in_view
         view! {
             <List spacing=0.0>
                 <Frame width=80.0>
-                    <TextArea colors={area_colors()} font_size=AREA_FONT_SIZE padding=AREA_PADDING @node_ref=&area state={state} single_line=true />
+                    <TextArea
+                        colors={area_colors()}
+                        font_size=AREA_FONT_SIZE
+                        padding=AREA_PADDING
+                        @node_ref=&area
+                        state={state}
+                        single_line=true
+                    />
                 </Frame>
             </List>
         }

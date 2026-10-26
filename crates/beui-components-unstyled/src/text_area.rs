@@ -1426,11 +1426,7 @@ pub fn TextArea(
                                         <Frame fill=border_color />
                                     </CanvasItem>
                                     <CanvasItem x=0.0 y=0.0 width={width} height={height}>
-                                        <Scroll
-                                            offset={offset}
-                                            scrollbar
-                                            on_change={scroll}
-                                        >
+                                        <Scroll offset={offset} scrollbar on_change={scroll}>
                                             <Editing field={field} />
                                         </Scroll>
                                     </CanvasItem>
