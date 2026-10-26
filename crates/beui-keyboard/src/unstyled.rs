@@ -448,7 +448,7 @@ pub fn emojis_in(group: usize) -> Vec<&'static str> {
         return Vec::new();
     };
     emojis::iter()
-        .filter(|emoji| emoji.group() == *group && crate::text_area::emoji::drawable(emoji))
+        .filter(|emoji| emoji.group() == *group && beui_components_unstyled::text_area::emoji::drawable(emoji))
         .map(emojis::Emoji::as_str)
         .collect()
 }

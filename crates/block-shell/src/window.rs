@@ -3,7 +3,9 @@ use std::cell::Cell;
 
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
-use block_editor_beui::beui::unstyled::{Edge, Floating, TabId, use_dock_tab};
+use block_editor_beui::beui::unstyled::{Edge, Floating};
+use block_editor_beui::beui::dock::styled::WINDOW_CHROME;
+use block_editor_beui::beui::dock::unstyled::{TabId, use_dock_tab};
 use block_editor_beui::beui::{Image, NodeId, Rect, Vec2, pos2};
 use block_editor_beui::{
     ChildMode, Editor, HostImage, HostWindow, HostWindowId, Subregion, SubregionContent,

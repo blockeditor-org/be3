@@ -28,7 +28,7 @@ use super::{
     DockSwitcherHandle, DockTabHandle, GroupId, ICON_SIDEBAR_WIDTH, LeafId, SIDEBAR_WIDTH,
     SPLITTER_THICKNESS, TabId,
 };
-use crate::menu_popup::MenuStyle;
+use beui_components_unstyled::menu_popup::MenuStyle;
 
 pub trait DockKey: Clone + Eq + Hash + 'static {}
 

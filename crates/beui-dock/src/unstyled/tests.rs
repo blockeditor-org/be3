@@ -1,5 +1,5 @@
 use super::*;
-use crate::dock::state::{DockSpec, DockSpecEntry, DockSpecNode, DockSpecPane, DockSpecWindow};
+use crate::unstyled::state::{DockSpec, DockSpecEntry, DockSpecNode, DockSpecPane, DockSpecWindow};
 use beui_core::base::Direction;
 
 mod a_fullscreen_tab_closed_and_opened_again_comes_back_in_its_pane;

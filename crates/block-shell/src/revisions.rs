@@ -5,7 +5,7 @@ use std::{
 };
 
 use block_editor_beui::Revision;
-use block_editor_beui::beui::{NodeId, reactive::*, styled::*, unstyled::TabId};
+use block_editor_beui::beui::{NodeId, reactive::*, styled::*, dock::unstyled::TabId};
 use block_editor_beui::block_ui::datetime::format_datetime_utc;
 use block_editor_beui::{ChildTarget, Editor, Failure, Pushed, Task};
 use uuid::Uuid;

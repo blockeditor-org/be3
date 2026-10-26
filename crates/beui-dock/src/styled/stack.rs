@@ -1,20 +1,19 @@
-use crate::frame::{Border, ColorRole, Frame, Radius, focus_border};
+use beui_components_styled::frame::{Border, ColorRole, Frame, Radius, focus_border};
 use beui_macros::{component, view};
 
-use crate::action_row::ActionRow;
-use crate::border::Separator;
-use crate::button::ButtonVariant;
-use crate::dock::{BarRoom, DockMenu, title_action};
-use crate::icon_button::IconButton;
-use crate::list_row::ListRow;
-use crate::menu_button::IconMenuButton;
-use crate::sheet::ModalSheet;
-use crate::text::{Icon, Text, TextColor, TextSize, TextStyle};
-use crate::theme::use_theme;
+use beui_components_styled::action_row::ActionRow;
+use beui_components_styled::border::Separator;
+use beui_components_styled::button::ButtonVariant;
+use crate::styled::{BarRoom, DockMenu, title_action};
+use beui_components_styled::icon_button::IconButton;
+use beui_components_styled::list_row::ListRow;
+use beui_components_styled::menu_button::IconMenuButton;
+use beui_components_styled::sheet::ModalSheet;
+use beui_components_styled::text::{Icon, Text, TextColor, TextSize, TextStyle};
+use beui_components_styled::theme::use_theme;
 use beui_components_unstyled as unstyled;
-use beui_components_unstyled::{
-    DockStackHandle, DockSwitcherCardHandle, DockSwitcherHandle, SHEET_STOPS, TabId,
-};
+use crate::unstyled::{DockStackHandle, DockSwitcherCardHandle, DockSwitcherHandle, TabId};
+use beui_components_unstyled::SHEET_STOPS;
 use beui_core::base::frame::Align2;
 use beui_core::base::{Align, Direction, ItemSize, TextAlign};
 use beui_core::color::Color32;

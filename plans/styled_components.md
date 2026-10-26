@@ -60,7 +60,7 @@ into a new unstyled component, then rebuild the styled one on top of it.
 
 ## 2. Move behaviour out of styled components
 
-- **An unstyled action bar.** `DockMenu` (`styled/dock.rs`, about lines
+- **An unstyled action bar.** `DockMenu` (`beui-dock/src/styled.rs`, about lines
   690-850) decides which actions are pinned to the bar and which overflow into
   a "More" menu, by available room (`pinned`, `unpinned`, `BarRoom::shows`,
   `title_action`). Make that an unstyled action bar the dock uses. Any other
@@ -114,16 +114,20 @@ into a new unstyled component, then rebuild the styled one on top of it.
   `PreferencesSection`: only the demo uses it, and `LayeredSettingsRow`
   already does its job. They are private to the settings editor's
   `display/appearance.rs`.
-- **Dock → a new `beui-dock` crate** with an `unstyled` module and a `styled`
+- **Done.** **Dock → a new `beui-dock` crate** with an `unstyled` module and a `styled`
   module. Any beui user can then use the dock with their own styles. That is
   about 9,000 lines of unstyled (`dock.rs`, `dock/state.rs`, `docking.rs`,
   `spec.rs`, ...) and about 1,400 of styled. The unstyled dock depends only on
   beui-core, beui-view and unstyled pieces (menus, drag, choice, sheet, scroll),
   so the move should be mechanical. beui-inspector is the precedent for a beui
   crate outside the component crates.
-- **Software keyboard → a new `beui-keyboard` crate**, the same shape as
-  `beui-dock`. beui itself depends on it (`beui/src/keyboard.rs`), like
-  beui-inspector.
+- **Done.** **Software keyboard → a new `beui-keyboard` crate**, the same shape as
+  `beui-dock`. beui itself depends on it (`beui/src/keyboard_host.rs`), like
+  beui-inspector. The facade re-exports them as `beui::dock` and
+  `beui::keyboard`, each with `unstyled` and `styled` modules
+  (`beui::dock::styled::Docking`, `beui::dock::unstyled::DockState`,
+  `beui::keyboard::styled::SoftwareKeyboard`). The dock's tests that drive
+  it through the facade stay in `beui/src/tests`.
 - **Done.** **Delete `Bordered`.** It is `Frame border=Border::DEFAULT radius=…`, and its
   one user is logic-grid.
 - **Keep `styled::Stack`.** Its breakpoint is a style choice, so it belongs in
@@ -338,9 +342,10 @@ Convert every use:
 - `ellipsis=true` (about 41) becomes `Ellipsis`. The places include:
   - `Button`'s label
   - `select.rs`, `action_row.rs`, `context_menu.rs`
-  - `launcher.rs`, `dock/stack.rs`, `dock/switch.rs`
-  - `software_keyboard.rs`
-- `clip=true` becomes `Ellipsis`: `dock.rs` (twice), `number_input.rs` and
+  - `launcher.rs`, `beui-dock/src/styled/stack.rs`,
+    `beui-dock/src/styled/switch.rs`
+  - `beui-keyboard/src/styled.rs`
+- `clip=true` becomes `Ellipsis`: `beui-dock/src/styled.rs` (twice), `number_input.rs` and
   `editors/text-block/src/app/large_embed.rs`. There is no `Clip` mode. All
   four are titles or a value where text cut off mid-letter reads as the
   whole thing; an ellipsis says something is missing. Text that genuinely

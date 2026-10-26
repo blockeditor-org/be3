@@ -3,9 +3,8 @@ use block_editor_beui::beui::icons::Glyph;
 use block_editor_beui::beui::icons::{ALL, ICON_SEARCH, ICON_X, named};
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
-use block_editor_beui::beui::unstyled::{
-    self, ButtonHandle, DockDialog, DockDialogPresentation, DockNode, TabId,
-};
+use block_editor_beui::beui::unstyled::{self, ButtonHandle};
+use block_editor_beui::beui::dock::unstyled::{DockDialog, DockDialogPresentation, DockNode, TabId};
 use block_editor_beui::beui::{Color32, NodeId, TextAlign, Vec2};
 use block_editor_beui::block_ui::BlockTypes;
 use uuid::Uuid;

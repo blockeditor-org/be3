@@ -1,7 +1,8 @@
 use std::rc::Rc;
 
 use beui::reactive::*;
-use beui::unstyled::{DockingLayout, PanZoomView};
+use beui::unstyled::{PanZoomView};
+use beui::dock::unstyled::{DockingLayout};
 
 use crate::Fetch;
 use crate::images::Images;

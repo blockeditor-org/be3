@@ -15,7 +15,6 @@ pub mod command_palette;
 pub mod context_menu;
 pub mod date_time_field;
 pub mod dialog;
-pub mod dock;
 pub mod focus_ring;
 pub mod frame;
 pub mod fullscreen;
@@ -39,7 +38,6 @@ pub mod settings;
 pub mod sheet;
 pub mod shortcut;
 pub mod slider;
-pub mod software_keyboard;
 pub mod split_button;
 pub mod stack;
 pub mod switch;
@@ -76,8 +74,6 @@ pub use command_palette::CommandPalette;
 pub use context_menu::{ContextMenu, MenuPopup};
 pub use date_time_field::DateTimeField;
 pub use dialog::Dialog;
-pub use dock::Docking;
-pub use dock::{CHROME_BORDER, WINDOW_CHROME};
 pub use focus_ring::FocusRing;
 pub use frame::{Border, ColorRole, Frame, Radius, focus_border};
 pub use fullscreen::Fullscreen;
@@ -101,7 +97,6 @@ pub use settings::{SettingsLink, SettingsPage, SettingsRow, SettingsSection};
 pub use sheet::{ModalSheet, Sheet};
 pub use shortcut::Shortcut;
 pub use slider::Slider;
-pub use software_keyboard::SoftwareKeyboard;
 pub use split_button::SplitButton;
 pub use stack::Stack;
 pub use switch::Switch;
@@ -128,7 +123,7 @@ pub mod radio_group;
 pub mod toggle_button;
 pub use beui_components_unstyled::{
     ButtonApi, CalendarApi, ChoiceApi, ColorAreaApi, ColorWheelApi, CommandPaletteApi,
-    ContextMenuApi, DateTimeFieldApi, DisclosureApi, DockApi, MenuListApi, NumberInputApi,
+    ContextMenuApi, DateTimeFieldApi, DisclosureApi, MenuListApi, NumberInputApi,
     PanZoomApi, PopoverApi, ScrollApi, SelectApi, SelectableState, SliderApi, TextAreaApi,
     TextInputApi, TimeListApi, ToggleApi, TreeApi,
 };

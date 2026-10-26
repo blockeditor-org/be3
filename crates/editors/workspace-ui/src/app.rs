@@ -5,10 +5,10 @@ use block_editor_beui::be_block::{BlockContent, FILES_EDITOR, SettingsContent};
 use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::icons::{ICON_FOLDER, ICON_ROTATE_CCW_CLOCK, ICON_SETTINGS};
 use block_editor_beui::beui::reactive::*;
+use block_editor_beui::beui::dock::styled::Docking;
 use block_editor_beui::beui::styled::*;
-use block_editor_beui::beui::unstyled::{
-    Container, DockMode, DockPane, DockSplit, DockTab, TabId, use_dock_tab,
-};
+use block_editor_beui::beui::unstyled::{Container};
+use block_editor_beui::beui::dock::unstyled::{DockMode, DockPane, DockSplit, DockTab, TabId, use_dock_tab};
 use block_editor_beui::root_settings::own_settings_blocks;
 use block_editor_beui::{
     ChildBlock, ChildBlockHandle, ChildMode, ChildTarget, Editor, HostPanel, HostWindowId, Loaded,

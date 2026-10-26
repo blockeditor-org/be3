@@ -1,5 +1,5 @@
-use beui::styled::software_keyboard::{BAR_HEIGHT, PADDING, key_center};
-use beui::unstyled::software_keyboard::{Layer, Modifier, Value};
+use beui::keyboard::styled::{BAR_HEIGHT, PADDING, key_center};
+use beui::keyboard::unstyled::{Layer, Modifier, Value};
 use beui::vec2;
 
 use super::*;

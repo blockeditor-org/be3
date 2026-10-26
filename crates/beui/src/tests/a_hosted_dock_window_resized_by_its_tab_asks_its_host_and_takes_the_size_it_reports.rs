@@ -1,5 +1,5 @@
 use super::*;
-use crate::unstyled::{DockApi, DockTabControl, use_dock_tab};
+use crate::dock::unstyled::{DockApi, DockTabControl, use_dock_tab};
 use crate::{WindowReport, WindowRequest};
 
 #[test]
@@ -8,25 +8,25 @@ fn a_hosted_dock_window_resized_by_its_tab_asks_its_host_and_takes_the_size_it_r
     let dock = NodeRef::new();
     let control = StoredCell::new(None::<DockTabControl>);
     let document = build_node(move || {
-        let layout = unstyled::DockingLayout::new();
+        let layout = dock::unstyled::DockingLayout::new();
         view! {
-            <styled::Docking @node_ref=&dock layout>
-                <unstyled::DockPane id="base">
-                    <unstyled::DockTab id=1u64 title="Base">
+            <dock::styled::Docking @node_ref=&dock layout>
+                <dock::unstyled::DockPane id="base">
+                    <dock::unstyled::DockTab id=1u64 title="Base">
                         <Frame />
-                    </unstyled::DockTab>
-                </unstyled::DockPane>
-                <unstyled::DockWindow
+                    </dock::unstyled::DockTab>
+                </dock::unstyled::DockPane>
+                <dock::unstyled::DockWindow
                     id="window"
                     rect={Rect::from_min_size(pos2(60.0, 60.0), vec2(360.0, 240.0))}
                 >
-                    <unstyled::DockPane id="floating">
-                        <unstyled::DockTab id=2u64 title="Floating">
+                    <dock::unstyled::DockPane id="floating">
+                        <dock::unstyled::DockTab id=2u64 title="Floating">
                             <Grabbing control />
-                        </unstyled::DockTab>
-                    </unstyled::DockPane>
-                </unstyled::DockWindow>
-            </styled::Docking>
+                        </dock::unstyled::DockTab>
+                    </dock::unstyled::DockPane>
+                </dock::unstyled::DockWindow>
+            </dock::styled::Docking>
         }
     });
     let dock = dock.get();

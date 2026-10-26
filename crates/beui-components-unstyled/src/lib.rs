@@ -15,7 +15,6 @@ pub mod date_time_field;
 pub mod date_time_picker;
 pub mod datetime;
 pub mod disclosure;
-pub mod dock;
 pub mod drag;
 pub mod fling;
 pub mod floating;
@@ -37,7 +36,6 @@ pub mod select;
 pub mod selectable;
 pub mod sheet;
 pub mod slider;
-pub mod software_keyboard;
 pub mod split_button;
 pub mod stack;
 pub mod text_area;
@@ -75,19 +73,6 @@ pub use date_time_picker::{
     DateTimePicker, DateTimeTimesHandle, DateTimeTriggerHandle,
 };
 pub use disclosure::{Disclosure, DisclosureApi, DisclosureHandle};
-pub use dock::{
-    DockApi, DockAwayHandle, DockBarHandle, DockChromeHandle, DockDialog, DockDialogHandle,
-    DockDialogPresentation, DockDocument, DockDocumentBody, DockDocumentTabs, DockDocuments,
-    DockDragged, DockDrop, DockEntry, DockFullscreen, DockGripHandle, DockGroup, DockKey,
-    DockLayout, DockMenus, DockMode, DockNode, DockOpened, DockPane, DockPreviewHandle,
-    DockSheetHandle, DockSlot, DockSplit, DockSplitter, DockSplitterHandle, DockStackHandle,
-    DockState, DockSwitch, DockSwitchHandle, DockSwitchRowHandle, DockSwitcherCardHandle,
-    DockSwitcherHandle, DockTab, DockTabControl, DockTabHandle, DockTabMenu, DockTree,
-    DockTreeEntry, DockVisit, DockWindow, Docking, DockingLayout, DockingSnapshot, Entry, GroupId,
-    LeafId, MIN_PANE_LENGTH, MIN_SIDEBAR_WIDTH, OwnedDockingLayout, SIDEBAR_WIDTH,
-    SPLITTER_THICKNESS, Side, SplitId, SurfaceId, TabId, TabPosition, Tree, dock_menu,
-    dock_menu_items, layout_surface, layout_tree, sidebar_size, use_dock_tab,
-};
 pub use drag::{
     DRAG_PREVIEW_OFFSET, DRAG_THRESHOLD, DragHandle, Draggable, DropHandle, DropTarget,
 };
@@ -117,7 +102,6 @@ pub use select::{Select, SelectApi, SelectOptionHandle, SelectTriggerHandle};
 pub use selectable::{Selectable, SelectableState, copy_selection, select_all};
 pub use sheet::{ModalSheet, SHEET_STOPS, Sheet, SheetGripHandle};
 pub use slider::{Slider, SliderApi, SliderHandle, SliderScale};
-pub use software_keyboard::{KeyCapHandle, KeyboardHandle, SoftwareKeyboard};
 pub use split_button::SplitButton;
 pub use stack::Stack;
 pub use text_area::{

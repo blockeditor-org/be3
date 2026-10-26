@@ -2,7 +2,7 @@ use super::*;
 use crate::ForwardedInput;
 use crate::primitives::*;
 use crate::reactive::*;
-use crate::unstyled::{DockPane, DockTab, DockingLayout};
+use crate::dock::unstyled::{DockPane, DockTab, DockingLayout};
 
 #[test]
 fn escape_cancels_a_dock_switch_even_from_a_focused_program() {
@@ -12,7 +12,7 @@ fn escape_cancels_a_dock_switch_even_from_a_focused_program() {
     let heard = create_signal(Vec::<ForwardedInput>::new());
     let document = build_node(move || {
         view! {
-            <styled::Docking layout={layout}>
+            <dock::styled::Docking layout={layout}>
                 <DockPane id="tabs">
                     <DockTab id=1u64 title="One">
                         <Interactive
@@ -27,7 +27,7 @@ fn escape_cancels_a_dock_switch_even_from_a_focused_program() {
                         <Frame />
                     </DockTab>
                 </DockPane>
-            </styled::Docking>
+            </dock::styled::Docking>
         }
     });
     let mut harness = Harness::sized(document, WIDE_VIEWPORT);

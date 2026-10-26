@@ -1,6 +1,6 @@
 use super::*;
 use crate::reactive::*;
-use crate::unstyled::{DockPane, DockTab, DockingLayout, dock_menu};
+use crate::dock::unstyled::{DockPane, DockTab, DockingLayout, dock_menu};
 
 const PHONE: Vec2 = Vec2::new(390.0, 800.0);
 
@@ -25,7 +25,7 @@ fn a_switcher_card_offers_its_tabs_menu_and_closes_when_an_item_runs() {
     let document = build_node(move || {
         let layout = DockingLayout::new();
         view! {
-            <styled::Docking layout focus=2u64>
+            <dock::styled::Docking layout focus=2u64>
                 <DockPane id="tabs">
                     <ForEach keys={vec![1u64, 2]}>|id: u64|
                         <DockTab
@@ -46,7 +46,7 @@ fn a_switcher_card_offers_its_tabs_menu_and_closes_when_an_item_runs() {
                         />
                     </ForEach>
                 </DockPane>
-            </styled::Docking>
+            </dock::styled::Docking>
         }
     });
     let mut harness = Harness::sized(document, PHONE);

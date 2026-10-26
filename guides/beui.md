@@ -287,7 +287,7 @@ is the cost.
 
 Beui is a family of crates. `beui` is the facade every app and editor depends
 on: it re-exports the others under the paths this guide uses (`beui::reactive`,
-`beui::styled`, `beui::unstyled`, `beui::Document`, ...) and assembles them,
+`beui::styled`, `beui::unstyled`, `beui::dock`, `beui::Document`, ...) and assembles them,
 so code outside beui names only `beui`. The rest depend on each other in one
 direction:
 
@@ -302,6 +302,8 @@ direction:
 | `beui-components-unstyled` | `beui::unstyled` and `beui::datetime` |
 | `beui-components-styled` | `beui::styled`: themes, styled controls, the styled `Frame`, `Text`, `Span` and `Icon`, and every primitive with no styled version re-exported unchanged |
 | `beui-inspector` | the inspector, the simulated screen reader and the simulated mouse and keyboard |
+| `beui-dock` | `beui::dock`: the dock, as `dock::unstyled` (the tree, the dragging, the keyboard and the layout state, painting nothing) and `dock::styled` (`Docking` painted with theme tokens) |
+| `beui-keyboard` | `beui::keyboard`: the on-screen keyboard, as `keyboard::unstyled` (layouts, tables and the gesture engine) and `keyboard::styled`; the facade installs it on every document |
 | `beui-renderer-wgpu` | the wgpu renderer, its shaders and filters, and presenting to a surface |
 | `beui-renderer-dom` | the DOM renderer: the display tree as nested absolutely positioned elements |
 | `beui-adapter-winit`, `beui-adapter-android`, `beui-adapter-web` | each platform's `Adapter` and `Platform`: its event loop, window or view, input, IME, clipboard, file picker and accessibility adapter (winit's is its own `accessibility.rs` over `accesskit_unix`, `accesskit_windows` and `accesskit_macos`, since `accesskit_winit` has no release for winit 0.31) |
@@ -1902,9 +1904,9 @@ but a desktop with several monitors.
 
 ### Docking and windows
 
-`styled::Docking` is the workspace layout: panes split from one another, a tab
+`dock::styled::Docking` (crate `beui-dock`) is the workspace layout: panes split from one another, a tab
 bar on each pane, and tabs that can be dragged between panes or out into
-windows that float over the rest of the dock. `unstyled::Docking` underneath it
+windows that float over the rest of the dock. `dock::unstyled::Docking` underneath it
 owns the tree, the dragging and the keyboard, and paints nothing; the demo in
 `crates/beui-demo` is laid out in one.
 
@@ -2206,7 +2208,7 @@ and a screen reader does not read it. Closing the tab is what removes it.
 
 Pressing a pane's or a window's own chrome - its bar, a tab, a grip - gives the
 keyboard to the tab it shows rather than taking it: the bar is an `Interactive`
-with `press_focus=false` (guides/beui_keyboard.md), and the dock (`dock/keyboard.rs`) puts the focus in the
+with `press_focus=false` (guides/beui_keyboard.md), and the dock (`beui-dock/src/unstyled/keyboard.rs`) puts the focus in the
 panel, where it was when that tab last had it or else on the panel's first
 focusable (`Document::focus_into`, which waits a layout for a panel still being
 built). Picking a tab with the pointer does the same for the tab it shows, while
@@ -2225,7 +2227,7 @@ the pointer, and a primary drag does nothing: it is swallowed rather than handed
 to the content, since a press made with the modifier is never meant for it.
 Each window and each docked pane claims those presses (`claim_modifiers`), so
 neither the tabs nor the content see them. The code is
-`dock/modifier_drag.rs`; linux-desktop sets Super, and the demo's Docking page
+`beui-dock/src/unstyled/modifier_drag.rs`; linux-desktop sets Super, and the demo's Docking page
 has a switch for Alt.
 
 A `DockDialog`, declared beside the dock's other children, is a window attached
@@ -2866,7 +2868,7 @@ key routing and tab order stay one across every window, except that a host's
 window (remembered per window) and `focused: true` gives it back when nothing
 else has it since. A window with nothing to give back first lets its
 `on_report` hear the `Focused` and choose: a dock window the host focuses
-(`window_focused` in `dock.rs`) focuses its pane and, unless the keyboard is
+(`window_focused` in `beui-dock/src/unstyled.rs`) focuses its pane and, unless the keyboard is
 already inside it, hands it to the shown tab (`give_keyboard`, the node that
 tab last had, else its first focusable), so a tab floated into a window the
 host focuses on opening takes the keyboard with it, while the main window
@@ -3271,7 +3273,7 @@ the layers and Compose itself stay); a key with nothing left on it fades whole.
 
 It is three pieces:
 
-- `beui::unstyled::software_keyboard`: the layouts as Rust data
+- `beui::keyboard::unstyled` (crate `beui-keyboard`): the layouts as Rust data
   (`layout.rs`: `QWERTY`, `GREEK`, `NUMPAD`, built with `KeyDef`'s const
   builders; there is no user configuration), the Fn, superscript and subscript
   tables (`tables.rs`), the compose table (`compose.rs`, generated from X.org's
@@ -3281,7 +3283,7 @@ It is three pieces:
   `Interactive` with `press_focus=false`, so every finger reaches the engine as
   its own pointer and pressing a key never moves the focus. It hands each key's
   appearance to a `cap` render function and the emoji layer to `emoji`.
-- `beui::styled::SoftwareKeyboard`: the keys painted with theme tokens under a
+- `beui::keyboard::styled::SoftwareKeyboard`: the keys painted with theme tokens under a
   separator along its top, a bar with the close button, and the emoji panel (`emojis` grouped as the
   `emojis` crate groups them, leaving out what the fonts cannot draw).
   `install_keyboard` puts a `KeyboardWindow` on a document as its

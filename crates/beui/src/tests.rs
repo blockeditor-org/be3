@@ -1877,22 +1877,22 @@ pub(crate) fn text_of(document: &Document, id: NodeId) -> &str {
 pub(crate) fn dock_of(tabs: usize) -> (Document, NodeId) {
     let dock = NodeRef::new();
     let document = build_node(move || {
-        let layout = unstyled::DockingLayout::new();
+        let layout = dock::unstyled::DockingLayout::new();
         let open = create_signal((1..=tabs as u64).collect::<Vec<_>>());
         view! {
-            <styled::Docking @node_ref=&dock layout>
-                <unstyled::DockPane id="tabs">
+            <dock::styled::Docking @node_ref=&dock layout>
+                <dock::unstyled::DockPane id="tabs">
                     <ForEach keys={open}>|id: u64|
-                        <unstyled::DockTab
+                        <dock::unstyled::DockTab
                             id
                             title={format!("Tab {id}")}
                             on_close={move || open.update(|open| open.retain(|other| *other != id))}
                         >
                             <Frame @test_id={format!("content.{id}")} />
-                        </unstyled::DockTab>
+                        </dock::unstyled::DockTab>
                     </ForEach>
-                </unstyled::DockPane>
-            </styled::Docking>
+                </dock::unstyled::DockPane>
+            </dock::styled::Docking>
         }
     });
     (document, dock.get())
@@ -1901,42 +1901,42 @@ pub(crate) fn dock_of(tabs: usize) -> (Document, NodeId) {
 pub(crate) fn windowed_dock(drag_modifier: Option<Modifiers>) -> (Document, NodeId) {
     let dock = NodeRef::new();
     let document = build_node(move || {
-        let layout = unstyled::DockingLayout::new();
+        let layout = dock::unstyled::DockingLayout::new();
         view! {
-            <styled::Docking @node_ref=&dock layout drag_modifier>
-                <unstyled::DockSplit id="split">
-                    <unstyled::DockPane id="left">
-                        <unstyled::DockTab id=1u64 title="Tab 1">
+            <dock::styled::Docking @node_ref=&dock layout drag_modifier>
+                <dock::unstyled::DockSplit id="split">
+                    <dock::unstyled::DockPane id="left">
+                        <dock::unstyled::DockTab id=1u64 title="Tab 1">
                             <Frame />
-                        </unstyled::DockTab>
-                    </unstyled::DockPane>
-                    <unstyled::DockPane id="right">
-                        <unstyled::DockTab id=2u64 title="Tab 2">
+                        </dock::unstyled::DockTab>
+                    </dock::unstyled::DockPane>
+                    <dock::unstyled::DockPane id="right">
+                        <dock::unstyled::DockTab id=2u64 title="Tab 2">
                             <Frame />
-                        </unstyled::DockTab>
-                    </unstyled::DockPane>
-                </unstyled::DockSplit>
-                <unstyled::DockWindow
+                        </dock::unstyled::DockTab>
+                    </dock::unstyled::DockPane>
+                </dock::unstyled::DockSplit>
+                <dock::unstyled::DockWindow
                     id="first"
                     rect={Rect::from_min_size(pos2(60.0, 60.0), vec2(360.0, 240.0))}
                 >
-                    <unstyled::DockPane id="third">
-                        <unstyled::DockTab id=3u64 title="Tab 3">
+                    <dock::unstyled::DockPane id="third">
+                        <dock::unstyled::DockTab id=3u64 title="Tab 3">
                             <Frame />
-                        </unstyled::DockTab>
-                    </unstyled::DockPane>
-                </unstyled::DockWindow>
-                <unstyled::DockWindow
+                        </dock::unstyled::DockTab>
+                    </dock::unstyled::DockPane>
+                </dock::unstyled::DockWindow>
+                <dock::unstyled::DockWindow
                     id="second"
                     rect={Rect::from_min_size(pos2(520.0, 200.0), vec2(360.0, 240.0))}
                 >
-                    <unstyled::DockPane id="fourth">
-                        <unstyled::DockTab id=4u64 title="Tab 4">
+                    <dock::unstyled::DockPane id="fourth">
+                        <dock::unstyled::DockTab id=4u64 title="Tab 4">
                             <Frame />
-                        </unstyled::DockTab>
-                    </unstyled::DockPane>
-                </unstyled::DockWindow>
-            </styled::Docking>
+                        </dock::unstyled::DockTab>
+                    </dock::unstyled::DockPane>
+                </dock::unstyled::DockWindow>
+            </dock::styled::Docking>
         }
     });
     (document, dock.get())
@@ -1972,19 +1972,19 @@ pub(crate) fn split_dock(drag_modifier: Option<Modifiers>) -> SplitDock {
     let dock = NodeRef::new();
     let presses = create_signal(0);
     let document = build_node(move || {
-        let layout = unstyled::DockingLayout::new();
+        let layout = dock::unstyled::DockingLayout::new();
         view! {
-            <styled::Docking @node_ref=&dock layout drag_modifier>
-                <unstyled::DockSplit id="split">
-                    <unstyled::DockPane id="left">
+            <dock::styled::Docking @node_ref=&dock layout drag_modifier>
+                <dock::unstyled::DockSplit id="split">
+                    <dock::unstyled::DockPane id="left">
                         <CountingTab id=1 presses={presses} />
-                    </unstyled::DockPane>
-                    <unstyled::DockPane id="right">
+                    </dock::unstyled::DockPane>
+                    <dock::unstyled::DockPane id="right">
                         <CountingTab id=2 presses={presses} />
                         <CountingTab id=3 presses={presses} />
-                    </unstyled::DockPane>
-                </unstyled::DockSplit>
-            </styled::Docking>
+                    </dock::unstyled::DockPane>
+                </dock::unstyled::DockSplit>
+            </dock::styled::Docking>
         }
     });
     SplitDock {
@@ -1995,11 +1995,11 @@ pub(crate) fn split_dock(drag_modifier: Option<Modifiers>) -> SplitDock {
 }
 
 #[component]
-fn CountingTab(id: u64, presses: Signal<u32>) -> unstyled::DockEntry<u64> {
+fn CountingTab(id: u64, presses: Signal<u32>) -> dock::unstyled::DockEntry<u64> {
     view! {
-        <unstyled::DockTab id title={format!("Tab {id}")}>
+        <dock::unstyled::DockTab id title={format!("Tab {id}")}>
             <CountingPanel id presses />
-        </unstyled::DockTab>
+        </dock::unstyled::DockTab>
     }
 }
 
@@ -2038,7 +2038,7 @@ pub(crate) fn secondary_drag_with(
     harness.frame(vec![Input::Modifiers(Modifiers::NONE)]);
 }
 
-pub(crate) fn floated_window(harness: &mut Harness, dock: NodeId) -> unstyled::SurfaceId {
+pub(crate) fn floated_window(harness: &mut Harness, dock: NodeId) -> dock::unstyled::SurfaceId {
     harness.frame(Vec::new());
     let tab = harness.center(dock_tab(harness.document(), dock, "Tab 2"));
     drag_with(
@@ -2050,7 +2050,7 @@ pub(crate) fn floated_window(harness: &mut Harness, dock: NodeId) -> unstyled::S
     harness.frame(Vec::new());
     harness
         .document()
-        .api::<unstyled::DockApi>(dock)
+        .api::<dock::unstyled::DockApi>(dock)
         .state()
         .windows()[0]
 }
@@ -2380,7 +2380,7 @@ pub(crate) type Dialogs = Vec<(u64, u64, bool)>;
 pub(crate) struct DialogDock {
     pub(crate) document: Document,
     pub(crate) dock: NodeId,
-    pub(crate) layout: unstyled::DockingLayout<u64>,
+    pub(crate) layout: dock::unstyled::DockingLayout<u64>,
     pub(crate) pressed: Signal<Vec<u64>>,
     pub(crate) keyed: ReadSignal<Vec<u64>>,
     pub(crate) attended: ReadSignal<Vec<u64>>,
@@ -2400,7 +2400,7 @@ pub(crate) fn dialog_dock(tabs: Vec<u64>, dialogs: Dialogs) -> DialogDock {
     let pressed = create_signal(Vec::new());
     let keyed = create_signal(Vec::new());
     let attended = create_signal(Vec::new());
-    let layout = unstyled::DockingLayout::new();
+    let layout = dock::unstyled::DockingLayout::new();
     let owned_dialogs = crate::reactive::OwnedSignal::new(dialogs);
     let listed = owned_dialogs.handle();
     let document = build_node(move || {
@@ -2413,10 +2413,10 @@ pub(crate) fn dialog_dock(tabs: Vec<u64>, dialogs: Dialogs) -> DialogDock {
             })
         });
         view! {
-            <styled::Docking @node_ref=&dock layout>
-                <unstyled::DockPane id="tabs">
+            <dock::styled::Docking @node_ref=&dock layout>
+                <dock::unstyled::DockPane id="tabs">
                     <ForEach keys={tabs.clone()}>|id: u64|
-                        <unstyled::DockTab id title={format!("Tab {id}")}>
+                        <dock::unstyled::DockTab id title={format!("Tab {id}")}>
                             <FocusPanel
                                 name={format!("content.{id}")}
                                 owner=id
@@ -2425,15 +2425,15 @@ pub(crate) fn dialog_dock(tabs: Vec<u64>, dialogs: Dialogs) -> DialogDock {
                                 attended={None}
                                 size={None}
                             />
-                        </unstyled::DockTab>
+                        </dock::unstyled::DockTab>
                     </ForEach>
-                </unstyled::DockPane>
+                </dock::unstyled::DockPane>
                 <ForEach keys>|(id, parent): (u64, u64)| {
                     let modal = crate::reactive::create_memo(move || {
                         listed.with(|listed| listed.iter().any(|(held, _, modal)| *held == id && *modal))
                     });
                     view! {
-                        <unstyled::DockDialog
+                        <dock::unstyled::DockDialog
                             id
                             parent
                             modal
@@ -2448,10 +2448,10 @@ pub(crate) fn dialog_dock(tabs: Vec<u64>, dialogs: Dialogs) -> DialogDock {
                                 attended={Some(attended)}
                                 size={Some(dialog_size(id))}
                             />
-                        </unstyled::DockDialog>
+                        </dock::unstyled::DockDialog>
                     }
                 }</ForEach>
-            </styled::Docking>
+            </dock::styled::Docking>
         }
     });
     DialogDock {
@@ -2475,7 +2475,7 @@ fn FocusPanel(
     attended: Option<Signal<Vec<u64>>>,
     size: Option<Vec2>,
 ) -> NodeId {
-    if let (Some(attended), Some(tab)) = (attended, unstyled::use_dock_tab()) {
+    if let (Some(attended), Some(tab)) = (attended, dock::unstyled::use_dock_tab()) {
         let called = crate::reactive::create_memo(move || tab.attention());
         crate::reactive::create_effect(move || {
             if called.get().is_some() {
@@ -2607,7 +2607,7 @@ const CARD_SIZE: Vec2 = Vec2::new(520.0, 240.0);
 
 struct CardDock {
     document: Document,
-    layout: unstyled::DockingLayout<u64>,
+    layout: dock::unstyled::DockingLayout<u64>,
     pressed: Signal<Vec<u64>>,
     built: Signal<u32>,
     attended: ReadSignal<Vec<u64>>,
@@ -2618,7 +2618,7 @@ struct CardDock {
 #[component]
 fn CardBody(built: Signal<u32>, attended: Signal<Vec<u64>>) -> NodeId {
     built.update(|built| *built += 1);
-    if let Some(tab) = unstyled::use_dock_tab() {
+    if let Some(tab) = dock::unstyled::use_dock_tab() {
         let called = crate::reactive::create_memo(move || tab.attention());
         crate::reactive::create_effect(move || {
             if called.get().is_some() {
@@ -2717,50 +2717,50 @@ fn dock_with_card(dismiss_on_outside_press: bool, open_now: bool, parent: u64) -
     let attended = create_signal(Vec::new());
     let open = create_signal(open_now);
     let anchor = create_signal(None::<Rect>);
-    let layout = unstyled::DockingLayout::new();
+    let layout = dock::unstyled::DockingLayout::new();
     let document = build_node(move || {
         let cards = crate::reactive::create_memo(move || match open.get() {
             true => vec![CARD],
             false => Vec::new(),
         });
         view! {
-            <styled::Docking layout>
-                <unstyled::DockSplit id="root" fraction=0.3>
-                    <unstyled::DockPane id="left">
-                        <unstyled::DockTab id=4_u64 title="Left">
+            <dock::styled::Docking layout>
+                <dock::unstyled::DockSplit id="root" fraction=0.3>
+                    <dock::unstyled::DockPane id="left">
+                        <dock::unstyled::DockTab id=4_u64 title="Left">
                             <PressPanel owner=4 pressed />
-                        </unstyled::DockTab>
-                    </unstyled::DockPane>
-                    <unstyled::DockSplit id="rest" fraction=0.5>
-                        <unstyled::DockPane id="tabs">
+                        </dock::unstyled::DockTab>
+                    </dock::unstyled::DockPane>
+                    <dock::unstyled::DockSplit id="rest" fraction=0.5>
+                        <dock::unstyled::DockPane id="tabs">
                             <ForEach keys={vec![1_u64, 2]}>|id: u64|
-                                <unstyled::DockTab id title={format!("Tab {id}")}>
+                                <dock::unstyled::DockTab id title={format!("Tab {id}")}>
                                     <PressPanel owner=id pressed />
-                                </unstyled::DockTab>
+                                </dock::unstyled::DockTab>
                             </ForEach>
-                        </unstyled::DockPane>
-                        <unstyled::DockPane id="side">
-                            <unstyled::DockTab id=3_u64 title="Side">
+                        </dock::unstyled::DockPane>
+                        <dock::unstyled::DockPane id="side">
+                            <dock::unstyled::DockTab id=3_u64 title="Side">
                                 <PressPanel owner=3 pressed />
-                            </unstyled::DockTab>
-                        </unstyled::DockPane>
-                    </unstyled::DockSplit>
-                </unstyled::DockSplit>
+                            </dock::unstyled::DockTab>
+                        </dock::unstyled::DockPane>
+                    </dock::unstyled::DockSplit>
+                </dock::unstyled::DockSplit>
                 <ForEach keys={cards}>|id: u64|
-                    <unstyled::DockDialog
+                    <dock::unstyled::DockDialog
                         id
                         parent
                         title="Card"
                         size=CARD_SIZE
-                        presentation=unstyled::DockDialogPresentation::Card
+                        presentation=dock::unstyled::DockDialogPresentation::Card
                         anchor
                         dismiss_on_outside_press
                         on_close={move || open.set(false)}
                     >
                         <CardBody built attended />
-                    </unstyled::DockDialog>
+                    </dock::unstyled::DockDialog>
                 </ForEach>
-            </styled::Docking>
+            </dock::styled::Docking>
         }
     });
     CardDock {

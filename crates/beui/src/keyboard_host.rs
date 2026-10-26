@@ -1,4 +1,4 @@
-use beui_components_styled::SoftwareKeyboard;
+use beui_keyboard::styled::SoftwareKeyboard;
 use beui_core::context::Context;
 use beui_core::document::Document;
 use beui_core::geometry::Rect;

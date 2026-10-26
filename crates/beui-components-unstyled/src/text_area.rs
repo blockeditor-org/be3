@@ -1,7 +1,7 @@
 mod actions;
 pub mod colors;
 mod completion;
-pub(crate) mod emoji;
+pub mod emoji;
 pub mod hooks;
 pub mod keys;
 mod lines;

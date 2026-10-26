@@ -1,5 +1,5 @@
 use super::*;
-use crate::unstyled::{DockApi, DockPane, DockTab, DockWindow, DockingLayout};
+use crate::dock::unstyled::{DockApi, DockPane, DockTab, DockWindow, DockingLayout};
 
 const WINDOW: Rect = Rect::from_min_max(pos2(40.0, 40.0), pos2(940.0, 560.0));
 const SMALLER: Vec2 = Vec2::new(800.0, 420.0);
@@ -11,7 +11,7 @@ fn a_window_larger_than_the_dock_is_drawn_no_larger_than_it() {
     let document = build_node(move || {
         let layout = DockingLayout::new();
         view! {
-            <styled::Docking @node_ref=&dock layout>
+            <dock::styled::Docking @node_ref=&dock layout>
                 <DockPane id="tabs">
                     <DockTab id=1u64 title="Tab 1">
                         <Frame @test_id="content.1" />
@@ -24,7 +24,7 @@ fn a_window_larger_than_the_dock_is_drawn_no_larger_than_it() {
                         </DockTab>
                     </DockPane>
                 </DockWindow>
-            </styled::Docking>
+            </dock::styled::Docking>
         }
     });
     let dock = dock.get();

@@ -7,6 +7,8 @@ pub use accesskit;
 pub use beui_components_styled as styled;
 pub use beui_components_unstyled as unstyled;
 pub use beui_components_unstyled::datetime;
+pub use beui_dock as dock;
+pub use beui_keyboard as keyboard;
 pub use beui_core::accessibility;
 pub use beui_core::animation;
 pub use beui_core::app::accessibility_dump;
@@ -107,7 +109,7 @@ pub use web::{WebRenderer, run_web, web_adapter};
 #[cfg(all(any(feature = "web", feature = "dom"), target_arch = "wasm32"))]
 mod web;
 
-mod keyboard;
+mod keyboard_host;
 #[cfg(all(feature = "window", not(target_arch = "wasm32")))]
 pub use window::{WindowRenderer, run_on, run_with, run_with_renderers, window_adapter};
 
@@ -130,7 +132,7 @@ pub mod reactive {
     pub fn build(f: impl FnOnce() -> beui_view::primitives::Root) -> Document {
         let mut document = beui_view::reactive::build(f);
         beui_inspector::install(&mut document);
-        crate::keyboard::install_keyboard(&mut document);
+        crate::keyboard_host::install_keyboard(&mut document);
         document
     }
 }

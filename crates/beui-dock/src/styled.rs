@@ -2,24 +2,25 @@ use beui_core::icons::Glyph;
 mod stack;
 mod switch;
 
-use crate::frame::{Border, ColorRole, Frame, Radius, focus_border};
-use crate::sheet::ModalSheet;
+use beui_components_styled::frame::{Border, ColorRole, Frame, Radius, focus_border};
+use beui_components_styled::sheet::ModalSheet;
 use beui_macros::{component, view};
 
-use crate::button::{Button, ButtonSize, ButtonVariant};
-use crate::context_menu::menu_style;
-use crate::icon_button::{IconButton, IconButtonSize};
-use crate::menu_button::IconMenuButton;
-use crate::text::{Icon, Text, TextColor, TextSize};
-use crate::theme::{NARROW_WIDTH, POINTER_REACH, use_theme};
-use crate::tooltip::Tooltip;
-use beui_components_unstyled as unstyled;
-use beui_components_unstyled::{
+use beui_components_styled::button::{Button, ButtonSize, ButtonVariant};
+use beui_components_styled::context_menu::menu_style;
+use beui_components_styled::icon_button::{IconButton, IconButtonSize};
+use beui_components_styled::menu_button::IconMenuButton;
+use beui_components_styled::text::{Icon, Text, TextColor, TextSize};
+use beui_components_styled::theme::{NARROW_WIDTH, POINTER_REACH, use_theme};
+use beui_components_styled::tooltip::Tooltip;
+use crate::unstyled as dock;
+use crate::unstyled::{
     DockAwayHandle, DockBarHandle, DockChromeHandle, DockDialogHandle, DockDialogPresentation,
     DockDragged, DockGripHandle, DockKey, DockMode, DockNode, DockPreviewHandle, DockSheetHandle,
     DockSplitterHandle, DockStackHandle, DockSwitchHandle, DockSwitcherHandle, DockTabHandle,
-    DockingLayout, Entry, MenuNodes, Picture,
+    DockingLayout, Entry,
 };
+use beui_components_unstyled::{MenuNodes, Picture};
 use beui_core::base::frame::Align2;
 use beui_core::base::{Align, Direction, ItemSize, Justify};
 use beui_core::color::Color32;
@@ -63,7 +64,7 @@ const AWAY_PADDING: f32 = 24.0;
 const PREVIEW_ALPHA: u8 = 235;
 const WAITING_DOT: f32 = 6.0;
 const CARD_POINTER_ROOM: Sides = Sides::all(POINTER_REACH);
-const CARD_MARGIN: u16 = (crate::dialog::MARGIN - CARD_POINTER_ROOM.top) as u16;
+const CARD_MARGIN: u16 = (beui_components_styled::dialog::MARGIN - CARD_POINTER_ROOM.top) as u16;
 const CARD_GAP: u16 = (POINTER_REACH + 2.0) as u16;
 
 #[component]
@@ -85,7 +86,7 @@ where
         DockMode::Stacked => theme.background.get(),
     });
     view! {
-        <unstyled::Docking
+        <dock::Docking
             layout
             stack_below=NARROW_WIDTH
             focus

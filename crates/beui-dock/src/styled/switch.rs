@@ -1,9 +1,9 @@
-use crate::frame::{Border, ColorRole, Frame, Radius};
+use beui_components_styled::frame::{Border, ColorRole, Frame, Radius};
 use beui_macros::{component, view};
 
-use crate::list_row::ListRow;
-use crate::text::{Icon, Text, TextColor};
-use beui_components_unstyled::{DockSwitchHandle, DockSwitchRowHandle, TabId};
+use beui_components_styled::list_row::ListRow;
+use beui_components_styled::text::{Icon, Text, TextColor};
+use crate::unstyled::{DockSwitchHandle, DockSwitchRowHandle, TabId};
 use beui_core::base::{Align, Direction};
 use beui_core::font::TextAlign;
 use beui_core::node::NodeId;

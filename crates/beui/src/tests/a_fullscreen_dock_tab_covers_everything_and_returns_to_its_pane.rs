@@ -1,7 +1,7 @@
 use super::*;
 use crate::primitives::*;
 use crate::reactive::*;
-use crate::unstyled::{DockPane, DockTab, DockingLayout};
+use crate::dock::unstyled::{DockPane, DockTab, DockingLayout};
 
 #[derive(Default)]
 struct Heard {
@@ -28,7 +28,7 @@ fn a_fullscreen_dock_tab_covers_everything_and_returns_to_its_pane() {
                             }}
                         />
                     </Frame>
-                    <styled::Docking @sizing=ItemSize::Percent(100.0) layout focus=2u64>
+                    <dock::styled::Docking @sizing=ItemSize::Percent(100.0) layout focus=2u64>
                         <DockPane id="tabs">
                             <DockTab id=1u64 title="Tab 1">
                                 <Frame @test_id="content.1" />
@@ -51,7 +51,7 @@ fn a_fullscreen_dock_tab_covers_everything_and_returns_to_its_pane() {
                                 }}
                             />
                         </DockPane>
-                    </styled::Docking>
+                    </dock::styled::Docking>
                 </List>
             }
         })

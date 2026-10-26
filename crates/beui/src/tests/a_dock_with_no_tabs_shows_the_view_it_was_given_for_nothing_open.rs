@@ -4,23 +4,23 @@ use crate::reactive::*;
 #[test]
 fn a_dock_with_no_tabs_shows_the_view_it_was_given_for_nothing_open() {
     let document = build_node(move || {
-        let layout = unstyled::DockingLayout::new();
+        let layout = dock::unstyled::DockingLayout::new();
         let open = create_signal(true);
         view! {
-            <styled::Docking layout>
-                <unstyled::DockPane
+            <dock::styled::Docking layout>
+                <dock::unstyled::DockPane
                     id="tabs"
                     empty={move || view! {
                         <Frame @test_id={"nothing_open"} />
                     }}
                 >
                     <Show condition={open}>
-                        <unstyled::DockTab id=1u64 title="Tab 1" on_close={move || open.set(false)}>
+                        <dock::unstyled::DockTab id=1u64 title="Tab 1" on_close={move || open.set(false)}>
                             <Frame @test_id={"content.1"} />
-                        </unstyled::DockTab>
+                        </dock::unstyled::DockTab>
                     </Show>
-                </unstyled::DockPane>
-            </styled::Docking>
+                </dock::unstyled::DockPane>
+            </dock::styled::Docking>
         }
     });
     let mut harness = Harness::sized(document, WIDE_VIEWPORT);

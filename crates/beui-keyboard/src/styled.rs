@@ -1,5 +1,6 @@
 use beui_components_unstyled as unstyled;
-use beui_components_unstyled::software_keyboard::{
+use crate::unstyled as keyboard;
+use crate::unstyled::{
     EMOJI_GROUPS, Face, KeyCapHandle, KeyboardHandle, Latch, Layer, Preview, Role, Slot, Value,
     composed_face, emojis_in, face,
 };
@@ -11,12 +12,12 @@ use beui_macros::{component, view};
 use beui_view::primitives::*;
 use beui_view::reactive::*;
 
-use crate::border::Separator;
-use crate::frame::{ColorRole, Frame, Radius};
-use crate::icon_button::{IconButton, IconButtonSize};
-use crate::scroll::Scroll;
-use crate::text::{Icon, Text, TextColor, TextSize};
-use crate::theme::SEPARATOR_THICKNESS;
+use beui_components_styled::border::Separator;
+use beui_components_styled::frame::{ColorRole, Frame, Radius};
+use beui_components_styled::icon_button::{IconButton, IconButtonSize};
+use beui_components_styled::scroll::Scroll;
+use beui_components_styled::text::{Icon, Text, TextColor, TextSize};
+use beui_components_styled::theme::SEPARATOR_THICKNESS;
 
 pub const BAR_HEIGHT: f32 = 32.0;
 pub const PADDING: f32 = 4.0;
@@ -32,7 +33,7 @@ pub fn keys_area(keyboard: Rect) -> Rect {
 }
 
 pub fn key_center(keyboard: Rect, layer: Layer, value: Value) -> Option<beui_core::geometry::Pos2> {
-    let layout = unstyled::software_keyboard::layout::layout(layer);
+    let layout = crate::unstyled::layout::layout(layer);
     let at = layout.find(value)?;
     Some(layout.key_rect(keys_area(keyboard), at)?.center())
 }
@@ -49,7 +50,7 @@ pub fn SoftwareKeyboard() -> NodeId {
             >
                 <List spacing=0.0>
                     <KeyboardBar @sizing=ItemSize::Fixed(BAR_HEIGHT) />
-                    <unstyled::SoftwareKeyboard
+                    <keyboard::SoftwareKeyboard
                         @sizing=ItemSize::Percent(100.0)
                         cap={|handle: KeyCapHandle| view! {
                             <KeyCap handle />
@@ -353,7 +354,7 @@ fn PanelKey(keyboard: KeyboardHandle, value: Value) -> NodeId {
     let shown = face(value);
     view! {
         <unstyled::Button
-            label={unstyled::software_keyboard::description(value)}
+            label={crate::unstyled::description(value)}
             press_focus=false
             tab_stop=false
             on_click={move || keyboard.tap(value)}

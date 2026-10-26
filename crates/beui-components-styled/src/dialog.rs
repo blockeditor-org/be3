@@ -20,7 +20,7 @@ use beui_view::reactive::*;
 pub(crate) const PADDING_HORIZONTAL: f32 = 20.0;
 pub(crate) const PADDING_VERTICAL: f32 = 18.0;
 pub(crate) const SPACING: f32 = 12.0;
-pub(crate) const MARGIN: f32 = 12.0;
+pub const MARGIN: f32 = 12.0;
 const ACTION_SPACING: f32 = 8.0;
 
 #[component]

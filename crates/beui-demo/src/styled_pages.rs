@@ -8,6 +8,7 @@ use beui::icons::{
     ICON_IMAGE, ICON_INFO, ICON_PAPERCLIP, ICON_PLUS, ICON_QUOTE, ICON_SAVE, ICON_TABLE,
     ICON_TEXT_ALIGN_START, ICON_TRIANGLE_ALERT, ICON_UNDO_2, ICON_X,
 };
+use beui::keyboard::styled::SoftwareKeyboard;
 use beui::unstyled::MenuThen;
 
 const COLUMN_SPACING: f32 = 20.0;

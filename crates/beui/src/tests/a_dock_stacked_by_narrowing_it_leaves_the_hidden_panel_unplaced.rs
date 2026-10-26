@@ -1,6 +1,6 @@
 use super::*;
 use crate::reactive::*;
-use crate::unstyled::{DockPane, DockSplit, DockTab, DockingLayout};
+use crate::dock::unstyled::{DockPane, DockSplit, DockTab, DockingLayout};
 
 #[test]
 fn a_dock_stacked_by_narrowing_it_leaves_the_hidden_panel_unplaced() {
@@ -9,7 +9,7 @@ fn a_dock_stacked_by_narrowing_it_leaves_the_hidden_panel_unplaced() {
     let document = build_node(move || {
         let layout = DockingLayout::new();
         view! {
-            <styled::Docking layout focus=2u64>
+            <dock::styled::Docking layout focus=2u64>
                 <DockSplit id="split">
                     <DockPane id="left">
                         <DockTab id=1u64 title="Tab 1">
@@ -22,7 +22,7 @@ fn a_dock_stacked_by_narrowing_it_leaves_the_hidden_panel_unplaced() {
                         </DockTab>
                     </DockPane>
                 </DockSplit>
-            </styled::Docking>
+            </dock::styled::Docking>
         }
     });
     let mut harness = Harness::sized(document, WIDE_VIEWPORT);

@@ -1,7 +1,7 @@
 use super::*;
 use crate::primitives::*;
 use crate::reactive::*;
-use crate::unstyled::{DockGroup, DockPane, DockTab, DockingLayout};
+use crate::dock::unstyled::{DockGroup, DockPane, DockTab, DockingLayout};
 
 #[test]
 fn an_embed_in_a_tab_no_longer_shown_forgets_where_it_was() {
@@ -13,7 +13,7 @@ fn an_embed_in_a_tab_no_longer_shown_forgets_where_it_was() {
     let document = build_node(move || {
         let (first, second) = slots;
         view! {
-            <styled::Docking layout focus=1u64>
+            <dock::styled::Docking layout focus=1u64>
                 <DockPane id="main">
                     <DockTab id=1u64 title="Tab 1">
                         <Embed slot={first} />
@@ -29,7 +29,7 @@ fn an_embed_in_a_tab_no_longer_shown_forgets_where_it_was() {
                         </DockPane>
                     </DockGroup>
                 </DockPane>
-            </styled::Docking>
+            </dock::styled::Docking>
         }
     });
     let mut harness = Harness::sized(document, WIDE_VIEWPORT);

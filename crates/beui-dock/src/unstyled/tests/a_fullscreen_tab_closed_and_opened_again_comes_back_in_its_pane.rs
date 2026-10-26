@@ -1,5 +1,5 @@
 use super::*;
-use crate::dock::state::DockFullscreen;
+use crate::unstyled::state::DockFullscreen;
 
 #[test]
 fn a_fullscreen_tab_closed_and_opened_again_comes_back_in_its_pane() {

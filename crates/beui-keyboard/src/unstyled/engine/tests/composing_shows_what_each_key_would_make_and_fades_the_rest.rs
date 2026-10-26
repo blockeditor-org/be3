@@ -1,5 +1,5 @@
 use super::*;
-use crate::software_keyboard::{Preview, preview};
+use crate::unstyled::{Preview, preview};
 
 #[test]
 fn composing_shows_what_each_key_would_make_and_fades_the_rest() {

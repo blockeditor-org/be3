@@ -1,7 +1,7 @@
 use super::*;
 use crate::reactive::*;
 use crate::styled::*;
-use crate::unstyled::{DockApi, DockPane, DockTab, DockingLayout, TabId};
+use crate::dock::unstyled::{DockApi, DockPane, DockTab, DockingLayout, TabId};
 
 #[test]
 fn ctrl_tab_walks_the_tabs_of_the_pane_the_focus_is_in() {
@@ -10,7 +10,7 @@ fn ctrl_tab_walks_the_tabs_of_the_pane_the_focus_is_in() {
     let document = build_node(move || {
         let layout = DockingLayout::new();
         view! {
-            <styled::Docking @node_ref=&dock layout>
+            <dock::styled::Docking @node_ref=&dock layout>
                 <DockPane id="tabs">
                     <ForEach keys={vec![1u64, 2, 3]}>|id: u64|
                         <DockTab
@@ -29,7 +29,7 @@ fn ctrl_tab_walks_the_tabs_of_the_pane_the_focus_is_in() {
                         />
                     </ForEach>
                 </DockPane>
-            </styled::Docking>
+            </dock::styled::Docking>
         }
     });
     let dock = dock.get();
