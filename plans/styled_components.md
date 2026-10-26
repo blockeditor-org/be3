@@ -406,9 +406,8 @@ Outcomes, by crate group (each also migrated onto §7's tokens):
   `tab_stop`, `on_focus_change` and `revealed` (keeps its place and
   accessibility but paints nothing: file-tree's hover-revealed add button, which
   was a custom face), `TextColor::None`, and `Tree`'s `outline` returns a
-  `ColorRole`. Left: linux-desktop's level OSD still fades theme colours by
-  hand through `ColorRole::Custom`, because nothing in beui fades a subtree's
-  opacity; an opacity node would let it use roles. Bar popups now share the
+  `ColorRole`. linux-desktop's level OSD fades a card drawn in colour roles
+  with the base `Fade`'s `opacity` (see "Polish" below). Bar popups now share the
   popover width (`Size::Popover`) instead of each picking pixels.
 - **Done.** database, logic-grid, deterministic-game, pixel-art, map,
   pixel-ray-tracer, calendar, counter, block-debug, beui-gallery, pan-zoom,
@@ -930,6 +929,69 @@ its answer once the settings close.
   gets the same area and messages and draws its own version. Only beui
   plugins match the shell's look exactly, which follows from keeping the
   protocol free of beui.
+
+## Polish
+
+Problems earlier steps found in the beui crates, fixed at their source:
+
+- **Done.** **A modal asks before it slides away.** `unstyled::Modal`'s
+  default `Slides` motion ran its `BackSlide`'s slide-away first and called
+  `on_dismiss` only once the page was off screen, so Escape and a press
+  outside closed nothing until the animation had run (the palette tests,
+  which look one frame later, saw no close). Escape, back and a press on the
+  scrim now reach `on_dismiss` at once; the modal slides away only when its
+  owner closes it after such a request, lingering inert (no input, no focus
+  trap) while it goes, and stays put if the owner keeps it open, so a
+  "discard changes?" answer, or a plugin's `DialogDismissal`, decides first.
+  `BackSlide` gained `open: Option<Prop<bool>>` and `on_gone` for this. The
+  command palette stays `ModalMotion::Still` by choice, not as a
+  workaround: a palette vanishes on Escape rather than sliding away.
+- **Checked, no change.** **Escape and a modal with nothing focusable.**
+  Opening a trapping overlay moves the focus out of what it blocks, and
+  Escape with no focus goes to the top trapping layer, so such a modal hears
+  Escape (test `a_modal_with_nothing_to_focus_hears_escape`, which also
+  opens one from a popover). block-editor-beui's `PluginDialog` wants the
+  keyboard because the plugin's own fields need the keys, and handles Escape
+  itself because keys a plugin holds never reach the shell; neither is a
+  workaround for beui.
+- **Done.** **Dialog's sheet rule matches `Anchored`'s**: it samples
+  `touched_by_finger()` when it opens, so a pen opens the card. `use_touch()`
+  and `Document::watch_touched` had no other user and are gone.
+- **Done.** **Search lists fit their rows.** `SearchList`'s `list_height`
+  is a maximum: `Select` and the command palette are as tall as their rows
+  up to it. An `Offset` (so a `Scroll`) measured with no limit along its
+  direction, as a `Percent` child of a box sized by its content is, now
+  measures its content instead of nothing, which gives the picker's full list
+  on a phone (a fitted sheet) its rows.
+- **Done.** **Subtree opacity.** The base `Fade` takes `opacity` (1 by
+  default) besides `edges`: the mask's `Fade` carries it through the wgpu
+  shader, the DOM renderer (CSS `opacity`), and paintings (`paint_format::Fade`
+  gained a defaulted `opacity`). An opacity change damages the fade's
+  rectangle. The level OSD, the dock's drop highlight and drag preview, and
+  the split button's divider use it with colour roles. It multiplies each
+  shape's coverage, so overlapping shapes inside show through each other.
+- **Done, in the picker.** **A plugin dialog's square corners.** A `Below`
+  region is composited under its parent's whole surface, so its square
+  corners showed through the scrim past the card's rounding. beui has no
+  rounded clip and the region is a GPU drawing, so the picker insets the
+  creation `Subregion` by `Space::Sm`, enough for `Radius::Lg`; the plugin's
+  background matches the card, so the inset doesn't show. A rounded clip
+  through the protocol is the general fix if more cards host regions.
+- **Done.** Small ones: unstyled `Choice` has no appearance default left
+  (`spacing` is required); styled `Scroll`'s `max_length` is a `Size`;
+  `Selectable` takes `caret_width` (styled passes the text area geometry's,
+  as terminal-view does); the dock's drop marker is a `Stroke`; painted
+  corner radii are fitted to their rect, so `Radius::Full` paints as half the
+  side.
+- **Done.** **App test races.** A driven block-app's type modules used the
+  wall clock, so whether two typed words were one undo step depended on how
+  long the machine took, and `drive pause` was invisible to them;
+  `be_types_host::hold_clock` now holds their clock while the app's is
+  stopped. The checklist test measured `#checklist.add` before the plugin
+  had drawn it; it waits for it first.
+- **Checked, no change.** beui-demo's saved app preference layer is set by
+  the toolbar's theme select and the Animations page's "Disable animations"
+  box, so it keeps saving it.
 
 ## Order
 

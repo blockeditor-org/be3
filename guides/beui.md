@@ -1825,9 +1825,14 @@ afterwards; the page that moves needs an opaque background, and a page that
 must keep its state (a scroll position) is built once and handed to a `Portal`
 in both places. The stacked dock shows the tab back goes to behind the tab it leaves
 this way. A back with no gesture before it (a key, Escape, a press outside)
-carries the page off from where it rests in the same slide-away. `unstyled::Modal`, under
-`styled::Dialog` and `Fullscreen`, slides away the same way and fades its scrim, and a `Sheet`
-sinks with the gesture and slides on down from where it was. On Android the
+carries the page off from where it rests in the same slide-away. Given `open`, a back
+only asks: `on_back` runs at once, the page eases back if it was held, and it slides away
+whenever `open` falls, calling `on_gone` once it is off. `unstyled::Modal`, under
+`styled::Dialog` and `Fullscreen`, works that way: Escape, back and a press on the scrim
+reach `on_dismiss` at once, and the modal slides away and fades its scrim only once its
+owner closes it, so an owner that asks first ("discard changes?") or a plugin that
+answers later keeps it in place meanwhile. While it leaves it lingers inert, taking no
+input. A `Sheet` sinks with the gesture and slides on down from where it was. On Android the
 runner passes `handles_back` to the activity's `setBackHandled`, and when
 nothing takes it the system's own back (to the home screen) plays instead.
 
