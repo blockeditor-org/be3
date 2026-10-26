@@ -265,7 +265,14 @@ move the highlight over the enabled ones, Enter or a click runs the highlighted
 one, and Escape closes it; disabled actions are listed last and greyed, and a
 checked action, or the chosen one of a radio group, is ticked as in a menu. Closing
 it puts the focus back where it was before the action runs. An editor frame
-opens it with Ctrl+Shift+P and from a row of its menu.
+opens it with Ctrl+Shift+P and from a row of its menu. Handed `items={PaletteItems::list(..)}` instead, it
+searches those `PaletteItem`s (each with a key, title, detail line, glyph or
+picture, shortcut, checked and disabled) and calls `on_choose` with the chosen
+key; `score` picks the ranking (`PaletteItem::substring_score` by default,
+`PaletteItem::fuzzy_score` for names, keywords and comments, as linux-desktop's
+program launcher uses). It and `Select` are stylings of `unstyled::SearchList`,
+which owns the query, the highlight, the arrow and Page keys, scrolling to the
+highlighted row, Enter and hover.
 
 A menu is described once as `MenuNode`s: `MenuNode::action(&action)` (or
 `labelled` to name it differently in this menu), `MenuNode::submenu(id, label,

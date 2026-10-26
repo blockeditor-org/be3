@@ -98,7 +98,7 @@ into a new unstyled component, then rebuild the styled one on top of it.
   used only by linux-desktop (`app/media.rs`), so move it there. It is in
   `app/osd.rs` now, with its tests in linux-desktop's; it still lays out one
   card per screen itself, so switch it to `EveryScreen` once that exists.
-- **`Launcher`.** Its core joins the command palette (§4.2): a styled
+- **Done.** **`Launcher`.** Its core joins the command palette (§4.2): a styled
   searchable palette with pluggable ranking and rows that show a picture or
   icon and a detail line. Also move `launcher_score` there as one of the
   ranking functions. Move everything else Launcher has into linux-desktop,
@@ -110,6 +110,17 @@ into a new unstyled component, then rebuild the styled one on top of it.
   ranking stay in beui.
   `plans/command_palette.md` also builds on `styled::CommandPalette`, so keep
   the two plans in step.
+  `styled::CommandPalette` takes `items: PaletteItems` (`Actions`, the
+  default, or `PaletteItems::list(..)` of `PaletteItem`s with a key, title,
+  detail, terms, glyph, image, shortcut, checked and disabled), a `score`
+  function (`PaletteItem::substring_score` by default, or
+  `PaletteItem::fuzzy_score`, which is `launcher_score`), an optional
+  `query` signal, and `on_choose` with the chosen key. linux-desktop builds
+  its program items and the Run row (key `run`, scored below every program)
+  itself. The beui run-as-command test was a copy of linux-desktop's
+  `a_query_no_program_matches_runs_as_a_command`, so it went; the reopening
+  tests and the filter test now drive the palette. The palette's rows are
+  still its own face: build them on §4.6's row once it lands.
 - **Done.** **`CrashNotice` and `StaleNotice` → block-app.** Only block-app uses them
   (`compositor/region.rs`, `surfaces.rs`). Their text is about plugins.
   They are in `surfaces/notices.rs`.
@@ -160,6 +171,25 @@ function. Use substring matching where those components use it today, and
 `CommandPalette` and the launcher's palette (§3) become stylings of it.
 Check whether the text area's completion menu (`text_area/completion.rs`)
 fits too.
+
+**Done.** `unstyled::SearchList<K>` (`search_list.rs`) owns the query field,
+the shown keys (from a `rank: Func<String, Vec<K>>` the caller passes),
+the highlight, which skips disabled rows, Up/Down/Page Up/Page Down,
+scroll-to-row, Enter, clicks and hover. `rank`, `substring_score` and
+`fuzzy_score` are the ranking helpers. `Select` and `CommandPalette` (and
+through it linux-desktop's launcher) are built on it; their trigger,
+popup, panel, search field and rows stay theirs. Home and End are no
+longer taken from a Select's search field, so they move its caret; they
+still open a closed Select at its first or last option. Filtered-out rows
+are no longer built, so `SelectApi::option_button` returns an `Option`.
+
+The completion menu doesn't fit, so it keeps its own list. Its query is a
+span of the text area's own text, not a field of its own; its keys reach the
+text area's key map while the caret stays in the document (and Tab
+completes); its overlay passes input through instead of trapping the focus;
+and the `Completer` returns its matches already ordered. Sharing would mean
+splitting the search list's highlight and keys away from its field for one
+user that has no scroll, no disabled rows and no Page keys.
 
 ### 4.3 Tabs
 
