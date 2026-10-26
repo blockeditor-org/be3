@@ -50,100 +50,120 @@ pub fn Scatter(data: Data) -> NodeId {
 
 #[component]
 fn Plot(data: Data, axes: Memo<Option<(DatabaseField, DatabaseField)>>) -> NodeId {
-    view! {
-        <LayoutBuilder>|size: ReadSignal<Vec2>| {
-            let bounds = create_memo(move || {
-                let (x_field, y_field) = axes.get()?;
-                plot_bounds(&shown_rows(data), x_field.id, y_field.id)
-            });
-            let placed = create_memo(move || {
-                let (Some((x_field, y_field)), Some(bounds)) = (axes.get(), bounds.get()) else {
-                    return Vec::new();
-                };
-                let area = size.get();
-                place_points(&shown_rows(data), x_field.id, y_field.id, bounds, plot_area(area))
-            });
-            let keys = create_memo(move || {
-                placed.with(|placed| placed.iter().map(|point| point.row).collect::<Vec<usize>>())
-            });
-            let empty = create_memo(move || placed.with(Vec::is_empty));
-            let plot_height = create_memo(move || plot_area(size.get()).1);
-            let plot_width = create_memo(move || plot_area(size.get()).0);
-            let rule_top = create_memo(move || AXIS_TOP + plot_height.get());
-            let x_low = create_memo(move || {
-                bounds.get().map_or_else(String::new, |bounds| format_axis_value(bounds.0))
-            });
-            let x_high = create_memo(move || {
-                bounds.get().map_or_else(String::new, |bounds| format_axis_value(bounds.1))
-            });
-            let y_low = create_memo(move || {
-                bounds.get().map_or_else(String::new, |bounds| format_axis_value(bounds.2))
-            });
-            let y_high = create_memo(move || {
-                bounds.get().map_or_else(String::new, |bounds| format_axis_value(bounds.3))
-            });
-            let x_name = create_memo(move || {
-                axes.get().map_or_else(String::new, |(x_field, _)| x_field.name)
-            });
-            let y_name = create_memo(move || {
-                axes.get().map_or_else(String::new, |(_, y_field)| y_field.name)
-            });
-            let x_label_x =
-                create_memo(move || AXIS_LEFT + plot_width.get() * 0.5 - 60.0);
-            let x_high_x = create_memo(move || AXIS_LEFT + plot_width.get() - 60.0);
-            let x_label_y = create_memo(move || rule_top.get() + LABEL_HEIGHT);
-            let value_y = create_memo(move || rule_top.get() + 2.0);
-            let y_low_y = create_memo(move || rule_top.get() - LABEL_HEIGHT);
-            let pick = move |at: Pos2| {
-                let chosen = placed.with_untracked(|placed| nearest(placed, at));
-                match chosen {
-                    Some(row) => data.select(row, None),
-                    None => data.deselect(),
-                }
-            };
-            view! {
-                <Interactive
-                    @test_id={"database-view.scatter"}
-                    on_click_at={move |press: block_editor_beui::beui::PointerPress| pick(press.local)}
-                >
-                    <Canvas>
-                        <CanvasItem x=AXIS_LEFT y=AXIS_TOP width=RULE height={plot_height}>
-                            <Frame fill=ColorRole::Border />
-                        </CanvasItem>
-                        <CanvasItem x=AXIS_LEFT y={rule_top} width={plot_width} height=RULE>
-                            <Frame fill=ColorRole::Border />
-                        </CanvasItem>
-                        <CanvasItem x=AXIS_LEFT y={value_y} width=60.0 height=LABEL_HEIGHT>
-                            <Text style=TextStyle::CAPTION>{x_low}</Text>
-                        </CanvasItem>
-                        <CanvasItem x={x_high_x} y={value_y} width=60.0 height=LABEL_HEIGHT>
-                            <Text style=TextStyle::CAPTION align=TextAlign::End>{x_high}</Text>
-                        </CanvasItem>
-                        <CanvasItem x={x_label_x} y={x_label_y} width=120.0 height=LABEL_HEIGHT>
-                            <Text style=TextStyle::CAPTION align=TextAlign::Center>{x_name}</Text>
-                        </CanvasItem>
-                        <CanvasItem x=0.0 y={y_low_y} width={AXIS_LEFT - 4.0} height=LABEL_HEIGHT>
-                            <Text style=TextStyle::CAPTION align=TextAlign::End>{y_low}</Text>
-                        </CanvasItem>
-                        <CanvasItem x=0.0 y=AXIS_TOP width={AXIS_LEFT - 4.0} height=LABEL_HEIGHT>
-                            <Text style=TextStyle::CAPTION align=TextAlign::End>{y_high}</Text>
-                        </CanvasItem>
-                        <CanvasItem x=0.0 y=0.0 width={AXIS_LEFT * 2.0} height=LABEL_HEIGHT>
-                            <Text style=TextStyle::CAPTION>{y_name}</Text>
-                        </CanvasItem>
-                        <ForEach keys={keys}>|row: usize|
-                            <Dot placed={placed} data={data} row={row} />
-                        </ForEach>
-                        <Show condition={empty}>
-                            <CanvasItem x=AXIS_LEFT y=AXIS_TOP width=260.0 height=LABEL_HEIGHT>
-                                <Text style=TextStyle::CAPTION>"No rows have both fields set"</Text>
-                            </CanvasItem>
-                        </Show>
-                    </Canvas>
-                </Interactive>
-            }
-        }</LayoutBuilder>
-    }
+    let size_held = create_signal(Vec2::ZERO);
+    let size = size_held.read_only();
+    let bounds = create_memo(move || {
+        let (x_field, y_field) = axes.get()?;
+        plot_bounds(&shown_rows(data), x_field.id, y_field.id)
+    });
+    let placed = create_memo(move || {
+        let (Some((x_field, y_field)), Some(bounds)) = (axes.get(), bounds.get()) else {
+            return Vec::new();
+        };
+        let area = size.get();
+        place_points(
+            &shown_rows(data),
+            x_field.id,
+            y_field.id,
+            bounds,
+            plot_area(area),
+        )
+    });
+    let keys = create_memo(move || {
+        placed.with(|placed| placed.iter().map(|point| point.row).collect::<Vec<usize>>())
+    });
+    let empty = create_memo(move || placed.with(Vec::is_empty));
+    let plot_height = create_memo(move || plot_area(size.get()).1);
+    let plot_width = create_memo(move || plot_area(size.get()).0);
+    let rule_top = create_memo(move || AXIS_TOP + plot_height.get());
+    let x_low = create_memo(move || {
+        bounds
+            .get()
+            .map_or_else(String::new, |bounds| format_axis_value(bounds.0))
+    });
+    let x_high = create_memo(move || {
+        bounds
+            .get()
+            .map_or_else(String::new, |bounds| format_axis_value(bounds.1))
+    });
+    let y_low = create_memo(move || {
+        bounds
+            .get()
+            .map_or_else(String::new, |bounds| format_axis_value(bounds.2))
+    });
+    let y_high = create_memo(move || {
+        bounds
+            .get()
+            .map_or_else(String::new, |bounds| format_axis_value(bounds.3))
+    });
+    let x_name = create_memo(move || {
+        axes.get()
+            .map_or_else(String::new, |(x_field, _)| x_field.name)
+    });
+    let y_name = create_memo(move || {
+        axes.get()
+            .map_or_else(String::new, |(_, y_field)| y_field.name)
+    });
+    let x_label_x = create_memo(move || AXIS_LEFT + plot_width.get() * 0.5 - 60.0);
+    let x_high_x = create_memo(move || AXIS_LEFT + plot_width.get() - 60.0);
+    let x_label_y = create_memo(move || rule_top.get() + LABEL_HEIGHT);
+    let value_y = create_memo(move || rule_top.get() + 2.0);
+    let y_low_y = create_memo(move || rule_top.get() - LABEL_HEIGHT);
+    let pick = move |at: Pos2| {
+        let chosen = placed.with_untracked(|placed| nearest(placed, at));
+        match chosen {
+            Some(row) => data.select(row, None),
+            None => data.deselect(),
+        }
+    };
+    let built = view! {
+        <Interactive
+            @test_id={"database-view.scatter"}
+            on_click_at={move |press: block_editor_beui::beui::PointerPress| pick(press.local)}
+        >
+            <Canvas>
+                <CanvasItem x=AXIS_LEFT y=AXIS_TOP width=RULE height={plot_height}>
+                    <Frame fill=ColorRole::Border />
+                </CanvasItem>
+                <CanvasItem x=AXIS_LEFT y={rule_top} width={plot_width} height=RULE>
+                    <Frame fill=ColorRole::Border />
+                </CanvasItem>
+                <CanvasItem x=AXIS_LEFT y={value_y} width=60.0 height=LABEL_HEIGHT>
+                    <Text style=TextStyle::CAPTION>{x_low}</Text>
+                </CanvasItem>
+                <CanvasItem x={x_high_x} y={value_y} width=60.0 height=LABEL_HEIGHT>
+                    <Text style=TextStyle::CAPTION align=TextAlign::End>{x_high}</Text>
+                </CanvasItem>
+                <CanvasItem x={x_label_x} y={x_label_y} width=120.0 height=LABEL_HEIGHT>
+                    <Text style=TextStyle::CAPTION align=TextAlign::Center>{x_name}</Text>
+                </CanvasItem>
+                <CanvasItem x=0.0 y={y_low_y} width={AXIS_LEFT - 4.0} height=LABEL_HEIGHT>
+                    <Text style=TextStyle::CAPTION align=TextAlign::End>{y_low}</Text>
+                </CanvasItem>
+                <CanvasItem x=0.0 y=AXIS_TOP width={AXIS_LEFT - 4.0} height=LABEL_HEIGHT>
+                    <Text style=TextStyle::CAPTION align=TextAlign::End>{y_high}</Text>
+                </CanvasItem>
+                <CanvasItem x=0.0 y=0.0 width={AXIS_LEFT * 2.0} height=LABEL_HEIGHT>
+                    <Text style=TextStyle::CAPTION>{y_name}</Text>
+                </CanvasItem>
+                <ForEach keys={keys}>|row: usize|
+                    <Dot placed={placed} data={data} row={row} />
+                </ForEach>
+                <Show condition={empty}>
+                    <CanvasItem x=AXIS_LEFT y=AXIS_TOP width=260.0 height=LABEL_HEIGHT>
+                        <Text style=TextStyle::CAPTION>"No rows have both fields set"</Text>
+                    </CanvasItem>
+                </Show>
+            </Canvas>
+        </Interactive>
+    };
+    let size_measured = measure(built);
+    create_effect(move || {
+        if let Some(rect) = size_measured.get() {
+            size_held.set(rect.size());
+        }
+    });
+    built
 }
 
 #[component]

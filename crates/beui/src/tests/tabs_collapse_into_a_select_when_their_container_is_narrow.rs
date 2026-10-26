@@ -24,17 +24,17 @@ fn tabs_collapse_into_a_select_when_their_container_is_narrow() {
     let mut harness = Harness::sized(document, WIDE_VIEWPORT);
     harness.frame(Vec::new());
 
-    let [wide, narrow] = harness.document().children(tabs)[..] else {
-        panic!("tabs hold their tab list and the select they collapse into");
+    let shown = |harness: &Harness| {
+        let [portal] = harness.document().children(tabs)[..] else {
+            panic!("tabs show one of the tab list and the select they collapse into");
+        };
+        harness.document().children(portal)[0]
     };
-    assert!(harness.document().node_rect(wide).is_some());
-    assert!(
-        harness.document().node_rect(narrow).is_none(),
-        "tabs that fit lay out only the tab list"
-    );
+    let wide = shown(&harness);
     assert_eq!(
         harness.document().api::<styled::ChoiceApi>(wide).selected(),
-        Some(1)
+        Some(1),
+        "tabs that fit show the tab list"
     );
 
     harness.resize(vec2(120.0, VIEWPORT.y));
@@ -44,6 +44,7 @@ fn tabs_collapse_into_a_select_when_their_container_is_narrow() {
         harness.document().node_rect(wide).is_none(),
         "tabs too wide for their container leave the tab list unplaced"
     );
+    let narrow = shown(&harness);
     assert!(harness.document().node_rect(narrow).is_some());
     assert_eq!(
         harness

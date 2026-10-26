@@ -144,63 +144,68 @@ pub fn PanZoom(
     accessibility: Option<Prop<Node>>,
     #[prop(children)] content: Render<PanZoomHandle>,
 ) -> NodeId {
-    view! {
-        <PlacementBuilder>|rect: ReadSignal<Rect>| {
-            let current = view;
+    let rect_held = create_signal(Rect::ZERO);
+    let rect = rect_held.read_only();
+    let current = view;
 
-            let camera = Camera {
-                view: current,
-                rect,
-                min_scale: create_memo(move || min_scale.get()),
-                max_scale: create_memo(move || max_scale.get()),
-            };
+    let camera = Camera {
+        view: current,
+        rect,
+        min_scale: create_memo(move || min_scale.get()),
+        max_scale: create_memo(move || max_scale.get()),
+    };
 
-            let accessibility = accessibility.unwrap_or_else(|| Prop::Static(Node::new(Role::ScrollView)));
-            component_accessibility(create_memo(move || accessibility.get()));
+    let accessibility = accessibility.unwrap_or_else(|| Prop::Static(Node::new(Role::ScrollView)));
+    component_accessibility(create_memo(move || accessibility.get()));
 
-            let focused = create_signal(false);
-            let recognised = gestures::pan_zoom(
-                move |delta: Vec2| camera.pan(delta),
-                move |gesture: ZoomGesture| camera.zoom(gesture.factor, gesture.pos),
-            );
-            let panning = recognised.panning;
-            let cursor = create_memo(move || if panning.get() {
-                CursorIcon::Grabbing
-            } else {
-                CursorIcon::Default
-            });
-            let content_node = content.call(PanZoomHandle {
-                view: create_memo(move || Some(current.get().canvas(rect.get()))),
-                scale: create_memo(move || current.get().scale),
-                panning,
-                focused: focused.read_only(),
-            });
+    let focused = create_signal(false);
+    let recognised = gestures::pan_zoom(
+        move |delta: Vec2| camera.pan(delta),
+        move |gesture: ZoomGesture| camera.zoom(gesture.factor, gesture.pos),
+    );
+    let panning = recognised.panning;
+    let cursor = create_memo(move || if panning.get() {
+        CursorIcon::Grabbing
+    } else {
+        CursorIcon::Default
+    });
+    let content_node = content.call(PanZoomHandle {
+        view: create_memo(move || Some(current.get().canvas(rect.get()))),
+        scale: create_memo(move || current.get().scale),
+        panning,
+        focused: focused.read_only(),
+    });
 
-            api.fill(PanZoomApi(current));
+    api.fill(PanZoomApi(current));
 
-            view! {
-                <Interactive
-                    focusable=true
-                    on_focus_change={focused}
-                    on_key={move |press: KeyPress| camera.key(press)}
-                    cursor={cursor}
-                    on_wheel={gestures::first_of([
-                        recognised.wheel,
-                        gestures::scroll_wheel(None, move |gesture: ScrollGesture| {
-                            if gesture.modifiers.ctrl {
-                                let factor = (gesture.delta.y * ZOOM_PER_SCROLL_POINT).exp();
-                                camera.zoom(factor, gesture.pos);
-                            } else {
-                                camera.pan(gesture.delta);
-                            }
-                        }),
-                    ])}
-                    on_pointer={recognised.pointer}
-                    children={Some(content_node)}
-                />
-            }
-        }</PlacementBuilder>
-    }
+    let built = view! {
+        <Interactive
+            focusable=true
+            on_focus_change={focused}
+            on_key={move |press: KeyPress| camera.key(press)}
+            cursor={cursor}
+            on_wheel={gestures::first_of([
+                recognised.wheel,
+                gestures::scroll_wheel(None, move |gesture: ScrollGesture| {
+                    if gesture.modifiers.ctrl {
+                        let factor = (gesture.delta.y * ZOOM_PER_SCROLL_POINT).exp();
+                        camera.zoom(factor, gesture.pos);
+                    } else {
+                        camera.pan(gesture.delta);
+                    }
+                }),
+            ])}
+            on_pointer={recognised.pointer}
+            children={Some(content_node)}
+        />
+    };
+    let rect_measured = measure(built);
+    create_effect(move || {
+        if let Some(rect) = rect_measured.get() {
+            rect_held.set(rect);
+        }
+    });
+    built
 }
 
 #[derive(Clone, Copy)]

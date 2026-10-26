@@ -468,8 +468,10 @@ impl Inspector {
 
     pub fn bar_option_rect(&self, index: usize) -> Option<Rect> {
         let document = &self.bar.document;
-        let bar = document.find_test_id("inspector.bar")?;
-        let tabs = *document.children(bar).first()?;
+        let mut tabs = document.find_test_id("inspector.bar")?;
+        while matches!(document.node_kind(tabs), "layers" | "portal" | "offset") {
+            tabs = *document.children(tabs).first()?;
+        }
         document.node_rect(*document.children(tabs).get(index)?)
     }
 

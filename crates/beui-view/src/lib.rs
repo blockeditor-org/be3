@@ -11,6 +11,8 @@ pub mod file_picker;
 #[cfg(not(beui_html))]
 pub mod file_saver;
 #[cfg(not(beui_html))]
+pub mod measure;
+#[cfg(not(beui_html))]
 mod native;
 #[cfg(not(beui_html))]
 pub mod nodes;

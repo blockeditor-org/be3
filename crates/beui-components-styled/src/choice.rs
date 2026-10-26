@@ -7,8 +7,8 @@ use beui_view::types::TextAlign;
 use crate::list::List;
 use crate::select::Select;
 use crate::tokens::{Padding, Size, Space, Stroke};
-use beui_components_unstyled::{ChoiceOption, ChoiceOptionHandle};
-use beui_view::primitives::{FirstFit, Layers};
+use beui_components_unstyled::{ChoiceOption, ChoiceOptionHandle, FirstFit};
+use beui_view::primitives::Layers;
 use beui_view::reactive::*;
 
 use crate::text::{Text, TextColor};

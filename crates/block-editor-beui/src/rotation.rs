@@ -1,3 +1,5 @@
+use std::f32::consts::FRAC_PI_2;
+
 use be_block::display_settings::Rotation;
 use beui::reactive::*;
 use beui::styled::*;
@@ -104,7 +106,8 @@ fn RotationTile(
     read_only: Memo<bool>,
     on_pick: Callback<Rotation>,
 ) -> NodeId {
-    let turns = create_memo(move || drawn_turns(rotation, current.get()));
+    let angle = create_memo(move || f32::from(drawn_turns(rotation, current.get())) * FRAC_PI_2);
+    let screen = format!("{name}.screen");
     let now = create_memo(move || current.get() == rotation);
     let picked = create_memo(move || chosen.get() == rotation);
     let label = create_memo(move || rotation_name(rotation, landscape.get()).to_owned());
@@ -126,11 +129,15 @@ fn RotationTile(
                     size=TILE
                     on_click={move || on_pick.call(rotation)}
                 >
-                    <Turn quarter_turns={turns}>
-                        <Frame width=TILE height=TILE align=Align2::CENTER>
-                            <LittleScreen size={size} />
-                        </Frame>
-                    </Turn>
+                    <Frame
+                        @test_id={screen}
+                        width=TILE
+                        height=TILE
+                        align=Align2::CENTER
+                        rotate={angle}
+                    >
+                        <LittleScreen size={size} />
+                    </Frame>
                 </TileButton>
                 <Text style=TextStyle::CAPTION align=TextAlign::Center>{label}</Text>
                 <Show condition={now}>

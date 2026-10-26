@@ -516,12 +516,6 @@ pub fn TreeRowEditor(
         }
         escaped
     });
-    let placed = create_memo(move || field.try_get().is_some_and(|node| node_placed(node).get()));
-    create_effect(move || {
-        if placed.get() {
-            field.get().reveal();
-        }
-    });
     let keyboard = use_keyboard();
     let held = Cell::new(keyboard.get_untracked());
     let (away, left) = (once.clone(), typed.clone());
@@ -532,7 +526,7 @@ pub fn TreeRowEditor(
         }
     });
     let (submit, leave, changed) = (once.clone(), once, typed.clone());
-    view! {
+    let built = view! {
         <TextInput
             @node_ref=&field
             value={Binding::new(initial, move |text: String| *changed.borrow_mut() = text)}
@@ -549,7 +543,15 @@ pub fn TreeRowEditor(
                 }
             }}
         />
-    }
+    };
+    let measured = measure(field.get());
+    let placed = create_memo(move || measured.get().is_some());
+    create_effect(move || {
+        if placed.get() {
+            field.get().reveal();
+        }
+    });
+    built
 }
 
 #[component]
@@ -568,19 +570,16 @@ where
     let astray = create_memo(move || {
         let key = shown.get()?;
         keys.with(|_| ());
-        node_rect(list).get();
+        measure(list).get();
         let row = state
             .nodes
             .value()
             .borrow()
             .get(&key)
             .and_then(NodeRef::try_get)?;
-        if !node_placed(row).get() || !node_placed(scroll).get() {
-            return None;
-        }
         stray_edge(
-            node_rect(row).get(),
-            node_rect(scroll).get(),
+            measure(row).get()?,
+            measure(scroll).get()?,
             buried.get().is_some(),
         )
     });
@@ -590,7 +589,7 @@ where
             return;
         };
         keys.with(|_| ());
-        node_rect(list).get();
+        measure(list).get();
         let Some(row) = state
             .nodes
             .value()
@@ -600,7 +599,7 @@ where
         else {
             return;
         };
-        if !node_placed(row).get() {
+        if measure(row).get().is_none() {
             return;
         }
         row.reveal();

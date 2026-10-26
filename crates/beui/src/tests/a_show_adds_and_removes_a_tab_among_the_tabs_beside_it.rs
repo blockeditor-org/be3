@@ -24,9 +24,9 @@ fn a_show_adds_and_removes_a_tab_among_the_tabs_beside_it() {
         }]
     });
     let tabs = tabs.get();
-    let list = document.children(tabs)[0];
     let mut harness = Harness::new(document);
     harness.frame(Vec::new());
+    let list = shown_fit(harness.document(), tabs);
 
     assert_eq!(
         tab_labels(harness.document(), list),

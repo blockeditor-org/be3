@@ -12,6 +12,7 @@ use beui_core::color::Color32;
 use beui_core::context::RendererInfo;
 use beui_core::context::{Context, FrameOutput, WindowOutput};
 use beui_core::document::Document;
+pub use beui_core::document::delay_measurement;
 use beui_core::geometry::{Pos2, Rect, Vec2};
 use beui_core::input::typing;
 use beui_core::input::{Input, Key, Modifiers, PointerButton, TouchPhase};

@@ -121,103 +121,108 @@ pub fn TerminalView(
     });
     let spill = Rc::new(Cell::new(0.0_f32));
     let padding = use_space(PADDING);
-    view! {
-        <LayoutBuilder>|size: ReadSignal<Vec2>| {
-            let measured = create_memo(move || cell().unwrap_or(Vec2::new(7.0, 15.0)));
-            create_effect(move || {
-                let size = size.get();
-                let inset = 2.0 * padding.get();
-                let Some(cell) = cell() else {
-                    return;
-                };
-                let fit = Fit {
-                    cols: ((size.x - inset) / cell.x).floor().max(1.0) as u16,
-                    rows: ((size.y - inset) / cell.y).floor().max(1.0) as u16,
-                };
-                untrack(|| on_fit.call(fit));
-            });
-            let line_height = create_memo(move || measured.get().y);
-            let spill = Rc::clone(&spill);
-            let wheeled = move |gesture: ScrollGesture| {
-                let cell = measured.get_untracked();
-                let lines = spill.get() - gesture.delta.y / cell.y;
-                let whole = lines.trunc();
-                spill.set(lines - whole);
-                if whole == 0.0 {
-                    return;
-                }
-                on_wheel.call(TerminalWheel {
-                    lines: whole as i16,
-                    col: (gesture.local.x / cell.x).max(0.0) as u16,
-                    row: (gesture.local.y / cell.y).max(0.0) as u16,
-                });
-            };
-            view! {
-                <Frame fill={ColorRole::custom(background)}>
-                    <Scroll follow_end=true api>
-                        <Frame padding=PADDING>
-                            <SelectableText copy_key={Some(COPY_KEY)} select_all_key=None>
-                                <Interactive
-                                    focusable=true
-                                    @node_ref=&focus
-                                    @test_id={"terminal.screen"}
-                                    claims_touch=false
-                                    clipboard_keys={input}
-                                    on_press={move |_: PointerPress| {
-                                        if let Some(node) = focus.try_get() {
-                                            node.focus();
-                                        }
-                                    }}
-                                    on_text={move |text: String| typed(TerminalInput::Key(text_event(&text)))}
-                                    on_key={move |press: KeyPress| {
-                                        if !press.pressed || !input.get_untracked() {
-                                            return false;
-                                        }
-                                        let Some(key) = key_event(press) else {
-                                            return false;
-                                        };
-                                        typed(TerminalInput::Key(key));
-                                        true
-                                    }}
-                                    pastes
-                                    on_paste={move |pasted: Pasted| {
-                                        if let Pasted::Text(text) = pasted {
-                                            typed(TerminalInput::Paste(text));
-                                        }
-                                    }}
-                                >
-                                    <List spacing=Space::None>
-                                        <Show condition={scrolling}>
-                                            <VirtualList
-                                                keys
-                                                item_size=line_height
-                                                text={move |key: ObjectId| table.text(key)}
-                                            >|key: ReadSignal<ObjectId>|
-                                                <TerminalRow key table />
-                                            </VirtualList>
-                                        </Show>
-                                        <Show condition={wheel}>
-                                            <Interactive
-                                                on_wheel={beui::unstyled::gestures::scroll_wheel(None, wheeled.clone())}
-                                            >
-                                                <VirtualList
-                                                    keys={screen_keys}
-                                                    item_size=line_height
-                                                    text={move |key: ObjectId| table.text(key)}
-                                                >|key: ReadSignal<ObjectId>|
-                                                    <TerminalRow key table />
-                                                </VirtualList>
-                                            </Interactive>
-                                        </Show>
-                                    </List>
-                                </Interactive>
-                            </SelectableText>
-                        </Frame>
-                    </Scroll>
+    let size_held = create_signal(Vec2::ZERO);
+    let size = size_held.read_only();
+    let measured = create_memo(move || cell().unwrap_or(Vec2::new(7.0, 15.0)));
+    create_effect(move || {
+        let size = size.get();
+        let inset = 2.0 * padding.get();
+        let Some(cell) = cell() else {
+            return;
+        };
+        let fit = Fit {
+            cols: ((size.x - inset) / cell.x).floor().max(1.0) as u16,
+            rows: ((size.y - inset) / cell.y).floor().max(1.0) as u16,
+        };
+        untrack(|| on_fit.call(fit));
+    });
+    let line_height = create_memo(move || measured.get().y);
+    let spill = Rc::clone(&spill);
+    let wheeled = move |gesture: ScrollGesture| {
+        let cell = measured.get_untracked();
+        let lines = spill.get() - gesture.delta.y / cell.y;
+        let whole = lines.trunc();
+        spill.set(lines - whole);
+        if whole == 0.0 {
+            return;
+        }
+        on_wheel.call(TerminalWheel {
+            lines: whole as i16,
+            col: (gesture.local.x / cell.x).max(0.0) as u16,
+            row: (gesture.local.y / cell.y).max(0.0) as u16,
+        });
+    };
+    let built = view! {
+        <Frame fill={ColorRole::custom(background)}>
+            <Scroll follow_end=true api>
+                <Frame padding=PADDING>
+                    <SelectableText copy_key={Some(COPY_KEY)} select_all_key=None>
+                        <Interactive
+                            focusable=true
+                            @node_ref=&focus
+                            @test_id={"terminal.screen"}
+                            claims_touch=false
+                            clipboard_keys={input}
+                            on_press={move |_: PointerPress| {
+                                if let Some(node) = focus.try_get() {
+                                    node.focus();
+                                }
+                            }}
+                            on_text={move |text: String| typed(TerminalInput::Key(text_event(&text)))}
+                            on_key={move |press: KeyPress| {
+                                if !press.pressed || !input.get_untracked() {
+                                    return false;
+                                }
+                                let Some(key) = key_event(press) else {
+                                    return false;
+                                };
+                                typed(TerminalInput::Key(key));
+                                true
+                            }}
+                            pastes
+                            on_paste={move |pasted: Pasted| {
+                                if let Pasted::Text(text) = pasted {
+                                    typed(TerminalInput::Paste(text));
+                                }
+                            }}
+                        >
+                            <List spacing=Space::None>
+                                <Show condition={scrolling}>
+                                    <VirtualList
+                                        keys
+                                        item_size=line_height
+                                        text={move |key: ObjectId| table.text(key)}
+                                    >|key: ReadSignal<ObjectId>|
+                                        <TerminalRow key table />
+                                    </VirtualList>
+                                </Show>
+                                <Show condition={wheel}>
+                                    <Interactive
+                                        on_wheel={beui::unstyled::gestures::scroll_wheel(None, wheeled.clone())}
+                                    >
+                                        <VirtualList
+                                            keys={screen_keys}
+                                            item_size=line_height
+                                            text={move |key: ObjectId| table.text(key)}
+                                        >|key: ReadSignal<ObjectId>|
+                                            <TerminalRow key table />
+                                        </VirtualList>
+                                    </Interactive>
+                                </Show>
+                            </List>
+                        </Interactive>
+                    </SelectableText>
                 </Frame>
-            }
-        }</LayoutBuilder>
-    }
+            </Scroll>
+        </Frame>
+    };
+    let size_measured = measure(built);
+    create_effect(move || {
+        if let Some(rect) = size_measured.get() {
+            size_held.set(rect.size());
+        }
+    });
+    built
 }
 
 #[component]

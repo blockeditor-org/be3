@@ -8,7 +8,7 @@ use std::time::{Duration, Instant};
 use crate::color::{Color32, format_hex};
 use crate::font::{FontFamily, FontId, Galley, TextLayout};
 use crate::font::{Overflow, TextAlign, WrapAt};
-use crate::geometry::{Pos2, Rect, Vec2, pos2};
+use crate::geometry::{Pos2, Rect, Vec2, pos2, vec2};
 use crate::painter::Painter;
 
 use crate::child_list::{ChildHost, ChildItem, ChildList, NodeChildren};
@@ -18,6 +18,7 @@ use crate::rich::{
     CaretHandle, OBJECT, Piece, RichLayout, RichOptions, Shaper, SpanBackground, SpanStyle,
     TextCaret, TextGlyph, TextMark, handle_shape,
 };
+pub use beui_types::text::LineBox;
 
 pub const DEFAULT_FONT_SIZE: f32 = 14.0;
 pub const CARET_BLINK: Duration = Duration::from_millis(530);
@@ -1262,12 +1263,21 @@ impl Document {
         &self.arena.get_as::<TextNode>(text).carets
     }
 
-    pub fn text_geometry(&self, text: NodeOf<TextNode>) -> TextGeometry {
-        TextGeometry {
-            node: text.id(),
-            placed: Rc::clone(&self.arena.get_as::<TextNode>(text).placed),
-            rects: Rc::clone(&self.rects),
-        }
+    pub fn text_geometry(&self, text: NodeOf<TextNode>) -> Option<TextGeometry> {
+        let laid = self.rects.placed(&text.id())?;
+        let node = self.arena.get_as::<TextNode>(text);
+        let placed = node.placed.borrow();
+        let placed = placed.as_ref()?;
+        let shift = laid.rect.min - placed.rect.min + placed.origin.to_vec2();
+        let space = self.rects.transform(laid.space);
+        Some(TextGeometry {
+            transform: SpaceTransform {
+                offset: space.offset + shift * space.scale,
+                scale: space.scale,
+            },
+            layout: Rc::clone(&placed.layout),
+            len: node.content.len(),
+        })
     }
 
     pub fn text_caret_rect(
@@ -1276,20 +1286,16 @@ impl Document {
         index: usize,
         width: f32,
     ) -> Option<Rect> {
-        self.text_geometry(text).caret_rect(index, width)
+        self.text_geometry(text)?.caret_rect(index, width)
     }
 
     pub fn text_index_at(&self, text: NodeOf<TextNode>, pos: Pos2) -> Option<usize> {
-        let index = self.text_geometry(text).index_at(pos)?;
+        let index = self.text_geometry(text)?.index_at(pos)?;
         Some(index.min(self.text(text).len()))
     }
 
-    pub fn text_inline_at(&self, text: NodeOf<TextNode>, pos: Pos2) -> Option<usize> {
-        self.text_geometry(text).inline_at(pos)
-    }
-
     pub fn text_layout(&self, text: NodeOf<TextNode>) -> Option<Rc<RichLayout>> {
-        Some(self.text_geometry(text).placement()?.1)
+        Some(Rc::clone(self.text_geometry(text)?.layout()))
     }
 
     pub fn create_text_item(&mut self) -> NodeOf<TextItemNode> {
@@ -1321,50 +1327,66 @@ impl Document {
 
 #[derive(Clone)]
 pub struct TextGeometry {
-    node: NodeId,
-    placed: Rc<RefCell<Option<Placed>>>,
-    rects: Rc<Rects>,
+    transform: SpaceTransform,
+    layout: Rc<RichLayout>,
+    len: usize,
+}
+
+impl PartialEq for TextGeometry {
+    fn eq(&self, other: &Self) -> bool {
+        self.transform == other.transform
+            && self.len == other.len
+            && Rc::ptr_eq(&self.layout, &other.layout)
+    }
+}
+
+impl std::fmt::Debug for TextGeometry {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("TextGeometry")
+            .field("bounds", &self.bounds())
+            .field("len", &self.len)
+            .finish()
+    }
 }
 
 impl TextGeometry {
-    fn placement(&self) -> Option<(SpaceTransform, Rc<RichLayout>)> {
-        let laid = self.rects.placed(&self.node)?;
-        let placed = self.placed.borrow();
-        let placed = placed.as_ref()?;
-        let shift = laid.rect.min - placed.rect.min + placed.origin.to_vec2();
-        let space = self.rects.transform(laid.space);
-        let transform = SpaceTransform {
-            offset: space.offset + shift * space.scale,
-            scale: space.scale,
-        };
-        Some((transform, Rc::clone(&placed.layout)))
-    }
-
-    pub fn rect(&self) -> Option<Rect> {
-        self.rects.get(&self.node)
+    pub fn bounds(&self) -> Rect {
+        self.transform
+            .rect(Rect::from_min_size(Pos2::ZERO, self.layout.size))
     }
 
     pub fn scale(&self) -> f32 {
-        self.rects.scale_of(&self.node)
-    }
-
-    pub fn bounds(&self) -> Option<Rect> {
-        let (transform, layout) = self.placement()?;
-        Some(transform.rect(Rect::from_min_size(Pos2::ZERO, layout.size)))
+        self.transform.scale
     }
 
     pub fn caret_rect(&self, index: usize, width: f32) -> Option<Rect> {
-        let (transform, layout) = self.placement()?;
-        Some(transform.rect(layout.caret_rect(index, width)))
+        Some(self.transform.rect(self.layout.caret_rect(index, width)))
     }
 
     pub fn index_at(&self, pos: Pos2) -> Option<usize> {
-        let (transform, layout) = self.placement()?;
-        Some(layout.index_at(transform.local_pos(pos)))
+        Some(self.layout.index_at(self.transform.local_pos(pos)))
     }
 
     pub fn inline_at(&self, pos: Pos2) -> Option<usize> {
-        let (transform, layout) = self.placement()?;
-        layout.inline_at(transform.local_pos(pos))
+        self.layout.inline_at(self.transform.local_pos(pos))
+    }
+
+    pub fn lines(&self) -> Vec<LineBox> {
+        self.layout
+            .lines
+            .iter()
+            .map(|line| LineBox {
+                bytes: line.range.clone(),
+                rect: self.transform.rect(Rect::from_min_size(
+                    pos2(line.left, line.top),
+                    vec2(line.width, line.height),
+                )),
+                baseline: self.transform.pos(pos2(0.0, line.top + line.baseline)).y,
+            })
+            .collect()
+    }
+
+    pub fn layout(&self) -> &Rc<RichLayout> {
+        &self.layout
     }
 }

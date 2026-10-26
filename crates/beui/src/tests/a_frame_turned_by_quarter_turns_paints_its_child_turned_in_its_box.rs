@@ -6,28 +6,25 @@ use beui_core::display::flatten;
 use beui_core::painter::Shape;
 
 #[test]
-fn a_turned_child_paints_turned_about_the_middle_of_its_box() {
+fn a_frame_turned_by_quarter_turns_paints_its_child_turned_in_its_box() {
     let _root = crate::reactive::RootScope::new();
     const MARK: Color32 = Color32::from_rgb(200, 30, 90);
     let turn = NodeRef::new();
     let quarters = create_signal(1u8);
     let document = build_node(move || {
+        let angle = create_memo(move || f32::from(quarters.get()) * std::f32::consts::FRAC_PI_2);
         view! {
             <List spacing=0.0 align=Align::Start>
-                <Turn @node_ref=&turn quarter_turns={quarters}>
-                    <Frame width=40.0 height=20.0 fill=MARK radius=0.0 />
-                </Turn>
+                <Frame @node_ref=&turn rotate={angle}>
+                    <Frame width=40.0 height=40.0 fill=MARK radius=0.0 />
+                </Frame>
             </List>
         }
     });
     let mut harness = Harness::new(document);
     let output = harness.frame(Vec::new());
     let turned = harness.rect(turn.get());
-    assert_eq!(
-        turned.size(),
-        vec2(20.0, 40.0),
-        "a quarter turn stands it up"
-    );
+    assert_eq!(turned.size(), vec2(40.0, 40.0), "a turn keeps the box");
     let painted = |output: &crate::FrameOutput| {
         flatten(&output.main().layers)
             .iter()
@@ -54,7 +51,7 @@ fn a_turned_child_paints_turned_about_the_middle_of_its_box() {
 
     with_reactive_scope(harness.document_mut(), move || quarters.set(2));
     let output = harness.frame(Vec::new());
-    assert_eq!(harness.rect(turn.get()).size(), vec2(40.0, 20.0));
+    assert_eq!(harness.rect(turn.get()).size(), vec2(40.0, 40.0));
     let (bounds, angle) = painted(&output);
     assert!(
         (angle - std::f32::consts::PI).abs() < 1e-6,

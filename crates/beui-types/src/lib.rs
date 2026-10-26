@@ -30,7 +30,7 @@ pub use layout::{
     Sizing, Track,
 };
 pub use text::{
-    CaretHandle, FontFamily, FontId, Overflow, SpanBackground, SpanStyle, TextAlign, TextCaret,
-    TextGlyph, TextMark, WrapAt,
+    CaretHandle, FontFamily, FontId, LineBox, Overflow, SpanBackground, SpanStyle, TextAlign,
+    TextCaret, TextGlyph, TextMark, WrapAt,
 };
 pub use window::SystemBars;

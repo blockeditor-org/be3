@@ -5,7 +5,7 @@ use crate::reactive::*;
 use crate::unstyled::Scroll;
 
 #[test]
-fn a_placement_built_inside_a_scroll_follows_it_without_laying_its_content_out_again() {
+fn a_measured_row_inside_a_scroll_follows_it_without_laying_its_content_out_again() {
     let _root = crate::reactive::RootScope::new();
     let seen = create_signal(Rect::NOTHING);
     let document = build_node(move || {
@@ -32,7 +32,7 @@ fn a_placement_built_inside_a_scroll_follows_it_without_laying_its_content_out_a
     assert_eq!(
         seen.get_untracked().top(),
         50.0,
-        "a row built from its placement hears where its scroll moved it"
+        "a measured row hears where its scroll moved it"
     );
     let latest = &harness.document().performance().latest;
     assert_eq!(
@@ -41,24 +41,23 @@ fn a_placement_built_inside_a_scroll_follows_it_without_laying_its_content_out_a
     );
     assert!(
         latest.work.placed < 20,
-        "the rows under the placements are not laid out again, but {} nodes were",
+        "the measured rows are not laid out again, but {} nodes were",
         latest.work.placed
     );
 }
 
 #[component]
 fn Row(watched: bool, seen: Signal<Rect>) -> NodeId {
-    view! {
-        <PlacementBuilder>|rect: ReadSignal<Rect>| {
-            create_effect(move || {
-                let placed = rect.get();
-                if watched {
-                    seen.set(placed);
-                }
-            });
-            view! {
-                <Frame height=40.0 fill=Color32::WHITE radius=0.0 />
-            }
-        }</PlacementBuilder>
-    }
+    let row = view! {
+        <Frame height=40.0 fill=Color32::WHITE radius=0.0 />
+    };
+    let measured = measure(row);
+    create_effect(move || {
+        if let Some(placed) = measured.get()
+            && watched
+        {
+            seen.set(placed);
+        }
+    });
+    row
 }

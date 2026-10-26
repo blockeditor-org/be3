@@ -199,13 +199,20 @@ impl SelectableState {
 
     fn caret_at(&self, pos: Pos2) -> Option<Caret> {
         let items = self.items();
-        let placed = placements();
         let nearest = Self::candidates(&items)
             .into_iter()
-            .filter_map(|candidate| Some((distance(placed.rect(candidate.text)?, pos), candidate)))
+            .filter_map(|candidate| {
+                Some((
+                    distance(measure(candidate.text).get_untracked()?, pos),
+                    candidate,
+                ))
+            })
             .min_by(|(left, _), (right, _)| left.total_cmp(right))?
             .1;
-        let index = nearest.text.text_index_at(pos)?;
+        let index = measure_text(nearest.text)
+            .get_untracked()?
+            .index_at(pos)?
+            .min(nearest.text.text().len());
         Some(Caret {
             spot: nearest.spot,
             index,
@@ -255,12 +262,14 @@ impl SelectableState {
 
     fn caret_rect(&self, caret: &Caret) -> Option<Rect> {
         let (text, index) = Self::resolve(caret)?;
-        text.caret_rect(index, self.0.value().caret_width.get())
+        measure_text(text)
+            .get_untracked()?
+            .caret_rect(index, self.0.value().caret_width.get())
     }
 
     fn caret_scale(caret: &Caret) -> f32 {
         Self::resolve(caret)
-            .and_then(|(text, _)| text.text_geometry())
+            .and_then(|(text, _)| measure_text(text).get_untracked())
             .map_or(1.0, |geometry| geometry.scale())
     }
 
@@ -638,7 +647,6 @@ impl SelectableState {
             return String::new();
         };
         let (_, _, from, to) = &ordered;
-        let placed = placements();
         let mut copied = String::new();
         let mut above: Option<Option<Rect>> = None;
         let mut join = |copied: &mut String, rect: Option<Rect>| {
@@ -662,7 +670,7 @@ impl SelectableState {
                     }
                     join(
                         &mut copied,
-                        Some(placed.rect(*text).unwrap_or(Rect::NOTHING)),
+                        Some(measure(*text).get_untracked().unwrap_or(Rect::NOTHING)),
                     );
                     copied.push_str(slice(&text.text(), range.start, range.end));
                 }

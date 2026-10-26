@@ -353,68 +353,73 @@ fn page(state: State, theme: &Theme, geometry: &HexGeometry, size: Vec2) -> Page
 
 #[component]
 pub(crate) fn HexView(state: State) -> NodeId {
-    view! {
-        <LayoutBuilder>|size: ReadSignal<Vec2>| {
-            let scale = pixels_per_point();
-            let theme = use_theme();
-            let geometry = create_memo(move || {
-                scale.get();
-                let char_width = layout_text("0", FontId::monospace(TEXT_SIZE), TextLayout::DEFAULT)
-                    .map_or(TEXT_SIZE * 0.6, |galley| galley.size().x)
-                    .max(1.0);
-                HexGeometry::new(char_width)
-            });
-            let content = state.text.content();
-            let rows = create_memo(move || {
-                content.get();
-                state.text.bytes().len().div_ceil(BYTES_PER_ROW).max(1)
-            });
-            let content_size = create_memo(move || {
-                let available = size.get();
-                Vec2::new(
-                    (geometry.get().total_width + PADDING.x * 2.0).max(available.x),
-                    (rows.get() as f32 * ROW_HEIGHT + PADDING.y * 2.0).max(available.y),
-                )
-            });
-            let width = create_memo(move || Size::Custom(content_size.get().x));
-            let height = create_memo(move || Size::Custom(content_size.get().y));
-            let drawn = create_memo(move || {
-                content.get();
-                state.text.cursors().get();
-                page(state, &theme.get(), &geometry.get(), content_size.get())
-            });
-            let draw: Prop<Draw> = Prop::dynamic(move || drawn.get().draw());
+    let size_held = create_signal(Vec2::ZERO);
+    let size = size_held.read_only();
+    let scale = pixels_per_point();
+    let theme = use_theme();
+    let geometry = create_memo(move || {
+        scale.get();
+        let char_width = layout_text("0", FontId::monospace(TEXT_SIZE), TextLayout::DEFAULT)
+            .map_or(TEXT_SIZE * 0.6, |galley| galley.size().x)
+            .max(1.0);
+        HexGeometry::new(char_width)
+    });
+    let content = state.text.content();
+    let rows = create_memo(move || {
+        content.get();
+        state.text.bytes().len().div_ceil(BYTES_PER_ROW).max(1)
+    });
+    let content_size = create_memo(move || {
+        let available = size.get();
+        Vec2::new(
+            (geometry.get().total_width + PADDING.x * 2.0).max(available.x),
+            (rows.get() as f32 * ROW_HEIGHT + PADDING.y * 2.0).max(available.y),
+        )
+    });
+    let width = create_memo(move || Size::Custom(content_size.get().x));
+    let height = create_memo(move || Size::Custom(content_size.get().y));
+    let drawn = create_memo(move || {
+        content.get();
+        state.text.cursors().get();
+        page(state, &theme.get(), &geometry.get(), content_size.get())
+    });
+    let draw: Prop<Draw> = Prop::dynamic(move || drawn.get().draw());
 
-            let cx = HexSurface {
-                state,
-                geometry,
-                rows,
-            };
-            view! {
-                <Frame fill=ColorRole::Surface>
-                    <Scroll>
-                        <Interactive
-                            focusable=true
-                            on_key={move |press: KeyPress| key(state, press)}
-                            on_text={move |typed: String| type_text(state, &typed)}
-                            cursor=CursorIcon::Text
-                            on_press={move |event: PointerPress| hex_press(cx, event)}
-                            on_drag={move |event: PointerPress| hex_drag(cx, event)}
-                            on_active_change={move |active: bool| {
-                                if !active {
-                                    state.inner().hex_selection_anchor.set(None);
-                                }
-                            }}
-                        >
-                            <Frame width=width height=height>
-                                <Drawing draw={draw} />
-                            </Frame>
-                        </Interactive>
-                    </Scroll>
-                </Frame>
-            }
-        }</LayoutBuilder>
-    }
+    let cx = HexSurface {
+        state,
+        geometry,
+        rows,
+    };
+    let built = view! {
+        <Frame fill=ColorRole::Surface>
+            <Scroll>
+                <Interactive
+                    focusable=true
+                    on_key={move |press: KeyPress| key(state, press)}
+                    on_text={move |typed: String| type_text(state, &typed)}
+                    cursor=CursorIcon::Text
+                    on_press={move |event: PointerPress| hex_press(cx, event)}
+                    on_drag={move |event: PointerPress| hex_drag(cx, event)}
+                    on_active_change={move |active: bool| {
+                        if !active {
+                            state.inner().hex_selection_anchor.set(None);
+                        }
+                    }}
+                >
+                    <Frame width=width height=height>
+                        <Drawing draw={draw} />
+                    </Frame>
+                </Interactive>
+            </Scroll>
+        </Frame>
+    };
+    let size_measured = measure(built);
+    create_effect(move || {
+        if let Some(rect) = size_measured.get() {
+            size_held.set(rect.size());
+        }
+    });
+    built
 }
 
 #[derive(Clone, Copy)]

@@ -613,9 +613,9 @@ need:
 - **Need new behavior?** Add an unstyled component composed from base
   components.
 - **Tempted to add a base component?** Almost always, add an unstyled one
-  instead. The base layer is small on purpose — `Frame`, `List`, `Spacer`, `Layers`, `FirstFit`,
+  instead. The base layer is small on purpose — `Frame`, `List`, `Spacer`, `Layers`,
   `Grid`, `Text`, `Offset`, `VirtualList`, `Canvas`, `Drawing`, `Overlay`, `Interactive`,
-  `Portal`, `Turn` and `Root` — and it stays small because most things are
+  `Portal` and `Root` — and it stays small because most things are
   compositions of those. `unstyled::Picture` is one: a `Drawing` with a size, and
   `Window` (`beui_view::window`, re-exported as `beui::Window`) is another: an
   `Overlay` given a `window` spec. Back is a hook, `on_back`, not a node, and
@@ -716,10 +716,10 @@ baseline, taking no room, the way a text area shows a whitespace marker over a
 real space) and `carets` in front of the text, blinking ones included - byte
 ranges over the joined content - and a `TextItem` given `at` is placed at that
 index as if it were a caret instead of in the flow, which is how something
-floats beside a position in the text. `Document::text_geometry` answers where an index is and which index is
-under a point from the node's last layout, without a document installed, and
-`text_bounds(node)` is a signal of where its laid-out text reaches (its natural
-size, not the rect it was given), written after each layout that moves it.
+floats beside a position in the text. `measure_text(node)` answers where an index is and which index is
+under a point from the node's last layout (see "Measurement" below), and its
+`bounds()` is where its laid-out text reaches (its natural size, not the rect
+it was given).
 `unstyled::TextArea` is built from exactly this: a row per document line in a
 `VirtualList`, each a `ForEach` of the row's spans, a gutter of `Text`s beside
 it, and list markers, voids, embedded widgets and the caret's anchor as
@@ -914,12 +914,12 @@ so a box sized by what it holds can still scroll once it is squeezed. Without
 except when it is measured with no limit along it, as a `Percent` child is
 inside a box sized by its content (a fitted sheet): then it measures as long as
 its child, since nothing else could give it a length. Rows far
-outside its viewport are culled like any other node out of sight. `Turn`
-paints its child turned clockwise by `quarter_turns` about the middle of its box, which
-takes the child's size with width and height swapped for an odd number of turns. Pointer
+outside its viewport are culled like any other node out of sight. `Frame`'s
+`rotate` paints its child turned about the middle of its box, which it keeps. Pointer
 input and the accessibility tree still see the child unturned, so it is for pictures, such
-as a preview of a turned screen, not for controls; a turn that keeps the box is `Frame`'s
-`rotate`. `VirtualList` is an ordinary box that stands for
+as a preview of a turned screen, not for controls. Nothing swaps a box's width and
+height for a quarter turn any more; turn a square box, as the display settings'
+rotation tiles do. `VirtualList` is an ordinary box that stands for
 one item per key, each of an estimated `item_size`, and builds only the ones its slice of
 the viewport reaches (see [Long lists](#long-lists)).
 `Scroll` takes a `direction`, so the same tag is a
@@ -987,7 +987,7 @@ A `TextInput` face gets `clear` and `copy` in its `TextInputHandle`, so
 `styled::TextInput`'s `clearable` and `copyable` buttons only draw them.
 Nothing measures text off the tree: a `TextArea` reports the size its laid-out
 rows reach through `on_content_size` (padding included, read from the rows'
-`text_bounds` and divided by the scale of a scaled space, so it is in the
+`measure_text(..)` bounds and divided by the scale of a scaled space, so it is in the
 area's own units), and a caller sizes a box from that. The infinite canvas grows a
 text entity this way while it is edited, and draws each text and label as a
 rich `styled::TextArea` over a `LiveText` in the entity's scaled item, the same area whether or not it is
@@ -1257,8 +1257,8 @@ maximum fills the space it is offered up to it.
 Layout already skips the work for nodes far from the view. Every node is
 still measured, since sizes need them all, but `layout::layout` *culls* a node
 whose rect ends more than `CULLING_MARGIN` outside the visible part of its
-parent's painter: it keeps its rect, so `node_rect`, `reveal_node` and
-placement signals still find it, but nothing inside it is laid out, painted or
+parent's painter: it keeps its rect, so `measure`, `reveal_node` and
+`Document::node_rect` still find it, but nothing inside it is laid out, painted or
 interacted with (`Document::is_culled` says which). This holds for the children
 of any container, and the node holding the focus and its ancestors and
 descendants are never culled. A `Canvas`, which lays out only the items its
@@ -2527,7 +2527,7 @@ It fills its width unless given one; `INLINE_PROGRESS_WIDTH` is the width for
 one beside a label or a button. The sweep runs only while the bar is laid out
 and motion is animated: an indeterminate progress behind a `Show` that is
 false, in a tab nobody is looking at, or under reduced motion asks for no
-frames and rests in the middle. It uses `component_placed` (`node_placed` for a node), which works for any
+frames and rests in the middle. It uses `component_placed` (`measure(node)` being `Some` for a node), which works for any
 component that should only work while it is on screen.
 
 ### Drag and drop
@@ -4230,15 +4230,20 @@ is laid out within it, so the outer box is the only place the number belongs.
 `Container`, `narrower_than` and `shorter_than` provide container-responsive
 state; `unstyled::Stack` and `styled::Stack` switch between a row and a column
 without rebuilding their children.
-`FirstFit` is the base node for "this, or that when it does not fit": it holds
-its children built, measures each but the last at an unbounded width and lays
-out the first one that fits the width it is offered, or the last. The others
-stay unplaced, so they paint nothing and take no input or Tab stop, and its
-minimum width is the last child's. That is how `styled::Tabs` and
-`styled::SegmentedControl` become a `Select` of the same options, sharing one
-`selected`, when their row of options does not fit: from the room they are
-given, not from a breakpoint. In a horizontal row, give one a share or
-`.shrink()` so the row offers it less than its natural width when it is short of room.
+`unstyled::FirstFit` is "this, or that when it does not fit", built on
+`measure`: it holds its children built and shows one through a `Portal`. To
+choose, it tries each but the last in a horizontal `Offset` (which lays it out
+at its natural width) and measures it against the width it was laid out at,
+then shows the first that fits, or the last, at that width. It chooses again
+when the width it is shown at changes or its children change, not when a shown
+child grows; the probes take a layout each, all before the frame paints. The
+others are held by no portal, so they paint nothing and take no input or Tab
+stop. That is how `styled::Tabs` and `styled::SegmentedControl` become a
+`Select` of the same options, sharing one `selected`, when their row of
+options does not fit: from the room they are given, not from a breakpoint. It
+learns that room only from the width it is laid out at, so give it the room
+(a stretch, a share or `.shrink()` in a row): one sized to its own content
+narrows when the room does, but cannot grow back.
 
 ### One layout per frame
 
@@ -4264,21 +4269,9 @@ keeps a build confined to its node.
 Layout is a function of the tree and the constraints it is offered, so a new
 window size lays the tree out again from its root and every
 node offered the space it had keeps its measurements, placement and paint; only
-a new scale, new fonts or a new context lay out everything. Two nodes build
+a new scale, new fonts or a new context lay out everything. One node builds
 during it:
 
-- `LayoutBuilder` hands its render prop a `ReadSignal<Vec2>` of the size it is
-  laid out at, on each axis its parent bounds (an axis the parent measured it
-  unbounded on keeps its last value). When the walk reaches it at a new size it
-  writes the signal and flushes its content's scope, then lays the content out
-  in the same walk, so a builder inside the content it just built is reached
-  and built in that walk too. Measuring it never rebuilds anything: a parent
-  that tries several sizes is answered by the content built for the last size
-  it was laid out at. If the rebuilt content measures differently, its
-  ancestors are laid out again once. Use it for a component that needs the
-  space it was given, such as one that wraps text or switches between a row
-  and a column, and give it that space from its parent (a stretch, a fixed or
-  percent size) on the axis it reads.
 - `VirtualList` shows each row its window reaches that it does not have yet,
   recycling a released row or building one,
   as the walk reaches it, measures it and carries on, so one walk fills the
@@ -4288,21 +4281,72 @@ during it:
   window to take their place. When its length changed it asks with
   `Document::invalidate_after_layout` for the next layout to measure it again.
 
-`PlacementBuilder` hands its render prop a `ReadSignal<Rect>` of where it was
-placed, in the document's coordinates, written after each layout with the
-other placement reports. Use it for anything that positions content in
-document coordinates (a canvas camera, an overlay anchored at a point). Moving
-it does not lay its content out again; only the effects that read the rect run.
-Content that needs the rect to lay itself out takes a second layout. A
-component that only needs where on itself it was pressed reads the `local`
-position pointer events carry instead.
+### Measurement
+
+Where a node was laid out is asked one way, the same on every core
+(`beui-view/src/measure.rs`, re-exported by `beui::reactive`):
+
+```rust
+pub fn measure(node: NodeId) -> ReadSignal<Option<Rect>>;
+pub fn measure_text(node: NodeId) -> ReadSignal<Option<TextGeometry>>;
+```
+
+Both are `None` until the node is first laid out, and again once it is
+unplaced; rects are in the window's coordinates, the space `PointerPress::pos`
+is in. Each node has one signal per function, made on the first call and
+dropped with the node, so a handler may call `measure(node).get_untracked()`
+as often as it likes. `TextGeometry` is a snapshot of a `Text`'s last layout:
+`bounds()`, `caret_rect(index, width)`, `index_at(pos)`, `inline_at(pos)`,
+`lines()` (each a `LineBox` of its byte range, its rect and its baseline's y,
+in the window), and `scale()`, the scale of the space it sits in. Offsets are
+UTF-8 bytes of the text's content; a `glyphs` replacement counts as the bytes
+it replaces, an `Icon`, `Gap` or `TextItem` as nothing. `measure_text` stays
+`None` for a node that is not a `Text`.
+
+Callers must cope with `None` and with an answer that arrives a frame late:
+that is the contract the HTML core, which measures after the browser lays
+out, can keep. The native core answers in the same frame: `Document::report_laid_out`
+writes every signal that changed after each layout of `update_layout`'s loop,
+so an effect that reacts by changing the tree is laid out again before the
+frame paints, and a scroll moving a measured node only runs the effects that
+read it. `beui::testing::delay_measurement(true)` (or
+`BEUI_DELAY_MEASUREMENT=1` for a driven program) makes the native core publish
+measurements at the start of the next frame instead and ask for that frame, so
+headless tests take the late path. The beui tests named
+`..._when_measurement_comes_late` run key components both ways through
+`prompt_and_late` and check they settle alike.
+
+A component that builds from its own size measures its root after building it
+and writes a signal its content reads:
+
+```rust
+let width = create_signal(0.0);
+let columns = view! { <List direction={..}>...</List> };
+let measured = measure(columns);
+create_effect(move || {
+    if let Some(rect) = measured.get() {
+        width.set(rect.width());
+    }
+});
+columns
+```
+
+Keeping the last answer when it turns `None` keeps a hidden panel from
+rebuilding for a size of zero. Content that changes the layout from its own
+size takes one more layout per level of nesting, all in the same frame (a
+frame lays out at most eight times); give such a component its room from its
+parent on the axis it reads, since a size it decides itself is what it would
+then read. A component that only needs where on itself it was pressed reads
+the `local` position pointer events carry instead. `unstyled::Container` is
+this pattern with a context: `narrower_than` and `shorter_than` answer for the
+nearest one.
 
 The rule these rest on is the one container queries settle on: a component
 may query the space it was given, but must not be the thing that decides that
 space on the axis it queries.
 
 Everything else layout decides is told to the tree after the walk: a `Scroll`'s
-position, `component_placed`, `node_rect` and `node_placed` for watching other
+position, `component_placed`, `measure` and `measure_text` for watching other
 nodes, and `Document::on_laid_out`, the callback block-app waits for its plugins
 in. A node with something to report queues it with
 `Document::report_after_layout`, and one whose own size changed while it was
@@ -4310,8 +4354,8 @@ laid out with `Document::invalidate_after_layout`. The reports run together in
 one entry; whatever they changed is laid out again, which only walks the
 nodes that changed and their ancestors, until nothing changes, so a frame is
 never painted from a layout the tree no longer has. A frame lays out at most
-four times: when the reports after the third still change something, the
-fourth layout holds its own reports back for the next frame, the frame is
+eight times: when the reports after the seventh still change something, the
+eighth layout holds its own reports back for the next frame, the frame is
 painted from it and asks for another, and debug builds log what was still
 changing. Tests fail there instead: beui-core's own, and every test run through
 `block-ui-test`'s `DocumentTest` or `BeuiTest`, which turn on
@@ -4329,13 +4373,13 @@ hears them as well as the document's: `PointerPress`, `ScrollGesture` and
 `ZoomGesture` carry `local` and `size` beside `pos`, and a drop target's
 `DragPoint` is in its own coordinates. A component that only needs to know
 where on itself it was pressed reads those rather than its rect. `pos`, rects
-(`node_rect`, `placements().rect`) and text geometry (`TextGeometry`) are in
+(`measure`) and text geometry (`measure_text`) are in
 the window's coordinates, through every space's scale as well as its
 translation; `local`, `size` and a `hit_at` test's point are in the node's own
 layout units, so a node inside a zoomed `CanvasItem scales=true` hears a press
 the same as it would unzoomed (guides/pan_and_zoom.md). A length of the node's
 own (a padding, a radius) compared with window positions is multiplied by
-`placements().scale(node)` first.
+the space's scale first (`TextGeometry::scale()` for a text).
 
 `Document::on_interacted` runs a callback once the frame's input has been
 dispatched and before anything is laid out, for an app that wants work started
@@ -4629,10 +4673,9 @@ backend; `fix-rust-source` reports it when they do. They reach the tree they
 were built into through `beui::reactive` (`beui-view/src/nodes.rs`). What
 concerns one node is a method of the `TreeNode` trait on `NodeId`
 (`panel.focus_is_within()`, `overlay.raise_overlay()`, `offset.drive_offset(..)`,
-`text.caret_rect(..)`), which answers `None`, `false` or nothing for a node of
-another kind or one that is gone. Where nodes were laid out is a `Placements`
-handle from `placements()`, which can be kept and read later, even by a memo a
-test reads outside the document. The rest are functions: `focused_node`,
+`text.text()`), which answers `None`, `false` or nothing for a node of
+another kind or one that is gone. Where nodes were laid out is `measure(node)`
+and `measure_text(node)` (see "Measurement"). The rest are functions: `focused_node`,
 `set_focus`, `stacked_at`, `tree_local` for a value kept once per tree,
 `use_preferences()` and `use_preference_layers()` as signals,
 `use_preference_layer(source)` as a `Binding` that writes that layer, and
@@ -4935,7 +4978,7 @@ content space inside their own (`Document::enter_space`, and `Painter::shifted`
 when painting), which carries the scroll offset or the pan: scrolling or panning
 changes only that translation, so the rows keep their rects and their shapes and
 neither is laid out nor painted again. `Document::node_rect`,
-`node_rect`, `PlacementBuilder`'s rect, the rect `interact` is handed and a `CanvasView`'s
+`measure`, the rect `interact` is handed and a `CanvasView`'s
 origin are in the document's coordinates. A node that needs to know where it sits
 in them asks the painter: `painter.origin()` is where its space starts, and
 `painter.clip_rect()` is what of it is visible, in its own space. Asking either

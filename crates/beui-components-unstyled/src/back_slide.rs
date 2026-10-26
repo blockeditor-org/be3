@@ -53,7 +53,7 @@ impl Slide {
             state.position = position;
             state.direction
         };
-        let width = viewport_rect().width();
+        let width = use_viewport_size().get_untracked().x;
         self.shift.set(vec2(direction * position * width, 0.0));
         let behind = -direction * BEHIND_SHARE * (1.0 - position.clamp(0.0, 1.0)) * width;
         self.behind_shift.set(vec2(behind, 0.0));

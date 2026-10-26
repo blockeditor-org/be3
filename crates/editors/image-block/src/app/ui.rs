@@ -115,41 +115,42 @@ fn Artwork(
     image: Memo<Option<Image>>,
     thumbhash: Memo<Option<Thumbhash>>,
 ) -> NodeId {
-    view! {
-        <PlacementBuilder>|placed: ReadSignal<Rect>| {
-            let world = editor.world();
-            let placeholder = create_memo(move || {
-                thumbhash.get().map(|thumbhash| thumbhash.size())
-            });
-            let shape = create_memo(move || {
-                let Some(size) = image.get().map(|image| image.size()).or_else(|| placeholder.get()) else {
-                    return Rect::ZERO;
-                };
-                let available = world.get().unwrap_or_else(|| placed.get().size());
-                fit_content(
-                    Rect::from_min_size(Pos2::ZERO, available.max(Vec2::new(1.0, 1.0))),
-                    size,
-                )
-            });
-            let x = create_memo(move || shape.get().left());
-            let y = create_memo(move || shape.get().top());
-            let width = create_memo(move || shape.get().width());
-            let height = create_memo(move || shape.get().height());
-            view! {
-                <Canvas view={editor.canvas()}>
-                    <CanvasItem
-                        x={x}
-                        y={y}
-                        width={width}
-                        height={height}
-                        @test_id={"image.picture"}
-                    >
-                        <Picture image={image} thumbhash={thumbhash} fit=ImageFit::Fill />
-                    </CanvasItem>
-                </Canvas>
-            }
-        }</PlacementBuilder>
-    }
+    let placed_held = create_signal(Rect::ZERO);
+    let placed = placed_held.read_only();
+    let world = editor.world();
+    let placeholder = create_memo(move || thumbhash.get().map(|thumbhash| thumbhash.size()));
+    let shape = create_memo(move || {
+        let Some(size) = image
+            .get()
+            .map(|image| image.size())
+            .or_else(|| placeholder.get())
+        else {
+            return Rect::ZERO;
+        };
+        let available = world.get().unwrap_or_else(|| placed.get().size());
+        fit_content(
+            Rect::from_min_size(Pos2::ZERO, available.max(Vec2::new(1.0, 1.0))),
+            size,
+        )
+    });
+    let x = create_memo(move || shape.get().left());
+    let y = create_memo(move || shape.get().top());
+    let width = create_memo(move || shape.get().width());
+    let height = create_memo(move || shape.get().height());
+    let built = view! {
+        <Canvas view={editor.canvas()}>
+            <CanvasItem x={x} y={y} width={width} height={height} @test_id={"image.picture"}>
+                <Picture image={image} thumbhash={thumbhash} fit=ImageFit::Fill />
+            </CanvasItem>
+        </Canvas>
+    };
+    let placed_measured = measure(built);
+    create_effect(move || {
+        if let Some(rect) = placed_measured.get() {
+            placed_held.set(rect);
+        }
+    });
+    built
 }
 
 #[component]

@@ -1,6 +1,7 @@
 use super::*;
 use crate::primitives::*;
 use crate::reactive::*;
+use crate::unstyled::Container;
 
 #[derive(Clone)]
 struct Accent(Color32);
@@ -9,17 +10,17 @@ struct Accent(Color32);
 fn Provider(seen: Signal<Option<Color32>>) -> NodeId {
     provide_context(Accent(Color32::WHITE));
     view! {
-        <LayoutBuilder>|_size: ReadSignal<Vec2>| {
+        <Container>|_size: ReadSignal<Vec2>| {
             seen.set(use_context::<Accent>().map(|Accent(color)| color));
             view! {
                 <Frame height=20.0 />
             }
-        }</LayoutBuilder>
+        }</Container>
     }
 }
 
 #[test]
-fn a_layout_builders_content_reads_the_context_its_caller_provides() {
+fn a_containers_content_reads_the_context_its_caller_provides() {
     let _root = crate::reactive::RootScope::new();
     let seen = create_signal(None);
     let document = build_node(move || {

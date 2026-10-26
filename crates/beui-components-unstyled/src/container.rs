@@ -1,6 +1,5 @@
-use beui_macros::{component, view};
+use beui_macros::component;
 
-use beui_view::primitives::*;
 use beui_view::reactive::NodeId;
 use beui_view::reactive::*;
 use beui_view::types::Vec2;
@@ -10,12 +9,16 @@ pub struct ContainerSize(pub ReadSignal<Vec2>);
 
 #[component]
 pub fn Container(#[prop(children)] content: Render<ReadSignal<Vec2>>) -> NodeId {
-    view! {
-        <LayoutBuilder>|size: ReadSignal<Vec2>| {
-            provide_context(ContainerSize(size));
-            content.call(size)
-        }</LayoutBuilder>
-    }
+    let size = create_signal(Vec2::ZERO);
+    provide_context(ContainerSize(size.read_only()));
+    let node = content.call(size.read_only());
+    let measured = measure(node);
+    create_effect(move || {
+        if let Some(rect) = measured.get() {
+            size.set(rect.size());
+        }
+    });
+    node
 }
 
 pub fn container_size() -> Option<ReadSignal<Vec2>> {

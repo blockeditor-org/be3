@@ -21,6 +21,7 @@ pub mod datetime;
 pub mod dialog;
 pub mod disclosure;
 pub mod drag;
+pub mod first_fit;
 pub mod fling;
 pub mod floating;
 pub mod gestures;
@@ -100,6 +101,7 @@ pub use disclosure::{Disclosure, DisclosureApi, DisclosureHandle};
 pub use drag::{
     DRAG_PREVIEW_OFFSET, DRAG_THRESHOLD, DragHandle, Draggable, DropHandle, DropTarget,
 };
+pub use first_fit::FirstFit;
 pub use floating::{Edge, Floating};
 pub use list_row::ListRow;
 pub use menu::{

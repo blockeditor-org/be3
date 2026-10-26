@@ -10,7 +10,6 @@ pub fn measure(doc: &mut Document, painter: &Painter, id: NodeId, available: Vec
     if !doc.arena.contains(id) {
         return Vec2::ZERO;
     }
-    doc.note_offer(id, available);
     if let Some(size) = doc.measured(id, available) {
         doc.note_measured(true);
         return size;

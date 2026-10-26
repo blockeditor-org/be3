@@ -29,7 +29,7 @@ use super::rows::{
     Inline, InlineItem, Row, RowInputs, RowKey, RowOptions, SpanKind, TableColumns, build_row,
     galley, line_range, row_key, table_columns,
 };
-use super::{Context, GeometryCell, RowEntry};
+use super::{Context, GeometryCell, Held, RowEntry};
 use beui_view::types::{Align2, Extent, Sides};
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -76,8 +76,12 @@ pub(super) fn Lines(cx: Context) -> NodeId {
             </List>
         </Frame>
     };
-    let area = node_rect(canvas.get());
-    let rows = node_rect(list.get());
+    cx.held.with(|held| {
+        held.track(canvas.get());
+        held.track(list.get());
+    });
+    let area = last_rect(canvas.get());
+    let rows = last_rect(list.get());
     let content = create_memo(move || {
         let left = area.get().min.x;
         let padding = cx.padding.get();
@@ -85,7 +89,7 @@ pub(super) fn Lines(cx: Context) -> NodeId {
             .rights
             .with(|rights| rights.values().copied().reduce(f32::max))?;
         let below = bottom.get().unwrap_or(0.0);
-        let scale = scale_of(cx, canvas);
+        let scale = tracked_scale(cx.held);
         Some(Vec2::new(
             (right.max(left) - left) / scale + padding.right,
             padding.top + rows.get().height() / scale + below,
@@ -99,13 +103,39 @@ pub(super) fn Lines(cx: Context) -> NodeId {
     lines
 }
 
-fn scale_of(cx: Context, canvas: NodeRef) -> f32 {
-    canvas
-        .try_get()
-        .map_or(1.0, |canvas| {
-            cx.held.with(|held| held.placements.scale(canvas))
-        })
-        .max(f32::EPSILON)
+fn last_rect(node: NodeId) -> ReadSignal<Rect> {
+    let measured = measure(node);
+    let held = create_signal(Rect::ZERO);
+    create_effect(move || {
+        if let Some(rect) = measured.get() {
+            held.set(rect);
+        }
+    });
+    held.read_only()
+}
+
+pub(super) fn tracked_scale(held: Stored<Held>) -> f32 {
+    held.with(|held| {
+        held.rows_measured.get();
+        let texts: Vec<ReadSignal<Option<TextGeometry>>> =
+            held.texts.borrow().values().copied().collect();
+        texts
+            .into_iter()
+            .find_map(|text| text.get())
+            .map_or(1.0, |text| text.scale())
+    })
+    .max(f32::EPSILON)
+}
+
+pub(super) fn scale_of(held: &Stored<Held>) -> f32 {
+    held.with(|held| {
+        held.rows
+            .borrow()
+            .values()
+            .find_map(|entry| entry.text(held))
+            .map_or(1.0, |text| text.scale())
+    })
+    .max(f32::EPSILON)
 }
 
 #[component]
@@ -115,7 +145,7 @@ pub(super) fn SingleLine(cx: Context) -> NodeId {
     let bounds = create_signal(Rect::ZERO);
     let geometry = GeometryCell::default();
     let text = create_memo(move || {
-        let scale = scale_of(cx, canvas);
+        let scale = tracked_scale(cx.held);
         let laid = bounds.get().size() / scale;
         cx.metrics.get();
         let body = galley("", FontId::proportional(cx.font_size.get()))
@@ -144,7 +174,7 @@ pub(super) fn SingleLine(cx: Context) -> NodeId {
     let text_width = create_memo(move || text.get().x + cx.geometry.get().caret_width);
     let text_height = create_memo(move || text.get().y);
     let handles = handles_drawing(cx, model, geometry.clone(), bounds.read_only());
-    view! {
+    let built = view! {
         <Canvas @node_ref=&canvas width={canvas_width} height={canvas_height} scrolls_across=true>
             <CanvasItem x={x} y={y} width={text_width} height={text_height}>
                 <AreaText cx={cx} model={model} geometry bounds />
@@ -153,7 +183,9 @@ pub(super) fn SingleLine(cx: Context) -> NodeId {
                 <Drawing draw={handles} />
             </CanvasItem>
         </Canvas>
-    }
+    };
+    cx.held.with(|held| held.track(built));
+    built
 }
 
 fn handles_drawing(
@@ -166,6 +198,9 @@ fn handles_drawing(
     let draw = create_signal::<Draw>(Rc::new(|_: &Painter, _: Rect| {}));
     create_effect(move || {
         bounds.get();
+        let measured = geometry
+            .get()
+            .and_then(|text| Some((measure_text(text).get()?, measure(text).get()?)));
         let row = model.get();
         let color = cx.colors.get().caret;
         let caret_width = cx.geometry.get().caret_width;
@@ -175,12 +210,8 @@ fn handles_drawing(
             .iter()
             .map(|(handle, byte)| (*handle, row.to_display(*byte)))
             .collect();
-        let geometry = geometry.clone();
         draw.set_unconditionally(Rc::new(move |painter: &Painter, rect: Rect| {
-            let Some(text) = geometry.borrow().clone() else {
-                return;
-            };
-            let Some(laid) = text.rect() else {
+            let Some((text, laid)) = measured.clone() else {
                 return;
             };
             for (handle, at) in &handles {
@@ -285,7 +316,7 @@ fn AreaRow(cx: Context, line: ReadSignal<usize>) -> NodeId {
         table: create_memo(move || model.get().table.clone()),
         text: lines,
     });
-    view! {
+    let built = view! {
         <Frame @node_ref=&row>
             <List direction=beui_view::types::Direction::Horizontal spacing=0.0>
                 <Show condition={numbered}>
@@ -296,7 +327,17 @@ fn AreaRow(cx: Context, line: ReadSignal<usize>) -> NodeId {
                 <Frame @sizing=ItemSize::Percent(100.0)>{wrapped}</Frame>
             </List>
         </Frame>
-    }
+    };
+    track_row(&cx, built);
+    built
+}
+
+fn track_row(cx: &Context, row: NodeId) {
+    let held = cx.held;
+    held.with(|held| held.track(row));
+    on_cleanup(move || {
+        held.try_with(|held| held.forget(row));
+    });
 }
 
 #[component]
@@ -308,7 +349,7 @@ fn AreaText(
 ) -> NodeId {
     let row = NodeRef::new();
     register_row(&cx, || 0, &row, &geometry, &NodeRef::new(), model);
-    view! {
+    let built = view! {
         <Frame @node_ref=&row>
             <RowText
                 cx
@@ -319,7 +360,9 @@ fn AreaText(
                 on_bounds={move |laid: Rect| bounds.set(laid)}
             />
         </Frame>
-    }
+    };
+    track_row(&cx, built);
+    built
 }
 
 fn register_row(
@@ -576,15 +619,6 @@ fn RowText(
     on_bounds: Callback<Rect>,
 ) -> NodeId {
     let node = NodeRef::new();
-    let placed = component_placed();
-    create_effect(move || {
-        placed.get();
-        if text.borrow().is_none()
-            && let Some(id) = node.try_get()
-        {
-            *text.borrow_mut() = id.text_geometry();
-        }
-    });
     let keys = create_memo(move || piece_keys(&model.get()));
     let cursors = row_cursors(cx, model, layer);
     let padding = create_memo(move || match (cx.single_line, cx.prose.get()) {
@@ -716,12 +750,23 @@ fn RowText(
             </Show>
         </Text>
     };
-    if let Some(bounds) = text_bounds(shown) {
-        create_effect(move || {
-            let laid = bounds.get();
-            untrack(|| on_bounds.call(laid));
-        });
-    }
+    text.set(Some(shown));
+    let held = cx.held;
+    held.with(|held| held.track_text(shown));
+    on_cleanup(move || {
+        held.try_with(|held| held.forget(shown));
+    });
+    let measured = measure_text(shown);
+    let bounds = create_signal(Rect::ZERO);
+    create_effect(move || {
+        if let Some(geometry) = measured.get() {
+            bounds.set(geometry.bounds());
+        }
+    });
+    create_effect(move || {
+        let laid = bounds.get();
+        untrack(|| on_bounds.call(laid));
+    });
     shown
 }
 

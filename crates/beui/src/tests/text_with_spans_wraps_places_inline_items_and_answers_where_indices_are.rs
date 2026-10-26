@@ -35,7 +35,10 @@ fn text_with_spans_wraps_places_inline_items_and_answers_where_indices_are() {
         kind_of::<TextNode>(harness.document(), text.get()),
         item.get(),
     );
-    let geometry = harness.document().text_geometry(text);
+    let geometry = harness
+        .document()
+        .text_geometry(text)
+        .expect("the text is laid out");
     let placed = harness.rect(text);
 
     let layout = harness

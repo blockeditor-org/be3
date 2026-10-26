@@ -10,7 +10,7 @@ pub mod rows;
 pub mod state;
 
 use std::cell::{Cell, RefCell};
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashMap};
 use std::ops::Range;
 use std::rc::Rc;
 use std::time::Duration;
@@ -25,7 +25,6 @@ use text_editor_core::{
 use beui_macros::{component, view};
 
 use crate::{Scroll, ScrollbarStyle};
-use beui_core::base::text::TextGeometry;
 use beui_core::rich::{HANDLE_RADIUS, handle_center, toolbar_anchor};
 use beui_view::primitives::*;
 use beui_view::reactive::ImeCursor;
@@ -75,7 +74,7 @@ pub struct RemoteTextCursor {
     pub color: Color32,
 }
 
-type GeometryCell = Rc<RefCell<Option<TextGeometry>>>;
+type GeometryCell = Rc<Cell<Option<NodeId>>>;
 
 #[derive(Clone)]
 struct RowEntry {
@@ -91,21 +90,64 @@ impl RowEntry {
         self.model.get_untracked()
     }
 
-    fn rect(&self, placements: &Placements) -> Option<Rect> {
-        placements.rect(self.row.try_get()?)
+    fn rect(&self, held: &Held) -> Option<Rect> {
+        held.rect_of(self.row.try_get()?)
     }
 
-    fn text(&self) -> Option<TextGeometry> {
-        self.geometry.borrow().clone()
+    fn text(&self, held: &Held) -> Option<TextGeometry> {
+        held.text_of(self.geometry.get()?)
+    }
+
+    fn text_rect(&self, held: &Held) -> Option<Rect> {
+        held.rect_of(self.geometry.get()?)
     }
 }
 
 struct Held {
     rows: RefCell<BTreeMap<usize, RowEntry>>,
+    measured: RefCell<HashMap<NodeId, ReadSignal<Option<Rect>>>>,
+    texts: RefCell<HashMap<NodeId, ReadSignal<Option<TextGeometry>>>>,
+    rows_measured: Signal<u64>,
     registered: Cell<u64>,
-    placements: Placements,
     reveal_attempts: Cell<u8>,
     row_cache: RefCell<lines::RowCache>,
+}
+
+impl Held {
+    fn rect_of(&self, node: NodeId) -> Option<Rect> {
+        let held = self.measured.borrow().get(&node).copied();
+        let measured = held.unwrap_or_else(|| {
+            let measured = measure(node);
+            self.measured.borrow_mut().insert(node, measured);
+            measured
+        });
+        measured.get_untracked()
+    }
+
+    fn text_of(&self, node: NodeId) -> Option<TextGeometry> {
+        let held = self.texts.borrow().get(&node).copied();
+        let measured = held.unwrap_or_else(|| {
+            let measured = measure_text(node);
+            self.texts.borrow_mut().insert(node, measured);
+            measured
+        });
+        measured.get_untracked()
+    }
+
+    fn track(&self, node: NodeId) {
+        self.measured.borrow_mut().insert(node, measure(node));
+    }
+
+    fn track_text(&self, node: NodeId) {
+        self.track(node);
+        self.texts.borrow_mut().insert(node, measure_text(node));
+        self.rows_measured.update(|count| *count += 1);
+    }
+
+    fn forget(&self, node: NodeId) {
+        self.measured.borrow_mut().remove(&node);
+        self.texts.borrow_mut().remove(&node);
+    }
 }
 
 #[derive(Clone, Copy)]
@@ -199,21 +241,15 @@ impl Surface {
     }
 
     fn scale(&self) -> f32 {
-        self.state
-            .canvas()
-            .try_get()
-            .map_or(1.0, |canvas| self.held.value().placements.scale(canvas))
+        lines::scale_of(&self.held)
     }
 
     fn canvas_rect(&self) -> Option<Rect> {
-        self.held
-            .value()
-            .placements
-            .rect(self.state.canvas().try_get()?)
+        self.held.value().rect_of(self.state.canvas().try_get()?)
     }
 
     fn node_rect(&self, node: &NodeRef) -> Option<Rect> {
-        self.held.value().placements.rect(node.try_get()?)
+        self.held.value().rect_of(node.try_get()?)
     }
 
     fn row_estimate(&self) -> f32 {
@@ -238,14 +274,16 @@ impl Surface {
     fn caret_rect_at(&self, byte: usize) -> Option<Rect> {
         let entry = self.entry(self.line_of(byte))?;
         let display = entry.row().to_display(byte);
-        entry.text()?.caret_rect(display, self.caret_width())
+        entry
+            .text(&self.held.value())?
+            .caret_rect(display, self.caret_width())
     }
 
     fn estimated_y(&self, byte: usize) -> Option<f32> {
         let line = self.line_of(byte);
         let list = self.list.try_get()?;
         let canvas = self.canvas_rect()?;
-        let rect = self.held.value().placements.rect(list)?;
+        let rect = self.held.value().rect_of(list)?;
         let offset = list.row_offset(&line)?;
         Some((rect.min.y - canvas.min.y) / self.scale() + offset)
     }
@@ -255,7 +293,7 @@ impl Surface {
         let rows = held.rows.borrow();
         let placed: Vec<(Rect, &RowEntry)> = rows
             .values()
-            .filter_map(|entry| Some((entry.rect(&held.placements)?, entry)))
+            .filter_map(|entry| Some((entry.rect(&held)?, entry)))
             .collect();
         placed
             .iter()
@@ -264,11 +302,12 @@ impl Surface {
             .map(|(_, entry)| (*entry).clone())
     }
 
-    fn shifted(&self, text: &TextGeometry, pos: Pos2) -> Pos2 {
+    fn shifted(&self, entry: &RowEntry, pos: Pos2) -> Pos2 {
         if !self.single_line {
             return pos;
         }
-        let (Some(canvas), Some(laid)) = (self.canvas_rect(), text.rect()) else {
+        let (Some(canvas), Some(laid)) = (self.canvas_rect(), entry.text_rect(&self.held.value()))
+        else {
             return pos;
         };
         let wanted = canvas.min.x
@@ -280,7 +319,7 @@ impl Surface {
         let held = self.held.value();
         let rows = held.rows.borrow();
         rows.values()
-            .filter_map(|entry| entry.rect(&held.placements))
+            .filter_map(|entry| entry.rect(&held))
             .map(|rect| rect.max.y)
             .reduce(f32::max)
             .is_some_and(|bottom| pos.y > bottom)
@@ -288,15 +327,15 @@ impl Surface {
 
     fn hit(&self, pos: Pos2) -> Option<usize> {
         let entry = self.row_at(pos)?;
-        let text = entry.text()?;
-        let display = text.index_at(self.shifted(&text, pos))?;
+        let text = entry.text(&self.held.value())?;
+        let display = text.index_at(self.shifted(&entry, pos))?;
         Some(entry.row().to_source(display))
     }
 
     fn inline_at(&self, pos: Pos2) -> Option<(RowEntry, usize, InlineItem)> {
         let entry = self.row_at(pos)?;
-        let text = entry.text()?;
-        let flow = text.inline_at(self.shifted(&text, pos))?;
+        let text = entry.text(&self.held.value())?;
+        let flow = text.inline_at(self.shifted(&entry, pos))?;
         let row = entry.row();
         let index = row.flow_item(flow)?;
         let item = row.inline.get(index)?.clone();
@@ -307,7 +346,7 @@ impl Surface {
         let scale = self.scale();
         let gutter = self.gutter.get_untracked() * scale;
         let entry = self.row_at(pos)?;
-        let rect = entry.rect(&self.held.value().placements)?;
+        let rect = entry.rect(&self.held.value())?;
         if pos.x < rect.min.x || pos.x > rect.min.x + gutter {
             return None;
         }
@@ -460,9 +499,9 @@ impl Surface {
 
     fn caret_x(&self, byte: usize) -> Option<f32> {
         let entry = self.entry(self.line_of(byte))?;
-        let text = entry.text()?;
+        let text = entry.text(&self.held.value())?;
         let caret = text.caret_rect(entry.row().to_display(byte), self.caret_width())?;
-        Some((caret.min.x - text.rect()?.min.x) / text.scale())
+        Some((caret.min.x - entry.text_rect(&self.held.value())?.min.x) / text.scale())
     }
 
     fn reveal_across(&self) {
@@ -1120,368 +1159,356 @@ pub fn TextArea(
     let focus_request = focused;
     let search = completer.search.clone();
     let trigger = completer.trigger;
-    view! {
-        <LayoutBuilder>|size: ReadSignal<Vec2>|
-            <PlacementBuilder>|area: ReadSignal<Rect>| {
-                let field_placed =
-                    create_signal(None::<ReadSignal<Rect>>);
-                let placed = create_memo(move || match single_line {
-                    true => field_placed.get().map_or(Rect::ZERO, |placed| placed.get()),
-                    false => area.get(),
-                });
-                let scale = pixels_per_point();
-                let fonts = use_font_revision();
-                let scroll = create_signal(ScrollPosition::ZERO);
-                let offset = create_signal(0.0_f32);
-                let shift = create_signal(0.0_f32);
-                let focused = create_signal(false);
-                let autoscroll = create_signal(false);
-                let viewport = NodeRef::new();
-                let (outer, inner) = match single_line {
-                    true => (NodeRef::new(), viewport),
-                    false => (viewport, NodeRef::new()),
-                };
-                let masked = create_memo(move || password.get());
-                let placeholder = create_memo(move || placeholder.get());
-                let disabled = create_memo(move || disabled.get());
-                let read_only = create_memo(move || read_only.get());
-                let locked = create_memo(move || disabled.get() || read_only.get());
-                let font_size = create_memo(move || font_size.get());
-                let prose = create_memo(move || prose.get());
-                let padding = create_memo(move || padding.get());
-                let widgets = create_memo(move || widgets.get());
-                let colors = create_memo(move || colors.get());
-                let geometry = look.geometry;
-                let geometry = create_memo(move || geometry.get());
-                let remote_cursors = create_memo(move || remote_cursors.get());
-                let drop_caret = create_memo(move || drop_caret.get());
-                let text_extent = create_signal(Vec2::ZERO);
-                let view_size = create_memo(move || match single_line {
-                    true => placed.get().size(),
-                    false => size.get(),
-                });
-                let view_width = create_memo(move || view_size.get().x);
-                let client_colors = create_memo(move || client_colors.get());
-                create_effect(move || {
-                    let shown = show_runs.get();
-                    untrack(|| state.set_show_runs(shown));
-                });
+    let area_held = create_signal(Rect::ZERO);
+    let area = area_held.read_only();
+    let held = store(Held {
+        rows: RefCell::new(BTreeMap::new()),
+        measured: RefCell::default(),
+        texts: RefCell::default(),
+        rows_measured: create_signal(0),
+        registered: Cell::new(0),
+        reveal_attempts: Cell::new(0),
+        row_cache: RefCell::default(),
+    });
+    let size = create_memo(move || area.get().size() / lines::tracked_scale(held));
+    let field_placed = create_signal(None::<ReadSignal<Rect>>);
+    let placed = create_memo(move || match single_line {
+        true => field_placed.get().map_or(Rect::ZERO, |placed| placed.get()),
+        false => area.get(),
+    });
+    let scale = pixels_per_point();
+    let fonts = use_font_revision();
+    let scroll = create_signal(ScrollPosition::ZERO);
+    let offset = create_signal(0.0_f32);
+    let shift = create_signal(0.0_f32);
+    let focused = create_signal(false);
+    let autoscroll = create_signal(false);
+    let viewport = NodeRef::new();
+    let (outer, inner) = match single_line {
+        true => (NodeRef::new(), viewport),
+        false => (viewport, NodeRef::new()),
+    };
+    let masked = create_memo(move || password.get());
+    let placeholder = create_memo(move || placeholder.get());
+    let disabled = create_memo(move || disabled.get());
+    let read_only = create_memo(move || read_only.get());
+    let locked = create_memo(move || disabled.get() || read_only.get());
+    let font_size = create_memo(move || font_size.get());
+    let prose = create_memo(move || prose.get());
+    let padding = create_memo(move || padding.get());
+    let widgets = create_memo(move || widgets.get());
+    let colors = create_memo(move || colors.get());
+    let geometry = look.geometry;
+    let geometry = create_memo(move || geometry.get());
+    let remote_cursors = create_memo(move || remote_cursors.get());
+    let drop_caret = create_memo(move || drop_caret.get());
+    let text_extent = create_signal(Vec2::ZERO);
+    let view_size = create_memo(move || match single_line {
+        true => placed.get().size(),
+        false => size.get(),
+    });
+    let view_width = create_memo(move || view_size.get().x);
+    let client_colors = create_memo(move || client_colors.get());
+    create_effect(move || {
+        let shown = show_runs.get();
+        untrack(|| state.set_show_runs(shown));
+    });
 
-                let role = match single_line {
-                    true => Role::TextInput,
-                    false => Role::MultilineTextInput,
-                };
-                let accessibility = accessibility.unwrap_or_else(|| Prop::Static(Node::new(role)));
-                let accessible = state.content();
-                let moved = state.cursors();
-                let described = create_memo(
-                    move || {
-                        accessible.get();
-                        let bytes = state.bytes();
-                        if bytes.len() > ACCESSIBLE_TEXT_LIMIT {
-                            moved.get();
-                        }
-                        let caret = state.caret_indices().first().copied().unwrap_or(0);
-                        let mut node = accessibility.get();
-                        let value = String::from_utf8_lossy(&bytes[accessible_range(&bytes, caret)]).into_owned();
-                        node.set_value(match masked.get() {
-                            true => rows::mask(&value),
-                            false => value,
-                        });
-                        let placeholder = placeholder.get();
-                        if !placeholder.is_empty() {
-                            node.set_placeholder(placeholder);
-                        }
-                        match disabled.get() {
-                            true => node.set_disabled(),
-                            false => node.clear_disabled(),
-                        }
-                        match read_only.get() && !disabled.get() {
-                            true => node.set_read_only(),
-                            false => node.clear_read_only(),
-                        }
-                        node
-                    },
-                );
+    let role = match single_line {
+        true => Role::TextInput,
+        false => Role::MultilineTextInput,
+    };
+    let accessibility = accessibility.unwrap_or_else(|| Prop::Static(Node::new(role)));
+    let accessible = state.content();
+    let moved = state.cursors();
+    let described = create_memo(move || {
+        accessible.get();
+        let bytes = state.bytes();
+        if bytes.len() > ACCESSIBLE_TEXT_LIMIT {
+            moved.get();
+        }
+        let caret = state.caret_indices().first().copied().unwrap_or(0);
+        let mut node = accessibility.get();
+        let value = String::from_utf8_lossy(&bytes[accessible_range(&bytes, caret)]).into_owned();
+        node.set_value(match masked.get() {
+            true => rows::mask(&value),
+            false => value,
+        });
+        let placeholder = placeholder.get();
+        if !placeholder.is_empty() {
+            node.set_placeholder(placeholder);
+        }
+        match disabled.get() {
+            true => node.set_disabled(),
+            false => node.clear_disabled(),
+        }
+        match read_only.get() && !disabled.get() {
+            true => node.set_read_only(),
+            false => node.clear_read_only(),
+        }
+        node
+    });
 
-                let content = state.content();
-                let starts = create_memo(move || {
-                    content.get();
-                    state.with_snapshot(|snapshot| match snapshot.starts.is_empty() {
-                        true => Rc::new(vec![0]),
-                        false => Rc::clone(&snapshot.starts),
-                    })
-                });
-                let visible = create_memo(move || {
-                    content.get();
-                    let starts = starts.get();
-                    state.with_snapshot(|snapshot| {
-                        starts
-                            .iter()
-                            .enumerate()
-                            .filter(|(_, start)| !snapshot.hidden.iter().any(|range| range.contains(*start)))
-                            .map(|(line, _)| line)
-                            .collect::<Vec<usize>>()
-                    })
-                });
-                let gutter = create_memo(move || {
-                    scale.get();
-                    fonts.get();
-                    content.get();
-                    let rich = state.with_snapshot(|snapshot| snapshot.language == TextLanguage::RichText);
-                    match single_line || !line_numbers || rich {
-                        true => 0.0,
-                        false => gutter_width(starts.get().len(), font_size.get(), &geometry.get()),
-                    }
-                });
-                let composition = create_memo(move || {
-                    state.cursors().get();
-                    state.content().get();
-                    Some(Composition {
-                        range: state.with_core(|core| core.composition())?,
-                    })
-                });
-                let completion = create_memo(move || {
-                    let trigger = trigger?;
-                    state.cursors().get();
-                    state.content().get();
-                    if !focused.get() || locked.get() || state.with_core(|core| core.composition()).is_some() {
-                        return None;
-                    }
-                    query(state, trigger)
-                });
-                let completions = create_memo(move || {
-                    match (&completion.get(), &search) {
-                        (Some(query), Some(search)) => search(&query.text),
-                        _ => Vec::new(),
-                    }
-                });
-                let dismissed = create_signal(None::<usize>);
-                let completing = create_memo(move || {
-                    let Some(query) = completion.get() else {
-                        return false;
-                    };
-                    dismissed.get() != Some(query.range.start) && !completions.get().is_empty()
-                });
-                let highlighted = create_signal(0_usize);
-                create_effect(move || {
-                    match completion.get() {
-                        Some(_) => highlighted.set(0),
-                        None => dismissed.set(None),
-                    }
-                });
-                let caret_width = create_memo(move || Extent::px(geometry.get().caret_width));
-                let anchor = view! {
-                    <Frame width=caret_width />
-                };
+    let content = state.content();
+    let starts = create_memo(move || {
+        content.get();
+        state.with_snapshot(|snapshot| match snapshot.starts.is_empty() {
+            true => Rc::new(vec![0]),
+            false => Rc::clone(&snapshot.starts),
+        })
+    });
+    let visible = create_memo(move || {
+        content.get();
+        let starts = starts.get();
+        state.with_snapshot(|snapshot| {
+            starts
+                .iter()
+                .enumerate()
+                .filter(|(_, start)| !snapshot.hidden.iter().any(|range| range.contains(*start)))
+                .map(|(line, _)| line)
+                .collect::<Vec<usize>>()
+        })
+    });
+    let gutter = create_memo(move || {
+        scale.get();
+        fonts.get();
+        content.get();
+        let rich = state.with_snapshot(|snapshot| snapshot.language == TextLanguage::RichText);
+        match single_line || !line_numbers || rich {
+            true => 0.0,
+            false => gutter_width(starts.get().len(), font_size.get(), &geometry.get()),
+        }
+    });
+    let composition = create_memo(move || {
+        state.cursors().get();
+        state.content().get();
+        Some(Composition {
+            range: state.with_core(|core| core.composition())?,
+        })
+    });
+    let completion = create_memo(move || {
+        let trigger = trigger?;
+        state.cursors().get();
+        state.content().get();
+        if !focused.get() || locked.get() || state.with_core(|core| core.composition()).is_some() {
+            return None;
+        }
+        query(state, trigger)
+    });
+    let completions = create_memo(move || match (&completion.get(), &search) {
+        (Some(query), Some(search)) => search(&query.text),
+        _ => Vec::new(),
+    });
+    let dismissed = create_signal(None::<usize>);
+    let completing = create_memo(move || {
+        let Some(query) = completion.get() else {
+            return false;
+        };
+        dismissed.get() != Some(query.range.start) && !completions.get().is_empty()
+    });
+    let highlighted = create_signal(0_usize);
+    create_effect(move || match completion.get() {
+        Some(_) => highlighted.set(0),
+        None => dismissed.set(None),
+    });
+    let caret_width = create_memo(move || Extent::px(geometry.get().caret_width));
+    let anchor = view! {
+        <Frame width=caret_width />
+    };
 
-                let cx = Surface {
-                    state,
-                    single_line,
-                    line_numbers,
-                    held: store(Held {
-                        rows: RefCell::new(BTreeMap::new()),
-                        registered: Cell::new(0),
-                        placements: placements(),
-                        reveal_attempts: Cell::new(0),
-                        row_cache: RefCell::default(),
-                    }),
-                    starts,
-                    visible,
-                    widgets,
-                    client_colors,
-                    colors,
-                    geometry,
-                    composition,
-                    placeholder,
-                    font_size,
-                    prose,
-                    metrics: create_memo(move || (scale.get(), fonts.get())),
-                    gutter,
-                    padding,
-                    scroll: scroll.read_only(),
-                    offset,
-                    shift,
-                    view_width,
-                    view_height: create_memo(move || view_size.get().y),
-                    focused,
-                    keyboard: use_keyboard(),
-                    autoscroll,
-                    viewport,
-                    list: NodeRef::new(),
-                    anchor,
-                    masked,
-                    disabled,
-                    locked,
-                    remote_cursors,
-                    drop_caret,
-                    text_extent,
-                    block,
-                    selected_widget,
-                    leaf: look.leaf,
-                    marker: look.marker,
-                    line: look.line,
-                    rights: create_signal(BTreeMap::new()),
-                    on_content_size,
-                    completion,
-                    completions,
-                    completing,
-                    highlighted,
-                    dismissed,
-                    completion_layer: NodeRef::new(),
-                    on_widget_press,
-                    on_toolbar,
-                    on_submit,
-                };
-                state.publish_layout(TextAreaLayout::new(Rc::new(cx)));
+    let cx = Surface {
+        state,
+        single_line,
+        line_numbers,
+        held,
+        starts,
+        visible,
+        widgets,
+        client_colors,
+        colors,
+        geometry,
+        composition,
+        placeholder,
+        font_size,
+        prose,
+        metrics: create_memo(move || (scale.get(), fonts.get())),
+        gutter,
+        padding,
+        scroll: scroll.read_only(),
+        offset,
+        shift,
+        view_width,
+        view_height: create_memo(move || view_size.get().y),
+        focused,
+        keyboard: use_keyboard(),
+        autoscroll,
+        viewport,
+        list: NodeRef::new(),
+        anchor,
+        masked,
+        disabled,
+        locked,
+        remote_cursors,
+        drop_caret,
+        text_extent,
+        block,
+        selected_widget,
+        leaf: look.leaf,
+        marker: look.marker,
+        line: look.line,
+        rights: create_signal(BTreeMap::new()),
+        on_content_size,
+        completion,
+        completions,
+        completing,
+        highlighted,
+        dismissed,
+        completion_layer: NodeRef::new(),
+        on_widget_press,
+        on_toolbar,
+        on_submit,
+    };
+    state.publish_layout(TextAreaLayout::new(Rc::new(cx)));
 
-                if single_line {
-                    create_effect(move || {
-                        let width = text_extent.get().x;
-                        view_width.get();
-                        let room = untrack(|| cx.room());
-                        let most = (width - room).max(0.0);
-                        if shift.get_untracked() > most {
-                            shift.set(most);
-                        }
-                    });
-                }
-
-                let ime_cursor = create_memo(move || {
-                    state.cursors().get();
-                    if !focused.get() {
-                        return None;
-                    }
-                    Some(ImeCursor {
-                        node: anchor,
-                        rect: None,
-                    })
-                });
-                let ime_text = create_memo(move || {
-                    state.cursors().get();
-                    state.content().get();
-                    if !focused.get() {
-                        return None;
-                    }
-                    let surrounding = state.with_core(|core| core.ime_state())?;
-                    Some(ImeText {
-                        start: surrounding.start,
-                        text: surrounding.text,
-                        selection: surrounding.selection,
-                        composing: surrounding.composing,
-                    })
-                });
-
-                let focus_requests = state.focus_requests();
-                create_effect(move || {
-                    if focus_requests.get() > 0 {
-                        focused.set(true);
-                    }
-                });
-                create_effect(move || focused.set(focus_request.get()));
-                let content = state.content();
-                let shown = create_memo(move || {
-                    content.get();
-                    let value = String::from_utf8_lossy(&state.bytes()).into_owned();
-                    match (value.is_empty(), masked.get()) {
-                        (true, _) => placeholder.get(),
-                        (false, true) => rows::mask(&value),
-                        (false, false) => value,
-                    }
-                });
-                api.fill(TextAreaApi(Parts {
-                    cx,
-                    shown,
-                }));
-                let revealing = create_timer(move || {
-                    cx.reveal_caret();
-                    None
-                });
-                let reveals = state.reveals();
-                create_effect(move || {
-                    reveals.get();
-                    revealing.start(Duration::ZERO);
-                });
-                let hover_cursor = create_signal(CursorIcon::Text);
-                let cursor = create_memo(move || match disabled.get() {
-                    true => CursorIcon::Default,
-                    false => hover_cursor.get(),
-                });
-                let tab_stop = create_memo(move || !disabled.get());
-                let field = Field {
-                    described,
-                    frame: store(RefCell::new(frame)),
-                    inner,
-                    field_placed,
-                    cx,
-                    cursor,
-                    hover_cursor,
-                    autoscroll: autoscroll.read_only(),
-                    tab_stop,
-                    keyboard_on_focus,
-                    ime_cursor,
-                    ime_text,
-                    on_focus_change,
-                    on_hover_change,
-                    pastes_images,
-                    on_image_paste,
-                };
-                let multi_line = !single_line;
-                let width = create_memo(move || size.get().x);
-                let height = create_memo(move || size.get().y);
-                let border_color = create_memo(move || colors.get().gutter_border);
-                let border_x = create_memo(move || gutter.get() - 1.0);
-                let border_width = create_memo(move || match gutter.get() > 0.0 {
-                    true => 1.0,
-                    false => 0.0,
-                });
-                let has_menu = completion_menu.is_some();
-                let menu = create_memo(move || has_menu && completing.get());
-                if multi_line {
-                    action_scope(&outer);
-                    actions::register(state, locked, find);
-                }
-
-                view! {
-                    <Frame @node_ref=&outer>
-                        <List spacing=0.0>
-                            <Show condition={single_line}>
-                                <Editing @sizing=ItemSize::Percent(100.0) field={field} />
-                            </Show>
-                            <Show condition={multi_line}>||
-                                <Canvas
-                                    @sizing=ItemSize::Percent(100.0)
-                                    width={width}
-                                    height={height}
-                                >
-                                    <CanvasItem
-                                        x={border_x}
-                                        y=0.0
-                                        width={border_width}
-                                        height={height}
-                                    >
-                                        <Frame fill=border_color />
-                                    </CanvasItem>
-                                    <CanvasItem x=0.0 y=0.0 width={width} height={height}>
-                                        <Scroll offset={offset} scrollbar on_change={scroll}>
-                                            <Editing field={field} />
-                                        </Scroll>
-                                    </CanvasItem>
-                                </Canvas>
-                            </Show>
-                            <Show condition={menu}>|| {
-                                let menu = completion_menu
-                                    .expect("a completion menu is only shown when the area was given one");
-                                view! {
-                                    <Completions cx menu />
-                                }
-                            }</Show>
-                        </List>
-                    </Frame>
-                }
-            }</PlacementBuilder>
-        </LayoutBuilder>
+    if single_line {
+        create_effect(move || {
+            let width = text_extent.get().x;
+            view_width.get();
+            let room = untrack(|| cx.room());
+            let most = (width - room).max(0.0);
+            if shift.get_untracked() > most {
+                shift.set(most);
+            }
+        });
     }
+
+    let ime_cursor = create_memo(move || {
+        state.cursors().get();
+        if !focused.get() {
+            return None;
+        }
+        Some(ImeCursor {
+            node: anchor,
+            rect: None,
+        })
+    });
+    let ime_text = create_memo(move || {
+        state.cursors().get();
+        state.content().get();
+        if !focused.get() {
+            return None;
+        }
+        let surrounding = state.with_core(|core| core.ime_state())?;
+        Some(ImeText {
+            start: surrounding.start,
+            text: surrounding.text,
+            selection: surrounding.selection,
+            composing: surrounding.composing,
+        })
+    });
+
+    let focus_requests = state.focus_requests();
+    create_effect(move || {
+        if focus_requests.get() > 0 {
+            focused.set(true);
+        }
+    });
+    create_effect(move || focused.set(focus_request.get()));
+    let content = state.content();
+    let shown = create_memo(move || {
+        content.get();
+        let value = String::from_utf8_lossy(&state.bytes()).into_owned();
+        match (value.is_empty(), masked.get()) {
+            (true, _) => placeholder.get(),
+            (false, true) => rows::mask(&value),
+            (false, false) => value,
+        }
+    });
+    api.fill(TextAreaApi(Parts { cx, shown }));
+    let revealing = create_timer(move || {
+        cx.reveal_caret();
+        None
+    });
+    let reveals = state.reveals();
+    create_effect(move || {
+        reveals.get();
+        revealing.start(Duration::ZERO);
+    });
+    let hover_cursor = create_signal(CursorIcon::Text);
+    let cursor = create_memo(move || match disabled.get() {
+        true => CursorIcon::Default,
+        false => hover_cursor.get(),
+    });
+    let tab_stop = create_memo(move || !disabled.get());
+    let field = Field {
+        described,
+        frame: store(RefCell::new(frame)),
+        inner,
+        field_placed,
+        cx,
+        cursor,
+        hover_cursor,
+        autoscroll: autoscroll.read_only(),
+        tab_stop,
+        keyboard_on_focus,
+        ime_cursor,
+        ime_text,
+        on_focus_change,
+        on_hover_change,
+        pastes_images,
+        on_image_paste,
+    };
+    let multi_line = !single_line;
+    let width = create_memo(move || size.get().x);
+    let height = create_memo(move || size.get().y);
+    let border_color = create_memo(move || colors.get().gutter_border);
+    let border_x = create_memo(move || gutter.get() - 1.0);
+    let border_width = create_memo(move || match gutter.get() > 0.0 {
+        true => 1.0,
+        false => 0.0,
+    });
+    let has_menu = completion_menu.is_some();
+    let menu = create_memo(move || has_menu && completing.get());
+    if multi_line {
+        action_scope(&outer);
+        actions::register(state, locked, find);
+    }
+
+    let built = view! {
+        <Frame @node_ref=&outer>
+            <List spacing=0.0>
+                <Show condition={single_line}>
+                    <Editing @sizing=ItemSize::Percent(100.0) field={field} />
+                </Show>
+                <Show condition={multi_line}>||
+                    <Canvas @sizing=ItemSize::Percent(100.0) width={width} height={height}>
+                        <CanvasItem x={border_x} y=0.0 width={border_width} height={height}>
+                            <Frame fill=border_color />
+                        </CanvasItem>
+                        <CanvasItem x=0.0 y=0.0 width={width} height={height}>
+                            <Scroll offset={offset} scrollbar on_change={scroll}>
+                                <Editing field={field} />
+                            </Scroll>
+                        </CanvasItem>
+                    </Canvas>
+                </Show>
+                <Show condition={menu}>|| {
+                    let menu = completion_menu
+                        .expect("a completion menu is only shown when the area was given one");
+                    view! {
+                        <Completions cx menu />
+                    }
+                }</Show>
+            </List>
+        </Frame>
+    };
+    let area_measured = measure(built);
+    create_effect(move || {
+        if let Some(rect) = area_measured.get() {
+            area_held.set(rect);
+        }
+    });
+    built
 }
 
 #[component]
@@ -1592,20 +1619,25 @@ fn area_hit(tree: &impl Inspect, cx: &Context, pos: Pos2) -> Option<usize> {
         .iter()
         .find(|(rect, _)| pos.y < rect.max.y)
         .or(placed.last())?;
-    let display = entry.text()?.index_at(pos)?;
+    let display = entry.text(&held)?.index_at(pos)?;
     Some(entry.row().to_source(display))
 }
 
 #[component]
 fn FieldFrame(report: Signal<Option<ReadSignal<Rect>>>, children: Child) -> NodeId {
-    view! {
-        <PlacementBuilder>|placed: ReadSignal<Rect>| {
-            report.set_unconditionally(Some(placed));
-            view! {
-                <Frame>{children}</Frame>
-            }
-        }</PlacementBuilder>
-    }
+    let placed_held = create_signal(Rect::ZERO);
+    let placed = placed_held.read_only();
+    report.set_unconditionally(Some(placed));
+    let built = view! {
+        <Frame>{children}</Frame>
+    };
+    let placed_measured = measure(built);
+    create_effect(move || {
+        if let Some(rect) = placed_measured.get() {
+            placed_held.set(rect);
+        }
+    });
+    built
 }
 
 fn hover_cursor(cx: &Context, pos: Pos2) -> CursorIcon {
@@ -1657,7 +1689,7 @@ impl TextAreaApi {
                 let line = line_of(&cx.starts.get_untracked(), byte);
                 let entry = rows.get(&line)?;
                 let caret = entry
-                    .text()?
+                    .text(&held)?
                     .caret_rect(entry.row().to_display(byte), cx.caret_width())?;
                 let viewport = cx.viewport.try_get().and_then(|node| tree.node_rect(node));
                 let shown = viewport.is_none_or(|viewport| match cx.single_line {

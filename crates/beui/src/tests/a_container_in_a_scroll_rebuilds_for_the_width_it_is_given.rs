@@ -7,12 +7,12 @@ use crate::styled::Scroll;
 use crate::styled::*;
 
 #[test]
-fn a_layout_builder_in_a_scroll_rebuilds_for_the_width_it_is_given() {
+fn a_container_in_a_scroll_rebuilds_for_the_width_it_is_given() {
     let document = build_node(|| {
         view! {
             <Scroll>
                 <Frame height=900.0>
-                    <LayoutBuilder>|size: ReadSignal<Vec2>| {
+                    <Container>|size: ReadSignal<Vec2>| {
                         let wide = create_memo(move || size.get().x >= 480.0);
                         let direction = create_memo(move || match wide.get() {
                             true => Direction::Horizontal,
@@ -25,7 +25,7 @@ fn a_layout_builder_in_a_scroll_rebuilds_for_the_width_it_is_given() {
                                 <Text>"beside"</Text>
                             </List>
                         }
-                    }</LayoutBuilder>
+                    }</Container>
                 </Frame>
             </Scroll>
         }

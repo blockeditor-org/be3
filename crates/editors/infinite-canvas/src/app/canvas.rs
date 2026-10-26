@@ -25,97 +25,103 @@ const ITEM_MARGIN: f32 = 2.0;
 
 #[component]
 pub(crate) fn CanvasStage(state: CanvasState) -> NodeId {
-    view! {
-        <PlacementBuilder>|placed: ReadSignal<Rect>| {
-            let parent = state.editor().placed_content();
-            let shown = create_memo(move || match parent.get() {
-                Some(parent) => parent.intersect(placed.get()),
-                None => placed.get(),
-            });
-            create_effect(move || state.set_stage(shown.get()));
+    let placed_held = create_signal(Rect::ZERO);
+    let placed = placed_held.read_only();
+    let parent = state.editor().placed_content();
+    let shown = create_memo(move || match parent.get() {
+        Some(parent) => parent.intersect(placed.get()),
+        None => placed.get(),
+    });
+    create_effect(move || state.set_stage(shown.get()));
 
-            let view = state.editor().canvas();
-            let world = state.editor().world();
-            let camera = create_memo(move || {
-                super::state::camera_view(view.get(), world.get(), placed.get(), state.framed())
-            });
-            let ids = state.entities.ids();
-            let embedding = create_memo(move || state.entities.embedding());
-            let inset = create_memo(move || {
-                let (placed, shown) = (placed.get(), shown.get());
-                Padding::custom(Sides::new(
-                    (shown.left() - placed.left()).max(0.0),
-                    (shown.top() - placed.top()).max(0.0),
-                    (placed.right() - shown.right()).max(0.0),
-                    (placed.bottom() - shown.bottom()).max(0.0),
-                ))
-            });
-            let previewing = state.previewing();
-            let (grid, tiles) = grid_of(state, camera, shown);
-            let frames = create_memo(move || {
-                state
-                    .entities
-                    .frames()
-                    .iter()
-                    .filter(|frame| !frame.hidden)
-                    .map(|frame| entity_bounds(frame).rect())
-                    .collect::<Vec<_>>()
-            });
-            let frame_ids = create_memo(move || {
-                state
-                    .entities
-                    .frames()
-                    .iter()
-                    .filter(|frame| !frame.hidden)
-                    .map(|frame| frame.id)
-                    .collect::<Vec<_>>()
-            });
-            let outside_frames = create_memo(move || {
-                match !previewing && frames.with(|frames| !frames.is_empty()) {
-                    true => ColorRole::Dim,
-                    false => ColorRole::None,
-                }
-            });
-            view! {
-                <CanvasMenu disabled={previewing}>
-                    <Frame padding={inset} fill={outside_frames}>
-                        <CanvasSurface state={state}>
-                            <Canvas
-                                view={create_memo(move || Some(camera.get()))}
-                                on_reveal={reveal_by(state.editor())}
-                                @test_id={"infinite-canvas.canvas"}
-                            >
-                                <ForEach keys={frame_ids}>|id: Uuid| {
-                                    let camera = camera;
-                                    view! {
-                                        <FrameBackdropItem state id camera />
-                                    }
-                                }</ForEach>
-                                <ForEach keys={tiles}>|tile: GridTile|
-                                    <GridTileItem tile look={grid} frames />
-                                </ForEach>
-                                <ForEach keys={ids}>|id: Uuid|
-                                    <EntityShape state id />
-                                </ForEach>
-                                <ForEach keys={embedding}>|id: Uuid|
-                                    <EntityEmbed state id />
-                                </ForEach>
-                                <Show condition={!previewing}>
-                                    <CanvasHint state={state} camera={camera} stage={shown} />
-                                </Show>
-                                <Show condition={!previewing}>
-                                    <CanvasOverlay state={state} camera={camera} />
-                                </Show>
-                                <Show condition={!previewing}>
-                                    <LiveOverlay state={state} camera={camera} stage={shown} />
-                                </Show>
-                            </Canvas>
-                        </CanvasSurface>
-                    </Frame>
-                </CanvasMenu>
-            }
-        }</PlacementBuilder>
-    }
+    let view = state.editor().canvas();
+    let world = state.editor().world();
+    let camera = create_memo(move || {
+        super::state::camera_view(view.get(), world.get(), placed.get(), state.framed())
+    });
+    let ids = state.entities.ids();
+    let embedding = create_memo(move || state.entities.embedding());
+    let inset = create_memo(move || {
+        let (placed, shown) = (placed.get(), shown.get());
+        Padding::custom(Sides::new(
+            (shown.left() - placed.left()).max(0.0),
+            (shown.top() - placed.top()).max(0.0),
+            (placed.right() - shown.right()).max(0.0),
+            (placed.bottom() - shown.bottom()).max(0.0),
+        ))
+    });
+    let previewing = state.previewing();
+    let (grid, tiles) = grid_of(state, camera, shown);
+    let frames = create_memo(move || {
+        state
+            .entities
+            .frames()
+            .iter()
+            .filter(|frame| !frame.hidden)
+            .map(|frame| entity_bounds(frame).rect())
+            .collect::<Vec<_>>()
+    });
+    let frame_ids = create_memo(move || {
+        state
+            .entities
+            .frames()
+            .iter()
+            .filter(|frame| !frame.hidden)
+            .map(|frame| frame.id)
+            .collect::<Vec<_>>()
+    });
+    let outside_frames =
+        create_memo(
+            move || match !previewing && frames.with(|frames| !frames.is_empty()) {
+                true => ColorRole::Dim,
+                false => ColorRole::None,
+            },
+        );
+    let built = view! {
+        <CanvasMenu disabled={previewing}>
+            <Frame padding={inset} fill={outside_frames}>
+                <CanvasSurface state={state}>
+                    <Canvas
+                        view={create_memo(move || Some(camera.get()))}
+                        on_reveal={reveal_by(state.editor())}
+                        @test_id={"infinite-canvas.canvas"}
+                    >
+                        <ForEach keys={frame_ids}>|id: Uuid| {
+                            let camera = camera;
+                            view! {
+                                <FrameBackdropItem state id camera />
+                            }
+                        }</ForEach>
+                        <ForEach keys={tiles}>|tile: GridTile|
+                            <GridTileItem tile look={grid} frames />
+                        </ForEach>
+                        <ForEach keys={ids}>|id: Uuid|
+                            <EntityShape state id />
+                        </ForEach>
+                        <ForEach keys={embedding}>|id: Uuid|
+                            <EntityEmbed state id />
+                        </ForEach>
+                        <Show condition={!previewing}>
+                            <CanvasHint state={state} camera={camera} stage={shown} />
+                        </Show>
+                        <Show condition={!previewing}>
+                            <CanvasOverlay state={state} camera={camera} />
+                        </Show>
+                        <Show condition={!previewing}>
+                            <LiveOverlay state={state} camera={camera} stage={shown} />
+                        </Show>
+                    </Canvas>
+                </CanvasSurface>
+            </Frame>
+        </CanvasMenu>
+    };
+    let placed_measured = measure(built);
+    create_effect(move || {
+        if let Some(rect) = placed_measured.get() {
+            placed_held.set(rect);
+        }
+    });
+    built
 }
 
 const REVEAL_STEP: f32 = 0.35;

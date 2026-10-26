@@ -155,9 +155,9 @@ pub struct Document {
     zone: u64,
     extensions: HashMap<std::any::TypeId, Box<dyn Any>>,
     node_refs: HashMap<NodeId, Vec<Weak<Cell<Option<NodeId>>>>>,
-    placements: NodeMap<::reactive::OwnedSignal<Rect>>,
-    placed: NodeMap<::reactive::OwnedSignal<bool>>,
-    text_bounds: NodeMap<::reactive::OwnedSignal<Rect>>,
+    measured: NodeMap<::reactive::OwnedSignal<Option<Rect>>>,
+    measured_text: NodeMap<::reactive::OwnedSignal<Option<crate::base::text::TextGeometry>>>,
+    measure_pending: bool,
     component_states: HashMap<NodeId, Vec<Box<dyn Any>>>,
     component_names: HashMap<NodeId, ComponentNames>,
     pub accessibility_id: u32,
@@ -381,9 +381,9 @@ impl Document {
             zone,
             extensions: HashMap::default(),
             node_refs: HashMap::default(),
-            placements: NodeMap::default(),
-            placed: NodeMap::default(),
-            text_bounds: NodeMap::default(),
+            measured: NodeMap::default(),
+            measured_text: NodeMap::default(),
+            measure_pending: false,
             component_states: HashMap::default(),
             component_names: HashMap::default(),
             accessibility_id: accessibility::next_document_id(),
@@ -1108,9 +1108,8 @@ impl Document {
         self.forget_focus_scope(id);
         self.forget_back_gesture(id);
         self.paint_cache.borrow_mut().forget(id);
-        self.placements.remove(&id);
-        self.placed.remove(&id);
-        self.text_bounds.remove(&id);
+        self.measured.remove(&id);
+        self.measured_text.remove(&id);
         self.measurements.remove(&id);
         self.baselines.remove(&id);
         self.min_widths.remove(&id);
@@ -1784,24 +1783,6 @@ impl Document {
         }
     }
 
-    pub fn watch_placement(&mut self, id: NodeId) -> ::reactive::ReadSignal<Rect> {
-        if let Some(watched) = self.placements.get(&id) {
-            return watched.read_only();
-        }
-        let watched = ::reactive::OwnedSignal::new(self.rects.get(&id).unwrap_or(Rect::ZERO));
-        let read = watched.read_only();
-        self.placements.insert(id, watched);
-        read
-    }
-
-    pub(crate) fn watch_placement_with(
-        &mut self,
-        id: NodeId,
-        watched: ::reactive::OwnedSignal<Rect>,
-    ) {
-        self.placements.insert(id, watched);
-    }
-
     pub fn name_component(&mut self, id: NodeId, name: beui_tree::component::ComponentRecord) {
         let names = match self.component_names.remove(&id) {
             None => ComponentNames::One(name),
@@ -2112,28 +2093,89 @@ impl Document {
         self.reached_pass.insert(id, self.layout_pass);
     }
 
-    pub fn watch_text_bounds(
-        &mut self,
-        text: NodeOf<crate::base::text::TextNode>,
-    ) -> ::reactive::ReadSignal<Rect> {
-        if let Some(watched) = self.text_bounds.get(&text.id()) {
+    pub fn watch_measure(&mut self, id: NodeId) -> ::reactive::ReadSignal<Option<Rect>> {
+        if let Some(watched) = self.measured.get(&id) {
             return watched.read_only();
         }
-        let bounds = self.text_geometry(text).bounds().unwrap_or(Rect::ZERO);
-        let watched = ::reactive::OwnedSignal::new(bounds);
+        let initial = match delaying_measurement() {
+            true => {
+                self.measure_pending = true;
+                None
+            }
+            false => self.rects.get(&id),
+        };
+        let watched = ::reactive::OwnedSignal::new(initial);
         let read = watched.read_only();
-        self.text_bounds.insert(text.id(), watched);
+        self.measured.insert(id, watched);
         read
     }
 
-    pub fn watch_placed(&mut self, id: NodeId) -> ::reactive::ReadSignal<bool> {
-        if let Some(watched) = self.placed.get(&id) {
+    pub fn watch_measure_text(
+        &mut self,
+        id: NodeId,
+    ) -> ::reactive::ReadSignal<Option<crate::base::text::TextGeometry>> {
+        if let Some(watched) = self.measured_text.get(&id) {
             return watched.read_only();
         }
-        let watched = ::reactive::OwnedSignal::new(self.rects.contains_key(&id));
+        let initial = match delaying_measurement() {
+            true => {
+                self.measure_pending = true;
+                None
+            }
+            false => self.measure_text_now(id),
+        };
+        let watched = ::reactive::OwnedSignal::new(initial);
         let read = watched.read_only();
-        self.placed.insert(id, watched);
+        self.measured_text.insert(id, watched);
         read
+    }
+
+    fn measure_text_now(&self, id: NodeId) -> Option<crate::base::text::TextGeometry> {
+        let text = self.arena.kind_of::<crate::base::text::TextNode>(id)?;
+        self.text_geometry(text)
+    }
+
+    fn publish_measurements(&mut self) -> bool {
+        let rects = Rc::clone(&self.rects);
+        let moved: Vec<(::reactive::Signal<Option<Rect>>, Option<Rect>)> = self
+            .measured
+            .iter()
+            .map(|(id, watched)| (rects.get(&id), watched))
+            .filter(|(rect, watched)| watched.get_untracked() != *rect)
+            .map(|(rect, watched)| (watched.handle(), rect))
+            .collect();
+        type Texts = Vec<(
+            ::reactive::Signal<Option<crate::base::text::TextGeometry>>,
+            Option<crate::base::text::TextGeometry>,
+        )>;
+        let texts: Texts = self
+            .measured_text
+            .iter()
+            .map(|(id, watched)| (self.measure_text_now(id), watched))
+            .filter(|(geometry, watched)| watched.with_untracked(|held| held != geometry))
+            .map(|(geometry, watched)| (watched.handle(), geometry))
+            .collect();
+        if moved.is_empty() && texts.is_empty() {
+            return false;
+        }
+        crate::current::enter(self, || {
+            for (write, rect) in moved {
+                write.set(rect);
+            }
+            for (write, geometry) in texts {
+                write.set(geometry);
+            }
+        });
+        true
+    }
+
+    fn measurements_differ(&self) -> bool {
+        self.measured
+            .iter()
+            .any(|(id, watched)| watched.get_untracked() != self.rects.get(&id))
+            || self.measured_text.iter().any(|(id, watched)| {
+                watched.with_untracked(|held| *held != self.measure_text_now(id))
+            })
     }
 
     pub fn reuse_placement(
@@ -2365,43 +2407,15 @@ impl Document {
         }
         self.relay_moved_overlays();
         let reports = std::mem::take(&mut self.reports);
-        let rects = Rc::clone(&self.rects);
-        let moved: Vec<(::reactive::Signal<Rect>, Rect)> = self
-            .placements
-            .iter()
-            .filter_map(|(id, watched)| Some((rects.get(&id)?, watched)))
-            .filter(|(rect, watched)| watched.get_untracked() != *rect)
-            .map(|(rect, watched)| (watched.handle(), rect))
-            .collect();
-        let placed: Vec<(::reactive::Signal<bool>, bool)> = self
-            .placed
-            .iter()
-            .map(|(id, watched)| (rects.contains_key(&id), watched))
-            .filter(|(placed, watched)| watched.get_untracked() != *placed)
-            .map(|(placed, watched)| (watched.handle(), placed))
-            .collect();
-        let bounded: Vec<(::reactive::Signal<Rect>, Rect)> = self
-            .text_bounds
-            .iter()
-            .filter_map(|(id, watched)| {
-                let bounds = self.text_geometry(NodeOf::assumed(id)).bounds()?;
-                (watched.get_untracked() != bounds).then(|| (watched.handle(), bounds))
-            })
-            .collect();
-        if reports.is_empty() && moved.is_empty() && placed.is_empty() && bounded.is_empty() {
+        match delaying_measurement() {
+            true => self.measure_pending |= self.measurements_differ(),
+            false => {
+                self.publish_measurements();
+            }
+        }
+        if reports.is_empty() {
             return;
         }
-        crate::current::enter(self, || {
-            for (write, rect) in moved {
-                write.set(rect);
-            }
-            for (write, shown) in placed {
-                write.set(shown);
-            }
-            for (write, bounds) in bounded {
-                write.set(bounds);
-            }
-        });
         crate::current::enter(self, || {
             for report in reports {
                 report();
@@ -2498,6 +2512,17 @@ impl Document {
     }
 
     fn update_layout(&mut self, ctx: &Context, rect: Rect) -> usize {
+        if std::mem::take(&mut self.measure_pending) {
+            self.publish_measurements();
+        }
+        let passes = self.lay_out_until_settled(ctx, rect);
+        if self.measure_pending {
+            ctx.request_repaint();
+        }
+        passes
+    }
+
+    fn lay_out_until_settled(&mut self, ctx: &Context, rect: Rect) -> usize {
         let mut passes = 0;
         if self.needs_layout() {
             self.lay_out_tree(ctx, rect);
@@ -2588,11 +2613,24 @@ pub fn fail_unsettled_layout(enabled: bool) {
     FAIL_UNSETTLED_LAYOUT.store(enabled, std::sync::atomic::Ordering::Relaxed);
 }
 
+thread_local! {
+    static DELAY_MEASUREMENT: Cell<bool> =
+        Cell::new(std::env::var_os("BEUI_DELAY_MEASUREMENT").is_some_and(|value| value == "1"));
+}
+
+pub fn delay_measurement(enabled: bool) {
+    DELAY_MEASUREMENT.set(enabled);
+}
+
+fn delaying_measurement() -> bool {
+    DELAY_MEASUREMENT.get()
+}
+
 fn failing_unsettled_layout() -> bool {
     cfg!(test) || FAIL_UNSETTLED_LAYOUT.load(std::sync::atomic::Ordering::Relaxed)
 }
 
-const LAYOUTS_PER_FRAME: usize = 4;
+const LAYOUTS_PER_FRAME: usize = 8;
 
 impl Document {
     fn lay_out_boundaries(&mut self, ctx: &Context, rects: &Rects) {

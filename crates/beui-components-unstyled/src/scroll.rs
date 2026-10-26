@@ -879,8 +879,8 @@ fn across(direction: &Prop<Direction>) -> Memo<Direction> {
 
 pub(crate) fn under(node: &NodeRef, pos: Pos2) -> bool {
     node.try_get().is_some_and(|node| {
-        placements()
-            .rect(node)
+        measure(node)
+            .get_untracked()
             .is_some_and(|rect| rect.contains(pos))
     })
 }

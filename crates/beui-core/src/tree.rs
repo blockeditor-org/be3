@@ -11,7 +11,6 @@ use beui_tree::reactive::{
 
 use crate::base::Sizing;
 use crate::base::canvas::CanvasNode;
-use crate::base::first_fit::FirstFitNode;
 use crate::base::grid::{GridItem, GridNode};
 use crate::base::layers::LayersNode;
 use crate::base::list::{ListItem, ListNode};
@@ -50,7 +49,10 @@ pub fn component_node() -> crate::callback::NodeRef {
 pub fn component_placed() -> ReadSignal<bool> {
     let bindings = bindings();
     if let Some(target) = bindings.target.get() {
-        return with_document(|document| document.watch_placed(target));
+        let measured = with_document(|document| document.watch_measure(target));
+        let placed = create_signal(measured.get_untracked().is_some());
+        create_effect(move || placed.set(measured.get().is_some()));
+        return placed.read_only();
     }
     if let Some(placed) = bindings.placed.borrow().as_ref() {
         return placed.read_only();
@@ -99,8 +101,8 @@ impl ChildValue for NodeId {
             node.fill(root);
         }
         if let Some(placed) = placed {
-            let watched = with_document(|document| document.watch_placed(root));
-            scope.run(|| create_effect(move || placed.set(watched.get())));
+            let watched = with_document(|document| document.watch_measure(root));
+            scope.run(|| create_effect(move || placed.set(watched.get().is_some())));
         }
         with_document(|document| {
             document.name_component(root, component.record());
@@ -390,18 +392,6 @@ impl ParentKind for LayersNode {
 }
 
 impl BareChild for LayersNode {
-    fn bare() {}
-}
-
-impl ParentKind for FirstFitNode {
-    type Data = ();
-
-    fn item(node: NodeId, _: ()) -> NodeId {
-        node
-    }
-}
-
-impl BareChild for FirstFitNode {
     fn bare() {}
 }
 

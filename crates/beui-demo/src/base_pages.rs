@@ -3,13 +3,13 @@ use beui::KeyPress;
 use beui::Sides;
 use beui::Vec2;
 use beui::primitives::Drawing;
-use beui::primitives::FirstFit;
 use beui::primitives::Frame;
 use beui::primitives::Gap;
 use beui::primitives::Icon;
 use beui::primitives::Span;
 use beui::primitives::Text;
 use beui::primitives::{Grid, List};
+use beui::unstyled::FirstFit;
 use beui::{Align, Align2, Corners, Dismiss, Extent, Justify, Outline, Placement, Track};
 use beui::{Color32, FillRule, LineCap, LineJoin, Painter, Path, Pos2, Stroke, vec2};
 use beui::{Overflow, WrapAt};
@@ -295,7 +295,7 @@ pub(crate) fn ListsPage() -> NodeId {
             <Sample title="Grid" code={vec![TrackGrid::SOURCE, Tile::SOURCE]}>
                 <TrackGrid />
             </Sample>
-            <Sample title="LayoutBuilder" code={vec![ColumnsForWidth::SOURCE, Tile::SOURCE]}>
+            <Sample title="measure" code={vec![ColumnsForWidth::SOURCE, Tile::SOURCE]}>
                 <ColumnsForWidth />
             </Sample>
             <Sample title="FirstFit" code={vec![FittingLabels::SOURCE, Tile::SOURCE]}>
@@ -346,22 +346,26 @@ fn FittingLabels() -> NodeId {
 #[sample]
 #[component]
 fn ColumnsForWidth() -> NodeId {
-    view! {
-        <LayoutBuilder>|size: ReadSignal<Vec2>| {
-            let wide = create_memo(move || size.get().x >= 480.0);
-            let direction = create_memo(move || match wide.get() {
-                true => Direction::Horizontal,
-                false => Direction::Vertical,
-            });
-            let label = create_memo(move || format!("{:.0} wide", size.get().x));
-            view! {
-                <List direction spacing=8.0>
-                    <Tile @sizing=ItemSize::Percent(100.0) label />
-                    <Tile @sizing=ItemSize::Percent(100.0) label="Side by side from 480" />
-                </List>
-            }
-        }</LayoutBuilder>
-    }
+    let width = create_signal(0.0f32);
+    let wide = create_memo(move || width.get() >= 480.0);
+    let direction = create_memo(move || match wide.get() {
+        true => Direction::Horizontal,
+        false => Direction::Vertical,
+    });
+    let label = create_memo(move || format!("{:.0} wide", width.get()));
+    let columns = view! {
+        <List direction spacing=8.0>
+            <Tile @sizing=ItemSize::Percent(100.0) label />
+            <Tile @sizing=ItemSize::Percent(100.0) label="Side by side from 480" />
+        </List>
+    };
+    let measured = measure(columns);
+    create_effect(move || {
+        if let Some(rect) = measured.get() {
+            width.set(rect.width());
+        }
+    });
+    columns
 }
 
 #[sample]
@@ -596,7 +600,7 @@ pub(crate) fn LayeringPage() -> NodeId {
             <Sample title="Rotate" code={vec![TiltedLabel::SOURCE]}>
                 <TiltedLabel />
             </Sample>
-            <Sample title="Turn" code={vec![TurnedLabel::SOURCE]}>
+            <Sample title="Quarter turns" code={vec![TurnedLabel::SOURCE]}>
                 <TurnedLabel />
             </Sample>
             <Sample title="Fade edges" code={vec![FadedStrip::SOURCE]}>
@@ -704,6 +708,7 @@ fn TurnedLabel() -> NodeId {
     let quarters = create_signal(1u8);
     let face = theme.surface_raised;
     let ink = theme.text;
+    let angle = create_memo(move || f32::from(quarters.get()) * std::f32::consts::FRAC_PI_2);
     view! {
         <List direction=Direction::Horizontal align=Align::Center spacing=16.0>
             <Interactive
@@ -713,15 +718,17 @@ fn TurnedLabel() -> NodeId {
                     <Text color={ink}>"Turn"</Text>
                 </Frame>
             </Interactive>
-            <Turn quarter_turns={quarters}>
-                <Frame
-                    fill={theme.accent}
-                    radius={Radius::Md.px()}
-                    padding={Sides::symmetric(16.0, 10.0)}
-                >
-                    <Text color={theme.on_accent}>"Upright at no turns"</Text>
-                </Frame>
-            </Turn>
+            <Frame
+                width=96.0
+                height=96.0
+                fill={theme.accent}
+                radius={Radius::Md.px()}
+                padding={Sides::all(12.0)}
+                align=Align2::CENTER
+                rotate={angle}
+            >
+                <Text color={theme.on_accent} align=TextAlign::Center>"Upright at no turns"</Text>
+            </Frame>
         </List>
     }
 }

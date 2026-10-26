@@ -64,8 +64,13 @@ mod a_component_can_return_a_show_for_its_parent_to_lay_out;
 mod a_component_function_returns_its_base_node;
 mod a_component_that_builds_no_node_lives_as_long_as_the_scope_that_built_it;
 mod a_component_wrapping_a_node_less_component_keeps_its_scope;
+mod a_container_built_inside_another_settles_before_the_frame_paints;
+mod a_container_in_a_scroll_rebuilds_for_the_width_it_is_given;
+mod a_container_in_a_wrapping_row_builds_only_for_the_width_it_is_laid_out_at;
+mod a_containers_content_reads_the_context_its_caller_provides;
 mod a_context_menu_as_tall_as_the_window_allows_shows_every_item;
 mod a_context_menu_item_follows_the_signals_its_tag_was_written_with;
+mod a_context_menu_opens_at_the_press_when_measurement_comes_late;
 mod a_context_menu_reads_its_rows_as_named_menu_items;
 mod a_context_menu_too_long_for_the_window_stays_inside_it_and_scrolls;
 mod a_copyable_text_input_copies_from_its_button_without_selecting;
@@ -191,6 +196,7 @@ mod a_frame_places_a_smaller_child_by_its_alignment;
 mod a_frame_reports_animating_while_a_fling_glides_and_not_after;
 mod a_frame_rounds_each_corner_on_its_own;
 mod a_frame_takes_a_fraction_of_the_space_it_is_offered;
+mod a_frame_turned_by_quarter_turns_paints_its_child_turned_in_its_box;
 mod a_frame_width_bound_to_a_signal_measures_intrinsically_once_it_clears;
 mod a_frame_with_a_max_width_stops_growing_at_it_but_still_shrinks;
 mod a_fullscreen_dock_tab_comes_back_over_a_window_raised_above_it;
@@ -224,10 +230,6 @@ mod a_key_pressed_in_a_held_select_search_shows_the_keyboard;
 mod a_key_typed_before_a_click_in_one_frame_reaches_the_field_focused_before_it;
 mod a_keyed_view_rebuilds_only_when_its_key_changes;
 mod a_layer_sees_the_time_of_the_frame_it_is_in;
-mod a_layout_builder_built_inside_another_settles_in_one_layout;
-mod a_layout_builder_in_a_scroll_rebuilds_for_the_width_it_is_given;
-mod a_layout_builder_in_a_wrapping_row_builds_only_for_the_width_it_is_laid_out_at;
-mod a_layout_builders_content_reads_the_context_its_caller_provides;
 mod a_layout_put_back_from_its_snapshot_keeps_the_tabs_where_they_were;
 mod a_list_in_a_scroll_lays_out_only_the_rows_near_the_view;
 mod a_list_sizes_plain_nodes_handed_to_it_intrinsically;
@@ -238,6 +240,7 @@ mod a_long_press_in_a_text_area_selects_the_word_and_its_toolbar_steps_aside_whi
 mod a_long_press_in_a_zoomed_text_area_selects_the_word_and_its_handles_and_toolbar_follow_the_zoom;
 mod a_long_press_on_selectable_text_selects_the_word_and_its_toolbar_copies_it;
 mod a_long_text_area_only_builds_the_lines_in_view;
+mod a_measured_row_inside_a_scroll_follows_it_without_laying_its_content_out_again;
 mod a_menu_item_shows_its_icon_and_detail_and_runs_its_click_in_a_dropdown_and_a_sheet;
 mod a_menu_opened_from_a_zoomed_text_area_opens_where_it_was_asked_for;
 mod a_menu_row_with_a_submenu_shows_an_arrow_the_leaf_rows_do_not;
@@ -246,6 +249,7 @@ mod a_middle_drag_on_a_pan_zoom_in_a_scroll_pans_it_rather_than_autoscrolling;
 mod a_modal_dock_dialog_blocks_its_parent_until_it_closes;
 mod a_modal_sheet_fits_its_content_and_a_tap_above_it_closes_it;
 mod a_modal_sheet_opened_again_rests_where_it_did_the_first_time;
+mod a_modal_sheet_rests_where_it_would_when_measurement_comes_late;
 mod a_modal_sheet_slides_in_and_out;
 mod a_modal_with_nothing_to_focus_hears_escape;
 mod a_modifier_drag_moves_a_floating_window_by_its_content_or_its_tab_bar;
@@ -277,7 +281,6 @@ mod a_picture_given_a_source_paints_only_that_part_of_the_image;
 mod a_picture_paints_the_image_it_is_given;
 mod a_picture_scaled_down_never_grows_past_its_own_pixels;
 mod a_picture_shows_its_thumbhash_until_the_image_arrives;
-mod a_placement_built_inside_a_scroll_follows_it_without_laying_its_content_out_again;
 mod a_platform_keystroke_types_only_without_a_shortcut_held;
 mod a_plugin_tree_reads_as_a_pane_under_the_window;
 mod a_plugin_tree_that_is_not_a_tree_is_cut_into_one;
@@ -287,6 +290,7 @@ mod a_pointer_lock_lets_go_when_the_window_loses_focus;
 mod a_pointer_lock_reports_motion_only_while_it_holds_the_pointer;
 mod a_pointer_that_leaves_while_pressed_and_comes_back_is_not_gone_after_the_release;
 mod a_pointer_that_leaves_while_pressed_is_gone_after_the_release;
+mod a_popover_opens_beside_its_trigger_when_measurement_comes_late;
 mod a_popover_panel_stops_at_its_max_width_rather_than_spanning_the_window;
 mod a_portal_shows_a_subtree_it_does_not_own;
 mod a_press_a_catcher_declines_focuses_the_catcher_beneath;
@@ -428,7 +432,6 @@ mod a_trackpad_fling_into_the_start_bounces_without_passing_it;
 mod a_tree_given_on_open_opens_a_row_on_enter_and_a_second_click;
 mod a_tree_row_decides_which_part_of_it_is_clickable;
 mod a_tree_rows_more_button_opens_its_menu_below_itself_and_a_right_click_opens_it_too;
-mod a_turned_child_paints_turned_about_the_middle_of_its_box;
 mod a_twelve_hour_time_field_types_the_afternoon_with_a_p;
 mod a_two_finger_drag_on_the_simulated_trackpad_scrolls_smoothly;
 mod a_typed_paste_types_the_clipboard_key_by_key;
@@ -442,6 +445,7 @@ mod a_virtual_list_in_a_box_taller_than_its_rows_builds_every_row;
 mod a_virtual_list_in_a_stacked_stack_only_builds_the_items_in_view;
 mod a_virtual_list_reaches_the_end_when_rows_outgrow_their_estimate;
 mod a_virtual_list_scrolled_out_of_view_releases_its_rows;
+mod a_virtual_list_scrolled_shows_the_same_rows_when_measurement_comes_late;
 mod a_virtual_list_scrolled_to_rows_of_unestimated_heights_fills_its_window_in_one_walk;
 mod a_virtual_list_shows_new_keys_in_the_rows_that_left;
 mod a_virtual_scroll_only_builds_the_items_in_view;
@@ -525,6 +529,7 @@ mod appending_to_a_virtual_list_keeps_the_rows_it_built;
 mod arrow_and_page_keys_walk_a_calendar_by_day_week_month_and_year;
 mod arrow_down_on_a_closed_select_trigger_opens_it_and_highlights_the_first_option;
 mod arrow_keys_in_a_select_search_box_move_the_highlighted_option_without_editing_the_search_text;
+mod arrow_keys_move_a_text_area_caret_the_same_when_measurement_comes_late;
 mod arrow_keys_move_a_visible_highlight_through_an_open_context_menu;
 mod arrow_keys_pan_a_focused_pan_zoom;
 mod arrow_keys_step_a_curved_slider_evenly_along_its_track;
@@ -1036,6 +1041,38 @@ pub(crate) fn build_node(view: impl FnOnce() -> NodeId) -> Document {
             </beui_view::primitives::Root>
         }
     })
+}
+
+pub(crate) fn prompt_and_late<T>(run: impl Fn() -> T) -> (T, T) {
+    struct Prompt;
+    impl Drop for Prompt {
+        fn drop(&mut self) {
+            crate::testing::delay_measurement(false);
+        }
+    }
+    let _prompt = Prompt;
+    crate::testing::delay_measurement(false);
+    let prompt = run();
+    crate::testing::delay_measurement(true);
+    (prompt, run())
+}
+
+pub(crate) fn shown_fit(document: &Document, first_fit: NodeId) -> NodeId {
+    let mut node = first_fit;
+    while matches!(document.node_kind(node), "layers" | "portal" | "offset") {
+        node = document.children(node)[0];
+    }
+    node
+}
+
+pub(crate) fn text_rects(harness: &Harness) -> Vec<(String, Option<Rect>)> {
+    let document = harness.document();
+    let root = document.root().expect("the document has a root");
+    document
+        .texts_within(root)
+        .into_iter()
+        .map(|text| (document.text(text).to_owned(), document.node_rect(text)))
+        .collect()
 }
 
 pub(crate) struct Harness(crate::testing::Stepped);

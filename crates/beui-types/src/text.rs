@@ -1,6 +1,6 @@
 use std::ops::Range;
 
-use geometry::Vec2;
+use geometry::{Rect, Vec2};
 
 use crate::color::Color32;
 
@@ -176,4 +176,11 @@ impl TextCaret {
             handle: None,
         }
     }
+}
+
+#[derive(Clone, PartialEq, Debug)]
+pub struct LineBox {
+    pub bytes: Range<usize>,
+    pub rect: Rect,
+    pub baseline: f32,
 }

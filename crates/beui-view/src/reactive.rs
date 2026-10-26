@@ -10,7 +10,7 @@ pub use beui_tree::reactive::*;
 
 use beui_core::document::Document;
 pub use beui_core::focus::ImeCursor;
-use beui_core::geometry::{Rect, Vec2};
+use beui_core::geometry::Vec2;
 use beui_core::input::Key;
 pub use beui_core::keys::{KeyAt, KeyEvent};
 pub use beui_core::node::NodeId;
@@ -46,23 +46,6 @@ pub fn build(f: impl FnOnce() -> crate::primitives::Root) -> Document {
     let root = enter(&mut document, f);
     document.set_root(root.child());
     document
-}
-
-pub fn node_rect(node: NodeId) -> ReadSignal<Rect> {
-    with_document(|document| document.watch_placement(node))
-}
-
-pub fn text_bounds(node: NodeId) -> Option<ReadSignal<Rect>> {
-    with_document(|document| {
-        let text = document
-            .arena
-            .kind_of::<beui_core::base::text::TextNode>(node)?;
-        Some(document.watch_text_bounds(text))
-    })
-}
-
-pub fn node_placed(node: NodeId) -> ReadSignal<bool> {
-    with_document(|document| document.watch_placed(node))
 }
 
 pub fn layout_text(
@@ -354,6 +337,7 @@ pub use crate::actions::{
 pub use crate::component_ref::ComponentRef;
 pub use crate::file_picker::{FileFilter, FilePick, FilePicker, create_file_picker, pick_file};
 pub use crate::file_saver::{FileSave, SavedFile, save_file};
+pub use crate::measure::{LineBox, TextGeometry, measure, measure_text};
 pub use crate::nodes::*;
 pub use beui_core::base::canvas::CanvasView;
 pub use beui_core::base::drawing::{Draw, draw_gpu};

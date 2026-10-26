@@ -117,7 +117,7 @@ pub fn ContextMenu(
             on_press_outside={move |pos: Pos2| {
                 let on_bar = bar
                     .try_get()
-                    .and_then(|bar| placements().rect(bar))
+                    .and_then(|bar| measure(bar).get_untracked())
                     .is_some_and(|rect| rect.contains(pos));
                 let on_selection = toolbar_at
                     .get_untracked()

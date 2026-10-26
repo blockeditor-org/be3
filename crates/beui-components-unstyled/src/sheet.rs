@@ -162,9 +162,8 @@ impl Motion {
     fn laid_out(&self) -> (Option<Rect>, Option<Rect>, ScrollPosition) {
         let node = self.node();
         let slot = self.slot.try_get();
-        let placements = placements();
-        let sheet = slot.and_then(|slot| placements.rect(slot));
-        let body = node.and_then(|node| placements.rect(node));
+        let sheet = slot.and_then(|slot| measure(slot).get_untracked());
+        let body = node.and_then(|node| measure(node).get_untracked());
         let position = node
             .and_then(|node| node.scroll_position())
             .unwrap_or_default();
@@ -1310,43 +1309,46 @@ fn ModalSheetBody(
         target.set(Some(handle.on_drag));
         grip.call(handle)
     });
-    view! {
-        <LayoutBuilder>|size: ReadSignal<Vec2>| {
-            let extent = create_memo(move || size.get().y);
-            let highest = stops.iter().copied().fold(0.0, f32::max);
-            let room = create_memo(move || {
-                ItemSize::Percent(100.0).min(extent.get() * (1.0 - highest))
-            });
-            view! {
-                <List spacing=0.0>
-                    <Interactive
-                        @sizing={room}
-                        @test_id={"sheet.outside"}
-                        on_click={on_close}
-                        on_pointer={gestures::scroll_drag(Some(Direction::Vertical), move |gesture: DragGesture| {
-                            if let Some(handler) = drag.get() { handler.call(gesture); }
-                        })}
-                    >
-                        <Spacer />
-                    </Interactive>
-                    <Sheet
-                        @sizing={ItemSize::Intrinsic.shrink(1.0)}
-                        extent
-                        open
-                        rest
-                        stops
-                        fit
-                        fade
-                        grip
-                        panel
-                        on_presence={move |presence: f32| on_presence.call(presence)}
-                        on_gone={move || gone.set(true)}
-                        on_close={on_close}
-                    >
-                        {children}
-                    </Sheet>
-                </List>
-            }
-        }</LayoutBuilder>
-    }
+    let extent = create_signal(0.0);
+    let highest = stops.iter().copied().fold(0.0, f32::max);
+    let room = create_memo(move || {
+        ItemSize::Percent(100.0).min(extent.get() * (1.0 - highest))
+    });
+    let built = view! {
+        <List spacing=0.0>
+            <Interactive
+                @sizing={room}
+                @test_id={"sheet.outside"}
+                on_click={on_close}
+                on_pointer={gestures::scroll_drag(Some(Direction::Vertical), move |gesture: DragGesture| {
+                    if let Some(handler) = drag.get() { handler.call(gesture); }
+                })}
+            >
+                <Spacer />
+            </Interactive>
+            <Sheet
+                @sizing={ItemSize::Intrinsic.shrink(1.0)}
+                extent
+                open
+                rest
+                stops
+                fit
+                fade
+                grip
+                panel
+                on_presence={move |presence: f32| on_presence.call(presence)}
+                on_gone={move || gone.set(true)}
+                on_close={on_close}
+            >
+                {children}
+            </Sheet>
+        </List>
+    };
+    let measured = measure(built);
+    create_effect(move || {
+        if let Some(rect) = measured.get() {
+            extent.set(rect.height());
+        }
+    });
+    built
 }

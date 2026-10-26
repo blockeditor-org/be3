@@ -4,13 +4,13 @@ use std::rc::Rc;
 
 use beui_core::base::offset::{OffsetNode, ScrollPosition};
 use beui_core::base::overlay::OverlayNode;
-use beui_core::base::text::{TextGeometry, TextNode};
+use beui_core::base::text::TextNode;
 use beui_core::color::Color32;
 use beui_core::document::Document;
 use beui_core::drag_board::Board;
 use beui_core::geometry::{Pos2, Rect};
 use beui_core::layer::{Dismiss, LayerPolicy};
-use beui_core::node::{NodeId, NodeOf, Rects};
+use beui_core::node::{NodeId, NodeOf};
 use beui_core::preferences::{PreferenceLayer, PreferenceLayers, PreferenceSource, Preferences};
 use beui_core::rich::CaretHandle;
 use beui_core::window::WindowId;
@@ -62,9 +62,6 @@ pub trait TreeNode {
     fn row_offset<K: Clone + Hash + Eq + 'static>(&self, key: &K) -> Option<f32>;
     fn texts_within(&self) -> Vec<NodeId>;
     fn text(&self) -> String;
-    fn text_index_at(&self, pos: Pos2) -> Option<usize>;
-    fn caret_rect(&self, index: usize, width: f32) -> Option<Rect>;
-    fn text_geometry(&self) -> Option<TextGeometry>;
     fn set_text_selection(&self, selection: Option<(Range<usize>, Color32)>);
     fn set_text_selection_handles(&self, handles: Vec<(usize, CaretHandle, Color32)>);
 }
@@ -190,20 +187,6 @@ impl TreeNode for NodeId {
         })
     }
 
-    fn text_index_at(&self, pos: Pos2) -> Option<usize> {
-        with_document(|document| document.text_index_at(text_node(document, *self)?, pos))
-    }
-
-    fn caret_rect(&self, index: usize, width: f32) -> Option<Rect> {
-        with_document(|document| {
-            document.text_caret_rect(text_node(document, *self)?, index, width)
-        })
-    }
-
-    fn text_geometry(&self) -> Option<TextGeometry> {
-        with_document(|document| Some(document.text_geometry(text_node(document, *self)?)))
-    }
-
     fn set_text_selection(&self, selection: Option<(Range<usize>, Color32)>) {
         with_document(|document| {
             if let Some(text) = text_node(document, *self) {
@@ -219,27 +202,6 @@ impl TreeNode for NodeId {
             }
         });
     }
-}
-
-#[derive(Clone)]
-pub struct Placements(Rc<Rects>);
-
-impl Placements {
-    pub fn rect(&self, node: NodeId) -> Option<Rect> {
-        self.0.get(&node)
-    }
-
-    pub fn scale(&self, node: NodeId) -> f32 {
-        self.0.scale_of(&node)
-    }
-}
-
-pub fn placements() -> Placements {
-    Placements(with_document(|document| Rc::clone(&document.rects)))
-}
-
-pub fn viewport_rect() -> Rect {
-    with_document(|document| document.viewport_rect())
 }
 
 pub fn window_of(node: NodeId) -> WindowId {
