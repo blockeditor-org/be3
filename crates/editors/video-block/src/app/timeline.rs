@@ -4,7 +4,6 @@ use std::rc::Rc;
 
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
-use block_editor_beui::beui::unstyled::{DragHandle, DragPoint, Draggable, DropHandle, DropTarget};
 use block_editor_beui::beui::{CursorIcon, NodeId, PointerPress, Pos2, Rect, ScrollGesture, Vec2};
 use block_editor_beui::{ChildBlock, ChildMode, Drag};
 use uuid::Uuid;
@@ -16,8 +15,8 @@ use crate::timeline::{
 
 use super::state::{ClipDrag, VideoState};
 
-const THUMBNAIL_MARGIN: f32 = 3.0;
-const CLIP_RADIUS: f32 = 4.0;
+const THUMBNAIL_MARGIN: Space = Space::Xs2;
+const CLIP_RADIUS: Radius = Radius::Sm;
 
 #[component]
 pub(crate) fn Timeline(state: VideoState) -> NodeId {
@@ -231,16 +230,15 @@ impl std::hash::Hash for Tick {
 
 #[component]
 fn LaneStrip(lane: usize, content: Memo<Rect>) -> CanvasItem {
-    let theme = use_theme();
     let color = match lane {
-        0 => theme.surface_raised,
-        _ => theme.surface,
+        0 => ColorRole::SurfaceRaised,
+        _ => ColorRole::Surface,
     };
     let y = RULER_HEIGHT + lane as f32 * (LANE_HEIGHT + LANE_GAP);
     let width = create_memo(move || content.get().width());
     view! {
         <CanvasItem x=0.0 y={y} width={width} height=LANE_HEIGHT>
-            <Frame fill={ColorRole::custom(color)} radius={Radius::custom(3.0)} />
+            <Frame fill=color radius=Radius::Xs />
         </CanvasItem>
     }
 }
@@ -285,10 +283,9 @@ fn Clip(
             .find(|clip| clip.id == id)
             .is_some_and(|clip| clip.attachment.is_some())
     });
-    let theme = use_theme();
     let fill = create_memo(move || match attached.get() {
-        true => theme.hover.get(),
-        false => theme.pressed.get(),
+        true => ColorRole::Hover,
+        false => ColorRole::Pressed,
     });
     let editor = state.editor();
     let element_test_id = format!("video.clip.{}", id);
@@ -318,15 +315,15 @@ fn Clip(
             >|_: DragHandle|
                 <Interactive on_press={move |press: PointerPress| grabbing.set(Some(press.local))}>
                     <Frame
-                        fill={ColorRole::custom(fill)}
-                        radius={Radius::custom(CLIP_RADIUS)}
-                        border={create_memo(move || selected.get().then_some(Border::new(ColorRole::Accent).width(2.0)))}
+                        fill={fill}
+                        radius=CLIP_RADIUS
+                        border={create_memo(move || selected.get().then_some(Border::FOCUS))}
                         padding=THUMBNAIL_MARGIN
                     >
-                        <List direction=Direction::Horizontal align=Align::Center spacing=5.0>
+                        <List direction=Direction::Horizontal align=Align::Center spacing=Space::Xs>
                             <Frame
-                                width={(LANE_HEIGHT - THUMBNAIL_MARGIN * 2.0) * 1.4}
-                                height={LANE_HEIGHT - THUMBNAIL_MARGIN * 2.0}
+                                width={Size::Custom((LANE_HEIGHT - THUMBNAIL_MARGIN.px() * 2.0) * 1.4)}
+                                height={Size::Custom(LANE_HEIGHT - THUMBNAIL_MARGIN.px() * 2.0)}
                             >
                                 <ChildBlock
                                     editor={editor}
@@ -393,8 +390,8 @@ fn DropMarker(
             <CanvasItem x={x} y={y} width={width} height={height}>
                 <Frame
                     fill=ColorRole::AccentSoft
-                    radius={Radius::custom(CLIP_RADIUS)}
-                    border={Border::new(ColorRole::Accent).width(2.0)}
+                    radius=CLIP_RADIUS
+                    border={Border::FOCUS}
                 />
             </CanvasItem>
         </Show>
@@ -429,7 +426,7 @@ fn TrimHandle(state: VideoState, id: Uuid, scale: ReadSignal<f32>) -> NodeId {
                 }
             }}
         >
-            <Frame width=TRIM_HANDLE_WIDTH height=LANE_HEIGHT />
+            <Frame width={Size::Custom(TRIM_HANDLE_WIDTH)} height={Size::Custom(LANE_HEIGHT)} />
         </Interactive>
     }
 }

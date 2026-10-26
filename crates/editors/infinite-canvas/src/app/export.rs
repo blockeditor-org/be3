@@ -7,7 +7,6 @@ use block_editor_beui::beui::painting::{Punches, painting, rasterize};
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::rich::{RichLayout, SpanKind, SpanStyle};
 use block_editor_beui::beui::styled::*;
-use block_editor_beui::beui::unstyled::{ChoiceOption, ProseLine, SyntaxColors, TextAreaColors};
 use block_editor_beui::beui::{
     Color32, Context, FontFamily, FontId, FreetypeFonts, Galley, Image, LineCap, LineJoin, NodeId,
     Painter, Path, PathElement, Pos2, Rect, Stroke, TextAlign, Vec2, line_height, pos2,
@@ -939,8 +938,7 @@ fn base64(data: &[u8]) -> String {
     out
 }
 
-const DIALOG_WIDTH: f32 = 320.0;
-const DIALOG_SPACING: f32 = 12.0;
+const DIALOG_SPACING: Space = Space::Lg;
 
 #[component]
 pub(crate) fn ExportDialog(exporter: Exporter) -> NodeId {
@@ -973,7 +971,6 @@ pub(crate) fn ExportDialog(exporter: Exporter) -> NodeId {
         <Dialog
             open={open}
             title={title}
-            width=DIALOG_WIDTH
             id="infinite-canvas.export"
             actions={vec![
                 DialogAction::secondary("Copy", move || finish(ExportTo::Clipboard)).named("copy"),

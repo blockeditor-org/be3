@@ -4,14 +4,13 @@ use std::time::{Duration, Instant};
 use beui::accesskit::{Node, Role};
 use beui::reactive::*;
 use beui::styled::*;
-use beui::unstyled::{Edge, Floating, PointerLock, PointerLockHandle};
 use beui::{CursorIcon, Key, KeyPress, NodeId, Vec2};
 
 use crate::camera::Camera;
 use crate::renderer::Scene;
 
 const LONGEST_STEP: f32 = 0.1;
-const HINT_INSET: f32 = 16.0;
+const HINT_INSET: Space = Space::Xl;
 
 #[derive(Clone, Copy, Default)]
 struct Walking {
@@ -111,7 +110,7 @@ pub(crate) fn Scene3DView() -> NodeId {
             on_motion={look}
             on_key={walked}
         >|_: PointerLockHandle|
-            <List spacing=0.0>
+            <List spacing=Space::None>
                 <Drawing
                     draw={Prop::dynamic(move || draw_gpu(drawing.get()))}
                     @sizing=ItemSize::Percent(100.0)
@@ -127,9 +126,9 @@ pub(crate) fn Scene3DView() -> NodeId {
 #[component]
 fn Hint() -> NodeId {
     view! {
-        <Frame padding={Sides::vertical(HINT_INSET)}>
+        <Frame padding={Padding::vertical(HINT_INSET)}>
             <Card>
-                <List direction=Direction::Horizontal align=Align::Center spacing=16.0>
+                <List direction=Direction::Horizontal align=Align::Center spacing=Space::Xl>
                     <Shortcut keys="Click" description="look around" />
                     <Shortcut keys="W A S D" description="move" />
                     <Shortcut keys="Esc" description="release" />

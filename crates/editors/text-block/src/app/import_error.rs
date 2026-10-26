@@ -4,16 +4,15 @@ use beui::styled::*;
 
 use super::state::State;
 
-const BAR_PADDING_HORIZONTAL: f32 = 12.0;
-const BAR_PADDING_VERTICAL: f32 = 6.0;
-const BAR_SPACING: f32 = 6.0;
+const BAR_PADDING: Padding = Padding::symmetric(Space::Lg, Space::Sm);
+const BAR_SPACING: Space = Space::Sm;
 
 #[component]
 pub(crate) fn ImportError(state: State) -> NodeId {
     let error = state.import_error;
     let shown = create_memo(move || error.get().is_some());
     view! {
-        <List spacing=0.0>
+        <List spacing=Space::None>
             <Show condition={shown}>
                 <ImportErrorRow state={state} />
             </Show>
@@ -28,7 +27,7 @@ fn ImportErrorRow(state: State) -> NodeId {
     view! {
         <Frame
             fill=ColorRole::Surface
-            padding={Sides::symmetric(BAR_PADDING_HORIZONTAL, BAR_PADDING_VERTICAL)}
+            padding=BAR_PADDING
         >
             <List direction=Direction::Horizontal align=Align::Center spacing=BAR_SPACING>
                 <Text color=TextColor::Danger>{message}</Text>

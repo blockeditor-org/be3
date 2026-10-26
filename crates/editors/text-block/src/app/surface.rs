@@ -1,7 +1,6 @@
 use beui::reactive::*;
 use beui::styled::*;
-use beui::unstyled::TextWidget;
-use beui::{NodeId, Vec2};
+use beui::NodeId;
 use block_editor_beui::{Drag, block_ui::BlockLabel};
 use text_editor_core::{CursorLeftRightStop, EditorCommand};
 
@@ -9,8 +8,6 @@ use super::embeds::ResolvedEmbed;
 use super::large_embed::{LargeEmbed, embed_is_live};
 use super::state::{FocusedEmbed, State};
 
-const EMBED_BUTTON_GAP: f32 = 6.0;
-const EMBED_BUTTON_SIZE: Vec2 = Vec2::new(72.0, 30.0);
 
 #[component]
 pub(crate) fn TextSurface(state: State) -> NodeId {
@@ -105,9 +102,8 @@ fn OpenEmbed(state: State, widget: usize) -> NodeId {
         .get(widget)
         .map(|embed| (embed.id, embed.block_type));
     view! {
-        <List spacing=0.0>
-            <Frame height=EMBED_BUTTON_GAP />
-            <Frame width={EMBED_BUTTON_SIZE.x} height={EMBED_BUTTON_SIZE.y}>
+        <List spacing=Space::None align=Align::Start>
+            <Frame padding={Padding::ZERO.top(Space::Sm)}>
                 <Button
                     label="Edit"
                     variant=ButtonVariant::Secondary

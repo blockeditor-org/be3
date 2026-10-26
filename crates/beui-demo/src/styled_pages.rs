@@ -1,6 +1,7 @@
 use super::*;
 use beui::KeyAt;
 use beui::TextAlign;
+use beui::ImageFit;
 use beui::icons::Glyph;
 use beui::icons::{
     ICON_A_LARGE_SMALL, ICON_CIRCLE_CHECK, ICON_CLOCK, ICON_COPY_PLUS, ICON_FILE_UP, ICON_FOLDER,
@@ -1350,6 +1351,9 @@ pub(crate) fn ColorsPage() -> NodeId {
             <Sample title="Color picker" code={vec![PaintPicker::SOURCE]}>
                 <PaintPicker />
             </Sample>
+            <Sample title="Swatch buttons" code={vec![InkSwatches::SOURCE]}>
+                <InkSwatches />
+            </Sample>
         </ScrollPage>
     }
 }
@@ -1469,6 +1473,35 @@ fn PaintPicker() -> NodeId {
             <ColorPicker value={paint} alpha=false on_preview={preview} />
             <Frame height=SWATCH_HEIGHT fill={ColorRole::custom(shown_paint)} radius=Radius::Md />
             <Text style=TextStyle::CAPTION>{paint_text}</Text>
+        </List>
+    }
+}
+
+#[sample]
+#[component]
+fn InkSwatches() -> NodeId {
+    const INKS: [(&str, Color32); 5] = [
+        ("Black", Color32::from_rgb(0x1E, 0x1E, 0x1E)),
+        ("Red", Color32::from_rgb(0xE0, 0x31, 0x31)),
+        ("Green", Color32::from_rgb(0x2F, 0x9E, 0x44)),
+        ("Blue", Color32::from_rgb(0x19, 0x71, 0xC2)),
+        ("Orange", Color32::from_rgb(0xF0, 0x8C, 0x00)),
+    ];
+    let chosen = create_signal(1);
+    let picked = create_memo(move || format!("Drawing in {}", INKS[chosen.get()].0));
+    view! {
+        <List spacing=SECTION_SPACING>
+            <List direction=Direction::Horizontal align=Align::Center spacing=Space::Xs>
+                <ForEach keys={(0..INKS.len()).collect::<Vec<usize>>()}>|index: usize|
+                    <SwatchButton
+                        color={INKS[index].1}
+                        label={INKS[index].0.to_owned()}
+                        selected={create_memo(move || chosen.get() == index)}
+                        on_click={move || chosen.set(index)}
+                    />
+                </ForEach>
+            </List>
+            <Text style=TextStyle::CAPTION>{picked}</Text>
         </List>
     }
 }

@@ -40,6 +40,7 @@ pub mod shortcut;
 pub mod slider;
 pub mod split_button;
 pub mod stack;
+pub mod swatch_button;
 pub mod switch;
 pub mod table;
 pub mod tabs;
@@ -61,8 +62,9 @@ pub use beui_components_unstyled::{
 };
 pub use beui_components_unstyled::{
     BackSlide, ChoiceOption, Container, DragHandle, DragPoint, Draggable, DropHandle, DropTarget,
-    Floating, MenuItem, PopoverHandle, Pressable, SliderScale, TextAreaState, TreeItem,
-    container_size,
+    Edge, Floating, MenuItem, MenuNodes, PointerLock, PointerLockHandle, PopoverHandle, Pressable,
+    ProseLine, RemoteTextCursor, SliderScale, SyntaxColors, TextAreaColors, TextAreaState,
+    TextWidget, TreeItem, container_size,
 };
 pub use beui_components_unstyled::{DialogDismissal, DialogLayout};
 pub use beui_components_unstyled::{PaletteItem, PaletteItems, PaletteScore};
@@ -111,6 +113,7 @@ pub use shortcut::Shortcut;
 pub use slider::Slider;
 pub use split_button::SplitButton;
 pub use stack::Stack;
+pub use swatch_button::SwatchButton;
 pub use switch::Switch;
 pub use table::{Table, TableCell, TableColumn, TableRow};
 pub use tabs::Tabs;

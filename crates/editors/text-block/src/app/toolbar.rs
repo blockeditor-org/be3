@@ -7,7 +7,6 @@ use beui::icons::{
 };
 use beui::reactive::*;
 use beui::styled::*;
-use beui::unstyled::ChoiceOption;
 use block_editor_beui::BlockParent;
 use block_editor_beui::beui::icons::Glyph;
 use block_editor_beui::{BlockFilter, block_ui::BlockLabel};
@@ -15,11 +14,11 @@ use text_editor_core::{EditorCommand, MarkdownCommand, TextIndentation, TextLang
 
 use super::state::State;
 
-const TOOLBAR_SPACING: f32 = 6.0;
-const SETTINGS_SPACING: f32 = 10.0;
-const SELECT_WIDTH: f32 = 120.0;
-const NUMBER_WIDTH: f32 = 70.0;
-const FORMAT_PADDING: f32 = 6.0;
+const TOOLBAR_SPACING: Space = Space::Sm;
+const SETTINGS_SPACING: Space = Space::Md;
+const SELECT_WIDTH: Size = Size::Custom(120.0);
+const NUMBER_WIDTH: Size = Size::Custom(70.0);
+const FORMAT_PADDING: Space = Space::Sm;
 
 #[component]
 pub(crate) fn EditorMenu(state: State) -> NodeId {
@@ -188,15 +187,15 @@ pub(crate) fn FormatBar(state: State, formats: Vec<Action>) -> NodeId {
         view! {
             <Interactive press_focus=false @node_ref=&row @test_id={"text.format"}>
                 <Frame fill=ColorRole::Surface>
-                    <List spacing=0.0>
+                    <List spacing=Space::None>
                         <Separator />
-                        <List direction=Direction::Horizontal align=Align::Center spacing=0.0>
+                        <List direction=Direction::Horizontal align=Align::Center spacing=Space::None>
                             <Scroll
                                 @sizing=ItemSize::Percent(100.0)
                                 direction=Direction::Horizontal
                             >
                                 <Frame padding=FORMAT_PADDING>
-                                    <List spacing=0.0>
+                                    <List spacing=Space::None>
                                         <Show condition={markdown} then={controls} />
                                     </List>
                                 </Frame>
@@ -219,7 +218,7 @@ pub(crate) fn FormatBar(state: State, formats: Vec<Action>) -> NodeId {
         }
     };
     view! {
-        <List spacing=0.0>
+        <List spacing=Space::None>
             <Show condition={shown} then={bar} />
         </List>
     }
@@ -290,8 +289,8 @@ fn TextSettings(state: State) -> NodeId {
         <List spacing=SETTINGS_SPACING>
             <List direction=Direction::Horizontal align=Align::Center spacing=SETTINGS_SPACING>
                 <Text @sizing=ItemSize::Percent(100.0)>"Language"</Text>
-                <Frame width=SELECT_WIDTH>
-                    <Select
+                <Select
+                        width=SELECT_WIDTH
                         label="Language"
                         selected={Binding::new(language_index, move |index: Option<usize>| {
                             let Some(choice) = index.and_then(|index| TextLanguage::ALL.get(index)) else {
@@ -308,12 +307,11 @@ fn TextSettings(state: State) -> NodeId {
                             </ForEach>
                         }}
                     />
-                </Frame>
             </List>
             <List direction=Direction::Horizontal align=Align::Center spacing=SETTINGS_SPACING>
                 <Text @sizing=ItemSize::Percent(100.0)>"Indentation"</Text>
-                <Frame width=SELECT_WIDTH>
-                    <Select
+                <Select
+                        width=SELECT_WIDTH
                         label="Indentation"
                         selected={Binding::new(indentation_index, move |index: Option<usize>| {
                             let indentation = match index {
@@ -328,7 +326,6 @@ fn TextSettings(state: State) -> NodeId {
                             <ChoiceOption label="Spaces" />
                         }}
                     />
-                </Frame>
             </List>
             <Show condition={spaces}>
                 <List direction=Direction::Horizontal align=Align::Center spacing=SETTINGS_SPACING>

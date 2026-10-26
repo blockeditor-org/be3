@@ -15,7 +15,7 @@ pub(crate) fn EffectsPanel(state: VideoState) -> NodeId {
     let chosen = create_memo(move || clip.get().is_some());
     let none = create_memo(move || !chosen.get());
     view! {
-        <List spacing=8.0>
+        <List spacing=Space::Md>
             <Text style=TextStyle::HEADING>"Effects"</Text>
             <Separator />
             <Show condition={none}>
@@ -85,7 +85,7 @@ fn ClipInspector(state: VideoState, clip: Memo<Option<VideoClip>>) -> NodeId {
     let bare_color = TextColor::Muted;
 
     view! {
-        <List spacing=8.0>
+        <List spacing=Space::Md>
             <Text>{name}</Text>
             <NumberInput
                 value={Binding::new(length, move |value: f64| {
@@ -101,11 +101,11 @@ fn ClipInspector(state: VideoState, clip: Memo<Option<VideoClip>>) -> NodeId {
                 @test_id={"video.clip-length"}
             />
             <Text style=TextStyle::CAPTION color={seconds_color}>{seconds}</Text>
-            <List direction=Direction::Horizontal align=Align::Center spacing=6.0>
+            <List direction=Direction::Horizontal align=Align::Center spacing=Space::Sm>
                 <Text>"Starts at"</Text>
                 <Text style=TextStyle::CAPTION color={start_color}>{starts}</Text>
             </List>
-            <List direction=Direction::Horizontal align=Align::Center spacing=6.0>
+            <List direction=Direction::Horizontal align=Align::Center spacing=Space::Sm>
                 <Text>"Attached to"</Text>
                 <Text style=TextStyle::CAPTION color={parent_color}>{parent_name}</Text>
                 <Show condition={hanging}>
@@ -162,7 +162,7 @@ fn EffectRow(effects: Memo<Vec<VideoEffect>>, id: Uuid) -> NodeId {
     );
     let name = create_memo(move || held.get().map(|effect| effect.name).unwrap_or_default());
     view! {
-        <List direction=Direction::Horizontal align=Align::Center spacing=6.0>
+        <List direction=Direction::Horizontal align=Align::Center spacing=Space::Sm>
             <Text style=TextStyle::CAPTION>{state}</Text>
             <Text>{name}</Text>
         </List>

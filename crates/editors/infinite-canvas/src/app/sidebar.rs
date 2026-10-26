@@ -20,7 +20,7 @@ use super::selection_bar::Swatch;
 use super::state::{Alignment, CanvasCommand, CanvasState, CommonValue, common_value};
 use super::style::{BACKGROUNDS as SOFT, STROKES};
 
-const SPACING: f32 = 10.0;
+const SPACING: Space = Space::Md;
 
 const ALIGNMENTS: [(&str, Alignment); 6] = [
     ("Left", Alignment::Left),
@@ -122,10 +122,10 @@ fn FrameSection(state: CanvasState) -> NodeId {
         }
     };
     view! {
-        <List spacing=0.0>
+        <List spacing=Space::None>
             <Show condition={shown}>
                 <Accordion title="Frame" open={open}>
-                    <List spacing=6.0>
+                    <List spacing=Space::Sm>
                         <TextInput
                             label="Name"
                             value={Binding::new(name, renamed)}
@@ -203,9 +203,9 @@ fn FrameBackground(
     let swatches = BACKGROUNDS.iter().chain(&SOFT).copied().collect::<Vec<_>>();
     let count = swatches.len();
     view! {
-        <List spacing=6.0>
+        <List spacing=Space::Sm>
             <Text style=TextStyle::CAPTION>"Background"</Text>
-            <List direction=Direction::Horizontal align=Align::Center spacing=4.0 wrap=true>
+            <List direction=Direction::Horizontal align=Align::Center spacing=Space::Xs wrap=true>
                 <ToggleButton
                     label="Theme background"
                     glyph=ICON_DROPLET_OFF
@@ -274,7 +274,7 @@ fn TransformSection(state: CanvasState) -> NodeId {
     let many = create_memo(move || !single.get());
     view! {
         <Accordion title="Transform" open={open}>
-            <List spacing=6.0>
+            <List spacing=Space::Sm>
                 <Show condition={many}>
                     <Text style=TextStyle::CAPTION>
                         "Select one object to edit exact transform values."
@@ -337,11 +337,11 @@ fn TransformFields(state: CanvasState) -> NodeId {
     let size_y = at(entity, |entity| entity.transform.size.y);
     let angle = at(entity, |entity| entity.transform.rotation.to_degrees());
     view! {
-        <List spacing=6.0>
+        <List spacing=Space::Sm>
             <Grid
                 columns={[Track::Intrinsic, Track::Fraction(1.0)].repeat(2)}
-                column_spacing=6.0
-                row_spacing=6.0
+                column_spacing=Space::Sm
+                row_spacing=Space::Sm
             >
                 <Frame align={Align2::vertical(Align::Center)}>
                     <Text style=TextStyle::CAPTION>"X"</Text>
@@ -394,7 +394,7 @@ fn TransformFields(state: CanvasState) -> NodeId {
                     on_preview={height_preview}
                 />
             </Grid>
-            <List direction=Direction::Horizontal align=Align::Center spacing=6.0>
+            <List direction=Direction::Horizontal align=Align::Center spacing=Space::Sm>
                 <Text style=TextStyle::CAPTION>"Rotation"</Text>
                 <NumberInput
                     on_scrub={move |scrubbing| state.scrub(scrubbing)}
@@ -439,10 +439,10 @@ fn BlockSection(state: CanvasState) -> NodeId {
     });
     let toggled = move || state.toggle_selected_block_mode();
     view! {
-        <List spacing=0.0>
+        <List spacing=Space::None>
             <Show condition={shown}>
                 <Accordion title="Block" open={open}>
-                    <List spacing=6.0>
+                    <List spacing=Space::Sm>
                         <Button
                             label={label}
                             variant=ButtonVariant::Secondary
@@ -484,7 +484,7 @@ fn EditorScale(state: CanvasState) -> NodeId {
         state.record_update(vec![held], vec![updated]);
     };
     view! {
-        <List direction=Direction::Horizontal align=Align::Center spacing=6.0>
+        <List direction=Direction::Horizontal align=Align::Center spacing=Space::Sm>
             <Text style=TextStyle::CAPTION>"Scale"</Text>
             <NumberInput
                 on_scrub={move |scrubbing| state.scrub(scrubbing)}
@@ -530,8 +530,8 @@ fn ArrangeSection(state: CanvasState) -> NodeId {
     let unlock = move || state.run(CanvasCommand::Unlock);
     view! {
         <Accordion title="Arrange" open={open}>
-            <List spacing=6.0>
-                <List direction=Direction::Horizontal align=Align::Center spacing=4.0 wrap=true>
+            <List spacing=Space::Sm>
+                <List direction=Direction::Horizontal align=Align::Center spacing=Space::Xs wrap=true>
                     <ForEach keys={(0..ALIGNMENTS.len()).collect::<Vec<usize>>()}>|index: usize| {
                         let (label, alignment) = ALIGNMENTS[index];
                         view! {
@@ -545,7 +545,7 @@ fn ArrangeSection(state: CanvasState) -> NodeId {
                         }
                     }</ForEach>
                 </List>
-                <List direction=Direction::Horizontal align=Align::Center spacing=4.0 wrap=true>
+                <List direction=Direction::Horizontal align=Align::Center spacing=Space::Xs wrap=true>
                     <Button
                         label="Distribute horizontally"
                         variant=ButtonVariant::Secondary
@@ -561,7 +561,7 @@ fn ArrangeSection(state: CanvasState) -> NodeId {
                         on_click={vertical}
                     />
                 </List>
-                <List direction=Direction::Horizontal align=Align::Center spacing=4.0 wrap=true>
+                <List direction=Direction::Horizontal align=Align::Center spacing=Space::Xs wrap=true>
                     <ForEach keys={(0..LAYERS.len()).collect::<Vec<usize>>()}>|index: usize| {
                         let (label, movement) = LAYERS[index];
                         let blocked = create_memo(move || {
@@ -578,7 +578,7 @@ fn ArrangeSection(state: CanvasState) -> NodeId {
                         }
                     }</ForEach>
                 </List>
-                <List direction=Direction::Horizontal align=Align::Center spacing=4.0 wrap=true>
+                <List direction=Direction::Horizontal align=Align::Center spacing=Space::Xs wrap=true>
                     <Button
                         label="Group"
                         variant=ButtonVariant::Secondary
@@ -694,9 +694,9 @@ fn ForegroundRow(state: CanvasState) -> NodeId {
         set_foreground(state, color);
     };
     view! {
-        <List spacing=0.0>
+        <List spacing=Space::None>
             <Show condition={shown}>
-                <List spacing=6.0>
+                <List spacing=Space::Sm>
                     <Text style=TextStyle::CAPTION>"Color"</Text>
                     <ColorInput
                         label="Custom color"
@@ -731,9 +731,9 @@ fn LineWidthRow(state: CanvasState) -> NodeId {
         state.update_selected(stroked, |style| style.stroke_width = width);
     };
     view! {
-        <List spacing=0.0>
+        <List spacing=Space::None>
             <Show condition={shown}>
-                <List spacing=4.0>
+                <List spacing=Space::Xs>
                     <MixedLabel label="Line width" mixed={mixed} />
                     <Slider
                         label="Line width"
@@ -751,7 +751,7 @@ fn LineWidthRow(state: CanvasState) -> NodeId {
 #[component]
 fn MixedLabel(label: &'static str, mixed: Memo<bool>) -> NodeId {
     view! {
-        <List direction=Direction::Horizontal align=Align::Center spacing=6.0>
+        <List direction=Direction::Horizontal align=Align::Center spacing=Space::Sm>
             <Text style=TextStyle::CAPTION>{label}</Text>
             <Show condition={mixed}>
                 <Text style=TextStyle::CAPTION>"Mixed"</Text>
@@ -819,9 +819,9 @@ fn LineOptions(state: CanvasState) -> NodeId {
         )
     };
     view! {
-        <List spacing=0.0>
+        <List spacing=Space::None>
             <Show condition={shown}>
-                <List spacing=6.0>
+                <List spacing=Space::Sm>
                     <Separator />
                     <Text style=TextStyle::CAPTION>"Line"</Text>
                     <Checkbox
@@ -902,12 +902,12 @@ fn RectangleOptions(state: CanvasState) -> NodeId {
     };
     let none = create_memo(move || fill.get() == CommonValue::Uniform(None));
     view! {
-        <List spacing=0.0>
+        <List spacing=Space::None>
             <Show condition={shown}>
-                <List spacing=6.0>
+                <List spacing=Space::Sm>
                     <Separator />
                     <Text style=TextStyle::CAPTION>"Shape"</Text>
-                    <List direction=Direction::Horizontal align=Align::Center spacing=4.0 wrap=true>
+                    <List direction=Direction::Horizontal align=Align::Center spacing=Space::Xs wrap=true>
                         <ToggleButton
                             label="No fill"
                             glyph=ICON_DROPLET_OFF
@@ -973,7 +973,7 @@ fn OpacityRow(state: CanvasState) -> NodeId {
         state.update_selected(|_| true, |style| style.opacity = value);
     };
     view! {
-        <List spacing=4.0>
+        <List spacing=Space::Xs>
             <Separator />
             <MixedLabel label="Opacity" mixed={mixed} />
             <Slider
@@ -1079,12 +1079,12 @@ fn TextOptions(state: CanvasState) -> NodeId {
         state.update_selected_text(move |style, _| style.wrap = wrap);
     };
     view! {
-        <List spacing=0.0>
+        <List spacing=Space::None>
             <Show condition={shown}>
-                <List spacing=6.0>
+                <List spacing=Space::Sm>
                     <Separator />
                     <Text style=TextStyle::CAPTION>"Text"</Text>
-                    <List direction=Direction::Horizontal align=Align::Center spacing=6.0>
+                    <List direction=Direction::Horizontal align=Align::Center spacing=Space::Sm>
                         <Text style=TextStyle::CAPTION>"Font size"</Text>
                         <NumberInput
                             on_scrub={move |scrubbing| state.scrub(scrubbing)}
@@ -1097,7 +1097,7 @@ fn TextOptions(state: CanvasState) -> NodeId {
                             @test_id={"infinite-canvas.font-size"}
                         />
                     </List>
-                    <List direction=Direction::Horizontal align=Align::Center spacing=6.0>
+                    <List direction=Direction::Horizontal align=Align::Center spacing=Space::Sm>
                         <Text style=TextStyle::CAPTION>"Line height"</Text>
                         <NumberInput
                             on_scrub={move |scrubbing| state.scrub(scrubbing)}
@@ -1116,7 +1116,7 @@ fn TextOptions(state: CanvasState) -> NodeId {
                         checked={Binding::new(bold, weighted)}
                         @test_id={"infinite-canvas.bold"}
                     />
-                    <List direction=Direction::Horizontal align=Align::Center spacing=4.0 wrap=true>
+                    <List direction=Direction::Horizontal align=Align::Center spacing=Space::Xs wrap=true>
                         <ForEach
                             keys={(0..ALIGN_OPTIONS.len()).collect::<Vec<usize>>()}
                         >|index: usize| {
@@ -1137,7 +1137,7 @@ fn TextOptions(state: CanvasState) -> NodeId {
                             }
                         }</ForEach>
                     </List>
-                    <List direction=Direction::Horizontal align=Align::Center spacing=4.0 wrap=true>
+                    <List direction=Direction::Horizontal align=Align::Center spacing=Space::Xs wrap=true>
                         <ForEach
                             keys={(0..VERTICAL_ALIGN_OPTIONS.len()).collect::<Vec<usize>>()}
                         >|index: usize| {
@@ -1194,7 +1194,7 @@ fn ShortcutsSection() -> NodeId {
     let count = tools.len();
     view! {
         <Accordion title="Shortcuts" open={open}>
-            <List spacing=4.0>
+            <List spacing=Space::Xs>
                 <ForEach keys={(0..count).collect::<Vec<usize>>()}>|index: usize| {
                     let action = tools[index].clone();
                     let keys = action

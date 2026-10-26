@@ -4,17 +4,12 @@ use super::sidebar::{set_foreground, styled_entities};
 use super::state::{CanvasState, CommonValue, common_value};
 use super::style::{STROKES, StylePopover};
 use block_editor_beui::beui::NodeId;
-use block_editor_beui::beui::accesskit::{Node as AccessNode, Role};
 use block_editor_beui::beui::icons::ICON_SLIDERS_HORIZONTAL;
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
-use block_editor_beui::beui::unstyled::{self, ButtonHandle};
 use block_editor_beui::{narrow_chrome, sheet_control};
 use infinite_canvas_types::{CanvasColor, CanvasProfile};
 
-const RADIUS: f32 = 12.0;
-const SWATCH: f32 = 22.0;
-const SWATCH_RING: f32 = 3.0;
 
 #[component]
 pub(crate) fn SelectionTools(state: CanvasState) -> NodeId {
@@ -46,11 +41,11 @@ pub(crate) fn SelectionTools(state: CanvasState) -> NodeId {
         <Frame
             fill=ColorRole::Surface
             border={Border::DEFAULT}
-            radius={Radius::custom(RADIUS)}
-            padding=6.0
+            radius=Radius::Lg
+            padding=Space::Sm
             @test_id={"infinite-canvas.selection-bar"}
         >
-            <List direction=Direction::Horizontal align=Align::Center spacing=4.0>
+            <List direction=Direction::Horizontal align=Align::Center spacing=Space::Xs>
                 <Show condition={prototyping}>
                     <StylePopover state={state} />
                 </Show>
@@ -64,7 +59,7 @@ pub(crate) fn SelectionTools(state: CanvasState) -> NodeId {
                     }
                 }</Show>
                 <Show condition={colored}>
-                    <List direction=Direction::Horizontal align=Align::Center spacing=2.0>
+                    <List direction=Direction::Horizontal align=Align::Center spacing=Space::Xs2>
                         <ForEach keys={(0..STROKES.len()).collect::<Vec<usize>>()}>|index: usize| {
                             let (name, color) = STROKES[index];
                             view! {
@@ -81,7 +76,7 @@ pub(crate) fn SelectionTools(state: CanvasState) -> NodeId {
                 </Show>
                 <Show condition={chosen}>|| {
                     let actions = actions.clone(); view! {
-                        <List direction=Direction::Horizontal align=Align::Center spacing=4.0>
+                        <List direction=Direction::Horizontal align=Align::Center spacing=Space::Xs>
                             <Button
                                 icon_only=true
                                 @test_id={"infinite-canvas.front"}
@@ -130,36 +125,13 @@ pub(crate) fn Swatch(
     let theme = use_theme();
     let fill = create_memo(move || resolve_color(color, theme.text.get()));
     let chosen = create_memo(move || value.get() == CommonValue::Uniform(color));
-    let mut described = AccessNode::new(Role::Button);
-    described.set_label(format!("{name} {kind}"));
     view! {
-        <unstyled::Button
+        <SwatchButton
+            color={fill}
+            label={format!("{name} {kind}")}
+            selected={chosen}
             @test_id={format!("infinite-canvas.{kind}.{name}")}
-            accessibility={described}
             on_click={move || on_pick.call(color)}
-        >|handle: ButtonHandle| {
-            let ringed = create_memo(move || {
-                chosen.get() || handle.focused.get() || handle.hovered.get()
-            });
-            let ring = create_memo(move || match chosen.get() {
-                true => theme.accent.get(),
-                false => theme.border.get(),
-            });
-            view! {
-                <Frame
-                    padding=SWATCH_RING
-                    radius={Radius::custom(16.0)}
-                    border={create_memo(move || ringed.get().then(|| Border::new(ColorRole::Custom(ring.get())).width(2.0)))}
-                >
-                    <Frame
-                        width=SWATCH
-                        height=SWATCH
-                        radius={Radius::custom(11.0)}
-                        fill={ColorRole::custom(fill)}
-                        border={Border::DEFAULT}
-                    />
-                </Frame>
-            }
-        }</unstyled::Button>
+        />
     }
 }

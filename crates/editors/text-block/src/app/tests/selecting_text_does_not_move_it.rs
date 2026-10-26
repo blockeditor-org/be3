@@ -3,7 +3,7 @@ use beui::reactive::Get;
 
 const SHOWN: &str = "one two\tthree `a b\tc`  end  \nnext\r line\n";
 
-fn area(editor: &BeuiTest<TextApp>) -> beui::unstyled::TextAreaState {
+fn area(editor: &BeuiTest<TextApp>) -> beui::styled::TextAreaState {
     let document = editor.document();
     let area = document
         .find_test_id("text.surface")
@@ -11,7 +11,7 @@ fn area(editor: &BeuiTest<TextApp>) -> beui::unstyled::TextAreaState {
     let surface = document
         .api::<beui::styled::TextAreaSurfaceApi>(area)
         .surface();
-    document.api::<beui::unstyled::TextAreaApi>(surface).state()
+    document.api::<beui::styled::TextAreaApi>(surface).state()
 }
 
 fn carets(editor: &BeuiTest<TextApp>) -> Vec<Option<beui::Rect>> {

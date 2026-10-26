@@ -4,9 +4,7 @@ use std::sync::Arc;
 use block_editor_beui::be_block::be_model::ObjectId;
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
-use block_editor_beui::beui::unstyled::{
-    self, Prose, RemoteTextCursor, SyntaxColors, TextArea, TextAreaColors, TextAreaState,
-};
+use block_editor_beui::beui::unstyled::{Prose, TextArea};
 use block_editor_beui::beui::{
     Color32, Key, KeyAt, KeyPhase, NodeId, Rect, TextAlign, Vec2, line_height, pos2,
 };
@@ -204,12 +202,12 @@ pub(crate) fn EntityText(
             shown.get().map_or(Rect::ZERO, |shown| shown.region),
             unit.get(),
         );
-        Sides::new(
+        Padding::custom(Sides::new(
             ((inner.left() - outer.left()) * unit).max(0.0),
             ((inner.top() - outer.top()) * unit).max(0.0),
             ((outer.right() - inner.right()) * unit).max(0.0),
             ((outer.bottom() - inner.bottom()) * unit).max(0.0),
-        )
+        ))
     });
     let inset = create_memo(move || Vec2::splat(TEXT_INSET * unit.get()));
     let colors = create_memo(move || TextAreaColors {
@@ -420,7 +418,7 @@ fn enter(area: TextAreaState, field: NodeRef, entry: TextEntry) {
         TextEntry::At(at) => {
             let at = with_document(|document| {
                 document
-                    .api::<unstyled::TextAreaApi>(node)
+                    .api::<TextAreaApi>(node)
                     .index_at(document, at)
             });
             at..at

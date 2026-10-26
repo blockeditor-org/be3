@@ -2,7 +2,6 @@ use block_editor_beui::Fit;
 use block_editor_beui::beui::icons::{ICON_ARROW_LEFT, ICON_ARROW_RIGHT};
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
-use block_editor_beui::beui::unstyled::Picture;
 use block_editor_beui::beui::{Color32, ImageFit, NodeId, PointerPress, Pos2, Rect, Vec2};
 use block_editor_beui::{Editor, FileChooser, Sidebar, Toolbar};
 
@@ -85,7 +84,7 @@ pub fn PdfEditor(editor: Editor) -> NodeId {
     let content = NodeRef::new();
     editor.content(&content);
     view! {
-        <List spacing=0.0>
+        <List spacing=Space::None>
             <Toolbar shown={chrome}>
                 <Text>"PDF"</Text>
                 <Button
@@ -113,7 +112,7 @@ pub fn PdfEditor(editor: Editor) -> NodeId {
                 />
                 <Spacer @sizing=ItemSize::Percent(100.0) />
             </Toolbar>
-            <List @sizing=ItemSize::Percent(100.0) direction=Direction::Horizontal spacing=0.0>
+            <List @sizing=ItemSize::Percent(100.0) direction=Direction::Horizontal spacing=Space::None>
                 <Frame @sizing=ItemSize::Percent(100.0) @node_ref={&content}>
                     <Interactive
                         on_press={move |_: PointerPress| editor.pan_drag()}
@@ -155,7 +154,7 @@ fn PageCanvas(
     let failed = create_memo(move || shown.get().error.is_some());
     let reason = create_memo(move || shown.get().error.unwrap_or_default());
     view! {
-        <List spacing=0.0>
+        <List spacing=Space::None>
             <Canvas @sizing=ItemSize::Percent(100.0) view={view}>
                 <CanvasItem x=0.0 y=0.0 width={width} height={height}>
                     <Frame fill={ColorRole::Custom(PAGE_FILL)} />

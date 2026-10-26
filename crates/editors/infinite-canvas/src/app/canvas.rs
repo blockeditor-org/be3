@@ -42,12 +42,12 @@ pub(crate) fn CanvasStage(state: CanvasState) -> NodeId {
             let embedding = create_memo(move || state.entities.embedding());
             let inset = create_memo(move || {
                 let (placed, shown) = (placed.get(), shown.get());
-                Sides::new(
+                Padding::custom(Sides::new(
                     (shown.left() - placed.left()).max(0.0),
                     (shown.top() - placed.top()).max(0.0),
                     (placed.right() - shown.right()).max(0.0),
                     (placed.bottom() - shown.bottom()).max(0.0),
-                )
+                ))
             });
             let previewing = state.previewing();
             let (grid, tiles) = grid_of(state, camera, shown);
@@ -69,10 +69,9 @@ pub(crate) fn CanvasStage(state: CanvasState) -> NodeId {
                     .map(|frame| frame.id)
                     .collect::<Vec<_>>()
             });
-            let theme = use_theme();
             let outside_frames = create_memo(move || {
                 match !previewing && frames.with(|frames| !frames.is_empty()) {
-                    true => ColorRole::Custom(theme.dim.get()),
+                    true => ColorRole::Dim,
                     false => ColorRole::None,
                 }
             });

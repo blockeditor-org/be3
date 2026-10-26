@@ -1,7 +1,6 @@
 use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
-use block_editor_beui::beui::unstyled::{Edge, Floating};
 use block_editor_beui::{BottomDock, node_anchor, sheet_open};
 use infinite_canvas_types::CanvasProfile;
 
@@ -21,10 +20,8 @@ const TOOLS: [(Tool, &str); 10] = [
     (Tool::Frame, "Frame"),
     (Tool::Eraser, "Eraser"),
 ];
-const PILL_MARGIN: f32 = 12.0;
-const PILL_RADIUS: f32 = 16.0;
-const PILL_PADDING: f32 = 4.0;
-const DIVIDER_HEIGHT: f32 = 24.0;
+const PILL_MARGIN: Space = Space::Lg;
+const PILL_PADDING: Space = Space::Xs;
 
 #[component]
 pub(crate) fn ToolDock(state: CanvasState, anchor: NodeRef, shown: Prop<bool>) -> NodeId {
@@ -46,9 +43,10 @@ pub(crate) fn ToolDock(state: CanvasState, anchor: NodeRef, shown: Prop<bool>) -
     });
     let selection = move || {
         view! {
-            <List align=Align::Center spacing=0.0>
-                <SelectionTools state />
-                <Frame height=PILL_MARGIN />
+            <List align=Align::Center spacing=Space::None>
+                <Frame padding={Padding::ZERO.bottom(PILL_MARGIN)}>
+                    <SelectionTools state />
+                </Frame>
             </List>
         }
     };
@@ -86,7 +84,7 @@ pub(crate) fn ToolDock(state: CanvasState, anchor: NodeRef, shown: Prop<bool>) -
                 @test_id={"infinite-canvas.dock.block"}
                 on_click={add_block}
             />
-            <Separator direction=Direction::Vertical length=DIVIDER_HEIGHT />
+            <Separator direction=Direction::Vertical length=Size::Md />
             <ToggleButton
                 icon_only=true
                 action={actions.ignore_touch.clone()}
@@ -111,11 +109,11 @@ pub(crate) fn ZoomPill(state: CanvasState, anchor: NodeRef, shown: Prop<bool>) -
                 <Frame
                     fill=ColorRole::SurfaceRaised
                     border={Border::DEFAULT}
-                    radius={Radius::custom(PILL_RADIUS)}
+                    radius=Radius::Full
                     padding=PILL_PADDING
                     @test_id={"infinite-canvas.zoom-pill"}
                 >
-                    <List direction=Direction::Horizontal align=Align::Center spacing=2.0>
+                    <List direction=Direction::Horizontal align=Align::Center spacing=Space::Xs2>
                         <Button
                             icon_only=true
                             @test_id={"infinite-canvas.pill.zoom-out"}
@@ -190,9 +188,9 @@ pub(crate) fn ImportError(state: CanvasState) -> NodeId {
     let message = create_memo(move || state.import_error.get().unwrap_or_default());
     let dismiss = move || state.dismiss_import_error();
     view! {
-        <List spacing=0.0>
+        <List spacing=Space::None>
             <Show condition={failed}>
-                <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
+                <List direction=Direction::Horizontal align=Align::Center spacing=Space::Md>
                     <Text color=TextColor::Danger>{message}</Text>
                     <Button
                         label="Dismiss"
