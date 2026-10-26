@@ -1,117 +1,11 @@
-use std::ops::Range;
+pub use crate::types::{
+    BackEdge, BackGesture, CursorIcon, ImeEvent, ImeText, Input, Key, KeyChord, KeyPress, Keyboard,
+    Keystroke, Modifiers, Pen, PenPhase, PointerButton, ScrollDelta, TouchId, TouchPhase,
+};
 
-use geometry::{Pos2, Vec2};
-use serde::{Deserialize, Serialize};
-
-use crate::clipboard::Pasted;
+use geometry::Vec2;
 
 mod names;
-
-#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug, Serialize, Deserialize)]
-pub enum Key {
-    ArrowDown,
-    ArrowLeft,
-    ArrowRight,
-    ArrowUp,
-    Backspace,
-    BracketLeft,
-    BracketRight,
-    Delete,
-    End,
-    Enter,
-    Escape,
-    Home,
-    Minus,
-    PageDown,
-    PageUp,
-    Plus,
-    Space,
-    Tab,
-    Zero,
-    One,
-    Two,
-    Three,
-    Four,
-    Five,
-    Six,
-    Seven,
-    Eight,
-    Nine,
-    Backtick,
-    A,
-    B,
-    C,
-    D,
-    E,
-    F,
-    G,
-    H,
-    I,
-    J,
-    K,
-    L,
-    M,
-    N,
-    O,
-    P,
-    Q,
-    R,
-    S,
-    T,
-    U,
-    V,
-    W,
-    X,
-    Y,
-    Z,
-    Insert,
-    Comma,
-    Period,
-    Slash,
-    Backslash,
-    Semicolon,
-    Quote,
-    BrowserBack,
-    F1,
-    F2,
-    F3,
-    F4,
-    F5,
-    F6,
-    F7,
-    F8,
-    F9,
-    F10,
-    F11,
-    F12,
-    F13,
-    F14,
-    F15,
-    F16,
-    F17,
-    F18,
-    F19,
-    F20,
-    F21,
-    F22,
-    F23,
-    F24,
-    VolumeUp,
-    VolumeDown,
-    VolumeMute,
-    MicMute,
-    BrightnessUp,
-    BrightnessDown,
-    MediaPlayPause,
-    MediaNext,
-    MediaPrevious,
-    MediaStop,
-    Shift,
-    Ctrl,
-    Alt,
-    Logo,
-    Unidentified,
-}
 
 impl Key {
     pub const ALL: [Self; 102] = [
@@ -240,14 +134,6 @@ impl Key {
     }
 }
 
-#[derive(Clone, Copy, PartialEq, Eq, Default, Debug, Serialize, Deserialize)]
-pub struct Modifiers {
-    pub alt: bool,
-    pub ctrl: bool,
-    pub shift: bool,
-    pub logo: bool,
-}
-
 impl Modifiers {
     pub const NONE: Self = Self {
         alt: false,
@@ -292,21 +178,6 @@ impl Modifiers {
     }
 }
 
-#[derive(Clone, Copy, PartialEq, Eq, Debug, Serialize, Deserialize)]
-pub struct KeyPress {
-    pub key: Key,
-    pub pressed: bool,
-    pub repeat: bool,
-    pub modifiers: Modifiers,
-}
-
-#[derive(Clone, Copy, PartialEq, Eq, Debug, Serialize, Deserialize)]
-pub struct KeyChord {
-    pub key: Key,
-    pub modifiers: Modifiers,
-    pub tap: bool,
-}
-
 impl KeyPress {
     pub const fn down(key: Key, modifiers: Modifiers) -> Self {
         Self {
@@ -349,120 +220,10 @@ impl KeyChord {
     }
 }
 
-#[derive(Clone, Copy, PartialEq, Eq, Debug, Serialize, Deserialize)]
-pub enum PointerButton {
-    Primary,
-    Secondary,
-    Middle,
-    Back,
-    Forward,
-    Other(u16),
-}
-
-#[derive(Clone, Copy, PartialEq, Eq, Debug, Serialize, Deserialize)]
-pub enum PenPhase {
-    Move,
-    Down(PointerButton),
-    Up(PointerButton),
-    Gone,
-}
-
-#[derive(Clone, Copy, PartialEq, Eq, Debug, Serialize, Deserialize)]
-pub enum TouchPhase {
-    Start,
-    Move,
-    End,
-    Cancel,
-}
-
-#[derive(Clone, Copy, PartialEq, Debug, Serialize, Deserialize)]
-pub enum BackGesture {
-    Started { edge: BackEdge },
-    Progressed(f32),
-    Cancelled,
-    Invoked,
-}
-
-#[derive(Clone, Copy, PartialEq, Eq, Default, Debug, Serialize, Deserialize)]
-pub enum BackEdge {
-    #[default]
-    None,
-    Left,
-    Right,
-}
-
-#[derive(Clone, PartialEq, Eq, Debug, Serialize, Deserialize)]
-pub enum ImeEvent {
-    Enabled,
-    Disabled,
-    SetComposingText(String),
-    CommitText(String),
-    FinishComposing,
-    SetComposingRegion(Range<usize>),
-    ReplaceText { range: Range<usize>, text: String },
-    DeleteSurrounding { before: usize, after: usize },
-    SetSelection { anchor: usize, focus: usize },
-}
-
-#[derive(Clone, PartialEq, Eq, Default, Debug, Serialize, Deserialize)]
-pub struct ImeText {
-    pub start: usize,
-    pub text: String,
-    pub selection: Range<usize>,
-    pub composing: Option<Range<usize>>,
-}
-
-#[derive(Clone, Copy, PartialEq, Eq, Debug, Serialize, Deserialize)]
-pub enum Keyboard {
-    Held,
-    Shown { asks: u32 },
-}
-
 impl Keyboard {
     pub fn shown(self) -> bool {
         matches!(self, Self::Shown { .. })
     }
-}
-
-#[derive(Clone, Copy, PartialEq, Eq, Hash, Default, Debug, Serialize, Deserialize)]
-pub enum CursorIcon {
-    #[default]
-    Default,
-    Crosshair,
-    Grab,
-    Grabbing,
-    NotAllowed,
-    PointingHand,
-    ResizeHorizontal,
-    ResizeVertical,
-    ResizeNeSw,
-    ResizeNwSe,
-    Text,
-    Wait,
-    None,
-    Move,
-    Progress,
-    Help,
-    Alias,
-    ContextMenu,
-    Cell,
-    VerticalText,
-    Copy,
-    NoDrop,
-    AllScroll,
-    ZoomIn,
-    ZoomOut,
-    ResizeColumn,
-    ResizeRow,
-    ResizeNorth,
-    ResizeEast,
-    ResizeSouth,
-    ResizeWest,
-    ResizeNorthEast,
-    ResizeNorthWest,
-    ResizeSouthEast,
-    ResizeSouthWest,
-    Touch,
 }
 
 impl CursorIcon {
@@ -552,78 +313,6 @@ impl CursorIcon {
 
 #[cfg(test)]
 mod tests;
-
-#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug, Serialize, Deserialize)]
-pub struct TouchId {
-    pub device: u64,
-    pub finger: u64,
-}
-
-#[derive(Clone, Copy, PartialEq, Default, Debug, Serialize, Deserialize)]
-pub struct Pen {
-    pub pressure: f32,
-    pub tilt: Vec2,
-    pub eraser: bool,
-}
-
-#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
-pub struct Keystroke {
-    pub key: Option<Key>,
-    pub pressed: bool,
-    pub repeat: bool,
-    pub evdev: Option<u32>,
-    pub text: Option<String>,
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
-pub enum ScrollDelta {
-    Pixels(Vec2),
-    Lines(Vec2),
-    Pages(Vec2),
-}
-
-#[derive(Clone, PartialEq, Debug, Serialize, Deserialize)]
-pub enum Input {
-    Focus(bool),
-    Modifiers(Modifiers),
-    Key(Keystroke),
-    Text(String),
-    Paste(Pasted),
-    Ime(ImeEvent),
-    PointerMoved(Pos2),
-    PointerLeft,
-    PointersCancelled,
-    PointerMotion(Vec2),
-    PointerUnlocked,
-    PointerButton {
-        pos: Pos2,
-        button: PointerButton,
-        pressed: bool,
-    },
-    ScrollStarted,
-    Scroll(ScrollDelta),
-    ScrollEnded,
-    Zoom(f32),
-    Touch {
-        id: TouchId,
-        phase: TouchPhase,
-        pos: Pos2,
-        force: Option<f32>,
-    },
-    Pen {
-        phase: PenPhase,
-        pos: Pos2,
-        pen: Pen,
-    },
-    Predicted(Pos2),
-    Back(BackGesture),
-    InterceptedKey {
-        key: Key,
-        pressed: bool,
-        repeat: bool,
-    },
-    InterceptedTap(Key),
-}
 
 impl Input {
     pub fn translated(mut self, by: Vec2) -> Self {

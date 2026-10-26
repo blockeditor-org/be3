@@ -73,6 +73,9 @@ suite's `programs` (crates/bench/BUCK). Each can also run alone, with
   accessibility dump) and the clock stopped, and push their inputs as a platform would. A
   frame's time is `Runner::frame`'s, so it includes the intake and the window bookkeeping
   around the app's update; the open bench takes the renderer's `prepare` out of it.
+- `//crates/block-wasm-host:example-gpu-calls` times a plugin's per-draw gpu calls (set
+  pipeline, viewport and scissor, draw) through wasmtime and block-gpu-host into wgpu's
+  noop device: about 130 ns a call on this machine in October 2026.
 - `//crates/be-graph:example-access-bench` times the server's access queries (one block,
   what one account sees, a block's audience) on an organization of 100,000 blocks.
 - `//crates/editors/infinite-canvas:example-canvas-bench -- [open|pan|zoom|drag|ink|long] [COUNT]`

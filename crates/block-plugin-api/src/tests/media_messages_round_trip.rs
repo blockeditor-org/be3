@@ -24,8 +24,8 @@ fn media_messages_round_trip() {
         ],
         default_output: Some("bluez_output.headphones".to_owned()),
     };
-    host_value_round_trips::<Media>(levels);
-    host_value_round_trips::<Media>(MediaLevels::default());
+    watched_round_trips::<MediaWatch>(levels);
+    watched_round_trips::<MediaWatch>(MediaLevels::default());
     for request in [
         MediaRequest::StepVolume(-0.05),
         MediaRequest::SetVolume(0.7),
@@ -38,6 +38,6 @@ fn media_messages_round_trip() {
     .into_iter()
     .chain(PlayerCommand::ALL.map(MediaRequest::Player))
     {
-        host_action_round_trips(request);
+        round_trips(&request);
     }
 }

@@ -10,7 +10,7 @@ use be_commit::CommitId;
 use be_graph::{Access, BlockParent};
 use be_protocol::{AccessEntry, BlockSummary, ClientMessage, ServerMessage};
 use be_types_host::Conflict;
-use block_type_api::{Change, Description, EditorId, Request};
+use block_type_api::{Change, Description, EditorId};
 use block_type_guest::editor::FromEditor;
 use futures_util::future::{Either, select};
 use tokio::sync::mpsc::UnboundedReceiver;
@@ -44,8 +44,8 @@ pub(super) enum Command {
     },
     Revision {
         block: Uuid,
-        request: block_plugin_api::HostRequest,
-        reply: Box<dyn FnOnce(block_plugin_api::HostReply) + Send>,
+        request: super::revisions::Asked,
+        reply: Box<dyn FnOnce(super::revisions::Answered) + Send>,
     },
     Open {
         block: Uuid,
@@ -1314,7 +1314,7 @@ async fn apply(
                 open_wanted(peer, shared, wanted, replicas, block, content_type).await;
             }
             let change = Change::Child(change);
-            let _ = replicas.request_later(block, |replica| Request::Change { replica, change });
+            replicas.change_later(block, change);
             false
         }
         Command::Operate(block, operation, at) => {
@@ -1353,7 +1353,7 @@ async fn apply(
                 false => Change::Undo,
                 true => Change::Redo,
             };
-            let _ = replicas.request_later(block, |replica| Request::Change { replica, change });
+            replicas.change_later(block, change);
             false
         }
         Command::Duplicate {

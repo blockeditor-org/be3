@@ -1,0 +1,533 @@
+package be3:plugin@0.1.0;
+
+/// What a plugin describes to assistive technology, and what it is asked to
+/// do there: AccessKit's shapes, as the plugin and host exchange them.
+interface accessibility {
+    use be3:shared/ids@0.1.0.{uuid};
+
+    /// A tree's id, AccessKit's uuid.
+    type tree-id = uuid;
+
+    /// A node of a tree, numbered by the plugin that describes it.
+    type node-id = u64;
+
+    enum action {
+        click,
+        focus,
+        blur,
+        collapse,
+        expand,
+        custom-action,
+        decrement,
+        increment,
+        hide-tooltip,
+        show-tooltip,
+        replace-selected-text,
+        scroll-down,
+        scroll-left,
+        scroll-right,
+        scroll-up,
+        scroll-into-view,
+        scroll-to-point,
+        set-scroll-offset,
+        set-text-selection,
+        set-sequential-focus-navigation-starting-point,
+        set-value,
+        show-context-menu,
+    }
+
+    enum scroll-unit {
+        item,
+        page,
+    }
+
+    enum scroll-hint {
+        top-left,
+        bottom-right,
+        top-edge,
+        bottom-edge,
+        left-edge,
+        right-edge,
+    }
+
+    record point {
+        x: f64,
+        y: f64,
+    }
+
+    record text-position {
+        node: node-id,
+        character-index: u64,
+    }
+
+    record text-selection {
+        anchor: text-position,
+        focus: text-position,
+    }
+
+    variant action-data {
+        custom-action(s32),
+        value(string),
+        numeric-value(f64),
+        scroll-unit(scroll-unit),
+        scroll-hint(scroll-hint),
+        scroll-to-point(point),
+        set-scroll-offset(point),
+        set-text-selection(text-selection),
+    }
+
+    /// An action assistive technology asks of a described node.
+    record action-request {
+        action: action,
+        target-tree: tree-id,
+        target-node: node-id,
+        data: option<action-data>,
+    }
+
+    enum role {
+        unknown,
+        text-run,
+        cell,
+        label,
+        image,
+        link,
+        row,
+        list-item,
+        list-marker,
+        tree-item,
+        list-box-option,
+        menu-item,
+        menu-list-option,
+        paragraph,
+        generic-container,
+        check-box,
+        radio-button,
+        text-input,
+        button,
+        default-button,
+        pane,
+        row-header,
+        column-header,
+        row-group,
+        %list,
+        table,
+        layout-table-cell,
+        layout-table-row,
+        layout-table,
+        switch,
+        menu,
+        multiline-text-input,
+        search-input,
+        date-input,
+        date-time-input,
+        week-input,
+        month-input,
+        time-input,
+        email-input,
+        number-input,
+        password-input,
+        phone-number-input,
+        url-input,
+        abbr,
+        alert,
+        alert-dialog,
+        application,
+        article,
+        audio,
+        banner,
+        blockquote,
+        canvas,
+        caption,
+        caret,
+        code,
+        color-well,
+        combo-box,
+        editable-combo-box,
+        complementary,
+        comment,
+        content-deletion,
+        content-insertion,
+        content-info,
+        definition,
+        description-list,
+        details,
+        dialog,
+        disclosure-triangle,
+        document,
+        embedded-object,
+        emphasis,
+        feed,
+        figure-caption,
+        figure,
+        footer,
+        form,
+        grid,
+        grid-cell,
+        group,
+        header,
+        heading,
+        iframe,
+        iframe-presentational,
+        ime-candidate,
+        keyboard,
+        legend,
+        line-break,
+        list-box,
+        log,
+        main,
+        mark,
+        marquee,
+        math,
+        menu-bar,
+        menu-item-check-box,
+        menu-item-radio,
+        menu-list-popup,
+        meter,
+        navigation,
+        note,
+        plugin-object,
+        progress-indicator,
+        radio-group,
+        region,
+        root-web-area,
+        ruby,
+        ruby-annotation,
+        scroll-bar,
+        scroll-view,
+        search,
+        section,
+        section-footer,
+        section-header,
+        slider,
+        spin-button,
+        splitter,
+        status,
+        strong,
+        suggestion,
+        svg-root,
+        tab,
+        tab-list,
+        tab-panel,
+        term,
+        time,
+        timer,
+        title-bar,
+        toolbar,
+        tooltip,
+        tree,
+        tree-grid,
+        video,
+        web-view,
+        window,
+        pdf-actionable-highlight,
+        pdf-root,
+        graphics-document,
+        graphics-object,
+        graphics-symbol,
+        doc-abstract,
+        doc-acknowledgements,
+        doc-afterword,
+        doc-appendix,
+        doc-back-link,
+        doc-biblio-entry,
+        doc-bibliography,
+        doc-biblio-ref,
+        doc-chapter,
+        doc-colophon,
+        doc-conclusion,
+        doc-cover,
+        doc-credit,
+        doc-credits,
+        doc-dedication,
+        doc-endnote,
+        doc-endnotes,
+        doc-epigraph,
+        doc-epilogue,
+        doc-errata,
+        doc-example,
+        doc-footnote,
+        doc-foreword,
+        doc-glossary,
+        doc-gloss-ref,
+        doc-index,
+        doc-introduction,
+        doc-note-ref,
+        doc-notice,
+        doc-page-break,
+        doc-page-footer,
+        doc-page-header,
+        doc-page-list,
+        doc-part,
+        doc-preface,
+        doc-prologue,
+        doc-pullquote,
+        doc-qna,
+        doc-subtitle,
+        doc-tip,
+        doc-toc,
+        list-grid,
+        terminal,
+    }
+
+    enum node-flag {
+        hidden,
+        multiselectable,
+        required,
+        visited,
+        busy,
+        live-atomic,
+        modal,
+        touch-transparent,
+        read-only,
+        disabled,
+        italic,
+        clips-children,
+        is-line-breaking-object,
+        is-page-breaking-object,
+        is-spelling-error,
+        is-grammar-error,
+        is-search-match,
+        is-suggestion,
+    }
+
+    enum invalid {
+        %true,
+        grammar,
+        spelling,
+    }
+
+    enum toggled {
+        %false,
+        %true,
+        mixed,
+    }
+
+    enum live {
+        off,
+        polite,
+        assertive,
+    }
+
+    enum text-direction {
+        left-to-right,
+        right-to-left,
+        top-to-bottom,
+        bottom-to-top,
+    }
+
+    enum orientation {
+        horizontal,
+        vertical,
+    }
+
+    enum sort-direction {
+        ascending,
+        descending,
+        other,
+    }
+
+    enum aria-current {
+        %false,
+        %true,
+        page,
+        step,
+        location,
+        date,
+        time,
+    }
+
+    enum auto-complete {
+        inline,
+        %list,
+        both,
+    }
+
+    enum has-popup {
+        menu,
+        listbox,
+        tree,
+        grid,
+        dialog,
+    }
+
+    enum list-style {
+        circle,
+        disc,
+        image,
+        numeric,
+        square,
+        other,
+    }
+
+    enum text-align {
+        left,
+        right,
+        center,
+        justify,
+    }
+
+    enum vertical-offset {
+        subscript,
+        superscript,
+    }
+
+    enum text-decoration-style {
+        solid,
+        dotted,
+        dashed,
+        double,
+        wavy,
+    }
+
+    record color {
+        red: u8,
+        green: u8,
+        blue: u8,
+        alpha: u8,
+    }
+
+    record text-decoration {
+        style: text-decoration-style,
+        color: color,
+    }
+
+    record node-rect {
+        x0: f64,
+        y0: f64,
+        x1: f64,
+        y1: f64,
+    }
+
+    record custom-action {
+        id: s32,
+        description: string,
+    }
+
+    /// One property of a node AccessKit describes.
+    variant node-property {
+        children(list<node-id>),
+        controls(list<node-id>),
+        details(list<node-id>),
+        described-by(list<node-id>),
+        flow-to(list<node-id>),
+        labelled-by(list<node-id>),
+        owns(list<node-id>),
+        radio-group(list<node-id>),
+        active-descendant(node-id),
+        error-message(node-id),
+        in-page-link-target(node-id),
+        member-of(node-id),
+        next-on-line(node-id),
+        previous-on-line(node-id),
+        popup-for(node-id),
+        label(string),
+        description(string),
+        value(string),
+        access-key(string),
+        author-id(string),
+        class-name(string),
+        font-family(string),
+        html-tag(string),
+        inner-html(string),
+        keyboard-shortcut(string),
+        language(string),
+        placeholder(string),
+        role-description(string),
+        state-description(string),
+        tooltip(string),
+        url(string),
+        row-index-text(string),
+        column-index-text(string),
+        braille-label(string),
+        braille-role-description(string),
+        scroll-x(f64),
+        scroll-x-min(f64),
+        scroll-x-max(f64),
+        scroll-y(f64),
+        scroll-y-min(f64),
+        scroll-y-max(f64),
+        numeric-value(f64),
+        min-numeric-value(f64),
+        max-numeric-value(f64),
+        numeric-value-step(f64),
+        numeric-value-jump(f64),
+        font-size(f32),
+        font-weight(f32),
+        row-count(u64),
+        column-count(u64),
+        row-index(u64),
+        column-index(u64),
+        row-span(u64),
+        column-span(u64),
+        level(u64),
+        size-of-set(u64),
+        position-in-set(u64),
+        color-value(color),
+        background-color(color),
+        foreground-color(color),
+        overline(text-decoration),
+        strikethrough(text-decoration),
+        underline(text-decoration),
+        character-lengths(list<u8>),
+        word-starts(list<u8>),
+        character-positions(list<f32>),
+        character-widths(list<f32>),
+        expanded(bool),
+        selected(bool),
+        invalid(invalid),
+        toggled(toggled),
+        live(live),
+        text-direction(text-direction),
+        orientation(orientation),
+        sort-direction(sort-direction),
+        aria-current(aria-current),
+        auto-complete(auto-complete),
+        has-popup(has-popup),
+        list-style(list-style),
+        text-align(text-align),
+        vertical-offset(vertical-offset),
+        transform(list<f64>),
+        bounds(node-rect),
+        text-selection(text-selection),
+        tree-id(tree-id),
+        custom-actions(list<custom-action>),
+    }
+
+    record node {
+        id: node-id,
+        role: role,
+        actions: list<action>,
+        %flags: list<node-flag>,
+        properties: list<node-property>,
+    }
+
+    record tree {
+        root: node-id,
+        toolkit-name: option<string>,
+        toolkit-version: option<string>,
+    }
+
+    /// A change of the tree a screen describes, as AccessKit's tree update.
+    record tree-update {
+        nodes: list<node>,
+        tree: option<tree>,
+        tree-id: tree-id,
+        focus: node-id,
+    }
+
+    /// An action a screen offers outside its tree, such as a menu command.
+    record described-action {
+        id: string,
+        label: string,
+        shortcut: option<string>,
+        enabled: bool,
+        checked: option<bool>,
+        live: bool,
+    }
+
+    /// What a screen describes to assistive technology.
+    record description {
+        tree: option<tree-update>,
+        actions: list<described-action>,
+    }
+}

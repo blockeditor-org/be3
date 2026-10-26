@@ -1,0 +1,453 @@
+package be3:linux-desktop@0.1.0;
+
+/// Shapes the Linux desktop's interfaces share.
+///
+/// `be3:linux-desktop` is an extension beside the core plugin protocol, not part
+/// of it: what a host that runs a Linux desktop session (block-app's, or a
+/// compositor written in another language) offers the editors that draw the
+/// desktop, one interface per part of the session. An editor names the package
+/// in its manifest's `extensions` to use it; the host answers a call from any
+/// other with `denied`, and a host with no Linux session answers every watch
+/// `unsupported`. A watch the host has nothing for yet is not answered.
+interface types {
+    /// An image a program gave the host, as rows of rgba pixels.
+    record host-image {
+        width: u32,
+        height: u32,
+        rgba: list<u8>,
+    }
+
+    /// A window of another program the host shows, numbered by the host.
+    type host-window-id = u64;
+}
+
+/// The windows of other programs the host shows.
+interface windows {
+    use types.{host-image, host-window-id};
+    use be3:ui/types@0.1.0.{rect, vec2};
+
+    /// Where a window came from: the program the desktop launched, the command
+    /// it ran and the launch it answers.
+    record window-origin {
+        program: option<string>,
+        command: list<string>,
+        launch: option<u64>,
+    }
+
+    record host-window {
+        id: host-window-id,
+        title: string,
+        app-id: string,
+        parent: option<host-window-id>,
+        modal: bool,
+        size: vec2,
+        /// The output a fullscreen window covers.
+        fullscreen: option<rect>,
+        responding: bool,
+        focused: bool,
+        icon: option<host-image>,
+        /// Counts up each time the host raises the window.
+        raised: u64,
+        origin: window-origin,
+    }
+
+    record window-fullscreen {
+        window: host-window-id,
+        fullscreen: bool,
+    }
+
+    variant window-action {
+        focus(host-window-id),
+        fullscreen(window-fullscreen),
+        close(host-window-id),
+    }
+
+    resource windows-watch {
+        constructor();
+        next: async func() -> list<host-window>;
+    }
+
+    request: func(action: window-action);
+}
+
+/// The pointing devices and the input remaps of the session.
+interface input {
+    use be3:ui/types@0.1.0.{input-device, pointer-settings};
+
+    record host-input-device {
+        device: input-device,
+        /// What the device does before the user changes it.
+        defaults: pointer-settings,
+    }
+
+    /// Whether the session remaps input, and whether the remapping stopped.
+    enum remap-state {
+        off,
+        on,
+        stopped,
+    }
+
+    resource input-devices-watch {
+        constructor();
+        next: async func() -> list<host-input-device>;
+    }
+
+    resource remaps-watch {
+        constructor();
+        next: async func() -> remap-state;
+    }
+}
+
+/// The displays connected to the session.
+interface displays {
+    use be3:ui/types@0.1.0.{display-mode, rotation};
+
+    record host-display {
+        id: string,
+        name: string,
+        connector: string,
+        modes: list<display-mode>,
+        default: display-mode,
+        current: display-mode,
+        rotation: rotation,
+    }
+
+    resource displays-watch {
+        constructor();
+        next: async func() -> list<host-display>;
+    }
+}
+
+/// Locking the screen and ending the session.
+interface power {
+    enum power-action {
+        lock,
+        suspend,
+        restart,
+        power-off,
+        log-out,
+    }
+
+    /// Which power actions the session may take now, and whether it is ending.
+    record power-availability {
+        lock: bool,
+        suspend: bool,
+        restart: bool,
+        power-off: bool,
+        log-out: bool,
+        ending: bool,
+    }
+
+    resource power-watch {
+        constructor();
+        next: async func() -> power-availability;
+    }
+
+    request: func(action: power-action);
+}
+
+/// Sound levels and outputs, the brightness and the media players.
+interface media {
+    /// A level from 0 to 1.
+    record media-level {
+        level: f32,
+        muted: bool,
+    }
+
+    record audio-output {
+        id: string,
+        name: string,
+    }
+
+    record media-levels {
+        output: option<media-level>,
+        input: option<media-level>,
+        brightness: option<f32>,
+        outputs: list<audio-output>,
+        default-output: option<string>,
+    }
+
+    enum player-command {
+        play-pause,
+        next,
+        previous,
+        stop,
+    }
+
+    variant media-request {
+        step-volume(f32),
+        set-volume(f32),
+        toggle-mute,
+        set-mute(bool),
+        choose-output(string),
+        toggle-mic-mute,
+        step-brightness(f32),
+        player(player-command),
+    }
+
+    resource media-watch {
+        constructor();
+        next: async func() -> media-levels;
+    }
+
+    request: func(request: media-request);
+}
+
+/// Wi-Fi networks and the connection to one.
+interface wifi {
+    enum wifi-security {
+        open,
+        password,
+        unsupported,
+    }
+
+    record wifi-network {
+        ssid: string,
+        /// From 0 to 100.
+        strength: u8,
+        security: wifi-security,
+        saved: bool,
+    }
+
+    variant wifi-link {
+        disconnected,
+        connecting(string),
+        connected(string),
+    }
+
+    record wifi-status {
+        available: bool,
+        enabled: bool,
+        link: wifi-link,
+        networks: list<wifi-network>,
+        failed: option<string>,
+    }
+
+    record wifi-connect {
+        ssid: string,
+        password: option<string>,
+    }
+
+    variant wifi-request {
+        set-enabled(bool),
+        scan,
+        connect(wifi-connect),
+        disconnect,
+    }
+
+    resource wifi-watch {
+        constructor();
+        next: async func() -> wifi-status;
+    }
+
+    request: func(request: wifi-request);
+}
+
+/// An e-paper display.
+interface epaper {
+    /// Whether the session draws on e-paper; answered only where it does.
+    resource epaper-watch {
+        constructor();
+        next: async func() -> bool;
+    }
+
+    /// Redraws the whole panel, clearing what earlier frames left on it.
+    refresh: func();
+}
+
+/// Notifications programs send, which the desktop shows and answers.
+interface notifications {
+    use types.{host-image};
+
+    record host-notification-action {
+        key: string,
+        label: string,
+    }
+
+    enum notification-urgency {
+        low,
+        normal,
+        critical,
+    }
+
+    record incoming-notification {
+        id: u32,
+        app-name: string,
+        summary: string,
+        body: string,
+        actions: list<host-notification-action>,
+        urgency: notification-urgency,
+        image: option<host-image>,
+        transient: bool,
+        resident: bool,
+        /// In milliseconds; -1 leaves it to the desktop and 0 never expires.
+        expire-timeout: s32,
+        /// The serial of the request that carried it.
+        received: u64,
+    }
+
+    variant notification-request {
+        notify(incoming-notification),
+        close(u32),
+    }
+
+    /// The requests the desktop has not reported it received, by serial.
+    record notification-inbox {
+        requests: list<tuple<u64, notification-request>>,
+    }
+
+    enum notification-close-reason {
+        expired,
+        dismissed,
+        closed,
+    }
+
+    record notification-closed {
+        id: u32,
+        reason: notification-close-reason,
+    }
+
+    record notification-action-invoked {
+        id: u32,
+        key: string,
+    }
+
+    variant notification-signal {
+        closed(notification-closed),
+        action-invoked(notification-action-invoked),
+    }
+
+    /// The last request the desktop received, what happened to its
+    /// notifications and which of them it still shows.
+    record notification-report {
+        received: option<u64>,
+        signals: list<notification-signal>,
+        kept: list<u32>,
+    }
+
+    resource notifications-watch {
+        constructor();
+        next: async func() -> notification-inbox;
+    }
+
+    report: func(report: notification-report);
+}
+
+/// Whether the screen is locked.
+interface screen-lock {
+    resource screen-locked-watch {
+        constructor();
+        next: async func() -> bool;
+    }
+}
+
+/// The programs installed, and starting them.
+interface programs {
+    use types.{host-image};
+
+    record host-program {
+        id: string,
+        name: string,
+        generic-name: string,
+        comment: string,
+        keywords: list<string>,
+        wm-class: option<string>,
+        icon: option<host-image>,
+    }
+
+    record program-list {
+        /// The icons' size in pixels, at most 256.
+        icon-size: u32,
+    }
+
+    record program-launch {
+        program: string,
+        launch: option<u64>,
+    }
+
+    record program-exec {
+        command: list<string>,
+        launch: option<u64>,
+    }
+
+    variant program-action {
+        /// Lists the programs, answered through the watch.
+        %list(program-list),
+        launch(program-launch),
+        /// Runs a command line through the shell.
+        run(string),
+        exec(program-exec),
+    }
+
+    resource programs-watch {
+        constructor();
+        next: async func() -> list<host-program>;
+    }
+
+    request: func(action: program-action);
+}
+
+/// The status notifier items programs show, and their menus.
+interface tray {
+    use types.{host-image};
+
+    enum tray-status {
+        passive,
+        active,
+        needs-attention,
+    }
+
+    variant tray-toggle {
+        none,
+        check(bool),
+        radio(bool),
+    }
+
+    /// An entry of an item's menu, after its parent: one deeper than the
+    /// submenu it is in.
+    record tray-menu-item {
+        depth: u32,
+        id: s32,
+        label: string,
+        separator: bool,
+        enabled: bool,
+        toggle: tray-toggle,
+    }
+
+    record host-tray-item {
+        id: string,
+        title: string,
+        tooltip: string,
+        status: tray-status,
+        icon: option<host-image>,
+        item-is-menu: bool,
+        menu: list<tray-menu-item>,
+    }
+
+    record tray-scroll {
+        item: string,
+        delta: s32,
+        horizontal: bool,
+    }
+
+    record tray-menu-chosen {
+        item: string,
+        entry: s32,
+    }
+
+    variant tray-request {
+        activate(string),
+        secondary-activate(string),
+        scroll(tray-scroll),
+        menu-opened(string),
+        menu-closed(string),
+        menu-chosen(tray-menu-chosen),
+    }
+
+    resource tray-watch {
+        constructor();
+        next: async func() -> list<host-tray-item>;
+    }
+
+    request: func(request: tray-request);
+}

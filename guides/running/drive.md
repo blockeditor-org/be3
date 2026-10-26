@@ -141,8 +141,8 @@ so dialogs, the file tree and every editor read like the host's own controls.
   so it compares exactly where a PNG would not; `./scripts/buck run //crates/local-tools:bin -- rasterize SNAPSHOT.paint OUTPUT.png [FRAME|all]` turns it into a PNG and
   `example-dump` lists its shapes. It waits until the app settles and crops to where TARGET is
   in the frame it paints, then asks every running
-  plugin for what it last painted, through an extension message (`PAINTING_EXTENSION` in
-  crates/paint-format) rather than the plugin protocol proper. What a plugin draws through a
+  plugin for what it last painted, through the plugin's `paintings` export (paint-format's
+  `ScreenPaintings`). What a plugin draws through a
   `Drawing` of its own, a web view or a Wayland window is a placeholder rectangle, as in any
   snapshot.
 - `drive overflows` lists, one per line, what the window shows out of bounds

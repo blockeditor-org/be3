@@ -8,6 +8,7 @@ use block_editor_beui::beui::icons::{
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
 use block_editor_beui::beui::unstyled::PopoverHandle;
+use block_editor_beui::linux_desktop;
 use block_editor_beui::{Editor, WifiLink, WifiNetwork, WifiRequest, WifiSecurity, WifiStatus};
 
 use super::popup::BarPopup;
@@ -91,7 +92,7 @@ pub(crate) fn WifiButton(editor: Editor, status: Memo<WifiStatus>) -> NodeId {
     let open = Binding::new(open, move |next: bool| {
         open.set(next);
         if next {
-            editor.act(WifiRequest::Scan);
+            editor.act(move || linux_desktop::wifi::request(WifiRequest::Scan));
         }
     });
     view! {
@@ -129,7 +130,7 @@ fn WifiPanel(editor: Editor, status: Memo<WifiStatus>) -> NodeId {
             <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
                 <Text @sizing=ItemSize::Percent(100.0) style=TextStyle::HEADING>"Wi-Fi"</Text>
                 <Switch
-                    on={Binding::new(enabled, move |on: bool| editor.act(WifiRequest::SetEnabled(on)))}
+                    on={Binding::new(enabled, move |on: bool| editor.act(move || linux_desktop::wifi::request(WifiRequest::SetEnabled(on))))}
                     label="Wi-Fi"
                     @test_id={"desktop.wifi.enabled"}
                 />
@@ -202,10 +203,11 @@ fn NetworkRow(
         match (network.saved, network.security) {
             (true, _) | (false, WifiSecurity::Open) => {
                 asking.set(None);
-                editor.act(WifiRequest::Connect {
+                let request = WifiRequest::Connect {
                     ssid: chosen.clone(),
                     password: None,
-                });
+                };
+                editor.act(move || linux_desktop::wifi::request(request));
             }
             (false, WifiSecurity::Password) => asking.set(Some(chosen.clone())),
             (false, WifiSecurity::Unsupported) => {}
@@ -240,7 +242,7 @@ fn NetworkRow(
                         label="Disconnect"
                         variant=ButtonVariant::Ghost
                         @test_id={disconnect_id.clone()}
-                        on_click={move || editor.act(WifiRequest::Disconnect)}
+                        on_click={move || editor.act(move || linux_desktop::wifi::request(WifiRequest::Disconnect))}
                     />
                 </Show>
             </List>
@@ -264,10 +266,11 @@ fn PasswordEntry(editor: Editor, ssid: String, asking: Signal<Option<String>>) -
         }
         password.set(String::new());
         asking.set(None);
-        editor.act(WifiRequest::Connect {
+        let request = WifiRequest::Connect {
             ssid: ssid.clone(),
             password: Some(typed),
-        });
+        };
+        editor.act(move || linux_desktop::wifi::request(request));
     };
     let submitted = connect.clone();
     view! {

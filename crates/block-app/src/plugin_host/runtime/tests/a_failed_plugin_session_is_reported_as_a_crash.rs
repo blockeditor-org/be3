@@ -27,7 +27,7 @@ fn a_failed_plugin_session_is_reported_as_a_crash() {
     let _ = take_crashed();
 
     with("test.failing", |runtime| {
-        runtime.session.receive(Message::ShutdownAcknowledged, 0);
+        runtime.session.shut_down();
         runtime.pump();
     });
 

@@ -1,3 +1,4 @@
+use block_editor_beui::linux_desktop;
 use std::time::Duration;
 
 use block_editor_beui::be_block::DisplaySettings;
@@ -10,7 +11,7 @@ use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
 use block_editor_beui::beui::unstyled::{MenuItem, PopoverHandle};
 use block_editor_beui::{
-    Displays, Epaper, EpaperRequest, Media, Power, Wifi, node_anchor, utc_offset,
+    DisplaysWatch, EpaperWatch, MediaWatch, PowerWatch, WifiWatch, node_anchor, utc_offset,
 };
 use block_shell::Workspace;
 
@@ -64,9 +65,9 @@ pub(crate) fn DesktopBar(
 ) -> NodeId {
     let clock = wall_clock();
     let editor = workspace.editor();
-    let levels = editor.host_value::<Media>();
+    let levels = editor.watch::<MediaWatch>();
     let audible = create_memo(move || levels.with(|levels| levels.output.is_some()));
-    let wifi = editor.host_value::<Wifi>();
+    let wifi = editor.watch::<WifiWatch>();
     let wireless = create_memo(move || wifi.with(|wifi| wifi.available));
     let kept = placeholders.keys;
     let launches = placeholders.launchable;
@@ -74,10 +75,10 @@ pub(crate) fn DesktopBar(
     let launchable = launcher.offered;
     let launcher = move || launcher.show(true);
     let notified = notifications.offered;
-    let powered = editor.host_offers::<Power>();
-    let epaper = editor.host_value::<Epaper>();
-    let refresh = move || editor.act(EpaperRequest::Refresh);
-    let displays = editor.host_value::<Displays>();
+    let powered = editor.offered::<PowerWatch>();
+    let epaper = editor.watch::<EpaperWatch>();
+    let refresh = move || editor.act(linux_desktop::epaper::refresh);
+    let displays = editor.watch::<DisplaysWatch>();
     let screen = create_memo(move || displays.with(|displays| displays.first().cloned()));
     let display_settings = editor.effective_settings::<DisplaySettings>();
     let rotatable = create_memo(move || {

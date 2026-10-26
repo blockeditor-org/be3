@@ -4,9 +4,25 @@ use counter_types::CounterContent;
 
 use std::time::Duration;
 
-use block_editor_plugin::session::{ClientSession, State};
-use block_plugin_api::{HelloAccepted, SurfaceFormat, SurfaceSpec};
 use block_type_guest::editor::FromEditor;
+
+fn opened_first(opened: &mut HashSet<EditorInstanceId>, sent: &[Outbound]) {
+    for outbound in sent {
+        match outbound {
+            Outbound::Open(opening) => {
+                assert!(opened.insert(opening.instance()), "an editor opened twice");
+            }
+            outbound => {
+                if let Some(instance) = outbound.instance() {
+                    assert!(
+                        opened.contains(&instance),
+                        "{outbound:?} reached an editor before it opened"
+                    );
+                }
+            }
+        }
+    }
+}
 
 #[test]
 fn an_editor_is_only_sent_messages_its_plugin_session_accepts() {
@@ -15,30 +31,15 @@ fn an_editor_is_only_sent_messages_its_plugin_session_accepts() {
     let block = Uuid::new_v4();
     let block_type = CounterContent::CONTENT_TYPE;
     let mut instances = placed_on(block, block_type);
-    let mut session = ClientSession::new("be3.counter", "Counter", "1");
-    session.receive(Message::HelloAccepted(HelloAccepted {
-        host_name: "test host".into(),
-        surface: Some(SurfaceSpec {
-            format: SurfaceFormat::Rgba8Unorm,
-            render: true,
-        }),
-        preferences: block_plugin_api::Preferences::default(),
-    }));
-
+    let mut open = HashSet::new();
     let opened = next_screens(&mut instances).opened;
     assert!(
         opened
             .iter()
-            .any(|message| matches!(message, Message::Editor(EditorMessage::Open { .. })))
+            .any(|message| matches!(message, Outbound::Open(_)))
     );
-    for message in opened {
-        session.receive(message);
-    }
-    instances.editor_message(EditorMessage::Replica {
-        instance: INSTANCE,
-        block_id: block.into_bytes(),
-        frame: block_type_api::encode_frame(&FromEditor::Resend),
-    });
+    opened_first(&mut open, &opened);
+    to_replica(&mut instances, block, &FromEditor::Resend);
     crate::be::wait_for(Duration::from_secs(20), |shared| {
         shared.blocks.contains_key(&block).then_some(())
     })
@@ -51,13 +52,8 @@ fn an_editor_is_only_sent_messages_its_plugin_session_accepts() {
     let carried = next_screens(&mut instances).opened;
 
     assert!(
-        carried
-            .iter()
-            .any(|message| matches!(message, Message::Editor(EditorMessage::Replica { .. }))),
+        !from_replica(&mut instances, block).is_empty(),
         "the host never sent the block's content"
     );
-    for message in carried {
-        session.receive(message);
-    }
-    assert_eq!(session.state(), State::Running);
+    opened_first(&mut open, &carried);
 }

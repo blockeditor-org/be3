@@ -924,6 +924,27 @@ dependencies = [
 ]
 
 [[package]]
+name = "be-ops"
+version = "0.1.0"
+dependencies = [
+ "block-guest-abi",
+ "postcard",
+ "serde",
+ "serde_bytes",
+]
+
+[[package]]
+name = "be-ops-bindgen"
+version = "0.1.0"
+dependencies = [
+ "heck",
+ "proc-macro2",
+ "quote",
+ "syn 2.0.117",
+ "wit-parser 0.254.0",
+]
+
+[[package]]
 name = "be-protocol"
 version = "0.1.0"
 dependencies = [
@@ -1647,7 +1668,8 @@ dependencies = [
 name = "block-gpu-abi"
 version = "0.1.0"
 dependencies = [
- "bincode",
+ "be-ops",
+ "be-ops-bindgen",
  "serde",
 ]
 
@@ -1656,7 +1678,6 @@ name = "block-gpu-guest"
 version = "0.1.0"
 dependencies = [
  "block-gpu-abi",
- "serde",
  "wgpu",
 ]
 
@@ -1664,6 +1685,7 @@ dependencies = [
 name = "block-gpu-host"
 version = "0.1.0"
 dependencies = [
+ "be-ops",
  "block-gpu-abi",
  "block-guest-abi",
  "wgpu",
@@ -1673,9 +1695,7 @@ dependencies = [
 name = "block-gpu-shim"
 version = "0.1.0"
 dependencies = [
- "block-gpu-abi",
  "block-gpu-host",
- "block-guest-abi",
  "js-sys",
  "serde_json",
  "wasm-bindgen",
@@ -1721,7 +1741,9 @@ name = "block-plugin-api"
 version = "0.1.0"
 dependencies = [
  "accesskit",
- "bincode",
+ "be-ops",
+ "be-ops-bindgen",
+ "block-gpu-abi",
  "serde",
  "serde_bytes",
  "serde_json",
@@ -1759,11 +1781,12 @@ name = "block-type-api"
 version = "0.1.0"
 dependencies = [
  "be-commit",
+ "be-ops",
+ "be-ops-bindgen",
  "be-protocol",
  "be-session",
- "be-store",
- "postcard",
  "serde",
+ "serde_bytes",
  "uuid",
 ]
 
@@ -1811,6 +1834,7 @@ dependencies = [
  "host-types",
  "image",
  "paint-snapshot",
+ "serde",
  "text-block-types",
  "uuid",
  "workspace-ui-types",
@@ -1820,6 +1844,7 @@ dependencies = [
 name = "block-wasm-host"
 version = "0.1.0"
 dependencies = [
+ "be-ops",
  "block-gpu-abi",
  "block-gpu-host",
  "block-guest-abi",
@@ -8224,6 +8249,7 @@ dependencies = [
 name = "ui-types"
 version = "0.1.0"
 dependencies = [
+ "be-ops-bindgen",
  "geometry",
  "serde",
  "serde_bytes",

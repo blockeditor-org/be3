@@ -1,5 +1,5 @@
 use block_editor_beui::{
-    AccessLevel, Administrator, BlockCommand, BlockInfo, BlockParent, BlockQuery,
+    AccessLevel, AdministratorWatch, BlockInfo, BlockParent, BlockQuery, ShellCommand,
 };
 
 use super::*;
@@ -27,12 +27,12 @@ fn leave_is_offered_on_a_phone_but_never_to_an_administrator() {
     assert!(
         fixture
             .test
-            .take_block_commands()
-            .contains(&(plan, BlockCommand::Leave)),
+            .take_shell_commands()
+            .contains(&(plan, ShellCommand::Leave)),
         "leaving what was shared asks the host to take this account off it"
     );
 
-    fixture.test.set_host_value::<Administrator>(&true);
+    fixture.test.set_watched::<AdministratorWatch>(&true);
     fixture.settle();
     fixture.test.click(&more);
     fixture.settle();

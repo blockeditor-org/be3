@@ -61,7 +61,7 @@ pub fn RepositoryView(editor: Editor) -> NodeId {
             move |picked| {
                 if let Ok(picked) = picked {
                     editor.version(VersionCommand::Adopt {
-                        block_id: picked.id.into_bytes(),
+                        block_id: picked.id().into_bytes(),
                     });
                 }
             },

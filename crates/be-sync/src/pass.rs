@@ -10,7 +10,7 @@ use be_graph::BlockParent;
 use be_store::{ChunkRef, Hash, Manifest, ObjectStore};
 use be_types_host::{Modules, Plain, plain_of};
 use be_vcs::{ConflictKind, Entry, Tree};
-use block_type_api::{Change as Edit, ChildChange};
+use block_type_api::{Change as Edit, ChildChange, FileChange};
 use futures_util::StreamExt;
 use uuid::Uuid;
 
@@ -705,10 +705,10 @@ impl<S: ObjectStore> Pass<'_, S> {
                 (claimed, None)
             }
         };
-        let edit = Edit::FromFile {
+        let edit = Edit::FromFile(FileChange {
             name: name.to_owned(),
             bytes,
-        };
+        });
         let content = self
             .types
             .apply(block_type, current, CLIENT, edit)
@@ -762,26 +762,19 @@ impl<S: ObjectStore> Pass<'_, S> {
         name: &str,
         local: Vec<u8>,
     ) -> Result<(Vec<u8>, bool), String> {
-        let edit = Edit::FromFile {
+        let edit = Edit::FromFile(FileChange {
             name: name.to_owned(),
             bytes: local,
-        };
+        });
         let ours = self
             .types
             .apply(block_type, base.clone(), CLIENT, edit)
             .await?
             .ok_or("its type has no plain-file form")?;
-        let request = block_type_api::Request::Merge3 {
-            content_type: block_type,
-            base,
-            ours: Some(ours),
-            theirs,
-        };
-        let (merged, conflicts) = match self.types.ask(block_type, request).await {
-            block_type_api::Reply::Merged { bytes, conflicts } => (bytes, conflicts > 0),
-            block_type_api::Reply::Malformed(error) => return Err(error),
-            other => return Err(format!("the type module answered {other:?}")),
-        };
+        let (merged, conflicts) = self
+            .types
+            .merge3(block_type, base, Some(ours), theirs)
+            .await?;
         let file = self
             .types
             .to_files(vec![(block_type, merged)])

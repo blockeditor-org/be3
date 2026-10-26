@@ -1,4 +1,4 @@
-use block_gpu_abi as abi;
+use block_gpu_abi::device as abi;
 
 macro_rules! plain_map {
     ($function:ident, $from:path, $to:path, { $($variant:ident),+ $(,)? }) => {
@@ -105,8 +105,8 @@ plain_map!(storage_access, abi::StorageTextureAccess, wgpu::StorageTextureAccess
 
 plain_map!(store_op, abi::StoreOp, wgpu::StoreOp, { Store, Discard });
 
-pub(crate) fn label(value: &str) -> Option<&str> {
-    (!value.is_empty()).then_some(value)
+pub(crate) fn label(value: &Option<String>) -> Option<&str> {
+    value.as_deref()
 }
 
 pub(crate) fn extent(value: abi::Extent3d) -> wgpu::Extent3d {
@@ -117,8 +117,8 @@ pub(crate) fn extent(value: abi::Extent3d) -> wgpu::Extent3d {
     }
 }
 
-pub(crate) fn size(value: u64) -> Option<wgpu::BufferSize> {
-    wgpu::BufferSize::new(value)
+pub(crate) fn size(value: Option<u64>) -> Option<wgpu::BufferSize> {
+    value.and_then(wgpu::BufferSize::new)
 }
 
 pub(crate) fn blend_component(value: abi::BlendComponent) -> wgpu::BlendComponent {
@@ -140,20 +140,20 @@ pub(crate) fn stencil_face(value: abi::StencilFaceState) -> wgpu::StencilFaceSta
 
 pub(crate) fn color(value: abi::Color) -> wgpu::Color {
     wgpu::Color {
-        r: value.red,
-        g: value.green,
-        b: value.blue,
-        a: value.alpha,
+        r: value.r,
+        g: value.g,
+        b: value.b,
+        a: value.a,
     }
 }
 
 pub(crate) fn binding_type(value: abi::BindingType) -> wgpu::BindingType {
     match value {
-        abi::BindingType::Buffer {
+        abi::BindingType::Buffer(abi::BufferBindingLayout {
             kind,
             has_dynamic_offset,
             min_binding_size,
-        } => wgpu::BindingType::Buffer {
+        }) => wgpu::BindingType::Buffer {
             ty: match kind {
                 abi::BufferBindingType::Uniform => wgpu::BufferBindingType::Uniform,
                 abi::BufferBindingType::Storage => {
@@ -167,30 +167,30 @@ pub(crate) fn binding_type(value: abi::BindingType) -> wgpu::BindingType {
             min_binding_size: size(min_binding_size),
         },
         abi::BindingType::Sampler(kind) => wgpu::BindingType::Sampler(sampler_binding(kind)),
-        abi::BindingType::Texture {
-            sample_kind,
+        abi::BindingType::Texture(abi::TextureBindingLayout {
+            sample_type,
             view_dimension,
             multisampled,
-        } => wgpu::BindingType::Texture {
-            sample_type: match sample_kind {
-                abi::TextureSampleKind::FloatFilterable => {
+        }) => wgpu::BindingType::Texture {
+            sample_type: match sample_type {
+                abi::TextureSampleType::FloatFilterable => {
                     wgpu::TextureSampleType::Float { filterable: true }
                 }
-                abi::TextureSampleKind::FloatUnfilterable => {
+                abi::TextureSampleType::FloatUnfilterable => {
                     wgpu::TextureSampleType::Float { filterable: false }
                 }
-                abi::TextureSampleKind::Depth => wgpu::TextureSampleType::Depth,
-                abi::TextureSampleKind::Sint => wgpu::TextureSampleType::Sint,
-                abi::TextureSampleKind::Uint => wgpu::TextureSampleType::Uint,
+                abi::TextureSampleType::Depth => wgpu::TextureSampleType::Depth,
+                abi::TextureSampleType::Sint => wgpu::TextureSampleType::Sint,
+                abi::TextureSampleType::Uint => wgpu::TextureSampleType::Uint,
             },
             view_dimension: texture_view_dimension(view_dimension),
             multisampled,
         },
-        abi::BindingType::StorageTexture {
+        abi::BindingType::StorageTexture(abi::StorageTextureBindingLayout {
             access,
             format,
             view_dimension,
-        } => wgpu::BindingType::StorageTexture {
+        }) => wgpu::BindingType::StorageTexture {
             access: storage_access(access),
             format: texture_format(format),
             view_dimension: texture_view_dimension(view_dimension),
@@ -198,11 +198,11 @@ pub(crate) fn binding_type(value: abi::BindingType) -> wgpu::BindingType {
     }
 }
 
-pub(crate) fn limits(value: &wgpu::Limits) -> abi::DeviceLimits {
-    abi::DeviceLimits {
-        max_texture_dimension_1d: value.max_texture_dimension_1d,
-        max_texture_dimension_2d: value.max_texture_dimension_2d,
-        max_texture_dimension_3d: value.max_texture_dimension_3d,
+pub(crate) fn limits(value: &wgpu::Limits) -> abi::SupportedLimits {
+    abi::SupportedLimits {
+        max_texture_dimension1d: value.max_texture_dimension_1d,
+        max_texture_dimension2d: value.max_texture_dimension_2d,
+        max_texture_dimension3d: value.max_texture_dimension_3d,
         max_texture_array_layers: value.max_texture_array_layers,
         max_bind_groups: value.max_bind_groups,
         max_bindings_per_bind_group: value.max_bindings_per_bind_group,
@@ -219,3 +219,36 @@ pub(crate) fn limits(value: &wgpu::Limits) -> abi::DeviceLimits {
         min_storage_buffer_offset_alignment: value.min_storage_buffer_offset_alignment,
     }
 }
+
+macro_rules! reverse_map {
+    ($function:ident, $from:path, $to:path, { $($variant:ident),+ $(,)? }) => {
+        pub(crate) fn $function(value: $from) -> Option<$to> {
+            use $from as From;
+            use $to as To;
+            #[allow(unreachable_patterns)]
+            match value {
+                $(From::$variant => Some(To::$variant),)+
+                _ => None,
+            }
+        }
+    };
+}
+
+reverse_map!(abi_texture_format, wgpu::TextureFormat, abi::TextureFormat, {
+    R8Unorm, R8Snorm, R8Uint, R8Sint,
+    R16Uint, R16Sint, R16Float,
+    Rg8Unorm, Rg8Snorm, Rg8Uint, Rg8Sint,
+    R32Uint, R32Sint, R32Float,
+    Rg16Uint, Rg16Sint, Rg16Float,
+    Rgba8Unorm, Rgba8UnormSrgb, Rgba8Snorm, Rgba8Uint, Rgba8Sint,
+    Bgra8Unorm, Bgra8UnormSrgb,
+    Rgb9e5Ufloat, Rgb10a2Uint, Rgb10a2Unorm, Rg11b10Ufloat,
+    Rg32Uint, Rg32Sint, Rg32Float,
+    Rgba16Uint, Rgba16Sint, Rgba16Float,
+    Rgba32Uint, Rgba32Sint, Rgba32Float,
+    Stencil8, Depth16Unorm, Depth24Plus, Depth24PlusStencil8, Depth32Float, Depth32FloatStencil8,
+});
+
+reverse_map!(abi_texture_dimension, wgpu::TextureDimension, abi::TextureDimension, {
+    D1, D2, D3,
+});

@@ -2,7 +2,7 @@ use std::cell::RefCell;
 
 use be_block::DisplaySettings;
 use beui_adapter_drm::{DisplayConfig, DisplayControl, Epaper, Monitor};
-use block_plugin_api::{EpaperRequest, HostDisplay};
+use block_plugin_api::HostDisplay;
 
 use super::Screen;
 
@@ -15,7 +15,7 @@ pub(crate) fn start(setup: &beui::Setup) {
     let control = setup.get::<DisplayControl>().cloned();
     if let Some(control) = &control {
         control.on_monitors(|monitors| {
-            crate::plugin_host::publish::<block_plugin_api::Displays>(
+            crate::plugin_host::publish::<block_plugin_api::DisplaysWatch>(
                 &monitors.iter().map(host_display).collect(),
             );
             super::set_screens(monitors.iter().map(screen).collect());
@@ -25,7 +25,7 @@ pub(crate) fn start(setup: &beui::Setup) {
     CONTROL.with(|slot| *slot.borrow_mut() = control);
     let epaper = setup.get::<Epaper>().cloned();
     if epaper.is_some() {
-        crate::plugin_host::publish::<block_plugin_api::Epaper>(&true);
+        crate::plugin_host::publish::<block_plugin_api::EpaperWatch>(&true);
     }
     EPAPER.with(|slot| *slot.borrow_mut() = epaper);
 }
@@ -42,7 +42,7 @@ pub(crate) fn stop() {
 }
 
 pub(crate) fn run_epaper() {
-    let requests = crate::plugin_host::take_actions::<EpaperRequest>();
+    let requests = crate::plugin_host::take_calls(block_plugin_api::requested::epaper_refresh);
     if requests.is_empty() {
         return;
     }

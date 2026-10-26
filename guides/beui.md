@@ -385,7 +385,7 @@ hooks the higher crates fill in:
   The clipboard is the platform's: `Context::copy_text` writes it, and
   `Context::copy_image` (`reactive::copy_image`) writes a PNG in its place
   (`Platform::copy_image`: winit through arboard, the web as a `ClipboardItem`,
-  a plugin through its host's `EditorMessage::CopyImage`, the headless
+  a plugin through the shell interface's `copy-image`, the headless
   `Simulation`, which pastes it back as `Pasted::Image`; Android and DRM drop
   it). `Context::watch_copies` hears every text copy (which is how be-wayland hands the
   app's copies to Wayland programs), and a paste is the only way to read it.
@@ -1559,7 +1559,7 @@ preference, and resolves them top down, falling back to `Preferences::default()`
   `prefers-color-scheme` and `prefers-reduced-motion`; Android from night mode and a zero
   animator scale; the DRM adapter says e-paper and instant motion on an e-paper panel; the
   plugin adapter reports the host's resolved preferences, which reach a plugin in its
-  acceptance and in `Message::Preferences`; plugin tests send them with
+  acceptance and through the host interface's preferences-watch; plugin tests send them with
   `BeuiTest::set_preferences`.
 
 Set a layer with `Context::set_preference_layer(source, layer)` and read them with
@@ -3768,11 +3768,12 @@ once at the top of the frame, and
 `read` and `revision` track, so a memo or effect that reads them runs again
 when the content changes. See the [reactive guide](reactive.md#blocks).
 
-Nothing in an editor polls. What the host sends between frames is recorded
-by the framework and delivered at the top of the next frame as signals on
-the `Editor`: `replies()` ticks when the host answers a request (a file or
-block pick, a fetch), and `on_reply(f)` runs `f` each time;
-`drag()` and `files()` carry a drag or a file drop over the editor;
+Nothing in an editor polls. A request the host answers (a file or block
+pick, a fetch) is an `Asked` future, and `editor.then(asked, f)` runs `f`
+with the answer once it arrives, unless the scope that asked has gone
+(guides/adding_a_plugin_editor.md, Asking the host). What the host sends
+unasked is recorded by the framework and delivered at the top of the next
+frame as signals on the `Editor`: `drag()` and `files()` carry a drag or a file drop over the editor;
 `audio()`, `history(block)`, `histories()`, `artifacts()`, `focused_block()`,
 `web_view_events()` and `peers::<P>()` follow the host's state;
 `block_types()` tracks the catalog; `placed()` is the content rect as a
@@ -3788,8 +3789,7 @@ A template the manifest marks `"dialog": true` is made through `BeuiApp::Creatio
 more component that the framework builds a separate document of
 and shows in the picker's creation dialog. It says what the dialog makes with
 `creation.on_create(...)` and answers `creation.set_ready(true)` once it has been
-filled in. Host services such as `BlockPicker` work there too, collected from
-`creation.on_reply(...)` when the host answers.
+filled in. Asking the host works there too, through `creation.then(...)`.
 
 ## Develop an unstyled component
 

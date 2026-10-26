@@ -837,7 +837,7 @@ fn RelationOptions(
                     schema.operate(DatabaseSchema::set_relation_options(
                         id,
                         DatabaseRelationOptions {
-                            database: Some(picked.id),
+                            database: Some(picked.id()),
                             ..current.clone()
                         },
                     ));

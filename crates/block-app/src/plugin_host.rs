@@ -9,24 +9,27 @@ use uuid::Uuid;
 
 mod audio;
 mod backend;
+mod calls;
 mod description;
 mod fonts;
 pub(crate) mod graph;
 mod heads;
-mod host_values;
 mod input;
 mod instances;
 mod pieces;
 mod presenter;
 mod previews;
+mod published;
 mod runtime;
 mod sent;
+mod session;
 #[cfg(not(target_arch = "wasm32"))]
 mod surface;
 #[cfg(not(target_arch = "wasm32"))]
 mod wasm;
 #[cfg(target_arch = "wasm32")]
 mod web;
+mod wire;
 
 pub(crate) use description::describe;
 pub(crate) use input::BlockDrag;
@@ -46,10 +49,10 @@ pub(crate) use runtime::{
     replace_child, replace_gpu, report_child_bars, report_child_focus, report_children,
     request_painting, request_pick, resized, revoke_frame_child, running, set_artifact_states,
     set_focus, set_presence_visible, set_presented, set_shell, settle, show_block, show_dialog,
-    show_panel, start_frames, take_actions, take_artifact_outcome, take_artifact_watch,
-    take_bar_actions, take_block_pick, take_child_commits, take_child_menu_picks, take_crashed,
+    show_panel, start_frames, take_artifact_outcome, take_artifact_watch, take_bar_actions,
+    take_block_pick, take_calls, take_child_commits, take_child_menu_picks, take_crashed,
     take_created, take_focus_report, take_leaving, take_pick_answers, take_steps,
-    take_view_changes, warm,
+    take_view_changes, take_withdrawn_picks, warm, withdraw_pick,
 };
 pub(crate) use runtime::{
     RegionPlacement, RegionSlot, RegionView, back_region, drag_over_region, forward_region, frames,
@@ -173,7 +176,7 @@ pub(crate) struct ChildCommit {
 }
 
 pub(crate) struct BlockPickRequest {
-    pub(crate) request_id: u64,
+    pub(crate) op: u64,
     pub(crate) filter: block_plugin_api::BlockFilter,
 }
 
@@ -236,7 +239,7 @@ pub(crate) fn preview_scale(size: Vec2, scale_factor: f32) -> f32 {
 
 pub(crate) struct CreationSlot<'a> {
     pub(crate) plugin: &'a PluginManifest,
-    pub(crate) block_types: &'a Arc<block_plugin_api::Catalog>,
+    pub(crate) block_types: &'a Arc<crate::editors::PluginCatalog>,
     pub(crate) client_id: Uuid,
     pub(crate) instance: EditorInstanceId,
     pub(crate) role: InstanceRole,
@@ -273,7 +276,7 @@ impl InstanceRole {
 
 pub(crate) struct ArtifactSlot<'a> {
     pub(crate) plugin: &'a PluginManifest,
-    pub(crate) block_types: &'a Arc<block_plugin_api::Catalog>,
+    pub(crate) block_types: &'a Arc<crate::editors::PluginCatalog>,
     pub(crate) client_id: Uuid,
     pub(crate) instance: EditorInstanceId,
     pub(crate) editor: Uuid,

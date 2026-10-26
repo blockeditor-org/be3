@@ -9,10 +9,10 @@ fn a_volume_key_shows_the_level_the_host_reports_until_it_fades() {
     let mut fixture = Fixture::new();
     fixture.settle();
     assert!(
-        fixture.test.watches::<Media>(),
+        fixture.test.watches::<MediaWatch>(),
         "the desktop asks the host for the levels"
     );
-    fixture.test.set_host_value::<Media>(&MediaLevels {
+    fixture.test.set_watched::<MediaWatch>(&MediaLevels {
         output: Some(MediaLevel {
             level: 0.65,
             muted: false,
@@ -32,7 +32,7 @@ fn a_volume_key_shows_the_level_the_host_reports_until_it_fades() {
 
     assert!(fixture.test.app_key(Modifiers::NONE, Key::VolumeUp));
     fixture.settle();
-    fixture.test.set_host_value::<Media>(&MediaLevels {
+    fixture.test.set_watched::<MediaWatch>(&MediaLevels {
         output: Some(MediaLevel {
             level: 0.7,
             muted: false,
@@ -53,7 +53,7 @@ fn a_volume_key_shows_the_level_the_host_reports_until_it_fades() {
     );
 
     assert!(fixture.test.app_key(Modifiers::NONE, Key::VolumeMute));
-    fixture.test.set_host_value::<Media>(&MediaLevels {
+    fixture.test.set_watched::<MediaWatch>(&MediaLevels {
         output: Some(MediaLevel {
             level: 0.7,
             muted: true,

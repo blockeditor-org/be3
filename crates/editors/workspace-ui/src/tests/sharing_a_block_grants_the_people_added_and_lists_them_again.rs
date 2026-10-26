@@ -1,7 +1,6 @@
 use block_editor_beui::beui::{Key, Modifiers};
-use block_editor_beui::{
-    AccessGrant, AccessLevel, AccessListing, HostReply, HostRequest, ShellDialog,
-};
+use block_editor_beui::{AccessGrant, AccessLevel, ShellDialog};
+use block_ui_test::HostCall;
 
 use super::*;
 
@@ -18,8 +17,12 @@ fn sharing_a_block_grants_the_people_added_and_lists_them_again() {
         .test
         .take_requests()
         .into_iter()
-        .find_map(|(request, asked)| {
-            (asked == HostRequest::ListAccess(block.into_bytes())).then_some(request)
+        .find_map(|call| match call {
+            HostCall::ListAccess {
+                reply,
+                block: asked,
+            } if asked == block.into_bytes() => Some(reply),
+            _ => None,
         })
         .expect("opening the share dialog asks who can open the block");
     let grant = |account: Uuid, name: &str, granted: Option<AccessLevel>| AccessGrant {
@@ -32,9 +35,9 @@ fn sharing_a_block_grants_the_people_added_and_lists_them_again() {
         effective: granted.unwrap_or(AccessLevel::None),
         waiting: false,
     };
-    fixture.test.reply(
+    fixture.test.answer(
         listing,
-        HostReply::AccessListed(AccessListing::Listed(vec![
+        Ok(vec![
             grant(me, "Me", Some(AccessLevel::Edit)),
             grant(friend, "Friend", None),
             AccessGrant {
@@ -42,7 +45,7 @@ fn sharing_a_block_grants_the_people_added_and_lists_them_again() {
                 effective: AccessLevel::Edit,
                 ..grant(maker, "Maker", None)
             },
-        ])),
+        ]),
     );
     fixture.settle();
     assert!(fixture.says("This is you"));
@@ -68,11 +71,10 @@ fn sharing_a_block_grants_the_people_added_and_lists_them_again() {
         vec![(block, friend, AccessLevel::Edit)]
     );
     assert!(
-        fixture
-            .test
-            .take_requests()
-            .iter()
-            .any(|(_, asked)| *asked == HostRequest::ListAccess(block.into_bytes())),
+        fixture.test.take_requests().iter().any(|call| matches!(
+            call,
+            HostCall::ListAccess { block: asked, .. } if *asked == block.into_bytes()
+        )),
         "the members are listed again after a grant"
     );
 }

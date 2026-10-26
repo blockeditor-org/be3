@@ -1,11 +1,12 @@
 use beui::KeyAt;
+use block_editor_beui::linux_desktop;
 use std::rc::Rc;
 
 use block_editor_beui::beui::icons::ICON_LAYOUT_GRID;
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
 use block_editor_beui::beui::{Image, Key, NodeId};
-use block_editor_beui::{Editor, HostProgram, ProgramAction, Programs};
+use block_editor_beui::{Editor, HostProgram, ProgramAction, ProgramsWatch};
 
 const ICON_POINTS: f32 = 32.0;
 
@@ -24,14 +25,15 @@ impl ProgramLauncher {
             editor,
             open,
             scale: pixels_per_point(),
-            offered: editor.host_offers::<Programs>(),
+            offered: editor.offered::<ProgramsWatch>(),
         }
     }
 
     pub(crate) fn show(&self, open: bool) {
         if open && !self.open.get_untracked() {
             let icon_size = (ICON_POINTS * self.scale.get_untracked()).ceil() as u32;
-            self.editor.act(ProgramAction::List { icon_size });
+            self.editor
+                .act(move || linux_desktop::programs::request(ProgramAction::List { icon_size }));
         }
         self.open.set(open);
     }
@@ -42,15 +44,18 @@ impl ProgramLauncher {
 
     fn launch(&self, id: String) {
         self.show(false);
-        self.editor.act(ProgramAction::Launch {
-            program: id,
-            launch: None,
+        self.editor.act(move || {
+            linux_desktop::programs::request(ProgramAction::Launch {
+                program: id,
+                launch: None,
+            })
         });
     }
 
     fn run(&self, line: String) {
         self.show(false);
-        self.editor.act(ProgramAction::Run(line));
+        self.editor
+            .act(move || linux_desktop::programs::request(ProgramAction::Run(line)));
     }
 }
 
@@ -86,7 +91,7 @@ pub(super) fn ProgramLauncherOverlay(launcher: ProgramLauncher) -> NodeId {
     .at(KeyAt::Window)
     .capture()
     .register();
-    let programs = launcher.editor.host_value::<Programs>();
+    let programs = launcher.editor.watch::<ProgramsWatch>();
     let items = create_memo(move || {
         programs.with(|programs| Rc::new(programs.iter().map(item).collect::<Vec<_>>()))
     });

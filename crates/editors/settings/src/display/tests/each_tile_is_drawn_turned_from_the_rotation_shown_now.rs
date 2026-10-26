@@ -11,7 +11,7 @@ fn each_tile_is_drawn_turned_from_the_rotation_shown_now() {
     ] {
         settings
             .editor
-            .set_host_value::<Displays>(&vec![turned(shown)]);
+            .set_watched::<DisplaysWatch>(&vec![turned(shown)]);
         settings.run();
         let document = settings.editor.document();
         for rotation in Rotation::ALL {

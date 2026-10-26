@@ -1,4 +1,4 @@
-use block_plugin_api::{ProgramAction, Programs as Listed};
+use block_plugin_api::{ProgramAction, ProgramsWatch};
 
 use crate::{plugin_host, wayland};
 
@@ -10,7 +10,7 @@ pub(crate) struct Programs {
 
 impl Programs {
     pub(crate) fn frame(&mut self) {
-        for action in plugin_host::take_actions::<ProgramAction>() {
+        for action in plugin_host::take_calls(block_plugin_api::requested::program) {
             match action {
                 ProgramAction::List { icon_size } if wayland::running() => {
                     self.programs
@@ -31,7 +31,7 @@ impl Programs {
         let offering = !self.offered && wayland::running();
         self.offered |= offering;
         if self.programs.receive() || offering {
-            plugin_host::publish::<Listed>(&self.programs.listed());
+            plugin_host::publish::<ProgramsWatch>(&self.programs.listed());
         }
     }
 }

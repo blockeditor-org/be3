@@ -9,11 +9,10 @@ use std::{
 use beui::reactive::EmbedPlacement;
 use beui::{Pos2, Rect, Vec2, pos2, vec2};
 use block_plugin_api::{
-    ArtifactDescription, BlockPick, ChildPlacements, ChildPreview, EditorInstanceId, EditorMessage,
-    EditorRegion, FrameCommit, FrameSpec, HostAction, HostPanel, HostSession, HostValue,
-    MAX_QUEUED_MESSAGES, Message, Monitor, PluginManifest, PresentedFrame, PreviewImage,
-    RegionSize, ScreenDamage, ScreenId, ScreenLayout, ScreenPlacement, ScreenRequest, ScreenWindow,
-    SessionState, SurfaceFormat, SurfaceSpec, ViewChange, decode_host, encode_host,
+    ArtifactDescription, BlockPick, ChildPlacements, ChildPreview, EditorInstanceId, EditorRegion,
+    FrameCommit, FrameSpec, HostPanel, Monitor, Opening, PluginManifest, PresentedFrame,
+    PreviewImage, RegionSize, ScreenDamage, ScreenId, ScreenLayout, ScreenPlacement, ScreenRequest,
+    ScreenWindow, SurfaceFormat, SurfaceSpec, ViewChange, Watched,
 };
 use uuid::Uuid;
 
@@ -23,10 +22,12 @@ use super::{
     ArtifactSlot, ArtifactState, BlockPickRequest, CreationSlot, CreationState, HostChild,
     HostChildStatus, InstanceRole, RuntimeStatus, SurfaceStatus,
     backend::{Availability, Backend, Deadline, Frame, ShownFrame},
+    calls::{EditorAnswer, EditorCall, Heard, Outbound, PluginCall},
     input::{BlockDrag, BlockDragEvent},
     instances::{EditorView, Focus, Instances, Placement},
     presenter::{self, Blit, Piece, PresenterState, PresenterStatus, Quad, RegionDrawing, Shared},
     preview_scale, previews,
+    session::{Session, SessionFailure, SessionState},
 };
 
 const HOST_NAME: &str = "BE3";
@@ -57,7 +58,7 @@ struct Host {
     over_budget: u64,
     runtimes: HashMap<String, Runtime>,
     focus: Focus,
-    published: HashMap<String, Arc<Vec<u8>>>,
+    published: HashMap<block_plugin_api::ops::MethodId, Arc<Vec<u8>>>,
     shell: Option<(String, EditorInstanceId)>,
     grabbed: bool,
 }
@@ -94,8 +95,8 @@ impl Host {
             .entry(plugin.identity.id.clone())
             .or_insert_with(|| {
                 let mut runtime = Runtime::new(plugin, surface);
-                for (key, value) in published {
-                    runtime.instances.set_host_value(key, Arc::clone(value));
+                for (open, value) in published {
+                    runtime.instances.publish(*open, Arc::clone(value));
                 }
                 runtime.instances.set_shell(shell);
                 runtime
@@ -133,8 +134,8 @@ impl Host {
 pub(super) struct Runtime {
     plugin: PluginManifest,
     pub(super) backend: Backend,
-    session: HostSession,
-    queued: Vec<Message>,
+    session: Session,
+    queued: Vec<Outbound>,
     held: Vec<Answer>,
     taking_in: bool,
     pub(super) instances: Instances,
@@ -162,9 +163,48 @@ pub(super) struct Runtime {
 }
 
 enum Answer {
-    Message(Message),
+    Layout(ScreenLayout),
+    FrameNeeded,
+    MissingCharacters(Vec<char>),
+    Shell(block_plugin_api::embed::shell::Call),
+    Editor(EditorInstanceId, EditorAnswer),
+    Paintings(Vec<u8>),
+    Blocks(EditorInstanceId, block_plugin_api::embed::blocks::Call),
+    Watch(EditorInstanceId, block_plugin_api::ops::MethodId),
+    Called(EditorInstanceId, block_plugin_api::ops::Called),
+    Debug(
+        EditorInstanceId,
+        block_plugin_api::embed::debug::debug::Call,
+    ),
+    Ended(block_plugin_api::ops::OpId),
+    Service(super::wire::Service),
+    Withdrawn(block_plugin_api::ops::OpId),
     Frame(FrameCommit),
     Laid(Laid),
+}
+
+impl From<Heard> for Answer {
+    fn from(heard: Heard) -> Self {
+        match heard {
+            Heard::Layout(layout) => Self::Layout(layout),
+            Heard::FrameNeeded => Self::FrameNeeded,
+            Heard::MissingCharacters(missing) => Self::MissingCharacters(missing),
+            Heard::Frame(commit) => Self::Frame(*commit),
+            Heard::Hello(_) | Heard::ShutDown | Heard::Unanswered(_) => {
+                unreachable!("the session takes what it hears of its own")
+            }
+            Heard::Shell(call) => Self::Shell(call),
+            Heard::Answer(instance, answer) => Self::Editor(instance, answer),
+            Heard::Paintings(payload) => Self::Paintings(payload),
+            Heard::Blocks(instance, call) => Self::Blocks(instance, call),
+            Heard::Watch(instance, open) => Self::Watch(instance, open),
+            Heard::Called(instance, called) => Self::Called(instance, called),
+            Heard::Debug(instance, call) => Self::Debug(instance, call),
+            Heard::Ended(op) => Self::Ended(op),
+            Heard::Service(service) => Self::Service(service),
+            Heard::Withdrawn(op) => Self::Withdrawn(op),
+        }
+    }
 }
 
 struct Laid {
@@ -315,8 +355,9 @@ impl Runtime {
     }
 
     fn stop(&mut self) {
-        self.session.shutdown(self.milliseconds());
-        self.drain();
+        if self.session.shutdown(self.milliseconds()) {
+            self.backend.ask_to_shut_down();
+        }
         self.backend.shutdown();
         previews::forget(&self.plugin.identity.id);
     }
@@ -351,47 +392,50 @@ impl Runtime {
         }
         self.since = self.pass;
         self.pass = pass;
-        let mut messages = Vec::new();
-        if !self.fonts_sent && *self.session.state() == SessionState::Running {
+        let mut messages: Vec<Outbound> = Vec::new();
+        if !self.fonts_sent && self.session.running() {
             self.fonts_sent = true;
-            messages.push(Message::Fonts(super::fonts::bundled()));
+            messages.push(PluginCall::Fonts(super::fonts::bundled()).into());
         }
         let describing = super::description::describing();
-        if *self.session.state() == SessionState::Running && self.described != describing {
+        if self.session.running() && self.described != describing {
             self.described = describing;
-            messages.push(Message::Describe(describing));
+            messages.push(Outbound::Plugin(PluginCall::Describe(describing)));
         }
         let preferences = host::preferences();
         if self.preferences != preferences {
             self.preferences = preferences;
-            messages.push(Message::Preferences(preferences));
+            messages.push(PluginCall::Preferences(preferences).into());
         }
         let utc_offset = crate::platform::utc_offset();
-        if *self.session.state() == SessionState::Running && self.utc_offset != Some(utc_offset) {
+        if self.session.running() && self.utc_offset != Some(utc_offset) {
             self.utc_offset = Some(utc_offset);
-            messages.push(Message::UtcOffset(utc_offset));
+            messages.push(PluginCall::UtcOffset(utc_offset).into());
         }
         self.update(messages);
     }
 
-    fn update(&mut self, mut messages: Vec<Message>) {
+    fn update(&mut self, mut messages: Vec<Outbound>) {
         let drawing = self.session.granted_surface().is_some();
         let next = self.instances.next_screens(self.since);
         messages.extend(next.opened);
         if drawing && self.sent != next.screens {
             self.sent.clone_from(&next.screens);
-            messages.push(self.instances.screen_set(next.screens));
+            messages.push(PluginCall::Screens(self.instances.screen_set(next.screens)).into());
         }
         messages.extend(self.instances.pending());
-        messages.extend(self.instances.configure(&messages));
+        self.serve();
+        messages.extend(self.instances.configure(&messages).map(Outbound::from));
         let awaited = messages.iter().any(|message| {
             matches!(
                 message,
-                Message::Editor(EditorMessage::Open { .. } | EditorMessage::OpenArtifact { .. })
+                Outbound::Open(opening)
+                    if matches!(**opening, Opening::Block(_) | Opening::Artifact(_))
             )
         });
         self.pacing.needed |= !messages.is_empty();
         self.send(messages);
+        self.answer();
         if awaited {
             host::request_repaint();
         }
@@ -454,13 +498,16 @@ impl Runtime {
         request: beui::accesskit::ActionRequest,
     ) {
         self.pacing.needed = true;
-        self.send(vec![Message::NodeAction { screen, request }]);
+        self.send(vec![Outbound::Plugin(PluginCall::NodeAction {
+            screen,
+            request: request.into(),
+        })]);
         host::request_repaint();
     }
 
     pub(super) fn run_action(&mut self, screen: ScreenId, id: String) {
         self.pacing.needed = true;
-        self.send(vec![Message::RunAction { screen, id }]);
+        self.send(vec![Outbound::Plugin(PluginCall::RunAction { screen, id })]);
         host::request_repaint();
     }
 
@@ -480,17 +527,11 @@ impl Runtime {
     }
 
     fn request_painting(&mut self) {
-        if self.error.is_some()
-            || !self.instances.has_mounted()
-            || *self.session.state() != SessionState::Running
-        {
+        if self.error.is_some() || !self.instances.has_mounted() || !self.session.running() {
             return;
         }
         self.painting = true;
-        self.send(vec![Message::Extension {
-            key: beui::painting::PAINTING_EXTENSION,
-            payload: Vec::new(),
-        }]);
+        self.send(vec![Outbound::Plugin(PluginCall::Paintings)]);
     }
 
     fn painted(&mut self, payload: &[u8]) {
@@ -527,7 +568,7 @@ impl Runtime {
         if drawing && self.pacing.due(self.now(), host::pass()) {
             self.pacing.request(self.now(), host::pass());
             self.pacing.unseen = !seen;
-            self.send(vec![Message::DrawFrame {
+            self.send(vec![PluginCall::Draw {
                 now_micros: self.now().as_micros() as u64,
                 seen,
             }]);
@@ -589,6 +630,13 @@ impl Runtime {
         }
     }
 
+    fn serve(&mut self) {
+        let answers = self.instances.take_answers();
+        if !answers.is_empty() {
+            self.backend.answer(answers);
+        }
+    }
+
     fn pump(&mut self) {
         if self.error.is_some() {
             return;
@@ -600,10 +648,15 @@ impl Runtime {
             self.session.start(now);
         }
         let mut forwarded = Vec::with_capacity(received.len());
-        for message in received {
-            match message.is_session() {
-                true => self.session.receive(message, now),
-                false => forwarded.push(message),
+        for heard in received {
+            match heard {
+                Heard::Hello(hello) => {
+                    let accepted = self.session.connect(&hello, self.preferences);
+                    self.backend.accept(&accepted);
+                }
+                Heard::ShutDown => self.session.shut_down(),
+                Heard::Unanswered(error) => self.session.fail(SessionFailure::Protocol(error)),
+                heard => forwarded.push(heard),
             }
         }
         self.deliver();
@@ -627,41 +680,7 @@ impl Runtime {
                 return;
             }
         }
-        let forwarded = match self.taking_in {
-            true => {
-                let mut taken = std::mem::take(&mut self.held);
-                taken.extend(forwarded.into_iter().map(Answer::Message));
-                taken
-            }
-            false => {
-                let mut drawing = Vec::with_capacity(forwarded.len());
-                let mut held = false;
-                for message in forwarded {
-                    match message {
-                        Message::Frame(commit) => {
-                            let (now, later) = self.split(commit);
-                            drawing.push(Answer::Frame(now));
-                            if let Some(later) = later {
-                                held = true;
-                                self.held.push(Answer::Laid(later));
-                            }
-                        }
-                        message if self.draws_the_frame(&message) => {
-                            drawing.push(Answer::Message(message));
-                        }
-                        message => {
-                            held = true;
-                            self.held.push(Answer::Message(message));
-                        }
-                    }
-                }
-                if held {
-                    host::request_repaint();
-                }
-                drawing
-            }
-        };
-        self.apply(forwarded);
+        self.hear(forwarded);
         let (count, longest) = self.backend.stepped();
         if count > 0 {
             STEPS.with(|steps| {
@@ -703,6 +722,45 @@ impl Runtime {
             }
             mark(&self.plugin.identity.id);
         }
+    }
+
+    fn hear(&mut self, forwarded: Vec<Heard>) {
+        let forwarded = match self.taking_in {
+            true => {
+                let mut taken = std::mem::take(&mut self.held);
+                taken.extend(forwarded.into_iter().map(Answer::from));
+                taken
+            }
+            false => {
+                let mut drawing = Vec::with_capacity(forwarded.len());
+                let mut held = false;
+                for heard in forwarded {
+                    match heard {
+                        Heard::Frame(commit) => {
+                            let (now, later) = self.split(*commit);
+                            drawing.push(Answer::Frame(now));
+                            if let Some(later) = later {
+                                held = true;
+                                self.held.push(Answer::Laid(later));
+                            }
+                        }
+                        heard @ (Heard::Paintings(_) | Heard::Layout(_) | Heard::FrameNeeded) => {
+                            drawing.push(Answer::from(heard));
+                        }
+                        heard => {
+                            held = true;
+                            self.held.push(Answer::from(heard));
+                        }
+                    }
+                }
+                if held {
+                    host::request_repaint();
+                }
+                drawing
+            }
+        };
+        self.apply(forwarded);
+        self.answer();
     }
 
     fn export_previews(&mut self, frame: &Frame) {
@@ -751,9 +809,9 @@ impl Runtime {
         self.layout = layout;
     }
 
-    fn offer_previews(&mut self, messages: &[Message]) {
+    fn offer_previews(&mut self, messages: &[Outbound]) {
         for message in messages {
-            let Message::ChildStatuses(statuses) = message else {
+            let Outbound::Editor(_, EditorCall::ChildStatuses(statuses)) = message else {
                 continue;
             };
             for status in statuses {
@@ -767,20 +825,9 @@ impl Runtime {
         }
     }
 
-    fn draws_the_frame(&self, message: &Message) -> bool {
-        match message {
-            Message::Layout(_) | Message::FrameNeeded => true,
-            Message::Extension { key, .. } => *key == beui::painting::PAINTING_EXTENSION,
-            _ => false,
-        }
-    }
-
     fn split(&self, commit: FrameCommit) -> (FrameCommit, Option<Laid>) {
-        let mut message = Message::Frame(commit);
-        self.instances.translate(&mut message, true);
-        let Message::Frame(mut commit) = message else {
-            unreachable!("translating a frame leaves it a frame")
-        };
+        let mut commit = commit;
+        self.instances.translate(&mut commit, true);
         let (moving, coming) = std::mem::take(&mut commit.children)
             .into_iter()
             .partition(|placements| {
@@ -805,7 +852,20 @@ impl Runtime {
             .iter()
             .filter_map(|held| match held {
                 Answer::Laid(laid) => Some(laid.screens(&self.instances)),
-                Answer::Message(_) | Answer::Frame(_) => None,
+                Answer::Layout(_)
+                | Answer::FrameNeeded
+                | Answer::MissingCharacters(_)
+                | Answer::Shell(_)
+                | Answer::Editor(..)
+                | Answer::Paintings(_)
+                | Answer::Blocks(..)
+                | Answer::Watch(..)
+                | Answer::Called(..)
+                | Answer::Debug(..)
+                | Answer::Ended(_)
+                | Answer::Service(_)
+                | Answer::Withdrawn(_)
+                | Answer::Frame(_) => None,
             })
             .flatten()
             .collect()
@@ -830,46 +890,72 @@ impl Runtime {
         let mut changed = false;
         mark(&self.plugin.identity.id);
         for answer in answers {
-            let mut message = match answer {
-                Answer::Message(message) => message,
-                Answer::Frame(commit) => {
-                    changed |= self.commit(commit);
-                    continue;
-                }
-                Answer::Laid(laid) => {
-                    changed |= self.lay(laid);
-                    continue;
-                }
-            };
-            self.instances.translate(&mut message, true);
-            changed |= match message {
-                Message::Layout(layout) => {
+            changed |= match answer {
+                Answer::Layout(layout) => {
                     self.laid_out(layout);
                     true
                 }
-                Message::Editor(message) => self.instances.editor_message(message),
-                Message::FrameNeeded => {
+                Answer::FrameNeeded => {
                     self.pacing.needed = true;
                     true
                 }
-                Message::Frame(commit) => self.commit(commit),
-                Message::MissingCharacters(missing) => {
-                    replies.extend(self.fallbacks.answer(&missing).map(Message::Fonts));
+                Answer::MissingCharacters(missing) => {
+                    replies.extend(self.fallbacks.answer(&missing).map(PluginCall::Fonts));
                     false
                 }
-                Message::Extension { key, payload }
-                    if key == beui::painting::PAINTING_EXTENSION =>
-                {
+                Answer::Shell(mut call) => {
+                    self.instances.translate(&mut call, true);
+                    self.instances.shell_call(call)
+                }
+                Answer::Paintings(payload) => {
                     self.painted(&payload);
                     true
                 }
-                _ => false,
+                Answer::Editor(instance, answer) => {
+                    let mut answered = (instance, answer);
+                    self.instances.translate(&mut answered, true);
+                    self.instances.answered(answered.0, answered.1)
+                }
+                Answer::Frame(commit) => self.commit(commit),
+                Answer::Laid(laid) => self.lay(laid),
+                Answer::Blocks(instance, call) => self.instances.blocks_call(instance, call),
+                Answer::Watch(instance, open) => self.instances.watch_published(instance, open),
+                Answer::Called(instance, called) => self.instances.published_call(instance, called),
+                Answer::Debug(instance, call) => {
+                    let mut asked = (instance, call);
+                    self.instances.translate(&mut asked, true);
+                    self.instances.debug_call(asked.0, asked.1)
+                }
+                Answer::Ended(op) => {
+                    self.instances.ended(op);
+                    false
+                }
+                Answer::Service(service) => {
+                    self.instances.serve(service);
+                    false
+                }
+                Answer::Withdrawn(op) => {
+                    self.instances.withdraw(op);
+                    false
+                }
             };
         }
         self.send(replies);
+        self.serve();
+        self.answer();
         if changed {
             host::request_repaint();
         }
+    }
+
+    fn answer(&mut self) {
+        let waiting = self.backend.waiting();
+        let answers = self.instances.answers(&waiting);
+        let accepted = self.instances.take_accepted();
+        let backend = &mut self.backend;
+        self.instances
+            .relay(|replica, frame| backend.relay(replica, frame));
+        self.backend.answer_watches(answers, accepted);
     }
 
     fn commit(&mut self, commit: FrameCommit) -> bool {
@@ -908,10 +994,11 @@ impl Runtime {
         }
     }
 
-    fn send(&mut self, messages: Vec<Message>) {
+    fn send<T: Into<Outbound>>(&mut self, messages: Vec<T>) {
         if messages.is_empty() || self.error.is_some() {
             return;
         }
+        let messages: Vec<Outbound> = messages.into_iter().map(Into::into).collect();
         self.offer_previews(&messages);
         let mut messages = self.instances.hold_unreported(messages);
         for message in &mut messages {
@@ -927,33 +1014,10 @@ impl Runtime {
     }
 
     fn deliver(&mut self) {
-        if self.session.state() != &SessionState::Running {
-            self.drain();
+        if !self.session.running() {
             return;
         }
-        let now = self.milliseconds();
-        let mut failure = None;
-        for message in std::mem::take(&mut self.queued) {
-            if self.session.queued_message_count() == MAX_QUEUED_MESSAGES {
-                self.drain();
-            }
-            if let Err(error) = self.session.send(message, now) {
-                failure = Some(format!("The plugin message queue failed: {error:?}"));
-                break;
-            }
-        }
-        self.drain();
-        if let Some(failure) = failure {
-            self.error.get_or_insert(failure);
-        }
-    }
-
-    fn drain(&mut self) {
-        let mut outbound = Vec::new();
-        while let Some(message) = self.session.next_outbound() {
-            outbound.push(message);
-        }
-        if !outbound.is_empty() {
+        for outbound in std::mem::take(&mut self.queued) {
             self.backend.send(outbound);
         }
     }
@@ -1073,11 +1137,10 @@ pub(crate) fn report_child_focus(
     child: block_plugin_api::ChildId,
 ) {
     with(plugin_id, |runtime| {
-        runtime.send(vec![Message::Editor(EditorMessage::ChildFocused {
+        runtime.send(vec![Outbound::Editor(
             instance,
-            region,
-            child,
-        })]);
+            EditorCall::ChildFocused { region, child },
+        )]);
     });
 }
 
@@ -1141,6 +1204,22 @@ pub(crate) struct Pick {
     pub(crate) touch: bool,
 }
 
+pub(crate) fn take_withdrawn_picks(
+    plugin_id: &str,
+) -> Vec<(EditorInstanceId, block_plugin_api::ops::OpId)> {
+    with(plugin_id, |runtime| {
+        runtime.instances.take_withdrawn_picks()
+    })
+    .unwrap_or_default()
+}
+
+pub(crate) fn withdraw_pick(plugin_id: &str, instance: EditorInstanceId, pick: u64) {
+    with(plugin_id, |runtime| {
+        let messages = runtime.instances.withdraw_pick(instance, pick);
+        runtime.send(messages);
+    });
+}
+
 pub(crate) fn request_pick(plugin_id: &str, instance: EditorInstanceId, pick: Pick) {
     with(plugin_id, |runtime| {
         let messages = runtime.instances.request_pick(instance, pick);
@@ -1189,8 +1268,8 @@ pub(crate) fn block_picked(
     pick: BlockPick,
 ) {
     with(plugin_id, |runtime| {
-        let messages = runtime.instances.block_picked(instance, request_id, pick);
-        runtime.send(messages);
+        runtime.instances.block_picked(instance, request_id, pick);
+        runtime.serve();
     });
 }
 
@@ -1417,21 +1496,21 @@ pub(crate) fn set_focus(block: Option<(Uuid, Uuid)>, via: Vec<Uuid>) {
     });
 }
 
-pub(crate) fn publish<T: HostValue>(value: &T::Value) {
-    let bytes = encode_host(value);
+pub(crate) fn publish<W: Watched>(value: &W::Value) {
+    let bytes = block_plugin_api::ops::encode(value);
     HOST.with(|host| {
         let mut host = host.borrow_mut();
         if host
             .published
-            .get(T::KEY)
+            .get(&W::OPEN)
             .is_some_and(|published| **published == bytes)
         {
             return;
         }
         let value = Arc::new(bytes);
-        host.published.insert(T::KEY.to_owned(), Arc::clone(&value));
+        host.published.insert(W::OPEN, Arc::clone(&value));
         for (plugin_id, runtime) in &mut host.runtimes {
-            if runtime.instances.set_host_value(T::KEY, Arc::clone(&value)) {
+            if runtime.instances.publish(W::OPEN, Arc::clone(&value)) {
                 runtime.pacing.needed = true;
                 mark(plugin_id);
                 host::request_repaint();
@@ -1441,24 +1520,25 @@ pub(crate) fn publish<T: HostValue>(value: &T::Value) {
 }
 
 #[cfg(target_os = "linux")]
-pub(crate) fn watched<T: HostValue>() -> bool {
+pub(crate) fn watched<W: Watched>() -> bool {
     HOST.with(|host| {
         host.borrow()
             .runtimes
             .values()
-            .any(|runtime| runtime.instances.watches_host_value(T::KEY))
+            .any(|runtime| runtime.instances.watches_published(W::OPEN))
     })
 }
 
-pub(crate) fn take_actions<A: HostAction>() -> Vec<A> {
+pub(crate) fn take_calls<C>(
+    accept: impl Fn(&block_plugin_api::ops::Called) -> Option<C>,
+) -> Vec<C> {
     HOST.with(|host| {
         let mut host = host.borrow_mut();
         let mut runtimes: Vec<_> = host.runtimes.iter_mut().collect();
         runtimes.sort_by_key(|(left, _)| *left);
         runtimes
             .into_iter()
-            .flat_map(|(_, runtime)| runtime.instances.take_host_actions(A::KEY))
-            .filter_map(|action| decode_host(&action))
+            .flat_map(|(_, runtime)| runtime.instances.take_calls(&accept))
             .collect()
     })
 }
@@ -1534,15 +1614,15 @@ pub(crate) fn show_dialog(
     dialog: block_plugin_api::ShellDialog,
 ) {
     with(plugin_id, |runtime| {
-        let messages = runtime.instances.show_dialog(instance, block, dialog);
-        runtime.send(messages);
+        let calls = runtime.instances.show_dialog(instance, block, dialog);
+        runtime.send(calls);
     });
 }
 
 pub(crate) fn show_panel(plugin_id: &str, instance: EditorInstanceId, panel: HostPanel) {
     with(plugin_id, |runtime| {
-        let messages = runtime.instances.show_panel(instance, panel);
-        runtime.send(messages);
+        runtime.instances.show_panel(instance, panel);
+        runtime.answer();
     });
 }
 
@@ -1557,8 +1637,8 @@ pub(crate) fn show_block(
             return;
         };
         runtime.contain(|runtime| {
-            let messages = runtime.instances.show_block(instance, open);
-            runtime.send(messages);
+            runtime.instances.show_block(instance, open);
+            runtime.answer();
         });
     });
     mark(&plugin.identity.id);
@@ -1570,8 +1650,8 @@ pub(crate) fn set_artifact_states(
     states: Vec<block_plugin_api::ArtifactState>,
 ) {
     with(plugin_id, |runtime| {
-        let messages = runtime.instances.set_artifact_states(instance, states);
-        runtime.send(messages);
+        runtime.instances.set_artifact_states(instance, states);
+        runtime.answer();
     });
 }
 
@@ -1588,7 +1668,7 @@ pub(crate) fn close(plugin_id: &str, instance: EditorInstanceId) {
         let messages = runtime
             .instances
             .remove(instance)
-            .then(|| vec![Message::Editor(EditorMessage::Close { instance })]);
+            .then(|| vec![Outbound::Close(instance)]);
         if let Some(messages) = messages {
             runtime.send(messages);
         }
@@ -1832,12 +1912,12 @@ pub(crate) fn running() -> Vec<RuntimeStatus> {
     })
 }
 
-fn session() -> HostSession {
+fn session() -> Session {
     let surface = SurfaceSpec {
         format: SurfaceFormat::Rgba8Unorm,
         render: presenter::rendered(),
     };
-    HostSession::new(HOST_NAME, Some(surface), host::preferences())
+    Session::new(HOST_NAME, Some(surface))
 }
 
 thread_local! {
@@ -1868,7 +1948,7 @@ pub(crate) fn take_changed() -> Vec<String> {
 
 pub(crate) struct RegionSlot<'a> {
     pub(crate) plugin: &'a PluginManifest,
-    pub(crate) block_types: &'a Arc<block_plugin_api::Catalog>,
+    pub(crate) block_types: &'a Arc<crate::editors::PluginCatalog>,
     pub(crate) client_id: Uuid,
     pub(crate) role: InstanceRole,
     pub(crate) instance: EditorInstanceId,
@@ -2448,12 +2528,18 @@ pub(crate) fn take_region_actions(
             actions.push(EditorAction::OpenBlock(open));
         }
         while let Some((id, command)) = runtime.instances.take_block_command(instance) {
+            actions.push(EditorAction::Command { id, command });
+        }
+        for (id, command) in runtime.instances.take_shell_commands(instance) {
             actions.push(match command {
-                block_plugin_api::BlockCommand::AppMenu { anchor } => EditorAction::AppMenu {
+                block_plugin_api::ShellCommand::AppMenu { anchor } => EditorAction::AppMenu {
                     at: anchor.and_then(|anchor| in_host(runtime, instance, anchor)),
                 },
-                command => EditorAction::Command { id, command },
+                command => EditorAction::Shell { id, command },
             });
+        }
+        for (id, access) in runtime.instances.take_simulated_access(instance) {
+            actions.push(EditorAction::SimulateAccess { id, access });
         }
         actions
     })

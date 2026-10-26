@@ -3,7 +3,7 @@ use super::*;
 #[test]
 fn window_requests_round_trip() {
     {
-        let message = Message::Frame(FrameCommit {
+        let message = FrameCommit {
             windows: vec![ScreenWindow {
                 screen: ScreenId(7),
                 window: WindowRequests {
@@ -23,10 +23,7 @@ fn window_requests_round_trip() {
                 },
             }],
             ..frame(1)
-        });
-        assert_eq!(
-            decode_frame(&encode_frame(&message).unwrap()).unwrap(),
-            message
-        );
+        };
+        round_trips(&message);
     }
 }

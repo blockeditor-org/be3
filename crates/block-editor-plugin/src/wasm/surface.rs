@@ -1,7 +1,7 @@
 use std::cell::{Cell, RefCell};
 use std::collections::HashSet;
 
-use block_plugin_api::{Message, PresentedFrame, ScreenLayout, SurfaceFormat, SurfaceSpec};
+use block_plugin_api::{FrameCommit, PresentedFrame, ScreenLayout, SurfaceFormat, SurfaceSpec};
 
 use crate::{panes::Panes, screens::Screens};
 
@@ -102,9 +102,9 @@ impl Surfaces {
         self.layout = layout;
     }
 
-    pub(crate) fn render(&mut self, screens: &mut Screens) -> Result<Vec<Message>, String> {
+    pub(crate) fn render(&mut self, screens: &mut Screens) -> Result<Option<FrameCommit>, String> {
         if self.layout.is_empty() {
-            return Ok(Vec::new());
+            return Ok(None);
         }
         let ran = self.panes.run(
             &self.layout,
@@ -140,7 +140,7 @@ impl Surfaces {
         commit.repaint_after_micros = repaint.map(|delay| delay.as_micros() as u64);
         commit.animating = animating;
         commit.presented = presented;
-        Ok(vec![Message::Frame(commit)])
+        Ok(Some(commit))
     }
 }
 

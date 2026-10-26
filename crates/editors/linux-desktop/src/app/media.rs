@@ -7,7 +7,8 @@ use block_editor_beui::beui::icons::{
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
 use block_editor_beui::beui::{Key, NodeId};
-use block_editor_beui::{Editor, Media, MediaLevel, MediaLevels, MediaRequest, PlayerCommand};
+use block_editor_beui::linux_desktop;
+use block_editor_beui::{Editor, MediaLevel, MediaLevels, MediaRequest, MediaWatch, PlayerCommand};
 
 pub(crate) const VOLUME_STEP: f32 = 0.05;
 pub(crate) const BRIGHTNESS_STEP: f32 = 0.05;
@@ -155,13 +156,13 @@ fn osd_level(shown: Shown, levels: MediaLevels) -> Option<OsdLevel> {
 
 #[component]
 pub(super) fn MediaKeys(editor: Editor) -> NodeId {
-    let levels = editor.host_value::<Media>();
+    let levels = editor.watch::<MediaWatch>();
     let shown = create_signal(None);
     let shows = create_signal(0_u64);
     for (key, media_key) in BINDINGS {
         Action::new(media_key.id(), media_key.label(), move || {
             let (request, showing) = media_key.request();
-            editor.act(request);
+            editor.act(move || linux_desktop::media::request(request));
             if let Some(showing) = showing {
                 shown.set(Some(showing));
                 shows.update(|shows| *shows += 1);

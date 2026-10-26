@@ -44,8 +44,15 @@ def _env(crate, crate_name, env):
     base.update(env)
     return base
 
-def cargo_manifest_sources():
-    return {"Cargo.toml": native.package_name() + "/Cargo.toml"}
+# Files a build script or proc macro reads at CARGO_MANIFEST_DIR: the crate's
+# own resources, and foreign ones, a target mapped to its path from the root,
+# such as another crate's WIT files that this crate's WIT uses.
+def cargo_manifest_sources(resources = [], foreign_resources = {}):
+    sources = {"Cargo.toml": native.package_name() + "/Cargo.toml"}
+    for resource in resources:
+        sources[resource] = native.package_name() + "/" + resource
+    sources.update(foreign_resources)
+    return sources
 
 def cargo_library_sources():
     return native.glob(
@@ -78,7 +85,7 @@ def _rustc_flags(crate, kwargs):
 
 # The crate's library, named after the package. Another build of it, such as
 # one for a fuzz target, takes a name and extra_features.
-def cargo_library(name = None, extra_deps = [], extra_features = [], extra_srcs = [], env = {}, **kwargs):
+def cargo_library(name = None, extra_deps = [], extra_features = [], extra_srcs = [], resources = [], foreign_resources = {}, env = {}, **kwargs):
     crate = _crate()
     library = crate["library"]
     native.rust_library(
@@ -89,7 +96,7 @@ def cargo_library(name = None, extra_deps = [], extra_features = [], extra_srcs 
         edition = crate["edition"],
         env = _env(crate, library["crate"], env),
         features = _per_platform(crate, lambda entry: entry["features"], extra_features),
-        mapped_srcs = cargo_manifest_sources(),
+        mapped_srcs = cargo_manifest_sources(resources, foreign_resources),
         proc_macro = library["proc_macro"],
         rustc_flags = _rustc_flags(crate, kwargs),
         srcs = cargo_library_sources() + extra_srcs,
@@ -104,7 +111,7 @@ def cargo_library(name = None, extra_deps = [], extra_features = [], extra_srcs 
 # A test whose env names LD_LIBRARY_PATH is a library_path_test around the
 # test harness, built as a binary, since Namespace's workers replace an
 # action's LD_LIBRARY_PATH with their own.
-def cargo_test(name = "test", extra_deps = [], env = {}, paints = False, run_apart = False, run_env = {}, **kwargs):
+def cargo_test(name = "test", extra_deps = [], env = {}, paints = False, run_apart = False, run_env = {}, resources = [], foreign_resources = {}, **kwargs):
     crate = _crate()
     library = crate["library"]
     rustc_flags = _rustc_flags(crate, kwargs)
@@ -116,7 +123,7 @@ def cargo_test(name = "test", extra_deps = [], env = {}, paints = False, run_apa
         deps = _per_platform(crate, lambda entry: entry["deps"] + entry["test_deps"], extra_deps),
         edition = crate["edition"],
         features = _per_platform(crate, lambda entry: entry["test_features"]),
-        mapped_srcs = cargo_manifest_sources(),
+        mapped_srcs = cargo_manifest_sources(resources, foreign_resources),
         srcs = cargo_test_sources(),
     )
     if paints:

@@ -8,10 +8,7 @@ fn children_laid_out_against_an_older_view_are_moved_to_the_current_one() {
         scale: 1.0,
     };
     instances.set_view(INSTANCE, laid);
-    assert_eq!(
-        configure(&mut instances),
-        Some(Message::Configure { serial: 1 })
-    );
+    assert_eq!(configure(&mut instances), Some(PluginCall::Configure(1)));
     instances.set_children(child(
         Rect::from_min_size(pos2(10.0, 10.0), vec2(20.0, 20.0)),
         true,
@@ -23,10 +20,7 @@ fn children_laid_out_against_an_older_view_are_moved_to_the_current_one() {
         scale: 2.0,
     };
     instances.set_view(INSTANCE, panned);
-    assert_eq!(
-        configure(&mut instances),
-        Some(Message::Configure { serial: 2 })
-    );
+    assert_eq!(configure(&mut instances), Some(PluginCall::Configure(2)));
     let rect = Rect::from_min_size(pos2(10.0, 10.0), SIZE);
     let (children, _) = instances.host_children(INSTANCE, REGION, rect, rect, Some(panned));
     assert_eq!(

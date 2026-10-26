@@ -11,7 +11,7 @@ fn the_volume_shows_on_every_monitor() {
         .test
         .set_monitors(vec![("left", left), ("right", right)]);
     fixture.settle();
-    fixture.test.set_host_value::<Media>(&MediaLevels {
+    fixture.test.set_watched::<MediaWatch>(&MediaLevels {
         output: Some(MediaLevel {
             level: 0.4,
             muted: false,

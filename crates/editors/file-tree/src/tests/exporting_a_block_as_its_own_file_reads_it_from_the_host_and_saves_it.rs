@@ -1,7 +1,7 @@
 use block_editor_beui::{
-    BlockInfo, BlockParent, BlockTypeDescriptor, Catalog, FileSave, HostReply, HostRequest, Press,
-    SavedFile,
+    BlockInfo, BlockParent, BlockTypeDescriptor, Catalog, FileSave, Press, SavedFile,
 };
+use block_ui_test::HostCall;
 
 use super::*;
 
@@ -35,42 +35,39 @@ fn exporting_a_block_as_its_own_file_reads_it_from_the_host_and_saves_it() {
         .test
         .take_requests()
         .into_iter()
-        .filter_map(|(id, request)| match request {
-            HostRequest::ReadPlainFile(block) => Some((id, Uuid::from_bytes(block))),
+        .filter_map(|call| match call {
+            HostCall::ReadPlainFile { reply, block } => Some((reply, Uuid::from_bytes(block))),
             _ => None,
         })
         .collect();
-    let [(request, block)] = reads.as_slice() else {
-        panic!("exporting asks the host for the block's own file, asked {reads:?}");
-    };
-    assert_eq!(*block, notes);
+    let [(request, block)]: [_; 1] = reads.try_into().unwrap_or_else(|reads: Vec<_>| {
+        panic!("exporting asks the host for the block's own file, asked {reads:?}")
+    });
+    assert_eq!(block, notes);
     let file = SavedFile {
         name: "Trip notes.md".to_owned(),
         mime_type: "text/markdown".to_owned(),
         data: b"# Day one\nSand.".to_vec(),
     };
-    fixture
-        .test
-        .reply(*request, HostReply::PlainFileRead(Ok(file.clone())));
+    fixture.test.answer(request, Ok(file.clone()));
     fixture.settle();
 
     let saves: Vec<_> = fixture
         .test
         .take_requests()
         .into_iter()
-        .filter_map(|(id, request)| match request {
-            HostRequest::SaveFile(file) => Some((id, file)),
+        .filter_map(|call| match call {
+            HostCall::SaveFile { reply, file } => Some((reply, file)),
             _ => None,
         })
         .collect();
-    let [(request, saved)] = saves.as_slice() else {
-        panic!("the file the host read is saved, asked {saves:?}");
-    };
-    assert_eq!(*saved, file);
-    fixture.test.reply(
-        *request,
-        HostReply::FileSaved(FileSave::Failed("The disk is full".to_owned())),
-    );
+    let [(request, saved)]: [_; 1] = saves
+        .try_into()
+        .unwrap_or_else(|saves: Vec<_>| panic!("the file the host read is saved, asked {saves:?}"));
+    assert_eq!(saved, file);
+    fixture
+        .test
+        .answer(request, FileSave::Failed("The disk is full".to_owned()));
     fixture.settle();
     assert!(
         fixture.says("The disk is full"),
@@ -83,11 +80,16 @@ fn exporting_a_block_as_its_own_file_reads_it_from_the_host_and_saves_it() {
         .test
         .take_requests()
         .into_iter()
-        .find_map(|(id, request)| matches!(request, HostRequest::ReadPlainFile(_)).then_some(id))
+        .find_map(|call| match call {
+            HostCall::ReadPlainFile { reply, .. } => Some(reply),
+            _ => None,
+        })
         .expect("exporting again reads the file again");
-    fixture.test.reply(
+    fixture.test.answer(
         request,
-        HostReply::PlainFileRead(Err("The block could not be read".to_owned())),
+        Err(block_editor_beui::Failure::Failed(
+            "The block could not be read".to_owned(),
+        )),
     );
     fixture.settle();
     assert!(

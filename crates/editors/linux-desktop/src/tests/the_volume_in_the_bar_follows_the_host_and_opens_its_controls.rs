@@ -53,7 +53,7 @@ fn the_volume_in_the_bar_follows_the_host_and_opens_its_controls() {
 
     fixture
         .test
-        .set_host_value::<Media>(&MediaLevels::default());
+        .set_watched::<MediaWatch>(&MediaLevels::default());
     fixture.settle();
     assert!(
         !fixture.test.shown("desktop.volume"),

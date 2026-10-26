@@ -1,0 +1,46 @@
+package be3:shared@0.1.0;
+
+/// The ids every be3 package shares, each with one shape. An id is always a
+/// named alias: a uuid or a hash under the name of what it identifies, or, in
+/// the package that hands it out, a number named `<thing>-id`. The aliases
+/// tell a reader what a uuid means; the shapes stay the two below.
+interface ids {
+    /// A uuid, as its 16 bytes.
+    type uuid = tuple<u8, u8, u8, u8, u8, u8, u8, u8, u8, u8, u8, u8, u8, u8, u8, u8>;
+
+    /// A SHA-256 hash, as its 32 bytes.
+    type hash = tuple<u8, u8, u8, u8, u8, u8, u8, u8, u8, u8, u8, u8, u8, u8, u8, u8, u8, u8, u8, u8, u8, u8, u8, u8, u8, u8, u8, u8, u8, u8, u8, u8>;
+
+    type block-id = uuid;
+
+    /// A block type, which the editors and templates of plugins' manifests name.
+    type block-type-id = uuid;
+
+    /// The type of a block's content, which a type module reads and writes.
+    type content-type-id = uuid;
+
+    type account-id = uuid;
+
+    type organization-id = uuid;
+
+    /// A commit of a block's history: the hash of its content.
+    type commit-id = hash;
+
+    /// A surface the host gives a plugin to draw a screen into, numbered by
+    /// the host.
+    type surface-id = u32;
+
+    /// A picture the host shares with every plugin's gpu, such as a preview
+    /// another plugin painted, numbered by the host.
+    type image-id = u64;
+}
+
+/// What a person may do with a block.
+interface access {
+    enum access-level {
+        none,
+        know-exists,
+        view,
+        edit,
+    }
+}

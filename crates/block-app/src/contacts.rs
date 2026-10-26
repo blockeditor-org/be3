@@ -150,7 +150,7 @@ impl Contacts {
                 verified: contact.public.is_some(),
             })
             .collect();
-        crate::plugin_host::publish::<block_plugin_api::Contacts>(&contacts);
+        crate::plugin_host::publish::<block_plugin_api::ContactsWatch>(&contacts);
     }
 
     pub(crate) fn poll(&mut self, base: &str, ready: bool) {

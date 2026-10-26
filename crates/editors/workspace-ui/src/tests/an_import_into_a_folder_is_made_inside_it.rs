@@ -1,5 +1,6 @@
 use block_editor_beui::be_block::BlockContent;
-use block_editor_beui::{BlockInfo, BlockLocation, HostRequest};
+use block_editor_beui::{BlockInfo, BlockLocation};
+use block_ui_test::HostCall;
 use workspace_ui_types::FolderContent;
 
 use super::*;
@@ -25,8 +26,8 @@ fn an_import_into_a_folder_is_made_inside_it() {
         .test
         .take_requests()
         .into_iter()
-        .find_map(|(_, request)| match request {
-            HostRequest::ImportBlocks(place) => Some(place),
+        .find_map(|call| match call {
+            HostCall::ImportBlocks { parent, .. } => Some(parent),
             _ => None,
         })
         .expect("choosing a file asks the host to import one");

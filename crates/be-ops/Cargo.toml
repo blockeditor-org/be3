@@ -1,0 +1,15 @@
+[package]
+name = "be-ops"
+description = "Typed, cancellable operations between a host and a guest, over frames"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+
+[dependencies]
+block-guest-abi = { path = "../block-guest-abi" }
+postcard = { version = "1", features = ["use-std"] }
+serde = { version = "1", features = ["derive"] }
+serde_bytes = "0.11"
+
+[lints]
+workspace = true

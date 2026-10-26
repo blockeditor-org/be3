@@ -27,7 +27,7 @@ fn the_rotations_are_named_from_how_the_panel_is_built() {
         ]
     );
 
-    settings.editor.set_host_value::<Displays>(&vec![tall]);
+    settings.editor.set_watched::<DisplaysWatch>(&vec![tall]);
     settings.run();
     assert_eq!(
         names(&settings),

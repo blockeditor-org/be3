@@ -5,7 +5,7 @@ use std::time::{Duration, Instant};
 
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::block_ui::{BlockCatalog, BlockLabel};
-use block_editor_beui::{BlockFilter, BlockPicker, ChildTarget, ContentProjection, Editor};
+use block_editor_beui::{BlockFilter, ChildTarget, ContentProjection, Editor};
 use block_editor_beui::{BlockInfo, BlockParent, BlockQuery};
 use uuid::Uuid;
 use video_block_types::VideoContent;
@@ -42,8 +42,6 @@ pub(crate) struct VideoState {
 
 struct Inner {
     block: ContentProjection<VideoContent>,
-    picker: RefCell<BlockPicker>,
-    picker_attachment: Cell<Option<Uuid>>,
     play_origin: Cell<Option<(Instant, u64)>>,
     aspect_ratios: RefCell<HashMap<Uuid, f32>>,
 }
@@ -85,17 +83,10 @@ impl VideoState {
             labels,
             inner: store(Inner {
                 block,
-                picker: RefCell::new(BlockPicker::default()),
-                picker_attachment: Cell::new(None),
                 play_origin: Cell::new(None),
                 aspect_ratios: RefCell::new(HashMap::new()),
             }),
         };
-        editor.on_reply(move || {
-            if state.inner.is_alive() {
-                state.take_pick();
-            }
-        });
         create_effect(move || state.synchronize());
         let playback = create_timer(move || state.advance_playback());
         let playing = state.playing;
@@ -211,12 +202,22 @@ impl VideoState {
     }
 
     pub(crate) fn open_picker(&self, attachment: Option<Uuid>) {
-        let inner = self.inner.value();
-        inner.picker_attachment.set(attachment);
-        inner
-            .picker
-            .borrow_mut()
-            .open(&self.editor.host(), BlockFilter::default());
+        let state = *self;
+        self.editor
+            .pick_block(BlockFilter::default(), move |picked| {
+                let Ok(picked) = picked else {
+                    return;
+                };
+                if state.inner.is_alive() {
+                    state.adopt(picked.id());
+                    state.insert_clip(
+                        picked.id(),
+                        attachment,
+                        state.playhead.get_untracked(),
+                        None,
+                    );
+                }
+            });
     }
 
     pub(crate) fn split_selected(&self) {
@@ -341,16 +342,5 @@ impl VideoState {
         }
         self.playhead.set(frame);
         Some(Duration::ZERO)
-    }
-
-    fn take_pick(&self) {
-        let inner = self.inner.value();
-        let picked = inner.picker.borrow_mut().poll(&self.editor.host());
-        let Some(Ok(picked)) = picked else {
-            return;
-        };
-        let attachment = inner.picker_attachment.take();
-        self.adopt(picked.id);
-        self.insert_clip(picked.id, attachment, self.playhead.get_untracked(), None);
     }
 }
