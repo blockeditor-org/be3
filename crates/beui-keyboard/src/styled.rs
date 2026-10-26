@@ -1,9 +1,9 @@
-use beui_components_unstyled as unstyled;
 use crate::unstyled as keyboard;
 use crate::unstyled::{
     EMOJI_GROUPS, Face, KeyCapHandle, KeyboardHandle, Latch, Layer, Preview, Role, Slot, Value,
     composed_face, emojis_in, face,
 };
+use beui_components_unstyled as unstyled;
 use beui_core::geometry::Rect;
 use beui_core::icons;
 use beui_core::input::Key;

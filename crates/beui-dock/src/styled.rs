@@ -6,13 +6,6 @@ use beui_components_styled::frame::{Border, ColorRole, Frame, Radius, focus_bord
 use beui_components_styled::sheet::ModalSheet;
 use beui_macros::{component, view};
 
-use beui_components_styled::button::{Button, ButtonSize, ButtonVariant};
-use beui_components_styled::context_menu::menu_style;
-use beui_components_styled::icon_button::{IconButton, IconButtonSize};
-use beui_components_styled::menu_button::IconMenuButton;
-use beui_components_styled::text::{Icon, Text, TextColor, TextSize};
-use beui_components_styled::theme::{NARROW_WIDTH, POINTER_REACH, use_theme};
-use beui_components_styled::tooltip::Tooltip;
 use crate::unstyled as dock;
 use crate::unstyled::{
     DockAwayHandle, DockBarHandle, DockChromeHandle, DockDialogHandle, DockDialogPresentation,
@@ -20,6 +13,13 @@ use crate::unstyled::{
     DockSplitterHandle, DockStackHandle, DockSwitchHandle, DockSwitcherHandle, DockTabHandle,
     DockingLayout, Entry,
 };
+use beui_components_styled::button::{Button, ButtonSize, ButtonVariant};
+use beui_components_styled::context_menu::menu_style;
+use beui_components_styled::icon_button::{IconButton, IconButtonSize};
+use beui_components_styled::menu_button::IconMenuButton;
+use beui_components_styled::text::{Icon, Text, TextColor, TextSize};
+use beui_components_styled::theme::{NARROW_WIDTH, POINTER_REACH, use_theme};
+use beui_components_styled::tooltip::Tooltip;
 use beui_components_unstyled::{MenuNodes, Picture};
 use beui_core::base::frame::Align2;
 use beui_core::base::{Align, Direction, ItemSize, Justify};
