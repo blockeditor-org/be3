@@ -4,7 +4,7 @@ use block_editor_beui::beui::icons::Glyph;
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
 use block_editor_beui::beui::{
-    Color32, LayerLevel, LayerPolicy, NodeId, OverlayAnchor, Placement, Pos2, TextAlign, pos2,
+    LayerLevel, LayerPolicy, NodeId, OverlayAnchor, Placement, Pos2, TextAlign, pos2,
 };
 
 pub(crate) const OSD_DURATION: Duration = Duration::from_millis(1500);
@@ -112,29 +112,16 @@ fn OsdCard(
     below: Memo<f32>,
     id: String,
 ) -> NodeId {
-    let theme = use_theme();
-    let faded = move |color: Memo<Color32>| {
-        ColorRole::custom(create_memo(move || color.get().scale_alpha(opacity.get())))
-    };
     let muted =
         create_memo(move || level.with(|level| level.as_ref().is_some_and(|level| level.muted)));
-    let (raised, border, track) = (theme.surface_raised, theme.border, theme.track);
-    let (text, text_muted, accent) = (theme.text, theme.text_muted, theme.accent);
-    let card = faded(create_memo(move || raised.get()));
-    let outline = create_memo(move || border.get().scale_alpha(opacity.get()));
-    let rail = faded(create_memo(move || track.get()));
-    let glyph_color = create_memo(move || {
-        match muted.get() {
-            true => text_muted.get(),
-            false => text.get(),
-        }
-        .scale_alpha(opacity.get())
+    let glyph_ink = create_memo(move || match muted.get() {
+        true => TextColor::Muted,
+        false => TextColor::Default,
     });
-    let glyph_ink = create_memo(move || TextColor::Custom(glyph_color.get()));
-    let fill = faded(create_memo(move || match muted.get() {
-        true => text_muted.get(),
-        false => accent.get(),
-    }));
+    let fill = create_memo(move || match muted.get() {
+        true => ColorRole::TextMuted,
+        false => ColorRole::Accent,
+    });
     let glyph = create_memo(move || level.with(|level| level.as_ref().map(|level| level.glyph)));
     let value = create_memo(move || level.with(|level| level.as_ref().map(|level| level.level)));
     let label = create_memo(move || {
@@ -149,9 +136,10 @@ fn OsdCard(
         <Frame
             padding={create_memo(move || Padding::custom(Sides::all(MARGIN).bottom(below.get())))}
         >
+            <Fade opacity={opacity}>
             <Frame
-                fill=card
-                border={create_memo(move || Some(Border::new(ColorRole::Custom(outline.get()))))}
+                fill=ColorRole::SurfaceRaised
+                border={Border::DEFAULT}
                 radius=Radius::Lg
                 padding={Padding::symmetric(PADDING_HORIZONTAL, PADDING_VERTICAL)}
                 @test_id={id}
@@ -160,9 +148,10 @@ fn OsdCard(
                     <Text size=TextSize::Xl color={glyph_ink} align=TextAlign::Center>
                         <Icon glyph={glyph} />
                     </Text>
-                    <Progress value label width=BAR_WIDTH fill track=rail />
+                    <Progress value label width=BAR_WIDTH fill />
                 </List>
             </Frame>
+            </Fade>
         </Frame>
     }
 }

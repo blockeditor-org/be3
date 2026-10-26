@@ -9,7 +9,7 @@ use beui_core::node::NodeId;
 use beui_macros::{component, view};
 use beui_view::reactive::*;
 
-use crate::modal::{Modal, ModalHandle};
+use crate::modal::{Modal, ModalHandle, ModalMotion};
 use crate::scroll::ScrollbarStyle;
 use crate::search_list::{SearchList, SearchListApi, SearchRowHandle, fuzzy_score, rank};
 use crate::text_input::{TextInputHandle, TextInputStyle};
@@ -212,6 +212,7 @@ pub fn CommandPalette(
         <Modal
             open={create_memo(move || open.get())}
             scrim
+            motion=ModalMotion::Still
             on_dismiss={move || dismiss(state)}
         >|_: ModalHandle| {
             panel.call(view! {

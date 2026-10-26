@@ -894,7 +894,11 @@ except when it is measured with no limit along it, as a `Percent` child is
 inside a box sized by its content (a fitted sheet): then it measures as long as
 its child, since nothing else could give it a length. Rows far
 outside its viewport are culled like any other node out of sight. `Fade` paints
-its one child faded out toward each edge over the widths its `edges` name. `Shift`
+its one child faded out toward each edge over the widths its `edges` name, and
+all of it at its `opacity` (1 by default), which is how a subtree fades in or out
+without each colour being faded by hand. The opacity multiplies every shape's
+coverage in the renderer (a mask, like the edges), so shapes inside it that
+overlap show through one another; a change damages the fade's rectangle. `Shift`
 lays its child out moved `by` a vector without moving the space it takes, and
 paints nothing while the child is off the screen, which is how a sheet slides in. `Turn`
 paints its child turned clockwise by `quarter_turns` about the middle of its box, which

@@ -393,10 +393,10 @@ impl Painter {
         })
     }
 
-    pub fn faded(&self, space: SpaceId, rect: Rect, widths: [f32; 4]) -> Self {
+    pub fn faded(&self, space: SpaceId, rect: Rect, widths: [f32; 4], opacity: f32) -> Self {
         self.grouped(Group::Mask {
             space,
-            fade: Fade::new(rect, widths),
+            fade: Fade::faded(rect, widths, opacity),
         })
     }
 

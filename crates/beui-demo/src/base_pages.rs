@@ -598,6 +598,9 @@ pub(crate) fn LayeringPage() -> NodeId {
             <Sample title="Fade" code={vec![FadedStrip::SOURCE]}>
                 <FadedStrip />
             </Sample>
+            <Sample title="Opacity" code={vec![FadedTiles::SOURCE]}>
+                <FadedTiles />
+            </Sample>
         </ScrollPage>
     }
 }
@@ -712,6 +715,20 @@ fn FadedStrip() -> NodeId {
                 </List>
             </Scroll>
         </Fade>
+    }
+}
+
+#[sample]
+#[component]
+fn FadedTiles() -> NodeId {
+    view! {
+        <List @test_id="demo.layering.opacity" direction=Direction::Horizontal spacing=8.0>
+            <ForEach keys={vec![100_u32, 60, 30]}>|percent: u32|
+                <Fade opacity={percent as f32 / 100.0}>
+                    <Tile label={format!("{percent}%")} />
+                </Fade>
+            </ForEach>
+        </List>
     }
 }
 

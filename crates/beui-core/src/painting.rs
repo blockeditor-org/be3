@@ -288,9 +288,13 @@ pub fn painting(
 }
 
 fn saved(fade: crate::fade::Fade) -> Fade {
-    match fade.is_none() {
-        true => Fade::NONE,
-        false => Fade {
+    match (fade.is_none(), fade.has_edges()) {
+        (true, _) => Fade::NONE,
+        (false, false) => Fade {
+            opacity: fade.opacity,
+            ..Fade::NONE
+        },
+        (false, true) => Fade {
             rect: [
                 fade.rect.min.x,
                 fade.rect.min.y,
@@ -298,6 +302,7 @@ fn saved(fade: crate::fade::Fade) -> Fade {
                 fade.rect.max.y,
             ],
             widths: fade.widths,
+            opacity: fade.opacity,
         },
     }
 }
@@ -308,6 +313,7 @@ fn loaded(fade: Fade) -> crate::fade::Fade {
         Rect::from_min_max(pos2(left, top), pos2(right, bottom)),
         fade.widths,
     )
+    .with_opacity(fade.opacity)
 }
 
 fn turned(turn: crate::draw::Turn, pixels_per_point: f32) -> Turn {

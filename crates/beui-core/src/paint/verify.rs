@@ -354,8 +354,13 @@ fn fade_changes(was: &[Fade], now: &[Fade]) -> Vec<Rect> {
         if old == new {
             continue;
         }
-        for fade in [old, new].into_iter().flatten() {
-            changed.extend(fade.bands());
+        match (old, new) {
+            (Some(old), Some(new)) => {
+                changed.extend(old.reach(*new));
+                changed.extend(new.reach(*old));
+            }
+            (Some(fade), None) | (None, Some(fade)) => changed.extend(fade.reach(Fade::NONE)),
+            (None, None) => {}
         }
     }
     changed

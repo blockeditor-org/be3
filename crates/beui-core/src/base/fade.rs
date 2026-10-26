@@ -9,6 +9,7 @@ use crate::painter::Painter;
 pub struct FadeNode {
     child: Option<NodeId>,
     edges: Sides,
+    opacity: f32,
     mask: Option<SpaceId>,
 }
 
@@ -51,7 +52,7 @@ impl Element for FadeNode {
         let Some(mask) = self.mask else {
             return;
         };
-        let faded = painter.faded(mask, rect, [left, top, right, bottom]);
+        let faded = painter.faded(mask, rect, [left, top, right, bottom], self.opacity);
         crate::paint::paint(doc, &faded, rects, child);
     }
 
@@ -80,8 +81,13 @@ impl Element for FadeNode {
             right,
             bottom,
         } = self.edges;
-        (self.edges != Sides::default())
-            .then(|| format!("{left:.1}, {top:.1}, {right:.1}, {bottom:.1}"))
+        let edges = (self.edges != Sides::default())
+            .then(|| format!("{left:.1}, {top:.1}, {right:.1}, {bottom:.1}"));
+        let opacity = (self.opacity < 1.0).then(|| format!("opacity {:.2}", self.opacity));
+        match (edges, opacity) {
+            (Some(edges), Some(opacity)) => Some(format!("{edges}, {opacity}")),
+            (edges, opacity) => edges.or(opacity),
+        }
     }
 
     fn as_any(&self) -> &dyn Any {
@@ -98,6 +104,7 @@ impl Document {
         let fade = self.arena.insert(FadeNode {
             child: Some(child),
             edges: Sides::default(),
+            opacity: 1.0,
             mask: None,
         });
         let id = NodeId::from(fade);
@@ -115,6 +122,16 @@ impl Document {
     pub fn set_fade(&mut self, fade: NodeOf<FadeNode>, edges: Sides) {
         if self.arena.get_as::<FadeNode>(fade).edges != edges {
             self.arena.paint_mut_as::<FadeNode>(fade).edges = edges;
+        }
+    }
+
+    pub fn set_fade_opacity(&mut self, fade: NodeOf<FadeNode>, opacity: f32) {
+        let opacity = match opacity.is_finite() {
+            true => opacity.clamp(0.0, 1.0),
+            false => 1.0,
+        };
+        if self.arena.get_as::<FadeNode>(fade).opacity != opacity {
+            self.arena.paint_mut_as::<FadeNode>(fade).opacity = opacity;
         }
     }
 }

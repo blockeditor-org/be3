@@ -525,13 +525,13 @@ impl PaintCache {
             if held.fade == mask.fade {
                 continue;
             }
-            for band in held.fade.bands() {
+            for band in held.fade.reach(mask.fade) {
                 stale(
                     &mut self.stale,
                     (before.place(held.path, band), held.scroll),
                 );
             }
-            for band in mask.fade.bands() {
+            for band in mask.fade.reach(held.fade) {
                 self.damage
                     .add(self.window, absolute(after.place(mask.path, band), now));
             }
