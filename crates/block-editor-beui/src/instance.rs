@@ -126,6 +126,35 @@ impl<A: BeuiApp> Parts<A> {
         })
     }
 
+    fn display_content(&self, display: u32) -> RenderFn<WindowHandle> {
+        let Some(editor) = self.views.borrow().editor.as_deref().copied() else {
+            return empty();
+        };
+        RenderFn::new(move |_: WindowHandle| {
+            beui::reactive::view! {
+                <beui::styled::Root clear_color=beui::styled::ColorRole::None>
+                    <A::Display editor display />
+                </beui::styled::Root>
+            }
+            .child()
+        })
+    }
+
+    fn window_report(view_size: beui::Vec2, document: &Document, window: WindowId) -> Report {
+        Report {
+            content: None,
+            painted: vec![beui::Rect::from_min_size(beui::Pos2::ZERO, view_size)],
+            floating: document.overlay_rects(window),
+            drawing: document.drawing_rects(window),
+            every_sample: document.wants_every_sample(window),
+            claims: document
+                .press_claims(window)
+                .into_iter()
+                .map(|(modifiers, rect)| block_editor_plugin::Claim { modifiers, rect })
+                .collect(),
+        }
+    }
+
     fn settings_content(&self) -> RenderFn<WindowHandle> {
         let Some(artifacts) = self.views.borrow().artifacts.clone() else {
             return empty();
@@ -194,7 +223,16 @@ impl<A: BeuiApp> Shown for Parts<A> {
             EditorRegion::Frame => self.frame_content(),
             EditorRegion::Preview => self.preview_content(),
             EditorRegion::ArtifactSettings => self.settings_content(),
+            EditorRegion::Display(display) => self.display_content(display),
+            EditorRegion::Window(_) => empty(),
         }
+    }
+
+    fn floated(&self, document: &mut Document, window: WindowId, size: beui::Vec2) -> Report {
+        if let Some(editor) = self.views.borrow().editor.as_deref() {
+            editor.end_frame(document, window);
+        }
+        Self::window_report(size, document, window)
     }
 
     fn before(&self, view: &View, context: &beui::Context, document: &mut Document) {
@@ -235,6 +273,7 @@ impl<A: BeuiApp> Shown for Parts<A> {
                     editor.begin_frame();
                 }
             }
+            EditorRegion::Display(_) | EditorRegion::Window(_) => {}
             EditorRegion::ArtifactSettings => {
                 if let (Some(artifacts), Some(draft)) =
                     (views.artifacts.as_ref(), self.host.settings_draft())
@@ -285,6 +324,12 @@ impl<A: BeuiApp> Shown for Parts<A> {
                     editor.end_frame(document, window);
                 }
                 Report::default()
+            }
+            EditorRegion::Display(_) | EditorRegion::Window(_) => {
+                if let Some(editor) = self.views.borrow().editor.as_deref() {
+                    editor.end_frame(document, window);
+                }
+                Self::window_report(view.size, document, window)
             }
             EditorRegion::ArtifactSettings => {
                 if let Some(artifacts) = self.views.borrow().artifacts.as_ref() {

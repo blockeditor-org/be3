@@ -820,6 +820,8 @@ impl Instances {
                     region,
                     metrics: viewport_metrics(size, visible, scale_factor),
                     frame,
+                    windows: false,
+                    placement: None,
                 },
                 last_seen: pass,
                 mounted: 0,
@@ -916,14 +918,22 @@ impl Instances {
         size: Vec2,
         visible: Rect,
         scale_factor: f32,
+        windows: bool,
+        placement: Option<String>,
     ) {
         let Some(screen) = self.screen_mut(instance, region) else {
             return;
         };
         let metrics = viewport_metrics(size, visible, scale_factor);
-        if screen.request.metrics != metrics || screen.request.frame != frame {
+        if screen.request.metrics != metrics
+            || screen.request.frame != frame
+            || screen.request.windows != windows
+            || screen.request.placement != placement
+        {
             screen.request.metrics = metrics;
             screen.request.frame = frame;
+            screen.request.windows = windows;
+            screen.request.placement = placement;
         }
     }
 
@@ -1060,7 +1070,27 @@ impl Instances {
         instance: EditorInstanceId,
         region: EditorRegion,
         input: &beui::ForwardedInput,
+        aim: &dyn Fn(Option<beui::Over>, beui::Pos2) -> beui::Aim,
+        target: &dyn Fn(beui::NodeId) -> Option<(EditorInstanceId, EditorRegion)>,
     ) -> (Vec<Outbound>, bool) {
+        let screens: Vec<(EditorInstanceId, EditorRegion, ScreenId)> = self
+            .entries
+            .iter()
+            .flat_map(|(instance, entry)| {
+                entry
+                    .screens
+                    .iter()
+                    .filter(|(_, screen)| self.announced.contains(&screen.request.screen))
+                    .map(|(region, screen)| (*instance, *region, screen.request.screen))
+            })
+            .collect();
+        let screen_of = |node: beui::NodeId| {
+            let (instance, region) = target(node)?;
+            screens
+                .iter()
+                .find(|(held, at, _)| *held == instance && *at == region)
+                .map(|(_, _, screen)| *screen)
+        };
         let announced = &self.announced;
         let Some(screen) = self
             .entries
@@ -1091,7 +1121,7 @@ impl Instances {
             .is_some_and(|report| report.every_sample);
         let mut messages: Vec<Outbound> = screen
             .input
-            .forward(input, id, zoom, every_sample)
+            .forward(input, id, zoom, every_sample, aim, &screen_of)
             .into_iter()
             .map(Outbound::from)
             .collect();

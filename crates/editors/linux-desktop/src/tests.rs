@@ -34,6 +34,7 @@ mod a_locked_screen_shows_no_notification_toasts;
 mod a_new_window_fills_the_oldest_placeholder_of_its_program;
 mod a_notification_that_arrives_on_an_idle_desktop_keeps_its_full_time;
 mod a_notification_toast_shows_above_the_bar_until_its_time_is_up;
+mod a_program_window_dragged_to_another_display_shows_on_both_on_the_way;
 mod a_query_no_program_matches_runs_as_a_command;
 mod a_session_chosen_from_the_menu_opens_in_a_window_and_closing_it_keeps_the_session;
 mod a_super_tap_toggles_the_launcher_even_from_a_program_with_the_keyboard;
@@ -41,6 +42,7 @@ mod a_toast_answers_its_actions_and_hides_while_the_history_is_open;
 mod a_volume_key_shows_the_level_the_host_reports_until_it_fades;
 mod a_window_launched_from_a_placeholder_takes_its_place;
 mod a_window_the_host_focuses_leads_the_window_switcher;
+mod a_windows_tab_dragged_onto_a_window_on_another_display_joins_it;
 mod a_windows_tab_dragged_onto_another_windows_bar_joins_it;
 mod a_windows_tab_menu_makes_it_full_screen;
 mod alt_tab_or_a_click_brings_a_fullscreen_window_back_in_front;
@@ -339,6 +341,28 @@ impl Fixture {
         drop(document);
         self.test.click(center);
         self.settle();
+    }
+
+    fn on_two_displays(&mut self, left: (Rect, f32), right: (Rect, f32)) {
+        self.report_screens(vec![
+            monitor("left", left.0, left.1),
+            monitor("right", right.0, right.1),
+        ]);
+        self.test.show_on_displays(&[left, right]);
+        self.settle();
+    }
+
+    fn desk_text(&self, words: &str) -> Rect {
+        let node = {
+            let document = self.test.document();
+            document
+                .root()
+                .and_then(|root| text_within(&document, root, words))
+                .unwrap_or_else(|| panic!("{words:?} is on screen"))
+        };
+        self.test
+            .desk_rect(node)
+            .unwrap_or_else(|| panic!("{words:?} is shown on a display"))
     }
 
     fn placed_blocks(&self) -> Vec<(Uuid, Option<Uuid>, Rect)> {

@@ -92,6 +92,14 @@ the receiver reads as a zoom of its own. Consecutive moves from one touch
 coalesce to their latest position and pressure. Consecutive zoom gestures
 coalesce by multiplying their factors.
 
+A press made in one screen keeps that screen's input while it is held, as an
+operating system keeps a press with the window it began in. While it is held
+and the pointer is over another screen of the same plugin, each pointer event
+names that screen (`over`) and carries its position in that screen's
+coordinates, so a drag carries across a plugin's screens; over none of them the
+host sends `pointer-left` once and goes on with positions in the holding
+screen's coordinates, outside its rectangle.
+
 A back gesture - the system's back button or swipe, or a Back key - is an
 input event of its own, carrying its phase: started from an edge, its
 progress, cancelled, or invoked. It is not sent to the screen with the focus.
@@ -393,8 +401,19 @@ when it is let go, and reports that the drag has moved off the instance again.
 An instance answers with whether it would take the block, which only decides
 the cursor the host shows; a drop is delivered whether or not it was accepted.
 
-An instance is shown through screens of three kinds: a frame, a preview, and
-an artifact-settings region. A frame is the whole rectangle an editor is
+An instance is shown through screens of five kinds: a frame, a preview, an
+artifact-settings region, a display and a window. A host that shows a desktop
+on several displays shows the frame on its first display and a `display(n)`
+region on each further one, numbered from 1 in the order it lists them. A screen
+request may say the host shows the windows the plugin opens from it as windows
+of its own (`windows`): the plugin then asks for each with a `window-request`
+in its frame (`open`, naming the region it opens from and a placement: at the
+pointer, at a point of a region, or where a `placement` the host gave says;
+then `begin-move` and `begin-resize`, which hand the pointer to the host until
+the press is let go, `resize` and `close`), and the host shows it as a
+`window(w)` screen of that instance, whose size, scale and `placement` are the
+host's answer, whose focus arrives as input, and whose going away closes it.
+Without `windows` the plugin draws its windows inside the screen. A frame is the whole rectangle an editor is
 edited in, and an instance has at most one; the plugin lays its own toolbar
 row, sidebars and content out inside it, in one pass of one context. The host
 says, per frame, whether the instance owns the chrome bands this frame, where

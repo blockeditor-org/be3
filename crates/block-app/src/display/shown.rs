@@ -43,14 +43,6 @@ pub(crate) fn apply() {
     }
 }
 
-pub(crate) fn desktop(displays: &[ShownDisplay]) -> Rect {
-    displays
-        .iter()
-        .map(|display| display.rect)
-        .reduce(|all, rect| all.union(rect))
-        .unwrap_or(Rect::ZERO)
-}
-
 pub(crate) fn owner(displays: &[Rect], rect: Rect) -> Option<usize> {
     let area = |display: &Rect| {
         let shared = display.intersect(rect);

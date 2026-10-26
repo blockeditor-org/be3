@@ -23,13 +23,12 @@ pub(crate) fn above_bar(screen: Rect, bar: Rect) -> Rect {
 pub(crate) fn DesktopToasts(
     notifications: DesktopNotifications,
     bar: NodeRef,
-    displays: Memo<Vec<Rect>>,
+    area: Memo<Rect>,
 ) -> NodeId {
     let bar = bar.try_get().map(node_rect);
     let anchor = create_memo(move || {
         let bar = bar.as_ref().map_or(Rect::ZERO, |bar| bar.get());
-        let display = displays.with(|displays| displays.first().copied());
-        OverlayAnchor::Rect(above_bar(display.unwrap_or(Rect::ZERO), bar))
+        OverlayAnchor::Rect(above_bar(area.get(), bar))
     });
     let toasts = notifications.toasts();
     view! {
