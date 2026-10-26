@@ -106,6 +106,7 @@ pub struct Session {
     displays: Displays,
     windows: Windows,
     default_scale: f32,
+    zoom: f32,
     pacer: Pacer,
     clock: Clock<Monotonic>,
     sampled: Option<Instant>,
@@ -282,6 +283,7 @@ pub fn run(launch: Launch) -> Result<(), Box<dyn Error>> {
             ..Windows::default()
         },
         default_scale,
+        zoom: 1.0,
         pacer: Pacer::default(),
         clock: Clock::new(),
         sampled: None,
@@ -683,6 +685,7 @@ impl Session {
             return;
         };
         self.match_windows();
+        self.follow_zoom();
         let pending = self.prepare_outputs();
         if let Some((panel, _)) = &mut self.epaper {
             panel.pace.animating(frame.animating);
@@ -830,25 +833,38 @@ impl Session {
         }
         outputs.pointer = clamp(outputs.pointer, &outputs.rects());
         outputs.follow_scales();
+        let zoom = self.zoom;
+        for output in &mut outputs.outputs {
+            output.screen.zoom = zoom;
+        }
         let shown: Vec<Display> = outputs
             .outputs
             .iter()
             .map(|output| Display {
                 id: output.id().to_owned(),
                 name: output.name().to_owned(),
-                position: output.screen.rect.min,
-                size: output.screen.rect.size(),
-                scale: output.screen.scale,
+                position: beui::pos2(output.screen.rect.min.x / zoom, output.screen.rect.min.y / zoom),
+                size: output.screen.rect.size() / zoom,
+                scale: output.screen.scale * zoom,
             })
             .collect();
+        let native = outputs.outputs.first().map(|first| first.screen.scale);
         drop(guard);
-        if let Some(first) = shown.first() {
-            self.runner.reports().scaled(first.scale);
+        if let Some(native) = native {
+            self.runner.reports().scaled(native);
         }
         self.displays.set(shown);
         self.report_sizes();
         self.pacer.ask();
         self.report_monitors();
+    }
+
+    fn follow_zoom(&mut self) {
+        let zoom = self.runner.context().zoom_factor();
+        if zoom != self.zoom {
+            self.zoom = zoom;
+            self.relayout();
+        }
     }
 
     fn report_sizes(&mut self) {
@@ -974,17 +990,19 @@ impl Session {
     }
 
     fn at(&self, position: Pos2) -> (WindowId, Pos2) {
+        let unzoomed = beui::pos2(position.x / self.zoom, position.y / self.zoom);
         if self.windows.hosted {
-            return (WindowId::MAIN, position);
+            return (WindowId::MAIN, unzoomed);
         }
         let outputs = self.outputs.borrow();
         outputs
             .under(position)
             .and_then(|output| {
                 let window = self.windows.of(output.id())?;
-                Some((window, position - output.screen.rect.min.to_vec2()))
+                let local = (position - output.screen.rect.min) / self.zoom;
+                Some((window, beui::pos2(local.x, local.y)))
             })
-            .unwrap_or((WindowId::MAIN, position))
+            .unwrap_or((WindowId::MAIN, unzoomed))
     }
 
     fn pointed(&mut self, position: Pos2, input: impl FnOnce(Pos2) -> beui::Input) {

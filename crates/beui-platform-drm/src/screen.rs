@@ -67,6 +67,7 @@ pub struct Screen {
     picture: (u32, u32),
     pub rect: Rect,
     pub scale: f32,
+    pub zoom: f32,
     renderer: Renderer,
     retained: wgpu::Texture,
     turned: Option<Sprite>,
@@ -90,6 +91,7 @@ impl Screen {
             picture,
             rect: Rect::ZERO,
             scale: 1.0,
+            zoom: 1.0,
             renderer: Renderer::new(gpu.device(), FORMAT),
             retained,
             turned,
@@ -154,7 +156,7 @@ impl Screen {
             gpu.queue(),
             output,
             physical,
-            self.scale,
+            self.scale * self.zoom,
             repaint,
         ));
     }

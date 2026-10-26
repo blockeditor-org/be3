@@ -1,7 +1,7 @@
 use super::*;
 
-fn display(id: &str, rect: beui::Rect, scale: f32) -> crate::display::ShownDisplay {
-    crate::display::ShownDisplay {
+fn display(id: &str, rect: beui::Rect, scale: f32) -> crate::display::shown::ShownDisplay {
+    crate::display::shown::ShownDisplay {
         id: id.to_owned(),
         name: id.to_owned(),
         rect,
@@ -34,7 +34,7 @@ fn each_display_shows_its_own_lock_screen_at_its_own_scale() {
             </beui::styled::Root>
         }
     });
-    crate::display::offer(vec![
+    crate::display::shown::offer(vec![
         display("laptop", laptop, 2.0),
         display("monitor", monitor, 1.0),
     ]);

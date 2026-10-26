@@ -299,10 +299,11 @@ impl Output {
             self.chosen = chosen;
             self.targets.clear();
         }
-        let rect = self.screen.rect;
+        let (rect, zoom) = (self.screen.rect, self.screen.zoom);
         self.screen = Screen::new(gpu, size_of(&self.modes[self.chosen]), rotation);
         self.screen.rect = rect;
         self.screen.scale = scale;
+        self.screen.zoom = zoom;
         true
     }
 

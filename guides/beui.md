@@ -305,7 +305,7 @@ direction:
 | `beui-renderer-wgpu` | the wgpu renderer, its shaders and filters, and presenting to a surface |
 | `beui-renderer-dom` | the DOM renderer: the display tree as nested absolutely positioned elements |
 | `beui-platform-winit`, `beui-platform-android`, `beui-platform-web` | each platform's `Platform` and `PlatformServices`: its event loop, window or view, input, IME, clipboard, file picker and accessibility adapter (winit's is its own `accessibility.rs` over `accesskit_unix`, `accesskit_windows` and `accesskit_macos`, since `accesskit_winit` has no release for winit 0.31) |
-| `beui-platform-drm` | Linux's displays and input devices through DRM/KMS and libinput: a `Platform`, `PlatformServices` and `Renderer` whose screens each keep a retained frame and are drawn when their display flips (the app's frames are paced to the flips too, by `pacing.rs`: at most one per flip, none while nothing changes), handing the flip a fence (or, without atomic fences, waiting for it in the event loop) instead of blocking on the GPU; callers run it with `beui::run_on` |
+| `beui-platform-drm` | Linux's displays and input devices through DRM/KMS and libinput: a `Platform`, `PlatformServices` and `Renderer` that shows one window per display (see Displays under beui-platform-drm below), each display keeping a retained frame of its window, drawn when the display flips (the app's frames are paced to the flips too, by `pacing.rs`: at most one per flip, none while nothing changes), handing the flip a fence (or, without atomic fences, waiting for it in the event loop) instead of blocking on the GPU; callers run it with `beui::run_on` |
 | `beui-layer-space` | the VR simulator `WindowHost` that `BEUI_PLATFORM=space` wraps around a native or headless platform: the app's windows as panels in a 3D scene ("Space: the VR simulator host" below) |
 | `beui-platform-plugin` | the `Platform`, `PlatformServices` and `Renderer` for a block editor plugin module: `launch` starts the module's one app and registers its runner with the plugin framework as the module's `Regions` handler, whose batched calls then drive its frames; every region the host shows is a window of that app, which the app opens from the `Views` handle the platform provides through `Setup` (guides/adding_a_plugin_editor.md); it depends on the plugin framework, so the facade does not offer it, and it reads no `BEUI_*` variable |
 
@@ -1872,35 +1872,24 @@ tree and the beui inspector both work this way, and both hold the tree's
 `TreeApi` through its `api` prop to find its rows (`row_node`) and its focus
 (`focused`).
 
-### Screens
+### Overlays stay in their window
 
-A document knows the screens it is shown on: `Document::screens()`, and
-`use_screens()` in a component, a signal of `Screen`s (an `id` that stays the
-same while the monitor is plugged in, a `name`, and a `rect` in document
-coordinates). A window, a browser tab, an Android view, a plugin's region and
-an inspector panel are one screen the size of what the document is shown in;
-under `block-app --session` there is one per monitor. They come from the
-renderer: `Renderer::screens` hands the runner each monitor in physical
-pixels (beui-platform-drm's outputs, beui-platform-plugin's from the monitors
-the host says its region covers), the runner puts them on the `Context`
-(`Context::set_screens`, which is also how a test gives a document two
-screens), and the document keeps the part of each inside the rect it is shown
-in. Nothing else should keep its own list of monitors.
-
-Overlays place themselves on one screen rather than across the box around all
-of them. A `Center` or `FillScreen` overlay is on the screen it opened on: its
-trigger's, else where the pointer was last pressed or moved unless a key was
-pressed since, else the focused node's, else the pointer's, else the first. One anchored to a node is kept on the screen
-most of that node is on, one anchored to a point on that point's screen, and one
-anchored to a rect (`OverlayAnchor::Rect`, in document coordinates) on the screen
-most of that rect is on, placed against the rect as it would be against a node.
-`styled::Toasts` takes any anchor this way, so linux-desktop stacks its toasts in the
-corner of a screen above its bar. A toast goes after its `duration` unless it is `sticky` or
+A document knows nothing of the monitors it is shown on. Every overlay is laid
+out within the window it was opened in (the main window's rect, or a hosted
+window's own `(0, 0)`-cornered rect less any on-screen keyboard there):
+`Center` and `Fill` take that whole area, one anchored to a node, a point or a
+rect (`OverlayAnchor::Rect`, in that window's coordinates) is placed against it
+and kept inside the window. Where an app shows one window per monitor (block-app
+under `--session`, one per display), each window is a monitor, so a dialog opened
+in it stays on it. `styled::Toasts` takes any anchor this way, so linux-desktop stacks its toasts in the
+corner of a display above its bar. A toast goes after its `duration` unless it is `sticky` or
 `danger`: an error stays until it is dismissed, so it cannot be missed.
-`Fill`, `At` and `Around` use the whole document, so something meant for every
-screen - `styled::KeepChanges`, `styled::LockScreen`, `styled::LevelOsd` - lays
-out one card per entry of `use_screens()`, which is a single card everywhere
-but a desktop with several monitors.
+`styled::KeepChanges` and `styled::LockScreen` are one card over a scrim that
+fills their window; an app that wants one on every monitor puts one in each
+monitor's window. `styled::LevelOsd` shows its card near the foot of its
+window, or of `area` (a rect in the window's coordinates) when given, so an app
+whose one window spans several monitors, as linux-desktop's region does, puts
+one per monitor with each one's `area`.
 
 ### Docking and windows
 
@@ -2716,7 +2705,7 @@ focused field into what is left, through every scroll it sits in.
   order, after the GPU and the rest of the runner are gone, and dropping GPU or
   reactive state there aborts or crashes the process (block-app's
   `Shell::exiting` takes down the Wayland compositor, the plugin runtimes and
-  their worker threads, and the screens this way).
+  their worker threads, and the displays this way).
 - `busy` says whether work the app is waiting on, such as a server request or a
   plugin's frame, will still change what it shows. Only a driver reads it.
 - `environment` is the variables a program needs to open its windows inside an app
@@ -2805,11 +2794,12 @@ the app would draw it inside that window), or `Host(HostPlacement)`: a value onl
 understands (a screen position, a 3D pose), which the app stores and hands
 back unchanged. The host answers with `WindowReport`s pushed as
 `Incoming::Window`: `Resized { window, size }` in points, `Placed { window,
-placement }`, `Closed(window)` and `Focused { window, focused }` (the host's
+placement }`, `Moved { window, origin }` (where the window's corner is, in points, in a
+space all the host's windows share, as beui-platform-drm's desktop is), `Closed(window)` and `Focused { window, focused }` (the host's
 window focus, as a window manager moves it on a click or to a window it
 opens). The runner applies them before the frame
-lays out, and `Context::window_size` and `Context::window_placement` read
-them. `Context::window_hosting` says which windows a host opens, as a
+lays out, and `Context::window_size`, `Context::window_placement` and
+`Context::window_origin` read them. `Context::window_hosting` says which windows a host opens, as a
 `WindowHosting`: `None` (every platform on its own: a window is shown inside
 the main one instead), `Any` (a `WindowHost` opens every window) or `Placed`
 (the platform opens only the windows it placed itself: a `Window` opened with
@@ -2817,11 +2807,10 @@ a `WindowPlacement::Host` the platform handed out through a handle in `Setup`,
 as beui-platform-plugin's `Views` and its `views.placement(id)` do; every other
 `Window` is an overlay inside the window it was opened in, so a plugin's
 docked windows stay inside its region). `Context::opens_windows` is true only
-for `Any`. A platform with no main window of its own (beui-platform-plugin)
-sets `Context::set_shows_main(false)`: the document then paints neither the
+for `Any`. A platform with no main window of its own (beui-platform-plugin,
+beui-platform-drm) sets `Context::set_shows_main(false)`: the document then paints neither the
 root nor anything opened in the main window, so the root just holds the app's
-`Window`s, and the document's screens are the context's as they are, in its
-windows' coordinates, rather than cut to the main window.
+`Window`s.
 
 An app makes a window with the `Window` component (`beui::primitives`,
 `beui::styled`):
@@ -2956,7 +2945,11 @@ the pointer only crosses into another window: the node holding the press goes
 on getting the drag, and its `PointerPress` names the window the pointer is
 over and the position in that window (`local` is then measured from the
 holder's rectangle in its own window, so it means little; a click needs the
-release in the window the press began in). The drag board looks for drop
+release in the window the press began in). A forwarding catcher (a plugin
+region, a Wayland window) is handed those events in its own window's
+coordinates instead, when the host has reported both windows' `Moved` origins:
+the position moves by the difference between the origins and the event names the
+catcher's window, so a drag begun on one display goes on smoothly over the next. The drag board looks for drop
 targets only in the window the `DragPoint` names. A host signals that the pointer, holding a
 button, is over no window by sending `PointerLeft` (moves and the release then
 keep going to the window the press began in, outside its rect): the intake
@@ -3000,6 +2993,36 @@ encoder) in a `Layer::Shape(Shape::Drawing { .. })` covering the returned
 window. The native run functions (`beui::run_with`, `run_on`) wrap their
 platform in a host under `BEUI_PLATFORM=space` (`choose_platform` in
 `crates/beui/src/window.rs`).
+
+### Displays under beui-platform-drm
+
+beui-platform-drm shows no main window and opens only the windows it placed
+(`WindowHosting::Placed`): one per display, macOS-like. It hands the app a
+`beui_platform_drm::Displays` handle through `Setup` (`setup.get::<Displays>()`):
+`displays()` lists each connected display as a `Display` (its `id`, which stays
+the same while the monitor is plugged in, its `name`, its `position` and `size`
+in the desktop's points, and its own `scale`, pixels per point), `display(id)`
+one of them, `watch(f)` hears every change (a display plugged in or out, a new
+mode, rotation or scale) before the frame it reaches lays out, and
+`placement(id)` is the `WindowPlacement` to open that display's `Window` with.
+The app opens a `Window` per display at the display's `size`, so it lays out at
+the right size in the frame that first shows it; the platform matches the
+window's `Open` to the display in that same frame and draws its output there,
+and reports the window's `Resized`, `Moved` (the display's position) and `Scaled`
+(the display's scale; a window opened on a display at another scale than the
+first is drawn crisp from its second frame). It reports no placement for any
+window, so a dock never reopens one, and any other `Window` is an overlay in the
+window it was opened in. A display with no window shows its clear colour.
+The desktop puts the displays side by side, left to right, along their bottom
+edges, each `size` its physical mode over its scale; the main window is the
+first display's size at its scale, which is also the context's.
+Pointer input goes to the window of the display under the pointer, in that
+window's points (`Units::Points`), and a press focuses the window it lands in
+(`WindowReport::Focused`); a press held in one window goes on as the pointer
+crosses into another, by the rules above. Each display's scale is `BEUI_SCALE`
+(1 when unset) unless `DisplayConfig::scales` names one for its monitor id.
+`Displays::new` makes a handle with displays of a test's own, and
+`Displays::set` changes them.
 
 ### Space: the VR simulator host
 
@@ -3326,10 +3349,13 @@ It is three pieces:
   platform has an on-screen keyboard of its own (Android, the web, a plugin's
   host). `Document::show` (and the inspector, around
   the app it shows) calls `show_with_keyboard`, which takes the keyboard's
-  height off the bottom of the screen the focused field is on, the way the
-  mouse simulation's strip is taken: a single screen's document is laid out
-  above it, and on several screens that screen is shortened in what
-  `use_screens()` offers. The keyboard covers a share of that screen's
+  height off the bottom of the window the focused field is in (the host's
+  last focused window when nothing is focused, else the first open one when the
+  main window is not shown), the way the
+  mouse simulation's strip is taken: that window's content and overlays are laid out
+  above it, and the keyboard document paints into that window
+  (`Context::draw_into`) and hears the pointer in that window's coordinates
+  (`InputState::seen_from`). The keyboard covers a share of that window's
   height, `DEFAULT_SHARE` until `Context::set_keyboard_share` says otherwise
   (at most `MAX_SHARE`; block-app sets it from the display settings' on-screen
   keyboard height), and its keys stretch to fill it. A platform's own keyboard
@@ -3635,7 +3661,7 @@ subtree wakes that signal's effects once the walk has finished, which is what
 keeps a build confined to its node.
 
 Layout is a function of the tree and the constraints it is offered, so a new
-window size or set of screens lays the tree out again from its root and every
+window size lays the tree out again from its root and every
 node offered the space it had keeps its measurements, placement and paint; only
 a new scale, new fonts or a new context lay out everything. Two nodes build
 during it:

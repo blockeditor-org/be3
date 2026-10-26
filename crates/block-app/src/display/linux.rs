@@ -4,7 +4,8 @@ use be_block::DisplaySettings;
 use beui_platform_drm::{Display, DisplayConfig, DisplayControl, Displays, Epaper, Monitor};
 use block_plugin_api::HostDisplay;
 
-use super::{Screen, ShownDisplay};
+use super::Screen;
+use super::shown::ShownDisplay;
 
 thread_local! {
     static CONTROL: RefCell<Option<DisplayControl>> = const { RefCell::new(None) };
@@ -27,7 +28,7 @@ pub(crate) fn start(setup: &beui::Setup) {
         let watched = displays.clone();
         let follow = move || {
             let shown = watched.displays();
-            super::offer(
+            super::shown::offer(
                 shown
                     .iter()
                     .map(|display| ShownDisplay {

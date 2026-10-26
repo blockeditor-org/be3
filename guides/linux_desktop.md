@@ -9,7 +9,7 @@ plugin instead of workspace-ui. These flags start it that way:
   session of its own. The bar's power menu logs out (see below), Ctrl+Alt+Backspace quits at
   once, as does holding four fingers on a touchscreen for three seconds, and Ctrl+Alt+F<n>
   switches terminals. guides/pinenote.md covers an e-paper tablet.
-  `BEUI_SCALE` sets its scale.
+  It shows one window per display (see Displays, below); `BEUI_SCALE` sets every display's scale.
 - `--desktop` (every native platform): the desktop shell, linux-desktop on its own session as
   under `--session`, in a normal window, with programs opening as windows inside it as they
   do in any windowed run. What needs the displays and input devices themselves, such as
@@ -56,9 +56,56 @@ stays free to resize itself. Only when the person resizes it, or it is docked, i
 with a size, and then with the tiled states too. A 1×1 placeholder, which Firefox commits for its
 server-side-decorated windows and never grows on its own, opens at a default size instead.
 
-Popups (xdg-popup, and Xwayland's override-redirect windows) are fitted to the screen their window
-is on, not to the window, as the protocol intends, and are drawn and take input in a floating
+Popups (xdg-popup, and Xwayland's override-redirect windows) are fitted to the monitor their window
+is mostly on, not to the window, as the protocol intends, and are drawn and take input in a floating
 overlay above the document, so a menu can reach past its window's edge.
+
+## Displays
+
+Under `--session`, `beui-platform-drm` shows one window per display, macOS-like
+(guides/beui.md, Displays under beui-platform-drm), and block-app opens them from the
+platform's `Displays` handle (`display/linux.rs` offers them to `display/shown.rs`, and
+`ui::Displays` opens a `Window` per display at its size, with `displays.placement(id)`). The
+first display's window holds the host's whole UI (`ui::Root`: sign-in, the shell, dialogs); every
+display's window holds its own lock screen and display-settings prompt (`DisplayChrome`), and the
+host's toasts stand in the first's. Every display has its own scale: `BEUI_SCALE`, or what
+`DisplayConfig::scales` names for its monitor. Elsewhere (a window, headless, the web, Android)
+there are no displays and the UI is the main window's, as it always was.
+
+The desktop is one space in points: the displays side by side along their bottom edges. The
+shell's region spans all of it, so its coordinates are the desktop's, and every display's window
+shows its own part of that one region (`MainSurface` lays the shell out at the desktop's size,
+shifted by the display's position; `compositor/desktop.rs`): each window mounts the region, the
+host draws the plugin's one surface into each, rendered at the largest display scale
+(`RegionPlacement::raster`), and each mount builds only the region's children (program windows,
+block editors) that its display owns, the display holding most of a child, or every display a child
+overlaps while a press is held on the shell, so a window dragged across displays is drawn in both
+until it is let go. Mounts after the first only draw and forward input: the shell's keyboard
+focus, intercepted keys and child statuses go through the first display's (statuses are merged
+across mounts). The pointer crosses between display windows with a press held, by beui's
+cross-window rules: the platform reports each window's desktop origin (`WindowReport::Moved`), so
+the region or Wayland window holding the press hears the pointer in its own window's coordinates.
+
+The shell learns the displays from `DisplaysWatch`: each `HostDisplay` carries its `rect` in the
+desktop's points and its `scale`. linux-desktop lays out a bar along the foot of each display
+(one `DesktopBar` per display, in a row along the desktop's foot), its notification toasts above
+the first display's bar and a level display on each; with no display reported (`--desktop` in a
+window, tests) the whole region is one display.
+
+be-wayland advertises one `wl_output` per display (`Compositor::set_monitors`, from the same
+handle; `heads.rs`), at its desktop position and its scale rounded up, and keeps every window
+entered into the output of the display it mostly covers (`wl_surface.enter`/`leave` and the
+preferred buffer scale follow it as it moves), sends its frame callbacks and presentation feedback
+through that output, and honours the output named in `xdg_toplevel.set_fullscreen` by making the
+window fullscreen on that display. Xwayland binds the same outputs, so X11 programs see the same
+monitors. A `WindowView` reports its rect in desktop coordinates (its window's origin added). In a
+window or headless, the compositor's area is one output.
+
+Under `--session` be-wayland's sources (the display's socket and clients, its own event loop,
+buffers' fences) are inserted into `beui-platform-drm`'s calloop loop, which the platform hands out
+as `beui_platform_drm::Loop` through `Setup` (`Compositor::join_loop`); they wake beui, whose
+frame dispatches the clients. Elsewhere, where the platform's loop is winit's or the headless one
+and takes no file descriptors, the "wayland watch" thread (`Server::watch`) polls them instead.
 
 ## Installing it as a session
 
@@ -182,8 +229,8 @@ five seconds, 0 and critical urgency never), actions, `resident` and `transient`
 toast whose time is up only hides: the notification stays until it is dismissed, an action
 is taken or its program closes it, which is the `persistence` capability, except a transient
 one, which closes as expired. The toasts are a `beui::styled::Toasts` (title, picture and
-action buttons; clicking the body is the `default` action) anchored to the first screen with
-the desktop bar cut off it, with ids from `TOAST_IDS` up so other toasts can share the stack.
+action buttons; clicking the body is the `default` action) anchored to the first display with
+its bar cut off it, with ids from `TOAST_IDS` up so other toasts can share the stack.
 They make way while the bell's list of notifications is open.
 
 To try it, start a session bus of its own (`dbus-daemon --session --fork --print-address`
@@ -242,7 +289,7 @@ linux-desktop binds the volume, mute, mic mute, brightness and media transport k
 intercepting actions, so the host hands them to the shell even while a program has the keyboard,
 and a held key repeats. Each key sends a `MediaRequest` (`media::request` inside
 `editor.act`), and a volume, mute or brightness key shows `beui::styled::LevelOsd`, an icon and
-a level bar on every monitor that fades out after 1.5 seconds, with the levels the host reports
+a level bar on every display (one `LevelOsd` per display's rect, `desktop.osd.{index}`) that fades out after 1.5 seconds, with the levels the host reports
 (`editor.watch::<MediaWatch>()`). The bar's volume item (`app/volume.rs`) shows
 the same output level while the host reports one, and its popup sets the volume, the mute and
 the default output (`MediaRequest::SetVolume`, `SetMute`, `ChooseOutput`) from the sinks the
@@ -296,8 +343,8 @@ beui's own on-screen keyboard (guides/beui.md, The on-screen keyboard) is the de
 `--session` it opens by itself when a field is tapped and no libinput device with letter keys is
 plugged in; the keyboard button beside the bar's clock (`desktop.keyboard`, which calls
 `toggle_keyboard()` and so goes to the host as `WindowRequests::keyboard_toggles`) opens and closes
-it whatever is plugged in. It is drawn by the host along the bottom of the screen the focused field
-is on, so the shell's screen, bar and windows on that screen are laid out above it.
+it whatever is plugged in. It is drawn by the host along the bottom of the window the focused field
+is in (under `--session`, a display's window), and that window is laid out above it.
 
 Programs reach it through `zwp_text_input_v3` (be-wayland's `text_input.rs`; there is no input
 method protocol, since the keyboard is the compositor's own): a text input is entered on the surface
@@ -373,8 +420,8 @@ turn off), and, under `--session`, logind's `Lock` for the app's own session (`l
 lock-session`) and before every suspend: `DesktopSession` holds a logind `delay` inhibitor for
 sleep and lets it go once the lock screen has been drawn twice (`src/session/sleep.rs`), taking it
 again on waking. `src/session/lock.rs` is the state machine, `src/session.rs`'s `ScreenLock` runs
-it, and `src/ui/lock.rs` shows it as `styled::LockScreen`, a card on every screen of
-the document (`use_screens()`) over an opaque scrim. logind's `Unlock` is not obeyed: only a password unlocks.
+it, and `src/ui/lock.rs` shows it as `styled::LockScreen`, a card over an opaque scrim in
+every display's window (one in the main window elsewhere). logind's `Unlock` is not obeyed: only a password unlocks.
 
 The password is checked by PAM on a thread of its own, with the service `block-app` when
 `/etc/pam.d/block-app` exists (`--install-session` writes it unless one is there, as
@@ -456,15 +503,15 @@ an unturned screen copies), the software pointer and the damage clips with it
 (`rotation.rs`). It never asks the plane to rotate, which most display devices, the e-paper
 panel's included, cannot do. Absolute input arrives in the panel's own orientation
 (libinput's calibration matrix lines a touchscreen up with the panel unturned) and is turned
-back (`layout::absolute`): touch onto the first screen, an absolute pointer or a pen onto the
-one screen when there is one and across all of them unturned otherwise, and a pen's tilt
+back (`layout::absolute`): touch onto the first display, an absolute pointer or a pen onto the
+one display when there is one and across all of them unturned otherwise, and a pen's tilt
 with it. A relative pointer is already in the picture's terms. A rotation applies live, rebuilding
 the output's `Screen` as a mode change does, and never asks to be kept.
 
 The rotation is picked with `block_editor_beui::RotationPicker`, which both the Display page
 and the bar use. When the display settings' `rotate_in_bar` is on and the host reports a
 screen, linux-desktop's bar shows a rotate button (`desktop.rotate`, `app/rotate.rs`) whose
-popover holds the picker for the first screen in `Displays`. It reads and writes the setting
+popover holds the picker for the first display in `Displays`. It reads and writes the setting
 through `block_editor_beui::LayeredSettings::this_device`, as the Display page does, so the
 rotation of a monitor known by its EDID serial goes to every device and that of a panel known
 only by its connector stays in this device's profile, and block-app's `SettingsSync` applies it
@@ -512,7 +559,7 @@ the winit backend shows too), and a `wl_pointer.set_cursor` surface reaches the 
 `beui_platform_drm::SoftwareCursor` (block-app's `wayland/linux.rs`), redrawn whenever the client
 commits to it; a null cursor hides the pointer.
 
-Under `--session` the app runs a frame only when an output has flipped since the last one (`beui-platform-drm`'s `pacing.rs`), and a window's `wl_surface.frame` callbacks and `wp_presentation_feedback` are answered by the flip of the screen it mostly covers, with the flip's time, refresh and sequence: the platform reports each flip through `beui_platform_drm::Flips`, which block-app hands to `Compositor::presented` (`presentation.rs`). Elsewhere there are no flips, so they are answered as soon as the window is painted, at the frame clock's time.
+Under `--session` the app runs a frame only when an output has flipped since the last one (`beui-platform-drm`'s `pacing.rs`), and a window's `wl_surface.frame` callbacks and `wp_presentation_feedback` are answered by the flip of the display it mostly covers, with the flip's time, refresh and sequence: the platform reports each flip through `beui_platform_drm::Flips`, which block-app hands to `Compositor::presented` (`presentation.rs`). Elsewhere there are no flips, so they are answered as soon as the window is painted, at the frame clock's time.
 
 A `WindowView` that changes size configures its client with the new size in that same frame.
 Until the client commits a buffer of that size, its last one is drawn at its own size from the
@@ -583,8 +630,8 @@ smithay `desktop::Window`, which is either an xdg toplevel or an `X11Surface`, s
 docked, focused, resized, fullscreened and closed (`WM_DELETE_WINDOW`) like any other, and its
 input goes through the same forwarding. The keyboard focus is `focus::KeyboardFocus`, which for
 an X11 window also sets the X input focus. X11 has no ping here, so an X11 window is always
-responding. Each X11 window is configured at its place on the screen (`State::place`), so X
-coordinates are the screen's; an override-redirect window (a menu, tooltip or dropdown)
+responding. Each X11 window is configured at its place on the desktop (`State::place`), so X
+coordinates are the desktop's, the space Xwayland's outputs (the same `wl_output`s, see Displays) are laid out in; an override-redirect window (a menu, tooltip or dropdown)
 positions itself in those coordinates and is drawn and hit-tested as a layer of the toplevel it
 belongs to (its `WM_TRANSIENT_FOR`, else the X11 window under the pointer or with the
 keyboard), drawn past that window's edge like an xdg popup (see Program windows above).

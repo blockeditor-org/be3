@@ -57,8 +57,10 @@ The touchscreen (`cyttsp5`) is an ordinary libinput touch device; pinenote-dist'
 gives it the calibration matrix that matches the panel unturned. The stylus is a libinput tablet
 tool, which the platform turns into beui pen events (`Event::Pen`). Keep both matrices lined up with
 the panel's own orientation: the platform turns touch, the pen and its tilt by the screen's rotation
-itself, so a matrix that also turned them would turn them twice. No input device has letter keys, so the on-screen keyboard
-opens by itself when a field is tapped. With no keyboard for Ctrl+Alt+Backspace, holding four
+itself, so a matrix that also turned them would turn them twice. The panel is the one display, so
+block-app opens one window for it (guides/linux_desktop.md, Displays), and touch, the pen and the
+on-screen keyboard all land in that window. No input device has letter keys, so the on-screen keyboard
+opens by itself when a field is tapped, along the foot of the panel's window. With no keyboard for Ctrl+Alt+Backspace, holding four
 fingers on the screen for three seconds ends the session (`escape.rs`), which works as long as
 the platform's event loop runs. The power button is logind's, which powers off by default.
 
