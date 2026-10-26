@@ -3,7 +3,7 @@ use beui::KeyAt;
 use beui::TextAlign;
 use beui::icons::Glyph;
 use beui::icons::{
-    ICON_A_LARGE_SMALL, ICON_CIRCLE_CHECK, ICON_CLOCK, ICON_COPY_PLUS, ICON_FILE_UP, ICON_FOLDER,
+    ICON_A_LARGE_SMALL, ICON_CIRCLE, ICON_CIRCLE_CHECK, ICON_SQUARE, ICON_STAR, ICON_TRIANGLE, ICON_CLOCK, ICON_COPY_PLUS, ICON_FILE_UP, ICON_FOLDER,
     ICON_IMAGE, ICON_INFO, ICON_PAPERCLIP, ICON_PLUS, ICON_QUOTE, ICON_SAVE, ICON_TABLE,
     ICON_TEXT_ALIGN_START, ICON_TRIANGLE_ALERT, ICON_UNDO_2, ICON_WIFI, ICON_X,
 };
@@ -1137,6 +1137,9 @@ pub(crate) fn ChoicesPage() -> NodeId {
             <Sample title="Tabs and segments without room" code={vec![NarrowChoices::SOURCE]}>
                 <NarrowChoices />
             </Sample>
+            <Sample title="Tile buttons" code={vec![ShapeTiles::SOURCE]}>
+                <ShapeTiles />
+            </Sample>
         </ScrollPage>
     }
 }
@@ -1272,6 +1275,38 @@ fn PeriodSegments() -> NodeId {
                 selected={period}
             />
             <Text style=TextStyle::CAPTION>{period_text}</Text>
+        </List>
+    }
+}
+
+#[sample]
+#[component]
+fn ShapeTiles() -> NodeId {
+    const SHAPES: [(&str, Glyph); 4] = [
+        ("Circle", ICON_CIRCLE),
+        ("Square", ICON_SQUARE),
+        ("Triangle", ICON_TRIANGLE),
+        ("Star", ICON_STAR),
+    ];
+    let chosen = create_signal(0);
+    let picked = create_memo(move || format!("{} chosen", SHAPES[chosen.get()].0));
+    view! {
+        <List spacing=SECTION_SPACING @test_id="demo.choices.tiles">
+            <List direction=Direction::Horizontal spacing=Space::Xs>
+                <ForEach keys={(0..SHAPES.len()).collect::<Vec<usize>>()}>|index: usize|
+                    <TileButton
+                        label={SHAPES[index].0.to_owned()}
+                        radio=true
+                        selected={create_memo(move || chosen.get() == index)}
+                        on_click={move || chosen.set(index)}
+                    >
+                        <Text size=TextSize::Xl align=TextAlign::Center>
+                            <Icon glyph={SHAPES[index].1} />
+                        </Text>
+                    </TileButton>
+                </ForEach>
+            </List>
+            <Text style=TextStyle::CAPTION>{picked}</Text>
         </List>
     }
 }

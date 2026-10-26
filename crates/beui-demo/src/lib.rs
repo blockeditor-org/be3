@@ -258,7 +258,7 @@ impl Page {
             Page::Text => "Text styles, sizes, colour roles, icons in text, links",
             Page::Buttons => "Buttons, icon buttons, tooltips",
             Page::Inputs => "Fields, switches, sliders, progress",
-            Page::Choices => "Radio groups, listboxes, tabs",
+            Page::Choices => "Radio groups, listboxes, tabs, tiles",
             Page::Pickers => "Dates and times",
             Page::Colors => "Color inputs, pickers, wheels and swatches",
             Page::Menus => "Context, menu and split buttons",

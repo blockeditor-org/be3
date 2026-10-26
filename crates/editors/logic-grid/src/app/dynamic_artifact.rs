@@ -73,7 +73,6 @@ pub(super) fn summary(data: &[u8]) -> String {
     }
 }
 
-const SETTINGS_PADDING: Space = Space::Lg;
 const SETTINGS_SPACING: Space = Space::Lg;
 
 #[component]
@@ -96,20 +95,18 @@ pub(super) fn Settings(artifacts: Artifacts) -> NodeId {
         edited.edit_settings(artifact.encode());
     };
     view! {
-        <Frame padding=SETTINGS_PADDING>
-            <List spacing=SETTINGS_SPACING>
-                <Show condition={readable}>
-                    <Checkbox
-                        label="Rename with the grid"
-                        checked={Binding::new(renamed, rename.clone())}
-                        @test_id={"logic-grid.rename-with-source"}
-                    />
-                </Show>
-                <Show condition={unreadable}>
-                    <Text style=TextStyle::CAPTION>"These settings cannot be read."</Text>
-                </Show>
-            </List>
-        </Frame>
+        <List spacing=SETTINGS_SPACING>
+            <Show condition={readable}>
+                <Checkbox
+                    label="Rename with the grid"
+                    checked={Binding::new(renamed, rename.clone())}
+                    @test_id={"logic-grid.rename-with-source"}
+                />
+            </Show>
+            <Show condition={unreadable}>
+                <Text style=TextStyle::CAPTION>"These settings cannot be read."</Text>
+            </Show>
+        </List>
     }
 }
 
