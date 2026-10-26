@@ -9,8 +9,8 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::{Duration, Instant};
 
 use beui::{
-    Keystroke, Launch, Modifiers, Pen, PenPhase, PlatformServices, PointerButton, Pos2, ScrollDelta, Setup,
-    TouchId, TouchPhase, Waker, vec2,
+    Keystroke, Launch, Modifiers, Pen, PenPhase, PlatformServices, PointerButton, Pos2,
+    ScrollDelta, Setup, TouchId, TouchPhase, Waker, vec2,
 };
 use beui_core::app::SafeArea;
 use beui_core::clipboard::{PasteAnswer, PasteKind, Pasted};

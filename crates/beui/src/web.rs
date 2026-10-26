@@ -1,9 +1,9 @@
 use std::error::Error;
 
-use beui_platform_web::Web;
 use beui_core::app::App;
 use beui_core::renderer::{Loaded, any_loaded};
-use beui_core::runner::{Platform, Launch, RunOptions};
+use beui_core::runner::{Launch, Platform, RunOptions};
+use beui_platform_web::Web;
 
 pub enum WebRenderer {
     #[cfg(feature = "web")]

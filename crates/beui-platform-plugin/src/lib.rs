@@ -10,7 +10,7 @@ use beui_core::app::{App, SafeArea, Setup, Waker};
 use beui_core::context::{Context, FrameOutput};
 use beui_core::geometry::Rect;
 use beui_core::renderer::Loaded;
-use beui_core::runner::{Platform, Incoming, Launch, RunOptions, Runner, Running};
+use beui_core::runner::{Incoming, Launch, Platform, RunOptions, Runner, Running};
 use beui_core::screens::Screen;
 use beui_core::window::WindowState;
 use block_editor_plugin::accesskit::{ActionRequest, Affine, TreeUpdate};

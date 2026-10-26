@@ -37,7 +37,7 @@ use beui_core::input::{
 };
 use beui_core::preferences::{Motion, PreferenceLayer, ThemeKind};
 use beui_core::renderer::{Loaded, WindowHandle};
-use beui_core::runner::{Platform, Incoming, Launch, PlatformServices, Running};
+use beui_core::runner::{Incoming, Launch, Platform, PlatformServices, Running};
 use beui_core::window::{SystemBars, WindowState};
 use clipboard::Clipboard;
 

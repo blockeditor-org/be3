@@ -88,19 +88,19 @@ pub use beui_renderer_wgpu::{
 pub use beui_view::primitives;
 pub use beui_view::{child_type, value_child_type};
 
+pub use beui_core::runner::{
+    HostView, Hosted, HostedPlatform, Incoming, Launch, Platform, PlatformServices, RunOptions,
+    Running, Units, WindowHost, panic_message,
+};
+pub use beui_core::window::{
+    HostPlacement, WindowEdge, WindowId, WindowPlacement, WindowReport, WindowRequest,
+};
 #[cfg(all(feature = "window", target_os = "android"))]
 pub use beui_platform_android::AndroidApp;
 #[cfg(all(any(feature = "web", feature = "dom"), target_arch = "wasm32"))]
 pub use beui_platform_web::accessibility_tree;
 #[cfg(all(feature = "window", not(target_os = "android")))]
 pub use beui_platform_winit::winit;
-pub use beui_core::runner::{
-    Platform, HostView, Hosted, HostedPlatform, Incoming, Launch, PlatformServices, RunOptions, Running,
-    Units, WindowHost, panic_message,
-};
-pub use beui_core::window::{
-    HostPlacement, WindowEdge, WindowId, WindowPlacement, WindowReport, WindowRequest,
-};
 #[cfg(all(any(feature = "web", feature = "dom"), target_arch = "wasm32"))]
 pub use web::{WebRenderer, run_web, web_platform};
 
@@ -109,7 +109,7 @@ mod web;
 
 mod keyboard;
 #[cfg(all(feature = "window", not(target_arch = "wasm32")))]
-pub use window::{WindowRenderer, run_on, run_with, run_with_renderers, native_platform};
+pub use window::{WindowRenderer, native_platform, run_on, run_with, run_with_renderers};
 
 #[cfg(all(feature = "window", not(target_arch = "wasm32")))]
 mod saved_preferences;

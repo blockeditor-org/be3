@@ -6,7 +6,7 @@ use beui_core::renderer::{Loaded, WindowHandle, any_loaded};
 use beui_renderer_wgpu::present::OpenDevice;
 use beui_renderer_wgpu::window::WindowSurface;
 
-use beui_core::runner::{Platform, Launch, RunOptions};
+use beui_core::runner::{Launch, Platform, RunOptions};
 
 use beui_core::runner::environment::{Base, Choice};
 

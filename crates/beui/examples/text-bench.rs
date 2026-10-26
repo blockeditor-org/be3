@@ -11,8 +11,8 @@ use beui::styled::*;
 use beui::testing::{Screen, Showing};
 use beui::unstyled::TextAreaState;
 use beui::{
-    Document, Incoming, Input, Launch, PlatformServices, PointerButton, Pos2, RunOptions, Setup, Vec2,
-    Waker, pos2,
+    Document, Incoming, Input, Launch, PlatformServices, PointerButton, Pos2, RunOptions, Setup,
+    Vec2, Waker, pos2,
 };
 use beui_core::app::SafeArea;
 use beui_core::renderer::Loaded;

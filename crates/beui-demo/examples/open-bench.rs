@@ -46,8 +46,8 @@ mod bench {
 
     use beui::testing::Screen;
     use beui::{
-        Color32, Context, Incoming, Input, Launch, PlatformServices, PointerButton, Pos2, Rect, RunOptions,
-        ScrollDelta, Setup, Vec2, Waker, WindowOutput,
+        Color32, Context, Incoming, Input, Launch, PlatformServices, PointerButton, Pos2, Rect,
+        RunOptions, ScrollDelta, Setup, Vec2, Waker, WindowOutput,
     };
     use beui_core::app::SafeArea;
     use beui_core::context::RendererInfo;

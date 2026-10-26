@@ -7,14 +7,14 @@ mod bench {
 
     use beui::testing::Screen;
     use beui::{
-        Context, CursorIcon, Incoming, Input, Launch, PlatformServices, Pos2, RunOptions, Setup, Vec2,
-        Waker,
+        Context, CursorIcon, Incoming, Input, Launch, PlatformServices, Pos2, RunOptions, Setup,
+        Vec2, Waker,
     };
-    use beui_layer_space::Space;
     use beui_core::app::SafeArea;
     use beui_core::renderer::{Loaded, Renderer};
     use beui_core::runner::{HostView, Hosted, Runner, WindowHost};
     use beui_demo::DemoApp;
+    use beui_layer_space::Space;
     use beui_renderer_wgpu::offscreen::OffscreenSurface;
 
     const PLATFORM: Vec2 = Vec2::new(1440.0, 900.0);

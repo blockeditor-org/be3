@@ -5,14 +5,14 @@ use std::{
 
 use block_plugin_api::{PluginManifest, ScreenDamage};
 
-mod worker;
 mod canvases;
 pub(super) mod presenter;
+mod worker;
 
 use super::backend::ShownFrame;
+pub(super) use canvases::{Placement, placement, set_background};
 use worker::WorkerChannel;
 pub(super) use worker::{PresentedBitmap, WorkerChannel as Channel};
-pub(super) use canvases::{Placement, placement, set_background};
 
 pub(super) type Picture = web_sys::ImageBitmap;
 

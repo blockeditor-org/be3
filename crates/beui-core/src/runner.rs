@@ -393,7 +393,11 @@ impl Runner {
         }
     }
 
-    pub fn frame(&mut self, platform: &mut dyn PlatformServices, safe_area: SafeArea) -> Option<Frame> {
+    pub fn frame(
+        &mut self,
+        platform: &mut dyn PlatformServices,
+        safe_area: SafeArea,
+    ) -> Option<Frame> {
         if self.exited {
             return None;
         }
@@ -412,7 +416,11 @@ impl Runner {
         }
     }
 
-    fn run_frame(&mut self, platform: &mut dyn PlatformServices, safe_area: SafeArea) -> Option<Frame> {
+    fn run_frame(
+        &mut self,
+        platform: &mut dyn PlatformServices,
+        safe_area: SafeArea,
+    ) -> Option<Frame> {
         let started = std::time::Instant::now();
         let renderers = self.renderers.as_mut()?;
         match renderers.recover() {

@@ -4,7 +4,7 @@ use crate::app::Setup;
 use crate::context::{FrameOutput, WindowOutput};
 use crate::geometry::Vec2;
 
-use super::{Platform, Incoming, Launch, Running};
+use super::{Incoming, Launch, Platform, Running};
 
 #[derive(Clone, Copy, PartialEq, Debug)]
 pub struct HostView {

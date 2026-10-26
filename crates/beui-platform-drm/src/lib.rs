@@ -34,7 +34,7 @@ pub use problems::Problems;
 pub use rotation::Rotation;
 pub use runner::run;
 
-use beui::{Platform, Launch};
+use beui::{Launch, Platform};
 
 pub struct Drm;
 

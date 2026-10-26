@@ -49,7 +49,7 @@ use beui_core::input::{
     PenPhase, PointerButton, ScrollDelta, TouchId, TouchPhase,
 };
 use beui_core::renderer::{Loaded, WindowHandle};
-use beui_core::runner::{Platform, Incoming, Launch, PlatformServices, Running};
+use beui_core::runner::{Incoming, Launch, Platform, PlatformServices, Running};
 use beui_core::window::WindowState;
 use clipboard::Clipboard;
 use preferences::SystemPreferences;

@@ -17,7 +17,9 @@ use crate::document::Document;
 use crate::geometry::{Pos2, Rect, Vec2};
 use crate::input::{Input, Key, Modifiers, PointerButton, TouchPhase};
 use crate::renderer::{Loaded, Renderer};
-use crate::runner::{HostView, Hosted, Incoming, Launch, PlatformServices, RunOptions, Runner, WindowHost};
+use crate::runner::{
+    HostView, Hosted, Incoming, Launch, PlatformServices, RunOptions, Runner, WindowHost,
+};
 use crate::window::{HostPlacement, WindowId, WindowPlacement, WindowReport, WindowRequest};
 
 pub const FRAME_INTERVAL: Duration = Duration::from_micros(16_667);
@@ -267,7 +269,12 @@ impl<A: App + 'static> Stepped<A> {
         )
     }
 
-    pub fn on(context: Context, app: A, size: Vec2, platform: impl PlatformServices + 'static) -> Self {
+    pub fn on(
+        context: Context,
+        app: A,
+        size: Vec2,
+        platform: impl PlatformServices + 'static,
+    ) -> Self {
         Self::start(context, app, size, 1.0, None, |_| {
             Window::Other(Box::new(platform))
         })
