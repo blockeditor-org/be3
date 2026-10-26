@@ -1449,7 +1449,7 @@ fn finger(argument: Option<&String>) -> Result<u64, String> {
 
 fn actions(groups: &[ActionGroup], all: bool) -> String {
     let mut text = String::new();
-    for group in groups {
+    for group in groups.iter().filter(|group| group.window.is_none()) {
         let listed: Vec<_> = group
             .actions
             .iter()

@@ -8,7 +8,7 @@ use crate::editor_session::EditorSession;
 use crate::screens::Screens;
 use crate::wasm::{Surfaces, surface_gpu};
 use crate::wire::Delivery;
-use crate::{EditorHost, Frame, Instance, Region, RegionHandler, Waker};
+use crate::{EditorHost, Frame, Instance, Region, Regions, Waker};
 
 const INSTANCE: EditorInstanceId = EditorInstanceId(1);
 
@@ -17,25 +17,34 @@ struct Unpainted(EditorHost);
 impl Instance for Unpainted {
     fn connect(&mut self, _block_id: Uuid) {}
 
-    fn open_region(&mut self, region: EditorRegion) {
-        self.0.handle_region(region, Box::new(UnpaintedRegion));
+    fn open_region(&mut self, _region: EditorRegion) {
+        if !self.0.handles_regions() {
+            self.0.handle_regions(Box::new(UnpaintedRegions));
+        }
     }
 }
 
-struct UnpaintedRegion;
+struct UnpaintedRegions;
 
-impl RegionHandler for UnpaintedRegion {
+impl Regions for UnpaintedRegions {
     fn input(&mut self, _region: &Region, _event: &TimedInput) {}
 
-    fn update(&mut self, region: &Region) -> Frame {
-        Frame {
-            changed: true,
-            painted: vec![region.rect],
-            ..Frame::default()
-        }
+    fn frame(&mut self, regions: &[Region]) -> Vec<Frame> {
+        regions
+            .iter()
+            .map(|region| Frame {
+                changed: true,
+                painted: vec![region.rect],
+                ..Frame::default()
+            })
+            .collect()
     }
 
-    fn paint(&mut self, _target: &crate::PaintTarget<'_>) -> Vec<block_plugin_api::SurfaceRect> {
+    fn paint(
+        &mut self,
+        _region: crate::RegionId,
+        _target: &crate::PaintTarget<'_>,
+    ) -> Vec<block_plugin_api::SurfaceRect> {
         panic!("a surface the host does not render was painted")
     }
 }

@@ -1,10 +1,10 @@
 use std::time::Instant;
 
 use beui_core::runner::Incoming;
-use block_editor_plugin::{Region, TimedInput};
+use block_editor_plugin::TimedInput;
 
-pub(crate) fn translate(region: &Region, event: &TimedInput) -> Incoming {
-    Incoming::logical(event.input.clone().translated(region.rect.min.to_vec2()))
+pub(crate) fn translate(event: &TimedInput) -> Incoming {
+    Incoming::logical(event.input.clone())
 }
 
 pub(crate) fn time(event: &TimedInput) -> Option<Instant> {

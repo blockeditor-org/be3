@@ -1,10 +1,10 @@
 use block_plugin_api::{
-    EditorInstanceId, EditorRegion, Fonts, FrameCommit, Hello, HelloAccepted, InputBatch, Opening,
+    EditorInstanceId, Fonts, FrameCommit, Hello, HelloAccepted, InputBatch, Opening,
     Preferences, ScreenLayout, ScreenPlacement, ScreenRequest, ops::guest::Executor,
 };
 
 use crate::{
-    EditorHost, Frame, Instance, RegionHandler, Waker,
+    EditorHost, Frame, Instance, Module, Waker,
     editor_session::EditorSession,
     screens::Screens,
     session::{ClientSession, State},
@@ -113,19 +113,20 @@ impl HeadlessPlugin {
 
     pub fn draw(&mut self) -> Vec<(ScreenPlacement, Frame)> {
         let layout = self.screens.layout().clone();
-        let mut frames = Vec::new();
-        for placement in &layout.screens {
-            let Some(session) = self.screens.session(placement.instance) else {
-                continue;
-            };
-            frames.push((
-                *placement,
-                self.executor.enter(|| session.run(placement.region, 0)),
-            ));
-            self.screens.ran(placement.instance);
-        }
+        let shown: Vec<(ScreenPlacement, u32)> = layout
+            .screens
+            .iter()
+            .map(|placement| (*placement, 0))
+            .collect();
+        let screens = &mut self.screens;
+        let frames = self.executor.enter(|| screens.frame(&shown));
         self.drawn = true;
-        frames
+        layout
+            .screens
+            .into_iter()
+            .zip(frames)
+            .filter(|(placement, _)| self.screens.get(placement.instance).is_some())
+            .collect()
     }
 
     pub fn outbound(&mut self) -> Option<FrameCommit> {
@@ -154,12 +155,8 @@ impl HeadlessPlugin {
         Some(self.screens.session(instance)?.instance_mut())
     }
 
-    pub fn region_handler_mut(
-        &mut self,
-        instance: EditorInstanceId,
-        region: EditorRegion,
-    ) -> Option<&mut dyn RegionHandler> {
-        self.screens.session(instance)?.region_handler_mut(region)
+    pub fn module(&self) -> &Module {
+        self.screens.module()
     }
 }
 

@@ -2,21 +2,30 @@ use beui_core::clipboard::{PasteAnswer, PasteKind};
 use beui_core::file_picker::{FilePickAnswer, FilePickRequest};
 use beui_core::file_saver::{FileSaveAnswer, FileSaveRequest};
 use beui_core::runner::PlatformServices;
-use block_editor_plugin::EditorHost;
 use block_editor_plugin::accesskit::TreeUpdate;
+use block_editor_plugin::{EditorHost, EditorInstanceId};
 
 pub(crate) struct HostPlatform {
+    launched: EditorHost,
     host: EditorHost,
-    tree: Option<TreeUpdate>,
 }
 
 impl HostPlatform {
     pub(crate) fn new(host: EditorHost) -> Self {
-        Self { host, tree: None }
+        Self {
+            launched: host.clone(),
+            host,
+        }
     }
 
-    pub(crate) fn take_tree(&mut self) -> Option<TreeUpdate> {
-        self.tree.take()
+    pub(crate) fn serve(&mut self, instance: EditorInstanceId) {
+        if let Some(host) = self
+            .launched
+            .module()
+            .and_then(|module| module.host(instance))
+        {
+            self.host = host;
+        }
     }
 }
 
@@ -42,9 +51,7 @@ impl PlatformServices for HostPlatform {
         true
     }
 
-    fn publish_accessibility(&mut self, tree: &mut dyn FnMut() -> TreeUpdate) {
-        self.tree = Some(tree());
-    }
+    fn publish_accessibility(&mut self, _tree: &mut dyn FnMut() -> TreeUpdate) {}
 
     fn pick_file(&mut self, request: FilePickRequest, answer: FilePickAnswer) {
         let asked = self.host.pick_file(request.filter);

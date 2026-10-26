@@ -217,7 +217,10 @@ impl Runner {
             app,
             host,
         } = launch;
-        context.set_opens_windows(host.is_some());
+        context.set_window_hosting(match host.is_some() {
+            true => crate::window::WindowHosting::Any,
+            false => crate::window::WindowHosting::None,
+        });
         let automation = options.automation.map(Automation::new);
         context.keep_accessibility(options.accessibility_tree || automation.is_some());
         if automation.is_some() {

@@ -1,13 +1,15 @@
 use std::any::Any;
 use std::cell::{Ref, RefMut};
 use std::collections::HashMap;
+use std::rc::Rc;
 
-use beui_platform_plugin::RegionRunner;
-use block_editor_plugin::Instance;
+use beui_platform_plugin::ModuleRunner;
 use block_editor_plugin::headless::HeadlessPlugin as Core;
-use block_plugin_api::{EditorInstanceId, EditorRegion, ScreenLayout, ScreenPlacement};
+use block_editor_plugin::{Instance, RegionId};
+use block_plugin_api::{EditorInstanceId, ScreenLayout, ScreenPlacement};
 
 use crate::instance::BeuiInstance;
+use crate::module::Module;
 use crate::{Artifacts, BeuiApp, Creation, Editor, EditorHost, OwnedEditor};
 
 pub type View = Box<dyn FnOnce() -> beui::styled::Root>;
@@ -30,20 +32,10 @@ impl Adopted {
 }
 
 pub(crate) trait Parts {
-    fn document(&self, region: EditorRegion) -> Option<Ref<'_, beui::Document>>;
-    fn document_mut(&self, region: EditorRegion) -> Option<RefMut<'_, beui::Document>>;
     fn editor(&self) -> Option<Editor>;
 }
 
 impl<A: BeuiApp> Parts for BeuiInstance<A> {
-    fn document(&self, region: EditorRegion) -> Option<Ref<'_, beui::Document>> {
-        BeuiInstance::document(self, region)
-    }
-
-    fn document_mut(&self, region: EditorRegion) -> Option<RefMut<'_, beui::Document>> {
-        BeuiInstance::document_mut(self, region)
-    }
-
     fn editor(&self) -> Option<Editor> {
         BeuiInstance::editor(self)
     }
@@ -55,8 +47,14 @@ fn parts<A: BeuiApp>(instance: &dyn Instance) -> &dyn Parts {
         .expect("an adopted instance keeps its app")
 }
 
+pub struct Drawn {
+    pub output: beui::FrameOutput,
+    pub windows: Vec<(ScreenPlacement, beui::WindowId)>,
+}
+
 pub struct HeadlessPlugin {
     core: Core,
+    module: Rc<Module>,
     access: HashMap<EditorInstanceId, fn(&dyn Instance) -> &dyn Parts>,
 }
 
@@ -77,8 +75,11 @@ impl std::ops::DerefMut for HeadlessPlugin {
 impl HeadlessPlugin {
     pub fn new(id: &str, name: &str, version: &str) -> Self {
         crate::fonts::use_fonts(beui::FontLibrary::bundled());
+        let core = Core::new(id, name, version);
+        let module = core.module().local(Module::default);
         Self {
-            core: Core::new(id, name, version),
+            core,
+            module,
             access: HashMap::new(),
         }
     }
@@ -93,43 +94,41 @@ impl HeadlessPlugin {
         self.access.insert(instance, parts::<A>);
     }
 
-    pub fn draw(&mut self) -> Vec<(ScreenPlacement, beui::FrameOutput)> {
+    pub fn draw(&mut self) -> Option<Drawn> {
         let placements: Vec<ScreenPlacement> = self
             .core
             .draw()
             .into_iter()
             .map(|(placement, _)| placement)
             .collect();
-        placements
+        let output = self
+            .core
+            .module()
+            .with_handler(|handler| ModuleRunner::of(handler)?.take_output())
+            .flatten()?;
+        let windows = placements
             .into_iter()
             .filter_map(|placement| {
-                let handler = self
-                    .core
-                    .region_handler_mut(placement.instance, placement.region)?;
-                let output = RegionRunner::of(handler)?.take_output()?;
-                Some((placement, output))
+                let window = self.module.window(RegionId {
+                    instance: placement.instance,
+                    region: placement.region,
+                })?;
+                Some((placement, window))
             })
-            .collect()
+            .collect();
+        Some(Drawn { output, windows })
     }
 
     pub fn layout(&self) -> &ScreenLayout {
         self.core.layout()
     }
 
-    pub fn document(
-        &self,
-        instance: EditorInstanceId,
-        region: EditorRegion,
-    ) -> Option<Ref<'_, beui::Document>> {
-        self.parts(instance)?.document(region)
+    pub fn document(&self) -> Option<Ref<'_, beui::Document>> {
+        Ref::filter_map(self.module.document.borrow(), Option::as_ref).ok()
     }
 
-    pub fn document_mut(
-        &self,
-        instance: EditorInstanceId,
-        region: EditorRegion,
-    ) -> Option<RefMut<'_, beui::Document>> {
-        self.parts(instance)?.document_mut(region)
+    pub fn document_mut(&self) -> Option<RefMut<'_, beui::Document>> {
+        RefMut::filter_map(self.module.document.borrow_mut(), Option::as_mut).ok()
     }
 
     pub fn host(&self, instance: EditorInstanceId) -> Option<EditorHost> {

@@ -4,15 +4,16 @@ use std::rc::Rc;
 
 use beui_core::app::Setup;
 use beui_core::color::Color32;
-use beui_core::context::{RendererInfo, WindowOutput};
+use beui_core::context::{Moved, RendererInfo, WindowOutput};
 use beui_core::damage::Region;
-use beui_core::geometry::{Rect, Vec2, vec2};
+use beui_core::display::Layer;
+use beui_core::geometry::{Vec2, vec2};
 use beui_core::renderer::Renderer;
 use beui_core::screens::Screen;
 use block_plugin_api::SurfaceRect;
 
 #[cfg(target_arch = "wasm32")]
-use beui_core::geometry::Pos2;
+use beui_core::geometry::{Pos2, Rect};
 #[cfg(target_arch = "wasm32")]
 use beui_renderer_wgpu::Repaint;
 
@@ -36,22 +37,18 @@ impl Damage {
 }
 
 pub(crate) struct Surface {
-    pub(crate) size: Option<(u32, u32)>,
+    pub(crate) size: (u32, u32),
     pub(crate) age: u32,
-    pub(crate) laid: Rect,
-    pub(crate) screens: Vec<Screen>,
-    look: Option<(f32, Rect, Color32)>,
+    pub(crate) visible: Vec2,
+    look: Option<(f32, Vec2, Color32)>,
     pending: Option<Damage>,
+    output: Option<WindowOutput>,
     #[cfg_attr(not(target_arch = "wasm32"), allow(dead_code))]
     history: VecDeque<Option<Damage>>,
-    #[cfg_attr(not(target_arch = "wasm32"), allow(dead_code))]
-    prepared: Option<Option<Damage>>,
     #[cfg_attr(not(target_arch = "wasm32"), allow(dead_code))]
     drawn: Vec<SurfaceRect>,
     #[cfg(target_arch = "wasm32")]
     gpu: Option<Gpu>,
-    #[cfg(target_arch = "wasm32")]
-    target: Option<Target>,
 }
 
 #[cfg(target_arch = "wasm32")]
@@ -61,29 +58,19 @@ struct Gpu {
     renderer: beui_renderer_wgpu::Renderer,
 }
 
-#[cfg(target_arch = "wasm32")]
-struct Target {
-    view: wgpu::TextureView,
-    width: u32,
-    height: u32,
-}
-
 impl Default for Surface {
     fn default() -> Self {
         Self {
-            size: None,
+            size: (0, 0),
             age: 0,
-            laid: Rect::NOTHING,
-            screens: Vec::new(),
+            visible: Vec2::ZERO,
             look: None,
             pending: None,
+            output: None,
             history: VecDeque::new(),
-            prepared: None,
             drawn: Vec::new(),
             #[cfg(target_arch = "wasm32")]
             gpu: None,
-            #[cfg(target_arch = "wasm32")]
-            target: None,
         }
     }
 }
@@ -93,35 +80,53 @@ impl Surface {
         self.pending.is_some()
     }
 
-    fn note(&mut self, output: &WindowOutput, scale: f32, background: Color32) {
-        let look = (scale, self.laid, background);
+    pub(crate) fn output(&self) -> Option<&WindowOutput> {
+        self.output.as_ref()
+    }
+
+    pub(crate) fn note(&mut self, output: &WindowOutput) {
+        let output = shifted(output, self.visible);
+        let background = output.window.appearance.clear_color;
+        let look = (output.pixels_per_point, self.visible, background);
         let moved = self.look.as_ref() != Some(&look);
         self.look = Some(look);
         let damage = match output.damaged() {
-            _ if moved => Damage::Everything,
-            Some(region) => Damage::Region(region),
-            None if output.changed => Damage::Everything,
-            None => return,
+            _ if moved => Some(Damage::Everything),
+            Some(region) => Some(Damage::Region(region)),
+            None if output.changed => Some(Damage::Everything),
+            None => None,
         };
-        self.pending = Some(damage.union(self.pending));
+        if let Some(damage) = damage {
+            self.pending = Some(damage.union(self.pending));
+        }
+        self.output = Some(output);
     }
 
     #[cfg(not(target_arch = "wasm32"))]
-    fn prepare(&mut self, _output: &WindowOutput, _scale: f32) -> bool {
-        self.pending.take().is_some()
+    pub(crate) fn settle(&mut self) {
+        self.pending = None;
     }
 
     #[cfg(target_arch = "wasm32")]
-    fn prepare(&mut self, output: &WindowOutput, scale: f32) -> bool {
-        let Some((width, height)) = self.size else {
-            return false;
-        };
+    pub(crate) fn settle(&mut self) {}
+
+    #[cfg(target_arch = "wasm32")]
+    pub(crate) fn paint(&mut self, target: &block_editor_plugin::PaintTarget<'_>) -> Vec<SurfaceRect> {
+        self.age = target.age;
+        let painted = self.prepare();
+        self.present(target, painted);
+        std::mem::take(&mut self.drawn)
+    }
+
+    #[cfg(target_arch = "wasm32")]
+    fn prepare(&mut self) -> Option<Option<Damage>> {
+        let output = self.output.clone()?;
+        let (width, height) = self.size;
+        let scale = output.pixels_per_point;
         let screen = vec2(width as f32, height as f32);
         let frame = Rect::from_min_size(Pos2::ZERO, screen / scale);
         let painted = self.pending.take();
-        let Some(damage) = self.repaint(painted) else {
-            return false;
-        };
+        let damage = self.repaint(painted)?;
         let background = self
             .look
             .map_or(Color32::TRANSPARENT, |(_, _, background)| background);
@@ -139,20 +144,17 @@ impl Surface {
         if let Repaint::Region { region, .. } = repaint
             && region.is_empty()
         {
-            return false;
+            return None;
         }
-        let Some(gpu) = self.gpu() else {
-            return false;
-        };
+        let gpu = self.gpu()?;
         let prepared =
             gpu.renderer
-                .prepare(&gpu.device, &gpu.queue, output, screen, scale, repaint);
+                .prepare(&gpu.device, &gpu.queue, &output, screen, scale, repaint);
         if matches!(repaint, Repaint::Region { .. }) && matches!(prepared, Repaint::Everything) {
             gpu.renderer
-                .prepare(&gpu.device, &gpu.queue, output, screen, scale, whole);
+                .prepare(&gpu.device, &gpu.queue, &output, screen, scale, whole);
         }
-        self.prepared = Some(painted);
-        true
+        Some(painted)
     }
 
     #[cfg(target_arch = "wasm32")]
@@ -189,22 +191,15 @@ impl Surface {
     }
 
     #[cfg(target_arch = "wasm32")]
-    pub(crate) fn aim(&mut self, target: &block_editor_plugin::PaintTarget<'_>) {
-        self.target = Some(Target {
-            view: target.view.clone(),
-            width: target.width,
-            height: target.height,
-        });
-    }
-
-    #[cfg(target_arch = "wasm32")]
-    fn present(&mut self) {
-        let target = self.target.take();
-        let painted = self.prepared.take();
+    fn present(
+        &mut self,
+        target: &block_editor_plugin::PaintTarget<'_>,
+        painted: Option<Option<Damage>>,
+    ) {
         self.drawn.clear();
         let gpu = self.gpu.as_mut();
-        match (painted, target, gpu) {
-            (Some(painted), Some(target), Some(gpu)) => {
+        match (painted, gpu) {
+            (Some(painted), Some(gpu)) => {
                 let mut encoder = gpu
                     .device
                     .create_command_encoder(&wgpu::CommandEncoderDescriptor::default());
@@ -212,7 +207,7 @@ impl Surface {
                     &gpu.device,
                     &gpu.queue,
                     &mut encoder,
-                    &target.view,
+                    target.view,
                     (target.width, target.height),
                     wgpu::LoadOp::Load,
                 );
@@ -240,24 +235,51 @@ impl Surface {
         }
         self.history.truncate(REMEMBERED_PAINTS);
     }
+}
 
-    #[cfg(target_arch = "wasm32")]
-    pub(crate) fn take_drawn(&mut self) -> Vec<SurfaceRect> {
-        std::mem::take(&mut self.drawn)
+fn shifted(output: &WindowOutput, by: Vec2) -> WindowOutput {
+    if by == Vec2::ZERO {
+        return output.clone();
+    }
+    let layers = output
+        .layers
+        .iter()
+        .map(|layer| match layer {
+            Layer::Display(at, display) => Layer::Display(*at - by, Rc::clone(display)),
+            layer => layer.clone(),
+        })
+        .collect();
+    let mut damage = Region::NOTHING;
+    for rect in output.damage.rects() {
+        damage.add(rect.translate(-by));
+    }
+    WindowOutput {
+        layers: Rc::new(layers),
+        damage,
+        moved: output.moved.map(|moved| Moved {
+            from: moved.from.translate(-by),
+            by: moved.by,
+        }),
+        ..output.clone()
     }
 }
 
-pub(crate) struct SurfaceRenderer(Rc<RefCell<Surface>>);
+#[derive(Default)]
+pub(crate) struct Shared {
+    pub(crate) screens: Vec<Screen>,
+}
 
-impl SurfaceRenderer {
-    pub(crate) fn new(surface: Rc<RefCell<Surface>>) -> Self {
-        Self(surface)
+pub(crate) struct ModuleRenderer(Rc<RefCell<Shared>>);
+
+impl ModuleRenderer {
+    pub(crate) fn new(shared: Rc<RefCell<Shared>>) -> Self {
+        Self(shared)
     }
 }
 
-impl Renderer for SurfaceRenderer {
+impl Renderer for ModuleRenderer {
     fn name(&self) -> &'static str {
-        "plugin surface"
+        "plugin surfaces"
     }
 
     fn info(&self) -> RendererInfo {
@@ -281,32 +303,23 @@ impl Renderer for SurfaceRenderer {
         }
     }
 
-    fn resize(&mut self, width: u32, height: u32) {
-        self.0.borrow_mut().size = Some((width, height));
-    }
+    fn resize(&mut self, _width: u32, _height: u32) {}
 
     fn physical(&self) -> Option<Vec2> {
-        let (width, height) = self.0.borrow().size?;
-        Some(vec2(width as f32, height as f32))
+        Some(vec2(1.0, 1.0))
     }
 
     fn screens(&self) -> Option<Vec<Screen>> {
         Some(self.0.borrow().screens.clone())
     }
 
-    fn prepare(&mut self, output: &WindowOutput, scale: f32, background: Color32) -> bool {
-        let mut surface = self.0.borrow_mut();
-        surface.note(output, scale, background);
-        surface.prepare(output, scale)
+    fn prepare(&mut self, _output: &WindowOutput, _scale: f32, _background: Color32) -> bool {
+        false
     }
 
-    fn note(&mut self, output: &WindowOutput, scale: f32, background: Color32) {
-        self.0.borrow_mut().note(output, scale, background);
-    }
+    fn note(&mut self, _output: &WindowOutput, _scale: f32, _background: Color32) {}
 
     fn present(&mut self, _background: Color32) -> bool {
-        #[cfg(target_arch = "wasm32")]
-        self.0.borrow_mut().present();
         false
     }
 }

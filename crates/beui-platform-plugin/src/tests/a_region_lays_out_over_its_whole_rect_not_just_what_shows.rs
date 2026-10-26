@@ -2,20 +2,27 @@ use super::*;
 
 #[test]
 fn a_region_lays_out_over_its_whole_rect_not_just_what_shows() {
-    let laid = Rc::new(Cell::new(None));
+    let _root = RootScope::new();
+    let laid = NodeRef::new();
+    let document = Rc::default();
     let mut surface = launched(
         &EditorHost::default(),
-        beui::context(),
-        Recording {
-            laid: Rc::clone(&laid),
-            copy: None,
-        },
+        Windowed::new(move |_| {
+            view! {
+                <styled::Frame @node_ref=&laid />
+            }
+        })
+        .sharing(&document),
     );
-    let rect = Rect::from_min_size(pos2(-10.0, -20.0), vec2(100.0, 50.0));
-    surface.update(&region(rect, [80, 30]));
+    let scrolled = region(vec2(100.0, 50.0), vec2(10.0, 20.0), [80, 30]);
+    one(&mut surface, &scrolled);
+    let rect = document
+        .borrow()
+        .as_ref()
+        .and_then(|document: &Document| document.node_rect(laid.get()));
     assert_eq!(
-        laid.get(),
-        Some(rect),
-        "a region scrolled partly out of view is laid out where the host placed it, with the surface showing the part still in view"
+        rect,
+        Some(Rect::from_min_size(Pos2::ZERO, vec2(100.0, 50.0))),
+        "a region scrolled partly out of view is laid out over all of its window, with the surface showing the part still in view"
     );
 }

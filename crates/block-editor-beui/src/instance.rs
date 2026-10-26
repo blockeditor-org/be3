@@ -1,17 +1,19 @@
 use beui::reactive::Get;
 use beui::reactive::Set;
-use std::cell::{Cell, Ref, RefCell, RefMut};
+use std::cell::{Cell, RefCell};
 use std::marker::PhantomData;
 use std::rc::Rc;
 
-use beui_platform_plugin::{PluginView, Report};
+use beui::{Document, WindowId};
+use beui_platform_plugin::{Report, View};
 use block_editor_plugin::{
-    Artifact, ArtifactDescription, EditorHost, EditorRegion, Instance, Region,
+    Artifact, ArtifactDescription, EditorHost, EditorInstanceId, EditorRegion, Instance,
 };
 use uuid::Uuid;
 
 use crate::beui_frame::{self, BeuiFrame, FrameBar};
 use crate::editor::BeuiScale;
+use crate::module::{Module, Shown};
 use crate::{Artifacts, BeuiApp, Creation, Editor, OwnedEditor};
 
 pub struct BeuiPlugin<A: BeuiApp>(PhantomData<A>);
@@ -24,72 +26,22 @@ impl<A: BeuiApp> block_editor_plugin::Plugin for BeuiPlugin<A> {
 
 pub(crate) struct BeuiInstance<A: BeuiApp> {
     host: EditorHost,
-    scale: Rc<Cell<BeuiScale>>,
-    views: Rc<RefCell<Views<A>>>,
+    parts: Rc<Parts<A>>,
     keeps_accessibility: bool,
+    shown: Option<(Rc<Module>, EditorInstanceId)>,
 }
 
-struct RegionApp<A: BeuiApp> {
-    region: EditorRegion,
+struct Parts<A: BeuiApp> {
     host: EditorHost,
-    views: Rc<RefCell<Views<A>>>,
     scale: Rc<Cell<BeuiScale>>,
-    view: Option<PluginView>,
-}
-
-impl<A: BeuiApp> beui::App for RegionApp<A> {
-    fn setup(&mut self, setup: &beui::Setup) {
-        self.view = setup.get::<PluginView>().cloned();
-    }
-
-    fn update(&mut self, context: &beui::Context, rect: beui::Rect) {
-        let Some(view) = &self.view else {
-            return;
-        };
-        let Some(region) = view.region() else {
-            return;
-        };
-        self.scale.set(BeuiScale {
-            ratio: view.ratio(),
-            pixels_per_point: context.pixels_per_point(),
-        });
-        let mut views = self.views.borrow_mut();
-        let report = match self.region {
-            EditorRegion::Frame if views.creating => Report {
-                content: views.creation(context, rect),
-                ..Report::default()
-            },
-            EditorRegion::Frame => {
-                views.build_chrome();
-                let picks = self.host.take_menu_picks();
-                let (report, exit) = views.frame(context, rect, &region, &picks);
-                if exit {
-                    self.host.leave_frame();
-                }
-                report
-            }
-            EditorRegion::Preview => {
-                views.preview(context, rect);
-                Report::default()
-            }
-            EditorRegion::ArtifactSettings => {
-                if let Some(mut draft) = self.host.settings_draft() {
-                    views.artifact_settings(context, rect, &mut draft);
-                    self.host.set_settings_draft(draft);
-                }
-                Report::default()
-            }
-        };
-        view.report(report);
-    }
+    views: RefCell<Views<A>>,
+    generation: beui::reactive::OwnedSignal<u64>,
 }
 
 struct Views<A: BeuiApp> {
     creating: bool,
-    chrome: Option<BeuiFrame>,
-    preview_document: Option<beui::Document>,
-    dialog: Option<beui::Document>,
-    settings: Option<beui::Document>,
+    chrome: Rc<BeuiFrame>,
+    dialog: Option<beui::NodeId>,
     view: Option<crate::headless::View>,
     editor: Option<OwnedEditor>,
     preview: Option<OwnedEditor>,
@@ -99,150 +51,231 @@ struct Views<A: BeuiApp> {
 }
 
 impl<A: BeuiApp> Views<A> {
-    fn preview(&mut self, context: &beui::Context, rect: beui::Rect) {
-        let Some(editor) = self.preview.as_deref().copied() else {
-            return;
-        };
-        let document = self.preview_document.get_or_insert_with(|| {
-            beui::reactive::build(move || {
-                beui::reactive::view! {
-                    <beui::styled::Root clear_color=beui::styled::ColorRole::None>
-                        <A::Preview editor />
-                    </beui::styled::Root>
-                }
-            })
-        });
-        editor.begin_frame();
-        document.show(context, rect);
-        editor.end_frame(document);
-    }
-
-    fn creation(&mut self, context: &beui::Context, rect: beui::Rect) -> Option<beui::Rect> {
-        let (Some(creation), Some(dialog)) = (self.creation.as_ref(), self.dialog.as_mut()) else {
-            return None;
-        };
-        let creation = creation.clone();
-        creation.begin_frame();
-        dialog.show(context, rect);
-        let measured = dialog.measure_root(context, beui::vec2(rect.width(), f32::INFINITY))?;
-        measured
-            .y
-            .is_finite()
-            .then(|| beui::Rect::from_min_size(rect.min, beui::vec2(rect.width(), measured.y)))
-    }
-
-    fn artifact_settings(
-        &mut self,
-        context: &beui::Context,
-        rect: beui::Rect,
-        draft: &mut Vec<u8>,
-    ) {
-        let Some(artifacts) = self.artifacts.clone() else {
-            return;
-        };
-        let document = self.settings.get_or_insert_with(|| {
-            let built = artifacts.clone();
-            beui::reactive::build(move || {
-                beui::reactive::view! {
-                    <beui::styled::Root clear_color=beui::styled::ColorRole::None>
-                        <A::ArtifactSettings artifacts={built} />
-                    </beui::styled::Root>
-                }
-            })
-        });
-        artifacts.receive_settings(&std::mem::take(draft));
-        document.show(context, rect);
-        *draft = artifacts
-            .take_settings_edit()
-            .unwrap_or_else(|| artifacts.settings().get_untracked());
-    }
-}
-
-impl<A: BeuiApp> Views<A> {
     fn empty() -> Self {
         Self {
             creating: false,
-            chrome: None,
+            chrome: Rc::default(),
+            dialog: None,
             editor: None,
             preview: None,
-            preview_document: None,
             creation: None,
-            dialog: None,
             artifacts: None,
-            settings: None,
             view: None,
             app: PhantomData,
         }
     }
+}
 
-    fn frame(
-        &mut self,
-        context: &beui::Context,
-        rect: beui::Rect,
-        region: &Region,
-        picks: &[String],
-    ) -> (Report, bool) {
-        let spec = &region.spec;
-        let chrome = self
-            .chrome
-            .as_mut()
-            .expect("the frame chrome is built before its region runs");
-        let shown_bar = chrome.bar();
-        let bar = FrameBar {
-            shown: region.chrome_drawn() && (spec.top_bar.shown() || spec.content.is_some()),
-            framed: region.chrome_drawn(),
-            closable: spec.content.is_some(),
-            on_phone: spec.top_bar.phone(),
+impl<A: BeuiApp> Parts<A> {
+    fn rebuild(&self) {
+        self.generation.handle().update(|generation| *generation += 1);
+    }
+
+    fn frame_content(&self) -> beui::NodeId {
+        let mut views = self.views.borrow_mut();
+        if views.creating {
+            let Some(creation) = views.creation.clone() else {
+                return empty();
+            };
+            let root = beui::reactive::view! {
+                <beui::styled::Root clear_color=beui::styled::ColorRole::None>
+                    <A::Creation creation={creation} />
+                </beui::styled::Root>
+            };
+            let node = root.child();
+            views.dialog = Some(node);
+            return node;
+        }
+        let Some(editor) = views.editor.as_deref().copied() else {
+            return empty();
         };
-        let menu = chrome.menu();
-        let editor = self.editor.as_deref().copied();
-        shown_bar.set(bar);
-        if !picks.is_empty() {
-            beui::reactive::with_reactive_scope(chrome.document_mut(), || {
-                for id in picks {
-                    beui_frame::run_menu_pick(&menu, id);
-                }
-            });
+        let view = views.view.take();
+        let chrome = Rc::clone(&views.chrome);
+        drop(views);
+        chrome
+            .build(editor, move || match view {
+                Some(view) => view(),
+                None => beui::reactive::view! {
+                    <A::View editor />
+                },
+            })
+            .child()
+    }
+
+    fn preview_content(&self) -> beui::NodeId {
+        let Some(editor) = self.views.borrow().preview.as_deref().copied() else {
+            return empty();
+        };
+        beui::reactive::view! {
+            <beui::styled::Root clear_color=beui::styled::ColorRole::None>
+                <A::Preview editor />
+            </beui::styled::Root>
         }
+        .child()
+    }
+
+    fn settings_content(&self) -> beui::NodeId {
+        let Some(artifacts) = self.views.borrow().artifacts.clone() else {
+            return empty();
+        };
+        beui::reactive::view! {
+            <beui::styled::Root clear_color=beui::styled::ColorRole::None>
+                <A::ArtifactSettings artifacts={artifacts} />
+            </beui::styled::Root>
+        }
+        .child()
+    }
+
+    fn frame_report(
+        &self,
+        view: &View,
+        document: &mut Document,
+        window: WindowId,
+    ) -> (Report, bool) {
+        let views = self.views.borrow();
+        let editor = views.editor.as_deref().copied();
         if let Some(editor) = &editor {
-            editor.begin_frame();
+            editor.end_frame(document, window);
         }
-        chrome.document_mut().show(context, rect);
-        if let Some(editor) = &editor {
-            editor.end_frame(chrome.document());
-        }
-        let document = chrome.document();
+        let rect = beui::Rect::from_min_size(beui::Pos2::ZERO, view.size);
         let report = Report {
-            content: document.node_rect(chrome.content()),
+            content: views
+                .chrome
+                .content()
+                .and_then(|content| document.node_rect(content)),
             painted: vec![rect],
-            floating: document.overlay_rects(),
-            drawing: document.drawing_rects(),
-            every_sample: document.wants_every_sample(),
+            floating: document.overlay_rects(window),
+            drawing: document.drawing_rects(window),
+            every_sample: document.wants_every_sample(window),
             claims: document
-                .press_claims()
+                .press_claims(window)
                 .into_iter()
                 .map(|(modifiers, rect)| block_editor_plugin::Claim { modifiers, rect })
                 .collect(),
         };
-        (report, chrome.exit().take())
+        (report, views.chrome.exit().take())
+    }
+}
+
+fn empty() -> beui::NodeId {
+    beui::reactive::view! {
+        <beui::styled::Frame />
+    }
+}
+
+impl<A: BeuiApp> Shown for Parts<A> {
+    fn host(&self) -> EditorHost {
+        self.host.clone()
     }
 
-    fn build_chrome(&mut self) {
-        if self.creating || self.chrome.is_some() {
-            return;
+    fn generation(&self) -> u64 {
+        self.generation.get()
+    }
+
+    fn content(&self, region: EditorRegion) -> beui::NodeId {
+        match region {
+            EditorRegion::Frame => self.frame_content(),
+            EditorRegion::Preview => self.preview_content(),
+            EditorRegion::ArtifactSettings => self.settings_content(),
         }
-        let editor = self
-            .editor
-            .as_deref()
-            .copied()
-            .expect("connect is called before the view is built");
-        let view = self.view.take();
-        self.chrome = Some(BeuiFrame::build(editor, move || match view {
-            Some(view) => view(),
-            None => beui::reactive::view! {
-                <A::View editor />
-            },
-        }));
+    }
+
+    fn before(&self, view: &View, context: &beui::Context, document: &mut Document) {
+        self.scale.set(BeuiScale {
+            ratio: view.ratio,
+            pixels_per_point: context.pixels_per_point(),
+        });
+        let views = self.views.borrow();
+        match view.id.region {
+            EditorRegion::Frame if views.creating => {
+                if let Some(creation) = &views.creation {
+                    creation.begin_frame();
+                }
+            }
+            EditorRegion::Frame => {
+                let spec = &view.spec;
+                views.chrome.bar().set(FrameBar {
+                    shown: view.chrome_drawn() && (spec.top_bar.shown() || spec.content.is_some()),
+                    framed: view.chrome_drawn(),
+                    closable: spec.content.is_some(),
+                    on_phone: spec.top_bar.phone(),
+                });
+                let picks = self.host.take_menu_picks();
+                if !picks.is_empty() {
+                    let menu = views.chrome.menu();
+                    beui::reactive::with_reactive_scope(document, || {
+                        for id in &picks {
+                            beui_frame::run_menu_pick(&menu, id);
+                        }
+                    });
+                }
+                if let Some(editor) = views.editor.as_deref() {
+                    editor.begin_frame();
+                }
+            }
+            EditorRegion::Preview => {
+                if let Some(editor) = views.preview.as_deref() {
+                    editor.begin_frame();
+                }
+            }
+            EditorRegion::ArtifactSettings => {
+                if let (Some(artifacts), Some(draft)) =
+                    (views.artifacts.as_ref(), self.host.settings_draft())
+                {
+                    artifacts.receive_settings(&draft);
+                }
+            }
+        }
+    }
+
+    fn after(
+        &self,
+        view: &View,
+        context: &beui::Context,
+        document: &mut Document,
+        window: WindowId,
+    ) -> Report {
+        let creating = self.views.borrow().creating;
+        match view.id.region {
+            EditorRegion::Frame if creating => {
+                let Some(dialog) = self.views.borrow().dialog else {
+                    return Report::default();
+                };
+                let width = view.size.x;
+                let measured =
+                    document.measure_node(context, dialog, beui::vec2(width, f32::INFINITY));
+                Report {
+                    content: measured.filter(|measured| measured.y.is_finite()).map(
+                        |measured| {
+                            beui::Rect::from_min_size(beui::Pos2::ZERO, beui::vec2(width, measured.y))
+                        },
+                    ),
+                    ..Report::default()
+                }
+            }
+            EditorRegion::Frame => {
+                let (report, exit) = self.frame_report(view, document, window);
+                if exit {
+                    self.host.leave_frame();
+                }
+                report
+            }
+            EditorRegion::Preview => {
+                if let Some(editor) = self.views.borrow().preview.as_deref() {
+                    editor.end_frame(document, window);
+                }
+                Report::default()
+            }
+            EditorRegion::ArtifactSettings => {
+                if let Some(artifacts) = self.views.borrow().artifacts.as_ref() {
+                    let draft = artifacts
+                        .take_settings_edit()
+                        .unwrap_or_else(|| artifacts.settings().get_untracked());
+                    self.host.set_settings_draft(draft);
+                }
+                Report::default()
+            }
+        }
     }
 }
 
@@ -251,7 +284,7 @@ impl<A: BeuiApp> BeuiInstance<A> {
         let mut instance = Self::new(adopted.host());
         instance.keeps_accessibility = true;
         {
-            let mut views = instance.views.borrow_mut();
+            let mut views = instance.parts.views.borrow_mut();
             match adopted {
                 crate::headless::Adopted::Editor(editor, view) => {
                     views.editor = Some(editor);
@@ -268,46 +301,35 @@ impl<A: BeuiApp> BeuiInstance<A> {
     }
 
     pub(crate) fn editor(&self) -> Option<Editor> {
-        self.views.borrow().editor.as_deref().copied()
-    }
-
-    pub(crate) fn document(&self, region: EditorRegion) -> Option<Ref<'_, beui::Document>> {
-        Ref::filter_map(self.views.borrow(), |views| {
-            match (region, views.creating) {
-                (EditorRegion::Frame, false) => views.chrome.as_ref().map(BeuiFrame::document),
-                (EditorRegion::Frame, true) => views.dialog.as_ref(),
-                (EditorRegion::Preview, _) => views.preview_document.as_ref(),
-                (EditorRegion::ArtifactSettings, _) => views.settings.as_ref(),
-            }
-        })
-        .ok()
-    }
-
-    pub(crate) fn document_mut(&self, region: EditorRegion) -> Option<RefMut<'_, beui::Document>> {
-        RefMut::filter_map(self.views.borrow_mut(), |views| {
-            match (region, views.creating) {
-                (EditorRegion::Frame, false) => views.chrome.as_mut().map(BeuiFrame::document_mut),
-                (EditorRegion::Frame, true) => views.dialog.as_mut(),
-                (EditorRegion::Preview, _) => views.preview_document.as_mut(),
-                (EditorRegion::ArtifactSettings, _) => views.settings.as_mut(),
-            }
-        })
-        .ok()
+        self.parts.views.borrow().editor.as_deref().copied()
     }
 
     fn new(host: EditorHost) -> Self {
         Self {
+            parts: Rc::new(Parts {
+                host: host.clone(),
+                scale: Rc::default(),
+                views: RefCell::new(Views::empty()),
+                generation: beui::reactive::OwnedSignal::new(0),
+            }),
             host,
-            scale: Rc::default(),
-            views: Rc::new(RefCell::new(Views::empty())),
             keeps_accessibility: false,
+            shown: None,
+        }
+    }
+}
+
+impl<A: BeuiApp> Drop for BeuiInstance<A> {
+    fn drop(&mut self) {
+        if let Some((module, instance)) = self.shown.take() {
+            module.hide(instance);
         }
     }
 }
 
 impl<A: BeuiApp> Instance for BeuiInstance<A> {
     fn connect(&mut self, block_id: Uuid) {
-        let mut views = self.views.borrow_mut();
+        let mut views = self.parts.views.borrow_mut();
         let fresh = |editor: &Option<OwnedEditor>| {
             editor
                 .as_ref()
@@ -320,39 +342,44 @@ impl<A: BeuiApp> Instance for BeuiInstance<A> {
             .map(OwnedEditor::contents)
             .unwrap_or_default();
         let scaled = |host: EditorHost| {
-            OwnedEditor::scaled(host, block_id, Rc::clone(&self.scale), Rc::clone(&contents))
+            OwnedEditor::scaled(
+                host,
+                block_id,
+                Rc::clone(&self.parts.scale),
+                Rc::clone(&contents),
+            )
         };
+        let mut rebuilt = false;
         if fresh(&views.editor) {
-            views.chrome = None;
             views.editor = Some(scaled(self.host.clone()));
             views.view = None;
+            views.chrome = Rc::default();
+            rebuilt = true;
         }
         if fresh(&views.preview) {
-            views.preview_document = None;
             views.preview = Some(scaled(self.host.clone()));
+            rebuilt = true;
+        }
+        drop(views);
+        if rebuilt {
+            self.parts.rebuild();
         }
     }
 
     fn connect_creation(&mut self, template: String) {
-        let mut views = self.views.borrow_mut();
+        let mut views = self.parts.views.borrow_mut();
         views.creating = true;
         let creation = views
             .creation
             .take()
             .unwrap_or_else(|| Creation::for_template(self.host.clone(), template));
-        let built = creation.clone();
-        views.dialog = Some(beui::reactive::build(move || {
-            beui::reactive::view! {
-                <beui::styled::Root clear_color=beui::styled::ColorRole::None>
-                    <A::Creation creation={built} />
-                </beui::styled::Root>
-            }
-        }));
         views.creation = Some(creation);
+        drop(views);
+        self.parts.rebuild();
     }
 
     fn create_block(&mut self) -> Result<Uuid, String> {
-        let views = self.views.borrow();
+        let views = self.parts.views.borrow();
         let creation = views
             .creation
             .as_ref()
@@ -361,7 +388,7 @@ impl<A: BeuiApp> Instance for BeuiInstance<A> {
     }
 
     fn connect_artifact(&mut self, artifact: Artifact) {
-        let mut views = self.views.borrow_mut();
+        let mut views = self.parts.views.borrow_mut();
         let artifacts = match views.artifacts.take() {
             Some(artifacts) if artifacts.block_id() == artifact.block_id => artifacts,
             _ => Artifacts::new(self.host.clone(), artifact),
@@ -375,17 +402,17 @@ impl<A: BeuiApp> Instance for BeuiInstance<A> {
     }
 
     fn regenerate_artifact(&mut self, data: &[u8]) {
-        if let Some(artifacts) = &self.views.borrow().artifacts {
+        if let Some(artifacts) = &self.parts.views.borrow().artifacts {
             artifacts.regenerate(data);
         }
     }
 
     fn poll_artifact(&mut self) -> Option<Result<(), String>> {
-        self.views.borrow().artifacts.as_ref()?.poll()
+        self.parts.views.borrow().artifacts.as_ref()?.poll()
     }
 
     fn intrinsic_size(&mut self) -> Option<beui::Vec2> {
-        let views = self.views.borrow();
+        let views = self.parts.views.borrow();
         views
             .editor
             .as_deref()
@@ -395,7 +422,7 @@ impl<A: BeuiApp> Instance for BeuiInstance<A> {
     }
 
     fn resized(&mut self, size: beui::Vec2) {
-        if let Some(editor) = &self.views.borrow().editor {
+        if let Some(editor) = &self.parts.views.borrow().editor {
             editor.report_resize(size);
         }
     }
@@ -405,7 +432,7 @@ impl<A: BeuiApp> Instance for BeuiInstance<A> {
     }
 
     fn presence_visible(&mut self, visible: bool) {
-        if let Some(editor) = &self.views.borrow().editor {
+        if let Some(editor) = &self.parts.views.borrow().editor {
             editor.report_presence_visible(visible);
         }
     }
@@ -417,23 +444,16 @@ impl<A: BeuiApp> Instance for BeuiInstance<A> {
         editor.replace_child(old, new)
     }
 
-    fn open_region(&mut self, region: EditorRegion) {
-        let options = beui::RunOptions {
-            accessibility_tree: self.keeps_accessibility,
-            ..beui::RunOptions::default()
-        };
-        let app = RegionApp::<A> {
-            region,
-            host: self.host.clone(),
-            views: Rc::clone(&self.views),
-            scale: Rc::clone(&self.scale),
-            view: None,
-        };
-        let context = crate::fonts::context();
-        if let Err(error) = beui_platform_plugin::launch(&self.host, region, options, context, app)
-        {
-            panic!("a beui region could not start: {error}");
+    fn open_region(&mut self, _region: EditorRegion) {
+        if self.shown.is_some() {
+            return;
         }
+        let (Some(module), Some(instance)) = (Module::of(&self.host), self.host.instance()) else {
+            return;
+        };
+        let parts: Rc<dyn Shown> = self.parts.clone();
+        module.show(instance, parts, &self.host, self.keeps_accessibility);
+        self.shown = Some((module, instance));
     }
 }
 

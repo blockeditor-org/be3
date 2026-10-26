@@ -93,7 +93,7 @@ pub use beui_core::runner::{
     Running, Units, WindowHost, panic_message,
 };
 pub use beui_core::window::{
-    HostPlacement, WindowEdge, WindowId, WindowPlacement, WindowReport, WindowRequest,
+    HostPlacement, WindowEdge, WindowHosting, WindowId, WindowPlacement, WindowReport, WindowRequest,
 };
 #[cfg(all(feature = "window", target_os = "android"))]
 pub use beui_platform_android::AndroidApp;

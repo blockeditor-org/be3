@@ -765,34 +765,40 @@ impl Document {
         covers.into_iter().filter(Rect::is_positive).collect()
     }
 
-    pub fn overlay_rects(&self) -> Vec<Rect> {
-        self.layers()
-            .iter()
-            .skip(1)
-            .filter(|layer| layer.window.is_main())
-            .flat_map(|layer| self.layer_covers(layer))
-            .collect()
-    }
-
-    pub fn floating_rects(&self) -> Vec<Rect> {
-        self.layers()
-            .iter()
-            .skip(1)
-            .filter(|layer| layer.window.is_main() && layer.policy == LayerPolicy::Pass)
-            .filter_map(|layer| self.node_rect(layer.content?))
-            .collect()
-    }
-
-    pub fn overlay_layers(&self) -> Vec<(Vec<usize>, Rect)> {
+    fn window_overlays(&self, window: WindowId) -> Vec<(usize, Layer)> {
+        let own = self.window_node(window);
         self.layers()
             .iter()
             .enumerate()
             .skip(1)
-            .filter(|(_, layer)| layer.window.is_main())
+            .filter(|(_, layer)| layer.window == window)
+            .filter(|(_, layer)| own.is_none() || layer.overlay != own)
+            .map(|(index, layer)| (index, layer.clone()))
+            .collect()
+    }
+
+    pub fn overlay_rects(&self, window: WindowId) -> Vec<Rect> {
+        self.window_overlays(window)
+            .iter()
+            .flat_map(|(_, layer)| self.layer_covers(layer))
+            .collect()
+    }
+
+    pub fn floating_rects(&self, window: WindowId) -> Vec<Rect> {
+        self.window_overlays(window)
+            .iter()
+            .filter(|(_, layer)| layer.policy == LayerPolicy::Pass)
+            .filter_map(|(_, layer)| self.node_rect(layer.content?))
+            .collect()
+    }
+
+    pub fn overlay_layers(&self, window: WindowId) -> Vec<(Vec<usize>, Rect)> {
+        self.window_overlays(window)
+            .iter()
             .flat_map(|(index, layer)| {
                 self.layer_covers(layer)
                     .into_iter()
-                    .map(move |cover| (vec![index], cover))
+                    .map(move |cover| (vec![*index], cover))
             })
             .collect()
     }

@@ -47,7 +47,7 @@ fn a_long_press_on_the_code_of_a_sample_shows_its_selection_toolbar() {
         "and shows the toolbar above it"
     );
     assert_eq!(
-        test.document().floating_rects().len(),
+        test.document().floating_rects(beui::WindowId::MAIN).len(),
         1,
         "the toolbar is laid out though the end of the code is scrolled away"
     );

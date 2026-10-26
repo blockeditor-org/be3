@@ -1,18 +1,7 @@
 use super::*;
-use beui::reactive::*;
-use beui::styled;
-use beui_core::accesskit::{Action, NodeId, Role, TreeId};
-use beui_core::document::Document;
+use beui_core::accesskit::{Action, NodeId as AccessNodeId, Role, TreeId};
 
-struct Shown(Document);
-
-impl App for Shown {
-    fn update(&mut self, context: &Context, rect: Rect) {
-        self.0.show(context, rect);
-    }
-}
-
-fn button(tree: &TreeUpdate) -> Option<NodeId> {
+fn button(tree: &TreeUpdate) -> Option<AccessNodeId> {
     tree.nodes
         .iter()
         .find(|(_, node)| node.role() == Role::Button && node.label() == Some("Save"))
@@ -24,26 +13,23 @@ fn a_region_describes_itself_and_does_what_a_screen_reader_asks() {
     let _root = RootScope::new();
     let clicks = Rc::new(Cell::new(0));
     let counted = Rc::clone(&clicks);
-    let document = build(move || {
-        view! {
-            <styled::Root>
+    let mut surface = launched(
+        &EditorHost::default(),
+        Windowed::new(move |_| {
+            let counted = Rc::clone(&counted);
+            view! {
                 <styled::Button
                     variant=styled::ButtonVariant::Primary
                     label="Save"
                     on_click={move || counted.set(counted.get() + 1)}
                 />
-            </styled::Root>
-        }
-    });
-    let mut surface = launched(&EditorHost::default(), beui::context(), Shown(document));
-    let mut described = region(
-        Rect::from_min_size(pos2(10.0, 20.0), vec2(100.0, 60.0)),
-        [120, 80],
+            }
+        }),
     );
+    let mut described = region(vec2(100.0, 60.0), vec2(10.0, 20.0), [90, 40]);
     described.describe = Some(1);
 
-    let tree = surface
-        .update(&described)
+    let tree = one(&mut surface, &described)
         .description
         .and_then(|description| description.tree)
         .expect("the first described frame carries the whole tree");
@@ -59,13 +45,12 @@ fn a_region_describes_itself_and_does_what_a_screen_reader_asks() {
         .and_then(|(_, node)| node.transform().copied());
     assert_eq!(
         transform,
-        Some(Affine::translate((-10.0, -20.0))),
-        "the tree is in the region's points, from the region's corner"
+        Some(Affine::scale(1.0)),
+        "the tree is in the region's points, from the region's corner, the corner of its window"
     );
     let save = button(&tree).expect("the button is described");
 
-    let again = surface
-        .update(&described)
+    let again = one(&mut surface, &described)
         .description
         .and_then(|description| description.tree);
     assert!(
@@ -82,14 +67,13 @@ fn a_region_describes_itself_and_does_what_a_screen_reader_asks() {
             data: None,
         },
     );
-    surface.update(&described);
+    one(&mut surface, &described);
     assert_eq!(clicks.get(), 1);
 
     described.describe = None;
-    assert!(surface.update(&described).description.is_none());
+    assert!(one(&mut surface, &described).description.is_none());
     described.describe = Some(2);
-    let tree = surface
-        .update(&described)
+    let tree = one(&mut surface, &described)
         .description
         .and_then(|description| description.tree)
         .expect("describing again sends the whole tree again");

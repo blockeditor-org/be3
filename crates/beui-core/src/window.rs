@@ -151,6 +151,14 @@ impl Default for WindowId {
 #[derive(Clone, PartialEq, Eq, Hash, Debug)]
 pub struct HostPlacement(pub String);
 
+#[derive(Clone, Copy, PartialEq, Eq, Debug, Default)]
+pub enum WindowHosting {
+    #[default]
+    None,
+    Placed,
+    Any,
+}
+
 #[derive(Clone, PartialEq, Debug)]
 pub enum WindowPlacement {
     AtPointer,

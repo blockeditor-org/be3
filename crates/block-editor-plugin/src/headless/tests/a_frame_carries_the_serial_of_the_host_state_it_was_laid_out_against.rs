@@ -5,7 +5,7 @@ use block_plugin_api::{
 use uuid::Uuid;
 
 use crate::headless::HeadlessPlugin;
-use crate::{EditorHost, Frame, Instance, Region, RegionHandler, Waker};
+use crate::{EditorHost, Frame, Instance, Region, Regions, Waker};
 
 const INSTANCE: EditorInstanceId = EditorInstanceId(1);
 const SCREEN: ScreenId = ScreenId(1);
@@ -15,25 +15,34 @@ struct Still(EditorHost);
 impl Instance for Still {
     fn connect(&mut self, _block_id: Uuid) {}
 
-    fn open_region(&mut self, region: EditorRegion) {
-        self.0.handle_region(region, Box::new(StillRegion));
+    fn open_region(&mut self, _region: EditorRegion) {
+        if !self.0.handles_regions() {
+            self.0.handle_regions(Box::new(StillRegions));
+        }
     }
 }
 
-struct StillRegion;
+struct StillRegions;
 
-impl RegionHandler for StillRegion {
+impl Regions for StillRegions {
     fn input(&mut self, _region: &Region, _event: &TimedInput) {}
 
-    fn update(&mut self, region: &Region) -> Frame {
-        Frame {
-            painted: vec![region.rect],
-            ..Frame::default()
-        }
+    fn frame(&mut self, regions: &[Region]) -> Vec<Frame> {
+        regions
+            .iter()
+            .map(|region| Frame {
+                painted: vec![region.rect],
+                ..Frame::default()
+            })
+            .collect()
     }
 
     #[cfg(target_arch = "wasm32")]
-    fn paint(&mut self, target: &crate::PaintTarget<'_>) -> Vec<block_plugin_api::SurfaceRect> {
+    fn paint(
+        &mut self,
+        _region: crate::RegionId,
+        target: &crate::PaintTarget<'_>,
+    ) -> Vec<block_plugin_api::SurfaceRect> {
         target.whole()
     }
 }

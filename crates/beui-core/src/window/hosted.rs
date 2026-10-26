@@ -19,6 +19,7 @@ pub(crate) type Painting = Vec<(Rc<Display>, Vec2)>;
 pub(crate) struct Windows {
     nodes: Vec<(WindowId, NodeOf<OverlayNode>)>,
     opens: ::reactive::OwnedSignal<bool>,
+    placed: ::reactive::OwnedSignal<bool>,
     asked: Vec<WindowId>,
     wanted: HashMap<WindowId, Vec2>,
     closed_by_host: HashSet<WindowId>,
@@ -27,6 +28,8 @@ pub(crate) struct Windows {
     pub(crate) paintings: Vec<(WindowId, Painting)>,
     pub(crate) viewport: Option<(WindowId, Rect)>,
     kept_focus: HashMap<WindowId, NodeId>,
+    host_focused: Option<WindowId>,
+    pub(crate) appearances: HashMap<WindowId, crate::window::Appearance>,
 }
 
 impl Default for Windows {
@@ -34,6 +37,7 @@ impl Default for Windows {
         Self {
             nodes: Vec::new(),
             opens: ::reactive::OwnedSignal::new(false),
+            placed: ::reactive::OwnedSignal::new(false),
             asked: Vec::new(),
             wanted: HashMap::default(),
             closed_by_host: HashSet::default(),
@@ -42,6 +46,8 @@ impl Default for Windows {
             paintings: Vec::new(),
             viewport: None,
             kept_focus: HashMap::default(),
+            host_focused: None,
+            appearances: HashMap::default(),
         }
     }
 }
@@ -56,25 +62,33 @@ impl Windows {
 
 impl Document {
     pub fn opens_windows(&self) -> bool {
-        self.windows.opens.get_untracked()
+        self.windows.opens.get_untracked() || self.windows.placed.get_untracked()
     }
 
     pub fn watch_opens_windows(&self) -> ::reactive::ReadSignal<bool> {
         self.windows.opens.read_only()
     }
 
+    pub fn watch_placed_windows(&self) -> ::reactive::ReadSignal<bool> {
+        self.windows.placed.read_only()
+    }
+
+    pub(crate) fn hosts_window(&self, spec: &crate::base::overlay::WindowSpec) -> bool {
+        self.windows.opens.get_untracked()
+            || (self.windows.placed.get_untracked()
+                && matches!(spec.placement, super::WindowPlacement::Host(_)))
+    }
+
     pub(crate) fn real_window(&self, overlay: NodeOf<OverlayNode>) -> Option<WindowId> {
-        if !self.opens_windows() {
-            return None;
-        }
         self.arena
             .get_as::<OverlayNode>(overlay)
             .window
             .as_ref()
+            .filter(|window| self.hosts_window(window))
             .map(|window| window.id)
     }
 
-    fn window_node(&self, window: WindowId) -> Option<NodeOf<OverlayNode>> {
+    pub(crate) fn window_node(&self, window: WindowId) -> Option<NodeOf<OverlayNode>> {
         self.windows
             .nodes
             .iter()
@@ -111,6 +125,15 @@ impl Document {
             current = self.arena.parent(id);
         }
         WindowId::MAIN
+    }
+
+    pub fn key_window(&self) -> Option<WindowId> {
+        if !self.opens_windows() {
+            return None;
+        }
+        self.focused
+            .map(|focused| self.window_of(focused))
+            .or(self.windows.host_focused)
     }
 
     pub fn window_layers(&self, window: WindowId) -> Option<Layers> {
@@ -175,9 +198,14 @@ impl Document {
     }
 
     pub(crate) fn follow_windows(&mut self, ctx: &Context) {
-        let opens = ctx.opens_windows();
-        if opens != self.opens_windows() {
+        let hosting = ctx.window_hosting();
+        let opens = hosting == super::WindowHosting::Any;
+        let placed = hosting == super::WindowHosting::Placed;
+        if opens != self.windows.opens.get_untracked()
+            || placed != self.windows.placed.get_untracked()
+        {
             self.windows.opens.set(opens);
+            self.windows.placed.set(placed);
             self.layers_changed();
             self.arena.invalidate();
         }
@@ -191,6 +219,9 @@ impl Document {
             let node = self.window_node(report.window());
             match &report {
                 WindowReport::Closed(window) => {
+                    if self.windows.host_focused == Some(*window) {
+                        self.windows.host_focused = None;
+                    }
                     self.windows.closed_by_host.insert(*window);
                     self.windows.asked.retain(|asked| asked != window);
                     self.layers_changed();
@@ -207,6 +238,13 @@ impl Document {
                 }
                 WindowReport::Placed { .. } => {}
                 WindowReport::Focused { window, focused } => {
+                    match focused {
+                        true => self.windows.host_focused = Some(*window),
+                        false if self.windows.host_focused == Some(*window) => {
+                            self.windows.host_focused = None;
+                        }
+                        false => {}
+                    }
                     if !self.window_focused(*window, *focused) {
                         unfocused.extend(node);
                     }
@@ -353,7 +391,16 @@ impl Document {
                 .window_node(window)
                 .and_then(|node| self.overlay_window(node))
                 .and_then(|spec| spec.title.clone());
-            ctx.show_window(window, rect.size(), &painting, damage, moved, title);
+            let appearance = self.windows.appearances.get(&window);
+            ctx.show_window(
+                window,
+                rect.size(),
+                &painting,
+                damage,
+                moved,
+                title,
+                appearance,
+            );
         }
     }
 }

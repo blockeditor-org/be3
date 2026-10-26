@@ -116,6 +116,8 @@ impl Embedded {
             nodes,
             root: self.host_id(PANE),
             focus,
+            windows: Vec::new(),
+            window_roots: Vec::new(),
         }
     }
 

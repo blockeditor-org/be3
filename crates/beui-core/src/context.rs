@@ -26,7 +26,7 @@ use crate::preferences::{PreferenceLayer, PreferenceLayers, PreferenceSource, Pr
 use crate::screen_simulation::ScreenSimulation;
 use crate::screens::Screen;
 use crate::window::{
-    Appearance, HostPlacement, WindowId, WindowReport, WindowRequest, WindowState,
+    Appearance, HostPlacement, WindowHosting, WindowId, WindowReport, WindowRequest, WindowState,
 };
 
 type CopyWatcher = Rc<dyn Fn(&str)>;
@@ -51,6 +51,7 @@ struct ShownWindow {
     damage: Region,
     moved: Option<Moved>,
     title: Option<String>,
+    appearance: Option<Appearance>,
 }
 
 #[derive(Clone)]
@@ -84,7 +85,8 @@ struct Inner {
     window_reports: RefCell<Vec<WindowReport>>,
     shown_windows: RefCell<Vec<ShownWindow>>,
     keyboard_window: Cell<WindowId>,
-    opens_windows: Cell<bool>,
+    window_hosting: Cell<WindowHosting>,
+    shows_main: Cell<bool>,
     fullscreen: Cell<Option<bool>>,
     fullscreen_shown: Cell<bool>,
     close_requested: Cell<bool>,
@@ -118,12 +120,12 @@ struct Inner {
     zones_woken_in_frame: RefCell<Vec<u64>>,
     seen: Cell<bool>,
     actions: RefCell<Vec<ActionGroup>>,
-    action_requests: RefCell<Vec<String>>,
+    action_requests: RefCell<Vec<(Option<WindowId>, String)>>,
     hit_query: Cell<Option<Pos2>>,
     hit_answers: RefCell<Vec<String>>,
     comps_query: Cell<Option<bool>>,
     comps_answers: RefCell<Vec<String>>,
-    overflows: RefCell<Vec<String>>,
+    overflows: RefCell<Vec<(WindowId, String)>>,
     accessibility_known: RefCell<HashSet<u32>>,
     accessibility_published: RefCell<HashSet<u32>>,
     kept: RefCell<Option<Kept>>,
@@ -208,6 +210,7 @@ pub struct ActionInfo {
 #[derive(Clone, Debug, PartialEq)]
 pub struct ActionGroup {
     pub name: String,
+    pub window: Option<WindowId>,
     pub actions: Vec<ActionInfo>,
 }
 
@@ -274,6 +277,7 @@ pub struct FrameOutput {
     pub hits: Option<Vec<String>>,
     pub comps: Option<Vec<String>>,
     pub overflows: Vec<String>,
+    pub window_overflows: Vec<(WindowId, String)>,
     pub typed: Vec<crate::input::Input>,
     pixels_per_point: f32,
 }
@@ -318,6 +322,21 @@ impl FrameOutput {
             self.accessibility.clone(),
         )
     }
+
+    pub fn window_accessibility_tree(
+        &self,
+        window: WindowId,
+        title: &str,
+        viewport: crate::geometry::Vec2,
+    ) -> TreeUpdate {
+        accessibility::window_tree_update(
+            window,
+            title,
+            viewport,
+            self.pixels_per_point,
+            &self.accessibility,
+        )
+    }
 }
 
 impl Context {
@@ -353,7 +372,8 @@ impl Context {
                 window_reports: RefCell::new(Vec::new()),
                 shown_windows: RefCell::new(Vec::new()),
                 keyboard_window: Cell::new(WindowId::MAIN),
-                opens_windows: Cell::new(false),
+                window_hosting: Cell::new(WindowHosting::None),
+                shows_main: Cell::new(true),
                 fullscreen: Cell::new(None),
                 fullscreen_shown: Cell::new(false),
                 close_requested: Cell::new(false),
@@ -495,11 +515,19 @@ impl Context {
     }
 
     pub fn request_action(&self, id: String) {
-        self.inner.action_requests.borrow_mut().push(id);
+        self.inner.action_requests.borrow_mut().push((None, id));
         self.request_repaint();
     }
 
-    pub fn action_requests(&self) -> Vec<String> {
+    pub fn request_action_in(&self, window: WindowId, id: String) {
+        self.inner
+            .action_requests
+            .borrow_mut()
+            .push((Some(window), id));
+        self.request_repaint();
+    }
+
+    pub fn action_requests(&self) -> Vec<(Option<WindowId>, String)> {
         self.inner.action_requests.borrow().clone()
     }
 
@@ -517,7 +545,7 @@ impl Context {
         self.inner.comps_answers.borrow_mut().push(answer);
     }
 
-    pub fn report_overflows(&self, found: &[String]) {
+    pub fn report_overflows(&self, found: &[(WindowId, String)]) {
         self.inner.overflows.borrow_mut().extend_from_slice(found);
     }
 
@@ -539,7 +567,7 @@ impl Context {
         self.inner
             .action_requests
             .borrow_mut()
-            .retain(|requested| requested != id);
+            .retain(|(_, requested)| requested != id);
     }
 
     pub fn keep_accessibility(&self, keep: bool) {
@@ -797,7 +825,10 @@ impl Context {
             repaint: self.inner.repaint.get(),
             accessibility,
             actions: std::mem::take(&mut *self.inner.actions.borrow_mut()),
-            unran_actions: std::mem::take(&mut *self.inner.action_requests.borrow_mut()),
+            unran_actions: std::mem::take(&mut *self.inner.action_requests.borrow_mut())
+                .into_iter()
+                .map(|(_, id)| id)
+                .collect(),
             hits: self
                 .inner
                 .hit_query
@@ -808,7 +839,14 @@ impl Context {
                 .comps_query
                 .take()
                 .map(|_| std::mem::take(&mut *self.inner.comps_answers.borrow_mut())),
-            overflows: std::mem::take(&mut *self.inner.overflows.borrow_mut()),
+            overflows: self
+                .inner
+                .overflows
+                .borrow()
+                .iter()
+                .map(|(_, found)| found.clone())
+                .collect(),
+            window_overflows: std::mem::take(&mut *self.inner.overflows.borrow_mut()),
             typed: self.inner.keyboard.borrow_mut().take_typed(),
             pixels_per_point: scale,
         }
@@ -990,11 +1028,23 @@ impl Context {
     }
 
     pub fn opens_windows(&self) -> bool {
-        self.inner.opens_windows.get()
+        self.inner.window_hosting.get() == WindowHosting::Any
     }
 
-    pub fn set_opens_windows(&self, opens: bool) {
-        self.inner.opens_windows.set(opens);
+    pub fn window_hosting(&self) -> WindowHosting {
+        self.inner.window_hosting.get()
+    }
+
+    pub fn set_window_hosting(&self, hosting: WindowHosting) {
+        self.inner.window_hosting.set(hosting);
+    }
+
+    pub fn shows_main(&self) -> bool {
+        self.inner.shows_main.get()
+    }
+
+    pub fn set_shows_main(&self, shows: bool) {
+        self.inner.shows_main.set(shows);
     }
 
     pub fn window_size(&self, window: WindowId) -> Option<Vec2> {
@@ -1075,6 +1125,10 @@ impl Context {
         self.inner.keyboard_window.set(window);
     }
 
+    pub fn keyboard_window(&self) -> WindowId {
+        self.inner.keyboard_window.get()
+    }
+
     pub fn show_window(
         &self,
         id: WindowId,
@@ -1083,6 +1137,7 @@ impl Context {
         damage: Region,
         moved: Option<Moved>,
         title: Option<String>,
+        appearance: Option<&Appearance>,
     ) {
         let layers = painting
             .iter()
@@ -1095,6 +1150,7 @@ impl Context {
             damage,
             moved,
             title,
+            appearance: appearance.cloned(),
         });
     }
 
@@ -1108,8 +1164,9 @@ impl Context {
                 typed: main.typed,
                 ..WindowState::default()
             };
-            state.appearance.clear_color = main.appearance.clear_color;
-            state.appearance.system_bars = main.appearance.system_bars;
+            let own = window.appearance.as_ref().unwrap_or(&main.appearance);
+            state.appearance.clear_color = own.clear_color;
+            state.appearance.system_bars = own.system_bars;
             state.appearance.title.clone_from(&window.title);
             if pointer == window.id {
                 state.requests.cursor = main.requests.cursor;

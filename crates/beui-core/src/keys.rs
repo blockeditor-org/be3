@@ -4,6 +4,7 @@ use std::rc::{Rc, Weak};
 use crate::callback::NodeRef;
 use crate::input::{Key, KeyPress};
 use crate::node::NodeId;
+use crate::window::WindowId;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum KeyInput {
@@ -84,6 +85,7 @@ struct Listener {
     phase: KeyPhase,
     reveal: bool,
     handler: Weak<KeyHandler>,
+    window: Option<WindowId>,
 }
 
 #[derive(Default)]
@@ -109,12 +111,20 @@ pub(crate) struct AtNode {
 }
 
 impl KeyListeners {
-    pub fn listen(&self, at: KeyAt, phase: KeyPhase, reveal: bool, handler: Weak<KeyHandler>) {
+    pub fn listen(
+        &self,
+        at: KeyAt,
+        phase: KeyPhase,
+        reveal: bool,
+        handler: Weak<KeyHandler>,
+        window: Option<WindowId>,
+    ) {
         self.listeners.borrow_mut().push(Listener {
             at,
             phase,
             reveal,
             handler,
+            window,
         });
     }
 
@@ -124,10 +134,14 @@ impl KeyListeners {
         listeners
     }
 
-    pub(crate) fn at(&self, stop: Stop, phase: KeyPhase) -> Vec<Placed> {
+    pub(crate) fn at(&self, stop: Stop, phase: KeyPhase, window: Option<WindowId>) -> Vec<Placed> {
         self.live()
             .iter()
             .filter(|listener| listener.phase == phase)
+            .filter(|listener| match (listener.window, window) {
+                (Some(own), Some(window)) => own == window,
+                _ => true,
+            })
             .filter(|listener| {
                 matches!(
                     (&listener.at, stop),

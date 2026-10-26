@@ -5,36 +5,33 @@ use block_editor_plugin::TimedInput;
 
 use super::*;
 
-struct Watching(
-    Rc<std::cell::RefCell<Vec<Event>>>,
-    Rc<std::cell::RefCell<Vec<(PointerId, PointerPhase)>>>,
-);
-
-impl App for Watching {
-    fn update(&mut self, context: &Context, _rect: Rect) {
+fn watching(
+    events: Rc<std::cell::RefCell<Vec<Event>>>,
+    phases: Rc<std::cell::RefCell<Vec<(PointerId, PointerPhase)>>>,
+) -> Windowed {
+    Windowed::empty().hooked(move |context| {
         context.input(|input| {
-            self.0.borrow_mut().extend(input.events.iter().cloned());
-            self.1.borrow_mut().extend(
+            events.borrow_mut().extend(input.events.iter().cloned());
+            phases.borrow_mut().extend(
                 input
                     .pointer_events
                     .iter()
                     .map(|event| (event.pointer, event.phase)),
             );
         });
-    }
+    })
 }
 
 #[test]
 fn a_region_that_loses_the_keyboard_mid_press_keeps_the_press() {
     let events = Rc::new(std::cell::RefCell::new(Vec::new()));
     let phases = Rc::new(std::cell::RefCell::new(Vec::new()));
-    let whole = Rect::from_min_size(pos2(0.0, 0.0), vec2(80.0, 60.0));
-    let shown = region(whole, [80, 60]);
+    let shown = whole(80.0, 60.0);
     let mut surface = launched(
         &EditorHost::default(),
-        beui::context(),
-        Watching(events.clone(), phases.clone()),
+        watching(events.clone(), phases.clone()),
     );
+    one(&mut surface, &shown);
     let finger = TouchId {
         device: 1,
         finger: 2,
@@ -65,7 +62,7 @@ fn a_region_that_loses_the_keyboard_mid_press_keeps_the_press() {
         PenPhase::Down(PointerButton::Primary),
         pos2(30.0, 40.0),
     ));
-    surface.update(&shown);
+    one(&mut surface, &shown);
 
     let mut send = |input: Input| surface.input(&shown, &TimedInput::from(input));
     send(Input::Focus(false));
@@ -77,7 +74,7 @@ fn a_region_that_loses_the_keyboard_mid_press_keeps_the_press() {
         force: None,
     });
     send(pen(PenPhase::Move, pos2(35.0, 45.0)));
-    surface.update(&shown);
+    one(&mut surface, &shown);
     assert!(
         events.borrow().contains(&Event::Focus(false)),
         "the lost keyboard is reported at once"
@@ -104,7 +101,7 @@ fn a_region_that_loses_the_keyboard_mid_press_keeps_the_press() {
         force: None,
     });
     send(pen(PenPhase::Up(PointerButton::Primary), pos2(35.0, 45.0)));
-    surface.update(&shown);
+    one(&mut surface, &shown);
     let phases = phases.borrow();
     for pointer in [PointerId::Mouse, PointerId::Touch(finger), PointerId::Pen] {
         assert!(

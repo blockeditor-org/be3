@@ -110,6 +110,7 @@ pub struct BeuiTest<A: BeuiApp> {
         std::collections::HashMap<block_plugin_api::ops::OpId, block_plugin_api::ops::Outcome>,
     menu: Vec<MenuEntry>,
     output: Option<beui::FrameOutput>,
+    shown_window: Option<beui::WindowId>,
     drew: bool,
     recording: Option<snapshot::Snapshot>,
     overflows: Vec<String>,
@@ -293,6 +294,7 @@ impl<A: BeuiApp> BeuiTest<A> {
             completed: std::collections::HashMap::new(),
             menu: Vec::new(),
             output: None,
+            shown_window: None,
             drew: false,
             recording: None,
             overflows: Vec::new(),
@@ -590,17 +592,32 @@ impl<A: BeuiApp> BeuiTest<A> {
 
     pub fn wants_another_frame(&self) -> bool {
         self.output.as_ref().is_some_and(|output| {
-            output.main().changed || output.repaint_after < std::time::Duration::MAX
+            self.shown_changed() || output.repaint_after < std::time::Duration::MAX
         })
     }
 
-    pub fn drawn(&self) -> Option<&beui::FrameOutput> {
-        self.output.as_ref().filter(|_| self.drew)
+    pub fn drawn(&self) -> Option<&beui::WindowOutput> {
+        self.shown_output().filter(|_| self.drew)
+    }
+
+    pub fn test_ids(&self) -> std::rc::Rc<beui::accessibility_dump::TestIds> {
+        self.output
+            .as_ref()
+            .expect("the editor has not drawn a frame yet")
+            .test_ids()
+    }
+
+    fn shown_output(&self) -> Option<&beui::WindowOutput> {
+        self.output.as_ref()?.window(self.shown_window?)
+    }
+
+    fn shown_changed(&self) -> bool {
+        self.shown_output().is_some_and(|shown| shown.changed)
     }
 
     pub fn document(&self) -> std::cell::Ref<'_, Document> {
         self.plugin
-            .document(INSTANCE, self.region())
+            .document()
             .expect("the editor has not built its view yet")
     }
 
@@ -809,7 +826,7 @@ impl<A: BeuiApp> BeuiTest<A> {
     pub fn settle(&mut self) {
         self.settle_until("its animations to finish", |test| {
             test.output.as_ref().is_none_or(|output| {
-                !output.main().changed && output.repaint_after > std::time::Duration::ZERO
+                !test.shown_changed() && output.repaint_after > std::time::Duration::ZERO
             })
         });
     }
@@ -827,7 +844,7 @@ impl<A: BeuiApp> BeuiTest<A> {
                 .output
                 .as_ref()
                 .map_or((false, std::time::Duration::MAX), |output| {
-                    (output.main().changed, output.repaint_after)
+                    (self.shown_changed(), output.repaint_after)
                 });
             if changed && eager < EAGER_FRAMES {
                 eager += 1;
@@ -903,15 +920,18 @@ impl<A: BeuiApp> BeuiTest<A> {
             self.deliver(message);
         }
         self.hear();
-        let output = self
-            .plugin
-            .draw()
-            .into_iter()
-            .find(|(placement, _)| placement.screen == SCREEN)
-            .map(|(_, output)| output);
-        self.drew = output.is_some();
-        if output.is_some() {
-            self.output = output;
+        let drawn = self.plugin.draw().and_then(|drawn| {
+            let window = drawn
+                .windows
+                .iter()
+                .find(|(placement, _)| placement.screen == SCREEN)
+                .map(|(_, window)| *window)?;
+            Some((drawn.output, window))
+        });
+        self.drew = drawn.is_some();
+        if let Some((output, window)) = drawn {
+            self.output = Some(output);
+            self.shown_window = Some(window);
         }
         if let Some(commit) = self.plugin.outbound() {
             self.committed(roundtrip(commit, "the plugin's frame"));
@@ -1609,11 +1629,10 @@ impl<A: BeuiApp> BeuiTest<A> {
         if self.rect_of(test_id).intersect(self.rect()).is_positive() {
             return;
         }
-        let region = self.region();
         {
             let mut document = self
                 .plugin
-                .document_mut(INSTANCE, region)
+                .document_mut()
                 .expect("the editor has not built its view yet");
             let node = document
                 .find_test_id(test_id)
@@ -1880,7 +1899,10 @@ impl<A: BeuiApp> BeuiTest<A> {
             .output
             .as_ref()
             .expect("the editor has not drawn a frame yet");
-        capture::capture(output, self.size, output.pixels_per_point(), behind)
+        let shown = self
+            .shown_output()
+            .expect("the editor has not drawn its window yet");
+        capture::capture(shown, self.size, output.pixels_per_point(), behind)
             .expect("the painting could not be rendered")
     }
 }

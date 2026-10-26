@@ -1224,7 +1224,7 @@ impl Editor {
         }
     }
 
-    pub fn end_frame(&self, document: &Document) {
+    pub fn end_frame(&self, document: &Document, window: beui::WindowId) {
         let state = self.state();
         let zone = document.zone();
         let mut records: Vec<(Vec<usize>, Rc<ChildRecord>)> = self
@@ -1242,7 +1242,7 @@ impl Editor {
             .collect();
         records.sort_by(|(left, _), (right, _)| left.cmp(right));
         let unscale = self.ratio().recip();
-        let overlays = document.overlay_layers();
+        let overlays = document.overlay_layers(window);
         let mut overlays = overlays.iter().peekable();
         for (order, record) in records {
             while let Some((_, rect)) = overlays.next_if(|(layer, _)| *layer < order) {

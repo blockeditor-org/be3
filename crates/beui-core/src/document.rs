@@ -39,7 +39,7 @@ type PickedCallback = Box<dyn FnOnce(FilePick)>;
 type SavedCallback = Box<dyn FnOnce(FileSave)>;
 pub type FingerTap = dyn Fn(usize) -> bool;
 
-pub type ActionsHook = dyn Fn(&Context, &[NodeId]);
+pub type ActionsHook = dyn Fn(&Context, &[NodeId], &[WindowId]);
 
 pub trait Tools: Any {
     fn show(&mut self, document: &mut Document, ctx: &Context, rect: Rect);
@@ -175,7 +175,7 @@ pub struct Document {
     theme: ::reactive::OwnedSignal<crate::preferences::ThemeKind>,
     canvas_touch: ::reactive::OwnedSignal<crate::preferences::CanvasTouch>,
     preference_layers: ::reactive::OwnedSignal<crate::preferences::PreferenceLayers>,
-    out_of_bounds: Option<Vec<String>>,
+    out_of_bounds: Option<Vec<(WindowId, String)>>,
     animations: Rc<Cell<usize>>,
     pub(crate) windows: crate::window::hosted::Windows,
 }
@@ -426,8 +426,15 @@ impl Document {
         self.appearance.as_ref()
     }
 
-    pub fn update_appearance(&mut self, change: impl FnOnce(&mut Appearance)) {
-        change(self.appearance.get_or_insert_default());
+    pub fn update_appearance(
+        &mut self,
+        window: Option<WindowId>,
+        change: impl FnOnce(&mut Appearance),
+    ) {
+        match window {
+            Some(window) => change(self.windows.appearances.entry(window).or_default()),
+            None => change(self.appearance.get_or_insert_default()),
+        }
         if let Some((ctx, _, _)) = &self.viewport {
             ctx.request_repaint();
         }
@@ -603,8 +610,9 @@ impl Document {
         let live: Vec<Rc<ActionsHook>> = hooks.iter().filter_map(Weak::upgrade).collect();
         drop(hooks);
         let path = self.focus_ancestry();
+        let windows = self.open_windows();
         for hook in live {
-            hook(ctx, &path);
+            hook(ctx, &path, &windows);
         }
     }
 
@@ -614,8 +622,9 @@ impl Document {
         phase: crate::keys::KeyPhase,
         reveal: bool,
         handler: Weak<crate::keys::KeyHandler>,
+        window: Option<WindowId>,
     ) {
-        self.keys.listen(at, phase, reveal, handler);
+        self.keys.listen(at, phase, reveal, handler, window);
     }
 
     pub fn input_frames(&self) -> u64 {
@@ -1512,7 +1521,11 @@ impl Document {
         if ctx.automated() {
             if measurement.painted || measurement.layout_passes > 0 || self.out_of_bounds.is_none()
             {
-                let found = self.overflows().iter().map(ToString::to_string).collect();
+                let found = self
+                    .overflows()
+                    .iter()
+                    .map(|found| (self.window_of(found.node), found.to_string()))
+                    .collect();
                 self.out_of_bounds = Some(found);
             }
             ctx.report_overflows(self.out_of_bounds.as_deref().unwrap_or_default());
@@ -1540,7 +1553,7 @@ impl Document {
 
     fn paint(&mut self, ctx: &Context) {
         let mut roots = Vec::new();
-        if let Some(root) = self.root {
+        if let Some(root) = self.root.filter(|_| ctx.shows_main()) {
             self.paint_cache.get_mut().paint_into(WindowId::MAIN);
             paint::paint(self, &ctx.window_painter(WindowId::MAIN), &self.rects, root);
             roots.push((WindowId::MAIN, root));
@@ -1551,7 +1564,11 @@ impl Document {
             let Some(overlay) = layer.overlay else {
                 continue;
             };
-            if !layer.window.is_main() && !open.contains(&layer.window) {
+            let shown = match layer.window.is_main() {
+                true => ctx.shows_main(),
+                false => open.contains(&layer.window),
+            };
+            if !shown {
                 continue;
             }
             let scrim = self.overlay_scrim(overlay);
@@ -2456,9 +2473,12 @@ impl Document {
         PixelGrid::new(self.pixels_per_point())
     }
 
-    pub fn measure_root(&mut self, ctx: &Context, available: Vec2) -> Option<Vec2> {
-        let root = self.root?;
-        let painter = ctx.window_painter(WindowId::MAIN);
+    pub fn measure_node(&mut self, ctx: &Context, node: NodeId, available: Vec2) -> Option<Vec2> {
+        if !self.arena.contains(node) {
+            return None;
+        }
+        let root = node;
+        let painter = ctx.window_painter(self.window_of(node));
         let context = self.reactive_scope().context();
         let mut measured = None;
         {
