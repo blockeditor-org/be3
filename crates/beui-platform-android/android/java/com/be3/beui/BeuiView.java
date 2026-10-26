@@ -377,6 +377,8 @@ public final class BeuiView extends SurfaceView implements SurfaceHolder.Callbac
 
     static native void nativeFocus(boolean focused);
 
+    static native void nativeLifecycle(int change);
+
     static native void nativeBack(int phase, float progress, int edge);
 
     private static native void nativeSurfaceChanged(Surface surface, int width, int height,

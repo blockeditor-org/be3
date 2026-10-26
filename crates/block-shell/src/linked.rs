@@ -4,11 +4,10 @@ use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::icons::{ICON_LINK, ICON_UNLINK};
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
-use block_editor_beui::node_anchor;
 use uuid::Uuid;
 
+use super::menu::ReferenceMenuItem;
 use super::menu::unlink_permission;
-use super::menu::{ReferenceMenuItem, action_for, apply};
 use super::panel::{Info, Refs};
 use super::workspace::Workspace;
 use block_editor_beui::beui::TextAlign;
@@ -206,28 +205,10 @@ pub(crate) fn ReferenceMenu(
                             workspace={workspace}
                             reference={reference}
                             containing={containing}
+                            anchor={button}
                         />
                     }
                 }</ForEach>
-            }}
-            on_select={move |path: Vec<usize>| {
-                let Some((index, rest)) = path.split_first() else {
-                    return;
-                };
-                let Some(reference) = refs.with(|refs| refs.list.get(*index).cloned())
-                else {
-                    return;
-                };
-                let Some(action) = action_for(rest) else {
-                    return;
-                };
-                apply(
-                    &workspace,
-                    &reference,
-                    containing.get_untracked(),
-                    action,
-                    node_anchor(&button),
-                );
             }}
         />
     }

@@ -68,7 +68,7 @@ pub enum DirectEditorResize {
 
 pub fn editor_access_ceiling(id: Uuid) -> Access {
     let Some(node) = crate::be::node(id) else {
-        return Access::Edit;
+        return Access::Manage;
     };
     match node.metadata.contains(&be_block::ARTIFACT) {
         true => node.access.min(Access::View),
@@ -108,7 +108,7 @@ pub(super) trait ArtifactSession {
 
 pub(super) enum ArtifactStatus {
     Starting,
-    Described { source: Uuid, summary: String },
+    Described(String),
     Failed(String),
 }
 
@@ -284,6 +284,7 @@ impl EditorRegistry {
     pub(super) fn artifact_session(
         &self,
         source_type: Uuid,
+        source: Uuid,
         target_id: Uuid,
         target_type: Uuid,
         client_id: Uuid,
@@ -303,6 +304,7 @@ impl EditorRegistry {
             true => Ok(Box::new(plugin::PluginArtifact::new(
                 Arc::clone(&editor.manifest),
                 editor.id,
+                source,
                 target_id,
                 target_type,
                 client_id,

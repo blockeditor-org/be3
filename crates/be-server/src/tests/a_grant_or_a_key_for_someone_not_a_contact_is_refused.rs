@@ -21,11 +21,11 @@ async fn a_grant_or_a_key_for_someone_not_a_contact_is_refused() {
             block: shared.block,
         })
         .await;
-    let ServerMessage::AccessList { entries, .. } = listed else {
+    let ServerMessage::AccessList { list, .. } = listed else {
         panic!("listing access failed: {listed:?}");
     };
     assert_eq!(
-        entries
+        list.entries
             .iter()
             .map(|entry| entry.account)
             .collect::<Vec<_>>(),

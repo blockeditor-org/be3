@@ -74,6 +74,7 @@ pub(crate) enum PickAction {
     UnfoldPlace(TreeKey, bool),
     Link(Uuid, Uuid),
     Import,
+    CopyTemplate(Uuid),
     Create,
     CancelCreation,
     Close,
@@ -205,7 +206,7 @@ impl Pick {
                     None,
                 );
             }
-            PickAction::Import => {}
+            PickAction::Import | PickAction::CopyTemplate(_) => {}
             PickAction::Create => {
                 if let Some(creating) = &mut self.creating {
                     creating.committed = true;
@@ -354,6 +355,7 @@ pub(crate) fn groups(catalog: &BlockCatalog, pick: &Pick) -> Vec<TypeGroup> {
 }
 
 pub(crate) struct Graph {
+    pub(crate) organization: Uuid,
     pub(crate) account: Uuid,
     pub(crate) roots: Vec<BlockInfo>,
     pub(crate) shared: Vec<BlockInfo>,
@@ -363,7 +365,7 @@ pub(crate) struct Graph {
 
 impl Graph {
     fn sections(&self, types: &dyn BlockTypes) -> Vec<BlockInfo> {
-        workspaces(self.roots.clone(), self.account, types)
+        workspaces(self.roots.clone(), self.organization, self.account, types)
             .into_iter()
             .filter(|block| !block.deleted)
             .collect()

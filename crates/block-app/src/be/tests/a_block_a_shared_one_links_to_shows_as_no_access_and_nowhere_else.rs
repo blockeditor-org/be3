@@ -19,7 +19,7 @@ fn a_block_a_shared_one_links_to_shows_as_no_access_and_nowhere_else() {
     let peer = runtime.block_on(sharer.peer(&harness.url, personal));
     runtime
         .block_on(be_client::contacts::accept_link(
-            peer.connection(),
+            &peer.connection(),
             &sharer.phrase.secret(),
             &sharer.me().card(),
             &code,

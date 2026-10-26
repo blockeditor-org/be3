@@ -91,6 +91,7 @@ struct Inner {
     watched_queries: Vec<BlockQuery>,
     answered: BTreeMap<BlockQuery, Vec<BlockInfo>>,
     deferred: Option<Vec<(Uuid, EditorId, FromEditor)>>,
+    known_elsewhere: Option<Rc<dyn Fn(Uuid) -> bool>>,
 }
 
 impl Default for Inner {
@@ -123,6 +124,7 @@ impl Default for Inner {
             watched_queries: Vec::new(),
             answered: BTreeMap::new(),
             deferred: None,
+            known_elsewhere: None,
         };
         inner.ask(|host| replicas::start(host, vec![0; 32]));
         inner
@@ -857,13 +859,14 @@ impl ContentStore {
             author: Some(Uuid::nil().into_bytes()),
             parent: Some(parent),
             references: Vec::new(),
-            access: block_plugin_api::AccessLevel::Edit,
+            access: block_plugin_api::AccessLevel::Manage,
             metadata: block_plugin_api::BlockMetadata {
                 defined,
                 ..block_plugin_api::BlockMetadata::default()
             },
             locked: false,
             deleted: false,
+            sets_access: false,
         });
         {
             let mut inner = self.0.borrow_mut();
@@ -954,6 +957,9 @@ impl ContentStore {
         }
         let queries = self.0.borrow().watched_queries.clone();
         for query in queries {
+            if self.leaves_to_the_test(query) {
+                continue;
+            }
             let listed = self.query(query);
             let mut inner = self.0.borrow_mut();
             if inner.answered.get(&query) == Some(&listed) {
@@ -979,10 +985,30 @@ impl ContentStore {
         owed || {
             let queries = self.0.borrow().watched_queries.clone();
             queries.into_iter().any(|query| {
+                if self.leaves_to_the_test(query) {
+                    return false;
+                }
                 let listed = self.query(query);
                 self.0.borrow().answered.get(&query) != Some(&listed)
             })
         }
+    }
+
+    pub(crate) fn know_elsewhere(&self, known: impl Fn(Uuid) -> bool + 'static) {
+        self.0.borrow_mut().known_elsewhere = Some(Rc::new(known));
+    }
+
+    fn leaves_to_the_test(&self, query: BlockQuery) -> bool {
+        let (BlockQuery::Block(block) | BlockQuery::Parents(block)) = query else {
+            return false;
+        };
+        let inner = self.0.borrow();
+        if inner.graph.contains_key(&block) {
+            return false;
+        }
+        let known = inner.known_elsewhere.clone();
+        drop(inner);
+        known.is_some_and(|known| known(block))
     }
 
     fn held(&self, nodes: &[BlockInfo], node: &BlockInfo) -> bool {
@@ -991,7 +1017,7 @@ impl ContentStore {
             Some(BlockParent::Detached) => false,
             Some(BlockParent::Block(parent)) => {
                 !nodes.iter().any(|above| above.id == parent)
-                    || self.references_of(parent).contains(&node.id)
+                    || self.links(parent).contains(&node.id)
             }
         }
     }
@@ -1021,6 +1047,14 @@ impl ContentStore {
             .and_then(|held| held.references.clone())
             .or_else(|| inner.graph.get(&id).map(|info| info.references.clone()))
             .unwrap_or_default()
+    }
+
+    fn links(&self, id: Uuid) -> Vec<Uuid> {
+        let mut links = self.references_of(id);
+        if let Some(info) = self.0.borrow().graph.get(&id) {
+            links.extend(info.metadata.references());
+        }
+        links
     }
 
     fn query(&self, query: BlockQuery) -> Vec<BlockInfo> {
@@ -1064,7 +1098,7 @@ impl ContentStore {
             }
             BlockQuery::Backrefs(block) => nodes
                 .iter()
-                .filter(|node| self.references_of(node.id).contains(&block))
+                .filter(|node| self.links(node.id).contains(&block))
                 .cloned()
                 .collect(),
             BlockQuery::Parents(block) => {
@@ -1084,6 +1118,7 @@ impl ContentStore {
                 chain
             }
             BlockQuery::Block(block) => known(&block).into_iter().collect(),
+            BlockQuery::OpenSettings(_) => Vec::new(),
         };
         listed
             .into_iter()

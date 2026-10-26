@@ -252,3 +252,41 @@ pub(crate) fn StaleBlock(block: Uuid, block_type: Uuid, stale: crate::be::Stale)
         </Frame>
     }
 }
+
+#[component]
+pub(crate) fn ConflictNotice(block: Uuid, count: usize) -> NodeId {
+    let text = match count {
+        1 => "Merged with a conflicting change from another device".to_owned(),
+        count => format!("Merged with {count} conflicting changes from another device"),
+    };
+    view! {
+        <Frame align={Align2::new(Align::Center, Align::Start)} padding={Padding::all(Space::Md)}>
+            <Frame
+                @test_id={format!("conflict.{block}")}
+                fill=ColorRole::SurfaceRaised
+                border={Border::DEFAULT}
+                radius=Radius::Md
+                padding={Padding::symmetric(Space::Lg, Space::Sm)}
+            >
+                <List direction=Direction::Horizontal align=Align::Center spacing=Space::Md wrap=true>
+                    <Text color=TextColor::Muted>
+                        <Icon glyph=beui::icons::ICON_GIT_MERGE_CONFLICT />
+                    </Text>
+                    <Text size=TextSize::Sm>{text}</Text>
+                    <Button
+                        @test_id={format!("conflict.{block}.compare")}
+                        label="See both versions"
+                        variant=ButtonVariant::Secondary
+                        on_click={move || crate::be::conflicts::compare(block)}
+                    />
+                    <Button
+                        @test_id={format!("conflict.{block}.dismiss")}
+                        label="Keep merged"
+                        variant=ButtonVariant::Ghost
+                        on_click={move || crate::be::conflicts::dismiss(block)}
+                    />
+                </List>
+            </Frame>
+        </Frame>
+    }
+}

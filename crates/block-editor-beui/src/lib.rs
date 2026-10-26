@@ -25,6 +25,7 @@ mod related_content;
 mod rotation;
 pub mod sections;
 mod shared_caret;
+pub mod tags;
 pub mod version_control;
 
 use be_block::presence::PresenceColor;
@@ -37,8 +38,8 @@ pub use chrome::{
 };
 pub use dock::BottomDock;
 pub use editor::{
-    Artifacts, ChildState, ChildTarget, Creation, Drag, Editor, OwnedEditor, SubregionContent,
-    fit_content, node_anchor,
+    Artifacts, ChildState, ChildTarget, Creation, Drag, Editor, KindsAbove, OrganizationLayers,
+    OwnedEditor, SetKind, SubregionContent, fit_content, node_anchor,
 };
 pub use file_chooser::{ContentFileCreation, FileChooser};
 pub use fitting::{Fit, Fitting};
@@ -74,7 +75,7 @@ pub trait BeuiApp: 'static {
         creation.create_block()
     }
     fn connect_artifact(_artifacts: &Artifacts) {}
-    fn describe_artifact(_data: &[u8]) -> Result<ArtifactDescription, String> {
+    fn describe_artifact(_data: &[u8]) -> Result<String, String> {
         Err("this editor does not generate artifacts".into())
     }
     #[beui::reactive::component]

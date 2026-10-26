@@ -40,7 +40,6 @@ const TILE_PADDING: Space = Space::Sm;
 const TILE_SPACING: Space = Space::Xs;
 const TREE_INDENT: Space = Space::Lg;
 const TREE_CHEVRON: Size = Size::Xs;
-const MENU_MAX_HEIGHT: f32 = 420.0;
 
 #[component]
 pub fn ContextMenu(
@@ -54,7 +53,7 @@ pub fn ContextMenu(
     #[prop(default = None)] toolbar_at: Prop<Option<Rect>>,
     #[prop(default = true)] opens_on_hold: bool,
     on_close: ClickCallback,
-    on_select: Callback<Vec<usize>>,
+    #[prop(default = Callback::default())] on_select: Callback<Vec<usize>>,
     on_toolbar_close: ClickCallback,
 ) -> NodeId {
     view! {
@@ -528,7 +527,7 @@ fn MenuPanel(min_width: Size, children: Child) -> NodeId {
             >
                 <List spacing=Space::None>
                     <unstyled::Scroll
-                        @sizing={ItemSize::Intrinsic.max(MENU_MAX_HEIGHT).shrink(1.0)}
+                        @sizing={ItemSize::Intrinsic.shrink(1.0)}
                         fit=true
                         scrollbar={ScrollbarStyle::default().fading(SCROLL_FADE)}
                     >

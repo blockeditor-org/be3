@@ -206,8 +206,11 @@ impl Watched {
     }
 
     fn can_edit(&self) -> bool {
-        self.info()
-            .is_none_or(|info| info.access == crate::AccessLevel::Edit)
+        self.info().is_none_or(|info| info.access.can_edit())
+    }
+
+    fn can_manage(&self) -> bool {
+        self.info().is_none_or(|info| info.access.can_manage())
     }
 
     fn read(&self) -> BarState {
@@ -224,7 +227,7 @@ impl Watched {
             can_undo,
             can_redo,
             can_rename: editable,
-            can_share: self.can_edit(),
+            can_share: self.can_manage(),
         }
     }
 

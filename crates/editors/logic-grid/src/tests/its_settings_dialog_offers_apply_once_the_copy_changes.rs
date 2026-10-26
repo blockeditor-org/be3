@@ -5,14 +5,16 @@ use super::*;
 
 #[test]
 fn its_settings_dialog_offers_apply_once_the_copy_changes() {
+    let source = Uuid::new_v4();
     let artifacts = Artifacts::new(
         EditorHost::default(),
         Artifact {
             block_id: Uuid::new_v4(),
             block_type: CompiledLogicContent::CONTENT_TYPE,
+            source,
         },
     );
-    let data = crate::app::descriptor_data(Uuid::new_v4());
+    let data = crate::app::descriptor_data(source);
     let mut settings = BeuiTest::<LogicGridApp>::settings(artifacts, data);
     settings.set_size(vec2(360.0, 200.0));
     settings.run();

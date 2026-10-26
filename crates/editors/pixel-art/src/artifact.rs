@@ -1,8 +1,8 @@
-use block_editor_beui::be_block::{ArtifactSource, BlockContent};
+use block_editor_beui::be_block::{Artifact, BlockContent};
 use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
-use block_editor_beui::{ArtifactDescription, Artifacts, EditorHost};
+use block_editor_beui::{Artifacts, EditorHost};
 use block_editor_beui::{BlockList, BlockQuery, OwnedContentProjection};
 use image::{ExtendedColorType, ImageEncoder, codecs::png::PngEncoder};
 use image_block_types::{ImageContent, ImageFile};
@@ -12,12 +12,6 @@ use uuid::Uuid;
 
 const MAX_EXPORT_SCALE: u32 = 16;
 const SETTINGS_SPACING: Space = Space::Lg;
-
-#[derive(Clone, Debug, Deserialize, PartialEq, Eq, Serialize)]
-struct ImageArtifact {
-    source: Uuid,
-    settings: ImageSettings,
-}
 
 #[derive(Clone, Debug, Deserialize, PartialEq, Eq, Serialize)]
 struct ImageSettings {
@@ -30,7 +24,7 @@ impl Default for ImageSettings {
     }
 }
 
-impl ImageArtifact {
+impl ImageSettings {
     fn decode(data: &[u8]) -> Result<Self, String> {
         serde_json::from_slice(data)
             .map_err(|error| format!("pixel art export descriptor is unreadable: {error}"))
@@ -41,14 +35,11 @@ impl ImageArtifact {
     }
 }
 
-pub fn descriptor(source_id: Uuid) -> ArtifactSource {
-    ArtifactSource {
+pub fn descriptor(source_id: Uuid) -> Artifact {
+    Artifact {
+        source: source_id.into(),
         source_type: PixelArtContent::CONTENT_TYPE,
-        data: ImageArtifact {
-            source: source_id,
-            settings: ImageSettings::default(),
-        }
-        .encode(),
+        settings: ImageSettings::default().encode(),
     }
 }
 
@@ -99,12 +90,8 @@ fn magnified(art: &Artwork, scale: u32) -> Vec<u8> {
     magnified
 }
 
-pub fn describe(data: &[u8]) -> Result<ArtifactDescription, String> {
-    let artifact = ImageArtifact::decode(data)?;
-    Ok(ArtifactDescription {
-        source: artifact.source,
-        summary: summary(&artifact.settings),
-    })
+pub fn describe(data: &[u8]) -> Result<String, String> {
+    Ok(summary(&ImageSettings::decode(data)?))
 }
 
 fn summary(settings: &ImageSettings) -> String {
@@ -119,24 +106,24 @@ fn summary(settings: &ImageSettings) -> String {
 #[component]
 pub fn Settings(artifacts: Artifacts) -> NodeId {
     let data = artifacts.settings();
-    let decoded = create_memo(move || ImageArtifact::decode(&data.get()).ok());
+    let decoded = create_memo(move || ImageSettings::decode(&data.get()).ok());
     let readable = create_memo(move || decoded.get().is_some());
     let scale = create_memo(move || {
         decoded
             .get()
-            .map_or(1.0, |artifact| f64::from(artifact.settings.scale))
+            .map_or(1.0, |settings| f64::from(settings.scale))
     });
     let caption = create_memo(move || match decoded.get() {
-        Some(artifact) => summary(&artifact.settings),
+        Some(settings) => summary(&settings),
         None => "These settings cannot be read.".to_owned(),
     });
     let edited = artifacts.clone();
     let set_scale = move |value: f64| {
-        let Some(mut artifact) = decoded.get_untracked() else {
+        let Some(mut settings) = decoded.get_untracked() else {
             return;
         };
-        artifact.settings.scale = (value as u32).clamp(1, MAX_EXPORT_SCALE);
-        edited.edit_settings(artifact.encode());
+        settings.scale = (value as u32).clamp(1, MAX_EXPORT_SCALE);
+        edited.edit_settings(settings.encode());
     };
 
     view! {
@@ -168,6 +155,7 @@ impl Regeneration {
         host: &EditorHost,
         target_id: Uuid,
         target_type: Uuid,
+        source: Uuid,
         data: &[u8],
     ) -> Result<Self, String> {
         if target_type != ImageContent::CONTENT_TYPE {
@@ -175,13 +163,13 @@ impl Regeneration {
                 "pixel art export expected an Image target, found {target_type}"
             ));
         }
-        let artifact = ImageArtifact::decode(data)?;
+        let settings = ImageSettings::decode(data)?;
         Ok(Self {
             host: host.clone(),
-            source: host.content_of::<PixelArtContent>(artifact.source),
-            named: host.blocks().watch(BlockQuery::Block(artifact.source)),
+            source: host.content_of::<PixelArtContent>(source),
+            named: host.blocks().watch(BlockQuery::Block(source)),
             target: target_id,
-            settings: artifact.settings,
+            settings,
         })
     }
 

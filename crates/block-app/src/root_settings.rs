@@ -4,8 +4,9 @@ use std::collections::HashMap;
 use be_block::settings::{Settings, SettingsProfile};
 use be_block::{
     BlockContent, BlockMetadata, DeviceClass, DisplaySettingsContent, LINUX_DESKTOP_EDITOR,
-    LiveEdit, MY_FILES, NAME, Root, SettingsContent, SettingsProfileContent, VIEW_EDITOR,
-    VIEW_TYPE, WORKSPACE_EDITOR, WORKSPACE_TYPE,
+    LiveEdit, NAME, OfflineSettings, OfflineSettingsContent, Resolution, ResolutionLayers, Root,
+    SettingsContent, SettingsProfileContent, VIEW_EDITOR, VIEW_TYPE, WORKSPACE_EDITOR,
+    WORKSPACE_TYPE, organization_settings,
 };
 use be_graph::BlockParent;
 use uuid::Uuid;
@@ -56,10 +57,10 @@ fn decode<C: BlockContent>(block: Uuid) -> Option<C> {
 #[derive(Default)]
 struct Cache {
     owned: Option<(u64, Vec<Uuid>)>,
-    my_files: Option<(u64, Option<Uuid>)>,
     settings: HashMap<Uuid, (u64, Settings)>,
     profiles: HashMap<Uuid, (u64, SettingsProfile)>,
     editors: HashMap<Uuid, (u64, Uuid)>,
+    offline: HashMap<Uuid, (u64, OfflineSettings)>,
 }
 
 impl Cache {
@@ -154,31 +155,36 @@ impl RootSettings {
     }
 
     pub(crate) fn my_files(&self) -> Option<Uuid> {
-        let account = be::account()?;
-        let revision = be::graph_revision();
-        let mut cache = self.cache.borrow_mut();
-        if let Some((seen, found)) = cache.my_files
-            && seen == revision
-        {
-            return found.or(self.created_files);
-        }
-        let found = be::query(be::Query::Roots)
-            .into_iter()
-            .filter(|node| {
-                node.author == Some(account) && node.metadata.get(&MY_FILES) == Some(true)
-            })
-            .map(|node| node.id)
-            .min();
-        cache.my_files = Some((revision, found));
-        found.or(self.created_files)
+        let (account, organization) = be::identity()?;
+        let block = be_block::my_files(organization, account);
+        be::node(block)
+            .is_some_and(|node| node.parent == Some(BlockParent::Root))
+            .then_some(block)
+            .or_else(|| self.created_files())
+    }
+
+    fn created_files(&self) -> Option<Uuid> {
+        self.created_files.filter(|block| {
+            be::node(*block).is_none_or(|node| node.parent != Some(BlockParent::Detached))
+        })
     }
 
     pub(crate) fn ensure_my_files(&mut self) -> Option<Uuid> {
-        if self.my_files().is_none() && be::ready(be::Query::Roots) {
-            let block = Uuid::now_v7();
+        if self.my_files().is_none()
+            && be::ready(be::Query::Roots)
+            && let Some((account, organization)) = be::identity()
+            && be::ready(be::Query::Block(be_block::my_files(organization, account)))
+        {
+            let block = be_block::my_files(organization, account);
+            if let Some(deleted) = be::node(block) {
+                if deleted.parent == Some(BlockParent::Detached) {
+                    be::set_parent(block, BlockParent::Root);
+                    self.created_files = Some(block);
+                }
+                return self.my_files();
+            }
             let mut metadata = BlockMetadata::default();
             metadata.insert(&NAME, &"My files".to_owned());
-            metadata.insert(&MY_FILES, &true);
             be::create(block, WORKSPACE_TYPE, BlockParent::Root, metadata, None);
             self.created_files = Some(block);
         }
@@ -230,6 +236,56 @@ impl RootSettings {
                     .unwrap_or(self.shell),
             )
         })
+    }
+
+    fn offline_layer(&self, block: Option<Uuid>) -> Option<OfflineSettings> {
+        let block = block?;
+        let mut cache = self.cache.borrow_mut();
+        Cache::read(
+            &mut cache.offline,
+            block,
+            OfflineSettingsContent::CONTENT_TYPE,
+            || decode::<OfflineSettingsContent>(block).map(|document| document.root()),
+        )
+    }
+
+    pub(crate) fn offline_settings(
+        &self,
+        client: Uuid,
+        organization: Option<Uuid>,
+    ) -> Resolution<OfflineSettings> {
+        let kind = OfflineSettingsContent::CONTENT_TYPE;
+        let block = organization.map(organization_settings);
+        be::want(
+            be::Owner::Organization,
+            block.into_iter().map(be::Query::Block).collect(),
+        );
+        let held =
+            block.filter(|block| be::node(*block).is_some_and(|node| node.access.can_view()));
+        let held = held.and_then(|block| {
+            let mut cache = self.cache.borrow_mut();
+            Cache::read(&mut cache.settings, block, Settings::CONTENT_TYPE, || {
+                decode::<SettingsContent>(block).map(|document| document.root())
+            })
+        });
+        let own = self.layers(kind, client);
+        Resolution::resolve(ResolutionLayers {
+            organization_policy: self
+                .offline_layer(held.as_ref().and_then(|held| held.policy(kind))),
+            organization_default: self
+                .offline_layer(held.as_ref().and_then(|held| held.kind(kind))),
+            block: None,
+            every_device: self.offline_layer(own.every_device),
+            this_device: self.offline_layer(own.this_device),
+        })
+    }
+
+    pub(crate) fn workspaces(&self) -> Vec<Uuid> {
+        be::query(be::Query::Roots)
+            .into_iter()
+            .filter(|node| node.content_type == WORKSPACE_TYPE)
+            .map(|node| node.id)
+            .collect()
     }
 
     fn edit(&self, edit: &be_block::Edit) {

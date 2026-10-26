@@ -29,7 +29,7 @@ pub fn MenuButton(
     on_middle_click: ClickCallback,
     on_scroll: Callback<ScrollGesture>,
     #[prop(default = false)] open: Binding<bool>,
-    on_select: Callback<Vec<usize>>,
+    #[prop(default = Callback::default())] on_select: Callback<Vec<usize>>,
 ) -> NodeId {
     let button = NodeRef::new();
     let shown = create_memo(move || open.get());

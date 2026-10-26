@@ -8,13 +8,17 @@ else may still change freely.
 
 - **The server's data directory**: `metadata.sqlite` (its tables and columns,
   and how each value is written: ids as text, hashes as hex, kinds, roles,
-  access levels, parent kinds, `wrapped_by` as a key id or `account:{uuid}`,
+  access levels (`know_exists`, `view`, `edit`, `manage`), parent kinds, `wrapped_by` as a key id or `account:{uuid}`,
   password and token hashes) and `objects/`, each object in `objects/ab/cdef…`
   named by the SHA-256 of its bytes. That covers organizations (company or
   personal) and memberships, workspace and other blocks with their sealed
-  metadata and current data key, grants, invitations, contact links,
+  metadata and current data key, commits (with the time the server received
+  each, `block_commits.received`, 0 before it was recorded), grants, invitations, contact links,
   contacts and key changes, the `keys` and `wrapped_keys` rows, pinned escrow
-  keys, pending rotations and agents.
+  keys, pending rotations and agents, which edit kinds were ever opened to
+  anyone inside (`opened_kinds`), and the server's own account
+  (`server_account`: its account id and the secret of the key that blocks
+  shared with the server are sealed to).
 - **The server's backups**: `databases/*.sealed`, sealed with the backup key,
   and `objects/` laid out as on the server.
 - **What the objects and rows hold**, all sealed so only clients read them:
@@ -50,11 +54,21 @@ blocks (a clean break agreed with the user: data moved across in block
 files). What `crates/be-frozen`'s snapshots hold, from 2026-10-16 on, is read
 forever.
 
+Section 1 of `plans/settings.md` is a second, one-time break of the same kind:
+its changes (metadata that points to a block, with `ARTIFACT` now pointing to
+its source; the access model; settings blocks, their `SETTINGS` metadata and
+the `ANYONE_INSIDE` grant on a kind) land together, and then the one
+server with data is wiped and its content re-imported once from a block file.
+Until then they may change other saved data incompatibly, but not what
+`crates/be-frozen`'s snapshots and fixture hold (none of it carries
+`ARTIFACT` metadata, which only the app writes), so those stay read forever
+throughout; afterwards the rules below hold again for everything.
+
 Not frozen yet: every other block type, the network
 protocol (server and clients are upgraded together and refuse other builds),
 the local plugin API, live-session state (operations,
 `LiveEdit::session_state`, relayed messages, presence), and the app's own
-files on a device (`app.sqlite3`, caches).
+files on a device (`app.sqlite3`, the refs database, caches).
 
 Remote human session credentials from before the account portal are intentionally invalidated
 when session metadata is introduced; users sign in again. Account data, password hashes,
@@ -97,7 +111,9 @@ Only add:
   `be`'s tracker: a company organization (My files with notes, a Team
   workspace holding the tracker database shared with an agent, an
   administrator demoted so the escrow key rotated, a grant revoked so Team's
-  scope key rotated, a pending invitation) and the personal organization (a
+  scope key rotated, a pending invitation, and from 2026_10_25 the
+  organization's settings shared with the server, holding a policy it
+  enforces) and the personal organization (a
   folder shared with a contact made by link, a pending link carrying a grant,
   and that contact's change of recovery phrase). The test serves each
   snapshot and reads it the way the app and `be` do: signing in by password,

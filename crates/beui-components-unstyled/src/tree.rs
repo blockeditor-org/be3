@@ -34,7 +34,6 @@ pub struct TreeItem {
 
 pub struct TreeMenu {
     pub items: Children<MenuItem>,
-    pub on_select: Callback<Vec<usize>>,
 }
 
 impl ChildValue for TreeMenu {}
@@ -61,7 +60,6 @@ impl<K> Copy for TreeMenus<K> {}
 #[derive(Clone)]
 pub struct TreeRowMenu {
     items: Run<MenuItem>,
-    on_select: Callback<Vec<usize>>,
     style: MenuStyle,
 }
 
@@ -319,9 +317,8 @@ where
         menus
             .menu
             .call(row_key.clone())
-            .map(|TreeMenu { items, on_select }| TreeRowMenu {
+            .map(|TreeMenu { items }| TreeRowMenu {
                 items: items.into_run(),
-                on_select,
                 style: menus.style,
             })
     });
@@ -348,12 +345,8 @@ where
     });
     let content = match menu {
         None => face,
-        Some(TreeRowMenu {
-            items,
-            on_select,
-            style,
-        }) => view! {
-            <ContextMenu items={Children::from(items)} menu=style on_select>{face}</ContextMenu>
+        Some(TreeRowMenu { items, style }) => view! {
+            <ContextMenu items={Children::from(items)} menu=style>{face}</ContextMenu>
         },
     };
     view! {
@@ -381,11 +374,7 @@ pub fn TreeRowMenuButton(
     #[prop(default = String::from("More actions"))] label: Prop<String>,
     #[prop(children)] trigger: Render<PopupTriggerHandle>,
 ) -> NodeId {
-    let TreeRowMenu {
-        items,
-        on_select,
-        style,
-    } = menu;
+    let TreeRowMenu { items, style } = menu;
     view! {
         <MenuButton
             items={Children::from(items)}
@@ -395,7 +384,6 @@ pub fn TreeRowMenuButton(
             icon_only=true
             tab_stop=false
             capture_presses=true
-            on_select
         />
     }
 }

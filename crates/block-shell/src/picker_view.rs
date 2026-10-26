@@ -2,8 +2,8 @@ use beui::Overflow;
 use block_editor_beui::beui::dock::styled::CHROME_BORDER;
 use block_editor_beui::beui::dock::styled::{DockDialog, DockDialogPresentation, DockNode, TabId};
 use block_editor_beui::beui::icons::{
-    ICON_ARROW_LEFT, ICON_BLOCKS, ICON_CHEVRON_RIGHT, ICON_FILE_UP, ICON_FOLDER, ICON_LINK,
-    ICON_SEARCH,
+    ICON_ARROW_LEFT, ICON_BLOCKS, ICON_CHEVRON_RIGHT, ICON_FILE_UP, ICON_FOLDER,
+    ICON_LAYOUT_TEMPLATE, ICON_LINK, ICON_SEARCH,
 };
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
@@ -13,6 +13,7 @@ use block_editor_beui::block_ui::TemplateEntry;
 use block_editor_beui::{
     BlockParent, ChildMode, ChildState, Subregion, SubregionContent, label_glyph,
 };
+use uuid::Uuid;
 
 use super::picker::{
     Creating, Pick, PickAction, PickTree, Stage, TreeKey, TreeRow, TypeGroup, common, groups,
@@ -203,6 +204,12 @@ fn TypeItems(
         })
     });
     let keys = create_memo(move || common.get().iter().map(tile_key).collect::<Vec<_>>());
+    let templated = create_memo(move || {
+        held.with(|held| {
+            held.as_ref()
+                .is_some_and(|held| !workspace.templates_for(held.import_parent()).is_empty())
+        })
+    });
     let first = create_memo(move || keys.get().first().cloned());
     let row = move |key: String| {
         let entry = create_memo({
@@ -227,12 +234,18 @@ fn TypeItems(
             <LocationItem workspace held act />
             <ForEach keys>|key: String| { row(key) }</ForEach>
             <MoreItem act label="More blocks…" />
+            <Show condition={templated}>
+                <TemplatesItem workspace held act />
+            </Show>
             <LinkItem act />
             <ImportItem held act />
         },
         false => view! {
             <ForEach keys>|key: String| { row(key) }</ForEach>
             <MoreItem act label="More blocks…" />
+            <Show condition={templated}>
+                <TemplatesItem workspace held act />
+            </Show>
             <LinkItem act />
             <ImportItem held act />
         },
@@ -313,6 +326,46 @@ fn TypeItem(
                 }
             }}
         />
+    }
+}
+
+#[component]
+fn TemplatesItem(workspace: Workspace, held: Memo<Option<Pick>>, act: Act) -> MenuItem {
+    let templates = create_memo(move || {
+        held.with(|held| {
+            held.as_ref()
+                .map(|held| workspace.templates_for(held.import_parent()))
+                .unwrap_or_default()
+        })
+    });
+    let disabled = create_memo(move || {
+        held.with(|held| held.as_ref().is_some_and(|held| held.importing.is_some()))
+    });
+    view! {
+        <MenuItem
+            label="New from template"
+            glyph=ICON_LAYOUT_TEMPLATE
+            disabled
+            row_test_id="picker.templates"
+        >
+            <ForEach keys={templates}>|template: Uuid| {
+                let label = create_memo(move || {
+                    let types = workspace.types();
+                    workspace
+                        .info(template)
+                        .map(|info| info.label(types.as_ref()).name)
+                        .unwrap_or_else(|| "Template".to_owned())
+                });
+                view! {
+                    <MenuItem
+                        label
+                        then=MenuThen::Stay
+                        row_test_id={format!("picker.template.{template}")}
+                        on_click={move || act.call(PickAction::CopyTemplate(template))}
+                    />
+                }
+            }</ForEach>
+        </MenuItem>
     }
 }
 

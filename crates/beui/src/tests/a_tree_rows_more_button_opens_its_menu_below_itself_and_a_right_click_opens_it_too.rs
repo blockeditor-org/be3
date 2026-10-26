@@ -6,7 +6,7 @@ use crate::unstyled::TreeItem;
 #[test]
 fn a_tree_rows_more_button_opens_its_menu_below_itself_and_a_right_click_opens_it_too() {
     let _root = crate::reactive::RootScope::new();
-    let chosen = create_signal(Vec::<(usize, Vec<usize>)>::new());
+    let chosen = create_signal(Vec::<usize>::new());
     let document = build_node(move || {
         view! {
             <Tree
@@ -22,12 +22,10 @@ fn a_tree_rows_more_button_opens_its_menu_below_itself_and_a_right_click_opens_i
                         <unstyled::MenuItem
                             label="Rename"
                             row_test_id={"tree.menu.rename".to_owned()}
+                            on_click={move || chosen.update(|chosen| chosen.push(row))}
                         />
                         <unstyled::MenuItem label="Delete" />
                     },
-                    on_select: Callback::new(move |path: Vec<usize>| {
-                        chosen.update(|chosen| chosen.push((row, path)))
-                    }),
                 })}
             >|face: TreeRowFace<usize>|
                 <Text>{format!("Row {}", face.key)}</Text>
@@ -46,7 +44,7 @@ fn a_tree_rows_more_button_opens_its_menu_below_itself_and_a_right_click_opens_i
     );
     harness.click(rename.center());
     harness.settle();
-    assert_eq!(chosen.get_untracked(), vec![(0, vec![0])]);
+    assert_eq!(chosen.get_untracked(), vec![0]);
 
     let row = harness.rect(harness.find("tree.1.row"));
     let at = row.center();
@@ -65,5 +63,5 @@ fn a_tree_rows_more_button_opens_its_menu_below_itself_and_a_right_click_opens_i
     let rename = harness.rect(harness.find("tree.menu.rename"));
     harness.click(rename.center());
     harness.settle();
-    assert_eq!(chosen.get_untracked(), vec![(0, vec![0]), (1, vec![0])]);
+    assert_eq!(chosen.get_untracked(), vec![0, 1]);
 }

@@ -1,5 +1,7 @@
 use block_editor_beui::beui::NodeId;
-use block_editor_beui::beui::icons::{ICON_LINK, ICON_LOCK, ICON_USER, ICON_USER_PLUS, ICON_X};
+use block_editor_beui::beui::icons::{
+    ICON_LINK, ICON_LOCK, ICON_TRIANGLE_ALERT, ICON_USER, ICON_USER_PLUS, ICON_X,
+};
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
 use block_editor_beui::{
@@ -8,7 +10,7 @@ use block_editor_beui::{
 };
 use uuid::Uuid;
 
-use super::share::{GRANTABLE, Member, Person, ShareAction};
+use super::share::{GRANTABLE, Member, Person, Share, ShareAction};
 use super::workspace::Workspace;
 use block_editor_beui::beui::TextAlign;
 
@@ -206,21 +208,41 @@ fn ShareDialog(workspace: Workspace) -> NodeId {
     let has_pending = create_memo(move || !pending_keys.get().is_empty());
     let pending_access = create_memo(move || {
         state.with(|share| {
-            share.as_ref().map_or(Some(0), |share| {
+            share.as_ref().map_or(Some(1), |share| {
                 GRANTABLE
                     .iter()
                     .position(|access| *access == share.pending_access)
             })
         })
     });
+    let name_of = move |id: Uuid| {
+        workspace
+            .info(id)
+            .filter(|info| info.access.can_view())
+            .map_or_else(
+                || "a folder above".to_owned(),
+                |info| workspace.label(info.id, info.block_type).name,
+            )
+    };
     let members = create_memo(move || {
         state.with(|share| {
             share
                 .as_ref()
-                .map(|share| share.members(me))
+                .map(|share| share.members(me, name_of))
                 .unwrap_or_default()
         })
     });
+    let company = create_memo(move || {
+        state.with(|share| {
+            share
+                .as_ref()
+                .is_some_and(|share| share.company && share.members.is_ok())
+        })
+    });
+    let inside =
+        create_memo(move || state.with(|share| share.as_ref().and_then(Share::inside_note)));
+    let has_inside = create_memo(move || inside.get().is_some());
+    let inside_text = create_memo(move || inside.get().unwrap_or_default());
     let member_keys = create_memo(move || {
         members
             .get()
@@ -330,6 +352,7 @@ fn ShareDialog(workspace: Workspace) -> NodeId {
                                 })}
                                 label="Access to grant"
                                 options={view! {
+                                    <ChoiceOption label={AccessLevel::Manage.label()} />
                                     <ChoiceOption label={AccessLevel::Edit.label()} />
                                     <ChoiceOption label={AccessLevel::View.label()} />
                                     <ChoiceOption label={AccessLevel::KnowExists.label()} />
@@ -369,7 +392,31 @@ fn ShareDialog(workspace: Workspace) -> NodeId {
                         />
                     </List>
                 </Show>
+                <Show condition={has_inside}>
+                    <List direction=Direction::Horizontal align=Align::Center spacing=Space::Xs>
+                        <Text size=TextSize::Sm align=TextAlign::Center>
+                            <Icon glyph=ICON_TRIANGLE_ALERT />
+                        </Text>
+                        <Text style=TextStyle::CAPTION @test_id={"share.inside"}>
+                            {inside_text}
+                        </Text>
+                    </List>
+                </Show>
                 <Text style=TextStyle::HEADING>"People with access"</Text>
+                <Show condition={company}>
+                    <List direction=Direction::Horizontal align=Align::Center spacing=Space::Xs>
+                        <Text size=TextSize::Sm align=TextAlign::Center>
+                            <Icon glyph=ICON_LOCK />
+                        </Text>
+                        <Text
+                            style=TextStyle::CAPTION
+                            @test_id={"share.administrators"}
+                            @sizing=ItemSize::Percent(100.0)
+                        >
+                            "The organization's administrators can manage this block. This can't be changed."
+                        </Text>
+                    </List>
+                </Show>
                 <Frame height=MEMBERS_HEIGHT>
                     <Scroll>
                         <Show condition={nobody}>
@@ -435,10 +482,15 @@ fn MemberRow(member: Memo<Option<Member>>, act: ShareAct) -> NodeId {
             .map(|member| member.access.label().to_owned())
             .unwrap_or_default()
     });
-    let selected = create_memo(move || {
+    let choices = create_memo(move || {
         member
             .get()
-            .and_then(|member| GRANTABLE.iter().position(|access| *access == member.access))
+            .map(|member| member.choices())
+            .unwrap_or_default()
+    });
+    let selected = create_memo(move || {
+        let access = member.get()?.access;
+        choices.get().iter().position(|choice| *choice == access)
     });
     let removable = create_memo(move || member.get().is_some_and(|member| member.removable));
     view! {
@@ -483,18 +535,18 @@ fn MemberRow(member: Memo<Option<Member>>, act: ShareAct) -> NodeId {
                                 let Some(member) = member.get_untracked() else {
                                     return;
                                 };
-                                let Some(access) = index.and_then(|index| GRANTABLE.get(index).copied()) else {
+                                let Some(access) = index.and_then(|index| choices.get_untracked().get(index).copied()) else {
                                     return;
                                 };
-                                if access != member.access {
+                                if let Some(access) = member.choose(access) {
                                     act.call(ShareAction::SetAccess(member.id, access));
                                 }
                             })}
                             label="Access"
                             options={view! {
-                                <ChoiceOption label={AccessLevel::Edit.label()} />
-                                <ChoiceOption label={AccessLevel::View.label()} />
-                                <ChoiceOption label={AccessLevel::KnowExists.label()} />
+                                <ForEach keys={choices}>|level: AccessLevel|
+                                    <ChoiceOption label={level.label()} />
+                                </ForEach>
                             }}
                         />
                     </Show>

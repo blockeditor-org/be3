@@ -110,13 +110,24 @@ jobs:
       - uses: ./.github/actions/buck2
         if: ${{ !cancelled() }}
 
+      # What draws the browser paintings in the previews: Playwright, driving
+      # the Google Chrome the runner image already has. Downloading Playwright's
+      # own Chromium, and its system packages with apt, took minutes and
+      # sometimes stalled for more than ten; the Python package alone is one
+      # wheel. Before and after are drawn by the same browser in the same run,
+      # so which Chrome it is does not change what the previews compare. An
+      # image without Chrome falls back to the download.
       - name: Install the browser preview runtime
         if: ${{ !cancelled() && github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && hashFiles('crates/browser-rasterizer/requirements.txt') != '' }}
         run: |
           python3 -m venv "$RUNNER_TEMP/browser-rasterizer"
-          "$RUNNER_TEMP/browser-rasterizer/bin/pip" install -r crates/browser-rasterizer/requirements.txt
-          "$RUNNER_TEMP/browser-rasterizer/bin/python" -m playwright install --with-deps chromium
+          "$RUNNER_TEMP/browser-rasterizer/bin/pip" install --quiet -r crates/browser-rasterizer/requirements.txt
           echo "BE3_PLAYWRIGHT_PYTHON=$RUNNER_TEMP/browser-rasterizer/bin/python" >> "$GITHUB_ENV"
+          if chrome="$(command -v google-chrome)"; then
+            echo "BE3_CHROME=$chrome" >> "$GITHUB_ENV"
+          else
+            "$RUNNER_TEMP/browser-rasterizer/bin/python" -m playwright install --with-deps chromium
+          fi
 
       - name: Run ./scripts/ci
         if: ${{ !cancelled() }}

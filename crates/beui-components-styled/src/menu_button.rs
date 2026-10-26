@@ -31,7 +31,7 @@ pub fn MenuButton(
     on_secondary_click: ClickCallback,
     on_middle_click: ClickCallback,
     on_scroll: Callback<ScrollGesture>,
-    on_select: Callback<Vec<usize>>,
+    #[prop(default = Callback::default())] on_select: Callback<Vec<usize>>,
 ) -> NodeId {
     let image = create_memo(move || image.get());
     let arrow = create_memo(move || arrow.get());

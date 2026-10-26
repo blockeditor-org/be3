@@ -1,4 +1,6 @@
 pub const ORGANIZATION: &str = "Frozen";
+pub const POLICIES_SINCE: &str = "2026_10_25";
+pub const SESSIONS_KEPT_SINCE: &str = "2026_10_25";
 
 pub const OWNER_EMAIL: &str = "owner@example.com";
 pub const OWNER_NAME: &str = "Owner";

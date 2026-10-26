@@ -17,8 +17,6 @@ pub(crate) fn start(_setup: &beui::Setup) {}
 fn apply(_settings: &InputSettings) {}
 
 impl LocalSettings for InputSettings {
-    const NAME: &'static str = "input settings";
-
     fn load(store: &AppStateStore) -> Result<Option<Vec<u8>>, AppStateError> {
         store.input_settings()
     }

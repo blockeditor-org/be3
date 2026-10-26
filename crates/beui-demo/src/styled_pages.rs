@@ -3307,13 +3307,15 @@ fn ProjectTree() -> NodeId {
                             label="Rename"
                             glyph=ICON_PENCIL
                             row_test_id={"demo.tree.rename".to_owned()}
+                            on_click={move || editing.set(Some(row))}
                         />
-                        <MenuItem label="Delete" glyph=ICON_TRASH danger=true />
+                        <MenuItem
+                            label="Delete"
+                            glyph=ICON_TRASH
+                            danger=true
+                            on_click={move || chosen.set(Some(format!("Delete {}", name(row))))}
+                        />
                     },
-                    on_select: Callback::new(move |path: Vec<usize>| match path.as_slice() {
-                        [0] => editing.set(Some(row)),
-                        _ => chosen.set(Some(format!("Delete {}", name(row)))),
-                    }),
                 })}
                 on_edit={move |row: usize| editing.set(Some(row))}
                 on_rename={move |(row, renamed): (usize, String)| {

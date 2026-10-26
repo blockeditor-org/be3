@@ -18,7 +18,7 @@ fn this_device_can_pick_a_new_settings_profile() {
     assert_eq!(info.name().as_deref(), Some("Profile 1"));
     settings.snapshot("a_new_settings_profile_is_listed");
 
-    let (root, client) = (Uuid::new_v4(), Uuid::new_v4());
+    let (root, client) = (Uuid::from_u128(0xd0_0001), Uuid::from_u128(0xd0_0002));
     let host = EditorHost::default();
     host.set_editable(true);
     host.set_client_id(client);

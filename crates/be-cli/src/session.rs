@@ -154,7 +154,9 @@ async fn connect_to(settings: &Settings, url: String) -> Result<Peer<FileStore>,
             settings.server
         ));
     }
-    let connection = Connection::connect(&url).await.map_err(explain)?;
+    let connection = Connection::connect(&url, &be_client::Clock::real())
+        .await
+        .map_err(explain)?;
     let signed_in = connection
         .request(|request| {
             if settings.token.is_empty() {

@@ -40,7 +40,7 @@ pub fn ContextMenu(
     #[prop(default = None)] toolbar_at: Prop<Option<Rect>>,
     #[prop(default = true)] opens_on_hold: bool,
     on_close: ClickCallback,
-    on_select: Callback<Vec<usize>>,
+    #[prop(default = Callback::default())] on_select: Callback<Vec<usize>>,
     on_toolbar_close: ClickCallback,
 ) -> NodeId {
     let open = create_signal(false);

@@ -129,6 +129,12 @@ const SCHEMA: &str = "
         PRIMARY KEY (organization_id, block_id, account_id)
     );
 
+    CREATE TABLE opened_kinds (
+        organization_id TEXT NOT NULL,
+        block_id        TEXT NOT NULL,
+        PRIMARY KEY (organization_id, block_id)
+    );
+
     CREATE TABLE block_commits (
         organization_id TEXT NOT NULL,
         block_id        TEXT NOT NULL,
@@ -136,6 +142,7 @@ const SCHEMA: &str = "
         parents         TEXT NOT NULL DEFAULT '',
         time            INTEGER NOT NULL,
         pinned          INTEGER NOT NULL CHECK (pinned IN (0, 1)),
+        received        INTEGER NOT NULL DEFAULT 0,
         PRIMARY KEY (organization_id, block_id, commit_id)
     );
 
@@ -220,4 +227,10 @@ const SCHEMA: &str = "
 
     CREATE INDEX block_objects_hash
         ON block_objects (organization_id, hash);
+
+    CREATE TABLE server_account (
+        id              INTEGER PRIMARY KEY CHECK (id = 1),
+        account_id      TEXT NOT NULL REFERENCES accounts(id),
+        secret          BLOB NOT NULL
+    );
 ";

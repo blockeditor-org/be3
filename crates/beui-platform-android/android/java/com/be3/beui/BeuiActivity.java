@@ -5,6 +5,8 @@ import android.content.Intent;
 import android.content.pm.ActivityInfo;
 import android.content.pm.PackageManager;
 import android.database.Cursor;
+import android.net.ConnectivityManager;
+import android.net.Network;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
@@ -28,6 +30,9 @@ public class BeuiActivity extends Activity {
     static final int BACK_PROGRESSED = 1;
     static final int BACK_CANCELLED = 2;
     static final int BACK_INVOKED = 3;
+    static final int LIFECYCLE_BACKGROUND = 0;
+    static final int LIFECYCLE_FOREGROUND = 1;
+    static final int LIFECYCLE_NETWORK_CHANGED = 2;
     private static final int PICK_FILE_REQUEST = 0x8E31;
     private static final int SAVE_FILE_REQUEST = 0x8E32;
     private static final int MAX_FILE_BYTES = 128 * 1024 * 1024;
@@ -42,6 +47,7 @@ public class BeuiActivity extends Activity {
     private long picking;
     private long saving;
     private byte[] savingData;
+    private ConnectivityManager.NetworkCallback networkCallback;
 
     protected void loadNativeLibrary() {
         try {
@@ -69,6 +75,37 @@ public class BeuiActivity extends Activity {
         setContentView(new BeuiView.Host(this, view));
         view.requestFocus();
         BeuiView.nativeCreate(this, view, getAssets(), getFilesDir().getAbsolutePath());
+        watchNetwork();
+    }
+
+    private void watchNetwork() {
+        if (Build.VERSION.SDK_INT < 24) return;
+        ConnectivityManager connectivity = getSystemService(ConnectivityManager.class);
+        if (connectivity == null) return;
+        ConnectivityManager.NetworkCallback callback = new ConnectivityManager.NetworkCallback() {
+            @Override
+            public void onAvailable(Network network) {
+                BeuiView.nativeLifecycle(LIFECYCLE_NETWORK_CHANGED);
+            }
+        };
+        try {
+            connectivity.registerDefaultNetworkCallback(callback);
+            networkCallback = callback;
+        } catch (RuntimeException error) {
+            networkCallback = null;
+        }
+    }
+
+    @Override
+    protected void onPause() {
+        BeuiView.nativeLifecycle(LIFECYCLE_BACKGROUND);
+        super.onPause();
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        BeuiView.nativeLifecycle(LIFECYCLE_FOREGROUND);
     }
 
     void setLightBars(boolean light) {
@@ -116,6 +153,11 @@ public class BeuiActivity extends Activity {
 
     @Override
     protected void onDestroy() {
+        if (networkCallback != null) {
+            ConnectivityManager connectivity = getSystemService(ConnectivityManager.class);
+            if (connectivity != null) connectivity.unregisterNetworkCallback(networkCallback);
+            networkCallback = null;
+        }
         BeuiView.nativeDestroy(isFinishing());
         super.onDestroy();
     }

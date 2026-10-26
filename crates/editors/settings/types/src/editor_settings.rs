@@ -37,6 +37,8 @@ impl EditorSettings {
 }
 
 impl Layered for EditorSettings {
+    const NAME: &'static str = "Default editors";
+
     fn over(&self, lower: &Self) -> Self {
         Self {
             defaults: lower

@@ -42,5 +42,6 @@ interface access {
         know-exists,
         view,
         edit,
+        manage,
     }
 }

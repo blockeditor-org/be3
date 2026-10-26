@@ -27,6 +27,7 @@ mod choosing_a_scale_draws_the_app_larger;
 mod closing_a_tab_shuts_its_editor_down;
 mod fit_on_an_active_child_fits_its_content_in_its_view;
 mod leaving_a_workspace_someone_shared_asks_first;
+mod my_files_offers_no_delete;
 mod presenting_a_deck_fills_the_screen_until_escape;
 mod pressing_the_files_after_a_text_block_moves_the_focus_to_them;
 mod reopening_a_block_keeps_the_view_the_person_moved;

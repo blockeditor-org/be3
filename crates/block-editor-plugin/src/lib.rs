@@ -33,7 +33,7 @@ pub use asked::{Asked, Task};
 pub use block_plugin_api::accesskit;
 pub use block_plugin_api::guest::linux_desktop;
 pub use block_plugin_api::{
-    AccessGrant, AccessLevel, AdministratorWatch, ArtifactAction, AudioCommand, AudioOutput,
+    AccessGrant, AccessLevel, AccessListing, AdministratorWatch, ArtifactAction, AudioCommand, AudioOutput,
     AudioSource, AudioStatus, BarAction, BlockCommand, BlockFilter, BlockLocation, BlockPick,
     BlockTypeDescriptor, Catalog, ChildContent, ChildId, ChildLayer, ChildMode, ChildOperations,
     ChildPlacement, ChildPreview, ChildStatus, ConflictSide, ContactsWatch, CreationProgress,
@@ -66,8 +66,8 @@ pub use content::{ContentProjection, Objects, OwnedContentProjection, Projected}
 pub use geometry::{Pos2, Rect, Vec2, pos2, vec2};
 pub use graph::{BlockInfo, BlockList, BlockParent, BlockQuery, Blocks, GraphCommand};
 pub use host::{
-    Artifact, ArtifactDescription, ArtifactState, BlockDrag, BlockHistory, EditorHost, FileDrop,
-    FileFilter, FocusedBlock, HeadRead, HostContent, OpenRequest, PeerMessage, PeerPresence,
+    Artifact, ArtifactState, BlockDrag, BlockHistory, EditorHost, FileDrop, FileFilter,
+    FocusedBlock, HeadRead, HostContent, OpenRequest, PeerMessage, PeerPresence,
     PerformanceMeasurementGuard, PerformanceReporter, PickRequest, PickedFile, Pushed, SavedFile,
     SeededContent, SentToPeers, ShowRequest, ShownPresence, StoredHead, Waker,
 };

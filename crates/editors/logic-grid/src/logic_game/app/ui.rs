@@ -1,7 +1,9 @@
 use uuid::Uuid;
 
 use block_editor_beui::Editor;
-use block_editor_beui::beui::icons::{ICON_BLOCKS, ICON_CIRCLE_CHECK, ICON_PLUS, ICON_TRASH};
+use block_editor_beui::beui::icons::{
+    ICON_BLOCKS, ICON_CIRCLE_CHECK, ICON_EARTH, ICON_PLUS, ICON_TRASH,
+};
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
 use block_editor_beui::beui::{NodeId, Vec2};
@@ -49,6 +51,13 @@ pub fn LogicGameEditor(editor: Editor) -> NodeId {
 
     let has_hotbar = create_memo(move || hotbar.get().is_some());
     let open_hotbar = move || game.open_hotbar();
+    let manages = game.can_manage();
+    let world_hotbar = game.world_hotbar();
+    let world_label = create_memo(move || match world_hotbar.get() {
+        Some(_) => "This world's hotbar".to_owned(),
+        None => "Give this world a hotbar".to_owned(),
+    });
+    let open_world_hotbar = move || game.open_world_hotbar();
     let keys = create_memo(move || {
         levels.with(|levels| {
             levels
@@ -73,6 +82,15 @@ pub fn LogicGameEditor(editor: Editor) -> NodeId {
                             label="Hotbar"
                             @test_id={"logic-game.hotbar"}
                             on_click={open_hotbar}
+                        />
+                    </Show>
+                    <Show condition={manages}>
+                        <Button
+                            icon_only=true
+                            glyph=ICON_EARTH
+                            label={world_label}
+                            @test_id={"logic-game.world-hotbar"}
+                            on_click={open_world_hotbar}
                         />
                     </Show>
                     <Spacer @sizing=ItemSize::Percent(100.0) />

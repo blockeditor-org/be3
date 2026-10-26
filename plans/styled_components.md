@@ -1003,8 +1003,22 @@ Problems earlier steps found in the beui crates, fixed at their source:
   wall clock, so whether two typed words were one undo step depended on how
   long the machine took, and `drive pause` was invisible to them;
   `be_types_host::hold_clock` now holds their clock while the app's is
-  stopped. The checklist test measured `#checklist.add` before the plugin
+  stopped (`Modules::now` reads the held instant through the module host's
+  `be_client::Clock`, which main's offline work passes in). The checklist test measured `#checklist.add` before the plugin
   had drawn it; it waits for it first.
+- **Checked, overlap noted.** `plans/settings.md` (from main) builds UI
+  this plan governs, and its later steps should follow these rules: the file
+  tree's share and settings icons are the hover-revealed `Button
+  icon_only=true revealed=..` row buttons (§4.5); the share dialog, the
+  unsent edits list and the conflict comparison are `Dialog`s with role
+  actions, a discard question being a nested `DialogKind::Alert` with a
+  destructive action (§9); block menus act through each `MenuItem`'s
+  `on_click`, as `TreeMenu` no longer takes `on_select`; tags draw with
+  `TagDot` (a `Radius::Full` frame) and `TagChip`. The settings editor's
+  organization `Card` (a bordered surface around `SettingsRow`s under the
+  editor's own `Section` heading) repeats the frame `styled::SettingsSection`
+  draws; when the settings plan's step 8 adds more sections, move them onto
+  `SettingsSection` rather than adding cards.
 - **Checked, no change.** beui-demo's saved app preference layer is set by
   the toolbar's theme select and the Animations page's "Disable animations"
   box, so it keeps saving it.
