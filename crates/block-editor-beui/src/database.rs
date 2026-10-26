@@ -9,8 +9,13 @@ use beui::unstyled::ChoiceOption;
 use beui::{Color32, NodeId, Rect};
 pub use block_ui::database::ValueLabels;
 use block_ui::database::{DatabaseValueChange, block_reference_text, field_type_label};
-use database_types::database::{Database, DatabaseColor, DatabaseContent, DatabaseValue, Inverse, RowRef, inverses_of, short_id};
-use database_types::database_schema::{DatabaseField, DatabaseFieldType, DatabaseNumberOptions, DatabaseNumberScale, DatabaseSchemaContent};
+use database_types::database::{
+    Database, DatabaseColor, DatabaseContent, DatabaseValue, Inverse, RowRef, inverses_of, short_id,
+};
+use database_types::database_schema::{
+    DatabaseField, DatabaseFieldType, DatabaseNumberOptions, DatabaseNumberScale,
+    DatabaseSchemaContent,
+};
 use uuid::Uuid;
 
 mod choice;
