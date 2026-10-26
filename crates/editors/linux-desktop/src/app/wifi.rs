@@ -6,16 +6,14 @@ use block_editor_beui::beui::icons::{
 };
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
-use block_editor_beui::beui::unstyled::PopoverHandle;
 use block_editor_beui::linux_desktop;
 use block_editor_beui::{Editor, WifiLink, WifiNetwork, WifiRequest, WifiSecurity, WifiStatus};
 
 use super::popup::BarPopup;
 
-const WIFI_WIDTH: f32 = 320.0;
 const LIST_HEIGHT: f32 = 360.0;
-const SPACING: f32 = 8.0;
-const ROW_SPACING: f32 = 2.0;
+const SPACING: Space = Space::Md;
+const ROW_SPACING: Space = Space::Xs2;
 const MIN_PASSWORD: usize = 8;
 
 fn bars(strength: u8, locked: bool) -> Glyph {
@@ -99,7 +97,6 @@ pub(crate) fn WifiButton(editor: Editor, status: Memo<WifiStatus>) -> NodeId {
             label
             glyph
             icon_only=true
-            width=WIFI_WIDTH
             @test_id={"desktop.wifi"}
             open
         >|_: PopoverHandle|

@@ -4,7 +4,6 @@ use block_editor_beui::be_block::display_settings::{LockAfter, ScreenOff};
 use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
-use block_editor_beui::beui::unstyled::ChoiceOption;
 
 use super::modes::{LOCK_AFTER, SCREEN_OFF, lock_after_label, screen_off_label};
 use super::ui::Settings;

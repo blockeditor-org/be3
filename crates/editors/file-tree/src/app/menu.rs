@@ -5,7 +5,6 @@ use block_editor_beui::beui::icons::{
 };
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
-use block_editor_beui::beui::unstyled::MenuItem;
 use uuid::Uuid;
 
 use super::export::Exporter;

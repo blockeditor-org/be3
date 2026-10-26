@@ -1,6 +1,6 @@
 use beui::KeyAt;
 use block_editor_beui::beui::Key;
-use block_editor_beui::beui::dock::unstyled::{DockingLayout, TabId};
+use block_editor_beui::beui::dock::styled::{DockingLayout, TabId};
 use block_editor_beui::beui::icons::{ICON_BRING_TO_FRONT, ICON_CIRCLE_X};
 use block_editor_beui::beui::reactive::*;
 

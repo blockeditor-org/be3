@@ -3,7 +3,6 @@ use block_editor_beui::be_block::{InputRemapper, InputRemapperContent, InputSett
 use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
-use block_editor_beui::beui::unstyled::ChoiceOption;
 use block_editor_beui::{BlockParent, Editor, LayeredSettingsRow};
 
 use uuid::Uuid;

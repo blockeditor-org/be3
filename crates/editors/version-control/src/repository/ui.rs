@@ -9,8 +9,8 @@ use block_editor_beui::{
     node_anchor, short_id,
 };
 
-const PADDING: f32 = 24.0;
-const SECTION_SPACING: f32 = 18.0;
+const PADDING: Space = Space::Xl3;
+const SECTION_SPACING: Space = Space::Xl2;
 
 #[component]
 pub fn RepositoryView(editor: Editor) -> NodeId {
@@ -74,11 +74,11 @@ pub fn RepositoryView(editor: Editor) -> NodeId {
     };
 
     view! {
-        <List spacing=0.0>
+        <List spacing=Space::None>
             <Scroll @sizing=ItemSize::Percent(100.0)>
                 <Frame padding=PADDING>
                     <List spacing=SECTION_SPACING>
-                        <List spacing=6.0>
+                        <List spacing=Space::Sm>
                             <Text style=TextStyle::HEADING>"Repository"</Text>
                             <Show condition={has_note}>
                                 <Text style=TextStyle::CAPTION @test_id={"repository.note"}>
@@ -88,7 +88,7 @@ pub fn RepositoryView(editor: Editor) -> NodeId {
                         </List>
                         <Show condition={unversioned}>
                             <Card>
-                                <List spacing=10.0>
+                                <List spacing=Space::Md>
                                     <Text>"Nothing is versioned here yet."</Text>
                                     <Text style=TextStyle::CAPTION>
                                         "Choose a block, and everything inside it is saved as the first change. From then on its edits gather into changes you describe and save, and any step can be undone."
@@ -106,14 +106,14 @@ pub fn RepositoryView(editor: Editor) -> NodeId {
                         </Show>
                         <Show condition={versioned}>
                             <Card>
-                                <List spacing=10.0>
+                                <List spacing=Space::Md>
                                     <Text style=TextStyle::HEADING>"Branches"</Text>
                                     <ForEach keys={branches} view={rows} />
                                 </List>
                             </Card>
                         </Show>
                         <Card>
-                            <List spacing=10.0>
+                            <List spacing=Space::Md>
                                 <Text style=TextStyle::HEADING>"Original"</Text>
                                 <Show condition={has_upstream}>
                                     <BlockLink
@@ -130,7 +130,7 @@ pub fn RepositoryView(editor: Editor) -> NodeId {
                                 <List
                                     direction=Direction::Horizontal
                                     align=Align::Center
-                                    spacing=10.0
+                                    spacing=Space::Md
                                 >
                                     <Button
                                         label="Copy this history"
@@ -157,13 +157,13 @@ pub fn RepositoryView(editor: Editor) -> NodeId {
                             </List>
                         </Card>
                         <Card>
-                            <List spacing=10.0>
+                            <List spacing=Space::Md>
                                 <Text style=TextStyle::HEADING>"Saved changes"</Text>
                                 <VersionHistory log={log} />
                             </List>
                         </Card>
                         <Card>
-                            <List spacing=10.0>
+                            <List spacing=Space::Md>
                                 <Text style=TextStyle::HEADING>"What was done"</Text>
                                 <VersionSteps
                                     editor={editor}
@@ -188,7 +188,7 @@ fn BranchRow(editor: Editor, blocked: Memo<bool>, name: String, head: String) ->
         <List
             direction=Direction::Horizontal
             align=Align::Center
-            spacing=10.0
+            spacing=Space::Md
             @test_id=branch_test_id
         >
             <Text overflow=Overflow::Ellipsis @sizing=ItemSize::Percent(100.0)>{name}</Text>

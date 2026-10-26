@@ -25,7 +25,7 @@ impl block_editor_beui::BeuiApp for DefaultEditorsApp {
                     let device = settings.on_this_device();
                     editor.block_types_known();
                     view! {
-                        <List spacing=0.0>
+                        <List spacing=Space::None>
                             <Keyed
                                 value={device}
                                 key={|device: bool| device}

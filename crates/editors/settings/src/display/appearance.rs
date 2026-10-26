@@ -1,7 +1,6 @@
 use block_editor_beui::be_block::DisplaySettings;
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
-use block_editor_beui::beui::unstyled::ChoiceOption;
 use block_editor_beui::beui::{NodeId, ThemeKind};
 use block_editor_beui::{Editor, LayeredSettingsRow, PreferenceSourcesWatch};
 

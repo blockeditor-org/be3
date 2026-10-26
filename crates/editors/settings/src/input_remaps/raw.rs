@@ -4,15 +4,14 @@ use std::sync::Arc;
 use be_remap::text;
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
-use block_editor_beui::beui::unstyled::TextAreaState;
 use block_editor_beui::beui::{ItemSize, NodeId};
 use text_editor_core::{Document, TextBuffer, TextLanguage};
 
 use super::ui::Shared;
 
-const ROW_SPACING: f32 = 8.0;
+const ROW_SPACING: Space = Space::Md;
 const TEXT_HEIGHT: f32 = 360.0;
-const SIDE_INSET: f32 = 20.0;
+const SIDE_INSET: Space = Space::Xl2;
 const EXAMPLE: &str = r#"[[group]]
 name = "Everywhere"
 rules = [
@@ -71,7 +70,7 @@ pub(super) fn TomlTab(shared: Shared) -> NodeId {
     let failed = create_memo(move || error.get().is_some());
     let problem = create_memo(move || error.get().unwrap_or_default());
     view! {
-        <Frame padding={Sides::horizontal(SIDE_INSET)}>
+        <Frame padding={Padding::horizontal(SIDE_INSET)}>
             <List spacing=ROW_SPACING>
                 <TextArea
                     @sizing=ItemSize::Fixed(TEXT_HEIGHT)

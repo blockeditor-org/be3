@@ -16,7 +16,7 @@ use crate::keys::{TerminalInput, key_event, text_event};
 use crate::lines::{Lines, Look, Piece, Shown, color, screen};
 
 const TEXT: TextStyle = TextStyle::CODE;
-const PADDING: f32 = 6.0;
+const PADDING: Space = Space::Sm;
 const CARET_WIDTH: f32 = 2.0;
 const COPY_KEY: Chord = Chord::ctrl(Key::C).shift();
 
@@ -121,17 +121,19 @@ pub fn TerminalView(
         false => Vec::new(),
     });
     let spill = Rc::new(Cell::new(0.0_f32));
+    let padding = use_space(PADDING);
     view! {
         <LayoutBuilder>|size: ReadSignal<Vec2>| {
             let measured = create_memo(move || cell().unwrap_or(Vec2::new(7.0, 15.0)));
             create_effect(move || {
                 let size = size.get();
+                let inset = 2.0 * padding.get();
                 let Some(cell) = cell() else {
                     return;
                 };
                 let fit = Fit {
-                    cols: ((size.x - 2.0 * PADDING) / cell.x).floor().max(1.0) as u16,
-                    rows: ((size.y - 2.0 * PADDING) / cell.y).floor().max(1.0) as u16,
+                    cols: ((size.x - inset) / cell.x).floor().max(1.0) as u16,
+                    rows: ((size.y - inset) / cell.y).floor().max(1.0) as u16,
                 };
                 untrack(|| on_fit.call(fit));
             });
@@ -185,7 +187,7 @@ pub fn TerminalView(
                                         }
                                     }}
                                 >
-                                    <List spacing=0.0>
+                                    <List spacing=Space::None>
                                         <Show condition={scrolling}>
                                             <VirtualList
                                                 keys

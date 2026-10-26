@@ -2,16 +2,14 @@ use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::icons::ICON_VOLUME_X;
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
-use block_editor_beui::beui::unstyled::{ChoiceOption, PopoverHandle};
 use block_editor_beui::linux_desktop;
 use block_editor_beui::{Editor, MediaLevel, MediaLevels, MediaRequest};
 
 use super::media::volume_glyph;
 use super::popup::BarPopup;
 
-const VOLUME_WIDTH: f32 = 280.0;
-const SPACING: f32 = 12.0;
-const LABEL_SPACING: f32 = 4.0;
+const SPACING: Space = Space::Lg;
+const LABEL_SPACING: Space = Space::Xs;
 const PERCENT_WIDTH: f32 = 44.0;
 
 fn percent(level: MediaLevel) -> String {
@@ -24,7 +22,7 @@ pub(crate) fn VolumeButton(editor: Editor, levels: Memo<MediaLevels>) -> NodeId 
     let glyph = create_memo(move || output.get().map_or(ICON_VOLUME_X, volume_glyph).to_owned());
     let label = create_memo(move || output.get().map(percent).unwrap_or_default());
     view! {
-        <BarPopup label glyph width=VOLUME_WIDTH @test_id={"desktop.volume"}>|_: PopoverHandle|
+        <BarPopup label glyph @test_id={"desktop.volume"}>|_: PopoverHandle|
             <VolumePanel editor={editor} levels={levels} />
         </BarPopup>
     }

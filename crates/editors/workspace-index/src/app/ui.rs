@@ -10,8 +10,8 @@ use block_editor_beui::{Editor, Toolbar};
 
 use super::entries::{Entry, Folder, FolderSort, Listing};
 
-const PADDING: f32 = 12.0;
-const TILE_SPACING: f32 = 10.0;
+const PADDING: Space = Space::Lg;
+const TILE_SPACING: Space = Space::Md;
 const ROW_HEIGHT: f32 = 24.0;
 const INTRINSIC_WIDTH: f32 = 400.0;
 const LARGE_TILE: Vec2 = Vec2::new(150.0, 118.0);
@@ -19,7 +19,7 @@ const SMALL_TILE: Vec2 = Vec2::new(98.0, 78.0);
 const LARGE_ICON: TextSize = TextSize::Xl4;
 const SMALL_ICON: TextSize = TextSize::Xl;
 const ROW_ICON: TextSize = TextSize::Sm;
-const DROP_OUTLINE: f32 = 2.0;
+const DROP_OUTLINE: Stroke = Stroke::Focus;
 
 #[derive(Clone, Copy, Default, PartialEq, Eq)]
 enum FolderView {
@@ -130,14 +130,13 @@ pub fn FolderEditor(editor: Editor) -> NodeId {
     let chrome = editor.chrome_shown();
     let content = NodeRef::new();
     editor.content(&content);
-    let theme = use_theme();
     let hovering = create_memo(move || drop.get().is_some());
     let outline = create_memo(move || match drop.get() {
-        Some(true) => theme.accent.get(),
-        _ => theme.danger.get(),
+        Some(true) => ColorRole::Accent,
+        _ => ColorRole::Danger,
     });
     view! {
-        <List spacing=0.0>
+        <List spacing=Space::None>
             <Toolbar shown={chrome}>
                 <Select
                     options={view! {
@@ -181,10 +180,10 @@ pub fn FolderEditor(editor: Editor) -> NodeId {
             <Frame
                 @sizing=ItemSize::Percent(100.0)
                 @node_ref={&content}
-                border={create_memo(move || hovering.get().then(|| Border::new(ColorRole::Custom(outline.get())).width(DROP_OUTLINE)))}
+                border={create_memo(move || hovering.get().then(|| Border::new(outline.get()).width(DROP_OUTLINE)))}
                 padding=PADDING
             >
-                <List spacing=0.0>
+                <List spacing=Space::None>
                     <Show condition={empty}>
                         <Text
                             style=TextStyle::CAPTION
@@ -229,7 +228,7 @@ fn EntryRows(cells: Cells) -> NodeId {
     let selected = cells.selected;
     let chosen = create_selector(move || selected.get());
     view! {
-        <List spacing=2.0>
+        <List spacing=Space::Xs2>
             <ForEach keys={keys}>|key: Uuid| {
                 let entry = cells.entry(key);
                 let open = cells.open(entry);
@@ -241,7 +240,7 @@ fn EntryRows(cells: Cells) -> NodeId {
                         on_click={move || selected.set(Some(key))}
                         on_activate={open}
                     >
-                        <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
+                        <List direction=Direction::Horizontal align=Align::Center spacing=Space::Md>
                             <EntryGlyph entry={entry} size=ROW_ICON />
                             <Text
                                 overflow=Overflow::Ellipsis
@@ -278,8 +277,8 @@ fn EntryTiles(cells: Cells, tile: Vec2, icon_size: TextSize) -> NodeId {
                         on_click={move || selected.set(Some(key))}
                         on_activate={open}
                     >
-                        <Frame height={tile.y}>
-                            <List align=Align::Center justify=Justify::Center spacing=4.0>
+                        <Frame height={Size::Custom(tile.y)}>
+                            <List align=Align::Center justify=Justify::Center spacing=Space::Xs>
                                 <EntryGlyph entry={entry} size={icon_size} />
                                 <Text color={name_color(entry)} align=TextAlign::Center>
                                     {name_of(entry)}

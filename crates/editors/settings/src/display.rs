@@ -28,7 +28,7 @@ impl block_editor_beui::BeuiApp for DisplaySettingsApp {
                     let settings = LayeredSettings::<DisplaySettings>::page(editor);
                     let device = settings.on_this_device();
                     view! {
-                        <List spacing=0.0>
+                        <List spacing=Space::None>
                             <Keyed
                                 value={device}
                                 key={|device: bool| device}

@@ -9,7 +9,6 @@ use block_editor_beui::beui::icons::{
 };
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
-use block_editor_beui::beui::unstyled::{MenuItem, PopoverHandle};
 use block_editor_beui::{
     DisplaysWatch, EpaperWatch, MediaWatch, PowerWatch, WifiWatch, node_anchor, utc_offset,
 };
@@ -27,8 +26,8 @@ use super::tray::TrayItems;
 use super::volume::VolumeButton;
 use super::wifi::WifiButton;
 
-const BAR_PADDING: f32 = 6.0;
-const BAR_SPACING: f32 = 8.0;
+const BAR_PADDING: Space = Space::Sm;
+const BAR_SPACING: Space = Space::Md;
 const SECONDS_PER_MINUTE: u64 = 60;
 const SECONDS_PER_DAY: i64 = 24 * 60 * 60;
 
@@ -112,7 +111,7 @@ pub(crate) fn DesktopBar(
         }
     };
     view! {
-        <List spacing=0.0>
+        <List spacing=Space::None>
             <Separator />
             <Frame fill=ColorRole::Surface padding=BAR_PADDING @test_id={"desktop.bar"}>
                 <List direction=Direction::Horizontal align=Align::Center spacing=BAR_SPACING>
@@ -200,7 +199,7 @@ pub(crate) fn DesktopBar(
                     />
                     <BarPopup
                         label={clock}
-                        width=CALENDAR_WIDTH
+                        width={Size::Custom(CALENDAR_WIDTH)}
                         @test_id={"desktop.clock"}
                     >|_: PopoverHandle|
                         <DesktopCalendar editor={editor} />

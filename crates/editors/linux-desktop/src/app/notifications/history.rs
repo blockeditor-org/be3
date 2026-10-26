@@ -5,16 +5,14 @@ use block_editor_beui::beui::datetime::{HourCycle, Time};
 use block_editor_beui::beui::icons::{ICON_BELL, ICON_BELL_RING, ICON_X};
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
-use block_editor_beui::beui::unstyled::PopoverHandle;
 
 use super::{DesktopNotifications, Listed};
 use crate::app::bar::local_minutes;
 use crate::app::popup::BarPopup;
 
-pub(crate) const NOTIFICATIONS_WIDTH: f32 = 360.0;
 const LIST_HEIGHT: f32 = 420.0;
-const SPACING: f32 = 8.0;
-const ROW_SPACING: f32 = 2.0;
+const SPACING: Space = Space::Md;
+const ROW_SPACING: Space = Space::Xs2;
 
 fn received_at(received: u64) -> String {
     let minutes = local_minutes(Duration::from_secs(received));
@@ -37,7 +35,6 @@ pub(crate) fn NotificationsButton(notifications: DesktopNotifications) -> NodeId
             label
             glyph
             icon_only=true
-            width=NOTIFICATIONS_WIDTH
             @test_id={"desktop.notifications"}
             open={notifications.browsing()}
         >|handle: PopoverHandle|

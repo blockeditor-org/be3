@@ -6,15 +6,14 @@ use block_editor_beui::be_block::{
 use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
-use block_editor_beui::beui::unstyled::ChoiceOption;
 use block_editor_beui::{BlockQuery, ContentProjection, Editor};
 use uuid::Uuid;
 
-const CELL_PADDING_HORIZONTAL: f32 = 16.0;
-const CELL_PADDING_VERTICAL: f32 = 10.0;
-const ACTION_SPACING: f32 = 8.0;
-const HEADER_INSET: f32 = 24.0;
-const HEADER_SPACING: f32 = 4.0;
+const CELL_PADDING_HORIZONTAL: Space = Space::Xl;
+const CELL_PADDING_VERTICAL: Space = Space::Md;
+const ACTION_SPACING: Space = Space::Md;
+const HEADER_INSET: Space = Space::Xl3;
+const HEADER_SPACING: Space = Space::Xs;
 
 const SET_UP: &str = "Set up this device";
 const SET_UP_CAPTION: &str = "This device starts with settings that suit its kind. Keep them here, or use the settings your other devices use.";
@@ -165,7 +164,7 @@ struct DeviceSetupCell<'a> {
 #[component]
 pub(super) fn SetUpHeading() -> NodeId {
     view! {
-        <Frame padding={Sides::horizontal(HEADER_INSET)}>
+        <Frame padding={Padding::horizontal(HEADER_INSET)}>
             <List spacing=HEADER_SPACING>
                 <Text style=TextStyle::HEADING>{SET_UP}</Text>
                 <Text style=TextStyle::CAPTION>{SET_UP_CAPTION}</Text>
@@ -260,10 +259,10 @@ pub(super) fn DifferencesSection(setup: DeviceSetup, blocked: Memo<bool>) -> Nod
                     }
                 }</ForEach>
             </Table>
-            <Frame padding={Sides::horizontal(CELL_PADDING_HORIZONTAL)}>
+            <Frame padding={Padding::horizontal(CELL_PADDING_HORIZONTAL)}>
                 <Separator />
             </Frame>
-            <Frame padding={Sides::symmetric(CELL_PADDING_HORIZONTAL, CELL_PADDING_VERTICAL)}>
+            <Frame padding={Padding::symmetric(CELL_PADDING_HORIZONTAL, CELL_PADDING_VERTICAL)}>
                 <List direction=Direction::Horizontal justify=Justify::End spacing=ACTION_SPACING>
                     <Button
                         label="Use my usual settings"
@@ -281,7 +280,7 @@ pub(super) fn DifferencesSection(setup: DeviceSetup, blocked: Memo<bool>) -> Nod
 #[component]
 pub(super) fn SetUpDone(on_done: ClickCallback) -> NodeId {
     view! {
-        <Frame padding={Sides::horizontal(HEADER_INSET)}>
+        <Frame padding={Padding::horizontal(HEADER_INSET)}>
             <List direction=Direction::Horizontal justify=Justify::End spacing=ACTION_SPACING>
                 <Button
                     label="Done"

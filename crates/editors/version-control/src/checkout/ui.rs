@@ -13,8 +13,8 @@ use block_editor_beui::{
 };
 use uuid::Uuid;
 
-const PADDING: f32 = 24.0;
-const SECTION_SPACING: f32 = 18.0;
+const PADDING: Space = Space::Xl3;
+const SECTION_SPACING: Space = Space::Xl2;
 
 type ChangeRow = (Uuid, Uuid, Option<String>, &'static str);
 
@@ -168,11 +168,11 @@ pub fn CheckoutView(editor: Editor) -> NodeId {
     };
 
     view! {
-        <List spacing=0.0>
+        <List spacing=Space::None>
             <Scroll @sizing=ItemSize::Percent(100.0)>
                 <Frame padding=PADDING>
                     <List spacing=SECTION_SPACING>
-                        <List spacing=6.0>
+                        <List spacing=Space::Sm>
                             <Text style=TextStyle::HEADING>"Checkout"</Text>
                             <Text style=TextStyle::CAPTION @test_id={"checkout.summary"}>
                                 {summary}
@@ -193,7 +193,7 @@ pub fn CheckoutView(editor: Editor) -> NodeId {
                                 <List
                                     direction=Direction::Horizontal
                                     align=Align::Center
-                                    spacing=10.0
+                                    spacing=Space::Md
                                 >
                                     <Text @sizing=ItemSize::Percent(100.0)>
                                         "Someone saved newer changes on this branch."
@@ -211,7 +211,7 @@ pub fn CheckoutView(editor: Editor) -> NodeId {
                         </Show>
                         <Show condition={conflicted}>
                             <Card>
-                                <List spacing=12.0>
+                                <List spacing=Space::Lg>
                                     <Text style=TextStyle::HEADING>"Clashing edits"</Text>
                                     <Text style=TextStyle::CAPTION>
                                         "These blocks were changed in two ways at once. Choose a version for each, or edit it and keep it as it is. You can keep working and save changes before you decide."
@@ -221,7 +221,7 @@ pub fn CheckoutView(editor: Editor) -> NodeId {
                             </Card>
                         </Show>
                         <Card>
-                            <List spacing=10.0>
+                            <List spacing=Space::Md>
                                 <Text style=TextStyle::HEADING>"Current change"</Text>
                                 <Text style=TextStyle::CAPTION>
                                     "Your edits are kept here as you make them. Describe them and save to start a new change on top."
@@ -240,7 +240,7 @@ pub fn CheckoutView(editor: Editor) -> NodeId {
                                 <List
                                     direction=Direction::Horizontal
                                     align=Align::Center
-                                    spacing=10.0
+                                    spacing=Space::Md
                                 >
                                     <TextInput
                                         @sizing=ItemSize::Percent(100.0)
@@ -265,13 +265,13 @@ pub fn CheckoutView(editor: Editor) -> NodeId {
                             </List>
                         </Card>
                         <Card>
-                            <List spacing=10.0>
+                            <List spacing=Space::Md>
                                 <Text style=TextStyle::HEADING>"Branches"</Text>
                                 <ForEach keys={branches} view={branch_rows} />
                                 <List
                                     direction=Direction::Horizontal
                                     align=Align::Center
-                                    spacing=10.0
+                                    spacing=Space::Md
                                 >
                                     <TextInput
                                         @sizing=ItemSize::Percent(100.0)
@@ -296,13 +296,13 @@ pub fn CheckoutView(editor: Editor) -> NodeId {
                             </List>
                         </Card>
                         <Card>
-                            <List spacing=10.0>
+                            <List spacing=Space::Md>
                                 <Text style=TextStyle::HEADING>"Saved changes"</Text>
                                 <VersionHistory log={log} />
                             </List>
                         </Card>
                         <Card>
-                            <List spacing=10.0>
+                            <List spacing=Space::Md>
                                 <Text style=TextStyle::HEADING>"What was done"</Text>
                                 <Text style=TextStyle::CAPTION>
                                     "Every step is kept here, so any of them can be undone."
@@ -331,7 +331,7 @@ fn ChangeLine(editor: Editor, row: ChangeRow) -> NodeId {
         <List
             direction=Direction::Horizontal
             align=Align::Center
-            spacing=10.0
+            spacing=Space::Md
             @test_id={format!("checkout.change.{block}")}
         >
             <Text style=TextStyle::CAPTION>{label}</Text>
@@ -369,13 +369,13 @@ fn ConflictLine(editor: Editor, blocked: Memo<bool>, row: ConflictRow) -> NodeId
     let keep = choose(ConflictSide::Merged);
     let working = Some(ChildTarget::new(block, block_type));
     view! {
-        <List spacing=8.0 @test_id={format!("checkout.conflict.{block}")}>
-            <List direction=Direction::Horizontal align=Align::Center spacing=10.0>
+        <List spacing=Space::Md @test_id={format!("checkout.conflict.{block}")}>
+            <List direction=Direction::Horizontal align=Align::Center spacing=Space::Md>
                 <BlockLink editor={editor} block={working} />
                 <Text style=TextStyle::CAPTION>{label}</Text>
             </List>
             <Show condition={compared}>
-                <List direction=Direction::Horizontal align=Align::Center spacing=10.0>
+                <List direction=Direction::Horizontal align=Align::Center spacing=Space::Md>
                     <Text style=TextStyle::CAPTION>"Before"</Text>
                     <BlockLink editor={editor} block={base} fallback="none" />
                     <Text style=TextStyle::CAPTION>"Yours"</Text>
@@ -384,7 +384,7 @@ fn ConflictLine(editor: Editor, blocked: Memo<bool>, row: ConflictRow) -> NodeId
                     <BlockLink editor={editor} block={theirs} fallback="none" />
                 </List>
             </Show>
-            <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
+            <List direction=Direction::Horizontal align=Align::Center spacing=Space::Md>
                 <Button
                     label="Use before"
                     variant=ButtonVariant::Secondary
@@ -433,7 +433,7 @@ fn BranchLine(editor: Editor, blocked: Memo<bool>, name: String, current: bool) 
         <List
             direction=Direction::Horizontal
             align=Align::Center
-            spacing=10.0
+            spacing=Space::Md
             @test_id=branch_test_id
         >
             <Text overflow=Overflow::Ellipsis @sizing=ItemSize::Percent(100.0)>{name}</Text>

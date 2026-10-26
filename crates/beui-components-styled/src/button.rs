@@ -144,8 +144,11 @@ pub fn Button(
     #[prop(default = false)] focused: Prop<bool>,
     #[prop(default = false)] capture_presses: Prop<bool>,
     #[prop(default = true)] press_focus: Prop<bool>,
+    #[prop(default = true)] tab_stop: Prop<bool>,
+    #[prop(default = true)] revealed: Prop<bool>,
     action: Option<Action>,
     on_click: ClickCallback,
+    on_focus_change: Callback<bool>,
 ) -> NodeId {
     let busy = create_memo(move || busy.get());
     let disabled = create_memo(move || disabled.get() || busy.get());
@@ -159,9 +162,11 @@ pub fn Button(
             focused
             capture_presses
             press_focus
+            tab_stop
             on_click={on_click}
+            on_focus_change={on_focus_change}
         >|handle|
-            <ButtonFace handle variant size busy wide />
+            <ButtonFace handle variant size busy wide revealed />
         </unstyled::Button>
     }
 }
@@ -176,6 +181,7 @@ pub fn ButtonFace(
     #[prop(default = false)] pressed: Prop<bool>,
     #[prop(default = false)] busy: Prop<bool>,
     #[prop(default = false)] wide: Prop<bool>,
+    #[prop(default = true)] revealed: Prop<bool>,
 ) -> NodeId {
     let unstyled::ButtonHandle {
         hovered,
@@ -187,13 +193,21 @@ pub fn ButtonFace(
         icon_only,
         tooltip,
     } = handle;
+    let revealed = create_memo(move || revealed.get());
     let fill_color = create_memo(move || {
         let held = active.get() || pressed.get();
-        variant.get().fill(disabled.get(), hovered.get(), held)
+        match revealed.get() {
+            true => variant.get().fill(disabled.get(), hovered.get(), held),
+            false => ColorRole::None,
+        }
     });
-    let label_color = create_memo(move || variant.get().label(disabled.get()));
-    let border =
-        create_memo(move || (variant.get() == ButtonVariant::Secondary).then_some(Border::DEFAULT));
+    let label_color = create_memo(move || match revealed.get() {
+        true => variant.get().label(disabled.get()),
+        false => TextColor::None,
+    });
+    let border = create_memo(move || {
+        (revealed.get() && variant.get() == ButtonVariant::Secondary).then_some(Border::DEFAULT)
+    });
     let image = create_memo(move || image.get());
     let pictured = create_memo(move || image.with(Option::is_some));
     let has_glyph = create_memo(move || !pictured.get() && glyph.get().is_some());

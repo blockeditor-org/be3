@@ -12,10 +12,10 @@ pub(crate) const OSD_DURATION: Duration = Duration::from_millis(1500);
 const FADE: Duration = Duration::from_millis(250);
 const SCREEN_HEIGHT_FRACTION: f32 = 0.85;
 const MARGIN: f32 = 48.0;
-const PADDING_HORIZONTAL: f32 = 20.0;
-const PADDING_VERTICAL: f32 = 16.0;
-const SPACING: f32 = 16.0;
-const BAR_WIDTH: f32 = 200.0;
+const PADDING_HORIZONTAL: Space = Space::Xl2;
+const PADDING_VERTICAL: Space = Space::Xl;
+const SPACING: Space = Space::Xl;
+const BAR_WIDTH: Size = Size::Menu;
 
 #[derive(Clone, Debug, PartialEq)]
 pub(crate) struct OsdLevel {
@@ -146,12 +146,12 @@ fn OsdCard(
         })
     });
     view! {
-        <Frame padding={create_memo(move || Sides::all(MARGIN).bottom(below.get()))}>
+        <Frame padding={create_memo(move || Padding::custom(Sides::all(MARGIN).bottom(below.get())))}>
             <Frame
                 fill=card
                 border={create_memo(move || Some(Border::new(ColorRole::Custom(outline.get()))))}
                 radius=Radius::Lg
-                padding={Sides::symmetric(PADDING_HORIZONTAL, PADDING_VERTICAL)}
+                padding={Padding::symmetric(PADDING_HORIZONTAL, PADDING_VERTICAL)}
                 @test_id={id}
             >
                 <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>

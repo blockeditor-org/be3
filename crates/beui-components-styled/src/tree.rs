@@ -17,7 +17,6 @@ use beui_components_unstyled::{
     ButtonHandle, Edge, PopupTriggerHandle, TextInputHandle, TreeItem, TreeMenu, TreeRevealHandle,
     TreeRowEdit, TreeRowHandle, TreeToggleHandle,
 };
-use beui_core::color::Color32;
 use beui_core::font::TextAlign;
 use beui_core::icons::{
     ICON_ARROW_DOWN, ICON_ARROW_UP, ICON_CHEVRON_DOWN, ICON_CHEVRON_RIGHT, ICON_ELLIPSIS,
@@ -78,7 +77,7 @@ pub fn Tree<K>(
     #[prop(default = Bleed::NONE)] bleed: Bleed,
     #[prop(default = None)] row_test_id: Option<Func<K, String>>,
     #[prop(default = String::new())] reveal_test_id: String,
-    #[prop(default = None)] outline: Option<Func<K, Option<Color32>>>,
+    #[prop(default = None)] outline: Option<Func<K, Option<ColorRole>>>,
     #[prop(default = None)] menu: Option<Func<K, Option<TreeMenu>>>,
     #[prop(default = None)] editing: Prop<Option<K>>,
     on_select: Callback<K>,
@@ -173,7 +172,7 @@ fn RevealButton(handle: TreeRevealHandle, named: String) -> NodeId {
 fn TreeRowChrome<K>(
     handle: TreeRowHandle<K>,
     named: String,
-    outline: Func<K, Option<Color32>>,
+    outline: Func<K, Option<ColorRole>>,
     content: RenderFn<TreeRowFace<K>>,
 ) -> NodeId
 where
@@ -204,7 +203,7 @@ where
     });
     let ring = focus_ring(focused);
     let border = create_memo(move || {
-        let color = highlight.get().map_or(ColorRole::Accent, ColorRole::Custom);
+        let color = highlight.get().unwrap_or(ColorRole::Accent);
         (highlight.get().is_some() || ring.get()).then(|| Border::new(color).width(OUTLINE_WIDTH))
     });
     let face = TreeRowFace {

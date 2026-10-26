@@ -106,6 +106,7 @@ impl Family {
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
 pub enum TextColor {
+    None,
     Default,
     Muted,
     Faint,
@@ -137,6 +138,7 @@ impl TextColor {
 
     pub fn resolve(self, theme: &ThemeStore) -> Color32 {
         match self {
+            TextColor::None => Color32::TRANSPARENT,
             TextColor::Default => theme.text.get(),
             TextColor::Muted => theme.text_muted.get(),
             TextColor::Faint => theme.border.get(),
@@ -154,6 +156,7 @@ impl TextColor {
 
     pub const fn name(self) -> &'static str {
         match self {
+            TextColor::None => "none",
             TextColor::Default => "default",
             TextColor::Muted => "muted",
             TextColor::Faint => "faint",

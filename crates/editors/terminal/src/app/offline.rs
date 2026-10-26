@@ -4,7 +4,7 @@ use block_editor_beui::beui::styled::*;
 use block_editor_beui::beui::{NodeId, icons::*};
 use uuid::Uuid;
 
-const PADDING: f32 = 24.0;
+const PADDING: Space = Space::Xl3;
 
 pub fn setup_command(block: Uuid) -> String {
     format!("BE3_AGENT_CREDENTIALS='<the agent's credentials>' be {block} terminal-host")
@@ -15,8 +15,8 @@ pub(crate) fn Offline(editor: Editor) -> NodeId {
     view! {
         <Scroll>
             <Frame padding=PADDING>
-                <List spacing=16.0>
-                    <List direction=Direction::Horizontal align=Align::Center spacing=10.0>
+                <List spacing=Space::Xl>
+                    <List direction=Direction::Horizontal align=Align::Center spacing=Space::Md>
                         <Text size=TextSize::Xl2>
                             <Icon glyph={ICON_UNPLUG.to_owned()} />
                         </Text>
@@ -39,11 +39,11 @@ pub(crate) fn SetupSteps(editor: Editor) -> NodeId {
     let command = setup_command(editor.block_id());
     let copied = command.clone();
     view! {
-        <List spacing=16.0>
+        <List spacing=Space::Xl>
             <Text style=TextStyle::PARAGRAPH>
                 "A terminal block's shell runs on a machine you choose, which stays connected through the server. Nothing is running it now. To start one:"
             </Text>
-            <List spacing=8.0>
+            <List spacing=Space::Md>
                 <Text>
                     "1. Make an agent: open the app menu, choose Agents, and add one. Keep the credentials it shows."
                 </Text>
@@ -53,7 +53,7 @@ pub(crate) fn SetupSteps(editor: Editor) -> NodeId {
                 </Text>
             </List>
             <Card>
-                <List direction=Direction::Horizontal align=Align::Center spacing=12.0>
+                <List direction=Direction::Horizontal align=Align::Center spacing=Space::Lg>
                     <SelectableText
                         @sizing=ItemSize::Percent(100.0)
                         child_size=ItemSize::Percent(100.0)

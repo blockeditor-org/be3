@@ -5,11 +5,10 @@ use block_editor_beui::beui::icons::{
 };
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
-use block_editor_beui::beui::unstyled::MenuItem;
 use block_editor_beui::linux_desktop;
 use block_editor_beui::{Editor, PowerAction, PowerAvailability, PowerWatch};
 
-const DIALOG_SPACING: f32 = 16.0;
+const DIALOG_SPACING: Space = Space::Xl;
 
 fn label(action: PowerAction) -> &'static str {
     match action {
@@ -102,7 +101,7 @@ pub(crate) fn PowerMenu(editor: Editor) -> NodeId {
         editor.act(move || linux_desktop::power::request(confirming.get_untracked()));
     };
     view! {
-        <List spacing=0.0>
+        <List spacing=Space::None>
             <MenuButton
                 label="Power"
                 glyph=ICON_POWER

@@ -20,15 +20,15 @@ use uuid::Uuid;
 use super::devices::DevicesTable;
 use super::setup::{DeviceSection, DeviceSetup, DifferencesSection, SetUpDone, SetUpHeading};
 
-const PADDING: f32 = 16.0;
-const SPACING: f32 = 10.0;
-const SECTION_SPACING: f32 = 24.0;
-const CAPTION_SPACING: f32 = 2.0;
-const ROW_SPACING: f32 = 2.0;
-const ROW_PADDING: f32 = 4.0;
-const ROW_GAP: f32 = 12.0;
-const CARD_PADDING: f32 = 6.0;
-const NOTICE_INSET: f32 = 24.0;
+const PADDING: Space = Space::Xl;
+const SPACING: Space = Space::Md;
+const SECTION_SPACING: Space = Space::Xl3;
+const CAPTION_SPACING: Space = Space::Xs2;
+const ROW_SPACING: Space = Space::Xs2;
+const ROW_PADDING: Space = Space::Xs;
+const ROW_GAP: Space = Space::Lg;
+const CARD_PADDING: Space = Space::Sm;
+const NOTICE_INSET: Space = Space::Xl3;
 
 const NOT_OURS: &str = "These settings belong to another account. This device never uses them, and they stay as they are.";
 
@@ -132,7 +132,7 @@ fn DevicesAndProfiles(
     let children = editor.watch_blocks(BlockQuery::Children(block));
     view! {
         <List spacing=SECTION_SPACING>
-            <List direction=Direction::Horizontal spacing=0.0>
+            <List direction=Direction::Horizontal spacing=Space::None>
                 <Button
                     label="Settings"
                     glyph=ICON_ARROW_LEFT
@@ -251,7 +251,7 @@ pub fn SettingsProfileView(editor: Editor) -> NodeId {
     view! {
         <SettingsPage>
             <Show condition={others}>
-                <Frame padding={Sides::horizontal(NOTICE_INSET)}>
+                <Frame padding={Padding::horizontal(NOTICE_INSET)}>
                     <Text style=TextStyle::CAPTION>{NOT_OURS}</Text>
                 </Frame>
             </Show>
@@ -339,12 +339,12 @@ fn SettingRow(
     });
     view! {
         <ListRow selected disabled={off} on_click={on_click}>
-            <Frame padding={Sides::vertical(ROW_PADDING)}>
+            <Frame padding={Padding::vertical(ROW_PADDING)}>
                 <List direction=Direction::Horizontal align=Align::Center spacing=ROW_GAP>
                     <Text color={icon_color} align=TextAlign::Center>
                         <Icon glyph={glyph} />
                     </Text>
-                    <List @sizing=ItemSize::Percent(100.0) spacing=0.0>
+                    <List @sizing=ItemSize::Percent(100.0) spacing=Space::None>
                         <Text color={text_color} overflow=Overflow::Ellipsis>{label}</Text>
                         <Show condition={has_detail}>
                             <Text style=TextStyle::CAPTION overflow=Overflow::Ellipsis>

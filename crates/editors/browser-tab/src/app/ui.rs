@@ -44,7 +44,7 @@ pub fn BrowserTab(editor: Editor) -> NodeId {
     let content = NodeRef::new();
     editor.content(&content);
     view! {
-        <List spacing=0.0>
+        <List spacing=Space::None>
             <Toolbar shown={chrome}>
                 <Button
                     icon_only=true
@@ -88,7 +88,7 @@ pub fn BrowserTab(editor: Editor) -> NodeId {
             <Frame @sizing=ItemSize::Percent(100.0) @node_ref={&content}>
                 <Layers>
                     <Subregion editor={editor} placed={page} punch=false />
-                    <List align=Align::Center justify=Justify::Center spacing=0.0>
+                    <List align=Align::Center justify=Justify::Center spacing=Space::None>
                         <Show condition={failed}>
                             <Text
                                 style=TextStyle::CAPTION

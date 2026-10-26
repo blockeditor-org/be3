@@ -12,7 +12,7 @@ use block_editor_beui::block_ui::Press;
 
 use super::rows::{Row, RowKey, Tree as FileTree};
 
-const PADDING: f32 = 8.0;
+const PADDING: Space = Space::Md;
 const ZOOMED: &str = "zoomed";
 
 #[derive(Clone, PartialEq)]
@@ -198,7 +198,7 @@ pub(crate) fn ZoomBar(
     let name = create_memo(move || focus.get().map(|focus| focus.row.label).unwrap_or_default());
     view! {
         <Frame fill=ColorRole::Background padding=PADDING>
-            <List direction=Direction::Horizontal align=Align::Center spacing=4.0>
+            <List direction=Direction::Horizontal align=Align::Center spacing=Space::Xs>
                 <Button
                     icon_only=true
                     @test_id={"file-tree.back"}
@@ -206,7 +206,7 @@ pub(crate) fn ZoomBar(
                     label="Up one level"
                     on_click={move || zoom.up()}
                 />
-                <List @sizing=ItemSize::Percent(100.0) spacing=0.0>
+                <List @sizing=ItemSize::Percent(100.0) spacing=Space::None>
                     <Text style=TextStyle::CAPTION overflow=Overflow::Ellipsis>{path}</Text>
                     <Text style=TextStyle::HEADING overflow=Overflow::Ellipsis>{name}</Text>
                 </List>

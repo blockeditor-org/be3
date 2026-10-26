@@ -15,11 +15,9 @@ mod tray;
 mod volume;
 mod wifi;
 
-use block_editor_beui::beui::dock::styled::Docking;
-use block_editor_beui::beui::dock::unstyled::{DockNode, DockPane, DockWindow, TabId};
+use block_editor_beui::beui::dock::styled::{DockNode, DockPane, DockWindow, Docking, TabId};
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
-use block_editor_beui::beui::unstyled::{Container, container_size};
 use block_editor_beui::beui::{Modifiers, NodeId, Rect, Vec2, pos2, vec2};
 use block_editor_beui::{Editor, Loaded};
 use block_editor_beui::{HostPanel, HostWindowId};
@@ -101,7 +99,7 @@ fn DesktopBody(workspace: Workspace) -> NodeId {
     let bar_node = NodeRef::new();
     view! {
         <Frame @node_ref={&surface}>
-            <List spacing=0.0>
+            <List spacing=Space::None>
                 <Failure failed={failed} reason={reason} />
                 <Docking
                     @sizing=ItemSize::Percent(100.0)

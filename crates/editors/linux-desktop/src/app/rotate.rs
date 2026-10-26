@@ -4,13 +4,11 @@ use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::icons::ICON_ROTATE_CW_SQUARE;
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
-use block_editor_beui::beui::unstyled::PopoverHandle;
 use block_editor_beui::{Editor, HostDisplay, LayeredSettings, RotationPicker};
 
 use super::popup::BarPopup;
 
-const PICKER_WIDTH: f32 = 268.0;
-const SPACING: f32 = 8.0;
+const SPACING: Space = Space::Md;
 
 #[component]
 pub(crate) fn RotateButton(editor: Editor, display: Memo<Option<HostDisplay>>) -> NodeId {
@@ -37,7 +35,6 @@ pub(crate) fn RotateButton(editor: Editor, display: Memo<Option<HostDisplay>>) -
             label="Rotate the screen"
             glyph=ICON_ROTATE_CW_SQUARE
             icon_only=true
-            width=PICKER_WIDTH
             @test_id={"desktop.rotate"}
         >|handle: PopoverHandle| {
             let pick = Callback::new(move |rotation: Rotation| {
