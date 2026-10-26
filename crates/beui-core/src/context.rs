@@ -88,6 +88,7 @@ struct Inner {
     keyboard_window: Cell<WindowId>,
     window_hosting: Cell<WindowHosting>,
     shows_main: Cell<bool>,
+    keyboard_in_a_window: Cell<bool>,
     fullscreen: Cell<Option<bool>>,
     fullscreen_shown: Cell<bool>,
     close_requested: Cell<bool>,
@@ -375,6 +376,7 @@ impl Context {
                 keyboard_window: Cell::new(WindowId::MAIN),
                 window_hosting: Cell::new(WindowHosting::None),
                 shows_main: Cell::new(true),
+                keyboard_in_a_window: Cell::new(false),
                 fullscreen: Cell::new(None),
                 fullscreen_shown: Cell::new(false),
                 close_requested: Cell::new(false),
@@ -1039,6 +1041,14 @@ impl Context {
 
     pub fn shows_main(&self) -> bool {
         self.inner.shows_main.get()
+    }
+
+    pub fn keyboard_in_a_window(&self) -> bool {
+        self.inner.keyboard_in_a_window.get()
+    }
+
+    pub fn set_keyboard_in_a_window(&self, own: bool) {
+        self.inner.keyboard_in_a_window.set(own);
     }
 
     pub fn set_shows_main(&self, shows: bool) {

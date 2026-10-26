@@ -81,7 +81,7 @@ own to be driven:
   grabs the pointer again and reaches nothing.
   `BEUI_LAYERS=drive,xr,drive` shows space on an OpenXR headset instead (guides/beui.md,
   "Headsets"), falling back to the simulator without one; the window is then the headset's
-  mirror. `drive paint in screen` paints what reaches the platform, the 3D scene below space,
+  mirror. `drive screen paint` paints what reaches the platform, the 3D scene below space,
   as `drive screen shot` shows it.
   `drive screen xr HAND ...` (HAND is `left` or `right`) works the controllers' lasers, which act
   as fingers (guides/beui.md, "Lasers"): they enter below space, as a headset's do. `xr right

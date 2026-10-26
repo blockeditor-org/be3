@@ -16,6 +16,7 @@ pub struct AppTest {
     crop: Option<String>,
     started: Instant,
     reported: Cell<bool>,
+    space: bool,
 }
 
 impl AppTest {
@@ -57,6 +58,7 @@ impl AppTest {
             crop: None,
             started,
             reported: Cell::new(false),
+            space,
         };
         test.wait(ready);
         test.run(&["clock", "stop"]);
@@ -179,7 +181,11 @@ impl AppTest {
 
     fn paint(&mut self) -> Snapshot {
         self.gone("#editor.loading");
-        let mut words = vec!["app", "paint"];
+        let tap = match self.space {
+            true => "screen",
+            false => "app",
+        };
+        let mut words = vec![tap, "paint"];
         words.extend(self.crop.as_deref());
         self.steps
             .push(line(&words).replacen("paint", "paint painted.paint", 1));

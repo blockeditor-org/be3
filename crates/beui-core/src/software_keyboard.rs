@@ -188,7 +188,7 @@ impl KeyboardState {
             return None;
         }
         host?;
-        if ctx.opens_windows() {
+        if ctx.opens_windows() && ctx.keyboard_in_a_window() {
             let window = *self.own.get_or_insert_with(WindowId::next);
             return Some((window, Spot::Window(window), rect));
         }

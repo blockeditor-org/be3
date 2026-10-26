@@ -2954,7 +2954,7 @@ lists the open windows and each one's latest `WindowOutput`, and
 window-hosting layer instead, such as `beui_layer_space::Space`, stacked over
 its drive layer, with the `Setup` it is given (space wants `GpuSetup` and the
 `Context`), so a test can paint the scene that reaches the platform
-(`Stepped::painting`, `drive paint in screen`), as be-wayland's space test does.
+(`Stepped::painting`, `drive screen paint`), as be-wayland's space test does.
 
 Pointer input names its window: `Incoming::Input` carries a `window`
 (`Incoming::in_window`; every constructor starts with the main window), in

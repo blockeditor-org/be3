@@ -60,8 +60,8 @@ app (reading):
   windows                   the app's windows, each one's number and size
   paint [TARGET] [in WINDOW]   what a window of the app paints (the main one unless WINDOW names
                             another), plugins included, as a paint snapshot, of TARGET only when given;
-                            in screen paints what reaches the platform from below the layers that
-                            compose the app's windows, such as space's 3D scene
+                            screen paint [TARGET] is what reaches the platform instead, below the
+                            layers that compose the app's windows, such as space's 3D scene
   overflows                 what the app shows out of bounds, plugins included, one per line:
                             cut off where nothing scrolls to it, drawn outside its own box, or
                             with its outline cut while its box shows
@@ -158,12 +158,12 @@ fn kind(command: &str) -> Option<Kind> {
     Some(match command {
         "help" | "settle" | "pause" | "clock" | "hurry" | "frames" | "close" => Kind::Session,
         "tree" | "ids" | "find" | "comps" | "hit" | "actions" | "act" | "a11y" | "wait"
-        | "gone" | "env" | "windows" | "paint" | "overflows" => Kind::Only(Tap::App),
+        | "gone" | "env" | "windows" | "overflows" => Kind::Only(Tap::App),
         "shot" | "resize" | "focus" | "blur" | "clipboard" | "upload" | "save" | "dismiss"
         | "grab" | "drop" | "ungrab" | "xr" => Kind::Only(Tap::Screen),
         "state" | "click" | "move" | "down" | "up" | "drag" | "wheel" | "scroll" | "zoom"
         | "leave" | "motion" | "tap" | "swipe" | "pinch" | "touch" | "pen" | "back" | "type"
-        | "key" | "keydown" | "keyup" | "ime" => Kind::Either,
+        | "key" | "keydown" | "keyup" | "ime" | "paint" => Kind::Either,
         _ => return None,
     })
 }
@@ -1584,23 +1584,19 @@ impl Session {
             }
             "paint" => {
                 let (target, window) = match arguments {
-                    [target @ .., word, window] if word == "in" && window == "screen" => {
-                        (target, SCREEN)
-                    }
-                    [target @ .., word, window] if word == "in" => (
+                    [target @ .., word, window] if word == "in" && tap == Tap::App => (
                         target,
                         window.parse().map_err(|_| {
-                            format!(
-                                "paint takes in WINDOW, a number `windows` lists, or in screen, not {window}"
-                            )
+                            format!("paint takes in WINDOW, a number `windows` lists, not {window}")
                         })?,
                     ),
-                    target => (target, WindowId::MAIN.raw()),
+                    target if tap == Tap::App => (target, WindowId::MAIN.raw()),
+                    target => (target, SCREEN),
                 };
                 let target = match target {
                     [] => None,
                     [target] => Some(target.clone()),
-                    _ => return Err("usage: paint [TARGET] [in WINDOW|screen]".to_owned()),
+                    _ => return Err("usage: paint [TARGET] [in WINDOW]".to_owned()),
                 };
                 let crop = match &target {
                     Some(target) => Some(in_points(

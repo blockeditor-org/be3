@@ -1588,6 +1588,7 @@ fn find(windows: &[WindowOutput], window: WindowId) -> Option<&WindowOutput> {
 impl beui_core::runner::Layer for Space {
     fn attach(&mut self, context: &Context) {
         context.set_window_hosting(WindowHosting::Any);
+        context.set_keyboard_in_a_window(true);
     }
 
     fn setup(&mut self, setup: &Setup) {

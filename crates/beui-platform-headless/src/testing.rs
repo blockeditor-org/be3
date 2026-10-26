@@ -553,7 +553,7 @@ impl<A: App + 'static> Stepped<A> {
     }
 
     pub fn painting(&mut self) -> beui_core::painting::Painting {
-        let painted = match self.reply(&["paint", "in", "screen"]) {
+        let painted = match self.reply(&["screen", "paint"]) {
             Reply::Painting(bytes) => beui_core::painting::Painting::decode(&bytes),
             Reply::Error(error) => Err(error),
             Reply::Text(_) | Reply::Image { .. } => Err("the answer is not a painting".to_owned()),
