@@ -1291,6 +1291,9 @@ name = "beui-html"
 version = "0.1.0"
 dependencies = [
  "beui-tree",
+ "js-sys",
+ "wasm-bindgen",
+ "web-sys",
 ]
 
 [[package]]

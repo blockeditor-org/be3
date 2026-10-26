@@ -1,5 +1,12 @@
 load("@root//buck/cargo:defs.bzl", "cargo_library", "cargo_test")
+load("@root//buck/wasm:defs.bzl", "wasi_app_library")
 
 cargo_library()
 
 cargo_test()
+
+# The live DOM backend (src/dom.rs) is compiled only for the web.
+wasi_app_library(
+    name = "web",
+    library = ":beui-html",
+)

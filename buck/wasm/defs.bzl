@@ -92,6 +92,16 @@ wasi_module = _module_rule(wasi_transition)
 
 wasi_app_module = _module_rule(wasi_app_transition)
 
+# A library built for the web app's wasi, for a crate whose web code nothing
+# built for the web uses yet, so that //:check still compiles that code.
+def _wasi_app_library_impl(ctx: AnalysisContext) -> list[Provider]:
+    return [ctx.attrs.library[DefaultInfo]]
+
+wasi_app_library = rule(
+    attrs = {"library": attrs.transition_dep(cfg = wasi_app_transition)},
+    impl = _wasi_app_library_impl,
+)
+
 # rustc links a cdylib with --no-entry, which strips the symbols a host needs to
 # lay out a thread's storage and leaves nothing to run libc's constructors; the
 # host does both itself, so a guest exports them.

@@ -67,7 +67,7 @@ done
 
 # The builds buck2 stands in for, as cargo would be asked for them: the host
 # (without the wasm-only crates), block-app, beui's DOM
-# demo and the paint review page for the web, the plugins, beui's demo and the
+# demo, the paint review page and beui-html's live DOM for the web, the plugins, beui's demo and the
 # paint review, whose tests paint as a plugin's do (a plan of their own: they
 # want a different wgpu), the games, the gpu shim, the remap module and the
 # pure guests (the plugins' type modules among them), and
@@ -82,7 +82,7 @@ plan() {
 RUSTC="$nightly/bin/rustc" "$nightly/bin/cargo" metadata --all-features --format-version 1 --locked > "$scratch/metadata.json"
 host_packages="--workspace $excluded --exclude block-editor-plugin --exclude block-editor-beui --exclude block-gpu-shim --exclude beui-web-demo --exclude paint-review-web"
 plan test --target x86_64-unknown-linux-gnu $host_packages > "$scratch/host.json"
-plan build --target wasm32-wasip1-threads -p block-app -p beui-web-demo -p paint-review-web --lib > "$scratch/wasi.json"
+plan build --target wasm32-wasip1-threads -p block-app -p beui-web-demo -p paint-review-web -p beui-html --lib > "$scratch/wasi.json"
 plan test --target wasm32-wasip1-threads $plugins -p block-editor-plugin -p block-editor-beui -p beui-demo -p paint-review > "$scratch/wasi-guest.json"
 plan build --target wasm32-unknown-unknown $games $types -p block-gpu-shim -p be-remap-module -p block-guest-echo > "$scratch/wasm32.json"
 cross=""
