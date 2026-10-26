@@ -1,7 +1,7 @@
 use beui_macros::component;
 
 use crate::reactive::{Child, Get, Prop, create_binding, with_document};
-use beui_core::base::frame::{Align2, Extent, FrameNode, FrameStyle, Outline, Shadow, Sides};
+use beui_core::base::frame::{Align2, Extent, FrameNode, FrameStyle, Outline, Sides};
 use beui_core::color::Color32;
 use beui_core::document::Document;
 use beui_core::node::{NodeId, NodeOf};
@@ -31,7 +31,6 @@ pub fn Frame(
     #[prop(default = Color32::TRANSPARENT)] fill: Prop<Color32>,
     #[prop(default = Corners::ZERO)] radius: Prop<Corners>,
     #[prop(default = None)] outline: Prop<Option<Outline>>,
-    #[prop(default = None)] shadow: Prop<Option<Shadow>>,
     #[prop(default = 0.0)] pointer: Prop<f32>,
     children: Option<Child>,
 ) -> NodeId {
@@ -52,7 +51,6 @@ pub fn Frame(
             fill: fill.get(),
             radius: radius.get(),
             outline: outline.get(),
-            shadow: shadow.get(),
             pointer: pointer.get(),
         };
         with_document(|document| document.set_frame_style(frame, style));

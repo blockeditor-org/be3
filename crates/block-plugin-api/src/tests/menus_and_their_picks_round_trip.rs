@@ -8,6 +8,7 @@ fn command(id: &str, label: &str, check: MenuCheck) -> MenuEntry {
         enabled: true,
         check,
         shortcut: None,
+        pin: MenuPin::None,
     })
 }
 
@@ -40,6 +41,7 @@ fn menus_and_their_picks_round_trip() {
                 },
                 tap: false,
             }),
+            pin: MenuPin::Icon,
         }),
         MenuEntry::Separator,
         MenuEntry::Submenu(MenuSubmenu {
@@ -60,45 +62,33 @@ fn menus_and_their_picks_round_trip() {
         Some(MenuCheck::Radio(true)),
         "a command is found inside its submenu"
     );
-    for message in [
-        Message::Editor(EditorMessage::Menu {
-            instance: EditorInstanceId(3),
-            entries: entries.clone(),
-        }),
-        Message::Editor(EditorMessage::MenuPick {
-            instance: EditorInstanceId(3),
-            id: "canvas.delete".into(),
-        }),
-        Message::Editor(EditorMessage::ChildMenuPick {
-            instance: EditorInstanceId(2),
-            child: ChildId(7),
-            id: "editor.undo".into(),
-        }),
-    ] {
-        assert_eq!(
-            decode_frame(&encode_frame(&message).unwrap()).unwrap(),
-            message
-        );
-    }
-
-    let oversized = Message::Editor(EditorMessage::Menu {
-        instance: EditorInstanceId(3),
-        entries: vec![
-            nested(1),
-            command(&"x".repeat(MAX_STRING_BYTES + 1), "", MenuCheck::None),
-        ],
-    });
     assert_eq!(
-        encode_frame(&oversized),
+        MenuEntry::nest(MenuEntry::flatten(&entries)),
+        Ok(entries),
+        "a menu flattened for the wire nests back as it was"
+    );
+
+    let oversized = vec![
+        nested(1),
+        command(&"x".repeat(MAX_STRING_BYTES + 1), "", MenuCheck::None),
+    ];
+    assert_eq!(
+        MenuEntry::nest(MenuEntry::flatten(&oversized)),
         Err(DecodeError::LimitExceeded("string"))
     );
 
-    let deep = Message::Editor(EditorMessage::Menu {
-        instance: EditorInstanceId(3),
-        entries: vec![nested(MAX_MENU_DEPTH + 1)],
-    });
+    let deep = vec![nested(MAX_MENU_DEPTH + 1)];
     assert_eq!(
-        encode_frame(&deep),
+        MenuEntry::nest(MenuEntry::flatten(&deep)),
         Err(DecodeError::LimitExceeded("menu depth"))
+    );
+    let skipping = vec![MenuItem {
+        depth: 1,
+        kind: MenuItemKind::Separator,
+    }];
+    assert_eq!(
+        MenuEntry::nest(skipping),
+        Err(DecodeError::MalformedPayload),
+        "an entry deeper than any submenu before it is refused"
     );
 }

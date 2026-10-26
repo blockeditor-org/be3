@@ -1,8 +1,8 @@
 use super::*;
 use crate::primitives::Frame;
+use crate::primitives::List;
 use crate::reactive::*;
 use crate::styled::Scroll;
-use crate::styled::*;
 
 #[test]
 fn scrolling_a_scroll_with_a_scrollbar_lays_it_out_once_a_frame() {
@@ -21,7 +21,7 @@ fn scrolling_a_scroll_with_a_scrollbar_lays_it_out_once_a_frame() {
     harness.frame(Vec::new());
     let over = harness.rect(scroll.get()).center();
     for _ in 0..3 {
-        harness.scroll(over, vec2(0.0, -40.0), Modifiers::NONE);
+        harness.scroll_at(over, vec2(0.0, -40.0), Modifiers::NONE);
         assert_eq!(
             harness.document().performance().latest.layout_passes,
             1,

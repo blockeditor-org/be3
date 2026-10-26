@@ -1,7 +1,7 @@
-use block_editor_beui::be_block::EditorSettingsContent;
 use block_editor_beui::{BlockTypeDescriptor, Catalog, ChildOperations, EditorDescriptor};
+use settings_types::EditorSettingsContent;
 
-use block_editor_beui::beui::Key;
+use block_editor_beui::beui::{Key, Modifiers};
 use block_editor_beui::{EditorHost, OwnedEditor};
 use block_ui_test::BeuiTest;
 use uuid::Uuid;
@@ -23,6 +23,8 @@ fn choosing_a_default_editor_stores_it() {
             color: None,
             icon_codepoint: String::new(),
             children: ChildOperations::default(),
+            press: block_editor_beui::Press::Open,
+            plain_file: false,
         }],
         templates: Vec::new(),
         editors: vec![
@@ -31,12 +33,14 @@ fn choosing_a_default_editor_stores_it() {
                 edits: block_editor_beui::Edits::Type(block_type.into_bytes()),
                 name: "Note".to_owned(),
                 icon_codepoint: String::new(),
+                extensions: Vec::new(),
             },
             EditorDescriptor {
                 editor: debug.into_bytes(),
                 edits: block_editor_beui::Edits::Any,
                 name: "Debug view".to_owned(),
                 icon_codepoint: String::new(),
+                extensions: Vec::new(),
             },
         ],
     });
@@ -45,13 +49,13 @@ fn choosing_a_default_editor_stores_it() {
     let choose = |editor: &mut BeuiTest<DefaultEditorsApp>, index: usize| {
         editor.click(&picker);
         editor.run();
-        editor.key_press(Key::Home);
+        editor.key(Key::Home, Modifiers::NONE);
         editor.run();
         for _ in 0..index {
-            editor.key_press(Key::ArrowDown);
+            editor.key(Key::ArrowDown, Modifiers::NONE);
             editor.run();
         }
-        editor.key_press(Key::Enter);
+        editor.key(Key::Enter, Modifiers::NONE);
         editor.run();
     };
     let stored = |editor: &BeuiTest<DefaultEditorsApp>| {

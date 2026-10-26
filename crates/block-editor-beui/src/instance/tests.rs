@@ -2,7 +2,7 @@ use super::*;
 use block_editor_plugin::editor_session::EditorSession;
 use block_editor_plugin::{Plugin, Waker};
 use block_plugin_api::{
-    ChildRect, EditorInstanceId, FrameChrome, FrameSpec, ScreenId, ScreenPlacement, ScreenRequest,
+    EditorInstanceId, FrameChrome, FrameSpec, Rect, ScreenId, ScreenPlacement, ScreenRequest,
     TopBar, ViewportMetrics,
 };
 
@@ -20,7 +20,7 @@ fn session<A: BeuiApp>(block_type: Uuid) -> EditorSession {
     session
 }
 
-fn frame(session: &mut EditorSession, content: Option<ChildRect>, top_bar: TopBar) {
+fn frame(session: &mut EditorSession, content: Option<Rect>, top_bar: TopBar) {
     session.place(
         &[ScreenPlacement {
             screen: ScreenId(0),
@@ -30,26 +30,31 @@ fn frame(session: &mut EditorSession, content: Option<ChildRect>, top_bar: TopBa
             width: 800,
             height: 600,
             scale_factor_millis: 1000,
+            raster_millis: 1000,
         }],
         &[ScreenRequest {
             screen: ScreenId(0),
             instance: EditorInstanceId(0),
             region: EditorRegion::Frame,
             metrics: ViewportMetrics {
-                logical_width: 800.0,
-                logical_height: 600.0,
-                visible_x: 0.0,
-                visible_y: 0.0,
+                logical: block_plugin_api::Size {
+                    width: 800.0,
+                    height: 600.0,
+                },
+                visible: block_plugin_api::Pos2::ZERO,
                 pixel_width: 800,
                 pixel_height: 600,
                 scale_factor: 1.0,
-                monitors: Vec::new(),
+                raster: 1.0,
             },
             frame: Some(FrameSpec {
                 chrome: FrameChrome::Drawn,
                 content,
                 top_bar,
+                dialog: None,
             }),
+            windows: false,
+            placement: None,
         }],
     );
 }

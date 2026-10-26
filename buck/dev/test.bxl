@@ -1,0 +1,62 @@
+load("//buck/cargo:defs.bzl", "RemoteTestInfo")
+
+# ./scripts/test, in one buck2 command: each :test it names, run as an action on
+# a worker with libtest's --nocapture and the name to filter by, so that what
+# comes back is the test's output and the paintings it accepted rather than its
+# binary and everything it reads. A test that passed and whose inputs have not
+# changed comes from the cache. Each prints "<target><TAB><directory>", which
+# holds status, the test's exit status, log, its output, and changed/, the
+# paintings it accepted under --update with each one's .why
+# (crates/paint-snapshot), for crates/bootstrap to print and copy into
+# snapshots/. The action succeeds when the test fails, so that its output is
+# kept, and so a failure is cached like a pass: --nonce, which goes into every
+# test's environment, is how crates/bootstrap runs again tests whose last run
+# failed.
+#
+#   ./scripts/buck bxl //buck/dev/test.bxl:main -- --target //crates/geometry:test --name rotates
+#
+# The command is the test's own, from its ExternalRunnerTestInfo, unless it
+# has a RemoteTestInfo: a painting test, which also reads snapshots/, and a
+# plugin test, which draws through the sysroot's lavapipe on a worker.
+
+_RUN = 'out="$1" && shift && mkdir -p "$out/changed" && CHANGED_PAINTINGS="$out/changed" && export CHANGED_PAINTINGS && { "$@" > "$out/log" 2>&1; echo "$?" > "$out/status"; }'
+
+def _impl(ctx: bxl.Context):
+    args = ctx.cli_args
+    actions = ctx.bxl_actions().actions
+    filters = ["--nocapture"] + ([args.name] if args.name else [])
+    ran = []
+    for label in args.target:
+        target = ctx.configured_targets(label)
+        providers = ctx.analysis(target).providers()
+        if RemoteTestInfo in providers:
+            info = providers[RemoteTestInfo]
+            command, env, hidden = info.command, dict(info.env), info.hidden
+        else:
+            test = providers[ExternalRunnerTestInfo]
+            command, env, hidden = test.command, dict(test.env or {}), []
+        if args.update:
+            env["UPDATE_SNAPSHOTS"] = "1"
+        if args.nonce:
+            env["BE3_TEST_NONCE"] = args.nonce
+        out = actions.declare_output("test/{}/{}".format(target.label.package, target.label.name), dir = True)
+        actions.run(
+            cmd_args("sh", "-c", _RUN, "sh", out.as_output(), command, filters, hidden = hidden),
+            category = "test",
+            env = env,
+            identifier = str(target.label.raw_target()),
+        )
+        ran.append((str(target.label.raw_target()), out))
+    paths = ctx.output.ensure_multiple([out for _, out in ran])
+    for (label, _), path in zip(ran, paths):
+        ctx.output.print(label, path.abs_path(), sep = "\t")
+
+main = bxl_main(
+    cli_args = {
+        "name": cli_args.string(""),
+        "nonce": cli_args.string(""),
+        "target": cli_args.list(cli_args.string()),
+        "update": cli_args.bool(False),
+    },
+    impl = _impl,
+)

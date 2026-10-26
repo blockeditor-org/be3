@@ -1,4 +1,4 @@
-use block_editor_beui::beui::icons::{ICON_SIGNAL_WIFI_4_BAR, ICON_SIGNAL_WIFI_OFF};
+use block_editor_beui::beui::icons::{ICON_WIFI, ICON_WIFI_OFF};
 
 use super::*;
 
@@ -15,7 +15,7 @@ fn the_wifi_in_the_bar_lists_the_networks_the_host_reports() {
     assert!(fixture.test.shown("desktop.wifi"));
     assert_eq!(
         fixture.test.label("desktop.wifi"),
-        ICON_SIGNAL_WIFI_4_BAR,
+        ICON_WIFI.as_str(),
         "the bar shows the strength of the network joined"
     );
     fixture.test.snapshot("the_wifi_in_the_bar");
@@ -24,7 +24,7 @@ fn the_wifi_in_the_bar_lists_the_networks_the_host_reports() {
     fixture.settle();
     assert!(fixture.test.shown("desktop.wifi.panel"));
     assert_eq!(
-        fixture.test.take_actions::<WifiRequest>(),
+        fixture.test.take_host_calls(block_ui_test::requested::wifi),
         vec![WifiRequest::Scan],
         "opening the list looks for networks"
     );
@@ -51,7 +51,7 @@ fn the_wifi_in_the_bar_lists_the_networks_the_host_reports() {
         fixture
             .test
             .label("desktop.wifi")
-            .starts_with(ICON_SIGNAL_WIFI_OFF)
+            .starts_with(ICON_WIFI_OFF.as_str())
     );
 
     fixture.wifi(WifiStatus::default());

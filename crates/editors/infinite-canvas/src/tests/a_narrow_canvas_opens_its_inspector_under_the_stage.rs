@@ -9,7 +9,7 @@ fn a_narrow_canvas_opens_its_inspector_under_the_stage() {
         !editor.shown("infinite-canvas.selection"),
         "a narrow canvas gives the stage the whole width"
     );
-    editor.click(&format!("infinite-canvas.entity.{}", rectangle.id));
+    editor.click(format!("infinite-canvas.entity.{}", rectangle.id));
     editor.run();
     editor.record();
     editor.click("infinite-canvas.inspect");

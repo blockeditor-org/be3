@@ -5,42 +5,35 @@ use beui_components_styled::Radius;
 use beui_components_styled::{TextSize, Theme};
 use beui_core::color::Color32;
 use beui_core::context::{Context, InputSimulation};
+use beui_core::drawn_cursor;
 use beui_core::font::FontId;
 use beui_core::geometry::{Pos2, Rect, Vec2, pos2, vec2};
 use beui_core::icons;
-use beui_core::input::{
-    CursorIcon, Event, Modifiers, PointerButton, RawInput, TouchId, TouchPhase,
-};
+use beui_core::input::{CursorIcon, Event, Modifiers, PointerButton, TouchId, TouchPhase};
 use beui_core::painter::Painter;
 
 const BAR_HEIGHT: f32 = 56.0;
 const BAR_PADDING: f32 = 6.0;
 const BAR_SPACING: f32 = 6.0;
 const BAR_WIDTH: f32 = 520.0;
-const CURSOR_SIZE: f32 = 26.0;
-const CURSOR_SHADOW: f32 = 1.5;
 const TAP_DISTANCE: f32 = 10.0;
 const TAP_TRAVEL: f32 = 4.0;
-const IBEAM_HEIGHT: f32 = 18.0;
-const IBEAM_SERIF: f32 = 3.5;
-const IBEAM_WIDTH: f32 = 1.5;
 const TAP_TIME: Duration = Duration::from_millis(300);
 pub const DOUBLE_TAP_TIME: Duration = Duration::from_millis(250);
 const MIDDLE_HOLD: Duration = Duration::from_millis(180);
 pub const SCROLL_TICK: f32 = 22.0;
 pub const WHEEL_LINE: f32 = 40.0;
 const BORDER_WIDTH: f32 = 1.0;
-const SHADOW: Color32 = Color32::from_rgba_unmultiplied(0, 0, 0, 190);
 
 const BUTTONS: [PointerButton; 3] = [
     PointerButton::Primary,
     PointerButton::Middle,
     PointerButton::Secondary,
 ];
-const BUTTON_ICONS: [&str; 4] = [
-    icons::ICON_LEFT_CLICK,
+const BUTTON_ICONS: [icons::Glyph; 4] = [
+    icons::ICON_MOUSE_LEFT,
     icons::ICON_MOUSE,
-    icons::ICON_RIGHT_CLICK,
+    icons::ICON_MOUSE_RIGHT,
     icons::ICON_KEYBOARD,
 ];
 
@@ -168,35 +161,35 @@ impl MouseSimulation {
         };
     }
 
-    fn translated(&mut self, raw: RawInput) -> (RawInput, Option<Duration>) {
+    fn translated(&mut self, events: Vec<Event>) -> (Vec<Event>, Option<Duration>) {
         if !self.enabled && !self.active {
-            return (raw, None);
+            return (events, None);
         }
-        let mut out = Vec::with_capacity(raw.events.len() + 8);
+        let mut out = Vec::with_capacity(events.len() + 8);
         if !self.enabled {
             self.stop(&mut out);
-            out.extend(raw.events);
-            return (RawInput { events: out }, None);
+            out.extend(events);
+            return (out, None);
         }
         if !self.active {
             self.start();
         }
-        for event in raw.events {
+        for event in events {
             match event.clone() {
                 Event::Touch { id, phase, pos, .. } if self.passes(id, phase, pos) => {
                     out.push(event);
                 }
                 Event::Touch { id, phase, pos, .. } => self.touch(id, phase, pos),
-                Event::Focus(false) => {
+                Event::PointersCancelled => {
                     self.cancel();
-                    out.push(Event::Focus(false));
+                    out.push(Event::PointersCancelled);
                 }
                 other => out.push(other),
             }
         }
         let wake = self.settle();
         self.flush(&mut out);
-        (RawInput { events: out }, wake)
+        (out, wake)
     }
 
     fn start(&mut self) {
@@ -615,95 +608,17 @@ impl MouseSimulation {
     }
 
     fn paint_cursor(&self, painter: &Painter, icon: CursorIcon) -> Rect {
-        let at = self.local(self.cursor);
         let color = if self.held(0) {
             Theme::DARK.accent
         } else {
             Theme::DARK.knob
         };
-        let shadow = vec2(CURSOR_SHADOW, CURSOR_SHADOW);
-        match icon {
-            CursorIcon::None => {}
-            CursorIcon::Touch => {
-                beui_core::touch_cursor::paint(painter, at);
-            }
-            CursorIcon::Text => {
-                ibeam(painter, at + shadow, SHADOW);
-                ibeam(painter, at, color);
-            }
-            icon => {
-                let (text, hotspot, angle) = cursor_glyph(icon);
-                let painter = painter.rotated(at, angle);
-                let galley = painter.layout(text, FontId::icons(CURSOR_SIZE), f32::INFINITY);
-                let origin = at - hotspot * CURSOR_SIZE;
-                painter.galley(origin + shadow, galley.clone(), SHADOW);
-                painter.galley(origin, galley, color);
-            }
-        }
-        Rect::from_center_size(at, vec2(CURSOR_SIZE, CURSOR_SIZE) * 3.0)
+        drawn_cursor::paint(painter, self.local(self.cursor), icon, color)
     }
 }
 
-fn cursor_glyph(icon: CursorIcon) -> (&'static str, Vec2, f32) {
-    let center = vec2(0.48, 0.56);
-    let diagonal = std::f32::consts::FRAC_PI_4;
-    match icon {
-        CursorIcon::Default | CursorIcon::None | CursorIcon::Text => {
-            (icons::ICON_ARROW_SELECTOR_TOOL, vec2(0.23, 0.19), 0.0)
-        }
-        CursorIcon::PointingHand => (icons::ICON_PAN_TOOL_ALT, vec2(0.29, 0.15), 0.0),
-        CursorIcon::Crosshair | CursorIcon::Touch => (icons::ICON_ADD, center, 0.0),
-        CursorIcon::Grab => (icons::ICON_PAN_TOOL, center, 0.0),
-        CursorIcon::Grabbing => (icons::ICON_BACK_HAND, center, 0.0),
-        CursorIcon::NotAllowed => (icons::ICON_BLOCK, center, 0.0),
-        CursorIcon::ResizeHorizontal => (icons::ICON_WIDTH, center, 0.0),
-        CursorIcon::ResizeVertical => (icons::ICON_HEIGHT, center, 0.0),
-        CursorIcon::ResizeNwSe => (icons::ICON_WIDTH, center, diagonal),
-        CursorIcon::ResizeNeSw => (icons::ICON_WIDTH, center, -diagonal),
-        CursorIcon::Wait => (icons::ICON_HOURGLASS, center, 0.0),
-        CursorIcon::Progress => (icons::ICON_PROGRESS_ACTIVITY, center, 0.0),
-        CursorIcon::Move => (icons::ICON_OPEN_WITH, center, 0.0),
-        CursorIcon::Help => (icons::ICON_HELP, center, 0.0),
-        CursorIcon::Alias => (icons::ICON_SHORTCUT, center, 0.0),
-        CursorIcon::ContextMenu => (icons::ICON_MENU, center, 0.0),
-        CursorIcon::Cell => (icons::ICON_GRID_ON, center, 0.0),
-        CursorIcon::VerticalText => (icons::ICON_TEXT_ROTATE_VERTICAL, center, 0.0),
-        CursorIcon::Copy => (icons::ICON_CONTENT_COPY, center, 0.0),
-        CursorIcon::NoDrop => (icons::ICON_DO_NOT_DISTURB_ON, center, 0.0),
-        CursorIcon::AllScroll => (icons::ICON_ALL_OUT, center, 0.0),
-        CursorIcon::ZoomIn => (icons::ICON_ZOOM_IN, center, 0.0),
-        CursorIcon::ZoomOut => (icons::ICON_ZOOM_OUT, center, 0.0),
-        CursorIcon::ResizeColumn | CursorIcon::ResizeEast | CursorIcon::ResizeWest => {
-            (icons::ICON_WIDTH, center, 0.0)
-        }
-        CursorIcon::ResizeRow | CursorIcon::ResizeNorth | CursorIcon::ResizeSouth => {
-            (icons::ICON_HEIGHT, center, 0.0)
-        }
-        CursorIcon::ResizeNorthWest | CursorIcon::ResizeSouthEast => {
-            (icons::ICON_WIDTH, center, diagonal)
-        }
-        CursorIcon::ResizeNorthEast | CursorIcon::ResizeSouthWest => {
-            (icons::ICON_WIDTH, center, -diagonal)
-        }
-    }
-}
-
-fn ibeam(painter: &Painter, at: Pos2, color: Color32) {
-    let half = IBEAM_HEIGHT / 2.0;
-    let (top, bottom) = (at.y - half, at.y + half);
-    painter.line(pos2(at.x, top), pos2(at.x, bottom), IBEAM_WIDTH, color);
-    for y in [top, bottom] {
-        painter.line(
-            pos2(at.x - IBEAM_SERIF, y),
-            pos2(at.x + IBEAM_SERIF, y),
-            IBEAM_WIDTH,
-            color,
-        );
-    }
-}
-
-fn glyph(painter: &Painter, center: Pos2, text: &str, size: f32, color: Color32) {
-    let galley = painter.layout(text, FontId::icons(size), f32::INFINITY);
+fn glyph(painter: &Painter, center: Pos2, icon: icons::Glyph, size: f32, color: Color32) {
+    let galley = painter.layout(icon.as_str(), FontId::icons(size), f32::INFINITY);
     let extent = galley.size();
     painter.galley(center - extent * 0.5, galley, color);
 }
@@ -717,9 +632,9 @@ impl InputSimulation for MouseSimulation {
         self.enable(enabled);
     }
 
-    fn translate(&mut self, raw: RawInput, now: Instant) -> (RawInput, Option<Duration>) {
+    fn translate(&mut self, events: Vec<Event>, now: Instant) -> (Vec<Event>, Option<Duration>) {
         self.now = now;
-        self.translated(raw)
+        self.translated(events)
     }
 
     fn measure(&mut self, viewport: Rect, scale: f32) {

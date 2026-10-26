@@ -1,18 +1,20 @@
+use block_editor_beui::beui::icons::Glyph;
 use std::cell::{Cell, RefCell};
 use std::collections::{HashMap, HashSet};
 use std::rc::Rc;
 use std::time::{Duration, Instant};
+use workspace_ui_types::ViewState;
 
-use block_editor_beui::be_block::{
-    ViewState,
-    metadata::{ICON, ICON_COLOR},
+use block_editor_beui::be_block::SETTINGS;
+use block_editor_beui::be_block::metadata::ICON_COLOR;
+use block_editor_beui::be_block::{BlockContent, HomeContent, SettingsContent};
+use block_editor_beui::beui::icons::{
+    ICON_BOXES, ICON_DATABASE, ICON_PIN, ICON_ROTATE_CCW_CLOCK, ICON_USERS, named,
 };
-use block_editor_beui::beui::icons::{ICON_DATABASE, ICON_HISTORY, ICON_PEOPLE, ICON_WORKSPACES};
 use block_editor_beui::beui::reactive::*;
-use block_editor_beui::block_ui::BlockTypes;
-pub(crate) use block_editor_beui::sections::{
-    is_workspace, own_system, shared_with_me, workspaces,
-};
+use block_editor_beui::block_ui::{BlockTypes, Press};
+pub(crate) use block_editor_beui::sections::{own_system, shared_with_me, workspaces};
+use block_editor_beui::tags::{ShownTag, tags_of};
 use block_editor_beui::{AccessLevel, BlockInfo, BlockList, BlockParent, BlockQuery, Blocks};
 use block_editor_beui::{Editor, label_glyph};
 use serde::{Deserialize, Serialize};
@@ -28,6 +30,7 @@ pub(crate) enum RowKey {
     SharedNote,
     OrphansNote,
     SystemNote,
+    Pinned(Vec<Uuid>),
 }
 
 #[derive(Clone, PartialEq)]
@@ -36,13 +39,15 @@ pub(crate) struct Row {
     pub(crate) id: Option<Uuid>,
     pub(crate) block_type: Uuid,
     pub(crate) label: String,
-    pub(crate) glyph: String,
+    pub(crate) file_name: Option<String>,
+    pub(crate) glyph: Option<Glyph>,
     pub(crate) icon_color: Option<[u8; 3]>,
     pub(crate) automatic: bool,
     pub(crate) depth: usize,
     pub(crate) section: bool,
     pub(crate) expandable: bool,
     pub(crate) expanded: bool,
+    pub(crate) press: Press,
     pub(crate) container: Option<Uuid>,
     pub(crate) source: BlockParent,
     pub(crate) is_reference: bool,
@@ -57,6 +62,9 @@ pub(crate) struct Row {
     pub(crate) inspection: Option<Inspection>,
     pub(crate) deleted: bool,
     pub(crate) marked_deleted: bool,
+    pub(crate) sets_access: bool,
+    pub(crate) settings: Option<Uuid>,
+    pub(crate) tags: Vec<ShownTag>,
 }
 
 #[derive(Clone, PartialEq, Default)]
@@ -83,13 +91,15 @@ impl Row {
             id: None,
             block_type: Uuid::nil(),
             label: label.to_owned(),
-            glyph: String::new(),
+            file_name: None,
+            glyph: None,
             icon_color: None,
             automatic: true,
             depth,
             section: false,
             expandable: false,
             expanded: false,
+            press: Press::Open,
             container: None,
             source: BlockParent::Root,
             is_reference: false,
@@ -104,7 +114,14 @@ impl Row {
             inspection: None,
             deleted: false,
             marked_deleted: false,
+            sets_access: false,
+            settings: None,
+            tags: Vec::new(),
         }
+    }
+
+    pub(crate) fn is_workspace(&self) -> bool {
+        self.section && self.id.is_some()
     }
 }
 
@@ -174,6 +191,7 @@ struct Watched {
     block_types: HashMap<Uuid, Uuid>,
     workspaces: HashSet<Uuid>,
     system: HashSet<Uuid>,
+    shown: HashMap<Uuid, Listing>,
 }
 
 #[derive(Clone, Copy)]
@@ -187,7 +205,6 @@ pub(crate) struct Tree {
 }
 
 struct Inner {
-    client: Blocks,
     watched: Rc<RefCell<Watched>>,
 }
 
@@ -274,14 +291,17 @@ impl Tree {
             };
             let listed = clock.listed(&roots);
             let held = listed.clone().unwrap_or_default();
-            let sections = workspaces(held.clone(), host.account_id(), types.as_ref());
+            let sections = workspaces(
+                held.clone(),
+                host.organization_id(),
+                host.account_id(),
+                types.as_ref(),
+            );
             let system = listed
                 .as_ref()
                 .map(|_| own_system(held.clone(), host.account_id()))
                 .map_err(Clone::clone);
-            let loose = clock
-                .listed(&shared)
-                .map(|shared| shared_with_me(held, shared));
+            let loose = clock.listed(&shared).map(shared_with_me);
             watched.system = system.iter().flatten().map(|block| block.id).collect();
             watched.workspaces = sections.iter().map(|block| block.id).collect();
             let shown: HashSet<Uuid> = sections
@@ -296,6 +316,10 @@ impl Tree {
                     .entry(*id)
                     .or_insert_with(|| Listing::watch(&building, BlockQuery::References(*id)));
             }
+            let pinned: HashMap<Uuid, Vec<Uuid>> = shown
+                .iter()
+                .map(|section| (*section, pinned_in(editor, *section)))
+                .collect();
             let mut builder = Builder {
                 account: host.account_id(),
                 client: &building,
@@ -303,6 +327,8 @@ impl Tree {
                 watched: &mut watched,
                 clock,
                 rows: Vec::new(),
+                pinned,
+                seen: HashSet::new(),
             };
             match listed {
                 Ok(_) if sections.is_empty() => {
@@ -321,7 +347,9 @@ impl Tree {
             builder.push_orphans(showing);
             builder.push_system(system, system_open);
             let due = builder.clock.due;
+            let seen = std::mem::take(&mut builder.seen);
             let built = builder.rows;
+            watched.shown.retain(|id, _| seen.contains(id));
             drop(watched);
             if let Some(due) = due {
                 timer.start(due.saturating_duration_since(clock.now));
@@ -355,7 +383,7 @@ impl Tree {
         });
 
         Self {
-            inner: store(Inner { client, watched }),
+            inner: store(Inner { watched }),
             rows: create_memo(move || rows.get()),
             folded,
             expanded,
@@ -382,10 +410,6 @@ impl Tree {
                 .insert(id, block_type)
         });
         self.remembered.update(|count| *count += 1);
-    }
-
-    pub(crate) fn blocks(&self) -> Blocks {
-        self.inner.with(|inner| inner.client.clone())
     }
 
     pub(crate) fn workspaces(&self) -> HashSet<Uuid> {
@@ -444,7 +468,11 @@ impl Tree {
                     }
                 });
             }
-            RowKey::Note(_) | RowKey::SharedNote | RowKey::OrphansNote | RowKey::SystemNote => {}
+            RowKey::Note(_)
+            | RowKey::SharedNote
+            | RowKey::OrphansNote
+            | RowKey::SystemNote
+            | RowKey::Pinned(_) => {}
         }
     }
 
@@ -475,6 +503,22 @@ impl Tree {
     }
 }
 
+fn pinned_in(editor: Editor, section: Uuid) -> Vec<Uuid> {
+    let Some(settings) = editor.settings_block(section) else {
+        return Vec::new();
+    };
+    let Ok(Some(home)) = editor
+        .content_of::<SettingsContent>(settings)
+        .read(|settings| settings.root().kind(HomeContent::CONTENT_TYPE))
+    else {
+        return Vec::new();
+    };
+    editor
+        .content_of::<HomeContent>(home)
+        .read(|home| home.root().pinned())
+        .unwrap_or_default()
+}
+
 struct Builder<'a> {
     account: Uuid,
     client: &'a Blocks,
@@ -482,6 +526,8 @@ struct Builder<'a> {
     watched: &'a mut Watched,
     clock: Clock,
     rows: Vec<Row>,
+    pinned: HashMap<Uuid, Vec<Uuid>>,
+    seen: HashSet<Uuid>,
 }
 
 fn note_for(
@@ -504,7 +550,7 @@ impl Builder<'_> {
         self.rows.push(Row {
             key: RowKey::Orphans,
             label: "Recently Deleted".to_owned(),
-            glyph: ICON_HISTORY.to_owned(),
+            glyph: Some(ICON_ROTATE_CCW_CLOCK),
             section: true,
             expandable: true,
             expanded: open,
@@ -535,7 +581,7 @@ impl Builder<'_> {
             section: true,
             expandable: true,
             expanded: open,
-            glyph: ICON_DATABASE.to_owned(),
+            glyph: Some(ICON_DATABASE),
             ..Row::note_at(RowKey::System, 0, "System")
         });
         if !open {
@@ -571,8 +617,8 @@ impl Builder<'_> {
             |id| id.to_string(),
         );
         row.section = true;
-        if row.glyph.is_empty() {
-            ICON_WORKSPACES.clone_into(&mut row.glyph);
+        if row.glyph.is_none() {
+            row.glyph = Some(ICON_BOXES);
         }
         row.expandable = true;
         row.expanded = open;
@@ -590,10 +636,63 @@ impl Builder<'_> {
         }) else {
             return;
         };
+        self.push_pinned(section.id);
         let mut path = path;
         for child in children {
             self.push(child, 1, Some(section.id), &mut path, false);
         }
+    }
+
+    fn shown_block(&mut self, id: Uuid) -> Option<BlockInfo> {
+        self.seen.insert(id);
+        let client = self.client;
+        let listing = self
+            .watched
+            .shown
+            .entry(id)
+            .or_insert_with(|| Listing::watch(client, BlockQuery::Block(id)));
+        self.clock.listed(listing).ok()?.into_iter().next()
+    }
+
+    fn push_pinned(&mut self, section: Uuid) {
+        let pinned = self.pinned.get(&section).cloned().unwrap_or_default();
+        if pinned.is_empty() {
+            return;
+        }
+        self.rows.push(Row {
+            glyph: Some(ICON_PIN),
+            ..Row::note_at(RowKey::Pinned(vec![section]), 1, "Pinned")
+        });
+        for id in pinned {
+            let Some(info) = self.shown_block(id).filter(|info| !info.deleted) else {
+                continue;
+            };
+            let mut row = describe(
+                self.client,
+                self.types,
+                &self.watched.block_types,
+                &info,
+                Placement {
+                    key: RowKey::Pinned(vec![section, id]),
+                    depth: 2,
+                    container: None,
+                    expanded: false,
+                    trashed: false,
+                },
+                |id| id.to_string(),
+            );
+            row.expandable = false;
+            row.can_delete = false;
+            row.tags = self.tags_of(&info);
+            self.rows.push(row);
+        }
+    }
+
+    fn tags_of(&mut self, info: &BlockInfo) -> Vec<ShownTag> {
+        tags_of(&info.metadata)
+            .into_iter()
+            .filter_map(|tag| self.shown_block(tag).map(|tag| ShownTag::of(&tag)))
+            .collect()
     }
 
     fn push_shared(&mut self, shared: Result<Vec<BlockInfo>, Option<String>>, open: bool) {
@@ -602,7 +701,7 @@ impl Builder<'_> {
             section: true,
             expandable: true,
             expanded: open,
-            glyph: ICON_PEOPLE.to_owned(),
+            glyph: Some(ICON_USERS),
             ..Row::note_at(RowKey::Shared, 0, "Shared with me")
         });
         if !open {
@@ -659,6 +758,8 @@ impl Builder<'_> {
         );
         let expanded = row.expanded;
         let trashed = trashed || row.deleted;
+        let mut row = row;
+        row.tags = self.tags_of(&reference);
         self.rows.push(row);
         if !expanded || path.contains(&reference.id) {
             return;
@@ -726,13 +827,14 @@ pub(crate) fn describe(
         .label(types)
         .deleted(reference.deleted && !trashed);
     let ordinary = label.reach == block_editor_beui::block_ui::Reach::Open && !label.deleted;
-    let default_glyph = label_glyph(&label).unwrap_or_default().to_owned();
+    let default_glyph = label_glyph(&label);
     let (glyph, icon_color) = if ordinary {
         (
             reference
                 .metadata
-                .get(&ICON)
-                .map_or(default_glyph, |icon| icon.to_string()),
+                .icon()
+                .and_then(|icon| named(&icon))
+                .or(default_glyph),
             reference
                 .metadata
                 .get(&ICON_COLOR)
@@ -754,6 +856,7 @@ pub(crate) fn describe(
         id: Some(reference.id),
         block_type: reference.block_type,
         label: label.name.clone(),
+        file_name: reference.file_name(),
         glyph,
         icon_color,
         automatic: label.automatic,
@@ -761,6 +864,7 @@ pub(crate) fn describe(
         section: false,
         expandable,
         expanded: expandable && expanded,
+        press: types.press(reference.block_type),
         container,
         source,
         is_reference,
@@ -775,6 +879,13 @@ pub(crate) fn describe(
         inspection: Some(inspection),
         deleted: reference.deleted,
         marked_deleted: label.deleted,
+        sets_access: ordinary && reference.sets_access,
+        settings: reference
+            .metadata
+            .get(&SETTINGS)
+            .map(|settings| settings.0)
+            .filter(|_| ordinary && access.can_view()),
+        tags: Vec::new(),
     }
 }
 
@@ -873,6 +984,7 @@ pub(crate) fn unlink_permission(
 
 pub(crate) fn access_name(access: AccessLevel) -> &'static str {
     match access {
+        AccessLevel::Manage => "Can manage",
         AccessLevel::Edit => "Can edit",
         AccessLevel::View => "Can view",
         AccessLevel::KnowExists => "Can see that it exists",
@@ -882,7 +994,7 @@ pub(crate) fn access_name(access: AccessLevel) -> &'static str {
 
 pub(crate) fn access_hint(access: AccessLevel) -> &'static str {
     match access {
-        AccessLevel::Edit => "",
+        AccessLevel::Manage | AccessLevel::Edit => "",
         AccessLevel::View => "You can view this block, but not change it.",
         AccessLevel::KnowExists | AccessLevel::None => {
             "You can see that this block exists, but not open it."
@@ -890,10 +1002,10 @@ pub(crate) fn access_hint(access: AccessLevel) -> &'static str {
     }
 }
 
-pub(crate) fn access_marker(access: AccessLevel) -> Option<&'static str> {
+pub(crate) fn access_marker(access: AccessLevel) -> Option<Glyph> {
     match access {
-        AccessLevel::Edit => None,
-        AccessLevel::View => Some(block_editor_beui::beui::icons::ICON_VISIBILITY),
+        AccessLevel::Manage | AccessLevel::Edit => None,
+        AccessLevel::View => Some(block_editor_beui::beui::icons::ICON_EYE),
         AccessLevel::KnowExists | AccessLevel::None => {
             Some(block_editor_beui::beui::icons::ICON_LOCK)
         }

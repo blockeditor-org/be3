@@ -1,9 +1,10 @@
-use block_editor_beui::be_block::MapContent;
+use block_editor_beui::Fit;
+use map_types::MapContent;
 
 use block_editor_beui::Loaded;
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
-use block_editor_beui::beui::{NodeId, Pos2, Rect, Vec2};
+use block_editor_beui::beui::{NodeId, Vec2};
 use block_editor_beui::{Creation, Editor, Sidebar};
 use uuid::Uuid;
 
@@ -21,8 +22,10 @@ use toolbar::MapToolbar;
 
 pub struct MapApp;
 
+#[component]
 impl block_editor_beui::BeuiApp for MapApp {
-    fn view(editor: Editor) -> Root {
+    #[component]
+    fn View(editor: Editor) -> Root {
         view! {
             <Root>
                 <Loaded>
@@ -32,7 +35,8 @@ impl block_editor_beui::BeuiApp for MapApp {
         }
     }
 
-    fn preview_view(editor: Editor) -> NodeId {
+    #[component]
+    fn Preview(editor: Editor) -> NodeId {
         view! {
             <Loaded>
                 <MapPreview editor={editor} />
@@ -60,18 +64,17 @@ fn MapEditor(editor: Editor) -> NodeId {
         }));
     });
 
-    let world = editor.world();
-    let fitting = editor.keep_fitted(move || {
-        world
-            .get()
-            .map(|world| Rect::from_min_size(Pos2::ZERO, world))
-    });
+    let fitting = editor.keep_fitted(|| Some(Fit::World));
 
     let chrome = editor.chrome_shown();
     view! {
-        <List spacing=0.0>
+        <List spacing=Space::None>
             <MapToolbar state={state} fitting={fitting} shown={chrome} />
-            <List @sizing=ItemSize::Percent(100.0) direction=Direction::Horizontal spacing=0.0>
+            <List
+                @sizing=ItemSize::Percent(100.0)
+                direction=Direction::Horizontal
+                spacing=Space::None
+            >
                 <MapCanvas @sizing=ItemSize::Percent(100.0) state={state} />
                 <Sidebar shown={chrome}>
                     <MapSidebar state={state} />

@@ -1,8 +1,8 @@
 use std::sync::mpsc::channel;
 
+use beui::dock::styled::TabId;
 use beui::reactive::untrack;
-use beui::unstyled::TabId;
-use beui::{Event, Modifiers, Vec2};
+use beui::{Input, Modifiers, Vec2};
 use block_ui_test::DocumentTest;
 
 use super::{Person, PullRequest, State, scratch};
@@ -10,6 +10,7 @@ use crate::LauncherApp;
 use crate::github::Filter;
 use crate::model::{Model, Tab};
 use crate::pane::{Pane, Session};
+use crate::runs::Runs;
 use crate::tasks::{self, Tasks};
 
 const WIDE: Vec2 = Vec2::new(1200.0, 800.0);
@@ -46,20 +47,21 @@ fn close(model: Model, number: u64) -> String {
 }
 
 fn click(test: &mut DocumentTest, number: u64, modifiers: Modifiers) {
-    test.frame(vec![Event::Modifiers(modifiers)]);
-    test.click(&format!("launcher.pull_request.{number}"));
-    test.frame(vec![Event::Modifiers(Modifiers::NONE)]);
+    test.frame(vec![Input::Modifiers(modifiers)]);
+    test.click(format!("launcher.pull_request.{number}"));
+    test.frame(vec![Input::Modifiers(Modifiers::NONE)]);
 }
 
 #[test]
 fn pull_requests_open_in_place_of_the_one_shown_unless_ctrl_is_held() {
     let (sender, events) = channel();
     let tasks = Tasks::new(scratch("tabs"), sender);
-    let session = Session::new(tasks.clone()).expect("a terminal");
+    let session = Session::new().expect("a terminal");
     let LauncherApp {
         document, model, ..
     } = LauncherApp::with(tasks, events, move |tasks| {
-        Model::new(tasks.clone(), Pane::new(session, tasks))
+        let runs = Runs::new(tasks.clone(), Pane::new(session));
+        Model::new(tasks, runs)
     });
     model.receive(tasks::Event::PullRequests(
         Filter::Open,
@@ -105,7 +107,7 @@ fn pull_requests_open_in_place_of_the_one_shown_unless_ctrl_is_held() {
         "in the tab it had"
     );
 
-    test.click(&close(model, 3));
+    test.click(close(model, 3));
     test.frame(Vec::new());
     assert!(
         !is_open(&test, 3) && is_open(&test, 1),

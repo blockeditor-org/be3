@@ -1,16 +1,7 @@
 use super::*;
 
 fn super_f(harness: &mut Harness) {
-    let logo = beui::Modifiers::LOGO;
-    harness.frame(
-        [
-            super_key(true),
-            f_key(true, logo),
-            f_key(false, logo),
-            super_key(false),
-        ]
-        .concat(),
-    );
+    harness.frame([super_key(true), f_key(true), f_key(false), super_key(false)].concat());
     harness.settle();
 }
 
@@ -36,13 +27,7 @@ fn super_f_toggles_fullscreen_on_the_focused_window() {
     assert_eq!(harness.window(id).size(), SHOWN);
 
     harness.client.received.keys.clear();
-    harness.frame(
-        [
-            f_key(true, beui::Modifiers::NONE),
-            f_key(false, beui::Modifiers::NONE),
-        ]
-        .concat(),
-    );
+    harness.frame([f_key(true), f_key(false)].concat());
     harness.settle();
     assert_eq!(
         harness.client.received.keys,

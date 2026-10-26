@@ -1,12 +1,14 @@
+use beui::WindowSize;
 use beui::reactive::*;
-use beui::{Context, FreetypeFonts, Pos2, RawInput, Rect, Vec2};
+use beui::testing::{Showing, Stepped};
+use beui::{Context, FreetypeFonts, Vec2};
 
 use crate::viewer::ViewerBar;
 
 #[test]
 fn the_image_viewer_keeps_its_close_button_on_a_narrow_screen() {
     let viewport = Vec2::new(320.0, 200.0);
-    let mut document = build(|| {
+    let document = build(|| {
         let position =
             create_memo(|| "Image 3 of 12 · the arrow keys move between them".to_owned());
         let first = create_memo(|| false);
@@ -26,10 +28,14 @@ fn the_image_viewer_keeps_its_close_button_on_a_narrow_screen() {
         }
     });
     let context = Context::new(FreetypeFonts::default());
-    context.run(RawInput { events: Vec::new() }, |context| {
-        document.show(context, Rect::from_min_size(Pos2::ZERO, viewport));
-    });
+    let window = WindowSize {
+        size: viewport,
+        scale: 1.0,
+    };
+    let mut stepped = Stepped::new(context, Showing(document), window, None);
+    stepped.frame(Vec::new());
 
+    let document = stepped.document();
     let close = document
         .find_test_id("viewer.close")
         .expect("a close button");

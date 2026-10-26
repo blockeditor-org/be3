@@ -6,7 +6,7 @@ use crate::cli::{Statuses, pull_request};
 #[tokio::test]
 async fn a_merged_pull_request_closes_rows_without_a_done_status() {
     let harness = Harness::start().await;
-    let tracker = Tracker::new(harness.owner().await);
+    let tracker = Tracker::new(harness.owner().await, sources());
     let board = board(&tracker).await;
     run(&tracker, "Issues add-option Status Shipped closed=yes")
         .await

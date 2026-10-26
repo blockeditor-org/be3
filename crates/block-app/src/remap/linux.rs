@@ -9,8 +9,8 @@ use be_remap_host::Remapper;
 use be_remap_host::be_remap::protocol::{decode, encode};
 use be_remap_host::be_remap::rules::exe_name;
 use be_remap_host::be_remap::{Input, Output, Source, Window};
-use beui_adapter_drm::{InputControl, InputFilter, RawInput};
-use block_plugin_api::{RemapState, Remaps};
+use beui_platform_drm::{InputControl, InputFilter, RawInput};
+use block_plugin_api::{RemapState, RemapsWatch};
 use uuid::Uuid;
 
 use crate::app_state::AppStateStore;
@@ -187,7 +187,7 @@ pub(crate) fn frame(store: &AppStateStore) {
         (state.published != Some(value)).then_some(value)
     });
     if let Some(value) = shown {
-        crate::plugin_host::publish::<Remaps>(&value);
+        crate::plugin_host::publish::<RemapsWatch>(&value);
         STATE.with_borrow_mut(|state| state.published = Some(value));
     }
 }

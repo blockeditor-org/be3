@@ -12,23 +12,22 @@ fn returning_to_the_inspector_tab_repaints_the_whole_panel() {
 
     let inspector = harness.bar_option_center(1);
     let mut damage = Vec::new();
-    harness.frame(vec![Event::PointerMoved(inspector)]);
+    harness.frame(vec![Input::PointerMoved(inspector)]);
     for pressed in [true, false] {
-        let output = harness.frame(vec![Event::PointerButton {
+        let output = harness.frame(vec![Input::PointerButton {
             pos: inspector,
             button: PointerButton::Primary,
             pressed,
-            modifiers: Modifiers::NONE,
         }]);
-        damage.extend_from_slice(output.damage.rects());
+        damage.extend_from_slice(output.main().damage.rects());
     }
-    damage.extend_from_slice(harness.frame(Vec::new()).damage.rects());
+    damage.extend_from_slice(harness.frame(Vec::new()).main().damage.rects());
 
     let panel = harness
         .inspector()
         .panel_rect()
         .expect("the inspector panel is shown")
-        .scaled(crate::inspector::scale(&harness.context));
+        .scaled(crate::inspector::scale(harness.context()));
     assert!(panel.top() >= harness.bar_option_rect(1).bottom());
     assert_eq!(panel.right(), VIEWPORT.x);
     let mut y = panel.top() + 0.5;

@@ -2,19 +2,17 @@ use std::time::Duration;
 
 use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::datetime::{HourCycle, Time};
-use block_editor_beui::beui::icons::{ICON_CLOSE, ICON_NOTIFICATIONS, ICON_NOTIFICATIONS_ACTIVE};
+use block_editor_beui::beui::icons::{ICON_BELL, ICON_BELL_RING, ICON_X};
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
-use block_editor_beui::beui::unstyled::PopoverHandle;
 
 use super::{DesktopNotifications, Listed};
 use crate::app::bar::local_minutes;
 use crate::app::popup::BarPopup;
 
-pub(crate) const NOTIFICATIONS_WIDTH: f32 = 360.0;
-const LIST_HEIGHT: f32 = 420.0;
-const SPACING: f32 = 8.0;
-const ROW_SPACING: f32 = 2.0;
+const LIST_HEIGHT: Size = Size::Custom(420.0);
+const SPACING: Space = Space::Md;
+const ROW_SPACING: Space = Space::Xs2;
 
 fn received_at(received: u64) -> String {
     let minutes = local_minutes(Duration::from_secs(received));
@@ -25,8 +23,8 @@ fn received_at(received: u64) -> String {
 pub(crate) fn NotificationsButton(notifications: DesktopNotifications) -> NodeId {
     let listed = notifications.listed();
     let glyph = create_memo(move || match listed.with(Vec::is_empty) {
-        true => ICON_NOTIFICATIONS.to_owned(),
-        false => ICON_NOTIFICATIONS_ACTIVE.to_owned(),
+        true => ICON_BELL,
+        false => ICON_BELL_RING,
     });
     let label = create_memo(move || match listed.with(Vec::len) {
         0 => "Notifications".to_owned(),
@@ -37,7 +35,6 @@ pub(crate) fn NotificationsButton(notifications: DesktopNotifications) -> NodeId
             label
             glyph
             icon_only=true
-            width=NOTIFICATIONS_WIDTH
             @test_id={"desktop.notifications"}
             open={notifications.browsing()}
         >|handle: PopoverHandle|
@@ -135,19 +132,20 @@ fn NotificationRow(
             >
                 <List spacing=ROW_SPACING>
                     <Text style=TextStyle::CAPTION>{source}</Text>
-                    <Text color={summary_color} weight=Weight::Bold wrap=true>{summary}</Text>
+                    <Text color={summary_color} weight=Weight::Bold>{summary}</Text>
                     <Show condition={said}>|| {
                         let body = body.clone(); view! {
-                            <Text size=TextSize::Sm color={body_color} wrap=true>{body}</Text>
+                            <Text size=TextSize::Sm color={body_color}>{body}</Text>
                         }
                     }</Show>
                 </List>
             </ListRow>
-            <IconButton
-                glyph={ICON_CLOSE.to_owned()}
+            <Button
+                icon_only=true
+                glyph=ICON_X
                 label="Dismiss"
                 variant=ButtonVariant::Ghost
-                size=IconButtonSize::Compact
+                size=ButtonSize::Small
                 @test_id={format!("desktop.notifications.{id}.dismiss")}
                 on_click={move || notifications.dismiss(&[id])}
             />

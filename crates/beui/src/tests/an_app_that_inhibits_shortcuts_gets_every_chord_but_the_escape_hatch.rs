@@ -37,7 +37,7 @@ fn an_app_that_inhibits_shortcuts_gets_every_chord_but_the_escape_hatch() {
                             if input.focused {
                                 forwarded.update(|forwarded| forwarded.extend(input.inputs().filter_map(
                                     |event| match event {
-                                        Event::Key { press, .. } if press.pressed => {
+                                        Event::Key { press, .. } if press.pressed && !press.key.is_modifier() => {
                                             Some(press.key)
                                         }
                                         _ => None,

@@ -2,12 +2,13 @@ use std::cell::RefCell;
 use std::rc::Rc;
 
 use be_block::be_model::Document;
-use be_block::{BlockContent, Layered, Layers, LiveEdit, Setting, SettingsLayer};
+use be_block::{
+    BlockContent, Layered, Layers, LiveEdit, Resolution, Setting, SettingsLayer, SettingsSource,
+};
 use beui::NodeId;
-use beui::icons::{ICON_KEEP, ICON_KEEP_OFF, ICON_SETTINGS_BACKUP_RESTORE};
+use beui::icons::{ICON_PIN, ICON_PIN_OFF, ICON_ROTATE_CCW};
 use beui::reactive::*;
 use beui::styled::*;
-use beui::unstyled::MenuItem;
 use uuid::Uuid;
 
 use crate::Editor;
@@ -16,6 +17,8 @@ use crate::root_settings::{RootSetting, SettingsGraph, own_settings_blocks};
 const KEPT: &str = "Kept on this device";
 const IN_PROFILE: &str = "Kept in this profile";
 const ONLY_HERE: &str = "This device only";
+const DEVELOPER_OVERRIDE: &str = "Overridden by developer tools";
+const ORGANIZATION: &str = "Set by your organization";
 const KEEP_ACTION: &str = "keep";
 const UNDO_ACTION: &str = "undo";
 
@@ -48,6 +51,7 @@ pub struct LayeredSettings<R: 'static> {
     own: Memo<R>,
     below: Memo<R>,
     effective: Memo<R>,
+    resolved: Memo<Resolution<R>>,
     ready: Memo<bool>,
     blocks: Stored<RefCell<RootSetting<Document<R>>>>,
     changes: Signal<Vec<Changed>>,
@@ -151,6 +155,7 @@ where
             own,
             below,
             effective,
+            resolved: editor.resolved_settings::<R>(editor.block_id()),
             ready,
             blocks,
             changes: create_signal(Vec::new()),
@@ -297,7 +302,27 @@ where
             let setting = setting.clone();
             Callback::new(move |()| this.reset(&setting))
         };
+        let (resolved, editor) = (self.resolved, self.editor);
+        let source = {
+            let setting = setting.clone();
+            create_memo(move || {
+                let locked =
+                    resolved.with(|resolved| resolved.locked_by(|layer| setting.get(layer)));
+                locked.map(|source| match source {
+                    SettingsSource::Block(owner) => {
+                        let types = editor.block_types();
+                        let name = editor.blocks().info(owner).map_or_else(
+                            || "a block you can't open".to_owned(),
+                            |info| info.label(types.as_ref()).name,
+                        );
+                        format!("Set in {name}")
+                    }
+                    _ => ORGANIZATION.to_owned(),
+                })
+            })
+        };
         SettingHandle {
+            source,
             device: self.target.get_untracked() == Target::ThisDevice,
             only_here: setting.is_this_device_only(),
             modified,
@@ -446,6 +471,7 @@ fn changes_message(names: &[String]) -> Option<String> {
 
 #[derive(Clone, Copy)]
 pub struct SettingHandle {
+    source: Memo<Option<String>>,
     device: bool,
     only_here: bool,
     modified: Memo<bool>,
@@ -506,6 +532,7 @@ pub fn LayeredSettingsRow(
     children: Children<ListChild>,
 ) -> NodeId {
     let SettingHandle {
+        source,
         device,
         only_here,
         modified,
@@ -514,7 +541,7 @@ pub fn LayeredSettingsRow(
         keep,
         reset,
     } = setting;
-    let locked = create_memo(move || locked.get());
+    let locked = create_memo(move || locked.get() || source.with(Option::is_some));
     let unresettable = create_memo(move || !modified.get() || locked.get());
     let menu: Children<MenuItem> = match device {
         true => {
@@ -524,7 +551,7 @@ pub fn LayeredSettingsRow(
                 view! {
                     <MenuItem
                         label="Keep on this device"
-                        glyph={ICON_KEEP.to_owned()}
+                        glyph=ICON_PIN
                         checked={checked}
                         disabled={unkeepable}
                         row_test_id={format!("{id}.keep")}
@@ -535,7 +562,7 @@ pub fn LayeredSettingsRow(
             let resetting = view! {
                 <MenuItem
                     label="Reset to default"
-                    glyph={ICON_SETTINGS_BACKUP_RESTORE.to_owned()}
+                    glyph=ICON_ROTATE_CCW
                     disabled={unresettable}
                     row_test_id={format!("{id}.reset")}
                     on_click={move || reset.call(())}
@@ -546,7 +573,7 @@ pub fn LayeredSettingsRow(
         false => [view! {
             <MenuItem
                 label="Stop keeping in this profile"
-                glyph={ICON_KEEP_OFF.to_owned()}
+                glyph=ICON_PIN_OFF
                 disabled={unresettable}
                 row_test_id={format!("{id}.reset")}
                 on_click={move || reset.call(())}
@@ -558,6 +585,9 @@ pub fn LayeredSettingsRow(
     let note = create_memo(move || {
         if overridden.get() {
             return DEVELOPER_OVERRIDE.to_owned();
+        }
+        if let Some(source) = source.get() {
+            return source;
         }
         match (device, only_here, kept.get(), modified.get()) {
             (true, true, _, _) => ONLY_HERE.to_owned(),

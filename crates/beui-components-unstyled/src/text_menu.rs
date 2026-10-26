@@ -9,6 +9,7 @@ use crate::menu_popup::MenuStyle;
 use beui_core::base::ItemSize;
 use beui_core::geometry::Rect;
 use beui_core::node::NodeId;
+use beui_view::primitives::*;
 use beui_view::reactive::*;
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
@@ -33,12 +34,19 @@ impl MenuAction {
 #[component]
 pub fn TextContextMenu(
     state: TextAreaState,
-    menu: MenuStyle,
+    menu: Option<MenuStyle>,
     #[prop(default = false)] masked: Prop<bool>,
     #[prop(default = false)] disabled: Prop<bool>,
+    #[prop(default = false)] read_only: Prop<bool>,
     #[prop(default = ItemSize::Intrinsic)] child_size: Prop<ItemSize>,
     #[prop(children)] content: Render<Callback<Option<Rect>>>,
 ) -> NodeId {
+    let Some(menu) = menu else {
+        let content = content.call(Callback::new(|_: Option<Rect>| ()));
+        return view! {
+            <List spacing=0.0>{content} @sizing={child_size}</List>
+        };
+    };
     let requested = create_signal(None::<(Rect, u64)>);
     let cursors = state.cursors();
     let toolbar_at = create_memo(move || {
@@ -53,18 +61,19 @@ pub fn TextContextMenu(
             .selection_ranges()
             .iter()
             .any(|range| !range.is_empty());
-        match selected && !masked.get() {
-            true => vec![
-                MenuAction::Copy,
-                MenuAction::Cut,
-                MenuAction::Paste,
-                MenuAction::SelectAll,
-            ],
-            false => vec![MenuAction::Paste, MenuAction::SelectAll],
-        }
+        let copies = selected && !masked.get();
+        let edits = !read_only.get();
+        [
+            (MenuAction::Copy, copies),
+            (MenuAction::Cut, copies && edits),
+            (MenuAction::Paste, edits),
+            (MenuAction::SelectAll, true),
+        ]
+        .into_iter()
+        .filter_map(|(action, shown)| shown.then_some(action))
+        .collect::<Vec<_>>()
     });
-    let no_menu = !menu.is_some();
-    let off = create_memo(move || no_menu || disabled.get());
+    let off = create_memo(move || disabled.get());
     let open = Callback::new(move |at: Option<Rect>| {
         let at = at.filter(|_| !off.get_untracked());
         requested.set(at.map(|rect| (rect, cursors.get_untracked())));

@@ -7,7 +7,7 @@
       "id": "f7517e41-de90-46cc-a35f-dbf32acbfdb5",
       "edits": "d4e367ab-db73-4419-bffc-b9131288c2e7",
       "display_name": "Folder",
-      "icon": "\ue2c7",
+      "icon": "\ue0d7",
       "templates": {
         "main": {
           "category": "important"
@@ -23,7 +23,7 @@
       "id": "58b60415-65c9-4476-8bff-05536886c702",
       "edits": "776f726b-7370-6163-652d-626c6f636b01",
       "display_name": "Workspace",
-      "icon": "\uea0f",
+      "icon": "\ue2d0",
       "interaction": "Preview",
       "resize": "None",
       "regions": [

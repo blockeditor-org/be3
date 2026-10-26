@@ -22,16 +22,16 @@ fn arrow_keys_move_a_visible_highlight_through_an_open_context_menu() {
     harness.frame(Vec::new());
 
     let pos = harness.center(region);
-    harness.frame(vec![Event::PointerMoved(pos)]);
-    let opened = harness.frame(vec![Event::PointerButton {
+    harness.frame(vec![Input::PointerMoved(pos)]);
+    let opened = harness.frame(vec![Input::PointerButton {
         pos,
         button: PointerButton::Secondary,
         pressed: true,
-        modifiers: Modifiers::NONE,
     }]);
 
     let highlights = |output: &crate::FrameOutput| {
         output
+            .main()
             .shapes()
             .iter()
             .filter(|shape| {
@@ -42,14 +42,14 @@ fn arrow_keys_move_a_visible_highlight_through_an_open_context_menu() {
     };
     assert_eq!(highlights(&opened), 0, "nothing should be highlighted yet");
 
-    let moved = harness.frame(vec![key_event(Key::ArrowDown, true, Modifiers::NONE)]);
+    let moved = harness.frame(vec![key_event(Key::ArrowDown, true)]);
     assert_eq!(
         highlights(&moved),
         1,
         "first arrow press should highlight an item"
     );
 
-    let moved_again = harness.frame(vec![key_event(Key::ArrowDown, true, Modifiers::NONE)]);
+    let moved_again = harness.frame(vec![key_event(Key::ArrowDown, true)]);
     assert_eq!(
         highlights(&moved_again),
         1,

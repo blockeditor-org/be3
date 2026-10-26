@@ -1,12 +1,12 @@
-use block_editor_beui::be_block::ImageContent;
+use block_editor_beui::Fit;
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
-use block_editor_beui::beui::unstyled::Picture;
 use block_editor_beui::beui::{Image, ImageFit, NodeId, Pos2, Rect, Thumbhash, Vec2};
 use block_editor_beui::{Editor, FileChooser, Sidebar, fit_content};
 
 use super::picture::{thumbhash, watch};
 use super::{filter, imported};
+use image_block_types::ImageContent;
 
 #[component]
 pub fn ImageEditor(editor: Editor) -> NodeId {
@@ -42,14 +42,9 @@ pub fn ImageEditor(editor: Editor) -> NodeId {
     let chrome = editor.chrome_shown();
     let content = NodeRef::new();
     editor.content(&content);
-    let world = editor.world();
-    editor.keep_fitted(move || {
-        world
-            .get()
-            .map(|world| Rect::from_min_size(Pos2::ZERO, world))
-    });
+    editor.keep_fitted(|| Some(Fit::World));
     view! {
-        <List direction=Direction::Horizontal spacing=0.0>
+        <List direction=Direction::Horizontal spacing=Space::None>
             <Frame @sizing=ItemSize::Percent(100.0) @node_ref={&content}>
                 <Layers>
                     <Loading fallback>|| {
@@ -99,7 +94,7 @@ fn ImageArea(
     let failed = create_memo(move || error.with(Option::is_some));
     let reason = create_memo(move || error.get().unwrap_or_default());
     view! {
-        <List align=Align::Stretch spacing=0.0>
+        <List align=Align::Stretch spacing=Space::None>
             <Artwork
                 @sizing=ItemSize::Percent(100.0)
                 editor={editor}

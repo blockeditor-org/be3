@@ -5,7 +5,7 @@ fn a_drawn_window_is_listed_and_fitted_to_where_it_is_shown() {
     let mut harness = Harness::new();
     let (_window, id) = harness.open();
 
-    let list = harness.app.windows().list().get_untracked();
+    let list = harness.compositor().windows().list().get_untracked();
     assert_eq!(list.len(), 1, "the window is listed once it has drawn");
     assert_eq!(list[0].id, id);
     assert_eq!(

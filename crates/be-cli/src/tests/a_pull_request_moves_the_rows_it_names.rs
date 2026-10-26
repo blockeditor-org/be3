@@ -11,7 +11,7 @@ async fn a_pull_request_moves_the_rows_it_names() {
     );
 
     let harness = Harness::start().await;
-    let tracker = Tracker::new(harness.owner().await);
+    let tracker = Tracker::new(harness.owner().await, sources());
     let board = board(&tracker).await;
     let peer = tracker.peer();
     let schema = peer

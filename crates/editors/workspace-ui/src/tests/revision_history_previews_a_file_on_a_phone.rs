@@ -1,5 +1,6 @@
 use super::*;
-use block_editor_beui::{HostReply, HostRequest, Revision};
+use block_editor_beui::Revision;
+use block_ui_test::HostCall;
 
 #[test]
 fn revision_history_previews_a_file_on_a_phone() {
@@ -9,22 +10,24 @@ fn revision_history_previews_a_file_on_a_phone() {
         .test
         .take_requests()
         .into_iter()
-        .find_map(|(id, request)| {
-            (request == HostRequest::ListRevisions(opened.into_bytes())).then_some(id)
+        .find_map(|call| match call {
+            HostCall::ListRevisions { reply, block } if block == opened.into_bytes() => Some(reply),
+            _ => None,
         })
         .unwrap();
-    fixture.test.reply(
+    fixture.test.answer(
         request,
-        HostReply::RevisionsListed(Ok(vec![Revision {
+        Ok(vec![Revision {
             commit: [4; 32],
             time: 1_800_000_000_000,
             current: true,
-        }])),
+        }]),
     );
     fixture.settle();
     fixture.test.click("dock.switch");
     fixture.settle();
-    fixture.test.click(&format!(
+    fixture.test.settle();
+    fixture.test.click(format!(
         "dock.switcher.tab.{}",
         block_shell::REVISIONS.value()
     ));
@@ -32,21 +35,19 @@ fn revision_history_previews_a_file_on_a_phone() {
     fixture.test.settle();
     fixture
         .test
-        .click(&format!("workspace.revision.{}", "04".repeat(32)));
+        .click(format!("workspace.revision.{}", "04".repeat(32)));
     fixture.settle();
     let request = fixture
         .test
         .take_requests()
         .into_iter()
-        .find_map(|(id, request)| {
-            matches!(request, HostRequest::PreviewRevision { .. }).then_some(id)
+        .find_map(|call| match call {
+            HostCall::PreviewRevision { reply, .. } => Some(reply),
+            _ => None,
         })
         .unwrap();
     let preview = Uuid::new_v4();
-    fixture.test.reply(
-        request,
-        HostReply::RevisionPreviewed(Ok(preview.into_bytes())),
-    );
+    fixture.test.answer(request, Ok(preview.into_bytes()));
     fixture.settle();
     assert!(
         fixture.shown().contains(&preview),

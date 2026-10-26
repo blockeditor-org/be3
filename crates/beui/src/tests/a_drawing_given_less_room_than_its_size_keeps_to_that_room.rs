@@ -36,6 +36,7 @@ fn a_drawing_given_less_room_than_its_size_keeps_to_that_room() {
         "the callback is given the room layout left, at the drawing's aspect"
     );
     let clips: Vec<Rect> = output
+        .main()
         .shapes()
         .iter()
         .filter_map(|shape| match shape {

@@ -1,5 +1,5 @@
 use block_editor_beui::BlockLocation;
-use block_editor_beui::beui::Key;
+use block_editor_beui::beui::{Key, Modifiers};
 
 use super::*;
 
@@ -17,7 +17,7 @@ fn on_a_desktop_a_touch_opens_the_add_menu_as_a_sheet_and_a_mouse_as_a_dropdown(
         !fixture.test.shown("sheet.handle"),
         "a pick a mouse asked for opens the menu as a dropdown"
     );
-    fixture.test.key_press(Key::Escape);
+    fixture.test.key(Key::Escape, Modifiers::NONE);
     fixture.test.settle();
     assert!(!fixture.test.shown("picker.more"));
 

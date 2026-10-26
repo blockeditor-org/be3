@@ -18,24 +18,38 @@ fn a_back_handler_goes_back_while_enabled_without_moving_its_content() {
     });
 
     let mut harness = Harness::new(document);
-    assert!(!harness.frame(Vec::new()).window.handles_back);
-    harness.frame(vec![Event::Back(BackGesture::Invoked)]);
+    assert!(
+        !harness
+            .frame(Vec::new())
+            .main()
+            .window
+            .requests
+            .handles_back
+    );
+    harness.frame(vec![Input::Back(BackGesture::Invoked)]);
     assert_eq!(backs.get_untracked(), 0);
 
     enabled.set(true);
-    assert!(harness.frame(Vec::new()).window.handles_back);
+    assert!(
+        harness
+            .frame(Vec::new())
+            .main()
+            .window
+            .requests
+            .handles_back
+    );
     let resting = harness.rect(page.get());
 
     harness.frame(vec![
-        Event::Back(BackGesture::Started {
+        Input::Back(BackGesture::Started {
             edge: BackEdge::Left,
         }),
-        Event::Back(BackGesture::Progressed(1.0)),
+        Input::Back(BackGesture::Progressed(1.0)),
     ]);
     assert_eq!(harness.rect(page.get()), resting);
     assert_eq!(backs.get_untracked(), 0);
 
-    harness.frame(vec![Event::Back(BackGesture::Invoked)]);
+    harness.frame(vec![Input::Back(BackGesture::Invoked)]);
     assert_eq!(backs.get_untracked(), 1);
 
     harness.key(Key::BrowserBack, Modifiers::NONE);

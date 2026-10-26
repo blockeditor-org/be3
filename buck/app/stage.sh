@@ -7,13 +7,18 @@
 # linked against, staged as sdk-<its SHA-256>.wasm, which is the name a plugin
 # finds it by, with --sdk-artifact, its .cwasm. --index writes plugins.json,
 # the list of manifests the app finds its plugins through. For the web bundle,
-# --tree copies in what wasm-bindgen wrote. --compiled-only leaves out
-# each module that has a .cwasm, for the APK, which only falls back to one.
+# --tree copies in what wasm-bindgen wrote. --plugin-type, after a plugin's
+# MANIFEST=MODULE, stages that plugin's type module (guides/type_modules.md)
+# under the name its manifest's block_types give it, with its SHA-256 as
+# NAME.sha256 (the tag of its sessions) and, with --type-artifact, its .cwasm.
+# --compiled-only leaves out each module that has a .cwasm, for the APK,
+# which only falls back to one.
 #
 # Usage:
 #   stage.sh OUT [--executable=EXECUTABLE=NAME] [--file=FILE]... [--tree=DIR]...
 #            [--index] [--compiled-only] [--sdk=SDK [--sdk-artifact=CWASM]]
-#            (MANIFEST=MODULE [--data=DIR] [--artifact=CWASM])...
+#            (MANIFEST=MODULE [--data=DIR] [--artifact=CWASM]
+#             [--plugin-type=MODULE [--type-artifact=CWASM]])...
 set -eu
 out="$1"
 shift
@@ -54,6 +59,23 @@ for argument in "$@"; do
             ;;
         --sdk-artifact=*)
             cp "${argument#--sdk-artifact=}" "${staged%.wasm}.cwasm"
+            if $compiled_only; then
+                rm "$staged"
+            fi
+            ;;
+        --plugin-type=*)
+            type_module="${argument#--plugin-type=}"
+            named="$(field "$manifest" module)"
+            if [ "$(basename "$type_module")" != "$named" ]; then
+                echo "$manifest names $named as its type module, but its type module is $type_module" >&2
+                exit 1
+            fi
+            staged="$out/$named"
+            cp "$type_module" "$staged"
+            sha256sum "$staged" | cut -d ' ' -f 1 > "${staged%.wasm}.sha256"
+            ;;
+        --type-artifact=*)
+            cp "${argument#--type-artifact=}" "${staged%.wasm}.cwasm"
             if $compiled_only; then
                 rm "$staged"
             fi

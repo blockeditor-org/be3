@@ -1,5 +1,5 @@
 use super::*;
-use block_editor_beui::be_block::canvas::CanvasColor;
+use infinite_canvas_types::CanvasColor;
 
 #[test]
 fn the_actions_menu_deletes_the_selection() {
@@ -15,7 +15,7 @@ fn the_actions_menu_deletes_the_selection() {
     };
     let mut editor = editor(std::slice::from_ref(&rectangle));
 
-    editor.click(&format!("infinite-canvas.entity.{}", rectangle.id));
+    editor.click(format!("infinite-canvas.entity.{}", rectangle.id));
     editor.run();
     editor.click("infinite-canvas.delete");
     editor.run();

@@ -42,6 +42,7 @@ pub fn Draggable<P>(
     #[prop(default = None)] touch_drag_axis: Prop<Option<Direction>>,
     on_click: ClickCallback,
     on_drag_change: Callback<bool>,
+    on_drop_outside: Callback<DragPoint>,
     preview: Option<RenderFn<P>>,
     #[prop(children)] content: Render<DragHandle>,
 ) -> NodeId
@@ -51,7 +52,7 @@ where
     let board = store(drag_board());
     let pressed_at = StoredCell::new(None::<Pos2>);
     let carried = create_signal(None::<P>);
-    let pointer = create_signal(Pos2::ZERO);
+    let pointer = create_signal(None::<DragPoint>);
     let touched = create_signal(false);
     let dragging = create_memo(move || carried.with(Option::is_some));
 
@@ -63,10 +64,11 @@ where
             true => threshold.max(TOUCH_DRAG_THRESHOLD),
             false => threshold,
         };
-        if carried.with_untracked(Option::is_some)
-            || (point.pos - origin).length() < threshold
-            || board.value().carrying()
-        {
+        if carried.with_untracked(Option::is_some) {
+            board.value().track(point);
+            return;
+        }
+        if (point.pos - origin).length() < threshold || board.value().carrying() {
             return;
         }
         let Some(payload) = payload.get_untracked() else {
@@ -77,7 +79,8 @@ where
         board.value().begin(
             Rc::new(payload),
             point,
-            Rc::new(move |pos| pointer.set(pos)),
+            Rc::new(move |point| pointer.set(Some(point))),
+            Rc::new(move |point| on_drop_outside.call(point)),
         );
     };
     let moved: Pending = Rc::new(moved);
@@ -120,10 +123,11 @@ where
             true => TOUCH_PREVIEW_OFFSET,
             false => DRAG_PREVIEW_OFFSET,
         };
-        pointer.get() + offset
+        pointer.get().map_or(Pos2::ZERO, |point| point.pos) + offset
     })
     .into_prop()
     .map(OverlayAnchor::Point);
+    let shown_in = create_memo(move || pointer.get().map(|point| point.window));
     let face = content.call(DragHandle { dragging });
     let preview = preview.unwrap_or_else(|| {
         RenderFn::new(|_: P| {
@@ -151,6 +155,7 @@ where
                     policy=LayerPolicy::Inert
                     level=LayerLevel::Top
                     traps_focus=false
+                    shown_in={shown_in}
                     open={dragging}
                 >
                     <List spacing=0.0>

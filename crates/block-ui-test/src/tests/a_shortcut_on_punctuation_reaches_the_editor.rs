@@ -5,8 +5,10 @@ use beui::{Key, KeyPress, Modifiers};
 
 struct ShortcutApp;
 
+#[component]
 impl BeuiApp for ShortcutApp {
-    fn view(_editor: Editor) -> Root {
+    #[component]
+    fn View(_editor: Editor) -> Root {
         let pressed = create_signal(String::new());
         on_shortcut(move |press: KeyPress| {
             if !press.pressed || !press.modifiers.ctrl {
@@ -30,7 +32,7 @@ fn a_shortcut_on_punctuation_reaches_the_editor() {
     host.set_editable(true);
     let mut test = BeuiTest::<ShortcutApp>::new(OwnedEditor::new(host, Uuid::new_v4()));
 
-    test.key_press_modifiers(Modifiers::CTRL, Key::Slash);
+    test.key(Key::Slash, Modifiers::CTRL);
     test.run();
 
     assert_eq!(test.label("shortcut.pressed"), "Slash");

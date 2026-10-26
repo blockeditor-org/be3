@@ -1,14 +1,8 @@
 use block_editor_beui::beui::{Pos2, Vec2, vec2};
-use block_plugin_api::ChildRect;
 
 use super::*;
 
-const SCREEN: ChildRect = ChildRect {
-    x: 0.0,
-    y: 0.0,
-    width: 800.0,
-    height: 600.0,
-};
+const SCREEN: Rect = Rect::from_min_max(Pos2::ZERO, Pos2::new(800.0, 600.0));
 
 fn placed(fixture: &Fixture, window: u64) -> Option<Rect> {
     fixture
@@ -16,12 +10,7 @@ fn placed(fixture: &Fixture, window: u64) -> Option<Rect> {
         .children()
         .iter()
         .find(|placement| placement.content == ChildContent::Window(HostWindowId(window)))
-        .map(|placement| {
-            Rect::from_min_size(
-                Pos2::new(placement.rect.x, placement.rect.y),
-                vec2(placement.rect.width, placement.rect.height),
-            )
-        })
+        .map(|placement| placement.rect)
 }
 
 fn kept(fullscreen: bool) -> Vec<HostWindow> {
@@ -43,7 +32,7 @@ fn kept(fullscreen: bool) -> Vec<HostWindow> {
 fn a_desktop_started_again_adopts_the_windows_the_host_kept() {
     let mut first = Fixture::new();
     first.settle();
-    first.test.set_host_value::<HostWindows>(&kept(false));
+    first.test.set_watched::<WindowsWatch>(&kept(false));
     first.settle();
     let opened = placed(&first, 2).expect("the desktop shows the window");
     let tab = first
@@ -57,7 +46,7 @@ fn a_desktop_started_again_adopts_the_windows_the_host_kept() {
     let saved: EditorViewContent = first.test.content(None);
 
     let mut second = Fixture::holding(saved);
-    second.test.set_host_value::<HostWindows>(&kept(true));
+    second.test.set_watched::<WindowsWatch>(&kept(true));
     second.settle();
 
     assert_eq!(
@@ -71,7 +60,7 @@ fn a_desktop_started_again_adopts_the_windows_the_host_kept() {
     );
     assert_eq!(
         placed(&second, 1).map(|rect| rect.size()),
-        Some(vec2(SCREEN.width, SCREEN.height)),
+        Some(vec2(SCREEN.width(), SCREEN.height())),
         "a fullscreen window stays fullscreen"
     );
     assert!(
@@ -81,7 +70,7 @@ fn a_desktop_started_again_adopts_the_windows_the_host_kept() {
     assert!(
         second
             .test
-            .take_actions::<WindowAction>()
+            .take_host_calls(block_ui_test::requested::window)
             .iter()
             .all(|action| !matches!(
                 action,

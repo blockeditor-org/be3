@@ -26,7 +26,7 @@ fn accessibility_reports_and_steps_a_slider() {
     assert!(slider.supports_action(Action::Increment));
     let slider_id = *slider_id;
 
-    harness.context.accessibility_action(ActionRequest {
+    harness.context().accessibility_action(ActionRequest {
         action: Action::Increment,
         target_tree: TreeId::ROOT,
         target_node: slider_id,

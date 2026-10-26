@@ -1,15 +1,14 @@
 use super::*;
-use beui::{Event, Key, Modifiers};
+use beui::Key;
 
-fn key(key: Key) -> Vec<Event> {
+fn key(key: Key) -> Vec<Input> {
     [true, false]
         .into_iter()
         .map(|pressed| {
-            Event::key(beui::KeyPress {
-                key,
+            Input::Key(beui::Keystroke {
+                key: Some(key),
                 pressed,
-                repeat: false,
-                modifiers: Modifiers::NONE,
+                ..Default::default()
             })
         })
         .collect()
@@ -19,16 +18,16 @@ fn key(key: Key) -> Vec<Event> {
 fn the_runs_toggle_shows_where_each_side_typed_and_deleted() {
     let mut test = alone(WIDE, Page::Collaboration);
     let left = test.rect_of("demo.collaboration.left");
-    test.click_at(pos2(left.right() - 8.0, left.top() + 150.0));
-    test.frame(vec![Event::Text(", left was here".to_owned())]);
+    test.click(pos2(left.right() - 8.0, left.top() + 150.0));
+    test.frame(vec![Input::Text(", left was here".to_owned())]);
     for _ in 0..3 {
         for event in key(Key::Backspace) {
             test.frame(vec![event]);
         }
     }
     let right = test.rect_of("demo.collaboration.right");
-    test.click_at(pos2(right.right() - 8.0, right.top() + 30.0));
-    test.frame(vec![Event::Text(" from the right".to_owned())]);
+    test.click(pos2(right.right() - 8.0, right.top() + 30.0));
+    test.frame(vec![Input::Text(" from the right".to_owned())]);
     test.click("demo.collaboration.pause");
     test.frame(Vec::new());
     test.click("demo.collaboration.all_left");

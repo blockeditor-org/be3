@@ -1,5 +1,6 @@
-use block_editor_beui::be_block::{BlockContent, WorkspaceContent};
+use block_editor_beui::be_block::BlockContent;
 use block_editor_beui::{AccessLevel, BlockInfo, BlockParent, BlockQuery};
+use workspace_ui_types::WorkspaceContent;
 
 use super::*;
 
@@ -58,7 +59,7 @@ fn the_files_are_shown_by_workspace_then_what_is_shared() {
         .test
         .snapshot("the_files_are_shown_by_workspace_then_what_is_shared");
 
-    fixture.test.click(&format!("file-tree.{files}.chevron"));
+    fixture.test.click(format!("file-tree.{files}.chevron"));
     fixture.settle();
     assert!(
         !fixture.test.shown(&format!("file-tree.{notes}.row")),

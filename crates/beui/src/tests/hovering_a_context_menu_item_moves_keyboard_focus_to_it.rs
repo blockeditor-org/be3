@@ -23,12 +23,11 @@ fn hovering_a_context_menu_item_moves_keyboard_focus_to_it() {
     harness.frame(Vec::new());
 
     let pos = harness.center(region);
-    harness.frame(vec![Event::PointerMoved(pos)]);
-    harness.frame(vec![Event::PointerButton {
+    harness.frame(vec![Input::PointerMoved(pos)]);
+    harness.frame(vec![Input::PointerButton {
         pos,
         button: PointerButton::Secondary,
         pressed: true,
-        modifiers: Modifiers::NONE,
     }]);
     harness.frame(Vec::new());
 
@@ -46,7 +45,7 @@ fn hovering_a_context_menu_item_moves_keyboard_focus_to_it() {
         .row_button(2);
 
     let paste_pos = harness.center(paste);
-    harness.frame(vec![Event::PointerMoved(paste_pos)]);
+    harness.frame(vec![Input::PointerMoved(paste_pos)]);
 
     assert!(
         harness

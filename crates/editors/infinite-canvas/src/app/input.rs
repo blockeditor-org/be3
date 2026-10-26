@@ -1,8 +1,8 @@
-use block_editor_beui::be_block::canvas::{
-    CanvasArrowhead, CanvasEntity, CanvasPoint, CanvasShape, CanvasTransform,
-};
 use block_editor_beui::beui::{CursorIcon, Key, KeyPress, Modifiers, PointerPress};
 use block_editor_beui::reactive::{Get, untrack};
+use infinite_canvas_types::{
+    CanvasArrowhead, CanvasEntity, CanvasPoint, CanvasShape, CanvasTransform,
+};
 use uuid::Uuid;
 
 use crate::freehand::Ink;
@@ -607,5 +607,8 @@ fn selection_frame_of(state: &CanvasState) -> Option<SelectionFrame> {
 }
 
 fn pen_pressure(press: PointerPress) -> f32 {
-    press.pressure.unwrap_or(PEN_PRESSURE).clamp(0.0, 1.0)
+    press
+        .pen
+        .map_or(PEN_PRESSURE, |pen| pen.pressure)
+        .clamp(0.0, 1.0)
 }

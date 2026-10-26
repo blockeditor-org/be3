@@ -7,17 +7,44 @@ use std::{
 
 use wasmtime::{Engine, Module, OptLevel};
 
-use crate::{PRECOMPILED_EXTENSION, configuration, module, precompiled_beside};
+use crate::{Flavor, PRECOMPILED_EXTENSION, configuration, module, precompiled_beside};
 
-pub fn precompile(modules: &[PathBuf], target: Option<&str>) -> Result<(), String> {
-    let mut configuration = configuration();
+struct Engines {
+    plugin: Engine,
+    pure: Engine,
+}
+
+impl Engines {
+    fn new(target: Option<&str>, quick: bool) -> Result<Self, String> {
+        Ok(Self {
+            plugin: compiler(Flavor::Plugin, target, quick)?,
+            pure: compiler(Flavor::Pure, target, quick)?,
+        })
+    }
+
+    fn for_module(&self, bytes: &[u8]) -> &Engine {
+        match Module::validate(&self.pure, bytes) {
+            Ok(()) => &self.pure,
+            Err(_) => &self.plugin,
+        }
+    }
+}
+
+fn compiler(flavor: Flavor, target: Option<&str>, quick: bool) -> Result<Engine, String> {
+    let mut configuration = configuration(flavor);
+    if quick {
+        configuration.cranelift_opt_level(OptLevel::None);
+    }
     if let Some(target) = target {
         configuration
             .target(target)
             .map_err(|error| format!("{target} is not a target wasmtime compiles for: {error}"))?;
     }
-    let engine = &Engine::new(&configuration)
-        .map_err(|error| format!("the wasm engine could not start: {error}"))?;
+    Engine::new(&configuration).map_err(|error| format!("the wasm engine could not start: {error}"))
+}
+
+pub fn precompile(modules: &[PathBuf], target: Option<&str>) -> Result<(), String> {
+    let engines = &Engines::new(target, false)?;
     let next = &AtomicUsize::new(0);
     let workers = std::thread::available_parallelism()
         .map_or(1, NonZeroUsize::get)
@@ -28,7 +55,7 @@ pub fn precompile(modules: &[PathBuf], target: Option<&str>) -> Result<(), Strin
                 scope.spawn(move || {
                     let mut failures = Vec::new();
                     while let Some(wasm) = modules.get(next.fetch_add(1, Ordering::Relaxed)) {
-                        if let Err(error) = precompile_file(engine, wasm) {
+                        if let Err(error) = precompile_file(engines, wasm) {
                             failures.push(error);
                         }
                     }
@@ -58,28 +85,18 @@ pub fn precompile_to(
     target: Option<&str>,
     quick: bool,
 ) -> Result<(), String> {
-    let mut configuration = configuration();
-    if quick {
-        configuration.cranelift_opt_level(OptLevel::None);
-    }
-    if let Some(target) = target {
-        configuration
-            .target(target)
-            .map_err(|error| format!("{target} is not a target wasmtime compiles for: {error}"))?;
-    }
-    let engine = Engine::new(&configuration)
-        .map_err(|error| format!("the wasm engine could not start: {error}"))?;
-    write_precompiled(&engine, wasm, artifact)
+    write_precompiled(&Engines::new(target, quick)?, wasm, artifact)
 }
 
-fn precompile_file(engine: &Engine, wasm: &Path) -> Result<(), String> {
-    write_precompiled(engine, wasm, &wasm.with_extension(PRECOMPILED_EXTENSION))
+fn precompile_file(engines: &Engines, wasm: &Path) -> Result<(), String> {
+    write_precompiled(engines, wasm, &wasm.with_extension(PRECOMPILED_EXTENSION))
 }
 
-fn write_precompiled(engine: &Engine, wasm: &Path, artifact: &Path) -> Result<(), String> {
+fn write_precompiled(engines: &Engines, wasm: &Path, artifact: &Path) -> Result<(), String> {
     let bytes = std::fs::read(wasm)
         .map_err(|error| format!("{} could not be read: {error}", wasm.display()))?;
-    let compiled = engine
+    let compiled = engines
+        .for_module(&bytes)
         .precompile_module(&bytes)
         .map_err(|error| format!("{} could not be compiled: {error}", wasm.display()))?;
     let partial = artifact.with_extension(format!("{PRECOMPILED_EXTENSION}.partial"));

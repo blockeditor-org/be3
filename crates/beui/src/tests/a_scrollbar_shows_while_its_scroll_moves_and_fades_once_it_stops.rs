@@ -1,8 +1,8 @@
 use super::*;
 use crate::primitives::Frame;
+use crate::primitives::List;
 use crate::reactive::*;
 use crate::styled::Scroll;
-use crate::styled::*;
 use crate::unstyled::{SCROLLBAR_FADE_OUT, SCROLLBAR_LINGER};
 
 #[test]
@@ -27,7 +27,7 @@ fn a_scrollbar_shows_while_its_scroll_moves_and_fades_once_it_stops() {
     );
 
     let over = harness.rect(scroll.get()).center();
-    harness.scroll(over, vec2(0.0, -40.0), Modifiers::NONE);
+    harness.scroll_at(over, vec2(0.0, -40.0), Modifiers::NONE);
     let output = harness.frame(Vec::new());
     assert!(thumb_painted(&output, track), "scrolling shows the bar");
 

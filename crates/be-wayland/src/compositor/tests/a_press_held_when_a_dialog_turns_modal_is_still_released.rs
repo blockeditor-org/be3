@@ -13,13 +13,12 @@ fn a_press_held_when_a_dialog_turns_modal_is_still_released() {
     harness.settle();
 
     let at = harness.window(parent_id).center();
-    let button = |pressed| Event::PointerButton {
+    let button = |pressed| Input::PointerButton {
         pos: at,
         button: PointerButton::Primary,
         pressed,
-        modifiers: beui::Modifiers::NONE,
     };
-    harness.frame(vec![Event::PointerMoved(at), button(true)]);
+    harness.frame(vec![Input::PointerMoved(at), button(true)]);
     harness.settle();
 
     let dialogs: XdgWmDialogV1 = harness.client.bind("xdg_wm_dialog_v1", 1);
@@ -39,7 +38,7 @@ fn a_press_held_when_a_dialog_turns_modal_is_still_released() {
         "the parent hears the release of the press it was given"
     );
     assert!(
-        !harness.app.server().state.buttons_held(),
+        !harness.compositor().server().state.buttons_held(),
         "no button is left held"
     );
 }

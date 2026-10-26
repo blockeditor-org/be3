@@ -9,21 +9,27 @@ fn the_volume_popup_asks_the_host_for_a_level_a_mute_and_an_output() {
     fixture.hear(0.45, false, SPEAKERS);
     fixture.test.click("desktop.volume");
     fixture.settle();
-    fixture.test.take_actions::<MediaRequest>();
+    fixture
+        .test
+        .take_host_calls(block_ui_test::requested::media);
 
     fixture.test.click("desktop.volume.mute");
     fixture.settle();
     assert_eq!(
-        fixture.test.take_actions::<MediaRequest>(),
+        fixture
+            .test
+            .take_host_calls(block_ui_test::requested::media),
         vec![MediaRequest::SetMute(true)]
     );
 
     let track = fixture.test.rect_of("desktop.volume.level");
     fixture
         .test
-        .click_at(pos2(track.left() + track.width() * 0.9, track.center().y));
+        .click(pos2(track.left() + track.width() * 0.9, track.center().y));
     fixture.settle();
-    let asked = fixture.test.take_actions::<MediaRequest>();
+    let asked = fixture
+        .test
+        .take_host_calls(block_ui_test::requested::media);
     assert!(
         matches!(asked[..], [MediaRequest::SetVolume(level)] if level > 0.8),
         "a click near the end of the slider turns the volume up: {asked:?}"
@@ -33,7 +39,9 @@ fn the_volume_popup_asks_the_host_for_a_level_a_mute_and_an_output() {
     fixture.settle();
     fixture.click_text("Headphones");
     assert_eq!(
-        fixture.test.take_actions::<MediaRequest>(),
+        fixture
+            .test
+            .take_host_calls(block_ui_test::requested::media),
         vec![MediaRequest::ChooseOutput(HEADPHONES.to_owned())]
     );
 }

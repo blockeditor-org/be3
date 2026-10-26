@@ -1,7 +1,7 @@
 use std::cell::Cell;
 use std::rc::Rc;
 
-pub use beui_core::base::frame::{Align2, Extent, Outline, Shadow, Sides};
+pub use beui_core::base::frame::{Align2, Extent, Outline, Sides};
 pub use beui_core::base::{Align, Direction, ItemSize, Justify, Sizing, Track};
 pub use beui_core::painter::Corners;
 pub use beui_core::tree::{
@@ -11,7 +11,7 @@ pub use beui_core::tree::{
 pub use beui_tree::reactive::*;
 
 use beui_core::document::Document;
-use beui_core::geometry::Rect;
+use beui_core::geometry::{Rect, Vec2};
 use beui_core::input::Key;
 use beui_core::node::NodeId;
 
@@ -53,6 +53,15 @@ pub fn node_rect(node: NodeId) -> ReadSignal<Rect> {
     with_document(|document| document.watch_placement(node))
 }
 
+pub fn text_bounds(node: NodeId) -> Option<ReadSignal<Rect>> {
+    with_document(|document| {
+        let text = document
+            .arena
+            .kind_of::<beui_core::base::text::TextNode>(node)?;
+        Some(document.watch_text_bounds(text))
+    })
+}
+
 pub fn node_placed(node: NodeId) -> ReadSignal<bool> {
     with_document(|document| document.watch_placed(node))
 }
@@ -87,7 +96,7 @@ pub fn request_paste() {
     with_document(Document::request_paste);
 }
 
-pub fn type_events(events: Vec<beui_core::input::Event>) {
+pub fn type_events(events: Vec<beui_core::input::Input>) {
     with_document(|document| {
         if let Some(context) = document.context() {
             context.type_events(events);
@@ -123,12 +132,16 @@ pub fn pixels_per_point() -> ReadSignal<f32> {
     with_document(|document| document.watch_pixels_per_point())
 }
 
-pub fn use_screens() -> ReadSignal<Vec<beui_core::screens::Screen>> {
-    with_document(|document| document.watch_screens())
+pub fn use_viewport_size() -> ReadSignal<Vec2> {
+    with_document(|document| document.watch_viewport_size())
 }
 
 pub fn use_fullscreen() -> ReadSignal<bool> {
     with_document(|document| document.watch_fullscreen())
+}
+
+pub fn touched_by_finger() -> bool {
+    try_with_document(|document| document.touched_by_finger()).unwrap_or(false)
 }
 
 pub fn use_keyboard() -> ReadSignal<bool> {
@@ -190,7 +203,10 @@ fn listen(
     handler: impl Fn(beui_core::keys::KeyEvent) -> bool + 'static,
 ) {
     let handler: Rc<beui_core::keys::KeyHandler> = Rc::new(handler);
-    with_document(|document| document.listen_keys(at, phase, reveal, Rc::downgrade(&handler)));
+    let window = crate::components::window::use_window().map(|window| window.id);
+    with_document(|document| {
+        document.listen_keys(at, phase, reveal, Rc::downgrade(&handler), window)
+    });
     on_cleanup(move || drop(handler));
 }
 
@@ -312,14 +328,15 @@ pub fn bind_test_id(node: NodeId, test_id: Prop<String>) {
 }
 
 pub use crate::actions::{
-    Action, ActionBuilder, ActionScope, Chord, MenuNode, Submenu, action_checked, action_disabled,
-    action_glyph, action_label, action_scope, action_tooltip, active_actions, active_actions_from,
-    add_to_menu, document_menu, menu_action, tidy_menu,
+    Action, ActionBuilder, ActionScope, Chord, MenuNode, Pin, Submenu, action_checked,
+    action_disabled, action_glyph, action_label, action_scope, action_tooltip, active_actions,
+    active_actions_from, add_to_menu, document_menu, menu_action, tidy_menu,
 };
 pub use crate::component_ref::ComponentRef;
 pub use crate::file_picker::{
     FileFilter, FilePick, FilePicker, PickedFile, create_file_picker, pick_file,
 };
+pub use crate::file_saver::{FileSave, SavedFile, save_file};
 pub use crate::nodes::*;
 pub use beui_core::base::canvas::CanvasView;
 pub use beui_core::base::drawing::{Draw, draw_gpu};
@@ -327,5 +344,6 @@ pub use beui_core::base::embed::{EmbedPlacement, EmbedSlot};
 pub use beui_core::base::overlay::{OverlayAnchor, Placement};
 pub use beui_core::layer::{Dismiss, LayerLevel, LayerPolicy};
 pub use beui_core::rich::{
-    CaretHandle, Piece, RichLayout, SpanKind, SpanStyle, TextCaret, TextMark,
+    CaretHandle, Piece, RichLayout, SpanBackground, SpanKind, SpanStyle, TextCaret, TextGlyph,
+    TextMark,
 };

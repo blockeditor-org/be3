@@ -1,22 +1,25 @@
+use beui_core::icons::Glyph;
 use beui_macros::{component, view};
 
 use crate::ToggleButton;
 use beui_components_unstyled::TextAreaState;
 use beui_core::node::NodeId;
-use beui_view::primitives::*;
+
+use crate::list::List;
+use crate::tokens::Space;
 use beui_view::reactive::*;
 use text_editor_core::Tool;
 
-const BAR_SPACING: f32 = 4.0;
+const BAR_SPACING: Space = Space::Xs;
 
 #[component]
 pub fn FormatBar(
     state: TextAreaState,
-    glyphs: Vec<(&'static str, &'static str)>,
+    glyphs: Vec<(&'static str, Glyph)>,
     #[prop(default = "format")] test_prefix: &'static str,
 ) -> NodeId {
     let schema = state.schema();
-    let tools: Vec<(Tool, &'static str)> = glyphs
+    let tools: Vec<(Tool, Glyph)> = glyphs
         .iter()
         .filter_map(|(name, glyph)| {
             let tool = schema.tools().iter().find(|tool| tool.name == *name)?;
@@ -38,7 +41,7 @@ pub fn FormatBar(
 }
 
 #[component]
-fn FormatToggle(state: TextAreaState, tool: Tool, glyph: &'static str, id: String) -> NodeId {
+fn FormatToggle(state: TextAreaState, tool: Tool, glyph: Glyph, id: String) -> NodeId {
     let selected = state.selected();
     let pressed = create_memo(move || {
         selected.with(|selected| {

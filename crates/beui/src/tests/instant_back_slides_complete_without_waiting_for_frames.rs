@@ -16,7 +16,7 @@ fn instant_back_slides_complete_without_waiting_for_frames() {
         }
     });
     let mut harness = Harness::new(document);
-    harness.context.set_preference_layer(
+    harness.context().set_preference_layer(
         PreferenceSource::System,
         PreferenceLayer {
             motion: Some(Motion::Instant),
@@ -24,7 +24,7 @@ fn instant_back_slides_complete_without_waiting_for_frames() {
         },
     );
     harness.frame(Vec::new());
-    harness.frame(vec![Event::Back(BackGesture::Invoked)]);
+    harness.frame(vec![Input::Back(BackGesture::Invoked)]);
     assert_eq!(backs.get_untracked(), 1);
     assert_eq!(harness.frame(Vec::new()).repaint_after, Duration::MAX);
 }

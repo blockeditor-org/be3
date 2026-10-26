@@ -1,5 +1,5 @@
 use super::*;
-use block_editor_beui::beui::Key;
+use block_editor_beui::beui::{Key, Modifiers};
 
 #[test]
 fn one_undo_takes_back_a_whole_gesture() {
@@ -56,7 +56,7 @@ fn one_undo_takes_back_a_whole_gesture() {
     editor.next_frame();
     editor.pen(PenPhase::Move, start + Vec2::new(80.0, 60.0), 0.5);
     editor.run();
-    editor.key_press(Key::Escape);
+    editor.key(Key::Escape, Modifiers::NONE);
     editor.run();
     editor.pen(
         PenPhase::Up(PointerButton::Primary),

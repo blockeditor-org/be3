@@ -1,9 +1,9 @@
 use super::*;
 
-use be_block::{TextBlock, TextContent};
 use be_graph::Access;
 use be_keys::Party;
 use be_protocol::WrappedBy;
+use text_block_types::{TextBlock, TextContent};
 
 fn inject(
     harness: &Harness,

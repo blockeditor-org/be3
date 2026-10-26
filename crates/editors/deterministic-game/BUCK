@@ -13,4 +13,5 @@ editor(
         "CRAZY_8S_WASM": "$(location //crates/tabletop-games/rules/crazy-8s:module)",
         "TIC_TAC_TOE_WASM": "$(location //crates/tabletop-games/rules/tic-tac-toe:module)",
     },
+    types = "//crates/editors/deterministic-game/types:module",
 )

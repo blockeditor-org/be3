@@ -11,6 +11,7 @@ fn a_glyph_paints_its_coverage_in_its_colour() {
             background: [0, 0, 0, 255],
             primitives: vec![Primitive {
                 clip: [0.0, 0.0, 4.0, 4.0],
+                fade: Fade::NONE,
                 content: Content::Glyph(Glyph {
                     rect: [1.0, 1.0, 3.0, 2.0],
                     texture: 7,

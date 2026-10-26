@@ -23,14 +23,14 @@ fn tab_focus_stays_in_the_active_document_when_the_inspector_is_open() {
     assert_eq!((first_focused.get(), second_focused.get()), (true, false));
     assert_eq!(harness.inspector().document.focused_node(), None);
 
-    let accesskit_tab = harness.accesskit_tab_center();
-    harness.click(accesskit_tab);
+    harness.show_inspector_tab(crate::inspector::InspectorTab::AccessKit);
+    harness.click(harness.row_center(0));
     let inspector_focus = harness.inspector().document.focused_node();
     assert!(inspector_focus.is_some());
-    assert_eq!(harness.document.focused_node(), None);
+    assert_eq!(harness.document().focused_node(), None);
 
     harness.key(Key::Tab, Modifiers::NONE);
 
-    assert_eq!(harness.document.focused_node(), None);
+    assert_eq!(harness.document().focused_node(), None);
     assert_ne!(harness.inspector().document.focused_node(), inspector_focus);
 }

@@ -5,7 +5,7 @@ fn an_icon_glyph_paints_over_the_background() {
     let capture = capture(Color32::BLACK, |painter| {
         painter.text(
             pos2(4.0, 4.0),
-            beui_core::icons::ICON_ADD,
+            beui_core::icons::ICON_PLUS.as_str(),
             FontId::icons(32.0),
             Color32::WHITE,
         );

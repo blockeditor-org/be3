@@ -1,10 +1,9 @@
-use block_editor_beui::be_block::EditorSettings;
 use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
-use block_editor_beui::beui::unstyled::ChoiceOption;
 use block_editor_beui::block_ui::BlockTypes;
 use block_editor_beui::{ChangesToast, Editor, LayeredSettings, LayeredSettingsRow};
+use settings_types::EditorSettings;
 use uuid::Uuid;
 
 #[derive(Clone, PartialEq)]
@@ -19,7 +18,7 @@ pub fn DefaultEditorsView(editor: Editor, settings: LayeredSettings<EditorSettin
         let catalog = editor.block_types();
         let mut types: Vec<(String, Uuid)> = catalog
             .iter()
-            .filter(|(block_type, _)| catalog.editors_for(**block_type).len() > 1)
+            .filter(|(block_type, _)| catalog.editors_for(**block_type, None).len() > 1)
             .map(|(block_type, _)| {
                 let name = catalog
                     .display_name(*block_type)
@@ -77,7 +76,7 @@ fn DefaultEditor(
                 .display_name(block_type)
                 .map_or_else(|| block_type.to_string(), str::to_owned),
             editors: catalog
-                .editors_for(block_type)
+                .editors_for(block_type, None)
                 .into_iter()
                 .map(|entry| (entry.editor, entry.name.clone()))
                 .collect(),

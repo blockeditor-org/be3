@@ -27,12 +27,12 @@ fn pointer_motion_only_reaches_what_lies_under_the_pointer() {
     let bottom_counts = counted_with_measures(&mut document, bottom);
     let mut harness = Harness::new(document);
     harness.frame(Vec::new());
-    harness.frame(vec![Event::PointerMoved(pos2(5.0, 50.0))]);
+    harness.frame(vec![Input::PointerMoved(pos2(5.0, 50.0))]);
     top_counts.visits.set(0);
     bottom_counts.visits.set(0);
 
     for x in [10.0, 20.0, 30.0] {
-        harness.frame(vec![Event::PointerMoved(pos2(x, 50.0))]);
+        harness.frame(vec![Input::PointerMoved(pos2(x, 50.0))]);
     }
     assert!(
         top_counts.visits.get_untracked() >= 3,
@@ -45,14 +45,14 @@ fn pointer_motion_only_reaches_what_lies_under_the_pointer() {
     );
     assert_eq!(hovers.get_untracked(), vec![true]);
 
-    harness.frame(vec![Event::PointerMoved(pos2(10.0, 500.0))]);
+    harness.frame(vec![Input::PointerMoved(pos2(10.0, 500.0))]);
     assert_eq!(
         hovers.get_untracked(),
         vec![true, false],
         "the catcher the pointer left hears it leave"
     );
     top_counts.visits.set(0);
-    harness.frame(vec![Event::PointerMoved(pos2(20.0, 500.0))]);
+    harness.frame(vec![Input::PointerMoved(pos2(20.0, 500.0))]);
     assert_eq!(
         top_counts.visits.get_untracked(),
         0,

@@ -1,52 +1,58 @@
 use block_editor_beui::Toolbar;
-use block_editor_beui::be_block::pixel_art::{
-    MAX_PIXEL_ART_PALETTE_COLORS, MAX_PIXEL_ART_SIZE, PixelArtAnchor, PixelArtOperation, PixelColor,
-};
 use block_editor_beui::beui::NodeId;
+use block_editor_beui::beui::icons::Glyph;
 use block_editor_beui::beui::icons::{
-    ICON_ADD, ICON_ARROW_BACK, ICON_ARROW_DOWNWARD, ICON_ARROW_FORWARD, ICON_ARROW_UPWARD,
-    ICON_CIRCLE, ICON_COLORIZE, ICON_CROP_SQUARE, ICON_DELETE, ICON_DIAGONAL_LINE, ICON_DOWNLOAD,
-    ICON_DRAW, ICON_FIND_REPLACE, ICON_FIT_SCREEN, ICON_FORMAT_COLOR_FILL, ICON_INK_ERASER,
-    ICON_NORTH_EAST, ICON_NORTH_WEST, ICON_RESIZE, ICON_SOUTH_EAST, ICON_SOUTH_WEST, ICON_SQUARE,
-    ICON_ZOOM_IN, ICON_ZOOM_OUT,
+    ICON_ARROW_DOWN, ICON_ARROW_DOWN_LEFT, ICON_ARROW_DOWN_RIGHT, ICON_ARROW_LEFT,
+    ICON_ARROW_RIGHT, ICON_ARROW_UP, ICON_ARROW_UP_LEFT, ICON_ARROW_UP_RIGHT, ICON_CIRCLE,
+    ICON_DOWNLOAD, ICON_ERASER, ICON_PAINT_BUCKET, ICON_PENCIL, ICON_PIPETTE, ICON_PLUS,
+    ICON_REPLACE, ICON_SCALING, ICON_SCAN, ICON_SLASH, ICON_SQUARE, ICON_TRASH, ICON_ZOOM_IN,
+    ICON_ZOOM_OUT,
 };
 use block_editor_beui::beui::reactive::*;
-use block_editor_beui::beui::styled::Dialog as Modal;
+use block_editor_beui::beui::styled;
 use block_editor_beui::beui::styled::*;
-use block_editor_beui::beui::unstyled::Pressable;
+use pixel_art_types::{
+    MAX_PIXEL_ART_PALETTE_COLORS, MAX_PIXEL_ART_SIZE, PixelArtAnchor, PixelArtOperation, PixelColor,
+};
 
 use crate::canvas::ZOOM_STEP;
-use crate::color::{parse_hex_color, swatch_color};
+use crate::color::{format_hex_color, parse_hex_color, swatch_color};
 use crate::drawing::{BrushShape, MAX_BRUSH_SIZE, PixelTool};
 
 use crate::app::state::{Dialog, Tools};
 
-const SPACING: f32 = 8.0;
-const SWATCH: f32 = 20.0;
+const SPACING: Space = Space::Md;
 const TOOL_WIDTH: f32 = 76.0;
-const DIALOG_WIDTH: f32 = 300.0;
 
-const TOOLS: [(PixelTool, &str, &str); 8] = [
-    (PixelTool::Pencil, ICON_DRAW, "B or P"),
-    (PixelTool::Eraser, ICON_INK_ERASER, "E"),
-    (PixelTool::Fill, ICON_FORMAT_COLOR_FILL, "G"),
-    (PixelTool::Eyedropper, ICON_COLORIZE, "I"),
-    (PixelTool::Line, ICON_DIAGONAL_LINE, "L"),
-    (PixelTool::ReplaceColor, ICON_FIND_REPLACE, "C"),
-    (PixelTool::Rectangle, ICON_CROP_SQUARE, "R"),
+const TOOLS: [(PixelTool, Glyph, &str); 8] = [
+    (PixelTool::Pencil, ICON_PENCIL, "B or P"),
+    (PixelTool::Eraser, ICON_ERASER, "E"),
+    (PixelTool::Fill, ICON_PAINT_BUCKET, "G"),
+    (PixelTool::Eyedropper, ICON_PIPETTE, "I"),
+    (PixelTool::Line, ICON_SLASH, "L"),
+    (PixelTool::ReplaceColor, ICON_REPLACE, "C"),
+    (PixelTool::Rectangle, ICON_SQUARE, "R"),
     (PixelTool::Ellipse, ICON_CIRCLE, "O"),
 ];
 
-const ANCHORS: [(PixelArtAnchor, &str, &str); 9] = [
-    (PixelArtAnchor::TopLeft, ICON_NORTH_WEST, "Top left"),
-    (PixelArtAnchor::Top, ICON_ARROW_UPWARD, "Top"),
-    (PixelArtAnchor::TopRight, ICON_NORTH_EAST, "Top right"),
-    (PixelArtAnchor::Left, ICON_ARROW_BACK, "Left"),
+const ANCHORS: [(PixelArtAnchor, Glyph, &str); 9] = [
+    (PixelArtAnchor::TopLeft, ICON_ARROW_UP_LEFT, "Top left"),
+    (PixelArtAnchor::Top, ICON_ARROW_UP, "Top"),
+    (PixelArtAnchor::TopRight, ICON_ARROW_UP_RIGHT, "Top right"),
+    (PixelArtAnchor::Left, ICON_ARROW_LEFT, "Left"),
     (PixelArtAnchor::Center, ICON_CIRCLE, "Centre"),
-    (PixelArtAnchor::Right, ICON_ARROW_FORWARD, "Right"),
-    (PixelArtAnchor::BottomLeft, ICON_SOUTH_WEST, "Bottom left"),
-    (PixelArtAnchor::Bottom, ICON_ARROW_DOWNWARD, "Bottom"),
-    (PixelArtAnchor::BottomRight, ICON_SOUTH_EAST, "Bottom right"),
+    (PixelArtAnchor::Right, ICON_ARROW_RIGHT, "Right"),
+    (
+        PixelArtAnchor::BottomLeft,
+        ICON_ARROW_DOWN_LEFT,
+        "Bottom left",
+    ),
+    (PixelArtAnchor::Bottom, ICON_ARROW_DOWN, "Bottom"),
+    (
+        PixelArtAnchor::BottomRight,
+        ICON_ARROW_DOWN_RIGHT,
+        "Bottom right",
+    ),
 ];
 
 #[component]
@@ -92,8 +98,9 @@ pub(crate) fn TopBar(
         <Toolbar shown={shown}>
             <Text>{label}</Text>
             <Text style=TextStyle::CAPTION>{dimensions}</Text>
-            <IconButton
-                glyph={ICON_ZOOM_OUT.to_owned()}
+            <Button
+                icon_only=true
+                glyph=ICON_ZOOM_OUT
                 label="Zoom out"
                 @test_id={"pixel-art.zoom-out"}
                 on_click={zoom_out}
@@ -104,14 +111,16 @@ pub(crate) fn TopBar(
                 @test_id={"pixel-art.zoom-reset"}
                 on_click={reset}
             />
-            <IconButton
-                glyph={ICON_ZOOM_IN.to_owned()}
+            <Button
+                icon_only=true
+                glyph=ICON_ZOOM_IN
                 label="Zoom in"
                 @test_id={"pixel-art.zoom-in"}
                 on_click={zoom_in}
             />
-            <IconButton
-                glyph={ICON_FIT_SCREEN.to_owned()}
+            <Button
+                icon_only=true
+                glyph=ICON_SCAN
                 label="Fit the canvas to the viewport"
                 @test_id={"pixel-art.fit"}
                 on_click={fit}
@@ -121,22 +130,25 @@ pub(crate) fn TopBar(
                 <Text style=TextStyle::CAPTION color=TextColor::Danger>{reason}</Text>
             </Show>
             <Spacer @sizing=ItemSize::Percent(100.0) />
-            <IconButton
-                glyph={ICON_RESIZE.to_owned()}
+            <Button
+                icon_only=true
+                glyph=ICON_SCALING
                 label="Resize"
                 disabled={read_only}
                 @test_id={"pixel-art.resize"}
                 on_click={resize}
             />
-            <IconButton
-                glyph={ICON_DELETE.to_owned()}
+            <Button
+                icon_only=true
+                glyph=ICON_TRASH
                 label="Clear"
                 disabled={read_only}
                 @test_id={"pixel-art.clear"}
                 on_click={clear}
             />
-            <IconButton
-                glyph={ICON_DOWNLOAD.to_owned()}
+            <Button
+                icon_only=true
+                glyph=ICON_DOWNLOAD
                 label="Export a PNG"
                 disabled={read_only}
                 @test_id={"pixel-art.export"}
@@ -166,7 +178,7 @@ pub(crate) fn ToolsPanel(tools: Tools) -> NodeId {
             <ForEach keys={rows}>|row: usize| {
                 let (left, right) = (TOOLS[row * 2], TOOLS[row * 2 + 1]);
                 view! {
-                    <List direction=Direction::Horizontal spacing=4.0>
+                    <List direction=Direction::Horizontal spacing=Space::Xs>
                         <ToolButton
                             @sizing=ItemSize::Fixed(TOOL_WIDTH)
                             tools={tools}
@@ -188,15 +200,15 @@ pub(crate) fn ToolsPanel(tools: Tools) -> NodeId {
                 label="Brush size"
                 @test_id={"pixel-art.brush-size"}
             />
-            <List direction=Direction::Horizontal align=Align::Center spacing=4.0>
+            <List direction=Direction::Horizontal align=Align::Center spacing=Space::Xs>
                 <ToggleButton
-                    glyph={ICON_SQUARE.to_owned()}
+                    glyph=ICON_SQUARE
                     label="Square brush"
                     icon_only=true
                     pressed={Binding::new(square, move |_| shape.set(BrushShape::Square))}
                 />
                 <ToggleButton
-                    glyph={ICON_CIRCLE.to_owned()}
+                    glyph=ICON_CIRCLE
                     label="Circle brush"
                     icon_only=true
                     pressed={Binding::new(circle, move |_| shape.set(BrushShape::Circle))}
@@ -204,7 +216,7 @@ pub(crate) fn ToolsPanel(tools: Tools) -> NodeId {
                 <Spacer @sizing=ItemSize::Percent(100.0) />
             </List>
             <ToggleButton
-                glyph={ICON_FORMAT_COLOR_FILL.to_owned()}
+                glyph=ICON_PAINT_BUCKET
                 label="Filled shapes"
                 pressed={filled}
                 disabled={shapes}
@@ -217,14 +229,14 @@ pub(crate) fn ToolsPanel(tools: Tools) -> NodeId {
 }
 
 #[component]
-fn ToolButton(tools: Tools, entry: (PixelTool, &'static str, &'static str)) -> NodeId {
+fn ToolButton(tools: Tools, entry: (PixelTool, Glyph, &'static str)) -> NodeId {
     let (tool, glyph, shortcut) = entry;
     let chosen = tools.tool;
     let pressed = create_memo(move || chosen.get() == tool);
     let select = move |_| tools.select_tool(tool);
     view! {
         <ToggleButton
-            glyph={glyph.to_owned()}
+            glyph={glyph}
             label={format!("{} ({shortcut})", tool.label())}
             icon_only=true
             pressed={Binding::new(pressed, select)}
@@ -289,7 +301,7 @@ pub(crate) fn ColorsPanel(tools: Tools, palette: Memo<Vec<PixelColor>>) -> NodeI
                 <Channel tools={tools} channel={channel} />
             </ForEach>
             <Text>"Palette"</Text>
-            <List direction=Direction::Horizontal wrap=true spacing=4.0>
+            <List direction=Direction::Horizontal wrap=true spacing=Space::Xs>
                 <ForEach keys={palette}>|swatch: PixelColor| {
                     let chosen = create_memo(move || color.get() == swatch);
                     let pick = move || tools.set_active_color(swatch, true);
@@ -298,16 +310,18 @@ pub(crate) fn ColorsPanel(tools: Tools, palette: Memo<Vec<PixelColor>>) -> NodeI
                     }
                 }</ForEach>
             </List>
-            <List direction=Direction::Horizontal align=Align::Center spacing=4.0>
-                <IconButton
-                    glyph={ICON_ADD.to_owned()}
+            <List direction=Direction::Horizontal align=Align::Center spacing=Space::Xs>
+                <Button
+                    icon_only=true
+                    glyph=ICON_PLUS
                     label="Add the active colour to the palette"
                     disabled={can_add}
                     @test_id={"pixel-art.palette-add"}
                     on_click={add}
                 />
-                <IconButton
-                    glyph={ICON_DELETE.to_owned()}
+                <Button
+                    icon_only=true
+                    glyph=ICON_TRASH
                     label="Remove the active colour from the palette"
                     disabled={can_remove}
                     @test_id={"pixel-art.palette-remove"}
@@ -316,7 +330,7 @@ pub(crate) fn ColorsPanel(tools: Tools, palette: Memo<Vec<PixelColor>>) -> NodeI
                 <Spacer @sizing=ItemSize::Percent(100.0) />
             </List>
             <Text>"Recent"</Text>
-            <List direction=Direction::Horizontal wrap=true spacing=4.0>
+            <List direction=Direction::Horizontal wrap=true spacing=Space::Xs>
                 <ForEach keys={recent_colors}>|swatch: PixelColor|
                     <Swatch color={swatch} selected=false on_click={move || {}} />
                 </ForEach>
@@ -348,22 +362,9 @@ fn Channel(tools: Tools, channel: &'static str) -> NodeId {
 #[component]
 fn Swatch(color: Prop<PixelColor>, selected: Prop<bool>, on_click: ClickCallback) -> NodeId {
     let fill = create_memo(move || swatch_color(color.get()));
-    let chosen = create_memo(move || selected.get());
-    let theme = use_theme();
-    let outline = create_memo(move || match chosen.get() {
-        true => theme.accent.get(),
-        false => theme.border.get(),
-    });
+    let label = create_memo(move || format_hex_color(color.get()));
     view! {
-        <Pressable on_click={on_click}>
-            <Frame
-                width=SWATCH
-                height=SWATCH
-                fill={ColorRole::custom(fill)}
-                border={create_memo(move || Some(Border::new(ColorRole::Custom(outline.get())).width(2.0)))}
-                radius=Radius::Xs
-            />
-        </Pressable>
+        <SwatchButton color={fill} label={label} selected radius=Radius::Xs on_click />
     }
 }
 
@@ -395,17 +396,18 @@ pub(crate) fn Dialogs(tools: Tools, size: Memo<(u16, u16)>) -> NodeId {
         tools.operate(PixelArtOperation::Clear);
         tools.close_dialog();
     };
-    let cancel_resize = move || tools.close_dialog();
-    let dismiss_resize = move || tools.close_dialog();
-    let cancel_clear = move || tools.close_dialog();
-    let dismiss_clear = move || tools.close_dialog();
+    let dismiss = move || tools.close_dialog();
     view! {
-        <List spacing=0.0>
-            <Modal
+        <List spacing=Space::None>
+            <styled::Dialog
                 open={resizing}
                 title="Resize pixel art"
-                width=DIALOG_WIDTH
-                on_dismiss={dismiss_resize}
+                id="pixel-art.resize"
+                actions={vec![
+                    DialogAction::cancel("Cancel"),
+                    DialogAction::primary("Resize", apply).named("apply"),
+                ]}
+                on_dismiss={dismiss}
             >
                 <List spacing=SPACING>
                     <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
@@ -431,54 +433,25 @@ pub(crate) fn Dialogs(tools: Tools, size: Memo<(u16, u16)>) -> NodeId {
                         <AnchorRow tools={tools} row={row} />
                     </ForEach>
                     <Show condition={cropping}>
-                        <Text style=TextStyle::CAPTION color=TextColor::Warning wrap=true>
+                        <Text style=TextStyle::CAPTION color=TextColor::Warning>
                             "Shrinking crops pixels outside the anchored region."
                         </Text>
                     </Show>
-                    <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
-                        <Button
-                            label="Resize"
-                            variant=ButtonVariant::Primary
-                            @test_id={"pixel-art.resize-apply"}
-                            on_click={apply}
-                        />
-                        <Button
-                            label="Cancel"
-                            variant=ButtonVariant::Secondary
-                            @test_id={"pixel-art.resize-cancel"}
-                            on_click={cancel_resize}
-                        />
-                        <Spacer @sizing=ItemSize::Percent(100.0) />
-                    </List>
                 </List>
-            </Modal>
-            <Modal
+            </styled::Dialog>
+            <styled::Dialog
                 open={clearing}
+                kind=DialogKind::Alert
                 title="Clear pixel art?"
-                width=DIALOG_WIDTH
-                on_dismiss={dismiss_clear}
+                id="pixel-art.clear"
+                actions={vec![
+                    DialogAction::destructive("Clear", clear).named("apply"),
+                    DialogAction::cancel("Cancel"),
+                ]}
+                on_dismiss={dismiss}
             >
-                <List spacing=SPACING>
-                    <Text style=TextStyle::CAPTION wrap=true>
-                        "This makes every pixel transparent."
-                    </Text>
-                    <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
-                        <Button
-                            label="Clear"
-                            variant=ButtonVariant::Primary
-                            @test_id={"pixel-art.clear-apply"}
-                            on_click={clear}
-                        />
-                        <Button
-                            label="Cancel"
-                            variant=ButtonVariant::Secondary
-                            @test_id={"pixel-art.clear-cancel"}
-                            on_click={cancel_clear}
-                        />
-                        <Spacer @sizing=ItemSize::Percent(100.0) />
-                    </List>
-                </List>
-            </Modal>
+                <Text style=TextStyle::PARAGRAPH>"This makes every pixel transparent."</Text>
+            </styled::Dialog>
         </List>
     }
 }
@@ -487,7 +460,7 @@ pub(crate) fn Dialogs(tools: Tools, size: Memo<(u16, u16)>) -> NodeId {
 fn AnchorRow(tools: Tools, row: usize) -> NodeId {
     let entries = create_memo(move || (0..3).map(|column| row * 3 + column).collect::<Vec<_>>());
     view! {
-        <List direction=Direction::Horizontal align=Align::Center spacing=4.0>
+        <List direction=Direction::Horizontal align=Align::Center spacing=Space::Xs>
             <ForEach keys={entries}>|index: usize| {
                 let (anchor, glyph, label) = ANCHORS[index];
                 let chosen = tools.resize_anchor;
@@ -495,7 +468,7 @@ fn AnchorRow(tools: Tools, row: usize) -> NodeId {
                 let set = tools.resize_anchor;
                 view! {
                     <ToggleButton
-                        glyph={glyph.to_owned()}
+                        glyph={glyph}
                         label={label}
                         icon_only=true
                         pressed={Binding::new(pressed, move |_| set.set(anchor))}

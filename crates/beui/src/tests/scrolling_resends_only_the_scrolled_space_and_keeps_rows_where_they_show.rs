@@ -8,6 +8,7 @@ use crate::reactive::*;
 use crate::unstyled::Scroll;
 
 const ROWS: u32 = 30;
+const ROW_HEIGHT: f32 = 44.0;
 
 #[test]
 fn scrolling_resends_only_the_scrolled_space_and_keeps_rows_where_they_show() {
@@ -17,12 +18,14 @@ fn scrolling_resends_only_the_scrolled_space_and_keeps_rows_where_they_show() {
                 <Frame height=200.0>
                     <Scroll @test_id="scroll">
                         <ForEach keys={(0..ROWS).collect::<Vec<_>>()}>|row: u32|
-                            <styled::Button
-                                @test_id={format!("row.{row}")}
-                                variant=styled::ButtonVariant::Primary
-                                label={format!("Row {row}")}
-                                on_click={|| {}}
-                            />
+                            <Frame height=ROW_HEIGHT>
+                                <styled::Button
+                                    @test_id={format!("row.{row}")}
+                                    variant=styled::ButtonVariant::Primary
+                                    label={format!("Row {row}")}
+                                    on_click={|| {}}
+                                />
+                            </Frame>
                         </ForEach>
                     </Scroll>
                 </Frame>
@@ -37,9 +40,9 @@ fn scrolling_resends_only_the_scrolled_space_and_keeps_rows_where_they_show() {
             .accessibility_tree("Test", VIEWPORT),
     );
     let scroll = harness.find("scroll");
-    harness.frame(vec![Event::PointerMoved(harness.rect(scroll).center())]);
+    harness.frame(vec![Input::PointerMoved(harness.rect(scroll).center())]);
 
-    let output = harness.frame(vec![Event::Scroll(vec2(0.0, -25.0))]);
+    let output = harness.frame(vec![Input::Scroll(ScrollDelta::Pixels(vec2(0.0, -25.0)))]);
     assert_eq!(harness.document().scroll_offset(scroll), 25.0);
     let update = output.accessibility_tree("Test", VIEWPORT);
     assert!(

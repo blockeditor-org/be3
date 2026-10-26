@@ -1,4 +1,4 @@
-use block_editor_beui::beui::Key;
+use block_editor_beui::beui::{Key, Modifiers};
 
 use super::*;
 
@@ -10,9 +10,9 @@ fn a_new_player_can_take_the_other_side() {
 
     editor.click("game.player");
     editor.run();
-    editor.text("New");
+    editor.type_text("New");
     editor.run();
-    editor.key_press(Key::Enter);
+    editor.key(Key::Enter, Modifiers::NONE);
     editor.run();
 
     editor.click("game.tile.1.1");

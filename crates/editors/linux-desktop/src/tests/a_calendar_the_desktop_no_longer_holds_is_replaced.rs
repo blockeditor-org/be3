@@ -1,4 +1,4 @@
-use block_editor_beui::be_block::ViewState;
+use workspace_ui_types::ViewState;
 
 use super::*;
 
@@ -6,7 +6,7 @@ use super::*;
 fn a_calendar_the_desktop_no_longer_holds_is_replaced() {
     let mut fixture = Fixture::new();
     let gone = Uuid::new_v4();
-    let mut desktop = EditorView::document(LINUX_DESKTOP_EDITOR, None);
+    let mut desktop = EditorView::document(None);
     let remember = desktop.root().set_state(
         "desktop.calendar",
         Some(&ViewState::new(&(), vec![gone])),

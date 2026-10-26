@@ -1,7 +1,9 @@
-use be_block::{BlockContent, FolderContent, TextContent};
+use be_block::BlockContent;
 use be_graph::BlockParent;
+use workspace_ui_types::FolderContent;
 
 use super::*;
+use text_block_types::TextContent;
 
 #[tokio::test]
 async fn a_tracker_downloaded_as_a_block_file_uploads_and_reads_back() {

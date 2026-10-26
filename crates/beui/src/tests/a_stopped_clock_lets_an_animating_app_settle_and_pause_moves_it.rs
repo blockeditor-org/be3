@@ -13,7 +13,7 @@ impl App for Animating {
 fn a_stopped_clock_lets_an_animating_app_settle_and_pause_moves_it() {
     let _root = crate::reactive::RootScope::new();
     let now = create_signal(None);
-    let mut driven = Driven::with_app(Animating(now), true);
+    let mut driven = headless(Animating(now));
 
     driven
         .ask(&["clock", "stop"])
@@ -22,7 +22,7 @@ fn a_stopped_clock_lets_an_animating_app_settle_and_pause_moves_it() {
     driven
         .ask(&["settle"])
         .expect("an animating app settles while time stands still");
-    let state = driven.ask(&["state"]).expect("the state is read");
+    let state = driven.ask(&["app", "state"]).expect("the state is read");
     assert!(state.contains("clock stopped"), "{state}");
 
     driven.ask(&["pause", "500"]).expect("time passes");

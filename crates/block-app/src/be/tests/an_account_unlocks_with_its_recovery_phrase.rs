@@ -53,6 +53,6 @@ fn an_account_unlocks_with_its_recovery_phrase() {
     });
     open(block, CounterContent::CONTENT_TYPE);
     wait_for_count(block, 5);
-    stop();
+    stop_and_wait();
     let _ = std::fs::remove_dir_all(&elsewhere);
 }

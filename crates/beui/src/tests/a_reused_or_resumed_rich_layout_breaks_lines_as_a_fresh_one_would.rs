@@ -3,7 +3,9 @@ use crate::reactive::*;
 use beui_core::font::{FontId, Galley, TextLayout};
 use beui_core::rich::{OBJECT, RichOptions};
 
-const WORDS: [&str; 12] = [
+const BREAK: &str = "|";
+
+const WORDS: [&str; 14] = [
     "a ",
     "breaking ",
     "line-",
@@ -16,13 +18,18 @@ const WORDS: [&str; 12] = [
     "\n",
     "words ",
     "z ",
+    BREAK,
+    BREAK,
 ];
 
-fn options(wrap_width: f32) -> RichOptions {
+fn options(wrap_width: f32, anywhere: bool) -> RichOptions {
     RichOptions {
         wrap_width,
         padding: (0.0, 0.0),
         style: SpanStyle::new(FontId::proportional(14.0), Color32::WHITE),
+        hang: 0,
+        anywhere,
+        least: false,
     }
 }
 
@@ -57,16 +64,18 @@ fn a_reused_or_resumed_rich_layout_breaks_lines_as_a_fresh_one_would() {
                     size: Vec2::new(18.0, 10.0),
                     text: OBJECT,
                 },
+                _ if text == BREAK => Piece::Break,
                 5 => Piece::text(text, bold),
                 _ => Piece::text(text, style),
             })
             .collect();
         let wrap = 40.0 + next(400) as f32;
-        let laid = RichLayout::new(&pieces, options(wrap), &mut shaper);
+        let anywhere = round % 2 == 1;
+        let laid = RichLayout::new(&pieces, options(wrap, anywhere), &mut shaper);
         for _ in 0..20 {
             let other = 20.0 + next(500) as f32;
             if laid.fits(other) {
-                let fresh = RichLayout::new(&pieces, options(other), &mut shaper);
+                let fresh = RichLayout::new(&pieces, options(other, anywhere), &mut shaper);
                 assert_eq!(
                     breaks(&laid),
                     breaks(&fresh),
@@ -85,13 +94,14 @@ fn a_reused_or_resumed_rich_layout_breaks_lines_as_a_fresh_one_would() {
                     size: Vec2::new(18.0, 10.0),
                     text: OBJECT,
                 },
+                _ if text == BREAK => Piece::Break,
                 5 => Piece::text(text, bold),
                 _ => Piece::text(text, style),
             })
             .collect();
         let at: usize = edited[..changed].iter().map(Piece::len).sum();
-        let resumed = laid.resume(at, &edited, options(wrap), &mut shaper);
-        let fresh = RichLayout::new(&edited, options(wrap), &mut shaper);
+        let resumed = laid.resume(at, &edited, options(wrap, anywhere), &mut shaper);
+        let fresh = RichLayout::new(&edited, options(wrap, anywhere), &mut shaper);
         assert_eq!(
             breaks(&resumed),
             breaks(&fresh),

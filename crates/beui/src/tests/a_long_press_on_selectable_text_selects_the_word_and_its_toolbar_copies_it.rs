@@ -1,5 +1,6 @@
 use super::*;
 use crate::base::overlay::OverlayNode;
+use crate::primitives::List;
 use crate::primitives::Text;
 use crate::reactive::*;
 use crate::styled::*;
@@ -28,10 +29,7 @@ fn a_long_press_on_selectable_text_selects_the_word_and_its_toolbar_copies_it() 
     harness.frame(Vec::new());
     harness.touch(TouchPhase::End, on_world);
     assert_eq!(
-        harness
-            .document()
-            .api::<unstyled::SelectableState>(region)
-            .selected_text(),
+        selected_text(&mut harness, region),
         "world",
         "a long press selects the word under the finger"
     );
@@ -61,7 +59,7 @@ fn a_long_press_on_selectable_text_selects_the_word_and_its_toolbar_copies_it() 
     let copy = harness
         .center(text_within(harness.document(), toolbar, "Copy").expect("the toolbar offers Copy"));
     harness.touch(TouchPhase::Start, copy);
-    let copied = harness.frame(vec![touch_event(1, TouchPhase::End, copy)]);
+    let copied = harness.touch(TouchPhase::End, copy);
     assert_eq!(copied.copied_text.as_deref(), Some("world"));
     assert!(
         harness
@@ -72,10 +70,7 @@ fn a_long_press_on_selectable_text_selects_the_word_and_its_toolbar_copies_it() 
         "choosing an action puts the toolbar away"
     );
     assert_eq!(
-        harness
-            .document()
-            .api::<unstyled::SelectableState>(region)
-            .selected_text(),
+        selected_text(&mut harness, region),
         "world",
         "and keeps the selection"
     );

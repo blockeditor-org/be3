@@ -15,8 +15,8 @@ fn a_conflicting_edit_keeps_every_side_until_one_is_chosen() {
         None,
     );
     version_since(second, be_block::CheckoutContent::CONTENT_TYPE, None);
-    hold(versioned.note, be_block::TextContent::CONTENT_TYPE);
-    hold(note, be_block::TextContent::CONTENT_TYPE);
+    hold(versioned.note, text_block_types::TextContent::CONTENT_TYPE);
+    hold(note, text_block_types::TextContent::CONTENT_TYPE);
     wait_until("opened both notes", |shared| {
         text_of(shared, versioned.note).is_some() && text_of(shared, note).is_some()
     });
@@ -26,8 +26,8 @@ fn a_conflicting_edit_keeps_every_side_until_one_is_chosen() {
     flush();
     version(
         versioned.checkout,
-        VersionCommand::Commit {
-            message: "There".into(),
+        VersionCommand::Finish {
+            description: "There".into(),
         },
     );
     wait_until("saw the other checkout fall behind", |shared| {
@@ -48,7 +48,7 @@ fn a_conflicting_edit_keeps_every_side_until_one_is_chosen() {
     let sides = [conflict.base, conflict.ours, conflict.theirs]
         .map(|side| side.expect("every side was kept"));
     for side in sides {
-        hold(side, be_block::TextContent::CONTENT_TYPE);
+        hold(side, text_block_types::TextContent::CONTENT_TYPE);
     }
     wait_until("opened every side", |shared| {
         sides.iter().all(|side| text_of(shared, *side).is_some())
@@ -60,6 +60,31 @@ fn a_conflicting_edit_keeps_every_side_until_one_is_chosen() {
             Some("hello world\n".to_owned()),
             Some("hello there\n".to_owned()),
         ])
+    );
+
+    version(
+        second,
+        VersionCommand::Finish {
+            description: "Brought in the other edit".into(),
+        },
+    );
+    wait_until("saved the change with its clash recorded", |shared| {
+        settled(shared, second)
+            && version_status(shared, second).is_some_and(|status| {
+                status.error.is_none()
+                    && status.log.first().is_some_and(|saved| {
+                        saved.message == "Brought in the other edit" && saved.conflicted
+                    })
+                    && status
+                        .working
+                        .as_ref()
+                        .is_some_and(|working| working.conflicted)
+            })
+    });
+    assert_eq!(
+        with_shared(|shared| checkout_state(shared, second).map(|state| state.conflicts.len())),
+        Some(Some(1)),
+        "the clash comes along into the next change until it is sorted out"
     );
 
     version(

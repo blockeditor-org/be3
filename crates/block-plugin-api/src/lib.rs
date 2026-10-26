@@ -1,42 +1,153 @@
 pub use accesskit;
-use bincode::Options;
 use serde::{Deserialize, Serialize};
 pub use serde_bytes::ByteBuf;
 use std::fmt;
 
+be_ops_bindgen::generate!({
+    path: "wit",
+    world: "editor-plugin",
+    deps: ["../ui-types/wit", "../be-ops/wit", "../block-gpu-abi/wit"],
+    uses: {
+        "be3:ui/types@0.1.0": ::ui_types::types,
+        "be3:gpu/device@0.1.0": ::block_gpu_abi::device,
+    },
+    local: ["be3:gpu/device@0.1.0"],
+    with: {
+        "uuid": [u8; 16],
+        "hash": [u8; 32],
+        "editor-instance-id": crate::EditorInstanceId,
+        "screen-id": crate::ScreenId,
+        "host-window-id": crate::HostWindowId,
+        "child-id": crate::ChildId,
+        "web-view-id": crate::WebViewId,
+        "rgb": [u8; 3],
+    },
+    copy: [
+        "uuid", "hash", "host-window-id", "editor-instance-id", "screen-id", "child-id", "web-view-id", "rgb",
+    ],
+    default: [
+        "frame-chrome", "top-bar", "frame-spec", "size", "fonts", "screen-layout",
+        "block-metadata", "artifact-state", "version-status",
+        "menu-command", "menu-check", "menu-pin", "menu-heading", "block-filter", "child-preview",
+        "catalog", "audio-status", "child-layer", "child-mode", "interaction-mode", "pan-mode",
+        "editor-capabilities", "resize-mode", "child-operations", "press", "template-category",
+        "host-preference-sources", "host-contact", "host-image", "window-origin", "remap-state",
+        "power-availability", "media-level", "audio-output", "media-levels", "wifi-security",
+        "wifi-network", "wifi-link", "wifi-status", "incoming-notification", "notification-inbox",
+        "notification-report", "host-program", "tray-toggle", "tray-menu-item", "host-tray-item",
+        "dialog-status", "dialog-frame",
+    ],
+    inline: [
+        "rename-command", "artifact-command", "unlink-command",
+        "delete-command", "move-command", "place-command", "app-menu-command", "adopt-command",
+        "finish-command", "branch-command", "create-branch-command", "resolve-command",
+        "undo-operation-command", "performance-duration", "performance-count", "view-zoom",
+        "rename-dialog",
+        "block-child", "creation-child", "artifact-settings-child",
+        "window-fullscreen", "wifi-connect", "notification-closed", "notification-action-invoked",
+        "program-list", "program-launch", "program-exec", "tray-scroll", "tray-menu-chosen",
+    ],
+    lenient: ["editor-capabilities", "child-operations"],
+    ordered: ["child-content"],
+    own_debug: ["font-face"],
+});
+
+pub use accessibility::DescribedAction;
+pub use be_ops as ops;
+pub use blocks::{
+    ArtifactAction, ArtifactState, BlockCommand, BlockInfo, BlockLocation, BlockMetadata,
+    BlockQuery, ConflictSide, StoredHead, VersionBranch, VersionChange, VersionChangeKind,
+    VersionCommand, VersionCommit, VersionOperation, VersionStatus,
+};
+pub use debug::debug::{DebugTemplate, PerformanceMeasurement};
+pub use host_services::{
+    AccessGrant, AccessListing, BlockFilter, BlockPick, ImportedBlock, PickedBlock, Revision,
+    ShellDialog,
+};
+pub use shared::access::AccessLevel;
+pub use shell_types::{
+    ArtifactDescription, AudioCommand, AudioSource, AudioStatus, BarAction, Catalog, ChildPreview,
+    CreationProgress, DialogAnswer, DialogStatus, DroppedFile, EditorDescriptor, FitArea,
+    MenuCheck, MenuCommand, MenuHeading, MenuItem, MenuItemKind, MenuPin, PreviewImage,
+    ShellCommand, Stopped, TemplateDescriptor, ViewChange, WebViewEvent,
+};
+pub use shell_types::{
+    BlockTypeDescriptor, ChildOperations, ChildStatus, EditorCapabilities, Edits, InteractionMode,
+    PanMode, Press, ResizeMode, TemplateCategory,
+};
+pub use types::{
+    ChildContent, ChildLayer, ChildMode, ChildPlacement, ChildPlacements, DialogFrame,
+    EditorRegion, Failure, FontFace, FontRole, Fonts, FrameChrome, FrameCommit, FrameReport,
+    FrameSpec, Hello, HelloAccepted, HostPanel, InputBatch, Occluder, OpenArtifact, OpenBlock,
+    OpenCreation, Opening, PluginIdentity, PresentedFrame, PressClaim, RegionSize, ScreenDamage,
+    ScreenLayout, ScreenPlacement, ScreenRequest, ScreenWindow, Size, SurfaceFormat, SurfaceRect,
+    SurfaceSpec, SurfaceSupport, TimedInput, TopBar, ViewportMetrics,
+};
+pub use types::{
+    RegionRef, WindowEdge, WindowOpen, WindowOver, WindowPlacement, WindowRequest, WindowResize,
+    WindowResizeBegin,
+};
+
+pub use account::HostPreferenceSources;
+pub use be_ops::Watched;
+pub use contacts::HostContact;
+pub use guest::account::{AdministratorWatch, LinkBaseWatch, PreferenceSourcesWatch};
+pub use guest::contacts::ContactsWatch;
+pub use guest::linux_desktop::{
+    displays::DisplaysWatch,
+    epaper::EpaperWatch,
+    input::{InputDevicesWatch, RemapsWatch},
+    media::MediaWatch,
+    notifications::NotificationsWatch,
+    power::PowerWatch,
+    programs::ProgramsWatch,
+    screen_lock::ScreenLockedWatch,
+    tray::TrayWatch,
+    wifi::WifiWatch,
+    windows::WindowsWatch,
+};
+pub use linux::TrayMenuEntry;
+pub use linux_desktop::{
+    displays::HostDisplay,
+    input::{HostInputDevice, RemapState},
+    media::{AudioOutput, MediaLevel, MediaLevels, MediaRequest, PlayerCommand},
+    notifications::{
+        HostNotificationAction, IncomingNotification, NotificationCloseReason, NotificationInbox,
+        NotificationReport, NotificationRequest, NotificationSignal, NotificationUrgency,
+    },
+    power::{PowerAction, PowerAvailability},
+    programs::{HostProgram, ProgramAction},
+    tray::{HostTrayItem, TrayMenuItem, TrayRequest, TrayStatus, TrayToggle},
+    types::HostImage,
+    wifi::{WifiLink, WifiNetwork, WifiRequest, WifiSecurity, WifiStatus},
+    windows::{HostWindow, WindowAction, WindowOrigin},
+};
+
+mod accesskit_mirror;
 mod block_ids;
-mod host_value;
+mod input;
 mod linux;
 mod manifest;
 mod nesting;
-mod session;
+mod opening;
+pub mod requested;
+mod watch;
 pub use block_ids::BlockIdRole;
-pub use host_value::{
-    Administrator, Contacts, HostAction, HostContact, HostImage, HostPreferenceSources, HostValue,
-    LinkBase, PreferenceSources, decode_host, encode_host,
-};
-pub use linux::{
-    AudioOutput, Displays, Epaper, EpaperRequest, HostDisplay, HostInputDevice,
-    HostNotificationAction, HostProgram, HostTrayItem, HostWindow, HostWindowId, HostWindows,
-    IncomingNotification, InputDevices, Media, MediaLevel, MediaLevels, MediaRequest,
-    NotificationCloseReason, NotificationInbox, NotificationReport, NotificationRequest,
-    NotificationSignal, NotificationUrgency, Notifications, PlayerCommand, Power, PowerAction,
-    PowerAvailability, ProgramAction, Programs, RemapState, Remaps, ScreenLocked, Tray,
-    TrayMenuEntry, TrayRequest, TrayStatus, TrayToggle, Wifi, WifiLink, WifiNetwork, WifiRequest,
-    WifiSecurity, WifiStatus, WindowAction, WindowOrigin,
-};
 pub use manifest::{
     EditorDocument, InOrder, ManifestDocument, TemplateDocument, manifest_from_json,
 };
-pub use session::{HostSession, QueueError, SessionFailure, SessionState};
+pub use ui_types::geometry::{Pos2, Rect, Vec2};
 pub use ui_types::{
-    BackEdge, BackGesture, CursorIcon, FileFilter, FilePick, ImeEvent, ImeText, Key, KeyChord,
-    Keyboard, Modifiers, PasteKind, Pasted, PenPhase, PickedFile, PointerButton, TouchPhase,
+    BackEdge, BackGesture, CursorIcon, FileFilter, FilePick, FileSave, ImeEvent, ImeText, Input,
+    Key, KeyChord, Keyboard, Keystroke, Modifiers, PasteKind, Pasted, Pen, PenPhase, PickedFile,
+    PointerButton, SavedFile, ScrollDelta, TouchId, TouchPhase,
 };
 pub use ui_types::{
     CanvasTouch, DisplayMode, InputDevice, Motion, PointerSettings, PointerSpeed, PreferenceLayer,
     Preferences, Rotation, ThemeKind,
 };
+pub use ui_types::{ImeArea, WindowRequests, WindowRole};
+pub use watch::{Encoded, WAITING_WEB_VIEW_EVENTS, Watch};
 
 pub const MAX_COLLECTION_ITEMS: usize = 1024;
 pub const MAX_STRING_BYTES: usize = 16 * 1024;
@@ -44,48 +155,45 @@ pub const MAX_MENU_DEPTH: usize = 8;
 pub const MAX_TEXT_BYTES: usize = 64 * 1024 * 1024;
 pub const MAX_BLOB_BYTES: usize = 64 * 1024 * 1024;
 pub const MAX_OPAQUE_DESCRIPTOR_BYTES: usize = 64 * 1024;
-pub const MAX_QUEUED_MESSAGES: usize = 256;
 pub const MAX_CHILDREN: usize = 256;
 pub const MAX_ACCESSIBILITY_NODES: usize = 64 * 1024;
 pub const MAX_LISTED_BLOCKS: usize = 16 * 1024;
-pub const REQUEST_TIMEOUT_MILLISECONDS: u64 = 5_000;
 
-#[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, Serialize, Deserialize)]
+impl PickedBlock {
+    pub fn id(&self) -> uuid::Uuid {
+        uuid::Uuid::from_bytes(self.block_id)
+    }
+}
+
+impl fmt::Display for Failure {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Denied => formatter.write_str("The host refused this request."),
+            Self::Unavailable => formatter.write_str("The host can't answer this."),
+            Self::Failed(message) => formatter.write_str(message),
+        }
+    }
+}
+
+impl std::error::Error for Failure {}
+
+impl From<ops::OpError> for Failure {
+    fn from(error: ops::OpError) -> Self {
+        match error {
+            ops::OpError::Denied => Self::Denied,
+            ops::OpError::Unsupported | ops::OpError::Canceled => Self::Unavailable,
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub struct EditorInstanceId(pub u64);
 
-#[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub struct ScreenId(pub u64);
 
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-pub struct ScreenRequest {
-    pub screen: ScreenId,
-    pub instance: EditorInstanceId,
-    pub region: EditorRegion,
-    pub metrics: ViewportMetrics,
-    pub frame: Option<FrameSpec>,
-}
-
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
-pub enum FrameChrome {
-    Drawn,
-    #[default]
-    None,
-}
-
-#[derive(Clone, Copy, Debug, Default, PartialEq, Serialize, Deserialize)]
-pub struct FrameSpec {
-    pub chrome: FrameChrome,
-    pub content: Option<ChildRect>,
-    pub top_bar: TopBar,
-}
-
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
-pub enum TopBar {
-    #[default]
-    Hidden,
-    Shown,
-    Phone,
-}
+#[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+pub struct HostWindowId(pub u64);
 
 impl TopBar {
     pub fn shown(self) -> bool {
@@ -97,42 +205,18 @@ impl TopBar {
     }
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub enum BarAction {
-    Details,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub enum MenuEntry {
     Command(MenuCommand),
     Submenu(MenuSubmenu),
     Separator,
 }
 
-#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
-pub struct MenuCommand {
-    pub id: String,
-    pub label: String,
-    pub glyph: String,
-    pub enabled: bool,
-    pub check: MenuCheck,
-    pub shortcut: Option<KeyChord>,
-}
-
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
-pub enum MenuCheck {
-    #[default]
-    None,
-    Checkbox(bool),
-    Radio(bool),
-}
-
-#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct MenuSubmenu {
     pub id: String,
     pub label: String,
     pub glyph: String,
-    #[serde(deserialize_with = "nesting::submenu")]
     pub entries: Vec<MenuEntry>,
 }
 
@@ -144,95 +228,86 @@ impl MenuEntry {
             MenuEntry::Separator => None,
         })
     }
+
+    pub fn flatten(entries: &[MenuEntry]) -> Vec<MenuItem> {
+        nesting::flatten(
+            entries,
+            |entry| match entry {
+                MenuEntry::Submenu(submenu) => &submenu.entries,
+                MenuEntry::Command(_) | MenuEntry::Separator => &[],
+            },
+            |entry, depth| MenuItem {
+                depth,
+                kind: match entry {
+                    MenuEntry::Command(command) => MenuItemKind::Command(command.clone()),
+                    MenuEntry::Separator => MenuItemKind::Separator,
+                    MenuEntry::Submenu(submenu) => MenuItemKind::Submenu(MenuHeading {
+                        id: submenu.id.clone(),
+                        label: submenu.label.clone(),
+                        glyph: submenu.glyph.clone(),
+                    }),
+                },
+            },
+        )
+    }
+
+    pub fn nest(items: Vec<MenuItem>) -> Result<Vec<MenuEntry>, DecodeError> {
+        for item in &items {
+            let opens = matches!(item.kind, MenuItemKind::Submenu(_)) as usize;
+            if item.depth as usize + opens > MAX_MENU_DEPTH {
+                return Err(DecodeError::LimitExceeded("menu depth"));
+            }
+        }
+        nesting::nest(
+            items,
+            |item| item.depth,
+            |item, entries| match item.kind {
+                MenuItemKind::Command(command) if entries.is_empty() => {
+                    strings([&command.id, &command.label, &command.glyph])?;
+                    Ok(MenuEntry::Command(command))
+                }
+                MenuItemKind::Separator if entries.is_empty() => Ok(MenuEntry::Separator),
+                MenuItemKind::Submenu(heading) => {
+                    strings([&heading.id, &heading.label, &heading.glyph])?;
+                    Ok(MenuEntry::Submenu(MenuSubmenu {
+                        id: heading.id,
+                        label: heading.label,
+                        glyph: heading.glyph,
+                        entries,
+                    }))
+                }
+                MenuItemKind::Command(_) | MenuItemKind::Separator => {
+                    Err(DecodeError::MalformedPayload)
+                }
+            },
+        )
+    }
 }
 
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-pub struct FrameReport {
-    pub screen: ScreenId,
-    pub content: ChildRect,
-    pub painted: Vec<ChildRect>,
-    pub floating: Vec<ChildRect>,
-    pub drawing: Vec<ChildRect>,
-    pub every_sample: bool,
-    pub claims: Vec<PressClaim>,
-    pub description: Option<Description>,
-}
-
-#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
-pub struct WindowRequests {
-    pub cursor: CursorIcon,
-    pub pointer_locked: bool,
-    pub ime: Option<ImeArea>,
-    pub handles_back: bool,
-    pub wants_keyboard: bool,
-    pub intercepted_keys: Vec<KeyChord>,
-    pub pastes: Vec<PasteKind>,
-    pub keyboard_toggles: u32,
-}
-
-#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, Default, PartialEq)]
 pub struct Description {
     pub tree: Option<accesskit::TreeUpdate>,
     pub actions: Vec<DescribedAction>,
-}
-
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-pub struct DescribedAction {
-    pub id: String,
-    pub label: String,
-    pub shortcut: Option<String>,
-    pub enabled: bool,
-    pub checked: Option<bool>,
-    pub live: bool,
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
-pub struct PressClaim {
-    pub modifiers: Modifiers,
-    pub rect: ChildRect,
-}
-
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-pub struct ScreenSet {
-    pub request_id: u64,
-    pub screens: Vec<ScreenRequest>,
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub struct ScreenPlacement {
-    pub screen: ScreenId,
-    pub instance: EditorInstanceId,
-    pub region: EditorRegion,
-    pub surface: u32,
-    pub width: u32,
-    pub height: u32,
-    pub scale_factor_millis: u32,
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
-pub struct RegionSize {
-    pub screen: ScreenId,
-    pub logical_width: f32,
-    pub logical_height: f32,
-}
-
-#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
-pub struct ScreenLayout {
-    pub generation: u64,
-    pub screens: Vec<ScreenPlacement>,
 }
 
 impl ScreenPlacement {
     pub fn scale_factor(&self) -> f32 {
         self.scale_factor_millis as f32 / 1000.0
     }
+
+    pub fn raster(&self) -> f32 {
+        self.raster_millis as f32 / 1000.0
+    }
+}
+
+fn millis(value: f32) -> u32 {
+    (value * 1000.0).round().max(1.0) as u32
 }
 
 impl ScreenLayout {
     pub fn placed(screens: &[ScreenRequest], surface: impl FnMut(ScreenId) -> u32) -> Self {
         let mut surface = surface;
         Self {
-            generation: 0,
             screens: screens
                 .iter()
                 .filter(|request| {
@@ -245,8 +320,8 @@ impl ScreenLayout {
                     surface: surface(request.screen),
                     width: request.metrics.pixel_width,
                     height: request.metrics.pixel_height,
-                    scale_factor_millis: (request.metrics.scale_factor * 1000.0).round().max(1.0)
-                        as u32,
+                    scale_factor_millis: millis(request.metrics.scale_factor),
+                    raster_millis: millis(request.metrics.raster),
                 })
                 .collect(),
         }
@@ -270,66 +345,8 @@ impl ScreenLayout {
 #[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ChildId(pub u64);
 
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
-pub enum ChildLayer {
-    #[default]
-    Below,
-    Above,
-}
-
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
-pub enum ChildMode {
-    Preview,
-    #[default]
-    Passive,
-    Active,
-    Live,
-    InPlace,
-}
-
-#[derive(Clone, Copy, Debug, Default, PartialEq, Serialize, Deserialize)]
-pub struct Size {
-    pub width: f32,
-    pub height: f32,
-}
-
-#[derive(Clone, Copy, Debug, Default, PartialEq, Serialize, Deserialize)]
-pub struct ChildRect {
-    pub x: f32,
-    pub y: f32,
-    pub width: f32,
-    pub height: f32,
-}
-
-#[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, Serialize, Deserialize)]
-pub struct WebViewId(pub u32);
-
-#[derive(Clone, Debug, Hash, PartialEq, Eq, Serialize, Deserialize)]
-pub enum ChildContent {
-    Block {
-        block_id: [u8; 16],
-        block_type: [u8; 16],
-        view_block: Option<[u8; 16]>,
-        editor: Option<[u8; 16]>,
-    },
-    WebView(WebViewId),
-    Host(HostPanel),
-    Window(HostWindowId),
-    Creation {
-        editor: [u8; 16],
-        template: String,
-    },
-    ArtifactSettings {
-        block_id: [u8; 16],
-    },
-}
-
 #[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
-pub enum HostPanel {
-    BlockStack,
-    Performance,
-    Plugins,
-}
+pub struct WebViewId(pub u32);
 
 impl HostPanel {
     pub const ALL: [Self; 3] = [Self::BlockStack, Self::Performance, Self::Plugins];
@@ -356,177 +373,53 @@ impl ChildContent {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-pub struct ChildPlacement {
-    pub child: ChildId,
-    pub content: ChildContent,
-    pub rect: ChildRect,
-    pub clip: ChildRect,
-    pub own_frame: bool,
-    pub top_bar: TopBar,
-    pub corner_radius: f32,
-    pub layer: ChildLayer,
-    pub mode: ChildMode,
-    pub intrinsic: Option<Size>,
-    pub rotation: f32,
-    pub opacity: f32,
-    pub follows_camera: bool,
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
-pub struct Camera {
-    pub x: f32,
-    pub y: f32,
-    pub scale: f32,
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
-pub struct Occluder {
-    pub after: u32,
-    pub rect: ChildRect,
-}
-
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-pub struct ChildPlacements {
-    pub instance: EditorInstanceId,
-    pub region: EditorRegion,
-    pub generation: u64,
-    pub size: Size,
-    pub children: Vec<ChildPlacement>,
-    pub occluders: Vec<Occluder>,
-    pub camera: Option<Camera>,
-}
-
 impl ChildPlacements {
-    pub fn occluded(&self, index: usize, x: f32, y: f32) -> bool {
+    pub fn occluded(&self, index: usize, point: Pos2) -> bool {
         self.occluders
             .iter()
             .filter(|occluder| occluder.after as usize > index)
-            .any(|occluder| occluder.rect.contains(x, y))
+            .any(|occluder| occluder.rect.contains_half_open(point))
     }
-}
-
-impl ChildRect {
-    pub fn contains(&self, x: f32, y: f32) -> bool {
-        x >= self.x && y >= self.y && x < self.x + self.width && y < self.y + self.height
-    }
-
-    pub fn is_empty(&self) -> bool {
-        self.width <= 0.0 || self.height <= 0.0
-    }
-
-    pub fn right(&self) -> f32 {
-        self.x + self.width
-    }
-
-    pub fn bottom(&self) -> f32 {
-        self.y + self.height
-    }
-
-    pub fn from_edges(left: f32, top: f32, right: f32, bottom: f32) -> Self {
-        Self {
-            x: left,
-            y: top,
-            width: (right - left).max(0.0),
-            height: (bottom - top).max(0.0),
-        }
-    }
-
-    pub fn intersect(&self, other: ChildRect) -> ChildRect {
-        Self::from_edges(
-            self.x.max(other.x),
-            self.y.max(other.y),
-            self.right().min(other.right()),
-            self.bottom().min(other.bottom()),
-        )
-    }
-
-    pub fn swept(&self, rotation: f32) -> ChildRect {
-        if rotation == 0.0 {
-            return *self;
-        }
-        let (center_x, center_y) = (self.x + self.width / 2.0, self.y + self.height / 2.0);
-        let (sin, cos) = rotation.sin_cos();
-        let (half_width, half_height) = (self.width / 2.0, self.height / 2.0);
-        let reach_x = half_width * cos.abs() + half_height * sin.abs();
-        let reach_y = half_width * sin.abs() + half_height * cos.abs();
-        Self::from_edges(
-            center_x - reach_x,
-            center_y - reach_y,
-            center_x + reach_x,
-            center_y + reach_y,
-        )
-    }
-}
-
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-pub struct ChildStatus {
-    pub instance: EditorInstanceId,
-    pub region: EditorRegion,
-    pub child: ChildId,
-    pub available: bool,
-    pub intrinsic: Option<Size>,
-    pub aspect_ratio: Option<f32>,
-    pub active: bool,
-    pub interaction: InteractionMode,
-    pub capabilities: EditorCapabilities,
-    pub resize: ResizeMode,
-    pub error: Option<String>,
-    pub menu: Vec<MenuEntry>,
-    pub creation: Option<CreationProgress>,
-    pub settings: Option<SettingsProgress>,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub struct SettingsProgress {
-    pub changed: bool,
-    pub summary: Option<String>,
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub enum ShellDialog {
-    Rename,
-    Share,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub struct AccessGrant {
-    pub account: [u8; 16],
-    pub email: String,
-    pub display_name: String,
-    pub administrator: bool,
-    pub author: bool,
-    pub granted: Option<AccessLevel>,
-    pub effective: AccessLevel,
-    pub waiting: bool,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub enum AccessListing {
-    Listed(Vec<AccessGrant>),
-    Failed(String),
-}
-
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub enum ContactLinkResult {
-    Made(String),
-    Failed(String),
-}
-
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub enum CreationProgress {
-    Options { ready: bool },
-    Working,
-    Created([u8; 16]),
-    Failed(String),
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct PluginManifest {
     pub identity: PluginIdentity,
     pub editors: Vec<EditorManifest>,
+    pub block_types: Vec<BlockTypeManifest>,
     pub entry_point: String,
     pub network: Vec<String>,
+    pub extensions: Vec<String>,
+}
+
+pub const EXTENSIONS: &[&str] = &["be3:linux-desktop"];
+
+pub fn is_published(interface: &str) -> bool {
+    interface == AdministratorWatch::INTERFACE
+        || interface == ContactsWatch::INTERFACE
+        || extension_of(interface).is_some()
+}
+
+pub fn extension_of(interface: &str) -> Option<&'static str> {
+    let package = interface.split_once('/')?.0;
+    EXTENSIONS
+        .iter()
+        .copied()
+        .find(|extension| *extension == package)
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct BlockTypeManifest {
+    pub name: String,
+    pub descriptor: BlockTypeDescriptor,
+    pub module: String,
+    pub exported_whole: bool,
+}
+
+impl BlockTypeManifest {
+    pub fn content_type(&self) -> [u8; 16] {
+        self.descriptor.block_type
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -570,33 +463,25 @@ pub struct TemplateManifest {
     pub name: String,
     pub icon: String,
     pub category: TemplateCategory,
+    pub debug: bool,
     pub dialog: bool,
     pub block_type: [u8; 16],
 }
 
-#[derive(
-    Clone, Copy, Debug, Default, Hash, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize,
-)]
-#[serde(rename_all = "lowercase")]
-pub enum TemplateCategory {
-    Important,
-    #[default]
-    Regular,
-    Debug,
-    Template,
-}
-
 impl PluginManifest {
+    pub fn grants(&self, extension: &str) -> bool {
+        self.extensions.iter().any(|granted| granted == extension)
+    }
+
     pub fn editor(&self, id: [u8; 16]) -> Option<&EditorManifest> {
         self.editors.iter().find(|editor| editor.id == id)
     }
-}
 
-#[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, Serialize, Deserialize)]
-pub enum Edits {
-    Type([u8; 16]),
-    Any,
-    Nothing,
+    pub fn type_module(&self) -> Option<&str> {
+        self.block_types
+            .first()
+            .map(|block_type| block_type.module.as_str())
+    }
 }
 
 impl Edits {
@@ -620,49 +505,6 @@ impl EditorManifest {
     }
 }
 
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
-pub struct ChildOperations {
-    pub add: bool,
-    pub delete: bool,
-    pub replace: bool,
-}
-
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
-pub enum InteractionMode {
-    Preview,
-    #[default]
-    Live,
-    Playback,
-}
-
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
-pub struct EditorCapabilities {
-    pub rotation: bool,
-    pub preserve_aspect_ratio: bool,
-    pub pan_and_zoom: bool,
-    #[serde(default)]
-    pub max_zoom: Option<u32>,
-    #[serde(default)]
-    pub pan: PanMode,
-}
-
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
-pub enum PanMode {
-    None,
-    OneFinger,
-    #[default]
-    TwoFinger,
-}
-
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
-pub enum ResizeMode {
-    None,
-    Horizontal,
-    Vertical,
-    #[default]
-    Both,
-}
-
 impl ResizeMode {
     pub fn horizontal(self) -> bool {
         matches!(self, Self::Horizontal | Self::Both)
@@ -671,48 +513,6 @@ impl ResizeMode {
     pub fn vertical(self) -> bool {
         matches!(self, Self::Vertical | Self::Both)
     }
-}
-
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub struct BlockTypeDescriptor {
-    pub block_type: [u8; 16],
-    pub display_name: String,
-    pub color: Option<[u8; 3]>,
-    pub icon_codepoint: String,
-    pub children: ChildOperations,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub struct TemplateDescriptor {
-    pub editor: [u8; 16],
-    pub template: String,
-    pub block_type: [u8; 16],
-    pub name: String,
-    pub icon_codepoint: String,
-    pub category: TemplateCategory,
-    pub dialog: bool,
-}
-
-#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
-pub struct Catalog {
-    pub types: Vec<BlockTypeDescriptor>,
-    pub templates: Vec<TemplateDescriptor>,
-    pub editors: Vec<EditorDescriptor>,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub struct EditorDescriptor {
-    pub editor: [u8; 16],
-    pub edits: Edits,
-    pub name: String,
-    pub icon_codepoint: String,
-}
-
-#[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, Serialize, Deserialize)]
-pub enum EditorRegion {
-    Frame,
-    Preview,
-    ArtifactSettings,
 }
 
 impl EditorRegion {
@@ -729,8 +529,11 @@ pub enum ManifestError {
     InvalidEditorId,
     InvalidRegions,
     InvalidNetworkHost,
+    UnknownExtension,
     NoEditors,
     DuplicateEditor,
+    DuplicateBlockType,
+    SeveralTypeModules,
     DuplicateTemplate,
     TemplateWithoutBlockType,
 }
@@ -750,7 +553,18 @@ impl fmt::Display for ManifestError {
             Self::InvalidNetworkHost => {
                 formatter.write_str("a network host is not a plain host name")
             }
-            Self::NoEditors => formatter.write_str("the plugin declares no editors"),
+            Self::UnknownExtension => {
+                formatter.write_str("an extension is not one the host knows, or is named twice")
+            }
+            Self::NoEditors => {
+                formatter.write_str("the plugin declares no editors and no block types")
+            }
+            Self::DuplicateBlockType => {
+                formatter.write_str("two block types are declared with the same id or name")
+            }
+            Self::SeveralTypeModules => {
+                formatter.write_str("the block types name more than one type module")
+            }
             Self::DuplicateEditor => {
                 formatter.write_str("two editors are declared with the same id or name")
             }
@@ -777,8 +591,22 @@ impl PluginManifest {
         {
             return Err(ManifestError::InvalidIdentity);
         }
-        if self.editors.is_empty() {
+        if self.editors.is_empty() && self.block_types.is_empty() {
             return Err(ManifestError::NoEditors);
+        }
+        for (index, block_type) in self.block_types.iter().enumerate() {
+            if self.block_types[..index].iter().any(|other| {
+                other.content_type() == block_type.content_type() || other.name == block_type.name
+            }) {
+                return Err(ManifestError::DuplicateBlockType);
+            }
+            manifest_string("block type name", &block_type.name)?;
+            manifest_string("display name", &block_type.descriptor.display_name)?;
+            manifest_string("icon", &block_type.descriptor.icon_codepoint)?;
+            manifest_string("type module", &block_type.module)?;
+            if self.type_module() != Some(block_type.module.as_str()) {
+                return Err(ManifestError::SeveralTypeModules);
+            }
         }
         for (index, editor) in self.editors.iter().enumerate() {
             if self.editors[..index]
@@ -797,6 +625,13 @@ impl PluginManifest {
                 .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'.' | b'-'))
             {
                 return Err(ManifestError::InvalidNetworkHost);
+            }
+        }
+        for (index, extension) in self.extensions.iter().enumerate() {
+            if !EXTENSIONS.contains(&extension.as_str())
+                || self.extensions[..index].contains(extension)
+            {
+                return Err(ManifestError::UnknownExtension);
             }
         }
         Ok(())
@@ -840,629 +675,12 @@ fn manifest_string(field: &'static str, value: &str) -> Result<(), ManifestError
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-pub enum EditorMessage {
-    Open {
-        instance: EditorInstanceId,
-        editor: [u8; 16],
-        block_id: [u8; 16],
-        block_type: [u8; 16],
-        view_block: Option<[u8; 16]>,
-        account_id: [u8; 16],
-        organization_id: [u8; 16],
-        client_id: [u8; 16],
-        editable: bool,
-    },
-    EditabilityChanged {
-        instance: EditorInstanceId,
-        editable: bool,
-    },
+pub use blocks::MetadataEntries;
 
-    Content {
-        instance: EditorInstanceId,
-        block_id: [u8; 16],
-        content_type: [u8; 16],
-        #[serde(with = "serde_bytes")]
-        bytes: Vec<u8>,
-        #[serde(with = "serde_bytes")]
-        session: Vec<u8>,
-        unsettled: Vec<serde_bytes::ByteBuf>,
-        applied: u64,
-    },
-    ContentOperations {
-        instance: EditorInstanceId,
-        block_id: [u8; 16],
-        operations: Vec<ContentOperation>,
-    },
-    Operate {
-        instance: EditorInstanceId,
-        block_id: [u8; 16],
-        #[serde(with = "serde_bytes")]
-        operation: Vec<u8>,
-    },
-    Gesture {
-        instance: EditorInstanceId,
-        block_id: [u8; 16],
-        phase: GesturePhase,
-    },
-    WatchContent {
-        instance: EditorInstanceId,
-        blocks: Vec<WatchedContent>,
-    },
-    ResendContent {
-        instance: EditorInstanceId,
-        block_id: [u8; 16],
-    },
-    SeedContent {
-        instance: EditorInstanceId,
-        block_id: [u8; 16],
-        content_type: [u8; 16],
-        #[serde(with = "serde_bytes")]
-        bytes: Vec<u8>,
-    },
-    ReplaceContent {
-        instance: EditorInstanceId,
-        block_id: [u8; 16],
-        content_type: [u8; 16],
-        #[serde(with = "serde_bytes")]
-        bytes: Vec<u8>,
-    },
-    ShowPresence {
-        instance: EditorInstanceId,
-        block_id: [u8; 16],
-        kind: [u8; 16],
-        value: Option<serde_bytes::ByteBuf>,
-    },
-    PeerPresence {
-        instance: EditorInstanceId,
-        block_id: [u8; 16],
-        peers: Vec<PeerPresence>,
-    },
-    ViewChanged {
-        instance: EditorInstanceId,
-        x: f32,
-        y: f32,
-        width: f32,
-        height: f32,
-        scale: f32,
-        moved: bool,
-    },
-    ChangeView {
-        instance: EditorInstanceId,
-        change: ViewChange,
-    },
-    Present {
-        instance: EditorInstanceId,
-        presenting: bool,
-    },
-    PresentingChanged {
-        instance: EditorInstanceId,
-        presenting: bool,
-    },
-    Resized {
-        instance: EditorInstanceId,
-        width: f32,
-        height: f32,
-    },
-    LeaveFrame {
-        instance: EditorInstanceId,
-    },
-    Stopped {
-        instance: EditorInstanceId,
-        region: EditorRegion,
-        stopped: Stopped,
-    },
-    BarAction {
-        instance: EditorInstanceId,
-        action: BarAction,
-    },
-    Menu {
-        instance: EditorInstanceId,
-        entries: Vec<MenuEntry>,
-    },
-    MenuPick {
-        instance: EditorInstanceId,
-        id: String,
-    },
-    ChildMenuPick {
-        instance: EditorInstanceId,
-        child: ChildId,
-        id: String,
-    },
-    Close {
-        instance: EditorInstanceId,
-    },
-
-    OpenBlock {
-        instance: EditorInstanceId,
-        block_id: [u8; 16],
-        block_type: [u8; 16],
-        via: Option<[u8; 16]>,
-        editor: Option<[u8; 16]>,
-    },
-
-    ShowBlock {
-        instance: EditorInstanceId,
-        block_id: [u8; 16],
-        block_type: [u8; 16],
-        via: Option<[u8; 16]>,
-        editor: Option<[u8; 16]>,
-    },
-
-    ShowPanel {
-        instance: EditorInstanceId,
-        panel: HostPanel,
-    },
-
-    WatchHostValue {
-        instance: EditorInstanceId,
-        key: String,
-    },
-
-    HostValue {
-        instance: EditorInstanceId,
-        key: String,
-        #[serde(with = "serde_bytes")]
-        value: Vec<u8>,
-    },
-
-    HostAction {
-        instance: EditorInstanceId,
-        key: String,
-        #[serde(with = "serde_bytes")]
-        action: Vec<u8>,
-    },
-
-    ShowDialog {
-        instance: EditorInstanceId,
-        block_id: [u8; 16],
-        dialog: ShellDialog,
-    },
-
-    SetAccess {
-        instance: EditorInstanceId,
-        block_id: [u8; 16],
-        account: [u8; 16],
-        access: AccessLevel,
-    },
-
-    Focused {
-        instance: EditorInstanceId,
-        block_id: Option<[u8; 16]>,
-        block_type: [u8; 16],
-        via: Vec<[u8; 16]>,
-    },
-
-    FocusChanged {
-        instance: EditorInstanceId,
-        block_id: Option<[u8; 16]>,
-        block_type: [u8; 16],
-        via: Vec<[u8; 16]>,
-    },
-
-    DragBlock {
-        instance: EditorInstanceId,
-        block_id: [u8; 16],
-        block_type: [u8; 16],
-    },
-
-    BlockCommand {
-        instance: EditorInstanceId,
-        block_id: [u8; 16],
-        command: BlockCommand,
-    },
-
-    DragOver {
-        instance: EditorInstanceId,
-        region: EditorRegion,
-        x: f32,
-        y: f32,
-        block_id: [u8; 16],
-        block_type: [u8; 16],
-        dropped: bool,
-    },
-
-    DragLeft {
-        instance: EditorInstanceId,
-    },
-
-    FileDrop {
-        instance: EditorInstanceId,
-        region: EditorRegion,
-        x: f32,
-        y: f32,
-        files: Vec<DroppedFile>,
-        dropped: bool,
-    },
-
-    FileDropLeft {
-        instance: EditorInstanceId,
-    },
-
-    DragAccepted {
-        instance: EditorInstanceId,
-        accepted: bool,
-    },
-    Request {
-        instance: EditorInstanceId,
-        request_id: u64,
-        request: HostRequest,
-    },
-    Replied {
-        instance: EditorInstanceId,
-        request_id: u64,
-        reply: HostReply,
-    },
-    PlayAudio {
-        instance: EditorInstanceId,
-        block_id: [u8; 16],
-        command: AudioCommand,
-    },
-    AudioStatus {
-        instance: EditorInstanceId,
-        status: AudioStatus,
-    },
-    WebViewCommand {
-        instance: EditorInstanceId,
-        web_view: WebViewId,
-        command: WebViewCommand,
-    },
-    WebViewEvent {
-        instance: EditorInstanceId,
-        web_view: WebViewId,
-        event: WebViewEvent,
-    },
-    OpenCreation {
-        instance: EditorInstanceId,
-        editor: [u8; 16],
-        template: String,
-        account_id: [u8; 16],
-        organization_id: [u8; 16],
-        client_id: [u8; 16],
-    },
-    CreationReady {
-        instance: EditorInstanceId,
-        ready: bool,
-    },
-    CommitCreation {
-        instance: EditorInstanceId,
-    },
-    CommitChild {
-        instance: EditorInstanceId,
-        child: ChildId,
-        parent: BlockLocation,
-        name: Option<String>,
-    },
-    PickRequested {
-        instance: EditorInstanceId,
-        pick: u64,
-        filter: BlockFilter,
-        parent: BlockLocation,
-        within: Option<[u8; 16]>,
-        touch: bool,
-    },
-    PickAnswered {
-        instance: EditorInstanceId,
-        pick: u64,
-        answer: BlockPick,
-    },
-    CreationBlock {
-        instance: EditorInstanceId,
-        outcome: CreationOutcome,
-    },
-    OpenArtifact {
-        instance: EditorInstanceId,
-        editor: [u8; 16],
-        block_id: [u8; 16],
-        block_type: [u8; 16],
-        account_id: [u8; 16],
-        organization_id: [u8; 16],
-        client_id: [u8; 16],
-        #[serde(with = "serde_bytes")]
-        data: Vec<u8>,
-    },
-    ArtifactSettings {
-        instance: EditorInstanceId,
-        #[serde(with = "serde_bytes")]
-        data: Vec<u8>,
-    },
-    ArtifactDescribed {
-        instance: EditorInstanceId,
-        description: ArtifactDescription,
-    },
-    ArtifactEdited {
-        instance: EditorInstanceId,
-        #[serde(with = "serde_bytes")]
-        data: Vec<u8>,
-    },
-    RegenerateArtifact {
-        instance: EditorInstanceId,
-        #[serde(with = "serde_bytes")]
-        data: Vec<u8>,
-    },
-    ArtifactRegenerated {
-        instance: EditorInstanceId,
-        outcome: RegenerationOutcome,
-    },
-    WatchArtifacts {
-        instance: EditorInstanceId,
-        blocks: Vec<[u8; 16]>,
-    },
-    ArtifactStates {
-        instance: EditorInstanceId,
-        states: Vec<ArtifactState>,
-    },
-    WatchHistory {
-        instance: EditorInstanceId,
-        blocks: Vec<[u8; 16]>,
-    },
-    HistoryStates {
-        instance: EditorInstanceId,
-        states: Vec<HistoryState>,
-    },
-    Window {
-        instance: EditorInstanceId,
-        region: EditorRegion,
-        window: WindowRequests,
-    },
-    Presence {
-        instance: EditorInstanceId,
-        visible: bool,
-    },
-    ReplaceChild {
-        instance: EditorInstanceId,
-        request_id: u64,
-        old: [u8; 16],
-        new: [u8; 16],
-    },
-    ChildReplaced {
-        instance: EditorInstanceId,
-        request_id: u64,
-        replaced: bool,
-    },
-    ChildBar {
-        instance: EditorInstanceId,
-        region: EditorRegion,
-        child: ChildId,
-        action: BarAction,
-    },
-    ChildFocused {
-        instance: EditorInstanceId,
-        region: EditorRegion,
-        child: ChildId,
-    },
-    CopyText {
-        instance: EditorInstanceId,
-        text: String,
-    },
-    CopyImage {
-        instance: EditorInstanceId,
-        png: Vec<u8>,
-    },
-    Paste {
-        instance: EditorInstanceId,
-    },
-    AspectRatio {
-        instance: EditorInstanceId,
-        ratio: Option<f32>,
-    },
-
-    IntrinsicSize {
-        instance: EditorInstanceId,
-        size: Option<Size>,
-    },
-    Performance {
-        instance: EditorInstanceId,
-        group: String,
-        measurements: Vec<PerformanceMeasurement>,
-    },
-    WatchBlocks {
-        instance: EditorInstanceId,
-        queries: Vec<BlockQuery>,
-    },
-    Blocks {
-        instance: EditorInstanceId,
-        query: BlockQuery,
-        blocks: Vec<BlockInfo>,
-    },
-    BlocksFailed {
-        instance: EditorInstanceId,
-        query: BlockQuery,
-        error: String,
-    },
-    CreateBlock {
-        instance: EditorInstanceId,
-        block_id: [u8; 16],
-        content_type: [u8; 16],
-        parent: BlockLocation,
-        defined: MetadataEntries,
-        content: Option<serde_bytes::ByteBuf>,
-    },
-    SetParent {
-        instance: EditorInstanceId,
-        block_id: [u8; 16],
-        parent: BlockLocation,
-    },
-    Define {
-        instance: EditorInstanceId,
-        block_id: [u8; 16],
-        key: [u8; 16],
-        value: Option<serde_bytes::ByteBuf>,
-    },
-    VersionControl {
-        instance: EditorInstanceId,
-        block_id: [u8; 16],
-        command: VersionCommand,
-    },
-    VersionStatus {
-        instance: EditorInstanceId,
-        block_id: [u8; 16],
-        status: VersionStatus,
-    },
-}
-
-impl EditorMessage {
-    pub fn instance(&self) -> EditorInstanceId {
-        match self {
-            Self::Open { instance, .. }
-            | Self::EditabilityChanged { instance, .. }
-            | Self::Content { instance, .. }
-            | Self::ContentOperations { instance, .. }
-            | Self::Operate { instance, .. }
-            | Self::Gesture { instance, .. }
-            | Self::WatchContent { instance, .. }
-            | Self::ResendContent { instance, .. }
-            | Self::SeedContent { instance, .. }
-            | Self::ReplaceContent { instance, .. }
-            | Self::ShowPresence { instance, .. }
-            | Self::PeerPresence { instance, .. }
-            | Self::ViewChanged { instance, .. }
-            | Self::ChangeView { instance, .. }
-            | Self::Present { instance, .. }
-            | Self::PresentingChanged { instance, .. }
-            | Self::Resized { instance, .. }
-            | Self::LeaveFrame { instance, .. }
-            | Self::Stopped { instance, .. }
-            | Self::BarAction { instance, .. }
-            | Self::Menu { instance, .. }
-            | Self::MenuPick { instance, .. }
-            | Self::ChildMenuPick { instance, .. }
-            | Self::Close { instance, .. }
-            | Self::OpenBlock { instance, .. }
-            | Self::ShowBlock { instance, .. }
-            | Self::ShowPanel { instance, .. }
-            | Self::WatchHostValue { instance, .. }
-            | Self::HostValue { instance, .. }
-            | Self::HostAction { instance, .. }
-            | Self::ShowDialog { instance, .. }
-            | Self::SetAccess { instance, .. }
-            | Self::Focused { instance, .. }
-            | Self::FocusChanged { instance, .. }
-            | Self::DragBlock { instance, .. }
-            | Self::BlockCommand { instance, .. }
-            | Self::DragOver { instance, .. }
-            | Self::DragLeft { instance, .. }
-            | Self::FileDrop { instance, .. }
-            | Self::FileDropLeft { instance, .. }
-            | Self::DragAccepted { instance, .. }
-            | Self::Request { instance, .. }
-            | Self::Replied { instance, .. }
-            | Self::PlayAudio { instance, .. }
-            | Self::AudioStatus { instance, .. }
-            | Self::WebViewCommand { instance, .. }
-            | Self::WebViewEvent { instance, .. }
-            | Self::OpenCreation { instance, .. }
-            | Self::CreationReady { instance, .. }
-            | Self::CommitCreation { instance, .. }
-            | Self::CommitChild { instance, .. }
-            | Self::PickRequested { instance, .. }
-            | Self::PickAnswered { instance, .. }
-            | Self::CreationBlock { instance, .. }
-            | Self::OpenArtifact { instance, .. }
-            | Self::ArtifactSettings { instance, .. }
-            | Self::ArtifactDescribed { instance, .. }
-            | Self::ArtifactEdited { instance, .. }
-            | Self::RegenerateArtifact { instance, .. }
-            | Self::ArtifactRegenerated { instance, .. }
-            | Self::WatchArtifacts { instance, .. }
-            | Self::ArtifactStates { instance, .. }
-            | Self::WatchHistory { instance, .. }
-            | Self::HistoryStates { instance, .. }
-            | Self::Window { instance, .. }
-            | Self::Presence { instance, .. }
-            | Self::ReplaceChild { instance, .. }
-            | Self::ChildReplaced { instance, .. }
-            | Self::ChildBar { instance, .. }
-            | Self::ChildFocused { instance, .. }
-            | Self::CopyText { instance, .. }
-            | Self::CopyImage { instance, .. }
-            | Self::Paste { instance }
-            | Self::AspectRatio { instance, .. }
-            | Self::IntrinsicSize { instance, .. }
-            | Self::Performance { instance, .. }
-            | Self::WatchBlocks { instance, .. }
-            | Self::Blocks { instance, .. }
-            | Self::BlocksFailed { instance, .. }
-            | Self::CreateBlock { instance, .. }
-            | Self::SetParent { instance, .. }
-            | Self::Define { instance, .. }
-            | Self::VersionControl { instance, .. }
-            | Self::VersionStatus { instance, .. } => *instance,
-        }
+impl Default for AccessLevel {
+    fn default() -> Self {
+        Self::Manage
     }
-}
-
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub enum PerformanceMeasurement {
-    Duration { name: String, nanoseconds: u64 },
-    Count { name: String, count: u64 },
-}
-
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub enum ArtifactDescription {
-    Described { source: [u8; 16], summary: String },
-    Unreadable(String),
-}
-
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub enum RegenerationOutcome {
-    Done,
-    Failed(String),
-}
-
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub enum CreationOutcome {
-    Created([u8; 16]),
-    Failed(String),
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
-pub enum BlockLocation {
-    Root,
-    Detached,
-    Block([u8; 16]),
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
-pub enum BlockQuery {
-    Roots,
-    Detached,
-    Shared,
-    Children([u8; 16]),
-    References([u8; 16]),
-    Backrefs([u8; 16]),
-    Parents([u8; 16]),
-    Block([u8; 16]),
-}
-
-pub type MetadataEntries = std::collections::BTreeMap<[u8; 16], serde_bytes::ByteBuf>;
-
-#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
-pub struct BlockMetadata {
-    pub defined: MetadataEntries,
-    pub derived: MetadataEntries,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub struct BlockInfo {
-    pub block_id: [u8; 16],
-    pub block_type: [u8; 16],
-    pub author: Option<[u8; 16]>,
-    pub parent: Option<BlockLocation>,
-    pub references: Vec<[u8; 16]>,
-    pub access: AccessLevel,
-    pub metadata: BlockMetadata,
-    pub locked: bool,
-    pub deleted: bool,
-}
-
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
-pub enum AccessLevel {
-    None,
-    KnowExists,
-    View,
-    #[default]
-    Edit,
 }
 
 impl AccessLevel {
@@ -1475,7 +693,11 @@ impl AccessLevel {
     }
 
     pub fn can_edit(self) -> bool {
-        self == Self::Edit
+        self >= Self::Edit
+    }
+
+    pub fn can_manage(self) -> bool {
+        self >= Self::Manage
     }
 
     pub fn label(self) -> &'static str {
@@ -1484,287 +706,9 @@ impl AccessLevel {
             Self::KnowExists => "Knows it exists",
             Self::View => "Can view",
             Self::Edit => "Can edit",
+            Self::Manage => "Can manage",
         }
     }
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub enum ArtifactAction {
-    Regenerate,
-    Unlink,
-}
-
-#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
-pub struct ArtifactState {
-    pub block_id: [u8; 16],
-    pub source_type: [u8; 16],
-    pub source: Option<[u8; 16]>,
-    pub summary: String,
-    pub error: Option<String>,
-    pub regenerating: bool,
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub struct WatchedContent {
-    pub block_id: [u8; 16],
-    pub content_type: [u8; 16],
-}
-
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub struct PeerPresence {
-    pub client: u64,
-    pub kind: [u8; 16],
-    #[serde(with = "serde_bytes")]
-    pub value: Vec<u8>,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub struct ContentOperation {
-    #[serde(with = "serde_bytes")]
-    pub operation: Vec<u8>,
-    pub mine: bool,
-    pub unsettled: u64,
-    pub beneath: Option<Vec<serde_bytes::ByteBuf>>,
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub enum GesturePhase {
-    Begin,
-    Commit,
-    Cancel,
-}
-
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
-pub struct HistoryState {
-    pub head: Option<[u8; 32]>,
-    pub block_id: [u8; 16],
-    pub can_undo: bool,
-    pub can_redo: bool,
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
-pub enum BlockCommand {
-    Share,
-    Leave,
-    Rename,
-    Undo,
-    Redo,
-    Artifact {
-        action: ArtifactAction,
-    },
-    SimulateAccess {
-        access: AccessLevel,
-    },
-    CloseEditor,
-    Unlink {
-        container: [u8; 16],
-    },
-    Delete {
-        block_type: [u8; 16],
-        source: BlockLocation,
-        is_reference: bool,
-    },
-    Move {
-        block_type: [u8; 16],
-        source: BlockLocation,
-        destination: [u8; 16],
-        is_reference: bool,
-    },
-    Place {
-        block_type: [u8; 16],
-        parent: [u8; 16],
-        linked: bool,
-    },
-    Restore,
-    AppMenu {
-        anchor: Option<ChildRect>,
-    },
-}
-
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub enum VersionCommand {
-    Adopt {
-        block_id: [u8; 16],
-    },
-    Commit {
-        message: String,
-    },
-    Update,
-    Switch {
-        branch: String,
-    },
-    CreateBranch {
-        name: String,
-    },
-    NewCheckout {
-        branch: String,
-    },
-    Resolve {
-        block_id: [u8; 16],
-        take: ConflictSide,
-    },
-    Fork,
-    PullUpstream,
-    PushUpstream,
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub enum ConflictSide {
-    Base,
-    Ours,
-    Theirs,
-    Merged,
-}
-
-#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
-pub struct VersionStatus {
-    pub busy: bool,
-    pub error: Option<String>,
-    pub behind: bool,
-    pub branches: Vec<VersionBranch>,
-    pub changes: Vec<VersionChange>,
-    pub log: Vec<VersionCommit>,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub struct VersionBranch {
-    pub name: String,
-    pub head: [u8; 32],
-}
-
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub struct VersionChange {
-    pub block_id: [u8; 16],
-    pub block_type: [u8; 16],
-    pub name: Option<String>,
-    pub kind: VersionChangeKind,
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub enum VersionChangeKind {
-    Added,
-    Removed,
-    Modified,
-    Moved,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub struct VersionCommit {
-    pub id: [u8; 32],
-    pub parents: Vec<[u8; 32]>,
-    pub author: [u8; 16],
-    pub time: i64,
-    pub message: String,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub struct Revision {
-    pub commit: [u8; 32],
-    pub time: i64,
-    pub current: bool,
-}
-
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-pub enum HostRequest {
-    ListRevisions([u8; 16]),
-    PreviewRevision {
-        block_id: [u8; 16],
-        commit: [u8; 32],
-    },
-    RestoreRevision {
-        block_id: [u8; 16],
-        commit: [u8; 32],
-    },
-    ReleaseRevision([u8; 16]),
-    PickFile(FileFilter),
-    SaveFile(SavedFile),
-    PickBlock(BlockFilter),
-    ListAccess([u8; 16]),
-    Fetch(String),
-    ListData,
-    ReadData(String),
-    ExportBlock([u8; 16]),
-    ImportBlocks(BlockLocation),
-    ContactLink {
-        block_id: [u8; 16],
-        access: AccessLevel,
-    },
-}
-
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub enum HostReply {
-    RevisionsListed(Result<Vec<Revision>, String>),
-    RevisionPreviewed(Result<[u8; 16], String>),
-    RevisionRestored(Result<(), String>),
-    RevisionReleased,
-
-    FilePicked(FilePick),
-    FileSaved(FileSave),
-    BlockPicked(BlockPick),
-    Fetched(FetchResult),
-    DataListed(DataListing),
-    DataRead(FetchResult),
-    AccessListed(AccessListing),
-    BlocksImported(BlockImport),
-    ContactLinkMade(ContactLinkResult),
-}
-
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub enum BlockImport {
-    Imported {
-        block_id: [u8; 16],
-        block_type: [u8; 16],
-    },
-    Cancelled,
-    Failed(String),
-}
-
-#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
-pub struct BlockFilter {
-    pub name: String,
-    pub block_types: Vec<[u8; 16]>,
-    pub excluded: Vec<[u8; 16]>,
-    pub templates: bool,
-    pub place: Option<BlockLocation>,
-    pub anchor: Option<ChildRect>,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub enum BlockPick {
-    Chosen {
-        block_id: [u8; 16],
-        block_type: [u8; 16],
-        linked: bool,
-        placed: bool,
-    },
-    Cancelled,
-    Failed(String),
-}
-
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub struct SavedFile {
-    pub name: String,
-    pub mime_type: String,
-    pub data: Vec<u8>,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub enum FileSave {
-    Saved,
-    Cancelled,
-    Failed(String),
-}
-
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub enum FetchResult {
-    Body(Vec<u8>),
-    Failed(String),
-}
-
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub enum DataListing {
-    Files(Vec<String>),
-    Failed(String),
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -1774,258 +718,6 @@ pub enum WebViewCommand {
     Reload,
     FocusApp,
     Close,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub enum WebViewEvent {
-    Navigate(String),
-    Finished(String),
-    Push(String),
-    Replace(String),
-    Title(String),
-    History(i32),
-    NewWindow(String),
-    Address(String),
-    Failed(String),
-}
-
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub struct DroppedFile {
-    pub name: String,
-    #[serde(with = "serde_bytes")]
-    pub data: Vec<u8>,
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub enum AudioCommand {
-    Toggle,
-    Reset,
-}
-
-#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
-pub struct AudioStatus {
-    pub playing: bool,
-    pub position_micros: u64,
-    pub duration_micros: Option<u64>,
-    pub error: Option<String>,
-}
-
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-pub enum Message {
-    Hello(Hello),
-    HelloAccepted(HelloAccepted),
-    Preferences(Preferences),
-    UtcOffset(i32),
-    Fonts(Fonts),
-    MissingCharacters(Vec<char>),
-    Screens(ScreenSet),
-    Layout(ScreenLayout),
-    RegionSizes(Vec<RegionSize>),
-    Frames(Vec<FrameReport>),
-    Input(InputBatch),
-    DrawFrame {
-        now_micros: u64,
-        seen: bool,
-    },
-    FrameNeeded,
-    FrameReady(FrameReady),
-    Acknowledged {
-        request_id: u64,
-    },
-    Error(ProtocolError),
-    Shutdown,
-    ShutdownAcknowledged,
-    Editor(EditorMessage),
-    BlockTypes(Catalog),
-    Children(ChildPlacements),
-    ChildStatuses(Vec<ChildStatus>),
-    Describe(bool),
-    RunAction {
-        screen: ScreenId,
-        id: String,
-    },
-    NodeAction {
-        screen: ScreenId,
-        request: accesskit::ActionRequest,
-    },
-    Extension {
-        key: [u8; 16],
-        #[serde(with = "serde_bytes")]
-        payload: Vec<u8>,
-    },
-}
-
-impl Message {
-    pub fn is_session(&self) -> bool {
-        matches!(
-            self,
-            Self::Hello(_)
-                | Self::HelloAccepted(_)
-                | Self::Acknowledged { .. }
-                | Self::Error(_)
-                | Self::Shutdown
-                | Self::ShutdownAcknowledged
-        )
-    }
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub enum Direction {
-    ToPlugin,
-    ToHost,
-    Either,
-}
-
-impl Message {
-    pub fn direction(&self) -> Direction {
-        match self {
-            Self::HelloAccepted(_)
-            | Self::Preferences(_)
-            | Self::UtcOffset(_)
-            | Self::Fonts(_)
-            | Self::Screens(_)
-            | Self::Input(_)
-            | Self::DrawFrame { .. }
-            | Self::Shutdown
-            | Self::BlockTypes(_)
-            | Self::ChildStatuses(_)
-            | Self::Describe(_)
-            | Self::RunAction { .. }
-            | Self::NodeAction { .. } => Direction::ToPlugin,
-            Self::Hello(_)
-            | Self::Acknowledged { .. }
-            | Self::ShutdownAcknowledged
-            | Self::Layout(_)
-            | Self::MissingCharacters(_)
-            | Self::RegionSizes(_)
-            | Self::Frames(_)
-            | Self::FrameNeeded
-            | Self::FrameReady(_)
-            | Self::Children(_) => Direction::ToHost,
-            Self::Error(_) | Self::Extension { .. } => Direction::Either,
-            Self::Editor(editor) => editor.direction(),
-        }
-    }
-}
-
-impl EditorMessage {
-    pub fn direction(&self) -> Direction {
-        match self {
-            Self::Open { .. }
-            | Self::OpenCreation { .. }
-            | Self::OpenArtifact { .. }
-            | Self::Close { .. }
-            | Self::Resized { .. }
-            | Self::EditabilityChanged { .. }
-            | Self::Content { .. }
-            | Self::ContentOperations { .. }
-            | Self::PeerPresence { .. }
-            | Self::ViewChanged { .. }
-            | Self::PresentingChanged { .. }
-            | Self::Presence { .. }
-            | Self::FocusChanged { .. }
-            | Self::ShowBlock { .. }
-            | Self::ShowPanel { .. }
-            | Self::ShowDialog { .. }
-            | Self::DragOver { .. }
-            | Self::DragLeft { .. }
-            | Self::FileDrop { .. }
-            | Self::FileDropLeft { .. }
-            | Self::Replied { .. }
-            | Self::AudioStatus { .. }
-            | Self::WebViewEvent { .. }
-            | Self::CommitCreation { .. }
-            | Self::PickRequested { .. }
-            | Self::ArtifactSettings { .. }
-            | Self::RegenerateArtifact { .. }
-            | Self::ArtifactStates { .. }
-            | Self::HistoryStates { .. }
-            | Self::ReplaceChild { .. }
-            | Self::ChildBar { .. }
-            | Self::ChildFocused { .. }
-            | Self::Blocks { .. }
-            | Self::BlocksFailed { .. }
-            | Self::MenuPick { .. }
-            | Self::HostValue { .. }
-            | Self::VersionStatus { .. } => Direction::ToPlugin,
-            Self::OpenBlock { .. }
-            | Self::Focused { .. }
-            | Self::DragBlock { .. }
-            | Self::BlockCommand { .. }
-            | Self::DragAccepted { .. }
-            | Self::Request { .. }
-            | Self::PlayAudio { .. }
-            | Self::ChangeView { .. }
-            | Self::Present { .. }
-            | Self::LeaveFrame { .. }
-            | Self::Stopped { .. }
-            | Self::BarAction { .. }
-            | Self::Menu { .. }
-            | Self::CommitChild { .. }
-            | Self::SetAccess { .. }
-            | Self::PickAnswered { .. }
-            | Self::ChildMenuPick { .. }
-            | Self::WebViewCommand { .. }
-            | Self::CreationReady { .. }
-            | Self::CreationBlock { .. }
-            | Self::ArtifactDescribed { .. }
-            | Self::ArtifactEdited { .. }
-            | Self::ArtifactRegenerated { .. }
-            | Self::WatchArtifacts { .. }
-            | Self::WatchHistory { .. }
-            | Self::Window { .. }
-            | Self::ChildReplaced { .. }
-            | Self::CopyText { .. }
-            | Self::CopyImage { .. }
-            | Self::Paste { .. }
-            | Self::AspectRatio { .. }
-            | Self::IntrinsicSize { .. }
-            | Self::Operate { .. }
-            | Self::Gesture { .. }
-            | Self::WatchContent { .. }
-            | Self::ResendContent { .. }
-            | Self::SeedContent { .. }
-            | Self::ReplaceContent { .. }
-            | Self::ShowPresence { .. }
-            | Self::Performance { .. }
-            | Self::WatchBlocks { .. }
-            | Self::VersionControl { .. }
-            | Self::CreateBlock { .. }
-            | Self::SetParent { .. }
-            | Self::WatchHostValue { .. }
-            | Self::HostAction { .. }
-            | Self::Define { .. } => Direction::ToHost,
-        }
-    }
-}
-
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub struct Hello {
-    pub plugin: PluginIdentity,
-    pub surface: SurfaceSupport,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub struct HelloAccepted {
-    pub host_name: String,
-    pub surface: Option<SurfaceSpec>,
-    pub preferences: Preferences,
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub enum FontRole {
-    Text,
-    Monospace,
-    Fallback,
-    Icons,
-}
-
-#[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct FontFace {
-    pub role: FontRole,
-    pub index: u32,
-    #[serde(with = "serde_bytes")]
-    pub data: Vec<u8>,
 }
 
 impl fmt::Debug for FontFace {
@@ -2039,224 +731,33 @@ impl fmt::Debug for FontFace {
     }
 }
 
-#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
-pub struct Fonts {
-    pub replace: bool,
-    pub faces: Vec<FontFace>,
+impl FitArea {
+    pub fn fit(self, world: Vec2, room: Vec2) -> (f32, Pos2) {
+        let area = match self {
+            Self::World => Rect::from_min_size(Pos2::ZERO, world),
+            Self::Centre => Rect::from_min_size(Pos2::ZERO + world * 0.5, Vec2::ZERO),
+            Self::Rect(rect) => rect,
+        };
+        let size = area.size();
+        let scale = (room.x.max(1.0) / size.x.max(f32::EPSILON))
+            .min(room.y.max(1.0) / size.y.max(f32::EPSILON))
+            .min(1.0);
+        (scale, area.center())
+    }
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub struct PluginIdentity {
-    pub id: String,
-    pub name: String,
-    pub version: String,
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub enum SurfaceSupport {
-    None,
-    Texture,
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub struct SurfaceSpec {
-    pub format: SurfaceFormat,
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub enum SurfaceFormat {
-    Rgba8Unorm,
-    Rgba8UnormSrgb,
-    Bgra8Unorm,
-    Bgra8UnormSrgb,
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
-pub enum ViewChange {
-    Pan {
-        x: f32,
-        y: f32,
-    },
-    Zoom {
-        factor: f32,
-        anchor: Option<(f32, f32)>,
-    },
-    Follow {
-        factor: f32,
-        anchor: (f32, f32),
-        x: f32,
-        y: f32,
-        resume: bool,
-    },
-    PanDrag,
-}
-
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-pub struct ViewportMetrics {
-    pub logical_width: f32,
-    pub logical_height: f32,
-    pub visible_x: f32,
-    pub visible_y: f32,
-    pub pixel_width: u32,
-    pub pixel_height: u32,
-    pub scale_factor: f32,
-    pub monitors: Vec<Monitor>,
-}
-
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-pub struct Monitor {
-    pub id: String,
-    pub name: String,
-    pub rect: ChildRect,
-}
-
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-pub struct InputBatch {
-    pub screen: ScreenId,
-    pub events: Vec<InputEvent>,
-    pub every_sample: bool,
-}
-
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-pub enum InputEvent {
-    PointerMoved {
-        x: f32,
-        y: f32,
-        time_micros: u64,
-    },
-    PointerLeft,
-    PointerMotion {
-        x: f32,
-        y: f32,
-    },
-    PointerButton {
-        button: PointerButton,
-        pressed: bool,
-        x: f32,
-        y: f32,
-        time_micros: u64,
-    },
-    Wheel {
-        x: f32,
-        y: f32,
-        unit: WheelUnit,
-    },
-    WheelStarted,
-    WheelEnded,
-    Zoom {
-        factor: f32,
-    },
-    Touch {
-        device: u64,
-        finger: u64,
-        phase: TouchPhase,
-        x: f32,
-        y: f32,
-        force: Option<f32>,
-        time_micros: u64,
-    },
-    Key {
-        key: Key,
-        pressed: bool,
-        repeat: bool,
-        text: Option<String>,
-    },
-    Text(String),
-    Paste(Pasted),
-    Ime(ImeEvent),
-    Modifiers(Modifiers),
-    Focus(bool),
-    Back(BackGesture),
-    InterceptedKey {
-        key: Key,
-        pressed: bool,
-        repeat: bool,
-    },
-    InterceptedTap {
-        key: Key,
-    },
-    Pen {
-        phase: PenPhase,
-        x: f32,
-        y: f32,
-        pressure: f32,
-        tilt_x: f32,
-        tilt_y: f32,
-        eraser: bool,
-        time_micros: u64,
-    },
-    Predicted {
-        x: f32,
-        y: f32,
-    },
-}
-
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-pub struct ImeArea {
-    pub rect: ChildRect,
-    pub cursor: ChildRect,
-    pub text: Option<ImeText>,
-    pub keyboard: Keyboard,
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub enum WheelUnit {
-    Pixels,
-    Lines,
-    Pages,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub struct FrameReady {
-    pub generation: u64,
-    pub repaint_after_micros: Option<u64>,
-    pub animating: bool,
-    pub presented: Option<PresentedFrame>,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub struct PresentedFrame {
-    pub sequence: u64,
-    pub damage: Vec<ScreenDamage>,
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub struct ScreenDamage {
-    pub screen: ScreenId,
-    pub rect: SurfaceRect,
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub struct SurfaceRect {
-    pub x: u32,
-    pub y: u32,
-    pub width: u32,
-    pub height: u32,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub struct ProtocolError {
-    pub request_id: Option<u64>,
-    pub code: ErrorCode,
-    pub message: String,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub enum Stopped {
-    Closed,
-    Failed(String),
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub enum ErrorCode {
-    InvalidMessage,
-    InvalidState,
-    Internal,
+impl From<Input> for TimedInput {
+    fn from(input: Input) -> Self {
+        Self {
+            input,
+            time_micros: None,
+            over: None,
+        }
+    }
 }
 
 #[derive(Debug, PartialEq, Eq)]
 pub enum DecodeError {
-    TruncatedFrame { expected: usize, available: usize },
     MalformedPayload,
     LimitExceeded(&'static str),
 }
@@ -2269,440 +770,52 @@ impl fmt::Display for DecodeError {
 
 impl std::error::Error for DecodeError {}
 
-pub fn encode_frame(message: &Message) -> Result<Vec<u8>, DecodeError> {
-    validate(message)?;
-    let payload = codec()
-        .serialize(message)
-        .map_err(|_| DecodeError::MalformedPayload)?;
-    let mut frame = Vec::with_capacity(4 + payload.len());
-    frame.extend_from_slice(&(payload.len() as u32).to_be_bytes());
-    frame.extend_from_slice(&payload);
-    Ok(frame)
+impl FrameCommit {
+    pub fn validate(&self) -> Result<(), DecodeError> {
+        for placements in &self.children {
+            let mut covered = 0;
+            for occluder in &placements.occluders {
+                let after = occluder.after as usize;
+                if after > placements.children.len() || after < covered {
+                    return Err(DecodeError::MalformedPayload);
+                }
+                covered = after;
+            }
+        }
+        Ok(())
+    }
 }
 
-pub fn decode_frame(frame: &[u8]) -> Result<Message, DecodeError> {
-    if frame.len() < 4 {
-        return Err(DecodeError::TruncatedFrame {
-            expected: 4,
-            available: frame.len(),
-        });
-    }
-    let length = u32::from_be_bytes(frame[..4].try_into().unwrap()) as usize;
-    if frame.len() != length + 4 {
-        return Err(DecodeError::TruncatedFrame {
-            expected: length + 4,
-            available: frame.len(),
-        });
-    }
-    let message = codec()
-        .deserialize(&frame[4..])
-        .map_err(|error| match *error {
-            bincode::ErrorKind::Custom(message) if message == nesting::TOO_DEEP => {
-                DecodeError::LimitExceeded("menu depth")
+impl embed::blocks::Call {
+    pub fn validate(&self) -> Result<(), DecodeError> {
+        use embed::blocks::Call;
+        match self {
+            Call::CreateBlock {
+                defined, content, ..
+            } => {
+                metadata(defined)?;
+                content.as_ref().map_or(Ok(()), |content| blob(content))
             }
-            _ => DecodeError::MalformedPayload,
-        })?;
-    validate(&message)?;
-    Ok(message)
-}
-
-fn validate(message: &Message) -> Result<(), DecodeError> {
-    match message {
-        Message::Hello(value) => {
-            strings([&value.plugin.id, &value.plugin.name, &value.plugin.version])
-        }
-        Message::HelloAccepted(value) => string(&value.host_name),
-        Message::Error(value) => string(&value.message),
-        Message::Input(value) => {
-            collection(value.events.len())?;
-            for event in &value.events {
-                match event {
-                    InputEvent::Paste(Pasted::Image(file)) => {
-                        string(&file.name)?;
-                        blob(&file.data)?;
-                    }
-                    InputEvent::Text(value)
-                    | InputEvent::Paste(Pasted::Text(value))
-                    | InputEvent::Ime(
-                        ImeEvent::SetComposingText(value)
-                        | ImeEvent::CommitText(value)
-                        | ImeEvent::ReplaceText { text: value, .. },
-                    ) => text(value)?,
-                    _ => {}
-                }
-            }
-            Ok(())
-        }
-        Message::Screens(value) => collection(value.screens.len()),
-        Message::Frames(value) => {
-            collection(value.len())?;
-            for report in value {
-                collection(report.painted.len())?;
-                collection(report.floating.len())?;
-                collection(report.drawing.len())?;
-                collection(report.claims.len())?;
-                if let Some(tree) = report
-                    .description
-                    .as_ref()
-                    .and_then(|description| description.tree.as_ref())
-                    && tree.nodes.len() > MAX_ACCESSIBILITY_NODES
-                {
-                    return Err(DecodeError::LimitExceeded("accessibility nodes"));
-                }
-            }
-            Ok(())
-        }
-        Message::Layout(value) => collection(value.screens.len()),
-        Message::FrameReady(value) => value
-            .presented
-            .as_ref()
-            .map_or(Ok(()), |presented| collection(presented.damage.len())),
-        Message::RegionSizes(value) => collection(value.len()),
-        Message::Fonts(value) => {
-            collection(value.faces.len())?;
-            for face in &value.faces {
-                blob(&face.data)?;
-            }
-            Ok(())
-        }
-        Message::MissingCharacters(value) => collection(value.len()),
-        Message::Editor(value) => validate_editor(value),
-        Message::BlockTypes(value) => {
-            collection(value.types.len())?;
-            collection(value.templates.len())?;
-            for descriptor in &value.types {
-                string(&descriptor.display_name)?;
-                string(&descriptor.icon_codepoint)?;
-            }
-            for template in &value.templates {
-                string(&template.template)?;
-                string(&template.name)?;
-                string(&template.icon_codepoint)?;
-            }
-            collection(value.editors.len())?;
-            for editor in &value.editors {
-                string(&editor.name)?;
-                string(&editor.icon_codepoint)?;
-            }
-            Ok(())
-        }
-        Message::Children(value) => validate_children(value),
-        Message::RunAction { id, .. } => string(id),
-        Message::Extension { payload, .. } => blob(payload),
-        Message::NodeAction { request, .. } => match &request.data {
-            Some(accesskit::ActionData::Value(value)) => text(value),
+            Call::Define {
+                value: Some(value), ..
+            } => descriptor(value),
+            Call::SeedContent { bytes, .. } | Call::ReplaceContent { bytes, .. } => blob(bytes),
+            Call::ReplicaSend { frame, .. } => blob(frame),
+            Call::Version { command, .. } => match command {
+                VersionCommand::Finish { description: value }
+                | VersionCommand::Switch { branch: value }
+                | VersionCommand::CreateBranch { name: value }
+                | VersionCommand::Merge { branch: value }
+                | VersionCommand::NewCheckout { branch: value } => string(value),
+                VersionCommand::Adopt { .. }
+                | VersionCommand::Update
+                | VersionCommand::Resolve { .. }
+                | VersionCommand::Undo { .. }
+                | VersionCommand::Fork
+                | VersionCommand::PullUpstream
+                | VersionCommand::PushUpstream => Ok(()),
+            },
             _ => Ok(()),
-        },
-        Message::ChildStatuses(value) => {
-            collection(value.len())?;
-            for status in value {
-                if let Some(error) = &status.error {
-                    string(error)?;
-                }
-                menu(&status.menu)?;
-                if let Some(CreationProgress::Failed(error)) = &status.creation {
-                    string(error)?;
-                }
-                if let Some(summary) = status
-                    .settings
-                    .as_ref()
-                    .and_then(|settings| settings.summary.as_ref())
-                {
-                    string(summary)?;
-                }
-            }
-            Ok(())
-        }
-        _ => Ok(()),
-    }
-}
-
-fn block_filter(filter: &BlockFilter) -> Result<(), DecodeError> {
-    string(&filter.name)?;
-    collection(filter.block_types.len())?;
-    collection(filter.excluded.len())
-}
-
-fn validate_children(placements: &ChildPlacements) -> Result<(), DecodeError> {
-    if placements.children.len() > MAX_CHILDREN {
-        return Err(DecodeError::LimitExceeded("children"));
-    }
-    if placements.occluders.len() > MAX_COLLECTION_ITEMS {
-        return Err(DecodeError::LimitExceeded("occluders"));
-    }
-    let mut covered = 0;
-    for occluder in &placements.occluders {
-        if occluder.after as usize > placements.children.len()
-            || (occluder.after as usize) < covered
-        {
-            return Err(DecodeError::MalformedPayload);
-        }
-        covered = occluder.after as usize;
-    }
-    for child in &placements.children {
-        if let ChildContent::Creation { template, .. } = &child.content {
-            string(template)?;
-        }
-    }
-    Ok(())
-}
-
-fn validate_editor(message: &EditorMessage) -> Result<(), DecodeError> {
-    match message {
-        EditorMessage::Request { request, .. } => validate_request(request),
-        EditorMessage::Replied { reply, .. } => validate_reply(reply),
-        EditorMessage::PickRequested { filter, .. } => block_filter(filter),
-        EditorMessage::CommitChild {
-            name: Some(name), ..
-        } => string(name),
-        EditorMessage::PickAnswered { answer, .. } => match answer {
-            BlockPick::Failed(error) => string(error),
-            BlockPick::Chosen { .. } | BlockPick::Cancelled => Ok(()),
-        },
-        EditorMessage::Performance {
-            group,
-            measurements,
-            ..
-        } => {
-            string(group)?;
-            collection(measurements.len())?;
-            strings(measurements.iter().map(|measurement| match measurement {
-                PerformanceMeasurement::Duration { name, .. }
-                | PerformanceMeasurement::Count { name, .. } => name,
-            }))
-        }
-        EditorMessage::CreationBlock { outcome, .. } => match outcome {
-            CreationOutcome::Created(_) => Ok(()),
-            CreationOutcome::Failed(message) => string(message),
-        },
-        EditorMessage::ArtifactDescribed { description, .. } => match description {
-            ArtifactDescription::Described { summary, .. } => string(summary),
-            ArtifactDescription::Unreadable(message) => string(message),
-        },
-        EditorMessage::ArtifactRegenerated { outcome, .. } => match outcome {
-            RegenerationOutcome::Done => Ok(()),
-            RegenerationOutcome::Failed(message) => string(message),
-        },
-        EditorMessage::OpenCreation { template, .. } => string(template),
-        EditorMessage::Window { window, .. } => {
-            collection(window.intercepted_keys.len())?;
-            collection(window.pastes.len())?;
-            match &window.ime {
-                Some(ImeArea {
-                    text: Some(surrounding),
-                    ..
-                }) => text(&surrounding.text),
-                _ => Ok(()),
-            }
-        }
-        EditorMessage::OpenArtifact { data, .. }
-        | EditorMessage::ArtifactSettings { data, .. }
-        | EditorMessage::ArtifactEdited { data, .. }
-        | EditorMessage::RegenerateArtifact { data, .. } => descriptor(data),
-        EditorMessage::FileDrop { files, .. } => {
-            collection(files.len())?;
-            for file in files {
-                string(&file.name)?;
-                blob(&file.data)?;
-            }
-            Ok(())
-        }
-        EditorMessage::AudioStatus { status, .. } => match &status.error {
-            Some(message) => string(message),
-            None => Ok(()),
-        },
-        EditorMessage::Focused { via, .. } | EditorMessage::FocusChanged { via, .. } => {
-            collection(via.len())
-        }
-        EditorMessage::WatchArtifacts { blocks, .. }
-        | EditorMessage::WatchHistory { blocks, .. } => collection(blocks.len()),
-        EditorMessage::HistoryStates { states, .. } => collection(states.len()),
-        EditorMessage::Content { unsettled, .. } => collection(unsettled.len()),
-        EditorMessage::ContentOperations { operations, .. } => {
-            collection(operations.len())?;
-            for operation in operations {
-                collection(operation.beneath.as_ref().map_or(0, Vec::len))?;
-            }
-            Ok(())
-        }
-        EditorMessage::WatchContent { blocks, .. } => collection(blocks.len()),
-        EditorMessage::WatchBlocks { queries, .. } => collection(queries.len()),
-        EditorMessage::BlocksFailed { error, .. } => string(error),
-        EditorMessage::Blocks { blocks, .. } => {
-            if blocks.len() > MAX_LISTED_BLOCKS {
-                return Err(DecodeError::LimitExceeded("block list"));
-            }
-            for block in blocks {
-                collection(block.references.len())?;
-                metadata(&block.metadata.defined)?;
-                metadata(&block.metadata.derived)?;
-            }
-            Ok(())
-        }
-        EditorMessage::CreateBlock {
-            defined, content, ..
-        } => {
-            metadata(defined)?;
-            content.as_ref().map_or(Ok(()), |content| blob(content))
-        }
-        EditorMessage::Define {
-            value: Some(value), ..
-        } => descriptor(value),
-        EditorMessage::VersionControl { command, .. } => match command {
-            VersionCommand::Commit { message: value }
-            | VersionCommand::Switch { branch: value }
-            | VersionCommand::CreateBranch { name: value }
-            | VersionCommand::NewCheckout { branch: value } => string(value),
-            VersionCommand::Adopt { .. }
-            | VersionCommand::Update
-            | VersionCommand::Resolve { .. }
-            | VersionCommand::Fork
-            | VersionCommand::PullUpstream
-            | VersionCommand::PushUpstream => Ok(()),
-        },
-        EditorMessage::VersionStatus { status, .. } => {
-            if let Some(error) = &status.error {
-                string(error)?;
-            }
-            collection(status.branches.len())?;
-            strings(status.branches.iter().map(|branch| &branch.name))?;
-            if status.changes.len() > MAX_LISTED_BLOCKS {
-                return Err(DecodeError::LimitExceeded("changes"));
-            }
-            strings(
-                status
-                    .changes
-                    .iter()
-                    .filter_map(|change| change.name.as_ref()),
-            )?;
-            collection(status.log.len())?;
-            for commit in &status.log {
-                collection(commit.parents.len())?;
-                string(&commit.message)?;
-            }
-            Ok(())
-        }
-        EditorMessage::ShowPresence {
-            value: Some(value), ..
-        } => blob(value),
-        EditorMessage::PeerPresence { peers, .. } => {
-            collection(peers.len())?;
-            for peer in peers {
-                blob(&peer.value)?;
-            }
-            Ok(())
-        }
-        EditorMessage::ArtifactStates { states, .. } => {
-            collection(states.len())?;
-            for state in states {
-                string(&state.summary)?;
-                if let Some(error) = &state.error {
-                    string(error)?;
-                }
-            }
-            Ok(())
-        }
-        EditorMessage::CopyText { text: value, .. } => text(value),
-        EditorMessage::CopyImage { png, .. } => blob(png),
-        EditorMessage::WatchHostValue { key, .. } => string(key),
-        EditorMessage::HostValue {
-            key, value: bytes, ..
-        }
-        | EditorMessage::HostAction {
-            key, action: bytes, ..
-        } => {
-            string(key)?;
-            blob(bytes)
-        }
-        EditorMessage::Menu { entries, .. } => menu(entries),
-        EditorMessage::MenuPick { id, .. } | EditorMessage::ChildMenuPick { id, .. } => string(id),
-        EditorMessage::WebViewCommand { command, .. } => match command {
-            WebViewCommand::Open(url) | WebViewCommand::Load(url) => string(url),
-            WebViewCommand::Reload | WebViewCommand::FocusApp | WebViewCommand::Close => Ok(()),
-        },
-        EditorMessage::WebViewEvent { event, .. } => match event {
-            WebViewEvent::Navigate(value)
-            | WebViewEvent::Finished(value)
-            | WebViewEvent::Push(value)
-            | WebViewEvent::Replace(value)
-            | WebViewEvent::Title(value)
-            | WebViewEvent::NewWindow(value)
-            | WebViewEvent::Address(value)
-            | WebViewEvent::Failed(value) => string(value),
-            WebViewEvent::History(_) => Ok(()),
-        },
-        _ => Ok(()),
-    }
-}
-
-fn validate_request(request: &HostRequest) -> Result<(), DecodeError> {
-    match request {
-        HostRequest::PickFile(filter) => {
-            string(&filter.name)?;
-            collection(filter.extensions.len())?;
-            collection(filter.mime_types.len())?;
-            strings(filter.extensions.iter().chain(&filter.mime_types))
-        }
-        HostRequest::SaveFile(file) => {
-            string(&file.name)?;
-            string(&file.mime_type)?;
-            blob(&file.data)
-        }
-        HostRequest::PickBlock(filter) => block_filter(filter),
-        HostRequest::ListAccess(_)
-        | HostRequest::ListRevisions(_)
-        | HostRequest::PreviewRevision { .. }
-        | HostRequest::RestoreRevision { .. }
-        | HostRequest::ReleaseRevision(_) => Ok(()),
-        HostRequest::ListData => Ok(()),
-        HostRequest::Fetch(url) => string(url),
-        HostRequest::ReadData(path) => string(path),
-        HostRequest::ExportBlock(_)
-        | HostRequest::ImportBlocks(_)
-        | HostRequest::ContactLink { .. } => Ok(()),
-    }
-}
-
-fn validate_reply(reply: &HostReply) -> Result<(), DecodeError> {
-    match reply {
-        HostReply::RevisionsListed(Ok(revisions)) => collection(revisions.len()),
-        HostReply::RevisionsListed(Err(error))
-        | HostReply::RevisionPreviewed(Err(error))
-        | HostReply::RevisionRestored(Err(error)) => string(error),
-        HostReply::RevisionPreviewed(Ok(_))
-        | HostReply::RevisionRestored(Ok(()))
-        | HostReply::RevisionReleased => Ok(()),
-        HostReply::FilePicked(Ok(Some(file))) => string(&file.name).and_then(|()| blob(&file.data)),
-        HostReply::Fetched(FetchResult::Body(body))
-        | HostReply::DataRead(FetchResult::Body(body)) => blob(body),
-        HostReply::DataListed(DataListing::Files(files)) => {
-            collection(files.len())?;
-            strings(files)
-        }
-        HostReply::FilePicked(Err(message))
-        | HostReply::FileSaved(FileSave::Failed(message))
-        | HostReply::BlockPicked(BlockPick::Failed(message))
-        | HostReply::Fetched(FetchResult::Failed(message))
-        | HostReply::DataRead(FetchResult::Failed(message))
-        | HostReply::DataListed(DataListing::Failed(message))
-        | HostReply::AccessListed(AccessListing::Failed(message))
-        | HostReply::BlocksImported(BlockImport::Failed(message))
-        | HostReply::ContactLinkMade(
-            ContactLinkResult::Made(message) | ContactLinkResult::Failed(message),
-        ) => string(message),
-        HostReply::AccessListed(AccessListing::Listed(grants)) => {
-            collection(grants.len())?;
-            for grant in grants {
-                string(&grant.email)?;
-                string(&grant.display_name)?;
-            }
-            Ok(())
-        }
-        HostReply::FilePicked(Ok(None))
-        | HostReply::FileSaved(FileSave::Saved | FileSave::Cancelled)
-        | HostReply::BlockPicked(BlockPick::Chosen { .. } | BlockPick::Cancelled)
-        | HostReply::BlocksImported(BlockImport::Imported { .. } | BlockImport::Cancelled) => {
-            Ok(())
         }
     }
 }
@@ -2717,33 +830,7 @@ fn descriptor(data: &[u8]) -> Result<(), DecodeError> {
 
 fn metadata(entries: &MetadataEntries) -> Result<(), DecodeError> {
     collection(entries.len())?;
-    entries.values().try_for_each(|value| descriptor(value))
-}
-
-fn menu(entries: &[MenuEntry]) -> Result<(), DecodeError> {
-    let mut count = 0;
-    menu_level(entries, 0, &mut count)
-}
-
-fn menu_level(entries: &[MenuEntry], depth: usize, count: &mut usize) -> Result<(), DecodeError> {
-    if depth > MAX_MENU_DEPTH {
-        return Err(DecodeError::LimitExceeded("menu depth"));
-    }
-    *count += entries.len();
-    collection(*count)?;
-    for entry in entries {
-        match entry {
-            MenuEntry::Command(command) => {
-                strings([&command.id, &command.label, &command.glyph])?;
-            }
-            MenuEntry::Submenu(submenu) => {
-                strings([&submenu.id, &submenu.label, &submenu.glyph])?;
-                menu_level(&submenu.entries, depth + 1, count)?;
-            }
-            MenuEntry::Separator => {}
-        }
-    }
-    Ok(())
+    entries.iter().try_for_each(|(_, value)| descriptor(value))
 }
 
 fn collection(length: usize) -> Result<(), DecodeError> {
@@ -2762,10 +849,10 @@ fn string(value: &str) -> Result<(), DecodeError> {
     }
 }
 
-pub fn paste_events(text: &str) -> Vec<InputEvent> {
+pub fn paste_events(text: &str) -> Vec<Input> {
     text_pieces(text, MAX_TEXT_BYTES)
         .into_iter()
-        .map(|piece| InputEvent::Paste(Pasted::Text(piece)))
+        .map(|piece| Input::Paste(Pasted::Text(piece)))
         .collect()
 }
 
@@ -2784,12 +871,11 @@ fn text_pieces(text: &str, limit: usize) -> Vec<String> {
     pieces
 }
 
-fn text(value: &str) -> Result<(), DecodeError> {
-    if value.len() > MAX_TEXT_BYTES {
-        Err(DecodeError::LimitExceeded("text"))
-    } else {
-        Ok(())
+fn strings<'a>(values: impl IntoIterator<Item = &'a String>) -> Result<(), DecodeError> {
+    for value in values {
+        string(value)?;
     }
+    Ok(())
 }
 
 fn blob(value: &[u8]) -> Result<(), DecodeError> {
@@ -2798,19 +884,6 @@ fn blob(value: &[u8]) -> Result<(), DecodeError> {
     } else {
         Ok(())
     }
-}
-
-fn strings<'a>(values: impl IntoIterator<Item = &'a String>) -> Result<(), DecodeError> {
-    for value in values {
-        string(value)?;
-    }
-    Ok(())
-}
-
-fn codec() -> impl Options {
-    bincode::DefaultOptions::new()
-        .with_fixint_encoding()
-        .reject_trailing_bytes()
 }
 
 #[cfg(test)]

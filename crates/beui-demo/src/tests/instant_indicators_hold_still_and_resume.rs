@@ -7,9 +7,9 @@ fn instant_indicators_hold_still_and_resume() {
     let document = build(move || {
         view! {
             <Root>
-                <Frame fill=ColorRole::Background padding=16.0>
-                    <List spacing=12.0>
-                        <Spinner label="Loading" />
+                <Frame fill=ColorRole::Background padding=Space::Xl>
+                    <List spacing=Space::Lg>
+                        <Progress label="Loading" />
                         <TextInput @test_id="instant.input" value="A visible caret" />
                     </List>
                 </Frame>
@@ -28,6 +28,7 @@ fn instant_indicators_hold_still_and_resume() {
     test.frame(Vec::new());
     test.snapshot("instant_indicators");
     test.advance(Duration::from_secs(2));
+    test.frame(Vec::new());
     test.snapshot("instant_indicators_after_waiting");
     test.context().set_preference_layer(
         PreferenceSource::System,
@@ -37,5 +38,6 @@ fn instant_indicators_hold_still_and_resume() {
         },
     );
     test.advance(Duration::from_millis(100));
+    test.frame(Vec::new());
     test.snapshot("indicators_resumed");
 }

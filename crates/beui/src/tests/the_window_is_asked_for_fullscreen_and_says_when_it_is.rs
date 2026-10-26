@@ -1,37 +1,11 @@
 use super::*;
 use beui_core::app::SafeArea;
-use beui_core::renderer::{Loaded, Renderer};
-use beui_core::runner::{Launch, Platform, RunOptions, Runner};
-
-struct Screen;
-
-impl Renderer for Screen {
-    fn name(&self) -> &'static str {
-        "screen"
-    }
-
-    fn info(&self) -> RendererInfo {
-        RendererInfo::default()
-    }
-
-    fn resize(&mut self, _width: u32, _height: u32) {}
-
-    fn physical(&self) -> Option<Vec2> {
-        Some(vec2(200.0, 100.0))
-    }
-
-    fn prepare(&mut self, output: &FrameOutput, _scale: f32, _background: Color32) -> bool {
-        output.changed
-    }
-
-    fn present(&mut self, _background: Color32) -> bool {
-        false
-    }
-}
+use beui_core::renderer::Loaded;
+use beui_core::runner::{Launch, PlatformServices, RunOptions, Runner};
 
 struct Window(Signal<Vec<String>>);
 
-impl Platform for Window {
+impl PlatformServices for Window {
     fn set_fullscreen(&mut self, fullscreen: bool) {
         self.0
             .update(|log| log.push(format!("fullscreen {fullscreen}")));
@@ -62,11 +36,12 @@ fn the_window_is_asked_for_fullscreen_and_says_when_it_is() {
         options: RunOptions::default(),
         context: context(),
         app: Box::new(Asking { asks, seen }),
+        layers: Vec::new(),
     });
     runner
         .start(
             vec![Loaded {
-                renderer: Box::new(Screen),
+                renderer: Box::new(crate::testing::Screen(vec2(200.0, 100.0))),
                 fonts: None,
             }],
             Setup::new(Waker::new(|| {})),

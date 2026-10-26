@@ -1,4 +1,7 @@
 use super::*;
 
+mod a_band_let_go_heading_back_carries_its_speed_past_the_edge;
 mod a_band_released_while_moving_along_the_edge_carries_on_along_it;
 mod a_band_released_while_stretching_outwards_keeps_going_before_it_springs_back;
+mod a_fling_into_the_edge_bounces_back_without_passing_it;
+mod the_band_gives_way_at_the_speed_it_is_pulled_then_stiffens;

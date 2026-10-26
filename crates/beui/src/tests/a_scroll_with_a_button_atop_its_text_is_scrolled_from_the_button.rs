@@ -29,9 +29,9 @@ fn a_scroll_with_a_button_atop_its_text_is_scrolled_from_the_button() {
             .get()
     );
     harness.key(Key::ArrowDown, Modifiers::NONE);
-    assert_eq!(harness.document.scroll_offset(scroll), 40.0);
+    assert_eq!(harness.document().scroll_offset(scroll), 40.0);
     harness.key(Key::PageDown, Modifiers::NONE);
-    assert_eq!(harness.document.scroll_offset(scroll), 140.0);
+    assert_eq!(harness.document().scroll_offset(scroll), 140.0);
     assert!(
         harness
             .document()

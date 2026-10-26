@@ -16,11 +16,11 @@ fn a_token_is_lost_once_the_keyboard_leaves_its_window() {
 
     harness.click("test.input");
     harness.click(&format!("wayland.window.{}", first_id.0));
-    assert_eq!(harness.app.windows().focused(), Some(first_id));
+    assert_eq!(harness.compositor().windows().focused(), Some(first_id));
     harness.client.activate(&token, &second.surface);
     harness.settle();
     assert_eq!(
-        harness.app.windows().focused(),
+        harness.compositor().windows().focused(),
         Some(first_id),
         "the keyboard came back to the window, but the token went when it left"
     );

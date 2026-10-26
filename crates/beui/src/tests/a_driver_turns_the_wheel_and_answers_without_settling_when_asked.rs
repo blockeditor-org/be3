@@ -29,10 +29,10 @@ fn a_driver_turns_the_wheel_and_answers_without_settling_when_asked() {
     let _root = crate::reactive::RootScope::new();
     let frames = create_signal(0);
     let scrolled = create_signal(Vec::new());
-    let mut driven = Driven::with_app(Busy { frames, scrolled }, false);
+    let mut driven = stepped(Busy { frames, scrolled });
 
     driven
-        .ask(&["--no-settle", "move", "10,10"])
+        .ask(&["--no-settle", "app", "move", "10,10"])
         .expect("the move is answered");
     assert!(
         frames.get_untracked() < 5,
@@ -43,7 +43,7 @@ fn a_driver_turns_the_wheel_and_answers_without_settling_when_asked() {
     assert!(frames.get_untracked() >= 20);
 
     driven
-        .ask(&["wheel", "10,10", "2", "-1"])
+        .ask(&["app", "wheel", "10,10", "2", "-1"])
         .expect("the wheel turns");
     assert_eq!(
         scrolled.get_untracked(),

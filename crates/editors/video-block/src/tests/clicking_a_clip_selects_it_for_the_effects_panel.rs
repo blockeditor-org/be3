@@ -7,7 +7,7 @@ fn clicking_a_clip_selects_it_for_the_effects_panel() {
     assert_eq!(fixture.video().clips().len(), 1);
     assert!(fixture.editor.shown(&format!("video.clip.{clip}")));
 
-    fixture.editor.click(&format!("video.clip.{clip}"));
+    fixture.editor.click(format!("video.clip.{clip}"));
     fixture.editor.run();
 
     assert!(

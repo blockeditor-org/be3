@@ -28,7 +28,7 @@ fn a_drawing_repaints_on_its_deadline_without_repeating_layout() {
     assert!(!output.repaint);
     assert!(output.repaint_after > Duration::ZERO);
     assert!(output.repaint_after <= BLINK);
-    assert!(!harness.frame(vec![]).changed);
+    assert!(!harness.frame(vec![]).main().changed);
     assert_eq!((layouts.get_untracked(), paints.get_untracked()), (1, 1));
     harness.advance(BLINK);
     harness.frame(vec![]);

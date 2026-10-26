@@ -88,16 +88,16 @@ fn every_styled_interactive_control_paints_a_keyboard_focus_ring() {
         let (document, [control]) = toolbar_of(|| [control()]);
         let mut harness = Harness::new(document);
         let initial = harness.frame(vec![]);
-        let focused = harness.frame(vec![key_event(Key::Tab, true, Modifiers::NONE)]);
+        let focused = harness.frame(vec![key_event(Key::Tab, true)]);
         let rings = |output: &crate::FrameOutput| {
-            output.shapes().iter().filter(|shape| matches!(shape,
+            output.main().shapes().iter().filter(|shape| matches!(shape,
             crate::Shape::Rect { color, stroke_width, .. } if *color == styled::Theme::DARK.accent && *stroke_width == 2.0
         )).count()
         };
         assert!(
             rings(&focused) > rings(&initial),
             "{} has no focus ring",
-            harness.document.node_kind(control)
+            harness.document().node_kind(control)
         );
     }
 }

@@ -15,7 +15,7 @@ pub use beui_core::animation::Spring;
 
 pub const SCROLL_SPRING: Spring = Spring {
     stiffness: 180.0,
-    damping: 24.0,
+    damping: 26.832_815,
 };
 
 pub const WINDOW_SPRING: Spring = Spring {
@@ -23,27 +23,57 @@ pub const WINDOW_SPRING: Spring = Spring {
     damping: 38.0,
 };
 
+fn reach(dimension: f32) -> f32 {
+    dimension.max(1.0) * RUBBER_BAND_FACTOR
+}
+
 pub fn rubber_band(distance: f32, dimension: f32) -> f32 {
-    if distance == 0.0 {
-        return 0.0;
-    }
-    let dimension = dimension.max(1.0);
-    let magnitude =
-        dimension * (1.0 - 1.0 / (distance.abs() * RUBBER_BAND_FACTOR / dimension + 1.0));
-    magnitude.copysign(distance)
+    let reach = reach(dimension);
+    distance * reach / (distance.abs() + reach)
 }
 
 pub fn unband(overscroll: f32, dimension: f32) -> f32 {
-    if overscroll == 0.0 {
-        return 0.0;
-    }
-    let dimension = dimension.max(1.0);
-    let stretch = (overscroll.abs() / dimension).min(0.99);
-    (dimension * stretch / (RUBBER_BAND_FACTOR * (1.0 - stretch))).copysign(overscroll)
+    let reach = reach(dimension);
+    let stretch = overscroll.abs().min(reach * 0.99);
+    (stretch * reach / (reach - stretch)).copysign(overscroll)
 }
 
 pub fn spring_back(overscroll: &mut f32, velocity: &mut f32, elapsed: f32, spring: Spring) {
+    let from = *overscroll;
     spring.advance(overscroll, velocity, elapsed);
+    if *overscroll * from < 0.0 {
+        *overscroll = 0.0;
+        *velocity = 0.0;
+    }
+}
+
+pub fn bounce(stretch: &mut f32, velocity: &mut f32, elapsed: f32) -> f32 {
+    let mut elapsed = elapsed;
+    if *stretch * *velocity > 0.0 {
+        let frequency = SCROLL_SPRING.stiffness.sqrt();
+        let peak = (velocity.abs() / frequency).atan2(stretch.abs()) / frequency;
+        if elapsed < peak {
+            let outwards = Spring {
+                damping: 0.0,
+                ..SCROLL_SPRING
+            };
+            outwards.advance(stretch, velocity, elapsed);
+            return 0.0;
+        }
+        *stretch = stretch
+            .abs()
+            .hypot(*velocity / frequency)
+            .copysign(*stretch);
+        *velocity = 0.0;
+        elapsed -= peak;
+    }
+    let from = *stretch;
+    SCROLL_SPRING.advance(stretch, velocity, elapsed);
+    if *stretch * from < 0.0 {
+        *stretch = 0.0;
+        return std::mem::take(velocity);
+    }
+    0.0
 }
 
 pub struct Band {

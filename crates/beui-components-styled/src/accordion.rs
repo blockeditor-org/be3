@@ -1,21 +1,20 @@
 use crate::frame::{Border, ColorRole, Frame, Radius, focus_border};
+use beui_core::icons::Glyph;
 use beui_macros::{component, view};
 
-use beui_core::color::Color32;
-
+use crate::list::List;
 use crate::text::{Icon, Text, TextColor, TextSize};
-use crate::theme::{ThemeStore, use_theme};
+use crate::tokens::{Padding, Space, Stroke, use_space};
 use beui_components_unstyled as unstyled;
 use beui_components_unstyled::DisclosureHandle;
 use beui_core::base::TextAlign;
-use beui_core::icons::{ICON_EXPAND_LESS, ICON_EXPAND_MORE};
+use beui_core::icons::{ICON_CHEVRON_DOWN, ICON_CHEVRON_UP};
 use beui_core::node::NodeId;
-use beui_view::primitives::*;
 use beui_view::reactive::*;
 
-const SPACING: f32 = 8.0;
-const PADDING_HORIZONTAL: f32 = 8.0;
-const PADDING_VERTICAL: f32 = 6.0;
+const SPACING: Space = Space::Md;
+const PADDING_HORIZONTAL: Space = Space::Md;
+const PADDING_VERTICAL: Space = Space::Sm;
 
 #[component]
 pub fn Accordion(
@@ -28,13 +27,13 @@ pub fn Accordion(
     view! {
         <unstyled::Disclosure
             api
-            spacing=SPACING
+            spacing={use_space(SPACING).get_untracked()}
             header={move |handle| view! {
                 <AccordionHeader handle title={title_text} />
             }}
             open
         >
-            <Frame padding={Sides::horizontal(PADDING_HORIZONTAL)}>{children}</Frame>
+            <Frame padding={Padding::horizontal(PADDING_HORIZONTAL)}>{children}</Frame>
         </unstyled::Disclosure>
     }
 }
@@ -47,17 +46,16 @@ fn AccordionHeader(handle: DisclosureHandle, title: Memo<String>) -> NodeId {
         focused,
         ..
     } = handle;
-    let theme = use_theme();
-    let header_color = create_memo(move || header_fill(&theme, hovered.get()));
+    let header_color = create_memo(move || header_fill(hovered.get()));
     let marker_glyph = create_memo(move || glyph(open.get()).to_owned());
     let marker_color = TextColor::Muted;
     let title_color = TextColor::Default;
     view! {
         <Frame
-            fill={ColorRole::custom(header_color)}
-            border={focus_border(focused, Border::FOCUS.offset(2.0))}
+            fill={header_color}
+            border={focus_border(focused, Border::FOCUS.offset(Stroke::Focus))}
             radius=Radius::Md
-            padding={Sides::symmetric(PADDING_HORIZONTAL, PADDING_VERTICAL)}
+            padding={Padding::symmetric(PADDING_HORIZONTAL, PADDING_VERTICAL)}
         >
             <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
                 <Text
@@ -76,18 +74,18 @@ fn AccordionHeader(handle: DisclosureHandle, title: Memo<String>) -> NodeId {
     }
 }
 
-fn glyph(open: bool) -> &'static str {
+fn glyph(open: bool) -> Glyph {
     if open {
-        ICON_EXPAND_LESS
+        ICON_CHEVRON_UP
     } else {
-        ICON_EXPAND_MORE
+        ICON_CHEVRON_DOWN
     }
 }
 
-fn header_fill(theme: &ThemeStore, hovered: bool) -> Color32 {
+fn header_fill(hovered: bool) -> ColorRole {
     if hovered {
-        theme.hover.get()
+        ColorRole::Hover
     } else {
-        Color32::TRANSPARENT
+        ColorRole::None
     }
 }

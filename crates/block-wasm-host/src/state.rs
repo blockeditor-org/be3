@@ -4,8 +4,9 @@ use std::{
 };
 
 use block_gpu_host::{
-    Gpu,
-    calls::{Guest, Transport},
+    Gpu, Imports,
+    block_gpu_abi::embed::device::Caller,
+    transport::{Transport, Transported},
 };
 use wasmtime::SharedMemory;
 use wasmtime_wasi::p1::WasiP1Ctx;
@@ -41,7 +42,10 @@ pub struct State {
     pub(crate) wasi: WasiP1Ctx,
     pub(crate) memory: SharedMemory,
     pub(crate) device: Device,
+    pub(crate) imports: Imports,
     pub(crate) error: Option<String>,
+    pub(crate) fatal: Option<String>,
+    pub(crate) returned: Vec<u8>,
     pub(crate) transport: Transport,
     pub(crate) threads: Arc<Spawner>,
     pub(crate) wake: Arc<Wake>,
@@ -105,72 +109,101 @@ pub(crate) fn read(memory: &SharedMemory, pointer: u32, length: u32) -> Result<V
     Ok(bytes)
 }
 
-impl Guest for State {
-    fn read(&mut self, pointer: u32, length: u32) -> Result<Vec<u8>, String> {
-        read(&self.memory, pointer, length)
-    }
-
-    fn write(&mut self, pointer: u32, capacity: u32, bytes: &[u8]) -> u32 {
-        let needed = bytes.len() as u32;
-        if needed > capacity {
-            return needed;
-        }
-        let data = self.memory.data();
-        let start = pointer as usize;
-        if start.saturating_add(bytes.len()) > data.len() {
-            return 0;
-        }
-        for (offset, byte) in bytes.iter().enumerate() {
-            // unsafe(ffi)
-            unsafe { *data[start + offset].get() = *byte };
-        }
-        needed
-    }
-
-    fn gpu<R: Default>(&mut self, call: impl FnOnce(&mut Gpu) -> R) -> R {
+impl State {
+    pub(crate) fn gpu(&mut self) -> Result<&mut Gpu, String> {
         if let Device::Unconnected(connect) = &self.device {
             self.device = match connect() {
-                Ok((device, queue)) => Device::Ready(Box::new(Gpu::new(device, queue))),
+                Ok((device, queue)) => Device::Ready(Box::new(
+                    Gpu::new(device, queue).sharing(Arc::clone(&self.imports)),
+                )),
                 Err(message) => Device::Unavailable(format!(
                     "the plugin used the gpu, and no device could be opened: {message}"
                 )),
             };
         }
         match &mut self.device {
-            Device::Ready(gpu) => {
-                let started = Instant::now();
-                let result = call(gpu.as_mut());
-                self.gpu_time += started.elapsed();
-                result
-            }
-            Device::Unavailable(message) => {
-                let message = message.clone();
-                self.report(message);
-                R::default()
-            }
-            Device::Unconnected(_) => R::default(),
+            Device::Ready(gpu) => Ok(gpu.as_mut()),
+            Device::Unavailable(message) => Err(message.clone()),
+            Device::Unconnected(_) => Err("the plugin's gpu was never connected".to_owned()),
         }
     }
 
-    fn report(&mut self, message: String) {
-        if self.error.is_none() {
-            self.error = Some(message);
-        }
-    }
-
-    fn take_error(&mut self) -> Option<String> {
+    pub(crate) fn take_error(&mut self) -> Option<String> {
         self.error
             .take()
             .or_else(|| self.device.ready_mut().and_then(Gpu::take_error))
     }
+}
 
-    fn transport(&mut self) -> &mut Transport {
-        &mut self.transport
+impl Caller for State {
+    type Host = Gpu;
+
+    fn read(&mut self, pointer: u32, length: u32) -> Result<Vec<u8>, String> {
+        read(&self.memory, pointer, length)
     }
 
-    fn submit(&mut self, handles: &[u32]) {
+    fn write(&mut self, pointer: u32, bytes: &[u8]) -> Result<(), String> {
+        let data = self.memory.data();
+        let start = pointer as usize;
+        let end = start.saturating_add(bytes.len());
+        if end > data.len() {
+            return Err(format!(
+                "a plugin pointer ran past its memory: {start}..{end} of {}",
+                data.len()
+            ));
+        }
+        for (offset, byte) in bytes.iter().enumerate() {
+            // unsafe(ffi)
+            unsafe { *data[start + offset].get() = *byte };
+        }
+        Ok(())
+    }
+
+    #[inline]
+    fn host<R>(&mut self, function: &'static str, call: impl FnOnce(&mut Gpu) -> R) -> Option<R> {
+        if let Device::Ready(gpu) = &mut self.device {
+            let started = Instant::now();
+            let result = call(gpu.as_mut());
+            let took = started.elapsed();
+            self.gpu_time += took;
+            if function == "submit" {
+                self.submit_time += took;
+            }
+            return Some(result);
+        }
+        let gpu = match self.gpu() {
+            Ok(gpu) => gpu,
+            Err(message) => {
+                self.fatal = Some(message);
+                return None;
+            }
+        };
         let started = Instant::now();
-        self.gpu(|gpu| gpu.submit(handles));
-        self.submit_time += started.elapsed();
+        let result = call(gpu);
+        let took = started.elapsed();
+        self.gpu_time += took;
+        if function == "submit" {
+            self.submit_time += took;
+        }
+        Some(result)
+    }
+
+    fn refuse(&mut self, message: String) {
+        match self.device.ready_mut() {
+            Some(gpu) => gpu.report(message),
+            None => {
+                self.error.get_or_insert(message);
+            }
+        }
+    }
+
+    fn returned(&mut self) -> &mut Vec<u8> {
+        &mut self.returned
+    }
+}
+
+impl Transported for State {
+    fn transport(&mut self) -> &mut Transport {
+        &mut self.transport
     }
 }

@@ -14,7 +14,7 @@ script runs the `be` release pinned in `scripts/internal/pins`, with a
 once it is deployed from another build and the pin has to move with it. Set
 `BE3_AGENT_CREDENTIALS` to the JSON copied from the app's Agents dialog, or save
 that JSON in `external/.tracker-credentials`. The file is ignored by git and
-`./scripts/setup` fetches it from
+`./scripts/be` fetches it on first use from
 `https://api.be3.pfg.pw/authorized-storage/tracker-credentials` behind the gateway.
 The wrapper passes it to `be` as `BE3_AGENT_CREDENTIALS`; `be` reads environment
 variables, never that file.
@@ -49,11 +49,13 @@ be ls                                   the workspaces and what is shared with t
 be workspaces                           the workspaces, and which it may write in
 be a1f3 ls                              a block's children
 be Issues rows Status!=Done Project=Launch
-be Issues row BE-7K3Q2M                 a row, named within its database: its fields and its page
+be BE-7K3Q2M                            a row, found through its workspace's prefixes: its fields and its page
+be Issues row BE-7K3Q2M                 the same row, named within its database
 be Issues new "Fix the login" Status="To do" "Blocked by=BE-4HV8ND" --body "Steps..."
 be Issues row BE-7K3Q2M set Status=Done "Blocked by-=BE-4HV8ND" --append "Fixed in #412."
 be Issues row BE-7K3Q2M page edit       its page in $EDITOR, merged with any change since
 be Issues row BE-7K3Q2M delete
+be 3fa9 move a1f3                       a block and everything in it, into another block
 be 3fa9 delete                          a block and everything in it, to Recently Deleted
 be 3fa9 cat                             a text block, reached directly
 be Issues schema                        columns; each choice with its colour, icon, closed, default
@@ -66,6 +68,8 @@ be Issues download issues.block         a block and everything inside it, as one
 be upload issues.block --in a1f3
                                         a copy of it, here or in another organization
                                         (without --in, where new-database puts one)
+be Code sync ~/code [--watch]           a folder or workspace and a directory, kept in
+                                        step both ways (guides/sync.md)
 ```
 
 `be ls` lists the top: the organization's roots the account can see
@@ -80,11 +84,24 @@ its full id (read directly), or by the end of its id as `be ls` prints it (the
 last eight hex digits, which UUIDv7 makes random where its start is a
 timestamp) or its name, found a level at a time from the top, all of a level's
 listings sent together; the shallowest level with a match decides. A database
-view and the database inside it share a name, and the name means the database. A row is named within its database, `be DATABASE
-row ROW-ID`, never on its own. A row's id is its database's prefix and six
-characters made from the row's own id, so it never changes and needs no
-coordination. The prefix is only a label: two databases may share one, and a
-copy keeps it, since nothing resolves a row id without its database. Field values are matched by name, case
+view and the database inside it share a name, and the name means the database. A row is
+its id alone, `be ROW-ID [VERB]`, or named within its database, `be DATABASE row
+ROW-ID [VERB]`. A row's id is its database's prefix and six characters made from the
+row's own id, so it never changes and needs no coordination. The prefix is only a
+label: two databases may share one, and a copy keeps it. A row id alone resolves only
+through the prefix registries (`be_block::PrefixRegistry`, a workspace settings kind
+any editor of the workspace changes): `be` reads the registry of each workspace at the
+top and the open registry above each block shared with it, and takes the databases
+registered with that prefix that it can view and that still lie inside the registry's
+workspace. There is no search for a prefix beyond them; a prefix no registry lists
+fails, and one that names more than one database says which, so name the database
+instead. `new-database`, `upload`, and the database editor (when its prefix changes or
+it is opened somewhere it is not yet listed) write the database into the nearest
+registry above it, making the workspace's if there is none. Moving a block
+(`Peer::set_parent`, which `be TARGET move`, `be sync` and the app's moves all go
+through) moves the databases inside it from the registry above its old place to
+the one above its new place. The editor's Display
+menu says when another database there shares the prefix. Field values are matched by name, case
 aside: an option's name for an Enum column, a row's title or id for a Relation.
 `option FIELD OPTION` changes an option the column has, refusing any other
 name, and `add-option` adds one; both take
@@ -156,13 +173,22 @@ them in the handoff.
   to the agent (the stack guide's Keys), and `be` opens that key with the
   phrase, refusing a phrase that is not the account's. Removing the agent
   deletes its account, its tokens and what was sealed to it.
-- **Writes.** `be` opens the block, applies the same `Edit` the editor would
-  and publishes against the head it read, retrying on the new head when the
-  publish is rejected, so it never overwrites a save it did not see. An editor
-  with the block open takes the new head the way it takes any outside publish,
-  merging it with what it has not saved yet. A text write changes
-  only the span that differs. Deleting a row also removes the links to it from
-  the rows of its own database.
+- **Writes.** `be` reads the block's head bytes, makes the new content and
+  publishes it against the head it read (`Tracker::edit`), retrying on the new
+  head when the publish is rejected, so it never overwrites a save it did not
+  see. Every publish takes its references and derived metadata from the type
+  module's `Describe`. An editor with the block open takes the new head the way
+  it takes any outside publish, merging it with what it has not saved yet.
+  Only databases, their schemas and views are edited as types: `be` links the
+  database plugin's types crate (`database_types`) the way the database editor
+  does, decodes rows, applies the same `Edit` the editor would and encodes
+  them, since a tracker is an editor of rows with a command line rather than a
+  host. Everything else goes through the type module as bytes: a page is read
+  with `ToFile` and written with `Apply` of `Change::FromFile` (a text write
+  changes only the span that differs), and a folder or workspace lists a child
+  with `Change::Child`. The modules start on first use
+  (`Tracker::types`), so `be ls` never compiles one. Deleting a row also
+  removes the links to it from the rows of its own database.
 - **GitHub.** `.github/workflows/tracker.yml` runs `be DATABASE pull-request`
   on the event, with the database's full id from the `BE3_TRACKER_DATABASE`
   variable: ids with that database's prefix in the branch, title or body move to `BE3_REVIEW_STATUS` (In

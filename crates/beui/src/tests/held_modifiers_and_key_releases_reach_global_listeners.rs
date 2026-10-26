@@ -1,5 +1,6 @@
 use super::*;
 use crate::KeyEvent;
+use crate::primitives::List;
 use crate::reactive::*;
 use crate::styled::*;
 
@@ -27,13 +28,18 @@ fn held_modifiers_and_key_releases_reach_global_listeners() {
     harness.frame(Vec::new());
     harness.click(harness.center(harness.find("field")));
 
-    harness.frame(vec![Event::Modifiers(Modifiers::ALT)]);
+    harness.key_down(Key::Alt);
     harness.key(Key::Tab, Modifiers::ALT);
-    harness.frame(vec![Event::Modifiers(Modifiers::NONE)]);
+    harness.key_up(Key::Alt);
 
     assert_eq!(
         seen.get_untracked(),
-        vec![(Key::Tab, true), (Key::Tab, false)],
+        vec![
+            (Key::Alt, true),
+            (Key::Tab, true),
+            (Key::Tab, false),
+            (Key::Alt, false)
+        ],
         "a listener sees the press and the release, though a text field has the focus"
     );
     assert_eq!(

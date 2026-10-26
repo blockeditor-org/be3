@@ -1,5 +1,6 @@
 use super::*;
 use crate::reactive::*;
+use crate::unstyled::Scroll;
 
 #[test]
 fn compacting_virtual_rows_clamps_the_scroll_anchor_at_the_end() {
@@ -11,7 +12,7 @@ fn compacting_virtual_rows_clamps_the_scroll_anchor_at_the_end() {
         let padding = create_memo(move || item_size.get() / 2.0);
         view! {
             <List spacing=0.0>
-                <Offset @sizing=ItemSize::Percent(100.0) @node_ref=&scroll>
+                <Scroll @sizing=ItemSize::Percent(100.0) @node_ref=&scroll>
                     <VirtualList
                         @node_ref=&list
                         keys={keys}
@@ -21,14 +22,14 @@ fn compacting_virtual_rows_clamps_the_scroll_anchor_at_the_end() {
                             <Spacer />
                         </Frame>
                     </VirtualList>
-                </Offset>
+                </Scroll>
             </List>
         }
     });
     let (scroll, list) = (scroll.get(), list.get());
 
     let mut harness = Harness::new(document);
-    harness.document.set_scroll_offset(scroll, f32::MAX);
+    harness.document_mut().set_scroll_offset(scroll, f32::MAX);
     harness.frame(Vec::new());
 
     let compact = VIRTUAL_ITEM_HEIGHT / 2.0;
@@ -36,14 +37,14 @@ fn compacting_virtual_rows_clamps_the_scroll_anchor_at_the_end() {
     harness.frame(Vec::new());
 
     assert_eq!(
-        harness.document.scroll_offset(scroll),
+        harness.document().scroll_offset(scroll),
         VIRTUAL_ITEM_COUNT as f32 * compact - VIEWPORT.y
     );
-    let children = harness.document.children(list);
+    let children = harness.document().children(list);
     assert_eq!(harness.rect(*children.last().unwrap()).bottom(), VIEWPORT.y);
 
     with_installed(harness.document_mut(), |_| keys.set(Vec::new()));
     harness.frame(Vec::new());
-    assert!(harness.document.children(list).is_empty());
-    assert_eq!(harness.document.scroll_offset(scroll), 0.0);
+    assert!(harness.document().children(list).is_empty());
+    assert_eq!(harness.document().scroll_offset(scroll), 0.0);
 }

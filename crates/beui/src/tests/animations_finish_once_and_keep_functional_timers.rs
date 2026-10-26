@@ -26,7 +26,7 @@ fn animations_finish_once_and_keep_functional_timers() {
     let mut harness = Harness::new(document);
     harness.frame(Vec::new());
     assert_eq!(finished.get_untracked(), 0);
-    harness.context.set_preference_layer(
+    harness.context().set_preference_layer(
         PreferenceSource::System,
         PreferenceLayer {
             motion: Some(Motion::Instant),
@@ -41,7 +41,7 @@ fn animations_finish_once_and_keep_functional_timers() {
     harness.frame(Vec::new());
     assert!(expired.get_untracked());
     assert_eq!(harness.frame(Vec::new()).repaint_after, Duration::MAX);
-    harness.context.set_preference_layer(
+    harness.context().set_preference_layer(
         PreferenceSource::System,
         PreferenceLayer {
             motion: Some(Motion::Animated),

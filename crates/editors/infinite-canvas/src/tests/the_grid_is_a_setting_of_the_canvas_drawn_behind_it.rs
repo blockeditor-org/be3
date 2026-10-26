@@ -1,6 +1,6 @@
 use super::*;
-use block_editor_beui::be_block::canvas::{CanvasGrid, CanvasGridSpacing};
 use block_editor_beui::beui::{Key, Modifiers, Rect, pos2};
+use infinite_canvas_types::{CanvasGrid, CanvasGridSpacing};
 
 fn grid(editor: &BeuiTest<CanvasApp>) -> CanvasGrid {
     editor.content::<CanvasContent>(None).root().grid
@@ -14,17 +14,17 @@ fn ctrl() -> Modifiers {
 }
 
 fn run_from_palette(editor: &mut BeuiTest<CanvasApp>, typed: &str) {
-    editor.key_press_modifiers(
+    editor.key(
+        Key::P,
         Modifiers {
             shift: true,
             ..ctrl()
         },
-        Key::P,
     );
     editor.run();
-    editor.text(typed);
+    editor.type_text(typed);
     editor.run();
-    editor.key_press(Key::Enter);
+    editor.key(Key::Enter, Modifiers::NONE);
     editor.run();
 }
 

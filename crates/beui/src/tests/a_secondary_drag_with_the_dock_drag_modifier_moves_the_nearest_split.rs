@@ -24,7 +24,7 @@ fn a_secondary_drag_with_the_dock_drag_modifier_moves_the_nearest_split() {
 
     let after = harness.rect(harness.find("content.1"));
     assert!(
-        (after.width() - before.width() - 120.0).abs() < 1.0,
+        (after.width() - before.width() - 120.0).abs() <= 1.0,
         "the split beside the pane follows the pointer across, from {} to {} wide",
         before.width(),
         after.width()
@@ -40,7 +40,7 @@ fn a_secondary_drag_with_the_dock_drag_modifier_moves_the_nearest_split() {
     harness.frame(Vec::new());
     let moved = harness.rect(harness.find("content.1"));
     assert!(
-        (after.width() - moved.width() - 60.0).abs() < 1.0,
+        (after.width() - moved.width() - 60.0).abs() <= 1.0,
         "a secondary drag on the tab bar moves the split too, from {} to {} wide",
         after.width(),
         moved.width()

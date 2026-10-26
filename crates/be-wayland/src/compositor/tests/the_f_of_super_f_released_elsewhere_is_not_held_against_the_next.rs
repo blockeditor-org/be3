@@ -11,12 +11,12 @@ fn the_f_of_super_f_released_elsewhere_is_not_held_against_the_next() {
     harness.acknowledge(&window);
     harness.click(&shown);
 
-    harness.frame([super_key(true), f_key(true, beui::Modifiers::LOGO)].concat());
+    harness.frame([super_key(true), f_key(true)].concat());
     harness.frame(super_key(false));
     harness.settle();
     assert!(!harness.client.received.fullscreen);
     harness.click("test.input");
-    harness.frame(f_key(false, beui::Modifiers::NONE));
+    harness.frame(f_key(false));
     harness.settle();
 
     harness.click(&shown);

@@ -3,10 +3,27 @@ use std::time::{Duration, Instant};
 
 use crate::geometry::{Pos2, Vec2};
 
+pub mod typing;
+
 pub use ui_types::input::{
-    BackEdge, BackGesture, CursorIcon, ImeEvent, ImeText, Key, KeyChord, KeyPress, Keyboard,
-    Modifiers, PenPhase, PointerButton, TouchPhase,
+    BackEdge, BackGesture, CursorIcon, ImeEvent, ImeText, Input, Key, KeyChord, KeyPress, Keyboard,
+    Keystroke, Modifiers, Pen, PenPhase, PointerButton, ScrollDelta, TouchId, TouchPhase,
 };
+pub use ui_types::window::ImeArea;
+
+#[derive(Clone, PartialEq, Eq, Debug)]
+pub struct DroppedFile {
+    pub name: String,
+    pub path: Option<std::path::PathBuf>,
+    pub bytes: Option<std::sync::Arc<[u8]>>,
+}
+
+#[derive(Clone, PartialEq, Eq, Debug)]
+pub enum FileDrag {
+    Hovered,
+    Cancelled,
+    Dropped(DroppedFile),
+}
 
 const MULTI_CLICK_DELAY: f32 = 0.3;
 const MULTI_CLICK_DISTANCE: f32 = 6.0;
@@ -21,6 +38,7 @@ const SYNTHESIZED_SLOP: f32 = 2.0;
 
 #[derive(Clone, Copy, PartialEq, Debug)]
 pub struct PointerPress {
+    pub window: crate::window::WindowId,
     pub pos: Pos2,
     pub local: Pos2,
     pub size: Vec2,
@@ -28,7 +46,6 @@ pub struct PointerPress {
     pub clicks: u32,
     pub modifiers: Modifiers,
     pub touch: bool,
-    pub pressure: Option<f32>,
     pub pen: Option<Pen>,
     pub predicted: Option<Pos2>,
     pub time: Instant,
@@ -85,25 +102,13 @@ pub struct ZoomGesture {
     pub size: Vec2,
 }
 
-#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
-pub struct TouchId {
-    pub device: u64,
-    pub finger: u64,
-}
-
-#[derive(Clone, Copy, PartialEq, Default, Debug)]
-pub struct Pen {
-    pub tilt: Vec2,
-    pub eraser: bool,
-}
-
 #[derive(Clone, PartialEq, Debug)]
 pub enum Event {
     Focus(bool),
     Modifiers(Modifiers),
     Key {
         press: KeyPress,
-        code: Option<u32>,
+        evdev: Option<u32>,
         text: Option<String>,
     },
     PointerButton {
@@ -113,7 +118,9 @@ pub enum Event {
         modifiers: Modifiers,
     },
     PointerGone,
+    PointersCancelled,
     PointerMotion(Vec2),
+    PointerUnlocked,
     PointerMoved(Pos2),
     ScrollStarted,
     Scroll(Vec2),
@@ -129,7 +136,6 @@ pub enum Event {
     Pen {
         phase: PenPhase,
         pos: Pos2,
-        pressure: f32,
         pen: Pen,
     },
     Predicted(Pos2),
@@ -142,13 +148,15 @@ pub enum Event {
     Back(BackGesture),
     InterceptedKey(KeyPress),
     InterceptedTap(Key),
+    PointerWindow(crate::window::WindowId),
+    PointerOutside,
 }
 
 impl Event {
     pub fn key(press: KeyPress) -> Self {
         Self::Key {
             press,
-            code: None,
+            evdev: None,
             text: None,
         }
     }
@@ -165,6 +173,7 @@ impl Event {
             self,
             Self::PointerButton { .. }
                 | Self::PointerGone
+                | Self::PointersCancelled
                 | Self::PointerMotion(_)
                 | Self::PointerMoved(_)
                 | Self::ScrollStarted
@@ -175,6 +184,8 @@ impl Event {
                 | Self::Predicted(_)
                 | Self::Time(_)
                 | Self::Zoom(_)
+                | Self::PointerWindow(_)
+                | Self::PointerOutside
         )
     }
 
@@ -197,26 +208,6 @@ impl Event {
             _ => None,
         }
     }
-}
-
-#[derive(Clone, PartialEq, Eq, Debug)]
-pub struct DroppedFile {
-    pub name: String,
-    pub path: Option<std::path::PathBuf>,
-    pub bytes: Option<std::sync::Arc<[u8]>>,
-}
-
-#[derive(Clone, PartialEq, Debug)]
-pub struct ImeArea {
-    pub rect: crate::geometry::Rect,
-    pub cursor: crate::geometry::Rect,
-    pub text: Option<ImeText>,
-    pub keyboard: Keyboard,
-}
-
-#[derive(Clone, Default, Debug)]
-pub struct RawInput {
-    pub events: Vec<Event>,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
@@ -252,6 +243,7 @@ pub enum PointerPhase {
 #[derive(Clone, Copy, PartialEq, Debug)]
 pub struct PointerEvent {
     pub pointer: PointerId,
+    pub window: crate::window::WindowId,
     pub phase: PointerPhase,
     pub pos: Pos2,
     pub modifiers: Modifiers,
@@ -270,6 +262,7 @@ pub struct InputState {
     pub pointer: Pointer,
     pub modifiers: Modifiers,
     pub long_press_delay: Duration,
+    pub window: crate::window::WindowId,
     touches: Vec<(TouchId, Pos2)>,
     touched: Vec<Pos2>,
     source: usize,
@@ -288,6 +281,7 @@ impl Default for InputState {
             pointer: Pointer::default(),
             modifiers: Modifiers::default(),
             long_press_delay: LONG_PRESS_DELAY,
+            window: crate::window::WindowId::MAIN,
             touches: Vec::new(),
             touched: Vec::new(),
             source: 0,
@@ -370,6 +364,26 @@ impl InputState {
         input
     }
 
+    pub fn seen_from(&self, window: crate::window::WindowId) -> Self {
+        if window.is_main() {
+            return self.clone();
+        }
+        let mut input = self.only(|event| !matches!(event, Event::PointerWindow(_)));
+        input.pointer_events.retain(|event| event.window == window);
+        for event in &mut input.pointer_events {
+            event.window = crate::window::WindowId::MAIN;
+        }
+        match input.pointer.window == window {
+            true => input.pointer.window = crate::window::WindowId::MAIN,
+            false => {
+                input.pointer.pos = None;
+                input.pointer.motion = Vec2::ZERO;
+            }
+        }
+        input.window = crate::window::WindowId::MAIN;
+        input
+    }
+
     pub fn without_pointer(&self, leaving: bool) -> Self {
         let mut input = self.only(|event| !event.is_pointer());
         input.pointer_events.clear();
@@ -403,7 +417,7 @@ impl InputState {
         !self.touches.is_empty()
     }
 
-    pub fn begin_frame(&mut self, raw: RawInput, now: Instant) {
+    pub(crate) fn begin_frame(&mut self, events: Vec<Event>, now: Instant) {
         self.pointer.motion = Vec2::ZERO;
         if self.touches.is_empty() {
             self.pointer.lift_finger();
@@ -411,13 +425,13 @@ impl InputState {
         self.pointer_events.clear();
         self.touched = self.touches.iter().map(|(_, pos)| *pos).collect();
         self.touched
-            .extend(raw.events.iter().filter_map(|event| match event {
+            .extend(events.iter().filter_map(|event| match event {
                 Event::Touch { pos, .. } => Some(*pos),
                 _ => None,
             }));
-        for (source, event) in raw.events.iter().enumerate() {
+        for (source, event) in events.iter().enumerate() {
             self.source = source;
-            self.time = match raw.events.get(source + 1) {
+            self.time = match events.get(source + 1) {
                 Some(Event::Time(at)) => Some(*at),
                 _ => Some(now),
             };
@@ -427,15 +441,17 @@ impl InputState {
                 self.modifiers = modifiers;
             }
             match event {
+                Event::PointerWindow(window) => self.window = *window,
+                Event::PointerOutside => self.pointer.outside = true,
                 Event::PointerMoved(pos) if !self.on_finger(*pos) => {
-                    self.pointer.place_mouse(*pos);
+                    self.pointer.place_mouse(*pos, self.window);
                     self.emit(PointerId::Mouse, PointerPhase::Move, *pos);
                 }
                 Event::PointerMotion(delta) => {
                     self.pointer.motion += *delta;
                 }
                 Event::PointerGone if self.touched.is_empty() => self.mouse_gone(),
-                Event::Focus(false) => {
+                Event::PointersCancelled => {
                     for (id, pos) in std::mem::take(&mut self.touches) {
                         self.emit(PointerId::Touch(id), PointerPhase::Cancel, pos);
                     }
@@ -449,7 +465,10 @@ impl InputState {
                     pressed,
                     ..
                 } if !self.on_finger(*pos) => {
-                    self.pointer.place_mouse(*pos);
+                    self.pointer.place_mouse(*pos, self.window);
+                    if *pressed {
+                        self.pointer.outside = false;
+                    }
                     if *pressed && *button == PointerButton::Primary {
                         self.pointer.count_click(*pos, now);
                     }
@@ -484,18 +503,12 @@ impl InputState {
                     self.force = *force;
                     self.touch(*id, *phase, *pos, now);
                 }
-                Event::Pen {
-                    phase,
-                    pos,
-                    pressure,
-                    pen,
-                } => {
-                    self.force = Some(*pressure);
+                Event::Pen { phase, pos, pen } => {
                     self.pen = Some(*pen);
                     self.pen_event(*phase, *pos, now);
                 }
                 Event::Predicted(pos) => {
-                    let stamped = raw.events[..source]
+                    let stamped = events[..source]
                         .iter()
                         .rev()
                         .take_while(|event| matches!(event, Event::Time(_)))
@@ -505,7 +518,7 @@ impl InputState {
                 _ => {}
             }
         }
-        self.events = raw.events;
+        self.events = events;
         while self
             .scroll_samples
             .front()
@@ -530,6 +543,7 @@ impl InputState {
     fn emit(&mut self, pointer: PointerId, phase: PointerPhase, pos: Pos2) {
         self.pointer_events.push(PointerEvent {
             pointer,
+            window: self.window,
             phase,
             pos,
             modifiers: self.modifiers,
@@ -574,7 +588,7 @@ impl InputState {
             PenPhase::Up(button) => PointerPhase::Up(button),
         };
         self.pen_at = Some(pos);
-        self.pointer.place_mouse(pos);
+        self.pointer.place_mouse(pos, self.window);
         self.emit(PointerId::Pen, phase, pos);
     }
 
@@ -593,6 +607,7 @@ impl InputState {
                 if self.touches.is_empty() {
                     let pointer = &mut self.pointer;
                     pointer.pos = Some(pos);
+                    pointer.window = self.window;
                     pointer.from_touch = true;
                     pointer.count_click(pos, now);
                 }
@@ -607,6 +622,7 @@ impl InputState {
                 self.touches[index].1 = pos;
                 if first == Some(id) {
                     self.pointer.pos = Some(pos);
+                    self.pointer.window = self.window;
                 }
                 self.emit(PointerId::Touch(id), PointerPhase::Move, pos);
             }
@@ -649,6 +665,8 @@ impl InputState {
 #[derive(Clone, Copy, Default, Debug)]
 pub struct Pointer {
     pub pos: Option<Pos2>,
+    pub window: crate::window::WindowId,
+    pub outside: bool,
     pub motion: Vec2,
     clicks: u32,
     last_click: Option<(Instant, Pos2)>,
@@ -685,8 +703,9 @@ impl Pointer {
         self.pos.filter(|_| !self.from_touch)
     }
 
-    fn place_mouse(&mut self, pos: Pos2) {
+    fn place_mouse(&mut self, pos: Pos2, window: crate::window::WindowId) {
         self.pos = Some(pos);
+        self.window = window;
         self.from_touch = false;
     }
 

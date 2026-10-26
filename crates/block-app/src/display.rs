@@ -9,9 +9,11 @@ use crate::app_state::{AppStateError, AppStateStore};
 use crate::local_settings::{LayerContents, LocalSettings};
 
 mod guard;
+pub(crate) mod shown;
 
 pub(crate) use guard::{ANSWER_WITHIN, Prompt, Screen};
 use guard::{Guard, ModeChange, written};
+pub(crate) use shown::{apply as apply_shown, create_handle, owner, shown};
 
 #[cfg(target_os = "linux")]
 mod linux;
@@ -104,8 +106,6 @@ fn settle(
 }
 
 impl LocalSettings for DisplaySettings {
-    const NAME: &'static str = "display settings";
-
     fn load(store: &AppStateStore) -> Result<Option<Vec<u8>>, AppStateError> {
         store.display_settings()
     }

@@ -1,3 +1,5 @@
+use beui::Overflow;
+use std::any::Any;
 use std::cell::RefCell;
 use std::rc::Rc;
 use std::sync::Arc;
@@ -6,8 +8,15 @@ use std::time::{Duration, Instant};
 use beui::primitives::{Span, Text};
 use beui::reactive::*;
 use beui::styled::*;
+use beui::testing::{Screen, Showing};
 use beui::unstyled::TextAreaState;
-use beui::{Context, Document, Event, Modifiers, PointerButton, Pos2, RawInput, Rect, Vec2, pos2};
+use beui::{
+    Document, Incoming, Input, Launch, PlatformServices, PointerButton, Pos2, RunOptions, Setup,
+    Vec2, Waker, pos2,
+};
+use beui_core::app::SafeArea;
+use beui_core::renderer::Loaded;
+use beui_core::runner::Runner;
 use text_editor_core::TextBuffer;
 
 const VIEWPORT: Vec2 = Vec2::new(1000.0, 800.0);
@@ -17,46 +26,65 @@ const PARAGRAPH: &str = "A text node lays out on one line unless it wraps, and a
     not fit can end in an ellipsis instead of spilling out of its frame. Spans give colour, size \
     and font to the parts of one text, and a change to one of them shapes only that one again. ";
 
+struct Bare;
+
+impl PlatformServices for Bare {}
+
 struct Bench {
-    context: Context,
-    document: Document,
-    frame: usize,
+    runner: Runner,
 }
 
 impl Bench {
     fn new(document: Document) -> Self {
-        let context = beui::context();
-        context.stop_clock();
-        Self {
-            context,
-            document,
-            frame: 0,
-        }
+        let mut runner = Runner::new(Launch {
+            options: RunOptions {
+                size: VIEWPORT,
+                ..RunOptions::default()
+            },
+            context: beui::context(),
+            app: Box::new(Showing(document)),
+            layers: Vec::new(),
+        });
+        runner
+            .start(
+                vec![Loaded {
+                    renderer: Box::new(Screen(VIEWPORT)),
+                    fonts: None,
+                }],
+                Setup::new(Waker::new(|| {})),
+            )
+            .expect("a screen without a gpu always starts");
+        runner.context().stop_clock();
+        Self { runner }
     }
 
-    fn frame(&mut self, events: Vec<Event>) -> Duration {
-        self.context.advance_clock(FRAME_INTERVAL);
-        let document = &mut self.document;
+    fn frame(&mut self, inputs: Vec<Input>) -> Duration {
+        self.runner.context().advance_clock(FRAME_INTERVAL);
+        for input in inputs {
+            self.runner.push(Incoming::points(input));
+        }
         let started = Instant::now();
-        self.context.run(RawInput { events }, |context| {
-            document.show(context, Rect::from_min_size(Pos2::ZERO, VIEWPORT));
-        });
-        self.frame += 1;
-        started.elapsed()
+        self.runner.frame(&mut Bare, SafeArea::default());
+        let took = started.elapsed();
+        if let Some(failure) = self.runner.failure() {
+            panic!("the bench panicked: {failure}");
+        }
+        took
     }
 
     fn update(&mut self, change: impl FnOnce()) {
-        enter(&mut self.document, change);
+        let app: &mut dyn Any = self.runner.app_mut();
+        let Showing(document) = app.downcast_mut().expect("the bench shows a document");
+        enter(document, change);
     }
 
     fn click(&mut self, pos: Pos2) {
-        self.frame(vec![Event::PointerMoved(pos)]);
+        self.frame(vec![Input::PointerMoved(pos)]);
         for pressed in [true, false] {
-            self.frame(vec![Event::PointerButton {
+            self.frame(vec![Input::PointerButton {
                 pos,
                 button: PointerButton::Primary,
                 pressed,
-                modifiers: Modifiers::NONE,
             }]);
         }
     }
@@ -82,6 +110,9 @@ impl Report {
         let count = self.frames.len();
         let total: Duration = self.frames.iter().sum();
         let at = |share: f64| self.frames[((count - 1) as f64 * share) as usize];
+        bench::time(&format!("{}.first", self.name), self.first);
+        bench::time(&format!("{}.median", self.name), at(0.5));
+        bench::time(&format!("{}.p90", self.name), at(0.9));
         println!(
             "{:<24} first {:>9.1?}  mean {:>9.1?}  median {:>9.1?}  p90 {:>9.1?}  ({count} frames)",
             self.name,
@@ -98,7 +129,8 @@ fn measure(
     frames: usize,
     document: Document,
     prepare: impl FnOnce(&mut Bench),
-    mut step: impl FnMut(&mut Bench, usize) -> Vec<Event>,
+    mut step: impl FnMut(&mut Bench, usize) -> Vec<Input>,
+    check: impl FnOnce(),
 ) -> Report {
     let mut bench = Bench::new(document);
     let first = bench.frame(Vec::new());
@@ -113,6 +145,7 @@ fn measure(
             bench.frame(events)
         })
         .collect();
+    check();
     Report {
         name,
         first,
@@ -130,11 +163,11 @@ fn resize_paragraphs(frames: usize) -> Report {
             let text = PARAGRAPH.repeat(4);
             view! {
                 <Root>
-                    <Frame width={create_memo(move || Some(read.get()))}>
-                        <List spacing=8.0>
+                    <Frame width={create_memo(move || Length::Size(Size::Custom(read.get())))}>
+                        <List spacing=Space::Md>
                             <ForEach keys={(0..20).collect::<Vec<usize>>()}>|_: usize| {
                                 let text = text.clone(); view! {
-                                    <Text wrap=true>{text}</Text>
+                                    <Text>{text}</Text>
                                 }
                             }</ForEach>
                         </List>
@@ -154,6 +187,7 @@ fn resize_paragraphs(frames: usize) -> Report {
             bench.update(|| width.set(next));
             Vec::new()
         },
+        || {},
     )
 }
 
@@ -166,10 +200,12 @@ fn resize_labels(frames: usize) -> Report {
             *width.borrow_mut() = Some(read);
             view! {
                 <Root>
-                    <Frame width={create_memo(move || Some(read.get()))}>
-                        <List spacing=0.0>
+                    <Frame width={create_memo(move || Length::Size(Size::Custom(read.get())))}>
+                        <List spacing=Space::None>
                             <ForEach keys={(0..2000).collect::<Vec<usize>>()}>|index: usize|
-                                <Text ellipsis=true>{format!("label number {index}")}</Text>
+                                <Text overflow=Overflow::Ellipsis>
+                                    {format!("label number {index}")}
+                                </Text>
                             </ForEach>
                         </List>
                     </Frame>
@@ -188,6 +224,7 @@ fn resize_labels(frames: usize) -> Report {
             bench.update(|| width.set(next));
             Vec::new()
         },
+        || {},
     )
 }
 
@@ -200,7 +237,7 @@ fn edit_plain_paragraph(frames: usize) -> Report {
             *content.borrow_mut() = Some(read);
             view! {
                 <Root>
-                    <Text wrap=true>{read}</Text>
+                    <Text>{read}</Text>
                 </Root>
             }
         }
@@ -221,6 +258,7 @@ fn edit_plain_paragraph(frames: usize) -> Report {
             bench.update(|| content.set(text));
             Vec::new()
         },
+        || {},
     )
 }
 
@@ -242,7 +280,7 @@ fn edit_one_span(frames: usize) -> Report {
             let keys = (0..initial.len()).collect::<Vec<usize>>();
             view! {
                 <Root>
-                    <Text wrap=true>
+                    <Text>
                         <ForEach keys={keys}>|index: usize| {
                             let word = create_memo(move || {
                                 read.get().get(index).cloned().unwrap_or_default()
@@ -268,6 +306,7 @@ fn edit_one_span(frames: usize) -> Report {
             bench.update(|| words.set(next));
             Vec::new()
         },
+        || {},
     )
 }
 
@@ -308,7 +347,7 @@ fn type_in_text_area(frames: usize) -> Report {
     });
     let state = taken(&held);
     let before = state.bytes().len();
-    let report = measure(
+    measure(
         "type-in-text-area",
         frames,
         document,
@@ -318,15 +357,16 @@ fn type_in_text_area(frames: usize) -> Report {
                 5 => ' ',
                 step => char::from(b'a' + step as u8),
             };
-            vec![Event::Text(letter.to_string())]
+            vec![Input::Text(letter.to_string())]
         },
-    );
-    assert_eq!(
-        state.bytes().len(),
-        before + WARMUP + frames,
-        "every frame typed one letter into the text area"
-    );
-    report
+        move || {
+            assert_eq!(
+                state.bytes().len(),
+                before + WARMUP + frames,
+                "every frame typed one letter into the text area"
+            );
+        },
+    )
 }
 
 type Scenario = (&'static str, fn(usize) -> Report);

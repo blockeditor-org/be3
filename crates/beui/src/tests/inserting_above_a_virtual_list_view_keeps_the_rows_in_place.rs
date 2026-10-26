@@ -8,9 +8,11 @@ fn inserting_above_a_virtual_list_view_keeps_the_rows_in_place() {
     let built = create_signal(Vec::new());
     let scroll = keyed_virtual_list(built);
     let mut harness = Harness::new(scroll.document);
-    harness.document.set_scroll_offset(scroll.scroll, 1000.0);
+    harness
+        .document_mut()
+        .set_scroll_offset(scroll.scroll, 1000.0);
     harness.frame(Vec::new());
-    let rows = harness.document.children(scroll.list);
+    let rows = harness.document().children(scroll.list);
     let tops: Vec<f32> = rows.iter().map(|&row| harness.rect(row).top()).collect();
 
     built.update(|built| built.clear());
@@ -20,11 +22,11 @@ fn inserting_above_a_virtual_list_view_keeps_the_rows_in_place() {
     harness.frame(Vec::new());
 
     assert!(built.with_untracked(|built| built.is_empty()));
-    assert_eq!(harness.document.children(scroll.list), rows);
+    assert_eq!(harness.document().children(scroll.list), rows);
     let moved: Vec<f32> = rows.iter().map(|&row| harness.rect(row).top()).collect();
     assert_eq!(moved, tops);
     assert_eq!(
-        harness.document.scroll_offset(scroll.scroll),
+        harness.document().scroll_offset(scroll.scroll),
         1000.0 + VIRTUAL_ITEM_HEIGHT
     );
 }

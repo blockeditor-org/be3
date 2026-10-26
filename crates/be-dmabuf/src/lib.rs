@@ -6,7 +6,7 @@ use smithay::backend::allocator::dmabuf::Dmabuf;
 use smithay::backend::allocator::{Buffer as _, Format, Fourcc, Modifier};
 use wgpu::hal::api::Vulkan as Api;
 
-const WANTED_EXTENSIONS: [&CStr; 4] = [
+pub const DEVICE_EXTENSIONS: [&CStr; 4] = [
     ash::ext::image_drm_format_modifier::NAME,
     ash::khr::external_semaphore_fd::NAME,
     ash::ext::queue_family_foreign::NAME,
@@ -19,36 +19,6 @@ const FORMATS: [Fourcc; 4] = [
     Fourcc::Abgr8888,
     Fourcc::Xbgr8888,
 ];
-
-// unsafe(ffi)
-pub fn open_device(
-    adapter: &wgpu::Adapter,
-    descriptor: &wgpu::DeviceDescriptor<'_>,
-) -> Option<(wgpu::Device, wgpu::Queue)> {
-    let hal = unsafe { adapter.as_hal::<Api>() }?;
-    let capabilities = hal.physical_device_capabilities();
-    let extra: Vec<&'static CStr> = WANTED_EXTENSIONS
-        .into_iter()
-        .filter(|name| capabilities.supports_extension(name))
-        .collect();
-    let opened = unsafe {
-        hal.open_with_callback(
-            descriptor.required_features,
-            &descriptor.required_limits,
-            &descriptor.memory_hints,
-            Some(Box::new(move |arguments| {
-                for name in extra {
-                    if !arguments.extensions.contains(&name) {
-                        arguments.extensions.push(name);
-                    }
-                }
-            })),
-        )
-    }
-    .ok()?;
-    drop(hal);
-    unsafe { adapter.create_device_from_hal(opened, descriptor) }.ok()
-}
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Usage {

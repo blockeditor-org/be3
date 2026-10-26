@@ -14,7 +14,6 @@ fn frame(presents: u64, rect: SurfaceRect) -> Frame {
 #[test]
 fn a_frame_published_after_its_damage_was_read_is_redrawn_next() {
     let layout = ScreenLayout {
-        generation: 1,
         screens: vec![ScreenPlacement {
             screen: ScreenId(1),
             instance: EditorInstanceId(1),
@@ -23,6 +22,7 @@ fn a_frame_published_after_its_damage_was_read_is_redrawn_next() {
             width: 200,
             height: 100,
             scale_factor_millis: 3000,
+            raster_millis: 3000,
         }],
     };
     let whole = Rect::from_min_max(Pos2::ZERO, pos2(1.0, 1.0));

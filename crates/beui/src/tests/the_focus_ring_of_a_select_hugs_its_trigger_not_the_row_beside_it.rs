@@ -39,7 +39,7 @@ fn the_focus_ring_of_a_select_hugs_its_trigger_not_the_row_beside_it() {
 }
 
 fn painted(output: &crate::FrameOutput, fill: Color32, stroke: f32) -> Option<Rect> {
-    output.shapes().iter().find_map(|shape| match shape {
+    output.main().shapes().iter().find_map(|shape| match shape {
         crate::Shape::Rect {
             rect,
             stroke_width,

@@ -7,19 +7,19 @@ fn a_finger_just_outside_a_corner_resizes_the_selection() {
     let mut editor = phone(std::slice::from_ref(&rectangle));
     let shape = format!("infinite-canvas.entity.{}", rectangle.id);
     let bounds = editor.rect_of(&shape);
-    editor.finger(1, TouchPhase::Start, bounds.center());
+    editor.fingers(TouchPhase::Start, &[(1, bounds.center())]);
     editor.run();
-    editor.finger(1, TouchPhase::End, bounds.center());
+    editor.fingers(TouchPhase::End, &[(1, bounds.center())]);
     editor.run();
 
     let from = bounds.right_bottom() + Vec2::new(8.0, 8.0);
-    editor.finger(1, TouchPhase::Start, from);
+    editor.fingers(TouchPhase::Start, &[(1, from)]);
     editor.run();
-    editor.finger(1, TouchPhase::Move, from + Vec2::new(20.0, 30.0));
+    editor.fingers(TouchPhase::Move, &[(1, from + Vec2::new(20.0, 30.0))]);
     editor.run();
-    editor.finger(1, TouchPhase::Move, from + Vec2::new(40.0, 60.0));
+    editor.fingers(TouchPhase::Move, &[(1, from + Vec2::new(40.0, 60.0))]);
     editor.run();
-    editor.finger(1, TouchPhase::End, from + Vec2::new(40.0, 60.0));
+    editor.fingers(TouchPhase::End, &[(1, from + Vec2::new(40.0, 60.0))]);
     editor.run();
 
     let resized = &entities(&editor)[0];

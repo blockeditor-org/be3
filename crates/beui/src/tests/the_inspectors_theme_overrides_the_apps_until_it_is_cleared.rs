@@ -19,11 +19,11 @@ fn the_inspectors_theme_overrides_the_apps_until_it_is_cleared() {
         ..PreferenceLayer::EMPTY
     };
     harness
-        .context
+        .context()
         .set_preference_layer(PreferenceSource::App, app);
     let captions = |output: &crate::FrameOutput, theme: Theme| {
         output
-            .shapes()
+            .main().shapes()
             .iter()
             .filter(|shape| {
                 matches!(shape, crate::Shape::Text { color, .. } if *color == theme.text_muted)
@@ -33,7 +33,7 @@ fn the_inspectors_theme_overrides_the_apps_until_it_is_cleared() {
     assert_eq!(captions(&harness.frame(vec![]), Theme::LIGHT), 1);
 
     harness.toggle_inspector();
-    harness.click(harness.simulation_tab_center());
+    harness.show_inspector_tab(crate::inspector::InspectorTab::Simulation);
     harness.frame(vec![]);
     harness.choose_in_simulation("theme", 4);
     let restyled = harness.frame(vec![]);
@@ -43,7 +43,7 @@ fn the_inspectors_theme_overrides_the_apps_until_it_is_cleared() {
     );
     assert_eq!(captions(&restyled, Theme::EPAPER), 1);
     assert_eq!(
-        harness.context.preference_layer(PreferenceSource::App),
+        harness.context().preference_layer(PreferenceSource::App),
         app,
         "the override is not the app's own preference"
     );

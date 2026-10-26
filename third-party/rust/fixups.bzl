@@ -9,6 +9,7 @@
 #   build_script        False to not run the crate's build script.
 #   build_script_env    Environment for the build script, with buck2's macros.
 #   rustc_flags         More flags for the library's compile.
+#   plan_rustc_flags    plan: more flags for the library's compile there.
 #   features            platform: features to turn on as well.
 #   overlay             path in the crate: a file in this package that
 #                       replaces it.
@@ -71,6 +72,10 @@ FIXUPS = {
     "gdk-pixbuf-sys": _PKG_CONFIG,
     "gdk-sys": _PKG_CONFIG,
     "gdkx11-sys": _PKG_CONFIG,
+    # A pure guest (wasm32-unknown-unknown) has no entropy of its own; the
+    # type-module library seeds a generator from its host and is getrandom's
+    # custom backend (crates/block-type-guest/src/entropy.rs).
+    "getrandom": {"plan_rustc_flags": {"wasm32": ["--cfg", 'getrandom_backend="custom"']}},
     "gio-sys": _PKG_CONFIG,
     "glib-sys": _PKG_CONFIG,
     "gobject-sys": _PKG_CONFIG,
@@ -129,7 +134,12 @@ FIXUPS = {
     # itself, rather than through the import library windows_<arch>_msvc
     # vendors. That library is needed by every final link, and a build
     # script's link search path reaches only the compile of its own crate.
-    "windows-targets": {"rustc_flags": ["--cfg=windows_raw_dylib"]},
+    # Under that cfg 0.53 re-exports windows-link's macro, a dependency cargo
+    # adds only when it sees the cfg itself; the older versions ignore it.
+    "windows-targets": {
+        "deps": [":windows-link-0.2.1"],
+        "rustc_flags": ["--cfg=windows_raw_dylib"],
+    },
     # The snapshot lookup, which nothing here calls, starts from
     # env!("CARGO_MANIFEST_DIR"): an absolute path into the directory each
     # compile runs in. That made the -Zno-codegen metadata a dependent compiles

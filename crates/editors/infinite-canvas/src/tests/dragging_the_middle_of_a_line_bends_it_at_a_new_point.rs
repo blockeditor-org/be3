@@ -31,11 +31,11 @@ fn dragging_the_middle_of_a_line_bends_it_at_a_new_point() {
     );
     arrow.style.end_arrowhead = CanvasArrowhead::Arrow;
     arrow.bindings = [
-        Some(block_editor_beui::be_block::canvas::CanvasBinding {
+        Some(infinite_canvas_types::CanvasBinding {
             entity: from.id,
             anchor: CanvasPoint::default(),
         }),
-        Some(block_editor_beui::be_block::canvas::CanvasBinding {
+        Some(infinite_canvas_types::CanvasBinding {
             entity: to.id,
             anchor: CanvasPoint::default(),
         }),
@@ -45,7 +45,7 @@ fn dragging_the_middle_of_a_line_bends_it_at_a_new_point() {
     let scale = anchor.width() / 104.0;
     let at = |x: f32, y: f32| -> Pos2 { anchor.center() + Vec2::new(x + 150.0, y) * scale };
 
-    editor.click_at(at(40.0, 0.0));
+    editor.click(at(40.0, 0.0));
     editor.run();
     assert_eq!(editor.label("infinite-canvas.selection"), "Arrow selected");
     editor.snapshot("a_selected_arrow_shows_a_handle_at_its_middle");

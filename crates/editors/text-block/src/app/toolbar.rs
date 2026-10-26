@@ -1,24 +1,24 @@
 use beui::Key;
 use beui::NodeId;
 use beui::icons::{
-    ICON_ADD_BOX, ICON_CHECKLIST, ICON_CODE, ICON_DATA_ARRAY, ICON_FORMAT_BOLD, ICON_FORMAT_ITALIC,
-    ICON_FORMAT_LIST_BULLETED, ICON_FORMAT_LIST_NUMBERED, ICON_FORMAT_STRIKETHROUGH, ICON_IMAGE,
-    ICON_KEYBOARD_HIDE, ICON_LINK, ICON_SETTINGS, ICON_TITLE,
+    ICON_BOLD, ICON_BRACKETS, ICON_CODE, ICON_HEADING, ICON_IMAGE, ICON_ITALIC, ICON_KEYBOARD_OFF,
+    ICON_LINK, ICON_LIST, ICON_LIST_CHECKS, ICON_LIST_ORDERED, ICON_SETTINGS, ICON_SQUARE_PLUS,
+    ICON_STRIKETHROUGH,
 };
 use beui::reactive::*;
 use beui::styled::*;
-use beui::unstyled::ChoiceOption;
 use block_editor_beui::BlockParent;
-use block_editor_beui::{BlockFilter, block_ui::BlockLabel, child_rect};
+use block_editor_beui::beui::icons::Glyph;
+use block_editor_beui::{BlockFilter, block_ui::BlockLabel};
 use text_editor_core::{EditorCommand, MarkdownCommand, TextIndentation, TextLanguage};
 
 use super::state::State;
 
-const TOOLBAR_SPACING: f32 = 6.0;
-const SETTINGS_SPACING: f32 = 10.0;
-const SELECT_WIDTH: f32 = 120.0;
-const NUMBER_WIDTH: f32 = 70.0;
-const FORMAT_PADDING: f32 = 6.0;
+const TOOLBAR_SPACING: Space = Space::Sm;
+const SETTINGS_SPACING: Space = Space::Md;
+const SELECT_WIDTH: Size = Size::Custom(120.0);
+const NUMBER_WIDTH: Size = Size::Custom(70.0);
+const FORMAT_PADDING: Space = Space::Sm;
 
 #[component]
 pub(crate) fn EditorMenu(state: State) -> NodeId {
@@ -45,13 +45,13 @@ fn menu_actions(state: State, settings: Signal<bool>) {
     let hex = state.hex_view;
     let in_text = create_memo(move || !hex.get());
     let hex_view = Action::new("text.hex", "Hex view", move || state.toggle_hex_view())
-        .glyph(ICON_DATA_ARRAY)
+        .glyph(ICON_BRACKETS)
         .checked(create_memo(move || hex.get()))
         .register();
     let insert = Action::new("text.insert-block", "Insert a block", move || {
         pick_block(state)
     })
-    .glyph(ICON_ADD_BOX)
+    .glyph(ICON_SQUARE_PLUS)
     .enabled(in_text)
     .register();
     let settings = Action::new("text.settings", "Text settings", move || settings.set(true))
@@ -64,39 +64,39 @@ fn menu_actions(state: State, settings: Signal<bool>) {
     ]);
 }
 
-const FORMATS: [(&str, &str, &str, MarkdownCommand, Option<Chord>); 10] = [
+const FORMATS: [(&str, &str, Glyph, MarkdownCommand, Option<Chord>); 10] = [
     (
         "text.format.heading",
         "Heading",
-        ICON_TITLE,
+        ICON_HEADING,
         MarkdownCommand::Heading(2),
         None,
     ),
     (
         "text.format.bold",
         "Bold",
-        ICON_FORMAT_BOLD,
+        ICON_BOLD,
         MarkdownCommand::Bold,
         Some(Chord::ctrl(Key::B)),
     ),
     (
         "text.format.italic",
         "Italic",
-        ICON_FORMAT_ITALIC,
+        ICON_ITALIC,
         MarkdownCommand::Italic,
         Some(Chord::ctrl(Key::I)),
     ),
     (
         "text.format.bulleted-list",
         "Bulleted list",
-        ICON_FORMAT_LIST_BULLETED,
+        ICON_LIST,
         MarkdownCommand::BulletedList,
         None,
     ),
     (
         "text.format.checklist",
         "Checklist",
-        ICON_CHECKLIST,
+        ICON_LIST_CHECKS,
         MarkdownCommand::Checklist,
         None,
     ),
@@ -110,7 +110,7 @@ const FORMATS: [(&str, &str, &str, MarkdownCommand, Option<Chord>); 10] = [
     (
         "text.format.strikethrough",
         "Strikethrough",
-        ICON_FORMAT_STRIKETHROUGH,
+        ICON_STRIKETHROUGH,
         MarkdownCommand::Strikethrough,
         None,
     ),
@@ -124,7 +124,7 @@ const FORMATS: [(&str, &str, &str, MarkdownCommand, Option<Chord>); 10] = [
     (
         "text.format.numbered-list",
         "Numbered list",
-        ICON_FORMAT_LIST_NUMBERED,
+        ICON_LIST_ORDERED,
         MarkdownCommand::NumberedList,
         None,
     ),
@@ -151,7 +151,7 @@ pub(crate) fn format_actions(state: State) -> Vec<Action> {
             let mut action = Action::new(*id, *label, move || {
                 state.text.execute(EditorCommand::Markdown(command))
             })
-            .glyph(glyph)
+            .glyph(*glyph)
             .enabled(markdown);
             if let Some(chord) = chord {
                 action = action.shortcut(*chord);
@@ -187,23 +187,28 @@ pub(crate) fn FormatBar(state: State, formats: Vec<Action>) -> NodeId {
         view! {
             <Interactive press_focus=false @node_ref=&row @test_id={"text.format"}>
                 <Frame fill=ColorRole::Surface>
-                    <List spacing=0.0>
+                    <List spacing=Space::None>
                         <Separator />
-                        <List direction=Direction::Horizontal align=Align::Center spacing=0.0>
+                        <List
+                            direction=Direction::Horizontal
+                            align=Align::Center
+                            spacing=Space::None
+                        >
                             <Scroll
                                 @sizing=ItemSize::Percent(100.0)
                                 direction=Direction::Horizontal
                             >
                                 <Frame padding=FORMAT_PADDING>
-                                    <List spacing=0.0>
+                                    <List spacing=Space::None>
                                         <Show condition={markdown} then={controls} />
                                     </List>
                                 </Frame>
                             </Scroll>
                             <Show condition={keyboard}>
                                 <Frame padding=FORMAT_PADDING>
-                                    <IconButton
-                                        glyph=ICON_KEYBOARD_HIDE
+                                    <Button
+                                        icon_only=true
+                                        glyph=ICON_KEYBOARD_OFF
                                         label="Done"
                                         @test_id={"text.format.done"}
                                         on_click={|| with_document(|document| document.update_focus(None))}
@@ -217,7 +222,7 @@ pub(crate) fn FormatBar(state: State, formats: Vec<Action>) -> NodeId {
         }
     };
     view! {
-        <List spacing=0.0>
+        <List spacing=Space::None>
             <Show condition={shown} then={bar} />
         </List>
     }
@@ -232,7 +237,7 @@ fn MarkdownControls(formats: Vec<Action>) -> NodeId {
                 let action = formats[index].clone();
                 let id = action.id().to_owned();
                 view! {
-                    <IconButton @test_id={id} action />
+                    <Button icon_only=true @test_id={id} action />
                 }
             }</ForEach>
         </List>
@@ -288,45 +293,43 @@ fn TextSettings(state: State) -> NodeId {
         <List spacing=SETTINGS_SPACING>
             <List direction=Direction::Horizontal align=Align::Center spacing=SETTINGS_SPACING>
                 <Text @sizing=ItemSize::Percent(100.0)>"Language"</Text>
-                <Frame width=SELECT_WIDTH>
-                    <Select
-                        label="Language"
-                        selected={Binding::new(language_index, move |index: Option<usize>| {
-                            let Some(choice) = index.and_then(|index| TextLanguage::ALL.get(index)) else {
-                                return;
-                            };
-                            state.text.execute(EditorCommand::SetLanguage(*choice));
-                        })}
-                        @test_id={"text.language"}
-                        options={view! {
-                            <ForEach
-                                keys={(0..TextLanguage::ALL.len()).collect::<Vec<usize>>()}
-                            >|index: usize|
-                                <ChoiceOption label={TextLanguage::ALL[index].label().to_owned()} />
-                            </ForEach>
-                        }}
-                    />
-                </Frame>
+                <Select
+                    width=SELECT_WIDTH
+                    label="Language"
+                    selected={Binding::new(language_index, move |index: Option<usize>| {
+                        let Some(choice) = index.and_then(|index| TextLanguage::ALL.get(index)) else {
+                            return;
+                        };
+                        state.text.execute(EditorCommand::SetLanguage(*choice));
+                    })}
+                    @test_id={"text.language"}
+                    options={view! {
+                        <ForEach
+                            keys={(0..TextLanguage::ALL.len()).collect::<Vec<usize>>()}
+                        >|index: usize|
+                            <ChoiceOption label={TextLanguage::ALL[index].label().to_owned()} />
+                        </ForEach>
+                    }}
+                />
             </List>
             <List direction=Direction::Horizontal align=Align::Center spacing=SETTINGS_SPACING>
                 <Text @sizing=ItemSize::Percent(100.0)>"Indentation"</Text>
-                <Frame width=SELECT_WIDTH>
-                    <Select
-                        label="Indentation"
-                        selected={Binding::new(indentation_index, move |index: Option<usize>| {
-                            let indentation = match index {
-                                Some(1) => TextIndentation::Spaces { width: 2 },
-                                _ => TextIndentation::Tabs,
-                            };
-                            state.text.execute(EditorCommand::SetIndentation(indentation));
-                        })}
-                        @test_id={"text.indentation"}
-                        options={view! {
-                            <ChoiceOption label="Tabs" />
-                            <ChoiceOption label="Spaces" />
-                        }}
-                    />
-                </Frame>
+                <Select
+                    width=SELECT_WIDTH
+                    label="Indentation"
+                    selected={Binding::new(indentation_index, move |index: Option<usize>| {
+                        let indentation = match index {
+                            Some(1) => TextIndentation::Spaces { width: 2 },
+                            _ => TextIndentation::Tabs,
+                        };
+                        state.text.execute(EditorCommand::SetIndentation(indentation));
+                    })}
+                    @test_id={"text.indentation"}
+                    options={view! {
+                        <ChoiceOption label="Tabs" />
+                        <ChoiceOption label="Spaces" />
+                    }}
+                />
             </List>
             <Show condition={spaces}>
                 <List direction=Direction::Horizontal align=Align::Center spacing=SETTINGS_SPACING>
@@ -353,9 +356,7 @@ fn TextSettings(state: State) -> NodeId {
 
 fn pick_block(state: State) {
     let caret = state.text.caret_indices().first().copied();
-    let anchor = caret
-        .and_then(|caret| state.text.layout().get_untracked().caret_rect(caret))
-        .map(child_rect);
+    let anchor = caret.and_then(|caret| state.text.layout().get_untracked().caret_rect(caret));
     state.editor.pick_block(
         BlockFilter {
             name: "Insert".to_owned(),
@@ -375,13 +376,21 @@ fn pick_block(state: State) {
             state
                 .inner()
                 .client
-                .set_parent(block.id, BlockParent::Block(state.block_id));
+                .set_parent(block.id(), BlockParent::Block(state.block_id));
             let types = state.host().block_types();
-            let name = match state.inner().client.info(block.id) {
+            let name = match state.inner().client.info(block.id()) {
                 Some(info) => info.label(types.as_ref()).name,
-                None => BlockLabel::new(types.as_ref(), block.block_type, None, false).name,
+                None => {
+                    BlockLabel::new(
+                        types.as_ref(),
+                        uuid::Uuid::from_bytes(block.block_type),
+                        None,
+                        false,
+                    )
+                    .name
+                }
             };
-            state.insert_image_embed(block.id, &name);
+            state.insert_image_embed(block.id(), &name);
         },
     );
 }

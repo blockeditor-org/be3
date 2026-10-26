@@ -21,7 +21,7 @@ fn showing_a_child_at_the_end_of_a_list_damages_only_that_child() {
     harness.frame(Vec::new());
 
     with_installed(harness.document_mut(), |_| shown.set(true));
-    let damage = harness.frame(Vec::new()).damage.bounds();
+    let damage = harness.frame(Vec::new()).main().damage.bounds();
 
     assert!(damage.is_positive());
     assert!(

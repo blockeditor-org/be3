@@ -14,7 +14,7 @@ fn hovering_a_link_underlines_it_without_moving_anything() {
     let before = harness.document().node_rect(link).expect("the link");
 
     let pointer = before.center();
-    let hovered = harness.frame(vec![Event::PointerMoved(pointer)]);
+    let hovered = harness.frame(vec![Input::PointerMoved(pointer)]);
     let after = harness.document().node_rect(link).expect("the link");
 
     assert_eq!(before, after);
@@ -24,6 +24,7 @@ fn hovering_a_link_underlines_it_without_moving_anything() {
 
 fn underlines(output: &crate::FrameOutput) -> usize {
     output
+        .main()
         .shapes()
         .iter()
         .filter(|shape| {

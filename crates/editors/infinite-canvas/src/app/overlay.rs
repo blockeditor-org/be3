@@ -1,9 +1,10 @@
 use block_editor_beui::ResizeMode;
-use block_editor_beui::be_block::canvas::{CanvasPoint, CanvasStyle};
+use block_editor_beui::beui::icons::Glyph;
 use block_editor_beui::beui::{
     Color32, FillRule, FontId, LineCap, LineJoin, Painter, Path, Pos2, Rect, Stroke, TextAlign,
     TextLayout, Vec2, pos2,
 };
+use infinite_canvas_types::{CanvasPoint, CanvasStyle};
 
 use crate::freehand;
 use crate::geometry::*;
@@ -95,7 +96,7 @@ impl Hint {
 
 #[derive(Clone, PartialEq)]
 pub(crate) struct Badge {
-    pub(crate) glyph: &'static str,
+    pub(crate) glyph: Glyph,
     pub(crate) at: CanvasPoint,
 }
 
@@ -105,7 +106,7 @@ impl Badge {
         let badge = Rect::from_center_size(center, Vec2::splat(BADGE_SIDE));
         painter.rect_filled(badge, 5.0, palette.surface);
         painter.rect_stroke(badge, 5.0, 1.0, palette.border);
-        let icon = painter.layout(self.glyph, FontId::icons(16.0), f32::INFINITY);
+        let icon = painter.layout(self.glyph.as_str(), FontId::icons(16.0), f32::INFINITY);
         let size = icon.size();
         painter.galley(
             pos2(center.x - size.x / 2.0, center.y - size.y / 2.0),

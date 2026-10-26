@@ -232,6 +232,12 @@ fn run(options: &mut Options) -> Result<(), String> {
         }
     }
     let web_entry = web.map(|_| web_entry_point(&build));
+    let service_worker = web
+        .map(|web| {
+            let path = web.join("sw.js");
+            std::fs::read(&path).map_err(|error| format!("cannot read {}: {error}", path.display()))
+        })
+        .transpose()?;
     let agents = Agents::new();
     let store = Store {
         options,
@@ -385,6 +391,16 @@ fn run(options: &mut Options) -> Result<(), String> {
             false,
         )?;
         purge_pages(options, &agents, &api_key, &mirror, &["index.html", ""])?;
+    }
+    if let Some(worker) = service_worker.filter(|_| !options.skip_server) {
+        store.put(
+            "the web app's service worker",
+            "sw.js",
+            &worker,
+            "text/javascript; charset=utf-8",
+            false,
+        )?;
+        purge_pages(options, &agents, &api_key, &mirror, &["sw.js"])?;
     }
 
     if page.is_some() && options.skip_server {

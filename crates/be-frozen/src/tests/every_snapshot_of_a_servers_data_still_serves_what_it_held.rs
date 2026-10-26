@@ -1,17 +1,18 @@
 use std::sync::Arc;
 
-use be_block::{
-    FolderContent, MY_FILES, NAME, ROW_PREFIX, TextBlock, TextContent, TextIndentation,
-    TextLanguage, WorkspaceContent,
-    database::DatabaseContent,
-    database_schema::{ChoiceColor, ChoiceIcon, DatabaseSchemaContent},
-    database_view::{DatabaseViewContent, DatabaseViewKind},
-};
+use be_block::{MY_FILES, NAME, ROW_PREFIX};
 use be_cli::{cli, session};
 use be_client::{Connection, contacts};
 use be_keys::{InviteCode, RecoveryPhrase};
 use be_protocol::{ClientMessage, KeyKind, OrganizationKind, OrganizationRole, ServerMessage};
 use be_server::backup::{self, BackupKey, Directory};
+use database_types::{
+    database::DatabaseContent,
+    database_schema::{ChoiceColor, ChoiceIcon, DatabaseSchemaContent},
+    database_view::{DatabaseViewContent, DatabaseViewKind},
+};
+use text_block_types::{TextBlock, TextContent, TextIndentation, TextLanguage};
+use workspace_ui_types::{FolderContent, WorkspaceContent};
 
 use super::*;
 
@@ -61,7 +62,9 @@ fn form_value(value: &str) -> String {
     value.bytes().map(|byte| format!("%{byte:02X}")).collect()
 }
 async fn sign_in(server: &Server, email: &str, password: &str) -> (Arc<Connection>, String) {
-    let connection = Connection::connect(&socket(server)).await.unwrap();
+    let connection = Connection::connect(&socket(server), &be_client::Clock::real())
+        .await
+        .unwrap();
     let ServerMessage::BrowserLogin { code, secret, .. } = request(&connection, |request| {
         ClientMessage::BeginBrowserLogin { request }
     })
@@ -164,8 +167,15 @@ async fn check(snapshot: &Snapshot) {
     let (by_password, owner_token) =
         sign_in(&server, scene::OWNER_EMAIL, scene::OWNER_PASSWORD).await;
     let store = be_server::ServerStore::open(&server.data).unwrap();
-    assert!(store.resolve_token(snapshot.owner_token).await.is_err());
-    assert!(store.resolve_token(snapshot.friend_token).await.is_err());
+    let kept = snapshot.name >= scene::SESSIONS_KEPT_SINCE;
+    assert_eq!(
+        store.resolve_token(snapshot.owner_token).await.is_ok(),
+        kept
+    );
+    assert_eq!(
+        store.resolve_token(snapshot.friend_token).await.is_ok(),
+        kept
+    );
     let ServerMessage::RecoveryKey { public, .. } = request(&by_password, |request| {
         ClientMessage::GetRecoveryKey { request }
     })
@@ -207,6 +217,41 @@ async fn check(snapshot: &Snapshot) {
     )));
 
     let owner = peer(&server, snapshot.owner_phrase, &owner_token, organization).await;
+    if snapshot.name >= scene::POLICIES_SINCE {
+        assert!(
+            !owner
+                .organization_policies()
+                .await
+                .unwrap()
+                .shares_outside(),
+            "{name}: the organization's policies no longer read"
+        );
+        let offer = owner
+            .offer(id(snapshot.team), be_graph::Access::View)
+            .await
+            .unwrap();
+        let card = contacts::card(
+            owner.account(),
+            owner.keys().identity(),
+            scene::OWNER_NAME,
+            scene::OWNER_EMAIL,
+        );
+        let refused = contacts::make_link(
+            &owner.connection(),
+            owner.keys().identity(),
+            &card,
+            Some(&offer),
+        )
+        .await
+        .unwrap_err();
+        assert!(
+            matches!(
+                refused,
+                be_client::ClientError::Refused(be_protocol::ErrorCode::PolicyRefused, _)
+            ),
+            "{name}: the server no longer reads the policies shared with it: {refused}"
+        );
+    }
     let metadata = |block: &str| {
         let owner = &owner;
         let block = id(block);
@@ -368,6 +413,7 @@ async fn check(snapshot: &Snapshot) {
         })
         .await
         .unwrap(),
+        sources(),
     );
     assert_eq!(agent.peer().keys().escrow(), latest);
     let listed = run(&agent, &["ls"]).await;
@@ -448,7 +494,7 @@ async fn check(snapshot: &Snapshot) {
         "Taker",
         "taker@example.com",
     );
-    let card = contacts::accept_link(taker.connection(), taker.keys().identity(), &me, &code)
+    let card = contacts::accept_link(&taker.connection(), taker.keys().identity(), &me, &code)
         .await
         .unwrap_or_else(|error| panic!("{name}: the pending link no longer opens: {error}"));
     assert_eq!(card.email, scene::OWNER_EMAIL);
@@ -474,7 +520,7 @@ async fn check(snapshot: &Snapshot) {
     );
     let code = InviteCode::parse(snapshot.invite_code).unwrap();
     let invitation =
-        contacts::accept_invitation(invited.connection(), invited.keys().identity(), &me, &code)
+        contacts::accept_invitation(&invited.connection(), invited.keys().identity(), &me, &code)
             .await
             .unwrap_or_else(|error| panic!("{name}: the invitation no longer opens: {error}"));
     assert_eq!(invitation.organization, organization);
@@ -543,6 +589,8 @@ async fn run(tracker: &Tracker<be_store::FileStore>, arguments: &[&str]) -> Stri
     .unwrap();
     match cli::run(tracker, &invocation).await.unwrap() {
         cli::Outcome::Print(printed) => printed,
-        cli::Outcome::Edit { .. } => panic!("{arguments:?} asked for an editor"),
+        cli::Outcome::Edit { .. } | cli::Outcome::Watch { .. } => {
+            panic!("{arguments:?} asked for an editor or a watch")
+        }
     }
 }

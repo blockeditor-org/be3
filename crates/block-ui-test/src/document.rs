@@ -1,9 +1,11 @@
+use std::cell::RefCell;
+use std::ops::{Deref, DerefMut};
+use std::rc::Rc;
 use std::time::Duration;
 
-use beui::{
-    Color32, Context, Document, FontLibrary, FrameOutput, FreetypeFonts, Modifiers, PointerButton,
-    Pos2, RawInput, Rect, Vec2,
-};
+use beui::WindowSize;
+use beui::testing::{Showing, Stepped, Target};
+use beui::{Color32, Context, Document, FontLibrary, FrameOutput, FreetypeFonts, Rect, Vec2};
 
 use crate::beui::capture;
 use crate::dom::DomPainting;
@@ -11,219 +13,177 @@ use crate::overflow;
 use crate::snapshot;
 
 pub(crate) const FRAME_INTERVAL: Duration = Duration::from_micros(16_667);
-const DRAG_STEPS: usize = 8;
 
 pub struct DocumentTest {
-    document: Document,
-    context: Context,
+    stepped: Stepped,
     fonts: FontLibrary,
-    size: Vec2,
-    output: Option<FrameOutput>,
-    dom: Option<DomPainting>,
-    typed: Vec<beui::Event>,
+    latest: Option<FrameOutput>,
+    dom: Option<Rc<RefCell<DomPainting>>>,
+}
+
+impl Deref for DocumentTest {
+    type Target = Stepped;
+
+    fn deref(&self) -> &Stepped {
+        &self.stepped
+    }
+}
+
+impl DerefMut for DocumentTest {
+    fn deref_mut(&mut self) -> &mut Stepped {
+        &mut self.stepped
+    }
 }
 
 impl DocumentTest {
     pub fn new(document: Document, size: Vec2) -> Self {
+        Self::start(document, size, false)
+    }
+
+    pub fn hosting_windows(document: Document, size: Vec2) -> Self {
+        Self::start(document, size, true)
+    }
+
+    fn start(document: Document, size: Vec2, hosting: bool) -> Self {
         beui::fail_unsettled_layout(true);
         let fonts = FontLibrary::bundled();
         let context = Context::new(FreetypeFonts::new(fonts.clone()));
-        context.stop_clock();
-        context.enable_keyboard();
+        let window = WindowSize { size, scale: 1.0 };
+        let mut stepped = match hosting {
+            true => Stepped::hosting_windows(context, Showing(document), window),
+            false => Stepped::new(context, Showing(document), window, None),
+        };
+        stepped.settle_after_gestures(false);
         let mut test = Self {
-            document,
-            context,
+            stepped,
             fonts,
-            size,
-            output: None,
+            latest: None,
             dom: None,
-            typed: Vec::new(),
         };
         test.frame(Vec::new());
         test
-    }
-
-    pub fn document(&self) -> &Document {
-        &self.document
-    }
-
-    pub fn size(&self) -> Vec2 {
-        self.size
     }
 
     pub fn fonts(&self) -> &FontLibrary {
         &self.fonts
     }
 
-    pub fn context(&self) -> &Context {
-        &self.context
-    }
-
-    pub fn frame(&mut self, events: Vec<beui::Event>) {
-        let Self {
-            document,
-            context,
-            size,
-            typed,
-            ..
-        } = self;
-        let mut held = std::mem::take(typed);
-        held.extend(events);
-        context.advance_clock(FRAME_INTERVAL);
-        let mut output = context.run(RawInput { events: held }, |context| {
-            document.show(context, Rect::from_min_size(Pos2::ZERO, *size));
-        });
-        *typed = std::mem::take(&mut output.typed);
-        let background = self.background();
-        if let Some(dom) = &mut self.dom {
-            dom.show(&output, background);
-        }
-        self.output = Some(output);
+    pub fn frame(&mut self, inputs: Vec<beui::Input>) {
+        self.latest = Some(self.stepped.frame(inputs));
     }
 
     pub fn render_dom(&mut self) {
-        let mut dom = DomPainting::new(self.size);
-        if let Some(output) = &self.output {
-            dom.show(output, self.background());
+        let dom = Rc::new(RefCell::new(DomPainting::new(self.size())));
+        self.refresh();
+        if let Some(output) = &self.latest {
+            dom.borrow_mut().show(output, background(output));
         }
+        let shown = Rc::clone(&dom);
+        self.stepped
+            .observe(move |output| shown.borrow_mut().show(output, background(output)));
         self.dom = Some(dom);
     }
 
-    fn background(&self) -> Color32 {
-        self.document
-            .appearance()
-            .map_or(Color32::BLACK, |appearance| appearance.clear_color)
-    }
-
-    pub fn settle(&mut self) {
-        for _ in 0..1200 {
-            self.frame(Vec::new());
-            if self
-                .output
-                .as_ref()
-                .is_some_and(|output| !output.repaint && output.repaint_after > Duration::ZERO)
-            {
-                return;
-            }
-        }
-        panic!("the document is still animating after 1200 frames");
-    }
-
-    pub fn set_screens(&mut self, screens: Vec<beui::Screen>) {
-        self.context.set_screens(screens);
-        self.frame(Vec::new());
-    }
-
-    pub fn advance(&mut self, by: Duration) {
-        self.context.advance_clock(by);
-        self.frame(Vec::new());
-    }
-
     pub fn shows(&self, test_id: &str) -> bool {
-        self.document
+        let document = self.document();
+        document
             .find_test_id(test_id)
-            .is_some_and(|node| self.document.node_rect(node).is_some())
+            .is_some_and(|node| document.node_rect(node).is_some())
     }
 
     pub fn rect_of(&self, test_id: &str) -> Rect {
-        let node = self
-            .document
+        let document = self.document();
+        let node = document
             .find_test_id(test_id)
             .unwrap_or_else(|| panic!("nothing is marked {test_id}"));
-        self.document
+        document
             .node_rect(node)
             .unwrap_or_else(|| panic!("{test_id} is not laid out"))
     }
 
-    pub fn click(&mut self, test_id: &str) {
-        self.reveal(test_id);
-        let rect = self.rect_of(test_id);
-        self.click_at(rect.center());
+    pub fn click(&mut self, target: impl Into<Target>) -> String {
+        let target = target.into();
+        if let Target::Id(id, _) = &target {
+            self.reveal(id);
+        }
+        let changed = self.stepped.click(target);
+        self.stepped.leave();
+        changed
+    }
+
+    pub fn scroll(&mut self, target: impl Into<Target>, by: Vec2) -> String {
+        let changed = self.stepped.scroll(target, by);
+        self.stepped.leave();
+        changed
     }
 
     pub fn reveal(&mut self, test_id: &str) {
-        let shown = Rect::from_min_size(Pos2::ZERO, self.size);
+        let shown = Rect::from_min_size(beui::Pos2::ZERO, self.size());
         if self.rect_of(test_id).intersect(shown).is_positive() {
             return;
         }
-        let node = self
-            .document
+        let document = self.document_mut();
+        let node = document
             .find_test_id(test_id)
             .unwrap_or_else(|| panic!("nothing is marked {test_id}"));
-        self.document.reveal_node(node);
+        document.reveal_node(node);
         self.frame(Vec::new());
     }
 
-    pub fn click_at(&mut self, pos: Pos2) {
-        self.press_at(pos, PointerButton::Primary);
-    }
-
-    pub fn secondary_click_at(&mut self, pos: Pos2) {
-        self.press_at(pos, PointerButton::Secondary);
-    }
-
-    fn press_at(&mut self, pos: Pos2, button: PointerButton) {
-        self.frame(vec![beui::Event::PointerMoved(pos)]);
-        for pressed in [true, false] {
-            self.frame(vec![beui::Event::PointerButton {
-                pos,
-                button,
-                pressed,
-                modifiers: Modifiers::NONE,
-            }]);
-        }
-        self.frame(vec![beui::Event::PointerGone]);
-    }
-
-    pub fn drag(&mut self, from: Pos2, to: Pos2) {
-        self.frame(vec![beui::Event::PointerMoved(from)]);
-        self.frame(vec![beui::Event::PointerButton {
-            pos: from,
-            button: PointerButton::Primary,
-            pressed: true,
-            modifiers: Modifiers::NONE,
-        }]);
-        for step in 1..=DRAG_STEPS {
-            let along = step as f32 / DRAG_STEPS as f32;
-            self.frame(vec![beui::Event::PointerMoved(from + (to - from) * along)]);
-        }
-        self.frame(vec![beui::Event::PointerButton {
-            pos: to,
-            button: PointerButton::Primary,
-            pressed: false,
-            modifiers: Modifiers::NONE,
-        }]);
-    }
-
-    pub fn scroll_at(&mut self, pos: Pos2, delta: Vec2) {
-        self.frame(vec![
-            beui::Event::PointerMoved(pos),
-            beui::Event::Scroll(delta),
-        ]);
-        self.frame(vec![beui::Event::ScrollEnded, beui::Event::PointerGone]);
-    }
-
     pub fn snapshot(&mut self, name: &str) {
+        let size = self.size();
+        self.refresh();
         let output = self
-            .output
+            .latest
             .as_ref()
             .expect("the document has not drawn a frame yet");
-        let background = self.background();
-        let painting = capture::capture(output, self.size, output.pixels_per_point(), background)
+        let painting = capture::capture(
+            output.main(),
+            size,
+            output.pixels_per_point(),
+            background(output),
+        )
+        .expect("the painting could not be rendered");
+        snapshot::assert_snapshot(name, &painting);
+        overflow::assert_fits(name, overflow::overflows(self.stepped.document()));
+    }
+
+    pub fn snapshot_window(&mut self, name: &str, window: beui::WindowId) {
+        self.refresh();
+        let output = self
+            .stepped
+            .windows()
+            .output(window)
+            .cloned()
+            .unwrap_or_else(|| panic!("window {window:?} has painted nothing"));
+        let background = self.latest.as_ref().map_or(Color32::BLACK, background);
+        let painting = capture::capture_window(&output, 1.0, background)
             .expect("the painting could not be rendered");
         snapshot::assert_snapshot(name, &painting);
-        overflow::assert_fits(name, overflow::overflows(&self.document));
     }
 
     pub fn snapshot_dom(&mut self, name: &str) {
+        let size = self.size();
+        self.refresh();
         let output = self
-            .output
+            .latest
             .as_ref()
             .expect("the document has not drawn a frame yet");
         let dom = self
             .dom
             .as_ref()
             .expect("call render_dom before the frames a DOM snapshot shows");
-        dom.snapshot(name, output, self.size, self.background());
+        dom.borrow()
+            .snapshot(name, output, size, background(output));
     }
+
+    fn refresh(&mut self) {
+        if self.stepped.output().is_some() {
+            self.latest = Some(self.stepped.take_output());
+        }
+    }
+}
+
+fn background(output: &FrameOutput) -> Color32 {
+    output.main().window.appearance.clear_color
 }

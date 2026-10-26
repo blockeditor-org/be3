@@ -23,12 +23,26 @@ fn a_button_that_leaves_focus_alone_keeps_the_keyboard_on_the_text() {
     let mut harness = Harness::new(document);
     harness.frame(Vec::new());
     harness.click(harness.center(input));
-    assert!(harness.frame(Vec::new()).window.ime.is_some());
+    assert!(
+        harness
+            .frame(Vec::new())
+            .main()
+            .window
+            .requests
+            .ime
+            .is_some()
+    );
 
     harness.click(harness.center(button));
     assert_eq!(clicks.get_untracked(), 1);
     assert!(
-        harness.frame(Vec::new()).window.ime.is_some(),
+        harness
+            .frame(Vec::new())
+            .main()
+            .window
+            .requests
+            .ime
+            .is_some(),
         "the text keeps the focus and the keyboard"
     );
 }

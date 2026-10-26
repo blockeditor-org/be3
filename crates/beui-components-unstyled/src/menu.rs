@@ -1,6 +1,7 @@
 use accesskit::{Node, Role, Toggled};
 use beui_core::base::grid::Track;
 use beui_core::base::overlay::Placement;
+use beui_core::icons::Glyph;
 use beui_core::input::{Key, KeyPress};
 use beui_core::layer::Dismiss;
 use beui_core::node::NodeId;
@@ -13,8 +14,6 @@ use beui_view::primitives::*;
 use beui_view::reactive::*;
 use std::cell::RefCell;
 use std::rc::Rc;
-
-const ROW_SPACING: f32 = 2.0;
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum MenuRowKind {
@@ -37,7 +36,7 @@ pub struct MenuRowHandle {
     pub kind: MenuRowKind,
     pub label: Prop<String>,
     pub lead: Prop<String>,
-    pub glyph: Prop<String>,
+    pub glyph: Prop<Option<Glyph>>,
     pub glyph_color: Prop<Option<beui_core::color::Color32>>,
     pub detail: Prop<String>,
     pub checked: Prop<Option<bool>>,
@@ -67,7 +66,7 @@ pub struct MenuItem {
     kind: Kind,
     pub(crate) label: Memo<String>,
     lead: Memo<String>,
-    pub(crate) glyph: Memo<String>,
+    pub(crate) glyph: Memo<Option<Glyph>>,
     glyph_color: Memo<Option<beui_core::color::Color32>>,
     detail: Memo<String>,
     checked: Memo<Option<bool>>,
@@ -119,7 +118,7 @@ impl MenuItem {
 pub fn MenuItem(
     #[prop(default = String::new())] label: Prop<String>,
     #[prop(default = String::new())] lead: Prop<String>,
-    #[prop(default = String::new())] glyph: Prop<String>,
+    #[prop(default = None)] glyph: Prop<Option<Glyph>>,
     #[prop(default = None)] glyph_color: Prop<Option<beui_core::color::Color32>>,
     #[prop(default = String::new())] detail: Prop<String>,
     #[prop(default = None)] checked: Prop<Option<bool>>,
@@ -202,7 +201,7 @@ fn plain(label: Prop<String>, children: Run<MenuItem>) -> MenuItem {
         kind: Kind::Row,
         label: create_memo(move || label.get()),
         lead: create_memo(String::new),
-        glyph: create_memo(String::new),
+        glyph: create_memo(|| None),
         glyph_color: create_memo(|| None),
         detail: create_memo(String::new),
         checked: create_memo(|| None),
@@ -291,6 +290,7 @@ struct State {
     titled: bool,
     pages: bool,
     glyphs: Memo<bool>,
+    spacing: f32,
     on_select: Callback<(Vec<usize>, MenuThen)>,
 }
 
@@ -300,6 +300,7 @@ pub(crate) fn MenuList(
     items: Run<MenuItem>,
     row: Option<RenderFn<MenuRowHandle>>,
     panel: Option<RenderFn<Child>>,
+    spacing: f32,
     #[prop(default = MenuParent::default())] parent: MenuParent,
     #[prop(default = None)] title: Option<Memo<String>>,
     #[prop(default = String::new())] title_test_id: String,
@@ -329,9 +330,10 @@ pub(crate) fn MenuList(
                 items
                     .items()
                     .iter()
-                    .any(|item| item.is_row() && !item.glyph.get().is_empty())
+                    .any(|item| item.is_row() && item.glyph.get().is_some())
             })
         },
+        spacing,
         on_select,
     };
     api.fill(MenuListApi(state));
@@ -398,7 +400,7 @@ pub(crate) fn MenuList(
                 let title_test_id = title_test_id.clone();
                 let lines = lines();
                 view! {
-                    <List spacing=ROW_SPACING>
+                    <List spacing={state.spacing}>
                         <Show condition={state.titled}>
                             <MenuBackRow
                                 state={state}
@@ -437,6 +439,7 @@ fn MenuPage(state: State, row: RenderFn<MenuRowHandle>, panel: RenderFn<Child>) 
             items={item.children.clone()}
             row
             panel
+            spacing={state.spacing}
             parent={leave}
             title={Some(item.spoken())}
             title_test_id
@@ -497,7 +500,7 @@ fn quiet_handle(kind: MenuRowKind, label: Prop<String>) -> MenuRowHandle {
         kind,
         label,
         lead: Prop::Static(String::new()),
-        glyph: Prop::Static(String::new()),
+        glyph: Prop::Static(None),
         glyph_color: Prop::Static(None),
         detail: Prop::Static(String::new()),
         checked: Prop::Static(None),
@@ -603,14 +606,14 @@ fn MenuGridRow(
         },
     );
     let built = view! {
-        <List spacing=ROW_SPACING>
+        <List spacing={state.spacing}>
             <Show condition={separated}>
                 {row.call(quiet_handle(MenuRowKind::Separator, Prop::Static(String::new())))}
             </Show>
             <Grid
                 columns={vec![Track::Fraction(1.0); columns]}
-                column_spacing=ROW_SPACING
-                row_spacing=ROW_SPACING
+                column_spacing={state.spacing}
+                row_spacing={state.spacing}
                 children={cells}
             />
         </List>
@@ -747,6 +750,7 @@ fn MenuRow(
                                     items={children}
                                     row
                                     panel={panel}
+                                    spacing={state.spacing}
                                     parent={leave}
                                     active={open}
                                     focus_first=true
@@ -1166,7 +1170,7 @@ fn MenuNodeItem(nodes: Memo<Vec<MenuNode>>, key: u64, test_prefix: String) -> Me
         Some(MenuNode::Submenu(submenu)) => {
             let items = submenu.items.clone();
             view! {
-                <MenuItem label={submenu.label.clone()} glyph={submenu.glyph.clone()} separated>
+                <MenuItem label={submenu.label.clone()} glyph={submenu.glyph} separated>
                     <MenuNodes nodes={items} test_prefix />
                 </MenuItem>
             }

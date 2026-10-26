@@ -8,10 +8,7 @@ fn host_window_messages_round_trip() {
         app_id: "foot".into(),
         parent: Some(HostWindowId(3)),
         modal: true,
-        size: Size {
-            width: 640.0,
-            height: 480.0,
-        },
+        size: Vec2::new(640.0, 480.0),
         fullscreen: None,
         responding: true,
         focused: false,
@@ -27,7 +24,7 @@ fn host_window_messages_round_trip() {
             launch: Some(9),
         },
     };
-    host_value_round_trips::<HostWindows>(vec![window.clone()]);
+    watched_round_trips::<WindowsWatch>(vec![window.clone()]);
     for action in [
         WindowAction::Focus(window.id),
         WindowAction::Fullscreen {
@@ -36,32 +33,17 @@ fn host_window_messages_round_trip() {
         },
         WindowAction::Close(window.id),
     ] {
-        host_action_round_trips(action);
+        round_trips(&action);
     }
     {
-        let message = Message::Children(ChildPlacements {
+        let message = committed(ChildPlacements {
             instance: EditorInstanceId(3),
             region: EditorRegion::Frame,
-            generation: 2,
-            size: Size {
-                width: 800.0,
-                height: 600.0,
-            },
             children: vec![ChildPlacement {
                 child: ChildId(1),
                 content: ChildContent::Window(window.id),
-                rect: ChildRect {
-                    x: 0.0,
-                    y: 0.0,
-                    width: 640.0,
-                    height: 480.0,
-                },
-                clip: ChildRect {
-                    x: 0.0,
-                    y: 0.0,
-                    width: 800.0,
-                    height: 600.0,
-                },
+                rect: Rect::from_min_size(Pos2::new(0.0, 0.0), Vec2::new(640.0, 480.0)),
+                clip: Rect::from_min_size(Pos2::new(0.0, 0.0), Vec2::new(800.0, 600.0)),
                 own_frame: false,
                 top_bar: TopBar::Hidden,
                 corner_radius: 0.0,
@@ -70,14 +52,11 @@ fn host_window_messages_round_trip() {
                 intrinsic: None,
                 rotation: 0.0,
                 opacity: 1.0,
-                follows_camera: false,
+                follows_view: false,
+                dialog: None,
             }],
             occluders: Vec::new(),
-            camera: None,
         });
-        assert_eq!(
-            decode_frame(&encode_frame(&message).unwrap()).unwrap(),
-            message
-        );
+        round_trips(&message);
     }
 }

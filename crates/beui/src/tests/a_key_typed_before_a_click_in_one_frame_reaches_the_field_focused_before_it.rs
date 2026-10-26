@@ -19,22 +19,21 @@ fn a_key_typed_before_a_click_in_one_frame_reaches_the_field_focused_before_it()
 
     let pos = harness.center(second);
     harness.frame(vec![
-        Event::Text("a".to_owned()),
-        Event::PointerMoved(pos),
-        Event::PointerButton {
+        Input::Text("a".to_owned()),
+        Input::PointerMoved(pos),
+        Input::PointerButton {
             pos,
             button: PointerButton::Primary,
             pressed: true,
-            modifiers: Modifiers::NONE,
         },
-        Event::PointerButton {
+        Input::PointerButton {
             pos,
             button: PointerButton::Primary,
             pressed: false,
-            modifiers: Modifiers::NONE,
         },
-        Event::Text("b".to_owned()),
+        Input::Text("b".to_owned()),
     ]);
+    harness.frame(Vec::new());
     assert_eq!(
         harness
             .document()

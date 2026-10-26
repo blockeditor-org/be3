@@ -91,6 +91,16 @@ impl Group {
             Self::Mask { .. } | Self::Filter(_) => {}
         }
     }
+
+    pub fn place_fade(&self, fade: Fade) -> Fade {
+        match *self {
+            Self::Transform { offset, scale } | Self::Scroll { offset, scale, .. } => {
+                fade.scaled(scale, offset)
+            }
+            Self::Mask { fade: mask, .. } => mask.within(fade),
+            Self::Clip(_) | Self::Filter(_) => fade,
+        }
+    }
 }
 
 pub struct Display {
@@ -171,28 +181,45 @@ impl Display {
     }
 
     pub fn flatten(&self, at: Vec2, into: &mut Vec<Shape>) {
-        self.flatten_within(at, Rect::EVERYTHING, into);
+        let mut faded = Vec::new();
+        self.flatten_faded(at, &mut faded);
+        into.extend(faded.into_iter().map(|(shape, _)| shape));
     }
 
-    fn flatten_within(&self, at: Vec2, clip: Rect, into: &mut Vec<Shape>) {
-        self.flatten_parts(&self.parts, at, clip, into);
+    pub fn flatten_faded(&self, at: Vec2, into: &mut Vec<(Shape, Fade)>) {
+        self.flatten_within(at, Rect::EVERYTHING, Fade::NONE, into);
     }
 
-    fn flatten_parts(&self, parts: &[Part], at: Vec2, clip: Rect, into: &mut Vec<Shape>) {
+    fn flatten_within(&self, at: Vec2, clip: Rect, fade: Fade, into: &mut Vec<(Shape, Fade)>) {
+        self.flatten_parts(&self.parts, at, clip, fade, into);
+    }
+
+    fn flatten_parts(
+        &self,
+        parts: &[Part],
+        at: Vec2,
+        clip: Rect,
+        fade: Fade,
+        into: &mut Vec<(Shape, Fade)>,
+    ) {
         for part in parts {
             match part {
                 Part::Shapes { start, end, .. } => {
                     for shape in &self.shapes[*start as usize..*end as usize] {
-                        push_shown(into, placed_shape(shape, at, clip));
+                        push_shown(into, placed_shape(shape, at, clip), fade);
                     }
                 }
                 Part::Child(_, translation, display) => {
-                    display.flatten_within(at + *translation, clip, into);
+                    display.flatten_within(at + *translation, clip, fade, into);
                 }
                 Part::Group(group, inner) => match *group {
-                    Group::Clip(rect) => {
-                        self.flatten_parts(inner, at, clip.intersect(rect.translate(at)), into)
-                    }
+                    Group::Clip(rect) => self.flatten_parts(
+                        inner,
+                        at,
+                        clip.intersect(rect.translate(at)),
+                        fade,
+                        into,
+                    ),
                     Group::Scroll {
                         viewport,
                         offset,
@@ -202,6 +229,7 @@ impl Display {
                         inner,
                         at + offset,
                         clip.intersect(viewport.translate(at)),
+                        fade,
                         into,
                     ),
                     Group::Scroll {
@@ -211,29 +239,41 @@ impl Display {
                         ..
                     } => {
                         let clip = clip.intersect(viewport.translate(at));
-                        let mut scaled = Vec::new();
-                        self.flatten_parts(inner, Vec2::ZERO, Rect::EVERYTHING, &mut scaled);
-                        for mut shape in scaled {
-                            scale_shape(&mut shape, scale);
-                            push_shown(into, placed_shape(&shape, at + offset, clip));
-                        }
+                        self.flatten_scaled(inner, at + offset, scale, clip, fade, into);
                     }
                     Group::Transform { offset, scale: 1.0 } => {
-                        self.flatten_parts(inner, at + offset, clip, into)
+                        self.flatten_parts(inner, at + offset, clip, fade, into)
                     }
                     Group::Transform { offset, scale } => {
-                        let mut scaled = Vec::new();
-                        self.flatten_parts(inner, Vec2::ZERO, Rect::EVERYTHING, &mut scaled);
-                        for mut shape in scaled {
-                            scale_shape(&mut shape, scale);
-                            push_shown(into, placed_shape(&shape, at + offset, clip));
-                        }
+                        self.flatten_scaled(inner, at + offset, scale, clip, fade, into);
                     }
-                    Group::Mask { .. } | Group::Filter(_) => {
-                        self.flatten_parts(inner, at, clip, into)
+                    Group::Mask { fade: mask, .. } => {
+                        self.flatten_parts(inner, at, clip, fade.within(mask.translate(at)), into)
                     }
+                    Group::Filter(_) => self.flatten_parts(inner, at, clip, fade, into),
                 },
             }
+        }
+    }
+
+    fn flatten_scaled(
+        &self,
+        parts: &[Part],
+        at: Vec2,
+        scale: f32,
+        clip: Rect,
+        fade: Fade,
+        into: &mut Vec<(Shape, Fade)>,
+    ) {
+        let mut scaled = Vec::new();
+        self.flatten_parts(parts, Vec2::ZERO, Rect::EVERYTHING, Fade::NONE, &mut scaled);
+        for (mut shape, inner) in scaled {
+            scale_shape(&mut shape, scale);
+            push_shown(
+                into,
+                placed_shape(&shape, at, clip),
+                fade.within(inner.scaled(scale, at)),
+            );
         }
     }
 
@@ -242,9 +282,9 @@ impl Display {
     }
 }
 
-fn push_shown(into: &mut Vec<Shape>, shape: Shape) {
+fn push_shown(into: &mut Vec<(Shape, Fade)>, shape: Shape, fade: Fade) {
     if crate::damage::bounds(&shape).is_positive() || matches!(shape, Shape::Drawing { .. }) {
-        into.push(shape);
+        into.push((shape, fade));
     }
 }
 
@@ -353,17 +393,23 @@ impl Layer {
     }
 
     pub fn flatten(&self, into: &mut Vec<Shape>) {
+        let mut faded = Vec::new();
+        self.flatten_faded(&mut faded);
+        into.extend(faded.into_iter().map(|(shape, _)| shape));
+    }
+
+    pub fn flatten_faded(&self, into: &mut Vec<(Shape, Fade)>) {
         match self {
-            Self::Shape(shape) => into.push(shape.clone()),
-            Self::Display(at, display) => display.flatten(*at, into),
+            Self::Shape(shape) => into.push((shape.clone(), Fade::NONE)),
+            Self::Display(at, display) => display.flatten_faded(*at, into),
             Self::Group(group, layers) => {
                 let mut inner = Vec::new();
                 for layer in layers.iter() {
-                    layer.flatten(&mut inner);
+                    layer.flatten_faded(&mut inner);
                 }
-                for mut shape in inner {
+                for (mut shape, fade) in inner {
                     group.place_shape(&mut shape);
-                    push_shown(into, shape);
+                    push_shown(into, shape, group.place_fade(fade));
                 }
             }
         }
@@ -382,9 +428,16 @@ impl Layer {
 }
 
 pub fn flatten(layers: &[Layer]) -> Vec<Shape> {
+    flatten_faded(layers)
+        .into_iter()
+        .map(|(shape, _)| shape)
+        .collect()
+}
+
+pub fn flatten_faded(layers: &[Layer]) -> Vec<(Shape, Fade)> {
     let mut shapes = Vec::new();
     for layer in layers {
-        layer.flatten(&mut shapes);
+        layer.flatten_faded(&mut shapes);
     }
     shapes
 }

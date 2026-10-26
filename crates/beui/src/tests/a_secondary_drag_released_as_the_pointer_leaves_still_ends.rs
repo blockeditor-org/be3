@@ -19,22 +19,20 @@ fn a_secondary_drag_released_as_the_pointer_leaves_still_ends() {
     let mut harness = Harness::new(document);
     harness.frame(Vec::new());
     let (from, to) = (pos2(50.0, 50.0), pos2(120.0, 90.0));
-    harness.frame(vec![Event::PointerMoved(from)]);
-    harness.frame(vec![Event::PointerButton {
+    harness.frame(vec![Input::PointerMoved(from)]);
+    harness.frame(vec![Input::PointerButton {
         pos: from,
         button: PointerButton::Secondary,
         pressed: true,
-        modifiers: Modifiers::NONE,
     }]);
-    harness.frame(vec![Event::PointerMoved(to)]);
+    harness.frame(vec![Input::PointerMoved(to)]);
     harness.frame(vec![
-        Event::PointerButton {
+        Input::PointerButton {
             pos: to,
             button: PointerButton::Secondary,
             pressed: false,
-            modifiers: Modifiers::NONE,
         },
-        Event::PointerGone,
+        Input::PointerLeft,
     ]);
 
     let last = *drags.get_untracked().last().expect("the drag was heard");

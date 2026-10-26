@@ -9,6 +9,7 @@ pub fn Offset(
     #[prop(default = 0.0)] offset: Prop<f32>,
     #[prop(default = Direction::Vertical)] direction: Prop<Direction>,
     #[prop(default = false)] fit: bool,
+    #[prop(default = false)] follow_end: Prop<bool>,
     on_change: Callback<ScrollPosition>,
     children: Child,
 ) -> NodeId {
@@ -19,8 +20,16 @@ pub fn Offset(
         node
     });
     create_effect(move || {
-        with_document(|document| document.set_offset_direction(node, direction.get()))
+        let direction = direction.get();
+        with_document(|document| document.set_offset_direction(node, direction))
     });
-    create_effect(move || with_document(|document| document.set_offset_value(node, offset.get())));
+    create_effect(move || {
+        let follows = follow_end.get();
+        with_document(|document| document.set_offset_follows_end(node, follows))
+    });
+    create_effect(move || {
+        let offset = offset.get();
+        with_document(|document| document.set_offset_value(node, offset))
+    });
     node.id()
 }

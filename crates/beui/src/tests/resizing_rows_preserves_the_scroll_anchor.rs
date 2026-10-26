@@ -33,7 +33,7 @@ fn resizing_rows_preserves_the_scroll_anchor() {
         .map(|row| kind_of(&document, row.get()))
         .collect();
     let mut harness = Harness::new(document);
-    harness.document.set_scroll_offset(scroll, 227.0);
+    harness.document_mut().set_scroll_offset(scroll, 227.0);
     harness.frame(Vec::new());
     let anchor = rows[10];
     let top = harness.rect(anchor).top();
@@ -41,23 +41,23 @@ fn resizing_rows_preserves_the_scroll_anchor() {
 
     for &row in &rows[..10] {
         harness
-            .document
+            .document_mut()
             .set_frame_padding(row, Sides::symmetric(0.0, 5.0));
     }
     harness.frame(Vec::new());
 
     assert_eq!(harness.rect(anchor).top(), top);
-    assert_eq!(harness.document.scroll_offset(scroll), 109.0);
+    assert_eq!(harness.document().scroll_offset(scroll), 109.0);
     assert_eq!(reported.get_untracked().unwrap().offset, 109.0);
 
     harness.frame(vec![
-        Event::PointerMoved(harness.center(scroll)),
-        Event::Scroll(Vec2::new(0.0, -5.0)),
+        Input::PointerMoved(harness.center(scroll)),
+        Input::Scroll(ScrollDelta::Pixels(Vec2::new(0.0, -5.0))),
     ]);
     assert_eq!(harness.rect(anchor).top(), top - 5.0);
     assert_eq!(reported.get_untracked().unwrap().offset, 114.0);
 
-    harness.document.set_scroll_offset(scroll, 0.0);
+    harness.document_mut().set_scroll_offset(scroll, 0.0);
     harness.frame(Vec::new());
     assert_eq!(harness.rect(rows[0]).top(), 0.0);
     assert_eq!(reported.get_untracked().unwrap().offset, 0.0);

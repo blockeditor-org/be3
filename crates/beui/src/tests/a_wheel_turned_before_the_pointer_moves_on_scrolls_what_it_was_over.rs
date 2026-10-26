@@ -1,8 +1,8 @@
 use super::*;
 use crate::primitives::Frame;
+use crate::primitives::List;
 use crate::reactive::*;
 use crate::styled::Scroll;
-use crate::styled::*;
 
 #[test]
 fn a_wheel_turned_before_the_pointer_moves_on_scrolls_what_it_was_over() {
@@ -32,9 +32,9 @@ fn a_wheel_turned_before_the_pointer_moves_on_scrolls_what_it_was_over() {
     let (left_top, right_top) = (harness.rect(left).top(), harness.rect(right).top());
 
     harness.frame(vec![
-        Event::PointerMoved(harness.center(left)),
-        Event::Scroll(Vec2::new(0.0, -40.0)),
-        Event::PointerMoved(harness.center(right)),
+        Input::PointerMoved(harness.center(left)),
+        Input::Scroll(ScrollDelta::Pixels(Vec2::new(0.0, -40.0))),
+        Input::PointerMoved(harness.center(right)),
     ]);
     harness.frame(Vec::new());
 

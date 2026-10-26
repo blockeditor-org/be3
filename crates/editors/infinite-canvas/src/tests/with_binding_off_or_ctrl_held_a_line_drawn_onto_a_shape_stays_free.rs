@@ -1,6 +1,6 @@
 use super::*;
-use block_editor_beui::be_block::canvas::CanvasBinding;
 use block_editor_beui::beui::{Modifiers, Pos2};
+use infinite_canvas_types::CanvasBinding;
 
 use crate::app::canvas::item_bounds;
 

@@ -1,6 +1,6 @@
 use super::*;
-use block_editor_beui::be_block::canvas::BINDING_GAP;
-use block_editor_beui::beui::{Event, Pos2};
+use block_editor_beui::beui::{Input, Pos2};
+use infinite_canvas_types::BINDING_GAP;
 
 use crate::app::canvas::item_bounds;
 use crate::geometry::path_ends;
@@ -39,15 +39,15 @@ fn a_line_is_bound_while_it_is_drawn_onto_a_shape() {
 
     editor.click("infinite-canvas.dock.tool.Arrow");
     editor.run();
-    editor.press_at(at(-150.0, 0.0));
+    editor.down(at(-150.0, 0.0), PointerButton::Primary);
     editor.run();
-    editor.step(vec![Event::PointerMoved(at(0.0, 0.0))]);
+    editor.step(vec![Input::PointerMoved(at(0.0, 0.0))]);
     assert_eq!(
         bound_to(&line_of(&editor)),
         [None, None],
         "the arrow is free while its end is over empty canvas"
     );
-    editor.step(vec![Event::PointerMoved(at(160.0, 10.0))]);
+    editor.step(vec![Input::PointerMoved(at(160.0, 10.0))]);
     editor.run();
     let drawing = line_of(&editor);
     assert_eq!(
@@ -62,7 +62,7 @@ fn a_line_is_bound_while_it_is_drawn_onto_a_shape() {
     );
     editor.snapshot("a_line_is_bound_while_it_is_drawn_onto_a_shape");
 
-    editor.release_at(at(160.0, 10.0));
+    editor.up(at(160.0, 10.0), PointerButton::Primary);
     editor.run();
     let landed = line_of(&editor);
     assert_eq!(
@@ -71,9 +71,9 @@ fn a_line_is_bound_while_it_is_drawn_onto_a_shape() {
         "the arrow lands bound as it was drawn"
     );
 
-    editor.press_at(at(head.x, head.y));
+    editor.down(at(head.x, head.y), PointerButton::Primary);
     editor.run();
-    editor.step(vec![Event::PointerMoved(at(140.0, 150.0))]);
+    editor.step(vec![Input::PointerMoved(at(140.0, 150.0))]);
     editor.run();
     let dragging = line_of(&editor);
     assert_eq!(
@@ -88,7 +88,7 @@ fn a_line_is_bound_while_it_is_drawn_onto_a_shape() {
             .contains_local(ellipse.transform.to_local(moved)),
         "the dragged head stops short of the ellipse, got {moved:?}"
     );
-    editor.release_at(at(140.0, 150.0));
+    editor.up(at(140.0, 150.0), PointerButton::Primary);
     editor.run();
     assert_eq!(
         path_ends(&line_of(&editor)),

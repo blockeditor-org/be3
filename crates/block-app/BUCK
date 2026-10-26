@@ -47,10 +47,11 @@ app(
     index = True,
     manifests = ["//{}:manifest".format(package) for package in editor_packages()],
     modules = ["//{}:module".format(package) for package in editor_packages()],
+    plugin_types = ["//{}:types".format(package) for package in editor_packages()],
     precompile_target = per_cross_platform("x86_64-unknown-linux-gnu", cross_triple),
     precompiler = "//crates/plugin-test-runner:precompiler",
     sdk = "//crates/block-plugin-sdk:module",
-    visibility = ["//crates/app-tests:", "//crates/local-tools:"],
+    visibility = ["//crates/app-tests:", "//crates/bench:", "//crates/local-tools:"],
 )
 
 # The plugins alone: every editor's manifest and module, for CI to ship once
@@ -62,6 +63,7 @@ app(
     index = True,
     manifests = ["//{}:manifest".format(package) for package in editor_packages()],
     modules = ["//{}:module".format(package) for package in editor_packages()],
+    plugin_types = ["//{}:types".format(package) for package in editor_packages()],
     sdk = "//crates/block-plugin-sdk:module",
 )
 
@@ -107,6 +109,7 @@ app(
     index = True,
     manifests = ["//{}:manifest".format(package) for package in editor_packages()],
     modules = ["//{}:module".format(package) for package in editor_packages()],
+    plugin_types = ["//{}:types".format(package) for package in editor_packages()],
     run_with = [
         "sh",
         "$(location :serve.sh)",
@@ -160,7 +163,7 @@ export_file(
 # The Android app: the APK is built unsigned locally, with the plugins
 # precompiled for the device, and `./scripts/buck run :android` signs it here
 # into target/android/block-app.apk (`-- --install` installs and starts it).
-# CI's APK carries the same plugins, since an APK has nowhere else to find
+# The build helper's APK carries the same plugins, since an APK has nowhere else to find
 # them, and has an id and label of its own, so that it installs beside a local
 # build rather than colliding with it: sharing the package name, it would
 # either overwrite a local install signed with the same key or fail to install
@@ -172,12 +175,13 @@ app(
     index = True,
     manifests = ["//{}:manifest".format(package) for package in editor_packages()],
     modules = ["//{}:module".format(package) for package in editor_packages()],
+    plugin_types = ["//{}:types".format(package) for package in editor_packages()],
     precompile_target = "aarch64-linux-android",
     precompiler = "//crates/plugin-test-runner:precompiler",
     sdk = "//crates/block-plugin-sdk:module",
 )
 
-# CI finalizes :android-dist on its runner; deploy finalizes :android-release
+# The build helper finalizes :android-dist with CI's key; deploy finalizes :android-release
 # locally. Buck outputs are unsigned templates without build metadata.
 # What ./scripts/deploy uploads is :android-release, signed with the release
 # keystore, under the id and label its --android-id and --android-label give
@@ -188,7 +192,7 @@ app(
         activity = "com.be3.block.MainActivity",
         application_id = application_id,
         assets = ":android-assets",
-        java = glob(["android/java/**/*.java"]) + ["//crates/beui-adapter-android:android-java"],
+        java = glob(["android/java/**/*.java"]) + ["//crates/beui-platform-android:android-java"],
         label = label,
         library = ":block-app",
         manifest = "android/AndroidManifest.xml",
@@ -231,11 +235,35 @@ command_alias(
 )
 
 # The app headless for an agent to drive, signed in with a workspace open:
-# guides/running/drive.md.
+# guides/running/drive.md. Each plugin is its precompiled module alone, half
+# of what :native downloads, and `-c be3.plugins=checklist,file-tree` stages
+# only the editors under crates/editors it names, and workspace-ui, which draws
+# the workspace itself.
+dev_plugins = [
+    package
+    for package in editor_packages()
+    if read_config("be3", "plugins", "") == "" or package.removeprefix("crates/editors/") in ["workspace-ui"] + read_config("be3", "plugins", "").split(",")
+]
+
+app(
+    name = "dev-app",
+    binary = ":bin",
+    compiled_only = True,
+    data = ["//{}:data".format(package) for package in dev_plugins],
+    executable_name = "block-app",
+    files = ["//buck/app:build-info.json"],
+    index = True,
+    manifests = ["//{}:manifest".format(package) for package in dev_plugins],
+    modules = ["//{}:module".format(package) for package in dev_plugins],
+    plugin_types = ["//{}:types".format(package) for package in dev_plugins],
+    precompiler = "//crates/plugin-test-runner:precompiler",
+    sdk = "//crates/block-plugin-sdk:module",
+)
+
 headless(
     name = "dev",
     app_name = "dev",
     args = ["--dev-workspace"],
     data = True,
-    program = "$(location :native)/block-app",
+    program = "$(location :dev-app)/block-app",
 )

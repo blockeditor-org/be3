@@ -9,9 +9,11 @@ use crate::document::Document;
 use crate::geometry::{Pos2, Rect, Vec2};
 use crate::input::{Modifiers, PointerPress};
 use crate::node::Rects;
+use crate::window::WindowId;
 
 #[derive(Clone, Copy, PartialEq, Debug)]
 pub struct DragPoint {
+    pub window: WindowId,
     pub pos: Pos2,
     pub local: Pos2,
     pub size: Vec2,
@@ -22,6 +24,7 @@ pub struct DragPoint {
 impl DragPoint {
     pub fn of(press: PointerPress) -> Self {
         Self {
+            window: press.window,
             pos: press.pos,
             local: press.local,
             size: press.size,
@@ -32,6 +35,7 @@ impl DragPoint {
 
     pub fn at(pos: Pos2, modifiers: Modifiers) -> Self {
         Self {
+            window: WindowId::MAIN,
             pos,
             local: pos,
             size: Vec2::ZERO,
@@ -40,9 +44,14 @@ impl DragPoint {
         }
     }
 
-    pub fn within(self, rect: Rect) -> Self {
+    pub fn in_window(self, window: WindowId) -> Self {
+        Self { window, ..self }
+    }
+
+    pub fn within(self, (rect, scale): (Rect, f32)) -> Self {
         let press = crate::base::interactive::press_at(
             rect,
+            scale,
             self.pos,
             0,
             self.modifiers,
@@ -62,6 +71,7 @@ pub type Accepts = Rc<dyn Fn(&dyn Any) -> bool>;
 pub type Dropped = Rc<dyn Fn(&dyn Any, DragPoint)>;
 pub type Over = Rc<dyn Fn(Option<(&dyn Any, DragPoint)>)>;
 pub type Pending = Rc<dyn Fn(DragPoint)>;
+pub type Outside = Rc<dyn Fn(DragPoint)>;
 
 pub struct Target {
     pub id: u64,
@@ -76,7 +86,8 @@ pub struct Carried {
     pub payload: Rc<dyn Any>,
     pub over: Option<u64>,
     pub last: Option<DragPoint>,
-    pub follow: Rc<dyn Fn(Pos2)>,
+    pub follow: Rc<dyn Fn(DragPoint)>,
+    pub outside: Outside,
 }
 
 pub struct Board {
@@ -85,6 +96,8 @@ pub struct Board {
     carried: RefCell<Option<Carried>>,
     targets: RefCell<Vec<Target>>,
     painted: RefCell<HashMap<u64, Vec<usize>>>,
+    windows: RefCell<HashMap<u64, WindowId>>,
+    outside: Cell<bool>,
     next: Cell<u64>,
 }
 
@@ -96,12 +109,14 @@ impl Board {
             carried: RefCell::default(),
             targets: RefCell::default(),
             painted: RefCell::default(),
+            windows: RefCell::default(),
+            outside: Cell::default(),
             next: Cell::default(),
         }
     }
 
-    fn rect_of(&self, target: &Target) -> Option<Rect> {
-        self.rects.get(&target.node.try_get()?)
+    fn rect_of(&self, target: &Target) -> Option<(Rect, f32)> {
+        self.rects.scaled(&target.node.try_get()?)
     }
 
     pub fn register(&self, mut target: Target) -> u64 {
@@ -124,6 +139,7 @@ impl Board {
     pub fn unregister(&self, id: u64) {
         self.targets.borrow_mut().retain(|target| target.id != id);
         self.painted.borrow_mut().remove(&id);
+        self.windows.borrow_mut().remove(&id);
         if let Some(carried) = self.carried.borrow_mut().as_mut()
             && carried.over == Some(id)
         {
@@ -135,7 +151,13 @@ impl Board {
         self.carried.borrow().is_some()
     }
 
-    pub fn begin(&self, payload: Rc<dyn Any>, point: DragPoint, follow: Rc<dyn Fn(Pos2)>) {
+    pub fn begin(
+        &self,
+        payload: Rc<dyn Any>,
+        point: DragPoint,
+        follow: Rc<dyn Fn(DragPoint)>,
+        outside: Outside,
+    ) {
         let marks = self
             .targets
             .borrow()
@@ -148,6 +170,7 @@ impl Board {
             over: None,
             last: None,
             follow,
+            outside,
         });
         for mark in marks {
             mark(true);
@@ -163,6 +186,25 @@ impl Board {
         self.pressed.borrow_mut().take();
     }
 
+    pub fn set_outside(&self, outside: bool) {
+        self.outside.set(outside);
+    }
+
+    pub fn outside(&self) -> bool {
+        self.outside.get()
+    }
+
+    fn leave(&self) {
+        let previous = self
+            .carried
+            .borrow_mut()
+            .as_mut()
+            .and_then(|carried| carried.over.take());
+        if let Some(left) = previous.and_then(|id| self.over(id)) {
+            left(None);
+        }
+    }
+
     pub fn order(&self, doc: &Document) {
         if !self.carrying() && self.pressed.borrow().is_none() {
             return;
@@ -174,6 +216,13 @@ impl Board {
             .filter_map(|target| Some((target.id, doc.paint_order(target.node.try_get()?))))
             .collect();
         *self.painted.borrow_mut() = painted;
+        let windows = self
+            .targets
+            .borrow()
+            .iter()
+            .filter_map(|target| Some((target.id, doc.window_of(target.node.try_get()?))))
+            .collect();
+        *self.windows.borrow_mut() = windows;
     }
 
     pub fn track(&self, point: DragPoint) {
@@ -182,6 +231,13 @@ impl Board {
             if let Some(pending) = pending {
                 pending(point);
             }
+            return;
+        }
+        if self.outside.get() {
+            if let Some(carried) = self.carried.borrow_mut().as_mut() {
+                carried.last = Some(point);
+            }
+            self.leave();
             return;
         }
         let follow = {
@@ -195,7 +251,7 @@ impl Board {
             carried.last = Some(point);
             Rc::clone(&carried.follow)
         };
-        follow(point.pos);
+        follow(point);
         self.move_to(point);
     }
 
@@ -205,16 +261,33 @@ impl Board {
             .borrow()
             .as_ref()
             .and_then(|carried| carried.last);
-        self.end(last);
+        if !self.outside.get() {
+            self.end(last);
+            return;
+        }
+        let outside = self
+            .carried
+            .borrow()
+            .as_ref()
+            .map(|carried| Rc::clone(&carried.outside));
+        self.leave();
+        self.end(None);
+        if let (Some(outside), Some(last)) = (outside, last) {
+            outside(last);
+        }
     }
 
-    pub fn under(&self, pos: Pos2) -> Option<(u64, Rect, Over)> {
+    pub fn under(&self, window: WindowId, pos: Pos2) -> Option<(u64, (Rect, f32), Over)> {
         let carried = self.carried.borrow();
         let payload = carried.as_ref()?.payload.as_ref();
+        let windows = self.windows.borrow();
         self.targets
             .borrow()
             .iter()
             .filter_map(|target| Some((self.rect_of(target)?, target)))
+            .filter(|(_, target)| {
+                windows.get(&target.id).copied().unwrap_or(WindowId::MAIN) == window
+            })
             .filter(|(_, target)| {
                 target
                     .node
@@ -238,7 +311,7 @@ impl Board {
             .map(|target| Rc::clone(&target.over))
     }
 
-    fn placed(&self, id: u64) -> Option<Rect> {
+    fn placed(&self, id: u64) -> Option<(Rect, f32)> {
         self.targets
             .borrow()
             .iter()
@@ -250,7 +323,7 @@ impl Board {
         if !self.carrying() {
             return;
         }
-        let under = self.under(point.pos);
+        let under = self.under(point.window, point.pos);
         let previous = self.carried.borrow_mut().as_mut().and_then(|carried| {
             std::mem::replace(&mut carried.over, under.as_ref().map(|(id, _, _)| *id))
         });

@@ -10,7 +10,7 @@ use super::model::{
     weekday_from_days,
 };
 
-const HEADER_HEIGHT: f32 = 22.0;
+const HEADER_HEIGHT: Size = Size::Custom(22.0);
 const HOUR_HEIGHT: f32 = 40.0;
 const GUTTER: f32 = 52.0;
 const CONTENT_HEIGHT: f32 = HOUR_HEIGHT * 24.0;
@@ -42,14 +42,14 @@ pub(crate) fn Timeline(
             .collect::<Vec<i64>>()
     });
     view! {
-        <List spacing=0.0>
-            <List direction=Direction::Horizontal spacing=0.0>
-                <Frame width=GUTTER />
+        <List spacing=Space::None>
+            <List direction=Direction::Horizontal spacing=Space::None>
+                <Frame width={Size::Custom(GUTTER)} />
                 <ForEach keys={columns}>|day: i64|
                     <DayHeader @sizing=ItemSize::Percent(100.0) day={day} />
                 </ForEach>
             </List>
-            <Frame height=RULE fill=ColorRole::Border />
+            <Separator />
             <Scroll @sizing=ItemSize::Percent(100.0)>
                 <Grid
                     first_day={first_day}
@@ -107,18 +107,15 @@ fn Grid(
                 let day = first_day.get_untracked() + column.min(days as i64 - 1);
                 on_pick_slot.call((day, hour));
             };
-            let theme = use_theme();
-            let hour_border = theme.border;
-            let rule_border = theme.border;
             view! {
-                <Frame height=CONTENT_HEIGHT>
+                <Frame height={Size::Custom(CONTENT_HEIGHT)}>
                     <Interactive on_click_at={move |press: PointerPress| slot(press.local)}>
                         <Canvas>
                             <ForEach keys={hours}>|hour: u8| {
                                 let top = f32::from(hour) * HOUR_HEIGHT;
                                 view! {
                                     <CanvasItem x=0.0 y={top} width=10000.0 height=RULE>
-                                        <Frame fill={ColorRole::custom(hour_border)} />
+                                        <Frame fill=ColorRole::Border />
                                     </CanvasItem>
                                 }
                             }</ForEach>
@@ -138,7 +135,7 @@ fn Grid(
                                 let x = create_memo(move || GUTTER + index as f32 * column_width.get());
                                 view! {
                                     <CanvasItem x={x} y=0.0 width=RULE height=CONTENT_HEIGHT>
-                                        <Frame fill={ColorRole::custom(rule_border)} />
+                                        <Frame fill=ColorRole::Border />
                                     </CanvasItem>
                                 }
                             }</ForEach>
@@ -177,7 +174,7 @@ fn EventBlock(item: Memo<Option<Placed>>, on_pick: Callback<Shown>) -> CanvasIte
     };
     view! {
         <CanvasItem x={x} y={y} width={width} height={height}>
-            <Frame fill=ColorRole::Accent radius={Radius::custom(3.0)}>
+            <Frame fill=ColorRole::Accent radius=Radius::Xs>
                 <ListRow @test_id={element_test_id} on_click={open} on_activate={open}>
                     <Text style=TextStyle::CAPTION color=TextColor::OnAccent>{title}</Text>
                 </ListRow>

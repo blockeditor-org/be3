@@ -1,22 +1,14 @@
 use super::*;
+use crate::dock::unstyled::{DockPane, DockTab, DockingLayout, dock_menu};
 use crate::reactive::*;
-use crate::unstyled::{
-    Container, DockMode, DockPane, DockTab, DockingLayout, dock_actions, narrower_than,
-};
 
 const PHONE: Vec2 = Vec2::new(390.0, 800.0);
-const NARROW: f32 = 600.0;
 
 #[component]
 fn Docked() -> NodeId {
-    let narrow = narrower_than(NARROW);
-    let mode = create_memo(move || match narrow.get() {
-        true => DockMode::Stacked,
-        false => DockMode::Tiled,
-    });
     let layout = DockingLayout::new();
     view! {
-        <styled::Docking layout mode={mode} focus=2u64>
+        <dock::styled::Docking layout focus=2u64>
             <DockPane id="tabs">
                 <ForEach keys={vec![1u64, 2]}>|id: u64|
                     <DockTab
@@ -24,9 +16,10 @@ fn Docked() -> NodeId {
                         title={format!("Tab {id}")}
                         on_close={|| {}}
                         content={move || {
-                            dock_actions(move || view! {
-                                <Frame @test_id={format!("action.{id}")} width=24.0 height=24.0 />
-                            });
+                            let act = Action::new(format!("action.{id}"), "Act", || {})
+                                    .pin(Pin::Icon)
+                                    .detached();
+                                dock_menu(create_memo(move || vec![MenuNode::action(&act)]));
                             view! {
                                 <Frame @test_id={format!("content.{id}")} />
                             }
@@ -34,7 +27,7 @@ fn Docked() -> NodeId {
                     />
                 </ForEach>
             </DockPane>
-        </styled::Docking>
+        </dock::styled::Docking>
     }
 }
 
@@ -51,9 +44,7 @@ fn tiling_a_stacked_dock_with_its_switcher_open_closes_the_switcher() {
     let _root = crate::reactive::RootScope::new();
     let document = build_node(move || {
         view! {
-            <Container>|_: ReadSignal<Vec2>|
-                <Docked />
-            </Container>
+            <Docked />
         }
     });
     let mut harness = Harness::sized(document, PHONE);
@@ -63,7 +54,7 @@ fn tiling_a_stacked_dock_with_its_switcher_open_closes_the_switcher() {
     harness.settle();
     assert!(laid_out(&harness, "dock.switcher.tab.2"));
 
-    *harness.viewport_mut() = WIDE_VIEWPORT;
+    harness.resize(WIDE_VIEWPORT);
     harness.settle();
     assert!(
         !laid_out(&harness, "dock.switcher.tab.2"),
@@ -71,10 +62,10 @@ fn tiling_a_stacked_dock_with_its_switcher_open_closes_the_switcher() {
     );
     assert!(laid_out(&harness, "content.2"));
 
-    *harness.viewport_mut() = PHONE;
+    harness.resize(PHONE);
     harness.settle();
     assert!(
-        laid_out(&harness, "action.2"),
+        laid_out(&harness, "dock.pin.action.2"),
         "stacking the dock again brings the tab's actions back to its bar"
     );
 }

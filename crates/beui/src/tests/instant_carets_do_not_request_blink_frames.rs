@@ -12,7 +12,14 @@ fn instant_carets_do_not_request_blink_frames() {
         let state = TextAreaState::new(document);
         view! {
             <List spacing=0.0>
-                <TextArea state={state} single_line=true />
+                <TextArea
+                    colors={area_colors()}
+                    look={area_look()}
+                    font_size=AREA_FONT_SIZE
+                    padding=AREA_PADDING
+                    state={state}
+                    single_line=true
+                />
                 <Interactive focusable=true>
                     <Frame width=20.0 height=20.0 />
                 </Interactive>
@@ -25,7 +32,7 @@ fn instant_carets_do_not_request_blink_frames() {
     harness.key(Key::Tab, Modifiers::NONE);
     harness.advance(BLINK);
     harness.frame(Vec::new());
-    harness.context.set_preference_layer(
+    harness.context().set_preference_layer(
         PreferenceSource::System,
         PreferenceLayer {
             motion: Some(Motion::Instant),
@@ -34,7 +41,7 @@ fn instant_carets_do_not_request_blink_frames() {
     );
     harness.frame(Vec::new());
     assert_eq!(harness.frame(Vec::new()).repaint_after, Duration::MAX);
-    harness.context.set_preference_layer(
+    harness.context().set_preference_layer(
         PreferenceSource::System,
         PreferenceLayer {
             motion: Some(Motion::Animated),

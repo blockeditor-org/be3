@@ -2,4 +2,5 @@ load("@root//buck/wasm:defs.bzl", "editor")
 
 editor(
     module = "pixel_art",
+    types = "//crates/editors/pixel-art/types:module",
 )

@@ -42,6 +42,7 @@ async fn key_rows_are_served_only_to_who_may_see_their_block() {
     let organization = owner.organization("keys").await;
     let folder = owner.scope_root(owner_id, BlockParent::Root).await;
     let (inside, inside_key) = owner.inside(&folder).await;
+    owner.lists(owner_id, folder.block, vec![inside]).await;
     let private = owner.scope_root(owner_id, BlockParent::Root).await;
 
     let mut guest = harness.client().await;

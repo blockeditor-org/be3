@@ -1,12 +1,15 @@
 use beui::Vec2;
 use beui::styled::Root;
+use block_editor_beui::beui::Modifiers;
 
 use super::*;
 
 struct PaletteApp;
 
+#[component]
 impl BeuiApp for PaletteApp {
-    fn view(editor: Editor) -> Root {
+    #[component]
+    fn View(editor: Editor) -> Root {
         view! {
             <Root>
                 <Tidy editor={editor} />
@@ -37,9 +40,9 @@ fn the_menu_opens_the_command_palette() {
     test.pick_menu("editor.palette");
     assert!(test.shown("command-palette.search"));
 
-    test.text("tidy");
+    test.type_text("tidy");
     test.run();
-    test.key_press(beui::Key::Enter);
+    test.key(beui::Key::Enter, Modifiers::NONE);
     test.run();
     let node = test
         .document()

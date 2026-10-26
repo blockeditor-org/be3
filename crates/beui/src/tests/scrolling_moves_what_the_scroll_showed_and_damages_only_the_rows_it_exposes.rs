@@ -27,16 +27,18 @@ fn scrolling_moves_what_the_scroll_showed_and_damages_only_the_rows_it_exposes()
     harness.frame(Vec::new());
     let scroll = harness.find("scroll");
     let viewport = harness.rect(scroll);
-    harness.frame(vec![Event::PointerMoved(viewport.center())]);
+    harness.frame(vec![Input::PointerMoved(viewport.center())]);
 
-    let output = harness.frame(vec![Event::Scroll(vec2(0.0, -40.0))]);
+    let output = harness.frame(vec![Input::Scroll(ScrollDelta::Pixels(vec2(0.0, -40.0)))]);
     assert_eq!(harness.document().scroll_offset(scroll), 40.0);
     let moved = output
+        .main()
         .moved()
         .expect("scrolling moves what the scroll already showed");
     assert_eq!(moved.by, vec2(0.0, -40.0));
     assert_eq!(moved.to().height(), viewport.height() - 40.0);
     let damaged: f32 = output
+        .main()
         .damage
         .rects()
         .iter()

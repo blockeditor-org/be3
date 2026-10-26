@@ -1,18 +1,19 @@
 use std::{
     cell::{Cell, RefCell},
-    collections::{HashMap, HashSet, VecDeque},
+    collections::{HashMap, HashSet},
     hash::Hash,
     rc::Rc,
 };
 
 use be_block::be_model::{Document, Field, FieldRef, List, Model};
-use be_block::{LiveEdit, ObjectId, Root, Settling, Touched};
+use be_block::{LiveEdit, ObjectId, Root, Touched};
+use block_type_guest::editor::{EditorMirror, FromEditor, Gesture};
 use reactive::{
     Get, KeyedStore, OwnedSignal, OwnedStored, Pending, ReadSignal, Ready, Set, Stored,
     create_signal, on_cleanup,
 };
 
-use crate::{EditorHost, host::ContentUpdate};
+use crate::EditorHost;
 
 type Run<C> = Rc<dyn Fn(&C, &[Touched])>;
 
@@ -52,74 +53,57 @@ impl<C> Watchers<C> {
     }
 }
 
-#[derive(Clone, Debug, PartialEq)]
-pub enum Projected<Op> {
-    Applied(Op),
-    Rebuilt,
-}
+pub use block_type_guest::editor::Projected;
 
 struct Projection<C: LiveEdit> {
     host: EditorHost,
     block: Option<uuid::Uuid>,
-    confirmed: RefCell<Settling<C>>,
-    visible: RefCell<C>,
-    pending: RefCell<VecDeque<C::Op>>,
-    acknowledged: Cell<u64>,
-    loaded: Cell<bool>,
+    mirror: RefCell<EditorMirror<C>>,
     told: Cell<bool>,
-    resyncing: Cell<bool>,
     watchers: Rc<RefCell<Watchers<C>>>,
     next_watcher: Cell<u64>,
     touched: RefCell<Vec<Touched>>,
-    revision: Cell<u64>,
     announced: OwnedSignal<u64>,
     due: RefCell<Option<Rc<dyn Fn()>>>,
-    projected: RefCell<Option<Vec<Projected<C::Op>>>>,
+}
+
+impl<C: LiveEdit> Drop for Projection<C> {
+    fn drop(&mut self) {
+        self.host.unfollow(self.block);
+    }
 }
 
 impl<C: LiveEdit + Clone + Default> Projection<C> {
     fn new(host: EditorHost, block: Option<uuid::Uuid>) -> Self {
+        host.follow(block);
         Self {
             host,
             block,
-            confirmed: RefCell::new(Settling::new(C::default(), Vec::new())),
-            visible: RefCell::new(C::default()),
-            pending: RefCell::new(VecDeque::new()),
-            acknowledged: Cell::new(0),
-            loaded: Cell::new(false),
+            mirror: RefCell::new(EditorMirror::default()),
             told: Cell::new(false),
-            resyncing: Cell::new(false),
             watchers: Rc::new(RefCell::new(Watchers::new())),
             next_watcher: Cell::new(0),
             touched: RefCell::new(Vec::new()),
-            revision: Cell::new(0),
             announced: OwnedSignal::new(0),
             due: RefCell::new(None),
-            projected: RefCell::new(None),
         }
     }
 
+    fn loaded(&self) -> bool {
+        self.mirror.borrow().is_loaded()
+    }
+
     fn record(&self) {
-        self.projected.borrow_mut().get_or_insert_with(Vec::new);
+        self.mirror.borrow_mut().record();
     }
 
     fn stop_recording(&self) {
-        *self.projected.borrow_mut() = None;
+        self.mirror.borrow_mut().stop_recording();
     }
 
     fn take_projected(&self) -> Vec<Projected<C::Op>> {
         self.adopt_lazily();
-        self.projected
-            .borrow_mut()
-            .as_mut()
-            .map(std::mem::take)
-            .unwrap_or_default()
-    }
-
-    fn log(&self, projected: Projected<C::Op>) {
-        if let Some(log) = self.projected.borrow_mut().as_mut() {
-            log.push(projected);
-        }
+        self.mirror.borrow_mut().take_projected()
     }
 
     fn on_due(&self, due: impl Fn() + 'static) {
@@ -130,7 +114,7 @@ impl<C: LiveEdit + Clone + Default> Projection<C> {
         self.announced.get();
         self.adopt_lazily();
         let told = self.told.get() || self.due.borrow().is_none();
-        if self.loaded.get() && told {
+        if self.loaded() && told {
             Ok(())
         } else {
             Err(Pending::Loading)
@@ -138,18 +122,18 @@ impl<C: LiveEdit + Clone + Default> Projection<C> {
     }
 
     fn revision(&self) -> Ready<u64> {
-        self.ready().map(|()| self.revision.get())
+        self.ready().map(|()| self.mirror.borrow().revision())
     }
 
     fn read<T>(&self, read: impl FnOnce(&C) -> T) -> Ready<T> {
-        self.ready().map(|()| read(&self.visible.borrow()))
+        self.ready().map(|()| read(self.mirror.borrow().visible()))
     }
 
     fn watch<T>(&self, key: Option<Touched>, project: impl Fn(&C) -> T + 'static) -> ReadSignal<T>
     where
         T: Clone + PartialEq + 'static,
     {
-        let read = create_signal(project(&self.visible.borrow()));
+        let read = create_signal(project(self.mirror.borrow().visible()));
         self.register(key, Rc::new(move |content, _| read.set(project(content))));
         read.read_only()
     }
@@ -189,43 +173,48 @@ impl<C: LiveEdit + Clone + Default> Projection<C> {
         V: Clone + PartialEq + 'static,
     {
         let store: KeyedStore<K, V> = KeyedStore::new();
-        project(&self.visible.borrow(), &store);
+        project(self.mirror.borrow().visible(), &store);
         self.register(None, Rc::new(move |content, _| project(content, &store)));
         store
     }
 
     fn operate(&self, operation: C::Op) {
-        if !self.host.editable() || !self.loaded.get() {
+        if !self.host.editable() || !self.loaded() {
             return;
         }
         self.operate_anyway(operation);
     }
 
-    fn gesture(&self, phase: block_plugin_api::GesturePhase) {
-        if self.host.editable() && self.loaded.get() {
-            self.host.gesture_at(self.block, phase);
+    fn gesture(&self, gesture: Gesture) {
+        if self.host.editable() && self.loaded() {
+            self.host
+                .send_to_replica(self.block, FromEditor::Gesture(gesture));
         }
     }
 
     fn operate_anyway(&self, operation: C::Op) {
-        self.visible
-            .borrow_mut()
-            .apply_touching(&operation, &mut self.touched.borrow_mut());
-        self.revision.set(self.revision.get() + 1);
-        self.host
-            .operate_content_at(self.block, C::encode_operation(&operation));
-        self.pending.borrow_mut().push_back(operation);
+        let sent = self.mirror.borrow_mut().operate(operation);
+        let Some(sent) = sent else {
+            return;
+        };
+        self.collect_touched();
+        self.host.send_to_replica(self.block, sent);
         self.notify();
-        self.announced.set(self.revision.get());
+        self.announced.set(self.mirror.borrow().revision());
     }
 
     fn pump(&self) {
         self.adopt();
         self.notify();
-        if self.loaded.get() {
+        if self.loaded() {
             self.told.set(true);
         }
-        self.announced.set(self.revision.get());
+        self.announced.set(self.mirror.borrow().revision());
+    }
+
+    fn collect_touched(&self) {
+        let touched = self.mirror.borrow_mut().take_touched();
+        self.touched.borrow_mut().extend(touched);
     }
 
     fn notify(&self) {
@@ -235,7 +224,7 @@ impl<C: LiveEdit + Clone + Default> Projection<C> {
         }
         let runs = self.watchers.borrow().touched_by(&touched);
         for run in runs {
-            run(&self.visible.borrow(), &touched);
+            run(self.mirror.borrow().visible(), &touched);
         }
     }
 
@@ -252,126 +241,12 @@ impl<C: LiveEdit + Clone + Default> Projection<C> {
 
     fn adopt(&self) {
         for update in self.host.take_content_updates(self.block) {
-            match update {
-                ContentUpdate::Snapshot(content) => {
-                    if content.content_type != C::CONTENT_TYPE {
-                        continue;
-                    }
-                    let Ok(mut settled) = C::decode(&content.bytes) else {
-                        continue;
-                    };
-                    if settled.adopt_session_state(&content.session).is_err() {
-                        continue;
-                    }
-                    let Ok(unsettled) = content
-                        .unsettled
-                        .iter()
-                        .map(|operation| C::decode_operation(operation))
-                        .collect::<Result<Vec<_>, _>>()
-                    else {
-                        continue;
-                    };
-                    let taken = content.applied.saturating_sub(self.acknowledged.get());
-                    self.acknowledged.set(content.applied);
-                    {
-                        let mut pending = self.pending.borrow_mut();
-                        for _ in 0..taken.min(pending.len() as u64) {
-                            pending.pop_front();
-                        }
-                    }
-                    *self.confirmed.borrow_mut() = Settling::new(settled, unsettled);
-                    self.resyncing.set(false);
-                    self.loaded.set(true);
-                    self.rebuild();
-                }
-                ContentUpdate::Operations(operations) => {
-                    if !self.loaded.get() || self.resyncing.get() {
-                        continue;
-                    }
-                    for operation in operations {
-                        if !self.take(operation) {
-                            self.resyncing.set(true);
-                            self.host.request_content_resend(self.block);
-                            break;
-                        }
-                    }
-                }
+            let answer = self.mirror.borrow_mut().receive(update);
+            if let Some(answer) = answer {
+                self.host.send_to_replica(self.block, answer);
             }
         }
-    }
-
-    fn take(&self, landed: block_plugin_api::ContentOperation) -> bool {
-        let Ok(operation) = C::decode_operation(&landed.operation) else {
-            return false;
-        };
-        let mut confirmed = self.confirmed.borrow_mut();
-        let mut pending = self.pending.borrow_mut();
-        if let Some(local) = landed.beneath {
-            let Ok(local) = local
-                .iter()
-                .map(|operation| C::decode_operation(operation))
-                .collect::<Result<Vec<_>, _>>()
-            else {
-                return false;
-            };
-            let landed = confirmed.beneath(
-                &mut self.visible.borrow_mut(),
-                &operation,
-                landed.unsettled,
-                local,
-                pending.iter().cloned(),
-                &mut self.touched.borrow_mut(),
-            );
-            if landed {
-                self.revision.set(self.revision.get() + 1);
-                self.log(Projected::Rebuilt);
-            }
-            return landed;
-        }
-        if landed.mine {
-            pending.pop_front();
-            self.acknowledged.set(self.acknowledged.get() + 1);
-            confirmed.push(operation, landed.unsettled);
-            return true;
-        }
-        if pending.is_empty() {
-            self.visible
-                .borrow_mut()
-                .apply_touching(&operation, &mut self.touched.borrow_mut());
-            confirmed.push(operation.clone(), landed.unsettled);
-            self.revision.set(self.revision.get() + 1);
-            self.log(Projected::Applied(operation));
-            return true;
-        }
-        if landed.unsettled == 0 {
-            confirmed.settle_to(0);
-            confirmed.beneath(
-                &mut self.visible.borrow_mut(),
-                &operation,
-                0,
-                Vec::new(),
-                pending.iter().cloned(),
-                &mut self.touched.borrow_mut(),
-            );
-            self.revision.set(self.revision.get() + 1);
-            self.log(Projected::Rebuilt);
-            return true;
-        }
-        confirmed.push(operation, landed.unsettled);
-        drop((confirmed, pending));
-        self.rebuild();
-        true
-    }
-
-    fn rebuild(&self) {
-        let mut visible = self.confirmed.borrow().visible();
-        for operation in self.pending.borrow().iter() {
-            visible.apply(operation);
-        }
-        *self.visible.borrow_mut() = visible;
-        self.log(Projected::Rebuilt);
-        self.touched.borrow_mut().push(Touched::Everything);
-        self.revision.set(self.revision.get() + 1);
+        self.collect_touched();
     }
 }
 
@@ -494,7 +369,7 @@ impl<C: LiveEdit + Clone + Default + 'static> ContentProjection<C> {
 
     pub fn on_touched(&self, key: Touched, run: impl Fn(&C, &[Touched]) + 'static) {
         let projection = self.inner();
-        run(&projection.visible.borrow(), &[Touched::Everything]);
+        run(projection.mirror.borrow().visible(), &[Touched::Everything]);
         projection.register(Some(key), Rc::new(run));
     }
 
@@ -507,15 +382,15 @@ impl<C: LiveEdit + Clone + Default + 'static> ContentProjection<C> {
     }
 
     pub fn begin_gesture(&self) {
-        self.inner().gesture(block_plugin_api::GesturePhase::Begin);
+        self.inner().gesture(Gesture::Begin);
     }
 
     pub fn commit_gesture(&self) {
-        self.inner().gesture(block_plugin_api::GesturePhase::Commit);
+        self.inner().gesture(Gesture::Commit);
     }
 
     pub fn cancel_gesture(&self) {
-        self.inner().gesture(block_plugin_api::GesturePhase::Cancel);
+        self.inner().gesture(Gesture::Cancel);
     }
 
     pub fn pump(&self) {
@@ -592,7 +467,19 @@ where
     where
         T: Model + Clone + PartialEq + 'static,
     {
-        self.project_on(Touched::Subtree(id), move |content| content.read::<T>(id))
+        let projection = self.inner();
+        let read = create_signal(projection.mirror.borrow().visible().read::<T>(id));
+        projection.register(
+            Some(Touched::Subtree(id)),
+            Rc::new(move |content: &Document<R>, _: &[Touched]| {
+                let next = match read.get_untracked() {
+                    Some(held) => content.reread(id, held),
+                    None => content.read(id),
+                };
+                read.set(next);
+            }),
+        );
+        read.read_only()
     }
 }
 

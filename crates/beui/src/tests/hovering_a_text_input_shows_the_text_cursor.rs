@@ -19,7 +19,7 @@ fn hovering_a_text_input_shows_the_text_cursor() {
             .text(),
     );
 
-    let output = harness.frame(vec![Event::PointerMoved(text.center())]);
+    let output = harness.frame(vec![Input::PointerMoved(text.center())]);
 
-    assert_eq!(output.window.cursor, CursorIcon::Text);
+    assert_eq!(output.main().window.requests.cursor, CursorIcon::Text);
 }

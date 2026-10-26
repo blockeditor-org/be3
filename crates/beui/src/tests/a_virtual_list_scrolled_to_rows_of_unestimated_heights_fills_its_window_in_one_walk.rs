@@ -45,7 +45,7 @@ fn a_virtual_list_scrolled_to_rows_of_unestimated_heights_fills_its_window_in_on
     harness.frame(Vec::new());
 
     built.update(|built| built.clear());
-    harness.document.set_scroll_offset(scroll, 5000.0);
+    harness.document_mut().set_scroll_offset(scroll, 5000.0);
     harness.frame(Vec::new());
 
     let walks = built.get_untracked();

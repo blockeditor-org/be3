@@ -6,11 +6,11 @@ fn moving_the_pointer_ends_the_wheel_latch() {
     harness.frame(Vec::new());
     let (inner, outer) = (harness.find("inner"), harness.find("outer"));
 
-    harness.scroll(pos2(200.0, 190.0), vec2(0.0, -20.0), Modifiers::NONE);
+    harness.scroll_at(pos2(200.0, 190.0), vec2(0.0, -20.0), Modifiers::NONE);
     harness.frame(Vec::new());
     assert_eq!(harness.document().scroll_offset(outer), 20.0);
 
-    harness.scroll(pos2(200.0, 250.0), vec2(0.0, -20.0), Modifiers::NONE);
+    harness.scroll_at(pos2(200.0, 250.0), vec2(0.0, -20.0), Modifiers::NONE);
     harness.frame(Vec::new());
     assert_eq!(
         harness.document().scroll_offset(inner),

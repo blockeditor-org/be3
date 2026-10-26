@@ -3,15 +3,9 @@ use std::fmt;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-#[cfg(not(target_arch = "wasm32"))]
 mod native;
-#[cfg(target_arch = "wasm32")]
-mod web;
 
-#[cfg(not(target_arch = "wasm32"))]
 pub use native::AppStateStore;
-#[cfg(target_arch = "wasm32")]
-pub use web::AppStateStore;
 
 #[derive(Clone, Debug)]
 pub struct AppStateError(String);
@@ -30,7 +24,6 @@ impl From<String> for AppStateError {
     }
 }
 
-#[cfg(not(target_arch = "wasm32"))]
 impl From<rusqlite::Error> for AppStateError {
     fn from(error: rusqlite::Error) -> Self {
         Self(error.to_string())

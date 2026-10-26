@@ -12,12 +12,11 @@ fn a_drag_reaches_a_popup_past_its_windows_edge() {
     let start = shown.center();
 
     harness.frame(vec![
-        Event::PointerMoved(start),
-        Event::PointerButton {
+        Input::PointerMoved(start),
+        Input::PointerButton {
             pos: start,
             button: PointerButton::Primary,
             pressed: true,
-            modifiers: beui::Modifiers::NONE,
         },
     ]);
     harness.settle();
@@ -26,15 +25,18 @@ fn a_drag_reaches_a_popup_past_its_windows_edge() {
         .received
         .serial
         .expect("the press carried a serial");
-    let menu = harness
-        .client
-        .popup(harness.app.server(), &window, (10, 280), (150, 200));
+    let menu = harness.client.popup(
+        harness.stepped.app_mut().compositor.server(),
+        &window,
+        (10, 280),
+        (150, 200),
+    );
     harness.client.start_drag(&device, &window.surface, serial);
     harness.settle();
 
     let below = pos2(shown.min.x + 50.0, shown.max.y + 100.0);
-    harness.frame(vec![Event::PointerMoved(pos2(below.x, below.y - 20.0))]);
-    harness.frame(vec![Event::PointerMoved(below)]);
+    harness.frame(vec![Input::PointerMoved(pos2(below.x, below.y - 20.0))]);
+    harness.frame(vec![Input::PointerMoved(below)]);
     harness.settle();
     assert_eq!(
         client::drop_target().as_ref(),

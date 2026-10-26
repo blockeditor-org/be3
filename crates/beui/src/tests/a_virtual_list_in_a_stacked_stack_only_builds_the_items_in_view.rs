@@ -1,5 +1,6 @@
 use super::*;
 use crate::primitives::Frame;
+use crate::primitives::List;
 use crate::reactive::*;
 use crate::styled::*;
 use crate::unstyled::{Container, narrower_than};
@@ -22,7 +23,7 @@ fn a_virtual_list_in_a_stacked_stack_only_builds_the_items_in_view() {
                     ItemSize::Percent(100.0)
                 });
                 view! {
-                    <Stack spacing=0.0 breakpoint=BREAKPOINT>
+                    <Stack spacing=Space::None breakpoint=BREAKPOINT>
                         <Spacer @sizing=ItemSize::Percent(50.0) />
                         <List @sizing=ItemSize::Percent(50.0) spacing=0.0>
                             <List @sizing={size} spacing=0.0>
@@ -56,14 +57,14 @@ fn a_virtual_list_in_a_stacked_stack_only_builds_the_items_in_view() {
     harness.frame(Vec::new());
 
     let wide = (WIDE_VIEWPORT.y / VIRTUAL_ITEM_HEIGHT) as usize;
-    assert_eq!(harness.document.children(scroll.get()).len(), wide);
+    assert_eq!(harness.document().children(scroll.get()).len(), wide);
 
     built.update(|built| built.clear());
-    *harness.viewport_mut() = VIEWPORT;
+    harness.resize(VIEWPORT);
     harness.frame(Vec::new());
 
     let stacked = (STACKED_LIST_HEIGHT / VIRTUAL_ITEM_HEIGHT) as usize;
     assert_eq!(harness.rect(scroll.get()).height(), STACKED_LIST_HEIGHT);
-    assert_eq!(harness.document.children(scroll.get()).len(), stacked);
+    assert_eq!(harness.document().children(scroll.get()).len(), stacked);
     assert_eq!(built.get_untracked(), Vec::<usize>::new());
 }

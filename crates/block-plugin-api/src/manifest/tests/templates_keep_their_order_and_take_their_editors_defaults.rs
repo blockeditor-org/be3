@@ -12,13 +12,14 @@ fn templates_keep_their_order_and_take_their_editors_defaults() {
     assert_eq!(ids, ["main", "zero", "another"]);
     let main = editor.template("main").expect("main is declared");
     assert_eq!(main.name, "Counter");
-    assert_eq!(main.icon, "\u{eb8d}");
-    assert_eq!(main.category, TemplateCategory::Debug);
+    assert_eq!(main.icon, "\u{e0ef}");
+    assert_eq!(main.category, TemplateCategory::Regular);
+    assert!(main.debug);
     assert_eq!(Some(main.block_type), editor.edits.block_type());
     assert!(!main.dialog);
     let zero = editor.template("zero").expect("zero is declared");
     assert_eq!(zero.name, "Zero");
-    assert_eq!(zero.icon, "\u{e3c6}");
+    assert_eq!(zero.icon, "\u{e167}");
     assert_eq!(zero.category, TemplateCategory::Template);
     let another = editor.template("another").expect("another is declared");
     assert!(another.dialog);

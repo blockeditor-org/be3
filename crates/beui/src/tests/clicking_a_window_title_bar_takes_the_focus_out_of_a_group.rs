@@ -1,5 +1,5 @@
 use super::*;
-use crate::unstyled::{DockApi, Entry, TabId};
+use crate::dock::unstyled::{DockApi, Entry, TabId};
 
 #[test]
 fn clicking_a_window_title_bar_takes_the_focus_out_of_a_group() {
@@ -8,12 +8,11 @@ fn clicking_a_window_title_bar_takes_the_focus_out_of_a_group() {
     let mut harness = Harness::sized(document, WIDE_VIEWPORT);
     harness.frame(Vec::new());
     let pos = harness.center(dock_tab(harness.document(), dock, "Tab 4"));
-    harness.frame(vec![Event::PointerMoved(pos)]);
-    harness.frame(vec![Event::PointerButton {
+    harness.frame(vec![Input::PointerMoved(pos)]);
+    harness.frame(vec![Input::PointerButton {
         pos,
         button: PointerButton::Secondary,
         pressed: true,
-        modifiers: Modifiers::NONE,
     }]);
     harness.frame(Vec::new());
     let row = text_within(harness.document(), dock, "Pop out into a window")
@@ -25,7 +24,7 @@ fn clicking_a_window_title_bar_takes_the_focus_out_of_a_group() {
     harness.drag(dragged, pos2(window.right() + 30.0, window.center().y));
     harness.frame(Vec::new());
     let dragged = harness.center(dock_tab(harness.document(), dock, "Tab 3"));
-    let onto = harness.center(dock_tab(harness.document(), dock, "Tab 2"));
+    let onto = dock_tab_extent(&harness, dock, "Tab 2", 2).center();
     harness.drag(dragged, onto);
     harness.frame(Vec::new());
     let state = harness.document().api::<DockApi>(dock).state();
@@ -45,7 +44,7 @@ fn clicking_a_window_title_bar_takes_the_focus_out_of_a_group() {
     );
 
     let group = harness.rect(dock_tab(harness.document(), dock, "Tab 2, Tab 3"));
-    harness.click(pos2(group.right() + 30.0, group.center().y));
+    harness.click(pos2(group.right() + 60.0, group.center().y));
     harness.frame(Vec::new());
     assert_eq!(
         harness

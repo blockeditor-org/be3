@@ -1,3 +1,4 @@
+use text_block_types::TextContent;
 #[cfg(test)]
 mod tests;
 
@@ -11,22 +12,22 @@ mod toolbar;
 use beui::NodeId;
 use beui::reactive::*;
 use beui::styled::*;
-use block_editor_beui::be_block::TextContent;
 use block_editor_beui::{Creation, Editor, Loaded};
 use uuid::Uuid;
 
-use crate::hex::{self, HexView};
+use crate::hex::HexView;
 
-use embeds::ResolvedEmbed;
 use import_error::ImportError;
-use state::{DIRECT_EDITOR_WIDTH, State};
+use state::State;
 use surface::TextSurface;
 use toolbar::{EditorMenu, FormatBar, format_actions};
 
 pub struct TextApp;
 
+#[component]
 impl block_editor_beui::BeuiApp for TextApp {
-    fn view(editor: Editor) -> Root {
+    #[component]
+    fn View(editor: Editor) -> Root {
         view! {
             <Root>
                 <TextEditor editor={editor} />
@@ -47,7 +48,6 @@ pub fn TextEditor(editor: Editor) -> NodeId {
     let content = NodeRef::new();
     editor.content(&content);
     action_scope(&content);
-    intrinsic_size(state);
     let formats = format_actions(state);
 
     let hex = state.hex_view;
@@ -64,13 +64,13 @@ pub fn TextEditor(editor: Editor) -> NodeId {
         }
     };
     view! {
-        <List @node_ref=&content spacing=0.0>
+        <List @node_ref=&content spacing=Space::None>
             <EditorMenu state={state} />
             <ImportError state={state} />
             <Loaded @sizing=ItemSize::Percent(100.0) label="Loading the text">|| {
                 editor.block_content::<TextContent>();
                 view! {
-                    <List spacing=0.0>
+                    <List spacing=Space::None>
                         <Show condition={text_shown} then={text_surface} />
                         <Show condition={hex_shown} then={hex_surface} />
                     </List>
@@ -79,35 +79,4 @@ pub fn TextEditor(editor: Editor) -> NodeId {
             <FormatBar state={state} formats />
         </List>
     }
-}
-
-fn intrinsic_size(state: State) {
-    let width = create_signal(DIRECT_EDITOR_WIDTH);
-    let resized = state.editor.resized();
-    create_effect(move || {
-        if let Some(size) = resized.get() {
-            width.set(size.x.max(1.0));
-        }
-    });
-    let content = state.text.content();
-    let hex = state.hex_view;
-    let embeds = state.embeds;
-    let measured = create_memo(move || {
-        content.get();
-        let width = width.get();
-        if !state.text.loaded() {
-            return None;
-        }
-        if hex.get() {
-            return Some(hex::intrinsic_size(state.text.bytes().len(), width));
-        }
-        let widgets = embeds
-            .get()
-            .iter()
-            .map(ResolvedEmbed::widget)
-            .collect::<Vec<_>>();
-        state.text.measure(&widgets, width)
-    });
-    let editor = state.editor;
-    create_effect(move || editor.set_intrinsic_size(measured.get()));
 }

@@ -2,11 +2,19 @@ use super::*;
 
 mod a_cycle_is_refused_when_reparenting;
 mod a_detached_subtree_is_pending_deletion;
+mod a_kind_an_editor_changes_hangs_from_its_owner;
+mod a_kind_open_inside_is_read_by_anyone_who_views_a_block_inside;
+mod a_lower_grant_never_reduces_inherited_access;
+mod a_move_without_manage_stays_in_its_workspace_and_raises_nothing;
+mod a_parent_holds_a_child_only_while_it_references_it;
 mod a_parent_knows_its_children_as_the_graph_changes;
+mod a_settings_block_needs_manage_on_its_parent_to_change;
 mod access_is_inherited_through_parents;
+mod access_names_the_block_it_comes_from;
 mod access_to_one_block_agrees_with_mapping_the_whole_graph;
 mod an_account_sees_what_lies_below_its_entry_points;
 mod an_author_edits_only_what_lies_where_it_can_see;
+mod an_author_keeps_no_more_of_a_settings_kind_than_its_settings;
 mod object_references_are_counted_not_traced;
 mod references_do_not_keep_a_block_alive;
 mod the_audience_of_a_block_holds_everyone_who_may_know_it;
@@ -24,6 +32,11 @@ fn graph(parents: &[(u128, BlockParent)]) -> BlockGraph {
         graph
             .insert(id(*block), BlockNode::new(TYPE, AUTHOR, *parent))
             .unwrap();
+        if let BlockParent::Block(parent) = parent {
+            let mut references = graph.references(*parent);
+            references.push(id(*block));
+            graph.set_references(*parent, &references).unwrap();
+        }
     }
     graph
 }
@@ -54,7 +67,12 @@ impl Random {
     }
 
     fn level(&mut self) -> Access {
-        [Access::KnowExists, Access::View, Access::Edit][self.below(3)]
+        [
+            Access::KnowExists,
+            Access::View,
+            Access::Edit,
+            Access::Manage,
+        ][self.below(4)]
     }
 
     fn block(&mut self, graph: &BlockGraph) -> Option<Uuid> {
@@ -74,9 +92,17 @@ fn random_graph(seed: u64, size: u128) -> (BlockGraph, Random) {
                 .block(&graph)
                 .map_or(BlockParent::Root, BlockParent::Block),
         };
-        let mut node = BlockNode::new(TYPE, random.account(), parent);
+        let content_type = match random.below(20) {
+            0..=2 => SETTINGS_TYPE,
+            3 => TAGS_TYPE,
+            _ => TYPE,
+        };
+        let mut node = BlockNode::new(content_type, random.account(), parent);
         if random.chance(25) {
             node.grants.insert(random.account(), random.level());
+        }
+        if random.chance(20) {
+            node.grants.insert(ANYONE_INSIDE, random.level());
         }
         graph.insert(id(block), node).unwrap();
     }
@@ -108,7 +134,11 @@ fn mutate(graph: &mut BlockGraph, random: &mut Random, next: &mut u128) {
                 true => Access::None,
                 false => random.level(),
             };
-            graph.grant(block, random.account(), level).unwrap();
+            let account = match random.chance(20) {
+                true => ANYONE_INSIDE,
+                false => random.account(),
+            };
+            graph.grant(block, account, level).unwrap();
         }
         2 => {
             let references: Vec<Uuid> = (0..random.below(3))
@@ -170,14 +200,111 @@ fn whole_graph_access_map(graph: &BlockGraph, account: Uuid) -> BTreeMap<Uuid, A
             BlockParent::Root | BlockParent::Detached => (Access::None, true),
         };
         let mut best = node.grants.get(&account).copied().unwrap_or_default();
-        if parent.can_view() {
+        if node
+            .parent
+            .block()
+            .is_some_and(|parent| in_settings(graph, parent))
+        {
+            best = match parent.can_view() {
+                true => parent,
+                false => best.min(Access::KnowExists),
+            };
+        } else if parent.can_view() {
             best = best.max(parent);
         }
-        if node.author == account && parent_viewable {
-            best = Access::Edit;
+        if node.author == account
+            && parent_viewable
+            && !node
+                .parent
+                .block()
+                .is_some_and(|parent| in_settings(graph, parent))
+        {
+            best = Access::Manage;
+        }
+        if node.content_type == TAGS_TYPE && matches!(node.parent, BlockParent::Block(_)) {
+            best = match parent {
+                above if above.can_view() => best.min(above.max(Access::View)),
+                _ => best.min(Access::KnowExists),
+            };
+        }
+        if node.content_type == SETTINGS_TYPE && matches!(node.parent, BlockParent::Block(_)) {
+            best = match parent {
+                Access::Manage => Access::Manage,
+                above if above.can_view() => best.min(Access::View),
+                _ => best.min(Access::KnowExists),
+            };
+        }
+        if !best.can_view()
+            && node
+                .grants
+                .get(&ANYONE_INSIDE)
+                .is_some_and(|open| open.can_view())
+            && let Some(owner) = owner_of(graph, id)
+        {
+            let inside: Vec<Uuid> = graph
+                .ids()
+                .into_iter()
+                .filter(|block| inside(graph, owner, *block))
+                .collect();
+            if inside
+                .into_iter()
+                .any(|block| level(graph, account, block, memo).can_view())
+            {
+                best = Access::View;
+            }
         }
         memo.insert(id, best);
         best
+    }
+    fn in_settings(graph: &BlockGraph, block: Uuid) -> bool {
+        let mut path = vec![block];
+        let mut current = block;
+        loop {
+            let node = graph.get(current).unwrap();
+            if matches!(node.parent, BlockParent::Block(_))
+                && (node.content_type == SETTINGS_TYPE || node.content_type == TAGS_TYPE)
+            {
+                return true;
+            }
+            match node.parent {
+                BlockParent::Block(parent) if !path.contains(&parent) && graph.contains(parent) => {
+                    path.push(parent);
+                    current = parent;
+                }
+                _ => return false,
+            }
+        }
+    }
+    fn owner_of(graph: &BlockGraph, kind: Uuid) -> Option<Uuid> {
+        let held = graph.get(kind)?;
+        if held.content_type == TAGS_TYPE {
+            return held.parent.block();
+        }
+        let settings = held.parent.block()?;
+        let node = graph.get(settings)?;
+        match (node.content_type == SETTINGS_TYPE, node.parent) {
+            (true, BlockParent::Block(owner)) => Some(owner),
+            _ => None,
+        }
+    }
+    fn inside(graph: &BlockGraph, owner: Uuid, block: Uuid) -> bool {
+        let mut path = vec![block];
+        let mut current = block;
+        while let Some(BlockParent::Block(parent)) = graph.get(current).map(|node| node.parent) {
+            if parent == owner {
+                return path.iter().all(|step| {
+                    let node = graph.get(*step).unwrap();
+                    !((node.content_type == SETTINGS_TYPE || node.content_type == TAGS_TYPE)
+                        && matches!(node.parent, BlockParent::Block(_)))
+                });
+            }
+            if path.contains(&parent) {
+                return false;
+            }
+            path.push(parent);
+            current = parent;
+        }
+        false
     }
     let mut access: BTreeMap<Uuid, Access> = BTreeMap::new();
     for id in graph.ids() {

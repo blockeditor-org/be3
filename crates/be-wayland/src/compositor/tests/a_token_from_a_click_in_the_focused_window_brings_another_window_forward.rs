@@ -9,7 +9,7 @@ fn a_token_from_a_click_in_the_focused_window_brings_another_window_forward() {
     let (second, second_id) = harness.open();
 
     harness.click(&format!("wayland.window.{}", first_id.0));
-    assert_eq!(harness.app.windows().focused(), Some(first_id));
+    assert_eq!(harness.compositor().windows().focused(), Some(first_id));
     let serial = harness.client.received.serial;
     assert!(serial.is_some(), "the click carried a serial");
 
@@ -25,7 +25,7 @@ fn a_token_from_a_click_in_the_focused_window_brings_another_window_forward() {
     harness.client.activate(&token, &second.surface);
     harness.settle();
     assert_eq!(
-        harness.app.windows().focused(),
+        harness.compositor().windows().focused(),
         Some(second_id),
         "the token brings the other window forward"
     );
@@ -39,7 +39,7 @@ fn a_token_from_a_click_in_the_focused_window_brings_another_window_forward() {
     harness.client.activate(&token, &second.surface);
     harness.settle();
     assert_eq!(
-        harness.app.windows().focused(),
+        harness.compositor().windows().focused(),
         Some(first_id),
         "a token is used up once it has been honoured"
     );

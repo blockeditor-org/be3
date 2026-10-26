@@ -1,11 +1,12 @@
 use block_editor_beui::be_block::be_model::{Document as Content, Edit, ObjectId};
 use block_editor_beui::be_block::block_url::{BLOCK_URL_MAX_BYTES, parse_block_urls};
-use block_editor_beui::be_block::{self, TextBlock};
+
 use block_editor_beui::live_text::{LiveText, TextField};
 use text_editor_core::{TextIndentation, TextLanguage};
 use uuid::Uuid;
 
 pub use block_editor_beui::live_text::History;
+use text_block_types::TextBlock;
 
 #[cfg(test)]
 mod tests;
@@ -58,36 +59,36 @@ pub fn inside_block_url(bytes: &[u8], index: usize) -> bool {
         .any(|url| url.range.start + start < index && index < url.range.end + start)
 }
 
-pub const fn block_language(language: TextLanguage) -> be_block::TextLanguage {
+pub const fn block_language(language: TextLanguage) -> text_block_types::TextLanguage {
     match language {
-        TextLanguage::Markdown | TextLanguage::RichText => be_block::TextLanguage::Markdown,
-        TextLanguage::PlainText => be_block::TextLanguage::PlainText,
-        TextLanguage::Rust => be_block::TextLanguage::Rust,
-        TextLanguage::Zig => be_block::TextLanguage::Zig,
-        TextLanguage::Toml => be_block::TextLanguage::Toml,
+        TextLanguage::Markdown | TextLanguage::RichText => text_block_types::TextLanguage::Markdown,
+        TextLanguage::PlainText => text_block_types::TextLanguage::PlainText,
+        TextLanguage::Rust => text_block_types::TextLanguage::Rust,
+        TextLanguage::Zig => text_block_types::TextLanguage::Zig,
+        TextLanguage::Toml => text_block_types::TextLanguage::Toml,
     }
 }
 
-pub const fn editor_language(language: be_block::TextLanguage) -> TextLanguage {
+pub const fn editor_language(language: text_block_types::TextLanguage) -> TextLanguage {
     match language {
-        be_block::TextLanguage::Markdown => TextLanguage::Markdown,
-        be_block::TextLanguage::PlainText => TextLanguage::PlainText,
-        be_block::TextLanguage::Rust => TextLanguage::Rust,
-        be_block::TextLanguage::Zig => TextLanguage::Zig,
-        be_block::TextLanguage::Toml => TextLanguage::Toml,
+        text_block_types::TextLanguage::Markdown => TextLanguage::Markdown,
+        text_block_types::TextLanguage::PlainText => TextLanguage::PlainText,
+        text_block_types::TextLanguage::Rust => TextLanguage::Rust,
+        text_block_types::TextLanguage::Zig => TextLanguage::Zig,
+        text_block_types::TextLanguage::Toml => TextLanguage::Toml,
     }
 }
 
-pub const fn block_indentation(indentation: TextIndentation) -> be_block::TextIndentation {
+pub const fn block_indentation(indentation: TextIndentation) -> text_block_types::TextIndentation {
     match indentation {
-        TextIndentation::Tabs => be_block::TextIndentation::Tabs,
-        TextIndentation::Spaces { width } => be_block::TextIndentation::Spaces { width },
+        TextIndentation::Tabs => text_block_types::TextIndentation::Tabs,
+        TextIndentation::Spaces { width } => text_block_types::TextIndentation::Spaces { width },
     }
 }
 
-pub const fn editor_indentation(indentation: be_block::TextIndentation) -> TextIndentation {
+pub const fn editor_indentation(indentation: text_block_types::TextIndentation) -> TextIndentation {
     match indentation {
-        be_block::TextIndentation::Tabs => TextIndentation::Tabs,
-        be_block::TextIndentation::Spaces { width } => TextIndentation::Spaces { width },
+        text_block_types::TextIndentation::Tabs => TextIndentation::Tabs,
+        text_block_types::TextIndentation::Spaces { width } => TextIndentation::Spaces { width },
     }
 }

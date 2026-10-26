@@ -1,41 +1,32 @@
 use std::cell::{Cell, RefCell};
-use std::collections::HashMap;
-use std::hash::{BuildHasher, Hash, Hasher};
-
-use foldhash::fast::FixedState;
 use std::ops::Range;
 use std::rc::Rc;
 use std::sync::Arc;
 
 use text_editor_core::{
     CollapsibleSection, CopyMode, Core, CursorPosition, EditorCommand, FindDirection, FindStatus,
-    Formats, Position, Schema, Selected, SyntaxHighlight, TextChange, TextIndentation,
-    TextLanguage, TextRun, markdown_checkbox_marker,
+    Formats, MarkdownCommand, Position, Schema, Selected, SyntaxHighlight, TextChange,
+    TextIndentation, TextLanguage, TextRun,
 };
 
-use beui_core::color::Color32;
 use beui_core::font::FontId;
 use beui_core::geometry::{Pos2, Rect, Vec2};
 use beui_core::rich::{Piece, RichLayout, RichOptions, SpanStyle};
 use beui_view::reactive::*;
 
 use super::colors::TextAreaColors;
-use super::rows::{
-    DOCUMENT_PADDING, Prose, RowInputs, RowOptions, TextWidget, build_row, line_range, line_starts,
-    rich_layout,
-};
+use super::look::TextAreaGeometry;
+use super::rows::{Prose, RowInputs, RowOptions, build_row, line_range, line_starts};
+
+pub struct ProseLine {
+    pub layout: RichLayout,
+    pub quote: usize,
+}
 
 #[derive(Clone, Copy)]
 pub enum Grab {
     Selection(Position),
     Caret,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct MarkdownCheckbox {
-    pub line_start: usize,
-    pub marker: Range<usize>,
-    pub checked: bool,
 }
 
 #[derive(Default)]
@@ -47,13 +38,10 @@ pub struct Snapshot {
     pub language: TextLanguage,
     pub sections: Vec<CollapsibleSection>,
     pub hidden: Vec<Range<usize>>,
-    pub checkboxes: Vec<MarkdownCheckbox>,
     pub highlight: Option<SyntaxHighlight>,
     pub runs: Option<Rc<Vec<TextRun>>>,
     pub formats: Option<Arc<Formats>>,
 }
-
-const MEASURED_BYTES: usize = 64 * 1024;
 
 impl Snapshot {
     pub fn runs_in(&self, start: usize, end: usize) -> &[TextRun] {
@@ -146,7 +134,6 @@ type CursorCache = (
 struct Inner {
     core: RefCell<Core>,
     snapshot: RefCell<Snapshot>,
-    heights: RefCell<HashMap<u64, (f32, f32)>>,
     find: Find,
     canvas: NodeRef,
     cursor_cache: RefCell<CursorCache>,
@@ -204,7 +191,6 @@ impl TextAreaState {
         let state = Self(store(Inner {
             core: RefCell::new(core),
             snapshot: RefCell::new(Snapshot::default()),
-            heights: RefCell::default(),
             find: Find::new(),
             canvas: NodeRef::new(),
             cursor_cache: RefCell::new((Vec::new(), Vec::new(), None)),
@@ -271,6 +257,25 @@ impl TextAreaState {
 
     pub fn schema(&self) -> Arc<dyn Schema> {
         self.with_core(Core::schema)
+    }
+
+    pub fn set_checked(&self, line_start: usize, checked: bool) {
+        let rich = self.with_snapshot(|snapshot| snapshot.language == TextLanguage::RichText);
+        let at = self.with_core(|core| core.position(line_start));
+        let command = match rich {
+            true => {
+                let Some((key, value)) = self.schema().check(checked) else {
+                    return;
+                };
+                EditorCommand::SetBlock {
+                    at: Some(at),
+                    key,
+                    value,
+                }
+            }
+            false => EditorCommand::Markdown(MarkdownCommand::ToggleCheckbox(at)),
+        };
+        self.execute(command);
     }
 
     fn sync_selected(&self) {
@@ -440,11 +445,6 @@ impl TextAreaState {
         inner.snapshot.borrow().sections.clone()
     }
 
-    pub fn checkboxes(&self) -> Vec<MarkdownCheckbox> {
-        let inner = self.0.value();
-        inner.snapshot.borrow().checkboxes.clone()
-    }
-
     pub fn selecting(&self) -> bool {
         let inner = self.0.value();
         inner.selecting.get()
@@ -508,86 +508,6 @@ impl TextAreaState {
         inner.layout.get_untracked().index_at(pos)
     }
 
-    pub fn measure(&self, widgets: &[TextWidget], width: f32) -> Option<Vec2> {
-        let inner = self.0.value();
-        let snapshot = inner.snapshot.borrow();
-        if !snapshot.loaded {
-            return None;
-        }
-        let options = RowOptions {
-            body_size: super::rows::BODY_SIZE,
-            mask: false,
-            single_line: false,
-            prose: None,
-        };
-        let colors = TextAreaColors::DEFAULT;
-        let starts = &snapshot.starts;
-        let wrap = (width - super::PADDING.x * 2.0).max(1.0);
-        let mut height = DOCUMENT_PADDING.y;
-        let (mut shaped_bytes, mut shaped_height, mut one_line) = (0usize, 0.0f32, f32::MAX);
-        let mut held = inner.heights.borrow_mut();
-        let mut heights = HashMap::with_capacity(held.len());
-        for line in 0..starts.len() {
-            let (start, end, newline) = line_range(&snapshot.bytes, starts, line)?;
-            if snapshot.hidden.iter().any(|range| range.contains(&start)) {
-                continue;
-            }
-            if start >= MEASURED_BYTES && shaped_bytes > 0 {
-                let per_byte = shaped_height / shaped_bytes as f32;
-                height += ((end - start + 1) as f32 * per_byte).max(one_line);
-                continue;
-            }
-            let inputs = RowInputs {
-                snapshot: &snapshot,
-                widgets,
-                client_colors: &[],
-                composition: None,
-                colors: &colors,
-                options,
-                spacers: &[],
-                placeholder: None,
-                void_size: None,
-            };
-            let key = line_key(&snapshot, widgets, start, end, wrap);
-            let (row_height, block) = match held.get(&key) {
-                Some(measured) => *measured,
-                None => {
-                    let row = build_row(&inputs, line, start, end, newline);
-                    let font = FontId::proportional(options.body_size);
-                    let row_height = rich_layout(&row, font, options.padding(), wrap)?.size.y;
-                    (row_height, row.block.map_or(0.0, |(_, size)| size.y))
-                }
-            };
-            heights.insert(key, (row_height, block));
-            height += row_height + block;
-            shaped_bytes += end - start + 1;
-            shaped_height += row_height;
-            one_line = one_line.min(row_height);
-        }
-        *held = heights;
-        Some(Vec2::new(width, height))
-    }
-
-    pub fn measure_prose(
-        &self,
-        font_size: f32,
-        prose: Prose,
-        placeholder: &str,
-        wrap_width: f32,
-    ) -> Option<Vec2> {
-        let lines = self.lay_out_prose(
-            font_size,
-            prose,
-            placeholder,
-            wrap_width,
-            &TextAreaColors::DEFAULT,
-            beui_view::reactive::rich_layout,
-        )?;
-        Some(lines.iter().fold(Vec2::ZERO, |size, line| {
-            Vec2::new(size.x.max(line.size.x), size.y + line.size.y)
-        }))
-    }
-
     pub fn lay_out_prose(
         &self,
         font_size: f32,
@@ -595,8 +515,10 @@ impl TextAreaState {
         placeholder: &str,
         wrap_width: f32,
         colors: &TextAreaColors,
+        geometry: TextAreaGeometry,
+        square: f32,
         mut lay_out: impl FnMut(&[Piece], RichOptions) -> Option<RichLayout>,
-    ) -> Option<Vec<RichLayout>> {
+    ) -> Option<Vec<ProseLine>> {
         let inner = self.0.value();
         let snapshot = inner.snapshot.borrow();
         if !snapshot.loaded {
@@ -607,6 +529,7 @@ impl TextAreaState {
             mask: false,
             single_line: false,
             prose: Some(prose),
+            geometry,
         };
         let font = FontId::proportional(font_size).bold(prose.bold);
         let wrap = match prose.wrap {
@@ -629,17 +552,23 @@ impl TextAreaState {
                 composition: None,
                 colors,
                 options,
-                spacers: &[],
                 placeholder: shown,
-                void_size: None,
+                columns: None,
             };
             let row = build_row(&inputs, line, start, end, newline);
+            let quote = row.look.quote;
             let options = RichOptions {
-                wrap_width: wrap,
+                wrap_width: (wrap - quote as f32 * square).max(1.0),
                 padding: options.padding(),
-                style: SpanStyle::new(font, Color32::WHITE),
+                style: SpanStyle::new(font, colors.syntax.markdown_plain_text),
+                hang: row.hang,
+                anywhere: false,
+                least: false,
             };
-            lines.push(lay_out(&row.pieces(), options)?);
+            lines.push(ProseLine {
+                layout: lay_out(&row.pieces(Vec2::splat(square)), options)?,
+                quote,
+            });
         }
         Some(lines)
     }
@@ -840,22 +769,12 @@ impl TextAreaState {
                 })
                 .flatten()
         };
-        let (starts, checkboxes) = {
+        let starts = {
             let snapshot = inner.snapshot.borrow();
             match change {
-                Some(change) => (
-                    Rc::new(shifted_line_starts(&snapshot.starts, &bytes, change)),
-                    shifted_checkboxes(&snapshot.checkboxes, &bytes, change),
-                ),
-                None => (
-                    Rc::new(line_starts(&bytes)),
-                    parse_markdown_checkboxes(&bytes),
-                ),
+                Some(change) => Rc::new(shifted_line_starts(&snapshot.starts, &bytes, change)),
+                None => Rc::new(line_starts(&bytes)),
             }
-        };
-        let checkboxes = match language {
-            TextLanguage::Markdown => checkboxes,
-            _ => Vec::new(),
         };
         let hidden = hidden_ranges(&sections);
         let formats = (language == TextLanguage::RichText)
@@ -881,7 +800,6 @@ impl TextAreaState {
             language,
             sections,
             hidden,
-            checkboxes,
             highlight: Some(highlight),
             runs,
             formats,
@@ -915,56 +833,6 @@ impl TextAreaState {
     }
 }
 
-fn line_key(
-    snapshot: &Snapshot,
-    widgets: &[TextWidget],
-    start: usize,
-    end: usize,
-    wrap: f32,
-) -> u64 {
-    let mut hasher = FixedState::with_seed(0).build_hasher();
-    wrap.to_bits().hash(&mut hasher);
-    let last = (end + 1).min(snapshot.bytes.len());
-    snapshot.bytes[start..last].hash(&mut hasher);
-    let mut runs = snapshot.highlight().styles_in(start..last).into_iter();
-    if let Some(mut style) = runs.next() {
-        let mut length = 1usize;
-        for next in runs {
-            if next == style {
-                length += 1;
-                continue;
-            }
-            (style, length).hash(&mut hasher);
-            (style, length) = (next, 1);
-        }
-        (style, length).hash(&mut hasher);
-    }
-    for widget in widgets
-        .iter()
-        .filter(|widget| widget.range.start <= end && widget.range.end >= start)
-    {
-        (
-            widget.range.start.wrapping_sub(start),
-            widget.range.end.wrapping_sub(start),
-        )
-            .hash(&mut hasher);
-        (&widget.label, widget.icon, widget.italic).hash(&mut hasher);
-        widget
-            .block_size
-            .map(|size| (size.x.to_bits(), size.y.to_bits()))
-            .hash(&mut hasher);
-    }
-    snapshot
-        .sections
-        .iter()
-        .any(|section| section.collapsed && section.line_start == start)
-        .hash(&mut hasher);
-    for run in snapshot.runs_in(start, end) {
-        (run.at - start, run.pos, run.len, run.visible, &run.deleted).hash(&mut hasher);
-    }
-    hasher.finish()
-}
-
 fn shifted_line_starts(starts: &[usize], bytes: &[u8], change: TextChange) -> Vec<usize> {
     if starts.is_empty() {
         return line_starts(bytes);
@@ -985,43 +853,6 @@ fn shifted_line_starts(starts: &[usize], bytes: &[u8], change: TextChange) -> Ve
     shifted
 }
 
-fn shifted_checkboxes(
-    checkboxes: &[MarkdownCheckbox],
-    bytes: &[u8],
-    change: TextChange,
-) -> Vec<MarkdownCheckbox> {
-    let first = memchr::memrchr(b'\n', &bytes[..change.start]).map_or(0, |newline| newline + 1);
-    let end = memchr::memchr(b'\n', &bytes[change.new_end..])
-        .map_or(bytes.len(), |newline| change.new_end + newline);
-    let old_end = end - change.new_end + change.old_end;
-    let shift = |at: usize| at - change.old_end + change.new_end;
-    let mut shifted: Vec<MarkdownCheckbox> = checkboxes
-        .iter()
-        .take_while(|checkbox| checkbox.line_start < first)
-        .cloned()
-        .collect();
-    shifted.extend(
-        parse_markdown_checkboxes(&bytes[first..end])
-            .into_iter()
-            .map(|checkbox| MarkdownCheckbox {
-                line_start: checkbox.line_start + first,
-                marker: checkbox.marker.start + first..checkbox.marker.end + first,
-                checked: checkbox.checked,
-            }),
-    );
-    shifted.extend(
-        checkboxes
-            .iter()
-            .filter(|checkbox| checkbox.line_start > old_end)
-            .map(|checkbox| MarkdownCheckbox {
-                line_start: shift(checkbox.line_start),
-                marker: shift(checkbox.marker.start)..shift(checkbox.marker.end),
-                checked: checkbox.checked,
-            }),
-    );
-    shifted
-}
-
 fn read_bytes(core: &Core) -> Vec<u8> {
     let Some(read) = core.document().read() else {
         return Vec::new();
@@ -1035,25 +866,4 @@ pub fn hidden_ranges(sections: &[CollapsibleSection]) -> Vec<Range<usize>> {
         .filter(|section| section.collapsed)
         .map(|section| section.line_end + 1..section.content_end + 1)
         .collect()
-}
-
-pub fn parse_markdown_checkboxes(bytes: &[u8]) -> Vec<MarkdownCheckbox> {
-    let mut result = Vec::new();
-    let mut line_start = 0;
-    loop {
-        let line_end = memchr::memchr(b'\n', &bytes[line_start..])
-            .map_or(bytes.len(), |offset| line_start + offset);
-        if let Some(marker) = markdown_checkbox_marker(bytes, line_start) {
-            result.push(MarkdownCheckbox {
-                line_start,
-                marker: marker.marker,
-                checked: marker.checked,
-            });
-        }
-        if line_end == bytes.len() {
-            break;
-        }
-        line_start = line_end + 1;
-    }
-    result
 }

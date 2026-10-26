@@ -9,7 +9,9 @@ fn scrolling_a_virtual_scroll_replaces_the_items_in_view() {
     harness.frame(Vec::new());
 
     built.update(|built| built.clear());
-    harness.document.set_scroll_offset(scroll.scroll, 1000.0);
+    harness
+        .document_mut()
+        .set_scroll_offset(scroll.scroll, 1000.0);
     harness.frame(Vec::new());
 
     let visible = (VIEWPORT.y / VIRTUAL_ITEM_HEIGHT) as usize;
@@ -18,5 +20,5 @@ fn scrolling_a_virtual_scroll_replaces_the_items_in_view() {
         built.get_untracked(),
         (first..first + visible).collect::<Vec<usize>>()
     );
-    assert_eq!(harness.document.children(scroll.list).len(), visible);
+    assert_eq!(harness.document().children(scroll.list).len(), visible);
 }

@@ -1,15 +1,17 @@
 use std::any::Any;
 use std::cell::{Cell, RefCell};
+use std::collections::HashMap;
 use std::rc::Rc;
 
 use beui_tree::reactive::{
     ChildSegment, ChildValue, Children, ComponentContext, Get, IntoChild, IntoProp, IntoSegment,
     IntoSlotHost, Memo, Prop, ReadSignal, ScopeContext, Set, Signal, SlotChild, SlotHost, SlotId,
-    create_effect, create_signal, current_component,
+    create_effect, create_signal, current_component, on_cleanup,
 };
 
 use crate::base::canvas::CanvasNode;
-use crate::base::child_list::ChildHost;
+use crate::base::child_list::{ChildHost, ChildItem};
+use crate::base::first_fit::FirstFitNode;
 use crate::base::grid::{GridItem, GridNode};
 use crate::base::layers::LayersNode;
 use crate::base::list::{ListItem, ListNode};
@@ -183,17 +185,23 @@ impl<P: ParentKind> Placed<P> {
         }
     }
 
-    fn store_in(self, parent: NodeId) -> P::Stored {
+    fn store_in(self, parent: NodeId, latest: &Latest<P>) -> P::Stored {
         let Placed { node, data } = self;
         let initial = data.get_untracked();
         if let Prop::Dynamic(read) = data {
+            let held = Rc::clone(latest);
             create_effect(move || {
                 let data = read.get();
+                held.borrow_mut().insert(node, data.clone());
                 with_document(|document| {
                     if let Some(parent) = document.arena.kind_of::<P>(parent) {
                         P::update(document, parent, node, data);
                     }
                 });
+            });
+            let held = Rc::clone(latest);
+            on_cleanup(move || {
+                held.borrow_mut().remove(&node);
             });
         }
         P::item(node, initial)
@@ -220,25 +228,44 @@ impl<P: ParentKind> SlotChild for Placed<P> {
     }
 }
 
-struct NodeHost<P>(NodeOf<P>);
+type Latest<P> = Rc<RefCell<HashMap<NodeId, <P as ParentKind>::Data>>>;
+
+struct NodeHost<P: ParentKind> {
+    parent: NodeOf<P>,
+    latest: Latest<P>,
+}
+
+impl<P: ParentKind> NodeHost<P> {
+    fn current(&self, item: P::Stored) -> P::Stored {
+        let Some(node) = item.node() else {
+            return item;
+        };
+        match self.latest.borrow().get(&node) {
+            Some(data) => P::item(node, data.clone()),
+            None => item,
+        }
+    }
+}
 
 impl<P: ParentKind> SlotHost<Placed<P>> for NodeHost<P> {
     fn store(&self, child: Placed<P>) -> P::Stored {
-        child.store_in(self.0.id())
+        child.store_in(self.parent.id(), &self.latest)
     }
 
     fn append(&self, stored: P::Stored) {
-        with_document(|document| document.append_child_item(self.0, stored));
+        let stored = self.current(stored);
+        with_document(|document| document.append_child_item(self.parent, stored));
     }
 
     fn open(&self) -> SlotId {
-        with_document(|document| document.open_child_slot(self.0))
+        with_document(|document| document.open_child_slot(self.parent))
     }
 
     fn fill(&self, slot: SlotId, items: Vec<P::Stored>) {
+        let items = items.into_iter().map(|item| self.current(item)).collect();
         with_document(|document| {
-            if document.contains(self.0) {
-                document.fill_child_slot(self.0, slot, items);
+            if document.contains(self.parent) {
+                document.fill_child_slot(self.parent, slot, items);
             }
         });
     }
@@ -246,7 +273,10 @@ impl<P: ParentKind> SlotHost<Placed<P>> for NodeHost<P> {
 
 impl<P: ParentKind> IntoSlotHost<Placed<P>> for NodeOf<P> {
     fn into_slot_host(self) -> Rc<dyn SlotHost<Placed<P>>> {
-        Rc::new(NodeHost(self))
+        Rc::new(NodeHost {
+            parent: self,
+            latest: Rc::default(),
+        })
     }
 }
 
@@ -360,6 +390,18 @@ impl ParentKind for LayersNode {
 }
 
 impl BareChild for LayersNode {
+    fn bare() {}
+}
+
+impl ParentKind for FirstFitNode {
+    type Data = ();
+
+    fn item(node: NodeId, _: ()) -> NodeId {
+        node
+    }
+}
+
+impl BareChild for FirstFitNode {
     fn bare() {}
 }
 

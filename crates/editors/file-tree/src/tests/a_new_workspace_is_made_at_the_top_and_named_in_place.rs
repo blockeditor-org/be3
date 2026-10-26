@@ -1,6 +1,7 @@
 use block_editor_beui::BlockParent;
-use block_editor_beui::be_block::{BlockContent, WorkspaceContent};
+use block_editor_beui::be_block::BlockContent;
 use block_editor_beui::beui::Key;
+use workspace_ui_types::WorkspaceContent;
 
 use super::*;
 
@@ -30,9 +31,9 @@ fn a_new_workspace_is_made_at_the_top_and_named_in_place() {
         fixture.test.shown(&field),
         "the new workspace's name is edited in place once its row is shown"
     );
-    fixture.test.text("Team");
+    fixture.test.type_text("Team");
     fixture.settle();
-    fixture.test.key_press(Key::Enter);
+    fixture.test.key(Key::Enter, Modifiers::NONE);
     fixture.settle();
     assert_eq!(
         fixture.test.take_renames(),
@@ -42,9 +43,9 @@ fn a_new_workspace_is_made_at_the_top_and_named_in_place() {
     assert!(
         !fixture
             .test
-            .take_block_commands()
+            .take_shell_commands()
             .iter()
-            .any(|(_, command)| matches!(command, block_editor_beui::BlockCommand::Rename)),
+            .any(|(_, command)| matches!(command, block_editor_beui::ShellCommand::Rename { .. })),
         "the host's rename dialog is not asked for"
     );
 }

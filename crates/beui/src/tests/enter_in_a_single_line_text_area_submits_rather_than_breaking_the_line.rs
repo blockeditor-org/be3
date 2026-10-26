@@ -15,6 +15,10 @@ fn enter_in_a_single_line_text_area_submits_rather_than_breaking_the_line() {
         held.update(|held| *held = Some(state));
         view! {
             <TextArea
+                colors={area_colors()}
+                look={area_look()}
+                font_size=AREA_FONT_SIZE
+                padding=AREA_PADDING
                 state={state}
                 single_line=true
                 on_submit={move || submitted.update(|submitted| *submitted += 1)}
@@ -28,7 +32,7 @@ fn enter_in_a_single_line_text_area_submits_rather_than_breaking_the_line() {
     harness.key(Key::Tab, Modifiers::NONE);
     harness.key(Key::End, Modifiers::NONE);
     harness.key(Key::Enter, Modifiers::NONE);
-    harness.frame(vec![Event::Text(" two\nthree".to_owned())]);
+    harness.frame(vec![Input::Text(" two\nthree".to_owned())]);
 
     assert_eq!(submitted.get_untracked(), 1);
     assert_eq!(String::from_utf8_lossy(&state.bytes()), "one twothree");

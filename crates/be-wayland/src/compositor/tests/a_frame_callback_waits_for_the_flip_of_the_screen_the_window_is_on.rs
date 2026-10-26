@@ -3,10 +3,10 @@ use super::*;
 #[test]
 fn a_frame_callback_waits_for_the_flip_of_the_screen_the_window_is_on() {
     let (mut harness, device, queue) = Harness::with_gpu();
-    harness.app.pace_to_flips();
+    harness.compositor().pace_to_flips();
     let left = Rect::from_min_size(Pos2::ZERO, Vec2::new(SCREEN.x / 2.0, SCREEN.y));
     let right = Rect::from_min_max(pos2(SCREEN.x / 2.0, 0.0), pos2(SCREEN.x, SCREEN.y));
-    harness.app.set_screens(vec![left, right]);
+    harness.compositor().set_monitors(monitors(&[left, right]));
     let (window, id) = harness.open();
     assert!(
         left.contains(harness.window(id).center()),
@@ -23,17 +23,20 @@ fn a_frame_callback_waits_for_the_flip_of_the_screen_the_window_is_on() {
         harness.client.received.frames, 0,
         "a painted window is not told to draw again before its screen flips"
     );
-    assert!(harness.app.awaits_flip(), "the host is asked for the flip");
+    assert!(
+        harness.compositor().awaits_flip(),
+        "the host is asked for the flip"
+    );
 
-    harness.app.presented(right, flip(1));
+    harness.compositor().presented(right, flip(1));
     harness.frame(Vec::new());
     assert_eq!(
         harness.client.received.frames, 0,
         "another screen's flip does not answer it"
     );
 
-    harness.app.presented(left, flip(2));
+    harness.compositor().presented(left, flip(2));
     harness.frame(Vec::new());
     assert_eq!(harness.client.received.frames, 1);
-    assert!(!harness.app.awaits_flip());
+    assert!(!harness.compositor().awaits_flip());
 }

@@ -12,25 +12,25 @@ fn the_palette_and_the_shortcuts_run_the_format_actions() {
 
     editor.click("text.surface");
     editor.run();
-    editor.key_press_modifiers(ctrl, Key::B);
+    editor.key(Key::B, ctrl);
     editor.run();
     assert!(text(&editor).contains("**"), "{:?}", text(&editor));
 
-    editor.key_press_modifiers(
+    editor.key(
+        Key::P,
         Modifiers {
             shift: true,
             ..ctrl
         },
-        Key::P,
     );
     editor.run();
-    editor.text("heading");
+    editor.type_text("heading");
     editor.run();
-    editor.key_press(Key::Enter);
+    editor.key(Key::Enter, Modifiers::NONE);
     editor.run();
     assert!(text(&editor).starts_with("## "), "{:?}", text(&editor));
 
-    editor.text("!");
+    editor.type_text("!");
     editor.run();
     assert!(
         text(&editor).contains('!'),

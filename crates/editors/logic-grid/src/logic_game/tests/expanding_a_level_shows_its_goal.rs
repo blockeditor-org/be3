@@ -5,7 +5,7 @@ fn expanding_a_level_shows_its_goal() {
     let mut editor = editor();
 
     let first = game(&editor).levels()[0].challenge;
-    editor.click(&format!("logic-game.level.{}", first as usize));
+    editor.click(format!("logic-game.level.{}", first as usize));
     editor.run();
 
     assert!(editor.shown(&format!("logic-game.new-attempt.{}", first as usize)));

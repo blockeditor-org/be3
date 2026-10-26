@@ -1,6 +1,6 @@
 use super::*;
-use block_editor_beui::be_block::canvas::CanvasColor;
 use block_editor_beui::beui::Vec2;
+use infinite_canvas_types::CanvasColor;
 
 #[test]
 fn dragging_a_transform_field_twice_keeps_the_first_drag() {
@@ -16,7 +16,7 @@ fn dragging_a_transform_field_twice_keeps_the_first_drag() {
     };
     let mut editor = vector_editor(std::slice::from_ref(&rectangle));
 
-    editor.click(&format!("infinite-canvas.entity.{}", rectangle.id));
+    editor.click(format!("infinite-canvas.entity.{}", rectangle.id));
     editor.run();
     let field = editor.point_of("infinite-canvas.transform.x");
     editor.drag(field, field + Vec2::new(20.0, 0.0));

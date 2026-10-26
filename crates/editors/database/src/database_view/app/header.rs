@@ -1,50 +1,37 @@
-use block_editor_beui::be_block::database::DatabaseValue;
 use block_editor_beui::beui::NodeId;
-use block_editor_beui::beui::icons::{ICON_ADD, ICON_SEARCH, ICON_TUNE};
+use block_editor_beui::beui::icons::{ICON_PLUS, ICON_SEARCH, ICON_SLIDERS_HORIZONTAL};
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
 use block_editor_beui::narrow_chrome;
+use database_types::database::DatabaseValue;
 use uuid::Uuid;
 
 use crate::database_view::app::data::Data;
 use crate::database_view::app::display::DisplayOptions;
 use crate::database_view::app::filters::{FilterBar, FilterList};
 
-const GUTTER: f32 = 12.0;
-const SPACING: f32 = 8.0;
+const GUTTER: Space = Space::Lg;
+const SPACING: Space = Space::Md;
 const SEARCH_WIDTH: f32 = 220.0;
-const DISPLAY_WIDTH: f32 = 380.0;
+const DISPLAY_WIDTH: Size = Size::Custom(380.0);
 
 #[component]
 pub fn ViewHeader(data: Data) -> NodeId {
     let narrow = narrow_chrome();
     let wide = create_memo(move || !narrow.get());
-    let failed = create_memo(move || data.error.with(Option::is_some));
-    let message = create_memo(move || data.error.get().unwrap_or_default());
-    let dismiss = move || data.dismiss_error();
     view! {
-        <List spacing=0.0>
+        <List spacing=Space::None>
             <Show condition={wide}>
                 <WideHeader data={data} />
             </Show>
             <Show condition={narrow}>
                 <NarrowHeader data={data} />
             </Show>
-            <Show condition={failed}>
-                <Frame padding={Sides::symmetric(GUTTER, 6.0)}>
-                    <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
-                        <Text @sizing=ItemSize::Percent(100.0) color=TextColor::Danger wrap=true>
-                            {message}
-                        </Text>
-                        <Button
-                            label="Dismiss"
-                            variant=ButtonVariant::Secondary
-                            @test_id={"database-view.dismiss-error"}
-                            on_click={dismiss}
-                        />
-                    </List>
-                </Frame>
-            </Show>
+            <Banner
+                message={data.error}
+                id="database-view.error"
+                on_dismiss={move || data.dismiss_error()}
+            />
             <Separator />
         </List>
     }
@@ -54,8 +41,8 @@ pub fn ViewHeader(data: Data) -> NodeId {
 fn WideHeader(data: Data) -> NodeId {
     let count = row_count(data);
     view! {
-        <Frame padding={Sides::horizontal(GUTTER).top(8.0).bottom(6.0)}>
-            <List spacing=6.0>
+        <Frame padding={Padding::horizontal(GUTTER).top(Space::Md).bottom(Space::Sm)}>
+            <List spacing=Space::Sm>
                 <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
                     <Text style=TextStyle::HEADING>{data.name}</Text>
                     <ViewTabs @sizing={ItemSize::Percent(100.0).shrink(1.0)} data={data} />
@@ -67,7 +54,7 @@ fn WideHeader(data: Data) -> NodeId {
                     <Text style=TextStyle::CAPTION>{count}</Text>
                     <Popover
                         label="Display"
-                        glyph={ICON_TUNE.to_owned()}
+                        glyph=ICON_SLIDERS_HORIZONTAL
                         max_width=DISPLAY_WIDTH
                         @test_id={"database-view.display"}
                     >|_|
@@ -90,7 +77,7 @@ fn NarrowHeader(data: Data) -> NodeId {
     let open = move || sheet.set(true);
     let close = move || sheet.set(false);
     view! {
-        <Frame padding={Sides::horizontal(GUTTER).top(8.0).bottom(8.0)}>
+        <Frame padding={Padding::symmetric(GUTTER, Space::Md)}>
             <List spacing=SPACING>
                 <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
                     <Text style=TextStyle::HEADING @sizing=ItemSize::Percent(100.0)>
@@ -106,37 +93,23 @@ fn NarrowHeader(data: Data) -> NodeId {
                     <SearchField @sizing=ItemSize::Percent(100.0) data={data} />
                     <Button
                         label={filtered}
-                        glyph={ICON_TUNE.to_owned()}
+                        glyph=ICON_SLIDERS_HORIZONTAL
                         variant=ButtonVariant::Secondary
                         @test_id={"database-view.filter-and-display"}
                         on_click={open}
                     />
                 </List>
-                <ModalSheet open={sheet} on_close={close}>
-                    <Frame padding={Sides::horizontal(GUTTER * 1.5).bottom(GUTTER * 2.0)}>
-                        <List spacing=GUTTER>
-                            <List
-                                direction=Direction::Horizontal
-                                align=Align::Center
-                                spacing=SPACING
-                            >
-                                <Text style=TextStyle::HEADING @sizing=ItemSize::Percent(100.0)>
-                                    "Filter and display"
-                                </Text>
-                                <Button
-                                    label="Done"
-                                    variant=ButtonVariant::Ghost
-                                    @test_id={"database-view.sheet.done"}
-                                    on_click={close}
-                                />
-                            </List>
-                            <Text style=TextStyle::CAPTION>"Filters"</Text>
-                            <FilterList data={data} />
-                            <Separator />
-                            <DisplayOptions data={data} />
-                        </List>
-                    </Frame>
-                </ModalSheet>
+                <Dialog
+                    open={sheet}
+                    title="Filter and display"
+                    id="database-view.sheet"
+                    on_dismiss={close}
+                >
+                    <Text style=TextStyle::CAPTION>"Filters"</Text>
+                    <FilterList data={data} />
+                    <Separator />
+                    <DisplayOptions data={data} />
+                </Dialog>
             </List>
         </Frame>
     }
@@ -163,7 +136,7 @@ fn ViewTabs(data: Data) -> NodeId {
     let create = move || data.new_view();
     let read_only = data.read_only;
     view! {
-        <List direction=Direction::Horizontal align=Align::Center spacing=4.0>
+        <List direction=Direction::Horizontal align=Align::Center spacing=Space::Xs>
             <ForEach keys={keys}>|view: Uuid| {
                 let name = create_memo(move || {
                     data.views.with(|views| {
@@ -179,8 +152,9 @@ fn ViewTabs(data: Data) -> NodeId {
                     />
                 }
             }</ForEach>
-            <IconButton
-                glyph={ICON_ADD.to_owned()}
+            <Button
+                icon_only=true
+                glyph=ICON_PLUS
                 label="New view"
                 variant=ButtonVariant::Ghost
                 disabled={read_only}
@@ -199,7 +173,7 @@ fn SearchField(data: Data) -> NodeId {
         <TextInput
             value={Binding::new(query, typed)}
             placeholder="Search"
-            glyph={ICON_SEARCH.to_owned()}
+            glyph=ICON_SEARCH
             clearable=true
             @test_id={"database-view.search"}
         />
@@ -218,8 +192,9 @@ fn NewRow(data: Data, compact: bool) -> NodeId {
     let disabled = create_memo(move || data.read_only.get() || data.title_field.get().is_none());
     match compact {
         true => view! {
-            <IconButton
-                glyph={ICON_ADD.to_owned()}
+            <Button
+                icon_only=true
+                glyph=ICON_PLUS
                 label="New"
                 variant=ButtonVariant::Primary
                 disabled={disabled}
@@ -230,7 +205,7 @@ fn NewRow(data: Data, compact: bool) -> NodeId {
         false => view! {
             <Button
                 label="New"
-                glyph={ICON_ADD.to_owned()}
+                glyph=ICON_PLUS
                 variant=ButtonVariant::Primary
                 disabled={disabled}
                 @test_id={"database-view.new"}

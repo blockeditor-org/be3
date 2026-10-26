@@ -37,7 +37,7 @@ fn a_virtual_list_in_a_box_taller_than_its_rows_builds_every_row() {
     harness.frame(Vec::new());
 
     assert_eq!(
-        harness.document.children(list).len(),
+        harness.document().children(list).len(),
         ROWS,
         "rows that measure more than the estimate still leave room for the last one"
     );

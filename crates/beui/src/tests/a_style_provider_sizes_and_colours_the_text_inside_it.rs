@@ -1,5 +1,6 @@
 use super::*;
 use crate::format_hex;
+use crate::primitives::List;
 use crate::reactive::*;
 use crate::styled::Text;
 use crate::styled::*;

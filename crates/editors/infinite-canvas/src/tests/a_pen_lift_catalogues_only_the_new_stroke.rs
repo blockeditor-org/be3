@@ -4,7 +4,7 @@ use std::cell::Cell;
 
 use block_editor_beui::Loaded;
 use block_editor_beui::beui::reactive::*;
-use block_editor_beui::beui::{Event, NodeId, Pen, PenPhase, PointerButton, Pos2};
+use block_editor_beui::beui::{Input, NodeId, Pen, PenPhase, PointerButton, Pos2};
 
 use crate::app::actions::canvas_actions;
 use crate::app::canvas::CanvasStage;
@@ -28,11 +28,13 @@ fn CataloguedCanvas(editor: block_editor_beui::Editor) -> NodeId {
 }
 
 fn pen(editor: &mut BeuiTest<CanvasApp>, phase: PenPhase, pos: Pos2) {
-    editor.step(vec![Event::Pen {
+    editor.step(vec![Input::Pen {
         phase,
         pos,
-        pressure: 0.5,
-        pen: Pen::default(),
+        pen: Pen {
+            pressure: 0.5,
+            ..Pen::default()
+        },
     }]);
 }
 

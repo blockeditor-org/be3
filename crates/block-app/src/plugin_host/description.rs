@@ -40,11 +40,18 @@ pub(crate) fn describe(context: &beui::Context) {
         let placements: Vec<_> = runtime
             .placements
             .iter()
-            .filter(|((_, region), _)| *region == EditorRegion::Frame)
-            .map(|((instance, _), placed)| (*instance, placed.rect, placed.clip, placed.zoom))
+            .filter(|((_, region), _)| {
+                matches!(
+                    region,
+                    EditorRegion::Frame | EditorRegion::Display(_) | EditorRegion::Window(_)
+                )
+            })
+            .map(|((instance, region), placed)| {
+                (*instance, *region, placed.rect, placed.clip, placed.zoom)
+            })
             .collect();
-        for (instance, rect, clip, zoom) in placements {
-            let Some(described) = runtime.instances.described(instance, EditorRegion::Frame) else {
+        for (instance, region, rect, clip, zoom) in placements {
+            let Some(described) = runtime.instances.described(instance, region) else {
                 continue;
             };
             let document = described.tree.document();
@@ -67,6 +74,7 @@ pub(crate) fn describe(context: &beui::Context) {
             );
             let actions = ActionGroup {
                 name: name.clone(),
+                window: None,
                 actions: described
                     .actions
                     .iter()
@@ -100,8 +108,8 @@ pub(crate) fn describe(context: &beui::Context) {
         }
     });
     regions.sort_by_key(|region| region.document);
-    for requested in context.action_requests() {
-        let (pane, id) = match requested.split_once(beui::automation::PANE) {
+    for (_, requested) in context.action_requests() {
+        let (pane, id) = match requested.split_once(beui::drive::PANE) {
             Some((pane, id)) => (Some(pane), id),
             None => (None, requested.as_str()),
         };

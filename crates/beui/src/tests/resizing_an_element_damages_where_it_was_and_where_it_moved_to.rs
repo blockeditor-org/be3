@@ -33,6 +33,7 @@ fn resizing_an_element_damages_where_it_was_and_where_it_moved_to() {
     tall.set(true);
     let damage = harness
         .frame(Vec::new())
+        .main()
         .damage()
         .expect("resizing repaints");
     let moved = harness.rect(bottom);

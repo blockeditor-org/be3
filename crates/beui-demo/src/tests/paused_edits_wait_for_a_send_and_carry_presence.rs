@@ -1,5 +1,4 @@
 use super::*;
-use beui::Event;
 
 #[test]
 fn paused_edits_wait_for_a_send_and_carry_presence() {
@@ -8,11 +7,11 @@ fn paused_edits_wait_for_a_send_and_carry_presence() {
     test.frame(Vec::new());
 
     let left = test.rect_of("demo.collaboration.left");
-    test.click_at(pos2(left.right() - 8.0, left.top() + 150.0));
-    test.frame(vec![Event::Text(", left was here".to_owned())]);
+    test.click(pos2(left.right() - 8.0, left.top() + 150.0));
+    test.frame(vec![Input::Text(", left was here".to_owned())]);
     let right = test.rect_of("demo.collaboration.right");
-    test.click_at(pos2(right.right() - 8.0, right.top() + 30.0));
-    test.frame(vec![Event::Text(" from the right".to_owned())]);
+    test.click(pos2(right.right() - 8.0, right.top() + 30.0));
+    test.frame(vec![Input::Text(" from the right".to_owned())]);
     test.frame(Vec::new());
     let root = test.document().root().expect("the demo built a root");
     assert_eq!(

@@ -65,7 +65,7 @@ fn an_added_painting_is_linked_into_the_review_page() {
     assert_eq!(comment.matches("</details>").count(), 1);
     assert!(!comment.contains("<details open"));
     let disclosure = comment.find("<details>").unwrap();
-    assert!(disclosure < comment.find("**[Review them]").unwrap());
+    assert!(comment.find("**[Review them]").unwrap() < disclosure);
     assert!(comment.ends_with("</details>\n"));
     fs::remove_dir_all(root).unwrap();
 }

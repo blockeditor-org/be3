@@ -3,7 +3,7 @@ use std::fmt::Write as _;
 
 use block_editor_beui::be_block::be_model::{BLOB_REF, BLOCK_REF, CRITICAL, Stored, from_cbor};
 use block_editor_beui::block_ui::BlockTypes;
-use block_editor_beui::{BlockInfo, BlockParent, RawContent};
+use block_editor_beui::{BlockInfo, BlockParent, HeadRead};
 use uuid::Uuid;
 
 const UUID_TAG: u64 = 37;
@@ -84,18 +84,32 @@ pub(crate) fn block(info: Option<&BlockInfo>, types: &dyn BlockTypes) -> Entry {
     if let Some(artifact) = info.artifact() {
         children.push(Entry::leaf(
             "artifact of",
-            type_name(types, artifact.source_type),
+            format!(
+                "{} {}",
+                type_name(types, artifact.source_type),
+                *artifact.source
+            ),
         ));
     }
     Entry::branch("block", String::new(), children)
 }
 
-pub(crate) fn content(content: Option<&RawContent>, types: &dyn BlockTypes) -> Entry {
-    let Some(content) = content else {
-        return Entry::leaf("content", "loading");
+pub(crate) fn content(head: &HeadRead, types: &dyn BlockTypes) -> Entry {
+    let content = match head {
+        Ok(Some(content)) => content,
+        Ok(None) => return Entry::leaf("content", "nothing saved yet"),
+        Err(error) => return Entry::leaf("content", format!("unreadable: {error}")),
     };
     let mut children = vec![
         Entry::leaf("type", type_name(types, content.content_type)),
+        Entry::leaf(
+            "commit",
+            content
+                .commit
+                .iter()
+                .map(|byte| format!("{byte:02x}"))
+                .collect::<String>(),
+        ),
         Entry::leaf("size", format!("{} bytes", content.bytes.len())),
     ];
     match from_cbor::<Stored>(&content.bytes) {

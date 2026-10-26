@@ -1,8 +1,9 @@
 use std::cell::RefCell;
 
-use block_editor_beui::be_block::{BrowserTab, BrowserTabContent, Edit, HistoryItem};
+use block_editor_beui::be_block::Edit;
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::{ContentProjection, Editor, WebViewEvent, WebViewId};
+use browser_tab_types::{BrowserTab, BrowserTabContent, HistoryItem};
 
 pub(crate) const PAGE: WebViewId = WebViewId(0);
 

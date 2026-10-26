@@ -6,7 +6,7 @@ fn typing_inserts_text_into_the_document() {
 
     editor.click("text.surface");
     editor.run();
-    editor.text(" two");
+    editor.type_text(" two");
     editor.run();
 
     assert_eq!(text(&editor), "one two");

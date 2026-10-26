@@ -4,12 +4,13 @@ use super::*;
 fn checking_a_branch_out_asks_the_host() {
     let status = VersionStatus {
         branches: branches(),
-        log: vec![VersionCommit {
-            id: [7; 32],
-            parents: Vec::new(),
-            author: [1; 16],
+        log: history(),
+        operations: vec![VersionOperation {
+            id: [1; 16],
             time: 1_000,
-            message: "Started versioning".into(),
+            author: [1; 16],
+            description: "Started keeping versions".into(),
+            undone: false,
         }],
         ..VersionStatus::default()
     };

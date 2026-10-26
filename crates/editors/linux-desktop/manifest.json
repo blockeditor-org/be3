@@ -6,7 +6,7 @@
     "desktop": {
       "id": "378d6c68-d52a-4781-addb-fde9a8aff2e2",
       "display_name": "Linux desktop",
-      "icon": "\ue30c",
+      "icon": "\ue11d",
       "interaction": "Live",
       "resize": "None",
       "regions": [
@@ -21,5 +21,6 @@
       ]
     }
   },
+  "extensions": ["be3:linux-desktop"],
   "entry_point": "linux_desktop.wasm"
 }

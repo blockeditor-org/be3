@@ -31,7 +31,7 @@ fn a_clean_sibling_keeps_its_measurement_when_the_one_beside_it_changes() {
         "an unchanged frame must not measure anything again"
     );
 
-    harness.document.set_text(edited, "edited twice");
+    harness.document_mut().set_text(edited, "edited twice");
     harness.frame(Vec::new());
     assert_eq!(
         measures.get_untracked(),
@@ -39,7 +39,7 @@ fn a_clean_sibling_keeps_its_measurement_when_the_one_beside_it_changes() {
         "changing one child must not re-measure the child beside it"
     );
 
-    harness.document.set_text(steady, "steady now");
+    harness.document_mut().set_text(steady, "steady now");
     harness.frame(Vec::new());
     assert!(
         measures.get_untracked() > built,

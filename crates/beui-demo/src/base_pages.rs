@@ -3,17 +3,23 @@ use beui::KeyPress;
 use beui::Sides;
 use beui::Vec2;
 use beui::primitives::Drawing;
+use beui::primitives::FirstFit;
 use beui::primitives::Frame;
+use beui::primitives::Gap;
 use beui::primitives::Icon;
 use beui::primitives::Span;
 use beui::primitives::Text;
+use beui::primitives::{Grid, List};
+use beui::primitives::{Window, WindowHandle};
 use beui::{Color32, FillRule, LineCap, LineJoin, Painter, Path, Pos2, Stroke, vec2};
+use beui::{Overflow, WrapAt};
 
 const SWATCH: f32 = 72.0;
 const BADGE: f32 = 22.0;
 const TILE_HEIGHT: f32 = 48.0;
 const CARD_HEIGHT: f32 = 96.0;
 const PANEL_WIDTH: f32 = 220.0;
+const WINDOW_HEIGHT: f32 = 120.0;
 const PLANETS: [&str; 8] = [
     "Mercury", "Venus", "Earth", "Mars", "Jupiter", "Saturn", "Uranus", "Neptune",
 ];
@@ -46,7 +52,7 @@ pub(crate) fn FramesPage() -> NodeId {
 fn FrameSwatches() -> NodeId {
     let theme = use_theme();
     view! {
-        <List direction=Direction::Horizontal spacing=ROW_SPACING wrap=true>
+        <List direction=Direction::Horizontal spacing={ROW_SPACING.px()} wrap=true>
             <Frame width=SWATCH height=SWATCH fill={theme.accent} />
             <Frame width=SWATCH height=SWATCH fill={theme.accent} radius=12.0 />
             <Frame width=SWATCH height=SWATCH radius=36.0 fill={theme.success} />
@@ -77,7 +83,7 @@ fn FrameSwatches() -> NodeId {
 #[component]
 fn FrameAlignment() -> NodeId {
     view! {
-        <List direction=Direction::Horizontal spacing=ROW_SPACING>
+        <List direction=Direction::Horizontal spacing={ROW_SPACING.px()}>
             <AlignedBox @sizing=ItemSize::Percent(33.0) align=Align::Start />
             <AlignedBox @sizing=ItemSize::Percent(33.0) align=Align::Center />
             <AlignedBox @sizing=ItemSize::Percent(33.0) align=Align::End />
@@ -107,16 +113,14 @@ fn AlignedBox(align: Align) -> NodeId {
 fn FrameSizes() -> NodeId {
     let theme = use_theme();
     view! {
-        <List spacing=SECTION_SPACING>
+        <List spacing={SECTION_SPACING.px()}>
             <Frame
                 width={Extent::at_most(320.0)}
                 fill={theme.surface_raised}
                 radius={Radius::Md.px()}
                 padding={Sides::symmetric(12.0, 8.0)}
             >
-                <Text color={theme.text} wrap=true>
-                    "This frame stops growing at 320 points wide."
-                </Text>
+                <Text color={theme.text}>"This frame stops growing at 320 points wide."</Text>
             </Frame>
             <Frame
                 width=160.0
@@ -141,6 +145,9 @@ pub(crate) fn TextNodesPage() -> NodeId {
             <Sample title="Spans" code={vec![TextRuns::SOURCE]}>
                 <TextRuns />
             </Sample>
+            <Sample title="Line breaks" code={vec![TextBreaks::SOURCE]}>
+                <TextBreaks />
+            </Sample>
             <Sample title="Icons" code={vec![TextIcons::SOURCE]}>
                 <TextIcons />
             </Sample>
@@ -153,7 +160,7 @@ pub(crate) fn TextNodesPage() -> NodeId {
 fn TextStyles() -> NodeId {
     let theme = use_theme();
     view! {
-        <List spacing=SECTION_SPACING>
+        <List spacing={SECTION_SPACING.px()}>
             <Text color={theme.text}>"Plain text"</Text>
             <Text color={theme.text} font={FontId::proportional(14.0).bold(true)}>"Bold text"</Text>
             <Text color={theme.text} font={FontId::proportional(14.0).italic(true)}>
@@ -163,7 +170,7 @@ fn TextStyles() -> NodeId {
             <Text color={theme.text} font={FontId::monospace(14.0)}>"Monospace text"</Text>
             <Text color={theme.accent} font={FontId::proportional(24.0)}>"Large accent text"</Text>
             <Text color={theme.warning} font={FontId::proportional(24.0)}>
-                <Icon glyph={ICON_STAR.to_owned()} />
+                <Icon glyph=ICON_STAR />
             </Text>
         </List>
     }
@@ -174,12 +181,12 @@ fn TextStyles() -> NodeId {
 fn TextIcons() -> NodeId {
     let theme = use_theme();
     view! {
-        <List spacing=SECTION_SPACING>
+        <List spacing={SECTION_SPACING.px()}>
             <Text color={theme.text}>
                 <Icon glyph=ICON_STAR color={theme.warning} spacing_em=0.25 />
                 "An icon is a span that holds no bytes"
             </Text>
-            <Text color={theme.text} font={FontId::proportional(20.0)} wrap=true>
+            <Text color={theme.text} font={FontId::proportional(20.0)}>
                 "It takes its size from the text"
                 <Icon glyph=ICON_STAR scale=1.25 spacing_em=0.25 />
                 "scaled, and its room from both sides"
@@ -192,12 +199,29 @@ fn TextIcons() -> NodeId {
 #[component]
 fn TextWrapping() -> NodeId {
     let theme = use_theme();
-    let long = "A text node lays out on one line unless it wraps, and a line that does not \
-                fit can end in an ellipsis instead of spilling out of its frame.";
+    let wraps = "Text wraps to the width it is given, breaking after spaces and hyphens, \
+                 and between letters only when a word is wider than a line.";
+    let clamped = "With a maximum number of lines, whatever does not fit on them is left out, \
+                   and the last line that shows ends in an ellipsis to say so.";
+    let labels = "An ellipsis keeps a label to one line and cuts what does not fit\n\
+                  A hard line break still starts a new line, cut on its own";
+    let two_lines = Overflow::Wrap {
+        at: WrapAt::Words,
+        max_lines: Some(2),
+    };
     view! {
-        <List spacing=SECTION_SPACING>
-            <Text color={theme.text} wrap=true>{long.to_owned()}</Text>
-            <Text color={theme.text_muted} ellipsis=true>{long.to_owned()}</Text>
+        <List @test_id="demo.text.wrapping" spacing={SECTION_SPACING.px()}>
+            <Frame width=260.0 fill={theme.surface_raised}>
+                <Text color={theme.text}>{wraps.to_owned()}</Text>
+            </Frame>
+            <Frame width=260.0 fill={theme.surface_raised}>
+                <Text color={theme.text} overflow={two_lines}>{clamped.to_owned()}</Text>
+            </Frame>
+            <Frame width=260.0 fill={theme.surface_raised}>
+                <Text color={theme.text_muted} overflow=Overflow::Ellipsis>
+                    {labels.to_owned()}
+                </Text>
+            </Frame>
             <Text color={theme.text} align=TextAlign::Center>"Centered"</Text>
             <Text color={theme.text} align=TextAlign::End>"At the end"</Text>
         </List>
@@ -209,7 +233,7 @@ fn TextWrapping() -> NodeId {
 fn TextRuns() -> NodeId {
     let theme = use_theme();
     view! {
-        <Text color={theme.text} wrap=true>
+        <Text color={theme.text}>
             "Spans give "
             <Span color={theme.accent}>"color"</Span>
             ", "
@@ -224,6 +248,33 @@ fn TextRuns() -> NodeId {
             <Gap width=24.0 />
             "leaves room between them."
         </Text>
+    }
+}
+
+#[sample]
+#[component]
+fn TextBreaks() -> NodeId {
+    let theme = use_theme();
+    let mono = FontId::monospace(14.0);
+    view! {
+        <List @test_id="demo.text.breaks" spacing={SECTION_SPACING.px()}>
+            <Text color={theme.text} font={mono}>
+                "A break ends a line"
+                <Break />
+                "but holds no bytes,"
+                <Break />
+                "so a copy reads one line."
+            </Text>
+            <Frame width=200.0 fill={theme.surface_raised}>
+                <Text
+                    color={theme.text}
+                    font={mono}
+                    overflow={Overflow::Wrap { at: WrapAt::Anywhere, max_lines: None }}
+                >
+                    "Breaking anywhere fills each line to its last column: /usr/local/share"
+                </Text>
+            </Frame>
+        </List>
     }
 }
 
@@ -246,6 +297,9 @@ pub(crate) fn ListsPage() -> NodeId {
             <Sample title="LayoutBuilder" code={vec![ColumnsForWidth::SOURCE, Tile::SOURCE]}>
                 <ColumnsForWidth />
             </Sample>
+            <Sample title="FirstFit" code={vec![FittingLabels::SOURCE, Tile::SOURCE]}>
+                <FittingLabels />
+            </Sample>
         </ScrollPage>
     }
 }
@@ -262,8 +316,29 @@ fn Tile(label: Prop<String>) -> NodeId {
             padding={Sides::horizontal(12.0)}
             align={Align2::vertical(Align::Center)}
         >
-            <Text color={theme.text} wrap=true>{label}</Text>
+            <Text color={theme.text}>{label}</Text>
         </Frame>
+    }
+}
+
+#[sample]
+#[component]
+fn FittingLabels() -> NodeId {
+    view! {
+        <List @test_id="demo.lists.first_fit" direction=Direction::Horizontal spacing=8.0>
+            <Frame width={Extent::px(PANEL_WIDTH)}>
+                <FirstFit>
+                    <Tile label="Mercury, Venus, Earth" />
+                    <Tile label="Mercury" />
+                </FirstFit>
+            </Frame>
+            <Frame width={Extent::px(PANEL_WIDTH / 2.0)}>
+                <FirstFit>
+                    <Tile label="Mercury, Venus, Earth" />
+                    <Tile label="Mercury" />
+                </FirstFit>
+            </Frame>
+        </List>
     }
 }
 
@@ -292,7 +367,7 @@ fn ColumnsForWidth() -> NodeId {
 #[component]
 fn ListDirections() -> NodeId {
     view! {
-        <List spacing=SECTION_SPACING>
+        <List spacing={SECTION_SPACING.px()}>
             <List direction=Direction::Horizontal spacing=8.0>
                 <Tile label="One" />
                 <Tile label="Two" />
@@ -315,7 +390,7 @@ fn ListDirections() -> NodeId {
 #[component]
 fn ListJustify() -> NodeId {
     view! {
-        <List spacing=SECTION_SPACING>
+        <List spacing={SECTION_SPACING.px()}>
             <List direction=Direction::Horizontal justify=Justify::Start spacing=8.0>
                 <Tile label="Start" />
                 <Tile label="B" />
@@ -379,7 +454,7 @@ pub(crate) fn ControlFlowPage() -> NodeId {
 fn ShowToggle() -> NodeId {
     let shown = create_signal(true);
     view! {
-        <List spacing=SECTION_SPACING>
+        <List spacing={SECTION_SPACING.px()}>
             <LabelledSwitch label="Shown" on={shown} />
             <Show condition={shown}>
                 <Tile label="Built the first time it is shown, and kept while hidden" />
@@ -394,7 +469,7 @@ fn PlanetList() -> NodeId {
     let count = create_signal(3usize);
     let planets = create_memo(move || PLANETS[..count.get()].to_vec());
     view! {
-        <List spacing=SECTION_SPACING>
+        <List spacing={SECTION_SPACING.px()}>
             <List direction=Direction::Horizontal spacing=8.0>
                 <Button
                     label="Remove one"
@@ -420,7 +495,7 @@ fn DynamicShape() -> NodeId {
     let theme = use_theme();
     let round = create_signal(false);
     view! {
-        <List spacing=SECTION_SPACING>
+        <List spacing={SECTION_SPACING.px()}>
             <LabelledSwitch label="Round" on={round} />
             <Dynamic value={round}>|round: bool| {
                 match round {
@@ -472,7 +547,7 @@ fn InteractiveCard() -> NodeId {
         )
     });
     view! {
-        <List spacing=SECTION_SPACING>
+        <List spacing={SECTION_SPACING.px()}>
             <Interactive
                 focusable=true
                 on_hover_change={hovered}
@@ -496,7 +571,7 @@ fn InteractiveCard() -> NodeId {
                     <Text color={theme.text}>{log}</Text>
                 </Frame>
             </Interactive>
-            <Text color={theme.text_muted} wrap=true font={FontId::monospace(14.0)}>{state}</Text>
+            <Text color={theme.text_muted} font={FontId::monospace(14.0)}>{state}</Text>
         </List>
     }
 }
@@ -511,6 +586,9 @@ pub(crate) fn LayeringPage() -> NodeId {
             <Sample title="Overlay" code={vec![AnchoredOverlay::SOURCE]}>
                 <AnchoredOverlay />
             </Sample>
+            <Sample title="Window" code={vec![FloatingWindow::SOURCE]}>
+                <FloatingWindow />
+            </Sample>
             <Sample title="Shift" code={vec![NudgedTile::SOURCE]}>
                 <NudgedTile />
             </Sample>
@@ -519,6 +597,9 @@ pub(crate) fn LayeringPage() -> NodeId {
             </Sample>
             <Sample title="Fade" code={vec![FadedStrip::SOURCE]}>
                 <FadedStrip />
+            </Sample>
+            <Sample title="Opacity" code={vec![FadedTiles::SOURCE]}>
+                <FadedTiles />
             </Sample>
         </ScrollPage>
     }
@@ -639,6 +720,20 @@ fn FadedStrip() -> NodeId {
 
 #[sample]
 #[component]
+fn FadedTiles() -> NodeId {
+    view! {
+        <List @test_id="demo.layering.opacity" direction=Direction::Horizontal spacing=8.0>
+            <ForEach keys={vec![100_u32, 60, 30]}>|percent: u32|
+                <Fade opacity={percent as f32 / 100.0}>
+                    <Tile label={format!("{percent}%")} />
+                </Fade>
+            </ForEach>
+        </List>
+    }
+}
+
+#[sample]
+#[component]
 fn AnchoredOverlay() -> NodeId {
     let theme = use_theme();
     let anchor = NodeRef::new();
@@ -675,12 +770,60 @@ fn AnchoredOverlay() -> NodeId {
                         radius={Radius::Lg.px()}
                         padding=12.0
                     >
-                        <Text color={theme.text} wrap=true>
+                        <Text color={theme.text}>
                             "An overlay floats above the document, placed against its anchor. Escape or a click outside dismisses it."
                         </Text>
                     </Frame>
                 </Frame>
             </Overlay>
+        </List>
+    }
+}
+
+#[sample]
+#[component]
+fn FloatingWindow() -> NodeId {
+    let theme = use_theme();
+    let open = create_signal(false);
+    let at = create_signal(Pos2::ZERO);
+    let face = theme.surface_raised;
+    let ink = theme.text;
+    view! {
+        <List direction=Direction::Horizontal spacing=0.0>
+            <Interactive
+                @test_id="demo.window.trigger"
+                on_click_at={move |press: beui::PointerPress| {
+                    at.set(press.pos + vec2(16.0, 16.0));
+                    open.update(|open| *open = !*open);
+                }}
+            >
+                <Frame fill=face radius={Radius::Md.px()} padding={Sides::symmetric(16.0, 10.0)}>
+                    <Text color={ink}>"Open a window"</Text>
+                </Frame>
+            </Interactive>
+            <Window
+                size={vec2(PANEL_WIDTH, WINDOW_HEIGHT)}
+                at={at}
+                title={Some("A window".to_owned())}
+                open={open}
+                on_report={move |report: beui::WindowReport| {
+                    if matches!(report, beui::WindowReport::Closed(_)) {
+                        open.set(false);
+                    }
+                }}
+            >|_: WindowHandle|
+                <Frame
+                    @test_id="demo.window.panel"
+                    fill={theme.surface_raised}
+                    outline={create_memo(move || Some(Outline::new(theme.border.get(), 1.0)))}
+                    radius={Radius::Lg.px()}
+                    padding=12.0
+                >
+                    <Text color={theme.text}>
+                        "A window of its own where a host opens windows, an overlay elsewhere."
+                    </Text>
+                </Frame>
+            </Window>
         </List>
     }
 }
@@ -722,7 +865,7 @@ fn AnimationSample() -> NodeId {
     );
     let preference = with_document(|document| document.watch_motion());
     view! {
-        <List spacing=SECTION_SPACING>
+        <List spacing={SECTION_SPACING.px()}>
             <Checkbox
                 @test_id="animation.instant"
                 label="Disable animations"
@@ -812,7 +955,7 @@ fn PathTiles(tiles: Vec<PaintTile>) -> NodeId {
     let count = tiles.len();
     let keys = create_memo(move || (0..count).collect::<Vec<usize>>());
     view! {
-        <List direction=Direction::Horizontal spacing=ROW_SPACING wrap=true>
+        <List direction=Direction::Horizontal spacing={ROW_SPACING.px()} wrap=true>
             <ForEach keys={keys}>|index: usize| {
                 let paint = tiles[index];
                 let draw: Prop<Draw> = Prop::dynamic(move || {

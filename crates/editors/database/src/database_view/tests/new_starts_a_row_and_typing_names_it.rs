@@ -1,4 +1,5 @@
 use super::*;
+use block_editor_beui::beui::Modifiers;
 
 #[test]
 fn new_starts_a_row_and_typing_names_it() {
@@ -12,9 +13,9 @@ fn new_starts_a_row_and_typing_names_it() {
 
     fixture.harness.click("database-view.new");
     fixture.settle();
-    fixture.harness.text("Fix the login");
+    fixture.harness.type_text("Fix the login");
     fixture.run();
-    fixture.harness.key_press(Key::Enter);
+    fixture.harness.key(Key::Enter, Modifiers::NONE);
     fixture.settle();
 
     let database = fixture.database();

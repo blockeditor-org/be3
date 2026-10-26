@@ -14,12 +14,11 @@ fn a_window_dragged_from_drops_onto_the_window_under_the_pointer() {
     assert!(!harness.window(first).contains(end));
 
     harness.frame(vec![
-        Event::PointerMoved(start),
-        Event::PointerButton {
+        Input::PointerMoved(start),
+        Input::PointerButton {
             pos: start,
             button: PointerButton::Primary,
             pressed: true,
-            modifiers: beui::Modifiers::NONE,
         },
     ]);
     harness.settle();
@@ -31,8 +30,8 @@ fn a_window_dragged_from_drops_onto_the_window_under_the_pointer() {
     harness.client.start_drag(&device, &from.surface, serial);
     harness.settle();
 
-    harness.frame(vec![Event::PointerMoved(pos2(end.x, end.y - 20.0))]);
-    harness.frame(vec![Event::PointerMoved(end)]);
+    harness.frame(vec![Input::PointerMoved(pos2(end.x, end.y - 20.0))]);
+    harness.frame(vec![Input::PointerMoved(end)]);
     harness.settle();
     assert_eq!(
         client::drop_target().as_ref(),
@@ -41,13 +40,12 @@ fn a_window_dragged_from_drops_onto_the_window_under_the_pointer() {
     );
 
     harness.frame(vec![
-        Event::PointerButton {
+        Input::PointerButton {
             pos: end,
             button: PointerButton::Primary,
             pressed: false,
-            modifiers: beui::Modifiers::NONE,
         },
-        Event::PointerMoved(start),
+        Input::PointerMoved(start),
     ]);
     harness.settle();
     assert_eq!(

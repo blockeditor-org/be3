@@ -1,5 +1,5 @@
 use super::*;
-use crate::unstyled::{DockApi, Entry, TabId};
+use crate::dock::unstyled::{DockApi, Entry, TabId};
 
 #[test]
 fn clicking_the_outer_tab_bar_takes_the_focus_out_of_a_group() {
@@ -8,7 +8,7 @@ fn clicking_the_outer_tab_bar_takes_the_focus_out_of_a_group() {
     let mut harness = Harness::sized(document, WIDE_VIEWPORT);
     harness.frame(Vec::new());
     let dragged = harness.center(dock_tab(harness.document(), dock, "Tab 3"));
-    let onto = harness.center(dock_tab(harness.document(), dock, "Tab 2"));
+    let onto = dock_tab_extent(&harness, dock, "Tab 2", 2).center();
     harness.drag(dragged, onto);
     harness.frame(Vec::new());
     let state = harness.document().api::<DockApi>(dock).state();

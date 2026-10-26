@@ -3,12 +3,13 @@ use std::process::Child;
 use std::sync::atomic::{AtomicU32, Ordering};
 use std::time::Duration;
 
-use beui_core::app::automation::Reply;
+use beui_layer_drive::Reply;
 
 use crate::{Unanswered, launch, request};
 
 const CLOSING: Duration = Duration::from_secs(60);
 const LOG_TAIL: usize = 40;
+const PANIC_LINES: usize = 12;
 
 pub struct Driven {
     child: Option<Child>,
@@ -24,6 +25,7 @@ impl Driven {
         arguments: &[&str],
         size: &str,
         libraries: Option<String>,
+        space: bool,
     ) -> Result<Self, String> {
         static STARTED: AtomicU32 = AtomicU32::new(0);
         let dir = Path::new("/tmp").join(format!(
@@ -43,25 +45,25 @@ impl Driven {
                 .collect(),
             size,
             libraries,
+            space,
             &dir,
             &log,
         )?;
         Ok(Self {
             child: Some(child),
-            socket: dir.join("automation.sock"),
+            socket: dir.join("drive.sock"),
             dir,
             log,
             timeout: crate::TIMEOUT,
         })
     }
 
-    pub fn log_tail(&self) -> String {
-        let text = std::fs::read_to_string(&self.log).unwrap_or_default();
-        let lines: Vec<&str> = text.lines().collect();
-        lines[lines.len().saturating_sub(LOG_TAIL)..].join(
-            "
-",
-        )
+    pub fn set_timeout(&mut self, timeout: Duration) {
+        self.timeout = timeout;
+    }
+
+    pub fn log_report(&self) -> String {
+        log_report(&std::fs::read_to_string(&self.log).unwrap_or_default())
     }
 
     pub fn request(&self, words: &[&str]) -> Result<Reply, String> {
@@ -80,7 +82,37 @@ impl Driven {
                 Err(error)
             }
         };
-        closed.map_err(|error| format!("{error}\n\nThe end of the app's log:\n{}", self.log_tail()))
+        closed.map_err(|error| format!("{error}\n\n{}", self.log_report()))
+    }
+}
+
+pub fn log_report(log: &str) -> String {
+    let lines: Vec<&str> = log.lines().collect();
+    let tail = lines.len().saturating_sub(LOG_TAIL);
+    let panics: Vec<String> = lines[..tail]
+        .iter()
+        .enumerate()
+        .filter(|(_, line)| line.contains(" panicked"))
+        .map(|(start, _)| {
+            let end = lines[start + 1..tail]
+                .iter()
+                .take(PANIC_LINES)
+                .position(|line| {
+                    line.is_empty()
+                        || line.starts_with("note: run with")
+                        || line.starts_with("stack backtrace:")
+                })
+                .map_or_else(|| tail.min(start + 1 + PANIC_LINES), |end| start + 1 + end);
+            lines[start..end].join("\n")
+        })
+        .collect();
+    let tail = format!("The end of the app's log:\n{}", lines[tail..].join("\n"));
+    match panics.is_empty() {
+        true => tail,
+        false => format!(
+            "The app's panics before that:\n{}\n\n{tail}",
+            panics.join("\n\n")
+        ),
     }
 }
 
@@ -93,3 +125,6 @@ impl Drop for Driven {
         let _ = std::fs::remove_dir_all(&self.dir);
     }
 }
+
+#[cfg(test)]
+mod tests;

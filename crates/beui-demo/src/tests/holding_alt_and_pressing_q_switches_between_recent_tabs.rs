@@ -1,18 +1,17 @@
 use super::*;
-use beui::{Event, Key, Modifiers};
+use beui::{Key, Modifiers};
 
 const TEXT_PAGE: &str = "demo.code.Text styles";
 const BUTTONS_PAGE: &str = "demo.code.Buttons";
 
-fn press(key: Key, modifiers: Modifiers) -> Vec<Event> {
+fn press(key: Key) -> Vec<Input> {
     [true, false]
         .into_iter()
         .map(|pressed| {
-            Event::key(beui::KeyPress {
-                key,
+            Input::Key(beui::Keystroke {
+                key: Some(key),
                 pressed,
-                repeat: false,
-                modifiers,
+                ..Default::default()
             })
         })
         .collect()
@@ -26,10 +25,10 @@ fn holding_alt_and_pressing_q_switches_between_recent_tabs() {
     assert!(test.shows(BUTTONS_PAGE) && !test.shows(TEXT_PAGE));
     let alt = Modifiers::ALT;
 
-    test.frame(vec![Event::Modifiers(alt)]);
-    test.frame(press(Key::Q, alt));
-    test.frame(press(Key::Escape, alt));
-    test.frame(vec![Event::Modifiers(Modifiers::NONE)]);
+    test.frame(vec![Input::Modifiers(alt)]);
+    test.frame(press(Key::Q));
+    test.frame(press(Key::Escape));
+    test.frame(vec![Input::Modifiers(Modifiers::NONE)]);
     test.frame(Vec::new());
     assert!(!test.shows("dock.switch"), "Escape closes the switcher");
     assert!(
@@ -37,9 +36,9 @@ fn holding_alt_and_pressing_q_switches_between_recent_tabs() {
         "and leaves the page that was shown"
     );
 
-    test.frame(vec![Event::Modifiers(alt)]);
-    test.frame(press(Key::Q, alt));
-    test.frame(press(Key::Q, alt));
+    test.frame(vec![Input::Modifiers(alt)]);
+    test.frame(press(Key::Q));
+    test.frame(press(Key::Q));
     test.frame(Vec::new());
     assert!(
         test.shows(&format!("dock.switch.{}", tab(Page::Text))),
@@ -51,7 +50,7 @@ fn holding_alt_and_pressing_q_switches_between_recent_tabs() {
         "nothing is shown while Alt is held"
     );
 
-    test.frame(vec![Event::Modifiers(Modifiers::NONE)]);
+    test.frame(vec![Input::Modifiers(Modifiers::NONE)]);
     test.frame(Vec::new());
     assert!(!test.shows("dock.switch"), "letting go of Alt closes it");
     assert!(

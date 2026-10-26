@@ -2,14 +2,9 @@ use super::*;
 
 #[test]
 fn child_placements_round_trip() {
-    let message = Message::Children(ChildPlacements {
+    let message = committed(ChildPlacements {
         instance: EditorInstanceId(4),
         region: EditorRegion::Frame,
-        generation: 9,
-        size: Size {
-            width: 640.0,
-            height: 480.0,
-        },
         children: vec![
             ChildPlacement {
                 child: ChildId(1),
@@ -19,18 +14,8 @@ fn child_placements_round_trip() {
                     view_block: None,
                     editor: None,
                 },
-                rect: ChildRect {
-                    x: 12.0,
-                    y: 24.0,
-                    width: 320.0,
-                    height: 180.0,
-                },
-                clip: ChildRect {
-                    x: 0.0,
-                    y: 0.0,
-                    width: 640.0,
-                    height: 480.0,
-                },
+                rect: Rect::from_min_size(Pos2::new(12.0, 24.0), Vec2::new(320.0, 180.0)),
+                clip: Rect::from_min_size(Pos2::new(0.0, 0.0), Vec2::new(640.0, 480.0)),
                 own_frame: true,
                 top_bar: TopBar::Shown,
                 corner_radius: 6.0,
@@ -39,7 +24,8 @@ fn child_placements_round_trip() {
                 intrinsic: None,
                 rotation: 0.0,
                 opacity: 1.0,
-                follows_camera: true,
+                follows_view: true,
+                dialog: None,
             },
             ChildPlacement {
                 child: ChildId(2),
@@ -49,18 +35,8 @@ fn child_placements_round_trip() {
                     view_block: None,
                     editor: None,
                 },
-                rect: ChildRect {
-                    x: 12.0,
-                    y: 220.0,
-                    width: 320.0,
-                    height: 180.0,
-                },
-                clip: ChildRect {
-                    x: 0.0,
-                    y: 0.0,
-                    width: 640.0,
-                    height: 480.0,
-                },
+                rect: Rect::from_min_size(Pos2::new(12.0, 220.0), Vec2::new(320.0, 180.0)),
+                clip: Rect::from_min_size(Pos2::new(0.0, 0.0), Vec2::new(640.0, 480.0)),
                 own_frame: false,
                 top_bar: TopBar::Hidden,
                 corner_radius: 0.0,
@@ -69,7 +45,8 @@ fn child_placements_round_trip() {
                 intrinsic: None,
                 rotation: 0.0,
                 opacity: 1.0,
-                follows_camera: false,
+                follows_view: false,
+                dialog: None,
             },
             ChildPlacement {
                 child: ChildId(3),
@@ -79,18 +56,8 @@ fn child_placements_round_trip() {
                     view_block: None,
                     editor: None,
                 },
-                rect: ChildRect {
-                    x: 0.0,
-                    y: 0.0,
-                    width: 640.0,
-                    height: 32.0,
-                },
-                clip: ChildRect {
-                    x: 0.0,
-                    y: 0.0,
-                    width: 640.0,
-                    height: 480.0,
-                },
+                rect: Rect::from_min_size(Pos2::new(0.0, 0.0), Vec2::new(640.0, 32.0)),
+                clip: Rect::from_min_size(Pos2::new(0.0, 0.0), Vec2::new(640.0, 480.0)),
                 own_frame: false,
                 top_bar: TopBar::Hidden,
                 corner_radius: 0.0,
@@ -99,32 +66,18 @@ fn child_placements_round_trip() {
                 intrinsic: None,
                 rotation: 0.0,
                 opacity: 1.0,
-                follows_camera: false,
+                follows_view: false,
+                dialog: None,
             },
         ],
         occluders: vec![Occluder {
             after: 1,
-            rect: ChildRect {
-                x: 0.0,
-                y: 0.0,
-                width: 64.0,
-                height: 480.0,
-            },
+            rect: Rect::from_min_size(Pos2::new(0.0, 0.0), Vec2::new(64.0, 480.0)),
         }],
-        camera: Some(Camera {
-            x: -120.0,
-            y: 40.0,
-            scale: 1.5,
-        }),
     });
-    assert_eq!(
-        decode_frame(&encode_frame(&message).unwrap()).unwrap(),
-        message
-    );
+    round_trips(&message);
 
-    let Message::Children(placements) = &message else {
-        panic!("the message is a child placement table");
-    };
-    assert!(placements.occluded(0, 8.0, 8.0));
-    assert!(!placements.occluded(1, 8.0, 8.0));
+    let placements = &message.children[0];
+    assert!(placements.occluded(0, Pos2::new(8.0, 8.0)));
+    assert!(!placements.occluded(1, Pos2::new(8.0, 8.0)));
 }

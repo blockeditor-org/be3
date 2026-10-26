@@ -1,8 +1,8 @@
 use super::*;
 use crate::primitives::Frame;
+use crate::primitives::List;
 use crate::reactive::*;
 use crate::styled::Scroll;
-use crate::styled::*;
 
 #[test]
 fn overscrolling_squishes_the_scrollbar_thumb_against_the_end() {
@@ -26,9 +26,9 @@ fn overscrolling_squishes_the_scrollbar_thumb_against_the_end() {
         (track, painted_thumb(&output, track))
     };
     let edge = harness.rect(scrollbar_of(&harness, scroll)).center();
-    harness.frame(vec![Event::PointerMoved(edge)]);
+    harness.frame(vec![Input::PointerMoved(edge)]);
     let (bar, resting) = thumb(&mut harness);
-    harness.frame(vec![Event::PointerGone]);
+    harness.frame(vec![Input::PointerLeft]);
     assert_eq!(resting.top(), bar.top());
 
     let x = harness.rect(scroll).center().x - 40.0;

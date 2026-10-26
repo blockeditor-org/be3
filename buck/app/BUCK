@@ -21,3 +21,8 @@ export_file(
     name = "web-drive.mjs",
     visibility = ["PUBLIC"],
 )
+
+export_file(
+    name = "bundle.sh",
+    visibility = ["PUBLIC"],
+)

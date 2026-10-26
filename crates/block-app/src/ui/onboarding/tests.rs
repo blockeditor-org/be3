@@ -1,6 +1,8 @@
 use std::time::Duration;
 
-use beui::{Context, Event, FreetypeFonts, Modifiers, PointerButton, Pos2, RawInput, Rect, vec2};
+use beui::WindowSize;
+use beui::testing::{Showing, Stepped};
+use beui::{Context, FreetypeFonts, Input, PointerButton, vec2};
 
 use super::*;
 
@@ -49,53 +51,36 @@ fn painting_of(name: &str, document: beui::Document, select_default: bool) {
     painting_of_sized(name, document, select_default, vec2(1100.0, 720.0));
 }
 
-fn painting_of_sized(
-    name: &str,
-    mut document: beui::Document,
-    select_default: bool,
-    size: beui::Vec2,
-) {
+fn painting_of_sized(name: &str, document: beui::Document, select_default: bool, size: beui::Vec2) {
+    let window = WindowSize { size, scale: 1.0 };
     let context = Context::new(FreetypeFonts::default());
-    context.stop_clock();
-    {
-        let mut frame = |events| {
-            context.advance_clock(Duration::from_millis(300));
-            context.run(RawInput { events }, |context| {
-                document.show(context, Rect::from_min_size(Pos2::ZERO, size))
-            })
-        };
-        let _ = frame(Vec::new());
-        let _ = frame(Vec::new());
+    let mut stepped = Stepped::new(context, Showing(document), window, None);
+    for _ in 0..2 {
+        stepped.advance(Duration::from_millis(300));
+        stepped.frame(Vec::new());
     }
     if select_default {
+        let document = stepped.document();
         let button = document.find_test_id("account.default").unwrap();
         let at = document.node_rect(button).unwrap().center();
         for pressed in [true, false] {
-            context.run(
-                RawInput {
-                    events: vec![
-                        Event::PointerMoved(at),
-                        Event::PointerButton {
-                            pos: at,
-                            button: PointerButton::Primary,
-                            pressed,
-                            modifiers: Modifiers::NONE,
-                        },
-                    ],
+            stepped.frame(vec![
+                Input::PointerMoved(at),
+                Input::PointerButton {
+                    pos: at,
+                    button: PointerButton::Primary,
+                    pressed,
                 },
-                |context| document.show(context, Rect::from_min_size(Pos2::ZERO, size)),
-            );
+            ]);
         }
     }
-    context.advance_clock(Duration::from_secs(1));
-    let output = context.run(RawInput::default(), |context| {
-        document.show(context, Rect::from_min_size(Pos2::ZERO, size))
-    });
+    stepped.advance(Duration::from_secs(1));
+    let output = stepped.frame(Vec::new());
     let painted = beui::painting::painting(
-        &output,
+        output.main(),
         size,
         1.0,
-        output.window.appearance.clear_color,
+        output.main().window.appearance.clear_color,
         beui::painting::Punches::Shown,
     )
     .unwrap();
@@ -104,6 +89,7 @@ fn painting_of_sized(
 }
 
 mod a_deployed_default_server_asks_for_its_gateway_token;
+mod an_account_in_a_company_says_its_administrators_can_read_it;
 mod an_expired_session_signs_in_through_the_browser;
 mod browser_authorization_always_offers_the_link_and_code;
 mod browser_authorization_on_a_narrow_screen;

@@ -7,7 +7,7 @@
       "id": "83ccaa03-1ec3-45e4-a589-367cc289c37d",
       "edits": "6c6f6769-632d-6772-6964-2d626c6b0101",
       "display_name": "Logic Grid",
-      "icon": "\uefa7",
+      "icon": "\ue425",
       "templates": {
         "main": {}
       },
@@ -27,7 +27,7 @@
       "id": "4238d713-289e-4b68-a24a-567ac199ff15",
       "edits": "6c6f6769-632d-6761-6d65-2d626c6b0101",
       "display_name": "Logic Game",
-      "icon": "\uea28",
+      "icon": "\ue0df",
       "templates": {
         "main": {}
       },
@@ -39,7 +39,7 @@
       "id": "c18b1dcc-6d06-441d-b21f-d7a9b036238f",
       "edits": "6c6f6769-632d-686f-7462-617201010101",
       "display_name": "Hotbar",
-      "icon": "\ue1bd",
+      "icon": "\ue4fa",
       "regions": [
         "Frame"
       ]
@@ -48,10 +48,40 @@
       "id": "bd79b899-93c9-485a-93b5-fafa92bb0a61",
       "edits": "636f6d70-696c-6564-2d6c-6f6769630101",
       "display_name": "Compiled Logic",
-      "icon": "\ue322",
+      "icon": "\ue0a9",
       "regions": [
         "Frame"
       ]
+    }
+  },
+  "block_types": {
+    "grid": {
+      "id": "6c6f6769-632d-6772-6964-2d626c6b0101",
+      "display_name": "Logic Grid",
+      "icon": "\ue425",
+      "color": [44, 158, 128],
+      "module": "logic_grid_types.wasm"
+    },
+    "game": {
+      "id": "6c6f6769-632d-6761-6d65-2d626c6b0101",
+      "display_name": "Logic Game",
+      "icon": "\ue0df",
+      "color": [155, 112, 211],
+      "module": "logic_grid_types.wasm"
+    },
+    "hotbar": {
+      "id": "6c6f6769-632d-686f-7462-617201010101",
+      "display_name": "Hotbar",
+      "icon": "\ue4fa",
+      "color": [211, 126, 59],
+      "module": "logic_grid_types.wasm"
+    },
+    "compiled": {
+      "id": "636f6d70-696c-6564-2d6c-6f6769630101",
+      "display_name": "Compiled Logic",
+      "icon": "\ue0a9",
+      "color": [203, 91, 125],
+      "module": "logic_grid_types.wasm"
     }
   },
   "entry_point": "logic_grid.wasm"

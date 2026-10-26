@@ -1,4 +1,5 @@
 use super::*;
+use crate::primitives::List;
 use crate::primitives::Text;
 use crate::reactive::*;
 use crate::styled::*;
@@ -33,10 +34,7 @@ fn a_touch_selection_grows_by_its_handle_and_a_tap_outside_clears_it() {
     harness.touch(TouchPhase::Start, on_hello);
     harness.touch(TouchPhase::End, on_hello);
     assert_eq!(
-        harness
-            .document()
-            .api::<unstyled::SelectableState>(region)
-            .selected_text(),
+        selected_text(&mut harness, region),
         "hello",
         "a double tap selects the word"
     );
@@ -46,10 +44,7 @@ fn a_touch_selection_grows_by_its_handle_and_a_tap_outside_clears_it() {
     harness.touch(TouchPhase::Start, on_world);
     harness.touch(TouchPhase::End, on_world);
     assert_eq!(
-        harness
-            .document()
-            .api::<unstyled::SelectableState>(region)
-            .selected_text(),
+        selected_text(&mut harness, region),
         "",
         "a tap away from the selection clears it"
     );
@@ -64,7 +59,7 @@ fn a_touch_selection_grows_by_its_handle_and_a_tap_outside_clears_it() {
         .document()
         .text_caret_rect(first, "hello".len(), 2.0)
         .expect("the selection's end has a place");
-    let grip = handle_center(caret, CaretHandle::End);
+    let grip = handle_center(caret, CaretHandle::End, 1.0);
     let grip = pos2(grip.x, grip.y);
     let target = pos2(bottom.right() + 20.0, bottom.center().y) + (grip - caret.min);
     harness.touch(TouchPhase::Start, grip);
@@ -72,10 +67,7 @@ fn a_touch_selection_grows_by_its_handle_and_a_tap_outside_clears_it() {
     harness.touch(TouchPhase::Move, target);
     harness.touch(TouchPhase::End, target);
     assert_eq!(
-        harness
-            .document()
-            .api::<unstyled::SelectableState>(region)
-            .selected_text(),
+        selected_text(&mut harness, region),
         "hello world\nsecond line",
         "dragging the end handle carries the selection into the next text"
     );

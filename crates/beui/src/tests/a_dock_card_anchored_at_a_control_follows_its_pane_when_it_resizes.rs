@@ -19,7 +19,7 @@ fn a_dock_card_anchored_at_a_control_follows_its_pane_when_it_resizes() {
         "{tip:?} for {anchor:?}"
     );
 
-    *harness.viewport_mut() = Vec2::new(1300.0, 600.0);
+    harness.resize(Vec2::new(1300.0, 600.0));
     harness.frame(Vec::new());
     let output = harness.frame(Vec::new());
     let wider = harness.rect(harness.find("content.1"));

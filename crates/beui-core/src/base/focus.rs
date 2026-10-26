@@ -252,11 +252,10 @@ impl Document {
 
     pub(crate) fn ime_cursor_in(&self, rects: &Rects, node: NodeId) -> Option<Rect> {
         let cursor = focus_of(self.arena.get(node))?.ime_cursor?;
-        let anchor = rects.get(&cursor.node)?;
-        Some(match cursor.rect {
-            Some(rect) => rect.translate(anchor.min.to_vec2()),
-            None => anchor,
-        })
+        match cursor.rect {
+            Some(rect) => rects.local_to_window(&cursor.node, rect),
+            None => rects.get(&cursor.node),
+        }
     }
 
     pub fn focused_ime_area(&self) -> Option<ImeArea> {
@@ -269,13 +268,7 @@ impl Document {
         let cursor = node
             .ime_cursor
             .filter(|cursor| self.contains(cursor.node))
-            .and_then(|cursor| {
-                let anchor = self.node_rect(cursor.node)?;
-                Some(match cursor.rect {
-                    Some(rect) => rect.translate(anchor.min.to_vec2()),
-                    None => anchor,
-                })
-            })
+            .and_then(|_| self.ime_cursor_in(&self.rects, focused))
             .unwrap_or(rect);
         Some(ImeArea {
             rect,
@@ -675,7 +668,7 @@ impl Document {
             self.note_focus_outside_scopes(new);
         }
         self.watch_focus();
-        self.keyboard_held = self.touched
+        self.keyboard_held = self.touched()
             && new_focus.is_some_and(|focused| {
                 self.contains(focused)
                     && focus_of(self.arena.get(focused)).is_some_and(|node| !node.keyboard_on_focus)

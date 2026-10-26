@@ -28,16 +28,20 @@ struct Joined {
 
 struct Facts {
     parent: Option<BlockParent>,
+    held: bool,
     entry: bool,
     references: Vec<Uuid>,
+    opens_inside: bool,
 }
 
 impl Facts {
     fn of(summary: &BlockSummary, entry: bool) -> Self {
         Self {
             parent: summary.parent,
+            held: summary.held,
             entry,
             references: summary.references.clone(),
+            opens_inside: summary.opens_inside,
         }
     }
 }
@@ -54,11 +58,23 @@ impl Interest {
             || facts
                 .parent
                 .is_some_and(|parent| self.listings.contains(&Listing::Children(parent)))
+            || (facts.parent.is_some() && !facts.held && self.listings.contains(&Listing::Deleted))
             || (facts.entry && self.listings.contains(&Listing::Shared))
+            || (facts.opens_inside
+                && self
+                    .listings
+                    .iter()
+                    .any(|listing| matches!(listing, Listing::OpenSettings(_))))
             || facts
                 .references
                 .iter()
                 .any(|target| self.listings.contains(&Listing::Backrefs(*target)))
+            || self.listings.iter().any(|listing| {
+                matches!(listing, Listing::References(referrer) if self
+                    .known
+                    .get(referrer)
+                    .is_some_and(|referrer| referrer.references.contains(&block)))
+            })
     }
 
     fn told(&mut self, block: Uuid, facts: Facts) -> bool {

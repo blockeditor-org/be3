@@ -1,14 +1,10 @@
 use beui::NodeId;
 use beui::reactive::*;
 use beui::styled::*;
-use beui::unstyled::{Edge, Floating};
 
 use crate::chrome::sheet_open;
 
-const DOCK_MARGIN: f32 = 12.0;
-const DOCK_PADDING: f32 = 6.0;
-const DOCK_SPACING: f32 = 4.0;
-const DOCK_RADIUS: f32 = 16.0;
+const DOCK_MARGIN: Space = Space::Md;
 
 #[component]
 pub fn BottomDock(
@@ -20,38 +16,12 @@ pub fn BottomDock(
 ) -> NodeId {
     let sheet = sheet_open();
     let open = create_memo(move || open.get() && !sheet.get());
-    let row = NodeRef::new();
-    arrow_focus(row, Direction::Horizontal);
     let content = Render::new(move |()| {
         view! {
             <Frame padding=DOCK_MARGIN>
-                <List align=Align::Center spacing=0.0>
+                <List align=Align::Center spacing=Space::None>
                     {above.map(|above| above.call(())).unwrap_or_default()}
-                    <Frame
-                        fill=ColorRole::SurfaceRaised
-                        border={Border::DEFAULT}
-                        radius={Radius::custom(DOCK_RADIUS)}
-                        @test_id={name}
-                    >
-                        <List direction=Direction::Horizontal spacing=0.0>
-                            <Scroll
-                                @sizing={ItemSize::Intrinsic.shrink(1.0)}
-                                direction=Direction::Horizontal
-                                fit=true
-                            >
-                                <Frame padding=DOCK_PADDING>
-                                    <List
-                                        @node_ref=&row
-                                        direction=Direction::Horizontal
-                                        align=Align::Center
-                                        spacing=DOCK_SPACING
-                                    >
-                                        {tools.call(())}
-                                    </List>
-                                </Frame>
-                            </Scroll>
-                        </List>
-                    </Frame>
+                    <ToolPill @test_id={name}>{tools.call(())}</ToolPill>
                 </List>
             </Frame>
         }

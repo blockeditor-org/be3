@@ -58,31 +58,6 @@ pub fn open_pin(identity: &RecoverySecret, organization: Uuid, sealed: &[u8]) ->
     EscrowKey::decode(&identity.open_pin(organization.into_bytes(), sealed).ok()?)
 }
 
-pub async fn verified_escrow(
-    connection: &Connection,
-    identity: &RecoverySecret,
-    organization: Uuid,
-) -> Result<Option<EscrowKey>, ClientError> {
-    let ServerMessage::OrganizationOpened {
-        escrows, pinned, ..
-    } = connection
-        .request(|request| ClientMessage::OpenOrganization {
-            request,
-            organization,
-        })
-        .await?
-    else {
-        return Err(ClientError::Unexpected);
-    };
-    let pinned = open_pin(identity, organization, &pinned);
-    Ok(crate::keys::verify_escrow(
-        organization,
-        pinned.as_ref(),
-        &escrows,
-        |_| false,
-    ))
-}
-
 fn link_id(code: &InviteCode) -> Uuid {
     Uuid::from_bytes(code.lookup())
 }

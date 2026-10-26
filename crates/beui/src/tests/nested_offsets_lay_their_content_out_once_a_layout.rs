@@ -44,7 +44,7 @@ fn nested_offsets_lay_their_content_out_once_a_layout() {
     let scroll = scroll.get();
     let mut harness = Harness::new(document);
     harness.frame(Vec::new());
-    harness.document.set_scroll_offset(scroll, 5000.0);
+    harness.document_mut().set_scroll_offset(scroll, 5000.0);
     harness.frame(Vec::new());
 
     let latest = harness.document().performance().latest;

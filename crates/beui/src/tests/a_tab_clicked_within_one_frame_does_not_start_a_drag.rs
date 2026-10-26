@@ -1,5 +1,5 @@
 use super::*;
-use crate::unstyled::{DockApi, TabId};
+use crate::dock::unstyled::{DockApi, TabId};
 
 #[test]
 fn a_tab_clicked_within_one_frame_does_not_start_a_drag() {
@@ -10,21 +10,19 @@ fn a_tab_clicked_within_one_frame_does_not_start_a_drag() {
     let tab = harness.center(dock_tab(harness.document(), dock, "Tab 2"));
 
     harness.frame(vec![
-        Event::PointerMoved(tab),
-        Event::PointerButton {
+        Input::PointerMoved(tab),
+        Input::PointerButton {
             pos: tab,
             button: PointerButton::Primary,
             pressed: true,
-            modifiers: Modifiers::NONE,
         },
-        Event::PointerButton {
+        Input::PointerButton {
             pos: tab,
             button: PointerButton::Primary,
             pressed: false,
-            modifiers: Modifiers::NONE,
         },
     ]);
-    harness.frame(vec![Event::PointerMoved(pos2(
+    harness.frame(vec![Input::PointerMoved(pos2(
         WIDE_VIEWPORT.x - 20.0,
         WIDE_VIEWPORT.y / 2.0,
     ))]);

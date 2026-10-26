@@ -2,14 +2,11 @@ use super::*;
 
 #[test]
 fn zoom_gesture_round_trips() {
-    let message = Message::Input(InputBatch {
+    let message = InputBatch {
         screen: ScreenId(3),
         every_sample: false,
-        events: vec![InputEvent::Zoom { factor: 1.25 }],
-    });
+        events: vec![Input::Zoom(1.25).into()],
+    };
 
-    assert_eq!(
-        decode_frame(&encode_frame(&message).unwrap()).unwrap(),
-        message
-    );
+    round_trips(&message);
 }

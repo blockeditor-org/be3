@@ -12,7 +12,7 @@ fn a_pointer_kept_here_stays_on_this_device() {
     let (block, client, here) = (Uuid::new_v4(), Uuid::new_v4(), Uuid::new_v4());
     let (settings, profile) = (Uuid::new_v4(), Uuid::new_v4());
     let host = EditorHost::default();
-    host.set_host_value::<InputDevices>(&vec![touchpad()]);
+    host.set_watched::<InputDevicesWatch>(&vec![touchpad()]);
     host.set_editable(true);
     host.set_client_id(client);
     let mut editor = BeuiTest::<InputSettingsApp>::new(OwnedEditor::new(host, block));
@@ -54,9 +54,9 @@ fn a_pointer_kept_here_stays_on_this_device() {
     );
     assert_eq!(tap(&editor, Some(here)), None);
 
-    editor.click(&format!("{TAP}.menu"));
+    editor.click(format!("{TAP}.menu"));
     editor.run();
-    editor.click(&format!("{TAP}.keep"));
+    editor.click(format!("{TAP}.keep"));
     editor.run();
     assert_eq!(tap(&editor, Some(here)), Some(false));
 

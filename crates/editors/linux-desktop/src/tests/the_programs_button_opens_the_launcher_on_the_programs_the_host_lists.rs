@@ -10,7 +10,9 @@ fn the_programs_button_opens_the_launcher_on_the_programs_the_host_lists() {
     fixture.settle();
     assert!(
         matches!(
-            fixture.test.take_actions::<ProgramAction>()[..],
+            fixture
+                .test
+                .take_host_calls(block_ui_test::requested::program)[..],
             [ProgramAction::List { icon_size: 32 }]
         ),
         "opening the launcher asks the host to list the programs, with icons at its scale"
@@ -19,22 +21,24 @@ fn the_programs_button_opens_the_launcher_on_the_programs_the_host_lists() {
         fixture.test.wants_keyboard(),
         "the open launcher asks the host for the keyboard"
     );
-    fixture.test.set_host_value::<Programs>(&programs());
+    fixture.test.set_watched::<ProgramsWatch>(&programs());
     fixture.settle();
     assert!(fixture.test.shown("launcher.item.foot.desktop"));
     assert!(fixture.test.shown("launcher.item.files.desktop"));
     fixture.test.snapshot("the_program_launcher");
 
-    fixture.test.text("shell");
+    fixture.test.type_text("shell");
     fixture.settle();
     assert!(
         !fixture.test.shown("launcher.item.files.desktop"),
         "searching narrows the programs by their keywords"
     );
-    fixture.test.key_press(Key::Enter);
+    fixture.test.key(Key::Enter, Modifiers::NONE);
     fixture.settle();
     assert_eq!(
-        fixture.test.take_actions::<ProgramAction>(),
+        fixture
+            .test
+            .take_host_calls(block_ui_test::requested::program),
         [ProgramAction::Launch {
             program: "foot.desktop".to_owned(),
             launch: None

@@ -22,7 +22,7 @@ fn dragging_the_inspector_edge_resizes_the_panel() {
 
     assert_eq!(harness.inspector().width, width + 80.0);
     assert_eq!(
-        harness.document.node_rect(text).map(|rect| rect.right()),
+        harness.document().node_rect(text).map(|rect| rect.right()),
         Some(edge - 80.0)
     );
 }

@@ -1,29 +1,28 @@
+use beui::Overflow;
 use std::collections::BTreeMap;
 
-use be_block::database::{
+use beui::datetime::DateTime;
+use beui::icons::ICON_X;
+use beui::reactive::*;
+use beui::styled::*;
+use beui::{Color32, NodeId, Rect};
+pub use block_ui::database::ValueLabels;
+use block_ui::database::{DatabaseValueChange, block_reference_text, field_type_label};
+use database_types::database::{
     Database, DatabaseColor, DatabaseContent, DatabaseValue, Inverse, RowRef, inverses_of, short_id,
 };
-use be_block::database_schema::{
+use database_types::database_schema::{
     DatabaseField, DatabaseFieldType, DatabaseNumberOptions, DatabaseNumberScale,
     DatabaseSchemaContent,
 };
-use beui::datetime::DateTime;
-use beui::icons::ICON_CLEAR;
-use beui::reactive::*;
-use beui::styled::*;
-use beui::unstyled::ChoiceOption;
-use beui::{Color32, NodeId};
-use block_plugin_api::ChildRect;
-pub use block_ui::database::ValueLabels;
-use block_ui::database::{DatabaseValueChange, block_reference_text, field_type_label};
 use uuid::Uuid;
 
 mod choice;
 
 pub use choice::{ChoiceMark, choice_color, choice_color_label, choice_glyph, choice_icon_label};
 
-const SPACING: f32 = 6.0;
-const FIELD_SPACING: f32 = 12.0;
+const SPACING: Space = Space::Sm;
+const FIELD_SPACING: Space = Space::Lg;
 
 pub type RowValues = BTreeMap<Uuid, DatabaseValue>;
 
@@ -31,7 +30,7 @@ pub type RowValues = BTreeMap<Uuid, DatabaseValue>;
 pub struct DatabaseBlockPickRequest {
     pub field_id: Uuid,
     pub block_type: Option<Uuid>,
-    pub anchor: Option<ChildRect>,
+    pub anchor: Option<Rect>,
 }
 
 #[component]
@@ -117,8 +116,9 @@ fn DatabaseValueRow(
                 </Show>
                 <Spacer @sizing=ItemSize::Percent(100.0) />
                 <Show condition={set}>
-                    <IconButton
-                        glyph={ICON_CLEAR.to_owned()}
+                    <Button
+                        icon_only=true
+                        glyph=ICON_X
                         label="Clear"
                         @test_id={format!("{id}.clear")}
                         on_click={clear}
@@ -159,7 +159,7 @@ fn DatabaseValueControl(
         })
     });
     view! {
-        <List spacing=0.0>
+        <List spacing=Space::None>
             <Dynamic value={kind}>|kind: Option<Option<DatabaseFieldType>>| {
                 let test_id = id.clone();
                 let on_change = forward(on_change);
@@ -516,7 +516,7 @@ fn BlockValue(
         });
     };
     view! {
-        <List direction=Direction::Horizontal spacing=0.0>
+        <List direction=Direction::Horizontal spacing=Space::None>
             <Button
                 @node_ref={&button}
                 label={label}
@@ -585,9 +585,7 @@ fn RelationValue(
     view! {
         <List spacing=SPACING>
             <Show condition={unlinked}>
-                <Text style=TextStyle::CAPTION wrap=true>
-                    "Choose the database this column links to."
-                </Text>
+                <Text style=TextStyle::CAPTION>"Choose the database this column links to."</Text>
             </Show>
             <Select
                 options={view! {
@@ -690,9 +688,12 @@ fn LinksValue(
                 };
                 view! {
                     <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
-                        <Text @sizing=ItemSize::Percent(100.0)>{label}</Text>
-                        <IconButton
-                            glyph={ICON_CLEAR.to_owned()}
+                        <Text overflow=Overflow::Ellipsis @sizing=ItemSize::Percent(100.0)>
+                            {label}
+                        </Text>
+                        <Button
+                            icon_only=true
+                            glyph=ICON_X
                             label="Remove link"
                             disabled={disabled}
                             @test_id={remove_id}
@@ -983,7 +984,7 @@ pub fn DatabaseValueSummary(text: Prop<String>, aligned: Prop<bool>) -> NodeId {
         false => beui::TextAlign::Start,
     });
     view! {
-        <Frame padding={Sides::horizontal(SPACING)}>
+        <Frame padding={Padding::horizontal(SPACING)}>
             <Text align={align}>{text}</Text>
         </Frame>
     }
@@ -1047,8 +1048,7 @@ fn forward<T: 'static>(callback: Callback<T>) -> impl Fn(T) + 'static {
 
 pub fn create_database(creation: &crate::Creation) -> Uuid {
     use crate::BlockParent;
-    use be_block::database::{Database, DatabaseContent};
-    use be_block::database_schema::{DatabaseFieldType, DatabaseSchema, DatabaseSchemaContent};
+    use database_types::database_schema::DatabaseSchema;
 
     let blocks = creation.blocks();
     let mut fields = DatabaseSchemaContent::default();

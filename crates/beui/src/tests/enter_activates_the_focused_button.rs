@@ -17,10 +17,10 @@ fn enter_activates_the_focused_button() {
     let mut harness = Harness::new(document);
 
     harness.key(Key::Tab, Modifiers::NONE);
-    harness.frame(vec![key_event(Key::Enter, true, Modifiers::NONE)]);
+    harness.frame(vec![key_event(Key::Enter, true)]);
     assert!(active.get());
 
-    harness.frame(vec![key_event(Key::Enter, false, Modifiers::NONE)]);
+    harness.frame(vec![key_event(Key::Enter, false)]);
     assert!(!active.get());
     assert_eq!(clicks.get_untracked(), 1);
 }

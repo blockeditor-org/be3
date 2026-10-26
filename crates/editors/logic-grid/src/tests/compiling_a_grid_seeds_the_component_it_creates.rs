@@ -1,15 +1,17 @@
 use super::*;
-use block_editor_beui::be_block::{BlockContent, CompiledLogicContent};
+use block_editor_beui::be_block::BlockContent;
+use block_editor_beui::beui::Modifiers;
+use logic_grid_types::CompiledLogicContent;
 
 #[test]
 fn compiling_a_grid_seeds_the_component_it_creates() {
     let mut editor = editor();
-    editor.key_press(Key::Four);
+    editor.key(Key::Four, Modifiers::NONE);
     editor.run();
-    editor.key_press(Key::One);
+    editor.key(Key::One, Modifiers::NONE);
     editor.run();
     let point = canvas_point(&editor, Vec2::new(30.0, 30.0));
-    editor.click_at(point);
+    editor.click(point);
     editor.run();
 
     editor.click("logic-grid.compile");

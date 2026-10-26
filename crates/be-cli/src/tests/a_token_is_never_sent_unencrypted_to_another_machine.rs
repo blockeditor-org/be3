@@ -1,4 +1,4 @@
-use crate::session::{Settings, connect};
+use crate::session::{Settings, connect, connect_live};
 
 #[tokio::test]
 async fn a_token_is_never_sent_unencrypted_to_another_machine() {
@@ -11,5 +11,7 @@ async fn a_token_is_never_sent_unencrypted_to_another_machine() {
         cache: std::env::temp_dir(),
     };
     let error = connect(&settings).await.err().unwrap();
+    assert!(error.contains("not https"), "{error}");
+    let error = connect_live(&settings).await.err().unwrap();
     assert!(error.contains("not https"), "{error}");
 }

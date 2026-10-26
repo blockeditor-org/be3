@@ -1,13 +1,12 @@
 use super::*;
-use crate::unstyled::{DockApi, Entry, TabId};
+use crate::dock::unstyled::{DockApi, Entry, TabId};
 
 fn choose(harness: &mut Harness, dock: NodeId, pos: Pos2, item: &str) {
-    harness.frame(vec![Event::PointerMoved(pos)]);
-    harness.frame(vec![Event::PointerButton {
+    harness.frame(vec![Input::PointerMoved(pos)]);
+    harness.frame(vec![Input::PointerButton {
         pos,
         button: PointerButton::Secondary,
         pressed: true,
-        modifiers: Modifiers::NONE,
     }]);
     harness.frame(Vec::new());
     let row = text_within(harness.document(), dock, item)
@@ -23,7 +22,7 @@ fn grip_beside(harness: &Harness, dock: NodeId, first_tab: &str) -> Pos2 {
 
 fn grip_above(harness: &Harness, dock: NodeId, first_tab: &str) -> Pos2 {
     let label = harness.rect(dock_tab(harness.document(), dock, first_tab));
-    pos2(label.left() + 1.0, label.top() - 20.0)
+    grip_nearest(harness, dock, pos2(label.left(), label.top()))
 }
 
 #[test]

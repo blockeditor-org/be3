@@ -2,10 +2,10 @@ use std::cell::RefCell;
 use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
 
-use block_editor_beui::be_block::{ImageContent, ImageHeader, ImageOp};
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::{Image, Thumbhash};
 use block_editor_beui::{BlockQuery, ContentProjection, Editor};
+use image_block_types::{ImageContent, ImageHeader, ImageOp};
 
 #[derive(Clone, Default, PartialEq)]
 pub(crate) struct Shown {

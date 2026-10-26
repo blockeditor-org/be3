@@ -11,8 +11,10 @@ use ui::DatabaseEditor;
 
 pub struct DatabaseApp;
 
+#[component]
 impl block_editor_beui::BeuiApp for DatabaseApp {
-    fn view(editor: Editor) -> Root {
+    #[component]
+    fn View(editor: Editor) -> Root {
         view! {
             <Root>
                 <Loaded>

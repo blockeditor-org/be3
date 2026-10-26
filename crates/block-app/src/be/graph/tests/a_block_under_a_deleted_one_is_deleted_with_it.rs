@@ -12,6 +12,7 @@ fn a_block_under_a_deleted_one_is_deleted_with_it() {
         vec![
             Node {
                 parent: Some(BlockParent::Detached),
+                references: vec![inside],
                 ..node(folder)
             },
             Node {
@@ -22,6 +23,11 @@ fn a_block_under_a_deleted_one_is_deleted_with_it() {
             Node {
                 parent: Some(BlockParent::Block(Uuid::from_u128(99))),
                 ..node(shared)
+            },
+            Node {
+                parent: Some(BlockParent::Block(Uuid::from_u128(99))),
+                held: false,
+                ..node(Uuid::from_u128(5))
             },
         ],
         1,
@@ -34,6 +40,11 @@ fn a_block_under_a_deleted_one_is_deleted_with_it() {
         graph.deleted_root(shared),
         None,
         "a block whose parent it cannot see is not taken for deleted"
+    );
+    assert_eq!(
+        graph.deleted_root(Uuid::from_u128(5)),
+        Some(Uuid::from_u128(5)),
+        "unless the server says that parent no longer lists it"
     );
 
     graph.placing(folder, true);
@@ -50,5 +61,12 @@ fn a_block_under_a_deleted_one_is_deleted_with_it() {
         graph.deleted_root(inside),
         None,
         "restoring the folder restores what is inside"
+    );
+
+    graph.update(folder, |node| node.references.clear());
+    assert_eq!(
+        graph.deleted_root(inside),
+        Some(inside),
+        "a block its parent no longer lists is deleted, though its parent is the same"
     );
 }

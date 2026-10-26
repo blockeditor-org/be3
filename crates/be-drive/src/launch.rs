@@ -1,21 +1,24 @@
 use std::fs::{self, File};
-use std::os::unix::net::UnixStream;
+use std::os::fd::AsRawFd;
+use std::os::unix::fs::PermissionsExt;
+use std::os::unix::net::UnixListener;
 use std::os::unix::process::CommandExt;
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
 use std::sync::mpsc;
 use std::time::{Duration, Instant};
 
-use crate::request;
+use beui_core::runner::environment;
+
+use crate::{Unanswered, request};
 
 const USAGE: &str = "usage: be-drive launch --program=PATH [--name=NAME] [--data] [--libraries=DIR]
        [--size=WIDTHxHEIGHT[@SCALE]] [--screen=WIDTHxHEIGHT] [--latency=MS] [--fresh] [--stop]
        [PROGRAM ARGUMENTS...]
-Starts a beui program headless with an automation socket, waits until it settles, and writes
+Starts a beui program headless with a drive socket, waits until it settles, and writes
 an env file that puts `drive` on PATH pointed at it. --latency adds MS milliseconds to every
 round trip between the program and its server. Arguments it does not know go to the program.";
 const STARTUP: Duration = Duration::from_secs(120);
-const SIZE: &str = "1100x720";
 const SOCKET_PATH: usize = 107;
 const SCREEN: &str = "1440x900";
 
@@ -30,6 +33,7 @@ struct Launch {
     latency: Option<String>,
     fresh: bool,
     stop: bool,
+    space: bool,
     arguments: Vec<String>,
 }
 
@@ -97,7 +101,7 @@ impl Launch {
             fs::remove_dir_all(&data)
                 .map_err(|error| format!("could not delete {}: {error}", data.display()))?;
         }
-        let socket = dir.join("automation.sock");
+        let socket = dir.join("drive.sock");
         let length = socket.as_os_str().len();
         if length > SOCKET_PATH {
             return Err(format!(
@@ -107,19 +111,42 @@ impl Launch {
             ));
         }
         let _ = fs::remove_file(&socket);
+        let listener = UnixListener::bind(&socket)
+            .map_err(|error| format!("could not listen on {}: {error}", socket.display()))?;
+        fs::set_permissions(&socket, fs::Permissions::from_mode(0o600))
+            .map_err(|error| error.to_string())?;
+        let listening = listener.as_raw_fd();
         let mut command = Command::new(program);
         command
             .args(&self.arguments)
-            .env("BEUI_HEADLESS", self.size.as_deref().unwrap_or(SIZE))
+            .env(environment::PLATFORM, "headless")
             .env(
-                "BEUI_HEADLESS_SCREEN",
+                environment::HEADLESS_WINDOW,
+                self.size
+                    .as_deref()
+                    .unwrap_or(environment::HEADLESS_WINDOW_SIZE),
+            )
+            .env(
+                environment::HEADLESS_SCREEN,
                 self.screen.as_deref().unwrap_or(SCREEN),
             )
-            .env("BEUI_AUTOMATION", &socket)
+            .env(
+                environment::LAYERS,
+                layers(std::env::var(environment::LAYERS).ok(), self.space),
+            )
+            .env(environment::DRIVE_SOCKET, &socket)
+            .env(environment::DRIVE_LISTENER, listening.to_string())
             .env_remove("DISPLAY")
             .env_remove("WAYLAND_DISPLAY")
             .stdin(Stdio::null())
             .process_group(0);
+        // unsafe(ffi)
+        unsafe {
+            command.pre_exec(move || match libc::fcntl(listening, libc::F_SETFD, 0) {
+                -1 => Err(std::io::Error::last_os_error()),
+                _ => Ok(()),
+            });
+        }
         if let Some(log) = log {
             let file = File::create(log)
                 .map_err(|error| format!("could not create {}: {error}", log.display()))?;
@@ -137,35 +164,18 @@ impl Launch {
             command.env("XDG_DATA_HOME", &data);
         }
         let see = log.map_or_else(String::new, |log| format!("; see {}", log.display()));
-        let mut child = command
-            .spawn()
-            .map_err(|error| format!("could not start {program}: {error}"))?;
-        let answered = (|| {
-            let started = Instant::now();
-            loop {
-                if let Ok(Some(status)) = child.try_wait() {
-                    return Err(format!("{name} exited ({status}) before it answered{see}"));
-                }
-                if UnixStream::connect(&socket).is_ok() {
-                    break;
-                }
-                if started.elapsed() > STARTUP {
-                    return Err(format!(
-                        "{name} did not open {} within {} seconds; is it a beui app?{see}",
-                        socket.display(),
-                        STARTUP.as_secs(),
-                    ));
-                }
-                std::thread::sleep(Duration::from_millis(50));
-            }
-            request(&socket, &["settle".to_owned()], STARTUP)
-                .map(|_| ())
-                .map_err(|error| format!("{error}{see}"))
-        })();
-        if let Err(error) = answered {
+        let spawned = command.spawn();
+        drop(listener);
+        let mut child = spawned.map_err(|error| format!("could not start {program}: {error}"))?;
+        if let Err(error) = request(&socket, &["settle".to_owned()], STARTUP) {
             kill_group(child.id());
-            let _ = child.wait();
-            return Err(error);
+            let status = child.wait().map_err(|error| error.to_string())?;
+            return Err(match error {
+                Unanswered::Closed => {
+                    format!("{name} exited ({status}) before it answered; is it a beui app?{see}")
+                }
+                Unanswered::Failed(error) => format!("{error}{see}"),
+            });
         }
         Ok(child)
     }
@@ -192,7 +202,7 @@ pub fn run(arguments: &[String]) -> Result<(), String> {
         &env,
         format!(
             "export BE_DRIVE_SOCKET={}\nexport PATH={}:\"$PATH\"\n",
-            quoted(&dir.join("automation.sock")),
+            quoted(&dir.join("drive.sock")),
             quoted(&bin),
         ),
     )
@@ -211,6 +221,7 @@ pub(crate) fn start(
     arguments: Vec<String>,
     size: &str,
     libraries: Option<String>,
+    space: bool,
     dir: &Path,
     log: &Path,
 ) -> Result<Child, String> {
@@ -218,6 +229,7 @@ pub(crate) fn start(
         program: Some(program.to_owned()),
         data: true,
         fresh: true,
+        space,
         libraries,
         size: Some(size.to_owned()),
         arguments,
@@ -258,7 +270,7 @@ pub fn run_script(arguments: &[String]) -> Result<(), String> {
     fs::create_dir_all(&dir)
         .map_err(|error| format!("could not create {}: {error}", dir.display()))?;
     let mut child = launch.start(&dir, None)?;
-    if let Err(error) = crate::script(&dir.join("automation.sock"), &[], crate::TIMEOUT) {
+    if let Err(error) = crate::script(&dir.join("drive.sock"), &[], crate::TIMEOUT) {
         kill_group(child.id());
         let _ = child.wait();
         return Err(error);
@@ -282,6 +294,23 @@ pub fn run_script(arguments: &[String]) -> Result<(), String> {
                 EXIT.as_secs()
             ))
         }
+    }
+}
+
+fn layers(inherited: Option<String>, space: bool) -> String {
+    let inherited = inherited.unwrap_or_default();
+    let mut named: Vec<&str> = inherited
+        .split(',')
+        .map(str::trim)
+        .filter(|name| !name.is_empty())
+        .collect();
+    if space && !named.iter().any(|name| *name == "space" || *name == "xr") {
+        named.push("space");
+    }
+    match named.as_slice() {
+        [] => "drive".to_owned(),
+        named if named.contains(&"drive") => named.join(","),
+        named => format!("drive,{},drive", named.join(",")),
     }
 }
 

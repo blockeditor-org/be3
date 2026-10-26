@@ -2,7 +2,8 @@ use super::*;
 
 use std::time::Duration;
 
-use be_block::{BlockContent, BrowserTabContent, HistoryItem, LiveEdit};
+use be_block::{BlockContent, LiveEdit};
+use browser_tab_types::{BrowserTabContent, HistoryItem};
 
 fn titled(block: Uuid, title: &str) {
     let shown = crate::be::content(block)
@@ -11,7 +12,7 @@ fn titled(block: Uuid, title: &str) {
     let edit = shown
         .root()
         .replace(&HistoryItem::new("https://example.com/", title));
-    crate::be::operate_from(block, 0, BrowserTabContent::encode_operation(&edit));
+    crate::be::operate(block, BrowserTabContent::encode_operation(&edit));
     crate::be::wait_for(Duration::from_secs(20), |shared| {
         let held = shared.blocks.get(&block)?;
         let tab = BrowserTabContent::decode(held.bytes()).ok()?;
@@ -35,6 +36,11 @@ fn a_block_is_named_after_its_content_until_someone_names_it() {
     let block = Uuid::new_v4();
     let mut instances = placed_on(block, BrowserTabContent::CONTENT_TYPE);
     instances.next_screens(PASS);
+    to_replica(
+        &mut instances,
+        block,
+        &block_type_guest::editor::FromEditor::Resend,
+    );
     crate::be::wait_for(Duration::from_secs(20), |shared| {
         (shared.blocks.contains_key(&block) && shared.graph.get(block).is_some()).then_some(())
     })

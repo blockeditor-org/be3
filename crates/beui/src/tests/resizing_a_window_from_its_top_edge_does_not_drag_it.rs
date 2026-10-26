@@ -1,5 +1,5 @@
 use super::*;
-use crate::unstyled::DockApi;
+use crate::dock::unstyled::DockApi;
 use crate::{PreferenceLayer, PreferenceSource};
 
 #[test]
@@ -7,7 +7,7 @@ fn resizing_a_window_from_its_top_edge_does_not_drag_it() {
     let _root = crate::reactive::RootScope::new();
     let (document, dock) = dock_of(2);
     let mut harness = Harness::sized(document, WIDE_VIEWPORT);
-    harness.context.set_preference_layer(
+    harness.context().set_preference_layer(
         PreferenceSource::System,
         PreferenceLayer {
             motion: Some(crate::reactive::Motion::Instant),
@@ -24,7 +24,7 @@ fn resizing_a_window_from_its_top_edge_does_not_drag_it() {
     let bounds = harness.rect(dock);
     let bar = bounds.min + floated.min.to_vec2() + vec2(floated.width() - 80.0, 10.0);
     harness.drag(bar, bar - vec2(floated.min.x, 0.0));
-    harness.context.set_preference_layer(
+    harness.context().set_preference_layer(
         PreferenceSource::System,
         PreferenceLayer {
             motion: Some(crate::reactive::Motion::Animated),
@@ -42,7 +42,7 @@ fn resizing_a_window_from_its_top_edge_does_not_drag_it() {
 
     let edge = bounds.min + before.min.to_vec2() + vec2(before.width() / 2.0, -3.0);
     harness.press_at(edge);
-    harness.frame(vec![Event::PointerMoved(edge + vec2(-150.0, -30.0))]);
+    harness.frame(vec![Input::PointerMoved(edge + vec2(-150.0, -30.0))]);
 
     let after = harness
         .document()

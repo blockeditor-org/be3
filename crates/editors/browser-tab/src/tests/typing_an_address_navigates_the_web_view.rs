@@ -7,9 +7,9 @@ fn typing_an_address_navigates_the_web_view() {
 
     tab.editor.click("browser.address");
     tab.run();
-    tab.editor.key_press_modifiers(Modifiers::CTRL, Key::A);
+    tab.editor.key(Key::A, Modifiers::CTRL);
     tab.run();
-    tab.editor.text("example.org");
+    tab.editor.type_text("example.org");
     tab.run();
     tab.editor.click("browser.go");
     tab.run();

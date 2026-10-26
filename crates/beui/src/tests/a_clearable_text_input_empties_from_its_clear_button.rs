@@ -9,7 +9,7 @@ fn a_clearable_text_input_empties_from_its_clear_button() {
     let value = create_signal("road".to_owned());
     let (document, [input]) = toolbar_of(move || {
         [view! {
-            <TextInput value={value} glyph={ICON_SEARCH.to_owned()} clearable=true />
+            <TextInput value={value} glyph=ICON_SEARCH clearable=true />
         }]
     });
     let mut harness = Harness::new(document);

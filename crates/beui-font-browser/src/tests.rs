@@ -1,3 +1,3 @@
 use super::*;
 
-mod a_light_proportional_font_turns_bold_at_seven_hundred;
+mod a_font_is_regular_until_bold_turns_it_to_seven_hundred;

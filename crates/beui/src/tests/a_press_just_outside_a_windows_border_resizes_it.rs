@@ -1,6 +1,6 @@
 use super::*;
+use crate::dock::unstyled::DockApi;
 use crate::input::CursorIcon;
-use crate::unstyled::DockApi;
 
 #[test]
 fn a_press_just_outside_a_windows_border_resizes_it() {
@@ -16,14 +16,17 @@ fn a_press_just_outside_a_windows_border_resizes_it() {
     let before = rect(&harness);
 
     let beside = pos2(before.right() + 3.0, before.center().y);
-    let output = harness.frame(vec![Event::PointerMoved(beside)]);
-    assert_eq!(output.window.cursor, CursorIcon::ResizeHorizontal);
+    let output = harness.frame(vec![Input::PointerMoved(beside)]);
+    assert_eq!(
+        output.main().window.requests.cursor,
+        CursorIcon::ResizeHorizontal
+    );
     let corner = before.max + vec2(3.0, 3.0);
-    let output = harness.frame(vec![Event::PointerMoved(corner)]);
-    assert_eq!(output.window.cursor, CursorIcon::ResizeNwSe);
+    let output = harness.frame(vec![Input::PointerMoved(corner)]);
+    assert_eq!(output.main().window.requests.cursor, CursorIcon::ResizeNwSe);
     let above = pos2(before.right() + 3.0, before.top() - 3.0);
-    let output = harness.frame(vec![Event::PointerMoved(above)]);
-    assert_eq!(output.window.cursor, CursorIcon::ResizeNeSw);
+    let output = harness.frame(vec![Input::PointerMoved(above)]);
+    assert_eq!(output.main().window.requests.cursor, CursorIcon::ResizeNeSw);
 
     harness.drag(beside, beside + vec2(40.0, 0.0));
     let widened = rect(&harness);
@@ -34,8 +37,11 @@ fn a_press_just_outside_a_windows_border_resizes_it() {
     );
 
     let far = pos2(widened.right() + 12.0, widened.center().y);
-    let output = harness.frame(vec![Event::PointerMoved(far)]);
-    assert_ne!(output.window.cursor, CursorIcon::ResizeHorizontal);
+    let output = harness.frame(vec![Input::PointerMoved(far)]);
+    assert_ne!(
+        output.main().window.requests.cursor,
+        CursorIcon::ResizeHorizontal
+    );
     harness.drag(far, far + vec2(40.0, 0.0));
     assert_eq!(
         rect(&harness),

@@ -13,11 +13,13 @@ use crate::base::child_list::{ChildHost, NodeChildren, SlotId};
 use crate::context::{Context, Moved};
 use crate::damage::{Damage, Region};
 use crate::file_picker::{FileFilter, FilePick, FilePickId};
+use crate::file_saver::{FileSave, FileSaveId, SavedFile};
 use crate::flash::FlashLog;
 use crate::font::{FontId, Galley, TextLayout};
 use crate::geometry::{Pos2, Rect, Vec2, pos2};
 use crate::input::{Key, KeyChord, Modifiers};
-use crate::window::Appearance;
+use crate::window::hosted::Painting;
+use crate::window::{Appearance, WindowId};
 
 use crate::display::Display;
 use crate::interact;
@@ -30,13 +32,13 @@ use crate::painter::{Painter, PainterState, Zoom};
 use crate::performance::{FrameMeasurement, FrameWork, PerformanceSnapshot, PerformanceTracker};
 use crate::pixel_grid::PixelGrid;
 use crate::screen_simulation::{self, Placement};
-use crate::screens::Screen;
 use crate::sight::Sight;
 
 type PickedCallback = Box<dyn FnOnce(FilePick)>;
+type SavedCallback = Box<dyn FnOnce(FileSave)>;
 pub type FingerTap = dyn Fn(usize) -> bool;
 
-pub type ActionsHook = dyn Fn(&Context, &[NodeId]);
+pub type ActionsHook = dyn Fn(&Context, &[NodeId], &[WindowId], &[(WindowId, WindowId)]);
 
 pub trait Tools: Any {
     fn show(&mut self, document: &mut Document, ctx: &Context, rect: Rect);
@@ -62,7 +64,8 @@ pub struct Document {
     pub(crate) focus_before: Option<NodeId>,
     pub composed: String,
     pub(crate) keyboard_held: bool,
-    pub(crate) touched: bool,
+    touched: ::reactive::OwnedSignal<bool>,
+    pub(crate) finger_pressed: bool,
     pub(crate) keyboard_asks: u32,
     pub activated: Option<NodeId>,
     pub activation_key: Option<Key>,
@@ -88,9 +91,7 @@ pub struct Document {
     focus_visible: ::reactive::OwnedSignal<bool>,
     focus_watched: ::reactive::OwnedSignal<Option<NodeId>>,
     fullscreen: ::reactive::OwnedSignal<bool>,
-    screens: ::reactive::OwnedSignal<Vec<Screen>>,
-    offered_screens: Option<Vec<Screen>>,
-    rescreened: RefCell<Option<Vec<Screen>>>,
+    viewport_size: ::reactive::OwnedSignal<Vec2>,
     reattached: Cell<bool>,
     pub(crate) pointer_lockers: RefCell<Vec<NodeOf<crate::base::interactive::InteractiveNode>>>,
     pub(crate) pointer_locked: Cell<bool>,
@@ -113,6 +114,8 @@ pub struct Document {
     paste_requested: bool,
     unsent_file_picks: Vec<(FileFilter, PickedCallback)>,
     waiting_file_picks: Vec<(FilePickId, PickedCallback)>,
+    unsent_file_saves: Vec<(SavedFile, SavedCallback)>,
+    waiting_file_saves: Vec<(FileSaveId, SavedCallback)>,
     test_ids: HashMap<String, Vec<NodeId>>,
     node_test_ids: HashMap<NodeId, Vec<String>>,
     layout_revision: u64,
@@ -124,6 +127,7 @@ pub struct Document {
     measurements: NodeMap<Vec<Measurement>>,
     offer_dependent: bool,
     baselines: NodeMap<Vec<(Vec2, Option<f32>)>>,
+    min_widths: NodeMap<f32>,
     layout_parent: Option<NodeId>,
     placed_children: NodeMap<Vec<NodeId>>,
     placing: Vec<NodeId>,
@@ -134,6 +138,7 @@ pub struct Document {
     layout_pass: u64,
     focus_line: FocusLine,
     anchor_shift: f32,
+    pinned_to_end: Option<crate::base::list::Direction>,
     pub(crate) reveals: NodeMap<NodeId>,
     viewport: Option<(Context, Rect, f32)>,
     pub(crate) hidden: bool,
@@ -153,6 +158,7 @@ pub struct Document {
     node_refs: HashMap<NodeId, Vec<Weak<Cell<Option<NodeId>>>>>,
     placements: NodeMap<::reactive::OwnedSignal<Rect>>,
     placed: NodeMap<::reactive::OwnedSignal<bool>>,
+    text_bounds: NodeMap<::reactive::OwnedSignal<Rect>>,
     component_states: HashMap<NodeId, Vec<Box<dyn Any>>>,
     component_names: HashMap<NodeId, ComponentNames>,
     pub accessibility_id: u32,
@@ -168,8 +174,9 @@ pub struct Document {
     theme: ::reactive::OwnedSignal<crate::preferences::ThemeKind>,
     canvas_touch: ::reactive::OwnedSignal<crate::preferences::CanvasTouch>,
     preference_layers: ::reactive::OwnedSignal<crate::preferences::PreferenceLayers>,
-    out_of_bounds: Option<Vec<String>>,
+    out_of_bounds: Option<Vec<(WindowId, String)>>,
     animations: Rc<Cell<usize>>,
+    pub(crate) windows: crate::window::hosted::Windows,
 }
 
 #[derive(Clone, Copy)]
@@ -284,7 +291,8 @@ impl Document {
             focus_before: None,
             composed: String::new(),
             keyboard_held: false,
-            touched: false,
+            touched: ::reactive::OwnedSignal::new(false),
+            finger_pressed: false,
             keyboard_asks: 0,
             activated: None,
             activation_key: None,
@@ -311,9 +319,7 @@ impl Document {
             focus_visible: ::reactive::OwnedSignal::new(false),
             focus_watched: ::reactive::OwnedSignal::new(None),
             fullscreen: ::reactive::OwnedSignal::new(false),
-            screens: ::reactive::OwnedSignal::new(Vec::new()),
-            offered_screens: None,
-            rescreened: RefCell::new(None),
+            viewport_size: ::reactive::OwnedSignal::new(Vec2::ZERO),
             reattached: Cell::new(false),
             pointer_lockers: RefCell::default(),
             pointer_locked: Cell::new(false),
@@ -335,6 +341,8 @@ impl Document {
             paste_requested: false,
             unsent_file_picks: Vec::new(),
             waiting_file_picks: Vec::new(),
+            unsent_file_saves: Vec::new(),
+            waiting_file_saves: Vec::new(),
             test_ids: HashMap::default(),
             node_test_ids: HashMap::default(),
             layout_revision: 0,
@@ -346,6 +354,7 @@ impl Document {
             measurements: NodeMap::default(),
             offer_dependent: false,
             baselines: NodeMap::default(),
+            min_widths: NodeMap::default(),
             layout_parent: None,
             placed_children: NodeMap::default(),
             placing: Vec::new(),
@@ -356,6 +365,7 @@ impl Document {
             layout_pass: 0,
             focus_line: FocusLine::default(),
             anchor_shift: 0.0,
+            pinned_to_end: None,
             reveals: NodeMap::default(),
             viewport: None,
             hidden: false,
@@ -375,6 +385,7 @@ impl Document {
             node_refs: HashMap::default(),
             placements: NodeMap::default(),
             placed: NodeMap::default(),
+            text_bounds: NodeMap::default(),
             component_states: HashMap::default(),
             component_names: HashMap::default(),
             accessibility_id: accessibility::next_document_id(),
@@ -392,6 +403,7 @@ impl Document {
             preference_layers: ::reactive::OwnedSignal::new(Default::default()),
             out_of_bounds: None,
             animations: Rc::default(),
+            windows: Default::default(),
         }
     }
 
@@ -413,8 +425,15 @@ impl Document {
         self.appearance.as_ref()
     }
 
-    pub fn update_appearance(&mut self, change: impl FnOnce(&mut Appearance)) {
-        change(self.appearance.get_or_insert_default());
+    pub fn update_appearance(
+        &mut self,
+        window: Option<WindowId>,
+        change: impl FnOnce(&mut Appearance),
+    ) {
+        match window {
+            Some(window) => change(self.windows.appearances.entry(window).or_default()),
+            None => change(self.appearance.get_or_insert_default()),
+        }
         if let Some((ctx, _, _)) = &self.viewport {
             ctx.request_repaint();
         }
@@ -491,34 +510,12 @@ impl Document {
         self.scale.read_only()
     }
 
+    pub fn watch_viewport_size(&self) -> ::reactive::ReadSignal<Vec2> {
+        self.viewport_size.read_only()
+    }
+
     pub fn watch_fullscreen(&self) -> ::reactive::ReadSignal<bool> {
         self.fullscreen.read_only()
-    }
-
-    pub fn watch_screens(&self) -> ::reactive::ReadSignal<Vec<Screen>> {
-        self.screens.read_only()
-    }
-
-    pub fn screens(&self) -> Vec<Screen> {
-        self.screens.get_untracked()
-    }
-
-    pub fn screen_at(&self, pos: Pos2) -> Option<Screen> {
-        self.screens
-            .read_only()
-            .with_untracked(|screens| crate::screens::at(screens, pos).cloned())
-    }
-
-    pub fn screen_under(&self, rect: Rect) -> Option<Screen> {
-        self.screens
-            .read_only()
-            .with_untracked(|screens| crate::screens::under(screens, rect).cloned())
-    }
-
-    pub fn screen_named(&self, id: &str) -> Option<Screen> {
-        self.screens
-            .read_only()
-            .with_untracked(|screens| screens.iter().find(|screen| screen.id == id).cloned())
     }
 
     pub fn watch_focused(&self) -> ::reactive::ReadSignal<Option<NodeId>> {
@@ -550,6 +547,20 @@ impl Document {
 
     pub fn watch_keyboard(&self) -> ::reactive::ReadSignal<bool> {
         self.keyboard.read_only()
+    }
+
+    pub fn touched(&self) -> bool {
+        self.touched.get_untracked()
+    }
+
+    pub fn touched_by_finger(&self) -> bool {
+        self.finger_pressed && self.touched()
+    }
+
+    pub(crate) fn set_touched(&self, touched: bool) {
+        if self.touched() != touched {
+            self.touched.set(touched);
+        }
     }
 
     pub(crate) fn set_keyboard(&self, keyboard: bool) {
@@ -590,8 +601,10 @@ impl Document {
         let live: Vec<Rc<ActionsHook>> = hooks.iter().filter_map(Weak::upgrade).collect();
         drop(hooks);
         let path = self.focus_ancestry();
+        let windows = self.open_windows();
+        let hosts = self.window_hosts();
         for hook in live {
-            hook(ctx, &path);
+            hook(ctx, &path, &windows, &hosts);
         }
     }
 
@@ -601,8 +614,9 @@ impl Document {
         phase: crate::keys::KeyPhase,
         reveal: bool,
         handler: Weak<crate::keys::KeyHandler>,
+        window: Option<WindowId>,
     ) {
-        self.keys.listen(at, phase, reveal, handler);
+        self.keys.listen(at, phase, reveal, handler, window);
     }
 
     pub fn input_frames(&self) -> u64 {
@@ -643,9 +657,12 @@ impl Document {
         if self.fullscreen.get_untracked() != fullscreen {
             self.fullscreen.set(fullscreen);
         }
-        let rescreened = self.rescreened.borrow_mut().take();
-        if let Some(screens) = rescreened {
-            self.screens.set(screens);
+        let size = self
+            .viewport
+            .as_ref()
+            .map_or(Vec2::ZERO, |(_, rect, _)| rect.size());
+        if self.viewport_size.get_untracked() != size {
+            self.viewport_size.set(size);
         }
         let reattached = self.reattached.replace(false);
         if reattached {
@@ -798,8 +815,12 @@ impl Document {
         }
     }
 
+    pub fn find_test_ids(&self, test_id: &str) -> Vec<NodeId> {
+        self.named_live(test_id, &self.live_nodes())
+    }
+
     pub fn find_test_id(&self, test_id: &str) -> Option<NodeId> {
-        let named = self.named_live(test_id, &self.live_nodes());
+        let named = self.find_test_ids(test_id);
         if named.len() > 1 {
             panic!(
                 "test id {test_id:?} names {} nodes in the tree; give each its own id",
@@ -925,22 +946,36 @@ impl Document {
         self.unsent_file_picks.push((filter, Box::new(picked)));
     }
 
-    fn send_file_picks(&mut self, ctx: &Context) {
+    pub fn save_file(&mut self, file: SavedFile, saved: impl FnOnce(FileSave) + 'static) {
+        self.unsent_file_saves.push((file, Box::new(saved)));
+    }
+
+    fn send_file_dialogs(&mut self, ctx: &Context) {
         for (filter, picked) in std::mem::take(&mut self.unsent_file_picks) {
             let id = ctx.pick_file(filter);
             self.waiting_file_picks.push((id, picked));
         }
+        for (file, saved) in std::mem::take(&mut self.unsent_file_saves) {
+            let id = ctx.save_file(file);
+            self.waiting_file_saves.push((id, saved));
+        }
     }
 
-    fn deliver_file_picks(&mut self, ctx: &Context) {
-        if self.waiting_file_picks.is_empty() {
+    fn deliver_file_dialogs(&mut self, ctx: &Context) {
+        if self.waiting_file_picks.is_empty() && self.waiting_file_saves.is_empty() {
             return;
         }
-        let mut delivered = Vec::new();
+        let mut delivered: Vec<Box<dyn FnOnce()>> = Vec::new();
         for (id, picked) in std::mem::take(&mut self.waiting_file_picks) {
             match ctx.take_file_pick(id) {
-                Some(pick) => delivered.push((picked, pick)),
+                Some(pick) => delivered.push(Box::new(move || picked(pick))),
                 None => self.waiting_file_picks.push((id, picked)),
+            }
+        }
+        for (id, saved) in std::mem::take(&mut self.waiting_file_saves) {
+            match ctx.take_file_save(id) {
+                Some(save) => delivered.push(Box::new(move || saved(save))),
+                None => self.waiting_file_saves.push((id, saved)),
             }
         }
         if delivered.is_empty() {
@@ -949,8 +984,8 @@ impl Document {
         let context = self.reactive_scope().context();
         let _guard = crate::current::install(self);
         context.run(|| {
-            for (picked, pick) in delivered {
-                picked(pick);
+            for deliver in delivered {
+                deliver();
             }
         });
     }
@@ -1078,8 +1113,10 @@ impl Document {
         self.paint_cache.borrow_mut().forget(id);
         self.placements.remove(&id);
         self.placed.remove(&id);
+        self.text_bounds.remove(&id);
         self.measurements.remove(&id);
         self.baselines.remove(&id);
+        self.min_widths.remove(&id);
         self.component_states.remove(&id);
         self.component_names.remove(&id);
         self.placed_children.remove(&id);
@@ -1207,13 +1244,6 @@ impl Document {
             ctx.request_repaint();
         }
         ctx.set_screen_scale(placement.map_or(1.0, |placement| placement.scale));
-        self.offered_screens = match placement {
-            Some(placement) => Some(vec![Screen::window(placement.screen)]),
-            None => Some(crate::software_keyboard::usable_screens(
-                ctx,
-                crate::screens::shown_in(&ctx.screens(), rect),
-            )),
-        };
         match placement {
             Some(placement) => {
                 let shown = placement.shown();
@@ -1266,18 +1296,6 @@ impl Document {
             });
         let refonted =
             std::mem::replace(&mut self.fonts_generation, fonts_generation) != fonts_generation;
-        let screens = self
-            .offered_screens
-            .take()
-            .unwrap_or_else(|| vec![Screen::window(rect)]);
-        let rescreened = self
-            .screens
-            .read_only()
-            .with_untracked(|shown| *shown != screens);
-        if rescreened {
-            self.relay_for_viewport();
-            *self.rescreened.borrow_mut() = Some(screens);
-        }
         if refonted
             || self
                 .viewport
@@ -1310,6 +1328,7 @@ impl Document {
             }
             self.viewport = Some((ctx.clone(), rect, scale));
         }
+        self.follow_windows(ctx);
         FrameMeasurement::measure(&mut measurement.timings.accessibility, || {
             let actions = ctx.take_accessibility_actions(self.accessibility_id);
             if !actions.is_empty() {
@@ -1325,7 +1344,7 @@ impl Document {
         if ctx.automated() {
             crate::current::run_in(self, |document| document.describe_actions(ctx));
         }
-        self.deliver_file_picks(ctx);
+        self.deliver_file_dialogs(ctx);
 
         {
             FrameMeasurement::measure(&mut measurement.timings.interaction, || {
@@ -1365,13 +1384,20 @@ impl Document {
             ctx.request_paste();
         }
         ctx.accept_pastes(&self.paste_kinds());
-        if resized && self.focus_takes_text() {
+        ctx.take_clipboard_keys(self.clipboard_keys());
+        let window_resized = std::mem::take(&mut self.windows.focus_resized);
+        if (resized || window_resized) && self.focus_takes_text() {
             self.reveal_focus();
         }
         measurement.layout_passes =
             FrameMeasurement::measure(&mut measurement.timings.layout, || {
                 self.update_layout(ctx, rect)
             });
+        self.ask_for_windows(ctx);
+        ctx.set_keyboard_window(
+            self.focused
+                .map_or(WindowId::MAIN, |focused| self.window_of(focused)),
+        );
         if self.has_keyboard()
             && let Some(area) = self.focused_ime_area()
         {
@@ -1394,24 +1420,65 @@ impl Document {
         repaints.extend(cache.take_due(now));
         cache.mark(&repaints, &self.arena);
         self.arena.recycle(released);
+        let mut window_damage = None;
+        let mut window_moves = Vec::new();
         if !repaints.is_empty() || self.paint_revision != self.arena.revision {
             measurement.painted = true;
             let verifying = verifying_paint();
-            let previous = verifying.then(|| self.painting.clone());
+            let previous =
+                verifying.then(|| (self.painting.clone(), self.windows.paintings.clone()));
             FrameMeasurement::measure(&mut measurement.timings.paint, || self.paint(ctx));
             self.paint_revision = self.arena.revision;
             let cache = self.paint_cache.get_mut();
             let moves = cache.take_moves();
             let stale = cache.take_stale();
-            let everything = self.damage.is_everything();
-            let region = self.damage.take(rect);
+            let mut taken = self.damage.take();
+            let everything = taken.is_everything();
+            let region = taken.of(WindowId::MAIN, rect);
             let (region, moved) = match everything {
                 true => (region, None),
-                false => self.settle_moves(moves, stale, region, rect),
+                false => self.settle_moves(WindowId::MAIN, &moves, &stale, region, rect),
             };
-            if let Some(previous) = previous {
-                self.verify_paint(ctx, rect, &previous, &region, moved, everything);
+            if !everything {
+                for window in self.open_windows() {
+                    let Some(viewport) = self.window_rect(window) else {
+                        continue;
+                    };
+                    let held = taken.of(window, viewport);
+                    let (settled, moved) =
+                        self.settle_moves(window, &moves, &stale, held, viewport);
+                    taken.set(window, settled);
+                    if let Some(moved) = moved {
+                        window_moves.push((window, moved));
+                    }
+                }
             }
+            if let Some((painting, windows)) = previous {
+                let mut checks = vec![verify::Check {
+                    window: WindowId::MAIN,
+                    viewport: rect,
+                    previous: painting,
+                    region,
+                    moved,
+                }];
+                for (window, painting) in windows {
+                    let Some(viewport) = self.window_rect(window) else {
+                        continue;
+                    };
+                    checks.push(verify::Check {
+                        window,
+                        viewport,
+                        previous: painting,
+                        region: taken.of(window, viewport),
+                        moved: window_moves
+                            .iter()
+                            .find(|(held, _)| *held == window)
+                            .map(|(_, moved)| *moved),
+                    });
+                }
+                self.verify_paint(ctx, &checks, everything);
+            }
+            window_damage = Some(taken);
             for damaged in region.rects() {
                 self.damage_flashes.record(*damaged, now);
                 ctx.report_damage(*damaged);
@@ -1432,15 +1499,20 @@ impl Document {
             ctx.note_animating();
         }
         ctx.show_painting(&self.painting, rect);
+        self.show_windows(ctx, window_damage.as_ref(), &window_moves);
         if ctx.automated() {
             if measurement.painted || measurement.layout_passes > 0 || self.out_of_bounds.is_none()
             {
-                let found = self.overflows().iter().map(ToString::to_string).collect();
+                let found = self
+                    .overflows()
+                    .iter()
+                    .map(|found| (self.window_of(found.node), found.to_string()))
+                    .collect();
                 self.out_of_bounds = Some(found);
             }
             ctx.report_overflows(self.out_of_bounds.as_deref().unwrap_or_default());
         }
-        self.send_file_picks(ctx);
+        self.send_file_dialogs(ctx);
         FrameMeasurement::measure(&mut measurement.timings.accessibility, || {
             if !ctx.accessibility_active() {
                 let mut tree = self.accessibility_tree.borrow_mut();
@@ -1462,43 +1534,95 @@ impl Document {
     }
 
     fn paint(&mut self, ctx: &Context) {
-        let painter = ctx.painter();
         let mut roots = Vec::new();
-        if let Some(root) = self.root {
-            paint::paint(self, &painter, &self.rects, root);
-            roots.push(root);
+        if let Some(root) = self.root.filter(|_| ctx.shows_window(ctx.drawing_window())) {
+            self.paint_cache.get_mut().paint_into(WindowId::MAIN);
+            paint::paint(
+                self,
+                &ctx.window_painter(ctx.drawing_window()),
+                &self.rects,
+                root,
+            );
+            roots.push((WindowId::MAIN, root));
         }
-        for overlay in self.layers().iter().filter_map(|layer| layer.overlay) {
+        let layers = self.layers();
+        let open = self.open_windows();
+        for layer in layers.iter().skip(1) {
+            let Some(overlay) = layer.overlay else {
+                continue;
+            };
+            let shown = match layer.window.is_main() {
+                true => ctx.shows_main(),
+                false => open.contains(&layer.window),
+            };
+            if !shown {
+                continue;
+            }
             let scrim = self.overlay_scrim(overlay);
             let content = self.overlay_content(overlay);
-            for layer in [Some(scrim), content].into_iter().flatten() {
-                if self.rects.contains_key(&layer) {
-                    paint::paint(self, &painter, &self.rects, layer);
-                    roots.push(layer);
+            let painter = ctx.window_painter(layer.window);
+            self.paint_cache.get_mut().paint_into(layer.window);
+            for root in [Some(scrim), content].into_iter().flatten() {
+                if self.rects.contains_key(&root) {
+                    paint::paint(self, &painter, &self.rects, root);
+                    roots.push((layer.window, root));
                 }
             }
         }
         let cache = self.paint_cache.get_mut();
-        cache.settle_roots(roots);
+        cache.settle_roots(&roots);
         if cache.take_recorded() {
-            self.painting = cache.painting();
+            let mut main = Vec::new();
+            let mut windows: Vec<(WindowId, Painting)> = Vec::new();
+            for (window, root) in &roots {
+                let Some(painted) = cache.painting_of(*root) else {
+                    continue;
+                };
+                match window.is_main() {
+                    true => main.push(painted),
+                    false => match windows.iter_mut().find(|(id, _)| id == window) {
+                        Some((_, painting)) => painting.push(painted),
+                        None => windows.push((*window, vec![painted])),
+                    },
+                }
+            }
+            self.painting = main;
+            self.windows.paintings = windows;
         }
-        self.damage.add_region(cache.take_damage());
+        self.damage.add_regions(cache.take_damage());
     }
 
     fn settle_moves(
         &self,
-        moves: Vec<paint::Move>,
-        stale: Vec<paint::Stale>,
+        window: WindowId,
+        moves: &[paint::Move],
+        stale: &[paint::Stale],
         region: Region,
         viewport: Rect,
     ) -> (Region, Option<Moved>) {
+        let moves: Vec<&paint::Move> = moves
+            .iter()
+            .filter(|moved| moved.window == window)
+            .collect();
+        let stale: Vec<&paint::Stale> = stale
+            .iter()
+            .filter(|stale| stale.window == window)
+            .collect();
+        let painting = match window.is_main() {
+            true => self.painting.as_slice(),
+            false => self
+                .windows
+                .paintings
+                .iter()
+                .find(|(held, _)| *held == window)
+                .map_or(&[][..], |(_, painting)| painting.as_slice()),
+        };
         let shown_area = |moved: &paint::Move| {
             let visible = moved.viewport.intersect(viewport);
             visible.width().max(0.0) * visible.height().max(0.0)
         };
-        let Some(largest) = (0..moves.len())
-            .max_by(|a, b| shown_area(&moves[*a]).total_cmp(&shown_area(&moves[*b])))
+        let Some(largest) =
+            (0..moves.len()).max_by(|a, b| shown_area(moves[*a]).total_cmp(&shown_area(moves[*b])))
         else {
             let mut region = region;
             for stale in &stale {
@@ -1512,9 +1636,9 @@ impl Document {
                 region.add(moved.viewport.intersect(viewport));
             }
         }
-        let only = &moves[largest];
+        let only = moves[largest];
         let visible = only.viewport.intersect(viewport);
-        let (fixed, inner) = paint::fixed_damage(&self.painting, only.space, visible, only.by);
+        let (fixed, inner) = paint::fixed_damage(painting, only.space, visible, only.by);
         let shown = visible.intersect(inner);
         let landed = shown.intersect(shown.translate(only.by));
         let source = landed.translate(-only.by);
@@ -1556,40 +1680,68 @@ impl Document {
         (settled, Some(moved))
     }
 
-    fn verify_paint(
-        &mut self,
-        ctx: &Context,
-        viewport: Rect,
-        previous: &[(Rc<Display>, Vec2)],
-        region: &Region,
-        moved: Option<Moved>,
-        everything: bool,
-    ) {
+    fn verify_paint(&mut self, ctx: &Context, checks: &[verify::Check], everything: bool) {
         let counted = (
             self.work.painted_nodes.get(),
             self.work.replayed_nodes.get(),
         );
         let retained = self.paint_cache.replace(PaintCache::default());
         let painting = std::mem::take(&mut self.painting);
+        let windows = std::mem::take(&mut self.windows.paintings);
         let damage = std::mem::take(&mut self.damage);
         ctx.verifying_paint(true);
         self.paint(ctx);
         ctx.verifying_paint(false);
-        let fresh = std::mem::replace(&mut self.painting, painting);
+        let fresh_main = std::mem::replace(&mut self.painting, painting);
+        let fresh_windows = std::mem::replace(&mut self.windows.paintings, windows);
         self.paint_cache.replace(retained);
         self.damage = damage;
         self.work.painted_nodes.set(counted.0);
         self.work.replayed_nodes.set(counted.1);
+        let of = |paintings: &[(WindowId, Painting)], window: WindowId| {
+            paintings
+                .iter()
+                .find(|(held, _)| *held == window)
+                .map(|(_, painting)| painting.clone())
+                .unwrap_or_default()
+        };
+        for check in checks {
+            let (fresh, retained) = match check.window.is_main() {
+                true => (fresh_main.clone(), self.painting.clone()),
+                false => (
+                    of(&fresh_windows, check.window),
+                    of(&self.windows.paintings, check.window),
+                ),
+            };
+            self.verify_window(ctx, check, &fresh, &retained, everything);
+        }
+    }
+
+    fn verify_window(
+        &self,
+        ctx: &Context,
+        check: &verify::Check,
+        fresh: &[(Rc<Display>, Vec2)],
+        retained: &[(Rc<Display>, Vec2)],
+        everything: bool,
+    ) {
+        let verify::Check {
+            window,
+            viewport,
+            ref previous,
+            ref region,
+            moved,
+        } = *check;
         assert!(
-            fresh.len() == self.painting.len()
+            fresh.len() == retained.len()
                 && fresh
                     .iter()
-                    .zip(&self.painting)
+                    .zip(retained)
                     .all(|((fresh, at), (retained, held))| at == held && fresh.same_tree(retained)),
-            "the retained painting differs from painting from scratch: {:?} against {:?}",
+            "the retained painting of {window:?} differs from painting from scratch: {:?} against {:?}",
             fresh
                 .iter()
-                .zip(&self.painting)
+                .zip(retained)
                 .find(|((fresh, at), (retained, held))| at != held || !fresh.same_tree(retained))
                 .map(|((fresh, _), _)| fresh.node),
             fresh
@@ -1598,7 +1750,7 @@ impl Document {
                 .collect::<Vec<_>>(),
         );
         let old = verify::Seen::of(previous, moved.map(|moved| moved.from));
-        let new = verify::Seen::of(&self.painting, moved.map(|moved| moved.to()));
+        let new = verify::Seen::of(retained, moved.map(|moved| moved.to()));
         let changes = verify::changes(&old, &new, moved);
         if !everything && moved.is_none() && detecting_over_repaint() {
             let area = |region: &Region| {
@@ -1619,12 +1771,12 @@ impl Document {
                 OVER_REPAINTS.with_borrow_mut(|reports| reports.push(report));
             }
         }
-        let scale = ctx.pixels_per_point();
+        let scale = ctx.window_pixels_per_point(window);
         for (rect, why) in changes.needed {
             let rect = rect.intersect(viewport);
             assert!(
                 verify::covered(rect, region, scale),
-                "the painting changed outside the damaged region: {rect:?} ({why:?}) is not within {:?}{}",
+                "the painting of {window:?} changed outside the damaged region: {rect:?} ({why:?}) is not within {:?}{}",
                 region.rects(),
                 match moved {
                     Some(moved) => format!(" (with {moved:?} copied)"),
@@ -1712,10 +1864,15 @@ impl Document {
         self.invalidated.push(id);
     }
 
+    pub(crate) fn invalidated_after_layout(&self) -> usize {
+        self.invalidated.len()
+    }
+
     pub fn measured(&mut self, id: NodeId, available: Vec2) -> Option<Vec2> {
         if self.arena.stale(id) {
             self.measurements.remove(&id);
             self.baselines.remove(&id);
+            self.min_widths.remove(&id);
             return None;
         }
         let held = self.measurements.get(&id)?;
@@ -1797,6 +1954,20 @@ impl Document {
             held.remove(0);
         }
         held.push((available, baseline));
+    }
+
+    pub fn measured_min_width(&self, id: NodeId) -> Option<f32> {
+        if self.arena.stale(id) {
+            return None;
+        }
+        self.min_widths.get(&id).copied()
+    }
+
+    pub fn remember_min_width(&mut self, id: NodeId, width: f32, watermark: u64) {
+        if self.arena.layout_revision != watermark || self.arena.stale(id) {
+            return;
+        }
+        self.min_widths.insert(id, width);
     }
 
     pub fn note_measured(&self, reused: bool) {
@@ -1919,6 +2090,17 @@ impl Document {
         self.anchor_shift += shift;
     }
 
+    pub(crate) fn replace_pinned_to_end(
+        &mut self,
+        pinned: Option<crate::base::list::Direction>,
+    ) -> Option<crate::base::list::Direction> {
+        std::mem::replace(&mut self.pinned_to_end, pinned)
+    }
+
+    pub fn pinned_to_end(&self) -> Option<crate::base::list::Direction> {
+        self.pinned_to_end
+    }
+
     pub(crate) fn take_anchor_shift(&mut self) -> f32 {
         std::mem::take(&mut self.anchor_shift)
     }
@@ -1930,6 +2112,20 @@ impl Document {
     pub fn note_placed(&mut self, id: NodeId) {
         self.placing.push(id);
         self.reached_pass.insert(id, self.layout_pass);
+    }
+
+    pub fn watch_text_bounds(
+        &mut self,
+        text: NodeOf<crate::base::text::TextNode>,
+    ) -> ::reactive::ReadSignal<Rect> {
+        if let Some(watched) = self.text_bounds.get(&text.id()) {
+            return watched.read_only();
+        }
+        let bounds = self.text_geometry(text).bounds().unwrap_or(Rect::ZERO);
+        let watched = ::reactive::OwnedSignal::new(bounds);
+        let read = watched.read_only();
+        self.text_bounds.insert(text.id(), watched);
+        read
     }
 
     pub fn watch_placed(&mut self, id: NodeId) -> ::reactive::ReadSignal<bool> {
@@ -2186,18 +2382,31 @@ impl Document {
             .filter(|(placed, watched)| watched.get_untracked() != *placed)
             .map(|(placed, watched)| (watched.handle(), placed))
             .collect();
-        if reports.is_empty() && moved.is_empty() && placed.is_empty() {
+        let bounded: Vec<(::reactive::Signal<Rect>, Rect)> = self
+            .text_bounds
+            .iter()
+            .filter_map(|(id, watched)| {
+                let bounds = self.text_geometry(NodeOf::assumed(id)).bounds()?;
+                (watched.get_untracked() != bounds).then(|| (watched.handle(), bounds))
+            })
+            .collect();
+        if reports.is_empty() && moved.is_empty() && placed.is_empty() && bounded.is_empty() {
             return;
         }
         crate::current::enter(self, || {
-            for report in reports {
-                report();
-            }
             for (write, rect) in moved {
                 write.set(rect);
             }
             for (write, shown) in placed {
                 write.set(shown);
+            }
+            for (write, bounds) in bounded {
+                write.set(bounds);
+            }
+        });
+        crate::current::enter(self, || {
+            for report in reports {
+                report();
             }
         });
     }
@@ -2234,9 +2443,14 @@ impl Document {
     }
 
     pub fn viewport_rect(&self) -> Rect {
-        self.viewport
-            .as_ref()
-            .map_or(Rect::NOTHING, |(_, rect, _)| *rect)
+        self.windows
+            .viewport
+            .map(|(_, rect)| rect)
+            .unwrap_or_else(|| {
+                self.viewport
+                    .as_ref()
+                    .map_or(Rect::NOTHING, |(_, rect, _)| *rect)
+            })
     }
 
     pub fn pixels_per_point(&self) -> f32 {
@@ -2261,9 +2475,12 @@ impl Document {
         PixelGrid::new(self.pixels_per_point())
     }
 
-    pub fn measure_root(&mut self, ctx: &Context, available: Vec2) -> Option<Vec2> {
-        let root = self.root?;
-        let painter = ctx.painter();
+    pub fn measure_node(&mut self, ctx: &Context, node: NodeId, available: Vec2) -> Option<Vec2> {
+        if !self.arena.contains(node) {
+            return None;
+        }
+        let root = node;
+        let painter = ctx.window_painter(self.window_of(node));
         let context = self.reactive_scope().context();
         let mut measured = None;
         {
@@ -2311,7 +2528,7 @@ impl Document {
         let rects = Rc::clone(&self.rects);
         self.placing.clear();
         if let Some(root) = self.root {
-            let painter = ctx.painter();
+            let painter = ctx.window_painter(ctx.drawing_window());
             let placed = &*rects;
             self.layout_parent = None;
             crate::current::run_in(self, |document| {
@@ -2402,7 +2619,10 @@ impl Document {
             };
             let painter = Painter::resumed(ctx.clone(), state);
             self.layout_parent = self.arena.parent(boundary);
+            let viewport = self.window_viewport(self.window_of(boundary));
+            let held = self.swap_window_viewport(viewport);
             layout::layout(self, &painter, boundary, placed.rect, rects);
+            self.swap_window_viewport(held);
             self.layout_parent = None;
             self.placing.clear();
         }

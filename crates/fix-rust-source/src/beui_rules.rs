@@ -3,29 +3,39 @@ use ra_ap_syntax::{SourceFile, SyntaxNode};
 
 const SIGNAL_WRITES: [&str; 3] = ["set", "update", "set_unconditionally"];
 
-const PRIMITIVE_USERS: [&str; 14] = [
+const PRIMITIVE_USERS: [&str; 18] = [
     "crates/beui/",
     "crates/beui-view/",
     "crates/beui-components-styled/",
     "crates/beui-components-unstyled/",
+    "crates/beui-dock/",
     "crates/beui-inspector/",
+    "crates/beui-keyboard/",
     "crates/beui-renderer-wgpu/",
     "crates/beui-demo/src/base_pages.rs",
     "crates\\beui\\",
     "crates\\beui-view\\",
     "crates\\beui-components-styled\\",
     "crates\\beui-components-unstyled\\",
+    "crates\\beui-dock\\",
     "crates\\beui-inspector\\",
+    "crates\\beui-keyboard\\",
     "crates\\beui-renderer-wgpu\\",
     "crates\\beui-demo\\src\\base_pages.rs",
 ];
 
-const COMPONENT_CRATES: [&str; 4] = [
+const COMPONENT_CRATES: [&str; 8] = [
     "crates/beui-components-styled/",
     "crates/beui-components-unstyled/",
+    "crates/beui-dock/",
+    "crates/beui-keyboard/",
     "crates\\beui-components-styled\\",
     "crates\\beui-components-unstyled\\",
+    "crates\\beui-dock\\",
+    "crates\\beui-keyboard\\",
 ];
+
+const BASE_CRATES: [&str; 2] = ["crates/beui-core/", "crates\\beui-core\\"];
 
 const DOCUMENT_ACCESS: [&str; 5] = [
     "with_document",
@@ -69,11 +79,45 @@ pub(crate) fn beui_violations(tree: &SourceFile, source: &str, relative: &str) -
             }
         }
     }
+    for call in tree.syntax().descendants().filter_map(ast::CallExpr::cast) {
+        if test_source || !(calls(&call, "with_document") || calls(&call, "try_with_document")) {
+            continue;
+        }
+        let Some(arguments) = call.arg_list() else {
+            continue;
+        };
+        for read in arguments
+            .syntax()
+            .descendants()
+            .filter_map(ast::MethodCallExpr::cast)
+        {
+            let closures = read
+                .syntax()
+                .ancestors()
+                .take_while(|node| node != arguments.syntax())
+                .filter(|node| ast::ClosureExpr::can_cast(node.kind()))
+                .count();
+            if closures <= 1
+                && read.name_ref().is_some_and(|name| name.text() == "get")
+                && read
+                    .arg_list()
+                    .is_some_and(|arguments| arguments.args().next().is_none())
+            {
+                violations.push(format!(
+                    "signal read under the document: {} read signals before with_document, since a memo they refresh may need the document itself",
+                    at(read.syntax())
+                ));
+            }
+        }
+    }
     if !PRIMITIVE_USERS
         .iter()
         .any(|allowed| relative.starts_with(allowed))
     {
         violations.extend(primitive_uses(tree, source, relative));
+        if !BASE_CRATES.iter().any(|base| relative.starts_with(base)) {
+            violations.extend(fixed_extent_uses(tree, source, relative));
+        }
     }
     if !test_source {
         violations.extend(component_uses(tree, source, relative));
@@ -101,14 +145,22 @@ fn attribute_named(node: &impl HasAttrs, name: &str) -> bool {
 fn component_uses(tree: &SourceFile, source: &str, relative: &str) -> Vec<String> {
     let mut violations = Vec::new();
     for function in tree.syntax().descendants().filter_map(ast::Fn::cast) {
-        if attribute_named(&function, "component") || attribute_named(&function, "test") {
+        if attribute_named(&function, "component") {
+            let block = function.syntax().parent().and_then(|list| list.parent());
+            let unmarked = block.is_some_and(|block| {
+                ast::Trait::cast(block.clone())
+                    .is_some_and(|block| !attribute_named(&block, "component"))
+                    || ast::Impl::cast(block)
+                        .is_some_and(|block| !attribute_named(&block, "component"))
+            });
+            if unmarked {
+                let offset = u32::from(function.syntax().text_range().start()) as usize;
+                let line = source[..offset].matches('\n').count() + 1;
+                violations.push(format!("component method outside a component block: {relative}:{line} a #[component] method needs #[component] on its trait or impl block too"));
+            }
             continue;
         }
-        if function.syntax().ancestors().skip(1).any(|node| {
-            ast::Trait::can_cast(node.kind())
-                || ast::Impl::cast(node)
-                    .is_some_and(|implementation| implementation.trait_().is_some())
-        }) {
+        if attribute_named(&function, "test") {
             continue;
         }
         let uncovered = function
@@ -175,7 +227,12 @@ fn deferred_renderer(call: &ast::CallExpr) -> bool {
         && kind.is_some_and(|name| {
             matches!(
                 name.text(),
-                "Render" | "RenderFn" | "MenuStyle" | "ScrollbarStyle" | "CompletionMenu"
+                "Render"
+                    | "RenderFn"
+                    | "MenuStyle"
+                    | "AnchoredStyle"
+                    | "ScrollbarStyle"
+                    | "CompletionMenu"
             )
         })
 }
@@ -197,6 +254,26 @@ fn primitive_uses(tree: &SourceFile, source: &str, relative: &str) -> Vec<String
             let line = source[..offset].matches('\n').count() + 1;
             format!(
                 "primitive outside beui: {relative}:{line} only beui's own crates use beui::primitives; import beui::styled::* instead"
+            )
+        })
+        .collect()
+}
+
+fn fixed_extent_uses(tree: &SourceFile, source: &str, relative: &str) -> Vec<String> {
+    let tokens: Vec<_> = tree
+        .syntax()
+        .descendants_with_tokens()
+        .filter_map(|element| element.into_token())
+        .filter(|token| !token.kind().is_trivia() && !matches!(token.text(), ":" | "::"))
+        .collect();
+    tokens
+        .windows(2)
+        .filter(|pair| pair[0].text() == "Extent" && pair[1].text() == "px")
+        .map(|pair| {
+            let offset = u32::from(pair[1].text_range().start()) as usize;
+            let line = source[..offset].matches('\n').count() + 1;
+            format!(
+                "fixed extent outside beui: {relative}:{line} a styled length takes a Size for a fixed length (Size::Custom for one that comes from content); keep Extent for intrinsic, fill, fraction and bounds"
             )
         })
         .collect()

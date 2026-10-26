@@ -1,8 +1,7 @@
 use super::*;
 
 fn super_g(harness: &mut Harness) {
-    let logo = beui::Modifiers::LOGO;
-    let g = |pressed: bool| vec![stroke(Key::G, KEY_G, pressed, logo)];
+    let g = |pressed: bool| vec![stroke(Some(Key::G), KEY_G, pressed)];
     harness.frame([super_key(true), g(true), g(false), super_key(false)].concat());
     harness.settle();
 }

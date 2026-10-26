@@ -7,18 +7,26 @@ that build on it. VISION.md says why each part exists.
 
 - The block stack (`be-*`), beui (`beui*`), block-app, and the plugin API and
   SDK (`block-*`).
+- `lucide`: the icon set beui and the block catalog draw from.
+- `ghostty-vt`, `terminal-emulator` and `terminal-view`: the terminal emulator's
+  bindings, the emulator read back as terminal lines (the terminal host and
+  be-launcher's build output), and the beui view that draws lines (the terminal
+  editor and be-launcher).
 - The editors under `crates/editors`, except the debug and example ones below.
-- The desktop: the linux-desktop editor, `be-wayland` and `beui-adapter-drm`.
+- The desktop: the linux-desktop editor, `be-wayland` and `beui-platform-drm`.
 
 ## Tooling
 
 - `paint-review` and `paint-review-web`: the web page a pull request's summary
   comment links to for reviewing the paintings it changed.
-- `be-launcher`: installs CI builds on Android and lists pull requests.
-- `be-cli` (`be`): reads and changes the tracker (guides/tracker.md).
-- `ghostty-vt`: the terminal core be-launcher shows build output with, kept
-  building for a terminal in the desktop session.
-- The build and test tools: `buck-tools`, `local-tools`, `bootstrap`,
+- `be-launcher`: lists pull requests and runs any of them on Android or the
+  desktop, built on request by the build helper (guides/buck2.md).
+- `be-cli` (`be`): reads and changes the tracker (guides/tracker.md), keeps
+  a folder and a directory on disk in step with `be-sync` (guides/sync.md), and
+  hosts terminal blocks (guides/terminal.md).
+- `build-helper`: builds the APKs and native apps be-launcher installs, on
+  request, on one host, and wakes Namespace's cluster (guides/build_server.md).
+- The build and test tools: `buck-tools`, `local-tools`, `verify`, `bootstrap`,
   `be-drive`, `app-tests`, `paint-snapshot` and the rest.
 
 ## Debug and example editors

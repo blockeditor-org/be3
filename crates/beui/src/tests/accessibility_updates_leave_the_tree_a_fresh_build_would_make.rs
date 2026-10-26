@@ -103,7 +103,7 @@ fn accessibility_updates_leave_the_tree_a_fresh_build_would_make() {
     apply(&mut mirror, output.accessibility_tree("Test", VIEWPORT));
     assert_matches_fresh(&harness, &mirror, "a focus move");
 
-    *harness.viewport_mut() = vec2(VIEWPORT.x / 2.0, VIEWPORT.y);
+    harness.resize(vec2(VIEWPORT.x / 2.0, VIEWPORT.y));
     let output = harness.frame(Vec::new());
     apply(&mut mirror, output.accessibility_tree("Test", VIEWPORT));
     assert_matches_fresh(&harness, &mirror, "a resize");

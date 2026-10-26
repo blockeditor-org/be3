@@ -1,9 +1,9 @@
 use super::*;
 
-use be_block::{TextBlock, TextContent};
 use be_graph::Access;
 use be_keys::Party;
 use be_protocol::{ClientMessage, ServerMessage};
+use text_block_types::{TextBlock, TextContent};
 
 async fn note_in(peer: &Peer<MemoryStore>, parent: Uuid, body: &str) -> Uuid {
     let note = peer

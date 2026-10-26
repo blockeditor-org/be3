@@ -8,10 +8,10 @@ fn a_finger_on_the_pen_tool_draws_before_it_moves() {
     editor.click("infinite-canvas.dock.tool.Pen");
     editor.run();
     let at = editor.rect_of("infinite-canvas.canvas").center();
-    editor.finger(1, TouchPhase::Start, at);
+    editor.fingers(TouchPhase::Start, &[(1, at)]);
     editor.run();
     editor.snapshot("a_finger_on_the_pen_tool_draws_before_it_moves");
-    editor.finger(1, TouchPhase::End, at);
+    editor.fingers(TouchPhase::End, &[(1, at)]);
     editor.run();
 
     let entities = entities(&editor);

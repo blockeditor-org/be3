@@ -1,13 +1,15 @@
+use super::osd::{LevelOsd, OsdLevel};
 use beui::KeyAt;
+use block_editor_beui::beui::icons::Glyph;
 use block_editor_beui::beui::icons::{
-    ICON_BRIGHTNESS_HIGH, ICON_BRIGHTNESS_LOW, ICON_MIC, ICON_MIC_OFF, ICON_PLAY_PAUSE,
-    ICON_SKIP_NEXT, ICON_SKIP_PREVIOUS, ICON_STOP, ICON_VOLUME_DOWN, ICON_VOLUME_OFF,
-    ICON_VOLUME_UP,
+    ICON_MIC, ICON_MIC_OFF, ICON_PLAY, ICON_SKIP_BACK, ICON_SKIP_FORWARD, ICON_SQUARE, ICON_SUN,
+    ICON_SUN_DIM, ICON_VOLUME_1, ICON_VOLUME_2, ICON_VOLUME_X,
 };
 use block_editor_beui::beui::reactive::*;
-use block_editor_beui::beui::styled::*;
-use block_editor_beui::beui::{Key, NodeId};
-use block_editor_beui::{Editor, Media, MediaLevel, MediaLevels, MediaRequest, PlayerCommand};
+use block_editor_beui::beui::styled::Frame;
+use block_editor_beui::beui::{Key, NodeId, Rect};
+use block_editor_beui::linux_desktop;
+use block_editor_beui::{Editor, MediaLevel, MediaLevels, MediaRequest, MediaWatch, PlayerCommand};
 
 pub(crate) const VOLUME_STEP: f32 = 0.05;
 pub(crate) const BRIGHTNESS_STEP: f32 = 0.05;
@@ -77,18 +79,18 @@ impl MediaKey {
         }
     }
 
-    fn glyph(self) -> &'static str {
+    fn glyph(self) -> Glyph {
         match self {
-            Self::VolumeUp => ICON_VOLUME_UP,
-            Self::VolumeDown => ICON_VOLUME_DOWN,
-            Self::Mute => ICON_VOLUME_OFF,
+            Self::VolumeUp => ICON_VOLUME_2,
+            Self::VolumeDown => ICON_VOLUME_1,
+            Self::Mute => ICON_VOLUME_X,
             Self::MicMute => ICON_MIC_OFF,
-            Self::BrightnessUp => ICON_BRIGHTNESS_HIGH,
-            Self::BrightnessDown => ICON_BRIGHTNESS_LOW,
-            Self::PlayPause => ICON_PLAY_PAUSE,
-            Self::Next => ICON_SKIP_NEXT,
-            Self::Previous => ICON_SKIP_PREVIOUS,
-            Self::Stop => ICON_STOP,
+            Self::BrightnessUp => ICON_SUN,
+            Self::BrightnessDown => ICON_SUN_DIM,
+            Self::PlayPause => ICON_PLAY,
+            Self::Next => ICON_SKIP_FORWARD,
+            Self::Previous => ICON_SKIP_BACK,
+            Self::Stop => ICON_SQUARE,
         }
     }
 
@@ -114,11 +116,11 @@ impl MediaKey {
     }
 }
 
-pub(crate) fn volume_glyph(level: MediaLevel) -> &'static str {
+pub(crate) fn volume_glyph(level: MediaLevel) -> Glyph {
     match level.level {
-        _ if level.muted || level.level <= 0.0 => ICON_VOLUME_OFF,
-        volume if volume < 0.5 => ICON_VOLUME_DOWN,
-        _ => ICON_VOLUME_UP,
+        _ if level.muted || level.level <= 0.0 => ICON_VOLUME_X,
+        volume if volume < 0.5 => ICON_VOLUME_1,
+        _ => ICON_VOLUME_2,
     }
 }
 
@@ -142,8 +144,8 @@ fn osd_level(shown: Shown, levels: MediaLevels) -> Option<OsdLevel> {
         }),
         Shown::Brightness => levels.brightness.map(|level| OsdLevel {
             glyph: match level < 0.5 {
-                true => ICON_BRIGHTNESS_LOW,
-                false => ICON_BRIGHTNESS_HIGH,
+                true => ICON_SUN_DIM,
+                false => ICON_SUN,
             }
             .to_owned(),
             label: "Brightness".to_owned(),
@@ -153,18 +155,39 @@ fn osd_level(shown: Shown, levels: MediaLevels) -> Option<OsdLevel> {
     }
 }
 
+#[derive(Clone, Copy)]
+pub(crate) struct Osd {
+    level: Memo<Option<OsdLevel>>,
+    shown: Signal<Option<Shown>>,
+    shows: Signal<u64>,
+}
+
+impl Osd {
+    pub(crate) fn new(editor: Editor) -> Self {
+        let levels = editor.watch::<MediaWatch>();
+        let shown = create_signal(None);
+        let level = create_memo(move || osd_level(shown.get()?, levels.get()));
+        Self {
+            level,
+            shown,
+            shows: create_signal(0_u64),
+        }
+    }
+
+    fn show(self, showing: Shown) {
+        self.shown.set(Some(showing));
+        self.shows.update(|shows| *shows += 1);
+    }
+}
+
 #[component]
-pub(super) fn MediaKeys(editor: Editor) -> NodeId {
-    let levels = editor.host_value::<Media>();
-    let shown = create_signal(None);
-    let shows = create_signal(0_u64);
+pub(super) fn MediaKeys(editor: Editor, osd: Osd) -> NodeId {
     for (key, media_key) in BINDINGS {
         Action::new(media_key.id(), media_key.label(), move || {
             let (request, showing) = media_key.request();
-            editor.act(request);
+            editor.act(move || linux_desktop::media::request(request));
             if let Some(showing) = showing {
-                shown.set(Some(showing));
-                shows.update(|shows| *shows += 1);
+                osd.show(showing);
             }
         })
         .glyph(media_key.glyph())
@@ -173,8 +196,19 @@ pub(super) fn MediaKeys(editor: Editor) -> NodeId {
         .capture()
         .register();
     }
-    let level = create_memo(move || osd_level(shown.get()?, levels.get()));
     view! {
-        <LevelOsd level={level} shown={shows} id="desktop.osd" />
+        <Frame />
+    }
+}
+
+#[component]
+pub(super) fn LevelDisplay(osd: Osd, area: Memo<Rect>, display: u32) -> NodeId {
+    view! {
+        <LevelOsd
+            level={osd.level}
+            shown={osd.shows.read_only()}
+            area
+            id={format!("desktop.osd.{display}")}
+        />
     }
 }

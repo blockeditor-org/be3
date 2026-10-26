@@ -1,11 +1,10 @@
-use block_editor_beui::be_block::{Calendar, CalendarContent};
 use block_editor_beui::beui::datetime::DateTime;
-use block_editor_beui::beui::icons::{ICON_ADD, ICON_CHEVRON_LEFT, ICON_CHEVRON_RIGHT};
+use block_editor_beui::beui::icons::{ICON_CHEVRON_LEFT, ICON_CHEVRON_RIGHT, ICON_PLUS};
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
-use block_editor_beui::beui::unstyled::ChoiceOption;
 use block_editor_beui::beui::{NodeId, Vec2};
 use block_editor_beui::{Editor, Toolbar};
+use calendar_types::{Calendar, CalendarContent};
 
 use super::model::{
     CalendarView, EventForm, FormAction, Shown, today_days_since_epoch, week_start,
@@ -13,12 +12,11 @@ use super::model::{
 use super::month::MonthGrid;
 use super::timeline::Timeline;
 
-const PADDING: f32 = 12.0;
-const SPACING: f32 = 8.0;
+const PADDING: Space = Space::Lg;
+const SPACING: Space = Space::Md;
 const INTRINSIC_WIDTH: f32 = 880.0;
 const MONTH_HEIGHT: f32 = 600.0;
 const TIMELINE_HEIGHT: f32 = 660.0;
-const FORM_WIDTH: f32 = 420.0;
 
 #[component]
 pub fn CalendarEditor(editor: Editor) -> NodeId {
@@ -92,10 +90,11 @@ pub fn CalendarEditor(editor: Editor) -> NodeId {
     let content = NodeRef::new();
     editor.content(&content);
     view! {
-        <List spacing=0.0>
+        <List spacing=Space::None>
             <Toolbar shown={chrome}>
-                <IconButton
-                    glyph={ICON_CHEVRON_LEFT.to_owned()}
+                <Button
+                    icon_only=true
+                    glyph=ICON_CHEVRON_LEFT
                     label="Previous"
                     @test_id={"calendar.previous"}
                     on_click={previous}
@@ -106,14 +105,17 @@ pub fn CalendarEditor(editor: Editor) -> NodeId {
                     @test_id={"calendar.today"}
                     on_click={today}
                 />
-                <IconButton
-                    glyph={ICON_CHEVRON_RIGHT.to_owned()}
+                <Button
+                    icon_only=true
+                    glyph=ICON_CHEVRON_RIGHT
                     label="Next"
                     @test_id={"calendar.next"}
                     on_click={next}
                 />
                 <Text>{header}</Text>
-                <Tabs
+                <SegmentedControl
+                    @sizing={ItemSize::Intrinsic.shrink(1.0)}
+                    label="View"
                     options={view! {
                         <ChoiceOption label={CalendarView::Day.label()} />
                         <ChoiceOption label={CalendarView::Week.label()} />
@@ -128,7 +130,7 @@ pub fn CalendarEditor(editor: Editor) -> NodeId {
                 />
                 <Spacer @sizing=ItemSize::Percent(100.0) />
                 <Button
-                    glyph={ICON_ADD.to_owned()}
+                    glyph=ICON_PLUS
                     label="Event"
                     variant=ButtonVariant::Primary
                     disabled={read_only}
@@ -137,7 +139,7 @@ pub fn CalendarEditor(editor: Editor) -> NodeId {
                 />
             </Toolbar>
             <Frame @sizing=ItemSize::Percent(100.0) @node_ref={&content} padding=PADDING>
-                <List spacing=0.0>
+                <List spacing=Space::None>
                     <Dynamic value={mode}>|shown: CalendarView| {
                         match shown {
                             CalendarView::Month => view! {
@@ -254,23 +256,13 @@ fn EventDialog(
         <Dialog
             open={open}
             title={title}
-            width=FORM_WIDTH
             id="calendar.form"
-            confirm="Save"
-            cancel="Cancel"
-            confirm_disabled={blank}
-            on_confirm={save}
+            actions={vec![
+                DialogAction::destructive("Delete", delete).shown(editing).named("delete"),
+                DialogAction::cancel("Cancel"),
+                DialogAction::primary("Save", save).disabled(blank),
+            ]}
             on_dismiss={dismiss}
-            extra_actions={move || view! {
-                <Show condition={editing}>
-                    <Button
-                        label="Delete"
-                        variant=ButtonVariant::Danger
-                        @test_id={"calendar.form.delete"}
-                        on_click={delete}
-                    />
-                </Show>
-            }}
         >
             <List spacing=SPACING>
                 <TextInput

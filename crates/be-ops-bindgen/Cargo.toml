@@ -1,0 +1,19 @@
+[package]
+name = "be-ops-bindgen"
+description = "Generates Rust for a WIT world, run over be-ops"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+
+[lib]
+proc-macro = true
+
+[dependencies]
+heck = "0.5"
+proc-macro2 = "1"
+quote = "1"
+syn = { version = "2", features = ["full"] }
+wit-parser = { version = "0.254", default-features = false, features = ["std"] }
+
+[lints]
+workspace = true

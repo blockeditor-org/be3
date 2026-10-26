@@ -10,7 +10,7 @@ fn the_filter_menu_keeps_only_the_rows_of_the_values_ticked() {
     tracker
         .fixture
         .harness
-        .click(&format!("database-view.filters.field.{project}"));
+        .click(format!("database-view.filters.field.{project}"));
     tracker.fixture.settle();
     let filter = tracker
         .fixture
@@ -19,7 +19,7 @@ fn the_filter_menu_keeps_only_the_rows_of_the_values_ticked() {
         .get_index(0)
         .unwrap()
         .id;
-    tracker.fixture.harness.click(&format!(
+    tracker.fixture.harness.click(format!(
         "database-view.filter.{}.choice.0",
         filter.as_uuid()
     ));

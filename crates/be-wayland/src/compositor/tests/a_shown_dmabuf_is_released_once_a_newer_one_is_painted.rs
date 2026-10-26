@@ -30,8 +30,8 @@ fn a_shown_dmabuf_is_released_once_a_newer_one_is_painted() {
     let view = target.create_view(&wgpu::TextureViewDescriptor::default());
     let mut paint = |harness: &mut Harness| {
         let output = harness.output.as_ref().expect("a frame ran");
-        let repaint = output.repaint(beui::Color32::BLACK);
-        renderer.prepare(&device, &queue, output, SCREEN, 1.0, repaint);
+        let repaint = output.main().repaint(beui::Color32::BLACK);
+        renderer.prepare(&device, &queue, output.main(), SCREEN, 1.0, repaint);
         let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor::default());
         renderer.render(
             &device,

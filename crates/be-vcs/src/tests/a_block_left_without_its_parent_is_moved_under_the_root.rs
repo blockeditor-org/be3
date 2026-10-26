@@ -19,11 +19,5 @@ fn a_block_left_without_its_parent_is_moved_under_the_root() {
 
     assert!(!plan.tree.entries.contains_key(&folder));
     assert_eq!(plan.tree.entries[&note].parent, Some(ROOT));
-    assert_eq!(
-        plan.conflicts,
-        vec![Conflict {
-            block: note,
-            kind: ConflictKind::Placement,
-        }]
-    );
+    assert_eq!(kinds(&plan.tree), vec![(note, ConflictKind::Placement)]);
 }

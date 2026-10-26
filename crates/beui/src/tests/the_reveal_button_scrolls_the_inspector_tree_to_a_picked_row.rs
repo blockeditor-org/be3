@@ -27,7 +27,7 @@ fn the_reveal_button_scrolls_the_inspector_tree_to_a_picked_row() {
     harness.toggle_inspector();
     harness.toggle_picking();
     let target = harness
-        .document
+        .document()
         .node_rect(picked)
         .expect("the frame was not laid out")
         .center();

@@ -1,14 +1,14 @@
 use super::*;
-use block_editor_beui::beui::Key;
+use block_editor_beui::beui::{Key, Modifiers};
 
 #[test]
 fn double_clicking_the_empty_canvas_writes_text_there() {
     let mut editor = editor(&[]);
     let at = editor.rect_of("infinite-canvas.canvas").center();
 
-    editor.double_click_at(at);
+    editor.double_click(at);
     editor.run();
-    editor.key_press(Key::Escape);
+    editor.key(Key::Escape, Modifiers::NONE);
     editor.run();
     assert!(
         entities(&editor).is_empty(),
@@ -16,11 +16,11 @@ fn double_clicking_the_empty_canvas_writes_text_there() {
     );
 
     editor.advance(std::time::Duration::from_secs(1));
-    editor.double_click_at(at);
+    editor.double_click(at);
     editor.run();
-    editor.text("Hello");
+    editor.type_text("Hello");
     editor.run();
-    editor.key_press(Key::Escape);
+    editor.key(Key::Escape, Modifiers::NONE);
     editor.run();
     let written = entities(&editor);
     assert_eq!(written.len(), 1);

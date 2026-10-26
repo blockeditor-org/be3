@@ -1,9 +1,9 @@
 use super::*;
 use be_block::ObjectId;
-use be_block::presentation::PresentationContent;
 use beui::reactive::*;
 use beui::styled::*;
 use block_editor_plugin::HostContent;
+use presentation_types::PresentationContent;
 
 thread_local! {
     static SEEN: RefCell<Vec<Memo<Option<usize>>>> = const { RefCell::new(Vec::new()) };
@@ -19,15 +19,18 @@ fn count(editor: crate::Editor) -> beui::NodeId {
     Frame().build()
 }
 
+#[component]
 impl crate::BeuiApp for CountingApp {
-    fn view(editor: crate::Editor) -> beui::styled::Root {
+    #[component]
+    fn View(editor: crate::Editor) -> beui::styled::Root {
         let node = { count(editor) };
         view! {
             <beui::styled::Root>{node}</beui::styled::Root>
         }
     }
 
-    fn preview_view(editor: crate::Editor) -> beui::NodeId {
+    #[component]
+    fn Preview(editor: crate::Editor) -> beui::NodeId {
         count(editor)
     }
 }
@@ -41,22 +44,26 @@ fn screen(region: EditorRegion, screen: u32) -> (ScreenPlacement, ScreenRequest)
         width: 400,
         height: 300,
         scale_factor_millis: 1000,
+        raster_millis: 1000,
     };
     let request = ScreenRequest {
         screen: ScreenId(screen.into()),
         instance: EditorInstanceId(0),
         region,
         metrics: ViewportMetrics {
-            logical_width: 400.0,
-            logical_height: 300.0,
-            visible_x: 0.0,
-            visible_y: 0.0,
+            logical: block_plugin_api::Size {
+                width: 400.0,
+                height: 300.0,
+            },
+            visible: block_plugin_api::Pos2::ZERO,
             pixel_width: 400,
             pixel_height: 300,
             scale_factor: 1.0,
-            monitors: Vec::new(),
+            raster: 1.0,
         },
         frame: (region == EditorRegion::Frame).then(FrameSpec::default),
+        windows: false,
+        placement: None,
     };
     (placement, request)
 }
@@ -72,8 +79,7 @@ fn the_frame_and_the_preview_of_one_block_both_load_its_content() {
     deck.apply(&edit);
     session.host().set_block_content(HostContent::of(&deck));
 
-    session.run(EditorRegion::Frame, 1, 0);
-    session.run(EditorRegion::Preview, 1, 0);
+    session.frame(&[(EditorRegion::Frame, 0), (EditorRegion::Preview, 0)]);
 
     let seen: Vec<_> = SEEN.with(|held| {
         held.borrow()

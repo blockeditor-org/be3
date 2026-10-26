@@ -9,7 +9,7 @@ fn the_screen_reader_readout_sits_at_the_bottom_above_the_filters() {
     harness.drag_simulation_slider("blur", 1.0);
     let output = harness.frame(Vec::new());
 
-    let filters = output.filters();
+    let filters = output.main().filters();
     let [filter] = filters.as_slice() else {
         panic!("the blur slider set {} filters", filters.len());
     };
@@ -24,6 +24,7 @@ fn the_screen_reader_readout_sits_at_the_bottom_above_the_filters() {
     );
 
     let filtered = output
+        .main()
         .layers
         .iter()
         .find_map(|layer| match layer {
@@ -39,7 +40,7 @@ fn the_screen_reader_readout_sits_at_the_bottom_above_the_filters() {
         )
     };
     assert!(
-        output.shapes().iter().any(highlight),
+        output.main().shapes().iter().any(highlight),
         "the reader painted no highlight"
     );
     assert!(

@@ -1,18 +1,20 @@
 use block_editor_beui::BlockParent;
-use block_editor_beui::be_block::{BlockContent, EditorViewContent};
-use block_editor_beui::beui::icons::{ICON_LINK, ICON_LINK_OFF};
+use block_editor_beui::be_block::VIEW_EDITOR;
+use block_editor_beui::beui::NodeId;
+use block_editor_beui::beui::icons::{ICON_LINK, ICON_UNLINK};
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
+use uuid::Uuid;
 
+use super::menu::ReferenceMenuItem;
 use super::menu::unlink_permission;
 use super::panel::{Info, Refs};
-use super::status::ReferenceMenu;
 use super::workspace::Workspace;
 use block_editor_beui::beui::TextAlign;
 
-const PADDING_HORIZONTAL: f32 = 8.0;
-const PADDING_VERTICAL: f32 = 5.0;
-const SPACING: f32 = 8.0;
+const PADDING_HORIZONTAL: Space = Space::Md;
+const PADDING_VERTICAL: Space = Space::Xs;
+const SPACING: Space = Space::Md;
 
 #[component]
 pub(crate) fn LinkedBar(
@@ -75,11 +77,11 @@ pub(crate) fn LinkedBar(
         <Show condition={shown}>
             <Frame
                 fill=ColorRole::Surface
-                padding={Sides::symmetric(PADDING_HORIZONTAL, PADDING_VERTICAL)}
+                padding={Padding::symmetric(PADDING_HORIZONTAL, PADDING_VERTICAL)}
             >
                 <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
                     <Text size=TextSize::Xs color={heading_color} align=TextAlign::Center>
-                        <Icon glyph={ICON_LINK.to_owned()} />
+                        <Icon glyph=ICON_LINK />
                     </Text>
                     <Text>"Linked block"</Text>
                     <Show condition={via_reference}>
@@ -101,7 +103,7 @@ pub(crate) fn LinkedBar(
                             <Button
                                 @test_id={"workspace.linked.unlink"}
                                 label="Unlink"
-                                glyph={ICON_LINK_OFF.to_owned()}
+                                glyph=ICON_UNLINK
                                 variant=ButtonVariant::Secondary
                                 disabled={unlink_off}
                                 on_click={move || {
@@ -141,8 +143,73 @@ fn places(backrefs: &Refs) -> Refs {
         list: backrefs
             .list
             .iter()
-            .filter(|block| block.block_type != EditorViewContent::CONTENT_TYPE && !block.deleted)
+            .filter(|block| !block.metadata.contains(&VIEW_EDITOR) && !block.deleted)
             .cloned()
             .collect(),
+    }
+}
+
+#[component]
+pub(crate) fn ReferenceMenu(
+    workspace: Workspace,
+    name: String,
+    empty: String,
+    refs: Memo<Refs>,
+    containing: Memo<Option<Uuid>>,
+    named: String,
+) -> NodeId {
+    let refs = create_memo(move || {
+        let mut sorted = refs.get();
+        sorted.list.sort_by_key(|reference| reference.deleted);
+        sorted
+    });
+    let label = create_memo(move || {
+        refs.with(|refs| {
+            let deleted = refs
+                .list
+                .iter()
+                .filter(|reference| reference.deleted)
+                .count();
+            match (refs.state.is_ok(), deleted) {
+                (false, _) => format!("{name}: …"),
+                (true, 0) => format!("{name}: {}", refs.list.len()),
+                (true, deleted) => {
+                    format!("{name}: {} (+{deleted} deleted)", refs.list.len() - deleted)
+                }
+            }
+        })
+    });
+    let indices = create_memo(move || refs.with(|refs| (0..refs.list.len()).collect::<Vec<_>>()));
+    let nothing = create_memo(move || refs.with(|refs| refs.list.is_empty()));
+    let nothing_label = create_memo(move || match refs.with(|refs| refs.state.clone()) {
+        Ok(()) => empty.clone(),
+        Err(Pending::Loading) => "Loading…".to_owned(),
+        Err(Pending::Failed(error)) => error,
+    });
+    let button = NodeRef::new();
+    view! {
+        <MenuButton
+            @node_ref=&button
+            @test_id={named}
+            label={label}
+            items={view! {
+                <Show condition={nothing}>
+                    <MenuItem label={nothing_label} disabled=true />
+                </Show>
+                <ForEach keys={indices}>|index: usize| {
+                    let reference = create_memo(move || {
+                        refs.with(|refs| refs.list.get(index).cloned())
+                    });
+                    view! {
+                        <ReferenceMenuItem
+                            workspace={workspace}
+                            reference={reference}
+                            containing={containing}
+                            anchor={button}
+                        />
+                    }
+                }</ForEach>
+            }}
+        />
     }
 }

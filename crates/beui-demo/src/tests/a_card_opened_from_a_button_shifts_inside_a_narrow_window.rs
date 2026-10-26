@@ -1,6 +1,6 @@
 use super::*;
 
-const NARROW: Vec2 = Vec2::new(860.0, 1700.0);
+const NARROW: Vec2 = Vec2::new(900.0, 1700.0);
 const WINDOW_MARGIN: f32 = 12.0;
 
 #[test]

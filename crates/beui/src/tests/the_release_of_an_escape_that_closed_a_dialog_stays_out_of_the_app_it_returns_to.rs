@@ -1,6 +1,7 @@
 use super::*;
 use crate::ForwardedInput;
 use crate::primitives::Frame;
+use crate::primitives::List;
 use crate::reactive::*;
 use crate::styled::*;
 
@@ -39,11 +40,11 @@ fn the_release_of_an_escape_that_closed_a_dialog_stays_out_of_the_app_it_returns
     harness.frame(Vec::new());
     assert!(harness.document().focus_is_within(field.get()));
 
-    harness.frame(vec![key_event(Key::Escape, true, Modifiers::NONE)]);
+    harness.frame(vec![key_event(Key::Escape, true)]);
     harness.settle();
     assert!(harness.document().focus_is_within(catcher.get()));
     heard.update(|heard| heard.clear());
-    harness.frame(vec![key_event(Key::Escape, false, Modifiers::NONE)]);
+    harness.frame(vec![key_event(Key::Escape, false)]);
     assert!(
         !heard
             .get_untracked()

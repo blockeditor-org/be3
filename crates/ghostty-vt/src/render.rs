@@ -6,11 +6,33 @@ use crate::terminal::{Error, Terminal, check};
 
 pub type Rgb = sys::ColorRgb;
 
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum CursorStyle {
+    Bar,
+    #[default]
+    Block,
+    Underline,
+    BlockHollow,
+}
+
+impl CursorStyle {
+    fn from_raw(raw: std::ffi::c_int) -> Self {
+        match raw {
+            0 => Self::Bar,
+            2 => Self::Underline,
+            3 => Self::BlockHollow,
+            _ => Self::Block,
+        }
+    }
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Cursor {
     pub x: u16,
     pub y: u16,
     pub color: Rgb,
+    pub style: CursorStyle,
+    pub blinking: bool,
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
@@ -22,10 +44,12 @@ pub struct Cell {
     pub italic: bool,
     pub underline: bool,
     pub strikethrough: bool,
+    pub faint: bool,
+    pub spacer: bool,
 }
 
 impl Cell {
-    fn reset(&mut self, foreground: Rgb) {
+    pub(crate) fn reset(&mut self, foreground: Rgb) {
         self.text.clear();
         self.foreground = foreground;
         self.background = None;
@@ -33,12 +57,28 @@ impl Cell {
         self.italic = false;
         self.underline = false;
         self.strikethrough = false;
+        self.faint = false;
+        self.spacer = false;
+    }
+
+    pub(crate) fn style(&mut self, style: &sys::Style, background: Rgb) {
+        self.bold = style.bold;
+        self.italic = style.italic;
+        self.underline = style.underline != 0;
+        self.strikethrough = style.strikethrough;
+        self.faint = style.faint;
+        if style.inverse {
+            let foreground = self.background.unwrap_or(background);
+            self.background = Some(self.foreground);
+            self.foreground = foreground;
+        }
     }
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct Row {
     pub cells: Vec<Cell>,
+    pub wrapped: bool,
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
@@ -101,6 +141,19 @@ impl Renderer {
         &self.screen
     }
 
+    pub fn cursor(&mut self, terminal: &Terminal) -> Result<Option<Cursor>, Error> {
+        check(unsafe { sys::ghostty_render_state_update(self.state, terminal.handle()) })?;
+        let mut colors = sys::RenderStateColors::default();
+        check(unsafe {
+            sys::ghostty_render_state_get(
+                self.state,
+                sys::RENDER_STATE_DATA_COLORS,
+                ptr::from_mut(&mut colors).cast(),
+            )
+        })?;
+        Ok(cursor(self.state, &colors))
+    }
+
     pub fn update(&mut self, terminal: &mut Terminal) -> Result<&Screen, Error> {
         let state = self.state;
         let mut iterator = self.rows;
@@ -136,6 +189,16 @@ impl Renderer {
             }
             let row = &mut screen.rows[row_count];
             row_count += 1;
+
+            let mut raw: sys::RowValue = 0;
+            row.wrapped = unsafe {
+                sys::ghostty_render_state_row_get(
+                    iterator,
+                    sys::RENDER_STATE_ROW_DATA_RAW,
+                    ptr::from_mut(&mut raw).cast(),
+                )
+            } == sys::SUCCESS
+                && row_flag(raw, sys::ROW_DATA_WRAP);
 
             let mut row_cells = cells;
             check(unsafe {
@@ -215,6 +278,14 @@ fn cursor(state: sys::RenderState, colors: &sys::RenderStateColors) -> Option<Cu
     if !position {
         return None;
     }
+    let mut style: std::ffi::c_int = 1;
+    let _ = unsafe {
+        sys::ghostty_render_state_get(
+            state,
+            sys::RENDER_STATE_DATA_CURSOR_VISUAL_STYLE,
+            ptr::from_mut(&mut style).cast(),
+        )
+    };
     Some(Cursor {
         x,
         y,
@@ -223,7 +294,26 @@ fn cursor(state: sys::RenderState, colors: &sys::RenderStateColors) -> Option<Cu
         } else {
             colors.foreground
         },
+        style: CursorStyle::from_raw(style),
+        blinking: state_flag(state, sys::RENDER_STATE_DATA_CURSOR_BLINKING),
     })
+}
+
+// unsafe(ffi)
+pub(crate) fn row_flag(row: sys::RowValue, data: std::ffi::c_int) -> bool {
+    let mut value = false;
+    let result = unsafe { sys::ghostty_row_get(row, data, ptr::from_mut(&mut value).cast()) };
+    result == sys::SUCCESS && value
+}
+
+// unsafe(ffi)
+pub(crate) fn is_spacer(cell: sys::CellValue) -> bool {
+    let mut wide: std::ffi::c_int = 0;
+    let result = unsafe {
+        sys::ghostty_cell_get(cell, sys::CELL_DATA_WIDE, ptr::from_mut(&mut wide).cast())
+    };
+    result == sys::SUCCESS
+        && (wide == sys::CELL_WIDE_SPACER_TAIL || wide == sys::CELL_WIDE_SPACER_HEAD)
 }
 
 // unsafe(ffi)
@@ -236,6 +326,11 @@ fn state_flag(state: sys::RenderState, data: std::ffi::c_int) -> bool {
 
 fn read_cell(cells: sys::RowCells, colors: &sys::RenderStateColors, cell: &mut Cell) {
     cell.reset(colors.foreground);
+
+    let mut raw: sys::CellValue = 0;
+    if cell_get(cells, sys::CELLS_DATA_RAW, ptr::from_mut(&mut raw).cast()) && is_spacer(raw) {
+        cell.spacer = true;
+    }
 
     let mut length: u32 = 0;
     if cell_get(
@@ -283,15 +378,7 @@ fn read_cell(cells: sys::RowCells, colors: &sys::RenderStateColors, cell: &mut C
     ) {
         return;
     }
-    cell.bold = style.bold;
-    cell.italic = style.italic;
-    cell.underline = style.underline != 0;
-    cell.strikethrough = style.strikethrough;
-    if style.inverse {
-        let foreground = cell.background.unwrap_or(colors.background);
-        cell.background = Some(cell.foreground);
-        cell.foreground = foreground;
-    }
+    cell.style(&style, colors.background);
 }
 
 // unsafe(ffi)

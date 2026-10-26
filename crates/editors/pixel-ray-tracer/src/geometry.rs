@@ -1,5 +1,5 @@
-use block_editor_beui::be_block::pixel_ray_tracer::{PIXEL_RAY_TRACER_SIZE, Point};
 use block_editor_beui::beui::{Pos2, Rect, Vec2};
+use pixel_ray_tracer_types::{PIXEL_RAY_TRACER_SIZE, Point};
 
 pub(crate) fn artwork_rect(view: Rect) -> Rect {
     let side = view.width().min(view.height());

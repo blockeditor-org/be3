@@ -16,16 +16,18 @@ fn right_dragging_over_a_click_catcher_reports_a_secondary_drag() {
     });
     let mut harness = Harness::new(document);
     harness.frame(Vec::new());
-    let button = |pos, pressed| Event::PointerButton {
+    let button = |pos, pressed| Input::PointerButton {
         pos,
         button: PointerButton::Secondary,
         pressed,
-        modifiers: Modifiers::SHIFT,
     };
 
-    harness.frame(vec![Event::PointerMoved(pos2(20.0, 30.0))]);
+    harness.frame(vec![
+        Input::Modifiers(Modifiers::SHIFT),
+        Input::PointerMoved(pos2(20.0, 30.0)),
+    ]);
     harness.frame(vec![button(pos2(20.0, 30.0), true)]);
-    harness.frame(vec![Event::PointerMoved(pos2(120.0, 90.0))]);
+    harness.frame(vec![Input::PointerMoved(pos2(120.0, 90.0))]);
     harness.frame(vec![button(pos2(150.0, 100.0), false)]);
     harness.frame(Vec::new());
 

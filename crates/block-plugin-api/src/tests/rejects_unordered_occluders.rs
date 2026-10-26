@@ -1,14 +1,9 @@
 use super::*;
 
-fn placements(occluders: Vec<Occluder>) -> Message {
-    Message::Children(ChildPlacements {
+fn placements(occluders: Vec<Occluder>) -> FrameCommit {
+    committed(ChildPlacements {
         instance: EditorInstanceId(1),
         region: EditorRegion::Frame,
-        generation: 1,
-        size: Size {
-            width: 100.0,
-            height: 100.0,
-        },
         children: vec![ChildPlacement {
             child: ChildId(1),
             content: ChildContent::Block {
@@ -17,8 +12,8 @@ fn placements(occluders: Vec<Occluder>) -> Message {
                 view_block: None,
                 editor: None,
             },
-            rect: ChildRect::default(),
-            clip: ChildRect::default(),
+            rect: Rect::ZERO,
+            clip: Rect::ZERO,
             own_frame: false,
             top_bar: TopBar::Hidden,
             corner_radius: 0.0,
@@ -27,10 +22,10 @@ fn placements(occluders: Vec<Occluder>) -> Message {
             intrinsic: None,
             rotation: 0.0,
             opacity: 1.0,
-            follows_camera: false,
+            follows_view: false,
+            dialog: None,
         }],
         occluders,
-        camera: None,
     })
 }
 
@@ -38,15 +33,19 @@ fn placements(occluders: Vec<Occluder>) -> Message {
 fn rejects_unordered_occluders() {
     let occluder = |after| Occluder {
         after,
-        rect: ChildRect::default(),
+        rect: Rect::ZERO,
     };
     assert_eq!(
-        encode_frame(&placements(vec![occluder(2)])),
+        placements(vec![occluder(2)]).validate(),
         Err(DecodeError::MalformedPayload)
     );
     assert_eq!(
-        encode_frame(&placements(vec![occluder(1), occluder(0)])),
+        placements(vec![occluder(1), occluder(0)]).validate(),
         Err(DecodeError::MalformedPayload)
     );
-    assert!(encode_frame(&placements(vec![occluder(0), occluder(1)])).is_ok());
+    assert!(
+        placements(vec![occluder(0), occluder(1)])
+            .validate()
+            .is_ok()
+    );
 }

@@ -25,7 +25,7 @@ fn a_played_card_flies_from_the_hand_to_the_discard_pile() {
     let flight = format!("game.flight.{}", id.0);
     let start = editor.rect_of(&held);
 
-    editor.click_at(on_the_card(&editor, &held));
+    editor.click(on_the_card(&editor, &held));
     editor.run();
     editor.click("game.pile.1");
     editor.run();

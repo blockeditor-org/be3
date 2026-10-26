@@ -31,8 +31,8 @@ fn a_hovered_catcher_hears_where_the_pointer_is_while_another_holds_it() {
     harness.frame(Vec::new());
 
     harness.press_at(pos2(50.0, 50.0));
-    harness.frame(vec![Event::PointerMoved(pos2(240.0, 50.0))]);
-    harness.frame(vec![Event::PointerMoved(pos2(260.0, 60.0))]);
+    harness.frame(vec![Input::PointerMoved(pos2(240.0, 50.0))]);
+    harness.frame(vec![Input::PointerMoved(pos2(260.0, 60.0))]);
 
     let heard = heard.get_untracked();
     assert!(

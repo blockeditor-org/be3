@@ -22,16 +22,21 @@ fn a_tap_intercepted_for_a_document_runs_its_tap_action() {
     let mut harness = Harness::new(document);
     harness.frame(Vec::new());
     assert_eq!(
-        harness.frame(Vec::new()).window.intercepted_keys,
+        harness
+            .frame(Vec::new())
+            .main()
+            .window
+            .requests
+            .intercepted_keys,
         [KeyChord::tap(Key::Logo)],
         "an intercepting tap is named as a tap"
     );
-    harness.frame(vec![Event::InterceptedTap(Key::Logo)]);
+    harness.frame(vec![Input::InterceptedTap(Key::Logo)]);
     assert_eq!(
         runs.get_untracked(),
         1,
         "a tap intercepted for the document runs it"
     );
-    harness.frame(vec![Event::InterceptedTap(Key::Alt)]);
+    harness.frame(vec![Input::InterceptedTap(Key::Alt)]);
     assert_eq!(runs.get_untracked(), 1, "a tap of another key does not");
 }

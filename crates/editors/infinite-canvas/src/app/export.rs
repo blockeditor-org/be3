@@ -1,21 +1,18 @@
-use std::cell::RefCell;
+use block_editor_beui::beui::icons::Glyph;
 use std::collections::BTreeMap;
 use std::rc::Rc;
 
-use block_editor_beui::be_block::canvas::{
-    CanvasEntity, CanvasPoint, CanvasShape, CanvasTextWeight,
-};
-use block_editor_beui::be_block::{BlockContent, ImageContent};
+use block_editor_beui::be_block::BlockContent;
 use block_editor_beui::beui::painting::{Punches, painting, rasterize};
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::rich::{RichLayout, SpanKind, SpanStyle};
 use block_editor_beui::beui::styled::*;
-use block_editor_beui::beui::unstyled::{ChoiceOption, SyntaxColors, TextAreaColors};
 use block_editor_beui::beui::{
     Color32, Context, FontFamily, FontId, FreetypeFonts, Galley, Image, LineCap, LineJoin, NodeId,
-    Painter, Path, PathElement, Pos2, RawInput, Rect, Stroke, TextAlign, Vec2, pos2,
+    Painter, Path, PathElement, Pos2, Rect, Stroke, TextAlign, Vec2, line_height, pos2,
 };
-use block_editor_beui::{FileSaver, SavedFile};
+use block_editor_beui::{FileSave, SavedFile};
+use infinite_canvas_types::{CanvasEntity, CanvasPoint, CanvasShape, CanvasTextWeight};
 use uuid::Uuid;
 
 use crate::geometry::{TEXT_INSET, entity_bounds};
@@ -26,6 +23,7 @@ use super::state::CanvasState;
 use super::text::{
     font_px, prose, rich_state, text_box, text_region, text_style, text_turn, writes,
 };
+use image_block_types::ImageContent;
 
 pub(crate) const PADDING: f32 = 16.0;
 pub(crate) const SCALES: [f32; 3] = [1.0, 2.0, 3.0];
@@ -85,7 +83,7 @@ impl Default for ExportOptions {
 #[derive(Clone, Debug, PartialEq)]
 pub(crate) struct Embed {
     pub(crate) title: String,
-    pub(crate) glyph: Option<String>,
+    pub(crate) glyph: Option<Glyph>,
     pub(crate) image: bool,
 }
 
@@ -177,10 +175,7 @@ impl Scene {
                             .as_ref()
                             .map(|label| label.name.clone())
                             .unwrap_or_else(|| state.unlabeled()),
-                        glyph: label
-                            .as_ref()
-                            .and_then(block_editor_beui::label_glyph)
-                            .map(str::to_owned),
+                        glyph: label.as_ref().and_then(block_editor_beui::label_glyph),
                         image: state.block_type_of(block) == Some(ImageContent::CONTENT_TYPE),
                     },
                 ))
@@ -263,8 +258,6 @@ impl Exporter {
             palette,
             background,
         };
-        let saver = Rc::new(RefCell::new(FileSaver::default()));
-        let saving = Rc::clone(&saver);
         let editor = state.editor();
         let job = exporter.job;
         create_effect(move || {
@@ -309,24 +302,22 @@ impl Exporter {
                     (ExportTo::Clipboard, ExportFormat::Svg) => {
                         copy_text(String::from_utf8_lossy(&data).into_owned())
                     }
-                    (ExportTo::File, format) => saving.borrow_mut().save(
-                        &editor.host(),
-                        SavedFile {
+                    (ExportTo::File, format) => {
+                        let asked = editor.host().save_file(SavedFile {
                             name: wanted.scene.file_name(format),
                             mime_type: format.mime_type().to_owned(),
                             data,
-                        },
-                    ),
+                        });
+                        editor.then(asked, move |saved| {
+                            if let FileSave::Failed(failure) = saved {
+                                state
+                                    .import_error
+                                    .set(Some(format!("Could not export: {failure}")));
+                            }
+                        });
+                    }
                 }
             });
-        });
-        let host = editor.host();
-        editor.on_reply(move || {
-            if let Some(Err(failure)) = saver.borrow_mut().poll(&host) {
-                state
-                    .import_error
-                    .set(Some(format!("Could not export: {failure}")));
-            }
         });
         exporter
     }
@@ -375,7 +366,7 @@ pub(crate) fn png(
         .collect();
     let context = Context::new(FreetypeFonts::new(block_editor_beui::fonts::fonts()));
     context.set_pixels_per_point(scale);
-    let output = context.run(RawInput::default(), |context| {
+    let output = context.run(|context| {
         let whole = Rect::from_min_size(Pos2::ZERO, size);
         let painter = context.painter();
         let painter = match scene.clipped {
@@ -390,7 +381,13 @@ pub(crate) fn png(
             draw(&painter, scene, entity, camera, &decoded);
         }
     });
-    let painted = painting(&output, size, scale, Color32::TRANSPARENT, Punches::Shown)?;
+    let painted = painting(
+        output.main(),
+        size,
+        scale,
+        Color32::TRANSPARENT,
+        Punches::Shown,
+    )?;
     let raster = rasterize(&painted.frame, [0; 4], |key| painted.textures.get(&key))?;
     encode_png(raster.size, raster.rgba.into_iter().flatten().collect())
 }
@@ -454,7 +451,7 @@ fn draw(
         camera,
         palette: scene.palette.clone(),
         title: embed.map(|embed| embed.title.clone()).unwrap_or_default(),
-        glyph: embed.and_then(|embed| embed.glyph.clone()),
+        glyph: embed.and_then(|embed| embed.glyph),
         automatic: false,
         covered: false,
         placeholder: None,
@@ -467,7 +464,15 @@ fn draw(
 }
 
 fn paint_written(painter: &Painter, entity: &CanvasEntity, ink: Color32, camera: Camera) {
-    for (origin, layout) in written(painter, entity, ink, camera) {
+    for Written {
+        origin,
+        layout,
+        missing,
+    } in written(painter, entity, ink, camera)
+    {
+        for rect in missing {
+            painter.rect_filled(rect, 0.0, MISSING);
+        }
         layout.paint_runs(painter, origin, |run| {
             (
                 run.style.color,
@@ -478,23 +483,21 @@ fn paint_written(painter: &Painter, entity: &CanvasEntity, ink: Color32, camera:
     }
 }
 
-fn entity_corner(
-    entity: &CanvasEntity,
-    at: f32,
-) -> block_editor_beui::be_block::canvas::CanvasPoint {
+fn entity_corner(entity: &CanvasEntity, at: f32) -> infinite_canvas_types::CanvasPoint {
     let transform = entity.transform;
-    block_editor_beui::be_block::canvas::CanvasPoint::new(
+    infinite_canvas_types::CanvasPoint::new(
         transform.center.x + transform.size.x * at,
         transform.center.y + transform.size.y * at,
     )
 }
 
-fn written(
-    painter: &Painter,
-    entity: &CanvasEntity,
-    ink: Color32,
-    camera: Camera,
-) -> Vec<(Vec2, RichLayout)> {
+struct Written {
+    origin: Vec2,
+    layout: RichLayout,
+    missing: Vec<Rect>,
+}
+
+fn written(painter: &Painter, entity: &CanvasEntity, ink: Color32, camera: Camera) -> Vec<Written> {
     if entity.text.is_empty() || !writes(entity) {
         return Vec::new();
     }
@@ -509,19 +512,22 @@ fn written(
         .shrink(TEXT_INSET * camera.scale);
     let colors = TextAreaColors {
         syntax: SyntaxColors::uniform(ink),
-        ..TextAreaColors::DEFAULT
+        ..text_area_colors(&Theme::DARK)
     };
+    let square = line_height(px);
     let Some(lines) = rich_state(entity).lay_out_prose(
         px,
         prose,
         "",
         inner.width(),
         &colors,
+        text_area_geometry(),
+        square,
         |pieces, options| Some(painter.rich_layout(pieces, options)),
     ) else {
         return Vec::new();
     };
-    let height: f32 = lines.iter().map(|line| line.size.y).sum();
+    let height: f32 = lines.iter().map(|line| line.layout.size.y).sum();
     let mut top = match prose.vertical_align {
         TextAlign::Start => inner.top(),
         TextAlign::Center => inner.center().y - height / 2.0,
@@ -529,11 +535,27 @@ fn written(
     };
     lines
         .into_iter()
-        .map(|mut line| {
-            line.align(inner.width(), prose.align, |x| x);
-            let origin = Vec2::new(inner.left(), top);
-            top += line.size.y;
-            (origin, line)
+        .map(|ProseLine { mut layout, quote }| {
+            let indent = quote as f32 * square;
+            layout.align(inner.width() - indent, prose.align, |x| x);
+            let origin = Vec2::new(inner.left() + indent, top);
+            let mut missing: Vec<Rect> = layout
+                .inline_rects()
+                .into_iter()
+                .map(|(_, rect)| rect.translate(origin))
+                .collect();
+            if quote > 0 {
+                missing.push(Rect::from_min_size(
+                    pos2(inner.left(), top),
+                    Vec2::new(indent, layout.size.y),
+                ));
+            }
+            top += layout.size.y;
+            Written {
+                origin,
+                layout,
+                missing,
+            }
         })
         .collect()
 }
@@ -566,7 +588,7 @@ pub(crate) fn svg(scene: &Scene, options: ExportOptions, images: &Images) -> Str
         ));
     }
     let context = Context::new(FreetypeFonts::new(block_editor_beui::fonts::fonts()));
-    context.run(RawInput::default(), |context| {
+    context.run(|context| {
         let painter = context.painter();
         for entity in &scene.entities {
             svg_entity(&mut out, &painter, scene, entity, images);
@@ -653,6 +675,11 @@ fn svg_entity(
                 path_data(path),
                 paint("fill", color)
             )),
+            Mark::Painted(painted, offset) => out.push_str(&format!(
+                "<path d=\"{}\"{}/>\n",
+                path_data(&painted.path().translated(*offset)),
+                paint("fill", color)
+            )),
             Mark::Stroke(path, stroke) => out.push_str(&format!(
                 "<path d=\"{}\" fill=\"none\"{}{}/>\n",
                 path_data(path),
@@ -670,6 +697,8 @@ fn svg_entity(
     );
 }
 
+const MISSING: Color32 = Color32::from_rgb(255, 105, 180);
+
 fn svg_written(
     out: &mut String,
     painter: &Painter,
@@ -681,6 +710,16 @@ fn svg_written(
     if lines.is_empty() {
         return;
     }
+    for rect in lines.iter().flat_map(|line| &line.missing) {
+        out.push_str(&format!(
+            "<rect x=\"{}\" y=\"{}\" width=\"{}\" height=\"{}\"{}{turn}/>\n",
+            number(rect.min.x),
+            number(rect.min.y),
+            number(rect.width()),
+            number(rect.height()),
+            paint("fill", MISSING)
+        ));
+    }
     let body = FontId::proportional(font_px(entity, 1.0))
         .bold(text_style(entity).weight == CanvasTextWeight::Bold);
     out.push_str(&format!(
@@ -689,7 +728,7 @@ fn svg_written(
         weight_of(body.bold),
         paint("fill", ink)
     ));
-    for (origin, layout) in &lines {
+    for Written { origin, layout, .. } in &lines {
         for line in &layout.lines {
             for run in &line.runs {
                 let Some(galley) = run.galley.as_ref().filter(|_| run.kind == SpanKind::Text)
@@ -899,8 +938,7 @@ fn base64(data: &[u8]) -> String {
     out
 }
 
-const DIALOG_WIDTH: f32 = 320.0;
-const DIALOG_SPACING: f32 = 12.0;
+const DIALOG_SPACING: Space = Space::Lg;
 
 #[component]
 pub(crate) fn ExportDialog(exporter: Exporter) -> NodeId {
@@ -933,20 +971,13 @@ pub(crate) fn ExportDialog(exporter: Exporter) -> NodeId {
         <Dialog
             open={open}
             title={title}
-            width=DIALOG_WIDTH
             id="infinite-canvas.export"
-            confirm="Save…"
-            cancel="Cancel"
-            on_confirm={move || finish(ExportTo::File)}
+            actions={vec![
+                DialogAction::secondary("Copy", move || finish(ExportTo::Clipboard)).named("copy"),
+                DialogAction::cancel("Cancel"),
+                DialogAction::primary("Save…", move || finish(ExportTo::File)),
+            ]}
             on_dismiss={move || dialog.set(None)}
-            extra_actions={move || view! {
-                <Button
-                    label="Copy"
-                    variant=ButtonVariant::Secondary
-                    @test_id={"infinite-canvas.export.copy"}
-                    on_click={move || finish(ExportTo::Clipboard)}
-                />
-            }}
         >
             <List spacing=DIALOG_SPACING>
                 <Show condition={raster}>

@@ -1,20 +1,19 @@
 use block_editor_beui::Editor;
-use block_editor_beui::be_block::logic_game::QuizRow;
-use block_editor_beui::beui::icons::ICON_CHECK_CIRCLE;
+use block_editor_beui::beui::icons::ICON_CIRCLE_CHECK;
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
 use block_editor_beui::beui::{NodeId, TextAlign};
+use logic_grid_types::QuizRow;
 
 use super::{BinaryAdditionQuiz, next_answer};
 
 type Answers = (Vec<Option<bool>>, Vec<Option<bool>>);
 
-const CELL: f32 = 24.0;
-const CELL_SPACING: f32 = 4.0;
-const ROW_SPACING: f32 = 6.0;
-const LABEL_WIDTH: f32 = 46.0;
-const RULE_HEIGHT: f32 = 1.0;
-const PADDING: f32 = 8.0;
+const CELL: Size = Size::Md;
+const CELL_SPACING: Space = Space::Xs;
+const ROW_SPACING: Space = Space::Sm;
+const LABEL_WIDTH: Size = Size::Custom(46.0);
+const PADDING: Space = Space::Md;
 
 #[component]
 pub(crate) fn BinaryAddition(editor: Editor, block: crate::logic_game::app::GameBlock) -> NodeId {
@@ -81,19 +80,17 @@ pub(crate) fn BinaryAddition(editor: Editor, block: crate::logic_game::app::Game
     view! {
         <List spacing=ROW_SPACING>
             <Text>{title}</Text>
-            <Bordered corner_radius={Radius::custom(8.0)}>
-                <Frame padding=PADDING>
-                    <ProblemGrid
-                        quiz={quiz}
-                        block={block}
-                        page={page.read_only()}
-                        answers={answers}
-                        checked={checked.read_only()}
-                        read_only={read_only}
-                    />
-                </Frame>
-            </Bordered>
-            <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
+            <Frame border={Border::DEFAULT} radius=Radius::Tab padding=PADDING>
+                <ProblemGrid
+                    quiz={quiz}
+                    block={block}
+                    page={page.read_only()}
+                    answers={answers}
+                    checked={checked.read_only()}
+                    read_only={read_only}
+                />
+            </Frame>
+            <List direction=Direction::Horizontal align=Align::Center spacing=Space::Md>
                 <Button
                     label="Check"
                     variant=ButtonVariant::Secondary
@@ -119,7 +116,7 @@ pub(crate) fn BinaryAddition(editor: Editor, block: crate::logic_game::app::Game
                 </Show>
                 <Spacer @sizing=ItemSize::Percent(100.0) />
             </List>
-            <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
+            <List direction=Direction::Horizontal align=Align::Center spacing=Space::Md>
                 <Button
                     label="Previous"
                     variant=ButtonVariant::Secondary
@@ -138,7 +135,7 @@ pub(crate) fn BinaryAddition(editor: Editor, block: crate::logic_game::app::Game
                 </Show>
                 <Show condition={done}>
                     <Text style=TextStyle::CAPTION color=TextColor::Success>
-                        <Icon glyph={ICON_CHECK_CIRCLE.to_owned()} />
+                        <Icon glyph=ICON_CIRCLE_CHECK />
                         "Every problem is correct."
                     </Text>
                 </Show>
@@ -180,8 +177,8 @@ fn ProblemGrid(
             />
             <OperandRows operands={operands} />
             <List direction=Direction::Horizontal align=Align::Center spacing=CELL_SPACING>
-                <Spacer @sizing=ItemSize::Fixed(LABEL_WIDTH) />
-                <Frame @sizing=ItemSize::Percent(100.0) height=RULE_HEIGHT fill=ColorRole::Border />
+                <Spacer @sizing=ItemSize::Fixed(LABEL_WIDTH.px()) />
+                <Separator @sizing=ItemSize::Percent(100.0) />
             </List>
             <BitRow
                 label="sum"
@@ -302,12 +299,10 @@ fn BitCell(
         Some(bit) => u8::from(bit).to_string(),
         None => " ".to_owned(),
     });
-    let theme = use_theme();
-    let outline = create_memo(move || theme.danger.get());
     view! {
         <Frame
             width=CELL
-            border={create_memo(move || wrong.get().then(|| Border::new(ColorRole::Custom(outline.get())).width(1.0).offset(1.0)))}
+            border={create_memo(move || wrong.get().then(|| Border::new(ColorRole::Danger).width(Stroke::Hairline).offset(Stroke::Hairline)))}
             radius=Radius::Sm
         >
             <Button

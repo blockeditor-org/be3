@@ -1,5 +1,6 @@
 use super::*;
 use crate::primitives::Frame;
+use crate::primitives::List;
 use crate::reactive::*;
 use crate::styled::*;
 
@@ -55,10 +56,10 @@ fn check_compact_rows(inset: f32) {
     harness.frame(Vec::new());
     let index = 120;
     harness
-        .document
+        .document_mut()
         .set_scroll_offset(scroll, index as f32 * VIRTUAL_ITEM_HEIGHT + inset);
     harness.frame(Vec::new());
-    let rows = harness.document.children(list);
+    let rows = harness.document().children(list);
     let top = harness.rect(rows[0]).top();
     built.update(|built| built.clear());
 
@@ -76,7 +77,7 @@ fn check_compact_rows(inset: f32) {
             .checked()
             .get()
     );
-    assert_eq!(harness.document.children(list)[0], kept);
+    assert_eq!(harness.document().children(list)[0], kept);
     assert!(
         built
             .get_untracked()
@@ -84,11 +85,11 @@ fn check_compact_rows(inset: f32) {
             .all(|&built| built >= index + rows.len())
     );
     assert_eq!(
-        harness.rect(harness.document.children(list)[0]).top(),
+        harness.rect(harness.document().children(list)[0]).top(),
         settled
     );
     assert_eq!(
-        harness.document.scroll_offset(scroll),
+        harness.document().scroll_offset(scroll),
         index as f32 * VIRTUAL_ITEM_HEIGHT / 2.0 + inset
     );
 
@@ -96,14 +97,14 @@ fn check_compact_rows(inset: f32) {
     harness.click(harness.center(switch));
     harness.frame(Vec::new());
 
-    assert_eq!(harness.document.children(list)[0], kept);
+    assert_eq!(harness.document().children(list)[0], kept);
     assert!(built.with_untracked(|built| built.is_empty()));
     assert_eq!(
-        harness.rect(harness.document.children(list)[0]).top(),
+        harness.rect(harness.document().children(list)[0]).top(),
         settled
     );
     assert_eq!(
-        harness.document.scroll_offset(scroll),
+        harness.document().scroll_offset(scroll),
         (index + skipped) as f32 * VIRTUAL_ITEM_HEIGHT + remainder
     );
 }

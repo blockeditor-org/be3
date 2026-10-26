@@ -1,13 +1,15 @@
-use block_editor_beui::be_block::{BlockContent, ImageContent};
+use block_editor_beui::be_block::BlockContent;
 use block_editor_beui::{BlockInfo, BlockParent, EditorHost, OwnedEditor};
 use block_ui_test::BeuiTest;
 use image::ImageEncoder;
 use uuid::Uuid;
 
 use crate::app::ImageApp;
+use image_block_types::{ImageContent, ImageFile};
 
 mod a_decoded_image_is_painted_at_its_shape;
 mod a_narrow_image_folds_its_sidebar_under_the_picture;
+mod a_new_image_asks_for_its_file_in_a_dialog_it_draws_and_closes;
 mod an_image_still_loading_shows_its_thumbhash;
 mod an_image_that_will_not_decode_says_so;
 
@@ -17,7 +19,7 @@ fn editor(data: Vec<u8>) -> BeuiTest<ImageApp> {
     host.set_editable(true);
     let editor = OwnedEditor::new(host.clone(), block);
     let mut editor = BeuiTest::new(editor);
-    editor.hold(None, ImageContent::from_file("picture.png", data));
+    editor.hold(None, ImageFile::from_file("picture.png", data));
     editor.run();
     editor
 }

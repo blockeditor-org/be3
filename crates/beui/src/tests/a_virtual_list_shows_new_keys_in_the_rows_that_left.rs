@@ -33,11 +33,11 @@ fn a_virtual_list_shows_new_keys_in_the_rows_that_left() {
     let (scroll, list) = (scroll.get(), list.get());
     let mut harness = Harness::new(document);
     harness.frame(Vec::new());
-    let shown = harness.document.children(list).len();
+    let shown = harness.document().children(list).len();
 
     for step in 1..=20 {
         harness
-            .document
+            .document_mut()
             .set_scroll_offset(scroll, step as f32 * VIRTUAL_ITEM_HEIGHT * shown as f32);
         harness.frame(Vec::new());
     }
@@ -51,20 +51,20 @@ fn a_virtual_list_shows_new_keys_in_the_rows_that_left() {
     assert!(labels.contains(&format!("Row {top}")), "{labels:?}");
     assert!(!labels.contains(&"Row 0".to_owned()), "{labels:?}");
 
-    harness.document.set_scroll_offset(scroll, 0.0);
+    harness.document_mut().set_scroll_offset(scroll, 0.0);
     harness.frame(Vec::new());
-    let focused = harness.document.children(list)[0];
-    harness.document.focus_focusable(focused);
+    let focused = harness.document().children(list)[0];
+    harness.document_mut().focus_focusable(focused);
     harness.frame(Vec::new());
-    assert_eq!(harness.document.focused, Some(focused));
+    assert_eq!(harness.document().focused, Some(focused));
     for step in 40..=50 {
         harness
-            .document
+            .document_mut()
             .set_scroll_offset(scroll, step as f32 * VIRTUAL_ITEM_HEIGHT * shown as f32);
         harness.frame(Vec::new());
-        assert_eq!(harness.document.focused, Some(focused));
+        assert_eq!(harness.document().focused, Some(focused));
         assert!(
-            text_within(&harness.document, focused, "Row 0").is_some(),
+            text_within(harness.document(), focused, "Row 0").is_some(),
             "the focused row keeps its key"
         );
     }

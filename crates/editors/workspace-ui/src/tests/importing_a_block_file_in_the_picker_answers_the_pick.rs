@@ -1,4 +1,5 @@
-use block_editor_beui::{BlockImport, BlockLocation, BlockPick, HostReply, HostRequest};
+use block_editor_beui::{BlockLocation, ImportedBlock, PickedBlock};
+use block_ui_test::HostCall;
 
 use super::*;
 
@@ -19,27 +20,25 @@ fn importing_a_block_file_in_the_picker_answers_the_pick() {
         .test
         .take_requests()
         .into_iter()
-        .filter_map(|(id, request)| match request {
-            HostRequest::ImportBlocks(place) => Some((id, place)),
+        .filter_map(|call| match call {
+            HostCall::ImportBlocks { reply, parent } => Some((reply, parent)),
             _ => None,
         })
         .collect();
-    let [(request, place)] = imports.as_slice() else {
-        panic!("choosing a file asks the host to import one, asked {imports:?}");
-    };
+    let [(request, place)]: [_; 1] = imports.try_into().unwrap_or_else(|imports: Vec<_>| {
+        panic!("choosing a file asks the host to import one, asked {imports:?}")
+    });
     assert_eq!(
-        *place,
+        place,
         BlockLocation::Block(parent.into_bytes()),
         "the import lands where a created block would"
     );
     assert!(fixture.says("Importing…"), "the picker waits for the file");
 
-    fixture
-        .test
-        .reply(*request, HostReply::BlocksImported(BlockImport::Cancelled));
+    fixture.test.answer(request, Ok(None));
     fixture.settle();
     assert!(
-        fixture.says("Import a .block file…"),
+        fixture.says("Import a file…"),
         "cancelling the file picker leaves the menu open to try again"
     );
     assert!(fixture.test.take_pick_answers().is_empty());
@@ -50,15 +49,18 @@ fn importing_a_block_file_in_the_picker_answers_the_pick() {
         .test
         .take_requests()
         .into_iter()
-        .find_map(|(id, request)| matches!(request, HostRequest::ImportBlocks(_)).then_some(id))
+        .find_map(|call| match call {
+            HostCall::ImportBlocks { reply, .. } => Some(reply),
+            _ => None,
+        })
         .expect("choosing again asks again");
     let imported = Uuid::new_v4();
-    fixture.test.reply(
+    fixture.test.answer(
         request,
-        HostReply::BlocksImported(BlockImport::Imported {
+        Ok(Some(ImportedBlock {
             block_id: imported.into_bytes(),
             block_type: SHOWN_TYPE.into_bytes(),
-        }),
+        })),
     );
     fixture.settle();
 
@@ -66,12 +68,12 @@ fn importing_a_block_file_in_the_picker_answers_the_pick() {
         fixture.test.take_pick_answers(),
         vec![(
             4,
-            BlockPick::Chosen {
+            Ok(Some(PickedBlock {
                 block_id: imported.into_bytes(),
                 block_type: SHOWN_TYPE.into_bytes(),
                 linked: false,
                 placed: false,
-            }
+            }))
         )]
     );
     assert!(

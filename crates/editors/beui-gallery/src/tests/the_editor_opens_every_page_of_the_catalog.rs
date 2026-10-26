@@ -14,7 +14,8 @@ fn the_editor_opens_every_page_of_the_catalog() {
             .and_then(|node| document.node_rect(node))
             .unwrap_or_else(|| panic!("the catalog shows {title}"))
             .center();
-        test.click_at(at);
+        drop(document);
+        test.click(at);
         test.run();
         assert!(
             test.document().find_test_id(&row).is_some(),

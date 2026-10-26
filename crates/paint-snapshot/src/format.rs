@@ -8,7 +8,7 @@ use paint_format::{Frame, Painting, TextureKey};
 use serde::{Deserialize, Serialize};
 
 const MAGIC: &[u8; 8] = b"BE3PAINT";
-const VERSION: u32 = 4;
+const VERSION: u32 = 5;
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct Snapshot {
@@ -20,6 +20,7 @@ pub struct Snapshot {
 pub struct Texture {
     pub size: [u32; 2],
     pub alpha: bool,
+    #[serde(with = "serde_bytes")]
     pub png: Vec<u8>,
 }
 
@@ -109,21 +110,32 @@ impl Snapshot {
     }
 
     pub fn encode(&self) -> Result<Vec<u8>, String> {
-        let body = bincode::serialize(self)
-            .map_err(|error| format!("could not serialize snapshot: {error}"))?;
-        let mut bytes = Vec::with_capacity(body.len() / 2);
+        Self::compress(&self.body()?)
+    }
+
+    pub fn decode(bytes: &[u8]) -> Result<Self, String> {
+        paint_format::decode(&Self::body_of(bytes)?)
+            .map_err(|error| format!("could not deserialize snapshot: {error}"))
+    }
+
+    pub(crate) fn body(&self) -> Result<Vec<u8>, String> {
+        paint_format::encode(self).map_err(|error| format!("could not serialize snapshot: {error}"))
+    }
+
+    pub(crate) fn compress(body: &[u8]) -> Result<Vec<u8>, String> {
+        let mut bytes = Vec::with_capacity(body.len() / 8);
         bytes.extend_from_slice(MAGIC);
         bytes.extend_from_slice(&VERSION.to_le_bytes());
         let mut encoder = DeflateEncoder::new(bytes, Compression::best());
         encoder
-            .write_all(&body)
+            .write_all(body)
             .map_err(|error| format!("could not compress snapshot: {error}"))?;
         encoder
             .finish()
             .map_err(|error| format!("could not compress snapshot: {error}"))
     }
 
-    pub fn decode(bytes: &[u8]) -> Result<Self, String> {
+    pub(crate) fn body_of(bytes: &[u8]) -> Result<Vec<u8>, String> {
         let header = bytes.len().min(MAGIC.len() + 4);
         if header < MAGIC.len() + 4 || &bytes[..MAGIC.len()] != MAGIC {
             return Err("not a paint snapshot".into());
@@ -138,7 +150,6 @@ impl Snapshot {
         DeflateDecoder::new(&bytes[header..])
             .read_to_end(&mut body)
             .map_err(|error| format!("could not decompress snapshot: {error}"))?;
-        bincode::deserialize(&body)
-            .map_err(|error| format!("could not deserialize snapshot: {error}"))
+        Ok(body)
     }
 }

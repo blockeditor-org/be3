@@ -1,22 +1,21 @@
 use crate::frame::{Border, ColorRole, Frame, Radius};
+use beui_core::font::Overflow;
 use beui_macros::{component, view};
 
 use crate::focus_ring::FocusRing;
 use beui_core::base::TextAlign;
-use beui_core::color::Color32;
 
-use crate::text::{Text, TextColor};
-use crate::theme::{ThemeStore, use_theme};
+use crate::list::List;
+use crate::text::{Text, TextColor, TextSize};
+use crate::tokens::{Size, Space, Stroke};
 use beui_components_unstyled::{Toggle, ToggleHandle};
 use beui_core::node::NodeId;
-use beui_view::primitives::*;
+use beui_view::primitives::Layers;
 use beui_view::reactive::*;
 
 const BOX_SIZE: f32 = 18.0;
 const MARK_SIZE: f32 = 10.0;
-const MARK_RADIUS: f32 = 2.0;
-const SPACING: f32 = 10.0;
-const FOCUS_RING_OFFSET: f32 = 4.0;
+const SPACING: Space = Space::Md;
 
 #[component]
 pub fn Checkbox(
@@ -28,6 +27,7 @@ pub fn Checkbox(
     #[prop(default = false)] capture_presses: Prop<bool>,
     #[prop(default = true)] tab_stop: Prop<bool>,
     #[prop(default = true)] press_focus: Prop<bool>,
+    #[prop(default = TextSize::Base)] size: Prop<TextSize>,
 ) -> NodeId {
     view! {
         <Toggle
@@ -39,13 +39,13 @@ pub fn Checkbox(
             tab_stop
             press_focus
         >|handle: ToggleHandle|
-            <CheckboxFace handle />
+            <CheckboxFace handle size />
         </Toggle>
     }
 }
 
 #[component]
-fn CheckboxFace(handle: ToggleHandle) -> NodeId {
+fn CheckboxFace(handle: ToggleHandle, size: Prop<TextSize>) -> NodeId {
     let ToggleHandle {
         checked,
         hovered,
@@ -54,12 +54,11 @@ fn CheckboxFace(handle: ToggleHandle) -> NodeId {
         label,
         ..
     } = handle;
-    let theme = use_theme();
-    let fill_color =
-        create_memo(move || box_fill(&theme, disabled.get(), checked.get(), hovered.get()));
-    let border_visible = create_memo(move || !checked.get());
-    let box_border = theme.border;
-    let mark_color = theme.on_accent;
+    let scale = create_memo(move || size.get().px() / TextSize::Base.px());
+    let side = create_memo(move || Size::Custom(BOX_SIZE * scale.get()));
+    let mark = create_memo(move || Size::Custom(MARK_SIZE * scale.get()));
+    let fill_color = create_memo(move || box_fill(disabled.get(), checked.get(), hovered.get()));
+    let border = create_memo(move || (!checked.get()).then_some(Border::DEFAULT));
     let labeled = create_memo(move || !label.get().is_empty());
     let label_color = create_memo(move || match disabled.get() {
         true => TextColor::Muted,
@@ -67,29 +66,30 @@ fn CheckboxFace(handle: ToggleHandle) -> NodeId {
     });
 
     view! {
-        <FocusRing focused offset=FOCUS_RING_OFFSET>
+        <FocusRing focused offset=Stroke::Focus>
             <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
                 <Frame
-                    width=BOX_SIZE
-                    height=BOX_SIZE
-                    fill={ColorRole::custom(fill_color)}
-                    border={create_memo(move || border_visible.get().then(|| Border::new(ColorRole::Custom(box_border.get()))))}
+                    width=side
+                    height=side
+                    fill={fill_color}
+                    border={border}
                     radius=Radius::Sm
                     align=Align::Center
                 >
                     <Layers>
                         <Show condition={checked}>
                             <Frame
-                                width=MARK_SIZE
-                                height=MARK_SIZE
-                                fill={ColorRole::custom(mark_color)}
-                                radius={Radius::custom(MARK_RADIUS)}
+                                width=mark
+                                height=mark
+                                fill=ColorRole::OnAccent
+                                radius=Radius::Xs
                             />
                         </Show>
                     </Layers>
                 </Frame>
                 <Show condition={labeled}>
                     <Text
+                        overflow=Overflow::Ellipsis
                         @sizing=ItemSize::Percent(100.0)
                         color={label_color}
                         align=TextAlign::Start
@@ -102,17 +102,17 @@ fn CheckboxFace(handle: ToggleHandle) -> NodeId {
     }
 }
 
-fn box_fill(theme: &ThemeStore, disabled: bool, checked: bool, hovered: bool) -> Color32 {
+fn box_fill(disabled: bool, checked: bool, hovered: bool) -> ColorRole {
     if disabled {
         return match checked {
-            true => theme.accent_soft.get(),
-            false => theme.surface.get(),
+            true => ColorRole::AccentSoft,
+            false => ColorRole::Surface,
         };
     }
     match (checked, hovered) {
-        (true, false) => theme.accent.get(),
-        (true, true) => theme.accent_hover.get(),
-        (false, false) => theme.surface_raised.get(),
-        (false, true) => theme.pressed.get(),
+        (true, false) => ColorRole::Accent,
+        (true, true) => ColorRole::AccentHover,
+        (false, false) => ColorRole::SurfaceRaised,
+        (false, true) => ColorRole::Pressed,
     }
 }

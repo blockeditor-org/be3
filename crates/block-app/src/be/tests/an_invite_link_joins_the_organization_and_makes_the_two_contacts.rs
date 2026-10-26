@@ -16,12 +16,9 @@ fn an_invite_link_joins_the_organization_and_makes_the_two_contacts() {
         "outsider@example.com",
         "Outsider",
     );
+    harness.connect();
     let link = runtime()
-        .block_on(crate::accounts::invite(
-            url.clone(),
-            harness.token.clone(),
-            harness.me(),
-            harness.organization,
+        .block_on(crate::be::invite(
             "guest@example.com".to_owned(),
             be_protocol::OrganizationRole::Editor,
         ))
@@ -67,7 +64,7 @@ fn an_invite_link_joins_the_organization_and_makes_the_two_contacts() {
     let peer = runtime.block_on(guest.peer(&url, harness.organization));
     let theirs = runtime
         .block_on(be_client::contacts::contacts(
-            peer.connection(),
+            &peer.connection(),
             peer.account(),
             &guest.phrase.secret(),
         ))

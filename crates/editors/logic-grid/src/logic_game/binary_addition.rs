@@ -1,4 +1,4 @@
-use block_editor_beui::be_block::logic_game::{LogicGameOperation, QuizRow};
+use logic_grid_types::{LogicGameOperation, QuizRow};
 
 pub(crate) mod ui;
 

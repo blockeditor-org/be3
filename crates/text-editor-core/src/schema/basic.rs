@@ -1,6 +1,6 @@
 use std::ops::Range;
 
-use super::{Break, Line, Schema, Selected, Tool};
+use super::{Break, Line, LineLook, ListMarker, Schema, Selected, Tool};
 use crate::Language;
 use crate::core::EditorCommand;
 use crate::highlighter::{SynHlColorScope, SynHlFontFamily, SynHlStyle, SynHlTextSize};
@@ -57,25 +57,69 @@ pub fn depth(props: &MarkSet) -> i64 {
     props.get(INDENT).and_then(Value::as_int).unwrap_or(0)
 }
 
-pub fn ordinal(formats: &Formats, block: usize) -> usize {
-    let Some(own) = formats.blocks.get(block) else {
-        return 1;
-    };
-    let kind = own.props.get(LIST);
-    let level = depth(&own.props);
-    let mut count = 1;
-    for held in formats.blocks[..block].iter().rev() {
-        if held.props.get(LIST).is_none() {
-            break;
-        }
-        match depth(&held.props).cmp(&level) {
-            std::cmp::Ordering::Greater => continue,
-            std::cmp::Ordering::Less => break,
-            std::cmp::Ordering::Equal if held.props.get(LIST) != kind => break,
-            std::cmp::Ordering::Equal => count += 1,
-        }
-    }
-    count
+pub fn line_looks(formats: &Formats) -> Vec<LineLook> {
+    let mut counts: Vec<(i64, Option<Value>, usize)> = Vec::new();
+    let mut looks: Vec<LineLook> = formats
+        .blocks
+        .iter()
+        .map(|block| {
+            let props = &block.props;
+            let level = depth(props);
+            let kind = props.get(LIST).cloned();
+            match &kind {
+                None => counts.clear(),
+                Some(_) => {
+                    counts.retain(|(held, _, _)| *held <= level);
+                    match counts.last_mut() {
+                        Some((held, same, count)) if *held == level && *same == kind => *count += 1,
+                        Some((held, _, _)) if *held == level => {
+                            counts.pop();
+                            counts.push((level, kind.clone(), 1));
+                        }
+                        _ => counts.push((level, kind.clone(), 1)),
+                    }
+                }
+            }
+            let list = kind
+                .as_ref()
+                .and_then(Value::as_text)
+                .and_then(|kind| match kind {
+                    BULLET => Some(ListMarker::Bullet),
+                    NUMBER => Some(ListMarker::Number(
+                        counts.last().map_or(1, |(_, _, count)| *count),
+                    )),
+                    CHECK => Some(ListMarker::Check(on(props, CHECKED))),
+                    _ => None,
+                });
+            LineLook {
+                marker: block.start..block.start,
+                list,
+                depth: match list {
+                    Some(_) => level.max(0) as usize,
+                    None => 0,
+                },
+                continues: false,
+                quote: usize::from(on(props, QUOTE)),
+                code_block: props.get(CODE_BLOCK).is_some(),
+                heading: match props.get(CODE_BLOCK) {
+                    Some(_) => 0,
+                    None => props
+                        .get(HEADING)
+                        .and_then(Value::as_int)
+                        .filter(|level| (1..=6).contains(level))
+                        .map_or(0, |level| level as u8),
+                },
+                ..LineLook::at(block.start)
+            }
+        })
+        .collect();
+    let code: Vec<Option<&Value>> = formats
+        .blocks
+        .iter()
+        .map(|block| block.props.get(CODE_BLOCK))
+        .collect();
+    super::join_neighbours(&mut looks, &code);
+    looks
 }
 
 fn on(selected: &MarkSet, key: &str) -> bool {
@@ -233,9 +277,10 @@ impl Schema for Basic {
                 _ => SynHlTextSize::Body,
             },
             bold: on(marks, BOLD) || (heading.is_some() && !code_block),
-            italic: on(marks, ITALIC) || on(block, QUOTE),
+            italic: on(marks, ITALIC),
             underline: on(marks, UNDERLINE) || link,
             strikethrough: on(marks, STRIKETHROUGH) || checked,
+            code: code && !code_block,
         }
     }
 
@@ -308,5 +353,13 @@ impl Schema for Basic {
 
     fn tools(&self) -> &[Tool] {
         &TOOLS
+    }
+
+    fn line_looks(&self, formats: &Formats) -> Vec<LineLook> {
+        line_looks(formats)
+    }
+
+    fn check(&self, checked: bool) -> Option<(Name, Option<Value>)> {
+        Some((Name::new(CHECKED), checked.then_some(Value::Bool(true))))
     }
 }

@@ -1,8 +1,8 @@
 use block_editor_beui::Loaded;
-use block_editor_beui::be_block::CalendarContent;
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::Root;
 use block_editor_beui::{Creation, Editor};
+use calendar_types::CalendarContent;
 use uuid::Uuid;
 
 mod model;
@@ -14,8 +14,10 @@ use ui::CalendarEditor;
 
 pub struct CalendarApp;
 
+#[component]
 impl block_editor_beui::BeuiApp for CalendarApp {
-    fn view(editor: Editor) -> Root {
+    #[component]
+    fn View(editor: Editor) -> Root {
         view! {
             <Root>
                 <Loaded>

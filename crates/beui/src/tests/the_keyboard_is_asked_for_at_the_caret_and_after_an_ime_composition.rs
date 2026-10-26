@@ -12,7 +12,14 @@ fn the_keyboard_is_asked_for_at_the_caret_and_after_an_ime_composition() {
             Arc::new(TextBuffer::new(b"hello world")) as Arc<dyn text_editor_core::Document>;
         let state = TextAreaState::new(document);
         view! {
-            <TextArea state={state} single_line=true />
+            <TextArea
+                colors={area_colors()}
+                look={area_look()}
+                font_size=AREA_FONT_SIZE
+                padding=AREA_PADDING
+                state={state}
+                single_line=true
+            />
         }
     });
     let mut harness = Harness::new(document);
@@ -21,7 +28,10 @@ fn the_keyboard_is_asked_for_at_the_caret_and_after_an_ime_composition() {
     harness.key(Key::Home, Modifiers::NONE);
     let start = harness
         .frame(Vec::new())
+        .main()
         .window
+        .clone()
+        .requests
         .ime
         .expect("a focused text area asks for the keyboard");
     assert!(
@@ -32,7 +42,10 @@ fn the_keyboard_is_asked_for_at_the_caret_and_after_an_ime_composition() {
     harness.key(Key::End, Modifiers::NONE);
     let end = harness
         .frame(Vec::new())
+        .main()
         .window
+        .clone()
+        .requests
         .ime
         .expect("the keyboard is still asked for");
     assert!(
@@ -41,10 +54,13 @@ fn the_keyboard_is_asked_for_at_the_caret_and_after_an_ime_composition() {
     );
 
     let composing = harness
-        .frame(vec![Event::Ime(ImeEvent::SetComposingText(
+        .frame(vec![Input::Ime(ImeEvent::SetComposingText(
             "nihao".to_owned(),
         ))])
+        .main()
         .window
+        .clone()
+        .requests
         .ime
         .expect("the keyboard is asked for while composing");
     assert!(
@@ -53,8 +69,11 @@ fn the_keyboard_is_asked_for_at_the_caret_and_after_an_ime_composition() {
     );
 
     let cleared = harness
-        .frame(vec![Event::Ime(ImeEvent::SetComposingText(String::new()))])
+        .frame(vec![Input::Ime(ImeEvent::SetComposingText(String::new()))])
+        .main()
         .window
+        .clone()
+        .requests
         .ime
         .expect("the keyboard is still asked for");
     assert_eq!(

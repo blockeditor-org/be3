@@ -1,5 +1,5 @@
 use super::*;
-use crate::unstyled::{DockApi, TabId};
+use crate::dock::unstyled::{DockApi, TabId};
 
 #[test]
 fn a_dock_tab_in_a_window_opens_its_menu_over_the_window() {
@@ -41,18 +41,16 @@ fn a_dock_tab_in_a_window_opens_its_menu_over_the_window() {
 
 fn right_click(harness: &mut Harness, dock: NodeId, title: &str) {
     let pos = harness.center(dock_tab(harness.document(), dock, title));
-    harness.frame(vec![Event::PointerMoved(pos)]);
-    harness.frame(vec![Event::PointerButton {
+    harness.frame(vec![Input::PointerMoved(pos)]);
+    harness.frame(vec![Input::PointerButton {
         pos,
         button: PointerButton::Secondary,
         pressed: true,
-        modifiers: Modifiers::NONE,
     }]);
-    harness.frame(vec![Event::PointerButton {
+    harness.frame(vec![Input::PointerButton {
         pos,
         button: PointerButton::Secondary,
         pressed: false,
-        modifiers: Modifiers::NONE,
     }]);
     harness.frame(Vec::new());
 }

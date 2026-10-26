@@ -1,11 +1,11 @@
-use block_plugin_api::ChildRect;
+use block_editor_beui::beui::{Pos2, Vec2};
 
 use super::*;
 
 fn fullscreen_asked(fixture: &Fixture) -> Vec<WindowAction> {
     fixture
         .test
-        .actions::<WindowAction>()
+        .host_calls(block_ui_test::requested::window)
         .into_iter()
         .filter(|action| matches!(action, WindowAction::Fullscreen { .. }))
         .collect()
@@ -27,21 +27,19 @@ fn super_f_toggles_fullscreen_on_the_window_with_the_keyboard() {
         }]
     );
 
-    fixture.test.take_sent();
+    fixture.test.clear_calls();
     let fullscreen = HostWindow {
-        fullscreen: Some(ChildRect {
-            x: 0.0,
-            y: 0.0,
-            width: 800.0,
-            height: 600.0,
-        }),
+        fullscreen: Some(Rect::from_min_size(
+            Pos2::new(0.0, 0.0),
+            Vec2::new(800.0, 600.0),
+        )),
         ..host_window(2, true)
     };
     fixture
         .test
-        .set_host_value::<HostWindows>(&vec![host_window(1, false), fullscreen]);
+        .set_watched::<WindowsWatch>(&vec![host_window(1, false), fullscreen]);
     fixture.settle();
-    fixture.test.take_sent();
+    fixture.test.clear_calls();
     assert!(fixture.test.app_key(Modifiers::LOGO, Key::F));
     fixture.settle();
     assert_eq!(

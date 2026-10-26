@@ -24,14 +24,14 @@ fn a_signal_written_during_a_frame_asks_for_another_only_if_its_document_was_alr
     let context = harness.context().clone();
     let rect = Rect::from_min_size(Pos2::ZERO, VIEWPORT);
 
-    let before_show = context.run(RawInput::default(), |context| {
+    let before_show = context.run(|context| {
         count.update(|count| *count += 1);
         harness.document_mut().show(context, rect);
     });
     assert!(!before_show.repaint);
     assert_eq!(text_of(harness.document(), value), "1");
 
-    let after_show = context.run(RawInput::default(), |context| {
+    let after_show = context.run(|context| {
         harness.document_mut().show(context, rect);
         count.update(|count| *count += 1);
     });

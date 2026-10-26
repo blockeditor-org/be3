@@ -1,8 +1,8 @@
 use super::*;
 use crate::presence::CanvasCursor;
 use block_editor_beui::PeerPresence;
-use block_editor_beui::be_block::canvas::CanvasColor;
 use block_editor_beui::be_block::presence::{PresenceColor, PresenceKind};
+use infinite_canvas_types::CanvasColor;
 
 #[test]
 fn selections_are_shared_with_peers_and_theirs_are_drawn() {
@@ -20,7 +20,7 @@ fn selections_are_shared_with_peers_and_theirs_are_drawn() {
     editor.presence_visible(true);
     editor.run();
 
-    editor.click(&format!("infinite-canvas.entity.{}", rectangle.id));
+    editor.click(format!("infinite-canvas.entity.{}", rectangle.id));
     editor.run();
 
     let shown = editor.take_shown_presence();

@@ -16,8 +16,8 @@ fn overscrolling_a_sheet_bounces_its_content_back() {
     for step in 1..=60 {
         harness.touch(TouchPhase::Move, pos2(200.0, 580.0 - step as f32 * 15.0));
     }
-    let end = harness.document().scroll_offset(sheet);
     let stretched = harness.document().scroll_overscroll(sheet);
+    let end = harness.document().scroll_offset(sheet) - stretched;
     assert_eq!(
         harness.rect(sheet).height(),
         540.0,

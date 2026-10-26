@@ -1,6 +1,7 @@
 use super::*;
 
 use be_block::{BlockMetadata, INTRINSIC_NAME, MetaKey, NAME};
+use image_block_types::{ImageContent, ImageFile};
 
 const PINNED: MetaKey<bool> = MetaKey::defined(0x7069_6e6e_6564, "pinned");
 const WORDS: MetaKey<u32> = MetaKey::derived(0x0077_6f72_6473, "words");
@@ -16,7 +17,7 @@ async fn a_save_keeps_defined_metadata_it_does_not_know_and_drops_stale_derived_
     let first = phone
         .save(
             block,
-            &ImageContent::from_file("beach.png", vec![1, 2, 3]),
+            &ImageFile::from_file("beach.png", vec![1, 2, 3]),
             None,
         )
         .await
@@ -63,11 +64,7 @@ async fn a_save_keeps_defined_metadata_it_does_not_know_and_drops_stale_derived_
     assert_ne!(head, Some(second));
 
     let third = phone
-        .save(
-            block,
-            &ImageContent::from_file("sand.png", vec![4, 5]),
-            head,
-        )
+        .save(block, &ImageFile::from_file("sand.png", vec![4, 5]), head)
         .await
         .unwrap()
         .published()

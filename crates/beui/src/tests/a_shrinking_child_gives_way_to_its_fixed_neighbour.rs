@@ -24,7 +24,7 @@ fn a_shrinking_child_gives_way_to_its_fixed_neighbour() {
     assert_eq!(harness.rect(label.get()).width(), 130.0);
     assert_eq!(harness.rect(button.get()).left(), 140.0);
 
-    *harness.viewport_mut() = vec2(90.0, 50.0);
+    harness.resize(vec2(90.0, 50.0));
     harness.frame(Vec::new());
     assert_eq!(
         harness.rect(label.get()).width(),

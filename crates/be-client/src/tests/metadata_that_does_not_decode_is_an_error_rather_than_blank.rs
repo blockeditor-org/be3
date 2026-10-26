@@ -1,6 +1,7 @@
 use super::*;
 
-use be_block::{BlockMetadata, CounterContent, NAME};
+use be_block::{BlockMetadata, NAME};
+use counter_types::CounterContent;
 
 #[tokio::test]
 async fn metadata_that_does_not_decode_is_an_error_rather_than_blank() {

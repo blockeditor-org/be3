@@ -73,6 +73,19 @@ fn within(before: &Frame, after: &Frame) -> String {
         .zip(&after.primitives)
         .position(|(before, after)| before != after);
     match index {
+        Some(index) if before.primitives[index].content == after.primitives[index].content => {
+            let (before, after) = (&before.primitives[index], &after.primitives[index]);
+            match before.clip == after.clip {
+                true => format!(
+                    "shape {index} fades {:?} across {:?}, it used to fade {:?} across {:?}",
+                    after.fade.widths, after.fade.rect, before.fade.widths, before.fade.rect
+                ),
+                false => format!(
+                    "shape {index} is clipped to {:?}, it used to be clipped to {:?}",
+                    after.clip, before.clip
+                ),
+            }
+        }
         Some(index) => format!(
             "shape {index} changed: {}",
             changes(

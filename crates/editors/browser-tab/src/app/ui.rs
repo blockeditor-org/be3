@@ -1,5 +1,5 @@
 use block_editor_beui::beui::NodeId;
-use block_editor_beui::beui::icons::{ICON_ARROW_BACK, ICON_ARROW_FORWARD, ICON_REFRESH};
+use block_editor_beui::beui::icons::{ICON_ARROW_LEFT, ICON_ARROW_RIGHT, ICON_REFRESH_CW};
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
 use block_editor_beui::{Editor, Subregion, SubregionContent, Toolbar};
@@ -44,24 +44,27 @@ pub fn BrowserTab(editor: Editor) -> NodeId {
     let content = NodeRef::new();
     editor.content(&content);
     view! {
-        <List spacing=0.0>
+        <List spacing=Space::None>
             <Toolbar shown={chrome}>
-                <IconButton
-                    glyph={ICON_ARROW_BACK.to_owned()}
+                <Button
+                    icon_only=true
+                    glyph=ICON_ARROW_LEFT
                     label="Back"
                     disabled={no_back}
                     @test_id={"browser.back"}
                     on_click={go_back}
                 />
-                <IconButton
-                    glyph={ICON_ARROW_FORWARD.to_owned()}
+                <Button
+                    icon_only=true
+                    glyph=ICON_ARROW_RIGHT
                     label="Forward"
                     disabled={no_forward}
                     @test_id={"browser.forward"}
                     on_click={go_forward}
                 />
-                <IconButton
-                    glyph={ICON_REFRESH.to_owned()}
+                <Button
+                    icon_only=true
+                    glyph=ICON_REFRESH_CW
                     label="Reload"
                     @test_id={"browser.reload"}
                     on_click={reload}
@@ -85,7 +88,7 @@ pub fn BrowserTab(editor: Editor) -> NodeId {
             <Frame @sizing=ItemSize::Percent(100.0) @node_ref={&content}>
                 <Layers>
                     <Subregion editor={editor} placed={page} punch=false />
-                    <List align=Align::Center justify=Justify::Center spacing=0.0>
+                    <List align=Align::Center justify=Justify::Center spacing=Space::None>
                         <Show condition={failed}>
                             <Text
                                 style=TextStyle::CAPTION

@@ -1,5 +1,5 @@
 use super::*;
-use beui::{Event, vec2};
+use beui::vec2;
 use beui::{TouchId, TouchPhase};
 use beui_macros::view;
 
@@ -9,7 +9,7 @@ fn a_long_sheet_fades_its_content_and_bounces_as_a_panel() {
         view! {
             <Root>
                 <ModalSheet open=true rest=0.5 on_close={|| ()}>
-                    <List spacing=0.0>
+                    <List spacing=Space::None>
                         <ForEach keys={(1..=60).collect::<Vec<usize>>()}>|row: usize|
                             <ActionRow label={format!("Row {row}")} />
                         </ForEach>
@@ -20,7 +20,7 @@ fn a_long_sheet_fades_its_content_and_bounces_as_a_panel() {
     });
     let mut test = DocumentTest::new(document, vec2(400.0, 600.0));
     let touch = |test: &mut DocumentTest, phase, pos| {
-        test.frame(vec![Event::Touch {
+        test.frame(vec![Input::Touch {
             id: TouchId {
                 device: 1,
                 finger: 0,
@@ -39,7 +39,7 @@ fn a_long_sheet_fades_its_content_and_bounces_as_a_panel() {
     test.settle();
     assert_eq!(test.rect_of("sheet.handle").top(), 60.0);
     test.snapshot("sheet_fades_at_the_start");
-    test.scroll_at(pos2(200.0, 300.0), vec2(0.0, -300.0));
+    test.scroll(pos2(200.0, 300.0), vec2(0.0, 300.0));
     test.settle();
     test.snapshot("sheet_fades_in_the_middle");
     let top = test.rect_of("sheet.handle").top();
@@ -58,7 +58,7 @@ fn a_long_sheet_fades_its_content_and_bounces_as_a_panel() {
     }
     assert!(bounced);
     test.settle();
-    test.scroll_at(pos2(200.0, 300.0), vec2(0.0, -10000.0));
+    test.scroll(pos2(200.0, 300.0), vec2(0.0, 10000.0));
     test.settle();
     test.snapshot("sheet_fades_at_the_end");
     let from = test.rect_of("sheet.handle").center();

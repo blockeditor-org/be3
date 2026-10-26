@@ -7,7 +7,7 @@ fn the_inspector_shows_the_accesskit_tree() {
     let mut harness = Harness::sized(document, WIDE_VIEWPORT);
     harness.toggle_inspector();
 
-    harness.click(harness.accesskit_tab_center());
+    harness.show_inspector_tab(crate::inspector::InspectorTab::AccessKit);
     harness.frame(Vec::new());
 
     assert_eq!(harness.tree(), ["GenericContainer", "  Label"]);

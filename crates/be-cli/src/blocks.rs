@@ -1,8 +1,4 @@
 use be_block::BlockContent;
-use be_block::database::DatabaseContent;
-use be_block::database_schema::DatabaseSchemaContent;
-use be_block::database_view::DatabaseViewContent;
-use be_block::text::TextContent;
 use be_graph::{Access, BlockParent};
 use uuid::Uuid;
 
@@ -80,10 +76,7 @@ impl Index {
 
 pub fn workspaces(top: &[Entry]) -> Vec<&Entry> {
     top.iter()
-        .filter(|entry| {
-            entry.block_type == be_block::WorkspaceContent::CONTENT_TYPE
-                && entry.parent == BlockParent::Root
-        })
+        .filter(|entry| entry.parent == BlockParent::Root)
         .collect()
 }
 
@@ -97,7 +90,7 @@ pub fn default_parent(top: &[Entry]) -> Result<&Entry, String> {
         true => top
             .iter()
             .filter(|entry| {
-                entry.block_type == be_block::FolderContent::CONTENT_TYPE && entry.access.can_edit()
+                crate::plugins::adds_children(entry.block_type) && entry.access.can_edit()
             })
             .collect(),
     };
@@ -177,27 +170,18 @@ fn is_settings(block_type: Uuid) -> bool {
 }
 
 pub fn type_name(block_type: Uuid) -> &'static str {
-    let known: [(Uuid, &str); 14] = [
-        (DatabaseContent::CONTENT_TYPE, "database"),
-        (DatabaseSchemaContent::CONTENT_TYPE, "schema"),
-        (DatabaseViewContent::CONTENT_TYPE, "database view"),
-        (TextContent::CONTENT_TYPE, "text"),
-        (be_block::FolderContent::CONTENT_TYPE, "folder"),
-        (be_block::WorkspaceContent::CONTENT_TYPE, "workspace"),
-        (be_block::CanvasContent::CONTENT_TYPE, "canvas"),
-        (be_block::ChecklistContent::CONTENT_TYPE, "checklist"),
-        (be_block::CalendarContent::CONTENT_TYPE, "calendar"),
-        (be_block::PresentationContent::CONTENT_TYPE, "presentation"),
-        (be_block::ImageContent::CONTENT_TYPE, "image"),
+    let known: [(Uuid, &str); 3] = [
+        (text_block_types::TextContent::CONTENT_TYPE, "text"),
         (be_block::SettingsContent::CONTENT_TYPE, "settings"),
         (
             be_block::SettingsProfileContent::CONTENT_TYPE,
             "settings profile",
         ),
-        (be_block::PdfContent::CONTENT_TYPE, "pdf"),
     ];
     known
         .iter()
         .find(|(id, _)| *id == block_type)
-        .map_or("block", |(_, name)| name)
+        .map(|(_, name)| *name)
+        .or_else(|| crate::plugins::name_of(block_type))
+        .unwrap_or("block")
 }

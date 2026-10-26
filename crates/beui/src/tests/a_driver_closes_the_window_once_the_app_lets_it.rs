@@ -37,14 +37,11 @@ fn a_driver_closes_the_window_once_the_app_lets_it() {
         }
     });
     let unsaved = create_signal(true);
-    let mut driven = Driven::with_app(
-        Guarded {
-            document,
-            unsaved: unsaved.read_only(),
-            asking: asked,
-        },
-        true,
-    );
+    let mut driven = headless(Guarded {
+        document,
+        unsaved: unsaved.read_only(),
+        asking: asked,
+    });
 
     let changes = driven
         .ask(&["close"])
@@ -53,7 +50,7 @@ fn a_driver_closes_the_window_once_the_app_lets_it() {
         changes.contains("+") && changes.contains("Save changes?"),
         "an app that stays open answers with what it showed instead:\n{changes}"
     );
-    assert!(!driven.closed, "the app kept its window open");
+    assert!(!driven.closed(), "the app kept its window open");
 
     unsaved.set(false);
     assert_eq!(
@@ -61,7 +58,7 @@ fn a_driver_closes_the_window_once_the_app_lets_it() {
         Ok("The window closed.\n".to_owned())
     );
     assert!(
-        driven.closed,
-        "the frame tells the adapter to close the window"
+        driven.closed(),
+        "the frame tells the platform to close the window"
     );
 }

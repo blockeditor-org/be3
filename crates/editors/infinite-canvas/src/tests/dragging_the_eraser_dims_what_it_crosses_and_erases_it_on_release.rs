@@ -25,7 +25,7 @@ fn dragging_the_eraser_dims_what_it_crosses_and_erases_it_on_release() {
     let walk = |editor: &mut BeuiTest<CanvasApp>, from: Pos2, to: Pos2| {
         for step in 1..=6 {
             editor.next_frame();
-            editor.hover_at(from + (to - from) * (step as f32 / 6.0));
+            editor.hover(from + (to - from) * (step as f32 / 6.0));
         }
         editor.run();
     };
@@ -37,9 +37,9 @@ fn dragging_the_eraser_dims_what_it_crosses_and_erases_it_on_release() {
     let bounds = editor.rect_of(&format!("infinite-canvas.entity.{}", around.id));
     let outside = Pos2::new(bounds.left() - 30.0, first.y);
 
-    editor.key_press(Key::E);
+    editor.key(Key::E, Modifiers::NONE);
     editor.run();
-    editor.press_at(outside);
+    editor.down(outside, PointerButton::Primary);
     walk(&mut editor, outside, locked);
     assert_eq!(
         entities(&editor).len(),
@@ -63,7 +63,7 @@ fn dragging_the_eraser_dims_what_it_crosses_and_erases_it_on_release() {
         last - Vec2::new(50.0, 0.0),
     );
     editor.hold_modifiers(Modifiers::NONE);
-    editor.release_at(last - Vec2::new(50.0, 0.0));
+    editor.up(last - Vec2::new(50.0, 0.0), PointerButton::Primary);
     editor.run();
 
     assert_eq!(
@@ -72,15 +72,15 @@ fn dragging_the_eraser_dims_what_it_crosses_and_erases_it_on_release() {
         "the eraser takes what it crossed, leaves frames and locked shapes, and Alt restores"
     );
 
-    editor.press_at(last + Vec2::new(0.0, 50.0));
+    editor.down(last + Vec2::new(0.0, 50.0), PointerButton::Primary);
     walk(
         &mut editor,
         last + Vec2::new(0.0, 50.0),
         last - Vec2::new(0.0, 50.0),
     );
-    editor.key_press(Key::Escape);
+    editor.key(Key::Escape, Modifiers::NONE);
     editor.run();
-    editor.release_at(last - Vec2::new(0.0, 50.0));
+    editor.up(last - Vec2::new(0.0, 50.0), PointerButton::Primary);
     editor.run();
     assert_eq!(
         entities(&editor),

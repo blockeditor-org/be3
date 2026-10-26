@@ -6,22 +6,33 @@ const REVIEW: &str =
     "commit it, and review it among the paintings on the pull request's summary comment";
 
 pub fn assert_accepted(name: &str, snapshot: &Snapshot, how_to_accept: &str) {
-    let bytes = snapshot
-        .encode()
-        .expect("the painting could not be encoded");
-    assert_bytes(name, &bytes, how_to_accept, REVIEW, |previous| {
-        let previous = Snapshot::decode(previous).expect("the accepted painting is unreadable");
-        crate::difference(&previous, snapshot)
-            .map(|difference| difference.description)
-            .unwrap_or_else(|| "the encoded painting changed, though it looks the same".to_owned())
-    });
+    let body = snapshot.body().expect("the painting could not be encoded");
+    assert_bytes(
+        name,
+        how_to_accept,
+        REVIEW,
+        |previous| Snapshot::body_of(previous).is_ok_and(|previous| previous == body),
+        || Snapshot::compress(&body).expect("the painting could not be compressed"),
+        |previous| {
+            let previous = match Snapshot::decode(previous) {
+                Ok(previous) => previous,
+                Err(error) => return format!("the accepted painting is unreadable: {error}"),
+            };
+            crate::difference(&previous, snapshot)
+                .map(|difference| difference.description)
+                .unwrap_or_else(|| {
+                    "the encoded painting changed, though it looks the same".to_owned()
+                })
+        },
+    );
 }
 
 pub(crate) fn assert_bytes(
     name: &str,
-    bytes: &[u8],
     how_to_accept: &str,
     review: &str,
+    unchanged: impl FnOnce(&[u8]) -> bool,
+    bytes: impl FnOnce() -> Vec<u8>,
     describe: impl FnOnce(&[u8]) -> String,
 ) {
     let accepted = accepted_path(name);
@@ -35,17 +46,17 @@ pub(crate) fn assert_bytes(
                 accepted.display()
             );
         }
-        accept(&accepted, bytes, "there is no accepted painting");
+        accept(&accepted, &bytes(), "there is no accepted painting");
         return;
     }
 
     let previous_bytes = read(&accepted);
-    if previous_bytes == bytes {
+    if unchanged(&previous_bytes) {
         return;
     }
     let description = describe(&previous_bytes);
     if updating {
-        accept(&accepted, bytes, &description);
+        accept(&accepted, &bytes(), &description);
         return;
     }
 
@@ -72,8 +83,16 @@ fn record_use(accepted: &Path) {
     let Some(used) = std::env::var_os("USED_PAINTINGS") else {
         return;
     };
+    use sha2::{Digest as _, Sha256};
     let compared = std::fs::read(accepted).unwrap_or_default();
-    write(&PathBuf::from(used).join(file_name(accepted)), &compared);
+    let hash: String = Sha256::digest(&compared)
+        .iter()
+        .map(|byte| format!("{byte:02x}"))
+        .collect();
+    write(
+        &PathBuf::from(used).join(file_name(accepted)),
+        hash.as_bytes(),
+    );
 }
 
 fn accepted_path(name: &str) -> PathBuf {

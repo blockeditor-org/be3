@@ -3,9 +3,8 @@ use std::sync::{Arc, RwLock};
 use std::time::Duration;
 
 use beui::icons::{
-    ICON_KEYBOARD_ARROW_DOWN, ICON_KEYBOARD_ARROW_LEFT, ICON_KEYBOARD_ARROW_RIGHT,
-    ICON_KEYBOARD_ARROW_UP, ICON_KEYBOARD_DOUBLE_ARROW_DOWN, ICON_KEYBOARD_DOUBLE_ARROW_LEFT,
-    ICON_KEYBOARD_DOUBLE_ARROW_RIGHT, ICON_KEYBOARD_DOUBLE_ARROW_UP, ICON_PAUSE, ICON_PLAY_ARROW,
+    ICON_CHEVRON_DOWN, ICON_CHEVRON_LEFT, ICON_CHEVRON_RIGHT, ICON_CHEVRON_UP, ICON_CHEVRONS_DOWN,
+    ICON_CHEVRONS_LEFT, ICON_CHEVRONS_RIGHT, ICON_CHEVRONS_UP, ICON_PAUSE, ICON_PLAY,
 };
 use beui::reactive::*;
 use beui::styled::*;
@@ -13,10 +12,10 @@ use beui::unstyled::{self, RemoteTextCursor, TextAreaState, narrower_than};
 use beui::{Color32, Direction, ItemSize, NodeId};
 use beui_macros::{component, sample};
 use text_editor_core::schema::basic::{self, Basic};
-use text_editor_core::{CursorPosition, EditorCommand, MarkSet, TextLanguage, Value};
+use text_editor_core::{CursorPosition, EditorCommand, TextLanguage, Value};
 
 use super::{Caret, Side, SideDocument, Simulation};
-use crate::rich_text::{GLYPHS, mention_size, render_block, render_void};
+use crate::rich_text::{GLYPHS, render_marker};
 use crate::sample::{Sample, ScrollPage};
 use crate::{ROW_SPACING, SECTION_SPACING};
 
@@ -216,14 +215,14 @@ pub(crate) fn ConcurrentEditing(rich: bool) -> NodeId {
         ((right, left), false) => format!("In flight: {right} to the right, {left} to the left."),
     });
     let network = create_memo(move || match paused.get() {
-        true => ICON_PLAY_ARROW.to_owned(),
-        false => ICON_PAUSE.to_owned(),
+        true => ICON_PLAY,
+        false => ICON_PAUSE,
     });
     let narrow = narrower_than(COLUMNS_BREAKPOINT);
 
     view! {
         <List spacing=SECTION_SPACING>
-            <Text style=TextStyle::CAPTION wrap=true>
+            <Text style=TextStyle::CAPTION>
                 "The left side orders every edit, as a session's owner does. The right \
                 side shows its own edits at once and holds them until the left has ordered \
                 them. Pause the network to type on both sides, then send each side's edits \
@@ -242,7 +241,7 @@ pub(crate) fn ConcurrentEditing(rich: bool) -> NodeId {
                 <Text style=TextStyle::CAPTION>{latency_label}</Text>
             </List>
             <Slider value={latency} max=MAX_LATENCY label="Latency" />
-            <unstyled::Stack spacing=ROW_SPACING narrow={narrow}>
+            <unstyled::Stack spacing={use_space(ROW_SPACING)} narrow={narrow}>
                 <EditorPane
                     @sizing=ItemSize::Percent(50.0)
                     id="demo.collaboration.left"
@@ -268,7 +267,7 @@ pub(crate) fn ConcurrentEditing(rich: bool) -> NodeId {
                     rich
                 />
             </unstyled::Stack>
-            <Text style=TextStyle::CAPTION wrap=true>{status}</Text>
+            <Text style=TextStyle::CAPTION>{status}</Text>
         </List>
     }
 }
@@ -293,28 +292,28 @@ fn SendButtons(
         true => Direction::Horizontal,
         false => Direction::Vertical,
     });
-    let arrows = |wide: [&'static str; 4], stacked: [&'static str; 4]| {
+    let arrows = |wide: [beui::icons::Glyph; 4], stacked: [beui::icons::Glyph; 4]| {
         (0..4)
             .map(|index| {
                 create_memo(move || match narrow.get() {
-                    true => stacked[index].to_owned(),
-                    false => wide[index].to_owned(),
+                    true => stacked[index],
+                    false => wide[index],
                 })
             })
             .collect::<Vec<_>>()
     };
     let glyphs = arrows(
         [
-            ICON_KEYBOARD_DOUBLE_ARROW_RIGHT,
-            ICON_KEYBOARD_ARROW_RIGHT,
-            ICON_KEYBOARD_ARROW_LEFT,
-            ICON_KEYBOARD_DOUBLE_ARROW_LEFT,
+            ICON_CHEVRONS_RIGHT,
+            ICON_CHEVRON_RIGHT,
+            ICON_CHEVRON_LEFT,
+            ICON_CHEVRONS_LEFT,
         ],
         [
-            ICON_KEYBOARD_DOUBLE_ARROW_DOWN,
-            ICON_KEYBOARD_ARROW_DOWN,
-            ICON_KEYBOARD_ARROW_UP,
-            ICON_KEYBOARD_DOUBLE_ARROW_UP,
+            ICON_CHEVRONS_DOWN,
+            ICON_CHEVRON_DOWN,
+            ICON_CHEVRON_UP,
+            ICON_CHEVRONS_UP,
         ],
     );
     let held = |from: Side| {
@@ -331,28 +330,32 @@ fn SendButtons(
     let press = |from: Side, amount: Amount| move || send.call(Some((from, amount)));
     view! {
         <List direction align=Align::Center spacing=ROW_SPACING>
-            <IconButton
+            <Button
+                icon_only=true
                 @test_id="demo.collaboration.all_right"
                 glyph={glyphs[0]}
                 label="Send every edit from the left"
                 disabled={from_left}
                 on_click={press(Side::Left, Amount::All)}
             />
-            <IconButton
+            <Button
+                icon_only=true
                 @test_id="demo.collaboration.one_right"
                 glyph={glyphs[1]}
                 label="Send one edit from the left"
                 disabled={from_left}
                 on_click={press(Side::Left, Amount::One)}
             />
-            <IconButton
+            <Button
+                icon_only=true
                 @test_id="demo.collaboration.one_left"
                 glyph={glyphs[2]}
                 label="Send one edit from the right"
                 disabled={from_right}
                 on_click={press(Side::Right, Amount::One)}
             />
-            <IconButton
+            <Button
+                icon_only=true
                 @test_id="demo.collaboration.all_left"
                 glyph={glyphs[3]}
                 label="Send every edit from the right"
@@ -389,9 +392,7 @@ fn EditorPane(
                     (Side::Left.client(), LEFT_COLOR),
                     (Side::Right.client(), RIGHT_COLOR),
                 ]}
-                render_block={render_block()}
-                render_void={render_void()}
-                void_size={Some(mention_size as fn(&MarkSet) -> beui::Vec2)}
+                marker={render_marker()}
             />
         </List>
     }

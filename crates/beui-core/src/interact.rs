@@ -33,7 +33,7 @@ enum Fate {
 pub fn interact(document: &mut Document, ctx: &Context, rects: &Rects, root: NodeId) {
     let events = ctx.input(|input| input.events.clone());
     let pointer_events = ctx.input(|input| input.pointer_events.clone());
-    let frame = pointer::Frame::new(ctx, rects, root);
+    let frame = pointer::Frame::new(ctx, rects);
     let (long_pressed, taps) = run_in(document, |doc| {
         if events.iter().any(is_activity) {
             doc.note_input();
@@ -77,10 +77,10 @@ pub fn interact(document: &mut Document, ctx: &Context, rects: &Rects, root: Nod
         if let Some(pos) = ctx.hit_query()
             && rects.visible(&root).is_some_and(|rect| rect.contains(pos))
         {
-            ctx.answer_hit(hit::describe(doc, rects, root, pos, ctx.pixels_per_point()));
+            ctx.answer_hit(hit::describe(doc, rects, pos, ctx.pixels_per_point()));
         }
         doc.validate_focus();
-        forward::route(doc, ctx, rects, root, &events, &keep);
+        forward::route(doc, ctx, rects, &events, &keep);
         if ctx.pointer_locked() && !forward::takes_keys(doc) {
             let motion = ctx.input(|input| input.pointer.motion);
             if motion != Vec2::ZERO {
@@ -122,6 +122,7 @@ fn key_event(doc: &mut Document, ctx: &Context, event: &Event) -> Result<bool, F
                 doc.update_focus(None);
             }
         }
+        Event::PointerUnlocked if ctx.pointer_locked() => doc.update_focus(None),
         Event::Back(gesture) => doc.back(*gesture),
         Event::InterceptedKey(press) => {
             from_app(doc, KeyInput::Press(*press));
@@ -138,7 +139,7 @@ fn key_event(doc: &mut Document, ctx: &Context, event: &Event) -> Result<bool, F
             if press.pressed {
                 doc.acted = Acted::Keys;
                 if !press.key.is_media() {
-                    doc.touched = false;
+                    doc.set_touched(false);
                     doc.keyboard_held = false;
                 }
             }
@@ -262,7 +263,9 @@ fn outer(doc: &Document, route: &Route, phase: KeyPhase) -> Vec<Placed> {
         reveal: true,
     };
     let listening = |stop: Stop| match route.window && !(stop == Stop::Window && route.inhibited) {
-        true => doc.keys.at(stop, phase),
+        true => doc.keys.at(stop, phase, doc.key_window(), &|window| {
+            doc.host_window_of(window)
+        }),
         false => Vec::new(),
     };
     let mut placed = Vec::new();

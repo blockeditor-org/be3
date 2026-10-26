@@ -1,25 +1,24 @@
 use super::*;
-use beui::{Event, Modifiers, PointerButton};
+use beui::{Modifiers, PointerButton};
 
-fn button(pos: Pos2, pressed: bool, modifiers: Modifiers) -> Event {
-    Event::PointerButton {
+fn button(pos: Pos2, pressed: bool) -> Input {
+    Input::PointerButton {
         pos,
         button: PointerButton::Primary,
         pressed,
-        modifiers,
     }
 }
 
 fn drag(test: &mut DocumentTest, from: Pos2, to: Pos2, modifiers: Modifiers) {
-    test.frame(vec![Event::PointerMoved(from), Event::Modifiers(modifiers)]);
-    test.frame(vec![button(from, true, modifiers)]);
-    test.frame(vec![Event::PointerMoved(from + (to - from) / 2.0)]);
-    test.frame(vec![Event::PointerMoved(to)]);
+    test.frame(vec![Input::PointerMoved(from), Input::Modifiers(modifiers)]);
+    test.frame(vec![button(from, true)]);
+    test.frame(vec![Input::PointerMoved(from + (to - from) / 2.0)]);
+    test.frame(vec![Input::PointerMoved(to)]);
 }
 
-fn release(test: &mut DocumentTest, at: Pos2, modifiers: Modifiers) {
-    test.frame(vec![button(at, false, modifiers)]);
-    test.frame(vec![Event::Modifiers(Modifiers::NONE)]);
+fn release(test: &mut DocumentTest, at: Pos2) {
+    test.frame(vec![button(at, false)]);
+    test.frame(vec![Input::Modifiers(Modifiers::NONE)]);
     test.frame(Vec::new());
 }
 
@@ -30,7 +29,7 @@ fn holding_alt_moves_a_floating_demo_page_by_its_content() {
     let tab = test.rect_of(&close).center() - Vec2::new(50.0, 0.0);
     let dropped = pos2(550.0, 300.0);
     drag(&mut test, tab, dropped, Modifiers::ALT);
-    release(&mut test, dropped, Modifiers::ALT);
+    release(&mut test, dropped);
 
     let inside = pos2(650.0, 450.0);
     for _ in 0..REVEAL_TICKS {
@@ -40,7 +39,7 @@ fn holding_alt_moves_a_floating_demo_page_by_its_content() {
                 break;
             }
         }
-        test.scroll_at(inside, Vec2::new(0.0, -REVEAL_STEP / 4.0));
+        test.scroll(inside, Vec2::new(0.0, REVEAL_STEP / 4.0));
     }
     test.click("demo.drag_modifier");
     let before = test.rect_of("demo.drag_modifier");
@@ -49,7 +48,7 @@ fn holding_alt_moves_a_floating_demo_page_by_its_content() {
     let to = from - Vec2::new(300.0, 150.0);
     drag(&mut test, from, to, Modifiers::ALT);
     test.snapshot("docking_window_moved_by_content");
-    release(&mut test, to, Modifiers::ALT);
+    release(&mut test, to);
 
     assert_eq!(
         test.rect_of("demo.drag_modifier"),

@@ -12,7 +12,7 @@ fn a_cursor_shape_a_client_names_is_shown_over_its_window() {
     let device = shapes.get_pointer(&pointer, &harness.client.handle, ());
     let (_window, id) = harness.open();
     let center = harness.window(id).center();
-    harness.frame(vec![Event::PointerMoved(center)]);
+    harness.frame(vec![Input::PointerMoved(center)]);
     harness.settle();
     let serial = harness
         .client
@@ -31,17 +31,23 @@ fn a_cursor_shape_a_client_names_is_shown_over_its_window() {
         device.set_shape(serial, shape);
         harness.settle();
         assert_eq!(
-            harness.output.as_ref().map(|output| output.window.cursor),
+            harness
+                .output
+                .as_ref()
+                .map(|output| output.main().window.requests.cursor),
             Some(icon),
             "{shape:?} is shown as {icon:?}"
         );
-        assert!(harness.app.cursor_image().is_none());
+        assert!(harness.compositor().cursor_image().is_none());
     }
 
-    harness.frame(vec![Event::PointerMoved(outside())]);
+    harness.frame(vec![Input::PointerMoved(outside())]);
     harness.settle();
     assert_eq!(
-        harness.output.as_ref().map(|output| output.window.cursor),
+        harness
+            .output
+            .as_ref()
+            .map(|output| output.main().window.requests.cursor),
         Some(CursorIcon::Default),
         "the shape is the window's alone"
     );

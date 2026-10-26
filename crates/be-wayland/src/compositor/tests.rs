@@ -11,6 +11,8 @@ mod a_drag_begun_on_the_ui_over_a_window_never_reaches_the_window;
 mod a_drag_does_not_drop_onto_a_window_a_modal_dialog_blocks;
 mod a_drag_reaches_a_popup_past_its_windows_edge;
 mod a_drawn_window_is_listed_and_fitted_to_where_it_is_shown;
+mod a_finger_held_on_one_window_stays_on_it_while_it_moves_over_another;
+mod a_finger_on_a_window_that_takes_no_touch_moves_and_presses_its_pointer;
 mod a_frame_callback_waits_for_the_flip_of_the_screen_the_window_is_on;
 mod a_fullscreen_window_covers_only_its_own_screen;
 mod a_global_action_that_does_not_intercept_leaves_the_window_its_keys;
@@ -35,7 +37,9 @@ mod a_single_pixel_buffer_fills_its_window_with_one_color;
 mod a_stale_or_foreign_token_does_not_take_the_focus;
 mod a_token_from_a_click_in_the_focused_window_brings_another_window_forward;
 mod a_token_is_lost_once_the_keyboard_leaves_its_window;
+mod a_toplevel_and_its_popup_are_panels_of_their_own_in_space;
 mod a_wake_from_the_host_counts_as_activity;
+mod a_window_asked_fullscreen_on_an_output_fills_that_monitor;
 mod a_window_asking_for_fullscreen_before_it_is_shown_is_answered;
 mod a_window_asking_for_fullscreen_covers_the_screen;
 mod a_window_brought_forward_while_it_is_not_shown_is_reported_raised;
@@ -53,6 +57,7 @@ mod activating_a_window_with_a_modal_dialog_raises_the_dialog;
 mod an_app_that_inhibits_shortcuts_gets_super_chords_until_super_escape;
 mod an_inhibitor_on_a_window_that_is_not_shown_does_not_keep_the_session_awake;
 mod closing_a_window_that_is_not_responding_disconnects_its_client;
+mod each_monitor_is_an_output_and_a_window_enters_the_one_it_is_on;
 mod hiding_the_tab_of_the_window_with_the_keyboard_takes_the_keyboard_from_it;
 mod idle_notifications_tell_clients_when_the_user_idles_and_resumes;
 mod keys_follow_the_focus_between_beui_and_a_window;
@@ -67,13 +72,17 @@ mod text_the_host_copies_is_offered_to_programs;
 mod the_f_of_super_f_released_elsewhere_is_not_held_against_the_next;
 mod the_lock_time_runs_on_its_own_and_ignores_inhibitors_once_locked;
 mod the_pointer_shows_the_cursor_surface_a_client_sets_over_its_window;
+mod the_seat_offers_touch_only_while_a_touchscreen_is_attached;
 mod the_session_idles_after_the_blank_time_and_wakes_on_input;
 mod the_ui_can_make_a_window_fullscreen_and_take_it_back;
+mod two_fingers_on_a_window_reach_it_as_two_touch_points;
 mod with_middle_click_paste_off_a_selection_is_cancelled_and_offered_to_no_one;
 mod with_middle_click_paste_on_a_selection_is_offered_until_it_is_switched_off;
 
+use beui::WindowSize;
 use beui::styled::*;
-use beui::{FrameOutput, Key, NodeId, RawInput, pos2};
+use beui::testing::Stepped;
+use beui::{FrameOutput, Input, Key, Keystroke, NodeId, pos2};
 
 use crate::test_client::{TestClient, TestWindow};
 use crate::view::WindowView;
@@ -81,10 +90,25 @@ use crate::view::WindowView;
 const SCREEN: Vec2 = Vec2::new(1000.0, 700.0);
 const SHOWN: Vec2 = Vec2::new(400.0, 300.0);
 
-struct Harness {
-    app: Compositor,
+struct Shell {
+    compositor: Compositor,
     document: Document,
-    context: Context,
+    copy: Option<String>,
+}
+
+impl beui::App for Shell {
+    fn update(&mut self, context: &Context, rect: Rect) {
+        self.compositor.before(context, rect);
+        self.document.show(context, rect);
+        if let Some(text) = self.copy.take() {
+            context.copy_text(text);
+        }
+        self.compositor.after(context, &mut self.document);
+    }
+}
+
+struct Harness {
+    stepped: Stepped<Shell>,
     client: TestClient,
     output: Option<FrameOutput>,
 }
@@ -133,7 +157,7 @@ fn Shown(windows: Windows) -> NodeId {
                     }
                 }}
             >
-                <List spacing=0.0>
+                <List spacing=Space::None>
                     <TextInput @test_id={"test.input"} value={text} />
                     <ForEach keys={ids}>|id: WindowId| {
                         let list = windows.list();
@@ -145,8 +169,8 @@ fn Shown(windows: Windows) -> NodeId {
                                     .map_or(SHOWN, |area| area.size())
                             })
                         });
-                        let width = create_memo(move || Some(size.get().x));
-                        let height = create_memo(move || Some(size.get().y));
+                        let width = create_memo(move || Size::Custom(size.get().x));
+                        let height = create_memo(move || Size::Custom(size.get().y));
                         view! {
                             <Frame width=width height=height>
                                 <WindowView windows id />
@@ -202,6 +226,44 @@ impl Harness {
         gpu: Option<(wgpu::Device, wgpu::Queue)>,
         view: impl FnOnce(Windows) -> NodeId,
     ) -> Self {
+        let (shell, client) = Self::shell(gpu, view);
+        Self {
+            stepped: Stepped::new(beui::context(), shell, Self::screen(), None),
+            client,
+            output: None,
+        }
+    }
+
+    fn in_space(view: impl FnOnce(Windows) -> NodeId) -> Self {
+        let (device, queue) = crate::test_client::vulkan_device();
+        let (shell, client) = Self::shell(Some((device.clone(), queue.clone())), view);
+        let context = beui::context();
+        let mut setup = beui::Setup::new(Waker::new(|| {}));
+        setup.provide(context.clone());
+        setup.provide(beui::GpuSetup {
+            device,
+            queue,
+            format: wgpu::TextureFormat::Bgra8Unorm,
+        });
+        let space = Box::new(beui_layer_space::Space::new());
+        Self {
+            stepped: Stepped::hosted(context, shell, Self::screen(), space, setup),
+            client,
+            output: None,
+        }
+    }
+
+    fn screen() -> WindowSize {
+        WindowSize {
+            size: SCREEN,
+            scale: 1.0,
+        }
+    }
+
+    fn shell(
+        gpu: Option<(wgpu::Device, wgpu::Queue)>,
+        view: impl FnOnce(Windows) -> NodeId,
+    ) -> (Shell, TestClient) {
         let mut windows = None;
         let document = build(|| {
             let store = Windows::new();
@@ -211,41 +273,45 @@ impl Harness {
                 <Root>{content}</Root>
             }
         });
-        let mut app = Compositor::new(
+        let mut compositor = Compositor::new(
             Server::headless().expect("a headless display starts"),
             windows.expect("the windows are made while the document is built"),
         );
         if let Some((device, queue)) = gpu {
-            app.start(
+            compositor.start(
                 device,
                 queue,
                 wgpu::TextureFormat::Bgra8Unorm,
                 Waker::new(|| {}),
             );
         }
-        let client = TestClient::connect(app.server());
-        let context = beui::context();
-        Self {
-            app,
+        let client = TestClient::connect(compositor.server());
+        let shell = Shell {
+            compositor,
             document,
-            context,
-            client,
-            output: None,
-        }
+            copy: None,
+        };
+        (shell, client)
     }
 
-    fn frame(&mut self, events: Vec<Event>) {
+    fn compositor(&mut self) -> &mut Compositor {
+        &mut self.stepped.app_mut().compositor
+    }
+
+    fn context(&self) -> &Context {
+        self.stepped.context()
+    }
+
+    fn frame(&mut self, inputs: Vec<Input>) {
         self.client.flush();
-        let app = &mut self.app;
-        let document = &mut self.document;
-        let output = self.context.run(RawInput { events }, |context| {
-            let rect = Rect::from_min_size(Pos2::ZERO, SCREEN);
-            app.before(context, rect);
-            document.show(context, rect);
-            app.after(context, document);
-        });
-        self.output = Some(output);
+        self.output = Some(self.stepped.frame(inputs));
         self.client.receive();
+    }
+
+    fn frame_at(&mut self, at: std::time::Instant) {
+        let next = self.context().now() + beui::testing::FRAME_INTERVAL;
+        self.context().advance_clock(at - next);
+        self.frame(Vec::new());
     }
 
     fn lock(&mut self, locked: bool) {
@@ -253,7 +319,7 @@ impl Harness {
             .with(|lock| *lock.borrow())
             .expect("the harness has a lock");
         set.set(locked);
-        self.app.set_locked(locked);
+        self.compositor().set_locked(locked);
         self.settle();
     }
 
@@ -262,6 +328,11 @@ impl Harness {
             .with(|dialog| *dialog.borrow())
             .expect("the harness has a dialog");
         set.set(open);
+        self.settle();
+    }
+
+    fn attach_touchscreen(&mut self, attached: bool) {
+        self.context().set_touchscreen_attached(attached);
         self.settle();
     }
 
@@ -275,7 +346,7 @@ impl Harness {
         let window = self.client.toplevel();
         self.settle();
         let id = *self
-            .app
+            .compositor()
             .server()
             .state
             .windows()
@@ -322,18 +393,16 @@ impl Harness {
 
     fn click_at(&mut self, center: Pos2) {
         self.frame(vec![
-            Event::PointerMoved(center),
-            Event::PointerButton {
+            Input::PointerMoved(center),
+            Input::PointerButton {
                 pos: center,
                 button: PointerButton::Primary,
                 pressed: true,
-                modifiers: beui::Modifiers::NONE,
             },
-            Event::PointerButton {
+            Input::PointerButton {
                 pos: center,
                 button: PointerButton::Primary,
                 pressed: false,
-                modifiers: beui::Modifiers::NONE,
             },
         ]);
         self.settle();
@@ -344,8 +413,8 @@ impl Harness {
         self.settle();
     }
 
-    fn responding(&self, id: WindowId) -> bool {
-        self.app
+    fn responding(&mut self, id: WindowId) -> bool {
+        self.compositor()
             .windows()
             .list()
             .get_untracked()
@@ -391,9 +460,15 @@ impl Painter {
     fn paint(&mut self, harness: &Harness) {
         use beui::Repainting as _;
         let output = harness.output.as_ref().expect("a frame ran");
-        let repaint = output.repaint(beui::Color32::BLACK);
-        self.renderer
-            .prepare(&self.device, &self.queue, output, SCREEN, 1.0, repaint);
+        let repaint = output.main().repaint(beui::Color32::BLACK);
+        self.renderer.prepare(
+            &self.device,
+            &self.queue,
+            output.main(),
+            SCREEN,
+            1.0,
+            repaint,
+        );
         let mut encoder = self
             .device
             .create_command_encoder(&wgpu::CommandEncoderDescriptor::default());
@@ -437,38 +512,57 @@ thread_local! {
     static CLAIMED: std::cell::Cell<u32> = const { std::cell::Cell::new(0) };
 }
 
-fn stroke(key: Key, code: u32, pressed: bool, modifiers: beui::Modifiers) -> Event {
-    Event::Key {
-        press: beui::KeyPress {
-            key,
-            pressed,
-            repeat: false,
-            modifiers,
-        },
-        code: Some(code),
+fn stroke(key: Option<Key>, code: u32, pressed: bool) -> Input {
+    Input::Key(Keystroke {
+        key,
+        pressed,
+        repeat: false,
+        evdev: Some(code),
         text: None,
-    }
+    })
 }
 
-fn physical(code: u32, pressed: bool) -> Event {
-    stroke(Key::Unidentified, code, pressed, beui::Modifiers::NONE)
+fn physical(code: u32, pressed: bool) -> Input {
+    stroke(None, code, pressed)
 }
 
-fn super_key(pressed: bool) -> Vec<Event> {
+fn super_key(pressed: bool) -> Vec<Input> {
     let held = match pressed {
         true => beui::Modifiers::LOGO,
         false => beui::Modifiers::NONE,
     };
     vec![
-        stroke(Key::Logo, KEY_LEFTMETA, pressed, held),
-        Event::Modifiers(held),
+        stroke(Some(Key::Logo), KEY_LEFTMETA, pressed),
+        Input::Modifiers(held),
     ]
 }
 
-fn f_key(pressed: bool, modifiers: beui::Modifiers) -> Vec<Event> {
-    vec![stroke(Key::F, KEY_F, pressed, modifiers)]
+fn f_key(pressed: bool) -> Vec<Input> {
+    vec![stroke(Some(Key::F), KEY_F, pressed)]
+}
+
+fn finger(finger: u64, phase: beui::TouchPhase, pos: Pos2) -> Input {
+    Input::Touch {
+        id: beui::TouchId { device: 0, finger },
+        phase,
+        pos,
+        force: None,
+    }
 }
 
 fn outside() -> Pos2 {
     pos2(-10.0, -10.0)
+}
+
+fn monitors(rects: &[Rect]) -> Vec<Monitor> {
+    rects
+        .iter()
+        .enumerate()
+        .map(|(index, rect)| Monitor {
+            id: format!("monitor {index}"),
+            name: format!("Monitor {index}"),
+            rect: *rect,
+            scale: 1.0,
+        })
+        .collect()
 }

@@ -1,0 +1,20 @@
+[package]
+name = "pdf-types"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+be-block = { path = "../../../be-block" }
+block-type-guest = { path = "../../../block-type-guest" }
+serde = { version = "1", features = ["derive"] }
+uuid = "1"
+
+[features]
+module = []
+
+[lints]
+workspace = true

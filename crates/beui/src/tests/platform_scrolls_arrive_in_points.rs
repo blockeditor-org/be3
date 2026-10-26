@@ -1,5 +1,6 @@
 use super::*;
-use beui_core::runner::{SCROLL_LINE, SCROLL_PAGE, ScrollDelta};
+use beui_core::input::ScrollDelta;
+use beui_core::runner::{SCROLL_LINE, SCROLL_PAGE};
 
 #[test]
 fn platform_scrolls_arrive_in_points() {
@@ -7,10 +8,10 @@ fn platform_scrolls_arrive_in_points() {
     let seen = intaken.frame(
         2.0,
         [
-            ScrollDelta::Pixels(vec2(0.0, 30.0)).into(),
-            ScrollDelta::Lines(vec2(0.0, -1.0)).into(),
-            ScrollDelta::Pages(vec2(1.0, 0.0)).into(),
-            ScrollDelta::Lines(Vec2::ZERO).into(),
+            Input::Scroll(ScrollDelta::Pixels(vec2(0.0, 30.0))).into(),
+            Input::Scroll(ScrollDelta::Lines(vec2(0.0, -1.0))).into(),
+            Input::Scroll(ScrollDelta::Pages(vec2(1.0, 0.0))).into(),
+            Input::Scroll(ScrollDelta::Lines(Vec2::ZERO)).into(),
         ],
     );
     assert_eq!(

@@ -25,7 +25,7 @@ fn a_select_opened_with_a_key_shows_the_keyboard_for_its_search() {
     harness.touch(TouchPhase::End, at);
     harness.frame(Vec::new());
     harness.key(Key::Escape, Modifiers::NONE);
-    harness.frame(Vec::new());
+    harness.settle();
     assert!(!harness.document().api::<unstyled::SelectApi>(select).open());
     assert!(
         harness
@@ -36,7 +36,7 @@ fn a_select_opened_with_a_key_shows_the_keyboard_for_its_search() {
     );
 
     harness.key(Key::ArrowDown, Modifiers::NONE);
-    let area = harness.frame(Vec::new()).window.ime;
+    let area = harness.frame(Vec::new()).main().window.clone().requests.ime;
     assert!(harness.document().api::<unstyled::SelectApi>(select).open());
     assert!(
         area.as_ref().is_some_and(|area| area.keyboard.shown()),

@@ -23,11 +23,12 @@ fn a_show_adds_and_removes_a_tab_among_the_tabs_beside_it() {
         }]
     });
     let tabs = tabs.get();
+    let list = document.children(tabs)[0];
     let mut harness = Harness::new(document);
     harness.frame(Vec::new());
 
     assert_eq!(
-        tab_labels(harness.document(), tabs),
+        tab_labels(harness.document(), list),
         vec!["List".to_owned(), "Name".to_owned()],
         "a hidden show puts no tab between the tabs written around it"
     );
@@ -36,12 +37,12 @@ fn a_show_adds_and_removes_a_tab_among_the_tabs_beside_it() {
     harness.frame(Vec::new());
 
     assert_eq!(
-        tab_labels(harness.document(), tabs),
+        tab_labels(harness.document(), list),
         vec!["List".to_owned(), "Load".to_owned(), "Name".to_owned()],
         "the tab a show builds keeps its place among the tabs written around it"
     );
 
-    let third = harness.document().children(tabs)[2];
+    let third = harness.document().children(list)[2];
     harness.click(harness.center(third));
     harness.frame(Vec::new());
     assert_eq!(

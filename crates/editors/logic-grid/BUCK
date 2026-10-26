@@ -2,4 +2,5 @@ load("@root//buck/wasm:defs.bzl", "editor")
 
 editor(
     module = "logic_grid",
+    types = "//crates/editors/logic-grid/types:module",
 )

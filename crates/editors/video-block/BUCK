@@ -2,4 +2,5 @@ load("@root//buck/wasm:defs.bzl", "editor")
 
 editor(
     module = "video_block",
+    types = "//crates/editors/video-block/types:module",
 )

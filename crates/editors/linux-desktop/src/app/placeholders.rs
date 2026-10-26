@@ -1,16 +1,16 @@
-use block_editor_beui::beui::icons::{ICON_OPEN_IN_NEW, ICON_REOPEN_WINDOW, ICON_WEB_ASSET};
+use block_editor_beui::beui::icons::{ICON_APP_WINDOW, ICON_EXTERNAL_LINK};
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
-use block_editor_beui::beui::unstyled::Picture;
 use block_editor_beui::beui::{Image, NodeId};
-use block_editor_beui::{HostProgram, HostWindowId, ProgramAction, Programs};
+use block_editor_beui::linux_desktop;
+use block_editor_beui::{HostProgram, HostWindowId, ProgramAction, ProgramsWatch};
 use block_shell::{KeptWindow, Workspace};
 
 const ICON_POINTS: f32 = 64.0;
-const PICTURE_SIZE: f32 = 64.0;
-const BODY_SPACING: f32 = 12.0;
-const BUTTON_SPACING: f32 = 8.0;
-const BODY_PADDING: f32 = 24.0;
+const PICTURE_SIZE: Size = Size::Xl3;
+const BODY_SPACING: Space = Space::Lg;
+const BUTTON_SPACING: Space = Space::Md;
+const BODY_PADDING: Space = Space::Xl3;
 
 #[derive(Clone, Copy)]
 pub(crate) struct Placeholders {
@@ -23,7 +23,7 @@ pub(crate) struct Placeholders {
 impl Placeholders {
     pub(crate) fn new(workspace: Workspace) -> Self {
         let editor = workspace.editor();
-        let programs = editor.host_value::<Programs>();
+        let programs = editor.watch::<ProgramsWatch>();
         let keys = workspace.placeholders();
         let scale = pixels_per_point();
         let listed = StoredCell::new(false);
@@ -33,12 +33,16 @@ impl Placeholders {
             }
             listed.set(true);
             let icon_size = (ICON_POINTS * scale.get_untracked()).ceil() as u32;
-            untrack(|| editor.act(ProgramAction::List { icon_size }));
+            untrack(|| {
+                editor.act(move || {
+                    linux_desktop::programs::request(ProgramAction::List { icon_size })
+                })
+            });
         });
         Self {
             workspace,
             programs,
-            launchable: editor.host_offers::<Programs>(),
+            launchable: editor.offered::<ProgramsWatch>(),
             keys,
         }
     }
@@ -66,7 +70,9 @@ impl Placeholders {
             .programs
             .with_untracked(|programs| launch_action(&kept, programs));
         if let Some(action) = action {
-            self.workspace.editor().act(action);
+            self.workspace
+                .editor()
+                .act(move || linux_desktop::programs::request(action));
         }
     }
 
@@ -226,7 +232,7 @@ fn PlaceholderBody(
                 </Show>
                 <Show condition={plain}>
                     <Text size=TextSize::Xl5 color=TextColor::Muted>
-                        <Icon glyph={ICON_WEB_ASSET.to_owned()} />
+                        <Icon glyph=ICON_APP_WINDOW />
                     </Text>
                 </Show>
                 <Text style=TextStyle::HEADING>{name}</Text>
@@ -234,7 +240,7 @@ fn PlaceholderBody(
                 <List direction=Direction::Horizontal align=Align::Center spacing=BUTTON_SPACING>
                     <Button
                         label="Open"
-                        glyph={ICON_OPEN_IN_NEW.to_owned()}
+                        glyph=ICON_EXTERNAL_LINK
                         variant=ButtonVariant::Primary
                         disabled={unopenable}
                         @test_id={format!("desktop.placeholder.{}.open", key.0)}
@@ -260,8 +266,9 @@ pub(crate) fn OpenAllButton(placeholders: Placeholders) -> NodeId {
         count => format!("Open the {count} windows from last time"),
     });
     view! {
-        <IconButton
-            glyph={ICON_REOPEN_WINDOW.to_owned()}
+        <Button
+            icon_only=true
+            glyph=ICON_APP_WINDOW
             label={label}
             @test_id={"desktop.placeholders.open_all"}
             on_click={move || placeholders.open_all()}

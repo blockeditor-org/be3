@@ -1,4 +1,5 @@
 use std::{
+    any::{Any, TypeId},
     cell::{Cell, RefCell},
     collections::{HashMap, HashSet},
     rc::Rc,
@@ -6,17 +7,20 @@ use std::{
     time::{Duration, Instant},
 };
 
+use crate::asked::{Asked, Task, asking};
 use crate::graph::BlockParent;
 use block_plugin_api::TopBar;
+use block_plugin_api::guest::host_services;
 use block_plugin_api::{
-    AccessLevel, AccessListing, ArtifactAction, AudioCommand, AudioStatus, BarAction, BlockCommand,
-    BlockImport, BlockPick, Camera, ChildContent, ChildId, ChildLayer, ChildMode, ChildPlacement,
-    ChildRect, ChildStatus, ContactLinkResult, DataListing, EditorRegion, FetchResult, FilePick,
-    FileSave, GesturePhase, HostAction, HostPanel, HostReply, HostRequest, HostValue, HostWindowId,
-    MenuEntry, Occluder, PerformanceMeasurement, ShellDialog, Size, ViewChange, WebViewCommand,
-    WebViewEvent, WebViewId, decode_host, encode_host,
+    AccessLevel, AccessListing, ArtifactAction, AudioCommand, AudioSource, AudioStatus, BarAction,
+    BlockCommand, BlockPick, ChildContent, ChildId, ChildLayer, ChildMode, ChildPlacement,
+    ChildStatus, DialogAnswer, DialogFrame, EditorInstanceId, EditorRegion, Failure, FilePick,
+    FileSave, FitArea, HostPanel, HostWindowId, MenuEntry, Occluder, PerformanceMeasurement,
+    Revision, ShellCommand, ShellDialog, Size, ViewChange, Watched, WebViewCommand, WebViewEvent,
+    WebViewId,
 };
 pub use block_plugin_api::{BlockFilter, FileFilter, SavedFile};
+use block_type_guest::editor::{EditorOperation, FromEditor, Snapshot, ToEditor};
 use block_ui::BlockCatalog;
 use geometry::{Pos2, Rect, Vec2};
 use uuid::Uuid;
@@ -48,15 +52,19 @@ impl HostContent {
             applied: 0,
         }
     }
+
+    pub fn snapshot(self) -> Snapshot {
+        Snapshot {
+            content_type: self.content_type,
+            bytes: self.bytes,
+            session: self.session,
+            unsettled: self.unsettled,
+            applied: self.applied,
+        }
+    }
 }
 
-type ContentOperation = (Option<Uuid>, Outgoing);
-
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub(crate) enum Outgoing {
-    Operation(Vec<u8>),
-    Gesture(GesturePhase),
-}
+type ContentOperation = (Option<Uuid>, FromEditor);
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ShownPresence {
@@ -67,17 +75,35 @@ pub struct ShownPresence {
 
 type Peers = (u64, Vec<PeerPresence>);
 
+const PEER_MESSAGE_LIMIT: usize = 4096;
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct PeerMessage {
+    pub from: u64,
+    pub channel: Uuid,
+    pub payload: Vec<u8>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct SentToPeers {
+    pub block: Option<Uuid>,
+    pub to: Option<u64>,
+    pub channel: Uuid,
+    pub payload: Vec<u8>,
+}
+
+#[derive(Default)]
+struct PeerMessages {
+    received: HashMap<Option<Uuid>, std::collections::VecDeque<(u64, PeerMessage)>>,
+    count: u64,
+    sent: Vec<SentToPeers>,
+}
+
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct PeerPresence {
     pub client: u64,
     pub kind: Uuid,
     pub value: Vec<u8>,
-}
-
-#[derive(Clone)]
-pub enum ContentUpdate {
-    Snapshot(HostContent),
-    Operations(Vec<block_plugin_api::ContentOperation>),
 }
 
 #[derive(Clone, PartialEq)]
@@ -127,22 +153,23 @@ pub struct BlockHistory {
     pub can_redo: bool,
 }
 
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct StoredHead {
+    pub commit: [u8; 32],
+    pub content_type: Uuid,
+    pub bytes: Vec<u8>,
+}
+
+pub type HeadRead = Result<Option<StoredHead>, Failure>;
+
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct ArtifactState {
     pub block_id: Uuid,
     pub source_type: Uuid,
-    pub source: Option<Uuid>,
-    pub summary: String,
+    pub source: Uuid,
+    pub summary: Option<String>,
     pub error: Option<String>,
     pub regenerating: bool,
-}
-
-#[derive(Clone, Copy)]
-pub struct PickedBlock {
-    pub id: Uuid,
-    pub block_type: Uuid,
-    pub linked: bool,
-    pub placed: bool,
 }
 
 #[derive(Clone, Default, PartialEq)]
@@ -164,11 +191,7 @@ impl FocusedBlock {
 pub struct Artifact {
     pub block_id: Uuid,
     pub block_type: Uuid,
-}
-
-pub struct ArtifactDescription {
     pub source: Uuid,
-    pub summary: String,
 }
 
 #[derive(Clone, PartialEq)]
@@ -269,12 +292,6 @@ impl Drop for PerformanceMeasurementGuard {
     }
 }
 
-#[derive(Clone, Copy, Default)]
-struct Region {
-    region: Option<EditorRegion>,
-    origin: Vec2,
-}
-
 #[derive(Clone, Debug, Hash, PartialEq, Eq)]
 enum Identity {
     Block([u8; 16]),
@@ -303,19 +320,32 @@ impl Identity {
 type ChildKey = (EditorRegion, Identity, u32);
 
 #[derive(Default)]
-struct Children {
+struct Placing {
     placements: Vec<ChildPlacement>,
     occluders: Vec<Occluder>,
     ordinals: HashMap<Identity, u32>,
-    identities: HashMap<ChildKey, ChildId>,
     used: Vec<ChildKey>,
+}
+
+#[derive(Default)]
+struct Children {
+    placing: HashMap<EditorRegion, Placing>,
+    identities: HashMap<ChildKey, ChildId>,
     next: u64,
+}
+
+#[derive(Default)]
+struct RegionDrops {
+    drag: Option<BlockDrag>,
+    files: Option<FileDrop>,
+    content: Option<Rect>,
 }
 
 impl Children {
     fn identify(&mut self, region: EditorRegion, identity: Identity) -> ChildId {
+        let placing = self.placing.entry(region).or_default();
         let ordinal = {
-            let ordinal = self.ordinals.entry(identity.clone()).or_default();
+            let ordinal = placing.ordinals.entry(identity.clone()).or_default();
             let current = *ordinal;
             *ordinal += 1;
             current
@@ -330,7 +360,7 @@ impl Children {
                 child
             }
         };
-        self.used.push(key);
+        self.placing.entry(region).or_default().used.push(key);
         child
     }
 }
@@ -339,12 +369,10 @@ impl Children {
 struct View {
     rect: Rect,
     scale: f32,
-    moved: bool,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum Pushed {
-    Replies,
     Peers,
     Histories,
     Artifacts,
@@ -354,12 +382,13 @@ pub enum Pushed {
     WebView,
     Shows,
     Version,
-    HostValues,
+    Watches,
+    PeerMessages,
+    Heads,
 }
 
 impl Pushed {
-    pub const ALL: [Self; 11] = [
-        Self::Replies,
+    pub const ALL: [Self; 12] = [
         Self::Peers,
         Self::Histories,
         Self::Artifacts,
@@ -369,27 +398,31 @@ impl Pushed {
         Self::WebView,
         Self::Shows,
         Self::Version,
-        Self::HostValues,
+        Self::Watches,
+        Self::PeerMessages,
+        Self::Heads,
     ];
 }
 
+type Opening = Box<dyn FnOnce(&EditorHost, EditorInstanceId)>;
+
 #[derive(Default)]
-struct HostValues {
-    values: HashMap<String, Vec<u8>>,
-    revisions: HashMap<String, u64>,
-    watched: HashSet<String>,
-    unreported: Vec<String>,
-    actions: Vec<(String, Vec<u8>)>,
+struct Watches {
+    values: HashMap<TypeId, Rc<dyn Any>>,
+    revisions: HashMap<TypeId, u64>,
+    watched: HashSet<TypeId>,
+    opening: Vec<Opening>,
+    calls: Vec<Box<dyn FnOnce()>>,
 }
 
 #[derive(Clone, Default)]
 pub struct EditorHost {
     waker: Waker,
     shown_panels: Rc<RefCell<Vec<HostPanel>>>,
-    host_values: Rc<RefCell<HostValues>>,
+    watches: Rc<RefCell<Watches>>,
     pick_requests: Rc<RefCell<Vec<PickRequest>>>,
+    withdrawn_picks: Rc<RefCell<Vec<u64>>>,
     dialog_requests: Rc<RefCell<Vec<(Uuid, ShellDialog)>>>,
-    access_changes: Rc<RefCell<Vec<(Uuid, Uuid, AccessLevel)>>>,
     pick_answers: Rc<RefCell<Vec<(u64, BlockPick)>>>,
     child_commits: Rc<RefCell<Vec<ChildCommit>>>,
     pushed: Rc<[Cell<u64>; Pushed::ALL.len()]>,
@@ -404,31 +437,39 @@ pub struct EditorHost {
     histories: Rc<RefCell<HashMap<Uuid, BlockHistory>>>,
     watched_history: Rc<RefCell<Vec<Uuid>>>,
     reported_history: Rc<RefCell<Option<Vec<Uuid>>>>,
+    heads: Rc<RefCell<HashMap<Uuid, HeadRead>>>,
+    watched_heads: Rc<RefCell<Vec<Uuid>>>,
+    reported_heads: Rc<RefCell<Option<Vec<Uuid>>>>,
     block_drags: Rc<RefCell<Vec<(Uuid, Uuid)>>>,
     block_commands: Rc<RefCell<Vec<(Uuid, BlockCommand)>>>,
+    shell_commands: Rc<RefCell<Vec<(Uuid, ShellCommand)>>>,
+    simulated_access: Rc<RefCell<Vec<(Uuid, AccessLevel)>>>,
     version_commands: Rc<RefCell<Vec<(Uuid, block_plugin_api::VersionCommand)>>>,
     version_status: Rc<RefCell<Option<block_plugin_api::VersionStatus>>>,
+    version_watched: Rc<Cell<bool>>,
+    shows_watched: Rc<Cell<bool>>,
     block_types: Rc<RefCell<Rc<BlockCatalog>>>,
     block_types_known: Rc<Cell<bool>>,
-    drag: Rc<Cell<Option<BlockDrag>>>,
-    files: Rc<RefCell<Option<FileDrop>>>,
     drag_accepted: Rc<Cell<Option<bool>>>,
-    requests: Rc<RefCell<Vec<(u64, HostRequest)>>>,
-    replies: Rc<RefCell<HashMap<u64, HostReply>>>,
-    next_request: Rc<Cell<u64>>,
+    instance: Rc<Cell<Option<EditorInstanceId>>>,
+    tasks: Rc<RefCell<Vec<Task>>>,
     editable: Rc<Cell<bool>>,
     block_type: Rc<Cell<Option<Uuid>>>,
     client_id: Rc<Cell<Uuid>>,
     view_block: Rc<Cell<Option<Uuid>>>,
     view: Rc<Cell<Option<View>>>,
     view_changes: Rc<RefCell<Vec<ViewChange>>>,
-    creation_ready: Rc<Cell<bool>>,
-    creation_changed: Rc<Cell<bool>>,
+    handles_dismiss: Rc<Cell<bool>>,
+    handles_dismiss_changed: Rc<Cell<bool>>,
+    dialog_closes: Rc<RefCell<Vec<DialogAnswer>>>,
+    dismiss_requested: Rc<Cell<bool>>,
+    child_dismissals: Rc<RefCell<Vec<ChildId>>>,
     performance: Arc<Mutex<Vec<PerformanceRecord>>>,
-    region: Rc<Cell<Region>>,
+    region: Rc<Cell<Option<EditorRegion>>>,
+    drops: Rc<RefCell<HashMap<EditorRegion, RegionDrops>>>,
     children: Rc<RefCell<Children>>,
     child_statuses: Rc<RefCell<HashMap<ChildId, ChildStatus>>>,
-    audio_commands: Rc<RefCell<Vec<(Uuid, AudioCommand)>>>,
+    audio_commands: Rc<RefCell<Vec<AudioCommand>>>,
     audio_status: Rc<RefCell<AudioStatus>>,
     web_view_commands: Rc<RefCell<Vec<(WebViewId, WebViewCommand)>>>,
     web_view_events: Rc<RefCell<Vec<(WebViewId, WebViewEvent)>>>,
@@ -442,13 +483,14 @@ pub struct EditorHost {
     child_menu_picks: Rc<RefCell<Vec<(ChildId, String)>>>,
     chrome: Rc<Cell<Option<bool>>>,
     placed_content: Rc<Cell<Option<Rect>>>,
-    content: Rc<Cell<Option<Rect>>>,
     copied: Rc<RefCell<Vec<String>>>,
     copied_images: Rc<RefCell<Vec<Vec<u8>>>>,
     paste_requested: Rc<Cell<bool>>,
     leaving: Rc<Cell<bool>>,
-    next_frame: Rc<Cell<Option<Duration>>>,
-    content_updates: Rc<RefCell<HashMap<Option<Uuid>, Vec<ContentUpdate>>>>,
+    next_frame: Rc<RefCell<HashMap<Option<EditorRegion>, Duration>>>,
+    content_updates: Rc<RefCell<HashMap<Option<Uuid>, Vec<ToEditor>>>>,
+    followed: Rc<RefCell<HashMap<Option<Uuid>, usize>>>,
+    asked: Rc<RefCell<HashSet<Option<Uuid>>>>,
     content_operations: Rc<RefCell<Vec<ContentOperation>>>,
     resend_requests: Rc<RefCell<Vec<Option<Uuid>>>>,
     watched_content: Rc<RefCell<std::collections::BTreeMap<Uuid, Uuid>>>,
@@ -456,10 +498,13 @@ pub struct EditorHost {
     shown: Rc<RefCell<Vec<ShownPresence>>>,
     peers: Rc<RefCell<HashMap<Option<Uuid>, Peers>>>,
     next_peers: Rc<Cell<u64>>,
+    peer_messages: Rc<RefCell<PeerMessages>>,
     reported_content: Rc<RefCell<Option<std::collections::BTreeMap<Uuid, Uuid>>>>,
     graph: Rc<crate::graph::GraphState>,
     account: Rc<Cell<Uuid>>,
     organization: Rc<Cell<Uuid>>,
+    module: Rc<RefCell<std::rc::Weak<crate::module::ModuleState>>>,
+    settings_draft: Rc<RefCell<Option<crate::SettingsDraft>>>,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -529,7 +574,12 @@ impl EditorHost {
     }
 
     pub fn take_show_requests(&self) -> Vec<ShowRequest> {
+        self.shows_watched.set(true);
         std::mem::take(&mut self.shows.borrow_mut())
+    }
+
+    pub(crate) fn wants_shows(&self) -> bool {
+        self.shows_watched.get()
     }
 
     pub fn take_dialog_requests(&self) -> Vec<(Uuid, ShellDialog)> {
@@ -538,6 +588,18 @@ impl EditorHost {
 
     pub fn show_dialog(&self, block_id: Uuid, dialog: ShellDialog) {
         self.dialog_requests.borrow_mut().push((block_id, dialog));
+        self.push(Pushed::Shows);
+    }
+
+    pub fn take_withdrawn_picks(&self) -> Vec<u64> {
+        std::mem::take(&mut self.withdrawn_picks.borrow_mut())
+    }
+
+    pub(crate) fn withdraw_pick(&self, pick: u64) {
+        self.pick_requests
+            .borrow_mut()
+            .retain(|request| request.pick != pick);
+        self.withdrawn_picks.borrow_mut().push(pick);
         self.push(Pushed::Shows);
     }
 
@@ -573,6 +635,7 @@ impl EditorHost {
     }
 
     pub fn take_panel_requests(&self) -> Vec<HostPanel> {
+        self.shows_watched.set(true);
         std::mem::take(&mut self.shown_panels.borrow_mut())
     }
 
@@ -581,67 +644,80 @@ impl EditorHost {
         self.push(Pushed::Shows);
     }
 
-    pub fn host_value<T: HostValue>(&self) -> T::Value {
-        self.watch_host_value(T::KEY);
-        self.host_values
+    pub fn watched<W: Watched>(&self) -> Option<W::Value> {
+        self.watch::<W>();
+        self.watches
             .borrow()
             .values
-            .get(T::KEY)
-            .and_then(|bytes| decode_host(bytes))
-            .unwrap_or_default()
+            .get(&TypeId::of::<W>())
+            .and_then(|value| value.downcast_ref::<W::Value>())
+            .cloned()
     }
 
-    pub fn host_offers<T: HostValue>(&self) -> bool {
-        self.watch_host_value(T::KEY);
-        self.host_values.borrow().values.contains_key(T::KEY)
+    pub fn offers<W: Watched>(&self) -> bool {
+        self.watch::<W>();
+        self.watches
+            .borrow()
+            .values
+            .contains_key(&TypeId::of::<W>())
     }
 
-    fn watch_host_value(&self, key: &str) {
-        let mut values = self.host_values.borrow_mut();
-        if !values.watched.contains(key) {
-            values.watched.insert(key.to_owned());
-            values.unreported.push(key.to_owned());
-        }
-    }
-
-    pub fn set_host_value<T: HostValue>(&self, value: &T::Value) {
-        self.receive_host_value(T::KEY.to_owned(), encode_host(value));
-    }
-
-    pub(crate) fn receive_host_value(&self, key: String, bytes: Vec<u8>) {
-        let mut values = self.host_values.borrow_mut();
-        if values.values.get(&key) == Some(&bytes) {
+    fn watch<W: Watched>(&self) {
+        let mut watches = self.watches.borrow_mut();
+        if !watches.watched.insert(TypeId::of::<W>()) {
             return;
         }
-        *values.revisions.entry(key.clone()).or_default() += 1;
-        values.values.insert(key, bytes);
-        drop(values);
-        self.push(Pushed::HostValues);
+        watches
+            .opening
+            .push(Box::new(|host: &EditorHost, instance| {
+                let host = host.clone();
+                crate::asked::follow::<W>(Some(instance), move |value| {
+                    host.set_watched::<W>(&value)
+                });
+            }));
     }
 
-    pub fn host_value_revision(&self, key: &str) -> u64 {
-        self.host_values
+    pub fn set_watched<W: Watched>(&self, value: &W::Value) {
+        let mut watches = self.watches.borrow_mut();
+        let key = TypeId::of::<W>();
+        if watches
+            .values
+            .get(&key)
+            .and_then(|held| held.downcast_ref::<W::Value>())
+            == Some(value)
+        {
+            return;
+        }
+        *watches.revisions.entry(key).or_default() += 1;
+        watches.values.insert(key, Rc::new(value.clone()));
+        drop(watches);
+        self.push(Pushed::Watches);
+    }
+
+    pub fn watch_revision<W: Watched>(&self) -> u64 {
+        self.watch_revision_of(TypeId::of::<W>())
+    }
+
+    pub fn watch_revision_of(&self, watch: TypeId) -> u64 {
+        self.watches
             .borrow()
             .revisions
-            .get(key)
+            .get(&watch)
             .copied()
             .unwrap_or_default()
     }
 
-    pub(crate) fn take_host_watches(&self) -> Vec<String> {
-        std::mem::take(&mut self.host_values.borrow_mut().unreported)
+    pub(crate) fn take_watch_openings(&self) -> Vec<Opening> {
+        std::mem::take(&mut self.watches.borrow_mut().opening)
     }
 
-    pub fn act<A: HostAction>(&self, action: A) {
-        self.host_values
-            .borrow_mut()
-            .actions
-            .push((A::KEY.to_owned(), encode_host(&action)));
+    pub fn act(&self, call: impl FnOnce() + 'static) {
+        self.watches.borrow_mut().calls.push(Box::new(call));
         self.changed();
     }
 
-    pub(crate) fn take_host_actions(&self) -> Vec<(String, Vec<u8>)> {
-        std::mem::take(&mut self.host_values.borrow_mut().actions)
+    pub(crate) fn take_acts(&self) -> Vec<Box<dyn FnOnce()>> {
+        std::mem::take(&mut self.watches.borrow_mut().calls)
     }
 
     pub fn show_block(&self, request: ShowRequest) {
@@ -723,6 +799,41 @@ impl EditorHost {
         self.push(Pushed::Histories);
     }
 
+    pub fn set_history(&self, block_id: Uuid, history: BlockHistory) {
+        self.histories.borrow_mut().insert(block_id, history);
+        self.push(Pushed::Histories);
+    }
+
+    pub fn watch_head(&self, block: Uuid) {
+        let mut watched = self.watched_heads.borrow_mut();
+        if !watched.contains(&block) {
+            watched.push(block);
+            watched.sort();
+        }
+    }
+
+    pub fn head(&self, block: Uuid) -> Option<HeadRead> {
+        self.heads.borrow().get(&block).cloned()
+    }
+
+    pub(crate) fn take_head_watch(&self) -> Option<Vec<Uuid>> {
+        let blocks = self.watched_heads.borrow().clone();
+        let mut reported = self.reported_heads.borrow_mut();
+        if reported
+            .as_ref()
+            .map_or(blocks.is_empty(), |reported| *reported == blocks)
+        {
+            return None;
+        }
+        *reported = Some(blocks.clone());
+        Some(blocks)
+    }
+
+    pub fn set_head(&self, block: Uuid, head: HeadRead) {
+        self.heads.borrow_mut().insert(block, head);
+        self.push(Pushed::Heads);
+    }
+
     pub fn undo(&self, block_id: Uuid) {
         self.block_commands
             .borrow_mut()
@@ -735,11 +846,13 @@ impl EditorHost {
             .push((block_id, BlockCommand::Redo));
     }
 
-    pub fn set_artifacts(&self, states: Vec<ArtifactState>) {
-        *self.artifacts.borrow_mut() = states
-            .into_iter()
-            .map(|state| (state.block_id, state))
-            .collect();
+    pub fn set_artifact(&self, block_id: Uuid, state: Option<ArtifactState>) {
+        let mut artifacts = self.artifacts.borrow_mut();
+        match state {
+            Some(state) => artifacts.insert(block_id, state),
+            None => artifacts.remove(&block_id),
+        };
+        drop(artifacts);
         self.push(Pushed::Artifacts);
     }
 
@@ -758,15 +871,23 @@ impl EditorHost {
     }
 
     pub fn close_editor(&self, block_id: Uuid) {
-        self.block_commands
-            .borrow_mut()
-            .push((block_id, BlockCommand::CloseEditor));
+        self.shell_command(block_id, ShellCommand::CloseEditor);
     }
 
     pub fn simulate_access(&self, block_id: Uuid, access: AccessLevel) {
-        self.block_commands
-            .borrow_mut()
-            .push((block_id, BlockCommand::SimulateAccess { access }));
+        self.simulated_access.borrow_mut().push((block_id, access));
+    }
+
+    pub(crate) fn take_simulated_access(&self) -> Vec<(Uuid, AccessLevel)> {
+        std::mem::take(&mut self.simulated_access.borrow_mut())
+    }
+
+    fn shell_command(&self, block_id: Uuid, command: ShellCommand) {
+        self.shell_commands.borrow_mut().push((block_id, command));
+    }
+
+    pub fn take_shell_commands(&self) -> Vec<(Uuid, ShellCommand)> {
+        std::mem::take(&mut self.shell_commands.borrow_mut())
     }
 
     pub(crate) fn set_focused_block(&self, focused: FocusedBlock) {
@@ -783,33 +904,19 @@ impl EditorHost {
     }
 
     pub fn share_block(&self, block_id: Uuid) {
-        self.block_commands
-            .borrow_mut()
-            .push((block_id, BlockCommand::Share));
+        self.shell_command(block_id, ShellCommand::Share);
     }
 
     pub fn leave_block(&self, block_id: Uuid) {
-        self.block_commands
-            .borrow_mut()
-            .push((block_id, BlockCommand::Leave));
+        self.shell_command(block_id, ShellCommand::Leave);
     }
 
-    pub fn show_app_menu(&self, block_id: Uuid, anchor: Option<ChildRect>) {
-        let origin = self.region.get().origin;
-        let anchor = anchor.map(|anchor| ChildRect {
-            x: anchor.x - origin.x,
-            y: anchor.y - origin.y,
-            ..anchor
-        });
-        self.block_commands
-            .borrow_mut()
-            .push((block_id, BlockCommand::AppMenu { anchor }));
+    pub fn show_app_menu(&self, block_id: Uuid, anchor: Option<Rect>) {
+        self.shell_command(block_id, ShellCommand::AppMenu { anchor });
     }
 
-    pub fn rename_block(&self, block_id: Uuid) {
-        self.block_commands
-            .borrow_mut()
-            .push((block_id, BlockCommand::Rename));
+    pub fn rename_block(&self, block_id: Uuid, anchor: Option<Rect>) {
+        self.shell_command(block_id, ShellCommand::Rename { anchor });
     }
 
     pub fn unlink_block(&self, block_id: Uuid, container: Uuid) {
@@ -827,19 +934,12 @@ impl EditorHost {
             .push((block_id, BlockCommand::Restore));
     }
 
-    pub fn delete_block(
-        &self,
-        block_id: Uuid,
-        block_type: Uuid,
-        source: BlockParent,
-        is_reference: bool,
-    ) {
+    pub fn delete_block(&self, block_id: Uuid, block_type: Uuid, source: BlockParent) {
         self.block_commands.borrow_mut().push((
             block_id,
             BlockCommand::Delete {
                 block_type: block_type.into_bytes(),
                 source: source.encode(),
-                is_reference,
             },
         ));
     }
@@ -887,6 +987,14 @@ impl EditorHost {
         self.push(Pushed::Version);
     }
 
+    pub fn watch_version(&self) {
+        self.version_watched.set(true);
+    }
+
+    pub(crate) fn wants_version(&self) -> bool {
+        self.version_watched.get()
+    }
+
     pub fn version_status(&self) -> block_plugin_api::VersionStatus {
         self.version_status.borrow().clone().unwrap_or_default()
     }
@@ -920,26 +1028,54 @@ impl EditorHost {
     }
 
     pub fn set_block_content(&self, content: HostContent) {
-        self.update_content(None, ContentUpdate::Snapshot(content));
+        self.update_content(None, ToEditor::Snapshot(content.snapshot()));
     }
 
     pub fn set_content_of(&self, block: Uuid, content: HostContent) {
-        self.update_content(Some(block), ContentUpdate::Snapshot(content));
+        self.update_content(Some(block), ToEditor::Snapshot(content.snapshot()));
     }
 
-    pub fn push_content_operations(&self, operations: Vec<block_plugin_api::ContentOperation>) {
-        self.update_content(None, ContentUpdate::Operations(operations));
+    pub fn push_content_operations(&self, operations: Vec<EditorOperation>) {
+        self.update_content(None, ToEditor::Operations(operations));
     }
 
-    pub fn push_content_operations_of(
-        &self,
-        block: Uuid,
-        operations: Vec<block_plugin_api::ContentOperation>,
-    ) {
-        self.update_content(Some(block), ContentUpdate::Operations(operations));
+    pub fn push_content_operations_of(&self, block: Uuid, operations: Vec<EditorOperation>) {
+        self.update_content(Some(block), ToEditor::Operations(operations));
     }
 
-    fn update_content(&self, block: Option<Uuid>, update: ContentUpdate) {
+    pub fn receive_from_replica(&self, block: Option<Uuid>, message: ToEditor) {
+        match message {
+            ToEditor::Presence(peers) => self.set_peers(
+                block,
+                peers
+                    .into_iter()
+                    .map(|peer| PeerPresence {
+                        client: peer.client,
+                        kind: peer.kind,
+                        value: peer.value,
+                    })
+                    .collect(),
+            ),
+            ToEditor::PeerMessages(messages) => self.push_peer_messages(
+                block,
+                messages
+                    .into_iter()
+                    .map(|message| PeerMessage {
+                        from: message.from,
+                        channel: message.channel,
+                        payload: message.payload,
+                    })
+                    .collect(),
+            ),
+            content @ (ToEditor::Snapshot(_) | ToEditor::Operations(_)) => {
+                if self.followed.borrow().contains_key(&block) {
+                    self.update_content(block, content);
+                }
+            }
+        }
+    }
+
+    fn update_content(&self, block: Option<Uuid>, update: ToEditor) {
         self.content_updates
             .borrow_mut()
             .entry(block)
@@ -952,27 +1088,55 @@ impl EditorHost {
         self.content_updates.borrow().keys().copied().collect()
     }
 
-    pub fn take_content_updates(&self, block: Option<Uuid>) -> Vec<ContentUpdate> {
+    pub fn take_content_updates(&self, block: Option<Uuid>) -> Vec<ToEditor> {
         self.content_updates
             .borrow_mut()
             .remove(&block)
             .unwrap_or_default()
     }
 
+    pub(crate) fn follow(&self, block: Option<Uuid>) {
+        *self.followed.borrow_mut().entry(block).or_default() += 1;
+        self.asked.borrow_mut().insert(block);
+        self.request_content_resend(block);
+    }
+
+    pub(crate) fn unfollow(&self, block: Option<Uuid>) {
+        let mut followed = self.followed.borrow_mut();
+        let Some(count) = followed.get_mut(&block) else {
+            return;
+        };
+        *count -= 1;
+        if *count == 0 {
+            followed.remove(&block);
+            self.content_updates.borrow_mut().remove(&block);
+        }
+    }
+
+    pub fn ask_for_peers(&self, block: Option<Uuid>) {
+        if self.asked.borrow_mut().insert(block) {
+            self.request_content_resend(block);
+        }
+    }
+
+    pub(crate) fn send_to_replica(&self, block: Option<Uuid>, message: FromEditor) {
+        match message {
+            FromEditor::Resend => self.request_content_resend(block),
+            FromEditor::ShowPresence { kind, value } => self.show_presence(block, kind, value),
+            FromEditor::SendToPeers {
+                to,
+                channel,
+                payload,
+            } => self.send_to_peers(block, to, channel, payload),
+            message
+            @ (FromEditor::Operate(_) | FromEditor::Gesture(_) | FromEditor::Replace(_)) => {
+                self.content_operations.borrow_mut().push((block, message));
+            }
+        }
+    }
+
     pub fn operate_content(&self, operation: Vec<u8>) {
-        self.operate_content_at(None, operation);
-    }
-
-    pub(crate) fn operate_content_at(&self, block: Option<Uuid>, operation: Vec<u8>) {
-        self.content_operations
-            .borrow_mut()
-            .push((block, Outgoing::Operation(operation)));
-    }
-
-    pub(crate) fn gesture_at(&self, block: Option<Uuid>, phase: GesturePhase) {
-        self.content_operations
-            .borrow_mut()
-            .push((block, Outgoing::Gesture(phase)));
+        self.send_to_replica(None, FromEditor::Operate(operation));
     }
 
     pub fn take_content_operations(&self) -> Vec<Vec<u8>> {
@@ -992,14 +1156,71 @@ impl EditorHost {
         taken
             .into_iter()
             .filter_map(|(_, outgoing)| match outgoing {
-                Outgoing::Operation(operation) => Some(operation),
-                Outgoing::Gesture(_) => None,
+                FromEditor::Operate(operation) => Some(operation),
+                _ => None,
             })
             .collect()
     }
 
-    pub(crate) fn take_all_content_operations(&self) -> Vec<ContentOperation> {
-        std::mem::take(&mut self.content_operations.borrow_mut())
+    pub(crate) fn take_outgoing(
+        &self,
+        mut send: impl FnMut(Option<Uuid>, FromEditor) -> Option<FromEditor>,
+    ) {
+        let resends = std::mem::take(&mut *self.resend_requests.borrow_mut());
+        let operations = std::mem::take(&mut *self.content_operations.borrow_mut());
+        let shown = std::mem::take(&mut *self.shown.borrow_mut());
+        let sent = std::mem::take(&mut self.peer_messages.borrow_mut().sent);
+        let outgoing = resends
+            .into_iter()
+            .map(|block| (block, FromEditor::Resend))
+            .chain(operations)
+            .chain(shown.into_iter().map(|shown| {
+                let message = FromEditor::ShowPresence {
+                    kind: shown.kind,
+                    value: shown.value,
+                };
+                (shown.block, message)
+            }))
+            .chain(sent.into_iter().map(|sent| {
+                let message = FromEditor::SendToPeers {
+                    to: sent.to,
+                    channel: sent.channel,
+                    payload: sent.payload,
+                };
+                (sent.block, message)
+            }));
+        for (block, message) in outgoing {
+            if let Some(kept) = send(block, message) {
+                self.keep_outgoing(block, kept);
+            }
+        }
+    }
+
+    fn keep_outgoing(&self, block: Option<Uuid>, message: FromEditor) {
+        match message {
+            FromEditor::Resend => {
+                let mut requests = self.resend_requests.borrow_mut();
+                if !requests.contains(&block) {
+                    requests.push(block);
+                }
+            }
+            FromEditor::ShowPresence { kind, value } => {
+                let mut shown = self.shown.borrow_mut();
+                shown.retain(|held| held.block != block || held.kind != kind);
+                shown.push(ShownPresence { block, kind, value });
+            }
+            FromEditor::SendToPeers {
+                to,
+                channel,
+                payload,
+            } => self.peer_messages.borrow_mut().sent.push(SentToPeers {
+                block,
+                to,
+                channel,
+                payload,
+            }),
+            message => self.content_operations.borrow_mut().push((block, message)),
+        }
     }
 
     pub fn request_content_resend(&self, block: Option<Uuid>) {
@@ -1011,6 +1232,7 @@ impl EditorHost {
         self.waker.wake();
     }
 
+    #[cfg(test)]
     pub(crate) fn take_content_resend_requests(&self) -> Vec<Option<Uuid>> {
         std::mem::take(&mut self.resend_requests.borrow_mut())
     }
@@ -1082,6 +1304,65 @@ impl EditorHost {
         (*revision != seen).then(|| (*revision, held.clone()))
     }
 
+    pub fn send_to_peers(
+        &self,
+        block: Option<Uuid>,
+        to: Option<u64>,
+        channel: Uuid,
+        payload: Vec<u8>,
+    ) {
+        self.peer_messages.borrow_mut().sent.push(SentToPeers {
+            block,
+            to,
+            channel,
+            payload,
+        });
+        self.waker.wake();
+    }
+
+    pub fn take_sent_to_peers(&self) -> Vec<SentToPeers> {
+        std::mem::take(&mut self.peer_messages.borrow_mut().sent)
+    }
+
+    pub fn push_peer_messages(&self, block: Option<Uuid>, messages: Vec<PeerMessage>) {
+        if messages.is_empty() {
+            return;
+        }
+        {
+            let mut held = self.peer_messages.borrow_mut();
+            for message in messages {
+                held.count += 1;
+                let sequence = held.count;
+                let queue = held.received.entry(block).or_default();
+                queue.push_back((sequence, message));
+                if queue.len() > PEER_MESSAGE_LIMIT {
+                    queue.pop_front();
+                }
+            }
+        }
+        self.push(Pushed::PeerMessages);
+        self.waker.wake();
+    }
+
+    pub fn peer_messages_seen(&self) -> u64 {
+        self.peer_messages.borrow().count
+    }
+
+    pub fn peer_messages_since(&self, block: Option<Uuid>, seen: u64) -> Vec<(u64, PeerMessage)> {
+        self.peer_messages
+            .borrow()
+            .received
+            .get(&block)
+            .map(|queue| {
+                queue
+                    .iter()
+                    .filter(|(sequence, _)| *sequence > seen)
+                    .cloned()
+                    .collect()
+            })
+            .unwrap_or_default()
+    }
+
     pub fn take_seeded_content(&self) -> Vec<SeededContent> {
         std::mem::take(&mut self.seeded.borrow_mut())
     }
@@ -1117,57 +1398,41 @@ impl EditorHost {
     }
 
     pub fn view(&self) -> Option<Rect> {
-        let origin = self.region.get().origin;
-        self.framed_view().map(|view| view.rect.translate(origin))
+        self.framed_view().map(|view| view.rect)
     }
 
     pub fn view_scale(&self) -> Option<f32> {
         self.framed_view().map(|view| view.scale)
     }
 
-    pub fn view_moved(&self) -> bool {
-        self.framed_view().is_some_and(|view| view.moved)
-    }
-
-    pub(crate) fn camera(&self) -> Option<Camera> {
-        self.framed_view().map(|view| Camera {
-            x: view.rect.min.x,
-            y: view.rect.min.y,
-            scale: view.scale,
-        })
-    }
-
     fn framed_view(&self) -> Option<View> {
-        let region = self.region.get().region;
-        matches!(region, None | Some(EditorRegion::Frame))
-            .then(|| self.view.get())
-            .flatten()
+        let region = self.region.get();
+        matches!(
+            region,
+            None | Some(EditorRegion::Frame | EditorRegion::Display(_))
+        )
+        .then(|| self.view.get())
+        .flatten()
     }
 
     pub fn pan_view(&self, delta: Vec2) {
-        self.view_changes.borrow_mut().push(ViewChange::Pan {
-            x: delta.x,
-            y: delta.y,
-        });
+        self.view_changes.borrow_mut().push(ViewChange::Pan(delta));
     }
 
     pub fn zoom_view(&self, factor: f32, anchor: Option<Pos2>) {
-        let origin = self.region.get().origin;
-        self.view_changes.borrow_mut().push(ViewChange::Zoom {
-            factor,
-            anchor: anchor.map(|anchor| (anchor.x - origin.x, anchor.y - origin.y)),
-        });
+        self.view_changes
+            .borrow_mut()
+            .push(ViewChange::Zoom { factor, anchor });
     }
 
-    pub fn follow_view(&self, factor: f32, anchor: Pos2, delta: Vec2, resume: bool) {
-        let origin = self.region.get().origin;
-        self.view_changes.borrow_mut().push(ViewChange::Follow {
-            factor,
-            anchor: (anchor.x - origin.x, anchor.y - origin.y),
-            x: delta.x,
-            y: delta.y,
-            resume,
-        });
+    pub fn keep_fitted(&self, area: Option<FitArea>) {
+        self.view_changes
+            .borrow_mut()
+            .push(ViewChange::KeepFitted(area));
+    }
+
+    pub fn fit_view(&self) {
+        self.view_changes.borrow_mut().push(ViewChange::Fit);
     }
 
     pub fn pan_drag_view(&self) {
@@ -1175,15 +1440,17 @@ impl EditorHost {
     }
 
     pub fn drag(&self) -> Option<BlockDrag> {
-        self.drag.get()
+        let region = self.region.get()?;
+        self.drops.borrow().get(&region)?.drag
     }
 
     pub fn files(&self) -> Option<FileDrop> {
-        self.files.borrow().clone()
+        let region = self.region.get()?;
+        self.drops.borrow().get(&region)?.files.clone()
     }
 
-    pub(crate) fn set_files(&self, drop: Option<FileDrop>) {
-        *self.files.borrow_mut() = drop;
+    pub(crate) fn set_files(&self, region: EditorRegion, drop: Option<FileDrop>) {
+        self.drops.borrow_mut().entry(region).or_default().files = drop;
         self.changed();
     }
 
@@ -1191,177 +1458,151 @@ impl EditorHost {
         self.drag_accepted.set(Some(accepted));
     }
 
-    fn ask(&self, request: HostRequest) -> u64 {
-        let id = self.next_request.get() + 1;
-        self.next_request.set(id);
-        self.requests.borrow_mut().push((id, request));
-        id
+    pub(crate) fn set_instance(&self, instance: EditorInstanceId) {
+        self.instance.set(Some(instance));
     }
 
-    pub fn list_revisions(&self, block: Uuid) -> u64 {
-        self.ask(HostRequest::ListRevisions(block.into_bytes()))
+    pub fn instance(&self) -> Option<EditorInstanceId> {
+        self.instance.get()
     }
 
-    pub fn preview_revision(&self, block: Uuid, commit: [u8; 32]) -> u64 {
-        self.ask(HostRequest::PreviewRevision {
-            block_id: block.into_bytes(),
-            commit,
-        })
+    pub fn then<T: 'static>(
+        &self,
+        asked: impl std::future::Future<Output = Option<T>> + 'static,
+        answered: impl FnOnce(T) + 'static,
+    ) -> Task {
+        let host = self.clone();
+        let task = crate::asked::spawn(async move {
+            if let Some(answer) = asked.await {
+                answered(answer);
+                host.changed();
+            }
+        });
+        let mut tasks = self.tasks.borrow_mut();
+        tasks.retain(|task| !task.is_finished());
+        tasks.push(task.clone());
+        task
     }
 
-    pub fn restore_revision(&self, block: Uuid, commit: [u8; 32]) -> u64 {
-        self.ask(HostRequest::RestoreRevision {
-            block_id: block.into_bytes(),
-            commit,
-        })
+    pub(crate) fn cancel_tasks(&self) {
+        for task in std::mem::take(&mut *self.tasks.borrow_mut()) {
+            task.cancel();
+        }
+    }
+
+    fn ask<R>(&self, ask: impl FnOnce() -> R) -> R {
+        asking(self.instance.get(), ask)
+    }
+
+    pub fn list_revisions(&self, block: Uuid) -> Asked<Result<Vec<Revision>, Failure>> {
+        Asked::of(self.ask(|| host_services::list_revisions(block.into_bytes())))
+    }
+
+    pub fn preview_revision(&self, block: Uuid, commit: [u8; 32]) -> Asked<Result<Uuid, Failure>> {
+        Asked::of(self.ask(|| host_services::preview_revision(block.into_bytes(), commit)))
+            .map(|previewed| previewed.map(Uuid::from_bytes))
+    }
+
+    pub fn restore_revision(&self, block: Uuid, commit: [u8; 32]) -> Asked<Result<(), Failure>> {
+        Asked::of(self.ask(|| host_services::restore_revision(block.into_bytes(), commit)))
     }
 
     pub fn release_revision(&self, preview: Uuid) {
-        self.ask(HostRequest::ReleaseRevision(preview.into_bytes()));
+        self.ask(|| host_services::release_revision(preview.into_bytes()));
     }
 
-    pub fn take_revisions(
+    pub fn pick_file(&self, filter: FileFilter) -> Asked<FilePick> {
+        Asked::of(self.ask(|| host_services::pick_file(filter)))
+    }
+
+    pub fn save_file(&self, file: SavedFile) -> Asked<FileSave> {
+        Asked::of(self.ask(|| host_services::save_file(file)))
+    }
+
+    pub fn export_block(&self, block_id: Uuid) -> Asked<FileSave> {
+        Asked::of(self.ask(|| host_services::export_block(block_id.into_bytes())))
+    }
+
+    pub fn read_plain_file(&self, block_id: Uuid) -> Asked<Result<SavedFile, Failure>> {
+        Asked::of(self.ask(|| host_services::read_plain_file(block_id.into_bytes())))
+    }
+
+    pub fn import_blocks(
         &self,
-        request: u64,
-    ) -> Option<Result<Vec<block_plugin_api::Revision>, String>> {
-        match self.take_reply(request)? {
-            HostReply::RevisionsListed(result) => Some(result),
-            reply => self.mismatched(request, reply),
-        }
-    }
-
-    pub fn take_revision_preview(&self, request: u64) -> Option<Result<Uuid, String>> {
-        match self.take_reply(request)? {
-            HostReply::RevisionPreviewed(result) => Some(result.map(Uuid::from_bytes)),
-            reply => self.mismatched(request, reply),
-        }
-    }
-
-    pub fn take_revision_restore(&self, request: u64) -> Option<Result<(), String>> {
-        match self.take_reply(request)? {
-            HostReply::RevisionRestored(result) => Some(result),
-            reply => self.mismatched(request, reply),
-        }
-    }
-
-    pub fn pick_file(&self, filter: FileFilter) -> u64 {
-        self.ask(HostRequest::PickFile(filter))
-    }
-
-    pub fn take_pick(&self, request: u64) -> Option<FilePick> {
-        match self.take_reply(request)? {
-            HostReply::FilePicked(pick) => Some(pick),
-            reply => self.mismatched(request, reply),
-        }
-    }
-
-    pub fn save_file(&self, file: SavedFile) -> u64 {
-        self.ask(HostRequest::SaveFile(file))
-    }
-
-    pub fn take_save(&self, request: u64) -> Option<FileSave> {
-        match self.take_reply(request)? {
-            HostReply::FileSaved(save) => Some(save),
-            reply => self.mismatched(request, reply),
-        }
-    }
-
-    pub fn export_block(&self, block_id: Uuid) -> u64 {
-        self.ask(HostRequest::ExportBlock(block_id.into_bytes()))
-    }
-
-    pub fn import_blocks(&self, parent: BlockParent) -> u64 {
-        self.ask(HostRequest::ImportBlocks(parent.encode()))
-    }
-
-    pub fn take_import(&self, request: u64) -> Option<Result<Option<(Uuid, Uuid)>, String>> {
-        let import = match self.take_reply(request)? {
-            HostReply::BlocksImported(import) => import,
-            reply => return self.mismatched(request, reply),
-        };
-        Some(match import {
-            BlockImport::Imported {
-                block_id,
-                block_type,
-            } => Ok(Some((
-                Uuid::from_bytes(block_id),
-                Uuid::from_bytes(block_type),
-            ))),
-            BlockImport::Cancelled => Ok(None),
-            BlockImport::Failed(error) => Err(error),
+        parent: BlockParent,
+    ) -> Asked<Result<Option<(Uuid, Uuid)>, Failure>> {
+        Asked::of(self.ask(|| host_services::import_blocks(parent.encode()))).map(|imported| {
+            imported.map(|imported| {
+                imported.map(|imported| {
+                    (
+                        Uuid::from_bytes(imported.block_id),
+                        Uuid::from_bytes(imported.block_type),
+                    )
+                })
+            })
         })
     }
 
-    pub fn pick_block(&self, mut filter: BlockFilter) -> u64 {
-        let origin = self.region.get().origin;
-        filter.anchor = filter.anchor.map(|anchor| ChildRect {
-            x: anchor.x - origin.x,
-            y: anchor.y - origin.y,
-            ..anchor
-        });
-        self.ask(HostRequest::PickBlock(filter))
+    pub fn copy_blocks(
+        &self,
+        source: Uuid,
+        parent: BlockParent,
+    ) -> Asked<Result<Option<(Uuid, Uuid)>, Failure>> {
+        Asked::of(self.ask(|| host_services::copy_blocks(source.into_bytes(), parent.encode())))
+            .map(|copied| {
+                copied.map(|copied| {
+                    copied.map(|copied| {
+                        (
+                            Uuid::from_bytes(copied.block_id),
+                            Uuid::from_bytes(copied.block_type),
+                        )
+                    })
+                })
+            })
     }
 
-    pub fn list_access(&self, block_id: Uuid) -> u64 {
-        self.ask(HostRequest::ListAccess(block_id.into_bytes()))
+    pub fn pick_block(&self, filter: BlockFilter) -> Asked<BlockPick> {
+        Asked::of(self.ask(|| host_services::pick_block(filter)))
     }
 
-    pub fn take_access_listing(&self, request: u64) -> Option<AccessListing> {
-        match self.take_reply(request)? {
-            HostReply::AccessListed(listing) => Some(listing),
-            reply => self.mismatched(request, reply),
-        }
+    pub fn list_access(&self, block_id: Uuid) -> Asked<Result<AccessListing, Failure>> {
+        Asked::of(self.ask(|| host_services::list_access(block_id.into_bytes())))
     }
 
-    pub fn contact_link(&self, block_id: Uuid, access: AccessLevel) -> u64 {
-        self.ask(HostRequest::ContactLink {
-            block_id: block_id.into_bytes(),
-            access,
-        })
-    }
-
-    pub fn take_contact_link(&self, request: u64) -> Option<ContactLinkResult> {
-        match self.take_reply(request)? {
-            HostReply::ContactLinkMade(made) => Some(made),
-            reply => self.mismatched(request, reply),
-        }
+    pub fn contact_link(
+        &self,
+        block_id: Uuid,
+        access: AccessLevel,
+    ) -> Asked<Result<String, Failure>> {
+        Asked::of(self.ask(|| host_services::make_contact_link(block_id.into_bytes(), access)))
     }
 
     pub fn set_access(&self, block_id: Uuid, account: Uuid, access: AccessLevel) {
-        self.access_changes
-            .borrow_mut()
-            .push((block_id, account, access));
-        self.changed();
+        self.ask(|| host_services::set_access(block_id.into_bytes(), account.into_bytes(), access));
     }
 
-    pub(crate) fn take_access_changes(&self) -> Vec<(Uuid, Uuid, AccessLevel)> {
-        std::mem::take(&mut self.access_changes.borrow_mut())
-    }
-
-    pub fn take_block_pick(&self, request: u64) -> Option<BlockPick> {
-        match self.take_reply(request)? {
-            HostReply::BlockPicked(pick) => Some(pick),
-            reply => self.mismatched(request, reply),
-        }
-    }
-
-    pub fn play_audio(&self, block_id: Uuid) {
+    pub fn load_audio(&self, media_type: impl Into<String>, bytes: Vec<u8>) {
         self.audio_commands
             .borrow_mut()
-            .push((block_id, AudioCommand::Toggle));
+            .push(AudioCommand::Load(AudioSource {
+                media_type: media_type.into(),
+                bytes,
+            }));
     }
 
-    pub fn reset_audio(&self, block_id: Uuid) {
-        self.audio_commands
-            .borrow_mut()
-            .push((block_id, AudioCommand::Reset));
+    pub fn play_audio(&self) {
+        self.audio_commands.borrow_mut().push(AudioCommand::Toggle);
+    }
+
+    pub fn reset_audio(&self) {
+        self.audio_commands.borrow_mut().push(AudioCommand::Reset);
     }
 
     pub fn audio(&self) -> AudioStatus {
         self.audio_status.borrow().clone()
     }
 
-    pub(crate) fn take_audio_commands(&self) -> Vec<(Uuid, AudioCommand)> {
+    pub(crate) fn take_audio_commands(&self) -> Vec<AudioCommand> {
         std::mem::take(&mut self.audio_commands.borrow_mut())
     }
 
@@ -1370,63 +1611,18 @@ impl EditorHost {
         self.push(Pushed::Audio);
     }
 
-    pub fn fetch(&self, url: impl Into<String>) -> u64 {
-        self.ask(HostRequest::Fetch(url.into()))
+    pub fn fetch(&self, url: impl Into<String>) -> Asked<Result<Vec<u8>, Failure>> {
+        let url = url.into();
+        Asked::of(self.ask(|| host_services::fetch(url)))
     }
 
-    pub fn take_fetch(&self, request: u64) -> Option<FetchResult> {
-        match self.take_reply(request)? {
-            HostReply::Fetched(result) => Some(result),
-            reply => self.mismatched(request, reply),
-        }
+    pub fn list_data(&self) -> Asked<Result<Vec<String>, Failure>> {
+        Asked::of(self.ask(host_services::list_data))
     }
 
-    pub fn list_data(&self) -> u64 {
-        self.ask(HostRequest::ListData)
-    }
-
-    pub fn take_data_listing(&self, request: u64) -> Option<DataListing> {
-        match self.take_reply(request)? {
-            HostReply::DataListed(listing) => Some(listing),
-            reply => self.mismatched(request, reply),
-        }
-    }
-
-    pub fn read_data(&self, path: impl Into<String>) -> u64 {
-        self.ask(HostRequest::ReadData(path.into()))
-    }
-
-    pub fn take_data(&self, request: u64) -> Option<FetchResult> {
-        match self.take_reply(request)? {
-            HostReply::DataRead(result) => Some(result),
-            reply => self.mismatched(request, reply),
-        }
-    }
-
-    pub fn take_requests(&self) -> Vec<(u64, HostRequest)> {
-        std::mem::take(&mut self.requests.borrow_mut())
-    }
-
-    pub fn set_reply(&self, request: u64, reply: HostReply) {
-        if matches!(reply, HostReply::RevisionReleased) {
-            return;
-        }
-        self.replies.borrow_mut().insert(request, reply);
-        self.push(Pushed::Replies);
-    }
-
-    fn take_reply(&self, request: u64) -> Option<HostReply> {
-        self.replies.borrow_mut().remove(&request)
-    }
-
-    fn mismatched<T>(&self, request: u64, reply: HostReply) -> Option<T> {
-        eprintln!("the host answered request {request} with an unrelated {reply:?}");
-        None
-    }
-
-    pub fn forget_request(&self, request: u64) {
-        self.requests.borrow_mut().retain(|(id, _)| *id != request);
-        self.replies.borrow_mut().remove(&request);
+    pub fn read_data(&self, path: impl Into<String>) -> Asked<Result<Vec<u8>, Failure>> {
+        let path = path.into();
+        Asked::of(self.ask(|| host_services::read_data(path)))
     }
 
     pub fn open_web_view(&self, web_view: WebViewId, url: impl Into<String>) {
@@ -1474,14 +1670,16 @@ impl EditorHost {
     }
 
     pub fn request_frame_in(&self, delay: Duration) {
-        let held = self.next_frame.get();
-        if held.is_none_or(|held| delay < held) {
-            self.next_frame.set(Some(delay));
-        }
+        let mut next = self.next_frame.borrow_mut();
+        let held = next.entry(self.region.get()).or_insert(delay);
+        *held = (*held).min(delay);
     }
 
-    pub fn take_frame_request(&self) -> Option<Duration> {
-        self.next_frame.take()
+    pub fn take_frame_request(&self, region: EditorRegion) -> Option<Duration> {
+        let mut next = self.next_frame.borrow_mut();
+        let own = next.remove(&Some(region));
+        let any = next.remove(&None);
+        own.into_iter().chain(any).min()
     }
 
     pub fn chrome_shown(&self) -> bool {
@@ -1526,6 +1724,48 @@ impl EditorHost {
 
     pub fn take_paste_request(&self) -> bool {
         self.paste_requested.take()
+    }
+
+    pub fn join_module(&self, module: &crate::Module) {
+        *self.module.borrow_mut() = module.downgrade();
+    }
+
+    pub fn module(&self) -> Option<crate::Module> {
+        self.module
+            .borrow()
+            .upgrade()
+            .map(crate::Module::from_state)
+    }
+
+    pub fn handle_regions(&self, handler: Box<dyn crate::Regions>) {
+        self.module()
+            .expect("an editor host belongs to a module before a handler registers")
+            .handle(handler);
+    }
+
+    pub fn handles_regions(&self) -> bool {
+        self.module().is_some_and(|module| module.handles())
+    }
+
+    pub fn settings_draft(&self) -> Option<crate::SettingsDraft> {
+        self.settings_draft.borrow().clone()
+    }
+
+    pub fn set_settings_draft(&self, draft: Vec<u8>) {
+        if let Some(open) = self.settings_draft.borrow_mut().as_mut() {
+            open.draft = draft;
+        }
+    }
+
+    pub(crate) fn open_settings_draft(&self, draft: Option<crate::SettingsDraft>) {
+        *self.settings_draft.borrow_mut() = draft;
+    }
+
+    pub(crate) fn close_settings_draft(&self) -> Option<Vec<u8>> {
+        self.settings_draft
+            .borrow_mut()
+            .take()
+            .map(|settings| settings.draft)
     }
 
     pub fn leave_frame(&self) {
@@ -1587,13 +1827,11 @@ impl EditorHost {
     }
 
     pub fn occlude(&self, rect: Rect) {
-        let origin = self.region.get().origin;
+        let region = self.region.get().unwrap_or(EditorRegion::Frame);
         let mut children = self.children.borrow_mut();
-        let after = children.placements.len() as u32;
-        children.occluders.push(Occluder {
-            after,
-            rect: child_rect(rect.translate(-origin)),
-        });
+        let placing = children.placing.entry(region).or_default();
+        let after = placing.placements.len() as u32;
+        placing.occluders.push(Occluder { after, rect });
     }
 
     pub fn place_child(
@@ -1608,34 +1846,39 @@ impl EditorHost {
         rotation: f32,
         opacity: f32,
         intrinsic: Option<Vec2>,
-        follows_camera: bool,
+        follows_view: bool,
+        dialog: Option<DialogFrame>,
     ) -> ChildId {
-        let state = self.region.get();
-        let placed = child_rect(rect.translate(-state.origin));
-        let clip = child_rect(clip.translate(-state.origin)).intersect(placed.swept(rotation));
+        let region = self.region.get().unwrap_or(EditorRegion::Frame);
+        let placed = rect;
+        let clip =
+            clip.intersect(geometry::Rotation::new(placed.center(), rotation).bounds(placed));
         let mut children = self.children.borrow_mut();
-        let child = children.identify(
-            state.region.unwrap_or(EditorRegion::Frame),
-            Identity::of(&content),
-        );
-        children.placements.push(ChildPlacement {
-            child,
-            content,
-            rect: placed,
-            clip,
-            own_frame,
-            top_bar,
-            corner_radius: 0.0,
-            layer,
-            mode,
-            intrinsic: intrinsic.map(|size| Size {
-                width: size.x.max(0.0),
-                height: size.y.max(0.0),
-            }),
-            rotation,
-            opacity: opacity.clamp(0.0, 1.0),
-            follows_camera,
-        });
+        let child = children.identify(region, Identity::of(&content));
+        children
+            .placing
+            .entry(region)
+            .or_default()
+            .placements
+            .push(ChildPlacement {
+                child,
+                content,
+                rect: placed,
+                clip,
+                own_frame,
+                top_bar,
+                corner_radius: 0.0,
+                layer,
+                mode,
+                intrinsic: intrinsic.map(|size| Size {
+                    width: size.x.max(0.0),
+                    height: size.y.max(0.0),
+                }),
+                rotation,
+                opacity: opacity.clamp(0.0, 1.0),
+                follows_view,
+                dialog,
+            });
         child
     }
 
@@ -1643,12 +1886,32 @@ impl EditorHost {
         self.child_statuses.borrow().get(&child).cloned()
     }
 
-    pub fn set_creation_ready(&self, ready: bool) {
-        if self.creation_ready.get() == ready {
+    pub fn handles_dismiss(&self, handles: bool) {
+        if self.handles_dismiss.get() == handles {
             return;
         }
-        self.creation_ready.set(ready);
-        self.creation_changed.set(true);
+        self.handles_dismiss.set(handles);
+        self.handles_dismiss_changed.set(true);
+        self.changed();
+    }
+
+    pub fn close_dialog(&self, answer: DialogAnswer) {
+        self.dialog_closes.borrow_mut().push(answer);
+        self.changed();
+    }
+
+    pub fn dismiss_child(&self, child: ChildId) {
+        self.child_dismissals.borrow_mut().push(child);
+        self.changed();
+    }
+
+    pub(crate) fn request_dismiss(&self) {
+        self.dismiss_requested.set(true);
+        self.changed();
+    }
+
+    pub fn take_dismiss_request(&self) -> bool {
+        self.dismiss_requested.take()
     }
 
     pub fn take_opens(&self) -> Vec<OpenRequest> {
@@ -1724,29 +1987,26 @@ impl EditorHost {
         self.changed();
     }
 
-    pub fn set_view(&self, view: Rect, scale: f32, moved: bool) {
-        self.view.set(Some(View {
-            rect: view,
-            scale,
-            moved,
-        }));
+    pub fn set_view(&self, view: Rect, scale: f32) {
+        self.view.set(Some(View { rect: view, scale }));
         self.changed();
     }
 
     pub fn report_content(&self, rect: Rect) {
-        self.content.set(Some(rect));
+        let region = self.region.get().unwrap_or(EditorRegion::Frame);
+        self.drops.borrow_mut().entry(region).or_default().content = Some(rect);
     }
 
-    pub fn take_content(&self) -> Option<Rect> {
-        self.content.take()
+    pub(crate) fn take_content(&self, region: EditorRegion) -> Option<Rect> {
+        self.drops.borrow_mut().get_mut(&region)?.content.take()
     }
 
     pub fn take_view_changes(&self) -> Vec<ViewChange> {
         std::mem::take(&mut self.view_changes.borrow_mut())
     }
 
-    pub fn set_drag(&self, drag: Option<BlockDrag>) {
-        self.drag.set(drag);
+    pub(crate) fn set_drag(&self, region: EditorRegion, drag: Option<BlockDrag>) {
+        self.drops.borrow_mut().entry(region).or_default().drag = drag;
         self.changed();
     }
 
@@ -1754,29 +2014,27 @@ impl EditorHost {
         self.drag_accepted.take()
     }
 
-    pub fn begin_region(&self, region: EditorRegion, origin: Vec2) {
-        self.region.set(Region {
-            region: Some(region),
-            origin,
-        });
-        let mut children = self.children.borrow_mut();
-        children.placements.clear();
-        children.occluders.clear();
-        children.ordinals.clear();
-        children.used.clear();
+    pub fn in_region<R>(&self, region: EditorRegion, within: impl FnOnce() -> R) -> R {
+        let held = self.region.replace(Some(region));
+        let done = within();
+        self.region.set(held);
+        done
     }
 
-    pub fn end_region(&self, region: EditorRegion) -> (Vec<ChildPlacement>, Vec<Occluder>) {
-        self.region.set(Region::default());
+    pub(crate) fn begin_region(&self, region: EditorRegion) {
+        self.children
+            .borrow_mut()
+            .placing
+            .insert(region, Placing::default());
+    }
+
+    pub(crate) fn end_region(&self, region: EditorRegion) -> (Vec<ChildPlacement>, Vec<Occluder>) {
         let mut children = self.children.borrow_mut();
-        let used = std::mem::take(&mut children.used);
+        let placing = children.placing.remove(&region).unwrap_or_default();
         children
             .identities
-            .retain(|key, _| key.0 != region || used.contains(key));
-        (
-            std::mem::take(&mut children.placements),
-            std::mem::take(&mut children.occluders),
-        )
+            .retain(|key, _| key.0 != region || placing.used.contains(key));
+        (placing.placements, placing.occluders)
     }
 
     pub fn set_child_statuses(&self, statuses: Vec<ChildStatus>) {
@@ -1828,10 +2086,18 @@ impl EditorHost {
         std::mem::take(&mut self.present_requests.borrow_mut())
     }
 
-    pub(crate) fn take_creation_ready(&self) -> Option<bool> {
-        self.creation_changed
+    pub(crate) fn take_handles_dismiss(&self) -> Option<bool> {
+        self.handles_dismiss_changed
             .take()
-            .then(|| self.creation_ready.get())
+            .then(|| self.handles_dismiss.get())
+    }
+
+    pub(crate) fn take_dialog_closes(&self) -> Vec<DialogAnswer> {
+        std::mem::take(&mut self.dialog_closes.borrow_mut())
+    }
+
+    pub(crate) fn take_child_dismissals(&self) -> Vec<ChildId> {
+        std::mem::take(&mut self.child_dismissals.borrow_mut())
     }
 
     pub(crate) fn take_performance(&self) -> Vec<(String, Vec<PerformanceMeasurement>)> {
@@ -1852,79 +2118,6 @@ impl EditorHost {
             .into_iter()
             .map(|(group, measurements)| (group.to_string(), measurements))
             .collect()
-    }
-}
-
-#[derive(Default)]
-pub struct FileSaver {
-    request: Option<u64>,
-}
-
-impl FileSaver {
-    pub fn save(&mut self, host: &EditorHost, file: SavedFile) {
-        self.request = Some(host.save_file(file));
-    }
-
-    pub fn export(&mut self, host: &EditorHost, block_id: Uuid) {
-        self.request = Some(host.export_block(block_id));
-    }
-
-    pub fn is_saving(&self) -> bool {
-        self.request.is_some()
-    }
-
-    pub fn poll(&mut self, host: &EditorHost) -> Option<Result<bool, String>> {
-        let save = host.take_save(self.request?)?;
-        self.request = None;
-        Some(match save {
-            FileSave::Saved => Ok(true),
-            FileSave::Cancelled => Ok(false),
-            FileSave::Failed(error) => Err(error),
-        })
-    }
-}
-
-pub fn child_rect(rect: Rect) -> ChildRect {
-    ChildRect {
-        x: rect.min.x,
-        y: rect.min.y,
-        width: rect.width().max(0.0),
-        height: rect.height().max(0.0),
-    }
-}
-
-#[derive(Default)]
-pub struct BlockPicker {
-    request: Option<u64>,
-}
-
-impl BlockPicker {
-    pub fn open(&mut self, host: &EditorHost, filter: BlockFilter) {
-        self.request = Some(host.pick_block(filter));
-    }
-
-    pub fn is_open(&self) -> bool {
-        self.request.is_some()
-    }
-
-    pub fn poll(&mut self, host: &EditorHost) -> Option<Result<PickedBlock, String>> {
-        let pick = host.take_block_pick(self.request?)?;
-        self.request = None;
-        match pick {
-            BlockPick::Chosen {
-                block_id,
-                block_type,
-                linked,
-                placed,
-            } => Some(Ok(PickedBlock {
-                id: Uuid::from_bytes(block_id),
-                block_type: Uuid::from_bytes(block_type),
-                linked,
-                placed,
-            })),
-            BlockPick::Cancelled => None,
-            BlockPick::Failed(error) => Some(Err(error)),
-        }
     }
 }
 

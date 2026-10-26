@@ -1,6 +1,6 @@
 use super::*;
-use block_editor_beui::be_block::canvas::CanvasColor;
-use block_editor_beui::beui::{Key, Vec2};
+use block_editor_beui::beui::{Key, Modifiers, Vec2};
+use infinite_canvas_types::CanvasColor;
 
 #[test]
 fn a_typed_transform_value_is_one_edit() {
@@ -22,10 +22,10 @@ fn a_typed_transform_value_is_one_edit() {
     editor.click("infinite-canvas.transform.x");
     editor.run();
     for digit in ["1", "2", "5"] {
-        editor.text(digit);
+        editor.type_text(digit);
         editor.run();
     }
-    editor.key_press(Key::Enter);
+    editor.key(Key::Enter, Modifiers::NONE);
     editor.run();
 
     assert_eq!(entities(&editor)[0].transform.center.x, 125.0);
@@ -37,9 +37,9 @@ fn a_typed_transform_value_is_one_edit() {
     );
     editor.click("infinite-canvas.transform.x");
     editor.run();
-    editor.text("125");
+    editor.type_text("125");
     editor.run();
-    editor.key_press(Key::Enter);
+    editor.key(Key::Enter, Modifiers::NONE);
     editor.run();
 
     let resting = editor.rect_of(&drawn);

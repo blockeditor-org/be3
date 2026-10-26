@@ -1,4 +1,5 @@
 use super::*;
+use crate::primitives::List;
 use crate::primitives::Text;
 use crate::reactive::*;
 use crate::styled::*;
@@ -26,17 +27,15 @@ fn the_menu_of_a_selectable_text_copies_what_is_selected() {
         pos2(second.right() - 1.0, second.center().y),
     );
     let at = pos2(first.left() + 4.0, first.center().y);
-    harness.frame(vec![Event::PointerButton {
+    harness.frame(vec![Input::PointerButton {
         pos: at,
         button: PointerButton::Secondary,
         pressed: true,
-        modifiers: Modifiers::NONE,
     }]);
-    harness.frame(vec![Event::PointerButton {
+    harness.frame(vec![Input::PointerButton {
         pos: at,
         button: PointerButton::Secondary,
         pressed: false,
-        modifiers: Modifiers::NONE,
     }]);
     let menu = harness
         .document()
@@ -48,18 +47,16 @@ fn the_menu_of_a_selectable_text_copies_what_is_selected() {
             .api::<unstyled::MenuListApi>(menu)
             .row_button(0),
     );
-    harness.frame(vec![Event::PointerMoved(copy)]);
-    harness.frame(vec![Event::PointerButton {
+    harness.frame(vec![Input::PointerMoved(copy)]);
+    harness.frame(vec![Input::PointerButton {
         pos: copy,
         button: PointerButton::Primary,
         pressed: true,
-        modifiers: Modifiers::NONE,
     }]);
-    let clicked = harness.frame(vec![Event::PointerButton {
+    let clicked = harness.frame(vec![Input::PointerButton {
         pos: copy,
         button: PointerButton::Primary,
         pressed: false,
-        modifiers: Modifiers::NONE,
     }]);
 
     assert_eq!(

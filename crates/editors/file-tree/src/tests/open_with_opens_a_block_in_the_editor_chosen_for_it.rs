@@ -1,6 +1,5 @@
 use block_editor_beui::{
-    BlockInfo, BlockParent, BlockQuery, BlockTypeDescriptor, Catalog, ChildOperations,
-    EditorDescriptor,
+    BlockInfo, BlockParent, BlockTypeDescriptor, Catalog, ChildOperations, EditorDescriptor,
 };
 
 use super::*;
@@ -18,6 +17,8 @@ fn open_with_opens_a_block_in_the_editor_chosen_for_it() {
             color: None,
             icon_codepoint: String::new(),
             children: ChildOperations::default(),
+            press: block_editor_beui::Press::Open,
+            plain_file: false,
         }],
         templates: Vec::new(),
         editors: vec![
@@ -26,18 +27,20 @@ fn open_with_opens_a_block_in_the_editor_chosen_for_it() {
                 edits: block_editor_beui::Edits::Type(block_type.into_bytes()),
                 name: "Note".to_owned(),
                 icon_codepoint: String::new(),
+                extensions: Vec::new(),
             },
             EditorDescriptor {
                 editor: debug.into_bytes(),
                 edits: block_editor_beui::Edits::Any,
                 name: "Debug view".to_owned(),
                 icon_codepoint: String::new(),
+                extensions: Vec::new(),
             },
         ],
     });
-    let mut listed = BlockInfo::new(block, block_type, BlockParent::Root);
+    let mut listed = BlockInfo::new(block, block_type, BlockParent::Block(MY_FILES));
     listed.set_name("Notes".to_owned());
-    fixture.host.set_blocks(BlockQuery::Roots, vec![listed]);
+    my_files(&mut fixture, vec![listed]);
     fixture.settle();
 
     fixture.choose(block, "Open with");
@@ -47,9 +50,10 @@ fn open_with_opens_a_block_in_the_editor_chosen_for_it() {
     let document = fixture.test.document();
     let item = document
         .root()
-        .and_then(|root| open_item(document, root, "Debug view", false))
+        .and_then(|root| open_item(&document, root, "Debug view", false))
         .expect("Open with offers every editor of the block's type");
-    fixture.test.click_at(item);
+    drop(document);
+    fixture.test.click(item);
     fixture.settle();
 
     let opens = fixture.test.take_opens();

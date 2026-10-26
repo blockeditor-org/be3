@@ -1,4 +1,5 @@
 use super::*;
+use crate::primitives::List;
 use crate::reactive::*;
 use crate::styled::*;
 
@@ -24,7 +25,7 @@ fn a_vertical_separator_rules_down_the_row_it_sits_in() {
 }
 
 fn rule(output: &crate::FrameOutput) -> Option<Rect> {
-    output.shapes().iter().find_map(|shape| match shape {
+    output.main().shapes().iter().find_map(|shape| match shape {
         crate::painter::Shape::Rect { rect, color, .. } if *color == Theme::DARK.border => {
             Some(*rect)
         }

@@ -18,7 +18,7 @@ fn taking_a_share_back_rotates_its_keys_and_reseals_the_open_block() {
     let peer = runtime.block_on(guest.peer(&harness.url, personal));
     runtime
         .block_on(be_client::contacts::accept_link(
-            peer.connection(),
+            &peer.connection(),
             &guest.phrase.secret(),
             &guest.me().card(),
             &code,
@@ -34,7 +34,7 @@ fn taking_a_share_back_rotates_its_keys_and_reseals_the_open_block() {
     flush();
     assert_eq!(runtime.block_on(read_text(&peer, block)), "meet at noon");
 
-    open(block, be_block::TextContent::CONTENT_TYPE);
+    open(block, text_block_types::TextContent::CONTENT_TYPE);
     wait_until("opened the block", |shared| {
         shared.blocks.contains_key(&block)
     });
@@ -82,7 +82,7 @@ fn taking_a_share_back_rotates_its_keys_and_reseals_the_open_block() {
     );
     assert!(
         runtime
-            .block_on(peer.open::<be_block::TextContent>(block))
+            .block_on(peer.open::<text_block_types::TextContent>(block))
             .is_err(),
         "the guest still opens a block taken back from it"
     );

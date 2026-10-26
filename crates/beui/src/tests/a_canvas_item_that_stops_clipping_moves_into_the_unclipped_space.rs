@@ -5,6 +5,7 @@ use crate::reactive::*;
 
 fn fill_clip(output: &FrameOutput) -> Rect {
     output
+        .main()
         .shapes()
         .iter()
         .find_map(|shape| match shape {

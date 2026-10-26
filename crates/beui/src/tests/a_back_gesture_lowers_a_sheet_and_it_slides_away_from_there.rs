@@ -1,6 +1,7 @@
 use super::*;
 use crate::input::{BackEdge, BackGesture};
 use crate::primitives::Frame;
+use crate::primitives::List;
 use crate::reactive::*;
 use crate::styled::*;
 
@@ -32,10 +33,10 @@ fn a_back_gesture_lowers_a_sheet_and_it_slides_away_from_there() {
     let resting = harness.rect(handle).top();
 
     harness.frame(vec![
-        Event::Back(BackGesture::Started {
+        Input::Back(BackGesture::Started {
             edge: BackEdge::Left,
         }),
-        Event::Back(BackGesture::Progressed(1.0)),
+        Input::Back(BackGesture::Progressed(1.0)),
     ]);
     let lowered = harness.rect(handle).top();
     assert!(
@@ -43,7 +44,7 @@ fn a_back_gesture_lowers_a_sheet_and_it_slides_away_from_there() {
         "held, the sheet sinks with the gesture, to {lowered} from {resting}"
     );
 
-    harness.frame(vec![Event::Back(BackGesture::Cancelled)]);
+    harness.frame(vec![Input::Back(BackGesture::Cancelled)]);
     harness.frame(Vec::new());
     let rising = harness.rect(handle).top();
     assert!(
@@ -54,13 +55,13 @@ fn a_back_gesture_lowers_a_sheet_and_it_slides_away_from_there() {
     assert_eq!(harness.rect(handle).top(), resting);
 
     harness.frame(vec![
-        Event::Back(BackGesture::Started {
+        Input::Back(BackGesture::Started {
             edge: BackEdge::Left,
         }),
-        Event::Back(BackGesture::Progressed(1.0)),
+        Input::Back(BackGesture::Progressed(1.0)),
     ]);
     let lowered = harness.rect(handle).top();
-    harness.frame(vec![Event::Back(BackGesture::Invoked)]);
+    harness.frame(vec![Input::Back(BackGesture::Invoked)]);
     assert!(!open.get_untracked());
     harness.frame(Vec::new());
     let leaving = harness.rect(handle).top();
@@ -69,5 +70,12 @@ fn a_back_gesture_lowers_a_sheet_and_it_slides_away_from_there() {
         "released, it slides on down from where it was, to {leaving} after {lowered}"
     );
     harness.settle();
-    assert!(!harness.frame(Vec::new()).window.handles_back);
+    assert!(
+        !harness
+            .frame(Vec::new())
+            .main()
+            .window
+            .requests
+            .handles_back
+    );
 }

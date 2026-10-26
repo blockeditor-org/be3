@@ -14,7 +14,7 @@ fn a_stack_becomes_a_column_when_its_container_gets_narrow() {
     let document = build_node(move || {
         view! {
             <Container>|_|
-                <Stack spacing=0.0 breakpoint=BREAKPOINT>
+                <Stack spacing=Space::None breakpoint=BREAKPOINT>
                     <Frame @sizing=ItemSize::Percent(50.0) @node_ref=&left height=ITEM_HEIGHT>
                         <Spacer />
                     </Frame>
@@ -34,7 +34,7 @@ fn a_stack_becomes_a_column_when_its_container_gets_narrow() {
     assert_eq!(harness.rect(right).left(), WIDE_VIEWPORT.x / 2.0);
     assert_eq!(harness.rect(right).top(), harness.rect(left).top());
 
-    *harness.viewport_mut() = VIEWPORT;
+    harness.resize(VIEWPORT);
     harness.frame(Vec::new());
 
     assert_eq!(harness.rect(left).width(), VIEWPORT.x);

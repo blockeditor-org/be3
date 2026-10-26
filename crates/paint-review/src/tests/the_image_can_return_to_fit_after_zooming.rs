@@ -15,7 +15,7 @@ fn the_image_can_return_to_fit_after_zooming() {
     let camera = || {
         let document = review.test.document();
         document
-            .api::<beui::unstyled::PanZoomApi>(
+            .api::<beui::styled::PanZoomApi>(
                 document.find_test_id("paint_review.pan_zoom").unwrap(),
             )
             .view()
@@ -27,7 +27,7 @@ fn the_image_can_return_to_fit_after_zooming() {
     review.test.settle();
     let document = review.test.document();
     let fitted = document
-        .api::<beui::unstyled::PanZoomApi>(document.find_test_id("paint_review.pan_zoom").unwrap())
+        .api::<beui::styled::PanZoomApi>(document.find_test_id("paint_review.pan_zoom").unwrap())
         .view()
         .get();
     assert!(fitted.scale < 1.0);

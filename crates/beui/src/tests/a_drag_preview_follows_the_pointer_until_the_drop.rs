@@ -23,15 +23,14 @@ fn a_drag_preview_follows_the_pointer_until_the_drop() {
     );
 
     let from = harness.center(source);
-    harness.frame(vec![Event::PointerMoved(from)]);
-    harness.frame(vec![Event::PointerButton {
+    harness.frame(vec![Input::PointerMoved(from)]);
+    harness.frame(vec![Input::PointerButton {
         pos: from,
         button: PointerButton::Primary,
         pressed: true,
-        modifiers: Modifiers::NONE,
     }]);
     let to = pos2(200.0, 150.0);
-    harness.frame(vec![Event::PointerMoved(to)]);
+    harness.frame(vec![Input::PointerMoved(to)]);
     let output = harness.frame(Vec::new());
     let ghost = output
         .test_id_rect("ghost")
@@ -41,11 +40,10 @@ fn a_drag_preview_follows_the_pointer_until_the_drop() {
         "the preview sits beside the pointer, at {ghost:?}"
     );
 
-    harness.frame(vec![Event::PointerButton {
+    harness.frame(vec![Input::PointerButton {
         pos: to,
         button: PointerButton::Primary,
         pressed: false,
-        modifiers: Modifiers::NONE,
     }]);
     let output = harness.frame(Vec::new());
     assert!(

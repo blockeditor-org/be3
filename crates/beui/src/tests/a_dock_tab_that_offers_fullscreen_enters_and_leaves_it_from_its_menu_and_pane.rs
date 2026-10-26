@@ -1,6 +1,6 @@
 use super::*;
+use crate::dock::unstyled::{DockPane, DockTab, DockingLayout, use_dock_tab};
 use crate::reactive::*;
-use crate::unstyled::{DockPane, DockTab, DockingLayout, use_dock_tab};
 
 #[component]
 fn Offered() -> NodeId {
@@ -14,13 +14,12 @@ fn Offered() -> NodeId {
 
 fn right_click(harness: &mut Harness, dock: NodeId, title: &str) {
     let pos = harness.center(dock_tab(harness.document(), dock, title));
-    harness.frame(vec![Event::PointerMoved(pos)]);
+    harness.frame(vec![Input::PointerMoved(pos)]);
     for pressed in [true, false] {
-        harness.frame(vec![Event::PointerButton {
+        harness.frame(vec![Input::PointerButton {
             pos,
             button: PointerButton::Secondary,
             pressed,
-            modifiers: Modifiers::NONE,
         }]);
     }
     harness.frame(Vec::new());
@@ -41,7 +40,7 @@ fn a_dock_tab_that_offers_fullscreen_enters_and_leaves_it_from_its_menu_and_pane
     let document = {
         build_node(move || {
             view! {
-                <styled::Docking @node_ref=&dock layout>
+                <dock::styled::Docking @node_ref=&dock layout>
                     <DockPane id="tabs">
                         <DockTab id=1u64 title="Offered">
                             <Offered />
@@ -50,7 +49,7 @@ fn a_dock_tab_that_offers_fullscreen_enters_and_leaves_it_from_its_menu_and_pane
                             <Frame @test_id="plain" />
                         </DockTab>
                     </DockPane>
-                </styled::Docking>
+                </dock::styled::Docking>
             }
         })
     };

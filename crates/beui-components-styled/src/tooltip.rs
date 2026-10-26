@@ -1,17 +1,17 @@
 use crate::frame::{Border, ColorRole, Frame, Radius};
 use beui_macros::{component, view};
 
+use crate::list::List;
 use crate::text::{Text, TextColor, TextStyle};
+use crate::tokens::{Padding, Space};
 use beui_components_unstyled as unstyled;
 use beui_components_unstyled::{TOOLTIP_DELAY, TooltipHandle};
 use beui_core::node::NodeId;
-use beui_view::primitives::*;
 use beui_view::reactive::*;
 use std::time::Duration;
 
-const PADDING_HORIZONTAL: f32 = 8.0;
-const PADDING_VERTICAL: f32 = 4.0;
-const GAP: f32 = 4.0;
+const PADDING: Padding = Padding::symmetric(Space::Md, Space::Xs);
+const GAP: Space = Space::Xs;
 const MAX_WIDTH: f32 = 280.0;
 
 #[component]
@@ -39,17 +39,17 @@ pub fn Tooltip(
 fn TooltipBubble(handle: TooltipHandle) -> NodeId {
     let TooltipHandle { label, .. } = handle;
     view! {
-        <Frame padding={Sides::vertical(GAP)}>
-            <List direction=Direction::Horizontal spacing=0.0>
+        <Frame padding={Padding::vertical(GAP)}>
+            <List direction=Direction::Horizontal spacing=Space::None>
                 <Frame
                     @sizing={ItemSize::Intrinsic.max(MAX_WIDTH)}
                     @test_id={"tooltip"}
                     fill=ColorRole::SurfaceRaised
                     border={Border::DEFAULT}
                     radius=Radius::Md
-                    padding={Sides::symmetric(PADDING_HORIZONTAL, PADDING_VERTICAL)}
+                    padding=PADDING
                 >
-                    <Text style=TextStyle::CAPTION color=TextColor::Default wrap=true>{label}</Text>
+                    <Text style=TextStyle::CAPTION color=TextColor::Default>{label}</Text>
                 </Frame>
             </List>
         </Frame>

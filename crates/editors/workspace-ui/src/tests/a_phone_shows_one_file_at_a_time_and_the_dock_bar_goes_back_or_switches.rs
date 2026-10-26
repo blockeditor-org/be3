@@ -94,10 +94,17 @@ fn a_phone_shows_one_file_at_a_time_and_the_dock_bar_goes_back_or_switches() {
     );
     assert_eq!(fixture.shown(), vec![second], "and leaves the file on show");
 
+    tap(&mut fixture, "dock.menu");
+    let document = fixture.test.document();
+    let root = document.root().expect("the workspace has a root");
     assert!(
-        !fixture.test.shown("dock.menu"),
-        "the dock bar offers no menu before the block hands one over"
+        text_within(&document, root, "Access").is_some()
+            && text_within(&document, root, "Rename").is_none(),
+        "before the block hands its menu over, the dock bar offers only the workspace's part of it"
     );
+    drop(document);
+    fixture.test.back();
+    fixture.settle();
     let child = placed(&fixture, second)
         .expect("the block is on show")
         .child;
@@ -114,27 +121,29 @@ fn a_phone_shows_one_file_at_a_time_and_the_dock_bar_goes_back_or_switches() {
         resize: ResizeMode::None,
         error: None,
         menu: match placement.child == child {
-            true => vec![MenuEntry::Command(MenuCommand {
+            true => MenuEntry::flatten(&[MenuEntry::Command(MenuCommand {
                 id: "editor.rename".into(),
                 label: "Rename".into(),
                 enabled: true,
                 ..MenuCommand::default()
-            })],
+            })]),
             false => Vec::new(),
         },
         creation: None,
-        settings: None,
+        preview: Default::default(),
+        dialog: Default::default(),
     });
     fixture.settle();
     tap(&mut fixture, "dock.menu");
     let document = fixture.test.document();
     let root = document.root().expect("the workspace has a root");
-    let rename = text_within(document, root, "Rename").expect("the dock's menu lists Rename");
+    let rename = text_within(&document, root, "Rename").expect("the dock's menu lists Rename");
     let at = document
         .node_rect(rename)
         .expect("the row is laid out")
         .center();
-    fixture.test.click_at(at);
+    drop(document);
+    fixture.test.click(at);
     fixture.settle();
     assert_eq!(
         fixture.test.take_child_menu_picks(),

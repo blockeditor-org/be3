@@ -17,7 +17,7 @@ fn a_windows_surfaces_are_drawn_back_to_front() {
     harness.client.flush();
     harness.settle();
 
-    let state = &harness.app.server().state;
+    let state = &harness.compositor().server().state;
     let parent = state.surface(id).expect("the window has a surface");
     let name = |surface: &smithay::reexports::wayland_server::protocol::wl_surface::WlSurface| {
         let id = surface.id().protocol_id();

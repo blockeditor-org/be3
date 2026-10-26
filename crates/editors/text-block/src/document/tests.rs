@@ -2,7 +2,7 @@ use block_editor_beui::be_block::block_url::block_url;
 use uuid::Uuid;
 
 use block_editor_beui::Waker;
-use block_editor_beui::be_block::TextBlock;
+use text_block_types::TextBlock;
 use text_editor_core::{Document, TextChange};
 
 use super::{BlockDocument, History, TextBody, inside_block_url};

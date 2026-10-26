@@ -1,7 +1,8 @@
 use super::*;
 use crate::base::overlay::{OverlayAnchor, OverlayNode, Placement};
-use crate::input::{BackGesture, KeyPress};
+use crate::input::BackGesture;
 use crate::primitives::Frame;
+use crate::primitives::List;
 use crate::reactive::*;
 use crate::styled::*;
 use crate::{Dismiss, KeyEvent, LayerLevel};
@@ -60,15 +61,15 @@ fn a_locking_overlay_stays_on_top_and_shuts_out_global_keys() {
     harness.key(Key::K, Modifiers::CTRL);
     assert_eq!(
         globals.get_untracked(),
-        2,
-        "global keys are heard while unlocked"
+        4,
+        "global keys are heard while unlocked, Ctrl going down and up around K"
     );
     set(&mut harness, locked, true);
     assert!(harness.document().locked());
 
     harness.key(Key::Escape, Modifiers::NONE);
     harness.click(pos2(VIEWPORT.x - 5.0, VIEWPORT.y - 5.0));
-    harness.frame(vec![Event::Back(BackGesture::Invoked)]);
+    harness.frame(vec![Input::Back(BackGesture::Invoked)]);
     with_reactive_scope(harness.document_mut(), || {
         with_document(|document| document.request_dismiss(lock, Dismiss::Back));
     });
@@ -93,12 +94,15 @@ fn a_locking_overlay_stays_on_top_and_shuts_out_global_keys() {
         "media keys still reach global actions while locked"
     );
     let before = globals.get_untracked();
-    harness.frame(vec![Event::InterceptedKey(KeyPress {
-        key: Key::K,
-        pressed: true,
-        repeat: false,
-        modifiers: Modifiers::CTRL,
-    })]);
+    harness.frame(vec![
+        Input::Modifiers(Modifiers::CTRL),
+        Input::InterceptedKey {
+            key: Key::K,
+            pressed: true,
+            repeat: false,
+        },
+        Input::Modifiers(Modifiers::NONE),
+    ]);
     assert_eq!(
         globals.get_untracked(),
         before,

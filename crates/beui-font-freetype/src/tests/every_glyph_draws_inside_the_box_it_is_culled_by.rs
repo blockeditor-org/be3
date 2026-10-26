@@ -12,7 +12,9 @@ fn every_glyph_draws_inside_the_box_it_is_culled_by() {
     };
     let mut fonts = Fonts::new(FreetypeFonts::new(FontLibrary::new(sources)));
     let text = "Quick fjord gyp! WAVY {[|]} 0123 \u{1f600}";
-    let icons: String = [beui_core::icons::ICON_CODE, beui_core::icons::ICON_WIDGETS].concat();
+    let icons: String = [beui_core::icons::ICON_CODE, beui_core::icons::ICON_BLOCKS]
+        .map(beui_core::icons::Glyph::as_str)
+        .concat();
     for size in [9.0, 13.0, 16.0, 24.0, 40.0] {
         for (bold, italic) in [(false, false), (true, false), (false, true), (true, true)] {
             for (family, text) in [

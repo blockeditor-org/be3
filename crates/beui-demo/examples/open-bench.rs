@@ -39,10 +39,20 @@ mod counting {
 
 #[cfg(not(target_arch = "wasm32"))]
 mod bench {
+    use std::any::Any;
+    use std::cell::{Cell, RefCell};
+    use std::rc::Rc;
     use std::time::{Duration, Instant};
 
-    use beui::{App, Context, Event, Modifiers, PointerButton, Pos2, RawInput, Rect, Vec2};
-    use beui_core::renderer::Renderer;
+    use beui::testing::Screen;
+    use beui::{
+        Color32, Context, Incoming, Input, Launch, PlatformServices, PointerButton, Pos2, Rect,
+        RunOptions, ScrollDelta, Setup, Vec2, Waker, WindowOutput,
+    };
+    use beui_core::app::SafeArea;
+    use beui_core::context::RendererInfo;
+    use beui_core::renderer::{Loaded, Renderer};
+    use beui_core::runner::Runner;
     use beui_demo::DemoApp;
     use beui_renderer_wgpu::offscreen::OffscreenSurface;
 
@@ -79,10 +89,57 @@ mod bench {
         "Layering",
     ];
 
+    type Gpu = Rc<RefCell<Option<OffscreenSurface>>>;
+
+    struct Bare;
+
+    impl PlatformServices for Bare {}
+
+    struct Timing {
+        gpu: Gpu,
+        screen: Screen,
+        prepared: Rc<Cell<Duration>>,
+    }
+
+    impl Renderer for Timing {
+        fn name(&self) -> &'static str {
+            "timing"
+        }
+
+        fn info(&self) -> RendererInfo {
+            RendererInfo::default()
+        }
+
+        fn resize(&mut self, width: u32, height: u32) {
+            self.screen.resize(width, height);
+        }
+
+        fn physical(&self) -> Option<Vec2> {
+            self.screen.physical()
+        }
+
+        fn prepare(&mut self, output: &WindowOutput, scale: f32, background: Color32) -> bool {
+            let started = Instant::now();
+            let pending = match &mut *self.gpu.borrow_mut() {
+                Some(gpu) => gpu.prepare(output, scale, background),
+                None => self.screen.prepare(output, scale, background),
+            };
+            self.prepared.set(started.elapsed());
+            pending
+        }
+
+        fn present(&mut self, background: Color32) -> bool {
+            match &mut *self.gpu.borrow_mut() {
+                Some(gpu) => gpu.present(background),
+                None => false,
+            }
+        }
+    }
+
     struct Bench {
-        context: Context,
-        app: DemoApp,
-        gpu: Option<OffscreenSurface>,
+        runner: Runner,
+        gpu: Gpu,
+        prepared: Rc<Cell<Duration>>,
     }
 
     struct Timed {
@@ -94,38 +151,74 @@ mod bench {
     }
 
     impl Bench {
-        fn new(context: Context, gpu: Option<OffscreenSurface>) -> Self {
-            Self {
+        fn new(context: Context, gpu: Gpu) -> Self {
+            let prepared = Rc::new(Cell::new(Duration::ZERO));
+            let mut runner = Runner::new(Launch {
+                options: RunOptions {
+                    size: VIEWPORT,
+                    ..RunOptions::default()
+                },
                 context,
-                app: DemoApp::new(),
+                app: Box::new(DemoApp::new()),
+                layers: Vec::new(),
+            });
+            let timing = Timing {
+                gpu: Rc::clone(&gpu),
+                screen: Screen(VIEWPORT),
+                prepared: Rc::clone(&prepared),
+            };
+            runner
+                .start(
+                    vec![Loaded {
+                        renderer: Box::new(timing),
+                        fonts: None,
+                    }],
+                    Setup::new(Waker::new(|| {})),
+                )
+                .expect("the bench's renderer starts");
+            Self {
+                runner,
                 gpu,
+                prepared,
             }
         }
 
-        fn frame(&mut self, events: Vec<Event>) -> Timed {
-            self.context.advance_clock(FRAME_INTERVAL);
-            let app = &mut self.app;
+        fn app(&self) -> &DemoApp {
+            let app: &dyn Any = self.runner.app();
+            app.downcast_ref().expect("the bench runs the demo")
+        }
+
+        fn frame(&mut self, inputs: Vec<Input>) -> Timed {
+            self.runner.context().advance_clock(FRAME_INTERVAL);
+            for input in inputs {
+                self.runner.push(Incoming::points(input));
+            }
+            self.prepared.set(Duration::ZERO);
             let started = Instant::now();
-            let output = self.context.run(RawInput { events }, |context| {
-                app.update(context, Rect::from_min_size(Pos2::ZERO, VIEWPORT));
-            });
-            let took = started.elapsed();
-            let (mut prepare, mut present) = (Duration::ZERO, Duration::ZERO);
-            if let Some(gpu) = &mut self.gpu {
-                let background = output.window.appearance.clear_color;
+            self.runner.frame(&mut Bare, SafeArea::default());
+            let elapsed = started.elapsed();
+            if let Some(failure) = self.runner.failure() {
+                panic!("the demo panicked: {failure}");
+            }
+            let prepare = self.prepared.get();
+            let took = elapsed.saturating_sub(prepare);
+            let mut present = Duration::ZERO;
+            if self.gpu.borrow().is_some() {
                 let started = Instant::now();
-                gpu.prepare(&output, 1.0, background);
-                prepare = started.elapsed();
-                let started = Instant::now();
-                gpu.present(background);
+                self.runner.present();
                 present = started.elapsed();
             }
+            let repaint = self
+                .runner
+                .output()
+                .expect("a running bench draws every frame")
+                .repaint;
             Timed {
                 took,
                 prepare,
                 present,
-                repaint: output.repaint,
-                perf: self.app.document.performance(),
+                repaint,
+                perf: self.app().document.performance(),
             }
         }
 
@@ -143,7 +236,7 @@ mod bench {
         }
 
         fn row(&self, title: &str) -> Rect {
-            let document = &self.app.document;
+            let document = &self.app().document;
             let node = document
                 .find_test_id(&format!("demo.catalog.{title}"))
                 .unwrap_or_else(|| panic!("no catalog row for {title}"));
@@ -163,20 +256,19 @@ mod bench {
                     120.0
                 };
                 self.frame(vec![
-                    Event::PointerMoved(catalog),
-                    Event::Scroll(Vec2::new(0.0, down)),
+                    Input::PointerMoved(catalog),
+                    Input::Scroll(ScrollDelta::Pixels(Vec2::new(0.0, down))),
                 ]);
-                self.frame(vec![Event::ScrollEnded]);
+                self.frame(vec![Input::ScrollEnded]);
                 self.settle();
             }
             let pos = self.row(title).center();
-            self.frame(vec![Event::PointerMoved(pos)]);
+            self.frame(vec![Input::PointerMoved(pos)]);
             self.settle();
-            self.frame(vec![Event::PointerButton {
+            self.frame(vec![Input::PointerButton {
                 pos,
                 button: PointerButton::Primary,
                 pressed: true,
-                modifiers: Modifiers::NONE,
             }]);
             self.settle();
             self.release(pos)
@@ -185,16 +277,15 @@ mod bench {
         #[inline(never)]
         fn release(&mut self, pos: Pos2) -> (Vec<Timed>, u64) {
             let allocations = crate::counting::allocations();
-            let mut frames = vec![self.frame(vec![Event::PointerButton {
+            let mut frames = vec![self.frame(vec![Input::PointerButton {
                 pos,
                 button: PointerButton::Primary,
                 pressed: false,
-                modifiers: Modifiers::NONE,
             }])];
             frames.extend(self.settle());
             let allocations = crate::counting::allocations() - allocations;
             if std::env::var_os("UNPLACED").is_some() {
-                let document = &self.app.document;
+                let document = &self.app().document;
                 let mut stack: Vec<_> = document.root().into_iter().collect();
                 let mut found = std::collections::HashMap::<String, (usize, usize)>::new();
                 fn size(document: &beui_core::document::Document, node: beui::NodeId) -> usize {
@@ -282,20 +373,19 @@ mod bench {
         let filter = std::env::args().nth(1);
         let context = beui::context();
         context.stop_clock();
-        context.keep_accessibility(false);
         let started = Instant::now();
         let gpu = std::env::var_os("GPU").map(|_| {
             pollster::block_on(OffscreenSurface::new(
                 VIEWPORT.x as u32,
                 VIEWPORT.y as u32,
-                None,
+                Default::default(),
             ))
             .expect("an offscreen GPU")
         });
-        let mut bench = Bench::new(context.clone(), gpu);
+        let gpu: Gpu = Rc::new(RefCell::new(gpu));
+        let mut bench = Bench::new(context.clone(), Rc::clone(&gpu));
         bench.frame(Vec::new());
         bench.settle();
-        let mut gpu = bench.gpu.take();
         println!("startup {:?}", started.elapsed());
         let repeat: usize = std::env::var("REPEAT")
             .ok()
@@ -312,11 +402,10 @@ mod bench {
                 {
                     continue;
                 }
-                let mut bench = Bench::new(context.clone(), gpu.take());
+                let mut bench = Bench::new(context.clone(), Rc::clone(&gpu));
                 bench.frame(Vec::new());
                 bench.settle();
                 let (frames, allocations) = bench.open(title);
-                gpu = bench.gpu.take();
                 let worst = report(label, title, &frames, allocations, verbose);
                 match summary.iter_mut().find(|held| held.title == title) {
                     Some(held) => {
@@ -352,6 +441,11 @@ mod bench {
             for (log, duration) in logs.iter_mut().zip([cold, min, median, max]) {
                 *log += ms(duration).max(1e-3).ln();
             }
+            let page = title.to_lowercase().replace(' ', "-");
+            ::bench::time(&format!("{page}.cold"), cold);
+            ::bench::time(&format!("{page}.warm-fastest"), min);
+            ::bench::time(&format!("{page}.warm-median"), median);
+            ::bench::count(&format!("{page}.allocations"), allocations);
             println!(
                 "{title:<16} {:>9.2} {:>9.2} {:>9.2} {:>9.2} {allocations:>12}",
                 ms(cold),
@@ -361,6 +455,9 @@ mod bench {
             );
         }
         let [cold, min, median, max] = logs.map(|log| (log / summary.len().max(1) as f64).exp());
+        ::bench::record("mean.cold", cold, "ms");
+        ::bench::record("mean.warm-fastest", min, "ms");
+        ::bench::record("mean.warm-median", median, "ms");
         println!(
             "{:<16} {cold:>9.2} {min:>9.2} {median:>9.2} {max:>9.2}",
             "geomean"

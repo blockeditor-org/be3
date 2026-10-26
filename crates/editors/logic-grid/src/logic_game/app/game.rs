@@ -1,13 +1,15 @@
-use block_editor_beui::be_block::{BlockContent, HotbarContent};
+use block_editor_beui::be_block::BlockContent;
+use logic_grid_types::{Hotbar, HotbarContent};
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;
 
-use block_editor_beui::be_block::logic_game::LogicGameOperation;
-use block_editor_beui::be_block::{LogicGridContent, LogicGridDocument, ObjectId};
+use block_editor_beui::be_block::ObjectId;
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::root_settings::RootSetting;
 use block_editor_beui::{BlockList, BlockParent, BlockQuery, ContentProjection, Editor};
+use logic_grid_types::LogicGameOperation;
+use logic_grid_types::{LogicGridContent, LogicGridDocument};
 use logicgame::challenges::ChallengeId;
 use uuid::Uuid;
 
@@ -174,6 +176,41 @@ impl Game {
             self.editor
                 .host()
                 .open_block(hotbar, HotbarContent::CONTENT_TYPE);
+        }
+    }
+
+    pub(crate) fn world_hotbar(&self) -> Memo<Option<Uuid>> {
+        let set = self
+            .editor
+            .nearest_settings(self.editor.block_id(), HotbarContent::CONTENT_TYPE);
+        let world = self.editor.block_id();
+        create_memo(move || {
+            set.get()
+                .filter(|set| set.owner == world)
+                .map(|set| set.block)
+        })
+    }
+
+    pub(crate) fn can_manage(&self) -> Memo<bool> {
+        let (blocks, world) = (self.editor.blocks(), self.editor.block_id());
+        create_memo(move || blocks.access(world).can_manage())
+    }
+
+    pub(crate) fn open_world_hotbar(&self) {
+        let own = self.hotbar.get_untracked().and_then(|hotbar| {
+            self.editor
+                .content_of::<HotbarContent>(hotbar)
+                .read(|content| content.clone())
+                .ok()
+        });
+        let world = self.editor.block_id();
+        if let Some(block) = self
+            .editor
+            .ensure_block_kind::<Hotbar>(world, own.unwrap_or_default())
+        {
+            self.editor
+                .host()
+                .open_block(block, HotbarContent::CONTENT_TYPE);
         }
     }
 

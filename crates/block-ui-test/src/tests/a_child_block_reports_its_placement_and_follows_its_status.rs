@@ -19,8 +19,8 @@ fn a_child_block_reports_its_placement_and_follows_its_status() {
         }
     );
     assert_eq!(placement.mode, ChildMode::Preview);
-    assert_eq!(placement.rect.width, 320.0);
-    assert_eq!(placement.rect.height, 180.0);
+    assert_eq!(placement.rect.width(), 320.0);
+    assert_eq!(placement.rect.height(), 180.0);
 
     test.run();
     assert_eq!(status(&test), "waiting");

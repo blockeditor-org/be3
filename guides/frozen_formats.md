@@ -8,13 +8,17 @@ else may still change freely.
 
 - **The server's data directory**: `metadata.sqlite` (its tables and columns,
   and how each value is written: ids as text, hashes as hex, kinds, roles,
-  access levels, parent kinds, `wrapped_by` as a key id or `account:{uuid}`,
+  access levels (`know_exists`, `view`, `edit`, `manage`), parent kinds, `wrapped_by` as a key id or `account:{uuid}`,
   password and token hashes) and `objects/`, each object in `objects/ab/cdef…`
   named by the SHA-256 of its bytes. That covers organizations (company or
   personal) and memberships, workspace and other blocks with their sealed
-  metadata and current data key, grants, invitations, contact links,
+  metadata and current data key, commits (with the time the server received
+  each, `block_commits.received`, 0 before it was recorded), grants, invitations, contact links,
   contacts and key changes, the `keys` and `wrapped_keys` rows, pinned escrow
-  keys, pending rotations and agents.
+  keys, pending rotations and agents, which edit kinds were ever opened to
+  anyone inside (`opened_kinds`), and the server's own account
+  (`server_account`: its account id and the secret of the key that blocks
+  shared with the server are sealed to).
 - **The server's backups**: `databases/*.sealed`, sealed with the backup key,
   and `objects/` laid out as on the server.
 - **What the objects and rows hold**, all sealed so only clients read them:
@@ -50,11 +54,21 @@ blocks (a clean break agreed with the user: data moved across in block
 files). What `crates/be-frozen`'s snapshots hold, from 2026-10-16 on, is read
 forever.
 
+Section 1 of `plans/settings.md` is a second, one-time break of the same kind:
+its changes (metadata that points to a block, with `ARTIFACT` now pointing to
+its source; the access model; settings blocks, their `SETTINGS` metadata and
+the `ANYONE_INSIDE` grant on a kind) land together, and then the one
+server with data is wiped and its content re-imported once from a block file.
+Until then they may change other saved data incompatibly, but not what
+`crates/be-frozen`'s snapshots and fixture hold (none of it carries
+`ARTIFACT` metadata, which only the app writes), so those stay read forever
+throughout; afterwards the rules below hold again for everything.
+
 Not frozen yet: every other block type, the network
 protocol (server and clients are upgraded together and refuse other builds),
 the local plugin API, live-session state (operations,
 `LiveEdit::session_state`, relayed messages, presence), and the app's own
-files on a device (`app.sqlite3`, caches).
+files on a device (`app.sqlite3`, the refs database, caches).
 
 Remote human session credentials from before the account portal are intentionally invalidated
 when session metadata is introduced; users sign in again. Account data, password hashes,
@@ -77,9 +91,12 @@ Only add:
 
 ## The tests
 
-- be-block's `tests/frozen_*.rs` hold each frozen block type's registry and a
-  document it saved, checked by `be_model::schema::check_frozen` (the stack
-  guide's "Freezing a version").
+- The `tests/frozen_*.rs` of the crate that holds a frozen block type (`crates/editors/database/types`
+  for the database types, `crates/editors/text-block/types` for text,
+  `crates/editors/workspace-ui/types` for the folder and the workspace) hold its registry and a document it saved, checked
+  by `be_model::schema::check_frozen` (the stack guide's "Freezing a
+  version"), and a test there checks its registers read without any one field.
+  Moving a type into its plugin moves these with it.
 - `crates/be-frozen` holds `src/fixtures/tracker.block`, a block file the
   `block-file` example wrote with the code of 2026-10-16: a folder holding a
   text block and a tracker database (view, database, schema, two rows linked to
@@ -94,7 +111,9 @@ Only add:
   `be`'s tracker: a company organization (My files with notes, a Team
   workspace holding the tracker database shared with an agent, an
   administrator demoted so the escrow key rotated, a grant revoked so Team's
-  scope key rotated, a pending invitation) and the personal organization (a
+  scope key rotated, a pending invitation, and from 2026_10_25 the
+  organization's settings shared with the server, holding a policy it
+  enforces) and the personal organization (a
   folder shared with a contact made by link, a pending link carrying a grant,
   and that contact's change of recovery phrase). The test serves each
   snapshot and reads it the way the app and `be` do: signing in by password,
@@ -118,6 +137,5 @@ test that serves them):
 
 with the day's date as the name. The test then checks the new part only in
 the snapshots that hold it. Freezing a block type also means `Root::FROZEN`, a
-`frozen_*.rs` module, its kind in be-block's
-`the_frozen_blocks_read_every_register_without_any_one_field`, and a line in
-this guide.
+`frozen_*.rs` module and a `registers_accept_missing_fields` check of its kind
+in its crate's tests, and a line in this guide.

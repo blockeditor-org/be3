@@ -1,7 +1,7 @@
-use block_editor_beui::be_block::{Counter, CounterContent};
 use block_editor_beui::beui::{Document, NodeId};
 use block_editor_beui::{EditorHost, OwnedEditor};
 use block_ui_test::BeuiTest;
+use counter_types::{Counter, CounterContent};
 use uuid::Uuid;
 
 use crate::app::BlockDebugApp;
@@ -23,7 +23,7 @@ fn says(test: &BeuiTest<BlockDebugApp>, words: &str) -> bool {
     let document = test.document();
     document
         .root()
-        .is_some_and(|root| says_within(document, root, words))
+        .is_some_and(|root| says_within(&document, root, words))
 }
 
 fn says_within(document: &Document, node: NodeId, words: &str) -> bool {
@@ -34,5 +34,5 @@ fn says_within(document: &Document, node: NodeId, words: &str) -> bool {
         || document
             .children(node)
             .into_iter()
-            .any(|child| says_within(document, child, words))
+            .any(|child| says_within(&document, child, words))
 }

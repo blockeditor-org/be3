@@ -1,30 +1,36 @@
+use beui::Overflow;
 use block_editor_beui::be_block::settings::{Settings, SettingsProfile};
 use block_editor_beui::be_block::{
-    BlockContent, DisplaySettingsContent, EditorSettingsContent, InputSettingsContent, LiveEdit,
-    SettingsContent, SettingsProfileContent,
+    BlockContent, DisplaySettingsContent, InputSettingsContent, LiveEdit, SettingsContent,
+    SettingsProfileContent, TagsContent, WORKSPACE_TYPE,
 };
+use block_editor_beui::beui::icons::Glyph;
 use block_editor_beui::beui::icons::{
-    ICON_ADD, ICON_APPS, ICON_ARROW_BACK, ICON_DEVICES, ICON_KEYBOARD, ICON_MONITOR,
+    ICON_ARROW_LEFT, ICON_FOLDER_COG, ICON_KEYBOARD, ICON_LAYOUT_GRID, ICON_MONITOR,
+    ICON_MONITOR_SMARTPHONE, ICON_PLUS, ICON_TAG,
 };
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
 use block_editor_beui::beui::{NodeId, TextAlign};
 use block_editor_beui::root_settings::is_own_settings;
 use block_editor_beui::{BlockParent, BlockQuery, ContentProjection, Editor};
+use settings_types::EditorSettingsContent;
 use uuid::Uuid;
 
+use super::block;
 use super::devices::DevicesTable;
+use super::organization::{OfflineSection, OrganizationSection};
 use super::setup::{DeviceSection, DeviceSetup, DifferencesSection, SetUpDone, SetUpHeading};
 
-const PADDING: f32 = 16.0;
-const SPACING: f32 = 10.0;
-const SECTION_SPACING: f32 = 24.0;
-const CAPTION_SPACING: f32 = 2.0;
-const ROW_SPACING: f32 = 2.0;
-const ROW_PADDING: f32 = 4.0;
-const ROW_GAP: f32 = 12.0;
-const CARD_PADDING: f32 = 6.0;
-const NOTICE_INSET: f32 = 24.0;
+const PADDING: Space = Space::Xl;
+const SPACING: Space = Space::Md;
+const SECTION_SPACING: Space = Space::Xl3;
+const CAPTION_SPACING: Space = Space::Xs2;
+const ROW_SPACING: Space = Space::Xs2;
+const ROW_PADDING: Space = Space::Xs;
+const ROW_GAP: Space = Space::Lg;
+const CARD_PADDING: Space = Space::Sm;
+const NOTICE_INSET: Space = Space::Xl3;
 
 const NOT_OURS: &str = "These settings belong to another account. This device never uses them, and they stay as they are.";
 
@@ -69,12 +75,13 @@ pub fn SettingsView(editor: Editor) -> NodeId {
     let devices = create_signal(false);
     let here = create_memo(move || !devices.get());
     let away = create_memo(move || devices.get());
+    let own_here = create_memo(move || own.get() && here.get());
     view! {
         <Scroll>
             <Frame padding=PADDING>
                 <List spacing=SECTION_SPACING>
                     <Show condition={others}>
-                        <Text style=TextStyle::CAPTION wrap=true>{NOT_OURS}</Text>
+                        <Text style=TextStyle::CAPTION>{NOT_OURS}</Text>
                     </Show>
                     <Show condition={here}>
                         <Section
@@ -91,12 +98,39 @@ pub fn SettingsView(editor: Editor) -> NodeId {
                                 <SettingRow
                                     label="Devices and profiles"
                                     detail="What each device keeps for itself"
-                                    glyph={ICON_DEVICES.to_owned()}
+                                    glyph=ICON_MONITOR_SMARTPHONE
                                     @test_id={"settings.devices"}
                                     on_click={move || devices.set(true)}
                                 />
                             </List>
                         </Section>
+                    </Show>
+                    <Show condition={here}>
+                        <Workspaces editor={editor} />
+                    </Show>
+                    <Show condition={own_here}>
+                        <Section
+                            title="Tags"
+                            caption="Your own tags, which only you see. A workspace's tags are in a block's menu in Files."
+                        >
+                            <SettingRow
+                                label="Your tags"
+                                detail="Put them on any block you can edit"
+                                glyph=ICON_TAG
+                                @test_id={"settings.personal-tags"}
+                                on_click={move || {
+                                    if let Some(tags) = editor.personal_tags() {
+                                        editor.host().open_block(tags, TagsContent::CONTENT_TYPE);
+                                    }
+                                }}
+                            />
+                        </Section>
+                    </Show>
+                    <Show condition={here}>
+                        <OfflineSection editor={editor} />
+                    </Show>
+                    <Show condition={here}>
+                        <OrganizationSection editor={editor} />
                     </Show>
                     <Show condition={away}>
                         <DevicesAndProfiles
@@ -110,6 +144,65 @@ pub fn SettingsView(editor: Editor) -> NodeId {
                 </List>
             </Frame>
         </Scroll>
+    }
+}
+
+#[component]
+fn Workspaces(editor: Editor) -> NodeId {
+    let roots = editor.watch_blocks(BlockQuery::Roots);
+    let blocks = editor.blocks();
+    let account = blocks.account_id();
+    let workspaces = create_memo(move || {
+        let mut found: Vec<Uuid> = roots
+            .get()
+            .into_iter()
+            .flatten()
+            .filter(|info| info.block_type == WORKSPACE_TYPE && info.access.can_view())
+            .map(|info| info.id)
+            .collect();
+        found.sort_by_key(|id| {
+            (
+                editor.blocks().info(*id).and_then(|info| info.author) != Some(account),
+                *id,
+            )
+        });
+        found
+    });
+    let listed = create_memo(move || !workspaces.with(Vec::is_empty));
+    view! {
+        <List spacing=Space::None>
+            <Show condition={listed}>
+                <Section
+                    title="Workspaces"
+                    caption="What a workspace sets applies to everything inside it, for everyone who can view it."
+                >
+                    <List spacing=ROW_SPACING>
+                        <ForEach keys={workspaces}>|workspace: Uuid| {
+                            let label = create_memo(move || block::name_of(editor, workspace));
+                            let set = create_memo(move || editor.settings_block(workspace).is_some());
+                            let manages =
+                                create_memo(move || editor.blocks().access(workspace).can_manage());
+                            let detail = create_memo(move || match (set.get(), manages.get()) {
+                                (true, _) => "Has settings of its own".to_owned(),
+                                (false, true) => "Nothing set yet".to_owned(),
+                                (false, false) => "Nothing set, and only its managers set them".to_owned(),
+                            });
+                            let unopenable = create_memo(move || !set.get() && !manages.get());
+                            view! {
+                                <SettingRow
+                                    label={label}
+                                    detail={detail}
+                                    glyph=ICON_FOLDER_COG
+                                    disabled={unopenable}
+                                    @test_id={format!("settings.workspace.{workspace}")}
+                                    on_click={move || block::open_settings_of(editor, workspace)}
+                                />
+                            }
+                        }</ForEach>
+                    </List>
+                </Section>
+            </Show>
+        </List>
     }
 }
 
@@ -128,10 +221,10 @@ fn DevicesAndProfiles(
     let children = editor.watch_blocks(BlockQuery::Children(block));
     view! {
         <List spacing=SECTION_SPACING>
-            <List direction=Direction::Horizontal spacing=0.0>
+            <List direction=Direction::Horizontal spacing=Space::None>
                 <Button
                     label="Settings"
-                    glyph={ICON_ARROW_BACK.to_owned()}
+                    glyph=ICON_ARROW_LEFT
                     variant=ButtonVariant::Ghost
                     @test_id={"settings.back"}
                     on_click={on_back}
@@ -167,7 +260,7 @@ fn DevicesAndProfiles(
                             <SettingRow
                                 label={label}
                                 detail={detail}
-                                glyph={ICON_DEVICES.to_owned()}
+                                glyph=ICON_MONITOR_SMARTPHONE
                                 selected={selected}
                                 @test_id={format!("settings.profile.{profile}")}
                                 on_click={move || {
@@ -180,7 +273,7 @@ fn DevicesAndProfiles(
                     }</ForEach>
                     <Button
                         label="New settings profile"
-                        glyph={ICON_ADD.to_owned()}
+                        glyph=ICON_PLUS
                         variant=ButtonVariant::Ghost
                         disabled={blocked}
                         @test_id={"settings.new-profile"}
@@ -247,8 +340,8 @@ pub fn SettingsProfileView(editor: Editor) -> NodeId {
     view! {
         <SettingsPage>
             <Show condition={others}>
-                <Frame padding={Sides::horizontal(NOTICE_INSET)}>
-                    <Text style=TextStyle::CAPTION wrap=true>{NOT_OURS}</Text>
+                <Frame padding={Padding::horizontal(NOTICE_INSET)}>
+                    <Text style=TextStyle::CAPTION>{NOT_OURS}</Text>
                 </Frame>
             </Show>
             <Show condition={setting_up}>
@@ -296,14 +389,14 @@ pub fn SettingsProfileView(editor: Editor) -> NodeId {
 }
 
 #[component]
-fn Section(title: &'static str, caption: &'static str, children: Child) -> NodeId {
+pub(super) fn Section(title: &'static str, caption: &'static str, children: Child) -> NodeId {
     let captioned = !caption.is_empty();
     view! {
         <List spacing=SPACING>
             <List spacing=CAPTION_SPACING>
                 <Text style=TextStyle::HEADING>{title}</Text>
                 <Show condition={captioned}>
-                    <Text style=TextStyle::CAPTION wrap=true>{caption}</Text>
+                    <Text style=TextStyle::CAPTION>{caption}</Text>
                 </Show>
             </List>
             {children}
@@ -315,7 +408,7 @@ fn Section(title: &'static str, caption: &'static str, children: Child) -> NodeI
 fn SettingRow(
     label: Prop<String>,
     #[prop(default = String::new())] detail: Prop<String>,
-    glyph: Prop<String>,
+    glyph: Prop<Option<Glyph>>,
     #[prop(default = false)] selected: Prop<bool>,
     #[prop(default = false)] disabled: Prop<bool>,
     on_click: ClickCallback,
@@ -335,15 +428,17 @@ fn SettingRow(
     });
     view! {
         <ListRow selected disabled={off} on_click={on_click}>
-            <Frame padding={Sides::vertical(ROW_PADDING)}>
+            <Frame padding={Padding::vertical(ROW_PADDING)}>
                 <List direction=Direction::Horizontal align=Align::Center spacing=ROW_GAP>
                     <Text color={icon_color} align=TextAlign::Center>
                         <Icon glyph={glyph} />
                     </Text>
-                    <List @sizing=ItemSize::Percent(100.0) spacing=0.0>
-                        <Text color={text_color} ellipsis=true>{label}</Text>
+                    <List @sizing=ItemSize::Percent(100.0) spacing=Space::None>
+                        <Text color={text_color} overflow=Overflow::Ellipsis>{label}</Text>
                         <Show condition={has_detail}>
-                            <Text style=TextStyle::CAPTION ellipsis=true>{detail}</Text>
+                            <Text style=TextStyle::CAPTION overflow=Overflow::Ellipsis>
+                                {detail}
+                            </Text>
                         </Show>
                     </List>
                 </List>
@@ -381,7 +476,7 @@ fn Kinds<C: Layer>(
             <SettingRow
                 label="Display"
                 detail="Theme, scale, screens, sleep and lock"
-                glyph={ICON_MONITOR.to_owned()}
+                glyph=ICON_MONITOR
                 selected={showing(display)}
                 disabled={blocked}
                 @test_id={"settings.display"}
@@ -390,7 +485,7 @@ fn Kinds<C: Layer>(
             <SettingRow
                 label="Input"
                 detail="Keyboard, pointers and pasting"
-                glyph={ICON_KEYBOARD.to_owned()}
+                glyph=ICON_KEYBOARD
                 selected={showing(input)}
                 disabled={blocked}
                 @test_id={"settings.input"}
@@ -399,7 +494,7 @@ fn Kinds<C: Layer>(
             <SettingRow
                 label="Default editors"
                 detail="Which editor opens each type"
-                glyph={ICON_APPS.to_owned()}
+                glyph=ICON_LAYOUT_GRID
                 selected={showing(editors)}
                 disabled={blocked}
                 @test_id={"settings.default-editors"}

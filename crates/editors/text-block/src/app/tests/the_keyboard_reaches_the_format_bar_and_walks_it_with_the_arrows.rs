@@ -11,9 +11,9 @@ fn the_keyboard_reaches_the_format_bar_and_walks_it_with_the_arrows() {
     editor.run();
     assert!(focused(&editor, "text.surface"));
 
-    editor.key_press(Key::Escape);
+    editor.key(Key::Escape, Modifiers::NONE);
     editor.run();
-    editor.key_press(Key::Tab);
+    editor.key(Key::Tab, Modifiers::NONE);
     editor.run();
     assert!(
         focused(&editor, "text.format.heading"),
@@ -24,23 +24,23 @@ fn the_keyboard_reaches_the_format_bar_and_walks_it_with_the_arrows() {
         "the bar stays while the focus is in it"
     );
 
-    editor.key_press(Key::ArrowRight);
+    editor.key(Key::ArrowRight, Modifiers::NONE);
     editor.run();
     assert!(focused(&editor, "text.format.bold"));
-    editor.key_press(Key::End);
+    editor.key(Key::End, Modifiers::NONE);
     editor.run();
     assert!(focused(&editor, "text.format.image"));
-    editor.key_press(Key::ArrowRight);
+    editor.key(Key::ArrowRight, Modifiers::NONE);
     editor.run();
     assert!(
         focused(&editor, "text.format.image"),
         "the arrows stop at the ends"
     );
-    editor.key_press(Key::Home);
+    editor.key(Key::Home, Modifiers::NONE);
     editor.run();
     assert!(focused(&editor, "text.format.heading"));
 
-    editor.key_press_modifiers(Modifiers::SHIFT, Key::Tab);
+    editor.key(Key::Tab, Modifiers::SHIFT);
     editor.run();
     assert!(focused(&editor, "text.surface"));
     assert!(editor.shown("text.format.bold"));

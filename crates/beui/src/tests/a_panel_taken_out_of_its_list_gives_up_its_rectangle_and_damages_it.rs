@@ -16,6 +16,6 @@ fn a_panel_taken_out_of_its_list_gives_up_its_rectangle_and_damages_it() {
         harness.document().node_rect(middle).is_none(),
         "a node its parent stopped placing is no longer placed"
     );
-    let damage = output.damage().expect("the list closed the gap");
+    let damage = output.main().damage().expect("the list closed the gap");
     assert!(damage.intersects(vacated));
 }

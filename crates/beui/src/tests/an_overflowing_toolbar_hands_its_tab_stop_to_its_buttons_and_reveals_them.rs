@@ -61,7 +61,7 @@ fn an_overflowing_toolbar_hands_its_tab_stop_to_its_buttons_and_reveals_them() {
             .focused()
             .get()
     );
-    assert!(harness.document.scroll_offset(scroll) > 0.0);
+    assert!(harness.document().scroll_offset(scroll) > 0.0);
     assert!(visible(&harness, buttons[4]));
 
     for _ in 0..4 {
@@ -86,7 +86,7 @@ fn an_overflowing_toolbar_hands_its_tab_stop_to_its_buttons_and_reveals_them() {
             .focused()
             .get()
     );
-    assert_eq!(harness.document.scroll_offset(scroll), 0.0);
+    assert_eq!(harness.document().scroll_offset(scroll), 0.0);
 
     harness.key(Key::End, Modifiers::NONE);
     harness.key(Key::ArrowLeft, Modifiers::NONE);

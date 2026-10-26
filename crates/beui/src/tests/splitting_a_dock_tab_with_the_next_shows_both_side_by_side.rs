@@ -1,5 +1,5 @@
 use super::*;
-use crate::unstyled::DockApi;
+use crate::dock::unstyled::DockApi;
 
 #[test]
 fn splitting_a_dock_tab_with_the_next_shows_both_side_by_side() {
@@ -9,12 +9,11 @@ fn splitting_a_dock_tab_with_the_next_shows_both_side_by_side() {
     harness.frame(Vec::new());
     let pos = harness.center(dock_tab(harness.document(), dock, "Tab 2"));
 
-    harness.frame(vec![Event::PointerMoved(pos)]);
-    harness.frame(vec![Event::PointerButton {
+    harness.frame(vec![Input::PointerMoved(pos)]);
+    harness.frame(vec![Input::PointerButton {
         pos,
         button: PointerButton::Secondary,
         pressed: true,
-        modifiers: Modifiers::NONE,
     }]);
     harness.frame(Vec::new());
     let row = text_within(harness.document(), dock, "Split with next tab")

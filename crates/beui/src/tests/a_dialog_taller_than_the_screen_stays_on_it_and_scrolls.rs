@@ -1,5 +1,6 @@
 use super::*;
 use crate::primitives::Frame;
+use crate::primitives::List;
 use crate::reactive::*;
 use crate::styled::*;
 
@@ -12,7 +13,7 @@ fn a_dialog_taller_than_the_screen_stays_on_it_and_scrolls() {
         move || {
             view! {
                 <List spacing=0.0>
-                    <Dialog open=true title="Tall" width=300.0 on_dismiss={|| {}}>
+                    <Dialog open=true title="Tall" width={Size::Custom(300.0)} on_dismiss={|| {}}>
                         <List spacing=8.0>
                             <Frame @node_ref=&first height=80.0 />
                             <ForEach keys={(0..8).collect::<Vec<usize>>()}>|_line: usize|
@@ -39,8 +40,8 @@ fn a_dialog_taller_than_the_screen_stays_on_it_and_scrolls() {
     );
 
     harness.frame(vec![
-        Event::PointerMoved(harness.center(first)),
-        Event::Scroll(Vec2::new(0.0, -2000.0)),
+        Input::PointerMoved(harness.center(first)),
+        Input::Scroll(ScrollDelta::Pixels(Vec2::new(0.0, -2000.0))),
     ]);
     harness.settle();
 

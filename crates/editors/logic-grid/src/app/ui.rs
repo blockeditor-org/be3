@@ -1,6 +1,6 @@
 use std::cell::Cell;
 
-use beui::icons::{ICON_BUILD, ICON_FIT_SCREEN, ICON_ZOOM_IN, ICON_ZOOM_OUT};
+use beui::icons::{ICON_SCAN, ICON_WRENCH, ICON_ZOOM_IN, ICON_ZOOM_OUT};
 use beui::reactive::*;
 use beui::styled::*;
 use beui::{CursorIcon, KeyPress, NodeId, PointerPress, Rect};
@@ -22,17 +22,17 @@ pub(super) fn LogicGridView(editor: Editor) -> NodeId {
     on_shortcut(move |press: KeyPress| shortcut(session, press));
     let chrome = editor.chrome_shown();
     view! {
-        <List spacing=0.0>
+        <List spacing=Space::None>
             <Show condition={waiting}>
                 <LoadingPane @sizing=ItemSize::Percent(100.0) label="Loading the grid" />
             </Show>
             <Show condition={loaded}>
-                <List @sizing=ItemSize::Percent(100.0) spacing=0.0>
+                <List @sizing=ItemSize::Percent(100.0) spacing=Space::None>
                     <GridToolbar session={session} shown={chrome} />
                     <List
                         @sizing=ItemSize::Percent(100.0)
                         direction=Direction::Horizontal
-                        spacing=0.0
+                        spacing=Space::None
                     >
                         <Sidebar side=Side::Left shown={chrome} width=HOTBAR_WIDTH>
                             <Hotbar session={session} />
@@ -112,7 +112,7 @@ fn GridToolbar(session: Session, shown: ReadSignal<bool>) -> DynamicSegment<List
         <Toolbar shown={shown}>
             <Button
                 label="Compile"
-                glyph={ICON_BUILD.to_owned()}
+                glyph=ICON_WRENCH
                 variant=ButtonVariant::Secondary
                 disabled={read_only}
                 @test_id={"logic-grid.compile"}
@@ -134,11 +134,12 @@ fn GridToolbar(session: Session, shown: ReadSignal<bool>) -> DynamicSegment<List
                 </Text>
             </Show>
             <Spacer @sizing=ItemSize::Percent(100.0) />
-            <IconButton glyph={ICON_ZOOM_OUT.to_owned()} label="Zoom out" on_click={zoom_out} />
+            <Button icon_only=true glyph=ICON_ZOOM_OUT label="Zoom out" on_click={zoom_out} />
             <Text style=TextStyle::CAPTION>{percent}</Text>
-            <IconButton glyph={ICON_ZOOM_IN.to_owned()} label="Zoom in" on_click={zoom_in} />
-            <IconButton
-                glyph={ICON_FIT_SCREEN.to_owned()}
+            <Button icon_only=true glyph=ICON_ZOOM_IN label="Zoom in" on_click={zoom_in} />
+            <Button
+                icon_only=true
+                glyph=ICON_SCAN
                 label="Return to the origin"
                 on_click={recenter}
             />

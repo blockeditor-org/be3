@@ -1,0 +1,316 @@
+package be3:plugin@0.1.0;
+
+/// The blocks an editor reads and changes through its host: the block graph,
+/// a block's content, history and version control, and asks to open blocks.
+interface blocks {
+    use types.{editor-id, failure, host-panel};
+    use be3:shared/ids@0.1.0.{
+        account-id, block-id, block-type-id, commit-id, content-type-id, uuid,
+    };
+    use be3:shared/access@0.1.0.{access-level};
+
+    /// Where a block is listed: at the root, detached from every parent, or
+    /// inside a block.
+    variant block-location {
+        root,
+        detached,
+        block(block-id),
+    }
+
+    variant block-query {
+        roots,
+        detached,
+        shared,
+        children(block-id),
+        references(block-id),
+        backrefs(block-id),
+        parents(block-id),
+        block(block-id),
+        /// The nearest kind of each type, above the block, that is open to
+        /// anyone who views a block inside its owner.
+        open-settings(block-id),
+    }
+
+    /// Metadata keyed by the uuid of its kind, each value its encoded bytes.
+    type metadata-entries = list<tuple<uuid, list<u8>>>;
+
+    record block-metadata {
+        defined: metadata-entries,
+        derived: metadata-entries,
+    }
+
+    record block-info {
+        block-id: block-id,
+        block-type: block-type-id,
+        author: option<account-id>,
+        parent: option<block-location>,
+        references: list<block-id>,
+        access: access-level,
+        metadata: block-metadata,
+        locked: bool,
+        deleted: bool,
+        /// The block has a grant of its own to an account.
+        sets-access: bool,
+    }
+
+    enum artifact-action {
+        regenerate,
+        unlink,
+    }
+
+    record artifact-state {
+        block-id: block-id,
+        source-type: uuid,
+        source: block-id,
+        summary: option<string>,
+        error: option<string>,
+        regenerating: bool,
+    }
+
+    record stored-head {
+        commit: commit-id,
+        content-type: content-type-id,
+        bytes: list<u8>,
+    }
+
+    record artifact-command {
+        action: artifact-action,
+    }
+
+    record unlink-command {
+        container: block-id,
+    }
+
+    record delete-command {
+        block-type: block-type-id,
+        source: block-location,
+    }
+
+    record move-command {
+        block-type: block-type-id,
+        source: block-location,
+        destination: block-id,
+        is-reference: bool,
+    }
+
+    record place-command {
+        block-type: block-type-id,
+        parent: block-id,
+        linked: bool,
+    }
+
+    /// What an editor asks the host to do with a block it draws: undo or redo
+    /// it, act on its artifact, unlink, delete, move, place or restore it.
+    variant block-command {
+        undo,
+        redo,
+        artifact(artifact-command),
+        unlink(unlink-command),
+        delete(delete-command),
+        move(move-command),
+        place(place-command),
+        restore,
+    }
+
+    enum conflict-side {
+        base,
+        ours,
+        theirs,
+        merged,
+    }
+
+    record adopt-command {
+        block-id: block-id,
+    }
+
+    record finish-command {
+        description: string,
+    }
+
+    record branch-command {
+        branch: string,
+    }
+
+    record create-branch-command {
+        name: string,
+    }
+
+    record resolve-command {
+        block-id: block-id,
+        take: conflict-side,
+    }
+
+    record undo-operation-command {
+        operation: uuid,
+    }
+
+    /// What a version control editor asks of the checkout or repository it
+    /// shows.
+    variant version-command {
+        adopt(adopt-command),
+        finish(finish-command),
+        update,
+        switch(branch-command),
+        create-branch(create-branch-command),
+        merge(branch-command),
+        new-checkout(branch-command),
+        resolve(resolve-command),
+        undo(undo-operation-command),
+        fork,
+        pull-upstream,
+        push-upstream,
+    }
+
+    record version-operation {
+        id: uuid,
+        time: s64,
+        author: account-id,
+        description: string,
+        undone: bool,
+    }
+
+    record version-branch {
+        name: string,
+        head: commit-id,
+    }
+
+    enum version-change-kind {
+        added,
+        removed,
+        modified,
+        moved,
+    }
+
+    record version-change {
+        block-id: block-id,
+        block-type: block-type-id,
+        name: option<string>,
+        kind: version-change-kind,
+    }
+
+    record version-commit {
+        id: commit-id,
+        change: uuid,
+        parents: list<commit-id>,
+        author: account-id,
+        time: s64,
+        message: string,
+        conflicted: bool,
+    }
+
+    record version-status {
+        busy: bool,
+        error: option<string>,
+        behind: bool,
+        branches: list<version-branch>,
+        changes: list<version-change>,
+        working: option<version-commit>,
+        log: list<version-commit>,
+        operations: list<version-operation>,
+    }
+
+    record block-history {
+        head: option<commit-id>,
+        can-undo: bool,
+        can-redo: bool,
+    }
+
+    /// A block to open or show, and through which block and with which
+    /// editor when the request names them.
+    record open-request {
+        block-id: block-id,
+        block-type: block-type-id,
+        via: option<block-id>,
+        editor: option<editor-id>,
+    }
+
+    /// What the host asks a shell editor to show.
+    variant show-request {
+        block(open-request),
+        panel(host-panel),
+    }
+
+    /// Asks the host to open a block for the user.
+    open-block: func(request: open-request);
+
+    /// Asks the host to act on a block the editor draws.
+    act: func(block: block-id, command: block-command);
+
+    /// Asks the host to act on the checkout or repository the editor shows.
+    version: func(block: block-id, command: version-command);
+
+    /// Creates a block with the id the editor chose, so it can name the block
+    /// before the host has seen it.
+    create-block: func(
+        block: block-id,
+        block-type: block-type-id,
+        parent: block-location,
+        defined: metadata-entries,
+        content: option<list<u8>>,
+    );
+
+    set-parent: func(block: block-id, parent: block-location);
+
+    /// Sets or, with no value, clears one metadata entry the block defines.
+    define: func(block: block-id, key: uuid, value: option<list<u8>>);
+
+    /// Gives a block the editor holds content, unless it already has some.
+    seed-content: func(block: block-id, content-type: content-type-id, bytes: list<u8>);
+
+    /// Replaces the content of a block the editor may edit.
+    replace-content: func(block: block-id, content-type: content-type-id, bytes: list<u8>);
+
+    /// The editor's link to the replica of a block's content: its own block's,
+    /// or one it watches. Opening it holds the block; dropping it lets go.
+    resource replica {
+        constructor(block: block-id, content-type: content-type-id);
+        /// Every frame the replica sends the editor, in order, no further
+        /// ahead than the editor's credit allows.
+        frames: func() -> stream<list<u8>>;
+        /// A frame for the replica, in order with the editor's others. The
+        /// host answers once it has taken the frame in; an editor sends no
+        /// more than a stream window (items and bytes) of frames ahead of
+        /// those answers, and keeps the rest until they come.
+        send: async func(frame: list<u8>);
+    }
+
+    /// The blocks a query lists. `next` answers with the latest listing once
+    /// it differs from what it last answered, so the first answer is the
+    /// current one; so do the other watches here.
+    resource blocks-watch {
+        constructor(query: block-query);
+        next: async func() -> result<list<block-info>, failure>;
+    }
+
+    resource history-watch {
+        constructor(block: block-id);
+        next: async func() -> block-history;
+    }
+
+    /// The content stored at a block's head, or none for a block without one.
+    resource head-watch {
+        constructor(block: block-id);
+        next: async func() -> result<option<stored-head>, failure>;
+    }
+
+    /// The state of an artifact block, or none while the host knows none.
+    resource artifact-watch {
+        constructor(block: block-id);
+        next: async func() -> option<artifact-state>;
+    }
+
+    /// The version control status of the editor's own block, for a block that
+    /// has one.
+    resource version-watch {
+        constructor();
+        next: async func() -> version-status;
+    }
+
+    /// What the host asks the editor to show. `next` answers with every
+    /// request since the last answer, in order; a request already waiting
+    /// moves to the end instead of waiting twice.
+    resource show-requests {
+        constructor();
+        next: async func() -> list<show-request>;
+    }
+}

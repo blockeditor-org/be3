@@ -2,20 +2,20 @@ use super::*;
 use crate::reactive::*;
 
 #[component]
-fn Program(id: u64) -> unstyled::DockNode<u64> {
+fn Program(id: u64) -> dock::unstyled::DockNode<u64> {
     let key = format!("window.{id}");
     let at = 60.0 + 40.0 * id as f32;
     view! {
-        <unstyled::DockWindow
+        <dock::unstyled::DockWindow
             id={key.clone()}
             rect={Rect::from_min_size(pos2(at, at), vec2(360.0, 240.0))}
         >
-            <unstyled::DockPane id={key}>
-                <unstyled::DockTab id={id} title={format!("Program {id}")}>
+            <dock::unstyled::DockPane id={key}>
+                <dock::unstyled::DockTab id={id} title={format!("Program {id}")}>
                     <Frame @test_id={format!("program.{id}")} />
-                </unstyled::DockTab>
-            </unstyled::DockPane>
-        </unstyled::DockWindow>
+                </dock::unstyled::DockTab>
+            </dock::unstyled::DockPane>
+        </dock::unstyled::DockWindow>
     }
 }
 
@@ -46,11 +46,11 @@ fn window_of(harness: &Harness, program: u64) -> NodeId {
 #[test]
 fn a_floating_window_the_dock_puts_on_top_is_drawn_on_top() {
     let _root = crate::reactive::RootScope::new();
-    let layout = unstyled::DockingLayout::<u64>::new();
+    let layout = dock::unstyled::DockingLayout::<u64>::new();
     let document = build_node(move || {
         view! {
-            <styled::Docking layout>
-                <unstyled::DockPane
+            <dock::styled::Docking layout>
+                <dock::unstyled::DockPane
                     id="desktop"
                     empty={|| view! {
                         <Frame />
@@ -59,7 +59,7 @@ fn a_floating_window_the_dock_puts_on_top_is_drawn_on_top() {
                 <ForEach keys={vec![1u64, 2, 3]}>|id: u64|
                     <Program id />
                 </ForEach>
-            </styled::Docking>
+            </dock::styled::Docking>
         }
     });
     let mut harness = Harness::sized(document, WIDE_VIEWPORT);

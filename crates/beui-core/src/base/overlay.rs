@@ -10,6 +10,7 @@ use crate::callback::{Callback, NodeRef};
 use crate::document::Document;
 use crate::layer::{Dismiss, LayerLevel, LayerPolicy};
 use crate::node::{Element, NodeId, NodeOf, Rects};
+use crate::window::{WindowId, WindowPlacement, WindowReport};
 
 #[derive(Clone, PartialEq)]
 pub enum OverlayAnchor {
@@ -96,7 +97,6 @@ pub enum Placement {
     RightStart,
     Center,
     Fill,
-    FillScreen,
     InsideTop,
     InsideTopEnd,
     InsideBottom,
@@ -106,8 +106,30 @@ pub enum Placement {
     Popover { gap: u16, margin: u16 },
 }
 
+#[derive(Clone)]
+pub struct WindowSpec {
+    pub id: WindowId,
+    pub size: Vec2,
+    pub placement: WindowPlacement,
+    pub title: Option<String>,
+    pub role: crate::window::WindowRole,
+    pub on_report: Callback<WindowReport>,
+}
+
+impl PartialEq for WindowSpec {
+    fn eq(&self, other: &Self) -> bool {
+        self.id == other.id
+            && self.size == other.size
+            && self.placement == other.placement
+            && self.title == other.title
+            && self.role == other.role
+    }
+}
+
 pub struct OverlayNode {
     pub(crate) content: Option<NodeId>,
+    pub(crate) window: Option<WindowSpec>,
+    pub(crate) shown_in: Option<WindowId>,
     scrim: NodeOf<FrameNode>,
     dims: bool,
     pub(crate) open: bool,
@@ -120,7 +142,6 @@ pub struct OverlayNode {
     pub(crate) level: LayerLevel,
     pub(crate) traps_focus: bool,
     pub(crate) trigger: Option<NodeRef>,
-    pub(crate) screen: Option<String>,
     pub(crate) on_dismiss: Callback<Dismiss>,
 }
 
@@ -128,6 +149,8 @@ impl OverlayNode {
     fn new(scrim: NodeOf<FrameNode>, anchor: OverlayAnchor, placement: Placement) -> Self {
         Self {
             content: None,
+            window: None,
+            shown_in: None,
             scrim,
             dims: false,
             open: false,
@@ -140,7 +163,6 @@ impl OverlayNode {
             level: LayerLevel::Normal,
             traps_focus: true,
             trigger: None,
-            screen: None,
             on_dismiss: Callback::empty(),
         }
     }
@@ -166,25 +188,6 @@ impl OverlayNode {
         };
         let pin = *self.pinned.get_or_insert_with(|| Pin::new(rect, within));
         pin.place(within)
-    }
-
-    fn area(&self, doc: &Document, viewport: Rect, anchored: Option<Rect>) -> Rect {
-        let opened = || {
-            self.screen
-                .as_deref()
-                .and_then(|id| doc.screen_named(id))
-                .or_else(|| doc.screens().into_iter().next())
-        };
-        let screen = match (self.placement, &self.anchor) {
-            (Placement::Fill | Placement::At | Placement::Around, _) => None,
-            (Placement::Center | Placement::FillScreen, _) => opened(),
-            (_, OverlayAnchor::Node(_) | OverlayAnchor::Pinned { .. }) => {
-                anchored.map_or_else(opened, |rect| doc.screen_under(rect))
-            }
-            (_, OverlayAnchor::Point(pos)) => doc.screen_at(*pos),
-            (_, OverlayAnchor::Rect(rect)) => doc.screen_under(*rect),
-        };
-        screen.map_or(viewport, |screen| screen.rect)
     }
 }
 
@@ -260,7 +263,7 @@ fn resolve_rect(
         let room = viewport.shrink(f32::from(margin));
         return resolve_rect(room, reach, Placement::BelowStart, content_size);
     }
-    if let Placement::Fill | Placement::FillScreen = placement {
+    if placement == Placement::Fill {
         return viewport;
     }
     if placement == Placement::Center {
@@ -331,7 +334,6 @@ fn resolve_rect(
         | Placement::Around
         | Placement::Center
         | Placement::Fill
-        | Placement::FillScreen
         | Placement::InsideTop
         | Placement::InsideTopEnd
         | Placement::InsideBottom
@@ -374,7 +376,7 @@ impl OverlayNode {
             OverlayAnchor::Pinned { rect, .. } => Some(self.pinned_rect(rect, anchored)),
             OverlayAnchor::Node(_) | OverlayAnchor::Point(_) | OverlayAnchor::Rect(_) => anchored,
         };
-        let area = self.area(doc, viewport, target);
+        let area = viewport;
         let anchor_rect = match &self.anchor {
             OverlayAnchor::Node(_) => anchored.unwrap_or(area),
             OverlayAnchor::Pinned { .. } => target.unwrap_or(area),
@@ -509,12 +511,38 @@ impl Element for OverlayNode {
         let Some(content) = self.content else {
             return;
         };
-        let painter = &painter.ctx().painter();
+        let real = self
+            .window
+            .as_ref()
+            .filter(|window| doc.hosts_window(window));
+        let shown_in = self.shown_in.filter(|window| doc.shows_in(*window));
+        let painter = &painter.ctx().window_painter(match (real, shown_in) {
+            (Some(window), _) => window.id,
+            (None, Some(window)) => window,
+            (None, None) => doc.viewport_window(),
+        });
+        if let Some(window) = real {
+            let size = painter.ctx().window_size(window.id).unwrap_or(window.size);
+            let rect = painter
+                .ctx()
+                .keyboard_trimmed(window.id, Rect::from_min_size(Pos2::ZERO, size));
+            let outer = doc.swap_window_viewport(Some((window.id, rect)));
+            crate::layout::layout(doc, painter, content, rect, out);
+            doc.swap_window_viewport(outer);
+            return;
+        }
+        let outer = shown_in.map(|window| {
+            let viewport = doc.window_viewport(window);
+            doc.swap_window_viewport(viewport)
+        });
         let viewport = doc.viewport_rect();
         if self.policy == LayerPolicy::BlocksAll {
             crate::layout::layout(doc, painter, self.scrim.id(), viewport, out);
         }
         self.place_content(doc, painter, content, out);
+        if let Some(outer) = outer {
+            doc.swap_window_viewport(outer);
+        }
     }
 
     fn paint(&self, _doc: &Document, _painter: &Painter, _rects: &Rects, _rect: Rect) {}
@@ -576,6 +604,12 @@ impl Element for OverlayNode {
                 },
             ),
             ("traps focus", self.traps_focus.to_string()),
+            (
+                "window",
+                self.window
+                    .as_ref()
+                    .map_or_else(|| "none".to_owned(), |window| format!("{:?}", window.id)),
+            ),
             ("dismissable", (!self.on_dismiss.is_empty()).to_string()),
         ]
     }
@@ -610,19 +644,23 @@ impl Document {
     }
 
     pub(crate) fn place_moved_overlays(&mut self, ctx: &crate::context::Context, out: &Rects) {
-        let painter = ctx.painter();
         for overlay in self.open_overlays() {
             if !self.overlay_anchor_moved(overlay, out) {
                 continue;
             }
+            let window = self.window_of(overlay.id());
+            let painter = ctx.window_painter(window);
             let Some(content) = self.arena.get_as(overlay).content else {
                 continue;
             };
+            let viewport = self.window_viewport(window);
             let mut element = self.arena.take(overlay);
             let outer = self.enter_measure(overlay.id());
+            let held = self.swap_window_viewport(viewport);
             if let Some(node) = element.as_any_mut().downcast_mut::<OverlayNode>() {
                 node.place_content(self, &painter, content, out);
             }
+            self.swap_window_viewport(held);
             self.leave_measure(outer);
             self.arena.put_back(overlay, element);
             self.forget_placing();
@@ -644,6 +682,30 @@ impl Document {
             self.arena.get_mut_as::<OverlayNode>(overlay).content = content;
             self.layers_changed();
         }
+    }
+
+    pub fn set_overlay_window(&mut self, overlay: NodeOf<OverlayNode>, window: Option<WindowSpec>) {
+        if self.arena.get_as::<OverlayNode>(overlay).window == window {
+            return;
+        }
+        let reshaped = self
+            .arena
+            .get_as::<OverlayNode>(overlay)
+            .window
+            .as_ref()
+            .map(|held| held.id)
+            != window.as_ref().map(|window| window.id);
+        if let Some(window) = &window {
+            self.windows.note(window.id, overlay);
+        }
+        self.arena.get_mut_as::<OverlayNode>(overlay).window = window;
+        if reshaped {
+            self.layers_changed();
+        }
+    }
+
+    pub fn overlay_window(&self, overlay: NodeOf<OverlayNode>) -> Option<&WindowSpec> {
+        self.arena.get_as::<OverlayNode>(overlay).window.as_ref()
     }
 
     pub fn set_overlay_anchor(&mut self, overlay: NodeOf<OverlayNode>, anchor: OverlayAnchor) {
@@ -690,6 +752,13 @@ impl Document {
         }
     }
 
+    pub fn set_overlay_shown_in(&mut self, overlay: NodeOf<OverlayNode>, window: Option<WindowId>) {
+        if self.arena.get_as::<OverlayNode>(overlay).shown_in != window {
+            self.arena.get_mut_as::<OverlayNode>(overlay).shown_in = window;
+            self.layers_changed();
+        }
+    }
+
     pub fn set_overlay_level(&mut self, overlay: NodeOf<OverlayNode>, level: LayerLevel) {
         if self.arena.get_as::<OverlayNode>(overlay).level != level {
             self.arena.get_mut_as::<OverlayNode>(overlay).level = level;
@@ -726,28 +795,6 @@ impl Document {
 
     pub fn overlay_content(&self, overlay: NodeOf<OverlayNode>) -> Option<NodeId> {
         self.arena.get_as::<OverlayNode>(overlay).content
-    }
-
-    pub(crate) fn opening_screen(&self, overlay: NodeOf<OverlayNode>) -> Option<String> {
-        let rect_of = |node: Option<NodeId>| node.and_then(|node| self.node_rect(node));
-        let trigger = self
-            .arena
-            .get_as::<OverlayNode>(overlay)
-            .trigger
-            .as_ref()
-            .and_then(NodeRef::try_get);
-        let pressed = match self.acted {
-            crate::document::Acted::Pointer(pos) => Some(Rect::from_min_size(pos, Vec2::ZERO)),
-            crate::document::Acted::Keys | crate::document::Acted::Nothing => None,
-        };
-        let pointer = self
-            .last_pointer
-            .map(|sample| Rect::from_min_size(sample.pos, Vec2::ZERO));
-        let rect = rect_of(trigger)
-            .or(pressed)
-            .or_else(|| rect_of(self.focused))
-            .or(pointer)?;
-        Some(self.screen_under(rect)?.id)
     }
 
     pub(crate) fn on_overlay_trigger(&self, overlay: NodeOf<OverlayNode>, pos: Pos2) -> bool {

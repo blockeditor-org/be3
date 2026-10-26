@@ -40,15 +40,15 @@ fn a_fork_pulls_and_pushes_through_its_upstream() {
             && head_of(shared, fork) == head_of(shared, versioned.repository)
     });
 
-    hold(versioned.note, be_block::TextContent::CONTENT_TYPE);
+    hold(versioned.note, text_block_types::TextContent::CONTENT_TYPE);
     wait_until("opened the note", |shared| {
         text_of(shared, versioned.note).is_some()
     });
     type_text(versioned.note, 5, " there");
     version(
         versioned.checkout,
-        VersionCommand::Commit {
-            message: "Upstream".into(),
+        VersionCommand::Finish {
+            description: "Upstream".into(),
         },
     );
     wait_until("moved the upstream on", |shared| {
@@ -74,15 +74,15 @@ fn a_fork_pulls_and_pushes_through_its_upstream() {
         .find(|checkout| *checkout != versioned.checkout)
         .expect("the fork's checkout exists");
     let note = copy_of(versioned.note, checkout);
-    hold(note, be_block::TextContent::CONTENT_TYPE);
+    hold(note, text_block_types::TextContent::CONTENT_TYPE);
     wait_until("opened the fork's note", |shared| {
         text_of(shared, note).as_deref() == Some("hello there\n")
     });
     type_text(note, 0, "Oh, ");
     version(
         checkout,
-        VersionCommand::Commit {
-            message: "From the fork".into(),
+        VersionCommand::Finish {
+            description: "From the fork".into(),
         },
     );
     wait_until("committed in the fork", |shared| {

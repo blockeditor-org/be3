@@ -1,7 +1,7 @@
 use block_editor_beui::be_block::BlockContent;
-use block_editor_beui::be_block::database::RowRef;
-use block_editor_beui::be_block::database_schema::DatabaseRelationOptions;
 use block_editor_beui::{BlockInfo, BlockParent};
+use database_types::database::RowRef;
+use database_types::database_schema::DatabaseRelationOptions;
 
 use super::*;
 
@@ -59,13 +59,13 @@ fn a_blocked_row_lists_its_blockers_and_they_list_it_as_blocking() {
 
     fixture
         .harness
-        .click(&format!("database-view.list.row.{}", id(0).as_uuid()));
+        .click(format!("database-view.list.row.{}", id(0).as_uuid()));
     fixture
         .harness
         .settle_until("the blocking row to show", |harness| {
             harness.shown(&format!(
                 "database-view.detail.links.{}.{}.remove",
-                block_editor_beui::be_block::database::inverse_id(database, blocked_by),
+                database_types::database::inverse_id(database, blocked_by),
                 id(2).as_uuid()
             ))
         });
@@ -73,9 +73,9 @@ fn a_blocked_row_lists_its_blockers_and_they_list_it_as_blocking() {
         .harness
         .snapshot("a_blocked_row_lists_its_blockers_and_they_list_it_as_blocking");
 
-    fixture.harness.click(&format!(
+    fixture.harness.click(format!(
         "database-view.detail.links.{}.{}.remove",
-        block_editor_beui::be_block::database::inverse_id(database, blocked_by),
+        database_types::database::inverse_id(database, blocked_by),
         id(2).as_uuid()
     ));
     fixture.settle();

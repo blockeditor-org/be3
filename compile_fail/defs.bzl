@@ -7,8 +7,8 @@ load("//buck/cargo:defs.bzl", "test_run")
 # crate's [diag.json], which the prelude writes whether or not rustc succeeds,
 # so nothing is linked, and a case costs no more than the lines it adds. The
 # crates live here rather than under crates/, so that building //crates/...,
-# //:check and clippy never ask for the output rustc cannot make, and the
-# autofixes that delete comments leave the markers alone.
+# //:check and ./scripts/verify never ask for the output rustc cannot make,
+# and the autofixes that delete comments leave the markers alone.
 def _compile_fail_test_impl(ctx: AnalysisContext) -> list[Provider]:
     diagnostics = ctx.attrs.cases[DefaultInfo].sub_targets["diag.json"][DefaultInfo].default_outputs[0]
     command = cmd_args(ctx.attrs._checker[RunInfo], "compile-fail", diagnostics, ctx.attrs.srcs)

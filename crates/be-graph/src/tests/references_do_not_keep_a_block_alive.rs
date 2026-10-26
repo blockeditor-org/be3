@@ -9,14 +9,14 @@ fn references_do_not_keep_a_block_alive() {
     ]);
     graph.set_references(id(3), &[id(2)]).unwrap();
     assert_eq!(graph.references(id(3)), vec![id(2)]);
-    assert_eq!(graph.backrefs(id(2)), vec![id(3)]);
+    assert_eq!(graph.backrefs(id(2)), vec![id(1), id(3)]);
 
     graph.set_parent(id(2), BlockParent::Detached).unwrap();
     assert!(
         !graph.is_live(id(2)),
         "a backref kept a detached block alive"
     );
-    assert_eq!(graph.backrefs(id(2)), vec![id(3)]);
+    assert_eq!(graph.backrefs(id(2)), vec![id(1), id(3)]);
 
     graph.remove(id(2));
     assert!(graph.references(id(3)).is_empty());

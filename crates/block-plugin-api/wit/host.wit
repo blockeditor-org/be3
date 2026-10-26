@@ -1,0 +1,46 @@
+package be3:plugin@0.1.0;
+
+/// What an editor plugin asks of its host.
+interface host {
+    use types.{fonts, hello, hello-accepted, input-batch, screen-layout};
+    use be3:ui/types@0.1.0.{preferences};
+
+    /// The plugin's first call. Nothing else reaches it before the answer.
+    connect: async func(hello: hello) -> hello-accepted;
+
+    /// Where each screen the host asked for is drawn, after the screens changed.
+    layout: func(layout: screen-layout);
+
+    /// Something changed that the next frame shows; the host answers with `draw`.
+    frame-needed: func();
+
+    /// Characters no face the plugin has can draw; the host answers with fonts.
+    missing-characters: func(characters: list<char>);
+
+    /// The user's preferences. `next` answers with the latest once they differ
+    /// from what it last answered, so the first answer is the current value.
+    resource preferences-watch {
+        constructor();
+        next: async func() -> preferences;
+    }
+
+    /// The local time's offset from UTC in seconds, watched like preferences.
+    resource utc-offset-watch {
+        constructor();
+        next: async func() -> s32;
+    }
+
+    /// Faces the plugin draws with. `next` answers with every change since the
+    /// last answer, merged: faces to add, or with `replace` the whole set.
+    resource fonts-watch {
+        constructor();
+        next: async func() -> fonts;
+    }
+
+    /// Input for the plugin's screens. `next` answers with the batches that
+    /// arrived since the last answer, merged as `input-batch` says.
+    resource input {
+        constructor();
+        next: async func() -> list<input-batch>;
+    }
+}

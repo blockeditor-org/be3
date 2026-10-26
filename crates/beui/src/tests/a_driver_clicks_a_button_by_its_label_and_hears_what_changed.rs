@@ -1,4 +1,5 @@
 use super::*;
+use crate::primitives::List;
 use crate::primitives::Text;
 use crate::reactive::*;
 use crate::styled::*;
@@ -20,10 +21,10 @@ fn a_driver_clicks_a_button_by_its_label_and_hears_what_changed() {
             </List>
         }
     });
-    let mut driven = Driven::new(document);
+    let mut driven = stepped(crate::testing::Showing(document));
 
     let changed = driven
-        .ask(&["click", "\"Add\""])
+        .ask(&["app", "click", "\"Add\""])
         .expect("the button and its label are one target");
     assert!(
         changed
@@ -33,7 +34,7 @@ fn a_driver_clicks_a_button_by_its_label_and_hears_what_changed() {
     );
 
     let missing = driven
-        .ask(&["click", "\"Remove\""])
+        .ask(&["app", "click", "\"Remove\""])
         .expect_err("nothing is called Remove");
     assert!(missing.contains("no line of the tree"), "{missing}");
 }

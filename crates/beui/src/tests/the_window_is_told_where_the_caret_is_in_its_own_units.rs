@@ -1,40 +1,15 @@
 use super::*;
 use beui_core::app::SafeArea;
-use beui_core::renderer::{Loaded, Renderer};
-use beui_core::runner::{Launch, Platform, RunOptions, Runner};
+use beui_core::renderer::Loaded;
+use beui_core::runner::{Launch, PlatformServices, RunOptions, Runner};
 use beui_core::window::WindowState;
-
-struct Screen;
-
-impl Renderer for Screen {
-    fn name(&self) -> &'static str {
-        "screen"
-    }
-
-    fn info(&self) -> RendererInfo {
-        RendererInfo::default()
-    }
-
-    fn resize(&mut self, _width: u32, _height: u32) {}
-
-    fn physical(&self) -> Option<Vec2> {
-        Some(vec2(300.0, 150.0))
-    }
-
-    fn prepare(&mut self, output: &FrameOutput, _scale: f32, _background: Color32) -> bool {
-        output.changed
-    }
-
-    fn present(&mut self, _background: Color32) -> bool {
-        false
-    }
-}
 
 struct Window(Vec<Option<Rect>>);
 
-impl Platform for Window {
+impl PlatformServices for Window {
     fn show_window(&mut self, window: &WindowState, _shown: &WindowState) {
-        self.0.push(window.ime.as_ref().map(|area| area.cursor));
+        self.0
+            .push(window.requests.ime.as_ref().map(|area| area.cursor));
     }
 }
 
@@ -57,11 +32,12 @@ fn the_window_is_told_where_the_caret_is_in_its_own_units() {
         options: RunOptions::default(),
         context: context(),
         app: Box::new(Field),
+        layers: Vec::new(),
     });
     runner
         .start(
             vec![Loaded {
-                renderer: Box::new(Screen),
+                renderer: Box::new(crate::testing::Screen(vec2(300.0, 150.0))),
                 fonts: None,
             }],
             Setup::new(Waker::new(|| {})),

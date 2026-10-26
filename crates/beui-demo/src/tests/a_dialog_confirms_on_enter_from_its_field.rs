@@ -1,5 +1,5 @@
 use super::*;
-use beui::{Event, Key};
+use beui::Key;
 
 #[test]
 fn a_dialog_confirms_on_enter_from_its_field() {
@@ -10,7 +10,7 @@ fn a_dialog_confirms_on_enter_from_its_field() {
     test.frame(Vec::new());
     test.click("demo.rename.field");
     press_key(&mut test, Key::End);
-    test.frame(vec![Event::Text(" 2".to_owned())]);
+    test.frame(vec![Input::Text(" 2".to_owned())]);
     test.frame(Vec::new());
     test.snapshot("a_dialog_confirms_on_enter_from_its_field");
 

@@ -6,14 +6,12 @@ use tree_sitter::{InputEdit, Parser, Point, Tree};
 use crate::TextChange;
 use crate::document::{Document, DocumentView, TextLanguage};
 use crate::rich::Formats;
-use crate::schema::{Plain, Schema};
+use crate::schema::{LineLook, Plain, Schema};
 
 mod markdown;
 mod rust;
 mod toml;
 mod zig;
-
-pub use markdown::{MarkdownTable, MarkdownTableAlignment, MarkdownTableRow};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Language {
@@ -119,10 +117,11 @@ pub struct SynHlStyle {
     pub italic: bool,
     pub underline: bool,
     pub strikethrough: bool,
+    pub code: bool,
 }
 
 impl SynHlStyle {
-    const fn plain(color: SynHlColorScope) -> Self {
+    pub const fn plain(color: SynHlColorScope) -> Self {
         Self {
             color,
             family: SynHlFontFamily::Proportional,
@@ -131,6 +130,7 @@ impl SynHlStyle {
             italic: false,
             underline: false,
             strikethrough: false,
+            code: false,
         }
     }
 }
@@ -151,6 +151,7 @@ struct RichSource {
     bytes: Arc<[u8]>,
     schema: Arc<dyn Schema>,
     decorated: Mutex<Vec<(usize, Arc<[SynHlStyle]>)>>,
+    looks: std::sync::OnceLock<Vec<LineLook>>,
 }
 
 impl RichSource {
@@ -180,6 +181,15 @@ impl RichSource {
         Some(self.schema.leaf_style(marks, &block.props, decoration))
     }
 
+    fn line_look(&self, start: usize) -> Option<LineLook> {
+        let blocks = &self.formats.blocks;
+        let at = blocks.partition_point(|block| block.end < start);
+        let looks = self
+            .looks
+            .get_or_init(|| self.schema.line_looks(&self.formats));
+        looks.get(at).cloned()
+    }
+
     fn decorations(
         &self,
         start: usize,
@@ -201,7 +211,6 @@ impl RichSource {
 struct MarkdownSource {
     bytes: Arc<[u8]>,
     fences: Vec<Range<usize>>,
-    table_starts: Vec<usize>,
     windows: Mutex<Windows>,
 }
 
@@ -223,7 +232,6 @@ impl MarkdownSource {
     fn new(bytes: Arc<[u8]>) -> Self {
         Self {
             fences: markdown::fences(&bytes),
-            table_starts: markdown::table_starts(&bytes),
             bytes,
             windows: Mutex::default(),
         }
@@ -274,8 +282,6 @@ impl MarkdownSource {
 
     fn successor(&self, bytes: Arc<[u8]>, change: TextChange) -> Self {
         let fences = markdown::shifted_fences(&self.bytes, &self.fences, &bytes, change);
-        let table_starts =
-            markdown::shifted_table_starts(&self.bytes, &self.table_starts, &bytes, change);
         let fences_kept = fences.len() == self.fences.len()
             && self.fences.iter().zip(&fences).all(|(old, new)| {
                 change.moved(old.start) == Some(new.start) && change.moved(old.end) == Some(new.end)
@@ -314,7 +320,6 @@ impl MarkdownSource {
         Self {
             bytes,
             fences,
-            table_starts,
             windows: Mutex::new(Windows { held, clock }),
         }
     }
@@ -348,6 +353,7 @@ impl SyntaxHighlight {
                 bytes,
                 schema,
                 decorated: Mutex::default(),
+                looks: std::sync::OnceLock::new(),
             })),
         }
     }
@@ -409,39 +415,21 @@ impl SyntaxHighlight {
         }
     }
 
-    pub fn markdown_tables(&self) -> Vec<MarkdownTable> {
-        let Styles::Markdown(source) = &self.styles else {
-            return Vec::new();
-        };
-        let mut tables: Vec<MarkdownTable> = Vec::new();
-        for &start in &source.table_starts {
-            let (window_start, window) = source.window(start);
-            for table in &window.tables {
-                let first = table.rows.first().map(|row| row.range.start + window_start);
-                if first == Some(start)
-                    && !tables
-                        .iter()
-                        .any(|held| held.rows.first().map(|row| row.range.start) == first)
-                {
-                    tables.push(markdown::shift_table(table, window_start));
-                }
+    pub fn line_look(&self, start: usize) -> LineLook {
+        let look = match &self.styles {
+            Styles::Rich(source) => source.line_look(start),
+            Styles::Markdown(source) if start < source.bytes.len() => {
+                let (window_start, window) = source.window(start);
+                let relative = start - window_start;
+                window
+                    .looks
+                    .binary_search_by_key(&relative, |(at, _)| *at)
+                    .ok()
+                    .map(|found| window.looks[found].1.shifted(window_start as isize))
             }
-        }
-        tables
-    }
-
-    pub fn in_code_block(&self, range: Range<usize>) -> bool {
-        let Styles::Markdown(source) = &self.styles else {
-            return false;
+            _ => None,
         };
-        if range.start >= source.bytes.len() {
-            return false;
-        }
-        let (start, window) = source.window(range.start);
-        window
-            .code_blocks
-            .iter()
-            .any(|block| block.start + start <= range.end && block.end + start > range.start)
+        look.unwrap_or_else(|| LineLook::at(start))
     }
 }
 

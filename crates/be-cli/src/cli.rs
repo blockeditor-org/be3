@@ -1,19 +1,21 @@
 use be_block::BlockContent;
-use be_block::database::DatabaseContent;
-use be_block::text::TextContent;
 use be_graph::BlockParent;
 use be_store::ObjectStore;
+use database_types::database::DatabaseContent;
 use serde_json::{Value, json};
 use uuid::Uuid;
 
 use crate::blocks::Entry;
 use crate::tracker::{Assignment, Body, Filter, NewColumn, RowView, Tracker};
+use text_block_types::TextContent;
 
 pub const USAGE: &str = "\
 Usage: be TARGET [VERB] [ARGUMENTS]   or   be COMMAND
 
 TARGET is a block, by the end of its id (`be ls` prints it), its full id or
-its name. A row is named within its database: `be Issues row BE-7K3Q2M`.
+its name. A row is its id, `be BE-7K3Q2M`, found through the prefixes of the
+workspaces this account can see, or named within its database:
+`be Issues row BE-7K3Q2M`.
 
 Commands:
   be ls [TARGET]                      List the workspaces and what is shared with this
@@ -26,12 +28,22 @@ Commands:
                                       or in the one workspace this account may write in
   be upload FILE [--in TARGET]        Copy the blocks a download wrote into TARGET (or,
                                       as new-database, a workspace) with new ids
+  be sync DIRECTORY [--watch [SECONDS]]
+                                      Sync a directory with the folder it was synced with before
 
 Any block:
   ls | info                           Its children, or where it is and who may change it
+  move TARGET                         Move it, and everything inside it, into TARGET
   delete                              Move it, and everything inside it, to Recently Deleted
   download [FILE]                     Write it, and everything inside it, to one file
                                       (NAME.block unless FILE is given) for `be upload`
+
+A folder or a workspace:
+  sync DIRECTORY [--watch [SECONDS]]  Keep DIRECTORY and the folder in step both ways:
+                                      text, image, PDF, audio and other files as files,
+                                      folders as directories; --watch keeps going, syncing
+                                      on every change here and every SECONDS (10) for
+                                      changes in block-app
 
 A database (or a view of one):
   rows [FILTER]...                    Its rows; FILTER is FIELD=VALUE, FIELD!=VALUE or FIELD~TEXT
@@ -52,7 +64,7 @@ A database (or a view of one):
   pull-request EVENT-FILE             Move the rows of this database a GitHub pull
                                       request names
 
-A row (be DATABASE row ROW-ID [VERB]):
+A row (be ROW-ID [VERB], or be DATABASE row ROW-ID [VERB]):
   show                                Its fields and its page (what a bare row id does)
   set [FIELD=VALUE]... [--body TEXT] [--append TEXT]
                                       FIELD+=VALUE adds a link to a relation of several
@@ -64,6 +76,13 @@ A row (be DATABASE row ROW-ID [VERB]):
 
 A text block:
   cat | write TEXT | append TEXT | edit
+
+A terminal block:
+  terminal-host [-- PROGRAM ARGUMENTS...]
+                                      Run its shell (or PROGRAM) on this machine, as this
+                                      machine's user, for everyone the block is shared with:
+                                      it stays connected and keeps the shell running until
+                                      stopped. Share the block with this agent first.
 
 TEXT given as - is read from standard input. --json prints JSON.
 
@@ -83,6 +102,8 @@ pub struct Options {
     pub prefix: Option<String>,
     pub within: Option<String>,
     pub column: NewColumn,
+    pub command: Vec<String>,
+    pub watch: Option<u64>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -101,16 +122,24 @@ pub enum Outcome {
         label: String,
         base: String,
     },
+    Watch {
+        root: Option<Uuid>,
+        directory: std::path::PathBuf,
+        every: std::time::Duration,
+    },
 }
 
-const COMMANDS: [&str; 6] = [
+const COMMANDS: [&str; 7] = [
     "ls",
     "workspaces",
     "whoami",
     "help",
     "new-database",
     "upload",
+    "sync",
 ];
+
+const WATCH_SECONDS: u64 = 10;
 
 pub fn parse(
     arguments: Vec<String>,
@@ -130,7 +159,21 @@ pub fn parse(
                 .ok_or_else(|| format!("{argument} needs a value"))
         };
         match argument.as_str() {
+            "--" => {
+                options.command = rest.by_ref().collect();
+                break;
+            }
             "--json" => json = true,
+            "--watch" => {
+                let seconds = match rest.as_slice().first().map(|next| next.parse::<u64>()) {
+                    Some(Ok(seconds)) => {
+                        rest.next();
+                        seconds.max(1)
+                    }
+                    _ => WATCH_SECONDS,
+                };
+                options.watch = Some(seconds);
+            }
             "--multiple" => options.column.multiple = true,
             "--body" => options.body = Some(Body::Replace(text(value()?)?)),
             "--append" => options.body = Some(Body::Append(text(value()?)?)),
@@ -182,8 +225,23 @@ pub async fn run<S: ObjectStore>(
     invocation: &Invocation,
 ) -> Result<Outcome, String> {
     let Some(target) = &invocation.target else {
+        if invocation.verb == "sync" {
+            return sync(tracker, None, invocation).await;
+        }
         return command(tracker, invocation).await.map(Outcome::Print);
     };
+    if crate::tracker::looks_like_row(target) {
+        let database = tracker.database_of_row(target).await?;
+        let mut arguments = vec![target.clone()];
+        arguments.extend((!invocation.verb.is_empty()).then(|| invocation.verb.clone()));
+        arguments.extend(invocation.arguments.iter().cloned());
+        let row = Invocation {
+            verb: "row".to_owned(),
+            arguments,
+            ..invocation.clone()
+        };
+        return row_verb(tracker, database, &row).await;
+    }
     let entry = tracker.resolve(target).await?;
     if invocation.verb == "row" {
         let database = tracker.database_of(&entry).await?;
@@ -285,6 +343,32 @@ async fn command<S: ObjectStore>(
     }
 }
 
+async fn sync<S: ObjectStore>(
+    tracker: &Tracker<S>,
+    root: Option<Uuid>,
+    invocation: &Invocation,
+) -> Result<Outcome, String> {
+    let directory = std::path::PathBuf::from(invocation.arguments.first().ok_or(
+        "usage: be FOLDER sync DIRECTORY [--watch [SECONDS]], or be sync DIRECTORY once it has been synced",
+    )?);
+    if let Some(seconds) = invocation.options.watch {
+        return Ok(Outcome::Watch {
+            root,
+            directory,
+            every: std::time::Duration::from_secs(seconds),
+        });
+    }
+    let report = be_sync::sync(
+        tracker.peer(),
+        &mut *tracker.types().await,
+        &directory,
+        &be_sync::Target { root },
+    )
+    .await?;
+    tracker.invalidate().await;
+    Ok(Outcome::Print(report.to_string()))
+}
+
 async fn within<S: ObjectStore>(
     tracker: &Tracker<S>,
     invocation: &Invocation,
@@ -314,7 +398,9 @@ async fn listing<S: ObjectStore>(
         }
         _ => Vec::new(),
     };
-    children.retain(|entry| !pages.contains(&entry.id));
+    children.retain(|entry| {
+        !pages.contains(&entry.id) && !be_block::EDIT_KINDS.contains(&entry.block_type)
+    });
     if json {
         return Ok(Value::Array(children.iter().map(entry_json).collect()).to_string());
     }
@@ -410,6 +496,17 @@ async fn block_verb<S: ObjectStore>(
             ))
         }
         ("help", _, _) => print(USAGE.to_owned()),
+        ("terminal-host", _, _) => Err(
+            "terminal-host needs a live connection; run it as `be TARGET terminal-host`".to_owned(),
+        ),
+        ("sync", _, _) => sync(tracker, Some(entry.id), invocation).await,
+        ("move", _, _) => {
+            let to = arguments
+                .first()
+                .ok_or_else(|| format!("usage: be {} move TARGET", entry.short))?;
+            let to = tracker.resolve(to).await?;
+            print(tracker.move_block(entry, &to).await?)
+        }
         ("delete", _, _) => print(tracker.delete_block(entry).await?),
         ("download", _, _) => {
             let (top, blocks) = tracker.download(entry).await?;
@@ -565,10 +662,10 @@ async fn block_verb<S: ObjectStore>(
             entry.short,
             entry.kind(),
             match (is_text, database) {
-                (true, _) => "cat, write, append, edit, ls, info, download and delete",
+                (true, _) => "cat, write, append, edit, ls, info, move, download and delete",
                 (false, Some(_)) =>
-                    "rows, row, new, schema, option, add-option, add-column, import, pull-request, ls, info, download and delete",
-                (false, None) => "ls, info, download and delete",
+                    "rows, row, new, schema, option, add-option, add-column, import, pull-request, ls, info, move, download and delete",
+                (false, None) => "ls, info, move, download and delete",
             }
         ) + &format!(", not {verb}")),
     }

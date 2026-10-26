@@ -107,14 +107,17 @@ pub fn Slider(
         })
     });
 
+    let asked = StoredCell::new(None::<(f32, f32)>);
     let set_value = move |next: f32| {
         if disabled.get_untracked() {
             return;
         }
         let next = next.clamp(min, max);
-        if current.get_untracked() == next {
+        let shown = current.get_untracked();
+        if shown == next || asked.get() == Some((shown, next)) {
             return;
         }
+        asked.set(Some((shown, next)));
         value.set(next);
     };
     let grab = Rc::new(Cell::new(0.0f32));

@@ -9,6 +9,8 @@ all-arch = ["wasmtime/all-arch"]
 
 [dependencies]
 block-gpu-abi = { path = "../block-gpu-abi" }
+block-guest-abi = { path = "../block-guest-abi" }
+block-guest-host = { path = "../block-guest-host" }
 block-gpu-host = { path = "../block-gpu-host" }
 bytes = "1"
 rustc-demangle = "0.1"
@@ -22,7 +24,11 @@ wgpu = { version = "29", default-features = false, features = ["std", "wgsl"] }
 workspace = true
 
 [dev-dependencies]
+be-ops = { path = "../be-ops" }
+block-guest-echo = { path = "../block-guest-echo" }
 block-plugin-api = { path = "../block-plugin-api" }
+block-type-api = { path = "../block-type-api" }
 sha2 = "0.10"
+uuid = "1"
 wasmtime = { version = "48", default-features = false, features = ["cranelift", "gc", "gc-drc", "runtime", "std", "threads", "wat"] }
 wgpu = { version = "29", default-features = false, features = ["noop", "std", "wgsl"] }

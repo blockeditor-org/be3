@@ -1,6 +1,7 @@
 use super::*;
 use crate::primitives::*;
 use crate::reactive::*;
+use crate::unstyled::Scroll;
 
 const ROWS: usize = 100;
 const ESTIMATE: f32 = 20.0;
@@ -15,7 +16,7 @@ fn a_virtual_list_reaches_the_end_when_rows_outgrow_their_estimate() {
     let document = build_node(move || {
         view! {
             <List spacing=0.0>
-                <Offset @sizing=ItemSize::Percent(100.0) @node_ref=&scroll>
+                <Scroll @sizing=ItemSize::Percent(100.0) @node_ref=&scroll>
                     <VirtualList
                         @node_ref=&list
                         keys={indices(ROWS)}
@@ -31,7 +32,7 @@ fn a_virtual_list_reaches_the_end_when_rows_outgrow_their_estimate() {
                             </Frame>
                         }
                     }</VirtualList>
-                </Offset>
+                </Scroll>
             </List>
         }
     });
@@ -40,20 +41,20 @@ fn a_virtual_list_reaches_the_end_when_rows_outgrow_their_estimate() {
     let mut harness = Harness::new(document);
     harness.frame(Vec::new());
     assert_eq!(
-        harness.rect(harness.document.children(list)[1]).top(),
+        harness.rect(harness.document().children(list)[1]).top(),
         ACTUAL
     );
 
     for _ in 0..SETTLING_FRAMES {
-        harness.document.set_scroll_offset(scroll, f32::MAX);
+        harness.document_mut().set_scroll_offset(scroll, f32::MAX);
         harness.frame(Vec::new());
     }
 
     assert_eq!(built.get_untracked().last(), Some(&(ROWS - 1)));
-    let last = *harness.document.children(list).last().unwrap();
+    let last = *harness.document().children(list).last().unwrap();
     assert_eq!(harness.rect(last).bottom(), VIEWPORT.y);
     assert_eq!(
-        harness.document.scroll_offset(scroll),
+        harness.document().scroll_offset(scroll),
         harness.rect(list).height() - VIEWPORT.y
     );
 }

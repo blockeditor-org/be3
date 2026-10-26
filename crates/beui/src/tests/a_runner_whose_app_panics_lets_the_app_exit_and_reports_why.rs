@@ -1,39 +1,13 @@
 use super::*;
 use beui_core::app::SafeArea;
-use beui_core::renderer::{Loaded, Renderer};
-use beui_core::runner::{Launch, Platform, RunOptions, Runner};
+use beui_core::renderer::Loaded;
+use beui_core::runner::{Launch, PlatformServices, RunOptions, Runner};
 
 type Log = Signal<Vec<&'static str>>;
 
-struct Screen;
-
-impl Renderer for Screen {
-    fn name(&self) -> &'static str {
-        "screen"
-    }
-
-    fn info(&self) -> RendererInfo {
-        RendererInfo::default()
-    }
-
-    fn resize(&mut self, _width: u32, _height: u32) {}
-
-    fn physical(&self) -> Option<Vec2> {
-        Some(vec2(200.0, 100.0))
-    }
-
-    fn prepare(&mut self, output: &FrameOutput, _scale: f32, _background: Color32) -> bool {
-        output.changed
-    }
-
-    fn present(&mut self, _background: Color32) -> bool {
-        false
-    }
-}
-
 struct Nowhere;
 
-impl Platform for Nowhere {}
+impl PlatformServices for Nowhere {}
 
 struct Failing {
     log: Log,
@@ -62,9 +36,10 @@ fn a_runner_whose_app_panics_lets_the_app_exit_and_reports_why() {
         options: RunOptions::default(),
         context: context(),
         app: Box::new(Failing { log, frames: 0 }),
+        layers: Vec::new(),
     });
     let loaded = vec![Loaded {
-        renderer: Box::new(Screen),
+        renderer: Box::new(crate::testing::Screen(vec2(200.0, 100.0))),
         fonts: None,
     }];
     runner

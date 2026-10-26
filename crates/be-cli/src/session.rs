@@ -122,7 +122,10 @@ impl Settings {
 }
 
 fn secure_or_local(url: &str) -> bool {
-    let Some(rest) = url.strip_prefix("http://") else {
+    let Some(rest) = url
+        .strip_prefix("http://")
+        .or_else(|| url.strip_prefix("ws://"))
+    else {
         return true;
     };
     let authority = rest.split('/').next().unwrap_or_default();
@@ -136,7 +139,14 @@ fn secure_or_local(url: &str) -> bool {
 }
 
 pub async fn connect(settings: &Settings) -> Result<Peer<FileStore>, String> {
-    let url = http_url(&settings.server);
+    connect_to(settings, http_url(&settings.server)).await
+}
+
+pub async fn connect_live(settings: &Settings) -> Result<Peer<FileStore>, String> {
+    connect_to(settings, be_client::socket_url(&settings.server)).await
+}
+
+async fn connect_to(settings: &Settings, url: String) -> Result<Peer<FileStore>, String> {
     authorize(&url, settings.authorization.clone());
     if !secure_or_local(&url) {
         return Err(format!(
@@ -144,7 +154,9 @@ pub async fn connect(settings: &Settings) -> Result<Peer<FileStore>, String> {
             settings.server
         ));
     }
-    let connection = Connection::connect(&url).await.map_err(explain)?;
+    let connection = Connection::connect(&url, &be_client::Clock::real())
+        .await
+        .map_err(explain)?;
     let signed_in = connection
         .request(|request| {
             if settings.token.is_empty() {

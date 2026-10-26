@@ -1,7 +1,7 @@
 use super::*;
 
-use be_block::{TextBlock, TextContent};
 use be_graph::Access;
+use text_block_types::{TextBlock, TextContent};
 
 #[tokio::test]
 async fn leaving_a_shared_workspace_leaves_its_rotation_to_who_can_edit_it() {

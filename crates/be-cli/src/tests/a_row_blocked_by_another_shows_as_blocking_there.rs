@@ -3,7 +3,7 @@ use super::*;
 #[tokio::test]
 async fn a_row_blocked_by_another_shows_as_blocking_there() {
     let harness = Harness::start().await;
-    let tracker = Tracker::new(harness.owner().await);
+    let tracker = Tracker::new(harness.owner().await, sources());
     run(&tracker, "new-database Issues --prefix be")
         .await
         .unwrap();

@@ -1,8 +1,6 @@
 use super::*;
-use block_editor_beui::be_block::canvas::{
-    CanvasTextAlign, CanvasTextStyle, CanvasTextVerticalAlign,
-};
-use block_editor_beui::beui::Key;
+use block_editor_beui::beui::{Key, Modifiers};
+use infinite_canvas_types::{CanvasTextAlign, CanvasTextStyle, CanvasTextVerticalAlign};
 
 fn label(
     id: u128,
@@ -47,13 +45,13 @@ fn typed_text_grows_away_from_the_edges_it_is_aligned_to() {
     let mut editor = editor(&labels);
 
     for label in &labels {
-        editor.click(&format!("infinite-canvas.entity.{}", label.id));
+        editor.click(format!("infinite-canvas.entity.{}", label.id));
         editor.run();
-        editor.key_press(Key::Enter);
+        editor.key(Key::Enter, Modifiers::NONE);
         editor.run();
-        editor.text("Hi there, a longer line");
+        editor.type_text("Hi there, a longer line");
         editor.run();
-        editor.key_press(Key::Escape);
+        editor.key(Key::Escape, Modifiers::NONE);
         editor.run();
     }
 

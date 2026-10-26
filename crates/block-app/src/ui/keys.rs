@@ -66,15 +66,15 @@ pub(super) fn RecoveryScreen(view: AppViewStore) -> NodeId {
         <Column>
             <Text style=TextStyle::TITLE>{title}</Text>
             <Show condition={replacing}>
-                <Text style=TextStyle::PARAGRAPH wrap=true>
+                <Text style=TextStyle::PARAGRAPH>
                     "Once you save this phrase, your old one stops working. Every key sealed to the old phrase is sealed to this one instead, and your other devices will ask to be unlocked again."
                 </Text>
             </Show>
-            <Text style=TextStyle::PARAGRAPH wrap=true>
+            <Text style=TextStyle::PARAGRAPH>
                 "Your notes are encrypted with a key the server never sees. These twelve words are the only way to open them on a new device when no other device of yours is at hand. Write them down and keep them somewhere safe: nobody can recover them for you."
             </Text>
             <Card>
-                <Text style=TextStyle::PARAGRAPH wrap=true>{phrase}</Text>
+                <Text style=TextStyle::PARAGRAPH>{phrase}</Text>
             </Card>
             <Text style=TextStyle::HEADING>"Check that you saved them"</Text>
             <Text style=TextStyle::CAPTION>{first_label}</Text>
@@ -88,9 +88,9 @@ pub(super) fn RecoveryScreen(view: AppViewStore) -> NodeId {
                 on_submit={move |_value: String| confirm()}
             />
             <ErrorText text={error} />
-            <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
+            <List direction=Direction::Horizontal align=Align::Center spacing=Space::Md>
                 <Show condition={busy}>
-                    <Spinner />
+                    <Progress width=INLINE_PROGRESS_WIDTH />
                 </Show>
                 <Spacer @sizing=ItemSize::Percent(100.0) />
                 <Show condition={first_time}>
@@ -136,10 +136,10 @@ pub(super) fn UnlockScreen(view: AppViewStore) -> NodeId {
     view! {
         <Column>
             <Text style=TextStyle::TITLE>{title}</Text>
-            <Text style=TextStyle::PARAGRAPH wrap=true>
+            <Text style=TextStyle::PARAGRAPH>
                 "This device does not have this account's key yet, so it cannot open anything the account keeps."
             </Text>
-            <List spacing=8.0>
+            <List spacing=Space::Md>
                 <Text style=TextStyle::HEADING>"With your recovery phrase"</Text>
                 <TextInput
                     value={phrase}
@@ -147,7 +147,7 @@ pub(super) fn UnlockScreen(view: AppViewStore) -> NodeId {
                     placeholder="twelve words"
                     on_submit={move |_value: String| open()}
                 />
-                <List direction=Direction::Horizontal spacing=8.0>
+                <List direction=Direction::Horizontal spacing=Space::Md>
                     <Spacer @sizing=ItemSize::Percent(100.0) />
                     <Button
                         label="Unlock"
@@ -159,8 +159,8 @@ pub(super) fn UnlockScreen(view: AppViewStore) -> NodeId {
             </List>
             <Text style=TextStyle::HEADING>"With another device"</Text>
             <Show condition={idle}>
-                <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
-                    <Text style=TextStyle::PARAGRAPH @sizing=ItemSize::Percent(100.0) wrap=true>
+                <List direction=Direction::Horizontal align=Align::Center spacing=Space::Md>
+                    <Text style=TextStyle::PARAGRAPH @sizing=ItemSize::Percent(100.0)>
                         "Open any organization of this account on a device that is unlocked, and it will ask for a code."
                     </Text>
                     <Button
@@ -171,13 +171,11 @@ pub(super) fn UnlockScreen(view: AppViewStore) -> NodeId {
                 </List>
             </Show>
             <Show condition={waiting}>
-                <List spacing=8.0>
-                    <Text style=TextStyle::PARAGRAPH wrap=true>
-                        "Type this code on the other device:"
-                    </Text>
+                <List spacing=Space::Md>
+                    <Text style=TextStyle::PARAGRAPH>"Type this code on the other device:"</Text>
                     <Text style=TextStyle::TITLE>{code}</Text>
-                    <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
-                        <Spinner />
+                    <List direction=Direction::Horizontal align=Align::Center spacing=Space::Md>
+                        <Progress width=INLINE_PROGRESS_WIDTH />
                         <Text style=TextStyle::CAPTION>"Waiting for the other device…"</Text>
                         <Spacer @sizing=ItemSize::Percent(100.0) />
                         <Button
@@ -189,7 +187,7 @@ pub(super) fn UnlockScreen(view: AppViewStore) -> NodeId {
                 </List>
             </Show>
             <ErrorText text={error} />
-            <List direction=Direction::Horizontal spacing=8.0>
+            <List direction=Direction::Horizontal spacing=Space::Md>
                 <Button
                     label="Switch account"
                     variant=ButtonVariant::Ghost
@@ -239,14 +237,15 @@ pub(super) fn PairingDialog(view: AppViewStore) -> NodeId {
         <Dialog
             open={open}
             title="Add a device"
-            width=340.0
-            confirm="Approve"
-            cancel="Ignore"
-            confirm_disabled={cannot}
-            on_confirm={approve}
+            width={Size::Custom(340.0)}
+            kind=DialogKind::Alert
+            actions={vec![
+                DialogAction::primary("Approve", approve).disabled(cannot),
+                DialogAction::cancel("Ignore"),
+            ]}
             on_dismiss={dismiss}
         >
-            <Text style=TextStyle::PARAGRAPH wrap=true>{message}</Text>
+            <Text style=TextStyle::PARAGRAPH>{message}</Text>
             <TextInput value={code} label="Code" placeholder="XXXX-XXXX" />
         </Dialog>
     }

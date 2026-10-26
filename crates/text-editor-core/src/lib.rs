@@ -13,14 +13,16 @@ pub use document::{
     format_op, formats_in, place_in, remint, runs_in,
 };
 pub use highlighter::{
-    Highlighter, Language, MarkdownTable, MarkdownTableAlignment, MarkdownTableRow,
-    SynHlColorScope, SynHlFontFamily, SynHlStyle, SynHlTextSize, SyntaxHighlight,
+    Highlighter, Language, SynHlColorScope, SynHlFontFamily, SynHlStyle, SynHlTextSize,
+    SyntaxHighlight,
 };
 pub use rich::{
     Block, Change, Expand, FormatOp, FormatRun, Formats, Mark, MarkId, MarkSet, Marks, Name,
     RichOp, Scope, Seed, VOID, Value,
 };
-pub use schema::{Break, Line, Plain, Schema, Selected, Tool};
+pub use schema::{
+    Break, Line, LineLook, ListMarker, Plain, Schema, Selected, TableLine, TableRow, Tool,
+};
 pub use sequence::{Pos, SeqOp, Sequence, Splice};
 
 #[cfg(test)]

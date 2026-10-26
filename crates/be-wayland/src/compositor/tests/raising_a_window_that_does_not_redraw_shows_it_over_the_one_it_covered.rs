@@ -20,7 +20,7 @@ fn Stacked(windows: Windows) -> NodeId {
     view! {
         <Layers>
             <ForEach keys={order}>|id: WindowId|
-                <Frame width={SHOWN.x} height={SHOWN.y}>
+                <Frame width={Size::Custom(SHOWN.x)} height={Size::Custom(SHOWN.y)}>
                     <WindowView windows id />
                 </Frame>
             </ForEach>
@@ -64,10 +64,15 @@ impl Screen {
         use beui::Repainting as _;
         harness.frame(Vec::new());
         let output = harness.output.as_ref().expect("a frame ran");
-        let repaint = output.repaint(beui::Color32::BLACK);
-        let repaint =
-            self.renderer
-                .prepare(&self.device, &self.queue, output, SCREEN, 1.0, repaint);
+        let repaint = output.main().repaint(beui::Color32::BLACK);
+        let repaint = self.renderer.prepare(
+            &self.device,
+            &self.queue,
+            output.main(),
+            SCREEN,
+            1.0,
+            repaint,
+        );
         let load = match repaint {
             beui::Repaint::Region { .. } => wgpu::LoadOp::Load,
             beui::Repaint::Everything => wgpu::LoadOp::Clear(wgpu::Color::BLACK),
@@ -113,7 +118,7 @@ fn opened(harness: &mut Harness, screen: &mut Screen, color: [u8; 4]) -> (TestWi
     let window = harness.client.toplevel();
     screen.settle(harness);
     let id = *harness
-        .app
+        .compositor()
         .server()
         .state
         .windows()

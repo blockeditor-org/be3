@@ -1,4 +1,4 @@
-use block_editor_beui::{BlockLocation, BlockPick};
+use block_editor_beui::{BlockLocation, PickedBlock};
 
 use super::*;
 
@@ -21,11 +21,11 @@ fn the_link_card_keeps_its_search_and_choice_across_tab_switches() {
     fixture.settle();
     fixture
         .test
-        .click(&format!("picker.link.{}.chevron", places.work));
+        .click(format!("picker.link.{}.chevron", places.work));
     fixture.settle();
     fixture
         .test
-        .click(&format!("picker.link.{}.row", places.minutes));
+        .click(format!("picker.link.{}.row", places.minutes));
     fixture.settle();
     fixture
         .test
@@ -44,12 +44,12 @@ fn the_link_card_keeps_its_search_and_choice_across_tab_switches() {
         fixture.test.take_pick_answers(),
         vec![(
             8,
-            BlockPick::Chosen {
+            Ok(Some(PickedBlock {
                 block_id: places.minutes.into_bytes(),
                 block_type: SHOWN_TYPE.into_bytes(),
                 linked: true,
                 placed: false,
-            }
+            }))
         )],
         "the block chosen before the switch is the one linked"
     );

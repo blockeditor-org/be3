@@ -1,5 +1,5 @@
 use foldhash::{HashMap, HashSet};
-use std::cell::RefCell;
+use std::cell::{OnceCell, RefCell};
 use std::fmt::Write as _;
 use std::rc::Rc;
 
@@ -47,26 +47,65 @@ struct Nodes {
     root: Option<NodeId>,
     focus: Option<NodeId>,
     kept: usize,
+    described: HashMap<NodeId, Described>,
+}
+
+struct Described {
+    placed: Placed,
+    line: Option<Rc<Line>>,
+}
+
+#[derive(Clone, Copy, PartialEq)]
+struct Placed {
+    transform: Affine,
+    clip: Rect,
+    depth: usize,
+    focused: bool,
 }
 
 #[derive(Default)]
 pub struct Rendered {
-    written: String,
-    lines: Vec<Line>,
-    test_ids: Rc<TestIds>,
+    lines: Vec<Rc<Line>>,
+    scale: f32,
+    written: OnceCell<String>,
+    test_ids: OnceCell<Rc<TestIds>>,
 }
 
 impl Rendered {
     pub fn text(&self) -> &str {
-        &self.written
+        self.written.get_or_init(|| {
+            let mut text = String::new();
+            for line in &self.lines {
+                for _ in 0..line.depth {
+                    text.push_str("  ");
+                }
+                text.push_str(&line.text);
+                text.push('\n');
+            }
+            text
+        })
     }
 
-    pub fn lines(&self) -> &[Line] {
+    pub fn lines(&self) -> &[Rc<Line>] {
         &self.lines
     }
 
     pub fn test_ids(&self) -> &Rc<TestIds> {
-        &self.test_ids
+        self.test_ids.get_or_init(|| {
+            let mut named: HashMap<String, Vec<TestIdAt>> = HashMap::default();
+            for line in &self.lines {
+                let Some(bounds) = line.bounds else {
+                    continue;
+                };
+                for test_id in &line.test_ids {
+                    named.entry(test_id.clone()).or_default().push(TestIdAt {
+                        rect: bounds.scaled(self.scale.recip()),
+                        visible: line.visible,
+                    });
+                }
+            }
+            Rc::new(TestIds { named })
+        })
     }
 }
 
@@ -125,15 +164,17 @@ impl AccessibilityDump {
     pub fn update(&mut self, update: TreeUpdate) {
         let mut tree = self.held.tree.borrow_mut();
         let root = update.tree.map(|tree| tree.root).or(tree.root);
-        let changed = root != tree.root
-            || tree.focus != Some(update.focus)
-            || update
-                .nodes
-                .iter()
-                .any(|(id, node)| tree.nodes.get(id) != Some(node));
+        let mut changed = root != tree.root || tree.focus != Some(update.focus);
         tree.root = root;
         tree.focus = Some(update.focus);
-        tree.nodes.extend(update.nodes);
+        for (id, node) in update.nodes {
+            if tree.nodes.get(&id) == Some(&node) {
+                continue;
+            }
+            changed = true;
+            tree.described.remove(&id);
+            tree.nodes.insert(id, node);
+        }
         if !changed {
             return;
         }
@@ -171,6 +212,7 @@ impl Nodes {
             self.reach(root, &mut reached);
         }
         self.nodes.retain(|id, _| reached.contains(id));
+        self.described.retain(|id, _| reached.contains(id));
         self.kept = self.nodes.len();
     }
 
@@ -178,56 +220,43 @@ impl Nodes {
         let Some(root) = self.root else {
             return Rendered::default();
         };
-        let mut reached = HashSet::default();
-        let mut text = String::new();
-        let mut lines = Vec::new();
+        let mut walk = Walk {
+            nodes: &self.nodes,
+            focus: self.focus,
+            described: &mut self.described,
+            reached: HashSet::default(),
+            lines: Vec::new(),
+        };
         let everywhere = Rect::new(f64::MIN, f64::MIN, f64::MAX, f64::MAX);
-        self.render_node(
-            root,
-            Affine::IDENTITY,
-            everywhere,
-            0,
-            &mut reached,
-            &mut text,
-            &mut lines,
-        );
+        walk.node(root, Affine::IDENTITY, everywhere, 0);
+        let Walk { reached, lines, .. } = walk;
         self.nodes.retain(|id, _| reached.contains(id));
+        self.described.retain(|id, _| reached.contains(id));
         self.kept = self.nodes.len();
         let scale = self
             .nodes
             .get(&root)
             .and_then(Node::transform)
             .map_or(1.0, |transform| transform.as_coeffs()[0] as f32);
-        let mut named: HashMap<String, Vec<TestIdAt>> = HashMap::default();
-        for line in &lines {
-            let Some(bounds) = line.bounds else {
-                continue;
-            };
-            for test_id in &line.test_ids {
-                named.entry(test_id.clone()).or_default().push(TestIdAt {
-                    rect: bounds.scaled(scale.recip()),
-                    visible: line.visible,
-                });
-            }
-        }
         Rendered {
-            written: text,
             lines,
-            test_ids: Rc::new(TestIds { named }),
+            scale,
+            ..Rendered::default()
         }
     }
+}
 
-    fn render_node(
-        &self,
-        id: NodeId,
-        parent: Affine,
-        clip: Rect,
-        depth: usize,
-        reached: &mut HashSet<NodeId>,
-        text: &mut String,
-        lines: &mut Vec<Line>,
-    ) {
-        if !reached.insert(id) {
+struct Walk<'a> {
+    nodes: &'a HashMap<NodeId, Node>,
+    focus: Option<NodeId>,
+    described: &'a mut HashMap<NodeId, Described>,
+    reached: HashSet<NodeId>,
+    lines: Vec<Rc<Line>>,
+}
+
+impl Walk<'_> {
+    fn node(&mut self, id: NodeId, parent: Affine, clip: Rect, depth: usize) {
+        if !self.reached.insert(id) {
             return;
         }
         let Some(node) = self.nodes.get(&id) else {
@@ -237,91 +266,29 @@ impl Nodes {
         let rect = node
             .bounds()
             .map(|bounds| transform.transform_rect_bbox(bounds));
-        let label = node.label().filter(|label| !label.is_empty());
-        let numeric = node.numeric_value().map(|value| {
-            let value = (value * 1000.0).round() / 1000.0;
-            value.to_string()
-        });
-        let value = node
-            .value()
-            .filter(|value| !value.is_empty())
-            .map(str::to_owned)
-            .or(numeric);
-        let value = value.as_deref();
-        let test_ids: Vec<String> = node
-            .author_id()
-            .map(|ids| ids.split(' ').map(str::to_owned).collect())
-            .unwrap_or_default();
-        let shown = node.role() != Role::GenericContainer
-            || label.is_some()
-            || value.is_some()
-            || !test_ids.is_empty();
-        if shown {
-            let start = text.len();
-            let mut visible_part = true;
-            let _ = write!(text, "{}{:?}", "  ".repeat(depth), node.role());
-            if let Some(label) = label {
-                let _ = write!(text, " {label:?}");
-            }
-            if let Some(value) = value {
-                let _ = write!(text, " value={value:?}");
-            }
-            if let Some(toggled) = node.toggled() {
-                let _ = write!(text, " toggled={toggled:?}");
-            }
-            if node.is_disabled() {
-                text.push_str(" disabled");
-            }
-            if node.is_selected() == Some(true) {
-                text.push_str(" selected");
-            }
-            if self.focus == Some(id) {
-                text.push_str(" focused");
-            }
-            for test_id in &test_ids {
-                let _ = write!(text, " #{test_id}");
-            }
-            if let Some(rect) = rect {
-                let _ = write!(
-                    text,
-                    " at {},{} size {}x{}",
-                    rect.x0.round(),
-                    rect.y0.round(),
-                    rect.width().round(),
-                    rect.height().round()
+        let placed = Placed {
+            transform,
+            clip,
+            depth,
+            focused: self.focus == Some(id),
+        };
+        let line = match self.described.get(&id) {
+            Some(described) if described.placed == placed => described.line.clone(),
+            _ => {
+                let line = describe(id, node, rect, placed).map(Rc::new);
+                self.described.insert(
+                    id,
+                    Described {
+                        placed,
+                        line: line.clone(),
+                    },
                 );
-                let visible = clip.intersect(rect).area();
-                if visible <= 0.0 && rect.area() > 0.0 {
-                    text.push_str(" offscreen");
-                    visible_part = false;
-                } else if visible < rect.area() {
-                    text.push_str(" partly offscreen");
-                }
+                line
             }
-            lines.push(Line {
-                id,
-                actions: ACTIONS
-                    .into_iter()
-                    .filter(|action| node.supports_action(*action))
-                    .collect(),
-                depth,
-                role: node.role(),
-                label: label.unwrap_or_default().to_owned(),
-                value: value.unwrap_or_default().to_owned(),
-                toggled: node.toggled(),
-                disabled: node.is_disabled(),
-                focused: self.focus == Some(id),
-                text: text[start..].trim_start().to_owned(),
-                bounds: rect.map(|rect| {
-                    crate::geometry::Rect::from_min_max(
-                        crate::geometry::pos2(rect.x0 as f32, rect.y0 as f32),
-                        crate::geometry::pos2(rect.x1 as f32, rect.y1 as f32),
-                    )
-                }),
-                visible: visible_part,
-                test_ids,
-            });
-            text.push('\n');
+        };
+        let shown = line.is_some();
+        if let Some(line) = line {
+            self.lines.push(line);
         }
         let depth = depth + usize::from(shown);
         let clip = match rect {
@@ -334,7 +301,100 @@ impl Nodes {
             _ => clip,
         };
         for child in node.children() {
-            self.render_node(*child, transform, clip, depth, reached, text, lines);
+            self.node(*child, transform, clip, depth);
         }
     }
+}
+
+fn describe(id: NodeId, node: &Node, rect: Option<Rect>, placed: Placed) -> Option<Line> {
+    let label = node.label().filter(|label| !label.is_empty());
+    let numeric = node.numeric_value().map(|value| {
+        let value = (value * 1000.0).round() / 1000.0;
+        value.to_string()
+    });
+    let value = node
+        .value()
+        .filter(|value| !value.is_empty())
+        .map(str::to_owned)
+        .or(numeric);
+    let value = value.as_deref();
+    let test_ids: Vec<String> = node
+        .author_id()
+        .map(|ids| {
+            ids.split(crate::accessibility::TEST_ID_SEPARATOR)
+                .map(str::to_owned)
+                .collect()
+        })
+        .unwrap_or_default();
+    let shown = node.role() != Role::GenericContainer
+        || label.is_some()
+        || value.is_some()
+        || !test_ids.is_empty();
+    if !shown {
+        return None;
+    }
+    let mut text = String::new();
+    let mut visible_part = true;
+    let _ = write!(text, "{:?}", node.role());
+    if let Some(label) = label {
+        let _ = write!(text, " {label:?}");
+    }
+    if let Some(value) = value {
+        let _ = write!(text, " value={value:?}");
+    }
+    if let Some(toggled) = node.toggled() {
+        let _ = write!(text, " toggled={toggled:?}");
+    }
+    if node.is_disabled() {
+        text.push_str(" disabled");
+    }
+    if node.is_selected() == Some(true) {
+        text.push_str(" selected");
+    }
+    if placed.focused {
+        text.push_str(" focused");
+    }
+    for test_id in &test_ids {
+        let _ = write!(text, " #{test_id}");
+    }
+    if let Some(rect) = rect {
+        let _ = write!(
+            text,
+            " at {},{} size {}x{}",
+            rect.x0.round(),
+            rect.y0.round(),
+            rect.width().round(),
+            rect.height().round()
+        );
+        let visible = placed.clip.intersect(rect).area();
+        if visible <= 0.0 && rect.area() > 0.0 {
+            text.push_str(" offscreen");
+            visible_part = false;
+        } else if visible < rect.area() {
+            text.push_str(" partly offscreen");
+        }
+    }
+    Some(Line {
+        id,
+        actions: ACTIONS
+            .into_iter()
+            .filter(|action| node.supports_action(*action))
+            .collect(),
+        depth: placed.depth,
+        role: node.role(),
+        label: label.unwrap_or_default().to_owned(),
+        value: value.unwrap_or_default().to_owned(),
+        toggled: node.toggled(),
+        disabled: node.is_disabled(),
+        focused: placed.focused,
+        text,
+        bounds: rect.map(|rect| {
+            crate::geometry::Rect::from_min_max(
+                crate::geometry::pos2(rect.x0 as f32, rect.y0 as f32),
+                crate::geometry::pos2(rect.x1 as f32, rect.y1 as f32),
+            )
+        }),
+        visible: visible_part,
+        test_ids,
+    })
 }

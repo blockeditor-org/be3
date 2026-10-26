@@ -24,7 +24,7 @@ fn a_passing_overlay_occludes_only_its_content() {
     let mut harness = Harness::new(document);
     harness.frame(Vec::new());
 
-    let layers = harness.document().overlay_layers();
+    let layers = harness.document().overlay_layers(crate::WindowId::MAIN);
     assert_eq!(layers.len(), 1);
     let (_, occluder) = layers[0];
     assert!(

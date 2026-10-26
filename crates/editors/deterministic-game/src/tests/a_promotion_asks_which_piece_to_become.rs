@@ -28,7 +28,7 @@ fn a_promotion_asks_which_piece_to_become() {
     assert_eq!(moves(&editor).len(), actions.len());
     editor.snapshot("a_promotion_asks_which_piece_to_become");
 
-    editor.click(&format!("game.choice.{knight}"));
+    editor.click(format!("game.choice.{knight}"));
     editor.run();
 
     let played = moves(&editor);

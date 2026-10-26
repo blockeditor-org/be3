@@ -7,7 +7,7 @@
       "id": "4fd7804f-27cd-4bd5-96ee-8155e15ae87f",
       "edits": "61756469-6f2d-626c-6f63-6b2d74797001",
       "display_name": "Audio",
-      "icon": "\ueb82",
+      "icon": "\ue31a",
       "templates": {
         "main": {
           "dialog": true
@@ -16,6 +16,15 @@
       "regions": [
         "Frame"
       ]
+    }
+  },
+  "block_types": {
+    "audio": {
+      "id": "61756469-6f2d-626c-6f63-6b2d74797001",
+      "display_name": "Audio",
+      "icon": "\ue31a",
+      "color": [65, 145, 210],
+      "module": "audio_block_types.wasm"
     }
   },
   "entry_point": "audio_block.wasm"

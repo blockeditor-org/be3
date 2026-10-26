@@ -1,12 +1,12 @@
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 
-use block_editor_beui::be_block::PixelArtContent;
-use block_editor_beui::be_block::pixel_art::Artwork;
-use block_editor_beui::be_block::pixel_art::{PixelArtAnchor, PixelArtOperation, PixelColor};
+use block_editor_beui::Fit;
 use block_editor_beui::beui::reactive::*;
-use block_editor_beui::beui::{Pos2, Rect};
 use block_editor_beui::{ContentProjection, Editor, Fitting};
+use pixel_art_types::Artwork;
+use pixel_art_types::PixelArtContent;
+use pixel_art_types::{PixelArtAnchor, PixelArtOperation, PixelColor};
 
 pub(crate) type ArtBlock = ContentProjection<PixelArtContent>;
 
@@ -74,12 +74,7 @@ impl Tools {
         let export_error = create_signal(None::<String>);
         let drawn = create_signal(0);
         let constrained = create_signal(false);
-        let world = editor.world();
-        let fitting = editor.keep_fitted(move || {
-            world
-                .get()
-                .map(|world| Rect::from_min_size(Pos2::ZERO, world))
-        });
+        let fitting = editor.keep_fitted(|| Some(Fit::World));
         Self {
             cells: store(ToolsCells {
                 block,

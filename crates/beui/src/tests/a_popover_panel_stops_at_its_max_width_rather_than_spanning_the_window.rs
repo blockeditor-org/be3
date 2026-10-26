@@ -1,5 +1,6 @@
 use super::*;
 use crate::primitives::Frame;
+use crate::primitives::List;
 use crate::reactive::*;
 use crate::styled::popover::PANEL_MAX_WIDTH;
 use crate::styled::*;
@@ -35,7 +36,7 @@ fn a_popover_panel_stops_at_its_max_width_rather_than_spanning_the_window() {
     let width = harness.rect(content.get()).width();
     assert!(width > 0.0, "the popover opened");
     assert!(
-        width <= PANEL_MAX_WIDTH,
+        width <= PANEL_MAX_WIDTH.px(),
         "the panel's content is {width} wide in a {} wide window",
         WIDE_VIEWPORT.x
     );

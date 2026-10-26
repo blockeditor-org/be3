@@ -13,7 +13,7 @@ fn a_drag_across_an_empty_map_pans_it() {
     let at = |x: f32, y: f32| format!("{:.0},{:.0}", stage.0 + stage.2 * x, stage.1 + stage.3 * y);
     let before = app.place(TILE);
 
-    app.run(&["drag", &at(0.4, 0.5), &at(0.6, 0.6), "8"]);
+    app.run(&["app", "drag", &at(0.4, 0.5), &at(0.6, 0.6), "8"]);
     let after = app.place(TILE);
     let (dx, dy) = (after.0 - before.0, after.1 - before.1);
     assert!(

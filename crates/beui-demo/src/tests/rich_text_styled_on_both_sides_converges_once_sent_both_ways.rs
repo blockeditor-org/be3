@@ -10,7 +10,7 @@ fn rich_text_styled_on_both_sides_converges_once_sent_both_ways() {
         if test.rect_of("demo.collaboration.right").bottom() <= test.size().y {
             break;
         }
-        test.scroll_at(margin, Vec2::new(0.0, -REVEAL_STEP));
+        test.scroll(margin, Vec2::new(0.0, REVEAL_STEP));
     }
     test.click("demo.collaboration.pause");
     test.frame(Vec::new());

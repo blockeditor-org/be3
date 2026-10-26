@@ -1,6 +1,6 @@
 use super::*;
-use block_editor_beui::be_block::canvas::CanvasBinding;
-use block_editor_beui::beui::{Event, Pos2, Rect};
+use block_editor_beui::beui::{Input, Pos2, Rect};
+use infinite_canvas_types::CanvasBinding;
 
 use crate::app::canvas::item_bounds;
 
@@ -74,12 +74,12 @@ fn every_frame_of_a_drag_draws_a_bound_end_on_the_moved_shape() {
     };
 
     let grab = at_rest.center();
-    editor.press_at(grab);
+    editor.down(grab, PointerButton::Primary);
     editor.run();
     sync(&mut editor, &mut peer);
     for step in 1..=12 {
         let at = grab + Vec2::new(step as f32 * 7.0, step as f32 * 11.0);
-        editor.step(vec![Event::PointerMoved(at)]);
+        editor.step(vec![Input::PointerMoved(at)]);
         assert_follows(
             &editor,
             &placing,
@@ -99,7 +99,7 @@ fn every_frame_of_a_drag_draws_a_bound_end_on_the_moved_shape() {
             &format!("the peer's frame {step}"),
         );
     }
-    editor.release_at(grab + Vec2::new(84.0, 132.0));
+    editor.up(grab + Vec2::new(84.0, 132.0), PointerButton::Primary);
     editor.run();
     sync(&mut editor, &mut peer);
     assert_follows(&editor, &placing, &target, &arrow, "after the drag");

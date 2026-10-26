@@ -13,6 +13,7 @@ use beui_core::layer::{Dismiss, LayerPolicy};
 use beui_core::node::{NodeId, NodeOf, Rects};
 use beui_core::preferences::{PreferenceLayer, PreferenceLayers, PreferenceSource, Preferences};
 use beui_core::rich::CaretHandle;
+use beui_core::window::WindowId;
 use beui_tree::reactive::{Binding, Callback, Get, Memo, ReadSignal, create_memo};
 
 use beui_core::current::{try_with_document, with_document};
@@ -55,9 +56,8 @@ pub trait TreeNode {
     fn first_offset_within(&self) -> Option<NodeId>;
     fn offset(&self) -> Option<f32>;
     fn scroll_position(&self) -> Option<ScrollPosition>;
-    fn overscroll(&self) -> f32;
     fn drive_offset(&self, value: f32);
-    fn set_overscroll(&self, overscroll: f32);
+    fn offset_to_end(&self);
     fn on_steer(&self, handler: impl FnMut(()) + 'static);
     fn row_offset<K: Clone + Hash + Eq + 'static>(&self, key: &K) -> Option<f32>;
     fn texts_within(&self) -> Vec<NodeId>;
@@ -148,13 +148,6 @@ impl TreeNode for NodeId {
         with_document(|document| document.offset_position(offset_node(document, *self)?))
     }
 
-    fn overscroll(&self) -> f32 {
-        with_document(|document| match document.contains(*self) {
-            true => document.scroll_overscroll(*self),
-            false => 0.0,
-        })
-    }
-
     fn drive_offset(&self, value: f32) {
         with_document(|document| {
             if let Some(offset) = offset_node(document, *self) {
@@ -163,10 +156,10 @@ impl TreeNode for NodeId {
         });
     }
 
-    fn set_overscroll(&self, overscroll: f32) {
+    fn offset_to_end(&self) {
         with_document(|document| {
             if let Some(offset) = offset_node(document, *self) {
-                document.set_offset_overscroll(offset, overscroll);
+                document.offset_to_end(offset);
             }
         });
     }
@@ -235,6 +228,10 @@ impl Placements {
     pub fn rect(&self, node: NodeId) -> Option<Rect> {
         self.0.get(&node)
     }
+
+    pub fn scale(&self, node: NodeId) -> f32 {
+        self.0.scale_of(&node)
+    }
 }
 
 pub fn placements() -> Placements {
@@ -243,6 +240,10 @@ pub fn placements() -> Placements {
 
 pub fn viewport_rect() -> Rect {
     with_document(|document| document.viewport_rect())
+}
+
+pub fn window_of(node: NodeId) -> WindowId {
+    with_document(|document| document.window_of(node))
 }
 
 pub fn focused_node() -> Option<NodeId> {
@@ -257,16 +258,18 @@ pub fn focus_ancestry() -> Vec<NodeId> {
     with_document(|document| document.focus_ancestry())
 }
 
-pub fn stacked_at(nodes: &[NodeId], pos: Pos2) -> Vec<NodeId> {
+pub fn stacked_at(nodes: &[NodeId], window: WindowId, pos: Pos2) -> Vec<NodeId> {
     with_document(|document| {
         let layers = document.layers();
         let mut placed: Vec<(usize, NodeId)> = nodes
             .iter()
+            .filter(|node| document.window_of(**node) == window)
             .filter_map(|node| Some((document.layer_of(&layers, *node)?, *node)))
             .collect();
         placed.sort_by_key(|(layer, _)| std::cmp::Reverse(*layer));
         let foreign = (1..layers.len()).rev().find(|index| {
-            layers[*index].policy != LayerPolicy::Inert
+            layers[*index].window == window
+                && layers[*index].policy != LayerPolicy::Inert
                 && !placed.iter().any(|(layer, _)| layer == index)
                 && document
                     .layer_covers(&layers[*index])

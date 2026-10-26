@@ -1,0 +1,13 @@
+[package]
+name = "terminal-view"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+
+[dependencies]
+be-block = { path = "../be-block" }
+terminal-types = { path = "../editors/terminal/types" }
+beui = { path = "../beui", default-features = false }
+
+[lints]
+workspace = true

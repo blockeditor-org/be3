@@ -1,10 +1,10 @@
 use std::error::Error;
 
 use beui_core::app::Setup;
-use beui_core::app::automation::Capture;
 use beui_core::color::Color32;
-use beui_core::context::{FrameOutput, RendererInfo};
+use beui_core::context::{RendererInfo, WindowOutput};
 use beui_core::geometry::Vec2;
+use beui_core::renderer::Capture;
 use beui_core::renderer::Renderer;
 
 use crate::present::{Gpu, OpenDevice, Presented, Target, create_offscreen};
@@ -20,7 +20,7 @@ impl OffscreenSurface {
     pub async fn new(
         width: u32,
         height: u32,
-        open_device: Option<OpenDevice>,
+        open_device: OpenDevice,
     ) -> Result<Self, Box<dyn Error>> {
         let gpu = create_offscreen(FORMAT, open_device).await?;
         Ok(Self {
@@ -44,7 +44,7 @@ impl Renderer for OffscreenSurface {
     }
 
     fn recover(&mut self) -> Result<bool, Box<dyn Error>> {
-        if !self.gpu.lost() {
+        if !self.gpu.stale() {
             return Ok(false);
         }
         let (width, height) = self.target.size();
@@ -61,12 +61,12 @@ impl Renderer for OffscreenSurface {
         self.target.physical()
     }
 
-    fn prepare(&mut self, output: &FrameOutput, scale: f32, background: Color32) -> bool {
+    fn prepare(&mut self, output: &WindowOutput, scale: f32, background: Color32) -> bool {
         self.target
             .prepare(&mut self.gpu, output, scale, background)
     }
 
-    fn note(&mut self, output: &FrameOutput, scale: f32, background: Color32) {
+    fn note(&mut self, output: &WindowOutput, scale: f32, background: Color32) {
         self.target.note(output, scale, background);
     }
 

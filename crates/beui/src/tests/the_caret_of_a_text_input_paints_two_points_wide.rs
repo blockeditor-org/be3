@@ -19,6 +19,7 @@ fn the_caret_of_a_text_input_paints_two_points_wide() {
     let output = harness.frame(Vec::new());
 
     let caret = output
+        .main()
         .shapes()
         .iter()
         .find_map(|shape| match shape {

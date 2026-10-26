@@ -17,6 +17,7 @@ fn a_painting_rasterizes_onto_a_transparent_background() {
         background: [0, 0, 0, 0],
         primitives: vec![Primitive {
             clip: [0.0, 0.0, 4.0, 4.0],
+            fade: Fade::NONE,
             content: Content::Mesh(vec![Triangle {
                 texture: 0,
                 corners: [corner(0.0, 0.0), corner(4.0, 0.0), corner(0.0, 4.0)],

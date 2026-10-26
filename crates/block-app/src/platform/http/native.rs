@@ -5,12 +5,22 @@ const TIMEOUT: Duration = Duration::from_secs(30);
 pub(crate) fn fetch(
     url: String,
     headers: Vec<(&'static str, String)>,
+    aborted: super::Aborted,
     deliver: impl FnOnce(Result<Vec<u8>, String>) + Send + 'static,
 ) {
-    thread::spawn(move || deliver(run(&url, &headers)));
+    thread::spawn(move || {
+        let fetched = run(&url, &headers, &aborted);
+        if !aborted.aborted() {
+            deliver(fetched);
+        }
+    });
 }
 
-fn run(url: &str, headers: &[(&'static str, String)]) -> Result<Vec<u8>, String> {
+fn run(
+    url: &str,
+    headers: &[(&'static str, String)],
+    aborted: &super::Aborted,
+) -> Result<Vec<u8>, String> {
     let agent = ureq::AgentBuilder::new().timeout(TIMEOUT).build();
     let mut request = agent.get(url);
     for (key, value) in headers {
@@ -20,6 +30,9 @@ fn run(url: &str, headers: &[(&'static str, String)]) -> Result<Vec<u8>, String>
         Ok(response) | Err(ureq::Error::Status(_, response)) => response,
         Err(error) => return Err(error.to_string()),
     };
+    if aborted.aborted() {
+        return Err(format!("{url} was no longer wanted"));
+    }
     let status = response.status();
     let limit = super::MAX_BODY_BYTES;
     let mut body = Vec::new();

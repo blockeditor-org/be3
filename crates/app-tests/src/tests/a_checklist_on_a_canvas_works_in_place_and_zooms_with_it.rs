@@ -8,6 +8,7 @@ fn a_checklist_on_a_canvas_works_in_place_and_zooms_with_it() {
     add_to_my_files(&mut app, "Canvas");
     add_to_canvas(&mut app, "Checklist");
     app.wait(PANE);
+    app.wait("#checklist.add");
     let pane = app.place(PANE);
     let button = app.place("#checklist.add");
     app.crop("#workspace.block");
@@ -27,7 +28,7 @@ fn a_checklist_on_a_canvas_works_in_place_and_zooms_with_it() {
     );
     app.click("#infinite-canvas.pill.zoom-out");
 
-    app.run(&["move", "#checklist.draft"]);
+    app.run(&["app", "move", "#checklist.draft"]);
     app.record();
 
     app.click("#checklist.draft");

@@ -3,7 +3,6 @@ use crate::{ChildBlock, ChildState, ChildTarget};
 use beui::ItemSize;
 use beui::reactive::*;
 use beui::styled::*;
-use beui::unstyled::Floating;
 use block_plugin_api::ChildMode;
 
 const BLOCK: Uuid = Uuid::from_u128(1);
@@ -12,13 +11,15 @@ const PANEL: f32 = 120.0;
 
 struct OverlaidApp;
 
+#[component]
 impl crate::BeuiApp for OverlaidApp {
-    fn view(editor: crate::Editor) -> beui::styled::Root {
+    #[component]
+    fn View(editor: crate::Editor) -> beui::styled::Root {
         let node = {
             let child = NodeRef::new();
             view! {
                 <Frame>
-                    <List spacing=0.0>
+                    <List spacing=Space::None>
                         <ChildBlock
                             @node_ref={&child}
                             @sizing=ItemSize::Percent(100.0)
@@ -29,7 +30,7 @@ impl crate::BeuiApp for OverlaidApp {
                             on_state={move |_: ChildState| {}}
                         />
                         <Floating anchor={child}>
-                            <Frame width=PANEL height=PANEL />
+                            <Frame width={Size::Custom(PANEL)} height={Size::Custom(PANEL)} />
                         </Floating>
                     </List>
                 </Frame>
@@ -46,8 +47,8 @@ fn an_open_beui_overlay_is_reported_over_the_child_it_covers() {
     let mut session = session::<OverlaidApp>(BLOCK_TYPE);
     frame(&mut session, None, TopBar::Hidden);
 
-    session.run(EditorRegion::Frame, 1, 0);
-    session.run(EditorRegion::Frame, 2, 0);
+    session.run(EditorRegion::Frame, 0);
+    session.run(EditorRegion::Frame, 0);
 
     let report = session
         .report(EditorRegion::Frame)
@@ -57,7 +58,7 @@ fn an_open_beui_overlay_is_reported_over_the_child_it_covers() {
         .first()
         .expect("an open overlay must be reported so the host blits it over the children");
     assert_eq!(
-        (floating.width, floating.height),
+        (floating.width(), floating.height()),
         (PANEL, PANEL),
         "the reported rectangle is the one the overlay was laid out at"
     );
@@ -66,7 +67,7 @@ fn an_open_beui_overlay_is_reported_over_the_child_it_covers() {
         .first()
         .expect("an open overlay must be withheld from the child under it");
     assert_eq!(
-        (occluder.rect.width, occluder.rect.height),
+        (occluder.rect.width(), occluder.rect.height()),
         (PANEL, PANEL),
         "the occluder covers the same rectangle the overlay was laid out at"
     );

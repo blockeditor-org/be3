@@ -1,26 +1,26 @@
 use std::collections::{BTreeMap, HashSet};
 
-use block_editor_beui::be_block::canvas::Canvas;
-use block_editor_beui::be_block::canvas::{
-    CanvasArrowhead, CanvasColor, CanvasComponent, CanvasEntity, CanvasFill, CanvasLook,
-    CanvasPathPoint, CanvasPoint, CanvasProfile, CanvasShape, CanvasStrokeStyle, CanvasTextSize,
-    CanvasTransform, InfiniteCanvasOperation,
-};
-use block_editor_beui::be_block::database::DatabaseValue;
 use block_editor_beui::be_block::presence::PresenceKind;
 use block_editor_beui::be_block::{
-    CanvasContent, DisplaySettings, Root, Settings, SettingsContent, SettingsProfile,
-    SettingsProfileContent,
+    DisplaySettings, Root, Settings, SettingsContent, SettingsProfile, SettingsProfileContent,
 };
 use block_editor_beui::beui::Vec2;
 use block_editor_beui::{BlockInfo, BlockParent, EditorHost, OwnedEditor};
 use block_ui_test::BeuiTest;
+use database_types::database::DatabaseValue;
+use infinite_canvas_types::Canvas;
+use infinite_canvas_types::{
+    CanvasArrowhead, CanvasColor, CanvasComponent, CanvasEntity, CanvasFill, CanvasLook,
+    CanvasPathPoint, CanvasPoint, CanvasProfile, CanvasShape, CanvasStrokeStyle, CanvasTextSize,
+    CanvasTransform, InfiniteCanvasOperation,
+};
 use uuid::Uuid;
 
 use crate::app::CanvasApp;
 use crate::app::state::{attach_component, remove_component, set_component_value};
 use crate::geometry::{ResizeHandle, entity_bounds, resize_entities_axis};
 use block_editor_beui::beui::{PenPhase, PointerButton};
+use infinite_canvas_types::CanvasContent;
 
 mod a_bottom_dock_builds_its_tools_only_once_it_opens;
 mod a_direct_editor_entity_draws_the_frame_it_reserves;
@@ -33,11 +33,13 @@ mod a_finger_drags_a_transform_field_in_the_sheet;
 mod a_finger_just_outside_a_corner_resizes_the_selection;
 mod a_finger_on_the_pen_tool_draws_before_it_moves;
 mod a_frame_background_is_picked_in_the_sidebar;
+mod a_growing_stroke_writes_only_its_new_points;
 mod a_hand_drawn_shape_is_the_same_for_the_same_seed;
 mod a_held_finger_opens_the_context_menu_in_every_tool;
 mod a_letter_typed_into_a_field_picks_no_tool;
 mod a_line_is_bound_while_it_is_drawn_onto_a_shape;
 mod a_live_editor_works_in_place_and_a_pan_and_zoom_one_takes_the_frame_when_clicked;
+mod a_long_stroke_being_drawn_shows_no_seams_between_its_pieces;
 mod a_moved_entity_is_drawn_where_it_was_dropped;
 mod a_multiple_selection_outlines_each_selected_entity;
 mod a_narrow_canvas_opens_its_inspector_under_the_stage;
@@ -60,10 +62,13 @@ mod a_selected_bound_arrow_shows_where_each_end_is_anchored;
 mod a_selection_is_copied_and_exported_as_png;
 mod a_shape_is_drawn_while_dragged_as_it_lands;
 mod a_short_finger_stroke_keeps_every_point;
+mod a_stroke_drawn_in_pieces_has_the_outline_of_the_whole_stroke;
+mod a_text_label_draws_its_lists_and_quotes;
 mod a_text_tapped_in_starts_at_the_tap;
 mod a_typed_transform_value_is_one_edit;
 mod a_view_the_host_sets_is_not_fitted_back;
 mod an_arrow_drawn_between_two_shapes_follows_them_when_they_move;
+mod an_export_marks_the_list_markers_and_quote_bars_it_cannot_draw;
 mod an_image_still_loading_is_drawn_as_its_thumbhash;
 mod attaching_component_fills_only_missing_selected_entities;
 mod clicking_an_entity_selects_it_and_shows_its_handles;
@@ -119,7 +124,7 @@ mod text_written_near_the_bottom_stays_in_view_when_the_keyboard_opens;
 mod the_actions_menu_deletes_the_selection;
 mod the_canvas_opens_with_the_select_tool_so_a_finger_box_selects;
 mod the_canvas_paints_the_entities_it_holds;
-mod the_dock_ends_with_ignore_touch_after_undo_and_redo;
+mod the_dock_ends_with_ignore_touch_after_the_block_button;
 mod the_ellipse_and_diamond_tools_draw_their_shapes;
 mod the_eraser_end_of_a_pen_deletes_what_it_touches;
 mod the_eraser_finds_shapes_where_they_have_moved_to;
@@ -143,6 +148,7 @@ mod turning_touch_off_in_the_dock_keeps_fingers_off_the_canvas;
 mod typed_text_grows_away_from_the_edges_it_is_aligned_to;
 mod typing_a_transform_value_and_pressing_escape_edits_nothing;
 mod with_binding_off_or_ctrl_held_a_line_drawn_onto_a_shape_stays_free;
+mod zoomed_text_wraps_the_same_while_edited_and_takes_typing_where_pressed;
 
 fn colored(red: u8, green: u8, blue: u8) -> CanvasColor {
     CanvasColor::Rgba {

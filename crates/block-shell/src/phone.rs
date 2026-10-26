@@ -1,12 +1,12 @@
 use std::cell::RefCell;
 
 use block_editor_beui::beui::NodeId;
+use block_editor_beui::beui::dock::styled::TabId;
 use block_editor_beui::beui::icons::{
-    ICON_DELETE, ICON_DRIVE_FILE_RENAME_OUTLINE, ICON_LINK_OFF, ICON_NOTE_ADD, ICON_SHARE,
+    ICON_FILE_PLUS, ICON_PENCIL_LINE, ICON_SHARE_2, ICON_TRASH, ICON_UNLINK,
 };
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
-use block_editor_beui::beui::unstyled::TabId;
 use block_editor_beui::{BlockInfo, BlockParent};
 use uuid::Uuid;
 
@@ -16,8 +16,8 @@ use super::tab::TabItem;
 use super::workspace::{PhoneSheet, Workspace};
 use block_editor_beui::beui::TextAlign;
 
-const SHEET_PADDING: f32 = 12.0;
-const SECTION_PADDING: f32 = 8.0;
+const SHEET_PADDING: Space = Space::Lg;
+const SECTION_PADDING: Space = Space::Md;
 
 #[component]
 pub(crate) fn DetailsSheet(workspace: Workspace, tab: TabId) -> NodeId {
@@ -37,7 +37,7 @@ pub(crate) fn DetailsSheet(workspace: Workspace, tab: TabId) -> NodeId {
                 }
             }}
         >
-            <List spacing=0.0>
+            <List spacing=Space::None>
                 <Dynamic value={shown}>|tab: Option<TabId>| {
                     match tab {
                         Some(tab) => view! {
@@ -69,14 +69,9 @@ fn DetailsBody(workspace: Workspace, tab: TabId) -> NodeId {
     });
     let glyph = create_memo(move || {
         info.with(|info| {
-            info.as_ref()
-                .and_then(|info| {
-                    block_editor_beui::label_glyph(
-                        &workspace.label(info.item.id, info.item.block_type),
-                    )
-                })
-                .unwrap_or_default()
-                .to_owned()
+            info.as_ref().and_then(|info| {
+                block_editor_beui::label_glyph(&workspace.label(info.item.id, info.item.block_type))
+            })
         })
     });
     let kind = create_memo(move || {
@@ -96,12 +91,16 @@ fn DetailsBody(workspace: Workspace, tab: TabId) -> NodeId {
                     allowed.delete,
                     allowed.is_reference && allowed.unlink.is_ok(),
                     allowed.is_reference,
+                    allowed.share,
+                    allowed.offers_delete,
                 ))
             })
         })
     });
     let rename_off = create_memo(move || !rights.get().is_some_and(|r| r.0));
     let delete_off = create_memo(move || !rights.get().is_some_and(|r| r.1));
+    let share_off = create_memo(move || !rights.get().is_some_and(|r| r.4));
+    let offers_delete = create_memo(move || rights.get().is_none_or(|r| r.5));
     let unlinkable = create_memo(move || rights.get().is_some_and(|r| r.2));
     let delete_label = create_memo(move || match rights.get().is_some_and(|r| r.3) {
         true => "Remove link".to_owned(),
@@ -141,13 +140,13 @@ fn DetailsBody(workspace: Workspace, tab: TabId) -> NodeId {
     };
     view! {
         <Frame padding=SECTION_PADDING>
-            <List spacing=0.0>
-                <Frame padding={Sides::symmetric(SHEET_PADDING, SECTION_PADDING)}>
-                    <List direction=Direction::Horizontal align=Align::Center spacing=12.0>
+            <List spacing=Space::None>
+                <Frame padding={Padding::symmetric(SHEET_PADDING, SECTION_PADDING)}>
+                    <List direction=Direction::Horizontal align=Align::Center spacing=Space::Lg>
                         <Text color=TextColor::Accent align=TextAlign::Center>
                             <Icon glyph={glyph} />
                         </Text>
-                        <List @sizing=ItemSize::Percent(100.0) spacing=2.0>
+                        <List @sizing=ItemSize::Percent(100.0) spacing=Space::Xs2>
                             <Text style=TextStyle::HEADING>{name}</Text>
                             <Text style=TextStyle::CAPTION>{kind}</Text>
                         </List>
@@ -156,39 +155,41 @@ fn DetailsBody(workspace: Workspace, tab: TabId) -> NodeId {
                 <ActionRow
                     @test_id={"workspace.details.new"}
                     label="New file here"
-                    glyph={ICON_NOTE_ADD.to_owned()}
+                    glyph=ICON_FILE_PLUS
                     on_click={new_here}
                 />
                 <ActionRow
                     @test_id={"workspace.details.rename"}
                     label="Rename"
-                    glyph={ICON_DRIVE_FILE_RENAME_OUTLINE.to_owned()}
+                    glyph=ICON_PENCIL_LINE
                     disabled={rename_off}
                     on_click={move || act(Action::Rename)}
                 />
                 <ActionRow
                     @test_id={"workspace.details.share"}
                     label="Share"
-                    glyph={ICON_SHARE.to_owned()}
-                    disabled={rename_off}
+                    glyph=ICON_SHARE_2
+                    disabled={share_off}
                     on_click={move || act(Action::Share)}
                 />
                 <Show condition={unlinkable}>
                     <ActionRow
                         @test_id={"workspace.details.unlink"}
                         label="Unlink"
-                        glyph={ICON_LINK_OFF.to_owned()}
+                        glyph=ICON_UNLINK
                         on_click={move || act(Action::Unlink)}
                     />
                 </Show>
-                <ActionRow
-                    @test_id={"workspace.details.delete"}
-                    label={delete_label}
-                    glyph={ICON_DELETE.to_owned()}
-                    disabled={delete_off}
-                    danger=true
-                    on_click={move || act(Action::Delete)}
-                />
+                <Show condition={offers_delete}>
+                    <ActionRow
+                        @test_id={"workspace.details.delete"}
+                        label={delete_label}
+                        glyph=ICON_TRASH
+                        disabled={delete_off}
+                        danger=true
+                        on_click={move || act(Action::Delete)}
+                    />
+                </Show>
                 <RelatedBlocks
                     workspace={workspace}
                     title="References"
@@ -220,10 +221,10 @@ fn RelatedBlocks(workspace: Workspace, title: String, refs: Memo<Refs>, named: S
     });
     let some = create_memo(move || !ids.get().is_empty());
     view! {
-        <List spacing=0.0>
+        <List spacing=Space::None>
             <Show condition={some}>|| {
                 let title = title.clone(); view! {
-                    <Frame padding={Sides::symmetric(SHEET_PADDING, SECTION_PADDING)}>
+                    <Frame padding={Padding::symmetric(SHEET_PADDING, SECTION_PADDING)}>
                         <Text style=TextStyle::CAPTION>{title}</Text>
                     </Frame>
                 }
@@ -256,8 +257,6 @@ fn RelatedRow(workspace: Workspace, reference: Memo<Option<BlockInfo>>, named: S
         label
             .get()
             .and_then(|label| block_editor_beui::label_glyph(&label))
-            .unwrap_or_default()
-            .to_owned()
     });
     let detail = create_memo(move || {
         match reference.with(|reference| {

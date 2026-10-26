@@ -1,22 +1,15 @@
-use block_plugin_api::Message;
-
 use crate::{
     Waker,
     screens::Screens,
     session::{ClientSession, State},
     wasm::Surfaces,
+    wire::{Delivery, Shared},
 };
-
-pub(crate) struct Step {
-    pub(crate) outbound: Vec<Message>,
-    pub(crate) closed: bool,
-}
 
 pub(crate) struct Runtime {
     session: ClientSession,
     screens: Screens,
     surfaces: Option<Surfaces>,
-    generation: u64,
     asked: bool,
     told: bool,
 }
@@ -33,60 +26,62 @@ impl Runtime {
             session: ClientSession::new(id, name, version),
             screens: Screens::new(apps, waker),
             surfaces: None,
-            generation: 0,
             asked: false,
             told: false,
         }
     }
 
-    pub(crate) fn hello(&self) -> Message {
+    pub(crate) fn hello(&self) -> block_plugin_api::Hello {
         self.session.hello()
     }
 
-    pub(crate) fn step(&mut self, batch: Vec<Message>, woken: bool) -> Result<Step, String> {
+    pub(crate) fn step(
+        &mut self,
+        batch: Vec<Delivery>,
+        woken: bool,
+        wire: &Shared,
+    ) -> Result<bool, String> {
         let mut changed = woken;
         let mut draw = false;
-        let mut painting = false;
-        let mut outbound = Vec::new();
-        for message in batch {
-            if matches!(message, Message::DrawFrame { .. }) {
-                draw = true;
+        let mut paintings = Vec::new();
+        for delivery in batch {
+            self.session.receive(&delivery)?;
+            match delivery {
+                Delivery::Paintings(painted) => paintings.push(painted),
+                Delivery::Shutdown => {
+                    wire.shut_down();
+                    return Ok(true);
+                }
+                delivery => {
+                    draw |= matches!(delivery, Delivery::Draw { .. });
+                    changed |= self.screens.deliver(delivery);
+                }
             }
-            painting |= matches!(
-                &message,
-                Message::Extension { key, .. } if *key == paint_format::PAINTING_EXTENSION
-            );
-            changed |= self.screens.receive(&message);
-            outbound.extend(self.session.receive(message));
-            if matches!(self.session.state(), State::Closed) {
-                return Ok(Step {
-                    outbound,
-                    closed: true,
-                });
+            if self.session.state() == State::Closed {
+                return Ok(true);
             }
         }
         self.told |= draw;
-        let replaced = self.place_surfaces(&mut outbound)?;
+        let replaced = self.place_surfaces()?;
         if let Some(surfaces) = &mut self.surfaces {
-            if draw || (replaced && self.told) {
+            if draw || (replaced && self.told && wire.drawing()) {
                 self.asked = false;
-                outbound.extend(surfaces.render(&mut self.screens)?);
+                if let Some(commit) = surfaces.render(&mut self.screens)? {
+                    wire.drawn(commit);
+                }
             } else if (changed || replaced) && !self.asked {
                 self.asked = true;
-                outbound.push(Message::FrameNeeded);
+                block_plugin_api::guest::host::frame_needed();
             }
         }
-        if painting {
-            outbound.push(self.screens.paintings());
+        for painted in paintings {
+            painted.send(self.screens.paintings());
         }
-        outbound.extend(self.screens.outbound());
-        Ok(Step {
-            outbound,
-            closed: false,
-        })
+        self.screens.outbound();
+        Ok(false)
     }
 
-    fn place_surfaces(&mut self, outbound: &mut Vec<Message>) -> Result<bool, String> {
+    fn place_surfaces(&mut self) -> Result<bool, String> {
         let Some(spec) = self.screens.surface() else {
             return Ok(false);
         };
@@ -98,12 +93,8 @@ impl Runtime {
         if surfaces.layout().same_placements(&layout) {
             return Ok(false);
         }
-        self.generation += 1;
-        self.screens.set_generation(self.generation);
-        let mut layout = layout;
-        layout.generation = self.generation;
         surfaces.place(layout.clone());
-        outbound.push(Message::Layout(layout));
+        block_plugin_api::guest::host::layout(layout);
         Ok(true)
     }
 }

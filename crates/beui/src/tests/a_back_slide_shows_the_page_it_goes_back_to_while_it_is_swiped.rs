@@ -39,10 +39,10 @@ fn a_back_slide_shows_the_page_it_goes_back_to_while_it_is_swiped() {
     );
 
     harness.frame(vec![
-        Event::Back(BackGesture::Started {
+        Input::Back(BackGesture::Started {
             edge: BackEdge::Left,
         }),
-        Event::Back(BackGesture::Progressed(0.5)),
+        Input::Back(BackGesture::Progressed(0.5)),
     ]);
     let started = harness.rect(previous.get());
     assert!(
@@ -50,14 +50,14 @@ fn a_back_slide_shows_the_page_it_goes_back_to_while_it_is_swiped() {
         "the page behind waits off to the side it comes in from: {started:?}"
     );
 
-    harness.frame(vec![Event::Back(BackGesture::Progressed(1.0))]);
+    harness.frame(vec![Input::Back(BackGesture::Progressed(1.0))]);
     let pulled = harness.rect(previous.get());
     assert!(
         pulled.left() > started.left(),
         "the page behind comes in with the finger: {pulled:?} from {started:?}"
     );
 
-    harness.frame(vec![Event::Back(BackGesture::Invoked)]);
+    harness.frame(vec![Input::Back(BackGesture::Invoked)]);
     let mut last = pulled.left();
     while behind(&harness) {
         let left = harness.rect(previous.get()).left();
@@ -80,13 +80,13 @@ fn a_back_slide_shows_the_page_it_goes_back_to_while_it_is_swiped() {
     assert_eq!(harness.rect(page.get()), resting);
 
     harness.frame(vec![
-        Event::Back(BackGesture::Started {
+        Input::Back(BackGesture::Started {
             edge: BackEdge::Left,
         }),
-        Event::Back(BackGesture::Progressed(1.0)),
+        Input::Back(BackGesture::Progressed(1.0)),
     ]);
     assert!(behind(&harness));
-    harness.frame(vec![Event::Back(BackGesture::Cancelled)]);
+    harness.frame(vec![Input::Back(BackGesture::Cancelled)]);
     harness.settle();
     assert_eq!(harness.rect(page.get()), resting);
     assert!(

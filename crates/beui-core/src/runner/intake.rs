@@ -1,63 +1,91 @@
+use std::time::Instant;
+
 use crate::geometry::{Pos2, Vec2};
-use crate::input::{Event, Key, KeyPress, Modifiers, PointerButton, TouchId, TouchPhase};
+use crate::input::{
+    Event, FileDrag, Input, Key, KeyPress, Keystroke, Modifiers, PointerButton, ScrollDelta,
+    TouchId, TouchPhase,
+};
+use crate::window::{WindowId, WindowReport};
 
 pub const SCROLL_LINE: f32 = 40.0;
 pub const SCROLL_PAGE: f32 = 800.0;
 pub const PINCH_SPEED: f32 = 0.01;
 
-#[derive(Clone, Debug, Default, PartialEq)]
-pub struct Keystroke {
-    pub key: Option<Key>,
-    pub pressed: bool,
-    pub repeat: bool,
-    pub code: Option<u32>,
-    pub text: Option<String>,
-}
-
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub enum ScrollDelta {
-    Pixels(Vec2),
-    Lines(Vec2),
-    Pages(Vec2),
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Units {
+    Physical,
+    Logical,
+    Points,
 }
 
 #[derive(Clone, Debug, PartialEq)]
-pub enum Input {
-    Event(Event),
-    Key(Keystroke),
-    Scroll(ScrollDelta),
-    Pinch(ScrollDelta),
-    Logical(Box<Input>),
+pub enum Incoming {
+    Input {
+        units: Units,
+        window: WindowId,
+        input: Input,
+    },
+    FileDrag(FileDrag),
+    Time(Instant),
+    Window(WindowReport),
+    Controller(super::Controller),
 }
 
-impl Input {
-    pub fn logical(input: impl Into<Input>) -> Self {
-        Self::Logical(Box::new(input.into()))
+impl Incoming {
+    pub fn new(units: Units, input: Input) -> Self {
+        Self::Input {
+            units,
+            window: WindowId::MAIN,
+            input,
+        }
+    }
+
+    pub fn logical(input: Input) -> Self {
+        Self::new(Units::Logical, input)
+    }
+
+    pub fn points(input: Input) -> Self {
+        Self::new(Units::Points, input)
+    }
+
+    pub fn in_window(mut self, id: WindowId) -> Self {
+        if let Self::Input { window, .. } = &mut self {
+            *window = id;
+        }
+        self
     }
 }
 
-impl From<Event> for Input {
-    fn from(event: Event) -> Self {
-        Self::Event(event)
+impl From<WindowReport> for Incoming {
+    fn from(report: WindowReport) -> Self {
+        Self::Window(report)
     }
 }
 
-impl From<Keystroke> for Input {
-    fn from(stroke: Keystroke) -> Self {
-        Self::Key(stroke)
+impl From<super::Controller> for Incoming {
+    fn from(controller: super::Controller) -> Self {
+        Self::Controller(controller)
     }
 }
 
-impl From<ScrollDelta> for Input {
-    fn from(delta: ScrollDelta) -> Self {
-        Self::Scroll(delta)
+impl From<FileDrag> for Incoming {
+    fn from(drag: FileDrag) -> Self {
+        Self::FileDrag(drag)
+    }
+}
+
+impl From<Input> for Incoming {
+    fn from(input: Input) -> Self {
+        Self::new(Units::Physical, input)
     }
 }
 
 pub(crate) struct Intake {
-    pub(crate) incoming: Vec<Input>,
+    pub(crate) incoming: Vec<Incoming>,
+    pub(crate) reports: Vec<WindowReport>,
     modifiers: Modifiers,
     pointer: Pos2,
+    window: WindowId,
     held: u8,
     left: bool,
     emulated_touch: bool,
@@ -67,8 +95,10 @@ impl Default for Intake {
     fn default() -> Self {
         Self {
             incoming: Vec::new(),
+            reports: Vec::new(),
             modifiers: Modifiers::NONE,
             pointer: Pos2::ZERO,
+            window: WindowId::MAIN,
             held: 0,
             left: false,
             emulated_touch: false,
@@ -76,10 +106,11 @@ impl Default for Intake {
     }
 }
 
-pub(crate) struct Drain {
+pub(crate) struct Drain<'a> {
     pub pixels_per_point: f32,
     pub native_pixels_per_point: f32,
     pub touch_emulation: bool,
+    pub window_size: &'a dyn Fn(WindowId) -> Option<Vec2>,
 }
 
 impl Intake {
@@ -87,61 +118,74 @@ impl Intake {
         self.modifiers
     }
 
-    pub(crate) fn drain(&mut self, drain: &mut Drain, events: &mut Vec<Event>) {
+    pub(crate) fn drain(&mut self, drain: &mut Drain<'_>, events: &mut Vec<Event>) {
         if !drain.touch_emulation && std::mem::take(&mut self.emulated_touch) {
             events.push(self.touch(TouchPhase::Cancel));
         }
         let mut produced = false;
         for incoming in std::mem::take(&mut self.incoming) {
-            if is_time(&incoming) && !produced {
-                continue;
+            match incoming {
+                Incoming::Time(at) => {
+                    if produced {
+                        events.push(Event::Time(at));
+                    }
+                }
+                Incoming::FileDrag(drag) => {
+                    events.push(match drag {
+                        FileDrag::Hovered => Event::FileHovered,
+                        FileDrag::Cancelled => Event::FileHoverCancelled,
+                        FileDrag::Dropped(file) => Event::FileDropped(file),
+                    });
+                    produced = true;
+                }
+                Incoming::Window(report) => self.reports.push(report),
+                Incoming::Controller(_) => {}
+                Incoming::Input {
+                    units,
+                    window,
+                    input,
+                } => {
+                    if window != self.window && points_into_window(&input) {
+                        self.window = window;
+                        events.push(Event::PointerWindow(window));
+                    }
+                    let scale = match units {
+                        Units::Physical => drain.pixels_per_point,
+                        Units::Logical => drain.pixels_per_point / drain.native_pixels_per_point,
+                        Units::Points => 1.0,
+                    };
+                    let before = events.len();
+                    self.input(input, scale, drain, events);
+                    produced = events.len() > before;
+                }
             }
-            let before = events.len();
-            self.input(incoming, drain.pixels_per_point, drain, events);
-            produced = events.len() > before;
         }
     }
 
-    fn input(&mut self, input: Input, scale: f32, drain: &Drain, events: &mut Vec<Event>) {
+    fn input(&mut self, input: Input, scale: f32, drain: &Drain<'_>, events: &mut Vec<Event>) {
+        let points = |pos: Pos2| Pos2::new(pos.x / scale, pos.y / scale);
         match input {
-            Input::Event(event) => self.event(event, scale, drain, events),
             Input::Key(stroke) => self.key(stroke, events),
             Input::Scroll(delta) => {
-                let delta = points(delta, scale);
+                let delta = scrolled(delta, scale);
                 if delta != Vec2::ZERO {
                     events.push(Event::Scroll(delta));
                 }
             }
-            Input::Pinch(delta) => {
-                let pinched = points(delta, scale).y;
-                if pinched != 0.0 {
-                    events.push(Event::Zoom((pinched * PINCH_SPEED).exp()));
-                }
-            }
-            Input::Logical(input) => {
-                let logical = drain.pixels_per_point / drain.native_pixels_per_point;
-                self.input(*input, logical, drain, events);
-            }
-        }
-    }
-
-    fn event(&mut self, event: Event, scale: f32, drain: &Drain, events: &mut Vec<Event>) {
-        let points = |pos: Pos2| Pos2::new(pos.x / scale, pos.y / scale);
-        match event {
-            Event::Modifiers(modifiers) => self.set_modifiers(modifiers, events),
-            Event::PointerMoved(pos) => {
+            Input::Modifiers(modifiers) => self.set_modifiers(modifiers, events),
+            Input::PointerMoved(pos) => {
                 self.pointer = points(pos);
+                self.back_inside(drain);
                 if !drain.touch_emulation {
                     events.push(Event::PointerMoved(self.pointer));
                 } else if self.emulated_touch {
                     events.push(self.touch(TouchPhase::Move));
                 }
             }
-            Event::PointerButton {
+            Input::PointerButton {
                 pos,
                 button,
                 pressed,
-                ..
             } => {
                 self.pointer = points(pos);
                 let bit = button_bit(button);
@@ -171,20 +215,15 @@ impl Intake {
                     events.push(Event::PointerGone);
                 }
             }
-            Event::PointerGone => match self.emulated_touch || self.held != 0 {
-                true => self.left = true,
+            Input::PointerLeft => match self.emulated_touch || self.held != 0 {
+                true => {
+                    self.left = true;
+                    events.push(Event::PointerOutside);
+                }
                 false => events.push(Event::PointerGone),
             },
-            Event::PointerMotion(delta) => events.push(Event::PointerMotion(delta / scale)),
-            Event::Scroll(delta) => {
-                self.input(
-                    Input::Scroll(ScrollDelta::Pixels(delta)),
-                    scale,
-                    drain,
-                    events,
-                );
-            }
-            Event::Touch {
+            Input::PointerMotion(delta) => events.push(Event::PointerMotion(delta / scale)),
+            Input::Touch {
                 id,
                 phase,
                 pos,
@@ -195,32 +234,55 @@ impl Intake {
                 pos: points(pos),
                 force,
             }),
-            Event::Pen {
-                phase,
-                pos,
-                pressure,
-                pen,
-            } => events.push(Event::Pen {
+            Input::Pen { phase, pos, pen } => events.push(Event::Pen {
                 phase,
                 pos: points(pos),
-                pressure,
                 pen,
             }),
-            Event::Predicted(pos) => events.push(Event::Predicted(points(pos))),
-            Event::Focus(false) => {
+            Input::Predicted(pos) => events.push(Event::Predicted(points(pos))),
+            Input::PointersCancelled => {
                 self.held = 0;
                 self.left = false;
                 if std::mem::take(&mut self.emulated_touch) {
                     events.push(self.touch(TouchPhase::Cancel));
                 }
+                events.push(Event::PointersCancelled);
+            }
+            Input::Focus(false) => {
                 self.set_modifiers(Modifiers::NONE, events);
                 events.push(Event::Focus(false));
             }
-            Event::InterceptedKey(press) => events.push(Event::InterceptedKey(KeyPress {
+            Input::Focus(true) => events.push(Event::Focus(true)),
+            Input::PointerUnlocked => events.push(Event::PointerUnlocked),
+            Input::InterceptedKey {
+                key,
+                pressed,
+                repeat,
+            } => events.push(Event::InterceptedKey(KeyPress {
+                key,
+                pressed,
+                repeat,
                 modifiers: self.modifiers,
-                ..press
             })),
-            event => events.push(event),
+            Input::InterceptedTap(key) => events.push(Event::InterceptedTap(key)),
+            Input::Text(text) => events.push(Event::Text(text)),
+            Input::Paste(pasted) => events.push(Event::Paste(pasted)),
+            Input::Ime(ime) => events.push(Event::Ime(ime)),
+            Input::ScrollStarted => events.push(Event::ScrollStarted),
+            Input::ScrollEnded => events.push(Event::ScrollEnded),
+            Input::Zoom(factor) => events.push(Event::Zoom(factor)),
+            Input::Back(gesture) => events.push(Event::Back(gesture)),
+        }
+    }
+
+    fn back_inside(&mut self, drain: &Drain<'_>) {
+        if self.left
+            && (drain.window_size)(self.window).is_some_and(|size| {
+                let pos = self.pointer;
+                pos.x >= 0.0 && pos.y >= 0.0 && pos.x < size.x && pos.y < size.y
+            })
+        {
+            self.left = false;
         }
     }
 
@@ -229,7 +291,7 @@ impl Intake {
             key,
             pressed,
             repeat,
-            code,
+            evdev,
             text,
         } = stroke;
         let modifiers = self.modifiers;
@@ -239,7 +301,7 @@ impl Intake {
                 && !text.is_empty()
                 && !text.chars().any(char::is_control)
         });
-        let Some(key) = key.or(code.map(|_| Key::Unidentified)) else {
+        let Some(key) = key.or(evdev.map(|_| Key::Unidentified)) else {
             events.extend(text.map(Event::Text));
             return;
         };
@@ -253,7 +315,7 @@ impl Intake {
                 repeat,
                 modifiers,
             },
-            code,
+            evdev,
             text,
         });
     }
@@ -278,15 +340,23 @@ impl Intake {
     }
 }
 
-fn is_time(input: &Input) -> bool {
-    match input {
-        Input::Event(Event::Time(_)) => true,
-        Input::Logical(input) => is_time(input),
-        _ => false,
-    }
+fn points_into_window(input: &Input) -> bool {
+    matches!(
+        input,
+        Input::PointerMoved(_)
+            | Input::PointerButton { .. }
+            | Input::PointerLeft
+            | Input::Touch { .. }
+            | Input::Pen { .. }
+            | Input::Predicted(_)
+            | Input::Scroll(_)
+            | Input::ScrollStarted
+            | Input::ScrollEnded
+            | Input::Zoom(_)
+    )
 }
 
-fn points(delta: ScrollDelta, scale: f32) -> Vec2 {
+pub fn scrolled(delta: ScrollDelta, scale: f32) -> Vec2 {
     match delta {
         ScrollDelta::Pixels(delta) => delta / scale,
         ScrollDelta::Lines(delta) => delta * SCROLL_LINE,

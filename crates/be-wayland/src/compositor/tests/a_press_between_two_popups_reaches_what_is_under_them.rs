@@ -12,12 +12,18 @@ fn a_press_between_two_popups_reaches_what_is_under_them() {
     let input = harness.rect("test.input");
     let above = (input.min.y - shown.min.y) as i32;
 
-    let _below = harness
-        .client
-        .popup(harness.app.server(), &window, (10, 280), (150, 200));
-    let _beside = harness
-        .client
-        .popup(harness.app.server(), &window, (300, above), (50, 20));
+    let _below = harness.client.popup(
+        harness.stepped.app_mut().compositor.server(),
+        &window,
+        (10, 280),
+        (150, 200),
+    );
+    let _beside = harness.client.popup(
+        harness.stepped.app_mut().compositor.server(),
+        &window,
+        (300, above),
+        (50, 20),
+    );
     harness.settle();
     let popups = harness.rect(&format!("wayland.popups.{}", id.0));
     let gap = pos2(shown.min.x + 100.0, input.center().y);
@@ -26,18 +32,16 @@ fn a_press_between_two_popups_reaches_what_is_under_them() {
 
     let presses = harness.client.received.buttons.len();
     harness.frame(vec![
-        Event::PointerMoved(gap),
-        Event::PointerButton {
+        Input::PointerMoved(gap),
+        Input::PointerButton {
             pos: gap,
             button: PointerButton::Primary,
             pressed: true,
-            modifiers: beui::Modifiers::NONE,
         },
-        Event::PointerButton {
+        Input::PointerButton {
             pos: gap,
             button: PointerButton::Primary,
             pressed: false,
-            modifiers: beui::Modifiers::NONE,
         },
     ]);
     harness.settle();

@@ -15,9 +15,9 @@ fn a_single_pixel_buffer_fills_its_window_with_one_color() {
     window.surface.commit();
     harness.settle();
 
-    let surface = harness.app.server().state.surface(id).unwrap();
+    let surface = harness.compositor().server().state.surface(id).unwrap();
     let current = harness
-        .app
+        .compositor()
         .textures
         .borrow()
         .get(&surface)

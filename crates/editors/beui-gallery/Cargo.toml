@@ -11,6 +11,7 @@ crate-type = ["cdylib", "rlib"]
 beui = { path = "../../beui", default-features = false, features = ["render"] }
 beui-demo = { path = "../../beui-demo" }
 block-editor-beui = { path = "../../block-editor-beui" }
+beui-gallery-types = { path = "types" }
 uuid = "1"
 
 [dev-dependencies]

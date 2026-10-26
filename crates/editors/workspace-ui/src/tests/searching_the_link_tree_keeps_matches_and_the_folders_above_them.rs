@@ -1,4 +1,5 @@
 use block_editor_beui::BlockLocation;
+use block_editor_beui::beui::Modifiers;
 
 use super::*;
 
@@ -20,7 +21,7 @@ fn searching_the_link_tree_keeps_matches_and_the_folders_above_them() {
     );
 
     fixture.test.click("picker.search");
-    fixture.test.text("minu");
+    fixture.test.type_text("minu");
     fixture.settle();
     assert!(
         !fixture
@@ -32,15 +33,15 @@ fn searching_the_link_tree_keeps_matches_and_the_folders_above_them() {
     for _ in 0.."minu".len() {
         fixture
             .test
-            .key_press(block_editor_beui::beui::Key::Backspace);
+            .key(block_editor_beui::beui::Key::Backspace, Modifiers::NONE);
     }
     fixture.settle();
     fixture
         .test
-        .click(&format!("picker.link.{}.chevron", places.work));
+        .click(format!("picker.link.{}.chevron", places.work));
     fixture.settle();
     fixture.test.click("picker.search");
-    fixture.test.text("minu");
+    fixture.test.type_text("minu");
     fixture.settle();
     for kept in [places.space, places.work, places.minutes] {
         assert!(
@@ -58,9 +59,9 @@ fn searching_the_link_tree_keeps_matches_and_the_folders_above_them() {
     for _ in 0.."minu".len() {
         fixture
             .test
-            .key_press(block_editor_beui::beui::Key::Backspace);
+            .key(block_editor_beui::beui::Key::Backspace, Modifiers::NONE);
     }
-    fixture.test.text(places.budget.to_string());
+    fixture.test.type_text(&places.budget.to_string());
     fixture.settle();
     assert!(
         fixture

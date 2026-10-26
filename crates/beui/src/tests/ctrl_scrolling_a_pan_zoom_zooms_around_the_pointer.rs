@@ -14,7 +14,7 @@ fn ctrl_scrolling_a_pan_zoom_zooms_around_the_pointer() {
     harness.frame(Vec::new());
 
     let corner = pos2(300.0, 200.0);
-    harness.scroll(corner, vec2(0.0, 25.0), Modifiers::CTRL);
+    harness.scroll_at(corner, vec2(0.0, 25.0), Modifiers::CTRL);
     harness.frame(Vec::new());
 
     let view = harness

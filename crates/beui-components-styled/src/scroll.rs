@@ -4,20 +4,23 @@ use beui_macros::{component, view};
 use crate::Scrollbar;
 use crate::card;
 use crate::dialog;
+use crate::list::List;
 use crate::popover::PANEL_PADDING;
 use crate::text::{Icon, Text};
-use crate::theme::{BORDER_WIDTH, SCROLL_FADE, SCROLLBAR_WIDTH, use_theme};
+use crate::theme::{SCROLL_FADE, SCROLLBAR_WIDTH, use_theme};
+use crate::tokens::{Padding, Size, Space, Stroke, use_size};
 use beui_components_unstyled as unstyled;
 use beui_components_unstyled::{ScrollHandle, ScrollbarStyle};
 use beui_core::base::{Align, Direction, ItemSize, ScrollPosition, Sides};
 use beui_core::font::TextAlign;
-use beui_core::icons::{ICON_HEIGHT, ICON_WIDTH};
+use beui_core::icons::{ICON_MOVE_HORIZONTAL, ICON_MOVE_VERTICAL};
 use beui_core::node::NodeId;
-use beui_view::primitives::*;
+use beui_view::primitives::Spacer;
 use beui_view::reactive::*;
 
-const MARKER_SIZE: f32 = 28.0;
-const MARKER_RADIUS: f32 = 14.0;
+const FOCUS_RING_WIDTH: Stroke = Stroke::Focus;
+const FOCUS_RING_OFFSET: Stroke = Stroke::Custom(-1.0);
+const MARKER_SIZE: Size = Size::Custom(28.0);
 
 #[derive(Clone, Copy, PartialEq, Debug)]
 pub struct Bleed {
@@ -26,17 +29,34 @@ pub struct Bleed {
 
 impl Bleed {
     pub const NONE: Bleed = Bleed::new(0.0, 0.0);
-    pub const POPOVER: Bleed = Bleed::new(PANEL_PADDING, PANEL_PADDING);
-    pub const CARD: Bleed = Bleed::new(card::PADDING_HORIZONTAL, card::PADDING_VERTICAL);
-    pub const DIALOG: Bleed = Bleed::new(dialog::PADDING_HORIZONTAL, dialog::PADDING_VERTICAL);
-    pub const DIALOG_ABOVE_ACTIONS: Bleed = Bleed {
-        reach: Bleed::DIALOG.reach.bottom(dialog::SPACING),
-    };
+    pub const POPOVER: Bleed = Bleed::padded(Padding::all(PANEL_PADDING));
+    pub const CARD: Bleed = Bleed::padded(Padding::all(card::PADDING));
+    pub const DIALOG: Bleed = Bleed::padded(dialog::PADDING);
+
+    pub(crate) const fn dialog(below_title: bool, above_actions: bool) -> Self {
+        let reach = Bleed::DIALOG.reach;
+        let reach = if below_title {
+            reach.top(dialog::SPACING.px())
+        } else {
+            reach
+        };
+        let reach = if above_actions {
+            reach.bottom(dialog::SPACING.px())
+        } else {
+            reach
+        };
+        Self { reach }
+    }
 
     const fn new(horizontal: f32, vertical: f32) -> Self {
         Self {
             reach: Sides::symmetric(inside_border(horizontal), inside_border(vertical)),
         }
+    }
+
+    const fn padded(padding: Padding) -> Self {
+        let sides = padding.px();
+        Self::new(sides.left, sides.top)
     }
 
     pub const fn left(self, on: bool) -> Self {
@@ -65,8 +85,8 @@ impl Bleed {
 }
 
 const fn inside_border(padding: f32) -> f32 {
-    if padding > BORDER_WIDTH {
-        padding - BORDER_WIDTH
+    if padding > Stroke::Hairline.px() {
+        padding - Stroke::Hairline.px()
     } else {
         0.0
     }
@@ -74,11 +94,13 @@ const fn inside_border(padding: f32) -> f32 {
 
 #[component]
 pub fn Scroll(
+    #[prop(default = ComponentRef::new())] api: ComponentRef<unstyled::ScrollApi>,
     #[prop(default = 0.0)] offset: Prop<f32>,
     #[prop(default = None)] reveal: Prop<Option<usize>>,
     #[prop(default = Direction::Vertical)] direction: Prop<Direction>,
     #[prop(default = false)] fit: bool,
-    #[prop(default = None)] max_length: Option<f32>,
+    #[prop(default = None)] max_length: Option<Size>,
+    #[prop(default = false)] follow_end: Prop<bool>,
     #[prop(default = Bleed::NONE)] bleed: Prop<Bleed>,
     on_change: Callback<ScrollPosition>,
     children: Children<ListChild>,
@@ -86,12 +108,14 @@ pub fn Scroll(
     let theme = use_theme();
     let scroll = view! {
         <unstyled::Scroll
+            api
             offset
             reveal
             direction
             fit={fit || max_length.is_some()}
+            follow_end
             bleed={bleed.map(|bleed| bleed.reach)}
-            focus_color={theme.accent}
+            focus_ring={create_memo(move || Some(Outline::new(theme.accent.get(), FOCUS_RING_WIDTH.px()).offset(FOCUS_RING_OFFSET.px())))}
             scrollbar={scrollbar_style()}
             marker={|axis: Memo<Direction>| view! {
                 <AutoscrollMarker axis />
@@ -104,10 +128,10 @@ pub fn Scroll(
     let Some(max_length) = max_length else {
         return scroll;
     };
+    let max_length = use_size(max_length);
+    let bounded = create_memo(move || ItemSize::Intrinsic.max(max_length.get()));
     view! {
-        <List direction={direction} spacing=0.0>
-            {scroll} @sizing={ItemSize::Intrinsic.max(max_length)}
-        </List>
+        <List direction={direction} spacing=Space::None>{scroll} @sizing={bounded}</List>
     }
 }
 
@@ -135,22 +159,19 @@ pub fn scrollbar_style() -> ScrollbarStyle {
 
 #[component]
 fn AutoscrollMarker(axis: Prop<Direction>) -> NodeId {
-    let glyph = axis.map(|axis| {
-        match axis {
-            Direction::Vertical => ICON_HEIGHT,
-            Direction::Horizontal => ICON_WIDTH,
-        }
-        .to_string()
+    let glyph = axis.map(|axis| match axis {
+        Direction::Vertical => ICON_MOVE_VERTICAL,
+        Direction::Horizontal => ICON_MOVE_HORIZONTAL,
     });
     view! {
         <Frame
             width=MARKER_SIZE
             height=MARKER_SIZE
-            radius={Radius::custom(MARKER_RADIUS)}
+            radius=Radius::Full
             fill=ColorRole::SurfaceRaised
             border={Border::DEFAULT}
         >
-            <List align=Align::Center spacing=0.0>
+            <List align=Align::Center spacing=Space::None>
                 <Spacer @sizing=ItemSize::Percent(50.0) />
                 <Text align=TextAlign::Center>
                     <Icon glyph={glyph} />

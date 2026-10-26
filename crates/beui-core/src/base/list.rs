@@ -125,6 +125,10 @@ impl Sizing {
     fn clamp(self, length: f32) -> f32 {
         length.min(self.max).max(self.min)
     }
+
+    fn yields(self) -> bool {
+        matches!(self.size, ItemSize::Percent(_)) || self.shrink > 0.0
+    }
 }
 
 impl ItemSize {
@@ -299,7 +303,7 @@ impl ListNode {
                 false => 0.0,
             };
             slots.push(Slot {
-                size: item.size,
+                size: self.floored(doc, painter, item, available_main),
                 gap,
                 length,
             });
@@ -323,6 +327,22 @@ impl ListNode {
         }
         line.finish();
         line
+    }
+
+    fn floored(
+        &self,
+        doc: &mut Document,
+        painter: &Painter,
+        item: &ListItem,
+        available_main: f32,
+    ) -> Sizing {
+        let size = item.size;
+        if self.direction != Direction::Horizontal || !available_main.is_finite() || !size.yields()
+        {
+            return size;
+        }
+        let least = crate::layout::min_width(doc, painter, item.child).min(size.max);
+        size.min(size.min.max(least))
     }
 
     fn lines(&self, doc: &mut Document, painter: &Painter, available_main: f32) -> Vec<Line> {
@@ -461,6 +481,31 @@ impl Element for ListNode {
         }
         let line = self.line(doc, painter, available_main, available_cross, false);
         self.axes(line.main, line.cross)
+    }
+
+    fn min_width(&self, doc: &mut Document, painter: &Painter) -> f32 {
+        let grid = doc.pixel_grid();
+        let gaps = self.gaps(grid.snap(self.spacing), grid);
+        let in_line = self.direction == Direction::Horizontal && !self.wrap;
+        let mut total = 0.0f32;
+        for (item, gap) in self.items.iter().zip(gaps) {
+            let size = item.size;
+            let length = match size.size {
+                ItemSize::Fixed(fixed) if self.direction == Direction::Horizontal => {
+                    grid.snap(fixed.max(0.0))
+                }
+                _ => crate::layout::min_width(doc, painter, item.child),
+            };
+            let length = match self.direction {
+                Direction::Horizontal => size.clamp(length),
+                Direction::Vertical => length,
+            };
+            total = match in_line {
+                true => total + gap + length,
+                false => total.max(length),
+            };
+        }
+        total
     }
 
     fn baseline(&self, doc: &mut Document, painter: &Painter, available: Vec2) -> Option<f32> {

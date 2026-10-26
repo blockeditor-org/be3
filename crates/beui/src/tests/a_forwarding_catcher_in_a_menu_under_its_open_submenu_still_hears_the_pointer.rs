@@ -37,7 +37,7 @@ fn a_forwarding_catcher_in_a_menu_under_its_open_submenu_still_hears_the_pointer
     let mut harness = Harness::new(document);
     harness.frame(Vec::new());
 
-    harness.frame(vec![Event::PointerMoved(pos2(40.0, 40.0))]);
+    harness.frame(vec![Input::PointerMoved(pos2(40.0, 40.0))]);
     let moves: Vec<Pos2> = heard.with_untracked(|heard| {
         heard
             .iter()

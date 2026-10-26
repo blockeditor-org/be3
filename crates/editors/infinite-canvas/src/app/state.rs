@@ -1,33 +1,32 @@
-use block_editor_beui::be_block::{BlockContent, DatabaseSchemaContent};
+use block_editor_beui::be_block::BlockContent;
+use block_editor_beui::beui::icons::Glyph;
+use database_types::DatabaseSchemaContent;
 use std::cell::{Cell, RefCell};
 use std::collections::{BTreeMap, HashMap, HashSet};
 
 use crate::presence::{CanvasCaret, CanvasCursor};
 use block_editor_beui::ContentProjection;
-use block_editor_beui::be_block::CanvasContent;
-use block_editor_beui::be_block::ImageContent;
-use block_editor_beui::be_block::canvas::{
-    Canvas, CanvasArrowhead, CanvasBinding, CanvasComponent, CanvasEntity, CanvasLayerMove,
-    CanvasLook, CanvasPoint, CanvasProfile, CanvasShape, CanvasStyle, CanvasTextStyle,
-    CanvasTransform, InfiniteCanvasOperation,
-};
-use block_editor_beui::be_block::database::DatabaseValue;
 use block_editor_beui::be_block::presence::{PresenceColor, pick_free_color};
 use block_editor_beui::be_block::{Edit, ObjectId};
 use block_editor_beui::beui::icons::{
-    ICON_ARROW_SELECTOR_TOOL, ICON_CROP_FREE, ICON_DIAGONAL_LINE, ICON_DIAMOND, ICON_DRAW,
-    ICON_INK_ERASER, ICON_LASSO_SELECT, ICON_NORTH_EAST, ICON_PANORAMA_FISH_EYE, ICON_RECTANGLE,
-    ICON_TEXT_FIELDS,
+    ICON_BRUSH, ICON_CIRCLE, ICON_DIAMOND, ICON_ERASER, ICON_LASSO_SELECT, ICON_MOUSE_POINTER_2,
+    ICON_MOVE_UP_RIGHT, ICON_RECTANGLE_HORIZONTAL, ICON_SCAN, ICON_SLASH, ICON_TYPE,
 };
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::{Pos2, Rect, Thumbhash, Vec2, pos2};
 use block_editor_beui::block_ui::BlockLabel;
 use block_editor_beui::database::DatabaseBlockPickRequest;
 use block_editor_beui::{
-    BlockFilter, ChildRect, ChildState, Drag, Editor, FileDrop, InteractionMode, ResizeMode,
-    child_rect,
+    BlockFilter, ChildState, Drag, Editor, FileDrop, InteractionMode, ResizeMode,
 };
 use block_editor_beui::{BlockParent, BlockQuery, SharedCaret};
+use database_types::database::DatabaseValue;
+use infinite_canvas_types::CanvasContent;
+use infinite_canvas_types::{
+    Canvas, CanvasArrowhead, CanvasBinding, CanvasComponent, CanvasEntity, CanvasLayerMove,
+    CanvasLook, CanvasPoint, CanvasProfile, CanvasShape, CanvasStyle, CanvasTextStyle,
+    CanvasTransform, InfiniteCanvasOperation,
+};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -36,6 +35,7 @@ use crate::geometry::*;
 use super::entities::Entities;
 use super::text::labels;
 use crate::images::{image_filter, imported_image};
+use image_block_types::{ImageContent, ImageFile};
 
 pub(crate) const ZOOM_STEP: f32 = 1.25;
 const CANVAS_CLIPBOARD_PREFIX: &str = "be3-infinite-canvas:";
@@ -98,19 +98,19 @@ pub(crate) enum Tool {
 }
 
 impl Tool {
-    pub(crate) fn glyph(self) -> &'static str {
+    pub(crate) fn glyph(self) -> Glyph {
         match self {
-            Tool::Select => ICON_ARROW_SELECTOR_TOOL,
+            Tool::Select => ICON_MOUSE_POINTER_2,
             Tool::Lasso => ICON_LASSO_SELECT,
-            Tool::Frame => ICON_CROP_FREE,
-            Tool::Line => ICON_DIAGONAL_LINE,
-            Tool::Arrow => ICON_NORTH_EAST,
-            Tool::Rectangle => ICON_RECTANGLE,
-            Tool::Ellipse => ICON_PANORAMA_FISH_EYE,
+            Tool::Frame => ICON_SCAN,
+            Tool::Line => ICON_SLASH,
+            Tool::Arrow => ICON_MOVE_UP_RIGHT,
+            Tool::Rectangle => ICON_RECTANGLE_HORIZONTAL,
+            Tool::Ellipse => ICON_CIRCLE,
             Tool::Diamond => ICON_DIAMOND,
-            Tool::Text => ICON_TEXT_FIELDS,
-            Tool::Pen => ICON_DRAW,
-            Tool::Eraser => ICON_INK_ERASER,
+            Tool::Text => ICON_TYPE,
+            Tool::Pen => ICON_BRUSH,
+            Tool::Eraser => ICON_ERASER,
         }
     }
 
@@ -420,6 +420,7 @@ struct CanvasCells {
     shown: RefCell<Option<CanvasCursor>>,
     writing: Cell<bool>,
     scrubbing: Cell<bool>,
+    written_points: Cell<usize>,
     drafting: Cell<Option<Uuid>>,
     color: Cell<Option<PresenceColor>>,
     stage: Cell<Rect>,
@@ -542,6 +543,7 @@ impl CanvasState {
             shown: RefCell::new(None),
             writing: Cell::new(false),
             scrubbing: Cell::new(false),
+            written_points: Cell::new(0),
             drafting: Cell::new(None),
             color: Cell::new(None),
             stage: Cell::new(Rect::ZERO),
@@ -624,18 +626,18 @@ impl CanvasState {
         self.preview
     }
 
-    pub(crate) fn grid(&self) -> ReadSignal<block_editor_beui::be_block::canvas::CanvasGrid> {
+    pub(crate) fn grid(&self) -> ReadSignal<infinite_canvas_types::CanvasGrid> {
         self.cells.value().content.field(
             block_editor_beui::be_block::be_model::ObjectId::ROOT,
-            block_editor_beui::be_block::canvas::Canvas::GRID,
+            infinite_canvas_types::Canvas::GRID,
         )
     }
 
-    pub(crate) fn set_grid(&self, grid: block_editor_beui::be_block::canvas::CanvasGrid) {
+    pub(crate) fn set_grid(&self, grid: infinite_canvas_types::CanvasGrid) {
         self.cells
             .value()
             .content
-            .operate(block_editor_beui::be_block::canvas::Canvas::set_grid(grid));
+            .operate(infinite_canvas_types::Canvas::set_grid(grid));
     }
 
     pub(crate) fn block_id(&self) -> Uuid {
@@ -938,11 +940,22 @@ impl CanvasState {
                 pressures,
                 ..
             } => {
-                if let [start, _, ..] = points[..] {
+                let written = &self.cells.value().written_points;
+                let from = written.get();
+                if from >= 2 && self.holds(*id) {
+                    if from < points.len() {
+                        self.operate(&InfiniteCanvasOperation::Extend {
+                            id: *id,
+                            points: points[from..].to_vec(),
+                            pressures: pressures[from..].to_vec(),
+                        });
+                    }
+                } else if let [start, _, ..] = points[..] {
                     let entity =
                         pen_entity(points.clone(), pressures.clone(), self.default_style());
                     self.put_live(vec![seeded(entity, *id, start)]);
                 }
+                written.set(points.len());
             }
             Gesture::Move {
                 duplicate: true, ..
@@ -1074,6 +1087,7 @@ impl CanvasState {
 
     pub(crate) fn begin_gesture(&self, gesture: Option<Gesture>) {
         self.cancel_writes();
+        self.cells.value().written_points.set(0);
         self.gesture.set(gesture);
         self.write_gesture();
     }
@@ -1163,14 +1177,16 @@ impl CanvasState {
         }
     }
 
-    pub(crate) fn fit_edited_text(&self, id: Uuid) {
+    pub(crate) fn fit_edited_text(&self, id: Uuid, content: Vec2) -> bool {
         let Some(held) = self.entities.get_untracked(id) else {
-            return;
+            return false;
         };
-        let fitted = self.fit_text(held.clone());
-        if fitted.transform != held.transform {
+        let fitted = fit_text(held.clone(), content);
+        let grown = fitted.transform != held.transform;
+        if grown {
             self.record_update(vec![held], vec![fitted]);
         }
+        grown
     }
 
     pub(crate) fn edit_text_at(&self, entity: Uuid, entry: TextEntry) {
@@ -1194,26 +1210,6 @@ impl CanvasState {
         if let Some(surface) = self.surface().try_get() {
             with_document(|document| document.focus_focusable(surface));
         }
-    }
-
-    pub(crate) fn fit_text(&self, mut entity: CanvasEntity) -> CanvasEntity {
-        if entity.shape != CanvasShape::Text {
-            return entity;
-        }
-        let text_style = entity.text_style;
-        let Some(measured) = super::text::measure(&entity, self.scale()) else {
-            return entity;
-        };
-        let mut size = text_box_size(&text_style, entity.style.text_size.px(), measured);
-        if text_style.wrap {
-            size = CanvasPoint::new(entity.transform.size.x, entity.transform.size.y.max(size.y));
-        }
-        if (entity.transform.size.x - size.x).abs() >= 0.5
-            || (entity.transform.size.y - size.y).abs() >= 0.5
-        {
-            entity.transform = text_grown(entity.transform, &text_style, size);
-        }
-        entity
     }
 
     pub(crate) fn take_context_position(&self) -> Option<CanvasPoint> {
@@ -1494,7 +1490,8 @@ impl CanvasState {
             CanvasTransform::new(point, CanvasPoint::new(16.0, 32.0), 0.0),
         ));
         text.placeholder = "Text".into();
-        let mut text = self.fit_text(text);
+        text.transform.size.y =
+            text.style.text_size.px() * text.text_style.line_height + 2.0 * TEXT_INSET;
         text.transform.center =
             CanvasPoint::new(point.x + text.transform.size.x / 2.0 - TEXT_INSET, point.y);
         text
@@ -1993,17 +1990,14 @@ impl CanvasState {
     pub(crate) fn open_block_picker(self, center: Option<CanvasPoint>) {
         let at = center.unwrap_or_else(|| self.viewport_center());
         let on_screen = self.camera().to_screen(pos2(at.x, at.y));
-        self.pick_block_from(
-            center,
-            child_rect(Rect::from_min_size(on_screen, Vec2::ZERO)),
-        );
+        self.pick_block_from(center, Rect::from_min_size(on_screen, Vec2::ZERO));
     }
 
-    pub(crate) fn open_block_picker_at(self, button: ChildRect) {
+    pub(crate) fn open_block_picker_at(self, button: Rect) {
         self.pick_block_from(None, button);
     }
 
-    fn pick_block_from(self, center: Option<CanvasPoint>, anchor: ChildRect) {
+    fn pick_block_from(self, center: Option<CanvasPoint>, anchor: Rect) {
         let state = self;
         let filter = BlockFilter {
             anchor: Some(anchor),
@@ -2013,7 +2007,7 @@ impl CanvasState {
             if let Ok(picked) = picked
                 && state.is_alive()
             {
-                state.place_picked_block(picked.id, center);
+                state.place_picked_block(picked.id(), center);
             }
         });
     }
@@ -2037,7 +2031,7 @@ impl CanvasState {
         });
     }
 
-    pub(crate) fn open_component_picker(self, anchor: Option<ChildRect>) {
+    pub(crate) fn open_component_picker(self, anchor: Option<Rect>) {
         let selected = self
             .selected_entities()
             .iter()
@@ -2057,7 +2051,7 @@ impl CanvasState {
                 if let Ok(picked) = picked
                     && state.is_alive()
                 {
-                    state.attach_picked_component(&selected, picked.id);
+                    state.attach_picked_component(&selected, picked.id());
                 }
             },
         );
@@ -2092,7 +2086,7 @@ impl CanvasState {
             if let Ok(picked) = picked
                 && state.is_alive()
             {
-                state.set_picked_value(&selected, schema_id, field_id, picked.id);
+                state.set_picked_value(&selected, schema_id, field_id, picked.id());
             }
         });
     }
@@ -2641,7 +2635,15 @@ impl CanvasState {
                 .get(id)
                 .is_some_and(|text| !text.text.is_empty())
             {
-                untrack(|| state.keep_draft(id));
+                untrack(|| {
+                    with_document(|document| {
+                        document.report_after_layout(move || {
+                            if state.is_alive() {
+                                state.keep_draft(id);
+                            }
+                        })
+                    })
+                });
             }
         });
         let state = self;
@@ -2741,7 +2743,7 @@ impl CanvasState {
         for (index, file) in drop.files.into_iter().enumerate() {
             let offset = IMPORT_CASCADE_OFFSET * index as f32;
             self.add_imported_image(
-                ImageContent::from_file(file.name, file.data),
+                ImageFile::from_file(file.name, file.data),
                 CanvasPoint::new(base.x + offset, base.y + offset),
             );
         }
@@ -2755,7 +2757,7 @@ impl CanvasState {
             Pasted::Image(file) => {
                 self.import_error.set(None);
                 let center = self.paste_center();
-                self.add_imported_image(ImageContent::from_file(file.name, file.data), center);
+                self.add_imported_image(ImageFile::from_file(file.name, file.data), center);
             }
         }
     }
@@ -3001,4 +3003,21 @@ impl CanvasState {
             content.y / scale.max(f32::EPSILON),
         ))
     }
+}
+
+fn fit_text(mut entity: CanvasEntity, content: Vec2) -> CanvasEntity {
+    if entity.shape != CanvasShape::Text {
+        return entity;
+    }
+    let text_style = entity.text_style;
+    let mut size = text_box_size(&text_style, entity.style.text_size.px(), content);
+    if text_style.wrap {
+        size = CanvasPoint::new(entity.transform.size.x, entity.transform.size.y.max(size.y));
+    }
+    if (entity.transform.size.x - size.x).abs() >= 0.5
+        || (entity.transform.size.y - size.y).abs() >= 0.5
+    {
+        entity.transform = text_grown(entity.transform, &text_style, size);
+    }
+    entity
 }

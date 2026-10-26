@@ -1,5 +1,5 @@
 use super::*;
-use block_editor_beui::beui::{Event, Key, Modifiers, PointerButton, Pos2};
+use block_editor_beui::beui::{Input, Key, Modifiers, PointerButton, Pos2};
 
 fn boxed(id: u128, x: f32, y: f32, width: f32, height: f32) -> CanvasEntity {
     let mut boxed = card();
@@ -48,23 +48,21 @@ fn the_lasso_selects_only_what_it_encloses() {
     editor.click("infinite-canvas.dock.tool.Select");
     editor.run();
     editor.step(vec![
-        Event::PointerMoved(lasso[0]),
-        Event::PointerButton {
+        Input::PointerMoved(lasso[0]),
+        Input::PointerButton {
             pos: lasso[0],
             button: PointerButton::Primary,
             pressed: true,
-            modifiers: Modifiers::NONE,
         },
     ]);
     for at in &lasso[1..] {
-        editor.step(vec![Event::PointerMoved(*at)]);
+        editor.step(vec![Input::PointerMoved(*at)]);
     }
     editor.snapshot("the_lasso_is_drawn_while_it_is_dragged");
-    editor.step(vec![Event::PointerButton {
+    editor.step(vec![Input::PointerButton {
         pos: lasso[lasso.len() - 1],
         button: PointerButton::Primary,
         pressed: false,
-        modifiers: Modifiers::NONE,
     }]);
     editor.run();
 
@@ -74,7 +72,7 @@ fn the_lasso_selects_only_what_it_encloses() {
     );
     editor.snapshot("the_lasso_selects_only_what_it_encloses");
 
-    editor.key_press(Key::Delete);
+    editor.key(Key::Delete, Modifiers::NONE);
     editor.run();
     let mut left_over: Vec<Uuid> = entities(&editor).iter().map(|entity| entity.id).collect();
     left_over.sort();

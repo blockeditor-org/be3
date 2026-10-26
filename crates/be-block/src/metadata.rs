@@ -1,6 +1,6 @@
 use std::{collections::BTreeMap, fmt, marker::PhantomData};
 
-use be_model::{Stored, from_cbor, to_cbor};
+use be_model::{BlockRef, Stored, from_cbor, to_cbor};
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use uuid::Uuid;
 
@@ -9,7 +9,30 @@ pub const MAX_NAME_BYTES: usize = 128;
 pub const NAME: MetaKey<String> =
     MetaKey::defined(0x6be3_6d65_7461_4e00_8a1e_6e61_6d65_0001, "name");
 
-pub const ICON: MetaKey<char> = MetaKey::defined(0x6be3_6d65_7461_4900_8a1e_6963_6f6e_0001, "icon");
+pub const ICON: MetaKey<String> =
+    MetaKey::defined(0x6be3_6d65_7461_4900_8a1e_6963_6f6e_0002, "icon_name");
+
+pub const MATERIAL_ICON: MetaKey<char> =
+    MetaKey::defined(0x6be3_6d65_7461_4900_8a1e_6963_6f6e_0001, "icon");
+
+const MATERIAL_ICON_NAMES: [(char, &str); 16] = [
+    ('\u{e873}', "file-text"),
+    ('\u{e2c7}', "folder"),
+    ('\u{f09a}', "star"),
+    ('\u{e87e}', "heart"),
+    ('\u{e9b2}', "house"),
+    ('\u{e943}', "briefcase"),
+    ('\u{e80c}', "graduation-cap"),
+    ('\u{e86e}', "book"),
+    ('\u{e86f}', "code"),
+    ('\u{e90f}', "lightbulb"),
+    ('\u{f0c6}', "flag"),
+    ('\u{ebcc}', "calendar-days"),
+    ('\u{e6b1}', "list-checks"),
+    ('\u{e3f4}', "image"),
+    ('\u{e405}', "eighth-note"),
+    ('\u{e80b}', "globe"),
+];
 
 pub const ICON_COLOR: MetaKey<[u8; 3]> =
     MetaKey::defined(0x6be3_6d65_7461_4900_8a1e_636f_6c72_0001, "icon_color");
@@ -26,7 +49,7 @@ pub const ROW_PREFIX: MetaKey<String> =
 pub const SCHEMA: MetaKey<String> =
     MetaKey::derived(0x6be3_6d65_7461_5300_8a1e_7363_6865_0001, "schema");
 
-pub const ARTIFACT: MetaKey<ArtifactSource> =
+pub const ARTIFACT: MetaKey<Artifact> =
     MetaKey::defined(0x6be3_6d65_7461_4100_8a1e_6172_7469_0001, "artifact");
 
 pub const LOCAL_ID: MetaKey<Uuid> =
@@ -35,8 +58,17 @@ pub const LOCAL_ID: MetaKey<Uuid> =
 pub const MY_FILES: MetaKey<bool> =
     MetaKey::defined(0x6be3_6d65_7461_4d00_8a1e_6d79_6669_0001, "my_files");
 
+pub const EXECUTABLE: MetaKey<bool> =
+    MetaKey::defined(0x6be3_6d65_7461_5800_8a1e_6578_6563_0001, "executable");
+
 pub const DELETED_FROM: MetaKey<DeletedFrom> =
     MetaKey::defined(0x6be3_6d65_7461_4400_8a1e_6465_6c66_0001, "deleted_from");
+
+pub const SETTINGS: MetaKey<BlockRef> =
+    MetaKey::defined(0x6be3_6d65_7461_5300_8a1e_7365_7474_0001, "settings");
+
+pub const VIEW_EDITOR: MetaKey<Uuid> =
+    MetaKey::defined(0x6be3_6d65_7461_5600_8a1e_7669_6577_0001, "view_editor");
 
 const DEFINED: &str = "defined";
 const DERIVED: &str = "derived";
@@ -113,10 +145,11 @@ pub struct Thumbhash {
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
-pub struct ArtifactSource {
+pub struct Artifact {
+    pub source: BlockRef,
     pub source_type: Uuid,
     #[serde(with = "be_model::bytes")]
-    pub data: Vec<u8>,
+    pub settings: Vec<u8>,
 }
 
 #[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -129,6 +162,13 @@ impl BlockMetadata {
     pub fn named(name: impl Into<String>) -> Self {
         let mut metadata = Self::default();
         metadata.insert(&NAME, &name.into());
+        metadata
+    }
+
+    pub fn view(editor: Uuid, name: Option<String>) -> Self {
+        let mut metadata = Self::default();
+        metadata.put(&NAME, name.as_ref());
+        metadata.insert(&VIEW_EDITOR, &editor);
         metadata
     }
 
@@ -168,6 +208,28 @@ impl BlockMetadata {
         self.get(&NAME)
             .or_else(|| self.get(&INTRINSIC_NAME))
             .filter(|name| !name.is_empty())
+    }
+
+    pub fn icon(&self) -> Option<String> {
+        self.get(&ICON).or_else(|| {
+            let material = self.get(&MATERIAL_ICON)?;
+            MATERIAL_ICON_NAMES
+                .iter()
+                .find(|(codepoint, _)| *codepoint == material)
+                .map(|(_, name)| (*name).to_owned())
+        })
+    }
+
+    pub fn references(&self) -> Vec<Uuid> {
+        let mut found = Vec::new();
+        for value in self.defined.values().chain(self.derived.values()) {
+            if let Some(value) = from_cbor::<Stored>(value) {
+                be_model::references::walk(&value, &mut found);
+            }
+        }
+        let mut seen = std::collections::HashSet::new();
+        found.retain(|id| seen.insert(*id));
+        found
     }
 
     pub fn named_by_hand(&self) -> bool {

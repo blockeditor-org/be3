@@ -36,7 +36,7 @@ fn removing_a_node_with_an_open_tooltip_leaves_nothing_to_paint() {
     harness.frame(Vec::new());
     let described = harness.document().find_test_id("row.1").expect("the row");
 
-    harness.frame(vec![Event::PointerMoved(harness.center(described))]);
+    harness.frame(vec![Input::PointerMoved(harness.center(described))]);
     harness.frame(Vec::new());
     let tip = harness
         .document()

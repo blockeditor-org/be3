@@ -1,24 +1,32 @@
 use beui::reactive::*;
 use beui::{Pos2, Rect, Vec2};
+use block_plugin_api::FitArea;
 
 use crate::Editor;
 
 const CENTRED: f32 = 0.5;
 
-#[derive(Clone, Copy)]
-pub struct Fitting {
-    editor: Editor,
-    content: Memo<Option<Rect>>,
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum Fit {
+    World,
+    Centre,
+    Area(Rect),
 }
 
 #[derive(Clone, Copy)]
-struct Fit {
+pub struct Fitting {
+    editor: Editor,
+    fit: Memo<Option<Fit>>,
+}
+
+#[derive(Clone, Copy)]
+struct Zoomed {
     factor: f32,
     anchor: Pos2,
     delta: Vec2,
 }
 
-impl Fit {
+impl Zoomed {
     fn zooms(&self) -> bool {
         (self.factor - 1.0).abs() > 1e-4
     }
@@ -42,69 +50,58 @@ impl Editor {
         fit.zooms() || fit.pans()
     }
 
-    fn fitted(&self, world: Rect, room: Rect, max_scale: f32) -> Option<Fit> {
+    fn fitted(&self, world: Rect, room: Rect, max_scale: f32) -> Option<Zoomed> {
         let view = self.canvas().get_untracked()?;
         let room = Rect::from_min_size(room.min, room.size().max(Vec2::splat(1.0)));
         let target = (room.width() / world.width().max(f32::EPSILON))
             .min(room.height() / world.height().max(f32::EPSILON))
             .min(max_scale);
         let anchor = view.to_screen(world.center());
-        Some(Fit {
+        Some(Zoomed {
             factor: target / view.scale.max(f32::EPSILON),
             anchor,
             delta: room.center() - anchor,
         })
     }
 
-    pub fn keep_fitted(&self, content: impl Fn() -> Option<Rect> + 'static) -> Fitting {
-        let fitting = Fitting {
-            editor: *self,
-            content: create_memo(content),
-        };
-        let canvas = self.canvas();
-        let moved = self.moved();
-        let band = self.placed();
-        create_effect(move || {
-            if moved.get() || !fitting.framed() {
-                return;
-            }
-            let band = band.get();
-            if let (Some(_), Some(world)) = (canvas.get(), fitting.content.get())
-                && band.is_positive()
-            {
-                untrack(|| fitting.follow(world, band, false));
-            }
+    pub fn keep_fitted(&self, fit: impl Fn() -> Option<Fit> + 'static) -> Fitting {
+        let editor = *self;
+        let fit = create_memo(fit);
+        let world = self.world();
+        let area = create_memo(move || {
+            let _ = world.get();
+            fit.get().map(|fit| match fit {
+                Fit::World => FitArea::World,
+                Fit::Centre => FitArea::Centre,
+                Fit::Area(rect) => editor.host_rect(rect),
+            })
         });
-        fitting
+        create_effect(move || {
+            let area = area.get();
+            untrack(|| editor.keep_fitted_area(area));
+        });
+        Fitting { editor, fit }
     }
 }
 
 impl Fitting {
     pub fn fit(&self) {
         let editor = self.editor;
-        let Some(world) = self.content.get_untracked() else {
+        if untrack(|| editor.chrome_shown().get() && editor.placed_content().get().is_none()) {
+            editor.fit_view();
+            return;
+        }
+        let (Some(fit), Some(world)) = (self.fit.get_untracked(), editor.world().get_untracked())
+        else {
             return;
         };
-        let band = editor.placed().get_untracked();
-        match untrack(|| self.framed()) {
-            true => self.follow(world, band, true),
-            false => {
-                editor.fit(world, band, f32::INFINITY);
+        let world = match fit {
+            Fit::World => Rect::from_min_size(Pos2::ZERO, world),
+            Fit::Centre => {
+                Rect::from_center_size(Pos2::new(world.x * 0.5, world.y * 0.5), Vec2::ZERO)
             }
-        }
-    }
-
-    fn framed(&self) -> bool {
-        self.editor.chrome_shown().get() && self.editor.placed_content().get().is_none()
-    }
-
-    fn follow(&self, world: Rect, band: Rect, resume: bool) {
-        let Some(fit) = self.editor.fitted(world, band, 1.0) else {
-            return;
+            Fit::Area(rect) => rect,
         };
-        if resume || fit.zooms() || fit.pans() {
-            self.editor
-                .follow(fit.factor, fit.anchor, fit.delta, resume);
-        }
+        editor.fit(world, editor.placed().get_untracked(), f32::INFINITY);
     }
 }

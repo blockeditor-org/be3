@@ -2,6 +2,7 @@ use super::*;
 use crate::geometry::Rect;
 use crate::painter::Shape;
 use crate::primitives::Frame;
+use crate::primitives::List;
 use crate::reactive::*;
 use crate::styled::*;
 
@@ -26,7 +27,7 @@ fn a_dialogs_scrim_dims_what_comes_after_it_in_the_tree() {
     harness.frame(Vec::new());
     open.set(true);
     let output = harness.frame(Vec::new());
-    let shapes = output.shapes();
+    let shapes = output.main().shapes();
     let viewport = Rect::from_min_size(Pos2::ZERO, VIEWPORT);
     let position = |wanted: &dyn Fn(Rect, Color32) -> bool| {
         shapes.iter().position(|shape| match shape {

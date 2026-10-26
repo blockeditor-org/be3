@@ -1,4 +1,5 @@
 use super::*;
+use block_editor_beui::beui::Modifiers;
 
 #[test]
 fn the_export_scale_setting_writes_the_artifact_draft() {
@@ -9,9 +10,10 @@ fn the_export_scale_setting_writes_the_artifact_draft() {
         Artifact {
             block_id: target,
             block_type: ImageContent::CONTENT_TYPE,
+            source,
         },
     );
-    let data = artifact::descriptor(source).data;
+    let data = artifact::descriptor(source).settings;
     let mut settings = BeuiTest::<PixelArtApp>::settings(artifacts, data);
 
     assert_eq!(
@@ -21,13 +23,13 @@ fn the_export_scale_setting_writes_the_artifact_draft() {
 
     settings.click("pixel-art.export-scale");
     settings.run();
-    settings.text("3");
+    settings.type_text("3");
     settings.run();
-    settings.key_press(Key::Enter);
+    settings.key(Key::Enter, Modifiers::NONE);
     settings.run();
 
     assert_eq!(
-        artifact::describe(settings.draft()).unwrap().summary,
+        artifact::describe(settings.draft()).unwrap(),
         "PNG export at 3x"
     );
 }

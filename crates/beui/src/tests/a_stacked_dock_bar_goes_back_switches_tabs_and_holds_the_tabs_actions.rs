@@ -1,6 +1,6 @@
 use super::*;
+use crate::dock::unstyled::{DockPane, DockTab, DockingLayout, TabId, dock_menu};
 use crate::reactive::*;
-use crate::unstyled::{DockMode, DockPane, DockTab, DockingLayout, TabId, dock_actions};
 
 const FIRST: u64 = 1;
 
@@ -38,7 +38,7 @@ fn a_stacked_dock_bar_goes_back_switches_tabs_and_holds_the_tabs_actions() {
     let document = build_node(move || {
         let layout = DockingLayout::new();
         view! {
-            <styled::Docking layout mode=DockMode::Stacked focus=FIRST>
+            <dock::styled::Docking layout focus=FIRST>
                 <DockPane id="tabs">
                     <DockTab id=FIRST title="Tab 1">
                         <Frame @test_id="content.1" />
@@ -52,13 +52,10 @@ fn a_stacked_dock_bar_goes_back_switches_tabs_and_holds_the_tabs_actions() {
                                 open.update(|open| open.retain(|other| *other != id));
                             }}
                             content={move || {
-                                dock_actions(move || view! {
-                                    <Frame
-                                        @test_id={format!("action.{id}")}
-                                        width=24.0
-                                        height=24.0
-                                    />
-                                });
+                                let act = Action::new(format!("action.{id}"), "Act", || {})
+                                    .pin(Pin::Icon)
+                                    .detached();
+                                dock_menu(create_memo(move || vec![MenuNode::action(&act)]));
                                 view! {
                                     <Frame @test_id={format!("content.{id}")} />
                                 }
@@ -66,15 +63,20 @@ fn a_stacked_dock_bar_goes_back_switches_tabs_and_holds_the_tabs_actions() {
                         />
                     </ForEach>
                 </DockPane>
-            </styled::Docking>
+            </dock::styled::Docking>
         }
     });
-    let mut harness = Harness::sized(document, WIDE_VIEWPORT);
+    let mut harness = Harness::sized(document, VIEWPORT);
     harness.settle();
     assert!(laid_out(&harness, "content.1"));
     assert!(
         !laid_out(&harness, "dock.back"),
         "the first tab shown has nowhere to go back to"
+    );
+    assert_eq!(
+        count(&harness),
+        "0",
+        "the switcher shows even with nothing to close, and counts no tab that cannot be closed"
     );
 
     open.update(|open| open.push(2));
@@ -88,10 +90,10 @@ fn a_stacked_dock_bar_goes_back_switches_tabs_and_holds_the_tabs_actions() {
     );
     assert_eq!(
         count(&harness),
-        "1",
-        "the count leaves out the tab on show and the tab that cannot be closed"
+        "2",
+        "the count takes in every tab that can be closed, the one on show too"
     );
-    let action = harness.rect(harness.find("action.3"));
+    let action = harness.rect(harness.find("dock.pin.action.3"));
     let content = harness.rect(harness.find("content.3"));
     assert!(
         action.bottom() <= content.top(),
@@ -109,10 +111,10 @@ fn a_stacked_dock_bar_goes_back_switches_tabs_and_holds_the_tabs_actions() {
         "and shows the tab that opened it"
     );
     assert!(
-        !laid_out(&harness, "action.3"),
+        !laid_out(&harness, "dock.pin.action.3"),
         "a closed tab's actions leave the bar with it"
     );
-    assert!(laid_out(&harness, "action.2"));
+    assert!(laid_out(&harness, "dock.pin.action.2"));
 
     tap(&mut harness, "dock.switch");
     assert!(

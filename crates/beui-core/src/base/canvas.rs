@@ -329,7 +329,10 @@ impl Document {
             .take_while(|node| *node != canvas)
             .find(|node| rects.contains_key(node))?;
         let extent = self.outlined_extent(&rects, node)?;
-        let shown = clear_of(rects.get(&canvas)?, &self.floating_rects());
+        let shown = clear_of(
+            rects.get(&canvas)?,
+            &self.floating_rects(self.window_of(canvas)),
+        );
         let caret = (Some(target) == self.focused_node())
             .then(|| self.ime_cursor_in(&rects, target))
             .flatten();
@@ -484,7 +487,11 @@ impl Element for CanvasNode {
             self.shift,
             Rect::EVERYTHING,
         );
-        let scaled = painter.zoomed(SpaceId::inside(host, SCALED), self.shift, self.zoom, rect);
+        let zoom = Zoom {
+            raster: self.zoom().raster,
+            ..self.zoom
+        };
+        let scaled = painter.zoomed(SpaceId::inside(host, SCALED), self.shift, zoom, rect);
         for (item, slot) in &self.laid {
             if rects.contains_key(item) {
                 let painter = match *slot {
@@ -581,10 +588,7 @@ impl Element for CanvasItemNode {
     }
 
     fn pointer_children(&self) -> Vec<NodeId> {
-        self.child
-            .filter(|_| self.pointer && !self.scales)
-            .into_iter()
-            .collect()
+        self.child.filter(|_| self.pointer).into_iter().collect()
     }
 
     fn remove_child(&mut self, child: NodeId) {
@@ -667,7 +671,7 @@ impl Document {
 
     pub fn set_canvas_raster(&mut self, canvas: NodeOf<CanvasNode>, raster: Option<f32>) {
         if self.arena.get_as::<CanvasNode>(canvas).raster != raster {
-            self.arena.get_mut_as::<CanvasNode>(canvas).raster = raster;
+            self.arena.paint_mut_as(canvas).raster = raster;
         }
     }
 

@@ -20,7 +20,7 @@ fn a_block_file_brings_a_tree_back_as_a_copy() {
     named.insert(&be_block::NAME, &"Trip".to_owned());
     create(
         folder,
-        be_block::FolderContent::CONTENT_TYPE,
+        workspace_ui_types::FolderContent::CONTENT_TYPE,
         be_graph::BlockParent::Root,
         named,
         None,
@@ -28,7 +28,7 @@ fn a_block_file_brings_a_tree_back_as_a_copy() {
     let inner = Uuid::new_v4();
     create(
         inner,
-        be_block::FolderContent::CONTENT_TYPE,
+        workspace_ui_types::FolderContent::CONTENT_TYPE,
         be_graph::BlockParent::Block(folder),
         be_block::BlockMetadata::default(),
         None,
@@ -72,7 +72,7 @@ fn a_block_file_brings_a_tree_back_as_a_copy() {
             .find(|node| node.content_type == CounterContent::CONTENT_TYPE)
             .map(|node| node.id);
         let copy = match top_type {
-            kind if kind == be_block::FolderContent::CONTENT_TYPE => {
+            kind if kind == workspace_ui_types::FolderContent::CONTENT_TYPE => {
                 assert_eq!(
                     node(top).and_then(|node| node.metadata.name()).as_deref(),
                     Some("Trip"),
@@ -85,12 +85,12 @@ fn a_block_file_brings_a_tree_back_as_a_copy() {
         assert_ne!(copy, counter);
         open(copy, CounterContent::CONTENT_TYPE);
         wait_for_count(copy, 5);
-        if top_type != be_block::FolderContent::CONTENT_TYPE {
+        if top_type != workspace_ui_types::FolderContent::CONTENT_TYPE {
             continue;
         }
         let inner_copy = query(Query::Children(top))
             .into_iter()
-            .find(|node| node.content_type == be_block::FolderContent::CONTENT_TYPE)
+            .find(|node| node.content_type == workspace_ui_types::FolderContent::CONTENT_TYPE)
             .expect("the inner folder comes with it")
             .id;
         let mut counts: Vec<i64> = query(Query::Children(inner_copy))

@@ -2,22 +2,23 @@ use super::*;
 
 #[test]
 fn touch_input_round_trips() {
-    let message = Message::Input(InputBatch {
+    let message = InputBatch {
         screen: ScreenId(3),
         every_sample: false,
-        events: vec![InputEvent::Touch {
-            device: 4,
-            finger: 5,
-            phase: TouchPhase::Move,
-            x: 12.0,
-            y: 24.0,
-            force: Some(0.75),
-            time_micros: 1_234_567,
+        events: vec![TimedInput {
+            input: Input::Touch {
+                id: TouchId {
+                    device: 4,
+                    finger: 5,
+                },
+                phase: TouchPhase::Move,
+                pos: Pos2::new(12.0, 24.0),
+                force: Some(0.75),
+            },
+            time_micros: Some(1_234_567),
+            over: Some(ScreenId(4)),
         }],
-    });
+    };
 
-    assert_eq!(
-        decode_frame(&encode_frame(&message).unwrap()).unwrap(),
-        message
-    );
+    round_trips(&message);
 }

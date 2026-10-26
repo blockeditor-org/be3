@@ -1,18 +1,23 @@
 use super::*;
 
-const NARROW: Vec2 = Vec2::new(620.0, 600.0);
+const NARROW: Vec2 = Vec2::new(760.0, 600.0);
 
 #[test]
 fn a_dock_card_anchored_at_a_control_shifts_to_stay_inside_the_window() {
     let _root = crate::reactive::RootScope::new();
-    let dock = anchored_card_dock(true);
+    let dock = anchored_side_card_dock(true);
     let mut harness = Harness::sized(dock.document, NARROW);
-    let anchor = open_anchored(&mut harness, (dock.anchor, dock.open), |panel| {
-        Rect::from_min_size(
-            pos2(panel.right() - 32.0, panel.top() + 16.0),
-            vec2(32.0, 24.0),
-        )
-    });
+    let anchor = open_anchored_in(
+        &mut harness,
+        (dock.anchor, dock.open),
+        "content.3",
+        |panel| {
+            Rect::from_min_size(
+                pos2(panel.right() - 64.0, panel.top() + 16.0),
+                vec2(32.0, 24.0),
+            )
+        },
+    );
     let output = harness.frame(Vec::new());
 
     let card = harness.rect(harness.find("dock.dialog.10"));

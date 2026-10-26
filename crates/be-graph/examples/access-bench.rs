@@ -65,13 +65,14 @@ fn organization() -> BlockGraph {
     graph
 }
 
-fn time(label: &str, runs: usize, mut work: impl FnMut(usize) -> usize) {
+fn time(metric: &str, label: &str, runs: usize, mut work: impl FnMut(usize) -> usize) {
     let start = Instant::now();
     let mut found = 0;
     for run in 0..runs {
         found += work(run);
     }
     let each = start.elapsed() / u32::try_from(runs).unwrap();
+    bench::record(metric, each.as_secs_f64() * 1e6, "µs");
     println!(
         "{label:<44} {:>10.1} µs  ({found} found)",
         each.as_secs_f64() * 1e6
@@ -81,6 +82,7 @@ fn time(label: &str, runs: usize, mut work: impl FnMut(usize) -> usize) {
 fn main() {
     let start = Instant::now();
     let graph = organization();
+    bench::time("build", start.elapsed());
     println!(
         "built {} blocks for {ACCOUNTS} accounts in {:?}",
         graph.len(),
@@ -95,25 +97,35 @@ fn main() {
             )
         })
         .collect();
-    time("inherited access of one block", SAMPLES, |run| {
-        let (block, who) = pairs[run];
-        usize::from(graph.inherited(block, who).can_view())
-    });
-    time("effective access of one leaf", SAMPLES, |run| {
-        let (block, who) = pairs[run];
-        usize::from(graph.effective_access(block, who).can_know_exists())
-    });
-    time("what one account sees", 100, |run| {
+    time(
+        "inherited",
+        "inherited access of one block",
+        SAMPLES,
+        |run| {
+            let (block, who) = pairs[run];
+            usize::from(graph.inherited(block, who).can_view())
+        },
+    );
+    time(
+        "effective-leaf",
+        "effective access of one leaf",
+        SAMPLES,
+        |run| {
+            let (block, who) = pairs[run];
+            usize::from(graph.effective_access(block, who).can_know_exists())
+        },
+    );
+    time("visible", "what one account sees", 100, |run| {
         graph.visible(pairs[run].1).len()
     });
-    time("audience of one leaf", SAMPLES, |run| {
+    time("audience-leaf", "audience of one leaf", SAMPLES, |run| {
         graph.audience(pairs[run].0).len()
     });
-    time("audience of one folder", 200, |run| {
+    time("audience-folder", "audience of one folder", 200, |run| {
         let folder = Uuid::from_u128(2 + (run as u128) % (FOLDERS - 1));
         graph.audience(folder).len()
     });
-    time("children of the root", 100, |_| {
+    time("root-children", "children of the root", 100, |_| {
         graph.children(BlockParent::Block(Uuid::from_u128(1))).len()
     });
 }

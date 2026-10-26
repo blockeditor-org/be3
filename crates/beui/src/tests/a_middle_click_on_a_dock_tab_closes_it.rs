@@ -1,5 +1,5 @@
 use super::*;
-use crate::unstyled::{DockApi, TabId};
+use crate::dock::unstyled::{DockApi, TabId};
 
 #[test]
 fn a_middle_click_on_a_dock_tab_closes_it() {
@@ -9,7 +9,7 @@ fn a_middle_click_on_a_dock_tab_closes_it() {
     harness.frame(Vec::new());
     let tab = harness.center(dock_tab(harness.document(), dock, "Tab 2"));
 
-    harness.frame(vec![Event::PointerMoved(tab)]);
+    harness.frame(vec![Input::PointerMoved(tab)]);
     harness.middle_button(tab, true);
     harness.middle_button(tab, false);
     harness.frame(Vec::new());

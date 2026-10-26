@@ -36,7 +36,12 @@ fn finger_taps_and_the_keyboard_follow_what_a_layer_blocks_and_traps() {
         harness.finger(2, TouchPhase::Start, pos2(120.0, 50.0));
         harness.finger(2, TouchPhase::End, pos2(120.0, 50.0));
         harness.finger(1, TouchPhase::End, pos2(50.0, 50.0));
-        let wants = harness.frame(Vec::new()).window.wants_keyboard;
+        let wants = harness
+            .frame(Vec::new())
+            .main()
+            .window
+            .requests
+            .wants_keyboard;
         (taps.get_untracked() > before, wants)
     };
 

@@ -1,8 +1,9 @@
 use std::cmp::Ordering;
 use std::collections::HashMap;
+use workspace_ui_types::{FolderContent, WorkspaceContent};
 
 use block_editor_beui::BlockQuery;
-use block_editor_beui::be_block::{BlockContent, FolderContent, WorkspaceContent};
+use block_editor_beui::be_block::BlockContent;
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::block_ui::BlockTypes;
 use block_editor_beui::{ContentProjection, Editor};
@@ -35,7 +36,7 @@ pub(crate) struct Entry {
     pub(crate) block_type: Option<Uuid>,
     pub(crate) name: String,
     pub(crate) type_name: String,
-    pub(crate) glyph: String,
+    pub(crate) glyph: Option<block_editor_beui::beui::icons::Glyph>,
     pub(crate) automatic: bool,
     pub(crate) loaded: bool,
 }
@@ -119,10 +120,7 @@ impl Folder {
                             || "Loading…".to_owned(),
                             |found| type_name(types.as_ref(), found.block_type),
                         ),
-                        glyph: label
-                            .as_ref()
-                            .and_then(block_editor_beui::label_glyph)
-                            .map_or_else(String::new, str::to_owned),
+                        glyph: label.as_ref().and_then(block_editor_beui::label_glyph),
                         automatic: label.as_ref().is_some_and(|label| label.automatic),
                         loaded: found.is_some(),
                     }

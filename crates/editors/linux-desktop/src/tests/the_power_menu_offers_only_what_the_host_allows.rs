@@ -5,7 +5,7 @@ fn the_power_menu_offers_only_what_the_host_allows() {
     let mut fixture = Fixture::new();
     fixture.settle();
     assert!(
-        fixture.test.watches::<Power>(),
+        fixture.test.watches::<PowerWatch>(),
         "the desktop asks the host what it can do"
     );
     fixture.allow_power(PowerAvailability {
@@ -20,7 +20,10 @@ fn the_power_menu_offers_only_what_the_host_allows() {
     fixture.test.click("desktop.power.suspend");
     fixture.settle();
     assert!(
-        fixture.test.take_actions::<PowerAction>().is_empty(),
+        fixture
+            .test
+            .take_host_calls(block_ui_test::requested::power)
+            .is_empty(),
         "a computer that cannot suspend is not asked to"
     );
 
@@ -32,7 +35,9 @@ fn the_power_menu_offers_only_what_the_host_allows() {
     fixture.test.click("desktop.power.suspend");
     fixture.settle();
     assert_eq!(
-        fixture.test.take_actions::<PowerAction>(),
+        fixture
+            .test
+            .take_host_calls(block_ui_test::requested::power),
         vec![PowerAction::Suspend],
         "suspending needs no confirmation"
     );

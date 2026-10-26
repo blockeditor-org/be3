@@ -1,16 +1,14 @@
 use block_editor_beui::be_block::DisplaySettings;
 use block_editor_beui::be_block::display_settings::Rotation;
 use block_editor_beui::beui::NodeId;
-use block_editor_beui::beui::icons::ICON_SCREEN_ROTATION;
+use block_editor_beui::beui::icons::ICON_ROTATE_CW_SQUARE;
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
-use block_editor_beui::beui::unstyled::PopoverHandle;
 use block_editor_beui::{Editor, HostDisplay, LayeredSettings, RotationPicker};
 
 use super::popup::BarPopup;
 
-const PICKER_WIDTH: f32 = 268.0;
-const SPACING: f32 = 8.0;
+const SPACING: Space = Space::Md;
 
 #[component]
 pub(crate) fn RotateButton(editor: Editor, display: Memo<Option<HostDisplay>>) -> NodeId {
@@ -35,9 +33,8 @@ pub(crate) fn RotateButton(editor: Editor, display: Memo<Option<HostDisplay>>) -
     view! {
         <BarPopup
             label="Rotate the screen"
-            glyph={ICON_SCREEN_ROTATION.to_owned()}
+            glyph=ICON_ROTATE_CW_SQUARE
             icon_only=true
-            width=PICKER_WIDTH
             @test_id={"desktop.rotate"}
         >|handle: PopoverHandle| {
             let pick = Callback::new(move |rotation: Rotation| {
@@ -46,7 +43,7 @@ pub(crate) fn RotateButton(editor: Editor, display: Memo<Option<HostDisplay>>) -
             });
             view! {
                 <List spacing=SPACING>
-                    <Text wrap=true>"Tap the one that's right side up"</Text>
+                    <Text>"Tap the one that's right side up"</Text>
                     <RotationPicker
                         test_id={"desktop.rotate".to_owned()}
                         display={display}

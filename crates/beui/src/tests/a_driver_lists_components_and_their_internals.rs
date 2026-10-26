@@ -10,15 +10,15 @@ fn a_driver_lists_components_and_their_internals() {
             </styled::Frame>
         }
     });
-    let mut driven = Driven::new(document);
+    let mut driven = stepped(crate::testing::Showing(document));
     let public = driven
-        .ask(&["comps"])
+        .ask(&["app", "comps"])
         .expect("the component tree is answered through a frame");
     assert_eq!(
         public,
         "styled::Frame #frame\n  styled::Text #greeting\n    \"Hi\"\n"
     );
-    let full = driven.ask(&["comps", "--internals"]).unwrap();
+    let full = driven.ask(&["app", "comps", "--internals"]).unwrap();
     assert!(
         full.contains("  internals\n    primitives::Frame #frame\n"),
         "{full}"
@@ -30,7 +30,7 @@ fn a_driver_lists_components_and_their_internals() {
     assert!(full.contains("  styled::Text #greeting\n"), "{full}");
     assert!(
         driven
-            .ask(&["comps", "--unknown"])
+            .ask(&["app", "comps", "--unknown"])
             .unwrap_err()
             .contains("usage: comps")
     );

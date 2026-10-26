@@ -85,15 +85,17 @@ pub(crate) async fn create_local_profile(
     server_url: String,
     display_name: String,
 ) -> Result<Session, AccountError> {
-    let connection = Connection::connect(&socket_url(&server_url)).await?;
-    session_of(
+    let connection = crate::link::connect(&server_url).await?;
+    let session = session_of(
         connection
             .request(|request| ClientMessage::CreateLocalProfile {
                 request,
                 display_name,
             })
             .await?,
-    )
+    )?;
+    crate::link::adopt(&server_url, &session.token, session.account, connection).await;
+    Ok(session)
 }
 
 pub(crate) async fn browser_login(
@@ -103,9 +105,10 @@ pub(crate) async fn browser_login(
     cancelled: futures_util::future::BoxFuture<'static, ()>,
 ) -> Result<Session, String> {
     let login = async {
-        let connection = Connection::connect(&socket_url(&server_url))
+        let mut connection = crate::link::connect(&server_url)
             .await
             .map_err(|error| error.to_string())?;
+        let mut events = connection.subscribe();
         let response = connection
             .request(|request| ClientMessage::BeginBrowserLogin { request })
             .await
@@ -117,25 +120,38 @@ pub(crate) async fn browser_login(
             code: code.clone(),
             url: format!("{auth_url}?code={code}"),
         });
-        drop(connection);
         loop {
-            let result = async {
-                let connection = Connection::connect(&socket_url(&server_url)).await?;
-                connection
-                    .request(|request| ClientMessage::FinishBrowserLogin {
-                        request,
-                        code: code.clone(),
-                        secret: secret.clone(),
-                    })
-                    .await
+            if !approval_pushed(&mut events, connection.closed()).await {
+                connection = loop {
+                    be_client::Clock::real()
+                        .sleep(std::time::Duration::from_secs(2))
+                        .await;
+                    match crate::link::connect(&server_url).await {
+                        Ok(connection) => break connection,
+                        Err(error) if error.is_unreachable() => {}
+                        Err(error) => return Err(error.to_string()),
+                    }
+                };
+                events = connection.subscribe();
             }
-            .await;
-            match result {
-                Ok(ServerMessage::Ok { .. }) | Err(ClientError::Disconnected(_)) => {}
-                Ok(response) => return session_of(response).map_err(|error| error.to_string()),
+            match connection
+                .request(|request| ClientMessage::FinishBrowserLogin {
+                    request,
+                    code: code.clone(),
+                    secret: secret.clone(),
+                })
+                .await
+            {
+                Ok(ServerMessage::Ok { .. }) => {}
+                Err(error) if error.is_unreachable() => {}
+                Ok(response) => {
+                    let session = session_of(response).map_err(|error| error.to_string())?;
+                    crate::link::adopt(&server_url, &session.token, session.account, connection)
+                        .await;
+                    return Ok(session);
+                }
                 Err(error) => return Err(error.to_string()),
             }
-            crate::be::sleep(std::time::Duration::from_secs(2)).await;
         }
     };
     match futures_util::future::select(Box::pin(login), cancelled).await {
@@ -144,19 +160,43 @@ pub(crate) async fn browser_login(
     }
 }
 
+async fn approval_pushed(
+    events: &mut tokio::sync::broadcast::Receiver<ServerMessage>,
+    mut closed: tokio::sync::watch::Receiver<bool>,
+) -> bool {
+    let pushed = async {
+        loop {
+            match events.recv().await {
+                Ok(ServerMessage::BrowserLoginFinished { .. })
+                | Err(tokio::sync::broadcast::error::RecvError::Lagged(_)) => return true,
+                Ok(_) => {}
+                Err(tokio::sync::broadcast::error::RecvError::Closed) => return false,
+            }
+        }
+    };
+    let closed = async {
+        let _ = closed.wait_for(|closed| *closed).await;
+    };
+    matches!(
+        futures_util::future::select(std::pin::pin!(pushed), std::pin::pin!(closed)).await,
+        futures_util::future::Either::Left((true, _))
+    )
+}
+
 async fn authenticated(
     server_url: &str,
     token: String,
 ) -> Result<std::sync::Arc<Connection>, AccountError> {
-    let connection = Connection::connect(&socket_url(server_url)).await?;
-    connection
-        .request(|request| ClientMessage::Authenticate { request, token })
-        .await?;
-    Ok(connection)
+    Ok(
+        crate::link::signed_in(server_url, &token, &be_client::Clock::real())
+            .await?
+            .connection,
+    )
 }
 
 pub(crate) async fn logout(server_url: String, token: String) -> Result<(), AccountError> {
-    let connection = authenticated(&server_url, token).await?;
+    let connection = authenticated(&server_url, token.clone()).await?;
+    crate::link::forget(&server_url, &token).await;
     connection
         .request(|request| ClientMessage::Logout { request })
         .await?;
@@ -239,30 +279,6 @@ pub(crate) async fn accept_invitation(
     Ok(invitation.organization)
 }
 
-pub(crate) async fn invite(
-    server_url: String,
-    token: String,
-    me: Me,
-    organization: Uuid,
-    email: String,
-    role: be_protocol::OrganizationRole,
-) -> Result<String, AccountError> {
-    let connection = authenticated(&server_url, token).await?;
-    let escrow =
-        be_client::contacts::verified_escrow(&connection, &me.secret(), organization).await?;
-    let code = be_client::contacts::invite(
-        &connection,
-        &me.secret(),
-        &me.card(),
-        organization,
-        email,
-        role,
-        escrow.as_ref(),
-    )
-    .await?;
-    Ok(crate::invite_link::link(&link_base(&server_url), &code))
-}
-
 #[derive(Clone, Debug, PartialEq)]
 pub(crate) struct AgentCredentials {
     pub(crate) name: String,
@@ -270,56 +286,6 @@ pub(crate) struct AgentCredentials {
     pub(crate) organization: Uuid,
     pub(crate) token: String,
     pub(crate) phrase: String,
-}
-
-pub(crate) async fn create_agent(
-    server_url: String,
-    token: String,
-    me: Me,
-    organization: Uuid,
-    name: String,
-) -> Result<AgentCredentials, AccountError> {
-    let phrase = be_keys::RecoveryPhrase::generate();
-    let secret = phrase.secret();
-    let public = secret.public();
-    let connection = authenticated(&server_url, token).await?;
-    let escrow =
-        be_client::contacts::verified_escrow(&connection, &me.secret(), organization).await?;
-    let ServerMessage::AgentCreated { agent, token, .. } = connection
-        .request(|request| ClientMessage::CreateAgent {
-            request,
-            organization,
-            name,
-            recovery: public.0,
-            contact: me.card().seal_own(&secret),
-            escrow: escrow.map_or_else(Vec::new, |escrow| {
-                be_client::contacts::seal_pin(&secret, organization, &escrow)
-            }),
-        })
-        .await?
-    else {
-        return Err(ClientError::Unexpected.into());
-    };
-    let card = be_keys::ContactCard {
-        account: agent.account.into_bytes(),
-        public,
-        display_name: agent.name.clone(),
-        email: agent.email.clone(),
-    };
-    connection
-        .request(|request| ClientMessage::PutContact {
-            request,
-            contact: agent.account,
-            sealed: card.seal_own(&me.secret()),
-        })
-        .await?;
-    Ok(AgentCredentials {
-        name: agent.name,
-        server: server_url,
-        organization,
-        token,
-        phrase: phrase.to_string(),
-    })
 }
 
 pub(crate) async fn agents(
@@ -366,13 +332,11 @@ pub(crate) struct Keys {
 }
 
 pub(crate) async fn keys(server_url: String, token: String) -> Result<Keys, AccountError> {
-    let connection = Connection::connect(&socket_url(&server_url)).await?;
-    let ServerMessage::Authenticated { account, .. } = connection
-        .request(|request| ClientMessage::Authenticate { request, token })
-        .await?
-    else {
-        return Err(ClientError::Unexpected.into());
-    };
+    let crate::link::Link {
+        connection,
+        account,
+        ..
+    } = crate::link::signed_in(&server_url, &token, &be_client::Clock::real()).await?;
     let ServerMessage::RecoveryKey {
         public,
         sealed,

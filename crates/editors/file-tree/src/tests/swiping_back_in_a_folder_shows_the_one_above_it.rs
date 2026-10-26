@@ -1,6 +1,7 @@
-use block_editor_beui::be_block::{BlockContent, FolderContent};
-use block_editor_beui::beui::{BackEdge, BackGesture, Event};
+use block_editor_beui::be_block::BlockContent;
+use block_editor_beui::beui::{BackEdge, BackGesture, Input};
 use block_editor_beui::{BlockInfo, BlockParent, BlockQuery};
+use workspace_ui_types::FolderContent;
 
 use super::*;
 
@@ -24,9 +25,9 @@ fn swiping_back_in_a_folder_shows_the_one_above_it() {
     listed.set_intrinsic_name("Notes".to_owned());
     my_files(&mut fixture, vec![projects, listed]);
     fixture.settle();
-    fixture.test.click(&format!("file-tree.{files}.row"));
+    fixture.test.click(format!("file-tree.{files}.row"));
     fixture.settle();
-    fixture.test.click(&format!("file-tree.{folder}.row"));
+    fixture.test.click(format!("file-tree.{folder}.row"));
     fixture.settle();
     let mut roadmap = BlockInfo::new(inside, text_type, BlockParent::Block(folder));
     roadmap.set_intrinsic_name("Roadmap".to_owned());
@@ -37,12 +38,12 @@ fn swiping_back_in_a_folder_shows_the_one_above_it() {
     assert!(!fixture.test.shown(&format!("file-tree.{notes}.row")));
 
     fixture.test.step(vec![
-        Event::Back(BackGesture::Started {
+        Input::Back(BackGesture::Started {
             edge: BackEdge::Left,
         }),
-        Event::Back(BackGesture::Progressed(1.0)),
+        Input::Back(BackGesture::Progressed(1.0)),
     ]);
-    fixture.test.step(vec![Event::Back(BackGesture::Invoked)]);
+    fixture.test.step(vec![Input::Back(BackGesture::Invoked)]);
     fixture.test.settle();
     assert!(
         fixture.test.shown(&format!("file-tree.{notes}.row")),

@@ -15,7 +15,7 @@ fn a_single_line_input_longer_than_its_field_scrolls_rather_than_overflows() {
     harness.frame(Vec::new());
 
     let found: Vec<String> = harness
-        .document
+        .document()
         .overflows()
         .iter()
         .map(ToString::to_string)

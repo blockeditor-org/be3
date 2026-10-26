@@ -4,8 +4,8 @@ use beui::{Color32, pos2};
 use block_plugin_api::ScreenId;
 use wasm_bindgen::JsCast;
 
-use super::adapter::WebProtocolAdapter;
-use crate::plugin_host::presenter::Blit;
+use super::worker::WorkerChannel;
+use crate::plugin_host::presenter::{Blit, unstretched};
 
 const LAYER: &str = "plugins";
 
@@ -30,12 +30,17 @@ pub(in crate::plugin_host) fn placement(
     {
         return None;
     }
-    let source = blit.source;
+    let painted = (placement.width, placement.height);
+    let (quad, source) = match (blit.drawn, blit.requested) {
+        (None, Some(requested)) if requested != painted => {
+            unstretched(blit.quad, blit.source, requested, painted)?
+        }
+        _ => (blit.quad, blit.source),
+    };
     if !source.is_positive() {
         return None;
     }
-    let [first, second, _, fourth] = blit
-        .quad
+    let [first, second, _, fourth] = quad
         .corners
         .map(|corner| pos2(corner.x * scale, corner.y * scale));
     let across = (second - first) / source.width();
@@ -60,7 +65,7 @@ pub(in crate::plugin_host) fn placement(
         percent(1.0 - source.max.x),
         percent(1.0 - source.max.y),
         percent(source.min.x),
-        blit.quad.opacity.clamp(0.0, 1.0),
+        quad.opacity.clamp(0.0, 1.0),
     );
     Some(Placement {
         screen: blit.screen,
@@ -100,7 +105,7 @@ pub(super) struct Canvases {
 impl Canvases {
     pub(super) fn place(
         &mut self,
-        adapter: &WebProtocolAdapter,
+        channel: &WorkerChannel,
         placements: Vec<Placement>,
     ) -> Result<(), String> {
         let mut seen = HashMap::<ScreenId, usize>::new();
@@ -114,11 +119,11 @@ impl Canvases {
                 Some(mut shown) => {
                     if shown.surface != placement.surface {
                         shown.surface = placement.surface;
-                        result = result.and(adapter.show(shown.id, None, placement.surface));
+                        result = result.and(channel.show(shown.id, None, placement.surface));
                     }
                     shown
                 }
-                None => match create(adapter, placement.surface) {
+                None => match create(channel, placement.surface) {
                     Ok(shown) => shown,
                     Err(error) => {
                         result = result.and(Err(error));
@@ -134,7 +139,7 @@ impl Canvases {
         }
         for shown in std::mem::replace(&mut self.shown, kept).into_values() {
             shown.element.remove();
-            adapter.forget(shown.id);
+            channel.forget(shown.id);
         }
         result
     }
@@ -146,7 +151,7 @@ impl Canvases {
     }
 }
 
-fn create(adapter: &WebProtocolAdapter, surface: u32) -> Result<Shown, String> {
+fn create(channel: &WorkerChannel, surface: u32) -> Result<Shown, String> {
     thread_local! {
         static NEXT: std::cell::Cell<u32> = const { std::cell::Cell::new(0) };
     }
@@ -176,7 +181,7 @@ fn create(adapter: &WebProtocolAdapter, surface: u32) -> Result<Shown, String> {
         .element
         .transfer_control_to_offscreen()
         .map_err(|_| "a plugin screen's canvas could not be handed to its worker".to_owned());
-    match offscreen.and_then(|offscreen| adapter.show(id, Some(&offscreen), surface)) {
+    match offscreen.and_then(|offscreen| channel.show(id, Some(&offscreen), surface)) {
         Ok(()) => Ok(shown),
         Err(error) => {
             shown.element.remove();

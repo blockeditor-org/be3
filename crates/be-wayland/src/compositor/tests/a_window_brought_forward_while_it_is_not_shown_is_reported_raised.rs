@@ -8,7 +8,7 @@ fn a_window_brought_forward_while_it_is_not_shown_is_reported_raised() {
         }
     });
     let (_window, id) = harness.open();
-    let windows = harness.app.windows();
+    let windows = harness.compositor().windows();
     assert_eq!(windows.raised(id), 0);
     let revision = windows.revision();
 

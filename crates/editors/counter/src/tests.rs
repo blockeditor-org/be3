@@ -1,6 +1,6 @@
-use block_editor_beui::be_block::{Counter as CounterModel, CounterContent};
 use block_editor_beui::{EditorHost, OwnedEditor};
 use block_ui_test::BeuiTest;
+use counter_types::{Counter as CounterModel, CounterContent};
 use uuid::Uuid;
 
 use crate::app::CounterApp;
@@ -24,6 +24,10 @@ impl Harness {
         let mut harness = Self {
             editor: BeuiTest::new(editor),
         };
+        harness
+            .editor
+            .store()
+            .register(counter_types::registrations());
         harness.editor.hold(None, CounterContent::default());
         harness.run();
         harness

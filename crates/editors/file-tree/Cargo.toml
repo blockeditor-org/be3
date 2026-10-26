@@ -12,6 +12,7 @@ beui = { path = "../../beui", default-features = false, features = ["render"] }
 block-editor-beui = { path = "../../block-editor-beui" }
 serde = { version = "1", features = ["derive"] }
 uuid = { version = "1", features = ["v4"] }
+workspace-ui-types = { path = "../workspace-ui/types" }
 
 [dev-dependencies]
 block-ui-test = { path = "../../block-ui-test" }

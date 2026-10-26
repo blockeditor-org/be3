@@ -1,18 +1,15 @@
-use beui::icons::ICON_TUNE;
+use beui::icons::ICON_SLIDERS_HORIZONTAL;
 use beui::reactive::*;
-use beui::styled::theme::BORDER_WIDTH;
 pub use beui::styled::theme::NARROW_WIDTH;
 use beui::styled::*;
-use beui::unstyled::{Container, narrower_than};
 use beui::{NodeId, Vec2};
 
-pub const SIDEBAR_WIDTH: f32 = 260.0;
+pub const SIDEBAR_WIDTH: Size = Size::Custom(260.0);
 
-const PADDING: f32 = 14.0;
-const SPACING: f32 = 10.0;
-const BAND_PADDING_HORIZONTAL: f32 = 12.0;
-const BAND_PADDING_VERTICAL: f32 = 8.0;
-const BAND_SPACING: f32 = 8.0;
+const PADDING: Space = Space::Lg;
+const SPACING: Space = Space::Md;
+const BAND_PADDING: Padding = Padding::symmetric(Space::Lg, Space::Md);
+const BAND_SPACING: Space = Space::Md;
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum Side {
@@ -86,22 +83,18 @@ pub(crate) fn ChromeRoot(
             });
             let listed = create_memo(move || offers.get() && phone.get());
             let opener = layout.open;
-            let theme = use_theme();
-            let bar_color = theme.surface;
             let extent = create_memo(move || size.get().y);
             let close = layout.open;
             view! {
-                <List spacing=0.0>
+                <List spacing=Space::None>
                     <Show condition={bare}>
-                        <Frame fill={ColorRole::custom(bar_color)}>
-                            <List spacing=0.0>
-                                <Frame
-                                    padding={Sides::symmetric(BAND_PADDING_HORIZONTAL, BAND_PADDING_VERTICAL)}
-                                >
+                        <Frame fill=ColorRole::Surface>
+                            <List spacing=Space::None>
+                                <Frame padding=BAND_PADDING>
                                     <List
                                         direction=Direction::Horizontal
                                         align=Align::Center
-                                        spacing=0.0
+                                        spacing=Space::None
                                     >
                                         <SheetToggle />
                                     </List>
@@ -121,7 +114,7 @@ pub(crate) fn ChromeRoot(
                             rest={SHEET_STOPS[0]}
                             on_close={move || close.set(false)}
                         >
-                            <List spacing=0.0>
+                            <List spacing=Space::None>
                                 <ForEach keys={panels}>|panel: NodeId|
                                     <Portal @sizing=ItemSize::Percent(100.0) node={Some(panel)} />
                                 </ForEach>
@@ -139,11 +132,11 @@ fn PanelItem(open: Signal<bool>) -> NodeId {
     let opener = Action::new("chrome.open-panel", "Open the side panel", move || {
         open.set(true)
     })
-    .glyph(ICON_TUNE)
+    .glyph(ICON_SLIDERS_HORIZONTAL)
     .register();
     add_to_menu(vec![MenuNode::action(&opener)]);
     view! {
-        <List spacing=0.0 />
+        <List spacing=Space::None />
     }
 }
 
@@ -156,7 +149,7 @@ fn SheetToggle() -> NodeId {
     view! {
         <ToggleButton
             label="Sidebar"
-            glyph={ICON_TUNE.to_owned()}
+            glyph=ICON_SLIDERS_HORIZONTAL
             icon_only=true
             pressed={open}
             @test_id={"chrome.sidebar"}
@@ -168,7 +161,7 @@ fn SheetToggle() -> NodeId {
 pub fn Sidebar(
     #[prop(default = Side::Right)] side: Side,
     #[prop(default = true)] shown: Prop<bool>,
-    #[prop(default = SIDEBAR_WIDTH)] width: Prop<f32>,
+    #[prop(default = SIDEBAR_WIDTH)] width: Prop<Size>,
     #[prop(children)] children: Render<(), Children<ListChild>>,
 ) -> DynamicSegment<ListChild> {
     let shown = create_memo(move || shown.get());
@@ -187,7 +180,7 @@ pub fn Sidebar(
 fn SidebarFrame(
     side: Side,
     shown: Prop<bool>,
-    width: Prop<f32>,
+    width: Prop<Size>,
     children: Child,
 ) -> DynamicSegment<ListChild> {
     let layout = use_context::<ChromeLayout>();
@@ -202,7 +195,7 @@ fn SidebarFrame(
     view! {
         <ShowKeepAlive condition={docked}>
             <Show condition={side == Side::Right}>
-                <Frame width=BORDER_WIDTH fill=ColorRole::Border />
+                <Separator direction=Direction::Vertical />
             </Show>
             <Frame width=width fill=ColorRole::Surface>
                 <Scroll>
@@ -210,7 +203,7 @@ fn SidebarFrame(
                 </Scroll>
             </Frame>
             <Show condition={side == Side::Left}>
-                <Frame width=BORDER_WIDTH fill=ColorRole::Border />
+                <Separator direction=Direction::Vertical />
             </Show>
         </ShowKeepAlive>
     }
@@ -236,7 +229,7 @@ fn fold_into_sheet(layout: ChromeLayout, body: NodeId, folded: Memo<bool>) {
 #[component]
 pub fn Toolbar(
     #[prop(default = true)] shown: Prop<bool>,
-    #[prop(default = BAND_SPACING)] spacing: Prop<f32>,
+    #[prop(default = BAND_SPACING)] spacing: Prop<Space>,
     #[prop(default = false)] fit: Prop<bool>,
     #[prop(children)] children: Children<ListChild>,
 ) -> DynamicSegment<ListChild> {
@@ -276,15 +269,17 @@ fn ToolbarFrame(shown: Prop<bool>, fit: Prop<bool>, children: Child) -> DynamicS
     view! {
         <ShowKeepAlive condition={shown}>
             <Frame fill=ColorRole::Surface>
-                <List spacing=0.0>
+                <List spacing=Space::None>
                     <Show condition={roomy}>
-                        <Frame
-                            padding={Sides::symmetric(BAND_PADDING_HORIZONTAL, BAND_PADDING_VERTICAL)}
-                        >
-                            <List direction=Direction::Horizontal align=Align::Center spacing=0.0>
+                        <Frame padding=BAND_PADDING>
+                            <List
+                                direction=Direction::Horizontal
+                                align=Align::Center
+                                spacing=Space::None
+                            >
                                 <Portal @sizing=ItemSize::Percent(100.0) node={spread} />
                                 <Show condition={fitted_toggle}>
-                                    <Frame padding={Sides::horizontal(BAND_PADDING_HORIZONTAL)}>
+                                    <Frame padding={Padding::horizontal(Space::Lg)}>
                                         <SheetToggle />
                                     </Frame>
                                 </Show>
@@ -292,21 +287,21 @@ fn ToolbarFrame(shown: Prop<bool>, fit: Prop<bool>, children: Child) -> DynamicS
                         </Frame>
                     </Show>
                     <Show condition={narrow}>
-                        <List direction=Direction::Horizontal align=Align::Center spacing=0.0>
+                        <List
+                            direction=Direction::Horizontal
+                            align=Align::Center
+                            spacing=Space::None
+                        >
                             <Scroll
                                 @sizing=ItemSize::Percent(100.0)
                                 direction=Direction::Horizontal
                             >
-                                <Frame
-                                    padding={Sides::symmetric(BAND_PADDING_HORIZONTAL, BAND_PADDING_VERTICAL)}
-                                >
+                                <Frame padding=BAND_PADDING>
                                     <Portal node={scrolled} />
                                 </Frame>
                             </Scroll>
                             <Show condition={offers}>
-                                <Frame
-                                    padding={Sides::symmetric(BAND_PADDING_HORIZONTAL, BAND_PADDING_VERTICAL)}
-                                >
+                                <Frame padding=BAND_PADDING>
                                     <SheetToggle />
                                 </Frame>
                             </Show>

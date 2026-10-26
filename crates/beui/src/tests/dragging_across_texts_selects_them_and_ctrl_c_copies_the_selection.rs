@@ -1,4 +1,5 @@
 use super::*;
+use crate::primitives::List;
 use crate::primitives::Text;
 use crate::reactive::*;
 use crate::styled::*;
@@ -27,7 +28,7 @@ fn dragging_across_texts_selects_them_and_ctrl_c_copies_the_selection() {
     let (title, labels) = (harness.rect(title.get()), harness.rect(labels.get()));
     let copy = |harness: &mut Harness| {
         harness
-            .frame(vec![key_event(Key::C, true, Modifiers::CTRL)])
+            .frame(pressed_with(Key::C, Modifiers::CTRL))
             .copied_text
     };
 
@@ -36,10 +37,7 @@ fn dragging_across_texts_selects_them_and_ctrl_c_copies_the_selection() {
         pos2(labels.right() + 20.0, labels.center().y),
     );
     assert_eq!(
-        harness
-            .document()
-            .api::<crate::unstyled::SelectableState>(region.get())
-            .selected_text(),
+        selected_text(&mut harness, region.get()),
         "Fix the launcher\n#210 by someone ready"
     );
     assert_eq!(

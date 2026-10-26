@@ -6,17 +6,17 @@ fn the_simulate_tab_filters_the_document_without_the_screen_reader() {
     let _root = crate::reactive::RootScope::new();
     let mut harness = Harness::sized(hello_column().document, TALL_VIEWPORT);
     harness.toggle_inspector();
-    harness.click(harness.simulation_tab_center());
+    harness.show_inspector_tab(crate::inspector::InspectorTab::Simulation);
     harness.frame(Vec::new());
 
-    assert!(harness.frame(Vec::new()).filters().is_empty());
+    assert!(harness.frame(Vec::new()).main().filters().is_empty());
 
     harness.drag_simulation_slider("blur", 1.0);
     harness.drag_simulation_slider("contrast", 0.5);
     harness.choose_in_simulation("color_vision", 1);
     let output = harness.frame(Vec::new());
 
-    let filters = output.filters();
+    let filters = output.main().filters();
     let [filter] = filters.as_slice() else {
         panic!("the simulate tab set {} filters", filters.len());
     };
@@ -29,7 +29,7 @@ fn the_simulate_tab_filters_the_document_without_the_screen_reader() {
     assert_eq!(filter.vision, ColorVision::Protanopia);
 
     let panel = harness.inspector().panel_width(
-        &harness.context,
+        harness.context(),
         Rect::from_min_size(Pos2::ZERO, TALL_VIEWPORT),
     );
     assert!(

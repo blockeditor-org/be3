@@ -25,7 +25,7 @@ fn a_back_handler_hidden_in_a_kept_alive_list_row_takes_no_back() {
     let mut harness = Harness::new(document);
     harness.frame(Vec::new());
 
-    harness.frame(vec![Event::Back(BackGesture::Invoked)]);
+    harness.frame(vec![Input::Back(BackGesture::Invoked)]);
     assert_eq!(
         (inner.get_untracked(), outer.get_untracked()),
         (1, 0),
@@ -34,7 +34,7 @@ fn a_back_handler_hidden_in_a_kept_alive_list_row_takes_no_back() {
 
     shown.set(false);
     harness.frame(Vec::new());
-    harness.frame(vec![Event::Back(BackGesture::Invoked)]);
+    harness.frame(vec![Input::Back(BackGesture::Invoked)]);
     assert_eq!(
         (inner.get_untracked(), outer.get_untracked()),
         (1, 1),
@@ -43,7 +43,7 @@ fn a_back_handler_hidden_in_a_kept_alive_list_row_takes_no_back() {
 
     shown.set(true);
     harness.frame(Vec::new());
-    harness.frame(vec![Event::Back(BackGesture::Invoked)]);
+    harness.frame(vec![Input::Back(BackGesture::Invoked)]);
     assert_eq!(
         (inner.get_untracked(), outer.get_untracked()),
         (2, 1),

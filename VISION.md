@@ -65,7 +65,7 @@ Some blocks stop early:
   - "This file was edited offline. Keep your version or theirs?", with a preview
     of both, so the choice isn't blind. Both versions stay in history, so a
     wrong choice can be undone. The stack already keeps the losing side of a
-    conflicted merge as a commit (`Peer::stash`).
+    conflicted merge as a commit (a replica's `Command::Stash`).
 
 The guarantees follow the layers. "The server can't read it" and "every later
 version can open it" hold only for what is stored in layer 3. A link or a game's
@@ -90,6 +90,9 @@ plugin can be trusted with. Installing one, so that it shows up in the add-block
 menu and elsewhere, is a higher level of trust. Until the baseline holds, the
 first release has to be more careful, and should not run a plugin without the
 user confirming it.
+
+**Licenses.** A core plugin may be GPL or AGPL, since a plugin is a separate
+program, but the app must still build without it.
 
 **Entry points.** The file tree is the only way into a block today. An editor
 may want an entry point of its own, the way the Google Sheets app on Android
@@ -180,14 +183,37 @@ view a canvas, not part of it. `plans/canvas.md` has the plan.
 
 Where you find and organize everything. The file tree is today's only entry
 point (see Extension). Search, history, trash and export (`plans/daily_driver.md`, phase 7) come next.
+`be sync` keeps a folder and a directory on disk in step both ways
+(`guides/sync.md`), so that block-app can one day hold its own source code while
+buck2, editors, CI and agents still read real files.
 
 ### Version control
 
 Version control is a powerful tool that only programmers get. The aim is to
-make it good and easy enough for anyone. Because collaboration is already
-offline merges plus live edits, a third-party editor shouldn't need special
-support to get it. It isn't there yet. **Open:** how it relates to a file's
-revision history; to a user they should probably be one concept.
+make it good and easy enough for anyone, and good enough that this repository
+could keep its source in block-app instead of git. Because collaboration is
+already offline merges plus live edits, a third-party editor shouldn't need
+special support to get it.
+
+The model follows jj (Jujutsu) because its ideas are also the friendly ones.
+There is nothing to stage and nothing "uncommitted": your edits are the current
+change, kept as you make them, and saving it is giving it a description, after
+which a new change starts on top. A change keeps its identity when it is
+rewritten. A clash between two sets of edits is recorded in the change rather
+than blocking you: you can keep working, save, and sort it out later. Every
+step is in a log, and any of them can be undone, so nothing a person does in
+it is a trap.
+
+Revision history and version control are one concept, seen at two sizes. A
+block's revision history is its line of changes: each autosave is a revision,
+and naming one (a bookmark) marks a point worth keeping. A saved change is the
+same thing across many blocks: a named snapshot of every block in a versioned
+tree, made of the revisions those blocks went through since the last one. The
+current change is simply the newest, unnamed end of that line. Still to do:
+autosaves of a block inside a checkout should carry the current change's id
+(commits already have the field), so a block's History panel can group its
+revisions by the change they belong to and show its description, and a block
+outside any repository keeps the plain line it has now.
 
 ### Database
 
@@ -230,6 +256,33 @@ foreign files.
 Viewers for the files people keep. They show that the stack streams large files
 instead of loading them whole.
 
+### E-book reader
+
+Today, on the Linux desktop sessions (the PineNote first), a book opens in
+KOReader, a Wayland program in a tab, which resumes where you left off with no
+setup. It is the PineNote's default reader, and its typesetting (crengine) is
+what people choose it for.
+
+Later, a reader of our own on beui, for every platform. What it should do
+better than KOReader is lay out only three pages, the previous, the current and
+the next, never a whole chapter or book as crengine and MuPDF do. Pages are
+anchored on the current page's top-left word: that word stays the top-left word
+through a change of font, size or rotation, and it is what is stored as the
+reading position (an EPUB CFI to the word, with a short quote and a fraction of
+the book as fallbacks for a changed edition), so every device opens at the same
+word. The next page is laid out forward from the first line that did not fit,
+the previous one backward from the anchor, which can leave it short, as
+Kindle's reader does. Without a whole-book layout there are no page numbers:
+locations come from character counts, which also give the time left in a
+chapter.
+
+The book's XHTML and CSS are lowered into blocks of styled spans, close to what
+a text block holds, so importing a book as text blocks is a cheap extra, and
+the same paginated view could read any long text block. Fixed-layout EPUBs need
+a browser engine and are left out. The PDF editor and this reader could share a
+reader shell (page turns, positions, highlights, contents, search), not an
+engine.
+
 ### Browser tab
 
 Paused. A system web view never worked well, so the tab only says that the app
@@ -257,7 +310,13 @@ linux-desktop shell is the editor that makes block-app a desktop.
 
 ### Terminal
 
-Planned for the desktop session, through ghostty-vt.
+A terminal block runs its shell on a machine its owner chose, reached through
+the server, so any client can use a real terminal on a real machine, the web
+and Android included (`guides/terminal.md`). The traffic is sealed like every
+other session message. Sharing one hands out a shell as the host's user, so
+sharing it needs warnings and a read-only default before a public release.
+A terminal in the desktop session, running on the machine itself, is still
+planned.
 
 ### Debug and example editors
 
@@ -266,7 +325,8 @@ pixel ray tracer editors are examples, tests and experiments, not apps.
 
 ## Open questions
 
-- How version control and revision history become one concept.
+- How far the version control UI can go for someone who has never used git:
+  whether branches need a plainer name, and how the change graph is drawn.
 - Whether beui on the web keeps its own layout but swaps some leaf elements for
   real DOM ones: text inputs first, then selection, links, video and web plugins
   in iframes. That is what Flutter's platform views do, and it costs the same: a

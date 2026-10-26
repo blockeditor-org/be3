@@ -1,19 +1,25 @@
 use block_editor_beui::ShellDialog;
-use block_editor_beui::beui::Key;
+use block_editor_beui::beui::{Key, Modifiers};
 
 use super::*;
 
 #[test]
 fn renaming_a_block_the_host_asks_about_saves_its_name() {
     let (mut fixture, block) = editor();
-    fixture.test.show_dialog(block, ShellDialog::Rename);
+    fixture.test.show_dialog(
+        block,
+        ShellDialog::Rename {
+            anchor: None,
+            within: None,
+        },
+    );
     fixture.settle();
-    assert!(fixture.says("Rename block"));
+    assert!(fixture.says("Rename"));
 
     fixture.test.click("rename.name");
     fixture.settle();
-    fixture.test.text("Notes");
-    fixture.test.key_press(Key::Enter);
+    fixture.test.type_text("Notes");
+    fixture.test.key(Key::Enter, Modifiers::NONE);
     fixture.settle();
 
     assert_eq!(
@@ -27,6 +33,6 @@ fn renaming_a_block_the_host_asks_about_saves_its_name() {
             .find_test_id("rename.name")
             .and_then(|field| document.node_rect(field))
             .is_none(),
-        "the dialog closes once the name is saved"
+        "the card closes once the name is saved"
     );
 }

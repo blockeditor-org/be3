@@ -22,7 +22,7 @@ fn a_screen_known_by_its_connector_is_this_devices_alone() {
         !settings.editor.shown("display.DP-1.keep"),
         "nothing else could use it, so there is nothing to keep"
     );
-    settings.editor.click(&format!("{SCREEN}.reset"));
+    settings.editor.click(format!("{SCREEN}.reset"));
     settings.run();
     assert_eq!(settings.here().mode("DP-1"), None);
 

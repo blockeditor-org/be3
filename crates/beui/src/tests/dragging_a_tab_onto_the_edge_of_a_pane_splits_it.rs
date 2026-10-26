@@ -1,5 +1,5 @@
 use super::*;
-use crate::unstyled::{DockApi, Entry, TabId};
+use crate::dock::unstyled::{DockApi, Entry, TabId};
 
 #[test]
 fn dragging_a_tab_onto_the_edge_of_a_pane_splits_it() {

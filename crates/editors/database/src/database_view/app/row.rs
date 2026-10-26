@@ -1,27 +1,27 @@
-use block_editor_beui::be_block::database::{DatabaseValue, RowRef, short_id};
-use block_editor_beui::be_block::database_schema::{DatabaseField, DatabaseFieldType};
-use block_editor_beui::be_block::text::TextContent;
+use beui::Overflow;
 use block_editor_beui::be_block::{BlockContent, ObjectId};
 use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::icons::{
-    ICON_ARROW_BACK, ICON_CLOSE, ICON_DELETE, ICON_EXPAND_LESS, ICON_EXPAND_MORE, ICON_MORE_HORIZ,
-    ICON_NOTE_ADD, ICON_OPEN_IN_NEW,
+    ICON_ARROW_LEFT, ICON_CHEVRON_DOWN, ICON_CHEVRON_UP, ICON_ELLIPSIS, ICON_EXTERNAL_LINK,
+    ICON_FILE_PLUS, ICON_TRASH, ICON_X,
 };
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
-use block_editor_beui::beui::unstyled::{ChoiceOption, MenuItem};
 use block_editor_beui::block_ui::database::DatabaseValueChange;
 use block_editor_beui::database::DatabaseBlockPickRequest;
 use block_editor_beui::database::{ChoiceMark, DatabaseValueEditor};
 use block_editor_beui::{ChildBlock, ChildMode, ChildTarget, narrow_chrome};
+use database_types::database::{DatabaseValue, RowRef, short_id};
+use database_types::database_schema::{DatabaseField, DatabaseFieldType};
 use uuid::Uuid;
 
 use crate::database_view::app::controls::{ChoicePicker, MARK, MARK_SIZE};
 use crate::database_view::app::data::Data;
 use crate::database_view::app::list::{iconic, row_title, visible_groups};
+use text_block_types::TextContent;
 
-const PADDING: f32 = 20.0;
-const SPACING: f32 = 8.0;
+const PADDING: Space = Space::Xl2;
+const SPACING: Space = Space::Md;
 const LABEL_WIDTH: f32 = 104.0;
 
 #[component]
@@ -123,53 +123,63 @@ pub fn RowPanel(data: Data, row: ObjectId) -> NodeId {
     view! {
         <BackHandler on_back={close}>
             <Frame fill=ColorRole::Background>
-                <List spacing=0.0>
-                    <Frame padding={Sides::symmetric(SPACING, 6.0)}>
-                        <List direction=Direction::Horizontal align=Align::Center spacing=2.0>
+                <List spacing=Space::None>
+                    <Frame padding={Padding::symmetric(SPACING, Space::Sm)}>
+                        <List
+                            direction=Direction::Horizontal
+                            align=Align::Center
+                            spacing=Space::Xs2
+                        >
                             <Show condition={narrow}>
-                                <IconButton
-                                    glyph={ICON_ARROW_BACK.to_owned()}
+                                <Button
+                                    icon_only=true
+                                    glyph=ICON_ARROW_LEFT
                                     label="Back to the list"
                                     variant=ButtonVariant::Ghost
                                     @test_id={"database-view.detail.back"}
                                     on_click={close}
                                 />
                             </Show>
-                            <IconButton
-                                glyph={ICON_EXPAND_LESS.to_owned()}
+                            <Button
+                                icon_only=true
+                                glyph=ICON_CHEVRON_UP
                                 label="Previous row"
                                 variant=ButtonVariant::Ghost
                                 @test_id={"database-view.detail.previous"}
                                 on_click={move || step(-1)}
                             />
-                            <IconButton
-                                glyph={ICON_EXPAND_MORE.to_owned()}
+                            <Button
+                                icon_only=true
+                                glyph=ICON_CHEVRON_DOWN
                                 label="Next row"
                                 variant=ButtonVariant::Ghost
                                 @test_id={"database-view.detail.next"}
                                 on_click={move || step(1)}
                             />
-                            <Frame padding={Sides::horizontal(6.0)}>
+                            <Frame padding={Padding::horizontal(Space::Sm)}>
                                 <Text style=TextStyle::CAPTION @test_id={"database-view.detail.id"}>
                                     {code}
                                 </Text>
                             </Frame>
                             <Frame @sizing=ItemSize::Percent(100.0) />
-                            <IconButton
-                                glyph={ICON_OPEN_IN_NEW.to_owned()}
+                            <Button
+                                icon_only=true
+                                glyph=ICON_EXTERNAL_LINK
                                 label="Open the page"
                                 variant=ButtonVariant::Ghost
                                 @test_id={"database-view.detail.open"}
                                 on_click={open_page}
                             />
-                            <IconMenuButton
+                            <MenuButton
+                                icon_only=true
+                                variant=ButtonVariant::Ghost
                                 label="More"
-                                glyph={ICON_MORE_HORIZ.to_owned()}
+                                glyph=ICON_ELLIPSIS
                                 @test_id={"database-view.detail.more"}
                                 items={view! {
                                     <MenuItem
                                         label="Delete row"
-                                        glyph={ICON_DELETE.to_owned()}
+                                        glyph=ICON_TRASH
                                         danger=true
                                         disabled={delete_off}
                                         row_test_id={"database-view.detail.delete".to_owned()}
@@ -178,8 +188,9 @@ pub fn RowPanel(data: Data, row: ObjectId) -> NodeId {
                                 }}
                             />
                             <Show condition={wide}>
-                                <IconButton
-                                    glyph={ICON_CLOSE.to_owned()}
+                                <Button
+                                    icon_only=true
+                                    glyph=ICON_X
                                     label="Close"
                                     variant=ButtonVariant::Ghost
                                     @test_id={"database-view.detail.close"}
@@ -191,7 +202,7 @@ pub fn RowPanel(data: Data, row: ObjectId) -> NodeId {
                     <Separator />
                     <Scroll @sizing=ItemSize::Percent(100.0)>
                         <Frame padding=PADDING>
-                            <List spacing={SPACING * 2.0}>
+                            <List spacing=Space::Xl>
                                 <TextInput
                                     value={Binding::new(title, retitled)}
                                     placeholder="Title"
@@ -199,7 +210,7 @@ pub fn RowPanel(data: Data, row: ObjectId) -> NodeId {
                                     focused={untitled}
                                     @test_id={"database-view.detail.title"}
                                 />
-                                <List spacing=2.0>
+                                <List spacing=Space::Xs2>
                                     <ForEach keys={properties}>|field: Uuid|
                                         <Property data={data} row={row} field={field} />
                                     </ForEach>
@@ -209,9 +220,9 @@ pub fn RowPanel(data: Data, row: ObjectId) -> NodeId {
                                 </ForEach>
                                 <Separator />
                                 <Show condition={missing}>
-                                    <List direction=Direction::Horizontal spacing=0.0>
+                                    <List direction=Direction::Horizontal spacing=Space::None>
                                         <Button
-                                            glyph={ICON_NOTE_ADD.to_owned()}
+                                            glyph=ICON_FILE_PLUS
                                             label="Write a description"
                                             variant=ButtonVariant::Ghost
                                             disabled={page_off}
@@ -298,10 +309,10 @@ fn Property(data: Data, row: ObjectId, field: Uuid) -> NodeId {
     view! {
         <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
             <Frame @sizing=ItemSize::Fixed(LABEL_WIDTH)>
-                <Text style=TextStyle::CAPTION ellipsis=true>{name}</Text>
+                <Text style=TextStyle::CAPTION overflow=Overflow::Ellipsis>{name}</Text>
             </Frame>
             <Frame @sizing=ItemSize::Percent(100.0)>
-                <List spacing=0.0>
+                <List spacing=Space::None>
                     <Show condition={choice}>
                         <ChoicePicker
                             field={known}
@@ -394,8 +405,8 @@ fn LinkSection(data: Data, row: ObjectId, field: Uuid) -> NodeId {
     };
     let add_off = data.read_only;
     view! {
-        <List spacing=4.0>
-            <List direction=Direction::Horizontal align=Align::Center spacing=6.0>
+        <List spacing=Space::Xs>
+            <List direction=Direction::Horizontal align=Align::Center spacing=Space::Sm>
                 <Text>{heading}</Text>
                 <Text style=TextStyle::CAPTION>{count}</Text>
                 <Frame @sizing=ItemSize::Percent(100.0) />
@@ -489,15 +500,15 @@ fn LinkedRow(
     };
     let read_only = data.read_only;
     view! {
-        <List direction=Direction::Horizontal align=Align::Center spacing=4.0>
+        <List direction=Direction::Horizontal align=Align::Center spacing=Space::Xs>
             <ListRow
                 @sizing=ItemSize::Percent(100.0)
                 @test_id={format!("database-view.detail.links.{field}.{}", link.row)}
                 on_click={open}
                 on_activate={open}
             >
-                <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
-                    <Frame width=MARK_SIZE height=MARK_SIZE>
+                <List direction=Direction::Horizontal align=Align::Center spacing=Space::Md>
+                    <Frame width={Size::Custom(MARK_SIZE)} height={Size::Custom(MARK_SIZE)}>
                         <Layers>
                             <Show condition={marked}>
                                 <ChoiceMark option={option} size=MARK />
@@ -505,13 +516,17 @@ fn LinkedRow(
                         </Layers>
                     </Frame>
                     <Text style=TextStyle::CAPTION>{code}</Text>
-                    <Text @sizing={ItemSize::Percent(100.0).shrink(1.0)} ellipsis=true>
+                    <Text
+                        @sizing={ItemSize::Percent(100.0).shrink(1.0)}
+                        overflow=Overflow::Ellipsis
+                    >
                         {label}
                     </Text>
                 </List>
             </ListRow>
-            <IconButton
-                glyph={ICON_CLOSE.to_owned()}
+            <Button
+                icon_only=true
+                glyph=ICON_X
                 label="Remove link"
                 variant=ButtonVariant::Ghost
                 disabled={read_only}

@@ -1,5 +1,5 @@
 use super::*;
-use crate::unstyled::{DockApi, Entry, TabId};
+use crate::dock::unstyled::{DockApi, Entry, TabId};
 
 #[test]
 fn dropping_a_dock_tab_onto_the_middle_of_another_groups_them() {
@@ -8,7 +8,7 @@ fn dropping_a_dock_tab_onto_the_middle_of_another_groups_them() {
     let mut harness = Harness::sized(document, WIDE_VIEWPORT);
     harness.frame(Vec::new());
     let dragged = harness.center(dock_tab(harness.document(), dock, "Tab 3"));
-    let onto = harness.rect(dock_tab(harness.document(), dock, "Tab 2"));
+    let onto = dock_tab_extent(&harness, dock, "Tab 2", 2);
 
     harness.drag(dragged, onto.center());
     harness.frame(Vec::new());

@@ -1,6 +1,6 @@
 use super::*;
-use block_editor_beui::be_block::canvas::CanvasColor;
-use block_editor_beui::beui::{Key, Vec2};
+use block_editor_beui::beui::{Key, Modifiers, Vec2};
+use infinite_canvas_types::CanvasColor;
 
 #[test]
 fn typing_a_transform_value_and_pressing_escape_edits_nothing() {
@@ -21,16 +21,16 @@ fn typing_a_transform_value_and_pressing_escape_edits_nothing() {
     editor.run();
     editor.click("infinite-canvas.transform.width");
     editor.run();
-    editor.text("150");
+    editor.type_text("150");
     editor.run();
-    editor.key_press(Key::Enter);
+    editor.key(Key::Enter, Modifiers::NONE);
     editor.run();
     let resting = editor.rect_of(&drawn);
     editor.click("infinite-canvas.transform.x");
     editor.run();
-    editor.text("4");
+    editor.type_text("4");
     editor.run();
-    editor.text("0");
+    editor.type_text("0");
     editor.run();
 
     assert_eq!(
@@ -39,7 +39,7 @@ fn typing_a_transform_value_and_pressing_escape_edits_nothing() {
         "the canvas shows the typed value while it is typed"
     );
 
-    editor.key_press(Key::Escape);
+    editor.key(Key::Escape, Modifiers::NONE);
     editor.run();
 
     assert_eq!(editor.rect_of(&drawn), resting);
@@ -52,9 +52,9 @@ fn typing_a_transform_value_and_pressing_escape_edits_nothing() {
     );
     editor.click("infinite-canvas.transform.width");
     editor.run();
-    editor.text("150");
+    editor.type_text("150");
     editor.run();
-    editor.key_press(Key::Enter);
+    editor.key(Key::Enter, Modifiers::NONE);
     editor.run();
 
     let field = editor.point_of("infinite-canvas.transform.y");

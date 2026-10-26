@@ -14,6 +14,6 @@ fn a_paste_over_the_text_limit_arrives_in_pieces() {
     assert!(text_pieces("", 4).is_empty());
     assert_eq!(
         paste_events("short"),
-        vec![InputEvent::Paste(Pasted::Text("short".to_owned()))]
+        vec![Input::Paste(Pasted::Text("short".to_owned()))]
     );
 }

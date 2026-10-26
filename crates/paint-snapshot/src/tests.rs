@@ -1,7 +1,8 @@
 use std::collections::BTreeMap;
 
-use crate::{Content, Frame, Primitive, Snapshot, Texture, Triangle, Vertex};
+use crate::{Content, Fade, Frame, Primitive, Snapshot, Texture, Triangle, Vertex};
 
+mod a_faded_rect_fades_toward_the_edge_it_names_the_way_the_shader_does;
 mod a_frame_that_changed_is_named_by_its_number;
 mod a_glyph_paints_its_coverage_in_its_colour;
 mod a_highlight_marks_only_the_pixels_that_changed;
@@ -34,6 +35,7 @@ fn frame(colour: [u8; 4]) -> Frame {
         background: [0, 0, 0, 255],
         primitives: vec![Primitive {
             clip: [0.0, 0.0, 8.0, 8.0],
+            fade: Fade::NONE,
             content: Content::Mesh(vec![Triangle {
                 texture: 0,
                 corners: [corner(0.0, 0.0), corner(8.0, 0.0), corner(0.0, 8.0)],

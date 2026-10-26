@@ -1,0 +1,19 @@
+load("@root//buck/cargo:defs.bzl", "cargo_binary", "cargo_library", "cargo_test")
+load("@root//buck/platforms:profile.bzl", "released")
+
+# What ./scripts/verify and ./scripts/ci run once buck/dev/verify.bxl has built
+# what they check, built for this machine in that same command and downloaded
+# to run here, so in the release profile (:release) and with no dependency
+# beyond sha2. crates/local-tools, which it runs for --previews, is the rest.
+
+cargo_library()
+
+cargo_test()
+
+cargo_binary()
+
+released(
+    name = "release",
+    actual = ":bin",
+    visibility = ["PUBLIC"],
+)

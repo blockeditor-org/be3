@@ -7,17 +7,17 @@ fn pressing_the_format_bar_keeps_the_focus_and_the_selection_in_the_text() {
     let mut editor = editor("hello world");
     editor.click("text.surface");
     editor.run();
-    editor.key_press(Key::End);
+    editor.key(Key::End, Modifiers::NONE);
     editor.run();
     for _ in 0.."world".len() {
-        editor.key_press_modifiers(Modifiers::SHIFT, Key::ArrowLeft);
+        editor.key(Key::ArrowLeft, Modifiers::SHIFT);
         editor.run();
     }
 
     let bar = editor.rect_of("text.format");
-    editor.click_at(pos2(bar.max.x - 4.0, bar.center().y));
+    editor.click(pos2(bar.max.x - 4.0, bar.center().y));
     editor.run();
-    editor.text("there");
+    editor.type_text("there");
     editor.run();
     assert_eq!(
         text(&editor),
@@ -25,7 +25,7 @@ fn pressing_the_format_bar_keeps_the_focus_and_the_selection_in_the_text() {
         "a press on the bar leaves the text focused with its selection"
     );
 
-    editor.key_press_modifiers(Modifiers::SHIFT, Key::Home);
+    editor.key(Key::Home, Modifiers::SHIFT);
     editor.run();
     editor.click("text.format.bold");
     editor.run();
@@ -34,7 +34,7 @@ fn pressing_the_format_bar_keeps_the_focus_and_the_selection_in_the_text() {
         editor.shown("text.format.bold"),
         "the bar stays, since the text kept the focus"
     );
-    editor.text("!");
+    editor.type_text("!");
     editor.run();
     assert!(
         text(&editor).contains('!'),

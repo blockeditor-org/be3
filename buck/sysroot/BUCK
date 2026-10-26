@@ -19,7 +19,7 @@ wanted = [
     # What third-party crates link.
     "libasound2-dev",
     "libxkbcommon-dev",
-    # beui-adapter-drm, which block-app's --session runs on: displays through GBM, input through
+    # beui-platform-drm, which block-app's --session runs on: displays through GBM, input through
     # libinput, a seat through libseat, and devices found through udev.
     "libgbm-dev",
     "libinput-dev",
@@ -37,11 +37,22 @@ test_runtime = [
     "xkb-data",
 ]
 
+# What beui-layer-xr's smoke test adds to that: the OpenXR loader, and Monado's
+# runtime and service, which it runs with the null compositor on lavapipe.
+# Armadillo, which Monado's OpenCV links, is the one library outside the
+# multiarch directory.
+xr_runtime = test_runtime + [
+    "libopenxr-loader1",
+    "libopenxr1-monado",
+    "monado-service",
+]
+
 deb_lock(
     name = "lock",
     sets = {
         "amd64": ("amd64", wanted),
         "amd64-test": ("amd64", test_runtime),
+        "amd64-xr": ("amd64", xr_runtime),
         "arm64": ("arm64", wanted),
     },
     snapshot = snapshot,
@@ -53,6 +64,7 @@ deb_lock(
 set_prefixes = {
     "amd64": "",
     "amd64-test": "test-",
+    "amd64-xr": "xr-",
     "arm64": "arm64-",
 }
 
@@ -78,6 +90,42 @@ deb_sysroot(
     keep_xkb = True,
     packages = [":test-" + name.replace("+", "p") + ".deb" for name, _, _, _ in packages.get("amd64-test", [])],
     programs = ["usr/bin/dbus-daemon"],
+    visibility = ["PUBLIC"],
+)
+
+deb_sysroot(
+    name = "amd64-xr",
+    keep_xkb = True,
+    packages = [":xr-" + name.replace("+", "p") + ".deb" for name, _, _, _ in packages.get("amd64-xr", [])],
+    programs = [
+        "usr/bin/monado-service",
+        "usr/lib/libarmadillo.so.12",
+        "usr/lib/libarmadillo.so.12.6.7",
+    ],
+    visibility = ["PUBLIC"],
+)
+
+# Monado's runtime manifest, naming its library by file name, as
+# lavapipe_icd.json does, so the smoke test loads it from :amd64-xr.
+export_file(
+    name = "monado_runtime.json",
+    visibility = ["PUBLIC"],
+)
+
+# What a program run here from :amd64 loads, for `:dev` (buck/app/drive.bzl) to
+# download: its shared libraries, without the headers, static libraries and
+# sanitizer runtimes only a link needs: 258 MB of its 361.
+genrule(
+    name = "amd64-libraries",
+    cmd = """
+        set -eu
+        cp -RP $(location :amd64)/usr/lib/x86_64-linux-gnu/. $OUT/
+        find $OUT -name '*.a' -delete
+        find $OUT -name '*.o' -delete
+        rm -rf $OUT/pkgconfig
+        rm -f $OUT/libasan.so* $OUT/libtsan.so* $OUT/liblsan.so* $OUT/libubsan.so* $OUT/libhwasan.so*
+    """,
+    out = "lib",
     visibility = ["PUBLIC"],
 )
 

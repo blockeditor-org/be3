@@ -7,7 +7,7 @@
       "id": "8d271bc7-7f4c-4393-b72b-3cac0a54d5db",
       "edits": "63616c65-6e64-6172-2d62-6c6f636b0001",
       "display_name": "Calendar",
-      "icon": "\uebcc",
+      "icon": "\ue2b9",
       "templates": {
         "main": {}
       },
@@ -16,6 +16,15 @@
       "regions": [
         "Frame"
       ]
+    }
+  },
+  "block_types": {
+    "calendar": {
+      "id": "63616c65-6e64-6172-2d62-6c6f636b0001",
+      "display_name": "Calendar",
+      "icon": "\ue2b9",
+      "color": [211, 126, 59],
+      "module": "calendar_types.wasm"
     }
   },
   "entry_point": "calendar.wasm"

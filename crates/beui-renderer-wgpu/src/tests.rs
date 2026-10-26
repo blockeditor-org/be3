@@ -41,6 +41,7 @@ mod surface_formats_requiring_optional_features_are_not_selected;
 mod text_at_a_fractional_origin_lands_on_whole_pixels;
 mod text_paints_glyphs_over_the_background;
 mod turning_a_filter_off_repaints_the_frame_it_had_blurred;
+mod two_fills_meeting_on_a_seam_paint_as_one;
 mod two_filters_each_change_the_region_they_cover;
 mod two_regions_repainted_under_a_blur_match_a_full_repaint;
 mod zoomed_text_stretches_the_glyphs_it_was_rasterised_at;
@@ -54,7 +55,6 @@ use beui_core::document::Document;
 use beui_core::filter::{ColorVision, Filter};
 use beui_core::font::FontId;
 use beui_core::geometry::{Pos2, Rect, pos2, vec2};
-use beui_core::input::RawInput;
 use beui_core::painter::Painter;
 
 const SIZE: u32 = 64;
@@ -188,12 +188,12 @@ impl Target {
         background: Color32,
         paint: impl FnOnce(&Painter),
     ) -> Option<beui_core::context::Moved> {
-        let output = context.run(RawInput::default(), |context| paint(&context.painter()));
-        let (repaint, moved) = output.repaint_moving(background);
+        let output = context.run(|context| paint(&context.painter()));
+        let (repaint, moved) = output.main().repaint_moving(background);
         let effective = self.renderer.prepare(
             &self.device,
             &self.queue,
-            &output,
+            output.main(),
             vec2(SIZE as f32, SIZE as f32),
             1.0,
             repaint,
@@ -229,15 +229,15 @@ impl Target {
         &mut self,
         context: &Context,
         background: Color32,
-        repaint: impl FnOnce(&beui_core::context::FrameOutput) -> Repaint,
+        repaint: impl FnOnce(&beui_core::context::WindowOutput) -> Repaint,
         paint: impl FnOnce(&Painter),
     ) {
-        let output = context.run(RawInput::default(), |context| paint(&context.painter()));
-        let repaint = repaint(&output);
+        let output = context.run(|context| paint(&context.painter()));
+        let repaint = repaint(output.main());
         let effective = self.renderer.prepare(
             &self.device,
             &self.queue,
-            &output,
+            output.main(),
             vec2(SIZE as f32, SIZE as f32),
             1.0,
             repaint,

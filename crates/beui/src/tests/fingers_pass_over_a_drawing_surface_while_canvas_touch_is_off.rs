@@ -51,7 +51,7 @@ fn fingers_pass_over_a_drawing_surface_while_canvas_touch_is_off() {
         "a finger draws by default"
     );
 
-    harness.context.set_preference_layer(
+    harness.context().set_preference_layer(
         PreferenceSource::App,
         PreferenceLayer {
             canvas_touch: Some(CanvasTouch::Off),
@@ -75,22 +75,27 @@ fn fingers_pass_over_a_drawing_surface_while_canvas_touch_is_off() {
     );
     assert_eq!(menus.get_untracked(), 0, "a held finger opens no menu");
 
-    harness.frame(vec![
-        touch_event(1, TouchPhase::Start, center - vec2(50.0, 0.0)),
-        touch_event(2, TouchPhase::Start, center + vec2(50.0, 0.0)),
-    ]);
+    harness.fingers(
+        TouchPhase::Start,
+        &[(1, center - vec2(50.0, 0.0)), (2, center + vec2(50.0, 0.0))],
+    );
     harness.move_fingers(center - vec2(100.0, 0.0), center + vec2(100.0, 0.0));
-    harness.frame(vec![
-        touch_event(1, TouchPhase::End, center - vec2(100.0, 0.0)),
-        touch_event(2, TouchPhase::End, center + vec2(100.0, 0.0)),
-    ]);
+    harness.fingers(
+        TouchPhase::End,
+        &[
+            (1, center - vec2(100.0, 0.0)),
+            (2, center + vec2(100.0, 0.0)),
+        ],
+    );
     assert_eq!(zoom.get_untracked(), 1.0, "two fingers do not zoom it");
 
-    let pen = |phase| Event::Pen {
+    let pen = |phase| Input::Pen {
         phase,
         pos: center,
-        pressure: 0.5,
-        pen: Pen::default(),
+        pen: Pen {
+            pressure: 0.5,
+            ..Pen::default()
+        },
     };
     harness.frame(vec![pen(PenPhase::Down(PointerButton::Primary))]);
     harness.frame(vec![pen(PenPhase::Up(PointerButton::Primary))]);

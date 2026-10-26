@@ -1,13 +1,14 @@
 use block_editor_beui::beui::NodeId;
+use block_editor_beui::beui::icons::Glyph;
 use block_editor_beui::beui::icons::{
-    ICON_BEDTIME, ICON_LOCK, ICON_LOGOUT, ICON_POWER_SETTINGS_NEW, ICON_RESTART_ALT,
+    ICON_LOCK, ICON_LOG_OUT, ICON_MOON, ICON_POWER, ICON_ROTATE_CCW,
 };
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
-use block_editor_beui::beui::unstyled::MenuItem;
-use block_editor_beui::{Editor, Power, PowerAction, PowerAvailability};
+use block_editor_beui::linux_desktop;
+use block_editor_beui::{Editor, PowerAction, PowerAvailability, PowerWatch};
 
-const DIALOG_SPACING: f32 = 16.0;
+const DIALOG_SPACING: Space = Space::Xl;
 
 fn label(action: PowerAction) -> &'static str {
     match action {
@@ -19,13 +20,13 @@ fn label(action: PowerAction) -> &'static str {
     }
 }
 
-fn glyph(action: PowerAction) -> &'static str {
+fn glyph(action: PowerAction) -> Glyph {
     match action {
         PowerAction::Lock => ICON_LOCK,
-        PowerAction::Suspend => ICON_BEDTIME,
-        PowerAction::Restart => ICON_RESTART_ALT,
-        PowerAction::PowerOff => ICON_POWER_SETTINGS_NEW,
-        PowerAction::LogOut => ICON_LOGOUT,
+        PowerAction::Suspend => ICON_MOON,
+        PowerAction::Restart => ICON_ROTATE_CCW,
+        PowerAction::PowerOff => ICON_POWER,
+        PowerAction::LogOut => ICON_LOG_OUT,
     }
 }
 
@@ -68,7 +69,7 @@ fn PowerItem(action: PowerAction, available: Memo<PowerAvailability>) -> MenuIte
 
 #[component]
 pub(crate) fn PowerMenu(editor: Editor) -> NodeId {
-    let available = editor.host_value::<Power>();
+    let available = editor.watch::<PowerWatch>();
     let confirming = create_signal(PowerAction::LogOut);
     let open = create_signal(false);
     let chose = move |path: Vec<usize>| {
@@ -82,7 +83,9 @@ pub(crate) fn PowerMenu(editor: Editor) -> NodeId {
             return;
         }
         match action {
-            PowerAction::Lock | PowerAction::Suspend => editor.act(action),
+            PowerAction::Lock | PowerAction::Suspend => {
+                editor.act(move || linux_desktop::power::request(action))
+            }
             _ => {
                 confirming.set(action);
                 open.set(true);
@@ -95,13 +98,13 @@ pub(crate) fn PowerMenu(editor: Editor) -> NodeId {
     let dismiss = move || open.set(false);
     let confirm = move || {
         open.set(false);
-        editor.act(confirming.get_untracked());
+        editor.act(move || linux_desktop::power::request(confirming.get_untracked()));
     };
     view! {
-        <List spacing=0.0>
+        <List spacing=Space::None>
             <MenuButton
                 label="Power"
-                glyph={ICON_POWER_SETTINGS_NEW.to_owned()}
+                glyph=ICON_POWER
                 icon_only=true
                 arrow=false
                 @test_id={"desktop.power"}
@@ -117,14 +120,13 @@ pub(crate) fn PowerMenu(editor: Editor) -> NodeId {
             <Dialog
                 open
                 title
+                kind=DialogKind::Alert
                 id="desktop.power"
-                confirm={verb}
-                cancel="Cancel"
-                on_confirm={confirm}
+                actions={vec![DialogAction::primary(verb, confirm), DialogAction::cancel("Cancel")]}
                 on_dismiss={dismiss}
             >
                 <List spacing=DIALOG_SPACING @test_id={"desktop.power.dialog"}>
-                    <Text style=TextStyle::PARAGRAPH wrap=true>{explained}</Text>
+                    <Text style=TextStyle::PARAGRAPH>{explained}</Text>
                 </List>
             </Dialog>
         </List>

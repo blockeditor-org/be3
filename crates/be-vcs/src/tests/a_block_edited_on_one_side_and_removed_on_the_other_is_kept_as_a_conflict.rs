@@ -20,10 +20,7 @@ fn a_block_edited_on_one_side_and_removed_on_the_other_is_kept_as_a_conflict() {
     assert_eq!(plan.tree.entries[&edited], ours.entries[&edited]);
     assert!(!plan.tree.entries.contains_key(&dropped));
     assert_eq!(
-        plan.conflicts,
-        vec![Conflict {
-            block: edited,
-            kind: ConflictKind::EditedAndRemoved,
-        }]
+        kinds(&plan.tree),
+        vec![(edited, ConflictKind::EditedAndRemoved)]
     );
 }

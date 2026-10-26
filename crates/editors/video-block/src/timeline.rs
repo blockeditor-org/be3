@@ -1,10 +1,10 @@
-use block_editor_beui::be_block::video::{
-    Video, VideoAttachment, VideoClip, VideoClipTiming, VideoFrameRate, VideoOperation,
-};
 use block_editor_beui::beui::{Pos2, Rect};
 use uuid::Uuid;
+use video_block_types::{
+    Video, VideoAttachment, VideoClip, VideoClipTiming, VideoFrameRate, VideoOperation,
+};
 
-use block_editor_beui::be_block::video::DEFAULT_CLIP_SECONDS;
+use video_block_types::DEFAULT_CLIP_SECONDS;
 
 use crate::app::state::ClipDrag;
 
@@ -257,11 +257,7 @@ pub(crate) fn tick_seconds(frame_rate: VideoFrameRate, pixels_per_frame: f32) ->
         .unwrap_or(3600.0)
 }
 
-fn reattached(
-    video: &Video,
-    clip: &VideoClip,
-    start: u64,
-) -> Option<block_editor_beui::be_block::video::VideoClip> {
+fn reattached(video: &Video, clip: &VideoClip, start: u64) -> Option<video_block_types::VideoClip> {
     let attachment = clip.attachment?;
     let parent_start = video.timing(attachment.clip_id)?.start;
     let offset =

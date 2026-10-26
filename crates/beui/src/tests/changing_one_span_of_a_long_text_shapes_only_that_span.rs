@@ -20,7 +20,7 @@ fn changing_one_span_of_a_long_text_shapes_only_that_span() {
         let keys = create_memo(move || (0..words.get().len()).collect::<Vec<usize>>());
         view! {
             <Frame width=200.0>
-                <Text @node_ref=&text wrap=true>
+                <Text @node_ref=&text>
                     <ForEach keys={keys}>|index: usize| {
                         let word = create_memo(move || {
                             words.get().get(index).cloned().unwrap_or_default()

@@ -1,12 +1,12 @@
 use super::*;
-use beui::{Event, TouchId, TouchPhase};
+use beui::{TouchId, TouchPhase};
 
 const PHONE: Vec2 = Vec2::new(390.0, 844.0);
 
 fn tap(test: &mut DocumentTest, test_id: &str) {
     let pos = test.rect_of(test_id).center();
     for phase in [TouchPhase::Start, TouchPhase::End] {
-        test.frame(vec![Event::Touch {
+        test.frame(vec![Input::Touch {
             id: TouchId {
                 device: 1,
                 finger: 1,

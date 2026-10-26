@@ -1,5 +1,5 @@
 use super::*;
-use beui::{Event, Key, Modifiers};
+use beui::Key;
 
 #[test]
 fn the_overlay_sample_closes_on_escape_and_a_click_outside() {
@@ -16,11 +16,10 @@ fn the_overlay_sample_closes_on_escape_and_a_click_outside() {
         [true, false]
             .into_iter()
             .map(|pressed| {
-                Event::key(beui::KeyPress {
-                    key: Key::Escape,
+                Input::Key(beui::Keystroke {
+                    key: Some(Key::Escape),
                     pressed,
-                    repeat: false,
-                    modifiers: Modifiers::NONE,
+                    ..Default::default()
                 })
             })
             .collect(),
@@ -36,7 +35,7 @@ fn the_overlay_sample_closes_on_escape_and_a_click_outside() {
         test.shows("demo.overlay.panel"),
         "the trigger opens it again"
     );
-    test.click_at(over_the_page(WIDE));
+    test.click(over_the_page(WIDE));
     test.frame(Vec::new());
     assert!(
         !test.shows("demo.overlay.panel"),

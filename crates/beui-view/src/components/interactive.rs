@@ -77,6 +77,8 @@ pub fn Interactive(
     drawing_at: Callback<Pos2, bool>,
     on_forward: Callback<ForwardedInput>,
     #[prop(default = false)] inhibits_shortcuts: Prop<bool>,
+    #[prop(default = false)] clipboard_keys: Prop<bool>,
+    #[prop(default = true)] forwards_wheel: Prop<bool>,
     #[prop(default = None)] claim_modifiers: Prop<Option<Modifiers>>,
     claim_at: Callback<(Pos2, Modifiers), bool>,
     on_press_outside: Callback<Pos2>,
@@ -200,9 +202,8 @@ pub fn Interactive(
     });
     if let Some(cursor) = cursor {
         create_binding(move || {
-            with_document(|document| {
-                document.set_interactive_cursor(interactive, Some(cursor.get()))
-            })
+            let cursor = cursor.get();
+            with_document(|document| document.set_interactive_cursor(interactive, Some(cursor)))
         });
     }
     create_binding(move || {
@@ -216,7 +217,10 @@ pub fn Interactive(
             inhibits_shortcuts.get(),
             claim_modifiers.get(),
         );
+        let wheel = forwards_wheel.get();
+        let clipboard = clipboard_keys.get();
         with_document(|document| {
+            document.set_interactive_clipboard_keys(interactive, clipboard);
             document.set_interactive_capture_presses(interactive, capture);
             document.set_interactive_press_focus(interactive, pressing);
             document.set_interactive_repeat_drag(interactive, repeat);
@@ -229,6 +233,7 @@ pub fn Interactive(
             document.set_interactive_key_active(interactive, active);
             document.set_interactive_inhibits_shortcuts(interactive, inhibits);
             document.set_interactive_claim_modifiers(interactive, claimed);
+            document.set_interactive_forwards_wheel(interactive, wheel);
         })
     });
     interactive.id()

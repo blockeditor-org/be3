@@ -18,11 +18,11 @@ fn a_key_intercepted_for_a_plugin_reaches_it_with_its_modifiers() {
     assert_eq!(
         input_events(&messages),
         [
-            InputEvent::Modifiers(Modifiers {
+            Input::Modifiers(Modifiers {
                 alt: true,
                 ..Modifiers::default()
             }),
-            InputEvent::InterceptedKey {
+            Input::InterceptedKey {
                 key: Key::Tab,
                 pressed: true,
                 repeat: false,
@@ -40,7 +40,7 @@ fn a_key_intercepted_for_a_plugin_reaches_it_with_its_modifiers() {
     let messages = instances.intercepted(INSTANCE, REGION, None, beui::Modifiers::NONE);
     assert_eq!(
         input_events(&messages),
-        [InputEvent::Modifiers(Modifiers::default())],
+        [Input::Modifiers(Modifiers::default())],
         "letting go of Alt reaches the plugin even though no key came with it"
     );
 }

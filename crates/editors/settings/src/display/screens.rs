@@ -1,10 +1,9 @@
 use block_editor_beui::be_block::DisplaySettings;
 use block_editor_beui::be_block::display_settings::{DisplayMode, Rotation};
 use block_editor_beui::beui::NodeId;
-use block_editor_beui::beui::icons::ICON_SETTINGS_BACKUP_RESTORE;
+use block_editor_beui::beui::icons::ICON_ROTATE_CCW;
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
-use block_editor_beui::beui::unstyled::{ChoiceOption, MenuItem};
 use block_editor_beui::{HostDisplay, LayeredSettingsRow, RotationPicker};
 
 use super::modes::{Size, effective, mode_label, rate_label, rates, size_label, size_of, sizes};
@@ -135,7 +134,7 @@ pub(super) fn ScreenSection(
                 menu={view! {
                     <MenuItem
                         label="Use the fastest rate"
-                        glyph={ICON_SETTINGS_BACKUP_RESTORE.to_owned()}
+                        glyph=ICON_ROTATE_CCW
                         disabled={at_fastest}
                         row_test_id={format!("display.{connector}.refresh.reset")}
                         on_click={move || set.call(fastest.get_untracked())}

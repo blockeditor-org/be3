@@ -52,7 +52,7 @@ fn holding_a_finger_down_opens_a_context_menu() {
     assert_eq!(clicked.get_untracked(), 1, "a tap is a click");
     assert!(!sheet_shown(&harness));
 
-    harness.context.set_long_press_delay(Duration::ZERO);
+    harness.context().set_long_press_delay(Duration::ZERO);
     harness.touch(TouchPhase::Start, pos2(100.0, 100.0));
     harness.frame(Vec::new());
     assert!(

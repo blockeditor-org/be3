@@ -1,5 +1,5 @@
 use super::*;
-use crate::unstyled::DockApi;
+use crate::dock::unstyled::DockApi;
 
 #[test]
 fn a_secondary_drag_with_the_dock_drag_modifier_resizes_a_window_from_its_nearest_corner() {

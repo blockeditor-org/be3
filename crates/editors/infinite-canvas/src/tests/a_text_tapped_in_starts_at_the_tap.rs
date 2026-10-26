@@ -9,12 +9,13 @@ fn a_text_tapped_in_starts_at_the_tap() {
     editor.settle();
     let canvas = editor.rect_of("infinite-canvas.canvas");
     let tapped = |editor: &mut BeuiTest<CanvasApp>, x: f32| {
+        editor.reveal("infinite-canvas.dock.tool.Text");
         editor.click("infinite-canvas.dock.tool.Text");
         editor.run();
         let at = pos2(x, canvas.center().y);
-        editor.finger(1, TouchPhase::Start, at);
+        editor.fingers(TouchPhase::Start, &[(1, at)]);
         editor.run();
-        editor.finger(1, TouchPhase::End, at);
+        editor.fingers(TouchPhase::End, &[(1, at)]);
         editor.run();
         editor.settle();
         let text = entities(editor)

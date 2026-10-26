@@ -1,31 +1,32 @@
-use be_block::database_schema::{ChoiceColor, ChoiceIcon, DatabaseEnumOption};
 use beui::TextAlign;
+use beui::icons::Glyph;
 use beui::icons::{
-    ICON_CANCEL, ICON_CHECK_CIRCLE, ICON_FLAG, ICON_INCOMPLETE_CIRCLE, ICON_PENDING, ICON_PRIORITY,
-    ICON_RADIO_BUTTON_PARTIAL, ICON_RADIO_BUTTON_UNCHECKED, ICON_SIGNAL_CELLULAR_ALT,
-    ICON_SIGNAL_CELLULAR_ALT_1_BAR, ICON_SIGNAL_CELLULAR_ALT_2_BAR, ICON_STAR,
+    ICON_CIRCLE, ICON_CIRCLE_CHECK, ICON_CIRCLE_DASHED, ICON_CIRCLE_DOT_DASHED,
+    ICON_CIRCLE_ELLIPSIS, ICON_CIRCLE_X, ICON_FLAG, ICON_OCTAGON_ALERT, ICON_SIGNAL_HIGH,
+    ICON_SIGNAL_LOW, ICON_SIGNAL_MEDIUM, ICON_STAR,
 };
 use beui::reactive::*;
 use beui::styled::theme::ThemeKind;
 use beui::styled::*;
 use beui::{Color32, NodeId};
+use database_types::database_schema::{ChoiceColor, ChoiceIcon, DatabaseEnumOption};
 
-pub fn choice_glyph(icon: ChoiceIcon) -> &'static str {
-    match icon {
-        ChoiceIcon::None => "",
-        ChoiceIcon::Backlog => ICON_PENDING,
-        ChoiceIcon::Todo => ICON_RADIO_BUTTON_UNCHECKED,
-        ChoiceIcon::Started => ICON_RADIO_BUTTON_PARTIAL,
-        ChoiceIcon::Review => ICON_INCOMPLETE_CIRCLE,
-        ChoiceIcon::Done => ICON_CHECK_CIRCLE,
-        ChoiceIcon::Canceled => ICON_CANCEL,
-        ChoiceIcon::Low => ICON_SIGNAL_CELLULAR_ALT_1_BAR,
-        ChoiceIcon::Medium => ICON_SIGNAL_CELLULAR_ALT_2_BAR,
-        ChoiceIcon::High => ICON_SIGNAL_CELLULAR_ALT,
-        ChoiceIcon::Urgent => ICON_PRIORITY,
+pub fn choice_glyph(icon: ChoiceIcon) -> Option<Glyph> {
+    Some(match icon {
+        ChoiceIcon::None => return None,
+        ChoiceIcon::Backlog => ICON_CIRCLE_ELLIPSIS,
+        ChoiceIcon::Todo => ICON_CIRCLE,
+        ChoiceIcon::Started => ICON_CIRCLE_DOT_DASHED,
+        ChoiceIcon::Review => ICON_CIRCLE_DASHED,
+        ChoiceIcon::Done => ICON_CIRCLE_CHECK,
+        ChoiceIcon::Canceled => ICON_CIRCLE_X,
+        ChoiceIcon::Low => ICON_SIGNAL_LOW,
+        ChoiceIcon::Medium => ICON_SIGNAL_MEDIUM,
+        ChoiceIcon::High => ICON_SIGNAL_HIGH,
+        ChoiceIcon::Urgent => ICON_OCTAGON_ALERT,
         ChoiceIcon::Flag => ICON_FLAG,
         ChoiceIcon::Star => ICON_STAR,
-    }
+    })
 }
 
 pub fn choice_icon_label(icon: ChoiceIcon) -> &'static str {
@@ -90,8 +91,8 @@ pub fn ChoiceMark(
     let dot_color = create_memo(move || {
         let kind = theme.kind.get();
         option.with(|option| match option {
-            Some(option) => choice_color(option.color, kind),
-            None => theme.text_muted.get(),
+            Some(option) => ColorRole::Custom(choice_color(option.color, kind)),
+            None => ColorRole::TextMuted,
         })
     });
     let color = create_memo(move || {
@@ -102,17 +103,15 @@ pub fn ChoiceMark(
         })
     });
     let glyph = create_memo(move || {
-        option
-            .with(|option| match option {
-                Some(option) => choice_glyph(option.icon),
-                None => ICON_RADIO_BUTTON_UNCHECKED,
-            })
-            .to_owned()
+        option.with(|option| match option {
+            Some(option) => choice_glyph(option.icon),
+            None => Some(ICON_CIRCLE),
+        })
     });
-    let dotted = create_memo(move || glyph.with(String::is_empty));
+    let dotted = create_memo(move || glyph.get().is_none());
     let iconic = create_memo(move || !dotted.get());
-    let mark = size.icon_px();
-    let dot = mark * 0.5;
+    let mark = Size::Custom(size.icon_px());
+    let dot = Size::Custom(size.icon_px() * 0.5);
     view! {
         <Frame width=mark height=mark>
             <Layers>
@@ -123,12 +122,7 @@ pub fn ChoiceMark(
                 </Show>
                 <Show condition={dotted}>
                     <Frame align=Align::Center>
-                        <Frame
-                            width=dot
-                            height=dot
-                            radius={Radius::custom((dot / 2.0).floor())}
-                            fill={ColorRole::custom(dot_color)}
-                        />
+                        <Frame width=dot height=dot radius=Radius::Full fill={dot_color} />
                     </Frame>
                 </Show>
             </Layers>

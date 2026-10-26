@@ -1,5 +1,6 @@
 use super::*;
 use crate::primitives::Frame;
+use crate::primitives::List;
 use crate::primitives::Text;
 use crate::reactive::*;
 use crate::styled::Scroll;
@@ -34,9 +35,9 @@ fn a_layout_builder_in_a_scroll_rebuilds_for_the_width_it_is_given() {
     harness.frame(Vec::new());
     for _ in 0..4 {
         let center = pos2(100.0, 100.0);
-        harness.frame(vec![Event::PointerMoved(center)]);
+        harness.frame(vec![Input::PointerMoved(center)]);
     }
-    *harness.viewport_mut() = vec2(640.0, 240.0);
+    harness.resize(vec2(640.0, 240.0));
     harness.frame(Vec::new());
     harness.frame(Vec::new());
 }

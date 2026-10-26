@@ -1,5 +1,6 @@
-use block_editor_beui::be_block::{Calendar, EditorViewContent};
 use block_editor_beui::beui::Key;
+use calendar_types::Calendar;
+use workspace_ui_types::EditorViewContent;
 
 use super::*;
 
@@ -57,7 +58,7 @@ fn clicking_the_clock_opens_the_desktops_calendar_and_clicking_away_closes_it() 
         Some(calendar),
         "opening it again shows the same block"
     );
-    fixture.test.key_press(Key::Escape);
+    fixture.test.key(Key::Escape, Modifiers::NONE);
     fixture.settle();
     assert_eq!(fixture.calendar(), None, "Escape closes it");
 
@@ -66,7 +67,7 @@ fn clicking_the_clock_opens_the_desktops_calendar_and_clicking_away_closes_it() 
     assert_eq!(fixture.calendar(), Some(calendar));
     fixture
         .test
-        .click_at(block_editor_beui::beui::pos2(16.0, 16.0));
+        .click(block_editor_beui::beui::pos2(16.0, 16.0));
     fixture.settle();
     assert_eq!(fixture.calendar(), None, "a click outside closes it");
 

@@ -1,5 +1,5 @@
 use super::*;
-use block_editor_beui::be_block::canvas::{BINDING_GAP, CanvasBinding};
+use infinite_canvas_types::{BINDING_GAP, CanvasBinding};
 
 #[test]
 fn a_selected_bound_arrow_shows_where_each_end_is_anchored() {
@@ -54,7 +54,7 @@ fn a_selected_bound_arrow_shows_where_each_end_is_anchored() {
         "the tail stops a gap short of the rectangle's right edge, got {tail:?}"
     );
 
-    editor.click(&format!("infinite-canvas.entity.{}", arrow.id));
+    editor.click(format!("infinite-canvas.entity.{}", arrow.id));
     editor.run();
     assert_eq!(editor.label("infinite-canvas.selection"), "Arrow selected");
     editor.snapshot("a_selected_bound_arrow_shows_where_each_end_is_anchored");

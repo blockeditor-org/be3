@@ -1,14 +1,14 @@
 use block_editor_beui::beui::TextAlign;
-use block_editor_beui::beui::icons::{ICON_DELETE, ICON_RESTORE};
+use block_editor_beui::beui::icons::{ICON_ROTATE_CCW_CLOCK, ICON_TRASH};
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
 
 use super::panel::Info;
 use super::workspace::Workspace;
 
-const PADDING_HORIZONTAL: f32 = 8.0;
-const PADDING_VERTICAL: f32 = 5.0;
-const SPACING: f32 = 8.0;
+const PADDING_HORIZONTAL: Space = Space::Md;
+const PADDING_VERTICAL: Space = Space::Xs;
+const SPACING: Space = Space::Md;
 
 #[component]
 pub(crate) fn DeletedBar(
@@ -44,19 +44,19 @@ pub(crate) fn DeletedBar(
         <Show condition={shown}>
             <Frame
                 fill=ColorRole::Surface
-                padding={Sides::symmetric(PADDING_HORIZONTAL, PADDING_VERTICAL)}
+                padding={Padding::symmetric(PADDING_HORIZONTAL, PADDING_VERTICAL)}
                 @test_id={"workspace.deleted"}
             >
                 <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
                     <Text size=TextSize::Xs align=TextAlign::Center>
-                        <Icon glyph={ICON_DELETE.to_owned()} />
+                        <Icon glyph=ICON_TRASH />
                     </Text>
                     <Text>"Deleted block"</Text>
                     <Text style=TextStyle::CAPTION>{caption}</Text>
                     <Button
                         @test_id={"workspace.deleted.restore"}
                         label="Restore"
-                        glyph={ICON_RESTORE.to_owned()}
+                        glyph=ICON_ROTATE_CCW_CLOCK
                         variant=ButtonVariant::Secondary
                         disabled={locked}
                         on_click={move || {

@@ -39,7 +39,7 @@ fn forwarded_input_reaches_only_the_topmost_catcher_under_it() {
     let mut harness = Harness::new(document);
     harness.frame(Vec::new());
 
-    harness.frame(vec![Event::PointerMoved(pos2(60.0, 60.0))]);
+    harness.frame(vec![Input::PointerMoved(pos2(60.0, 60.0))]);
     assert_eq!(moves(above.read_only()), [pos2(60.0, 60.0)]);
     assert!(
         moves(below.read_only()).is_empty(),
@@ -52,7 +52,7 @@ fn forwarded_input_reaches_only_the_topmost_catcher_under_it() {
             .is_some_and(|input| input.hovered)
     );
 
-    harness.frame(vec![Event::PointerMoved(pos2(150.0, 150.0))]);
+    harness.frame(vec![Input::PointerMoved(pos2(150.0, 150.0))]);
     assert_eq!(moves(below.read_only()), [pos2(150.0, 150.0)]);
     assert!(
         above

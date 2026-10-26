@@ -15,6 +15,7 @@ fn Rows(keys: Vec<u32>) -> NodeId {
         count.set(1);
         keys.len()
     });
+    create_binding(move || with_document(|document| document.set_list_spacing(list, spacing.get())));
     view! {
         <List spacing=0.0>
             <ForEach keys>{move |key: u32| view! { <Row key /> }}</ForEach>
@@ -28,6 +29,7 @@ fn Rows(keys: Vec<u32>) -> NodeId {
     let error = fix(&root, true).unwrap_err().to_string();
 
     assert!(error.contains("memo write: crates/widget/src/lib.rs:4"));
+    assert!(error.contains("signal read under the document: crates/widget/src/lib.rs:7"));
 
     fs::remove_dir_all(root).unwrap();
 }

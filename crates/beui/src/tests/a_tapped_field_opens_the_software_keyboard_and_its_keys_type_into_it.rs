@@ -1,8 +1,8 @@
 use super::*;
+use crate::keyboard::styled::key_center;
+use crate::keyboard::unstyled::{Layer, Value};
 use crate::reactive::*;
-use crate::styled::software_keyboard::key_center;
 use crate::styled::*;
-use crate::unstyled::software_keyboard::{Layer, Value};
 
 #[test]
 fn a_tapped_field_opens_the_software_keyboard_and_its_keys_type_into_it() {
@@ -44,7 +44,7 @@ fn a_tapped_field_opens_the_software_keyboard_and_its_keys_type_into_it() {
         let key = key_center(keyboard, Layer::Text, Value::Char(letter)).expect("a letter key");
         harness.click(key);
     }
-    harness.frame(Vec::new());
+    harness.settle();
     assert_eq!(
         *typed.borrow(),
         "hi",

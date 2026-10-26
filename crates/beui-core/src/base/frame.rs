@@ -32,45 +32,6 @@ impl Outline {
 
 const TIP_RADIUS: f32 = 2.0;
 
-#[derive(Clone, Copy, PartialEq, Debug)]
-pub struct Shadow {
-    pub color: Color32,
-    pub spread: f32,
-    pub drop: f32,
-}
-
-impl Shadow {
-    pub const fn new(color: Color32, spread: f32) -> Self {
-        Self {
-            color,
-            spread,
-            drop: 0.0,
-        }
-    }
-
-    pub const fn drop(self, drop: f32) -> Self {
-        Self { drop, ..self }
-    }
-
-    fn paint(self, painter: &Painter, rect: Rect, radius: Corners) {
-        let rings = self.spread.round().max(0.0) as u16;
-        if rings == 0 || self.color.alpha() == 0 {
-            return;
-        }
-        let rect = rect.translate(vec2(0.0, self.drop));
-        let [red, green, blue, alpha] = self.color.to_array();
-        let each = (alpha / u8::try_from(rings).unwrap_or(u8::MAX).max(1)).max(1);
-        let ring = Color32::from_rgba_unmultiplied(red, green, blue, each);
-        for step in (1..=rings).rev() {
-            let reach = f32::from(step);
-            let [top_left, top_right, bottom_right, bottom_left] =
-                radius.to_array().map(|corner| corner + reach);
-            let corners = Corners::new(top_left, top_right, bottom_right, bottom_left);
-            painter.rect_filled(rect.expand(reach), corners, ring);
-        }
-    }
-}
-
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum PointerSide {
     Top,
@@ -88,7 +49,6 @@ pub struct FrameStyle {
     pub fill: Color32,
     pub radius: Corners,
     pub outline: Option<Outline>,
-    pub shadow: Option<Shadow>,
     pub pointer: f32,
 }
 
@@ -98,7 +58,6 @@ impl Default for FrameStyle {
             fill: Color32::TRANSPARENT,
             radius: Corners::all(0.0),
             outline: None,
-            shadow: None,
             pointer: 0.0,
         }
     }
@@ -480,6 +439,22 @@ impl Element for FrameNode {
         }
     }
 
+    fn min_width(&self, doc: &mut Document, painter: &Painter) -> f32 {
+        let width = self.width;
+        let padding = self.padding(doc.pixel_grid()).amount().x;
+        let inner = self
+            .child
+            .map_or(0.0, |child| crate::layout::min_width(doc, painter, child));
+        let length = (inner + padding).max(0.0);
+        let length = match (width.exact, width.fraction) {
+            (Some(exact), _) => length.min(exact),
+            (None, Some(_)) => 0.0,
+            (None, None) => length,
+        };
+        let length = width.max.map_or(length, |max| length.min(max));
+        width.min.map_or(length, |min| length.max(min))
+    }
+
     fn baseline(&self, doc: &mut Document, painter: &Painter, available: Vec2) -> Option<f32> {
         let child = self.child?;
         let grid = doc.pixel_grid();
@@ -521,9 +496,6 @@ impl Element for FrameNode {
 
     fn paint(&self, doc: &Document, painter: &Painter, rects: &Rects, rect: Rect) {
         let rect = self.box_rect(doc.pixel_grid(), rect);
-        if let Some(shadow) = self.style.shadow {
-            shadow.paint(painter, rect, self.style.radius);
-        }
         if self.style.fill.to_array()[3] > 0 {
             painter.rect_filled(rect, self.style.radius, self.style.fill);
         }

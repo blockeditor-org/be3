@@ -27,7 +27,7 @@ fn the_click_that_ends_autoscroll_presses_nothing() {
     harness.frame(Vec::new());
     let origin = harness.rect(scroll).center();
 
-    harness.frame(vec![Event::PointerMoved(origin)]);
+    harness.frame(vec![Input::PointerMoved(origin)]);
     harness.middle_button(origin, true);
     harness.middle_button(origin, false);
     assert!(harness.document().autoscroll.is_some());

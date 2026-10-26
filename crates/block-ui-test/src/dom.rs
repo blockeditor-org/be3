@@ -17,7 +17,7 @@ impl DomPainting {
 
     pub(crate) fn show(&mut self, output: &FrameOutput, background: Color32) {
         self.renderer
-            .prepare(output, output.pixels_per_point(), background);
+            .prepare(output.main(), output.pixels_per_point(), background);
     }
 
     pub(crate) fn snapshot(

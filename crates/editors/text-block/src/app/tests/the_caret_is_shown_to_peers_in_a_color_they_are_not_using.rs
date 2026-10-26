@@ -19,12 +19,12 @@ fn the_caret_is_shown_to_peers_in_a_color_they_are_not_using() {
     let color = cursor["color"].clone();
     assert_ne!(color, serde_json::json!(PresenceColor::Red));
 
-    editor.key_press_modifiers(
+    editor.key(
+        Key::End,
         beui::Modifiers {
             shift: true,
             ..beui::Modifiers::NONE
         },
-        Key::End,
     );
     editor.run();
     let cursor = shown_cursor(&mut editor)

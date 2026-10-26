@@ -6,8 +6,6 @@ use crate::app_state::{AppStateError, AppStateStore};
 use crate::be;
 
 pub(crate) trait LocalSettings: Root + Clone + Default + PartialEq {
-    const NAME: &'static str;
-
     fn load(store: &AppStateStore) -> Result<Option<Vec<u8>>, AppStateError>;
 
     fn save(store: &AppStateStore, content: &[u8]) -> Result<(), AppStateError>;
@@ -157,7 +155,7 @@ impl<R> Default for SettingsSync<R> {
 
 impl<R: LocalSettings + Layered> SettingsSync<R> {
     pub(crate) fn boot(&mut self, store: &AppStateStore) {
-        let name = R::NAME;
+        let name = <R as Layered>::NAME;
         match R::load(store) {
             Ok(Some(content)) => match Document::<R>::decode(&content) {
                 Ok(content) => {
@@ -165,10 +163,12 @@ impl<R: LocalSettings + Layered> SettingsSync<R> {
                     settings.apply();
                     self.applied = Some(settings);
                 }
-                Err(error) => eprintln!("block-app: the saved {name} are unreadable: {error}"),
+                Err(error) => {
+                    eprintln!("block-app: the saved {name} settings are unreadable: {error}")
+                }
             },
             Ok(None) => {}
-            Err(error) => eprintln!("block-app: the saved {name} were not read: {error}"),
+            Err(error) => eprintln!("block-app: the saved {name} settings were not read: {error}"),
         }
     }
 
@@ -291,8 +291,8 @@ impl<R: LocalSettings + Layered> SettingsSync<R> {
     fn save(&self, store: &AppStateStore, settings: &R) {
         if let Err(error) = R::save(store, &Document::new(settings).encode()) {
             eprintln!(
-                "block-app: the {} were not saved on this device: {error}",
-                R::NAME
+                "block-app: the {} settings were not saved on this device: {error}",
+                <R as Layered>::NAME
             );
         }
     }

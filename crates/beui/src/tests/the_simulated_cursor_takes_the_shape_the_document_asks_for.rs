@@ -20,8 +20,8 @@ fn the_simulated_cursor_takes_the_shape_the_document_asks_for() {
     let output = harness.frame(Vec::new());
     let cursor = harness.simulated_cursor();
 
-    assert_eq!(output.window.cursor, CursorIcon::Text);
-    let beam = output.shapes().iter().any(|shape| {
+    assert_eq!(output.main().window.requests.cursor, CursorIcon::Text);
+    let beam = output.main().shapes().iter().any(|shape| {
         matches!(shape, Shape::Line { from, to, .. }
             if from.x == cursor.x && to.x == cursor.x && to.y - from.y > 10.0)
     });

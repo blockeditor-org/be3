@@ -7,24 +7,24 @@
       "id": "b1733abf-35eb-4037-9d3d-7a40b3e7e954",
       "edits": "00007072-6573-656e-7461-74696f6e0001",
       "display_name": "Presentation",
-      "icon": "\ue41b",
+      "icon": "\ue4ae",
       "templates": {
         "main": {},
         "title-slide": {
           "name": "Title page",
-          "icon": "\ue264",
+          "icon": "\ue384",
           "category": "template",
           "block_type": "696e6669-6e69-7465-2d63-616e76617301"
         },
         "regular-slide": {
           "name": "Regular page",
-          "icon": "\ue8d2",
+          "icon": "\ue185",
           "category": "template",
           "block_type": "696e6669-6e69-7465-2d63-616e76617301"
         },
         "blank-slide": {
           "name": "Blank page",
-          "icon": "\ue3c6",
+          "icon": "\ue167",
           "category": "template",
           "block_type": "696e6669-6e69-7465-2d63-616e76617301"
         }
@@ -35,6 +35,16 @@
         "Frame",
         "Preview"
       ]
+    }
+  },
+  "block_types": {
+    "presentation": {
+      "id": "00007072-6573-656e-7461-74696f6e0001",
+      "display_name": "Presentation",
+      "icon": "\ue4ae",
+      "color": [211, 126, 59],
+      "children": {"add": true, "delete": true, "replace": true},
+      "module": "presentation_types.wasm"
     }
   },
   "entry_point": "presentation.wasm"

@@ -267,11 +267,28 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "330a5ed07fa54e4702c9d6c4174f74427fc0ef6e214bbd677ae50a5099946470"
 
 [[package]]
+name = "app-bench"
+version = "0.1.0"
+dependencies = [
+ "be-block",
+ "be-client",
+ "be-drive",
+ "be-server",
+ "bench",
+ "beui-layer-drive",
+ "build-id",
+ "infinite-canvas-types",
+ "libc",
+ "paint-snapshot",
+ "tokio",
+]
+
+[[package]]
 name = "app-tests"
 version = "0.1.0"
 dependencies = [
  "be-drive",
- "beui-core",
+ "beui-layer-drive",
  "paint-snapshot",
 ]
 
@@ -312,7 +329,7 @@ dependencies = [
  "objc2-foundation 0.3.2",
  "parking_lot",
  "percent-encoding",
- "windows-sys 0.59.0",
+ "windows-sys 0.60.2",
  "x11rb",
 ]
 
@@ -352,7 +369,7 @@ version = "0.38.0+1.3.281"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0bb44936d800fea8f016d7f2311c6a4f97aebd5dc86f09906139ec848cf3a46f"
 dependencies = [
- "libloading",
+ "libloading 0.8.9",
 ]
 
 [[package]]
@@ -666,9 +683,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "audio-block-types"
+version = "0.1.0"
+dependencies = [
+ "be-block",
+ "block-type-guest",
+ "serde",
+ "uuid",
+]
+
+[[package]]
 name = "audio_block"
 version = "0.1.0"
 dependencies = [
+ "audio-block-types",
  "beui",
  "block-editor-beui",
  "block-ui-test",
@@ -698,9 +726,9 @@ name = "be-block"
 version = "0.1.0"
 dependencies = [
  "be-commit",
+ "be-graph",
  "be-model",
  "be-store",
- "logicgame",
  "memchr",
  "postcard",
  "serde",
@@ -720,12 +748,25 @@ dependencies = [
  "be-protocol",
  "be-server",
  "be-store",
+ "be-sync",
+ "be-types-host",
+ "block-plugin-api",
+ "block-type-api",
+ "block-type-guest",
  "block-ui",
  "build-id",
+ "database-types",
+ "first-party-types",
  "futures-util",
+ "portable-pty",
  "serde_json",
+ "terminal-emulator",
+ "terminal-types",
+ "text-block-types",
  "tokio",
  "uuid",
+ "wasi-threads",
+ "workspace-ui-types",
 ]
 
 [[package]]
@@ -738,23 +779,31 @@ dependencies = [
  "be-keys",
  "be-protocol",
  "be-server",
- "be-session",
  "be-store",
  "build-id",
+ "counter-types",
+ "fault-relay",
  "futures-channel",
  "futures-util",
  "httparse",
+ "image-block-types",
  "js-sys",
  "rusqlite",
  "rustls",
+ "serde",
+ "serde_bytes",
+ "sqlite-schema",
+ "text-block-types",
  "tokio",
  "tokio-rustls",
  "tokio-tungstenite",
  "uuid",
+ "wasi-threads",
  "wasm-bindgen",
  "wasm-bindgen-futures",
  "web-sys",
  "webpki-roots 0.26.11",
+ "workspace-ui-types",
 ]
 
 [[package]]
@@ -772,6 +821,7 @@ name = "be-dmabuf"
 version = "0.1.0"
 dependencies = [
  "ash",
+ "beui-renderer-wgpu",
  "pollster",
  "rustix 1.1.4",
  "smithay",
@@ -783,7 +833,9 @@ name = "be-drive"
 version = "0.1.0"
 dependencies = [
  "beui-core",
+ "beui-layer-drive",
  "image",
+ "libc",
  "paint-snapshot",
 ]
 
@@ -799,10 +851,15 @@ dependencies = [
  "be-protocol",
  "be-server",
  "be-store",
+ "be-types-host",
  "build-id",
+ "database-types",
+ "first-party-types",
  "rusqlite",
+ "text-block-types",
  "tokio",
  "uuid",
+ "workspace-ui-types",
  "zip",
 ]
 
@@ -812,6 +869,7 @@ version = "0.1.0"
 dependencies = [
  "be-commit",
  "be-store",
+ "bench",
  "serde",
  "uuid",
 ]
@@ -837,17 +895,19 @@ dependencies = [
 name = "be-launcher"
 version = "0.1.0"
 dependencies = [
+ "be-block",
  "beui",
  "block-ui-test",
  "comrak",
- "ghostty-vt",
  "image",
  "jni 0.22.4",
  "ndk-context",
- "portable-pty",
  "serde",
  "serde_json",
  "sha2 0.10.9",
+ "terminal-emulator",
+ "terminal-types",
+ "terminal-view",
  "ureq",
 ]
 
@@ -872,6 +932,27 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn 2.0.117",
+]
+
+[[package]]
+name = "be-ops"
+version = "0.1.0"
+dependencies = [
+ "block-guest-abi",
+ "postcard",
+ "serde",
+ "serde_bytes",
+]
+
+[[package]]
+name = "be-ops-bindgen"
+version = "0.1.0"
+dependencies = [
+ "heck",
+ "proc-macro2",
+ "quote",
+ "syn 2.0.117",
+ "wit-parser 0.254.0",
 ]
 
 [[package]]
@@ -917,6 +998,7 @@ name = "be-server"
 version = "0.1.0"
 dependencies = [
  "argon2",
+ "be-block",
  "be-commit",
  "be-graph",
  "be-keys",
@@ -967,6 +1049,62 @@ dependencies = [
 ]
 
 [[package]]
+name = "be-sync"
+version = "0.1.0"
+dependencies = [
+ "be-block",
+ "be-client",
+ "be-commit",
+ "be-graph",
+ "be-keys",
+ "be-protocol",
+ "be-server",
+ "be-store",
+ "be-types-host",
+ "be-vcs",
+ "block-type-api",
+ "build-id",
+ "first-party-types",
+ "futures-util",
+ "ignore",
+ "image-block-types",
+ "infinite-canvas-types",
+ "notify",
+ "serde",
+ "serde_json",
+ "text-block-types",
+ "tokio",
+ "uuid",
+ "workspace-ui-types",
+]
+
+[[package]]
+name = "be-types-host"
+version = "0.1.0"
+dependencies = [
+ "be-block",
+ "be-client",
+ "be-commit",
+ "be-graph",
+ "be-protocol",
+ "be-session",
+ "be-store",
+ "block-guest-abi",
+ "block-guest-host",
+ "block-type-api",
+ "block-type-guest",
+ "block-wasm-host",
+ "build-id",
+ "checklist-types",
+ "counter-types",
+ "futures-util",
+ "pollster",
+ "tokio",
+ "uuid",
+ "wasi-threads",
+]
+
+[[package]]
 name = "be-vcs"
 version = "0.1.0"
 dependencies = [
@@ -983,9 +1121,11 @@ version = "0.1.0"
 dependencies = [
  "be-dmabuf",
  "beui",
+ "beui-layer-space",
  "bytemuck",
  "gvdb",
  "image",
+ "paint-snapshot",
  "resvg",
  "rustix 1.1.4",
  "smithay",
@@ -996,20 +1136,30 @@ dependencies = [
 ]
 
 [[package]]
+name = "bench"
+version = "0.1.0"
+
+[[package]]
 name = "beui"
 version = "0.1.0"
 dependencies = [
  "accesskit",
- "beui-adapter-android",
- "beui-adapter-headless",
- "beui-adapter-web",
- "beui-adapter-winit",
+ "bench",
  "beui-components-styled",
  "beui-components-unstyled",
  "beui-core",
+ "beui-dock",
  "beui-font-browser",
  "beui-font-freetype",
  "beui-inspector",
+ "beui-keyboard",
+ "beui-layer-drive",
+ "beui-layer-space",
+ "beui-layer-xr",
+ "beui-platform-android",
+ "beui-platform-headless",
+ "beui-platform-web",
+ "beui-platform-winit",
  "beui-renderer-dom",
  "beui-renderer-wgpu",
  "beui-view",
@@ -1022,86 +1172,6 @@ dependencies = [
  "wasm-bindgen",
  "web-sys",
  "wgpu",
-]
-
-[[package]]
-name = "beui-adapter-android"
-version = "0.1.0"
-dependencies = [
- "accesskit",
- "accesskit_android",
- "beui-core",
- "jni 0.22.4",
- "libc",
- "ndk 0.9.0",
- "ndk-context",
- "ndk-sys 0.6.0+11769913",
- "raw-window-handle",
-]
-
-[[package]]
-name = "beui-adapter-drm"
-version = "0.1.0"
-dependencies = [
- "be-dmabuf",
- "beui",
- "beui-core",
- "bytemuck",
- "rustix 1.1.4",
- "smithay",
- "ui-types",
- "wgpu",
- "xcursor",
-]
-
-[[package]]
-name = "beui-adapter-headless"
-version = "0.1.0"
-dependencies = [
- "beui-core",
- "beui-renderer-wgpu",
- "pollster",
-]
-
-[[package]]
-name = "beui-adapter-plugin"
-version = "0.1.0"
-dependencies = [
- "beui",
- "beui-core",
- "beui-renderer-wgpu",
- "block-editor-plugin",
- "block-plugin-api",
- "wgpu",
-]
-
-[[package]]
-name = "beui-adapter-web"
-version = "0.1.0"
-dependencies = [
- "beui-core",
- "js-sys",
- "wasm-bindgen",
- "wasm-bindgen-futures",
- "web-sys",
-]
-
-[[package]]
-name = "beui-adapter-winit"
-version = "0.1.0"
-dependencies = [
- "accesskit",
- "accesskit_macos",
- "accesskit_unix",
- "accesskit_windows",
- "arboard",
- "ashpd",
- "beui-core",
- "futures-util",
- "image",
- "pollster",
- "rfd",
- "winit",
 ]
 
 [[package]]
@@ -1132,7 +1202,6 @@ dependencies = [
  "foldhash 0.2.0",
  "memchr",
  "reactive",
- "serde",
  "text-editor-core",
 ]
 
@@ -1144,28 +1213,45 @@ dependencies = [
  "beui-tree",
  "foldhash 0.2.0",
  "geometry",
+ "grapheme-segmentation",
  "kurbo",
+ "lucide",
  "lyon_tessellation",
  "paint-format",
  "raw-window-handle",
  "reactive",
  "thumbhash",
  "ui-types",
- "unicode-segmentation",
 ]
 
 [[package]]
 name = "beui-demo"
 version = "0.1.0"
 dependencies = [
+ "bench",
  "beui",
  "beui-core",
  "beui-inspector",
+ "beui-layer-space",
  "beui-renderer-wgpu",
  "beui_macros",
  "block-ui-test",
  "pollster",
  "text-editor-core",
+]
+
+[[package]]
+name = "beui-dock"
+version = "0.1.0"
+dependencies = [
+ "accesskit",
+ "beui-components-styled",
+ "beui-components-unstyled",
+ "beui-core",
+ "beui-view",
+ "beui_macros",
+ "reactive",
+ "serde",
 ]
 
 [[package]]
@@ -1186,8 +1272,19 @@ dependencies = [
  "foldhash 0.2.0",
  "freetype",
  "harfbuzz_rs",
- "libloading",
+ "libloading 0.8.9",
  "unicode-script",
+]
+
+[[package]]
+name = "beui-gallery-types"
+version = "0.1.0"
+dependencies = [
+ "be-block",
+ "be-commit",
+ "be-model",
+ "block-type-guest",
+ "uuid",
 ]
 
 [[package]]
@@ -1205,9 +1302,150 @@ dependencies = [
  "beui-components-styled",
  "beui-components-unstyled",
  "beui-core",
+ "beui-dock",
  "beui-view",
  "beui_macros",
  "reactive",
+]
+
+[[package]]
+name = "beui-keyboard"
+version = "0.1.0"
+dependencies = [
+ "accesskit",
+ "beui-components-styled",
+ "beui-components-unstyled",
+ "beui-core",
+ "beui-view",
+ "beui_macros",
+ "emojis",
+ "reactive",
+]
+
+[[package]]
+name = "beui-layer-drive"
+version = "0.1.0"
+dependencies = [
+ "accesskit",
+ "beui-core",
+]
+
+[[package]]
+name = "beui-layer-space"
+version = "0.1.0"
+dependencies = [
+ "beui-components-styled",
+ "beui-core",
+ "beui-font-freetype",
+ "beui-keyboard",
+ "beui-renderer-wgpu",
+ "beui-view",
+ "beui_macros",
+ "bytemuck",
+ "glam",
+ "paint-snapshot",
+ "pollster",
+ "wgpu",
+]
+
+[[package]]
+name = "beui-layer-xr"
+version = "0.1.0"
+dependencies = [
+ "ash",
+ "beui-core",
+ "beui-font-freetype",
+ "beui-layer-space",
+ "beui-renderer-wgpu",
+ "glam",
+ "libloading 0.9.0",
+ "openxr",
+ "pollster",
+ "serde_json",
+ "wgpu",
+]
+
+[[package]]
+name = "beui-platform-android"
+version = "0.1.0"
+dependencies = [
+ "accesskit",
+ "accesskit_android",
+ "beui-core",
+ "jni 0.22.4",
+ "libc",
+ "ndk 0.9.0",
+ "ndk-context",
+ "ndk-sys 0.6.0+11769913",
+ "raw-window-handle",
+]
+
+[[package]]
+name = "beui-platform-drm"
+version = "0.1.0"
+dependencies = [
+ "be-dmabuf",
+ "beui",
+ "beui-core",
+ "bytemuck",
+ "rustix 1.1.4",
+ "smithay",
+ "ui-types",
+ "wgpu",
+ "xcursor",
+]
+
+[[package]]
+name = "beui-platform-headless"
+version = "0.1.0"
+dependencies = [
+ "beui-core",
+ "beui-layer-drive",
+ "beui-renderer-wgpu",
+ "pollster",
+]
+
+[[package]]
+name = "beui-platform-plugin"
+version = "0.1.0"
+dependencies = [
+ "beui",
+ "beui-core",
+ "beui-renderer-wgpu",
+ "block-editor-plugin",
+ "block-plugin-api",
+ "uuid",
+ "wgpu",
+]
+
+[[package]]
+name = "beui-platform-web"
+version = "0.1.0"
+dependencies = [
+ "beui-core",
+ "futures-util",
+ "js-sys",
+ "wasm-bindgen",
+ "wasm-bindgen-futures",
+ "web-sys",
+]
+
+[[package]]
+name = "beui-platform-winit"
+version = "0.1.0"
+dependencies = [
+ "accesskit",
+ "accesskit_macos",
+ "accesskit_unix",
+ "accesskit_windows",
+ "arboard",
+ "ashpd",
+ "beui-core",
+ "futures-util",
+ "image",
+ "pollster",
+ "rfd",
+ "winit",
 ]
 
 [[package]]
@@ -1272,6 +1510,7 @@ version = "0.1.0"
 dependencies = [
  "beui",
  "beui-demo",
+ "beui-gallery-types",
  "block-editor-beui",
  "block-ui-test",
  "uuid",
@@ -1374,11 +1613,11 @@ dependencies = [
 name = "block-app"
 version = "0.1.0"
 dependencies = [
- "ashpd",
  "async-executor",
  "async-io",
  "async-lock",
  "be-block",
+ "be-cli",
  "be-client",
  "be-commit",
  "be-dmabuf",
@@ -1387,33 +1626,52 @@ dependencies = [
  "be-protocol",
  "be-remap-host",
  "be-server",
+ "be-session",
  "be-store",
+ "be-types-host",
  "be-vcs",
  "be-wayland",
  "beui",
- "beui-adapter-drm",
+ "beui-platform-drm",
  "block-editor-plugin",
+ "block-guest-abi",
+ "block-guest-host",
  "block-plugin-api",
+ "block-type-api",
+ "block-type-guest",
+ "block-ui-test",
  "block-wasm-host",
+ "browser-tab-types",
  "build-id",
  "bytemuck",
+ "calendar-types",
+ "checklist-types",
+ "counter-types",
+ "database-types",
  "directories-next",
+ "fault-relay",
+ "first-party-types",
  "futures-util",
+ "host-types",
  "image",
+ "image-block-types",
  "jni 0.22.4",
  "js-sys",
  "libc",
  "ndk-context",
+ "notify",
  "paint-snapshot",
  "pollster",
+ "presentation-types",
  "pulseaudio",
  "reactive",
- "rfd",
  "rodio",
  "rusqlite",
  "serde",
  "serde_json",
  "sqlite-schema",
+ "terminal-types",
+ "text-block-types",
  "tokio",
  "ureq",
  "uuid",
@@ -1422,6 +1680,7 @@ dependencies = [
  "wasm-bindgen-futures",
  "web-sys",
  "wgpu",
+ "workspace-ui-types",
  "zbus",
  "zip",
 ]
@@ -1451,14 +1710,18 @@ dependencies = [
  "be-block",
  "be-model",
  "beui",
- "beui-adapter-plugin",
+ "beui-platform-plugin",
+ "beui-renderer-wgpu",
  "block-editor-plugin",
  "block-plugin-api",
  "block-ui",
+ "database-types",
+ "presentation-types",
  "serde",
  "serde_json",
  "text-editor-core",
  "uuid",
+ "workspace-ui-types",
 ]
 
 [[package]]
@@ -1466,11 +1729,14 @@ name = "block-editor-plugin"
 version = "0.1.0"
 dependencies = [
  "be-block",
- "block-gpu-abi",
  "block-gpu-guest",
+ "block-guest-abi",
  "block-plugin-api",
+ "block-type-guest",
  "block-ui",
+ "checklist-types",
  "geometry",
+ "lucide",
  "paint-format",
  "reactive",
  "serde_bytes",
@@ -1484,7 +1750,8 @@ dependencies = [
 name = "block-gpu-abi"
 version = "0.1.0"
 dependencies = [
- "bincode",
+ "be-ops",
+ "be-ops-bindgen",
  "serde",
 ]
 
@@ -1493,7 +1760,6 @@ name = "block-gpu-guest"
 version = "0.1.0"
 dependencies = [
  "block-gpu-abi",
- "serde",
  "wgpu",
 ]
 
@@ -1501,7 +1767,9 @@ dependencies = [
 name = "block-gpu-host"
 version = "0.1.0"
 dependencies = [
+ "be-ops",
  "block-gpu-abi",
+ "block-guest-abi",
  "wgpu",
 ]
 
@@ -1509,7 +1777,6 @@ dependencies = [
 name = "block-gpu-shim"
 version = "0.1.0"
 dependencies = [
- "block-gpu-abi",
  "block-gpu-host",
  "js-sys",
  "serde_json",
@@ -1518,6 +1785,28 @@ dependencies = [
  "wasm-dylink",
  "web-sys",
  "wgpu",
+]
+
+[[package]]
+name = "block-guest-abi"
+version = "0.1.0"
+
+[[package]]
+name = "block-guest-echo"
+version = "0.1.0"
+dependencies = [
+ "block-guest-abi",
+]
+
+[[package]]
+name = "block-guest-host"
+version = "0.1.0"
+dependencies = [
+ "block-guest-abi",
+ "block-guest-echo",
+ "js-sys",
+ "wasm-bindgen",
+ "web-sys",
 ]
 
 [[package]]
@@ -1534,7 +1823,9 @@ name = "block-plugin-api"
 version = "0.1.0"
 dependencies = [
  "accesskit",
- "bincode",
+ "be-ops",
+ "be-ops-bindgen",
+ "block-gpu-abi",
  "serde",
  "serde_bytes",
  "serde_json",
@@ -1562,6 +1853,41 @@ dependencies = [
  "block-editor-beui",
  "serde",
  "serde_json",
+ "settings-types",
+ "uuid",
+ "workspace-ui-types",
+]
+
+[[package]]
+name = "block-type-api"
+version = "0.1.0"
+dependencies = [
+ "be-commit",
+ "be-ops",
+ "be-ops-bindgen",
+ "be-protocol",
+ "be-session",
+ "serde",
+ "serde_bytes",
+ "uuid",
+]
+
+[[package]]
+name = "block-type-guest"
+version = "0.1.0"
+dependencies = [
+ "be-block",
+ "be-commit",
+ "be-model",
+ "be-protocol",
+ "be-session",
+ "be-store",
+ "block-guest-abi",
+ "block-type-api",
+ "getrandom 0.4.2",
+ "postcard",
+ "rand_chacha 0.9.0",
+ "serde",
  "uuid",
 ]
 
@@ -1570,6 +1896,8 @@ name = "block-ui"
 version = "0.1.0"
 dependencies = [
  "be-block",
+ "database-types",
+ "lucide",
  "uuid",
 ]
 
@@ -1577,27 +1905,40 @@ dependencies = [
 name = "block-ui-test"
 version = "0.1.0"
 dependencies = [
+ "be-session",
+ "be-store",
  "beui",
  "beui-core",
  "beui-renderer-dom",
  "block-editor-beui",
  "block-plugin-api",
+ "block-type-guest",
+ "host-types",
  "image",
  "paint-snapshot",
+ "serde",
+ "text-block-types",
  "uuid",
+ "workspace-ui-types",
 ]
 
 [[package]]
 name = "block-wasm-host"
 version = "0.1.0"
 dependencies = [
+ "be-ops",
  "block-gpu-abi",
  "block-gpu-host",
+ "block-guest-abi",
+ "block-guest-echo",
+ "block-guest-host",
  "block-plugin-api",
+ "block-type-api",
  "bytes",
  "rustc-demangle",
  "sha2 0.10.9",
  "tokio",
+ "uuid",
  "wasm-dylink",
  "wasmtime",
  "wasmtime-wasi",
@@ -1629,6 +1970,7 @@ dependencies = [
  "beui",
  "block-editor-beui",
  "block-ui-test",
+ "counter-types",
  "uuid",
 ]
 
@@ -1672,12 +2014,24 @@ dependencies = [
 ]
 
 [[package]]
+name = "browser-tab-types"
+version = "0.1.0"
+dependencies = [
+ "be-block",
+ "be-commit",
+ "be-model",
+ "block-type-guest",
+ "uuid",
+]
+
+[[package]]
 name = "browser_tab"
 version = "0.1.0"
 dependencies = [
  "beui",
  "block-editor-beui",
  "block-ui-test",
+ "browser-tab-types",
  "uuid",
 ]
 
@@ -1699,6 +2053,19 @@ dependencies = [
  "serde_json",
  "toml",
  "zip",
+]
+
+[[package]]
+name = "build-helper"
+version = "0.1.0"
+dependencies = [
+ "httparse",
+ "serde",
+ "serde_json",
+ "sha2 0.10.9",
+ "tokio",
+ "tracing",
+ "tracing-subscriber",
 ]
 
 [[package]]
@@ -1764,6 +2131,18 @@ dependencies = [
  "block-editor-beui",
  "block-ui",
  "block-ui-test",
+ "calendar-types",
+ "uuid",
+]
+
+[[package]]
+name = "calendar-types"
+version = "0.1.0"
+dependencies = [
+ "be-block",
+ "be-commit",
+ "be-model",
+ "block-type-guest",
  "uuid",
 ]
 
@@ -1959,6 +2338,18 @@ dependencies = [
  "beui",
  "block-editor-beui",
  "block-ui-test",
+ "checklist-types",
+ "uuid",
+]
+
+[[package]]
+name = "checklist-types"
+version = "0.1.0"
+dependencies = [
+ "be-block",
+ "be-commit",
+ "be-model",
+ "block-type-guest",
  "uuid",
 ]
 
@@ -2040,7 +2431,7 @@ checksum = "157a8ba7b480713b56f4c09fd13fc3e0a22a5dfab8097ba61cbc5feef950788a"
 dependencies = [
  "glob",
  "libc",
- "libloading",
+ "libloading 0.8.9",
 ]
 
 [[package]]
@@ -2239,6 +2630,18 @@ dependencies = [
  "beui",
  "block-editor-beui",
  "block-ui-test",
+ "counter-types",
+ "uuid",
+]
+
+[[package]]
+name = "counter-types"
+version = "0.1.0"
+dependencies = [
+ "be-block",
+ "be-commit",
+ "be-model",
+ "block-type-guest",
  "uuid",
 ]
 
@@ -2615,6 +3018,20 @@ dependencies = [
  "beui",
  "block-editor-beui",
  "block-ui-test",
+ "database-types",
+ "text-block-types",
+ "uuid",
+]
+
+[[package]]
+name = "database-types"
+version = "0.1.0"
+dependencies = [
+ "be-block",
+ "be-commit",
+ "be-model",
+ "block-type-guest",
+ "serde",
  "uuid",
 ]
 
@@ -2696,12 +3113,25 @@ dependencies = [
 ]
 
 [[package]]
+name = "deterministic-game-types"
+version = "0.1.0"
+dependencies = [
+ "be-block",
+ "be-commit",
+ "be-model",
+ "block-type-guest",
+ "serde",
+ "uuid",
+]
+
+[[package]]
 name = "deterministic_game"
 version = "0.1.0"
 dependencies = [
  "beui",
  "block-editor-beui",
  "block-ui-test",
+ "deterministic-game-types",
  "game-api",
  "game-host",
  "uuid",
@@ -2781,7 +3211,7 @@ version = "0.5.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ab8ecd87370524b461f8557c119c405552c396ed91fc0a8eec68679eab26f94a"
 dependencies = [
- "libloading",
+ "libloading 0.8.9",
 ]
 
 [[package]]
@@ -3036,6 +3466,14 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "da7c62ceae207dd37ea5b845da6a0696c799f85e97da1ab5b7910be3c1c80223"
 
 [[package]]
+name = "fault-relay"
+version = "0.1.0"
+dependencies = [
+ "be-protocol",
+ "tokio",
+]
+
+[[package]]
 name = "fax"
 version = "0.2.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3065,6 +3503,7 @@ dependencies = [
  "block-ui-test",
  "serde",
  "uuid",
+ "workspace-ui-types",
 ]
 
 [[package]]
@@ -3089,6 +3528,40 @@ name = "finl_unicode"
 version = "1.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "80bb028c8b4148c9ee0cca68fcd9add6044e81d3619f48577ddf13a263d047a2"
+
+[[package]]
+name = "first-party-types"
+version = "0.1.0"
+dependencies = [
+ "audio-block-types",
+ "be-types-host",
+ "beui-gallery-types",
+ "block-guest-abi",
+ "block-type-guest",
+ "browser-tab-types",
+ "calendar-types",
+ "checklist-types",
+ "counter-types",
+ "database-types",
+ "deterministic-game-types",
+ "image-block-types",
+ "infinite-canvas-types",
+ "logic-grid-types",
+ "map-types",
+ "pan-zoom-types",
+ "pdf-types",
+ "pixel-art-types",
+ "pixel-ray-tracer-types",
+ "presentation-types",
+ "scene-3d-types",
+ "settings-types",
+ "terminal-types",
+ "text-block-types",
+ "triangle-types",
+ "uuid",
+ "video-block-types",
+ "workspace-ui-types",
+]
 
 [[package]]
 name = "fix-rust-source"
@@ -3198,6 +3671,15 @@ dependencies = [
  "io-lifetimes 2.0.4",
  "rustix 1.1.4",
  "windows-sys 0.59.0",
+]
+
+[[package]]
+name = "fsevent-sys"
+version = "4.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "76ee7a02da4d231650c7cea31349b889be2f45ddb3ef3032d2ec8185f6313fd2"
+dependencies = [
+ "libc",
 ]
 
 [[package]]
@@ -3365,6 +3847,9 @@ dependencies = [
 [[package]]
 name = "geometry"
 version = "0.1.0"
+dependencies = [
+ "serde",
+]
 
 [[package]]
 name = "gethostname"
@@ -3463,10 +3948,29 @@ dependencies = [
 ]
 
 [[package]]
+name = "glam"
+version = "0.30.10"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "19fc433e8437a212d1b6f1e68c7824af3aed907da60afa994e7f542d18d12aa9"
+
+[[package]]
 name = "glob"
 version = "0.3.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e4eba85ea1d0a966a983acd07deee566e67395d2d96b6fb39e62b5a833f1eb0b"
+
+[[package]]
+name = "globset"
+version = "0.4.19"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e47d37d2ae4464254884b60ab7071be2b876a9c35b696bd018ddcc76847309cd"
+dependencies = [
+ "aho-corasick",
+ "bstr",
+ "log",
+ "regex-automata",
+ "regex-syntax",
+]
 
 [[package]]
 name = "glow"
@@ -3521,6 +4025,13 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "fdf242682df893b86f33a73828fb09ca4b2d3bb6cc95249707fc684d27484b91"
 dependencies = [
  "bitflags 2.12.1",
+]
+
+[[package]]
+name = "grapheme-segmentation"
+version = "0.1.0"
+dependencies = [
+ "icu_properties",
 ]
 
 [[package]]
@@ -3709,6 +4220,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "host-types"
+version = "0.1.0"
+dependencies = [
+ "be-block",
+ "block-type-guest",
+]
+
+[[package]]
 name = "hound"
 version = "3.5.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3741,9 +4260,9 @@ dependencies = [
 
 [[package]]
 name = "icu_collections"
-version = "2.2.0"
+version = "2.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2984d1cd16c883d7935b9e07e44071dca8d917fd52ecc02c04d5fa0b5a3f191c"
+checksum = "fe090a42a0d3140fed8c63263ed1fecc02422cb2f4bfe55cd8de2de1b8e105dd"
 dependencies = [
  "displaydoc",
  "potential_utf",
@@ -3755,9 +4274,9 @@ dependencies = [
 
 [[package]]
 name = "icu_locale_core"
-version = "2.2.0"
+version = "2.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "92219b62b3e2b4d88ac5119f8904c10f8f61bf7e95b640d25ba3075e6cac2c29"
+checksum = "25d29b57c17c6528d0dc4c2141cfa2d08200465acb537a3909c8b9b8a4a984c0"
 dependencies = [
  "displaydoc",
  "litemap",
@@ -3768,9 +4287,9 @@ dependencies = [
 
 [[package]]
 name = "icu_normalizer"
-version = "2.2.0"
+version = "2.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c56e5ee99d6e3d33bd91c5d85458b6005a22140021cc324cea84dd0e72cff3b4"
+checksum = "404a3b8c486f205c87fe7f23ab6894d84a4ad76d6e4671ae1981ba7def87c599"
 dependencies = [
  "icu_collections",
  "icu_normalizer_data",
@@ -3782,16 +4301,17 @@ dependencies = [
 
 [[package]]
 name = "icu_normalizer_data"
-version = "2.2.0"
+version = "2.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "da3be0ae77ea334f4da67c12f149704f19f81d1adf7c51cf482943e84a2bad38"
+checksum = "20f0088bfb7441f7a37fa0c9e20cb1e9cba1cac6b9ce8cd2a6dc44294f8e8cbc"
 
 [[package]]
 name = "icu_properties"
-version = "2.2.0"
+version = "2.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "bee3b67d0ea5c2cca5003417989af8996f8604e34fb9ddf96208a033901e70de"
+checksum = "2ea83d991c56158f7cf898bf86436c1dfe7c07ee82fe88951f2695c9f37a379f"
 dependencies = [
+ "displaydoc",
  "icu_collections",
  "icu_locale_core",
  "icu_properties_data",
@@ -3802,15 +4322,15 @@ dependencies = [
 
 [[package]]
 name = "icu_properties_data"
-version = "2.2.0"
+version = "2.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8e2bbb201e0c04f7b4b3e14382af113e17ba4f63e2c9d2ee626b720cbce54a14"
+checksum = "b98f29af82d02b163fe50161388350e743bb3107cc8e8c2f7314cb505faddfcf"
 
 [[package]]
 name = "icu_provider"
-version = "2.2.0"
+version = "2.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "139c4cf31c8b5f33d7e199446eff9c1e02decfc2f0eec2c8d71f65befa45b421"
+checksum = "413099315636c588ee8f011190b329b971a09a8fae9d157e01dcae8379468514"
 dependencies = [
  "displaydoc",
  "icu_locale_core",
@@ -3849,6 +4369,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "ignore"
+version = "0.4.32"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0b17771570a2b94107741a7b033f19132c2eee21d59d21b24d2ced26500bd66e"
+dependencies = [
+ "crossbeam-deque",
+ "globset",
+ "log",
+ "memchr",
+ "regex-automata",
+ "same-file",
+ "walkdir",
+ "winapi-util",
+]
+
+[[package]]
 name = "image"
 version = "0.25.10"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3865,6 +4401,17 @@ dependencies = [
  "tiff",
  "zune-core",
  "zune-jpeg",
+]
+
+[[package]]
+name = "image-block-types"
+version = "0.1.0"
+dependencies = [
+ "be-block",
+ "be-commit",
+ "block-type-guest",
+ "serde",
+ "uuid",
 ]
 
 [[package]]
@@ -3885,6 +4432,7 @@ dependencies = [
  "block-editor-beui",
  "block-ui-test",
  "image",
+ "image-block-types",
  "uuid",
 ]
 
@@ -3907,17 +4455,55 @@ dependencies = [
 ]
 
 [[package]]
+name = "infinite-canvas-types"
+version = "0.1.0"
+dependencies = [
+ "be-block",
+ "be-commit",
+ "be-model",
+ "block-type-guest",
+ "database-types",
+ "serde",
+ "uuid",
+]
+
+[[package]]
 name = "infinite_canvas"
 version = "0.1.0"
 dependencies = [
+ "bench",
  "beui",
  "block-editor-beui",
  "block-ui-test",
+ "counter-types",
+ "database-types",
  "image",
+ "image-block-types",
+ "infinite-canvas-types",
  "serde",
  "serde_json",
  "text-editor-core",
  "uuid",
+]
+
+[[package]]
+name = "inotify"
+version = "0.11.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4cc00ea907cab49550b7da656f80ebb97be1b997d931fbcd28d39734e17ce592"
+dependencies = [
+ "bitflags 2.12.1",
+ "inotify-sys",
+ "libc",
+]
+
+[[package]]
+name = "inotify-sys"
+version = "0.1.8"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c033f80b2c113cdf91ab7a33faa9cbc014726dcad99880c8609af2a370edf37d"
+dependencies = [
+ "libc",
 ]
 
 [[package]]
@@ -3964,7 +4550,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "20fd6de4ccfcc187e38bc21cfa543cb5a302cb86a8b114eb7f0bf0dc9f8ac00f"
 dependencies = [
  "io-lifetimes 3.0.1",
- "windows-sys 0.59.0",
+ "windows-sys 0.60.2",
 ]
 
 [[package]]
@@ -4165,7 +4751,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6aae1df220ece3c0ada96b8153459b67eebe9ae9212258bb0134ae60416fdf76"
 dependencies = [
  "libc",
- "libloading",
+ "libloading 0.8.9",
  "pkg-config",
 ]
 
@@ -4174,6 +4760,26 @@ name = "khronos_api"
 version = "3.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e2db585e1d738fc771bf08a151420d3ed193d9d895a36df7f6f8a9456b911ddc"
+
+[[package]]
+name = "kqueue"
+version = "1.2.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8d763e5b24120b4ddf50de6c92308156765aabfbbccebf401da7cff2d70a41ea"
+dependencies = [
+ "kqueue-sys",
+ "libc",
+]
+
+[[package]]
+name = "kqueue-sys"
+version = "1.1.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "07293a4e297ac234359b510362495713f75ea345d5307140414f20c69ffeb087"
+dependencies = [
+ "bitflags 2.12.1",
+ "libc",
+]
 
 [[package]]
 name = "kurbo"
@@ -4230,6 +4836,16 @@ name = "libloading"
 version = "0.8.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d7c4b02199fee7c5d21a5ae7d8cfa79a6ef5bb2fc834d6e9058e89c825efdc55"
+dependencies = [
+ "cfg-if",
+ "windows-link",
+]
+
+[[package]]
+name = "libloading"
+version = "0.9.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "754ca22de805bb5744484a5b151a9e1a8e837d5dc232c2d7d8c2e3492edc8b60"
 dependencies = [
  "cfg-if",
  "windows-link",
@@ -4321,7 +4937,9 @@ dependencies = [
  "block-plugin-api",
  "block-shell",
  "block-ui-test",
+ "calendar-types",
  "uuid",
+ "workspace-ui-types",
 ]
 
 [[package]]
@@ -4375,6 +4993,19 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "113b30b4cd05f7c06868fdb2854f66a7b9fece9a48425351cd532e810d74024f"
 
 [[package]]
+name = "logic-grid-types"
+version = "0.1.0"
+dependencies = [
+ "be-block",
+ "be-commit",
+ "be-model",
+ "block-type-guest",
+ "logicgame",
+ "serde",
+ "uuid",
+]
+
+[[package]]
 name = "logic_grid"
 version = "0.1.0"
 dependencies = [
@@ -4382,6 +5013,7 @@ dependencies = [
  "block-editor-beui",
  "block-ui-test",
  "bytemuck",
+ "logic-grid-types",
  "logicgame",
  "serde",
  "serde_json",
@@ -4399,6 +5031,10 @@ dependencies = [
  "serde_json",
  "uuid",
 ]
+
+[[package]]
+name = "lucide"
+version = "0.1.0"
 
 [[package]]
 name = "lyon_geom"
@@ -4455,6 +5091,20 @@ dependencies = [
  "block-editor-beui",
  "block-ui-test",
  "flate2",
+ "image-block-types",
+ "map-types",
+ "uuid",
+]
+
+[[package]]
+name = "map-types"
+version = "0.1.0"
+dependencies = [
+ "be-block",
+ "be-commit",
+ "be-model",
+ "block-type-guest",
+ "serde",
  "uuid",
 ]
 
@@ -4580,16 +5230,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "namespace-waker"
-version = "0.1.0"
-dependencies = [
- "httparse",
- "tokio",
- "tracing",
- "tracing-subscriber",
-]
-
-[[package]]
 name = "ndk"
 version = "0.8.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4662,6 +5302,33 @@ checksum = "d273983c5a657a70a3e8f2a01329822f3b8c8172b73826411a55751e404a0a4a"
 dependencies = [
  "memchr",
  "minimal-lexical",
+]
+
+[[package]]
+name = "notify"
+version = "8.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4d3d07927151ff8575b7087f245456e549fea62edf0ec4e565a5ee50c8402bc3"
+dependencies = [
+ "bitflags 2.12.1",
+ "fsevent-sys",
+ "inotify",
+ "kqueue",
+ "libc",
+ "log",
+ "mio",
+ "notify-types",
+ "walkdir",
+ "windows-sys 0.60.2",
+]
+
+[[package]]
+name = "notify-types"
+version = "2.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "42b8cfee0e339a0337359f3c88165702ac6e600dc01c0cc9579a92d62b08477a"
+dependencies = [
+ "bitflags 2.12.1",
 ]
 
 [[package]]
@@ -5052,6 +5719,26 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c08d65885ee38876c4f86fa503fb49d7b507c2b62552df7c70b2fce627e06381"
 
 [[package]]
+name = "openxr"
+version = "0.22.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "53770c8f7d3f185bcb577b78f2ed8e33bbf7cdf5cd57fb68b5ec0b4117b79de6"
+dependencies = [
+ "libc",
+ "libloading 0.9.0",
+ "openxr-sys",
+]
+
+[[package]]
+name = "openxr-sys"
+version = "0.14.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "febb5d50cee7b964b69d5b7a810ed9620fc64f41382ffefe05434754c7a48877"
+dependencies = [
+ "libc",
+]
+
+[[package]]
 name = "orbclient"
 version = "0.4.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5115,8 +5802,9 @@ dependencies = [
 name = "paint-format"
 version = "0.1.0"
 dependencies = [
- "bincode",
+ "ciborium",
  "serde",
+ "serde_bytes",
 ]
 
 [[package]]
@@ -5155,13 +5843,24 @@ dependencies = [
 name = "paint-snapshot"
 version = "0.1.0"
 dependencies = [
- "bincode",
  "flate2",
  "image",
  "paint-format",
  "serde",
+ "serde_bytes",
  "serde_json",
  "sha2 0.10.9",
+]
+
+[[package]]
+name = "pan-zoom-types"
+version = "0.1.0"
+dependencies = [
+ "be-block",
+ "be-commit",
+ "be-model",
+ "block-type-guest",
+ "uuid",
 ]
 
 [[package]]
@@ -5171,6 +5870,7 @@ dependencies = [
  "beui",
  "block-editor-beui",
  "block-ui-test",
+ "pan-zoom-types",
  "uuid",
 ]
 
@@ -5231,6 +5931,17 @@ dependencies = [
  "beui",
  "block-editor-beui",
  "block-ui-test",
+ "pdf-types",
+ "uuid",
+]
+
+[[package]]
+name = "pdf-types"
+version = "0.1.0"
+dependencies = [
+ "be-block",
+ "block-type-guest",
+ "serde",
  "uuid",
 ]
 
@@ -5355,6 +6066,30 @@ dependencies = [
 ]
 
 [[package]]
+name = "pixel-art-types"
+version = "0.1.0"
+dependencies = [
+ "be-block",
+ "be-commit",
+ "be-model",
+ "block-type-guest",
+ "serde",
+ "uuid",
+]
+
+[[package]]
+name = "pixel-ray-tracer-types"
+version = "0.1.0"
+dependencies = [
+ "be-block",
+ "be-commit",
+ "be-model",
+ "block-type-guest",
+ "serde",
+ "uuid",
+]
+
+[[package]]
 name = "pixel_art"
 version = "0.1.0"
 dependencies = [
@@ -5362,6 +6097,8 @@ dependencies = [
  "block-editor-beui",
  "block-ui-test",
  "image",
+ "image-block-types",
+ "pixel-art-types",
  "serde",
  "serde_json",
  "uuid",
@@ -5374,6 +6111,7 @@ dependencies = [
  "beui",
  "block-editor-beui",
  "block-ui-test",
+ "pixel-ray-tracer-types",
  "uuid",
 ]
 
@@ -5604,6 +6342,19 @@ dependencies = [
  "beui",
  "block-editor-beui",
  "block-ui-test",
+ "infinite-canvas-types",
+ "presentation-types",
+ "uuid",
+]
+
+[[package]]
+name = "presentation-types"
+version = "0.1.0"
+dependencies = [
+ "be-block",
+ "be-commit",
+ "be-model",
+ "block-type-guest",
  "uuid",
 ]
 
@@ -6322,6 +7073,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "scene-3d-types"
+version = "0.1.0"
+dependencies = [
+ "be-block",
+ "be-commit",
+ "be-model",
+ "block-type-guest",
+ "uuid",
+]
+
+[[package]]
 name = "scene_3d"
 version = "0.1.0"
 dependencies = [
@@ -6329,6 +7091,7 @@ dependencies = [
  "block-editor-beui",
  "block-ui-test",
  "bytemuck",
+ "scene-3d-types",
  "uuid",
  "wgpu",
 ]
@@ -6482,7 +7245,18 @@ dependencies = [
  "beui",
  "block-editor-beui",
  "block-ui-test",
+ "settings-types",
  "text-editor-core",
+ "uuid",
+]
+
+[[package]]
+name = "settings-types"
+version = "0.1.0"
+dependencies = [
+ "be-block",
+ "be-model",
+ "block-type-guest",
  "uuid",
 ]
 
@@ -6961,6 +7735,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "synstructure"
+version = "0.14.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "901704edd0dfe137f1987838ee4f259e4e063c31371bdb423f7ae38ec6f77f02"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 3.0.3",
+]
+
+[[package]]
 name = "target-lexicon"
 version = "0.13.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -6989,9 +7774,65 @@ dependencies = [
 ]
 
 [[package]]
+name = "terminal"
+version = "0.1.0"
+dependencies = [
+ "beui",
+ "block-editor-beui",
+ "block-ui-test",
+ "serde_json",
+ "terminal-types",
+ "terminal-view",
+ "uuid",
+]
+
+[[package]]
+name = "terminal-emulator"
+version = "0.1.0"
+dependencies = [
+ "ghostty-vt",
+ "terminal-types",
+]
+
+[[package]]
+name = "terminal-types"
+version = "0.1.0"
+dependencies = [
+ "be-block",
+ "be-commit",
+ "be-model",
+ "block-type-guest",
+ "serde",
+ "ui-types",
+ "uuid",
+]
+
+[[package]]
+name = "terminal-view"
+version = "0.1.0"
+dependencies = [
+ "be-block",
+ "beui",
+ "terminal-types",
+]
+
+[[package]]
+name = "text-block-types"
+version = "0.1.0"
+dependencies = [
+ "be-block",
+ "be-commit",
+ "be-model",
+ "block-type-guest",
+ "serde",
+ "uuid",
+]
+
+[[package]]
 name = "text-editor-core"
 version = "0.1.0"
 dependencies = [
+ "grapheme-segmentation",
  "memchr",
  "sequence",
  "serde",
@@ -7000,7 +7841,6 @@ dependencies = [
  "tree-sitter-md",
  "tree-sitter-rust",
  "tree-sitter-zig",
- "unicode-segmentation",
 ]
 
 [[package]]
@@ -7016,8 +7856,10 @@ dependencies = [
  "beui",
  "block-editor-beui",
  "block-ui-test",
+ "image-block-types",
  "serde",
  "serde_json",
+ "text-block-types",
  "text-editor-core",
  "uuid",
 ]
@@ -7159,9 +8001,9 @@ dependencies = [
 
 [[package]]
 name = "tinystr"
-version = "0.8.3"
+version = "0.8.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c8323304221c2a851516f22236c5722a72eaa19749016521d6dff0824447d96d"
+checksum = "abc840c238154d58f9e86b2792261edfde565a17696e1cda1a449de27979801a"
 dependencies = [
  "displaydoc",
  "zerovec",
@@ -7435,6 +8277,18 @@ name = "triangle"
 version = "0.1.0"
 dependencies = [
  "block-editor-plugin",
+ "triangle-types",
+ "uuid",
+]
+
+[[package]]
+name = "triangle-types"
+version = "0.1.0"
+dependencies = [
+ "be-block",
+ "be-commit",
+ "be-model",
+ "block-type-guest",
  "uuid",
 ]
 
@@ -7515,6 +8369,8 @@ dependencies = [
 name = "ui-types"
 version = "0.1.0"
 dependencies = [
+ "be-ops-bindgen",
+ "geometry",
  "serde",
  "serde_bytes",
 ]
@@ -7667,7 +8523,17 @@ dependencies = [
  "getrandom 0.4.2",
  "js-sys",
  "serde_core",
+ "uuid-rng-internal",
  "wasm-bindgen",
+]
+
+[[package]]
+name = "uuid-rng-internal"
+version = "1.29.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "cdf60f3d36825d0911af7e102da39cc817280560cad48e81df1eb5c4d7400f76"
+dependencies = [
+ "getrandom 0.4.2",
 ]
 
 [[package]]
@@ -7681,6 +8547,13 @@ name = "vcpkg"
 version = "0.2.15"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "accd4ea62f7bb7a82fe23066fb0957d48ef677f6eeb8215f372f52e48bb32426"
+
+[[package]]
+name = "verify"
+version = "0.1.0"
+dependencies = [
+ "sha2 0.10.9",
+]
 
 [[package]]
 name = "version_check"
@@ -7699,13 +8572,27 @@ dependencies = [
 ]
 
 [[package]]
+name = "video-block-types"
+version = "0.1.0"
+dependencies = [
+ "be-block",
+ "be-commit",
+ "be-model",
+ "block-type-guest",
+ "serde",
+ "uuid",
+]
+
+[[package]]
 name = "video_block"
 version = "0.1.0"
 dependencies = [
  "beui",
  "block-editor-beui",
  "block-ui-test",
+ "counter-types",
  "uuid",
+ "video-block-types",
 ]
 
 [[package]]
@@ -8598,7 +9485,7 @@ dependencies = [
  "js-sys",
  "khronos-egl",
  "libc",
- "libloading",
+ "libloading 0.8.9",
  "log",
  "naga",
  "ndk-sys 0.6.0+11769913",
@@ -8911,6 +9798,15 @@ dependencies = [
 
 [[package]]
 name = "windows-sys"
+version = "0.60.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f2f500e4d28234f72040990ec9d39e3a6b950f9f22d3dba18416c35882612bcb"
+dependencies = [
+ "windows-targets 0.53.5",
+]
+
+[[package]]
+name = "windows-sys"
 version = "0.61.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ae137229bcbd6cdf0f7b80a31df61766145077ddf49416a728b02cb3921ff3fc"
@@ -8957,11 +9853,28 @@ dependencies = [
  "windows_aarch64_gnullvm 0.52.6",
  "windows_aarch64_msvc 0.52.6",
  "windows_i686_gnu 0.52.6",
- "windows_i686_gnullvm",
+ "windows_i686_gnullvm 0.52.6",
  "windows_i686_msvc 0.52.6",
  "windows_x86_64_gnu 0.52.6",
  "windows_x86_64_gnullvm 0.52.6",
  "windows_x86_64_msvc 0.52.6",
+]
+
+[[package]]
+name = "windows-targets"
+version = "0.53.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4945f9f551b88e0d65f3db0bc25c33b8acea4d9e41163edf90dcd0b19f9069f3"
+dependencies = [
+ "windows-link",
+ "windows_aarch64_gnullvm 0.53.1",
+ "windows_aarch64_msvc 0.53.1",
+ "windows_i686_gnu 0.53.1",
+ "windows_i686_gnullvm 0.53.1",
+ "windows_i686_msvc 0.53.1",
+ "windows_x86_64_gnu 0.53.1",
+ "windows_x86_64_gnullvm 0.53.1",
+ "windows_x86_64_msvc 0.53.1",
 ]
 
 [[package]]
@@ -8992,6 +9905,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "32a4622180e7a0ec044bb555404c800bc9fd9ec262ec147edd5989ccd0c02cd3"
 
 [[package]]
+name = "windows_aarch64_gnullvm"
+version = "0.53.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a9d8416fa8b42f5c947f8482c43e7d89e73a173cead56d044f6a56104a6d1b53"
+
+[[package]]
 name = "windows_aarch64_msvc"
 version = "0.42.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -9008,6 +9927,12 @@ name = "windows_aarch64_msvc"
 version = "0.52.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "09ec2a7bb152e2252b53fa7803150007879548bc709c039df7627cabbd05d469"
+
+[[package]]
+name = "windows_aarch64_msvc"
+version = "0.53.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b9d782e804c2f632e395708e99a94275910eb9100b2114651e04744e9b125006"
 
 [[package]]
 name = "windows_i686_gnu"
@@ -9028,10 +9953,22 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8e9b5ad5ab802e97eb8e295ac6720e509ee4c243f69d781394014ebfe8bbfa0b"
 
 [[package]]
+name = "windows_i686_gnu"
+version = "0.53.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "960e6da069d81e09becb0ca57a65220ddff016ff2d6af6a223cf372a506593a3"
+
+[[package]]
 name = "windows_i686_gnullvm"
 version = "0.52.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0eee52d38c090b3caa76c563b86c3a4bd71ef1a819287c19d586d7334ae8ed66"
+
+[[package]]
+name = "windows_i686_gnullvm"
+version = "0.53.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "fa7359d10048f68ab8b09fa71c3daccfb0e9b559aed648a8f95469c27057180c"
 
 [[package]]
 name = "windows_i686_msvc"
@@ -9052,6 +9989,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "240948bc05c5e7c6dabba28bf89d89ffce3e303022809e73deaefe4f6ec56c66"
 
 [[package]]
+name = "windows_i686_msvc"
+version = "0.53.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1e7ac75179f18232fe9c285163565a57ef8d3c89254a30685b57d83a38d326c2"
+
+[[package]]
 name = "windows_x86_64_gnu"
 version = "0.42.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -9068,6 +10011,12 @@ name = "windows_x86_64_gnu"
 version = "0.52.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "147a5c80aabfbf0c7d901cb5895d1de30ef2907eb21fbbab29ca94c5b08b1a78"
+
+[[package]]
+name = "windows_x86_64_gnu"
+version = "0.53.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9c3842cdd74a865a8066ab39c8a7a473c0778a3f29370b5fd6b4b9aa7df4a499"
 
 [[package]]
 name = "windows_x86_64_gnullvm"
@@ -9088,6 +10037,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "24d5b23dc417412679681396f2b49f3de8c1473deb516bd34410872eff51ed0d"
 
 [[package]]
+name = "windows_x86_64_gnullvm"
+version = "0.53.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0ffa179e2d07eee8ad8f57493436566c7cc30ac536a3379fdf008f47f6bb7ae1"
+
+[[package]]
 name = "windows_x86_64_msvc"
 version = "0.42.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -9104,6 +10059,12 @@ name = "windows_x86_64_msvc"
 version = "0.52.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "589f6da84c646204747d1270a2a5661ea66ed1cced2631d546fdfb155959f9ec"
+
+[[package]]
+name = "windows_x86_64_msvc"
+version = "0.53.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d6bbff5f0aada427a1e5a6da5f1f98158182f26556f345ac9e04d36d0ebed650"
 
 [[package]]
 name = "winit"
@@ -9517,13 +10478,28 @@ dependencies = [
 ]
 
 [[package]]
+name = "workspace-ui-types"
+version = "0.1.0"
+dependencies = [
+ "be-block",
+ "be-commit",
+ "be-model",
+ "block-type-guest",
+ "postcard",
+ "serde",
+ "uuid",
+]
+
+[[package]]
 name = "workspace_index"
 version = "0.1.0"
 dependencies = [
  "beui",
  "block-editor-beui",
  "block-ui-test",
+ "counter-types",
  "uuid",
+ "workspace-ui-types",
 ]
 
 [[package]]
@@ -9536,13 +10512,14 @@ dependencies = [
  "block-shell",
  "block-ui-test",
  "uuid",
+ "workspace-ui-types",
 ]
 
 [[package]]
 name = "writeable"
-version = "0.6.3"
+version = "0.6.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1ffae5123b2d3fc086436f8834ae3ab053a283cfac8fe0a0b8eaae044768a4c4"
+checksum = "3ad82d2a33cdc9674dc7465672f271e096168fcdbe0f799d9e6db8c5892679dc"
 
 [[package]]
 name = "x11-dl"
@@ -9564,7 +10541,7 @@ dependencies = [
  "as-raw-xcb-connection",
  "gethostname",
  "libc",
- "libloading",
+ "libloading 0.8.9",
  "once_cell",
  "rustix 1.1.4",
  "x11rb-protocol",
@@ -9675,9 +10652,9 @@ checksum = "3ae8337f8a065cfc972643663ea4279e04e7256de865aa66fe25cec5fb912d3f"
 
 [[package]]
 name = "yoke"
-version = "0.8.3"
+version = "0.8.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "709fe23a0424b6a435d82152b1bd3fdfb0833487d5fa90d05d42762a9891fef5"
+checksum = "417ef3fcf6c300b7dbd25c85531a746931c02ad536f3cf4786ed1e88223340b3"
 dependencies = [
  "stable_deref_trait",
  "yoke-derive",
@@ -9686,14 +10663,14 @@ dependencies = [
 
 [[package]]
 name = "yoke-derive"
-version = "0.8.2"
+version = "0.8.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "de844c262c8848816172cef550288e7dc6c7b7814b4ee56b3e1553f275f1858e"
+checksum = "ec8ebde2db3681e8c9980cc27822030e68752690ddfa9473e739aeb4dbde6d71"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 2.0.117",
- "synstructure 0.13.2",
+ "syn 3.0.3",
+ "synstructure 0.14.0",
 ]
 
 [[package]]
@@ -9856,9 +10833,9 @@ dependencies = [
 
 [[package]]
 name = "zerotrie"
-version = "0.2.4"
+version = "0.2.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0f9152d31db0792fa83f70fb2f83148effb5c1f5b8c7686c3459e361d9bc20bf"
+checksum = "4ea269c3bd32f0a32c321907a2ae912ba6f4649bb0fc764a15627e99a7095a3f"
 dependencies = [
  "displaydoc",
  "yoke",
@@ -9867,9 +10844,9 @@ dependencies = [
 
 [[package]]
 name = "zerovec"
-version = "0.11.6"
+version = "0.11.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "90f911cbc359ab6af17377d242225f4d75119aec87ea711a880987b18cd7b239"
+checksum = "f58a2799cfe9a1670c7ea8edbd52ef8edb93cb37a7f83bf31ba9e35d9dae6a40"
 dependencies = [
  "yoke",
  "zerofrom",
@@ -9878,13 +10855,13 @@ dependencies = [
 
 [[package]]
 name = "zerovec-derive"
-version = "0.11.3"
+version = "0.11.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "625dc425cab0dca6dc3c3319506e6593dcb08a9f387ea3b284dbd52a92c40555"
+checksum = "c3743ddbf47738d929cd1ae2e199d40d0162979dfe31aef8ae646d2bf00bf97a"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 2.0.117",
+ "syn 3.0.3",
 ]
 
 [[package]]

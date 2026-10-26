@@ -1,8 +1,8 @@
-use block_editor_beui::be_block::PanZoomContent;
 use block_editor_beui::beui::Vec2;
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::Root;
 use block_editor_beui::{Creation, Editor};
+use pan_zoom_types::PanZoomContent;
 
 mod ui;
 
@@ -10,8 +10,10 @@ use ui::PanZoom;
 
 pub struct PanZoomApp;
 
+#[component]
 impl block_editor_beui::BeuiApp for PanZoomApp {
-    fn view(editor: Editor) -> Root {
+    #[component]
+    fn View(editor: Editor) -> Root {
         view! {
             <Root>
                 <PanZoom editor={editor} />

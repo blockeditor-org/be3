@@ -2,8 +2,9 @@ use super::*;
 
 use std::time::Duration;
 
-use be_block::{Counter, CounterContent, LiveEdit};
-use block_plugin_api::ContentOperation;
+use be_block::LiveEdit;
+use block_type_guest::editor::EditorOperation;
+use counter_types::{Counter, CounterContent};
 
 fn counted(block: Uuid, expected: i64) {
     crate::be::wait_for(Duration::from_secs(20), |shared| {
@@ -14,15 +15,11 @@ fn counted(block: Uuid, expected: i64) {
     .expect("the new stack never reached the expected count");
 }
 
-fn content_messages(instances: &mut Instances) -> Vec<EditorMessage> {
-    next_screens(instances)
-        .opened
-        .into_iter()
-        .filter_map(|message| match message {
-            Message::Editor(
-                editor @ (EditorMessage::Content { .. } | EditorMessage::ContentOperations { .. }),
-            ) => Some(editor),
-            _ => None,
+fn operations(sent: &[ToEditor]) -> Vec<EditorOperation> {
+    sent.iter()
+        .flat_map(|message| match message {
+            ToEditor::Operations(operations) => operations.clone(),
+            _ => Vec::new(),
         })
         .collect()
 }
@@ -41,48 +38,43 @@ fn after_the_first_snapshot_an_editor_is_sent_operations() {
     );
     let mut instances = placed_on(block, CounterContent::CONTENT_TYPE);
     next_screens(&mut instances);
-    counted(block, 0);
-    assert!(matches!(
-        content_messages(&mut instances).as_slice(),
-        [EditorMessage::Content { .. }]
-    ));
+    assert!(to_replica(&mut instances, block, &FromEditor::Resend));
+    let sent = replica_sent_until(&mut instances, block, |sent| {
+        sent.iter()
+            .any(|message| matches!(message, ToEditor::Snapshot(_)))
+    });
+    assert!(operations(&sent).is_empty());
 
     let own = CounterContent::encode_operation(&Counter::add(2));
-    assert!(instances.editor_message(EditorMessage::Operate {
-        instance: INSTANCE,
-        block_id: block.into_bytes(),
-        operation: own.clone(),
-    }));
+    assert!(to_replica(
+        &mut instances,
+        block,
+        &FromEditor::Operate(own.clone())
+    ));
     counted(block, 2);
+    let sent = replica_sent_until(&mut instances, block, |sent| !operations(sent).is_empty());
     assert_eq!(
-        content_messages(&mut instances),
-        [EditorMessage::ContentOperations {
-            instance: INSTANCE,
-            block_id: block.into_bytes(),
-            operations: vec![ContentOperation {
-                operation: own,
-                mine: true,
-                unsettled: 0,
-                beneath: None,
-            }],
+        operations(&sent),
+        [EditorOperation {
+            operation: own,
+            mine: true,
+            unsettled: 0,
+            beneath: None,
         }]
     );
 
     let elsewhere = CounterContent::encode_operation(&Counter::add(5));
-    crate::be::operate_from(block, 0, elsewhere.clone());
+    crate::be::operate(block, elsewhere.clone());
     counted(block, 7);
+    let sent = replica_sent_until(&mut instances, block, |sent| !operations(sent).is_empty());
     assert_eq!(
-        content_messages(&mut instances),
-        [EditorMessage::ContentOperations {
-            instance: INSTANCE,
-            block_id: block.into_bytes(),
-            operations: vec![ContentOperation {
-                operation: elsewhere,
-                mine: false,
-                unsettled: 0,
-                beneath: None,
-            }],
+        operations(&sent),
+        [EditorOperation {
+            operation: elsewhere,
+            mine: false,
+            unsettled: 0,
+            beneath: None,
         }]
     );
-    assert!(content_messages(&mut instances).is_empty());
+    assert!(replica_sends(&mut instances, block).is_empty());
 }

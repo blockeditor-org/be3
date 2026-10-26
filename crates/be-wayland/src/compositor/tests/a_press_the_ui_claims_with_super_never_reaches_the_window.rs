@@ -1,11 +1,10 @@
 use super::*;
 
-fn button(pos: Pos2, button: PointerButton, pressed: bool, modifiers: beui::Modifiers) -> Event {
-    Event::PointerButton {
+fn button(pos: Pos2, button: PointerButton, pressed: bool) -> Input {
+    Input::PointerButton {
         pos,
         button,
         pressed,
-        modifiers,
     }
 }
 
@@ -18,21 +17,16 @@ fn a_press_the_ui_claims_with_super_never_reaches_the_window() {
     harness.client.received.buttons.clear();
 
     let mut events = super_key(true);
-    events.push(Event::PointerMoved(center));
+    events.push(Input::PointerMoved(center));
     harness.frame(events);
     for which in [PointerButton::Primary, PointerButton::Secondary] {
-        harness.frame(vec![button(center, which, true, beui::Modifiers::LOGO)]);
-        harness.frame(vec![Event::PointerMoved(center + Vec2::new(30.0, 20.0))]);
-        harness.frame(vec![button(
-            center + Vec2::new(30.0, 20.0),
-            which,
-            false,
-            beui::Modifiers::LOGO,
-        )]);
+        harness.frame(vec![button(center, which, true)]);
+        harness.frame(vec![Input::PointerMoved(center + Vec2::new(30.0, 20.0))]);
+        harness.frame(vec![button(center + Vec2::new(30.0, 20.0), which, false)]);
     }
     harness.frame(vec![
-        button(center, PointerButton::Primary, true, beui::Modifiers::LOGO),
-        button(center, PointerButton::Primary, false, beui::Modifiers::LOGO),
+        button(center, PointerButton::Primary, true),
+        button(center, PointerButton::Primary, false),
     ]);
     harness.frame(super_key(false));
     harness.settle();

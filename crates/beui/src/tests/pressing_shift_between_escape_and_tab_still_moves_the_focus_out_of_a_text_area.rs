@@ -1,5 +1,6 @@
 use super::*;
 use crate::primitives::Frame;
+use crate::primitives::List;
 use crate::reactive::*;
 use crate::styled::*;
 use std::sync::Arc;
@@ -27,8 +28,8 @@ fn pressing_shift_between_escape_and_tab_still_moves_the_focus_out_of_a_text_are
 
     harness.key(Key::Escape, Modifiers::NONE);
     harness.frame(vec![
-        Event::Modifiers(Modifiers::SHIFT),
-        key_event(Key::Shift, true, Modifiers::SHIFT),
+        Input::Modifiers(Modifiers::SHIFT),
+        key_event(Key::Shift, true),
     ]);
     harness.key(Key::Tab, Modifiers::SHIFT);
     assert_ne!(

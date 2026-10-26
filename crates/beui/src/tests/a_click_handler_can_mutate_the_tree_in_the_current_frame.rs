@@ -24,7 +24,7 @@ fn a_click_handler_can_mutate_the_tree_in_the_current_frame() {
     let mut harness = Harness::new(document);
     harness.frame(vec![]);
     harness.click(harness.center(button));
-    assert_ne!(harness.document.root(), Some(button));
-    assert!(harness.document.node_rect(button).is_none());
-    assert_eq!(harness.frame(vec![]).shapes().len(), 1);
+    assert_ne!(harness.document().root(), Some(button));
+    assert!(harness.document().node_rect(button).is_none());
+    assert_eq!(harness.frame(vec![]).main().shapes().len(), 1);
 }

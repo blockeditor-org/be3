@@ -1,6 +1,7 @@
 use super::*;
 use crate::primitives::*;
 use crate::reactive::*;
+use crate::unstyled::Scroll;
 
 const HEADER: f32 = 50.0;
 const FOOTER: f32 = 30.0;
@@ -14,7 +15,7 @@ fn a_scroll_mixes_plain_children_with_a_nested_virtual_list() {
     let document = build_node(move || {
         view! {
             <List spacing=0.0>
-                <Offset @sizing=ItemSize::Percent(100.0) @node_ref=&scroll>
+                <Scroll @sizing=ItemSize::Percent(100.0) @node_ref=&scroll>
                     <List spacing=0.0>
                         <Frame height=HEADER>
                             <Spacer />
@@ -40,7 +41,7 @@ fn a_scroll_mixes_plain_children_with_a_nested_virtual_list() {
                             <Spacer />
                         </Frame>
                     </List>
-                </Offset>
+                </Scroll>
             </List>
         }
     });
@@ -55,16 +56,19 @@ fn a_scroll_mixes_plain_children_with_a_nested_virtual_list() {
     assert_eq!(harness.rect(list).top(), HEADER);
     assert_eq!(harness.rect(list).height(), rows);
     assert_eq!(
-        harness.rect(harness.document.children(list)[0]).top(),
+        harness.rect(harness.document().children(list)[0]).top(),
         HEADER
     );
 
-    harness.document.set_scroll_offset(scroll, f32::MAX);
+    harness.document_mut().set_scroll_offset(scroll, f32::MAX);
     harness.frame(Vec::new());
 
     let content = HEADER + rows + FOOTER;
-    assert_eq!(harness.document.scroll_offset(scroll), content - VIEWPORT.y);
-    let last = *harness.document.children(list).last().unwrap();
+    assert_eq!(
+        harness.document().scroll_offset(scroll),
+        content - VIEWPORT.y
+    );
+    let last = *harness.document().children(list).last().unwrap();
     assert_eq!(harness.rect(last).bottom(), VIEWPORT.y - FOOTER);
     assert_eq!(built.get_untracked().last(), Some(&(ROWS - 1)));
 }

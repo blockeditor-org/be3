@@ -7,7 +7,7 @@ mod measure;
 pub use measure::{BrowserFonts, watch};
 
 const PROPORTIONAL: &str =
-    "Ubuntu, system-ui, -apple-system, \"Segoe UI\", Roboto, \"Helvetica Neue\", Arial, sans-serif";
+    "Inter, system-ui, -apple-system, \"Segoe UI\", Roboto, \"Helvetica Neue\", Arial, sans-serif";
 const MONOSPACE: &str = "Hack, ui-monospace, SFMono-Regular, Menlo, Consolas, \"DejaVu Sans Mono\", \"Liberation Mono\", monospace";
 const ICONS: &str = "beui-icons";
 
@@ -24,10 +24,9 @@ pub fn css_font(font: FontId) -> String {
         true => "italic",
         false => "normal",
     };
-    let weight = match (font.family, font.bold) {
-        (FontFamily::Proportional, false) => 300,
-        (_, false) => 400,
-        (_, true) => 700,
+    let weight = match font.bold {
+        false => 400,
+        true => 700,
     };
     format!(
         "{style} {weight} {}px {}",

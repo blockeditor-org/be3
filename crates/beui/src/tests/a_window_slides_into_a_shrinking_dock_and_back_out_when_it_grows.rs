@@ -1,5 +1,5 @@
 use super::*;
-use crate::unstyled::DockApi;
+use crate::dock::unstyled::DockApi;
 
 #[test]
 fn a_window_slides_into_a_shrinking_dock_and_back_out_when_it_grows() {
@@ -16,7 +16,7 @@ fn a_window_slides_into_a_shrinking_dock_and_back_out_when_it_grows() {
     let tab = |harness: &Harness| harness.rect(dock_tab(harness.document(), dock, "Tab 2"));
     let inset = tab(&harness).min - (harness.rect(dock).min + stored.min.to_vec2());
 
-    *harness.viewport_mut() = vec2(stored.min.x + 60.0, stored.min.y + 20.0);
+    harness.resize(vec2(stored.min.x + 60.0, stored.min.y + 20.0));
     harness.frame(Vec::new());
     harness.frame(Vec::new());
 
@@ -36,7 +36,7 @@ fn a_window_slides_into_a_shrinking_dock_and_back_out_when_it_grows() {
         "shrinking the dock leaves where the window belongs alone"
     );
 
-    *harness.viewport_mut() = WIDE_VIEWPORT;
+    harness.resize(WIDE_VIEWPORT);
     harness.frame(Vec::new());
     harness.frame(Vec::new());
 

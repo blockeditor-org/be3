@@ -1,4 +1,5 @@
-use block_editor_beui::{BlockLocation, BlockPick, ChildRect, CreationProgress};
+use block_editor_beui::beui::{Pos2, Vec2};
+use block_editor_beui::{BlockLocation, CreationProgress, PickedBlock, Rect};
 
 use super::*;
 
@@ -7,9 +8,9 @@ fn a_presentation_offers_its_slide_templates_first() {
     let (mut fixture, _) = editor();
     let mut slides = catalog();
     for (template, name, icon) in [
-        ("title", "Title page", "\u{e264}"),
-        ("regular", "Regular page", "\u{e8d2}"),
-        ("blank", "Blank page", "\u{e3c6}"),
+        ("title", "Title page", "\u{e384}"),
+        ("regular", "Regular page", "\u{e185}"),
+        ("blank", "Blank page", "\u{e167}"),
     ] {
         slides
             .templates
@@ -27,12 +28,10 @@ fn a_presentation_offers_its_slide_templates_first() {
     let mut asked = filter();
     asked.name = "Slide".to_owned();
     asked.templates = true;
-    asked.anchor = Some(ChildRect {
-        x: 300.0,
-        y: 60.0,
-        width: 200.0,
-        height: 32.0,
-    });
+    asked.anchor = Some(Rect::from_min_size(
+        Pos2::new(300.0, 60.0),
+        Vec2::new(200.0, 32.0),
+    ));
     let deck = Uuid::new_v4();
     fixture
         .test
@@ -61,7 +60,7 @@ fn a_presentation_offers_its_slide_templates_first() {
 
     fixture
         .test
-        .click(&format!("picker.menu.{TEMPLATE_EDITOR}/title"));
+        .click(format!("picker.menu.{TEMPLATE_EDITOR}/title"));
     fixture.settle();
     fixture.settle();
     let created = Uuid::new_v4();
@@ -73,12 +72,12 @@ fn a_presentation_offers_its_slide_templates_first() {
         fixture.test.take_pick_answers(),
         vec![(
             3,
-            BlockPick::Chosen {
+            Ok(Some(PickedBlock {
                 block_id: created.into_bytes(),
                 block_type: TEMPLATE_TYPE.into_bytes(),
                 linked: false,
                 placed: false,
-            }
+            }))
         )]
     );
 }

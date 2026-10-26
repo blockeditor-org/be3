@@ -1,9 +1,11 @@
-use block_editor_beui::be_block::canvas::{
+use std::rc::Rc;
+
+use block_editor_beui::beui::{
+    Color32, FillRule, LineCap, LineJoin, Painter, Path, PathPaint, Pos2, Stroke, Vec2, pos2,
+};
+use infinite_canvas_types::{
     CanvasEntity, CanvasFill, CanvasLook, CanvasPathPoint, CanvasPoint, CanvasShape,
     CanvasStrokeStyle, CanvasStyle, CanvasTransform,
-};
-use block_editor_beui::beui::{
-    Color32, FillRule, LineCap, LineJoin, Painter, Path, Pos2, Stroke, Vec2, pos2,
 };
 
 use crate::freehand;
@@ -29,6 +31,7 @@ pub(crate) enum Ink {
 pub(crate) enum Mark {
     Fill(Path),
     Stroke(Path, Stroke),
+    Painted(Rc<PathPaint>, Vec2),
 }
 
 #[derive(Clone, PartialEq, Debug)]
@@ -102,9 +105,18 @@ impl Sketch {
         self.push(Ink::Stroke, Mark::Fill(outline));
     }
 
+    pub(crate) fn painted(pieces: Vec<Rc<PathPaint>>) -> Self {
+        let mut sketch = Self::default();
+        for piece in pieces {
+            sketch.push(Ink::Stroke, Mark::Painted(piece, Vec2::ZERO));
+        }
+        sketch
+    }
+
     fn push(&mut self, ink: Ink, mark: Mark) {
         let empty = match &mark {
             Mark::Fill(path) | Mark::Stroke(path, _) => path.is_empty(),
+            Mark::Painted(paint, _) => paint.path().is_empty(),
         };
         if !empty {
             self.parts.push(Part { ink, mark });
@@ -257,6 +269,9 @@ impl Sketch {
                         Mark::Stroke(path, stroke) => {
                             Mark::Stroke(path.translated(by), stroke.clone())
                         }
+                        Mark::Painted(paint, offset) => {
+                            Mark::Painted(Rc::clone(paint), *offset + by)
+                        }
                     },
                 })
                 .collect(),
@@ -282,6 +297,9 @@ impl Sketch {
             match &part.mark {
                 Mark::Fill(path) => painter.fill_path(path, FillRule::NonZero, color),
                 Mark::Stroke(path, line) => painter.stroke_path(path, line, color),
+                Mark::Painted(paint, offset) => {
+                    painter.transformed(*offset, 1.0).paint_path(paint, color)
+                }
             }
         }
     }

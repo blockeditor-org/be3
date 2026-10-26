@@ -1,9 +1,9 @@
 use block_editor_beui::Loaded;
-use block_editor_beui::be_block::ImageContent;
 use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::Root;
 use block_editor_beui::{ContentFileCreation, Creation, Editor, FileFilter, PickedFile};
+use image_block_types::{ImageContent, ImageFile};
 
 mod picture;
 mod ui;
@@ -12,8 +12,10 @@ use ui::{ImageEditor, ImagePreview};
 
 pub struct ImageApp;
 
+#[component]
 impl block_editor_beui::BeuiApp for ImageApp {
-    fn view(editor: Editor) -> Root {
+    #[component]
+    fn View(editor: Editor) -> Root {
         view! {
             <Root>
                 <Loaded>
@@ -23,7 +25,8 @@ impl block_editor_beui::BeuiApp for ImageApp {
         }
     }
 
-    fn preview_view(editor: Editor) -> NodeId {
+    #[component]
+    fn Preview(editor: Editor) -> NodeId {
         view! {
             <Loaded>
                 <ImagePreview editor={editor} />
@@ -31,23 +34,26 @@ impl block_editor_beui::BeuiApp for ImageApp {
         }
     }
 
-    fn creation_view(creation: Creation) -> NodeId {
+    #[component]
+    fn Creation(creation: Creation) -> NodeId {
         view! {
-            <ContentFileCreation creation id_prefix="image" filter={filter()} import={imported} />
+            <ContentFileCreation
+                creation
+                title="New Image"
+                id_prefix="image"
+                filter={filter()}
+                import={imported}
+            />
         }
     }
 }
 
 pub(crate) fn filter() -> FileFilter {
-    FileFilter::new(
-        "Images",
-        ImageContent::FILE_EXTENSIONS,
-        ImageContent::MIME_TYPES,
-    )
+    FileFilter::new("Images", ImageFile::FILE_EXTENSIONS, ImageFile::MIME_TYPES)
 }
 
 pub(crate) fn imported(file: PickedFile) -> Result<ImageContent, String> {
     let PickedFile { name, data } = file;
     crate::decode::decode(&data).map_err(|error| format!("Could not import {name}: {error}"))?;
-    Ok(ImageContent::from_file(name, data))
+    Ok(ImageFile::from_file(name, data))
 }

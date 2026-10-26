@@ -1,0 +1,6 @@
+load("@root//buck/wasm:defs.bzl", "editor")
+
+editor(
+    module = "terminal",
+    types = "//crates/editors/terminal/types:module",
+)

@@ -25,8 +25,9 @@ fn a_tooltip_is_as_wide_as_its_label_up_to_a_cap() {
 
 fn hovered_tooltip(test: &mut DocumentTest, chip: &str) -> beui::Rect {
     let at = test.rect_of(chip).center();
-    test.frame(vec![beui::Event::PointerMoved(at)]);
+    test.frame(vec![Input::PointerMoved(at)]);
     test.advance(std::time::Duration::from_secs(2));
+    test.frame(Vec::new());
     test.settle();
     test.rect_of("tooltip")
 }

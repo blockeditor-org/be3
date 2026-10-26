@@ -9,15 +9,10 @@
 # still read the same: an output left behind by an earlier run, when this one
 # could not run, is not this checkout's fix.
 #
-# rust fixes one crate's Rust files: clippy's machine-applicable suggestions
-# from each CLIPPY_JSON, none if the crate failed to compile (a view! that does
-# not parse leaves its imports looking unused), then fix-rust-source, then
-# rustfmt. The findings clippy had no fix for go in OUT/findings, a file each,
-# named by their text, so that the same finding reported by two crates is one
-# file once both are copied together. starlark formats the BUCK and .bzl files with starlark_fmt.
+# rust fixes one crate's Rust files with fix-rust-source, then rustfmt. starlark formats the BUCK and .bzl files with starlark_fmt.
 #
 # Usage:
-#   fix.sh rust OUT SOURCES BUCK_TOOLS FIX_RUST_SOURCE RUSTFMT_SYSROOT [CLIPPY_JSON]...
+#   fix.sh rust OUT SOURCES FIX_RUST_SOURCE RUSTFMT_SYSROOT
 #   fix.sh starlark OUT SOURCES STARLARK_FMT CONFIG
 set -eu
 here="$(pwd)"
@@ -30,15 +25,13 @@ absolute() {
 kind="$1" out="$(absolute "$2")" sources="$(absolute "$3")"
 shift 3
 tree="$(mktemp -d)"
-mkdir -p "$out/changed" "$out/findings" "$out/original"
+mkdir -p "$out/changed" "$out/original"
 : > "$out/deleted"
 cp -RL "$sources/." "$tree/"
 chmod -R u+w "$tree"
 case "$kind" in
     rust)
-        buck_tools="$(absolute "$1")" fix_rust_source="$(absolute "$2")" rustfmt="$(absolute "$3")/bin/rustfmt"
-        shift 3
-        "$buck_tools" clippy "$tree" "$out/findings" "$@"
+        fix_rust_source="$(absolute "$1")" rustfmt="$(absolute "$2")/bin/rustfmt"
         (cd "$tree" && "$fix_rust_source")
         find "$tree" -type f -name '*.rs' -exec "$rustfmt" --edition 2024 {} +
         ;;

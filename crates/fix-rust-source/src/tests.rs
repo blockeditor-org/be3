@@ -12,6 +12,7 @@ fn formatted(source: &str) -> String {
     String::from_utf8(crate::format_views(source.as_bytes()).expect("source parses")).unwrap()
 }
 
+mod a_component_method_needs_a_component_block;
 mod fix_repository_accepts_tagged_unsafe;
 mod fix_repository_check_reports_without_changes;
 mod fix_repository_does_not_rewrite_compliant_repository;
@@ -22,6 +23,7 @@ mod fix_repository_keeps_a_public_test_module_declared_once;
 mod fix_repository_keeps_multiline_attributes_with_their_test_modules;
 mod fix_repository_merges_imports_without_repeating_them;
 mod fix_repository_removes_test_path_attributes;
+mod fix_repository_reports_a_fixed_extent_outside_beui;
 mod fix_repository_reports_a_primitive_used_outside_beui;
 mod fix_repository_reports_beui_rule_breaks;
 mod fix_repository_reports_document_use_in_a_component;
@@ -46,6 +48,7 @@ mod format_views_puts_the_value_a_tag_hands_its_children_after_the_tag;
 mod format_views_removes_redundant_render_slot_macros;
 mod format_views_shifts_a_multi_line_expression_to_its_new_indent;
 mod strip_comments;
+mod strip_comments_keeps_every_comment_in_a_file_marked_to_keep_them;
 mod strip_comments_keeps_unsafe_tags_and_keep_markers;
 mod unsafe_sites_reads_unparseable_source;
 mod unsafe_sites_resolves_the_nearest_tag;

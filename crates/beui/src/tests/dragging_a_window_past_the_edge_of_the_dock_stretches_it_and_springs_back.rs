@@ -1,5 +1,5 @@
 use super::*;
-use crate::unstyled::DockApi;
+use crate::dock::unstyled::DockApi;
 
 #[test]
 fn dragging_a_window_past_the_edge_of_the_dock_stretches_it_and_springs_back() {
@@ -27,7 +27,7 @@ fn dragging_a_window_past_the_edge_of_the_dock_stretches_it_and_springs_back() {
     let past = 200.0;
     let pulled = bar - vec2(before.min.x + past, 0.0);
     harness.press_at(bar);
-    harness.frame(vec![Event::PointerMoved(pulled)]);
+    harness.frame(vec![Input::PointerMoved(pulled)]);
 
     let held = harness
         .document()
@@ -42,7 +42,11 @@ fn dragging_a_window_past_the_edge_of_the_dock_stretches_it_and_springs_back() {
         "the window is drawn past the edge, but by less than the pointer went: {stretched}"
     );
 
-    let released = harness.release_at(pulled);
+    let released = harness.frame(vec![Input::PointerButton {
+        pos: pulled,
+        button: PointerButton::Primary,
+        pressed: false,
+    }]);
 
     let rested = harness
         .document()

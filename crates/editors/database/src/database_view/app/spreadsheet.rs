@@ -1,13 +1,14 @@
-use block_editor_beui::be_block::database::{DatabaseColor, DatabaseValue};
-use block_editor_beui::be_block::database_schema::{DatabaseField, DatabaseFieldType};
-use block_editor_beui::be_block::database_view::{DatabaseView, DatabaseViewSort, SortDirection};
+use beui::Overflow;
 use block_editor_beui::beui::icons::{
-    ICON_ARROW_DOWNWARD, ICON_ARROW_UPWARD, ICON_CHECK_BOX, ICON_CHECK_BOX_OUTLINE_BLANK,
+    ICON_ARROW_DOWN, ICON_ARROW_UP, ICON_SQUARE, ICON_SQUARE_CHECK,
 };
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
 use block_editor_beui::beui::{Color32, Key, KeyPress, NodeId, TextAlign};
 use block_editor_beui::block_ui::database::cell_text;
+use database_types::database::{DatabaseColor, DatabaseValue};
+use database_types::database_schema::{DatabaseField, DatabaseFieldType};
+use database_types::database_view::{DatabaseView, DatabaseViewSort, SortDirection};
 use std::collections::HashMap;
 use uuid::Uuid;
 
@@ -16,10 +17,9 @@ use crate::database_view::sort::{
     DisplayRow, ROW_HEADER_WIDTH, ROW_HEIGHT, column_name, column_width, display_rows, next_sort,
 };
 
-const BORDER: f32 = 1.0;
-const CELL_PADDING: f32 = 6.0;
+const CELL_PADDING: Space = Space::Sm;
 const SWATCH_WIDTH: f32 = 18.0;
-const SWATCH_HEIGHT: f32 = 14.0;
+const SWATCH_HEIGHT: Size = Size::Custom(14.0);
 
 #[component]
 pub fn Spreadsheet(data: Data) -> NodeId {
@@ -33,9 +33,9 @@ pub fn Spreadsheet(data: Data) -> NodeId {
     let keyboard = Callback::new(keyboard(data, display));
     view! {
         <Frame fill=ColorRole::Background>
-            <List spacing=0.0>
+            <List spacing=Space::None>
                 <Show condition={empty}>
-                    <Frame padding=12.0>
+                    <Frame padding=Space::Lg>
                         <Text style=TextStyle::CAPTION>"This database has no columns yet."</Text>
                     </Frame>
                 </Show>
@@ -72,11 +72,11 @@ fn Grid(
         })
     });
     view! {
-        <List spacing=0.0>
+        <List spacing=Space::None>
             <Scroll @sizing=ItemSize::Percent(100.0)>
                 <Scroll direction=Direction::Horizontal>
                     <Interactive focusable=true on_key={on_key}>
-                        <List spacing=0.0>
+                        <List spacing=Space::None>
                             <HeaderRow data={header} />
                             <VirtualList
                                 keys={keys}
@@ -105,12 +105,12 @@ fn HeaderRow(data: Data) -> NodeId {
         fields.with(|fields| fields.iter().map(|field| field.id).collect::<Vec<Uuid>>())
     });
     view! {
-        <List direction=Direction::Horizontal spacing=0.0>
+        <List direction=Direction::Horizontal spacing=Space::None>
             <Frame
-                width=ROW_HEADER_WIDTH
-                height=ROW_HEIGHT
+                width={Size::Custom(ROW_HEADER_WIDTH)}
+                height={Size::Custom(ROW_HEIGHT)}
                 fill=ColorRole::Surface
-                border={Border::new(ColorRole::Border).width(BORDER)}
+                border={Border::new(ColorRole::Border)}
             />
             <ForEach keys={keys}>|id: Uuid| {
                 let field = create_memo(move || {
@@ -130,7 +130,7 @@ fn HeaderRow(data: Data) -> NodeId {
                 });
                 let width = create_memo(move || {
                     field.with(|field| {
-                        field.as_ref().map_or(0.0, |field| column_width(field.field_type))
+                        Size::Custom(field.as_ref().map_or(0.0, |field| column_width(field.field_type)))
                     })
                 });
                 let sorted = sorted_direction(data.sort, id);
@@ -155,27 +155,27 @@ fn HeaderRow(data: Data) -> NodeId {
 #[component]
 fn HeaderCell(
     label: Prop<String>,
-    width: Prop<f32>,
+    width: Prop<Size>,
     sorted: Prop<Option<SortDirection>>,
     on_click: ClickCallback,
 ) -> NodeId {
     let sorted = create_memo(move || sorted.get());
     let glyph = create_memo(move || match sorted.get() {
-        Some(SortDirection::Ascending) => ICON_ARROW_UPWARD.to_owned(),
-        Some(SortDirection::Descending) => ICON_ARROW_DOWNWARD.to_owned(),
-        None => String::new(),
+        Some(SortDirection::Ascending) => Some(ICON_ARROW_UP),
+        Some(SortDirection::Descending) => Some(ICON_ARROW_DOWN),
+        None => None,
     });
     let marked = create_memo(move || sorted.get().is_some());
     view! {
         <Frame
             width=width
-            height=ROW_HEIGHT
+            height={Size::Custom(ROW_HEIGHT)}
             fill=ColorRole::Surface
-            border={Border::new(ColorRole::Border).width(BORDER)}
+            border={Border::new(ColorRole::Border)}
         >
             <Interactive on_click={on_click}>
-                <Frame padding={Sides::horizontal(CELL_PADDING)}>
-                    <List direction=Direction::Horizontal align=Align::Center spacing=4.0>
+                <Frame padding={Padding::horizontal(CELL_PADDING)}>
+                    <List direction=Direction::Horizontal align=Align::Center spacing=Space::Xs>
                         <Text>{label}</Text>
                         <Spacer @sizing=ItemSize::Percent(100.0) />
                         <Show condition={marked}>
@@ -217,18 +217,17 @@ fn Row(
     let keys = create_memo(move || {
         fields.with(|fields| fields.iter().map(|field| field.id).collect::<Vec<Uuid>>())
     });
-    let theme = use_theme();
     let header_fill = create_memo(move || match selected.get() {
-        true => theme.accent_soft.get(),
-        false => theme.surface.get(),
+        true => ColorRole::AccentSoft,
+        false => ColorRole::Surface,
     });
     view! {
-        <List direction=Direction::Horizontal spacing=0.0>
+        <List direction=Direction::Horizontal spacing=Space::None>
             <Frame
                 @sizing=ItemSize::Fixed(ROW_HEADER_WIDTH)
-                height=ROW_HEIGHT
-                fill={ColorRole::custom(header_fill)}
-                border={Border::new(ColorRole::Border).width(BORDER)}
+                height={Size::Custom(ROW_HEIGHT)}
+                fill={header_fill}
+                border={Border::new(ColorRole::Border)}
             >
                 <Text style=TextStyle::CAPTION align=TextAlign::Center>{number}</Text>
             </Frame>
@@ -257,9 +256,11 @@ fn Cell(
         .unwrap_or_default();
     let width = create_memo(move || {
         field.with(|field| {
-            field
-                .as_ref()
-                .map_or(0.0, |field| column_width(field.field_type))
+            Size::Custom(
+                field
+                    .as_ref()
+                    .map_or(0.0, |field| column_width(field.field_type)),
+            )
         })
     });
     let value =
@@ -288,8 +289,8 @@ fn Cell(
     });
     let checked = create_memo(move || matches!(value.get(), Some(DatabaseValue::Boolean(true))));
     let check_glyph = create_memo(move || match checked.get() {
-        true => ICON_CHECK_BOX.to_owned(),
-        false => ICON_CHECK_BOX_OUTLINE_BLANK.to_owned(),
+        true => ICON_SQUARE_CHECK,
+        false => ICON_SQUARE,
     });
     let colored = create_memo(move || matches!(value.get(), Some(DatabaseValue::Color(_))));
     let swatch = create_memo(move || match value.get() {
@@ -324,26 +325,25 @@ fn Cell(
             with_document(|document| document.reveal_node(node));
         }
     });
-    let theme = use_theme();
     let glyph_color = TextColor::Default;
     let fill = create_memo(move || match selected.get() {
-        true => theme.accent_soft.get(),
-        false => theme.background.get(),
+        true => ColorRole::AccentSoft,
+        false => ColorRole::Background,
     });
     let outline = create_memo(move || match selected.get() {
-        true => theme.accent.get(),
-        false => theme.border.get(),
+        true => ColorRole::Accent,
+        false => ColorRole::Border,
     });
     view! {
         <Frame
             @node_ref=&shown
             width=width
-            height=ROW_HEIGHT
-            fill={ColorRole::custom(fill)}
-            border={create_memo(move || Some(Border::new(ColorRole::Custom(outline.get())).width(BORDER)))}
+            height={Size::Custom(ROW_HEIGHT)}
+            fill={fill}
+            border={create_memo(move || Some(Border::new(outline.get())))}
         >
             <Interactive @test_id={element_test_id} on_click={click}>
-                <Frame padding={Sides::horizontal(CELL_PADDING)}>
+                <Frame padding={Padding::horizontal(CELL_PADDING)}>
                     <List direction=Direction::Horizontal align=Align::Center spacing=CELL_PADDING>
                         <Show condition={boolean}>
                             <Text color={glyph_color} align=TextAlign::Center>
@@ -355,11 +355,15 @@ fn Cell(
                                 @sizing=ItemSize::Fixed(SWATCH_WIDTH)
                                 height=SWATCH_HEIGHT
                                 fill={ColorRole::custom(swatch)}
-                                border={Border::new(ColorRole::Border).width(BORDER)}
+                                border={Border::new(ColorRole::Border)}
                                 radius=Radius::Xs
                             />
                         </Show>
-                        <Text @sizing=ItemSize::Percent(100.0) align={align} ellipsis=true>
+                        <Text
+                            @sizing=ItemSize::Percent(100.0)
+                            align={align}
+                            overflow=Overflow::Ellipsis
+                        >
                             {text}
                         </Text>
                     </List>

@@ -1,5 +1,6 @@
-use block_editor_beui::be_block::{BlockContent, FolderContent};
+use block_editor_beui::be_block::BlockContent;
 use block_editor_beui::{BlockInfo, BlockParent, BlockQuery};
+use workspace_ui_types::FolderContent;
 
 use super::*;
 
@@ -33,7 +34,7 @@ fn a_phone_walks_into_folders_and_opens_files() {
         .test
         .snapshot("a_phone_lists_the_top_level_of_the_files");
 
-    fixture.test.click(&format!("file-tree.{folder}.chevron"));
+    fixture.test.click(format!("file-tree.{folder}.chevron"));
     fixture.settle();
     assert!(
         fixture
@@ -54,7 +55,7 @@ fn a_phone_walks_into_folders_and_opens_files() {
         "expanding a folder stays at the level it is on"
     );
 
-    fixture.test.click(&format!("file-tree.{folder}.row"));
+    fixture.test.click(format!("file-tree.{folder}.row"));
     fixture.settle();
     assert!(
         fixture.opened().is_empty(),
@@ -73,7 +74,7 @@ fn a_phone_walks_into_folders_and_opens_files() {
         .test
         .snapshot("a_phone_shows_a_folder_it_walked_into");
 
-    fixture.test.click(&format!("file-tree.{inside}.row"));
+    fixture.test.click(format!("file-tree.{inside}.row"));
     fixture.settle();
     assert_eq!(fixture.opened(), vec![inside], "tapping a file opens it");
 

@@ -39,7 +39,7 @@ fn dropping_an_eight_asks_which_suit_to_call() {
         .expect("the eight is offered");
     editor.snapshot("dropping_an_eight_asks_which_suit_to_call");
 
-    editor.click(&format!("game.choice.{choice}"));
+    editor.click(format!("game.choice.{choice}"));
     editor.run();
 
     let played = moves(&editor);

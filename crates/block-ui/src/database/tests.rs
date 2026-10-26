@@ -1,5 +1,5 @@
 use super::*;
-use be_block::database_schema::DatabaseEnumOption;
+use database_types::database_schema::DatabaseEnumOption;
 use uuid::Uuid;
 
 fn field(field_type: DatabaseFieldType) -> DatabaseField {
@@ -21,7 +21,7 @@ mod number_parsing_accepts_valid_and_rejects_invalid_and_empty;
 mod string_empty_is_stored;
 mod typed_numbers_clamp_to_configured_boundaries;
 
-use be_block::{
+use database_types::{
     database::{DatabaseColor, DatabaseValue},
     database_schema::{DatabaseNumberOptions, DatabaseNumberScale},
 };

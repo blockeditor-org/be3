@@ -1,6 +1,6 @@
 use super::*;
+use crate::dock::unstyled::DockApi;
 use crate::painter::Shape;
-use crate::unstyled::DockApi;
 
 #[test]
 fn dragging_a_tab_over_a_window_bar_marks_where_it_lands() {
@@ -17,19 +17,18 @@ fn dragging_a_tab_over_a_window_bar_marks_where_it_lands() {
     );
     harness.frame(Vec::new());
     let window = harness.document().api::<DockApi>(dock).state().windows()[0];
-    let floated = harness.rect(dock_tab(harness.document(), dock, "Tab 2"));
+    let floated = dock_tab_extent(&harness, dock, "Tab 2", 2);
     let accent = Theme::of(harness.document().preferences().theme).accent;
 
     let tab = harness.center(dock_tab(harness.document(), dock, "Tab 1"));
     let over = pos2(floated.right() + 20.0, floated.center().y);
-    harness.frame(vec![Event::PointerMoved(tab)]);
-    harness.frame(vec![Event::PointerButton {
+    harness.frame(vec![Input::PointerMoved(tab)]);
+    harness.frame(vec![Input::PointerButton {
         pos: tab,
         button: PointerButton::Primary,
         pressed: true,
-        modifiers: Modifiers::NONE,
     }]);
-    harness.frame(vec![Event::PointerMoved(over)]);
+    harness.frame(vec![Input::PointerMoved(over)]);
     let output = harness.frame(Vec::new());
 
     let bar = Rect::from_min_max(
@@ -37,7 +36,7 @@ fn dragging_a_tab_over_a_window_bar_marks_where_it_lands() {
         pos2(floated.right() + 40.0, floated.bottom() + 20.0),
     );
     assert!(
-        output.shapes().iter().any(|shape| matches!(
+        output.main().shapes().iter().any(|shape| matches!(
             shape,
             Shape::Rect { rect, color, .. }
                 if bar.contains_rect(*rect) && color.to_array()[..3] == accent.to_array()[..3]

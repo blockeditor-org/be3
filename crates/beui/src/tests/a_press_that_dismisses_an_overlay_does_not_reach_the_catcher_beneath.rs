@@ -1,6 +1,7 @@
 use super::*;
 use crate::ForwardedInput;
 use crate::primitives::Frame;
+use crate::primitives::List;
 use crate::primitives::Text;
 use crate::reactive::*;
 use crate::styled::*;
@@ -35,7 +36,12 @@ fn a_press_that_dismisses_an_overlay_does_not_reach_the_catcher_beneath() {
                         </Interactive>
                     </CanvasItem>
                 </Canvas>
-                <Dialog open={open} title="Event" width=300.0 on_dismiss={move || open.set(false)}>
+                <Dialog
+                    open={open}
+                    title="Event"
+                    width={Size::Custom(300.0)}
+                    on_dismiss={move || open.set(false)}
+                >
                     <Text color=Color32::WHITE>"Body"</Text>
                 </Dialog>
             </List>
@@ -45,15 +51,14 @@ fn a_press_that_dismisses_an_overlay_does_not_reach_the_catcher_beneath() {
     harness.frame(Vec::new());
 
     let outside = pos2(20.0, 20.0);
-    harness.frame(vec![Event::PointerMoved(outside)]);
+    harness.frame(vec![Input::PointerMoved(outside)]);
     harness.frame(
         [true, false]
             .into_iter()
-            .map(|pressed| Event::PointerButton {
+            .map(|pressed| Input::PointerButton {
                 pos: outside,
                 button: PointerButton::Primary,
                 pressed,
-                modifiers: Modifiers::NONE,
             })
             .collect(),
     );

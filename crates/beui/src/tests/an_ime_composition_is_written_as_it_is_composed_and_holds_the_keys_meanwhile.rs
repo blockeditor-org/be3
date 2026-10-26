@@ -14,7 +14,14 @@ fn an_ime_composition_is_written_as_it_is_composed_and_holds_the_keys_meanwhile(
         let state = TextAreaState::new(document);
         held.update(|held| *held = Some(state));
         view! {
-            <TextArea state={state} single_line=true />
+            <TextArea
+                colors={area_colors()}
+                look={area_look()}
+                font_size=AREA_FONT_SIZE
+                padding=AREA_PADDING
+                state={state}
+                single_line=true
+            />
         }
     });
     let mut harness = Harness::new(document);
@@ -24,8 +31,8 @@ fn an_ime_composition_is_written_as_it_is_composed_and_holds_the_keys_meanwhile(
     harness.key(Key::End, Modifiers::NONE);
 
     harness.frame(vec![
-        Event::Ime(ImeEvent::Enabled),
-        Event::Ime(ImeEvent::SetComposingText("ni".to_owned())),
+        Input::Ime(ImeEvent::Enabled),
+        Input::Ime(ImeEvent::SetComposingText("ni".to_owned())),
     ]);
     harness.key(Key::Backspace, Modifiers::NONE);
     assert_eq!(
@@ -34,7 +41,7 @@ fn an_ime_composition_is_written_as_it_is_composed_and_holds_the_keys_meanwhile(
         "a composition is written as it is composed, and the keys that edit it are the input method's"
     );
 
-    harness.frame(vec![Event::Ime(ImeEvent::CommitText("你".to_owned()))]);
+    harness.frame(vec![Input::Ime(ImeEvent::CommitText("你".to_owned()))]);
     assert_eq!(String::from_utf8_lossy(&state.bytes()), "ab你");
 
     harness.key(Key::Backspace, Modifiers::NONE);

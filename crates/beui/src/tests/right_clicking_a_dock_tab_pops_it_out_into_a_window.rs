@@ -1,5 +1,5 @@
 use super::*;
-use crate::unstyled::{DockApi, Entry, TabId};
+use crate::dock::unstyled::{DockApi, Entry, TabId};
 
 #[test]
 fn right_clicking_a_dock_tab_pops_it_out_into_a_window() {
@@ -9,12 +9,11 @@ fn right_clicking_a_dock_tab_pops_it_out_into_a_window() {
     harness.frame(Vec::new());
     let pos = harness.center(dock_tab(harness.document(), dock, "Tab 2"));
 
-    harness.frame(vec![Event::PointerMoved(pos)]);
-    harness.frame(vec![Event::PointerButton {
+    harness.frame(vec![Input::PointerMoved(pos)]);
+    harness.frame(vec![Input::PointerButton {
         pos,
         button: PointerButton::Secondary,
         pressed: true,
-        modifiers: Modifiers::NONE,
     }]);
     harness.frame(Vec::new());
     let row = text_within(harness.document(), dock, "Pop out into a window")

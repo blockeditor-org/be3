@@ -1,0 +1,25 @@
+[package]
+name = "beui-layer-space"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+
+[dependencies]
+beui-core = { path = "../beui-core" }
+beui-font-freetype = { path = "../beui-font-freetype" }
+beui-renderer-wgpu = { path = "../beui-renderer-wgpu" }
+bytemuck = { version = "1", features = ["derive"] }
+glam = "0.30"
+wgpu = { version = "29", default-features = false, features = ["std", "wgsl"] }
+
+[dev-dependencies]
+beui-components-styled = { path = "../beui-components-styled" }
+beui-view = { path = "../beui-view" }
+beui_macros = { path = "../beui-macros" }
+beui-font-freetype = { path = "../beui-font-freetype" }
+beui-keyboard = { path = "../beui-keyboard" }
+paint-snapshot = { path = "../paint-snapshot" }
+pollster = "0.4"
+
+[lints]
+workspace = true

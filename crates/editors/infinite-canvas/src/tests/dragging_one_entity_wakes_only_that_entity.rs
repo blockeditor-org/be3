@@ -4,9 +4,9 @@ use std::cell::RefCell;
 use std::collections::HashMap;
 
 use block_editor_beui::Loaded;
-use block_editor_beui::be_block::canvas::CanvasColor;
 use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::reactive::*;
+use infinite_canvas_types::CanvasColor;
 
 use crate::app::actions::canvas_actions;
 use crate::app::canvas::CanvasStage;

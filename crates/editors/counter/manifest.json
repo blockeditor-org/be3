@@ -7,7 +7,7 @@
       "id": "1c13640d-d444-4406-b19b-3fa0c75a073a",
       "edits": "636f756e-7465-722d-626c-6f636b2d0001",
       "display_name": "Counter",
-      "icon": "\ueb8d",
+      "icon": "\ue0ef",
       "templates": {
         "main": {
           "category": "debug"
@@ -16,6 +16,15 @@
       "regions": [
         "Frame"
       ]
+    }
+  },
+  "block_types": {
+    "counter": {
+      "id": "636f756e-7465-722d-626c-6f636b2d0001",
+      "display_name": "Counter",
+      "icon": "\ue0ef",
+      "color": [64, 155, 173],
+      "module": "counter_types.wasm"
     }
   },
   "entry_point": "counter.wasm"

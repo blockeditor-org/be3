@@ -1,3 +1,4 @@
+use beui::icons::Glyph;
 use std::cell::RefCell;
 
 use beui::NodeId;
@@ -10,7 +11,7 @@ use crate::{BlockList, BlockQuery, ChildTarget, Editor};
 #[derive(Clone, Default, PartialEq)]
 pub struct BlockDisplay {
     pub name: String,
-    pub glyph: String,
+    pub glyph: Option<Glyph>,
     pub type_name: String,
     pub automatic: bool,
     pub resolved: bool,
@@ -18,9 +19,9 @@ pub struct BlockDisplay {
     pub deleted: bool,
 }
 
-pub fn label_glyph(label: &BlockLabel) -> Option<&'static str> {
+pub fn label_glyph(label: &BlockLabel) -> Option<Glyph> {
     match label.reach {
-        Reach::Open if label.deleted => Some(beui::icons::ICON_DELETE),
+        Reach::Open if label.deleted => Some(beui::icons::ICON_TRASH),
         Reach::Open => label.icon,
         Reach::Locked | Reach::NoAccess => Some(beui::icons::ICON_LOCK),
     }
@@ -55,7 +56,7 @@ pub fn watch_block_label(
             None => BlockLabel::new(types.as_ref(), next.block_type, None, false),
         };
         let display = BlockDisplay {
-            glyph: label_glyph(&label).map(str::to_owned).unwrap_or_default(),
+            glyph: label_glyph(&label),
             reach: label.reach,
             deleted: label.deleted,
             name: label.name,
@@ -89,7 +90,7 @@ pub fn BlockLink(
             false => name,
         }
     });
-    let glyph = create_memo(move || shown.with(|shown| shown.glyph.clone()));
+    let glyph = create_memo(move || shown.with(|shown| shown.glyph));
     let missing = create_memo(move || target.get().is_none());
     let open = move || {
         if let Some(target) = target.get_untracked() {

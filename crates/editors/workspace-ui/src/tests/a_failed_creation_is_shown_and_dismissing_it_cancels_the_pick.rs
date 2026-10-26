@@ -1,4 +1,4 @@
-use block_editor_beui::{BlockLocation, BlockPick, CreationProgress};
+use block_editor_beui::{BlockLocation, CreationProgress};
 
 use super::*;
 
@@ -12,7 +12,7 @@ fn a_failed_creation_is_shown_and_dismissing_it_cancels_the_pick() {
     fixture.settle();
     fixture
         .test
-        .click(&format!("picker.menu.{TEMPLATE_EDITOR}/main"));
+        .click(format!("picker.menu.{TEMPLATE_EDITOR}/main"));
     fixture.settle();
     fixture.settle();
 
@@ -25,8 +25,5 @@ fn a_failed_creation_is_shown_and_dismissing_it_cancels_the_pick() {
 
     fixture.click_text("Dismiss");
 
-    assert_eq!(
-        fixture.test.take_pick_answers(),
-        vec![(5, BlockPick::Cancelled)]
-    );
+    assert_eq!(fixture.test.take_pick_answers(), vec![(5, Ok(None))]);
 }

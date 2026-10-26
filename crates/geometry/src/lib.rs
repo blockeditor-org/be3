@@ -1,6 +1,8 @@
 use std::ops::{Add, AddAssign, Div, Mul, MulAssign, Neg, Sub, SubAssign};
 
-#[derive(Clone, Copy, PartialEq, Default, Debug)]
+use serde::{Deserialize, Serialize};
+
+#[derive(Clone, Copy, PartialEq, Default, Debug, Serialize, Deserialize)]
 pub struct Vec2 {
     pub x: f32,
     pub y: f32,
@@ -112,7 +114,7 @@ impl MulAssign<f32> for Vec2 {
     }
 }
 
-#[derive(Clone, Copy, PartialEq, Default, Debug)]
+#[derive(Clone, Copy, PartialEq, Default, Debug, Serialize, Deserialize)]
 pub struct Pos2 {
     pub x: f32,
     pub y: f32,
@@ -169,7 +171,7 @@ impl Sub for Pos2 {
     }
 }
 
-#[derive(Clone, Copy, PartialEq, Debug)]
+#[derive(Clone, Copy, PartialEq, Debug, Serialize, Deserialize)]
 pub struct Rect {
     pub min: Pos2,
     pub max: Pos2,

@@ -1,4 +1,4 @@
-use block_editor_beui::{BlockLocation, CreationProgress};
+use block_editor_beui::{BlockLocation, CreationProgress, DialogAnswer, DialogStatus};
 
 use super::*;
 
@@ -15,13 +15,18 @@ fn creating_from_a_dialog_commits_the_creation_at_once() {
     fixture.settle();
     fixture
         .test
-        .click(&format!("picker.menu.{TEMPLATE_EDITOR}/main"));
+        .click(format!("picker.menu.{TEMPLATE_EDITOR}/main"));
     fixture.settle();
     fixture.settle();
-    report_creation(&mut fixture, CreationProgress::Options { ready: true });
 
-    fixture.test.click("picker.create");
-    fixture.settle();
+    report_creation_dialog(
+        &mut fixture,
+        CreationProgress::Options,
+        DialogStatus {
+            handles_dismiss: true,
+            answer: Some(DialogAnswer::Accepted),
+        },
+    );
 
     assert_eq!(
         fixture
@@ -31,6 +36,6 @@ fn creating_from_a_dialog_commits_the_creation_at_once() {
             .map(|(_, parent, name)| (parent, name))
             .collect::<Vec<_>>(),
         vec![(BlockLocation::Block(parent.into_bytes()), None)],
-        "the creation is committed without waiting for its status to change"
+        "the dialog accepting itself commits the creation without waiting for its status to change"
     );
 }

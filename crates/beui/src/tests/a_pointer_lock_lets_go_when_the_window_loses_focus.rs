@@ -25,12 +25,24 @@ fn a_pointer_lock_lets_go_when_the_window_loses_focus() {
     let mut harness = Harness::new(document);
     harness.frame(Vec::new());
     harness.click(pos2(50.0, 50.0));
-    assert!(harness.frame(Vec::new()).window.pointer_locked);
+    assert!(
+        harness
+            .frame(Vec::new())
+            .main()
+            .window
+            .requests
+            .pointer_locked
+    );
 
-    harness.frame(vec![Event::Focus(false)]);
+    harness.frame(vec![Input::Focus(false)]);
     assert_eq!(changes.get_untracked(), [true, false]);
     assert!(
-        !harness.frame(Vec::new()).window.pointer_locked,
+        !harness
+            .frame(Vec::new())
+            .main()
+            .window
+            .requests
+            .pointer_locked,
         "a window that lost the keyboard should not still hold the pointer"
     );
 }

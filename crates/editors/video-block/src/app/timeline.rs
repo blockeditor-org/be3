@@ -1,9 +1,9 @@
+use beui::Overflow;
 use std::cell::Cell;
 use std::rc::Rc;
 
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
-use block_editor_beui::beui::unstyled::{DragHandle, DragPoint, Draggable, DropHandle, DropTarget};
 use block_editor_beui::beui::{CursorIcon, NodeId, PointerPress, Pos2, Rect, ScrollGesture, Vec2};
 use block_editor_beui::{ChildBlock, ChildMode, Drag};
 use uuid::Uuid;
@@ -15,8 +15,8 @@ use crate::timeline::{
 
 use super::state::{ClipDrag, VideoState};
 
-const THUMBNAIL_MARGIN: f32 = 3.0;
-const CLIP_RADIUS: f32 = 4.0;
+const THUMBNAIL_MARGIN: Space = Space::Xs2;
+const CLIP_RADIUS: Radius = Radius::Sm;
 
 #[component]
 pub(crate) fn Timeline(state: VideoState) -> NodeId {
@@ -46,6 +46,7 @@ pub(crate) fn Timeline(state: VideoState) -> NodeId {
             let lanes = create_memo(move || {
                 rows.get().iter().map(|row| row.lane + 1).max().unwrap_or(1) + 1
             });
+            let ids = create_memo(move || rows.get().iter().map(|row| row.id).collect::<Vec<Uuid>>());
 
             let offset = create_signal(Vec2::ZERO);
             let camera = create_memo(move || {
@@ -170,10 +171,25 @@ pub(crate) fn Timeline(state: VideoState) -> NodeId {
                             <ForEach keys={ticks}>|tick: Tick|
                                 <RulerTick tick />
                             </ForEach>
-                            <ForEach keys={rows}>|row: Lane| {
-                                let selected = selection.memo(Some(row.id));
+                            <ForEach keys={ids}>|id: Uuid| {
+                                let selected = selection.memo(Some(id));
+                                let row = create_memo(move || {
+                                    rows.get().into_iter().find(|row| row.id == id).unwrap_or(Lane {
+                                        id,
+                                        lane: 0,
+                                        start: 0,
+                                        length: 0,
+                                        depth: 0,
+                                    })
+                                });
                                 view! {
-                                    <Clip state row selected scale={pixels_per_frame.read_only()} />
+                                    <Clip
+                                        state
+                                        id
+                                        row
+                                        selected
+                                        scale={pixels_per_frame.read_only()}
+                                    />
                                 }
                             }</ForEach>
                             <DropMarker target={target} scale={pixels_per_frame.read_only()} />
@@ -214,16 +230,15 @@ impl std::hash::Hash for Tick {
 
 #[component]
 fn LaneStrip(lane: usize, content: Memo<Rect>) -> CanvasItem {
-    let theme = use_theme();
     let color = match lane {
-        0 => theme.surface_raised,
-        _ => theme.surface,
+        0 => ColorRole::SurfaceRaised,
+        _ => ColorRole::Surface,
     };
     let y = RULER_HEIGHT + lane as f32 * (LANE_HEIGHT + LANE_GAP);
     let width = create_memo(move || content.get().width());
     view! {
         <CanvasItem x=0.0 y={y} width={width} height=LANE_HEIGHT>
-            <Frame fill={ColorRole::custom(color)} radius={Radius::custom(3.0)} />
+            <Frame fill=color radius=Radius::Xs />
         </CanvasItem>
     }
 }
@@ -239,46 +254,51 @@ fn RulerTick(tick: Tick) -> CanvasItem {
 }
 
 #[component]
-fn Clip(state: VideoState, row: Lane, selected: Memo<bool>, scale: ReadSignal<f32>) -> CanvasItem {
-    let x = create_memo(move || row.start as f32 * scale.get());
-    let width = create_memo(move || (row.length as f32 * scale.get()).max(3.0));
-    let y = RULER_HEIGHT + row.lane as f32 * (LANE_HEIGHT + LANE_GAP);
+fn Clip(
+    state: VideoState,
+    id: Uuid,
+    row: Memo<Lane>,
+    selected: Memo<bool>,
+    scale: ReadSignal<f32>,
+) -> CanvasItem {
+    let x = create_memo(move || row.get().start as f32 * scale.get());
+    let width = create_memo(move || (row.get().length as f32 * scale.get()).max(3.0));
+    let y = create_memo(move || RULER_HEIGHT + row.get().lane as f32 * (LANE_HEIGHT + LANE_GAP));
     let clips = state.clips;
     let block = create_memo(move || {
-        let clip = clips.get().into_iter().find(|clip| clip.id == row.id)?;
+        let clip = clips.get().into_iter().find(|clip| clip.id == id)?;
         state.target(clip.block_id)
     });
     let name = create_memo(move || {
         clips
             .get()
             .into_iter()
-            .find(|clip| clip.id == row.id)
+            .find(|clip| clip.id == id)
             .map_or_else(String::new, |clip| state.name_of(clip.block_id))
     });
     let attached = create_memo(move || {
         clips
             .get()
             .iter()
-            .find(|clip| clip.id == row.id)
+            .find(|clip| clip.id == id)
             .is_some_and(|clip| clip.attachment.is_some())
     });
-    let theme = use_theme();
     let fill = create_memo(move || match attached.get() {
-        true => theme.hover.get(),
-        false => theme.pressed.get(),
+        true => ColorRole::Hover,
+        false => ColorRole::Pressed,
     });
     let editor = state.editor();
-    let element_test_id = format!("video.clip.{}", row.id);
+    let element_test_id = format!("video.clip.{}", id);
     let grabbed_at = Rc::new(Cell::new(None::<Pos2>));
     let grabbing = Rc::clone(&grabbed_at);
 
     view! {
         <CanvasItem x={x} y={y} width={width} height=LANE_HEIGHT>
             <Draggable
-                payload={row.id}
+                payload={id}
                 cursor=CursorIcon::Grab
                 @test_id={element_test_id}
-                on_click={move || state.select(Some(row.id))}
+                on_click={move || state.select(Some(id))}
                 on_drag_change={move |dragging: bool| {
                     if !dragging {
                         state.begin_drag(None);
@@ -288,22 +308,22 @@ fn Clip(state: VideoState, row: Lane, selected: Memo<bool>, scale: ReadSignal<f3
                     let pressed = grabbed_at.get().map_or(0.0, |pos| pos.x);
                     let offset = pressed / scale;
                     state.begin_drag(Some(ClipDrag {
-                        clip: row.id,
+                        clip: id,
                         grab: offset.max(0.0) as u64,
                     }));
                 }}
             >|_: DragHandle|
                 <Interactive on_press={move |press: PointerPress| grabbing.set(Some(press.local))}>
                     <Frame
-                        fill={ColorRole::custom(fill)}
-                        radius={Radius::custom(CLIP_RADIUS)}
-                        border={create_memo(move || selected.get().then_some(Border::new(ColorRole::Accent).width(2.0)))}
+                        fill={fill}
+                        radius=CLIP_RADIUS
+                        border={create_memo(move || selected.get().then_some(Border::FOCUS))}
                         padding=THUMBNAIL_MARGIN
                     >
-                        <List direction=Direction::Horizontal align=Align::Center spacing=5.0>
+                        <List direction=Direction::Horizontal align=Align::Center spacing=Space::Xs>
                             <Frame
-                                width={(LANE_HEIGHT - THUMBNAIL_MARGIN * 2.0) * 1.4}
-                                height={LANE_HEIGHT - THUMBNAIL_MARGIN * 2.0}
+                                width={Size::Custom((LANE_HEIGHT - THUMBNAIL_MARGIN.px() * 2.0) * 1.4)}
+                                height={Size::Custom(LANE_HEIGHT - THUMBNAIL_MARGIN.px() * 2.0)}
                             >
                                 <ChildBlock
                                     editor={editor}
@@ -312,8 +332,10 @@ fn Clip(state: VideoState, row: Lane, selected: Memo<bool>, scale: ReadSignal<f3
                                     on_state={move |_| {}}
                                 />
                             </Frame>
-                            <Text @sizing=ItemSize::Percent(100.0)>{name}</Text>
-                            <TrimHandle state={state} row={row} scale={scale} />
+                            <Text overflow=Overflow::Ellipsis @sizing=ItemSize::Percent(100.0)>
+                                {name}
+                            </Text>
+                            <TrimHandle state={state} id={id} scale={scale} />
                         </List>
                     </Frame>
                 </Interactive>
@@ -366,25 +388,16 @@ fn DropMarker(
     view! {
         <Show condition={shown}>
             <CanvasItem x={x} y={y} width={width} height={height}>
-                <Frame
-                    fill=ColorRole::AccentSoft
-                    radius={Radius::custom(CLIP_RADIUS)}
-                    border={Border::new(ColorRole::Accent).width(2.0)}
-                />
+                <Frame fill=ColorRole::AccentSoft radius=CLIP_RADIUS border={Border::FOCUS} />
             </CanvasItem>
         </Show>
     }
 }
 
 #[component]
-fn TrimHandle(state: VideoState, row: Lane, scale: ReadSignal<f32>) -> NodeId {
+fn TrimHandle(state: VideoState, id: Uuid, scale: ReadSignal<f32>) -> NodeId {
     let clips = state.clips;
-    let length_of = move || {
-        clips
-            .get_untracked()
-            .into_iter()
-            .find(|clip| clip.id == row.id)
-    };
+    let length_of = move || clips.get_untracked().into_iter().find(|clip| clip.id == id);
     let grabbed = Rc::new(Cell::new(None::<(f32, u64)>));
     let held = Rc::clone(&grabbed);
     let pressed = move |press: PointerPress| {
@@ -394,7 +407,7 @@ fn TrimHandle(state: VideoState, row: Lane, scale: ReadSignal<f32>) -> NodeId {
         <Interactive
             cursor=CursorIcon::ResizeHorizontal
             capture_presses=true
-            @test_id={format!("video.trim.{}", row.id)}
+            @test_id={format!("video.trim.{}", id)}
             on_press={pressed}
             on_drag={move |press: PointerPress| {
                 let scale = scale.get_untracked().max(f32::EPSILON);
@@ -409,7 +422,7 @@ fn TrimHandle(state: VideoState, row: Lane, scale: ReadSignal<f32>) -> NodeId {
                 }
             }}
         >
-            <Frame width=TRIM_HANDLE_WIDTH height=LANE_HEIGHT />
+            <Frame width={Size::Custom(TRIM_HANDLE_WIDTH)} height={Size::Custom(LANE_HEIGHT)} />
         </Interactive>
     }
 }

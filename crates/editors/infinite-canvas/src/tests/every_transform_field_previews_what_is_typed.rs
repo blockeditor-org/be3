@@ -1,6 +1,6 @@
 use super::*;
-use block_editor_beui::be_block::canvas::CanvasColor;
-use block_editor_beui::beui::{Key, Vec2};
+use block_editor_beui::beui::{Key, Modifiers, Vec2};
+use infinite_canvas_types::CanvasColor;
 
 #[test]
 fn every_transform_field_previews_what_is_typed() {
@@ -32,9 +32,9 @@ fn every_transform_field_previews_what_is_typed() {
         ("height", "60"),
         ("rotation", "45"),
     ] {
-        editor.click(&format!("infinite-canvas.transform.{field}"));
+        editor.click(format!("infinite-canvas.transform.{field}"));
         editor.run();
-        editor.text(typed);
+        editor.type_text(typed);
         editor.run();
 
         assert_ne!(
@@ -43,7 +43,7 @@ fn every_transform_field_previews_what_is_typed() {
             "typing into {field} is drawn before it is committed"
         );
 
-        editor.key_press(Key::Escape);
+        editor.key(Key::Escape, Modifiers::NONE);
         editor.run();
 
         assert_eq!(

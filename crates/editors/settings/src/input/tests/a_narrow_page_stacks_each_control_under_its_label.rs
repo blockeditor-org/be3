@@ -7,7 +7,7 @@ fn a_narrow_page_stacks_each_control_under_its_label() {
     editor.run();
     editor.click("input.layout");
     editor.run();
-    editor.text("de");
+    editor.type_text("de");
     editor.run();
     assert!(editor.shown("input.layout.menu"));
     editor.snapshot("a_narrow_page_stacks_each_control_under_its_label");

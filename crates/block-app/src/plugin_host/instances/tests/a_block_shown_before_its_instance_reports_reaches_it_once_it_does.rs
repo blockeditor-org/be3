@@ -1,7 +1,8 @@
 use super::*;
+use block_plugin_api::blocks::ShowRequest;
 
 fn report(instances: &mut Instances) {
-    let block_types = Arc::new(block_plugin_api::Catalog::default());
+    let block_types = Arc::new(crate::editors::PluginCatalog::default());
     instances.report(
         INSTANCE,
         REGION,
@@ -23,7 +24,7 @@ fn report(instances: &mut Instances) {
     );
 }
 
-fn show(instances: &mut Instances) -> Vec<Message> {
+fn show(instances: &mut Instances) {
     instances.show_block(
         INSTANCE,
         OpenRequest {
@@ -32,39 +33,47 @@ fn show(instances: &mut Instances) -> Vec<Message> {
             via: None,
             editor: None,
         },
-    )
+    );
+}
+
+fn shows(instances: &mut Instances) -> OpId {
+    open_watch(instances, |op| Call::ShowRequestsNew {
+        resource: wire::ShowRequests(op),
+    })
 }
 
 #[test]
 fn a_block_shown_before_its_instance_reports_reaches_it_once_it_does() {
     let mut instances = Instances::default();
-    let shown = show(&mut instances);
-    assert_eq!(shown.len(), 1);
-    assert!(
-        instances.hold_unreported(shown.clone()).is_empty(),
-        "a message for an instance the host has not reported yet waits"
-    );
-    assert!(instances.take_reported().is_empty());
-
+    show(&mut instances);
     report(&mut instances);
-    let released = instances.take_reported();
-    assert_eq!(released, shown);
-    assert!(instances.take_reported().is_empty(), "it is released once");
-    assert!(
-        instances.gate(released).is_empty(),
-        "and then waits for the plugin to open the instance"
+    let watch = shows(&mut instances);
+    let shown: Option<Vec<ShowRequest>> = answered(&mut instances, watch);
+    assert_eq!(
+        shown,
+        Some(vec![ShowRequest::Block(
+            block_plugin_api::blocks::OpenRequest {
+                block_id: Uuid::from_u128(7).into_bytes(),
+                block_type: Uuid::from_u128(8).into_bytes(),
+                via: None,
+                editor: None,
+            }
+        )]),
+        "a block shown before its instance reported waits for it"
     );
-    let opened = instances.next_screens(PASS).opened;
-    assert!(opened.contains(&shown[0]));
+    assert!(
+        answered::<Vec<ShowRequest>>(&mut instances, watch).is_none(),
+        "it is shown once"
+    );
 
     let mut closed = Instances::default();
-    let shown = show(&mut closed);
-    assert!(closed.hold_unreported(shown.clone()).is_empty());
+    show(&mut closed);
     closed.remove(INSTANCE);
-    assert!(
-        closed.hold_unreported(shown).is_empty(),
-        "a message for a closed instance is dropped"
-    );
+    show(&mut closed);
     report(&mut closed);
-    assert!(closed.take_reported().is_empty());
+    let watch = shows(&mut closed);
+    assert!(
+        answered::<Vec<ShowRequest>>(&mut closed, watch).is_none(),
+        "a block shown to a closed instance is dropped"
+    );
 }

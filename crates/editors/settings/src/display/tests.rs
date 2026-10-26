@@ -3,10 +3,10 @@ use block_editor_beui::be_block::{
     DisplaySettings, DisplaySettingsContent, Root, Settings, SettingsContent, SettingsProfile,
     SettingsProfileContent, ThemeKind,
 };
-use block_editor_beui::beui::{Document, Key, NodeId, TurnNode, Vec2};
+use block_editor_beui::beui::{Document, Key, Modifiers, NodeId, TurnNode, Vec2};
 use block_editor_beui::{
-    BlockInfo, BlockParent, Displays, EditorHost, HostDisplay, OwnedEditor, Power,
-    PowerAvailability,
+    BlockInfo, BlockParent, DisplaysWatch, EditorHost, HostDisplay, OwnedEditor, PowerAvailability,
+    PowerWatch,
 };
 use block_ui_test::BeuiTest;
 use uuid::Uuid;
@@ -16,6 +16,7 @@ use crate::display::DisplaySettingsApp;
 mod a_change_here_goes_to_every_device_and_a_toast_says_so;
 mod a_profile_shows_the_theme_it_inherits;
 mod a_screen_known_by_its_connector_is_this_devices_alone;
+mod choosing_a_keyboard_height_keeps_it_on_this_device;
 mod choosing_a_refresh_rate_stores_the_mode;
 mod choosing_a_resolution_uses_its_fastest_refresh_rate;
 mod choosing_a_rotation_stores_it_and_the_turned_screen_marks_it_now;
@@ -38,6 +39,7 @@ const SESSION_HEIGHT: f32 = 1000.0;
 const MONITOR: &str = "DEL|DELL AW2524H|7XQ2B34";
 const THEME: &str = "display.theme";
 const SCALE: &str = "display.scale";
+const KEYBOARD: &str = "display.keyboard";
 const RESOLUTION: &str = "display.DP-1.resolution";
 const REFRESH: &str = "display.DP-1.refresh";
 const SCREEN: &str = "display.DP-1";
@@ -61,8 +63,8 @@ impl Harness {
 
     fn in_a_session(displays: Vec<HostDisplay>) -> Self {
         let host = EditorHost::default();
-        host.set_host_value::<Displays>(&displays);
-        host.set_host_value::<Power>(&PowerAvailability::default());
+        host.set_watched::<DisplaysWatch>(&displays);
+        host.set_watched::<PowerWatch>(&PowerAvailability::default());
         let mut harness = Self::with_host(host);
         harness.editor.set_size(Vec2::new(800.0, SESSION_HEIGHT));
         harness
@@ -169,19 +171,19 @@ impl Harness {
     }
 
     fn open_menu(&mut self, row: &str) {
-        self.editor.click(&format!("{row}.menu"));
+        self.editor.click(format!("{row}.menu"));
         self.run();
     }
 
     fn keep(&mut self, row: &str) {
         self.open_menu(row);
-        self.editor.click(&format!("{row}.keep"));
+        self.editor.click(format!("{row}.keep"));
         self.run();
     }
 
     fn reset(&mut self, row: &str) {
         self.open_menu(row);
-        self.editor.click(&format!("{row}.reset"));
+        self.editor.click(format!("{row}.reset"));
         self.run();
     }
 
@@ -196,13 +198,13 @@ impl Harness {
     fn choose(&mut self, select: &str, index: usize) {
         self.editor.click(select);
         self.run();
-        self.editor.key_press(Key::Home);
+        self.editor.key(Key::Home, Modifiers::NONE);
         self.run();
         for _ in 0..index {
-            self.editor.key_press(Key::ArrowDown);
+            self.editor.key(Key::ArrowDown, Modifiers::NONE);
             self.run();
         }
-        self.editor.key_press(Key::Enter);
+        self.editor.key(Key::Enter, Modifiers::NONE);
         self.run();
     }
 
@@ -210,7 +212,7 @@ impl Harness {
         let document = self.editor.document();
         document
             .root()
-            .is_some_and(|root| text_within(document, root, words))
+            .is_some_and(|root| text_within(&document, root, words))
     }
 }
 
@@ -234,7 +236,7 @@ fn turns_within(document: &Document, id: NodeId) -> Option<u8> {
     document
         .children(id)
         .into_iter()
-        .find_map(|child| turns_within(document, child))
+        .find_map(|child| turns_within(&document, child))
 }
 
 fn text_within(document: &Document, id: NodeId, words: &str) -> bool {
@@ -245,7 +247,7 @@ fn text_within(document: &Document, id: NodeId, words: &str) -> bool {
         || document
             .children(id)
             .into_iter()
-            .any(|child| text_within(document, child, words))
+            .any(|child| text_within(&document, child, words))
 }
 
 fn mode(width: u32, height: u32, refresh_millihertz: u32) -> DisplayMode {
@@ -279,5 +281,7 @@ fn gaming_monitor() -> HostDisplay {
         default: mode(2560, 1440, 239_970),
         current: mode(2560, 1440, 59_951),
         rotation: Rotation::Normal,
+        rect: block_editor_beui::Rect::ZERO,
+        scale: 1.0,
     }
 }

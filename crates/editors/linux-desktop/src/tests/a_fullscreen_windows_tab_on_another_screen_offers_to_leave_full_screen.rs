@@ -1,5 +1,4 @@
 use block_editor_beui::beui::{pos2, vec2};
-use block_plugin_api::ChildRect;
 
 use super::*;
 
@@ -8,24 +7,17 @@ fn a_fullscreen_windows_tab_on_another_screen_offers_to_leave_full_screen() {
     let left = Rect::from_min_size(pos2(0.0, 0.0), vec2(500.0, 600.0));
     let right = Rect::from_min_size(pos2(500.0, 0.0), vec2(300.0, 600.0));
     let mut fixture = Fixture::with_windows(&[1]);
-    fixture
-        .test
-        .set_monitors(vec![("left", left), ("right", right)]);
-    fixture.settle();
+    fixture.report_screens(vec![
+        monitor("left", left, 1.0),
+        monitor("right", right, 1.0),
+    ]);
     let fullscreen = HostWindow {
-        fullscreen: Some(ChildRect {
-            x: right.min.x,
-            y: right.min.y,
-            width: right.width(),
-            height: right.height(),
-        }),
+        fullscreen: Some(right),
         ..host_window(1, true)
     };
-    fixture
-        .test
-        .set_host_value::<HostWindows>(&vec![fullscreen]);
+    fixture.test.set_watched::<WindowsWatch>(&vec![fullscreen]);
     fixture.settle();
-    fixture.test.take_sent();
+    fixture.test.clear_calls();
     assert!(
         right.contains_rect(fixture.test.rect_of("dock.fullscreen")),
         "the window fills the screen it is fullscreen on"
@@ -41,7 +33,7 @@ fn a_fullscreen_windows_tab_on_another_screen_offers_to_leave_full_screen() {
     fixture.test.click("dock.away.leave");
     fixture.settle();
     assert_eq!(
-        fixture.test.actions::<WindowAction>(),
+        fixture.test.host_calls(block_ui_test::requested::window),
         [WindowAction::Fullscreen {
             window: HostWindowId(1),
             fullscreen: false

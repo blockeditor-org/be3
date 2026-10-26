@@ -6,7 +6,7 @@
     "workspace": {
       "id": "de8b500a-12d8-4bc0-8381-8bbfdc9fe34f",
       "display_name": "Workspace",
-      "icon": "\ue8f0",
+      "icon": "\ue0ff",
       "interaction": "Live",
       "resize": "None",
       "regions": [
@@ -21,5 +21,40 @@
       ]
     }
   },
+  "block_types": {
+    "folder": {
+      "id": "d4e367ab-db73-4419-bffc-b9131288c2e7",
+      "display_name": "Folder",
+      "icon": "\ue0d7",
+      "color": [155, 112, 211],
+      "children": {"add": true, "delete": true, "replace": true},
+      "press": "Zoom",
+      "module": "workspace_ui_types.wasm"
+    },
+    "workspace": {
+      "id": "776f726b-7370-6163-652d-626c6f636b01",
+      "display_name": "Workspace",
+      "icon": "\ue2d0",
+      "color": [211, 126, 59],
+      "children": {"add": true, "delete": true, "replace": true},
+      "press": "Zoom",
+      "module": "workspace_ui_types.wasm"
+    },
+    "view": {
+      "id": "65646974-6f72-2d76-6965-772d626c6b31",
+      "display_name": "View",
+      "icon": "\ue0ba",
+      "color": [64, 155, 173],
+      "module": "workspace_ui_types.wasm"
+    },
+    "file": {
+      "id": "66696c65-2d62-6c6f-636b-2d7479700001",
+      "display_name": "File",
+      "icon": "\ue0c0",
+      "color": [65, 145, 210],
+      "module": "workspace_ui_types.wasm"
+    }
+  },
+  "extensions": ["be3:linux-desktop"],
   "entry_point": "workspace_ui.wasm"
 }

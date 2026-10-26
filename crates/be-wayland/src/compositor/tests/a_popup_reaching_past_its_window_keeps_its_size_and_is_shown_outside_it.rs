@@ -9,9 +9,12 @@ fn a_popup_reaching_past_its_window_keeps_its_size_and_is_shown_outside_it() {
     let (window, id) = harness.open();
     let shown = harness.window(id);
 
-    let menu = harness
-        .client
-        .popup(harness.app.server(), &window, (10, 280), (150, 200));
+    let menu = harness.client.popup(
+        harness.stepped.app_mut().compositor.server(),
+        &window,
+        (10, 280),
+        (150, 200),
+    );
     harness.settle();
     assert_eq!(
         harness.client.received.popup_geometry,
@@ -28,12 +31,11 @@ fn a_popup_reaching_past_its_window_keeps_its_size_and_is_shown_outside_it() {
 
     let below = pos2(shown.min.x + 50.0, shown.max.y + 100.0);
     harness.frame(vec![
-        Event::PointerMoved(below),
-        Event::PointerButton {
+        Input::PointerMoved(below),
+        Input::PointerButton {
             pos: below,
             button: PointerButton::Primary,
             pressed: true,
-            modifiers: beui::Modifiers::NONE,
         },
     ]);
     harness.settle();

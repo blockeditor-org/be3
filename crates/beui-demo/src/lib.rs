@@ -2,31 +2,35 @@ use base_pages::{
     ControlFlowPage, FramesPage, InteractionPage, LayeringPage, ListsPage, PathsPage, TextNodesPage,
 };
 use beui::KeyAt;
+use beui::Overflow;
 use beui::datetime::{Date, DateTime, HourCycle, Time};
+use beui::dock::styled::Docking;
+use beui::dock::unstyled::{
+    DockDialog, DockDialogPresentation, DockDocument, DockDocumentBody, DockDocumentTabs,
+    DockDocuments, DockOpened, DockPane, DockSlot, DockSplit, DockTab, DockTabControl,
+    DockingLayout, TabId, dock_menu, use_dock_tab,
+};
+use beui::icons::Glyph;
 use beui::icons::{
-    ICON_ACCOUNT_TREE, ICON_ALT_ROUTE, ICON_BUG_REPORT, ICON_CALENDAR_MONTH, ICON_CODE,
-    ICON_CONTENT_COPY, ICON_CONTENT_PASTE, ICON_CONTRAST, ICON_CROP_SQUARE, ICON_DASHBOARD,
-    ICON_DELETE, ICON_DRAG_INDICATOR, ICON_DRAW, ICON_EDIT, ICON_FLIP_TO_FRONT, ICON_FORMAT_BOLD,
-    ICON_GRID_VIEW, ICON_INPUT, ICON_LAYERS, ICON_LINE_CURVE, ICON_LINK, ICON_LIST, ICON_LOCK,
-    ICON_MAIL, ICON_MENU, ICON_MOUSE, ICON_NOTES, ICON_OPEN_IN_NEW, ICON_PALETTE, ICON_PLAY_ARROW,
-    ICON_POWER_SETTINGS_NEW, ICON_RADIO_BUTTON_CHECKED, ICON_SHARE, ICON_SMART_BUTTON, ICON_STAR,
-    ICON_SWAP_VERT, ICON_TEXT_FIELDS, ICON_TITLE, ICON_TOGGLE_ON, ICON_TOUCH_APP, ICON_TUNE,
-    ICON_VIEW_COLUMN, ICON_VIEW_QUILT, ICON_VOLUME_DOWN, ICON_VOLUME_OFF, ICON_VOLUME_UP,
-    ICON_WIDGETS,
+    ICON_ARROW_UP_DOWN, ICON_BLOCKS, ICON_BOLD, ICON_BRING_TO_FRONT, ICON_BUG, ICON_CALENDAR_DAYS,
+    ICON_CIRCLE_DOT, ICON_CLIPBOARD, ICON_CODE, ICON_COLUMNS_3, ICON_CONTRAST, ICON_COPY,
+    ICON_EXTERNAL_LINK, ICON_GRIP_VERTICAL, ICON_HEADING, ICON_LAYERS, ICON_LAYOUT_DASHBOARD,
+    ICON_LAYOUT_GRID, ICON_LAYOUT_PANEL_LEFT, ICON_LINK, ICON_LIST, ICON_LOCK, ICON_LOG_IN,
+    ICON_MAIL, ICON_MENU, ICON_MOUSE, ICON_MOUSE_POINTER_CLICK, ICON_NETWORK, ICON_PALETTE,
+    ICON_PEN_TOOL, ICON_PENCIL, ICON_PLAY, ICON_POINTER, ICON_SHARE_2, ICON_SLIDERS_HORIZONTAL,
+    ICON_SPLINE, ICON_SPLIT, ICON_SQUARE, ICON_STAR, ICON_TEXT_ALIGN_START, ICON_TOGGLE_RIGHT,
+    ICON_TRASH, ICON_TYPE,
 };
 use beui::reactive::*;
 use beui::styled::theme::NARROW_WIDTH;
 use beui::styled::*;
 use beui::unstyled::{
-    ChoiceOption, Container, DateTimeParts, DockDialog, DockDialogPresentation, DockDocument,
-    DockDocumentBody, DockDocumentTabs, DockDocuments, DockMode, DockOpened, DockPane, DockSlot,
-    DockSplit, DockTab, DockTabControl, DockingLayout, MAX_SCALE, MIN_SCALE, PanZoom,
-    PanZoomHandle, PanZoomView, PopoverHandle, SliderScale, SyntaxColors, TabId, TextAreaState,
-    TreeItem, dock_actions, narrower_than, use_dock_tab,
+    DateTimeParts, MAX_SCALE, MIN_SCALE, PanZoom, PanZoomHandle, PanZoomView, SliderScale,
+    SyntaxColors, narrower_than,
 };
 use beui::{
-    Color32, Context, Direction, Document, FontId, Image, ItemSize, Key, Modifiers, NodeId,
-    PreferenceLayer, PreferenceSource, Rect, ScrollGesture, TextAlign, unstyled,
+    Color32, Context, Direction, Document, FontId, Image, ImageFit, ItemSize, Key, Modifiers,
+    NodeId, PreferenceLayer, PreferenceSource, Rect, ScrollGesture, TextAlign, unstyled,
 };
 use beui_macros::{component, sample};
 use collaboration::CollaborationPage;
@@ -59,16 +63,16 @@ const DIALOG_SIZE: beui::Vec2 = beui::Vec2::new(460.0, 120.0);
 const NESTED_DIALOG_INSET: beui::Vec2 = beui::Vec2::new(56.0, 16.0);
 const CARD_SIZE: beui::Vec2 = beui::Vec2::new(440.0, 300.0);
 const PAGE_SHARE: f32 = 0.76;
-const SHELL_PADDING: f32 = 10.0;
-const TOOLBAR_SPACING: f32 = 8.0;
-const CATALOG_PADDING: f32 = 4.0;
-const CATALOG_SPACING: f32 = 10.0;
-const CATALOG_GROUP_PADDING: f32 = 12.0;
-const PAGE_PADDING: f32 = 16.0;
-const PAGE_SPACING: f32 = 32.0;
-const SECTION_SPACING: f32 = 10.0;
-const ROW_SPACING: f32 = 12.0;
-const CODE_PADDING: f32 = 12.0;
+const SHELL_PADDING: Space = Space::Md;
+const TOOLBAR_SPACING: Space = Space::Md;
+const CATALOG_PADDING: Space = Space::Xs;
+const CATALOG_SPACING: Space = Space::Md;
+const CATALOG_GROUP_PADDING: Space = Space::Lg;
+const PAGE_PADDING: Space = Space::Xl;
+const PAGE_SPACING: Space = Space::Xl3;
+const SECTION_SPACING: Space = Space::Lg;
+const ROW_SPACING: Space = Space::Lg;
+const CODE_PADDING: Space = Space::Lg;
 const DARK_BACKGROUND: u32 = 384;
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
@@ -213,38 +217,38 @@ impl Page {
         }
     }
 
-    fn icon(self) -> &'static str {
+    fn icon(self) -> Glyph {
         match self {
-            Page::Docking => ICON_VIEW_QUILT,
-            Page::Text => ICON_TEXT_FIELDS,
-            Page::Buttons => ICON_SMART_BUTTON,
-            Page::Inputs => ICON_TOGGLE_ON,
-            Page::Choices => ICON_RADIO_BUTTON_CHECKED,
-            Page::Pickers => ICON_CALENDAR_MONTH,
+            Page::Docking => ICON_LAYOUT_PANEL_LEFT,
+            Page::Text => ICON_TYPE,
+            Page::Buttons => ICON_MOUSE_POINTER_CLICK,
+            Page::Inputs => ICON_TOGGLE_RIGHT,
+            Page::Choices => ICON_CIRCLE_DOT,
+            Page::Pickers => ICON_CALENDAR_DAYS,
             Page::Colors => ICON_PALETTE,
             Page::Menus => ICON_MENU,
             Page::Overlays => ICON_LAYERS,
             Page::Rows => ICON_LIST,
-            Page::Tree => ICON_ACCOUNT_TREE,
-            Page::Layout => ICON_DASHBOARD,
-            Page::Editor => ICON_NOTES,
-            Page::RichText => ICON_FORMAT_BOLD,
-            Page::Collaboration => ICON_SHARE,
-            Page::Canvas => ICON_DRAW,
+            Page::Tree => ICON_NETWORK,
+            Page::Layout => ICON_LAYOUT_DASHBOARD,
+            Page::Editor => ICON_TEXT_ALIGN_START,
+            Page::RichText => ICON_BOLD,
+            Page::Collaboration => ICON_SHARE_2,
+            Page::Canvas => ICON_PEN_TOOL,
             Page::Themes => ICON_CONTRAST,
-            Page::Pressing => ICON_TOUCH_APP,
-            Page::Values => ICON_TUNE,
-            Page::Selecting => ICON_INPUT,
-            Page::Popups => ICON_OPEN_IN_NEW,
-            Page::Dragging => ICON_DRAG_INDICATOR,
-            Page::Scrolling => ICON_SWAP_VERT,
-            Page::Frames => ICON_CROP_SQUARE,
-            Page::Paths => ICON_LINE_CURVE,
-            Page::TextNodes => ICON_TITLE,
-            Page::Lists => ICON_VIEW_COLUMN,
-            Page::ControlFlow => ICON_ALT_ROUTE,
+            Page::Pressing => ICON_POINTER,
+            Page::Values => ICON_SLIDERS_HORIZONTAL,
+            Page::Selecting => ICON_LOG_IN,
+            Page::Popups => ICON_EXTERNAL_LINK,
+            Page::Dragging => ICON_GRIP_VERTICAL,
+            Page::Scrolling => ICON_ARROW_UP_DOWN,
+            Page::Frames => ICON_SQUARE,
+            Page::Paths => ICON_SPLINE,
+            Page::TextNodes => ICON_HEADING,
+            Page::Lists => ICON_COLUMNS_3,
+            Page::ControlFlow => ICON_SPLIT,
             Page::Interaction => ICON_MOUSE,
-            Page::Layering => ICON_FLIP_TO_FRONT,
+            Page::Layering => ICON_BRING_TO_FRONT,
         }
     }
 
@@ -254,14 +258,14 @@ impl Page {
             Page::Text => "Text styles, sizes, colour roles, icons in text, links",
             Page::Buttons => "Buttons, icon buttons, tooltips",
             Page::Inputs => "Fields, switches, sliders, progress",
-            Page::Choices => "Radio groups, listboxes, tabs",
+            Page::Choices => "Radio groups, listboxes, tabs, tiles",
             Page::Pickers => "Dates and times",
-            Page::Colors => "Color inputs, pickers and wheels",
+            Page::Colors => "Color inputs, pickers, wheels and swatches",
             Page::Menus => "Context, menu and split buttons",
             Page::Overlays => "Popovers, dialogs, sheets",
             Page::Rows => "Virtual lists of thousands of rows",
             Page::Tree => "An expandable, keyboard-driven tree",
-            Page::Layout => "Cards, accordions, stacks, scrolls",
+            Page::Layout => "Cards, accordions, stacks, scrolls, pictures",
             Page::Editor => "A markdown text area",
             Page::RichText => "Formatted text, alone and shared live",
             Page::Collaboration => "Two editors over a simulated network",
@@ -596,7 +600,7 @@ fn switch_tabs_with_alt_q(layout: DockingLayout<TabId>) {
                 layout.commit_switch();
             }
         })
-        .glyph(ICON_FLIP_TO_FRONT)
+        .glyph(ICON_BRING_TO_FRONT)
         .shortcut(chord)
         .at(KeyAt::Window)
         .register();
@@ -613,12 +617,6 @@ fn switch_tabs_with_alt_q(layout: DockingLayout<TabId>) {
 fn DemoShell() -> NodeId {
     let dialogs = DemoDialogs::new();
     let pages = Pages::new(dialogs);
-    let mobile = create_signal(false);
-    let narrow = narrower_than(NARROW_WIDTH);
-    let mode = create_memo(move || match mobile.get() || narrow.get() {
-        true => DockMode::Stacked,
-        false => DockMode::Tiled,
-    });
     let active = create_selector(move || pages.active());
     let layout = pages.layout;
     switch_tabs_with_alt_q(layout);
@@ -629,15 +627,15 @@ fn DemoShell() -> NodeId {
     provide_context(dialogs);
     let attached = dialogs.open;
     view! {
-        <List spacing=0.0>
+        <List spacing=Space::None>
             <Frame padding=SHELL_PADDING>
-                <DemoToolbar pages mobile />
+                <DemoToolbar pages />
             </Frame>
             <Separator />
-            <Docking @sizing=ItemSize::Percent(100.0) layout mode drag_modifier>
+            <Docking @sizing=ItemSize::Percent(100.0) layout drag_modifier>
                 <DockSplit id="shell" fraction={1.0 - PAGE_SHARE}>
                     <DockPane id="catalog">
-                        <DockTab id=CATALOG title="Components" icon=ICON_WIDGETS>
+                        <DockTab id=CATALOG title="Components" icon=ICON_BLOCKS>
                             <CatalogPanel pages active={active} />
                         </DockTab>
                     </DockPane>
@@ -677,7 +675,7 @@ fn DemoShell() -> NodeId {
                         anchor={dialog.anchor()}
                         dismiss_on_outside_press={dialog.card}
                         title={dialog.title()}
-                        icon=ICON_OPEN_IN_NEW
+                        icon=ICON_EXTERNAL_LINK
                         size={dialog.size()}
                         on_close={move || dialogs.close(dialog.id)}
                     >
@@ -798,7 +796,7 @@ fn PageView(page: Page) -> NodeId {
 }
 
 #[component]
-fn DemoToolbar(pages: Pages, mobile: Signal<bool>) -> NodeId {
+fn DemoToolbar(pages: Pages) -> NodeId {
     let layers = with_document(|document| document.watch_preference_layers());
     let selected_theme = create_memo(move || {
         let theme = layers.get().layer(PreferenceSource::App).theme;
@@ -817,9 +815,6 @@ fn DemoToolbar(pages: Pages, mobile: Signal<bool>) -> NodeId {
                 <Text style=TextStyle::CAPTION>"retained mode ui"</Text>
             </Show>
             <Spacer @sizing=ItemSize::Percent(100.0) />
-            <Show condition={wide}>
-                <Checkbox label="Mobile" checked={mobile} />
-            </Show>
             <Select
                 label="Theme"
                 options={view! {
@@ -840,9 +835,10 @@ fn DemoToolbar(pages: Pages, mobile: Signal<bool>) -> NodeId {
                     });
                 })}
             />
-            <IconButton
+            <Button
+                icon_only=true
                 @test_id={"demo.inspector"}
-                glyph=ICON_BUG_REPORT
+                glyph=ICON_BUG
                 label="Open the inspector"
                 variant=ButtonVariant::Ghost
                 on_click={|| with_document(Document::open_inspector)}
@@ -861,7 +857,7 @@ fn CatalogPanel(pages: Pages, active: Selector<Option<Page>>) -> NodeId {
     view! {
         <Scroll>
             <Frame padding=CATALOG_PADDING>
-                <List spacing=0.0>
+                <List spacing=Space::None>
                     <CatalogGroup
                         title="Styled"
                         summary="Components painted with the theme"
@@ -898,11 +894,11 @@ fn CatalogGroup(
     active: Selector<Option<Page>>,
 ) -> NodeId {
     view! {
-        <List spacing=0.0>
+        <List spacing=Space::None>
             <Frame padding=CATALOG_GROUP_PADDING>
-                <List spacing=2.0>
+                <List spacing=Space::Xs2>
                     <Text style=TextStyle::HEADING>{title}</Text>
-                    <Text style=TextStyle::CAPTION ellipsis=true>{summary}</Text>
+                    <Text style=TextStyle::CAPTION overflow=Overflow::Ellipsis>{summary}</Text>
                 </List>
             </Frame>
             <ForEach keys={listed}>|page: Page| {
@@ -928,9 +924,11 @@ fn CatalogRow(page: Page, pages: Pages, selected: Memo<bool>) -> NodeId {
                 <Text align=TextAlign::Center>
                     <Icon glyph={page.icon()} />
                 </Text>
-                <List @sizing=ItemSize::Percent(100.0) spacing=0.0>
+                <List @sizing=ItemSize::Percent(100.0) spacing=Space::None>
                     <Text>{page.title()}</Text>
-                    <Text style=TextStyle::CAPTION ellipsis=true>{page.summary()}</Text>
+                    <Text style=TextStyle::CAPTION overflow=Overflow::Ellipsis>
+                        {page.summary()}
+                    </Text>
                 </List>
             </List>
         </ListRow>
@@ -941,7 +939,7 @@ fn CatalogRow(page: Page, pages: Pages, selected: Memo<bool>) -> NodeId {
 fn EmptyPanel() -> NodeId {
     view! {
         <Frame padding=PAGE_PADDING>
-            <List spacing=4.0 align=Align::Center>
+            <List spacing=Space::Xs align=Align::Center>
                 <Text style=TextStyle::HEADING>"Nothing open"</Text>
                 <Text style=TextStyle::CAPTION>"Open a page from Components to get started."</Text>
             </List>

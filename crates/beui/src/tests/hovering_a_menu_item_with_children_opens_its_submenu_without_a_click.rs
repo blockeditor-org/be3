@@ -24,12 +24,11 @@ fn hovering_a_menu_item_with_children_opens_its_submenu_without_a_click() {
     harness.frame(Vec::new());
 
     let pos = harness.center(region);
-    harness.frame(vec![Event::PointerMoved(pos)]);
-    harness.frame(vec![Event::PointerButton {
+    harness.frame(vec![Input::PointerMoved(pos)]);
+    harness.frame(vec![Input::PointerButton {
         pos,
         button: PointerButton::Secondary,
         pressed: true,
-        modifiers: Modifiers::NONE,
     }]);
     harness.frame(Vec::new());
 
@@ -50,7 +49,7 @@ fn hovering_a_menu_item_with_children_opens_its_submenu_without_a_click() {
     );
 
     let share_pos = harness.center(share_button);
-    harness.frame(vec![Event::PointerMoved(share_pos)]);
+    harness.frame(vec![Input::PointerMoved(share_pos)]);
 
     let submenu = harness
         .document()

@@ -14,7 +14,7 @@ fn a_card_opened_from_a_button_flips_above_it_near_the_bottom() {
     );
     test.snapshot("docking_pointing_card_above");
 
-    test.click_at(pos2(card.right() + 40.0, button.center().y));
+    test.click(pos2(card.right() + 40.0, button.center().y));
     test.frame(Vec::new());
     assert!(
         !test.shows(&dialog_id(0)),

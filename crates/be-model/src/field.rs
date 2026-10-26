@@ -12,6 +12,10 @@ pub trait Field: Sized {
 
     fn read(tree: &Tree, value: &Value) -> Self;
 
+    fn reread(self, tree: &Tree, value: &Value) -> Self {
+        Self::read(tree, value)
+    }
+
     fn write(&self, owner: ObjectId, field: u16, out: &mut Vec<(ObjectId, Object)>) -> Value;
 }
 

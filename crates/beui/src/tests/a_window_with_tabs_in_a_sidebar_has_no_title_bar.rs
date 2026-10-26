@@ -1,6 +1,6 @@
 use super::*;
+use crate::dock::unstyled::{DockApi, DockPane, DockTab, DockWindow, DockingLayout};
 use crate::geometry::vec2;
-use crate::unstyled::{DockApi, DockPane, DockTab, DockWindow, DockingLayout};
 
 #[test]
 fn a_window_with_tabs_in_a_sidebar_has_no_title_bar() {
@@ -9,7 +9,7 @@ fn a_window_with_tabs_in_a_sidebar_has_no_title_bar() {
     let document = build_node(move || {
         let layout = DockingLayout::new();
         view! {
-            <styled::Docking @node_ref=&dock layout>
+            <dock::styled::Docking @node_ref=&dock layout>
                 <DockPane id="main">
                     <DockTab id=1u64 title="Tab 1">
                         <Frame @test_id="content.1" />
@@ -28,7 +28,7 @@ fn a_window_with_tabs_in_a_sidebar_has_no_title_bar() {
                         </DockTab>
                     </DockPane>
                 </DockWindow>
-            </styled::Docking>
+            </dock::styled::Docking>
         }
     });
     let dock = dock.get();
@@ -48,13 +48,12 @@ fn a_window_with_tabs_in_a_sidebar_has_no_title_bar() {
         "the panel reaches the top of the window, with no title bar above it"
     );
 
-    let grip = pos2(tab.left() + 8.0, tab.top() - 16.0);
-    harness.frame(vec![Event::PointerMoved(grip)]);
-    harness.frame(vec![Event::PointerButton {
+    let grip = grip_nearest(&harness, dock, pos2(tab.left(), tab.top()));
+    harness.frame(vec![Input::PointerMoved(grip)]);
+    harness.frame(vec![Input::PointerButton {
         pos: grip,
         button: PointerButton::Secondary,
         pressed: true,
-        modifiers: Modifiers::NONE,
     }]);
     harness.frame(Vec::new());
     let row = text_within(harness.document(), dock, "Show tabs across the top")

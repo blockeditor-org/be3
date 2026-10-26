@@ -9,6 +9,7 @@ accesskit = "0.24.1"
 beui-tree = { path = "../beui-tree" }
 foldhash = "0.2"
 geometry = { path = "../geometry" }
+grapheme-segmentation = { path = "../grapheme-segmentation" }
 kurbo = "0.13"
 lyon_tessellation = "1"
 paint-format = { path = "../paint-format" }
@@ -16,7 +17,7 @@ raw-window-handle = { version = "0.6", features = ["alloc"] }
 reactive = { path = "../reactive" }
 thumbhash = "0.1"
 ui-types = { path = "../ui-types" }
-unicode-segmentation = "1.13"
+lucide = { path = "../lucide" }
 
 [lints]
 workspace = true

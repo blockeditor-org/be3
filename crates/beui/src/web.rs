@@ -1,9 +1,9 @@
 use std::error::Error;
 
-use beui_adapter_web::Web;
 use beui_core::app::App;
 use beui_core::renderer::{Loaded, any_loaded};
-use beui_core::runner::{Adapter, Launch, RunOptions};
+use beui_core::runner::{Launch, Layer, Platform, RunOptions};
+use beui_platform_web::Web;
 
 pub enum WebRenderer {
     #[cfg(feature = "web")]
@@ -16,17 +16,19 @@ pub async fn run_web(
     element_id: &str,
     renderers: Vec<WebRenderer>,
     options: RunOptions,
+    layers: Vec<Box<dyn Layer>>,
     app: impl App + 'static,
 ) -> Result<(), Box<dyn Error>> {
     let launch = Launch {
         options,
         context: crate::context(),
         app: Box::new(app),
+        layers,
     };
-    web_adapter(element_id, renderers).run(launch).await
+    web_platform(element_id, renderers).run(launch).await
 }
 
-pub fn web_adapter(element_id: &str, renderers: Vec<WebRenderer>) -> Box<dyn Adapter> {
+pub fn web_platform(element_id: &str, renderers: Vec<WebRenderer>) -> Box<dyn Platform> {
     Box::new(Web::new(element_id, async move |element| {
         let mut results = Vec::new();
         for renderer in renderers {
@@ -50,7 +52,7 @@ async fn load(
             if element.tag_name().eq_ignore_ascii_case("canvas") {
                 return Err("the DOM renderer cannot draw inside a canvas".into());
             }
-            beui_font_browser::watch(icons_font.as_deref(), beui_adapter_web::request_frame)?;
+            beui_font_browser::watch(icons_font.as_deref(), beui_platform_web::request_frame)?;
             Ok(Loaded {
                 renderer: Box::new(
                     beui_renderer_dom::DomRenderer::new(beui_renderer_dom::WebDom::new(

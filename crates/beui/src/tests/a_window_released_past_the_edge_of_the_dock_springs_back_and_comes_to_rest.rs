@@ -1,5 +1,5 @@
 use super::*;
-use crate::unstyled::DockApi;
+use crate::dock::unstyled::DockApi;
 
 #[test]
 fn a_window_released_past_the_edge_of_the_dock_springs_back_and_comes_to_rest() {
@@ -26,7 +26,7 @@ fn a_window_released_past_the_edge_of_the_dock_springs_back_and_comes_to_rest() 
     let bar = bounds.min + before.min.to_vec2() + vec2(before.width() - 80.0, 10.0);
     let pulled = bar - vec2(before.min.x + 200.0, 0.0);
     harness.press_at(bar);
-    harness.frame(vec![Event::PointerMoved(pulled)]);
+    harness.frame(vec![Input::PointerMoved(pulled)]);
     harness.advance(Duration::from_millis(200));
     harness.release_at(pulled);
     let released = drawn_left(&harness) - inset;
@@ -42,7 +42,7 @@ fn a_window_released_past_the_edge_of_the_dock_springs_back_and_comes_to_rest() 
         "one frame later the window has moved part of the way back: {released} -> {returning}"
     );
 
-    let frames = harness.settle();
+    let frames = harness.frames_to_settle();
     assert!(
         frames > 5 && frames < 120,
         "the spring takes a visible but short time: {frames} frames"

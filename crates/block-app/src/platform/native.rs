@@ -43,12 +43,13 @@ impl Drop for EmbeddedServer {
 pub(crate) fn start_embedded_server(
     data_dir: PathBuf,
 ) -> Result<EmbeddedServer, Box<dyn Error + Send + Sync>> {
-    start_embedded_server_at("127.0.0.1:0", data_dir)
+    start_embedded_server_at("127.0.0.1:0", data_dir, be_server::ServerConfig::OPEN.lease)
 }
 
 pub(crate) fn start_embedded_server_at(
     address: &str,
     data_dir: PathBuf,
+    lease: std::time::Duration,
 ) -> Result<EmbeddedServer, Box<dyn Error + Send + Sync>> {
     let listener = StdTcpListener::bind(address)?;
     listener.set_nonblocking(true)?;
@@ -72,6 +73,7 @@ pub(crate) fn start_embedded_server_at(
                     data_dir,
                     be_server::ServerConfig {
                         local_profiles: true,
+                        lease,
                         ..be_server::ServerConfig::OPEN
                     },
                     shutdown,

@@ -9,7 +9,9 @@ fn markdown_windows_follow_edits_inside_them() {
             text.push_str("\n| a | b |\n|---|---|\n| 1 | 2 |\n\n");
         }
         if line % 45 == 0 {
-            text.push_str("\n```\n# not a heading\n- [ ] not a task\n```\n\n");
+            text.push_str(
+                "\n```\n# not a heading\n- [ ] not a task\n```\n\n> - [x] quoted task\nlazy\n\n",
+            );
         }
     }
     let mut tester = EditorTester::with_language(text.as_bytes(), TextLanguage::Markdown);
@@ -42,10 +44,17 @@ fn markdown_windows_follow_edits_inside_them() {
                 "after inserting at {at:?}, the style at {index} differs"
             );
         }
-        assert_eq!(after.markdown_tables(), fresh.markdown_tables());
-        assert_eq!(
-            after.in_code_block(index..index + 1),
-            fresh.in_code_block(index..index + 1)
-        );
+        let mut start = 0;
+        while start < edited.len() {
+            assert_eq!(
+                after.line_look(start),
+                fresh.line_look(start),
+                "after inserting at {at:?}, the line at {start} is described differently"
+            );
+            start = edited[start..]
+                .iter()
+                .position(|byte| *byte == b'\n')
+                .map_or(edited.len(), |newline| start + newline + 1);
+        }
     }
 }

@@ -26,6 +26,6 @@ fn a_virtual_scroll_row_can_build_reactive_content_during_dispatch() {
     let mut harness = Harness::new(document);
     harness.frame(Vec::new());
 
-    let first_row = harness.document.children(list)[0];
+    let first_row = harness.document().children(list)[0];
     assert_eq!(text_of(harness.document(), first_row), "Row 0");
 }

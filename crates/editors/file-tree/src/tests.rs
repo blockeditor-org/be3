@@ -1,12 +1,12 @@
-use block_editor_beui::be_block::EditorViewContent;
-use block_editor_beui::beui::{Document, Event, Modifiers, NodeId, PointerButton, Pos2, Vec2};
+use block_editor_beui::beui::{Document, Input, Modifiers, NodeId, PointerButton, Pos2, Vec2};
 use block_editor_beui::{EditorHost, OwnedEditor};
 use block_ui_test::BeuiTest;
 use uuid::Uuid;
+use workspace_ui_types::EditorViewContent;
+use workspace_ui_types::{FolderContent, WorkspaceContent};
 
 use crate::app::FileTreeApp;
 
-mod a_block_can_override_and_reset_its_icon_and_color;
 mod a_block_whose_key_has_not_arrived_shows_locked_and_a_shared_workspace_can_be_left;
 mod a_folder_reopened_from_the_view_is_listed_before_the_files_are_shown;
 mod a_folder_still_loading_says_so_only_after_a_moment;
@@ -18,16 +18,23 @@ mod a_new_workspace_is_made_at_the_top_and_named_in_place;
 mod a_phone_lists_what_is_shared_with_it;
 mod a_phone_reaches_the_account_s_system_blocks;
 mod a_phone_walks_into_folders_and_opens_files;
+mod a_pinned_block_is_listed_first_in_its_workspace;
+mod a_row_whose_access_or_settings_are_its_own_opens_them_from_an_icon;
+mod a_tag_from_the_workspace_marks_a_block_and_shows_on_its_row;
 mod a_workspace_header_adds_into_that_workspace;
 mod a_workspace_is_shown_with_what_it_holds_already_listed;
 mod an_opened_folder_is_kept_open_in_the_view_and_reopens_open;
 mod clicking_the_chevron_opens_and_closes_its_own_row;
 mod expanding_a_folder_shows_its_children_without_more_input;
-mod exporting_a_text_block_saves_it_as_a_markdown_file;
+mod exporting_a_block_as_its_own_file_reads_it_from_the_host_and_saves_it;
 mod exporting_any_block_as_a_block_file_asks_the_host_for_it;
+mod icon_and_color_asks_the_host_from_the_row_and_the_row_shows_what_is_chosen;
 mod inspecting_a_row_shows_what_is_known_about_its_block;
 mod leave_is_offered_on_a_phone_but_never_to_an_administrator;
+mod my_files_offers_no_delete_but_another_workspace_does;
+mod open_with_offers_the_programs_that_open_a_files_extension;
 mod open_with_opens_a_block_in_the_editor_chosen_for_it;
+mod opens_in_keeps_an_editor_for_one_block;
 mod renaming_a_row_edits_its_name_in_place;
 mod renaming_a_row_on_a_phone_edits_it_in_place;
 mod reopening_a_folder_shows_its_children_at_once;
@@ -54,9 +61,10 @@ impl Fixture {
         let document = self.test.document();
         let item = document
             .root()
-            .and_then(|root| open_item(document, root, label, false))
+            .and_then(|root| open_item(&document, root, label, false))
             .unwrap_or_else(|| panic!("right clicking a row opens a menu that offers {label}"));
-        self.test.click_at(item);
+        drop(document);
+        self.test.click(item);
         self.settle();
     }
 
@@ -65,18 +73,16 @@ impl Fixture {
             .test
             .rect_of(&format!("file-tree.{block}.row"))
             .center();
-        self.test.step(vec![Event::PointerMoved(pos)]);
-        self.test.step(vec![Event::PointerButton {
+        self.test.step(vec![Input::PointerMoved(pos)]);
+        self.test.step(vec![Input::PointerButton {
             pos,
             button: PointerButton::Secondary,
             pressed: true,
-            modifiers: Modifiers::NONE,
         }]);
-        self.test.step(vec![Event::PointerButton {
+        self.test.step(vec![Input::PointerButton {
             pos,
             button: PointerButton::Secondary,
             pressed: false,
-            modifiers: Modifiers::NONE,
         }]);
         self.settle();
     }
@@ -85,9 +91,10 @@ impl Fixture {
         let document = self.test.document();
         let item = document
             .root()
-            .and_then(|root| open_item(document, root, label, false))
+            .and_then(|root| open_item(&document, root, label, false))
             .unwrap_or_else(|| panic!("an open menu offers {label}"));
-        self.test.click_at(item);
+        drop(document);
+        self.test.click(item);
         self.settle();
     }
 
@@ -95,7 +102,7 @@ impl Fixture {
         let document = self.test.document();
         document
             .root()
-            .and_then(|root| open_item(document, root, label, false))
+            .and_then(|root| open_item(&document, root, label, false))
             .is_some()
     }
 
@@ -103,7 +110,7 @@ impl Fixture {
         let document = self.test.document();
         document
             .root()
-            .is_some_and(|root| says_within(document, root, words))
+            .is_some_and(|root| says_within(&document, root, words))
     }
 
     fn opened(&mut self) -> Vec<Uuid> {
@@ -115,20 +122,21 @@ impl Fixture {
     }
 }
 
-const MY_FILES: Uuid = Uuid::from_u128(0x006d_7966_696c_6573);
+const MY_FILES: Uuid = block_editor_beui::be_block::my_files(Uuid::nil(), Uuid::nil());
 
 fn files_workspace(
     host: &EditorHost,
     inside: &[block_editor_beui::BlockInfo],
 ) -> block_editor_beui::BlockInfo {
-    use block_editor_beui::be_block::{BlockContent, WorkspaceContent};
+    use block_editor_beui::be_block::BlockContent;
     use block_editor_beui::{BlockInfo, BlockParent};
+    assert_eq!(
+        MY_FILES,
+        block_editor_beui::be_block::my_files(host.organization_id(), host.account_id())
+    );
     let mut files = BlockInfo::new(MY_FILES, WorkspaceContent::CONTENT_TYPE, BlockParent::Root);
     files.author = Some(host.account_id());
     files.set_name("My files");
-    files
-        .metadata
-        .insert(&block_editor_beui::be_block::MY_FILES, &true);
     files.references = inside.iter().map(|block| block.id).collect();
     files
 }
@@ -145,18 +153,31 @@ fn my_files(fixture: &mut Fixture, inside: Vec<block_editor_beui::BlockInfo>) ->
 }
 
 fn containers_hold_blocks(fixture: &mut Fixture) {
-    use block_editor_beui::be_block::{BlockContent, FolderContent, WorkspaceContent};
-    use block_editor_beui::{BlockTypeDescriptor, Catalog, ChildOperations};
+    containers(
+        fixture,
+        block_editor_beui::ChildOperations {
+            add: true,
+            delete: true,
+            replace: true,
+        },
+    );
+}
+
+fn folders_zoom(fixture: &mut Fixture) {
+    containers(fixture, block_editor_beui::ChildOperations::default());
+}
+
+fn containers(fixture: &mut Fixture, children: block_editor_beui::ChildOperations) {
+    use block_editor_beui::be_block::BlockContent;
+    use block_editor_beui::{BlockTypeDescriptor, Catalog, Press};
     let holding = |block_type: Uuid, name: &str| BlockTypeDescriptor {
         block_type: block_type.into_bytes(),
         display_name: name.to_owned(),
         color: None,
         icon_codepoint: String::new(),
-        children: ChildOperations {
-            add: true,
-            delete: true,
-            replace: true,
-        },
+        children,
+        press: Press::Zoom,
+        plain_file: false,
     };
     fixture.test.catalog(Catalog {
         types: vec![
@@ -240,7 +261,7 @@ fn open_item(document: &Document, node: NodeId, label: &str, open: bool) -> Opti
     document
         .children(node)
         .into_iter()
-        .find_map(|child| open_item(document, child, label, open))
+        .find_map(|child| open_item(&document, child, label, open))
 }
 
 fn says_within(document: &Document, node: NodeId, words: &str) -> bool {
@@ -251,5 +272,5 @@ fn says_within(document: &Document, node: NodeId, words: &str) -> bool {
         || document
             .children(node)
             .into_iter()
-            .any(|child| says_within(document, child, words))
+            .any(|child| says_within(&document, child, words))
 }

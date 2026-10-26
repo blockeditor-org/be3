@@ -1,12 +1,12 @@
-use std::{
-    sync::Arc,
-    time::{Duration, Instant},
-};
+use std::{sync::Arc, time::Duration};
 
-use block_plugin_api::{Message, PluginManifest, ScreenDamage, decode_frame, encode_frame};
+use block_plugin_api::{HelloAccepted, PluginManifest, ScreenDamage, ops::Outcome};
 
-use super::worker::Worker;
+use super::calls::{Heard, Outbound};
+use super::wire::Wire;
 use crate::{editors::plugin::discovery, host};
+use block_guest_host::Worker;
+pub(super) use block_guest_host::{Deadline, StepTime};
 
 #[cfg(not(target_arch = "wasm32"))]
 use super::wasm as platform;
@@ -18,11 +18,10 @@ const NO_ENTRY_POINT: &str = "This plugin has no wasm entry point.";
 
 pub(super) type Frame = platform::Frame;
 
-#[derive(Clone, Copy, Default)]
-pub(super) struct StepTime {
-    pub(super) step: Duration,
-    pub(super) gpu: Duration,
-    pub(super) submit: Duration,
+pub(super) type Picture = platform::Picture;
+
+pub(super) fn release(picture: &Picture) {
+    platform::release(picture);
 }
 
 pub(super) trait ShownFrame {
@@ -31,28 +30,17 @@ pub(super) trait ShownFrame {
     fn damage(&self) -> Option<&[ScreenDamage]>;
 
     fn set_damage(&mut self, damage: Option<Vec<ScreenDamage>>);
-}
 
-#[derive(Clone, Copy)]
-pub(super) struct Deadline {
-    at: Instant,
-}
-
-impl Deadline {
-    pub(super) fn after(budget: Duration) -> Self {
-        Self {
-            at: Instant::now() + budget,
-        }
-    }
-
-    pub(super) fn remaining(self) -> Option<Duration> {
-        self.at.checked_duration_since(Instant::now())
+    fn composited(&self) -> bool {
+        true
     }
 }
 
 pub(super) struct Backend {
     module: Option<String>,
     worker: Option<Worker<platform::Channel>>,
+    mailbox: Option<platform::Mailbox>,
+    wire: Wire,
     started: Duration,
     error: Option<String>,
 }
@@ -62,6 +50,8 @@ impl Backend {
         Self {
             module: discovery::entry_point(&plugin.identity.id, &plugin.entry_point),
             worker: None,
+            mailbox: None,
+            wire: Wire::granting(plugin.extensions.clone()),
             started: host::now(),
             error: None,
         }
@@ -71,13 +61,17 @@ impl Backend {
         self.shutdown();
         self.started = host::now();
         self.error = None;
+        self.wire = Wire::granting(plugin.extensions.clone());
         let Some(module) = self.module.clone() else {
             self.error = Some(NO_ENTRY_POINT.to_owned());
             return;
         };
         let waiting = Arc::default();
         match platform::spawn(plugin, module, Arc::clone(&waiting)) {
-            Ok(channel) => self.worker = Some(Worker::new(channel, waiting)),
+            Ok((channel, mailbox)) => {
+                self.worker = Some(Worker::new(channel, waiting));
+                self.mailbox = Some(mailbox);
+            }
             Err(error) => self.error = Some(error),
         }
     }
@@ -86,39 +80,94 @@ impl Backend {
         self.worker.as_ref().is_some_and(Worker::ready)
     }
 
-    pub(super) fn send(&mut self, messages: Vec<Message>) {
+    fn wired(&mut self, act: impl FnOnce(&mut Wire)) {
         let Some(worker) = &mut self.worker else {
             return;
         };
-        let mut frames = Vec::with_capacity(messages.len());
-        for message in messages {
-            match encode_frame(&message) {
-                Ok(frame) => frames.push(frame),
-                Err(error) => {
-                    self.error.get_or_insert(error.to_string());
-                }
-            }
-        }
-        if let Some(failure) = worker.queue(frames) {
+        act(&mut self.wire);
+        if let Some(failure) = worker.queue(self.wire.take_outbound()) {
             self.fail(failure);
         }
     }
 
-    pub(super) fn receive(&mut self) -> Vec<Message> {
+    pub(super) fn send(&mut self, outbound: Outbound) {
+        self.wired(|wire| match outbound {
+            Outbound::Open(opening) => wire.open(*opening),
+            Outbound::Close(instance) => wire.close(instance),
+            Outbound::Editor(instance, call) => wire.call(instance, call),
+            Outbound::Plugin(call) => wire.plugin_call(call),
+        });
+    }
+
+    pub(super) fn accept(&mut self, accepted: &HelloAccepted) {
+        self.wired(|wire| wire.accept(accepted));
+    }
+
+    pub(super) fn ask_to_shut_down(&mut self) {
+        self.wired(Wire::shutdown);
+    }
+
+    pub(super) fn receive(&mut self) -> Vec<Heard> {
         self.poll();
         let Some(worker) = &mut self.worker else {
             return Vec::new();
         };
         let mut messages = Vec::new();
         for frame in worker.take_received() {
-            match decode_frame(&frame) {
-                Ok(message) => messages.push(message),
-                Err(failure) => {
-                    self.error.get_or_insert(format!("{failure:?}"));
-                }
+            if let Err(failure) = self.wire.receive(&frame, &mut messages) {
+                self.error.get_or_insert(failure);
             }
         }
+        if let Some(failure) = worker.queue(self.wire.take_outbound()) {
+            self.fail(failure);
+        }
         messages
+    }
+
+    #[cfg(test)]
+    pub(super) fn wire_mut(&mut self) -> &mut Wire {
+        &mut self.wire
+    }
+
+    pub(super) fn waiting(&self) -> Vec<block_plugin_api::ops::OpId> {
+        self.wire.waiting()
+    }
+
+    pub(super) fn answer_watches(
+        &mut self,
+        answers: Vec<(block_plugin_api::ops::OpId, Vec<u8>)>,
+        accepted: Vec<block_plugin_api::ops::OpId>,
+    ) {
+        for (watch, value) in answers {
+            self.wire.answer_watch(watch, value);
+        }
+        for send in accepted {
+            self.wire.accepted(send);
+        }
+        self.flush();
+    }
+
+    pub(super) fn relay(&mut self, replica: block_plugin_api::ops::OpId, frame: &Vec<u8>) -> bool {
+        self.wire.relay(replica, frame)
+    }
+
+    pub(super) fn answer(&mut self, answers: Vec<(block_plugin_api::ops::OpId, Outcome)>) {
+        for (op, outcome) in answers {
+            self.wire.answer(op, outcome);
+        }
+        self.flush();
+    }
+
+    fn flush(&mut self) {
+        let Some(worker) = &mut self.worker else {
+            return;
+        };
+        if !self.wire.has_outbound() {
+            return;
+        }
+        if let Some(failure) = worker.queue(self.wire.take_outbound()) {
+            self.fail(failure);
+        }
     }
 
     pub(super) fn received_frame(&mut self) -> Option<Frame> {
@@ -147,6 +196,12 @@ impl Backend {
         self.worker.as_mut()?.take_took()
     }
 
+    pub(super) fn stepped(&mut self) -> (u64, Duration) {
+        self.worker
+            .as_mut()
+            .map_or((0, Duration::ZERO), |worker| worker.take_stepped())
+    }
+
     pub(super) fn take_error(&mut self) -> Option<String> {
         self.error.take()
     }
@@ -167,6 +222,29 @@ impl Backend {
 
     pub(super) fn shutdown(&mut self) {
         self.worker = None;
+        self.mailbox = None;
+    }
+
+    pub(super) fn offer(&mut self, image: u64, picture: &Picture) {
+        if let (Some(worker), Some(mailbox)) = (&mut self.worker, &self.mailbox) {
+            platform::offer(mailbox, &mut worker.channel, image, picture);
+        }
+    }
+
+    pub(super) fn withdraw(&mut self, image: u64) {
+        if let (Some(worker), Some(mailbox)) = (&mut self.worker, &self.mailbox) {
+            platform::withdraw(mailbox, &mut worker.channel, image);
+        }
+    }
+
+    pub(super) fn export(&mut self, surfaces: Vec<u32>) {
+        if let Some(worker) = &mut self.worker {
+            platform::export(&mut worker.channel, surfaces);
+        }
+    }
+
+    pub(super) fn pictures(frame: &Frame, surfaces: &[u32]) -> Vec<(u32, Picture)> {
+        platform::pictures(frame, surfaces)
     }
 
     #[cfg(target_arch = "wasm32")]
@@ -197,6 +275,7 @@ impl Backend {
     fn fail(&mut self, failure: String) {
         self.error.get_or_insert(failure);
         self.worker = None;
+        self.mailbox = None;
     }
 }
 

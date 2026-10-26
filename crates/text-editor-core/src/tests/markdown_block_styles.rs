@@ -13,7 +13,7 @@ fn markdown_block_styles() {
         highlight.style_at(10).color,
         SynHlColorScope::MarkdownSymbol
     );
-    assert!(highlight.style_at(12).italic);
+    assert!(!highlight.style_at(12).italic);
     assert_eq!(
         highlight.style_at(18).color,
         SynHlColorScope::MarkdownSymbol

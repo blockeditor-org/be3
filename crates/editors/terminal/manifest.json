@@ -1,0 +1,29 @@
+{
+  "id": "be3.terminal",
+  "name": "Terminal",
+  "version": "0.1.0",
+  "editors": {
+    "terminal": {
+      "id": "ca3d8745-65ca-4e78-92d5-5b893c2514b3",
+      "edits": "7465726d-696e-616c-2d62-6c6f636b0001",
+      "display_name": "Terminal",
+      "icon": "",
+      "templates": {
+        "main": {}
+      },
+      "regions": [
+        "Frame"
+      ]
+    }
+  },
+  "block_types": {
+    "terminal": {
+      "id": "7465726d-696e-616c-2d62-6c6f636b0001",
+      "display_name": "Terminal",
+      "icon": "\ue181",
+      "color": [44, 158, 128],
+      "module": "terminal_types.wasm"
+    }
+  },
+  "entry_point": "terminal.wasm"
+}

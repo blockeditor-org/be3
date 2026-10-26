@@ -30,6 +30,7 @@ impl FontBackend for Swatches {
                 subpixel: 0,
                 bold: false,
                 italic: false,
+                raster: GlyphId::LAID_OUT,
             },
             origin: vec2(x, 8.0),
             raster: Rc::new(GlyphRaster::ready(GlyphImage {

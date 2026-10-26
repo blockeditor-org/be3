@@ -10,11 +10,12 @@ use beui_core::base::text::{
 };
 use beui_core::color::Color32;
 use beui_core::font::{FontFamily, FontId};
+use beui_core::icons::Glyph;
 use beui_core::node::{NodeId, NodeOf};
-use beui_core::rich::{TextCaret, TextMark};
+use beui_core::rich::{SpanBackground, TextCaret, TextGlyph, TextMark};
 
 use beui_core::base::text::DEFAULT_FONT_SIZE;
-use beui_core::font::TextAlign;
+use beui_core::font::{Overflow, TextAlign};
 use beui_macros::component;
 
 #[component]
@@ -24,12 +25,12 @@ pub fn Text(
     #[prop(default = Color32::WHITE)] color: Prop<Color32>,
     #[prop(default = None)] align: Prop<Option<TextAlign>>,
     #[prop(default = None)] vertical_align: Prop<Option<TextAlign>>,
-    #[prop(default = false)] wrap: Prop<bool>,
-    #[prop(default = false)] clip: Prop<bool>,
+    #[prop(default = Overflow::default())] overflow: Prop<Overflow>,
     #[prop(default = false)] underline: Prop<bool>,
-    #[prop(default = false)] ellipsis: Prop<bool>,
     #[prop(default = (0.0, 0.0))] line_padding: Prop<(f32, f32)>,
+    #[prop(default = 0)] hang: Prop<usize>,
     #[prop(default = Vec::new())] marks: Prop<Vec<TextMark>>,
+    #[prop(default = Vec::new())] glyphs: Prop<Vec<TextGlyph>>,
     #[prop(default = Vec::new())] carets: Prop<Vec<TextCaret>>,
     children: Children<TextChild>,
 ) -> NodeId {
@@ -58,19 +59,31 @@ pub fn Text(
                 Some(_) => TextAlign::Center,
                 None => TextAlign::Start,
             }),
-            wrap: wrap.get(),
-            clip: clip.get(),
+            overflow: overflow.get(),
             underline: underline.get(),
-            ellipsis: ellipsis.get(),
             padding: line_padding.get(),
+            hang: hang.get(),
         };
         with_document(|document| document.set_text_style(node, style));
     });
     if let Some(string) = string {
-        create_binding(move || with_document(|document| document.set_text(node, string.get())));
+        create_binding(move || {
+            let string = string.get();
+            with_document(|document| document.set_text(node, string))
+        });
     }
-    create_binding(move || with_document(|document| document.set_text_marks(node, marks.get())));
-    create_binding(move || with_document(|document| document.set_text_carets(node, carets.get())));
+    create_binding(move || {
+        let marks = marks.get();
+        with_document(|document| document.set_text_marks(node, marks))
+    });
+    create_binding(move || {
+        let glyphs = glyphs.get();
+        with_document(|document| document.set_text_glyphs(node, glyphs))
+    });
+    create_binding(move || {
+        let carets = carets.get();
+        with_document(|document| document.set_text_carets(node, carets))
+    });
     children.mount(node);
     node.id()
 }
@@ -78,6 +91,7 @@ pub fn Text(
 pub enum TextChild {
     Span(Span),
     Gap(Gap),
+    Break(Break),
     Item(TextItem),
 }
 
@@ -90,6 +104,7 @@ impl ChildValue for TextChild {
         match self {
             Self::Span(value) => value.finish_component(component, scope),
             Self::Gap(value) => value.finish_component(component, scope),
+            Self::Break(value) => value.finish_component(component, scope),
             Self::Item(value) => value.finish_component(component, scope),
         }
     }
@@ -108,6 +123,7 @@ impl SlotChild for TextChild {
             ),
             TextChild::Item(item) => item.store(),
             TextChild::Gap(gap) => TextPart::Gap(gap.width),
+            TextChild::Break(_) => TextPart::Break,
         }
     }
 }
@@ -120,6 +136,7 @@ impl SlotHost<TextChild> for TextHost {
             TextChild::Span(span) => TextPart::Span(span.bind(self.0)),
             TextChild::Item(item) => item.store(),
             TextChild::Gap(gap) => TextPart::Gap(gap.width),
+            TextChild::Break(_) => TextPart::Break,
         }
     }
 
@@ -208,6 +225,7 @@ pub struct Span {
     color: Prop<Option<Color32>>,
     underline: Prop<Option<bool>>,
     strikethrough: Prop<Option<bool>>,
+    background: Prop<Option<SpanBackground>>,
     break_after: Prop<bool>,
     icon: Option<IconSpan>,
 }
@@ -256,6 +274,7 @@ impl Span {
             color: Prop::Static(None),
             underline: Prop::Static(None),
             strikethrough: Prop::Static(None),
+            background: Prop::Static(None),
             break_after: Prop::Static(false),
             icon: None,
         }
@@ -266,6 +285,7 @@ impl Span {
             && matches!(self.color, Prop::Static(None))
             && matches!(self.underline, Prop::Static(None))
             && matches!(self.strikethrough, Prop::Static(None))
+            && matches!(self.background, Prop::Static(None))
             && matches!(self.break_after, Prop::Static(false))
             && self.icon.is_none()
     }
@@ -277,6 +297,7 @@ impl Span {
             color: self.color.get_untracked(),
             underline: self.underline.get_untracked(),
             strikethrough: self.strikethrough.get_untracked(),
+            background: self.background.get_untracked(),
             break_after: self.break_after.get_untracked(),
             icon: self.icon,
         }
@@ -299,6 +320,9 @@ impl Span {
         bind(text, &handle, self.strikethrough, |content, value| {
             content.strikethrough = value;
         });
+        bind(text, &handle, self.background, |content, value| {
+            content.background = value;
+        });
         bind(text, &handle, self.break_after, |content, value| {
             content.break_after = value;
         });
@@ -316,6 +340,7 @@ pub fn Span(
     #[prop(default = None)] color: Prop<Option<Color32>>,
     #[prop(default = None)] underline: Prop<Option<bool>>,
     #[prop(default = None)] strikethrough: Prop<Option<bool>>,
+    #[prop(default = None)] background: Prop<Option<SpanBackground>>,
     #[prop(default = false)] break_after: Prop<bool>,
     children: Children<SpanText>,
 ) -> Span {
@@ -350,6 +375,7 @@ pub fn Span(
         color,
         underline,
         strikethrough,
+        background,
         break_after,
         icon: None,
     }
@@ -357,7 +383,7 @@ pub fn Span(
 
 #[component]
 pub fn Icon(
-    glyph: Prop<String>,
+    glyph: Prop<Option<Glyph>>,
     #[prop(default = None)] size: Prop<Option<f32>>,
     #[prop(default = 1.0)] scale: f32,
     #[prop(default = 0.0)] spacing_em: f32,
@@ -370,7 +396,9 @@ pub fn Icon(
         }),
         color,
         icon: Some(IconSpan { scale, spacing_em }),
-        ..Span::plain(glyph)
+        ..Span::plain(
+            glyph.map(|glyph| glyph.map_or_else(String::new, |glyph| glyph.as_str().to_owned())),
+        )
     }
 }
 
@@ -414,12 +442,37 @@ pub fn TextItem(
     });
     if let Some(text) = text {
         create_effect(move || {
-            with_document(|document| document.set_text_item_text(item, text.get()))
+            let text = text.get();
+            with_document(|document| document.set_text_item_text(item, text))
         });
     }
     let anchored = at.is_some();
     if let Some(at) = at {
-        create_effect(move || with_document(|document| document.set_text_item_at(item, at.get())));
+        create_effect(move || {
+            let at = at.get();
+            with_document(|document| document.set_text_item_at(item, at))
+        });
     }
     TextItem::new(item.id(), anchored)
+}
+
+pub struct Break {}
+
+impl ChildValue for Break {}
+
+#[component]
+pub fn Break() -> Break {
+    Break {}
+}
+
+impl IntoChild<TextChild> for Break {
+    fn into_child(self) -> TextChild {
+        TextChild::Break(self)
+    }
+}
+
+impl IntoSegment<TextChild> for Break {
+    fn into_segment(self) -> ChildSegment<TextChild> {
+        ChildSegment::One(TextChild::Break(self))
+    }
 }

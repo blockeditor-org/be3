@@ -1,15 +1,16 @@
 use super::*;
+use crate::dock::unstyled::{DockPane, DockSplit, DockTab, DockingLayout};
 use crate::reactive::*;
-use crate::unstyled::{DockMode, DockPane, DockSplit, DockTab, DockingLayout};
+
+const PHONE: Vec2 = Vec2::new(390.0, 600.0);
 
 #[test]
 fn a_stacked_dock_fills_itself_with_the_focused_tab_and_keeps_its_panels() {
     let _root = crate::reactive::RootScope::new();
-    let mode = create_signal(DockMode::Stacked);
     let document = build_node(move || {
         let layout = DockingLayout::new();
         view! {
-            <styled::Docking layout mode={mode} focus=3u64>
+            <dock::styled::Docking layout focus=3u64>
                 <DockSplit id="split">
                     <DockPane id="left">
                         <DockTab id=1u64 title="Tab 1">
@@ -25,10 +26,10 @@ fn a_stacked_dock_fills_itself_with_the_focused_tab_and_keeps_its_panels() {
                         </DockTab>
                     </DockPane>
                 </DockSplit>
-            </styled::Docking>
+            </dock::styled::Docking>
         }
     });
-    let mut harness = Harness::sized(document, WIDE_VIEWPORT);
+    let mut harness = Harness::sized(document, PHONE);
     harness.frame(Vec::new());
 
     let third = harness
@@ -38,10 +39,7 @@ fn a_stacked_dock_fills_itself_with_the_focused_tab_and_keeps_its_panels() {
     let bar = harness.rect(harness.find("dock.switch"));
     assert_eq!(
         harness.rect(third),
-        Rect::from_min_max(
-            pos2(0.0, harness.rect(third).top()),
-            pos2(WIDE_VIEWPORT.x, WIDE_VIEWPORT.y)
-        ),
+        Rect::from_min_max(pos2(0.0, harness.rect(third).top()), pos2(PHONE.x, PHONE.y)),
         "the focused tab fills the dock below its bar"
     );
     assert!(harness.rect(third).top() >= bar.bottom());
@@ -57,12 +55,13 @@ fn a_stacked_dock_fills_itself_with_the_focused_tab_and_keeps_its_panels() {
         "a stacked dock draws no tab bars"
     );
 
-    mode.set(DockMode::Tiled);
+    harness.resize(WIDE_VIEWPORT);
+    harness.frame(Vec::new());
     harness.frame(Vec::new());
     assert_eq!(
         harness.document().find_test_id("content.3"),
         Some(third),
-        "set_mode the dock again keeps the panel it was showing"
+        "widening the dock tiles it and keeps the panel it was showing"
     );
     assert!(
         harness.rect(third).left() > WIDE_VIEWPORT.x / 3.0,
@@ -70,7 +69,8 @@ fn a_stacked_dock_fills_itself_with_the_focused_tab_and_keeps_its_panels() {
     );
     harness.find("content.1");
 
-    mode.set(DockMode::Stacked);
+    harness.resize(PHONE);
+    harness.frame(Vec::new());
     harness.frame(Vec::new());
     assert_eq!(
         harness.document().find_test_id("content.3"),
@@ -79,7 +79,7 @@ fn a_stacked_dock_fills_itself_with_the_focused_tab_and_keeps_its_panels() {
     );
     assert_eq!(
         harness.rect(third).width(),
-        WIDE_VIEWPORT.x,
+        PHONE.x,
         "stacking it again fills the dock with the same panel"
     );
 }

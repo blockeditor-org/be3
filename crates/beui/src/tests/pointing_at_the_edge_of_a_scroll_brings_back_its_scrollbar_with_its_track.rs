@@ -1,8 +1,8 @@
 use super::*;
 use crate::primitives::Frame;
+use crate::primitives::List;
 use crate::reactive::*;
 use crate::styled::Scroll;
-use crate::styled::*;
 use crate::unstyled::{SCROLLBAR_FADE_OUT, SCROLLBAR_LINGER};
 
 #[test]
@@ -26,7 +26,7 @@ fn pointing_at_the_edge_of_a_scroll_brings_back_its_scrollbar_with_its_track() {
     assert!(!thumb_painted(&output, track));
     assert!(!painted_rect(&output, track, theme.surface_raised));
 
-    harness.frame(vec![Event::PointerMoved(pos2(
+    harness.frame(vec![Input::PointerMoved(pos2(
         bar.center().x,
         bar.bottom() - 4.0,
     ))]);
@@ -47,7 +47,7 @@ fn pointing_at_the_edge_of_a_scroll_brings_back_its_scrollbar_with_its_track() {
         "the bar stays while the pointer is on it"
     );
 
-    harness.frame(vec![Event::PointerMoved(
+    harness.frame(vec![Input::PointerMoved(
         harness.rect(scroll.get()).center(),
     )]);
     let output = harness.frame(Vec::new());
@@ -63,7 +63,7 @@ fn pointing_at_the_edge_of_a_scroll_brings_back_its_scrollbar_with_its_track() {
 }
 
 fn painted_rect(output: &crate::FrameOutput, rect: Rect, color: Color32) -> bool {
-    output.shapes().iter().any(|shape| {
+    output.main().shapes().iter().any(|shape| {
         matches!(shape, crate::Shape::Rect { rect: painted, color: fill, .. } if *painted == rect && *fill == color)
     })
 }

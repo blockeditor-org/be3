@@ -18,9 +18,12 @@ fn hover_only_repaints_when_its_handler_changes_a_node() {
     let (layouts, paints) = counted(&mut document, fill);
     let mut harness = Harness::new(document);
     harness.frame(vec![]);
-    let output = harness.frame(vec![Event::PointerMoved(pos2(10.0, 10.0))]);
-    assert!(!output.changed);
-    assert_eq!(output.window.cursor, crate::CursorIcon::PointingHand);
+    let output = harness.frame(vec![Input::PointerMoved(pos2(10.0, 10.0))]);
+    assert!(!output.main().changed);
+    assert_eq!(
+        output.main().window.requests.cursor,
+        crate::CursorIcon::PointingHand
+    );
     assert_eq!((layouts.get_untracked(), paints.get_untracked()), (1, 1));
     with_installed(harness.document_mut(), |_| {
         create_effect(move || {
@@ -32,18 +35,20 @@ fn hover_only_repaints_when_its_handler_changes_a_node() {
             with_document(|document| document.set_frame_color(fill, color));
         });
     });
-    harness.frame(vec![Event::PointerGone]);
+    harness.frame(vec![Input::PointerLeft]);
     assert!(
         harness
-            .frame(vec![Event::PointerMoved(pos2(10.0, 10.0))])
+            .frame(vec![Input::PointerMoved(pos2(10.0, 10.0))])
+            .main()
             .changed
     );
     let before = (layouts.get_untracked(), paints.get_untracked());
     assert!(
         !harness
-            .frame(vec![Event::PointerMoved(pos2(20.0, 20.0))])
+            .frame(vec![Input::PointerMoved(pos2(20.0, 20.0))])
+            .main()
             .changed
     );
     assert_eq!((layouts.get_untracked(), paints.get_untracked()), before);
-    assert!(harness.frame(vec![Event::PointerGone]).changed);
+    assert!(harness.frame(vec![Input::PointerLeft]).main().changed);
 }

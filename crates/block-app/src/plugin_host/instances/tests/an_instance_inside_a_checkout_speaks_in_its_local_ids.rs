@@ -2,9 +2,10 @@ use super::*;
 use uuid::Uuid;
 
 use be_block::version_control::{masked, scope_mask};
-use be_block::{BlockContent, BlockMetadata, CheckoutContent, TextContent};
+use be_block::{BlockContent, BlockMetadata, CheckoutContent};
 use be_graph::BlockParent;
 use block_plugin_api::{BlockInfo, BlockLocation, BlockQuery};
+use text_block_types::TextContent;
 
 fn info(block: Uuid, parent: Uuid, references: Vec<Uuid>) -> BlockInfo {
     BlockInfo {
@@ -17,6 +18,7 @@ fn info(block: Uuid, parent: Uuid, references: Vec<Uuid>) -> BlockInfo {
         metadata: block_plugin_api::BlockMetadata::default(),
         locked: false,
         deleted: false,
+        sets_access: false,
     }
 }
 
@@ -52,54 +54,41 @@ fn an_instance_inside_a_checkout_speaks_in_its_local_ids() {
         None,
     );
     let instances = placed_on(copy, TextContent::CONTENT_TYPE);
+    let scope = instances.scope(INSTANCE);
 
-    let mut answer = Message::Editor(EditorMessage::Blocks {
-        instance: INSTANCE,
-        query: BlockQuery::Block(copy.into_bytes()),
-        blocks: vec![info(copy, checkout, vec![copy, elsewhere])],
+    let mut query = BlockQuery::Block(copy.into_bytes());
+    let mut answer = info(copy, checkout, vec![copy, elsewhere]);
+    Instances::translated(scope, false, |visit| {
+        query.visit_block_ids(visit);
+        answer.visit_block_ids(visit);
     });
-    instances.translate(&mut answer, false);
-    assert_eq!(
-        answer,
-        Message::Editor(EditorMessage::Blocks {
-            instance: INSTANCE,
-            query: BlockQuery::Block(local.into_bytes()),
-            blocks: vec![info(local, checkout, vec![local, elsewhere])],
-        })
-    );
+    assert_eq!(query, BlockQuery::Block(local.into_bytes()));
+    assert_eq!(answer, info(local, checkout, vec![local, elsewhere]));
 
     let fresh = Uuid::new_v4();
-    let mut created = Message::Editor(EditorMessage::CreateBlock {
-        instance: INSTANCE,
-        block_id: fresh.into_bytes(),
-        content_type: TextContent::CONTENT_TYPE.into_bytes(),
-        parent: BlockLocation::Block(local.into_bytes()),
+    let create = |parent: Uuid| Call::CreateBlock {
+        block: fresh.into_bytes(),
+        block_type: TextContent::CONTENT_TYPE.into_bytes(),
+        parent: BlockLocation::Block(parent.into_bytes()),
         defined: block_plugin_api::MetadataEntries::new(),
         content: None,
-    });
-    instances.translate(&mut created, true);
-    assert_eq!(
-        created,
-        Message::Editor(EditorMessage::CreateBlock {
-            instance: INSTANCE,
-            block_id: fresh.into_bytes(),
-            content_type: TextContent::CONTENT_TYPE.into_bytes(),
-            parent: BlockLocation::Block(copy.into_bytes()),
-            defined: block_plugin_api::MetadataEntries::new(),
-            content: None,
-        })
-    );
+    };
+    let mut created = create(local);
+    Instances::translated(scope, true, |visit| created.visit_block_ids(visit));
+    assert_eq!(format!("{created:?}"), format!("{:?}", create(copy)));
 
     let outside = placed_on(elsewhere, TextContent::CONTENT_TYPE);
-    let mut unscoped = Message::Editor(EditorMessage::SetParent {
-        instance: INSTANCE,
-        block_id: copy.into_bytes(),
+    let set_parent = || Call::SetParent {
+        block: copy.into_bytes(),
         parent: BlockLocation::Block(checkout.into_bytes()),
+    };
+    let mut unscoped = set_parent();
+    Instances::translated(outside.scope(INSTANCE), true, |visit| {
+        unscoped.visit_block_ids(visit);
     });
-    let before = unscoped.clone();
-    outside.translate(&mut unscoped, true);
     assert_eq!(
-        unscoped, before,
+        format!("{unscoped:?}"),
+        format!("{:?}", set_parent()),
         "an editor outside every checkout sees real ids"
     );
 }

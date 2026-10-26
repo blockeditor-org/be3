@@ -1,4 +1,3 @@
-use beui_core::layer::Dismiss;
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 use std::time::Duration;
@@ -7,19 +6,17 @@ use beui_macros::{component, view};
 
 use super::back_slide::BACK_DRAG_SHARE;
 use super::fling::Fling;
-use super::rubber_band::{SCROLL_SPRING, WINDOW_SPRING, rubber_band, spring_back, unband};
+use super::modal::{Modal, ModalHandle, ModalMotion, ModalPlacement};
+use super::rubber_band::{SCROLL_SPRING, WINDOW_SPRING, bounce, rubber_band, spring_back, unband};
 use beui_core::base::Direction;
 use beui_core::base::offset::ScrollPosition;
-use beui_core::base::overlay::{OverlayAnchor, Placement};
 use beui_core::color::Color32;
 use beui_core::geometry::{Pos2, Rect, Vec2, vec2};
 use beui_core::input::{BackGesture, CursorIcon, DragGesture, PointerPress, ScrollGesture};
 use beui_core::node::NodeId;
-use beui_view::components::overlay::{Overlay, use_overlay_presence};
+use beui_view::components::overlay::use_overlay_presence;
 use beui_view::primitives::*;
 use beui_view::reactive::*;
-
-pub const SHEET_STOPS: [f32; 3] = [0.3, 0.5, 0.9];
 
 const CLOSE_SHARE: f32 = 0.4;
 const CLOSE_DISTANCE: f32 = 96.0;
@@ -187,7 +184,7 @@ impl Motion {
                 .set(body.top() - sheet.top() - self.shifted.get());
         }
         let chrome = self.chrome.get();
-        let highest = self.shares.last().copied().unwrap_or(SHEET_STOPS[2]);
+        let highest = self.shares.last().copied().unwrap_or(1.0);
         let top = (chrome + position.content).min(highest * extent);
         let stops = match self.fit {
             true => vec![(top, Rest::Fitted)],
@@ -210,7 +207,7 @@ impl Motion {
     fn top_rest(&self) -> Rest {
         match self.fit {
             true => Rest::Fitted,
-            false => Rest::Share(self.shares.last().copied().unwrap_or(SHEET_STOPS[2])),
+            false => Rest::Share(self.shares.last().copied().unwrap_or(1.0)),
         }
     }
 
@@ -226,18 +223,34 @@ impl Motion {
         let Some(node) = self.node() else {
             return (0.0, 0.0);
         };
-        match node.offset() {
-            Some(offset) => (offset, node.overscroll()),
-            None => (0.0, 0.0),
-        }
+        let Some(raw) = node.offset() else {
+            return (0.0, 0.0);
+        };
+        let offset = raw.clamp(0.0, self.shape().max_offset);
+        (offset, raw - offset)
     }
 
     fn place_content(&self, offset: f32, overscroll: f32) {
         let Some(node) = self.node() else {
             return;
         };
-        node.drive_offset(offset);
-        node.set_overscroll(overscroll);
+        node.drive_offset(offset + overscroll);
+    }
+
+    fn settle_content(&self, position: ScrollPosition) -> bool {
+        let held = self.held.borrow();
+        if position.overscroll() == 0.0
+            || held.travel.is_some()
+            || !matches!(held.phase, Phase::Still)
+        {
+            return false;
+        }
+        drop(held);
+        let Some(node) = self.node() else {
+            return false;
+        };
+        node.drive_offset(position.clamped());
+        true
     }
 
     fn place_height(&self, rest: Rest) {
@@ -780,6 +793,10 @@ impl Motion {
 
     fn wheel(&self, gesture: ScrollGesture) {
         let (wheel, fling) = (gesture.delta.y, gesture.fling.y);
+        if gesture.held && wheel == 0.0 && fling == 0.0 {
+            self.stop_fling();
+            return;
+        }
         if self.held.borrow().travel.is_some() || (wheel == 0.0 && fling == 0.0) {
             return;
         }
@@ -1057,15 +1074,15 @@ impl Motion {
                 !settled
             }
             Phase::Bounce { velocity } => {
-                let mut overscroll = overscroll;
-                spring_back(&mut overscroll, velocity, elapsed, SCROLL_SPRING);
-                let settled = overscroll == 0.0 && *velocity == 0.0;
-                if settled {
-                    held.phase = Phase::Still;
+                let mut stretch = unband(overscroll, shape.viewport);
+                let back = bounce(&mut stretch, velocity, elapsed);
+                if stretch == 0.0 {
+                    held.phase = Fling::new(back).map_or(Phase::Still, Phase::Fling);
                 }
+                let moving = !matches!(held.phase, Phase::Still);
                 drop(held);
-                self.place_content(offset, overscroll);
-                !settled
+                self.place_content(offset, rubber_band(stretch, shape.viewport));
+                moving
             }
         }
     }
@@ -1075,8 +1092,8 @@ impl Motion {
 pub fn Sheet(
     extent: Prop<f32>,
     #[prop(default = true)] open: Prop<bool>,
-    #[prop(default = SHEET_STOPS[1])] rest: f32,
-    #[prop(default = SHEET_STOPS.to_vec())] stops: Vec<f32>,
+    rest: f32,
+    stops: Vec<f32>,
     #[prop(default = false)] fit: bool,
     #[prop(default = 0.0)] fade: f32,
     grip: Render<SheetGripHandle>,
@@ -1086,10 +1103,7 @@ pub fn Sheet(
     on_close: ClickCallback,
     children: Child,
 ) -> NodeId {
-    let mut stops = match stops.is_empty() {
-        true => SHEET_STOPS.to_vec(),
-        false => stops,
-    };
+    let mut stops = stops;
     stops.sort_by(f32::total_cmp);
     let shares: Rc<[f32]> = Rc::from(stops);
     let resting = match fit {
@@ -1209,7 +1223,11 @@ pub fn Sheet(
                                             <Offset
                                                 @node_ref=&content
                                                 fit=true
-                                                on_change={move |value| position.set(Some(value))}
+                                                on_change={move |value: ScrollPosition| {
+                                                    if !motion.value().settle_content(value) {
+                                                        position.set(Some(value));
+                                                    }
+                                                }}
                                             >
                                                 {children}
                                             </Offset>
@@ -1228,21 +1246,25 @@ pub fn Sheet(
 #[component]
 pub fn ModalSheet(
     open: Prop<bool>,
-    #[prop(default = SHEET_STOPS[2])] rest: f32,
-    #[prop(default = SHEET_STOPS.to_vec())] stops: Vec<f32>,
+    rest: f32,
+    stops: Vec<f32>,
     #[prop(default = false)] fit: bool,
     #[prop(default = 0.0)] fade: f32,
-    #[prop(default = Color32::TRANSPARENT)] scrim: Prop<Color32>,
+    scrim: Prop<Color32>,
     grip: Render<SheetGripHandle>,
     panel: Render<Child>,
     on_close: ClickCallback,
     #[prop(children)] content: Render,
 ) -> NodeId {
-    let presence = create_signal(0.0_f32);
-    let faded = create_memo(move || scrim.get().scale_alpha(presence.get()));
     let shown = open;
-    let body = Render::new(move |()| {
-        view! {
+    view! {
+        <Modal
+            open
+            scrim
+            placement=ModalPlacement::Fill
+            motion=ModalMotion::Reported
+            on_dismiss={on_close}
+        >|modal: ModalHandle|
             <ModalSheetBody
                 open={shown}
                 rest
@@ -1251,24 +1273,12 @@ pub fn ModalSheet(
                 fade
                 grip
                 panel
-                on_presence={presence}
+                on_presence={modal.presence}
                 on_close={on_close}
             >
                 {content.call(())}
             </ModalSheetBody>
-        }
-    })
-    .once();
-    view! {
-        <Overlay
-            anchor=OverlayAnchor::Point(Pos2::ZERO)
-            open={open}
-            keep_alive=true
-            placement=Placement::Fill
-            scrim={faded}
-            on_dismiss={move |_: Dismiss| on_close.call()}
-            content={move || body.call(())}
-        />
+        </Modal>
     }
 }
 
@@ -1304,7 +1314,7 @@ fn ModalSheetBody(
     view! {
         <LayoutBuilder>|size: ReadSignal<Vec2>| {
             let extent = create_memo(move || size.get().y);
-            let highest = stops.iter().copied().fold(SHEET_STOPS[0], f32::max);
+            let highest = stops.iter().copied().fold(0.0, f32::max);
             let room = create_memo(move || {
                 ItemSize::Percent(100.0).min(extent.get() * (1.0 - highest))
             });

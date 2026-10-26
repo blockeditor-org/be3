@@ -1,33 +1,32 @@
 use super::*;
 use crate::color::Hsva;
+use crate::primitives::List;
 use crate::reactive::*;
 use crate::styled::*;
+use crate::testing::{Showing, Stepped, Target};
+use beui_core::window::WindowSize;
 
 #[test]
 fn a_press_inside_a_color_wheels_triangle_picks_saturation_and_value() {
-    let _root = crate::reactive::RootScope::new();
+    let _root = RootScope::new();
     let changes = create_signal(Vec::new());
-    let wheel = NodeRef::new();
     let document = build_node(move || {
         view! {
             <List spacing=0.0>
                 <ColorWheel
-                    @node_ref=&wheel
+                    @test_id={"wheel"}
                     value={Binding::new(Hsva::new(200.0, 1.0, 1.0, 1.0).to_color(), move |next| changes.update(|changes| changes.push(next)))}
                 />
             </List>
         }
     });
-    let mut harness = Harness::sized(document, TALL_VIEWPORT);
-    harness.frame(Vec::new());
-    let rect = harness.rect(wheel.get());
-    let centre = pos2(
-        rect.left() + WHEEL_SIZE / 2.0,
-        rect.top() + WHEEL_SIZE / 2.0,
-    );
+    let window = WindowSize {
+        size: TALL_VIEWPORT,
+        scale: 1.0,
+    };
+    let mut app = Stepped::new(context(), Showing(document), window, None);
 
-    harness.click(centre);
-    harness.frame(Vec::new());
+    app.click(Target::id("wheel").at(vec2(WHEEL_SIZE / 2.0, WHEEL_SIZE / 2.0)));
 
     let changes = changes.get_untracked();
     assert_eq!(changes.len(), 1);

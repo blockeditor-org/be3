@@ -1,14 +1,16 @@
 mod actions;
 pub mod colors;
 mod completion;
-pub(crate) mod emoji;
+pub mod emoji;
+pub mod hooks;
 pub mod keys;
 mod lines;
+pub mod look;
 pub mod rows;
 pub mod state;
 
 use std::cell::{Cell, RefCell};
-use std::collections::{BTreeMap, HashMap};
+use std::collections::BTreeMap;
 use std::ops::Range;
 use std::rc::Rc;
 use std::time::Duration;
@@ -22,7 +24,7 @@ use text_editor_core::{
 
 use beui_macros::{component, view};
 
-use crate::Scroll;
+use crate::{Scroll, ScrollbarStyle};
 use beui_core::base::text::TextGeometry;
 use beui_core::base::{ImeCursor, ItemSize, ScrollPosition};
 use beui_core::clipboard::{PasteKind, Pasted};
@@ -39,54 +41,23 @@ use beui_view::reactive::*;
 
 use completion::{Completions, Query, query};
 use lines::{Lines, SingleLine};
-use rows::{
-    BODY_SIZE, Composition, Inline, InlineItem, LINE_PADDING, Row, RowOptions, TableSpacers,
-    galley, line_of, table_spacers,
-};
+use rows::{BODY_SIZE, Composition, Inline, InlineItem, Row, galley, line_of};
 use state::{AreaGeometry, Grab};
+use text_editor_core::ListMarker;
 
 pub use colors::{SyntaxColors, TextAreaColors};
 pub use completion::{Completer, Completion, CompletionMenu, CompletionRowHandle};
 pub use emoji::{emoji_completer, search_emoji};
-pub use rows::{Prose, TextWidget, VOID_SIZE, VoidSize};
-pub use state::{TextAreaLayout, TextAreaState};
+pub use hooks::{
+    LeafSpan, Margin, MarkerColumn, MarkerKind, PlainLine, QuoteBar, TableFill, TableLines,
+    TextLeaf, TextLine, TextMarker,
+};
+pub use look::{BlockGeometry, ChipGeometry, TextAreaGeometry, TextAreaLook, WidgetGeometry};
+pub use rows::{Prose, RowTable, TextWidget};
+pub use state::{ProseLine, TextAreaLayout, TextAreaState};
 
-#[derive(Clone, Copy)]
-pub struct BlockView {
-    pub state: TextAreaState,
-    pub line: ReadSignal<usize>,
-    pub start: Memo<usize>,
-    pub props: Memo<text_editor_core::MarkSet>,
-    pub line_height: Memo<f32>,
-    pub text: NodeId,
-}
-
-#[derive(Clone, Copy)]
-pub struct VoidView {
-    pub state: TextAreaState,
-    pub props: Memo<text_editor_core::MarkSet>,
-    pub size: Memo<Vec2>,
-}
-
-pub struct TextCheckbox {
-    pub checked: Binding<bool>,
-    pub disabled: Memo<bool>,
-}
-
-pub const PADDING: Vec2 = Vec2::new(12.0, 8.0);
-pub const CARET_WIDTH: f32 = 2.0;
-const GUTTER_PADDING_LEFT: f32 = 10.0;
-const GUTTER_PADDING_RIGHT: f32 = 10.0;
-const GUTTER_ARROW_SIZE: f32 = 14.0;
 const TOUCH_HANDLE_HIT_RADIUS: f32 = 24.0;
 const CARET_HANDLE_TAP_SLACK: f32 = 4.0;
-const CHECKBOX_RADIUS: f32 = 3.0;
-const CHECKBOX_OUTLINE: f32 = 1.5;
-const INLINE_WIDGET_RADIUS: f32 = 5.0;
-const RUN_CHIP_RADIUS: f32 = 3.0;
-const REMOTE_SELECTION_ALPHA: u8 = 70;
-const CODE_OUTSET: Vec2 = Vec2::new(3.0, -1.0);
-const CODE_RADIUS: f32 = 3.0;
 const REVEAL_MARGIN: Vec2 = Vec2::new(8.0, 3.0);
 const REVEAL_ATTEMPTS: u8 = 3;
 const SELECT_ALL_CLICKS: u32 = 4;
@@ -138,20 +109,21 @@ struct Held {
 struct Surface {
     state: TextAreaState,
     single_line: bool,
+    line_numbers: bool,
     held: Stored<Held>,
     starts: Memo<Rc<Vec<usize>>>,
     visible: Memo<Vec<usize>>,
-    tables: Memo<Rc<TableSpacers>>,
     widgets: Memo<Vec<TextWidget>>,
     client_colors: Memo<Vec<(u64, Color32)>>,
     colors: Memo<TextAreaColors>,
+    geometry: Memo<TextAreaGeometry>,
     composition: Memo<Option<Composition>>,
     placeholder: Memo<String>,
     font_size: Memo<f32>,
     prose: Memo<Option<Prose>>,
     metrics: Memo<(f32, u64)>,
     gutter: Memo<f32>,
-    padding: Memo<Vec2>,
+    padding: Memo<Sides>,
     scroll: ReadSignal<ScrollPosition>,
     offset: Signal<f32>,
     shift: Signal<f32>,
@@ -165,15 +137,17 @@ struct Surface {
     anchor: NodeId,
     masked: Memo<bool>,
     disabled: Memo<bool>,
+    locked: Memo<bool>,
     remote_cursors: Memo<Vec<RemoteTextCursor>>,
     drop_caret: Memo<Option<usize>>,
     text_extent: Signal<Vec2>,
     block: Option<RenderFn<usize>>,
     selected_widget: Option<RenderFn<usize>>,
-    checkbox: Option<RenderFn<TextCheckbox>>,
-    render_block: Option<RenderFn<BlockView>>,
-    render_void: Option<RenderFn<VoidView>>,
-    void_size: Option<VoidSize>,
+    leaf: RenderFn<TextLeaf, beui_view::components::text::Span>,
+    marker: RenderFn<TextMarker>,
+    line: RenderFn<TextLine>,
+    rights: Signal<BTreeMap<u64, f32>>,
+    on_content_size: Callback<Vec2>,
     completion: Memo<Option<Query>>,
     completions: Memo<Vec<Completion>>,
     completing: Memo<bool>,
@@ -197,12 +171,15 @@ impl AreaGeometry for Surface {
     fn caret_rect(&self, byte: usize) -> Option<Rect> {
         let canvas = self.canvas_rect()?;
         match self.caret_rect_at(byte) {
-            Some(rect) => Some(rect.translate(-canvas.min.to_vec2())),
+            Some(rect) => Some(
+                rect.translate(-canvas.min.to_vec2())
+                    .scaled(self.scale().recip()),
+            ),
             None => {
                 let y = self.estimated_y(byte)?;
                 Some(Rect::from_min_size(
-                    Pos2::new(PADDING.x, y),
-                    Vec2::new(CARET_WIDTH, self.row_estimate()),
+                    Pos2::new(self.padding.get_untracked().left, y),
+                    Vec2::new(self.caret_width(), self.row_estimate()),
                 ))
             }
         }
@@ -214,6 +191,17 @@ impl AreaGeometry for Surface {
 }
 
 impl Surface {
+    fn caret_width(&self) -> f32 {
+        self.geometry.get_untracked().caret_width
+    }
+
+    fn scale(&self) -> f32 {
+        self.state
+            .canvas()
+            .try_get()
+            .map_or(1.0, |canvas| self.held.value().placements.scale(canvas))
+    }
+
     fn canvas_rect(&self) -> Option<Rect> {
         self.held
             .value()
@@ -231,7 +219,7 @@ impl Surface {
         let padding = match (self.single_line, self.prose.get_untracked()) {
             (true, _) => (0.0, 0.0),
             (false, Some(prose)) => prose.line_padding,
-            (false, None) => LINE_PADDING,
+            (false, None) => self.geometry.get_untracked().line_padding,
         };
         body + padding.0 + padding.1
     }
@@ -247,7 +235,7 @@ impl Surface {
     fn caret_rect_at(&self, byte: usize) -> Option<Rect> {
         let entry = self.entry(self.line_of(byte))?;
         let display = entry.row().to_display(byte);
-        entry.text()?.caret_rect(display, CARET_WIDTH)
+        entry.text()?.caret_rect(display, self.caret_width())
     }
 
     fn estimated_y(&self, byte: usize) -> Option<f32> {
@@ -256,7 +244,7 @@ impl Surface {
         let canvas = self.canvas_rect()?;
         let rect = self.held.value().placements.rect(list)?;
         let offset = list.row_offset(&line)?;
-        Some(rect.min.y - canvas.min.y + offset)
+        Some((rect.min.y - canvas.min.y) / self.scale() + offset)
     }
 
     fn row_at(&self, pos: Pos2) -> Option<RowEntry> {
@@ -280,15 +268,19 @@ impl Surface {
         let (Some(canvas), Some(laid)) = (self.canvas_rect(), text.rect()) else {
             return pos;
         };
-        let wanted = canvas.min.x + self.padding.get_untracked().x - self.shift.get_untracked();
+        let wanted = canvas.min.x
+            + (self.padding.get_untracked().left - self.shift.get_untracked()) * self.scale();
         Pos2::new(pos.x + laid.min.x - wanted, pos.y)
     }
 
     fn below_end(&self, pos: Pos2) -> bool {
-        let last = self.starts.get_untracked().len().saturating_sub(1);
-        self.entry(last)
-            .and_then(|entry| entry.rect(&self.held.value().placements))
-            .is_some_and(|rect| pos.y > rect.max.y)
+        let held = self.held.value();
+        let rows = held.rows.borrow();
+        rows.values()
+            .filter_map(|entry| entry.rect(&held.placements))
+            .map(|rect| rect.max.y)
+            .reduce(f32::max)
+            .is_some_and(|bottom| pos.y > bottom)
     }
 
     fn hit(&self, pos: Pos2) -> Option<usize> {
@@ -309,7 +301,8 @@ impl Surface {
     }
 
     fn gutter_arrow_at(&self, pos: Pos2) -> Option<usize> {
-        let gutter = self.gutter.get_untracked();
+        let scale = self.scale();
+        let gutter = self.gutter.get_untracked() * scale;
         let entry = self.row_at(pos)?;
         let rect = entry.rect(&self.held.value().placements)?;
         if pos.x < rect.min.x || pos.x > rect.min.x + gutter {
@@ -322,12 +315,14 @@ impl Surface {
             .sections()
             .iter()
             .any(|section| section.line_start == start);
+        let geometry = self.geometry.get_untracked();
+        let size = geometry.gutter_arrow;
         let arrow = Rect::from_min_size(
             Pos2::new(
-                rect.min.x + GUTTER_PADDING_LEFT,
-                rect.min.y + (row.line_height - GUTTER_ARROW_SIZE) / 2.0,
+                rect.min.x + geometry.gutter_padding.0 * scale,
+                rect.min.y + (row.line_height - size) / 2.0 * scale,
             ),
-            Vec2::splat(GUTTER_ARROW_SIZE),
+            Vec2::splat(size * scale),
         );
         (collapsible && arrow.contains(pos)).then_some(start)
     }
@@ -366,7 +361,11 @@ impl Surface {
         };
         let canvas = self.canvas_rect();
         let (rect, exact) = match (self.caret_rect_at(byte), canvas) {
-            (Some(rect), Some(canvas)) => (rect.translate(-canvas.min.to_vec2()), true),
+            (Some(rect), Some(canvas)) => (
+                rect.translate(-canvas.min.to_vec2())
+                    .scaled(self.scale().recip()),
+                true,
+            ),
             _ => match self.estimated_y(byte) {
                 Some(y) => (
                     Rect::from_min_size(Pos2::new(0.0, y), Vec2::new(0.0, self.row_estimate())),
@@ -375,7 +374,7 @@ impl Surface {
                 None => return,
             },
         };
-        let mut offset = position.offset;
+        let mut offset = position.clamped();
         if rect.min.y - REVEAL_MARGIN.y < offset {
             offset = rect.min.y - REVEAL_MARGIN.y;
         }
@@ -459,8 +458,8 @@ impl Surface {
     fn caret_x(&self, byte: usize) -> Option<f32> {
         let entry = self.entry(self.line_of(byte))?;
         let text = entry.text()?;
-        let caret = text.caret_rect(entry.row().to_display(byte), CARET_WIDTH)?;
-        Some(caret.min.x - text.rect()?.min.x)
+        let caret = text.caret_rect(entry.row().to_display(byte), self.caret_width())?;
+        Some((caret.min.x - text.rect()?.min.x) / text.scale())
     }
 
     fn reveal_across(&self) {
@@ -489,7 +488,8 @@ impl Surface {
     }
 
     fn room(&self) -> f32 {
-        (self.view_width.get_untracked() - self.padding.get_untracked().x * 2.0 - CARET_WIDTH)
+        let padding = self.padding.get_untracked();
+        (self.view_width.get_untracked() - padding.left - padding.right - self.caret_width())
             .max(0.0)
     }
 
@@ -556,7 +556,7 @@ impl Surface {
                 if pos.y < caret.max.y {
                     return None;
                 }
-                let center = handle_center(caret, handle);
+                let center = handle_center(caret, handle, self.scale());
                 let distance = (Vec2::new(pos.x, pos.y) - center).length();
                 (distance <= TOUCH_HANDLE_HIT_RADIUS).then_some((handle, distance))
             })
@@ -572,7 +572,7 @@ impl Surface {
                 .union(self.caret_rect_at(range.end)?),
             (None, None) => return None,
         };
-        Some(toolbar_anchor(carets))
+        Some(toolbar_anchor(carets, self.scale()))
     }
 
     fn show_toolbar(&self) {
@@ -586,8 +586,10 @@ impl Surface {
         else {
             return false;
         };
-        let center = handle_center(caret, CaretHandle::Middle);
-        (Vec2::new(pos.x, pos.y) - center).length() <= HANDLE_RADIUS + CARET_HANDLE_TAP_SLACK
+        let scale = self.scale();
+        let center = handle_center(caret, CaretHandle::Middle, scale);
+        (Vec2::new(pos.x, pos.y) - center).length()
+            <= HANDLE_RADIUS * scale + CARET_HANDLE_TAP_SLACK
     }
 
     fn inside(&self, pos: Pos2) -> (Pos2, Option<Beyond>) {
@@ -818,7 +820,7 @@ fn hold(cx: &Context, press: PointerPress) {
 fn select_at(cx: &Context, pos: Pos2, clicks: u32, extend: bool, syntax: bool) {
     if let Some((entry, index, item)) = cx.inline_at(pos) {
         match item.inline {
-            Inline::Checkbox { .. } => {
+            Inline::Marker(ListMarker::Check(_)) => {
                 cx.state.set_selecting(false);
                 return;
             }
@@ -849,7 +851,7 @@ fn select_at(cx: &Context, pos: Pos2, clicks: u32, extend: bool, syntax: bool) {
                 cx.state.set_selecting(false);
                 return;
             }
-            Inline::Run => {}
+            Inline::Run | Inline::Marker(_) | Inline::Quote => {}
         }
     }
     let Some(target) = cx.hit(pos) else {
@@ -877,7 +879,17 @@ fn select_at(cx: &Context, pos: Pos2, clicks: u32, extend: bool, syntax: bool) {
             metric: CursorHorizontalPositionMetric::Byte,
             stop: CursorLeftRightStop::UnicodeGraphemeCluster,
         });
-        cx.state.set_selecting(false);
+        let Some(&caret) = cx.state.caret_indices().first() else {
+            return;
+        };
+        let position = cx.state.with_core(|core| core.position(caret));
+        cx.state.execute(EditorCommand::Click {
+            position,
+            mode,
+            extend: false,
+            select_syntax_node: syntax,
+        });
+        cx.state.set_selecting(true);
         cx.state.reveal_cursor();
         return;
     }
@@ -904,8 +916,14 @@ fn extend(cx: &Context, press: PointerPress) {
         return;
     }
     let (inside, beyond) = cx.inside(press.pos);
-    let Some(target) = cx.hit(inside) else {
-        return;
+    let target = match cx.below_end(inside) {
+        true => usize::MAX,
+        false => {
+            let Some(target) = cx.hit(inside) else {
+                return;
+            };
+            target
+        }
     };
     let position = cx.state.with_core(|core| core.position(target));
     cx.state.execute(EditorCommand::Drag(position));
@@ -936,7 +954,7 @@ fn release(cx: &Context, active: bool) {
 }
 
 fn insert_text(cx: &Context, text: &str) {
-    if cx.disabled.get_untracked() {
+    if cx.locked.get_untracked() {
         return;
     }
     let text = match cx.single_line {
@@ -953,7 +971,7 @@ fn insert_text(cx: &Context, text: &str) {
 }
 
 fn ime(cx: &Context, event: ImeEvent, key: impl Fn(KeyPress) -> bool) {
-    if cx.disabled.get_untracked() {
+    if cx.locked.get_untracked() {
         return;
     }
     let typed = |text: &str| -> String {
@@ -1024,16 +1042,17 @@ fn field_key(cx: &Context, press: KeyPress) -> bool {
         && (cx.completion_key(press) || keys::key(cx, press))
 }
 
-fn gutter_width(line_count: usize) -> f32 {
+fn gutter_width(line_count: usize, font_size: f32, geometry: &TextAreaGeometry) -> f32 {
     let digit =
-        galley("0", FontId::monospace(BODY_SIZE)).map_or(BODY_SIZE * 0.6, |galley| galley.size().x);
+        galley("0", FontId::monospace(font_size)).map_or(font_size * 0.6, |galley| galley.size().x);
     let mut digits = 1;
     let mut value = line_count.max(1);
     while value >= 10 {
         value /= 10;
         digits += 1;
     }
-    GUTTER_PADDING_LEFT + GUTTER_ARROW_SIZE + digit * digits as f32 + GUTTER_PADDING_RIGHT
+    let (left, right) = geometry.gutter_padding;
+    left + geometry.gutter_arrow + digit * digits as f32 + right
 }
 
 #[derive(Clone, Copy)]
@@ -1042,7 +1061,6 @@ struct Field {
     described: Memo<Node>,
     frame: Stored<RefCell<Option<Render<Child>>>>,
     inner: NodeRef,
-    surface_color: Memo<Color32>,
     field_placed: Signal<Option<ReadSignal<Rect>>>,
     cursor: Memo<CursorIcon>,
     hover_cursor: Signal<CursorIcon>,
@@ -1064,7 +1082,8 @@ pub fn TextArea(
     #[prop(default = false)] single_line: bool,
     #[prop(default = true)] line_numbers: bool,
     #[prop(default = Vec::new())] widgets: Prop<Vec<TextWidget>>,
-    #[prop(default = TextAreaColors::DEFAULT)] colors: Prop<TextAreaColors>,
+    colors: Prop<TextAreaColors>,
+    look: TextAreaLook,
     #[prop(default = Vec::new())] remote_cursors: Prop<Vec<RemoteTextCursor>>,
     #[prop(default = None)] drop_caret: Prop<Option<usize>>,
     #[prop(default = String::new())] placeholder: Prop<String>,
@@ -1072,19 +1091,19 @@ pub fn TextArea(
     #[prop(default = false)] focused: Prop<bool>,
     #[prop(default = true)] keyboard_on_focus: bool,
     #[prop(default = false)] disabled: Prop<bool>,
-    #[prop(default = BODY_SIZE)] font_size: Prop<f32>,
-    #[prop(default = PADDING)] padding: Prop<Vec2>,
+    #[prop(default = false)] read_only: Prop<bool>,
+    #[prop(default = true)] find: bool,
+    font_size: Prop<f32>,
+    padding: Prop<Sides>,
     #[prop(default = None)] prose: Prop<Option<Prose>>,
     #[prop(default = false)] show_runs: Prop<bool>,
     #[prop(default = Vec::new())] client_colors: Prop<Vec<(u64, Color32)>>,
+    #[prop(default = ScrollbarStyle::default())] scrollbar: ScrollbarStyle,
     accessibility: Option<Prop<Node>>,
     frame: Option<Render<Child>>,
     block: Option<RenderFn<usize>>,
     selected_widget: Option<RenderFn<usize>>,
-    checkbox: Option<RenderFn<TextCheckbox>>,
-    render_block: Option<RenderFn<BlockView>>,
-    render_void: Option<RenderFn<VoidView>>,
-    #[prop(default = None)] void_size: Option<VoidSize>,
+    on_content_size: Callback<Vec2>,
     #[prop(default = Completer::none())] completer: Completer,
     completion_menu: Option<CompletionMenu>,
     on_widget_press: Callback<usize, bool>,
@@ -1122,11 +1141,15 @@ pub fn TextArea(
                 let masked = create_memo(move || password.get());
                 let placeholder = create_memo(move || placeholder.get());
                 let disabled = create_memo(move || disabled.get());
+                let read_only = create_memo(move || read_only.get());
+                let locked = create_memo(move || disabled.get() || read_only.get());
                 let font_size = create_memo(move || font_size.get());
                 let prose = create_memo(move || prose.get());
                 let padding = create_memo(move || padding.get());
                 let widgets = create_memo(move || widgets.get());
                 let colors = create_memo(move || colors.get());
+                let geometry = look.geometry;
+                let geometry = create_memo(move || geometry.get());
                 let remote_cursors = create_memo(move || remote_cursors.get());
                 let drop_caret = create_memo(move || drop_caret.get());
                 let text_extent = create_signal(Vec2::ZERO);
@@ -1170,6 +1193,10 @@ pub fn TextArea(
                             true => node.set_disabled(),
                             false => node.clear_disabled(),
                         }
+                        match read_only.get() && !disabled.get() {
+                            true => node.set_read_only(),
+                            false => node.clear_read_only(),
+                        }
                         node
                     },
                 );
@@ -1201,44 +1228,9 @@ pub fn TextArea(
                     let rich = state.with_snapshot(|snapshot| snapshot.language == TextLanguage::RichText);
                     match single_line || !line_numbers || rich {
                         true => 0.0,
-                        false => gutter_width(starts.get().len()),
+                        false => gutter_width(starts.get().len(), font_size.get(), &geometry.get()),
                     }
                 });
-                let wrap_width = create_memo(move || {
-                    (size.get().x - gutter.get() - padding.get().x * 2.0).max(1.0).round()
-                });
-                let table_cache = std::cell::RefCell::new(rows::TableCache::default());
-                let tables = create_memo(
-                    move || {
-                        content.get();
-                        let scale = scale.get();
-                        let fonts = fonts.get();
-                        let wrap_width = wrap_width.get();
-                        let starts = starts.get();
-                        let widgets = widgets.get();
-                        let colors = colors.get();
-                        let options = RowOptions {
-                            body_size: font_size.get(),
-                            mask: masked.get(),
-                            single_line,
-                            prose: prose.get(),
-                        };
-                        Rc::new(state.with_snapshot(|snapshot| match snapshot.loaded && !single_line {
-                            true => table_spacers(&rows::TableInputs {
-                                wrap_width,
-                                snapshot,
-                                widgets: &widgets,
-                                colors: &colors,
-                                options,
-                                starts: &starts,
-                                scale,
-                                fonts,
-                                cache: &table_cache,
-                            }),
-                            false => HashMap::new(),
-                        }))
-                    },
-                );
                 let composition = create_memo(move || {
                     state.cursors().get();
                     state.content().get();
@@ -1250,7 +1242,7 @@ pub fn TextArea(
                     let trigger = trigger?;
                     state.cursors().get();
                     state.content().get();
-                    if !focused.get() || state.with_core(|core| core.composition()).is_some() {
+                    if !focused.get() || locked.get() || state.with_core(|core| core.composition()).is_some() {
                         return None;
                     }
                     query(state, trigger)
@@ -1275,13 +1267,15 @@ pub fn TextArea(
                         None => dismissed.set(None),
                     }
                 });
+                let caret_width = create_memo(move || Extent::px(geometry.get().caret_width));
                 let anchor = view! {
-                    <Frame width=CARET_WIDTH />
+                    <Frame width=caret_width />
                 };
 
                 let cx = Surface {
                     state,
                     single_line,
+                    line_numbers,
                     held: store(Held {
                         rows: RefCell::new(BTreeMap::new()),
                         registered: Cell::new(0),
@@ -1291,10 +1285,10 @@ pub fn TextArea(
                     }),
                     starts,
                     visible,
-                    tables,
                     widgets,
                     client_colors,
                     colors,
+                    geometry,
                     composition,
                     placeholder,
                     font_size,
@@ -1315,15 +1309,17 @@ pub fn TextArea(
                     anchor,
                     masked,
                     disabled,
+                    locked,
                     remote_cursors,
                     drop_caret,
                     text_extent,
                     block,
                     selected_widget,
-                    checkbox,
-                    render_block,
-                    render_void,
-                    void_size,
+                    leaf: look.leaf,
+                    marker: look.marker,
+                    line: look.line,
+                    rights: create_signal(BTreeMap::new()),
+                    on_content_size,
                     completion,
                     completions,
                     completing,
@@ -1409,16 +1405,10 @@ pub fn TextArea(
                     false => hover_cursor.get(),
                 });
                 let tab_stop = create_memo(move || !disabled.get());
-                let surface_color = create_memo(move || colors.get().surface);
-                let outer_color = create_memo(move || match single_line {
-                    true => Color32::TRANSPARENT,
-                    false => surface_color.get(),
-                });
                 let field = Field {
                     described,
                     frame: store(RefCell::new(frame)),
                     inner,
-                    surface_color,
                     field_placed,
                     cx,
                     cursor,
@@ -1434,10 +1424,8 @@ pub fn TextArea(
                     on_image_paste,
                 };
                 let multi_line = !single_line;
-                let strip_width = create_memo(move || gutter.get());
                 let width = create_memo(move || size.get().x);
                 let height = create_memo(move || size.get().y);
-                let gutter_color = create_memo(move || colors.get().gutter);
                 let border_color = create_memo(move || colors.get().gutter_border);
                 let border_x = create_memo(move || gutter.get() - 1.0);
                 let border_width = create_memo(move || match gutter.get() > 0.0 {
@@ -1448,11 +1436,11 @@ pub fn TextArea(
                 let menu = create_memo(move || has_menu && completing.get());
                 if multi_line {
                     action_scope(&outer);
-                    actions::register(state, disabled);
+                    actions::register(state, locked, find);
                 }
 
                 view! {
-                    <Frame @node_ref=&outer fill=outer_color>
+                    <Frame @node_ref=&outer>
                         <List spacing=0.0>
                             <Show condition={single_line}>
                                 <Editing @sizing=ItemSize::Percent(100.0) field={field} />
@@ -1463,9 +1451,6 @@ pub fn TextArea(
                                     width={width}
                                     height={height}
                                 >
-                                    <CanvasItem x=0.0 y=0.0 width={strip_width} height={height}>
-                                        <Frame fill=gutter_color />
-                                    </CanvasItem>
                                     <CanvasItem
                                         x={border_x}
                                         y=0.0
@@ -1475,11 +1460,7 @@ pub fn TextArea(
                                         <Frame fill=border_color />
                                     </CanvasItem>
                                     <CanvasItem x=0.0 y=0.0 width={width} height={height}>
-                                        <Scroll
-                                            offset={offset}
-                                            focus_color={Color32::TRANSPARENT}
-                                            on_change={scroll}
-                                        >
+                                        <Scroll offset={offset} scrollbar on_change={scroll}>
                                             <Editing field={field} />
                                         </Scroll>
                                     </CanvasItem>
@@ -1507,7 +1488,6 @@ fn Editing(field: Field) -> NodeId {
         described,
         frame,
         inner,
-        surface_color,
         field_placed,
         cursor,
         hover_cursor: pointer_cursor,
@@ -1529,12 +1509,13 @@ fn Editing(field: Field) -> NodeId {
     component_accessibility(described);
     let single_line = cx.single_line;
     let disabled = cx.disabled;
+    let locked = cx.locked;
     view! {
         <Interactive
             focusable=true
             focused
             tab_stop
-            ime={create_memo(move || !disabled.get())}
+            ime={create_memo(move || !locked.get())}
             keyboard_on_focus
             ime_cursor
             ime_text
@@ -1549,7 +1530,8 @@ fn Editing(field: Field) -> NodeId {
             pastes
             on_paste={move |pasted: Pasted| match pasted {
                 Pasted::Text(typed) => insert_text(&cx, &typed),
-                Pasted::Image(image) => on_image_paste.call(image),
+                Pasted::Image(image) if !cx.locked.get_untracked() => on_image_paste.call(image),
+                Pasted::Image(_) => {}
             }}
             on_ime={move |event: ImeEvent| {
                 ime(&cx, event, |press| field_key(&cx, press))
@@ -1581,11 +1563,7 @@ fn Editing(field: Field) -> NodeId {
                     },
                     true => {
                         let field = view! {
-                            <FieldFrame
-                                @node_ref=&inner
-                                color={surface_color}
-                                report={field_placed}
-                            >
+                            <FieldFrame @node_ref=&inner report={field_placed}>
                                 <SingleLine cx={cx} />
                             </FieldFrame>
                         };
@@ -1616,16 +1594,12 @@ fn area_hit(tree: &impl Inspect, cx: &Context, pos: Pos2) -> Option<usize> {
 }
 
 #[component]
-fn FieldFrame(
-    color: Memo<Color32>,
-    report: Signal<Option<ReadSignal<Rect>>>,
-    children: Child,
-) -> NodeId {
+fn FieldFrame(report: Signal<Option<ReadSignal<Rect>>>, children: Child) -> NodeId {
     view! {
         <PlacementBuilder>|placed: ReadSignal<Rect>| {
             report.set_unconditionally(Some(placed));
             view! {
-                <Frame fill=color>{children}</Frame>
+                <Frame>{children}</Frame>
             }
         }</PlacementBuilder>
     }
@@ -1638,7 +1612,7 @@ fn hover_cursor(cx: &Context, pos: Pos2) -> CursorIcon {
             _,
             _,
             InlineItem {
-                inline: Inline::Checkbox { .. },
+                inline: Inline::Marker(ListMarker::Check(_)),
                 ..
             }
         ))
@@ -1681,14 +1655,14 @@ impl TextAreaApi {
                 let entry = rows.get(&line)?;
                 let caret = entry
                     .text()?
-                    .caret_rect(entry.row().to_display(byte), CARET_WIDTH)?;
+                    .caret_rect(entry.row().to_display(byte), cx.caret_width())?;
                 let viewport = cx.viewport.try_get().and_then(|node| tree.node_rect(node));
                 let shown = viewport.is_none_or(|viewport| match cx.single_line {
                     true => (viewport.min.x - HANDLE_SLACK..=viewport.max.x + HANDLE_SLACK)
                         .contains(&caret.min.x),
                     false => caret.max.y > viewport.min.y && caret.min.y < viewport.max.y,
                 });
-                let center = handle_center(caret, handle);
+                let center = handle_center(caret, handle, cx.scale());
                 shown.then_some(Pos2::new(center.x, center.y))
             })
             .collect()

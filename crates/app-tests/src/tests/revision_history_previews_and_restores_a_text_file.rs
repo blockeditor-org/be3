@@ -6,8 +6,9 @@ fn revision_history_previews_and_restores_a_text_file() {
     add_to_my_files(&mut app, "Text");
     app.click("#text.surface");
     app.type_text("Original revision");
-    app.run(&["scroll", "Tab \"Settings\"", "0", "200"]);
+    app.run(&["app", "scroll", "Tab \"Settings\"", "0", "200"]);
     app.click("Tab \"History\"");
+    app.wait("UTC\" #workspace.revision.");
     app.wait("UTC · Current");
     let original = app
         .tree()
@@ -21,6 +22,7 @@ fn revision_history_previews_and_restores_a_text_file() {
     app.key("ctrl+a");
     app.type_text("Latest revision");
     app.wait("Latest revision");
+    app.wait(&format!("UTC\" {original}"));
     app.click(&original);
     app.wait("#workspace.revision.current");
     app.wait("Original revision");

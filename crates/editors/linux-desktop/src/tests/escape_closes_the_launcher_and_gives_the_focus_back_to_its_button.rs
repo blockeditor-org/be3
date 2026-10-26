@@ -17,7 +17,7 @@ fn escape_closes_the_launcher_and_gives_the_focus_back_to_its_button() {
         "the launcher takes the focus"
     );
 
-    fixture.test.key_press(Key::Escape);
+    fixture.test.key(Key::Escape, Modifiers::NONE);
     fixture.settle();
     assert!(!fixture.test.shown("launcher"));
     assert!(

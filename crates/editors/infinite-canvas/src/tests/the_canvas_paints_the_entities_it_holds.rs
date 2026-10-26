@@ -1,5 +1,5 @@
 use super::*;
-use block_editor_beui::be_block::canvas::CanvasColor;
+use infinite_canvas_types::CanvasColor;
 
 #[test]
 fn the_canvas_paints_the_entities_it_holds() {

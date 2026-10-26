@@ -1,5 +1,5 @@
-use beui::styled::software_keyboard::{BAR_HEIGHT, PADDING, key_center};
-use beui::unstyled::software_keyboard::{Layer, Modifier, Value};
+use beui::keyboard::styled::{BAR_HEIGHT, PADDING, key_center};
+use beui::keyboard::unstyled::{Layer, Modifier, Value};
 use beui::vec2;
 
 use super::*;
@@ -10,7 +10,7 @@ fn field() -> DocumentTest {
     let document = build(move || {
         view! {
             <Root>
-                <Frame fill=ColorRole::Background padding=Sides::all(16.0)>
+                <Frame fill=ColorRole::Background padding=Space::Xl>
                     <TextInput
                         @test_id={"test.field"}
                         value=String::new()
@@ -68,11 +68,11 @@ fn the_on_screen_keyboard_opens_for_a_field_and_shows_what_its_modes_type() {
     );
     test.snapshot("software_keyboard");
 
-    test.click_at(key(&test, Layer::Text, Value::Modifier(Modifier::Shift)));
+    test.click(key(&test, Layer::Text, Value::Modifier(Modifier::Shift)));
     test.frame(Vec::new());
     test.snapshot("software_keyboard_shifted");
     for letter in ['h', 'i'] {
-        test.click_at(key(&test, Layer::Text, Value::Char(letter)));
+        test.click(key(&test, Layer::Text, Value::Char(letter)));
     }
     test.frame(Vec::new());
     assert_eq!(value_of(&test), "Hi", "shift lasts for one key");
@@ -87,6 +87,18 @@ fn the_on_screen_keyboard_opens_for_a_field_and_shows_what_its_modes_type() {
         "superscript turns the next key into its superscript"
     );
 
+    test.click(key(&test, Layer::Text, Value::Compose));
+    test.click(key(&test, Layer::Text, Value::Char('a')));
+    test.frame(Vec::new());
+    test.snapshot("software_keyboard_composing");
+    test.click(key(&test, Layer::Text, Value::Char('e')));
+    test.frame(Vec::new());
+    assert_eq!(
+        value_of(&test),
+        "Hi²æ",
+        "the key that showed æ while composing types it"
+    );
+
     swipe(
         &mut test,
         Layer::Text,
@@ -96,10 +108,10 @@ fn the_on_screen_keyboard_opens_for_a_field_and_shows_what_its_modes_type() {
     test.snapshot("software_keyboard_emoji");
 
     let close = pos2(
-        keyboard.right() - PADDING - BAR_HEIGHT / 2.0,
-        keyboard.top() + PADDING + BAR_HEIGHT / 2.0,
+        keyboard.right() - PADDING.px() - BAR_HEIGHT / 2.0,
+        keyboard.top() + PADDING.px() + BAR_HEIGHT / 2.0,
     );
-    test.click_at(close);
+    test.click(close);
     test.frame(Vec::new());
     assert!(
         test.context().keyboard_rect().is_none(),

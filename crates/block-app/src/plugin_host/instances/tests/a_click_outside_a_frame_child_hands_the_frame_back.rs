@@ -1,7 +1,5 @@
 use super::*;
-use block_plugin_api::{
-    ChildId, ChildLayer, ChildMode, ChildPlacement, ChildPlacements, ChildRect,
-};
+use block_plugin_api::{ChildId, ChildLayer, ChildMode, ChildPlacement, ChildPlacements, Rect};
 
 #[test]
 fn a_click_outside_a_frame_child_hands_the_frame_back() {
@@ -11,11 +9,6 @@ fn a_click_outside_a_frame_child_hands_the_frame_back() {
     instances.set_children(ChildPlacements {
         instance: INSTANCE,
         region: REGION,
-        generation: 1,
-        size: block_plugin_api::Size {
-            width: SIZE.x,
-            height: SIZE.y,
-        },
         children: vec![ChildPlacement {
             child: ChildId(1),
             content: ChildContent::Block {
@@ -24,18 +17,8 @@ fn a_click_outside_a_frame_child_hands_the_frame_back() {
                 view_block: None,
                 editor: None,
             },
-            rect: ChildRect {
-                x: 0.0,
-                y: 0.0,
-                width: 20.0,
-                height: 20.0,
-            },
-            clip: ChildRect {
-                x: 0.0,
-                y: 0.0,
-                width: 100.0,
-                height: 100.0,
-            },
+            rect: Rect::from_min_size(Pos2::new(0.0, 0.0), Vec2::new(20.0, 20.0)),
+            clip: Rect::from_min_size(Pos2::new(0.0, 0.0), Vec2::new(100.0, 100.0)),
             own_frame: false,
             top_bar: block_plugin_api::TopBar::Hidden,
             corner_radius: 0.0,
@@ -44,10 +27,10 @@ fn a_click_outside_a_frame_child_hands_the_frame_back() {
             intrinsic: None,
             rotation: 0.0,
             opacity: 1.0,
-            follows_camera: false,
+            follows_view: false,
+            dialog: None,
         }],
         occluders: Vec::new(),
-        camera: None,
     });
     assert!(
         instances.frame_child(INSTANCE).is_some(),

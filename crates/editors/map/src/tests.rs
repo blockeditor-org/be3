@@ -1,7 +1,7 @@
-use block_editor_beui::be_block::map::MapRegion;
-use block_editor_beui::be_block::{Map, MapContent};
-use block_editor_beui::{EditorHost, FetchResult, HostReply, HostRequest, OwnedEditor};
-use block_ui_test::BeuiTest;
+use block_editor_beui::{EditorHost, OwnedEditor};
+use block_ui_test::{BeuiTest, HostCall, Reply};
+use map_types::MapRegion;
+use map_types::{Map, MapContent};
 use uuid::Uuid;
 
 use crate::app::MapApp;
@@ -22,6 +22,7 @@ fn editor() -> BeuiTest<MapApp> {
     host.set_editable(true);
     let editor = OwnedEditor::new(host.clone(), block);
     let mut editor = BeuiTest::new(editor).in_viewport();
+    editor.store().register(map_types::registrations());
     editor.hold(None, MapContent::default());
     editor.run();
     editor
@@ -138,12 +139,14 @@ fn serve_tiles(editor: &mut BeuiTest<MapApp>) -> Vec<String> {
     serve_tiles_with(editor, ocean_tile)
 }
 
-fn requested_tiles(editor: &mut BeuiTest<MapApp>) -> Vec<(u64, String)> {
+type Fetched = Reply<Result<Vec<u8>, block_editor_beui::Failure>>;
+
+fn requested_tiles(editor: &mut BeuiTest<MapApp>) -> Vec<(Fetched, String)> {
     editor
         .take_requests()
         .into_iter()
-        .filter_map(|(request, asked)| match asked {
-            HostRequest::Fetch(url) => Some((request, url)),
+        .filter_map(|call| match call {
+            HostCall::Fetch { reply, url } => Some((reply, url)),
             _ => None,
         })
         .collect()
@@ -152,12 +155,9 @@ fn requested_tiles(editor: &mut BeuiTest<MapApp>) -> Vec<(u64, String)> {
 fn serve_tiles_with(editor: &mut BeuiTest<MapApp>, tile: impl Fn() -> Vec<u8>) -> Vec<String> {
     let mut served = Vec::new();
     loop {
-        for (request, asked) in editor.take_requests() {
-            let HostRequest::Fetch(url) = asked else {
-                continue;
-            };
+        for (request, url) in requested_tiles(editor) {
             assert!(url.starts_with("https://vector.openstreetmap.org/") && url.ends_with(".mvt"));
-            editor.reply(request, HostReply::Fetched(FetchResult::Body(tile())));
+            editor.answer(request, Ok(tile()));
             served.push(url);
         }
         let ids: Vec<String> = served.iter().map(|url| tile_test_id(url)).collect();

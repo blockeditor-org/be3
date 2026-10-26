@@ -1,7 +1,7 @@
 use super::*;
 use beui_core::app::SafeArea;
 use beui_core::renderer::{Loaded, Renderer};
-use beui_core::runner::{Launch, Platform, RunOptions, Runner};
+use beui_core::runner::{Launch, PlatformServices, RunOptions, Runner};
 use beui_core::window::WindowState;
 
 struct Screen(Rc<RefCell<Vec<Color32>>>);
@@ -21,7 +21,7 @@ impl Renderer for Screen {
         Some(vec2(200.0, 100.0))
     }
 
-    fn prepare(&mut self, _output: &FrameOutput, _scale: f32, background: Color32) -> bool {
+    fn prepare(&mut self, _output: &crate::WindowOutput, _scale: f32, background: Color32) -> bool {
         self.0.borrow_mut().push(background);
         false
     }
@@ -33,7 +33,7 @@ impl Renderer for Screen {
 
 struct Titles(Vec<String>);
 
-impl Platform for Titles {
+impl PlatformServices for Titles {
     fn show_window(&mut self, window: &WindowState, shown: &WindowState) {
         if window.appearance.title != shown.appearance.title
             && let Some(title) = &window.appearance.title
@@ -59,7 +59,8 @@ fn the_window_follows_the_title_and_clear_color_of_its_root() {
     let mut runner = Runner::new(Launch {
         options: RunOptions::default(),
         context: context(),
-        app: Box::new(DrivenDocument(document)),
+        app: Box::new(crate::testing::Showing(document)),
+        layers: Vec::new(),
     });
     let loaded = vec![Loaded {
         renderer: Box::new(Screen(Rc::clone(&backgrounds))),

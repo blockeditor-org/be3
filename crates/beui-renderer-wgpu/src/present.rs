@@ -1,4 +1,5 @@
 use std::error::Error;
+use std::ffi::CStr;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 
@@ -8,14 +9,104 @@ use crate::Repainting;
 use crate::renderer_info;
 use crate::wgpu_color_in;
 use beui_core::color::Color32;
-use beui_core::context::{FrameOutput, Moved, RendererInfo};
+use beui_core::context::{Moved, RendererInfo, WindowOutput};
 use beui_core::geometry::{Vec2, vec2};
+use beui_core::renderer::WindowHandle;
 
-pub type OpenDevice = Arc<
-    dyn Fn(&wgpu::Adapter, &wgpu::DeviceDescriptor<'_>) -> Option<(wgpu::Device, wgpu::Queue)>
-        + Send
-        + Sync,
->;
+pub trait OpenGpu: Send + Sync {
+    fn adapter(&self) -> Result<(wgpu::Instance, Option<wgpu::Adapter>), Box<dyn Error>>;
+
+    fn device(
+        &self,
+        adapter: &wgpu::Adapter,
+        extensions: &[&'static CStr],
+        descriptor: &wgpu::DeviceDescriptor<'_>,
+    ) -> Result<Option<(wgpu::Device, wgpu::Queue)>, Box<dyn Error>>;
+
+    fn stale(&self) -> bool {
+        false
+    }
+}
+
+#[derive(Clone, Default)]
+pub struct OpenDevice {
+    pub extensions: &'static [&'static CStr],
+    pub gpu: Option<Arc<dyn OpenGpu>>,
+}
+
+impl OpenDevice {
+    pub fn instance(&self) -> Result<(wgpu::Instance, Option<wgpu::Adapter>), Box<dyn Error>> {
+        match &self.gpu {
+            Some(gpu) => gpu.adapter(),
+            None => Ok((plain_instance(), None)),
+        }
+    }
+
+    pub fn stale(&self) -> bool {
+        self.gpu.as_ref().is_some_and(|gpu| gpu.stale())
+    }
+
+    fn open(
+        &self,
+        adapter: &wgpu::Adapter,
+        descriptor: &wgpu::DeviceDescriptor<'_>,
+    ) -> Result<Option<(wgpu::Device, wgpu::Queue)>, Box<dyn Error>> {
+        let opened = match &self.gpu {
+            Some(gpu) => gpu.device(adapter, self.extensions, descriptor)?,
+            None => None,
+        };
+        Ok(opened.or_else(|| open_vulkan_device(adapter, descriptor, self.extensions)))
+    }
+}
+
+pub fn plain_instance() -> wgpu::Instance {
+    wgpu::Instance::new(wgpu::InstanceDescriptor::new_without_display_handle_from_env())
+}
+
+// unsafe(ffi)
+#[cfg(any(windows, all(unix, not(target_vendor = "apple"))))]
+pub fn open_vulkan_device(
+    adapter: &wgpu::Adapter,
+    descriptor: &wgpu::DeviceDescriptor<'_>,
+    extensions: &[&'static CStr],
+) -> Option<(wgpu::Device, wgpu::Queue)> {
+    if extensions.is_empty() {
+        return None;
+    }
+    let hal = unsafe { adapter.as_hal::<wgpu::hal::api::Vulkan>() }?;
+    let capabilities = hal.physical_device_capabilities();
+    let extra: Vec<&'static CStr> = extensions
+        .iter()
+        .copied()
+        .filter(|name| capabilities.supports_extension(name))
+        .collect();
+    let opened = unsafe {
+        hal.open_with_callback(
+            descriptor.required_features,
+            &descriptor.required_limits,
+            &descriptor.memory_hints,
+            Some(Box::new(move |arguments| {
+                for name in extra {
+                    if !arguments.extensions.contains(&name) {
+                        arguments.extensions.push(name);
+                    }
+                }
+            })),
+        )
+    }
+    .ok()?;
+    drop(hal);
+    unsafe { adapter.create_device_from_hal(opened, descriptor) }.ok()
+}
+
+#[cfg(not(any(windows, all(unix, not(target_vendor = "apple")))))]
+pub fn open_vulkan_device(
+    _adapter: &wgpu::Adapter,
+    _descriptor: &wgpu::DeviceDescriptor<'_>,
+    _extensions: &[&'static CStr],
+) -> Option<(wgpu::Device, wgpu::Queue)> {
+    None
+}
 
 #[derive(Clone)]
 pub struct GpuSetup {
@@ -31,7 +122,7 @@ pub struct Gpu {
     pub queue: wgpu::Queue,
     pub format: wgpu::TextureFormat,
     pub renderer: Renderer,
-    open_device: Option<OpenDevice>,
+    open_device: OpenDevice,
     lost: Arc<AtomicBool>,
 }
 
@@ -44,16 +135,22 @@ struct Opened {
 
 async fn open(
     instance: &wgpu::Instance,
+    adapter: Option<wgpu::Adapter>,
     probe: Option<&wgpu::Surface<'_>>,
-    open_device: Option<&OpenDevice>,
+    open_device: &OpenDevice,
 ) -> Result<Opened, Box<dyn Error>> {
-    let adapter = instance
-        .request_adapter(&wgpu::RequestAdapterOptions {
-            power_preference: wgpu::PowerPreference::HighPerformance,
-            force_fallback_adapter: false,
-            compatible_surface: probe,
-        })
-        .await?;
+    let adapter = match adapter {
+        Some(adapter) => adapter,
+        None => {
+            instance
+                .request_adapter(&wgpu::RequestAdapterOptions {
+                    power_preference: wgpu::PowerPreference::HighPerformance,
+                    force_fallback_adapter: false,
+                    compatible_surface: probe,
+                })
+                .await?
+        }
+    };
     let descriptor = wgpu::DeviceDescriptor {
         label: Some("beui device"),
         required_features: wgpu::Features::empty(),
@@ -62,8 +159,7 @@ async fn open(
         memory_hints: wgpu::MemoryHints::Performance,
         trace: wgpu::Trace::Off,
     };
-    let opened = open_device.and_then(|open| open(&adapter, &descriptor));
-    let (device, queue) = match opened {
+    let (device, queue) = match open_device.open(&adapter, &descriptor)? {
         Some(opened) => opened,
         None => adapter.request_device(&descriptor).await?,
     };
@@ -91,20 +187,20 @@ async fn open(
 
 pub async fn create_offscreen(
     format: wgpu::TextureFormat,
-    open_device: Option<OpenDevice>,
+    open_device: OpenDevice,
 ) -> Result<Gpu, Box<dyn Error>> {
-    let instance =
-        wgpu::Instance::new(wgpu::InstanceDescriptor::new_without_display_handle_from_env());
-    let opened = open(&instance, None, open_device.as_ref()).await?;
+    let (instance, adapter) = open_device.instance()?;
+    let opened = open(&instance, adapter, None, &open_device).await?;
     Ok(Gpu::assemble(instance, opened, format, open_device))
 }
 
 pub async fn create_gpu(
     instance: wgpu::Instance,
+    adapter: Option<wgpu::Adapter>,
     probe: &wgpu::Surface<'_>,
-    open_device: Option<OpenDevice>,
+    open_device: OpenDevice,
 ) -> Result<Gpu, Box<dyn Error>> {
-    let opened = open(&instance, Some(probe), open_device.as_ref()).await?;
+    let opened = open(&instance, adapter, Some(probe), &open_device).await?;
     let capabilities = probe.get_capabilities(&opened.adapter);
     let format =
         surface_format(&capabilities.formats).ok_or("the adapter does not support this surface")?;
@@ -116,7 +212,7 @@ impl Gpu {
         instance: wgpu::Instance,
         opened: Opened,
         format: wgpu::TextureFormat,
-        open_device: Option<OpenDevice>,
+        open_device: OpenDevice,
     ) -> Self {
         Self {
             renderer: Renderer::new(&opened.device, format),
@@ -134,20 +230,31 @@ impl Gpu {
         self.lost.load(Ordering::SeqCst)
     }
 
+    pub fn stale(&self) -> bool {
+        self.lost() || self.open_device.stale()
+    }
+
     pub async fn reopen(
         &mut self,
-        probe: Option<&wgpu::Surface<'_>>,
-    ) -> Result<(), Box<dyn Error>> {
-        let opened = open(&self.instance, probe, self.open_device.as_ref()).await?;
-        let format = match probe {
+        window: Option<Arc<dyn WindowHandle>>,
+    ) -> Result<Option<wgpu::Surface<'static>>, Box<dyn Error>> {
+        let (instance, adapter) = match self.open_device.gpu {
+            Some(_) => self.open_device.instance()?,
+            None => (self.instance.clone(), None),
+        };
+        let probe = match window {
+            Some(window) => Some(instance.create_surface(window)?),
+            None => None,
+        };
+        let opened = open(&instance, adapter, probe.as_ref(), &self.open_device).await?;
+        let format = match &probe {
             Some(probe) => surface_format(&probe.get_capabilities(&opened.adapter).formats)
                 .ok_or("the adapter does not support this surface")?,
             None => self.format,
         };
-        let instance = self.instance.clone();
-        let open_device = self.open_device.take();
+        let open_device = std::mem::take(&mut self.open_device);
         *self = Self::assemble(instance, opened, format, open_device);
-        Ok(())
+        Ok(probe)
     }
 
     pub fn info(&self) -> RendererInfo {
@@ -243,7 +350,7 @@ impl Target {
     }
 
     #[cfg(not(target_arch = "wasm32"))]
-    pub fn capture(&self, gpu: &Gpu) -> Option<beui_core::app::automation::Capture> {
+    pub fn capture(&self, gpu: &Gpu) -> Option<beui_core::renderer::Capture> {
         let retained = self.retained.as_ref().filter(|_| self.presented)?;
         read_texture(&gpu.device, &gpu.queue, &retained.texture)
     }
@@ -274,6 +381,7 @@ impl Target {
             .get_default_config(&gpu.adapter, width.max(1), height.max(1))
             .ok_or("the adapter does not support this surface")?;
         config.format = gpu.format;
+        config.present_mode = self.config.present_mode;
         let capabilities = surface.get_capabilities(&gpu.adapter);
         if capabilities.usages.contains(wgpu::TextureUsages::COPY_DST) {
             config.usage |= wgpu::TextureUsages::COPY_DST;
@@ -292,6 +400,14 @@ impl Target {
         self.surface = None;
         self.retained = None;
         self.unpainted = None;
+    }
+
+    pub fn set_vsync(&mut self, gpu: &Gpu, vsync: bool) {
+        self.config.present_mode = match vsync {
+            true => wgpu::PresentMode::Fifo,
+            false => wgpu::PresentMode::AutoNoVsync,
+        };
+        self.configure(&gpu.device);
     }
 
     pub fn resize(&mut self, gpu: &Gpu, width: u32, height: u32) {
@@ -350,7 +466,7 @@ impl Target {
             .is_some_and(|retained| retained.size == (self.config.width, self.config.height))
     }
 
-    pub fn note(&mut self, output: &FrameOutput, scale: f32, clear_color: Color32) {
+    pub fn note(&mut self, output: &WindowOutput, scale: f32, clear_color: Color32) {
         let physical = vec2(self.config.width as f32, self.config.height as f32);
         let size = (physical, scale);
         let stale = self.prepared_size != Some(size)
@@ -400,7 +516,7 @@ impl Target {
     pub fn prepare(
         &mut self,
         gpu: &mut Gpu,
-        output: &FrameOutput,
+        output: &WindowOutput,
         scale: f32,
         clear_color: Color32,
     ) -> bool {
@@ -526,7 +642,7 @@ pub fn read_texture(
     device: &wgpu::Device,
     queue: &wgpu::Queue,
     texture: &wgpu::Texture,
-) -> Option<beui_core::app::automation::Capture> {
+) -> Option<beui_core::renderer::Capture> {
     let swap = match texture.format() {
         wgpu::TextureFormat::Rgba8Unorm | wgpu::TextureFormat::Rgba8UnormSrgb => false,
         wgpu::TextureFormat::Bgra8Unorm | wgpu::TextureFormat::Bgra8UnormSrgb => true,
@@ -589,7 +705,7 @@ pub fn read_texture(
     for pixel in rgba.as_chunks_mut::<4>().0 {
         pixel[3] = 255;
     }
-    Some(beui_core::app::automation::Capture {
+    Some(beui_core::renderer::Capture {
         width,
         height,
         rgba,

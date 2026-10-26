@@ -3,25 +3,7 @@ use tree_sitter_md::{MarkdownCursor, MarkdownTree};
 
 use super::{SynHlColorScope, SynHlFontFamily, SynHlStyle, SynHlTextSize};
 use crate::TextChange;
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum MarkdownTableAlignment {
-    Left,
-    Center,
-    Right,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct MarkdownTableRow {
-    pub range: Range<usize>,
-    pub cells: Vec<Range<usize>>,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct MarkdownTable {
-    pub rows: Vec<MarkdownTableRow>,
-    pub alignments: Vec<MarkdownTableAlignment>,
-}
+use crate::schema::{LineLook, ListMarker, TableLine, TableRow, join_neighbours};
 
 pub(super) fn styles_in(tree: &MarkdownTree, window: Range<usize>) -> Vec<SynHlStyle> {
     let mut styles = vec![SynHlStyle::plain(SynHlColorScope::MarkdownPlainText); window.len()];
@@ -30,18 +12,210 @@ pub(super) fn styles_in(tree: &MarkdownTree, window: Range<usize>) -> Vec<SynHlS
     styles
 }
 
-pub(super) fn tables(tree: &MarkdownTree) -> Vec<MarkdownTable> {
-    let mut tables = Vec::new();
-    let mut cursor = tree.walk();
-    collect_tables(&mut cursor, &mut tables);
-    tables
-}
-
-pub(super) fn code_blocks(tree: &MarkdownTree) -> Vec<Range<usize>> {
+fn code_blocks(tree: &MarkdownTree) -> Vec<Range<usize>> {
     let mut blocks = Vec::new();
     let mut cursor = tree.walk();
     collect_code_blocks(&mut cursor, &mut blocks);
     blocks
+}
+
+fn looks(tree: &MarkdownTree, source: &[u8]) -> Vec<(usize, LineLook)> {
+    let blocks = code_blocks(tree);
+    let root = tree.block_tree().root_node();
+    let mut lines = Vec::new();
+    let mut held = Vec::new();
+    let mut code = Vec::new();
+    let mut start = 0;
+    loop {
+        let end = memchr::memchr(b'\n', &source[start..]).map_or(source.len(), |at| start + at);
+        let (look, block) = line_look(root, source, &blocks, start..end);
+        lines.push(start);
+        held.push(look);
+        code.push(block);
+        if end == source.len() {
+            break;
+        }
+        start = end + 1;
+    }
+    join_neighbours(&mut held, &code);
+    lines
+        .into_iter()
+        .zip(held)
+        .filter(|(start, look)| *look != LineLook::at(*start))
+        .collect()
+}
+
+fn skip_spaces(source: &[u8], mut at: usize, end: usize) -> usize {
+    while at < end && matches!(source[at], b' ' | b'\t') {
+        at += 1;
+    }
+    at
+}
+
+fn heading_level(node: tree_sitter::Node<'_>) -> u8 {
+    let mut child = node.walk();
+    let level = node
+        .children(&mut child)
+        .find_map(|child| match child.kind() {
+            "setext_h1_underline" => Some(1),
+            "setext_h2_underline" => Some(2),
+            kind => kind
+                .strip_prefix("atx_h")
+                .and_then(|value| value.strip_suffix("_marker"))
+                .and_then(|value| value.parse().ok()),
+        });
+    level.unwrap_or(2)
+}
+
+fn line_look(
+    root: tree_sitter::Node<'_>,
+    source: &[u8],
+    blocks: &[Range<usize>],
+    line: Range<usize>,
+) -> (LineLook, Option<usize>) {
+    let (start, end) = (line.start, line.end);
+    let lead = skip_spaces(source, start, end);
+    let reach = end + usize::from(lead == end);
+    let block = blocks.iter().position(|block| {
+        block.start <= end && (block.end > reach || (block.end >= source.len() && lead < end))
+    });
+    let code_block = block.is_some();
+    let mut probe = lead;
+    while probe < end && source[probe] == b'>' {
+        probe = skip_spaces(source, probe + 1, end);
+    }
+    if lead == end {
+        let look = LineLook {
+            code_block,
+            ..LineLook::at(start)
+        };
+        return (look, block);
+    }
+    if probe == end {
+        probe = (lead..end)
+            .rev()
+            .find(|at| !matches!(source[*at], b' ' | b'\t'))
+            .unwrap_or(lead);
+    }
+    let Some(node) = root.descendant_for_byte_range(probe, probe + 1) else {
+        let look = LineLook {
+            code_block,
+            ..LineLook::at(start)
+        };
+        return (look, block);
+    };
+    let mut quote = 0;
+    let mut lists = 0_usize;
+    let mut heading = None;
+    let mut rule = false;
+    let mut table = None;
+    let mut table_row = TableRow::Body;
+    let mut parent = Some(node);
+    while let Some(held) = parent {
+        match held.kind() {
+            "block_quote" => quote += 1,
+            "list" => lists += 1,
+            "atx_heading" | "setext_heading" if held.start_byte() >= start => {
+                heading = Some(held);
+            }
+            "thematic_break" => rule = true,
+            "pipe_table_header" => table_row = TableRow::Header,
+            "pipe_table_delimiter_row" => table_row = TableRow::Delimiter,
+            "pipe_table" if table.is_none() => table = Some(held.start_byte()),
+            _ => {}
+        }
+        parent = held.parent();
+    }
+    let mut at = lead;
+    for _ in 0..quote {
+        let next = skip_spaces(source, at, end);
+        if next >= end || source[next] != b'>' {
+            break;
+        }
+        at = next + 1;
+        if at < end && source[at] == b' ' {
+            at += 1;
+        }
+    }
+    let mut content = at;
+    let first = skip_spaces(source, at, end);
+    let list = (node.start_byte() <= first && first < node.end_byte())
+        .then(|| list_marker(node, source))
+        .flatten();
+    let continues = list.is_none() && lists > 0 && !code_block;
+    if let Some((_, marker_end)) = list {
+        content = marker_end.min(end);
+    }
+    let content = match content > lead || continues {
+        true => skip_spaces(source, content, end),
+        false => content,
+    };
+    let marker = match content > lead || (continues && content > start) {
+        true => start..content,
+        false => start..start,
+    };
+    let top = quote == 0 && lists == 0;
+    let hang = match heading {
+        Some(heading) if top && heading.kind() == "atx_heading" => {
+            heading.child(0).map_or(start..start, |mark| {
+                start..skip_spaces(source, mark.end_byte(), end)
+            })
+        }
+        _ if top && rule => start..end,
+        _ => start..start,
+    };
+    let look = LineLook {
+        marker,
+        list: list.map(|(list, _)| list),
+        depth: match list.is_some() || continues {
+            true => lists.saturating_sub(1),
+            false => 0,
+        },
+        continues,
+        quote,
+        code_block,
+        heading: heading.map_or(0, heading_level),
+        rule,
+        hang,
+        table: table.map(|start| TableLine {
+            row: table_row,
+            start,
+            last: false,
+        }),
+        ..LineLook::default()
+    };
+    (look, block)
+}
+
+fn list_marker(node: tree_sitter::Node<'_>, source: &[u8]) -> Option<(ListMarker, usize)> {
+    let kind = node.kind();
+    let bullet = matches!(
+        kind,
+        "list_marker_minus" | "list_marker_plus" | "list_marker_star"
+    );
+    let number = matches!(kind, "list_marker_dot" | "list_marker_parenthesis");
+    if !bullet && !number {
+        return None;
+    }
+    if let Some(task) = node.next_sibling()
+        && let checked @ ("task_list_marker_checked" | "task_list_marker_unchecked") = task.kind()
+    {
+        let checked = checked == "task_list_marker_checked";
+        return Some((ListMarker::Check(checked), task.end_byte()));
+    }
+    let marker = match bullet {
+        true => ListMarker::Bullet,
+        false => {
+            let text = &source[node.start_byte()..node.end_byte()];
+            let digits = text.iter().take_while(|byte| byte.is_ascii_digit()).count();
+            let number = std::str::from_utf8(&text[..digits])
+                .ok()
+                .and_then(|digits| digits.parse().ok())
+                .unwrap_or_default();
+            ListMarker::Number(number)
+        }
+    };
+    Some((marker, node.end_byte()))
 }
 
 fn collect_code_blocks(cursor: &mut MarkdownCursor<'_>, blocks: &mut Vec<Range<usize>>) {
@@ -58,94 +232,6 @@ fn collect_code_blocks(cursor: &mut MarkdownCursor<'_>, blocks: &mut Vec<Range<u
             }
         }
         cursor.goto_parent();
-    }
-}
-
-fn collect_tables(cursor: &mut MarkdownCursor<'_>, tables: &mut Vec<MarkdownTable>) {
-    if cursor.node().kind() == "pipe_table" {
-        tables.push(table(cursor));
-        return;
-    }
-    if cursor.goto_first_child() {
-        loop {
-            collect_tables(cursor, tables);
-            if !cursor.goto_next_sibling() {
-                break;
-            }
-        }
-        cursor.goto_parent();
-    }
-}
-
-fn table(cursor: &mut MarkdownCursor<'_>) -> MarkdownTable {
-    let mut rows = Vec::new();
-    let mut alignments = Vec::new();
-    if cursor.goto_first_child() {
-        loop {
-            let kind = cursor.node().kind();
-            if matches!(
-                kind,
-                "pipe_table_header" | "pipe_table_delimiter_row" | "pipe_table_row"
-            ) {
-                let delimiter = kind == "pipe_table_delimiter_row";
-                let row = table_row(cursor, delimiter, &mut alignments);
-                rows.push(row);
-            }
-            if !cursor.goto_next_sibling() {
-                break;
-            }
-        }
-        cursor.goto_parent();
-    }
-    MarkdownTable { rows, alignments }
-}
-
-fn table_row(
-    cursor: &mut MarkdownCursor<'_>,
-    delimiter: bool,
-    alignments: &mut Vec<MarkdownTableAlignment>,
-) -> MarkdownTableRow {
-    let node = cursor.node();
-    let range = node.start_byte()..node.end_byte();
-    let mut cells = Vec::new();
-    if cursor.goto_first_child() {
-        loop {
-            let node = cursor.node();
-            if matches!(node.kind(), "pipe_table_cell" | "pipe_table_delimiter_cell") {
-                cells.push(node.start_byte()..node.end_byte());
-                if delimiter {
-                    alignments.push(table_alignment(cursor));
-                }
-            }
-            if !cursor.goto_next_sibling() {
-                break;
-            }
-        }
-        cursor.goto_parent();
-    }
-    MarkdownTableRow { range, cells }
-}
-
-fn table_alignment(cursor: &mut MarkdownCursor<'_>) -> MarkdownTableAlignment {
-    let mut left = false;
-    let mut right = false;
-    if cursor.goto_first_child() {
-        loop {
-            match cursor.node().kind() {
-                "pipe_table_align_left" => left = true,
-                "pipe_table_align_right" => right = true,
-                _ => {}
-            }
-            if !cursor.goto_next_sibling() {
-                break;
-            }
-        }
-        cursor.goto_parent();
-    }
-    match (left, right) {
-        (true, true) => MarkdownTableAlignment::Center,
-        (_, true) => MarkdownTableAlignment::Right,
-        _ => MarkdownTableAlignment::Left,
     }
 }
 
@@ -220,11 +306,6 @@ fn style_node(cursor: &mut MarkdownCursor<'_>, styles: &mut [SynHlStyle], offset
                 .unwrap_or(2);
             set_heading(&mut styles[range.clone()], level);
         }
-        "block_quote" => {
-            for style in &mut styles[range.clone()] {
-                style.italic = true;
-            }
-        }
         "pipe_table_header" => {
             for style in &mut styles[range.clone()] {
                 style.bold = true;
@@ -237,6 +318,7 @@ fn style_node(cursor: &mut MarkdownCursor<'_>, styles: &mut [SynHlStyle], offset
                 style.size = SynHlTextSize::Body;
                 style.bold = false;
                 style.italic = false;
+                style.code = kind == "code_span";
             }
         }
         "info_string" => {
@@ -248,13 +330,11 @@ fn style_node(cursor: &mut MarkdownCursor<'_>, styles: &mut [SynHlStyle], offset
         "link_text" | "link_label" | "image_description" | "uri_autolink" | "email_autolink" => {
             for style in &mut styles[range.clone()] {
                 style.color = SynHlColorScope::MarkdownLink;
-                style.underline = true;
             }
         }
         "link_destination" | "link_title" => {
             for style in &mut styles[range.clone()] {
-                style.color = SynHlColorScope::MarkdownLink;
-                style.family = SynHlFontFamily::Monospace;
+                set_symbol(style);
             }
         }
         "backslash_escape" => {
@@ -264,14 +344,25 @@ fn style_node(cursor: &mut MarkdownCursor<'_>, styles: &mut [SynHlStyle], offset
                 set_symbol(style);
             }
         }
-        "emphasis_delimiter"
-        | "code_span_delimiter"
-        | "fenced_code_block_delimiter"
-        | "block_quote_marker"
-        | "block_continuation"
+        "block_continuation" => {
+            let code = matches!(
+                parent_kind,
+                Some("indented_code_block" | "fenced_code_block" | "code_fence_content")
+            );
+            for style in &mut styles[range.clone()] {
+                set_symbol(style);
+                if code {
+                    style.family = SynHlFontFamily::Monospace;
+                }
+            }
+        }
+        "block_quote_marker"
         | "list_marker_plus"
         | "list_marker_minus"
         | "list_marker_star"
+        | "emphasis_delimiter"
+        | "code_span_delimiter"
+        | "fenced_code_block_delimiter"
         | "list_marker_dot"
         | "list_marker_parenthesis"
         | "task_list_marker_checked"
@@ -347,8 +438,7 @@ const WINDOW_REACH: usize = 4 * 1024;
 pub(super) struct MarkdownWindow {
     pub(super) len: usize,
     pub(super) styles: Vec<SynHlStyle>,
-    pub(super) tables: Vec<MarkdownTable>,
-    pub(super) code_blocks: Vec<Range<usize>>,
+    pub(super) looks: Vec<(usize, LineLook)>,
 }
 
 pub(super) fn fences(bytes: &[u8]) -> Vec<Range<usize>> {
@@ -449,38 +539,6 @@ pub(super) fn shifted_fences(
     shifted.unwrap_or_else(|| fences(bytes))
 }
 
-pub(super) fn shifted_table_starts(
-    old_bytes: &[u8],
-    old_starts: &[usize],
-    bytes: &[u8],
-    change: TextChange,
-) -> Vec<usize> {
-    let old_lines = touched_lines(old_bytes, change.start, change.old_end);
-    let from = line_start_before(old_bytes, old_lines.start.saturating_sub(1));
-    let new_lines = touched_lines(bytes, change.start, change.new_end);
-    let scanned_end = line_end_after(bytes, new_lines.end);
-    let delta = |at: usize| at - old_lines.end + new_lines.end;
-    let mut starts: Vec<usize> = old_starts
-        .iter()
-        .copied()
-        .take_while(|start| *start < from)
-        .collect();
-    starts.extend(
-        table_starts(&bytes[from..scanned_end])
-            .into_iter()
-            .map(|start| start + from)
-            .filter(|start| *start < new_lines.end),
-    );
-    starts.extend(
-        old_starts
-            .iter()
-            .copied()
-            .filter(|start| *start >= old_lines.end)
-            .map(delta),
-    );
-    starts
-}
-
 fn boundary_before(bytes: &[u8], fences: &[Range<usize>], from: usize) -> usize {
     let mut at = line_start_before(bytes, from);
     let limit = from.saturating_sub(WINDOW_REACH);
@@ -546,59 +604,14 @@ pub(super) fn parse_window(source: &[u8]) -> MarkdownWindow {
         return MarkdownWindow {
             styles: vec![SynHlStyle::plain(SynHlColorScope::MarkdownPlainText); source.len()],
             len: source.len(),
-            tables: Vec::new(),
-            code_blocks: Vec::new(),
+            looks: Vec::new(),
         };
     };
     MarkdownWindow {
         len: source.len(),
         styles: styles_in(&tree, 0..source.len()),
-        tables: tables(&tree),
-        code_blocks: code_blocks(&tree),
+        looks: looks(&tree, source),
     }
-}
-
-pub(super) fn shift_table(table: &MarkdownTable, by: usize) -> MarkdownTable {
-    let shift = |inner: &Range<usize>| inner.start + by..inner.end + by;
-    MarkdownTable {
-        rows: table
-            .rows
-            .iter()
-            .map(|row| MarkdownTableRow {
-                range: shift(&row.range),
-                cells: row.cells.iter().map(shift).collect(),
-            })
-            .collect(),
-        alignments: table.alignments.clone(),
-    }
-}
-
-pub(super) fn table_starts(bytes: &[u8]) -> Vec<usize> {
-    let mut starts = Vec::new();
-    let mut previous: Option<(usize, bool)> = None;
-    let mut start = 0;
-    while start < bytes.len() {
-        let end =
-            memchr::memchr(b'\n', &bytes[start..]).map_or(bytes.len(), |newline| start + newline);
-        let line = &bytes[start..end];
-        if is_delimiter_row(line)
-            && let Some((header, true)) = previous
-        {
-            starts.push(header);
-        }
-        previous = Some((start, memchr::memchr(b'|', line).is_some()));
-        start = end + 1;
-    }
-    starts
-}
-
-fn is_delimiter_row(line: &[u8]) -> bool {
-    let line = line.trim_ascii();
-    memchr::memchr(b'|', line).is_some()
-        && line.contains(&b'-')
-        && line
-            .iter()
-            .all(|byte| matches!(byte, b'|' | b'-' | b':' | b' ' | b'\t'))
 }
 
 pub(super) fn chain(

@@ -6,32 +6,34 @@ use text_editor_core::FindDirection;
 use crate::Button;
 use crate::ButtonVariant;
 use crate::Icon;
-use crate::IconButton;
 use crate::TextInput;
 use crate::ToggleButton;
 use crate::text::{Text, TextColor, TextStyle};
 use beui_components_unstyled::TextAreaState;
 use beui_core::font::TextAlign;
 use beui_core::icons::{
-    ICON_CLOSE, ICON_KEYBOARD_ARROW_DOWN, ICON_KEYBOARD_ARROW_UP, ICON_MATCH_CASE, ICON_SEARCH,
+    ICON_CASE_SENSITIVE, ICON_CHEVRON_DOWN, ICON_CHEVRON_UP, ICON_SEARCH, ICON_X,
 };
 use beui_core::node::NodeId;
-use beui_view::primitives::*;
+use beui_view::primitives::BackHandler;
+
+use crate::list::List;
+use crate::tokens::{Padding, Size, Space};
 use beui_view::reactive::*;
 
-const BAR_PADDING_HORIZONTAL: f32 = 12.0;
-const BAR_PADDING_VERTICAL: f32 = 6.0;
-const BAR_SPACING: f32 = 6.0;
-const QUERY_WIDTH: f32 = 180.0;
+const BAR_PADDING: Padding = Padding::symmetric(Space::Lg, Space::Sm);
+const BAR_SPACING: Space = Space::Sm;
+const QUERY_WIDTH: Size = Size::Custom(180.0);
 
 #[component]
-pub fn FindBar(state: TextAreaState) -> NodeId {
+pub fn FindBar(state: TextAreaState, #[prop(default = false)] read_only: Prop<bool>) -> NodeId {
     let open = state.find_open();
+    let read_only = create_memo(move || read_only.get());
     view! {
         <BackHandler enabled={open} on_back={move || state.close_find()}>
-            <List spacing=0.0>
+            <List spacing=Space::None>
                 <Show condition={open}>
-                    <FindBarRows state={state} />
+                    <FindBarRows state={state} read_only />
                 </Show>
             </List>
         </BackHandler>
@@ -39,7 +41,7 @@ pub fn FindBar(state: TextAreaState) -> NodeId {
 }
 
 #[component]
-fn FindBarRows(state: TextAreaState) -> NodeId {
+fn FindBarRows(state: TextAreaState, read_only: Memo<bool>) -> NodeId {
     let summary = create_memo(move || state.find_summary());
     let no_matches = create_memo(move || !state.find_has_matches());
     let no_current = create_memo(move || !state.find_has_current());
@@ -48,10 +50,11 @@ fn FindBarRows(state: TextAreaState) -> NodeId {
     let case_sensitive = state.find().case_sensitive;
     let focus_query = state.find().focus_query;
     let show_replace = state.find().show_replace;
+    let show_replace = create_memo(move || show_replace.get() && !read_only.get());
     view! {
         <Frame fill=ColorRole::Surface>
-            <List spacing=0.0>
-                <Frame padding={Sides::symmetric(BAR_PADDING_HORIZONTAL, BAR_PADDING_VERTICAL)}>
+            <List spacing=Space::None>
+                <Frame padding=BAR_PADDING>
                     <List direction=Direction::Horizontal align=Align::Center spacing=BAR_SPACING>
                         <Text color=TextColor::Muted align=TextAlign::Center>
                             <Icon glyph=ICON_SEARCH />
@@ -67,29 +70,32 @@ fn FindBarRows(state: TextAreaState) -> NodeId {
                             />
                         </Frame>
                         <ToggleButton
-                            glyph=ICON_MATCH_CASE
+                            glyph=ICON_CASE_SENSITIVE
                             icon_only=true
                             label="Match case"
                             pressed={Binding::new(case_sensitive, move |pressed: bool| state.set_find_case_sensitive(pressed))}
                             @test_id={"text.find.match-case"}
                         />
                         <Text style=TextStyle::CAPTION>{summary}</Text>
-                        <IconButton
-                            glyph=ICON_KEYBOARD_ARROW_UP
+                        <Button
+                            icon_only=true
+                            glyph=ICON_CHEVRON_UP
                             label="Previous match"
                             disabled={no_matches}
                             @test_id={"text.find.previous"}
                             on_click={move || state.find_step(FindDirection::Previous)}
                         />
-                        <IconButton
-                            glyph=ICON_KEYBOARD_ARROW_DOWN
+                        <Button
+                            icon_only=true
+                            glyph=ICON_CHEVRON_DOWN
                             label="Next match"
                             disabled={no_matches}
                             @test_id={"text.find.next"}
                             on_click={move || state.find_step(FindDirection::Next)}
                         />
-                        <IconButton
-                            glyph=ICON_CLOSE
+                        <Button
+                            icon_only=true
+                            glyph=ICON_X
                             label="Close"
                             @test_id={"text.find.close"}
                             on_click={move || state.close_find()}
@@ -108,7 +114,7 @@ fn FindBarRows(state: TextAreaState) -> NodeId {
 fn ReplaceRow(state: TextAreaState, no_current: Memo<bool>, no_matches: Memo<bool>) -> NodeId {
     let replacement = state.find().replacement;
     view! {
-        <Frame padding={Sides::symmetric(BAR_PADDING_HORIZONTAL, BAR_PADDING_VERTICAL)}>
+        <Frame padding=BAR_PADDING>
             <List direction=Direction::Horizontal align=Align::Center spacing=BAR_SPACING>
                 <Frame width=QUERY_WIDTH>
                     <TextInput

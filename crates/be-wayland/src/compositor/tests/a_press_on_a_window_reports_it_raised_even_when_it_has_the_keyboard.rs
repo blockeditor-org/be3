@@ -2,18 +2,16 @@ use super::*;
 
 fn press(harness: &mut Harness, at: Pos2) {
     harness.frame(vec![
-        Event::PointerMoved(at),
-        Event::PointerButton {
+        Input::PointerMoved(at),
+        Input::PointerButton {
             pos: at,
             button: PointerButton::Primary,
             pressed: true,
-            modifiers: beui::Modifiers::NONE,
         },
-        Event::PointerButton {
+        Input::PointerButton {
             pos: at,
             button: PointerButton::Primary,
             pressed: false,
-            modifiers: beui::Modifiers::NONE,
         },
     ]);
 }
@@ -23,7 +21,7 @@ fn a_press_on_a_window_reports_it_raised_even_when_it_has_the_keyboard() {
     let mut harness = Harness::new();
     let (_first, first) = harness.open();
     let (_second, second) = harness.open();
-    let windows = harness.app.windows();
+    let windows = harness.compositor().windows();
     assert_eq!(
         windows.focused(),
         Some(second),

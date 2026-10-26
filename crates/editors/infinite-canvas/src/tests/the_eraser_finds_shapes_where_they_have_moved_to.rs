@@ -1,5 +1,5 @@
 use super::*;
-use block_editor_beui::beui::{Key, Vec2};
+use block_editor_beui::beui::{Key, Modifiers, Vec2};
 
 fn filled(id: u128, x: f32) -> CanvasEntity {
     let mut entity = card();
@@ -26,15 +26,15 @@ fn the_eraser_finds_shapes_where_they_have_moved_to() {
         .rect_of(&format!("infinite-canvas.entity.{}", left.id))
         .center();
 
-    editor.key_press(Key::E);
+    editor.key(Key::E, Modifiers::NONE);
     editor.run();
-    editor.press_at(at);
+    editor.down(at, PointerButton::Primary);
     for step in 1..=3 {
         editor.next_frame();
-        editor.hover_at(at + Vec2::new(step as f32 * 4.0, 0.0));
+        editor.hover(at + Vec2::new(step as f32 * 4.0, 0.0));
     }
     editor.run();
-    editor.release_at(at + Vec2::new(12.0, 0.0));
+    editor.up(at + Vec2::new(12.0, 0.0), PointerButton::Primary);
     editor.run();
 
     let kept: Vec<Uuid> = entities(&editor).iter().map(|entity| entity.id).collect();

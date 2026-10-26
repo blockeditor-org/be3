@@ -58,7 +58,7 @@ fn a_touch_fling_glides_to_a_stop_and_stops_asking_for_frames() {
         "the fling only ever slows down: {steps:?}"
     );
     assert_eq!(
-        harness.settle(),
+        harness.frames_to_settle(),
         0,
         "once the fling has stopped nothing asks for another frame"
     );

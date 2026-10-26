@@ -1,6 +1,7 @@
-use block_editor_beui::beui::icons::{ICON_EXTENSION, ICON_LAYERS, ICON_SPEED};
+use block_editor_beui::beui::dock::styled::TabId;
+use block_editor_beui::beui::icons::Glyph;
+use block_editor_beui::beui::icons::{ICON_GAUGE, ICON_LAYERS, ICON_PUZZLE};
 use block_editor_beui::beui::reactive::*;
-use block_editor_beui::beui::unstyled::TabId;
 use block_editor_beui::beui::{NodeId, Rect, pos2, vec2};
 use block_editor_beui::{ChildMode, Editor, HostPanel, Subregion, SubregionContent};
 
@@ -19,11 +20,11 @@ pub(crate) fn tab_panel(tab: TabId) -> Option<HostPanel> {
     HostPanel::ALL.get(usize::try_from(index).ok()?).copied()
 }
 
-pub(crate) fn panel_icon(panel: HostPanel) -> &'static str {
+pub(crate) fn panel_icon(panel: HostPanel) -> Glyph {
     match panel {
         HostPanel::BlockStack => ICON_LAYERS,
-        HostPanel::Performance => ICON_SPEED,
-        HostPanel::Plugins => ICON_EXTENSION,
+        HostPanel::Performance => ICON_GAUGE,
+        HostPanel::Plugins => ICON_PUZZLE,
     }
 }
 

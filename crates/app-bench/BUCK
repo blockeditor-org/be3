@@ -1,0 +1,6 @@
+load("@root//buck/cargo:defs.bzl", "cargo_binary")
+
+# block-app end to end against a server 30 ms away, driven as `drive` drives it:
+# one of the benchmarks //crates/bench:suite runs (guides/performance.md).
+
+cargo_binary()

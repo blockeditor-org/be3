@@ -3,6 +3,8 @@ use std::path::Path;
 use rusqlite::{Connection, OptionalExtension, params};
 use uuid::Uuid;
 
+use be_protocol::Organization;
+
 use super::{AppStateError, SavedAccount, ServerLocation};
 
 pub struct AppStateStore {
@@ -79,7 +81,7 @@ impl From<sqlite_schema::SchemaError> for Opened {
 impl AppStateStore {
     pub fn open(path: impl AsRef<Path>) -> Result<Self, AppStateError> {
         let path = path.as_ref();
-        match Self::with_connection(Connection::open(path)?) {
+        match Self::with_connection(sqlite_schema::open(path)?) {
             Err(Opened::Incompatible(problems)) => {
                 for stale in [
                     path.to_owned(),
@@ -96,7 +98,7 @@ impl AppStateStore {
                 crate::notices::report(format!(
                     "This device's saved sign-ins came from an incompatible build of Block, so they were cleared: {problems}"
                 ));
-                Self::with_connection(Connection::open(path)?).map_err(Opened::into_error)
+                Self::with_connection(sqlite_schema::open(path)?).map_err(Opened::into_error)
             }
             opened => opened.map_err(Opened::into_error),
         }
@@ -187,6 +189,10 @@ impl AppStateStore {
             "DELETE FROM identity_secrets WHERE server_key = ?1 AND account_id = ?2",
             params![saved.server.key(), saved.id.to_string()],
         )?;
+        self.connection.execute(
+            "DELETE FROM app_settings WHERE key = ?1",
+            [organization_key(saved)],
+        )?;
         if self.active_account()?.as_ref() == Some(&(saved.server.key().into(), saved.id)) {
             self.clear_active_account()?;
         }
@@ -230,6 +236,45 @@ impl AppStateStore {
             ],
         )?;
         Ok(())
+    }
+
+    pub fn last_organization(
+        &self,
+        saved: &SavedAccount,
+    ) -> Result<Option<Organization>, AppStateError> {
+        let Some(stored) = self.setting(&organization_key(saved))? else {
+            return Ok(None);
+        };
+        serde_json::from_str(&stored).map(Some).map_err(|error| {
+            AppStateError::from(format!("the saved organization is unreadable: {error}"))
+        })
+    }
+
+    pub fn set_last_organization_details(
+        &self,
+        saved: &SavedAccount,
+        organization: &Organization,
+    ) -> Result<(), AppStateError> {
+        let stored = serde_json::to_string(organization)
+            .map_err(|error| AppStateError::from(error.to_string()))?;
+        self.set_setting(&organization_key(saved), &stored)
+    }
+
+    pub fn warm_plugins(&self) -> Result<Vec<String>, AppStateError> {
+        Ok(self
+            .setting("warm_plugins")?
+            .map(|plugins| {
+                plugins
+                    .split('\n')
+                    .filter(|plugin| !plugin.is_empty())
+                    .map(str::to_owned)
+                    .collect()
+            })
+            .unwrap_or_default())
+    }
+
+    pub fn set_warm_plugins(&self, plugins: &[String]) -> Result<(), AppStateError> {
+        self.set_setting("warm_plugins", &plugins.join("\n"))
     }
 
     pub fn identity(&self, saved: &SavedAccount) -> Result<Option<[u8; 32]>, AppStateError> {
@@ -355,6 +400,10 @@ impl AppStateStore {
         )?;
         Ok(())
     }
+}
+
+fn organization_key(saved: &SavedAccount) -> String {
+    format!("organization {} {}", saved.server.key(), saved.id)
 }
 
 fn parse_uuid(value: String) -> Result<Uuid, rusqlite::Error> {

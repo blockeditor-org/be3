@@ -1,0 +1,11 @@
+[package]
+name = "lucide"
+description = "Lucide's icons: each icon's glyph in its font, its name and its tags"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+
+[dependencies]
+
+[lints]
+workspace = true

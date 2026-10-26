@@ -1,11 +1,10 @@
 use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::icons::{
-    ICON_ADD, ICON_DOWNLOAD, ICON_DRAW, ICON_EDIT, ICON_GRID_ON, ICON_LAYERS, ICON_TUNE,
-    ICON_VISIBILITY,
+    ICON_DOWNLOAD, ICON_EYE, ICON_GRID_3X3, ICON_LAYERS, ICON_PEN_TOOL, ICON_PENCIL, ICON_PLUS,
+    ICON_SLIDERS_HORIZONTAL,
 };
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
-use block_editor_beui::beui::unstyled::MenuNodes;
 
 use super::actions::CanvasActions;
 use super::state::Tool;
@@ -32,7 +31,7 @@ fn add_menu(actions: &CanvasActions) -> MenuNode {
     MenuNode::submenu(
         "canvas.add",
         "Add",
-        ICON_ADD,
+        ICON_PLUS,
         vec![
             MenuNode::labelled(&actions.add_rectangle, "Rectangle"),
             MenuNode::labelled(&actions.add_line, "Line"),
@@ -82,7 +81,7 @@ fn tools_menu(actions: &CanvasActions) -> MenuNode {
     MenuNode::submenu(
         "canvas.tools",
         "Tools",
-        ICON_DRAW,
+        ICON_PEN_TOOL,
         TOOLS
             .into_iter()
             .map(|tool| act(&actions.tool(tool)))
@@ -100,7 +99,7 @@ fn grid_menu(actions: &CanvasActions) -> MenuNode {
     MenuNode::submenu(
         "canvas.grid-menu",
         "Grid",
-        ICON_GRID_ON,
+        ICON_GRID_3X3,
         vec![
             act(&grid.shown),
             MenuNode::Separator,
@@ -115,7 +114,7 @@ fn profile_menu(actions: &CanvasActions) -> MenuNode {
     MenuNode::submenu(
         "canvas.profile",
         "Profile",
-        ICON_TUNE,
+        ICON_SLIDERS_HORIZONTAL,
         vec![
             MenuNode::labelled(&actions.prototyping, "Prototyping"),
             MenuNode::labelled(&actions.vector, "Vector"),
@@ -127,7 +126,7 @@ fn view_menu(actions: &CanvasActions) -> MenuNode {
     MenuNode::submenu(
         "canvas.view",
         "View",
-        ICON_VISIBILITY,
+        ICON_EYE,
         vec![
             grid_menu(actions),
             act(&actions.ignore_touch),
@@ -144,7 +143,7 @@ pub(crate) fn frame_menu(actions: &CanvasActions) -> Vec<MenuNode> {
         MenuNode::submenu(
             "canvas.edit-menu",
             "Edit",
-            ICON_EDIT,
+            ICON_PENCIL,
             vec![
                 act(&actions.cut),
                 act(&actions.copy),

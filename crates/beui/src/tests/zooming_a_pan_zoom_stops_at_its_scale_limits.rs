@@ -13,7 +13,7 @@ fn zooming_a_pan_zoom_stops_at_its_scale_limits() {
     harness.frame(Vec::new());
     let stage = harness.find("stage");
 
-    harness.pinch(pos2(200.0, 150.0), 1_000.0);
+    harness.zoom(pos2(200.0, 150.0), 1_000.0);
     harness.frame(Vec::new());
     assert_eq!(
         harness
@@ -25,7 +25,7 @@ fn zooming_a_pan_zoom_stops_at_its_scale_limits() {
         MAX_SCALE
     );
 
-    harness.pinch(pos2(200.0, 150.0), 0.000_001);
+    harness.zoom(pos2(200.0, 150.0), 0.000_001);
     harness.frame(Vec::new());
     assert_eq!(
         harness

@@ -29,11 +29,11 @@ fn a_virtual_list_builds_its_overscan_beyond_the_window() {
     let mut harness = Harness::new(document);
     harness.frame(Vec::new());
     let shown = (VIEWPORT.y / VIRTUAL_ITEM_HEIGHT) as usize;
-    assert_eq!(harness.document.children(list).len(), shown + 2);
+    assert_eq!(harness.document().children(list).len(), shown + 2);
 
     harness
-        .document
+        .document_mut()
         .set_scroll_offset(scroll, VIRTUAL_ITEM_HEIGHT * 10.0);
     harness.frame(Vec::new());
-    assert_eq!(harness.document.children(list).len(), shown + 4);
+    assert_eq!(harness.document().children(list).len(), shown + 4);
 }

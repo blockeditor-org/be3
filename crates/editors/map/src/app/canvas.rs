@@ -1,11 +1,11 @@
 use std::rc::Rc;
 
-use block_editor_beui::be_block::map::MapPoint;
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
 use block_editor_beui::beui::{
     Color32, CursorIcon, Key, KeyPress, NodeId, PointerPress, Pos2, Rect, TextAlign, Vec2,
 };
+use map_types::MapPoint;
 use uuid::Uuid;
 
 use crate::geo::MapView;
@@ -19,7 +19,7 @@ use super::tiles::{self, Tile};
 pub(crate) const REGION_COLOR: Color32 = Color32::from_rgb(245, 180, 60);
 const ATTRIBUTION: &str = "© OpenStreetMap contributors";
 const HALO: Color32 = Color32::from_rgba_unmultiplied(255, 255, 255, 200);
-const ATTRIBUTION_HEIGHT: f32 = 16.0;
+const ATTRIBUTION_HEIGHT: Size = Size::Xs;
 
 #[component]
 pub(crate) fn MapCanvas(state: MapState) -> NodeId {
@@ -94,7 +94,7 @@ pub(crate) fn MapCanvas(state: MapState) -> NodeId {
     state.editor().content(&content);
 
     view! {
-        <List spacing=0.0>
+        <List spacing=Space::None>
             <MapSurface state={state} @sizing=ItemSize::Percent(100.0) @node_ref={&content}>
                 <Canvas view={camera} @test_id={"map.canvas"}>
                     <ForEach keys={covering}>|tile: TileId| {
@@ -138,7 +138,7 @@ fn RegionOutline(shown: Memo<bool>, rect: Memo<Rect>) -> DynamicSegment<CanvasIt
     view! {
         <Show condition={shown}>
             <CanvasItem x={x} y={y} width={width} height={height}>
-                <Frame border={Border::new(ColorRole::Custom(REGION_COLOR)).width(1.5)} />
+                <Frame border={Border::new(ColorRole::Custom(REGION_COLOR)).width(Stroke::Focus)} />
             </CanvasItem>
         </Show>
     }
@@ -181,7 +181,7 @@ fn Attribution() -> NodeId {
         <Frame
             height=ATTRIBUTION_HEIGHT
             fill={ColorRole::Custom(HALO)}
-            padding={Sides::horizontal(6.0)}
+            padding={Padding::horizontal(Space::Sm)}
         >
             <Text style=TextStyle::CAPTION align=TextAlign::End>{ATTRIBUTION}</Text>
         </Frame>

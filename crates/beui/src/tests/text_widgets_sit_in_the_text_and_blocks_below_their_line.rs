@@ -35,6 +35,10 @@ fn text_widgets_sit_in_the_text_and_blocks_below_their_line() {
         view! {
             <Frame width=600.0 height=400.0>
                 <TextArea
+                    colors={area_colors()}
+                    look={area_look()}
+                    font_size=AREA_FONT_SIZE
+                    padding=AREA_PADDING
                     state={state}
                     widgets={widgets}
                     block={move |_: usize| view! {

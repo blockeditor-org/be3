@@ -12,7 +12,7 @@ fn the_app_and_the_inspector_paint_displays_a_renderer_can_tell_apart() {
     let output = harness.frame(Vec::new());
 
     let mut seen = Vec::new();
-    collect_layers(&output.layers, &mut seen);
+    collect_layers(&output.main().layers, &mut seen);
     let documents: HashSet<u64> = seen.iter().map(|(document, _)| *document).collect();
     assert!(
         documents.len() >= 2,

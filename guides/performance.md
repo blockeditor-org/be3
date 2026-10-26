@@ -2,7 +2,44 @@ Measuring and profiling beui's performance, and the ideas already tried.
 
 1. Benchmarks
 
-Benchmarks run in release, on this machine, with `./scripts/buck run -m release`:
+`//crates/bench:suite` is every benchmark in one directory, built in release whatever the
+command asks: the runner `bench`, each benchmark program under `programs/`, and block-app
+with its plugins for the end-to-end ones. `./scripts/buck run //crates/bench:suite -- list`
+lists them; `-- run [--rounds=N] [NAME...]` runs the benchmark each NAME names, or else those
+whose name contains it (all by default), N times (3) and prints each metric's fastest, median and slowest. A benchmark is
+a program that reports its metrics through the `bench` crate (`bench::time`, `count`,
+`record`), which appends them to the file `BENCH_METRICS` names and does nothing without
+it; adding one is a line in `BENCHMARKS` (crates/bench/src/suite.rs) and an entry in the
+suite's `programs` (crates/bench/BUCK). Each can also run alone, with
+`./scripts/buck run -m release`:
+
+- `//crates/app-bench:bin` (the suite's `app-canvas-and-text`) runs block-app headless,
+  driven as `drive` drives it (crates/be-drive's `Driven`, guides/running/drive.md), against
+  a be-server in its own process behind a proxy that delays each direction 15 ms, so every
+  round trip takes 30 ms more, with `BEUI_RENDERER=none`, so it measures the app's own work and
+  not a software GPU drawing it (guides/running/drive.md). It signs a first device in through the portal, as a person's
+  browser would, makes a folder and zooms the files into it, then with `hurry off` adds a
+  canvas and a text block from the files' New menu, draws a rectangle and a pen line of
+  `APP_BENCH_POINTS` samples (10,000), pastes `APP_BENCH_TEXT_BYTES` of text (50 MB), paints
+  and closes each, exports the folder as a .block file and closes the app. A second device,
+  with data of its own, signs in, unlocks with the recovery phrase, reopens both blocks,
+  paints them and exports the folder again. It fails unless both exports are identical and
+  each block paints the same on both devices. "Save" is how long `hurry on` takes to settle
+  after the edit shows: the seal the app would wait 750 ms for, published to the server.
+- The pen line goes in 1,000 samples a frame (`drive app pen draw FROM TO STEPS PER_FRAME`), so
+  `canvas.line-draw`, from its first sample until the whole line shows, is the work the
+  samples cause (the canvas's edits, relaying them, the replica, the plugin applying them)
+  and not the cost of 10,000 frames, which a person drawing never waits on.
+  `canvas.line-longest-frame` and `canvas.line-longest-plugin-frame` are the longest host
+  frame and the longest canvas plugin step meanwhile (`drive frames`, guides/running/drive.md):
+  a frame packed with samples is where a per-sample cost that grows with the stroke shows as
+  stutter, and since a host frame waits at most 8 ms for its plugins, the plugin's own line
+  is where the canvas's share shows. The run fails unless the exported stroke holds exactly
+  the samples the canvas keeps, where they were drawn: it keeps a sample only when it is more
+  than a point from the last one it kept (667 of these 10,001, `canvas.line-points`),
+  so dropping one it would have kept moves the points after it.
+  It takes about three minutes; set the two sizes lower while working on it. It needs
+  `BLOCK_APP`, and `APP_LIBRARIES` for the libraries the app loads, which the suite sets.
 
 - `//crates/beui-demo:example-open-bench -- [PAGE]` opens each beui-demo page from its
   catalog row, once first in the process (cold) and then `REPEAT` more times (10 by default)
@@ -16,12 +53,35 @@ Benchmarks run in release, on this machine, with `./scripts/buck run -m release`
 - The open bench builds a new document for each open, so the per-node tables a document
   keeps grow from empty every time. A long-lived document reuses the slots of the nodes
   it removed; don't chase the growth of those tables in a profile of the bench.
+- `//crates/beui-demo:example-space-resize-bench` runs the demo in the VR simulator
+  (`beui_layer_space::Space` as the runner's host) on an offscreen GPU, floats the
+  Docking tab into a window of its own, and drags a corner of the main panel and of that
+  window for 60 frames each, through the platform pixels a mouse sends. It prints each
+  resize's median and slowest frame (`Runner::frame`, which runs the compositor's
+  drawing, and `present`), beui's layout and paint, and how many windows' outputs changed
+  (`VERBOSE=1` prints every frame). `NO_GPU=1` leaves out the GPU and so measures the
+  app's own work. On lavapipe `present` is mostly the software rasterizer; judge
+  `frame`. In October 2026 a resize step's `frame` was 7 to 9 ms, after 90 to 100 ms
+  while each window built a new `Renderer` (pipelines, glyph atlases) for every new size.
+- `//crates/beui-demo:example-space-cursor-bench` runs the demo in the VR simulator the
+  same way, finds two points of the main panel whose cursor icons differ, and moves the
+  pointer between them every frame for 60 frames, after 60 frames of moving it a pixel
+  over one icon. In October 2026 a switch's `frame` was about 4 ms, as the moves' are,
+  after 32 ms while the cursor sprite built a new `Renderer` for every icon.
 - `//crates/beui:example-text-bench -- [NAME]` times resizing and editing text.
+- Both beui benches run their frames through the real `Runner`, with no drive layer (so no
+  accessibility dump) and the clock stopped, and push their inputs as a platform would. A
+  frame's time is `Runner::frame`'s, so it includes the intake and the window bookkeeping
+  around the app's update; the open bench takes the renderer's `prepare` out of it.
+- `//crates/block-wasm-host:example-gpu-calls` times a plugin's per-draw gpu calls (set
+  pipeline, viewport and scissor, draw) through wasmtime and block-gpu-host into wgpu's
+  noop device: about 130 ns a call on this machine in October 2026.
 - `//crates/be-graph:example-access-bench` times the server's access queries (one block,
   what one account sees, a block's audience) on an organization of 100,000 blocks.
-- `//crates/editors/infinite-canvas:example-canvas-bench -- [open|pan|zoom|drag|ink]` opens the
-  canvas editor through block-ui-test, the way its tests do, on 100 and on 10,000 shapes. It
-  pans and zooms by the host's view, drags a shape back and forth, and draws pen strokes, and
+- `//crates/editors/infinite-canvas:example-canvas-bench -- [open|pan|zoom|drag|ink|long] [COUNT]`
+  opens the canvas editor through block-ui-test, the way its tests do, on 100 and on 10,000 shapes
+  (or only COUNT). It pans and zooms by the host's view, drags a shape back and forth, draws pen
+  strokes, and draws one stroke of 2,000 samples (`long`, timing its first and last 200), and
   prints each frame's wall time (the whole host round trip, including the test host applying
   each edit, keeping its undo history and answering the canvas's references query), beui's
   layout, paint, interaction and accessibility, and the most nodes one frame measured, placed,
@@ -30,6 +90,23 @@ Benchmarks run in release, on this machine, with `./scripts/buck run -m release`
   always be 0. `shape()` is the one place it names the canvas model. An editor with an
   `examples/` folder is built for the host as well (`editor()` in buck/wasm/defs.bzl), which
   is how an editor gets a benchmark.
+- `./scripts/buck run //crates/bench:suite -- [run|compare BASE|list] [NAME...]` runs the
+  benchmarks crates/bench/src/suite.rs lists, in release, three rounds each (`--rounds=N`).
+  `compare BASE` alternates them with a suite built at BASE
+  (`./scripts/buck build //crates/bench:suite --out BASE` on the base) and prints each
+  metric's fastest and median from both.
+- The suite's `app-canvas-and-text` (crates/app-bench) drives block-app headless with no GPU
+  (`BEUI_RENDERER=none`) against a be-server in a process of its own, 15 ms away each way
+  behind a proxy; the server and the proxy are pinned to one core and the app to the others.
+  It times what a person waits for: signing in, making, saving, closing, exporting and
+  reopening blocks, and a second device recovering the account. Every wait is one the app
+  answers (`drive app wait`, `gone`, `settle`), never a poll, and every command passes
+  `--changes=0`. Its pen stroke sends 400 samples at the start and 400 at the end at 4 a
+  frame, as a stylus does, and the 9,200 between at 1,000 a frame to get there; each of the
+  two stretches reports its longest frame and how long the ink takes to reach the pen after
+  its last sample (`-catch-up`). It does not measure drawing on a GPU, frame pacing,
+  connection and TLS set-up, bandwidth (the proxy delays but does not throttle), a large
+  organization, a relaunch on warm caches, or two devices editing at once.
 
 The target for opening a page is under 2 ms warm. The canvas bench measured, in October
 2026:
@@ -43,6 +120,7 @@ The target for opening a page is under 2 ms warm. The canvas bench measured, in 
 | drag, p50 wall | 0.17 ms (interaction 0.09 ms) | 0.54 ms (interaction 0.31 ms) |
 | pen move, p50 wall | 0.21 ms (interaction 0.12 ms) | 0.42 ms (interaction 0.22 ms) |
 | pen lift, p50 wall | 0.13 ms | 0.24 ms (interaction 0.13 ms) |
+| long stroke, p50 wall of its first and last 200 samples | 0.37 ms, 0.53 ms | 5 to 7 ms, 5 to 7 ms |
 | frames from pen event to ink | 0 | 0 |
 
 `camera()` centres a world point in the canvas: a view is where the content sits on
@@ -68,6 +146,14 @@ transform and sends nothing else. A pan at scale 0.1 still walks the canvas's sh
 host's accessibility dump renders its text and test id rects only when something reads them,
 so the bench reads the canvas's rect once rather than every frame.
 
+A pen move costs the same at the end of a long stroke as at its start. The pen writes only
+the new points (`InfiniteCanvasOperation::Extend`, a `Series` append, a stroke keeping its points
+as drawn in a `points_frame`), the projection re-reads only what was appended
+(`Model::reread`), the block-ref index re-walks only the changed field, and the canvas draws a
+stroke being drawn with `freehand::LiveStroke`: it keeps the settled outline, recomputes only
+the end, and paints the settled part as pieces whose meshes are kept (`Painter::paint_path`),
+joined on seams that are not antialiased (`PathPaint::with_seams`) so they paint as one fill.
+
 A pan, zoom or pen move places and paints only what is in view. A canvas
 finds the items near its view through a grid of world cells, so only what is in view costs
 anything. A pen lift reads only the new stroke:
@@ -86,9 +172,13 @@ take as long as building the items.
 
 Time on a shared VM drifts by 10% or more between runs, which hides most single changes:
 
-- Build both binaries first, then run them alternately, several times each:
-  `./scripts/buck build -m release //crates/beui-demo:example-open-bench --out DIR/base`
-  on the base and again with `--out DIR/change`.
+- Build the suite of each build first, then run them alternately, several times each:
+  `./scripts/buck build //crates/bench:suite --out DIR/base` on the base and again with
+  `--out DIR/change`, then `DIR/change/bench compare DIR/base [--rounds=N] [NAME...]`, which
+  runs each benchmark from one suite and then the other, swapping which goes first every
+  round, and prints both suites' fastest and median of each metric and how much the
+  change's fastest differs. A suite copies everything it runs, so a later build or
+  checkout does not change it.
 - Compare each page's fastest warm open, never one run's median.
 - Allocation counts don't drift: the same build gives the same count to within one or two.
   A change meant to allocate less shows up there even when its time is lost in noise. They
@@ -151,7 +241,28 @@ or dump stacks to fold them yourself:
   the `BE3_*` values the dialog shows (guides/tracker.md): `be new-database`, `add-column`
   and `import` a generated CSV make a tracker of any size.
 
-4. Ideas tried and set aside
+4. Starting block-app
+
+Reopening the app should go straight from the page or window to the workspace the last
+session left, with every step that can overlap running at once. What keeps it that way:
+
+- The last organization opened is kept with its account in app state, so a restart opens
+  it without waiting for the server's organization list and keys, which are fetched in
+  the background (`resume_organization` in crates/block-app/src/main.rs). If the list
+  no longer has it, the app falls back to the organization list.
+- The plugins whose editors were open are kept in app state too, and are started, with
+  the shell's plugin, on the first frame (`plugin_host::warm`), before the shell asks
+  for them. A plugin with no editors open idles once it has loaded.
+- The host prefetches the content of an editor's references (up to four) as soon as its
+  block's node is known, so a database view's database loads beside the view.
+- The be worker joins every queued `Open` concurrently. Its loop still awaits listings
+  between commands, so keep each query to one listing request: a block's references
+  come in one `ListReferences`, not one `ReadBlock` each.
+- On the web, plugin manifests are fetched together, before the first frame.
+- workspace-ui keeps each tab's title in the view state's `titles`, so a restored tab is
+  named before its block's info arrives.
+
+5. Ideas tried and set aside
 
 Each of these helped, but works around a cost rather than removing it. Keep them for when
 nothing better is left.

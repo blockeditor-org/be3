@@ -1,14 +1,15 @@
 use std::collections::HashMap;
 
-use block_editor_beui::be_block::ViewState;
-use block_editor_beui::beui::unstyled::{DockingSnapshot, TabId};
+use block_editor_beui::beui::dock::styled::{DockingSnapshot, TabId};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
+use workspace_ui_types::ViewState;
 
 use super::kept::KeptWindow;
 use super::tab::TabItem;
 
 pub(crate) const LAYOUT: &str = "layout";
+pub(crate) const TITLES: &str = "titles";
 
 #[derive(Deserialize, Serialize)]
 struct SavedLayout {
@@ -95,4 +96,22 @@ pub(crate) fn restore(state: &ViewState) -> Option<Restored> {
         tabs,
         windows: saved.windows,
     })
+}
+
+pub(crate) fn save_titles(titles: &HashMap<TabId, String>) -> ViewState {
+    let mut saved: Vec<(u64, &String)> = titles
+        .iter()
+        .map(|(tab, title)| (tab.value(), title))
+        .collect();
+    saved.sort();
+    ViewState::new(&saved, Vec::new())
+}
+
+pub(crate) fn restore_titles(state: &ViewState) -> HashMap<TabId, String> {
+    state
+        .value::<Vec<(u64, String)>>()
+        .unwrap_or_default()
+        .into_iter()
+        .map(|(tab, title)| (TabId::new(tab), title))
+        .collect()
 }

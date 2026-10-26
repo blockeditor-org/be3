@@ -1,5 +1,5 @@
 use super::*;
-use beui::{Event, Key, Modifiers};
+use beui::Key;
 
 #[test]
 fn a_docked_page_shown_fullscreen_covers_the_dock_until_escape() {
@@ -9,7 +9,7 @@ fn a_docked_page_shown_fullscreen_covers_the_dock_until_escape() {
         if test.shows("demo.fullscreen") && test.rect_of("demo.fullscreen").bottom() <= WIDE.y {
             break;
         }
-        test.scroll_at(page, Vec2::new(0.0, -REVEAL_STEP));
+        test.scroll(page, Vec2::new(0.0, REVEAL_STEP));
     }
     let docked = test.rect_of("demo.fullscreen");
 
@@ -27,11 +27,10 @@ fn a_docked_page_shown_fullscreen_covers_the_dock_until_escape() {
         [true, false]
             .into_iter()
             .map(|pressed| {
-                Event::key(beui::KeyPress {
-                    key: Key::Escape,
+                Input::Key(beui::Keystroke {
+                    key: Some(Key::Escape),
                     pressed,
-                    repeat: false,
-                    modifiers: Modifiers::NONE,
+                    ..Default::default()
                 })
             })
             .collect(),

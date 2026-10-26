@@ -44,6 +44,9 @@ pub fn fix_repository(root: &Path, check: bool) -> Result<(), Box<dyn Error>> {
 
 pub fn strip_comments(source: &[u8]) -> Result<Vec<u8>, Box<dyn Error>> {
     let tree = parse(source)?;
+    if keeps_its_comments(tree.syntax()) {
+        return Ok(source.to_vec());
+    }
     let mut comments = tree
         .syntax()
         .descendants_with_tokens()
@@ -101,6 +104,14 @@ pub fn strip_comments(source: &[u8]) -> Result<Vec<u8>, Box<dyn Error>> {
     }
     stripped.extend_from_slice(&source[cursor..]);
     Ok(stripped)
+}
+
+fn keeps_its_comments(file: &SyntaxNode) -> bool {
+    file.descendants_with_tokens()
+        .filter_map(NodeOrToken::into_token)
+        .any(|token| {
+            ast::AnyComment::can_cast(token.kind()) && token.text().contains("@yeskeepfile")
+        })
 }
 
 fn kept_comment(token: &ra_ap_syntax::SyntaxToken) -> bool {
@@ -390,11 +401,12 @@ fn inspect_file_queue(
         {
             violations.push(format!("test functions: {relative}"));
         }
-        if tree
-            .syntax()
-            .descendants_with_tokens()
-            .filter_map(NodeOrToken::into_token)
-            .any(|token| ast::AnyComment::can_cast(token.kind()) && !kept_comment(&token))
+        if !keeps_its_comments(tree.syntax())
+            && tree
+                .syntax()
+                .descendants_with_tokens()
+                .filter_map(NodeOrToken::into_token)
+                .any(|token| ast::AnyComment::can_cast(token.kind()) && !kept_comment(&token))
         {
             violations.push(format!("comments: {relative}"));
         }

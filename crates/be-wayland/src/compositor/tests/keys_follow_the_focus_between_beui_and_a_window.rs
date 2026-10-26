@@ -11,7 +11,7 @@ fn keys_follow_the_focus_between_beui_and_a_window() {
     let (_window, id) = harness.open();
 
     harness.click("test.input");
-    harness.frame(vec![Event::PointerMoved(outside())]);
+    harness.frame(vec![Input::PointerMoved(outside())]);
     harness.key(KEY_A);
     assert!(
         harness.client.received.keys.is_empty(),

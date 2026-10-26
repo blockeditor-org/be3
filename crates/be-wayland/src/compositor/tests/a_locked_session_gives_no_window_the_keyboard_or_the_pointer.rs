@@ -34,8 +34,10 @@ fn a_locked_session_gives_no_window_the_keyboard_or_the_pointer() {
     let buttons = harness.client.received.buttons.len();
     harness.click(&window);
     harness.key(KEY_B);
-    harness.frame(vec![Event::Scroll(beui::vec2(0.0, 40.0))]);
-    harness.app.windows().activate(id);
+    harness.frame(vec![Input::Scroll(beui::ScrollDelta::Pixels(beui::vec2(
+        0.0, 40.0,
+    )))]);
+    harness.compositor().windows().activate(id);
     harness.settle();
     assert_eq!(
         harness.client.received.keys,

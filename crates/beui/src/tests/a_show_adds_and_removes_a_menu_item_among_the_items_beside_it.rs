@@ -32,12 +32,11 @@ fn a_show_adds_and_removes_a_menu_item_among_the_items_beside_it() {
     harness.frame(Vec::new());
 
     let pos = harness.center(region);
-    harness.frame(vec![Event::PointerMoved(pos)]);
-    harness.frame(vec![Event::PointerButton {
+    harness.frame(vec![Input::PointerMoved(pos)]);
+    harness.frame(vec![Input::PointerButton {
         pos,
         button: PointerButton::Secondary,
         pressed: true,
-        modifiers: Modifiers::NONE,
     }]);
     harness.frame(Vec::new());
 

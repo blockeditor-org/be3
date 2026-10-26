@@ -2,6 +2,7 @@ use super::*;
 
 mod a_filled_square_is_two_triangles_with_its_sides_on_the_outline;
 mod a_stroke_is_filled_as_an_outline_around_its_path;
+mod an_edge_on_a_seam_is_not_antialiased;
 mod dashes_split_a_stroke_into_pieces;
 mod even_odd_leaves_a_hole_where_non_zero_fills_it;
 

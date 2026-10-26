@@ -17,6 +17,7 @@ mod a_shortcut_on_punctuation_reaches_the_editor;
 mod ctrl_z_in_a_text_field_is_left_to_the_field;
 mod ctrl_z_undoes_a_block_that_owns_its_frame_without_a_top_bar;
 mod ctrl_z_undoes_the_block_through_the_frames_undo;
+mod edits_from_elsewhere_land_in_order;
 mod tapping_with_two_fingers_undoes_and_three_redoes;
 mod the_frame_offers_one_menu_on_a_phone_and_a_desktop_and_runs_what_is_picked;
 mod the_menu_offers_close_only_to_a_framed_child;
@@ -28,8 +29,10 @@ const SLIDE_TYPE: Uuid = Uuid::from_u128(0x0002);
 
 struct ChildApp;
 
+#[component]
 impl BeuiApp for ChildApp {
-    fn view(editor: Editor) -> Root {
+    #[component]
+    fn View(editor: Editor) -> Root {
         view! {
             <Root>
                 <Slide editor={editor} />
@@ -42,7 +45,7 @@ impl BeuiApp for ChildApp {
 fn Slide(editor: Editor) -> NodeId {
     let target = Some(ChildTarget::new(SLIDE, SLIDE_TYPE));
     view! {
-        <Frame width=320.0 height=180.0>
+        <Frame width=Size::Popover height={Size::Custom(180.0)}>
             <ChildBlock
                 editor={editor}
                 block={target}

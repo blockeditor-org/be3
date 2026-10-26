@@ -1,9 +1,6 @@
-use std::{
-    collections::{HashMap, HashSet, VecDeque},
-    fmt,
-};
+use std::fmt;
 
-use be_store::{Hash, Manifest, ObjectStore, StoreError, Vault};
+use be_store::{Hash, Manifest};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -36,6 +33,45 @@ impl fmt::Display for CommitId {
     }
 }
 
+#[derive(Clone, Copy, Deserialize, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize)]
+pub struct ChangeId(Uuid);
+
+impl ChangeId {
+    pub fn new() -> Self {
+        Self(Uuid::new_v4())
+    }
+
+    pub const fn from_uuid(id: Uuid) -> Self {
+        Self(id)
+    }
+
+    pub fn of_commit(id: CommitId) -> Self {
+        let mut bytes = [0; 16];
+        bytes.copy_from_slice(&id.hash().as_bytes()[..16]);
+        Self(Uuid::from_bytes(bytes))
+    }
+
+    pub const fn uuid(self) -> Uuid {
+        self.0
+    }
+
+    pub fn short(self) -> String {
+        self.0.simple().to_string().chars().take(8).collect()
+    }
+}
+
+impl Default for ChangeId {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl fmt::Debug for ChangeId {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(formatter, "ChangeId({})", self.short())
+    }
+}
+
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 pub enum CommitKind {
     Autosave,
@@ -61,6 +97,8 @@ pub struct Commit {
     pub references: Vec<Uuid>,
     #[serde(with = "be_store::bytes")]
     pub metadata: Vec<u8>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub change: Option<ChangeId>,
 }
 
 impl Commit {
@@ -73,7 +111,17 @@ impl Commit {
             kind: CommitKind::Autosave,
             references: Vec::new(),
             metadata: Vec::new(),
+            change: None,
         }
+    }
+
+    pub fn change_id(&self, id: CommitId) -> ChangeId {
+        self.change.unwrap_or_else(|| ChangeId::of_commit(id))
+    }
+
+    pub fn with_change(mut self, change: ChangeId) -> Self {
+        self.change = Some(change);
+        self
     }
 
     pub fn with_parent(mut self, parent: Option<CommitId>) -> Self {
@@ -106,140 +154,4 @@ impl Commit {
 pub struct ReferenceDelta {
     pub added: usize,
     pub removed: usize,
-}
-
-pub struct CommitStore<S> {
-    vault: Vault<S>,
-}
-
-impl<S: ObjectStore> CommitStore<S> {
-    pub fn new(vault: Vault<S>) -> Self {
-        Self { vault }
-    }
-
-    pub fn vault(&self) -> &Vault<S> {
-        &self.vault
-    }
-
-    pub fn put(&self, key: Uuid, commit: &Commit) -> Result<CommitId, StoreError> {
-        Ok(CommitId(self.vault.put_value(key, commit)?))
-    }
-
-    pub fn get(&self, id: CommitId) -> Result<Commit, StoreError> {
-        self.vault.get_value(id.0)
-    }
-
-    pub fn try_get(&self, id: CommitId) -> Result<Option<Commit>, StoreError> {
-        if self.has(id)? {
-            self.get(id).map(Some)
-        } else {
-            Ok(None)
-        }
-    }
-
-    pub fn parents_of(&self, id: CommitId) -> Result<Vec<CommitId>, StoreError> {
-        Ok(self
-            .try_get(id)?
-            .map(|commit| commit.parents)
-            .unwrap_or_default())
-    }
-
-    pub fn has(&self, id: CommitId) -> Result<bool, StoreError> {
-        self.vault.has_value(id.0)
-    }
-
-    #[allow(clippy::too_many_arguments)]
-    pub fn write(
-        &self,
-        key: Uuid,
-        content_type: Uuid,
-        data: &[u8],
-        author: Uuid,
-        time: i64,
-        parent: Option<CommitId>,
-        references: Vec<Uuid>,
-    ) -> Result<CommitId, StoreError> {
-        let manifest = self.vault.write(key, content_type, data)?;
-        let commit = Commit::new(manifest, author, time)
-            .with_parent(parent)
-            .with_references(references);
-        self.put(key, &commit)
-    }
-
-    pub fn read(&self, id: CommitId) -> Result<Vec<u8>, StoreError> {
-        self.vault.read(&self.get(id)?.manifest)
-    }
-
-    pub fn read_range(
-        &self,
-        id: CommitId,
-        offset: u64,
-        length: u64,
-    ) -> Result<Vec<u8>, StoreError> {
-        self.vault
-            .read_range(&self.get(id)?.manifest, offset, length)
-    }
-
-    pub fn first_parent_chain(&self, head: CommitId) -> Result<Vec<CommitId>, StoreError> {
-        let mut chain = vec![head];
-        let mut current = head;
-        while let Some(parent) = self.parents_of(current)?.first().copied() {
-            chain.push(parent);
-            current = parent;
-        }
-        Ok(chain)
-    }
-
-    pub fn ancestry(&self, head: CommitId) -> Result<HashSet<CommitId>, StoreError> {
-        let mut seen = HashSet::new();
-        let mut queue = VecDeque::from([head]);
-        while let Some(id) = queue.pop_front() {
-            if !seen.insert(id) {
-                continue;
-            }
-            queue.extend(self.parents_of(id)?);
-        }
-        Ok(seen)
-    }
-
-    pub fn is_ancestor(
-        &self,
-        ancestor: CommitId,
-        descendant: CommitId,
-    ) -> Result<bool, StoreError> {
-        Ok(self.ancestry(descendant)?.contains(&ancestor))
-    }
-
-    pub fn common_ancestor(
-        &self,
-        ours: CommitId,
-        theirs: CommitId,
-    ) -> Result<Option<CommitId>, StoreError> {
-        let mut depths = HashMap::new();
-        let mut queue = VecDeque::from([(ours, 0usize)]);
-        while let Some((id, depth)) = queue.pop_front() {
-            if depths.insert(id, depth).is_some() {
-                continue;
-            }
-            for parent in self.parents_of(id)? {
-                queue.push_back((parent, depth + 1));
-            }
-        }
-        let mut best: Option<(CommitId, usize)> = None;
-        let mut seen = HashSet::new();
-        let mut queue = VecDeque::from([theirs]);
-        while let Some(id) = queue.pop_front() {
-            if !seen.insert(id) {
-                continue;
-            }
-            if let Some(&depth) = depths.get(&id) {
-                if best.is_none_or(|(_, current)| depth < current) {
-                    best = Some((id, depth));
-                }
-                continue;
-            }
-            queue.extend(self.parents_of(id)?);
-        }
-        Ok(best.map(|(id, _)| id))
-    }
 }

@@ -214,11 +214,7 @@ impl Attempts {
                 self.trying = None;
                 Some(Outcome::Connected)
             }
-            FAILED => {
-                self.failed = self.trying.take();
-                Some(Outcome::Failed)
-            }
-            DISCONNECTED if self.began => {
+            FAILED | DISCONNECTED if self.began => {
                 self.failed = self.trying.take();
                 Some(Outcome::Failed)
             }

@@ -53,7 +53,7 @@ fn a_button_hidden_while_hovered_is_not_hovered_when_it_comes_back() {
         .and_then(|held| held.hovered)
         .expect("the button reported its hover");
 
-    harness.frame(vec![Event::PointerMoved(at)]);
+    harness.frame(vec![Input::PointerMoved(at)]);
     assert!(hovered.get(), "the pointer hovers the button");
 
     let hide = |harness: &mut Harness, shown: bool| {
@@ -65,7 +65,7 @@ fn a_button_hidden_while_hovered_is_not_hovered_when_it_comes_back() {
         harness.frame(Vec::new());
     };
     hide(&mut harness, false);
-    harness.frame(vec![Event::PointerGone]);
+    harness.frame(vec![Input::PointerLeft]);
     hide(&mut harness, true);
 
     assert!(

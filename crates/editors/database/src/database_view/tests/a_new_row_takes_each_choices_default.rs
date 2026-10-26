@@ -7,7 +7,7 @@ fn a_new_row_takes_each_choices_default() {
 
     tracker.fixture.harness.click("database-view.new");
     tracker.fixture.settle();
-    tracker.fixture.harness.text("Ship the redesign");
+    tracker.fixture.harness.type_text("Ship the redesign");
     tracker.fixture.settle();
 
     let database = tracker.fixture.database();

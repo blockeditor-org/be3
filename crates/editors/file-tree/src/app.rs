@@ -3,6 +3,7 @@ use block_editor_beui::beui::styled::Root;
 use block_editor_beui::{Editor, Loaded};
 
 mod export;
+mod kinds;
 mod menu;
 mod rename;
 mod rows;
@@ -13,8 +14,10 @@ use ui::FileTreeEditor;
 
 pub struct FileTreeApp;
 
+#[component]
 impl block_editor_beui::BeuiApp for FileTreeApp {
-    fn view(editor: Editor) -> Root {
+    #[component]
+    fn View(editor: Editor) -> Root {
         view! {
             <Root>
                 <Loaded label="Loading the files">

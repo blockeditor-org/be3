@@ -1,6 +1,7 @@
 use super::*;
 
-use be_block::{Calendar, CalendarContent, CalendarEvent, Edit};
+use be_block::Edit;
+use calendar_types::{Calendar, CalendarContent, CalendarEvent};
 
 fn titles(shared: &Shared, block: Uuid) -> Option<Vec<String>> {
     let held = shared.blocks.get(&block)?;

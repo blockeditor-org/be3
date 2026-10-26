@@ -1,14 +1,8 @@
 use block_editor_beui::beui::{Pos2, pos2};
-use block_plugin_api::ChildRect;
 
 use super::*;
 
-const SCREEN: ChildRect = ChildRect {
-    x: 0.0,
-    y: 0.0,
-    width: 800.0,
-    height: 600.0,
-};
+const SCREEN: Rect = Rect::from_min_max(Pos2::ZERO, Pos2::new(800.0, 600.0));
 
 fn windows(fixture: &mut Fixture, focused: u64) {
     let calculator = HostWindow {
@@ -17,7 +11,7 @@ fn windows(fixture: &mut Fixture, focused: u64) {
     };
     fixture
         .test
-        .set_host_value::<HostWindows>(&vec![calculator, host_window(2, focused == 2)]);
+        .set_watched::<WindowsWatch>(&vec![calculator, host_window(2, focused == 2)]);
     fixture.settle();
 }
 
@@ -30,9 +24,9 @@ fn front_at(fixture: &Fixture, at: Pos2) -> Option<HostWindowId> {
         .enumerate()
         .rev()
         .filter(|(index, placement)| {
-            placement.clip.contains(at.x, at.y)
+            placement.clip.contains_half_open(at)
                 && !occluders.iter().any(|occluder| {
-                    occluder.after as usize > *index && occluder.rect.contains(at.x, at.y)
+                    occluder.after as usize > *index && occluder.rect.contains_half_open(at)
                 })
         })
         .find_map(|(_, placement)| match placement.content {
@@ -50,12 +44,7 @@ fn alt_tab_or_a_click_brings_a_fullscreen_window_back_in_front() {
         .children()
         .iter()
         .find(|placement| placement.content == ChildContent::Window(HostWindowId(2)))
-        .map(|placement| {
-            pos2(
-                placement.rect.x + placement.rect.width / 2.0,
-                placement.rect.y + placement.rect.height / 2.0,
-            )
-        })
+        .map(|placement| placement.rect.center())
         .expect("the terminal is placed");
     assert_eq!(
         front_at(&fixture, terminal),
@@ -69,7 +58,7 @@ fn alt_tab_or_a_click_brings_a_fullscreen_window_back_in_front() {
         Some(HostWindowId(2)),
         "the focused terminal comes in front of it"
     );
-    fixture.test.take_sent();
+    fixture.test.clear_calls();
 
     assert!(fixture.test.app_key(Modifiers::ALT, Key::Tab));
     fixture.settle();
@@ -84,10 +73,10 @@ fn alt_tab_or_a_click_brings_a_fullscreen_window_back_in_front() {
     );
 
     windows(&mut fixture, 2);
-    fixture.test.take_sent();
+    fixture.test.clear_calls();
     fixture
         .test
-        .click_at(pos2(SCREEN.width - 10.0, SCREEN.height - 10.0));
+        .click(pos2(SCREEN.width() - 10.0, SCREEN.height() - 10.0));
     fixture.settle();
     assert_eq!(
         fixture.focused_windows(),

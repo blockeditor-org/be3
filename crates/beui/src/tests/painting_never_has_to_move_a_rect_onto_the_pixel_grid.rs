@@ -19,10 +19,10 @@ fn painting_never_has_to_move_a_rect_onto_the_pixel_grid() {
     });
 
     let mut harness = Harness::sized(document, Vec2::new(407.0, 200.0));
-    harness.context.set_pixels_per_point(1.5);
+    harness.rescale(1.5);
     let output = harness.frame(Vec::new());
 
-    let painted = quads(&output, output.pixels_per_point());
+    let painted = quads(output.main(), output.pixels_per_point());
     let mut checked = 0;
     for quad in &painted.list {
         if let crate::draw::Quad::Rect { rect, .. } = quad {

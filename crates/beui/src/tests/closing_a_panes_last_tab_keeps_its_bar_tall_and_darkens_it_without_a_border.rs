@@ -6,23 +6,27 @@ use crate::styled::*;
 #[test]
 fn closing_a_panes_last_tab_keeps_its_bar_tall_and_darkens_it_without_a_border() {
     let document = build_node(move || {
-        let layout = unstyled::DockingLayout::new();
+        let layout = dock::unstyled::DockingLayout::new();
         let open = create_signal(true);
         view! {
-            <styled::Docking layout>
-                <unstyled::DockPane
+            <dock::styled::Docking layout>
+                <dock::unstyled::DockPane
                     id="tabs"
                     empty={move || view! {
                         <Frame @test_id={"nothing_open"} />
                     }}
                 >
                     <Show condition={open}>
-                        <unstyled::DockTab id=1u64 title="Tab 1" on_close={move || open.set(false)}>
+                        <dock::unstyled::DockTab
+                            id=1u64
+                            title="Tab 1"
+                            on_close={move || open.set(false)}
+                        >
                             <Frame @test_id={"content.1"} />
-                        </unstyled::DockTab>
+                        </dock::unstyled::DockTab>
                     </Show>
-                </unstyled::DockPane>
-            </styled::Docking>
+                </dock::unstyled::DockPane>
+            </dock::styled::Docking>
         }
     });
     let mut harness = Harness::sized(document, WIDE_VIEWPORT);
@@ -58,6 +62,7 @@ fn closing_a_panes_last_tab_keeps_its_bar_tall_and_darkens_it_without_a_border()
 
 fn fills_above(output: &crate::FrameOutput, top: f32, fill: crate::color::Color32) -> usize {
     output
+        .main()
         .shapes()
         .iter()
         .filter(|shape| {

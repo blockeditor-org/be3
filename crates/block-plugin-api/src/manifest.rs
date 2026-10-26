@@ -6,8 +6,9 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use uuid::Uuid;
 
 use crate::{
-    EditorCapabilities, EditorManifest, EditorRegion, Edits, InteractionMode, ManifestError,
-    PluginIdentity, PluginManifest, ResizeMode, ShellRequest, TemplateCategory, TemplateManifest,
+    BlockTypeDescriptor, BlockTypeManifest, ChildOperations, EditorCapabilities, EditorManifest,
+    EditorRegion, Edits, InteractionMode, ManifestError, PluginIdentity, PluginManifest, Press,
+    ResizeMode, ShellRequest, TemplateCategory, TemplateManifest,
 };
 
 #[cfg(test)]
@@ -19,10 +20,15 @@ pub struct ManifestDocument {
     pub id: String,
     pub name: String,
     pub version: String,
+    #[serde(default)]
     pub editors: InOrder<EditorDocument>,
+    #[serde(default)]
+    pub block_types: InOrder<BlockTypeDocument>,
     pub entry_point: String,
     #[serde(default)]
     pub network: Vec<String>,
+    #[serde(default)]
+    pub extensions: Vec<String>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -46,6 +52,23 @@ pub struct EditorDocument {
     pub accepts: Vec<ShellRequest>,
 }
 
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct BlockTypeDocument {
+    pub id: String,
+    pub display_name: String,
+    pub icon: String,
+    #[serde(default)]
+    pub color: Option<[u8; 3]>,
+    #[serde(default)]
+    pub children: ChildOperations,
+    #[serde(default)]
+    pub press: Press,
+    pub module: String,
+    #[serde(default)]
+    pub exported_whole: bool,
+}
+
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct TemplateDocument {
@@ -54,11 +77,31 @@ pub struct TemplateDocument {
     #[serde(default)]
     pub icon: Option<String>,
     #[serde(default)]
-    pub category: TemplateCategory,
+    pub category: CategoryDocument,
     #[serde(default)]
     pub dialog: bool,
     #[serde(default)]
     pub block_type: Option<String>,
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum CategoryDocument {
+    Important,
+    #[default]
+    Regular,
+    Debug,
+    Template,
+}
+
+impl From<CategoryDocument> for TemplateCategory {
+    fn from(category: CategoryDocument) -> Self {
+        match category {
+            CategoryDocument::Important => Self::Important,
+            CategoryDocument::Regular | CategoryDocument::Debug => Self::Regular,
+            CategoryDocument::Template => Self::Template,
+        }
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -144,11 +187,37 @@ impl ManifestDocument {
                 .into_iter()
                 .map(|(name, editor)| editor.into_manifest(name))
                 .collect::<Result<_, _>>()?,
+            block_types: self
+                .block_types
+                .0
+                .into_iter()
+                .map(|(name, block_type)| block_type.into_manifest(name))
+                .collect::<Result<_, _>>()?,
             entry_point: self.entry_point,
             network: self.network,
+            extensions: self.extensions,
         };
         manifest.validate()?;
         Ok(manifest)
+    }
+}
+
+impl BlockTypeDocument {
+    fn into_manifest(self, name: String) -> Result<BlockTypeManifest, ManifestError> {
+        Ok(BlockTypeManifest {
+            name,
+            descriptor: BlockTypeDescriptor {
+                block_type: block_type(&self.id)?,
+                display_name: self.display_name,
+                color: self.color,
+                icon_codepoint: self.icon,
+                children: self.children,
+                press: self.press,
+                plain_file: false,
+            },
+            module: self.module,
+            exported_whole: self.exported_whole,
+        })
     }
 }
 
@@ -167,7 +236,8 @@ impl EditorDocument {
                     id,
                     name: template.name.unwrap_or_else(|| self.display_name.clone()),
                     icon: template.icon.unwrap_or_else(|| self.icon.clone()),
-                    category: template.category,
+                    category: template.category.into(),
+                    debug: template.category == CategoryDocument::Debug,
                     dialog: template.dialog,
                     block_type: match template.block_type {
                         Some(source) => block_type(&source)?,

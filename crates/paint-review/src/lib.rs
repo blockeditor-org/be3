@@ -1,8 +1,9 @@
 use std::rc::Rc;
 
+use beui::dock::styled::Docking;
+use beui::dock::styled::{DockPane, DockSplit, DockTab};
 use beui::reactive::*;
 use beui::styled::*;
-use beui::unstyled::{Container, DockMode, DockPane, DockSplit, DockTab, narrower_than};
 use beui::{Context, Document, Key, KeyPress, NodeId, Rect};
 
 mod images;
@@ -18,9 +19,8 @@ use painting::PaintingView;
 use review::{Mode, Review};
 use sidebar::PaintingList;
 
-const NARROW_WIDTH: f32 = 700.0;
-const MESSAGE_SPACING: f32 = 8.0;
-const MESSAGE_PADDING: f32 = 24.0;
+const MESSAGE_SPACING: Space = Space::Md;
+const MESSAGE_PADDING: Space = Space::Xl3;
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum Fetch<T> {
@@ -45,13 +45,7 @@ impl PaintReviewApp {
             document: build(move || {
                 view! {
                     <Root title="Paintings" clear_color=ColorRole::Background>
-                        <Container>|_|
-                            <PaintReview
-                                manifest={shown}
-                                images={table}
-                                painting={painting.clone()}
-                            />
-                        </Container>
+                        <PaintReview manifest={shown} images={table} painting={painting.clone()} />
                     </Root>
                 }
             }),
@@ -84,14 +78,6 @@ fn PaintReview(
     let initial = painting.get_untracked();
     let focus = if initial.is_some() { 2u64 } else { 1u64 };
     let review = Review::new(manifest, images, initial);
-    let narrow = narrower_than(NARROW_WIDTH);
-    let mode = create_memo(move || {
-        if narrow.get() {
-            DockMode::Stacked
-        } else {
-            DockMode::Tiled
-        }
-    });
     let layout = review.layout;
     on_shortcut(move |press: KeyPress| shortcut(review, press));
     let loading = create_memo(move || manifest.with(|manifest| matches!(manifest, Fetch::Loading)));
@@ -104,7 +90,7 @@ fn PaintReview(
     let ready = create_memo(move || manifest.with(|manifest| matches!(manifest, Fetch::Ready(_))));
     view! {
         <Frame fill=ColorRole::Background>
-            <List spacing=0.0>
+            <List spacing=Space::None>
                 <Show condition={loading}>
                     <Frame @sizing=ItemSize::Percent(100.0) align=Align::Center>
                         <List
@@ -112,7 +98,7 @@ fn PaintReview(
                             spacing=MESSAGE_SPACING
                             @test_id={"paint_review.loading"}
                         >
-                            <Spinner label="Loading the paintings" />
+                            <Progress width=INLINE_PROGRESS_WIDTH label="Loading the paintings" />
                             <Text style=TextStyle::CAPTION>"Loading the paintings"</Text>
                         </List>
                     </Frame>
@@ -121,7 +107,7 @@ fn PaintReview(
                     <Frame
                         @sizing=ItemSize::Percent(100.0)
                         align=Align::Center
-                        padding={Sides::all(MESSAGE_PADDING)}
+                        padding=MESSAGE_PADDING
                     >
                         <List spacing=MESSAGE_SPACING @test_id={"paint_review.failed"}>
                             <Text
@@ -131,14 +117,14 @@ fn PaintReview(
                             >
                                 "The paintings could not be loaded"
                             </Text>
-                            <Text style=TextStyle::CAPTION wrap=true align=beui::TextAlign::Center>
+                            <Text style=TextStyle::CAPTION align=beui::TextAlign::Center>
                                 {reason}
                             </Text>
                         </List>
                     </Frame>
                 </Show>
                 <Show condition={ready}>
-                    <Docking @sizing=ItemSize::Percent(100.0) layout mode focus>
+                    <Docking @sizing=ItemSize::Percent(100.0) layout focus>
                         <DockSplit id="review" fraction=0.28>
                             <DockPane id="paintings">
                                 <DockTab id=1u64 title="Paintings">

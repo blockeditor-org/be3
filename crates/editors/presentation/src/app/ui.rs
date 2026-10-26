@@ -1,28 +1,30 @@
+use beui::Overflow;
 use std::cell::Cell;
 use std::rc::Rc;
 
 use block_editor_beui::beui::icons::{
-    ICON_ARROW_BACK, ICON_ARROW_FORWARD, ICON_CLOSE, ICON_DELETE, ICON_FULLSCREEN,
+    ICON_ARROW_LEFT, ICON_ARROW_RIGHT, ICON_MAXIMIZE, ICON_TRASH, ICON_X,
 };
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
-use block_editor_beui::beui::unstyled::{DragHandle, DragPoint, Draggable, DropHandle, DropTarget};
 use block_editor_beui::beui::{Color32, CursorIcon, Key, KeyPress, NodeId, Vec2};
 use block_editor_beui::{ChildBlock, ChildBlockHandle, ChildMode, ChildState, Editor, node_anchor};
 use uuid::Uuid;
 
 use super::slides::Slides;
 
-const FILMSTRIP_WIDTH: f32 = 210.0;
-const THUMBNAIL_WIDTH: f32 = 176.0;
-const PLAYBACK_HEIGHT: f32 = 48.0;
+const FILMSTRIP_WIDTH: Size = Size::Custom(210.0);
+const THUMBNAIL_WIDTH: Size = Size::Custom(176.0);
+const PLAYBACK_HEIGHT: Size = Size::Xl2;
 const SLIDE_HEIGHT: f32 = 540.0;
 const DEFAULT_RATIO: f32 = 16.0 / 9.0;
 const FILL: f32 = 0.0;
-const PANEL_PADDING: f32 = 10.0;
-const FILMSTRIP_PADDING: f32 = 6.0;
-const TILE_INSET: f32 = 4.0;
-const TILE_SPACING: f32 = 8.0;
+const PANEL_PADDING: Space = Space::Md;
+const FILMSTRIP_PADDING: Space = Space::Sm;
+const TILE_INSET: Space = Space::Xs;
+const TILE_SPACING: Space = Space::Md;
+const PRESENTING: Color32 = Color32::BLACK;
+const PLAYBACK_SHADE: Color32 = Color32::from_rgba_unmultiplied(0, 0, 0, 180);
 
 #[component]
 pub fn PresentationView(editor: Editor) -> NodeId {
@@ -31,30 +33,25 @@ pub fn PresentationView(editor: Editor) -> NodeId {
     let stage = NodeRef::new();
     editor.content(&stage);
 
-    let theme = use_theme();
     let editing = create_memo(move || !presenting.get());
-    let mode = create_memo(move || match presenting.get() {
-        true => ChildMode::Preview,
-        false => ChildMode::Live,
-    });
     let background = create_memo(move || match presenting.get() {
-        true => Color32::BLACK,
-        false => theme.background.get(),
+        true => ColorRole::Custom(PRESENTING),
+        false => ColorRole::Background,
     });
     let keys = move |press: KeyPress| presenting.get_untracked() && navigate(slides, press);
 
     view! {
         <Interactive focusable=true focused={presenting} on_key={keys}>
-            <Frame fill={ColorRole::custom(background)}>
-                <List direction=Direction::Horizontal spacing=0.0>
+            <Frame fill={background}>
+                <List direction=Direction::Horizontal spacing=Space::None>
                     <ShowKeepAlive condition={editing}>
                         <Filmstrip editor={editor} slides={slides} />
-                        <Frame width=theme::BORDER_WIDTH fill=ColorRole::Border />
+                        <Separator direction=Direction::Vertical />
                     </ShowKeepAlive>
-                    <List @sizing=ItemSize::Percent(100.0) spacing=0.0>
+                    <List @sizing=ItemSize::Percent(100.0) spacing=Space::None>
                         <ShowKeepAlive condition={editing}>
                             <Toolbar editor={editor} slides={slides} />
-                            <Frame height=theme::BORDER_WIDTH fill=ColorRole::Border />
+                            <Separator />
                         </ShowKeepAlive>
                         <Stage
                             @sizing=ItemSize::Percent(100.0)
@@ -62,7 +59,7 @@ pub fn PresentationView(editor: Editor) -> NodeId {
                             editor={editor}
                             slides={slides}
                             selected={slides.selected()}
-                            mode={mode}
+                            mode=ChildMode::Live
                             own_frame={editing}
                             fit={presenting}
                             report_size=true
@@ -161,7 +158,7 @@ fn SlideStatus(state: ReadSignal<ChildState>) -> NodeId {
     view! {
         <Layers>
             <Show condition={hidden}>
-                <Text size=TextSize::Sm color=TextColor::Muted wrap=true>{message}</Text>
+                <Text size=TextSize::Sm color=TextColor::Muted>{message}</Text>
             </Show>
         </Layers>
     }
@@ -186,7 +183,7 @@ fn Toolbar(editor: Editor, slides: Slides) -> NodeId {
     let present = move || editor.present(true);
     view! {
         <Frame fill=ColorRole::Surface padding=PANEL_PADDING>
-            <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
+            <List direction=Direction::Horizontal align=Align::Center spacing=Space::Md>
                 <Text style=TextStyle::CAPTION @test_id={"presentation.position"}>{position}</Text>
                 <Button
                     @sizing=ItemSize::Percent(100.0)
@@ -197,8 +194,9 @@ fn Toolbar(editor: Editor, slides: Slides) -> NodeId {
                     on_click={add}
                     @test_id={"presentation.add"}
                 />
-                <IconButton
-                    glyph={ICON_FULLSCREEN.to_owned()}
+                <Button
+                    icon_only=true
+                    glyph=ICON_MAXIMIZE
                     label="Present"
                     disabled={empty}
                     on_click={present}
@@ -237,12 +235,17 @@ fn Playback(editor: Editor, slides: Slides) -> NodeId {
                 <Layers>
                     <Show condition={over}>
                         <Frame
-                            fill={ColorRole::Custom(Color32::from_rgba_unmultiplied(0, 0, 0, 180))}
-                            padding={Sides::horizontal(12.0)}
+                            fill={ColorRole::Custom(PLAYBACK_SHADE)}
+                            padding={Padding::horizontal(Space::Lg)}
                         >
-                            <List direction=Direction::Horizontal align=Align::Center spacing=10.0>
-                                <IconButton
-                                    glyph={ICON_ARROW_BACK.to_owned()}
+                            <List
+                                direction=Direction::Horizontal
+                                align=Align::Center
+                                spacing=Space::Md
+                            >
+                                <Button
+                                    icon_only=true
+                                    glyph=ICON_ARROW_LEFT
                                     label="Previous slide"
                                     disabled={at_start}
                                     on_click={previous}
@@ -254,15 +257,17 @@ fn Playback(editor: Editor, slides: Slides) -> NodeId {
                                 >
                                     {position}
                                 </Text>
-                                <IconButton
-                                    glyph={ICON_ARROW_FORWARD.to_owned()}
+                                <Button
+                                    icon_only=true
+                                    glyph=ICON_ARROW_RIGHT
                                     label="Next slide"
                                     disabled={at_end}
                                     on_click={next}
                                     @test_id={"presentation.next"}
                                 />
-                                <IconButton
-                                    glyph={ICON_CLOSE.to_owned()}
+                                <Button
+                                    icon_only=true
+                                    glyph=ICON_X
                                     label="Stop presenting"
                                     on_click={stop}
                                     @test_id={"presentation.stop"}
@@ -308,7 +313,6 @@ fn Filmstrip(editor: Editor, slides: Slides) -> NodeId {
 
 #[component]
 fn SlideTile(editor: Editor, slides: Slides, selected: Prop<bool>, id: Uuid) -> NodeId {
-    let theme = use_theme();
     let editable = editor.editable();
     let read_only = editor.read_only();
     let ratio = create_signal(DEFAULT_RATIO);
@@ -325,12 +329,8 @@ fn SlideTile(editor: Editor, slides: Slides, selected: Prop<bool>, id: Uuid) -> 
     });
     let selected = create_memo(move || selected.get());
     let outline = create_memo(move || match selected.get() {
-        true => theme.accent.get(),
-        false => theme.border.get(),
-    });
-    let width = create_memo(move || match selected.get() {
-        true => 2.0_f32,
-        false => 1.0_f32,
+        true => Border::new(ColorRole::Accent).width(Stroke::Focus),
+        false => Border::DEFAULT,
     });
 
     let select = move || slides.select(Some(id));
@@ -361,9 +361,9 @@ fn SlideTile(editor: Editor, slides: Slides, selected: Prop<bool>, id: Uuid) -> 
             <Frame
                 width=THUMBNAIL_WIDTH
                 fill=ColorRole::SurfaceRaised
-                border={Border::new(ColorRole::Accent).width(2.0)}
+                border={Border::FOCUS}
                 radius=Radius::Md
-                padding=8.0
+                padding=Space::Md
                 @test_id="presentation.slide-ghost"
             >
                 <Text style=TextStyle::CAPTION>{label}</Text>
@@ -376,11 +376,11 @@ fn SlideTile(editor: Editor, slides: Slides, selected: Prop<bool>, id: Uuid) -> 
         <Frame padding=TILE_INSET>
             <Frame
                 fill=ColorRole::SurfaceRaised
-                border={create_memo(move || Some(Border::new(ColorRole::Custom(outline.get())).width(width.get())))}
+                border={create_memo(move || Some(outline.get()))}
                 radius=Radius::Md
-                padding=6.0
+                padding=Space::Sm
             >
-                <List spacing=6.0>
+                <List spacing=Space::Sm>
                     <DropTarget on_over={over}>|_: DropHandle|
                         <Draggable
                             payload={payload}
@@ -403,13 +403,18 @@ fn SlideTile(editor: Editor, slides: Slides, selected: Prop<bool>, id: Uuid) -> 
                             </Frame>
                         </Draggable>
                     </DropTarget>
-                    <List direction=Direction::Horizontal align=Align::Center spacing=6.0>
+                    <List direction=Direction::Horizontal align=Align::Center spacing=Space::Sm>
                         <Text style=TextStyle::CAPTION>{number}</Text>
-                        <Text style=TextStyle::CAPTION @sizing=ItemSize::Percent(100.0)>
+                        <Text
+                            overflow=Overflow::Ellipsis
+                            style=TextStyle::CAPTION
+                            @sizing=ItemSize::Percent(100.0)
+                        >
                             {name}
                         </Text>
-                        <IconButton
-                            glyph={ICON_DELETE.to_owned()}
+                        <Button
+                            icon_only=true
+                            glyph=ICON_TRASH
                             label="Detach slide"
                             disabled={read_only}
                             on_click={remove}

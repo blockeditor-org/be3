@@ -28,18 +28,24 @@ fn notification_messages_round_trip() {
         expire_timeout: -1,
         received: 1_700_000_000,
     };
-    host_value_round_trips::<Notifications>(NotificationInbox {
+    watched_round_trips::<NotificationsWatch>(NotificationInbox {
         requests: vec![
-            (1, NotificationRequest::Notify(Box::new(incoming))),
+            (1, NotificationRequest::Notify(incoming)),
             (2, NotificationRequest::Close(7)),
         ],
     });
-    host_value_round_trips::<ScreenLocked>(true);
-    host_action_round_trips(NotificationReport {
+    watched_round_trips::<ScreenLockedWatch>(true);
+    round_trips(&NotificationReport {
         received: Some(2),
         signals: vec![
-            NotificationSignal::ActionInvoked(7, "reply".into()),
-            NotificationSignal::Closed(7, NotificationCloseReason::Dismissed),
+            NotificationSignal::ActionInvoked {
+                id: 7,
+                key: "reply".into(),
+            },
+            NotificationSignal::Closed {
+                id: 7,
+                reason: NotificationCloseReason::Dismissed,
+            },
         ],
         kept: vec![3, 5],
     });

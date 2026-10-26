@@ -1,24 +1,27 @@
 use block_editor_beui::be_block::profile::RECENTS;
 use block_editor_beui::be_block::{
-    BlockContent, EditorSettings, EditorView, EditorViewContent, FILES_EDITOR, MY_FILES, Recents,
-    ViewState, WorkspaceContent,
+    BlockContent, BlockMetadata, FILES_EDITOR, Home, PREFERRED_EDITOR, Recents, VIEW_EDITOR,
+    WORKSPACE_TYPE,
 };
+use block_editor_beui::linux_desktop;
+use settings_types::EditorSettings;
 use std::cell::{Cell, RefCell};
 use std::collections::{HashMap, HashSet};
 use std::rc::Rc;
+use workspace_ui_types::{EditorView, EditorViewContent, ViewState};
 
-use block_editor_beui::beui::icons::ICON_WEB_ASSET;
-use block_editor_beui::beui::reactive::*;
-use block_editor_beui::beui::styled::*;
-use block_editor_beui::beui::unstyled::{
+use block_editor_beui::beui::dock::styled::{
     DockDialog, DockEntry, DockNode, DockPane, DockTab, DockWindow, DockingLayout, TabId,
 };
-use block_editor_beui::beui::{NodeId, Rect, Vec2, pos2, vec2};
+use block_editor_beui::beui::icons::ICON_APP_WINDOW;
+use block_editor_beui::beui::reactive::*;
+use block_editor_beui::beui::styled::*;
+use block_editor_beui::beui::{NodeId, Rect, Vec2};
 use block_editor_beui::block_ui::{BlockCatalog, BlockLabel, BlockTypes};
 use block_editor_beui::{
-    AccessLevel, BlockFilter, BlockPick, ChildRect, ChildState, Contacts, Editor, EditorHost,
-    FocusedBlock, HostPanel, HostWindow, HostWindowId, HostWindows, PickedBlock, Pushed,
-    ShellDialog, WindowAction,
+    AccessLevel, BlockFilter, ChildState, ContactsWatch, DialogAnswer, Editor, EditorHost, Failure,
+    FocusedBlock, HostPanel, HostWindow, HostWindowId, PickedBlock, Pushed, ShellDialog,
+    WindowAction, WindowsWatch,
 };
 use block_editor_beui::{BlockInfo, BlockList, BlockParent, BlockQuery, Blocks};
 use uuid::Uuid;
@@ -28,7 +31,8 @@ use super::host_panel::{HostPanelView, panel_icon, panel_tab, panel_window, tab_
 use super::kept::{self, Kept, KeptWindow};
 use super::panel::BlockPanel;
 use super::picker::{Graph, Pick, PickAction, PickAnchor, PickOutcome, PickTree, Tree, TreeRow};
-use super::saved::{self, LAYOUT};
+use super::rename::Renaming;
+use super::saved::{self, LAYOUT, TITLES};
 use super::share::{Share, ShareAction};
 use super::tab::TabItem;
 use super::window::{
@@ -41,8 +45,8 @@ pub const SETTINGS: TabId = TabId::new(1 << 39);
 pub const REVISIONS: TabId = TabId::new((1 << 39) + 1);
 const FIRST_BLOCK_TAB: u64 = 2;
 const MAX_OPENED_VIA_HOPS: usize = 64;
-const PANEL_PADDING: f32 = 14.0;
-const PANEL_SPACING: f32 = 6.0;
+const PANEL_PADDING: Space = Space::Lg;
+const PANEL_SPACING: Space = Space::Sm;
 
 type Tabs = HashMap<TabId, TabItem>;
 
@@ -64,6 +68,9 @@ struct State {
     trees: RefCell<HashMap<PickTree, HashMap<BlockQuery, BlockList>>>,
     own_pick_tab: Cell<Option<TabId>>,
     tab_nodes: RefCell<HashMap<TabId, NodeRef>>,
+    saved_titles: RefCell<HashMap<TabId, String>>,
+    next_ask: Cell<u64>,
+    share_asks: RefCell<Vec<block_editor_beui::Task>>,
 }
 
 #[derive(Clone, Copy)]
@@ -83,6 +90,7 @@ pub struct Workspace {
     pub(crate) sheet: Signal<PhoneSheet>,
     pub(crate) picks: Signal<Vec<Pick>>,
     pub(crate) dialog: Signal<Option<OpenDialog>>,
+    renaming: Signal<Option<Renaming>>,
     pub(crate) share: Signal<Option<Share>>,
     windows: Memo<Vec<HostWindow>>,
     keeps_windows: bool,
@@ -90,6 +98,7 @@ pub struct Workspace {
     desk: Memo<kept::Desk>,
     held: Signal<bool>,
     panels: Signal<Vec<HostPanel>>,
+    landing_for: Signal<Option<Uuid>>,
     default_editors: Memo<EditorSettings>,
 }
 
@@ -106,9 +115,10 @@ impl Workspace {
         let sheet = create_signal(PhoneSheet::Closed);
         let picks = create_signal(Vec::new());
         let dialog = create_signal(None);
+        let renaming = create_signal(None);
         let share = create_signal(None);
         let panels = create_signal(Vec::new());
-        let windows = editor.host_value::<HostWindows>();
+        let windows = editor.watch::<WindowsWatch>();
         let kept = create_signal(Kept::default());
         let desk = create_memo(move || {
             kept.with(|kept| windows.with(|windows| kept::sort_out(kept, windows)))
@@ -129,6 +139,9 @@ impl Workspace {
                 trees: RefCell::new(HashMap::new()),
                 own_pick_tab: Cell::new(None),
                 tab_nodes: RefCell::new(HashMap::new()),
+                saved_titles: RefCell::new(HashMap::new()),
+                next_ask: Cell::new(0),
+                share_asks: RefCell::new(Vec::new()),
             }),
             editor,
             with_files,
@@ -144,6 +157,7 @@ impl Workspace {
             picks,
             default_editors,
             dialog,
+            renaming,
             share,
             windows,
             keeps_windows,
@@ -151,7 +165,11 @@ impl Workspace {
             desk,
             held,
             panels,
+            landing_for: create_signal(None),
         };
+        create_effect(move || {
+            workspace.open_landing();
+        });
         let shows = workspace.editor.pushed(Pushed::Shows);
         create_effect(move || {
             shows.get();
@@ -169,16 +187,10 @@ impl Workspace {
         create_effect(move || {
             workspace.report_focus();
         });
-        let contacts = workspace.editor.host_value::<Contacts>();
+        let contacts = workspace.editor.watch::<ContactsWatch>();
         create_effect(move || {
             contacts.with(|_| ());
             untrack(|| workspace.relist_share());
-        });
-        workspace.editor.on_reply(move || {
-            if workspace.state.is_alive() {
-                workspace.share_listed();
-                workspace.imports_answered();
-            }
         });
         create_effect(move || {
             workspace.watch_artifacts();
@@ -206,9 +218,12 @@ impl Workspace {
                     .iter()
                     .any(|record| record.key == *key && record.fullscreen);
                 if fullscreen {
-                    self.host().act(WindowAction::Fullscreen {
-                        window: *window,
-                        fullscreen: true,
+                    let window = *window;
+                    self.host().act(move || {
+                        linux_desktop::windows::request(WindowAction::Fullscreen {
+                            window,
+                            fullscreen: true,
+                        })
                     });
                 }
             }
@@ -410,9 +425,19 @@ impl Workspace {
         if !requested.is_empty() {
             self.picks.update(|picks| picks.extend(requested));
         }
+        let withdrawn = self.host().take_withdrawn_picks();
+        if !withdrawn.is_empty() {
+            self.picks
+                .update(|picks| picks.retain(|held| !withdrawn.contains(&held.pick)));
+            if self.picks.with_untracked(Vec::is_empty) {
+                self.forget_trees();
+            }
+        }
         for (block, dialog) in self.host().take_dialog_requests() {
             match dialog {
-                ShellDialog::Rename => self.open_dialog(OpenDialog::Rename(block)),
+                ShellDialog::Rename { anchor, within } => {
+                    self.open_rename(block, anchor, within.map(Uuid::from_bytes));
+                }
                 ShellDialog::Share => self.open_dialog(OpenDialog::Share(block)),
             }
         }
@@ -420,6 +445,8 @@ impl Workspace {
             self.show_panel(panel);
         }
         for request in self.host().take_show_requests() {
+            let landing = request.block_type == WORKSPACE_TYPE && request.editor.is_none();
+            self.landing_for.set(landing.then_some(request.block_id));
             self.open(
                 TabItem::new(request.block_id, request.block_type).edited_with(request.editor),
                 request.via,
@@ -427,13 +454,70 @@ impl Workspace {
         }
     }
 
+    pub(crate) fn templates_for(&self, parent: BlockParent) -> Vec<Uuid> {
+        let Some(block) = parent.block().or_else(|| self.my_files()) else {
+            return Vec::new();
+        };
+        self.editor
+            .resolved_settings::<Home>(block)
+            .with(|home| home.value().templates())
+    }
+
+    fn open_landing(&self) {
+        let Some(owner) = self.landing_for.get() else {
+            return;
+        };
+        let home = self.editor.resolved_settings::<Home>(owner);
+        let Some(landing) = home.with(|home| home.value().landing.map(|landing| landing.0)) else {
+            return;
+        };
+        let Some(info) = self.info(landing).filter(|info| info.access.can_view()) else {
+            return;
+        };
+        untrack(|| {
+            self.landing_for.set(None);
+            self.open(TabItem::new(landing, info.block_type), Some(owner));
+        });
+    }
+
     pub(crate) fn open_dialog(&self, dialog: OpenDialog) {
         self.forget_share();
         if let OpenDialog::Share(block) = dialog {
-            let request = self.host().list_access(block);
+            let request = self.list_share(block);
             self.share.set(Some(Share::new(block, request)));
         }
         self.dialog.set(Some(dialog));
+    }
+
+    pub(crate) fn open_rename(&self, block: Uuid, rect: Option<Rect>, within: Option<Uuid>) {
+        let tab = within
+            .or(Some(block))
+            .and_then(|within| self.tab_of_block(within))
+            .or_else(|| self.state.value().layout.focused());
+        self.renaming.set(Some(Renaming {
+            block,
+            anchor: PickAnchor { rect, tab },
+        }));
+    }
+
+    pub fn rename_dialogs(&self) -> Memo<Vec<(Uuid, TabId)>> {
+        let renaming = self.renaming;
+        create_memo(move || {
+            renaming
+                .get()
+                .and_then(|shown| Some((shown.block, shown.anchor.tab?)))
+                .into_iter()
+                .collect()
+        })
+    }
+
+    pub fn rename_anchor(&self) -> Option<PickAnchor> {
+        self.renaming
+            .with_untracked(|shown| shown.map(|shown| shown.anchor))
+    }
+
+    pub(crate) fn close_rename(&self) {
+        self.renaming.set(None);
     }
 
     pub(crate) fn close_dialog(&self) {
@@ -441,11 +525,27 @@ impl Workspace {
         self.dialog.set(None);
     }
 
+    fn ask_number(&self) -> u64 {
+        let state = self.state.value();
+        state.next_ask.set(state.next_ask.get() + 1);
+        state.next_ask.get()
+    }
+
+    fn list_share(&self, block: Uuid) -> u64 {
+        let ask = self.ask_number();
+        let workspace = *self;
+        let task = self
+            .editor
+            .then(self.host().list_access(block), move |listing| {
+                workspace.share_listed(ask, listing);
+            });
+        self.state.value().share_asks.borrow_mut().push(task);
+        ask
+    }
+
     fn forget_share(&self) {
-        if let Some(share) = self.share.get_untracked() {
-            for request in share.request.into_iter().chain(share.inviting) {
-                self.host().forget_request(request);
-            }
+        for task in std::mem::take(&mut *self.state.value().share_asks.borrow_mut()) {
+            task.cancel();
         }
         self.share.set(None);
     }
@@ -454,7 +554,6 @@ impl Workspace {
         let name = name.trim().to_owned();
         self.blocks()
             .set_name(block, (!name.is_empty()).then_some(name));
-        self.close_dialog();
     }
 
     pub(crate) fn share_action(&self, action: ShareAction) {
@@ -465,7 +564,14 @@ impl Workspace {
             if share.inviting.is_none() {
                 share.invite_link = None;
                 share.error = None;
-                share.inviting = Some(self.host().contact_link(share.block, share.pending_access));
+                let ask = self.ask_number();
+                let workspace = *self;
+                let asked = self.host().contact_link(share.block, share.pending_access);
+                let task = self.editor.then(asked, move |made| {
+                    workspace.contact_made(ask, made);
+                });
+                self.state.value().share_asks.borrow_mut().push(task);
+                share.inviting = Some(ask);
             }
             self.share.set(Some(share));
             return;
@@ -476,12 +582,9 @@ impl Workspace {
             reload = true;
         }
         if reload {
-            if let Some(request) = share.request.take() {
-                self.host().forget_request(request);
-            }
             share.error = None;
             share.relisting();
-            share.request = Some(self.host().list_access(share.block));
+            share.request = Some(self.list_share(share.block));
         }
         self.share.set(Some(share));
     }
@@ -492,44 +595,40 @@ impl Workspace {
         }
     }
 
-    fn share_listed(&self) {
+    fn contact_made(&self, ask: u64, made: Result<String, Failure>) {
         let Some(mut share) = self.share.get_untracked() else {
             return;
         };
-        if let Some(made) = share
-            .inviting
-            .and_then(|request| self.host().take_contact_link(request))
-        {
-            share.inviting = None;
-            match made {
-                block_editor_beui::ContactLinkResult::Made(link) => share.invite_link = Some(link),
-                block_editor_beui::ContactLinkResult::Failed(error) => share.error = Some(error),
-            }
-            self.share.set(Some(share.clone()));
+        if share.inviting != Some(ask) {
+            return;
         }
-        let Some(listing) = share
-            .request
-            .and_then(|request| self.host().take_access_listing(request))
-        else {
+        share.inviting = None;
+        match made {
+            Ok(link) => share.invite_link = Some(link),
+            Err(error) => share.error = Some(error.to_string()),
+        }
+        self.share.set(Some(share));
+    }
+
+    fn share_listed(&self, ask: u64, listing: Result<block_editor_beui::AccessListing, Failure>) {
+        let Some(mut share) = self.share.get_untracked() else {
             return;
         };
+        if share.request != Some(ask) {
+            return;
+        }
         share.listed(listing);
         self.share.set(Some(share));
     }
 
     pub(crate) fn my_files(&self) -> Option<Uuid> {
-        let account = self.host().account_id();
+        let host = self.host();
+        let mine = block_editor_beui::be_block::my_files(host.organization_id(), host.account_id());
         self.top()
             .0
             .into_iter()
-            .filter(|block| {
-                block.block_type == WorkspaceContent::CONTENT_TYPE
-                    && block.parent == Some(BlockParent::Root)
-                    && block.author == Some(account)
-                    && block.metadata.get(&MY_FILES) == Some(true)
-            })
-            .map(|block| block.id)
-            .min()
+            .any(|block| block.id == mine && block_editor_beui::sections::is_workspace(&block))
+            .then_some(mine)
     }
 
     fn top(&self) -> (Vec<BlockInfo>, Vec<BlockInfo>) {
@@ -571,6 +670,7 @@ impl Workspace {
             })
             .collect();
         Graph {
+            organization: self.host().organization_id(),
             account: self.host().account_id(),
             roots,
             shared,
@@ -660,9 +760,23 @@ impl Workspace {
         let Some(mut held) = self.pick(pick) else {
             return;
         };
-        if let PickAction::Import = action {
+        if let PickAction::Import | PickAction::CopyTemplate(_) = action {
             if held.importing.is_none() {
-                held.importing = Some(self.host().import_blocks(held.import_parent()));
+                let ask = self.ask_number();
+                let workspace = *self;
+                let parent = held.import_parent();
+                let asked = match action {
+                    PickAction::CopyTemplate(template) => self.host().copy_blocks(template, parent),
+                    _ => self.host().import_blocks(parent),
+                };
+                self.editor.then(asked, move |imported| {
+                    if let Some(held) = workspace.pick(pick)
+                        && held.importing == Some(ask)
+                    {
+                        workspace.resolve(held.imported(imported));
+                    }
+                });
+                held.importing = Some(ask);
                 self.resolve(PickOutcome::Open(Box::new(held)));
             }
             return;
@@ -673,24 +787,6 @@ impl Workspace {
                 self.resolve(PickOutcome::Open(held));
             }
             answered => self.resolve(answered),
-        }
-    }
-
-    fn imports_answered(&self) {
-        let importing = self.picks.with_untracked(|picks| {
-            picks
-                .iter()
-                .filter_map(|held| Some((held.pick, held.importing?)))
-                .collect::<Vec<_>>()
-        });
-        let host = self.host();
-        for (pick, request) in importing {
-            let Some(imported) = host.take_import(request) else {
-                continue;
-            };
-            if let Some(held) = self.pick(pick) {
-                self.resolve(held.imported(imported));
-            }
         }
     }
 
@@ -712,7 +808,19 @@ impl Workspace {
         };
         if let Some(creating) = &mut held.creating {
             creating.child = state.child;
+            creating.height = state.intrinsic_size.map(|size| size.y.max(1.0));
         }
+        let held = match state.dialog.answer {
+            Some(DialogAnswer::Dismissed) => {
+                return self.pick_action(pick, PickAction::CancelCreation);
+            }
+            Some(DialogAnswer::Accepted) => match held.act(PickAction::Create) {
+                PickOutcome::Open(held) => *held,
+                answered => return self.resolve(answered),
+            },
+            None => held,
+        };
+        let mut held = held;
         self.send_commit(&mut held);
         match &state.creation {
             Some(progress) => self.resolve(held.progressed(progress)),
@@ -737,9 +845,7 @@ impl Workspace {
                 if self.picks.with_untracked(Vec::is_empty) {
                     self.forget_trees();
                 }
-                if let (BlockPick::Chosen { .. }, Some((block, block_type, container))) =
-                    (&answer, into)
-                {
+                if let (Ok(Some(_)), Some((block, block_type, container))) = (&answer, into) {
                     self.host().place_block(block, block_type, container, false);
                 }
                 self.host().answer_pick(pick, answer);
@@ -763,9 +869,9 @@ impl Workspace {
         let profile = self.editor.view_block()?;
         Some(self.blocks().create_with(
             EditorViewContent::CONTENT_TYPE,
-            Some(EditorView::document(editor, content).encode()),
+            Some(EditorView::document(content).encode()),
             BlockParent::Block(profile),
-            block_editor_beui::be_block::BlockMetadata::default(),
+            BlockMetadata::view(editor, None),
         ))
     }
 
@@ -777,10 +883,17 @@ impl Workspace {
         let Some(view) = self.editor.view_content() else {
             return;
         };
-        let Ok(layout) = view.read(|held| held.root().state(LAYOUT).cloned()) else {
+        let Ok((layout, titles)) = view.read(|held| {
+            let root = held.root();
+            (root.state(LAYOUT).cloned(), root.state(TITLES).cloned())
+        }) else {
             return;
         };
         inner.restored.set(true);
+        *inner.saved_titles.borrow_mut() = titles
+            .as_ref()
+            .map(saved::restore_titles)
+            .unwrap_or_default();
         untrack(|| self.adopt(layout.as_ref().and_then(saved::restore)));
     }
 
@@ -850,6 +963,7 @@ impl Workspace {
         let layout = inner.layout.snapshot();
         let tabs = self.tabs.get();
         let views = self.views.get();
+        let titles = self.titles.get();
         let files = self.files.get();
         let windows = match self.keeps_windows {
             true => self.kept.with(|kept| {
@@ -864,19 +978,27 @@ impl Workspace {
             return;
         }
         let state = saved::save(&layout, inner.next_tab.get(), files, &tabs, &views, windows);
-        untrack(|| self.editor.set_view_state(LAYOUT, Some(&state)));
+        let titles = saved::save_titles(&titles);
+        untrack(|| {
+            self.editor.set_view_state(LAYOUT, Some(&state));
+            self.editor.set_view_state(TITLES, Some(&titles));
+        });
     }
 
     fn refresh_titles(&self) {
         let types = self.types();
+        let inner = self.state.value();
+        let saved = inner.saved_titles.borrow();
         let titles = self.tabs.with(|tabs| {
             tabs.iter()
                 .map(|(tab, item)| {
-                    let label = self.info(item.id).map_or_else(
-                        || BlockLabel::new(types.as_ref(), item.block_type, None, false),
-                        |info| info.label(types.as_ref()),
-                    );
-                    (*tab, label.name)
+                    let name = match self.info(item.id) {
+                        Some(info) => info.label(types.as_ref()).name,
+                        None => saved.get(tab).cloned().unwrap_or_else(|| {
+                            BlockLabel::new(types.as_ref(), item.block_type, None, false).name
+                        }),
+                    };
+                    (*tab, name)
                 })
                 .collect()
         });
@@ -1067,33 +1189,29 @@ impl Workspace {
 
     pub(crate) fn editor_of(&self, item: &TabItem) -> Option<Uuid> {
         let types = self.types();
+        let file_name = self.info(item.id).and_then(|info| info.file_name());
+        let file_name = file_name.as_deref();
+        let edits = |editor: &Uuid| types.edits(*editor, item.block_type, file_name);
         item.editor
-            .filter(|editor| {
-                types
-                    .editor(*editor)
-                    .is_some_and(|entry| entry.edits(item.block_type))
-            })
+            .filter(edits)
             .or_else(|| {
                 (item.block_type == EditorViewContent::CONTENT_TYPE)
-                    .then(|| {
-                        self.editor
-                            .content_of::<EditorViewContent>(item.id)
-                            .read(|view| view.root().editor)
-                            .ok()
-                    })
+                    .then(|| self.info(item.id)?.metadata.get(&VIEW_EDITOR))
                     .flatten()
                     .filter(|editor| !editor.is_nil())
             })
             .or_else(|| {
+                self.info(item.id)?
+                    .metadata
+                    .get(&PREFERRED_EDITOR)
+                    .filter(edits)
+            })
+            .or_else(|| {
                 self.default_editors
                     .with(|defaults| defaults.default_editor(item.block_type))
-                    .filter(|editor| {
-                        types
-                            .editor(*editor)
-                            .is_some_and(|entry| entry.edits(item.block_type))
-                    })
+                    .filter(edits)
             })
-            .or_else(|| types.built_in_editor(item.block_type))
+            .or_else(|| types.own_editor(item.block_type, file_name))
     }
 
     pub(crate) fn set_sheet(&self, sheet: PhoneSheet) {
@@ -1124,9 +1242,13 @@ impl Workspace {
     fn close(&self, tab: TabId) {
         if let Some(key) = tab_window(tab) {
             match self.desk.with_untracked(|desk| desk.window(key)) {
-                Some(window) => self.host().act(WindowAction::Close(window)),
+                Some(window) => self
+                    .host()
+                    .act(move || linux_desktop::windows::request(WindowAction::Close(window))),
                 None if self.keeps_windows => self.dismiss(key),
-                None => self.host().act(WindowAction::Close(key)),
+                None => self
+                    .host()
+                    .act(move || linux_desktop::windows::request(WindowAction::Close(key))),
             }
             return;
         }
@@ -1176,9 +1298,13 @@ impl Workspace {
         self.info(id).is_none_or(|info| info.access.can_edit())
     }
 
+    pub(crate) fn can_manage(&self, id: Uuid) -> bool {
+        self.info(id).is_none_or(|info| info.access.can_manage())
+    }
+
     pub(crate) fn ceiling(&self, id: Uuid) -> AccessLevel {
         let Some(info) = self.info(id) else {
-            return AccessLevel::Edit;
+            return AccessLevel::Manage;
         };
         match info.is_artifact() {
             true => info.access.min(AccessLevel::View),
@@ -1192,7 +1318,8 @@ impl Workspace {
             Some(AccessLevel::None) => AccessLevel::None.min(ceiling),
             Some(AccessLevel::KnowExists) => AccessLevel::KnowExists.min(ceiling),
             Some(AccessLevel::View) => AccessLevel::View.min(ceiling),
-            Some(AccessLevel::Edit) | None => ceiling,
+            Some(AccessLevel::Edit) => AccessLevel::Edit.min(ceiling),
+            Some(AccessLevel::Manage) | None => ceiling,
         }
     }
 
@@ -1229,16 +1356,17 @@ impl Workspace {
     pub(crate) fn create_in(&self, parent: BlockParent) {
         self.sheet.set(PhoneSheet::Closed);
         self.error.set(None);
-        let parent = match parent {
-            BlockParent::Root | BlockParent::Detached => self
-                .my_files()
-                .map_or(BlockParent::Root, BlockParent::Block),
-            parent => parent,
+        let container = match parent {
+            BlockParent::Block(id) => Some(id),
+            BlockParent::Root | BlockParent::Detached => self.my_files(),
         };
-        let excluded = match parent {
-            BlockParent::Block(id) => vec![id.into_bytes()],
-            BlockParent::Root | BlockParent::Detached => Vec::new(),
+        let Some(container) = container else {
+            self.error
+                .set(Some("Your files are still loading".to_owned()));
+            return;
         };
+        let parent = BlockParent::Block(container);
+        let excluded = vec![container.into_bytes()];
         let workspace = *self;
         let inner = self.state.value();
         inner.own_pick_tab.set(inner.layout.shown());
@@ -1251,44 +1379,32 @@ impl Workspace {
                 place: Some(parent.encode()),
                 anchor: None,
             },
-            move |picked: Result<PickedBlock, String>| {
+            move |picked: Result<PickedBlock, Failure>| {
                 if !workspace.state.is_alive() {
                     return;
                 }
                 let picked = match picked {
                     Ok(picked) => picked,
                     Err(error) => {
-                        workspace.error.set(Some(error));
+                        workspace.error.set(Some(error.to_string()));
                         return;
                     }
                 };
-                let container = match parent {
-                    BlockParent::Block(id) => Some(id),
-                    BlockParent::Root | BlockParent::Detached => None,
-                };
+                let block_type = Uuid::from_bytes(picked.block_type);
                 if !picked.placed {
-                    match container {
-                        Some(id) => workspace.host().place_block(
-                            picked.id,
-                            picked.block_type,
-                            id,
-                            picked.linked,
-                        ),
-                        None if !picked.linked => {
-                            workspace.blocks().set_parent(picked.id, BlockParent::Root);
-                        }
-                        None => {}
-                    }
+                    workspace
+                        .host()
+                        .place_block(picked.id(), block_type, container, picked.linked);
                 }
-                workspace.open(TabItem::new(picked.id, picked.block_type), container);
+                workspace.open(TabItem::new(picked.id(), block_type), Some(container));
                 if !picked.linked {
-                    workspace.open_dialog(OpenDialog::Rename(picked.id));
+                    workspace.open_rename(picked.id(), None, None);
                 }
             },
         );
     }
 
-    pub(crate) fn open_picker(&self, parent: Uuid, anchor: Option<ChildRect>) {
+    pub(crate) fn open_picker(&self, parent: Uuid, anchor: Option<Rect>) {
         self.error.set(None);
         let workspace = *self;
         let inner = self.state.value();
@@ -1302,18 +1418,18 @@ impl Workspace {
                 place: None,
                 anchor,
             },
-            move |picked: Result<PickedBlock, String>| {
+            move |picked: Result<PickedBlock, Failure>| {
                 if !workspace.state.is_alive() {
                     return;
                 }
                 match picked {
                     Ok(picked) => workspace.host().place_block(
-                        picked.id,
-                        picked.block_type,
+                        picked.id(),
+                        Uuid::from_bytes(picked.block_type),
                         parent,
                         picked.linked,
                     ),
-                    Err(error) => workspace.error.set(Some(error)),
+                    Err(error) => workspace.error.set(Some(error.to_string())),
                 }
             },
         );
@@ -1332,13 +1448,9 @@ pub fn BlockTab(workspace: Workspace, tab: TabId) -> DockEntry<TabId> {
         })
     });
     let icon = create_memo(move || {
-        workspace
-            .tab(tab)
-            .and_then(|item| {
-                block_editor_beui::label_glyph(&workspace.label(item.id, item.block_type))
-            })
-            .unwrap_or_default()
-            .to_owned()
+        workspace.tab(tab).and_then(|item| {
+            block_editor_beui::label_glyph(&workspace.label(item.id, item.block_type))
+        })
     });
     view! {
         <DockTab id=tab title icon on_close={move || workspace.close(tab)}>
@@ -1376,23 +1488,20 @@ pub fn WindowTab(
         true => name.get(),
         false => format!("{} (not responding)", name.get()),
     });
-    let fullscreen = create_memo(move || {
-        let area = info.get()?.fullscreen?;
-        Some(Rect::from_min_size(
-            pos2(area.x, area.y),
-            vec2(area.width, area.height),
-        ))
-    });
+    let fullscreen = create_memo(move || info.get()?.fullscreen);
     let focused = create_memo(move || info.get().is_some_and(|info| info.focused));
-    let size = create_memo(move || {
-        info.get()
-            .map(|info| vec2(info.size.width, info.size.height))
-    });
+    let size = create_memo(move || info.get().map(|info| info.size));
     let picture = create_memo(move || info.get()?.icon.as_ref().and_then(window_picture));
     let editor = workspace.editor();
     let tab = window_tab(key);
     view! {
-        <DockTab id={tab} title icon=ICON_WEB_ASSET picture on_close={move || workspace.close(tab)}>
+        <DockTab
+            id={tab}
+            title
+            icon=ICON_APP_WINDOW
+            picture
+            on_close={move || workspace.close(tab)}
+        >
             <Layers>
                 <Dynamic value={bound}>|bound: Option<HostWindowId>| {
                     match (bound, placeholder) {
@@ -1456,11 +1565,7 @@ pub fn AttachedWindow(
         info.get()
             .map_or_else(|| "Window".to_owned(), |info| window_title(&info))
     });
-    let size = create_memo(move || {
-        info.get().map_or(Vec2::ZERO, |info| {
-            shown_size(vec2(info.size.width, info.size.height))
-        })
-    });
+    let size = create_memo(move || info.get().map_or(Vec2::ZERO, |info| shown_size(info.size)));
     let followed = create_memo(|| None);
     let modal = create_memo(move || info.get().is_some_and(|info| info.modal));
     let responding = create_memo(move || info.get().is_none_or(|info| info.responding));
@@ -1472,7 +1577,7 @@ pub fn AttachedWindow(
             id={window_tab(window)}
             parent={window_tab(workspace.window_key(parent))}
             title={title}
-            icon=ICON_WEB_ASSET
+            icon=ICON_APP_WINDOW
             size
             modal
             on_close={move || workspace.close(window_tab(window))}

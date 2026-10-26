@@ -13,6 +13,32 @@ pub(super) fn gpu() -> Option<(wgpu::Device, wgpu::Queue)> {
     GPU.with(|gpu| gpu.borrow().clone())
 }
 
+pub(super) fn copied(texture: &wgpu::Texture) -> Option<wgpu::Texture> {
+    let (device, queue) = gpu()?;
+    let copy = device.create_texture(&wgpu::TextureDescriptor {
+        label: Some("plugin preview"),
+        size: texture.size(),
+        mip_level_count: 1,
+        sample_count: 1,
+        dimension: wgpu::TextureDimension::D2,
+        format: texture.format(),
+        usage: wgpu::TextureUsages::TEXTURE_BINDING
+            | wgpu::TextureUsages::COPY_DST
+            | wgpu::TextureUsages::COPY_SRC,
+        view_formats: &[],
+    });
+    let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
+        label: Some("plugin preview"),
+    });
+    encoder.copy_texture_to_texture(
+        texture.as_image_copy(),
+        copy.as_image_copy(),
+        texture.size(),
+    );
+    queue.submit([encoder.finish()]);
+    Some(copy)
+}
+
 pub(super) fn stop() {
     let gpu = GPU.with(|gpu| gpu.borrow_mut().take());
     drop(gpu);

@@ -1,18 +1,64 @@
-use crate::clipboard::PasteKind;
+pub(crate) mod hosted;
+
 use crate::color::Color32;
-use crate::input::{CursorIcon, ImeArea, KeyChord};
+use crate::geometry::Vec2;
+
+pub use ui_types::window::{
+    HostPlacement, WindowEdge, WindowId, WindowPlacement, WindowReport, WindowRequest,
+    WindowRequests, WindowRole,
+};
+
+#[derive(Clone, Copy, PartialEq, Eq, Debug, Default)]
+pub enum WindowHosting {
+    #[default]
+    None,
+    Placed,
+    Any,
+}
+
+pub const MAX_PIXELS: f32 = 8192.0;
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct WindowSize {
+    pub size: Vec2,
+    pub scale: f32,
+}
+
+impl WindowSize {
+    pub fn parse(text: &str) -> Option<Self> {
+        let (size, scale) = match text.split_once('@') {
+            Some((size, scale)) => (
+                size,
+                scale
+                    .parse::<f32>()
+                    .ok()
+                    .filter(|scale| scale.is_finite() && *scale > 0.0)?,
+            ),
+            None => (text, 1.0),
+        };
+        let (width, height) = size.split_once('x')?;
+        let size = Vec2::new(width.parse().ok()?, height.parse().ok()?);
+        Some(Self { size, scale }).filter(Self::fits)
+    }
+
+    pub fn fits(&self) -> bool {
+        let fits = |length: f32| {
+            (1.0..=MAX_PIXELS).contains(&length)
+                && (1.0..=MAX_PIXELS).contains(&(length * self.scale))
+        };
+        fits(self.size.x) && fits(self.size.y)
+    }
+}
+
+pub enum Resize {
+    Window(WindowSize),
+    Screen(Vec2),
+}
 
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct WindowState {
-    pub cursor: CursorIcon,
-    pub pointer_locked: bool,
-    pub handles_back: bool,
-    pub wants_keyboard: bool,
-    pub intercepted_keys: Vec<KeyChord>,
-    pub paste_kinds: Vec<PasteKind>,
-    pub ime: Option<ImeArea>,
+    pub requests: WindowRequests,
     pub typed: u64,
-    pub keyboard_toggles: u32,
     pub appearance: Appearance,
 }
 
@@ -43,15 +89,17 @@ impl Default for Appearance {
 impl WindowState {
     pub(crate) fn begin_frame(&mut self, typed: bool) {
         *self = Self {
-            pointer_locked: self.pointer_locked,
+            requests: WindowRequests {
+                pointer_locked: self.requests.pointer_locked,
+                ..WindowRequests::default()
+            },
             appearance: std::mem::take(&mut self.appearance),
             typed: self.typed.wrapping_add(u64::from(typed)),
-            ..Self::default()
         };
     }
 
     pub fn scaled(mut self, scale: f32) -> Self {
-        if let Some(area) = &mut self.ime {
+        if let Some(area) = &mut self.requests.ime {
             area.rect = area.rect.scaled(scale);
             area.cursor = area.cursor.scaled(scale);
         }
@@ -65,6 +113,7 @@ struct Reported {
     size: std::cell::Cell<Option<(u32, u32)>>,
     scale: std::cell::Cell<Option<f32>>,
     keyboard: std::cell::Cell<Option<bool>>,
+    touchscreen: std::cell::Cell<Option<bool>>,
     preferences: std::cell::Cell<Option<crate::preferences::PreferenceLayer>>,
 }
 
@@ -88,6 +137,10 @@ impl WindowReports {
         self.0.keyboard.set(Some(attached));
     }
 
+    pub fn touchscreen_attached(&self, attached: bool) {
+        self.0.touchscreen.set(Some(attached));
+    }
+
     pub fn system_preferences(&self, preferences: crate::preferences::PreferenceLayer) {
         self.0.preferences.set(Some(preferences));
     }
@@ -100,11 +153,16 @@ impl WindowReports {
         self.0.keyboard.take()
     }
 
+    pub(crate) fn take_touchscreen(&self) -> Option<bool> {
+        self.0.touchscreen.take()
+    }
+
     pub(crate) fn pending(&self) -> bool {
         self.0.fullscreen.get().is_some()
             || self.0.size.get().is_some()
             || self.0.scale.get().is_some()
             || self.0.keyboard.get().is_some()
+            || self.0.touchscreen.get().is_some()
             || self.0.preferences.get().is_some()
     }
 

@@ -15,7 +15,7 @@ fn a_commit_in_one_checkout_is_brought_into_another() {
     );
     version_since(second, be_block::CheckoutContent::CONTENT_TYPE, None);
 
-    hold(versioned.note, be_block::TextContent::CONTENT_TYPE);
+    hold(versioned.note, text_block_types::TextContent::CONTENT_TYPE);
     wait_until("opened the note", |shared| {
         text_of(shared, versioned.note).is_some()
     });
@@ -31,8 +31,8 @@ fn a_commit_in_one_checkout_is_brought_into_another() {
 
     version(
         versioned.checkout,
-        VersionCommand::Commit {
-            message: "Say more".into(),
+        VersionCommand::Finish {
+            description: "Say more".into(),
         },
     );
     wait_until("committed", |shared| {
@@ -47,7 +47,7 @@ fn a_commit_in_one_checkout_is_brought_into_another() {
 
     version(second, VersionCommand::Update);
     let note = copy_of(versioned.note, second);
-    hold(note, be_block::TextContent::CONTENT_TYPE);
+    hold(note, text_block_types::TextContent::CONTENT_TYPE);
     wait_until("brought the commit in", |shared| {
         text_of(shared, note).as_deref() == Some("hello there\n")
             && version_status(shared, second).is_some_and(|status| {

@@ -1,4 +1,4 @@
-use block_editor_beui::{BlockCommand, BlockLocation, BlockPick, CreationProgress};
+use block_editor_beui::{BlockCommand, BlockLocation, CreationProgress, PickedBlock};
 
 use super::*;
 
@@ -21,7 +21,7 @@ fn a_folder_chosen_on_the_location_page_holds_the_block_made_there() {
 
     fixture.test.click("picker.location");
     fixture.settle();
-    fixture.test.click(&format!("picker.place.{}", places.q4));
+    fixture.test.click(format!("picker.place.{}", places.q4));
     fixture.settle();
     assert!(
         fixture.says("Q4"),
@@ -29,7 +29,7 @@ fn a_folder_chosen_on_the_location_page_holds_the_block_made_there() {
     );
     fixture
         .test
-        .click(&format!("picker.menu.{TEMPLATE_EDITOR}/main"));
+        .click(format!("picker.menu.{TEMPLATE_EDITOR}/main"));
     fixture.settle();
     fixture.settle();
     assert_eq!(
@@ -52,12 +52,12 @@ fn a_folder_chosen_on_the_location_page_holds_the_block_made_there() {
         fixture.test.take_pick_answers(),
         vec![(
             4,
-            BlockPick::Chosen {
+            Ok(Some(PickedBlock {
                 block_id: created.into_bytes(),
                 block_type: TEMPLATE_TYPE.into_bytes(),
                 linked: false,
                 placed: true,
-            }
+            }))
         )]
     );
     assert!(

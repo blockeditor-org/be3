@@ -1,6 +1,7 @@
 use super::*;
 use crate::KeyAt;
-use crate::KeyPress;
+
+use crate::primitives::List;
 use crate::reactive::*;
 use crate::styled::*;
 
@@ -41,13 +42,23 @@ fn an_intercepting_action_names_its_chords_and_answers_keys_intercepted_for_it()
     let escape = Chord::key(Key::Escape).alt().key_chord();
 
     assert_eq!(
-        harness.frame(Vec::new()).window.intercepted_keys,
+        harness
+            .frame(Vec::new())
+            .main()
+            .window
+            .requests
+            .intercepted_keys,
         [tab],
         "only enabled intercepting actions name their chords, and never a chord that types"
     );
     open.set(true);
     assert_eq!(
-        harness.frame(Vec::new()).window.intercepted_keys,
+        harness
+            .frame(Vec::new())
+            .main()
+            .window
+            .requests
+            .intercepted_keys,
         [tab, escape],
         "a chord is named once its action is enabled"
     );
@@ -55,15 +66,17 @@ fn an_intercepting_action_names_its_chords_and_answers_keys_intercepted_for_it()
     let field = harness.find("field");
     harness.click(harness.center(field));
     let focused = harness.document().focused_node();
-    let press = |pressed| {
-        Event::InterceptedKey(KeyPress {
-            key: Key::Tab,
-            pressed,
-            repeat: false,
-            modifiers: Modifiers::ALT,
-        })
+    let press = |pressed| Input::InterceptedKey {
+        key: Key::Tab,
+        pressed,
+        repeat: false,
     };
-    harness.frame(vec![press(true), press(false)]);
+    harness.frame(vec![
+        Input::Modifiers(Modifiers::ALT),
+        press(true),
+        press(false),
+        Input::Modifiers(Modifiers::NONE),
+    ]);
     assert_eq!(
         runs.get_untracked(),
         1,

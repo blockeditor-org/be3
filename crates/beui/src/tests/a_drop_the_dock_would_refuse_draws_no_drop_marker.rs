@@ -1,5 +1,5 @@
 use super::*;
-use crate::unstyled::{DockGroup, DockPane, DockTab, DockingLayout};
+use crate::dock::unstyled::{DockGroup, DockPane, DockTab, DockingLayout};
 
 fn shown(harness: &Harness, test_id: &str) -> bool {
     harness
@@ -16,7 +16,7 @@ fn a_drop_the_dock_would_refuse_draws_no_drop_marker() {
     let document = build_node(move || {
         let layout = DockingLayout::new();
         view! {
-            <styled::Docking @node_ref=&dock layout focus=10u64>
+            <dock::styled::Docking @node_ref=&dock layout focus=10u64>
                 <DockPane id="main">
                     <DockTab id=1u64 title="Tab 1">
                         <Frame @test_id="content.1" />
@@ -32,7 +32,7 @@ fn a_drop_the_dock_would_refuse_draws_no_drop_marker() {
                         </DockPane>
                     </DockGroup>
                 </DockPane>
-            </styled::Docking>
+            </dock::styled::Docking>
         }
     });
     dock.get();
@@ -44,7 +44,7 @@ fn a_drop_the_dock_would_refuse_draws_no_drop_marker() {
     let inside = harness.center(dock_tab(harness.document(), root, "Tab 11"));
 
     harness.press_at(pinned);
-    harness.frame(vec![Event::PointerMoved(outside)]);
+    harness.frame(vec![Input::PointerMoved(outside)]);
     harness.frame(Vec::new());
 
     assert!(
@@ -52,7 +52,7 @@ fn a_drop_the_dock_would_refuse_draws_no_drop_marker() {
         "a pinned tab over a bar outside its group is shown no place to land"
     );
 
-    harness.frame(vec![Event::PointerMoved(inside)]);
+    harness.frame(vec![Input::PointerMoved(inside)]);
     harness.frame(Vec::new());
 
     assert!(

@@ -1,35 +1,33 @@
 use block_editor_beui::beui::NodeId;
+use block_editor_beui::beui::icons::Glyph;
 use block_editor_beui::beui::icons::{
-    ICON_NETWORK_WIFI_1_BAR, ICON_NETWORK_WIFI_1_BAR_LOCKED, ICON_NETWORK_WIFI_2_BAR,
-    ICON_NETWORK_WIFI_2_BAR_LOCKED, ICON_NETWORK_WIFI_3_BAR, ICON_NETWORK_WIFI_3_BAR_LOCKED,
-    ICON_SIGNAL_WIFI_0_BAR, ICON_SIGNAL_WIFI_4_BAR, ICON_SIGNAL_WIFI_4_BAR_LOCK,
-    ICON_SIGNAL_WIFI_OFF, ICON_SIGNAL_WIFI_STATUSBAR_NOT_CONNECTED, ICON_WIFI_FIND, ICON_WIFI_LOCK,
+    ICON_WIFI, ICON_WIFI_HIGH, ICON_WIFI_LOCK, ICON_WIFI_LOW, ICON_WIFI_OFF, ICON_WIFI_SYNC,
+    ICON_WIFI_ZERO,
 };
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
-use block_editor_beui::beui::unstyled::PopoverHandle;
+use block_editor_beui::linux_desktop;
 use block_editor_beui::{Editor, WifiLink, WifiNetwork, WifiRequest, WifiSecurity, WifiStatus};
 
 use super::popup::BarPopup;
 
-const WIFI_WIDTH: f32 = 320.0;
-const LIST_HEIGHT: f32 = 360.0;
-const SPACING: f32 = 8.0;
-const ROW_SPACING: f32 = 2.0;
+const LIST_HEIGHT: Size = Size::Custom(360.0);
+const SPACING: Space = Space::Md;
+const ROW_SPACING: Space = Space::Xs2;
 const MIN_PASSWORD: usize = 8;
 
-fn bars(strength: u8, locked: bool) -> &'static str {
+fn bars(strength: u8, locked: bool) -> Glyph {
     match (strength, locked) {
         (0..=5, true) => ICON_WIFI_LOCK,
-        (0..=5, false) => ICON_SIGNAL_WIFI_0_BAR,
-        (6..=30, true) => ICON_NETWORK_WIFI_1_BAR_LOCKED,
-        (6..=30, false) => ICON_NETWORK_WIFI_1_BAR,
-        (31..=55, true) => ICON_NETWORK_WIFI_2_BAR_LOCKED,
-        (31..=55, false) => ICON_NETWORK_WIFI_2_BAR,
-        (56..=80, true) => ICON_NETWORK_WIFI_3_BAR_LOCKED,
-        (56..=80, false) => ICON_NETWORK_WIFI_3_BAR,
-        (_, true) => ICON_SIGNAL_WIFI_4_BAR_LOCK,
-        (_, false) => ICON_SIGNAL_WIFI_4_BAR,
+        (0..=5, false) => ICON_WIFI_ZERO,
+        (6..=30, true) => ICON_WIFI_LOCK,
+        (6..=30, false) => ICON_WIFI_LOW,
+        (31..=55, true) => ICON_WIFI_LOCK,
+        (31..=55, false) => ICON_WIFI_HIGH,
+        (56..=80, true) => ICON_WIFI_LOCK,
+        (56..=80, false) => ICON_WIFI,
+        (_, true) => ICON_WIFI_LOCK,
+        (_, false) => ICON_WIFI,
     }
 }
 
@@ -41,14 +39,14 @@ fn strength_of(status: &WifiStatus, ssid: &str) -> u8 {
         .map_or(100, |network| network.strength)
 }
 
-fn glyph(status: &WifiStatus) -> &'static str {
+fn glyph(status: &WifiStatus) -> Glyph {
     if !status.enabled {
-        return ICON_SIGNAL_WIFI_OFF;
+        return ICON_WIFI_OFF;
     }
     match &status.link {
         WifiLink::Connected(ssid) => bars(strength_of(status, ssid), false),
-        WifiLink::Connecting(_) => ICON_WIFI_FIND,
-        WifiLink::Disconnected => ICON_SIGNAL_WIFI_STATUSBAR_NOT_CONNECTED,
+        WifiLink::Connecting(_) => ICON_WIFI_SYNC,
+        WifiLink::Disconnected => ICON_WIFI_OFF,
     }
 }
 
@@ -91,18 +89,11 @@ pub(crate) fn WifiButton(editor: Editor, status: Memo<WifiStatus>) -> NodeId {
     let open = Binding::new(open, move |next: bool| {
         open.set(next);
         if next {
-            editor.act(WifiRequest::Scan);
+            editor.act(move || linux_desktop::wifi::request(WifiRequest::Scan));
         }
     });
     view! {
-        <BarPopup
-            label
-            glyph
-            icon_only=true
-            width=WIFI_WIDTH
-            @test_id={"desktop.wifi"}
-            open
-        >|_: PopoverHandle|
+        <BarPopup label glyph icon_only=true @test_id={"desktop.wifi"} open>|_: PopoverHandle|
             <WifiPanel editor={editor} status={status} />
         </BarPopup>
     }
@@ -129,7 +120,7 @@ fn WifiPanel(editor: Editor, status: Memo<WifiStatus>) -> NodeId {
             <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
                 <Text @sizing=ItemSize::Percent(100.0) style=TextStyle::HEADING>"Wi-Fi"</Text>
                 <Switch
-                    on={Binding::new(enabled, move |on: bool| editor.act(WifiRequest::SetEnabled(on)))}
+                    on={Binding::new(enabled, move |on: bool| editor.act(move || linux_desktop::wifi::request(WifiRequest::SetEnabled(on))))}
                     label="Wi-Fi"
                     @test_id={"desktop.wifi.enabled"}
                 />
@@ -202,10 +193,11 @@ fn NetworkRow(
         match (network.saved, network.security) {
             (true, _) | (false, WifiSecurity::Open) => {
                 asking.set(None);
-                editor.act(WifiRequest::Connect {
+                let request = WifiRequest::Connect {
                     ssid: chosen.clone(),
                     password: None,
-                });
+                };
+                editor.act(move || linux_desktop::wifi::request(request));
             }
             (false, WifiSecurity::Password) => asking.set(Some(chosen.clone())),
             (false, WifiSecurity::Unsupported) => {}
@@ -228,9 +220,9 @@ fn NetworkRow(
                             <Icon glyph />
                         </Text>
                         <List @sizing=ItemSize::Percent(100.0) spacing=ROW_SPACING>
-                            <Text wrap=true>{ssid.clone()}</Text>
+                            <Text>{ssid.clone()}</Text>
                             <Show condition={captioned}>
-                                <Text style=TextStyle::CAPTION wrap=true>{said}</Text>
+                                <Text style=TextStyle::CAPTION>{said}</Text>
                             </Show>
                         </List>
                     </List>
@@ -240,7 +232,7 @@ fn NetworkRow(
                         label="Disconnect"
                         variant=ButtonVariant::Ghost
                         @test_id={disconnect_id.clone()}
-                        on_click={move || editor.act(WifiRequest::Disconnect)}
+                        on_click={move || editor.act(move || linux_desktop::wifi::request(WifiRequest::Disconnect))}
                     />
                 </Show>
             </List>
@@ -264,10 +256,11 @@ fn PasswordEntry(editor: Editor, ssid: String, asking: Signal<Option<String>>) -
         }
         password.set(String::new());
         asking.set(None);
-        editor.act(WifiRequest::Connect {
+        let request = WifiRequest::Connect {
             ssid: ssid.clone(),
             password: Some(typed),
-        });
+        };
+        editor.act(move || linux_desktop::wifi::request(request));
     };
     let submitted = connect.clone();
     view! {

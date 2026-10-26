@@ -18,15 +18,17 @@ const INTRINSIC_HEIGHT: f32 = 520.0;
 
 pub struct DisplaySettingsApp;
 
+#[component]
 impl block_editor_beui::BeuiApp for DisplaySettingsApp {
-    fn view(editor: Editor) -> Root {
+    #[component]
+    fn View(editor: Editor) -> Root {
         view! {
             <Root>
                 <Loaded>|| {
                     let settings = LayeredSettings::<DisplaySettings>::page(editor);
                     let device = settings.on_this_device();
                     view! {
-                        <List spacing=0.0>
+                        <List spacing=Space::None>
                             <Keyed
                                 value={device}
                                 key={|device: bool| device}

@@ -1,8 +1,8 @@
 use std::{cmp::Ordering, ops::Range, sync::Arc};
 
+use grapheme_segmentation::is_grapheme_boundary;
 use serde::{Deserialize, Serialize};
 use similar::{Algorithm, DiffTag, capture_diff_slices};
-use unicode_segmentation::UnicodeSegmentation;
 
 mod ime;
 mod rich;
@@ -14,7 +14,7 @@ use crate::{
     Highlighter, Language, Pos, SyntaxHighlight,
     document::{Document, DocumentRead, DocumentView, TextIndentation, TextLanguage},
     rich::{MarkSet, Name, Value},
-    schema::Schema,
+    schema::{ListMarker, Schema},
 };
 
 #[derive(Clone, Copy, Debug, Deserialize, PartialEq, Eq, Serialize)]
@@ -1441,17 +1441,22 @@ impl Core {
 
     fn toggle_markdown_checkbox(&mut self, position: Position) {
         let history_cursors = self.cursor_positions.clone();
+        let highlight = self.highlight();
         let Some(read) = self.document.read() else {
             return;
         };
         let document = DocumentView::new(&*read);
         let index = position.resolve(&document);
         let start = line_start(document.bytes(), index);
-        let Some(marker) = markdown_checkbox_marker(document.bytes(), start) else {
+        let look = highlight.line_look(start);
+        let Some(ListMarker::Check(checked)) = look.list else {
             return;
         };
-        let state = if marker.checked { b' ' } else { b'x' };
-        let state_position = Position::at(&document, marker.marker.start + 3);
+        let Some(open) = memchr::memrchr(b'[', &document.bytes()[look.marker.clone()]) else {
+            return;
+        };
+        let state = if checked { b' ' } else { b'x' };
+        let state_position = Position::at(&document, look.marker.start + open + 1);
         drop(document);
         drop(read);
         self.prepare_history_group(UndoClassification::AlwaysSplit);
@@ -2392,28 +2397,14 @@ fn measure_indent(bytes: &[u8], start: usize, width: usize) -> (usize, usize) {
     (segments.div_ceil(width), count)
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct MarkdownCheckboxMarker {
-    pub marker: Range<usize>,
-    pub checked: bool,
-}
-
-pub fn markdown_checkbox_marker(bytes: &[u8], line_start: usize) -> Option<MarkdownCheckboxMarker> {
-    let indent = bytes[line_start..]
-        .iter()
-        .take_while(|byte| matches!(byte, b' ' | b'\t'))
-        .count();
-    let start = line_start + indent;
-    let marker = bytes.get(start..start + 6)?;
-    (matches!(marker[0], b'-' | b'*' | b'+')
-        && marker[1] == b' '
-        && marker[2] == b'['
-        && matches!(marker[3], b' ' | b'x' | b'X')
-        && marker[4..6] == *b"] ")
-        .then(|| MarkdownCheckboxMarker {
-            marker: start..start + 5,
-            checked: matches!(marker[3], b'x' | b'X'),
-        })
+fn is_markdown_checkbox(rest: &[u8]) -> bool {
+    rest.get(..6).is_some_and(|marker| {
+        matches!(marker[0], b'-' | b'*' | b'+')
+            && marker[1] == b' '
+            && marker[2] == b'['
+            && matches!(marker[3], b' ' | b'x' | b'X')
+            && marker[4..6] == *b"] "
+    })
 }
 
 struct MarkdownListMarker {
@@ -2423,7 +2414,7 @@ struct MarkdownListMarker {
 
 fn markdown_list_marker(bytes: &[u8], start: usize) -> Option<MarkdownListMarker> {
     let rest = bytes.get(start..)?;
-    if markdown_checkbox_marker(bytes, start).is_some() {
+    if is_markdown_checkbox(rest) {
         let mut continuation = rest[..6].to_vec();
         continuation[3] = b' ';
         return Some(MarkdownListMarker {
@@ -2712,67 +2703,6 @@ fn ascii_classification(byte: u8) -> AsciiClassification {
 
 fn is_utf8_leading_byte(byte: u8) -> bool {
     byte <= 0x7f || (0xc2..=0xf4).contains(&byte)
-}
-
-fn is_grapheme_boundary(bytes: &[u8], index: usize) -> bool {
-    if index == 0 || index >= bytes.len() {
-        return true;
-    }
-    let (left, right) = (bytes[index - 1], bytes[index]);
-    if right.is_ascii() {
-        return !(left == b'\r' && right == b'\n');
-    }
-    let start = bytes[..index]
-        .iter()
-        .rposition(|byte| *byte == b'\n')
-        .map_or(0, |newline| newline + 1);
-    let end = bytes[index..]
-        .iter()
-        .position(|byte| *byte == b'\n')
-        .map_or(bytes.len(), |newline| index + newline);
-    grapheme_boundaries(&bytes[start..end])[index - start]
-}
-
-fn grapheme_boundaries(bytes: &[u8]) -> Vec<bool> {
-    let mut decoded = String::new();
-    let mut character_boundaries = Vec::new();
-    let mut index = 0;
-    while index < bytes.len() {
-        character_boundaries.push((decoded.len(), index));
-        let width = utf8_width(bytes[index]);
-        if width > 0
-            && index + width <= bytes.len()
-            && let Ok(value) = std::str::from_utf8(&bytes[index..index + width])
-        {
-            decoded.push_str(value);
-            index += width;
-            continue;
-        }
-        decoded.push('\u{fffd}');
-        index += 1;
-    }
-    character_boundaries.push((decoded.len(), bytes.len()));
-    let mut result = vec![false; bytes.len() + 1];
-    result[0] = true;
-    result[bytes.len()] = true;
-    for (decoded_index, _) in decoded.grapheme_indices(true) {
-        if let Ok(boundary_index) =
-            character_boundaries.binary_search_by(|(candidate, _)| candidate.cmp(&decoded_index))
-        {
-            result[character_boundaries[boundary_index].1] = true;
-        }
-    }
-    result
-}
-
-fn utf8_width(byte: u8) -> usize {
-    match byte {
-        0x00..=0x7f => 1,
-        0xc2..=0xdf => 2,
-        0xe0..=0xef => 3,
-        0xf0..=0xf4 => 4,
-        _ => 0,
-    }
 }
 
 fn find_bytes(haystack: &[u8], needle: &[u8]) -> Option<usize> {

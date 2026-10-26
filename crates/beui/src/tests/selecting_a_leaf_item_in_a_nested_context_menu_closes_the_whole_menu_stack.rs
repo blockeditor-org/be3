@@ -30,12 +30,11 @@ fn selecting_a_leaf_item_in_a_nested_context_menu_closes_the_whole_menu_stack() 
     harness.frame(Vec::new());
 
     let pos = harness.center(region);
-    harness.frame(vec![Event::PointerMoved(pos)]);
-    harness.frame(vec![Event::PointerButton {
+    harness.frame(vec![Input::PointerMoved(pos)]);
+    harness.frame(vec![Input::PointerButton {
         pos,
         button: PointerButton::Secondary,
         pressed: true,
-        modifiers: Modifiers::NONE,
     }]);
     harness.frame(Vec::new());
 

@@ -22,6 +22,7 @@ fn a_reopened_phone_goes_back_through_the_files_in_the_order_they_were_shown() {
 
     reopened.test.click("dock.switch");
     reopened.settle();
+    reopened.test.settle();
     reopened.test.click("dock.switcher.close.2");
     reopened.settle();
     assert_eq!(

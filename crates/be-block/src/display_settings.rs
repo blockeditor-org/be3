@@ -70,11 +70,14 @@ pub struct DisplaySettings {
     pub lock_after: Option<LockAfter>,
     pub motion: Option<Motion>,
     pub canvas_touch: Option<CanvasTouch>,
+    pub keyboard_percent: Option<u32>,
 }
 
 impl DisplaySettings {
     pub const SCALES: [u32; 9] = [75, 90, 100, 110, 125, 150, 175, 200, 250];
     pub const DEFAULT_SCALE: u32 = 100;
+    pub const KEYBOARD_HEIGHTS: [u32; 7] = [20, 25, 30, 35, 40, 45, 50];
+    pub const DEFAULT_KEYBOARD_HEIGHT: u32 = 35;
 
     pub fn theme(&self) -> ThemeKind {
         self.theme.unwrap_or_default()
@@ -112,6 +115,20 @@ impl DisplaySettings {
 
     pub fn set_scale_percent(percent: Option<u32>) -> Edit {
         Self::SCALE_PERCENT.set(ObjectId::ROOT, &percent).into()
+    }
+
+    pub fn keyboard_percent(&self) -> u32 {
+        self.keyboard_percent
+            .filter(|percent| *percent > 0)
+            .unwrap_or(Self::DEFAULT_KEYBOARD_HEIGHT)
+    }
+
+    pub fn keyboard_share(&self) -> f32 {
+        self.keyboard_percent() as f32 / 100.0
+    }
+
+    pub fn set_keyboard_percent(percent: Option<u32>) -> Edit {
+        Self::KEYBOARD_PERCENT.set(ObjectId::ROOT, &percent).into()
     }
 
     pub fn screen(&self, id: &str) -> ScreenSettings {
@@ -228,6 +245,17 @@ impl DisplaySettings {
         .with_default(Some(Self::DEFAULT_SCALE))
     }
 
+    pub fn keyboard_setting() -> Setting<Self, u32> {
+        Setting::new(
+            "keyboard-height",
+            "On-screen keyboard height",
+            |settings: &Self| settings.keyboard_percent,
+            |_, percent| Self::set_keyboard_percent(percent),
+        )
+        .with_default(Some(Self::DEFAULT_KEYBOARD_HEIGHT))
+        .only_on_this_device(true)
+    }
+
     pub fn rotate_in_bar_setting() -> Setting<Self, bool> {
         Setting::new(
             "rotate-in-bar",
@@ -283,6 +311,8 @@ impl DisplaySettings {
 }
 
 impl Layered for DisplaySettings {
+    const NAME: &'static str = "Display";
+
     fn over(&self, lower: &Self) -> Self {
         let screens = lower
             .screens
@@ -299,6 +329,7 @@ impl Layered for DisplaySettings {
             lock_after: self.lock_after.or(lower.lock_after),
             motion: self.motion.or(lower.motion),
             canvas_touch: self.canvas_touch.or(lower.canvas_touch),
+            keyboard_percent: self.keyboard_percent.or(lower.keyboard_percent),
         }
     }
 }

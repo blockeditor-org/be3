@@ -2,17 +2,20 @@ use super::*;
 
 use std::time::Duration;
 
-use be_block::{BlockContent, Counter, CounterContent};
+use be_block::BlockContent;
+use counter_types::{Counter, CounterContent};
 
 fn seed(instances: &mut Instances, block: Uuid) {
     let mut seeded = CounterContent::default();
     seeded.apply(&Counter::add(5));
-    instances.editor_message(EditorMessage::SeedContent {
-        instance: INSTANCE,
-        block_id: block.into_bytes(),
-        content_type: CounterContent::CONTENT_TYPE.into_bytes(),
-        bytes: seeded.encode(),
-    });
+    call(
+        instances,
+        Call::SeedContent {
+            block: block.into_bytes(),
+            content_type: CounterContent::CONTENT_TYPE.into_bytes(),
+            bytes: seeded.encode(),
+        },
+    );
 }
 
 fn opened_at(block: Uuid) -> i64 {

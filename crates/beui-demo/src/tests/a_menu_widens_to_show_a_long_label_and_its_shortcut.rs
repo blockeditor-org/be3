@@ -7,7 +7,7 @@ fn a_menu_widens_to_show_a_long_label_and_its_shortcut() {
     let mut test = alone(WIDE, Page::Menus);
     reveal(&mut test, "demo.actions");
     let card = test.rect_of("demo.actions");
-    test.secondary_click_at(card.center());
+    test.click_with(card.center(), beui::PointerButton::Secondary);
     test.settle();
     let long = test.rect_of("demo.actions.demo.menu.link");
     let short = test.rect_of("demo.actions.demo.menu.copy");

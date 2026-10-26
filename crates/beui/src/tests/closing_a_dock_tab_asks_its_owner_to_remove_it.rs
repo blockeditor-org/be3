@@ -1,6 +1,6 @@
 use super::*;
+use crate::dock::unstyled::{DockApi, DockPane, DockTab, DockingLayout, TabId};
 use crate::reactive::*;
-use crate::unstyled::{DockApi, DockPane, DockTab, DockingLayout, TabId};
 
 #[test]
 fn closing_a_dock_tab_asks_its_owner_to_remove_it() {
@@ -10,7 +10,7 @@ fn closing_a_dock_tab_asks_its_owner_to_remove_it() {
     let document = build_node(move || {
         let layout = DockingLayout::new();
         view! {
-            <styled::Docking @node_ref=&dock layout>
+            <dock::styled::Docking @node_ref=&dock layout>
                 <DockPane id="tabs">
                     <ForEach keys={vec![1u64, 2, 3]}>|id: u64|
                         <DockTab
@@ -22,7 +22,7 @@ fn closing_a_dock_tab_asks_its_owner_to_remove_it() {
                         </DockTab>
                     </ForEach>
                 </DockPane>
-            </styled::Docking>
+            </dock::styled::Docking>
         }
     });
     let dock = dock.get();
@@ -30,7 +30,7 @@ fn closing_a_dock_tab_asks_its_owner_to_remove_it() {
     harness.frame(Vec::new());
     let tab = harness.center(dock_tab(harness.document(), dock, "Tab 2"));
 
-    harness.frame(vec![Event::PointerMoved(tab)]);
+    harness.frame(vec![Input::PointerMoved(tab)]);
     harness.middle_button(tab, true);
     harness.middle_button(tab, false);
     harness.frame(Vec::new());

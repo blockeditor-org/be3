@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use std::ops::Range;
 
 use beui::Vec2;
-use beui::unstyled::TextWidget;
+use beui::styled::TextWidget;
 use block_editor_beui::be_block::block_url::{block_url, parse_block_urls};
 use block_editor_beui::block_ui::{self, BlockLabel, Reach};
 use block_editor_beui::label_glyph;
@@ -20,7 +20,7 @@ pub(crate) struct ResolvedEmbed {
     pub id: Uuid,
     pub block_type: Uuid,
     pub label: String,
-    pub icon: Option<&'static str>,
+    pub icon: Option<block_editor_beui::beui::icons::Glyph>,
     pub automatic: bool,
     pub large: bool,
     pub available: bool,

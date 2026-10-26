@@ -1,18 +1,19 @@
-use block_editor_beui::be_block::{BlockContent, CompiledLogicContent};
+use block_editor_beui::be_block::BlockContent;
+use logic_grid_types::CompiledLogicContent;
 
 use block_editor_beui::be_block::Item;
-use block_editor_beui::be_block::hotbar::{HotbarContent, HotbarSlot, SlotKind};
 use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::TextAlign;
-use block_editor_beui::beui::icons::{ICON_DELETE, ICON_FOLDER};
+use block_editor_beui::beui::icons::{ICON_FOLDER, ICON_TRASH};
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
 use block_editor_beui::{BlockLink, ChildTarget, ContentProjection, Editor};
+use logic_grid_types::hotbar::{HotbarContent, HotbarSlot, SlotKind};
 use uuid::Uuid;
 
-const PADDING: f32 = 16.0;
+const PADDING: Space = Space::Xl;
 const INDENT: f32 = 16.0;
-const ROW_SPACING: f32 = 6.0;
+const ROW_SPACING: Space = Space::Sm;
 
 type Pinned = ContentProjection<HotbarContent>;
 
@@ -152,11 +153,11 @@ fn SlotRow(
         }
     };
     view! {
-        <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
+        <List direction=Direction::Horizontal align=Align::Center spacing=Space::Md>
             <Spacer @sizing={indent} />
             <Show condition={is_folder}>
                 <Text color=TextColor::Muted align=TextAlign::Center>
-                    <Icon glyph={ICON_FOLDER.to_owned()} />
+                    <Icon glyph=ICON_FOLDER />
                 </Text>
             </Show>
             <Show condition={is_folder}>
@@ -173,8 +174,9 @@ fn SlotRow(
             <Text style=TextStyle::CAPTION>{note}</Text>
             <Spacer @sizing=ItemSize::Percent(100.0) />
             <Show condition={is_component}>
-                <IconButton
-                    glyph={ICON_DELETE.to_owned()}
+                <Button
+                    icon_only=true
+                    glyph=ICON_TRASH
                     label="Unpin"
                     disabled={read_only}
                     @test_id={format!("hotbar.slot.{index}.unpin")}

@@ -35,7 +35,7 @@ fn escape_back_and_a_press_outside_all_reach_a_layers_back_handler() {
         1,
         "Escape goes to the layer's back handler"
     );
-    harness.frame(vec![Event::Back(BackGesture::Invoked)]);
+    harness.frame(vec![Input::Back(BackGesture::Invoked)]);
     assert_eq!(backs.get_untracked(), 2, "and so does back");
 
     harness.click(pos2(VIEWPORT.x - 5.0, VIEWPORT.y - 5.0));

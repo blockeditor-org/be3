@@ -10,7 +10,7 @@ fn the_text_waits_for_its_content_and_typing_before_it_is_dropped() {
     assert!(editor.shown("editor.loading"));
     assert!(!editor.shown("text.surface"));
     editor.snapshot("the_text_waits_for_its_content");
-    editor.text("typed too early");
+    editor.type_text("typed too early");
     editor.run();
 
     editor.hold(None, TextBlock::of("kept"));

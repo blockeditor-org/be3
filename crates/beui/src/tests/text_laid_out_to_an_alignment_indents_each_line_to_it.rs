@@ -6,7 +6,7 @@ use crate::font::{FontId, TextLayout};
 fn text_laid_out_to_an_alignment_indents_each_line_to_it() {
     let context = Context::new(crate::FreetypeFonts::default());
     let font = FontId::proportional(14.0);
-    let output = context.run(RawInput::default(), |context| {
+    let output = context.run(|context| {
         let painter = context.painter();
         for align in [TextAlign::Start, TextAlign::Center, TextAlign::End] {
             let galley = painter.layout_text(
@@ -30,6 +30,7 @@ fn text_laid_out_to_an_alignment_indents_each_line_to_it() {
         painter.galley(Pos2::ZERO, spaced, Color32::WHITE);
     });
     let galleys: Vec<_> = output
+        .main()
         .shapes()
         .iter()
         .filter_map(|shape| match shape {

@@ -1,9 +1,10 @@
 use super::*;
+use block_editor_beui::beui::Modifiers;
 
 #[test]
 fn dropping_a_hotbar_slot_on_an_open_folder_puts_it_inside() {
     let mut editor = editor();
-    editor.key_press(Key::Four);
+    editor.key(Key::Four, Modifiers::NONE);
     editor.run();
     assert!(
         !editor.shown("logic-grid.slot.3.1"),

@@ -27,7 +27,7 @@ fn a_styled_scroll_fades_its_content_only_toward_an_edge_with_more_beyond_it() {
     let mut harness = Harness::new(document);
     let fades = |output: &crate::FrameOutput| {
         let mut fades = Vec::new();
-        for layer in output.layers.iter() {
+        for layer in output.main().layers.iter() {
             if let Layer::Display(_, display) = layer {
                 collect(&display.parts, &mut fades);
             }

@@ -1,11 +1,12 @@
 use beui::{Pos2, Vec2};
-use block_editor_beui::be_block::TextBlock;
+use block_editor_beui::beui::TouchPhase;
 use block_editor_beui::{EditorHost, OwnedEditor};
 use block_ui_test::BeuiTest;
 use uuid::Uuid;
 
 use super::text;
 use crate::app::TextApp;
+use text_block_types::TextBlock;
 
 #[test]
 fn a_tap_near_the_bottom_places_the_caret_while_the_format_bar_opens() {
@@ -24,17 +25,17 @@ fn a_tap_near_the_bottom_places_the_caret_while_the_format_bar_opens() {
 
     let surface = editor.rect_of("text.surface");
     let near_bottom = Pos2::new(surface.center().x, surface.max.y - 8.0);
-    editor.touch_start(near_bottom);
+    editor.fingers(TouchPhase::Start, &[(1, near_bottom)]);
     editor.run();
     assert!(editor.shown("text.format.bold"));
     assert!(
         !editor.rect_of("text.surface").contains(near_bottom),
         "the bar covers where the finger went down"
     );
-    editor.touch_end(near_bottom);
+    editor.fingers(TouchPhase::End, &[(1, near_bottom)]);
     editor.run();
 
-    editor.text("x");
+    editor.type_text("x");
     editor.run();
     let lines = text(&editor);
     let line = lines

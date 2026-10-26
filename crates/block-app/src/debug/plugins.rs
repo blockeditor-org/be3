@@ -108,11 +108,11 @@ fn runtime_lines(runtime: &RuntimeStatus) -> Vec<Line> {
         LineStyle::Muted,
         1,
         format!(
-            "slot {} — {} surface(s), {}, generation {}",
+            "slot {} — {} surface(s), {}, serial {}",
             surface.index,
             surface.placements,
             bytes(surface.pixels * 4),
-            surface.generation
+            surface.serial
         ),
     );
     push(
@@ -196,11 +196,12 @@ fn instance_lines(lines: &mut Vec<Line>, instance: &InstanceStatus) {
 
 fn screen_line(lines: &mut Vec<Line>, screen: &ScreenStatus) {
     let text = format!(
-        "{:?} #{} — {} pt @ {:.2} ({}x{} px){}{}{}{}",
+        "{:?} #{} — {} pt @ {:.2}, drawn @ {:.2} ({}x{} px){}{}{}{}",
         screen.region,
         screen.screen.0,
         size(screen.logical),
         screen.scale_factor,
+        screen.raster,
         screen.pixels[0],
         screen.pixels[1],
         screen
@@ -214,10 +215,7 @@ fn screen_line(lines: &mut Vec<Line>, screen: &ScreenStatus) {
         if screen.drawn { "" } else { " · stale" },
         match screen.children {
             0 => String::new(),
-            children => format!(
-                " · {children} children at generation {}",
-                screen.child_generation
-            ),
+            children => format!(" · {children} children at serial {}", screen.serial),
         }
     );
     let style = match screen.drawn {

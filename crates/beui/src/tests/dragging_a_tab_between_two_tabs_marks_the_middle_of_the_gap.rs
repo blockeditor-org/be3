@@ -13,17 +13,17 @@ fn dragging_a_tab_between_two_tabs_marks_the_middle_of_the_gap() {
 
     let from = harness.center(dock_tab(harness.document(), dock, "Tab 3"));
     let over = pos2(second.left() - 2.0, second.center().y);
-    harness.frame(vec![Event::PointerMoved(from)]);
-    harness.frame(vec![Event::PointerButton {
+    harness.frame(vec![Input::PointerMoved(from)]);
+    harness.frame(vec![Input::PointerButton {
         pos: from,
         button: PointerButton::Primary,
         pressed: true,
-        modifiers: Modifiers::NONE,
     }]);
-    harness.frame(vec![Event::PointerMoved(over)]);
+    harness.frame(vec![Input::PointerMoved(over)]);
     let output = harness.frame(Vec::new());
 
     let marker = output
+        .main()
         .shapes()
         .iter()
         .find_map(|shape| match shape {

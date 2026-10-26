@@ -25,7 +25,7 @@ fn a_mouse_away_from_a_held_finger_still_moves_the_pointer() {
         device: 1,
         finger: 1,
     };
-    let touch = |phase: TouchPhase, pos: Pos2| Event::Touch {
+    let touch = |phase: TouchPhase, pos: Pos2| Input::Touch {
         id,
         phase,
         pos,
@@ -34,14 +34,14 @@ fn a_mouse_away_from_a_held_finger_still_moves_the_pointer() {
 
     harness.frame(vec![
         touch(TouchPhase::Start, finger),
-        Event::PointerMoved(finger),
+        Input::PointerMoved(finger),
     ]);
     assert!(
         !hovered.get_untracked(),
         "the mouse event a platform makes from the finger is dropped"
     );
 
-    harness.frame(vec![Event::PointerMoved(harness.center(target))]);
+    harness.frame(vec![Input::PointerMoved(harness.center(target))]);
     assert!(
         hovered.get_untracked(),
         "while a real mouse elsewhere hovers what it is over"

@@ -1,12 +1,12 @@
-use block_editor_beui::be_block::canvas::{
-    CanvasArrowhead, CanvasEntity, CanvasPathPoint, CanvasPoint, CanvasShape, CanvasStyle,
-    CanvasTextAlign, CanvasTextStyle, CanvasTextVerticalAlign, CanvasTransform,
-};
 use block_editor_beui::beui::{Pos2, Rect, Vec2, pos2};
 use block_editor_beui::block_ui::{
     EMBEDDED_EDITOR_PADDING, EMBEDDED_EDITOR_TITLE_GAP, EMBEDDED_EDITOR_TITLE_HEIGHT,
 };
 use block_editor_beui::{ResizeMode, block_ui};
+use infinite_canvas_types::{
+    CanvasArrowhead, CanvasEntity, CanvasPathPoint, CanvasPoint, CanvasShape, CanvasStyle,
+    CanvasTextAlign, CanvasTextStyle, CanvasTextVerticalAlign, CanvasTransform,
+};
 use uuid::Uuid;
 
 pub(crate) const MIN_SIZE: f32 = 4.0;
@@ -905,7 +905,7 @@ pub(crate) fn pen_entity(
         seed: entity.style.seed,
         ..style
     };
-    entity.set_world_points(points.into_iter().map(CanvasPathPoint::new).collect());
+    entity.set_drawn_points(points.into_iter().map(CanvasPathPoint::new).collect());
     entity.pressures = pressures;
     entity
 }
@@ -924,11 +924,11 @@ pub(crate) fn drawn_seed(shape: CanvasShape, at: CanvasPoint) -> u32 {
 pub(crate) fn text_box_size(
     text_style: &CanvasTextStyle,
     font_size: f32,
-    measured: Vec2,
+    content: Vec2,
 ) -> CanvasPoint {
     CanvasPoint::new(
-        (measured.x + 2.0 * TEXT_INSET).max(16.0),
-        (measured.y + 2.0 * TEXT_INSET).max(font_size * text_style.line_height),
+        content.x.max(16.0),
+        content.y.max(font_size * text_style.line_height),
     )
 }
 

@@ -8,13 +8,13 @@ fn drawing_with_a_finger_adds_a_rectangle() {
     editor.click("infinite-canvas.dock.tool.Rectangle");
     editor.run();
     let from = editor.rect_of("infinite-canvas.canvas").center();
-    editor.finger(1, TouchPhase::Start, from);
+    editor.fingers(TouchPhase::Start, &[(1, from)]);
     editor.run();
-    editor.finger(1, TouchPhase::Move, from + Vec2::new(10.0, 60.0));
+    editor.fingers(TouchPhase::Move, &[(1, from + Vec2::new(10.0, 60.0))]);
     editor.run();
-    editor.finger(1, TouchPhase::Move, from + Vec2::new(40.0, 150.0));
+    editor.fingers(TouchPhase::Move, &[(1, from + Vec2::new(40.0, 150.0))]);
     editor.run();
-    editor.finger(1, TouchPhase::End, from + Vec2::new(40.0, 150.0));
+    editor.fingers(TouchPhase::End, &[(1, from + Vec2::new(40.0, 150.0))]);
     editor.run();
 
     let entities = entities(&editor);

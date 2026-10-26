@@ -1,5 +1,3 @@
 use super::*;
 
-mod a_preview_is_not_drawn_through_the_frames_camera;
-mod a_zoom_anchor_leaves_the_region_it_was_taken_from;
-mod the_view_is_answered_in_the_coordinates_of_the_region_drawn;
+mod a_preview_is_not_drawn_through_the_frames_view;

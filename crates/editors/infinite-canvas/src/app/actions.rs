@@ -1,16 +1,16 @@
-use block_editor_beui::be_block::canvas::{CanvasLayerMove, CanvasProfile};
 use block_editor_beui::beui::Key;
+use block_editor_beui::beui::icons::Glyph;
 use block_editor_beui::beui::icons::{
-    ICON_ARROW_DOWNWARD, ICON_ARROW_UPWARD, ICON_CONTENT_COPY, ICON_CONTENT_CUT,
-    ICON_CONTENT_PASTE, ICON_DATA_OBJECT, ICON_DELETE, ICON_DESELECT, ICON_DIAGONAL_LINE,
-    ICON_DOWNLOAD, ICON_EDIT, ICON_FILTER_CENTER_FOCUS, ICON_FIT_SCREEN, ICON_FLIP_TO_BACK,
-    ICON_FLIP_TO_FRONT, ICON_GESTURE, ICON_GROUP_WORK, ICON_IMAGE, ICON_KEEP, ICON_LIBRARY_ADD,
-    ICON_LINK, ICON_LOCK, ICON_LOCK_OPEN, ICON_OPEN_IN_NEW, ICON_POLYLINE, ICON_RECTANGLE,
-    ICON_SELECT_ALL, ICON_SWAP_HORIZ, ICON_TEXT_FIELDS, ICON_WORKSPACES, ICON_ZOOM_IN,
-    ICON_ZOOM_OUT,
+    ICON_ARROW_DOWN, ICON_ARROW_LEFT_RIGHT, ICON_ARROW_UP, ICON_BOXES, ICON_BRACES, ICON_CLIPBOARD,
+    ICON_COMPONENT, ICON_COPY, ICON_COPY_PLUS, ICON_DOWNLOAD, ICON_EXTERNAL_LINK, ICON_FOCUS,
+    ICON_IMAGE, ICON_LAYERS_ARROW_UP, ICON_LINE_SQUIGGLE, ICON_LINK, ICON_LOCK, ICON_LOCK_OPEN,
+    ICON_PENCIL, ICON_PIN, ICON_RECTANGLE_HORIZONTAL, ICON_SCAN, ICON_SCISSORS, ICON_SEND_TO_BACK,
+    ICON_SLASH, ICON_SPLINE_POINTER, ICON_SQUARE_DASHED, ICON_SQUARE_DASHED_MOUSE_POINTER,
+    ICON_TRASH, ICON_TYPE, ICON_ZOOM_IN, ICON_ZOOM_OUT,
 };
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::use_theme;
+use infinite_canvas_types::{CanvasLayerMove, CanvasProfile};
 use uuid::Uuid;
 
 use super::export::{ExportFormat, ExportTo, Exporter};
@@ -139,10 +139,10 @@ pub(crate) fn canvas_actions(state: CanvasState) -> CanvasActions {
             .radio(create_memo(move || state.tool.get() == tool))
             .enabled(free)
     };
-    let command = |id: &str, label: &'static str, glyph: &str, command: CanvasCommand| {
+    let command = |id: &str, label: &'static str, glyph: Glyph, command: CanvasCommand| {
         Action::new(id, label, move || state.run(command)).glyph(glyph)
     };
-    let add = |id: &str, label: &'static str, glyph: &str, tool: Tool| {
+    let add = |id: &str, label: &'static str, glyph: Glyph, tool: Tool| {
         Action::new(id, label, move || {
             let at = state
                 .take_context_position()
@@ -153,30 +153,25 @@ pub(crate) fn canvas_actions(state: CanvasState) -> CanvasActions {
         .enabled(free)
     };
     let layer =
-        |id: &str, label: &'static str, glyph: &str, movement: CanvasLayerMove, chord: Chord| {
+        |id: &str, label: &'static str, glyph: Glyph, movement: CanvasLayerMove, chord: Chord| {
             Action::new(id, label, move || state.reorder(movement))
                 .glyph(glyph)
                 .shortcut(chord)
                 .enabled(reorder(movement))
         };
     let scale = state.editor().scale();
-    let cut = command("canvas.cut", "Cut", ICON_CONTENT_CUT, CanvasCommand::Cut)
+    let cut = command("canvas.cut", "Cut", ICON_SCISSORS, CanvasCommand::Cut)
         .shortcut(Chord::ctrl(Key::X))
         .enabled(selected)
         .register();
-    let copy = command(
-        "canvas.copy",
-        "Copy",
-        ICON_CONTENT_COPY,
-        CanvasCommand::Copy,
-    )
-    .shortcut(Chord::ctrl(Key::C))
-    .enabled(selected)
-    .register();
+    let copy = command("canvas.copy", "Copy", ICON_COPY, CanvasCommand::Copy)
+        .shortcut(Chord::ctrl(Key::C))
+        .enabled(selected)
+        .register();
     let paste = command(
         "canvas.paste",
         "Paste",
-        ICON_CONTENT_PASTE,
+        ICON_CLIPBOARD,
         CanvasCommand::Paste,
     )
     .shortcut(Chord::ctrl(Key::V))
@@ -190,7 +185,7 @@ pub(crate) fn canvas_actions(state: CanvasState) -> CanvasActions {
     );
     let drawn = when(|state| state.entities.ids().with(|ids| !ids.is_empty()));
     let export =
-        |id: &str, label: &'static str, glyph: &str, format: ExportFormat, to: ExportTo| {
+        |id: &str, label: &'static str, glyph: Glyph, format: ExportFormat, to: ExportTo| {
             Action::new(id, label, move || match to {
                 ExportTo::Clipboard => exporter.run(format, to),
                 ExportTo::File => exporter.ask(format),
@@ -209,7 +204,7 @@ pub(crate) fn canvas_actions(state: CanvasState) -> CanvasActions {
     let copy_svg = export(
         "canvas.copy-svg",
         "Copy as SVG",
-        ICON_POLYLINE,
+        ICON_SPLINE_POINTER,
         ExportFormat::Svg,
         ExportTo::Clipboard,
     );
@@ -230,24 +225,19 @@ pub(crate) fn canvas_actions(state: CanvasState) -> CanvasActions {
     let duplicate = command(
         "canvas.duplicate",
         "Duplicate",
-        ICON_LIBRARY_ADD,
+        ICON_COPY_PLUS,
         CanvasCommand::Duplicate,
     )
     .shortcut(Chord::ctrl(Key::D))
     .enabled(selected)
     .register();
-    let delete = command(
-        "canvas.delete",
-        "Delete",
-        ICON_DELETE,
-        CanvasCommand::Delete,
-    )
-    .enabled(unlocked)
-    .register();
+    let delete = command("canvas.delete", "Delete", ICON_TRASH, CanvasCommand::Delete)
+        .enabled(unlocked)
+        .register();
     let group = command(
         "canvas.group",
         "Group",
-        ICON_GROUP_WORK,
+        ICON_COMPONENT,
         CanvasCommand::Group,
     )
     .shortcut(Chord::ctrl(Key::G))
@@ -256,7 +246,7 @@ pub(crate) fn canvas_actions(state: CanvasState) -> CanvasActions {
     let ungroup = command(
         "canvas.ungroup",
         "Ungroup",
-        ICON_WORKSPACES,
+        ICON_BOXES,
         CanvasCommand::Ungroup,
     )
     .shortcut(Chord::ctrl(Key::G).shift())
@@ -276,7 +266,7 @@ pub(crate) fn canvas_actions(state: CanvasState) -> CanvasActions {
     let select_all = command(
         "canvas.select-all",
         "Select all",
-        ICON_SELECT_ALL,
+        ICON_SQUARE_DASHED_MOUSE_POINTER,
         CanvasCommand::SelectAll,
     )
     .shortcut(Chord::ctrl(Key::A))
@@ -285,7 +275,7 @@ pub(crate) fn canvas_actions(state: CanvasState) -> CanvasActions {
     let invert = command(
         "canvas.invert-selection",
         "Invert selection",
-        ICON_DESELECT,
+        ICON_SQUARE_DASHED,
         CanvasCommand::InvertSelection,
     )
     .shortcut(Chord::ctrl(Key::A).shift())
@@ -294,16 +284,16 @@ pub(crate) fn canvas_actions(state: CanvasState) -> CanvasActions {
     let fit_selection = Action::new("canvas.fit-selection", "Fit selection", move || {
         state.request_fit_selection()
     })
-    .glyph(ICON_FILTER_CENTER_FOCUS)
+    .glyph(ICON_FOCUS)
     .enabled(selected)
     .register();
     let fit_frame = Action::new("canvas.fit-frame", "Fit the first frame", move || {
         state.request_fit_frame()
     })
-    .glyph(ICON_FIT_SCREEN)
+    .glyph(ICON_SCAN)
     .enabled(framed)
     .register();
-    let profile = |id: &str, label: &'static str, glyph: &str, profile: CanvasProfile| {
+    let profile = |id: &str, label: &'static str, glyph: Glyph, profile: CanvasProfile| {
         Action::new(id, label, move || state.switch_profile(profile))
             .glyph(glyph)
             .radio(create_memo(move || state.profile.get() == profile))
@@ -313,13 +303,13 @@ pub(crate) fn canvas_actions(state: CanvasState) -> CanvasActions {
     let prototyping = profile(
         "canvas.profile.prototyping",
         "Prototyping profile",
-        ICON_GESTURE,
+        ICON_LINE_SQUIGGLE,
         CanvasProfile::Prototyping,
     );
     let vector = profile(
         "canvas.profile.vector",
         "Vector profile",
-        ICON_POLYLINE,
+        ICON_SPLINE_POINTER,
         CanvasProfile::Vector,
     );
     let select = tool("canvas.tool.select", "Select", Tool::Select)
@@ -375,7 +365,7 @@ pub(crate) fn canvas_actions(state: CanvasState) -> CanvasActions {
         "Keep the tool after drawing",
         move || state.tool_locked.update(|locked| *locked = !*locked),
     )
-    .glyph(ICON_KEEP)
+    .glyph(ICON_PIN)
     .shortcut(Chord::key(Key::Q))
     .checked(state.tool_locked)
     .enabled(free)
@@ -392,18 +382,12 @@ pub(crate) fn canvas_actions(state: CanvasState) -> CanvasActions {
     let add_rectangle = add(
         "canvas.add.rectangle",
         "Add a rectangle",
-        ICON_RECTANGLE,
+        ICON_RECTANGLE_HORIZONTAL,
         Tool::Rectangle,
     )
     .register();
-    let add_line = add(
-        "canvas.add.line",
-        "Add a line",
-        ICON_DIAGONAL_LINE,
-        Tool::Line,
-    )
-    .register();
-    let add_text = add("canvas.add.text", "Add text", ICON_TEXT_FIELDS, Tool::Text).register();
+    let add_line = add("canvas.add.line", "Add a line", ICON_SLASH, Tool::Line).register();
+    let add_text = add("canvas.add.text", "Add text", ICON_TYPE, Tool::Text).register();
     let add_image = Action::new("canvas.add.image", "Add an image…", move || {
         state.open_image_picker(Some(
             state
@@ -418,11 +402,11 @@ pub(crate) fn canvas_actions(state: CanvasState) -> CanvasActions {
     let add_block = Action::new("canvas.add.block", "Add a block…", move || {
         state.open_block_picker(state.take_context_position())
     })
-    .glyph(ICON_DATA_OBJECT)
+    .glyph(ICON_BRACES)
     .enabled(free)
     .register();
     let edit = Action::new("canvas.edit", "Open / edit", move || state.edit_selected())
-        .glyph(ICON_EDIT)
+        .glyph(ICON_PENCIL)
         .enabled(single)
         .register();
     let open = Action::new("canvas.open", "Open the block", move || {
@@ -430,7 +414,7 @@ pub(crate) fn canvas_actions(state: CanvasState) -> CanvasActions {
             state.open_referenced_block(block);
         }
     })
-    .glyph(ICON_OPEN_IN_NEW)
+    .glyph(ICON_EXTERNAL_LINK)
     .enabled(block)
     .register();
     let toggle_mode = Action::new(
@@ -438,13 +422,13 @@ pub(crate) fn canvas_actions(state: CanvasState) -> CanvasActions {
         "Toggle preview / direct editor",
         move || state.toggle_selected_block_mode(),
     )
-    .glyph(ICON_SWAP_HORIZ)
+    .glyph(ICON_ARROW_LEFT_RIGHT)
     .enabled(block)
     .register();
     let front = layer(
         "canvas.bring-to-front",
         "Bring to front",
-        ICON_FLIP_TO_FRONT,
+        ICON_LAYERS_ARROW_UP,
         CanvasLayerMove::BringToFront,
         Chord::ctrl(Key::BracketRight).shift(),
     )
@@ -452,7 +436,7 @@ pub(crate) fn canvas_actions(state: CanvasState) -> CanvasActions {
     let forward = layer(
         "canvas.forward",
         "Forward",
-        ICON_ARROW_UPWARD,
+        ICON_ARROW_UP,
         CanvasLayerMove::ForwardOne,
         Chord::ctrl(Key::BracketRight),
     )
@@ -460,7 +444,7 @@ pub(crate) fn canvas_actions(state: CanvasState) -> CanvasActions {
     let backward = layer(
         "canvas.backward",
         "Backward",
-        ICON_ARROW_DOWNWARD,
+        ICON_ARROW_DOWN,
         CanvasLayerMove::BackOne,
         Chord::ctrl(Key::BracketLeft),
     )
@@ -468,7 +452,7 @@ pub(crate) fn canvas_actions(state: CanvasState) -> CanvasActions {
     let back = layer(
         "canvas.send-to-back",
         "Send to back",
-        ICON_FLIP_TO_BACK,
+        ICON_SEND_TO_BACK,
         CanvasLayerMove::SendToBack,
         Chord::ctrl(Key::BracketLeft).shift(),
     )
@@ -493,7 +477,7 @@ pub(crate) fn canvas_actions(state: CanvasState) -> CanvasActions {
     .enabled(live)
     .register();
     let fit_all = Action::new("canvas.fit-all", "Fit all", move || state.request_fit_all())
-        .glyph(ICON_FIT_SCREEN)
+        .glyph(ICON_SCAN)
         .enabled(live)
         .register();
     let touch = TouchChoice::new();

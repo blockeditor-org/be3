@@ -1,5 +1,5 @@
-use block_editor_beui::be_block::PixelArtContent;
-use block_editor_beui::be_block::pixel_art::{PixelArtOperation, PixelColor, PixelUpdate};
+use pixel_art_types::PixelArtContent;
+use pixel_art_types::{PixelArtOperation, PixelColor, PixelUpdate};
 
 use super::{ImageSettings, generate};
 

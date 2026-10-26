@@ -25,18 +25,18 @@ pub struct ScrollbarHandle {
 
 pub fn thumb_length(position: ScrollPosition) -> f32 {
     let length = resting_length(position);
-    if position.overscroll == 0.0 || position.viewport <= 0.0 {
+    if position.overscroll() == 0.0 || position.viewport <= 0.0 {
         return length;
     }
-    let squish = position.viewport / (position.viewport + position.overscroll.abs());
+    let squish = position.viewport / (position.viewport + position.overscroll().abs());
     (length * squish).max(MINIMUM_THUMB.min(length) * 0.5)
 }
 
 pub fn thumb_start(position: ScrollPosition) -> f32 {
-    if position.overscroll > 0.0 {
+    if position.overscroll() > 0.0 {
         return 1.0 - thumb_length(position);
     }
-    if position.overscroll < 0.0 {
+    if position.overscroll() < 0.0 {
         return 0.0;
     }
     thumb_travel(position) * progress(position)
@@ -94,7 +94,7 @@ fn thumb_travel(position: ScrollPosition) -> f32 {
 
 fn progress(position: ScrollPosition) -> f32 {
     if position.max_offset() > 0.0 {
-        position.offset / position.max_offset()
+        position.clamped() / position.max_offset()
     } else {
         0.0
     }

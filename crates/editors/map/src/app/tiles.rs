@@ -1,6 +1,5 @@
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
-use block_editor_beui::beui::unstyled::Picture;
 use block_editor_beui::beui::{Color32, Image, ImageFit, Pos2, Rect, Vec2};
 
 use crate::geo::MapView;

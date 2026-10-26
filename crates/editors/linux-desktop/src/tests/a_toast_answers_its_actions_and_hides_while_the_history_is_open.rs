@@ -27,7 +27,9 @@ fn a_toast_answers_its_actions_and_hides_while_the_history_is_open() {
         },
         notification(3, "Mail", "Sam", "See you there"),
     ]);
-    fixture.test.take_actions::<NotificationReport>();
+    fixture
+        .test
+        .take_host_calls(block_ui_test::requested::notification_report);
 
     fixture.test.click("desktop.notifications");
     fixture.settle();
@@ -35,41 +37,50 @@ fn a_toast_answers_its_actions_and_hides_while_the_history_is_open() {
         !fixture.test.shown(&toast(1)),
         "the toasts make way for the list of notifications"
     );
-    fixture.test.key_press(Key::Escape);
+    fixture.test.key(Key::Escape, Modifiers::NONE);
     fixture.settle();
     assert!(
         fixture.test.shown(&toast(1)),
         "and come back once it closes"
     );
 
-    fixture.test.click(&format!("{}.action.reply", toast(1)));
+    fixture.test.click(format!("{}.action.reply", toast(1)));
     fixture.settle();
     assert_eq!(
         fixture.signals(),
         vec![
-            NotificationSignal::ActionInvoked(1, "reply".to_owned()),
-            NotificationSignal::Closed(1, NotificationCloseReason::Dismissed),
+            NotificationSignal::ActionInvoked {
+                id: 1,
+                key: "reply".to_owned()
+            },
+            NotificationSignal::Closed {
+                id: 1,
+                reason: NotificationCloseReason::Dismissed
+            },
         ]
     );
     assert!(!fixture.test.shown(&toast(1)));
 
-    fixture.test.click(&format!("{}.action.pause", toast(2)));
+    fixture.test.click(format!("{}.action.pause", toast(2)));
     fixture.settle();
     assert_eq!(
         fixture.signals(),
-        vec![NotificationSignal::ActionInvoked(2, "pause".to_owned())],
+        vec![NotificationSignal::ActionInvoked {
+            id: 2,
+            key: "pause".to_owned()
+        }],
         "a resident notification stays open"
     );
     assert!(!fixture.test.shown(&toast(2)), "but its toast goes");
 
-    fixture.test.click(&format!("{}.dismiss", toast(3)));
+    fixture.test.click(format!("{}.dismiss", toast(3)));
     fixture.settle();
     assert_eq!(
         fixture.signals(),
-        vec![NotificationSignal::Closed(
-            3,
-            NotificationCloseReason::Dismissed
-        )]
+        vec![NotificationSignal::Closed {
+            id: 3,
+            reason: NotificationCloseReason::Dismissed
+        }]
     );
 
     fixture.test.click("desktop.notifications");

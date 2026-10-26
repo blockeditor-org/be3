@@ -30,6 +30,12 @@ impl Element for LayersNode {
         })
     }
 
+    fn min_width(&self, doc: &mut Document, painter: &Painter) -> f32 {
+        self.items.iter().fold(0.0, |width, item| {
+            width.max(crate::layout::min_width(doc, painter, *item))
+        })
+    }
+
     fn baseline(&self, doc: &mut Document, painter: &Painter, available: Vec2) -> Option<f32> {
         let first = *self.items.iter().next()?;
         crate::layout::baseline(doc, painter, first, available)

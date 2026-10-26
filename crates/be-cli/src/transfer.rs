@@ -80,7 +80,9 @@ impl<S: ObjectStore> Tracker<S> {
         if let Some(error) = failed {
             return Err(error);
         }
+        self.place(parent, blocks[0].id).await?;
         self.invalidate().await;
+        self.register_uploaded(&blocks).await?;
         Ok(Uploaded {
             top: blocks[0].id,
             blocks: blocks.len(),

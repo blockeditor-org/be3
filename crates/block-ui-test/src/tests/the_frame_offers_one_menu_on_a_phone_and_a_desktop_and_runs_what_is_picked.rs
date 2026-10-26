@@ -1,15 +1,17 @@
 use beui::Vec2;
-use beui::icons::ICON_AUTO_FIX_HIGH;
+use beui::icons::ICON_WAND_SPARKLES;
+use block_editor_beui::BarAction;
 use block_editor_beui::beui::styled::Root;
-use block_editor_beui::{BarAction, BlockCommand};
 use block_plugin_api::MenuCheck;
 
 use super::*;
 
 struct ActionApp;
 
+#[component]
 impl BeuiApp for ActionApp {
-    fn view(editor: Editor) -> Root {
+    #[component]
+    fn View(editor: Editor) -> Root {
         view! {
             <Root>
                 <Tidy editor={editor} />
@@ -24,7 +26,7 @@ fn Tidy(editor: Editor) -> NodeId {
     let tidied = create_signal(String::from("messy"));
     let neat = create_signal(false);
     let tidy = Action::new("tidy.up", "Tidy up", move || tidied.set("tidy".to_owned()))
-        .glyph(ICON_AUTO_FIX_HIGH)
+        .glyph(ICON_WAND_SPARKLES)
         .register();
     let neatly = Action::new("tidy.neat", "Keep it neat", move || {
         neat.update(|on| *on = !*on)
@@ -33,7 +35,7 @@ fn Tidy(editor: Editor) -> NodeId {
     .register();
     add_to_menu(vec![
         MenuNode::action(&tidy),
-        MenuNode::submenu("tidy.more", "More", "", vec![MenuNode::action(&neatly)]),
+        MenuNode::submenu("tidy.more", "More", None, vec![MenuNode::action(&neatly)]),
     ]);
     view! {
         <Text @test_id={"tidy.state"}>{tidied}</Text>
@@ -99,7 +101,13 @@ fn the_frame_offers_one_menu_on_a_phone_and_a_desktop_and_runs_what_is_picked() 
     );
 
     test.pick_menu("editor.rename");
-    assert_eq!(test.take_block_commands(), [(block, BlockCommand::Rename)]);
+    assert_eq!(
+        test.take_shell_commands(),
+        [(
+            block,
+            block_plugin_api::ShellCommand::Rename { anchor: None }
+        )]
+    );
 
     test.pick_menu("editor.details");
     assert_eq!(test.take_bar_actions(), [BarAction::Details]);

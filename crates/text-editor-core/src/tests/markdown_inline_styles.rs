@@ -25,6 +25,9 @@ fn markdown_inline_styles() {
     assert_eq!(highlight.style_at(47).family, SynHlFontFamily::Monospace);
     assert_eq!(highlight.style_at(47).color, SynHlColorScope::MarkdownCode);
     assert_eq!(highlight.style_at(55).color, SynHlColorScope::MarkdownLink);
-    assert!(highlight.style_at(55).underline);
-    assert_eq!(highlight.style_at(61).family, SynHlFontFamily::Monospace);
+    assert!(!highlight.style_at(55).underline);
+    assert_eq!(
+        highlight.style_at(61).color,
+        SynHlColorScope::MarkdownSymbol
+    );
 }

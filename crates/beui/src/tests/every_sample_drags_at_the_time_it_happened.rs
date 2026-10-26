@@ -20,28 +20,33 @@ fn every_sample_drags_at_the_time_it_happened() {
     });
     let mut harness = Harness::new(document);
     harness.frame(Vec::new());
-    assert!(harness.document.wants_every_sample());
-    let pen = |phase, x| Event::Pen {
+    assert!(harness.document().wants_every_sample(crate::WindowId::MAIN));
+    let pen = |phase, x| Input::Pen {
         phase,
         pos: pos2(x, 100.0),
-        pressure: 0.5,
-        pen: Pen::default(),
+        pen: Pen {
+            pressure: 0.5,
+            ..Pen::default()
+        },
     };
     harness.frame(vec![pen(PenPhase::Down(PointerButton::Primary), 100.0)]);
     drags.set(Vec::new());
 
-    let before = harness.context.now();
+    let before = harness.context().now();
     let early = before + Duration::from_millis(3);
     let later = before + Duration::from_millis(9);
-    harness.frame(vec![
-        pen(PenPhase::Move, 110.0),
-        Event::Time(early),
-        pen(PenPhase::Move, 120.0),
-        Event::Time(later),
-        Event::Predicted(pos2(135.0, 100.0)),
-        pen(PenPhase::Move, 130.0),
-    ]);
-    let now = harness.context.now();
+    for incoming in [
+        Incoming::points(pen(PenPhase::Move, 110.0)),
+        Incoming::Time(early),
+        Incoming::points(pen(PenPhase::Move, 120.0)),
+        Incoming::Time(later),
+        Incoming::points(Input::Predicted(pos2(135.0, 100.0))),
+        Incoming::points(pen(PenPhase::Move, 130.0)),
+    ] {
+        harness.runner().push(incoming);
+    }
+    harness.frame(Vec::new());
+    let now = harness.context().now();
     let seen: Vec<(f32, Instant, Option<Pos2>)> = drags
         .get_untracked()
         .iter()
