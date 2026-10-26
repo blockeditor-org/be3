@@ -205,7 +205,7 @@ pub enum WindowReport {
         window: WindowId,
         placement: HostPlacement,
     },
-    Scaled {
+    Rastered {
         window: WindowId,
         pixels_per_point: f32,
     },
@@ -221,7 +221,7 @@ impl WindowReport {
         match self {
             Self::Resized { window, .. }
             | Self::Placed { window, .. }
-            | Self::Scaled { window, .. }
+            | Self::Rastered { window, .. }
             | Self::Focused { window, .. } => *window,
             Self::Closed(window) => *window,
         }

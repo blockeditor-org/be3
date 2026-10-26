@@ -226,7 +226,7 @@ fn reports(incoming: &[Incoming]) -> Vec<WindowReport> {
     incoming
         .iter()
         .filter_map(|incoming| match incoming {
-            Incoming::Window(WindowReport::Scaled { .. } | WindowReport::Focused { .. }) => None,
+            Incoming::Window(WindowReport::Rastered { .. } | WindowReport::Focused { .. }) => None,
             Incoming::Window(report) => Some(report.clone()),
             _ => None,
         })
@@ -256,7 +256,7 @@ fn scaled(incoming: &[Incoming]) -> Vec<(WindowId, f32)> {
     incoming
         .iter()
         .filter_map(|incoming| match incoming {
-            Incoming::Window(WindowReport::Scaled {
+            Incoming::Window(WindowReport::Rastered {
                 window,
                 pixels_per_point,
             }) => Some((*window, *pixels_per_point)),

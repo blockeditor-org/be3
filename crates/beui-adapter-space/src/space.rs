@@ -192,7 +192,7 @@ impl Space {
             self.scales.retain(|(held, _)| *held != window);
             self.rescaling.retain(|(waiting, ..)| *waiting != window);
             self.scales.push((window, scale));
-            self.reports.push(Incoming::Window(WindowReport::Scaled {
+            self.reports.push(Incoming::Window(WindowReport::Rastered {
                 window,
                 pixels_per_point: scale,
             }));

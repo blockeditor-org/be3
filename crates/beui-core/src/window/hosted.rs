@@ -200,7 +200,7 @@ impl Document {
                         self.arena.invalidate_node(node);
                     }
                 }
-                WindowReport::Scaled { .. } => {
+                WindowReport::Rastered { .. } => {
                     if let Some(shown) = node.map(NodeId::from).or(self.root) {
                         self.arena.repaint_node(shown);
                     }

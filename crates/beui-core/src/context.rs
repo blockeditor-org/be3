@@ -1049,7 +1049,7 @@ impl Context {
                 let known = &mut windows.entry(*window).or_default().placement;
                 known.replace(placement.clone()).as_ref() != Some(placement)
             }
-            WindowReport::Scaled {
+            WindowReport::Rastered {
                 window,
                 pixels_per_point,
             } => {

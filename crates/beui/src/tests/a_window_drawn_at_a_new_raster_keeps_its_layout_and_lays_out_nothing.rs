@@ -68,7 +68,7 @@ fn a_window_drawn_at_a_new_raster_keeps_its_layout_and_lays_out_nothing() {
     let glyph = widest_glyph(&shown.shapes());
 
     for raster in [1.37, 2.0, 0.8] {
-        harness.report_window(WindowReport::Scaled {
+        harness.report_window(WindowReport::Rastered {
             window,
             pixels_per_point: raster,
         });

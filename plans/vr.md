@@ -174,8 +174,6 @@ M0, M1, M3, M5, M8, M6, M7, M9, M10, M11.
   (`ScreenPlacement::scale_factor_millis`), so plugin content in space is as
   soft at a high raster as before. block-app's host must send each region's
   raster next to its scale.
-- **`WindowReport::Scaled`** now means the raster only; consider renaming it
-  (`Rastered`).
 - **Chrome labels** are raw `Shape::Text` (`chrome::output`), stretched rather
   than rerasterised.
 - **Scroll copy** (`moved`) is used only by the wgpu window renderer: the web

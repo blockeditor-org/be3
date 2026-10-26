@@ -2840,7 +2840,7 @@ other than the size the host last reported, the document asks for it with
 `Resize`; the window keeps the reported size until the host answers, so an
 app that follows `Resized` reports in its `size` never fights the host; `on_report` hears the host's `Resized`, `Placed`
 (the `HostPlacement` to store and hand back as `placement` next time),
-`Scaled` and `Closed`, after which the window stays shut until the app closes and opens it
+`Rastered` and `Closed`, after which the window stays shut until the app closes and opens it
 again. Elsewhere it is an `Overlay` at `at` (`Placement::At`,
 `LayerPolicy::Pass`, no focus trap) holding its content at `size`, which is
 how floating windows looked before there were windows, so an app looks the
@@ -2883,7 +2883,7 @@ window's moves against that window's painting and damage alone, and each
 `WindowOutput` carries its own `moved`, so scrolling one window copies in that
 window and damages nothing in the others.
 Each window is drawn at its own pixels per point: a host reports one with
-`WindowReport::Scaled { window, pixels_per_point }` (the main window
+`WindowReport::Rastered { window, pixels_per_point }` (the main window
 included), and until it does a window uses the context's. It is the window's
 raster, not its layout: every window is laid out at the context's scale. The
 document lays out and paints each window's tree, and everything opened inside
@@ -3122,7 +3122,7 @@ all its 3D (`glam`) stays in the crate.
   `HostView::now`, the host asking for a frame when the wait is over), and a
   panel being carried, resized or reshaped by its chrome keeps the one it has
   until the gesture ends, so a scale never changes every frame. A change is
-  reported as `WindowReport::Scaled` (`Space::scale` reads it), which is
+  reported as `WindowReport::Rastered` (`Space::scale` reads it), which is
   only the window's raster: the app repaints the window at it without laying
   anything out, so its text stays where it was and only gets sharper or
   softer. A new window takes its scale at once.

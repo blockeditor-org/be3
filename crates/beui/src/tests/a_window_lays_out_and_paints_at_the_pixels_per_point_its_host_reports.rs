@@ -30,7 +30,7 @@ fn a_window_lays_out_and_paints_at_the_pixels_per_point_its_host_reports() {
     assert_eq!(shown.pixels_per_point, 1.0);
     assert_eq!(text_scales(shown.shapes()), [1.0]);
 
-    harness.report_window(WindowReport::Scaled {
+    harness.report_window(WindowReport::Rastered {
         window,
         pixels_per_point: 2.5,
     });
