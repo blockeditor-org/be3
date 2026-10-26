@@ -421,16 +421,17 @@ Outcomes, by crate group (each also migrated onto §7's tokens):
   `DockEntry`). Left on purpose: logic-grid's hotbar slot face and
   deterministic-game's board are plugin canvases with their own drawing;
   be-launcher's enlargeable picture is a `Pressable` around the content
-  itself. Left for later: the colour swatches in pixel-art, pixel-ray-tracer
-  and map's presets are `Pressable`s around a frame, and should use a styled
-  swatch button. pan-zoom's cards scale their padding and outline with the
+  itself. The colour swatches in pixel-art,
+  pixel-ray-tracer and map's presets became `SwatchButton`s (square ones take
+  `radius=Radius::Xs`), added by the canvas group below. pan-zoom's cards scale their padding and outline with the
   zoom (`Space::Custom`, `Stroke::Custom`) but not their radius, since
   `Radius` has no escape hatch for a zoom-scaled corner.
 - **Done.** **The canvas and media editors** (infinite-canvas, text-block,
   pdf, presentation, image-block, video-block, audio-block, scene-3d), with
   their §7 tokens. New styled component: `SwatchButton` (a round colour
   swatch that rings when selected, hovered or focused, with the colour's name
-  as its label and tooltip; the canvas's colour rows). They use styled
+  as its label and tooltip, and a `radius`, round by default; the canvas's
+  colour rows, and the misc group's palettes above). They use styled
   `Picture` too; `unstyled::Picture` now cuts a covering image's overflow
   from its source, so a radius rounds the frame's corners rather than the
   overflowing image's. Styled re-exports the behaviour-only pieces they

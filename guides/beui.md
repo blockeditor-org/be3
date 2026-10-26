@@ -1525,7 +1525,8 @@ and puts the popover and the hex field together; its `swatch`, `picker` and
 `styled::SwatchButton` is a single round swatch that picks one colour: a
 button labelled with the colour's name (its tooltip too), ringed in the accent
 while `selected` and in the border colour under the pointer, for a row of
-preset colours that is not a whole picker.
+preset colours that is not a whole picker. Its `radius` is `Full` by default;
+a palette of square cells passes `Radius::Xs`.
 
 `styled::ColorWheel` is a hue ring around a triangle whose tip points at the
 hue, and `styled::OklchColorWheel` is the same wheel over OKLCH: the triangle is

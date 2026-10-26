@@ -1,6 +1,4 @@
-use block_editor_beui::beui::Color32;
 use block_editor_beui::beui::NodeId;
-use block_editor_beui::beui::accesskit::{Node, Role};
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
 use pixel_ray_tracer_types::{PIXEL_RAY_TRACER_PALETTE, RayEntity, RaySettings};
@@ -9,7 +7,6 @@ use crate::overlay::palette_color;
 
 use super::state::{RayState, Surface, Tool};
 
-const SWATCH: Size = Size::Custom(18.0);
 
 #[component]
 pub(crate) fn ToolsPanel(state: RayState) -> NodeId {
@@ -73,39 +70,18 @@ fn Palette(state: RayState) -> NodeId {
 
 #[component]
 fn Swatch(state: RayState, index: usize) -> NodeId {
-    let color = palette_color(index as u8);
     let chosen = state.color_index;
     let picked = create_memo(move || usize::from(chosen.get()) == index);
-    let theme = use_theme();
-    let outline = create_memo(move || match picked.get() {
-        true => theme.accent.get(),
-        false => Color32::TRANSPARENT,
-    });
-    let label = format!("Color {}", index + 1);
-    let described = label.clone();
     view! {
-        <Tooltip label={label}>
-            <Pressable
-                accessibility={swatch_role(&described)}
-                @test_id={format!("pixel_ray_tracer.color.{index}")}
-                on_click={move || state.choose_color(index as u8)}
-            >
-                <Frame
-                    width=SWATCH
-                    height=SWATCH
-                    fill={ColorRole::custom(color)}
-                    radius={Radius::Xs}
-                    border={create_memo(move || picked.get().then(|| Border::new(ColorRole::Custom(outline.get())).width(Stroke::Focus)))}
-                />
-            </Pressable>
-        </Tooltip>
+        <SwatchButton
+            color={palette_color(index as u8)}
+            label={format!("Color {}", index + 1)}
+            selected={picked}
+            radius=Radius::Xs
+            @test_id={format!("pixel_ray_tracer.color.{index}")}
+            on_click={move || state.choose_color(index as u8)}
+        />
     }
-}
-
-fn swatch_role(label: &str) -> Prop<Node> {
-    let mut node = Node::new(Role::Button);
-    node.set_label(label.to_owned());
-    Prop::Static(node)
 }
 
 #[component]

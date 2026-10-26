@@ -14,11 +14,12 @@ pub fn SwatchButton(
     label: Prop<String>,
     #[prop(default = false)] selected: Prop<bool>,
     #[prop(default = false)] disabled: Prop<bool>,
+    #[prop(default = Radius::Full)] radius: Radius,
     on_click: ClickCallback,
 ) -> NodeId {
     view! {
         <unstyled::Button label icon_only=true disabled on_click={on_click}>|handle|
-            <SwatchButtonFace handle color selected />
+            <SwatchButtonFace handle color selected radius />
         </unstyled::Button>
     }
 }
@@ -28,6 +29,7 @@ fn SwatchButtonFace(
     handle: unstyled::ButtonHandle,
     color: Prop<Color32>,
     selected: Prop<bool>,
+    radius: Radius,
 ) -> NodeId {
     let unstyled::ButtonHandle {
         hovered,
@@ -47,11 +49,11 @@ fn SwatchButtonFace(
     let fill = color.map(ColorRole::Custom);
     view! {
         <Tooltip label={tooltip}>
-            <Frame padding=Space::Xs radius=Radius::Full border={ring}>
+            <Frame padding=Space::Xs radius border={ring}>
                 <Frame
                     width=Size::Sm
                     height=Size::Sm
-                    radius=Radius::Full
+                    radius
                     fill={fill}
                     border={Border::DEFAULT}
                 />

@@ -16,13 +16,12 @@ use pixel_art_types::{
 };
 
 use crate::canvas::ZOOM_STEP;
-use crate::color::{parse_hex_color, swatch_color};
+use crate::color::{format_hex_color, parse_hex_color, swatch_color};
 use crate::drawing::{BrushShape, MAX_BRUSH_SIZE, PixelTool};
 
 use crate::app::state::{Dialog, Tools};
 
 const SPACING: Space = Space::Md;
-const SWATCH: Size = Size::Sm;
 const TOOL_WIDTH: f32 = 76.0;
 
 const TOOLS: [(PixelTool, Glyph, &str); 8] = [
@@ -363,22 +362,9 @@ fn Channel(tools: Tools, channel: &'static str) -> NodeId {
 #[component]
 fn Swatch(color: Prop<PixelColor>, selected: Prop<bool>, on_click: ClickCallback) -> NodeId {
     let fill = create_memo(move || swatch_color(color.get()));
-    let chosen = create_memo(move || selected.get());
-    let theme = use_theme();
-    let outline = create_memo(move || match chosen.get() {
-        true => theme.accent.get(),
-        false => theme.border.get(),
-    });
+    let label = create_memo(move || format_hex_color(color.get()));
     view! {
-        <Pressable on_click={on_click}>
-            <Frame
-                width=SWATCH
-                height=SWATCH
-                fill={ColorRole::custom(fill)}
-                border={create_memo(move || Some(Border::new(ColorRole::Custom(outline.get())).width(Stroke::Focus)))}
-                radius=Radius::Xs
-            />
-        </Pressable>
+        <SwatchButton color={fill} label={label} selected radius=Radius::Xs on_click />
     }
 }
 

@@ -1,7 +1,6 @@
 use beui::Overflow;
 use block_editor_beui::beui::Color32;
 use block_editor_beui::beui::NodeId;
-use block_editor_beui::beui::accesskit::{Node, Role};
 use block_editor_beui::beui::icons::{ICON_ARROW_LEFT, ICON_CIRCLE, ICON_LOCATE_FIXED, ICON_TRASH};
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
@@ -452,32 +451,21 @@ fn ColorPreset(state: MapState, point: Memo<Option<MapPoint>>, name: String) -> 
     let Some((_, color)) = COLOR_PRESETS.into_iter().find(|(label, _)| *label == name) else {
         unreachable!("the preset was named by the list it came from");
     };
-    let swatch = marker_color(color);
-    let described = name.clone();
+    let chosen = create_memo(move || point.get().is_some_and(|point| point.color == color));
     view! {
-        <Tooltip label={name}>
-            <Pressable
-                accessibility={preset_role(&described)}
-                on_click={move || {
-                    let Some(mut chosen) = point.get_untracked() else {
-                        return;
-                    };
-                    chosen.color = color;
-                    state.record(Map::update(&[chosen]));
-                }}
-            >
-                <Text size=TextSize::Sm color={TextColor::Custom(swatch)} align=TextAlign::Center>
-                    <Icon glyph=ICON_CIRCLE />
-                </Text>
-            </Pressable>
-        </Tooltip>
+        <SwatchButton
+            color={marker_color(color)}
+            label={name}
+            selected={chosen}
+            on_click={move || {
+                let Some(mut chosen) = point.get_untracked() else {
+                    return;
+                };
+                chosen.color = color;
+                state.record(Map::update(&[chosen]));
+            }}
+        />
     }
-}
-
-fn preset_role(name: &str) -> Prop<Node> {
-    let mut node = Node::new(Role::Button);
-    node.set_label(name.to_owned());
-    Prop::Static(node)
 }
 
 fn point_name(state: &MapState, point: Option<MapPoint>) -> String {
