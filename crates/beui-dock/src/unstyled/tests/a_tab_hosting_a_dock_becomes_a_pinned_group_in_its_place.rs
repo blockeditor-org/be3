@@ -22,7 +22,10 @@ fn a_tab_hosting_a_dock_becomes_a_pinned_group_in_its_place() {
         ],
         "the group takes the place of the tab that hosts it"
     );
-    assert!(state.is_pinned(group), "the hosted dock is locked in its group");
+    assert!(
+        state.is_pinned(group),
+        "the hosted dock is locked in its group"
+    );
     assert!(!state.contains(TabId::new(2)), "the hosting tab is gone");
     assert_eq!(
         state.home(TabId::new(10)),
@@ -30,7 +33,9 @@ fn a_tab_hosting_a_dock_becomes_a_pinned_group_in_its_place() {
         "the hosted tabs live in the group"
     );
     assert!(
-        state.focused_tab().is_some_and(|tab| [10, 11].contains(&tab.value())),
+        state
+            .focused_tab()
+            .is_some_and(|tab| [10, 11].contains(&tab.value())),
         "the focus moves from the hosting tab into the group"
     );
 

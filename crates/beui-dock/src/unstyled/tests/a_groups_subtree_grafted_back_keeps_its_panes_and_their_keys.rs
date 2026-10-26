@@ -58,7 +58,11 @@ fn a_groups_subtree_grafted_back_keeps_its_panes_and_their_keys() {
     state.graft(group, &subtree, &back);
 
     let leaves = state.tree_leaves(Tree::Group(group));
-    assert_eq!(leaves.len(), 3, "the split made in the subtree is in the group");
+    assert_eq!(
+        leaves.len(),
+        3,
+        "the split made in the subtree is in the group"
+    );
     assert_eq!(state.pane_key(leaf_of(&state, 11)), Some("x/free"));
     assert_eq!(state.area_of(leaf_of(&state, 10)), Some("x/locked"));
     assert_eq!(

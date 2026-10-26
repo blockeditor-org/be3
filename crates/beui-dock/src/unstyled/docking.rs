@@ -24,17 +24,18 @@ use super::state::{
     DockFullscreen, DockSpec, DockSpecEntry, DockSpecNode, DockSpecPane, DockSpecWindow,
     joined_host, joined_key, joined_prefix,
 };
-pub(crate) use host::{DockJoin, use_dock_join};
+use super::{
+    Dock, DockApi, DockAwayHandle, DockBarHandle, DockChromeHandle, DockConfig, DockGripHandle,
+    DockMode, DockPreviewHandle, DockSplitterHandle, DockStackHandle, DockState, DockSwitchHandle,
+    DockSwitcherHandle, DockTabControl, DockTabHandle, DockTabMenu, GroupId, LeafId, SIDEBAR_WIDTH,
+    TabId,
+};
+use beui_components_unstyled::menu_popup::MenuStyle;
 use host::{
     DockBodies, DockDeclaration, DockDeclaredTab, DockHostEvent, DockHostLink, DockHosted,
     DockRequest, Joined, Registry,
 };
-use super::{
-    Dock, DockApi, DockTabControl, DockTabMenu, DockAwayHandle, DockBarHandle, DockChromeHandle, DockConfig, DockGripHandle,
-    DockMode, DockPreviewHandle, DockSplitterHandle, DockStackHandle, DockState, DockSwitchHandle,
-    DockSwitcherHandle, DockTabHandle, GroupId, LeafId, SIDEBAR_WIDTH, TabId,
-};
-use beui_components_unstyled::menu_popup::MenuStyle;
+pub(crate) use host::{DockJoin, use_dock_join};
 
 pub trait DockKey: Clone + Eq + Hash + 'static {}
 
@@ -475,7 +476,8 @@ impl<K: DockKey> DockingLayout<K> {
 
     pub fn contains(&self, key: &K) -> bool {
         let tab = self.tab_of(key);
-        if let Some(held) = self.hosted(|hosted| tab.is_some_and(|tab| hosted.tabs.contains(&tab))) {
+        if let Some(held) = self.hosted(|hosted| tab.is_some_and(|tab| hosted.tabs.contains(&tab)))
+        {
             return held;
         }
         self.state
@@ -580,11 +582,20 @@ impl<K: DockKey> DockingLayout<K> {
             tab = TabId::new(tab.value() + 1);
         }
         keys.next = tab.value() + 1;
-        layout.registry.foreign.borrow_mut().insert(host, inner, tab);
+        layout
+            .registry
+            .foreign
+            .borrow_mut()
+            .insert(host, inner, tab);
         tab
     }
 
-    fn reconcile(&self, spec: &DockSpec, dialogs: &[(TabId, TabId)], hosts: &[(TabId, DockSpecNode)]) {
+    fn reconcile(
+        &self,
+        spec: &DockSpec,
+        dialogs: &[(TabId, TabId)],
+        hosts: &[(TabId, DockSpecNode)],
+    ) {
         let current = self.state.get_untracked();
         let mut next = current.clone();
         let live: HashSet<TabId> = hosts.iter().map(|(host, _)| *host).collect();
@@ -638,7 +649,10 @@ impl<K: DockKey> DockingLayout<K> {
 
     fn declared(&self, spec: &DockSpec, dialogs: &[(TabId, TabId)]) {
         let mut kept: HashSet<TabId> = spec.tabs().into_iter().collect();
-        kept.extend(self.hosted(|hosted| hosted.tabs.clone()).unwrap_or_default());
+        kept.extend(
+            self.hosted(|hosted| hosted.tabs.clone())
+                .unwrap_or_default(),
+        );
         kept.extend(
             dialogs
                 .iter()
@@ -772,10 +786,7 @@ impl<K: DockKey> DockingLayout<K> {
                 if found.tabs.insert(tab, Rc::clone(entry)).is_some() {
                     return None;
                 }
-                Some(
-                    self.splice(tab, found)
-                        .unwrap_or(DockSpecEntry::Tab(tab)),
-                )
+                Some(self.splice(tab, found).unwrap_or(DockSpecEntry::Tab(tab)))
             }
             EntryKind::Group {
                 key,
@@ -1062,12 +1073,7 @@ where
     let declared = move |tab: TabId| -> Option<DockDeclaredTab> {
         found.with(|found| {
             let (joined, inner) = found.foreign.get(&tab)?;
-            joined
-                .declaration
-                .borrow()
-                .as_ref()?
-                .tab(*inner)
-                .cloned()
+            joined.declaration.borrow().as_ref()?.tab(*inner).cloned()
         })
     };
     let title = Func::new(move |tab: TabId| {
@@ -1107,10 +1113,7 @@ where
             return body.call(tab);
         };
         let bodies = joined.bodies.borrow().clone();
-        let Some(scope) = bodies
-            .as_ref()
-            .and_then(|bodies| bodies.scope.child())
-        else {
+        let Some(scope) = bodies.as_ref().and_then(|bodies| bodies.scope.child()) else {
             return view! {
                 <Frame />
             };
@@ -1172,7 +1175,13 @@ where
         Some(title.get())
     });
     let hosts = create_memo(move || {
-        found.with(|found| found.hosts.iter().map(|(host, _)| *host).collect::<Vec<_>>())
+        found.with(|found| {
+            found
+                .hosts
+                .iter()
+                .map(|(host, _)| *host)
+                .collect::<Vec<_>>()
+        })
     });
     view! {
         <Dock

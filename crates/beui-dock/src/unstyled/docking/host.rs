@@ -9,8 +9,7 @@ use beui_view::reactive::*;
 
 use super::super::DockMode;
 use super::super::state::{
-    DockFullscreen, DockMapping, DockSpec, DockState, TabId, joined_host, joined_key,
-    joined_prefix,
+    DockFullscreen, DockMapping, DockSpec, DockState, TabId, joined_host, joined_key, joined_prefix,
 };
 
 #[derive(Clone, Debug, PartialEq)]
@@ -295,7 +294,12 @@ impl DockHostLink for JoinedLink {
                     Some(fullscreen) => state.set_fullscreen(Some(fullscreen)),
                     None => {
                         let ours = state.fullscreen().is_some_and(|shown| {
-                            self.join.registry.foreign.borrow().inner(shown.tab).map(|(host, _)| host)
+                            self.join
+                                .registry
+                                .foreign
+                                .borrow()
+                                .inner(shown.tab)
+                                .map(|(host, _)| host)
                                 == Some(self.join.host)
                         });
                         if ours {
