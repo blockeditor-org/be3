@@ -59,7 +59,7 @@ fn template_entities(template: SlideTemplate) -> Vec<CanvasEntity> {
                     alignment: CanvasTextAlign::Center,
                     vertical_alignment: CanvasTextVerticalAlign::Middle,
                     line_height: 1.2,
-                    wrap: false,
+                    wrap: true,
                 },
             ),
             template_text_entity(
@@ -72,7 +72,7 @@ fn template_entities(template: SlideTemplate) -> Vec<CanvasEntity> {
                     alignment: CanvasTextAlign::Center,
                     vertical_alignment: CanvasTextVerticalAlign::Middle,
                     line_height: 1.2,
-                    wrap: false,
+                    wrap: true,
                 },
             ),
         ],
@@ -87,7 +87,7 @@ fn template_entities(template: SlideTemplate) -> Vec<CanvasEntity> {
                     alignment: CanvasTextAlign::Left,
                     vertical_alignment: CanvasTextVerticalAlign::Middle,
                     line_height: 1.2,
-                    wrap: false,
+                    wrap: true,
                 },
             ),
             template_text_entity(
