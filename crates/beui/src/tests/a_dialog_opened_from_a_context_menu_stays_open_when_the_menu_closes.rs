@@ -2,6 +2,7 @@ use super::*;
 use crate::primitives::Text;
 use crate::reactive::*;
 use crate::styled::*;
+use crate::primitives::List;
 
 #[test]
 fn a_dialog_opened_from_a_context_menu_stays_open_when_the_menu_closes() {

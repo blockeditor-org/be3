@@ -2,8 +2,9 @@ use super::*;
 use crate::primitives::Frame;
 use crate::reactive::*;
 use crate::styled::Scroll;
-use crate::styled::theme::{SCROLLBAR_INSET, SCROLLBAR_TRACK_WIDTH, SCROLLBAR_WIDTH};
-use crate::styled::*;
+use crate::styled::theme::SCROLLBAR_WIDTH;
+use crate::styled::{Size, Space};
+use crate::primitives::List;
 
 const CONTENT_HEIGHT: f32 = 2000.0;
 
@@ -36,10 +37,10 @@ fn a_styled_scroll_lays_its_scrollbar_over_the_edge_of_its_content() {
 
     let painted = track_within(&harness, scrollbar_of(&harness, scroll.get()));
     assert_eq!(painted.left(), bar.left());
-    assert_eq!(painted.width(), SCROLLBAR_TRACK_WIDTH);
-    assert_eq!(painted.right(), whole.right() - SCROLLBAR_INSET);
-    assert_eq!(painted.top(), whole.top() + SCROLLBAR_INSET);
-    assert_eq!(painted.bottom(), whole.bottom() - SCROLLBAR_INSET);
+    assert_eq!(painted.width(), Size::Track.px());
+    assert_eq!(painted.right(), whole.right() - Space::Xs2.px());
+    assert_eq!(painted.top(), whole.top() + Space::Xs2.px());
+    assert_eq!(painted.bottom(), whole.bottom() - Space::Xs2.px());
 
     harness.scroll_at(whole.center(), vec2(0.0, -40.0), Modifiers::NONE);
     let output = harness.frame(Vec::new());

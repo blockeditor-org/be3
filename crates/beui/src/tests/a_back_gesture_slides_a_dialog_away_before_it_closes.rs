@@ -3,6 +3,7 @@ use crate::input::{BackEdge, BackGesture};
 use crate::primitives::Text;
 use crate::reactive::*;
 use crate::styled::*;
+use crate::primitives::List;
 
 #[test]
 fn a_back_gesture_slides_a_dialog_away_before_it_closes() {

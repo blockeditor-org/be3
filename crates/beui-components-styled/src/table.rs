@@ -4,15 +4,16 @@ use crate::text::{Text, TextColor, TextStyle};
 use beui_components_unstyled as unstyled;
 use beui_core::node::NodeId;
 use beui_macros::{component, view};
-use beui_view::primitives::*;
+use crate::list::List;
+use crate::tokens::{Padding, Space};
 use beui_view::reactive::*;
 
 const LABEL_WEIGHT: f32 = 4.0;
 const CELL_WEIGHT: f32 = 3.0;
-const CELL_PADDING_HORIZONTAL: f32 = 16.0;
-const CELL_PADDING_VERTICAL: f32 = 10.0;
-const CELL_SPACING: f32 = 12.0;
-const CAPTION_SPACING: f32 = 2.0;
+const CELL_PADDING_HORIZONTAL: Space = Space::Xl;
+const CELL_PADDING: Padding = Padding::symmetric(CELL_PADDING_HORIZONTAL, Space::Md);
+const CELL_SPACING: Space = Space::Lg;
+const CAPTION_SPACING: Space = Space::Xs2;
 const COLUMN_TITLE: TextStyle = TextStyle::CAPTION.bold();
 
 #[derive(Clone, Debug, Default, PartialEq)]
@@ -47,7 +48,7 @@ pub fn Table(
     let indices = create_memo(move || (0..columns.with(Vec::len)).collect::<Vec<_>>());
     view! {
         <unstyled::Table label>
-            <List spacing=0.0>
+            <List spacing=Space::None>
                 <TableHeader heading={heading} columns={columns} indices={indices} />
                 {children}
             </List>
@@ -63,7 +64,7 @@ fn TableHeader(
 ) -> NodeId {
     view! {
         <unstyled::TableRow>
-            <Frame padding={Sides::symmetric(CELL_PADDING_HORIZONTAL, CELL_PADDING_VERTICAL)}>
+            <Frame padding=CELL_PADDING>
                 <List direction=Direction::Horizontal spacing=CELL_SPACING>
                     <ColumnHeading weight=LABEL_WEIGHT column={heading} />
                     <ForEach keys={indices}>|index: usize| {
@@ -88,7 +89,7 @@ fn ColumnHeading(weight: f32, column: Memo<TableColumn>) -> ListChild {
     let label = create_memo(move || spoken(&title.get(), &caption.get()));
     view! {
         <unstyled::TableColumnHeader @sizing=ItemSize::Percent(weight) label={label}>
-            <List spacing=0.0>
+            <List spacing=Space::None>
                 <Text style=COLUMN_TITLE>{title}</Text>
                 <Show condition={captioned}>
                     <Text style=TextStyle::CAPTION>{caption}</Text>
@@ -103,11 +104,11 @@ pub fn TableRow(label: Prop<String>, children: Children<ListChild>) -> NodeId {
     let label = create_memo(move || label.get());
     view! {
         <unstyled::TableRow>
-            <List spacing=0.0>
-                <Frame padding={Sides::horizontal(CELL_PADDING_HORIZONTAL)}>
+            <List spacing=Space::None>
+                <Frame padding={Padding::horizontal(CELL_PADDING_HORIZONTAL)}>
                     <Separator />
                 </Frame>
-                <Frame padding={Sides::symmetric(CELL_PADDING_HORIZONTAL, CELL_PADDING_VERTICAL)}>
+                <Frame padding=CELL_PADDING>
                     <List direction=Direction::Horizontal spacing=CELL_SPACING>
                         <RowHeading label={label} />
                         {children}

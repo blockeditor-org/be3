@@ -3,6 +3,7 @@ use crate::color::Hsva;
 use crate::input::CursorIcon;
 use crate::reactive::*;
 use crate::styled::*;
+use crate::primitives::List;
 
 #[test]
 fn the_color_areas_thumb_shows_a_grab_cursor() {

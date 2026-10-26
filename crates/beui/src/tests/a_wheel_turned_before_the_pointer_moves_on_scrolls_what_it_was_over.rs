@@ -2,7 +2,7 @@ use super::*;
 use crate::primitives::Frame;
 use crate::reactive::*;
 use crate::styled::Scroll;
-use crate::styled::*;
+use crate::primitives::List;
 
 #[test]
 fn a_wheel_turned_before_the_pointer_moves_on_scrolls_what_it_was_over() {

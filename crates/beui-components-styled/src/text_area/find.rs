@@ -15,20 +15,22 @@ use beui_core::icons::{
     ICON_CASE_SENSITIVE, ICON_CHEVRON_DOWN, ICON_CHEVRON_UP, ICON_SEARCH, ICON_X,
 };
 use beui_core::node::NodeId;
-use beui_view::primitives::*;
+use beui_view::primitives::BackHandler;
+
+use crate::list::List;
+use crate::tokens::{Padding, Size, Space};
 use beui_view::reactive::*;
 
-const BAR_PADDING_HORIZONTAL: f32 = 12.0;
-const BAR_PADDING_VERTICAL: f32 = 6.0;
-const BAR_SPACING: f32 = 6.0;
-const QUERY_WIDTH: f32 = 180.0;
+const BAR_PADDING: Padding = Padding::symmetric(Space::Lg, Space::Sm);
+const BAR_SPACING: Space = Space::Sm;
+const QUERY_WIDTH: Size = Size::Custom(180.0);
 
 #[component]
 pub fn FindBar(state: TextAreaState) -> NodeId {
     let open = state.find_open();
     view! {
         <BackHandler enabled={open} on_back={move || state.close_find()}>
-            <List spacing=0.0>
+            <List spacing=Space::None>
                 <Show condition={open}>
                     <FindBarRows state={state} />
                 </Show>
@@ -49,8 +51,8 @@ fn FindBarRows(state: TextAreaState) -> NodeId {
     let show_replace = state.find().show_replace;
     view! {
         <Frame fill=ColorRole::Surface>
-            <List spacing=0.0>
-                <Frame padding={Sides::symmetric(BAR_PADDING_HORIZONTAL, BAR_PADDING_VERTICAL)}>
+            <List spacing=Space::None>
+                <Frame padding=BAR_PADDING>
                     <List direction=Direction::Horizontal align=Align::Center spacing=BAR_SPACING>
                         <Text color=TextColor::Muted align=TextAlign::Center>
                             <Icon glyph=ICON_SEARCH />
@@ -110,7 +112,7 @@ fn FindBarRows(state: TextAreaState) -> NodeId {
 fn ReplaceRow(state: TextAreaState, no_current: Memo<bool>, no_matches: Memo<bool>) -> NodeId {
     let replacement = state.find().replacement;
     view! {
-        <Frame padding={Sides::symmetric(BAR_PADDING_HORIZONTAL, BAR_PADDING_VERTICAL)}>
+        <Frame padding=BAR_PADDING>
             <List direction=Direction::Horizontal align=Align::Center spacing=BAR_SPACING>
                 <Frame width=QUERY_WIDTH>
                     <TextInput

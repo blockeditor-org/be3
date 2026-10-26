@@ -4,6 +4,7 @@ use crate::primitives::Frame;
 use crate::primitives::Text;
 use crate::reactive::*;
 use crate::styled::*;
+use crate::primitives::List;
 
 const BAR_HEIGHT: f32 = 8.0;
 const ROWS: usize = 100;

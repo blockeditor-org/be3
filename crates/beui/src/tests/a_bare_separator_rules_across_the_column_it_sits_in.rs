@@ -1,6 +1,7 @@
 use super::*;
 use crate::reactive::*;
 use crate::styled::*;
+use crate::primitives::List;
 
 #[test]
 fn a_bare_separator_rules_across_the_column_it_sits_in() {

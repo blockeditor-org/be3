@@ -7,8 +7,9 @@ use beui_core::base::TextAlign;
 use beui_core::node::NodeId;
 use beui_view::reactive::*;
 
-const PADDING_HORIZONTAL: f32 = 8.0;
-const PADDING_VERTICAL: f32 = 3.0;
+use crate::tokens::{Padding, Space};
+
+const PADDING: Padding = Padding::symmetric(Space::Md, Space::Xs2);
 
 #[component]
 pub fn Chip(label: Prop<String>) -> NodeId {
@@ -18,7 +19,7 @@ pub fn Chip(label: Prop<String>) -> NodeId {
             fill=ColorRole::SurfaceRaised
             border={Border::DEFAULT}
             radius=Radius::Sm
-            padding={Sides::symmetric(PADDING_HORIZONTAL, PADDING_VERTICAL)}
+            padding=PADDING
         >
             <Text overflow=Overflow::Ellipsis size=TextSize::Sm align=TextAlign::Center>
                 {label_text}

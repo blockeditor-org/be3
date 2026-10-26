@@ -3,11 +3,11 @@ use beui_core::node::NodeId;
 use beui_macros::{component, view};
 use beui_view::primitives;
 use beui_view::reactive::{
-    Align2, Child, Corners, Extent, Get, IntoProp, Memo, Outline, Prop, Sides, create_memo,
-    focus_ring,
+    Align2, Child, Corners, Get, IntoProp, Memo, Outline, Prop, create_memo, focus_ring,
 };
 
-use crate::theme::{BORDER_WIDTH, FOCUS_RING_WIDTH, POINTER_REACH, ThemeStore, use_theme};
+use crate::theme::{POINTER_REACH, ThemeStore, use_theme};
+use crate::tokens::{CornerSet, Length, Padding, Stroke, resolved};
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
 pub enum ColorRole {
@@ -26,6 +26,11 @@ pub enum ColorRole {
     AccentSoft,
     OnAccent,
     Danger,
+    DangerFill,
+    DangerFillHover,
+    DangerFillActive,
+    DangerSoft,
+    OnDanger,
     Warning,
     Success,
     ScrollThumb,
@@ -33,11 +38,17 @@ pub enum ColorRole {
     ScrollThumbActive,
     Track,
     Knob,
+    ControlOutline,
+    KnobOutline,
+    Dim,
+    Scrim,
+    ScrimSoft,
+    ScrimStrong,
     Custom(Color32),
 }
 
 impl ColorRole {
-    pub const ROLES: [ColorRole; 21] = [
+    pub const ROLES: [ColorRole; 32] = [
         ColorRole::Background,
         ColorRole::Surface,
         ColorRole::SurfaceRaised,
@@ -52,6 +63,11 @@ impl ColorRole {
         ColorRole::AccentSoft,
         ColorRole::OnAccent,
         ColorRole::Danger,
+        ColorRole::DangerFill,
+        ColorRole::DangerFillHover,
+        ColorRole::DangerFillActive,
+        ColorRole::DangerSoft,
+        ColorRole::OnDanger,
         ColorRole::Warning,
         ColorRole::Success,
         ColorRole::ScrollThumb,
@@ -59,6 +75,12 @@ impl ColorRole {
         ColorRole::ScrollThumbActive,
         ColorRole::Track,
         ColorRole::Knob,
+        ColorRole::ControlOutline,
+        ColorRole::KnobOutline,
+        ColorRole::Dim,
+        ColorRole::Scrim,
+        ColorRole::ScrimSoft,
+        ColorRole::ScrimStrong,
     ];
 
     pub fn resolve(self, theme: &ThemeStore) -> Color32 {
@@ -78,6 +100,11 @@ impl ColorRole {
             ColorRole::AccentSoft => theme.accent_soft.get(),
             ColorRole::OnAccent => theme.on_accent.get(),
             ColorRole::Danger => theme.danger.get(),
+            ColorRole::DangerFill => theme.danger_fill.get(),
+            ColorRole::DangerFillHover => theme.danger_fill_hover.get(),
+            ColorRole::DangerFillActive => theme.danger_fill_active.get(),
+            ColorRole::DangerSoft => theme.danger_soft.get(),
+            ColorRole::OnDanger => theme.on_danger.get(),
             ColorRole::Warning => theme.warning.get(),
             ColorRole::Success => theme.success.get(),
             ColorRole::ScrollThumb => theme.scroll_thumb.get(),
@@ -85,6 +112,12 @@ impl ColorRole {
             ColorRole::ScrollThumbActive => theme.scroll_thumb_active.get(),
             ColorRole::Track => theme.track.get(),
             ColorRole::Knob => theme.knob.get(),
+            ColorRole::ControlOutline => theme.control_outline.get().unwrap_or(Color32::TRANSPARENT),
+            ColorRole::KnobOutline => theme.knob_outline.get().unwrap_or(Color32::TRANSPARENT),
+            ColorRole::Dim => theme.dim.get(),
+            ColorRole::Scrim => theme.scrim.get(),
+            ColorRole::ScrimSoft => theme.scrim_soft.get(),
+            ColorRole::ScrimStrong => theme.scrim_strong.get(),
             ColorRole::Custom(color) => color,
         }
     }
@@ -106,6 +139,11 @@ impl ColorRole {
             ColorRole::AccentSoft => "accent soft",
             ColorRole::OnAccent => "on accent",
             ColorRole::Danger => "danger",
+            ColorRole::DangerFill => "danger fill",
+            ColorRole::DangerFillHover => "danger fill hover",
+            ColorRole::DangerFillActive => "danger fill active",
+            ColorRole::DangerSoft => "danger soft",
+            ColorRole::OnDanger => "on danger",
             ColorRole::Warning => "warning",
             ColorRole::Success => "success",
             ColorRole::ScrollThumb => "scroll thumb",
@@ -113,6 +151,12 @@ impl ColorRole {
             ColorRole::ScrollThumbActive => "scroll thumb active",
             ColorRole::Track => "track",
             ColorRole::Knob => "knob",
+            ColorRole::ControlOutline => "control outline",
+            ColorRole::KnobOutline => "knob outline",
+            ColorRole::Dim => "dim",
+            ColorRole::Scrim => "scrim",
+            ColorRole::ScrimSoft => "scrim soft",
+            ColorRole::ScrimStrong => "scrim strong",
             ColorRole::Custom(_) => "custom",
         }
     }
@@ -132,17 +176,19 @@ pub enum Radius {
     Xs,
     Sm,
     Md,
+    Tab,
     Lg,
     Full,
-    Custom(Corners),
+    Px(Corners),
 }
 
 impl Radius {
-    pub const ALL: [Radius; 6] = [
+    pub const ALL: [Radius; 7] = [
         Radius::None,
         Radius::Xs,
         Radius::Sm,
         Radius::Md,
+        Radius::Tab,
         Radius::Lg,
         Radius::Full,
     ];
@@ -153,21 +199,33 @@ impl Radius {
             Radius::Xs => 2.0,
             Radius::Sm => 4.0,
             Radius::Md => 6.0,
+            Radius::Tab => 7.0,
             Radius::Lg => 10.0,
             Radius::Full => 10_000.0,
-            Radius::Custom(corners) => corners.top_left,
+            Radius::Px(corners) => corners.top_left,
         }
     }
 
     pub const fn custom(radius: f32) -> Self {
-        Radius::Custom(Corners::all(radius))
+        Radius::Px(Corners::all(radius))
     }
 
     pub const fn corners(self) -> Corners {
         match self {
-            Radius::Custom(corners) => corners,
+            Radius::Px(corners) => corners,
             radius => Corners::all(radius.px()),
         }
+    }
+
+    pub const fn around(self, offset: Stroke) -> Corners {
+        let corners = self.corners();
+        let grow = offset.px();
+        Corners::new(
+            corners.top_left + grow,
+            corners.top_right + grow,
+            corners.bottom_right + grow,
+            corners.bottom_left + grow,
+        )
     }
 
     pub const fn name(self) -> &'static str {
@@ -176,9 +234,10 @@ impl Radius {
             Radius::Xs => "xs",
             Radius::Sm => "sm",
             Radius::Md => "md",
+            Radius::Tab => "tab",
             Radius::Lg => "lg",
             Radius::Full => "full",
-            Radius::Custom(_) => "custom",
+            Radius::Px(_) => "px",
         }
     }
 }
@@ -186,32 +245,42 @@ impl Radius {
 #[derive(Clone, Copy, PartialEq, Debug)]
 pub struct Border {
     pub color: ColorRole,
-    pub width: f32,
-    pub offset: f32,
+    pub width: Stroke,
+    pub offset: Stroke,
 }
 
 impl Border {
     pub const DEFAULT: Border = Border::new(ColorRole::Border);
-    pub const FOCUS: Border = Border::new(ColorRole::Accent).width(FOCUS_RING_WIDTH);
+    pub const FOCUS: Border = Border {
+        color: ColorRole::Accent,
+        width: Stroke::Focus,
+        offset: Stroke::None,
+    };
 
     pub const fn new(color: ColorRole) -> Self {
         Self {
             color,
-            width: BORDER_WIDTH,
-            offset: 0.0,
+            width: Stroke::Hairline,
+            offset: Stroke::None,
         }
     }
 
-    pub const fn width(self, width: f32) -> Self {
-        Self { width, ..self }
+    pub fn width(self, width: impl Into<Stroke>) -> Self {
+        Self {
+            width: width.into(),
+            ..self
+        }
     }
 
-    pub const fn offset(self, offset: f32) -> Self {
-        Self { offset, ..self }
+    pub fn offset(self, offset: impl Into<Stroke>) -> Self {
+        Self {
+            offset: offset.into(),
+            ..self
+        }
     }
 
     fn outline(self, theme: &ThemeStore) -> Outline {
-        Outline::new(self.color.resolve(theme), self.width).offset(self.offset)
+        Outline::new(self.color.resolve(theme), self.width.px()).offset(self.offset.px())
     }
 }
 
@@ -239,13 +308,14 @@ fn border_outline(border: Prop<Option<Border>>, theme: ThemeStore) -> Prop<Optio
 
 #[component]
 pub fn Frame(
-    #[prop(default = Extent::INTRINSIC)] width: Prop<Extent>,
-    #[prop(default = Extent::INTRINSIC)] height: Prop<Extent>,
+    #[prop(default = Length::INTRINSIC)] width: Prop<Length>,
+    #[prop(default = Length::INTRINSIC)] height: Prop<Length>,
     #[prop(default = None)] aspect_ratio: Prop<Option<f32>>,
-    #[prop(default = Sides::ZERO)] padding: Prop<Sides>,
+    #[prop(default = Padding::ZERO)] padding: Prop<Padding>,
     #[prop(default = Align2::STRETCH)] align: Prop<Align2>,
     #[prop(default = ColorRole::None)] fill: Prop<ColorRole>,
     #[prop(default = Radius::None)] radius: Prop<Radius>,
+    #[prop(default = CornerSet::ALL)] corners: Prop<CornerSet>,
     #[prop(default = None)] border: Prop<Option<Border>>,
     #[prop(default = false)] pointer: Prop<bool>,
     children: Option<Child>,
@@ -253,7 +323,13 @@ pub fn Frame(
     let theme = use_theme();
     let fill = fill_color(fill, theme);
     let outline = border_outline(border, theme);
-    let radius = radius.map(Radius::corners);
+    let radius = match (radius, corners) {
+        (radius, Prop::Static(CornerSet::ALL)) => radius.map(Radius::corners),
+        (radius, corners) => Prop::dynamic(move || corners.get().of(radius.get().corners())),
+    };
+    let width = resolved(width, Length::resolve);
+    let height = resolved(height, Length::resolve);
+    let padding = resolved(padding, Padding::resolve);
     let pointer = pointer.map(|pointer| if pointer { POINTER_REACH } else { 0.0 });
     match children {
         Some(child) => view! {

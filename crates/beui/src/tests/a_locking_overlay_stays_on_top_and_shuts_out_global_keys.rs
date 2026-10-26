@@ -5,6 +5,7 @@ use crate::primitives::Frame;
 use crate::reactive::*;
 use crate::styled::*;
 use crate::{Dismiss, KeyEvent, LayerLevel};
+use crate::primitives::List;
 
 #[test]
 fn a_locking_overlay_stays_on_top_and_shuts_out_global_keys() {

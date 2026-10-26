@@ -2,6 +2,7 @@ use super::*;
 use crate::primitives::Text;
 use crate::reactive::*;
 use crate::styled::*;
+use crate::primitives::List;
 
 #[test]
 fn a_driver_answers_a_save_dialog_by_writing_the_file() {

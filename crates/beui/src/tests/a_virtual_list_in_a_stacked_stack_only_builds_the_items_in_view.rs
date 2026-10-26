@@ -3,6 +3,7 @@ use crate::primitives::Frame;
 use crate::reactive::*;
 use crate::styled::*;
 use crate::unstyled::{Container, narrower_than};
+use crate::primitives::List;
 
 const BREAKPOINT: f32 = 500.0;
 const STACKED_LIST_HEIGHT: f32 = 100.0;

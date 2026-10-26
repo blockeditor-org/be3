@@ -2,6 +2,7 @@ use super::*;
 use crate::primitives::Text;
 use crate::reactive::*;
 use crate::styled::*;
+use crate::primitives::List;
 
 #[test]
 fn a_cancelled_touch_outside_a_dialog_leaves_it_open() {

@@ -14,13 +14,13 @@ use beui_components_unstyled::{
 use beui_core::base::{Align, Direction};
 use beui_core::color::Color32;
 use beui_core::node::NodeId;
-use beui_view::primitives::*;
+use crate::list::List;
+use crate::tokens::{Size, Space, Stroke};
 use beui_view::reactive::*;
 
-const SWATCH_WIDTH: f32 = 32.0;
-const SWATCH_HEIGHT: f32 = 24.0;
-const SPACING: f32 = 8.0;
-const FOCUS_RING_OFFSET: f32 = 2.0;
+const SWATCH_WIDTH: Size = Size::Lg;
+const SWATCH_HEIGHT: Size = Size::Md;
+const SPACING: Space = Space::Md;
 
 #[component]
 pub fn ColorInput(
@@ -81,11 +81,7 @@ fn SwatchTrigger(handle: ColorInputSwatchHandle) -> NodeId {
     } = trigger.button;
     view! {
         <Tooltip label={tooltip}>
-            <FocusRing
-                focused
-                radius={Radius::custom(Radius::Md.px() + 2.0)}
-                offset=FOCUS_RING_OFFSET
-            >
+            <FocusRing focused radius=Radius::Md offset=Stroke::Focus>
                 <ColorSwatch color width=SWATCH_WIDTH height=SWATCH_HEIGHT />
             </FocusRing>
         </Tooltip>

@@ -3,6 +3,7 @@ use crate::format_hex;
 use crate::reactive::*;
 use crate::styled::Text;
 use crate::styled::*;
+use crate::primitives::List;
 
 #[test]
 fn a_style_provider_sizes_and_colours_the_text_inside_it() {

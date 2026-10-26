@@ -4,6 +4,7 @@ use crate::primitives::Text;
 use crate::reactive::*;
 use crate::styled::Scroll;
 use crate::styled::*;
+use crate::primitives::List;
 
 #[test]
 fn a_scroll_in_a_dialog_copies_what_it_showed_over_the_page_beneath() {

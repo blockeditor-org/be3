@@ -6,6 +6,7 @@ use beui_core::node::NodeId;
 use beui_view::reactive::*;
 
 use crate::frame::{Border, ColorRole};
+use crate::tokens::{Size, Space};
 
 pub use beui_core::preferences::ThemeKind;
 
@@ -283,27 +284,23 @@ pub fn control_border(theme: &ThemeStore) -> Memo<Option<Border>> {
     create_memo(move || {
         outline
             .get()
-            .map(|color| Border::new(ColorRole::Custom(color)))
+            .map(|_| Border::new(ColorRole::ControlOutline))
     })
 }
 
 pub fn knob_border(theme: &ThemeStore) -> Memo<Option<Border>> {
     let outline = theme.knob_outline;
-    create_memo(move || {
-        outline
-            .get()
-            .map(|color| Border::new(ColorRole::Custom(color)))
-    })
+    create_memo(move || outline.get().map(|_| Border::new(ColorRole::KnobOutline)))
 }
 
-pub fn field_border(theme: &ThemeStore, disabled: bool, focused: bool, hovered: bool) -> Color32 {
+pub fn field_border(disabled: bool, focused: bool, hovered: bool) -> ColorRole {
     if disabled {
-        return theme.border.get();
+        return ColorRole::Border;
     }
     match (focused, hovered) {
-        (true, _) => theme.accent.get(),
-        (false, true) => theme.text_muted.get(),
-        (false, false) => theme.border.get(),
+        (true, _) => ColorRole::Accent,
+        (false, true) => ColorRole::TextMuted,
+        (false, false) => ColorRole::Border,
     }
 }
 
@@ -336,19 +333,15 @@ pub fn provide_density(density: Memo<Density>) {
 }
 
 pub fn use_density() -> Memo<Density> {
-    match use_context::<DensityContext>() {
-        Some(DensityContext(density)) => density,
-        None => create_memo(|| Density::Compact),
-    }
+    density_context().unwrap_or_else(|| create_memo(|| Density::Compact))
+}
+
+pub(crate) fn density_context() -> Option<Memo<Density>> {
+    use_context::<DensityContext>().map(|DensityContext(density)| density)
 }
 
 pub const NARROW_WIDTH: f32 = 700.0;
 
-pub const BORDER_WIDTH: f32 = 1.0;
-pub const FOCUS_RING_WIDTH: f32 = 2.0;
-pub const SEPARATOR_THICKNESS: f32 = 1.0;
 pub const POINTER_REACH: f32 = 10.0;
-pub const SCROLLBAR_TRACK_WIDTH: f32 = 6.0;
-pub const SCROLLBAR_INSET: f32 = 2.0;
-pub const SCROLLBAR_WIDTH: f32 = SCROLLBAR_TRACK_WIDTH + SCROLLBAR_INSET;
+pub const SCROLLBAR_WIDTH: f32 = Size::Track.px() + Space::Xs2.px();
 pub const SCROLL_FADE: f32 = 24.0;

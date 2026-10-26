@@ -3,15 +3,17 @@ use beui_components_unstyled::{Progress as Bare, ProgressHandle};
 use beui_macros::{component, view};
 
 use beui_core::node::NodeId;
-use beui_view::primitives::*;
+use beui_view::primitives::Spacer;
+
+use crate::list::List;
+use crate::tokens::{Length, Size, Space};
 use beui_view::reactive::*;
 
-const HEIGHT: f32 = 6.0;
-const RADIUS: f32 = 3.0;
+const HEIGHT: Size = Size::Track;
 const SEGMENT: f32 = 0.35;
 const SLIVER: f32 = 0.001;
 
-pub const INLINE_PROGRESS_WIDTH: f32 = 40.0;
+pub const INLINE_PROGRESS_WIDTH: Size = Size::Xl;
 
 type Spans = (f32, f32, f32);
 
@@ -19,7 +21,7 @@ type Spans = (f32, f32, f32);
 pub fn Progress(
     #[prop(default = None)] value: Prop<Option<f32>>,
     #[prop(default = String::new())] label: Prop<String>,
-    #[prop(default = Extent::fraction(1.0))] width: Prop<Extent>,
+    #[prop(default = Length::FILL)] width: Prop<Length>,
     #[prop(default = ColorRole::Accent)] fill: Prop<ColorRole>,
     #[prop(default = ColorRole::Track)] track: Prop<ColorRole>,
 ) -> NodeId {
@@ -38,13 +40,13 @@ pub fn Progress(
             };
             let (width, fill, track) = (width.clone(), fill.clone(), track.clone());
             view! {
-                <Frame width height=HEIGHT fill=track radius={Radius::custom(RADIUS)}>
-                    <List direction=Direction::Horizontal spacing=0.0>
+                <Frame width height=HEIGHT fill=track radius=Radius::Full>
+                    <List direction=Direction::Horizontal spacing=Space::None>
                         <Spacer @sizing={percent(|spans| spans.0)} />
                         <Frame
                             @sizing={percent(|spans| spans.1)}
                             fill
-                            radius={Radius::custom(RADIUS)}
+                            radius=Radius::Full
                         />
                         <Spacer @sizing={percent(|spans| spans.2)} />
                     </List>

@@ -1,22 +1,20 @@
 use crate::context_menu::MenuTreeLead;
 use crate::frame::{Border, ColorRole, Frame, Radius, focus_border};
 use crate::text::{Icon, Text, TextColor, TextSize, TextStyle};
-use crate::theme::use_theme;
 use beui_components_unstyled::Picture;
-use beui_core::color::Color32;
 use beui_core::font::{Overflow, TextAlign};
 use beui_core::icons::{Glyph, ICON_CHECK, ICON_CHEVRON_RIGHT, ICON_DOT};
 use beui_core::image::Image;
 use beui_core::node::NodeId;
 use beui_macros::{component, view};
-use beui_view::primitives::*;
+
+use crate::list::List;
+use crate::tokens::{Length, Padding, Size, Space};
 use beui_view::reactive::*;
 
-const LABEL_SPACING: f32 = 2.0;
-const TOUCH_HEIGHT: f32 = 52.0;
-const LARGE_PICTURE: f32 = 32.0;
-const TREE_INDENT: f32 = 20.0;
-const TREE_CHEVRON: f32 = 28.0;
+const LABEL_SPACING: Space = Space::Xs2;
+const TREE_INDENT: Space = Space::Xl2;
+const TREE_CHEVRON: Size = Size::Custom(28.0);
 
 #[derive(Clone, Copy, Default, PartialEq, Eq, Debug)]
 pub enum RowSize {
@@ -28,35 +26,34 @@ pub enum RowSize {
 }
 
 impl RowSize {
-    fn padding(self) -> Sides {
+    fn padding(self) -> Padding {
         match self {
-            RowSize::Compact => Sides::symmetric(8.0, 4.0),
-            RowSize::Regular => Sides::new(13.0, 8.0, 12.0, 8.0),
-            RowSize::Large => Sides::symmetric(10.0, 6.0),
-            RowSize::Touch => Sides::horizontal(12.0),
+            RowSize::Compact => Padding::symmetric(Space::Md, Space::Xs),
+            RowSize::Regular => Padding::symmetric(Space::Lg, Space::Md),
+            RowSize::Large => Padding::symmetric(Space::Md, Space::Sm),
+            RowSize::Touch => Padding::horizontal(Space::Lg),
         }
     }
 
-    fn spacing(self) -> f32 {
+    fn spacing(self) -> Space {
         match self {
-            RowSize::Compact => 8.0,
-            RowSize::Regular => 16.0,
-            RowSize::Large => 12.0,
-            RowSize::Touch => 14.0,
+            RowSize::Compact => Space::Md,
+            RowSize::Regular => Space::Xl,
+            RowSize::Large | RowSize::Touch => Space::Lg,
         }
     }
 
-    fn height(self) -> Extent {
+    fn height(self) -> Length {
         match self {
-            RowSize::Touch => Extent::px(TOUCH_HEIGHT),
-            _ => Extent::INTRINSIC,
+            RowSize::Touch => Length::Size(Size::TouchRow),
+            _ => Length::INTRINSIC,
         }
     }
 
-    fn leading(self) -> f32 {
+    fn leading(self) -> Size {
         match self {
-            RowSize::Large => LARGE_PICTURE,
-            _ => TextSize::Base.icon_px(),
+            RowSize::Large => Size::Lg,
+            _ => Size::Custom(TextSize::Base.icon_px()),
         }
     }
 
@@ -115,18 +112,17 @@ pub fn RowFace(
     toggle: ClickCallback,
     children: Option<Child>,
 ) -> NodeId {
-    let theme = use_theme();
     let disabled = create_memo(move || disabled.get());
     let danger = create_memo(move || danger.get());
     let fill = create_memo(move || {
         if disabled.get() {
-            return Color32::TRANSPARENT;
+            return ColorRole::None;
         }
         match (active.get(), hovered.get(), selected.get()) {
-            (true, _, _) => theme.pressed.get(),
-            (false, true, _) => theme.hover.get(),
-            (false, false, true) => theme.accent_soft.get(),
-            (false, false, false) => Color32::TRANSPARENT,
+            (true, _, _) => ColorRole::Pressed,
+            (false, true, _) => ColorRole::Hover,
+            (false, false, true) => ColorRole::AccentSoft,
+            (false, false, false) => ColorRole::None,
         }
     });
     let focused = create_memo(move || focused.get());
@@ -154,7 +150,7 @@ pub fn RowFace(
     let trailing_color = create_memo(move || trailing.get().color());
     let has_trailing = create_memo(move || trailing.get() != RowTrailing::None);
     let side = size.leading();
-    let fill = ColorRole::custom(fill);
+    let fill: Prop<ColorRole> = fill.into_prop();
     let border = focus_border(focused, Border::FOCUS);
     if let Some(children) = children {
         return view! {
@@ -184,7 +180,7 @@ pub fn RowFace(
                 </Show>
                 <Show condition={has_leading}>
                     <Frame width=side>
-                        <List spacing=0.0 align=Align::Center>
+                        <List spacing=Space::None align=Align::Center>
                             <Show condition={pictured}>
                                 <Frame width=side height=side>
                                     <Picture image />

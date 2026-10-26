@@ -2,6 +2,7 @@ use super::*;
 use crate::primitives::Frame;
 use crate::reactive::*;
 use crate::styled::*;
+use crate::primitives::List;
 
 #[test]
 fn a_fullscreen_overlay_fills_the_window_and_escape_dismisses_it() {

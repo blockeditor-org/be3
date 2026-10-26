@@ -8,6 +8,7 @@ use beui_view::primitives::*;
 use beui_view::reactive::*;
 
 use crate::theme::{ThemeStore, use_theme};
+use crate::tokens::{Space, use_space};
 
 #[derive(Clone, Copy, PartialEq, Debug)]
 pub enum TextSize {
@@ -109,6 +110,8 @@ pub enum TextColor {
     Muted,
     Faint,
     Accent,
+    AccentHover,
+    AccentActive,
     OnAccent,
     OnDanger,
     Danger,
@@ -118,11 +121,13 @@ pub enum TextColor {
 }
 
 impl TextColor {
-    pub const ROLES: [TextColor; 9] = [
+    pub const ROLES: [TextColor; 11] = [
         TextColor::Default,
         TextColor::Muted,
         TextColor::Faint,
         TextColor::Accent,
+        TextColor::AccentHover,
+        TextColor::AccentActive,
         TextColor::OnAccent,
         TextColor::OnDanger,
         TextColor::Danger,
@@ -136,6 +141,8 @@ impl TextColor {
             TextColor::Muted => theme.text_muted.get(),
             TextColor::Faint => theme.border.get(),
             TextColor::Accent => theme.accent.get(),
+            TextColor::AccentHover => theme.accent_hover.get(),
+            TextColor::AccentActive => theme.accent_active.get(),
             TextColor::OnAccent => theme.on_accent.get(),
             TextColor::OnDanger => theme.on_danger.get(),
             TextColor::Danger => theme.danger.get(),
@@ -151,6 +158,8 @@ impl TextColor {
             TextColor::Muted => "muted",
             TextColor::Faint => "faint",
             TextColor::Accent => "accent",
+            TextColor::AccentHover => "accent hover",
+            TextColor::AccentActive => "accent active",
             TextColor::OnAccent => "on accent",
             TextColor::OnDanger => "on danger",
             TextColor::Danger => "danger",
@@ -383,4 +392,10 @@ pub fn Icon(
     view! {
         <primitives::Icon glyph size color scale=ICON_SCALE spacing_em=ICON_SPACING_EM />
     }
+}
+
+#[component]
+pub fn Gap(width: Space) -> primitives::Gap {
+    let width = use_space(width).get_untracked();
+    view! { <primitives::Gap width /> }
 }

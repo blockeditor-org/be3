@@ -3,6 +3,7 @@ use crate::color::Hsva;
 use crate::reactive::*;
 use crate::styled::Scroll;
 use crate::styled::*;
+use crate::primitives::List;
 
 #[test]
 fn a_finger_dragged_across_a_color_area_picks_rather_than_scrolls() {

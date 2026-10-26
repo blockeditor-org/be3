@@ -9,7 +9,9 @@ use crate::popover::{PANEL_PADDING, popover_surface};
 use crate::scroll::scrollbar_style;
 use crate::tabs::Tabs;
 use crate::text::{Icon, Text, TextColor};
-use crate::theme::{field_border, use_theme};
+use crate::list::List;
+use crate::theme::field_border;
+use crate::tokens::{Length, Padding, Size, Space, Stroke, use_size, use_space};
 use crate::tooltip::Tooltip;
 use beui_components_unstyled as unstyled;
 use beui_components_unstyled::datetime::{Date, DateTime, HourCycle, Time, Weekday};
@@ -20,28 +22,25 @@ use beui_components_unstyled::{
     narrower_than,
 };
 use beui_core::base::{Align, Direction, Justify, TextAlign};
-use beui_core::color::Color32;
 use beui_core::icons::{ICON_CALENDAR_DAYS, ICON_CLOCK};
 use beui_core::node::NodeId;
-use beui_view::primitives::*;
 use beui_view::reactive::*;
 
-const HEIGHT: f32 = 34.0;
-const PADDING_HORIZONTAL: f32 = 8.0;
-const SEGMENT_PADDING: f32 = 2.0;
-const SEGMENT_RADIUS: f32 = 3.0;
-const FOCUS_RING_OFFSET: f32 = 3.0;
-const TRIGGER_PADDING: f32 = 4.0;
-const TRIGGER_GAP: f32 = 4.0;
-const PANEL_SPACING: f32 = 12.0;
+const HEIGHT: Size = Size::Field;
+const PADDING_HORIZONTAL: Space = Space::Md;
+const SEGMENT_PADDING: Space = Space::Xs2;
+const SEGMENT_RADIUS: Radius = Radius::Sm;
+const TRIGGER_PADDING: Space = Space::Xs;
+const TRIGGER_GAP: Space = Space::Xs;
+const PANEL_SPACING: Space = Space::Lg;
 const TIME_LIST_WIDTH: f32 = 128.0;
 const TIME_LIST_HEIGHT: f32 = 300.0;
 const TIME_GRID_HEIGHT: f32 = 264.0;
 const TIME_GRID_MIN_WIDTH: f32 = 280.0;
-const TIME_GRID_SPACING: f32 = 4.0;
+const TIME_GRID_SPACING: Space = Space::Xs;
 const MAX_GRID_COLUMNS: usize = 4;
 const CALENDAR_MAX_WIDTH: f32 = 420.0;
-const TIME_ROW_HEIGHT: f32 = 32.0;
+const TIME_ROW_HEIGHT: Size = Size::Lg;
 const STACK_BREAKPOINT: f32 = 460.0;
 
 #[component]
@@ -70,7 +69,7 @@ pub fn DateTimeField(
             max
             today
             paged={narrow}
-            placement={PopoverPlacement::Over(PANEL_PADDING as u16)}
+            placement={PopoverPlacement::Over(PANEL_PADDING.px() as u16)}
             surface={popover_surface(None)}
             segment={|handle: DateSegmentHandle| view! {
                 <SegmentFace handle />
@@ -79,7 +78,7 @@ pub fn DateTimeField(
                 <LiteralFace text />
             }}
             segments={|field: Child| view! {
-                <Frame height=HEIGHT padding={Sides::horizontal(PADDING_HORIZONTAL)}>{field}</Frame>
+                <Frame height=HEIGHT padding={Padding::horizontal(PADDING_HORIZONTAL)}>{field}</Frame>
             }}
             field={|handle: DateTimeBoxHandle| view! {
                 <FieldBox handle />
@@ -103,34 +102,34 @@ fn FieldBox(handle: DateTimeBoxHandle) -> NodeId {
         hovered,
         disabled,
     } = handle;
-    let theme = use_theme();
-    let border =
-        create_memo(move || field_border(&theme, disabled.get(), focused.get(), hovered.get()));
+    let border = create_memo(move || {
+        Some(Border::new(field_border(
+            disabled.get(),
+            focused.get(),
+            hovered.get(),
+        )))
+    });
     let fill = create_memo(move || match disabled.get() {
-        true => theme.surface.get(),
-        false => theme.surface_raised.get(),
+        true => ColorRole::Surface,
+        false => ColorRole::SurfaceRaised,
     });
     let outer = trigger.is_some();
-    let keyboard = focus_ring(focused);
-    let ring = create_memo(move || outer && keyboard.get());
+    let ring = create_memo(move || outer && focused.get());
     view! {
-        <Frame
-            border={create_memo(move || ring.get().then_some(Border::FOCUS.offset(FOCUS_RING_OFFSET)))}
-            radius={Radius::custom(Radius::Md.px() + 3.0)}
-        >
+        <FocusRing focused={ring} offset=Stroke::Focus>
             <Frame
                 height=HEIGHT
-                fill={ColorRole::custom(fill)}
-                border={create_memo(move || Some(Border::new(ColorRole::Custom(border.get()))))}
+                fill={fill}
+                border={border}
                 radius=Radius::Md
-                padding={Sides::new(0.0, 0.0, TRIGGER_GAP, 0.0)}
+                padding={Padding::ZERO.right(TRIGGER_GAP)}
             >
-                <List direction=Direction::Horizontal align=Align::Center spacing=0.0>
+                <List direction=Direction::Horizontal align=Align::Center spacing=Space::None>
                     {field} @sizing=ItemSize::Percent(100.0)
                     {trigger}
                 </List>
             </Frame>
-        </Frame>
+        </FocusRing>
     }
 }
 
@@ -143,10 +142,9 @@ fn SegmentFace(handle: DateSegmentHandle) -> NodeId {
         disabled,
         ..
     } = handle;
-    let theme = use_theme();
     let fill = create_memo(move || match focused.get() {
-        true => theme.accent_soft.get(),
-        false => Color32::TRANSPARENT,
+        true => ColorRole::AccentSoft,
+        false => ColorRole::None,
     });
     let ink = create_memo(
         move || match (disabled.get(), placeholder.get(), focused.get()) {
@@ -157,9 +155,9 @@ fn SegmentFace(handle: DateSegmentHandle) -> NodeId {
     view! {
         <Frame height={Extent::fraction(1.0)} align={Align2::vertical(Align::Center)}>
             <Frame
-                fill={ColorRole::custom(fill)}
-                radius={Radius::custom(SEGMENT_RADIUS)}
-                padding={Sides::horizontal(SEGMENT_PADDING)}
+                fill={fill}
+                radius=SEGMENT_RADIUS
+                padding={Padding::horizontal(SEGMENT_PADDING)}
             >
                 <Text color={ink} align=TextAlign::Center>{text}</Text>
             </Frame>
@@ -192,14 +190,13 @@ fn PickerTrigger(handle: DateTimeTriggerHandle, parts: DateTimeParts) -> NodeId 
             },
         ..
     } = handle;
-    let theme = use_theme();
     let fill =
         create_memo(
             move || match (disabled.get(), active.get() || open.get(), hovered.get()) {
-                (true, _, _) => Color32::TRANSPARENT,
-                (false, true, _) => theme.pressed.get(),
-                (false, false, true) => theme.hover.get(),
-                (false, false, false) => Color32::TRANSPARENT,
+                (true, _, _) => ColorRole::None,
+                (false, true, _) => ColorRole::Pressed,
+                (false, false, true) => ColorRole::Hover,
+                (false, false, false) => ColorRole::None,
             },
         );
     let ink = create_memo(move || match disabled.get() {
@@ -212,12 +209,8 @@ fn PickerTrigger(handle: DateTimeTriggerHandle, parts: DateTimeParts) -> NodeId 
     };
     view! {
         <Tooltip label={tooltip}>
-            <FocusRing focused offset=1.0>
-                <Frame
-                    fill={ColorRole::custom(fill)}
-                    radius={Radius::custom(SEGMENT_RADIUS)}
-                    padding=TRIGGER_PADDING
-                >
+            <FocusRing focused radius=SEGMENT_RADIUS offset=Stroke::Hairline>
+                <Frame fill={fill} radius=SEGMENT_RADIUS padding=TRIGGER_PADDING>
                     <Text color={ink} align=TextAlign::Center>
                         <Icon glyph={glyph} />
                     </Text>
@@ -246,19 +239,20 @@ fn PickerPanel(
         now_label,
         clear,
     } = handle;
+    let spacing = use_space(PANEL_SPACING);
     let panel_width = create_memo(move || {
         let least = match layout.get() {
             DateTimePanelLayout::Date | DateTimePanelLayout::Paged => CALENDAR_WIDTH,
             DateTimePanelLayout::Time => TIME_GRID_MIN_WIDTH,
-            DateTimePanelLayout::Beside => CALENDAR_WIDTH + PANEL_SPACING + TIME_LIST_WIDTH,
+            DateTimePanelLayout::Beside => CALENDAR_WIDTH + spacing.get() + TIME_LIST_WIDTH,
         };
         least.max(field_width.get())
     });
     view! {
-        <Frame width=panel_width>
+        <Frame width={create_memo(move || Size::Custom(panel_width.get()))}>
             <List spacing=PANEL_SPACING>
-                <List direction=Direction::Horizontal spacing=0.0>
-                    <Frame width=field_width>{field}</Frame>
+                <List direction=Direction::Horizontal spacing=Space::None>
+                    <Frame width={create_memo(move || Size::Custom(field_width.get()))}>{field}</Frame>
                 </List>
                 <Dynamic value={layout}>|shape: DateTimePanelLayout|
                     <PanelBody
@@ -276,7 +270,7 @@ fn PickerPanel(
                     direction=Direction::Horizontal
                     align=Align::Center
                     justify=Justify::SpaceBetween
-                    spacing=8.0
+                    spacing=Space::Md
                 >
                     <Button label=now_label variant=ButtonVariant::Secondary on_click={now} />
                     <Show condition=clearable>
@@ -299,8 +293,9 @@ fn PanelBody(
     first_weekday: Weekday,
     step_minutes: u32,
 ) -> NodeId {
+    let spacing = use_space(PANEL_SPACING);
     let beside = create_memo(move || {
-        (width.get() - PANEL_SPACING - TIME_LIST_WIDTH).min(CALENDAR_MAX_WIDTH)
+        (width.get() - spacing.get() - TIME_LIST_WIDTH).min(CALENDAR_MAX_WIDTH)
     });
     let alone = create_memo(move || width.get().min(CALENDAR_MAX_WIDTH));
     let dates = create_memo(move || page.get() == 0);
@@ -397,7 +392,7 @@ fn CalendarPane(
             first_weekday
             focused
             show={shown}
-            width
+            width={create_memo(move || Length::Size(Size::Custom(width.get())))}
         />
     }
 }
@@ -417,7 +412,7 @@ fn TimePane(
     } = handle;
     let centred = grid_columns(step_minutes, max_columns) > 1;
     view! {
-        <Frame height=height>
+        <Frame height={Size::Custom(height)}>
             <unstyled::TimeList
                 value={Binding::new(time, move |time: Option<Time>| {
                     if let Some(time) = time {
@@ -427,9 +422,9 @@ fn TimePane(
                 step_minutes
                 hour_cycle
                 focused
-                row_height={TIME_ROW_HEIGHT}
+                row_height={use_size(TIME_ROW_HEIGHT).get_untracked()}
                 max_columns
-                spacing={if centred { TIME_GRID_SPACING } else { 0.0 }}
+                spacing={if centred { use_space(TIME_GRID_SPACING).get_untracked() } else { 0.0 }}
                 label="Time"
                 scrollbar={scrollbar_style()}
                 option={move |handle: TimeOptionHandle| view! {
@@ -450,13 +445,12 @@ fn TimeOptionFace(handle: TimeOptionHandle, centred: bool) -> NodeId {
         focused,
         ..
     } = handle;
-    let theme = use_theme();
     let fill = create_memo(
         move || match (selected.get(), active.get(), hovered.get()) {
-            (true, _, _) => theme.accent.get(),
-            (false, true, _) => theme.pressed.get(),
-            (false, false, true) => theme.hover.get(),
-            (false, false, false) => Color32::TRANSPARENT,
+            (true, _, _) => ColorRole::Accent,
+            (false, true, _) => ColorRole::Pressed,
+            (false, false, true) => ColorRole::Hover,
+            (false, false, false) => ColorRole::None,
         },
     );
     let ink = create_memo(move || match selected.get() {
@@ -466,10 +460,10 @@ fn TimeOptionFace(handle: TimeOptionHandle, centred: bool) -> NodeId {
     view! {
         <Frame
             height=TIME_ROW_HEIGHT
-            fill={ColorRole::custom(fill)}
+            fill={fill}
             radius=Radius::Md
-            border={focus_border(focused, Border::FOCUS.offset(-1.0))}
-            padding={Sides::horizontal(10.0)}
+            border={focus_border(focused, Border::FOCUS.offset(Stroke::Custom(-Stroke::Hairline.px())))}
+            padding={Padding::horizontal(Space::Md)}
         >
             <Text
                 overflow=Overflow::Ellipsis

@@ -18,7 +18,7 @@ pub fn Listbox(
             options
             selected
             kind=Kind::Listbox
-            spacing=crate::choice::OPTION_SPACING
+            spacing={crate::choice::OPTION_SPACING.px()}
         >|handle|
             <OptionFace kind=Kind::Listbox handle />
         </Choice>

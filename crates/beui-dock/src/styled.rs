@@ -19,7 +19,9 @@ use beui_components_styled::button::{Button, ButtonSize, ButtonVariant};
 use beui_components_styled::context_menu::menu_style;
 use beui_components_styled::text::{Icon, Text, TextColor, TextSize};
 use beui_components_styled::theme::{NARROW_WIDTH, POINTER_REACH, use_theme};
+use beui_components_styled::tokens::{Padding, Size, Space, Stroke};
 use beui_components_styled::tooltip::Tooltip;
+use beui_components_styled::List;
 use beui_components_unstyled::Picture;
 use beui_core::base::frame::Align2;
 use beui_core::base::{Align, Direction, ItemSize, Justify};
@@ -29,38 +31,40 @@ use beui_core::icons::{ICON_APP_WINDOW, ICON_GRIP_VERTICAL, ICON_MAXIMIZE, ICON_
 use beui_core::image::Image;
 use beui_core::input::Modifiers;
 use beui_core::node::NodeId;
-use beui_view::primitives::*;
 use beui_view::reactive::*;
 use stack::{DockStackBar, DockSwitcher};
 use switch::DockSwitchPanel;
 
-const TAB_PADDING_HORIZONTAL: f32 = 10.0;
-const TAB_HEIGHT: f32 = 30.0;
-const TAB_RADIUS: Radius = Radius::custom(7.0);
-const TAB_SPACING: f32 = 8.0;
+const TAB_PADDING_HORIZONTAL: Space = Space::Md;
+const TAB_HEIGHT: Size = Size::Toolbar;
+const TAB_RADIUS: Radius = Radius::Tab;
+const TAB_SPACING: Space = Space::Md;
 const BAR_HEIGHT: f32 = 39.0;
-const BAR_PADDING: f32 = 4.0;
-const BAR_SPACING: f32 = 2.0;
-const GRIP_WIDTH: f32 = 16.0;
-const ICON_SIDEBAR: f32 = TAB_HEIGHT + 2.0 * BAR_PADDING;
-const PREVIEW_PADDING: f32 = 8.0;
-pub const CHROME_BORDER: f32 = 2.0;
+const BAR_PADDING: Space = Space::Xs;
+const BAR_SPACING: Space = Space::Xs2;
+const GRIP_WIDTH: Size = Size::Xs;
+const ICON_SIDEBAR: f32 = TAB_HEIGHT.px() + 2.0 * BAR_PADDING.px();
+const PREVIEW_PADDING: Space = Space::Md;
+pub const CHROME_BORDER: f32 = CHROME_STROKE.px();
+const CHROME_STROKE: Stroke = Stroke::Focus;
+const CHROME_PADDING: Space = Space::Xs2;
 const RULE: f32 = 1.0;
 const SPLITTER_LINE: f32 = 1.0;
-const TAB_STRIP_SPACING: f32 = 6.0;
+const TAB_STRIP_SPACING: Space = Space::Sm;
 const DROP_MARKER: f32 = 3.0;
 const SPLITTER_REACH: f32 = 3.0;
 const SPLITTER_HELD: f32 = 3.0;
-const GROUP_GLYPH: f32 = 16.0;
+const GROUP_GLYPH: Size = Size::Xs;
 pub const WINDOW_CHROME: beui_core::geometry::Vec2 =
     beui_core::geometry::Vec2::new(2.0 * CHROME_BORDER, BAR_HEIGHT + 2.0 * CHROME_BORDER + RULE);
 const DROP_ALPHA: u8 = 64;
-const AWAY_SPACING: f32 = 12.0;
-const AWAY_PADDING: f32 = 24.0;
+const AWAY_SPACING: Space = Space::Lg;
+const AWAY_PADDING: Space = Space::Xl3;
 const PREVIEW_ALPHA: u8 = 235;
-const WAITING_DOT: f32 = 6.0;
+const WAITING_DOT: Size = Size::Custom(6.0);
 const CARD_POINTER_ROOM: Sides = Sides::all(POINTER_REACH);
-const CARD_MARGIN: u16 = (beui_components_styled::dialog::MARGIN - CARD_POINTER_ROOM.top) as u16;
+const CARD_MARGIN: u16 =
+    (beui_components_styled::dialog::MARGIN.px() - CARD_POINTER_ROOM.top) as u16;
 const CARD_GAP: u16 = (POINTER_REACH + 2.0) as u16;
 
 #[component]
@@ -76,12 +80,11 @@ where
 {
     let mode = layout.mode();
     let theme = use_theme();
-    let backdrop = theme.background;
-    let dialog_scrim = create_memo(move || theme.scrim.get());
-    let back_shade = create_memo(move || theme.scrim_soft.get());
+    let dialog_scrim = create_memo(move || ColorRole::Scrim.resolve(&theme));
+    let back_shade = create_memo(move || ColorRole::ScrimSoft.resolve(&theme));
     let fill = create_memo(move || match mode.get() {
-        DockMode::Tiled => Color32::TRANSPARENT,
-        DockMode::Stacked => theme.background.get(),
+        DockMode::Tiled => ColorRole::None,
+        DockMode::Stacked => ColorRole::Background,
     });
     view! {
         <dock::Docking
@@ -92,16 +95,16 @@ where
             splitter_thickness=SPLITTER_LINE
             splitter_reach=SPLITTER_REACH
             icon_sidebar_width=ICON_SIDEBAR
-            tab_spacing=TAB_STRIP_SPACING
+            tab_spacing={TAB_STRIP_SPACING.px()}
             drop_marker_width=DROP_MARKER
             back_shade={back_shade}
             menu={menu_style()}
             children
             frame={move |body: NodeId| view! {
-                <Frame fill={ColorRole::custom(fill)}>{body}</Frame>
+                <Frame fill={fill}>{body}</Frame>
             }}
             fullscreen={move |body: NodeId| view! {
-                <Frame fill={ColorRole::custom(backdrop)}>{body}</Frame>
+                <Frame fill=ColorRole::Background>{body}</Frame>
             }}
             away={move |handle: DockAwayHandle| view! {
                 <DockAwayFace handle />
@@ -202,7 +205,7 @@ fn DockTabFace(handle: DockTabHandle) -> NodeId {
     } = handle;
     let grouped = matches!(entry, Entry::Group(_));
     view! {
-        <List spacing=0.0>
+        <List spacing=Space::None>
             <Dynamic value={icons_only}>|icons_only: bool| {
                 match icons_only {
                     true => view! {
@@ -249,14 +252,13 @@ fn tab_fill(
     hovered: ReadSignal<bool>,
     active: ReadSignal<bool>,
     dragged: Memo<bool>,
-) -> Memo<Color32> {
-    let theme = use_theme();
+) -> Memo<ColorRole> {
     create_memo(
         move || match (selected.get(), hovered.get() || active.get(), dragged.get()) {
-            (_, _, true) => theme.accent_soft.get(),
-            (true, _, false) => theme.surface_raised.get(),
-            (false, true, false) => theme.hover.get(),
-            (false, false, false) => theme.surface.get(),
+            (_, _, true) => ColorRole::AccentSoft,
+            (true, _, false) => ColorRole::SurfaceRaised,
+            (false, true, false) => ColorRole::Hover,
+            (false, false, false) => ColorRole::Surface,
         },
     )
 }
@@ -301,14 +303,14 @@ fn DockIconTab(
     view! {
         <Tooltip label={title}>
             <Frame
-                fill={ColorRole::custom(fill)}
+                fill={fill}
                 radius=TAB_RADIUS
                 width=TAB_HEIGHT
                 height=TAB_HEIGHT
                 align=Align::Center
                 border={focus_border(focused, Border::FOCUS)}
             >
-                <List align=Align::Center spacing=0.0>
+                <List align=Align::Center spacing=Space::None>
                     <Show condition={pictured}>
                         <Text color={label} align=TextAlign::Center>
                             <Icon glyph={glyph} />
@@ -357,10 +359,10 @@ fn DockTabChrome(
     };
     view! {
         <Frame
-            fill={ColorRole::custom(fill)}
+            fill={fill}
             radius=TAB_RADIUS
             height=TAB_HEIGHT
-            padding={Sides::horizontal(TAB_PADDING_HORIZONTAL)}
+            padding={Padding::horizontal(TAB_PADDING_HORIZONTAL)}
             border={focus_border(focused, Border::FOCUS)}
         >
             <List direction=Direction::Horizontal align=Align::Center spacing=TAB_SPACING>
@@ -428,12 +430,12 @@ fn DockChromeFace(handle: DockChromeHandle) -> NodeId {
                 true => ColorRole::Accent,
                 false => ColorRole::Border,
             };
-            Border::new(color).width(CHROME_BORDER)
+            Border::new(color).width(CHROME_STROKE)
         })
     });
     let border = match framed {
-        true => CHROME_BORDER,
-        false => 0.0,
+        true => CHROME_PADDING,
+        false => Space::None,
     };
     view! {
         <Frame
@@ -469,18 +471,15 @@ fn DockDialogSheet(handle: DockSheetHandle) -> NodeId {
     }
 }
 
-fn dialog_outline_color(focused: Memo<bool>, attention: ReadSignal<bool>) -> Memo<Color32> {
-    let theme = use_theme();
-    create_memo(move || match (attention.get(), focused.get()) {
-        (true, _) => theme.danger.get(),
-        (false, true) => theme.accent.get(),
-        (false, false) => theme.border.get(),
-    })
-}
-
 fn dialog_outline(focused: Memo<bool>, attention: ReadSignal<bool>) -> Memo<Option<Border>> {
-    let color = dialog_outline_color(focused, attention);
-    create_memo(move || Some(Border::new(ColorRole::Custom(color.get())).width(CHROME_BORDER)))
+    create_memo(move || {
+        let color = match (attention.get(), focused.get()) {
+            (true, _) => ColorRole::Danger,
+            (false, true) => ColorRole::Accent,
+            (false, false) => ColorRole::Border,
+        };
+        Some(Border::new(color).width(CHROME_STROKE))
+    })
 }
 
 #[component]
@@ -493,14 +492,14 @@ fn DockCardFace(handle: DockDialogHandle) -> NodeId {
         ..
     } = handle;
     view! {
-        <Frame padding=CARD_POINTER_ROOM>
+        <Frame padding={Padding::custom(CARD_POINTER_ROOM)}>
             <Frame
                 @node_ref=&pointer
                 fill=ColorRole::SurfaceRaised
                 border={dialog_outline(focused, attention)}
                 radius=Radius::Lg
                 pointer=true
-                padding=CHROME_BORDER
+                padding=CHROME_PADDING
             >
                 {body}
             </Frame>
@@ -523,20 +522,20 @@ fn DockWindowFace(handle: DockDialogHandle) -> NodeId {
         ..
     } = handle;
     let pictured = create_memo(move || icon.get().is_some());
-    let width = create_memo(move || size.get().x + 2.0 * CHROME_BORDER);
+    let width = create_memo(move || Size::Custom(size.get().x + 2.0 * CHROME_BORDER));
     view! {
         <Frame
             width=width
             fill=ColorRole::Background
             border={dialog_outline(focused, attention)}
             radius=Radius::Lg
-            padding=CHROME_BORDER
+            padding=CHROME_PADDING
         >
-            <List spacing=0.0>
+            <List spacing=Space::None>
                 <Frame
                     fill=ColorRole::Surface
                     height=TAB_HEIGHT
-                    padding={Sides::horizontal(TAB_PADDING_HORIZONTAL)}
+                    padding={Padding::horizontal(TAB_PADDING_HORIZONTAL)}
                 >
                     <List direction=Direction::Horizontal align=Align::Center spacing=TAB_SPACING>
                         <Show condition={pictured}>
@@ -606,11 +605,11 @@ fn DockTitleBar(
     let fill = bar_fill(vacant);
     let rule = bar_rule(vacant);
     view! {
-        <List spacing=0.0>
+        <List spacing=Space::None>
             <Frame
-                fill={ColorRole::custom(fill)}
-                height=BAR_HEIGHT
-                padding={Sides::horizontal(BAR_PADDING)}
+                fill={fill}
+                height={Size::Custom(BAR_HEIGHT)}
+                padding={Padding::horizontal(BAR_PADDING)}
                 align={Align2::new(Align::Stretch, Align::Center)}
             >
                 <Frame>
@@ -629,7 +628,7 @@ fn DockTitleBar(
                     </List>
                 </Frame>
             </Frame>
-            <Frame fill={ColorRole::custom(rule)} height=RULE />
+            <Frame fill={rule} height={Size::Custom(RULE)} />
         </List>
     }
 }
@@ -653,9 +652,9 @@ fn DockSideBar(
         false => Justify::SpaceBetween,
     });
     view! {
-        <List direction=Direction::Horizontal spacing=0.0>
+        <List direction=Direction::Horizontal spacing=Space::None>
             <Frame
-                fill={ColorRole::custom(fill)}
+                fill={fill}
                 padding=BAR_PADDING
                 @sizing=ItemSize::Percent(100.0)
             >
@@ -772,12 +771,11 @@ fn DockSplitterFace(handle: DockSplitterHandle) -> NodeId {
         active,
         focused,
     } = handle;
-    let theme = use_theme();
     let lit = create_memo(move || active.get() || hovered.get());
     let line = create_memo(move || match (active.get(), hovered.get()) {
-        (true, _) => theme.accent.get(),
-        (false, true) => theme.text_muted.get(),
-        (false, false) => theme.border.get(),
+        (true, _) => ColorRole::Accent,
+        (false, true) => ColorRole::TextMuted,
+        (false, false) => ColorRole::Border,
     });
     let padding = create_memo(move || {
         let side = match lit.get() {
@@ -785,13 +783,13 @@ fn DockSplitterFace(handle: DockSplitterHandle) -> NodeId {
             false => SPLITTER_REACH,
         };
         match direction {
-            Direction::Horizontal => Sides::horizontal(side),
-            Direction::Vertical => Sides::vertical(side),
+            Direction::Horizontal => Padding::horizontal(Space::Custom(side)),
+            Direction::Vertical => Padding::vertical(Space::Custom(side)),
         }
     });
     view! {
         <Frame padding={padding} border={focus_border(focused, Border::FOCUS)}>
-            <Frame fill={ColorRole::custom(line)} />
+            <Frame fill={line} />
         </Frame>
     }
 }
@@ -822,7 +820,7 @@ fn DockDragPreview(title: Prop<String>, icon: Memo<Option<Glyph>>, grouped: bool
             border={Border::FOCUS}
             radius=TAB_RADIUS
             height=TAB_HEIGHT
-            padding={Sides::horizontal(PREVIEW_PADDING)}
+            padding={Padding::horizontal(PREVIEW_PADDING)}
         >
             <List direction=Direction::Horizontal align=Align::Center spacing=TAB_SPACING>
                 <Show condition={grouped}>
@@ -855,19 +853,17 @@ fn close_test_id(entry: Entry) -> String {
     }
 }
 
-fn bar_fill(vacant: Memo<bool>) -> Memo<Color32> {
-    let theme = use_theme();
+fn bar_fill(vacant: Memo<bool>) -> Memo<ColorRole> {
     create_memo(move || match vacant.get() {
-        true => theme.background.get(),
-        false => theme.surface.get(),
+        true => ColorRole::Background,
+        false => ColorRole::Surface,
     })
 }
 
-fn bar_rule(vacant: Memo<bool>) -> Memo<Color32> {
-    let theme = use_theme();
+fn bar_rule(vacant: Memo<bool>) -> Memo<ColorRole> {
     create_memo(move || match vacant.get() {
-        true => theme.background.get(),
-        false => theme.border.get(),
+        true => ColorRole::Background,
+        false => ColorRole::Border,
     })
 }
 

@@ -2,6 +2,7 @@ use super::*;
 use crate::color::Hsva;
 use crate::reactive::*;
 use crate::styled::*;
+use crate::primitives::List;
 
 #[test]
 fn dragging_a_color_picker_previews_the_color_and_reports_it_once() {

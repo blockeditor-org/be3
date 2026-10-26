@@ -2,6 +2,7 @@ use super::*;
 use crate::primitives::Frame;
 use crate::reactive::*;
 use crate::styled::*;
+use crate::primitives::List;
 
 #[test]
 fn focus_asked_for_beneath_an_open_dialog_never_lands_there() {

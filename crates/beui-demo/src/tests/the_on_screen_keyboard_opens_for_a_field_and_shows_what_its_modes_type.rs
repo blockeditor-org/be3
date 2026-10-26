@@ -108,8 +108,8 @@ fn the_on_screen_keyboard_opens_for_a_field_and_shows_what_its_modes_type() {
     test.snapshot("software_keyboard_emoji");
 
     let close = pos2(
-        keyboard.right() - PADDING - BAR_HEIGHT / 2.0,
-        keyboard.top() + PADDING + BAR_HEIGHT / 2.0,
+        keyboard.right() - PADDING.px() - BAR_HEIGHT / 2.0,
+        keyboard.top() + PADDING.px() + BAR_HEIGHT / 2.0,
     );
     test.click(close);
     test.frame(Vec::new());

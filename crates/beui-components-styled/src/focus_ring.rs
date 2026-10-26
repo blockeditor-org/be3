@@ -1,19 +1,29 @@
 use beui_macros::{component, view};
 
-use crate::frame::{Border, Frame, Radius, focus_border};
+use crate::frame::{ColorRole, Radius};
+use crate::theme::use_theme;
+use crate::tokens::Stroke;
 use beui_core::node::NodeId;
+use beui_view::primitives;
 use beui_view::reactive::*;
 
 #[component]
 pub fn FocusRing(
     focused: Prop<bool>,
     #[prop(default = Radius::Md)] radius: Radius,
-    #[prop(default = 0.0)] offset: Prop<f32>,
+    #[prop(default = Stroke::None)] offset: Prop<Stroke>,
     children: Child,
 ) -> NodeId {
-    let ring = focus_border(focused, Border::FOCUS);
-    let border = create_memo(move || ring.get().map(|border| border.offset(offset.get())));
+    let theme = use_theme();
+    let ring = focus_ring(focused);
+    let outline = create_memo(move || {
+        ring.get().then(|| {
+            Outline::new(ColorRole::Accent.resolve(&theme), Stroke::Focus.px())
+                .offset(offset.get().px())
+        })
+    });
+    let corners = offset.map(move |offset| radius.around(offset));
     view! {
-        <Frame border={border} radius>{children}</Frame>
+        <primitives::Frame outline radius=corners>{children}</primitives::Frame>
     }
 }

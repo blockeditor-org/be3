@@ -2,6 +2,7 @@ use super::*;
 use crate::primitives::Text;
 use crate::reactive::*;
 use crate::styled::*;
+use crate::primitives::List;
 
 #[test]
 fn the_menu_of_a_selectable_text_copies_what_is_selected() {

@@ -3,6 +3,7 @@ use crate::input::{BackEdge, BackGesture};
 use crate::primitives::Frame;
 use crate::reactive::*;
 use crate::styled::*;
+use crate::primitives::List;
 
 #[test]
 fn a_back_gesture_lowers_a_sheet_and_it_slides_away_from_there() {

@@ -46,12 +46,12 @@ pub fn PresentationView(editor: Editor) -> NodeId {
                 <List direction=Direction::Horizontal spacing=0.0>
                     <ShowKeepAlive condition={editing}>
                         <Filmstrip editor={editor} slides={slides} />
-                        <Frame width=theme::BORDER_WIDTH fill=ColorRole::Border />
+                        <Separator direction=Direction::Vertical />
                     </ShowKeepAlive>
                     <List @sizing=ItemSize::Percent(100.0) spacing=0.0>
                         <ShowKeepAlive condition={editing}>
                             <Toolbar editor={editor} slides={slides} />
-                            <Frame height=theme::BORDER_WIDTH fill=ColorRole::Border />
+                            <Separator />
                         </ShowKeepAlive>
                         <Stage
                             @sizing=ItemSize::Percent(100.0)

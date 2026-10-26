@@ -2,6 +2,7 @@ use super::*;
 use crate::primitives::Frame;
 use crate::reactive::*;
 use crate::styled::*;
+use crate::primitives::List;
 
 #[test]
 fn a_sheet_opened_as_another_closes_takes_its_place_without_sliding() {

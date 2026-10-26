@@ -2,8 +2,8 @@ use super::*;
 use crate::primitives::Frame;
 use crate::reactive::*;
 use crate::styled::Scroll;
-use crate::styled::*;
 use crate::unstyled::{SCROLLBAR_FADE_OUT, SCROLLBAR_LINGER};
+use crate::primitives::List;
 
 #[test]
 fn pointing_at_the_edge_of_a_scroll_brings_back_its_scrollbar_with_its_track() {

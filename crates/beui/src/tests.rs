@@ -921,7 +921,7 @@ use crate::base::list::{Direction, ItemSize, ListNode};
 use crate::base::text::TextNode;
 use crate::inspector::{Inspector, InspectorTools};
 use crate::mouse_simulation::MouseSimulation;
-use crate::primitives::{Frame, Text};
+use crate::primitives::{Frame, List, Text};
 use crate::reactive::*;
 use crate::styled;
 use crate::styled::*;

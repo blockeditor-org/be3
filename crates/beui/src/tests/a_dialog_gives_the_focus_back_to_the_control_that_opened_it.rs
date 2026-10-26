@@ -1,6 +1,7 @@
 use super::*;
 use crate::reactive::*;
 use crate::styled::*;
+use crate::primitives::List;
 
 #[test]
 fn a_dialog_gives_the_focus_back_to_the_control_that_opened_it() {

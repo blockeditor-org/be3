@@ -8,7 +8,9 @@ use crate::context_menu::menu_style;
 use crate::scroll::Scroll;
 use crate::text::{Icon, Text, TextColor, TextSize};
 use crate::text_input::text_input_style;
-use crate::theme::{Density, ThemeStore, use_density, use_theme};
+use crate::list::List;
+use crate::theme::{Density, use_density};
+use crate::tokens::{Padding, Size, Space, Stroke, use_space};
 use crate::tooltip::Tooltip;
 use beui_components_unstyled as unstyled;
 use beui_components_unstyled::{
@@ -21,43 +23,38 @@ use beui_core::icons::{
     ICON_ARROW_DOWN, ICON_ARROW_UP, ICON_CHEVRON_DOWN, ICON_CHEVRON_RIGHT, ICON_ELLIPSIS,
 };
 use beui_core::node::NodeId;
-use beui_view::primitives::*;
+use beui_view::primitives::Spacer;
 use beui_view::reactive::*;
 
-const COMPACT: Metrics = Metrics {
-    row: 22.0,
-    indent: 12.0,
-    chevron: 16.0,
-    menu: 20.0,
-    glyph: TextSize::Xs,
-};
-const COMFORTABLE: Metrics = Metrics {
-    row: 44.0,
-    indent: 20.0,
-    chevron: 36.0,
-    menu: 40.0,
-    glyph: TextSize::Lg,
-};
-const CHEVRON_RADIUS: f32 = 3.0;
-const SPACING: f32 = 6.0;
-const PADDING_HORIZONTAL: f32 = 4.0;
-const OUTLINE_WIDTH: f32 = 1.0;
-const REVEAL_PADDING: f32 = 8.0;
-const EDIT_PADDING: f32 = 3.0;
+const INDENT: Space = Space::Lg;
+const CHEVRON_RADIUS: Radius = Radius::Sm;
+const SPACING: Space = Space::Sm;
+const PADDING_HORIZONTAL: Space = Space::Xs;
+const OUTLINE_WIDTH: Stroke = Stroke::Hairline;
+const REVEAL_PADDING: Space = Space::Md;
 
 #[derive(Clone, Copy, PartialEq)]
 struct Metrics {
     row: f32,
     indent: f32,
+    spacing: f32,
     chevron: f32,
     menu: f32,
     glyph: TextSize,
 }
 
 fn metrics(density: Density) -> Metrics {
-    match density {
-        Density::Compact => COMPACT,
-        Density::Comfortable => COMFORTABLE,
+    let (chevron, menu, glyph) = match density {
+        Density::Compact => (Size::Xs.px(), Size::Sm.px(), TextSize::Xs),
+        Density::Comfortable => (36.0, Size::Xl.px(), TextSize::Lg),
+    };
+    Metrics {
+        row: Size::Row.resolve(density),
+        indent: INDENT.resolve(density),
+        spacing: SPACING.resolve(density),
+        chevron,
+        menu,
+        glyph,
     }
 }
 
@@ -76,8 +73,8 @@ pub fn Tree<K>(
     item: Func<K, TreeItem>,
     selected: Prop<Option<K>>,
     #[prop(default = None)] ancestors: Option<Func<K, Vec<K>>>,
-    #[prop(default = 0.0)] spacing: f32,
-    #[prop(default = 0.0)] padding: f32,
+    #[prop(default = Space::None)] spacing: Prop<Space>,
+    #[prop(default = Space::None)] padding: Prop<Space>,
     #[prop(default = None)] row_test_id: Option<Func<K, String>>,
     #[prop(default = String::new())] reveal_test_id: String,
     #[prop(default = None)] outline: Option<Func<K, Option<Color32>>>,
@@ -102,8 +99,9 @@ where
     let outline = outline.unwrap_or_else(|| Func::new(|_| None));
     let viewport = NodeRef::new();
     let ancestors = ancestors.unwrap_or_else(|| Func::new(|_| Vec::new()));
+    let spacing = use_space(spacing).get_untracked();
     view! {
-        <List spacing=0.0>
+        <List spacing=Space::None>
             <Scroll @sizing=ItemSize::Percent(100.0) @node_ref={&viewport}>
                 <Frame padding=padding>
                     <unstyled::Tree
@@ -195,18 +193,19 @@ where
         menu,
         ..
     } = handle;
-    let theme = use_theme();
     let density = use_density();
     let sized = create_memo(move || metrics(density.get()));
-    let height = create_memo(move || Extent::px(sized.get().row));
-    let fill = create_memo(move || background(&theme, selected.get(), hovered.get(), active.get()));
+    let height = create_memo(move || Size::Custom(sized.get().row));
+    let fill = create_memo(move || background(selected.get(), hovered.get(), active.get()));
     let highlight = create_memo({
         let key = key.clone();
         move || outline.call(key.clone())
     });
-    let outline_color = create_memo(move || highlight.get().unwrap_or_else(|| theme.accent.get()));
     let ring = focus_ring(focused);
-    let outlined = create_memo(move || highlight.get().is_some() || ring.get());
+    let border = create_memo(move || {
+        let color = highlight.get().map_or(ColorRole::Accent, ColorRole::Custom);
+        (highlight.get().is_some() || ring.get()).then(|| Border::new(color).width(OUTLINE_WIDTH))
+    });
     let face = TreeRowFace {
         key,
         item,
@@ -218,7 +217,7 @@ where
     let renaming = edit_id(&named);
     let body = match menu {
         None => view! {
-            <List align=Align::Stretch spacing=0.0>
+            <List align=Align::Stretch spacing=Space::None>
                 <ShowKeepAlive condition={shown}>
                     <unstyled::TreeRowArea @sizing=ItemSize::Percent(100.0) target>
                         {content.call(face)}
@@ -260,7 +259,7 @@ where
     };
     view! {
         <Frame height={height}>
-            <List direction=Direction::Horizontal align=Align::Center spacing=0.0>
+            <List direction=Direction::Horizontal align=Align::Center spacing=Space::None>
                 <Chevron
                     item={item}
                     marked={marked}
@@ -272,10 +271,10 @@ where
                     @sizing=ItemSize::Percent(100.0)
                     @test_id={row_id(&named)}
                     height={height}
-                    fill={ColorRole::custom(fill)}
-                    border={create_memo(move || outlined.get().then(|| Border::new(ColorRole::Custom(outline_color.get())).width(OUTLINE_WIDTH)))}
+                    fill={fill}
+                    border={border}
                     radius=Radius::Md
-                    padding={Sides::horizontal(PADDING_HORIZONTAL)}
+                    padding={Padding::horizontal(PADDING_HORIZONTAL)}
                 >
                     {body}
                 </Frame>
@@ -286,9 +285,9 @@ where
 
 #[component]
 fn RowEditField(edit: TreeRowEdit, sized: Memo<Metrics>) -> NodeId {
-    let height = create_memo(move || Extent::px(sized.get().row - 2.0 * OUTLINE_WIDTH));
+    let height = create_memo(move || Size::Custom(sized.get().row - 2.0 * OUTLINE_WIDTH.px()));
     let style = unstyled::TextInputStyle {
-        padding_horizontal: Prop::Static(EDIT_PADDING),
+        padding_horizontal: use_space(PADDING_HORIZONTAL).map(|inset| inset - OUTLINE_WIDTH.px()),
         ..text_input_style()
     };
     view! {
@@ -302,7 +301,7 @@ fn RowEditField(edit: TreeRowEdit, sized: Memo<Metrics>) -> NodeId {
                     border={Border::new(ColorRole::Accent).width(OUTLINE_WIDTH)}
                     radius=Radius::Sm
                 >
-                    <List direction=Direction::Horizontal align=Align::Center spacing=0.0>
+                    <List direction=Direction::Horizontal align=Align::Center spacing=Space::None>
                         {handle.field} @sizing=ItemSize::Percent(100.0)
                     </List>
                 </Frame>
@@ -324,26 +323,25 @@ fn RowMenuFace(handle: PopupTriggerHandle, sized: Memo<Metrics>) -> NodeId {
                 ..
             },
     } = handle;
-    let theme = use_theme();
     let fill = create_memo(move || match (active.get() || open.get(), hovered.get()) {
-        (true, _) => theme.pressed.get(),
-        (false, true) => theme.hover.get(),
-        (false, false) => Color32::TRANSPARENT,
+        (true, _) => ColorRole::Pressed,
+        (false, true) => ColorRole::Hover,
+        (false, false) => ColorRole::None,
     });
     let color = create_memo(move || match hovered.get() || active.get() || open.get() {
         true => TextColor::Default,
         false => TextColor::Muted,
     });
-    let extent = create_memo(move || Extent::px(sized.get().menu));
+    let extent = create_memo(move || Size::Custom(sized.get().menu));
     let glyph_size = create_memo(move || sized.get().glyph);
     view! {
         <Tooltip label={tooltip}>
             <Frame
                 width={extent}
                 height={extent}
-                fill={ColorRole::custom(fill)}
+                fill={fill}
                 border={focus_border(focused, Border::new(ColorRole::Accent).width(OUTLINE_WIDTH))}
-                radius={Radius::custom(CHEVRON_RADIUS)}
+                radius=CHEVRON_RADIUS
             >
                 <Text size={glyph_size} color={color} align=TextAlign::Center>
                     <Icon glyph=ICON_ELLIPSIS />
@@ -363,11 +361,11 @@ fn Chevron(
 ) -> NodeId {
     let zone = create_memo(move || {
         let sized = sized.get();
-        Extent::px(item.get().depth as f32 * sized.indent + sized.chevron + SPACING)
+        Size::Custom(item.get().depth as f32 * sized.indent + sized.chevron + sized.spacing)
     });
     view! {
         <Frame width={zone}>
-            <List spacing=0.0>
+            <List spacing=Space::None>
                 <unstyled::TreeToggle
                     item
                     toggle={toggle}
@@ -398,12 +396,11 @@ fn ChevronFace(
             },
         expanded,
     } = handle;
-    let theme = use_theme();
     let fill = create_memo(move || match (active.get(), marked.get(), hovered.get()) {
-        (true, _, _) => theme.pressed.get(),
-        (false, true, _) => theme.accent_soft.get(),
-        (false, false, true) => theme.hover.get(),
-        (false, false, false) => Color32::TRANSPARENT,
+        (true, _, _) => ColorRole::Pressed,
+        (false, true, _) => ColorRole::AccentSoft,
+        (false, false, true) => ColorRole::Hover,
+        (false, false, false) => ColorRole::None,
     });
     let ring = focus_ring(focused);
     let outlined = create_memo(move || marked.get() || ring.get());
@@ -416,25 +413,26 @@ fn ChevronFace(
         false => ICON_CHEVRON_RIGHT,
     });
     let indent = create_memo(move || ItemSize::Fixed(item.get().depth as f32 * sized.get().indent));
-    let width = create_memo(move || Extent::px(sized.get().chevron));
-    let height = create_memo(move || Extent::px(sized.get().row));
+    let width = create_memo(move || Size::Custom(sized.get().chevron));
+    let height = create_memo(move || Size::Custom(sized.get().row));
+    let gap = create_memo(move || ItemSize::Fixed(sized.get().spacing));
     let glyph_size = create_memo(move || sized.get().glyph);
     view! {
         <Tooltip label={label}>
-            <List direction=Direction::Horizontal align=Align::Center spacing=0.0>
+            <List direction=Direction::Horizontal align=Align::Center spacing=Space::None>
                 <Spacer @sizing={indent} />
                 <Frame
                     width={width}
                     height={height}
-                    fill={ColorRole::custom(fill)}
+                    fill={fill}
                     border={create_memo(move || outlined.get().then_some(Border::new(ColorRole::Accent).width(OUTLINE_WIDTH)))}
-                    radius={Radius::custom(CHEVRON_RADIUS)}
+                    radius=CHEVRON_RADIUS
                 >
                     <Text size={glyph_size} color={color} align=TextAlign::Center>
                         <Icon glyph={glyph} />
                     </Text>
                 </Frame>
-                <Spacer @sizing=ItemSize::Fixed(SPACING) />
+                <Spacer @sizing={gap} />
             </List>
         </Tooltip>
     }
@@ -468,11 +466,11 @@ fn chevron_id(named: &str) -> String {
     }
 }
 
-fn background(theme: &ThemeStore, selected: bool, hovered: bool, active: bool) -> Color32 {
+fn background(selected: bool, hovered: bool, active: bool) -> ColorRole {
     match (selected, hovered, active) {
-        (_, _, true) => theme.pressed.get(),
-        (true, _, _) => theme.accent_soft.get(),
-        (false, true, _) => theme.hover.get(),
-        (false, false, false) => Color32::TRANSPARENT,
+        (_, _, true) => ColorRole::Pressed,
+        (true, _, _) => ColorRole::AccentSoft,
+        (false, true, _) => ColorRole::Hover,
+        (false, false, false) => ColorRole::None,
     }
 }

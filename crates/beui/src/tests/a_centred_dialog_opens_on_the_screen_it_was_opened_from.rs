@@ -4,6 +4,7 @@ use crate::base::Justify;
 use crate::primitives::Text;
 use crate::reactive::*;
 use crate::styled::*;
+use crate::primitives::List;
 
 #[test]
 fn a_centred_dialog_opens_on_the_screen_it_was_opened_from() {

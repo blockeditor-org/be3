@@ -1,18 +1,19 @@
 use crate::frame::{ColorRole, Frame, Radius};
 use beui_macros::{component, view};
 
-use crate::theme::BORDER_WIDTH;
+use crate::border::Separator;
+use crate::list::List;
+use crate::tokens::{Size, Space};
 use beui_components_unstyled as unstyled;
 use beui_components_unstyled::{AnchoredSheetHandle, SheetGripHandle};
 use beui_core::node::NodeId;
-use beui_view::primitives::*;
 use beui_view::reactive::*;
 
 pub const SHEET_STOPS: [f32; 3] = [0.3, 0.5, 0.9];
 
-const HANDLE_HEIGHT: f32 = 24.0;
-const GRIP_WIDTH: f32 = 36.0;
-const GRIP_HEIGHT: f32 = 4.0;
+const HANDLE_HEIGHT: Size = Size::Md;
+const GRIP_WIDTH: Size = Size::Custom(36.0);
+const GRIP_HEIGHT: Size = Size::Custom(4.0);
 const ANCHORED_STOPS: [f32; 2] = [0.5, 0.9];
 
 #[component]
@@ -56,7 +57,7 @@ pub fn ModalSheet(
     #[prop(children)] content: Render,
 ) -> NodeId {
     let theme = crate::theme::use_theme();
-    let scrim = create_memo(move || theme.scrim.get());
+    let scrim = create_memo(move || ColorRole::Scrim.resolve(&theme));
     view! {
         <unstyled::ModalSheet
             open
@@ -79,7 +80,7 @@ pub fn ModalSheet(
 }
 
 #[component]
-pub(crate) fn AnchoredSheet(handle: AnchoredSheetHandle, padding: f32) -> NodeId {
+pub(crate) fn AnchoredSheet(handle: AnchoredSheetHandle, padding: Space) -> NodeId {
     let AnchoredSheetHandle {
         open,
         on_close,
@@ -108,8 +109,8 @@ fn SheetPanel(children: Child) -> NodeId {
 #[component]
 fn SheetGrip() -> NodeId {
     view! {
-        <List spacing=0.0>
-            <Frame height=BORDER_WIDTH fill=ColorRole::Border />
+        <List spacing=Space::None>
+            <Separator />
             <Frame height=HANDLE_HEIGHT align=Align::Center>
                 <Frame
                     width=GRIP_WIDTH

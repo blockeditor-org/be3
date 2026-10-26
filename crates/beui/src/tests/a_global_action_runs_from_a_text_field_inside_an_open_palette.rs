@@ -3,6 +3,7 @@ use crate::KeyAt;
 use crate::reactive::*;
 use crate::styled::*;
 use crate::unstyled::CommandPaletteApi;
+use crate::primitives::List;
 
 #[test]
 fn a_global_action_runs_from_a_text_field_inside_an_open_palette() {

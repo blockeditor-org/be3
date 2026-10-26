@@ -13,16 +13,17 @@ use beui_components_unstyled::{
 use beui_core::base::TextAlign;
 use beui_core::icons::ICON_SEARCH;
 use beui_core::node::NodeId;
-use beui_view::primitives::*;
+use crate::list::List;
+use crate::tokens::{Padding, Size, Space, use_space};
 use beui_view::reactive::*;
 
 const WIDTH: f32 = 560.0;
 const LIST_HEIGHT: f32 = 360.0;
-const MARGIN: f32 = 12.0;
-const PADDING: f32 = 6.0;
-const SEARCH_HEIGHT: f32 = 38.0;
-const PADDING_HORIZONTAL: f32 = 10.0;
-const ROW_SPACING: f32 = 12.0;
+const MARGIN: Space = Space::Lg;
+const PADDING: Space = Space::Sm;
+const SEARCH_HEIGHT: Size = Size::Custom(38.0);
+const PADDING_HORIZONTAL: Space = Space::Md;
+const ROW_SPACING: Space = Space::Lg;
 
 #[component]
 pub fn CommandPalette(
@@ -37,7 +38,7 @@ pub fn CommandPalette(
     on_choose: Callback<String>,
 ) -> NodeId {
     let theme = use_theme();
-    let scrim = create_memo(move || theme.scrim_soft.get());
+    let scrim = create_memo(move || ColorRole::ScrimSoft.resolve(&theme));
     let search_id = format!("{id}.search");
     let row_id = id.clone();
     view! {
@@ -50,7 +51,7 @@ pub fn CommandPalette(
             label
             on_choose={move |key: String| on_choose.call(key)}
             list_height=LIST_HEIGHT
-            spacing=PADDING
+            spacing={use_space(PADDING).get_untracked()}
             scrim={scrim}
             search_placeholder={placeholder}
             search_content={move |handle| view! {
@@ -96,7 +97,7 @@ fn PaletteSearch(handle: TextInputHandle) -> NodeId {
             fill=ColorRole::Surface
             border={Border::new(ColorRole::Accent)}
             radius=Radius::Md
-            padding={Sides::horizontal(PADDING_HORIZONTAL)}
+            padding={Padding::horizontal(PADDING_HORIZONTAL)}
         >
             <List direction=Direction::Horizontal align=Align::Center spacing=ROW_SPACING>
                 <Text color=TextColor::Muted align=TextAlign::Center>

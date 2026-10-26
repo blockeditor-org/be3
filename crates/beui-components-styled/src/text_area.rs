@@ -25,7 +25,10 @@ use beui_core::file_picker::PickedFile;
 use beui_core::geometry::{Rect, Vec2};
 use beui_core::icons::ICON_COPY;
 use beui_core::node::NodeId;
-use beui_view::primitives::{self, *};
+use beui_view::primitives::{self, Layers, Span};
+
+use crate::list::List;
+use crate::tokens::{CornerSet, Padding, Size, Space, Stroke};
 use beui_view::reactive::*;
 use emoji::emoji_menu;
 
@@ -136,7 +139,7 @@ pub fn TextArea(
         ..document
     };
     view! {
-        <List spacing=0.0>
+        <List spacing=Space::None>
             <FindBar state={state} />
             <unstyled::TextContextMenu
                 @sizing=ItemSize::Percent(100.0)
@@ -178,34 +181,34 @@ pub fn TextArea(
     }
 }
 
-const TEXT_PADDING: Vec2 = Vec2::new(12.0, 8.0);
-const CARET_WIDTH: f32 = 2.0;
-const LINE_PADDING: (f32, f32) = (3.0, 4.0);
-const END_ROOM: f32 = 16.0;
+const TEXT_PADDING: Vec2 = Vec2::new(Space::Lg.px(), Space::Md.px());
+const CARET_WIDTH: f32 = Stroke::Focus.px();
+const LINE_PADDING: (f32, f32) = (3.0, Space::Xs.px());
+const END_ROOM: f32 = Space::Xl.px();
 const GUTTER_PADDING: f32 = 10.0;
-const ELLIPSIS_GAP: f32 = 6.0;
-const RUN_CHIP_HEIGHT: f32 = 16.0;
-const RUN_CHIP_PADDING: f32 = 4.0;
+const ELLIPSIS_GAP: f32 = Space::Sm.px();
+const RUN_CHIP_HEIGHT: f32 = Size::Xs.px();
+const RUN_CHIP_PADDING: f32 = Space::Xs.px();
 const RUN_CHIP_RADIUS: f32 = 3.0;
-const WIDGET_HEIGHT: f32 = 24.0;
+const WIDGET_HEIGHT: f32 = Size::Md.px();
 const WIDGET_RADIUS: f32 = 5.0;
 const WIDGET_ICON_WIDTH: f32 = 26.0;
-const HEADING_SPACE: [f32; 3] = [16.0, 12.0, 6.0];
+const HEADING_SPACE: [f32; 3] = [Space::Xl.px(), Space::Lg.px(), Space::Sm.px()];
 const QUOTE_SPACE: f32 = 7.0;
 const CODE_SPACE: f32 = 5.0;
-const TABLE_SPACE: f32 = 4.0;
-const RULE_GAP: f32 = 8.0;
-const CELL_PADDING: f32 = 12.0;
+const TABLE_SPACE: f32 = Space::Xs.px();
+const RULE_GAP: f32 = Space::Md.px();
+const CELL_PADDING: f32 = Space::Lg.px();
 const DELIMITER_SIZE: f32 = 11.0;
 const REMOTE_SELECTION_ALPHA: u8 = 70;
-const RULE_WIDTH: f32 = 1.0;
+const RULE_WIDTH: f32 = Stroke::Hairline.px();
 const QUOTE_BAR_WIDTH: f32 = 3.0;
 const CODE_INSET: f32 = 3.0;
 const CODE_RADIUS: Radius = Radius::Sm;
 const CODE_BLOCK_RADIUS: Radius = Radius::Md;
-const QUOTE_BAR_RADIUS: f32 = 1.5;
-const COPY_INSET: f32 = 4.0;
-const HOLLOW_BULLET_WIDTH: f32 = 1.25;
+const QUOTE_BAR_RADIUS: Radius = Radius::Xs;
+const COPY_INSET: Space = Space::Xs;
+const HOLLOW_BULLET_WIDTH: Stroke = Stroke::Custom(1.25);
 const NUMBER_ALPHA: f32 = 0.6;
 
 #[component]
@@ -239,12 +242,12 @@ pub fn DocumentMarker(marker: TextMarker) -> NodeId {
         }
         MarkerKind::Bullet => {
             let size = marker.bullet();
-            let side = create_memo(move || Extent::px(size.get()));
+            let side = create_memo(move || Size::Custom(size.get()));
             let color = create_memo(move || style.get().color.scale_alpha(NUMBER_ALPHA));
             let hollow = marker.hollow();
             let fill = create_memo(move || match hollow.get() {
-                true => Color32::TRANSPARENT,
-                false => color.get(),
+                true => ColorRole::None,
+                false => ColorRole::Custom(color.get()),
             });
             let ring = create_memo(move || {
                 hollow
@@ -255,7 +258,7 @@ pub fn DocumentMarker(marker: TextMarker) -> NodeId {
                 <Frame
                     width=side
                     height=side
-                    fill={ColorRole::custom(fill)}
+                    fill={fill}
                     border=ring
                     radius=Radius::Full
                 />
@@ -313,30 +316,41 @@ pub fn DocumentLine(line: TextLine) -> NodeId {
     });
     let outer = create_memo(move || {
         let outset = outset.get();
-        Sides::new(
+        Padding::custom(Sides::new(
             left.get() - outset,
             0.0,
             (right.get() - outset).max(0.0),
             0.0,
-        )
+        ))
     });
     let inner = create_memo(move || {
         let (above, below) = line.space.get();
         let side = outset.get() + code_padding.get();
-        Sides::new(side, above, side, below)
+        Padding::custom(Sides::new(side, above, side, below))
     });
     let code = create_memo(move || match look.get().code_block {
         true => ColorRole::SurfaceRaised,
         false => ColorRole::None,
     });
-    let corners = line.code_corners(CODE_BLOCK_RADIUS.px());
-    let radius = create_memo(move || Radius::Custom(corners.get()));
+    let corners = create_memo(move || {
+        let look = look.get();
+        CornerSet::new(
+            !look.code_above,
+            !look.code_above,
+            !look.code_below,
+            !look.code_below,
+        )
+    });
     let quotes = line.quotes();
     let quote = line.quote_indent();
-    let width = create_memo(move || Extent::px(quote.get()));
-    let room = create_memo(move || Sides::new(0.0, 0.0, quote.get() - QUOTE_BAR_WIDTH, 0.0));
-    let bars = create_memo(move || Sides::new(column.get(), 0.0, 0.0, 0.0));
-    let ruled = create_memo(move || Sides::new(column.get(), 0.0, right.get(), 0.0));
+    let width = create_memo(move || Size::Custom(quote.get()));
+    let room = create_memo(move || {
+        Padding::ZERO.right(Space::Custom(quote.get() - QUOTE_BAR_WIDTH))
+    });
+    let bars = create_memo(move || Padding::ZERO.left(Space::Custom(column.get())));
+    let ruled = create_memo(move || {
+        Padding::horizontal(Space::Custom(column.get())).right(Space::Custom(right.get()))
+    });
     let rule = create_memo(move || match look.get().rule {
         true => ColorRole::Border,
         false => ColorRole::None,
@@ -344,8 +358,8 @@ pub fn DocumentLine(line: TextLine) -> NodeId {
     let opens = line.opens_code();
     let language = line.code_language();
     let corner = create_memo(move || {
-        let right = (right.get() - outset.get()).max(0.0) + COPY_INSET;
-        Sides::new(0.0, line.space.get().0 + COPY_INSET, right, 0.0)
+        let right = (right.get() - outset.get()).max(0.0) + COPY_INSET.px();
+        Padding::custom(Sides::new(0.0, line.space.get().0 + COPY_INSET.px(), right, 0.0))
     });
     let text = line.text;
     let theme = use_theme();
@@ -355,7 +369,7 @@ pub fn DocumentLine(line: TextLine) -> NodeId {
         <Layers>
             <TableFill line fill=header />
             <Frame padding=outer>
-                <Frame fill=code radius padding=inner>{text}</Frame>
+                <Frame fill=code radius=CODE_BLOCK_RADIUS corners padding=inner>{text}</Frame>
             </Frame>
             <TableLines line color=border rule=RULE_WIDTH />
             <Show condition={opens}>
@@ -377,19 +391,20 @@ pub fn DocumentLine(line: TextLine) -> NodeId {
                 </Frame>
             </Show>
             <Frame padding=bars>
-                <List direction=Direction::Horizontal spacing=0.0>
+                <List direction=Direction::Horizontal spacing=Space::None>
                     <ForEach keys={quotes}>|bar: QuoteBar|
                         <Frame width padding=room>
                             <Frame
                                 fill=ColorRole::Accent
-                                radius={Radius::Custom(bar.corners(QUOTE_BAR_RADIUS))}
+                                radius=QUOTE_BAR_RADIUS
+                                corners={CornerSet::new(bar.opens, bar.opens, bar.closes, bar.closes)}
                             />
                         </Frame>
                     </ForEach>
                 </List>
             </Frame>
             <Frame padding=ruled align={Align2::new(Align::Stretch, Align::Center)}>
-                <Frame height={Extent::px(RULE_WIDTH)} fill=rule />
+                <Frame height={Size::Custom(RULE_WIDTH)} fill=rule />
             </Frame>
         </Layers>
     }

@@ -3,26 +3,20 @@ use beui_core::font::Overflow;
 use beui_core::icons::Glyph;
 use beui_macros::{component, view};
 
-use beui_core::color::Color32;
-
 use crate::focus_ring::FocusRing;
 use crate::progress::{INLINE_PROGRESS_WIDTH, Progress};
 use crate::text::{Icon, Text, TextColor, TextSize};
-use crate::theme::{ThemeStore, use_theme};
+use crate::list::List;
+use crate::tokens::{Length, Padding, Size, Space, Stroke};
 use crate::tooltip::Tooltip;
 use beui_components_unstyled::{self as unstyled, Picture};
-use beui_core::base::frame::{Align2, Extent};
+use beui_core::base::frame::Align2;
 use beui_core::base::{ItemSize, TextAlign};
 use beui_core::image::Image;
 use beui_core::node::NodeId;
-use beui_view::primitives::*;
 use beui_view::reactive::*;
 
-const GLYPH_SPACING: f32 = 6.0;
-const TOOLBAR_SIDE: f32 = 30.0;
-const TOOLBAR_RADIUS: f32 = 7.0;
-const COMPACT_RADIUS: f32 = 8.0;
-const FOCUS_RING_GROWTH: f32 = 4.0;
+const GLYPH_SPACING: Space = Space::Sm;
 
 #[derive(Clone, Copy, Default, PartialEq, Eq, Debug)]
 pub enum ButtonSize {
@@ -34,31 +28,31 @@ pub enum ButtonSize {
 }
 
 impl ButtonSize {
-    fn padding(self, icon_only: bool) -> Sides {
+    fn padding(self, icon_only: bool) -> Padding {
         let (horizontal, vertical) = match (self, icon_only) {
-            (ButtonSize::Small, true) => (2.0, 2.0),
-            (ButtonSize::Small, false) => (6.0, 2.0),
-            (ButtonSize::Compact, true) => (6.0, 6.0),
-            (ButtonSize::Compact, false) => (11.0, 7.0),
-            (ButtonSize::Regular, true) => (8.0, 8.0),
-            (ButtonSize::Regular, false) => (16.0, 9.0),
-            (ButtonSize::Toolbar, true) => (0.0, 0.0),
-            (ButtonSize::Toolbar, false) => (10.0, 0.0),
+            (ButtonSize::Small, true) => (Space::Xs2, Space::Xs2),
+            (ButtonSize::Small, false) => (Space::Sm, Space::Xs2),
+            (ButtonSize::Compact, true) => (Space::Sm, Space::Sm),
+            (ButtonSize::Compact, false) => (Space::Lg, Space::Sm),
+            (ButtonSize::Regular, true) => (Space::Md, Space::Md),
+            (ButtonSize::Regular, false) => (Space::Xl, Space::Md),
+            (ButtonSize::Toolbar, true) => (Space::None, Space::None),
+            (ButtonSize::Toolbar, false) => (Space::Md, Space::None),
         };
-        Sides::symmetric(horizontal, vertical)
+        Padding::symmetric(horizontal, vertical)
     }
 
-    fn width(self, icon_only: bool) -> Extent {
+    fn width(self, icon_only: bool) -> Length {
         match (self, icon_only) {
-            (ButtonSize::Toolbar, true) => Extent::px(TOOLBAR_SIDE),
-            _ => Extent::INTRINSIC,
+            (ButtonSize::Toolbar, true) => Length::Size(Size::Toolbar),
+            _ => Length::INTRINSIC,
         }
     }
 
-    fn height(self) -> Extent {
+    fn height(self) -> Length {
         match self {
-            ButtonSize::Toolbar => Extent::px(TOOLBAR_SIDE),
-            _ => Extent::INTRINSIC,
+            ButtonSize::Toolbar => Length::Size(Size::Toolbar),
+            _ => Length::INTRINSIC,
         }
     }
 
@@ -69,11 +63,10 @@ impl ButtonSize {
         }
     }
 
-    fn radius(self) -> f32 {
+    fn radius(self) -> Radius {
         match self {
-            ButtonSize::Small | ButtonSize::Regular => Radius::Md.px(),
-            ButtonSize::Compact => COMPACT_RADIUS,
-            ButtonSize::Toolbar => TOOLBAR_RADIUS,
+            ButtonSize::Small | ButtonSize::Regular => Radius::Md,
+            ButtonSize::Compact | ButtonSize::Toolbar => Radius::Tab,
         }
     }
 
@@ -84,12 +77,10 @@ impl ButtonSize {
         }
     }
 
-    fn focus_ring_offset(self, icon_only: bool) -> f32 {
-        match (self, icon_only) {
-            (ButtonSize::Small, _) => 1.0,
-            (ButtonSize::Compact, true) => 2.0,
-            (_, true) => 4.0,
-            (_, false) => 6.0,
+    fn focus_ring_offset(self) -> Stroke {
+        match self {
+            ButtonSize::Small => Stroke::Hairline,
+            _ => Stroke::Focus,
         }
     }
 }
@@ -103,28 +94,28 @@ pub enum ButtonVariant {
 }
 
 impl ButtonVariant {
-    pub fn fill(self, theme: &ThemeStore, disabled: bool, hovered: bool, active: bool) -> Color32 {
+    pub fn fill(self, disabled: bool, hovered: bool, active: bool) -> ColorRole {
         if disabled {
             return match self {
-                ButtonVariant::Primary => theme.accent_soft.get(),
-                ButtonVariant::Danger => theme.danger_soft.get(),
-                ButtonVariant::Secondary => theme.surface.get(),
-                ButtonVariant::Ghost => Color32::TRANSPARENT,
+                ButtonVariant::Primary => ColorRole::AccentSoft,
+                ButtonVariant::Danger => ColorRole::DangerSoft,
+                ButtonVariant::Secondary => ColorRole::Surface,
+                ButtonVariant::Ghost => ColorRole::None,
             };
         }
         match (self, hovered, active) {
-            (ButtonVariant::Primary, _, true) => theme.accent_active.get(),
-            (ButtonVariant::Primary, true, false) => theme.accent_hover.get(),
-            (ButtonVariant::Primary, false, false) => theme.accent.get(),
-            (ButtonVariant::Danger, _, true) => theme.danger_fill_active.get(),
-            (ButtonVariant::Danger, true, false) => theme.danger_fill_hover.get(),
-            (ButtonVariant::Danger, false, false) => theme.danger_fill.get(),
-            (ButtonVariant::Secondary, _, true) => theme.pressed.get(),
-            (ButtonVariant::Secondary, true, false) => theme.hover.get(),
-            (ButtonVariant::Secondary, false, false) => theme.surface.get(),
-            (ButtonVariant::Ghost, _, true) => theme.pressed.get(),
-            (ButtonVariant::Ghost, true, false) => theme.hover.get(),
-            (ButtonVariant::Ghost, false, false) => Color32::TRANSPARENT,
+            (ButtonVariant::Primary, _, true) => ColorRole::AccentActive,
+            (ButtonVariant::Primary, true, false) => ColorRole::AccentHover,
+            (ButtonVariant::Primary, false, false) => ColorRole::Accent,
+            (ButtonVariant::Danger, _, true) => ColorRole::DangerFillActive,
+            (ButtonVariant::Danger, true, false) => ColorRole::DangerFillHover,
+            (ButtonVariant::Danger, false, false) => ColorRole::DangerFill,
+            (ButtonVariant::Secondary, _, true) => ColorRole::Pressed,
+            (ButtonVariant::Secondary, true, false) => ColorRole::Hover,
+            (ButtonVariant::Secondary, false, false) => ColorRole::Surface,
+            (ButtonVariant::Ghost, _, true) => ColorRole::Pressed,
+            (ButtonVariant::Ghost, true, false) => ColorRole::Hover,
+            (ButtonVariant::Ghost, false, false) => ColorRole::None,
         }
     }
 
@@ -196,12 +187,9 @@ pub fn ButtonFace(
         icon_only,
         tooltip,
     } = handle;
-    let theme = use_theme();
     let fill_color = create_memo(move || {
         let held = active.get() || pressed.get();
-        variant
-            .get()
-            .fill(&theme, disabled.get(), hovered.get(), held)
+        variant.get().fill(disabled.get(), hovered.get(), held)
     });
     let label_color = create_memo(move || variant.get().label(disabled.get()));
     let border =
@@ -219,20 +207,15 @@ pub fn ButtonFace(
     });
     let padding = create_memo(move || size.padding(icon_only.get()));
     let width = create_memo(move || size.width(icon_only.get()));
-    let offset = create_memo(move || size.focus_ring_offset(icon_only.get()));
     let text = size.text();
-    let picture = text.icon_px();
+    let picture = Size::Custom(text.icon_px());
     view! {
         <Tooltip label={tooltip}>
-            <FocusRing
-                focused
-                radius={Radius::custom(size.radius() + FOCUS_RING_GROWTH)}
-                offset={offset}
-            >
+            <FocusRing focused radius={size.radius()} offset={size.focus_ring_offset()}>
                 <Frame
-                    fill={ColorRole::custom(fill_color)}
+                    fill={fill_color}
                     border={border}
-                    radius={Radius::custom(size.radius())}
+                    radius={size.radius()}
                     width={width}
                     height={size.height()}
                     align={size.align()}

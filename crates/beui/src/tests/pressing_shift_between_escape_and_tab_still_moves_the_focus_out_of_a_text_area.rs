@@ -4,6 +4,7 @@ use crate::reactive::*;
 use crate::styled::*;
 use std::sync::Arc;
 use text_editor_core::TextBuffer;
+use crate::primitives::List;
 
 #[test]
 fn pressing_shift_between_escape_and_tab_still_moves_the_focus_out_of_a_text_area() {

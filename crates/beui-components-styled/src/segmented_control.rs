@@ -3,13 +3,14 @@ use beui_macros::{component, view};
 use crate::choice::{Collapsing, Kind, SegmentFace, Wide};
 use crate::frame::{Border, Frame, Radius};
 use beui_components_unstyled::{Choice, ChoiceOption};
-use beui_core::base::{Direction, Sides};
+use beui_core::base::Direction;
 use beui_core::node::NodeId;
-use beui_view::primitives::List;
+use crate::list::List;
+use crate::tokens::{Space, use_space};
 use beui_view::reactive::*;
 
-const TRACK_PADDING: f32 = 2.0;
-const SEGMENT_SPACING: f32 = 2.0;
+const TRACK_PADDING: Space = Space::Xs2;
+const SEGMENT_SPACING: Space = Space::Xs2;
 
 #[component]
 pub fn SegmentedControl(
@@ -23,15 +24,15 @@ pub fn SegmentedControl(
     let choice = ComponentRef::new();
     let built = view! {
         <Collapsing options selected label>|wide: Wide|
-            <List direction=Direction::Horizontal spacing=0.0>
-                <Frame border=Border::DEFAULT radius=Radius::Md padding={Sides::all(TRACK_PADDING)}>
+            <List direction=Direction::Horizontal spacing=Space::None>
+                <Frame border=Border::DEFAULT radius=Radius::Md padding=TRACK_PADDING>
                     <Choice
                         api=choice
                         options={wide.options}
                         selected={wide.selected}
                         kind=Kind::Radio
                         direction=Direction::Horizontal
-                        spacing=SEGMENT_SPACING
+                        spacing={use_space(SEGMENT_SPACING).get_untracked()}
                         label
                     >|handle|
                         <SegmentFace handle />

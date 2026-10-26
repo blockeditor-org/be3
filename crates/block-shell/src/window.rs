@@ -18,7 +18,6 @@ const WINDOW_CASCADE: f32 = 32.0;
 const WINDOW_CASCADES: u64 = 8;
 const BANNER_PADDING: f32 = 12.0;
 const BANNER_SPACING: f32 = 12.0;
-const BANNER_RADIUS: f32 = 8.0;
 const PLACEHOLDER_EDGE: f32 = 1.0;
 const PLACEHOLDER_SIZE: Vec2 = Vec2::new(800.0, 500.0);
 
@@ -179,7 +178,8 @@ fn NotResponding(
         <Frame
             fill=ColorRole::Surface
             border={Border::new(ColorRole::Border).width(1.0)}
-            radius={Radius::Custom(Corners::bottom(BANNER_RADIUS))}
+            radius=Radius::Lg
+            corners=CornerSet::BOTTOM
             padding=BANNER_PADDING
             @test_id={"workspace.window.not_responding"}
         >

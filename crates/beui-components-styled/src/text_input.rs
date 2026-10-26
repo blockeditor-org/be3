@@ -2,8 +2,6 @@ use crate::frame::{Border, ColorRole, Frame, Radius};
 use beui_core::icons::Glyph;
 use beui_macros::{component, view};
 
-use beui_core::color::Color32;
-
 use crate::context_menu::menu_style;
 use crate::text_area::text_area_geometry;
 use crate::theme::{field_border, use_theme};
@@ -11,19 +9,20 @@ use beui_components_unstyled as unstyled;
 use beui_components_unstyled::{TextInputHandle, TextInputStyle};
 use beui_core::icons::{ICON_COPY, ICON_X};
 use beui_core::node::NodeId;
-use beui_view::primitives::*;
+
+use crate::list::List;
+use crate::tokens::{Padding, Size, Space, Stroke, use_space};
 use beui_view::reactive::*;
 
 use crate::button::{Button, ButtonSize};
 use crate::text::{Icon, Text, TextColor, TextSize};
 use beui_core::font::TextAlign;
 
-const HEIGHT: f32 = 34.0;
-const MULTILINE_HEIGHT: f32 = 104.0;
-const PADDING_VERTICAL: f32 = 8.0;
-const PADDING_HORIZONTAL: f32 = 10.0;
-const FOCUS_RING_OFFSET: f32 = 3.0;
-const CLEAR_PADDING: f32 = 6.0;
+const HEIGHT: Size = Size::Field;
+const MULTILINE_HEIGHT: Size = Size::Custom(104.0);
+const PADDING_VERTICAL: Space = Space::Md;
+const PADDING_HORIZONTAL: Space = Space::Md;
+const CLEAR_PADDING: Space = Space::Sm;
 
 #[component]
 pub fn TextInput(
@@ -46,7 +45,7 @@ pub fn TextInput(
 ) -> NodeId {
     let mut style = text_input_style();
     if multiline {
-        style.padding_vertical = Prop::Static(PADDING_VERTICAL);
+        style.padding_vertical = use_space(PADDING_VERTICAL);
     }
     let plain = create_memo(move || plain.get());
     let glyph = create_memo(move || glyph.get());
@@ -105,19 +104,21 @@ fn TextInputFrame(
         copy,
     } = handle;
     let clearable = create_memo(move || clearable.get() && !empty.get());
-    let theme = use_theme();
     let marked = create_memo(move || glyph.get().is_some());
     let raised = create_memo(move || !plain.get() || focused.get() || hovered.get());
-    let border =
-        create_memo(move || field_border(&theme, disabled.get(), focused.get(), hovered.get()));
+    let border = create_memo(move || {
+        raised
+            .get()
+            .then(|| Border::new(field_border(disabled.get(), focused.get(), hovered.get())))
+    });
     let fill = create_memo(move || match (raised.get(), disabled.get()) {
-        (false, _) => Color32::TRANSPARENT,
-        (true, true) => theme.surface.get(),
-        (true, false) => theme.surface_raised.get(),
+        (false, _) => ColorRole::None,
+        (true, true) => ColorRole::Surface,
+        (true, false) => ColorRole::SurfaceRaised,
     });
     view! {
         <Frame
-            border={create_memo(move || focused.get().then_some(Border::FOCUS.offset(FOCUS_RING_OFFSET)))}
+            border={create_memo(move || focused.get().then_some(Border::FOCUS.offset(Stroke::Focus)))}
             radius=Radius::Md
         >
             <Frame
@@ -125,8 +126,8 @@ fn TextInputFrame(
                     true => MULTILINE_HEIGHT,
                     false => HEIGHT,
                 }}
-                fill={ColorRole::custom(fill)}
-                border={create_memo(move || raised.get().then(|| Border::new(ColorRole::Custom(border.get()))))}
+                fill={fill}
+                border={border}
                 radius=Radius::Md
             >
                 <List
@@ -135,10 +136,10 @@ fn TextInputFrame(
                         true => Align::Stretch,
                         false => Align::Center,
                     }}
-                    spacing=0.0
+                    spacing=Space::None
                 >
                     <Show condition={marked}>
-                        <Frame padding={Sides::new(PADDING_HORIZONTAL, 0.0, 0.0, 0.0)}>
+                        <Frame padding={Padding::ZERO.left(PADDING_HORIZONTAL)}>
                             <Text color=TextColor::Muted align=TextAlign::Center>
                                 <Icon glyph={glyph} />
                             </Text>
@@ -146,7 +147,7 @@ fn TextInputFrame(
                     </Show>
                     {field} @sizing=ItemSize::Percent(100.0)
                     <Show condition={clearable}>
-                        <Frame padding={Sides::horizontal(CLEAR_PADDING)}>
+                        <Frame padding={Padding::horizontal(CLEAR_PADDING)}>
                             <Button
                                 icon_only=true
                                 glyph=ICON_X
@@ -159,7 +160,7 @@ fn TextInputFrame(
                         </Frame>
                     </Show>
                     <Show condition={copyable}>
-                        <Frame padding={Sides::horizontal(CLEAR_PADDING)}>
+                        <Frame padding={Padding::horizontal(CLEAR_PADDING)}>
                             <Button
                                 icon_only=true
                                 glyph=ICON_COPY
@@ -185,7 +186,7 @@ pub fn text_input_style() -> TextInputStyle {
         placeholder_color: theme.text_muted.into_prop(),
         selection_color: theme.accent_soft.into_prop(),
         caret_color: theme.accent.into_prop(),
-        padding_horizontal: Prop::Static(PADDING_HORIZONTAL),
+        padding_horizontal: use_space(PADDING_HORIZONTAL),
         padding_vertical: Prop::Static(0.0),
         prose: Prop::Static(None),
         geometry: Prop::Static(text_area_geometry()),

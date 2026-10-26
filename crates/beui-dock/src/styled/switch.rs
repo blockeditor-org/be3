@@ -8,14 +8,15 @@ use beui_components_styled::text::{Icon, Text, TextColor};
 use beui_core::base::{Align, Direction};
 use beui_core::font::TextAlign;
 use beui_core::node::NodeId;
-use beui_view::primitives::*;
+use beui_components_styled::List;
+use beui_components_styled::tokens::{Padding, Size, Space};
 use beui_view::reactive::*;
 
-const PANEL_WIDTH: f32 = 360.0;
-const PANEL_PADDING: f32 = 6.0;
-const ROW_SPACING: f32 = 2.0;
-const ROW_PADDING: f32 = 6.0;
-const ICON_SPACING: f32 = 10.0;
+const PANEL_WIDTH: Size = Size::Dialog;
+const PANEL_PADDING: Space = Space::Sm;
+const ROW_SPACING: Space = Space::Xs2;
+const ROW_PADDING: Space = Space::Sm;
+const ICON_SPACING: Space = Space::Md;
 
 #[component]
 pub(crate) fn DockSwitchPanel(handle: DockSwitchHandle) -> NodeId {
@@ -52,7 +53,7 @@ fn DockSwitchRow(handle: DockSwitchRowHandle) -> NodeId {
             selected={chosen}
             on_click={pick}
         >
-            <Frame padding={Sides::vertical(ROW_PADDING)}>
+            <Frame padding={Padding::vertical(ROW_PADDING)}>
                 <List direction=Direction::Horizontal align=Align::Center spacing=ICON_SPACING>
                     <Text color=TextColor::Accent align=TextAlign::Center>
                         <Icon glyph={icon} />

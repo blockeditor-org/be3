@@ -3,6 +3,7 @@ use crate::input::BackGesture;
 use crate::primitives::Frame;
 use crate::reactive::*;
 use crate::styled::*;
+use crate::primitives::List;
 
 #[test]
 fn dragging_a_sheet_handle_resizes_it_to_a_stop_or_closes_it() {

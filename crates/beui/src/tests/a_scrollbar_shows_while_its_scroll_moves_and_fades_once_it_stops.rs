@@ -2,8 +2,8 @@ use super::*;
 use crate::primitives::Frame;
 use crate::reactive::*;
 use crate::styled::Scroll;
-use crate::styled::*;
 use crate::unstyled::{SCROLLBAR_FADE_OUT, SCROLLBAR_LINGER};
+use crate::primitives::List;
 
 #[test]
 fn a_scrollbar_shows_while_its_scroll_moves_and_fades_once_it_stops() {

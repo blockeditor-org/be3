@@ -223,7 +223,7 @@ fn FilterChip(data: Data, id: ObjectId) -> NodeId {
                 <unstyled::Popover
                     label={text}
                     @test_id={format!("database-view.filter.{}", id.as_uuid())}
-                    surface={popover_surface(Some(EDITOR_WIDTH + 24.0))}
+                    surface={popover_surface(Some(Size::Custom(EDITOR_WIDTH + 24.0)))}
                     trigger={move |handle: PopupTriggerHandle| {
                         view! {
                             <ControlFace handle={handle.button}>
@@ -269,7 +269,7 @@ fn AddFilter(data: Data) -> NodeId {
             disabled={read_only}
             @test_id={"database-view.filters.add"}
             open
-            surface={popover_surface(Some(EDITOR_WIDTH + 24.0))}
+            surface={popover_surface(Some(Size::Custom(EDITOR_WIDTH + 24.0)))}
             trigger={move |handle: PopupTriggerHandle| view! {
                 <ControlFace handle={handle.button}>
                     <List direction=Direction::Horizontal align=Align::Center spacing=4.0>

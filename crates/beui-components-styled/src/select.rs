@@ -6,27 +6,26 @@ use crate::scroll::scrollbar_style;
 use crate::sheet::AnchoredSheet;
 use crate::text::{Icon, Text, TextColor};
 use crate::text_input::text_input_style;
-use crate::theme::{ThemeStore, field_border, use_theme};
+use crate::theme::field_border;
+use crate::list::List;
+use crate::tokens::{Length, Padding, Size, Space, Stroke, use_size, use_space};
 use beui_components_unstyled as unstyled;
 use beui_components_unstyled::{
     AnchoredStyle, ChoiceOption, SelectOptionHandle, SelectTriggerHandle, TextInputHandle,
 };
 use beui_core::base::TextAlign;
-use beui_core::color::Color32;
 use beui_core::icons::ICON_CHEVRON_DOWN;
 use beui_core::node::NodeId;
-use beui_view::primitives::*;
 use beui_view::reactive::*;
 
 const TRIGGER_MAX_WIDTH: f32 = 220.0;
-const POPUP_WIDTH: f32 = 220.0;
-const POPUP_PADDING: f32 = 6.0;
-const OPTIONS_MAX_HEIGHT: f32 = 240.0;
-const HEIGHT: f32 = 34.0;
-const PADDING_HORIZONTAL: f32 = 10.0;
-const OPTION_PADDING_VERTICAL: f32 = 6.0;
-const FOCUS_RING_OFFSET: f32 = 3.0;
-const ARROW_SPACING: f32 = 4.0;
+const POPUP_WIDTH: Size = Size::Custom(220.0);
+const POPUP_PADDING: Space = Space::Sm;
+const OPTIONS_MAX_HEIGHT: Size = Size::Custom(240.0);
+const HEIGHT: Size = Size::Field;
+const PADDING_HORIZONTAL: Space = Space::Md;
+const OPTION_PADDING_VERTICAL: Space = Space::Sm;
+const ARROW_SPACING: Space = Space::Xs;
 
 #[component]
 pub fn Select(
@@ -37,7 +36,7 @@ pub fn Select(
     #[prop(default = String::new())] label: Prop<String>,
     #[prop(default = String::new())] placeholder: Prop<String>,
     #[prop(default = false)] disabled: Prop<bool>,
-    #[prop(default = Extent::at_most(TRIGGER_MAX_WIDTH))] width: Prop<Extent>,
+    #[prop(default = Length::Extent(Extent::at_most(TRIGGER_MAX_WIDTH)))] width: Prop<Length>,
 ) -> NodeId {
     let options = options.into_run();
     let placeholder = create_memo(move || placeholder.get());
@@ -54,8 +53,8 @@ pub fn Select(
             }}
             search_style={text_input_style()}
             scrollbar={scrollbar_style()}
-            list_height=OPTIONS_MAX_HEIGHT
-            spacing=POPUP_PADDING
+            list_height={use_size(OPTIONS_MAX_HEIGHT).get_untracked()}
+            spacing={use_space(POPUP_PADDING).get_untracked()}
             trigger={move |handle| view! {
                 <SelectTrigger handle placeholder={placeholder} width={width} />
             }}
@@ -78,7 +77,7 @@ pub fn Select(
 fn SelectTrigger(
     handle: SelectTriggerHandle,
     placeholder: Memo<String>,
-    width: Prop<Extent>,
+    width: Prop<Length>,
 ) -> NodeId {
     let SelectTriggerHandle {
         label,
@@ -87,7 +86,6 @@ fn SelectTrigger(
         disabled,
         ..
     } = handle;
-    let theme = use_theme();
     let empty = create_memo(move || label.with(Option::is_none));
     let label_text = create_memo(move || {
         label.get().unwrap_or_else(|| match placeholder.get() {
@@ -95,11 +93,16 @@ fn SelectTrigger(
             placeholder => placeholder,
         })
     });
-    let border =
-        create_memo(move || field_border(&theme, disabled.get(), focused.get(), hovered.get()));
+    let border = create_memo(move || {
+        Some(Border::new(field_border(
+            disabled.get(),
+            focused.get(),
+            hovered.get(),
+        )))
+    });
     let fill = create_memo(move || match disabled.get() {
-        true => theme.surface.get(),
-        false => theme.surface_raised.get(),
+        true => ColorRole::Surface,
+        false => ColorRole::SurfaceRaised,
     });
     let text_color = create_memo(move || match disabled.get() || empty.get() {
         true => TextColor::Muted,
@@ -112,15 +115,15 @@ fn SelectTrigger(
     view! {
         <Frame
             width={width}
-            border={focus_border(focused, Border::FOCUS.offset(FOCUS_RING_OFFSET))}
+            border={focus_border(focused, Border::FOCUS.offset(Stroke::Focus))}
             radius=Radius::Md
         >
             <Frame
                 height=HEIGHT
-                fill={ColorRole::custom(fill)}
-                border={create_memo(move || Some(Border::new(ColorRole::Custom(border.get()))))}
+                fill={fill}
+                border={border}
                 radius=Radius::Md
-                padding={Sides::horizontal(PADDING_HORIZONTAL)}
+                padding={Padding::horizontal(PADDING_HORIZONTAL)}
             >
                 <List direction=Direction::Horizontal align=Align::Center spacing=ARROW_SPACING>
                     <Text
@@ -148,13 +151,13 @@ fn SearchField(handle: TextInputHandle) -> NodeId {
         focused,
         ..
     } = handle;
-    let theme = use_theme();
-    let border = create_memo(move || field_border(&theme, false, focused.get(), hovered.get()));
+    let border =
+        create_memo(move || Some(Border::new(field_border(false, focused.get(), hovered.get()))));
     view! {
         <Frame
             height=HEIGHT
             fill=ColorRole::Surface
-            border={create_memo(move || Some(Border::new(ColorRole::Custom(border.get()))))}
+            border={border}
             radius=Radius::Md
         >
             {field}
@@ -170,14 +173,12 @@ fn SelectOption(handle: SelectOptionHandle) -> NodeId {
         hovered,
         ..
     } = handle;
-    let theme = use_theme();
-    let fill_color =
-        create_memo(move || option_background(&theme, highlighted.get(), hovered.get()));
+    let fill_color = create_memo(move || option_background(highlighted.get(), hovered.get()));
     view! {
         <Frame
-            fill={ColorRole::custom(fill_color)}
+            fill={fill_color}
             radius=Radius::Md
-            padding={Sides::symmetric(PADDING_HORIZONTAL, OPTION_PADDING_VERTICAL)}
+            padding={Padding::symmetric(PADDING_HORIZONTAL, OPTION_PADDING_VERTICAL)}
         >
             <Text overflow=Overflow::Ellipsis align=TextAlign::Start>{label}</Text>
         </Frame>
@@ -199,10 +200,10 @@ fn SelectPopup(children: Child) -> NodeId {
     }
 }
 
-fn option_background(theme: &ThemeStore, highlighted: bool, hovered: bool) -> Color32 {
+fn option_background(highlighted: bool, hovered: bool) -> ColorRole {
     match (highlighted, hovered) {
-        (true, _) => theme.accent_soft.get(),
-        (false, true) => theme.surface.get(),
-        (false, false) => Color32::TRANSPARENT,
+        (true, _) => ColorRole::AccentSoft,
+        (false, true) => ColorRole::Surface,
+        (false, false) => ColorRole::None,
     }
 }

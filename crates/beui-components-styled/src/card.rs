@@ -4,8 +4,9 @@ use beui_macros::{component, view};
 use beui_core::node::NodeId;
 use beui_view::reactive::*;
 
-pub(crate) const PADDING_HORIZONTAL: f32 = 18.0;
-pub(crate) const PADDING_VERTICAL: f32 = 16.0;
+use crate::tokens::Space;
+
+pub(crate) const PADDING: Space = Space::Xl;
 
 #[component]
 pub fn Card(children: Child) -> NodeId {
@@ -14,7 +15,7 @@ pub fn Card(children: Child) -> NodeId {
             fill=ColorRole::Surface
             border={Border::DEFAULT}
             radius=Radius::Lg
-            padding={Sides::symmetric(PADDING_HORIZONTAL, PADDING_VERTICAL)}
+            padding=PADDING
         >
             {children}
         </Frame>

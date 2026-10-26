@@ -3,6 +3,7 @@ use crate::ForwardedInput;
 use crate::primitives::Frame;
 use crate::reactive::*;
 use crate::styled::*;
+use crate::primitives::List;
 
 #[test]
 fn a_dialog_gives_the_focus_back_to_the_forwarding_catcher_that_had_it() {

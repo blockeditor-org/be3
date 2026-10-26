@@ -10,7 +10,7 @@ pub(crate) fn BarPopup(
     label: Prop<String>,
     #[prop(default = None)] glyph: Prop<Option<Glyph>>,
     #[prop(default = false)] icon_only: Prop<bool>,
-    #[prop(default = PANEL_MAX_WIDTH - 2.0 * PANEL_PADDING)] width: f32,
+    #[prop(default = PANEL_MAX_WIDTH.px() - 2.0 * PANEL_PADDING.px())] width: f32,
     #[prop(default = false)] open: Binding<bool>,
     #[prop(children)] content: RenderFn<PopoverHandle>,
 ) -> NodeId {
@@ -20,7 +20,7 @@ pub(crate) fn BarPopup(
             glyph
             icon_only
             variant=ButtonVariant::Ghost
-            max_width={width + 2.0 * PANEL_PADDING}
+            max_width={width + 2.0 * PANEL_PADDING.px()}
             open
         >|handle: PopoverHandle| {
             content.call(handle)

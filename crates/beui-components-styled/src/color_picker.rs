@@ -7,7 +7,8 @@ use crate::focus_ring::FocusRing;
 use crate::number_input::NumberInput;
 use crate::text::{Text, TextStyle};
 use crate::text_input::TextInput;
-use crate::theme::{BORDER_WIDTH, FOCUS_RING_WIDTH, use_theme};
+use crate::list::{Grid, List};
+use crate::tokens::{Size, Space, Stroke};
 use beui_components_unstyled::{
     AlphaSlider, ChoiceOptionHandle, ColorAreaHandle, ColorPickerArea, ColorPickerState, HexText,
     HueSlider, SliderHandle, SwatchHandle, Swatches, alpha_image, hue_image, plane_image,
@@ -18,16 +19,17 @@ use beui_core::color::{Color32, Hsva};
 use beui_core::geometry::{Pos2, Rect, Vec2, pos2};
 use beui_core::node::NodeId;
 use beui_core::painter::Painter;
-use beui_view::primitives::*;
+use beui_view::primitives::Drawing;
 use beui_view::reactive::*;
 
 pub const PICKER_WIDTH: f32 = 244.0;
 const AREA_HEIGHT: f32 = 156.0;
-const SLIDER_HEIGHT: f32 = 16.0;
-const PREVIEW_SIZE: f32 = 40.0;
-const SWATCH_SIZE: f32 = 18.0;
-const SPACING: f32 = 10.0;
-const FOCUS_RING_OFFSET: f32 = 2.0;
+const SLIDER_HEIGHT: Size = Size::Xs;
+const PREVIEW_SIZE: Size = Size::Xl;
+const SWATCH_SIZE: Size = Size::Custom(18.0);
+const SPACING: Space = Space::Md;
+const FIELD_SPACING: Space = Space::Md;
+const COLUMN_SPACING: Space = Space::Sm;
 const THUMB_RADIUS: f32 = 7.0;
 const KNOB_RADIUS: f32 = 8.0;
 const GRAB_SLOP: f32 = 10.0;
@@ -64,7 +66,7 @@ pub fn ColorPicker(
     let has_swatches = !swatches.is_empty();
     let shown = picker.shown();
     view! {
-        <Frame width=PICKER_WIDTH>
+        <Frame width={Size::Custom(PICKER_WIDTH)}>
             <List spacing=SPACING>
                 <ColorPickerArea
                     @sizing=ItemSize::Fixed(AREA_HEIGHT)
@@ -75,12 +77,12 @@ pub fn ColorPicker(
                     <PlaneFace handle />
                 </ColorPickerArea>
                 <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
-                    <List @sizing=ItemSize::Percent(100.0) spacing=8.0>
-                        <HueSlider picker={picker} thumb=SLIDER_HEIGHT>|handle: SliderHandle|
+                    <List @sizing=ItemSize::Percent(100.0) spacing=FIELD_SPACING>
+                        <HueSlider picker={picker} thumb={SLIDER_HEIGHT.px()}>|handle: SliderHandle|
                             <StripFace handle strip=Strip::Hue />
                         </HueSlider>
                         <Show condition=alpha>
-                            <AlphaSlider picker={picker} thumb=SLIDER_HEIGHT>|handle: SliderHandle|
+                            <AlphaSlider picker={picker} thumb={SLIDER_HEIGHT.px()}>|handle: SliderHandle|
                                 <StripFace handle strip={Strip::Alpha(color)} />
                             </AlphaSlider>
                         </Show>
@@ -93,7 +95,7 @@ pub fn ColorPicker(
                         <Swatches
                             picker={picker}
                             swatches
-                            spacing=crate::choice::OPTION_SPACING
+                            spacing={crate::choice::OPTION_SPACING.px()}
                         >|handle: SwatchHandle|
                             <SwatchFace handle />
                         </Swatches>
@@ -121,8 +123,8 @@ fn ColorFields(picker: ColorPickerState, alpha: bool) -> NodeId {
     let set_opacity = setter(ColorPickerState::set_opacity_percent);
     let opacity = picker.opacity_percent();
     view! {
-        <List spacing=8.0>
-            <List direction=Direction::Horizontal align=Align::Center spacing=6.0>
+        <List spacing=FIELD_SPACING>
+            <List direction=Direction::Horizontal align=Align::Center spacing=COLUMN_SPACING>
                 <TextInput
                     @sizing=ItemSize::Percent(100.0)
                     value={hex.text()}
@@ -143,8 +145,8 @@ fn ColorFields(picker: ColorPickerState, alpha: bool) -> NodeId {
             </List>
             <Grid
                 columns={[Track::Intrinsic, Track::Fraction(1.0)].repeat(3)}
-                column_spacing=6.0
-                row_spacing=8.0
+                column_spacing=COLUMN_SPACING
+                row_spacing=FIELD_SPACING
             >
                 <ChannelLabel content="R" />
                 <NumberInput
@@ -235,8 +237,8 @@ fn PlaneFace(handle: ColorAreaHandle) -> NodeId {
         }) as Draw
     });
     view! {
-        <FocusRing focused radius={Radius::custom(Radius::Md.px() + 2.0)} offset=FOCUS_RING_OFFSET>
-            <Frame height=AREA_HEIGHT>
+        <FocusRing focused radius=Radius::Md offset=Stroke::Focus>
+            <Frame height={Size::Custom(AREA_HEIGHT)}>
                 <Drawing draw />
             </Frame>
         </FocusRing>
@@ -286,14 +288,14 @@ fn StripFace(handle: SliderHandle, strip: Strip) -> NodeId {
                 radius,
                 true,
             );
-            painter.rect_stroke(rect, radius, BORDER_WIDTH, OUTLINE_DARK);
+            painter.rect_stroke(rect, radius, Stroke::Hairline.px(), OUTLINE_DARK);
             let travel = (rect.width() - 2.0 * radius).max(0.0);
             let centre = pos2(rect.left() + radius + fraction * travel, rect.center().y);
             thumb(painter, centre, KNOB_RADIUS, knob);
         }) as Draw
     });
     view! {
-        <FocusRing focused radius={Radius::custom(10.0)} offset=FOCUS_RING_OFFSET>
+        <FocusRing focused radius=Radius::Full offset=Stroke::Focus>
             <Frame height=SLIDER_HEIGHT>
                 <Drawing draw />
             </Frame>
@@ -302,7 +304,7 @@ fn StripFace(handle: SliderHandle, strip: Strip) -> NodeId {
 }
 
 #[component]
-pub fn ColorSwatch(color: Prop<Color32>, width: f32, height: f32) -> NodeId {
+pub fn ColorSwatch(color: Prop<Color32>, width: Size, height: Size) -> NodeId {
     let draw = Prop::dynamic(move || {
         let color = color.get();
         Rc::new(move |painter: &Painter, rect: Rect| {
@@ -311,7 +313,7 @@ pub fn ColorSwatch(color: Prop<Color32>, width: f32, height: f32) -> NodeId {
                 checkerboard(painter, rect);
             }
             painter.rect_filled(rect, radius, color);
-            painter.rect_stroke(rect, radius, BORDER_WIDTH, OUTLINE_DARK);
+            painter.rect_stroke(rect, radius, Stroke::Hairline.px(), OUTLINE_DARK);
         }) as Draw
     });
     view! {
@@ -329,18 +331,16 @@ fn SwatchFace(handle: SwatchHandle) -> NodeId {
             selected, focused, ..
         },
     } = handle;
-    let theme = use_theme();
     let keyboard = focus_ring(focused);
-    let ring = create_memo(move || selected.get() || keyboard.get());
-    let ring_color = create_memo(move || match keyboard.get() {
-        true => theme.accent.get(),
-        false => theme.text.get(),
+    let ring = create_memo(move || {
+        let color = match keyboard.get() {
+            true => ColorRole::Accent,
+            false => ColorRole::Text,
+        };
+        (selected.get() || keyboard.get()).then(|| Border::new(color).width(Stroke::Focus).offset(Stroke::Focus))
     });
     view! {
-        <Frame
-            border={create_memo(move || ring.get().then(|| Border::new(ColorRole::Custom(ring_color.get())).width(FOCUS_RING_WIDTH).offset(FOCUS_RING_OFFSET)))}
-            radius={Radius::custom(Radius::Sm.px() + 2.0)}
-        >
+        <Frame border={ring} radius=Radius::Md>
             <Frame
                 width=SWATCH_SIZE
                 height=SWATCH_SIZE
@@ -379,5 +379,5 @@ pub(crate) fn thumb(painter: &Painter, centre: Pos2, radius: f32, fill: Color32)
     painter.rect_filled(outer, radius, Color32::WHITE);
     let inner = outer.shrink(2.0);
     painter.rect_filled(inner, radius - 2.0, fill);
-    painter.rect_stroke(outer, radius, BORDER_WIDTH, OUTLINE_DARK);
+    painter.rect_stroke(outer, radius, Stroke::Hairline.px(), OUTLINE_DARK);
 }

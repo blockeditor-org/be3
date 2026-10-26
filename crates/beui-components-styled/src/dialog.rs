@@ -15,15 +15,18 @@ use beui_components_unstyled::{
 };
 use beui_core::base::ItemSize;
 use beui_core::node::NodeId;
-use beui_view::primitives::*;
+use beui_view::primitives::Spacer;
+
+use crate::list::List;
+use crate::theme::Density;
+use crate::tokens::{Length, Padding, Size, Space};
 use beui_view::reactive::*;
 
-pub(crate) const PADDING_HORIZONTAL: f32 = 20.0;
-pub(crate) const PADDING_VERTICAL: f32 = 18.0;
-pub(crate) const SPACING: f32 = 12.0;
-pub const MARGIN: f32 = 12.0;
-const ACTION_SPACING: f32 = 8.0;
-pub const DIALOG_WIDTH: f32 = 360.0;
+pub(crate) const PADDING: Padding = Padding::symmetric(Space::Xl2, Space::Xl);
+pub(crate) const SPACING: Space = Space::Lg;
+pub const MARGIN: Space = Space::Lg;
+const ACTION_SPACING: Space = Space::Md;
+pub const DIALOG_WIDTH: Size = Size::Dialog;
 pub const SHEET_BELOW: f32 = 400.0;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -70,7 +73,7 @@ pub fn Dialog(
     open: Prop<bool>,
     #[prop(default = DialogKind::Dialog)] kind: DialogKind,
     #[prop(default = String::new())] title: Prop<String>,
-    #[prop(default = DIALOG_WIDTH)] width: Prop<f32>,
+    #[prop(default = DIALOG_WIDTH)] width: Prop<Size>,
     #[prop(default = String::new())] id: Prop<String>,
     #[prop(default = Vec::new())] actions: Vec<DialogAction>,
     #[prop(default = true)] scrolls: bool,
@@ -90,7 +93,7 @@ pub fn Dialog(
 pub fn DialogFrame(
     open: Prop<bool>,
     #[prop(default = DialogKind::Dialog)] kind: DialogKind,
-    #[prop(default = DIALOG_WIDTH)] width: Prop<f32>,
+    #[prop(default = DIALOG_WIDTH)] width: Prop<Size>,
     #[prop(default = false)] narrow: Prop<bool>,
     on_dismiss: ClickCallback,
     #[prop(children)] content: Render,
@@ -120,11 +123,11 @@ pub fn DialogFrame(
 }
 
 #[component]
-pub fn DialogCard(#[prop(default = DIALOG_WIDTH)] width: Prop<f32>, children: Child) -> NodeId {
+pub fn DialogCard(#[prop(default = DIALOG_WIDTH)] width: Prop<Size>, children: Child) -> NodeId {
     view! {
         <Frame padding=MARGIN>
             <Frame
-                width={width.map(Extent::at_most)}
+                width={width.map(at_most)}
                 fill=ColorRole::SurfaceRaised
                 border={Border::DEFAULT}
                 radius=Radius::Lg
@@ -196,7 +199,7 @@ fn DialogBodyFace(
         },
     };
     view! {
-        <Frame padding={Sides::symmetric(PADDING_HORIZONTAL, PADDING_VERTICAL)}>
+        <Frame padding=PADDING>
             <List spacing=SPACING>
                 <Show condition={titled}>
                     <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
@@ -232,7 +235,7 @@ fn DialogFooter(handle: DialogBodyHandle, id: Memo<String>) -> NodeId {
     let end = create_memo(move || footer.get().end);
     let leading = create_memo(move || !start.with(Vec::is_empty));
     view! {
-        <List spacing=0.0 @test_id={named(id, "actions")}>
+        <List spacing=Space::None @test_id={named(id, "actions")}>
             <Show condition={wide}>
                 <List
                     direction=Direction::Horizontal
@@ -290,4 +293,8 @@ fn ActionButton(handle: DialogBodyHandle, index: usize, id: Memo<String>) -> Nod
             on_click={move || run.call(index)}
         />
     }
+}
+
+fn at_most(size: Size) -> Length {
+    Length::Extent(Extent::at_most(size.resolve(Density::Compact)))
 }

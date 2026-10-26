@@ -3,6 +3,7 @@ use crate::primitives::Frame;
 use crate::reactive::*;
 use crate::styled::Scroll;
 use crate::styled::*;
+use crate::primitives::List;
 
 #[test]
 fn a_scroll_in_a_dialog_follows_the_wheel() {

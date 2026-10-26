@@ -1,7 +1,7 @@
 use super::*;
 use crate::reactive::*;
 use crate::styled::Scroll;
-use crate::styled::*;
+use crate::primitives::List;
 
 #[test]
 fn middle_clicking_a_scroll_scrolls_it_towards_the_pointer() {

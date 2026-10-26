@@ -4,6 +4,7 @@ use crate::reactive::*;
 use crate::styled::Text;
 use crate::styled::*;
 use beui::Overflow;
+use crate::primitives::List;
 
 const FRAME_WIDTH: f32 = 90.0;
 const LONG_CAPTION: &str = "Scroll to pan, Shift+scroll sideways, Ctrl+scroll or pinch to zoom.";

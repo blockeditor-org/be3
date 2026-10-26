@@ -3267,8 +3267,20 @@ fn FrameTokens() -> NodeId {
     const BORDERS: [(&str, Border); 4] = [
         ("default", Border::DEFAULT),
         ("focus", Border::FOCUS),
-        ("danger, 2", Border::new(ColorRole::Danger).width(2.0)),
-        ("offset 3", Border::DEFAULT.offset(3.0)),
+        (
+            "danger, focus width",
+            Border {
+                width: Stroke::Focus,
+                ..Border::new(ColorRole::Danger)
+            },
+        ),
+        (
+            "focus offset",
+            Border {
+                offset: Stroke::Focus,
+                ..Border::DEFAULT
+            },
+        ),
     ];
     view! {
         <List spacing=SECTION_SPACING>

@@ -14,17 +14,17 @@ use beui_core::font::TextAlign;
 use beui_core::icons::{ICON_CIRCLE_ALERT, ICON_INFO, ICON_X};
 use beui_core::image::Image;
 use beui_core::node::NodeId;
-use beui_view::primitives::*;
+use crate::list::List;
+use crate::tokens::{Padding, Size, Space, use_space};
 use beui_view::reactive::*;
 use std::time::Duration;
 
-const MARGIN: f32 = 16.0;
-const WIDTH: f32 = 360.0;
-const SPACING: f32 = 8.0;
-const PADDING_HORIZONTAL: f32 = 12.0;
-const PADDING_VERTICAL: f32 = 10.0;
-const PICTURE_SIZE: f32 = 32.0;
-const TEXT_SPACING: f32 = 2.0;
+const MARGIN: Space = Space::Xl;
+const WIDTH: Size = Size::Dialog;
+const SPACING: Space = Space::Md;
+const PADDING: Padding = Padding::symmetric(Space::Lg, Space::Md);
+const PICTURE_SIZE: Size = Size::Lg;
+const TEXT_SPACING: Space = Space::Xs2;
 
 #[component]
 pub fn Toasts(
@@ -42,9 +42,9 @@ pub fn Toasts(
             toasts
             duration
             edge
-            width=WIDTH
-            margin=MARGIN
-            spacing=SPACING
+            width={WIDTH.px()}
+            margin={use_space(MARGIN)}
+            spacing={use_space(SPACING)}
             on_dismiss
             on_action
             on_activate
@@ -123,7 +123,7 @@ fn ToastCard(handle: ToastHandle) -> NodeId {
             fill=ColorRole::SurfaceRaised
             border={Border::DEFAULT}
             radius=Radius::Md
-            padding={Sides::symmetric(PADDING_HORIZONTAL, PADDING_VERTICAL)}
+            padding=PADDING
         >
             <List spacing=SPACING>
                 <List direction=Direction::Horizontal align=Align::Start spacing=SPACING>

@@ -1,6 +1,5 @@
 use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::reactive::*;
-use block_editor_beui::beui::styled::theme::BORDER_WIDTH;
 use block_editor_beui::beui::styled::*;
 use block_editor_beui::beui::unstyled::{Edge, Floating};
 use block_editor_beui::{BottomDock, node_anchor, sheet_open};
@@ -87,7 +86,7 @@ pub(crate) fn ToolDock(state: CanvasState, anchor: NodeRef, shown: Prop<bool>) -
                 @test_id={"infinite-canvas.dock.block"}
                 on_click={add_block}
             />
-            <Frame width=BORDER_WIDTH height=DIVIDER_HEIGHT fill=ColorRole::Border />
+            <Separator direction=Direction::Vertical length=DIVIDER_HEIGHT />
             <ToggleButton
                 icon_only=true
                 action={actions.ignore_touch.clone()}

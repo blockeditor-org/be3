@@ -2,7 +2,7 @@ use super::*;
 use crate::primitives::Frame;
 use crate::reactive::*;
 use crate::styled::Scroll;
-use crate::styled::*;
+use crate::primitives::List;
 
 #[test]
 fn scrolling_a_scroll_with_a_scrollbar_lays_it_out_once_a_frame() {

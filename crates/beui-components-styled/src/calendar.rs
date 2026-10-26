@@ -6,25 +6,22 @@ use crate::button::{Button, ButtonSize};
 use crate::button::{ButtonFace, ButtonVariant};
 use crate::focus_ring::FocusRing;
 use crate::text::{Text, TextColor, TextSize};
-use crate::theme::{ThemeStore, use_theme};
+use crate::list::List;
+use crate::tokens::{Length, Size, Space, Stroke, use_space};
 use beui_components_unstyled as unstyled;
 use beui_components_unstyled::datetime::{Date, Weekday};
 use beui_components_unstyled::{CalendarCellHandle, CalendarHeaderHandle, CalendarMode};
 use beui_core::base::{Align, Direction, Justify, TextAlign};
-use beui_core::color::Color32;
 use beui_core::icons::{ICON_CHEVRON_DOWN, ICON_CHEVRON_LEFT, ICON_CHEVRON_RIGHT, ICON_CHEVRON_UP};
 use beui_core::node::NodeId;
-use beui_view::primitives::*;
 use beui_view::reactive::*;
 
-pub const CALENDAR_WIDTH: f32 = 7.0 * DAY_SIZE + 6.0 * SPACING;
+pub const CALENDAR_WIDTH: f32 = 7.0 * DAY_SIZE + 6.0 * SPACING.px();
 const DAY_SIZE: f32 = 38.0;
 const MONTH_HEIGHT: f32 = 56.0;
 const YEAR_HEIGHT: f32 = 44.0;
-const WEEKDAY_HEIGHT: f32 = 24.0;
-const SPACING: f32 = 2.0;
-const FOCUS_RING_OFFSET: f32 = 1.0;
-const TODAY_RING_WIDTH: f32 = 1.0;
+const WEEKDAY_HEIGHT: Size = Size::Md;
+const SPACING: Space = Space::Xs2;
 
 #[component]
 pub fn Calendar(
@@ -35,7 +32,7 @@ pub fn Calendar(
     #[prop(default = Weekday::Monday)] first_weekday: Weekday,
     #[prop(default = false)] focused: Prop<bool>,
     #[prop(default = None)] show: Prop<Option<Date>>,
-    #[prop(default = CALENDAR_WIDTH)] width: Prop<f32>,
+    #[prop(default = Length::Size(Size::Custom(CALENDAR_WIDTH)))] width: Prop<Length>,
 ) -> NodeId {
     view! {
         <Frame width=width>
@@ -47,7 +44,7 @@ pub fn Calendar(
                 first_weekday
                 focused
                 show
-                spacing=SPACING
+                spacing={use_space(SPACING).get_untracked()}
                 header={|handle: CalendarHeaderHandle| view! {
                     <CalendarHeader handle />
                 }}
@@ -85,7 +82,7 @@ fn CalendarHeader(handle: CalendarHeaderHandle) -> NodeId {
     let no_next = create_memo(move || !can_next.get());
     let month_shown = create_memo(move || !years_open.get());
     view! {
-        <List direction=Direction::Horizontal align=Align::Center spacing=4.0>
+        <List direction=Direction::Horizontal align=Align::Center spacing=Space::Xs>
             <Button
                 icon_only=true
                 glyph=ICON_CHEVRON_LEFT
@@ -99,7 +96,7 @@ fn CalendarHeader(handle: CalendarHeaderHandle) -> NodeId {
                 @sizing=ItemSize::Percent(100.0)
                 direction=Direction::Horizontal
                 justify=Justify::Center
-                spacing=0.0
+                spacing=Space::None
             >
                 <Show condition={month_shown}>
                     <HeaderToggle
@@ -177,14 +174,12 @@ fn CellFace(handle: CalendarCellHandle) -> NodeId {
         focused,
     } = handle;
     let height = match kind {
-        CalendarMode::Days => DAY_SIZE,
-        CalendarMode::Months => MONTH_HEIGHT,
-        CalendarMode::Years => YEAR_HEIGHT,
+        CalendarMode::Days => Size::Custom(DAY_SIZE),
+        CalendarMode::Months => Size::Custom(MONTH_HEIGHT),
+        CalendarMode::Years => Size::Custom(YEAR_HEIGHT),
     };
-    let theme = use_theme();
     let fill = create_memo(move || {
         cell_fill(
-            &theme,
             selected.get(),
             disabled.get(),
             hovered.get(),
@@ -194,11 +189,11 @@ fn CellFace(handle: CalendarCellHandle) -> NodeId {
     let ink = create_memo(move || cell_ink(selected.get(), disabled.get(), outside.get()));
     let ring = create_memo(move || marked.get() && !selected.get());
     view! {
-        <FocusRing focused radius={Radius::custom(Radius::Md.px() + 2.0)} offset=FOCUS_RING_OFFSET>
+        <FocusRing focused radius=Radius::Md offset=Stroke::Hairline>
             <Frame
                 height=height
-                fill={ColorRole::custom(fill)}
-                border={create_memo(move || ring.get().then_some(Border::new(ColorRole::Accent).width(TODAY_RING_WIDTH)))}
+                fill={fill}
+                border={create_memo(move || ring.get().then_some(Border::new(ColorRole::Accent)))}
                 radius=Radius::Md
             >
                 <Text color={ink} align=TextAlign::Center vertical_align=TextAlign::Center>
@@ -210,19 +205,18 @@ fn CellFace(handle: CalendarCellHandle) -> NodeId {
 }
 
 fn cell_fill(
-    theme: &ThemeStore,
     selected: bool,
     disabled: bool,
     hovered: bool,
     active: bool,
-) -> Color32 {
+) -> ColorRole {
     match (selected, disabled, active, hovered) {
-        (true, true, _, _) => theme.track.get(),
-        (true, false, _, _) => theme.accent.get(),
-        (false, true, _, _) => Color32::TRANSPARENT,
-        (false, false, true, _) => theme.pressed.get(),
-        (false, false, false, true) => theme.hover.get(),
-        (false, false, false, false) => Color32::TRANSPARENT,
+        (true, true, _, _) => ColorRole::Track,
+        (true, false, _, _) => ColorRole::Accent,
+        (false, true, _, _) => ColorRole::None,
+        (false, false, true, _) => ColorRole::Pressed,
+        (false, false, false, true) => ColorRole::Hover,
+        (false, false, false, false) => ColorRole::None,
     }
 }
 

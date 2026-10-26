@@ -5,6 +5,7 @@ use crate::datetime::{Date, DateTime, Time};
 use crate::reactive::*;
 use crate::styled::*;
 use crate::unstyled::Container;
+use crate::primitives::List;
 
 #[test]
 fn on_a_narrow_screen_picking_a_date_moves_on_to_the_time() {

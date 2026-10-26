@@ -1,6 +1,5 @@
 use beui::icons::ICON_SLIDERS_HORIZONTAL;
 use beui::reactive::*;
-use beui::styled::theme::BORDER_WIDTH;
 pub use beui::styled::theme::NARROW_WIDTH;
 use beui::styled::*;
 use beui::unstyled::{Container, narrower_than};
@@ -202,7 +201,7 @@ fn SidebarFrame(
     view! {
         <ShowKeepAlive condition={docked}>
             <Show condition={side == Side::Right}>
-                <Frame width=BORDER_WIDTH fill=ColorRole::Border />
+                <Separator direction=Direction::Vertical />
             </Show>
             <Frame width=width fill=ColorRole::Surface>
                 <Scroll>
@@ -210,7 +209,7 @@ fn SidebarFrame(
                 </Scroll>
             </Frame>
             <Show condition={side == Side::Left}>
-                <Frame width=BORDER_WIDTH fill=ColorRole::Border />
+                <Separator direction=Direction::Vertical />
             </Show>
         </ShowKeepAlive>
     }

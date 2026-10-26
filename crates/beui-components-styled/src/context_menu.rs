@@ -8,39 +8,38 @@ use crate::button::{ButtonFace, ButtonVariant};
 use crate::row::{RowFace, RowSize, RowTrailing};
 use crate::sheet::AnchoredSheet;
 use crate::text::{Icon, Text, TextColor, TextSize, Weight};
-use crate::theme::{SCROLL_FADE, ThemeStore, use_theme};
+use crate::list::List;
+use crate::theme::SCROLL_FADE;
+use crate::tokens::{Padding, Size, Space, use_size, use_space};
 use beui_components_unstyled as unstyled;
 use beui_components_unstyled::{
     ButtonHandle, MenuItem, MenuRowHandle, MenuRowKind, MenuStyle, ScrollbarStyle, SheetWhen,
 };
 use beui_core::base::TextAlign;
 use beui_core::base::overlay::{OverlayAnchor, Placement};
-use beui_core::color::Color32;
 use beui_core::geometry::{Pos2, Rect};
 use beui_core::icons::{
     ICON_CHECK, ICON_CHEVRON_DOWN, ICON_CHEVRON_LEFT, ICON_CHEVRON_RIGHT, ICON_DOT,
 };
 use beui_core::node::NodeId;
-use beui_view::primitives::*;
 use beui_view::reactive::*;
 
-const PADDING_HORIZONTAL: f32 = 14.0;
-const PADDING_VERTICAL: f32 = 6.0;
-const MENU_PADDING: f32 = 4.0;
-const MENU_MIN_WIDTH: f32 = 200.0;
+const PADDING_HORIZONTAL: Space = Space::Lg;
+const PADDING_VERTICAL: Space = Space::Sm;
+const MENU_PADDING: Space = Space::Xs;
 const MENU_MAX_WIDTH: f32 = 400.0;
-const SUBMENU_SPACING: f32 = 8.0;
-const SHORTCUT_SPACING: f32 = 24.0;
-const SHEET_PADDING: f32 = 8.0;
-const MENU_ROW_SPACING: f32 = 2.0;
-const SHEET_SEPARATOR_SPACING: f32 = 4.0;
-const SHEET_CAPTION_PADDING: f32 = 12.0;
-const SHEET_TILE_PADDING: f32 = 14.0;
-const CAPTION_PADDING_VERTICAL: f32 = 4.0;
-const TILE_PADDING: f32 = 6.0;
-const TILE_SPACING: f32 = 4.0;
-const TREE_INDENT: f32 = 12.0;
-const TREE_CHEVRON: f32 = 16.0;
+const SUBMENU_SPACING: Space = Space::Md;
+const SHORTCUT_SPACING: Space = Space::Xl3;
+const SHEET_PADDING: Space = Space::Md;
+const MENU_ROW_SPACING: Space = Space::Xs2;
+const SHEET_SEPARATOR_SPACING: Space = Space::Xs;
+const SHEET_CAPTION_PADDING: Space = Space::Lg;
+const SHEET_TILE_PADDING: Space = Space::Lg;
+const CAPTION_PADDING_VERTICAL: Space = Space::Xs;
+const TILE_PADDING: Space = Space::Sm;
+const TILE_SPACING: Space = Space::Xs;
+const TREE_INDENT: Space = Space::Lg;
+const TREE_CHEVRON: Size = Size::Xs;
 const MENU_MAX_HEIGHT: f32 = 420.0;
 
 #[component]
@@ -85,7 +84,7 @@ pub fn MenuPopup(
     #[prop(default = Placement::BelowStart)] placement: Prop<Placement>,
     open: Prop<bool>,
     #[prop(default = false)] sheet: Prop<bool>,
-    #[prop(default = MENU_MIN_WIDTH)] min_width: f32,
+    #[prop(default = Size::Menu)] min_width: Prop<Size>,
     on_dismiss: ClickCallback,
     on_select: Callback<Vec<usize>>,
 ) -> NodeId {
@@ -97,7 +96,7 @@ pub fn MenuPopup(
     view! {
         <unstyled::MenuPopup
             items={items.into_run()}
-            menu={sized_menu_style(min_width)}
+            menu={sized_menu_style(min_width.get_untracked())}
             anchor
             placement
             open={open}
@@ -109,12 +108,12 @@ pub fn MenuPopup(
 }
 
 pub fn menu_style() -> MenuStyle {
-    sized_menu_style(MENU_MIN_WIDTH)
+    sized_menu_style(Size::Menu)
 }
 
-fn sized_menu_style(min_width: f32) -> MenuStyle {
+fn sized_menu_style(min_width: Size) -> MenuStyle {
     MenuStyle::new(
-        MENU_ROW_SPACING,
+        MENU_ROW_SPACING.px(),
         |handle| {
             view! {
                 <MenuRow handle />
@@ -183,7 +182,7 @@ fn MenuRow(handle: MenuRowHandle) -> NodeId {
             <Separator />
         },
         MenuRowKind::Tile => view! {
-            <MenuTileFace handle padding={Sides::symmetric(TILE_PADDING, PADDING_VERTICAL)} />
+            <MenuTileFace handle padding={Padding::symmetric(TILE_PADDING, PADDING_VERTICAL)} />
         },
         MenuRowKind::Row | MenuRowKind::Back => view! {
             <MenuRowFace handle />
@@ -218,7 +217,6 @@ fn MenuRowFace(handle: MenuRowHandle) -> NodeId {
     let has_submenu = create_memo(move || has_submenu.get());
     let shortcut = create_memo(move || shortcut.get());
     let has_shortcut = create_memo(move || !shortcut.get().is_empty());
-    let theme = use_theme();
     let disabled = create_memo(move || disabled.get());
     let danger = create_memo(move || danger.get());
     let color = create_memo(move || match (disabled.get(), danger.get()) {
@@ -243,16 +241,16 @@ fn MenuRowFace(handle: MenuRowHandle) -> NodeId {
     let detail = create_memo(move || detail.get());
     let has_detail = create_memo(move || !detail.get().is_empty());
     let chevron_color = TextColor::Muted;
-    let fill_color = create_memo(move || row_background(&theme, focused.get(), hovered.get()));
+    let fill_color = create_memo(move || row_background(focused.get(), hovered.get()));
     view! {
         <List spacing=MENU_PADDING>
             <Show condition={separated}>
                 <Separator />
             </Show>
             <Frame
-                fill={ColorRole::custom(fill_color)}
+                fill={fill_color}
                 radius=Radius::Md
-                padding={Sides::symmetric(PADDING_HORIZONTAL, PADDING_VERTICAL)}
+                padding={Padding::symmetric(PADDING_HORIZONTAL, PADDING_VERTICAL)}
             >
                 <List direction=Direction::Horizontal align=Align::Center spacing=SUBMENU_SPACING>
                     <MenuTreeLead depth expanded toggle indent=TREE_INDENT chevron=TREE_CHEVRON />
@@ -262,7 +260,7 @@ fn MenuRowFace(handle: MenuRowHandle) -> NodeId {
                     <Show condition={has_glyph}>
                         <GlyphSlot glyph color={icon_color} />
                     </Show>
-                    <List @sizing=ItemSize::Percent(100.0) spacing=2.0>
+                    <List @sizing=ItemSize::Percent(100.0) spacing=Space::Xs2>
                         <Text color align=TextAlign::Start overflow=Overflow::Ellipsis>
                             {label}
                         </Text>
@@ -279,7 +277,7 @@ fn MenuRowFace(handle: MenuRowHandle) -> NodeId {
                     </List>
                     <Show condition={has_shortcut}>
                         <Text
-                            @sizing={ItemSize::Intrinsic.gap(SHORTCUT_SPACING)}
+                            @sizing={ItemSize::Intrinsic.gap(SHORTCUT_SPACING.px())}
                             size=TextSize::Sm
                             color=TextColor::Muted
                             align=TextAlign::End
@@ -302,7 +300,7 @@ fn MenuRowFace(handle: MenuRowHandle) -> NodeId {
 #[component]
 fn GlyphSlot(glyph: Memo<Option<Glyph>>, color: Memo<TextColor>) -> NodeId {
     view! {
-        <Frame width={TextSize::Base.icon_px()}>
+        <Frame width={Size::Custom(TextSize::Base.icon_px())}>
             <Text color align=TextAlign::Center>
                 <Icon glyph={glyph} />
             </Text>
@@ -334,13 +332,15 @@ pub(crate) fn MenuTreeLead(
     depth: Prop<Option<usize>>,
     expanded: Prop<Option<bool>>,
     toggle: ClickCallback,
-    indent: f32,
-    chevron: f32,
+    indent: Space,
+    chevron: Size,
 ) -> DynamicSegment<ListChild> {
+    let indent = use_space(indent);
     let depth = create_memo(move || depth.get());
     let in_tree = create_memo(move || depth.get().is_some());
     let expanded = create_memo(move || expanded.get());
-    let width = create_memo(move || Extent::px(depth.get().unwrap_or_default() as f32 * indent));
+    let width =
+        create_memo(move || Size::Custom(depth.get().unwrap_or_default() as f32 * indent.get()));
     let expandable = create_memo(move || expanded.get().is_some());
     let leaf = create_memo(move || !expandable.get());
     let glyph = create_memo(move || match expanded.get() {
@@ -354,7 +354,7 @@ pub(crate) fn MenuTreeLead(
     });
     view! {
         <Show condition={in_tree}>
-            <List direction=Direction::Horizontal align=Align::Center spacing=0.0>
+            <List direction=Direction::Horizontal align=Align::Center spacing=Space::None>
                 <Frame width />
                 <unstyled::Button
                     label
@@ -375,7 +375,7 @@ pub(crate) fn MenuTreeLead(
 }
 
 #[component]
-fn MenuCaptionFace(handle: MenuRowHandle, padding: f32, spacing: f32) -> NodeId {
+fn MenuCaptionFace(handle: MenuRowHandle, padding: Space, spacing: Space) -> NodeId {
     let MenuRowHandle {
         label, separated, ..
     } = handle;
@@ -384,7 +384,7 @@ fn MenuCaptionFace(handle: MenuRowHandle, padding: f32, spacing: f32) -> NodeId 
             <Show condition={separated}>
                 <Separator />
             </Show>
-            <Frame padding={Sides::symmetric(padding, CAPTION_PADDING_VERTICAL)}>
+            <Frame padding={Padding::symmetric(padding, CAPTION_PADDING_VERTICAL)}>
                 <Text
                     size=TextSize::Sm
                     weight=Weight::Bold
@@ -400,7 +400,7 @@ fn MenuCaptionFace(handle: MenuRowHandle, padding: f32, spacing: f32) -> NodeId 
 }
 
 #[component]
-fn MenuTileFace(handle: MenuRowHandle, padding: Sides) -> NodeId {
+fn MenuTileFace(handle: MenuRowHandle, padding: Padding) -> NodeId {
     let MenuRowHandle {
         label,
         glyph,
@@ -410,7 +410,6 @@ fn MenuTileFace(handle: MenuRowHandle, padding: Sides) -> NodeId {
         focused,
         ..
     } = handle;
-    let theme = use_theme();
     let disabled = create_memo(move || disabled.get());
     let color = create_memo(move || match disabled.get() {
         true => TextColor::Muted,
@@ -422,9 +421,9 @@ fn MenuTileFace(handle: MenuRowHandle, padding: Sides) -> NodeId {
             .get()
             .map_or(TextColor::Default, TextColor::Custom),
     });
-    let fill_color = create_memo(move || row_background(&theme, focused.get(), hovered.get()));
+    let fill_color = create_memo(move || row_background(focused.get(), hovered.get()));
     view! {
-        <Frame fill={ColorRole::custom(fill_color)} radius=Radius::Md padding>
+        <Frame fill={fill_color} radius=Radius::Md padding>
             <List align=Align::Center spacing=TILE_SPACING>
                 <Text size=TextSize::Xl color={icon_color} align=TextAlign::Center>
                     <Icon glyph={glyph} />
@@ -447,7 +446,7 @@ fn MenuSheetRow(handle: MenuRowHandle) -> NodeId {
             <Separator />
         },
         MenuRowKind::Tile => view! {
-            <MenuTileFace handle padding={Sides::symmetric(TILE_PADDING, SHEET_TILE_PADDING)} />
+            <MenuTileFace handle padding={Padding::symmetric(TILE_PADDING, SHEET_TILE_PADDING)} />
         },
         MenuRowKind::Row | MenuRowKind::Back => view! {
             <MenuSheetRowFace handle />
@@ -517,16 +516,17 @@ fn MenuSheetRowFace(handle: MenuRowHandle) -> NodeId {
 }
 
 #[component]
-fn MenuPanel(min_width: f32, children: Child) -> NodeId {
+fn MenuPanel(min_width: Size, children: Child) -> NodeId {
+    let min_width = use_size(min_width).get_untracked();
     view! {
-        <List direction=Direction::Horizontal spacing=0.0>
+        <List direction=Direction::Horizontal spacing=Space::None>
             <Frame
                 @sizing={ItemSize::Intrinsic.min(min_width).max(MENU_MAX_WIDTH).shrink(1.0)}
                 fill=ColorRole::SurfaceRaised
                 border={Border::DEFAULT}
                 radius=Radius::Md
             >
-                <List spacing=0.0>
+                <List spacing=Space::None>
                     <unstyled::Scroll
                         @sizing={ItemSize::Intrinsic.max(MENU_MAX_HEIGHT).shrink(1.0)}
                         fit=true
@@ -540,10 +540,10 @@ fn MenuPanel(min_width: f32, children: Child) -> NodeId {
     }
 }
 
-fn row_background(theme: &ThemeStore, focused: bool, hovered: bool) -> Color32 {
+fn row_background(focused: bool, hovered: bool) -> ColorRole {
     match (focused, hovered) {
-        (true, _) => theme.accent_soft.get(),
-        (false, true) => theme.pressed.get(),
-        (false, false) => Color32::TRANSPARENT,
+        (true, _) => ColorRole::AccentSoft,
+        (false, true) => ColorRole::Pressed,
+        (false, false) => ColorRole::None,
     }
 }

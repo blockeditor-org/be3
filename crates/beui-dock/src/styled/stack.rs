@@ -13,32 +13,31 @@ use beui_components_styled::list_row::ListRow;
 use beui_components_styled::menu_button::MenuButton;
 use beui_components_styled::sheet::ModalSheet;
 use beui_components_styled::text::{Icon, Text, TextColor, TextSize, TextStyle};
-use beui_components_styled::theme::use_theme;
+use beui_components_styled::tokens::{Padding, Size, Space, Stroke};
+use beui_components_styled::{Grid, List};
 use beui_components_unstyled as unstyled;
 use beui_components_unstyled::title_action;
 use beui_core::base::frame::Align2;
 use beui_core::base::{Align, Direction, ItemSize, TextAlign};
-use beui_core::color::Color32;
 use beui_core::icons::{Glyph, ICON_ARROW_LEFT, ICON_CHEVRON_DOWN, ICON_ELLIPSIS_VERTICAL, ICON_X};
 use beui_core::node::NodeId;
-use beui_view::primitives::*;
 use beui_view::reactive::*;
 
-const BAR_PADDING: f32 = 4.0;
-const BAR_SPACING: f32 = 2.0;
-const TITLE_PADDING: f32 = 8.0;
-const TITLE_SPACING: f32 = 10.0;
-const SHEET_PADDING: f32 = 12.0;
-const COUNT_SIDE: f32 = 22.0;
-const COUNT_TARGET: f32 = 40.0;
-const COUNT_RADIUS: f32 = 6.0;
-const COUNT_TARGET_RADIUS: f32 = 8.0;
-const COUNT_OUTLINE: f32 = 2.0;
-const CARD_SPACING: f32 = 10.0;
-const CARD_HEIGHT: f32 = 96.0;
-const CARD_PADDING: f32 = 6.0;
-const CARD_OUTLINE: f32 = 1.5;
-const CARD_LINES: f32 = 6.0;
+const BAR_PADDING: Space = Space::Xs;
+const BAR_SPACING: Space = Space::Xs2;
+const TITLE_PADDING: Space = Space::Md;
+const TITLE_SPACING: Space = Space::Md;
+const SHEET_PADDING: Space = Space::Lg;
+const COUNT_SIDE: Size = Size::Custom(22.0);
+const COUNT_TARGET: Size = Size::Xl;
+const COUNT_RADIUS: Radius = Radius::Md;
+const COUNT_TARGET_RADIUS: Radius = Radius::Lg;
+const COUNT_OUTLINE: Stroke = Stroke::Focus;
+const CARD_SPACING: Space = Space::Md;
+const CARD_HEIGHT: Size = Size::Custom(96.0);
+const CARD_PADDING: Space = Space::Sm;
+const CARD_OUTLINE: Stroke = Stroke::Focus;
+const CARD_LINES: Space = Space::Sm;
 
 #[component]
 pub(crate) fn DockStackBar(handle: DockStackHandle) -> NodeId {
@@ -55,7 +54,7 @@ pub(crate) fn DockStackBar(handle: DockStackHandle) -> NodeId {
     let action = create_memo(move || menu.with(|nodes| title_action(nodes)));
     let titled = create_memo(move || action.with(Option::is_some));
     view! {
-        <List spacing=0.0>
+        <List spacing=Space::None>
             <Frame fill=ColorRole::Surface padding=BAR_PADDING>
                 <List direction=Direction::Horizontal align=Align::Center spacing=BAR_SPACING>
                     <Show condition={backward}>
@@ -68,14 +67,14 @@ pub(crate) fn DockStackBar(handle: DockStackHandle) -> NodeId {
                             on_click={back}
                         />
                     </Show>
-                    <List @sizing=ItemSize::Percent(100.0) spacing=0.0>
+                    <List @sizing=ItemSize::Percent(100.0) spacing=Space::None>
                         <Dynamic value={titled}>|titled: bool| {
                             match titled {
                                 true => view! {
                                     <DockTitleButton action title icon />
                                 },
                                 false => view! {
-                                    <Frame padding={Sides::horizontal(TITLE_PADDING)}>
+                                    <Frame padding={Padding::horizontal(TITLE_PADDING)}>
                                         <DockTitle title icon opens=false />
                                     </Frame>
                                 },
@@ -101,7 +100,6 @@ fn DockTitleButton(
     title: Memo<String>,
     icon: Memo<Option<Glyph>>,
 ) -> NodeId {
-    let theme = use_theme();
     let disabled = create_memo(move || {
         action.with(|action| action.as_ref().is_none_or(|action| !action.enabled().get()))
     });
@@ -126,17 +124,17 @@ fn DockTitleButton(
         >|handle: unstyled::ButtonHandle| {
             let unstyled::ButtonHandle { hovered, focused, .. } = handle;
             let fill = create_memo(move || match hovered.get() && !disabled.get() {
-                true => theme.hover.get(),
-                false => Color32::TRANSPARENT,
+                true => ColorRole::Hover,
+                false => ColorRole::None,
             });
             let opens = create_memo(move || !disabled.get());
             view! {
                 <Frame
-                    fill={ColorRole::custom(fill)}
-                    radius={Radius::custom(COUNT_TARGET_RADIUS)}
+                    fill={fill}
+                    radius=COUNT_TARGET_RADIUS
                     border={focus_border(focused, Border::FOCUS)}
                     height=COUNT_TARGET
-                    padding={Sides::horizontal(TITLE_PADDING)}
+                    padding={Padding::horizontal(TITLE_PADDING)}
                     align={Align2::new(Align::Stretch, Align::Center)}
                 >
                     <DockTitle title icon opens />
@@ -168,7 +166,6 @@ fn DockTitle(title: Memo<String>, icon: Memo<Option<Glyph>>, opens: Prop<bool>) 
 
 #[component]
 fn DockTabCount(count: Memo<usize>, label: Memo<String>, on_click: ClickCallback) -> NodeId {
-    let theme = use_theme();
     let shown = create_memo(move || count.get().to_string());
     view! {
         <unstyled::Button
@@ -178,22 +175,22 @@ fn DockTabCount(count: Memo<usize>, label: Memo<String>, on_click: ClickCallback
         >|handle: unstyled::ButtonHandle| {
             let unstyled::ButtonHandle { hovered, focused, .. } = handle;
             let fill = create_memo(move || match hovered.get() {
-                true => theme.hover.get(),
-                false => Color32::TRANSPARENT,
+                true => ColorRole::Hover,
+                false => ColorRole::None,
             });
             view! {
                 <Frame
                     width=COUNT_TARGET
                     height=COUNT_TARGET
-                    fill={ColorRole::custom(fill)}
-                    radius={Radius::custom(COUNT_TARGET_RADIUS)}
+                    fill={fill}
+                    radius=COUNT_TARGET_RADIUS
                     border={focus_border(focused, Border::FOCUS)}
                     align=Align::Center
                 >
                     <Frame
                         width=COUNT_SIDE
                         height=COUNT_SIDE
-                        radius={Radius::custom(COUNT_RADIUS)}
+                        radius=COUNT_RADIUS
                         border={Border::new(ColorRole::Text).width(COUNT_OUTLINE)}
                     >
                         <Text size=TextSize::Sm align=TextAlign::Center>{shown}</Text>
@@ -217,8 +214,8 @@ pub(crate) fn DockSwitcher(handle: DockSwitcherHandle) -> NodeId {
     let rowed = create_memo(move || fixed.with(|fixed| !fixed.is_empty()));
     view! {
         <ModalSheet open rest={SHEET_STOPS[2]} on_close={close}>
-            <List spacing=0.0>
-                <Frame padding={Sides::horizontal(SHEET_PADDING)}>
+            <List spacing=Space::None>
+                <Frame padding={Padding::horizontal(SHEET_PADDING)}>
                     <Text style=TextStyle::HEADING>"Open tabs"</Text>
                 </Frame>
                 <Frame padding=SHEET_PADDING>
@@ -239,7 +236,7 @@ pub(crate) fn DockSwitcher(handle: DockSwitcherHandle) -> NodeId {
                 </Frame>
                 <Show condition={rowed}>
                     <Frame padding=SHEET_PADDING>
-                        <List spacing=0.0>
+                        <List spacing=Space::None>
                             <ForEach keys={fixed}>|tab: TabId|
                                 <DockSwitcherRow handle={card.call(tab)} />
                             </ForEach>
@@ -283,10 +280,12 @@ fn DockSwitcherCard(handle: DockSwitcherCardHandle) -> NodeId {
         close,
     } = handle;
     let offered = create_memo(move || menu.with(|items| !items.is_empty()));
-    let theme = use_theme();
-    let outline = create_memo(move || match current.get() {
-        true => theme.accent.get(),
-        false => theme.border.get(),
+    let outline = create_memo(move || {
+        let color = match current.get() {
+            true => ColorRole::Accent,
+            false => ColorRole::Border,
+        };
+        Some(Border::new(color).width(CARD_OUTLINE))
     });
     let id = tab.value();
     view! {
@@ -294,18 +293,18 @@ fn DockSwitcherCard(handle: DockSwitcherCardHandle) -> NodeId {
             height=CARD_HEIGHT
             radius=Radius::Lg
             fill=ColorRole::SurfaceRaised
-            border={create_memo(move || Some(Border::new(ColorRole::Custom(outline.get())).width(CARD_OUTLINE)))}
+            border={outline}
             padding=CARD_PADDING
         >
-            <List direction=Direction::Horizontal spacing=0.0>
+            <List direction=Direction::Horizontal spacing=Space::None>
                 <ListRow
                     @sizing=ItemSize::Percent(100.0)
                     @test_id={format!("dock.switcher.tab.{id}")}
                     on_click={pick}
                 >
-                    <Frame padding={Sides::vertical(CARD_PADDING)}>
+                    <Frame padding={Padding::vertical(CARD_PADDING)}>
                         <List spacing=CARD_LINES>
-                            <List direction=Direction::Horizontal spacing=0.0>
+                            <List direction=Direction::Horizontal spacing=Space::None>
                                 <Text color=TextColor::Accent align=TextAlign::Center>
                                     <Icon glyph={icon} />
                                 </Text>
@@ -314,7 +313,7 @@ fn DockSwitcherCard(handle: DockSwitcherCardHandle) -> NodeId {
                         </List>
                     </Frame>
                 </ListRow>
-                <List spacing=0.0>
+                <List spacing=Space::None>
                     <Show condition={closable}>
                         <Button
                             icon_only=true

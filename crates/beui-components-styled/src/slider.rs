@@ -1,21 +1,17 @@
 use crate::frame::{Border, ColorRole, Frame, Radius, focus_border};
 use beui_macros::{component, view};
 
-use beui_core::color::Color32;
-
-use crate::theme::{ThemeStore, knob_border, use_theme};
+use crate::theme::{knob_border, use_theme};
+use crate::tokens::{Size, Space, Stroke};
 use beui_components_unstyled as unstyled;
 use beui_components_unstyled::{SliderHandle, SliderScale};
 use beui_core::node::NodeId;
-use beui_view::primitives::*;
+use crate::list::List;
 use beui_view::reactive::*;
 
-const HEIGHT: f32 = 20.0;
-const TRACK_HEIGHT: f32 = 6.0;
-const TRACK_RADIUS: f32 = 3.0;
-const KNOB_SIZE: f32 = 16.0;
-const KNOB_RADIUS: f32 = 8.0;
-const FOCUS_RING_OFFSET: f32 = 3.0;
+const HEIGHT: Size = Size::Sm;
+const TRACK_HEIGHT: Size = Size::Track;
+const KNOB_SIZE: Size = Size::Xs;
 
 #[component]
 pub fn Slider(
@@ -36,7 +32,7 @@ pub fn Slider(
             min
             max
             scale
-            thumb=KNOB_SIZE
+            thumb={KNOB_SIZE.px()}
             disabled
             label
             on_drag_change={on_drag_change}
@@ -58,37 +54,37 @@ fn SliderTrack(handle: SliderHandle) -> NodeId {
     let theme = use_theme();
     let filled_percent = create_memo(move || filled_size(fraction.get()));
     let rest_percent = create_memo(move || rest_size(fraction.get()));
-    let knob_color = create_memo(move || knob_fill_color(&theme, dragging.get(), disabled.get()));
+    let knob_color = create_memo(move || knob_fill_color(dragging.get(), disabled.get()));
     let filled_color = create_memo(move || match disabled.get() {
-        true => theme.track.get(),
-        false => theme.accent.get(),
+        true => ColorRole::Track,
+        false => ColorRole::Accent,
     });
 
     view! {
         <Frame
             height=HEIGHT
-            border={focus_border(focused, Border::FOCUS.offset(FOCUS_RING_OFFSET))}
+            border={focus_border(focused, Border::FOCUS.offset(Stroke::Focus))}
             radius=Radius::Md
         >
-            <List direction=Direction::Horizontal align=Align::Center spacing=0.0>
+            <List direction=Direction::Horizontal align=Align::Center spacing=Space::None>
                 <Frame
                     @sizing={filled_percent}
                     height=TRACK_HEIGHT
-                    fill={ColorRole::custom(filled_color)}
-                    radius={Radius::custom(TRACK_RADIUS)}
+                    fill={filled_color}
+                    radius=Radius::Full
                 />
                 <Frame
                     width=KNOB_SIZE
                     height=KNOB_SIZE
-                    fill={ColorRole::custom(knob_color)}
+                    fill={knob_color}
                     border={knob_border(&theme)}
-                    radius={Radius::custom(KNOB_RADIUS)}
+                    radius=Radius::Full
                 />
                 <Frame
                     @sizing={rest_percent}
                     height=TRACK_HEIGHT
                     fill=ColorRole::Track
-                    radius={Radius::custom(TRACK_RADIUS)}
+                    radius=Radius::Full
                 />
             </List>
         </Frame>
@@ -103,10 +99,10 @@ fn rest_size(value: f32) -> ItemSize {
     ItemSize::Percent((1.0 - value) * 100.0)
 }
 
-fn knob_fill_color(theme: &ThemeStore, dragging: bool, disabled: bool) -> Color32 {
+fn knob_fill_color(dragging: bool, disabled: bool) -> ColorRole {
     match (disabled, dragging) {
-        (true, _) => theme.surface_raised.get(),
-        (false, true) => theme.accent_hover.get(),
-        (false, false) => theme.knob.get(),
+        (true, _) => ColorRole::SurfaceRaised,
+        (false, true) => ColorRole::AccentHover,
+        (false, false) => ColorRole::Knob,
     }
 }

@@ -2,6 +2,7 @@ use super::*;
 use crate::color::Hsva;
 use crate::reactive::*;
 use crate::styled::*;
+use crate::primitives::List;
 
 #[test]
 fn dragging_a_color_wheels_ring_turns_its_hue() {

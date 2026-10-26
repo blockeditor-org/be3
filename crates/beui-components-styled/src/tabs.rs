@@ -22,7 +22,7 @@ pub fn Tabs(
                 options={wide.options}
                 selected={wide.selected}
                 kind=Kind::Tabs
-                spacing=crate::choice::OPTION_SPACING
+                spacing={crate::choice::OPTION_SPACING.px()}
                 label
             >|handle|
                 <OptionFace kind=Kind::Tabs handle />

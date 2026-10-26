@@ -3,6 +3,7 @@ use crate::KeyPress;
 use crate::reactive::*;
 use crate::styled::*;
 use crate::unstyled::CommandPaletteApi;
+use crate::primitives::List;
 
 #[test]
 fn the_command_palette_runs_the_action_it_is_filtered_to_and_greys_disabled_ones() {

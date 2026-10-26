@@ -1,6 +1,7 @@
 use super::*;
 use crate::reactive::*;
 use crate::styled::*;
+use crate::primitives::List;
 
 #[test]
 fn clicking_outside_an_open_select_popup_closes_it_without_clicking_through() {

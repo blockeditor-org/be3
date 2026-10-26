@@ -2,6 +2,7 @@ use super::*;
 use crate::primitives::Frame;
 use crate::reactive::*;
 use crate::styled::*;
+use crate::primitives::List;
 
 #[test]
 fn a_dialog_taller_than_the_screen_stays_on_it_and_scrolls() {

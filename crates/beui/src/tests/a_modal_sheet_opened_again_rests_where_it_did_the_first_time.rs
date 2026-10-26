@@ -2,6 +2,7 @@ use super::*;
 use crate::primitives::Frame;
 use crate::reactive::*;
 use crate::styled::*;
+use crate::primitives::List;
 
 #[test]
 fn a_modal_sheet_opened_again_rests_where_it_did_the_first_time() {

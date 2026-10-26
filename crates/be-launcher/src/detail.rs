@@ -251,7 +251,8 @@ fn CommentCard(
                 <List spacing=0.0>
                     <Frame
                         fill=ColorRole::SurfaceRaised
-                        radius={Radius::Custom(Corners::top(Radius::Lg.px()))}
+                        radius=Radius::Lg
+                        corners=CornerSet::TOP
                         padding={Sides::symmetric(CARD_PADDING, 8.0)}
                     >
                         <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
