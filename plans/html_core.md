@@ -445,8 +445,8 @@ A new crate beside `beui-core`, depending on `beui-types`, `beui-tree`,
 measurement signals, focus state, test id and accessibility. Every primitive
 is one element; nothing wraps a child except where a row below says so.
 Values become inline `style` properties (`Extent`, `Sides`, `Align`,
-`Color32`, `Corners`, `Outline` each get one `to_css`); classes through
-`beui_html::tw` are a later size optimisation.
+`Color32`, `Corners`, `Outline` each get one `to_css`); shared classes in a
+stylesheet are a later size optimisation.
 
 | Primitive | Element and CSS |
 | --- | --- |

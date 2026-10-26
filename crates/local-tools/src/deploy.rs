@@ -1,4 +1,4 @@
-use beui_html::{elements as html, tw};
+use beui_html::elements as html;
 use std::{
     io::Read,
     path::{Path, PathBuf},
@@ -529,8 +529,33 @@ fn label(platform: &str) -> &'static str {
     }
 }
 
+const DOWNLOAD_PAGE_STYLES: &str = "
+html {
+    color-scheme: light dark;
+    font-family: system-ui, sans-serif;
+}
+body {
+    max-width: 60rem;
+    margin: 2rem auto;
+    padding: 0 1rem;
+}
+code {
+    font-size: .75rem;
+    word-break: break-all;
+}
+table {
+    border-collapse: collapse;
+    width: 100%;
+}
+td, th {
+    text-align: left;
+    padding: .4rem .8rem .4rem 0;
+    vertical-align: top;
+}
+";
+
 fn download_page(build: &str, downloads: &[Download], prefix: &str) -> String {
-    use beui_html::{Children, Node, render, view};
+    use beui_html::{Children, Node, Stylesheet, render, view};
     render(|| {
         let rows: Children<Node> = downloads
             .iter()
@@ -547,66 +572,29 @@ fn download_page(build: &str, downloads: &[Download], prefix: &str) -> String {
                             {format!("{:.1} MB", download.size as f64 / 1_000_000.0)}
                         </html::Td>
                         <html::Td>
-                            <html::Code
-                                css=<>
-                                    <tw::TextXs />
-                                    <tw::BreakAll />
-                                </>
-                            >
-                                {download.sha256.as_str()}
-                            </html::Code>
+                            <html::Code>{download.sha256.as_str()}</html::Code>
                         </html::Td>
                     </html::Tr>
                 }
             })
             .collect();
         view! {
-            <html::Html
-                lang="en"
-                css=<>
-                    <tw::ColorSchemeLightDark />
-                    <tw::FontSans />
-                </>
-            >
+            <html::Html lang="en">
                 <html::Head>
                     <html::Meta charset="utf-8" />
                     <html::Meta name="viewport" content="width=device-width, initial-scale=1" />
                     <html::Meta name="robots" content="noindex, nofollow" />
                     <html::Title>"Block downloads"</html::Title>
-                    <tw::Styles />
+                    <Stylesheet css={DOWNLOAD_PAGE_STYLES.to_string()} />
                 </html::Head>
-                <html::Body
-                    css=<>
-                        <tw::MaxW240 />
-                        <tw::My8 />
-                        <tw::MxAuto />
-                        <tw::Px4 />
-                    </>
-                >
+                <html::Body>
                     <html::H1>"Block"</html::H1>
                     <html::P>
                         "Build "
-                        <html::Code
-                            css=<>
-                                <tw::TextXs />
-                                <tw::BreakAll />
-                            </>
-                        >
-                            {build}
-                        </html::Code>
+                        <html::Code>{build}</html::Code>
                         ". A download connects only to a server running the same build."
                     </html::P>
-                    <html::Table
-                        css=<>
-                            <tw::BorderCollapse />
-                            <tw::WFull />
-                            <tw::Descendants target=tw::Target::Cell>
-                                <tw::TextLeft />
-                                <tw::Padding size=tw::Spacing::Table />
-                                <tw::AlignTop />
-                            </tw::Descendants>
-                        </>
-                    >
+                    <html::Table>
                         <html::Tr>
                             <html::Th>"Platform"</html::Th>
                             <html::Th>"Download"</html::Th>
@@ -617,32 +605,11 @@ fn download_page(build: &str, downloads: &[Download], prefix: &str) -> String {
                     </html::Table>
                     <html::P>
                         "Each zip holds the app in a folder of its own: run "
-                        <html::Code
-                            css=<>
-                                <tw::TextXs />
-                                <tw::BreakAll />
-                            </>
-                        >
-                            "block-app"
-                        </html::Code>
+                        <html::Code>"block-app"</html::Code>
                         " ("
-                        <html::Code
-                            css=<>
-                                <tw::TextXs />
-                                <tw::BreakAll />
-                            </>
-                        >
-                            "block-app.exe"
-                        </html::Code>
+                        <html::Code>"block-app.exe"</html::Code>
                         " on Windows) inside it. The macOS builds are not signed, so macOS asks before opening them; "
-                        <html::Code
-                            css=<>
-                                <tw::TextXs />
-                                <tw::BreakAll />
-                            </>
-                        >
-                            "xattr -dr com.apple.quarantine block-app-macos-*"
-                        </html::Code>
+                        <html::Code>"xattr -dr com.apple.quarantine block-app-macos-*"</html::Code>
                         " lets them open. The web bundle is also available to serve yourself. "
                         <html::A href="https://be3.pfg.pw/">"Open the hosted web app"</html::A>
                         "."

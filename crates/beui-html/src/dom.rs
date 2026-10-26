@@ -146,10 +146,6 @@ fn create(node: &Node) -> web_sys::Node {
         }
         Kind::Text(value) => document.create_text_node(&value.borrow()).into(),
         Kind::Raw(value) => document.create_text_node(value).into(),
-        Kind::Styles => document
-            .create_element("style")
-            .expect("style is a valid element")
-            .into(),
         Kind::Fragment => unreachable!("a fragment node is only ever a root"),
     };
     attach(node, dom.clone());
@@ -339,7 +335,6 @@ fn claim(item: &Node, parent: &web_sys::Node, cursor: &mut Option<web_sys::Node>
     skip_doctype(cursor);
     let claimed = match &item.0.kind {
         Kind::Element(tag) => claim_element(cursor.as_ref(), tag),
-        Kind::Styles => claim_element(cursor.as_ref(), "style"),
         Kind::Text(value) => claim_text(cursor.as_ref(), &value.borrow()),
         Kind::Raw(value) => claim_text(cursor.as_ref(), value),
         Kind::Fragment => None,

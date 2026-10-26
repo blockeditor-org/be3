@@ -15,7 +15,6 @@ macro_rules! element {
         [$($flag:ident => $flag_name:literal),*]) => {
         #[component]
         pub fn $name(
-            #[prop(default = Children::default())] css: Children<crate::tw::Style>,
             #[prop(default = None)] id: Prop<Option<String>>,
             #[prop(default = None)] class: Prop<Option<String>>,
             #[prop(default = None)] style: Prop<Option<String>>,
@@ -43,7 +42,6 @@ macro_rules! element {
             $($children)*
         ) -> Node {
             let $node = Node::new(Kind::Element($tag));
-            css.mount(crate::tw::host(&$node));
             bind_attribute(&$node, "id", id);
             bind_attribute(&$node, "class", class);
             bind_attribute(&$node, "style", style);

@@ -2,7 +2,6 @@
 pub mod dom;
 pub mod elements;
 mod event;
-pub mod tw;
 pub use beui_tree::reactive;
 pub use event::Event;
 pub use reactive::*;
@@ -16,7 +15,6 @@ struct NodeData {
     kind: Kind,
     attrs: RefCell<Vec<(String, Option<String>)>>,
     children: RefCell<ChildList<Node>>,
-    css: RefCell<ChildList<tw::Style>>,
     #[cfg(target_arch = "wasm32")]
     listeners: RefCell<Vec<(&'static str, Callback<Event>)>>,
     #[cfg(target_arch = "wasm32")]
@@ -28,7 +26,6 @@ enum Kind {
     Text(RefCell<String>),
     Raw(String),
     Fragment,
-    Styles,
 }
 
 impl Node {
@@ -37,7 +34,6 @@ impl Node {
             kind,
             attrs: RefCell::default(),
             children: RefCell::default(),
-            css: RefCell::default(),
             #[cfg(target_arch = "wasm32")]
             listeners: RefCell::default(),
             #[cfg(target_arch = "wasm32")]
@@ -75,40 +71,17 @@ impl Node {
     pub fn to_html(&self) -> String {
         reactive::flush();
         let mut output = String::new();
-        let mut sheet = tw::Sheet::default();
-        self.collect_css(&mut sheet);
-        assert!(
-            sheet.is_empty() || self.has_styles(),
-            "typed CSS requires a <tw::Styles /> outlet"
-        );
-        self.write(&mut output, &sheet);
+        self.write(&mut output);
         output
     }
 
-    fn has_styles(&self) -> bool {
-        matches!(self.0.kind, Kind::Styles) || self.0.children.borrow().iter().any(Node::has_styles)
-    }
-
-    fn collect_css(&self, sheet: &mut tw::Sheet) {
-        sheet.add(&self.0.css.borrow());
-        for child in self.0.children.borrow().iter() {
-            child.collect_css(sheet);
-        }
-    }
-
-    fn write(&self, output: &mut String, sheet: &tw::Sheet) {
+    fn write(&self, output: &mut String) {
         match &self.0.kind {
             Kind::Text(value) => escape_into(&value.borrow(), output),
             Kind::Raw(value) => output.push_str(value),
-            Kind::Styles => {
-                output.push_str("<style>");
-                sheet.write(output);
-                output.push_str("</style>");
-            }
             Kind::Element(tag) => {
                 output.push('<');
                 output.push_str(tag);
-                let css_class = tw::class_name(&self.0.css.borrow());
                 let attrs = self.0.attrs.borrow();
                 for (name, value) in attrs.iter() {
                     if let Some(value) = value {
@@ -116,37 +89,22 @@ impl Node {
                         output.push_str(name);
                         output.push_str("=\"");
                         escape_into(value, output);
-                        if name == "class"
-                            && let Some(class) = &css_class
-                        {
-                            output.push(' ');
-                            output.push_str(class);
-                        }
                         output.push('"');
                     }
                 }
-                if let Some(class) = css_class
-                    && !attrs
-                        .iter()
-                        .any(|(name, value)| name == "class" && value.is_some())
-                {
-                    output.push_str(" class=\"");
-                    output.push_str(&class);
-                    output.push('"');
-                }
                 output.push('>');
                 if !self.is_void() {
-                    self.write_children(output, sheet);
+                    self.write_children(output);
                     output.push_str("</");
                     output.push_str(tag);
                     output.push('>');
                 }
             }
-            Kind::Fragment => self.write_children(output, sheet),
+            Kind::Fragment => self.write_children(output),
         }
     }
 
-    fn write_children(&self, output: &mut String, sheet: &tw::Sheet) {
+    fn write_children(&self, output: &mut String) {
         let markers = !self.holds_raw_text();
         for (dynamic, items) in self.0.children.borrow().slots() {
             let marked = markers && dynamic.is_some();
@@ -154,7 +112,7 @@ impl Node {
                 output.push_str(START_MARKER_HTML);
             }
             for child in items {
-                child.write(output, sheet);
+                child.write(output);
             }
             if marked {
                 output.push_str(END_MARKER_HTML);
@@ -308,14 +266,9 @@ impl IntoSlotHost<Node> for &Node {
 }
 
 #[component]
-pub fn Element(
-    tag: &'static str,
-    #[prop(default = Children::default())] css: Children<tw::Style>,
-    children: Children<Node>,
-) -> Node {
+pub fn Element(tag: &'static str, children: Children<Node>) -> Node {
     assert!(valid_name(tag), "invalid HTML element name");
     let node = Node::new(Kind::Element(tag));
-    css.mount(tw::host(&node));
     children.mount(&node);
     node
 }

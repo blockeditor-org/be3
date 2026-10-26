@@ -5064,11 +5064,33 @@ let page = render(|| view! {
 });
 ```
 
-### Typed CSS
+### Styling
 
-Use `beui_html::tw` style components in an element's `css` prop. A component
-prop can take a view directly: `prop=<Component />`, or a run of children with
-`prop=<>...</>`. This syntax works on any component prop, not just CSS.
+Style pages with plain CSS: give elements ordinary `class` attributes and put
+the rules in one `<Stylesheet css={...} />` (a `<style>` element), usually in
+the head; use a `style` attribute for a one-off rule. `class` and `style` are
+props like any other attribute, so signals of them update reactively.
+
+```rust
+use beui_html::{elements as html, Stylesheet, view};
+
+const CSS: &str = "
+body { font-family: system-ui, sans-serif; }
+.continue { padding: .5rem 1rem; border-radius: .375rem; }
+";
+
+view! {
+    <html::Html>
+        <html::Head><Stylesheet css={CSS.to_string()} /></html::Head>
+        <html::Body>
+            <html::Button class="continue">"Continue"</html::Button>
+        </html::Body>
+    </html::Html>
+}
+```
+
+A component prop can take a view directly: `prop=<Component />`, or a run of
+children with `prop=<>...</>`. This works on any component prop.
 Fragments `<>...</>` also work anywhere children fit, including at the root
 of `view!`; they group children without a backend node. Empty fragments
 `<></>` build empty children. Expressions, reusable components and control
@@ -5077,61 +5099,6 @@ flow work inside fragments.
 The compiler grammar lives in `beui-macros/src/lib.rs`; the source formatter has
 its own grammar in `fix-rust-source/src/views.rs`, using lossless source tokens.
 Changes to view syntax must cover both grammars and their tests.
-
-```rust
-use beui_html::{elements as html, tw, view};
-
-view! {
-    <html::Html>
-        <html::Head><tw::Styles /></html::Head>
-        <html::Body
-            css=<>
-                <tw::FontSans />
-                <tw::BgSurface />
-                <tw::TextForeground />
-            </>
-        >
-            <html::Button
-                css=<>
-                    <tw::InlineFlex />
-                    <tw::ItemsCenter />
-                    <tw::Px4 />
-                    <tw::Py2 />
-                    <tw::BgAccent />
-                    <tw::TextOnAccent />
-                    <tw::RoundedMd />
-                    <tw::Hover><tw::BgAccentHover /></tw::Hover>
-                    <tw::Md><tw::Px4 /></tw::Md>
-                </>
-            >
-                "Continue"
-            </html::Button>
-        </html::Body>
-    </html::Html>
-}
-```
-
-Style components return `tw::Style`; reusable compositions return
-`Children<tw::Style>`. HTML and style children are different types. `Show` and
-`ForEach` work with both; removing a style contribution removes its declarations
-on the next serialization. Static styling needs no signals or effects.
-
-Put one `<tw::Styles />` in the document head, or at the beginning of a fragment.
-Serialization first collects CSS from the mounted tree, including current style
-branches, then fills the outlet. Constructed but unmounted nodes contribute
-nothing. A styled tree without an outlet is an error. Output is buffered, not
-streamed. Typed CSS is string-only: the live backend ignores `css` and the
-outlet, and hydration keeps the classes the server wrote.
-
-Each distinct ordered style composition gets a deterministic generated class;
-identical compositions share rules. Existing `class` attributes are preserved.
-Within a composition, declarations keep their source order, so later declarations
-win at equal specificity. Pseudo-class and descendant selectors still follow
-normal CSS specificity. Nested breakpoint and pseudo-class components compose;
-`Descendants target=tw::Target::Input` styles matching descendants, including
-children added later by scripts. Semantic colors reference `--bht-*` CSS custom
-properties with defaults; this theme is independent of GUI beui crates. Utilities
-use rem spacing and text sizes. No reset is installed implicitly.
 
 `render` builds in a fresh reactive scope, flushes bindings, writes the doctype
 and HTML, then disposes the scope. For a retained tree, build inside a scope you
