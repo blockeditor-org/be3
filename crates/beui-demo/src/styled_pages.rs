@@ -138,7 +138,8 @@ pub(crate) fn DockingPage() -> NodeId {
                     <Text style=TextStyle::PARAGRAPH>
                         "A page picked in Components takes the place of the page shown, in \
                          the same tab. Hold Ctrl (Cmd on a Mac) while picking one to open it in a \
-                         tab of its own instead."
+                         tab of its own instead. The Components pane is locked: its tab stays \
+                         in it until its right-click menu frees it."
                     </Text>
                     <Text style=TextStyle::CAPTION>
                         "A dock narrower than a phone's width stacks its panes: one tab fills it, and the bar goes back or switches tabs."

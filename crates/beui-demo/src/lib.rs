@@ -634,7 +634,7 @@ fn DemoShell() -> NodeId {
             <Separator />
             <Docking @sizing=ItemSize::Percent(100.0) layout drag_modifier>
                 <DockSplit id="shell" fraction={1.0 - PAGE_SHARE}>
-                    <DockPane id="catalog">
+                    <DockPane id="catalog" locked=true>
                         <DockTab id=CATALOG title="Components" icon=ICON_BLOCKS>
                             <CatalogPanel pages active={active} />
                         </DockTab>

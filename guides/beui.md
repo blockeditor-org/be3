@@ -2118,8 +2118,9 @@ view! {
 
 `DockSplit` takes two children, `fraction` being the first one's share.
 `DockPane` holds `DockTab`s and `DockGroup`s (a tab holding a tree of its own,
-`pinned` to keep its tabs in it), names its starting `active` tab, and can start
-with its tabs in a sidebar (`vertical`, `sidebar_width`). `DockWindow` floats one
+`pinned` to keep its tabs in it), names its starting `active` tab, can start
+with its tabs in a sidebar (`vertical`, `sidebar_width`), and can be `locked` to
+keep its tabs in its area (below). `DockWindow` floats one
 tree at a `rect`. A tab's key is any `Clone + Eq + Hash` type; a key that is a
 `TabId` or a `u64` names the tab's `TabId` too, which is what the test ids of its
 close button and switcher row carry. Every container has an `id`, saved with the
@@ -2385,6 +2386,20 @@ be compared, sent elsewhere and rebuilt: `from_tree` makes a state out of one
 and `set_tree` replaces a tree in place, moving in any of its tabs that were
 elsewhere and keeping the focused tab focused. `group_title` names a group in
 its tab.
+
+A `locked` pane makes an area: the pane and every pane split off it, including
+the groups inside them (`area_of(leaf)` names a leaf's area, the locked pane's
+`id`). Every tab declared in the pane, including tabs a `ForEach` adds later, is
+locked to that area, as a pinned group's tabs are to it: it can move, split and
+group anywhere inside the area, which grows with its splits and shrinks back as
+they empty, but a drop outside it is refused and it cannot float. Tabs that are
+not locked go anywhere, into an area too. `DockState::home(tab)` answers a
+`DockHome`: `Group(id)` for a pinned group's tab, `Area(id)` for a locked one.
+The tab menu's pin item reads "Unlock" and "Lock" for such a tab (Lock is
+disabled until the tab is back in its area, and is never done for it), and
+"Pop out into a window" is disabled while a tab is locked or pinned. Seeding,
+reconciling and `restore` move any locked tab found outside its area back into
+it. A stacked dock ignores locks and keeps them for when it tiles again.
 
 A tab's panel is built the first time the tab is shown and belongs to the dock
 rather than to the pane showing it: the pane holds a `Portal` pointed at it, so

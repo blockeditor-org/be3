@@ -50,6 +50,7 @@ enum NodeKind<K: 'static> {
         vertical: bool,
         icons_only: bool,
         sidebar: f32,
+        locked: bool,
         empty: Option<RenderFn<()>>,
         entries: Run<DockEntry<K>>,
     },
@@ -116,6 +117,7 @@ pub fn DockPane<K>(
     #[prop(default = false)] vertical: bool,
     #[prop(default = false)] icons_only: bool,
     #[prop(default = SIDEBAR_WIDTH)] sidebar_width: f32,
+    #[prop(default = false)] locked: bool,
     empty: Option<RenderFn<()>>,
     children: Children<DockEntry<K>>,
 ) -> DockNode<K>
@@ -129,6 +131,7 @@ where
             vertical,
             icons_only,
             sidebar: sidebar_width,
+            locked,
             empty,
             entries: children.into_run(),
         },
@@ -568,6 +571,7 @@ impl<K: DockKey> DockingLayout<K> {
                 vertical,
                 icons_only,
                 sidebar,
+                locked,
                 empty,
                 entries,
             } => {
@@ -587,6 +591,7 @@ impl<K: DockKey> DockingLayout<K> {
                     icons_only: *icons_only,
                     sidebar: *sidebar,
                     keep: empty.is_some(),
+                    locked: *locked,
                 }))
             }
             NodeKind::Window { .. } | NodeKind::Dialog { .. } => None,
