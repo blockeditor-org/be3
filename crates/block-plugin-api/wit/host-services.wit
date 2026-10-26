@@ -65,8 +65,20 @@ interface host-services {
         administrator: bool,
         author: bool,
         granted: option<access-level>,
+        /// What reaches the block from above, without its own grant.
+        inherited: access-level,
         effective: access-level,
+        /// The block whose grant or authorship gave `effective`.
+        source: option<block-id>,
         waiting: bool,
+    }
+
+    /// Who has access to a block, whether its organization is a company, and
+    /// how many blocks inside it set access of their own.
+    record access-listing {
+        grants: list<access-grant>,
+        company: bool,
+        set-inside: u32,
     }
 
     /// A block a file was imported into.
@@ -107,8 +119,11 @@ interface host-services {
     /// they cancel.
     import-blocks: async func(parent: block-location) -> result<option<imported-block>, failure>;
 
+    /// Copies `source` and everything inside it into `parent`.
+    copy-blocks: async func(source: block-id, parent: block-location) -> result<option<imported-block>, failure>;
+
     /// Everyone who has access to the block or could be given it.
-    list-access: async func(block: block-id) -> result<list<access-grant>, failure>;
+    list-access: async func(block: block-id) -> result<access-listing, failure>;
 
     /// Grants `account` `access` to the block.
     set-access: func(block: block-id, account: account-id, access: access-level);

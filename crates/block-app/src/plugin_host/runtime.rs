@@ -1320,6 +1320,7 @@ pub(crate) fn artifact(slot: ArtifactSlot<'_>) -> ArtifactState {
         instance,
         editor,
         block,
+        source,
         data,
         resync,
     } = slot;
@@ -1339,6 +1340,7 @@ pub(crate) fn artifact(slot: ArtifactSlot<'_>) -> ArtifactState {
                 block_types,
                 editor,
                 block,
+                source,
                 data,
                 resync,
             );
@@ -1348,11 +1350,8 @@ pub(crate) fn artifact(slot: ArtifactSlot<'_>) -> ArtifactState {
         });
         match (description, runtime.error.clone()) {
             (_, Some(error)) => ArtifactState::Failed(error),
-            (Some(ArtifactDescription::Described { source, summary }), None) => {
-                ArtifactState::Described {
-                    source: Uuid::from_bytes(source),
-                    summary,
-                }
+            (Some(ArtifactDescription::Described(summary)), None) => {
+                ArtifactState::Described(summary)
             }
             (Some(ArtifactDescription::Unreadable(error)), None) => ArtifactState::Failed(error),
             (None, None) => ArtifactState::Starting,

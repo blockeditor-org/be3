@@ -26,7 +26,7 @@ use ndk::asset::AssetManager;
 use ndk::native_window::NativeWindow;
 use raw_window_handle as rwh;
 
-use beui_core::app::{SafeArea, Setup, Waker};
+use beui_core::app::{Lifecycle, SafeArea, Setup, Waker};
 use beui_core::clipboard::{PasteAnswer, PasteKind, Pasted};
 use beui_core::file_picker::{FilePick, FilePickAnswer, FilePickId, FilePickRequest, PickedFile};
 use beui_core::file_saver::{FileSave, FileSaveAnswer, FileSaveId, FileSaveRequest};
@@ -90,6 +90,7 @@ enum Message {
     Insets(SafeArea),
     Preferences(PreferenceLayer),
     Focus(bool),
+    Lifecycle(Lifecycle),
     Touch {
         device: jint,
         id: jint,
@@ -595,7 +596,16 @@ impl Runner {
                 self.runner.reports().system_preferences(preferences);
                 self.redraw = true;
             }
-            Message::Focus(focused) => self.runner.push(Input::Focus(focused)),
+            Message::Focus(focused) => {
+                self.runner.push(Input::Focus(focused));
+                if focused {
+                    self.runner.lifecycle(Lifecycle::Focused);
+                }
+            }
+            Message::Lifecycle(change) => {
+                self.runner.lifecycle(change);
+                self.redraw = true;
+            }
             Message::Touch {
                 device,
                 id,
@@ -996,6 +1006,21 @@ pub extern "system" fn Java_com_be3_beui_BeuiView_nativeDestroy<'local>(
     finishing: jboolean,
 ) {
     send(Message::Destroy { finishing });
+}
+
+// unsafe(ffi)
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_com_be3_beui_BeuiView_nativeLifecycle<'local>(
+    _env: EnvUnowned<'local>,
+    _: JClass<'local>,
+    change: jint,
+) {
+    let change = match change {
+        0 => Lifecycle::Background,
+        1 => Lifecycle::Foreground,
+        _ => Lifecycle::NetworkChanged,
+    };
+    send(Message::Lifecycle(change));
 }
 
 // unsafe(ffi)

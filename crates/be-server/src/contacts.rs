@@ -307,10 +307,18 @@ impl ServerStore {
             };
             let grant = grant.clone();
             self.with_graph(grant.organization, move |graph, database| {
-                if !visibility(identity).can_edit(graph, grant.block) {
+                if !visibility(identity).can_manage(graph, grant.block) {
                     return Err(ServerError::Refused(
                         ErrorCode::PermissionDenied,
-                        format!("block {} is not editable by this account", grant.block),
+                        format!("block {} is not managed by this account", grant.block),
+                    ));
+                }
+                if !self
+                    .policies(graph, database, grant.organization)?
+                    .shares_outside()
+                {
+                    return Err(crate::organization::refused(
+                        "this organization shares nothing outside it, and a link reaches whoever holds it",
                     ));
                 }
                 let key = key_row(database, grant.organization, grant.key)?;
@@ -419,8 +427,11 @@ impl ServerStore {
                             organization: grant.organization,
                             role,
                         })
-                        .can_edit(graph, grant.block)
-                    });
+                        .can_manage(graph, grant.block)
+                    })
+                    && self
+                        .policies(graph, &transaction, grant.organization)
+                        .is_ok_and(|policies| policies.shares_outside());
                 let mut granted = None;
                 if may_grant {
                     let before = graph.audience(grant.block);
@@ -617,7 +628,7 @@ impl ServerStore {
                             let held = graph
                                 .get(block)
                                 .is_some_and(|node| node.grants.contains_key(&grantee));
-                            if held && granter.can_edit(graph, block) {
+                            if held && granter.can_manage(graph, block) {
                                 grants.push((block, grantee));
                             }
                         }

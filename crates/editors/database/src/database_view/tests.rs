@@ -25,6 +25,7 @@ mod a_list_waits_for_the_rows_its_relations_name;
 mod a_new_row_takes_each_choices_default;
 mod a_new_view_starts_as_a_spreadsheet;
 mod a_phone_opens_a_row_over_the_list_and_back_returns_to_it;
+mod a_prefix_is_listed_in_the_workspaces_prefixes_and_a_shared_one_says_so;
 mod a_relation_cell_shows_the_title_of_the_row_it_links_to;
 mod a_row_scrolled_into_a_reused_line_opens_the_row_it_shows;
 mod adding_a_page_links_a_new_text_block_to_the_row;
@@ -88,7 +89,7 @@ impl Fixture {
 }
 
 fn editor(fields: &[(&str, DatabaseFieldType)]) -> Fixture {
-    let schema = Uuid::new_v4();
+    let schema = Uuid::from_u128(0xdb_1001);
     let mut schema_content = DatabaseSchemaContent::default();
     let ids: Vec<Uuid> = fields
         .iter()
@@ -98,8 +99,8 @@ fn editor(fields: &[(&str, DatabaseFieldType)]) -> Fixture {
             id
         })
         .collect();
-    let database = Uuid::new_v4();
-    let view = Uuid::new_v4();
+    let database = Uuid::from_u128(0xdb_1002);
+    let view = Uuid::from_u128(0xdb_1003);
     let host = EditorHost::default();
     host.set_editable(true);
     let editor = OwnedEditor::new(host.clone(), view);

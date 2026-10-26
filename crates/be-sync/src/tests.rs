@@ -172,7 +172,7 @@ async fn text_block(peer: &Peer<MemoryStore>, parent: Uuid, name: &str, text: &s
 }
 
 async fn types() -> be_types_host::Modules {
-    be_types_host::started(first_party_types::sources()).await
+    be_types_host::started(first_party_types::sources(), be_client::Clock::real()).await
 }
 
 async fn sync(peer: &Peer<MemoryStore>, directory: &Path, root: Uuid) -> Report {

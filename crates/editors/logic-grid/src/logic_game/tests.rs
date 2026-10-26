@@ -8,6 +8,7 @@ use uuid::Uuid;
 
 use crate::logic_game::app::LogicGameApp;
 
+mod a_manager_gives_the_world_a_hotbar_that_players_start_from;
 mod expanding_a_level_shows_its_goal;
 mod the_quiz_records_a_bit_on_the_game_block;
 

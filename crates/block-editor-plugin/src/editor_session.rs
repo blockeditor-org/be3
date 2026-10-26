@@ -294,13 +294,10 @@ impl EditorSession {
         self.app.connect_creation(template);
     }
 
-    pub(crate) fn connect_artifact(&mut self, block_id: Uuid, block_type: Uuid, data: Vec<u8>) {
+    pub(crate) fn connect_artifact(&mut self, artifact: crate::Artifact, data: Vec<u8>) {
         self.artifact = Some(ArtifactState::new(data));
         self.host.set_editable(true);
-        self.app.connect_artifact(crate::Artifact {
-            block_id,
-            block_type,
-        });
+        self.app.connect_artifact(artifact);
     }
 
     pub(crate) fn artifact_settings(&mut self, data: Vec<u8>) {
@@ -399,10 +396,7 @@ impl EditorSession {
             if artifact.described.as_deref() != Some(artifact.data.as_slice()) {
                 artifact.described = Some(artifact.data.clone());
                 let description = match self.app.describe_artifact(&artifact.data) {
-                    Ok(description) => ArtifactDescription::Described {
-                        source: description.source.into_bytes(),
-                        summary: description.summary,
-                    },
+                    Ok(summary) => ArtifactDescription::Described(summary),
                     Err(error) => ArtifactDescription::Unreadable(error),
                 };
                 shell::artifact_described(instance, description);

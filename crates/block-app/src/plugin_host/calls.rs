@@ -1,8 +1,8 @@
 use block_plugin_api::{
-    ArtifactDescription, AudioStatus, BarAction, BlockIdRole, BlockLocation, BlockPick, Catalog,
-    ChildId, ChildStatus, EditorInstanceId, EditorRegion, Failure, Fonts, FrameCommit, Hello,
-    InputBatch, Opening, PickedBlock, Preferences, Rect, ScreenId, ScreenLayout, ScreenRequest,
-    Size, WebViewEvent, WebViewId,
+    AudioStatus, BarAction, BlockIdRole, BlockLocation, BlockPick, Catalog, ChildId, ChildStatus,
+    EditorInstanceId, EditorRegion, Failure, Fonts, FrameCommit, Hello, InputBatch, Opening,
+    PickedBlock, Preferences, Rect, ScreenId, ScreenLayout, ScreenRequest, Size, WebViewEvent,
+    WebViewId,
     embed::{debug::debug::Call as DebugCall, shell::Call as ShellCall},
     shell_types::{DragOver, FileDrop, Focus, PickRequest},
 };
@@ -252,10 +252,6 @@ impl BlockIds for ShellCall {
                 parent: BlockLocation::Block(block_id),
                 ..
             } => visit(instance, BlockIdRole::Existing, block_id),
-            Self::ArtifactDescribed {
-                description: ArtifactDescription::Described { source, .. },
-                ..
-            } => visit(instance, BlockIdRole::Existing, source),
             _ => {}
         }
     }

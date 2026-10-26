@@ -1,6 +1,6 @@
 use std::{collections::BTreeMap, fmt, marker::PhantomData};
 
-use be_model::{Stored, from_cbor, to_cbor};
+use be_model::{BlockRef, Stored, from_cbor, to_cbor};
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use uuid::Uuid;
 
@@ -49,7 +49,7 @@ pub const ROW_PREFIX: MetaKey<String> =
 pub const SCHEMA: MetaKey<String> =
     MetaKey::derived(0x6be3_6d65_7461_5300_8a1e_7363_6865_0001, "schema");
 
-pub const ARTIFACT: MetaKey<ArtifactSource> =
+pub const ARTIFACT: MetaKey<Artifact> =
     MetaKey::defined(0x6be3_6d65_7461_4100_8a1e_6172_7469_0001, "artifact");
 
 pub const LOCAL_ID: MetaKey<Uuid> =
@@ -63,6 +63,9 @@ pub const EXECUTABLE: MetaKey<bool> =
 
 pub const DELETED_FROM: MetaKey<DeletedFrom> =
     MetaKey::defined(0x6be3_6d65_7461_4400_8a1e_6465_6c66_0001, "deleted_from");
+
+pub const SETTINGS: MetaKey<BlockRef> =
+    MetaKey::defined(0x6be3_6d65_7461_5300_8a1e_7365_7474_0001, "settings");
 
 pub const VIEW_EDITOR: MetaKey<Uuid> =
     MetaKey::defined(0x6be3_6d65_7461_5600_8a1e_7669_6577_0001, "view_editor");
@@ -142,10 +145,11 @@ pub struct Thumbhash {
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
-pub struct ArtifactSource {
+pub struct Artifact {
+    pub source: BlockRef,
     pub source_type: Uuid,
     #[serde(with = "be_model::bytes")]
-    pub data: Vec<u8>,
+    pub settings: Vec<u8>,
 }
 
 #[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -214,6 +218,18 @@ impl BlockMetadata {
                 .find(|(codepoint, _)| *codepoint == material)
                 .map(|(_, name)| (*name).to_owned())
         })
+    }
+
+    pub fn references(&self) -> Vec<Uuid> {
+        let mut found = Vec::new();
+        for value in self.defined.values().chain(self.derived.values()) {
+            if let Some(value) = from_cbor::<Stored>(value) {
+                be_model::references::walk(&value, &mut found);
+            }
+        }
+        let mut seen = std::collections::HashSet::new();
+        found.retain(|id| seen.insert(*id));
+        found
     }
 
     pub fn named_by_hand(&self) -> bool {

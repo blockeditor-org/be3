@@ -48,6 +48,33 @@
         "Frame"
       ]
     },
+    "tags": {
+      "id": "b7a4c1d2-3e5f-4a6b-8c7d-9e0f1a2b3c4d",
+      "edits": "74616773-2d6b-696e-642d-626533643031",
+      "display_name": "Tags",
+      "icon": "\ue154",
+      "regions": [
+        "Frame"
+      ]
+    },
+    "prefixes": {
+      "id": "c8b5d2e3-4f60-4b7c-9d8e-0f1a2b3c4d5e",
+      "edits": "70726566-6978-6573-2d6b-696e642d3031",
+      "display_name": "Database prefixes",
+      "icon": "\ue154",
+      "regions": [
+        "Frame"
+      ]
+    },
+    "home": {
+      "id": "d9c6e3f4-5071-4c8d-8e9f-1a2b3c4d5e6f",
+      "edits": "686f6d65-2d6b-696e-642d-626533643031",
+      "display_name": "Home",
+      "icon": "\ue154",
+      "regions": [
+        "Frame"
+      ]
+    },
     "defaults": {
       "id": "05bf6ba6-0cb4-4247-9096-4ac41c5d80c6",
       "edits": "65646974-6f72-2d64-6566-61756c747331",

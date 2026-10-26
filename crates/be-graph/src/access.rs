@@ -7,6 +7,7 @@ pub enum Access {
     KnowExists,
     View,
     Edit,
+    Manage,
 }
 
 impl Access {
@@ -16,6 +17,7 @@ impl Access {
             Self::KnowExists => "Knows it exists",
             Self::View => "Can view",
             Self::Edit => "Can edit",
+            Self::Manage => "Can manage",
         }
     }
 
@@ -28,6 +30,10 @@ impl Access {
     }
 
     pub fn can_edit(self) -> bool {
-        self == Self::Edit
+        self >= Self::Edit
+    }
+
+    pub fn can_manage(self) -> bool {
+        self >= Self::Manage
     }
 }

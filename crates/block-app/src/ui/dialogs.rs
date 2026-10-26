@@ -22,6 +22,7 @@ pub(super) fn Dialogs(view: AppViewStore) -> NodeId {
             <ContactsDialog view={view} />
             <MembersDialog view={view} />
             <AboutDialog view={view} />
+            <UnsentDialog view={view} />
         </List>
     }
 }
@@ -533,6 +534,120 @@ fn AgentCredentials(created: Memo<Option<super::CreatedAgent>>) -> NodeId {
                 @test_id={"app.agents.credentials"}
             />
         </List>
+    }
+}
+
+#[component]
+fn UnsentDialog(view: AppViewStore) -> NodeId {
+    let unsent = view.unsent;
+    let open = create_memo(move || unsent.get().is_some());
+    view! {
+        <Dialog
+            open={open}
+            title="Unsent edits"
+            width=460.0
+            id="app.unsent"
+            on_dismiss={|| send(UiCommand::Unsent(false))}
+        >
+            <UnsentPanel view />
+        </Dialog>
+    }
+}
+
+#[component]
+fn UnsentPanel(view: AppViewStore) -> NodeId {
+    let unsent = view.unsent;
+    let shown = create_memo(move || unsent.get().unwrap_or_default());
+    let keys = create_memo(move || {
+        shown
+            .get()
+            .rows
+            .iter()
+            .map(|row| row.block)
+            .collect::<Vec<Uuid>>()
+    });
+    let none = create_memo(move || keys.with(Vec::is_empty));
+    let discarding = create_memo(move || {
+        let shown = shown.get();
+        let block = shown.discarding?;
+        let name = shown
+            .rows
+            .iter()
+            .find(|row| row.block == block)
+            .map(|row| row.name.clone())
+            .unwrap_or_default();
+        Some(format!(
+            "Discard the edits to {name}? They are kept only on this device, and cannot be brought back."
+        ))
+    });
+    let asks_discard = create_memo(move || discarding.with(Option::is_some));
+    let discarding = create_memo(move || discarding.get().unwrap_or_default());
+    view! {
+        <Frame>
+            <List spacing=8.0>
+                <Text style=TextStyle::CAPTION wrap=Wrap::Words>
+                    "These edits were made on this device but could not be sent, because you can no longer edit these blocks. They stay here until you restore or discard them. Restore sends them again once you can edit the block."
+                </Text>
+                <Show condition={none}>
+                    <Text style=TextStyle::CAPTION>"No unsent edits."</Text>
+                </Show>
+                <ForEach keys={keys}>|block: Uuid| {
+                    let row = create_memo(move || {
+                        shown
+                            .get()
+                            .rows
+                            .into_iter()
+                            .find(|row| row.block == block)
+                            .unwrap_or_default()
+                    });
+                    let name = create_memo(move || row.get().name);
+                    let detail = create_memo(move || match row.get().offerable {
+                        true => "You can edit it again".to_owned(),
+                        false => "You cannot edit it now".to_owned(),
+                    });
+                    let blocked = create_memo(move || !row.get().offerable);
+                    view! {
+                        <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
+                            <List @sizing=ItemSize::Percent(100.0) spacing=2.0>
+                                <Text>{name}</Text>
+                                <Text style=TextStyle::CAPTION>{detail}</Text>
+                            </List>
+                            <Button
+                                label="Restore"
+                                variant=ButtonVariant::Primary
+                                disabled={blocked}
+                                @test_id={format!("app.unsent.restore.{block}")}
+                                on_click={move || send(UiCommand::RestoreUnsent(block))}
+                            />
+                            <IconButton
+                                glyph=ICON_TRASH
+                                label="Discard"
+                                @test_id={format!("app.unsent.discard.{block}")}
+                                on_click={move || send(UiCommand::DiscardUnsent(block))}
+                            />
+                        </List>
+                    }
+                }</ForEach>
+                <Show condition={asks_discard}>
+                    <List spacing=6.0>
+                        <Text style=TextStyle::PARAGRAPH wrap=Wrap::Words>{discarding}</Text>
+                        <List direction=Direction::Horizontal spacing=8.0>
+                            <Button
+                                label="Discard"
+                                variant=ButtonVariant::Danger
+                                @test_id={"app.unsent.discard.confirm"}
+                                on_click={|| send(UiCommand::ConfirmDiscardUnsent)}
+                            />
+                            <Button
+                                label="Keep"
+                                variant=ButtonVariant::Secondary
+                                on_click={|| send(UiCommand::CancelDiscardUnsent)}
+                            />
+                        </List>
+                    </List>
+                </Show>
+            </List>
+        </Frame>
     }
 }
 

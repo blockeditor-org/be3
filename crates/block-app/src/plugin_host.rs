@@ -262,13 +262,13 @@ pub(crate) struct EditorBlock {
 pub(crate) enum InstanceRole {
     Editor(Uuid, EditorBlock),
     Creation(Uuid, &'static str),
-    Artifact(Uuid, EditorBlock),
+    Artifact(Uuid, EditorBlock, Uuid),
 }
 
 impl InstanceRole {
     pub(crate) fn block(self) -> Option<EditorBlock> {
         match self {
-            Self::Editor(_, block) | Self::Artifact(_, block) => Some(block),
+            Self::Editor(_, block) | Self::Artifact(_, block, _) => Some(block),
             Self::Creation(..) => None,
         }
     }
@@ -281,12 +281,13 @@ pub(crate) struct ArtifactSlot<'a> {
     pub(crate) instance: EditorInstanceId,
     pub(crate) editor: Uuid,
     pub(crate) block: EditorBlock,
+    pub(crate) source: Uuid,
     pub(crate) data: &'a [u8],
     pub(crate) resync: bool,
 }
 
 pub(crate) enum ArtifactState {
     Starting,
-    Described { source: Uuid, summary: String },
+    Described(String),
     Failed(String),
 }

@@ -1,4 +1,4 @@
-use block_editor_beui::beui::NodeId;
+use block_editor_beui::BlockQuery;
 use block_editor_beui::beui::icons::Glyph;
 use block_editor_beui::beui::icons::{
     ICON_ARROW_DOWN, ICON_ARROW_UP, ICON_CHART_SCATTER, ICON_GRID_3X3, ICON_KANBAN, ICON_LIST,
@@ -7,6 +7,7 @@ use block_editor_beui::beui::icons::{
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
 use block_editor_beui::beui::unstyled::ChoiceOption;
+use block_editor_beui::beui::{NodeId, Wrap};
 use database_types::database_schema::{DatabaseField, DatabaseFieldType};
 use database_types::database_view::{
     DatabaseView, DatabaseViewKind, DatabaseViewSort, SortDirection,
@@ -40,6 +41,14 @@ pub fn DisplayOptions(data: Data) -> NodeId {
     let prefix_off = data.read_only;
     let reprefix = move |text: String| data.set_prefix(text);
     let fields_open = move || data.open_schema();
+    let shared = create_memo(move || !data.sharing_prefix.with(Vec::is_empty));
+    let sharing = create_memo(move || {
+        format!(
+            "{} is also the prefix of these databases in this workspace, so a row id with it names more than one:",
+            prefix.get().trim().to_ascii_uppercase()
+        )
+    });
+    let others = data.sharing_prefix;
     view! {
         <List spacing=SPACING>
             <KindSwitch data={data} />
@@ -75,6 +84,31 @@ pub fn DisplayOptions(data: Data) -> NodeId {
                     @test_id={"database-view.prefix"}
                 />
             </List>
+            <Show condition={shared}>
+                <List spacing=2.0 @test_id={"database-view.prefix-shared"}>
+                    <Text style=TextStyle::CAPTION color=TextColor::Muted wrap=Wrap::Words>
+                        {sharing}
+                    </Text>
+                    <ForEach keys={others}>|other: Uuid| {
+                        let editor = data.editor();
+                        let found = editor.watch_blocks(BlockQuery::Block(other));
+                        let name = create_memo(move || {
+                            let types = editor.block_types();
+                            found
+                                .get()
+                                .ok()
+                                .and_then(|found| found.into_iter().next())
+                                .map_or_else(
+                                    || "A database you can't open".to_owned(),
+                                    |info| info.label(types.as_ref()).name,
+                                )
+                        });
+                        view! {
+                            <Text style=TextStyle::CAPTION>{name}</Text>
+                        }
+                    }</ForEach>
+                </List>
+            </Show>
             <List direction=Direction::Horizontal spacing=0.0>
                 <Button
                     glyph=ICON_TABLE_PROPERTIES

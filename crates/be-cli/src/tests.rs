@@ -18,6 +18,7 @@ use crate::tracker::{Assignment, Body, RowView, Tracker};
 
 mod a_choice_option_takes_a_colour_an_icon_and_closes_rows;
 mod a_csv_export_is_imported_as_rows_with_pages;
+mod a_database_moved_to_another_workspace_takes_its_prefix_along;
 mod a_downloaded_block_uploads_as_a_copy_with_new_ids;
 mod a_folder_syncs_with_a_directory;
 mod a_merged_pull_request_closes_rows_without_a_done_status;
@@ -26,6 +27,7 @@ mod a_page_saved_elsewhere_keeps_both_changes;
 mod a_pull_request_moves_the_rows_it_names;
 mod a_restarted_terminal_host_keeps_the_history_and_marks_the_restore;
 mod a_row_blocked_by_another_shows_as_blocking_there;
+mod a_row_id_resolves_through_the_workspaces_prefixes;
 mod a_spreadsheet_escaped_cell_is_read_as_written;
 mod a_terminal_host_encodes_keys_for_the_mode_its_program_set;
 mod a_terminal_host_writes_its_shell_into_the_document_for_its_viewers;
@@ -41,7 +43,6 @@ mod proxy_credentials_do_not_need_an_account_token;
 mod rows_are_added_filtered_changed_and_given_pages;
 mod terminal;
 mod the_plugin_bundle_holds_each_manifest_and_its_type_module;
-mod two_databases_may_share_a_prefix_and_each_resolves_its_own_rows;
 mod two_terminal_hosts_take_turns_and_the_second_stands_by;
 
 fn manifests() {

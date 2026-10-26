@@ -10,11 +10,11 @@ fn flushing_seals_what_the_sessions_hold_and_leaves_them_live() {
     wait_for_count(block, 0);
     add(block, 5);
     wait_for_count(block, 5);
-    assert_eq!(status().unsealed, 1);
+    assert_eq!(status().unsaved, 1);
 
     flush();
 
-    assert_eq!(status().unsealed, 0);
+    assert_eq!(status().unsaved, 0);
     assert!(status().connected);
     add(block, 1);
     wait_for_count(block, 6);

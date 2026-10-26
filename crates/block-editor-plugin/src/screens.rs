@@ -345,8 +345,11 @@ impl Screens {
             }
             Opening::Creation(open) => session.connect_creation(open.template),
             Opening::Artifact(open) => session.connect_artifact(
-                Uuid::from_bytes(open.block_id),
-                Uuid::from_bytes(open.block_type),
+                crate::Artifact {
+                    block_id: Uuid::from_bytes(open.block_id),
+                    block_type: Uuid::from_bytes(open.block_type),
+                    source: Uuid::from_bytes(open.source),
+                },
                 open.data,
             ),
         }

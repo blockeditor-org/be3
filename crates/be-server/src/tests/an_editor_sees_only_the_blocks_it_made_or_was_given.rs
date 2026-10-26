@@ -56,7 +56,7 @@ async fn an_editor_sees_only_the_blocks_it_made_or_was_given() {
     assert!(listed(&mut guest).await.is_empty());
 
     let own = guest.create_block(BlockParent::Root).await;
-    assert_eq!(listed(&mut guest).await, [(own, Access::Edit)]);
+    assert_eq!(listed(&mut guest).await, [(own, Access::Manage)]);
 
     let account = guest_account(&mut guest).await;
     let response = owner
@@ -71,7 +71,7 @@ async fn an_editor_sees_only_the_blocks_it_made_or_was_given() {
     let mut seen = listed(&mut guest).await;
     seen.sort();
     let mut expected = vec![
-        (own, Access::Edit),
+        (own, Access::Manage),
         (folder, Access::View),
         (inside, Access::View),
     ];
@@ -81,7 +81,7 @@ async fn an_editor_sees_only_the_blocks_it_made_or_was_given() {
 
     let owned = listed(&mut owner).await;
     assert_eq!(owned.len(), 4);
-    assert!(owned.iter().all(|(_, access)| *access == Access::Edit));
+    assert!(owned.iter().all(|(_, access)| *access == Access::Manage));
 
     harness.stop().await;
 }

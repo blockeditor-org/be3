@@ -10,9 +10,10 @@ fn the_export_scale_setting_writes_the_artifact_draft() {
         Artifact {
             block_id: target,
             block_type: ImageContent::CONTENT_TYPE,
+            source,
         },
     );
-    let data = artifact::descriptor(source).data;
+    let data = artifact::descriptor(source).settings;
     let mut settings = BeuiTest::<PixelArtApp>::settings(artifacts, data);
 
     assert_eq!(
@@ -28,7 +29,7 @@ fn the_export_scale_setting_writes_the_artifact_draft() {
     settings.run();
 
     assert_eq!(
-        artifact::describe(settings.draft()).unwrap().summary,
+        artifact::describe(settings.draft()).unwrap(),
         "PNG export at 3x"
     );
 }

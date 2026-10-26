@@ -91,6 +91,10 @@ impl Artifacts {
         self.0.artifact.block_type
     }
 
+    pub fn source(&self) -> Uuid {
+        self.0.artifact.source
+    }
+
     pub fn on_regenerate(&self, work: impl Fn(&[u8]) + 'static) {
         *self.0.regenerate.borrow_mut() = Some(Rc::new(work));
     }
@@ -380,6 +384,7 @@ impl OwnedEditor {
             beui,
             block,
             roots: RefCell::new(None),
+            settings: RefCell::default(),
             canvas,
             world,
             scale,
@@ -441,6 +446,7 @@ struct EditorState {
     beui: Rc<Cell<BeuiScale>>,
     block: Uuid,
     roots: RefCell<Option<BlockList>>,
+    settings: RefCell<settings::SettingsCache>,
     canvas: Signal<Option<CanvasView>>,
     world: Signal<Option<Vec2>>,
     scale: Signal<f32>,
@@ -1384,63 +1390,6 @@ impl Creation {
     }
 }
 
-impl Editor {
-    pub fn effective_settings<R>(&self) -> Memo<R>
-    where
-        R: be_block::Layered + PartialEq + 'static,
-        be_block::be_model::Document<R>: be_block::LiveEdit + Clone + Default,
-    {
-        let editor = *self;
-        create_memo(move || {
-            let layers = crate::root_settings::RootSettings::default()
-                .read(&editor)
-                .map(|held| {
-                    crate::root_settings::layers(
-                        &editor,
-                        &held,
-                        R::CONTENT_TYPE,
-                        editor.host().client_id(),
-                    )
-                })
-                .unwrap_or_default();
-            be_block::layered(layers.bottom_up().into_iter().filter_map(|block| {
-                editor
-                    .content_of::<be_block::be_model::Document<R>>(block)
-                    .read(|content| content.root())
-                    .ok()
-            }))
-        })
-    }
-
-    pub fn inherited_settings<R>(&self) -> Memo<R>
-    where
-        R: be_block::Layered + PartialEq + 'static,
-        be_block::be_model::Document<R>: be_block::LiveEdit + Clone + Default,
-    {
-        let editor = *self;
-        create_memo(move || {
-            let below = crate::root_settings::RootSettings::default()
-                .read(&editor)
-                .map(|held| {
-                    crate::root_settings::layers(
-                        &editor,
-                        &held,
-                        R::CONTENT_TYPE,
-                        editor.host().client_id(),
-                    )
-                    .below(editor.block_id())
-                })
-                .unwrap_or_default();
-            be_block::layered(below.into_iter().filter_map(|block| {
-                editor
-                    .content_of::<be_block::be_model::Document<R>>(block)
-                    .read(|content| content.root())
-                    .ok()
-            }))
-        })
-    }
-}
-
 impl crate::root_settings::SettingsGraph for Editor {
     fn roots(&self) -> Option<Vec<(Uuid, Uuid, Uuid)>> {
         let state = self.state();
@@ -1493,6 +1442,10 @@ pub fn node_anchor(node: &NodeRef) -> Option<Rect> {
     let node = node.try_get()?;
     try_with_document(|document| document.node_rect(node)).flatten()
 }
+
+mod settings;
+
+pub use settings::{KindsAbove, OrganizationLayers, SetKind};
 
 #[cfg(test)]
 mod tests;

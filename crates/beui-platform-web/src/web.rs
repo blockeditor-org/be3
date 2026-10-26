@@ -3,8 +3,8 @@ use std::error::Error;
 use std::future::Future;
 use std::pin::Pin;
 use std::rc::Rc;
+use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::{Arc, Mutex};
 use std::task::Poll;
 use std::time::{Duration, Instant};
 
@@ -12,7 +12,7 @@ use wasm_bindgen::JsCast;
 use wasm_bindgen::prelude::Closure;
 
 use beui_core::app::ime_mirror::{ImeInput, ImeMirror};
-use beui_core::app::{SafeArea, Setup, Waker};
+use beui_core::app::{Lifecycle, SafeArea, Setup, Waker};
 use beui_core::clipboard::{PasteAnswer, PasteKind, Pasted};
 use beui_core::file_picker::{FilePickAnswer, FilePickRequest, PickedFile};
 use beui_core::file_saver::{FileSaveAnswer, FileSaveRequest};
@@ -80,6 +80,8 @@ thread_local! {
     static MIRROR: RefCell<ImeMirror> = RefCell::new(ImeMirror::default());
     static HELD_FIELD: Cell<Option<Rect>> = const { Cell::new(None) };
     static REFOCUSING: Cell<bool> = const { Cell::new(false) };
+    static IME_SHOWN: Cell<bool> = const { Cell::new(false) };
+    static LEAVING: Cell<bool> = const { Cell::new(false) };
     static CLIPBOARD_KEYS: Cell<bool> = const { Cell::new(false) };
     static PASTE_KINDS: RefCell<Vec<PasteKind>> = const { RefCell::new(Vec::new()) };
     static PINCH: RefCell<Pinch> = RefCell::new(Pinch::default());
@@ -361,6 +363,19 @@ impl WebPlatform {
             let _ = style.set_property("left", &format!("{}px", area.cursor.min.x));
             let _ = style.set_property("top", &format!("{}px", area.cursor.max.y));
         }
+        if ime.is_some() && !IME_SHOWN.replace(true) {
+            let agent: &web_sys::Element = &self.agent;
+            let focused = web_sys::window()
+                .and_then(|window| window.document())
+                .and_then(|document| document.active_element())
+                .is_some_and(|active| &active == agent);
+            if !focused {
+                let _ = self.agent.focus();
+            }
+        }
+        if ime.is_none() {
+            IME_SHOWN.set(false);
+        }
     }
 
     fn mirror(&self, ime: Option<&ImeArea>) {
@@ -422,8 +437,22 @@ impl Runner {
         if let Some(failure) = self.runner.failure() {
             web_sys::console::error_1(&format!("the app stopped after a panic: {failure}").into());
         }
-        let _ = window.close();
+        if !LEAVING.get() {
+            let _ = window.close();
+        }
     }
+}
+
+fn lifecycle(change: Lifecycle) {
+    let runner = RUNNER.with(|runner| runner.borrow().clone());
+    let Some(runner) = runner else {
+        return;
+    };
+    let Ok(mut runner) = runner.try_borrow_mut() else {
+        return;
+    };
+    runner.runner.lifecycle(change);
+    schedule();
 }
 
 fn close_requested(event: &web_sys::Event) {
@@ -435,6 +464,7 @@ fn close_requested(event: &web_sys::Event) {
         return;
     };
     if runner.runner.exited() || runner.runner.os_close() {
+        LEAVING.set(true);
         return;
     }
     event.prevent_default();
@@ -443,7 +473,7 @@ fn close_requested(event: &web_sys::Event) {
 
 struct Wake {
     woken: AtomicBool,
-    waker: Mutex<Option<std::task::Waker>>,
+    waker: futures_util::task::AtomicWaker,
 }
 
 struct Woken(Arc<Wake>);
@@ -455,9 +485,7 @@ impl Future for Woken {
         if self.0.woken.swap(false, Ordering::AcqRel) {
             return Poll::Ready(());
         }
-        if let Ok(mut waker) = self.0.waker.lock() {
-            *waker = Some(context.waker().clone());
-        }
+        self.0.waker.register(context.waker());
         match self.0.woken.swap(false, Ordering::AcqRel) {
             true => Poll::Ready(()),
             false => Poll::Pending,
@@ -468,7 +496,7 @@ impl Future for Woken {
 fn waker() -> Waker {
     let wake = Arc::new(Wake {
         woken: AtomicBool::new(false),
-        waker: Mutex::new(None),
+        waker: futures_util::task::AtomicWaker::new(),
     });
     let listened = wake.clone();
     wasm_bindgen_futures::spawn_local(async move {
@@ -479,10 +507,7 @@ fn waker() -> Waker {
     });
     Waker::new(move || {
         wake.woken.store(true, Ordering::Release);
-        let waiting = wake.waker.lock().ok().and_then(|mut waker| waker.take());
-        if let Some(waiting) = waiting {
-            waiting.wake();
-        }
+        wake.waker.wake();
     })
 }
 
@@ -1048,6 +1073,24 @@ fn listen(
     on(window_target, "resize", |_event: web_sys::Event| schedule())?;
     on(window_target, "blur", |_event: web_sys::FocusEvent| {
         push(Input::PointersCancelled);
+    })?;
+    on(window_target, "focus", |_event: web_sys::FocusEvent| {
+        lifecycle(Lifecycle::Focused);
+    })?;
+    on(window_target, "online", |_event: web_sys::Event| {
+        lifecycle(Lifecycle::NetworkChanged);
+    })?;
+    on(window_target, "pagehide", |_event: web_sys::Event| {
+        lifecycle(Lifecycle::Background);
+    })?;
+    on(document_target, "visibilitychange", {
+        let document = document.clone();
+        move |_event: web_sys::Event| {
+            lifecycle(match document.hidden() {
+                true => Lifecycle::Background,
+                false => Lifecycle::Foreground,
+            });
+        }
     })?;
     on(window_target, "beforeunload", |event: web_sys::Event| {
         close_requested(&event);

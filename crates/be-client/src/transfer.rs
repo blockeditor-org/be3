@@ -1,6 +1,6 @@
 use std::{collections::HashMap, hash::BuildHasherDefault};
 
-use be_block::{ARTIFACT, BlockMetadata, LOCAL_ID};
+use be_block::{BlockMetadata, LOCAL_ID};
 use uuid::Uuid;
 
 pub const EXTENSION: &str = "block";
@@ -253,8 +253,14 @@ pub fn renumber(blocks: Vec<Saved>) -> Vec<Saved> {
         .into_iter()
         .map(|block| {
             let mut metadata = block.metadata;
-            metadata.remove(&ARTIFACT);
             metadata.remove(&LOCAL_ID);
+            for value in metadata
+                .defined
+                .values_mut()
+                .chain(metadata.derived.values_mut())
+            {
+                *value = swap.apply(value);
+            }
             Saved {
                 id: ids[&block.id],
                 block_type: block.block_type,

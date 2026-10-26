@@ -326,6 +326,8 @@ interface types {
         editor: editor-id,
         block-id: block-id,
         block-type: block-type-id,
+        /// The block the artifact is made from.
+        source: block-id,
         account-id: account-id,
         organization-id: organization-id,
         client-id: installation-id,

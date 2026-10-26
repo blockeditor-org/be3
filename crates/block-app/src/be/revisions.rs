@@ -1,4 +1,6 @@
-use std::sync::{Arc, Mutex, PoisonError};
+use std::sync::{Arc, PoisonError};
+
+use wasi_threads::Mutex;
 
 use be_client::Peer;
 use be_commit::CommitId;
@@ -226,15 +228,22 @@ async fn perform(
     if !summary.access.can_view() {
         return Err("You do not have permission to view this file.".into());
     }
-    let entries = peer
-        .history(block)
-        .await
-        .map_err(|error| error.to_string())?;
     let commit = match request {
         Asked::Preview(commit) | Asked::Restore(commit) => {
             Some(CommitId::from_hash(be_store::Hash::from_bytes(commit)))
         }
         Asked::List => None,
+    };
+    let conflicted = commit.is_some_and(|commit| {
+        let held = shared.lock().unwrap_or_else(PoisonError::into_inner);
+        super::conflicts::is_side(&held, block, commit)
+    });
+    let entries = match conflicted {
+        true => Vec::new(),
+        false => peer
+            .history(block)
+            .await
+            .map_err(|error| error.to_string())?,
     };
     let Some(commit) = commit else {
         let mut revisions: Vec<_> = entries
@@ -253,7 +262,7 @@ async fn perform(
         });
         return Ok((revisions, Uuid::nil()));
     };
-    if !entries.iter().any(|entry| entry.commit == commit) {
+    if !conflicted && !entries.iter().any(|entry| entry.commit == commit) {
         return Err("This revision is no longer available.".into());
     }
     let saved = peer

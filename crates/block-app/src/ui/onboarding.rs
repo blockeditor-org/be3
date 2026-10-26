@@ -217,6 +217,7 @@ fn AccountCard(account: Memo<AccountRow>) -> NodeId {
                         <Button
                             label="Open"
                             variant=ButtonVariant::Primary
+                            @test_id={format!("account.open.{}", name.get_untracked())}
                             on_click={move || send(UiCommand::OpenAccount(key.get_untracked()))}
                         />
                     </Tooltip>
@@ -239,6 +240,8 @@ fn AccountDetails(account: Memo<AccountRow>) -> NodeId {
         true => ICON_MONITOR,
         false => ICON_CLOUD,
     });
+    let seen_by = create_memo(move || administrators_note(&account.get().companies));
+    let seen = create_memo(move || !seen_by.get().is_empty());
     view! {
         <List spacing=2.0>
             <Show condition={create_memo(move || !email.get().is_empty())}>
@@ -250,8 +253,24 @@ fn AccountDetails(account: Memo<AccountRow>) -> NodeId {
                 </Text>
                 <Text style=TextStyle::CAPTION>{server}</Text>
             </List>
+            <Show condition={seen}>
+                <Text style=TextStyle::CAPTION wrap=Wrap::Words>{seen_by}</Text>
+            </Show>
         </List>
     }
+}
+
+fn administrators_note(companies: &[String]) -> String {
+    let named = match companies {
+        [] => return String::new(),
+        [only] => only.clone(),
+        [rest @ .., last] => format!("{} and {last}", rest.join(", ")),
+    };
+    let place = match companies.len() {
+        1 => "there",
+        _ => "in each",
+    };
+    format!("The administrators of {named} can read your settings and blocks {place}.")
 }
 
 #[component]

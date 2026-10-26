@@ -233,7 +233,7 @@ impl Link {
                             state.map(|state| ArtifactState {
                                 block_id: block,
                                 source_type: Uuid::from_bytes(state.source_type),
-                                source: state.source.map(Uuid::from_bytes),
+                                source: Uuid::from_bytes(state.source),
                                 summary: state.summary,
                                 error: state.error,
                                 regenerating: state.regenerating,

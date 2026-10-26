@@ -996,8 +996,9 @@ guides/beui_keyboard.md, Actions and the command palette), each row's test id
 menu and a plugin's frame menu. `lead` is a few muted words before
 an item's icon on the same line, read with its label (`New in` before a folder's
 name). The dropdown is as wide as its widest row, between a least width and a
-greatest one past which labels end in an ellipsis, is never taller than a fixed
-height, and scrolls the row the keyboard is on into view. `MenuPopup` is the same menu
+greatest one past which labels end in an ellipsis, is as tall as its rows up to
+the window's height, scrolls beyond that, and scrolls the row the keyboard is on
+into view. `MenuPopup` is the same menu
 opened by something other than a button, such as a model holding a request: it
 shows while `open` holds, under `anchor` at `placement`, as the sheet while
 `sheet` holds, at least `min_width` wide, and reports `on_dismiss` for Escape or a press
@@ -2708,6 +2709,16 @@ focused field into what is left, through every scroll it sits in.
   reactive state there aborts or crashes the process (block-app's
   `Shell::exiting` takes down the Wayland compositor, the plugin runtimes and
   their worker threads, and the displays this way).
+- `lifecycle(Lifecycle)` hears the app leave and come back to the screen, not
+  the keyboard: `Background` when the window is occluded or minimised (winit),
+  the activity pauses (Android `onPause`) or the tab is hidden or the page is
+  left (`visibilitychange`, `pagehide`), and `Foreground` when it returns;
+  `Focused` when the window gains focus; `NetworkChanged` when the browser goes
+  `online` or Android's default network becomes available. The process may be
+  killed without another frame after `Background`, so that is where unsaved work
+  is put somewhere durable, without blocking (Android gives `onPause` little
+  time). Platforms call `Runner::lifecycle`; the document's own focus still
+  comes as `Event::Focus`.
 - `busy` says whether work the app is waiting on, such as a server request or a
   plugin's frame, will still change what it shows. Only a driver reads it.
 - `environment` is the variables a program needs to open its windows inside an app
@@ -2770,7 +2781,10 @@ and `drawing` holds the shot until those frames have arrived.
 
 The web runner draws into the canvas it is given with WebGPU, or WebGL where
 the browser has no WebGPU. It reads the keyboard through a hidden text area,
-so pasting and composition behave like any other input on the page. Like the
+so pasting and composition behave like any other input on the page. A press
+on the canvas focuses that text area, and so does a text field taking beui's
+focus any other way (the keyboard, a script, `drive app click`), so the browser's
+keys reach it. Like the
 desktop runner, it only asks the browser for a frame when an event arrived,
 something asked for a repaint, or a `Waker` was woken.
 

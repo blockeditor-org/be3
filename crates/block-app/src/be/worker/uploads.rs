@@ -2,8 +2,10 @@ use std::{
     cell::RefCell,
     collections::{HashMap, HashSet, VecDeque},
     rc::Rc,
-    sync::{Arc, Mutex, PoisonError},
+    sync::{Arc, PoisonError},
 };
+
+use wasi_threads::Mutex;
 
 use be_client::transfer::Saved;
 use be_graph::BlockParent;
@@ -15,6 +17,7 @@ use super::{Command, Peer, Shared, Store, platform};
 struct Queue {
     above: HashMap<Uuid, Vec<Uuid>>,
     below: HashMap<Uuid, usize>,
+    unkept: HashSet<Uuid>,
     peer: Option<Arc<Peer<Store>>>,
     shared: Arc<Mutex<Shared>>,
     finished: UnboundedSender<()>,
@@ -33,6 +36,7 @@ impl Uploads {
             queue: Rc::new(RefCell::new(Queue {
                 above: HashMap::new(),
                 below: HashMap::new(),
+                unkept: HashSet::new(),
                 peer: None,
                 shared: Arc::clone(shared),
                 finished,
@@ -63,6 +67,7 @@ impl Uploads {
                     *queue.below.entry(*held).or_default() += 1;
                 }
                 queue.above.insert(block.id, above);
+                queue.unkept.insert(block.id);
             }
             queue.report();
             queue.peer.clone()
@@ -74,9 +79,23 @@ impl Uploads {
         platform::spawn_local(async move {
             let shared = Arc::clone(&queue.borrow().shared);
             let (sender, mut receiver) = unbounded_channel();
-            let uploading = peer.import_blocks(&blocks, move |block, imported| {
-                let _ = sender.send((block, imported));
-            });
+            let uploading = {
+                let queue = Rc::clone(&queue);
+                let peer = Arc::clone(&peer);
+                async move {
+                    let failed = sender.clone();
+                    let queued = peer
+                        .queue_import(&blocks, |block, imported| {
+                            let _ = failed.send((block, imported));
+                        })
+                        .await;
+                    queue.borrow_mut().kept(&blocks);
+                    peer.upload_import(queued, move |block, imported| {
+                        let _ = sender.send((block, imported));
+                    })
+                    .await;
+                }
+            };
             let settling = async {
                 while let Some((block, imported)) = receiver.recv().await {
                     super::imported(&peer, &shared, block, imported).await;
@@ -141,6 +160,13 @@ impl Uploads {
 }
 
 impl Queue {
+    fn kept(&mut self, blocks: &[(Saved, BlockParent)]) {
+        for (block, _) in blocks {
+            self.unkept.remove(&block.id);
+        }
+        self.report();
+    }
+
     fn finish(&mut self, block: Uuid) {
         let Some(above) = self.above.remove(&block) else {
             return;
@@ -163,10 +189,9 @@ impl Queue {
     }
 
     fn report(&self) {
-        self.shared
-            .lock()
-            .unwrap_or_else(PoisonError::into_inner)
-            .uploading = self.above.len();
+        let mut shared = self.shared.lock().unwrap_or_else(PoisonError::into_inner);
+        shared.uploading = self.above.len();
+        shared.importing = self.unkept.len();
     }
 }
 

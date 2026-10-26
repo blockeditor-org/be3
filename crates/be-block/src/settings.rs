@@ -4,8 +4,34 @@ use uuid::Uuid;
 use crate::device_class::DeviceClass;
 use crate::{ChildChange, Root};
 
+pub use crate::resolution::{Resolution, ResolutionLayers, SettingsSource};
+
 pub trait Layered: Root + Clone + Default {
+    const NAME: &'static str;
+    const FOLLOWS: Follows = Follows::Viewer;
+    const RULE: KindRule = KindRule::Default;
+    const VISIBILITY: KindVisibility = KindVisibility::Members;
+
     fn over(&self, lower: &Self) -> Self;
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum Follows {
+    Block,
+    Viewer,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum KindRule {
+    Default,
+    Policy,
+}
+
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+pub enum KindVisibility {
+    Inside,
+    #[default]
+    Members,
 }
 
 pub fn layered<R: Layered>(layers: impl IntoIterator<Item = R>) -> R {
@@ -21,6 +47,7 @@ pub struct Settings {
     pub sessions: Map<Uuid, ()>,
     pub device_profiles: Map<Uuid, Uuid>,
     pub device_sessions: Map<(Uuid, Uuid), Uuid>,
+    pub policies: Map<Uuid, Uuid>,
 }
 
 impl Settings {
@@ -39,6 +66,7 @@ impl Settings {
                 sessions: union(&upper.sessions, &lower.sessions),
                 device_profiles: union(&upper.device_profiles, &lower.device_profiles),
                 device_sessions: union(&upper.device_sessions, &lower.device_sessions),
+                policies: union(&upper.policies, &lower.policies),
             })
             .unwrap_or_default()
     }
@@ -49,6 +77,16 @@ impl Settings {
 
     pub fn set_kind(kind: Uuid, block: Uuid) -> Edit {
         Self::KINDS.put(ObjectId::ROOT, &kind, Some(&block)).into()
+    }
+
+    pub fn policy(&self, kind: Uuid) -> Option<Uuid> {
+        self.policies.get(&kind).copied()
+    }
+
+    pub fn set_policy(kind: Uuid, block: Uuid) -> Edit {
+        Self::POLICIES
+            .put(ObjectId::ROOT, &kind, Some(&block))
+            .into()
     }
 
     pub fn layers(&self, kind: Uuid, profile: Option<&SettingsProfile>) -> crate::Layers {
@@ -131,6 +169,12 @@ impl Settings {
                 .map(|(kind, _)| Self::KINDS.put(ObjectId::ROOT, kind, new.as_ref())),
         );
         changes.extend(
+            self.policies
+                .iter()
+                .filter(|(_, block)| **block == old)
+                .map(|(kind, _)| Self::POLICIES.put(ObjectId::ROOT, kind, new.as_ref())),
+        );
+        changes.extend(
             self.device_profiles
                 .iter()
                 .filter(|(_, profile)| **profile == old)
@@ -156,12 +200,13 @@ impl Settings {
 }
 
 impl Root for Settings {
-    const CONTENT_TYPE: Uuid = Uuid::from_u128(0x7365_7474_696e_6773_2d62_6c6f_636b_3032);
+    const CONTENT_TYPE: Uuid = be_graph::SETTINGS_TYPE;
 
     fn references(&self) -> Vec<Uuid> {
         let mut references: Vec<Uuid> = self
             .kinds
             .values()
+            .chain(self.policies.values())
             .chain(self.profiles.keys())
             .chain(self.sessions.keys())
             .copied()

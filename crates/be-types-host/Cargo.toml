@@ -5,6 +5,7 @@ version.workspace = true
 license.workspace = true
 
 [dependencies]
+wasi-threads = { path = "../wasi-threads" }
 be-client = { path = "../be-client" }
 be-commit = { path = "../be-commit" }
 be-graph = { path = "../be-graph" }

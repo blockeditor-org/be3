@@ -1,8 +1,8 @@
 use std::{collections::HashMap, marker::PhantomData};
 
 use block_plugin_api::{
-    BlockIdRole, BlockPick, EditorInstanceId, Failure, FileSave, ImportedBlock, PickedBlock,
-    SavedFile,
+    AccessListing, BlockIdRole, BlockPick, EditorInstanceId, Failure, FileSave, ImportedBlock,
+    PickedBlock, SavedFile,
     embed::host_services::Call,
     ops::{OpError, OpId, Outcome, Reply},
 };
@@ -31,6 +31,7 @@ enum Answer {
     Done(Outcome),
     Previewed(Result<Uuid, Failure>),
     Imported(Result<Option<ImportedBlock>, Failure>),
+    Listed(Result<AccessListing, Failure>),
 }
 
 struct Work {
@@ -106,6 +107,14 @@ impl Answering<Result<Option<ImportedBlock>, Failure>> {
     fn imported(self, imported: Result<Option<ImportedBlock>, String>) {
         if !self.withdrawn() {
             self.deliver(Answer::Imported(imported.map_err(Failure::Failed)));
+        }
+    }
+}
+
+impl Answering<Result<AccessListing, Failure>> {
+    fn listed(self, listed: Result<AccessListing, String>) {
+        if !self.withdrawn() {
+            self.deliver(Answer::Listed(listed.map_err(Failure::Failed)));
         }
     }
 }
@@ -323,6 +332,33 @@ impl Instances {
                     });
                 });
             }
+            Call::CopyBlocks {
+                reply,
+                source,
+                parent,
+            } => {
+                let source = Uuid::from_bytes(source);
+                let parent = super::super::graph::parent_of(parent);
+                if !self.can_view(source)
+                    || parent.block().is_some_and(|parent| !self.editable(parent))
+                {
+                    return self.answer_now(reply, Err(Failure::Denied));
+                }
+                let answering = self.answering(instance, reply);
+                crate::be::export(source, move |exported| {
+                    if answering.withdrawn() {
+                        return;
+                    }
+                    answering.imported(exported.and_then(|(_, bytes)| {
+                        crate::be::import(&bytes, parent).map(|(block, block_type)| {
+                            Some(ImportedBlock {
+                                block_id: block.into_bytes(),
+                                block_type: block_type.into_bytes(),
+                            })
+                        })
+                    }));
+                });
+            }
             Call::PickBlock { reply, filter } => {
                 let op = reply.op();
                 self.work(instance, op);
@@ -333,7 +369,7 @@ impl Instances {
             Call::ListAccess { reply, block } => {
                 let answering = self.answering(instance, reply);
                 crate::be::list_access(Uuid::from_bytes(block), move |listed| {
-                    answering.send_or_fail(super::super::graph::grants_of(listed));
+                    answering.listed(super::super::graph::grants_of(listed));
                 });
             }
             Call::SetAccess {
@@ -482,6 +518,13 @@ impl Instances {
                         })
                     });
                     Outcome::returned(&imported)
+                }
+                Answer::Listed(listed) => {
+                    let listed = listed.map(|mut listed| {
+                        listed.visit_block_ids(&mut |_, id| *id = self.local(instance, *id));
+                        listed
+                    });
+                    Outcome::returned(&listed)
                 }
             };
             if live {

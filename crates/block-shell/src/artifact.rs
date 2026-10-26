@@ -28,10 +28,16 @@ pub(crate) fn ArtifactBar(
         info.with(|info| {
             let info = info.as_ref()?;
             let artifact = info.artifact.as_ref()?;
-            Some(TabItem::new(artifact.source?, artifact.source_type))
+            Some(TabItem::new(artifact.source, artifact.source_type))
         })
     });
-    let described = create_memo(move || source.get().is_some());
+    let described = create_memo(move || {
+        info.with(|info| {
+            info.as_ref()
+                .and_then(|info| info.artifact.as_ref())
+                .is_some_and(|artifact| artifact.summary.is_some())
+        })
+    });
     let waiting = create_memo(move || {
         !described.get()
             && info.with(|info| {
@@ -69,7 +75,7 @@ pub(crate) fn ArtifactBar(
                 .and_then(|info| {
                     info.artifact
                         .as_ref()
-                        .map(|artifact| artifact.summary.clone())
+                        .and_then(|artifact| artifact.summary.clone())
                 })
                 .unwrap_or_default()
         })

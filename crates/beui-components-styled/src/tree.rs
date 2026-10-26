@@ -64,7 +64,6 @@ fn metrics(density: Density) -> Metrics {
 
 pub struct TreeMenu {
     pub items: Children<MenuItem>,
-    pub on_select: Callback<Vec<usize>>,
 }
 
 impl ChildValue for TreeMenu {}
@@ -243,7 +242,7 @@ where
                 </Show>
             </List>
         },
-        Some(TreeMenu { items, on_select }) => {
+        Some(TreeMenu { items }) => {
             let menu_at = create_signal(None::<Pos2>);
             let more = more_id(&named);
             view! {
@@ -252,7 +251,6 @@ where
                     items
                     open_at={menu_at}
                     on_close={move || menu_at.set(None)}
-                    on_select
                 >
                     <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
                         <ShowKeepAlive condition={shown}>

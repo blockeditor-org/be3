@@ -41,7 +41,7 @@ be_ops_bindgen::generate!({
         "delete-command", "move-command", "place-command", "app-menu-command", "adopt-command",
         "finish-command", "branch-command", "create-branch-command", "resolve-command",
         "undo-operation-command", "performance-duration", "performance-count", "view-zoom",
-        "artifact-described", "rename-dialog", "creation-options",
+        "rename-dialog", "creation-options",
         "block-child", "creation-child", "artifact-settings-child",
         "window-fullscreen", "wifi-connect", "notification-closed", "notification-action-invoked",
         "program-list", "program-launch", "program-exec", "tray-scroll", "tray-menu-chosen",
@@ -60,7 +60,8 @@ pub use blocks::{
 };
 pub use debug::debug::{DebugTemplate, PerformanceMeasurement};
 pub use host_services::{
-    AccessGrant, BlockFilter, BlockPick, ImportedBlock, PickedBlock, Revision, ShellDialog,
+    AccessGrant, AccessListing, BlockFilter, BlockPick, ImportedBlock, PickedBlock, Revision,
+    ShellDialog,
 };
 pub use shared::access::AccessLevel;
 pub use shell_types::{
@@ -665,7 +666,7 @@ pub use blocks::MetadataEntries;
 
 impl Default for AccessLevel {
     fn default() -> Self {
-        Self::Edit
+        Self::Manage
     }
 }
 
@@ -679,7 +680,11 @@ impl AccessLevel {
     }
 
     pub fn can_edit(self) -> bool {
-        self == Self::Edit
+        self >= Self::Edit
+    }
+
+    pub fn can_manage(self) -> bool {
+        self >= Self::Manage
     }
 
     pub fn label(self) -> &'static str {
@@ -688,6 +693,7 @@ impl AccessLevel {
             Self::KnowExists => "Knows it exists",
             Self::View => "Can view",
             Self::Edit => "Can edit",
+            Self::Manage => "Can manage",
         }
     }
 }
