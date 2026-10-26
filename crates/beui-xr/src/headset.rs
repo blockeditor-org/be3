@@ -304,11 +304,7 @@ impl Headset {
     }
 
     pub fn reopen(&mut self, device: &wgpu::Device) -> bool {
-        if !self.returns()
-            || self
-                .tried
-                .is_some_and(|tried| tried.elapsed() < RETRY)
-        {
+        if !self.returns() || self.tried.is_some_and(|tried| tried.elapsed() < RETRY) {
             return false;
         }
         self.tried = Some(Instant::now());
@@ -641,9 +637,14 @@ fn reopen(
     physical: vk::PhysicalDevice,
     device: Device,
 ) -> Result<Session, Box<dyn Error>> {
-    shared.instance.graphics_requirements::<xr::Vulkan>(system)?;
-    let picked =
-        unsafe { shared.instance.vulkan_graphics_device(system, vk_instance.as_raw() as _) }?;
+    shared
+        .instance
+        .graphics_requirements::<xr::Vulkan>(system)?;
+    let picked = unsafe {
+        shared
+            .instance
+            .vulkan_graphics_device(system, vk_instance.as_raw() as _)
+    }?;
     if vk::PhysicalDevice::from_raw(picked as u64) != physical {
         return Err("it wants another GPU".into());
     }
