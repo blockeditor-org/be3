@@ -36,8 +36,10 @@ accesskit = "0.24.1"
 beui-components-styled = { path = "../beui-components-styled" }
 beui-components-unstyled = { path = "../beui-components-unstyled" }
 beui-core = { path = "../beui-core" }
+beui-dock = { path = "../beui-dock" }
 beui-font-freetype = { path = "../beui-font-freetype" }
 beui-inspector = { path = "../beui-inspector" }
+beui-keyboard = { path = "../beui-keyboard" }
 beui-layer-drive = { path = "../beui-layer-drive" }
 beui-platform-headless = { path = "../beui-platform-headless" }
 beui-renderer-wgpu = { path = "../beui-renderer-wgpu", optional = true }

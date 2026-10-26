@@ -37,8 +37,8 @@ pub use beui_core::file_picker::{
 pub use beui_core::file_saver::{FileSave, FileSaveAnswer, FileSaveId, FileSaveRequest, SavedFile};
 pub use beui_core::filter::{ColorVision, Filter, MAX_BLUR};
 pub use beui_core::font::{
-    FontBackend, FontFamily, FontId, Galley, GalleyLine, Glyph, GlyphId, GlyphImage, Shaping,
-    TextAlign, TextLayout, Wrap, Wraps, line_height,
+    FontBackend, FontFamily, FontId, Galley, GalleyLine, Glyph, GlyphId, GlyphImage, Overflow,
+    Shaping, TextAlign, TextLayout, WrapAt, Wraps, line_height,
 };
 pub use beui_core::geometry::{Pos2, Rect, Rotation, Vec2, pos2, vec2};
 pub use beui_core::icons;
@@ -69,12 +69,14 @@ pub use beui_core::preferences::{
 pub use beui_core::rich;
 pub use beui_core::runner::environment;
 pub use beui_core::touch_cursor;
+pub use beui_dock as dock;
 #[cfg(not(target_arch = "wasm32"))]
 pub use beui_font_freetype::system::SystemFonts;
 pub use beui_font_freetype::{
     FontBytes, FontData, FontLibrary, FontSources, FreetypeFonts, ICONS_FONT,
 };
 pub use beui_inspector::install as install_inspector;
+pub use beui_keyboard as keyboard;
 pub use beui_layer_drive as drive;
 pub use beui_platform_headless::testing;
 #[cfg(all(feature = "render", not(target_arch = "wasm32")))]
@@ -110,7 +112,7 @@ pub use web::{WebRenderer, run_web, web_platform};
 #[cfg(all(any(feature = "web", feature = "dom"), target_arch = "wasm32"))]
 mod web;
 
-mod keyboard;
+mod keyboard_host;
 #[cfg(all(feature = "window", not(target_arch = "wasm32")))]
 pub use window::{WindowRenderer, native_platform, run_on, run_with, run_with_renderers};
 
@@ -133,7 +135,7 @@ pub mod reactive {
     pub fn build(f: impl FnOnce() -> beui_view::primitives::Root) -> Document {
         let mut document = beui_view::reactive::build(f);
         beui_inspector::install(&mut document);
-        crate::keyboard::install_keyboard(&mut document);
+        crate::keyboard_host::install_keyboard(&mut document);
         document
     }
 }

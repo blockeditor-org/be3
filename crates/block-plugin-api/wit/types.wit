@@ -117,10 +117,25 @@ interface types {
         phone,
     }
 
+    /// How a frame shown as a dialog is laid out. The editor draws the
+    /// dialog's whole inside, its title, content and actions, with nothing of
+    /// the host's around it but the card or sheet.
+    record dialog-frame {
+        /// Laid out for a narrow screen or for touch: the footer's buttons
+        /// stretch across it, the primary one first.
+        narrow: bool,
+        /// How much of the frame's bottom is covered, by an on-screen keyboard
+        /// or a phone's gesture bar, which a footer pinned to the bottom stays
+        /// above.
+        bottom-inset: f32,
+    }
+
     record frame-spec {
         chrome: frame-chrome,
         content: option<rect>,
         top-bar: top-bar,
+        /// Set when the frame is shown as a dialog.
+        dialog: option<dialog-frame>,
     }
 
     record viewport-metrics {
@@ -267,6 +282,9 @@ interface types {
         rotation: f32,
         opacity: f32,
         follows-view: bool,
+        /// Set when the editor shows the child as a dialog, which the host
+        /// passes on to the child's frame.
+        dialog: option<dialog-frame>,
     }
 
     /// A rectangle that hides the children placed before it.

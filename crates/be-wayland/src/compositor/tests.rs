@@ -153,7 +153,7 @@ fn Shown(windows: Windows) -> NodeId {
                     }
                 }}
             >
-                <List spacing=0.0>
+                <List spacing=Space::None>
                     <TextInput @test_id={"test.input"} value={text} />
                     <ForEach keys={ids}>|id: WindowId| {
                         let list = windows.list();
@@ -165,8 +165,8 @@ fn Shown(windows: Windows) -> NodeId {
                                     .map_or(SHOWN, |area| area.size())
                             })
                         });
-                        let width = create_memo(move || Some(size.get().x));
-                        let height = create_memo(move || Some(size.get().y));
+                        let width = create_memo(move || Size::Custom(size.get().x));
+                        let height = create_memo(move || Size::Custom(size.get().y));
                         view! {
                             <Frame width=width height=height>
                                 <WindowView windows id />

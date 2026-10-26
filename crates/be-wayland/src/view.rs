@@ -3,14 +3,12 @@ use beui::reactive::*;
 
 use beui::styled::*;
 use beui::{
-    Color32, ForwardedInput, Key, NodeId, Pos2, Rect, Vec2, WindowPlacement, WindowReport,
+    ForwardedInput, Key, NodeId, Pos2, Rect, Vec2, WindowPlacement, WindowReport,
     WindowRole,
 };
 
 use crate::state::WindowId;
 use crate::windows::Windows;
-
-const FROZEN_DIM: Color32 = Color32::from_rgba_unmultiplied(0, 0, 0, 140);
 
 #[component]
 pub fn WindowView(
@@ -52,8 +50,8 @@ pub fn WindowView(
                         .is_none_or(|info| info.responding)
                 });
                 match responding {
-                    true => Color32::TRANSPARENT,
-                    false => FROZEN_DIM,
+                    true => ColorRole::None,
+                    false => ColorRole::Dim,
                 }
             });
             let cursor = windows.cursor();
@@ -118,7 +116,7 @@ pub fn WindowView(
                             <Drawing
                                 draw={Prop::dynamic(move || draw_gpu(signals.drawing.get()))}
                             />
-                            <Frame fill={ColorRole::custom(dim)} />
+                            <Frame fill={dim} />
                         </Layers>
                     </Interactive>
                     <ForEach keys={openings}>|_: Option<(u32, u32)>| {

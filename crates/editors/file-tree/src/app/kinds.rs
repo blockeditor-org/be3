@@ -4,7 +4,6 @@ use block_editor_beui::beui::icons::{
 };
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
-use block_editor_beui::beui::unstyled::MenuItem;
 use block_editor_beui::tags::{tag_color, tags_of};
 use block_editor_beui::{BlockQuery, Editor};
 use uuid::Uuid;

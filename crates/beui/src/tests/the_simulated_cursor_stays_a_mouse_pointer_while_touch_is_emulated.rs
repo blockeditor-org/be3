@@ -8,7 +8,7 @@ fn the_simulated_cursor_stays_a_mouse_pointer_while_touch_is_emulated() {
     let mut harness = Harness::sized(hello_column().document, WIDE_VIEWPORT);
     harness.frame(Vec::new());
     harness.toggle_inspector();
-    harness.click(harness.simulation_tab_center());
+    harness.show_inspector_tab(crate::inspector::InspectorTab::Simulation);
     harness.frame(Vec::new());
     harness.click(harness.mouse_toggle_center());
     harness.click(harness.touch_toggle_center());

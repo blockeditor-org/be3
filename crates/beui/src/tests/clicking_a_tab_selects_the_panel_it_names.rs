@@ -29,7 +29,8 @@ fn clicking_a_tab_selects_the_panel_it_names() {
         0
     );
 
-    let second = harness.document().children(tabs)[1];
+    let list = harness.document().children(tabs)[0];
+    let second = harness.document().children(list)[1];
     harness.click(harness.center(second));
     harness.frame(Vec::new());
 

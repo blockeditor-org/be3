@@ -14,9 +14,10 @@ use block_plugin_api::guest::host_services;
 use block_plugin_api::{
     AccessLevel, AccessListing, ArtifactAction, AudioCommand, AudioSource, AudioStatus, BarAction,
     BlockCommand, BlockPick, ChildContent, ChildId, ChildLayer, ChildMode, ChildPlacement,
-    ChildStatus, EditorInstanceId, EditorRegion, Failure, FilePick, FileSave, FitArea, HostPanel,
-    HostWindowId, MenuEntry, Occluder, PerformanceMeasurement, Revision, ShellCommand, ShellDialog,
-    Size, ViewChange, Watched, WebViewCommand, WebViewEvent, WebViewId,
+    ChildStatus, DialogAnswer, DialogFrame, EditorInstanceId, EditorRegion, Failure, FilePick,
+    FileSave, FitArea, HostPanel, HostWindowId, MenuEntry, Occluder, PerformanceMeasurement,
+    Revision, ShellCommand, ShellDialog, Size, ViewChange, Watched, WebViewCommand, WebViewEvent,
+    WebViewId,
 };
 pub use block_plugin_api::{BlockFilter, FileFilter, SavedFile};
 use block_type_guest::editor::{EditorOperation, FromEditor, Snapshot, ToEditor};
@@ -458,8 +459,11 @@ pub struct EditorHost {
     view_block: Rc<Cell<Option<Uuid>>>,
     view: Rc<Cell<Option<View>>>,
     view_changes: Rc<RefCell<Vec<ViewChange>>>,
-    creation_ready: Rc<Cell<bool>>,
-    creation_changed: Rc<Cell<bool>>,
+    handles_dismiss: Rc<Cell<bool>>,
+    handles_dismiss_changed: Rc<Cell<bool>>,
+    dialog_closes: Rc<RefCell<Vec<DialogAnswer>>>,
+    dismiss_requested: Rc<Cell<bool>>,
+    child_dismissals: Rc<RefCell<Vec<ChildId>>>,
     performance: Arc<Mutex<Vec<PerformanceRecord>>>,
     region: Rc<Cell<Option<EditorRegion>>>,
     drops: Rc<RefCell<HashMap<EditorRegion, RegionDrops>>>,
@@ -500,7 +504,7 @@ pub struct EditorHost {
     account: Rc<Cell<Uuid>>,
     organization: Rc<Cell<Uuid>>,
     module: Rc<RefCell<std::rc::Weak<crate::module::ModuleState>>>,
-    settings_draft: Rc<RefCell<Option<Vec<u8>>>>,
+    settings_draft: Rc<RefCell<Option<crate::SettingsDraft>>>,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -1743,22 +1747,25 @@ impl EditorHost {
         self.module().is_some_and(|module| module.handles())
     }
 
-    pub fn settings_draft(&self) -> Option<Vec<u8>> {
+    pub fn settings_draft(&self) -> Option<crate::SettingsDraft> {
         self.settings_draft.borrow().clone()
     }
 
     pub fn set_settings_draft(&self, draft: Vec<u8>) {
         if let Some(open) = self.settings_draft.borrow_mut().as_mut() {
-            *open = draft;
+            open.draft = draft;
         }
     }
 
-    pub(crate) fn open_settings_draft(&self, draft: Option<Vec<u8>>) {
+    pub(crate) fn open_settings_draft(&self, draft: Option<crate::SettingsDraft>) {
         *self.settings_draft.borrow_mut() = draft;
     }
 
     pub(crate) fn close_settings_draft(&self) -> Option<Vec<u8>> {
-        self.settings_draft.borrow_mut().take()
+        self.settings_draft
+            .borrow_mut()
+            .take()
+            .map(|settings| settings.draft)
     }
 
     pub fn leave_frame(&self) {
@@ -1840,6 +1847,7 @@ impl EditorHost {
         opacity: f32,
         intrinsic: Option<Vec2>,
         follows_view: bool,
+        dialog: Option<DialogFrame>,
     ) -> ChildId {
         let region = self.region.get().unwrap_or(EditorRegion::Frame);
         let placed = rect;
@@ -1869,6 +1877,7 @@ impl EditorHost {
                 rotation,
                 opacity: opacity.clamp(0.0, 1.0),
                 follows_view,
+                dialog,
             });
         child
     }
@@ -1877,12 +1886,32 @@ impl EditorHost {
         self.child_statuses.borrow().get(&child).cloned()
     }
 
-    pub fn set_creation_ready(&self, ready: bool) {
-        if self.creation_ready.get() == ready {
+    pub fn handles_dismiss(&self, handles: bool) {
+        if self.handles_dismiss.get() == handles {
             return;
         }
-        self.creation_ready.set(ready);
-        self.creation_changed.set(true);
+        self.handles_dismiss.set(handles);
+        self.handles_dismiss_changed.set(true);
+        self.changed();
+    }
+
+    pub fn close_dialog(&self, answer: DialogAnswer) {
+        self.dialog_closes.borrow_mut().push(answer);
+        self.changed();
+    }
+
+    pub fn dismiss_child(&self, child: ChildId) {
+        self.child_dismissals.borrow_mut().push(child);
+        self.changed();
+    }
+
+    pub(crate) fn request_dismiss(&self) {
+        self.dismiss_requested.set(true);
+        self.changed();
+    }
+
+    pub fn take_dismiss_request(&self) -> bool {
+        self.dismiss_requested.take()
     }
 
     pub fn take_opens(&self) -> Vec<OpenRequest> {
@@ -2057,10 +2086,18 @@ impl EditorHost {
         std::mem::take(&mut self.present_requests.borrow_mut())
     }
 
-    pub(crate) fn take_creation_ready(&self) -> Option<bool> {
-        self.creation_changed
+    pub(crate) fn take_handles_dismiss(&self) -> Option<bool> {
+        self.handles_dismiss_changed
             .take()
-            .then(|| self.creation_ready.get())
+            .then(|| self.handles_dismiss.get())
+    }
+
+    pub(crate) fn take_dialog_closes(&self) -> Vec<DialogAnswer> {
+        std::mem::take(&mut self.dialog_closes.borrow_mut())
+    }
+
+    pub(crate) fn take_child_dismissals(&self) -> Vec<ChildId> {
+        std::mem::take(&mut self.child_dismissals.borrow_mut())
     }
 
     pub(crate) fn take_performance(&self) -> Vec<(String, Vec<PerformanceMeasurement>)> {

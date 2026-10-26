@@ -1,8 +1,8 @@
 use super::*;
+use crate::keyboard::styled::key_center;
+use crate::keyboard::unstyled::{Layer as KeyLayer, Value};
 use crate::reactive::*;
-use crate::styled::software_keyboard::key_center;
 use crate::styled::*;
-use crate::unstyled::software_keyboard::{Layer, Value};
 use crate::{HostPlacement, WindowId, WindowPlacement};
 
 #[test]
@@ -17,7 +17,7 @@ fn the_on_screen_keyboard_opens_in_the_window_holding_the_focused_field() {
                 size={vec2(500.0, 400.0)}
                 placement={WindowPlacement::Host(HostPlacement("a display".to_owned()))}
             >|_handle: WindowHandle|
-                <styled::Frame padding=24.0>
+                <styled::Frame padding={Padding::all(Space::Xl3)}>
                     <TextInput @test_id="field" value={typed} />
                 </styled::Frame>
             </Window>
@@ -46,7 +46,7 @@ fn the_on_screen_keyboard_opens_in_the_window_holding_the_focused_field() {
     assert_eq!(keyboard.width(), 500.0, "across that window");
 
     for letter in ['o', 'k'] {
-        let key = key_center(keyboard, Layer::Text, Value::Char(letter)).expect("a letter key");
+        let key = key_center(keyboard, KeyLayer::Text, Value::Char(letter)).expect("a letter key");
         press_in(&mut harness, window, key, true);
         press_in(&mut harness, window, key, false);
     }

@@ -11,8 +11,8 @@ use block_editor_beui::{AudioStatus, Editor, FileChooser, Sidebar};
 use super::{decode, filter, format_micros};
 use audio_block_types::AudioContent;
 
-const PADDING: f32 = 12.0;
-const SPACING: f32 = 8.0;
+const PADDING: Space = Space::Lg;
+const SPACING: Space = Space::Md;
 const SECOND_MICROS: u64 = 1_000_000;
 
 fn played_to(status: &AudioStatus, since: Duration) -> u64 {
@@ -115,14 +115,15 @@ pub fn AudioView(editor: Editor) -> NodeId {
     let content = NodeRef::new();
     editor.content(&content);
     view! {
-        <List direction=Direction::Horizontal spacing=0.0>
+        <List direction=Direction::Horizontal spacing=Space::None>
             <Frame @sizing=ItemSize::Percent(100.0) @node_ref={&content} padding=PADDING>
                 <List spacing=SPACING>
                     <Text size=TextSize::Xl4 align=TextAlign::Center>
                         <Icon glyph=ICON_FILE_HEADPHONE />
                     </Text>
                     <Text align=TextAlign::Center>{source}</Text>
-                    <IconButton
+                    <Button
+                        icon_only=true
                         @sizing={ItemSize::Intrinsic.align(Align::Center)}
                         glyph={glyph}
                         label={action}

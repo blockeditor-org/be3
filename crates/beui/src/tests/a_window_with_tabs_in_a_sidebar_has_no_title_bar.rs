@@ -1,6 +1,6 @@
 use super::*;
+use crate::dock::unstyled::{DockApi, DockPane, DockTab, DockWindow, DockingLayout};
 use crate::geometry::vec2;
-use crate::unstyled::{DockApi, DockPane, DockTab, DockWindow, DockingLayout};
 
 #[test]
 fn a_window_with_tabs_in_a_sidebar_has_no_title_bar() {
@@ -9,7 +9,7 @@ fn a_window_with_tabs_in_a_sidebar_has_no_title_bar() {
     let document = build_node(move || {
         let layout = DockingLayout::new();
         view! {
-            <styled::Docking @node_ref=&dock layout>
+            <dock::styled::Docking @node_ref=&dock layout>
                 <DockPane id="main">
                     <DockTab id=1u64 title="Tab 1">
                         <Frame @test_id="content.1" />
@@ -28,7 +28,7 @@ fn a_window_with_tabs_in_a_sidebar_has_no_title_bar() {
                         </DockTab>
                     </DockPane>
                 </DockWindow>
-            </styled::Docking>
+            </dock::styled::Docking>
         }
     });
     let dock = dock.get();

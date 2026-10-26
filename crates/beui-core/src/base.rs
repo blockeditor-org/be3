@@ -4,6 +4,7 @@ pub mod child_list;
 pub mod drawing;
 pub mod embed;
 pub mod fade;
+pub mod first_fit;
 pub mod focus;
 pub mod focus_scope;
 pub mod frame;

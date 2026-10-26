@@ -1,9 +1,7 @@
-use beui::Wrap;
 use block_editor_beui::be_block::{InputRemapper, InputRemapperContent};
 use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
-use block_editor_beui::beui::unstyled::ChoiceOption;
 use block_editor_beui::{ContentProjection, Editor, RemapState, RemapsWatch};
 
 use super::gui::EditorTab;
@@ -79,7 +77,7 @@ pub fn InputRemapsView(editor: Editor) -> NodeId {
                 </SettingsRow>
                 <Show condition={offered}>
                     <SettingsRow label="This device" separated=true>
-                        <Text style=TextStyle::CAPTION wrap=Wrap::Words>{status}</Text>
+                        <Text style=TextStyle::CAPTION>{status}</Text>
                     </SettingsRow>
                 </Show>
             </SettingsSection>

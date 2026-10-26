@@ -1,5 +1,5 @@
 use block_editor_beui::beui::Pos2;
-use block_editor_beui::beui::unstyled::DockApi;
+use block_editor_beui::beui::dock::styled::DockApi;
 
 use super::*;
 

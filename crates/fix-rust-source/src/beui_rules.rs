@@ -3,29 +3,39 @@ use ra_ap_syntax::{SourceFile, SyntaxNode};
 
 const SIGNAL_WRITES: [&str; 3] = ["set", "update", "set_unconditionally"];
 
-const PRIMITIVE_USERS: [&str; 14] = [
+const PRIMITIVE_USERS: [&str; 18] = [
     "crates/beui/",
     "crates/beui-view/",
     "crates/beui-components-styled/",
     "crates/beui-components-unstyled/",
+    "crates/beui-dock/",
     "crates/beui-inspector/",
+    "crates/beui-keyboard/",
     "crates/beui-renderer-wgpu/",
     "crates/beui-demo/src/base_pages.rs",
     "crates\\beui\\",
     "crates\\beui-view\\",
     "crates\\beui-components-styled\\",
     "crates\\beui-components-unstyled\\",
+    "crates\\beui-dock\\",
     "crates\\beui-inspector\\",
+    "crates\\beui-keyboard\\",
     "crates\\beui-renderer-wgpu\\",
     "crates\\beui-demo\\src\\base_pages.rs",
 ];
 
-const COMPONENT_CRATES: [&str; 4] = [
+const COMPONENT_CRATES: [&str; 8] = [
     "crates/beui-components-styled/",
     "crates/beui-components-unstyled/",
+    "crates/beui-dock/",
+    "crates/beui-keyboard/",
     "crates\\beui-components-styled\\",
     "crates\\beui-components-unstyled\\",
+    "crates\\beui-dock\\",
+    "crates\\beui-keyboard\\",
 ];
+
+const BASE_CRATES: [&str; 2] = ["crates/beui-core/", "crates\\beui-core\\"];
 
 const DOCUMENT_ACCESS: [&str; 5] = [
     "with_document",
@@ -105,6 +115,9 @@ pub(crate) fn beui_violations(tree: &SourceFile, source: &str, relative: &str) -
         .any(|allowed| relative.starts_with(allowed))
     {
         violations.extend(primitive_uses(tree, source, relative));
+        if !BASE_CRATES.iter().any(|base| relative.starts_with(base)) {
+            violations.extend(fixed_extent_uses(tree, source, relative));
+        }
     }
     if !test_source {
         violations.extend(component_uses(tree, source, relative));
@@ -214,7 +227,12 @@ fn deferred_renderer(call: &ast::CallExpr) -> bool {
         && kind.is_some_and(|name| {
             matches!(
                 name.text(),
-                "Render" | "RenderFn" | "MenuStyle" | "ScrollbarStyle" | "CompletionMenu"
+                "Render"
+                    | "RenderFn"
+                    | "MenuStyle"
+                    | "AnchoredStyle"
+                    | "ScrollbarStyle"
+                    | "CompletionMenu"
             )
         })
 }
@@ -236,6 +254,26 @@ fn primitive_uses(tree: &SourceFile, source: &str, relative: &str) -> Vec<String
             let line = source[..offset].matches('\n').count() + 1;
             format!(
                 "primitive outside beui: {relative}:{line} only beui's own crates use beui::primitives; import beui::styled::* instead"
+            )
+        })
+        .collect()
+}
+
+fn fixed_extent_uses(tree: &SourceFile, source: &str, relative: &str) -> Vec<String> {
+    let tokens: Vec<_> = tree
+        .syntax()
+        .descendants_with_tokens()
+        .filter_map(|element| element.into_token())
+        .filter(|token| !token.kind().is_trivia() && !matches!(token.text(), ":" | "::"))
+        .collect();
+    tokens
+        .windows(2)
+        .filter(|pair| pair[0].text() == "Extent" && pair[1].text() == "px")
+        .map(|pair| {
+            let offset = u32::from(pair[1].text_range().start()) as usize;
+            let line = source[..offset].matches('\n').count() + 1;
+            format!(
+                "fixed extent outside beui: {relative}:{line} a styled length takes a Size for a fixed length (Size::Custom for one that comes from content); keep Extent for intrinsic, fill, fraction and bounds"
             )
         })
         .collect()

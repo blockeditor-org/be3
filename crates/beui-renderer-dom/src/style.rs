@@ -421,10 +421,16 @@ fn masked(fade: Fade, origin: (f64, f64)) -> String {
         format!("linear-gradient(to {towards},{})", stops.join(","))
     })
     .collect();
-    let images = gradients.join(",");
-    let mut css = format!("mask-image:{images};-webkit-mask-image:{images};");
+    let mut css = String::new();
+    if !gradients.is_empty() {
+        let images = gradients.join(",");
+        let _ = write!(css, "mask-image:{images};-webkit-mask-image:{images};");
+    }
     if gradients.len() > 1 {
         css.push_str("mask-composite:intersect;-webkit-mask-composite:source-in;");
+    }
+    if fade.opacity < 1.0 {
+        let _ = write!(css, "opacity:{};", fade.opacity);
     }
     css
 }

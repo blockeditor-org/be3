@@ -1,5 +1,5 @@
 use super::*;
-use crate::unstyled::{DockApi, DockPane, DockSplit, DockTab, DockingLayout, Entry, TabId};
+use crate::dock::unstyled::{DockApi, DockPane, DockSplit, DockTab, DockingLayout, Entry, TabId};
 
 #[test]
 fn dragging_a_panes_grip_moves_every_tab_of_the_pane() {
@@ -8,7 +8,7 @@ fn dragging_a_panes_grip_moves_every_tab_of_the_pane() {
     let document = build_node(move || {
         let layout = DockingLayout::new();
         view! {
-            <styled::Docking @node_ref=&dock layout>
+            <dock::styled::Docking @node_ref=&dock layout>
                 <DockSplit id="split">
                     <DockPane id="left">
                         <DockTab id=1u64 title="Tab 1">
@@ -24,7 +24,7 @@ fn dragging_a_panes_grip_moves_every_tab_of_the_pane() {
                         </DockTab>
                     </DockPane>
                 </DockSplit>
-            </styled::Docking>
+            </dock::styled::Docking>
         }
     });
     let dock = dock.get();

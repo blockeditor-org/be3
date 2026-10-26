@@ -6,7 +6,6 @@ use std::rc::Rc;
 use block_editor_beui::be_block::ObjectId;
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
-use block_editor_beui::beui::unstyled::Picture;
 use block_editor_beui::beui::{ImageFit, NodeId, Vec2};
 use block_editor_beui::{Artifacts, BlockParent, Creation, Editor, Side, Sidebar};
 use pixel_art_types::PixelColor;
@@ -28,7 +27,7 @@ use state::Tools;
 
 const EMBEDDED_LONG_SIDE: f32 = 256.0;
 const EMBEDDED_SHORT_SIDE: f32 = 24.0;
-const TOOLS_WIDTH: f32 = 180.0;
+const TOOLS_WIDTH: Size = Size::Custom(180.0);
 
 pub struct PixelArtApp;
 
@@ -130,13 +129,17 @@ fn PixelArtEditor(editor: Editor) -> NodeId {
 
     let chrome = editor.chrome_shown();
     view! {
-        <List spacing=0.0>
+        <List spacing=Space::None>
             <TopBar tools={tools} size={size} shown={chrome} />
-            <List @sizing=ItemSize::Percent(100.0) direction=Direction::Horizontal spacing=0.0>
+            <List
+                @sizing=ItemSize::Percent(100.0)
+                direction=Direction::Horizontal
+                spacing=Space::None
+            >
                 <Sidebar side=Side::Left shown={chrome} width=TOOLS_WIDTH>
                     <ToolsPanel tools={tools} />
                 </Sidebar>
-                <List @sizing=ItemSize::Percent(100.0) spacing=0.0>
+                <List @sizing=ItemSize::Percent(100.0) spacing=Space::None>
                     <ArtworkCanvas
                         @sizing=ItemSize::Percent(100.0)
                         tools={tools}

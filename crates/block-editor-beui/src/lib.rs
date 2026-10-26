@@ -8,6 +8,7 @@ mod block_link;
 mod child;
 mod chrome;
 pub mod database;
+mod dialog;
 mod dock;
 mod editor;
 mod file_chooser;

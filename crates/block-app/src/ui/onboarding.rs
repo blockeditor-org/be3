@@ -1,11 +1,9 @@
-use beui::Wrap;
 use beui::icons::{
     ICON_BOXES, ICON_CHECK, ICON_CHEVRON_DOWN, ICON_CLOUD, ICON_COPY, ICON_ELLIPSIS, ICON_MONITOR,
     ICON_PLUS, ICON_REFRESH_CW, ICON_USER_PLUS, ICON_USERS_ROUND,
 };
 use beui::reactive::*;
 use beui::styled::*;
-use beui::unstyled::MenuItem;
 use beui::{NodeId, TextAlign};
 use uuid::Uuid;
 
@@ -22,11 +20,9 @@ pub(super) fn ErrorText(text: Memo<Option<String>>) -> NodeId {
     let shown = create_memo(move || text.get().is_some());
     let content = create_memo(move || text.get().unwrap_or_default());
     view! {
-        <List spacing=0.0>
+        <List spacing=Space::None>
             <Show condition={shown}>
-                <Text style=TextStyle::PARAGRAPH color=TextColor::Danger wrap=Wrap::Words>
-                    {content}
-                </Text>
+                <Text style=TextStyle::PARAGRAPH color=TextColor::Danger>{content}</Text>
             </Show>
         </List>
     }
@@ -36,9 +32,12 @@ pub(super) fn ErrorText(text: Memo<Option<String>>) -> NodeId {
 pub(super) fn Column(children: beui::reactive::Children<beui::reactive::ListChild>) -> NodeId {
     view! {
         <Scroll>
-            <List spacing=0.0 align=Align::Center>
-                <Frame width={Extent::at_most(COLUMN_WIDTH)} padding={Sides::symmetric(16.0, 36.0)}>
-                    <List spacing=12.0>{children}</List>
+            <List spacing=Space::None align=Align::Center>
+                <Frame
+                    width={Extent::at_most(COLUMN_WIDTH)}
+                    padding={Padding::symmetric(Space::Xl, Space::Xl3)}
+                >
+                    <List spacing=Space::Lg>{children}</List>
                 </Frame>
             </List>
         </Scroll>
@@ -79,12 +78,12 @@ pub(super) fn ErrorScreen(view: AppViewStore) -> NodeId {
     view! {
         <Column>
             <Text style=TextStyle::TITLE align=TextAlign::Center>"Something went wrong"</Text>
-            <Frame height=240.0>
+            <Frame height={Size::Custom(240.0)}>
                 <Scroll>
-                    <Text style=TextStyle::PARAGRAPH wrap=Wrap::Words>{message}</Text>
+                    <Text style=TextStyle::PARAGRAPH>{message}</Text>
                 </Scroll>
             </Frame>
-            <List direction=Direction::Horizontal spacing=8.0 wrap=true>
+            <List direction=Direction::Horizontal spacing=Space::Md wrap=true>
                 <Button
                     label="Restart"
                     variant=ButtonVariant::Primary
@@ -118,14 +117,15 @@ pub(super) fn ErrorScreen(view: AppViewStore) -> NodeId {
             </List>
             <Dialog
                 open={asking}
+                kind=DialogKind::Alert
                 title={title}
-                confirm="Delete"
-                cancel="Cancel"
-                destructive=true
-                on_confirm={|| send(UiCommand::ConfirmErrorAction)}
+                actions={vec![
+                    DialogAction::destructive("Delete", || send(UiCommand::ConfirmErrorAction)),
+                    DialogAction::cancel("Cancel"),
+                ]}
                 on_dismiss={|| send(UiCommand::CancelErrorAction)}
             >
-                <Text style=TextStyle::PARAGRAPH wrap=Wrap::Words>{confirmation}</Text>
+                <Text style=TextStyle::PARAGRAPH>{confirmation}</Text>
             </Dialog>
         </Column>
     }
@@ -188,8 +188,8 @@ fn AccountCard(account: Memo<AccountRow>) -> NodeId {
     });
     view! {
         <Card>
-            <List spacing=6.0>
-                <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
+            <List spacing=Space::Sm>
+                <List direction=Direction::Horizontal align=Align::Center spacing=Space::Md>
                     <Text style=TextStyle::HEADING @sizing=ItemSize::Percent(100.0)>{name}</Text>
                     <MenuButton
                         label="Account options"
@@ -211,7 +211,7 @@ fn AccountCard(account: Memo<AccountRow>) -> NodeId {
                     direction=Direction::Horizontal
                     align=Align::Center
                     justify=Justify::End
-                    spacing=4.0
+                    spacing=Space::Xs
                 >
                     <Tooltip label={open_hint}>
                         <Button
@@ -221,7 +221,8 @@ fn AccountCard(account: Memo<AccountRow>) -> NodeId {
                             on_click={move || send(UiCommand::OpenAccount(key.get_untracked()))}
                         />
                     </Tooltip>
-                    <IconButton
+                    <Button
+                        icon_only=true
                         glyph=ICON_CHEVRON_DOWN
                         label="Open a different organization"
                         on_click={move || send(UiCommand::ChooseOrganization(key.get_untracked()))}
@@ -243,18 +244,18 @@ fn AccountDetails(account: Memo<AccountRow>) -> NodeId {
     let seen_by = create_memo(move || administrators_note(&account.get().companies));
     let seen = create_memo(move || !seen_by.get().is_empty());
     view! {
-        <List spacing=2.0>
+        <List spacing=Space::Xs2>
             <Show condition={create_memo(move || !email.get().is_empty())}>
                 <Text style=TextStyle::CAPTION>{email}</Text>
             </Show>
-            <List direction=Direction::Horizontal align=Align::Center spacing=4.0>
+            <List direction=Direction::Horizontal align=Align::Center spacing=Space::Xs>
                 <Text size=TextSize::Sm align=TextAlign::Center>
                     <Icon glyph={glyph} />
                 </Text>
                 <Text style=TextStyle::CAPTION>{server}</Text>
             </List>
             <Show condition={seen}>
-                <Text style=TextStyle::CAPTION wrap=Wrap::Words>{seen_by}</Text>
+                <Text style=TextStyle::CAPTION>{seen_by}</Text>
             </Show>
         </List>
     }
@@ -404,45 +405,40 @@ pub(super) fn AddAccountDialog(
         <Dialog
             open={open}
             title={title}
-            width=460.0
+            width={Size::Custom(460.0)}
             id="account"
-            confirm={footer_primary}
-            cancel="Cancel"
-            confirm_disabled={primary_disabled}
-            on_confirm={move || {
-                if waiting.get_untracked() {
-                    send(UiCommand::OpenLoginBrowser);
-                } else {
-                    submit();
-                }
-            }}
+            actions={vec![
+                DialogAction::secondary("Back", move || {
+                    selection.set(None);
+                    send(UiCommand::RetryAccount);
+                })
+                .shown(editing)
+                .named("back"),
+                DialogAction::cancel("Cancel"),
+                DialogAction::primary(footer_primary, move || {
+                    if waiting.get_untracked() {
+                        send(UiCommand::OpenLoginBrowser);
+                    } else {
+                        submit();
+                    }
+                })
+                .disabled(primary_disabled)
+                .busy(connecting)
+                .shown(create_memo(move || !footer_primary.get().is_empty())),
+            ]}
             on_dismiss={|| send(UiCommand::CloseAddAccount)}
-            extra_actions={move || view! {
-                <Show condition={editing}>
-                    <Button
-                        label="Back"
-                        variant=ButtonVariant::Secondary
-                        on_click={move || {
-                            selection.set(None);
-                            send(UiCommand::RetryAccount);
-                        }}
-                    />
-                </Show>
-            }}
         >
-            <List spacing=20.0>
+            <List spacing=Space::Xl2>
                 <Show condition={choosing}>
-                    <List spacing=14.0>
-                        <Text style=TextStyle::PARAGRAPH wrap=Wrap::Words>
-                            "Choose where to keep your account."
-                        </Text>
+                    <List spacing=Space::Lg>
+                        <Text style=TextStyle::PARAGRAPH>"Choose where to keep your account."</Text>
                         <Frame
                             fill=ColorRole::Surface
                             border={Border::DEFAULT}
                             radius=Radius::Md
-                            padding=6.0
+                            padding=Space::Sm
                         >
-                            <List spacing=4.0>
+                            <List spacing=Space::Xs>
                                 <Show condition={has_default}>
                                     <ActionRow
                                         label={default_name}
@@ -473,13 +469,13 @@ pub(super) fn AddAccountDialog(
                     </List>
                 </Show>
                 <Show condition={editing}>
-                    <List spacing=18.0>
+                    <List spacing=Space::Xl>
                         <Show condition={local}>
-                            <List spacing=16.0>
-                                <Text style=TextStyle::PARAGRAPH wrap=Wrap::Words>
+                            <List spacing=Space::Xl>
+                                <Text style=TextStyle::PARAGRAPH>
                                     "Your data stays on this device. You only need a display name."
                                 </Text>
-                                <List spacing=6.0>
+                                <List spacing=Space::Sm>
                                     <Text style=TextStyle::CAPTION>"Display name"</Text>
                                     <TextInput
                                         value={display_name}
@@ -492,13 +488,13 @@ pub(super) fn AddAccountDialog(
                             </List>
                         </Show>
                         <Show condition={is_default}>
-                            <List spacing=4.0>
+                            <List spacing=Space::Xs>
                                 <Text style=TextStyle::HEADING>{default_name}</Text>
-                                <Text style=TextStyle::CAPTION wrap=Wrap::Words>{server_name}</Text>
+                                <Text style=TextStyle::CAPTION>{server_name}</Text>
                             </List>
                         </Show>
                         <Show condition={custom}>
-                            <List spacing=6.0>
+                            <List spacing=Space::Sm>
                                 <Text style=TextStyle::CAPTION>"Server address"</Text>
                                 <TextInput
                                     value={remote_url}
@@ -510,7 +506,7 @@ pub(super) fn AddAccountDialog(
                             </List>
                         </Show>
                         <Show condition={show_gateway}>
-                            <List spacing=6.0>
+                            <List spacing=Space::Sm>
                                 <Text style=TextStyle::CAPTION>{gateway_label}</Text>
                                 <TextInput
                                     value={authorization}
@@ -522,25 +518,25 @@ pub(super) fn AddAccountDialog(
                             </List>
                         </Show>
                         <Show condition={remote}>
-                            <Text style=TextStyle::CAPTION wrap=Wrap::Words>
+                            <Text style=TextStyle::CAPTION>
                                 "Next, you’ll sign in or create an account in your browser."
                             </Text>
                         </Show>
                     </List>
                 </Show>
                 <Show condition={waiting}>
-                    <List spacing=16.0>
-                        <Text style=TextStyle::PARAGRAPH wrap=Wrap::Words>
+                    <List spacing=Space::Xl>
+                        <Text style=TextStyle::PARAGRAPH>
                             "Sign in and approve this code in your browser. You can also use a browser on another device."
                         </Text>
                         <Card>
-                            <List spacing=16.0>
-                                <List spacing=6.0>
+                            <List spacing=Space::Xl>
+                                <List spacing=Space::Sm>
                                     <Text style=TextStyle::CAPTION>"Device code"</Text>
                                     <List
                                         direction=Direction::Horizontal
                                         align=Align::Center
-                                        spacing=12.0
+                                        spacing=Space::Lg
                                     >
                                         <SelectableText
                                             @sizing=ItemSize::Percent(100.0)
@@ -553,7 +549,8 @@ pub(super) fn AddAccountDialog(
                                                 {browser_code}
                                             </Text>
                                         </SelectableText>
-                                        <IconButton
+                                        <Button
+                                            icon_only=true
                                             label="Copy code"
                                             glyph=ICON_COPY
                                             variant=ButtonVariant::Ghost
@@ -563,12 +560,12 @@ pub(super) fn AddAccountDialog(
                                     </List>
                                 </List>
                                 <Separator />
-                                <List spacing=6.0>
+                                <List spacing=Space::Sm>
                                     <Text style=TextStyle::CAPTION>"Sign-in link"</Text>
                                     <List
                                         direction=Direction::Horizontal
                                         align=Align::Center
-                                        spacing=12.0
+                                        spacing=Space::Lg
                                     >
                                         <SelectableText
                                             @sizing=ItemSize::Percent(100.0)
@@ -576,13 +573,13 @@ pub(super) fn AddAccountDialog(
                                         >
                                             <Text
                                                 style=TextStyle::CAPTION
-                                                wrap=Wrap::Words
                                                 @test_id="account.browser-url"
                                             >
                                                 {browser_url}
                                             </Text>
                                         </SelectableText>
-                                        <IconButton
+                                        <Button
+                                            icon_only=true
                                             label="Copy link"
                                             glyph=ICON_COPY
                                             variant=ButtonVariant::Ghost
@@ -593,7 +590,7 @@ pub(super) fn AddAccountDialog(
                                 </List>
                             </List>
                         </Card>
-                        <Text style=TextStyle::CAPTION wrap=Wrap::Words>
+                        <Text style=TextStyle::CAPTION>
                             "Waiting for approval. This window will continue automatically."
                         </Text>
                     </List>
@@ -629,7 +626,7 @@ pub(super) fn OrganizationsScreen(view: AppViewStore) -> NodeId {
     let name = create_memo(move || account.get().name);
     view! {
         <Column>
-            <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
+            <List direction=Direction::Horizontal align=Align::Center spacing=Space::Md>
                 <Text style=TextStyle::TITLE @sizing=ItemSize::Percent(100.0)>"Organizations"</Text>
                 <MenuButton
                     label="Account options"
@@ -641,7 +638,8 @@ pub(super) fn OrganizationsScreen(view: AppViewStore) -> NodeId {
                         <MenuItem label="Log out" />
                     }}
                 />
-                <IconButton
+                <Button
+                    icon_only=true
                     glyph=ICON_REFRESH_CW
                     label="Reload organizations"
                     disabled={busy}
@@ -649,8 +647,8 @@ pub(super) fn OrganizationsScreen(view: AppViewStore) -> NodeId {
                 />
             </List>
             <Card>
-                <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
-                    <List @sizing=ItemSize::Percent(100.0) spacing=4.0>
+                <List direction=Direction::Horizontal align=Align::Center spacing=Space::Md>
+                    <List @sizing=ItemSize::Percent(100.0) spacing=Space::Xs>
                         <Text style=TextStyle::HEADING>{name}</Text>
                         <AccountDetails account />
                     </List>
@@ -673,7 +671,7 @@ pub(super) fn OrganizationsScreen(view: AppViewStore) -> NodeId {
                         .unwrap_or_default()
                 });
                 view! {
-                    <List direction=Direction::Horizontal align=Align::Center spacing=4.0>
+                    <List direction=Direction::Horizontal align=Align::Center spacing=Space::Xs>
                         <Button
                             @sizing=ItemSize::Percent(100.0)
                             label={label}
@@ -681,7 +679,8 @@ pub(super) fn OrganizationsScreen(view: AppViewStore) -> NodeId {
                             variant=ButtonVariant::Secondary
                             on_click={move || send(UiCommand::OpenOrganization(id))}
                         />
-                        <IconButton
+                        <Button
+                            icon_only=true
                             glyph=ICON_CHEVRON_DOWN
                             label="Choose a session or profile"
                             on_click={move || send(UiCommand::ChooseSession(id))}
@@ -694,7 +693,7 @@ pub(super) fn OrganizationsScreen(view: AppViewStore) -> NodeId {
                     <OrganizationsPlaceholder state />
                 </Card>
             </Show>
-            <List direction=Direction::Horizontal align=Align::Center spacing=6.0>
+            <List direction=Direction::Horizontal align=Align::Center spacing=Space::Sm>
                 <Text align=TextAlign::Center>
                     <Icon glyph=ICON_USER_PLUS />
                 </Text>
@@ -733,12 +732,12 @@ fn JoinOrganization(view: AppViewStore, busy: Memo<bool>) -> NodeId {
         }
     };
     view! {
-        <List spacing=8.0 @test_id={"app.join"}>
+        <List spacing=Space::Md @test_id={"app.join"}>
             <Show condition={asking}>
                 <Card>
-                    <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
-                        <List @sizing=ItemSize::Percent(100.0) spacing=2.0>
-                            <Text style=TextStyle::HEADING wrap=Wrap::Words>{title}</Text>
+                    <List direction=Direction::Horizontal align=Align::Center spacing=Space::Md>
+                        <List @sizing=ItemSize::Percent(100.0) spacing=Space::Xs2>
+                            <Text style=TextStyle::HEADING>{title}</Text>
                             <Text style=TextStyle::CAPTION>{invited}</Text>
                         </List>
                         <Button
@@ -758,11 +757,9 @@ fn JoinOrganization(view: AppViewStore, busy: Memo<bool>) -> NodeId {
                 </Card>
             </Show>
             <Show condition={pasting}>
-                <List spacing=8.0>
-                    <Text style=TextStyle::CAPTION wrap=Wrap::Words>
-                        "Paste the invite link someone sent you."
-                    </Text>
-                    <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
+                <List spacing=Space::Md>
+                    <Text style=TextStyle::CAPTION>"Paste the invite link someone sent you."</Text>
+                    <List direction=Direction::Horizontal align=Align::Center spacing=Space::Md>
                         <TextInput
                             @sizing=ItemSize::Percent(100.0)
                             value={link}
@@ -815,8 +812,8 @@ pub(super) fn SessionsScreen(view: AppViewStore) -> NodeId {
         <Column>
             <Text style=TextStyle::TITLE>{title}</Text>
             <Show condition={loading}>
-                <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
-                    <Spinner />
+                <List direction=Direction::Horizontal align=Align::Center spacing=Space::Md>
+                    <Progress width=INLINE_PROGRESS_WIDTH />
                     <Text style=TextStyle::CAPTION>"Loading sessions and profiles…"</Text>
                 </List>
             </Show>
@@ -855,7 +852,7 @@ pub(super) fn SessionsScreen(view: AppViewStore) -> NodeId {
                 @test_id={"sessions.new-profile"}
                 on_click={|| send(UiCommand::NewProfile)}
             />
-            <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
+            <List direction=Direction::Horizontal align=Align::Center spacing=Space::Md>
                 <Text style=TextStyle::HEADING @sizing=ItemSize::Percent(100.0)>"Session"</Text>
                 <Text style=TextStyle::CAPTION>"Show every type"</Text>
                 <Switch
@@ -907,7 +904,7 @@ pub(super) fn SessionsScreen(view: AppViewStore) -> NodeId {
                     }
                 }}
             />
-            <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
+            <List direction=Direction::Horizontal align=Align::Center spacing=Space::Md>
                 <Button
                     label="Keep the current session"
                     variant=ButtonVariant::Ghost
@@ -930,14 +927,14 @@ fn OrganizationsPlaceholder(state: Memo<OrganizationsState>) -> NodeId {
     let failed = create_memo(move || state.get() == OrganizationsState::Failed);
     let loading = create_memo(move || state.get() == OrganizationsState::Loading);
     view! {
-        <List spacing=0.0>
+        <List spacing=Space::None>
             <Show condition={loaded}>
                 <Text style=TextStyle::CAPTION>
                     "You do not have any organizations yet. Create one below."
                 </Text>
             </Show>
             <Show condition={failed}>
-                <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
+                <List direction=Direction::Horizontal align=Align::Center spacing=Space::Md>
                     <Text style=TextStyle::CAPTION>"Could not load organizations."</Text>
                     <Button
                         label="Retry"
@@ -947,8 +944,8 @@ fn OrganizationsPlaceholder(state: Memo<OrganizationsState>) -> NodeId {
                 </List>
             </Show>
             <Show condition={loading}>
-                <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
-                    <Spinner />
+                <List direction=Direction::Horizontal align=Align::Center spacing=Space::Md>
+                    <Progress width=INLINE_PROGRESS_WIDTH />
                     <Text style=TextStyle::CAPTION>"Loading organizations…"</Text>
                 </List>
             </Show>
@@ -970,7 +967,7 @@ fn CreateOrganization(busy: Memo<bool>, created: Memo<u64>) -> NodeId {
         }
     };
     view! {
-        <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
+        <List direction=Direction::Horizontal align=Align::Center spacing=Space::Md>
             <TextInput
                 @sizing=ItemSize::Percent(100.0)
                 value={name}
@@ -1004,21 +1001,18 @@ pub(super) fn ReauthDialog(view: AppViewStore) -> NodeId {
         <Dialog
             open={open}
             title="Session expired"
-            width=460.0
-            confirm="Continue in browser"
-            confirm_disabled={busy}
-            on_confirm={|| send(UiCommand::ReauthSubmit)}
+            width={Size::Custom(460.0)}
+            kind=DialogKind::Alert
+            id="reauth"
+            actions={vec![
+                DialogAction::secondary("Log out", || send(UiCommand::ReauthLogOut)).named("log-out"),
+                DialogAction::cancel("Not now"),
+                DialogAction::primary("Continue in browser", || send(UiCommand::ReauthSubmit)).busy(busy),
+            ]}
             on_dismiss={|| send(UiCommand::ReauthClose)}
-            extra_actions={|| view! {
-                <Button
-                    label="Log out"
-                    variant=ButtonVariant::Secondary
-                    on_click={|| send(UiCommand::ReauthLogOut)}
-                />
-            }}
         >
-            <List spacing=20.0>
-                <Text style=TextStyle::PARAGRAPH wrap=Wrap::Words>{message}</Text>
+            <List spacing=Space::Xl2>
+                <Text style=TextStyle::PARAGRAPH>{message}</Text>
                 <Show condition={create_memo(move || error.get().is_some())}>
                     <ErrorText text={error} />
                 </Show>

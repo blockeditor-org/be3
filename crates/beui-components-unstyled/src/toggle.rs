@@ -17,6 +17,7 @@ pub struct ToggleHandle {
     pub disabled: Memo<bool>,
     pub label: Memo<String>,
     pub glyph: Memo<Option<Glyph>>,
+    pub icon_only: Memo<bool>,
     pub tooltip: Memo<String>,
 }
 
@@ -30,6 +31,7 @@ pub fn Toggle(
     #[prop(default = Role::CheckBox)] role: Role,
     action: Option<Action>,
     #[prop(default = false)] disabled: Prop<bool>,
+    #[prop(default = false)] icon_only: Prop<bool>,
     #[prop(default = false)] capture_presses: Prop<bool>,
     #[prop(default = true)] tab_stop: Prop<bool>,
     #[prop(default = true)] press_focus: Prop<bool>,
@@ -46,7 +48,11 @@ pub fn Toggle(
     let disabled = action_disabled(action.as_ref(), disabled);
     let label = create_memo(move || label.get());
     let glyph = create_memo(move || glyph.get());
-    let tooltip = create_memo(move || tooltip.get());
+    let icon_only = create_memo(move || icon_only.get());
+    let tooltip = create_memo(move || match icon_only.get() {
+        true => tooltip.get(),
+        false => String::new(),
+    });
     let hovered = create_signal(false);
     let active = create_signal(false);
     let focused = create_signal(false);
@@ -82,6 +88,7 @@ pub fn Toggle(
             disabled,
             label,
             glyph,
+            icon_only,
             tooltip,
         })
     });

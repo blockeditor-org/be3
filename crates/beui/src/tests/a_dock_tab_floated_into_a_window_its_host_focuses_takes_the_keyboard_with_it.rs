@@ -8,25 +8,25 @@ fn a_dock_tab_floated_into_a_window_its_host_focuses_takes_the_keyboard_with_it(
     let first = create_signal(String::new());
     let other = create_signal(String::new());
     let document = build_node(move || {
-        let layout = unstyled::DockingLayout::new();
+        let layout = dock::unstyled::DockingLayout::new();
         view! {
-            <styled::Docking @node_ref=&dock layout>
-                <unstyled::DockSplit id="split">
-                    <unstyled::DockPane id="left">
-                        <unstyled::DockTab id=1u64 title="Tab 1">
+            <dock::styled::Docking @node_ref=&dock layout>
+                <dock::unstyled::DockSplit id="split">
+                    <dock::unstyled::DockPane id="left">
+                        <dock::unstyled::DockTab id=1u64 title="Tab 1">
                             <styled::TextInput @test_id="first" value={first} label="First" />
-                        </unstyled::DockTab>
-                        <unstyled::DockTab id=3u64 title="Tab 3">
+                        </dock::unstyled::DockTab>
+                        <dock::unstyled::DockTab id=3u64 title="Tab 3">
                             <styled::TextInput @test_id="other" value={other} label="Other" />
-                        </unstyled::DockTab>
-                    </unstyled::DockPane>
-                    <unstyled::DockPane id="right">
-                        <unstyled::DockTab id=2u64 title="Tab 2">
+                        </dock::unstyled::DockTab>
+                    </dock::unstyled::DockPane>
+                    <dock::unstyled::DockPane id="right">
+                        <dock::unstyled::DockTab id=2u64 title="Tab 2">
                             <Frame />
-                        </unstyled::DockTab>
-                    </unstyled::DockPane>
-                </unstyled::DockSplit>
-            </styled::Docking>
+                        </dock::unstyled::DockTab>
+                    </dock::unstyled::DockPane>
+                </dock::unstyled::DockSplit>
+            </dock::styled::Docking>
         }
     });
     let dock = dock.get();

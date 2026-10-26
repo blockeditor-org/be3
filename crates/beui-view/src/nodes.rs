@@ -228,6 +228,10 @@ impl Placements {
     pub fn rect(&self, node: NodeId) -> Option<Rect> {
         self.0.get(&node)
     }
+
+    pub fn scale(&self, node: NodeId) -> f32 {
+        self.0.scale_of(&node)
+    }
 }
 
 pub fn placements() -> Placements {

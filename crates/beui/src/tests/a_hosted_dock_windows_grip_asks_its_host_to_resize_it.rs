@@ -1,5 +1,5 @@
 use super::*;
-use crate::unstyled::DockApi;
+use crate::dock::unstyled::DockApi;
 use crate::{WindowEdge, WindowRequest};
 
 #[test]

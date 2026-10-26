@@ -1,5 +1,6 @@
 use super::*;
 use crate::primitives::Frame;
+use crate::primitives::List;
 use crate::primitives::Text;
 use crate::reactive::*;
 use crate::styled::*;
@@ -22,7 +23,7 @@ fn a_stack_built_inside_a_show_still_measures_the_container_above_it() {
                         <Text>"toggle"</Text>
                     </Button>
                     <Show condition={visible}>
-                        <Stack spacing=0.0 breakpoint=BREAKPOINT>
+                        <Stack spacing=Space::None breakpoint=BREAKPOINT>
                             <Frame
                                 @sizing=ItemSize::Percent(50.0)
                                 @node_ref=&left

@@ -1,4 +1,3 @@
-use beui::Wrap;
 use std::cell::Cell;
 use std::sync::{Arc, RwLock};
 use std::time::Duration;
@@ -223,7 +222,7 @@ pub(crate) fn ConcurrentEditing(rich: bool) -> NodeId {
 
     view! {
         <List spacing=SECTION_SPACING>
-            <Text style=TextStyle::CAPTION wrap=Wrap::Words>
+            <Text style=TextStyle::CAPTION>
                 "The left side orders every edit, as a session's owner does. The right \
                 side shows its own edits at once and holds them until the left has ordered \
                 them. Pause the network to type on both sides, then send each side's edits \
@@ -242,7 +241,7 @@ pub(crate) fn ConcurrentEditing(rich: bool) -> NodeId {
                 <Text style=TextStyle::CAPTION>{latency_label}</Text>
             </List>
             <Slider value={latency} max=MAX_LATENCY label="Latency" />
-            <unstyled::Stack spacing=ROW_SPACING narrow={narrow}>
+            <unstyled::Stack spacing={use_space(ROW_SPACING)} narrow={narrow}>
                 <EditorPane
                     @sizing=ItemSize::Percent(50.0)
                     id="demo.collaboration.left"
@@ -268,7 +267,7 @@ pub(crate) fn ConcurrentEditing(rich: bool) -> NodeId {
                     rich
                 />
             </unstyled::Stack>
-            <Text style=TextStyle::CAPTION wrap=Wrap::Words>{status}</Text>
+            <Text style=TextStyle::CAPTION>{status}</Text>
         </List>
     }
 }
@@ -331,28 +330,32 @@ fn SendButtons(
     let press = |from: Side, amount: Amount| move || send.call(Some((from, amount)));
     view! {
         <List direction align=Align::Center spacing=ROW_SPACING>
-            <IconButton
+            <Button
+                icon_only=true
                 @test_id="demo.collaboration.all_right"
                 glyph={glyphs[0]}
                 label="Send every edit from the left"
                 disabled={from_left}
                 on_click={press(Side::Left, Amount::All)}
             />
-            <IconButton
+            <Button
+                icon_only=true
                 @test_id="demo.collaboration.one_right"
                 glyph={glyphs[1]}
                 label="Send one edit from the left"
                 disabled={from_left}
                 on_click={press(Side::Left, Amount::One)}
             />
-            <IconButton
+            <Button
+                icon_only=true
                 @test_id="demo.collaboration.one_left"
                 glyph={glyphs[2]}
                 label="Send one edit from the right"
                 disabled={from_right}
                 on_click={press(Side::Right, Amount::One)}
             />
-            <IconButton
+            <Button
+                icon_only=true
                 @test_id="demo.collaboration.all_left"
                 glyph={glyphs[3]}
                 label="Send every edit from the right"

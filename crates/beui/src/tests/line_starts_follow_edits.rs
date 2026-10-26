@@ -20,7 +20,13 @@ fn line_starts_follow_edits() {
         held.update(|held| *held = Some(state));
         view! {
             <Frame width=400.0 height=300.0>
-                <TextArea state={state} />
+                <TextArea
+                    colors={area_colors()}
+                    look={area_look()}
+                    font_size=AREA_FONT_SIZE
+                    padding=AREA_PADDING
+                    state={state}
+                />
             </Frame>
         }
     });

@@ -1,27 +1,21 @@
-use beui::Wrap;
-use block_editor_beui::beui::Color32;
 use block_editor_beui::beui::NodeId;
-use block_editor_beui::beui::accesskit::{Node, Role};
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
-use block_editor_beui::beui::unstyled::{Pressable, SliderScale};
 use pixel_ray_tracer_types::{PIXEL_RAY_TRACER_PALETTE, RayEntity, RaySettings};
 
 use crate::overlay::palette_color;
 
 use super::state::{RayState, Surface, Tool};
 
-const SWATCH: f32 = 18.0;
-
 #[component]
 pub(crate) fn ToolsPanel(state: RayState) -> NodeId {
     view! {
-        <List spacing=8.0>
+        <List spacing=Space::Md>
             <Text style=TextStyle::HEADING>"Tools"</Text>
             <ForEach keys={Tool::ALL.to_vec()}>|tool: Tool|
                 <ToolButton state tool />
             </ForEach>
-            <Text style=TextStyle::CAPTION wrap=Wrap::Words>
+            <Text style=TextStyle::CAPTION>
                 "Scroll: pan · Ctrl scroll: zoom · Middle drag: pan · Delete: remove entity"
             </Text>
         </List>
@@ -47,7 +41,7 @@ pub(crate) fn PropertiesPanel(state: RayState) -> NodeId {
     let chosen = create_memo(move || selected.get().is_some());
     let unchosen = create_memo(move || !chosen.get());
     view! {
-        <List spacing=10.0>
+        <List spacing=Space::Md>
             <Text style=TextStyle::HEADING>"Palette"</Text>
             <Palette state={state} />
             <Show condition={chosen}>
@@ -65,7 +59,7 @@ pub(crate) fn PropertiesPanel(state: RayState) -> NodeId {
 fn Palette(state: RayState) -> NodeId {
     let indexes = (0..PIXEL_RAY_TRACER_PALETTE.len()).collect::<Vec<usize>>();
     view! {
-        <List direction=Direction::Horizontal align=Align::Center spacing=4.0 wrap=true>
+        <List direction=Direction::Horizontal align=Align::Center spacing=Space::Xs wrap=true>
             <ForEach keys={indexes}>|index: usize|
                 <Swatch state index />
             </ForEach>
@@ -75,39 +69,18 @@ fn Palette(state: RayState) -> NodeId {
 
 #[component]
 fn Swatch(state: RayState, index: usize) -> NodeId {
-    let color = palette_color(index as u8);
     let chosen = state.color_index;
     let picked = create_memo(move || usize::from(chosen.get()) == index);
-    let theme = use_theme();
-    let outline = create_memo(move || match picked.get() {
-        true => theme.accent.get(),
-        false => Color32::TRANSPARENT,
-    });
-    let label = format!("Color {}", index + 1);
-    let described = label.clone();
     view! {
-        <Tooltip label={label}>
-            <Pressable
-                accessibility={swatch_role(&described)}
-                @test_id={format!("pixel_ray_tracer.color.{index}")}
-                on_click={move || state.choose_color(index as u8)}
-            >
-                <Frame
-                    width=SWATCH
-                    height=SWATCH
-                    fill={ColorRole::custom(color)}
-                    radius={Radius::custom(3.0)}
-                    border={create_memo(move || picked.get().then(|| Border::new(ColorRole::Custom(outline.get())).width(2.0)))}
-                />
-            </Pressable>
-        </Tooltip>
+        <SwatchButton
+            color={palette_color(index as u8)}
+            label={format!("Color {}", index + 1)}
+            selected={picked}
+            radius=Radius::Xs
+            @test_id={format!("pixel_ray_tracer.color.{index}")}
+            on_click={move || state.choose_color(index as u8)}
+        />
     }
-}
-
-fn swatch_role(label: &str) -> Prop<Node> {
-    let mut node = Node::new(Role::Button);
-    node.set_label(label.to_owned());
-    Prop::Static(node)
 }
 
 #[component]
@@ -191,11 +164,11 @@ fn SelectedEntity(
         }
     });
     view! {
-        <List spacing=8.0>
+        <List spacing=Space::Md>
             <Text style=TextStyle::HEADING>"Selected entity"</Text>
             <Text>{kind}</Text>
             <Show condition={surface}>
-                <List spacing=6.0>
+                <List spacing=Space::Sm>
                     <Slider value={Binding::new(roughness, set_roughness)} label="Roughness" />
                     <Slider value={Binding::new(metalness, set_metalness)} label="Metalness" />
                     <Slider
@@ -248,9 +221,9 @@ fn NewEntity(state: RayState) -> NodeId {
     let set_transmission = edit(&held, |surface, value| surface.transmission = value);
     let set_ior = edit(&held, |surface, value| surface.refractive_index = value);
     view! {
-        <List spacing=8.0>
+        <List spacing=Space::Md>
             <Show condition={light}>
-                <List spacing=6.0>
+                <List spacing=Space::Sm>
                     <Text style=TextStyle::HEADING>"New light"</Text>
                     <Slider
                         value={Binding::new(intensity, move |value: f32| state.set_light_intensity(value))}
@@ -261,7 +234,7 @@ fn NewEntity(state: RayState) -> NodeId {
                 </List>
             </Show>
             <Show condition={surface}>
-                <List spacing=6.0>
+                <List spacing=Space::Sm>
                     <Text style=TextStyle::HEADING>"New surface"</Text>
                     <Slider value={Binding::new(roughness, set_roughness)} label="Roughness" />
                     <Slider value={Binding::new(metalness, set_metalness)} label="Metalness" />
@@ -281,14 +254,14 @@ fn RaySettingsPanels(state: RayState) -> NodeId {
     let tool = state.tool;
     let tracing = create_memo(move || tool.get() == Tool::RayTrace);
     view! {
-        <List spacing=10.0>
+        <List spacing=Space::Md>
             <Show condition={tracing}>
-                <List spacing=6.0>
+                <List spacing=Space::Sm>
                     <Text style=TextStyle::HEADING>"View rays"</Text>
                     <RayControls state={state} view=true />
                 </List>
             </Show>
-            <List spacing=6.0>
+            <List spacing=Space::Sm>
                 <Text style=TextStyle::HEADING>"Lighting rays"</Text>
                 <RayControls state={state} view=false />
             </List>
@@ -325,7 +298,7 @@ fn RayControls(state: RayState, view: bool) -> NodeId {
         settings.maximum_steps = value.round().max(1.0) as u16;
     });
     view! {
-        <List spacing=6.0>
+        <List spacing=Space::Sm>
             <Slider value={Binding::new(count, set_count)} min=1.0 max=2048.0 label="Rays" />
             <Slider
                 value={Binding::new(step, set_step)}

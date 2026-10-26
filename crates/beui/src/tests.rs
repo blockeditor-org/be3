@@ -2,7 +2,7 @@ use super::*;
 use crate::FontId;
 
 mod a_back_gesture_lowers_a_sheet_and_it_slides_away_from_there;
-mod a_back_gesture_slides_a_dialog_away_before_it_closes;
+mod a_back_gesture_slides_a_dialog_away_once_its_owner_closes_it;
 mod a_back_handler_goes_back_while_enabled_without_moving_its_content;
 mod a_back_handler_hidden_in_a_kept_alive_list_row_takes_no_back;
 mod a_back_handler_that_takes_the_gesture_hears_each_phase_and_stays_put;
@@ -56,6 +56,9 @@ mod a_colon_in_a_text_area_offers_emoji_that_enter_inserts;
 mod a_color_input_opens_its_picker_from_the_swatch;
 mod a_color_input_reports_the_hex_it_was_typed;
 mod a_color_input_takes_a_hex_typed_without_a_hash_and_keeps_its_opacity;
+mod a_command_palette_closed_by_a_click_outside_opens_again;
+mod a_command_palette_closed_by_a_click_outside_within_one_frame_opens_again;
+mod a_command_palette_closed_by_escape_opens_again;
 mod a_component_can_return_a_show_for_its_parent_to_lay_out;
 mod a_component_function_returns_its_base_node;
 mod a_component_that_builds_no_node_lives_as_long_as_the_scope_that_built_it;
@@ -65,6 +68,7 @@ mod a_context_menu_item_follows_the_signals_its_tag_was_written_with;
 mod a_context_menu_reads_its_rows_as_named_menu_items;
 mod a_context_menu_too_long_for_the_window_stays_inside_it_and_scrolls;
 mod a_copyable_text_input_copies_from_its_button_without_selecting;
+mod a_covering_picture_paints_only_the_part_inside_its_frame;
 mod a_crowded_dock_tab_bar_scrolls_rather_than_spilling;
 mod a_date_field_takes_a_date_typed_segment_by_segment;
 mod a_date_segment_reads_and_steps_as_a_spin_button;
@@ -72,6 +76,7 @@ mod a_deadline_repaint_only_damages_the_element_that_asked_for_it;
 mod a_dialog_gives_the_focus_back_to_the_control_that_opened_it;
 mod a_dialog_gives_the_focus_back_to_the_forwarding_catcher_that_had_it;
 mod a_dialog_of_a_dock_dialog_stacks_over_it;
+mod a_dialog_opened_by_a_finger_is_a_sheet_and_by_a_pen_a_card;
 mod a_dialog_opened_from_a_context_menu_stays_open_when_the_menu_closes;
 mod a_dialog_opens_in_the_middle_and_escape_dismisses_it;
 mod a_dialog_taller_than_the_screen_stays_on_it_and_scrolls;
@@ -190,6 +195,7 @@ mod a_frame_with_a_max_width_stops_growing_at_it_but_still_shrinks;
 mod a_fullscreen_dock_tab_comes_back_over_a_window_raised_above_it;
 mod a_fullscreen_dock_tab_covers_everything_and_returns_to_its_pane;
 mod a_fullscreen_overlay_fills_the_window_and_escape_dismisses_it;
+mod a_fuzzy_command_palette_filters_as_it_is_typed_and_chooses_with_enter;
 mod a_gap_before_one_child_replaces_the_rows_spacing;
 mod a_gap_in_rich_text_takes_room_but_no_bytes;
 mod a_global_action_runs_from_a_text_field_inside_an_open_palette;
@@ -216,11 +222,6 @@ mod a_key_let_go_over_the_inspector_is_not_left_held;
 mod a_key_pressed_in_a_held_select_search_shows_the_keyboard;
 mod a_key_typed_before_a_click_in_one_frame_reaches_the_field_focused_before_it;
 mod a_keyed_view_rebuilds_only_when_its_key_changes;
-mod a_launcher_closed_by_a_click_outside_opens_again;
-mod a_launcher_closed_by_a_click_outside_within_one_frame_opens_again;
-mod a_launcher_closed_by_escape_opens_again;
-mod a_launcher_query_that_matches_nothing_runs_as_a_command_and_escape_closes;
-mod a_launcher_ranks_names_above_keywords_and_comments;
 mod a_layer_sees_the_time_of_the_frame_it_is_in;
 mod a_layout_builder_built_inside_another_settles_in_one_layout;
 mod a_layout_builder_in_a_scroll_rebuilds_for_the_width_it_is_given;
@@ -233,9 +234,11 @@ mod a_locking_overlay_stays_on_top_and_shuts_out_global_keys;
 mod a_lone_child_fills_a_children_prop_as_a_run_of_one;
 mod a_long_change_is_cut_short_unless_asked_for_in_full;
 mod a_long_press_in_a_text_area_selects_the_word_and_its_toolbar_steps_aside_while_a_handle_moves;
+mod a_long_press_in_a_zoomed_text_area_selects_the_word_and_its_handles_and_toolbar_follow_the_zoom;
 mod a_long_press_on_selectable_text_selects_the_word_and_its_toolbar_copies_it;
 mod a_long_text_area_only_builds_the_lines_in_view;
 mod a_menu_item_shows_its_icon_and_detail_and_runs_its_click_in_a_dropdown_and_a_sheet;
+mod a_menu_opened_from_a_zoomed_text_area_opens_where_it_was_asked_for;
 mod a_menu_row_with_a_submenu_shows_an_arrow_the_leaf_rows_do_not;
 mod a_middle_click_on_a_dock_tab_closes_it;
 mod a_middle_drag_on_a_pan_zoom_in_a_scroll_pans_it_rather_than_autoscrolling;
@@ -243,6 +246,7 @@ mod a_modal_dock_dialog_blocks_its_parent_until_it_closes;
 mod a_modal_sheet_fits_its_content_and_a_tap_above_it_closes_it;
 mod a_modal_sheet_opened_again_rests_where_it_did_the_first_time;
 mod a_modal_sheet_slides_in_and_out;
+mod a_modal_with_nothing_to_focus_hears_escape;
 mod a_modifier_drag_moves_a_floating_window_by_its_content_or_its_tab_bar;
 mod a_modifier_drag_on_a_docked_pane_moves_nothing_and_reaches_nothing;
 mod a_mouse_away_from_a_held_finger_still_moves_the_pointer;
@@ -290,19 +294,23 @@ mod a_press_below_a_text_areas_last_line_drags_a_selection_up_from_its_end;
 mod a_press_cancelled_after_the_pointer_left_does_not_wait_for_its_release;
 mod a_press_claimed_by_its_modifiers_goes_to_the_claimant_and_not_the_catcher_beneath;
 mod a_press_held_in_one_window_is_forwarded_in_its_coordinates_once_the_pointer_crosses_into_another;
+mod a_press_in_a_zoomed_text_area_places_the_caret_where_it_lands;
 mod a_press_in_one_window_dragged_into_another_drops_on_a_target_there;
 mod a_press_inside_a_color_wheels_triangle_picks_saturation_and_value;
 mod a_press_is_reported_in_the_coordinates_of_the_interactive_it_lands_on;
 mod a_press_just_outside_a_windows_border_resizes_it;
+mod a_press_on_a_scaled_canvas_item_reaches_what_takes_presses_in_its_own_units;
 mod a_press_outside_an_interactive_is_reported_to_it;
 mod a_press_released_in_the_frame_it_began_drags_once_where_it_was;
 mod a_press_that_dismisses_an_overlay_does_not_reach_the_catcher_beneath;
 mod a_pressed_forwarding_catcher_keeps_the_pointer_until_it_is_released;
+mod a_progress_reads_as_busy_until_it_has_a_value_and_then_holds_still;
 mod a_quick_flick_on_the_simulated_trackpad_moves_the_cursor_without_clicking;
 mod a_quick_tap_with_several_fingers_is_a_finger_tap;
 mod a_reactive_sizing_attribute_moves_a_child_between_fixed_and_percent;
 mod a_reactive_test_id_follows_its_signal;
 mod a_reactive_tree_can_nest_builder_calls_without_threading_the_document;
+mod a_read_only_text_area_selects_and_refuses_edits_and_reads_as_read_only;
 mod a_rebuilt_panel_that_paints_the_same_is_reported_as_an_over_repaint;
 mod a_redrawn_drawing_damages_only_the_part_it_names;
 mod a_release_that_moves_the_inspectors_edge_resizes_the_panel_to_it;
@@ -317,6 +325,7 @@ mod a_scope_disposed_with_no_document_installed_still_removes_its_nodes;
 mod a_screen_reader_reads_and_scrolls_a_horizontal_scroll_sideways;
 mod a_scroll_in_a_dialog_copies_what_it_showed_over_the_page_beneath;
 mod a_scroll_in_a_dialog_follows_the_wheel;
+mod a_scroll_in_a_scaled_canvas_item_follows_the_finger_and_reveals_what_is_focused;
 mod a_scroll_inside_a_scroll_lays_out_the_rows_it_holds;
 mod a_scroll_keeps_the_pointer_off_the_part_of_a_row_it_clips;
 mod a_scroll_mixes_plain_children_with_a_nested_virtual_list;
@@ -364,7 +373,6 @@ mod a_single_line_input_longer_than_its_field_scrolls_rather_than_overflows;
 mod a_skipped_element_keeps_the_repaint_deadline_it_asked_for;
 mod a_slider_asks_once_for_a_value_its_owner_has_not_shown_yet;
 mod a_slider_reports_and_steps_within_the_range_it_was_given;
-mod a_spinner_hidden_by_a_show_stops_asking_for_frames;
 mod a_split_button_runs_its_action_or_opens_its_menu;
 mod a_split_divider_takes_presses_only_in_its_gap;
 mod a_stack_becomes_a_column_when_its_container_gets_narrow;
@@ -397,6 +405,7 @@ mod a_test_id_names_the_copy_that_is_shown;
 mod a_test_id_reaches_the_accessibility_tree_as_its_author_id;
 mod a_text_area_in_a_scaled_canvas_item_is_not_laid_out_again_by_a_pan_or_zoom;
 mod a_text_area_shows_its_placeholder_until_something_is_typed;
+mod a_text_area_without_find_leaves_ctrl_f_to_the_app;
 mod a_text_input_in_a_tall_slot_keeps_its_text_inside_its_field;
 mod a_text_of_spans_takes_its_alignment_and_line_height;
 mod a_text_with_breaks_draws_its_lines_apart_but_keeps_its_text_whole;
@@ -417,6 +426,7 @@ mod a_touch_selection_grows_by_its_handle_and_a_tap_outside_clears_it;
 mod a_trackpad_fling_into_the_start_bounces_without_passing_it;
 mod a_tree_given_on_open_opens_a_row_on_enter_and_a_second_click;
 mod a_tree_row_decides_which_part_of_it_is_clickable;
+mod a_tree_rows_more_button_opens_its_menu_below_itself_and_a_right_click_opens_it_too;
 mod a_turned_child_paints_turned_about_the_middle_of_its_box;
 mod a_twelve_hour_time_field_types_the_afternoon_with_a_p;
 mod a_two_finger_drag_on_the_simulated_trackpad_scrolls_smoothly;
@@ -451,7 +461,9 @@ mod a_window_with_tabs_in_a_sidebar_has_no_title_bar;
 mod a_window_without_room_for_the_app_beside_the_inspector_uses_the_tab_bar;
 mod a_wrapper_provides_a_container_to_every_child_written_between_its_tags;
 mod a_wrapping_caption_grows_taller_than_the_single_line_it_would_be;
+mod a_wrapping_label_in_a_row_keeps_its_longest_word_whole;
 mod a_wrapping_row_flows_its_children_onto_more_lines;
+mod a_zoomed_text_area_tells_the_window_where_its_caret_is_in_window_coordinates;
 mod accessibility_exposes_and_operates_a_button;
 mod accessibility_reports_and_steps_a_slider;
 mod accessibility_updates_leave_the_tree_a_fresh_build_would_make;
@@ -459,6 +471,7 @@ mod accordion_headers_are_keyboard_operable_and_skip_collapsed_content;
 mod activation_requires_a_matching_release_and_escape_cancels_it;
 mod alt_arrows_walk_the_simulated_screen_reader_through_the_document;
 mod alt_dragging_a_tab_floats_it_in_a_window_over_the_pane_it_left;
+mod an_action_bar_keeps_the_pins_it_has_room_for_and_offers_the_rest;
 mod an_action_placed_at_a_node_answers_only_while_the_focus_is_inside_it;
 mod an_action_shortcut_runs_in_the_scope_that_holds_the_focus;
 mod an_animation_can_start_its_next_phase_from_completion;
@@ -487,10 +500,11 @@ mod an_idle_frame_describes_no_accessibility_nodes_and_one_changed_row_describes
 mod an_ime_composition_is_written_as_it_is_composed_and_holds_the_keys_meanwhile;
 mod an_ime_composition_pushes_the_text_after_the_caret_along;
 mod an_ime_correction_replaces_the_word_it_names;
+mod an_indeterminate_progress_hidden_by_a_show_stops_asking_for_frames;
 mod an_indeterminate_switch_reads_as_mixed_and_a_click_turns_it_on;
 mod an_inert_layer_opening_rises_alone_and_leaves_its_window_where_it_was;
+mod an_instant_indeterminate_progress_stops_and_resumes_with_the_preference;
 mod an_instant_sheet_follows_dragging_and_snaps_on_release;
-mod an_instant_spinner_stops_and_resumes_with_the_preference;
 mod an_intercepted_press_keeps_its_physical_key_repeats_and_release_from_the_app;
 mod an_intercepting_action_names_its_chords_and_answers_keys_intercepted_for_it;
 mod an_occluded_window_shows_itself_for_a_shot_once_the_app_has_drawn;
@@ -645,6 +659,7 @@ mod focus_within_a_node_with_nothing_focusable_reports_false;
 mod focusing_a_node_inside_a_culled_row_lays_it_out;
 mod for_each_reuses_nodes_for_keys_that_persist_across_an_update;
 mod forwarded_input_reaches_only_the_topmost_catcher_under_it;
+mod fuzzy_ranking_puts_names_above_keywords_and_comments;
 mod grabbing_a_color_areas_thumb_off_centre_drags_it_from_where_it_was;
 mod grabbing_the_bar_between_two_panes_off_centre_moves_it_only_as_far_as_the_pointer;
 mod held_modifiers_and_key_releases_reach_global_listeners;
@@ -842,10 +857,10 @@ mod the_inspector_shows_the_accesskit_tree;
 mod the_inspector_shows_the_base_nodes_of_a_styled_component;
 mod the_inspector_shows_the_renderer_the_host_reports;
 mod the_inspector_swipes_back_as_far_as_its_slider_is_dragged;
+mod the_inspectors_dock_bar_holds_a_pick_toggle_on_its_tree_tools;
 mod the_inspectors_theme_overrides_the_apps_until_it_is_cleared;
 mod the_keyboard_is_asked_for_at_the_caret_and_after_an_ime_composition;
 mod the_keyboard_opening_scrolls_the_focused_field_into_what_is_left;
-mod the_launcher_filters_as_it_is_typed_and_launches_with_enter;
 mod the_left_and_right_arrows_collapse_and_expand_an_inspector_row;
 mod the_menu_of_a_selectable_text_copies_what_is_selected;
 mod the_more_button_of_a_selection_toolbar_opens_the_full_menu;
@@ -875,6 +890,7 @@ mod the_window_is_asked_for_fullscreen_and_says_when_it_is;
 mod the_window_is_shown_the_ime_again_after_typing_into_it;
 mod the_window_is_told_where_the_caret_is_in_its_own_units;
 mod tiling_a_stacked_dock_with_its_switcher_open_closes_the_switcher;
+mod toasts_read_as_a_live_log_with_errors_as_alerts;
 mod touch_dragging_a_horizontal_scroll_moves_it_sideways;
 mod touch_dragging_a_scroll_moves_it_without_activating_a_row;
 mod touch_dragging_across_a_text_input_does_not_select_its_text;
@@ -909,6 +925,7 @@ mod with_a_second_window_open_each_windows_scroll_is_copied_in_that_window_alone
 mod without_a_drag_modifier_a_modified_drag_reaches_the_dock_content;
 mod wrapped_rich_text_lines_hang_under_the_byte_they_are_told_to;
 mod wrapped_rows_wrap_long_text_and_grow_percent_children;
+mod wrapped_text_ends_its_last_allowed_line_in_an_ellipsis;
 mod zooming_a_canvas_paints_none_of_its_scaled_items_until_their_text_settles;
 mod zooming_a_pan_zoom_stops_at_its_scale_limits;
 mod zooming_into_the_simulated_screen_follows_the_pointer;
@@ -927,7 +944,7 @@ use crate::base::list::{Direction, ItemSize, ListNode};
 use crate::base::text::TextNode;
 use crate::inspector::{Inspector, InspectorTools};
 use crate::mouse_simulation::MouseSimulation;
-use crate::primitives::{Frame, Text};
+use crate::primitives::{Frame, List, Text};
 use crate::reactive::*;
 use crate::styled;
 use crate::styled::*;
@@ -986,6 +1003,17 @@ fn touch_event(finger: u64, phase: TouchPhase, pos: Pos2) -> Input {
         pos,
         force: None,
     }
+}
+
+pub(crate) const AREA_FONT_SIZE: f32 = 14.0;
+pub(crate) const AREA_PADDING: Sides = Sides::symmetric(12.0, 8.0);
+
+pub(crate) fn area_colors() -> unstyled::TextAreaColors {
+    styled::text_area_colors(&styled::Theme::DARK)
+}
+
+pub(crate) fn area_look() -> unstyled::TextAreaLook {
+    styled::text_area_look()
 }
 
 pub(crate) fn build_node(view: impl FnOnce() -> NodeId) -> Document {
@@ -1300,7 +1328,8 @@ impl Harness {
             .inspector()
             .document
             .api::<crate::unstyled::SelectApi>(select)
-            .option_button(index);
+            .option_button(index)
+            .expect("the option is shown");
         self.click(self.node_center(option));
         self.frame(Vec::new());
     }
@@ -1373,9 +1402,7 @@ impl Harness {
 
     pub(crate) fn enable_mouse_simulation(&mut self) {
         self.toggle_inspector();
-        let tab = self.simulation_tab_center();
-        self.click(tab);
-        self.frame(Vec::new());
+        self.show_inspector_tab(crate::inspector::InspectorTab::Simulation);
         let toggle = self.mouse_toggle_center();
         self.click(toggle);
         self.key(Key::Escape, Modifiers::NONE);
@@ -1415,9 +1442,7 @@ impl Harness {
 
     pub(crate) fn enable_screen_reader(&mut self) {
         self.toggle_inspector();
-        let tab = self.simulation_tab_center();
-        self.click(tab);
-        self.frame(Vec::new());
+        self.show_inspector_tab(crate::inspector::InspectorTab::Simulation);
         let toggle = self.inspector_center("inspector.screen_reader.enabled");
         self.click(toggle);
         self.key(Key::Escape, Modifiers::NONE);
@@ -1426,9 +1451,7 @@ impl Harness {
 
     pub(crate) fn disable_accessibility(&mut self) {
         self.toggle_inspector();
-        let tab = self.simulation_tab_center();
-        self.click(tab);
-        self.frame(Vec::new());
+        self.show_inspector_tab(crate::inspector::InspectorTab::Simulation);
         let toggle = self.inspector().find("inspector.accessibility.enabled");
         self.click_in_inspector(toggle);
         self.toggle_inspector();
@@ -1475,24 +1498,36 @@ impl Harness {
         self.inspector_center("inspector.performance.flash_damage")
     }
 
-    pub(crate) fn accesskit_tab_center(&self) -> Pos2 {
-        self.node_center(self.tab_node(2))
-    }
-
-    pub(crate) fn components_tab_center(&self) -> Pos2 {
-        self.node_center(self.tab_node(1))
-    }
-
-    pub(crate) fn performance_tab_center(&self) -> Pos2 {
-        self.node_center(self.tab_node(3))
-    }
-
-    pub(crate) fn simulation_tab_center(&self) -> Pos2 {
-        self.node_center(self.simulation_tab_node())
-    }
-
-    pub(crate) fn simulation_tab_node(&self) -> NodeId {
-        self.tab_node(4)
+    pub(crate) fn show_inspector_tab(&mut self, tab: crate::inspector::InspectorTab) {
+        if self.inspector().tools_stacked() {
+            self.click(self.inspector_center("dock.switch"));
+            self.settle();
+        }
+        let panel = self
+            .inspector()
+            .panel_rect()
+            .expect("the inspector is open");
+        for _ in 0..4 {
+            let row = self.inspector().tab_node(tab);
+            let rect = self
+                .inspector()
+                .document
+                .node_rect(row)
+                .expect("the tab is laid out");
+            if rect.bottom() <= panel.bottom() {
+                break;
+            }
+            let at = self.node_center(row);
+            let at = pos2(at.x, panel.bottom() - 8.0);
+            self.scroll_at(
+                at,
+                Vec2::new(0.0, panel.bottom() - rect.bottom()),
+                Modifiers::NONE,
+            );
+            self.settle();
+        }
+        self.click(self.node_center(self.inspector().tab_node(tab)));
+        self.settle();
     }
 
     pub(crate) fn drag_simulation_slider(&mut self, control: &str, fraction: f32) {
@@ -1518,10 +1553,6 @@ impl Harness {
             .find_test_id("inspector.performance")
             .and_then(|panel| inspector.document.node_rect(panel))
             .is_some()
-    }
-
-    pub(crate) fn tab_node(&self, index: usize) -> NodeId {
-        self.inspector().option_node("inspector.tabs", index)
     }
 
     pub(crate) fn inspector_center(&self, test_id: &str) -> Pos2 {
@@ -1887,22 +1918,22 @@ pub(crate) fn text_of(document: &Document, id: NodeId) -> &str {
 pub(crate) fn dock_of(tabs: usize) -> (Document, NodeId) {
     let dock = NodeRef::new();
     let document = build_node(move || {
-        let layout = unstyled::DockingLayout::new();
+        let layout = dock::unstyled::DockingLayout::new();
         let open = create_signal((1..=tabs as u64).collect::<Vec<_>>());
         view! {
-            <styled::Docking @node_ref=&dock layout>
-                <unstyled::DockPane id="tabs">
+            <dock::styled::Docking @node_ref=&dock layout>
+                <dock::unstyled::DockPane id="tabs">
                     <ForEach keys={open}>|id: u64|
-                        <unstyled::DockTab
+                        <dock::unstyled::DockTab
                             id
                             title={format!("Tab {id}")}
                             on_close={move || open.update(|open| open.retain(|other| *other != id))}
                         >
                             <Frame @test_id={format!("content.{id}")} />
-                        </unstyled::DockTab>
+                        </dock::unstyled::DockTab>
                     </ForEach>
-                </unstyled::DockPane>
-            </styled::Docking>
+                </dock::unstyled::DockPane>
+            </dock::styled::Docking>
         }
     });
     (document, dock.get())
@@ -1911,42 +1942,42 @@ pub(crate) fn dock_of(tabs: usize) -> (Document, NodeId) {
 pub(crate) fn windowed_dock(drag_modifier: Option<Modifiers>) -> (Document, NodeId) {
     let dock = NodeRef::new();
     let document = build_node(move || {
-        let layout = unstyled::DockingLayout::new();
+        let layout = dock::unstyled::DockingLayout::new();
         view! {
-            <styled::Docking @node_ref=&dock layout drag_modifier>
-                <unstyled::DockSplit id="split">
-                    <unstyled::DockPane id="left">
-                        <unstyled::DockTab id=1u64 title="Tab 1">
+            <dock::styled::Docking @node_ref=&dock layout drag_modifier>
+                <dock::unstyled::DockSplit id="split">
+                    <dock::unstyled::DockPane id="left">
+                        <dock::unstyled::DockTab id=1u64 title="Tab 1">
                             <Frame />
-                        </unstyled::DockTab>
-                    </unstyled::DockPane>
-                    <unstyled::DockPane id="right">
-                        <unstyled::DockTab id=2u64 title="Tab 2">
+                        </dock::unstyled::DockTab>
+                    </dock::unstyled::DockPane>
+                    <dock::unstyled::DockPane id="right">
+                        <dock::unstyled::DockTab id=2u64 title="Tab 2">
                             <Frame />
-                        </unstyled::DockTab>
-                    </unstyled::DockPane>
-                </unstyled::DockSplit>
-                <unstyled::DockWindow
+                        </dock::unstyled::DockTab>
+                    </dock::unstyled::DockPane>
+                </dock::unstyled::DockSplit>
+                <dock::unstyled::DockWindow
                     id="first"
                     rect={Rect::from_min_size(pos2(60.0, 60.0), vec2(360.0, 240.0))}
                 >
-                    <unstyled::DockPane id="third">
-                        <unstyled::DockTab id=3u64 title="Tab 3">
+                    <dock::unstyled::DockPane id="third">
+                        <dock::unstyled::DockTab id=3u64 title="Tab 3">
                             <Frame />
-                        </unstyled::DockTab>
-                    </unstyled::DockPane>
-                </unstyled::DockWindow>
-                <unstyled::DockWindow
+                        </dock::unstyled::DockTab>
+                    </dock::unstyled::DockPane>
+                </dock::unstyled::DockWindow>
+                <dock::unstyled::DockWindow
                     id="second"
                     rect={Rect::from_min_size(pos2(520.0, 200.0), vec2(360.0, 240.0))}
                 >
-                    <unstyled::DockPane id="fourth">
-                        <unstyled::DockTab id=4u64 title="Tab 4">
+                    <dock::unstyled::DockPane id="fourth">
+                        <dock::unstyled::DockTab id=4u64 title="Tab 4">
                             <Frame />
-                        </unstyled::DockTab>
-                    </unstyled::DockPane>
-                </unstyled::DockWindow>
-            </styled::Docking>
+                        </dock::unstyled::DockTab>
+                    </dock::unstyled::DockPane>
+                </dock::unstyled::DockWindow>
+            </dock::styled::Docking>
         }
     });
     (document, dock.get())
@@ -1982,19 +2013,19 @@ pub(crate) fn split_dock(drag_modifier: Option<Modifiers>) -> SplitDock {
     let dock = NodeRef::new();
     let presses = create_signal(0);
     let document = build_node(move || {
-        let layout = unstyled::DockingLayout::new();
+        let layout = dock::unstyled::DockingLayout::new();
         view! {
-            <styled::Docking @node_ref=&dock layout drag_modifier>
-                <unstyled::DockSplit id="split">
-                    <unstyled::DockPane id="left">
+            <dock::styled::Docking @node_ref=&dock layout drag_modifier>
+                <dock::unstyled::DockSplit id="split">
+                    <dock::unstyled::DockPane id="left">
                         <CountingTab id=1 presses={presses} />
-                    </unstyled::DockPane>
-                    <unstyled::DockPane id="right">
+                    </dock::unstyled::DockPane>
+                    <dock::unstyled::DockPane id="right">
                         <CountingTab id=2 presses={presses} />
                         <CountingTab id=3 presses={presses} />
-                    </unstyled::DockPane>
-                </unstyled::DockSplit>
-            </styled::Docking>
+                    </dock::unstyled::DockPane>
+                </dock::unstyled::DockSplit>
+            </dock::styled::Docking>
         }
     });
     SplitDock {
@@ -2005,11 +2036,11 @@ pub(crate) fn split_dock(drag_modifier: Option<Modifiers>) -> SplitDock {
 }
 
 #[component]
-fn CountingTab(id: u64, presses: Signal<u32>) -> unstyled::DockEntry<u64> {
+fn CountingTab(id: u64, presses: Signal<u32>) -> dock::unstyled::DockEntry<u64> {
     view! {
-        <unstyled::DockTab id title={format!("Tab {id}")}>
+        <dock::unstyled::DockTab id title={format!("Tab {id}")}>
             <CountingPanel id presses />
-        </unstyled::DockTab>
+        </dock::unstyled::DockTab>
     }
 }
 
@@ -2048,7 +2079,7 @@ pub(crate) fn secondary_drag_with(
     harness.frame(vec![Input::Modifiers(Modifiers::NONE)]);
 }
 
-pub(crate) fn floated_window(harness: &mut Harness, dock: NodeId) -> unstyled::SurfaceId {
+pub(crate) fn floated_window(harness: &mut Harness, dock: NodeId) -> dock::unstyled::SurfaceId {
     harness.frame(Vec::new());
     let tab = harness.center(dock_tab(harness.document(), dock, "Tab 2"));
     drag_with(
@@ -2060,7 +2091,7 @@ pub(crate) fn floated_window(harness: &mut Harness, dock: NodeId) -> unstyled::S
     harness.frame(Vec::new());
     harness
         .document()
-        .api::<unstyled::DockApi>(dock)
+        .api::<dock::unstyled::DockApi>(dock)
         .state()
         .windows()[0]
 }
@@ -2323,19 +2354,19 @@ fn reopens_after(close: impl Fn(&mut Harness)) {
                     @test_id={"reopen"}
                     on_click={move || open.set(true)}
                 />
-                <Launcher
-                    open={open}
-                    items={Rc::new(vec![LauncherItem {
+                <CommandPalette
+                    open={Binding::new(open, move |value: bool| {
+                        if !value {
+                            heard.update(|heard| heard.push("close".to_owned()));
+                        }
+                        open.set(value);
+                    })}
+                    items={PaletteItems::list(vec![PaletteItem {
                         key: "files".to_owned(),
                         title: "Files".to_owned(),
-                        ..LauncherItem::default()
+                        ..PaletteItem::default()
                     }])}
-                    on_launch={|_: String| {}}
-                    on_run={move |line: String| heard.update(|heard| heard.push(format!("run {line}")))}
-                    on_close={move || {
-                        heard.update(|heard| heard.push("close".to_owned()));
-                        open.set(false);
-                    }}
+                    on_choose={move |key: String| heard.update(|heard| heard.push(format!("choose {key}")))}
                 />
             </List>
         }
@@ -2352,10 +2383,10 @@ fn reopens_after(close: impl Fn(&mut Harness)) {
     harness.click(button);
     harness.frame(Vec::new());
     harness.frame(Vec::new());
-    harness.type_text("true");
+    harness.type_text("fi");
     harness.frame(Vec::new());
     harness.key(Key::Enter, Modifiers::NONE);
-    assert_eq!(heard.get_untracked(), ["close", "run true"]);
+    assert_eq!(heard.get_untracked(), ["close", "close", "choose files"]);
 }
 
 #[derive(Default)]
@@ -2390,7 +2421,7 @@ pub(crate) type Dialogs = Vec<(u64, u64, bool)>;
 pub(crate) struct DialogDock {
     pub(crate) document: Document,
     pub(crate) dock: NodeId,
-    pub(crate) layout: unstyled::DockingLayout<u64>,
+    pub(crate) layout: dock::unstyled::DockingLayout<u64>,
     pub(crate) pressed: Signal<Vec<u64>>,
     pub(crate) keyed: ReadSignal<Vec<u64>>,
     pub(crate) attended: ReadSignal<Vec<u64>>,
@@ -2410,7 +2441,7 @@ pub(crate) fn dialog_dock(tabs: Vec<u64>, dialogs: Dialogs) -> DialogDock {
     let pressed = create_signal(Vec::new());
     let keyed = create_signal(Vec::new());
     let attended = create_signal(Vec::new());
-    let layout = unstyled::DockingLayout::new();
+    let layout = dock::unstyled::DockingLayout::new();
     let owned_dialogs = crate::reactive::OwnedSignal::new(dialogs);
     let listed = owned_dialogs.handle();
     let document = build_node(move || {
@@ -2423,10 +2454,10 @@ pub(crate) fn dialog_dock(tabs: Vec<u64>, dialogs: Dialogs) -> DialogDock {
             })
         });
         view! {
-            <styled::Docking @node_ref=&dock layout>
-                <unstyled::DockPane id="tabs">
+            <dock::styled::Docking @node_ref=&dock layout>
+                <dock::unstyled::DockPane id="tabs">
                     <ForEach keys={tabs.clone()}>|id: u64|
-                        <unstyled::DockTab id title={format!("Tab {id}")}>
+                        <dock::unstyled::DockTab id title={format!("Tab {id}")}>
                             <FocusPanel
                                 name={format!("content.{id}")}
                                 owner=id
@@ -2435,15 +2466,15 @@ pub(crate) fn dialog_dock(tabs: Vec<u64>, dialogs: Dialogs) -> DialogDock {
                                 attended={None}
                                 size={None}
                             />
-                        </unstyled::DockTab>
+                        </dock::unstyled::DockTab>
                     </ForEach>
-                </unstyled::DockPane>
+                </dock::unstyled::DockPane>
                 <ForEach keys>|(id, parent): (u64, u64)| {
                     let modal = crate::reactive::create_memo(move || {
                         listed.with(|listed| listed.iter().any(|(held, _, modal)| *held == id && *modal))
                     });
                     view! {
-                        <unstyled::DockDialog
+                        <dock::unstyled::DockDialog
                             id
                             parent
                             modal
@@ -2458,10 +2489,10 @@ pub(crate) fn dialog_dock(tabs: Vec<u64>, dialogs: Dialogs) -> DialogDock {
                                 attended={Some(attended)}
                                 size={Some(dialog_size(id))}
                             />
-                        </unstyled::DockDialog>
+                        </dock::unstyled::DockDialog>
                     }
                 }</ForEach>
-            </styled::Docking>
+            </dock::styled::Docking>
         }
     });
     DialogDock {
@@ -2485,7 +2516,7 @@ fn FocusPanel(
     attended: Option<Signal<Vec<u64>>>,
     size: Option<Vec2>,
 ) -> NodeId {
-    if let (Some(attended), Some(tab)) = (attended, unstyled::use_dock_tab()) {
+    if let (Some(attended), Some(tab)) = (attended, dock::unstyled::use_dock_tab()) {
         let called = crate::reactive::create_memo(move || tab.attention());
         crate::reactive::create_effect(move || {
             if called.get().is_some() {
@@ -2617,7 +2648,7 @@ const CARD_SIZE: Vec2 = Vec2::new(520.0, 240.0);
 
 struct CardDock {
     document: Document,
-    layout: unstyled::DockingLayout<u64>,
+    layout: dock::unstyled::DockingLayout<u64>,
     pressed: Signal<Vec<u64>>,
     built: Signal<u32>,
     attended: ReadSignal<Vec<u64>>,
@@ -2628,7 +2659,7 @@ struct CardDock {
 #[component]
 fn CardBody(built: Signal<u32>, attended: Signal<Vec<u64>>) -> NodeId {
     built.update(|built| *built += 1);
-    if let Some(tab) = unstyled::use_dock_tab() {
+    if let Some(tab) = dock::unstyled::use_dock_tab() {
         let called = crate::reactive::create_memo(move || tab.attention());
         crate::reactive::create_effect(move || {
             if called.get().is_some() {
@@ -2727,50 +2758,50 @@ fn dock_with_card(dismiss_on_outside_press: bool, open_now: bool, parent: u64) -
     let attended = create_signal(Vec::new());
     let open = create_signal(open_now);
     let anchor = create_signal(None::<Rect>);
-    let layout = unstyled::DockingLayout::new();
+    let layout = dock::unstyled::DockingLayout::new();
     let document = build_node(move || {
         let cards = crate::reactive::create_memo(move || match open.get() {
             true => vec![CARD],
             false => Vec::new(),
         });
         view! {
-            <styled::Docking layout>
-                <unstyled::DockSplit id="root" fraction=0.3>
-                    <unstyled::DockPane id="left">
-                        <unstyled::DockTab id=4_u64 title="Left">
+            <dock::styled::Docking layout>
+                <dock::unstyled::DockSplit id="root" fraction=0.3>
+                    <dock::unstyled::DockPane id="left">
+                        <dock::unstyled::DockTab id=4_u64 title="Left">
                             <PressPanel owner=4 pressed />
-                        </unstyled::DockTab>
-                    </unstyled::DockPane>
-                    <unstyled::DockSplit id="rest" fraction=0.5>
-                        <unstyled::DockPane id="tabs">
+                        </dock::unstyled::DockTab>
+                    </dock::unstyled::DockPane>
+                    <dock::unstyled::DockSplit id="rest" fraction=0.5>
+                        <dock::unstyled::DockPane id="tabs">
                             <ForEach keys={vec![1_u64, 2]}>|id: u64|
-                                <unstyled::DockTab id title={format!("Tab {id}")}>
+                                <dock::unstyled::DockTab id title={format!("Tab {id}")}>
                                     <PressPanel owner=id pressed />
-                                </unstyled::DockTab>
+                                </dock::unstyled::DockTab>
                             </ForEach>
-                        </unstyled::DockPane>
-                        <unstyled::DockPane id="side">
-                            <unstyled::DockTab id=3_u64 title="Side">
+                        </dock::unstyled::DockPane>
+                        <dock::unstyled::DockPane id="side">
+                            <dock::unstyled::DockTab id=3_u64 title="Side">
                                 <PressPanel owner=3 pressed />
-                            </unstyled::DockTab>
-                        </unstyled::DockPane>
-                    </unstyled::DockSplit>
-                </unstyled::DockSplit>
+                            </dock::unstyled::DockTab>
+                        </dock::unstyled::DockPane>
+                    </dock::unstyled::DockSplit>
+                </dock::unstyled::DockSplit>
                 <ForEach keys={cards}>|id: u64|
-                    <unstyled::DockDialog
+                    <dock::unstyled::DockDialog
                         id
                         parent
                         title="Card"
                         size=CARD_SIZE
-                        presentation=unstyled::DockDialogPresentation::Card
+                        presentation=dock::unstyled::DockDialogPresentation::Card
                         anchor
                         dismiss_on_outside_press
                         on_close={move || open.set(false)}
                     >
                         <CardBody built attended />
-                    </unstyled::DockDialog>
+                    </dock::unstyled::DockDialog>
                 </ForEach>
-            </styled::Docking>
+            </dock::styled::Docking>
         }
     });
     CardDock {

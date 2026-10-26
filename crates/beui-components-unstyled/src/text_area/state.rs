@@ -9,13 +9,13 @@ use text_editor_core::{
     TextIndentation, TextLanguage, TextRun,
 };
 
-use beui_core::color::Color32;
 use beui_core::font::FontId;
 use beui_core::geometry::{Pos2, Rect, Vec2};
 use beui_core::rich::{Piece, RichLayout, RichOptions, SpanStyle};
 use beui_view::reactive::*;
 
 use super::colors::TextAreaColors;
+use super::look::TextAreaGeometry;
 use super::rows::{Prose, RowInputs, RowOptions, build_row, line_range, line_starts};
 
 pub struct ProseLine {
@@ -515,6 +515,7 @@ impl TextAreaState {
         placeholder: &str,
         wrap_width: f32,
         colors: &TextAreaColors,
+        geometry: TextAreaGeometry,
         square: f32,
         mut lay_out: impl FnMut(&[Piece], RichOptions) -> Option<RichLayout>,
     ) -> Option<Vec<ProseLine>> {
@@ -528,6 +529,7 @@ impl TextAreaState {
             mask: false,
             single_line: false,
             prose: Some(prose),
+            geometry,
         };
         let font = FontId::proportional(font_size).bold(prose.bold);
         let wrap = match prose.wrap {
@@ -558,9 +560,10 @@ impl TextAreaState {
             let options = RichOptions {
                 wrap_width: (wrap - quote as f32 * square).max(1.0),
                 padding: options.padding(),
-                style: SpanStyle::new(font, Color32::WHITE),
+                style: SpanStyle::new(font, colors.syntax.markdown_plain_text),
                 hang: row.hang,
                 anywhere: false,
+                least: false,
             };
             lines.push(ProseLine {
                 layout: lay_out(&row.pieces(Vec2::splat(square)), options)?,

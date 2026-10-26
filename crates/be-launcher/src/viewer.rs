@@ -1,13 +1,11 @@
-use beui::Wrap;
 use beui::icons::{ICON_CHEVRON_LEFT, ICON_CHEVRON_RIGHT, ICON_EXTERNAL_LINK, ICON_X};
 use beui::reactive::*;
 use beui::styled::*;
-use beui::unstyled::Picture;
 use beui::{CursorIcon, Image, ImageFit, Key, KeyPress, NodeId, TextAlign, Vec2};
 
 use crate::model::{Loaded, Model};
 
-const PADDING: f32 = 16.0;
+const PADDING: Space = Space::Xl;
 const HINT_HEIGHT: f32 = 18.0;
 
 #[component]
@@ -105,24 +103,35 @@ pub(crate) fn ViewerBar(
     on_close: ClickCallback,
 ) -> NodeId {
     view! {
-        <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
-            <Text style=TextStyle::CAPTION @sizing=ItemSize::Percent(100.0) wrap=Wrap::Words>
-                {position}
-            </Text>
-            <IconButton
+        <List direction=Direction::Horizontal align=Align::Center spacing=Space::Md>
+            <Text style=TextStyle::CAPTION @sizing=ItemSize::Percent(100.0)>{position}</Text>
+            <Button
+                icon_only=true
                 glyph=ICON_CHEVRON_LEFT
                 label="Previous image"
                 disabled={first}
                 on_click={on_previous}
             />
-            <IconButton
+            <Button
+                icon_only=true
                 glyph=ICON_CHEVRON_RIGHT
                 label="Next image"
                 disabled={last}
                 on_click={on_next}
             />
-            <IconButton glyph=ICON_EXTERNAL_LINK label="Open in the browser" on_click={on_browse} />
-            <IconButton @test_id={"viewer.close"} glyph=ICON_X label="Close" on_click={on_close} />
+            <Button
+                icon_only=true
+                glyph=ICON_EXTERNAL_LINK
+                label="Open in the browser"
+                on_click={on_browse}
+            />
+            <Button
+                icon_only=true
+                @test_id={"viewer.close"}
+                glyph=ICON_X
+                label="Close"
+                on_click={on_close}
+            />
         </List>
     }
 }
@@ -154,8 +163,8 @@ fn ImageStage(picture: Memo<Option<Image>>) -> NodeId {
                 }
                 .to_owned()
             });
-            let width = create_memo(move || Some(natural.get().x));
-            let height = create_memo(move || Some(natural.get().y));
+            let width = create_memo(move || Size::Custom(natural.get().x));
+            let height = create_memo(move || Size::Custom(natural.get().y));
             let zoom_in = move || {
                 if shrunk.get_untracked() {
                     actual.set(true);
@@ -163,7 +172,7 @@ fn ImageStage(picture: Memo<Option<Image>>) -> NodeId {
             };
             let zoom_out = move || actual.set(false);
             view! {
-                <List spacing=8.0>
+                <List spacing=Space::Md>
                     <Show condition={fitted}>
                         <Interactive
                             @sizing=ItemSize::Percent(100.0)

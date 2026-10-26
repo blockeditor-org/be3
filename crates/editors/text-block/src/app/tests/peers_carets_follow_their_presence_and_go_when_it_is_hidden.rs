@@ -9,7 +9,7 @@ fn drawn(editor: &BeuiTest<TextApp>) -> Vec<(std::ops::Range<usize>, usize)> {
         .api::<beui::styled::TextAreaSurfaceApi>(area)
         .surface();
     document
-        .api::<beui::unstyled::TextAreaApi>(surface)
+        .api::<beui::styled::TextAreaApi>(surface)
         .remote_cursors()
         .into_iter()
         .map(|cursor| (cursor.selection, cursor.caret))

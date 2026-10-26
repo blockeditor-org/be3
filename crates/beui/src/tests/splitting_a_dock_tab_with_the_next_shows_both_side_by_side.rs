@@ -1,5 +1,5 @@
 use super::*;
-use crate::unstyled::DockApi;
+use crate::dock::unstyled::DockApi;
 
 #[test]
 fn splitting_a_dock_tab_with_the_next_shows_both_side_by_side() {

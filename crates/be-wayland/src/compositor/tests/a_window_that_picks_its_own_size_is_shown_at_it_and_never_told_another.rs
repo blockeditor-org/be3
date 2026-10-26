@@ -4,7 +4,7 @@ use super::*;
 fn Floating(windows: Windows) -> NodeId {
     let ids = create_memo(clone_list(&windows));
     view! {
-        <List spacing=0.0>
+        <List spacing=Space::None>
             <ForEach keys={ids}>|id: WindowId| {
                 let list = windows.list();
                 let size = create_memo(move || {
@@ -14,8 +14,8 @@ fn Floating(windows: Windows) -> NodeId {
                             .map_or(Vec2::ZERO, |info| info.size)
                     })
                 });
-                let width = create_memo(move || Some(size.get().x));
-                let height = create_memo(move || Some(size.get().y));
+                let width = create_memo(move || Size::Custom(size.get().x));
+                let height = create_memo(move || Size::Custom(size.get().y));
                 view! {
                     <Frame width=width height=height>
                         <WindowView windows id />

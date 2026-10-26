@@ -4,14 +4,13 @@ use block_editor_beui::beui::icons::{
 };
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
-use block_editor_beui::beui::unstyled::MenuItem;
 use block_editor_beui::beui::{Image, NodeId, ScrollGesture};
 use block_editor_beui::linux_desktop;
 use block_editor_beui::{
     Editor, HostImage, HostTrayItem, TrayMenuEntry, TrayRequest, TrayStatus, TrayToggle, TrayWatch,
 };
 
-const TRAY_SPACING: f32 = 2.0;
+const TRAY_SPACING: Space = Space::Xs2;
 const WHEEL_STEP: f32 = 3.0;
 
 type Chosen = Callback<i32>;
@@ -129,7 +128,10 @@ fn TrayButton(editor: Editor, listed: Memo<Vec<HostTrayItem>>, id: String) -> No
         }
     });
     view! {
-        <PictureMenuButton
+        <MenuButton
+            icon_only=true
+            variant=ButtonVariant::Ghost
+            size=ButtonSize::Compact
             label
             image
             glyph=ICON_BLOCKS

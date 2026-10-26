@@ -7,7 +7,6 @@ use beui::icons::{
 };
 use beui::reactive::*;
 use beui::styled::*;
-use beui::unstyled::{Container, MenuItem};
 use beui::{NodeId, OverlayAnchor, Pos2};
 use block_plugin_api::HostPanel;
 
@@ -36,7 +35,7 @@ fn OrganizationBody(view: AppViewStore) -> NodeId {
     let status = create_memo(move || view.status.get());
     let menu = view.app_menu;
     view! {
-        <List spacing=0.0>
+        <List spacing=Space::None>
             <Show condition={normal}>
                 <MainSurface @sizing=ItemSize::Percent(100.0) />
             </Show>
@@ -87,21 +86,14 @@ fn pick(command: UiCommand) {
 fn AppMenu(status: Memo<StatusView>, menu: Prop<Option<AppMenuView>>) -> NodeId {
     let menu = create_memo(move || menu.get());
     let open = create_memo(move || menu.with(Option::is_some));
-    let placed = create_memo(move || {
-        let opened = menu.get()?;
-        let pointer = untrack(last_pointer);
-        let anchor = match opened.at {
-            Some(rect) => OverlayAnchor::Rect(rect),
-            None => OverlayAnchor::Point(pointer.map_or(Pos2::ZERO, |pointer| pointer.pos)),
-        };
-        Some((anchor, pointer.is_some_and(|pointer| pointer.touch)))
-    });
     let anchor = create_memo(move || {
-        placed
-            .get()
-            .map_or(OverlayAnchor::Point(Pos2::ZERO), |(anchor, _)| anchor)
+        let pointer = || untrack(last_pointer).map_or(Pos2::ZERO, |pointer| pointer.pos);
+        match menu.get().map(|opened| opened.at) {
+            Some(Some(rect)) => OverlayAnchor::Rect(rect),
+            Some(None) => OverlayAnchor::Point(pointer()),
+            None => OverlayAnchor::Point(Pos2::ZERO),
+        }
     });
-    let sheet = create_memo(move || placed.get().is_some_and(|(_, touch)| touch));
     let sync = create_memo(move || status.get().sync);
     let sync_label = create_memo(move || sync_label(&sync.get()).to_owned());
     let sync_detail = create_memo(move || sync_detail(&sync.get()));
@@ -125,7 +117,6 @@ fn AppMenu(status: Memo<StatusView>, menu: Prop<Option<AppMenuView>>) -> NodeId 
         <MenuPopup
             anchor
             open
-            sheet
             on_dismiss={|| send(UiCommand::AppMenu(false))}
             items={view! {
                 <MenuItem

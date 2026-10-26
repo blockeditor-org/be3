@@ -1,5 +1,6 @@
 use super::*;
 use crate::primitives::Frame;
+use crate::primitives::List;
 use crate::reactive::*;
 use crate::styled::*;
 
@@ -39,8 +40,9 @@ fn opening_a_menu_button_damages_only_the_button_and_its_menu() {
 
     let damage = opened.main().damage().expect("opening a menu repaints");
     assert!(
-        damage.contains(pos),
-        "the button that opened is damaged: {damage:?}"
+        damage.min.y > pos.y,
+        "the button looks pressed from the press until its menu closes, \
+         so only the menu under it is damaged: {damage:?}"
     );
     assert!(
         damage.height() < VIEWPORT.y * 0.5,

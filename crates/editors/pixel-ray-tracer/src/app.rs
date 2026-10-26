@@ -4,7 +4,6 @@ use pixel_ray_tracer_types::PixelRayTracerContent;
 use block_editor_beui::Loaded;
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
-use block_editor_beui::beui::unstyled::Picture;
 use block_editor_beui::beui::{ImageFit, NodeId, Vec2};
 use block_editor_beui::{Creation, Editor, Fitting, Side, Sidebar, Toolbar};
 use pixel_ray_tracer_types::PIXEL_RAY_TRACER_SIZE;
@@ -18,7 +17,7 @@ use canvas::Artwork;
 use panels::{PropertiesPanel, ToolsPanel};
 use state::RayState;
 
-const TOOLS_WIDTH: f32 = 148.0;
+const TOOLS_WIDTH: Size = Size::Custom(148.0);
 
 pub struct PixelRayTracerApp;
 
@@ -67,9 +66,13 @@ fn PixelRayTracerEditor(editor: Editor) -> NodeId {
 
     let chrome = editor.chrome_shown();
     view! {
-        <List spacing=0.0>
+        <List spacing=Space::None>
             <RayToolbar state={state} fitting={fitting} shown={chrome} />
-            <List @sizing=ItemSize::Percent(100.0) direction=Direction::Horizontal spacing=0.0>
+            <List
+                @sizing=ItemSize::Percent(100.0)
+                direction=Direction::Horizontal
+                spacing=Space::None
+            >
                 <Sidebar side=Side::Left shown={chrome} width=TOOLS_WIDTH>
                     <ToolsPanel state={state} />
                 </Sidebar>

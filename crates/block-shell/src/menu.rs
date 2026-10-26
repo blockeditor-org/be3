@@ -1,6 +1,6 @@
 use block_editor_beui::be_block::{self, BlockContent, SettingsContent};
 use block_editor_beui::beui::reactive::*;
-use block_editor_beui::beui::unstyled::MenuItem;
+use block_editor_beui::beui::styled::MenuItem;
 use block_editor_beui::block_ui::BlockTypes;
 use block_editor_beui::{BlockInfo, BlockParent, Rect, node_anchor};
 use uuid::Uuid;

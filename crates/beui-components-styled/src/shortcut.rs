@@ -1,14 +1,14 @@
-use beui_core::font::Wrap;
 use beui_macros::{component, view};
 
 use crate::Chip;
+use crate::list::List;
 use crate::text::{Text, TextColor, TextSize};
+use crate::tokens::Space;
 use beui_core::base::TextAlign;
 use beui_core::node::NodeId;
-use beui_view::primitives::*;
 use beui_view::reactive::*;
 
-const SPACING: f32 = 10.0;
+const SPACING: Space = Space::Md;
 
 #[component]
 pub fn Shortcut(keys: Prop<String>, description: Prop<String>) -> NodeId {
@@ -20,7 +20,6 @@ pub fn Shortcut(keys: Prop<String>, description: Prop<String>) -> NodeId {
                 size=TextSize::Sm
                 color=TextColor::Muted
                 align=TextAlign::Start
-                wrap=Wrap::Words
             >
                 {description}
             </Text>

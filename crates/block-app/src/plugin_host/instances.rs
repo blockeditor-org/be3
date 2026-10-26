@@ -2,10 +2,10 @@ use beui::accessibility::Embedded;
 use beui::{ImeArea, Rect, Vec2, pos2, vec2};
 use block_plugin_api::{
     AccessLevel, ArtifactDescription, AudioCommand, BlockCommand, BlockPick, ChildContent, ChildId,
-    ChildMode, ChildPlacement, ChildPlacements, ChildStatus, EditorInstanceId, EditorRegion,
-    FrameReport, FrameSpec, MenuEntry, Occluder, OpenArtifact, OpenBlock, OpenCreation, Opening,
-    PerformanceMeasurement, RegionSize, ScreenId, ScreenLayout, ScreenRequest, ScreenWindow,
-    ShellCommand, Size, Stopped, ViewChange, WebViewEvent, WebViewId,
+    ChildMode, ChildPlacement, ChildPlacements, ChildStatus, DialogStatus, EditorInstanceId,
+    EditorRegion, FrameReport, FrameSpec, MenuEntry, Occluder, OpenArtifact, OpenBlock,
+    OpenCreation, Opening, PerformanceMeasurement, RegionSize, ScreenId, ScreenLayout,
+    ScreenRequest, ScreenWindow, ShellCommand, Size, Stopped, ViewChange, WebViewEvent, WebViewId,
 };
 use block_plugin_api::{
     DescribedAction, WindowRequests,
@@ -97,7 +97,8 @@ struct Connection {
 struct Instance {
     role: InstanceRole,
     artifact: ArtifactState,
-    creation_ready: bool,
+    dialog: DialogStatus,
+    child_dismissals: Vec<ChildId>,
     created: Option<Result<Uuid, String>>,
     screens: HashMap<EditorRegion, Screen>,
     opened: bool,
@@ -245,7 +246,8 @@ impl Instance {
         Self {
             role,
             artifact: ArtifactState::default(),
-            creation_ready: false,
+            dialog: DialogStatus::default(),
+            child_dismissals: Vec::new(),
             created: None,
             screens: HashMap::new(),
             opened: false,
@@ -2014,6 +2016,7 @@ impl Instances {
                 intrinsic: child.intrinsic.map(|size| vec2(size.width, size.height)),
                 rotation: child.rotation,
                 opacity: child.opacity,
+                dialog: child.dialog,
             });
         }
         (children, holes)
@@ -2115,8 +2118,8 @@ impl Instances {
                 error: status.error,
                 menu: MenuEntry::flatten(&status.menu),
                 creation: status.creation,
-                settings: status.settings,
                 preview: status.preview,
+                dialog: status.dialog,
             };
             if screen.reported_statuses.get(&status.child) == Some(&status) {
                 continue;
@@ -2156,6 +2159,13 @@ impl Instances {
         self.entries
             .get_mut(&instance)
             .map(|entry| std::mem::take(&mut entry.pick_answers))
+            .unwrap_or_default()
+    }
+
+    pub(super) fn take_child_dismissals(&mut self, instance: EditorInstanceId) -> Vec<ChildId> {
+        self.entries
+            .get_mut(&instance)
+            .map(|entry| std::mem::take(&mut entry.child_dismissals))
             .unwrap_or_default()
     }
 
@@ -2264,10 +2274,21 @@ impl Instances {
         statuses
     }
 
-    pub(super) fn creation_ready(&self, instance: EditorInstanceId) -> bool {
-        self.entries
-            .get(&instance)
-            .is_some_and(|entry| entry.creation_ready)
+    pub(super) fn dialog_status(&self, instance: EditorInstanceId) -> Option<DialogStatus> {
+        self.entries.get(&instance).map(|entry| entry.dialog)
+    }
+
+    pub(super) fn forget_dialog_answer(&mut self, instance: EditorInstanceId) {
+        if let Some(entry) = self.entries.get_mut(&instance) {
+            entry.dialog.answer = None;
+        }
+    }
+
+    pub(super) fn dismiss(&self, instance: EditorInstanceId) -> Vec<Outbound> {
+        if !self.entries.contains_key(&instance) {
+            return Vec::new();
+        }
+        vec![Outbound::Editor(instance, EditorCall::Dismiss)]
     }
 
     pub(super) fn commit_creation(&self, instance: EditorInstanceId) -> Vec<Outbound> {
@@ -2692,11 +2713,18 @@ impl Instances {
                 }),
                 via: focus.via.into_iter().map(Uuid::from_bytes).collect(),
             }),
-            ShellCall::CreationReady { ready, .. } => {
-                let changed = entry.creation_ready != ready;
-                entry.creation_ready = ready;
+            ShellCall::HandlesDismiss { handles, .. } => {
+                let changed = entry.dialog.handles_dismiss != handles;
+                entry.dialog.handles_dismiss = handles;
                 return changed;
             }
+            ShellCall::CloseDialog { answer, .. } => {
+                if entry.dialog.answer.is_some() {
+                    return false;
+                }
+                entry.dialog.answer = Some(answer);
+            }
+            ShellCall::DismissChild { child, .. } => entry.child_dismissals.push(child),
             ShellCall::CommitChild {
                 child,
                 parent,

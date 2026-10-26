@@ -1,5 +1,5 @@
 use super::*;
-use crate::unstyled::{DockApi, TabId};
+use crate::dock::unstyled::{DockApi, TabId};
 
 #[test]
 fn alt_dragging_a_tab_floats_it_in_a_window_over_the_pane_it_left() {

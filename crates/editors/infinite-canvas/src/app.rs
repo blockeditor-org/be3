@@ -103,11 +103,15 @@ fn CanvasEditor(editor: Editor) -> NodeId {
     let exporter = actions.exporter;
     provide_context(actions);
     view! {
-        <List @node_ref=&scope spacing=0.0>
+        <List @node_ref=&scope spacing=Space::None>
             <TouchSetting editor choice={touch} />
             <ImportError state={state} />
             <ExportDialog exporter />
-            <List @sizing=ItemSize::Percent(100.0) direction=Direction::Horizontal spacing=0.0>
+            <List
+                @sizing=ItemSize::Percent(100.0)
+                direction=Direction::Horizontal
+                spacing=Space::None
+            >
                 <CanvasStage @sizing=ItemSize::Percent(100.0) @node_ref={&content} state={state} />
                 <CanvasSidebar state={state} shown={inspected} />
             </List>

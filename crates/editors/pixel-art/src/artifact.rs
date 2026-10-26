@@ -11,8 +11,7 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 const MAX_EXPORT_SCALE: u32 = 16;
-const SETTINGS_PADDING: f32 = 14.0;
-const SETTINGS_SPACING: f32 = 12.0;
+const SETTINGS_SPACING: Space = Space::Lg;
 
 #[derive(Clone, Debug, Deserialize, PartialEq, Eq, Serialize)]
 struct ImageSettings {
@@ -128,22 +127,18 @@ pub fn Settings(artifacts: Artifacts) -> NodeId {
     };
 
     view! {
-        <Frame padding=SETTINGS_PADDING>
-            <List spacing=SETTINGS_SPACING>
-                <Show condition={readable}>
-                    <NumberInput
-                        value={Binding::new(scale, set_scale.clone())}
-                        min=1.0
-                        max={f64::from(MAX_EXPORT_SCALE)}
-                        label="Scale"
-                        @test_id={"pixel-art.export-scale"}
-                    />
-                </Show>
-                <Text style=TextStyle::CAPTION @test_id={"pixel-art.export-summary"}>
-                    {caption}
-                </Text>
-            </List>
-        </Frame>
+        <List spacing=SETTINGS_SPACING>
+            <Show condition={readable}>
+                <NumberInput
+                    value={Binding::new(scale, set_scale.clone())}
+                    min=1.0
+                    max={f64::from(MAX_EXPORT_SCALE)}
+                    label="Scale"
+                    @test_id={"pixel-art.export-scale"}
+                />
+            </Show>
+            <Text style=TextStyle::CAPTION @test_id={"pixel-art.export-summary"}>{caption}</Text>
+        </List>
     }
 }
 

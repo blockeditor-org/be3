@@ -10,12 +10,11 @@ use beui_view::reactive::*;
 use super::State;
 
 pub const HEIGHT: f32 = 51.0;
-const PADDING_HORIZONTAL: f32 = 8.0;
-const PADDING_VERTICAL: f32 = 8.0;
-const SPACING: f32 = 6.0;
-const DEVICE_WIDTH: f32 = 140.0;
-const DIMENSION_WIDTH: f32 = 72.0;
-const ZOOM_WIDTH: f32 = 84.0;
+const PADDING: Space = Space::Md;
+const SPACING: Space = Space::Sm;
+const DEVICE_WIDTH: Size = Size::Custom(140.0);
+const DIMENSION_WIDTH: Size = Size::Custom(72.0);
+const ZOOM_WIDTH: Size = Size::Custom(84.0);
 
 pub const DEVICES: [(&str, Vec2); 9] = [
     ("Responsive", Vec2::ZERO),
@@ -107,11 +106,8 @@ fn ResponsiveToolbar(
         ZOOMS.iter().position(|(_, candidate)| *candidate == zoom)
     });
     view! {
-        <List spacing=0.0>
-            <Frame
-                fill=ColorRole::Surface
-                padding={Sides::symmetric(PADDING_HORIZONTAL, PADDING_VERTICAL)}
-            >
+        <List spacing=Space::None>
+            <Frame fill=ColorRole::Surface padding=PADDING>
                 <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
                     <Frame width=DEVICE_WIDTH>
                         <Select
@@ -159,7 +155,8 @@ fn ResponsiveToolbar(
                             label="Height"
                         />
                     </Frame>
-                    <IconButton
+                    <Button
+                        icon_only=true
                         @test_id={"inspector.responsive.rotate"}
                         glyph=ICON_ROTATE_CW_SQUARE
                         label="Rotate"
@@ -187,7 +184,8 @@ fn ResponsiveToolbar(
                         />
                     </Frame>
                     <Spacer @sizing=ItemSize::Percent(100.0) />
-                    <IconButton
+                    <Button
+                        icon_only=true
                         @test_id={"inspector.responsive.close"}
                         glyph=ICON_X
                         label="Close responsive design mode"

@@ -5,15 +5,15 @@ The styled controls follow the keyboard conventions in the [W3C Authoring Practi
 | Control | Keyboard behavior |
 | --- | --- |
 | Buttons, links, toggle buttons, checkboxes, switches, list rows, disclosure and accordion headers | Space or Enter activates on release. Escape or focus loss cancels a held activation. Repeated key-down events do not activate repeatedly. |
-| Tabs | One Tab stop, at the selected tab. Left/Right wrap and select immediately. Home/End select the first/last tab. Up/Down leave the horizontal tab selection alone. |
-| Radio groups | One Tab stop, at the selected option or the first option when unselected. Arrows wrap and select; Space selects without clearing an existing selection. Home/End select the first/last option. |
+| Tabs | One Tab stop, at the selected tab. Left/Right wrap and select immediately. Home/End select the first/last tab. Up/Down leave the horizontal tab selection alone. Tabs and segmented controls without room for their options become a Select, with its keys. |
+| Radio groups and segmented controls | One Tab stop, at the selected option or the first option when unselected. Arrows wrap and select; Space selects without clearing an existing selection. Home/End select the first/last option. |
 | Single-select listboxes | One Tab stop. Up/Down select the previous/next option and stop at the ends. Home/End select the first/last option. Typing searches case-insensitive prefixes; repeated letters cycle matches. The search resets after one second or when focus leaves. |
 | Sliders | Right/Up increase and Left/Down decrease by 5% of the track. Home/End select minimum/maximum. Page Up/Down adjust by 20% of the track. Values remain within the range, which is `min` to `max` and defaults to 0 to 1. A curved `scale` keeps the steps even along the track, so they are small where the track is fine and large where it is coarse. |
 | Text inputs | Left/Right, Home/End, Shift-selection, Ctrl/Alt word navigation and deletion, Ctrl+A, Ctrl+C/X, Ctrl+Z, Ctrl+Shift+Z/Ctrl+Y, and Enter to submit; a single-line input with no `on_submit` leaves Enter to what is around it, such as a dialog's confirm action. Up and Down move to the start and the end of the text, as they would on the one line of a multiline area. Space inserts text. Paste replaces the selection. A secondary click opens the Copy, Cut, Paste and Select All menu that a touch tap on the selection or the caret handle opens. The desktop runner maps Command to Ctrl on macOS; Super chords type nothing. A multiline text area takes Tab and Shift+Tab to indent; Escape then Tab or Shift+Tab moves the focus out of it instead. It registers Find (Ctrl+F), Find and replace (Ctrl+H), the next and previous match (Ctrl+G, Ctrl+Shift+G), Duplicate the line (Ctrl+Shift+D), Select the next occurrence (Ctrl+D) and folding (Ctrl+Shift+[) as actions, which answer while the focus is in it. |
 | Selectable text | `<SelectableText>` makes the plain text nodes under it selectable together: a mouse drag selects from one text to another in tree order, Shift+click extends the selection, and a click clears it. Ctrl+C copies the selection, joining texts on one line with a space and lines with a line break; Ctrl+A selects everything under it. `copy_key` and `select_all_key` (each an `Option<Chord>`) change those keys or turn them off with `None`, as the terminal does to leave Ctrl+C and Ctrl+A to the shell (copying on Ctrl+Shift+C instead); a secondary click still opens the Copy and Select All menu, which shows whichever keys are set. A drag past the edge of the scroll around it scrolls. It is not a Tab stop, and the keys also reach it from a focused control inside it. |
 | Scroll areas | A scroll area is a Tab stop only while its content overflows and nothing inside it is a Tab stop; with a control inside, the keyboard reaches the area through that control, so it drops its own stop. Focusing anything inside scrolls it into view. A scroll area takes the keys that scroll it only while it can scroll that way, so one already at its end leaves a key to the area around it, as nested scrolling boxes in a browser do: the arrows along its axis by a line and Home/End to the endpoints, and a vertical one also Page Up/Down and Space/Shift+Space by a page. Those keys that the focused control leaves unused bubble to the nearest area that takes them, as a browser scrolls an overflowing box around a focused button. Tab and Shift+Tab walk a virtual list's rows as if every row were built, building the ones they reach, and a focused row scrolled out of view keeps the focus. |
 | Toolbars and docks | Every control is a Tab stop. Left/Right move the focus to the previous/next control and stop at the ends; Home/End reach the first/last. A control that uses those keys itself, such as a text input, keeps them. `arrow_focus(row, direction)` gives a row of controls this, and `block_editor_beui`'s `Toolbar` and `BottomDock` and the text editor's format bar use it. |
-| Select (dropdown) | Clicking or activating the trigger opens the popup and focuses its search box; typing filters the options by case-insensitive substring. Up/Down/Home/End on the closed trigger also open the popup and move the highlight in that direction. Up/Down move the highlighted option without moving the text caret; Home/End jump to the first/last visible option. Enter confirms the highlighted option and closes the popup. Escape or an outside click closes the popup without changing the selection and returns focus to the trigger. |
+| Select (dropdown) | Clicking or activating the trigger opens the popup and focuses its search box; typing filters the options to those whose label contains every typed word, ignoring case. Up/Down/Home/End on the closed trigger also open the popup and move the highlight in that direction. Up/Down move the highlighted option without moving the text caret; Page Up/Page Down move eight options; Home/End jump to the first/last visible option. Enter confirms the highlighted option and closes the popup. Escape or an outside click closes the popup without changing the selection and returns focus to the trigger. |
 | Tree views | One Tab stop, at the selected row or the first row. Up/Down move to the previous/next visible row and stop at the ends; Home/End reach the first/last row. Right expands a collapsed row and then moves to its first child; Left collapses an expanded row and then moves to its parent. Space or Enter selects a row, the same as clicking it, and leaves it open or closed; only Left, Right and the chevron expand or collapse. Typing searches case-insensitive prefixes over the visible rows. Selection follows the focused row. |
 | Pan and zoom areas | Tab focuses the area. Arrows pan by a step; `+` and `-` zoom around the middle of the viewport and `0` returns the scale to one. The area owns the keys it uses, so arrows pan it rather than scrolling whatever contains it. |
 | Dock | One Tab stop per tab bar, at the tab the pane is showing, walked like any other tab list; the bar scrolls the tab that takes focus into view. The bar between two panes is a Tab stop with a `Splitter` role that the arrows move. Ctrl+Tab and Ctrl+Shift+Tab walk the tabs of the pane the focus is in, wherever the focus is inside it. The switcher across every pane and window (`DockingLayout::begin_switch`) is bound to no key. Pressing a pane's or window's bar, tab or grips gives the keyboard to what its tab shows (guides/beui.md). |
@@ -185,14 +185,14 @@ let group = Action::new("canvas.group", "Group", move || state.run(Group))
     .enabled(can_group)
     .register();
 view! {
-    <IconButton action={group.clone()} />
+    <Button icon_only=true action={group.clone()} />
     <MenuItem action={group} />
 }
 ```
 
 `register` adds it to the nearest `ActionScope` (or to the document's own,
 outermost one) and removes it when the registering scope goes. `Button`,
-`IconButton`, `ToggleButton`, `ActionRow` and `MenuItem` take an `action` prop:
+`ToggleButton`, `ActionRow` and `MenuItem` take an `action` prop:
 they show its label and glyph unless they are given their own, are disabled
 while it is, show its first shortcut in their tooltip (a `MenuItem` beside its
 label), and run it when pressed; a `ToggleButton` is pressed, and a `MenuItem`
@@ -263,12 +263,19 @@ the overlay closes, so a dialog a plugin opens from an intercepted key can be
 typed into.
 
 `styled::CommandPalette` lists the actions that are live where the focus was
-when it opened: typing filters them by every word, Up/Down/Page Up/Page Down
+when it opened: typing filters them by every word, Up/Down/Page Up/Page Down/Home/End
 move the highlight over the enabled ones, Enter or a click runs the highlighted
 one, and Escape closes it; disabled actions are listed last and greyed, and a
 checked action, or the chosen one of a radio group, is ticked as in a menu. Closing
 it puts the focus back where it was before the action runs. An editor frame
-opens it with Ctrl+Shift+P and from a row of its menu.
+opens it with Ctrl+Shift+P and from a row of its menu. Handed `items={PaletteItems::list(..)}` instead, it
+searches those `PaletteItem`s (each with a key, title, detail line, glyph or
+picture, shortcut, checked and disabled) and calls `on_choose` with the chosen
+key; `score` picks the ranking (`PaletteItem::substring_score` by default,
+`PaletteItem::fuzzy_score` for names, keywords and comments, as linux-desktop's
+program launcher uses). Its overlay is an `unstyled::Modal`. It and `Select` are stylings of `unstyled::SearchList`,
+which owns the query, the highlight, the arrow, Page, Home and End keys, scrolling to the
+highlighted row, Enter and hover.
 
 A menu is described once as `MenuNode`s: `MenuNode::action(&action)` (or
 `labelled` to name it differently in this menu), `MenuNode::submenu(id, label,
@@ -382,7 +389,7 @@ resolved.
 
 `<Select>` takes `options` and `selected` and opens a popup with a search box
 over the option list. Its options, and those of `<Tabs>`, `<Listbox>`,
-`<RadioGroup>` and `<ResponsiveTabs>`, are a `Children<unstyled::ChoiceOption>`
+`<RadioGroup>` and `<SegmentedControl>`, are a `Children<unstyled::ChoiceOption>`
 written as `<ChoiceOption>` tags, with each label a prop that follows its
 signal. A list that comes from runtime data builds a `Vec` of those tags rather
 than a `Vec` of labels, so an option is one thing everywhere it is written.
@@ -423,7 +430,7 @@ area from outside.
 `press_focus=false` is the one way to make pressing something leave the focus,
 and with it a text field's caret and selection, where it is. It is a prop on any
 `<Interactive>`, focusable or not, and on the controls built on one (`Button`,
-`IconButton`, `Toggle`, `Checkbox`), and it covers everything inside it: a press
+`Toggle`, `Checkbox`), and it covers everything inside it: a press
 anywhere in it focuses nothing, whatever focusable is under the pointer. Put it
 on a whole toolbar rather than on each of its buttons, as the text editor's
 format bar and the dock's bars do, so its padding and scroll strip keep the

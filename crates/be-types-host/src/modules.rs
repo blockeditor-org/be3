@@ -66,6 +66,20 @@ pub fn plain_forms_revision() -> u64 {
     PLAIN_FORMS.load(Ordering::Relaxed)
 }
 
+static HELD: wasi_threads::Mutex<Option<Instant>> = wasi_threads::Mutex::new(None);
+
+pub fn hold_clock(at: Option<Instant>) {
+    *HELD
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner) = at;
+}
+
+fn held() -> Option<Instant> {
+    *HELD
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner)
+}
+
 pub type Boxed = Box<dyn Channel<Presented = Infallible>>;
 
 pub type Started = Result<(Boxed, SessionTag), String>;
@@ -465,7 +479,9 @@ impl Modules {
     }
 
     pub fn now(&self) -> u64 {
-        self.clock.now().as_millis() as u64
+        held()
+            .map_or_else(|| self.clock.now(), |at| self.clock.at(at))
+            .as_millis() as u64
     }
 
     pub fn clock(&self) -> &Clock {

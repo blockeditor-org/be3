@@ -185,6 +185,7 @@ fn screens() -> Vec<ScreenRequest> {
                 chrome: FrameChrome::Drawn,
                 content: None,
                 top_bar: block_plugin_api::TopBar::Hidden,
+                dialog: None,
             }),
             metrics: metrics(),
             windows: false,

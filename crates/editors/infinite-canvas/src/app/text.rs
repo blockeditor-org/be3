@@ -4,10 +4,6 @@ use std::sync::Arc;
 use block_editor_beui::be_block::be_model::ObjectId;
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
-use block_editor_beui::beui::unstyled::{
-    self, Prose, RemoteTextCursor, SyntaxColors, TextArea, TextAreaColors, TextAreaState,
-    TextMarker,
-};
 use block_editor_beui::beui::{
     Color32, Key, KeyAt, KeyPhase, NodeId, Rect, TextAlign, Vec2, line_height, pos2,
 };
@@ -25,8 +21,6 @@ use crate::geometry::{TEXT_INSET, WorldRect, flattened};
 
 use super::paint::{path_middle, resolve_color, with_opacity};
 use super::state::{CanvasState, TextEntry};
-
-const PLACEHOLDER_OPACITY: f32 = 0.4;
 
 pub(crate) fn font_px(entity: &CanvasEntity, scale: f32) -> f32 {
     (entity.style.text_size.px() * scale).clamp(4.0, 256.0)
@@ -148,14 +142,9 @@ pub(crate) fn EntityText(
     id: Uuid,
     entity: Memo<Option<CanvasEntity>>,
     outer: Memo<Rect>,
-    camera: Memo<CanvasView>,
     editing: Memo<bool>,
 ) -> NodeId {
     let theme = use_theme();
-    let unit = create_memo(move || match editing.get() {
-        true => camera.get().scale.max(f32::EPSILON),
-        false => 1.0,
-    });
     let shown = create_memo(move || {
         let entity = entity.get().filter(writes)?;
         Some(Shown {
@@ -178,14 +167,14 @@ pub(crate) fn EntityText(
             .unwrap_or_default()
     });
     let color = create_memo(move || {
-        shown
-            .get()
-            .map_or(Color32::TRANSPARENT, |shown| shown.color)
+        TextColor::Custom(
+            shown
+                .get()
+                .map_or(Color32::TRANSPARENT, |shown| shown.color),
+        )
     });
-    let font_size = create_memo(move || {
-        let size = shown.get().map_or(20.0, |shown| shown.size);
-        (size * unit.get()).clamp(1.0, 1024.0)
-    });
+    let font_size = create_memo(move || shown.get().map_or(20.0, |shown| shown.size));
+    let size = create_memo(move || TextSize::Custom(font_size.get()));
     let prose = create_memo(move || {
         let text_style = shown
             .get()
@@ -200,30 +189,16 @@ pub(crate) fn EntityText(
         false => shown.get().map_or(0.0, |shown| shown.turn),
     });
     let padding = create_memo(move || {
-        let (outer, inner, unit) = (
+        let (outer, inner) = (
             outer.get(),
             shown.get().map_or(Rect::ZERO, |shown| shown.region),
-            unit.get(),
         );
-        Sides::new(
-            ((inner.left() - outer.left()) * unit).max(0.0),
-            ((inner.top() - outer.top()) * unit).max(0.0),
-            ((outer.right() - inner.right()) * unit).max(0.0),
-            ((outer.bottom() - inner.bottom()) * unit).max(0.0),
-        )
-    });
-    let inset = create_memo(move || Vec2::splat(TEXT_INSET * unit.get()));
-    let colors = create_memo(move || TextAreaColors {
-        selection: theme.accent_soft.get(),
-        caret: theme.accent.get(),
-        placeholder: with_opacity(color.get(), PLACEHOLDER_OPACITY),
-        syntax: SyntaxColors::uniform(color.get()),
-        ..TextAreaColors::DEFAULT
-    });
-    let marker = RenderFn::new(|marker: TextMarker| {
-        view! {
-            <DocumentMarker marker />
-        }
+        Padding::custom(Sides::new(
+            (inner.left() - outer.left()).max(0.0),
+            (inner.top() - outer.top()).max(0.0),
+            (outer.right() - inner.right()).max(0.0),
+            (outer.bottom() - inner.bottom()).max(0.0),
+        ))
     });
     let field = NodeRef::new();
     let grows = create_signal(false);
@@ -239,9 +214,8 @@ pub(crate) fn EntityText(
         if !editing.get() || !grows.get() || content == Vec2::ZERO {
             return;
         }
-        let unit = unit.get();
         untrack(|| {
-            if state.fit_edited_text(id, content / unit)
+            if state.fit_edited_text(id, content)
                 && let Some(node) = field.try_get()
             {
                 node.reveal();
@@ -286,15 +260,15 @@ pub(crate) fn EntityText(
                     @test_id={format!("infinite-canvas.text.{id}")}
                     state={area}
                     line_numbers=false
-                    colors
+                    find=false
+                    color
+                    size
+                    padding=TEXT_PADDING
                     placeholder
                     disabled
                     focused={editing}
-                    font_size
-                    padding={inset}
                     prose
                     remote_cursors
-                    marker
                     on_content_size={move |size: Vec2| content.set(size)}
                     on_focus_change={left}
                 />
@@ -302,6 +276,8 @@ pub(crate) fn EntityText(
         </Frame>
     }
 }
+
+const TEXT_PADDING: Padding = Padding::all(Space::Custom(TEXT_INSET));
 
 fn peer_carets(state: CanvasState, id: Uuid, area: TextAreaState) -> Memo<Vec<RemoteTextCursor>> {
     let carets = state.peer_carets();
@@ -424,9 +400,8 @@ fn enter(area: TextAreaState, field: NodeRef, entry: TextEntry) {
         }
         TextEntry::At(at) => {
             let at = with_document(|document| {
-                document
-                    .api::<unstyled::TextAreaApi>(node)
-                    .index_at(document, at)
+                let surface = document.api::<TextAreaSurfaceApi>(node).surface();
+                document.api::<TextAreaApi>(surface).index_at(document, at)
             });
             at..at
         }

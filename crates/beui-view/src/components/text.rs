@@ -15,7 +15,7 @@ use beui_core::node::{NodeId, NodeOf};
 use beui_core::rich::{SpanBackground, TextCaret, TextGlyph, TextMark};
 
 use beui_core::base::text::DEFAULT_FONT_SIZE;
-use beui_core::font::{TextAlign, Wrap};
+use beui_core::font::{Overflow, TextAlign};
 use beui_macros::component;
 
 #[component]
@@ -25,10 +25,8 @@ pub fn Text(
     #[prop(default = Color32::WHITE)] color: Prop<Color32>,
     #[prop(default = None)] align: Prop<Option<TextAlign>>,
     #[prop(default = None)] vertical_align: Prop<Option<TextAlign>>,
-    #[prop(default = Wrap::Off)] wrap: Prop<Wrap>,
-    #[prop(default = false)] clip: Prop<bool>,
+    #[prop(default = Overflow::default())] overflow: Prop<Overflow>,
     #[prop(default = false)] underline: Prop<bool>,
-    #[prop(default = false)] ellipsis: Prop<bool>,
     #[prop(default = (0.0, 0.0))] line_padding: Prop<(f32, f32)>,
     #[prop(default = 0)] hang: Prop<usize>,
     #[prop(default = Vec::new())] marks: Prop<Vec<TextMark>>,
@@ -61,10 +59,8 @@ pub fn Text(
                 Some(_) => TextAlign::Center,
                 None => TextAlign::Start,
             }),
-            wrap: wrap.get(),
-            clip: clip.get(),
+            overflow: overflow.get(),
             underline: underline.get(),
-            ellipsis: ellipsis.get(),
             padding: line_padding.get(),
             hang: hang.get(),
         };

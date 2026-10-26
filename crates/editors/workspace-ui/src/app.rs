@@ -3,12 +3,12 @@ use workspace_ui_types::EditorViewContent;
 
 use block_editor_beui::be_block::{BlockContent, FILES_EDITOR, SettingsContent};
 use block_editor_beui::beui::NodeId;
+use block_editor_beui::beui::dock::styled::{
+    DockMode, DockPane, DockSplit, DockTab, Docking, TabId, use_dock_tab,
+};
 use block_editor_beui::beui::icons::{ICON_FOLDER, ICON_ROTATE_CCW_CLOCK, ICON_SETTINGS};
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
-use block_editor_beui::beui::unstyled::{
-    Container, DockMode, DockPane, DockSplit, DockTab, TabId, use_dock_tab,
-};
 use block_editor_beui::root_settings::own_settings_blocks;
 use block_editor_beui::{
     ChildBlock, ChildBlockHandle, ChildMode, ChildTarget, Editor, HostPanel, HostWindowId, Loaded,
@@ -22,8 +22,8 @@ use block_shell::{
 use uuid::Uuid;
 
 const FILES_SHARE: f32 = 0.22;
-const PANEL_PADDING: f32 = 14.0;
-const PANEL_SPACING: f32 = 6.0;
+const PANEL_PADDING: Space = Space::Lg;
+const PANEL_SPACING: Space = Space::Sm;
 
 pub struct WorkspaceUiApp;
 
@@ -92,7 +92,7 @@ pub(crate) fn WorkspaceBody(workspace: Workspace) -> NodeId {
     let panels = workspace.panels();
     view! {
         <Frame @node_ref={&surface}>
-            <List spacing=0.0>
+            <List spacing=Space::None>
                 <Failure failed={failed} reason={reason} />
                 <Docking @sizing=ItemSize::Percent(100.0) layout>
                     <DockSplit id="workspace" fraction=FILES_SHARE>
@@ -186,7 +186,7 @@ fn SidePanel(
     let editor = workspace.editor();
     let tab = use_dock_tab();
     view! {
-        <List spacing=0.0>
+        <List spacing=Space::None>
             <ChildBlock
                 @sizing=ItemSize::Percent(100.0)
                 editor={editor}

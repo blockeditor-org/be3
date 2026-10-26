@@ -12,7 +12,14 @@ fn the_keyboard_is_asked_for_at_the_caret_and_after_an_ime_composition() {
             Arc::new(TextBuffer::new(b"hello world")) as Arc<dyn text_editor_core::Document>;
         let state = TextAreaState::new(document);
         view! {
-            <TextArea state={state} single_line=true />
+            <TextArea
+                colors={area_colors()}
+                look={area_look()}
+                font_size=AREA_FONT_SIZE
+                padding=AREA_PADDING
+                state={state}
+                single_line=true
+            />
         }
     });
     let mut harness = Harness::new(document);

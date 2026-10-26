@@ -14,7 +14,7 @@ use uuid::Uuid;
 
 use super::state::{CanvasState, attach_component, remove_component, set_component_value};
 
-const SPACING: f32 = 10.0;
+const SPACING: Space = Space::Md;
 
 #[component]
 pub(crate) fn CanvasComponents(state: CanvasState) -> NodeId {
@@ -38,7 +38,7 @@ pub(crate) fn CanvasComponents(state: CanvasState) -> NodeId {
                 <ForEach keys={schemas}>|schema_id: Uuid|
                     <ComponentRow state schema_id />
                 </ForEach>
-                <List direction=Direction::Horizontal spacing=0.0>
+                <List direction=Direction::Horizontal spacing=Space::None>
                     <Button
                         @node_ref={&add_button}
                         label="Add component…"
@@ -153,13 +153,13 @@ fn ComponentRow(state: CanvasState, schema_id: Uuid) -> NodeId {
     let open_id = format!("{prefix}.open");
     let remove_id = format!("{prefix}.remove");
     view! {
-        <List spacing=6.0>
+        <List spacing=Space::Sm>
             <Text style=TextStyle::CAPTION>{named}</Text>
             <Show condition={partial}>|| {
                 let add_id = add_id.clone(); view! {
-                    <List spacing=6.0>
+                    <List spacing=Space::Sm>
                         <Text style=TextStyle::CAPTION>{coverage}</Text>
-                        <List direction=Direction::Horizontal spacing=4.0>
+                        <List direction=Direction::Horizontal spacing=Space::Xs>
                             <Button
                                 label="Add to all"
                                 variant=ButtonVariant::Secondary
@@ -171,7 +171,7 @@ fn ComponentRow(state: CanvasState, schema_id: Uuid) -> NodeId {
                     </List>
                 }
             }</Show>
-            <List direction=Direction::Horizontal align=Align::Center spacing=4.0 wrap=true>
+            <List direction=Direction::Horizontal align=Align::Center spacing=Space::Xs wrap=true>
                 <Button
                     label="Open schema"
                     variant=ButtonVariant::Secondary

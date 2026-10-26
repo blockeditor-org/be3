@@ -5,13 +5,13 @@ use beui_macros::{component, view};
 
 use crate::focus_ring::FocusRing;
 use crate::text::{Icon, Text, TextColor};
-use crate::theme::{ThemeStore, use_theme};
 use crate::tooltip::Tooltip;
 use beui_components_unstyled::{Toggle, ToggleHandle};
-use beui_core::color::Color32;
-use beui_core::font::TextAlign;
+use beui_core::font::{Overflow, TextAlign};
 use beui_core::node::NodeId;
-use beui_view::primitives::*;
+
+use crate::list::List;
+use crate::tokens::{Padding, Space, Stroke};
 use beui_view::reactive::*;
 
 #[component]
@@ -25,27 +25,24 @@ pub fn ToggleButton(
     #[prop(default = false)] disabled: Prop<bool>,
     action: Option<Action>,
 ) -> NodeId {
-    let icon_only = create_memo(move || icon_only.get());
-    let named = create_memo(move || !icon_only.get());
     view! {
         <Toggle
             api
             checked={pressed}
             label
             glyph
+            icon_only
             role=Role::Button
             action
             disabled
         >|handle: ToggleHandle|
-            <Tooltip label={handle.tooltip} disabled={named}>
-                <ToggleButtonFace handle icon_only />
-            </Tooltip>
+            <ToggleButtonFace handle />
         </Toggle>
     }
 }
 
 #[component]
-fn ToggleButtonFace(handle: ToggleHandle, icon_only: Memo<bool>) -> NodeId {
+fn ToggleButtonFace(handle: ToggleHandle) -> NodeId {
     let ToggleHandle {
         checked,
         hovered,
@@ -53,58 +50,54 @@ fn ToggleButtonFace(handle: ToggleHandle, icon_only: Memo<bool>) -> NodeId {
         disabled,
         label,
         glyph,
+        icon_only,
+        tooltip,
         ..
     } = handle;
-    let theme = use_theme();
     let has_glyph = create_memo(move || glyph.get().is_some());
     let named = create_memo(move || !icon_only.get());
     let padding = create_memo(move || match icon_only.get() {
-        true => Sides::symmetric(8.0, 8.0),
-        false => Sides::symmetric(14.0, 8.0),
+        true => Padding::all(Space::Md),
+        false => Padding::symmetric(Space::Lg, Space::Md),
     });
     let text_color = create_memo(move || match disabled.get() {
         true => TextColor::Muted,
         false => TextColor::Default,
     });
-    let fill_color = create_memo(move || fill_for(&theme, checked.get(), hovered.get()));
-    let border_color = create_memo(move || {
-        let theme = theme.get();
-        if checked.get() {
-            theme.accent
-        } else {
-            theme.border
-        }
+    let fill_color = create_memo(move || fill_for(checked.get(), hovered.get()));
+    let border = create_memo(move || {
+        Some(Border::new(match checked.get() {
+            true => ColorRole::Accent,
+            false => ColorRole::Border,
+        }))
     });
 
     view! {
-        <FocusRing focused offset=3.0>
-            <Frame
-                fill={ColorRole::custom(fill_color)}
-                border={create_memo(move || Some(Border::new(ColorRole::Custom(border_color.get())).width(1.0)))}
-                radius=Radius::Md
-                padding={padding}
-            >
-                <List direction=Direction::Horizontal align=Align::Center spacing=6.0>
-                    <Show condition={has_glyph}>
-                        <Text color={text_color} align=TextAlign::Center>
-                            <Icon glyph={glyph} />
-                        </Text>
-                    </Show>
-                    <Show condition={named}>
-                        <Text color={text_color}>{label}</Text>
-                    </Show>
-                </List>
-            </Frame>
-        </FocusRing>
+        <Tooltip label={tooltip}>
+            <FocusRing focused offset=Stroke::Focus>
+                <Frame fill={fill_color} border={border} radius=Radius::Md padding={padding}>
+                    <List direction=Direction::Horizontal align=Align::Center spacing=Space::Sm>
+                        <Show condition={has_glyph}>
+                            <Text color={text_color} align=TextAlign::Center>
+                                <Icon glyph={glyph} />
+                            </Text>
+                        </Show>
+                        <Show condition={named}>
+                            <Text overflow=Overflow::Ellipsis color={text_color}>{label}</Text>
+                        </Show>
+                    </List>
+                </Frame>
+            </FocusRing>
+        </Tooltip>
     }
 }
 
-fn fill_for(theme: &ThemeStore, pressed: bool, hovered: bool) -> Color32 {
+fn fill_for(pressed: bool, hovered: bool) -> ColorRole {
     if pressed {
-        theme.accent_soft.get()
+        ColorRole::AccentSoft
     } else if hovered {
-        theme.hover.get()
+        ColorRole::Hover
     } else {
-        theme.surface.get()
+        ColorRole::Surface
     }
 }

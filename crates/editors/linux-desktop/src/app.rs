@@ -4,6 +4,7 @@ mod fullscreen;
 pub(crate) mod launcher;
 pub(crate) mod media;
 mod notifications;
+pub(crate) mod osd;
 mod placeholders;
 mod popup;
 mod power;
@@ -14,11 +15,9 @@ mod tray;
 mod volume;
 mod wifi;
 
+use block_editor_beui::beui::dock::styled::{DockNode, DockPane, DockWindow, Docking, TabId};
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
-use block_editor_beui::beui::unstyled::{
-    Container, DockNode, DockPane, DockWindow, TabId, container_size,
-};
 use block_editor_beui::beui::{Modifiers, NodeId, Pos2, Rect, Vec2, pos2, vec2};
 use block_editor_beui::{Editor, Loaded};
 use block_editor_beui::{HostPanel, HostWindowId};
@@ -121,7 +120,7 @@ fn DisplayBody(desktop: Desktop, display: u32) -> NodeId {
     let area = region_area();
     view! {
         <Frame>
-            <List spacing=0.0>
+            <List spacing=Space::None>
                 <Spacer @sizing=ItemSize::Percent(100.0) />
                 <DesktopBar
                     workspace={desktop.workspace}
@@ -194,7 +193,7 @@ fn DesktopBody(workspace: Workspace) -> NodeId {
     );
     view! {
         <Frame @node_ref={&surface}>
-            <List spacing=0.0>
+            <List spacing=Space::None>
                 <Failure failed={failed} reason={reason} />
                 <Docking
                     @sizing=ItemSize::Percent(100.0)

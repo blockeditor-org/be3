@@ -2,9 +2,9 @@ use std::cell::RefCell;
 use std::collections::HashMap;
 
 use beui::Image;
-use beui::reactive::*;
 #[cfg(not(target_os = "android"))]
-use beui::unstyled::{DockDocuments, DockSlot, DockingLayout};
+use beui::dock::styled::{DockDocuments, DockSlot, DockingLayout};
+use beui::reactive::*;
 
 use crate::builds::Slot;
 use crate::github::{Entry, Filter, PullRequest, timeline_images};

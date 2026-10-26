@@ -43,12 +43,12 @@ pub(crate) fn Marker(
     });
     view! {
         <CanvasItem x={x} y={y} width={width} height={height}>
-            <List spacing=0.0 align=Align::Center>
+            <List spacing=Space::None align=Align::Center>
                 <Frame
-                    width=RING_SIZE
-                    height=RING_SIZE
-                    radius={Radius::custom((RING_SIZE / 2.0).floor())}
-                    border={create_memo(move || selected.get().then_some(Border::new(ColorRole::Custom(SELECTION_COLOR)).width(2.0)))}
+                    width={Size::Custom(RING_SIZE)}
+                    height={Size::Custom(RING_SIZE)}
+                    radius=Radius::Full
+                    border={create_memo(move || selected.get().then_some(Border::new(ColorRole::Custom(SELECTION_COLOR)).width(Stroke::Focus)))}
                 >
                     <Text
                         size=MARKER_SIZE
@@ -63,9 +63,9 @@ pub(crate) fn Marker(
                     view! {
                         <Frame
                             fill={ColorRole::Custom(LABEL_BACKGROUND)}
-                            radius={Radius::custom(3.0)}
-                            padding={Sides::horizontal(3.0)}
-                            height=LABEL_HEIGHT
+                            radius=Radius::Xs
+                            padding={Padding::horizontal(Space::Xs2)}
+                            height={Size::Custom(LABEL_HEIGHT)}
                         >
                             <Text
                                 style=TextStyle::CAPTION

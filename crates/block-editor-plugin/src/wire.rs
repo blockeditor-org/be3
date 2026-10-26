@@ -266,6 +266,10 @@ impl GuestEditor for OpenEditor {
             .call(self.instance, move |session| session.pick_menu(id));
     }
 
+    fn dismiss(&self) {
+        self.wire.call(self.instance, |session| session.dismiss());
+    }
+
     fn child_bar(&self, _region: EditorRegion, child: ChildId, action: BarAction) {
         self.wire.call(self.instance, move |session| {
             session.child_bar_action(child, action)

@@ -119,6 +119,7 @@ text-block-types = { path = "../editors/text-block/types" }
 presentation-types = { path = "../editors/presentation/types" }
 pollster = "0.4"
 paint-snapshot = { path = "../paint-snapshot" }
+block-ui-test = { path = "../block-ui-test" }
 
 # The terminal host, for the test that runs a real one against the app's stack.
 [target.'cfg(not(any(target_arch = "wasm32", target_os = "android")))'.dev-dependencies]

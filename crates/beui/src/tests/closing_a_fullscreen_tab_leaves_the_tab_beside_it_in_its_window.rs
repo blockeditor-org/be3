@@ -1,7 +1,7 @@
 use super::*;
+use crate::dock::unstyled::{DockApi, DockPane, DockTab, DockWindow, DockingLayout};
 use crate::primitives::*;
 use crate::reactive::*;
-use crate::unstyled::{DockApi, DockPane, DockTab, DockWindow, DockingLayout};
 
 #[test]
 fn closing_a_fullscreen_tab_leaves_the_tab_beside_it_in_its_window() {
@@ -15,7 +15,7 @@ fn closing_a_fullscreen_tab_leaves_the_tab_beside_it_in_its_window() {
             let keys = create_signal(vec![1u64, 2]);
             *setter.borrow_mut() = Some(keys);
             view! {
-                <styled::Docking @node_ref=&dock layout drag_modifier={Some(Modifiers::LOGO)}>
+                <dock::styled::Docking @node_ref=&dock layout drag_modifier={Some(Modifiers::LOGO)}>
                     <DockPane
                         id="desktop"
                         empty={|| view! {
@@ -34,7 +34,7 @@ fn closing_a_fullscreen_tab_leaves_the_tab_beside_it_in_its_window() {
                             </ForEach>
                         </DockPane>
                     </DockWindow>
-                </styled::Docking>
+                </dock::styled::Docking>
             }
         })
     };

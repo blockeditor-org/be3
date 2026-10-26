@@ -2,8 +2,8 @@ use block_editor_beui::beui::icons::Glyph;
 use std::collections::{HashMap, HashSet};
 
 use block_editor_beui::beui::Rect;
+use block_editor_beui::beui::dock::styled::TabId;
 use block_editor_beui::beui::icons::{ICON_BOXES, ICON_USERS};
-use block_editor_beui::beui::unstyled::TabId;
 use block_editor_beui::block_ui::{BlockCatalog, BlockTypes, TemplateCategory, TemplateEntry};
 use block_editor_beui::sections::{is_workspace, shared_with_me, workspaces};
 use block_editor_beui::{
@@ -27,6 +27,7 @@ pub(crate) struct Creating {
     pub(crate) committed: bool,
     pub(crate) sent: bool,
     pub(crate) child: Option<ChildId>,
+    pub(crate) height: Option<f32>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -187,6 +188,7 @@ impl Pick {
                     committed: false,
                     sent: false,
                     child: None,
+                    height: None,
                 });
                 if !dialog {
                     return self.act(PickAction::Create);

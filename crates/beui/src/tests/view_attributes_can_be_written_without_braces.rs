@@ -3,7 +3,7 @@ use crate::FontId;
 use crate::font::TextAlign;
 use crate::primitives::*;
 use crate::reactive::*;
-use beui::Wrap;
+use beui::Overflow;
 
 const LABEL: &str = "Unbraced";
 const LABEL_SIZE: f32 = 20.0;
@@ -28,7 +28,7 @@ fn view_attributes_can_be_written_without_braces() {
                         <Text
                             @node_ref=&label
                             align=TextAlign::End
-                            wrap=Wrap::Off
+                            overflow=Overflow::Visible
                             font={FontId::proportional(LABEL_SIZE)}
                         >
                             {LABEL}

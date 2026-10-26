@@ -14,7 +14,7 @@ fn the_on_screen_keyboard_opens_along_the_foot_of_its_fields_window() {
                     size={vec2(480.0, 360.0)}
                     placement={WindowPlacement::Host(HostPlacement("a display".to_owned()))}
                 >|_handle: WindowHandle|
-                    <Frame padding=24.0>
+                    <Frame padding={Padding::all(Space::Xl3)}>
                         <TextInput @test_id="field" value={name} label="Name" />
                     </Frame>
                 </Window>

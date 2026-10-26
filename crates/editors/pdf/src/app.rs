@@ -37,7 +37,13 @@ impl block_editor_beui::BeuiApp for PdfApp {
     #[component]
     fn Creation(creation: Creation) -> NodeId {
         view! {
-            <ContentFileCreation creation id_prefix="pdf" filter={filter()} import={imported} />
+            <ContentFileCreation
+                creation
+                title="New PDF"
+                id_prefix="pdf"
+                filter={filter()}
+                import={imported}
+            />
         }
     }
 }

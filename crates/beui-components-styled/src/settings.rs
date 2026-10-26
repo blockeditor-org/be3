@@ -1,54 +1,56 @@
-use crate::frame::{Border, ColorRole, Frame, Radius, focus_border};
-use crate::text::{Icon, TextColor};
-use crate::theme::use_theme;
-use beui_core::color::Color32;
-use beui_core::font::Wrap;
-use beui_core::icons::{ICON_CHEVRON_RIGHT, ICON_ELLIPSIS};
+use crate::button::ButtonVariant;
+use crate::frame::{Border, ColorRole, Frame, Radius};
+use crate::row::{RowFace, RowSize, RowTrailing};
+use crate::text::TextColor;
+use beui_core::icons::ICON_ELLIPSIS;
 use beui_macros::{component, view};
 
 use crate::border::Separator;
-use crate::icon_button::IconButtonSize;
-use crate::menu_button::IconMenuButton;
+use crate::button::ButtonSize;
+use crate::menu_button::MenuButton;
 use crate::scroll::Scroll;
 use crate::text::{Text, TextStyle};
 use beui_components_unstyled as unstyled;
 use beui_components_unstyled::MenuItem;
 use beui_core::node::NodeId;
-use beui_view::primitives::*;
+
+use crate::list::List;
+use crate::tokens::{Padding, Size, Space, use_space};
 use beui_view::reactive::*;
 
 const PAGE_MAX_WIDTH: f32 = 680.0;
-const SECTION_INSET: f32 = 20.0;
-const PAGE_PADDING_VERTICAL: f32 = 24.0;
-const PAGE_SPACING: f32 = 28.0;
-const SECTION_SPACING: f32 = 10.0;
-const HEADER_SPACING: f32 = 2.0;
-const HEADER_INSET: f32 = 4.0;
-const ROW_PADDING_HORIZONTAL: f32 = 16.0;
-const ROW_PADDING_VERTICAL: f32 = 12.0;
-const ROW_SPACING: f32 = 16.0;
-const STACKED_SPACING: f32 = 10.0;
-const LABEL_SPACING: f32 = 2.0;
-const CONTROL_SPACING: f32 = 8.0;
+const SECTION_INSET: Space = Space::Xl2;
+const PAGE_PADDING_VERTICAL: Space = Space::Xl3;
+const PAGE_SPACING: Space = Space::Xl3;
+const SECTION_SPACING: Space = Space::Md;
+const HEADER_SPACING: Space = Space::Xs2;
+const HEADER_INSET: Space = Space::Xs;
+const ROW_PADDING_HORIZONTAL: Space = Space::Xl;
+const ROW_PADDING_VERTICAL: Space = Space::Lg;
+const ROW_SPACING: Space = Space::Xl;
+const STACKED_SPACING: Space = Space::Md;
+const LABEL_SPACING: Space = Space::Xs2;
+const CONTROL_SPACING: Space = Space::Md;
 const STACK_BELOW: f32 = 400.0;
 const LABEL_WEIGHT: f32 = 55.0;
 const CONTROL_WEIGHT: f32 = 45.0;
-const MARKER_WIDTH: f32 = 3.0;
+const MARKER_WIDTH: Size = Size::Custom(4.0);
+const CONTENT_INSET: Space = Space::Lg;
 const EDGE_TO_EDGE_BELOW: f32 = 520.0;
-const LINK_INSET: f32 = 4.0;
+const LINK_INSET: Space = Space::Xs;
 const SECTION_TITLE: TextStyle = TextStyle::BODY.bold();
 const NOTE: TextStyle = TextStyle::CAPTION.color(TextColor::Accent);
-const MENU_INSET: f32 = 8.0;
+const MENU_INSET: Space = Space::Md;
 
 #[component]
 pub fn SettingsPage(#[prop(children)] sections: Render<(), Children<ListChild>>) -> NodeId {
     view! {
         <Scroll>
             <Frame
-                padding={Sides::vertical(PAGE_PADDING_VERTICAL)}
+                padding={Padding::vertical(PAGE_PADDING_VERTICAL)}
                 align={Align2::new(Align::Center, Align::Start)}
             >
-                <Frame width={Extent::at_most(PAGE_MAX_WIDTH + 2.0 * SECTION_INSET)}>
+                <Frame width={Extent::at_most(PAGE_MAX_WIDTH + 2.0 * SECTION_INSET.px())}>
                     <unstyled::Container>|_size|
                         <List spacing=PAGE_SPACING children={sections.call(())} />
                     </unstyled::Container>
@@ -71,12 +73,12 @@ pub fn SettingsSection(
     let headed = create_memo(move || titled.get() || described.get());
     let edge = unstyled::narrower_than(EDGE_TO_EDGE_BELOW);
     let inset = create_memo(move || match edge.get() {
-        true => Sides::ZERO,
-        false => Sides::horizontal(SECTION_INSET),
+        true => Padding::ZERO,
+        false => Padding::horizontal(SECTION_INSET),
     });
     let header_inset = create_memo(move || match edge.get() {
-        true => Sides::horizontal(ROW_PADDING_HORIZONTAL),
-        false => Sides::horizontal(HEADER_INSET),
+        true => Padding::horizontal(ROW_PADDING_HORIZONTAL),
+        false => Padding::horizontal(HEADER_INSET),
     });
     let border = create_memo(move || match edge.get() {
         true => None,
@@ -93,20 +95,20 @@ pub fn SettingsSection(
                     <Frame padding={header_inset}>
                         <List spacing=HEADER_SPACING>
                             <Show condition={titled}>
-                                <Text style=SECTION_TITLE wrap=Wrap::Words>{title}</Text>
+                                <Text style=SECTION_TITLE>{title}</Text>
                             </Show>
                             <Show condition={described}>
-                                <Text style=TextStyle::CAPTION wrap=Wrap::Words>{description}</Text>
+                                <Text style=TextStyle::CAPTION>{description}</Text>
                             </Show>
                         </List>
                     </Frame>
                 </Show>
-                <List spacing=0.0>
+                <List spacing=Space::None>
                     <Show condition={edge}>
                         <Separator />
                     </Show>
                     <Frame fill=ColorRole::Surface border={border} radius={radius}>
-                        <List spacing=0.0>{children}</List>
+                        <List spacing=Space::None>{children}</List>
                     </Frame>
                     <Show condition={edge}>
                         <Separator />
@@ -154,13 +156,15 @@ pub fn SettingsRow(
     let menu_button = has_menu.then(|| {
         view! {
             <Frame
-                padding={Sides::new(0.0, ROW_PADDING_VERTICAL, MENU_INSET, ROW_PADDING_VERTICAL)}
+                padding={Padding::vertical(ROW_PADDING_VERTICAL).right(MENU_INSET)}
                 align={Align2::new(Align::Center, Align::Center)}
             >
-                <IconMenuButton
+                <MenuButton
+                    icon_only=true
+                    variant=ButtonVariant::Ghost
                     label="More"
                     glyph=ICON_ELLIPSIS
-                    size=IconButtonSize::Compact
+                    size=ButtonSize::Small
                     disabled={locked}
                     @test_id={menu_test_id}
                     items={menu}
@@ -168,35 +172,35 @@ pub fn SettingsRow(
             </Frame>
         }
     });
-    let narrow = unstyled::narrower_than(STACK_BELOW + 2.0 * ROW_PADDING_HORIZONTAL);
+    let narrow = unstyled::narrower_than(STACK_BELOW + 2.0 * ROW_PADDING_HORIZONTAL.px());
     let narrow = create_memo(move || !compact && narrow.get());
-    let spacing = create_memo(move || match narrow.get() {
+    let spacing = use_space(create_memo(move || match narrow.get() {
         true => STACKED_SPACING,
         false => ROW_SPACING,
-    });
+    }));
     view! {
-        <List spacing=0.0>
+        <List spacing=Space::None>
             <Show condition={separated}>
-                <Frame padding={Sides::horizontal(ROW_PADDING_HORIZONTAL)}>
+                <Frame padding={Padding::horizontal(ROW_PADDING_HORIZONTAL)}>
                     <Separator />
                 </Frame>
             </Show>
-            <List direction=Direction::Horizontal spacing=0.0>
-                <Frame padding={Sides::vertical(ROW_PADDING_VERTICAL)}>
+            <List direction=Direction::Horizontal spacing=Space::None>
+                <Frame padding={Padding::vertical(ROW_PADDING_VERTICAL)}>
                     <Frame width=MARKER_WIDTH fill={marker} radius=Radius::Full />
                 </Frame>
                 <Frame
                     @sizing=ItemSize::Percent(100.0)
-                    padding={Sides::symmetric(ROW_PADDING_HORIZONTAL - MARKER_WIDTH, ROW_PADDING_VERTICAL)}
+                    padding={Padding::symmetric(CONTENT_INSET, ROW_PADDING_VERTICAL)}
                 >
                     <unstyled::Stack spacing={spacing} narrow={narrow}>
                         <List @sizing={label_size} justify=Justify::Center spacing=LABEL_SPACING>
-                            <Text wrap=Wrap::Words>{label}</Text>
+                            <Text>{label}</Text>
                             <Show condition={described}>
-                                <Text style=TextStyle::CAPTION wrap=Wrap::Words>{description}</Text>
+                                <Text style=TextStyle::CAPTION>{description}</Text>
                             </Show>
                             <Show condition={noted}>
-                                <Text style=NOTE wrap=Wrap::Words>{note}</Text>
+                                <Text style=NOTE>{note}</Text>
                             </Show>
                         </List>
                         <List
@@ -233,86 +237,38 @@ pub fn SettingsLink(
         false => ColorRole::None,
     });
     view! {
-        <List spacing=0.0>
+        <List spacing=Space::None>
             <Show condition={separated}>
-                <Frame padding={Sides::horizontal(ROW_PADDING_HORIZONTAL)}>
+                <Frame padding={Padding::horizontal(ROW_PADDING_HORIZONTAL)}>
                     <Separator />
                 </Frame>
             </Show>
-            <List direction=Direction::Horizontal spacing=0.0>
-                <Frame padding={Sides::vertical(ROW_PADDING_VERTICAL)}>
+            <List direction=Direction::Horizontal spacing=Space::None>
+                <Frame padding={Padding::vertical(ROW_PADDING_VERTICAL)}>
                     <Frame width=MARKER_WIDTH fill={marker} radius=Radius::Full />
                 </Frame>
                 <Frame
                     @sizing=ItemSize::Percent(100.0)
-                    padding={Sides::new(0.0, LINK_INSET, LINK_INSET, LINK_INSET)}
+                    padding={Padding::all(LINK_INSET).left(Space::None)}
                 >
-                    <unstyled::Button label disabled on_click={on_click}>|handle|
-                        <SettingsLinkFace handle description={description} />
+                    <unstyled::Button
+                        label
+                        disabled
+                        on_click={on_click}
+                    >|handle: unstyled::ButtonHandle|
+                        <RowFace
+                            hovered={handle.hovered}
+                            active={handle.active}
+                            focused={handle.focused}
+                            disabled={handle.disabled}
+                            size=RowSize::Regular
+                            label={handle.label}
+                            detail={description}
+                            trailing=RowTrailing::Chevron
+                        />
                     </unstyled::Button>
                 </Frame>
             </List>
         </List>
-    }
-}
-
-#[component]
-fn SettingsLinkFace(handle: unstyled::ButtonHandle, description: Memo<String>) -> NodeId {
-    let unstyled::ButtonHandle {
-        hovered,
-        active,
-        focused,
-        disabled,
-        label,
-        ..
-    } = handle;
-    let theme = use_theme();
-    let fill = create_memo(
-        move || match (disabled.get(), active.get(), hovered.get()) {
-            (true, _, _) => Color32::TRANSPARENT,
-            (false, true, _) => theme.pressed.get(),
-            (false, false, true) => theme.hover.get(),
-            (false, false, false) => Color32::TRANSPARENT,
-        },
-    );
-    let text_color = create_memo(move || match disabled.get() {
-        true => TextColor::Muted,
-        false => TextColor::Default,
-    });
-    let described = create_memo(move || !description.get().is_empty());
-    view! {
-        <Frame
-            fill={ColorRole::custom(fill)}
-            border={focus_border(focused, Border::FOCUS)}
-            radius=Radius::Md
-        >
-            <List direction=Direction::Horizontal spacing=0.0>
-                <Frame
-                    @sizing=ItemSize::Percent(100.0)
-                    padding={Sides::new(
-                        ROW_PADDING_HORIZONTAL - MARKER_WIDTH,
-                        ROW_PADDING_VERTICAL - LINK_INSET,
-                        ROW_PADDING_HORIZONTAL - LINK_INSET,
-                        ROW_PADDING_VERTICAL - LINK_INSET,
-                    )}
-                >
-                    <List direction=Direction::Horizontal align=Align::Center spacing=ROW_SPACING>
-                        <List
-                            @sizing=ItemSize::Percent(100.0)
-                            justify=Justify::Center
-                            spacing=LABEL_SPACING
-                        >
-                            <Text color={text_color} wrap=Wrap::Words>{label}</Text>
-                            <Show condition={described}>
-                                <Text style=TextStyle::CAPTION wrap=Wrap::Words>{description}</Text>
-                            </Show>
-                        </List>
-                        <Text color=TextColor::Muted>
-                            <Icon glyph=ICON_CHEVRON_RIGHT />
-                        </Text>
-                    </List>
-                </Frame>
-            </List>
-        </Frame>
     }
 }

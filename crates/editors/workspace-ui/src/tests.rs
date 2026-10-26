@@ -42,6 +42,7 @@ mod an_import_into_a_folder_is_made_inside_it;
 mod an_import_keeps_the_location_it_started_with;
 mod an_open_menu_is_withheld_from_the_block_under_it;
 mod an_open_pick_leaves_the_tabs_where_they_were;
+mod back_asks_a_creation_dialog_to_dismiss_itself_first;
 mod block_type_colors_are_shown_in_the_add_menu_and_full_list;
 mod block_type_colors_are_shown_on_a_phone;
 mod closing_a_window_tab_asks_its_program_to_close;
@@ -397,6 +398,18 @@ fn places(fixture: &mut Fixture) -> Places {
 }
 
 fn report_creation(fixture: &mut Fixture, progress: block_editor_beui::CreationProgress) {
+    report_creation_dialog(
+        fixture,
+        progress,
+        block_editor_beui::DialogStatus::default(),
+    );
+}
+
+fn report_creation_dialog(
+    fixture: &mut Fixture,
+    progress: block_editor_beui::CreationProgress,
+    dialog: block_editor_beui::DialogStatus,
+) {
     fixture
         .test
         .report_children(|placement| block_editor_beui::ChildStatus {
@@ -417,8 +430,8 @@ fn report_creation(fixture: &mut Fixture, progress: block_editor_beui::CreationP
                 block_editor_beui::ChildContent::Creation { .. }
             )
             .then(|| progress.clone()),
-            settings: None,
             preview: Default::default(),
+            dialog,
         });
     fixture.settle();
 }

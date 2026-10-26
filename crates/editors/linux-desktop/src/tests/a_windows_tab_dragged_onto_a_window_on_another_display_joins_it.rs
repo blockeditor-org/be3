@@ -1,4 +1,4 @@
-use block_editor_beui::beui::unstyled::DockApi;
+use block_editor_beui::beui::dock::styled::DockApi;
 use block_editor_beui::beui::{pos2, vec2};
 
 use super::*;

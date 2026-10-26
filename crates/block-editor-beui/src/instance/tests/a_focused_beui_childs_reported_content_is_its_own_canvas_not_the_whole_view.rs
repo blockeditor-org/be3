@@ -12,7 +12,7 @@ impl crate::BeuiApp for SidebarApp {
             let canvas = NodeRef::new();
             editor.content(&canvas);
             view! {
-                <List direction=Direction::Horizontal spacing=0.0>
+                <List direction=Direction::Horizontal spacing=Space::None>
                     <Frame @sizing=ItemSize::Fixed(100.0) />
                     <Frame @node_ref={&canvas} @sizing=ItemSize::Percent(100.0) />
                 </List>

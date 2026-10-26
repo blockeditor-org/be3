@@ -19,7 +19,6 @@ use beui_core::rich::{CaretHandle, handle_center, toolbar_anchor};
 use beui_macros::{component, view};
 
 const HANDLE_HIT_RADIUS: f32 = 24.0;
-const CARET_WIDTH: f32 = 2.0;
 const END: usize = usize::MAX;
 const AUTOSCROLL_RATE: f32 = 0.5;
 
@@ -107,6 +106,7 @@ struct Inner {
     focus: RefCell<Option<Caret>>,
     color: Cell<Color32>,
     handle_color: Cell<Color32>,
+    caret_width: Cell<f32>,
     touch: Cell<bool>,
     grab: RefCell<Option<Grab>>,
     unit: Cell<Unit>,
@@ -251,9 +251,15 @@ impl SelectableState {
         }
     }
 
-    fn caret_rect(caret: &Caret) -> Option<Rect> {
+    fn caret_rect(&self, caret: &Caret) -> Option<Rect> {
         let (text, index) = Self::resolve(caret)?;
-        text.caret_rect(index, CARET_WIDTH)
+        text.caret_rect(index, self.0.value().caret_width.get())
+    }
+
+    fn caret_scale(caret: &Caret) -> f32 {
+        Self::resolve(caret)
+            .and_then(|(text, _)| text.text_geometry())
+            .map_or(1.0, |geometry| geometry.scale())
     }
 
     fn toolbar_rect(&self) -> Option<Rect> {
@@ -262,9 +268,9 @@ impl SelectableState {
         if start == end {
             return None;
         }
-        let first = Self::caret_rect(&start)?;
-        let last = Self::caret_rect(&end)?;
-        Some(toolbar_anchor(first.union(last)))
+        let first = self.caret_rect(&start)?;
+        let last = self.caret_rect(&end)?;
+        Some(toolbar_anchor(first.union(last), Self::caret_scale(&end)))
     }
 
     fn order(items: &[SelectionItem], caret: &Caret) -> Option<Order> {
@@ -516,11 +522,12 @@ impl SelectableState {
         self.handles(&items)
             .into_iter()
             .filter_map(|(handle, caret)| {
-                let rect = Self::caret_rect(&caret)?;
+                let rect = self.caret_rect(&caret)?;
                 if pos.y < rect.max.y {
                     return None;
                 }
-                let distance = (pos.to_vec2() - handle_center(rect, handle)).length();
+                let center = handle_center(rect, handle, Self::caret_scale(&caret));
+                let distance = (pos.to_vec2() - center).length();
                 (distance <= HANDLE_HIT_RADIUS).then_some((handle, caret, distance))
             })
             .min_by(|left, right| left.2.total_cmp(&right.2))
@@ -808,8 +815,9 @@ fn press(
             CaretHandle::Start => end,
             _ => start,
         };
-        let offset =
-            SelectableState::caret_rect(&moving).map_or(Vec2::ZERO, |caret| press.pos - caret.min);
+        let offset = state
+            .caret_rect(&moving)
+            .map_or(Vec2::ZERO, |caret| press.pos - caret.min);
         *state.0.value().grab.borrow_mut() = Some(Grab { fixed, offset });
         on_toolbar.call(None);
         return;
@@ -919,8 +927,9 @@ pub fn Selectable(
     #[prop(default = ComponentRef::new())] api: ComponentRef<SelectableState>,
     children: Child,
     #[prop(default = SelectableState::default())] state: SelectableState,
-    #[prop(default = Color32::from_rgba_unmultiplied(80, 140, 255, 90))] color: Prop<Color32>,
-    #[prop(default = Color32::from_rgb(80, 140, 255))] handle_color: Prop<Color32>,
+    color: Prop<Color32>,
+    handle_color: Prop<Color32>,
+    caret_width: Prop<f32>,
     #[prop(default = Some(COPY_KEY))] copy_key: Prop<Option<Chord>>,
     #[prop(default = Some(SELECT_ALL_KEY))] select_all_key: Prop<Option<Chord>>,
     on_toolbar: Callback<Option<Rect>>,
@@ -932,7 +941,9 @@ pub fn Selectable(
     create_effect(move || {
         let color = color.get();
         let handle_color = handle_color.get();
+        let caret_width = caret_width.get();
         untrack(|| {
+            state.0.value().caret_width.set(caret_width);
             state.0.value().color.set(color);
             state.0.value().handle_color.set(handle_color);
             state.paint();

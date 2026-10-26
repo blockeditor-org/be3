@@ -7,7 +7,7 @@ fn the_inspector_shows_document_performance() {
     let mut harness = Harness::sized(document, WIDE_VIEWPORT);
     harness.toggle_inspector();
 
-    harness.click(harness.performance_tab_center());
+    harness.show_inspector_tab(crate::inspector::InspectorTab::Performance);
     harness.frame(Vec::new());
 
     assert!(harness.performance_panel_visible());

@@ -5,7 +5,6 @@ use block_editor_beui::be_block::input_settings::{
 use block_editor_beui::be_block::{InputSettings, Setting};
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
-use block_editor_beui::beui::unstyled::ChoiceOption;
 use block_editor_beui::beui::{NodeId, TextAlign};
 use block_editor_beui::{
     ChangesToast, Editor, HostInputDevice, InputDevicesWatch, LayeredSettings, LayeredSettingsRow,
@@ -317,7 +316,7 @@ fn PointerRows(
         settings.setter(&natural_setting),
     );
     view! {
-        <List spacing=0.0>
+        <List spacing=Space::None>
             <Show condition={has_speed}>
                 <SliderSetting
                     label="Speed"

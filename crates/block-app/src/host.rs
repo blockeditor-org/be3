@@ -155,6 +155,7 @@ pub(crate) fn begin(context: &beui::Context) {
     for (deliver, save) in saved {
         deliver(save);
     }
+    be_types_host::hold_clock(context.clock_stopped().then(|| context.now()));
     let mut frame = Frame {
         now: Some(context.now()),
         seen: context.seen(),
@@ -348,7 +349,7 @@ pub(crate) fn take_commands() -> Vec<HostCommand> {
 pub(crate) enum HostItem {
     Notice {
         text: String,
-        spinner: bool,
+        busy: bool,
         icon: Option<beui::icons::Glyph>,
     },
     Unsupported {

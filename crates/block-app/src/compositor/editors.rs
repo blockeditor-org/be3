@@ -11,9 +11,9 @@ use beui::{
     Color32, Dismiss, Key, KeyEvent, NodeId, Pos2, Rect, ScrollGesture, Vec2, ZoomGesture, vec2,
 };
 use block_plugin_api::{
-    BarAction, ChildId, ChildMode, ChildPreview, CreationProgress, EditorInstanceId, EditorRegion,
-    FitArea, FrameChrome, FrameSpec, HostPanel, HostWindowId, PanMode, SettingsProgress, TopBar,
-    ViewChange,
+    BarAction, ChildId, ChildMode, ChildPreview, CreationProgress, DialogFrame, DialogStatus,
+    EditorInstanceId, EditorRegion, FitArea, FrameChrome, FrameSpec, HostPanel, HostWindowId,
+    PanMode, TopBar, ViewChange,
 };
 use uuid::Uuid;
 
@@ -22,7 +22,7 @@ use crate::wayland::WindowSurface;
 use super::region::{ChildView, PanDrag, PluginRegion, RegionEditor};
 use crate::editors::plugin::PickSource;
 use crate::editors::{
-    Chrome, CreationStep, EditorRegistry, PendingCreation, PluginEditor, editor_access_ceiling,
+    Chrome, EditorRegistry, PendingCreation, PluginEditor, editor_access_ceiling,
 };
 use crate::host::HostItem;
 use crate::plugin_host::{self, ChildCommit, EditorView, HostChild, HostChildStatus, HostContent};
@@ -45,7 +45,7 @@ pub(crate) struct State {
     commits: RefCell<HashMap<(Uuid, ChildId), ChildCommit>>,
     settings_children: RefCell<HashMap<(Uuid, ChildId), Uuid>>,
     settings_shown: RefCell<HashMap<CreationKey, Uuid>>,
-    settings_status: RefCell<Option<(Uuid, SettingsProgress, f32)>>,
+    settings_status: RefCell<Option<(Uuid, f32, DialogStatus)>>,
 }
 
 pub(crate) type CreationKey = (Uuid, EditorRegion, ChildId);
@@ -273,11 +273,29 @@ impl Editors {
     fn creation_status(
         &self,
         key: &CreationKey,
-    ) -> Option<(Option<CreationProgress>, Option<f32>)> {
+    ) -> Option<(Option<CreationProgress>, Option<f32>, DialogStatus)> {
         let state = self.0.value();
         let creations = state.creations.borrow();
         let child = creations.get(key)?;
-        Some((child.progress.clone(), child.creation.height()))
+        Some((
+            child.progress.clone(),
+            child.creation.height(),
+            child.creation.dialog(),
+        ))
+    }
+
+    pub(crate) fn dismiss_creations(&self, parent: Uuid, children: &[ChildId]) {
+        let state = self.0.value();
+        let mut dismissed = false;
+        for ((owner, _, child), creation) in state.creations.borrow_mut().iter_mut() {
+            if *owner == parent && children.contains(child) {
+                creation.creation.dismiss();
+                dismissed = true;
+            }
+        }
+        if dismissed {
+            super::changed();
+        }
     }
 
     pub(crate) fn commit_creations(&self, parent: Uuid, commits: Vec<ChildCommit>) {
@@ -342,7 +360,7 @@ impl Editors {
             .copied()
     }
 
-    pub(crate) fn set_settings_status(&self, status: Option<(Uuid, SettingsProgress, f32)>) {
+    pub(crate) fn set_settings_status(&self, status: Option<(Uuid, f32, DialogStatus)>) {
         let state = self.0.value();
         if *state.settings_status.borrow() == status {
             return;
@@ -351,14 +369,14 @@ impl Editors {
         super::changed();
     }
 
-    fn settings_status(&self, block: Uuid) -> Option<(SettingsProgress, f32)> {
+    fn settings_status(&self, block: Uuid) -> Option<(f32, DialogStatus)> {
         let state = self.0.value();
         state
             .settings_status
             .borrow()
             .as_ref()
             .filter(|(shown, _, _)| *shown == block)
-            .map(|(_, progress, height)| (progress.clone(), *height))
+            .map(|(_, height, dialog)| (*height, *dialog))
     }
 
     pub(crate) fn creation_pick_sources(&self) -> Vec<PickSource> {
@@ -383,11 +401,10 @@ impl Editors {
             ) {
                 continue;
             }
-            let step = child.creation.step(&registry, client_id);
-            let progress = match (&child.commit, step) {
-                (None, CreationStep::Options(ready)) => CreationProgress::Options { ready },
-                (None, CreationStep::Working) => CreationProgress::Options { ready: true },
-                (Some(commit), _) => match child.creation.create() {
+            child.creation.step(&registry, client_id);
+            let progress = match &child.commit {
+                None => CreationProgress::Options,
+                Some(commit) => match child.creation.create() {
                     Ok(Some(block)) => {
                         crate::be::set_parent(block, commit.parent);
                         if let Some(name) = commit.name.clone() {
@@ -626,22 +643,23 @@ fn ConflictDialog(comparison: Memo<Option<crate::be::conflicts::Comparison>>) ->
         <Dialog
             open={open}
             title="Both versions"
-            width=960.0
+            width={Size::Custom(960.0)}
             id="conflict.compare"
-            confirm="Keep merged"
-            cancel="Close"
-            on_confirm={move || {
-                if let Some(comparison) = comparison.get_untracked() {
-                    crate::be::conflicts::dismiss(comparison.block);
-                }
-            }}
+            actions={vec![
+                DialogAction::primary("Keep merged", move || {
+                    if let Some(comparison) = comparison.get_untracked() {
+                        crate::be::conflicts::dismiss(comparison.block);
+                    }
+                }),
+                DialogAction::cancel("Close"),
+            ]}
             on_dismiss={crate::be::conflicts::stop_comparing}
         >
-            <List spacing=12.0>
-                <Text style=TextStyle::CAPTION wrap=beui::Wrap::Words>
+            <List spacing=Space::Lg>
+                <Text style=TextStyle::CAPTION>
                     "Both devices changed this block while apart, and the block now holds both changes merged. Keep the merge, or go back to one of the versions."
                 </Text>
-                <List direction=Direction::Horizontal spacing=12.0>
+                <List direction=Direction::Horizontal spacing=Space::Lg>
                     <ConflictSide
                         @sizing=ItemSize::Percent(50.0)
                         comparison
@@ -654,7 +672,7 @@ fn ConflictDialog(comparison: Memo<Option<crate::be::conflicts::Comparison>>) ->
                     />
                 </List>
                 <Show condition={failed}>
-                    <Text color=TextColor::Danger wrap=beui::Wrap::Words>{error}</Text>
+                    <Text color=TextColor::Danger>{error}</Text>
                 </Show>
             </List>
         </Dialog>
@@ -690,10 +708,10 @@ fn ConflictSide(
             .is_some_and(|(_, preview)| matches!(preview, Some(Ok(_))))
     });
     view! {
-        <List @test_id={side_id} spacing=8.0>
+        <List @test_id={side_id} spacing=Space::Md>
             <Text style=TextStyle::HEADING>{title}</Text>
             <Frame
-                height=360.0
+                height={Size::Custom(360.0)}
                 fill=ColorRole::Background
                 border={Border::DEFAULT}
                 radius=Radius::Md
@@ -703,14 +721,12 @@ fn ConflictSide(
                         match shown.and_then(|(_, preview)| preview) {
                             None => view! {
                                 <Frame align=beui::Align::Center>
-                                    <Spinner />
+                                    <Progress width=INLINE_PROGRESS_WIDTH />
                                 </Frame>
                             },
                             Some(Err(error)) => view! {
-                                <Frame align=beui::Align::Center padding=12.0>
-                                    <Text color=TextColor::Muted wrap=beui::Wrap::Words>
-                                        {error}
-                                    </Text>
+                                <Frame align=beui::Align::Center padding={Padding::all(Space::Lg)}>
+                                    <Text color=TextColor::Muted>{error}</Text>
                                 </Frame>
                             },
                             Some(Ok(preview)) => view! {
@@ -720,7 +736,7 @@ fn ConflictSide(
                     }</Dynamic>
                 </Layers>
             </Frame>
-            <List direction=Direction::Horizontal spacing=8.0>
+            <List direction=Direction::Horizontal spacing=Space::Md>
                 <Button
                     @test_id={format!("{side_id}.keep")}
                     label="Use this version"
@@ -1163,7 +1179,7 @@ fn BlockFrameBody(
                     Resolution::NoAccess => {
                         let item = HostItem::Notice {
                             text: "No access".to_owned(),
-                            spinner: false,
+                            busy: false,
                             icon: Some(beui::icons::ICON_LOCK),
                         };
                         view! {
@@ -1177,7 +1193,7 @@ fn BlockFrameBody(
                         let item = HostItem::Notice {
                             text: "Locked: its key has not been shared with you yet"
                                 .to_owned(),
-                            spinner: false,
+                            busy: false,
                             icon: Some(beui::icons::ICON_LOCK),
                         };
                         view! {
@@ -1424,6 +1440,7 @@ fn BlockFrameView(
                         .get()
                         .map(|content| content.translate(-origin.to_vec2())),
                     top_bar: top_bar.get(),
+                    dialog: None,
                 })
             });
             let gestures = handle.pan != PanMode::None
@@ -1634,15 +1651,16 @@ fn HostedChild(
             if let (Kind::Preview, Some(block)) = (kind.get(), child.block_id()) {
                 status.preview = preview_of(&editors, block);
             }
-            if let Some((progress, height)) = editors.creation_status(&creation_key) {
+            if let Some((progress, height, dialog)) = editors.creation_status(&creation_key) {
                 status.creation = progress;
                 status.intrinsic = height.map(|height| vec2(0.0, height));
+                status.dialog = dialog;
             }
             if let Kind::ArtifactSettings(block) = kind.get()
-                && let Some((progress, height)) = editors.settings_status(block)
+                && let Some((height, dialog)) = editors.settings_status(block)
             {
-                status.settings = Some(progress);
                 status.intrinsic = Some(vec2(0.0, height));
+                status.dialog = dialog;
             }
             Some(status)
         });
@@ -1704,13 +1722,19 @@ fn HostedChild(
                             Kind::Window(window) => view! {
                                 <WindowSurface window={window} />
                             },
-                            Kind::ArtifactSettings(_) => view! {
-                                <HostedSurface id=SurfaceId::ArtifactSettings />
-                            },
+                            Kind::ArtifactSettings(_) => {
+                                let dialog = create_memo(move || child.get().and_then(|child| child.dialog));
+                                view! {
+                                    <HostedSurface id=SurfaceId::ArtifactSettings dialog />
+                                }
+                            }
                             Kind::Creation => match editors.creation_region(&creation_key) {
-                                Some(hosted) => view! {
-                                    <CreationSurface hosted />
-                                },
+                                Some(hosted) => {
+                                    let dialog = create_memo(move || child.get().and_then(|child| child.dialog));
+                                    view! {
+                                        <CreationSurface hosted dialog />
+                                    }
+                                }
                                 None => view! {
                                     <Frame />
                                 },
@@ -1791,17 +1815,23 @@ fn HostedChild(
 }
 
 #[component]
-fn CreationSurface(hosted: HostedRegion) -> NodeId {
+fn CreationSurface(hosted: HostedRegion, dialog: Memo<Option<DialogFrame>>) -> NodeId {
     let child_view: ChildView = store(Box::new(|_, _, _| {
         view! {
             <Frame />
         }
     }));
+    let frame = hosted.frame;
     view! {
         <PluginRegion
             editor={hosted.editor}
             region={hosted.region}
-            frame={hosted.frame}
+            frame={Prop::dynamic(move || {
+                frame.map(|frame| FrameSpec {
+                    dialog: dialog.get(),
+                    ..frame
+                })
+            })}
             child_view
         />
     }
@@ -1870,8 +1900,8 @@ fn status_of(editors: &Editors, child: &HostChild, available: bool) -> HostChild
         error: crate::be::revisions::error(block)
             .or_else(|| (!available).then(|| CHILD_UNAVAILABLE.to_owned())),
         creation: None,
-        settings: None,
         preview: ChildPreview::Hosted,
+        dialog: DialogStatus::default(),
         menu: match available && child.frame_owner {
             true => frame_menu(editors, block),
             false => Vec::new(),

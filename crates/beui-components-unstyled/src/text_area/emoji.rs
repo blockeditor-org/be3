@@ -35,7 +35,7 @@ pub fn search_emoji(query: &str) -> Vec<Completion> {
         .collect()
 }
 
-pub(crate) fn drawable(emoji: &emojis::Emoji) -> bool {
+pub fn drawable(emoji: &emojis::Emoji) -> bool {
     !emoji
         .as_str()
         .chars()

@@ -293,7 +293,8 @@ own clock. Each command gives up after 30 seconds, or `drive --timeout=SECONDS`.
 `drive clock stop` stops the app's clock: time then passes only with `drive pause`, a frame at
 a time, so an animation can be stopped at any point and a screenshot of it taken the same way
 every run, and an app that animates forever still settles. `drive clock run` starts it again.
-Anything else waiting on time, such as a plugin's frame timeout, waits for `pause` too, and a frame waits for the plugins it asked to draw however long they take, so `--no-settle` answers with the same frame on a loaded machine as on an idle one.
+Anything else waiting on time, such as a plugin's frame timeout or a type module's clock (which
+groups quick edits into one undo step), waits for `pause` too, and a frame waits for the plugins it asked to draw however long they take, so `--no-settle` answers with the same frame on a loaded machine as on an idle one.
 
 A driven app may take shortcuts a person never sees so that it settles sooner: block-app seals
 edits at once rather than after the pause a person's edits wait for. An app asks

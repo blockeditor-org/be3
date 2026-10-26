@@ -1148,9 +1148,11 @@ dependencies = [
  "beui-components-styled",
  "beui-components-unstyled",
  "beui-core",
+ "beui-dock",
  "beui-font-browser",
  "beui-font-freetype",
  "beui-inspector",
+ "beui-keyboard",
  "beui-layer-drive",
  "beui-layer-space",
  "beui-layer-xr",
@@ -1200,7 +1202,6 @@ dependencies = [
  "foldhash 0.2.0",
  "memchr",
  "reactive",
- "serde",
  "text-editor-core",
 ]
 
@@ -1237,6 +1238,20 @@ dependencies = [
  "block-ui-test",
  "pollster",
  "text-editor-core",
+]
+
+[[package]]
+name = "beui-dock"
+version = "0.1.0"
+dependencies = [
+ "accesskit",
+ "beui-components-styled",
+ "beui-components-unstyled",
+ "beui-core",
+ "beui-view",
+ "beui_macros",
+ "reactive",
+ "serde",
 ]
 
 [[package]]
@@ -1287,8 +1302,23 @@ dependencies = [
  "beui-components-styled",
  "beui-components-unstyled",
  "beui-core",
+ "beui-dock",
  "beui-view",
  "beui_macros",
+ "reactive",
+]
+
+[[package]]
+name = "beui-keyboard"
+version = "0.1.0"
+dependencies = [
+ "accesskit",
+ "beui-components-styled",
+ "beui-components-unstyled",
+ "beui-core",
+ "beui-view",
+ "beui_macros",
+ "emojis",
  "reactive",
 ]
 
@@ -1608,6 +1638,7 @@ dependencies = [
  "block-plugin-api",
  "block-type-api",
  "block-type-guest",
+ "block-ui-test",
  "block-wasm-host",
  "browser-tab-types",
  "build-id",

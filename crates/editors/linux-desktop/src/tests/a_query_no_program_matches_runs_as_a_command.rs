@@ -9,7 +9,7 @@ fn a_query_no_program_matches_runs_as_a_command() {
     fixture.settle();
     fixture.test.type_text("weston-simple-shm");
     fixture.settle();
-    assert!(fixture.test.shown("launcher.run"));
+    assert!(fixture.test.shown("launcher.item.run"));
     fixture.test.key(Key::Enter, Modifiers::NONE);
     fixture.settle();
     assert_eq!(

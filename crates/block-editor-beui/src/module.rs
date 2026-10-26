@@ -208,7 +208,7 @@ fn ModuleWindows(
         })
     });
     view! {
-        <List spacing=0.0>
+        <List spacing=Space::None>
             <ForEach keys>|(id, _generation): (RegionId, u64)|
                 <RegionWindow registry={Rc::clone(&registry)} id requested views={views.clone()} />
             </ForEach>

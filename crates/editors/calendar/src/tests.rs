@@ -6,6 +6,7 @@ use uuid::Uuid;
 use crate::app::CalendarApp;
 
 mod adding_an_event_writes_it_to_the_block;
+mod an_event_opens_in_a_form_wide_enough_for_its_fields_and_actions;
 mod clicking_a_day_opens_the_new_event_form;
 mod moving_the_start_of_an_event_keeps_its_length;
 

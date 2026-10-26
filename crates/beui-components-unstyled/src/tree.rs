@@ -7,7 +7,12 @@ use accesskit::{Node, Role};
 use beui_macros::{component, view};
 
 use crate::button::{Button, ButtonHandle};
+use crate::context_menu::ContextMenu;
 use crate::floating::{Edge, Floating};
+use crate::menu::MenuItem;
+use crate::menu_button::MenuButton;
+use crate::menu_popup::MenuStyle;
+use crate::popup_trigger::PopupTriggerHandle;
 use crate::text_input::{TextInput, TextInputHandle, TextInputStyle};
 use crate::typeahead::Typeahead;
 use beui_core::geometry::{Pos2, Rect};
@@ -27,6 +32,37 @@ pub struct TreeItem {
     pub expanded: bool,
 }
 
+pub struct TreeMenu {
+    pub items: Children<MenuItem>,
+}
+
+impl ChildValue for TreeMenu {}
+
+pub struct TreeMenus<K> {
+    style: MenuStyle,
+    menu: Func<K, Option<TreeMenu>>,
+}
+
+impl<K> TreeMenus<K> {
+    pub fn new(style: MenuStyle, menu: Func<K, Option<TreeMenu>>) -> Self {
+        Self { style, menu }
+    }
+}
+
+impl<K> Clone for TreeMenus<K> {
+    fn clone(&self) -> Self {
+        *self
+    }
+}
+
+impl<K> Copy for TreeMenus<K> {}
+
+#[derive(Clone)]
+pub struct TreeRowMenu {
+    items: Run<MenuItem>,
+    style: MenuStyle,
+}
+
 pub struct TreeRowHandle<K> {
     pub key: K,
     pub item: Memo<TreeItem>,
@@ -40,6 +76,7 @@ pub struct TreeRowHandle<K> {
     pub target: TreeRowTarget,
     pub editing: Memo<bool>,
     pub edit: TreeRowEdit,
+    pub menu: Option<TreeRowMenu>,
 }
 
 #[derive(Clone, Copy)]
@@ -85,6 +122,7 @@ struct State<K> {
     on_edit: Callback<K>,
     on_rename: Callback<(K, String)>,
     on_cancel_edit: Callback<K>,
+    menu: Option<TreeMenus<K>>,
     typeahead: Stored<RefCell<Typeahead>>,
 }
 
@@ -107,6 +145,7 @@ pub fn Tree<K>(
     #[prop(default = None)] ancestors: Option<Func<K, Vec<K>>>,
     #[prop(default = 0.0)] spacing: f32,
     #[prop(default = None)] editing: Prop<Option<K>>,
+    #[prop(default = None)] menu: Option<TreeMenus<K>>,
     on_select: Callback<K>,
     on_open: Callback<K>,
     on_expand: Callback<(K, bool)>,
@@ -171,6 +210,7 @@ where
         on_edit,
         on_rename,
         on_cancel_edit,
+        menu,
         typeahead: store(RefCell::default()),
     };
     api.fill(TreeApi(state));
@@ -273,12 +313,42 @@ where
             move |finish: Finish| finish_edit(state, &key, item, finish)
         }),
     };
+    let menu = state.menu.and_then(|menus| {
+        menus
+            .menu
+            .call(row_key.clone())
+            .map(|TreeMenu { items }| TreeRowMenu {
+                items: items.into_run(),
+                style: menus.style,
+            })
+    });
     let has_focus = create_signal(false);
     let built = NodeRef::new();
     nodes.value().borrow_mut().insert(nodes_key, built);
     on_cleanup(move || {
         nodes.try_with(|nodes| nodes.borrow_mut().remove(&cleanup_key));
     });
+    let face = row.call(TreeRowHandle {
+        key: content_key,
+        item,
+        selected,
+        marked,
+        focused: has_focus.read_only(),
+        hovered: hovered.read_only(),
+        active: active.read_only(),
+        select: chosen,
+        toggle: expand,
+        target,
+        editing,
+        edit,
+        menu: menu.clone(),
+    });
+    let content = match menu {
+        None => face,
+        Some(TreeRowMenu { items, style }) => view! {
+            <ContextMenu items={Children::from(items)} menu=style>{face}</ContextMenu>
+        },
+    };
     view! {
         <Interactive
             @node_ref=&built
@@ -293,21 +363,28 @@ where
             on_key={move |event: KeyPress| key_press(state, &press_key, event)}
             on_text={move |text: String| typeahead(state, &typed_key, &text)}
         >
-            {row.call(TreeRowHandle {
-                key: content_key,
-                item,
-                selected,
-                marked,
-                focused: has_focus.read_only(),
-                hovered: hovered.read_only(),
-                active: active.read_only(),
-                select: chosen,
-                toggle: expand,
-                target,
-                editing,
-                edit,
-            })}
+            {content}
         </Interactive>
+    }
+}
+
+#[component]
+pub fn TreeRowMenuButton(
+    menu: TreeRowMenu,
+    #[prop(default = String::from("More actions"))] label: Prop<String>,
+    #[prop(children)] trigger: Render<PopupTriggerHandle>,
+) -> NodeId {
+    let TreeRowMenu { items, style } = menu;
+    view! {
+        <MenuButton
+            items={Children::from(items)}
+            trigger
+            menu=style
+            label
+            icon_only=true
+            tab_stop=false
+            capture_presses=true
+        />
     }
 }
 
@@ -415,7 +492,7 @@ pub fn TreeRowArea(target: TreeRowTarget, children: Child) -> NodeId {
 pub fn TreeRowEditor(
     edit: TreeRowEdit,
     #[prop(default = String::from("Name"))] label: Prop<String>,
-    #[prop(default = TextInputStyle::default())] style: TextInputStyle,
+    style: TextInputStyle,
     #[prop(children)] content: Render<TextInputHandle>,
 ) -> NodeId {
     let TreeRowEdit { item, finish } = edit;

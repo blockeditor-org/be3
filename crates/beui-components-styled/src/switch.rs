@@ -3,20 +3,16 @@ use accesskit::Role;
 use beui_macros::{component, view};
 
 use crate::focus_ring::FocusRing;
-use beui_core::color::Color32;
-
-use crate::theme::{ThemeStore, control_border, use_theme};
+use crate::theme::{control_border, use_theme};
+use crate::tokens::{Size, Space, Stroke};
 use beui_components_unstyled::{Toggle, ToggleHandle};
 use beui_core::node::NodeId;
 use beui_view::reactive::*;
 
-const WIDTH: f32 = 42.0;
-const HEIGHT: f32 = 24.0;
-const KNOB_SIZE: f32 = 18.0;
-const PADDING: f32 = 3.0;
-const TRACK_RADIUS: f32 = 12.0;
-const KNOB_RADIUS: f32 = 9.0;
-const FOCUS_RING_OFFSET: f32 = 4.0;
+const WIDTH: Size = Size::Custom(42.0);
+const HEIGHT: Size = Size::Md;
+const KNOB_SIZE: Size = Size::Custom(18.0);
+const PADDING: Space = Space::Custom(3.0);
 
 #[component]
 pub fn Switch(
@@ -55,22 +51,17 @@ fn SwitchTrack(handle: ToggleHandle) -> NodeId {
     let knob_align =
         create_memo(move || Align2::new(knob_align(checked.get(), mixed.get()), Align::Center));
     let track_color = create_memo(move || {
-        track_fill(
-            &theme,
-            disabled.get(),
-            checked.get() && !mixed.get(),
-            hovered.get(),
-        )
+        track_fill(disabled.get(), checked.get() && !mixed.get(), hovered.get())
     });
 
     view! {
-        <FocusRing focused offset=FOCUS_RING_OFFSET>
+        <FocusRing focused radius=Radius::Full offset=Stroke::Focus>
             <Frame
                 width=WIDTH
                 height=HEIGHT
-                fill={ColorRole::custom(track_color)}
+                fill={track_color}
                 border={control_border(&theme)}
-                radius={Radius::custom(TRACK_RADIUS)}
+                radius=Radius::Full
                 padding=PADDING
                 align=knob_align
             >
@@ -79,7 +70,7 @@ fn SwitchTrack(handle: ToggleHandle) -> NodeId {
                     height=KNOB_SIZE
                     fill=ColorRole::Knob
                     border={control_border(&theme)}
-                    radius={Radius::custom(KNOB_RADIUS)}
+                    radius=Radius::Full
                 />
             </Frame>
         </FocusRing>
@@ -94,17 +85,17 @@ fn knob_align(on: bool, mixed: bool) -> Align {
     }
 }
 
-fn track_fill(theme: &ThemeStore, disabled: bool, on: bool, hovered: bool) -> Color32 {
+fn track_fill(disabled: bool, on: bool, hovered: bool) -> ColorRole {
     if disabled {
         return match on {
-            true => theme.accent_soft.get(),
-            false => theme.surface.get(),
+            true => ColorRole::AccentSoft,
+            false => ColorRole::Surface,
         };
     }
     match (on, hovered) {
-        (true, false) => theme.accent.get(),
-        (true, true) => theme.accent_hover.get(),
-        (false, false) => theme.surface_raised.get(),
-        (false, true) => theme.pressed.get(),
+        (true, false) => ColorRole::Accent,
+        (true, true) => ColorRole::AccentHover,
+        (false, false) => ColorRole::SurfaceRaised,
+        (false, true) => ColorRole::Pressed,
     }
 }

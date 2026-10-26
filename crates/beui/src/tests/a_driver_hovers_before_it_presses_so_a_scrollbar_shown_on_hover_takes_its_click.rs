@@ -1,8 +1,8 @@
 use super::*;
 use crate::primitives::Frame;
+use crate::primitives::List;
 use crate::reactive::*;
 use crate::styled::Scroll;
-use crate::styled::*;
 
 #[test]
 fn a_driver_hovers_before_it_presses_so_a_scrollbar_shown_on_hover_takes_its_click() {

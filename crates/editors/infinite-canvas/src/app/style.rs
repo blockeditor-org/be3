@@ -12,10 +12,9 @@ use super::selection_bar::Swatch;
 use super::sidebar::{closed, colored, stroked};
 use super::state::{CanvasState, CommonValue, common_value};
 
-const STYLE_WIDTH: f32 = 360.0;
 const LABEL_WIDTH: f32 = 72.0;
-const ROW_SPACING: f32 = 4.0;
-const SECTION_SPACING: f32 = 6.0;
+const ROW_SPACING: Space = Space::Xs;
+const SECTION_SPACING: Space = Space::Sm;
 
 const fn palette(hue: CanvasHue, tone: CanvasTone) -> CanvasColor {
     CanvasColor::Palette { hue, tone }
@@ -185,7 +184,6 @@ pub(crate) fn StylePopover(state: CanvasState) -> NodeId {
             glyph=ICON_PALETTE
             icon_only=true
             variant=ButtonVariant::Ghost
-            max_width=STYLE_WIDTH
             @test_id={"infinite-canvas.style"}
         >|_|
             <StyleControls state={state} />

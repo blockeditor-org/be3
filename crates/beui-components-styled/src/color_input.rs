@@ -3,21 +3,24 @@ use beui_macros::{component, view};
 
 use crate::color_picker::{ColorPicker, ColorSwatch};
 use crate::focus_ring::FocusRing;
-use crate::popover::PopoverPanel;
+use crate::list::List;
+use crate::popover::popover_surface;
 use crate::text_input::TextInput;
+use crate::tokens::{Size, Space, Stroke};
 use crate::tooltip::Tooltip;
 use beui_components_unstyled as unstyled;
-use beui_components_unstyled::{ButtonHandle, HexText, PopoverHandle, PopoverTriggerHandle};
+use beui_components_unstyled::{
+    ButtonHandle, ColorInputFieldHandle, ColorInputHandle, ColorInputPickerHandle,
+    ColorInputSwatchHandle,
+};
 use beui_core::base::{Align, Direction};
 use beui_core::color::Color32;
 use beui_core::node::NodeId;
-use beui_view::primitives::*;
 use beui_view::reactive::*;
 
-const SWATCH_WIDTH: f32 = 32.0;
-const SWATCH_HEIGHT: f32 = 24.0;
-const SPACING: f32 = 8.0;
-const FOCUS_RING_OFFSET: f32 = 2.0;
+const SWATCH_WIDTH: Size = Size::Lg;
+const SWATCH_HEIGHT: Size = Size::Md;
+const SPACING: Space = Space::Md;
 
 #[component]
 pub fn ColorInput(
@@ -27,65 +30,58 @@ pub fn ColorInput(
     #[prop(default = true)] alpha: bool,
     on_preview: Callback<Option<Color32>>,
 ) -> NodeId {
-    let previewed = create_signal(None::<Color32>);
-    let shown = create_memo(move || previewed.get().unwrap_or_else(|| value.get()));
-    let hex = HexText::new(shown, alpha, value.into_callback());
-    let label = create_memo(move || label.get());
-    let picker_label = create_memo(move || match label.get() {
-        label if label.is_empty() => "Choose a color".to_owned(),
-        label => format!("Choose {label}"),
-    });
-    let disabled = create_memo(move || disabled.get());
     view! {
-        <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
-            <unstyled::Popover
-                label={picker_label}
-                disabled={disabled}
-                trigger={move |handle: PopoverTriggerHandle| view! {
-                    <SwatchTrigger handle color={shown} label={picker_label} />
-                }}
-            >|popover: PopoverHandle|
-                <PopoverPanel>
-                    <ColorPicker
-                        value
-                        alpha
-                        focused={popover.open}
-                        on_preview={move |preview: Option<Color32>| {
-                            previewed.set(preview);
-                            on_preview.call(preview);
-                        }}
+        <unstyled::ColorInput
+            value
+            label
+            disabled
+            alpha
+            on_preview
+            swatch={move |handle: ColorInputSwatchHandle| view! {
+                <SwatchTrigger handle />
+            }}
+            surface={popover_surface(None)}
+            picker={move |handle: ColorInputPickerHandle| view! {
+                <ColorPicker
+                    value={handle.value}
+                    alpha={handle.alpha}
+                    focused={handle.shown}
+                    on_preview={handle.on_preview}
+                />
+            }}
+            field={move |handle: ColorInputFieldHandle| {
+                let ColorInputFieldHandle { hex, label, disabled } = handle;
+                view! {
+                    <TextInput
+                        value={hex.text()}
+                        label={label}
+                        placeholder={hex.placeholder()}
+                        disabled={disabled}
+                        on_submit={move |typed: String| hex.submit(typed)}
                     />
-                </PopoverPanel>
-            </unstyled::Popover>
-            <TextInput
-                @sizing=ItemSize::Percent(100.0)
-                value={hex.text()}
-                label={label}
-                placeholder={hex.placeholder()}
-                disabled={disabled}
-                on_submit={move |typed: String| hex.submit(typed)}
-            />
-        </List>
+                }
+            }}
+        >|handle: ColorInputHandle| {
+            let ColorInputHandle { swatch, field } = handle;
+            view! {
+                <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
+                    {swatch}
+                    {field} @sizing=ItemSize::Percent(100.0)
+                </List>
+            }
+        }</unstyled::ColorInput>
     }
 }
 
 #[component]
-fn SwatchTrigger(
-    handle: PopoverTriggerHandle,
-    color: Memo<Color32>,
-    label: Memo<String>,
-) -> NodeId {
-    let PopoverTriggerHandle {
-        open,
-        button: ButtonHandle { focused, .. },
-    } = handle;
+fn SwatchTrigger(handle: ColorInputSwatchHandle) -> NodeId {
+    let ColorInputSwatchHandle { trigger, color } = handle;
+    let ButtonHandle {
+        focused, tooltip, ..
+    } = trigger.button;
     view! {
-        <Tooltip label disabled={open}>
-            <FocusRing
-                focused
-                radius={Radius::custom(Radius::Md.px() + 2.0)}
-                offset=FOCUS_RING_OFFSET
-            >
+        <Tooltip label={tooltip}>
+            <FocusRing focused radius=Radius::Md offset=Stroke::Focus>
                 <ColorSwatch color width=SWATCH_WIDTH height=SWATCH_HEIGHT />
             </FocusRing>
         </Tooltip>

@@ -7,7 +7,6 @@ use block_editor_beui::beui::icons::{
 };
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
-use block_editor_beui::beui::unstyled::ChoiceOption;
 use block_editor_beui::beui::{NodeId, Vec2};
 use block_editor_beui::{Creation, Editor, Toolbar};
 use uuid::Uuid;
@@ -24,9 +23,10 @@ use state::{VideoState, ZOOM_STEP};
 use timeline::Timeline;
 
 const DEFAULT_EDITOR_SIZE: Vec2 = Vec2::new(1000.0, 640.0);
-const EFFECTS_WIDTH: f32 = 268.0;
+const EFFECTS_WIDTH: Size = Size::Custom(268.0);
 const TIMELINE_SHARE: f32 = 42.0;
-const TOOL_SEPARATOR_LENGTH: f32 = 20.0;
+const TOOL_SEPARATOR_LENGTH: Size = Size::Sm;
+const BAR_PADDING: Padding = Padding::symmetric(Space::Md, Space::Xs);
 
 const FRAME_RATES: [VideoFrameRate; 7] = [
     VideoFrameRate::new(24, 1),
@@ -78,16 +78,16 @@ fn VideoEditor(editor: Editor) -> NodeId {
     let chrome = editor.chrome_shown();
 
     view! {
-        <List spacing=0.0>
+        <List spacing=Space::None>
             <FrameRateBar state={state} shown={chrome} />
             <List
                 @sizing=ItemSize::Percent(100.0 - TIMELINE_SHARE)
                 direction=Direction::Horizontal
-                spacing=0.0
+                spacing=Space::None
             >
                 <EffectsColumn state={state} />
                 <Separator direction=Direction::Vertical />
-                <List @sizing=ItemSize::Percent(100.0) spacing=0.0>
+                <List @sizing=ItemSize::Percent(100.0) spacing=Space::None>
                     <Player @sizing=ItemSize::Percent(100.0) state={state} />
                     <Separator />
                     <PlaybackBar state={state} />
@@ -112,7 +112,7 @@ fn VideoPreview(editor: Editor) -> NodeId {
 #[component]
 fn EffectsColumn(state: VideoState) -> NodeId {
     view! {
-        <Frame width=EFFECTS_WIDTH padding=10.0>
+        <Frame width=EFFECTS_WIDTH padding=Space::Md>
             <Scroll>
                 <EffectsPanel state={state} />
             </Scroll>
@@ -170,21 +170,24 @@ fn PlaybackBar(state: VideoState) -> NodeId {
         )
     });
     view! {
-        <Frame padding={Sides::symmetric(10.0, 4.0)}>
-            <List direction=Direction::Horizontal align=Align::Center spacing=6.0>
-                <IconButton
+        <Frame padding=BAR_PADDING>
+            <List direction=Direction::Horizontal align=Align::Center spacing=Space::Sm>
+                <Button
+                    icon_only=true
                     glyph=ICON_SKIP_BACK
                     label="Go to the start"
                     on_click={move || state.seek(0)}
                 />
-                <IconButton
+                <Button
+                    icon_only=true
                     glyph={glyph}
                     label="Play"
                     disabled={empty}
                     @test_id={"video.play"}
                     on_click={move || state.toggle_playback()}
                 />
-                <IconButton
+                <Button
+                    icon_only=true
                     glyph=ICON_SKIP_FORWARD
                     label="Go to the end"
                     on_click={move || state.seek(state.duration.get_untracked())}
@@ -199,15 +202,17 @@ fn PlaybackBar(state: VideoState) -> NodeId {
 fn TimelineTools(state: VideoState) -> NodeId {
     let none = create_memo(move || state.selected.get().is_none());
     view! {
-        <Frame padding={Sides::symmetric(10.0, 4.0)}>
-            <List direction=Direction::Horizontal align=Align::Center spacing=6.0>
-                <IconButton
+        <Frame padding=BAR_PADDING>
+            <List direction=Direction::Horizontal align=Align::Center spacing=Space::Sm>
+                <Button
+                    icon_only=true
                     glyph=ICON_PLUS
                     label="Add a clip to the end of the base track"
                     @test_id={"video.add-clip"}
                     on_click={move || state.open_picker(None)}
                 />
-                <IconButton
+                <Button
+                    icon_only=true
                     glyph=ICON_CORNER_DOWN_RIGHT
                     label="Attach a clip to the selected clip at the playhead"
                     disabled={none}
@@ -216,14 +221,16 @@ fn TimelineTools(state: VideoState) -> NodeId {
                         state.open_picker(selected);
                     }}
                 />
-                <IconButton
+                <Button
+                    icon_only=true
                     glyph=ICON_SCISSORS
                     label="Split the selected clip in two at the playhead"
                     disabled={none}
                     @test_id={"video.split"}
                     on_click={move || state.split_selected()}
                 />
-                <IconButton
+                <Button
+                    icon_only=true
                     glyph=ICON_TRASH
                     label="Delete the selected clip and everything attached to it"
                     disabled={none}
@@ -231,17 +238,20 @@ fn TimelineTools(state: VideoState) -> NodeId {
                     on_click={move || state.remove_selected()}
                 />
                 <Separator direction=Direction::Vertical length=TOOL_SEPARATOR_LENGTH />
-                <IconButton
+                <Button
+                    icon_only=true
                     glyph=ICON_ZOOM_OUT
                     label="Zoom the timeline out"
                     on_click={move || state.zoom_timeline(1.0 / ZOOM_STEP)}
                 />
-                <IconButton
+                <Button
+                    icon_only=true
                     glyph=ICON_ZOOM_IN
                     label="Zoom the timeline in"
                     on_click={move || state.zoom_timeline(ZOOM_STEP)}
                 />
-                <IconButton
+                <Button
+                    icon_only=true
                     glyph=ICON_SCAN
                     label="Fit the whole video in the timeline"
                     on_click={move || state.request_fit()}

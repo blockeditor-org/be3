@@ -42,12 +42,12 @@ pub(crate) fn CanvasStage(state: CanvasState) -> NodeId {
             let embedding = create_memo(move || state.entities.embedding());
             let inset = create_memo(move || {
                 let (placed, shown) = (placed.get(), shown.get());
-                Sides::new(
+                Padding::custom(Sides::new(
                     (shown.left() - placed.left()).max(0.0),
                     (shown.top() - placed.top()).max(0.0),
                     (placed.right() - shown.right()).max(0.0),
                     (placed.bottom() - shown.bottom()).max(0.0),
-                )
+                ))
             });
             let previewing = state.previewing();
             let (grid, tiles) = grid_of(state, camera, shown);
@@ -69,10 +69,9 @@ pub(crate) fn CanvasStage(state: CanvasState) -> NodeId {
                     .map(|frame| frame.id)
                     .collect::<Vec<_>>()
             });
-            let theme = use_theme();
             let outside_frames = create_memo(move || {
                 match !previewing && frames.with(|frames| !frames.is_empty()) {
-                    true => ColorRole::Custom(theme.dim.get()),
+                    true => ColorRole::Dim,
                     false => ColorRole::None,
                 }
             });
@@ -94,12 +93,9 @@ pub(crate) fn CanvasStage(state: CanvasState) -> NodeId {
                                 <ForEach keys={tiles}>|tile: GridTile|
                                     <GridTileItem tile look={grid} frames />
                                 </ForEach>
-                                <ForEach keys={ids}>|id: Uuid| {
-                                    let camera = camera;
-                                    view! {
-                                        <EntityShape state id camera />
-                                    }
-                                }</ForEach>
+                                <ForEach keys={ids}>|id: Uuid|
+                                    <EntityShape state id />
+                                </ForEach>
                                 <ForEach keys={embedding}>|id: Uuid|
                                     <EntityEmbed state id />
                                 </ForEach>
@@ -417,7 +413,7 @@ fn FrameBackdropItem(state: CanvasState, id: Uuid, camera: Memo<CanvasView>) -> 
 }
 
 #[component]
-fn EntityShape(state: CanvasState, id: Uuid, camera: Memo<CanvasView>) -> CanvasItem {
+fn EntityShape(state: CanvasState, id: Uuid) -> CanvasItem {
     let entity = entity_of(state, id);
     let editing = create_memo(move || state.editing_text.get() == Some(id));
     let live = create_memo(move || {
@@ -435,7 +431,6 @@ fn EntityShape(state: CanvasState, id: Uuid, camera: Memo<CanvasView>) -> Canvas
             false => item_bounds(&entity),
         }
     });
-    let scales = create_memo(move || !editing.get());
     let drawing = create_memo(move || {
         let freehand = entity.with(|entity| {
             entity
@@ -443,10 +438,6 @@ fn EntityShape(state: CanvasState, id: Uuid, camera: Memo<CanvasView>) -> Canvas
                 .is_some_and(|entity| entity.shape == CanvasShape::Freehand)
         });
         freehand && state.being_drawn(id)
-    });
-    let unit = create_memo(move || match editing.get() {
-        true => camera.get().scale.max(f32::EPSILON),
-        false => 1.0,
     });
     let thumbhash = create_memo(move || state.thumbhash_of(reference_of(&entity.get()?)?));
     let placeholder = create_memo(move || thumbhash.get().and_then(|thumbhash| thumbhash.decode()));
@@ -507,7 +498,7 @@ fn EntityShape(state: CanvasState, id: Uuid, camera: Memo<CanvasView>) -> Canvas
         let paint = EntityPaint {
             sketch,
             covered: state.child_state(entity.id).available,
-            camera: Camera::item(corner, unit.get()),
+            camera: Camera::item(corner, 1.0),
             palette: palette(&theme),
             title: label
                 .as_ref()
@@ -530,14 +521,14 @@ fn EntityShape(state: CanvasState, id: Uuid, camera: Memo<CanvasView>) -> Canvas
             y={create_memo(move || bounds.get().top())}
             width={create_memo(move || bounds.get().width().max(1.0))}
             height={create_memo(move || bounds.get().height().max(1.0))}
-            scales={scales}
+            scales=true
             pointer={editing}
             @test_id={format!("infinite-canvas.entity.{id}")}
         >
             <Layers>
                 <Drawing draw={draw} />
                 <Show condition={live}>
-                    <EntityText state id entity outer={bounds} camera editing />
+                    <EntityText state id entity outer={bounds} editing />
                 </Show>
             </Layers>
         </CanvasItem>

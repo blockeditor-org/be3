@@ -1,18 +1,19 @@
-use crate::frame::{Border, Frame, Radius, focus_border};
+use crate::focus_ring::FocusRing;
+use crate::frame::{Frame, Radius};
+use crate::tokens::{Size, Stroke};
 use std::cell::RefCell;
 use std::rc::Rc;
 
 use beui_macros::{component, view};
 
 use crate::color_picker::thumb;
-use crate::theme::BORDER_WIDTH;
 use beui_components_unstyled as unstyled;
 use beui_components_unstyled::{ColorPickerState, ColorWheelHandle, WheelGeometry, WheelPoint};
 use beui_core::color::{Color32, Hsva, Oklch};
 use beui_core::geometry::{Rect, Vec2};
 use beui_core::node::NodeId;
 use beui_core::painter::Painter;
-use beui_view::primitives::*;
+use beui_view::primitives::Drawing;
 use beui_view::reactive::*;
 
 pub const WHEEL_SIZE: f32 = 200.0;
@@ -20,7 +21,7 @@ const RING_WIDTH: f32 = 22.0;
 const RING_GAP: f32 = 4.0;
 const THUMB_RADIUS: f32 = 7.0;
 const GRAB_SLOP: f32 = 10.0;
-const FOCUS_RING_OFFSET: f32 = 2.0;
+const WHEEL: Size = Size::Custom(WHEEL_SIZE);
 const GAMUT_LINE_WIDTH: f32 = 1.25;
 const OUTLINE_DARK: Color32 = Color32::from_rgba_unmultiplied(0, 0, 0, 110);
 
@@ -87,7 +88,7 @@ pub fn ColorWheel(
     let color = picker.color();
     let point = create_memo(move || WheelPoint::of_hsva(color.get()));
     view! {
-        <Frame width=WHEEL_SIZE height=WHEEL_SIZE>
+        <Frame width=WHEEL height=WHEEL>
             <unstyled::ColorWheel
                 value={Binding::new(point, move |next: WheelPoint| {
                     let held = color.get_untracked();
@@ -131,7 +132,7 @@ pub fn OklchColorWheel(
         node
     });
     view! {
-        <Frame width=WHEEL_SIZE height=WHEEL_SIZE>
+        <Frame width=WHEEL height=WHEEL>
             <unstyled::ColorWheel
                 value={Binding::new(point, move |next: WheelPoint| {
                     let held = color.get_untracked();
@@ -187,7 +188,7 @@ fn WheelFace(handle: ColorWheelHandle, model: Model) -> NodeId {
                 painter.rect_stroke(
                     Rect::from_center_size(wheel.centre, Vec2::new(radius * 2.0, radius * 2.0)),
                     radius,
-                    BORDER_WIDTH,
+                    Stroke::Hairline.px(),
                     OUTLINE_DARK,
                 );
             };
@@ -207,16 +208,12 @@ fn WheelFace(handle: ColorWheelHandle, model: Model) -> NodeId {
             );
         }) as Draw
     });
-    let ring_radius = (WHEEL_SIZE / 2.0).floor() + 2.0;
     view! {
-        <Frame
-            border={focus_border(focused, Border::FOCUS.offset(FOCUS_RING_OFFSET))}
-            radius={Radius::custom(ring_radius)}
-        >
-            <Frame width=WHEEL_SIZE height=WHEEL_SIZE>
+        <FocusRing focused radius=Radius::Full offset=Stroke::Focus>
+            <Frame width=WHEEL height=WHEEL>
                 <Drawing draw />
             </Frame>
-        </Frame>
+        </FocusRing>
     }
 }
 

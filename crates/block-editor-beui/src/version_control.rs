@@ -1,5 +1,4 @@
 use beui::NodeId;
-use beui::Wrap;
 use beui::icons::ICON_UNDO_2;
 use beui::reactive::*;
 use beui::styled::*;
@@ -32,7 +31,7 @@ pub fn VersionHistory(log: Memo<Vec<VersionCommit>>) -> NodeId {
     });
     let empty = create_memo(move || rows.with(Vec::is_empty));
     view! {
-        <List spacing=6.0>
+        <List spacing=Space::Sm>
             <beui::reactive::Show condition={empty}>
                 <Text style=TextStyle::CAPTION>"No changes have been saved yet."</Text>
             </beui::reactive::Show>
@@ -45,7 +44,11 @@ pub fn VersionHistory(log: Memo<Vec<VersionCommit>>) -> NodeId {
                     false => message,
                 };
                 view! {
-                    <List direction=Direction::Horizontal spacing=8.0 @test_id={commit_test_id}>
+                    <List
+                        direction=Direction::Horizontal
+                        spacing=Space::Md
+                        @test_id={commit_test_id}
+                    >
                         <Text style=TextStyle::CAPTION>{short_id(&change)}</Text>
                         <Text>{message}</Text>
                         <beui::reactive::Show condition={conflicted}>
@@ -80,7 +83,7 @@ pub fn VersionSteps(
     });
     let empty = create_memo(move || rows.with(Vec::is_empty));
     view! {
-        <List spacing=6.0>
+        <List spacing=Space::Sm>
             <beui::reactive::Show condition={empty}>
                 <Text style=TextStyle::CAPTION>"Nothing has been done yet."</Text>
             </beui::reactive::Show>
@@ -93,10 +96,10 @@ pub fn VersionSteps(
                     <List
                         direction=Direction::Horizontal
                         align=Align::Center
-                        spacing=8.0
+                        spacing=Space::Md
                         @test_id=step_test_id
                     >
-                        <Text @sizing=ItemSize::Percent(100.0) wrap=Wrap::Words>{description}</Text>
+                        <Text @sizing=ItemSize::Percent(100.0)>{description}</Text>
                         <beui::reactive::Show condition={undone}>
                             <Text style=TextStyle::CAPTION>"Undone"</Text>
                         </beui::reactive::Show>

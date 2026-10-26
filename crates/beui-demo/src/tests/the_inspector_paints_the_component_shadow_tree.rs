@@ -1,6 +1,6 @@
 use super::*;
 use beui::styled::{self, ButtonVariant, TextColor, TextSize, Weight};
-use beui_inspector::{Inspector, InspectorTools, scale};
+use beui_inspector::{Inspector, InspectorTab, InspectorTools, scale};
 
 fn inspector(test: &DocumentTest) -> &Inspector {
     test.document()
@@ -9,6 +9,17 @@ fn inspector(test: &DocumentTest) -> &Inspector {
         .inspector
         .as_ref()
         .unwrap()
+}
+
+fn click_inspector(test: &mut DocumentTest, node: NodeId) {
+    let center = inspector(test)
+        .document
+        .node_rect(node)
+        .unwrap()
+        .scaled(scale(test.context()))
+        .center();
+    test.click(center);
+    test.settle();
 }
 
 fn expand_internals(test: &mut DocumentTest, component: &str, test_id: &str) {
@@ -52,8 +63,8 @@ fn the_inspector_paints_the_component_shadow_tree() {
     let document = build(|| {
         view! {
             <Root>
-                <styled::Frame padding={Sides::all(24.0)}>
-                    <styled::List spacing=16.0>
+                <styled::Frame padding=styled::Space::Xl3>
+                    <styled::List spacing=styled::Space::Xl>
                         <styled::Text
                             @test_id="example.heading"
                             size=TextSize::Xl
@@ -62,7 +73,7 @@ fn the_inspector_paints_the_component_shadow_tree() {
                             "Release checklist"
                         </styled::Text>
                         <styled::Card @test_id="example.card">
-                            <styled::List spacing=12.0>
+                            <styled::List spacing=styled::Space::Lg>
                                 <styled::Text weight=Weight::Bold>"Ready for review"</styled::Text>
                                 <styled::Text color=TextColor::Muted>
                                     "Check the build, then publish the release."
@@ -98,16 +109,12 @@ fn the_inspector_paints_the_component_shadow_tree() {
         Input::Modifiers(beui::Modifiers::NONE),
     ]);
     test.frame(Vec::new());
-    let panel = inspector(&test);
-    let tab = panel.option_node("inspector.tabs", 1);
-    let center = panel
-        .document
-        .node_rect(tab)
-        .unwrap()
-        .scaled(scale(test.context()))
-        .center();
-    test.click(center);
-    test.frame(Vec::new());
+    if inspector(&test).tools_stacked() {
+        let switch = inspector(&test).find("dock.switch");
+        click_inspector(&mut test, switch);
+    }
+    let tab = inspector(&test).tab_node(InspectorTab::Components);
+    click_inspector(&mut test, tab);
 
     expand_internals(&mut test, "styled::Text", "example.heading");
     expand_internals(&mut test, "styled::Card", "example.card");
