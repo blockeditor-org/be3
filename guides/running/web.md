@@ -105,9 +105,8 @@ files.js answers from memory and nothing survives a reload.
 - No browser test runs in verify, so check offline typing by hand: open a
   text block, `kill -STOP` the instance's be-server (a silent server; killing
   it is a refused one) or call Playwright's `context.setOffline(true)`, click
-  the editor with `page.mouse.click` and type with `page.keyboard.type`
-  (drive's `click` moves beui's focus but not the page's hidden text area, so
-  real keys after it go nowhere), then `page.reload()` with a `dialog`
+  the editor (`drive click` or `page.mouse.click`) and type with
+  `page.keyboard.type`, then `page.reload()` with a `dialog`
   handler that accepts the `beforeunload` prompt a second later, and read
   the editor's value from `drive tree`. Compare `performance.timeOrigin`
   before and after to be sure the page did reload. `kill -CONT` the server

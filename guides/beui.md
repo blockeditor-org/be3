@@ -2747,7 +2747,10 @@ and `drawing` holds the shot until those frames have arrived.
 
 The web runner draws into the canvas it is given with WebGPU, or WebGL where
 the browser has no WebGPU. It reads the keyboard through a hidden text area,
-so pasting and composition behave like any other input on the page. Like the
+so pasting and composition behave like any other input on the page. A press
+on the canvas focuses that text area, and so does a text field taking beui's
+focus any other way (the keyboard, a script, `drive click`), so the browser's
+keys reach it. Like the
 desktop runner, it only asks the browser for a frame when an event arrived,
 something asked for a repaint, or a `Waker` was woken.
 
