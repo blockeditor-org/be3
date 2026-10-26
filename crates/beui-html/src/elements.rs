@@ -1,4 +1,6 @@
-use crate::{Callback, Children, Event, Kind, Node, Prop, bind_attribute, bind_flag, component, listen};
+use crate::{
+    Callback, Children, Event, Kind, Node, Prop, bind_attribute, bind_flag, component, listen,
+};
 
 macro_rules! element {
     (normal $name:ident $tag:literal $strings:tt $numbers:tt $flags:tt) => {

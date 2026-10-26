@@ -13,8 +13,5 @@ fn raw_text_elements_omit_hydration_markers() {
             </elements::Textarea>
         }
     });
-    assert_eq!(
-        html,
-        "<title>Page one</title><textarea>draft</textarea>"
-    );
+    assert_eq!(html, "<title>Page one</title><textarea>draft</textarea>");
 }
