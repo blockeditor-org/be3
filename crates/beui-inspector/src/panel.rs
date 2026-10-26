@@ -868,10 +868,7 @@ fn PerformancePanel(
                         />
                     </List>
                     <Separator />
-                    <RendererSection
-                        @test_id={"inspector.performance.renderer"}
-                        rows={renderer}
-                    />
+                    <RendererSection @test_id={"inspector.performance.renderer"} rows={renderer} />
                 </List>
             </Frame>
         </Scroll>

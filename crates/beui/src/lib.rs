@@ -20,8 +20,8 @@ pub use beui_core::base::{
 pub use beui_core::clipboard::{PasteAnswer, PasteKind, PasteRequest, Pasted};
 pub use beui_core::color::{Color32, Hsva, Oklch, format_hex, parse_hex};
 pub use beui_core::context::{
-    ActionGroup, ActionInfo, Context, FrameOutput, InputSimulation, Moved,
-    RendererInfo, WindowOutput,
+    ActionGroup, ActionInfo, Context, FrameOutput, InputSimulation, Moved, RendererInfo,
+    WindowOutput,
 };
 pub use beui_core::damage::Region;
 pub use beui_core::document::{

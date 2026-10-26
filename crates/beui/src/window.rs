@@ -36,10 +36,9 @@ pub fn run_with_device(
         ) => Box::new(crate::saved_preferences::SavedPreferences::new(app, path)),
         _ => Box::new(app),
     };
-    let (platform, layers) =
-        choose_platform(choice, link, open_device.clone(), || {
-            native_platform(open_device)
-        })?;
+    let (platform, layers) = choose_platform(choice, link, open_device.clone(), || {
+        native_platform(open_device)
+    })?;
     let launch = Launch {
         options,
         context: crate::system_context(),

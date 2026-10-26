@@ -193,14 +193,9 @@ pub async fn run_web(canvas_id: String) -> Result<(), wasm_bindgen::JsValue> {
     if let Some(inbox) = automation()? {
         layers.push(Box::new(beui::drive::Drive::new(inbox)));
     }
-    beui::run_web(
-        &canvas_id,
-        options,
-        layers,
-        Shell::new(app),
-    )
-    .await
-    .map_err(|error| wasm_bindgen::JsValue::from_str(&error.to_string()))
+    beui::run_web(&canvas_id, options, layers, Shell::new(app))
+        .await
+        .map_err(|error| wasm_bindgen::JsValue::from_str(&error.to_string()))
 }
 
 #[cfg(target_arch = "wasm32")]
