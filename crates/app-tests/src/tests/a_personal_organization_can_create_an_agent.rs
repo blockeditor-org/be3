@@ -18,17 +18,17 @@ fn a_personal_organization_can_create_an_agent() {
     assert!(!tree.contains("TextInput \"Agent name\""));
     assert!(!tree.contains("Button \"Add agent\""));
     app.click("Button \"Copy Agent credentials\"");
-    let copied = app.run(&["screen", "clipboard"]);
+    let copied = app.run(&["clipboard"]);
     assert!(copied.trim().starts_with('{'));
     for key in ["server", "organization", "token", "recovery_phrase"] {
         assert!(copied.contains(&format!("\"{key}\":\"")));
     }
-    app.run(&["screen", "clipboard", ""]);
+    app.run(&["clipboard", ""]);
     app.click("#app.agents.credentials");
     app.key("ctrl+a");
     app.key("ctrl+c");
     assert!(
-        app.run(&["screen", "clipboard"]) == copied,
+        app.run(&["clipboard"]) == copied,
         "the text box can be copied manually"
     );
     app.key("ctrl+a");
@@ -39,7 +39,7 @@ fn a_personal_organization_can_create_an_agent() {
     app.snapshot("agent_credentials_are_copied_as_one_secret");
     app.click("#app.agents.proxy");
     app.click("Button \"Copy Agent credentials\"");
-    let proxy = app.run(&["screen", "clipboard"]);
+    let proxy = app.run(&["clipboard"]);
     assert!(proxy.contains("\"authentication\":\"proxy\""));
     assert!(!proxy.contains("\"token\":"));
     app.click("#app.agents.header");

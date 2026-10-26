@@ -2,7 +2,7 @@ use super::*;
 
 mod an_unknown_layer_is_refused;
 mod an_unknown_platform_or_renderer_names_the_valid_ones;
-mod drive_stacks_once_or_as_two_taps_and_needs_its_socket;
+mod drive_stacks_a_tap_under_each_layer_and_needs_its_socket;
 mod headless_sizes_outside_the_headless_platform_are_refused;
 mod layers_stack_bottom_first_over_any_platform;
 mod no_renderer_needs_the_headless_platform;

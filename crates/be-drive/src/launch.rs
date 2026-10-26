@@ -302,7 +302,12 @@ fn layers(inherited: Option<String>, space: bool) -> String {
     match named.as_slice() {
         [] => "drive".to_owned(),
         named if named.contains(&"drive") => named.join(","),
-        named => format!("drive,{},drive", named.join(",")),
+        named => named
+            .iter()
+            .flat_map(|name| ["drive", name])
+            .chain(["drive"])
+            .collect::<Vec<_>>()
+            .join(","),
     }
 }
 

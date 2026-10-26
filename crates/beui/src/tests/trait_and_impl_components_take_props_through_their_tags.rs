@@ -56,7 +56,7 @@ fn trait_and_impl_components_take_props_through_their_tags() {
     let document = build_node(shelf::<Plain>);
     let mut driven = stepped(crate::testing::Showing(document));
     let components = driven
-        .ask(&["app", "comps"])
+        .ask(&["comps"])
         .expect("the component tree is answered through a frame");
     let module = format!("{}::", module_path!());
     let names: Vec<&str> = components

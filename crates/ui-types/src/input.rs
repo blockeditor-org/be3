@@ -3,7 +3,7 @@ pub use crate::types::{
     Keystroke, Modifiers, Pen, PenPhase, PointerButton, ScrollDelta, TouchId, TouchPhase,
 };
 
-use geometry::Vec2;
+use geometry::{Pos2, Vec2};
 
 mod names;
 
@@ -322,6 +322,19 @@ impl Input {
             | Self::PointerButton { pos, .. }
             | Self::Touch { pos, .. }
             | Self::Pen { pos, .. } => *pos += by,
+            _ => {}
+        }
+        self
+    }
+
+    pub fn scaled(mut self, factor: f32) -> Self {
+        match &mut self {
+            Self::PointerMoved(pos)
+            | Self::Predicted(pos)
+            | Self::PointerButton { pos, .. }
+            | Self::Touch { pos, .. }
+            | Self::Pen { pos, .. } => *pos = Pos2::new(pos.x * factor, pos.y * factor),
+            Self::PointerMotion(by) | Self::Scroll(ScrollDelta::Pixels(by)) => *by *= factor,
             _ => {}
         }
         self

@@ -35,7 +35,7 @@ fn a_driver_draws_with_a_pen_several_samples_a_frame() {
     let mut driven = stepped(Counted { document, frames });
 
     driven
-        .ask(&["app", "pen", "draw", "50,100", "250,100", "12", "4"])
+        .ask(&["pen", "draw", "50,100", "250,100", "12", "4"])
         .expect("the pen draws");
     let drags = drags.get_untracked();
     let mut in_each_frame: Vec<usize> = Vec::new();
@@ -58,7 +58,7 @@ fn a_driver_draws_with_a_pen_several_samples_a_frame() {
 
     assert!(
         driven
-            .ask(&["app", "pen", "draw", "50,100", "250,100", "12", "0"])
+            .ask(&["pen", "draw", "50,100", "250,100", "12", "0"])
             .is_err(),
         "a frame holds at least one sample"
     );

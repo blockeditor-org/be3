@@ -32,6 +32,10 @@ impl Vec2 {
         self.x.hypot(self.y)
     }
 
+    pub fn dot(self, other: Self) -> f32 {
+        self.x * other.x + self.y * other.y
+    }
+
     pub fn longest_side(self) -> f32 {
         self.x.max(self.y)
     }

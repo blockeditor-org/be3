@@ -20,16 +20,16 @@ fn a_driver_aims_and_pulls_a_controller_through_the_host() {
         },
     );
     driven
-        .ask(&["screen", "xr", "right", "point", "120,80"])
+        .ask(&["xr", "right", "point", "120,80"])
         .expect("the laser points");
     driven
-        .ask(&["screen", "xr", "left", "pose", "0.1", "1.2", "-0.3", "90"])
+        .ask(&["xr", "left", "pose", "0.1", "1.2", "-0.3", "90"])
         .expect("the hand is posed");
     driven
-        .ask(&["screen", "xr", "left", "squeeze", "0.8"])
+        .ask(&["xr", "left", "squeeze", "0.8"])
         .expect("the grip is squeezed");
     driven
-        .ask(&["screen", "xr", "right", "lost"])
+        .ask(&["xr", "right", "lost"])
         .expect("the controller is lost");
     let half = std::f32::consts::FRAC_1_SQRT_2;
     let posed = HandPose {
@@ -70,14 +70,6 @@ fn a_driver_aims_and_pulls_a_controller_through_the_host() {
             Controller::Lost { hand: Hand::Right },
         ]
     );
-    assert!(
-        driven
-            .ask(&["screen", "xr", "right", "trigger", "2"])
-            .is_err()
-    );
-    assert!(
-        driven
-            .ask(&["screen", "xr", "middle", "trigger", "1"])
-            .is_err()
-    );
+    assert!(driven.ask(&["xr", "right", "trigger", "2"]).is_err());
+    assert!(driven.ask(&["xr", "middle", "trigger", "1"]).is_err());
 }
