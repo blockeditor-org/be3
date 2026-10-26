@@ -4,9 +4,10 @@ use super::*;
 
 #[test]
 fn the_volume_shows_on_every_monitor() {
-    let left = Rect::from_min_size(pos2(0.0, 0.0), vec2(500.0, 600.0));
-    let right = Rect::from_min_size(pos2(500.0, 200.0), vec2(300.0, 400.0));
+    let left = Rect::from_min_size(pos2(0.0, 0.0), vec2(800.0, 600.0));
+    let right = Rect::from_min_size(pos2(800.0, 200.0), vec2(560.0, 400.0));
     let mut fixture = Fixture::new();
+    fixture.test.set_size(vec2(1360.0, 600.0));
     fixture.report_screens(vec![monitor("left", left, 1.0), monitor("right", right, 2.0)]);
     fixture.test.set_watched::<MediaWatch>(&MediaLevels {
         output: Some(MediaLevel {

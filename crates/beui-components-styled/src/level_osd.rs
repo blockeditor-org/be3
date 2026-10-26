@@ -93,6 +93,10 @@ pub fn LevelOsd(
         area.get()
             .map_or(Sides::ZERO, |area| Sides::new(area.left(), area.top(), 0.0, 0.0))
     });
+    let outer = create_memo(move || match area.get() {
+        Some(_) => Align2::START,
+        None => Align2::new(Align::Center, Align::End),
+    });
     let width = create_memo(move || area.get().map(|area| area.width()));
     let height = create_memo(move || area.get().map(|area| area.height()));
     view! {
@@ -104,7 +108,7 @@ pub fn LevelOsd(
             traps_focus=false
             open={open}
             content={move || { let id = id.clone(); view! {
-                <Frame padding=inset align=Align2::START>
+                <Frame padding=inset align={outer}>
                     <Frame
                         width=width
                         height=height
