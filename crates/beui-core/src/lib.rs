@@ -14,6 +14,7 @@ pub mod document;
 pub mod drag_board;
 pub mod draw;
 pub mod drawing;
+pub mod drawn_cursor;
 pub mod fade;
 pub mod file_picker;
 pub mod file_saver;

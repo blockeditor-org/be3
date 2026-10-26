@@ -8,7 +8,7 @@ use be_graph::BlockParent;
 use be_protocol::BlockSummary;
 use be_store::ObjectStore;
 use be_types_host::Modules;
-use block_type_api::{Change as Edit, ChildChange, Description};
+use block_type_api::{Change as Edit, ChildChange, Description, FileChange};
 use block_ui::database::{ValueLabels, database_value_text, parse_cell_value};
 use database_types::database::{
     Database, DatabaseContent, DatabaseValue, Inverse, RowRef, inverses, short_id,
@@ -1746,10 +1746,10 @@ impl<S: ObjectStore> Tracker<S> {
 
     async fn text_page(&self, text: &str) -> Result<(Vec<u8>, Description), String> {
         let mut types = self.types().await;
-        let change = Edit::FromFile {
+        let change = Edit::FromFile(FileChange {
             name: String::new(),
             bytes: text.as_bytes().to_vec(),
-        };
+        });
         let content = types
             .apply(TextContent::CONTENT_TYPE, None, CLIENT, change)
             .await?
@@ -1904,10 +1904,10 @@ impl<S: ObjectStore> Tracker<S> {
                 let Some(text) = wanted(&now) else {
                     return Ok(None);
                 };
-                let change = Edit::FromFile {
+                let change = Edit::FromFile(FileChange {
                     name: String::new(),
                     bytes: text.into_bytes(),
-                };
+                });
                 self.types()
                     .await
                     .apply(content_type, current, CLIENT, change)

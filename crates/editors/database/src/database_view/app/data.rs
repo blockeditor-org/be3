@@ -537,9 +537,9 @@ impl ViewData {
                     &database,
                     row,
                     request.field_id,
-                    Some(DatabaseValue::Block(picked.id)),
+                    Some(DatabaseValue::Block(picked.id())),
                 ),
-                Err(failure) => error.set(Some(failure)),
+                Err(failure) => error.set(Some(failure.to_string())),
             },
         );
     }

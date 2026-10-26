@@ -31,6 +31,7 @@ pub use beui_core::document::{
 };
 pub use beui_core::draw::{Quad, Quads, Turn, quads};
 pub use beui_core::drawing::Drawing;
+pub use beui_core::drawn_cursor;
 pub use beui_core::file_picker::{
     FileFilter, FilePick, FilePickAnswer, FilePickId, FilePickRequest, PickedFile,
 };
@@ -67,6 +68,7 @@ pub use beui_core::preferences::{
     CanvasTouch, PreferenceLayer, PreferenceLayers, PreferenceSource, Preferences, ThemeKind,
 };
 pub use beui_core::rich;
+pub use beui_core::runner::environment;
 pub use beui_core::screens::Screen;
 pub use beui_core::testing;
 pub use beui_core::touch_cursor;

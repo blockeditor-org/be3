@@ -5,13 +5,6 @@ use crate::document::Document;
 use crate::node::{NodeId, Rects};
 
 pub fn measure(doc: &mut Document, painter: &Painter, id: NodeId, available: Vec2) -> Vec2 {
-    let raster = painter.state().raster;
-    painter
-        .ctx()
-        .rastered(raster, || measured(doc, painter, id, available))
-}
-
-fn measured(doc: &mut Document, painter: &Painter, id: NodeId, available: Vec2) -> Vec2 {
     if !doc.arena.contains(id) {
         return Vec2::ZERO;
     }
@@ -35,18 +28,6 @@ fn measured(doc: &mut Document, painter: &Painter, id: NodeId, available: Vec2) 
 }
 
 pub fn baseline(doc: &mut Document, painter: &Painter, id: NodeId, available: Vec2) -> Option<f32> {
-    let raster = painter.state().raster;
-    painter
-        .ctx()
-        .rastered(raster, || measured_baseline(doc, painter, id, available))
-}
-
-fn measured_baseline(
-    doc: &mut Document,
-    painter: &Painter,
-    id: NodeId,
-    available: Vec2,
-) -> Option<f32> {
     measure(doc, painter, id, available);
     if !doc.arena.contains(id) {
         return None;
@@ -66,13 +47,6 @@ fn measured_baseline(
 }
 
 pub fn layout(doc: &mut Document, painter: &Painter, id: NodeId, rect: Rect, out: &Rects) {
-    let raster = painter.state().raster;
-    painter
-        .ctx()
-        .rastered(raster, || placed(doc, painter, id, rect, out));
-}
-
-fn placed(doc: &mut Document, painter: &Painter, id: NodeId, rect: Rect, out: &Rects) {
     if !doc.arena.contains(id) {
         return;
     }

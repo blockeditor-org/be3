@@ -4,9 +4,19 @@ use wasm_bindgen_futures::JsFuture;
 pub(crate) fn fetch(
     url: String,
     headers: Vec<(&'static str, String)>,
+    aborted: super::Aborted,
     deliver: impl FnOnce(Result<Vec<u8>, String>) + Send + 'static,
 ) {
-    wasm_bindgen_futures::spawn_local(async move { deliver(run(url, headers).await) });
+    let controller = web_sys::AbortController::new().ok();
+    let signal = controller.as_ref().map(web_sys::AbortController::signal);
+    *aborted.controller.borrow_mut() = controller;
+    wasm_bindgen_futures::spawn_local(async move {
+        let fetched = fetching(url, headers, signal).await;
+        aborted.controller.borrow_mut().take();
+        if !aborted.aborted() {
+            deliver(fetched);
+        }
+    });
 }
 
 fn describe(error: &JsValue) -> String {
@@ -24,6 +34,14 @@ pub(crate) async fn run(
     url: String,
     headers: Vec<(&'static str, String)>,
 ) -> Result<Vec<u8>, String> {
+    fetching(url, headers, None).await
+}
+
+async fn fetching(
+    url: String,
+    headers: Vec<(&'static str, String)>,
+    signal: Option<web_sys::AbortSignal>,
+) -> Result<Vec<u8>, String> {
     let window = web_sys::window().ok_or("no browser window is available")?;
 
     let js_headers = web_sys::Headers::new()
@@ -40,6 +58,9 @@ pub(crate) async fn run(
     let options = web_sys::RequestInit::new();
     options.set_method("GET");
     options.set_headers(&js_headers);
+    if let Some(signal) = &signal {
+        options.set_signal(Some(signal));
+    }
 
     let request = web_sys::Request::new_with_str_and_init(&url, &options)
         .map_err(|error| format!("invalid URL {url}: {}", describe(&error)))?;

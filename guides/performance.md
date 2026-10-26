@@ -53,11 +53,29 @@ suite's `programs` (crates/bench/BUCK). Each can also run alone, with
 - The open bench builds a new document for each open, so the per-node tables a document
   keeps grow from empty every time. A long-lived document reuses the slots of the nodes
   it removed; don't chase the growth of those tables in a profile of the bench.
+- `//crates/beui-demo:example-space-resize-bench` runs the demo in the VR simulator
+  (`beui_adapter_space::Space` as the runner's host) on an offscreen GPU, floats the
+  Docking tab into a window of its own, and drags a corner of the main panel and of that
+  window for 60 frames each, through the platform pixels a mouse sends. It prints each
+  resize's median and slowest frame (`Runner::frame`, which runs the compositor's
+  drawing, and `present`), beui's layout and paint, and how many windows' outputs changed
+  (`VERBOSE=1` prints every frame). `NO_GPU=1` leaves out the GPU and so measures the
+  app's own work. On lavapipe `present` is mostly the software rasterizer; judge
+  `frame`. In October 2026 a resize step's `frame` was 7 to 9 ms, after 90 to 100 ms
+  while each window built a new `Renderer` (pipelines, glyph atlases) for every new size.
+- `//crates/beui-demo:example-space-cursor-bench` runs the demo in the VR simulator the
+  same way, finds two points of the main panel whose cursor icons differ, and moves the
+  pointer between them every frame for 60 frames, after 60 frames of moving it a pixel
+  over one icon. In October 2026 a switch's `frame` was about 4 ms, as the moves' are,
+  after 32 ms while the cursor sprite built a new `Renderer` for every icon.
 - `//crates/beui:example-text-bench -- [NAME]` times resizing and editing text.
 - Both beui benches run their frames through the real `Runner`, with no automation (so no
   accessibility dump) and the clock stopped, and push their inputs as a platform would. A
   frame's time is `Runner::frame`'s, so it includes the intake and the window bookkeeping
   around the app's update; the open bench takes the renderer's `prepare` out of it.
+- `//crates/block-wasm-host:example-gpu-calls` times a plugin's per-draw gpu calls (set
+  pipeline, viewport and scissor, draw) through wasmtime and block-gpu-host into wgpu's
+  noop device: about 130 ns a call on this machine in October 2026.
 - `//crates/be-graph:example-access-bench` times the server's access queries (one block,
   what one account sees, a block's audience) on an organization of 100,000 blocks.
 - `//crates/editors/infinite-canvas:example-canvas-bench -- [open|pan|zoom|drag|ink|long] [COUNT]`

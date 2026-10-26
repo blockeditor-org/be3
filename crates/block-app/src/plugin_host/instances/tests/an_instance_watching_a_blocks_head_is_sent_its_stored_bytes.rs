@@ -17,17 +17,11 @@ fn saved_head(block: Uuid, after: Option<be_commit::CommitId>) -> be_commit::Com
     .expect("the block was never saved")
 }
 
-fn heads(instances: &mut Instances) -> Vec<Result<Option<StoredHead>, String>> {
-    let mut messages = next_screens(instances).opened;
+fn heads(instances: &mut Instances, watch: OpId) -> Vec<Result<Option<StoredHead>, String>> {
+    next_screens(instances);
     crate::be::flush();
-    messages.extend(instances.pending());
-    messages
-        .into_iter()
-        .filter_map(|message| match message {
-            Message::Editor(EditorMessage::Head { head, .. }) => Some(head),
-            _ => None,
-        })
-        .collect()
+    instances.pending();
+    answered(instances, watch).into_iter().collect()
 }
 
 fn stored(head: &Result<Option<StoredHead>, String>) -> (i64, [u8; 32]) {
@@ -59,20 +53,23 @@ fn an_instance_watching_a_blocks_head_is_sent_its_stored_bytes() {
     let first = saved_head(block, None);
     let mut instances = placed();
     next_screens(&mut instances);
-    assert!(instances.editor_message(EditorMessage::WatchHeads {
-        instance: INSTANCE,
-        blocks: vec![block.into_bytes()],
-    }));
+    let watch = open_watch(&mut instances, |op| Call::HeadWatchNew {
+        resource: wire::HeadWatch(op),
+        block: block.into_bytes(),
+    });
 
-    let sent = heads(&mut instances);
+    let sent = heads(&mut instances, watch);
     assert_eq!(sent.len(), 1, "{sent:?}");
     assert_eq!(stored(&sent[0]), (4, *first.hash().as_bytes()));
-    assert!(heads(&mut instances).is_empty(), "nothing was saved since");
+    assert!(
+        heads(&mut instances, watch).is_empty(),
+        "nothing was saved since"
+    );
 
     add(block, 1);
     let second = saved_head(block, Some(first));
 
-    let sent = heads(&mut instances);
+    let sent = heads(&mut instances, watch);
     assert_eq!(sent.len(), 1, "{sent:?}");
     assert_eq!(stored(&sent[0]), (5, *second.hash().as_bytes()));
 }

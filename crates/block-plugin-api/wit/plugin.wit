@@ -1,0 +1,125 @@
+package be3:plugin@0.1.0;
+
+/// What an editor plugin offers its host.
+interface plugin {
+    use types.{child-id, editor-region, frame-commit, opening, screen-id, screen-request, size};
+    use be3:shared/ids@0.1.0.{block-id};
+    use accessibility.{action-request};
+    use shell-types.{bar-action, drag-over, file-drop, focus, pick-request};
+    use be3:ui/types@0.1.0.{rect};
+    use host-services.{block-pick, shell-dialog};
+    use types.{failure};
+
+    /// An editor instance. Dropping it closes it.
+    resource editor {
+        constructor(opening: opening);
+
+        /// The user picked a command of the editor's menu.
+        menu-pick: func(id: string);
+
+        /// The user ran an action of the bar of a child the editor placed.
+        child-bar: func(region: editor-region, child: child-id, action: bar-action);
+
+        /// The user focused a child the editor placed.
+        child-focused: func(region: editor-region, child: child-id);
+
+        /// Whether the user may edit what the editor shows.
+        set-editable: func(editable: bool);
+
+        /// The part of the editor's world its frame shows, and at what scale.
+        view-changed: func(view: rect, scale: f32);
+
+        /// Whether the editor is presented full screen.
+        presenting-changed: func(presenting: bool);
+
+        /// Whether the editor shows its user's presence to others.
+        presence: func(visible: bool);
+
+        /// Where the focus of the app is.
+        focus-changed: func(focus: focus);
+
+        /// The user resized the editor.
+        resized: func(size: size);
+
+        /// A block is dragged over the editor, or dropped on it.
+        drag-over: func(drag: drag-over);
+
+        /// The block dragged over the editor left it.
+        drag-left: func();
+
+        /// Files are dragged over the editor, or dropped on it.
+        file-drop: func(drop: file-drop);
+
+        /// The files dragged over the editor left it.
+        file-drop-left: func();
+
+        /// The artifact settings the editor shows, saved.
+        artifact-settings: func(data: list<u8>);
+
+        /// Creates the block of the creation dialog the editor shows.
+        commit-creation: async func() -> result<block-id, failure>;
+
+        /// Generates the artifact the settings describe again.
+        regenerate-artifact: async func(data: list<u8>) -> result<_, failure>;
+
+        /// Shows the user a picker for a pick another editor asked for; dropping
+        /// the call closes it.
+        pick: async func(request: pick-request) -> block-pick;
+
+        /// Puts a block in place of a child block; false when the editor cannot.
+        replace-child: async func(old: block-id, new: block-id) -> bool;
+
+        /// Shows one of the dialogs the instance that draws the window draws.
+        show-dialog: func(block: block-id, dialog: shell-dialog);
+    }
+
+    /// Whether the host wants screens described to assistive technology.
+    describe: func(on: bool);
+
+    /// Runs an action a screen described.
+    run-action: func(screen: screen-id, id: string);
+
+    /// Runs an action assistive technology asks of a node a screen described.
+    node-action: func(screen: screen-id, request: action-request);
+
+    /// The screens the host shows, replacing the ones it showed before.
+    screens: func(screens: list<screen-request>);
+
+    /// Numbers the screens and views sent since the last configure; the frame
+    /// that shows them carries the serial back.
+    configure: func(serial: u64);
+
+    /// Draws a frame of every screen and answers with what it drew.
+    draw: async func(now-micros: u64, seen: bool) -> frame-commit;
+
+    /// Stops the plugin; it answers once it saved what it holds.
+    shutdown: async func();
+}
+
+/// Everything an editor plugin and its host say to each other: the gpu it
+/// draws with (answered inside the plugin's own worker or thread), what it asks
+/// of the host, and what it offers. The `be3:linux-desktop` interfaces are an
+/// extension a plugin uses only when its manifest names it.
+world editor-plugin {
+    import be3:gpu/device@0.1.0;
+    import host;
+    import blocks;
+    import shell;
+    import host-services;
+    import account;
+    import contacts;
+    import be3:linux-desktop/windows@0.1.0;
+    import be3:linux-desktop/input@0.1.0;
+    import be3:linux-desktop/displays@0.1.0;
+    import be3:linux-desktop/power@0.1.0;
+    import be3:linux-desktop/media@0.1.0;
+    import be3:linux-desktop/wifi@0.1.0;
+    import be3:linux-desktop/epaper@0.1.0;
+    import be3:linux-desktop/notifications@0.1.0;
+    import be3:linux-desktop/screen-lock@0.1.0;
+    import be3:linux-desktop/programs@0.1.0;
+    import be3:linux-desktop/tray@0.1.0;
+    import be3:debug/debug@0.1.0;
+    export plugin;
+    export be3:debug/paintings@0.1.0;
+}

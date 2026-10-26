@@ -7,7 +7,7 @@ use std::{
 use block_editor_beui::Revision;
 use block_editor_beui::beui::{NodeId, reactive::*, styled::*, unstyled::TabId};
 use block_editor_beui::block_ui::datetime::format_datetime_utc;
-use block_editor_beui::{ChildTarget, Editor, Pushed};
+use block_editor_beui::{ChildTarget, Editor, Failure, Pushed, Task};
 use uuid::Uuid;
 
 use super::{Workspace, tab::TabItem};
@@ -37,10 +37,7 @@ pub(crate) struct RevisionHistory {
 #[derive(Default)]
 struct Requests {
     generation: Cell<u64>,
-    latest_list: Cell<u64>,
-    lists: RefCell<Vec<(u64, u64)>>,
-    previews: RefCell<Vec<(u64, u64, Uuid, Revision)>>,
-    restores: RefCell<Vec<(u64, u64)>>,
+    listing: RefCell<Option<Task>>,
 }
 
 impl RevisionHistory {
@@ -75,11 +72,6 @@ impl RevisionHistory {
             });
             if previous.replace(head) != head {
                 untrack(|| history.load());
-            }
-        });
-        editor.on_reply(move || {
-            if history.state.is_alive() {
-                history.replied();
             }
         });
         on_cleanup(move || {
@@ -120,12 +112,38 @@ impl RevisionHistory {
         self.loading.set(true);
         self.error.set(None);
         let state = self.state.value();
-        let request = self.editor.host().list_revisions(item.id);
-        state.latest_list.set(request);
-        state
-            .lists
-            .borrow_mut()
-            .push((request, state.generation.get()));
+        let generation = state.generation.get();
+        let asked = self.editor.host().list_revisions(item.id);
+        let task = self.editor.then(asked, move |result| {
+            if self.state.is_alive() {
+                self.listed_revisions(generation, result);
+            }
+        });
+        if let Some(earlier) = state.listing.replace(Some(task)) {
+            earlier.cancel();
+        }
+    }
+
+    fn listed_revisions(self, generation: u64, result: Result<Vec<Revision>, Failure>) {
+        if generation != self.state.value().generation.get() {
+            return;
+        }
+        self.loading.set(false);
+        match result {
+            Ok(entries) => {
+                self.entries.set(entries);
+                self.listed
+                    .set(self.target.get_untracked().map(|item| item.id));
+            }
+            Err(error) => {
+                let target = self.target.get_untracked().map(|item| item.id);
+                if self.listed.get_untracked() != target {
+                    self.entries.set(Vec::new());
+                    self.listed.set(None);
+                }
+                self.error.set(Some(error.to_string()));
+            }
+        }
     }
 
     fn choose(self, revision: Revision) {
@@ -137,14 +155,27 @@ impl RevisionHistory {
         state.generation.set(state.generation.get() + 1);
         self.busy.set(true);
         self.error.set(None);
-        let request = self
-            .editor
-            .host()
-            .preview_revision(item.id, revision.commit);
-        state
-            .previews
-            .borrow_mut()
-            .push((request, state.generation.get(), item.id, revision));
+        let generation = state.generation.get();
+        let block = item.id;
+        let asked = self.editor.host().preview_revision(block, revision.commit);
+        self.editor.then(asked, move |result| {
+            if !self.state.is_alive() || generation != self.state.value().generation.get() {
+                if let Ok(preview) = result {
+                    self.editor.host().release_revision(preview);
+                }
+                return;
+            }
+            self.busy.set(false);
+            match result {
+                Ok(preview) => self.selected.set(Some(Selected {
+                    block,
+                    commit: revision.commit,
+                    preview,
+                    time: revision.time,
+                })),
+                Err(error) => self.error.set(Some(error.to_string())),
+            }
+        });
     }
 
     pub(crate) fn current(self) {
@@ -166,88 +197,24 @@ impl RevisionHistory {
         self.busy.set(true);
         self.confirm.set(false);
         self.error.set(None);
-        let request = self
+        let generation = self.state.value().generation.get();
+        let asked = self
             .editor
             .host()
             .restore_revision(selected.block, selected.commit);
-        self.state
-            .value()
-            .restores
-            .borrow_mut()
-            .push((request, self.state.value().generation.get()));
-    }
-
-    fn replied(self) {
-        let state = self.state.value();
-        state.lists.borrow_mut().retain(|(request, generation)| {
-            let Some(result) = self.editor.host().take_revisions(*request) else {
-                return true;
-            };
-            if *generation == state.generation.get() && *request == state.latest_list.get() {
-                self.loading.set(false);
-                match result {
-                    Ok(entries) => {
-                        self.entries.set(entries);
-                        self.listed
-                            .set(self.target.get_untracked().map(|item| item.id));
-                    }
-                    Err(error) => {
-                        let target = self.target.get_untracked().map(|item| item.id);
-                        if self.listed.get_untracked() != target {
-                            self.entries.set(Vec::new());
-                            self.listed.set(None);
-                        }
-                        self.error.set(Some(error));
-                    }
-                }
+        self.editor.then(asked, move |result| {
+            if !self.state.is_alive() || generation != self.state.value().generation.get() {
+                return;
             }
-            false
-        });
-        state
-            .previews
-            .borrow_mut()
-            .retain(|(request, generation, block, revision)| {
-                let Some(result) = self.editor.host().take_revision_preview(*request) else {
-                    return true;
-                };
-                if *generation != state.generation.get() {
-                    if let Ok(preview) = result {
-                        self.editor.host().release_revision(preview);
-                    }
-                    return false;
+            self.busy.set(false);
+            match result {
+                Ok(()) => {
+                    self.current();
+                    self.load();
                 }
-                self.busy.set(false);
-                match result {
-                    Ok(preview) => self.selected.set(Some(Selected {
-                        block: *block,
-                        commit: revision.commit,
-                        preview,
-                        time: revision.time,
-                    })),
-                    Err(error) => self.error.set(Some(error)),
-                }
-                false
-            });
-        let mut reload = false;
-        state.restores.borrow_mut().retain(|(request, generation)| {
-            let Some(result) = self.editor.host().take_revision_restore(*request) else {
-                return true;
-            };
-            if *generation == state.generation.get() {
-                self.busy.set(false);
-                match result {
-                    Ok(()) => {
-                        self.current();
-                        reload = true;
-                    }
-                    Err(error) => self.error.set(Some(error)),
-                }
+                Err(error) => self.error.set(Some(error.to_string())),
             }
-            false
         });
-        if reload {
-            self.load();
-        }
     }
 
     pub(crate) fn preview_for(self, item: Option<TabItem>) -> Option<ChildTarget> {
@@ -278,7 +245,7 @@ pub fn RevisionHistoryPanel(workspace: Workspace) -> NodeId {
         history.entries.with(|entries| {
             entries
                 .iter()
-                .map(|entry| (entry.commit, entry.clone()))
+                .map(|entry| (entry.commit, *entry))
                 .collect::<HashMap<_, _>>()
         })
     });

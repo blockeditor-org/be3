@@ -1,40 +1,63 @@
-use crate::MAX_MENU_DEPTH;
-use serde::de::Error;
-use serde::{Deserialize, Deserializer};
-use std::cell::Cell;
+use crate::{DecodeError, MAX_MENU_DEPTH, collection};
 
-pub(crate) const TOO_DEEP: &str = "menu nested too deeply";
-
-thread_local! {
-    static DEPTH: Cell<usize> = const { Cell::new(0) };
+pub(crate) fn nest<T, N>(
+    items: Vec<T>,
+    depth: impl Fn(&T) -> u32,
+    mut node: impl FnMut(T, Vec<N>) -> Result<N, DecodeError>,
+) -> Result<Vec<N>, DecodeError> {
+    collection(items.len())?;
+    let mut open: Vec<(Option<T>, Vec<N>)> = vec![(None, Vec::new())];
+    for item in items {
+        let depth = depth(&item) as usize;
+        if depth > MAX_MENU_DEPTH {
+            return Err(DecodeError::LimitExceeded("menu depth"));
+        }
+        if depth >= open.len() {
+            return Err(DecodeError::MalformedPayload);
+        }
+        while open.len() > depth + 1 {
+            close(&mut open, &mut node)?;
+        }
+        open.push((Some(item), Vec::new()));
+    }
+    while open.len() > 1 {
+        close(&mut open, &mut node)?;
+    }
+    Ok(open.pop().map(|(_, nodes)| nodes).unwrap_or_default())
 }
 
-struct Level;
-
-impl Level {
-    fn enter() -> (Self, usize) {
-        let depth = DEPTH.with(|depth| {
-            depth.set(depth.get() + 1);
-            depth.get()
-        });
-        (Self, depth)
+fn close<T, N>(
+    open: &mut Vec<(Option<T>, Vec<N>)>,
+    node: &mut impl FnMut(T, Vec<N>) -> Result<N, DecodeError>,
+) -> Result<(), DecodeError> {
+    let Some((Some(item), children)) = open.pop() else {
+        return Ok(());
+    };
+    let made = node(item, children)?;
+    if let Some((_, parent)) = open.last_mut() {
+        parent.push(made);
     }
+    Ok(())
 }
 
-impl Drop for Level {
-    fn drop(&mut self) {
-        DEPTH.with(|depth| depth.set(depth.get().saturating_sub(1)));
+pub(crate) fn flatten<N, T>(
+    nodes: &[N],
+    children: impl Fn(&N) -> &[N],
+    item: impl Fn(&N, u32) -> T,
+) -> Vec<T> {
+    fn into<N, T>(
+        nodes: &[N],
+        depth: u32,
+        children: &impl Fn(&N) -> &[N],
+        item: &impl Fn(&N, u32) -> T,
+        items: &mut Vec<T>,
+    ) {
+        for node in nodes {
+            items.push(item(node, depth));
+            into(children(node), depth + 1, children, item, items);
+        }
     }
-}
-
-pub(crate) fn submenu<'de, D, T>(deserializer: D) -> Result<Vec<T>, D::Error>
-where
-    D: Deserializer<'de>,
-    T: Deserialize<'de>,
-{
-    let (_level, depth) = Level::enter();
-    if depth > MAX_MENU_DEPTH {
-        return Err(D::Error::custom(TOO_DEEP));
-    }
-    Vec::deserialize(deserializer)
+    let mut items = Vec::new();
+    into(nodes, 0, &children, &item, &mut items);
+    items
 }

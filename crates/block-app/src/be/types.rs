@@ -4,13 +4,13 @@ use be_block::{
 };
 use block_guest_abi::{Flow, Guest, Waker};
 use block_plugin_api::{BlockTypeDescriptor, ChildOperations, Press};
-use block_type_guest::Module as TypeModule;
+use block_type_guest::{Module as TypeModule, Serving};
 use uuid::Uuid;
 
 pub(super) use be_types_host::{Modules, Source, in_process};
 pub(crate) use be_types_host::{is_known, kind_of};
 
-pub(crate) struct HostTypes(TypeModule);
+pub(crate) struct HostTypes(Serving);
 
 fn host_types() -> TypeModule {
     TypeModule::new(host_types::registrations())
@@ -81,10 +81,8 @@ pub(crate) fn provided(content_type: Uuid) -> bool {
 }
 
 impl Guest for HostTypes {
-    fn start(_: Waker, outbound: &mut Vec<Vec<u8>>) -> Result<Self, String> {
-        let module = host_types();
-        outbound.push(module.hello_frame());
-        Ok(Self(module))
+    fn start(_: Waker, _: &mut Vec<Vec<u8>>) -> Result<Self, String> {
+        Ok(Self(Serving::new(host_types())))
     }
 
     fn step(

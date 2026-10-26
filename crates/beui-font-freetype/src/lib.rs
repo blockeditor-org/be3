@@ -224,6 +224,7 @@ impl FreetypeFonts {
             subpixel,
             bold: shape.bold,
             italic: shape.italic,
+            raster: GlyphId::LAID_OUT,
         };
         let raster = match self.glyphs.get(&id) {
             Some(raster) => raster.clone(),
@@ -240,6 +241,46 @@ impl FreetypeFonts {
             origin: vec2(whole, (baseline - glyph.y_offset).round()),
             raster,
         })
+    }
+
+    fn rastered(&mut self, galley: &Galley, raster: f32) -> Galley {
+        let positions = SUBPIXEL_POSITIONS as f32;
+        let glyphs = galley
+            .glyphs()
+            .iter()
+            .map(|glyph| {
+                let pen = glyph.origin.x + glyph.id.subpixel as f32 / positions;
+                let (whole, subpixel) = split_subpixel(pen * raster);
+                let id = GlyphId {
+                    subpixel,
+                    raster: (glyph.id.raster() * raster).to_bits(),
+                    ..glyph.id
+                };
+                let shown = match self.glyphs.get(&id) {
+                    Some(shown) => shown.clone(),
+                    None => {
+                        let [left, top, right, bottom] = glyph.bounds();
+                        let (x, y) = (glyph.origin.x, glyph.origin.y);
+                        let bounds = [
+                            (left - x) * raster - 1.0,
+                            (top - y) * raster - 1.0,
+                            (right - x) * raster + 1.0,
+                            (bottom - y) * raster + 1.0,
+                        ];
+                        let rasterizer: Rc<dyn GlyphRasterizer> = self.rasterizer.clone();
+                        let shown = Rc::new(GlyphRaster::lazy(bounds, Rc::downgrade(&rasterizer)));
+                        self.glyphs.insert(id, shown.clone());
+                        shown
+                    }
+                };
+                Glyph {
+                    id,
+                    origin: vec2(whole, (glyph.origin.y * raster).round()),
+                    raster: shown,
+                }
+            })
+            .collect();
+        galley.with_glyphs(glyphs, galley.pixels_per_point() * raster)
     }
 
     fn metrics(&self, family: FontFamily, pixel_size: u32) -> (f32, f32) {
@@ -392,6 +433,10 @@ impl FontBackend for FreetypeFonts {
         self.shape_galley(text, family, pixel_size, shape, pixels_per_point)
     }
 
+    fn raster(&mut self, galley: &Galley, raster: f32) -> Galley {
+        self.rastered(galley, raster)
+    }
+
     fn generation(&self) -> u64 {
         self.fonts.generation()
     }
@@ -486,20 +531,37 @@ impl GlyphRasterizer for Rasterizer {
     fn rasterize(&self, key: GlyphId) -> Option<GlyphImage> {
         let scale = self.sized(key.face, key.pixel_size)?;
         let face = self.faces.borrow().get(key.face)?.face;
+        let raster = key.raster();
+        let scaled = key.raster != GlyphId::LAID_OUT;
+        let flags = match scaled {
+            true => ft::FT_LOAD_COLOR | ft::FT_LOAD_NO_HINTING,
+            false => ft::FT_LOAD_COLOR,
+        };
         unsafe {
-            if ft::FT_Load_Glyph(face, key.glyph, ft::FT_LOAD_COLOR as i32) != 0 {
+            if ft::FT_Load_Glyph(face, key.glyph, flags as i32) != 0 {
                 return None;
             }
             let slot = (*face).glyph;
-            if (*slot).format == ft::FT_Glyph_Format::FT_GLYPH_FORMAT_OUTLINE {
-                let shift = (key.subpixel as ft::FT_Pos * 64) / SUBPIXEL_POSITIONS as ft::FT_Pos;
-                ft::FT_Outline_Translate(&(*slot).outline, shift, 0);
-            }
             if key.bold {
                 FT_GlyphSlot_Embolden(slot);
             }
             if key.italic {
                 FT_GlyphSlot_Oblique(slot);
+            }
+            let outline = (*slot).format == ft::FT_Glyph_Format::FT_GLYPH_FORMAT_OUTLINE;
+            if outline && scaled {
+                let fixed = (raster * 65536.0).round() as ft::FT_Fixed;
+                let matrix = ft::FT_Matrix {
+                    xx: fixed,
+                    xy: 0,
+                    yx: 0,
+                    yy: fixed,
+                };
+                ft::FT_Outline_Transform(&(*slot).outline, &matrix);
+            }
+            if outline {
+                let shift = (key.subpixel as ft::FT_Pos * 64) / SUBPIXEL_POSITIONS as ft::FT_Pos;
+                ft::FT_Outline_Translate(&(*slot).outline, shift, 0);
             }
             if ft::FT_Render_Glyph(slot, ft::FT_Render_Mode::FT_RENDER_MODE_NORMAL) != 0 {
                 return None;
@@ -507,7 +569,7 @@ impl GlyphRasterizer for Rasterizer {
             let bitmap = &(*slot).bitmap;
             let (left, top) = ((*slot).bitmap_left, (*slot).bitmap_top);
             if bitmap.pixel_mode == ft::FT_Pixel_Mode::FT_PIXEL_MODE_BGRA as u8 {
-                return Some(color::image(bitmap, left, top, scale));
+                return Some(color::image(bitmap, left, top, scale * raster));
             }
             Some(GlyphImage {
                 width: bitmap.width,

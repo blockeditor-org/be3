@@ -31,7 +31,7 @@ fn dragging_a_dock_windows_bar_in_space_carries_its_panel() {
         .and_then(|context| context.window_placement(window))
         .expect("the host reports where it put the window");
     assert_eq!(
-        Some(after),
-        beui_adapter_space::panel::Pose::from_placement(&placement)
+        placement,
+        space.space.borrow().panel(window).unwrap().placement()
     );
 }

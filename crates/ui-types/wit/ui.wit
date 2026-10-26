@@ -1,0 +1,472 @@
+package be3:ui@0.1.0;
+
+/// The vocabulary beui and the plugin protocol share. The Rust in `ui-types` is
+/// generated from this, so these shapes are what every program serializes,
+/// including the display and input settings blocks. None of them is frozen
+/// (guides/frozen_formats.md), so a shape may change like any other.
+interface types {
+    record vec2 {
+        x: f32,
+        y: f32,
+    }
+
+    record pos2 {
+        x: f32,
+        y: f32,
+    }
+
+    record rect {
+        min: pos2,
+        max: pos2,
+    }
+
+    /// A `usize` on the Rust side.
+    type size = u64;
+
+    record range {
+        start: size,
+        end: size,
+    }
+
+    enum paste-kind {
+        text,
+        image,
+    }
+
+    variant pasted {
+        text(string),
+        image(picked-file),
+    }
+
+    record display-mode {
+        width: u32,
+        height: u32,
+        refresh-millihertz: u32,
+    }
+
+    enum rotation {
+        normal,
+        clockwise90,
+        clockwise180,
+        clockwise270,
+    }
+
+    record file-filter {
+        name: string,
+        extensions: list<string>,
+        mime-types: list<string>,
+    }
+
+    record picked-file {
+        name: string,
+        data: list<u8>,
+    }
+
+    type file-pick = result<option<picked-file>, string>;
+
+    record saved-file {
+        name: string,
+        mime-type: string,
+        data: list<u8>,
+    }
+
+    variant file-save {
+        saved,
+        cancelled,
+        failed(string),
+    }
+
+    enum key {
+        arrow-down,
+        arrow-left,
+        arrow-right,
+        arrow-up,
+        backspace,
+        bracket-left,
+        bracket-right,
+        delete,
+        end,
+        enter,
+        escape,
+        home,
+        minus,
+        page-down,
+        page-up,
+        plus,
+        space,
+        tab,
+        zero,
+        one,
+        two,
+        three,
+        four,
+        five,
+        six,
+        seven,
+        eight,
+        nine,
+        backtick,
+        a,
+        b,
+        c,
+        d,
+        e,
+        f,
+        g,
+        h,
+        i,
+        j,
+        k,
+        l,
+        m,
+        n,
+        o,
+        p,
+        q,
+        r,
+        s,
+        t,
+        u,
+        v,
+        w,
+        x,
+        y,
+        z,
+        insert,
+        comma,
+        period,
+        slash,
+        backslash,
+        semicolon,
+        quote,
+        browser-back,
+        f1,
+        f2,
+        f3,
+        f4,
+        f5,
+        f6,
+        f7,
+        f8,
+        f9,
+        f10,
+        f11,
+        f12,
+        f13,
+        f14,
+        f15,
+        f16,
+        f17,
+        f18,
+        f19,
+        f20,
+        f21,
+        f22,
+        f23,
+        f24,
+        volume-up,
+        volume-down,
+        volume-mute,
+        mic-mute,
+        brightness-up,
+        brightness-down,
+        media-play-pause,
+        media-next,
+        media-previous,
+        media-stop,
+        shift,
+        ctrl,
+        alt,
+        logo,
+        unidentified,
+    }
+
+    record modifiers {
+        alt: bool,
+        ctrl: bool,
+        shift: bool,
+        logo: bool,
+    }
+
+    record key-press {
+        key: key,
+        pressed: bool,
+        repeat: bool,
+        modifiers: modifiers,
+    }
+
+    record key-chord {
+        key: key,
+        modifiers: modifiers,
+        tap: bool,
+    }
+
+    variant pointer-button {
+        primary,
+        secondary,
+        middle,
+        back,
+        forward,
+        other(u16),
+    }
+
+    variant pen-phase {
+        move,
+        down(pointer-button),
+        up(pointer-button),
+        gone,
+    }
+
+    enum touch-phase {
+        start,
+        move,
+        end,
+        cancel,
+    }
+
+    record back-gesture-started {
+        edge: back-edge,
+    }
+
+    variant back-gesture {
+        started(back-gesture-started),
+        progressed(f32),
+        cancelled,
+        invoked,
+    }
+
+    enum back-edge {
+        none,
+        left,
+        right,
+    }
+
+    record ime-event-replace-text {
+        range: range,
+        text: string,
+    }
+
+    record ime-event-delete-surrounding {
+        before: size,
+        after: size,
+    }
+
+    record ime-event-set-selection {
+        anchor: size,
+        focus: size,
+    }
+
+    variant ime-event {
+        enabled,
+        disabled,
+        set-composing-text(string),
+        commit-text(string),
+        finish-composing,
+        set-composing-region(range),
+        replace-text(ime-event-replace-text),
+        delete-surrounding(ime-event-delete-surrounding),
+        set-selection(ime-event-set-selection),
+    }
+
+    record ime-text {
+        start: size,
+        text: string,
+        selection: range,
+        composing: option<range>,
+    }
+
+    record keyboard-shown {
+        asks: u32,
+    }
+
+    variant keyboard {
+        held,
+        shown(keyboard-shown),
+    }
+
+    enum cursor-icon {
+        default,
+        crosshair,
+        grab,
+        grabbing,
+        not-allowed,
+        pointing-hand,
+        resize-horizontal,
+        resize-vertical,
+        resize-ne-sw,
+        resize-nw-se,
+        text,
+        wait,
+        none,
+        move,
+        progress,
+        help,
+        alias,
+        context-menu,
+        cell,
+        vertical-text,
+        copy,
+        no-drop,
+        all-scroll,
+        zoom-in,
+        zoom-out,
+        resize-column,
+        resize-row,
+        resize-north,
+        resize-east,
+        resize-south,
+        resize-west,
+        resize-north-east,
+        resize-north-west,
+        resize-south-east,
+        resize-south-west,
+        touch,
+    }
+
+    record touch-id {
+        device: u64,
+        finger: u64,
+    }
+
+    record pen {
+        pressure: f32,
+        tilt: vec2,
+        eraser: bool,
+    }
+
+    record keystroke {
+        key: option<key>,
+        pressed: bool,
+        repeat: bool,
+        evdev: option<u32>,
+        text: option<string>,
+    }
+
+    variant scroll-delta {
+        pixels(vec2),
+        lines(vec2),
+        pages(vec2),
+    }
+
+    record input-pointer-button {
+        pos: pos2,
+        button: pointer-button,
+        pressed: bool,
+    }
+
+    record input-touch {
+        id: touch-id,
+        phase: touch-phase,
+        pos: pos2,
+        force: option<f32>,
+    }
+
+    record input-pen {
+        phase: pen-phase,
+        pos: pos2,
+        pen: pen,
+    }
+
+    record input-intercepted-key {
+        key: key,
+        pressed: bool,
+        repeat: bool,
+    }
+
+    /// The raw input every platform adapter, drive, the on-screen keyboard and
+    /// the plugin protocol produce.
+    variant input {
+        focus(bool),
+        modifiers(modifiers),
+        key(keystroke),
+        text(string),
+        paste(pasted),
+        ime(ime-event),
+        pointer-moved(pos2),
+        pointer-left,
+        pointers-cancelled,
+        pointer-motion(vec2),
+        pointer-unlocked,
+        pointer-button(input-pointer-button),
+        scroll-started,
+        scroll(scroll-delta),
+        scroll-ended,
+        zoom(f32),
+        touch(input-touch),
+        pen(input-pen),
+        predicted(pos2),
+        back(back-gesture),
+        intercepted-key(input-intercepted-key),
+        intercepted-tap(key),
+    }
+
+    record input-device {
+        name: string,
+        vendor: u32,
+        product: u32,
+    }
+
+    /// A pointer speed from -1 to 1, kept by hand in Rust for its clamping.
+    record pointer-speed {
+        speed: f32,
+    }
+
+    record pointer-settings {
+        speed: option<pointer-speed>,
+        tap-to-click: option<bool>,
+        natural-scroll: option<bool>,
+    }
+
+    enum theme-kind {
+        dark,
+        oled-dark,
+        light,
+        e-paper,
+    }
+
+    enum motion {
+        animated,
+        instant,
+    }
+
+    enum canvas-touch {
+        on,
+        off,
+    }
+
+    record preferences {
+        theme: theme-kind,
+        motion: motion,
+        canvas-touch: canvas-touch,
+    }
+
+    /// Read with every field defaulted, as a settings block saved it.
+    record preference-layer {
+        theme: option<theme-kind>,
+        motion: option<motion>,
+        canvas-touch: option<canvas-touch>,
+    }
+
+    record ime-area {
+        rect: rect,
+        cursor: rect,
+        text: option<ime-text>,
+        keyboard: keyboard,
+    }
+
+    record window-requests {
+        cursor: cursor-icon,
+        pointer-locked: bool,
+        ime: option<ime-area>,
+        handles-back: bool,
+        wants-keyboard: bool,
+        intercepted-keys: list<key-chord>,
+        pastes: list<paste-kind>,
+        clipboard-keys: bool,
+        keyboard-toggles: u32,
+    }
+}
+
+world ui {
+    import types;
+}

@@ -3,9 +3,8 @@ use std::collections::btree_map::Entry;
 use std::hash::{Hash as _, Hasher as _};
 
 pub use paint_format::{
-    Content, Fade, Frame, Glyph, PAINTING_EXTENSION, Painting, Pixels, Placement, Primitive,
-    RoundedRect, ScreenPaintings, TextureKey, Triangle, Turn, Vertex, preview_key, previewed,
-    rasterize,
+    Content, Fade, Frame, Glyph, Painting, Pixels, Placement, Primitive, RoundedRect,
+    ScreenPaintings, TextureKey, Triangle, Turn, Vertex, preview_key, previewed, rasterize,
 };
 
 use crate::color::Color32;

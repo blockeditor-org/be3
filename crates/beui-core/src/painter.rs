@@ -222,10 +222,7 @@ pub struct PainterState {
 
 impl PainterState {
     pub fn settles(self, other: Self) -> bool {
-        self.clip == other.clip
-            && self.space == other.space
-            && self.rotation == other.rotation
-            && self.raster == other.raster
+        self.clip == other.clip && self.space == other.space && self.rotation == other.rotation
     }
 
     pub fn sees(self, other: Self) -> bool {
@@ -617,6 +614,10 @@ impl Painter {
         if color.alpha() == 0 || galley.is_blank() {
             return;
         }
+        let galley = match self.state.raster == 1.0 {
+            true => galley,
+            false => self.context.rastered(&galley, self.state.raster),
+        };
         self.push(Shape::Text {
             origin,
             galley,

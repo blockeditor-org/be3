@@ -13,7 +13,7 @@ fn a_carried_panel_follows_the_cursor_and_the_head() {
         .hit(space.head.ray(PLATFORM, grab.to_vec2()))
         .unwrap();
     space.begin_carry(WindowId::MAIN);
-    let distance = space.carry.unwrap().distance;
+    let distance = space.carry.as_ref().unwrap().distance;
 
     let facing = |space: &Space, at: Pos2| {
         let panel = main(space);
@@ -85,5 +85,5 @@ fn a_carried_panel_follows_the_cursor_and_the_head() {
         panic!("the new place is reported, not {reports:?}");
     };
     assert_eq!(*window, WindowId::MAIN);
-    assert_eq!(Pose::from_placement(placement), Some(main(&space).pose));
+    assert_eq!(*placement, main(&space).placement());
 }

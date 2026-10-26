@@ -32,11 +32,9 @@ fn a_released_panel_turns_to_face_the_viewer() {
 
     let panel = main(&space);
     let normal = panel.normal();
-    assert!(normal.y.abs() < 1e-4, "it stands upright: {normal:?}");
-    let toward = space.head.position - panel.pose.position;
-    let level = Vec3::new(toward.x, 0.0, toward.z).normalize();
+    assert!(level(panel) < 1e-4, "its edges are level: {normal:?}");
     assert!(
-        close(normal, level),
-        "it faces the viewer: {normal:?} {level:?}"
+        facing_eye(&space, panel) < 1e-3,
+        "it faces the viewer: {normal:?}"
     );
 }

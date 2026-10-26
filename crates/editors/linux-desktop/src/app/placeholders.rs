@@ -3,7 +3,8 @@ use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
 use block_editor_beui::beui::unstyled::Picture;
 use block_editor_beui::beui::{Image, NodeId};
-use block_editor_beui::{HostProgram, HostWindowId, ProgramAction, Programs};
+use block_editor_beui::linux_desktop;
+use block_editor_beui::{HostProgram, HostWindowId, ProgramAction, ProgramsWatch};
 use block_shell::{KeptWindow, Workspace};
 
 const ICON_POINTS: f32 = 64.0;
@@ -23,7 +24,7 @@ pub(crate) struct Placeholders {
 impl Placeholders {
     pub(crate) fn new(workspace: Workspace) -> Self {
         let editor = workspace.editor();
-        let programs = editor.host_value::<Programs>();
+        let programs = editor.watch::<ProgramsWatch>();
         let keys = workspace.placeholders();
         let scale = pixels_per_point();
         let listed = StoredCell::new(false);
@@ -33,12 +34,16 @@ impl Placeholders {
             }
             listed.set(true);
             let icon_size = (ICON_POINTS * scale.get_untracked()).ceil() as u32;
-            untrack(|| editor.act(ProgramAction::List { icon_size }));
+            untrack(|| {
+                editor.act(move || {
+                    linux_desktop::programs::request(ProgramAction::List { icon_size })
+                })
+            });
         });
         Self {
             workspace,
             programs,
-            launchable: editor.host_offers::<Programs>(),
+            launchable: editor.offered::<ProgramsWatch>(),
             keys,
         }
     }
@@ -66,7 +71,9 @@ impl Placeholders {
             .programs
             .with_untracked(|programs| launch_action(&kept, programs));
         if let Some(action) = action {
-            self.workspace.editor().act(action);
+            self.workspace
+                .editor()
+                .act(move || linux_desktop::programs::request(action));
         }
     }
 

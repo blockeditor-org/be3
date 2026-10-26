@@ -3,13 +3,10 @@ use block_editor_beui::beui::styled::Root;
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 
-use block_editor_beui::ContentProjection;
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::{NodeId, Vec2};
-use block_editor_beui::{
-    BlockFilter, BlockList, BlockParent, BlockPicker, BlockQuery, Creation, DataListing, Editor,
-    FetchResult,
-};
+use block_editor_beui::{BlockFilter, BlockList, BlockParent, BlockQuery, Creation, Editor};
+use block_editor_beui::{ContentProjection, Failure};
 use deterministic_game_types::{
     DeterministicGame, DeterministicGameContent, GameModuleContent, GameModuleFile,
 };
@@ -243,7 +240,7 @@ impl GameModel for BlockGame {
 const STAGED_GAMES: &str = "games/";
 
 enum Staged {
-    Reading(u64),
+    Reading,
     Loaded(Rc<Vec<u8>>),
     Failed(String),
 }
@@ -261,9 +258,10 @@ enum Chosen {
 }
 
 struct GameCreation {
+    this: Cell<Option<Stored<GameCreation>>>,
     creation: Creation,
-    picker: RefCell<BlockPicker>,
-    listing: Cell<Option<u64>>,
+    picking: Cell<bool>,
+    listing: Cell<bool>,
     staged: RefCell<Vec<StagedGame>>,
     listing_error: RefCell<Option<String>>,
     chosen: Cell<Option<Chosen>>,
@@ -275,12 +273,11 @@ struct GameCreation {
 impl GameCreation {
     fn new(creation: Creation) -> Self {
         creation.set_ready(false);
-        let changed = create_signal(0);
-        let listing = creation.host().list_data();
         Self {
-            changed,
-            picker: RefCell::new(BlockPicker::default()),
-            listing: Cell::new(Some(listing)),
+            this: Cell::new(None),
+            changed: create_signal(0),
+            picking: Cell::new(false),
+            listing: Cell::new(true),
             staged: RefCell::new(Vec::new()),
             listing_error: RefCell::new(None),
             module: RefCell::new(None),
@@ -290,60 +287,71 @@ impl GameCreation {
         }
     }
 
-    fn collect_staged(&self) {
-        let host = self.creation.host();
-        if let Some(request) = self.listing.get()
-            && let Some(listing) = host.take_data_listing(request)
-        {
-            self.listing.set(None);
-            match listing {
-                DataListing::Files(files) => {
-                    *self.staged.borrow_mut() = files
-                        .into_iter()
-                        .filter(|file| file.starts_with(STAGED_GAMES) && file.ends_with(".wasm"))
-                        .map(|file| StagedGame {
-                            name: file_name(&file).to_owned(),
-                            staged: Staged::Reading(host.read_data(file.clone())),
-                            file,
-                        })
-                        .collect();
-                }
-                DataListing::Failed(error) => *self.listing_error.borrow_mut() = Some(error),
+    fn start(this: Stored<GameCreation>) {
+        let creation = this.value();
+        creation.this.set(Some(this));
+        let host = creation.creation.host().clone();
+        creation.creation.then(host.list_data(), move |listing| {
+            if let Some(creation) = this.try_value() {
+                creation.listed(listing);
             }
+        });
+    }
+
+    fn changed(&self) {
+        self.changed.update(|changed| *changed += 1);
+    }
+
+    fn listed(&self, listing: Result<Vec<String>, Failure>) {
+        self.listing.set(false);
+        match listing {
+            Ok(files) => {
+                let files: Vec<String> = files
+                    .into_iter()
+                    .filter(|file| file.starts_with(STAGED_GAMES) && file.ends_with(".wasm"))
+                    .collect();
+                *self.staged.borrow_mut() = files
+                    .iter()
+                    .map(|file| StagedGame {
+                        name: file_name(file).to_owned(),
+                        staged: Staged::Reading,
+                        file: file.clone(),
+                    })
+                    .collect();
+                let this = self.this.get();
+                let host = self.creation.host().clone();
+                for (index, file) in files.into_iter().enumerate() {
+                    self.creation.then(host.read_data(file), move |read| {
+                        if let Some(creation) = this.and_then(|this| this.try_value()) {
+                            creation.read(index, read);
+                        }
+                    });
+                }
+            }
+            Err(error) => *self.listing_error.borrow_mut() = Some(error.to_string()),
         }
-        for game in self.staged.borrow_mut().iter_mut() {
-            let Staged::Reading(request) = game.staged else {
-                continue;
-            };
-            let Some(read) = host.take_data(request) else {
-                continue;
-            };
+        self.changed();
+    }
+
+    fn read(&self, index: usize, read: Result<Vec<u8>, Failure>) {
+        if let Some(game) = self.staged.borrow_mut().get_mut(index) {
             game.staged = match read {
-                FetchResult::Body(data) => match Game::load(&data) {
+                Ok(data) => match Game::load(&data) {
                     Ok(loaded) => {
                         loaded.name().clone_into(&mut game.name);
                         Staged::Loaded(Rc::new(data))
                     }
                     Err(error) => Staged::Failed(error),
                 },
-                FetchResult::Failed(error) => Staged::Failed(error),
+                Err(error) => Staged::Failed(error.to_string()),
             };
         }
+        self.changed();
     }
 
     fn snapshot(&self) -> CreationSnapshot {
         self.changed.get();
-        self.creation.replies().get();
-        self.collect_staged();
-        let picked = self.picker.borrow_mut().poll(self.creation.host());
-        match picked {
-            Some(Ok(module)) => {
-                self.choose(Chosen::Module(module.id));
-            }
-            Some(Err(error)) => *self.error.borrow_mut() = Some(error),
-            None => {}
-        }
-        let picking = self.picker.borrow().is_open();
+        let picking = self.picking.get();
         let chosen = self.chosen.get();
         let module = match chosen {
             Some(Chosen::Module(module)) => {
@@ -373,7 +381,7 @@ impl GameCreation {
                 index,
                 name: game.name.clone(),
                 state: match &game.staged {
-                    Staged::Reading(_) => StagedState::Loading,
+                    Staged::Reading => StagedState::Loading,
                     Staged::Loaded(_) => StagedState::Ready {
                         chosen: chosen == Some(Chosen::Staged(index)),
                     },
@@ -383,7 +391,7 @@ impl GameCreation {
             .collect();
         CreationSnapshot {
             games,
-            listing: self.listing.get().is_some(),
+            listing: self.listing.get(),
             module,
             picking,
             error: self
@@ -446,14 +454,27 @@ fn file_name(path: &str) -> &str {
 impl GameCreationModel for GameCreation {
     fn choose_staged(&self, index: usize) {
         self.choose(Chosen::Staged(index));
-        self.changed.update(|changed| *changed += 1);
+        self.changed();
     }
 
     fn choose_module(&self) {
-        self.picker
-            .borrow_mut()
-            .open(self.creation.host(), module_filter());
-        self.changed.update(|changed| *changed += 1);
+        let this = self.this.get();
+        let host = self.creation.host().clone();
+        self.picking.set(true);
+        self.creation
+            .then(host.pick_block(module_filter()), move |picked| {
+                let Some(creation) = this.and_then(|this| this.try_value()) else {
+                    return;
+                };
+                creation.picking.set(false);
+                match picked {
+                    Ok(Some(module)) => creation.choose(Chosen::Module(module.id())),
+                    Ok(None) => {}
+                    Err(error) => *creation.error.borrow_mut() = Some(error.to_string()),
+                }
+                creation.changed();
+            });
+        self.changed();
     }
 }
 
@@ -478,6 +499,7 @@ impl block_editor_beui::BeuiApp for DeterministicGameApp {
     #[component]
     fn Creation(creation: Creation) -> NodeId {
         let dialog = store(GameCreation::new(creation.clone()));
+        GameCreation::start(dialog);
         let snapshot = create_signal(CreationSnapshot::default());
         create_effect(move || snapshot.set(dialog.value().snapshot()));
         let maker = dialog.value();

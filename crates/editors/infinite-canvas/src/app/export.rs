@@ -1,5 +1,4 @@
 use block_editor_beui::beui::icons::Glyph;
-use std::cell::RefCell;
 use std::collections::BTreeMap;
 use std::rc::Rc;
 
@@ -13,7 +12,7 @@ use block_editor_beui::beui::{
     Color32, Context, FontFamily, FontId, FreetypeFonts, Galley, Image, LineCap, LineJoin, NodeId,
     Painter, Path, PathElement, Pos2, Rect, Stroke, TextAlign, Vec2, line_height, pos2,
 };
-use block_editor_beui::{FileSaver, SavedFile};
+use block_editor_beui::{FileSave, SavedFile};
 use infinite_canvas_types::{CanvasEntity, CanvasPoint, CanvasShape, CanvasTextWeight};
 use uuid::Uuid;
 
@@ -260,8 +259,6 @@ impl Exporter {
             palette,
             background,
         };
-        let saver = Rc::new(RefCell::new(FileSaver::default()));
-        let saving = Rc::clone(&saver);
         let editor = state.editor();
         let job = exporter.job;
         create_effect(move || {
@@ -306,24 +303,22 @@ impl Exporter {
                     (ExportTo::Clipboard, ExportFormat::Svg) => {
                         copy_text(String::from_utf8_lossy(&data).into_owned())
                     }
-                    (ExportTo::File, format) => saving.borrow_mut().save(
-                        &editor.host(),
-                        SavedFile {
+                    (ExportTo::File, format) => {
+                        let asked = editor.host().save_file(SavedFile {
                             name: wanted.scene.file_name(format),
                             mime_type: format.mime_type().to_owned(),
                             data,
-                        },
-                    ),
+                        });
+                        editor.then(asked, move |saved| {
+                            if let FileSave::Failed(failure) = saved {
+                                state
+                                    .import_error
+                                    .set(Some(format!("Could not export: {failure}")));
+                            }
+                        });
+                    }
                 }
             });
-        });
-        let host = editor.host();
-        editor.on_reply(move || {
-            if let Some(Err(failure)) = saver.borrow_mut().poll(&host) {
-                state
-                    .import_error
-                    .set(Some(format!("Could not export: {failure}")));
-            }
         });
         exporter
     }

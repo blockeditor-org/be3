@@ -10,7 +10,7 @@ fn frozen(id: u64, title: &str) -> block_editor_beui::HostWindow {
 fn force_closed(fixture: &Fixture) -> bool {
     fixture
         .test
-        .actions::<WindowAction>()
+        .host_calls(block_ui_test::requested::window)
         .contains(&WindowAction::Close(block_editor_beui::HostWindowId(3)))
 }
 
@@ -19,7 +19,7 @@ fn a_window_that_stops_responding_offers_to_wait_or_force_close() {
     let (mut fixture, _) = editor();
     fixture
         .host
-        .set_host_value::<HostWindows>(&vec![window(3, "Terminal", None)]);
+        .set_watched::<WindowsWatch>(&vec![window(3, "Terminal", None)]);
     fixture.settle();
     assert!(
         fixture.test.occluders().is_empty(),
@@ -28,7 +28,7 @@ fn a_window_that_stops_responding_offers_to_wait_or_force_close() {
 
     fixture
         .host
-        .set_host_value::<HostWindows>(&vec![frozen(3, "Terminal")]);
+        .set_watched::<WindowsWatch>(&vec![frozen(3, "Terminal")]);
     fixture.settle();
     assert!(
         fixture.says("Terminal (not responding)"),
@@ -52,7 +52,7 @@ fn a_window_that_stops_responding_offers_to_wait_or_force_close() {
 
     fixture
         .host
-        .set_host_value::<HostWindows>(&vec![window(3, "Terminal", None)]);
+        .set_watched::<WindowsWatch>(&vec![window(3, "Terminal", None)]);
     fixture.settle();
     assert!(
         !fixture.says("Terminal (not responding)"),
@@ -60,7 +60,7 @@ fn a_window_that_stops_responding_offers_to_wait_or_force_close() {
     );
     fixture
         .host
-        .set_host_value::<HostWindows>(&vec![frozen(3, "Terminal")]);
+        .set_watched::<WindowsWatch>(&vec![frozen(3, "Terminal")]);
     fixture.settle();
     assert!(
         !fixture.test.occluders().is_empty(),

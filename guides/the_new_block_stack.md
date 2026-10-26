@@ -683,8 +683,8 @@ type, its only live edit is `BlobOp::SetHeader` (the image editor records what
 it decoded that way), and an offline merge takes whichever side changed it.
 The payload never travels as an operation, because a session relays operations
 in frames of at most 8 MB. It arrives as a commit instead, which be-store has
-already cut into chunks: a new block's first content comes from `SeedContent`,
-and a new file for an existing block from `ReplaceContent` (below).
+already cut into chunks: a new block's first content comes from `seed-content`,
+and a new file for an existing block from `replace-content` (below).
 
 Test a type's helpers in `crates/be-block/src/tests/`; the model itself is
 tested in `crates/be-model/src/tests/`, and the round trip through a real server
@@ -694,7 +694,10 @@ through one in-process `block_type_guest::Module` (every be-block type is
 registered, and `hold::<C>` registers a type it does not know): one replica per
 block, owned by this device, a store of commits that takes every publish, the test's
 frame clock as the replica's time, and editors attached as endpoints on their first
-`Replica` frame, the way the app's host does. `edit` and `apply_elsewhere` are edits
+frame through a `replica` resource, the way the app's host does. `BeuiTest` plays
+the host's side of the `be3:plugin/blocks` interface over a be-ops connection to the
+headless plugin's executor (`block-ui-test/src/link.rs`), so a test runs the same
+calls and watches the app does. `edit` and `apply_elsewhere` are edits
 submitted by another participant, `set_peers` and `receive_from_peer` are presence and
 channel messages from one; `store()` hands a test fixture the same `ContentStore` to
 read or write between runs.
@@ -758,7 +761,7 @@ undone.
   one that was adopted into it, keeps its own id as its local id. The host
   translates every block id that crosses the plugin protocol for an instance
   whose block is inside a checkout (`Instances::translate`, over
-  `Message::visit_block_ids`), and the peer resolves the references it
+  the `BlockIds` of what crosses, in plugin_host/calls.rs), and the peer resolves the references it
   publishes the same way (`Peer::set_resolver`), so neither content nor editors
   know about checkouts. Resolution looks in the instance's own checkout first
   and falls back to the block with that id, which is how a reference out of the
@@ -769,14 +772,14 @@ undone.
   (`be_vcs::merge` over the trees, then each content type's `Merge::merge3`
   for a block both sides changed, with `before`, `yours` and `incoming` copies
   of a conflicted block left under the checkout), resolving, undoing,
-  forking, pulling and pushing. It pushes a `VersionStatus` for every
-  repository and checkout an editor is showing, recomputed when the mirror
+  forking, pulling and pushing. It answers a `version-watch` with the
+  `version-status` of every repository and checkout an editor is showing, recomputed when the mirror
   changes; it watches the checkout's blocks and holds each followed checkout's
   tree in the mirror (`Query::Subtree` under `Owner::Version`), re-listing it
   before each operation so every head is current.
 - A replica's owner reconciles when someone publishes past it (`HeadChanged`
-  → `HeadEvent::Moved`), which is what lets a checkout replace the content of a
-  block that someone has open; the worker sends `Moved` with `from_this_device`
+  → `head-moved`), which is what lets a checkout replace the content of a
+  block that someone has open; the worker calls `head-moved` with `from-this-device`
   for what it publishes itself.
 
 ## Running it
@@ -821,12 +824,12 @@ repository and the checkout, which the app reads itself and runs in process
 (`be::types::HostTypes`). What a type is called, its icon, color, child edits and
 press come from the manifest that declares it, or for the host's own types from
 `be::host_block_types`: discovery (`editors/plugin/discovery.rs`, `block_type`)
-holds that catalog, so a type is known before its module has said `Hello`, and
+holds that catalog, so a type is known before its module's `start` lists it, and
 refuses a plugin that declares a type someone else already has or edits one
 nobody declares. `be::provided` is whether some module will hold a content type,
 which is what the plugin host checks before following a block's content.
 The registry (`be_types_host::modules`, re-exported by `be/types.rs`, which
-lists the app's module sources) holds each module's `Hello`, with every type's blank
+lists the app's module sources) holds the types each module's `start` lists, with every type's blank
 content and its description asked for once at start, answers `be::kind_of` and
 `be::is_known` (frozen, schema fingerprint, blank, which module). Everything else
 about a type, merging, describing, validating bytes, is a request to its module,
@@ -856,14 +859,14 @@ build id changes; when the app becomes offline-first, those will have to stay.
 `be_types_host::Replicas` (shared with `be`, guides/type_modules.md "Hosts";
 `be/replicas.rs` is the app's `Host`, where reports land in `Shared`) the host
 half of every open block's replica: it opens a replica (joins the session,
-watches the block, sends `Open` with the head and `Moved` for a later one), answers
-its commands with the real primitives (`Read`, `Publish` and `Stash` through
-`Peer::publish_encoded` and `stash_encoded`, `Resume`, the lease, relaying
-sealed with the block key, `WakeAt` from the clock), and keeps what it reports
-(`Status`, `Described`, `History`, `Conflict`) in `Shared`. Natively the module
+watches the block, constructs the `replica` with the head and calls `head-moved` for
+a later one), answers its calls with the real primitives (`read`, `publish` and
+`stash` through `Peer::publish_encoded` and `stash_encoded`, `resume-session`, the
+lease, relaying sealed with the block key, `sleep-until` from the clock), and keeps
+what it reports (`report-status`, `described`, `history`, `conflict`) in `Shared`. Natively the module
 runs on a thread of its own (`PureHost::spawn`), on the web in a web worker
 (`WebGuest`), and in the unit tests in process (`InProcess`); the worker never
-waits on one, since every module command and IO answer is an event in its loop.
+waits on one, since every call a module makes and every IO answer is an event in its loop.
 A module that stops (a panic, or a step past `STEP_TIMEOUT`) is started again,
 and every replica it held is opened again from its last head, with the editors
 attached and the messages relayed since its last seal replayed. `be/native.rs` runs the loop on a thread of its own with a `FileStore` under it,
@@ -896,7 +899,7 @@ that much), and is never `locked`. The app never lists the whole organization.
 `Parents`, `Block`, and the host's own `Subtree`) is how everything in the app
 asks the mirror a question, and `be::graph_revision` says when to ask again.
 Whoever asks first says what it wants with `be::want(owner, queries)`: each
-plugin instance its `WatchBlocks` queries, its own block's `Parents` and the
+plugin instance its `blocks-watch` queries, its own block's `Parents` and the
 blocks whose content it watches (`Owner::Editor`); the worker the parents of
 every open block and of every revision preview's source (`Owner::Open`) and the
 roots (`Owner::Host`, for Settings and My files); version control its
@@ -979,18 +982,29 @@ changes (`Graph::derive`), until the save that publishes it.
 
 ### Content on the plugin protocol
 
+The blocks an editor reads and changes cross the plugin protocol in the
+`be3:plugin/blocks` WIT interface (`crates/block-plugin-api/wit/blocks.wit`),
+every call of which is made under the editor's resource, so the host knows the
+instance from the call's parent and closing the editor ends what it opened.
 An editor is a follower of the block's replica (guides/type_modules.md, "Editors
-are endpoints"), and everything about a block's content crosses the plugin protocol
-in one message, `EditorMessage::Replica { block_id, frame }`, in both directions.
-`frame` is one `block_type_api::encode_frame` of a `block_type_guest::editor::ToEditor`
-(host to plugin) or `FromEditor` (plugin to host) (`ToEditor::frame`, `from_frame`), and
-the host relays it unread between the instance and the block's replica.
+are endpoints"), and everything about a block's content crosses through a
+`replica` resource the editor opens for each block it holds: its own, the first
+time it sends that block a frame, and each block it watches. `replica.frames()` is
+a `stream<list<u8>>` of every frame the host relays to the editor, in order and
+back-pressured by be-ops credits (the host leaves frames with the session while the
+editor's window is full), and `replica.send(frame)` is an `async func` for each frame
+the editor sends, which the host answers once it has taken the frame in; the editor
+keeps no more than a window of frames unanswered and leaves the rest in its
+`EditorHost` until answers come. A frame is one `block_type_api::encode_frame` of a
+`block_type_guest::editor::ToEditor` (host to plugin) or `FromEditor` (plugin to
+host) (`ToEditor::frame`, `from_frame`), and the host relays it unread between the
+instance and the block's replica.
 
 - Plugin to host: `Operate`, `Gesture` (`Begin`, `Commit`, `Cancel`), `ShowPresence`,
   `SendToPeers` and `Resend`. An instance asks for a block's content by sending
   `Resend` when it first follows the block, and the host attaches the instance to the
-  replica on the first frame it sends for a block (its own or one in `WatchContent`),
-  with `editable` from the account's access, which it sends again when that changes.
+  replica on the first frame it sends for a block, with `editable` from the account's
+  access, which it sends again when that changes.
 - Host to plugin: `Snapshot { content_type, bytes, session, unsettled, applied }`, the
   settled content and the operations still unsettled on top of it; `applied` counts the
   operations *this instance* sent that the snapshot already holds, which is what lets a
@@ -999,19 +1013,19 @@ the host relays it unread between the instance and the block's replica.
   it, with how many operations are still unsettled after it (`unsettled`) and, for a
   peer's operation that goes beneath those, the unsettled operations as rebased
   (`beneath`). `Presence` and `PeerMessages` from the other participants.
-- `EditorMessage::WatchContent { blocks }` - plugin to host, the other blocks (and their
-  content types) the editor wants to follow. The host detaches the instance from a
-  block it drops, and from every block when it closes.
-- `SeedContent` and `ReplaceContent` write a block's content outright as host requests,
-  since they may name a block nothing follows; `ReplaceContent` becomes the replica's
+- Opening a `replica` for another block, with its content type, watches it; dropping
+  it lets go, and the host detaches the instance from that block, and from every
+  block when the editor closes. The editor session keeps one per block in
+  `editor.watched_content()` (`block-editor-plugin/src/link.rs`).
+- `seed-content` and `replace-content` write a block's content outright, since they
+  may name a block nothing follows; `replace-content` becomes the replica's
   `Change::Replace`.
 
 `editor.content_of::<C>(block)` is how an editor reads and edits another block:
-it registers the block with `WatchContent` and hands back the same
+it watches the block (a `replica` for it) and hands back the same
 `ContentProjection` an editor gets for its own block, keyed by that block. The
 host keeps a content link per block per instance beside the editor's own, opens
-a block's replica only when an instance first sends it a frame (a frame that
-arrives before its `WatchContent` waits for it), attaches it read-only unless
+a block's replica only when an instance first sends it a frame, attaches it read-only unless
 the account may edit the block, and closes the replica when no instance and
 nothing in the app holds it any more. A revision preview and a block still
 uploading from an import are answered with a `Snapshot` the host makes from the
@@ -1050,9 +1064,11 @@ without depending on the crate itself.
 
 ### The graph on the plugin protocol
 
-A plugin asks about the graph with `EditorMessage::WatchBlocks { queries }`, a
-list of `BlockQuery`s the host answers from its mirror with `Blocks { query,
-blocks }` whenever the answer changes (`plugin_host/graph.rs`). A `BlockInfo`
+A plugin asks about the graph with a `blocks-watch` resource per `BlockQuery`,
+whose `next` the host answers from its mirror with the query's `BlockInfo`s, or why
+it could not list them, whenever the answer changes (`plugin_host/graph.rs`); an
+editor watches a query while anything holds its `BlockList`, and the session drops
+the resource when nothing does. A `BlockInfo`
 carries the block's type, author, parent (`BlockLocation`: `Root`, `Detached` or
 a block), name and whether it was named by hand, references, the account's
 access, the artifact source and whether it is `locked`: the account may view
@@ -1078,24 +1094,25 @@ row is deleted), the shell's reference menus and phone details sheet list it
 last as "In Recently Deleted" and leave it out of the counts and the linked
 bar, pickers never offer it, and a deleted block opened in a tab has a bar
 above it saying so. Anything may ask the host to bring one back with
-`EditorHost::restore_block` (`BlockCommand::Restore`): the host finds the
+`EditorHost::restore_block` (`block-command::restore`): the host finds the
 block at the top of its chain and lists it in its parent again when that parent
 is live, editable and can add a child; a block with no parent goes back where
 the `DELETED_FROM` metadata key says it was deleted from (which `be::set_parent`
 records when it detaches a block, as deleting a top-level block does, and clears
 when it gives it a parent again), and otherwise into My files. It changes the graph with
-`CreateBlock { block_id, content_type, parent, name, artifact, content }`,
-`SetParent` and `SetName`, which the host takes only when the account may edit
-the block and the parent it names, and hands to `be::create`, `be::set_parent`
-and `be::set_name`. On the plugin side these are `editor.watch_blocks(query)` and
+`create-block(block, block-type, parent, defined, content)`, `set-parent` and
+`define`, which the host takes only when the account may edit the block and the
+parent it names, and hands to `be::create`, `be::set_parent` and `be::define`. They
+are sync calls that carry no answer: the plugin chooses a new block's id itself, so
+it can use the block before the host has seen it. On the plugin side these are `editor.watch_blocks(query)` and
 the `Blocks` handle from `editor.blocks()`.
 
 ### Creating, seeding and replacing
 
-A new block's first content travels with it: `CreateBlock` carries the encoded
+A new block's first content travels with it: `create-block` carries the encoded
 content, and the worker creates the block, then writes the content as its first
 commit, before any later command for that block runs. With no content the
-worker writes the type's blank content, which its type module made at `Hello`
+worker writes the type's blank content, which its type module made when it started
 (`Kind::blank`), so a host or plugin that makes a block of a type whose format
 it does not own names only the type's id: `Blocks::create_with(type, None, ..)`
 for the file tree's New workspace, `be::create(.., None)` for My files and a new
@@ -1107,13 +1124,13 @@ id. Creating a database makes two blocks this way:
 field and a database pointing at it, and makes the schema a child of the
 database, so the graph is right before any editor opens it.
 
-`editor.seed_content(block, &content)` sends `EditorMessage::SeedContent` for a
+`editor.seed_content(block, &content)` calls `seed-content` for a
 block that already exists; the peer writes it as the block's first commit, and
 ignores it for a block that already has content or is open, so it cannot
 overwrite anything.
 
 Replacing a block's whole content is `editor.replace_content(block, &content)`,
-which sends `EditorMessage::ReplaceContent`; the host takes it only for a block
+which calls `replace-content`; the host takes it only for a block
 the account may edit. The worker hands it to the open replica as
 `Change::Replace`, or publishes it straight to the server when nothing has the
 block open. The replica publishes the new content as a commit based on the head it
@@ -1131,7 +1148,7 @@ file type from the file the user picks.
 
 A block file (`be_client::transfer`, the file `be download` writes) carries a
 block and everything under it. A plugin asks the host for one with
-`HostRequest::ExportBlock`, answered like `SaveFile`: the worker lists the tree
+host-services' `export-block`, answered like `save-file`: the worker lists the tree
 a level at a time (starting from the view when asked for a database inside
 one), all of a level's `ListChildren` together, and fills in each block's
 bytes, from its open session or else its head, so it works for content types
@@ -1141,10 +1158,10 @@ the app does not know.
 commit and chunks (those that fit in half a frame, and none for a head the
 client says it already holds), and anything left out is fetched afterwards, so
 a tree costs one round trip, not three per block.
-`HostRequest::ImportBlocks(parent)` has the host pick a file and `be::import`
+host-services' `import-blocks(parent)` has the host pick a file and `be::import`
 it: every block gets a new id, old ids in the content bytes and references are
 swapped for the new ones, and each block is created and given its bytes as its first commit. The
-reply, `BlocksImported`, names the outermost block. The tree is in the mirror
+answer names the outermost block. The tree is in the mirror
 at once and uploads in the background, as a task beside the worker's loop
 (`worker/uploads.rs`), so commands for other blocks are not held up.
 `Peer::import_blocks` mints every block's keys and writes its commit locally,
@@ -1172,7 +1189,7 @@ content type no module has.
 
 Duplicating a block is `be::duplicate`: it adds the copy to the mirror with the
 source's type, references and metadata (without its artifact source), and the
-worker copies what the source's replica shows (`Request::Content`), or its head
+worker copies what the source's replica shows (its `content`), or its head
 when it is not open, into the copy's id before anything opens the copy.
 
 The app can read a block itself, not only through an editor:
@@ -1242,9 +1259,9 @@ per register however many frames wrote it), and a cancel reverts the step and le
 nothing in the history. The replica publishes only once its edits have rested
 for the seal interval, so a gesture written every frame costs one publish, not
 one per frame.
-Plugins reach it with `BlockCommand::Undo` and `BlockCommand::Redo`, and watch
-whether either is possible with `EditorMessage::WatchHistory`, which the host
-answers with `HistoryStates` whenever they change. block-ui-test's replica keeps the same
+Plugins reach it with `act(block, block-command::undo)` and `redo`, and watch
+whether either is possible with a `history-watch` per block, whose `next` the host
+answers with the `block-history` whenever it changes. block-ui-test's replica keeps the same
 history (with the 750 ms bursts on the test's frame clock) for a block a test calls
 `ContentStore::keep_history::<C>` on, and none otherwise.
 
@@ -1466,7 +1483,7 @@ and waits, `stop()` does the same and then joins the worker, and the close
 handler and every organization change go through one of them, because a session
 that is merely dropped loses everything since the last autosave
 (`status().unsealed` is what says whether anything is outstanding). The host
-refuses an `Operate`, a `ReplaceContent` and a graph command for a block the
+refuses an `Operate`, a `replace-content` and a graph command for a block the
 account may only read: the plugin holds its own edits behind `editable()`, but
 the host does not trust it to, so `Instances::editable` asks the mirror's
 access. And nothing in the worker runs on a timer. It waits on its command
@@ -1708,7 +1725,7 @@ public key it verified this way, never to one the server hands it.
   finishes) and seals a share only to those keys. The share dialog lists
   contacts and current grantees, lists them again when the `Contacts` host
   value changes and after each grant it makes, and its "Invite someone new"
-  makes a link carrying a pending grant of the block (`HostRequest::ContactLink`). Invite
+  makes a link carrying a pending grant of the block (host-services' `make-contact-link`). Invite
   member and Agents show only in a company organization, and Members (list,
   change a role, remove, invite) only to its administrators.
 
@@ -1758,7 +1775,7 @@ participant what it is showing, so a late joiner sees everyone at once; when a
 participant leaves, what it showed is dropped.
 
 A replica sends each editor attached to it the block's peers as
-`ToEditor::Presence` in a `Replica` frame when they change. A plugin shows presence with
+`ToEditor::Presence` in a replica frame when they change. A plugin shows presence with
 `FromEditor::ShowPresence`, which the replica sends to the other participants.
 `editor.peers` and `editor.on_peer_message` send `Resend` once, so an editor that
 never reads its content is still attached and hears its peers. On the

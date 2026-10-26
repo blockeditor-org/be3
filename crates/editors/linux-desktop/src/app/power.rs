@@ -7,7 +7,8 @@ use block_editor_beui::beui::icons::{
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
 use block_editor_beui::beui::unstyled::MenuItem;
-use block_editor_beui::{Editor, Power, PowerAction, PowerAvailability};
+use block_editor_beui::linux_desktop;
+use block_editor_beui::{Editor, PowerAction, PowerAvailability, PowerWatch};
 
 const DIALOG_SPACING: f32 = 16.0;
 
@@ -70,7 +71,7 @@ fn PowerItem(action: PowerAction, available: Memo<PowerAvailability>) -> MenuIte
 
 #[component]
 pub(crate) fn PowerMenu(editor: Editor) -> NodeId {
-    let available = editor.host_value::<Power>();
+    let available = editor.watch::<PowerWatch>();
     let confirming = create_signal(PowerAction::LogOut);
     let open = create_signal(false);
     let chose = move |path: Vec<usize>| {
@@ -84,7 +85,9 @@ pub(crate) fn PowerMenu(editor: Editor) -> NodeId {
             return;
         }
         match action {
-            PowerAction::Lock | PowerAction::Suspend => editor.act(action),
+            PowerAction::Lock | PowerAction::Suspend => {
+                editor.act(move || linux_desktop::power::request(action))
+            }
             _ => {
                 confirming.set(action);
                 open.set(true);
@@ -97,7 +100,7 @@ pub(crate) fn PowerMenu(editor: Editor) -> NodeId {
     let dismiss = move || open.set(false);
     let confirm = move || {
         open.set(false);
-        editor.act(confirming.get_untracked());
+        editor.act(move || linux_desktop::power::request(confirming.get_untracked()));
     };
     view! {
         <List spacing=0.0>

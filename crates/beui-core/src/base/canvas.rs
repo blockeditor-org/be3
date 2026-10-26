@@ -484,7 +484,11 @@ impl Element for CanvasNode {
             self.shift,
             Rect::EVERYTHING,
         );
-        let scaled = painter.zoomed(SpaceId::inside(host, SCALED), self.shift, self.zoom, rect);
+        let zoom = Zoom {
+            raster: self.zoom().raster,
+            ..self.zoom
+        };
+        let scaled = painter.zoomed(SpaceId::inside(host, SCALED), self.shift, zoom, rect);
         for (item, slot) in &self.laid {
             if rects.contains_key(item) {
                 let painter = match *slot {
@@ -667,7 +671,7 @@ impl Document {
 
     pub fn set_canvas_raster(&mut self, canvas: NodeOf<CanvasNode>, raster: Option<f32>) {
         if self.arena.get_as::<CanvasNode>(canvas).raster != raster {
-            self.arena.get_mut_as::<CanvasNode>(canvas).raster = raster;
+            self.arena.paint_mut_as(canvas).raster = raster;
         }
     }
 

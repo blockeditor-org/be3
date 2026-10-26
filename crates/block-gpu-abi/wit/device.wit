@@ -1,0 +1,525 @@
+package be3:gpu@0.1.0;
+
+/// A subset of WebGPU, shaped after wasi:webgpu (the wasi-gfx proposal), for
+/// the one device and queue a plugin is given, plus the surfaces its host
+/// shows. Usages, shader stages and color writes are WebGPU's bit values.
+///
+/// A create that fails answers `none`; the reason is kept for `take-error`,
+/// as is the first error any other call met.
+interface device {
+    use be3:shared/ids@0.1.0.{image-id, surface-id};
+
+    enum texture-format {
+        r8-unorm, r8-snorm, r8-uint, r8-sint,
+        r16-uint, r16-sint, r16-float,
+        rg8-unorm, rg8-snorm, rg8-uint, rg8-sint,
+        r32-uint, r32-sint, r32-float,
+        rg16-uint, rg16-sint, rg16-float,
+        rgba8-unorm, rgba8-unorm-srgb, rgba8-snorm, rgba8-uint, rgba8-sint,
+        bgra8-unorm, bgra8-unorm-srgb,
+        rgb9e5-ufloat, rgb10a2-uint, rgb10a2-unorm, rg11b10-ufloat,
+        rg32-uint, rg32-sint, rg32-float,
+        rgba16-uint, rgba16-sint, rgba16-float,
+        rgba32-uint, rgba32-sint, rgba32-float,
+        stencil8, depth16-unorm, depth24-plus, depth24-plus-stencil8, depth32-float,
+        depth32-float-stencil8,
+    }
+
+    enum texture-dimension { d1, d2, d3 }
+
+    enum texture-view-dimension { d1, d2, d2-array, cube, cube-array, d3 }
+
+    enum texture-aspect { all, stencil-only, depth-only }
+
+    enum address-mode { clamp-to-edge, repeat, mirror-repeat, clamp-to-border }
+
+    enum filter-mode { nearest, linear }
+
+    enum compare-function {
+        never, less, equal, less-equal, greater, not-equal, greater-equal, always,
+    }
+
+    enum sampler-border-color { transparent-black, opaque-black, opaque-white, zero }
+
+    enum vertex-format {
+        uint8x2, uint8x4, sint8x2, sint8x4,
+        unorm8x2, unorm8x4, snorm8x2, snorm8x4,
+        uint16x2, uint16x4, sint16x2, sint16x4,
+        unorm16x2, unorm16x4, snorm16x2, snorm16x4,
+        float16x2, float16x4,
+        float32, float32x2, float32x3, float32x4,
+        uint32, uint32x2, uint32x3, uint32x4,
+        sint32, sint32x2, sint32x3, sint32x4,
+    }
+
+    enum vertex-step-mode { vertex, instance }
+
+    enum primitive-topology { point-list, line-list, line-strip, triangle-list, triangle-strip }
+
+    enum index-format { uint16, uint32 }
+
+    enum front-face { ccw, cw }
+
+    enum face { front, back }
+
+    enum polygon-mode { fill, line, point }
+
+    enum blend-factor {
+        zero, one, src, one-minus-src, src-alpha, one-minus-src-alpha,
+        dst, one-minus-dst, dst-alpha, one-minus-dst-alpha,
+        src-alpha-saturated, constant, one-minus-constant,
+    }
+
+    enum blend-operation { add, subtract, reverse-subtract, min, max }
+
+    enum stencil-operation {
+        keep, zero, replace, invert, increment-clamp, decrement-clamp, increment-wrap,
+        decrement-wrap,
+    }
+
+    enum buffer-binding-type { uniform, storage, read-only-storage }
+
+    enum sampler-binding-type { filtering, non-filtering, comparison }
+
+    enum texture-sample-type { float-filterable, float-unfilterable, depth, sint, uint }
+
+    enum storage-texture-access { write-only, read-only, read-write }
+
+    enum store-op { store, discard }
+
+    record extent3d {
+        width: u32,
+        height: u32,
+        depth-or-array-layers: u32,
+    }
+
+    record origin3d {
+        x: u32,
+        y: u32,
+        z: u32,
+    }
+
+    record color {
+        r: f64,
+        g: f64,
+        b: f64,
+        a: f64,
+    }
+
+    record supported-limits {
+        max-texture-dimension1d: u32,
+        max-texture-dimension2d: u32,
+        max-texture-dimension3d: u32,
+        max-texture-array-layers: u32,
+        max-bind-groups: u32,
+        max-bindings-per-bind-group: u32,
+        max-sampled-textures-per-shader-stage: u32,
+        max-samplers-per-shader-stage: u32,
+        max-uniform-buffers-per-shader-stage: u32,
+        max-uniform-buffer-binding-size: u64,
+        max-storage-buffer-binding-size: u64,
+        max-vertex-buffers: u32,
+        max-buffer-size: u64,
+        max-vertex-attributes: u32,
+        max-vertex-buffer-array-stride: u32,
+        min-uniform-buffer-offset-alignment: u32,
+        min-storage-buffer-offset-alignment: u32,
+    }
+
+    resource buffer {
+        /// Writes into the range mapped at creation.
+        write-mapped: func(offset: u64, data: list<u8>);
+        unmap: func();
+    }
+
+    record buffer-descriptor {
+        label: option<string>,
+        size: u64,
+        usage: u32,
+        mapped-at-creation: bool,
+    }
+
+    resource texture {
+        create-view: func(descriptor: texture-view-descriptor) -> option<texture-view>;
+        describe: func() -> option<texture-info>;
+    }
+
+    record texture-descriptor {
+        label: option<string>,
+        size: extent3d,
+        mip-level-count: u32,
+        sample-count: u32,
+        dimension: texture-dimension,
+        format: texture-format,
+        usage: u32,
+        view-formats: list<texture-format>,
+    }
+
+    record texture-info {
+        size: extent3d,
+        mip-level-count: u32,
+        sample-count: u32,
+        dimension: texture-dimension,
+        format: texture-format,
+        usage: u32,
+    }
+
+    resource texture-view;
+
+    record texture-view-descriptor {
+        label: option<string>,
+        format: option<texture-format>,
+        dimension: option<texture-view-dimension>,
+        aspect: texture-aspect,
+        base-mip-level: u32,
+        mip-level-count: option<u32>,
+        base-array-layer: u32,
+        array-layer-count: option<u32>,
+    }
+
+    resource sampler;
+
+    record sampler-descriptor {
+        label: option<string>,
+        address-mode-u: address-mode,
+        address-mode-v: address-mode,
+        address-mode-w: address-mode,
+        mag-filter: filter-mode,
+        min-filter: filter-mode,
+        mipmap-filter: filter-mode,
+        lod-min-clamp: f32,
+        lod-max-clamp: f32,
+        compare: option<compare-function>,
+        anisotropy-clamp: u16,
+        border-color: option<sampler-border-color>,
+    }
+
+    resource bind-group-layout;
+
+    record buffer-binding-layout {
+        kind: buffer-binding-type,
+        has-dynamic-offset: bool,
+        min-binding-size: option<u64>,
+    }
+
+    record texture-binding-layout {
+        sample-type: texture-sample-type,
+        view-dimension: texture-view-dimension,
+        multisampled: bool,
+    }
+
+    record storage-texture-binding-layout {
+        access: storage-texture-access,
+        format: texture-format,
+        view-dimension: texture-view-dimension,
+    }
+
+    variant binding-type {
+        buffer(buffer-binding-layout),
+        sampler(sampler-binding-type),
+        texture(texture-binding-layout),
+        storage-texture(storage-texture-binding-layout),
+    }
+
+    record bind-group-layout-entry {
+        binding: u32,
+        visibility: u32,
+        %type: binding-type,
+        count: option<u32>,
+    }
+
+    record bind-group-layout-descriptor {
+        label: option<string>,
+        entries: list<bind-group-layout-entry>,
+    }
+
+    resource bind-group;
+
+    record buffer-binding {
+        buffer: borrow<buffer>,
+        offset: u64,
+        size: option<u64>,
+    }
+
+    variant binding-resource {
+        buffer(buffer-binding),
+        sampler(borrow<sampler>),
+        texture-view(borrow<texture-view>),
+    }
+
+    record bind-group-entry {
+        binding: u32,
+        %resource: binding-resource,
+    }
+
+    record bind-group-descriptor {
+        label: option<string>,
+        layout: borrow<bind-group-layout>,
+        entries: list<bind-group-entry>,
+    }
+
+    resource pipeline-layout;
+
+    record pipeline-layout-descriptor {
+        label: option<string>,
+        bind-group-layouts: list<option<borrow<bind-group-layout>>>,
+    }
+
+    resource shader-module;
+
+    record shader-module-descriptor {
+        label: option<string>,
+        wgsl: string,
+    }
+
+    resource render-pipeline;
+
+    record vertex-attribute {
+        format: vertex-format,
+        offset: u64,
+        shader-location: u32,
+    }
+
+    record vertex-buffer-layout {
+        array-stride: u64,
+        step-mode: vertex-step-mode,
+        attributes: list<vertex-attribute>,
+    }
+
+    record vertex-state {
+        module: borrow<shader-module>,
+        entry-point: option<string>,
+        buffers: list<vertex-buffer-layout>,
+    }
+
+    record blend-component {
+        src-factor: blend-factor,
+        dst-factor: blend-factor,
+        operation: blend-operation,
+    }
+
+    record blend-state {
+        color: blend-component,
+        alpha: blend-component,
+    }
+
+    record color-target-state {
+        format: texture-format,
+        blend: option<blend-state>,
+        write-mask: u32,
+    }
+
+    record fragment-state {
+        module: borrow<shader-module>,
+        entry-point: option<string>,
+        targets: list<option<color-target-state>>,
+    }
+
+    record primitive-state {
+        topology: primitive-topology,
+        strip-index-format: option<index-format>,
+        front-face: front-face,
+        cull-mode: option<face>,
+        unclipped-depth: bool,
+        polygon-mode: polygon-mode,
+        conservative: bool,
+    }
+
+    record stencil-face-state {
+        compare: compare-function,
+        fail-op: stencil-operation,
+        depth-fail-op: stencil-operation,
+        pass-op: stencil-operation,
+    }
+
+    record stencil-state {
+        front: stencil-face-state,
+        back: stencil-face-state,
+        read-mask: u32,
+        write-mask: u32,
+    }
+
+    record depth-bias-state {
+        constant: s32,
+        slope-scale: f32,
+        clamp: f32,
+    }
+
+    record depth-stencil-state {
+        format: texture-format,
+        depth-write-enabled: bool,
+        depth-compare: option<compare-function>,
+        stencil: stencil-state,
+        bias: depth-bias-state,
+    }
+
+    record multisample-state {
+        count: u32,
+        mask: u64,
+        alpha-to-coverage-enabled: bool,
+    }
+
+    record render-pipeline-descriptor {
+        label: option<string>,
+        layout: option<borrow<pipeline-layout>>,
+        vertex: vertex-state,
+        primitive: primitive-state,
+        depth-stencil: option<depth-stencil-state>,
+        multisample: multisample-state,
+        fragment: option<fragment-state>,
+    }
+
+    resource command-encoder {
+        begin-render-pass: func(descriptor: render-pass-descriptor) -> option<render-pass>;
+        copy-texture-to-texture: func(
+            source: texel-copy-texture-info,
+            destination: texel-copy-texture-info,
+            size: extent3d,
+        );
+        /// Ends the encoder: anything it is asked after this is an error.
+        finish: func() -> option<command-buffer>;
+    }
+
+    record command-encoder-descriptor {
+        label: option<string>,
+    }
+
+    resource command-buffer;
+
+    variant color-load-op {
+        clear(color),
+        load,
+    }
+
+    variant depth-load-op {
+        clear(f32),
+        load,
+    }
+
+    variant stencil-load-op {
+        clear(u32),
+        load,
+    }
+
+    record color-attachment {
+        view: borrow<texture-view>,
+        resolve-target: option<borrow<texture-view>>,
+        load: color-load-op,
+        store: store-op,
+        depth-slice: option<u32>,
+    }
+
+    record depth-stencil-attachment {
+        view: borrow<texture-view>,
+        depth-load: option<depth-load-op>,
+        depth-store: store-op,
+        depth-read-only: bool,
+        stencil-load: option<stencil-load-op>,
+        stencil-store: store-op,
+        stencil-read-only: bool,
+    }
+
+    record render-pass-descriptor {
+        label: option<string>,
+        color-attachments: list<option<color-attachment>>,
+        depth-stencil-attachment: option<depth-stencil-attachment>,
+    }
+
+    /// The calls made per draw: each takes its arguments as wasm values.
+    resource render-pass {
+        set-pipeline: func(pipeline: borrow<render-pipeline>);
+        set-bind-group: func(
+            index: u32,
+            bind-group: option<borrow<bind-group>>,
+            dynamic-offsets: list<u32>,
+        );
+        set-index-buffer: func(
+            buffer: borrow<buffer>,
+            format: index-format,
+            offset: u64,
+            size: option<u64>,
+        );
+        set-vertex-buffer: func(slot: u32, buffer: borrow<buffer>, offset: u64, size: option<u64>);
+        set-viewport: func(x: f32, y: f32, width: f32, height: f32, min-depth: f32, max-depth: f32);
+        set-scissor-rect: func(x: u32, y: u32, width: u32, height: u32);
+        set-blend-constant: func(color: color);
+        set-stencil-reference: func(reference: u32);
+        draw: func(vertex-count: u32, instance-count: u32, first-vertex: u32, first-instance: u32);
+        draw-indexed: func(
+            index-count: u32,
+            instance-count: u32,
+            first-index: u32,
+            base-vertex: s32,
+            first-instance: u32,
+        );
+        /// Records the pass into its encoder.
+        end: func();
+    }
+
+    record texel-copy-texture-info {
+        texture: borrow<texture>,
+        mip-level: u32,
+        origin: origin3d,
+        aspect: texture-aspect,
+    }
+
+    record texel-copy-buffer-layout {
+        offset: u64,
+        bytes-per-row: option<u32>,
+        rows-per-image: option<u32>,
+    }
+
+    record surface-configuration {
+        width: u32,
+        height: u32,
+        format: texture-format,
+    }
+
+    /// One place the host shows the plugin, named by the id the host gave it.
+    /// Dropping it lets the host forget it.
+    resource surface {
+        constructor(id: surface-id);
+        /// Gives the surface two textures of this size, unless it has them.
+        configure: func(configuration: surface-configuration);
+        /// The texture to draw the next frame into.
+        acquire: func() -> option<texture>;
+        /// How many presents ago the acquired texture was last drawn: 0 when
+        /// it never was, and has to be drawn whole.
+        age: func() -> u32;
+        present: func();
+    }
+
+    limits: func() -> supported-limits;
+
+    create-buffer: func(descriptor: buffer-descriptor) -> option<buffer>;
+    create-texture: func(descriptor: texture-descriptor) -> option<texture>;
+    create-sampler: func(descriptor: sampler-descriptor) -> option<sampler>;
+    create-bind-group-layout: func(
+        descriptor: bind-group-layout-descriptor,
+    ) -> option<bind-group-layout>;
+    create-bind-group: func(descriptor: bind-group-descriptor) -> option<bind-group>;
+    create-pipeline-layout: func(descriptor: pipeline-layout-descriptor) -> option<pipeline-layout>;
+    create-shader-module: func(descriptor: shader-module-descriptor) -> option<shader-module>;
+    create-render-pipeline: func(
+        descriptor: render-pipeline-descriptor,
+    ) -> option<render-pipeline>;
+    create-command-encoder: func(
+        descriptor: command-encoder-descriptor,
+    ) -> option<command-encoder>;
+
+    write-buffer: func(buffer: borrow<buffer>, offset: u64, data: list<u8>);
+    write-texture: func(
+        destination: texel-copy-texture-info,
+        data: list<u8>,
+        layout: texel-copy-buffer-layout,
+        size: extent3d,
+    );
+    submit: func(command-buffers: list<command-buffer>);
+
+    /// A texture the host shares with every plugin under an image id, such as
+    /// a preview another plugin painted; none when no such image is shared.
+    import-texture: func(image: image-id) -> option<texture>;
+
+    /// The first error since the last time it was taken.
+    take-error: func() -> option<string>;
+}

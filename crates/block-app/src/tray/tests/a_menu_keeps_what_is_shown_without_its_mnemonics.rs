@@ -53,33 +53,31 @@ fn a_menu_keeps_what_is_shown_without_its_mnemonics() {
         children.iter(),
         0,
     );
-    let entry = |id: i32, label: &str| TrayMenuEntry {
+    let entry = |id: i32, label: &str| TrayMenuItem {
         id,
         label: label.to_owned(),
         enabled: true,
-        ..TrayMenuEntry::default()
+        ..TrayMenuItem::default()
     };
     assert_eq!(
         menu(&root),
         vec![
             entry(1, "Open Chat"),
-            TrayMenuEntry {
+            TrayMenuItem {
                 separator: true,
                 ..entry(3, "")
             },
-            TrayMenuEntry {
-                children: vec![
-                    TrayMenuEntry {
-                        toggle: TrayToggle::Radio(true),
-                        ..entry(5, "Away")
-                    },
-                    TrayMenuEntry {
-                        toggle: TrayToggle::Check(false),
-                        enabled: false,
-                        ..entry(6, "Do not disturb")
-                    },
-                ],
-                ..entry(4, "Status")
+            entry(4, "Status"),
+            TrayMenuItem {
+                depth: 1,
+                toggle: TrayToggle::Radio(true),
+                ..entry(5, "Away")
+            },
+            TrayMenuItem {
+                depth: 1,
+                toggle: TrayToggle::Check(false),
+                enabled: false,
+                ..entry(6, "Do not disturb")
             },
             entry(7, "Save_as"),
         ]

@@ -11,7 +11,7 @@ fn windows(fixture: &mut Fixture, focused: u64) {
     };
     fixture
         .test
-        .set_host_value::<HostWindows>(&vec![calculator, host_window(2, focused == 2)]);
+        .set_watched::<WindowsWatch>(&vec![calculator, host_window(2, focused == 2)]);
     fixture.settle();
 }
 
@@ -58,7 +58,7 @@ fn alt_tab_or_a_click_brings_a_fullscreen_window_back_in_front() {
         Some(HostWindowId(2)),
         "the focused terminal comes in front of it"
     );
-    fixture.test.take_sent();
+    fixture.test.clear_calls();
 
     assert!(fixture.test.app_key(Modifiers::ALT, Key::Tab));
     fixture.settle();
@@ -73,7 +73,7 @@ fn alt_tab_or_a_click_brings_a_fullscreen_window_back_in_front() {
     );
 
     windows(&mut fixture, 2);
-    fixture.test.take_sent();
+    fixture.test.clear_calls();
     fixture
         .test
         .click(pos2(SCREEN.width() - 10.0, SCREEN.height() - 10.0));

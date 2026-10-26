@@ -5,7 +5,7 @@ mod server;
 use std::sync::mpsc::Receiver;
 use std::sync::{Arc, Mutex};
 
-use block_plugin_api::{NotificationReport, NotificationRequest, NotificationSignal};
+use block_plugin_api::{NotificationRequest, NotificationSignal};
 use tokio::sync::mpsc::{UnboundedSender, unbounded_channel};
 
 use inbox::{Ids, Inbox};
@@ -32,13 +32,16 @@ impl Notifications {
     }
 
     pub(crate) fn frame(&mut self) {
-        let reports = crate::plugin_host::take_actions::<NotificationReport>();
+        let reports =
+            crate::plugin_host::take_calls(block_plugin_api::requested::notification_report);
         let (changed, signals) = self.inbox.frame(&self.requests, reports);
         for signal in signals {
             let _ = self.signals.send(signal);
         }
         if changed || !std::mem::replace(&mut self.offered, true) {
-            crate::plugin_host::publish::<block_plugin_api::Notifications>(&self.inbox.published());
+            crate::plugin_host::publish::<block_plugin_api::NotificationsWatch>(
+                &self.inbox.published(),
+            );
         }
     }
 }

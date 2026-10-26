@@ -16,6 +16,10 @@ let exports = null;
 let inbox = [];
 let outbox = [];
 let woken = false;
+let direct = [];
+const MARK = [0xff, 0xff, 0xff, 0xff];
+const CALL = 1;
+const RETURNED = 2;
 
 function fail(error) {
     exports = null;
@@ -55,13 +59,66 @@ const host = {
     },
 };
 
+function marked(item) {
+    return item.length >= 5 && MARK.every((byte, index) => item[index] === byte);
+}
+
+function callItem(name, hasParent, parent, args) {
+    const encoded = new TextEncoder().encode(name);
+    const item = new Uint8Array(4 + 1 + 9 + 2 + encoded.length + args.length);
+    const view = new DataView(item.buffer);
+    item.set(MARK, 0);
+    item[4] = CALL;
+    item[5] = hasParent ? 1 : 0;
+    view.setBigUint64(6, BigInt.asUintN(64, BigInt(parent)));
+    view.setUint16(14, encoded.length);
+    item.set(encoded, 16);
+    item.set(args, 16 + encoded.length);
+    return item;
+}
+
+function forward(name) {
+    return (hasParent, parent, pointer, length) => {
+        const args = memory().slice(pointer, pointer + length);
+        outbox.push(callItem(name, hasParent !== 0, parent, args).buffer);
+    };
+}
+
+function callExport(item) {
+    const view = new DataView(item.buffer, item.byteOffset, item.byteLength);
+    const hasParent = item[5] & 1;
+    const answered = (item[5] & 2) !== 0;
+    const parent = BigInt.asIntN(64, view.getBigUint64(6));
+    const length = view.getUint16(14);
+    const name = new TextDecoder().decode(item.subarray(16, 16 + length));
+    const args = item.subarray(16 + length);
+    const exported = exports[name];
+    if (typeof exported !== "function") throw new Error(`the guest does not export ${name}`);
+    const pointer = exports.plugin_alloc(args.length);
+    memory().set(args, pointer);
+    const packed = BigInt.asUintN(64, exported(hasParent, parent, pointer, args.length));
+    if (!answered) return;
+    const at = Number(packed >> 32n);
+    const size = Number(packed & 0xffffffffn);
+    const answer = new Uint8Array(5 + size);
+    answer.set(MARK, 0);
+    answer[4] = RETURNED;
+    answer.set(memory().subarray(at, at + size), 5);
+    outbox.push(answer.buffer);
+}
+
 function imports(module) {
     const resolved = { __proto__: null };
     for (const wanted of WebAssembly.Module.imports(module)) {
-        if (wanted.module !== "be3_host" || !Object.hasOwn(host, wanted.name)) {
+        let answer;
+        if (wanted.module === "be3_host" && Object.hasOwn(host, wanted.name)) {
+            answer = host[wanted.name];
+        } else if (direct.some(([module, name]) => module === wanted.module && name === wanted.name)) {
+            answer = forward(`${wanted.module}#${wanted.name}`);
+        } else {
             throw new Error(`the guest imports ${wanted.module}.${wanted.name}, which its host does not answer`);
         }
-        (resolved[wanted.module] ??= { __proto__: null })[wanted.name] = host[wanted.name];
+        (resolved[wanted.module] ??= { __proto__: null })[wanted.name] = answer;
     }
     return resolved;
 }
@@ -70,6 +127,7 @@ self.onmessage = async (event) => {
     const data = event.data;
     try {
         if (data.kind === "start") {
+            direct = data.imports;
             const response = await fetch(data.url);
             if (!response.ok) throw new Error(`${data.url} could not be fetched: ${response.status}`);
             const module = await WebAssembly.compile(await response.arrayBuffer());
@@ -80,8 +138,16 @@ self.onmessage = async (event) => {
             report("ready", 0);
         } else if (data.kind === "step") {
             if (exports === null) return;
-            for (const frame of data.frames) inbox.push(new Uint8Array(frame));
             const started = performance.now();
+            for (const frame of data.frames) {
+                const item = new Uint8Array(frame);
+                if (marked(item) && item[4] === CALL) {
+                    if (inbox.length > 0) exports.plugin_step();
+                    callExport(item);
+                } else {
+                    inbox.push(item);
+                }
+            }
             exports.plugin_step();
             report("stepped", performance.now() - started);
         } else if (data.kind === "shutdown") {
@@ -107,13 +173,23 @@ pub struct WebGuest {
 }
 
 impl WebGuest {
-    pub fn start(url: &str, wake: Wake, waiting: Arc<AtomicBool>) -> Result<Self, String> {
+    pub fn start(
+        url: &str,
+        imports: &[(&str, &str)],
+        wake: Wake,
+        waiting: Arc<AtomicBool>,
+    ) -> Result<Self, String> {
         let worker = spawn()?;
         let inbox = Rc::new(RefCell::new(Inbox::default()));
         let onmessage = listen(&worker, Rc::clone(&inbox), wake, waiting);
         let message = js_sys::Object::new();
         set(&message, "kind", &"start".into());
         set(&message, "url", &absolute(url).into());
+        let direct = js_sys::Array::new();
+        for (module, name) in imports {
+            direct.push(&js_sys::Array::of2(&(*module).into(), &(*name).into()));
+        }
+        set(&message, "imports", &direct);
         worker
             .post_message(&message)
             .map_err(|_| "the guest's worker could not be started".to_owned())?;

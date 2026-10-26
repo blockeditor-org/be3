@@ -9,8 +9,7 @@ pub const SMALLEST: Vec2 = vec2(120.0, 80.0);
 pub struct Resize {
     pub window: WindowId,
     pub edge: WindowEdge,
-    pose: Pose,
-    size: Vec2,
+    panel: Panel,
     grab: Pos2,
 }
 
@@ -19,24 +18,20 @@ impl Resize {
         Self {
             window: panel.window,
             edge,
-            pose: panel.pose,
-            size: panel.size,
+            panel: *panel,
             grab,
         }
     }
 
     pub fn original(&self) -> Panel {
-        Panel {
-            window: self.window,
-            pose: self.pose,
-            size: self.size,
-        }
+        self.panel
     }
 
     pub fn to(&self, pos: Pos2) -> (Pose, Vec2) {
         let delta = pos - self.grab;
         let (left, right, top, bottom) = sides(self.edge);
-        let mut size = self.size;
+        let was = self.panel.size;
+        let mut size = was;
         if right {
             size.x += delta.x;
         }
@@ -53,16 +48,19 @@ impl Resize {
             size.x.max(SMALLEST.x).round(),
             size.y.max(SMALLEST.y).round(),
         );
-        let corner = pos2(
-            if left { self.size.x - size.x } else { 0.0 },
-            if top { self.size.y - size.y } else { 0.0 },
-        );
-        let centre = corner + size / 2.0;
-        let pose = Pose {
-            position: self.original().world(centre),
-            rotation: self.pose.rotation,
+        let kept = |size: Vec2| {
+            pos2(
+                match (left, right) {
+                    (true, _) => size.x,
+                    (false, true) => 0.0,
+                    (false, false) => size.x / 2.0,
+                },
+                if top { size.y } else { 0.0 },
+            )
         };
-        (pose, size)
+        let mut panel = Panel { size, ..self.panel };
+        panel.anchor(kept(size), self.panel.frame_at(kept(was)));
+        (panel.pose, size)
     }
 }
 

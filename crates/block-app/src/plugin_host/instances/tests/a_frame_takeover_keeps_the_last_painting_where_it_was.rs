@@ -17,7 +17,7 @@ fn resize(instances: &mut Instances, rect: Rect) {
         REGION,
         Uuid::nil(),
         role,
-        &Arc::new(block_plugin_api::Catalog::default()),
+        &Arc::new(crate::editors::PluginCatalog::default()),
         Some(block_plugin_api::FrameSpec::default()),
         rect.size(),
         Rect::from_min_size(Pos2::ZERO, rect.size()),
