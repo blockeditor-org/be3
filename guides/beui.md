@@ -1657,6 +1657,11 @@ Each layer has one `policy` (`LayerPolicy`):
   document underneath goes on answering the pointer and the keyboard as if it
   were not there.
 
+An overlay that is not a window of its own is shown in the window it was
+opened in, unless `shown_in` names another of the document's windows where
+windows open: it is then laid out in that window's viewport, painted in it and
+counts as in it (`Document::window_of`).
+
 `traps_focus` (on unless a caller turns it off) keeps Tab inside the layer and
 makes it a boundary for keys (see the keyboard guide): a menu, a dialog and a
 popover trap; a window does not. A layer that blocks everything but traps
@@ -2365,7 +2370,10 @@ press reaches the innermost one and not the one around it, the way
 
 While a drag is under way the `preview` is shown beside the pointer in an
 inert overlay at `LayerLevel::Top`, so it paints above every window and takes
-no input. The pointer
+no input. Where windows open (`Context::opens_windows`), it is shown in the
+window the pointer is over (the overlay's `shown_in`, the board's `DragPoint::window`),
+so a drag carried from one window into another, a tab between space's panels
+say, shows its preview under the pointer there. The pointer
 it follows is the one the document saw, not the one the draggable's own
 catcher saw: the board is fed the pointer at the start of every frame, even
 where a floating overlay covers the source, so a drag carried over a floating

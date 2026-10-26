@@ -81,6 +81,17 @@ impl Document {
                 && matches!(spec.placement, super::WindowPlacement::Host(_)))
     }
 
+    pub(crate) fn shows_in(&self, window: WindowId) -> bool {
+        self.opens_windows() && (window.is_main() || self.window_node(window).is_some())
+    }
+
+    pub(crate) fn shown_in(&self, overlay: NodeOf<OverlayNode>) -> Option<WindowId> {
+        self.arena
+            .get_as::<OverlayNode>(overlay)
+            .shown_in
+            .filter(|window| self.shows_in(*window))
+    }
+
     pub(crate) fn real_window(&self, overlay: NodeOf<OverlayNode>) -> Option<WindowId> {
         self.arena
             .get_as::<OverlayNode>(overlay)
@@ -120,7 +131,7 @@ impl Document {
                 return self.viewport_window();
             }
             if let Some(overlay) = self.arena.kind_of::<OverlayNode>(id)
-                && let Some(window) = self.real_window(overlay)
+                && let Some(window) = self.real_window(overlay).or_else(|| self.shown_in(overlay))
             {
                 return window;
             }

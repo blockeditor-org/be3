@@ -340,7 +340,10 @@ impl Document {
                 traps: node.traps_focus && node.policy != LayerPolicy::Inert,
                 dismissable: !node.on_dismiss.is_empty() && !locks,
                 locks,
-                window: self.real_window(overlay).unwrap_or(WindowId::MAIN),
+                window: self
+                    .real_window(overlay)
+                    .or_else(|| self.shown_in(overlay))
+                    .unwrap_or(WindowId::MAIN),
             });
         }
         for at in 1..layers.len() {
@@ -357,6 +360,7 @@ impl Document {
                     .unwrap_or(0),
             );
             if layers[at].window.is_main()
+                && self.shown_in(overlay).is_none()
                 && let Some(parent) = layers[at].parent
             {
                 layers[at].window = layers[parent].window;
