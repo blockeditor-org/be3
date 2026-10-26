@@ -118,6 +118,7 @@ impl Embedded {
             focus,
             windows: Vec::new(),
             window_roots: Vec::new(),
+            focus_window: None,
         }
     }
 

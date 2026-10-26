@@ -802,7 +802,7 @@ impl EditorSession {
             state.stopped = frame.stopped.take();
         }
 
-        if let Some(delay) = self.host.take_frame_request() {
+        if let Some(delay) = self.host.take_frame_request(region) {
             frame.repaint_after = Some(frame.repaint_after.map_or(delay, |held| held.min(delay)));
         }
         if let (Some(artifact), Some(draft)) = (self.artifact.as_mut(), draft) {

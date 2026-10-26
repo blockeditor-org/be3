@@ -296,6 +296,12 @@ impl Document {
     }
 
     fn window_focused(&mut self, window: WindowId, focused: bool) -> bool {
+        if self.windows.placed.get_untracked() {
+            if focused {
+                self.move_focus_into(window);
+            }
+            return true;
+        }
         let current = self.focused.filter(|node| self.window_of(*node) == window);
         match focused {
             false => {
@@ -319,6 +325,25 @@ impl Document {
                     None => false,
                 }
             }
+        }
+    }
+
+    fn move_focus_into(&mut self, window: WindowId) {
+        if let Some(node) = self.focused {
+            let holder = self.window_of(node);
+            if holder == window {
+                return;
+            }
+            self.windows.kept_focus.insert(holder, node);
+            crate::current::run_in(self, |document| document.update_focus(None));
+        }
+        if let Some(node) = self
+            .windows
+            .kept_focus
+            .remove(&window)
+            .filter(|node| self.contains(*node))
+        {
+            crate::current::run_in(self, |document| document.update_focus(Some(node)));
         }
     }
 

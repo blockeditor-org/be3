@@ -42,6 +42,7 @@ pub struct Fragment {
     pub focus: Option<AccessNodeId>,
     pub windows: Vec<(AccessNodeId, WindowId)>,
     pub window_roots: Vec<(WindowId, AccessNodeId)>,
+    pub focus_window: Option<WindowId>,
 }
 
 impl Fragment {
@@ -134,7 +135,8 @@ pub fn window_tree_update(
     root.set_children(roots);
     let focus = fragments
         .iter()
-        .find_map(|fragment| fragment.focus.filter(|focus| in_window(fragment, *focus)))
+        .filter(|fragment| fragment.focus_window == Some(window))
+        .find_map(|fragment| fragment.focus)
         .unwrap_or(WINDOW_NODE);
     let mut nodes = vec![(WINDOW_NODE, root)];
     for fragment in fragments {
@@ -733,12 +735,16 @@ impl Document {
             false => (Vec::new(), Vec::new()),
         };
         let focus = self.accessibility_tree.borrow().focus;
+        let focus_window = focus
+            .and_then(|focus| self.local_key(focus))
+            .map(|focus| self.window_of(focus.node()));
         Some(Fragment {
             nodes,
             root,
             focus,
             windows,
             window_roots,
+            focus_window,
         })
     }
 

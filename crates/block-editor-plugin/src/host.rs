@@ -487,7 +487,7 @@ pub struct EditorHost {
     copied_images: Rc<RefCell<Vec<Vec<u8>>>>,
     paste_requested: Rc<Cell<bool>>,
     leaving: Rc<Cell<bool>>,
-    next_frame: Rc<Cell<Option<Duration>>>,
+    next_frame: Rc<RefCell<HashMap<Option<EditorRegion>, Duration>>>,
     content_updates: Rc<RefCell<HashMap<Option<Uuid>, Vec<ToEditor>>>>,
     followed: Rc<RefCell<HashMap<Option<Uuid>, usize>>>,
     asked: Rc<RefCell<HashSet<Option<Uuid>>>>,
@@ -1649,14 +1649,16 @@ impl EditorHost {
     }
 
     pub fn request_frame_in(&self, delay: Duration) {
-        let held = self.next_frame.get();
-        if held.is_none_or(|held| delay < held) {
-            self.next_frame.set(Some(delay));
-        }
+        let mut next = self.next_frame.borrow_mut();
+        let held = next.entry(self.region.get()).or_insert(delay);
+        *held = (*held).min(delay);
     }
 
-    pub fn take_frame_request(&self) -> Option<Duration> {
-        self.next_frame.take()
+    pub fn take_frame_request(&self, region: EditorRegion) -> Option<Duration> {
+        let mut next = self.next_frame.borrow_mut();
+        let own = next.remove(&Some(region));
+        let any = next.remove(&None);
+        own.into_iter().chain(any).min()
     }
 
     pub fn chrome_shown(&self) -> bool {

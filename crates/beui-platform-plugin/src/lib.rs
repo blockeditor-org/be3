@@ -437,7 +437,7 @@ impl Regions for ModuleRunner {
                 let to_region = |rect: Rect| rect.scaled(ratio.recip());
                 Frame {
                     changed,
-                    repaint_after: frame.wait(),
+                    repaint_after: frame.wait().filter(|_| keyboard == Some(id)),
                     animating: frame.animating,
                     content: report.content.map(to_region),
                     painted: report.painted.into_iter().map(to_region).collect(),
