@@ -24,6 +24,7 @@ pub enum ColorRole {
     AccentHover,
     AccentActive,
     AccentSoft,
+    AccentSoftHover,
     OnAccent,
     Danger,
     DangerFill,
@@ -48,7 +49,7 @@ pub enum ColorRole {
 }
 
 impl ColorRole {
-    pub const ROLES: [ColorRole; 32] = [
+    pub const ROLES: [ColorRole; 33] = [
         ColorRole::Background,
         ColorRole::Surface,
         ColorRole::SurfaceRaised,
@@ -61,6 +62,7 @@ impl ColorRole {
         ColorRole::AccentHover,
         ColorRole::AccentActive,
         ColorRole::AccentSoft,
+        ColorRole::AccentSoftHover,
         ColorRole::OnAccent,
         ColorRole::Danger,
         ColorRole::DangerFill,
@@ -98,6 +100,7 @@ impl ColorRole {
             ColorRole::AccentHover => theme.accent_hover.get(),
             ColorRole::AccentActive => theme.accent_active.get(),
             ColorRole::AccentSoft => theme.accent_soft.get(),
+            ColorRole::AccentSoftHover => theme.accent_soft_hover.get(),
             ColorRole::OnAccent => theme.on_accent.get(),
             ColorRole::Danger => theme.danger.get(),
             ColorRole::DangerFill => theme.danger_fill.get(),
@@ -139,6 +142,7 @@ impl ColorRole {
             ColorRole::AccentHover => "accent hover",
             ColorRole::AccentActive => "accent active",
             ColorRole::AccentSoft => "accent soft",
+            ColorRole::AccentSoftHover => "accent soft hover",
             ColorRole::OnAccent => "on accent",
             ColorRole::Danger => "danger",
             ColorRole::DangerFill => "danger fill",
@@ -181,7 +185,7 @@ pub enum Radius {
     Tab,
     Lg,
     Full,
-    Px(Corners),
+    Custom(f32),
 }
 
 impl Radius {
@@ -204,19 +208,16 @@ impl Radius {
             Radius::Tab => 7.0,
             Radius::Lg => 10.0,
             Radius::Full => 10_000.0,
-            Radius::Px(corners) => corners.top_left,
+            Radius::Custom(radius) => radius,
         }
     }
 
     pub const fn custom(radius: f32) -> Self {
-        Radius::Px(Corners::all(radius))
+        Radius::Custom(radius)
     }
 
     pub const fn corners(self) -> Corners {
-        match self {
-            Radius::Px(corners) => corners,
-            radius => Corners::all(radius.px()),
-        }
+        Corners::all(self.px())
     }
 
     pub const fn around(self, offset: Stroke) -> Corners {
@@ -239,7 +240,7 @@ impl Radius {
             Radius::Tab => "tab",
             Radius::Lg => "lg",
             Radius::Full => "full",
-            Radius::Px(_) => "px",
+            Radius::Custom(_) => "custom",
         }
     }
 }

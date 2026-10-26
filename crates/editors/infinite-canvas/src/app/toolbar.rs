@@ -184,23 +184,11 @@ fn ToolChoice(state: CanvasState, actions: CanvasActions, index: usize) -> NodeI
 
 #[component]
 pub(crate) fn ImportError(state: CanvasState) -> NodeId {
-    let failed = create_memo(move || state.import_error.get().is_some());
-    let message = create_memo(move || state.import_error.get().unwrap_or_default());
-    let dismiss = move || state.dismiss_import_error();
     view! {
-        <List spacing=Space::None>
-            <Show condition={failed}>
-                <List direction=Direction::Horizontal align=Align::Center spacing=Space::Md>
-                    <Text color=TextColor::Danger>{message}</Text>
-                    <Button
-                        label="Dismiss"
-                        variant=ButtonVariant::Secondary
-                        @test_id={"infinite-canvas.dismiss-error"}
-                        on_click={dismiss}
-                    />
-                    <Spacer @sizing=ItemSize::Percent(100.0) />
-                </List>
-            </Show>
-        </List>
+        <Banner
+            message={state.import_error}
+            id="infinite-canvas.import-error"
+            on_dismiss={move || state.dismiss_import_error()}
+        />
     }
 }

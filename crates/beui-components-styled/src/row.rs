@@ -118,10 +118,11 @@ pub fn RowFace(
         if disabled.get() {
             return ColorRole::None;
         }
-        match (active.get(), hovered.get(), selected.get()) {
+        match (active.get(), selected.get(), hovered.get()) {
             (true, _, _) => ColorRole::Pressed,
-            (false, true, _) => ColorRole::Hover,
-            (false, false, true) => ColorRole::AccentSoft,
+            (false, true, true) => ColorRole::AccentSoftHover,
+            (false, true, false) => ColorRole::AccentSoft,
+            (false, false, true) => ColorRole::Hover,
             (false, false, false) => ColorRole::None,
         }
     });

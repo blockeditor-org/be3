@@ -14,6 +14,7 @@ const CARD_LABEL_SIZE: f32 = 11.0;
 const CARD_PADDING: f32 = 12.0;
 const CARD_SPACING: f32 = 6.0;
 const CARD_OUTLINE: f32 = 2.0;
+const CARD_RADIUS: f32 = 10.0;
 const ZOOM_STEP: f32 = 1.25;
 
 pub const WORLD: Vec2 = Vec2::new(880.0, 580.0);
@@ -252,6 +253,8 @@ fn CardView(index: usize, scale: ReadSignal<f32>, selected: Signal<Option<usize>
     let spacing = scaled(scale, CARD_SPACING);
     let spacing = create_memo(move || Space::Custom(spacing.get()));
     let outline_width = scaled(scale, CARD_OUTLINE);
+    let radius = scaled(scale, CARD_RADIUS);
+    let radius = create_memo(move || Radius::Custom(radius.get()));
     let position = format!("{:.0}, {:.0}", card.x, card.y);
     let select = move || selected.set(Some(index));
 
@@ -267,7 +270,7 @@ fn CardView(index: usize, scale: ReadSignal<f32>, selected: Signal<Option<usize>
                 <Frame
                     fill=ColorRole::SurfaceRaised
                     border={create_memo(move || Some(Border::new(outline.get()).width(Stroke::Custom(outline_width.get()))))}
-                    radius=Radius::Lg
+                    radius={radius}
                     padding=padding
                 >
                     <List spacing={spacing}>

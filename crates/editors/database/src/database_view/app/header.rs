@@ -19,9 +19,6 @@ const DISPLAY_WIDTH: Size = Size::Custom(380.0);
 pub fn ViewHeader(data: Data) -> NodeId {
     let narrow = narrow_chrome();
     let wide = create_memo(move || !narrow.get());
-    let failed = create_memo(move || data.error.with(Option::is_some));
-    let message = create_memo(move || data.error.get().unwrap_or_default());
-    let dismiss = move || data.dismiss_error();
     view! {
         <List spacing=Space::None>
             <Show condition={wide}>
@@ -30,21 +27,11 @@ pub fn ViewHeader(data: Data) -> NodeId {
             <Show condition={narrow}>
                 <NarrowHeader data={data} />
             </Show>
-            <Show condition={failed}>
-                <Frame padding={Padding::symmetric(GUTTER, Space::Sm)}>
-                    <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
-                        <Text @sizing=ItemSize::Percent(100.0) color=TextColor::Danger>
-                            {message}
-                        </Text>
-                        <Button
-                            label="Dismiss"
-                            variant=ButtonVariant::Secondary
-                            @test_id={"database-view.dismiss-error"}
-                            on_click={dismiss}
-                        />
-                    </List>
-                </Frame>
-            </Show>
+            <Banner
+                message={data.error}
+                id="database-view.error"
+                on_dismiss={move || data.dismiss_error()}
+            />
             <Separator />
         </List>
     }

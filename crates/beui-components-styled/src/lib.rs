@@ -3,6 +3,7 @@ extern crate beui_view as beui;
 pub mod accordion;
 pub mod action_bar;
 pub mod action_row;
+pub mod banner;
 pub mod border;
 pub mod button;
 pub mod calendar;
@@ -57,6 +58,7 @@ pub mod tree;
 pub use accordion::Accordion;
 pub use action_bar::{ActionBar, ActionLabels};
 pub use action_row::ActionRow;
+pub use banner::Banner;
 pub use beui_components_unstyled::NumberDrag;
 pub use beui_components_unstyled::{
     ActionRole, DialogAction, DialogKind, EveryScreen, ModalMotion, ModalPlacement, ScreenSlot,

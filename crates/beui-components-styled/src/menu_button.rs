@@ -21,6 +21,7 @@ pub fn MenuButton(
     #[prop(default = false)] icon_only: Prop<bool>,
     #[prop(default = false)] disabled: Prop<bool>,
     #[prop(default = true)] arrow: Prop<bool>,
+    #[prop(default = false)] placeholder: Prop<bool>,
     #[prop(default = true)] click_opens: Prop<bool>,
     #[prop(default = false)] secondary_opens: Prop<bool>,
     #[prop(default = false)] open: Binding<bool>,
@@ -46,7 +47,7 @@ pub fn MenuButton(
             secondary_opens
             menu={menu_style()}
             trigger={move |handle: PopupTriggerHandle| view! {
-                <PopupButtonFace handle variant size image={image} arrow={arrow} leading />
+                <PopupButtonFace handle variant size image={image} arrow={arrow} placeholder leading />
             }}
             on_click={on_click}
             on_secondary_click={on_secondary_click}
@@ -64,6 +65,7 @@ pub(crate) fn PopupButtonFace(
     size: ButtonSize,
     #[prop(default = None)] image: Prop<Option<Image>>,
     #[prop(default = false)] arrow: Prop<bool>,
+    #[prop(default = false)] placeholder: Prop<bool>,
     leading: Option<Child>,
 ) -> NodeId {
     let PopupTriggerHandle { open, button } = handle;
@@ -80,6 +82,7 @@ pub(crate) fn PopupButtonFace(
             image
             trailing_glyph={trailing}
             pressed={create_memo(move || open.get())}
+            placeholder
             leading
         />
     }

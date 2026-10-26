@@ -488,7 +488,8 @@ fn WebImage(model: Model, url: String, alt: String) -> NodeId {
             model.view_image(number, &url);
         }
     };
-    let accessibility = beui::accesskit::Node::new(beui::accesskit::Role::Button);
+    let mut accessibility = beui::accesskit::Node::new(beui::accesskit::Role::Button);
+    accessibility.set_label(format!("Enlarge {described}"));
     view! {
         <List spacing=Space::Xs>
             <Show condition={waiting}>|| {

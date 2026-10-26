@@ -821,8 +821,9 @@ steps (`Padding::all(Space::Md)`, `symmetric`, `horizontal`, `vertical`, then
 `height` a `Length` (an `Extent` for fill, fraction and at-most, or a `Size`
 for a fixed length), `fill` a `ColorRole` (a theme colour, or
 `ColorRole::Custom` for one that comes from content, such as a user's tag
-colour), `radius` a `Radius` (`Xs` to `Lg`, `Tab`, `Full`) with `corners` a
-`CornerSet` when only some corners round, and `border` an `Option<Border>`
+colour), `radius` a `Radius` (`Xs` to `Lg`, `Tab`, `Full`, or `Custom(f32)`
+for a corner that scales with content, such as a card on a zoomed canvas)
+with `corners` a `CornerSet` when only some corners round, and `border` an `Option<Border>`
 (`Border::DEFAULT`, `Border::FOCUS`, `Border::new(role)` with `.width(..)` and
 `.offset(..)` taking a `Stroke`: `Hairline`, `Focus`; `focus_border` shows one
 only while the focus ring is visible). A `ColorRole::custom(..)` wraps a colour
@@ -4146,7 +4147,9 @@ square when icon-only), and `icon_only`, which shows only the glyph and turns th
 label into the tooltip. `MenuButton` and `Popover` take the same `variant`,
 `size` and `icon_only` and paint the same `ButtonFace`; `MenuButton` also takes an
 `image` for a picture face, a `leading` node drawn before the label in place
-of a glyph (a database choice's coloured mark, a status dot), and adds a
+of a glyph (a database choice's coloured mark, a status dot), and
+`placeholder=true` while its label stands in for an unset value ("Set
+status"), which mutes the label; it adds a
 chevron to a labelled face unless `arrow=false`. A custom face over `unstyled::Button` reads `handle.icon_only` and
 wraps itself in `<Tooltip label={handle.tooltip}>`.
 
@@ -4155,7 +4158,9 @@ A pressable row paints `RowFace`: a leading picture or icon (`image`, `glyph`, o
 and `detail`, and a `trailing` `RowTrailing` (`Chevron`, `Check` or `Radio`), or
 `children` in place of the label and detail. Its `RowSize` is `Compact` for
 lists, `Regular` for settings (whose label wraps), `Large` for a picker with
-32-point pictures and `Touch` for 52-point rows in a sheet. `ListRow` (selection
+32-point pictures and `Touch` for 52-point rows in a sheet. A selected row
+fills with `AccentSoft`, and with `AccentSoftHover` while the pointer is
+over it, so it stays visibly selected under the pointer. `ListRow` (selection
 and activation), `ActionRow` (an action, `Touch`), `SettingsLink` (a page of
 settings, with a chevron), the menu sheet's rows and the launcher's rows are all
 built on it.
@@ -4166,6 +4171,12 @@ default) around any child, filled `AccentSoft` and ringed in the accent when
 radio semantics (`description` reads after the label). The rename card's icons
 and the display settings' rotation picker use it. A colour pick is a row of
 `SwatchButton`s.
+
+`Banner` is an inline bar across an editor that says what failed (an import,
+a load) until the user dismisses it: its `message` is an `Option<String>`, and
+it shows nothing while that is `None`. Its test ids are `{id}` and
+`{id}.dismiss`. `unstyled::Banner` gives it the alert role, an assertive live
+region labelled with the message.
 
 ### Text
 

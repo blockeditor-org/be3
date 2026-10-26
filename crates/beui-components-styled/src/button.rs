@@ -182,6 +182,7 @@ pub fn ButtonFace(
     #[prop(default = false)] busy: Prop<bool>,
     #[prop(default = false)] wide: Prop<bool>,
     #[prop(default = true)] revealed: Prop<bool>,
+    #[prop(default = false)] placeholder: Prop<bool>,
     leading: Option<Child>,
 ) -> NodeId {
     let unstyled::ButtonHandle {
@@ -202,9 +203,10 @@ pub fn ButtonFace(
             false => ColorRole::None,
         }
     });
-    let label_color = create_memo(move || match revealed.get() {
-        true => variant.get().label(disabled.get()),
-        false => TextColor::None,
+    let label_color = create_memo(move || match (revealed.get(), placeholder.get()) {
+        (true, true) => TextColor::Muted,
+        (true, false) => variant.get().label(disabled.get()),
+        (false, _) => TextColor::None,
     });
     let border = create_memo(move || {
         (revealed.get() && variant.get() == ButtonVariant::Secondary).then_some(Border::DEFAULT)

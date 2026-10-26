@@ -469,7 +469,8 @@ fn chevron_id(named: &str) -> String {
 fn background(selected: bool, hovered: bool, active: bool) -> ColorRole {
     match (selected, hovered, active) {
         (_, _, true) => ColorRole::Pressed,
-        (true, _, _) => ColorRole::AccentSoft,
+        (true, true, _) => ColorRole::AccentSoftHover,
+        (true, false, _) => ColorRole::AccentSoft,
         (false, true, _) => ColorRole::Hover,
         (false, false, false) => ColorRole::None,
     }

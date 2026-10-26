@@ -421,11 +421,11 @@ Outcomes, by crate group (each also migrated onto §7's tokens):
   `DockEntry`). Left on purpose: logic-grid's hotbar slot face and
   deterministic-game's board are plugin canvases with their own drawing;
   be-launcher's enlargeable picture is a `Pressable` around the content
-  itself. The colour swatches in pixel-art,
+  itself (labelled "Enlarge ..." for accessibility). The colour swatches in pixel-art,
   pixel-ray-tracer and map's presets became `SwatchButton`s (square ones take
   `radius=Radius::Xs`), added by the canvas group below. pan-zoom's cards scale their padding and outline with the
-  zoom (`Space::Custom`, `Stroke::Custom`) but not their radius, since
-  `Radius` has no escape hatch for a zoom-scaled corner.
+  zoom (`Space::Custom`, `Stroke::Custom`), and their radius too
+  (`Radius::Custom`, added by the polish below).
 - **Done.** **The canvas and media editors** (infinite-canvas, text-block,
   pdf, presentation, image-block, video-block, audio-block, scene-3d), with
   their §7 tokens. New styled component: `SwatchButton` (a round colour
@@ -562,7 +562,8 @@ from `beui::styled`:
   is the derived focus-ring radius ("Md plus 2" is `radius=Radius::Md
   offset=Stroke::Focus`).
 - `Radius` gained `Tab` (7: toolbar buttons, compact buttons, dock tabs) and
-  lost `Custom`. A frame rounds only some corners with `corners: CornerSet`
+  lost its old `Custom` (a later polish brought back `Radius::Custom(f32)`
+  for corners from content only). A frame rounds only some corners with `corners: CornerSet`
   (`ALL`, `TOP`, `BOTTOM`, `LEFT`, `RIGHT`, `CornerSet::new(..)`).
 - `ColorRole` gained `DangerFill`, `DangerFillHover`, `DangerFillActive`,
   `DangerSoft`, `OnDanger`, `ControlOutline`, `KnobOutline` (transparent when
@@ -593,13 +594,14 @@ keep taking pixels; styled resolves tokens before handing them down.
 
 So that crates outside beui keep compiling while they are migrated one at a
 time, these conversions exist and are temporary. Each maps a raw value to a
-`Px` variant (`Space::Px`, `Size::Px`, `Stroke::Px`, `Radius::Px`) that
+`Px` variant (`Space::Px`, `Size::Px`, `Stroke::Px`) that
 behaves like a fixed length:
 
 - `f32` (and `Prop`/`Memo`/`Signal` of it) into `Space`, `Padding`, `Size`,
   `Length` and `Stroke`; `Option<f32>` into `Length`; `Sides` into `Padding`;
   `f32` into `Stroke` for `Border::width`/`offset` (`impl From<f32> for
-  Stroke`); `Radius::custom(f32)` and the `Radius::Px(Corners)` variant.
+  Stroke`); `Radius::custom(f32)` (now a `Radius::Custom`, which stays:
+  see the polish below).
 
 To migrate a crate (one PR per crate group):
 
@@ -638,10 +640,48 @@ To migrate a crate (one PR per crate group):
    back before committing.
 
 Final step, once every crate is migrated: delete those conversions, the `Px`
-variants of `Space`/`Size`/`Stroke`/`Radius`, `Radius::custom`,
+variants of `Space`/`Size`/`Stroke`, `Radius::custom` (its callers write
+a token, or `Radius::Custom` for a corner from content),
 `Padding::from_sides`, and make `Border::width`/`offset` take `Stroke`
 again (they take `impl Into<Stroke>` only for the conversion). Then
 consider a source lint against `Extent::px` on a styled `Frame`.
+
+### Polish after the migrations
+
+- **Done.** A selected `RowFace` (so `ListRow`) under the pointer kept the
+  hover fill and looked unselected. It now fills with a new
+  `ColorRole::AccentSoftHover` (a `Theme` field in every built-in theme)
+  while selected and hovered; `Tree`'s rows do the same. Painting
+  `beui-demo.a_selected_row_stays_selected_under_the_pointer`.
+- **Done.** `ButtonFace`, `MenuButton` (and the popover's face) take
+  `placeholder: Prop<bool>`, which mutes the label (`TextColor::Muted`) while
+  it stands in for an unset value. Database's choice pickers ("Set status")
+  pass it while nothing is chosen; beui-demo's Menus page "Menu buttons" sample
+  has a "Set priority" button that shows it.
+- **Done.** New `styled::Banner` (`banner.rs`), on a new `unstyled::Banner`
+  (alert role, assertive live region labelled with the message): an inline
+  danger bar with the message and a Dismiss button, shown while its
+  `message: Prop<Option<String>>` is `Some`; test ids `{id}` and
+  `{id}.dismiss`. text-block's and infinite-canvas's import-error bars and
+  database's error row use it. beui-demo Overlays page "Banner" sample,
+  painting `beui-demo.a_banner_says_what_failed_until_it_is_dismissed`. Left:
+  map's sidebar error is a caption over a button in a narrow column, which
+  reads better than a bar there.
+- **Done.** scene-3d's walking clock and video-block's playback clock read
+  `now()` (the frame clock) instead of `Instant::now()`.
+- **Done.** be-launcher's enlargeable picture is labelled "Enlarge
+  {alt text}". No test: building `WebImage` needs a launcher `Model`.
+- **Done.** calendar's event dialog keeps the default `Size::Dialog` (360):
+  painting `calendar.an_event_opens_in_a_form_wide_enough_for_its_fields_and_actions`
+  shows the title field, both date-time fields and Delete, Cancel and Save
+  fitting with room to spare, so the old 420 bought nothing.
+- **Done.** `Radius::Custom(f32)` replaces the temporary `Radius::Px(Corners)`
+  and stays, like `Space::Custom` and `Size::Custom`, for a corner that comes
+  from content: pan-zoom's cards scale it with the zoom, as they already
+  scale their padding, outline and text. A fixed `Radius::Lg` on a card
+  zoomed far out rounds it into a pill, and zoomed in looks sharp beside its
+  scaled outline. `Radius::custom(f32)` is now a temporary alias for it
+  (block-editor-beui's two callers), deleted in the final step.
 
 ## 8. One `overflow` prop for text, defaulting to wrap
 

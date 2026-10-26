@@ -767,6 +767,7 @@ fn RowButtons() -> NodeId {
                     on_click={move || chosen.set(0)}
                 />
                 <ListRow
+                    @test_id="rows.chat"
                     label="Chat"
                     detail="3 unread"
                     image={Some(badge(Color32::from_rgb(0x58, 0x65, 0xf2)))}
@@ -1941,6 +1942,9 @@ fn SortMenus() -> NodeId {
         true => ColorRole::Success,
         false => ColorRole::Warning,
     });
+    let priority = create_signal(None::<&'static str>);
+    let priority_label = create_memo(move || priority.get().unwrap_or("Set priority").to_owned());
+    let unset = create_memo(move || priority.get().is_none());
     view! {
         <List spacing=SECTION_SPACING>
             <List direction=Direction::Horizontal align=Align::Center spacing=Space::Md wrap=true>
@@ -1988,6 +1992,24 @@ fn SortMenus() -> NodeId {
                         <unstyled::MenuItem label="Done" />
                     }}
                     on_select={move |path: Vec<usize>| done.set(path.as_slice() == [1])}
+                />
+                <MenuButton
+                    label={priority_label}
+                    placeholder={unset}
+                    variant=ButtonVariant::Ghost
+                    arrow=false
+                    items={view! {
+                        <unstyled::MenuItem label="High" />
+                        <unstyled::MenuItem label="Low" />
+                        <unstyled::MenuItem label="Clear" separated=true />
+                    }}
+                    on_select={move |path: Vec<usize>| {
+                        priority.set(match path.as_slice() {
+                            [0] => Some("High"),
+                            [1] => Some("Low"),
+                            _ => None,
+                        })
+                    }}
                 />
             </List>
             <Text style=TextStyle::CAPTION>{sort_text}</Text>
@@ -2333,7 +2355,37 @@ pub(crate) fn OverlaysPage() -> NodeId {
             <Sample title="Toasts" code={vec![ToastArea::SOURCE]}>
                 <ToastArea />
             </Sample>
+            <Sample title="Banner" code={vec![FailedImport::SOURCE]}>
+                <FailedImport />
+            </Sample>
         </ScrollPage>
+    }
+}
+
+#[sample]
+#[component]
+fn FailedImport() -> NodeId {
+    let failure = create_signal(Some(
+        "Couldn't import holiday.heic: the format isn't supported".to_owned(),
+    ));
+    let dismissed = create_memo(move || failure.with(Option::is_none));
+    view! {
+        <List spacing=Space::Md>
+            <Banner
+                message={failure}
+                id="demo.banner"
+                on_dismiss={move || failure.set(None)}
+            />
+            <Show condition={dismissed}>
+                <Button
+                    label="Import again"
+                    @test_id="demo.banner.again"
+                    on_click={move || {
+                        failure.set(Some("Couldn't import holiday.heic: the format isn't supported".to_owned()))
+                    }}
+                />
+            </Show>
+        </List>
     }
 }
 

@@ -1,5 +1,5 @@
 use std::cell::Cell;
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 use beui::accesskit::{Node, Role};
 use beui::reactive::*;
@@ -51,15 +51,15 @@ pub(crate) fn Scene3DView() -> NodeId {
     let scene = Scene::default();
     let camera = create_signal(Camera::default());
     let walking = store(Cell::new(Walking::default()));
-    let clock = store(Cell::new(Instant::now()));
+    let clock = store(Cell::new(now()));
     let drawing = create_memo(move || Some(scene.drawing(camera.get())));
     let looking = create_signal(false);
     let idle = create_memo(move || !looking.get());
 
     let stepping = create_timer(move || {
-        let now = Instant::now();
-        let elapsed = now
-            .saturating_duration_since(clock.with(|clock| clock.replace(now)))
+        let stepped = now();
+        let elapsed = stepped
+            .saturating_duration_since(clock.with(|clock| clock.replace(stepped)))
             .as_secs_f32()
             .min(LONGEST_STEP);
         let walk = walking.with(Cell::get);
@@ -78,7 +78,7 @@ pub(crate) fn Scene3DView() -> NodeId {
         let handled = held.hold(press.key, press.pressed);
         walking.with(|walking| walking.set(held));
         if held.moving() && !stepping.running() {
-            clock.with(|clock| clock.set(Instant::now()));
+            clock.with(|clock| clock.set(now()));
             stepping.start(Duration::ZERO);
         }
         handled
