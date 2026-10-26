@@ -18,7 +18,7 @@ use beui_view::types::Direction;
 use beui_view::types::ItemSize;
 use beui_view::types::ScrollPosition;
 use beui_view::types::{BackGesture, CursorIcon, DragGesture, PointerPress, ScrollGesture};
-use beui_view::types::{Pos2, Rect, Vec2, vec2};
+use beui_view::types::{Pos2, Rect, vec2};
 
 const CLOSE_SHARE: f32 = 0.4;
 const CLOSE_DISTANCE: f32 = 96.0;
