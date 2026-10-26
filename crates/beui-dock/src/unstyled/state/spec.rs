@@ -15,6 +15,7 @@ pub struct DockSpec {
     pub main: Option<DockSpecNode>,
     pub windows: Vec<DockSpecWindow>,
     pub focus: Option<TabId>,
+    pub see_through: Vec<TabId>,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -248,6 +249,7 @@ impl DockState {
     }
 
     pub fn reconcile(&mut self, spec: &DockSpec) {
+        self.see_through.clone_from(&spec.see_through);
         if !self.seeded {
             self.seed(spec);
             return;
