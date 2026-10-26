@@ -1,7 +1,7 @@
 use block_editor_beui::be_block::metadata::{ICON, ICON_COLOR};
 use block_editor_beui::beui::icons::ICON_FILE_TEXT;
 use block_editor_beui::{
-    BlockCommand, BlockInfo, BlockParent, BlockTypeDescriptor, Catalog, ChildOperations,
+    BlockInfo, BlockParent, BlockTypeDescriptor, Catalog, ChildOperations, ShellCommand,
 };
 
 use super::*;
@@ -36,10 +36,10 @@ fn icon_and_color_asks_the_host_from_the_row_and_the_row_shows_what_is_chosen() 
     fixture.choose(block, "Icon and color…");
     let asked: Vec<_> = fixture
         .test
-        .take_block_commands()
+        .take_shell_commands()
         .into_iter()
         .filter_map(|(id, command)| match command {
-            BlockCommand::Rename { anchor } => Some((id, anchor)),
+            ShellCommand::Rename { anchor } => Some((id, anchor)),
             _ => None,
         })
         .collect();

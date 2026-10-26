@@ -3,7 +3,7 @@ use std::collections::HashMap;
 
 use block_editor_plugin::Instance;
 use block_editor_plugin::headless::HeadlessPlugin as Core;
-use block_plugin_api::{EditorInstanceId, EditorRegion, Message, ScreenLayout, ScreenPlacement};
+use block_plugin_api::{EditorInstanceId, EditorRegion, ScreenLayout, ScreenPlacement};
 
 use crate::instance::BeuiInstance;
 use crate::{Artifacts, BeuiApp, Creation, Editor, EditorHost, OwnedEditor};
@@ -74,6 +74,20 @@ pub struct HeadlessPlugin {
     access: HashMap<EditorInstanceId, Access>,
 }
 
+impl std::ops::Deref for HeadlessPlugin {
+    type Target = Core;
+
+    fn deref(&self) -> &Core {
+        &self.core
+    }
+}
+
+impl std::ops::DerefMut for HeadlessPlugin {
+    fn deref_mut(&mut self) -> &mut Core {
+        &mut self.core
+    }
+}
+
 impl HeadlessPlugin {
     pub fn new(id: &str, name: &str, version: &str) -> Self {
         crate::fonts::use_fonts(beui::FontLibrary::bundled());
@@ -81,10 +95,6 @@ impl HeadlessPlugin {
             core: Core::new(id, name, version),
             access: HashMap::new(),
         }
-    }
-
-    pub fn hello(&self) -> Message {
-        self.core.hello()
     }
 
     pub fn adopt<A: BeuiApp>(&mut self, instance: EditorInstanceId, adopted: Adopted) {
@@ -103,10 +113,6 @@ impl HeadlessPlugin {
         );
     }
 
-    pub fn receive(&mut self, message: Message) -> Vec<Message> {
-        self.core.receive(message)
-    }
-
     pub fn draw(&mut self) -> Vec<(ScreenPlacement, beui::FrameOutput)> {
         let placements: Vec<ScreenPlacement> = self
             .core
@@ -123,10 +129,6 @@ impl HeadlessPlugin {
                 Some((placement, output))
             })
             .collect()
-    }
-
-    pub fn outbound(&mut self) -> Vec<Message> {
-        self.core.outbound()
     }
 
     pub fn layout(&self) -> &ScreenLayout {

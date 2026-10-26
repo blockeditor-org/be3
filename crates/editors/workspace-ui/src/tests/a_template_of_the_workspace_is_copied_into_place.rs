@@ -2,7 +2,8 @@ use block_editor_beui::be_block::be_model::BlockRef;
 use block_editor_beui::be_block::{
     BlockContent, Home, HomeContent, SETTINGS, Settings, SettingsContent, WORKSPACE_TYPE,
 };
-use block_editor_beui::{BlockImport, BlockInfo, BlockLocation, BlockPick, HostReply, HostRequest};
+use block_editor_beui::{BlockInfo, BlockLocation, ImportedBlock, PickedBlock};
+use block_ui_test::HostCall;
 
 use super::*;
 
@@ -58,37 +59,39 @@ fn a_template_of_the_workspace_is_copied_into_place() {
         .test
         .take_requests()
         .into_iter()
-        .filter_map(|(id, request)| match request {
-            HostRequest::CopyBlocks { source, parent } => {
-                Some((id, Uuid::from_bytes(source), parent))
-            }
+        .filter_map(|call| match call {
+            HostCall::CopyBlocks {
+                reply,
+                source,
+                parent,
+            } => Some((reply, Uuid::from_bytes(source), parent)),
             _ => None,
         })
         .collect();
-    let [(request, source, parent)] = copies.as_slice() else {
-        panic!("choosing a template asks the host to copy it, asked {copies:?}");
-    };
-    assert_eq!(*source, template);
-    assert_eq!(*parent, BlockLocation::Block(workspace.into_bytes()));
+    let [(request, source, parent)]: [_; 1] = copies.try_into().unwrap_or_else(|copies: Vec<_>| {
+        panic!("choosing a template asks the host to copy it, asked {copies:?}")
+    });
+    assert_eq!(source, template);
+    assert_eq!(parent, BlockLocation::Block(workspace.into_bytes()));
     let copy = Uuid::from_u128(0x7e_0005);
-    fixture.test.reply(
-        *request,
-        HostReply::BlocksImported(BlockImport::Imported {
+    fixture.test.answer(
+        request,
+        Ok(Some(ImportedBlock {
             block_id: copy.into_bytes(),
             block_type: SHOWN_TYPE.into_bytes(),
-        }),
+        })),
     );
     fixture.settle();
     assert_eq!(
         fixture.test.take_pick_answers(),
         vec![(
             4,
-            BlockPick::Chosen {
+            Ok(Some(PickedBlock {
                 block_id: copy.into_bytes(),
                 block_type: SHOWN_TYPE.into_bytes(),
                 linked: false,
                 placed: false,
-            }
+            }))
         )],
         "the copy answers the pick"
     );

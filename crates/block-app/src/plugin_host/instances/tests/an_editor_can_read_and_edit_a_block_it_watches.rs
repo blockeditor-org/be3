@@ -3,7 +3,6 @@ use super::*;
 use std::time::Duration;
 
 use be_block::{BlockContent, LiveEdit};
-use block_plugin_api::WatchedContent;
 use block_type_guest::editor::EditorOperation;
 use counter_types::{Counter, CounterContent};
 
@@ -33,19 +32,8 @@ fn an_editor_can_read_and_edit_a_block_it_watches() {
     next_screens(&mut instances);
     assert!(to_replica(&mut instances, own, &FromEditor::Resend));
 
-    assert!(instances.editor_message(EditorMessage::WatchContent {
-        instance: INSTANCE,
-        blocks: vec![
-            WatchedContent {
-                block_id: other.into_bytes(),
-                content_type: CounterContent::CONTENT_TYPE.into_bytes(),
-            },
-            WatchedContent {
-                block_id: Uuid::new_v4().into_bytes(),
-                content_type: Uuid::from_u128(0xdead_beef).into_bytes(),
-            },
-        ],
-    }));
+    let watched = hold(&mut instances, other, CounterContent::CONTENT_TYPE);
+    let unknown = hold(&mut instances, Uuid::new_v4(), Uuid::from_u128(0xdead_beef));
     assert!(to_replica(&mut instances, other, &FromEditor::Resend));
     counted(other, 0);
     let sent = replica_sent_until(&mut instances, other, |sent| !sent.is_empty());
@@ -69,10 +57,8 @@ fn an_editor_can_read_and_edit_a_block_it_watches() {
         }])]
     );
 
-    assert!(instances.editor_message(EditorMessage::WatchContent {
-        instance: INSTANCE,
-        blocks: Vec::new(),
-    }));
+    instances.ended(watched);
+    instances.ended(unknown);
     crate::be::wait_for(Duration::from_secs(20), |shared| {
         (!shared.blocks.contains_key(&other)).then_some(())
     })

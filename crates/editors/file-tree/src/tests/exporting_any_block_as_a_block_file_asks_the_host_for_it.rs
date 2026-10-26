@@ -1,5 +1,6 @@
 use block_editor_beui::be_block::BlockContent;
-use block_editor_beui::{BlockInfo, BlockParent, FileSave, HostReply, HostRequest};
+use block_editor_beui::{BlockInfo, BlockParent, FileSave};
+use block_ui_test::HostCall;
 use workspace_ui_types::FolderContent;
 
 use super::*;
@@ -37,20 +38,19 @@ fn exporting_any_block_as_a_block_file_asks_the_host_for_it() {
         .test
         .take_requests()
         .into_iter()
-        .filter_map(|(id, request)| match request {
-            HostRequest::ExportBlock(block) => Some((id, Uuid::from_bytes(block))),
+        .filter_map(|call| match call {
+            HostCall::ExportBlock { reply, block } => Some((reply, Uuid::from_bytes(block))),
             _ => None,
         })
         .collect();
-    let [(request, block)] = exports.as_slice() else {
-        panic!("exporting a block file asks the host to export one block, asked {exports:?}");
-    };
-    assert_eq!(*block, folder);
+    let [(request, block)]: [_; 1] = exports.try_into().unwrap_or_else(|exports: Vec<_>| {
+        panic!("exporting a block file asks the host to export one block, asked {exports:?}")
+    });
+    assert_eq!(block, folder);
 
-    fixture.test.reply(
-        *request,
-        HostReply::FileSaved(FileSave::Failed("The disk is full".to_owned())),
-    );
+    fixture
+        .test
+        .answer(request, FileSave::Failed("The disk is full".to_owned()));
     fixture.settle();
     assert!(
         fixture.says("The disk is full"),

@@ -1,14 +1,22 @@
 use super::*;
-use block_editor_beui::{BlockHistory, HostReply, HostRequest, Revision};
+use block_editor_beui::{BlockHistory, Revision};
+use block_ui_test::{HostCall, Reply};
 
-fn listing(fixture: &mut Fixture, block: Uuid) -> Option<u64> {
+fn listing(
+    fixture: &mut Fixture,
+    block: Uuid,
+) -> Option<Reply<Result<Vec<Revision>, block_editor_beui::Failure>>> {
     fixture
         .test
         .take_requests()
         .into_iter()
         .rev()
-        .find_map(|(id, request)| {
-            (request == HostRequest::ListRevisions(block.into_bytes())).then_some(id)
+        .find_map(|call| match call {
+            HostCall::ListRevisions {
+                reply,
+                block: asked,
+            } if asked == block.into_bytes() => Some(reply),
+            _ => None,
         })
 }
 
@@ -28,13 +36,13 @@ fn revision_history_keeps_its_list_in_place_while_a_save_reloads_it() {
     let (mut fixture, opened) = editor_sized(Some(Vec2::new(1100.0, 720.0)));
     show(&mut fixture, opened, None);
     let request = listing(&mut fixture, opened).expect("the active file requests its history");
-    fixture.test.reply(
+    fixture.test.answer(
         request,
-        HostReply::RevisionsListed(Ok(vec![Revision {
+        Ok(vec![Revision {
             commit: [1; 32],
             time: 1_800_000_000_000,
             current: true,
-        }])),
+        }]),
     );
     fixture.settle();
     fixture.show_history();
@@ -53,9 +61,9 @@ fn revision_history_keeps_its_list_in_place_while_a_save_reloads_it() {
     assert!(!fixture.says("Loading revisions"));
     assert_eq!(button(&fixture, 1), listed);
 
-    fixture.test.reply(
+    fixture.test.answer(
         request,
-        HostReply::RevisionsListed(Ok(vec![
+        Ok(vec![
             Revision {
                 commit: [2; 32],
                 time: 1_800_000_001_000,
@@ -66,7 +74,7 @@ fn revision_history_keeps_its_list_in_place_while_a_save_reloads_it() {
                 time: 1_800_000_000_000,
                 current: false,
             },
-        ])),
+        ]),
     );
     fixture.settle();
     assert_eq!(button(&fixture, 2), listed);

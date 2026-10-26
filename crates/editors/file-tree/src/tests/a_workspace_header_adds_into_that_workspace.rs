@@ -1,9 +1,7 @@
 use block_editor_beui::be_block::BlockContent;
 use block_editor_beui::beui::Key;
-use block_editor_beui::{
-    AccessLevel, BlockCommand, BlockInfo, BlockParent, BlockPick, BlockQuery, HostReply,
-    HostRequest,
-};
+use block_editor_beui::{AccessLevel, BlockCommand, BlockInfo, BlockParent, BlockQuery};
+use block_ui_test::{HostCall, PickedBlock};
 use workspace_ui_types::WorkspaceContent;
 
 use super::*;
@@ -51,8 +49,16 @@ fn a_workspace_header_adds_into_that_workspace() {
     fixture.test.click(&add);
     fixture.settle();
     let asked = fixture.test.take_requests();
-    let [(pick, HostRequest::PickBlock(filter))] = asked.as_slice() else {
-        panic!("the header's add asked for {asked:?} rather than a block");
+    let [
+        HostCall::PickBlock {
+            reply: pick,
+            filter,
+        },
+    ]: [_; 1] = asked.try_into().unwrap_or_else(|asked: Vec<_>| {
+        panic!("the header's add asked for {asked:?} rather than a block")
+    })
+    else {
+        panic!("the header's add asked for something other than a block");
     };
     assert!(
         filter.excluded.contains(&files.into_bytes()),
@@ -65,14 +71,14 @@ fn a_workspace_header_adds_into_that_workspace() {
     );
     let picked = Uuid::from_u128(11);
     let text_type = Uuid::from_u128(7);
-    fixture.test.reply(
-        *pick,
-        HostReply::BlockPicked(BlockPick::Chosen {
+    fixture.test.answer(
+        pick,
+        Ok(Some(PickedBlock {
             block_id: picked.into_bytes(),
             block_type: text_type.into_bytes(),
             linked: false,
             placed: false,
-        }),
+        })),
     );
     fixture.settle();
     let placed = fixture.test.take_block_commands();
@@ -92,7 +98,7 @@ fn a_workspace_header_adds_into_that_workspace() {
     fixture.settle();
     let asked = fixture.test.take_requests();
     assert!(
-        matches!(asked.as_slice(), [(_, HostRequest::PickBlock(_))]),
+        matches!(asked.as_slice(), [HostCall::PickBlock { .. }]),
         "Tab from a workspace's header reaches its add, and Enter presses it: {asked:?}"
     );
 }

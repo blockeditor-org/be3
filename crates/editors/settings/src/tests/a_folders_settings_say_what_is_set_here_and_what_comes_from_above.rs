@@ -1,8 +1,7 @@
 use block_editor_beui::be_block::be_model::BlockRef;
 use block_editor_beui::be_block::{ANYONE_INSIDE, SETTINGS, WORKSPACE_TYPE};
-use block_editor_beui::{
-    AccessGrant, AccessLevel, AccessListing, BlockTypeDescriptor, HostReply, HostRequest,
-};
+use block_editor_beui::{AccessGrant, AccessLevel, AccessListing, BlockTypeDescriptor};
+use block_ui_test::HostCall;
 
 use super::*;
 
@@ -83,14 +82,16 @@ fn a_folders_settings_say_what_is_set_here_and_what_comes_from_above() {
     let asked = editor
         .take_requests()
         .into_iter()
-        .find_map(|(request, asked)| match asked {
-            HostRequest::ListAccess(block) if Uuid::from_bytes(block) == hotbar => Some(request),
+        .find_map(|call| match call {
+            HostCall::ListAccess { reply, block } if Uuid::from_bytes(block) == hotbar => {
+                Some(reply)
+            }
             _ => None,
         })
         .expect("a manager is shown who can read the hotbar");
-    editor.reply(
+    editor.answer(
         asked,
-        HostReply::AccessListed(AccessListing::Listed {
+        Ok(AccessListing {
             grants: vec![AccessGrant {
                 account: ANYONE_INSIDE.into_bytes(),
                 email: String::new(),

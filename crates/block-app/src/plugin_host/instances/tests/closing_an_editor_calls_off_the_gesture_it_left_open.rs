@@ -3,7 +3,6 @@ use super::*;
 use std::time::Duration;
 
 use be_block::{BlockContent, LiveEdit};
-use block_plugin_api::WatchedContent;
 use block_type_guest::editor::Gesture;
 use counter_types::{Counter, CounterContent};
 
@@ -31,13 +30,7 @@ fn closing_an_editor_calls_off_the_gesture_it_left_open() {
     );
     let mut instances = placed_on(own, CounterContent::CONTENT_TYPE);
     next_screens(&mut instances);
-    assert!(instances.editor_message(EditorMessage::WatchContent {
-        instance: INSTANCE,
-        blocks: vec![WatchedContent {
-            block_id: watched.into_bytes(),
-            content_type: CounterContent::CONTENT_TYPE.into_bytes(),
-        }],
-    }));
+    hold(&mut instances, watched, CounterContent::CONTENT_TYPE);
     next_screens(&mut instances);
     assert!(to_replica(&mut instances, watched, &FromEditor::Resend));
     counted(watched, 0);

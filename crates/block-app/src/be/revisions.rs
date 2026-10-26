@@ -4,7 +4,7 @@ use wasi_threads::Mutex;
 
 use be_client::Peer;
 use be_commit::CommitId;
-use block_plugin_api::{HostReply, HostRequest, Revision};
+use block_plugin_api::Revision;
 use block_type_api::Change;
 use uuid::Uuid;
 
@@ -177,11 +177,21 @@ pub(crate) fn collect_released() {
     });
 }
 
-pub(crate) fn request(
-    block: Uuid,
-    request: HostRequest,
-    reply: impl FnOnce(HostReply) + Send + 'static,
-) {
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum Asked {
+    List,
+    Preview([u8; 32]),
+    Restore([u8; 32]),
+}
+
+#[derive(Debug)]
+pub(crate) enum Answered {
+    Listed(Result<Vec<Revision>, String>),
+    Previewed(Result<Uuid, String>),
+    Restored(Result<(), String>),
+}
+
+pub(crate) fn request(block: Uuid, request: Asked, reply: impl FnOnce(Answered) + Send + 'static) {
     super::send(Command::Revision {
         block,
         request,
@@ -194,15 +204,13 @@ pub(super) async fn run(
     replicas: &mut Replicas,
     shared: &Arc<Mutex<Shared>>,
     block: Uuid,
-    request: HostRequest,
-) -> HostReply {
-    let outcome = perform(peer, replicas, shared, block, &request).await;
+    request: Asked,
+) -> Answered {
+    let outcome = perform(peer, replicas, shared, block, request).await;
     match request {
-        HostRequest::ListRevisions(_) => HostReply::RevisionsListed(outcome.map(|result| result.0)),
-        HostRequest::PreviewRevision { .. } => {
-            HostReply::RevisionPreviewed(outcome.map(|result| result.1.into_bytes()))
-        }
-        _ => HostReply::RevisionRestored(outcome.map(|_| ())),
+        Asked::List => Answered::Listed(outcome.map(|result| result.0)),
+        Asked::Preview(_) => Answered::Previewed(outcome.map(|result| result.1)),
+        Asked::Restore(_) => Answered::Restored(outcome.map(|_| ())),
     }
 }
 
@@ -211,7 +219,7 @@ async fn perform(
     replicas: &mut Replicas,
     shared: &Arc<Mutex<Shared>>,
     block: Uuid,
-    request: &HostRequest,
+    request: Asked,
 ) -> Result<(Vec<Revision>, Uuid), String> {
     let summary = peer
         .summary(block)
@@ -221,11 +229,10 @@ async fn perform(
         return Err("You do not have permission to view this file.".into());
     }
     let commit = match request {
-        HostRequest::PreviewRevision { commit, .. }
-        | HostRequest::RestoreRevision { commit, .. } => {
-            Some(CommitId::from_hash(be_store::Hash::from_bytes(*commit)))
+        Asked::Preview(commit) | Asked::Restore(commit) => {
+            Some(CommitId::from_hash(be_store::Hash::from_bytes(commit)))
         }
-        _ => None,
+        Asked::List => None,
     };
     let conflicted = commit.is_some_and(|commit| {
         let held = shared.lock().unwrap_or_else(PoisonError::into_inner);
@@ -269,7 +276,7 @@ async fn perform(
         .read_manifest(&saved.manifest)
         .await
         .map_err(|error| error.to_string())?;
-    if matches!(request, HostRequest::PreviewRevision { .. }) {
+    if matches!(request, Asked::Preview(_)) {
         let content = super::is_known(summary.content_type)
             .then(|| Content::new(summary.content_type, bytes))
             .ok_or("This revision cannot be previewed.")?;

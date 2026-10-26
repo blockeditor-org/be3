@@ -32,7 +32,7 @@ fn kept(fullscreen: bool) -> Vec<HostWindow> {
 fn a_desktop_started_again_adopts_the_windows_the_host_kept() {
     let mut first = Fixture::new();
     first.settle();
-    first.test.set_host_value::<HostWindows>(&kept(false));
+    first.test.set_watched::<WindowsWatch>(&kept(false));
     first.settle();
     let opened = placed(&first, 2).expect("the desktop shows the window");
     let tab = first
@@ -46,7 +46,7 @@ fn a_desktop_started_again_adopts_the_windows_the_host_kept() {
     let saved: EditorViewContent = first.test.content(None);
 
     let mut second = Fixture::holding(saved);
-    second.test.set_host_value::<HostWindows>(&kept(true));
+    second.test.set_watched::<WindowsWatch>(&kept(true));
     second.settle();
 
     assert_eq!(
@@ -70,7 +70,7 @@ fn a_desktop_started_again_adopts_the_windows_the_host_kept() {
     assert!(
         second
             .test
-            .take_actions::<WindowAction>()
+            .take_host_calls(block_ui_test::requested::window)
             .iter()
             .all(|action| !matches!(
                 action,

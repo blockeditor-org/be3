@@ -158,25 +158,20 @@ pub(super) fn BlockSettingsView(editor: Editor, owner: Uuid) -> NodeId {
 
 #[component]
 fn KindHere(editor: Editor, kind: Uuid, block: Memo<Option<Uuid>>, manages: Memo<bool>) -> NodeId {
-    let host = editor.host();
     let label = create_memo(move || kind_name(editor, kind));
     let open_inside = create_signal(None::<bool>);
-    let asked = create_signal(None::<u64>);
     create_effect(move || {
         if let (Some(block), true) = (block.get(), manages.get()) {
-            asked.set(Some(untrack(|| editor.host().list_access(block))));
-        }
-    });
-    editor.on_reply(move || {
-        let Some(request) = asked.get_untracked() else {
-            return;
-        };
-        if let Some(AccessListing::Listed { grants, .. }) = host.take_access_listing(request) {
-            let open = grants.iter().any(|grant| {
-                Uuid::from_bytes(grant.account) == ANYONE_INSIDE
-                    && grant.granted.is_some_and(|level| level.can_view())
-            });
-            open_inside.set(Some(open));
+            let asked = untrack(|| editor.host().list_access(block));
+            editor.then(asked, move |listed| {
+                    if let Ok(AccessListing { grants, .. }) = listed {
+                        let open = grants.iter().any(|grant| {
+                            Uuid::from_bytes(grant.account) == ANYONE_INSIDE
+                                && grant.granted.is_some_and(|level| level.can_view())
+                        });
+                        open_inside.set(Some(open));
+                    }
+                });
         }
     });
     let selected = create_memo(move || {

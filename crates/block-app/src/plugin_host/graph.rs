@@ -45,9 +45,8 @@ pub(crate) fn access_of(level: AccessLevel) -> be_graph::Access {
 
 pub(crate) fn grants_of(
     listed: Result<be_protocol::AccessList, String>,
-) -> block_plugin_api::AccessListing {
-    match listed {
-        Ok(list) => block_plugin_api::AccessListing::Listed {
+) -> Result<block_plugin_api::AccessListing, String> {
+    listed.map(|list| block_plugin_api::AccessListing {
             grants: list
                 .entries
                 .into_iter()
@@ -69,9 +68,7 @@ pub(crate) fn grants_of(
                 .collect(),
             company: list.company,
             set_inside: list.set_inside,
-        },
-        Err(error) => block_plugin_api::AccessListing::Failed(error),
-    }
+        })
 }
 
 pub(crate) fn level_of(access: be_graph::Access) -> AccessLevel {
@@ -117,18 +114,13 @@ pub(crate) fn answer(query: BlockQuery) -> Vec<BlockInfo> {
 pub(crate) fn wire_entries(entries: &be_block::Entries) -> MetadataEntries {
     entries
         .iter()
-        .map(|(key, value)| {
-            (
-                key.into_bytes(),
-                block_plugin_api::ByteBuf::from(value.clone()),
-            )
-        })
+        .map(|(key, value)| (key.into_bytes(), value.clone()))
         .collect()
 }
 
 pub(crate) fn entries_of(entries: MetadataEntries) -> be_block::Entries {
     entries
         .into_iter()
-        .map(|(key, value)| (Uuid::from_bytes(key), value.into_vec()))
+        .map(|(key, value)| (Uuid::from_bytes(key), value))
         .collect()
 }

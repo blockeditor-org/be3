@@ -13,7 +13,8 @@ fn templates_keep_their_order_and_take_their_editors_defaults() {
     let main = editor.template("main").expect("main is declared");
     assert_eq!(main.name, "Counter");
     assert_eq!(main.icon, "\u{e0ef}");
-    assert_eq!(main.category, TemplateCategory::Debug);
+    assert_eq!(main.category, TemplateCategory::Regular);
+    assert!(main.debug);
     assert_eq!(Some(main.block_type), editor.edits.block_type());
     assert!(!main.dialog);
     let zero = editor.template("zero").expect("zero is declared");

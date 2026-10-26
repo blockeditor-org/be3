@@ -343,7 +343,7 @@ fn api_child(change: be_block::ChildChange) -> block_type_api::ChildChange {
         be_block::ChildChange::Add(child) => block_type_api::ChildChange::Add(child),
         be_block::ChildChange::Delete(child) => block_type_api::ChildChange::Delete(child),
         be_block::ChildChange::Replace { old, new } => {
-            block_type_api::ChildChange::Replace { old, new }
+            block_type_api::ChildChange::Replace(block_type_api::ReplaceChild { old, new })
         }
     }
 }
@@ -413,6 +413,17 @@ pub(crate) fn take_editor_frames(editor: u64) -> Vec<(Uuid, Vec<u8>)> {
     with_shared_mut(|shared| shared.editor_frames.remove(&editor))
         .flatten()
         .unwrap_or_default()
+}
+
+pub(crate) fn keep_editor_frames(editor: u64, mut kept: Vec<(Uuid, Vec<u8>)>) {
+    if kept.is_empty() {
+        return;
+    }
+    with_shared_mut(|shared| {
+        let held = shared.editor_frames.entry(editor).or_default();
+        kept.append(held);
+        *held = kept;
+    });
 }
 
 pub(crate) fn snapshot_frame(block: Uuid) -> Option<Vec<u8>> {

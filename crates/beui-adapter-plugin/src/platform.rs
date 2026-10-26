@@ -7,38 +7,16 @@ use block_editor_plugin::accesskit::TreeUpdate;
 
 pub(crate) struct HostPlatform {
     host: EditorHost,
-    picks: Vec<(u64, FilePickAnswer)>,
-    saves: Vec<(u64, FileSaveAnswer)>,
     tree: Option<TreeUpdate>,
 }
 
 impl HostPlatform {
     pub(crate) fn new(host: EditorHost) -> Self {
-        Self {
-            host,
-            picks: Vec::new(),
-            saves: Vec::new(),
-            tree: None,
-        }
+        Self { host, tree: None }
     }
 
     pub(crate) fn take_tree(&mut self) -> Option<TreeUpdate> {
         self.tree.take()
-    }
-
-    pub(crate) fn deliver_file_dialogs(&mut self) {
-        for (request, answer) in std::mem::take(&mut self.picks) {
-            match self.host.take_pick(request) {
-                Some(pick) => answer.send(pick),
-                None => self.picks.push((request, answer)),
-            }
-        }
-        for (request, answer) in std::mem::take(&mut self.saves) {
-            match self.host.take_save(request) {
-                Some(save) => answer.send(save),
-                None => self.saves.push((request, answer)),
-            }
-        }
     }
 }
 
@@ -70,11 +48,11 @@ impl Platform for HostPlatform {
 
     fn pick_file(&mut self, request: FilePickRequest, answer: FilePickAnswer) {
         let asked = self.host.pick_file(request.filter);
-        self.picks.push((asked, answer));
+        self.host.then(asked, move |pick| answer.send(pick));
     }
 
     fn save_file(&mut self, request: FileSaveRequest, answer: FileSaveAnswer) {
         let asked = self.host.save_file(request.file);
-        self.saves.push((asked, answer));
+        self.host.then(asked, move |save| answer.send(save));
     }
 }

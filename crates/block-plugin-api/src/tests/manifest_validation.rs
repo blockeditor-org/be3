@@ -12,7 +12,8 @@ fn manifest_validation() {
             id: "main".into(),
             name: "Counter".into(),
             icon: "123".into(),
-            category: TemplateCategory::Debug,
+            category: TemplateCategory::Regular,
+            debug: true,
             dialog: false,
             block_type: [1; 16],
         }],
@@ -32,6 +33,7 @@ fn manifest_validation() {
         block_types: Vec::new(),
         entry_point: "counter.wasm".into(),
         network: vec!["api.github.com".into()],
+        extensions: Vec::new(),
     };
     assert_eq!(manifest.validate(), Ok(()));
 

@@ -15,11 +15,9 @@ fn a_fullscreen_windows_tab_on_another_screen_offers_to_leave_full_screen() {
         fullscreen: Some(right),
         ..host_window(1, true)
     };
-    fixture
-        .test
-        .set_host_value::<HostWindows>(&vec![fullscreen]);
+    fixture.test.set_watched::<WindowsWatch>(&vec![fullscreen]);
     fixture.settle();
-    fixture.test.take_sent();
+    fixture.test.clear_calls();
     assert!(
         right.contains_rect(fixture.test.rect_of("dock.fullscreen")),
         "the window fills the screen it is fullscreen on"
@@ -35,7 +33,7 @@ fn a_fullscreen_windows_tab_on_another_screen_offers_to_leave_full_screen() {
     fixture.test.click("dock.away.leave");
     fixture.settle();
     assert_eq!(
-        fixture.test.actions::<WindowAction>(),
+        fixture.test.host_calls(block_ui_test::requested::window),
         [WindowAction::Fullscreen {
             window: HostWindowId(1),
             fullscreen: false

@@ -11,9 +11,9 @@ fn the_oldest_notifications_are_let_go_once_too_many_are_kept() {
     assert_eq!(center.listed().count(), MAX_KEPT);
     assert_eq!(
         center.take_signals(),
-        vec![NotificationSignal::Closed(
-            1,
-            NotificationCloseReason::Expired
-        )]
+        vec![NotificationSignal::Closed {
+            id: 1,
+            reason: NotificationCloseReason::Expired
+        }]
     );
 }

@@ -1,7 +1,6 @@
 use block_editor_beui::be_block::BlockContent;
-use block_editor_beui::{
-    AccessGrant, AccessLevel, AccessListing, BlockInfo, HostReply, HostRequest, ShellDialog,
-};
+use block_editor_beui::{AccessGrant, AccessLevel, AccessListing, BlockInfo, ShellDialog};
+use block_ui_test::HostCall;
 use workspace_ui_types::FolderContent;
 
 use super::*;
@@ -26,8 +25,12 @@ fn the_share_dialog_says_where_each_persons_access_comes_from() {
         .test
         .take_requests()
         .into_iter()
-        .find_map(|(request, asked)| {
-            (asked == HostRequest::ListAccess(block.into_bytes())).then_some(request)
+        .find_map(|call| match call {
+            HostCall::ListAccess {
+                reply,
+                block: asked,
+            } if asked == block.into_bytes() => Some(reply),
+            _ => None,
         })
         .expect("opening the share dialog asks who can open the block");
     let person = |name: &str, effective: AccessLevel, source: Uuid| AccessGrant {
@@ -42,9 +45,9 @@ fn the_share_dialog_says_where_each_persons_access_comes_from() {
         source: Some(source.into_bytes()),
         waiting: false,
     };
-    fixture.test.reply(
+    fixture.test.answer(
         listing,
-        HostReply::AccessListed(AccessListing::Listed {
+        Ok(AccessListing {
             grants: vec![
                 AccessGrant {
                     account: me.into_bytes(),

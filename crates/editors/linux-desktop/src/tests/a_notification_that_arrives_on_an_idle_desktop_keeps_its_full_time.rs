@@ -9,15 +9,10 @@ fn a_notification_that_arrives_on_an_idle_desktop_keeps_its_full_time() {
     fixture.test.wait(Duration::from_secs(60));
     fixture
         .test
-        .set_host_value::<Notifications>(&NotificationInbox {
+        .set_watched::<NotificationsWatch>(&NotificationInbox {
             requests: vec![(
                 1,
-                NotificationRequest::Notify(Box::new(notification(
-                    1,
-                    "Mail",
-                    "Mia Chen",
-                    "Lunch at noon?",
-                ))),
+                NotificationRequest::Notify(notification(1, "Mail", "Mia Chen", "Lunch at noon?")),
             )],
         });
     fixture.test.wait(Duration::from_secs(1));

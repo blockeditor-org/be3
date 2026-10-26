@@ -27,7 +27,7 @@ fn a_thread_that_trapped_wakes_the_host_to_be_told() {
     }
 
     let failure = failure.expect("the host should be told what stopped the thread");
-    assert!(failure.contains("create_buffer"), "{failure}");
+    assert!(failure.contains("create-buffer"), "{failure}");
     assert!(
         told.load(Ordering::Acquire),
         "a thread trapped and nothing woke the host to be told"

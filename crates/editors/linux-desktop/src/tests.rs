@@ -4,16 +4,16 @@ use block_editor_beui::be_block::{
     DisplaySettings, DisplaySettingsContent, LINUX_DESKTOP_EDITOR, Root, Settings, SettingsContent,
     SettingsProfile, SettingsProfileContent, VIEW_EDITOR, WORKSPACE_EDITOR,
 };
-use block_editor_beui::beui::{Document, Key, KeyChord, Modifiers, NodeId, Rect};
+use block_editor_beui::beui::{Document, Key, KeyChord, Modifiers, NodeId, Rect, Vec2};
 use block_editor_beui::{
-    AudioOutput, BlockInfo, BlockParent, ChildContent, Displays, EditorHost, Epaper, EpaperRequest,
-    HostDisplay, HostImage, HostProgram, HostWindow, HostWindowId, HostWindows,
-    IncomingNotification, Media, MediaLevel, MediaLevels, MediaRequest, NotificationInbox,
-    NotificationReport, NotificationRequest, NotificationSignal, Notifications, OwnedEditor,
-    PlayerCommand, Power, PowerAction, PowerAvailability, ProgramAction, Programs, Wifi, WifiLink,
-    WifiNetwork, WifiRequest, WifiSecurity, WifiStatus, WindowAction, WindowOrigin,
+    AudioOutput, BlockInfo, BlockParent, ChildContent, DisplaysWatch, EditorHost, EpaperWatch,
+    HostDisplay, HostImage, HostProgram, HostWindow, HostWindowId, IncomingNotification,
+    MediaLevel, MediaLevels, MediaRequest, MediaWatch, NotificationInbox, NotificationRequest,
+    NotificationSignal, NotificationsWatch, OwnedEditor, PlayerCommand, PowerAction,
+    PowerAvailability, PowerWatch, ProgramAction, ProgramsWatch, WifiLink, WifiNetwork,
+    WifiRequest, WifiSecurity, WifiStatus, WifiWatch, WindowAction, WindowOrigin, WindowsWatch,
 };
-use block_plugin_api::Size;
+
 use block_shell::{KeptWindow, saved_windows};
 use block_ui_test::BeuiTest;
 use uuid::Uuid;
@@ -106,7 +106,7 @@ impl Fixture {
 
     fn resumed(saved: EditorViewContent) -> Self {
         let mut fixture = Self::holding(saved);
-        fixture.test.set_host_value::<Programs>(&programs());
+        fixture.test.set_watched::<ProgramsWatch>(&programs());
         fixture.settle();
         fixture
     }
@@ -124,7 +124,7 @@ impl Fixture {
     }
 
     fn show_windows(&mut self, windows: &[HostWindow]) {
-        self.test.set_host_value::<HostWindows>(&windows.to_vec());
+        self.test.set_watched::<WindowsWatch>(&windows.to_vec());
         self.settle();
     }
 
@@ -143,16 +143,16 @@ impl Fixture {
 
     fn holding(view: EditorViewContent) -> Self {
         let mut fixture = Self::unserved(view);
-        fixture.test.set_host_value::<Programs>(&Vec::new());
+        fixture.test.set_watched::<ProgramsWatch>(&Vec::new());
         fixture
             .test
-            .set_host_value::<Notifications>(&NotificationInbox::default());
+            .set_watched::<NotificationsWatch>(&NotificationInbox::default());
         fixture
             .test
-            .set_host_value::<Media>(&MediaLevels::default());
+            .set_watched::<MediaWatch>(&MediaLevels::default());
         fixture
             .test
-            .set_host_value::<Power>(&PowerAvailability::default());
+            .set_watched::<PowerWatch>(&PowerAvailability::default());
         fixture
     }
 
@@ -234,7 +234,7 @@ impl Fixture {
     }
 
     fn report_screens(&mut self, screens: Vec<HostDisplay>) {
-        self.test.set_host_value::<Displays>(&screens);
+        self.test.set_watched::<DisplaysWatch>(&screens);
         self.settle();
     }
 
@@ -246,16 +246,16 @@ impl Fixture {
                 .iter()
                 .map(|id| host_window(*id, focused == Some(*id)))
                 .collect();
-            fixture.test.set_host_value::<HostWindows>(&windows);
+            fixture.test.set_watched::<WindowsWatch>(&windows);
             fixture.settle();
         }
-        fixture.test.take_sent();
+        fixture.test.clear_calls();
         fixture
     }
 
     fn focused_windows(&self) -> Vec<HostWindowId> {
         self.test
-            .actions::<WindowAction>()
+            .host_calls(block_ui_test::requested::window)
             .into_iter()
             .filter_map(|action| match action {
                 WindowAction::Focus(window) => Some(window),
@@ -265,12 +265,12 @@ impl Fixture {
     }
 
     fn allow_power(&mut self, power: PowerAvailability) {
-        self.test.set_host_value::<Power>(&power);
+        self.test.set_watched::<PowerWatch>(&power);
         self.settle();
     }
 
     fn wifi(&mut self, status: WifiStatus) {
-        self.test.set_host_value::<Wifi>(&status);
+        self.test.set_watched::<WifiWatch>(&status);
         self.settle();
     }
 
@@ -279,7 +279,7 @@ impl Fixture {
     }
 
     fn hear(&mut self, level: f32, muted: bool, default_output: &str) {
-        self.test.set_host_value::<Media>(&MediaLevels {
+        self.test.set_watched::<MediaWatch>(&MediaLevels {
             output: Some(MediaLevel { level, muted }),
             outputs: vec![
                 AudioOutput {
@@ -302,20 +302,17 @@ impl Fixture {
             .iter()
             .map(|incoming| {
                 self.notified += 1;
-                (
-                    self.notified,
-                    NotificationRequest::Notify(Box::new(incoming.clone())),
-                )
+                (self.notified, NotificationRequest::Notify(incoming.clone()))
             })
             .collect();
         self.test
-            .set_host_value::<Notifications>(&NotificationInbox { requests });
+            .set_watched::<NotificationsWatch>(&NotificationInbox { requests });
         self.settle();
     }
 
     fn signals(&mut self) -> Vec<NotificationSignal> {
         self.test
-            .take_actions::<NotificationReport>()
+            .take_host_calls(block_ui_test::requested::notification_report)
             .into_iter()
             .flat_map(|report| report.signals)
             .collect()
@@ -448,10 +445,7 @@ fn host_window(id: u64, focused: bool) -> HostWindow {
         app_id: "test".to_owned(),
         parent: None,
         modal: false,
-        size: Size {
-            width: 320.0,
-            height: 200.0,
-        },
+        size: Vec2::new(320.0, 200.0),
         fullscreen: None,
         responding: true,
         focused,

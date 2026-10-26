@@ -1,5 +1,5 @@
 use block_editor_beui::beui::reactive::{Pending, Ready};
-use block_editor_beui::{AccessGrant, AccessLevel, AccessListing};
+use block_editor_beui::{AccessGrant, AccessLevel, AccessListing, Failure};
 use uuid::Uuid;
 
 pub(crate) const GRANTABLE: [AccessLevel; 4] = [
@@ -95,20 +95,20 @@ impl Share {
         }
     }
 
-    pub(crate) fn listed(&mut self, listing: AccessListing) {
+    pub(crate) fn listed(&mut self, listing: Result<AccessListing, Failure>) {
         self.request = None;
         match listing {
-            AccessListing::Listed {
+            Ok(AccessListing {
                 grants,
                 company,
                 set_inside,
-            } => {
+            }) => {
                 self.grants = grants;
                 self.company = company;
                 self.set_inside = set_inside;
                 self.members = Ok(());
             }
-            AccessListing::Failed(error) => self.members = Err(Pending::Failed(error)),
+            Err(error) => self.members = Err(Pending::Failed(error.to_string())),
         }
     }
 

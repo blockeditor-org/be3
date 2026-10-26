@@ -1,0 +1,351 @@
+package be3:plugin@0.1.0;
+
+/// What the host and an editor plugin share.
+interface types {
+    use accessibility.{description};
+    use be3:ui/types@0.1.0.{modifiers, pos2, rect, input, preferences, window-requests};
+
+    use be3:shared/ids@0.1.0.{
+        account-id, block-id, block-type-id, organization-id, surface-id, uuid,
+    };
+
+    /// An editor a plugin's manifest declares.
+    type editor-id = uuid;
+
+    /// An installation of the app, as the id it keeps across restarts.
+    type installation-id = uuid;
+
+    /// Why one side did not do what the other asked of it: the host, a call an
+    /// editor made, or an editor, a call of the host's.
+    variant failure {
+        /// The asker may not see or change what it asked about.
+        denied,
+        /// The other side does not offer this, or not now: it has no such
+        /// service, nothing open to do it with, or it closed first.
+        unavailable,
+        /// It tried and could not; the message says why, for the user.
+        failed(string),
+    }
+
+    /// An open editor instance, numbered by the host.
+    type editor-instance-id = u64;
+
+    /// A screen the host asked a plugin to draw, numbered by the host.
+    type screen-id = u64;
+
+    record size {
+        width: f32,
+        height: f32,
+    }
+
+    record plugin-identity {
+        id: string,
+        name: string,
+        version: string,
+    }
+
+    enum surface-support {
+        none,
+        texture,
+    }
+
+    enum surface-format {
+        rgba8-unorm,
+        rgba8-unorm-srgb,
+        bgra8-unorm,
+        bgra8-unorm-srgb,
+    }
+
+    record surface-spec {
+        format: surface-format,
+        render: bool,
+    }
+
+    record hello {
+        plugin: plugin-identity,
+        surface: surface-support,
+    }
+
+    record hello-accepted {
+        host-name: string,
+        surface: option<surface-spec>,
+        preferences: preferences,
+    }
+
+    enum font-role {
+        text,
+        monospace,
+        fallback,
+        icons,
+    }
+
+    record font-face {
+        role: font-role,
+        index: u32,
+        data: list<u8>,
+    }
+
+    /// Faces to add, or with `replace` the whole set.
+    record fonts {
+        replace: bool,
+        faces: list<font-face>,
+    }
+
+    enum editor-region {
+        frame,
+        preview,
+        artifact-settings,
+    }
+
+    enum frame-chrome {
+        none,
+        drawn,
+    }
+
+    enum top-bar {
+        hidden,
+        shown,
+        phone,
+    }
+
+    record frame-spec {
+        chrome: frame-chrome,
+        content: option<rect>,
+        top-bar: top-bar,
+    }
+
+    record monitor {
+        id: string,
+        name: string,
+        rect: rect,
+    }
+
+    record viewport-metrics {
+        logical: size,
+        visible: pos2,
+        pixel-width: u32,
+        pixel-height: u32,
+        scale-factor: f32,
+        monitors: list<monitor>,
+    }
+
+    record screen-request {
+        screen: screen-id,
+        instance: editor-instance-id,
+        region: editor-region,
+        metrics: viewport-metrics,
+        frame: option<frame-spec>,
+    }
+
+    record screen-placement {
+        screen: screen-id,
+        instance: editor-instance-id,
+        region: editor-region,
+        surface: surface-id,
+        width: u32,
+        height: u32,
+        scale-factor-millis: u32,
+    }
+
+    record screen-layout {
+        screens: list<screen-placement>,
+    }
+
+    record timed-input {
+        input: input,
+        time-micros: option<u64>,
+    }
+
+    /// Input for one screen. Batches waiting for the plugin merge: pointer moves
+    /// and pixel scrolls fold into the last of a run unless `every-sample`, and
+    /// everything else stays, in order.
+    record input-batch {
+        screen: screen-id,
+        events: list<timed-input>,
+        every-sample: bool,
+    }
+
+    record region-size {
+        screen: screen-id,
+        logical: size,
+    }
+
+    record press-claim {
+        modifiers: modifiers,
+        rect: rect,
+    }
+
+
+    /// A panel of the host's own that an editor can show or place.
+    enum host-panel {
+        block-stack,
+        performance,
+        plugins,
+    }
+
+    /// A child an editor placed, numbered by the editor.
+    type child-id = u64;
+
+    /// A web view an editor shows, numbered by the editor.
+    type web-view-id = u32;
+
+    /// A window of another program the host shows, numbered by the host.
+    type host-window-id = u64;
+
+    enum child-layer {
+        below,
+        above,
+    }
+
+    enum child-mode {
+        passive,
+        preview,
+        active,
+        live,
+        in-place,
+    }
+
+    record block-child {
+        block-id: block-id,
+        block-type: block-type-id,
+        view-block: option<block-id>,
+        editor: option<editor-id>,
+    }
+
+    record creation-child {
+        editor: editor-id,
+        template: string,
+    }
+
+    record artifact-settings-child {
+        block-id: block-id,
+    }
+
+    /// What a child an editor placed shows.
+    variant child-content {
+        block(block-child),
+        web-view(web-view-id),
+        host(host-panel),
+        window(host-window-id),
+        creation(creation-child),
+        artifact-settings(artifact-settings-child),
+    }
+
+    record child-placement {
+        child: child-id,
+        content: child-content,
+        rect: rect,
+        clip: rect,
+        own-frame: bool,
+        top-bar: top-bar,
+        corner-radius: f32,
+        layer: child-layer,
+        mode: child-mode,
+        intrinsic: option<size>,
+        rotation: f32,
+        opacity: f32,
+        follows-view: bool,
+    }
+
+    /// A rectangle that hides the children placed before it.
+    record occluder {
+        after: u32,
+        rect: rect,
+    }
+
+    /// The children an instance placed in a region.
+    record child-placements {
+        instance: editor-instance-id,
+        region: editor-region,
+        children: list<child-placement>,
+        occluders: list<occluder>,
+    }
+
+    record frame-report {
+        screen: screen-id,
+        content: rect,
+        painted: list<rect>,
+        floating: list<rect>,
+        drawing: list<rect>,
+        every-sample: bool,
+        claims: list<press-claim>,
+        description: option<description>,
+    }
+
+    record screen-window {
+        screen: screen-id,
+        window: window-requests,
+    }
+
+    record surface-rect {
+        x: u32,
+        y: u32,
+        width: u32,
+        height: u32,
+    }
+
+    record screen-damage {
+        screen: screen-id,
+        rect: surface-rect,
+    }
+
+    record presented-frame {
+        sequence: u64,
+        damage: list<screen-damage>,
+    }
+
+    /// What a plugin drew: the frame the host composites, with what each
+    /// screen asks of its window and the children it placed.
+    record frame-commit {
+        serial: u64,
+        sizes: list<region-size>,
+        reports: list<frame-report>,
+        windows: list<screen-window>,
+        children: list<child-placements>,
+        repaint-after-micros: option<u64>,
+        animating: bool,
+        presented: option<presented-frame>,
+    }
+
+    record open-block {
+        instance: editor-instance-id,
+        editor: editor-id,
+        block-id: block-id,
+        block-type: block-type-id,
+        view-block: option<block-id>,
+        account-id: account-id,
+        organization-id: organization-id,
+        client-id: installation-id,
+        editable: bool,
+    }
+
+    record open-creation {
+        instance: editor-instance-id,
+        editor: editor-id,
+        template: string,
+        account-id: account-id,
+        organization-id: organization-id,
+        client-id: installation-id,
+    }
+
+    record open-artifact {
+        instance: editor-instance-id,
+        editor: editor-id,
+        block-id: block-id,
+        block-type: block-type-id,
+        /// The block the artifact is made from.
+        source: block-id,
+        account-id: account-id,
+        organization-id: organization-id,
+        client-id: installation-id,
+        data: list<u8>,
+    }
+
+    /// How an editor instance opens: on a block, as a creation dialog, or on
+    /// an artifact's settings.
+    variant opening {
+        block(open-block),
+        creation(open-creation),
+        artifact(open-artifact),
+    }
+}

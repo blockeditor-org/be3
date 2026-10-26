@@ -21,15 +21,25 @@ plugin instead of workspace-ui. These flags start it that way:
   The app test `the_desktop_shell_opens_and_closes_cleanly` (crates/app-tests) starts it headless and closes it.
 - `--install-session [PREFIX]` (Linux): see below.
 
-Everything the desktop gets from the host is a host value, and linux-desktop shows a control
-only while the host offers what backs it (`editor.host_offers::<T>()`, true once the host has
-published `T`): the Programs button, the Super tap and placeholders' Open need `Programs`, the
-bell `Notifications`, the power menu `Power`, the media keys `Media` (the volume item, its
-`output`), the Wi-Fi item `Wifi` (its `available`), and the tray its items. block-app publishes each as soon as the service behind it
-runs, even empty, and off Linux its `host_values.rs` tables list none of them, so a plugin
-watching one gets nothing and its actions are refused. The web and Android apps have no
-`--desktop`: a desktop with none of these is only a dock of block windows, which their own
-shells already are.
+Everything the desktop gets from the host comes through `be3:linux-desktop`, a WIT package
+beside the core plugin protocol rather than in it
+(`crates/block-plugin-api/wit/deps/linux-desktop`): one interface per part of the session
+(`windows`, `input`, `displays`, `power`, `media`, `wifi`, `epaper`, `notifications`,
+`screen-lock`, `programs`, `tray`, sharing `types`' `host-image`), each a latest-value watch
+(`WindowsWatch`, `PowerWatch`, ...) and, where the desktop asks something of the host, a
+function (`power::request(PowerAction)`, `epaper::refresh()`, ...). Another host, a compositor
+in another language, can implement it from the WIT alone. A plugin uses it only by naming
+`be3:linux-desktop` in its manifest's `extensions` (linux-desktop, workspace-ui for the program
+windows, and settings for displays, input devices and remaps); the host denies a watch or a call
+from any other. linux-desktop shows a control only while the host offers what backs it
+(`editor.offered::<W>()`, true once the host answered the watch): the Programs button, the
+Super tap and placeholders' Open need `ProgramsWatch`, the bell `NotificationsWatch`, the power
+menu `PowerWatch`, the media keys `MediaWatch` (the volume item, its `output`), the Wi-Fi item
+`WifiWatch` (its `available`), and the tray its items. block-app publishes each as soon as the
+service behind it runs, even empty, and a host with no Linux session (off Linux, the web and
+Android) answers every watch of the package `unsupported` and drops its calls, which the desktop
+sees as nothing offered. The web and Android apps have no `--desktop`: a desktop with none of
+these is only a dock of block windows, which their own shells already are.
 
 `./scripts/buck run //crates/block-app:dev -- --desktop` runs the desktop shell headless, to
 drive like any other run (guides/running/drive.md).
@@ -159,8 +169,9 @@ the hints, loads the picture (image-data, image-path, the app icon through be-wa
 `IconThemes`, then the desktop entry's icon, scaled down to at most 128 pixels and sent as
 RGBA), and answers `Notify` at once with an id it picks itself (`notifications/inbox.rs`:
 `replaces_id` keeps its id while the desktop still holds it). Each `Notify` and
-`CloseNotification` then waits in the `Notifications` host value, a `NotificationInbox` of
-numbered requests, until the shell's `NotificationReport` says it took them; the report also
+`CloseNotification` then waits in the `NotificationsWatch` value, a `NotificationInbox` of
+numbered requests, until the shell's `NotificationReport` (`notifications::report`) says it
+took them; the report also
 carries the `NotificationClosed` and `ActionInvoked` signals the host sends and the ids the
 desktop still holds.
 
@@ -206,8 +217,12 @@ icon, then `IconName` (in `IconThemePath`, then the icon themes through be-wayla
 where to test parsing: services, pixmaps (ARGB in network order), properties and menus
 (hidden entries dropped, `_` mnemonics removed).
 
-The shell watches the `Tray` host value, the items as `HostTrayItem`s with each menu a tree of
-`TrayMenuEntry`s, and answers with `TrayRequest`s. linux-desktop's `src/app/tray.rs` shows each
+The shell watches `TrayWatch`, the items as `HostTrayItem`s, and answers with `TrayRequest`s
+(`tray::request`). WIT has no recursive types, so a menu crosses flat: `TrayMenuItem`s in
+order, each one deeper than the submenu it is in; the host builds that list straight from
+dbusmenu's layout, and the shell nests it into `TrayMenuEntry` trees with
+`HostTrayItem::entries`, the helper the shell's own menus nest with (block-plugin-api's
+`nesting.rs`), which refuses a menu nested deeper than `MAX_MENU_DEPTH`. linux-desktop's `src/app/tray.rs` shows each
 item that is not `Passive` as a `PictureMenuButton` in the bar: a click is `Activate` (or opens
 the menu of an `ItemIsMenu` item), a right click opens the menu, a middle click is
 `SecondaryActivate` and the wheel `Scroll`s, 120 to a notch. Opening the menu sends
@@ -225,10 +240,10 @@ compositor's socket, for example a Python script using `gir1.2-ayatanaappindicat
 linux-desktop binds the volume, mute, mic mute, brightness and media transport keys
 (`BINDINGS` in its `app/media.rs`, the one place that says which key does what) as
 intercepting actions, so the host hands them to the shell even while a program has the keyboard,
-and a held key repeats. Each key sends a `MediaRequest` host action (`editor.act`), and
-a volume, mute or brightness key shows `beui::styled::LevelOsd`, an icon and a level bar on
-every monitor that fades out after 1.5 seconds, with the levels the host reports (the `Media`
-host value, `editor.host_value::<Media>()`). The bar's volume item (`app/volume.rs`) shows
+and a held key repeats. Each key sends a `MediaRequest` (`media::request` inside
+`editor.act`), and a volume, mute or brightness key shows `beui::styled::LevelOsd`, an icon and
+a level bar on every monitor that fades out after 1.5 seconds, with the levels the host reports
+(`editor.watch::<MediaWatch>()`). The bar's volume item (`app/volume.rs`) shows
 the same output level while the host reports one, and its popup sets the volume, the mute and
 the default output (`MediaRequest::SetVolume`, `SetMute`, `ChooseOutput`) from the sinks the
 host lists in `MediaLevels::outputs`.
@@ -255,7 +270,7 @@ and change them from outside the app with `pactl set-sink-volume`, `set-sink-mut
 ## Wi-Fi
 
 The bar's Wi-Fi item (linux-desktop's `app/wifi.rs`) shows while the host reports a Wi-Fi
-device (`WifiStatus::available` in the `Wifi` host value): its glyph is the joined network's
+device (`WifiStatus::available` in `WifiWatch`'s value): its glyph is the joined network's
 strength, and its popup turns Wi-Fi on and off, lists the networks in range and joins or leaves
 one with `WifiRequest`s. Opening the popup asks for a scan. A saved or open network is joined at
 once; a protected one asks for its password first, and asks again when the host reports that
@@ -339,7 +354,7 @@ block-app (`src/remap/linux.rs`) holds the chosen block, reads the envelope when
 the module from the plugin's data (`discovery::data`, only from a plugin that has an `InputRemapper`
 editor) when the plugin or path changes and only reconfigures the running one when only the config
 does, and keeps the last module and config it ran in its own database (`remapper`), so the session
-remaps from its first input, before the workspace is open. The `Remaps` host value says whether this
+remaps from its first input, before the workspace is open. `RemapsWatch` says whether this
 device runs a remapper, runs none, or stopped it. The DRM adapter hands every key, button and wheel
 notch to the `InputFilter` block-app sets on its `InputControl`, after the `WakeGate`, delivers what the
 filter returns as if libinput had sent it (so a remapped `VolumeUp` reaches linux-desktop's media keys
@@ -380,8 +395,8 @@ pointer held by the lock none is forwarded anything. `be_wayland::Compositor::se
 go of the buttons and popups a window held. Screens still
 turn off while locked, and idle inhibitors from the windows behind it are ignored. Media keys
 still reach linux-desktop's intercepting media actions (through `compositor/intercept.rs`'s
-`on_global_key`), so volume and playback work over the lock. The host publishes the
-`ScreenLocked` host value, and linux-desktop shows no notification toasts while it is set, so
+`on_global_key`), so volume and playback work over the lock. The host publishes
+`ScreenLockedWatch`, and linux-desktop shows no notification toasts while it is set, so
 none can be read or acted on behind the lock; they show again once it is unlocked.
 `ext-session-lock-v1` (external lockers such as swaylock) is not implemented.
 
@@ -396,8 +411,8 @@ the program launcher, which tapping Super alone or the bar's programs button ope
 `.desktop` programs of the XDG data dirs and starts the one picked, or what was typed as a
 command, with the variables of `Compositor::environment` (`XDG_RUNTIME_DIR`, `WAYLAND_DISPLAY`,
 `DISPLAY` for Xwayland and `DCONF_PROFILE`). linux-desktop draws it; block-app only reads the
-`.desktop` files and their icons and starts the programs (the `Programs` host value and
-`ProgramAction`, guides/adding_a_plugin_editor.md). The workspace shell has no launcher. A
+`.desktop` files and their icons and starts the programs (`ProgramsWatch` and
+`programs::request(ProgramAction)`, guides/adding_a_plugin_editor.md). The workspace shell has no launcher. A
 program can also be started against a driven app directly: the app hands the same variables to
 `drive env` (`App::environment`), so `drive exec foot` runs `foot` inside it, and
 `eval "$(drive env)"` sets them in a shell for anything else, such as `wl-paste`.

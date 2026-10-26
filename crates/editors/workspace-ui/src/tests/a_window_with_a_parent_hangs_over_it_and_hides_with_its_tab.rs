@@ -4,7 +4,7 @@ use super::*;
 fn a_window_with_a_parent_hangs_over_it_and_hides_with_its_tab() {
     let (mut fixture, _) = editor();
 
-    fixture.host.set_host_value::<HostWindows>(&vec![
+    fixture.host.set_watched::<WindowsWatch>(&vec![
         window(1, "Editor", None),
         window(2, "Save changes?", Some(1)),
     ]);
@@ -40,7 +40,7 @@ fn a_window_with_a_parent_hangs_over_it_and_hides_with_its_tab() {
         "the dialog has no tab of its own"
     );
 
-    fixture.host.set_host_value::<HostWindows>(&vec![
+    fixture.host.set_watched::<WindowsWatch>(&vec![
         window(1, "Editor", None),
         window(2, "Save changes?", Some(1)),
         window(3, "Terminal", None),

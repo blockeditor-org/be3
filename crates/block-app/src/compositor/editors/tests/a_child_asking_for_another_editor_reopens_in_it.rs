@@ -31,6 +31,7 @@ fn plugin(id: &str, editors: Vec<EditorManifest>) -> Arc<PluginManifest> {
         block_types: Vec::new(),
         entry_point: String::new(),
         network: Vec::new(),
+        extensions: Vec::new(),
     })
 }
 

@@ -494,7 +494,7 @@ struct BlockApp {
     every_session_type: bool,
     shell: Option<Uuid>,
     windows_sent: Option<u64>,
-    forwarded_picks: HashMap<u64, (PickSource, u64)>,
+    forwarded_picks: HashMap<u64, (PickSource, block_plugin_api::ops::OpId, PickSource)>,
     next_pick: u64,
     focus_reports: HashMap<Uuid, editors::FocusReport>,
     artifact_watches: HashMap<Uuid, Vec<Uuid>>,
@@ -845,7 +845,7 @@ impl BlockApp {
 
     #[cfg(target_os = "linux")]
     fn take_power_request(&mut self) {
-        let request = plugin_host::take_actions::<block_plugin_api::PowerAction>().pop();
+        let request = plugin_host::take_calls(block_plugin_api::requested::power).pop();
         if let Some(action) = request
             && self
                 .published_power
@@ -890,7 +890,7 @@ impl BlockApp {
         let locked = lock.locked();
         wayland::set_locked(locked);
         remap::set_locked(locked);
-        plugin_host::publish::<block_plugin_api::ScreenLocked>(&locked);
+        plugin_host::publish::<block_plugin_api::ScreenLockedWatch>(&locked);
         if locked {
             self.app_menu = None;
         }
@@ -902,7 +902,7 @@ impl BlockApp {
         availability.lock = !locked;
         if self.published_power != Some(availability) {
             self.published_power = Some(availability);
-            plugin_host::publish::<block_plugin_api::Power>(&availability);
+            plugin_host::publish::<block_plugin_api::PowerWatch>(&availability);
         }
     }
 
@@ -936,12 +936,12 @@ impl BlockApp {
 
     #[cfg(target_os = "linux")]
     fn run_media(&mut self) {
-        let requests = plugin_host::take_actions::<block_plugin_api::MediaRequest>();
+        let requests = plugin_host::take_calls(block_plugin_api::requested::media);
         if self.media.is_none()
-            && (!requests.is_empty() || plugin_host::watched::<block_plugin_api::Media>())
+            && (!requests.is_empty() || plugin_host::watched::<block_plugin_api::MediaWatch>())
         {
             self.media = Some(media::Media::start());
-            plugin_host::publish::<block_plugin_api::Media>(
+            plugin_host::publish::<block_plugin_api::MediaWatch>(
                 &block_plugin_api::MediaLevels::default(),
             );
         }
@@ -952,18 +952,20 @@ impl BlockApp {
             media.request(request);
         }
         if let Some(levels) = media.frame() {
-            plugin_host::publish::<block_plugin_api::Media>(&levels);
+            plugin_host::publish::<block_plugin_api::MediaWatch>(&levels);
         }
     }
 
     #[cfg(target_os = "linux")]
     fn run_wifi(&mut self) {
-        let requests = plugin_host::take_actions::<block_plugin_api::WifiRequest>();
+        let requests = plugin_host::take_calls(block_plugin_api::requested::wifi);
         if self.wifi.is_none()
-            && (!requests.is_empty() || plugin_host::watched::<block_plugin_api::Wifi>())
+            && (!requests.is_empty() || plugin_host::watched::<block_plugin_api::WifiWatch>())
         {
             self.wifi = Some(wifi::Wifi::start());
-            plugin_host::publish::<block_plugin_api::Wifi>(&block_plugin_api::WifiStatus::default());
+            plugin_host::publish::<block_plugin_api::WifiWatch>(
+                &block_plugin_api::WifiStatus::default(),
+            );
         }
         let Some(wifi) = &mut self.wifi else {
             return;
@@ -972,7 +974,7 @@ impl BlockApp {
             wifi.request(request);
         }
         if let Some(status) = wifi.frame() {
-            plugin_host::publish::<block_plugin_api::Wifi>(&status);
+            plugin_host::publish::<block_plugin_api::WifiWatch>(&status);
         }
     }
 
@@ -2251,9 +2253,9 @@ impl BlockApp {
         }
         if Some(wayland::revision()) != self.windows_sent {
             self.windows_sent = Some(wayland::revision());
-            plugin_host::publish::<block_plugin_api::HostWindows>(&wayland::listed());
+            plugin_host::publish::<block_plugin_api::WindowsWatch>(&wayland::listed());
         }
-        for action in plugin_host::take_actions::<block_plugin_api::WindowAction>() {
+        for action in plugin_host::take_calls(block_plugin_api::requested::window) {
             match action {
                 block_plugin_api::WindowAction::Focus(window) => wayland::focus(window),
                 block_plugin_api::WindowAction::Close(window) => wayland::close(window),
@@ -2323,8 +2325,8 @@ impl BlockApp {
     }
 
     fn cancel_forwarded_picks(&mut self) {
-        for (_, (source, request_id)) in self.forwarded_picks.drain() {
-            source.answer(request_id, block_plugin_api::BlockPick::Cancelled);
+        for (_, (source, request_id, _)) in self.forwarded_picks.drain() {
+            source.answer(request_id, Ok(None));
         }
     }
 
@@ -2344,9 +2346,32 @@ impl BlockApp {
             for (pick, answer) in
                 crate::plugin_host::take_pick_answers(&picker.plugin_id, picker.instance)
             {
-                if let Some((source, request_id)) = self.forwarded_picks.remove(&pick) {
+                if let Some((source, request_id, _)) = self.forwarded_picks.remove(&pick) {
                     source.answer(request_id, answer);
                 }
+            }
+        }
+        let sources: std::collections::HashSet<String> = self
+            .forwarded_picks
+            .values()
+            .map(|(source, _, _)| source.plugin_id.clone())
+            .collect();
+        for plugin_id in sources {
+            for (instance, op) in crate::plugin_host::take_withdrawn_picks(&plugin_id) {
+                self.forwarded_picks
+                    .retain(|pick, (source, asked, picker)| {
+                        let withdrawn = source.plugin_id == plugin_id
+                            && source.instance == instance
+                            && *asked == op;
+                        if withdrawn {
+                            crate::plugin_host::withdraw_pick(
+                                &picker.plugin_id,
+                                picker.instance,
+                                *pick,
+                            );
+                        }
+                        !withdrawn
+                    });
             }
         }
         let pickers: HashMap<Uuid, PickSource> = editors
@@ -2393,7 +2418,7 @@ impl BlockApp {
                     .into_iter()
                     .find_map(|id| Some((id, pickers.get(&id)?)))
                 else {
-                    source.answer(request.request_id, block_plugin_api::BlockPick::Cancelled);
+                    source.answer(request.op, Ok(None));
                     continue;
                 };
                 filter.anchor = filter.anchor.and_then(|anchor| {
@@ -2405,7 +2430,7 @@ impl BlockApp {
                 });
                 let within = block.and_then(|block| self.child_within(picker_id, block));
                 self.forwarded_picks
-                    .insert(pick, (source.clone(), request.request_id));
+                    .insert(pick, (source.clone(), request.op, picker.clone()));
                 crate::plugin_host::request_pick(
                     &picker.plugin_id,
                     picker.instance,
@@ -2578,7 +2603,9 @@ impl BlockApp {
     fn handle_editor_action(&mut self, from: Option<Uuid>, action: EditorAction) {
         match action {
             EditorAction::OpenBlock(open) => self.show_block(from, open),
-            EditorAction::Command { id, command } => self.handle_block_command(from, id, command),
+            EditorAction::Command { id, command } => self.handle_block_command(id, command),
+            EditorAction::Shell { id, command } => self.handle_shell_command(from, id, command),
+            EditorAction::SimulateAccess { id, access } => self.simulate_access(id, access),
             EditorAction::AppMenu { at } => self.open_app_menu(at),
         }
     }
@@ -2588,37 +2615,49 @@ impl BlockApp {
         self.app_menu = Some(ui::AppMenuView { opened, at });
     }
 
-    fn handle_block_command(&mut self, from: Option<Uuid>, id: Uuid, command: BlockCommand) {
+    fn handle_shell_command(
+        &mut self,
+        from: Option<Uuid>,
+        id: Uuid,
+        command: block_plugin_api::ShellCommand,
+    ) {
+        use block_plugin_api::ShellCommand;
         match command {
-            BlockCommand::Share => self.show_dialog(from, id, ShellDialog::Share),
-            BlockCommand::Leave => self.leaving = Some(id),
-            BlockCommand::Rename { anchor } => self.show_rename(from, id, anchor),
+            ShellCommand::Share => self.show_dialog(from, id, ShellDialog::Share),
+            ShellCommand::Leave => self.leaving = Some(id),
+            ShellCommand::Rename { anchor } => self.show_rename(from, id, anchor),
+            ShellCommand::CloseEditor => self.close_editor(id),
+            ShellCommand::AppMenu { .. } => self.open_app_menu(None),
+        }
+    }
+
+    fn simulate_access(&mut self, id: Uuid, access: AccessLevel) {
+        let access = match access {
+            AccessLevel::None => Access::None,
+            AccessLevel::KnowExists => Access::KnowExists,
+            AccessLevel::View => Access::View,
+            AccessLevel::Edit => Access::Edit,
+            AccessLevel::Manage => Access::Manage,
+        };
+        match access == Access::Manage {
+            true => self
+                .editors
+                .with_simulated(|simulated| simulated.remove(&id)),
+            false => self
+                .editors
+                .with_simulated(|simulated| simulated.insert(id, access)),
+        };
+    }
+
+    fn handle_block_command(&mut self, id: Uuid, command: BlockCommand) {
+        match command {
             BlockCommand::Undo if self.editor_access(id).can_edit() => be::undo(id),
             BlockCommand::Redo if self.editor_access(id).can_edit() => be::redo(id),
             BlockCommand::Undo | BlockCommand::Redo => {}
-            BlockCommand::AppMenu { .. } => self.open_app_menu(None),
             BlockCommand::Unlink { container } => {
                 self.queue_copy(id, Uuid::from_bytes(container));
             }
             BlockCommand::Artifact { action } => self.act_on_artifact(id, action),
-            BlockCommand::CloseEditor => self.close_editor(id),
-            BlockCommand::SimulateAccess { access } => {
-                let access = match access {
-                    AccessLevel::None => Access::None,
-                    AccessLevel::KnowExists => Access::KnowExists,
-                    AccessLevel::View => Access::View,
-                    AccessLevel::Edit => Access::Edit,
-                    AccessLevel::Manage => Access::Manage,
-                };
-                match access == Access::Manage {
-                    true => self
-                        .editors
-                        .with_simulated(|simulated| simulated.remove(&id)),
-                    false => self
-                        .editors
-                        .with_simulated(|simulated| simulated.insert(id, access)),
-                };
-            }
             BlockCommand::Delete { block_type, source } => {
                 self.queue_delete(id, Uuid::from_bytes(block_type), drag_source(source))
             }
@@ -2854,7 +2893,7 @@ impl BlockApp {
         } else {
             accounts::link_base(&self.server_url)
         };
-        plugin_host::publish::<block_plugin_api::LinkBase>(&link_base);
+        plugin_host::publish::<block_plugin_api::LinkBaseWatch>(&link_base);
         self.publish_administrator();
         be::start(be::Config {
             server_url: self.server_url.clone(),
@@ -2870,7 +2909,7 @@ impl BlockApp {
     }
 
     fn publish_administrator(&self) {
-        plugin_host::publish::<block_plugin_api::Administrator>(
+        plugin_host::publish::<block_plugin_api::AdministratorWatch>(
             &self.organization.as_ref().is_some_and(|organization| {
                 organization.kind == be_protocol::OrganizationKind::Company
                     && organization.role == OrganizationRole::Administrator

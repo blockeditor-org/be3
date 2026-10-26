@@ -33,13 +33,13 @@ fn on_a_phone_tapping_a_files_name_opens_its_rename_sheet() {
         resize: ResizeMode::None,
         error: None,
         menu: match placement.child == child {
-            true => vec![MenuEntry::Command(MenuCommand {
+            true => MenuEntry::flatten(&[MenuEntry::Command(MenuCommand {
                 id: "editor.rename".into(),
                 label: "Rename".into(),
                 enabled: true,
                 pin: MenuPin::Title,
                 ..MenuCommand::default()
-            })],
+            })]),
             false => Vec::new(),
         },
         creation: None,

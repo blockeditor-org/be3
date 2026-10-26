@@ -31,7 +31,7 @@ fn a_window_tab_shows_the_icon_its_program_set() {
     };
     fixture
         .host
-        .set_host_value::<HostWindows>(&vec![iconed, window(6, "Terminal", None)]);
+        .set_watched::<WindowsWatch>(&vec![iconed, window(6, "Terminal", None)]);
     fixture.settle();
 
     assert!(fixture.says("Paint"));

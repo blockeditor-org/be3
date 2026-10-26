@@ -4,8 +4,6 @@ use wasmtime::{Linker, Module, Store, Trap, TypedFunc, WasmBacktrace};
 use wasmtime_wasi::p2::pipe::MemoryOutputPipe;
 use wasmtime_wasi::{FsPerms, I32Exit, WasiCtxBuilder, p1};
 
-use block_gpu_host::calls::Guest;
-
 use crate::{
     Host, gpu, precompile::test_module, shared_memory, state::State, stderr::Tee, threads, wake,
 };
@@ -149,6 +147,8 @@ impl Host {
             device: self.devices.open(&self.imports),
             imports: Arc::clone(&self.imports),
             error: None,
+            fatal: None,
+            returned: Vec::new(),
             transport: Default::default(),
             gpu_time: Duration::ZERO,
             submit_time: Duration::ZERO,

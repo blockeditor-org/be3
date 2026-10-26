@@ -12,9 +12,11 @@ use be_client::Clock;
 
 use block_guest_abi::Guest;
 use block_guest_host::{Channel, InProcess, Wake, Worker};
+use block_type_api::ops::DeserializeOwned;
 use block_type_api::{
-    Change, ClientId, Command, Description, Event, Plain, PlainFile, Reply, Request, RequestId,
-    SessionTag, TypeInfo, decode_frame, encode_frame,
+    Change, ClientId, Description, Failure, Plain, PlainFile, SessionTag, TypeInfo,
+    embed::{exports::replicas, host::Call},
+    ops::{Connection, Incoming, Latest, OpError, OpId, Outcome, Reply, Side, Ticket},
 };
 use tokio::sync::Notify;
 use uuid::Uuid;
@@ -117,7 +119,8 @@ pub fn wasm(
         start: Box::new(move |wake, waiting| {
             let tag = tag.clone()?;
             let load = load.clone();
-            let host = block_wasm_host::PureHost::new(cache.as_deref())?;
+            let host = block_wasm_host::PureHost::new(cache.as_deref())?
+                .with_imports(block_type_api::embed::IMPORTS);
             let channel = host.spawn(name.clone(), move |host| load(host), wake, waiting)?;
             Ok((Box::new(channel) as Boxed, tag))
         }),
@@ -131,7 +134,12 @@ pub fn web(name: impl Into<String>, url: String, tag: Result<SessionTag, String>
         declared: None,
         start: Box::new(move |wake, waiting| {
             let tag = tag.clone()?;
-            let channel = block_guest_host::web::WebGuest::start(&url, wake, waiting)?;
+            let channel = block_guest_host::web::WebGuest::start(
+                &url,
+                block_type_api::embed::IMPORTS,
+                wake,
+                waiting,
+            )?;
             Ok((Box::new(channel) as Boxed, tag))
         }),
     }
@@ -140,26 +148,56 @@ pub fn web(name: impl Into<String>, url: String, tag: Result<SessionTag, String>
 struct Module {
     source: Source,
     worker: Option<Worker<Boxed>>,
+    connection: Connection,
     tag: SessionTag,
+    clock: Option<Latest<u64>>,
     ticked: Option<u64>,
-    wake: Option<u64>,
+    sleeping: Option<(u64, Reply<()>)>,
+    started: Option<Ticket<Vec<TypeInfo>>>,
     hello: bool,
     failure: Option<String>,
     generation: u64,
     restarts: usize,
 }
 
+#[derive(Debug)]
+pub enum Heard {
+    Hello(Vec<TypeInfo>),
+    Call {
+        op: Option<OpId>,
+        parent: Option<OpId>,
+        call: Call,
+    },
+    Completed {
+        op: OpId,
+        outcome: Outcome,
+    },
+    Canceled {
+        op: OpId,
+    },
+}
+
 pub struct Modules {
     modules: Vec<Module>,
     notify: Arc<Notify>,
-    requests: RequestId,
-    backlog: VecDeque<(usize, Command)>,
+    backlog: VecDeque<(usize, Heard)>,
     restarted: Vec<usize>,
     routes: HashMap<Uuid, usize>,
     clock: Clock,
 }
 
 const RESTART_LIMIT: usize = 8;
+
+fn unknown(content_type: Uuid) -> String {
+    format!("no type module has the block type {content_type}")
+}
+
+fn failed(content_type: Uuid, failure: Failure) -> String {
+    match failure {
+        Failure::UnknownType => unknown(content_type),
+        Failure::Malformed(error) => error,
+    }
+}
 
 impl Modules {
     pub fn new(sources: Vec<Source>, clock: Clock) -> Self {
@@ -169,9 +207,12 @@ impl Modules {
                 .map(|source| Module {
                     source,
                     worker: None,
+                    connection: Connection::new(Side::Host),
                     tag: SessionTag::default(),
+                    clock: None,
                     ticked: None,
-                    wake: None,
+                    sleeping: None,
+                    started: None,
                     hello: false,
                     failure: None,
                     generation: 0,
@@ -179,7 +220,6 @@ impl Modules {
                 })
                 .collect(),
             notify: Arc::new(Notify::new()),
-            requests: 0,
             backlog: VecDeque::new(),
             restarted: Vec::new(),
             routes: HashMap::new(),
@@ -199,22 +239,18 @@ impl Modules {
         held.generation += 1;
         held.hello = false;
         held.ticked = None;
-        held.wake = None;
+        held.clock = None;
+        held.sleeping = None;
+        held.connection = Connection::new(Side::Host);
         match (held.source.start)(wake, Arc::clone(&waiting)) {
             Ok((channel, tag)) => {
                 held.tag = tag;
                 held.failure = None;
-                let mut worker = Worker::new(channel, waiting);
-                let seed = *Uuid::new_v4().as_bytes();
-                let more = *Uuid::new_v4().as_bytes();
-                let mut entropy = [0u8; 32];
-                entropy[..16].copy_from_slice(&seed);
-                entropy[16..].copy_from_slice(&more);
-                let failed = worker.queue(vec![encode_frame(&Event::Entropy { seed: entropy })]);
-                held.worker = Some(worker);
-                if let Some(failure) = failed {
-                    self.fail(module, failure);
-                }
+                held.worker = Some(Worker::new(channel, waiting));
+                let mut entropy = Uuid::new_v4().as_bytes().to_vec();
+                entropy.extend_from_slice(Uuid::new_v4().as_bytes());
+                held.started = Some(replicas::start(&mut held.connection, entropy));
+                self.flush(module);
             }
             Err(error) => {
                 eprintln!(
@@ -234,6 +270,21 @@ impl Modules {
         held.failure = Some(failure);
     }
 
+    fn flush(&mut self, module: usize) {
+        let held = &mut self.modules[module];
+        let frames = held.connection.take_outbound();
+        let Some(worker) = held.worker.as_mut() else {
+            return;
+        };
+        if frames.is_empty() {
+            return;
+        }
+        if let Some(failure) = worker.queue(frames) {
+            self.fail(module, failure);
+            self.restart(module);
+        }
+    }
+
     pub fn module_of(&self, content_type: Uuid) -> Option<usize> {
         self.routes.get(&content_type).copied()
     }
@@ -250,6 +301,10 @@ impl Modules {
         self.modules[module].tag
     }
 
+    pub fn generation(&self, module: usize) -> u64 {
+        self.modules[module].generation
+    }
+
     pub fn notified(&self) -> impl Future<Output = ()> + 'static {
         let notify = Arc::clone(&self.notify);
         async move { notify.notified().await }
@@ -260,11 +315,11 @@ impl Modules {
         loop {
             let collected = self.collect();
             let heard = !collected.is_empty();
-            for (module, command) in collected {
-                if let Command::Hello { types } = command {
+            for (module, heard) in collected {
+                if let Heard::Hello(types) = heard {
                     self.hello(module, types).await;
                 } else {
-                    kept.push((module, command));
+                    kept.push((module, heard));
                 }
             }
             if self
@@ -290,31 +345,33 @@ impl Modules {
             .filter(|info| self.routes.get(&info.content_type) != Some(&module))
             .collect();
         let blanks = self
-            .requests_all(
+            .ask_all(
                 module,
                 types
                     .iter()
-                    .map(|info| Request::Blank {
-                        content_type: info.content_type,
+                    .map(|info| {
+                        let content_type = info.content_type;
+                        move |connection: &mut Connection| replicas::blank(connection, content_type)
                     })
                     .collect(),
             )
             .await;
         let mut blank = Vec::new();
         for (info, reply) in types.into_iter().zip(blanks) {
-            if let Reply::Blank(bytes) = reply {
+            if let Ok(Ok(bytes)) = reply {
                 blank.push((info, bytes));
             }
         }
         let described = self
-            .requests_all(
+            .ask_all(
                 module,
                 blank
                     .iter()
-                    .map(|(info, bytes)| Request::Describe {
-                        content_type: info.content_type,
-                        bytes: bytes.clone(),
-                        organization: Uuid::nil(),
+                    .map(|(info, bytes)| {
+                        let (content_type, bytes) = (info.content_type, bytes.clone());
+                        move |connection: &mut Connection| {
+                            replicas::describe(connection, content_type, bytes, Uuid::nil())
+                        }
                     })
                     .collect(),
             )
@@ -328,7 +385,7 @@ impl Modules {
                 plain: info.plain,
                 blank,
                 described: match described {
-                    Reply::Described(description) => description,
+                    Ok(Ok(description)) => description,
                     _ => Description::default(),
                 },
             });
@@ -352,41 +409,38 @@ impl Modules {
         }
     }
 
-    pub fn now(&self) -> u64 {
-        self.clock.now().as_millis() as u64
-    }
-
-    pub fn send(&mut self, module: usize, events: Vec<Event>) {
-        let now = self.now();
-        let held = &mut self.modules[module];
-        let Some(worker) = held.worker.as_mut() else {
-            return;
-        };
-        let mut frames = Vec::with_capacity(events.len() + 1);
-        if held.ticked.is_none_or(|ticked| ticked < now) {
-            held.ticked = Some(now);
-            frames.push(encode_frame(&Event::Tick { now }));
-        }
-        frames.extend(events.iter().map(encode_frame));
-        if let Some(failure) = worker.queue(frames) {
-            self.fail(module, failure);
-            self.restart(module);
-        }
-    }
-
-    pub fn tick_at(&mut self, module: usize, at: Instant) {
-        let now = self.clock.at(at).as_millis() as u64;
+    fn advance(&mut self, module: usize, now: u64) {
         let held = &mut self.modules[module];
         if held.ticked.is_some_and(|ticked| ticked >= now) {
             return;
         }
         held.ticked = Some(now);
-        if let Some(worker) = held.worker.as_mut()
-            && let Some(failure) = worker.queue(vec![encode_frame(&Event::Tick { now })])
-        {
-            self.fail(module, failure);
-            self.restart(module);
+        if let Some(clock) = &mut held.clock {
+            clock.send(&mut held.connection, now);
         }
+        if held.sleeping.as_ref().is_some_and(|(at, _)| *at <= now)
+            && let Some((_, reply)) = held.sleeping.take()
+        {
+            reply.send(&mut held.connection, &());
+        }
+    }
+
+    pub fn call<R>(&mut self, module: usize, call: impl FnOnce(&mut Connection) -> R) -> Option<R> {
+        self.modules[module].worker.as_ref()?;
+        let now = self.now();
+        self.advance(module, now);
+        let result = call(&mut self.modules[module].connection);
+        self.flush(module);
+        Some(result)
+    }
+
+    pub fn tick_at(&mut self, module: usize, at: Instant) {
+        if self.modules[module].worker.is_none() {
+            return;
+        }
+        let now = self.clock.at(at).as_millis() as u64;
+        self.advance(module, now);
+        self.flush(module);
     }
 
     fn restart(&mut self, module: usize) {
@@ -410,6 +464,10 @@ impl Modules {
         std::mem::take(&mut self.restarted)
     }
 
+    pub fn now(&self) -> u64 {
+        self.clock.now().as_millis() as u64
+    }
+
     pub fn clock(&self) -> &Clock {
         &self.clock
     }
@@ -419,8 +477,8 @@ impl Modules {
         let mut soonest: Option<Duration> = None;
         let mut hung = Vec::new();
         for (index, module) in self.modules.iter_mut().enumerate() {
-            if let Some(wake) = module.wake {
-                let due = Duration::from_millis(wake);
+            if let Some((wake, _)) = &module.sleeping {
+                let due = Duration::from_millis(*wake);
                 soonest = Some(soonest.map_or(due, |held| held.min(due)));
             }
             if let Some(worker) = module.worker.as_mut() {
@@ -444,91 +502,212 @@ impl Modules {
     pub fn tick_due(&mut self) {
         let now = self.now();
         for module in 0..self.modules.len() {
-            if self.modules[module].wake.is_some_and(|wake| wake <= now) {
-                self.modules[module].wake = None;
-                self.send(module, Vec::new());
+            if self.modules[module]
+                .sleeping
+                .as_ref()
+                .is_some_and(|(at, _)| *at <= now)
+            {
+                self.call(module, |_| ());
             }
         }
     }
 
-    fn collect(&mut self) -> Vec<(usize, Command)> {
-        let mut commands: Vec<(usize, Command)> = self.backlog.drain(..).collect();
+    fn collect(&mut self) -> Vec<(usize, Heard)> {
+        let clock_now = self.now();
+        let mut heard: Vec<(usize, Heard)> = self.backlog.drain(..).collect();
         for module in 0..self.modules.len() {
             let Some(worker) = self.modules[module].worker.as_mut() else {
                 continue;
             };
             let failure = worker.poll();
             let received = worker.take_received();
+            let held = &mut self.modules[module];
             for frame in received {
-                match decode_frame::<Command>(&frame) {
-                    Ok(Command::WakeAt { at }) => self.modules[module].wake = Some(at),
-                    Ok(command) => commands.push((module, command)),
-                    Err(error) => eprintln!(
+                if let Err(error) = held.connection.receive(&frame) {
+                    eprintln!(
                         "the type module {} sent a frame that did not decode: {error}",
-                        self.modules[module].source.name
-                    ),
+                        held.source.name
+                    );
                 }
             }
+            while let Some(event) = held.connection.next_event() {
+                match event {
+                    Incoming::Started(started) => {
+                        let (op, parent) = (started.op, started.parent);
+                        match Call::accept(&mut held.connection, started) {
+                            Some(Call::Clock { stream }) => {
+                                let now = clock_now;
+                                held.ticked = Some(now);
+                                let mut clock = Latest::new(stream);
+                                clock.send(&mut held.connection, now);
+                                held.clock = Some(clock);
+                            }
+                            Some(Call::SleepUntil { reply, at }) => {
+                                if let Some((_, before)) = held.sleeping.replace((at, reply)) {
+                                    before.fail(&mut held.connection, OpError::Canceled);
+                                }
+                            }
+                            Some(call) => heard.push((
+                                module,
+                                Heard::Call {
+                                    op: Some(op),
+                                    parent,
+                                    call,
+                                },
+                            )),
+                            None => {}
+                        }
+                    }
+                    Incoming::Completed { op, outcome } => {
+                        match held.started.filter(|started| started.op() == op) {
+                            Some(started) => {
+                                held.started = None;
+                                let types = started.decode(outcome).unwrap_or_default();
+                                heard.push((module, Heard::Hello(types)));
+                            }
+                            None => heard.push((module, Heard::Completed { op, outcome })),
+                        }
+                    }
+                    Incoming::Canceled { op } => {
+                        if held
+                            .sleeping
+                            .as_ref()
+                            .is_some_and(|(_, reply)| reply.op() == op)
+                            && let Some((_, reply)) = held.sleeping.take()
+                        {
+                            reply.fail(&mut held.connection, OpError::Canceled);
+                        } else if held.clock.as_ref().is_some_and(|clock| clock.op() == op)
+                            && let Some(clock) = held.clock.take()
+                        {
+                            clock.finish(&mut held.connection);
+                        } else {
+                            heard.push((module, Heard::Canceled { op }));
+                        }
+                    }
+                    Incoming::Called(called) => {
+                        if let Some(call) = Call::accept_direct(&called) {
+                            heard.push((
+                                module,
+                                Heard::Call {
+                                    op: None,
+                                    parent: called.parent,
+                                    call,
+                                },
+                            ));
+                        }
+                    }
+                    Incoming::Credited { op } => {
+                        if let Some(clock) = &mut held.clock {
+                            clock.credited(&mut held.connection, op);
+                        }
+                    }
+                    Incoming::Yielded { .. } => {}
+                }
+            }
+            self.flush(module);
             if let Some(failure) = failure {
                 self.fail(module, failure);
                 self.restart(module);
             }
         }
-        commands
+        heard
     }
 
-    pub fn take(&mut self) -> Vec<(usize, Command)> {
+    pub fn take(&mut self) -> Vec<(usize, Heard)> {
         self.collect()
     }
 
-    pub fn next_request(&mut self) -> RequestId {
-        self.requests += 1;
-        self.requests
-    }
-
-    pub async fn requests_all(&mut self, module: usize, requests: Vec<Request>) -> Vec<Reply> {
+    pub async fn ask_all<T: DeserializeOwned>(
+        &mut self,
+        module: usize,
+        calls: Vec<impl FnOnce(&mut Connection) -> Ticket<T>>,
+    ) -> Vec<Result<T, OpError>> {
         let generation = self.modules[module].generation;
-        let ids: Vec<RequestId> = requests.iter().map(|_| self.next_request()).collect();
-        self.send(
-            module,
-            ids.iter()
-                .zip(requests)
-                .map(|(id, request)| Event::Request { id: *id, request })
-                .collect(),
-        );
-        let mut replies: HashMap<RequestId, Reply> = HashMap::new();
-        while replies.len() < ids.len() {
+        let tickets: Vec<Ticket<T>> = match self.call(module, |connection| {
+            calls
+                .into_iter()
+                .map(|call| call(connection))
+                .collect::<Vec<_>>()
+        }) {
+            Some(tickets) => tickets,
+            None => return Vec::new(),
+        };
+        let mut answers: HashMap<OpId, Outcome> = HashMap::new();
+        while answers.len() < tickets.len() {
             let held = &self.modules[module];
             if held.worker.is_none() || held.generation != generation {
                 break;
             }
             let mut answered = false;
-            for (from, command) in self.collect() {
-                match command {
-                    Command::Reply { id, reply } if from == module && ids.contains(&id) => {
-                        replies.insert(id, reply);
+            for (from, heard) in self.collect() {
+                match heard {
+                    Heard::Completed { op, outcome }
+                        if from == module && tickets.iter().any(|ticket| ticket.op() == op) =>
+                    {
+                        answers.insert(op, outcome);
                         answered = true;
                     }
-                    command => self.backlog.push_back((from, command)),
+                    heard => self.backlog.push_back((from, heard)),
                 }
             }
-            if !answered && replies.len() < ids.len() {
+            if !answered && answers.len() < tickets.len() {
                 self.notified().await;
             }
         }
-        ids.iter()
-            .map(|id| replies.remove(id).unwrap_or(Reply::Unknown))
+        tickets
+            .into_iter()
+            .map(|ticket| match answers.remove(&ticket.op()) {
+                Some(outcome) => ticket.decode(outcome),
+                None => Err(OpError::Canceled),
+            })
             .collect()
     }
 
-    pub async fn ask(&mut self, content_type: Uuid, request: Request) -> Reply {
-        let Some(module) = self.module_of(content_type) else {
-            return Reply::Unknown;
-        };
-        self.requests_all(module, vec![request])
+    pub async fn ask<T: DeserializeOwned>(
+        &mut self,
+        module: usize,
+        call: impl FnOnce(&mut Connection) -> Ticket<T>,
+    ) -> Result<T, OpError> {
+        self.ask_all(module, vec![call])
             .await
             .pop()
-            .unwrap_or(Reply::Unknown)
+            .unwrap_or(Err(OpError::Canceled))
+    }
+
+    async fn ask_type<T: DeserializeOwned>(
+        &mut self,
+        content_type: Uuid,
+        call: impl FnOnce(&mut Connection) -> Ticket<Result<T, Failure>>,
+    ) -> Result<T, String> {
+        let Some(module) = self.module_of(content_type) else {
+            return Err(unknown(content_type));
+        };
+        match self.ask(module, call).await {
+            Ok(Ok(value)) => Ok(value),
+            Ok(Err(failure)) => Err(failed(content_type, failure)),
+            Err(error) => Err(format!("the type module answered: {error}")),
+        }
+    }
+
+    pub async fn blank(&mut self, content_type: Uuid) -> Result<Vec<u8>, String> {
+        self.ask_type(content_type, |connection| {
+            replicas::blank(connection, content_type)
+        })
+        .await
+    }
+
+    pub async fn merge3(
+        &mut self,
+        content_type: Uuid,
+        base: Option<Vec<u8>>,
+        ours: Option<Vec<u8>>,
+        theirs: Option<Vec<u8>>,
+    ) -> Result<(Vec<u8>, bool), String> {
+        self.ask_type(content_type, |connection| {
+            replicas::merge3(connection, content_type, base, ours, theirs)
+        })
+        .await
+        .map(|merged| (merged.bytes, merged.conflicts > 0))
     }
 
     pub async fn to_files(
@@ -536,29 +715,36 @@ impl Modules {
         blocks: Vec<(Uuid, Vec<u8>)>,
     ) -> Vec<Result<Option<PlainFile>, String>> {
         let mut answers: Vec<Result<Option<PlainFile>, String>> = Vec::with_capacity(blocks.len());
-        let mut asked: HashMap<usize, (Vec<usize>, Vec<Request>)> = HashMap::new();
+        let mut asked: HashMap<usize, Vec<(usize, Uuid, Vec<u8>)>> = HashMap::new();
         for (index, (content_type, bytes)) in blocks.into_iter().enumerate() {
-            answers.push(Err(format!(
-                "no type module has the block type {content_type}"
-            )));
+            answers.push(Err(unknown(content_type)));
             if let Some(module) = self.module_of(content_type) {
-                let (indices, requests) = asked.entry(module).or_default();
-                indices.push(index);
-                requests.push(Request::ToFile {
-                    content_type,
-                    bytes,
-                });
+                asked
+                    .entry(module)
+                    .or_default()
+                    .push((index, content_type, bytes));
             }
         }
-        for (module, (indices, requests)) in asked {
-            for (index, reply) in indices
+        for (module, blocks) in asked {
+            let indices: Vec<(usize, Uuid)> = blocks
+                .iter()
+                .map(|(index, content_type, _)| (*index, *content_type))
+                .collect();
+            let calls = blocks
                 .into_iter()
-                .zip(self.requests_all(module, requests).await)
+                .map(|(_, content_type, bytes)| {
+                    move |connection: &mut Connection| {
+                        replicas::to_file(connection, content_type, bytes)
+                    }
+                })
+                .collect();
+            for ((index, content_type), reply) in
+                indices.into_iter().zip(self.ask_all(module, calls).await)
             {
                 answers[index] = match reply {
-                    Reply::File(file) => Ok(file),
-                    Reply::Malformed(error) => Err(error),
-                    other => Err(format!("the type module answered {other:?}")),
+                    Ok(Ok(file)) => Ok(file),
+                    Ok(Err(failure)) => Err(failed(content_type, failure)),
+                    Err(error) => Err(format!("the type module answered: {error}")),
                 };
             }
         }
@@ -568,14 +754,12 @@ impl Modules {
     pub async fn claims(&mut self, name: &str, first: &[u8], directory: bool) -> Option<Uuid> {
         for fallback in [false, true] {
             for module in 0..self.modules.len() {
-                let request = Request::Claims {
-                    name: name.to_owned(),
-                    first: first.to_vec(),
-                    directory,
-                    fallback,
-                };
-                if let Some(Reply::Claimed(Some(content_type))) =
-                    self.requests_all(module, vec![request]).await.pop()
+                let (name, first) = (name.to_owned(), first.to_vec());
+                if let Ok(Some(content_type)) = self
+                    .ask(module, |connection| {
+                        replicas::claims(connection, name, first, directory, fallback)
+                    })
+                    .await
                 {
                     return Some(content_type);
                 }
@@ -591,19 +775,10 @@ impl Modules {
         client: ClientId,
         change: Change,
     ) -> Result<Option<Vec<u8>>, String> {
-        let request = Request::Apply {
-            content_type,
-            bytes,
-            client,
-            change,
-        };
-        match self.ask(content_type, request).await {
-            Reply::Content(bytes) => Ok(Some(bytes)),
-            Reply::Changed(false) => Ok(None),
-            Reply::Malformed(error) => Err(error),
-            Reply::Unknown => Err(format!("no type module has the block type {content_type}")),
-            other => Err(format!("the type module answered {other:?}")),
-        }
+        self.ask_type(content_type, |connection| {
+            replicas::apply(connection, content_type, bytes, client, change)
+        })
+        .await
     }
 
     pub async fn describe(
@@ -612,17 +787,11 @@ impl Modules {
         bytes: &[u8],
         organization: Uuid,
     ) -> Result<Description, String> {
-        let request = Request::Describe {
-            content_type,
-            bytes: bytes.to_vec(),
-            organization,
-        };
-        match self.ask(content_type, request).await {
-            Reply::Described(description) => Ok(description),
-            Reply::Malformed(error) => Err(error),
-            Reply::Unknown => Err(format!("no type module has the block type {content_type}")),
-            other => Err(format!("the type module answered {other:?}")),
-        }
+        let bytes = bytes.to_vec();
+        self.ask_type(content_type, |connection| {
+            replicas::describe(connection, content_type, bytes, organization)
+        })
+        .await
     }
 }
 

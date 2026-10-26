@@ -2,14 +2,16 @@
 
 A block type is moving out of the app into a plugin's *type module*: a pure wasm
 module that holds the device's one replica of every open block of its types (content,
-live session, undo stack) and talks to its host only through messages. Two crates
+live session, undo stack) and talks to its host only through typed operations. Two crates
 define it, and a third hosts it. block-app's peer, `be` and `be sync` host every
 block through them (guides/the_new_block_stack.md, "How the app hosts content";
 "Hosts" below): each plugin that brings types names its module in its manifest's
 `block_types` (guides/adding_a_block.md), and the types the app applies itself
 (`crates/host-types`) run in process.
 
-- `crates/block-type-api`: the messages between a host and a type module. No GUI types.
+- `crates/block-type-api`: the protocol between a host and a type module, as the WIT
+  world `be3:block-type/type-module` (`wit/*.wit`) and the Rust generated from it.
+  No GUI types.
 - `crates/block-type-guest`: the replica library a be-model-based type module links.
   It holds a block's live session (owner sequencing, follower rebase, takeover, seal
   timing, `seal`/`rekey`) and its undo stack (`be_block::history::History`) as one
@@ -17,78 +19,217 @@ block through them (guides/the_new_block_stack.md, "How the app hosts content";
   unchanged. Its `Sim` tests (`src/tests.rs`) are where session behaviour is tested:
   a simulated host with any number of devices, a lease, commits and editors.
 
+## Operations and WIT
+
+WIT is the schema, but there is no component model underneath: everything rides the
+pure-guest ABI (guides/plugin_sdk.md, "Guests without the SDK"). The WIT decides how
+each function travels. A plain `func` is a direct call: a wasm import (guest to host)
+or export (host to guest) of its own, run to completion on the guest's thread before
+the caller goes on. An `async func`, a `stream<T>` and a resource's lifetime are
+operations ("ops") of the be-ops kernel, which can be awaited and canceled.
+
+- `crates/be-ops`: the kernel. A `Connection` (one per side, `Side::Host` or
+  `Side::Guest`) has five frames: `Start { op, parent, method, args }`,
+  `Yield { op, item }`, `Complete { op, outcome }`, `Cancel { op }` and `Credit { op, items, bytes }`. Either side
+  starts ops, and an op id carries the starting side in its top bit. Every op ends
+  with exactly one `Complete`, also after a `Cancel`, which is a request: the callee
+  answers `Err(Canceled)` or the real result. An op started with a parent is canceled
+  (the callee sees `Incoming::Canceled`) when the parent ends, and one started under a
+  parent that already ended is answered `Canceled` by the kernel. Besides a method's own
+  errors there are `OpError::Canceled`, `Unsupported` (an unknown method or arguments
+  that do not decode) and `Denied`. A method's id is the FNV-1a hash of its name,
+  `<package>/<interface>@<version>#<function>`; frames, args and results are postcard,
+  each frame with a 4-byte big-endian length in front (`encode_frame`/`decode_frame`),
+  stable only within one source tree.
+  Direct calls cross the host's link to the guest's thread in the same ordered stream
+  as frames, as `block_guest_abi::direct` items (`call`: a name, the parent and the
+  args; `returned`: a result), which no frame can be mistaken for: the host's
+  `Connection::call_direct` sends one and turns the guest's answer, matched in order,
+  into the same `Incoming::Completed` an op ends with, and a sync import the guest made
+  arrives as `Incoming::Called`. An empty result is `()`, and a sync func with no
+  result is sent with `notify_direct`, which asks for no answer back.
+  A stream is back-pressured by a `Window` of items and bytes: the side serving it
+  may send while `STREAM_WINDOW` items and `STREAM_WINDOW_BYTES` bytes are not used
+  up (an item larger than what is left still goes while any is left), and
+  `Frame::Credit` from the consumer gives back what it took. The connection holds
+  nothing back: out of credit, `Producer::send` (`Connection::yield_item`) answers
+  `WouldBlock` and sends nothing, so the producer stops taking from its own source and
+  keeps the item, `Producer::ready` asks first, and `Incoming::Credited { op }` says
+  when room came back. A latest-value stream wraps its producer in `Latest<T>`, which
+  keeps only the newest value it could not send and sends it on `credited`. The guest
+  executor's `Stream` grants credit as its task takes items; a host consuming a stream
+  calls `Connection::credit` itself. The other way, an import whose items the guest
+  produces is an `async func` per item that the host answers once it has taken the
+  item in, and the guest keeps no more than a `Window` of them unanswered.
+  `be_ops::guest` is the guest's single-threaded executor: `Executor::step` takes the
+  host's items, runs every task they wake until none is ready, and returns the items
+  to send, so a step is deterministic and handles one item completely before the next.
+  A guest calls an import inside `guest::with_parent(op, ...)` to make the call (op or
+  direct) about `op`; dropping a pending call or stream cancels it.
+- `crates/be-ops-bindgen`: the generator, a proc macro over `wit-parser`
+  (`generate!({ path, world, ... })`, expanded at the crate root). Its
+  `path` is read at `CARGO_MANIFEST_DIR`, so the crate passes the files to buck as
+  `resources` (guides/buck2.md), and WIT of another crate's package as
+  `foreign_resources` (`{"//crates/ui-types:wit": "crates/ui-types"}`) named in
+  `deps: ["../ui-types/wit"]`. It emits a module per interface with its types
+  (records as structs, variants and enums as enums, flags, `list<u8>` as `Vec<u8>`
+  with serde_bytes), deriving `Copy`, `Eq`, `Hash` and `Ord` where every field allows
+  (no floats, nothing owned). The options, each a list of WIT type names unless said:
+  `with` (a map, keyed by the WIT type's name in any interface) puts an existing Rust
+  type in place of a WIT type whose serde data model is the same, which the
+  interface's module still names as an alias: a byte array for a tuple of as many
+  `u8` (uuids, commit ids, colours), a newtype id for an alias of `u64`. Nothing
+  checks that the two agree (one known exception: block-type-api maps `uuid` onto
+  `uuid::Uuid`, whose serde writes its 16 bytes with a length in front, which works
+  because both ends of a type module's link are block-type-api), so `with` is never for
+  a type with fields or cases of its own: generate it, and convert explicitly where Rust code wants another shape (a
+  menu's tree, AccessKit's tree update); `uses` (a map) takes a whole interface of another package from the crate
+  generated from it (`{"be3:ui/types@0.1.0": ::ui_types::types}`); `copy` names the
+  mapped types that are `Copy`; `default` the types that derive `Default` (a variant's
+  or enum's first case is the default); `inline` records that are a variant case's
+  fields, so `case(record)` becomes a struct variant; `lenient` records that take
+  `#[serde(default)]`; `ordered` types that derive `Ord` and `Hash` although not
+  `Copy`; `own_debug` types whose crate writes `Debug` itself; `local` (see below).
+  WIT's own rules hold: a name that is a WIT keyword is written with `%` (`%type(uuid)`
+  for a case named `type`, generated as `Type`), and a function may not share its name
+  with a type of its interface, so a function that takes a `hello` is not `hello`.
+  A package's dependencies may also sit in a `deps/<name>/` folder beside its files,
+  which is how an extension package travels with the world that imports it. An
+  interface of a package other than the world's is generated under a module named after
+  its package, in the types, `guest` and `embed` alike (`shared::ids`,
+  `linux_desktop::power`, `guest::linux_desktop::power`), so two packages may name an
+  interface alike. Ids and
+  access levels have one shape in every package: `be3:shared` (crates/be-ops/wit, its
+  buck `foreign_resources` `//crates/be-ops:wit`) holds `uuid` (16 bytes), `hash` (32)
+  and their aliases by what they name (`block-id`, `content-type-id`, `commit-id`, ...);
+  an id is always a named alias, and a number one side hands out is an alias of an
+  unsigned integer named `<thing>-id` in the package that hands it out. For the guest:
+  `guest::<import>` functions (a `func` returns nothing and goes through a wasm import
+  on wasm32-unknown-unknown and through the executor in process; an `async func` returns
+  `Pending<T>`; a `stream<T>` returns `Stream<T>`), and for each export a `Guest`
+  trait, a `Guest<Resource>` trait per resource and `dispatch`;
+  `guest::executor(guest)` serves them, and `export_<world>!()` makes the wasm exports
+  of every sync export (one per function, named like its method, plus
+  `plugin_alloc`), which a module's `:wasm` build calls once. For the host: `IMPORTS`,
+  the world's sync imports as `(module, name)`, which a runtime links and nothing else;
+  `embed::<import>::Call`, one case per import, accepted from an op
+  (`Call::accept`, with a `Reply<T>` or `Producer<T>` to answer it) or a sync call
+  (`Call::accept_direct`); `accept` answers a method it does not know `Unsupported`, so a host
+  with several imported interfaces asks `Call::accepts(&started)` of each first; and `embed::exports::<export>`
+  functions and resource handles that return `Ticket<T>`s to decode the completion
+  with. A resource's constructor is a long-lived op whose id is the handle; its async
+  methods are ops with it as parent, its sync ones direct calls naming it, and
+  `resource_drop` cancels it. A resource named `*-watch` whose only functions are a
+  `constructor()` and `next: async func() -> T` is a latest-value watch: the guest's
+  handle implements `be_ops::Watched` (its `Value`, its interface, the two method ids,
+  `open()` and `next()`), and `embed::WATCHES` lists every watch the world imports as a
+  `be_ops::Watching`, so a host can serve a watch by its method ids and an editor follow
+  any of them with one accessor (block-editor-beui's `editor.watch::<W>()`). The shapes follow wit-bindgen's, so moving to it later
+  changes little: the guest traits take `&self` of a guest instance instead of
+  statics, since tests run many modules on one thread, and the constructor lives on
+  `Guest` as `new_<resource>`, handed its op id.
+
+The rule, so that native, the web and in process behave the same: a sync import
+carries no result. The guest's thread answers it `()` at once and forwards it to the
+host in order with the frames, since the host's state is not reachable from the
+guest's worker on the web; an import that needs an answer is an `async func`, and
+the generator refuses a sync import with a result. A sync export is a call the host
+always awaits: every runtime runs it on the guest's thread and sends its result back
+after the frames it made.
+
+The one exception is an interface whose host runs inside the guest's own worker or
+thread on every platform, as the GPU device does (block-gpu-shim on the web, wasmtime
+host functions natively). `local: ["be3:gpu/device@0.1.0"]` names such imports: they
+are no ops, have no async funcs, and each func, resource method, constructor and
+`[resource-drop]` is a wasm import of its own that returns its result. Scalars, enums,
+flags, handles and records and options of them are flattened into wasm arguments,
+strings and lists of scalars or handles go as a pointer and a length, and anything
+else as postcard; a result is one wasm value (`option<own<R>>` is the handle, 0 for
+none) or postcard written into room the guest offers, with `[returned]` fetching one
+that did not fit. The guest gets an owner type per resource that drops it; the host a
+`Host` trait, a `Caller` trait for the guest's memory and the device, `glue`
+functions, and `<world>_local_imports!`, which hands a macro of the runtime's every
+import's glue, module, name, `module#name` and wasm signature to link or export. A
+world with other imports of its own takes a local interface from its crate with
+`uses` and also names it in `local`, and generates nothing for it.
+
 ## The protocol
 
+The world: the module imports `host` and exports `replicas`
+(`crates/block-type-api/wit`).
+
 A pure guest has no entropy of its own, and a type module needs ids for the
-items its child edits add. The host sends `Entropy { seed }` first, and on
-wasm32-unknown-unknown the library is getrandom's custom backend, a generator
-seeded from it (`entropy.rs`; buck sets the `getrandom_backend` cfg for that plan).
-be-store's sealing (`vault`), be-commit's `CommitStore` and be-session's `resume`
-are default features a guest's dependencies leave off, so a module imports only
-the four `be3_host` functions.
+items its child edits add. The host calls `replicas.start(entropy)` first, which
+answers the module's types (content type, frozen, schema fingerprint, undo, plain
+form), and on wasm32-unknown-unknown the library is getrandom's custom backend, a
+generator seeded from it (`entropy.rs`; buck sets the `getrandom_backend` cfg for
+that plan). be-store's sealing (`vault`), be-commit's `CommitStore` and be-session's
+`resume` are default features a guest's dependencies leave off, so a module imports
+only `be3_host`'s functions and the world's sync imports.
 
-The module is a state machine: the host calls it with an `Event` and gets back
-`Command`s. Frames are postcard with a 4-byte big-endian length in front
-(`encode_frame`/`decode_frame`); block-plugin-api frames the same way but with bincode.
-
-A host gives each open block a `ReplicaId` and addresses it in every event. Some
-events are stateless requests answered by `Command::Reply { id }`: `Blank`, `Merge3`
-(a `None` side is the type's default; `conflicts: 0` is clean), `Describe` (name,
-derived metadata, references in an organization), `ToFile` (a `PlainFile`: the
+Stateless requests are sync funcs of `replicas`, direct calls: `blank`, `merge3`
+(a `none` side is the type's default; `conflicts: 0` is clean), `describe` (name,
+derived metadata, references in an organization), `to-file` (a `plain-file`: the
 bytes, the extension and media type the type gives them, and the name of the file
-they came from when the content keeps one), `Claims` (which of the
-module's types takes a file by name and first bytes, or with `directory` a new
-directory), and `Apply` (a `Child` or `FromFile` change made to content bytes,
-or to the type's default for `None`, answered `Content`, or `Changed(false)` when
-it does not apply), which is how a host that publishes commits rather than
-joining a session edits a block: be sync, and block-app's version control when it
-lists a checkout in its parent (`Replicas::apply`, then `describe` and
-`publish_encoded`). The replica-addressed requests
-are `Change` (`Child`, `FromFile`, `Replace`, `Undo`, `Redo`), `Content` (the visible
-bytes, for export and duplication) and `Seal` (`force` is a rekey: publish even when
-clean). A request for a replica that is not open is answered `Unknown`.
+they came from when the content keeps one), `claims` (which of the module's types
+takes a file by name and first bytes, or with `directory` a new directory), and
+`apply` (a `child` or `from-file` change made to content bytes, or to the type's
+default for `none`, answered with the new bytes, or none when it does not apply),
+which is how a host that publishes commits rather than joining a session edits a
+block: be sync, and block-app's version control when it lists a checkout in its
+parent (`Replicas::apply`, then `describe` and `publish_encoded`). An unknown type
+is `failure.unknown-type`, content that does not decode `failure.malformed`.
+
+Each open block is a `replica` resource. Its methods `change` (`child`, `from-file`,
+`replace`, `undo`, `redo`; false when it did not apply), `content` (the visible
+bytes, for export and duplication; none while unreadable) and `seal` (`force` is a
+rekey: publish even when clean) are async; the rest are direct calls. A call on a
+replica that has ended is `Canceled`. Every call the module makes for a replica has
+that replica as its parent, which is how the host knows the block.
 
 What the host owes a replica:
 
-- **Time.** `Tick { now }` (milliseconds of the host's `be_client::Clock`, which
-  `Modules::new` takes; an editor's frames are stamped with the frame clock's
-  instant, `Clock::at` places it on that clock) before any event once
-  the clock has moved, and again at or after the latest `WakeAt { at }`. The replica
-  never reads a clock, so a test advances time by sending ticks.
-- **Opening.** `Open` carries the head the host just read, the session's lease
-  state, the client id and a `SessionTag` (the module's hash). The replica reads the
-  head itself (`Read`) and queues everything until it arrives. The host must send
-  `Head { Moved }` for every head that lands after the one in `Open` (including the
-  remote head, when `Open` carried a local head it differs from), since the replica
-  does not reconcile on opening.
-- **IO answers.** `Read` -> `Event::Read`, `Publish` -> `HeadEvent::Published` or
-  `Rejected { head }` (an unchanged save is `Published` with the same head), `Stash`
-  -> `Stashed { commit }`, `Resume` -> `Event::Resumed` (the host fetches both
-  histories and runs `be_session::resume`; the replica cannot see history). Each
-  carries the `Token` of its command. A replica waits on one answer at a time and
-  queues every other event behind it.
-- **Publishing.** `Publish { expected, merging, content }` is a compare-and-swap on
-  `expected`, whose commit is the first parent. `merging: Some { base, ours }` adds
+- **Time.** The module starts `host.clock` once, a `stream<u64>` of the host's
+  `be_client::Clock` in milliseconds (`Modules::new` takes it; an editor's frames are
+  stamped with the frame clock's instant, which `Clock::at` places on that clock), and
+  the host yields the time on it whenever the clock moved, ahead of any other frame.
+  `host.sleep-until(at)` asks to be woken: the host yields a time at or after `at` and
+  then completes it; the module cancels it when it wants another time. The replica
+  never reads a clock, so a test moves time by yielding.
+- **Opening.** The constructor's `opening` carries the head the host just read, the
+  session's lease state, the client id and a `session-tag` (the module's hash). The
+  replica reads the head itself (`read`) and queues everything until it arrives. The
+  host must call `head-moved` for every head that lands after the one in `opening`
+  (including the remote head, when it opened at a local head it differs from), since
+  the replica does not reconcile on opening. `reopen(opening)` starts the replica over
+  after the host reconnected or joined late; the host replays what it kept (its
+  editors' messages and its own `change`s) and asks again whatever `change`,
+  `content` or `seal` was still unanswered, handing the new answer to the old caller.
+- **IO answers.** `read`, `publish` (`published` or `rejected` with the current head;
+  an unchanged save is `published` with the same head), `stash` and `resume-session`
+  (the host fetches both histories and runs `be_session::resume`; the replica cannot
+  see history) are async imports, answered by completing them. A replica waits on one
+  answer at a time and queues every other call behind it.
+- **Publishing.** `publish(expected, merging, content)` is a compare-and-swap on
+  `expected`, whose commit is the first parent. `merging: some { base, ours }` adds
   `ours` as a second parent and asks the host to merge defined metadata
   (`BlockMetadata::merge_defined` of `base`, `expected`, `ours`); otherwise defined
-  metadata comes from `expected`. `Stash { parent }` writes a commit that moves no
-  head. `Written` carries references unresolved and derived metadata; the host
+  metadata comes from `expected`. `stash(parent, content)` writes a commit that moves
+  no head. `written` carries references unresolved and derived metadata; the host
   resolves, seals and uploads.
-- **The lease.** `Lease { session, resynchronize }` whenever the server's session
-  state changes (`resynchronize` after the host fell behind the broadcast).
-  `ReportClean` is the heartbeat with `clean_at`; `ClaimLease` is sent once per
-  generation when the owner is gone from the participants, and when the host
-  sends `Claim` (a lapsed lease, taken by a terminal host) once the replica has
-  caught up. An owner told another client holds the lease becomes a follower. On `Close` the replica
-  seals what it owes and answers `Release`, after which the host leaves the session;
-  events for it until then still go to it.
-- **Relaying.** `Send { to }` is opaque bytes for `One(Peer)`, `Peers` (every other
-  participant), `One(Editor)` or `One(Host)`. The host seals and relays peer bytes
-  and delivers them as `Message { from: Peer(client) }`.
-- **Reports.** `Status` (head, owner, clean, owes a seal, incompatible, diverged,
-  unreadable), `Described` (after the visible content changed, for the graph mirror),
-  `History` (can undo or redo), `Conflict` (a merge kept both sides), `Error`. Each is
-  sent when it changes.
+- **The lease.** `lease(session, resynchronize)` whenever the server's session state
+  changes (`resynchronize` after the host fell behind the broadcast). `report-clean`
+  is the heartbeat with `clean-at`; `claim-lease` is called once per generation when
+  the owner is gone from the participants. Dropping the replica closes it: it seals
+  what it owes and then completes its constructor op, after which the host leaves the
+  session; calls for it until then still reach it.
+- **Relaying.** `send(to, bytes)` is opaque bytes for `one(peer)`, `peers` (every
+  other participant), `one(editor)` or `one(host)`. The host seals and relays peer
+  bytes and delivers them as `message(peer(client), bytes)`.
+- **Reports.** `report-status` (head, owner, clean, owes a seal, incompatible,
+  diverged, unreadable), `described` (after the visible content changed, for the graph
+  mirror), `history` (can undo or redo), `conflict` (a merge kept both sides),
+  `error`. Each is sent when it changes.
 
 ## Peers
 
@@ -143,10 +284,10 @@ head. Every editor is sent a snapshot of the replacement.
 
 ## Editors are endpoints
 
-A local editor follows the local replica as a peer follows an owner. The host sends
-`Attach { editor, editable }` when an editor instance starts following a block
-(again to change `editable`) and `Detach` when it stops; the editor's messages arrive
-as `Message { from: Editor(instance) }` and are `editor::FromEditor`: `Operate`,
+A local editor follows the local replica as a peer follows an owner. The host calls
+`attach(editor, editable)` when an editor instance starts following a block
+(again to change `editable`) and `detach` when it stops; the editor's messages arrive
+as `message(editor(instance), bytes)` and are `editor::FromEditor`: `Operate`,
 `Gesture` (`Begin`, `Commit`, `Cancel`), `Replace`, `ShowPresence`, `SendToPeers`,
 `Resend`. A replica drops edits from an editor attached read-only. It answers with
 `editor::ToEditor`:
@@ -160,13 +301,13 @@ as `Message { from: Editor(instance) }` and are `editor::FromEditor`: `Operate`,
   them, the unsettled operations as rebased (`beneath`).
 - `Presence` and `PeerMessages` from the peers.
 
-On the plugin protocol both directions travel in `EditorMessage::Replica` frames
+On the plugin protocol both directions travel through the editor's `replica` resource
 (guides/the_new_block_stack.md, "Content on the plugin protocol"). The replica keeps no log either:
 the replica keeps `projected`, a `Settling` of what its editors hold, lands every
 journaled change in it and snapshots when one cannot land. `editor::EditorMirror` is
 the editor's side, which `ContentProjection` is built on: the settled content, the
 pending operations, what each update touched, a `revision()` count and the
-`Projected` log (`record`, `take_projected`) a mirrored copy such as `LiveText` reads. Undo and redo are host `Change`s, not editor
+`Projected` log (`record`, `take_projected`) a mirrored copy such as `LiveText` reads. Undo and redo are host `change`s, not editor
 messages, since a shortcut or menu may undo a block no editor is attached to; a
 gesture is an editor message because it groups that editor's own edits.
 
@@ -178,7 +319,7 @@ be_block_types![ChecklistContent { undo }, TextContent { undo, file }, FolderCon
 //             pub fn block_types() -> block_type_guest::Module,
 //             pub struct BlockTypes (the guest)
 #[cfg(feature = "module")]
-block_type_guest::abi::guest!(BlockTypes);
+block_type_guest::type_module!(BlockTypes);
 ```
 
 Each entry is `Registration::of::<C>()` (`C: LiveEdit + Merge + Clone + Default`),
@@ -194,27 +335,33 @@ reason a blob type's constructors are associated functions of its kind
 (`ImageFile::from_file`). `be_block::plain` has the file-name and media-type
 helpers they share. `directory` makes a
 type's plain form a directory that takes new directories (a folder), and `root`
-one that is only ever the root of one (a workspace); `Hello`'s `TypeInfo::plain`
-says which form each type has. The order is the order `Claims` asks in. A type
-that takes any file (the workspace plugin's file type) sets `ANY_FILE` on its
-`BlobFile` or `DocumentFile`, and answers only a `Claims` with `fallback`: a host
-asks every module without it first, then every module with it.
+one that is only ever the root of one (a workspace); `TypeInfo::plain` says which
+form each type has. The order is the order `claims` asks in. A type that takes any
+file (the workspace plugin's file type) sets `ANY_FILE` on its `BlobFile` or
+`DocumentFile`, and answers only a `claims` with `fallback`: a host asks every
+module without it first, then every module with it.
 
-`Module::handle(Event) -> Vec<Command>` is the whole interface (`register` adds or
-replaces a type, `knows` asks for one, as block-ui-test does for a test's own types); `Module::hello()` is
-the `Hello` that lists the module's types (content type, frozen, schema fingerprint,
-undo, file). The macro also defines `BlockTypes`, a `block_guest_abi::Guest` over that module
-(`start` sends `Hello`; `step` decodes each event frame, handles it and encodes the
-commands, `Module::step`). It does not export it: a types crate is a plain library
+`Module` implements the generated `guest::exports::replicas::Guest` (its stateless
+functions are callable directly, as the types crates' tests do), and its `OpenReplica`
+is the `GuestReplica`: the boundary turns each call into an input of the replica's
+state machine and each of the machine's effects (`effect.rs`) into an import call
+parented to the replica, feeding the answer back in as an input, so the state
+machine itself never sees the protocol. `register` adds or replaces a type and
+`knows` asks for one, as block-ui-test does for a test's own types; `types()` is what
+`start` answers. `Module::executor()` is its `be_ops::guest::Executor`, and
+`Serving` holds both, for a guest. The macro also defines `BlockTypes`, a
+`block_guest_abi::Guest` over a `Serving` (`step` steps the executor). It does not export it: a types crate is a plain library
 that editors, tests and other crates depend on, and only its `:wasm` build, with
-the crate's `module` feature, calls `block_guest_abi::guest!`, since a second set of
-guest exports in one wasm (an editor's own) would clash. So a type module crate is
+the crate's `module` feature, calls `type_module!` (`block_guest_abi::guest!` and the
+world's `export_type_module!`), since a second set of guest exports in one wasm (an
+editor's own, or another types crate's) would clash. So a type module crate is
 that macro call, the export line and guest-abi's `cdylib` and BUCK set-up
 (`crates/editors/checklist/types`).
 `Registration::without_undo` drops a registration's undo stack, which is how
 block-ui-test hosts every type (`ContentStore::register` takes a types crate's
 `registrations()` for a test that needs a plugin's types it never names). The
-waker is unused: the replica asks for time with `WakeAt` and the host ticks it.
+waker is unused: the replica asks for time with `sleep-until` and the host yields
+it on the clock.
 The undo stack is `History<C, u64>`: `History` is generic
 over its clock (`history::Moment`, for `Instant` and frame-clock milliseconds), and
 `Recorder` is what a replica asks of it, with `NoHistory` for a type without undo.
@@ -222,10 +369,12 @@ over its clock (`history::Moment`, for `Instant` and frame-clock milliseconds), 
 ## Tests
 
 `crates/block-type-guest/src/tests.rs` is a simulated host: `Sim<C>` runs several
-devices, each with its own `Module`, relays between them in order, keeps commits and
-the head with compare-and-swap, answers `Resume` from the commit graph, runs a
-be-session `Lease`, follows each attached editor with an `EditorMirror`, and moves
-time only through `advance`. `quiet` holds back `Moved` so a seal is rejected;
+devices, each with its own `Module`, executor and host `Connection`, delivers every
+frame in one queue in the order it was sent, keeps commits and the head with
+compare-and-swap, answers `resume-session` from the commit graph, runs a be-session
+`Lease`, follows each attached editor with an `EditorMirror`, and moves time only
+through `advance`, which yields it on each device's clock. `Lone` is one module
+and a host connection for a test that looks at the calls a module makes. `quiet` holds back `Moved` so a seal is rejected;
 `crash` drops a device without its seal; `publish_elsewhere` is a publish from
 outside the session, as be sync makes.
 
@@ -235,16 +384,18 @@ outside the session, as be sync makes.
 wasmtime and in process in tests:
 
 - `modules`: the registry (`kind_of`, `is_known`, `plain_of`: each type's
-  `Kind`, filled from every module's `Hello` with its blank content and
-  description; process-wide, since it holds only what a type is), and `Modules`,
-  which routes each type to the module that said `Hello` with it
-  (`module_of`, its own, so two hosts in one process with different sources
-  each reach their own instance), starts each `Source` (`in_process::<G>`,
-  natively `wasm(name, tag, cache, load)` on a `PureHost` thread, on the web
-  `web(name, url, tag)`), restarts one that stops, ticks it and collects its
-  commands. `started(sources)` waits for every `Hello`. Its stateless helpers
-  (`ask`, `to_files`, `claims`, `apply`, `describe`) are what a host that holds
-  no replica uses.
+  `Kind`, filled from the types every module's `start` answers, with its blank
+  content and description; process-wide, since it holds only what a type is), and
+  `Modules`, which routes each type to the module that listed it (`module_of`, its
+  own, so two hosts in one process with different sources each reach their own
+  instance), starts each `Source` (`in_process::<G>`, natively
+  `wasm(name, tag, cache, load)` on a `PureHost` thread, on the web
+  `web(name, url, tag)`) with a host `Connection` of its own, restarts one that
+  stops, answers its clock and sleeps itself, and hands everything else on as
+  `Heard` (`call` runs a closure on a module's connection after yielding the time).
+  `started(sources)` waits for every `start`. Its stateless helpers (`ask`, `blank`,
+  `merge3`, `to_files`, `claims`, `apply`, `describe`) are what a host that holds no
+  replica uses.
 - `replicas`: `Replicas<H: Host>`, the replica IO of
   guides/the_new_block_stack.md ("The peer and its registry") for any host.
   `Host` is what the host does with what a replica reports (its error log,
@@ -260,8 +411,8 @@ release stays the one file guides/bootstrap.md pins, compiles them once into
 that has one, as the app does; the manifests also name the
 types its own short names (`blocks::type_name`) do not cover. A host gives each
 plugin's `Source` the types its manifest declares (`Source::declaring`): `Modules`
-registers only those from that module's `Hello`, and no module's `Hello` takes a
-type another declares.
+registers only those of the types that module lists, and no module takes a type
+another declares.
 Its session tag is the module's SHA-256, as the staged `.sha256` is, so a `be`
 and an app built from one tree share sessions. Tests and examples of a host run
 every first-party types crate in process with `first_party_types::sources()`

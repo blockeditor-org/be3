@@ -15,7 +15,7 @@ use block_editor_beui::beui::{Color32, NodeId, Rect};
 use block_editor_beui::block_ui::BlockTypes;
 use block_editor_beui::tags::{ShownTag, TagChip};
 use block_editor_beui::{
-    Administrator, BlockFilter, BlockPicker, Drag, Editor, Toolbar, node_anchor, phone_layout,
+    AdministratorWatch, BlockFilter, Drag, Editor, Toolbar, node_anchor, phone_layout,
 };
 use uuid::Uuid;
 
@@ -970,9 +970,10 @@ pub(crate) struct Picker {
     error: Signal<Option<String>>,
 }
 
+type Picked = std::rc::Rc<dyn Fn(block_editor_beui::PickedBlock, Uuid)>;
+
 struct PickerInner {
-    picker: std::cell::RefCell<BlockPicker>,
-    target: std::cell::Cell<Option<Uuid>>,
+    picked: Picked,
     tree: ComponentRef<TreeApi<RowKey>>,
 }
 
@@ -990,11 +991,10 @@ impl Picker {
         anchor: Option<Rect>,
     ) {
         self.error.set(None);
-        let inner = self.inner.value();
-        inner.target.set(Some(parent));
+        let picked = std::rc::Rc::clone(&self.inner.value().picked);
+        let error = self.error;
         let place = BlockParent::Block(parent);
-        inner.picker.borrow_mut().open(
-            &editor.host(),
+        editor.pick_block(
             BlockFilter {
                 name: "Block".to_owned(),
                 block_types: Vec::new(),
@@ -1002,6 +1002,10 @@ impl Picker {
                 templates: false,
                 place: Some(place.encode()),
                 anchor,
+            },
+            move |result| match result {
+                Ok(block) => picked(block, parent),
+                Err(failure) => error.set(Some(failure.to_string())),
             },
         );
     }
@@ -1019,53 +1023,28 @@ fn picker(
     tree_ref: ComponentRef<TreeApi<RowKey>>,
 ) -> Picker {
     let error = create_signal(None::<String>);
-    let picker = Picker {
+    let host = editor.host();
+    let picked: Picked = std::rc::Rc::new(move |picked, parent| {
+        let block_type = Uuid::from_bytes(picked.block_type);
+        tree.remember(picked.id(), block_type);
+        if !picked.linked {
+            renaming.rename_when_shown(picked.id(), Some(parent));
+        }
+        if !picked.placed {
+            host.place_block(picked.id(), block_type, parent, picked.linked);
+        }
+        host.open_block_via(picked.id(), block_type, parent);
+    });
+    Picker {
         inner: store(PickerInner {
-            picker: std::cell::RefCell::new(BlockPicker::default()),
-            target: std::cell::Cell::new(None),
+            picked,
             tree: tree_ref,
         }),
         error,
-    };
-    let host = editor.host();
-    editor.on_reply(move || {
-        let Some(inner) = picker.inner.try_value() else {
-            return;
-        };
-        let Some(result) = inner.picker.borrow_mut().poll(&host) else {
-            return;
-        };
-        let target = inner.target.take();
-        let picked = match result {
-            Ok(picked) => picked,
-            Err(error) => {
-                picker.error.set(Some(error));
-                return;
-            }
-        };
-        tree.remember(picked.id, picked.block_type);
-        if !picked.linked {
-            renaming.rename_when_shown(picked.id, target);
-        }
-        if picked.placed {
-            match target {
-                Some(parent) => host.open_block_via(picked.id, picked.block_type, parent),
-                None => host.open_block(picked.id, picked.block_type),
-            }
-            return;
-        }
-        match target {
-            None => host.open_block(picked.id, picked.block_type),
-            Some(parent) => {
-                host.place_block(picked.id, picked.block_type, parent, picked.linked);
-                host.open_block_via(picked.id, picked.block_type, parent);
-            }
-        }
-    });
-    picker
+    }
 }
 
 pub(crate) fn leavable(editor: Editor, row: Memo<Option<Row>>) -> Memo<bool> {
-    let administrator = editor.host_value::<Administrator>();
+    let administrator = editor.watch::<AdministratorWatch>();
     create_memo(move || !administrator.get() && row.get().is_some_and(|row| row.can_leave))
 }

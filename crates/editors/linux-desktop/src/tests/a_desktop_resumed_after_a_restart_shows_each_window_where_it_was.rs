@@ -30,11 +30,13 @@ fn a_desktop_resumed_after_a_restart_shows_each_window_where_it_was() {
         .test
         .snapshot("a_resumed_desktop_shows_its_windows_from_last_time");
 
-    resumed.test.take_sent();
+    resumed.test.clear_calls();
     resumed.test.click("desktop.placeholders.open_all");
     resumed.settle();
     assert_eq!(
-        resumed.test.take_actions::<ProgramAction>(),
+        resumed
+            .test
+            .take_host_calls(block_ui_test::requested::program),
         vec![
             ProgramAction::Launch {
                 program: "foot.desktop".to_owned(),

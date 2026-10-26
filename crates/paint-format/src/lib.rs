@@ -232,10 +232,6 @@ pub fn previewed(key: TextureKey) -> Option<u64> {
     (key & PREVIEW_MASK == PREVIEW_KEYS).then_some(key & !PREVIEW_MASK)
 }
 
-pub const PAINTING_EXTENSION: [u8; 16] = [
-    192, 46, 2, 18, 134, 91, 69, 225, 177, 136, 216, 30, 7, 192, 247, 94,
-];
-
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 pub struct ScreenPaintings {
     pub screens: Vec<(u64, Painting)>,

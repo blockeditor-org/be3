@@ -2,11 +2,11 @@ use super::*;
 use crate::plugin_host::HostChildStatus;
 use block_plugin_api::ChildId;
 
-fn statuses_sent(messages: &[Message]) -> Vec<Vec<ChildId>> {
+fn statuses_sent(messages: &[Outbound]) -> Vec<Vec<ChildId>> {
     messages
         .iter()
         .filter_map(|message| match message {
-            Message::ChildStatuses(statuses) => {
+            Outbound::Editor(_, EditorCall::ChildStatuses(statuses)) => {
                 Some(statuses.iter().map(|status| status.child).collect())
             }
             _ => None,

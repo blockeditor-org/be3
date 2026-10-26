@@ -1,5 +1,4 @@
 use be_commit::CommitId;
-use block_plugin_api::{HostReply, HostRequest};
 use uuid::Uuid;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -79,20 +78,16 @@ pub(crate) fn compare(block: Uuid) {
     ] {
         super::revisions::request(
             block,
-            HostRequest::PreviewRevision {
-                block_id: block.into_bytes(),
-                commit: *commit.hash().as_bytes(),
-            },
+            super::revisions::Asked::Preview(*commit.hash().as_bytes()),
             move |reply| previewed(block, side, reply),
         );
     }
     crate::host::wake();
 }
 
-fn previewed(block: Uuid, side: Side, reply: HostReply) {
+fn previewed(block: Uuid, side: Side, reply: super::revisions::Answered) {
     let shown = match reply {
-        HostReply::RevisionPreviewed(Ok(preview)) => Ok(Uuid::from_bytes(preview)),
-        HostReply::RevisionPreviewed(Err(error)) => Err(error),
+        super::revisions::Answered::Previewed(previewed) => previewed,
         _ => Err("This version could not be shown.".to_owned()),
     };
     let kept = super::with_shared_mut(|shared| {
@@ -146,13 +141,10 @@ pub(crate) fn keep(block: Uuid, side: Side) {
     };
     super::revisions::request(
         block,
-        HostRequest::RestoreRevision {
-            block_id: block.into_bytes(),
-            commit: *commit.hash().as_bytes(),
-        },
+        super::revisions::Asked::Restore(*commit.hash().as_bytes()),
         move |reply| match reply {
-            HostReply::RevisionRestored(Ok(())) => dismiss(block),
-            HostReply::RevisionRestored(Err(error)) => {
+            super::revisions::Answered::Restored(Ok(())) => dismiss(block),
+            super::revisions::Answered::Restored(Err(error)) => {
                 super::with_shared_mut(|shared| {
                     if let Some(comparison) = shared
                         .comparison

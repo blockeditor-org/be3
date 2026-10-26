@@ -217,14 +217,14 @@ impl BlockInfo {
 pub fn wire_entries(entries: &Entries) -> block_plugin_api::MetadataEntries {
     entries
         .iter()
-        .map(|(key, value)| (key.into_bytes(), serde_bytes::ByteBuf::from(value.clone())))
+        .map(|(key, value)| (key.into_bytes(), value.clone()))
         .collect()
 }
 
 pub fn entries_of(entries: block_plugin_api::MetadataEntries) -> Entries {
     entries
         .into_iter()
-        .map(|(key, value)| (Uuid::from_bytes(key), value.into_vec()))
+        .map(|(key, value)| (Uuid::from_bytes(key), value))
         .collect()
 }
 

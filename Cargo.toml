@@ -14,6 +14,8 @@ members = [
     "crates/be-launcher",
     "crates/be-model",
     "crates/be-model-derive",
+    "crates/be-ops",
+    "crates/be-ops-bindgen",
     "crates/be-protocol",
     "crates/be-server",
     "crates/be-session",

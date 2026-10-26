@@ -15,10 +15,10 @@ fn requests_wait_for_the_desktop_until_it_says_it_has_them() {
 
     let report = NotificationReport {
         received: Some(1),
-        signals: vec![NotificationSignal::ActionInvoked(
-            first,
-            "default".to_owned(),
-        )],
+        signals: vec![NotificationSignal::ActionInvoked {
+            id: first,
+            key: "default".to_owned(),
+        }],
         kept: vec![first],
     };
     let (changed, signals) = inbox.frame(&receiver, vec![report]);
@@ -30,10 +30,10 @@ fn requests_wait_for_the_desktop_until_it_says_it_has_them() {
     );
     assert_eq!(
         signals,
-        vec![NotificationSignal::ActionInvoked(
-            first,
-            "default".to_owned()
-        )],
+        vec![NotificationSignal::ActionInvoked {
+            id: first,
+            key: "default".to_owned()
+        }],
         "what the desktop reports goes on to the bus"
     );
 
@@ -49,6 +49,9 @@ fn requests_wait_for_the_desktop_until_it_says_it_has_them() {
     );
     assert!(signals.iter().all(|signal| matches!(
         signal,
-        NotificationSignal::Closed(_, NotificationCloseReason::Expired)
+        NotificationSignal::Closed {
+            id: _,
+            reason: NotificationCloseReason::Expired
+        }
     )));
 }

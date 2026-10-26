@@ -1,6 +1,6 @@
 use block_editor_beui::be_block::be_model::BlockRef;
 use block_editor_beui::be_block::{Root, SETTINGS, settings::Settings};
-use block_editor_beui::{AccessLevel, BlockCommand, BlockInfo, BlockParent};
+use block_editor_beui::{AccessLevel, BlockInfo, BlockParent, ShellCommand};
 
 use super::*;
 
@@ -43,14 +43,14 @@ fn a_row_whose_access_or_settings_are_its_own_opens_them_from_an_icon() {
             .is_none()
     );
 
-    fixture.test.take_block_commands();
+    fixture.test.take_shell_commands();
     fixture
         .test
         .click(format!("file-tree.{plans}.share").as_str());
     fixture.settle();
     assert_eq!(
-        fixture.test.take_block_commands(),
-        vec![(plans, BlockCommand::Share)],
+        fixture.test.take_shell_commands(),
+        vec![(plans, ShellCommand::Share)],
         "the share icon opens the share dialog"
     );
     assert!(

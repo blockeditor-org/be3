@@ -1,10 +1,12 @@
 use std::collections::HashMap;
 
 use be_commit::CommitId;
-use block_plugin_api::{EditorInstanceId, EditorMessage, Message, StoredHead};
+use block_plugin_api::{EditorInstanceId, StoredHead};
 use uuid::Uuid;
 
 use crate::host;
+
+pub(super) type Head = Result<Option<StoredHead>, String>;
 
 pub(super) struct HeadRead {
     epoch: u64,
@@ -30,16 +32,11 @@ impl HeadReads {
     pub(super) fn arrived(
         &self,
         epoch: u64,
-        wants: impl Fn(EditorInstanceId, Uuid, CommitId) -> bool,
-        out: &mut Vec<Message>,
+        mut arrived: impl FnMut(EditorInstanceId, Uuid, CommitId, Head),
     ) {
         while let Ok(read) = self.receiver.try_recv() {
-            if read.epoch == epoch && wants(read.instance, read.block, read.commit) {
-                out.push(Message::Editor(EditorMessage::Head {
-                    instance: read.instance,
-                    block_id: read.block.into_bytes(),
-                    head: read.head.map(Some),
-                }));
+            if read.epoch == epoch {
+                arrived(read.instance, read.block, read.commit, read.head.map(Some));
             }
         }
     }
@@ -51,11 +48,12 @@ pub(super) struct Heads {
 }
 
 impl Heads {
-    pub(super) fn watch(&mut self, blocks: Vec<Uuid>) {
-        self.requested.retain(|block, _| blocks.contains(block));
-        for block in blocks {
-            self.requested.entry(block).or_default();
-        }
+    pub(super) fn watch(&mut self, block: Uuid) {
+        self.requested.insert(block, None);
+    }
+
+    pub(super) fn unwatch(&mut self, block: Uuid) {
+        self.requested.remove(&block);
     }
 
     pub(super) fn follows(&self, block: Uuid) -> bool {
@@ -66,18 +64,12 @@ impl Heads {
         self.requested.get(&block) == Some(&Some(Some(commit)))
     }
 
-    pub(super) fn forget_sent(&mut self) {
-        for requested in self.requested.values_mut() {
-            *requested = None;
-        }
-    }
-
     pub(super) fn request(
         &mut self,
         instance: EditorInstanceId,
         epoch: u64,
         reads: &HeadReads,
-        out: &mut Vec<Message>,
+        mut now: impl FnMut(Uuid, Head),
     ) {
         for (block, requested) in &mut self.requested {
             let block = *block;
@@ -89,11 +81,7 @@ impl Heads {
             }
             *requested = Some(node.head);
             let Some(commit) = node.head else {
-                out.push(Message::Editor(EditorMessage::Head {
-                    instance,
-                    block_id: block.into_bytes(),
-                    head: Ok(None),
-                }));
+                now(block, Ok(None));
                 continue;
             };
             let sender = reads.sender.clone();

@@ -1,16 +1,4 @@
-use geometry::Rect;
-use serde::{Deserialize, Serialize};
-
-use crate::clipboard::PasteKind;
-use crate::input::{CursorIcon, ImeText, KeyChord, Keyboard};
-
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-pub struct ImeArea {
-    pub rect: Rect,
-    pub cursor: Rect,
-    pub text: Option<ImeText>,
-    pub keyboard: Keyboard,
-}
+pub use crate::types::{ImeArea, WindowRequests};
 
 impl ImeArea {
     pub fn translated(self, by: geometry::Vec2) -> Self {
@@ -20,17 +8,4 @@ impl ImeArea {
             ..self
         }
     }
-}
-
-#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
-pub struct WindowRequests {
-    pub cursor: CursorIcon,
-    pub pointer_locked: bool,
-    pub ime: Option<ImeArea>,
-    pub handles_back: bool,
-    pub wants_keyboard: bool,
-    pub intercepted_keys: Vec<KeyChord>,
-    pub pastes: Vec<PasteKind>,
-    pub clipboard_keys: bool,
-    pub keyboard_toggles: u32,
 }

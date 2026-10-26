@@ -1,25 +1,13 @@
-use core::{fmt, future::ready, ops::Range, pin::Pin};
+use core::{fmt, future::ready, mem::ManuallyDrop, ops::Range, pin::Pin};
 use std::{cell::RefCell, sync::Arc};
 
-use block_gpu_abi as abi;
-use serde::Serialize;
+use block_gpu_abi::{device as abi, guest::device as gpu};
 use wgpu::custom::*;
 
-use crate::{
-    convert::{self, Handled},
-    imports,
-};
+use crate::convert::{self, custom};
 
-// unsafe(ffi)
-fn last_error() -> String {
-    let mut buffer = vec![0u8; 256];
-    let needed = unsafe { imports::error_take(buffer.as_mut_ptr() as u32, buffer.len() as u32) };
-    if needed as usize > buffer.len() {
-        buffer = vec![0u8; needed as usize];
-        unsafe { imports::error_take(buffer.as_mut_ptr() as u32, buffer.len() as u32) };
-    }
-    buffer.truncate(needed as usize);
-    String::from_utf8(buffer).unwrap_or_else(|_| "the host reported an unreadable error".into())
+pub(crate) fn last_error() -> String {
+    gpu::take_error().unwrap_or_default()
 }
 
 struct Scope {
@@ -82,78 +70,39 @@ fn checked() {
     }
 }
 
-fn created<T: Serialize>(descriptor: &T, call: impl FnOnce(u32, u32) -> u32) -> abi::Handle {
-    let bytes = abi::encode(descriptor);
-    let handle = call(bytes.as_ptr() as u32, bytes.len() as u32);
-    if handle == abi::NULL_HANDLE {
-        reject(last_error());
-    }
-    handle
-}
-
 macro_rules! resource {
-    ($name:ident, $kind:ident) => {
+    ($name:ident) => {
         #[derive(Debug)]
-        pub(crate) struct $name {
-            pub(crate) handle: abi::Handle,
-        }
+        pub(crate) struct $name(pub(crate) gpu::$name);
 
-        impl Handled for $name {
-            fn handle(&self) -> abi::Handle {
-                self.handle
-            }
-        }
-
-        impl Drop for $name {
-            fn drop(&mut self) {
-                if self.handle != abi::NULL_HANDLE {
-                    unsafe { imports::resource_drop(abi::ResourceKind::$kind.code(), self.handle) };
-                }
+        impl $name {
+            fn created(made: Option<gpu::$name>) -> Self {
+                Self(made.unwrap_or_else(|| {
+                    reject(last_error());
+                    gpu::$name::from_handle(abi::$name(0))
+                }))
             }
         }
     };
 }
 
-resource!(Buffer, Buffer);
-resource!(Texture, Texture);
-resource!(TextureView, TextureView);
-resource!(Sampler, Sampler);
-resource!(BindGroupLayout, BindGroupLayout);
-resource!(BindGroup, BindGroup);
-resource!(PipelineLayout, PipelineLayout);
-resource!(ShaderModule, ShaderModule);
-resource!(RenderPipeline, RenderPipeline);
-resource!(CommandBuffer, CommandBuffer);
+resource!(Buffer);
+resource!(Texture);
+resource!(TextureView);
+resource!(Sampler);
+resource!(BindGroupLayout);
+resource!(BindGroup);
+resource!(PipelineLayout);
+resource!(ShaderModule);
+resource!(RenderPipeline);
+resource!(CommandBuffer);
+resource!(CommandEncoder);
+resource!(RenderPass);
 
-#[derive(Debug)]
-pub(crate) struct CommandEncoder {
-    pub(crate) handle: abi::Handle,
-    finished: bool,
-}
-
-// unsafe(ffi)
-impl Drop for CommandEncoder {
-    fn drop(&mut self) {
-        if !self.finished && self.handle != abi::NULL_HANDLE {
-            unsafe {
-                imports::resource_drop(abi::ResourceKind::CommandEncoder.code(), self.handle)
-            };
-        }
-    }
-}
-
-#[derive(Debug)]
-pub(crate) struct RenderPass {
-    handle: abi::Handle,
-}
-
-// unsafe(ffi)
 impl Drop for RenderPass {
     fn drop(&mut self) {
-        if self.handle != abi::NULL_HANDLE {
-            unsafe { imports::pass_end(self.handle) };
-            checked();
-        }
+        self.0.end();
+        checked();
     }
 }
 
@@ -164,26 +113,19 @@ pub(crate) struct StagingBuffer {
 
 #[derive(Debug)]
 pub(crate) struct MappedRange {
-    buffer: abi::Handle,
+    buffer: abi::Buffer,
     offset: u64,
     bytes: Vec<u8>,
     written: bool,
 }
 
-// unsafe(ffi)
 impl Drop for MappedRange {
     fn drop(&mut self) {
         if !self.written {
             return;
         }
-        unsafe {
-            imports::buffer_write_mapped(
-                self.buffer,
-                self.offset,
-                self.bytes.as_ptr() as u32,
-                self.bytes.len() as u32,
-            )
-        };
+        let buffer = ManuallyDrop::new(gpu::Buffer::from_handle(self.buffer));
+        buffer.write_mapped(self.offset, &self.bytes);
     }
 }
 
@@ -203,23 +145,12 @@ impl Device {
     }
 }
 
-// unsafe(ffi)
 fn fetch_limits() -> wgpu::Limits {
-    let mut buffer = vec![0u8; 512];
-    let needed = unsafe { imports::device_limits(buffer.as_mut_ptr() as u32, buffer.len() as u32) };
-    if needed as usize > buffer.len() {
-        buffer = vec![0u8; needed as usize];
-        unsafe { imports::device_limits(buffer.as_mut_ptr() as u32, buffer.len() as u32) };
-    }
-    buffer.truncate(needed as usize);
-    let limits: abi::DeviceLimits = match abi::decode(&buffer) {
-        Ok(limits) => limits,
-        Err(error) => panic!("the host sent unreadable device limits: {error}"),
-    };
+    let limits = gpu::limits();
     wgpu::Limits {
-        max_texture_dimension_1d: limits.max_texture_dimension_1d,
-        max_texture_dimension_2d: limits.max_texture_dimension_2d,
-        max_texture_dimension_3d: limits.max_texture_dimension_3d,
+        max_texture_dimension_1d: limits.max_texture_dimension1d,
+        max_texture_dimension_2d: limits.max_texture_dimension2d,
+        max_texture_dimension_3d: limits.max_texture_dimension3d,
         max_texture_array_layers: limits.max_texture_array_layers,
         max_bind_groups: limits.max_bind_groups,
         max_bindings_per_bind_group: limits.max_bindings_per_bind_group,
@@ -277,10 +208,9 @@ impl DeviceInterface for Device {
             label: convert::label(desc.label),
             wgsl,
         };
-        let handle = created(&descriptor, |pointer, length| unsafe {
-            imports::create_shader_module(pointer, length)
-        });
-        DispatchShaderModule::custom(ShaderModule { handle })
+        DispatchShaderModule::custom(ShaderModule::created(gpu::create_shader_module(
+            &descriptor,
+        )))
     }
 
     unsafe fn create_shader_module_passthrough(
@@ -302,15 +232,14 @@ impl DeviceInterface for Device {
                 .map(|entry| abi::BindGroupLayoutEntry {
                     binding: entry.binding,
                     visibility: entry.visibility.bits(),
-                    binding_type: convert::binding_type(entry.ty),
+                    r#type: convert::binding_type(entry.ty),
                     count: entry.count.map(|count| count.get()),
                 })
                 .collect(),
         };
-        let handle = created(&descriptor, |pointer, length| unsafe {
-            imports::create_bind_group_layout(pointer, length)
-        });
-        DispatchBindGroupLayout::custom(BindGroupLayout { handle })
+        DispatchBindGroupLayout::custom(BindGroupLayout::created(gpu::create_bind_group_layout(
+            &descriptor,
+        )))
     }
 
     fn create_bind_group(&self, desc: &wgpu::BindGroupDescriptor<'_>) -> DispatchBindGroup {
@@ -326,10 +255,7 @@ impl DeviceInterface for Device {
                 })
                 .collect(),
         };
-        let handle = created(&descriptor, |pointer, length| unsafe {
-            imports::create_bind_group(pointer, length)
-        });
-        DispatchBindGroup::custom(BindGroup { handle })
+        DispatchBindGroup::custom(BindGroup::created(gpu::create_bind_group(&descriptor)))
     }
 
     fn create_pipeline_layout(
@@ -341,16 +267,12 @@ impl DeviceInterface for Device {
             bind_group_layouts: desc
                 .bind_group_layouts
                 .iter()
-                .map(|layout| match layout {
-                    Some(layout) => convert::group_layout_handle(layout),
-                    None => abi::NULL_HANDLE,
-                })
+                .map(|layout| layout.map(convert::group_layout_handle))
                 .collect(),
         };
-        let handle = created(&descriptor, |pointer, length| unsafe {
-            imports::create_pipeline_layout(pointer, length)
-        });
-        DispatchPipelineLayout::custom(PipelineLayout { handle })
+        DispatchPipelineLayout::custom(PipelineLayout::created(gpu::create_pipeline_layout(
+            &descriptor,
+        )))
     }
 
     fn create_render_pipeline(
@@ -434,10 +356,9 @@ impl DeviceInterface for Device {
                     .collect(),
             }),
         };
-        let handle = created(&descriptor, |pointer, length| unsafe {
-            imports::create_render_pipeline(pointer, length)
-        });
-        DispatchRenderPipeline::custom(RenderPipeline { handle })
+        DispatchRenderPipeline::custom(RenderPipeline::created(gpu::create_render_pipeline(
+            &descriptor,
+        )))
     }
 
     fn create_mesh_pipeline(
@@ -468,10 +389,7 @@ impl DeviceInterface for Device {
             usage: desc.usage.bits(),
             mapped_at_creation: desc.mapped_at_creation,
         };
-        let handle = created(&descriptor, |pointer, length| unsafe {
-            imports::create_buffer(pointer, length)
-        });
-        DispatchBuffer::custom(Buffer { handle })
+        DispatchBuffer::custom(Buffer::created(gpu::create_buffer(&descriptor)))
     }
 
     fn create_texture(&self, desc: &wgpu::TextureDescriptor<'_>) -> DispatchTexture {
@@ -489,10 +407,7 @@ impl DeviceInterface for Device {
                 .map(|format| convert::texture_format(*format))
                 .collect(),
         };
-        let handle = created(&descriptor, |pointer, length| unsafe {
-            imports::create_texture(pointer, length)
-        });
-        DispatchTexture::custom(Texture { handle })
+        DispatchTexture::custom(Texture::created(gpu::create_texture(&descriptor)))
     }
 
     fn create_external_texture(
@@ -530,10 +445,7 @@ impl DeviceInterface for Device {
             anisotropy_clamp: desc.anisotropy_clamp,
             border_color: desc.border_color.map(convert::border_color),
         };
-        let handle = created(&descriptor, |pointer, length| unsafe {
-            imports::create_sampler(pointer, length)
-        });
-        DispatchSampler::custom(Sampler { handle })
+        DispatchSampler::custom(Sampler::created(gpu::create_sampler(&descriptor)))
     }
 
     fn create_query_set(&self, _desc: &wgpu::QuerySetDescriptor<'_>) -> DispatchQuerySet {
@@ -547,13 +459,9 @@ impl DeviceInterface for Device {
         let descriptor = abi::CommandEncoderDescriptor {
             label: convert::label(desc.label),
         };
-        let handle = created(&descriptor, |pointer, length| unsafe {
-            imports::create_command_encoder(pointer, length)
-        });
-        DispatchCommandEncoder::custom(CommandEncoder {
-            handle,
-            finished: false,
-        })
+        DispatchCommandEncoder::custom(CommandEncoder::created(gpu::create_command_encoder(
+            &descriptor,
+        )))
     }
 
     fn create_render_bundle_encoder(
@@ -611,20 +519,9 @@ impl DeviceInterface for Device {
     fn destroy(&self) {}
 }
 
-// unsafe(ffi)
 impl QueueInterface for Queue {
     fn write_buffer(&self, buffer: &DispatchBuffer, offset: wgpu::BufferAddress, data: &[u8]) {
-        let Some(buffer) = buffer.as_custom::<Buffer>() else {
-            panic!("a buffer from another wgpu backend reached the plugin gpu abi");
-        };
-        unsafe {
-            imports::queue_write_buffer(
-                buffer.handle,
-                offset,
-                data.as_ptr() as u32,
-                data.len() as u32,
-            )
-        };
+        gpu::write_buffer(&custom::<Buffer>(buffer.as_custom()).0, offset, data);
         checked();
     }
 
@@ -662,24 +559,16 @@ impl QueueInterface for Queue {
         data_layout: wgpu::TexelCopyBufferLayout,
         size: wgpu::Extent3d,
     ) {
-        let request = abi::WriteTexture {
-            destination: convert::texel_copy_texture(texture),
-            layout: abi::TexelCopyBufferLayout {
+        gpu::write_texture(
+            convert::texel_copy_texture(texture),
+            data,
+            abi::TexelCopyBufferLayout {
                 offset: data_layout.offset,
                 bytes_per_row: data_layout.bytes_per_row,
                 rows_per_image: data_layout.rows_per_image,
             },
-            size: convert::extent(size),
-        };
-        let bytes = abi::encode(&request);
-        unsafe {
-            imports::queue_write_texture(
-                bytes.as_ptr() as u32,
-                bytes.len() as u32,
-                data.as_ptr() as u32,
-                data.len() as u32,
-            )
-        };
+            convert::extent(size),
+        );
         checked();
     }
 
@@ -694,17 +583,14 @@ impl QueueInterface for Queue {
     }
 
     fn submit(&self, command_buffers: &mut dyn Iterator<Item = DispatchCommandBuffer>) -> u64 {
-        let handles: Vec<u32> = command_buffers
+        let buffers: Vec<gpu::CommandBuffer> = command_buffers
             .map(|buffer| {
-                let handle = match buffer.as_custom::<CommandBuffer>() {
-                    Some(buffer) => buffer.handle,
-                    None => panic!("a command buffer from another wgpu backend reached the abi"),
-                };
+                let handle = custom::<CommandBuffer>(buffer.as_custom()).0.handle();
                 std::mem::forget(buffer);
-                handle
+                gpu::CommandBuffer::from_handle(handle)
             })
             .collect();
-        unsafe { imports::queue_submit(handles.as_ptr() as u32, handles.len() as u32) };
+        gpu::submit(buffers);
         checked();
         0
     }
@@ -743,7 +629,6 @@ impl RenderPipelineInterface for RenderPipeline {
     }
 }
 
-// unsafe(ffi)
 impl BufferInterface for Buffer {
     fn map_async(
         &self,
@@ -757,7 +642,7 @@ impl BufferInterface for Buffer {
     fn get_mapped_range(&self, sub_range: Range<wgpu::BufferAddress>) -> DispatchBufferMappedRange {
         let length = sub_range.end.saturating_sub(sub_range.start) as usize;
         DispatchBufferMappedRange::custom(MappedRange {
-            buffer: self.handle,
+            buffer: self.0.handle(),
             offset: sub_range.start,
             bytes: vec![0u8; length],
             written: false,
@@ -765,19 +650,17 @@ impl BufferInterface for Buffer {
     }
 
     fn unmap(&self) {
-        unsafe { imports::buffer_unmap(self.handle) };
+        self.0.unmap();
         checked();
     }
 
     fn destroy(&self) {}
 }
 
-// unsafe(ffi)
 impl TextureInterface for Texture {
     fn create_view(&self, desc: &wgpu::TextureViewDescriptor<'_>) -> DispatchTextureView {
         let descriptor = abi::TextureViewDescriptor {
             label: convert::label(desc.label),
-            texture: self.handle,
             format: desc.format.map(convert::texture_format),
             dimension: desc.dimension.map(convert::texture_view_dimension),
             aspect: convert::texture_aspect(desc.aspect),
@@ -786,10 +669,7 @@ impl TextureInterface for Texture {
             base_array_layer: desc.base_array_layer,
             array_layer_count: desc.array_layer_count,
         };
-        let handle = created(&descriptor, |pointer, length| unsafe {
-            imports::create_texture_view(pointer, length)
-        });
-        DispatchTextureView::custom(TextureView { handle })
+        DispatchTextureView::custom(TextureView::created(self.0.create_view(&descriptor)))
     }
 
     fn destroy(&self) {}
@@ -822,7 +702,6 @@ impl BufferMappedRangeInterface for MappedRange {
     }
 }
 
-// unsafe(ffi)
 impl CommandEncoderInterface for CommandEncoder {
     fn copy_buffer_to_buffer(
         &self,
@@ -859,16 +738,11 @@ impl CommandEncoderInterface for CommandEncoder {
         destination: wgpu::TexelCopyTextureInfo<'_>,
         copy_size: wgpu::Extent3d,
     ) {
-        let request = abi::CopyTextureToTexture {
-            encoder: self.handle,
-            source: convert::texel_copy_texture(source),
-            destination: convert::texel_copy_texture(destination),
-            size: convert::extent(copy_size),
-        };
-        let bytes = abi::encode(&request);
-        unsafe {
-            imports::encoder_copy_texture_to_texture(bytes.as_ptr() as u32, bytes.len() as u32)
-        };
+        self.0.copy_texture_to_texture(
+            convert::texel_copy_texture(source),
+            convert::texel_copy_texture(destination),
+            convert::extent(copy_size),
+        );
     }
 
     fn begin_compute_pass(&self, _desc: &wgpu::ComputePassDescriptor<'_>) -> DispatchComputePass {
@@ -878,7 +752,6 @@ impl CommandEncoderInterface for CommandEncoder {
     fn begin_render_pass(&self, desc: &wgpu::RenderPassDescriptor<'_>) -> DispatchRenderPass {
         let descriptor = abi::RenderPassDescriptor {
             label: convert::label(desc.label),
-            encoder: self.handle,
             color_attachments: desc
                 .color_attachments
                 .iter()
@@ -921,19 +794,11 @@ impl CommandEncoderInterface for CommandEncoder {
                 }
             }),
         };
-        let handle = created(&descriptor, |pointer, length| unsafe {
-            imports::encoder_begin_render_pass(pointer, length)
-        });
-        DispatchRenderPass::custom(RenderPass { handle })
+        DispatchRenderPass::custom(RenderPass::created(self.0.begin_render_pass(&descriptor)))
     }
 
     fn finish(&mut self) -> DispatchCommandBuffer {
-        let handle = unsafe { imports::encoder_finish(self.handle) };
-        self.finished = true;
-        if handle == abi::NULL_HANDLE {
-            reject(last_error());
-        }
-        DispatchCommandBuffer::custom(CommandBuffer { handle })
+        DispatchCommandBuffer::custom(CommandBuffer::created(self.0.finish()))
     }
 
     fn clear_texture(
@@ -995,20 +860,10 @@ impl CommandEncoderInterface for CommandEncoder {
     }
 }
 
-fn index_format_code(format: wgpu::IndexFormat) -> u32 {
-    match format {
-        wgpu::IndexFormat::Uint16 => 0,
-        wgpu::IndexFormat::Uint32 => 1,
-    }
-}
-
-// unsafe(ffi)
 impl RenderPassInterface for RenderPass {
     fn set_pipeline(&mut self, pipeline: &DispatchRenderPipeline) {
-        let Some(pipeline) = pipeline.as_custom::<RenderPipeline>() else {
-            panic!("a pipeline from another wgpu backend reached the plugin gpu abi");
-        };
-        unsafe { imports::pass_set_pipeline(self.handle, pipeline.handle) };
+        self.0
+            .set_pipeline(&custom::<RenderPipeline>(pipeline.as_custom()).0);
     }
 
     fn set_bind_group(
@@ -1017,22 +872,8 @@ impl RenderPassInterface for RenderPass {
         bind_group: Option<&DispatchBindGroup>,
         offsets: &[wgpu::DynamicOffset],
     ) {
-        let handle = match bind_group {
-            Some(group) => match group.as_custom::<BindGroup>() {
-                Some(group) => group.handle,
-                None => panic!("a bind group from another wgpu backend reached the abi"),
-            },
-            None => abi::NULL_HANDLE,
-        };
-        unsafe {
-            imports::pass_set_bind_group(
-                self.handle,
-                index,
-                handle,
-                offsets.as_ptr() as u32,
-                offsets.len() as u32,
-            )
-        };
+        let group = bind_group.map(|group| &custom::<BindGroup>(group.as_custom()).0);
+        self.0.set_bind_group(index, group, offsets);
     }
 
     fn set_index_buffer(
@@ -1042,18 +883,12 @@ impl RenderPassInterface for RenderPass {
         offset: wgpu::BufferAddress,
         size: Option<wgpu::BufferSize>,
     ) {
-        let Some(buffer) = buffer.as_custom::<Buffer>() else {
-            panic!("a buffer from another wgpu backend reached the plugin gpu abi");
-        };
-        unsafe {
-            imports::pass_set_index_buffer(
-                self.handle,
-                buffer.handle,
-                index_format_code(index_format),
-                offset,
-                convert::size(size),
-            )
-        };
+        self.0.set_index_buffer(
+            &custom::<Buffer>(buffer.as_custom()).0,
+            convert::index_format(index_format),
+            offset,
+            convert::size(size),
+        );
     }
 
     fn set_vertex_buffer(
@@ -1063,18 +898,12 @@ impl RenderPassInterface for RenderPass {
         offset: wgpu::BufferAddress,
         size: Option<wgpu::BufferSize>,
     ) {
-        let Some(buffer) = buffer.as_custom::<Buffer>() else {
-            panic!("a buffer from another wgpu backend reached the plugin gpu abi");
-        };
-        unsafe {
-            imports::pass_set_vertex_buffer(
-                self.handle,
-                slot,
-                buffer.handle,
-                offset,
-                convert::size(size),
-            )
-        };
+        self.0.set_vertex_buffer(
+            slot,
+            &custom::<Buffer>(buffer.as_custom()).0,
+            offset,
+            convert::size(size),
+        );
     }
 
     fn set_immediates(&mut self, _offset: u32, _data: &[u8]) {
@@ -1082,19 +911,11 @@ impl RenderPassInterface for RenderPass {
     }
 
     fn set_blend_constant(&mut self, color: wgpu::Color) {
-        unsafe {
-            imports::pass_set_blend_constant(
-                self.handle,
-                color.r as f32,
-                color.g as f32,
-                color.b as f32,
-                color.a as f32,
-            )
-        };
+        self.0.set_blend_constant(convert::color(color));
     }
 
     fn set_scissor_rect(&mut self, x: u32, y: u32, width: u32, height: u32) {
-        unsafe { imports::pass_set_scissor_rect(self.handle, x, y, width, height) };
+        self.0.set_scissor_rect(x, y, width, height);
     }
 
     fn set_viewport(
@@ -1106,38 +927,31 @@ impl RenderPassInterface for RenderPass {
         min_depth: f32,
         max_depth: f32,
     ) {
-        unsafe {
-            imports::pass_set_viewport(self.handle, x, y, width, height, min_depth, max_depth)
-        };
+        self.0
+            .set_viewport(x, y, width, height, min_depth, max_depth);
     }
 
     fn set_stencil_reference(&mut self, reference: u32) {
-        unsafe { imports::pass_set_stencil_reference(self.handle, reference) };
+        self.0.set_stencil_reference(reference);
     }
 
     fn draw(&mut self, vertices: Range<u32>, instances: Range<u32>) {
-        unsafe {
-            imports::pass_draw(
-                self.handle,
-                vertices.start,
-                vertices.end.saturating_sub(vertices.start),
-                instances.start,
-                instances.end.saturating_sub(instances.start),
-            )
-        };
+        self.0.draw(
+            vertices.end.saturating_sub(vertices.start),
+            instances.end.saturating_sub(instances.start),
+            vertices.start,
+            instances.start,
+        );
     }
 
     fn draw_indexed(&mut self, indices: Range<u32>, base_vertex: i32, instances: Range<u32>) {
-        unsafe {
-            imports::pass_draw_indexed(
-                self.handle,
-                indices.start,
-                indices.end.saturating_sub(indices.start),
-                base_vertex,
-                instances.start,
-                instances.end.saturating_sub(instances.start),
-            )
-        };
+        self.0.draw_indexed(
+            indices.end.saturating_sub(indices.start),
+            instances.end.saturating_sub(instances.start),
+            indices.start,
+            base_vertex,
+            instances.start,
+        );
     }
 
     fn draw_mesh_tasks(&mut self, _x: u32, _y: u32, _z: u32) {

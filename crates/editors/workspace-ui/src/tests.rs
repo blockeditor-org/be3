@@ -3,7 +3,7 @@ use workspace_ui_types::{FolderContent, WorkspaceContent};
 
 use block_editor_beui::beui::{Document, NodeId, Rect, ScrollDelta, Vec2};
 use block_editor_beui::{
-    BlockParent, ChildContent, EditorHost, HostWindows, OwnedEditor, WindowAction,
+    BlockParent, ChildContent, EditorHost, OwnedEditor, WindowAction, WindowsWatch,
 };
 use block_ui_test::BeuiTest;
 use uuid::Uuid;
@@ -22,6 +22,7 @@ mod a_host_panel_the_host_asks_for_is_placed_in_its_own_window;
 mod a_modal_window_sends_presses_on_its_parent_to_itself;
 mod a_phone_shows_one_file_at_a_time_and_the_dock_bar_goes_back_or_switches;
 mod a_pick_keeps_the_anchor_and_the_tab_it_was_asked_from;
+mod a_pick_withdrawn_by_the_editor_that_asked_closes_the_picker;
 mod a_presentation_offers_its_slide_templates_first;
 mod a_profile_keeps_its_tabs_as_view_blocks_and_reopens_them;
 mod a_reopened_phone_goes_back_through_the_files_in_the_order_they_were_shown;
@@ -186,10 +187,7 @@ fn window(id: u64, title: &str, parent: Option<u64>) -> block_editor_beui::HostW
         app_id: "test".to_owned(),
         parent: parent.map(block_editor_beui::HostWindowId),
         modal: false,
-        size: block_plugin_api::Size {
-            width: 320.0,
-            height: 200.0,
-        },
+        size: block_editor_beui::beui::Vec2::new(320.0, 200.0),
         fullscreen: None,
         responding: true,
         focused: false,

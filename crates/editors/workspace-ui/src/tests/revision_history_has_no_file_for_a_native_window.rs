@@ -6,7 +6,7 @@ fn revision_history_has_no_file_for_a_native_window() {
     show(&mut fixture, opened, None);
     fixture
         .host
-        .set_host_value::<HostWindows>(&vec![window(7, "Terminal", None)]);
+        .set_watched::<WindowsWatch>(&vec![window(7, "Terminal", None)]);
     fixture.settle();
     fixture.show_history();
     assert!(fixture.says("Open a file to see its revision history."));
