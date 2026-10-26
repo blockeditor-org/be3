@@ -1568,12 +1568,12 @@ fn EditorActions() -> NodeId {
     };
     let undo = action("toolbar.undo", "Undo", ICON_UNDO_2)
         .pin(Pin::Icon)
-        .register();
+        .detached();
     let share = action("toolbar.share", "Share", ICON_SHARE_2)
         .pin(Pin::Label)
-        .register();
-    let rename = action("toolbar.rename", "Rename", ICON_PENCIL).register();
-    let delete = action("toolbar.delete", "Delete", ICON_TRASH).register();
+        .detached();
+    let rename = action("toolbar.rename", "Rename", ICON_PENCIL).detached();
+    let delete = action("toolbar.delete", "Delete", ICON_TRASH).detached();
     let menu = vec![
         MenuNode::action(&undo),
         MenuNode::action(&share),
