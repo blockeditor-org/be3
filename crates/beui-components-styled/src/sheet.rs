@@ -92,11 +92,9 @@ pub(crate) fn AnchoredSheet(handle: AnchoredSheetHandle, padding: f32) -> NodeId
             stops={ANCHORED_STOPS.to_vec()}
             fit=true
             on_close={on_close}
-        >|| {
-            view! {
-                <Frame padding>{content.call(())}</Frame>
-            }
-        }</ModalSheet>
+        >||
+            <Frame padding>{content.call(())}</Frame>
+        </ModalSheet>
     }
 }
 

@@ -1,9 +1,10 @@
 use super::*;
 use beui::Rect;
 use beui::unstyled::{
-    AnchoredSheetHandle, AnchoredStyle, ButtonHandle, ChoiceKind, ChoiceOptionHandle, DisclosureHandle, DragHandle, DragPoint,
-    DropHandle, MenuRowHandle, PopupTriggerHandle, ScrollHandle, ScrollbarHandle, ScrollbarStyle,
-    SliderHandle, TextInputHandle, TextInputStyle, ToggleHandle, TooltipHandle,
+    AnchoredSheetHandle, AnchoredStyle, ButtonHandle, ChoiceKind, ChoiceOptionHandle,
+    DisclosureHandle, DragHandle, DragPoint, DropHandle, MenuRowHandle, PopupTriggerHandle,
+    ScrollHandle, ScrollbarHandle, ScrollbarStyle, SliderHandle, TextInputHandle, TextInputStyle,
+    ToggleHandle, TooltipHandle,
 };
 use beui::unstyled::{ColorAreaHandle, ColorPickerArea, HueSlider, SwatchHandle, Swatches};
 use beui::unstyled::{
@@ -617,8 +618,10 @@ pub(crate) fn PopupsPage() -> NodeId {
 
 fn popup_surface() -> AnchoredStyle {
     AnchoredStyle::new(
-        |content: Child| view! {
-            <PopupPanel>{content}</PopupPanel>
+        |content: Child| {
+            view! {
+                <PopupPanel>{content}</PopupPanel>
+            }
         },
         |handle: AnchoredSheetHandle| {
             let AnchoredSheetHandle {
@@ -627,11 +630,9 @@ fn popup_surface() -> AnchoredStyle {
                 content,
             } = handle;
             view! {
-                <beui::styled::ModalSheet open={open} fit=true on_close={on_close}>|| {
-                    view! {
-                        <Frame padding=12.0>{content.call(())}</Frame>
-                    }
-                }</beui::styled::ModalSheet>
+                <beui::styled::ModalSheet open={open} fit=true on_close={on_close}>||
+                    <Frame padding=12.0>{content.call(())}</Frame>
+                </beui::styled::ModalSheet>
             }
         },
     )
@@ -671,9 +672,7 @@ fn InfoPopover() -> NodeId {
                         <Text>
                             "A popover places its content below the trigger, or in a sheet when a finger opened it, and closes on Escape or a click outside."
                         </Text>
-                        <unstyled::Button
-                            on_click={move || close.call(())}
-                        >|handle: ButtonHandle|
+                        <unstyled::Button on_click={move || close.call(())}>|handle: ButtonHandle|
                             <PillFace handle label="Got it" />
                         </unstyled::Button>
                     </List>
@@ -1702,17 +1701,17 @@ fn DatePresets(handle: DateTimePanelHandle) -> NodeId {
     };
     view! {
         <List spacing=SECTION_SPACING>
-                {field}
-                {preset("In a week", start.add_days(7))}
-                {preset("In a month", start.add_months(1))}
-                <List direction=Direction::Horizontal spacing=8.0>
-                    <unstyled::Button on_click={now}>|handle: ButtonHandle|
-                        <PillFace handle label=now_label />
-                    </unstyled::Button>
-                    <unstyled::Button on_click={clear}>|handle: ButtonHandle|
-                        <PillFace handle label="Clear" />
-                    </unstyled::Button>
-                </List>
+            {field}
+            {preset("In a week", start.add_days(7))}
+            {preset("In a month", start.add_months(1))}
+            <List direction=Direction::Horizontal spacing=8.0>
+                <unstyled::Button on_click={now}>|handle: ButtonHandle|
+                    <PillFace handle label=now_label />
+                </unstyled::Button>
+                <unstyled::Button on_click={clear}>|handle: ButtonHandle|
+                    <PillFace handle label="Clear" />
+                </unstyled::Button>
             </List>
+        </List>
     }
 }

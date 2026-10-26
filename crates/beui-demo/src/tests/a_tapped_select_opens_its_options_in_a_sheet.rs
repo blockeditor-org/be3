@@ -33,6 +33,9 @@ fn a_tapped_select_opens_its_options_in_a_sheet() {
     test.settle();
     tap(&mut test, trigger);
     test.settle();
-    assert!(test.shows("sheet.handle"), "a tap opens the options in a sheet");
+    assert!(
+        test.shows("sheet.handle"),
+        "a tap opens the options in a sheet"
+    );
     test.snapshot("a_select_in_a_sheet");
 }

@@ -33,6 +33,9 @@ fn a_tapped_popover_opens_in_a_sheet() {
     test.settle();
     tap(&mut test, trigger);
     test.settle();
-    assert!(test.shows("sheet.handle"), "a tap opens the popover in a sheet");
+    assert!(
+        test.shows("sheet.handle"),
+        "a tap opens the popover in a sheet"
+    );
     test.snapshot("a_popover_in_a_sheet");
 }
