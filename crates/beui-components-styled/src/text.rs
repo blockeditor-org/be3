@@ -7,7 +7,10 @@ use beui_view::primitives;
 use beui_view::primitives::*;
 use beui_view::reactive::*;
 
+use crate::frame::ColorRole;
 use crate::theme::{ThemeStore, use_theme};
+use beui_core::geometry::Vec2;
+use beui_core::rich::SpanBackground;
 use crate::tokens::{Space, use_space};
 
 #[derive(Clone, Copy, PartialEq, Debug)]
@@ -368,6 +371,7 @@ pub fn Span(
     #[prop(default = None)] underline: Prop<Option<bool>>,
     #[prop(default = None)] strikethrough: Prop<Option<bool>>,
     #[prop(default = false)] break_after: Prop<bool>,
+    background: Option<Prop<ColorRole>>,
     children: Children<SpanText>,
 ) -> primitives::Span {
     let theme = use_theme();
@@ -376,8 +380,18 @@ pub fn Span(
     let family = part(family, Family::font);
     let italic = part(italic, |italic| italic);
     let color = color_part(color, theme);
+    let background = match background {
+        None => Prop::Static(None),
+        Some(fill) => Prop::dynamic(move || {
+            Some(SpanBackground {
+                color: fill.get().resolve(&theme),
+                radius: 0.0,
+                outset: Vec2::ZERO,
+            })
+        }),
+    };
     view! {
-        <primitives::Span size family bold italic color underline strikethrough break_after>
+        <primitives::Span size family bold italic color underline strikethrough background break_after>
             {children}
         </primitives::Span>
     }

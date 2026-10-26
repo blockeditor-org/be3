@@ -4,11 +4,11 @@ use std::rc::Rc;
 
 use be_block::ObjectId;
 use beui::reactive::*;
-use beui::rich::{SpanBackground, TextCaret};
+use beui::rich::TextCaret;
 use beui::styled::*;
 use beui::{
     Key, KeyPress, NodeId, Overflow, PasteKind, Pasted, PointerPress, Pos2, ScrollGesture,
-    TextLayout, Vec2, primitives,
+    TextLayout, Vec2,
 };
 use terminal_types::{TerminalColors, TerminalCursor, TerminalLine, TerminalWheel};
 
@@ -259,10 +259,10 @@ fn TerminalRow(key: ReadSignal<ObjectId>, table: Table) -> NodeId {
 }
 
 #[component]
-fn TerminalPiece(piece: Piece) -> primitives::TextChild {
+fn TerminalPiece(piece: Piece) -> TextChild {
     match piece {
         Piece::Break => view! {
-            <primitives::Break />
+            <Break />
         }
         .into_child(),
         Piece::Text(text, look) => {
@@ -274,24 +274,36 @@ fn TerminalPiece(piece: Piece) -> primitives::TextChild {
                 underline,
                 strikethrough,
             } = look;
-            let background = background.map(|color| SpanBackground {
-                color,
-                radius: 0.0,
-                outset: Vec2::ZERO,
-            });
-            view! {
-                <primitives::Span
-                    bold={Some(bold)}
-                    italic={Some(italic)}
-                    color={Some(color)}
-                    underline={Some(underline)}
-                    strikethrough={Some(strikethrough)}
-                    background
-                >
-                    {text}
-                </primitives::Span>
-            }
-            .into_child()
+            let weight = match bold {
+                true => Weight::Bold,
+                false => Weight::Normal,
+            };
+            let span = match background {
+                Some(fill) => view! {
+                    <Span
+                        weight
+                        italic
+                        color={TextColor::Custom(color)}
+                        underline={Some(underline)}
+                        strikethrough={Some(strikethrough)}
+                        background={ColorRole::Custom(fill)}
+                    >
+                        {text}
+                    </Span>
+                },
+                None => view! {
+                    <Span
+                        weight
+                        italic
+                        color={TextColor::Custom(color)}
+                        underline={Some(underline)}
+                        strikethrough={Some(strikethrough)}
+                    >
+                        {text}
+                    </Span>
+                },
+            };
+            span.into_child()
         }
     }
 }

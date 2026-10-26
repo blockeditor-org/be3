@@ -4,7 +4,6 @@ use uuid::Uuid;
 use block_editor_beui::beui::icons::{ICON_ARROW_DOWN, ICON_ARROW_UP, ICON_FOLDER};
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
-use block_editor_beui::beui::unstyled::ChoiceOption;
 use block_editor_beui::beui::{NodeId, TextAlign, Vec2};
 use block_editor_beui::{Editor, Toolbar};
 

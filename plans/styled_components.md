@@ -389,6 +389,24 @@ is either a styled component that doesn't exist yet, or a custom face that
 should become a styled component. This is the largest item. Do it after §1-4,
 which remove some of those imports on their own.
 
+Outcomes, by crate group (each also migrated onto §7's tokens):
+
+- **Done.** workspace-ui, linux-desktop, file-tree, settings, workspace-index,
+  version-control, browser-tab, terminal and terminal-view import nothing from
+  `unstyled` or `primitives`. Styled re-exports the behaviour-only pieces they
+  needed (`BackSlide`, `ChoiceOption`, `Container`, `container_size`,
+  `MenuItem`, `PopoverHandle`, `TextAreaState`, `TreeItem`, `TextChild`), and
+  `dock::styled` re-exports the dock's model types (`DockNode`, `TabId`,
+  `DockingLayout`, `DockApi`, `use_dock_tab`, ...). New in styled: `Picture`
+  (radius as a `Radius`), `Span`'s `background: ColorRole`, `Button`'s
+  `tab_stop`, `on_focus_change` and `revealed` (keeps its place and
+  accessibility but paints nothing: file-tree's hover-revealed add button, which
+  was a custom face), `TextColor::None`, and `Tree`'s `outline` returns a
+  `ColorRole`. Left: linux-desktop's level OSD still fades theme colours by
+  hand through `ColorRole::Custom`, because nothing in beui fades a subtree's
+  opacity; an opacity node would let it use roles. Bar popups now share the
+  popover width (`Size::Popover`) instead of each picking pixels.
+
 ## 7. Styled components take design tokens, not raw values
 
 Text already takes tokens: `TextSize`, `Weight`, `Family`, `TextColor`. The
