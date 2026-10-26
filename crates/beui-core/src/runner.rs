@@ -20,14 +20,14 @@ use crate::input::{Event, Input};
 use crate::renderer::{Capture, Loaded, Renderers};
 use crate::window::{Resize, WindowId, WindowReport, WindowReports, WindowState};
 
+mod controller;
 pub mod environment;
 mod intake;
-mod controller;
 mod layer;
 
+pub use controller::{Controller, Hand, HandPose};
 use intake::{Drain, Intake};
 pub use intake::{Incoming, PINCH_SPEED, SCROLL_LINE, SCROLL_PAGE, Units, scrolled};
-pub use controller::{Controller, Hand, HandPose};
 pub use layer::{Above, Below, Layer, LayerFrame, LayerView, Shown};
 
 type Answered = (FilePickId, FilePick);
@@ -479,9 +479,10 @@ impl Runner {
         let pixels_per_point = self.native;
         let visible = renderers.physical();
         let paced = match (visible, self.last_physical) {
-            (Some(_), _) | (None, Some(_)) => {
-                self.layers.iter_mut().fold(None, |paced, layer| paced.or(layer.pace()))
-            }
+            (Some(_), _) | (None, Some(_)) => self
+                .layers
+                .iter_mut()
+                .fold(None, |paced, layer| paced.or(layer.pace())),
             (None, None) => None,
         };
         let Some(physical) = visible.or(self.last_physical.filter(|_| paced.is_some())) else {
@@ -580,7 +581,8 @@ impl Runner {
             }
         };
         let events = next_batch(&mut self.events);
-        let seen = (!self.occluded && visible.is_some()) || self.layers.iter().any(|layer| layer.wants_sight());
+        let seen = (!self.occluded && visible.is_some())
+            || self.layers.iter().any(|layer| layer.wants_sight());
         self.context.set_seen(seen);
         self.context.set_accessibility_viewport(screen);
         let app = &mut self.app;

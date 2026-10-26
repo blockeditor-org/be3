@@ -2,8 +2,8 @@ use std::error::Error;
 use std::sync::Arc;
 
 use beui_core::app::App;
-use beui_layer_xr::Xr;
 use beui_core::renderer::{Loaded, WindowHandle, any_loaded};
+use beui_layer_xr::Xr;
 use beui_renderer_wgpu::present::OpenDevice;
 use beui_renderer_wgpu::window::WindowSurface;
 

@@ -3,8 +3,8 @@ use std::time::Duration;
 #[cfg(target_arch = "wasm32")]
 use block_plugin_api::SurfaceRect;
 use block_plugin_api::{
-    EditorInstanceId, EditorRegion, FrameChrome, FrameSpec, TimedInput, WindowReport, WindowRequest,
-    WindowRequests,
+    EditorInstanceId, EditorRegion, FrameChrome, FrameSpec, TimedInput, WindowReport,
+    WindowRequest, WindowRequests,
 };
 use geometry::{Rect, Vec2};
 use uuid::Uuid;

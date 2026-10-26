@@ -99,7 +99,12 @@ impl Layer for XrSpace {
         self.show();
     }
 
-    fn framed(&mut self, frame: &mut RunnerFrame, output: &FrameOutput, layer: &mut LayerFrame<'_>) {
+    fn framed(
+        &mut self,
+        frame: &mut RunnerFrame,
+        output: &FrameOutput,
+        layer: &mut LayerFrame<'_>,
+    ) {
         self.space.framed(frame, output, layer);
         frame.repaint_after = frame.repaint_after.min(self.wait());
     }

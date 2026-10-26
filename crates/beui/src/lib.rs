@@ -75,10 +75,10 @@ pub use beui_font_freetype::{
     FontBytes, FontData, FontLibrary, FontSources, FreetypeFonts, ICONS_FONT,
 };
 pub use beui_inspector::install as install_inspector;
-#[cfg(all(feature = "render", not(target_arch = "wasm32")))]
-pub use beui_renderer_wgpu::present::read_texture;
 pub use beui_layer_drive as drive;
 pub use beui_platform_headless::testing;
+#[cfg(all(feature = "render", not(target_arch = "wasm32")))]
+pub use beui_renderer_wgpu::present::read_texture;
 #[cfg(feature = "render")]
 pub use beui_renderer_wgpu::present::{GpuSetup, OpenDevice, OpenGpu, open_vulkan_device};
 #[cfg(feature = "render")]
@@ -95,8 +95,7 @@ pub use beui_core::runner::{
 };
 pub use beui_core::window::{
     HostPlacement, Resize, WindowEdge, WindowHosting, WindowId, WindowPlacement, WindowReport,
-    WindowRole,
-    WindowRequest, WindowSize,
+    WindowRequest, WindowRole, WindowSize,
 };
 #[cfg(all(feature = "window", target_os = "android"))]
 pub use beui_platform_android::AndroidApp;
