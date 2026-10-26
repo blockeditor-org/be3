@@ -38,7 +38,51 @@ const PLUGIN_FLAGS: [&str; 7] = [
 ];
 const SDK_FLAGS: [&str; 3] = ["--export-all", "--export-table", "--growable-table"];
 const UNUSED_SECTIONS: [&str; 3] = [".rmeta", ".rmeta-link", "__wasm_bindgen_unstable"];
-const MATH: [&str; 40] = [
+const WHOLE_LIBRARIES: [&str; 2] = ["-lc++", "-lc++abi"];
+const LIBC: [&str; 41] = [
+    "atof",
+    "atoi",
+    "atol",
+    "gettimeofday",
+    "isalnum",
+    "isalpha",
+    "isdigit",
+    "islower",
+    "isprint",
+    "isspace",
+    "isupper",
+    "isxdigit",
+    "iswalnum",
+    "iswalpha",
+    "iswdigit",
+    "iswlower",
+    "iswspace",
+    "iswupper",
+    "pthread_cond_broadcast",
+    "pthread_cond_destroy",
+    "pthread_cond_init",
+    "pthread_cond_signal",
+    "pthread_cond_wait",
+    "pthread_mutex_destroy",
+    "pthread_mutex_init",
+    "pthread_mutex_lock",
+    "pthread_mutex_trylock",
+    "pthread_mutex_unlock",
+    "pthread_once",
+    "strtod",
+    "strtol",
+    "strtoul",
+    "time",
+    "tolower",
+    "toupper",
+    "towlower",
+    "towupper",
+    "wcslen",
+    "wmemcmp",
+    "wmemcpy",
+    "wmemset",
+];
+const MATH: [&str; 44] = [
     "acos",
     "acosh",
     "asin",
@@ -70,6 +114,10 @@ const MATH: [&str; 40] = [
     "log10",
     "log1p",
     "log2",
+    "llrint",
+    "llround",
+    "lrint",
+    "lround",
     "modf",
     "pow",
     "remainder",
@@ -204,18 +252,30 @@ pub fn sdk_arguments(arguments: Vec<String>) -> (Vec<String>, Vec<String>) {
     let mut linked = Vec::new();
     let mut rewritten = Vec::with_capacity(arguments.len() + SDK_FLAGS.len());
     let mut arguments = arguments.into_iter();
+    let mut whole = HashSet::new();
     while let Some(argument) = arguments.next() {
-        if argument == "-l" {
-            if let Some(library) = arguments.next() {
-                linked.push(format!("-l{library}"));
-                rewritten.push(argument);
-                rewritten.push(library);
+        let library = if argument == "-l" {
+            let Some(library) = arguments.next() else {
+                continue;
+            };
+            Some((format!("-l{library}"), vec![argument.clone(), library]))
+        } else if argument.starts_with("-l") {
+            Some((argument.clone(), vec![argument.clone()]))
+        } else {
+            None
+        };
+        if let Some((library, given)) = library {
+            linked.push(library.clone());
+            if WHOLE_LIBRARIES.contains(&library.as_str()) && whole.insert(library.clone()) {
+                rewritten.push("--whole-archive".to_owned());
+                rewritten.extend(given);
+                rewritten.push("--no-whole-archive".to_owned());
+            } else {
+                rewritten.extend(given);
             }
             continue;
         }
-        if argument.starts_with("-l") {
-            linked.push(argument.clone());
-        } else if is_archive(&argument) {
+        if is_archive(&argument) {
             linked.push(basename(&argument).to_owned());
         }
         if is_rust(&argument) {
@@ -237,6 +297,9 @@ pub fn sdk_arguments(arguments: Vec<String>) -> (Vec<String>, Vec<String>) {
         "--undefined=tgamma".to_owned(),
         "--undefined=tgammaf".to_owned(),
     ]);
+    for function in LIBC {
+        rewritten.push(format!("--undefined={function}"));
+    }
     (rewritten, linked)
 }
 
@@ -329,7 +392,7 @@ pub struct ThreadLocal {
 pub struct Sdk {
     pub identity: String,
     pub linked: HashSet<String>,
-    pub functions: HashSet<String>,
+    pub importable: HashSet<String>,
     pub exports: HashSet<String>,
     pub thread_locals: Vec<ThreadLocal>,
     pub reserve: (u32, u32),
@@ -385,9 +448,9 @@ impl Sdk {
         Ok(Self {
             identity: identity(bytes),
             linked,
-            functions: exports
+            importable: exports
                 .iter()
-                .filter(|export| export.kind == module::FUNCTION)
+                .filter(|export| matches!(export.kind, module::FUNCTION | module::TAG))
                 .map(|export| export.name.clone())
                 .collect(),
             exports: exports.into_iter().map(|export| export.name).collect(),
@@ -458,7 +521,7 @@ pub fn unresolved(bytes: &[u8], sdk: &Sdk) -> Result<Vec<String>, String> {
         .filter(|import| match import.module.as_str() {
             ENV => {
                 !LINKED_BY_LOADER.contains(&import.name.as_str())
-                    && !sdk.functions.contains(&import.name)
+                    && !sdk.importable.contains(&import.name)
             }
             GOT_MEMORY | GOT_FUNCTION => {
                 !sdk.exports.contains(&import.name) && !own.contains(&import.name)

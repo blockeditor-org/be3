@@ -28510,7 +28510,7 @@ third_party = {
         "build_script": None,
         "env": {
             "CARGO_PKG_AUTHORS": "RustCrypto Developers",
-            "CARGO_PKG_DESCRIPTION": "Pure Rust implementation of Base64 (RFC 4648) which avoids any usages of\ndata-dependent branches/LUTs and thereby provides portable \"best effort\"\nconstant-time operation and embedded-friendly no_std support\n",
+            "CARGO_PKG_DESCRIPTION": 'Pure Rust implementation of Base64 (RFC 4648) which avoids any usages of\ndata-dependent branches/LUTs and thereby provides portable "best effort"\nconstant-time operation and embedded-friendly no_std support\n',
             "CARGO_PKG_HOMEPAGE": "https://github.com/RustCrypto/formats/tree/master/base64ct",
             "CARGO_PKG_LICENSE": "Apache-2.0 OR MIT",
             "CARGO_PKG_README": "README.md",
@@ -31992,7 +31992,7 @@ third_party = {
         "build_script": None,
         "env": {
             "CARGO_PKG_AUTHORS": "RustCrypto Developers",
-            "CARGO_PKG_DESCRIPTION": "Conditional move CPU intrinsics which are guaranteed on major platforms (ARM32/ARM64, x86/x86_64,\nRISC-V) to execute in constant-time and not be rewritten as branches by the compiler. Provides\nwrappers for the CMOV family of instructions on x86/x86_64 and CSEL on AArch64, along with a\nportable \"best-effort\" pure Rust fallback implementation.\n",
+            "CARGO_PKG_DESCRIPTION": 'Conditional move CPU intrinsics which are guaranteed on major platforms (ARM32/ARM64, x86/x86_64,\nRISC-V) to execute in constant-time and not be rewritten as branches by the compiler. Provides\nwrappers for the CMOV family of instructions on x86/x86_64 and CSEL on AArch64, along with a\nportable "best-effort" pure Rust fallback implementation.\n',
             "CARGO_PKG_LICENSE": "Apache-2.0 OR MIT",
             "CARGO_PKG_README": "README.md",
             "CARGO_PKG_REPOSITORY": "https://github.com/RustCrypto/utils",
@@ -32108,7 +32108,7 @@ third_party = {
         "build_script": None,
         "env": {
             "CARGO_PKG_AUTHORS": "Allen Welkie <>:James Munns <james@onevariable.com>",
-            "CARGO_PKG_DESCRIPTION": "    This is an implementation of the Consistent Overhead Byte Stuffing (COBS) algorithm.\n    COBS is an algorithm for transforming a message into an encoding where a specific value\n    (the \"sentinel\" value) is not used. This value can then be used to mark frame boundaries\n    in a serial communication channel. ",
+            "CARGO_PKG_DESCRIPTION": '    This is an implementation of the Consistent Overhead Byte Stuffing (COBS) algorithm.\n    COBS is an algorithm for transforming a message into an encoding where a specific value\n    (the "sentinel" value) is not used. This value can then be used to mark frame boundaries\n    in a serial communication channel. ',
             "CARGO_PKG_LICENSE": "MIT OR Apache-2.0",
             "CARGO_PKG_README": "README.md",
             "CARGO_PKG_REPOSITORY": "https://github.com/jamesmunns/cobs.rs",
