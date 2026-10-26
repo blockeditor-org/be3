@@ -1337,6 +1337,7 @@ dependencies = [
  "beui-components-styled",
  "beui-core",
  "beui-font-freetype",
+ "beui-keyboard",
  "beui-renderer-wgpu",
  "beui-view",
  "beui_macros",

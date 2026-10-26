@@ -17,6 +17,7 @@ beui-components-styled = { path = "../beui-components-styled" }
 beui-view = { path = "../beui-view" }
 beui_macros = { path = "../beui-macros" }
 beui-font-freetype = { path = "../beui-font-freetype" }
+beui-keyboard = { path = "../beui-keyboard" }
 paint-snapshot = { path = "../paint-snapshot" }
 pollster = "0.4"
 

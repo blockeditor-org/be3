@@ -8757,6 +8757,7 @@ crates = {
                 "features": [],
                 "test_deps": [
                     "//crates/beui-components-styled:beui-components-styled",
+                    "//crates/beui-keyboard:beui-keyboard",
                     "//crates/beui-macros:beui_macros",
                     "//crates/beui-view:beui-view",
                     "//crates/paint-snapshot:paint-snapshot",
@@ -8778,6 +8779,7 @@ crates = {
                 "features": [],
                 "test_deps": [
                     "//crates/beui-components-styled:beui-components-styled",
+                    "//crates/beui-keyboard:beui-keyboard",
                     "//crates/beui-macros:beui_macros",
                     "//crates/beui-view:beui-view",
                     "//crates/paint-snapshot:paint-snapshot",
@@ -8799,6 +8801,7 @@ crates = {
                 "features": [],
                 "test_deps": [
                     "//crates/beui-components-styled:beui-components-styled",
+                    "//crates/beui-keyboard:beui-keyboard",
                     "//crates/beui-macros:beui_macros",
                     "//crates/beui-view:beui-view",
                     "//crates/paint-snapshot:paint-snapshot",
@@ -8820,6 +8823,7 @@ crates = {
                 "features": [],
                 "test_deps": [
                     "//crates/beui-components-styled:beui-components-styled",
+                    "//crates/beui-keyboard:beui-keyboard",
                     "//crates/beui-macros:beui_macros",
                     "//crates/beui-view:beui-view",
                     "//crates/paint-snapshot:paint-snapshot",
@@ -8841,6 +8845,7 @@ crates = {
                 "features": [],
                 "test_deps": [
                     "//crates/beui-components-styled:beui-components-styled",
+                    "//crates/beui-keyboard:beui-keyboard",
                     "//crates/beui-macros:beui_macros",
                     "//crates/beui-view:beui-view",
                     "//crates/paint-snapshot:paint-snapshot",
@@ -8862,6 +8867,7 @@ crates = {
                 "features": [],
                 "test_deps": [
                     "//crates/beui-components-styled:beui-components-styled",
+                    "//crates/beui-keyboard:beui-keyboard",
                     "//crates/beui-macros:beui_macros",
                     "//crates/beui-view:beui-view",
                     "//crates/paint-snapshot:paint-snapshot",
@@ -8883,6 +8889,7 @@ crates = {
                 "features": [],
                 "test_deps": [
                     "//crates/beui-components-styled:beui-components-styled",
+                    "//crates/beui-keyboard:beui-keyboard",
                     "//crates/beui-macros:beui_macros",
                     "//crates/beui-view:beui-view",
                     "//crates/paint-snapshot:paint-snapshot",

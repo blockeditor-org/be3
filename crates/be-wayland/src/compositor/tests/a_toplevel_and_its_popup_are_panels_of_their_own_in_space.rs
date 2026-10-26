@@ -8,8 +8,8 @@ const PLACED: Pos2 = pos2(360.0, 160.0);
 fn Panels(windows: Windows) -> NodeId {
     let ids = create_memo(clone_list(&windows));
     view! {
-        <Frame fill=ColorRole::Surface padding=24.0>
-            <List spacing=0.0>
+        <Frame fill=ColorRole::Surface padding=Space::Xl3>
+            <List spacing=Space::None>
                 <Text style=TextStyle::HEADING>"The main panel"</Text>
                 <ForEach keys={ids}>|id: WindowId| {
                     let placement = WindowPlacement::Over {

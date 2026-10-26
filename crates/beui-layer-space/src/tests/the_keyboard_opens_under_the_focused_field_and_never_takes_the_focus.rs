@@ -1,6 +1,6 @@
 use std::rc::Rc;
 
-use beui_components_styled::SoftwareKeyboard;
+use beui_keyboard::styled::SoftwareKeyboard;
 use beui_core::color::Color32;
 use beui_core::context::WindowOutput;
 use beui_core::display::Layer;

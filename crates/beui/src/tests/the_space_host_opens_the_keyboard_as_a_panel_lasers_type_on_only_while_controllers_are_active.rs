@@ -2,9 +2,10 @@ use beui_core::runner::Hand;
 
 use super::*;
 use crate::reactive::*;
-use crate::styled::software_keyboard::key_center;
+use crate::keyboard::styled::key_center;
+use crate::keyboard::unstyled::{Layer, Value};
 use crate::styled::*;
-use crate::unstyled::software_keyboard::{Layer, Value};
+use crate::styled::List;
 
 #[test]
 fn the_space_host_opens_the_keyboard_as_a_panel_lasers_type_on_only_while_controllers_are_active() {
@@ -14,7 +15,7 @@ fn the_space_host_opens_the_keyboard_as_a_panel_lasers_type_on_only_while_contro
     let document = build_node(move || {
         let name = create_signal(String::new());
         view! {
-            <List spacing=0.0>
+            <List spacing=Space::None>
                 <TextInput
                     @test_id="field"
                     value={Binding::new(name, move |next: String| {
@@ -93,7 +94,7 @@ fn the_space_host_opens_the_keyboard_as_a_panel_lasers_type_on_only_while_contro
     let focused = space.document.borrow().focused_node();
     assert!(focused.is_some());
 
-    let keys = Rect::from_min_size(Pos2::ZERO, crate::keyboard::WINDOW_SIZE);
+    let keys = Rect::from_min_size(Pos2::ZERO, crate::keyboard_host::WINDOW_SIZE);
     for letter in ['h', 'i'] {
         let key = key_center(keys, Layer::Text, Value::Char(letter)).expect("a letter key");
         space.aim(Hand::Right, keyboard, key);
