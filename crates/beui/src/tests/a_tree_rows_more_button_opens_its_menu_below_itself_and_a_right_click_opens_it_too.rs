@@ -19,7 +19,10 @@ fn a_tree_rows_more_button_opens_its_menu_below_itself_and_a_right_click_opens_i
                 row_test_id={|row: usize| format!("tree.{row}")}
                 menu={move |row: usize| Some(TreeMenu {
                     items: view! {
-                        <unstyled::MenuItem label="Rename" row_test_id={"tree.menu.rename".to_owned()} />
+                        <unstyled::MenuItem
+                            label="Rename"
+                            row_test_id={"tree.menu.rename".to_owned()}
+                        />
                         <unstyled::MenuItem label="Delete" />
                     },
                     on_select: Callback::new(move |path: Vec<usize>| {

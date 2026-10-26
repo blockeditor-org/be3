@@ -63,10 +63,11 @@ pub use beui_core::drag_board::DragPoint;
 pub use button::{Button, ButtonApi, ButtonHandle};
 pub use calendar::{Calendar, CalendarApi, CalendarCellHandle, CalendarHeaderHandle, CalendarMode};
 pub use choice::{Choice, ChoiceApi, ChoiceKind, ChoiceOption, ChoiceOptionHandle};
-pub use color_input::{
-    ColorInput, ColorInputFieldHandle, ColorInputHandle, ColorInputPickerHandle, ColorInputSwatchHandle,
-};
 pub use color_area::{ColorArea, ColorAreaApi, ColorAreaHandle};
+pub use color_input::{
+    ColorInput, ColorInputFieldHandle, ColorInputHandle, ColorInputPickerHandle,
+    ColorInputSwatchHandle,
+};
 pub use color_picker::{
     AlphaSlider, ColorModel, ColorPickerArea, ColorPickerState, HexText, HueSlider, SwatchHandle,
     Swatches, alpha_image, hue_image, plane_image, texel_centres,

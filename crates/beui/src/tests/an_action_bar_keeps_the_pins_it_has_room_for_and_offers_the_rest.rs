@@ -34,15 +34,17 @@ fn an_action_bar_keeps_the_pins_it_has_room_for_and_offers_the_rest() {
         ];
         view! {
             <List spacing=0.0>
-            <Dynamic value={narrow}>|narrow: bool| {
-                let menu = menu.clone();
-                match narrow {
-                    false => view! { <ActionBar menu /> },
-                    true => view! {
-                        <ActionBar menu labels=ActionLabels::Overflow title=true />
-                    },
-                }
-            }</Dynamic>
+                <Dynamic value={narrow}>|narrow: bool| {
+                    let menu = menu.clone();
+                    match narrow {
+                        false => view! {
+                            <ActionBar menu />
+                        },
+                        true => view! {
+                            <ActionBar menu labels=ActionLabels::Overflow title=true />
+                        },
+                    }
+                }</Dynamic>
             </List>
         }
     });
@@ -53,7 +55,10 @@ fn an_action_bar_keeps_the_pins_it_has_room_for_and_offers_the_rest() {
     assert!(!laid_out(&harness, "actions.pin.rename"));
     harness.click(harness.center(harness.find("actions.menu")));
     harness.settle();
-    assert!(laid_out(&harness, "actions.menu.rename"), "a title pin stays in the menu");
+    assert!(
+        laid_out(&harness, "actions.menu.rename"),
+        "a title pin stays in the menu"
+    );
     assert!(laid_out(&harness, "actions.menu.delete"));
     assert!(
         !laid_out(&harness, "actions.menu.share"),

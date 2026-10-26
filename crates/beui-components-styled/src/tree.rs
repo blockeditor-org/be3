@@ -12,8 +12,8 @@ use crate::theme::{Density, ThemeStore, use_density, use_theme};
 use crate::tooltip::Tooltip;
 use beui_components_unstyled as unstyled;
 use beui_components_unstyled::{
-    ButtonHandle, Edge, PopupTriggerHandle, TextInputHandle, TreeMenu, TreeItem, TreeRevealHandle, TreeRowEdit,
-    TreeRowHandle, TreeToggleHandle,
+    ButtonHandle, Edge, PopupTriggerHandle, TextInputHandle, TreeItem, TreeMenu, TreeRevealHandle,
+    TreeRowEdit, TreeRowHandle, TreeToggleHandle,
 };
 use beui_core::color::Color32;
 use beui_core::font::TextAlign;

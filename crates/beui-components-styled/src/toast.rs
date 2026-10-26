@@ -5,7 +5,9 @@ use crate::button::ButtonSize;
 use crate::button::{Button, ButtonVariant};
 use crate::text::{Icon, Text, TextColor, TextSize, Weight};
 use beui_components_unstyled as unstyled;
-use beui_components_unstyled::{Edge, Picture, Pressable, TOAST_DURATION, Toast, ToastAction, ToastHandle};
+use beui_components_unstyled::{
+    Edge, Picture, Pressable, TOAST_DURATION, Toast, ToastAction, ToastHandle,
+};
 use beui_core::base::Justify;
 use beui_core::base::overlay::OverlayAnchor;
 use beui_core::font::TextAlign;
@@ -46,7 +48,9 @@ pub fn Toasts(
             on_dismiss
             on_action
             on_activate
-        >|handle: ToastHandle| <ToastCard handle /></unstyled::Toasts>
+        >|handle: ToastHandle|
+            <ToastCard handle />
+        </unstyled::Toasts>
     }
 }
 
@@ -107,10 +111,7 @@ fn ToastCard(handle: ToastHandle) -> NodeId {
     };
     let body = match activates {
         true => view! {
-            <Pressable
-                @test_id={format!("toast.{id}.activate")}
-                on_click={activate}
-            >
+            <Pressable @test_id={format!("toast.{id}.activate")} on_click={activate}>
                 {content}
             </Pressable>
         },
@@ -138,11 +139,7 @@ fn ToastCard(handle: ToastHandle) -> NodeId {
                     />
                 </List>
                 <Show condition={acted}>
-                    <ToastActions
-                        id
-                        actions={actions.clone()}
-                        act
-                    />
+                    <ToastActions id actions={actions.clone()} act />
                 </Show>
             </List>
         </Frame>

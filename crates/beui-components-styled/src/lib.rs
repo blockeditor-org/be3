@@ -50,6 +50,7 @@ pub mod tooltip;
 pub mod tree;
 
 pub use accordion::Accordion;
+pub use action_bar::{ActionBar, ActionLabels};
 pub use action_row::ActionRow;
 pub use beui_components_unstyled::DialogLayout;
 pub use beui_components_unstyled::NumberDrag;
@@ -64,7 +65,6 @@ pub use beui_view::primitives::{
     Layer, Layers, LayoutBuilder, List, Offset, Overlay, PlacementBuilder, Portal, Shift, Spacer,
     SystemBars, TextItem, Turn, VirtualList,
 };
-pub use action_bar::{ActionBar, ActionLabels};
 pub use border::Separator;
 pub use button::{Button, ButtonSize, ButtonVariant};
 pub use calendar::Calendar;
@@ -127,8 +127,8 @@ pub mod toggle_button;
 pub use beui_components_unstyled::{
     ButtonApi, CalendarApi, ChoiceApi, ColorAreaApi, ColorWheelApi, CommandPaletteApi,
     ContextMenuApi, DateTimeFieldApi, DisclosureApi, MenuListApi, NumberInputApi, PanZoomApi,
-    PopoverApi, ScrollApi, SelectApi, SelectableState, SliderApi, TextAreaApi, TextInputApi,
-    TOAST_DURATION, TimeListApi, Toast, ToastAction, ToggleApi, TreeApi, TreeMenu,
+    PopoverApi, ScrollApi, SelectApi, SelectableState, SliderApi, TOAST_DURATION, TextAreaApi,
+    TextInputApi, TimeListApi, Toast, ToastAction, ToggleApi, TreeApi, TreeMenu,
 };
 pub use listbox::Listbox;
 pub use radio_group::RadioGroup;

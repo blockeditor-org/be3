@@ -299,14 +299,13 @@ where
             move |finish: Finish| finish_edit(state, &key, item, finish)
         }),
     };
-    let menu = state
-        .menu
-        .and_then(|menu| menu.call(row_key.clone()))
-        .map(|TreeMenu { items, on_select }| TreeRowMenu {
+    let menu = state.menu.and_then(|menu| menu.call(row_key.clone())).map(
+        |TreeMenu { items, on_select }| TreeRowMenu {
             items: items.into_run(),
             on_select,
             style: state.menu_style,
-        });
+        },
+    );
     let has_focus = create_signal(false);
     let built = NodeRef::new();
     nodes.value().borrow_mut().insert(nodes_key, built);
@@ -335,9 +334,7 @@ where
             on_select,
             style,
         }) => view! {
-            <ContextMenu items={Children::from(items)} menu=style on_select>
-                {face}
-            </ContextMenu>
+            <ContextMenu items={Children::from(items)} menu=style on_select>{face}</ContextMenu>
         },
     };
     view! {

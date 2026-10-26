@@ -39,7 +39,9 @@ pub fn ActionBar(
             menu
             labels={labels != ActionLabels::Overflow}
             title
-        >|handle: ActionBarHandle| <ActionBarFace handle labels direction size test_prefix /></unstyled::ActionBar>
+        >|handle: ActionBarHandle|
+            <ActionBarFace handle labels direction size test_prefix />
+        </unstyled::ActionBar>
     }
 }
 
@@ -57,7 +59,9 @@ fn ActionBarFace(
         overflow,
     } = handle;
     let keys = |actions: Memo<Vec<Action>>| {
-        create_memo(move || actions.with(|actions| actions.iter().map(Action::key).collect::<Vec<_>>()))
+        create_memo(move || {
+            actions.with(|actions| actions.iter().map(Action::key).collect::<Vec<_>>())
+        })
     };
     let (icon_keys, label_keys) = (keys(icons), keys(labelled));
     let divided = create_memo(move || {
@@ -68,9 +72,8 @@ fn ActionBarFace(
     let offered = create_memo(move || overflow.with(|items| !items.is_empty()));
     let prefix = test_prefix.clone();
     let pin = move |actions: Memo<Vec<Action>>, key: u64, shown: bool| {
-        let action = actions.with_untracked(|actions| {
-            actions.iter().find(|action| action.key() == key).cloned()
-        });
+        let action = actions
+            .with_untracked(|actions| actions.iter().find(|action| action.key() == key).cloned());
         match action {
             Some(action) => view! {
                 <ActionPin action labelled=shown size prefix={prefix.clone()} />
