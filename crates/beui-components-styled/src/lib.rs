@@ -77,8 +77,7 @@ pub use beui_components_unstyled::{emoji_completer, search_emoji};
 pub use beui_view::primitives::{
     BackHandler, Break, Canvas, CanvasItem, Drawing, Embed, Fade, GridCell, Interactive, Layer,
     Layers, LayoutBuilder, Offset, Overlay, PlacementBuilder, Portal, Shift, Spacer, SystemBars,
-    TextChild, TextItem, Turn, VirtualList, Window, WindowHandle, opens_windows,
-    use_window,
+    TextChild, TextItem, Turn, VirtualList, Window, WindowHandle, opens_windows, use_window,
 };
 pub use border::Separator;
 pub use button::{Button, ButtonSize, ButtonVariant};

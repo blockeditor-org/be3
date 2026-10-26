@@ -3,8 +3,7 @@ use beui::reactive::*;
 
 use beui::styled::*;
 use beui::{
-    ForwardedInput, Key, NodeId, Pos2, Rect, Vec2, WindowPlacement, WindowReport,
-    WindowRole,
+    ForwardedInput, Key, NodeId, Pos2, Rect, Vec2, WindowPlacement, WindowReport, WindowRole,
 };
 
 use crate::state::WindowId;

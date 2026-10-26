@@ -1,11 +1,11 @@
 use beui_core::runner::Hand;
 
 use super::*;
-use crate::reactive::*;
 use crate::keyboard::styled::key_center;
 use crate::keyboard::unstyled::{Layer, Value};
-use crate::styled::*;
+use crate::reactive::*;
 use crate::styled::List;
+use crate::styled::*;
 
 #[test]
 fn the_space_host_opens_the_keyboard_as_a_panel_lasers_type_on_only_while_controllers_are_active() {
