@@ -127,6 +127,7 @@ def cargo_test(name = "test", extra_deps = [], env = {}, paints = False, run_apa
         srcs = cargo_test_sources(),
     )
     if paints:
+        paintings = native.glob(["snapshots/*.paint"])
         native.rust_binary(
             name = name + "-harness",
             env = _env(crate, library["crate"], env),
@@ -134,9 +135,9 @@ def cargo_test(name = "test", extra_deps = [], env = {}, paints = False, run_apa
             target_compatible_with = kwargs.get("target_compatible_with", []),
             **common,
         )
-        painting_test(name = name, env = run_env, harness = ":" + name + "-harness", manifest = "Cargo.toml", **kwargs)
+        painting_test(name = name, env = run_env, harness = ":" + name + "-harness", manifest = "Cargo.toml", paintings = paintings, **kwargs)
         if not run_apart:
-            painting_test_run(name = name + "-run", env = run_env, harness = ":" + name + "-harness", manifest = "Cargo.toml", **kwargs)
+            painting_test_run(name = name + "-run", env = run_env, harness = ":" + name + "-harness", manifest = "Cargo.toml", paintings = paintings, **kwargs)
             return
         for path in native.glob(["src/tests/*.rs"]):
             test = path.removeprefix("src/tests/").removesuffix(".rs")
@@ -146,6 +147,7 @@ def cargo_test(name = "test", extra_deps = [], env = {}, paints = False, run_apa
                 env = run_env,
                 harness = ":" + name + "-harness",
                 manifest = "Cargo.toml",
+                paintings = paintings,
                 **kwargs,
             )
         return
@@ -195,7 +197,7 @@ library_path_test = rule(
 )
 
 # A native test that compares paintings, as plugin tests do (buck/wasm/defs.bzl):
-# :test runs here, so that UPDATE_SNAPSHOTS=1 writes into snapshots/, and
+# :test runs here, so that UPDATE_SNAPSHOTS=1 writes into the crate's snapshots/, and
 # :test-run is the action ./scripts/verify builds on a worker, which accepts
 # every painting and outputs the ones that changed and the ones it compared.
 # crates/app-tests is one: block-app with its plugins, driven headless. With
@@ -219,7 +221,7 @@ def _painting_test_impl(ctx: AnalysisContext) -> list[Provider]:
     env = dict(ctx.attrs.env)
     env["CARGO_MANIFEST_DIR"] = cmd_args(ctx.attrs.manifest, parent = 1)
     command = _painting_command(ctx, env)
-    remote = RemoteTestInfo(command = command, env = env, hidden = ctx.attrs._inputs[DefaultInfo].default_outputs)
+    remote = RemoteTestInfo(command = command, env = env, hidden = ctx.attrs.paintings)
     return (
         [remote]
         + inject_test_run_info(
@@ -242,8 +244,8 @@ painting_test = rule(
         "harness": attrs.dep(providers = [RunInfo]),
         "labels": attrs.list(attrs.string(), default = []),
         "manifest": attrs.source(),
+        "paintings": attrs.list(attrs.source(), default = []),
         "_inject_test_env": attrs.default_only(attrs.dep(default = "prelude//test/tools:inject_test_env")),
-        "_inputs": attrs.dep(default = "root//:plugin-test-inputs"),
     },
     impl = _painting_test_impl,
 )
@@ -262,7 +264,7 @@ def _painting_test_run_impl(ctx: AnalysisContext) -> list[Provider]:
             "sh",
             paintings.as_output(),
             command,
-            hidden = ctx.attrs._inputs[DefaultInfo].default_outputs,
+            hidden = ctx.attrs.paintings,
         ),
         category = "painting_test",
         env = env,
@@ -275,7 +277,7 @@ painting_test_run = rule(
         "env": attrs.dict(default = {}, key = attrs.string(), value = attrs.arg()),
         "harness": attrs.dep(providers = [RunInfo]),
         "manifest": attrs.source(),
-        "_inputs": attrs.dep(default = "root//:plugin-test-inputs"),
+        "paintings": attrs.list(attrs.source(), default = []),
     },
     impl = _painting_test_run_impl,
 )

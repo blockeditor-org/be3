@@ -101,16 +101,15 @@ impl Run {
             from,
             "HEAD",
             "--",
-            "snapshots/*.paint",
+            ":(glob)crates/**/snapshots/*.paint",
         ])
         .ok_or("could not list the paintings that changed")?;
         for path in changed.lines().filter(|line| !line.is_empty()) {
-            let name = Path::new(path)
-                .file_name()
-                .ok_or("a painting with no name")?;
+            let name = flat_name(path).ok_or("a painting with no name")?;
             for (commit, directory) in [(from, &before), ("HEAD", &after)] {
                 if let Some(contents) = git_bytes(&["show", &format!("{commit}:{path}")]) {
-                    fs::write(directory.join(name), contents).map_err(|error| error.to_string())?;
+                    fs::write(directory.join(&name), contents)
+                        .map_err(|error| error.to_string())?;
                 }
             }
         }
@@ -185,3 +184,10 @@ mod unsafe_counts;
 
 #[cfg(test)]
 mod tests;
+
+fn flat_name(path: &str) -> Option<String> {
+    let mut parts = path.rsplit('/');
+    let name = parts.next()?;
+    let krate = parts.nth(1)?;
+    Some(format!("{krate}.{name}"))
+}
