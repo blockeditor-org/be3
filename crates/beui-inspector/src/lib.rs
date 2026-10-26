@@ -855,12 +855,14 @@ impl Inspector {
     fn tab_shown(&self, tab: InspectorTab) -> bool {
         let tools = self.tools;
         let stacked = tools.mode().get_untracked() == DockMode::Stacked;
-        tools.state().with_untracked(|state| match state.is_empty() {
-            true => tab == InspectorTab::default(),
-            false => tools
-                .tab_of(&tab)
-                .is_some_and(|id| state.is_shown(id, stacked)),
-        })
+        tools
+            .state()
+            .with_untracked(|state| match state.is_empty() {
+                true => tab == InspectorTab::default(),
+                false => tools
+                    .tab_of(&tab)
+                    .is_some_and(|id| state.is_shown(id, stacked)),
+            })
     }
 
     fn current_tree(&self) -> Option<usize> {
@@ -1260,9 +1262,9 @@ impl Tools for InspectorTools {
             .as_ref()
             .is_some_and(|inspector| inspector.has_focus());
         let (mut layout, panel) = match &mut self.inspector {
-            Some(inspector) => ctx.set_aside(|| {
-                inspector.show_panel(document, ctx, rect, inspector_has_focus)
-            }),
+            Some(inspector) => {
+                ctx.set_aside(|| inspector.show_panel(document, ctx, rect, inspector_has_focus))
+            }
             None => (Layout::app(rect), Vec::new()),
         };
         let reserved = match &self.inspector {
@@ -1275,8 +1277,7 @@ impl Tools for InspectorTools {
         }
         let pointer = ctx.input(|input| input.pointer.interact_pos());
         let intercepted = self.inspector.as_ref().is_some_and(|inspector| {
-            inspector.intercepts()
-                || pointer.is_some_and(|pointer| inspector.covers(ctx, pointer))
+            inspector.intercepts() || pointer.is_some_and(|pointer| inspector.covers(ctx, pointer))
         });
         let withheld = Withheld {
             pointer: intercepted,

@@ -26,7 +26,10 @@ fn a_see_through_tab_stays_on_the_main_surface() {
     assert!(!state.admits_leaf(app, window));
     assert!(state.admits(Entry::Tab(TabId::new(1)), DockDrop::Pane { leaf: tools }));
     state.drop_tab(TabId::new(1), window);
-    assert!(state.windows().is_empty(), "the see-through tab is not floated");
+    assert!(
+        state.windows().is_empty(),
+        "the see-through tab is not floated"
+    );
 
     state.drop_tab(TabId::new(3), window);
     let floated = state.windows()[0];

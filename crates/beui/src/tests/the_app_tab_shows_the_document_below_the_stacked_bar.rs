@@ -28,5 +28,8 @@ fn the_app_tab_shows_the_document_below_the_stacked_bar() {
     harness.show_inspector_tab(crate::inspector::InspectorTab::Beui);
     harness.click(harness.close_button_center());
     harness.frame(Vec::new());
-    assert!(!harness.inspector_open(), "a tool's bar closes the inspector");
+    assert!(
+        !harness.inspector_open(),
+        "a tool's bar closes the inspector"
+    );
 }

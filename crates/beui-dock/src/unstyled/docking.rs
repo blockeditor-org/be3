@@ -531,7 +531,15 @@ impl<K: DockKey> DockingLayout<K> {
         spec.see_through = found
             .tabs
             .iter()
-            .filter(|(_, entry)| matches!(entry.kind, EntryKind::Tab { see_through: true, .. }))
+            .filter(|(_, entry)| {
+                matches!(
+                    entry.kind,
+                    EntryKind::Tab {
+                        see_through: true,
+                        ..
+                    }
+                )
+            })
             .map(|(tab, _)| *tab)
             .collect();
         spec.see_through.sort();
@@ -684,7 +692,13 @@ impl<K: 'static> Found<K> {
 
     fn see_through(&self, tab: TabId) -> bool {
         self.tabs.get(&tab).is_some_and(|entry| {
-            matches!(entry.kind, EntryKind::Tab { see_through: true, .. })
+            matches!(
+                entry.kind,
+                EntryKind::Tab {
+                    see_through: true,
+                    ..
+                }
+            )
         })
     }
 
