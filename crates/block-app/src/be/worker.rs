@@ -459,7 +459,7 @@ pub(super) async fn serve<S: Fn() -> Result<Store, String>>(
             uploads: Uploads::new(&shared),
             versions: Versions::default(),
             line: Line::down(&config, 0, Duration::ZERO),
-            listed: tokio::sync::mpsc::unbounded_channel(),
+            tasks: Tasks::new(),
             drained_at: Duration::ZERO,
         };
         session.run(open).await;
@@ -648,10 +648,7 @@ struct Session<'a> {
     uploads: Uploads,
     versions: Versions,
     line: Line,
-    listed: (
-        tokio::sync::mpsc::UnboundedSender<()>,
-        UnboundedReceiver<()>,
-    ),
+    tasks: (Tasks, UnboundedReceiver<()>),
     drained_at: Duration,
 }
 
@@ -671,12 +668,13 @@ impl Session<'_> {
                 self.depart(0);
                 want_open(shared, &self.wanted.blocks());
                 relist(shared);
-                fetch_listings(peer, shared).await;
+                spawn_listings(peer, shared, &self.tasks.0);
                 self.versions
                     .refresh(&mut Context {
                         peer,
                         shared,
                         replicas: &mut *self.replicas,
+                        tasks: &self.tasks.0,
                     })
                     .await;
                 report(peer, shared, false);
@@ -705,7 +703,7 @@ impl Session<'_> {
                     self.nudged,
                     &mut self.uploads,
                     &mut *self.replicas,
-                    &mut self.listed.1,
+                    &mut self.tasks.1,
                     stopping
                 ));
                 match wake_at {
@@ -721,7 +719,8 @@ impl Session<'_> {
             };
             let handled = self.replicas.handled;
             let pumped = matches!(woken, Woken::Module) && self.replicas.pump((peer, shared)).await;
-            if !matches!(woken, Woken::Module | Woken::Listed) || self.replicas.handled != handled {
+            if !matches!(woken, Woken::Module | Woken::Finished) || self.replicas.handled != handled
+            {
                 shared.lock().unwrap_or_else(PoisonError::into_inner).wakes += 1;
             }
             let mut moved = match woken {
@@ -773,6 +772,7 @@ impl Session<'_> {
                         config: self.config,
                         versions: &mut self.versions,
                         flushes: &mut flushes,
+                        tasks: &self.tasks.0,
                     };
                     let mut next = Some(command);
                     let mut applied = false;
@@ -804,6 +804,7 @@ impl Session<'_> {
                         config: self.config,
                         versions: &mut self.versions,
                         flushes: &mut flushes,
+                        tasks: &self.tasks.0,
                     };
                     let mut applied = false;
                     for command in self.uploads.runnable() {
@@ -830,7 +831,7 @@ impl Session<'_> {
                             Some(message) => self.replicas.heard((peer, shared), message).await,
                             None => self.replicas.resynchronize((peer, shared)).await,
                         }
-                        heard(peer, shared, event).await;
+                        heard(peer, shared, &self.tasks.0, event).await;
                     }
                     false
                 }
@@ -838,7 +839,7 @@ impl Session<'_> {
                     self.replicas.modules.tick_due();
                     false
                 }
-                Woken::Listed => true,
+                Woken::Finished => true,
             };
             if self
                 .retry_at()
@@ -850,18 +851,19 @@ impl Session<'_> {
             }
             moved |= pumped;
             moved |= self.replicas.pump((peer, shared)).await;
-            rekey_changed(peer, self.replicas, &mut keyed, shared).await;
+            rekey_changed(peer, self.replicas, &mut keyed);
             let before = version_revisions(shared);
             self.versions
                 .refresh(&mut Context {
                     peer,
                     shared,
                     replicas: &mut *self.replicas,
+                    tasks: &self.tasks.0,
                 })
                 .await;
             moved |= version_revisions(shared) != before;
             want_open(shared, &self.wanted.blocks());
-            spawn_listings(peer, shared, &self.listed.0);
+            spawn_listings(peer, shared, &self.tasks.0);
             if self.line.quiet()
                 && (self.uploads.is_empty() || !self.line.is_up())
                 && !flushes.is_empty()
@@ -927,9 +929,9 @@ impl Session<'_> {
         sync_outbox(peer, self.replicas, shared).await;
         want_open(shared, &self.wanted.blocks());
         relist(shared);
-        fetch_listings(peer, shared).await;
-        sync_contacts(peer, shared).await;
-        self.replicas.reconnect((peer, shared)).await;
+        spawn_listings(peer, shared, &self.tasks.0);
+        self.tasks.0.contacts(peer, shared);
+        self.replicas.reconnect((peer, shared));
         for (block, content_type) in self.wanted.blocks() {
             open_wanted(
                 peer,
@@ -947,6 +949,7 @@ impl Session<'_> {
                 peer,
                 shared,
                 replicas: &mut *self.replicas,
+                tasks: &self.tasks.0,
             })
             .await;
         report(peer, shared, false);
@@ -1102,11 +1105,10 @@ async fn open_wanted(
     }
 }
 
-async fn rekey_changed(
+fn rekey_changed(
     peer: &Arc<Peer<Store>>,
     replicas: &mut Replicas,
     keyed: &mut HashMap<Uuid, Uuid>,
-    shared: &Arc<Mutex<Shared>>,
 ) {
     let open = replicas.open_blocks();
     keyed.retain(|block, _| open.contains(block));
@@ -1118,14 +1120,14 @@ async fn rekey_changed(
             .insert(block, key)
             .is_some_and(|previous| previous != key)
         {
-            replicas.seal((peer, shared), block, true).await;
+            replicas.seal_later(block, true);
         }
     }
 }
 
 enum Woken {
     Command(Command),
-    Listed,
+    Finished,
     Uploaded,
     Event(Option<ServerMessage>),
     Module,
@@ -1142,7 +1144,7 @@ async fn wait(
     nudged: &mut super::nudge::Nudged,
     uploads: &mut Uploads,
     replicas: &mut Replicas,
-    listed: &mut UnboundedReceiver<()>,
+    finished: &mut UnboundedReceiver<()>,
     stopping: bool,
 ) -> Woken {
     let command = std::pin::pin!(async {
@@ -1173,8 +1175,8 @@ async fn wait(
         Woken::Module
     });
     let fetched = std::pin::pin!(async {
-        match listed.recv().await {
-            Some(()) => Woken::Listed,
+        match finished.recv().await {
+            Some(()) => Woken::Finished,
             None => std::future::pending().await,
         }
     });
@@ -1204,6 +1206,7 @@ struct Ran<'a> {
     config: &'a Config,
     versions: &'a mut Versions,
     flushes: &'a mut Vec<std::sync::mpsc::Sender<()>>,
+    tasks: &'a Tasks,
 }
 
 const NEEDS_CONNECTION: &str =
@@ -1251,7 +1254,7 @@ impl Ran<'_> {
         };
         let applied = match command {
             Command::Contact(command) => {
-                contact(self.peer, self.shared, self.config, command).await;
+                contact(self.peer, self.shared, self.config, self.tasks, command).await;
                 false
             }
             Command::Members(command) => {
@@ -1270,7 +1273,7 @@ impl Ran<'_> {
             Command::CreateAgent { name, reply } => {
                 let created = create_agent(self.peer, self.config, name).await;
                 if created.is_ok() {
-                    sync_contacts(self.peer, self.shared).await;
+                    self.tasks.sync_contacts(self.peer, self.shared).await;
                 }
                 reply(created.map_err(|error| error.to_string()));
                 crate::host::wake();
@@ -1284,6 +1287,7 @@ impl Ran<'_> {
                     self.shared,
                     self.versions,
                     self.flushes,
+                    self.tasks,
                     command,
                 )
                 .await
@@ -1394,7 +1398,6 @@ async fn sync_contacts(peer: &Arc<Peer<Store>>, shared: &Arc<Mutex<Shared>>) {
             };
             if changed {
                 relist(shared);
-                fetch_listings(peer, shared).await;
             }
         }
         Err(error) => record(shared, error),
@@ -1525,6 +1528,7 @@ async fn contact(
     peer: &Arc<Peer<Store>>,
     shared: &Arc<Mutex<Shared>>,
     config: &Config,
+    tasks: &Tasks,
     command: ContactCommand,
 ) {
     let identity = peer.keys().identity();
@@ -1565,13 +1569,13 @@ async fn contact(
             let accepted =
                 be_client::contacts::accept_link(&peer.connection(), identity, &me, &code).await;
             if accepted.is_ok() {
-                sync_contacts(peer, shared).await;
+                tasks.sync_contacts(peer, shared).await;
             }
             reply(accepted.map_err(|error| error.to_string()));
         }
         ContactCommand::Remove(account) => {
             match be_client::contacts::remove_contact(&peer.connection(), account).await {
-                Ok(()) => sync_contacts(peer, shared).await,
+                Ok(()) => tasks.sync_contacts(peer, shared).await,
                 Err(error) => record(shared, error),
             }
         }
@@ -1641,6 +1645,7 @@ async fn apply(
     shared: &Arc<Mutex<Shared>>,
     versions: &mut Versions,
     flushes: &mut Vec<std::sync::mpsc::Sender<()>>,
+    tasks: &Tasks,
     command: Command,
 ) -> bool {
     let ctx = (peer, shared);
@@ -1654,7 +1659,7 @@ async fn apply(
             if let Err(error) = peer.leave(block).await {
                 record(shared, error);
             }
-            refresh(peer, shared, block).await;
+            tasks.refresh(peer, shared, block);
             true
         }
         Command::WatchVersion(block) => {
@@ -1687,6 +1692,7 @@ async fn apply(
                         peer,
                         shared,
                         replicas,
+                        tasks,
                     },
                     block,
                     command,
@@ -1872,7 +1878,7 @@ async fn apply(
             let created = peer
                 .create_block(to, content_type, BlockParent::Detached, &metadata)
                 .await;
-            if let Err(error) = settled(peer, shared, to, created).await {
+            if let Err(error) = settled(peer, shared, Some(tasks), to, created).await {
                 record(shared, error);
                 return false;
             }
@@ -1969,7 +1975,7 @@ async fn apply(
             let created = peer
                 .create_block(block, content_type, parent, &metadata)
                 .await;
-            if let Err(error) = settled(peer, shared, block, created).await {
+            if let Err(error) = settled(peer, shared, Some(tasks), block, created).await {
                 record(shared, error);
                 return false;
             }
@@ -1992,7 +1998,7 @@ async fn apply(
                 record(shared, error);
             }
             if settled {
-                refresh(peer, shared, block).await;
+                tasks.refresh(peer, shared, block);
             }
             true
         }
@@ -2005,7 +2011,7 @@ async fn apply(
             {
                 replicas.moved_here(block, head);
             }
-            if let Err(error) = settled(peer, shared, block, defined).await {
+            if let Err(error) = settled(peer, shared, Some(tasks), block, defined).await {
                 record(shared, error);
             }
             true
@@ -2180,13 +2186,18 @@ async fn imported(
     block: Uuid,
     imported: be_client::peer::Imported,
 ) {
-    if let Err(error) = settled(peer, shared, block, imported).await {
+    if let Err(error) = settled(peer, shared, None, block, imported).await {
         record(shared, error);
     }
     remember_head(peer, shared, block);
 }
 
-async fn heard(peer: &Arc<Peer<Store>>, shared: &Arc<Mutex<Shared>>, event: Option<ServerMessage>) {
+async fn heard(
+    peer: &Arc<Peer<Store>>,
+    shared: &Arc<Mutex<Shared>>,
+    tasks: &Tasks,
+    event: Option<ServerMessage>,
+) {
     match event {
         Some(ServerMessage::BlockChanged { block }) => {
             if let Err(error) = peer.learn(std::slice::from_ref(&block)).await {
@@ -2222,13 +2233,13 @@ async fn heard(peer: &Arc<Peer<Store>>, shared: &Arc<Mutex<Shared>>, event: Opti
         Some(ServerMessage::Paired { from, payload }) => {
             asked_to_pair(shared, from, &payload);
         }
-        Some(ServerMessage::ContactsChanged) => sync_contacts(peer, shared).await,
-        Some(ServerMessage::KeyWorkChanged) => tend(peer, shared).await,
-        Some(_) => {}
-        None => {
-            relist(shared);
-            fetch_listings(peer, shared).await;
+        Some(ServerMessage::ContactsChanged) => tasks.contacts(peer, shared),
+        Some(ServerMessage::KeyWorkChanged) => {
+            let (peer, shared) = (Arc::clone(peer), Arc::clone(shared));
+            tasks.spawn(async move { tend(&peer, &shared).await });
         }
+        Some(_) => {}
+        None => relist(shared),
     }
 }
 
@@ -2336,20 +2347,50 @@ pub(super) async fn fetch_listings(peer: &Arc<Peer<Store>>, shared: &Arc<Mutex<S
     }
 }
 
-fn spawn_listings(
-    peer: &Arc<Peer<Store>>,
-    shared: &Arc<Mutex<Shared>>,
-    listed: &tokio::sync::mpsc::UnboundedSender<()>,
-) {
+pub(super) fn spawn_listings(peer: &Arc<Peer<Store>>, shared: &Arc<Mutex<Shared>>, tasks: &Tasks) {
     let (unlisted, wanted) = take_listings(shared);
     if unlisted.is_empty() && wanted.is_empty() {
         return;
     }
-    let (peer, shared, listed) = (Arc::clone(peer), Arc::clone(shared), listed.clone());
-    platform::spawn_local(async move {
-        list(&peer, &shared, unlisted, wanted).await;
-        let _ = listed.send(());
-    });
+    let (peer, shared) = (Arc::clone(peer), Arc::clone(shared));
+    tasks.spawn(async move { list(&peer, &shared, unlisted, wanted).await });
+}
+
+#[derive(Clone)]
+pub(super) struct Tasks {
+    finished: tokio::sync::mpsc::UnboundedSender<()>,
+    contacts: Arc<tokio::sync::Mutex<()>>,
+}
+
+impl Tasks {
+    fn new() -> (Self, UnboundedReceiver<()>) {
+        let (finished, receiver) = tokio::sync::mpsc::unbounded_channel();
+        let contacts = Arc::new(tokio::sync::Mutex::new(()));
+        (Self { finished, contacts }, receiver)
+    }
+
+    pub(super) fn spawn(&self, task: impl Future<Output = ()> + 'static) {
+        let finished = self.finished.clone();
+        platform::spawn_local(async move {
+            task.await;
+            let _ = finished.send(());
+        });
+    }
+
+    fn refresh(&self, peer: &Arc<Peer<Store>>, shared: &Arc<Mutex<Shared>>, block: Uuid) {
+        let (peer, shared) = (Arc::clone(peer), Arc::clone(shared));
+        self.spawn(async move { refresh(&peer, &shared, block).await });
+    }
+
+    fn contacts(&self, peer: &Arc<Peer<Store>>, shared: &Arc<Mutex<Shared>>) {
+        let (peer, shared, tasks) = (Arc::clone(peer), Arc::clone(shared), self.clone());
+        self.spawn(async move { tasks.sync_contacts(&peer, &shared).await });
+    }
+
+    async fn sync_contacts(&self, peer: &Arc<Peer<Store>>, shared: &Arc<Mutex<Shared>>) {
+        let _one = self.contacts.lock().await;
+        sync_contacts(peer, shared).await;
+    }
 }
 
 fn take_listings(shared: &Arc<Mutex<Shared>>) -> (Vec<Listing>, Vec<Listing>) {
@@ -2449,6 +2490,7 @@ fn want_open(shared: &Arc<Mutex<Shared>>, open: &HashMap<Uuid, Uuid>) {
 async fn settled(
     peer: &Arc<Peer<Store>>,
     shared: &Arc<Mutex<Shared>>,
+    tasks: Option<&Tasks>,
     block: Uuid,
     reply: Result<BlockSummary, ClientError>,
 ) -> Result<(), ClientError> {
@@ -2474,7 +2516,10 @@ async fn settled(
             Ok(())
         }
         Err(error) => {
-            refresh(peer, shared, block).await;
+            match tasks {
+                Some(tasks) => tasks.refresh(peer, shared, block),
+                None => refresh(peer, shared, block).await,
+            }
             Err(error)
         }
     }

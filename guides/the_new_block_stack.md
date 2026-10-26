@@ -416,8 +416,10 @@ stopped forwarding) and the transport never says so:
   `Clock::manual()` and `advance` it, so none of this needs sleeping in a test.
   `crates/fault-relay` is the other half of those tests: a TCP relay between a
   client and a server that can `stall` its connections (read, count what it
-  heard and forward nothing, a half-open socket), `cut` them, or `hold_new`
-  ones it accepts without ever reaching the server. It also counts the
+  heard and forward nothing, a half-open socket), `stall_at_next_request` (the
+  same, from the next bytes the client sends, so a test can silence the server
+  just as the client asks something), `cut` them, or `hold_new` ones it accepts
+  without ever reaching the server. It also counts the
   `Ping` messages a client sends (`pings`, `pinged_beyond`), so a test advances
   `PING_INTERVAL`, waits for the ping, then advances `PONG_WAIT`.
 
@@ -1024,7 +1026,12 @@ blocks they name arrive, and listing a block's references again when they
 change, and the worker fetches the new ones together
 (`fetch_listings`; its own loop spawns them as a task, `spawn_listings`, and is
 woken when they land, so a listing a silent server holds up never holds up an
-open or an edit). A listing nobody wants any more is dropped, and with it
+open or an edit). The loop's other background requests go the same way, as
+`worker::Tasks`: summary refreshes after a move or leave, contact syncs (one at a
+time), key tending, version-control watches, and the rejoin of every open
+replica after a reconnect (`Replicas::reconnect` spawns them, `Io::Rejoined`,
+holding the server's events for each until its own lands). A changed scope key
+asks for a seal without waiting for it (`Replicas::seal_later`). A listing nobody wants any more is dropped, and with it
 every block no other listing holds, so closing a folder in the files pane
 empties it from the mirror; the worker sends `Unlist` for it, ahead of that
 round's new listings, so the server stops announcing it. A block already held
@@ -2104,10 +2111,11 @@ pixel art export regenerate this way.
   behind: `flush()` cannot wait there. A reload or close asks first while
   anything is unsaved (`beforeunload`), an edit on its way to its module
   included (`Replicas::counts`), and the worker seals meanwhile.
-- While a request other than a listing waits on a server that has stopped
-  answering (a summary refresh, `ReadHead`, versions), the worker's
-  loop waits with it, and a command queued behind it (an open, an edit) waits
-  until the connection is declared lost.
+- A command that itself needs the server (create, move, share, a version
+  command, opening a block this device has never listed) still waits on it in
+  the worker's loop, so on a server that has stopped answering, commands queued
+  behind it wait until the connection is declared lost; so do `peer.attach`
+  after a reconnect and the drain of the outbox.
 - A move into another scope lists the moved subtree one level at a time
   (`ListChildren`), and the old data keys of a block this device cannot open
   are not rewrapped, so that block's history stays closed to its new scope.

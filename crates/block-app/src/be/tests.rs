@@ -37,6 +37,7 @@ mod a_peers_edit_during_a_gesture_here_reaches_editors_beneath_it;
 mod a_saved_change_is_undone_and_later_edits_stay;
 mod a_seal_the_connection_loses_is_kept_and_published_after_reconnect;
 mod a_second_checkout_copies_the_tree_under_the_same_local_ids;
+mod a_server_gone_silent_while_contacts_sync_holds_up_no_open_or_edit;
 mod a_session_owned_here_follows_a_peer_that_claims_it;
 #[cfg(not(target_os = "android"))]
 mod a_terminal_host_answers_this_peer_through_the_blocks_session;
