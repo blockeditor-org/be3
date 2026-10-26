@@ -132,7 +132,11 @@ fn PixelArtEditor(editor: Editor) -> NodeId {
     view! {
         <List spacing=Space::None>
             <TopBar tools={tools} size={size} shown={chrome} />
-            <List @sizing=ItemSize::Percent(100.0) direction=Direction::Horizontal spacing=Space::None>
+            <List
+                @sizing=ItemSize::Percent(100.0)
+                direction=Direction::Horizontal
+                spacing=Space::None
+            >
                 <Sidebar side=Side::Left shown={chrome} width=TOOLS_WIDTH>
                     <ToolsPanel tools={tools} />
                 </Sidebar>

@@ -1907,7 +1907,12 @@ fn SortMenus() -> NodeId {
                     variant=ButtonVariant::Ghost
                     arrow=false
                     leading={view! {
-                        <Frame width=Size::Track height=Size::Track radius=Radius::Full fill={status_fill} />
+                        <Frame
+                            width=Size::Track
+                            height=Size::Track
+                            radius=Radius::Full
+                            fill={status_fill}
+                        />
                     }}
                     items={view! {
                         <unstyled::MenuItem label="In progress" />

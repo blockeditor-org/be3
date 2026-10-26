@@ -70,7 +70,11 @@ fn MapEditor(editor: Editor) -> NodeId {
     view! {
         <List spacing=Space::None>
             <MapToolbar state={state} fitting={fitting} shown={chrome} />
-            <List @sizing=ItemSize::Percent(100.0) direction=Direction::Horizontal spacing=Space::None>
+            <List
+                @sizing=ItemSize::Percent(100.0)
+                direction=Direction::Horizontal
+                spacing=Space::None
+            >
                 <MapCanvas @sizing=ItemSize::Percent(100.0) state={state} />
                 <Sidebar shown={chrome}>
                     <MapSidebar state={state} />

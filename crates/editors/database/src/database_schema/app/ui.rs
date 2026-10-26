@@ -578,10 +578,20 @@ fn EnumOptionRow(
         schema.operate(DatabaseSchema::move_enum_option(id, option_id, after));
     };
     let color_label = create_memo(move || {
-        option.with(|option| option.as_ref().map_or("Colour", |option| choice_color_label(option.color)).to_owned())
+        option.with(|option| {
+            option
+                .as_ref()
+                .map_or("Colour", |option| choice_color_label(option.color))
+                .to_owned()
+        })
     });
     let dotted = create_memo(move || {
-        option.with(|option| option.as_ref().map(|option| DatabaseEnumOption { icon: ChoiceIcon::None, ..option.clone() }))
+        option.with(|option| {
+            option.as_ref().map(|option| DatabaseEnumOption {
+                icon: ChoiceIcon::None,
+                ..option.clone()
+            })
+        })
     });
     let icon_keys = create_memo(|| (0..ChoiceIcon::ALL.len()).collect::<Vec<usize>>());
     let color_keys = create_memo(|| (0..ChoiceColor::ALL.len()).collect::<Vec<usize>>());
@@ -594,7 +604,9 @@ fn EnumOptionRow(
                 size=ButtonSize::Compact
                 icon_only=true
                 arrow=false
-                leading={view! { <ChoiceMark option={option} size=TextSize::Base /> }}
+                leading={view! {
+                    <ChoiceMark option={option} size=TextSize::Base />
+                }}
                 @test_id={format!("database-schema.enum.{id}.{option_id}.icon")}
                 items={view! {
                     <ForEach keys={icon_keys}>|index: usize| {
@@ -625,7 +637,9 @@ fn EnumOptionRow(
                 variant=ButtonVariant::Ghost
                 size=ButtonSize::Compact
                 arrow=false
-                leading={view! { <ChoiceMark option={dotted} size=TextSize::Sm /> }}
+                leading={view! {
+                    <ChoiceMark option={dotted} size=TextSize::Sm />
+                }}
                 @test_id={format!("database-schema.enum.{id}.{option_id}.color")}
                 items={view! {
                     <ForEach keys={color_keys}>|index: usize| {

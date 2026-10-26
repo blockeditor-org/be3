@@ -52,7 +52,9 @@ pub fn ChoicePicker(
                 variant=ButtonVariant::Ghost
                 size=ButtonSize::Compact
                 arrow=false
-                leading={view! { <ChoiceMark option={option} size=MARK /> }}
+                leading={view! {
+                    <ChoiceMark option={option} size=MARK />
+                }}
                 @test_id={picker_id.clone()}
                 items={view! {
                     <ForEach keys={keys}>|id: Uuid| {

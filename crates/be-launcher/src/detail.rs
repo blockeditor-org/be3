@@ -130,7 +130,11 @@ fn PullRequestView(model: Model, pull_request: Memo<PullRequest>) -> NodeId {
                         <Notes model={model} pull_request={pull_request} timeline={timeline} />
                         <Separator />
                         <Show condition={loading}>
-                            <List direction=Direction::Horizontal align=Align::Center spacing=Space::Md>
+                            <List
+                                direction=Direction::Horizontal
+                                align=Align::Center
+                                spacing=Space::Md
+                            >
                                 <Progress width=Size::Sm label="Loading the conversation" />
                                 <Text style=TextStyle::CAPTION>"Loading the conversation"</Text>
                             </List>
@@ -396,8 +400,16 @@ fn Table(model: Model, rows: Vec<Vec<Vec<Block>>>) -> NodeId {
         .flat_map(|row| (0..columns).map(move |column| (row, column)))
         .collect();
     view! {
-        <Frame border={Border::new(ColorRole::Border).width(Stroke::Hairline)} radius=Radius::Md padding=Space::Md>
-            <Grid columns={vec![Track::Fraction(1.0); columns]} column_spacing=Space::Md row_spacing=Space::Md>
+        <Frame
+            border={Border::new(ColorRole::Border).width(Stroke::Hairline)}
+            radius=Radius::Md
+            padding=Space::Md
+        >
+            <Grid
+                columns={vec![Track::Fraction(1.0); columns]}
+                column_spacing=Space::Md
+                row_spacing=Space::Md
+            >
                 <ForEach keys>|(row, column): (usize, usize)| {
                     let blocks = rows[row].get(column).cloned().unwrap_or_default();
                     view! {
@@ -419,7 +431,11 @@ fn Prose(text: String) -> NodeId {
 #[component]
 fn CodeBlock(text: String) -> NodeId {
     view! {
-        <Frame fill=ColorRole::Background radius=Radius::Md padding={Padding::symmetric(Space::Md, Space::Md)}>
+        <Frame
+            fill=ColorRole::Background
+            radius=Radius::Md
+            padding={Padding::symmetric(Space::Md, Space::Md)}
+        >
             <Text size=TextSize::Sm family=Family::Mono>{text}</Text>
         </Frame>
     }
@@ -440,12 +456,7 @@ fn Item(text: String) -> NodeId {
     view! {
         <List direction=Direction::Horizontal spacing=BULLET_INDENT>
             <Frame padding={Padding::symmetric(BULLET_INDENT, Space::Sm)}>
-                <Frame
-                    width=BULLET
-                    height=BULLET
-                    radius=Radius::Full
-                    fill=ColorRole::TextMuted
-                />
+                <Frame width=BULLET height=BULLET radius=Radius::Full fill=ColorRole::TextMuted />
             </Frame>
             <Text @sizing=ItemSize::Percent(100.0)>{text}</Text>
         </List>

@@ -125,7 +125,11 @@ pub fn RowPanel(data: Data, row: ObjectId) -> NodeId {
             <Frame fill=ColorRole::Background>
                 <List spacing=Space::None>
                     <Frame padding={Padding::symmetric(SPACING, Space::Sm)}>
-                        <List direction=Direction::Horizontal align=Align::Center spacing=Space::Xs2>
+                        <List
+                            direction=Direction::Horizontal
+                            align=Align::Center
+                            spacing=Space::Xs2
+                        >
                             <Show condition={narrow}>
                                 <Button
                                     icon_only=true

@@ -209,10 +209,7 @@ fn GroupHeader(data: Data, groups: Memo<Vec<Group>>, key: GroupKey) -> NodeId {
     let read_only = data.read_only;
     let test_key = group_test_key(key);
     view! {
-        <Frame
-            fill=ColorRole::Surface
-            padding={Padding::symmetric(Space::Sm, Space::Xs2)}
-        >
+        <Frame fill=ColorRole::Surface padding={Padding::symmetric(Space::Sm, Space::Xs2)}>
             <List direction=Direction::Horizontal align=Align::Center spacing=Space::Sm>
                 <Button
                     icon_only=true
@@ -518,10 +515,19 @@ fn Chip(part: Memo<Option<Part>>, text: Memo<String>) -> NodeId {
     });
     let linked = create_memo(move || part.with(|part| matches!(part, Some(Part::Links(..)))));
     view! {
-        <Frame border={Border::DEFAULT} radius=Radius::Lg padding={Padding::symmetric(Space::Md, Space::Xs2)}>
+        <Frame
+            border={Border::DEFAULT}
+            radius=Radius::Lg
+            padding={Padding::symmetric(Space::Md, Space::Xs2)}
+        >
             <List direction=Direction::Horizontal align=Align::Center spacing=Space::Xs>
                 <Show condition={dotted}>
-                    <Frame width={Size::Custom(8.0)} height={Size::Custom(8.0)} radius=Radius::Xs fill={dot} />
+                    <Frame
+                        width={Size::Custom(8.0)}
+                        height={Size::Custom(8.0)}
+                        radius=Radius::Xs
+                        fill={dot}
+                    />
                 </Show>
                 <Show condition={linked}>
                     <Text size=TextSize::Xs color=TextColor::Muted align=TextAlign::Center>

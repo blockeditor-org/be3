@@ -68,7 +68,11 @@ fn PixelRayTracerEditor(editor: Editor) -> NodeId {
     view! {
         <List spacing=Space::None>
             <RayToolbar state={state} fitting={fitting} shown={chrome} />
-            <List @sizing=ItemSize::Percent(100.0) direction=Direction::Horizontal spacing=Space::None>
+            <List
+                @sizing=ItemSize::Percent(100.0)
+                direction=Direction::Horizontal
+                spacing=Space::None
+            >
                 <Sidebar side=Side::Left shown={chrome} width=TOOLS_WIDTH>
                     <ToolsPanel state={state} />
                 </Sidebar>

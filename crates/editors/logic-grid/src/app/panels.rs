@@ -473,11 +473,7 @@ fn InstructionRow(
     let unresolved = create_memo(move || row.get().is_none_or(|row| row.2 != Some(true)));
     let target = move || session.update(|model| model.select_instruction_target(index));
     view! {
-        <Frame
-            fill={fill}
-            radius=Radius::Xs
-            padding={Padding::horizontal(Space::Xs)}
-        >
+        <Frame fill={fill} radius=Radius::Xs padding={Padding::horizontal(Space::Xs)}>
             <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
                 <Text style=TextStyle::CODE @sizing=ItemSize::Percent(100.0)>{text}</Text>
                 <Show condition={calls}>
@@ -666,7 +662,10 @@ fn TableRow(cells: Memo<Vec<String>>) -> NodeId {
                     cells.with(|cells| cells.get(index).cloned().unwrap_or_default())
                 });
                 view! {
-                    <Frame @sizing=ItemSize::Fixed(CELL_WIDTH) padding={Padding::horizontal(Space::Xs2)}>
+                    <Frame
+                        @sizing=ItemSize::Fixed(CELL_WIDTH)
+                        padding={Padding::horizontal(Space::Xs2)}
+                    >
                         <Text>{text}</Text>
                     </Frame>
                 }

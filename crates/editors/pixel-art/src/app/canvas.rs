@@ -402,7 +402,9 @@ fn Artwork(
             }</ForEach>
             <Show condition={over}>
                 <CanvasItem x={hover_x} y={hover_y} width={hover_size} height={hover_size}>
-                    <Frame border={Border::new(ColorRole::Custom(Color32::WHITE)).width(Stroke::Hairline)} />
+                    <Frame
+                        border={Border::new(ColorRole::Custom(Color32::WHITE)).width(Stroke::Hairline)}
+                    />
                 </CanvasItem>
             </Show>
         </Canvas>

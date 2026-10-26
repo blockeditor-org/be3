@@ -190,7 +190,11 @@ fn OpenColumn(data: Data, group: Memo<Option<Group>>, key: GroupKey) -> NodeId {
                 >
                     <List spacing=CARD_SPACING>
                         <Frame padding={Padding::vertical(Space::Xs).left(Space::Xs)}>
-                            <List direction=Direction::Horizontal align=Align::Center spacing=Space::Md>
+                            <List
+                                direction=Direction::Horizontal
+                                align=Align::Center
+                                spacing=Space::Md
+                            >
                                 <ChoiceMark option={option} size=MARK />
                                 <Text>{label}</Text>
                                 <Text style=TextStyle::CAPTION>{count}</Text>
@@ -213,7 +217,9 @@ fn OpenColumn(data: Data, group: Memo<Option<Group>>, key: GroupKey) -> NodeId {
                                 item_size=CARD_HEIGHT
                                 overscan=CARD_HEIGHT
                             >|row: ReadSignal<usize>|
-                                <Frame padding={Padding::new(Space::None, Space::None, Space::None, CARD_SPACING)}>
+                                <Frame
+                                    padding={Padding::new(Space::None, Space::None, Space::None, CARD_SPACING)}
+                                >
                                     <KanbanCard data={data} row={row} />
                                 </Frame>
                             </VirtualList>
