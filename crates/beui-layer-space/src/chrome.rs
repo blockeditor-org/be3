@@ -109,6 +109,8 @@ pub enum Gesture {
         rotation: Quat,
         start: Ray,
         sight: Sight,
+        aim: Vec3,
+        grab: Option<Pos2>,
     },
     Roll {
         original: Panel,

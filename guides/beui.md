@@ -3173,15 +3173,20 @@ it, and all its 3D (`glam`) stays in the crate.
   panel, the point of the curved surface the ray meets). A press's own
   position is ignored. An absolute position, a `PointerMoved` in pixels or in a
   window's points (a driver's, mapped onto that window's panel), puts the
-  cursor where its ray hits; `PointerMotion` moves it from where it is drawn by
-  as many screen pixels (no further than `CURSOR_MARGIN` points inside the
-  edge); either saves it `CURSOR_LIFT` (1%) of the distance in front of what
+  cursor where its ray hits; `PointerMotion` swings its ray about the eye,
+  gravity-aligned whatever the head's pitch and roll (`Head::swing`): motion
+  across turns it about the vertical, keeping its height, and motion up raises
+  it toward the sky along its line to the zenith, short of
+  `head::MOST_ELEVATION`, both at a fixed angle per pixel
+  (`Head::pixels_per_radian`, so near the middle of an unrolled view a pixel
+  of motion is a pixel on screen), the same in the simulator and under a
+  headset. Either saves it `CURSOR_LIFT` (1%) of the distance in front of what
   it hits, or on a miss at the last hit's distance (`OPEN_DISTANCE` before any
   hit). Turning the head and walking leave it at its point, so it slides
-  across the view; one that would leave the view is drawn, and points, just
-  inside the edge without moving its point, so turning back finds it where it
-  was, and moving the mouse from the edge starts from where it is drawn. While
-  a panel is carried the cursor stays on its grabbed point. Moving onto another
+  across the view, and nothing holds it inside the view: motion or a turn can
+  take it anywhere around the viewer, it still points (and clicks) where it
+  is, and turning back or moving the mouse back finds it. While a panel is
+  carried the cursor stays on its grabbed point. Moving onto another
   panel just names the new window, held button or not (no `PointerLeft`), so
   a drag goes on across windows. Moving off every panel sends the last window
   `PointerLeft`; while a button is held, moves and the release then go to the
@@ -3196,8 +3201,8 @@ it, and all its 3D (`glam`) stays in the crate.
   place, walk along the floor relative to where the head faces, and Q and E
   roll it left and right (`Head::roll`, `ROLL_PER_SECOND`), all timed from
   `LayerView::now`. `Head::rotation` is yaw, then pitch, then roll about the
-  view direction; the view, cursor rays, the screen edge clamp and `scale`
-  all go through it, so the cursor moves along the rolled screen's axes.
+  view direction; the view, cursor rays and `scale` all go through it, but
+  the cursor's motion does not (see Pointer).
   Mouse steering with the head rolled first turns the motion by the roll
   into the level frame, so moving the mouse along the screen turns the view
   along the screen while yaw stays about the vertical and the roll stays put. No key pressed while steering reaches the app, nor its
@@ -3294,7 +3299,7 @@ it, and all its 3D (`glam`) stays in the crate.
   The mouse and keyboard work exactly as in the simulator: the mirror window
   keeps the keyboard focus and the pointer, and the cursor's screen is the
   mirror, the centre eye at `FOV_Y`, which lies inside a headset's field, so
-  the cursor never strays into the periphery. Tracked views are in the
+  the marker of a cursor out of view (see Cursor) never sits in the periphery. Tracked views are in the
   tracking space, and `Space::body` (`head::Body { position, yaw }`) places
   that space in the world (`Views::placed`, and each hand's poses through
   `Body::place`); while views are tracked,
@@ -3433,11 +3438,20 @@ it, and all its 3D (`glam`) stays in the crate.
   at its centre. A tile drops everything under the last opaque cell
   covering it all, so an intersection costs a few primitives per pixel
   along its line, and a scene with none paints as one tile.
-- Cursor: the host asks the platform for `CursorIcon::None` and draws its own
-  in the scene, last and over everything, as a quad facing the head with its
-  hotspot on the cursor's point (`Space::cursor_at`), or when that is out of
-  view on the clamped ray, just in front of what it hits there. It goes only
-  when the pointer leaves the platform window. Its size grows with
+- Cursor: while space holds the pointer (Grab) or an app locks it
+  (`Space::cursor_shown`), the host asks the platform for `CursorIcon::None`
+  and draws its own in the scene, last and over everything, as a quad facing
+  the head with its hotspot on the cursor's point (`Space::cursor_at`). Once
+  the grab lets go it draws none and asks the platform's own cursor for the
+  icon it would have drawn, since the platform then moves the pointer. When
+  the cursor's point is out of the view (off the screen or behind the eye),
+  it draws instead a marker inside the edge (`Space::cursor_away`,
+  `cursor::Look::Away`): `beui_core::icons::ICON_MOUSE` with an
+  `ICON_ARROW_UP` turned toward the cursor, on the line from the view's
+  middle toward where the cursor projects, `cursor::AWAY_INSET` (36) points
+  inside the edge, just in front of what it hits there; the arrow's angle
+  is kept in `AWAY_STEPS` (90) steps a turn so the sprite repaints only when
+  it moves a step. It goes only when the pointer leaves the platform window. Its size grows with
   distance (`Space::cursor_scale`, metres per point) so it covers as many
   pixels as it has points at any depth. It shows the icon that the window
   under it, holding the press, or being carried or resized asks for
@@ -3446,7 +3460,9 @@ it, and all its 3D (`glam`) stays in the crate.
   icon with `beui_core::drawn_cursor::paint`, the same drawing the inspector's
   mouse simulation shows on a touchscreen, through a `Context` of its own with
   only the icon font, and the compositor draws it into a texture like a window
-  only when the icon or the scale changes, under a `WindowId` of its own. A new
+  only when its look (icon or marker) or the scale changes, under a
+  `WindowId` of its own, and the paintings draw its last output over
+  everything (`render::Frame::sprite`). A new
   icon repaints into the same texture with the same renderer; building a
   renderer for each icon cost about 30 ms a switch.
 - Pointers: the mouse and each controller's laser are pointers of their own
@@ -3550,7 +3566,7 @@ it, and all its 3D (`glam`) stays in the crate.
   `chrome::Sight`, `chrome::turned`), like a trackball: when the drag begins
   it takes the sight line from the eye to the panel's centre, the head's up
   made perpendicular to it (the sight's up) and their cross product (the
-  sight's right, along the screen's right). The cursor ray's change from
+  sight's right, along the screen's right). The aim's change (the cursor's ray; see below) from
   where the drag began is measured on the screen: its direction is the
   change of the ray's point on the head's image plane, its size the angle
   between the rays, times `TURN_GAIN` (2). Its horizontal part turns the
@@ -3560,10 +3576,14 @@ it, and all its 3D (`glam`) stays in the crate.
   a panel's edge level to the view stays level, wherever the panel is on
   screen and however the head is rolled or pitched. For a panel straight ahead of a
   level head and facing it, that is yaw about the vertical and pitch about the panel's own
-  horizontal axis. The gain is fixed rather than keeping the button under
-  the cursor: the button sits on the panel's vertical centre line, so a
-  turn about the sight's up hardly moves it on screen. The panel never rolls however the cursor
-  circles. Dragging the roll button rolls it about its
+  horizontal axis. With the mouse the cursor stays on the button meanwhile:
+  `PointerMotion` swings the gesture's own aim (`Gesture::Turn::aim`, as it
+  would swing the cursor) and the turn follows that aim, while the cursor is
+  put back on the button's point (`grab`) as the panel turns, so the mouse
+  turns the panel without the cursor wandering off, and lets go on the button.
+  An absolute position (the platform's own pointer, not grabbed, or a driver)
+  aims it directly. A laser's turn follows its ray. The panel never rolls
+  however the cursor circles. Dragging the roll button rolls it about its
   normal through its centre (`Gesture::Roll`, `chrome::roll_angle`,
   `chrome::rolled`) by the change in the cursor's angle around the centre on
   the panel's surface as it was, so the button, below the centre, stays under

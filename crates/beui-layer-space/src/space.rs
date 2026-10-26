@@ -39,7 +39,6 @@ pub const OPEN_NEARER: f32 = 0.1;
 pub const OPEN_GRAB: Pos2 = pos2(24.0, 16.0);
 pub const OVER_NEARER: f32 = 0.03;
 pub const CURSOR_LIFT: f32 = 0.01;
-pub const CURSOR_MARGIN: f32 = 2.0;
 pub const KEYBOARD_GAP: f32 = 12.0;
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
@@ -127,7 +126,7 @@ struct Shown {
     head: Head,
     panels: Vec<Panel>,
     cursor: Option<Vec3>,
-    icon: CursorIcon,
+    look: Option<cursor::Look>,
     chrome: Vec<(WindowId, Look, f32)>,
     beams: Vec<Beam>,
 }
@@ -419,30 +418,27 @@ impl Space {
         self.cursor
     }
 
-    fn drawn(&self) -> Option<(Pos2, bool)> {
-        let across = self.head.across(self.platform, self.cursor?);
-        let margin = CURSOR_MARGIN * self.pixels_per_point;
-        let screen = glam::Vec2::new(self.platform.x.max(1.0), self.platform.y.max(1.0));
-        let limit = (glam::Vec2::ONE - 2.0 * margin / screen).max(glam::Vec2::splat(1e-3));
-        let over = (across.x.abs() / limit.x).max(across.y.abs() / limit.y);
-        let (across, clamped) = match over > 1.0 {
-            true => (across / over, true),
-            false => (across, false),
-        };
-        let at = Head::on_screen(self.platform, across);
-        Some((pos2(at.x, at.y), clamped))
+    pub fn cursor_screen(&self) -> Option<Pos2> {
+        let cursor = self.cursor?;
+        let local = self.head.rotation().inverse() * (cursor - self.head.position);
+        (local.z < -1e-4).then(|| {
+            let at = Head::on_screen(self.platform, self.head.across(self.platform, cursor));
+            pos2(at.x, at.y)
+        })
     }
 
-    pub fn cursor_screen(&self) -> Option<Pos2> {
-        self.drawn().map(|(at, _)| at)
+    fn cursor_in_view(&self) -> bool {
+        self.cursor_screen().is_some_and(|at| {
+            (0.0..=self.platform.x).contains(&at.x) && (0.0..=self.platform.y).contains(&at.y)
+        })
     }
 
     pub fn cursor_ray(&self) -> Option<Ray> {
-        let (at, clamped) = self.drawn()?;
-        match clamped {
-            true => Some(self.head.ray(self.platform, at.to_vec2())),
-            false => self.cursor.map(|point| self.toward(point)),
-        }
+        self.cursor.map(|point| self.toward(point))
+    }
+
+    pub fn cursor_shown(&self) -> bool {
+        self.grabbed || self.app_locked
     }
 
     fn toward(&self, point: Vec3) -> Ray {
@@ -464,17 +460,50 @@ impl Space {
     }
 
     pub fn cursor_at(&self) -> Option<Vec3> {
-        let saved = self.cursor?;
-        if !self.drawn()?.1 {
-            return Some(saved);
+        self.cursor.filter(|_| self.cursor_in_view())
+    }
+
+    pub fn cursor_away(&self) -> Option<(Vec3, f32)> {
+        let cursor = self.cursor?;
+        if self.cursor_in_view() {
+            return None;
         }
-        let ray = self.cursor_ray()?;
+        let across = self.head.across(self.platform, cursor);
+        let screen = glam::Vec2::new(self.platform.x.max(1.0), self.platform.y.max(1.0));
+        let inset = cursor::AWAY_INSET * self.pixels_per_point;
+        let limit = (glam::Vec2::ONE - 2.0 * inset / screen).max(glam::Vec2::splat(1e-3));
+        let over = (across.x.abs() / limit.x)
+            .max(across.y.abs() / limit.y)
+            .max(1e-6);
+        let at = Head::on_screen(self.platform, across / over);
+        let ray = self.head.ray(self.platform, at);
         let distance = self
-            .cursor_point()
-            .map_or(saved.distance(ray.origin), |point| {
-                point.distance(ray.origin) * (1.0 - CURSOR_LIFT)
-            });
-        Some(ray.at(distance))
+            .hit_along(ray)
+            .map_or(self.cursor_distance, |hit| hit.distance);
+        let toward = across * screen;
+        Some((
+            ray.at(distance * (1.0 - CURSOR_LIFT)),
+            toward.x.atan2(toward.y),
+        ))
+    }
+
+    fn sprite_look(&self, icon: CursorIcon) -> Option<cursor::Look> {
+        if !self.cursor_shown() {
+            return None;
+        }
+        if self.cursor_at().is_some() {
+            return Some(cursor::Look::Icon(icon));
+        }
+        self.cursor_away()
+            .map(|(_, angle)| cursor::Look::away(angle))
+    }
+
+    fn sprite_at(&self) -> Option<Vec3> {
+        if !self.cursor_shown() {
+            return None;
+        }
+        self.cursor_at()
+            .or_else(|| self.cursor_away().map(|(at, _)| at))
     }
 
     fn place_cursor(&mut self, ray: Ray) {
@@ -643,7 +672,11 @@ impl Space {
                 self.move_cursor(self.pixels(units, motion), out);
             }
             Input::PointerMoved(at) => {
-                self.place_cursor(self.ray_of(units, window, at));
+                let ray = self.ray_of(units, window, at);
+                if let Some(Gesture::Turn { aim, .. }) = &mut self.mouse.gesture {
+                    *aim = ray.direction;
+                }
+                self.place_cursor(ray);
                 self.moved(out);
             }
             Input::PointerButton {
@@ -697,16 +730,44 @@ impl Space {
         }
     }
 
+    fn swung(&self, direction: Vec3, pixels: Vec2) -> Vec3 {
+        let angles = glam::Vec2::new(pixels.x, -pixels.y) / Head::pixels_per_radian(self.platform);
+        self.head.swing(direction, angles)
+    }
+
     fn move_cursor(&mut self, pixels: Vec2, out: &mut Vec<Incoming>) {
         self.centre_cursor();
-        let Some(from) = self.cursor_screen() else {
+        if let Some(Gesture::Turn { aim, .. }) = self.mouse.gesture {
+            let swung = self.swung(aim, pixels);
+            if let Some(Gesture::Turn { aim, .. }) = &mut self.mouse.gesture {
+                *aim = swung;
+            }
+            self.drag_chrome(Pointer::Mouse);
+            self.anchor_on_turn();
+            return;
+        }
+        let Some(ray) = self.cursor_ray() else {
             return;
         };
-        let margin = Vec2::splat(CURSOR_MARGIN * self.pixels_per_point);
-        let most = (self.platform - margin).max(margin);
-        let to = (from + pixels).to_vec2().max(margin).min(most);
-        self.place_cursor(self.head.ray(self.platform, to));
+        let direction = self.swung(ray.direction, pixels);
+        self.place_cursor(Ray {
+            origin: ray.origin,
+            direction,
+        });
         self.moved(out);
+    }
+
+    fn anchor_on_turn(&mut self) {
+        if let Some(Gesture::Turn {
+            window,
+            grab: Some(grab),
+            ..
+        }) = self.mouse.gesture
+            && let Some(panel) = self.panel(window)
+        {
+            let eye = self.head.position;
+            self.cursor = Some(eye + (panel.world(grab) - eye) * (1.0 - CURSOR_LIFT));
+        }
     }
 
     fn moved(&mut self, out: &mut Vec<Incoming>) {
@@ -1410,9 +1471,12 @@ impl Space {
             .is_some_and(|window| window.window.requests.pointer_locked)
     }
 
-    fn window_state(main: &WindowOutput, grabbed: bool) -> WindowState {
+    fn window_state(main: &WindowOutput, grabbed: bool, icon: CursorIcon) -> WindowState {
         let mut state = main.window.clone();
-        state.requests.cursor = CursorIcon::None;
+        state.requests.cursor = match grabbed {
+            true => CursorIcon::None,
+            false => icon,
+        };
         state.requests.pointer_locked = grabbed;
         state.requests.ime = None;
         state.appearance.clear_color = SKY;
@@ -1504,7 +1568,8 @@ impl Space {
         };
         self.app_locked = self.app_locks(windows);
         let main = find(windows, WindowId::MAIN).expect("the app shows its main window");
-        let state = Self::window_state(main, self.grabbed || self.app_locked);
+        let icon = self.icon_over(windows);
+        let state = Self::window_state(main, self.cursor_shown(), icon);
         let chrome_changed = self.refresh_chrome(view.pixels_per_point);
         let Some(compositor) = self.compositor.clone() else {
             return Composed {
@@ -1521,17 +1586,19 @@ impl Space {
                 changed |= compositor.update(window);
             }
         }
-        let icon = self.icon_over(windows);
-        if self.sprite.changed(icon, view.pixels_per_point) {
-            let sprite = self.sprite.paint(icon, view.pixels_per_point);
+        let look = self.sprite_look(icon);
+        if let Some(look) = look
+            && self.sprite.changed(look, view.pixels_per_point)
+        {
+            let sprite = self.sprite.paint(look, view.pixels_per_point);
             changed |= compositor.update(&sprite);
         }
         let shown = Shown {
             platform: view.platform,
             head: self.head,
             panels: self.panels.clone(),
-            cursor: self.cursor_at(),
-            icon,
+            cursor: self.sprite_at(),
+            look,
             chrome: self
                 .chrome_shown
                 .iter()
@@ -1691,6 +1758,13 @@ impl Space {
 
     pub(crate) fn scene(&mut self, windows: &[WindowOutput], view: &LayerView) -> Frame {
         self.refresh_chrome(view.pixels_per_point);
+        let look = self.sprite_look(self.icon_over(windows));
+        if let Some(look) = look
+            && self.sprite.changed(look, view.pixels_per_point)
+        {
+            self.sprite.paint(look, view.pixels_per_point);
+        }
+        let cursor = look.and(self.sprite_at()).map(|at| self.cursor_frame(at));
         Frame {
             pixels_per_point: view.pixels_per_point,
             windows: windows.to_vec(),
@@ -1703,7 +1777,8 @@ impl Space {
             eye: self.head.position,
             right: self.head.rotation() * Vec3::X,
             up: self.head.rotation() * Vec3::Y,
-            cursor: self.cursor_at().map(|at| self.cursor_frame(at)),
+            sprite: cursor.as_ref().and(self.sprite.output().cloned()),
+            cursor,
             beams: self.beams(),
             panels: self
                 .panels
@@ -1841,6 +1916,8 @@ impl Space {
                 rotation: panel.pose.rotation,
                 start: ray,
                 sight: chrome::Sight::new(ray.origin, panel.pose.position, self.head.rotation()),
+                aim: ray.direction,
+                grab: at,
             },
             Part::Roll => Gesture::Roll {
                 original: panel,
@@ -1871,6 +1948,12 @@ impl Space {
         let Some(panel) = self.panel_mut(gesture.window()) else {
             return;
         };
+        let mut gesture = gesture;
+        if pointer != Pointer::Mouse
+            && let Gesture::Turn { aim, .. } = &mut gesture
+        {
+            *aim = ray.direction;
+        }
         match gesture {
             Gesture::Scale {
                 original,
@@ -1887,11 +1970,9 @@ impl Space {
                 rotation,
                 start,
                 sight,
+                aim,
                 ..
-            } => {
-                panel.pose.rotation =
-                    chrome::turned(rotation, start.direction, ray.direction, sight)
-            }
+            } => panel.pose.rotation = chrome::turned(rotation, start.direction, aim, sight),
             Gesture::Roll { original, start } => {
                 if let Some(angle) = chrome::roll_angle(&original, ray) {
                     panel.pose.rotation = chrome::rolled(&original, start, angle);
