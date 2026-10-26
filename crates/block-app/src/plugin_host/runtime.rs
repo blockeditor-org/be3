@@ -1047,7 +1047,7 @@ impl Runtime {
                 .find(|request| request.screen == screen)
                 .map(|request| match placement {
                     Some(placement) => {
-                        super::input::requested_at(&request.metrics, placement.raster())
+                        super::input::requested_at(&request.metrics, super::input::finer(placement))
                     }
                     None => (request.metrics.pixel_width, request.metrics.pixel_height),
                 }),
@@ -2418,7 +2418,12 @@ fn placed_view(
                 region,
                 Some(visible),
                 clip,
-                painted.map(|placement| ((placement.width, placement.height), placement.raster())),
+                painted.map(|placement| {
+                    (
+                        (placement.width, placement.height),
+                        super::input::finer(placement),
+                    )
+                }),
             ),
             false => None,
         };

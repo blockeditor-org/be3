@@ -1,6 +1,7 @@
 use beui::{Event, Pos2, Rect, Replay, Replayed, Vec2};
 use block_plugin_api::{
-    DroppedFile, Input, InputBatch, Monitor, Pasted, ScreenId, Size, TimedInput, ViewportMetrics,
+    DroppedFile, Input, InputBatch, Monitor, Pasted, ScreenId, ScreenPlacement, Size, TimedInput,
+    ViewportMetrics,
 };
 use uuid::Uuid;
 
@@ -113,8 +114,12 @@ impl InputAdapter {
     }
 }
 
-pub(super) fn requested_at(metrics: &ViewportMetrics, raster: f32) -> (u32, u32) {
-    let scale = raster / metrics.raster;
+pub(super) fn finer(placement: &ScreenPlacement) -> f32 {
+    placement.raster() / placement.scale_factor()
+}
+
+pub(super) fn requested_at(metrics: &ViewportMetrics, finer: f32) -> (u32, u32) {
+    let scale = finer * metrics.scale_factor / metrics.raster;
     match scale.is_finite() && (scale - 1.0).abs() > 1e-3 {
         true => (
             (metrics.pixel_width as f32 * scale).round() as u32,

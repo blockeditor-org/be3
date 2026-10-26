@@ -1135,8 +1135,8 @@ impl Instances {
             .get_mut(&instance)
             .and_then(|entry| entry.screens.get_mut(&region))?;
         let stale = drawn
-            .filter(|(drawn, raster)| {
-                *drawn != super::input::requested_at(&screen.request.metrics, *raster)
+            .filter(|(drawn, finer)| {
+                *drawn != super::input::requested_at(&screen.request.metrics, *finer)
             })
             .map(|(drawn, _)| drawn);
         if screen.holding
