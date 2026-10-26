@@ -63,16 +63,16 @@ const DIALOG_SIZE: beui::Vec2 = beui::Vec2::new(460.0, 120.0);
 const NESTED_DIALOG_INSET: beui::Vec2 = beui::Vec2::new(56.0, 16.0);
 const CARD_SIZE: beui::Vec2 = beui::Vec2::new(440.0, 300.0);
 const PAGE_SHARE: f32 = 0.76;
-const SHELL_PADDING: f32 = 10.0;
-const TOOLBAR_SPACING: f32 = 8.0;
-const CATALOG_PADDING: f32 = 4.0;
-const CATALOG_SPACING: f32 = 10.0;
-const CATALOG_GROUP_PADDING: f32 = 12.0;
-const PAGE_PADDING: f32 = 16.0;
-const PAGE_SPACING: f32 = 32.0;
-const SECTION_SPACING: f32 = 10.0;
-const ROW_SPACING: f32 = 12.0;
-const CODE_PADDING: f32 = 12.0;
+const SHELL_PADDING: Space = Space::Md;
+const TOOLBAR_SPACING: Space = Space::Md;
+const CATALOG_PADDING: Space = Space::Xs;
+const CATALOG_SPACING: Space = Space::Md;
+const CATALOG_GROUP_PADDING: Space = Space::Lg;
+const PAGE_PADDING: Space = Space::Xl;
+const PAGE_SPACING: Space = Space::Xl3;
+const SECTION_SPACING: Space = Space::Lg;
+const ROW_SPACING: Space = Space::Lg;
+const CODE_PADDING: Space = Space::Lg;
 const DARK_BACKGROUND: u32 = 384;
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
@@ -627,7 +627,7 @@ fn DemoShell() -> NodeId {
     provide_context(dialogs);
     let attached = dialogs.open;
     view! {
-        <List spacing=0.0>
+        <List spacing=Space::None>
             <Frame padding=SHELL_PADDING>
                 <DemoToolbar pages />
             </Frame>
@@ -857,7 +857,7 @@ fn CatalogPanel(pages: Pages, active: Selector<Option<Page>>) -> NodeId {
     view! {
         <Scroll>
             <Frame padding=CATALOG_PADDING>
-                <List spacing=0.0>
+                <List spacing=Space::None>
                     <CatalogGroup
                         title="Styled"
                         summary="Components painted with the theme"
@@ -894,9 +894,9 @@ fn CatalogGroup(
     active: Selector<Option<Page>>,
 ) -> NodeId {
     view! {
-        <List spacing=0.0>
+        <List spacing=Space::None>
             <Frame padding=CATALOG_GROUP_PADDING>
-                <List spacing=2.0>
+                <List spacing=Space::Xs2>
                     <Text style=TextStyle::HEADING>{title}</Text>
                     <Text style=TextStyle::CAPTION overflow=Overflow::Ellipsis>{summary}</Text>
                 </List>
@@ -924,7 +924,7 @@ fn CatalogRow(page: Page, pages: Pages, selected: Memo<bool>) -> NodeId {
                 <Text align=TextAlign::Center>
                     <Icon glyph={page.icon()} />
                 </Text>
-                <List @sizing=ItemSize::Percent(100.0) spacing=0.0>
+                <List @sizing=ItemSize::Percent(100.0) spacing=Space::None>
                     <Text>{page.title()}</Text>
                     <Text style=TextStyle::CAPTION overflow=Overflow::Ellipsis>
                         {page.summary()}
@@ -939,7 +939,7 @@ fn CatalogRow(page: Page, pages: Pages, selected: Memo<bool>) -> NodeId {
 fn EmptyPanel() -> NodeId {
     view! {
         <Frame padding=PAGE_PADDING>
-            <List spacing=4.0 align=Align::Center>
+            <List spacing=Space::Xs align=Align::Center>
                 <Text style=TextStyle::HEADING>"Nothing open"</Text>
                 <Text style=TextStyle::CAPTION>"Open a page from Components to get started."</Text>
             </List>

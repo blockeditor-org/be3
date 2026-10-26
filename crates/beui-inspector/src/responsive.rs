@@ -10,12 +10,11 @@ use beui_view::reactive::*;
 use super::State;
 
 pub const HEIGHT: f32 = 51.0;
-const PADDING_HORIZONTAL: f32 = 8.0;
-const PADDING_VERTICAL: f32 = 8.0;
-const SPACING: f32 = 6.0;
-const DEVICE_WIDTH: f32 = 140.0;
-const DIMENSION_WIDTH: f32 = 72.0;
-const ZOOM_WIDTH: f32 = 84.0;
+const PADDING: Space = Space::Md;
+const SPACING: Space = Space::Sm;
+const DEVICE_WIDTH: Size = Size::Custom(140.0);
+const DIMENSION_WIDTH: Size = Size::Custom(72.0);
+const ZOOM_WIDTH: Size = Size::Custom(84.0);
 
 pub const DEVICES: [(&str, Vec2); 9] = [
     ("Responsive", Vec2::ZERO),
@@ -107,10 +106,10 @@ fn ResponsiveToolbar(
         ZOOMS.iter().position(|(_, candidate)| *candidate == zoom)
     });
     view! {
-        <List spacing=0.0>
+        <List spacing=Space::None>
             <Frame
                 fill=ColorRole::Surface
-                padding={Sides::symmetric(PADDING_HORIZONTAL, PADDING_VERTICAL)}
+                padding=PADDING
             >
                 <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
                     <Frame width=DEVICE_WIDTH>

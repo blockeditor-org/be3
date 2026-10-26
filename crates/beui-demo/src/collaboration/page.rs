@@ -241,7 +241,7 @@ pub(crate) fn ConcurrentEditing(rich: bool) -> NodeId {
                 <Text style=TextStyle::CAPTION>{latency_label}</Text>
             </List>
             <Slider value={latency} max=MAX_LATENCY label="Latency" />
-            <unstyled::Stack spacing=ROW_SPACING narrow={narrow}>
+            <unstyled::Stack spacing={use_space(ROW_SPACING)} narrow={narrow}>
                 <EditorPane
                     @sizing=ItemSize::Percent(50.0)
                     id="demo.collaboration.left"

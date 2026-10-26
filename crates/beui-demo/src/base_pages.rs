@@ -4,6 +4,7 @@ use beui::Sides;
 use beui::Vec2;
 use beui::primitives::Drawing;
 use beui::primitives::FirstFit;
+use beui::primitives::{Grid, List};
 use beui::primitives::Frame;
 use beui::primitives::Gap;
 use beui::primitives::Icon;
@@ -51,7 +52,7 @@ pub(crate) fn FramesPage() -> NodeId {
 fn FrameSwatches() -> NodeId {
     let theme = use_theme();
     view! {
-        <List direction=Direction::Horizontal spacing=ROW_SPACING wrap=true>
+        <List direction=Direction::Horizontal spacing={ROW_SPACING.px()} wrap=true>
             <Frame width=SWATCH height=SWATCH fill={theme.accent} />
             <Frame width=SWATCH height=SWATCH fill={theme.accent} radius=12.0 />
             <Frame width=SWATCH height=SWATCH radius=36.0 fill={theme.success} />
@@ -82,7 +83,7 @@ fn FrameSwatches() -> NodeId {
 #[component]
 fn FrameAlignment() -> NodeId {
     view! {
-        <List direction=Direction::Horizontal spacing=ROW_SPACING>
+        <List direction=Direction::Horizontal spacing={ROW_SPACING.px()}>
             <AlignedBox @sizing=ItemSize::Percent(33.0) align=Align::Start />
             <AlignedBox @sizing=ItemSize::Percent(33.0) align=Align::Center />
             <AlignedBox @sizing=ItemSize::Percent(33.0) align=Align::End />
@@ -112,7 +113,7 @@ fn AlignedBox(align: Align) -> NodeId {
 fn FrameSizes() -> NodeId {
     let theme = use_theme();
     view! {
-        <List spacing=SECTION_SPACING>
+        <List spacing={SECTION_SPACING.px()}>
             <Frame
                 width={Extent::at_most(320.0)}
                 fill={theme.surface_raised}
@@ -159,7 +160,7 @@ pub(crate) fn TextNodesPage() -> NodeId {
 fn TextStyles() -> NodeId {
     let theme = use_theme();
     view! {
-        <List spacing=SECTION_SPACING>
+        <List spacing={SECTION_SPACING.px()}>
             <Text color={theme.text}>"Plain text"</Text>
             <Text color={theme.text} font={FontId::proportional(14.0).bold(true)}>"Bold text"</Text>
             <Text color={theme.text} font={FontId::proportional(14.0).italic(true)}>
@@ -180,7 +181,7 @@ fn TextStyles() -> NodeId {
 fn TextIcons() -> NodeId {
     let theme = use_theme();
     view! {
-        <List spacing=SECTION_SPACING>
+        <List spacing={SECTION_SPACING.px()}>
             <Text color={theme.text}>
                 <Icon glyph=ICON_STAR color={theme.warning} spacing_em=0.25 />
                 "An icon is a span that holds no bytes"
@@ -209,7 +210,7 @@ fn TextWrapping() -> NodeId {
         max_lines: Some(2),
     };
     view! {
-        <List @test_id="demo.text.wrapping" spacing=SECTION_SPACING>
+        <List @test_id="demo.text.wrapping" spacing={SECTION_SPACING.px()}>
             <Frame width=260.0 fill={theme.surface_raised}>
                 <Text color={theme.text}>{wraps.to_owned()}</Text>
             </Frame>
@@ -256,7 +257,7 @@ fn TextBreaks() -> NodeId {
     let theme = use_theme();
     let mono = FontId::monospace(14.0);
     view! {
-        <List @test_id="demo.text.breaks" spacing=SECTION_SPACING>
+        <List @test_id="demo.text.breaks" spacing={SECTION_SPACING.px()}>
             <Text color={theme.text} font={mono}>
                 "A break ends a line"
                 <Break />
@@ -366,7 +367,7 @@ fn ColumnsForWidth() -> NodeId {
 #[component]
 fn ListDirections() -> NodeId {
     view! {
-        <List spacing=SECTION_SPACING>
+        <List spacing={SECTION_SPACING.px()}>
             <List direction=Direction::Horizontal spacing=8.0>
                 <Tile label="One" />
                 <Tile label="Two" />
@@ -389,7 +390,7 @@ fn ListDirections() -> NodeId {
 #[component]
 fn ListJustify() -> NodeId {
     view! {
-        <List spacing=SECTION_SPACING>
+        <List spacing={SECTION_SPACING.px()}>
             <List direction=Direction::Horizontal justify=Justify::Start spacing=8.0>
                 <Tile label="Start" />
                 <Tile label="B" />
@@ -453,7 +454,7 @@ pub(crate) fn ControlFlowPage() -> NodeId {
 fn ShowToggle() -> NodeId {
     let shown = create_signal(true);
     view! {
-        <List spacing=SECTION_SPACING>
+        <List spacing={SECTION_SPACING.px()}>
             <LabelledSwitch label="Shown" on={shown} />
             <Show condition={shown}>
                 <Tile label="Built the first time it is shown, and kept while hidden" />
@@ -468,7 +469,7 @@ fn PlanetList() -> NodeId {
     let count = create_signal(3usize);
     let planets = create_memo(move || PLANETS[..count.get()].to_vec());
     view! {
-        <List spacing=SECTION_SPACING>
+        <List spacing={SECTION_SPACING.px()}>
             <List direction=Direction::Horizontal spacing=8.0>
                 <Button
                     label="Remove one"
@@ -494,7 +495,7 @@ fn DynamicShape() -> NodeId {
     let theme = use_theme();
     let round = create_signal(false);
     view! {
-        <List spacing=SECTION_SPACING>
+        <List spacing={SECTION_SPACING.px()}>
             <LabelledSwitch label="Round" on={round} />
             <Dynamic value={round}>|round: bool| {
                 match round {
@@ -546,7 +547,7 @@ fn InteractiveCard() -> NodeId {
         )
     });
     view! {
-        <List spacing=SECTION_SPACING>
+        <List spacing={SECTION_SPACING.px()}>
             <Interactive
                 focusable=true
                 on_hover_change={hovered}
@@ -847,7 +848,7 @@ fn AnimationSample() -> NodeId {
     );
     let preference = with_document(|document| document.watch_motion());
     view! {
-        <List spacing=SECTION_SPACING>
+        <List spacing={SECTION_SPACING.px()}>
             <Checkbox
                 @test_id="animation.instant"
                 label="Disable animations"
@@ -937,7 +938,7 @@ fn PathTiles(tiles: Vec<PaintTile>) -> NodeId {
     let count = tiles.len();
     let keys = create_memo(move || (0..count).collect::<Vec<usize>>());
     view! {
-        <List direction=Direction::Horizontal spacing=ROW_SPACING wrap=true>
+        <List direction=Direction::Horizontal spacing={ROW_SPACING.px()} wrap=true>
             <ForEach keys={keys}>|index: usize| {
                 let paint = tiles[index];
                 let draw: Prop<Draw> = Prop::dynamic(move || {

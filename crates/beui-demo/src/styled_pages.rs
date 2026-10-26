@@ -10,11 +10,11 @@ use beui::icons::{
 use beui::keyboard::styled::SoftwareKeyboard;
 use beui::unstyled::MenuThen;
 
-const COLUMN_SPACING: f32 = 20.0;
+const COLUMN_SPACING: Space = Space::Xl2;
 const COLUMNS_BREAKPOINT: f32 = 460.0;
 const NARROW_CHOICE_WIDTH: f32 = 180.0;
 const ICON_BUTTON_WIDTH: f32 = 44.0;
-const TOOLBAR_RULE_LENGTH: f32 = 20.0;
+const TOOLBAR_RULE_LENGTH: Size = Size::Sm;
 const ZOOM_MIN: f32 = 0.5;
 const ZOOM_MAX: f32 = 3.0;
 const ZOOM_MIDPOINT: f32 = 1.0;
@@ -22,24 +22,24 @@ const TREE_HEIGHT: f32 = 240.0;
 const DEFAULT_VOLUME: f32 = 0.6;
 const NESTED_SCROLL_HEIGHT: f32 = 160.0;
 const NESTED_SCROLL_ROWS: usize = 30;
-const SWATCH_HEIGHT: f32 = 28.0;
-const PROGRESS_WIDTH: f32 = 120.0;
-const DIALOG_WIDTH: f32 = 380.0;
+const SWATCH_HEIGHT: Size = Size::Custom(28.0);
+const PROGRESS_WIDTH: Size = Size::Custom(120.0);
+const DIALOG_WIDTH: Size = Size::Dialog;
 const LAUNCHER_ICON_PIXELS: u32 = 64;
 const LAUNCHER_ICON_BORDER: u32 = 6;
 const ROW_COUNT: usize = 10_000;
 const ROWS_HEIGHT: f32 = 360.0;
 const ROW_HEIGHT: f32 = 34.0;
 const COMPACT_ROW_HEIGHT: f32 = 25.0;
-const ROW_PADDING_HORIZONTAL: f32 = 12.0;
-const ROW_PADDING_VERTICAL: f32 = 9.0;
-const COMPACT_ROW_PADDING_VERTICAL: f32 = 4.0;
+const ROW_PADDING_HORIZONTAL: Space = Space::Lg;
+const ROW_PADDING_VERTICAL: Space = Space::Md;
+const COMPACT_ROW_PADDING_VERTICAL: Space = Space::Xs;
 const STRIP_COUNT: usize = 200;
 const STRIP_HEIGHT: f32 = 52.0;
 const STRIP_ITEM_WIDTH: f32 = 120.0;
 const FITTED_SCROLL_HEIGHT: f32 = 200.0;
 const FITTED_SCROLL_ROWS: usize = 3;
-const LOG_HEIGHT: f32 = 200.0;
+const LOG_HEIGHT: Size = Size::Custom(200.0);
 const LOG_LINE_ESTIMATE: f32 = 20.0;
 const LOG_FIRST_LINES: usize = 12;
 const LOG_INTERVAL: std::time::Duration = std::time::Duration::from_millis(400);
@@ -75,7 +75,7 @@ const STAGE_CARDS: [(f32, f32, f32, f32, &str); 4] = [
 ];
 const STAGE_ZOOM_STEP: f32 = 1.3;
 const STAGE_LABEL_SIZE: f32 = 15.0;
-const STAGE_PADDING: f32 = 10.0;
+const STAGE_PADDING: Space = Space::Md;
 const EDITOR_TEXT: &str = "# Notes\n\nA **multiline** editor with a gutter, wrapping and `markdown`\nstyling.\n\n- [x] click a checkbox\n- [ ] press Ctrl+F to find\n- [ ] type :smile to pick an emoji\n";
 const TREE_NODES: [(&str, usize); 9] = [
     ("Project", 0),
@@ -88,14 +88,14 @@ const TREE_NODES: [(&str, usize); 9] = [
     ("README.md", 1),
     ("Cargo.toml", 1),
 ];
-const TOAST_AREA_HEIGHT: f32 = 380.0;
+const TOAST_AREA_HEIGHT: Size = Size::Custom(380.0);
 const FRUITS: [&str; 6] = ["Apple", "Banana", "Cherry", "Date", "Grape", "Mango"];
 
 #[sample]
 #[component]
 pub(crate) fn LabelledSwitch(label: &'static str, on: Binding<bool>) -> NodeId {
     view! {
-        <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
+        <List direction=Direction::Horizontal align=Align::Center spacing=Space::Md>
             <Switch label on />
             <Text>{label}</Text>
         </List>
@@ -305,7 +305,7 @@ pub(crate) fn AttachedCard() -> NodeId {
         }
     };
     view! {
-        <List spacing=0.0>
+        <List spacing=Space::None>
             <Frame padding=PAGE_PADDING>
                 <List direction=Direction::Horizontal align=Align::Center spacing=ROW_SPACING>
                     <Text style=TextStyle::HEADING @sizing=ItemSize::Percent(100.0)>
@@ -353,7 +353,7 @@ fn ContentDrag() -> NodeId {
     });
     view! {
         <List spacing=SECTION_SPACING>
-            <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
+            <List direction=Direction::Horizontal align=Align::Center spacing=Space::Md>
                 <Switch
                     @test_id="demo.drag_modifier"
                     label="Alt moves and resizes windows"
@@ -629,7 +629,7 @@ fn Links() -> NodeId {
     let followed = create_signal("Nothing followed yet".to_owned());
     view! {
         <List spacing=SECTION_SPACING>
-            <List direction=Direction::Horizontal align=Align::Center spacing=16.0 wrap=true>
+            <List direction=Direction::Horizontal align=Align::Center spacing=Space::Xl wrap=true>
                 <Link
                     label="Open the grid"
                     glyph=ICON_LAYOUT_GRID
@@ -693,15 +693,15 @@ fn FocusedTile() -> NodeId {
     let opened = create_signal("Tab to the tile, then press Enter".to_owned());
     view! {
         <List spacing=SECTION_SPACING>
-            <List direction=Direction::Horizontal spacing=0.0>
+            <List direction=Direction::Horizontal spacing=Space::None>
                 <beui::unstyled::Button
                     label="Open the album"
                     on_click={move || opened.set("Opened the album".to_owned())}
                 >|handle: beui::unstyled::ButtonHandle|
                     <FocusRing
                         focused={handle.focused}
-                        radius={Radius::custom(Radius::Lg.px() + 3.0)}
-                        offset=3.0
+                        radius=Radius::Lg
+                        offset=Stroke::Focus
                     >
                         <Card>
                             <Text>{handle.label}</Text>
@@ -720,7 +720,7 @@ fn ButtonVariants() -> NodeId {
     let clicked = create_signal("Nothing clicked yet".to_owned());
     view! {
         <List spacing=SECTION_SPACING>
-            <List direction=Direction::Horizontal align=Align::Center spacing=8.0 wrap=true>
+            <List direction=Direction::Horizontal align=Align::Center spacing=Space::Md wrap=true>
                 <Button
                     label="Primary"
                     variant=ButtonVariant::Primary
@@ -761,7 +761,7 @@ fn RowButtons() -> NodeId {
     let chosen = create_signal(0usize);
     view! {
         <Frame width={Extent::at_most(360.0)}>
-            <List spacing=2.0>
+            <List spacing=Space::Xs2>
                 <ListRow
                     label="Wi-Fi"
                     detail="Home network"
@@ -793,7 +793,7 @@ fn IconButtons() -> NodeId {
     let clicked = create_signal("Nothing clicked yet".to_owned());
     view! {
         <List spacing=SECTION_SPACING>
-            <List direction=Direction::Horizontal align=Align::Center spacing=8.0 wrap=true>
+            <List direction=Direction::Horizontal align=Align::Center spacing=Space::Md wrap=true>
                 <Button
                     icon_only=true
                     glyph=ICON_COPY
@@ -843,7 +843,7 @@ fn PinToggle() -> NodeId {
     });
     view! {
         <List spacing=SECTION_SPACING>
-            <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
+            <List direction=Direction::Horizontal align=Align::Center spacing=Space::Md>
                 <ToggleButton label="Pin selection" pressed />
             </List>
             <Text style=TextStyle::CAPTION>{pinned}</Text>
@@ -855,7 +855,7 @@ fn PinToggle() -> NodeId {
 #[component]
 fn HoverTooltip() -> NodeId {
     view! {
-        <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
+        <List direction=Direction::Horizontal align=Align::Center spacing=Space::Md>
             <Tooltip label="Tooltips wrap anything that can be hovered or focused">
                 <Chip label="Hover me" @test_id="demo.tooltip.long" />
             </Tooltip>
@@ -930,7 +930,7 @@ fn KeyboardInput() -> NodeId {
     view! {
         <List spacing=SECTION_SPACING>
             <TextInput value=String::new() placeholder="Type with the keys below" />
-            <Frame height=240.0>
+            <Frame height={Size::Custom(240.0)}>
                 <SoftwareKeyboard />
             </Frame>
             <Text style=TextStyle::CAPTION>
@@ -1098,8 +1098,8 @@ fn LightSwitches() -> NodeId {
     let every = create_memo(move || kitchen.get() && hall.get());
     let mixed = create_memo(move || kitchen.get() != hall.get());
     view! {
-        <List spacing=8.0>
-            <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
+        <List spacing=Space::Md>
+            <List direction=Direction::Horizontal align=Align::Center spacing=Space::Md>
                 <Switch
                     label="Every light"
                     on={Binding::new(every, move |on: bool| {
@@ -1637,7 +1637,7 @@ fn GlobalActions() -> NodeId {
                 keys={palette_keys}
                 description="open the palette: global, but a focused program keeps the keys"
             />
-            <List direction=Direction::Horizontal align=Align::Center spacing=8.0 wrap=true>
+            <List direction=Direction::Horizontal align=Align::Center spacing=Space::Md wrap=true>
                 <Button action={lock} variant=ButtonVariant::Primary />
                 <Button
                     @test_id="demo.palette.open"
@@ -1772,7 +1772,7 @@ fn CardMenu() -> NodeId {
                 }}
             >
                 <Card>
-                    <List spacing=4.0>
+                    <List spacing=Space::Xs>
                         <Text style=TextStyle::CAPTION>"Right-click or long-press this card"</Text>
                         <Text style=TextStyle::PARAGRAPH>
                             "A mouse opens the menu at the pointer and a finger opens \
@@ -1816,7 +1816,7 @@ fn TrayIcons() -> NodeId {
     });
     view! {
         <List spacing=SECTION_SPACING>
-            <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
+            <List direction=Direction::Horizontal align=Align::Center spacing=Space::Md>
                 <MenuButton
                     icon_only=true
                     variant=ButtonVariant::Ghost
@@ -1869,7 +1869,7 @@ fn SortMenus() -> NodeId {
     let sort_text = create_signal("Sorted by name".to_owned());
     view! {
         <List spacing=SECTION_SPACING>
-            <List direction=Direction::Horizontal align=Align::Center spacing=8.0 wrap=true>
+            <List direction=Direction::Horizontal align=Align::Center spacing=Space::Md wrap=true>
                 <MenuButton
                     label="Sort"
                     items={view! {
@@ -2012,7 +2012,7 @@ fn NewBlockMenu() -> NodeId {
     let place = create_memo(move || FOLDERS[location.get()].0.to_owned());
     view! {
         <List spacing=SECTION_SPACING>
-            <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
+            <List direction=Direction::Horizontal align=Align::Center spacing=Space::Md>
                 <MenuButton
                     @test_id="demo.new"
                     label="Add block"
@@ -2086,7 +2086,7 @@ fn HeldMenu() -> NodeId {
     let button = NodeRef::new();
     view! {
         <List spacing=SECTION_SPACING>
-            <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
+            <List direction=Direction::Horizontal align=Align::Center spacing=Space::Md>
                 <Button
                     @node_ref=&button
                     @test_id="demo.held"
@@ -2098,7 +2098,7 @@ fn HeldMenu() -> NodeId {
             <MenuPopup
                 anchor=button
                 open
-                min_width=240.0
+                min_width={Size::Custom(240.0)}
                 on_dismiss={move || open.set(false)}
                 on_select={move |path: Vec<usize>| {
                     let colour = ["Red", "Green", "Blue"][path.first().copied().unwrap_or_default()];
@@ -2124,7 +2124,7 @@ fn NewSlideMenu() -> NodeId {
     let added = create_signal("No slide added yet".to_owned());
     view! {
         <List spacing=SECTION_SPACING>
-            <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
+            <List direction=Direction::Horizontal align=Align::Center spacing=Space::Md>
                 <MenuButton
                     @test_id="demo.slide"
                     label="New slide"
@@ -2171,7 +2171,7 @@ fn RunButtons() -> NodeId {
     let save_text = create_signal("Not saved".to_owned());
     view! {
         <List spacing=SECTION_SPACING>
-            <List direction=Direction::Horizontal align=Align::Center spacing=8.0 wrap=true>
+            <List direction=Direction::Horizontal align=Align::Center spacing=Space::Md wrap=true>
                 <SplitButton
                     label="Run the app"
                     glyph=ICON_PLAY
@@ -2249,7 +2249,7 @@ pub(crate) fn OverlaysPage() -> NodeId {
 #[component]
 fn FiltersButton() -> NodeId {
     view! {
-        <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
+        <List direction=Direction::Horizontal align=Align::Center spacing=Space::Md>
             <Popover label="Filters" @test_id="demo.filters">|handle: PopoverHandle|
                 <FilterPopover handle />
             </Popover>
@@ -2266,7 +2266,7 @@ fn FilterPopover(handle: PopoverHandle) -> NodeId {
             <Text style=TextStyle::HEADING>"Filters"</Text>
             <Checkbox label="Only starred" checked=false />
             <Checkbox label="Include archived" checked=true />
-            <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
+            <List direction=Direction::Horizontal align=Align::Center spacing=Space::Md>
                 <Button
                     label="Done"
                     variant=ButtonVariant::Primary
@@ -2284,7 +2284,7 @@ fn DiscardDialog() -> NodeId {
     let outcome = create_signal("Nothing discarded".to_owned());
     view! {
         <List spacing=SECTION_SPACING>
-            <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
+            <List direction=Direction::Horizontal align=Align::Center spacing=Space::Md>
                 <Button
                     @test_id={"demo.discard.open"}
                     label="Discard changes…"
@@ -2329,7 +2329,7 @@ fn RenameDialog() -> NodeId {
     };
     view! {
         <List spacing=SECTION_SPACING>
-            <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
+            <List direction=Direction::Horizontal align=Align::Center spacing=Space::Md>
                 <Button
                     @test_id={"demo.rename.open"}
                     label="Rename…"
@@ -2373,7 +2373,7 @@ fn InviteDialog() -> NodeId {
     let blank = create_memo(move || email.get().trim().is_empty());
     view! {
         <List spacing=SECTION_SPACING>
-            <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
+            <List direction=Direction::Horizontal align=Align::Center spacing=Space::Md>
                 <Button
                     @test_id={"demo.invite.open"}
                     label="Invite…"
@@ -2501,7 +2501,7 @@ fn ProgramLauncher() -> NodeId {
     ];
     view! {
         <List spacing=SECTION_SPACING>
-            <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
+            <List direction=Direction::Horizontal align=Align::Center spacing=Space::Md>
                 <Button
                     @test_id={"demo.launcher.open"}
                     label="Open the launcher"
@@ -2530,7 +2530,7 @@ fn LongSheet() -> NodeId {
     let picked = create_signal("Nothing picked".to_owned());
     view! {
         <List spacing=SECTION_SPACING>
-            <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
+            <List direction=Direction::Horizontal align=Align::Center spacing=Space::Md>
                 <Button
                     label="Pick a row"
                     variant=ButtonVariant::Secondary
@@ -2542,7 +2542,7 @@ fn LongSheet() -> NodeId {
             </Text>
             <Text style=TextStyle::CAPTION>{picked}</Text>
             <ModalSheet open={sheet} rest=0.5 on_close={move || sheet.set(false)}>
-                <List spacing=0.0>
+                <List spacing=Space::None>
                     <ForEach keys={(1..=60).collect::<Vec<usize>>()}>|row: usize|
                         <ActionRow
                             label={format!("Row {row}")}
@@ -2565,7 +2565,7 @@ fn ActionsSheet() -> NodeId {
     let outcome = create_signal("No action taken".to_owned());
     view! {
         <List spacing=SECTION_SPACING>
-            <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
+            <List direction=Direction::Horizontal align=Align::Center spacing=Space::Md>
                 <MenuButton
                     label="Show actions"
                     items={view! {
@@ -2626,10 +2626,10 @@ fn ToastArea() -> NodeId {
             height=TOAST_AREA_HEIGHT
             fill=ColorRole::Surface
             radius=Radius::Lg
-            padding=12.0
+            padding=Space::Lg
         >
-            <List spacing=0.0>
-                <List direction=Direction::Horizontal align=Align::Start spacing=8.0>
+            <List spacing=Space::None>
+                <List direction=Direction::Horizontal align=Align::Start spacing=Space::Md>
                     <Button
                         label="Show a toast"
                         variant=ButtonVariant::Secondary
@@ -2700,7 +2700,7 @@ fn FullscreenButton() -> NodeId {
     let fullscreen = create_signal(false);
     view! {
         <List spacing=SECTION_SPACING>
-            <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
+            <List direction=Direction::Horizontal align=Align::Center spacing=Space::Md>
                 <Button
                     label="Go fullscreen"
                     variant=ButtonVariant::Secondary
@@ -2720,7 +2720,7 @@ fn FullscreenBody(on_close: ClickCallback) -> NodeId {
     view! {
         <Frame fill=ColorRole::Background padding=PAGE_PADDING>
             <List spacing=ROW_SPACING>
-                <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
+                <List direction=Direction::Horizontal align=Align::Center spacing=Space::Md>
                     <Text style=TextStyle::TITLE @sizing=ItemSize::Percent(100.0)>
                         "Fullscreen"
                     </Text>
@@ -2780,9 +2780,9 @@ fn SelectableServerLog() -> NodeId {
                 "Drag across the lines to select them; dragging past an edge scrolls. Select \
                  All and Copy reach every line, including those the list never built."
             </Text>
-            <Frame border={Border::new(ColorRole::Border).width(1.0)} radius=Radius::Md>
+            <Frame border={Border::new(ColorRole::Border).width(Stroke::Hairline)} radius=Radius::Md>
                 <Scroll max_length=SERVER_LOG_HEIGHT @test_id="rows.server">
-                    <Frame padding={Sides::symmetric(ROW_PADDING_HORIZONTAL, ROW_PADDING_VERTICAL)}>
+                    <Frame padding={Padding::symmetric(ROW_PADDING_HORIZONTAL, ROW_PADDING_VERTICAL)}>
                         <SelectableText
                             child_size=ItemSize::Percent(100.0)
                             @test_id="rows.server.selection"
@@ -2856,11 +2856,11 @@ fn FittedScroll() -> NodeId {
                     on_click={move || count.update(|count| *count = count.saturating_sub(1))}
                 />
             </List>
-            <Frame border={Border::new(ColorRole::Border).width(1.0)} radius=Radius::Md>
+            <Frame border={Border::new(ColorRole::Border).width(Stroke::Hairline)} radius=Radius::Md>
                 <Scroll max_length=FITTED_SCROLL_HEIGHT>
                     <ForEach keys={rows}>|index: usize|
                         <Frame
-                            padding={Sides::symmetric(ROW_PADDING_HORIZONTAL, ROW_PADDING_VERTICAL)}
+                            padding={Padding::symmetric(ROW_PADDING_HORIZONTAL, ROW_PADDING_VERTICAL)}
                         >
                             <Text>{format!("Row {}", index + 1)}</Text>
                         </Frame>
@@ -2907,11 +2907,11 @@ fn FollowingLog() -> NodeId {
             </List>
             <Frame
                 height=LOG_HEIGHT
-                border={Border::new(ColorRole::Border).width(1.0)}
+                border={Border::new(ColorRole::Border).width(Stroke::Hairline)}
                 radius=Radius::Md
             >
                 <Scroll follow_end=true api>
-                    <Frame padding={Sides::symmetric(ROW_PADDING_HORIZONTAL, ROW_PADDING_VERTICAL)}>
+                    <Frame padding={Padding::symmetric(ROW_PADDING_HORIZONTAL, ROW_PADDING_VERTICAL)}>
                         <VirtualList
                             keys={lines}
                             item_size=LOG_LINE_ESTIMATE
@@ -2943,12 +2943,12 @@ fn log_line(line: usize) -> String {
 fn StripCard(index: ReadSignal<usize>) -> NodeId {
     let label = create_memo(move || format!("Card {}", index.get()));
     view! {
-        <Frame padding={Sides::symmetric(4.0, 0.0)}>
+        <Frame padding={Padding::symmetric(Space::Xs, Space::None)}>
             <Frame
                 fill=ColorRole::SurfaceRaised
-                border={Border::new(ColorRole::Border).width(1.0)}
+                border={Border::new(ColorRole::Border).width(Stroke::Hairline)}
                 radius=Radius::Md
-                padding={Sides::symmetric(12.0, 10.0)}
+                padding={Padding::symmetric(Space::Lg, Space::Md)}
             >
                 <Text align=TextAlign::Center>{label}</Text>
             </Frame>
@@ -3037,7 +3037,6 @@ fn ScrollRowFace(
         true => COMPACT_ROW_PADDING_VERTICAL,
         false => ROW_PADDING_VERTICAL,
     });
-    let theme = use_theme();
     let label = create_memo(move || format!("Row {}", index.get()));
     let timing = create_memo(move || format!("{} ms", 7 + index.get() * 3 % 91));
     let value_color = create_memo(move || match selected.get() {
@@ -3045,21 +3044,20 @@ fn ScrollRowFace(
         false => TextColor::Muted,
     });
     let fill_color = create_memo(move || {
-        let theme = theme.get();
         match (selected.get(), hovered.get()) {
-            (true, _) => theme.accent_soft,
-            (false, true) => theme.hover,
-            (false, false) => Color32::TRANSPARENT,
+            (true, _) => ColorRole::AccentSoft,
+            (false, true) => ColorRole::Hover,
+            (false, false) => ColorRole::None,
         }
     });
     view! {
         <Frame
-            fill={ColorRole::custom(fill_color)}
-            border={focus_border(focused, Border::new(ColorRole::Accent).width(2.0))}
+            fill={fill_color}
+            border={focus_border(focused, Border::new(ColorRole::Accent).width(Stroke::Focus))}
             radius=Radius::Md
-            padding={create_memo(move || Sides::symmetric(ROW_PADDING_HORIZONTAL, vertical.get()))}
+            padding={create_memo(move || Padding::symmetric(ROW_PADDING_HORIZONTAL, vertical.get()))}
         >
-            <List direction=Direction::Horizontal align=Align::Center spacing=12.0>
+            <List direction=Direction::Horizontal align=Align::Center spacing=Space::Lg>
                 <Text @sizing=ItemSize::Percent(100.0)>{label}</Text>
                 <Show condition={timings}>
                     <Text style=TextStyle::CAPTION align=TextAlign::End color={value_color}>
@@ -3286,10 +3284,10 @@ fn FrameTokens() -> NodeId {
         <List spacing=SECTION_SPACING>
             <List direction=Direction::Horizontal wrap=true spacing=ROW_SPACING>
                 <ForEach keys={ColorRole::ROLES.to_vec()}>|role: ColorRole|
-                    <List spacing=4.0>
+                    <List spacing=Space::Xs>
                         <Frame
-                            width=88.0
-                            height=32.0
+                            width={Size::Custom(88.0)}
+                            height={Size::Lg}
                             fill=role
                             border=Border::DEFAULT
                             radius=Radius::Sm
@@ -3300,10 +3298,10 @@ fn FrameTokens() -> NodeId {
             </List>
             <List direction=Direction::Horizontal wrap=true spacing=ROW_SPACING>
                 <ForEach keys={(0..Radius::ALL.len()).collect::<Vec<_>>()}>|index: usize|
-                    <List spacing=4.0>
+                    <List spacing=Space::Xs>
                         <Frame
-                            width=48.0
-                            height=48.0
+                            width={Size::Xl2}
+                            height={Size::Xl2}
                             fill=ColorRole::AccentSoft
                             radius={Radius::ALL[index]}
                         />
@@ -3313,10 +3311,10 @@ fn FrameTokens() -> NodeId {
             </List>
             <List direction=Direction::Horizontal wrap=true spacing=ROW_SPACING>
                 <ForEach keys={(0..BORDERS.len()).collect::<Vec<_>>()}>|index: usize|
-                    <List spacing=4.0>
+                    <List spacing=Space::Xs>
                         <Frame
-                            width=88.0
-                            height=48.0
+                            width={Size::Custom(88.0)}
+                            height={Size::Xl2}
                             fill=ColorRole::Surface
                             border={Some(BORDERS[index].1)}
                             radius=Radius::Md
@@ -3339,13 +3337,13 @@ fn StackedCards() -> NodeId {
             </Text>
             <Stack spacing=COLUMN_SPACING breakpoint=COLUMNS_BREAKPOINT>
                 <Card @sizing=ItemSize::Percent(50.0)>
-                    <List spacing=4.0>
+                    <List spacing=Space::Xs>
                         <Text style=TextStyle::CAPTION>"Left"</Text>
                         <Text style=TextStyle::DISPLAY>"42"</Text>
                     </List>
                 </Card>
                 <Card @sizing=ItemSize::Percent(50.0)>
-                    <List spacing=4.0>
+                    <List spacing=Space::Xs>
                         <Text style=TextStyle::CAPTION>"Right"</Text>
                         <Text style=TextStyle::DISPLAY>"17"</Text>
                     </List>
@@ -3555,9 +3553,9 @@ fn Separators() -> NodeId {
 fn NestedScroll() -> NodeId {
     view! {
         <Card>
-            <List spacing=0.0>
+            <List spacing=Space::None>
                 <Scroll @sizing=ItemSize::Fixed(NESTED_SCROLL_HEIGHT)>
-                    <List spacing=4.0>
+                    <List spacing=Space::Xs>
                         <ForEach
                             keys={(1..=NESTED_SCROLL_ROWS).collect::<Vec<usize>>()}
                         >|line: usize|
@@ -3575,9 +3573,9 @@ fn NestedScroll() -> NodeId {
 fn BleedingScroll() -> NodeId {
     view! {
         <Card>
-            <List spacing=0.0>
+            <List spacing=Space::None>
                 <Scroll @sizing=ItemSize::Fixed(NESTED_SCROLL_HEIGHT) bleed=Bleed::CARD>
-                    <List spacing=8.0>
+                    <List spacing=Space::Md>
                         <ForEach
                             keys={(1..=NESTED_SCROLL_ROWS).collect::<Vec<usize>>()}
                         >|topic: usize|
@@ -3714,7 +3712,7 @@ fn CanvasBoard(view: Memo<Option<CanvasView>>, focused: ReadSignal<bool>) -> Nod
     let [first, second, third, fourth] = STAGE_CARDS;
     view! {
         <Frame
-            border={focus_border(focused, Border::new(ColorRole::Accent).width(2.0))}
+            border={focus_border(focused, Border::new(ColorRole::Accent).width(Stroke::Focus))}
             radius=Radius::Md
         >
             <Canvas view>
@@ -3735,7 +3733,7 @@ fn StageCard(card: (f32, f32, f32, f32, &'static str)) -> CanvasItem {
         <CanvasItem x y width height scales=true>
             <Frame
                 fill=ColorRole::SurfaceRaised
-                border={Border::new(ColorRole::Border).width(1.0)}
+                border={Border::new(ColorRole::Border).width(Stroke::Hairline)}
                 radius=Radius::Lg
                 padding=STAGE_PADDING
             >
@@ -3832,7 +3830,7 @@ fn ThemeSample(name: &'static str) -> NodeId {
                     <LabelledSwitch label="A switch" on=true />
                     <Slider value=0.6 label="A slider" />
                     <Progress value={Some(0.6)} />
-                    <List direction=Direction::Horizontal align=Align::Center spacing=8.0 wrap=true>
+                    <List direction=Direction::Horizontal align=Align::Center spacing=Space::Md wrap=true>
                         <Button label="Primary" variant=ButtonVariant::Primary />
                         <Button label="Secondary" variant=ButtonVariant::Secondary />
                     </List>

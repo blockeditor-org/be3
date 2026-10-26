@@ -17,7 +17,7 @@ pub(crate) fn Sample(title: &'static str, code: Vec<&'static str>, children: Chi
     let source = code.join("\n\n");
     view! {
         <List spacing=SECTION_SPACING>
-            <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
+            <List direction=Direction::Horizontal align=Align::Center spacing=Space::Md>
                 <Text style=TextStyle::HEADING @sizing=ItemSize::Percent(100.0)>{title}</Text>
                 <ToggleButton
                     @test_id={format!("demo.code.{title}")}
@@ -47,7 +47,7 @@ fn CodeBlock(source: String) -> NodeId {
     view! {
         <Frame
             fill=ColorRole::Surface
-            border={Border::new(ColorRole::Border).width(1.0)}
+            border={Border::new(ColorRole::Border).width(Stroke::Hairline)}
             radius=Radius::Md
             padding=CODE_PADDING
         >

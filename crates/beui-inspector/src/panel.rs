@@ -22,19 +22,18 @@ use beui_view::reactive::*;
 use super::tree::{Entry, Key};
 use super::{InspectorTab, State, entry_label};
 
-const HEADER_PADDING: f32 = 12.0;
-const HEADER_SPACING: f32 = 8.0;
-const BODY_PADDING: f32 = 8.0;
-const FOOTER_PADDING: f32 = 10.0;
-const FOOTER_SPACING: f32 = 3.0;
-const ROW_SPACING: f32 = 6.0;
-const PERFORMANCE_SPACING: f32 = 10.0;
-const TIMING_SPACING: f32 = 4.0;
+const HEADER_PADDING: Space = Space::Lg;
+const HEADER_SPACING: Space = Space::Md;
+const BODY_PADDING: Space = Space::Md;
+const FOOTER_PADDING: Space = Space::Md;
+const FOOTER_SPACING: Space = Space::Xs2;
+const ROW_SPACING: Space = Space::Sm;
+const PERFORMANCE_SPACING: Space = Space::Md;
+const TIMING_SPACING: Space = Space::Xs;
 const BLUR_MIDPOINT: f32 = 12.0;
 const RENDERER_LABEL_WIDTH: f32 = 104.0;
 const PROPERTIES_SHARE: f32 = 45.0;
-const BAR_PADDING_HORIZONTAL: f32 = 8.0;
-const BAR_PADDING_VERTICAL: f32 = 6.0;
+const BAR_PADDING: Padding = Padding::symmetric(Space::Md, Space::Sm);
 const PIXEL_RATIOS: [(&str, Option<f32>); 5] = [
     ("Native", None),
     ("1x", Some(1.0)),
@@ -223,10 +222,10 @@ pub fn build(state: Stored<State>) -> Panel {
         let tree_visible = create_memo(move || tree_shown.get());
         let [beui, components, accesskit] = trees;
         view! {
-            <List direction=Direction::Horizontal spacing=0.0>
+            <List direction=Direction::Horizontal spacing=Space::None>
                 <Separator direction=Direction::Vertical />
                 <Frame @sizing=ItemSize::Percent(100.0) fill=ColorRole::Surface>
-                    <List spacing=0.0>
+                    <List spacing=Space::None>
                         <Frame padding=HEADER_PADDING>
                             <List
                                 direction=Direction::Horizontal
@@ -328,8 +327,8 @@ fn TreePanel(
     let has_properties = create_memo(move || properties.with(|properties| !properties.is_empty()));
     let selected = create_memo(move || selection.with(|path| path.last().copied()));
     view! {
-        <List spacing=0.0>
-            <List @sizing=ItemSize::Percent(100.0) spacing=0.0>
+        <List spacing=Space::None>
+            <List @sizing=ItemSize::Percent(100.0) spacing=Space::None>
                 <Tree
                     @sizing=ItemSize::Percent(100.0 - PROPERTIES_SHARE)
                     api=tree
@@ -395,7 +394,7 @@ fn PerformanceTool(
 ) -> NodeId {
     let samples = create_memo(move || performance.with(|performance| performance.samples.clone()));
     view! {
-        <List spacing=0.0>
+        <List spacing=Space::None>
             <PerformancePanel
                 @sizing=ItemSize::Percent(100.0)
                 @test_id={"inspector.performance"}
@@ -432,7 +431,7 @@ fn SimulationTool(state: Stored<State>, summary: Signal<Summary>) -> NodeId {
     let responsive = create_memo(move || summary.with(|summary| summary.responsive));
     let handles_back = create_memo(move || summary.with(|summary| summary.handles_back));
     view! {
-        <List spacing=0.0>
+        <List spacing=Space::None>
             <SimulationPanel @sizing=ItemSize::Percent(100.0) state responsive handles_back />
             <Separator />
             <Frame padding=FOOTER_PADDING>
@@ -456,10 +455,10 @@ pub fn build_bar(state: Stored<State>) -> Bar {
         provide_context(ThemeStore::new(Theme::DARK));
         view! {
             <Frame fill=ColorRole::Surface>
-                <List spacing=0.0>
+                <List spacing=Space::None>
                     <Frame
                         @sizing=ItemSize::Percent(100.0)
-                        padding={Sides::symmetric(BAR_PADDING_HORIZONTAL, BAR_PADDING_VERTICAL)}
+                        padding=BAR_PADDING
                     >
                         <List
                             direction=Direction::Horizontal
@@ -933,7 +932,7 @@ fn RendererSection(
 #[component]
 fn PropertiesSection(properties: Memo<Vec<(String, String)>>) -> NodeId {
     view! {
-        <List spacing=0.0>
+        <List spacing=Space::None>
             <Separator />
             <Scroll @sizing=ItemSize::Percent(100.0)>
                 <Frame padding=BODY_PADDING>
