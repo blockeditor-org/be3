@@ -207,7 +207,7 @@ With text editing shared, these go behind the text geometry API and base
 
 ### 2.6 Outside beui
 
-`beui_core` appears directly in four crates: `be-drive` (`runner::environment`),
+`beui_core` appears directly in three crates: `be-drive` (`runner::environment`),
 `block-ui-test` (`input::typing::chord_name`, `renderer::Renderer`),
 `local-tools` (a doc string). None of it is base. The wider leak is
 `with_document`, which `beui_view::reactive` re-exports: 11 crate directories
@@ -369,6 +369,358 @@ Moves up or out:
    `transform: translate() scale()` on the HTML core. When zoomed items are
    re-rendered sharp is the browser's choice there, so `raster` is a hint on
    the web.
+
+## Implementation design
+
+What later agents build, in the order of "Tasks" at the end. Names below
+are decisions; crate and function names from tasks running alongside this one
+(`beui-types` from `value-types`, `beui_html::dom::{mount, hydrate}` from
+`html-live`) are used as those tasks land them, and notes.md wins where they
+differ.
+
+### Choosing the core
+
+- **A `--cfg beui_html` rustc flag, per buck platform.** Not a cargo feature:
+  buck takes features from cargo's plan per platform, and the `wasi` plan
+  already unifies block-app's, beui-web-demo's and paint-review-web's, so a
+  feature turned on for one would turn on for all. A cfg is also exclusive by
+  nature, so `beui-core` drops out of the HTML graph instead of linking unused.
+  Two new target platforms in `buck/platforms/BUCK`, each the existing one
+  plus a `root//buck/constraints:html` value (setting `beui_core`), the same
+  way `wasi_guest` adds `guest`: `wasi_html` (wasm32-wasip1-threads, the
+  browser) and `linux_x86_64_html` (the host, for SSR and string tests). Two
+  new plans in `buck/cargo/buckify.sh`, `wasi-html` and `linux-x86_64-html`,
+  run with `RUSTFLAGS="--cfg beui_html"` over the crates that run on the HTML
+  core (the spike, the shared tests and what they pull in). cargo evaluates
+  `[target.'cfg(beui_html)'.dependencies]` against RUSTFLAGS, so manifests
+  say what each core links; `defs.bzl` adds `--cfg beui_html` to every
+  first-party rustc under those plans; the workspace's `unexpected_cfgs`
+  lint gets `check-cfg = ["cfg(beui_html)"]`; `//:check` checks the HTML
+  configurations too. If cargo's plans turn out to ignore the cfg, fall back
+  to a `beui-view/html` feature in the separate plans, with
+  `default-features = false` on every `beui-view` dependency.
+- **One constant.** `beui_view::CORE: Core` (`enum Core { Native, Html }`),
+  `if cfg!(beui_html) { Core::Html } else { Core::Native }`, re-exported as
+  `beui::CORE`. Unstyled and styled switch only with `if CORE == Core::Html`,
+  so both branches compile on both cores and no feature exists on only one.
+  `#[cfg(beui_html)]` is allowed only in `beui-view`, `beui`, `beui-core-html`
+  and buck files; `fix-rust-source` gets a lint rejecting it elsewhere, like
+  its existing "document use in a component" lint.
+- **beui-view** keeps one signature per primitive: each `#[component]` in
+  `src/components/*.rs` declares the props once and its body calls
+  `crate::core::<name>(..props)`. `src/native/` (today's bodies, against
+  `beui-core`'s `Document`) and `src/html/` (against `beui-core-html`) each
+  implement those functions; `lib.rs` picks one as `mod core` by cfg. Hooks
+  (`on_key`, `focus_ring`, `holds_focus`, `arrow_focus`, `copy_text`,
+  `use_viewport_size`, `use_preferences`, timers, the `TreeNode` methods) and
+  the measurement API dispatch the same way. Building the HTML configurations
+  in `//:check` is what keeps the two bodies' arguments in step.
+- **The `beui` facade.** Native: as today, except that `Document`,
+  `with_document`, `try_with_document` and `enter` move from
+  `beui_view::reactive` to a `beui::native` module (with `Embed`), so code
+  that reaches the native document is visibly native and fails to build on
+  HTML. HTML: `reactive`, `styled`, `unstyled`, `datetime`, `icons`,
+  `primitives`, `beui-types`' values, `CORE`, and `beui::html::{run, hydrate,
+  render_to_string}`; renderers, platforms, dock, inspector, keyboard and
+  layers are `cfg(not(beui_html))` dependencies.
+
+### Handles: `NodeId` and `Child`
+
+`NodeId` (index and generation) is a plain value in `beui-types`, and both
+cores hand them out from their own arenas, so the 454 lines naming `NodeId` in
+unstyled and styled and `beui_view::reactive::Child = NodeId` stay as they
+are, `Copy`, `Eq` and `Hash` on both. `NodeOf<T>` stays native-internal.
+`#[component]` and `view!` are unchanged: the macros already name
+`::beui_view::reactive::Child` (or `beui::reactive::Child`), `IntoChild`,
+`Children<ListChild>` and `SlotHost` from `beui-tree`, which knows nothing of
+either core. Each core implements `SlotHost<ListChild>` (and the other child
+types) for its containers.
+
+### The HTML core: `beui-core-html`
+
+A new crate beside `beui-core`, depending on `beui-types`, `beui-tree`,
+`reactive`, `beui-html` (with its live backend on wasm) and, on wasm only,
+`web-sys` and `beui-web-input`. Its document is a thread-local arena:
+`NodeId` to an entry holding the `beui_html::Node`, the primitive's kind, its
+measurement signals, focus state, test id and accessibility. Every primitive
+is one element; nothing wraps a child except where a row below says so.
+Values become inline `style` properties (`Extent`, `Sides`, `Align`,
+`Color32`, `Corners`, `Outline` each get one `to_css`); classes through
+`beui_html::tw` are a later size optimisation.
+
+| Primitive | Element and CSS |
+| --- | --- |
+| `Frame` | `div`, `display: grid` with the child in one cell; `width`/`height` from `Extent` (min, max, fill as `flex-grow` from the parent's side), `aspect-ratio`, `padding`, `place-items` from `align`, `background`, `border-radius`, `outline`/`outline-offset`, and the new props `translate`/`rotate` (`transform`), `opacity`, `fade_edges` (`mask-image: linear-gradient`) |
+| `List`, `Spacer` | `div`, `display: flex` (or `flex-wrap`), `gap`, `align-items` incl. `baseline`, `justify-content`; a child's `@sizing` becomes `flex` on that child's element. `Spacer` is an empty `div` |
+| `Grid` / `GridCell` | `display: grid`, `grid-template-columns` from `Track`s (px, `max-content`, `fr`), `grid-column: span n` |
+| `Layers` / `Layer` | `display: grid`, each child at `grid-area: 1 / 1` |
+| `Offset` | `overflow: hidden; overflow-anchor: none`, moved by `scrollTop`/`scrollLeft`; anchoring, `follow_end` and `reveal` are beui's, computed from the measurement API as native does |
+| `VirtualList` | flow layout between two spacer `div`s; builds the rows that the parent `Offset`'s position reaches plus overscan; row sizes from `measure`, remembered per key; anchoring corrects the `Offset` in the same frame |
+| `Canvas` / `CanvasItem` | `position: relative; overflow: hidden`, an inner `div` with `transform: translate() scale()`, items `position: absolute`; `raster` is ignored, `on_reveal` is late |
+| `Text` | `div` with `white-space: pre-wrap`, `overflow-wrap: anywhere`, `line-clamp`/`text-overflow` from `Overflow`, `line-height`, `tab-size`; `hang` as negative `text-indent` with `padding-left`; `marks` as CSS Custom Highlights (one `Highlight` per mark colour, `::highlight(beN)` rules); `glyphs` as `span`s replacing their range; `carets` as absolutely placed `div`s at a `Range`'s rect |
+| `Span`, `Icon`, `Gap`, `Break`, `TextItem` | `span` (`box-decoration-break: clone`, `break_after` as `wbr`); `span aria-hidden` in the icon font with `user-select: none`; `inline-block` with a width; the decided `::after { content: "\A" }` element; `inline-block` around the child |
+| `Interactive` | listeners and `tabindex` on its child's element; its own `div` only when it has no child (below) |
+| `Overlay` | `popover="manual"` (`<dialog>` with `showModal()` for `BlocksAll` and traps), anchored by CSS anchor positioning (`anchor-name` on the anchor, `position-area` from `Placement`, `position-try-fallbacks`), a point or rect anchor as an invisible absolutely placed `div`; scrim on `::backdrop`; the beak follows the side the browser chose, read back from `measure` |
+| `Portal` | moves its target's element with `moveBefore`, else `insertBefore` |
+| `Root` | the mount element; body background, `document.title`, `<meta name="theme-color">`, `color-scheme` |
+| `Drawing` | a `div` of its size with a pink background and `title="TODO: Drawing"`; `Draw` callbacks are never called. HTML's `Painter` has the four methods shared code calls (`rect_filled`, `rect_stroke`, `image`, `drawing`) as no-ops until open question 5 is settled |
+
+Until a primitive's task lands, its HTML body renders its children in a plain
+`div` with a pink dashed outline (a leaf: a pink box), so a screen built from
+styled is readable from the first task on.
+
+From `beui-html` the core uses `Node` (element and text handles, live on
+wasm and strings on the host), attributes and inline style properties, child
+insertion through `SlotHost<Node>`, event listeners, and hydration's
+claim-in-order cursor. Hydration needs the browser's first build to create
+the server's elements in the same order: measurement answers, focus and
+anything else the server cannot know start as `None` on both sides and
+change only after `hydrate` returns.
+
+### Measurement
+
+One API in `beui-view`, the same on both cores:
+
+```rust
+pub fn measure(node: NodeId) -> ReadSignal<Option<Rect>>;
+pub fn measure_text(node: NodeId) -> ReadSignal<Option<TextGeometry>>;
+
+impl TextGeometry {           // Clone; each core's own type, same methods
+    pub fn bounds(&self) -> Rect;
+    pub fn caret_rect(&self, index: usize, width: f32) -> Option<Rect>;
+    pub fn index_at(&self, pos: Pos2) -> Option<usize>;
+    pub fn inline_at(&self, pos: Pos2) -> Option<usize>;
+    pub fn lines(&self) -> Vec<LineBox>; // LineBox { bytes: Range<usize>, rect: Rect, baseline: f32 }
+}
+```
+
+- `None` until the node is first laid out, and again when it is unplaced.
+  Rects are logical pixels in the window's space, the space `PointerPress`
+  positions use. Each node has at most one signal per function, made on first
+  call and dropped with the node, so a handler may call
+  `measure(node).get_untracked()` as often as it likes.
+- It replaces `LayoutBuilder` (`measure` of a filling `Frame`, then `Show`
+  on the size), `PlacementBuilder` and `node_rect` (`measure`), `node_placed`
+  (`is_some`), `placements().rect` (`get_untracked`), `text_bounds` and the
+  `TreeNode` text methods (`measure_text`), and `layout_text`/`rich_layout`
+  for editors, which ask a rendered `Text` instead. `viewport_rect` goes;
+  `use_viewport_size` stays.
+- Offsets are UTF-8 bytes of the `Text`'s content. A `glyphs` replacement
+  counts as the bytes it replaces; `Icon`, `Gap` and `TextItem` as zero. The
+  HTML core maps them to UTF-16 offsets per DOM text node.
+- **Native** fills both in `Document::report_laid_out`, inside the existing
+  loop of `update_layout` (up to `LAYOUTS_PER_FRAME` layouts), so an effect
+  that reacts by changing the tree is laid out again before the frame paints:
+  same frame, as `LayoutBuilder` was. `TextGeometry` wraps today's
+  `RichLayout` and `Rects`.
+- **HTML** fills them in the frame loop's measure pass (below):
+  `getBoundingClientRect` minus the root's origin, and `TextGeometry` queries
+  `caretPositionFromPoint` and `Range.getClientRects()` synchronously.
+- **Delayed measurement for tests:** `beui::testing::delay_measurement(true)`,
+  or `BEUI_DELAY_MEASUREMENT=1` for a driven program, makes native publish
+  measurements after the frame paints and request another frame, so headless
+  tests take the late path the HTML core can take.
+
+### Running
+
+- **Entry points:** `beui::html::run(element_id, root)` builds into an empty
+  element, `hydrate(element_id, root)` adopts server-rendered HTML, and
+  `render_to_string(root) -> String` renders on the host (no layout, no
+  listeners).
+- **Frame loop.** Signal changes write the DOM at once from their bindings;
+  nothing is diffed. A frame (`requestAnimationFrame`) is scheduled only when
+  something asks: a timer or animation due, a DOM change while a node is
+  measured, a `ResizeObserver` callback on a measured node or the root, a
+  scroll, a font load. A frame: advance the clock, run due timers and
+  animations, flush effects, then the measure pass: read the rects of every
+  measured node whose subtree changed (reads only, one forced layout), set
+  their signals, flush; repeat up to `LAYOUTS_PER_FRAME` times, as native
+  does. rAF runs before style, layout and paint, so a settled measure pass is
+  never seen half done.
+- **Input.** Listeners on the element `Interactive` decorates:
+  `pointerdown/move/up/cancel`, `pointerenter/leave` (hover), `click`,
+  `auxclick` (middle), `contextmenu` (secondary press), `keydown/keyup`,
+  `focusin/focusout`, `wheel` (not passive), `paste`. Drag is pointer capture
+  after `TOUCH_DRAG_THRESHOLD`; `cursor` is `style.cursor`; `press_focus=false`
+  is `preventDefault` on `pointerdown`. `on_key(KeyAt, KeyPhase, ..)`
+  listens on the node's element, the root element or `window`, in capture or
+  bubble phase. Key and wheel values come from `beui-web-input`, a new crate
+  that takes `keys.rs`, `wheel.rs` and `ime_mirror.rs` out of
+  `beui-platform-web` and `beui-core::app`, depending only on `beui-types`
+  and `web-sys`, so both web platforms share them.
+- **Focus** is the browser's: `focusable` sets `tabindex` (0, or -1 when
+  `tab_stop` is false, which gives roving focus), `focused=` and
+  `NodeId::focus()` call `element.focus()` once the element is connected,
+  `focus_ring` reads `:focus-visible` on focus, `focus_ancestry` walks
+  `document.activeElement`, traps are `showModal()` or `inert`, and a
+  `popover` overlay restores focus on close itself.
+- **IME.** One hidden `<textarea>` agent, styled as `beui-platform-web`'s is.
+  When an `Interactive` with `ime` or `on_text` takes focus, the core moves
+  the agent into that element, places it at `ime_cursor` and focuses it, so
+  `focusin` and `:focus-within` still reach the element. `ImeMirror` turns
+  the agent's `input` and `composition*` events into `on_text` and `on_ime`,
+  and `ime_text` keeps the agent's value and selection in step.
+- **Hit tests.** Until their redesign, `hit_at`, `claim_at` and the rest are
+  asked in the element's own listener, and a refusal lets the event bubble.
+  The redesign's default is declarative hit regions, which on HTML are
+  `pointer-events: auto` children of a `pointer-events: none` element.
+- **Time.** `now()` is the frame clock: `performance.now()` at the start of
+  each frame and of each event dispatch, frozen by `drive clock stop`.
+  `create_timer` uses `setTimeout` to schedule a frame; animations request
+  frames while they run. `Spring`, `Fling` and easing are values and move to
+  `beui-types`; the clock and scheduler are each core's.
+- **Fonts.** The bundled faces and the icon font are files beside the bundle,
+  named in an `@font-face` sheet the core puts in `<head>` (and the SSR
+  page). `FontId` becomes the `font` shorthand. `document.fonts` loading bumps
+  `use_font_revision` and schedules a measure pass.
+- **Theme.** `prefers-color-scheme` and `prefers-reduced-motion` feed the
+  system preference layer as `beui-platform-web` does; styled resolves tokens
+  to concrete colours, which reach elements as inline styles; `Root` sets the
+  page's background and `color-scheme`.
+- **Selection** of display text is the browser's (`user-select: text`);
+  `beui-view`'s `selection.rs` is native only. Copy is the browser's too.
+
+### Testing
+
+- **Unchanged:** `beui-tree`, `beui-html`, `reactive`, `beui-types` and
+  logic-only unstyled tests (`text-editor-core`, datetime, fling, slider
+  scales) are core-independent. Paint tests stay native.
+- **HTML paintings.** `beui-core-html`'s host tests render each primitive with
+  `render_to_string` into a `paint_snapshot::BrowserSnapshot`
+  (`<name>.browser`), with the font sheet as a resource, as be-server's portal
+  tests do; that is the painting that demonstrates an HTML change.
+- **Shared behaviour tests.** A crate `beui-shared-tests` holds fixture
+  screens (one function per screen, built for both cores) and `drive/*.drive`
+  scripts restricted to the commands both cores answer: `settle`, `pause`,
+  `clock stop|run`, and `app tree|ids|find|wait|gone|click|type|key`.
+  - Native: a Rust test per script runs it through `be_drive::Driven`
+    against the crate's headless `:dev` program, once normally and once with
+    `BEUI_DELAY_MEASUREMENT=1`.
+  - HTML: `beui-core-html` exports `automate(words)` (the page's `automate`,
+    as `?automation` already means for block-app): `tree` and `ids` from its
+    arena and `getBoundingClientRect`, in native's line format; `find TARGET`
+    answers a rect; `wait`/`gone` poll each frame; `settle` waits for no
+    frame pending. `buck/app/web-test.mjs`, sharing its command parsing with
+    `web-drive.mjs`, serves the bundle, opens it in Chromium through
+    Playwright, sends the read commands to `automate`, and performs `click`,
+    `type` and `key` as real Playwright input at the rect `find` answered, so
+    the browser's own focus, IME and event paths run.
+  - The HTML run is a buck test (`web_drive_test` in `buck/app/drive.bzl`)
+    run locally, since it needs a browser: `BE3_CHROME` when set (CI's
+    runner Chrome, as the rasterizer uses), else Playwright's Chromium. It
+    fails, never skips, when neither is there. If the workers' image gains
+    Chromium, it moves to the build server.
+  - Scripts match names, never coordinates, since text metrics differ.
+
+### The spike
+
+The screen is block-app's account picker, `AccountsScreen` in
+`crates/block-app/src/ui/onboarding.rs` ("Choose an account to continue.",
+account cards, "Add account"): the first screen a person signs in through,
+small, and still a real mix of `Scroll`, `Card`, `Button`, `MenuButton`,
+`Tooltip`, `Icon` and `ForEach`.
+
+- It moves, with `Column`, `ErrorText`, `AccountCard`, `AccountDetails` and
+  `AccountRow`, into a new crate `block-accounts-ui`, taking
+  `accounts: Memo<Vec<AccountRow>>`, `error: Memo<Option<String>>` and
+  callbacks (`on_add`, `on_open`, `on_choose_organization`, `on_log_out`)
+  instead of `AppViewStore` and `send`. block-app passes those; a native
+  painting test in the new crate keeps it from regressing.
+- `crates/beui-html-spike` builds it with two fixture accounts; `on_add`
+  appends a third, which shows hydration left it live. Its `:ssr` binary
+  (for `linux_x86_64_html`) writes `index.html` with `render_to_string`, a
+  genrule runs it at build time, and the wasm module (for `wasi_html`) calls
+  `beui::html::hydrate` on load.
+- `./scripts/buck run //crates/beui-html-spike:web` serves it with Caddy on
+  http://127.0.0.1:8060 (beui-web-demo's `app(...)`, shims and Caddyfile
+  pattern); `?automation` answers `drive` once task 8 lands.
+
+### Tasks
+
+Phase 1 can start once `value-types`, `remove-dom-renderer` and `html-live`
+have landed; its tasks run in parallel unless marked.
+
+1. **Core selection.** The `html` constraint, `wasi_html` and
+   `linux_x86_64_html` platforms, the two plans, the cfg flag, check-cfg,
+   `//:check` over the HTML configurations, `beui_view::CORE`, the
+   `fix-rust-source` lint; `beui-view` split into `components/` signatures
+   with `native/` bodies (no HTML bodies yet). Files: `buck/constraints/BUCK`,
+   `buck/platforms/{BUCK,cross.bzl}`, `buck/cargo/{buckify.sh,defs.bzl,crates.bzl}`,
+   `buck/dev/workspace.bxl`, `Cargo.toml`, `crates/beui-view/src/**`,
+   `crates/fix-rust-source/src/**`, guides/buck2.md.
+2. **Frame and layer cleanups.** `Frame` gains `translate`, `rotate`,
+   `opacity`, `fade_edges`; `Shift` and `Fade` go and `Turn` keeps only
+   quarter turns; the beak moves from `Frame` into the overlay; `Window`
+   becomes a `beui-view` composition of `Overlay`; `BackHandler` becomes an
+   `on_back(handler)` hook; styled gains `Spacer` taking a `Space`; `Embed`
+   moves to `beui::native`. Files: `crates/beui-view/src/components/{frame,shift,fade,turn,overlay,window,back,embed}.rs`,
+   `crates/beui-core/src/base/{frame,shift,fade,turn,overlay,back,embed}.rs`,
+   their users in unstyled, styled, beui-demo, block-app, block-editor-beui,
+   editors.
+3. **Measurement API (native).** `measure`, `measure_text`, `TextGeometry`
+   with `lines`, delayed measurement; every caller in §2.2 moved to it;
+   `LayoutBuilder`, `PlacementBuilder`, `node_rect`, `node_placed`,
+   `placements`, `text_bounds` deleted; `FirstFit` and `Container` rebuilt
+   in unstyled; `Turn`'s quarter turns moved to their users as `Frame` plus
+   `measure` (after task 2, which touches `turn.rs` first). Files:
+   `crates/beui-view/src/{nodes.rs,reactive.rs,measure.rs}`,
+   `components/{layout_builder,first_fit,turn}.rs`,
+   `crates/beui-core/src/{document.rs,base/text.rs}`, unstyled's `sheet`,
+   `text_area*`, `selectable`, `context_menu`, `scroll`, `tree`,
+   `back_slide`, `dialog`, `container`, `date_time_picker`, `pan_zoom`,
+   styled's `choice.rs`, and the outside `PlacementBuilder` users.
+4. **Core internals out of view.** `focus.rs`, `focus_scope.rs`, `share.rs`
+   and `child_list.rs` leave `beui-core/src/base/`; `with_document`,
+   `try_with_document`, `enter` and `Document` leave `beui_view::reactive`
+   for `beui::native`, and the eleven crates calling them import it from
+   there (or get a `beui-view` API where one is plainly missing). Files:
+   `crates/beui-core/src/{base,base.rs,focus*,layout*}`,
+   `crates/beui-view/src/{reactive.rs,nodes.rs}`, `crates/beui/src/lib.rs`,
+   block-app, block-shell, be-launcher, be-wayland, block-editor-beui,
+   editors, beui-demo, beui-inspector.
+5. **Interactive.** Gesture recognisers (pan, zoom, scroll drag, autoscroll,
+   secondary drag, touch drag axis) move to unstyled hooks over new raw
+   `on_pointer` and `on_wheel` props; hit tests become declarative regions;
+   props with one user are folded or moved. Files:
+   `crates/beui-view/src/components/interactive.rs`,
+   `crates/beui-core/src/{base/interactive.rs,interact/**}`, unstyled's
+   `scroll`, `pan_zoom`, `drag`, `slider`, a new `gestures.rs`, and the
+   outside users of the props it removes. After task 4 (`focus.rs`).
+6. **HTML core skeleton** (after 1–5). `crates/beui-core-html`: arena,
+   frame loop, `run`/`hydrate`/`render_to_string`, measurement, focus,
+   input, IME agent, fonts, theme; `crates/beui-web-input` from
+   `beui-platform-web` and `ime_mirror`; `beui-view/src/html/` bodies for
+   `Frame`, `List`, `Spacer`, `Grid`, `Layers`, `Text` (display text and its
+   inline children, no `marks`/`glyphs`/`carets` yet), `Interactive`, a basic
+   `Offset`, `Root`, pink `Drawing`, outlined stand-ins for the rest; the
+   `beui` facade under HTML; BrowserSnapshot tests per primitive.
+7. **Spike** (after 6; parallel with 8–10). `block-accounts-ui`,
+   `crates/beui-html-spike` with `:ssr` and `:web`, block-app switched to the
+   extracted screen.
+8. **Shared behaviour tests** (after 6; parallel with 7, 9, 10).
+   `automate` in `beui-core-html`, `buck/app/web-test.mjs`,
+   `web_drive_test` in `buck/app/drive.bzl`, `crates/beui-shared-tests` with
+   fixtures for `Frame`, `List`, `Text`, focus and `Interactive`, the native
+   runs under `be_drive::Driven`, CI's workflow installing Playwright, and
+   guides/running/web.md and guides/testing_a_gui.md.
+9. **HTML containers** (after 6). `Offset`'s anchoring, `follow_end` and
+   `reveal`; `VirtualList`; `Canvas`; `Overlay` with anchor positioning,
+   scrim, traps and the beak; `Portal`. A shared script for each in
+   `beui-shared-tests` once 8 lands.
+10. **HTML text editing** (after 6 and 3). `Text`'s `marks`, `glyphs`,
+    `carets`, `hang`, `TextGeometry` from `Range`, the UTF-8 to UTF-16 map,
+    `Break`'s copy test across Chromium, Firefox and WebKit; `TextArea` and
+    `TextInput`'s own layout (`lay_out_prose`, `galley`) moved onto
+    `measure_text`, natively first.
+11. **Port unstyled and styled** (after 8–10). A shared script per unstyled
+    component, bottom-up, fixing what each finds on either core; `TextArea`
+    last; beui-demo's pages on the HTML core as `//crates/beui-demo:web-html`.
+12. **Guides.** A "Cores" section in guides/beui.md (the contract, `CORE`,
+    the measurement API, what each primitive is in HTML, how to test on both),
+    the "Component layers" table and base list brought up to date, and
+    VISION.md's open question answered: two cores, with the browser laying
+    out the web. Each earlier task updates the guide it touches; this one
+    writes the overview, after 11.
 
 ## Next steps
 
