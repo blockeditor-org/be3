@@ -9,6 +9,7 @@ use glam::{Quat, Vec3};
 use openxr as xr;
 use wgpu::hal::api::Vulkan as Api;
 
+use crate::controllers::Controllers;
 use crate::gpu::Vulkan;
 use crate::runtime::{self, Loaded};
 use crate::{Fov, Frame, Target, View};
@@ -132,6 +133,7 @@ pub(crate) struct Session {
     waiter: xr::FrameWaiter,
     stream: xr::FrameStream<xr::Vulkan>,
     space: xr::Space,
+    controllers: Option<Controllers>,
     running: bool,
     lost: bool,
     waited: Option<xr::FrameState>,
@@ -181,7 +183,11 @@ impl Session {
                 },
             )?,
         };
+        let controllers = Controllers::new(instance, &session)
+            .inspect_err(|error| eprintln!("beui-xr: no controllers: {error}"))
+            .ok();
         Ok(Self {
+            controllers,
             session,
             waiter,
             stream,
@@ -402,6 +408,14 @@ impl Headset {
                 })
                 .collect(),
             format: session.swapchains[0].format,
+            controllers: match &mut session.controllers {
+                Some(controllers) => controllers.read(
+                    &session.session,
+                    &session.space,
+                    waited.predicted_display_time,
+                ),
+                None => Vec::new(),
+            },
         };
         session.begun = Some(Begun {
             state: waited,

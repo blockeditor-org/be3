@@ -82,6 +82,9 @@ impl WindowHost for XrSpace {
             (Some(gpu), true) => self.headset.begin(&gpu.device),
             _ => None,
         };
+        if let Some(frame) = &self.frame {
+            incoming.extend(frame.controllers.iter().copied().map(Incoming::Controller));
+        }
         let views = self.frame.as_ref().map(Self::views);
         if views.is_some() || self.space.tracked().is_some() {
             self.space.set_views(views);

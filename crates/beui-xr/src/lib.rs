@@ -3,6 +3,8 @@ use std::time::Instant;
 use glam::{Quat, Vec3};
 
 #[cfg(any(windows, target_os = "linux"))]
+mod controllers;
+#[cfg(any(windows, target_os = "linux"))]
 mod gpu;
 #[cfg(any(windows, target_os = "linux"))]
 mod headset;
@@ -39,6 +41,7 @@ pub struct Frame {
     pub display: Instant,
     pub views: Vec<View>,
     pub format: wgpu::TextureFormat,
+    pub controllers: Vec<beui_core::runner::Controller>,
 }
 
 #[cfg(all(test, target_os = "linux"))]

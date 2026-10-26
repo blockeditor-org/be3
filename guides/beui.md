@@ -3122,6 +3122,12 @@ all its 3D (`glam`) stays in the crate.
   mirror, the centre eye at `FOV_Y`, which lies inside a headset's field, so
   the cursor never strays into the periphery. Steering is the headset's: the
   simulator's Ctrl+Shift look and walk are overwritten by the next frame's
+  pose. Controllers come from an action set (`controllers.rs`) attached when
+  the session starts: per hand, the aim and grip poses, trigger and squeeze,
+  bound for the simple controller, Index, Touch, Vive and Windows Mixed
+  Reality profiles, read at the predicted display time in the eyes' space
+  and pushed into the frame's input as `Incoming::Controller` (see Lasers),
+  with `Lost` once when a hand's aim stops being tracked.
   pose. `beui-xr`'s test runs Monado's service with its null compositor on
   lavapipe (`//buck/sysroot:amd64-xr`) and has it show frames.
 - Carry: on `WindowRequest::BeginMove` (for any window) the panel keeps its pose relative to the
