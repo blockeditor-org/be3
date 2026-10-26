@@ -5,8 +5,8 @@ use beui_core::base::frame::Extent;
 use beui_core::base::frame::Outline;
 use beui_core::base::frame::Sides;
 use beui_core::color::Color32;
-use beui_core::node::NodeId;
 use beui_core::geometry::Vec2;
+use beui_core::node::NodeId;
 use beui_core::painter::Corners;
 use beui_macros::component;
 

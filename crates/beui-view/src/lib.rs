@@ -20,6 +20,7 @@ pub mod primitives;
 pub mod reactive;
 #[cfg(not(beui_html))]
 pub mod selection;
+#[cfg(not(beui_html))]
 pub mod window;
 
 #[cfg(not(beui_html))]

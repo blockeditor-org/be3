@@ -11,9 +11,9 @@ use beui_core::base::frame::Outline;
 use beui_core::base::frame::Sides;
 use beui_core::color::Color32;
 use beui_core::document::Document;
+use beui_core::geometry::Vec2;
 use beui_core::node::NodeId;
 use beui_core::node::NodeOf;
-use beui_core::geometry::Vec2;
 use beui_core::painter::Corners;
 
 fn bind<T: Clone + 'static>(

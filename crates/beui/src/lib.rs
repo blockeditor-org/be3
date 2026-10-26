@@ -89,10 +89,10 @@ pub use beui_renderer_wgpu::{
     wgpu_color,
 };
 pub use beui_view::primitives;
-pub use beui_view::window::{Window, WindowHandle, opens_windows, use_window};
 pub use beui_view::types::{
     Align2, CaretHandle, Extent, Outline, SpanBackground, SpanStyle, TextCaret, TextGlyph, TextMark,
 };
+pub use beui_view::window::{Window, WindowHandle, opens_windows, use_window};
 pub use beui_view::{CORE, Core, child_type, value_child_type};
 
 pub use beui_core::runner::{
