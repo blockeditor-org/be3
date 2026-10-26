@@ -6,6 +6,7 @@ pub mod head;
 pub mod hold;
 pub mod laser;
 pub mod layers;
+pub mod notice;
 pub mod panel;
 mod picture;
 mod render;

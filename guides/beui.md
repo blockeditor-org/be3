@@ -3230,28 +3230,57 @@ it, and all its 3D (`glam`) stays in the crate.
   window that changed; the platform window is still drawn by the `Drawing`
   `Space::frame` returns.
 - Headsets: `BEUI_LAYERS=xr`, in space's place, shows space on
-  an OpenXR headset through `crates/beui-layer-xr`; with no runtime or no headset
-  `beui::window`'s `open_xr` says why and space runs as the simulator, and a
-  session the runtime ends later (`Headset::lost`) leaves the simulator's
-  head where the headset left it. A session lost with its instance still
-  there (`LOSS_PENDING`: the headset unplugged; `Headset::returns`) is
-  opened again on the same device once `xrGetSystem` finds the headset,
-  tried every `RETRY` (2 s, `Headset::reopen`); a lost instance (the runtime
-  quit) or `EXITING` is not, since a new instance would start SteamVR again.
-  `Xr::open` takes the app's name for the runtime's dashboard
-  (`RunOptions::app_id`, else the program's name). `Xr::open` loads the runtime with the
+  an OpenXR headset through `crates/beui-layer-xr`, and waits for one when
+  there is none; `BEUI_LAYERS=space` is the simulator. `beui::window` makes
+  a `Link` (`Link::new(app name)`: `RunOptions::app_id`, else the program's
+  name, for the runtime's dashboard), which tries once at once and then, on
+  a thread of its own, every `RETRY` (2 s): load the runtime and make an
+  instance (`Runtime::open`), then ask it for a headset (`xrGetSystem`),
+  keeping the instance while the answer is `FORM_FACTOR_UNAVAILABLE`, so
+  SteamVR started later or a headset plugged in later are both found without
+  starting SteamVR again. `Link::status()` is `Found`, `Missing(why)` or
+  `Failed(why)` (the runtime could not make or share the GPU; it then stops
+  looking), and each change wakes the loop through the `Waker` the layer
+  hands it in `setup`. The `Link` is the renderers' `OpenGpu`
+  (`Link::open_device`): it opens the device through the `Xr` it found,
+  else a plain one, and reports itself `OpenGpu::stale` once it has found
+  an `Xr` the device was not opened through. A renderer whose `OpenDevice`
+  is stale reopens its device as after a lost GPU (`Renderer::recover`,
+  `Gpu::reopen`, which asks the `OpenGpu` for a fresh instance), and the
+  runner hands the app (`App::renderer_replaced`) and the layers the new
+  device; `XrSpace::setup` then takes a `Headset` for `Link::opened()`.
+  While there is no headset, or its session is lost or not yet running,
+  `XrSpace` hands space a `notice::Notice` ("Waiting for a headset" and
+  why) that space draws over the mirror window (`Space::set_notice`), and
+  space is the simulator meanwhile: its head at eye height looking at the
+  main panel, the mouse and keyboard on the panels, no pacing and no
+  polling. `Headset::lost()` says how a session ended: `Lost::Session`
+  (`LOSS_PENDING`, the headset unplugged) is opened again on the same device
+  once `xrGetSystem` finds the headset, tried every `RETRY`
+  (`Headset::reopen`); `Lost::Instance` (the runtime quit: an instance
+  loss event, `ERROR_INSTANCE_LOST`, or `xrGetSystem` failing otherwise)
+  drops the headset, its session and instance (the device holds its `Xr`
+  only weakly, since the Khronos loader allows one instance at a time) and
+  sends the `Link` looking again (`Link::lost`), which reopens the device
+  through the next instance; `Lost::Ended` (`EXITING`, or swapchains or a
+  session that could not be made) leaves the simulator for the rest of the
+  run, so a runtime that closes the app is not answered by opening it
+  again. The mirror keeps the simulator's head where the headset left it.
+  The runtime is loaded with the
   `openxr` crate's `loaded` feature: the system's `openxr_loader` if there is
   one, else the active runtime's own library, found as the Khronos loader
   finds it (`XR_RUNTIME_JSON`, then `active_runtime.json` under the XDG
   config directories on Linux, the `ActiveRuntime` registry value on
   Windows) and negotiated with directly (`runtime.rs`), since Windows has no
   system loader and SteamVR ships none. It builds on Linux and Windows; on
-  other platforms `Xr::open` refuses. The runtime picks the GPU, so `Xr`
-  is an `OpenGpu` (`beui_renderer_wgpu::present`): `OpenDevice { extensions,
+  other platforms the `Link` fails at once and space stays the simulator.
+  The runtime picks the GPU, so the `Link` is an `OpenGpu`
+  (`beui_renderer_wgpu::present`): `OpenDevice { extensions,
   gpu }` says how a renderer opens its device, the Vulkan device extensions
   it wants where the adapter has them (be-dmabuf's `DEVICE_EXTENSIONS`, which
   block-app passes, enabled through `open_vulkan_device`) and, when set, the
-  `OpenGpu` that makes the instance, adapter and device itself. `Xr` makes
+  `OpenGpu` that makes the instance and may make the adapter and device
+  itself (`None` leaves them to wgpu). `Xr` makes
   the VkInstance and VkDevice through `XR_KHR_vulkan_enable2` with the
   extensions wgpu wants (`desired_extensions`, `required_device_extensions`)
   and those, and hands them to wgpu (`Instance::from_raw`, `expose_adapter`,
@@ -3314,9 +3343,12 @@ it, and all its 3D (`glam`) stays in the crate.
   Reality profiles, read at the predicted display time in the eyes' space
   and pushed into the frame's input as `Incoming::Controller` (see Lasers),
   with `Lost` once when a hand's aim stops being tracked.
-  `beui-layer-xr`'s test runs Monado's service with its null compositor on
-  lavapipe (`//buck/sysroot:amd64-xr`) and has it show frames, the main
-  panel as a quad layer.
+  `beui-layer-xr`'s tests run Monado's service with its null compositor on
+  lavapipe (`//buck/sysroot:amd64-xr`) and have it show frames, the main
+  panel as a quad layer; one starts the `Link` before the service, then
+  stops and starts the service again, reopening the device as the runner
+  would (`Gpu::stale`, `Gpu::reopen`, `XrSpace::setup`). They share
+  `XDG_RUNTIME_DIR`, so each holds the tests' `MONADO` lock.
 - Carry: on `WindowRequest::BeginMove` (for any window) the panel keeps its pose relative to the
   head, with the grabbed point on the cursor's ray at a fixed distance, so
   moving the mouse or steering carries it. As the mouse swings the ray around

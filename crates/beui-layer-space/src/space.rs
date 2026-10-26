@@ -6,6 +6,7 @@ use beui_core::color::Color32;
 use beui_core::context::{Context, FrameOutput, WindowOutput};
 use beui_core::damage::Region;
 use beui_core::display::Layer;
+use beui_core::drawing::Drawing;
 use beui_core::geometry::{Pos2, Rect, Vec2, pos2};
 use beui_core::input::{CursorIcon, Input, Key, Keystroke, Modifiers, PointerButton, TouchPhase};
 use beui_core::painter::Shape;
@@ -27,6 +28,7 @@ use crate::head::{Body, Head, Ray, TURN_PER_PIXEL, View, Views};
 use crate::hold::Hold;
 use crate::laser::{self, Ending, Laser};
 use crate::layers::{Allowance, Candidate, PanelLayer};
+use crate::notice::{self, Notice};
 use crate::panel::{Hit, Panel, Pose, pick};
 use crate::render::{Beam, ChromeFrame, Compositor, Frame, PanelFrame};
 use crate::resize::Resize;
@@ -129,6 +131,7 @@ struct Shown {
     look: Option<cursor::Look>,
     chrome: Vec<(WindowId, Look, f32)>,
     beams: Vec<Beam>,
+    notice: Option<Notice>,
 }
 
 pub struct Space {
@@ -173,6 +176,7 @@ pub struct Space {
     scales: Vec<(WindowId, f32)>,
     rescaling: Vec<(WindowId, f32, Instant)>,
     titles: Vec<(WindowId, String)>,
+    notice: Option<Notice>,
 }
 
 impl Default for Space {
@@ -225,6 +229,7 @@ impl Space {
             scales: Vec::new(),
             rescaling: Vec::new(),
             titles: Vec::new(),
+            notice: None,
         }
     }
 
@@ -254,6 +259,14 @@ impl Space {
             None => self.head.look(motion),
             Some(_) => self.move_body(motion.x * TURN_PER_PIXEL, Vec3::ZERO),
         }
+    }
+
+    pub fn set_notice(&mut self, notice: Option<Notice>) {
+        self.notice = notice;
+    }
+
+    pub fn notice(&self) -> Option<&Notice> {
+        self.notice.as_ref()
     }
 
     pub fn tracked(&self) -> Option<&Views> {
@@ -1621,6 +1634,7 @@ impl Space {
                 .map(|(window, look, _)| (*window, look.clone(), self.chrome_opacity(*window)))
                 .collect(),
             beams: self.beams(),
+            notice: self.notice.clone(),
         };
         let size = view.platform / view.pixels_per_point;
         if let Some((last, window)) = &mut self.shown
@@ -1640,11 +1654,7 @@ impl Space {
         let window = WindowOutput {
             id: WindowId::MAIN,
             size,
-            layers: Rc::new(vec![Layer::Shape(Shape::Drawing {
-                rect,
-                drawing: compositor.drawing(frame),
-                clip: rect.expand(1.0),
-            })]),
+            layers: Rc::new(self.mirror(compositor.drawing(frame), rect, view)),
             window: state,
             changed: true,
             damage: Region::NOTHING,
@@ -1656,6 +1666,25 @@ impl Space {
             window,
             repaint_after,
         }
+    }
+}
+
+impl Space {
+    fn mirror(&self, drawing: Drawing, rect: Rect, view: &LayerView) -> Vec<Layer> {
+        let mut layers = vec![Layer::Shape(Shape::Drawing {
+            rect,
+            drawing,
+            clip: rect.expand(1.0),
+        })];
+        if let (Some(notice), Some(context)) = (&self.notice, &self.context) {
+            layers.extend(notice::layers(
+                notice,
+                context,
+                rect.size(),
+                view.pixels_per_point,
+            ));
+        }
+        layers
     }
 }
 

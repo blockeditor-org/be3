@@ -2,7 +2,6 @@ use std::error::Error;
 use std::ffi::{CStr, c_char};
 
 use ash::vk::{self, Handle};
-use beui_renderer_wgpu::present::OpenGpu;
 use openxr as xr;
 use wgpu::hal::api::Vulkan as Api;
 
@@ -26,8 +25,8 @@ fn get_instance_proc_addr(entry: &ash::Entry) -> xr::sys::platform::VkGetInstanc
 }
 
 // unsafe(ffi)
-impl OpenGpu for Xr {
-    fn adapter(&self) -> Result<(wgpu::Instance, wgpu::Adapter), Box<dyn Error>> {
+impl Xr {
+    pub(crate) fn adapter(&self) -> Result<(wgpu::Instance, wgpu::Adapter), Box<dyn Error>> {
         let shared = &self.0;
         let requirements = shared
             .instance
@@ -103,7 +102,7 @@ impl OpenGpu for Xr {
         Ok((instance, adapter))
     }
 
-    fn device(
+    pub(crate) fn device(
         &self,
         adapter: &wgpu::Adapter,
         extensions: &[&'static CStr],
@@ -161,15 +160,21 @@ impl OpenGpu for Xr {
         let ash_device =
             unsafe { ash::Device::load(ash_instance.fp_v1_0(), vk::Device::from_raw(raw as u64)) };
         let destroyed = ash_device.clone();
-        let owner = self.clone();
+        let owner = std::sync::Arc::downgrade(&self.0);
         let opened = unsafe {
             hal.device_from_raw(
                 ash_device,
                 Some(Box::new(move || {
-                    let mut state = owner.0.state();
-                    state.session = None;
-                    state.device = None;
-                    drop(state);
+                    if let Some(owner) = owner.upgrade() {
+                        let mut state = owner.state();
+                        if state
+                            .device
+                            .is_some_and(|device| device.raw == destroyed.handle())
+                        {
+                            state.session = None;
+                            state.device = None;
+                        }
+                    }
                     destroyed.destroy_device(None);
                 })),
                 &enabled,

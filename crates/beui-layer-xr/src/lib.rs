@@ -10,15 +10,26 @@ mod gpu;
 mod headset;
 mod host;
 #[cfg(any(windows, target_os = "linux"))]
+mod link;
+#[cfg(any(windows, target_os = "linux"))]
 mod runtime;
 #[cfg(not(any(windows, target_os = "linux")))]
 mod unsupported;
 
 #[cfg(any(windows, target_os = "linux"))]
-pub use headset::{Headset, RETRY, Xr};
-pub use host::{IDLE_POLL, XrSpace};
+pub use headset::{Headset, Lost, RETRY, Xr};
+pub use host::{IDLE_POLL, WAITING, XrSpace};
+#[cfg(any(windows, target_os = "linux"))]
+pub use link::Link;
 #[cfg(not(any(windows, target_os = "linux")))]
-pub use unsupported::{Headset, RETRY, Xr};
+pub use unsupported::{Headset, Link, Lost, RETRY, Xr};
+
+#[derive(Clone, PartialEq, Eq, Debug)]
+pub enum Status {
+    Found(String),
+    Missing(String),
+    Failed(String),
+}
 
 #[derive(Clone, Copy, PartialEq, Debug)]
 pub struct Fov {

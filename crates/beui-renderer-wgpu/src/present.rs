@@ -11,16 +11,21 @@ use crate::wgpu_color_in;
 use beui_core::color::Color32;
 use beui_core::context::{Moved, RendererInfo, WindowOutput};
 use beui_core::geometry::{Vec2, vec2};
+use beui_core::renderer::WindowHandle;
 
 pub trait OpenGpu: Send + Sync {
-    fn adapter(&self) -> Result<(wgpu::Instance, wgpu::Adapter), Box<dyn Error>>;
+    fn adapter(&self) -> Result<(wgpu::Instance, Option<wgpu::Adapter>), Box<dyn Error>>;
 
     fn device(
         &self,
         adapter: &wgpu::Adapter,
         extensions: &[&'static CStr],
         descriptor: &wgpu::DeviceDescriptor<'_>,
-    ) -> Result<(wgpu::Device, wgpu::Queue), Box<dyn Error>>;
+    ) -> Result<Option<(wgpu::Device, wgpu::Queue)>, Box<dyn Error>>;
+
+    fn stale(&self) -> bool {
+        false
+    }
 }
 
 #[derive(Clone, Default)]
@@ -32,17 +37,13 @@ pub struct OpenDevice {
 impl OpenDevice {
     pub fn instance(&self) -> Result<(wgpu::Instance, Option<wgpu::Adapter>), Box<dyn Error>> {
         match &self.gpu {
-            Some(gpu) => {
-                let (instance, adapter) = gpu.adapter()?;
-                Ok((instance, Some(adapter)))
-            }
-            None => Ok((
-                wgpu::Instance::new(
-                    wgpu::InstanceDescriptor::new_without_display_handle_from_env(),
-                ),
-                None,
-            )),
+            Some(gpu) => gpu.adapter(),
+            None => Ok((plain_instance(), None)),
         }
+    }
+
+    pub fn stale(&self) -> bool {
+        self.gpu.as_ref().is_some_and(|gpu| gpu.stale())
     }
 
     fn open(
@@ -50,11 +51,16 @@ impl OpenDevice {
         adapter: &wgpu::Adapter,
         descriptor: &wgpu::DeviceDescriptor<'_>,
     ) -> Result<Option<(wgpu::Device, wgpu::Queue)>, Box<dyn Error>> {
-        match &self.gpu {
-            Some(gpu) => gpu.device(adapter, self.extensions, descriptor).map(Some),
-            None => Ok(open_vulkan_device(adapter, descriptor, self.extensions)),
-        }
+        let opened = match &self.gpu {
+            Some(gpu) => gpu.device(adapter, self.extensions, descriptor)?,
+            None => None,
+        };
+        Ok(opened.or_else(|| open_vulkan_device(adapter, descriptor, self.extensions)))
     }
+}
+
+pub fn plain_instance() -> wgpu::Instance {
+    wgpu::Instance::new(wgpu::InstanceDescriptor::new_without_display_handle_from_env())
 }
 
 // unsafe(ffi)
@@ -224,21 +230,31 @@ impl Gpu {
         self.lost.load(Ordering::SeqCst)
     }
 
+    pub fn stale(&self) -> bool {
+        self.lost() || self.open_device.stale()
+    }
+
     pub async fn reopen(
         &mut self,
-        probe: Option<&wgpu::Surface<'_>>,
-    ) -> Result<(), Box<dyn Error>> {
-        let adapter = self.open_device.gpu.is_some().then(|| self.adapter.clone());
-        let opened = open(&self.instance, adapter, probe, &self.open_device).await?;
-        let format = match probe {
+        window: Option<Arc<dyn WindowHandle>>,
+    ) -> Result<Option<wgpu::Surface<'static>>, Box<dyn Error>> {
+        let (instance, adapter) = match self.open_device.gpu {
+            Some(_) => self.open_device.instance()?,
+            None => (self.instance.clone(), None),
+        };
+        let probe = match window {
+            Some(window) => Some(instance.create_surface(window)?),
+            None => None,
+        };
+        let opened = open(&instance, adapter, probe.as_ref(), &self.open_device).await?;
+        let format = match &probe {
             Some(probe) => surface_format(&probe.get_capabilities(&opened.adapter).formats)
                 .ok_or("the adapter does not support this surface")?,
             None => self.format,
         };
-        let instance = self.instance.clone();
         let open_device = std::mem::take(&mut self.open_device);
         *self = Self::assemble(instance, opened, format, open_device);
-        Ok(())
+        Ok(probe)
     }
 
     pub fn info(&self) -> RendererInfo {

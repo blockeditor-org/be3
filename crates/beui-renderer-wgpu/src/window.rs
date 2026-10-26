@@ -58,14 +58,14 @@ impl Renderer for WindowSurface {
     }
 
     fn recover(&mut self) -> Result<bool, Box<dyn Error>> {
-        if !self.gpu.lost() {
+        if !self.gpu.stale() {
             return Ok(false);
         }
         let attached = self.target.attached();
         let (width, height) = self.target.size();
         self.target.detach();
-        let probe = self.gpu.instance.create_surface(self.window.clone())?;
-        pollster::block_on(self.gpu.reopen(Some(&probe)))?;
+        let probe = pollster::block_on(self.gpu.reopen(Some(self.window.clone())))?
+            .ok_or("no surface was made for the window")?;
         self.target = Target::new(self.gpu.format);
         match attached {
             true => self.target.attach(&self.gpu, probe, width, height)?,
