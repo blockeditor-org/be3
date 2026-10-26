@@ -179,11 +179,7 @@ where
                 <Text @sizing=ItemSize::Percent(100.0) style=TextStyle::CAPTION>{name}</Text>
             </List>
             <Show condition={failed}>
-                <Text
-                    style=TextStyle::CAPTION
-                    color=TextColor::Danger
-                    @test_id={error_id.clone()}
-                >
+                <Text style=TextStyle::CAPTION color=TextColor::Danger @test_id={error_id.clone()}>
                     {reason}
                 </Text>
             </Show>

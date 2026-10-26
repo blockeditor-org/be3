@@ -8,8 +8,8 @@ use beui::reactive::*;
 use beui::{Document, Pos2, Rect, Vec2};
 use block_plugin_api::{
     BarAction, ChildContent, ChildId, ChildLayer, ChildMode, ChildPreview, CreationProgress,
-    DialogFrame, DialogStatus, EditorCapabilities, HostPanel, HostWindowId, InteractionMode, MenuEntry, ResizeMode,
-    SettingsProgress, TopBar, Watched, WebViewId,
+    DialogFrame, DialogStatus, EditorCapabilities, HostPanel, HostWindowId, InteractionMode,
+    MenuEntry, ResizeMode, SettingsProgress, TopBar, Watched, WebViewId,
 };
 use block_ui::BlockCatalog;
 use uuid::Uuid;
@@ -1302,12 +1302,14 @@ impl Editor {
             record.opacity.get_untracked(),
             record.intrinsic.get_untracked(),
             document.panned_by_canvas(node),
-            record.dialog.get_untracked().map(|dialog| DialogFrame {
-                bottom_inset: dialog
-                    .bottom_inset
-                    .max(rect.max.y - document.viewport_rect().max.y)
-                    * unscale,
-                ..dialog
+            record.dialog.get_untracked().map(|dialog| {
+                DialogFrame {
+                    bottom_inset: dialog
+                        .bottom_inset
+                        .max(rect.max.y - document.viewport_rect().max.y)
+                        * unscale,
+                    ..dialog
+                }
             }),
         ))
     }
@@ -1365,11 +1367,15 @@ impl Creation {
     }
 
     pub fn accept(&self) {
-        self.0.host.close_dialog(block_plugin_api::DialogAnswer::Accepted);
+        self.0
+            .host
+            .close_dialog(block_plugin_api::DialogAnswer::Accepted);
     }
 
     pub fn cancel(&self) {
-        self.0.host.close_dialog(block_plugin_api::DialogAnswer::Dismissed);
+        self.0
+            .host
+            .close_dialog(block_plugin_api::DialogAnswer::Dismissed);
     }
 
     pub fn on_create(&self, make: impl Fn() -> Result<Uuid, String> + 'static) {

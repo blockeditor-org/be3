@@ -66,9 +66,9 @@ pub use host_services::{
 pub use shared::access::AccessLevel;
 pub use shell_types::{
     ArtifactDescription, AudioCommand, AudioSource, AudioStatus, BarAction, Catalog, ChildPreview,
-    CreationProgress, DialogAnswer, DialogStatus, DroppedFile, EditorDescriptor, FitArea, MenuCheck, MenuCommand, MenuHeading,
-    MenuItem, MenuItemKind, MenuPin, PreviewImage, SettingsProgress, ShellCommand, Stopped,
-    TemplateDescriptor, ViewChange, WebViewEvent,
+    CreationProgress, DialogAnswer, DialogStatus, DroppedFile, EditorDescriptor, FitArea,
+    MenuCheck, MenuCommand, MenuHeading, MenuItem, MenuItemKind, MenuPin, PreviewImage,
+    SettingsProgress, ShellCommand, Stopped, TemplateDescriptor, ViewChange, WebViewEvent,
 };
 pub use shell_types::{
     BlockTypeDescriptor, ChildOperations, ChildStatus, EditorCapabilities, Edits, InteractionMode,
@@ -76,12 +76,11 @@ pub use shell_types::{
 };
 pub use types::{
     ChildContent, ChildLayer, ChildMode, ChildPlacement, ChildPlacements, DialogFrame,
-    EditorRegion, Failure,
-    FontFace, FontRole, Fonts, FrameChrome, FrameCommit, FrameReport, FrameSpec, Hello,
-    HelloAccepted, HostPanel, InputBatch, Monitor, Occluder, OpenArtifact, OpenBlock, OpenCreation,
-    Opening, PluginIdentity, PresentedFrame, PressClaim, RegionSize, ScreenDamage, ScreenLayout,
-    ScreenPlacement, ScreenRequest, ScreenWindow, Size, SurfaceFormat, SurfaceRect, SurfaceSpec,
-    SurfaceSupport, TimedInput, TopBar, ViewportMetrics,
+    EditorRegion, Failure, FontFace, FontRole, Fonts, FrameChrome, FrameCommit, FrameReport,
+    FrameSpec, Hello, HelloAccepted, HostPanel, InputBatch, Monitor, Occluder, OpenArtifact,
+    OpenBlock, OpenCreation, Opening, PluginIdentity, PresentedFrame, PressClaim, RegionSize,
+    ScreenDamage, ScreenLayout, ScreenPlacement, ScreenRequest, ScreenWindow, Size, SurfaceFormat,
+    SurfaceRect, SurfaceSpec, SurfaceSupport, TimedInput, TopBar, ViewportMetrics,
 };
 
 pub use account::HostPreferenceSources;

@@ -92,8 +92,7 @@ pub use date_time_picker::{
 };
 pub use dialog::{
     ActionRole, Dialog, DialogAction, DialogBody, DialogBodyHandle, DialogDismissal, DialogKind,
-    DialogLayout,
-    DialogSheetHandle, FooterOrder, footer_order,
+    DialogLayout, DialogSheetHandle, FooterOrder, footer_order,
 };
 pub use disclosure::{Disclosure, DisclosureApi, DisclosureHandle};
 pub use drag::{

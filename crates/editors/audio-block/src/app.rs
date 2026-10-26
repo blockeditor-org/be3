@@ -31,7 +31,13 @@ impl block_editor_beui::BeuiApp for AudioApp {
     #[component]
     fn Creation(creation: Creation) -> NodeId {
         view! {
-            <ContentFileCreation creation title="New Audio" id_prefix="audio" filter={filter()} import={decode} />
+            <ContentFileCreation
+                creation
+                title="New Audio"
+                id_prefix="audio"
+                filter={filter()}
+                import={decode}
+            />
         }
     }
 

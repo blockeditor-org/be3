@@ -1,7 +1,7 @@
 use beui::{Vec2, vec2};
 use block_plugin_api::{
-    BlockPick, DialogAnswer, DialogStatus, EditorCapabilities, EditorInstanceId, EditorManifest, EditorRegion, FrameSpec,
-    HostPanel, InteractionMode, PluginManifest, ResizeMode,
+    BlockPick, DialogAnswer, DialogStatus, EditorCapabilities, EditorInstanceId, EditorManifest,
+    EditorRegion, FrameSpec, HostPanel, InteractionMode, PluginManifest, ResizeMode,
 };
 use std::sync::{
     Arc,
@@ -12,8 +12,8 @@ use uuid::Uuid;
 pub(crate) mod discovery;
 
 use super::{
-    ArtifactSession, ArtifactStatus, DirectEditorCapabilities,
-    DirectEditorInteraction, DirectEditorResize, EditorRegistry, FocusReport, PendingCreation,
+    ArtifactSession, ArtifactStatus, DirectEditorCapabilities, DirectEditorInteraction,
+    DirectEditorResize, EditorRegistry, FocusReport, PendingCreation,
 };
 use crate::{
     compositor::RegionEditor,

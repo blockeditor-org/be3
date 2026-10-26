@@ -18,9 +18,9 @@ use block_editor_beui::beui::styled::*;
 use block_editor_beui::beui::{NodeId, Rect, Vec2};
 use block_editor_beui::block_ui::{BlockCatalog, BlockLabel, BlockTypes};
 use block_editor_beui::{
-    AccessLevel, BlockFilter, ChildState, ContactsWatch, DialogAnswer, Editor, EditorHost, Failure, FocusedBlock,
-    HostPanel, HostWindow, HostWindowId, PickedBlock, Pushed, ShellDialog, WindowAction,
-    WindowsWatch,
+    AccessLevel, BlockFilter, ChildState, ContactsWatch, DialogAnswer, Editor, EditorHost, Failure,
+    FocusedBlock, HostPanel, HostWindow, HostWindowId, PickedBlock, Pushed, ShellDialog,
+    WindowAction, WindowsWatch,
 };
 use block_editor_beui::{BlockInfo, BlockList, BlockParent, BlockQuery, Blocks};
 use uuid::Uuid;
@@ -776,7 +776,9 @@ impl Workspace {
             creating.height = state.intrinsic_size.map(|size| size.y.max(1.0));
         }
         let held = match state.dialog.answer {
-            Some(DialogAnswer::Dismissed) => return self.pick_action(pick, PickAction::CancelCreation),
+            Some(DialogAnswer::Dismissed) => {
+                return self.pick_action(pick, PickAction::CancelCreation);
+            }
             Some(DialogAnswer::Accepted) => match held.act(PickAction::Create) {
                 PickOutcome::Open(held) => *held,
                 answered => return self.resolve(answered),

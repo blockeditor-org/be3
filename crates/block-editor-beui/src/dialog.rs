@@ -59,9 +59,9 @@ pub(crate) fn PluginDialog(
         dismiss,
     }));
     on_key(KeyAt::Root, KeyPhase::Bubble, move |event| {
-        let escape = event.press().is_some_and(|press| {
-            press.key == Key::Escape && press.pressed && !press.repeat
-        });
+        let escape = event
+            .press()
+            .is_some_and(|press| press.key == Key::Escape && press.pressed && !press.repeat);
         if escape {
             dismiss.call(());
         }
