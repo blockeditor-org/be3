@@ -1,9 +1,9 @@
 use super::*;
-use crate::connection::REQUEST_TIMEOUT;
+use crate::connection::{PING_INTERVAL, PONG_WAIT};
 use be_protocol::ClientMessage;
 
 #[tokio::test]
-async fn a_request_the_server_never_answers_times_out() {
+async fn a_request_fails_once_a_ping_goes_unanswered() {
     let harness = Harness::start().await;
     let server = harness
         .url
@@ -15,15 +15,17 @@ async fn a_request_the_server_never_answers_times_out() {
     let connection = Connection::connect(&relay.url(), &clock).await.unwrap();
 
     relay.stall();
-    let heard = relay.heard();
     let answer = connection
         .send(|request| ClientMessage::ListOrganizations { request })
         .unwrap();
-    relay.heard_beyond(heard).await;
-    clock.advance(REQUEST_TIMEOUT);
+    let pings = relay.pings();
+    clock.advance(PING_INTERVAL);
+    relay.pinged_beyond(pings).await;
+    clock.advance(PONG_WAIT);
 
     assert!(
-        matches!(answer.await, Err(ClientError::TimedOut(_))),
-        "the request gave up once its time ran out"
+        matches!(answer.await, Err(ClientError::Disconnected(_))),
+        "the request failed once the server missed a ping"
     );
+    assert!(connection.is_closed());
 }

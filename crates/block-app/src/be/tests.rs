@@ -197,6 +197,13 @@ impl Harness {
             .expect("the harness was started with a relay")
     }
 
+    fn miss_a_ping(&self) {
+        let pings = self.relay().pings();
+        self.clock.advance(be_client::connection::PING_INTERVAL);
+        runtime().block_on(self.relay().pinged_beyond(pings));
+        self.clock.advance(be_client::connection::PONG_WAIT);
+    }
+
     fn leasing(lease: Duration) -> Self {
         static ONE_STACK: std::sync::Mutex<()> = std::sync::Mutex::new(());
         let one_stack = ONE_STACK

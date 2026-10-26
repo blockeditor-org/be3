@@ -5,6 +5,7 @@ version.workspace = true
 license.workspace = true
 
 [dependencies]
+be-protocol = { path = "../be-protocol" }
 tokio = { version = "1", features = ["io-util", "macros", "net", "rt-multi-thread", "sync"] }
 
 [lints]

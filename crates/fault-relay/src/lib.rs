@@ -23,6 +23,7 @@ struct State {
     links: Mutex<Vec<Link>>,
     holding: Mutex<bool>,
     heard: watch::Sender<u64>,
+    pings: watch::Sender<u64>,
 }
 
 #[derive(Clone)]
@@ -49,6 +50,7 @@ impl Relay {
             links: Mutex::new(Vec::new()),
             holding: Mutex::new(false),
             heard: watch::Sender::new(0),
+            pings: watch::Sender::new(0),
         });
         runtime.spawn(accept(listener, Arc::clone(&state)));
         Self {
@@ -93,6 +95,15 @@ impl Relay {
     pub async fn heard_beyond(&self, bytes: u64) {
         let mut heard = self.state.heard.subscribe();
         let _ = heard.wait_for(|heard| *heard > bytes).await;
+    }
+
+    pub fn pings(&self) -> u64 {
+        *self.state.pings.borrow()
+    }
+
+    pub async fn pinged_beyond(&self, pings: u64) {
+        let mut pinged = self.state.pings.subscribe();
+        let _ = pinged.wait_for(|pinged| *pinged > pings).await;
     }
 }
 
@@ -176,6 +187,7 @@ async fn pump(
     heard: Option<&State>,
 ) {
     let mut buffer = vec![0u8; 64 * 1024];
+    let mut frames = Frames::default();
     loop {
         let read = match from.read(&mut buffer).await {
             Ok(0) | Err(_) => return,
@@ -183,6 +195,10 @@ async fn pump(
         };
         if let Some(state) = heard {
             state.heard.send_modify(|heard| *heard += read as u64);
+            let pings = frames.pings_in(&buffer[..read]);
+            if pings > 0 {
+                state.pings.send_modify(|pinged| *pinged += pings);
+            }
         }
         if *link.stalled.borrow() {
             continue;
@@ -193,4 +209,71 @@ async fn pump(
             return;
         }
     }
+}
+
+#[derive(Default)]
+struct Frames {
+    upgraded: bool,
+    unread: Vec<u8>,
+}
+
+impl Frames {
+    fn pings_in(&mut self, bytes: &[u8]) -> u64 {
+        self.unread.extend_from_slice(bytes);
+        if !self.upgraded {
+            let Some(end) = self
+                .unread
+                .windows(4)
+                .position(|window| window == b"\r\n\r\n")
+            else {
+                return 0;
+            };
+            self.unread.drain(..end + 4);
+            self.upgraded = true;
+        }
+        let mut pings = 0;
+        while let Some((payload, length)) = frame(&self.unread) {
+            if matches!(
+                be_protocol::decode::<be_protocol::ClientMessage>(&payload),
+                Ok(be_protocol::ClientMessage::Ping { .. })
+            ) {
+                pings += 1;
+            }
+            self.unread.drain(..length);
+        }
+        pings
+    }
+}
+
+fn frame(bytes: &[u8]) -> Option<(Vec<u8>, usize)> {
+    let [first, second, ..] = *bytes else {
+        return None;
+    };
+    let (length, mut at) = match second & 0x7f {
+        126 => (
+            u64::from(u16::from_be_bytes(bytes.get(2..4)?.try_into().ok()?)),
+            4,
+        ),
+        127 => (u64::from_be_bytes(bytes.get(2..10)?.try_into().ok()?), 10),
+        length => (u64::from(length), 2),
+    };
+    let mask: [u8; 4] = if second & 0x80 == 0 {
+        [0; 4]
+    } else {
+        at += 4;
+        bytes.get(at - 4..at)?.try_into().ok()?
+    };
+    let end = at + usize::try_from(length).ok()?;
+    let payload = bytes.get(at..end)?;
+    let binary = first & 0x0f == 2;
+    let payload = if binary {
+        payload
+            .iter()
+            .enumerate()
+            .map(|(index, byte)| byte ^ mask[index % 4])
+            .collect()
+    } else {
+        Vec::new()
+    };
+    Some((payload, end))
 }

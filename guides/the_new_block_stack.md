@@ -395,29 +395,31 @@ polling either.
 open with nothing behind it (a laptop that slept, a Wi-Fi hop, a proxy that
 stopped forwarding) and the transport never says so:
 - Connecting, the socket plus the greeting, gives up after `CONNECT_TIMEOUT`
-  (15 s), and a request once the server has sent nothing for
-  `REQUEST_TIMEOUT` (60 s) since it was written, with `ClientError::TimedOut`.
-  The server answers in order, so a request queued behind slow ones is not
-  timed out while their answers keep coming. `ClientError::is_unreachable`
-  covers it and `Disconnected` both.
+  (15 s) with `ClientError::TimedOut`. Once connected, no request has a
+  deadline of its own: every one is answered or fails with `Disconnected` when
+  the connection closes. `ClientError::is_unreachable` covers both.
 - After `PING_INTERVAL` (15 s) with no frame of any kind from the server, it
   sends `ClientMessage::Ping`. A browser cannot send websocket pings, so this
   is a protocol message, and any frame proves the server is alive. The server
   reads frames in a task of its own (`serve_socket`) and answers a `Ping` (and
   a websocket ping) at once, ahead of the requests queued for its answering
   loop, so a slow request does not make the client think the server is gone.
-  `PONG_WAIT` (20 s) later with still nothing heard, the connection closes
-  itself, and everything waiting on it sees a disconnect. Silence and request
-  deadlines are only judged when the timer fires and no frame is waiting to be
-  read, so a client whose thread was busy reads what arrived before deciding,
-  and time spent writing a large frame does not count as silence.
+  `PONG_WAIT` (20 s) after the ping was actually written, with still nothing
+  heard, the connection closes itself, and everything waiting on it sees a
+  disconnect. Only an unanswered ping closes it: a process that was suspended
+  or starved for longer than both pings when it wakes and keeps a live
+  connection. The timer only wins when no frame and no command is waiting, and
+  the worker alternates between reading frames and writing queued commands, so
+  neither a flood of requests nor of events stops the other side.
 - Each deadline is read from a `be_client::Clock`, passed to
   `Connection::connect`: `Clock::real()` everywhere but tests, which pass
   `Clock::manual()` and `advance` it, so none of this needs sleeping in a test.
   `crates/fault-relay` is the other half of those tests: a TCP relay between a
   client and a server that can `stall` its connections (read, count what it
   heard and forward nothing, a half-open socket), `cut` them, or `hold_new`
-  ones it accepts without ever reaching the server.
+  ones it accepts without ever reaching the server. It also counts the
+  `Ping` messages a client sends (`pings`, `pinged_beyond`), so a test advances
+  `PING_INTERVAL`, waits for the ping, then advances `PONG_WAIT`.
 
 - `open` reads the head commit and its chunks with one `ReadContents` and decodes.
 - `save` chunks the content and publishes against the head it read, carrying in

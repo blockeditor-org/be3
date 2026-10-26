@@ -1,5 +1,3 @@
-use be_client::connection::{PING_INTERVAL, PONG_WAIT};
-
 use super::*;
 
 #[test]
@@ -29,7 +27,7 @@ fn a_block_opens_from_what_this_device_saved_before_its_session_is_joined() {
         status().connected,
         "the block opened and took an edit before the connection was given up"
     );
-    harness.clock.advance(PING_INTERVAL + PONG_WAIT);
+    harness.miss_a_ping();
     wait_until("noticed the connection went quiet", |shared| {
         !shared.connected
     });

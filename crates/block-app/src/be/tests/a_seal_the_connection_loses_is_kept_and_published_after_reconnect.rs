@@ -1,5 +1,3 @@
-use be_client::connection::{PING_INTERVAL, PONG_WAIT, REQUEST_TIMEOUT};
-
 use super::*;
 
 #[test]
@@ -22,8 +20,11 @@ fn a_seal_the_connection_loses_is_kept_and_published_after_reconnect() {
     wait_until("sealed the edit while the connection hung", |shared| {
         shared.waiting > 0
     });
-    harness.clock.advance(REQUEST_TIMEOUT);
-    harness.clock.advance(PING_INTERVAL + PONG_WAIT);
+    harness.miss_a_ping();
+    wait_until("noticed the connection went quiet", |shared| {
+        !shared.connected
+    });
+    retry_now();
     wait_until("reconnected and sent the kept seal", |shared| {
         shared.connected && shared.waiting == 0 && !shared.draining
     });

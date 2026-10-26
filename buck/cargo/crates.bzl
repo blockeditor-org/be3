@@ -18089,6 +18089,7 @@ crates = {
             "android-arm64": {
                 "binaries": {},
                 "deps": [
+                    "//crates/be-protocol:be-protocol",
                     "//third-party/rust:tokio-1.52.3",
                 ],
                 "examples": {},
@@ -18099,6 +18100,7 @@ crates = {
             "linux-arm64": {
                 "binaries": {},
                 "deps": [
+                    "//crates/be-protocol:be-protocol",
                     "//third-party/rust:tokio-1.52.3",
                 ],
                 "examples": {},
@@ -18109,6 +18111,7 @@ crates = {
             "linux-x86_64": {
                 "binaries": {},
                 "deps": [
+                    "//crates/be-protocol:be-protocol",
                     "//third-party/rust:tokio-1.52.3",
                 ],
                 "examples": {},
@@ -18119,6 +18122,7 @@ crates = {
             "macos-arm64": {
                 "binaries": {},
                 "deps": [
+                    "//crates/be-protocol:be-protocol",
                     "//third-party/rust:tokio-1.52.3",
                 ],
                 "examples": {},
@@ -18129,6 +18133,7 @@ crates = {
             "macos-x86_64": {
                 "binaries": {},
                 "deps": [
+                    "//crates/be-protocol:be-protocol",
                     "//third-party/rust:tokio-1.52.3",
                 ],
                 "examples": {},
@@ -18139,6 +18144,7 @@ crates = {
             "windows-arm64": {
                 "binaries": {},
                 "deps": [
+                    "//crates/be-protocol:be-protocol",
                     "//third-party/rust:tokio-1.52.3",
                 ],
                 "examples": {},
@@ -18149,6 +18155,7 @@ crates = {
             "windows-x86_64": {
                 "binaries": {},
                 "deps": [
+                    "//crates/be-protocol:be-protocol",
                     "//third-party/rust:tokio-1.52.3",
                 ],
                 "examples": {},
