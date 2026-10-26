@@ -1,12 +1,8 @@
 extern crate beui_view as beui;
 
 pub mod accessibility;
-<<<<<<< HEAD
 pub mod action_bar;
-||||||| parent of e2722355 (feat: one anchored surface that is a dropdown on mouse and a sheet on touch)
-=======
 pub mod anchored;
->>>>>>> e2722355 (feat: one anchored surface that is a dropdown on mouse and a sheet on touch)
 pub mod back_slide;
 pub mod button;
 pub mod calendar;
@@ -62,12 +58,8 @@ pub mod tree;
 pub mod typeahead;
 
 pub use accessibility::labelled_node;
-<<<<<<< HEAD
 pub use action_bar::{ActionBar, ActionBarHandle, title_action};
-||||||| parent of e2722355 (feat: one anchored surface that is a dropdown on mouse and a sheet on touch)
-=======
 pub use anchored::{Anchored, AnchoredHandle, AnchoredSheetHandle, AnchoredStyle, SheetWhen};
->>>>>>> e2722355 (feat: one anchored surface that is a dropdown on mouse and a sheet on touch)
 pub use back_slide::BackSlide;
 pub use beui_core::drag_board::DragPoint;
 pub use button::{Button, ButtonApi, ButtonHandle};
