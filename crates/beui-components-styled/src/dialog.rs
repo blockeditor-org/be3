@@ -203,30 +203,32 @@ fn DialogBodyFace(
     let below = create_memo(move || Padding::ZERO.bottom(Space::Custom(inset.get())));
     view! {
         <Frame padding={below}>
-        <Frame padding=PADDING>
-            <List spacing=SPACING>
-                <Show condition={titled}>
-                    <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
-                        <Text @sizing=ItemSize::Percent(100.0) style=TextStyle::TITLE>{title}</Text>
-                        <Show condition={create_memo(move || closable)}>
-                            <Button
-                                icon_only=true
-                                glyph=ICON_X
-                                label="Close"
-                                variant=ButtonVariant::Ghost
-                                size=ButtonSize::Small
-                                @test_id={named(id, "close")}
-                                on_click={dismiss}
-                            />
-                        </Show>
-                    </List>
-                </Show>
-                {content}
-                <ShowKeepAlive condition={footed}>
-                    <DialogFooter handle id />
-                </ShowKeepAlive>
-            </List>
-        </Frame>
+            <Frame padding=PADDING>
+                <List spacing=SPACING>
+                    <Show condition={titled}>
+                        <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
+                            <Text @sizing=ItemSize::Percent(100.0) style=TextStyle::TITLE>
+                                {title}
+                            </Text>
+                            <Show condition={create_memo(move || closable)}>
+                                <Button
+                                    icon_only=true
+                                    glyph=ICON_X
+                                    label="Close"
+                                    variant=ButtonVariant::Ghost
+                                    size=ButtonSize::Small
+                                    @test_id={named(id, "close")}
+                                    on_click={dismiss}
+                                />
+                            </Show>
+                        </List>
+                    </Show>
+                    {content}
+                    <ShowKeepAlive condition={footed}>
+                        <DialogFooter handle id />
+                    </ShowKeepAlive>
+                </List>
+            </Frame>
         </Frame>
     }
 }
