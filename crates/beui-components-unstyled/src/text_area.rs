@@ -35,7 +35,7 @@ use beui_view::types::Color32;
 use beui_view::types::Dismiss;
 use beui_view::types::FontId;
 use beui_view::types::PickedFile;
-use beui_view::types::{Area, Claim};
+use beui_view::types::{Area, Claim, SoftKeyboard};
 use beui_view::types::{CursorIcon, ImeEvent, ImeText, Key, KeyPress, PointerPress};
 use beui_view::types::{ItemSize, ScrollPosition};
 use beui_view::types::{PasteKind, Pasted};
@@ -1547,7 +1547,10 @@ fn Editing(field: Field) -> NodeId {
             focused
             tab_stop
             ime={create_memo(move || !locked.get())}
-            keyboard_on_focus
+            keyboard={match keyboard_on_focus {
+                true => SoftKeyboard::OnFocus,
+                false => SoftKeyboard::OnPress,
+            }}
             ime_cursor
             ime_text
             on_focus_change={move |is_focused: bool| {

@@ -46,7 +46,7 @@ pub use beui_core::input::{
     AutoscrollGesture, BackEdge, BackGesture, CursorIcon, DroppedFile, Event, ImeArea, ImeEvent,
     ImeText, Input, InputState, Key, KeyChord, KeyPress, Keyboard, Keystroke, Modifiers, Pen,
     PenPhase, PointerButton, PointerEvent, PointerId, PointerPhase, PointerPress, ScrollDelta,
-    ScrollGesture, SecondaryDrag, TouchId, TouchPhase, ZoomGesture,
+    ScrollGesture, SecondaryDrag, SoftKeyboard, TouchId, TouchPhase, ZoomGesture,
 };
 pub use beui_core::interact::forward::{Aim, Forwarded, ForwardedInput, Over, Replay, Replayed};
 pub use beui_core::keys::{KeyAt, KeyEvent, KeyInput, KeyPhase, KeyTarget};

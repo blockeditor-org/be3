@@ -3,6 +3,7 @@ use std::time::Instant;
 use geometry::{Pos2, Vec2};
 
 use crate::layout::Direction;
+use beui_tree::reactive::{IntoProp, Memo, Prop, ReadSignal, Signal};
 
 pub use ui_types::input::{
     BackEdge, BackGesture, CursorIcon, ImeEvent, ImeText, Input, Key, KeyChord, KeyPress, Keyboard,
@@ -28,6 +29,72 @@ impl PointerId {
     pub fn hovers(self) -> bool {
         !self.is_touch()
     }
+}
+
+#[derive(Clone, Copy, PartialEq, Eq, Debug, Default)]
+pub enum TouchDrags {
+    #[default]
+    None,
+    Along(Direction),
+    All,
+}
+
+impl TouchDrags {
+    pub fn when(on: bool) -> Self {
+        match on {
+            true => TouchDrags::All,
+            false => TouchDrags::None,
+        }
+    }
+
+    pub fn holds(self, direction: Direction) -> bool {
+        match self {
+            TouchDrags::None => false,
+            TouchDrags::Along(along) => along == direction,
+            TouchDrags::All => true,
+        }
+    }
+}
+
+impl IntoProp<TouchDrags> for bool {
+    fn into_prop(self) -> Prop<TouchDrags> {
+        Prop::Static(TouchDrags::when(self))
+    }
+}
+
+impl IntoProp<TouchDrags> for Prop<bool> {
+    fn into_prop(self) -> Prop<TouchDrags> {
+        self.map(TouchDrags::when)
+    }
+}
+
+impl IntoProp<TouchDrags> for Memo<bool> {
+    fn into_prop(self) -> Prop<TouchDrags> {
+        IntoProp::<bool>::into_prop(self).map(TouchDrags::when)
+    }
+}
+
+impl IntoProp<TouchDrags> for Signal<bool> {
+    fn into_prop(self) -> Prop<TouchDrags> {
+        IntoProp::<bool>::into_prop(self).map(TouchDrags::when)
+    }
+}
+
+impl IntoProp<TouchDrags> for ReadSignal<bool> {
+    fn into_prop(self) -> Prop<TouchDrags> {
+        IntoProp::<bool>::into_prop(self).map(TouchDrags::when)
+    }
+}
+
+#[derive(Clone, Copy, PartialEq, Eq, Debug, Default)]
+pub enum SoftKeyboard {
+    #[default]
+    OnFocus,
+    OnPress,
+    Held,
+    Shown {
+        asks: u32,
+    },
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]

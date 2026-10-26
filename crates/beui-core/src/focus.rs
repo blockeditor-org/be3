@@ -2,7 +2,7 @@ use crate::base::interactive::InteractiveNode;
 use crate::base::overlay::OverlayNode;
 use crate::clipboard::{PasteKind, Pasted};
 use crate::geometry::{Rect, Vec2};
-use crate::input::{ImeArea, ImeEvent, ImeText, Key, KeyPress, Keyboard};
+use crate::input::{ImeArea, ImeEvent, ImeText, Key, KeyPress, Keyboard, SoftKeyboard};
 
 use crate::callback::{Callback, ClickCallback};
 use crate::current::with_document;
@@ -30,9 +30,7 @@ pub struct Focus {
     pub tab_stop: bool,
     pub yields_tab_stop: bool,
     pub ime: bool,
-    pub keyboard_on_focus: bool,
-    pub keyboard_asks: Option<u32>,
-    pub ime_keyboard: bool,
+    pub keyboard: SoftKeyboard,
     pub ime_cursor: Option<ImeCursor>,
     pub ime_text: Option<ImeText>,
     pub on_focus_change: Callback<bool>,
@@ -59,9 +57,7 @@ impl Focus {
             tab_stop: true,
             yields_tab_stop: false,
             ime: false,
-            keyboard_on_focus: true,
-            keyboard_asks: None,
-            ime_keyboard: true,
+            keyboard: SoftKeyboard::OnFocus,
             ime_cursor: None,
             ime_text: None,
             on_focus_change: Callback::empty(),
@@ -205,28 +201,15 @@ impl Document {
         }
     }
 
-    pub fn set_focusable_ime_keyboard(
+    pub fn set_focusable_keyboard(
         &mut self,
         focusable: NodeOf<InteractiveNode>,
-        keyboard: bool,
+        keyboard: SoftKeyboard,
     ) {
         if self.contains(focusable)
-            && focus_of(self.arena.get(focusable))
-                .is_some_and(|focus| focus.ime_keyboard != keyboard)
+            && focus_of(self.arena.get(focusable)).is_some_and(|focus| focus.keyboard != keyboard)
         {
-            self.focus_mut(focusable).ime_keyboard = keyboard;
-        }
-    }
-
-    pub fn set_focusable_keyboard_asks(
-        &mut self,
-        focusable: NodeOf<InteractiveNode>,
-        asks: Option<u32>,
-    ) {
-        if self.contains(focusable)
-            && focus_of(self.arena.get(focusable)).is_some_and(|focus| focus.keyboard_asks != asks)
-        {
-            self.focus_mut(focusable).keyboard_asks = asks;
+            self.focus_mut(focusable).keyboard = keyboard;
         }
     }
 
@@ -274,11 +257,13 @@ impl Document {
             rect,
             cursor,
             text: node.ime_text.clone(),
-            keyboard: match node.ime_keyboard && !self.keyboard_held {
-                true => Keyboard::Shown {
-                    asks: node.keyboard_asks.unwrap_or(self.keyboard_asks),
+            keyboard: match node.keyboard {
+                SoftKeyboard::Held => Keyboard::Held,
+                _ if self.keyboard_held => Keyboard::Held,
+                SoftKeyboard::Shown { asks } => Keyboard::Shown { asks },
+                SoftKeyboard::OnFocus | SoftKeyboard::OnPress => Keyboard::Shown {
+                    asks: self.keyboard_asks,
                 },
-                false => Keyboard::Held,
             },
         })
     }
@@ -671,7 +656,8 @@ impl Document {
         self.keyboard_held = self.touched()
             && new_focus.is_some_and(|focused| {
                 self.contains(focused)
-                    && focus_of(self.arena.get(focused)).is_some_and(|node| !node.keyboard_on_focus)
+                    && focus_of(self.arena.get(focused))
+                        .is_some_and(|node| node.keyboard == SoftKeyboard::OnPress)
             });
         for id in [old, new_focus].into_iter().flatten() {
             self.arena.invalidate_node(id);
@@ -693,8 +679,9 @@ impl Document {
             && self.focused == Some(target)
             && self.contains(target)
             && crate::interact::hit::interactive(self, target).is_some_and(|node| node.press_focus)
-            && let Some(keyboard) = focus_of(self.arena.get(target))
-                .map(|node| node.ime && node.ime_keyboard && node.keyboard_asks.is_none())
+            && let Some(keyboard) = focus_of(self.arena.get(target)).map(|node| {
+                node.ime && matches!(node.keyboard, SoftKeyboard::OnFocus | SoftKeyboard::OnPress)
+            })
         {
             if keyboard {
                 self.keyboard_asks = self.keyboard_asks.wrapping_add(1);

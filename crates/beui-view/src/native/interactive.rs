@@ -8,7 +8,6 @@ use crate::reactive::create_effect;
 use crate::reactive::on_cleanup;
 use crate::reactive::with_document;
 use beui_core::base::interactive::InteractiveNode;
-use beui_core::base::list::Direction;
 use beui_core::clipboard::PasteKind;
 use beui_core::clipboard::Pasted;
 use beui_core::focus::ImeCursor;
@@ -20,6 +19,8 @@ use beui_core::input::ImeText;
 use beui_core::input::KeyPress;
 use beui_core::input::PointerInput;
 use beui_core::input::PointerPress;
+use beui_core::input::SoftKeyboard;
+use beui_core::input::TouchDrags;
 use beui_core::input::WheelInput;
 use beui_core::interact::forward::ForwardedInput;
 use beui_core::node::NodeId;
@@ -34,9 +35,7 @@ pub fn interactive(
     press_focus: Prop<bool>,
     focused: Prop<bool>,
     ime: Prop<bool>,
-    keyboard_on_focus: bool,
-    keyboard_asks: Prop<Option<u32>>,
-    ime_keyboard: Prop<bool>,
+    keyboard: Prop<SoftKeyboard>,
     ime_cursor: Prop<Option<ImeCursor>>,
     ime_text: Prop<Option<ImeText>>,
     on_focus_change: Callback<bool>,
@@ -54,8 +53,7 @@ pub fn interactive(
     key_active: Prop<bool>,
     capture_presses: Prop<Area>,
     repeat_drag: Prop<bool>,
-    touch_drags: Prop<bool>,
-    touch_drag_axis: Prop<Option<Direction>>,
+    touch_drags: Prop<TouchDrags>,
     claims_touch: Prop<bool>,
     drawing: Prop<Area>,
     every_sample: Prop<bool>,
@@ -116,7 +114,6 @@ pub fn interactive(
         let interactive = document.create_interactive(focusable);
         let node = document.arena.touch_mut_as::<InteractiveNode>(interactive);
         if let Some(focus) = node.focus.as_mut() {
-            focus.keyboard_on_focus = keyboard_on_focus;
             focus.yields_tab_stop = yields_tab_stop;
             focus.on_focus_change = on_focus_change;
             focus.on_activate_change = on_activate_change;
@@ -150,13 +147,12 @@ pub fn interactive(
     if focusable {
         create_binding(move || {
             let (tab_stop, ime) = (tab_stop.get(), ime.get());
-            let (pastes, keyboard, asks) = (pastes.get(), ime_keyboard.get(), keyboard_asks.get());
+            let (pastes, keyboard) = (pastes.get(), keyboard.get());
             with_document(|document| {
                 document.set_focusable_tab_stop(interactive, tab_stop);
                 document.set_focusable_ime(interactive, ime);
                 document.set_focusable_pastes(interactive, pastes);
-                document.set_focusable_ime_keyboard(interactive, keyboard);
-                document.set_focusable_keyboard_asks(interactive, asks);
+                document.set_focusable_keyboard(interactive, keyboard);
             })
         });
         create_binding(move || {
@@ -193,11 +189,7 @@ pub fn interactive(
     create_binding(move || {
         let (repeat, touch) = (repeat_drag.get(), touch_drags.get());
         let pressing = press_focus.get();
-        let (axis, claims, grabs) = (
-            touch_drag_axis.get(),
-            claims_touch.get(),
-            grabs_pointer.get(),
-        );
+        let (claims, grabs) = (claims_touch.get(), grabs_pointer.get());
         let every = every_sample.get();
         let (active, inhibits) = (key_active.get(), inhibits_shortcuts.get());
         let wheel = forwards_wheel.get();
@@ -207,7 +199,6 @@ pub fn interactive(
             document.set_interactive_press_focus(interactive, pressing);
             document.set_interactive_repeat_drag(interactive, repeat);
             document.set_interactive_touch_drags(interactive, touch);
-            document.set_interactive_touch_drag_axis(interactive, axis);
             document.set_interactive_claims_touch(interactive, claims);
             document.set_interactive_every_sample(interactive, every);
             document.set_interactive_grabs_pointer(interactive, grabs);

@@ -520,16 +520,12 @@ pub(crate) fn PluginRegion(
             })
         })
     });
-    let ime_keyboard = create_memo(move || {
-        state.with(|view| view.ime.as_ref().is_none_or(|area| area.keyboard.shown()))
-    });
-    let keyboard_asks = create_memo(move || {
-        Some(
-            state.with(|view| match view.ime.as_ref().map(|area| area.keyboard) {
-                Some(beui::Keyboard::Shown { asks }) => asks,
-                _ => 0,
-            }),
-        )
+    let keyboard = create_memo(move || {
+        state.with(|view| match view.ime.as_ref().map(|area| area.keyboard) {
+            Some(beui::Keyboard::Held) => beui::SoftKeyboard::Held,
+            Some(beui::Keyboard::Shown { asks }) => beui::SoftKeyboard::Shown { asks },
+            None => beui::SoftKeyboard::Shown { asks: 0 },
+        })
     });
     let ime_text = create_memo(move || {
         state.with(|view| view.ime.as_ref().and_then(|area| area.text.clone()))
@@ -750,8 +746,7 @@ pub(crate) fn PluginRegion(
                     press_focus={create_memo(move || !presented.get())}
                     cursor={cursor}
                     ime={ime}
-                    ime_keyboard={ime_keyboard}
-                    keyboard_asks={keyboard_asks}
+                    keyboard={keyboard}
                     ime_cursor={ime_cursor}
                     ime_text={ime_text}
                     pastes={pastes}

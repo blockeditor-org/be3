@@ -107,7 +107,7 @@ pub fn WindowView(
                 on_forward={move |input: ForwardedInput| windows.forward(id, input)}
                 inhibits_shortcuts={inhibits}
                 ime={typing}
-                keyboard_asks={asks}
+                keyboard={create_memo(move || asks.get().map_or(beui::SoftKeyboard::OnFocus, |asks| beui::SoftKeyboard::Shown { asks }))}
                 hit_area={takes}
             >
                 <Layers>

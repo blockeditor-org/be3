@@ -5,7 +5,6 @@ use std::rc::Rc;
 use beui_macros::{component, view};
 
 use beui_core::drag_board::{DragPoint, Pending, Target};
-use beui_core::input::TOUCH_DRAG_THRESHOLD;
 use beui_core::tree::component_node;
 use beui_view::components::overlay::Overlay;
 use beui_view::primitives::*;
@@ -13,9 +12,10 @@ use beui_view::reactive::NodeId;
 use beui_view::reactive::OverlayAnchor;
 use beui_view::reactive::*;
 use beui_view::types::CursorIcon;
-use beui_view::types::Direction;
 use beui_view::types::Placement;
 use beui_view::types::PointerPress;
+use beui_view::types::TOUCH_DRAG_THRESHOLD;
+use beui_view::types::TouchDrags;
 use beui_view::types::{Pos2, Vec2};
 
 pub const DRAG_THRESHOLD: f32 = 4.0;
@@ -40,8 +40,7 @@ pub fn Draggable<P>(
     #[prop(default = DRAG_THRESHOLD)] threshold: f32,
     #[prop(default = CursorIcon::Default)] cursor: Prop<CursorIcon>,
     #[prop(default = false)] capture_presses: Prop<bool>,
-    #[prop(default = false)] touch_drags: Prop<bool>,
-    #[prop(default = None)] touch_drag_axis: Prop<Option<Direction>>,
+    #[prop(default = TouchDrags::None)] touch_drags: Prop<TouchDrags>,
     on_click: ClickCallback,
     on_drag_change: Callback<bool>,
     on_drop_outside: Callback<DragPoint>,
@@ -143,7 +142,6 @@ where
             cursor
             capture_presses
             touch_drags
-            touch_drag_axis
             on_press={pressed}
             on_drag={dragged}
             on_click_at={clicked}

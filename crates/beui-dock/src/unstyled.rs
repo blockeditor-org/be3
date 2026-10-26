@@ -44,7 +44,7 @@ use beui_core::window::{WindowEdge, WindowId, WindowPlacement, WindowReport};
 use beui_view::components::overlay::Overlay;
 use beui_view::primitives::*;
 use beui_view::reactive::*;
-use beui_view::types::{Area, Claim, HitRegion};
+use beui_view::types::{Area, Claim, HitRegion, TouchDrags};
 use beui_view::window::{Window, WindowHandle, opens_windows, use_window};
 
 use dialog::{DialogParts, DockDialogs};
@@ -2546,7 +2546,7 @@ fn DockTabView(
     view! {
         <Draggable
             payload={DockDragged::Entry(entry)}
-            touch_drag_axis={Some(across)}
+            touch_drags={TouchDrags::Along(across)}
             preview={move |dragged: DockDragged| preview.call(DockPreviewHandle {
                 dragged,
                 title,
@@ -2777,7 +2777,7 @@ fn DockSplitterView(dock: State, tree: Tree, split: SplitId) -> NodeId {
                 Direction::Horizontal => CursorIcon::ResizeHorizontal,
                 Direction::Vertical => CursorIcon::ResizeVertical,
             }}
-            touch_drag_axis={Some(direction)}
+            touch_drags={TouchDrags::Along(direction)}
             on_hover_change={hovered}
             on_active_change={active}
             on_press={move |press: PointerPress| {

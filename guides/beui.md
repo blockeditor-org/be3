@@ -1133,10 +1133,11 @@ cancellation, and a second finger landing, as `on_cancel`, which is where a
 gesture in progress is dropped rather than committed. A finger dragged across a
 `Interactive` is read as a scroll of whatever holds it that scrolls that way
 (where nothing does, it stays the catcher's drag) unless the catcher sets
-`touch_drags`, which a canvas that draws or moves things under the finger does,
-or `touch_drag_axis`, which keeps finger drags along one direction only and
-leaves the other to the scroll around it, as a dock tab in a scrolling tab bar
-does.
+`touch_drags` (a `TouchDrags`, CSS's `touch-action` turned round):
+`TouchDrags::All` (or `true`), which a canvas that draws or moves things under
+the finger sets, or `TouchDrags::Along(direction)`, which keeps finger drags
+along one direction only and leaves the other to the scroll around it, as a
+dock tab in a scrolling tab bar does.
 A pen is `Event::Pen`: a `PenPhase` (`Move` in range, whether or not the tip is down, `Down`
 and `Up` of the tip, which is `Primary`, and of its barrel buttons, and `Gone` when it leaves
 range) and a `Pen` with its pressure from 0 to 1, its tilt in degrees and whether it is the
@@ -2591,7 +2592,7 @@ catcher saw: the board is fed the pointer at the start of every frame, even
 where a floating overlay covers the source, so a drag carried over a floating
 window keeps going. A finger drag waits for `TOUCH_DRAG_THRESHOLD` and for the
 catcher to hold it rather than a scroll, so a Draggable in a scrolling list
-takes finger drags only where it sets `touch_drags` or `touch_drag_axis`, and
+takes finger drags only where it sets `touch_drags`, and
 its preview sits above the finger instead of under it.
 
 A `DropTarget` is registered by the rectangle its content was laid out at. The
@@ -4636,7 +4637,7 @@ to the down, which takes it the same way.
 A finger drag is settled when the finger leaves the tap slop, along the
 larger of its two movements. That move goes along the path from the innermost
 catcher with `settles` set to the axis: a catcher that holds drags that way
-(`touch_drags`, `touch_drag_axis`) wins it outright, else the first
+(`touch_drags`) wins it outright, else the first
 `on_pointer` that answers `true` does, and every armed catcher that does not
 hold that drag hears `on_cancel`. A claimed finger drag stays with its
 claimant. A second finger, a long press and a lost window focus cancel the

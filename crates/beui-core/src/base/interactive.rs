@@ -5,7 +5,7 @@ use crate::base::list::Direction;
 use crate::base::overlay::OverlayNode;
 use crate::focus::Focus;
 use crate::geometry::{Pos2, Rect, Vec2};
-use crate::input::{CursorIcon, Modifiers, PointerInput, PointerPress, WheelInput};
+use crate::input::{CursorIcon, Modifiers, PointerInput, PointerPress, TouchDrags, WheelInput};
 use crate::painter::Painter;
 use beui_types::region::{Area, Claim};
 
@@ -22,8 +22,7 @@ pub struct InteractiveNode {
     pub captures: Area,
     pub press_focus: bool,
     pub repeat_drag: bool,
-    pub touch_drags: bool,
-    pub touch_drag_axis: Option<Direction>,
+    pub touch_drags: TouchDrags,
     pub claims_touch: bool,
     pub drawing: Area,
     pub every_sample: bool,
@@ -71,8 +70,7 @@ impl InteractiveNode {
             captures: Area::Nowhere,
             press_focus: true,
             repeat_drag: false,
-            touch_drags: false,
-            touch_drag_axis: None,
+            touch_drags: TouchDrags::None,
             claims_touch: true,
             drawing: Area::Nowhere,
             every_sample: false,
@@ -146,7 +144,7 @@ impl InteractiveNode {
     }
 
     pub fn holds_drag(&self, direction: Direction) -> bool {
-        self.touch_drags || self.touch_drag_axis == Some(direction)
+        self.touch_drags.holds(direction)
     }
 
     pub fn is_active(&self) -> bool {
@@ -309,7 +307,10 @@ impl Element for InteractiveNode {
                     (focus.yields_tab_stop, "yields tab stop"),
                     (self.press_focus, "press"),
                     (focus.ime, "ime"),
-                    (focus.keyboard_on_focus, "keyboard"),
+                    (
+                        focus.keyboard != beui_types::input::SoftKeyboard::OnPress,
+                        "keyboard",
+                    ),
                 ]
                 .into_iter()
                 .filter_map(|(on, name)| on.then_some(name))
@@ -432,21 +433,9 @@ impl Document {
         }
     }
 
-    pub fn set_interactive_touch_drags(&mut self, id: NodeOf<InteractiveNode>, touch_drags: bool) {
-        if self.arena.get_as::<InteractiveNode>(id).touch_drags != touch_drags {
-            self.arena.touch_mut_as::<InteractiveNode>(id).touch_drags = touch_drags;
-        }
-    }
-
-    pub fn set_interactive_touch_drag_axis(
-        &mut self,
-        id: NodeOf<InteractiveNode>,
-        axis: Option<Direction>,
-    ) {
-        if self.arena.get_as::<InteractiveNode>(id).touch_drag_axis != axis {
-            self.arena
-                .touch_mut_as::<InteractiveNode>(id)
-                .touch_drag_axis = axis;
+    pub fn set_interactive_touch_drags(&mut self, id: NodeOf<InteractiveNode>, drags: TouchDrags) {
+        if self.arena.get_as::<InteractiveNode>(id).touch_drags != drags {
+            self.arena.touch_mut_as::<InteractiveNode>(id).touch_drags = drags;
         }
     }
 
