@@ -2401,6 +2401,31 @@ disabled until the tab is back in its area, and is never done for it), and
 reconciling and `restore` move any locked tab found outside its area back into
 it. A stacked dock ignores locks and keeps them for when it tiles again.
 
+A `Docking` built inside a `DockTab` of another `Docking` joins it rather than
+docking on its own (the first one in that tab does, found through a context
+the outer dock provides beside `use_dock_tab()`'s). It draws nothing: the outer dock puts what its
+children declare in a pinned group keyed `joined:<tab>` in place of that tab
+(titled, iconed and closed as the tab), with its pane, split and group keys
+prefixed `joined:<tab>/`, so its locked panes stay areas inside the group (a
+tab declared in a locked pane has that area as its home, inside a pinned group
+too), and its `DockWindow`s become windows of the outer dock. Its tabs are
+locked to the group: "Unlock" lets one go anywhere in the outer dock, "Lock"
+works once it is back. The outer dock places their bodies, built in a scope
+under the inner `Docking` with the outer dock's `use_dock_tab()` and
+`dock_menu`, so they survive moving; switching, back history, fullscreen and
+the stacked mode are the outer dock's and cover them like its own tabs. The
+inner `DockingLayout` keeps working: `show`, `focused`, `shown`, `contains`,
+`mode` and fullscreen go through the outer dock, `state()` and `snapshot` are
+the group as the outer dock holds it (moved-out tabs leave the snapshot but
+not `contains`), and `restore`/`reset` rebuild the group. A tab joins when its
+body is first built, so a hosting tab not yet shown is an ordinary tab until
+then. When the inner `Docking` goes (its tab closes, or its body stops
+building it) the group turns back into the tab and every inner tab closes,
+those moved out too. The outer `snapshot` saves the hosting tab, not the
+group: each dock saves its own layout. The seam is `docking/host.rs`'s
+`DockHostLink`, plain data both ways, which a host over the plugin protocol
+can implement too.
+
 A tab's panel is built the first time the tab is shown and belongs to the dock
 rather than to the pane showing it: the pane holds a `Portal` pointed at it, so
 the panel keeps its nodes, its scroll position, its caret and its state when

@@ -5,6 +5,7 @@ use block_ui_test::DocumentTest;
 use super::*;
 use crate::{DemoApp, PAGES, Page};
 
+mod a_nested_dock_page_joins_the_demo_dock_as_a_locked_group;
 mod a_banner_says_what_failed_until_it_is_dismissed;
 mod a_card_floats_from_its_tab_and_waits_while_another_tab_is_shown;
 mod a_card_keeps_inside_a_small_window;
