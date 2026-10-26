@@ -3,7 +3,6 @@ use std::collections::HashSet;
 use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
-use block_editor_beui::beui::unstyled::TreeItem;
 use block_editor_beui::{BlockQuery, Editor};
 
 use super::entries::{self, Row};

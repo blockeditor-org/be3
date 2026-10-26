@@ -6,7 +6,6 @@ use block_editor_beui::beui::icons::{
 };
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
-use block_editor_beui::beui::unstyled::ChoiceOption;
 use database_types::database_schema::{DatabaseField, DatabaseFieldType};
 use database_types::database_view::{
     DatabaseView, DatabaseViewKind, DatabaseViewSort, SortDirection,

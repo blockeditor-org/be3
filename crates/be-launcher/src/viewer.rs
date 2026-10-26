@@ -1,7 +1,6 @@
 use beui::icons::{ICON_CHEVRON_LEFT, ICON_CHEVRON_RIGHT, ICON_EXTERNAL_LINK, ICON_X};
 use beui::reactive::*;
 use beui::styled::*;
-use beui::unstyled::Picture;
 use beui::{CursorIcon, Image, ImageFit, Key, KeyPress, NodeId, TextAlign, Vec2};
 
 use crate::model::{Loaded, Model};

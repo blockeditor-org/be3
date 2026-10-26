@@ -7,9 +7,6 @@ use beui::icons::{
 };
 use beui::reactive::*;
 use beui::styled::*;
-#[cfg(target_os = "android")]
-use beui::unstyled::BackSlide;
-use beui::unstyled::ChoiceOption;
 use beui::{Color32, Document, NodeId};
 
 use crate::actions::MainActions;

@@ -9,8 +9,9 @@ use beui_macros::{component, view};
 
 use crate::unstyled as dock;
 pub use crate::unstyled::{
-    DockApi, DockDocuments, DockMode, DockNode, DockPane, DockSlot, DockSplit, DockTab, DockWindow,
-    DockingLayout, DockingSnapshot, TabId, dock_menu, use_dock_tab,
+    DockApi, DockDocument, DockDocumentBody, DockDocumentTabs, DockDocuments, DockEntry, DockMode,
+    DockNode, DockPane, DockSlot, DockSplit, DockTab, DockWindow, DockingLayout, DockingSnapshot,
+    TabId, dock_menu, use_dock_tab,
 };
 use crate::unstyled::{
     DockAwayHandle, DockBarHandle, DockChromeHandle, DockDialogHandle, DockDialogPresentation,

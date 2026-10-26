@@ -11,7 +11,6 @@ use block_editor_beui::beui::icons::{
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled;
 use block_editor_beui::beui::styled::*;
-use block_editor_beui::beui::unstyled::Pressable;
 use pixel_art_types::{
     MAX_PIXEL_ART_PALETTE_COLORS, MAX_PIXEL_ART_SIZE, PixelArtAnchor, PixelArtOperation, PixelColor,
 };

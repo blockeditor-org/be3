@@ -6,7 +6,6 @@ use block_editor_beui::beui::icons::{ICON_LIST_FILTER, ICON_PLUS, ICON_X};
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::popover::PANEL_PADDING;
 use block_editor_beui::beui::styled::*;
-use block_editor_beui::beui::unstyled::{ChoiceOption, PopoverHandle};
 use block_editor_beui::block_ui::database::{
     DatabaseValueChange, ValueLabels, database_value_text,
 };

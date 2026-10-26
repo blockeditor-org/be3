@@ -7,7 +7,6 @@ use block_editor_beui::beui::icons::{
 };
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
-use block_editor_beui::beui::unstyled::{ChoiceOption, MenuItem};
 use block_editor_beui::block_ui::database::DatabaseValueChange;
 use block_editor_beui::database::DatabaseBlockPickRequest;
 use block_editor_beui::database::{ChoiceMark, DatabaseValueEditor};

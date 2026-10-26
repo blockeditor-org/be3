@@ -1,7 +1,7 @@
 use beui::NodeId;
 use beui::Overflow;
 use beui::dock::styled::Docking;
-use beui::dock::unstyled::{
+use beui::dock::styled::{
     DockDocument, DockDocumentBody, DockDocumentTabs, DockEntry, DockPane, DockTab,
 };
 use beui::icons::ICON_TERMINAL;

@@ -2,7 +2,6 @@ use beui::NodeId;
 use beui::icons::{ICON_EXTERNAL_LINK, ICON_GIT_COMMIT_HORIZONTAL, ICON_REFRESH_CW};
 use beui::reactive::*;
 use beui::styled::*;
-use beui::unstyled::Picture;
 
 use crate::actions::{Actions, Notes};
 use crate::github::{Entry, InlineComment, Person, PullRequest, State, Tone};
@@ -334,7 +333,7 @@ fn Avatar(model: Model, url: String) -> NodeId {
     });
     view! {
         <Frame width=AVATAR height=AVATAR radius=Radius::Full fill=ColorRole::Border>
-            <Picture image={picture} radius={AVATAR.px() / 2.0} />
+            <Picture image={picture} radius=Radius::Full />
         </Frame>
     }
 }
@@ -493,7 +492,7 @@ fn WebImage(model: Model, url: String, alt: String) -> NodeId {
                 <Link label={missing.clone()} on_click={open.clone()} />
             </Show>
             <Pressable on_click={enlarge} accessibility>
-                <Picture image={picture} radius=6.0 />
+                <Picture image={picture} radius=Radius::Md />
             </Pressable>
         </List>
     }

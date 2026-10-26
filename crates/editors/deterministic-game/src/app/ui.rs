@@ -5,7 +5,6 @@ use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::icons::{ICON_CHECK, ICON_FLAG, ICON_X};
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
-use block_editor_beui::beui::unstyled::{self, ChoiceOption};
 use block_editor_beui::{Editor, LoadingPane};
 use game_api::{Board, Control, GameActionOption, GameScreen, Gesture};
 
@@ -512,7 +511,7 @@ fn Banner(anchor: NodeRef, table: Memo<Table>) -> NodeId {
     });
     let color = TextColor::Default;
     view! {
-        <unstyled::Floating anchor open={open}>
+        <Floating anchor open={open}>
             <Frame padding=BANNER_MARGIN>
                 <Frame
                     fill=ColorRole::SurfaceRaised
@@ -535,7 +534,7 @@ fn Banner(anchor: NodeRef, table: Memo<Table>) -> NodeId {
                     </List>
                 </Frame>
             </Frame>
-        </unstyled::Floating>
+        </Floating>
     }
 }
 

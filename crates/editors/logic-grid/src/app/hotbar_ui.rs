@@ -2,10 +2,6 @@ use beui::Overflow;
 use beui::icons::{ICON_ARROW_UP, ICON_PLUS};
 use beui::reactive::*;
 use beui::styled::*;
-use beui::unstyled::Picture;
-use beui::unstyled::{
-    ChoiceOption, DragHandle, DragPoint, Draggable, DropHandle, DropTarget, MenuItem,
-};
 use beui::{CursorIcon, ImageFit, NodeId, TextAlign};
 
 use super::glyph::{GLYPH_HEIGHT, GLYPH_WIDTH, Glyph};

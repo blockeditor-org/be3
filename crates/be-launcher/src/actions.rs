@@ -2,7 +2,6 @@ use beui::NodeId;
 use beui::icons::{ICON_KEY_ROUND, ICON_PLAY, ICON_TERMINAL};
 use beui::reactive::*;
 use beui::styled::*;
-use beui::unstyled::MenuItem;
 
 use crate::builds::Slot;
 use crate::github::{Entry, PullRequest, branch_deleted};

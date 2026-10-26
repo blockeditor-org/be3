@@ -1,7 +1,6 @@
 use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
-use block_editor_beui::beui::unstyled::MenuItem;
 use block_editor_beui::database::{ChoiceMark, choice_glyph};
 use database_types::database_schema::DatabaseField;
 use uuid::Uuid;

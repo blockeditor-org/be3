@@ -3,7 +3,7 @@ use std::collections::HashMap;
 
 use beui::Image;
 #[cfg(not(target_os = "android"))]
-use beui::dock::unstyled::{DockDocuments, DockSlot, DockingLayout};
+use beui::dock::styled::{DockDocuments, DockSlot, DockingLayout};
 use beui::reactive::*;
 
 use crate::builds::Slot;

@@ -2,7 +2,6 @@ use block_editor_beui::be_block::BlockContent;
 use block_editor_beui::be_block::Edit;
 use block_editor_beui::beui::icons::Glyph;
 use block_editor_beui::beui::styled::*;
-use block_editor_beui::beui::unstyled::MenuItem;
 use block_editor_beui::database::{
     ChoiceMark, choice_color_label, choice_glyph, choice_icon_label,
 };
@@ -19,7 +18,6 @@ use block_editor_beui::beui::icons::{
     ICON_TRASH,
 };
 use block_editor_beui::beui::reactive::*;
-use block_editor_beui::beui::unstyled::ChoiceOption;
 use block_editor_beui::beui::{NodeId, Vec2};
 use block_editor_beui::{
     BlockFilter, ChildTarget, ContentProjection, Editor, node_anchor, watch_block_label,

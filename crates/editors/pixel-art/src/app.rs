@@ -6,7 +6,6 @@ use std::rc::Rc;
 use block_editor_beui::be_block::ObjectId;
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
-use block_editor_beui::beui::unstyled::Picture;
 use block_editor_beui::beui::{ImageFit, NodeId, Vec2};
 use block_editor_beui::{
     ArtifactDescription, Artifacts, BlockParent, Creation, Editor, Side, Sidebar,

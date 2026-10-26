@@ -1,6 +1,6 @@
 use std::sync::mpsc::channel;
 
-use beui::dock::unstyled::TabId;
+use beui::dock::styled::TabId;
 use beui::reactive::untrack;
 use beui::{Input, Modifiers, Vec2};
 use block_ui_test::DocumentTest;
