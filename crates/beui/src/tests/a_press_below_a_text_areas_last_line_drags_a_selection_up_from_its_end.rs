@@ -1,10 +1,10 @@
 use super::*;
+use crate::primitives::List;
 use crate::reactive::*;
 use crate::unstyled::{TextArea, TextAreaState};
 use std::sync::Arc;
 use text_editor_core::schema::basic::Basic;
 use text_editor_core::{Document, EditorCommand, TextBuffer, TextLanguage};
-use crate::primitives::List;
 
 const TEXT: &str = "first line here\nsecond line here\nthird line here";
 

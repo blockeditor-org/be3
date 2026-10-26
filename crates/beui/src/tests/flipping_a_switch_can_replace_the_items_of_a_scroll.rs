@@ -1,8 +1,8 @@
 use super::*;
 use crate::primitives::Frame;
+use crate::primitives::List;
 use crate::reactive::*;
 use crate::styled::*;
-use crate::primitives::List;
 
 #[test]
 fn flipping_a_switch_can_replace_the_items_of_a_scroll() {

@@ -2,9 +2,9 @@ use accesskit::Role;
 
 use super::*;
 use crate::primitives::Frame;
+use crate::primitives::List;
 use crate::reactive::*;
 use crate::styled::*;
-use crate::primitives::List;
 
 #[test]
 fn a_test_id_reaches_the_accessibility_tree_as_its_author_id() {

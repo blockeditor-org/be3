@@ -1,10 +1,10 @@
 use super::*;
 use crate::ForwardedInput;
 use crate::primitives::Frame;
+use crate::primitives::List;
 use crate::primitives::Text;
 use crate::reactive::*;
 use crate::styled::*;
-use crate::primitives::List;
 
 #[test]
 fn a_catcher_under_an_open_dialog_hears_no_press() {

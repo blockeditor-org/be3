@@ -1,11 +1,11 @@
 use beui_macros::{component, view};
 
 use crate::Chip;
+use crate::list::List;
 use crate::text::{Text, TextColor, TextSize};
+use crate::tokens::Space;
 use beui_core::base::TextAlign;
 use beui_core::node::NodeId;
-use crate::list::List;
-use crate::tokens::Space;
 use beui_view::reactive::*;
 
 const SPACING: Space = Space::Md;

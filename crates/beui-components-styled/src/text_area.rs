@@ -255,13 +255,7 @@ pub fn DocumentMarker(marker: TextMarker) -> NodeId {
                     .then(|| Border::new(ColorRole::Custom(color.get())).width(HOLLOW_BULLET_WIDTH))
             });
             view! {
-                <Frame
-                    width=side
-                    height=side
-                    fill={fill}
-                    border=ring
-                    radius=Radius::Full
-                />
+                <Frame width=side height=side fill={fill} border=ring radius=Radius::Full />
             }
         }
         MarkerKind::Number(_) => {
@@ -344,9 +338,8 @@ pub fn DocumentLine(line: TextLine) -> NodeId {
     let quotes = line.quotes();
     let quote = line.quote_indent();
     let width = create_memo(move || Size::Custom(quote.get()));
-    let room = create_memo(move || {
-        Padding::ZERO.right(Space::Custom(quote.get() - QUOTE_BAR_WIDTH))
-    });
+    let room =
+        create_memo(move || Padding::ZERO.right(Space::Custom(quote.get() - QUOTE_BAR_WIDTH)));
     let bars = create_memo(move || Padding::ZERO.left(Space::Custom(column.get())));
     let ruled = create_memo(move || {
         Padding::horizontal(Space::Custom(column.get())).right(Space::Custom(right.get()))
@@ -359,7 +352,12 @@ pub fn DocumentLine(line: TextLine) -> NodeId {
     let language = line.code_language();
     let corner = create_memo(move || {
         let right = (right.get() - outset.get()).max(0.0) + COPY_INSET.px();
-        Padding::custom(Sides::new(0.0, line.space.get().0 + COPY_INSET.px(), right, 0.0))
+        Padding::custom(Sides::new(
+            0.0,
+            line.space.get().0 + COPY_INSET.px(),
+            right,
+            0.0,
+        ))
     });
     let text = line.text;
     let theme = use_theme();

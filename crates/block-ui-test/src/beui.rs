@@ -1606,7 +1606,7 @@ impl<A: BeuiApp> BeuiTest<A> {
     }
 
     pub fn reveal(&mut self, test_id: &str) {
-        if self.rect_of(test_id).intersect(self.rect()).is_positive() {
+        if self.rect().contains_rect(self.rect_of(test_id)) {
             return;
         }
         let region = self.region();

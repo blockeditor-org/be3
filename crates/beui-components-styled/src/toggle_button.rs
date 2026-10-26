@@ -75,12 +75,7 @@ fn ToggleButtonFace(handle: ToggleHandle) -> NodeId {
     view! {
         <Tooltip label={tooltip}>
             <FocusRing focused offset=Stroke::Focus>
-                <Frame
-                    fill={fill_color}
-                    border={border}
-                    radius=Radius::Md
-                    padding={padding}
-                >
+                <Frame fill={fill_color} border={border} radius=Radius::Md padding={padding}>
                     <List direction=Direction::Horizontal align=Align::Center spacing=Space::Sm>
                         <Show condition={has_glyph}>
                             <Text color={text_color} align=TextAlign::Center>

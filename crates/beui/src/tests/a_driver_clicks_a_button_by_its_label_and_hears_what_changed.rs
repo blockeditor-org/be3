@@ -1,8 +1,8 @@
 use super::*;
+use crate::primitives::List;
 use crate::primitives::Text;
 use crate::reactive::*;
 use crate::styled::*;
-use crate::primitives::List;
 
 #[test]
 fn a_driver_clicks_a_button_by_its_label_and_hears_what_changed() {

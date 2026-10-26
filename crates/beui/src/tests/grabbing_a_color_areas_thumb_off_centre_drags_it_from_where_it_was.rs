@@ -1,8 +1,8 @@
 use super::*;
 use crate::color::Hsva;
+use crate::primitives::List;
 use crate::reactive::*;
 use crate::styled::*;
-use crate::primitives::List;
 
 #[test]
 fn grabbing_a_color_areas_thumb_off_centre_drags_it_from_where_it_was() {

@@ -2,10 +2,10 @@ use super::*;
 use crate::TextAlign;
 use crate::icons::ICON_FOLDER;
 use crate::primitives::Frame;
+use crate::primitives::List;
 use crate::reactive::*;
 use crate::styled::Text;
 use crate::styled::*;
-use crate::primitives::List;
 
 const LABEL: &str = "Folder";
 

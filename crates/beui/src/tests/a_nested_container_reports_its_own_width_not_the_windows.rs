@@ -1,9 +1,9 @@
 use super::*;
 use crate::primitives::Frame;
+use crate::primitives::List;
 use crate::reactive::*;
 use crate::styled::*;
 use crate::unstyled::{Container, narrower_than};
-use crate::primitives::List;
 
 const INNER_WIDTH: f32 = 200.0;
 const BREAKPOINT: f32 = 300.0;

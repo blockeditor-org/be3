@@ -3,8 +3,10 @@ use beui_macros::{component, view};
 
 use crate::color_picker::{ColorPicker, ColorSwatch};
 use crate::focus_ring::FocusRing;
+use crate::list::List;
 use crate::popover::popover_surface;
 use crate::text_input::TextInput;
+use crate::tokens::{Size, Space, Stroke};
 use crate::tooltip::Tooltip;
 use beui_components_unstyled as unstyled;
 use beui_components_unstyled::{
@@ -14,8 +16,6 @@ use beui_components_unstyled::{
 use beui_core::base::{Align, Direction};
 use beui_core::color::Color32;
 use beui_core::node::NodeId;
-use crate::list::List;
-use crate::tokens::{Size, Space, Stroke};
 use beui_view::reactive::*;
 
 const SWATCH_WIDTH: Size = Size::Lg;

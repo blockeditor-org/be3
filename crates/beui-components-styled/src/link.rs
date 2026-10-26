@@ -10,7 +10,6 @@ use beui_components_unstyled as unstyled;
 use beui_core::node::NodeId;
 use beui_view::reactive::*;
 
-
 #[component]
 pub fn Link(
     label: Prop<String>,

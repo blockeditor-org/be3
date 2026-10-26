@@ -14,6 +14,7 @@ use crate::unstyled::{
     DockSplitterHandle, DockStackHandle, DockSwitchHandle, DockSwitcherHandle, DockTabHandle,
     DockingLayout, Entry,
 };
+use beui_components_styled::List;
 use beui_components_styled::action_bar::{ActionBar, ActionLabels};
 use beui_components_styled::button::{Button, ButtonSize, ButtonVariant};
 use beui_components_styled::context_menu::menu_style;
@@ -21,7 +22,6 @@ use beui_components_styled::text::{Icon, Text, TextColor, TextSize};
 use beui_components_styled::theme::{NARROW_WIDTH, POINTER_REACH, use_theme};
 use beui_components_styled::tokens::{Padding, Size, Space, Stroke};
 use beui_components_styled::tooltip::Tooltip;
-use beui_components_styled::List;
 use beui_components_unstyled::Picture;
 use beui_core::base::frame::Align2;
 use beui_core::base::{Align, Direction, ItemSize, Justify};
@@ -653,11 +653,7 @@ fn DockSideBar(
     });
     view! {
         <List direction=Direction::Horizontal spacing=Space::None>
-            <Frame
-                fill={fill}
-                padding=BAR_PADDING
-                @sizing=ItemSize::Percent(100.0)
-            >
+            <Frame fill={fill} padding=BAR_PADDING @sizing=ItemSize::Percent(100.0)>
                 <List spacing=BAR_SPACING>
                     <List
                         direction=Direction::Horizontal

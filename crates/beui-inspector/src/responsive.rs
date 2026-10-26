@@ -107,10 +107,7 @@ fn ResponsiveToolbar(
     });
     view! {
         <List spacing=Space::None>
-            <Frame
-                fill=ColorRole::Surface
-                padding=PADDING
-            >
+            <Frame fill=ColorRole::Surface padding=PADDING>
                 <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
                     <Frame width=DEVICE_WIDTH>
                         <Select

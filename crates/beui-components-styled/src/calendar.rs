@@ -5,8 +5,8 @@ use beui_macros::{component, view};
 use crate::button::{Button, ButtonSize};
 use crate::button::{ButtonFace, ButtonVariant};
 use crate::focus_ring::FocusRing;
-use crate::text::{Text, TextColor, TextSize};
 use crate::list::List;
+use crate::text::{Text, TextColor, TextSize};
 use crate::tokens::{Length, Size, Space, Stroke, use_space};
 use beui_components_unstyled as unstyled;
 use beui_components_unstyled::datetime::{Date, Weekday};
@@ -178,14 +178,8 @@ fn CellFace(handle: CalendarCellHandle) -> NodeId {
         CalendarMode::Months => Size::Custom(MONTH_HEIGHT),
         CalendarMode::Years => Size::Custom(YEAR_HEIGHT),
     };
-    let fill = create_memo(move || {
-        cell_fill(
-            selected.get(),
-            disabled.get(),
-            hovered.get(),
-            active.get(),
-        )
-    });
+    let fill =
+        create_memo(move || cell_fill(selected.get(), disabled.get(), hovered.get(), active.get()));
     let ink = create_memo(move || cell_ink(selected.get(), disabled.get(), outside.get()));
     let ring = create_memo(move || marked.get() && !selected.get());
     view! {
@@ -204,12 +198,7 @@ fn CellFace(handle: CalendarCellHandle) -> NodeId {
     }
 }
 
-fn cell_fill(
-    selected: bool,
-    disabled: bool,
-    hovered: bool,
-    active: bool,
-) -> ColorRole {
+fn cell_fill(selected: bool, disabled: bool, hovered: bool, active: bool) -> ColorRole {
     match (selected, disabled, active, hovered) {
         (true, true, _, _) => ColorRole::Track,
         (true, false, _, _) => ColorRole::Accent,

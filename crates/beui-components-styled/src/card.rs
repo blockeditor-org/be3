@@ -11,12 +11,7 @@ pub(crate) const PADDING: Space = Space::Xl;
 #[component]
 pub fn Card(children: Child) -> NodeId {
     view! {
-        <Frame
-            fill=ColorRole::Surface
-            border={Border::DEFAULT}
-            radius=Radius::Lg
-            padding=PADDING
-        >
+        <Frame fill=ColorRole::Surface border={Border::DEFAULT} radius=Radius::Lg padding=PADDING>
             {children}
         </Frame>
     }

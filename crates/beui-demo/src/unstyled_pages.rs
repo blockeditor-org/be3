@@ -67,12 +67,10 @@ fn PressCounter() -> NodeId {
     let presses = create_signal(0u32);
     let hovered = create_signal(false);
     let active = create_signal(false);
-    let fill = create_memo(move || {
-        match (active.get(), hovered.get()) {
-            (true, _) => ColorRole::Pressed,
-            (false, true) => ColorRole::Hover,
-            (false, false) => ColorRole::SurfaceRaised,
-        }
+    let fill = create_memo(move || match (active.get(), hovered.get()) {
+        (true, _) => ColorRole::Pressed,
+        (false, true) => ColorRole::Hover,
+        (false, false) => ColorRole::SurfaceRaised,
     });
     let label = create_memo(move || format!("Pressed {} times", presses.get()));
     view! {
@@ -121,12 +119,10 @@ fn PillFace(handle: ButtonHandle, label: &'static str) -> NodeId {
         focused,
         ..
     } = handle;
-    let fill = create_memo(move || {
-        match (active.get(), hovered.get()) {
-            (true, _) => ColorRole::AccentActive,
-            (false, true) => ColorRole::AccentHover,
-            (false, false) => ColorRole::Accent,
-        }
+    let fill = create_memo(move || match (active.get(), hovered.get()) {
+        (true, _) => ColorRole::AccentActive,
+        (false, true) => ColorRole::AccentHover,
+        (false, false) => ColorRole::Accent,
     });
     view! {
         <Frame
@@ -311,7 +307,11 @@ fn UnderlinedInput() -> NodeId {
 fn ProseInput() -> NodeId {
     let theme = use_theme();
     view! {
-        <Frame height={Size::Custom(120.0)} border={Border::new(ColorRole::Border).width(Stroke::Hairline)} radius=Radius::Md>
+        <Frame
+            height={Size::Custom(120.0)}
+            border={Border::new(ColorRole::Border).width(Stroke::Hairline)}
+            radius=Radius::Md
+        >
             <unstyled::TextInput
                 value="A centered, bold title\nthat wraps inside its box"
                 placeholder="Title"
@@ -436,12 +436,10 @@ fn SegmentFace(handle: ChoiceOptionHandle) -> NodeId {
         focused,
         ..
     } = handle;
-    let fill = create_memo(move || {
-        match (selected.get(), hovered.get()) {
-            (true, _) => ColorRole::Accent,
-            (false, true) => ColorRole::Hover,
-            (false, false) => ColorRole::None,
-        }
+    let fill = create_memo(move || match (selected.get(), hovered.get()) {
+        (true, _) => ColorRole::Accent,
+        (false, true) => ColorRole::Hover,
+        (false, false) => ColorRole::None,
     });
     let ink = create_memo(move || match selected.get() {
         true => TextColor::OnAccent,
@@ -795,11 +793,7 @@ fn MenuRow(handle: MenuRowHandle) -> NodeId {
         false => ColorRole::None,
     });
     view! {
-        <Frame
-            fill={fill}
-            radius=Radius::Md
-            padding={Padding::symmetric(Space::Md, Space::Sm)}
-        >
+        <Frame fill={fill} radius=Radius::Md padding={Padding::symmetric(Space::Md, Space::Sm)}>
             <Text>{label}</Text>
         </Frame>
     }
@@ -882,11 +876,7 @@ fn FruitChip(fruit: usize, lifted: Prop<bool>) -> NodeId {
         false => ColorRole::SurfaceRaised,
     });
     view! {
-        <Frame
-            fill={fill}
-            radius=Radius::Md
-            padding={Padding::symmetric(Space::Md, Space::Sm)}
-        >
+        <Frame fill={fill} radius=Radius::Md padding={Padding::symmetric(Space::Md, Space::Sm)}>
             <Text>{PRODUCE[fruit].to_owned()}</Text>
         </Frame>
     }
@@ -1013,12 +1003,10 @@ fn FileRowFace(handle: ButtonHandle, selected: Memo<bool>, name: &'static str) -
     let ButtonHandle {
         hovered, focused, ..
     } = handle;
-    let fill = create_memo(move || {
-        match (selected.get(), hovered.get()) {
-            (true, _) => ColorRole::AccentSoft,
-            (false, true) => ColorRole::Hover,
-            (false, false) => ColorRole::None,
-        }
+    let fill = create_memo(move || match (selected.get(), hovered.get()) {
+        (true, _) => ColorRole::AccentSoft,
+        (false, true) => ColorRole::Hover,
+        (false, false) => ColorRole::None,
     });
     view! {
         <Frame
@@ -1068,12 +1056,10 @@ fn NumberFace(handle: NumberFaceHandle) -> NodeId {
         focused,
         ..
     } = handle;
-    let fill = create_memo(move || {
-        match (active.get(), hovered.get()) {
-            (true, _) => ColorRole::Pressed,
-            (false, true) => ColorRole::Hover,
-            (false, false) => ColorRole::SurfaceRaised,
-        }
+    let fill = create_memo(move || match (active.get(), hovered.get()) {
+        (true, _) => ColorRole::Pressed,
+        (false, true) => ColorRole::Hover,
+        (false, false) => ColorRole::SurfaceRaised,
     });
     view! {
         <Frame
@@ -1300,14 +1286,14 @@ fn FolderRow(handle: TreeRowHandle<usize>) -> NodeId {
     } = handle;
     let indent = create_memo(move || ItemSize::Fixed(item.get().depth as f32 * 16.0));
     let label = create_memo(move || item.get().label);
-    let fill = create_memo(move || {
-        match (selected.get(), marked.get(), hovered.get()) {
+    let fill = create_memo(
+        move || match (selected.get(), marked.get(), hovered.get()) {
             (true, _, _) => ColorRole::AccentSoft,
             (false, true, _) => ColorRole::SurfaceRaised,
             (false, false, true) => ColorRole::Hover,
             (false, false, false) => ColorRole::None,
-        }
-    });
+        },
+    );
     view! {
         <List direction=Direction::Horizontal align=Align::Center spacing=Space::Xs>
             <Spacer @sizing={indent} />
@@ -1348,19 +1334,13 @@ fn ToolbarKey(handle: ButtonHandle) -> NodeId {
         label,
         ..
     } = handle;
-    let fill = create_memo(move || {
-        match (active.get(), hovered.get()) {
-            (true, _) => ColorRole::Pressed,
-            (false, true) => ColorRole::Hover,
-            (false, false) => ColorRole::None,
-        }
+    let fill = create_memo(move || match (active.get(), hovered.get()) {
+        (true, _) => ColorRole::Pressed,
+        (false, true) => ColorRole::Hover,
+        (false, false) => ColorRole::None,
     });
     view! {
-        <Frame
-            fill={fill}
-            radius=Radius::Md
-            padding={Padding::symmetric(Space::Md, Space::Sm)}
-        >
+        <Frame fill={fill} radius=Radius::Md padding={Padding::symmetric(Space::Md, Space::Sm)}>
             <Text>{label}</Text>
         </Frame>
     }
@@ -1457,11 +1437,7 @@ fn CompletionRow(handle: CompletionRowHandle) -> NodeId {
         false => ColorRole::None,
     });
     view! {
-        <Frame
-            fill={fill}
-            radius=Radius::Md
-            padding={Padding::symmetric(Space::Md, Space::Xs)}
-        >
+        <Frame fill={fill} radius=Radius::Md padding={Padding::symmetric(Space::Md, Space::Xs)}>
             <Text>{label}</Text>
         </Frame>
     }
@@ -1558,7 +1534,12 @@ fn FolderPages() -> NodeId {
 fn SheetGrip() -> NodeId {
     view! {
         <Frame height={Size::Md} align=Align::Center>
-            <Frame width={Size::Custom(36.0)} height={Size::Custom(4.0)} radius=Radius::Xs fill=ColorRole::TextMuted />
+            <Frame
+                width={Size::Custom(36.0)}
+                height={Size::Custom(4.0)}
+                radius=Radius::Xs
+                fill=ColorRole::TextMuted
+            />
         </Frame>
     }
 }
@@ -1622,11 +1603,7 @@ fn DateSegmentFace(handle: DateSegmentHandle) -> NodeId {
         false => TextColor::Default,
     });
     view! {
-        <Frame
-            fill={fill}
-            radius=Radius::Xs
-            padding={Padding::horizontal(Space::Xs2)}
-        >
+        <Frame fill={fill} radius=Radius::Xs padding={Padding::horizontal(Space::Xs2)}>
             <Text color={ink}>{text}</Text>
         </Frame>
     }

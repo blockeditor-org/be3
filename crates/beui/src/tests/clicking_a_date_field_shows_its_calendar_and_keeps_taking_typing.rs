@@ -2,10 +2,10 @@ use accesskit::Role;
 
 use super::*;
 use crate::datetime::{Date, DateTime, Time};
+use crate::primitives::List;
 use crate::reactive::*;
 use crate::styled::*;
 use crate::unstyled::{Container, DateTimeParts};
-use crate::primitives::List;
 
 #[test]
 fn clicking_a_date_field_shows_its_calendar_and_keeps_taking_typing() {

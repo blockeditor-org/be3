@@ -3,13 +3,13 @@ use beui_core::font::Overflow;
 use beui_macros::{component, view};
 
 use crate::unstyled::{DockSwitchHandle, DockSwitchRowHandle, TabId};
+use beui_components_styled::List;
 use beui_components_styled::list_row::ListRow;
 use beui_components_styled::text::{Icon, Text, TextColor};
+use beui_components_styled::tokens::{Padding, Size, Space};
 use beui_core::base::{Align, Direction};
 use beui_core::font::TextAlign;
 use beui_core::node::NodeId;
-use beui_components_styled::List;
-use beui_components_styled::tokens::{Padding, Size, Space};
 use beui_view::reactive::*;
 
 const PANEL_WIDTH: Size = Size::Dialog;

@@ -1,8 +1,8 @@
 use super::*;
+use crate::primitives::List;
 use crate::primitives::Text;
 use crate::reactive::*;
 use crate::styled::*;
-use crate::primitives::List;
 
 #[test]
 fn a_driver_answers_a_file_dialog_in_a_window_that_is_not_simulated() {

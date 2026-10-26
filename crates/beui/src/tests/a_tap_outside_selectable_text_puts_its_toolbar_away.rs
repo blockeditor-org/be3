@@ -1,8 +1,8 @@
 use super::*;
+use crate::primitives::List;
 use crate::primitives::Text;
 use crate::reactive::*;
 use crate::styled::*;
-use crate::primitives::List;
 
 #[test]
 fn a_tap_outside_selectable_text_puts_its_toolbar_away() {

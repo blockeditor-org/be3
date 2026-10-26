@@ -43,11 +43,7 @@ pub fn Progress(
                 <Frame width height=HEIGHT fill=track radius=Radius::Full>
                     <List direction=Direction::Horizontal spacing=Space::None>
                         <Spacer @sizing={percent(|spans| spans.0)} />
-                        <Frame
-                            @sizing={percent(|spans| spans.1)}
-                            fill
-                            radius=Radius::Full
-                        />
+                        <Frame @sizing={percent(|spans| spans.1)} fill radius=Radius::Full />
                         <Spacer @sizing={percent(|spans| spans.2)} />
                     </List>
                 </Frame>

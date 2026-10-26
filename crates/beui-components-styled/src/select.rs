@@ -2,12 +2,12 @@ use crate::frame::{Border, ColorRole, Frame, Radius, focus_border};
 use beui_core::font::Overflow;
 use beui_macros::{component, view};
 
+use crate::list::List;
 use crate::scroll::scrollbar_style;
 use crate::sheet::AnchoredSheet;
 use crate::text::{Icon, Text, TextColor};
 use crate::text_input::text_input_style;
 use crate::theme::field_border;
-use crate::list::List;
 use crate::tokens::{Length, Padding, Size, Space, Stroke, use_size, use_space};
 use beui_components_unstyled as unstyled;
 use beui_components_unstyled::{
@@ -151,15 +151,15 @@ fn SearchField(handle: TextInputHandle) -> NodeId {
         focused,
         ..
     } = handle;
-    let border =
-        create_memo(move || Some(Border::new(field_border(false, focused.get(), hovered.get()))));
+    let border = create_memo(move || {
+        Some(Border::new(field_border(
+            false,
+            focused.get(),
+            hovered.get(),
+        )))
+    });
     view! {
-        <Frame
-            height=HEIGHT
-            fill=ColorRole::Surface
-            border={border}
-            radius=Radius::Md
-        >
+        <Frame height=HEIGHT fill=ColorRole::Surface border={border} radius=Radius::Md>
             {field}
         </Frame>
     }

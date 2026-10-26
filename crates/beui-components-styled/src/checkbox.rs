@@ -5,8 +5,8 @@ use beui_macros::{component, view};
 use crate::focus_ring::FocusRing;
 use beui_core::base::TextAlign;
 
-use crate::text::{Text, TextColor, TextSize};
 use crate::list::List;
+use crate::text::{Text, TextColor, TextSize};
 use crate::tokens::{Size, Space, Stroke};
 use beui_components_unstyled::{Toggle, ToggleHandle};
 use beui_core::node::NodeId;

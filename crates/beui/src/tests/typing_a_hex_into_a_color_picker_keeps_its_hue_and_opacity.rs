@@ -1,7 +1,7 @@
 use super::*;
+use crate::primitives::List;
 use crate::reactive::*;
 use crate::styled::*;
-use crate::primitives::List;
 
 #[test]
 fn typing_a_hex_into_a_color_picker_keeps_its_hue_and_opacity() {

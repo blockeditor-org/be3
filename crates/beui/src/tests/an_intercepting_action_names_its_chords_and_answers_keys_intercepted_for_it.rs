@@ -1,9 +1,9 @@
 use super::*;
 use crate::KeyAt;
 
+use crate::primitives::List;
 use crate::reactive::*;
 use crate::styled::*;
-use crate::primitives::List;
 
 #[test]
 fn an_intercepting_action_names_its_chords_and_answers_keys_intercepted_for_it() {

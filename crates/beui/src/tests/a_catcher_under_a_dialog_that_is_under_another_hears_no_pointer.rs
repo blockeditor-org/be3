@@ -1,10 +1,10 @@
 use super::*;
 use crate::ForwardedInput;
 use crate::primitives::Frame;
+use crate::primitives::List;
 use crate::primitives::Text;
 use crate::reactive::*;
 use crate::styled::*;
-use crate::primitives::List;
 
 #[test]
 fn a_catcher_under_a_dialog_that_is_under_another_hears_no_pointer() {

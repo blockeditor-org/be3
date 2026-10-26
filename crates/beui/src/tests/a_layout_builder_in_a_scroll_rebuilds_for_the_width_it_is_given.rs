@@ -1,10 +1,10 @@
 use super::*;
 use crate::primitives::Frame;
+use crate::primitives::List;
 use crate::primitives::Text;
 use crate::reactive::*;
 use crate::styled::Scroll;
 use crate::styled::*;
-use crate::primitives::List;
 
 #[test]
 fn a_layout_builder_in_a_scroll_rebuilds_for_the_width_it_is_given() {

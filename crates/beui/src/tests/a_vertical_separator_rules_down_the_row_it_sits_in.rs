@@ -1,7 +1,7 @@
 use super::*;
+use crate::primitives::List;
 use crate::reactive::*;
 use crate::styled::*;
-use crate::primitives::List;
 
 #[test]
 fn a_vertical_separator_rules_down_the_row_it_sits_in() {

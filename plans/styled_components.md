@@ -396,14 +396,14 @@ use styled. Between them they have about 740 `spacing=`, 180 `padding=`, 33
 about 190 private `*_SPACING`, `*_PADDING`, `*_INSET` and `*_MARGIN` consts.
 Styled has about 190 of those consts of its own.
 
-- **Spacing tokens.** Add a `Space` scale, named like `Radius` and `TextSize`.
+- **Done.** **Spacing tokens.** Add a `Space` scale, named like `Radius` and `TextSize`.
   It resolves through `Density`, so compact and comfortable layouts come from
   the tokens instead of from each component (`Tree` has its own `Metrics` for
   this today). The values in use are 0, 2, 4, 6, 8, 10 and 12, then a long
   tail of 14, 16, 18, 20 and 24. Use the steps 0, 2, 4, 6, 8, 12, 16, 20 and
   24. Snap 10, 14 and 18 to whichever neighbour looks right in each place,
   and accept the paintings that change.
-- **Styled `Frame`.**
+- **Done.** **Styled `Frame`.**
   - `padding` takes `Space`, on all sides or on each side.
   - `border` width and offset take tokens: hairline, focus ring and focus
     ring offset. `FocusRing`'s `offset` uses the same token.
@@ -416,12 +416,12 @@ Styled has about 190 of those consts of its own.
     (`TextSize::icon_px` already exists for icons). Lengths that are content
     (a thumbnail, a board cell, a canvas) use a `Custom(f32)` escape hatch
     on the size token.
-- **Styled `List` and `Grid`.** Styled re-exports the base `List` and `Grid`
+- **Done.** **Styled `List` and `Grid`.** Styled re-exports the base `List` and `Grid`
   unchanged, so `spacing` is raw. This is the biggest case, with about 740
   uses. Add styled versions whose spacing takes `Space`, and stop
   re-exporting the base ones. Do the same for `Gap` and `Spacer` widths in
   styled `Text`.
-- **Complete `ColorRole`.** `ColorRole::Custom(theme.dim.get())` exists
+- **Done.** **Complete `ColorRole`.** `ColorRole::Custom(theme.dim.get())` exists
   because the theme has colours that have no role: `danger_fill` and its
   hover and active, `danger_soft`, `on_danger`, `dim`, `scrim`, `scrim_soft`,
   `scrim_strong`, `control_outline` and `knob_outline`. Add them, so code
@@ -432,19 +432,133 @@ Styled has about 190 of those consts of its own.
   from content: a user's tag colour, a remote cursor, a presentation
   background, a chart series, a colour swatch. Don't use them for a colour
   the theme has or should have.
-- **Component props in pixels** move to tokens:
+- **Done.** **Component props in pixels** move to tokens:
   - Size tokens or a named size: `Dialog`'s `width`, `Popover`'s
     `max_width`, `MenuPopup`'s `min_width`, `Calendar`'s `width`,
     `Select`'s `width`, `Spinner`'s `width` (merged into `Progress`) and
     `Separator`'s `length`.
   - `Space`: `Tree`'s `spacing` and `padding`, and `styled::Stack`'s
     `spacing`.
-- **Inside styled too.** Rewrite the private consts in styled (button and
+- **Done.** **Inside styled too.** Rewrite the private consts in styled (button and
   row paddings, gaps, focus offsets) in tokens. Tokens that styled itself
   doesn't use aren't real.
 - **The types enforce it.** Once styled props take token types, a raw `8.0`
   doesn't compile, and no lint is needed. Unstyled and base components keep
   taking concrete values, as the design principles say.
+
+### What landed (the token foundation)
+
+All in `crates/beui-components-styled/src/tokens.rs` unless noted, exported
+from `beui::styled`:
+
+- `Space`: `None` 0, `Xs2` 2, `Xs` 4, `Sm` 6, `Md` 8, `Lg` 12, `Xl` 16, `Xl2`
+  20, `Xl3` 24, plus `Custom(f32)` for lengths that come from content (a
+  line's indent, a zoom-scaled inset). `Space::resolve(Density)`: under
+  `Density::Comfortable` every step from `Xs` up moves one step larger (4→6,
+  6→8, 8→12, 12→16, 16→20, 20→24, 24→32); `None`, `Xs2` and `Custom` never
+  scale. `Space::px()` is the compact value. `use_space(space) -> Prop<f32>`
+  resolves through the nearest density for an unstyled prop that takes pixels.
+- `Padding { left, top, right, bottom: Space }` with `all`, `symmetric`,
+  `horizontal`, `vertical`, `new`, `.left(..)` and siblings, `ZERO`, and
+  `Padding::custom(Sides)` for content insets. A `Space` converts into an
+  all-sides `Padding`.
+- `Size`: `Track` 6, `Xs` 16, `Sm` 20, `Md` 24, `Lg` 32, `Xl` 40, `Xl2` 48,
+  `Xl3` 64, `Row` (22, or 44 when comfortable: the tree row, folded from
+  Tree's old `Metrics`), `Toolbar` 30, `Field` 34, `TouchRow` 52, `Menu` 200,
+  `Popover` 320, `Dialog` 360, and `Custom(f32)` for content lengths (a
+  thumbnail, a board cell, a canvas, a measured width). `use_size`.
+- `Length`: `Length::Extent(Extent)` for intrinsic, fill (`Length::FILL`),
+  fraction and at-most/at-least, or `Length::Size(Size)` for a fixed length.
+  Styled `Frame`'s `width`/`height`, `Progress`'s `width`, `Calendar`'s
+  `width`, `Select`'s `width` and `Separator`'s `length` take it; an `Extent`
+  or a `Size` converts into it.
+- `Stroke`: `None` 0, `Hairline` 1, `Focus` 2, `Custom(f32)`. `Border`'s
+  `width` and `offset` are `Stroke`s (`Border::new` is hairline, `Border::FOCUS`
+  is a focus-width accent ring). `FocusRing` takes `radius` (the radius of what
+  it rings) and `offset: Stroke`, and draws the ring at `radius + offset`: that
+  is the derived focus-ring radius ("Md plus 2" is `radius=Radius::Md
+  offset=Stroke::Focus`).
+- `Radius` gained `Tab` (7: toolbar buttons, compact buttons, dock tabs) and
+  lost `Custom`. A frame rounds only some corners with `corners: CornerSet`
+  (`ALL`, `TOP`, `BOTTOM`, `LEFT`, `RIGHT`, `CornerSet::new(..)`).
+- `ColorRole` gained `DangerFill`, `DangerFillHover`, `DangerFillActive`,
+  `DangerSoft`, `OnDanger`, `ControlOutline`, `KnobOutline` (transparent when
+  the theme has none), `Dim`, `Scrim`, `ScrimSoft`, `ScrimStrong`. `TextColor`
+  gained `AccentHover` and `AccentActive`. `ButtonVariant::fill` and
+  `theme::field_border` return a `ColorRole`.
+- Styled `List(direction, align, justify, wrap, spacing: Space)`, `Grid(columns,
+  column_spacing: Space, row_spacing: Space)` (`list.rs`) and `Gap(width: Space)`
+  (`text.rs`). Styled no longer re-exports the base `List`, `Grid` or `Gap`.
+- Props: `Dialog`/`DialogFrame`/`DialogCard` `width: Size` (`DIALOG_WIDTH` is
+  `Size::Dialog`), `Popover`/`PopoverPanel` `max_width: Size`, `MenuPopup`
+  `min_width: Size`, `Tree` `spacing`/`padding: Space`, `Stack` `spacing:
+  Space`, `INLINE_PROGRESS_WIDTH` is `Size::Xl`. Removed from `styled::theme`:
+  `BORDER_WIDTH`, `FOCUS_RING_WIDTH`, `SEPARATOR_THICKNESS`,
+  `SCROLLBAR_TRACK_WIDTH`, `SCROLLBAR_INSET` (use `Stroke`/`Size`/`Space`, or a
+  `Separator`).
+- Styled, beui-dock's and beui-keyboard's styled modules, beui-demo and
+  beui-inspector are written in tokens and build without the temporary
+  conversions below.
+
+Left deliberately: dimensions particular to one component (a calendar day
+cell, the palette's 560 width, the colour picker's area) stay private
+`Size::Custom` consts or `Extent::at_most(..)` inside styled rather than
+growing the scale with tokens nothing else uses. Unstyled and base components
+keep taking pixels; styled resolves tokens before handing them down.
+
+### The temporary conversion, and migrating a crate
+
+So that crates outside beui keep compiling while they are migrated one at a
+time, these conversions exist and are temporary. Each maps a raw value to a
+`Px` variant (`Space::Px`, `Size::Px`, `Stroke::Px`, `Radius::Px`) that
+behaves like a fixed length:
+
+- `f32` (and `Prop`/`Memo`/`Signal` of it) into `Space`, `Padding`, `Size`,
+  `Length` and `Stroke`; `Option<f32>` into `Length`; `Sides` into `Padding`;
+  `f32` into `Stroke` for `Border::width`/`offset` (`impl From<f32> for
+  Stroke`); `Radius::custom(f32)` and the `Radius::Px(Corners)` variant.
+
+To migrate a crate (one PR per crate group):
+
+1. Replace each raw value with the token for it. Spacing and padding (`spacing=`,
+   `padding=`, `Sides::..`, `*_SPACING`/`*_PADDING`/`*_INSET`/`*_MARGIN`
+   consts): 0→`None`, 2→`Xs2`, 4→`Xs`, 6→`Sm`, 8→`Md`, 12→`Lg`, 16→`Xl`,
+   20→`Xl2`, 24→`Xl3`. Snap the rest to whichever neighbour looks right there:
+   1 and 3 → `Xs2` (or `Xs`), 5 → `Xs`, 7 and 9 → `Sm`/`Md`, 10 → `Md` (or
+   `Lg` for page-level gaps), 14 → `Lg` (or `Xl`), 18 → `Xl` (or `Xl2`), 28 and
+   32 → `Xl3`. `Sides::symmetric(a, b)` becomes `Padding::symmetric(Space::A,
+   Space::B)`; a padding built from measured or scaled values becomes
+   `Padding::custom(sides)` or `Space::Custom(x)`.
+2. Fixed widths and heights: controls and pictures take the `Size` scale
+   (16, 20, 24, 32, 40, 48, 64, `Toolbar` 30, `Field` 34, `TouchRow` 52,
+   `Track` 6); panels take `Menu`/`Popover`/`Dialog`; a length that is content
+   (a board cell, a thumbnail, a canvas, a computed width) is `Size::Custom(x)`.
+   Fill, fraction and at-most stay `Extent` (`width={Extent::fraction(1.0)}`).
+   Don't write `Extent::px(..)` on a styled frame; use `Size`.
+3. Radii: `Radius::custom(3.0)` → `Xs`, 4/5 → `Sm`, 6 → `Md`, 7/8 → `Tab`,
+   10-12 → `Lg`, half the side of a round thing → `Full`. One-sided rounding:
+   `radius=Radius::Lg corners=CornerSet::TOP`. A focus ring around a rounded
+   thing: `<FocusRing radius=<that radius> offset=Stroke::Focus>`.
+4. Borders: `.width(1.0)` → `Stroke::Hairline`, `.width(2.0)` →
+   `Stroke::Focus`, `.offset(2.0)` → `Stroke::Focus`; a zoom-scaled outline is
+   `Stroke::Custom(x)`. A 1px rule `<Frame width=BORDER_WIDTH fill=Border/>`
+   is a `<Separator direction=Direction::Vertical />`.
+5. Colours: replace `ColorRole::Custom(theme.x.get())` / `TextColor::Custom(theme.x.get())`
+   with the role (`ColorRole::Scrim`, `ColorRole::DangerFill`, ...); a memo
+   that picks a fill by state returns a `ColorRole` and is passed as
+   `fill={memo}`. `Custom` stays only for colours from content.
+6. To find every site, build the crate with the conversions switched off:
+   temporarily delete the `into_prop_via!` lines after `into_prop_via!(Length,
+   Extent, ..)` in tokens.rs and `impl From<f32> for Stroke`, make
+   `Border::width`/`offset` take `Stroke`, and rename `Radius::custom`; then
+   `./scripts/buck build //crates/<crate>:<crate>` lists them. Put the files
+   back before committing.
+
+Final step, once every crate is migrated: delete those conversions, the `Px`
+variants of `Space`/`Size`/`Stroke`/`Radius`, `Radius::custom`,
+`Padding::from_sides`, and make `Border::width`/`offset` take `Stroke`
+again (they take `impl Into<Stroke>` only for the conversion). Then
+consider a source lint against `Extent::px` on a styled `Frame`.
 
 ## 8. One `overflow` prop for text, defaulting to wrap
 

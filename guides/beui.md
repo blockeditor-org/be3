@@ -815,12 +815,31 @@ and its siblings to override one side). `align` takes an `Align2` (a plain
 rather than stretching it over the frame, which is how a badge sits in a
 corner. The primitive takes concrete values: `fill` a `Color32`, `radius`
 `Corners`, and `outline` an `Option<Outline>`. The styled `Frame` apps use takes
-tokens instead: `fill` a `ColorRole` (a theme colour, or `ColorRole::Custom`
-for one that is not), `radius` a `Radius` (`Xs` to `Lg`, `Full`, or
-`Radius::Custom`), and `border` an `Option<Border>` (`Border::DEFAULT`,
-`Border::FOCUS`, `Border::new(role)` with `.width(..)` and `.offset(..)`;
-`focus_border` shows one only while the focus ring is visible). A
-`ColorRole::custom(..)` wraps a colour or a signal of one.
+design tokens instead (`styled::tokens`): `padding` a `Padding` of `Space`
+steps (`Padding::all(Space::Md)`, `symmetric`, `horizontal`, `vertical`, then
+`.left(..)` and its siblings; a plain `Space` pads every side), `width` and
+`height` a `Length` (an `Extent` for fill, fraction and at-most, or a `Size`
+for a fixed length), `fill` a `ColorRole` (a theme colour, or
+`ColorRole::Custom` for one that comes from content, such as a user's tag
+colour), `radius` a `Radius` (`Xs` to `Lg`, `Tab`, `Full`) with `corners` a
+`CornerSet` when only some corners round, and `border` an `Option<Border>`
+(`Border::DEFAULT`, `Border::FOCUS`, `Border::new(role)` with `.width(..)` and
+`.offset(..)` taking a `Stroke`: `Hairline`, `Focus`; `focus_border` shows one
+only while the focus ring is visible). A `ColorRole::custom(..)` wraps a colour
+or a signal of one.
+`Space` steps are `None` 0, `Xs2` 2, `Xs` 4, `Sm` 6, `Md` 8, `Lg` 12, `Xl` 16,
+`Xl2` 20 and `Xl3` 24; `Size` steps are `Track` 6, `Xs` 16, `Sm` 20, `Md` 24,
+`Lg` 32, `Xl` 40, `Xl2` 48, `Xl3` 64, then the named `Row`, `Toolbar`,
+`Field`, `TouchRow`, `Menu`, `Popover` and `Dialog`. Both resolve through
+`use_density()`: under `Density::Comfortable` each `Space` from `Xs` up is one
+step larger and a `Size::Row` is tall enough to tap. `Space::Custom` and
+`Size::Custom` are for lengths that come from content (a measured indent, a
+board cell, a canvas), never for a gap the scale has. `use_space` and
+`use_size` resolve a token to the pixels an unstyled prop takes. Styled `List`
+and `Grid` take their `spacing`, `column_spacing` and `row_spacing` as `Space`,
+and styled `Gap` its `width`; the base ones keep taking pixels.
+A `FocusRing` takes the `radius` of what it rings and an `offset` `Stroke`,
+and rounds its ring by the two together so the ring stays concentric.
 A frame can also paint a `pointer`, a beak of that reach on its top or bottom
 edge, filled and outlined with the frame so its border runs on around the beak;
 it shows only while an overlay points it at its anchor (below). It paints
@@ -2696,7 +2715,7 @@ fn Counter() -> NodeId {
     let label = create_memo(move || count.get().to_string());
 
     view! {
-        <List spacing=8.0>
+        <List spacing=Space::Md>
             <Text style=TextStyle::DISPLAY>{label}</Text>
             <Button
                 label="Decrease"
@@ -4085,8 +4104,9 @@ Read colors from the nearest theme with `styled::use_theme()`, which returns a
 `ThemeStore` — one `Signal` per token. Bind a token straight to a prop with
 `theme.accent`, or read tokens inside a memo that also reads interaction
 state, so the control repaints when either changes. Because each token is its
-own signal, a component wakes only for the colors it actually uses. Radii and
-spacing are constants in `styled::theme`. Add a field to `Theme`,
+own signal, a component wakes only for the colors it actually uses. Spacing,
+sizes, strokes and radii are the tokens in `styled::tokens` and `Radius`;
+write a component's private consts in them. Add a field to `Theme`,
 with a value in every built-in theme, when a color is part of the theme rather
 than unique to one component.
 
@@ -4128,7 +4148,8 @@ resolve their tokens into a base `Text`'s `font` and `color`:
 - `weight` (`Weight::Normal`, `Weight::Bold`), `family` (`Family::Sans`,
   `Family::Mono`) and `italic`.
 - `color`, a `TextColor` role (`Default`, `Muted`, `Faint`, `Accent`,
-  `OnAccent`, `Danger`, `Warning`, `Success`) resolved through the nearest
+  `AccentHover`, `AccentActive`, `OnAccent`, `OnDanger`, `Danger`, `Warning`,
+  `Success`) resolved through the nearest
   theme, so the text follows a theme change. `TextColor::Custom(color)` is for
   colors that are data rather than design - a user's label color, a map
   marker, a terminal's ANSI palette - and a memo that picks a color by state

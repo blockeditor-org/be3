@@ -1,8 +1,8 @@
 use super::*;
+use crate::primitives::List;
 use crate::reactive::*;
 use crate::styled::Scroll;
 use crate::styled::*;
-use crate::primitives::List;
 
 #[test]
 fn the_keyboard_opening_scrolls_the_focused_field_into_what_is_left() {

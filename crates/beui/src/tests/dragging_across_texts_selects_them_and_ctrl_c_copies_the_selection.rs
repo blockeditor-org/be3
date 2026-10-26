@@ -1,8 +1,8 @@
 use super::*;
+use crate::primitives::List;
 use crate::primitives::Text;
 use crate::reactive::*;
 use crate::styled::*;
-use crate::primitives::List;
 
 const TITLE: &str = "Fix the launcher";
 

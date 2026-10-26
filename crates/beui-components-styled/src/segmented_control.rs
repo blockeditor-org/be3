@@ -2,11 +2,11 @@ use beui_macros::{component, view};
 
 use crate::choice::{Collapsing, Kind, SegmentFace, Wide};
 use crate::frame::{Border, Frame, Radius};
+use crate::list::List;
+use crate::tokens::{Space, use_space};
 use beui_components_unstyled::{Choice, ChoiceOption};
 use beui_core::base::Direction;
 use beui_core::node::NodeId;
-use crate::list::List;
-use crate::tokens::{Space, use_space};
 use beui_view::reactive::*;
 
 const TRACK_PADDING: Space = Space::Xs2;

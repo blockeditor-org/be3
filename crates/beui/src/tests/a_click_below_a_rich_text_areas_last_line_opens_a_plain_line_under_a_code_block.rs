@@ -1,10 +1,10 @@
 use super::*;
+use crate::primitives::List;
 use crate::reactive::*;
 use crate::unstyled::{TextArea, TextAreaState};
 use std::sync::Arc;
 use text_editor_core::schema::basic::{self, Basic, CODE_BLOCK};
 use text_editor_core::{Document, TextBuffer, Value};
-use crate::primitives::List;
 
 const TEXT: &str = "intro\nfn main() {}";
 

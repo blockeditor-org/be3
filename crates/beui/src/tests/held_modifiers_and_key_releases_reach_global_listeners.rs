@@ -1,8 +1,8 @@
 use super::*;
 use crate::KeyEvent;
+use crate::primitives::List;
 use crate::reactive::*;
 use crate::styled::*;
-use crate::primitives::List;
 
 #[test]
 fn held_modifiers_and_key_releases_reach_global_listeners() {

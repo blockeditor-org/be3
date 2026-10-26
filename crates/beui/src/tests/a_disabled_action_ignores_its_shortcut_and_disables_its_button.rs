@@ -1,7 +1,7 @@
 use super::*;
+use crate::primitives::List;
 use crate::reactive::*;
 use crate::styled::*;
-use crate::primitives::List;
 
 #[test]
 fn a_disabled_action_ignores_its_shortcut_and_disables_its_button() {

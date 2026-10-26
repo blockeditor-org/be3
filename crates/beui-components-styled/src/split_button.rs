@@ -122,7 +122,10 @@ fn ArrowFace(handle: PopupTriggerHandle, variant: ButtonVariant) -> NodeId {
     view! {
         <List direction=Direction::Horizontal spacing=Space::None>
             <Frame padding={Padding::vertical(DIVIDER_INSET)}>
-                <Frame width={Size::Custom(Stroke::Hairline.px())} fill={ColorRole::custom(divider)} />
+                <Frame
+                    width={Size::Custom(Stroke::Hairline.px())}
+                    fill={ColorRole::custom(divider)}
+                />
             </Frame>
             <Tooltip label={tooltip}>
                 <HalfFace fill focused side=Side::Trailing padding=ARROW_PADDING_HORIZONTAL>

@@ -5,11 +5,11 @@ use beui_macros::{component, view};
 use crate::button::{Button, ButtonVariant};
 use crate::calendar::{CALENDAR_WIDTH, Calendar};
 use crate::focus_ring::FocusRing;
+use crate::list::List;
 use crate::popover::{PANEL_PADDING, popover_surface};
 use crate::scroll::scrollbar_style;
 use crate::tabs::Tabs;
 use crate::text::{Icon, Text, TextColor};
-use crate::list::List;
 use crate::theme::field_border;
 use crate::tokens::{Length, Padding, Size, Space, Stroke, use_size, use_space};
 use crate::tooltip::Tooltip;
@@ -78,7 +78,9 @@ pub fn DateTimeField(
                 <LiteralFace text />
             }}
             segments={|field: Child| view! {
-                <Frame height=HEIGHT padding={Padding::horizontal(PADDING_HORIZONTAL)}>{field}</Frame>
+                <Frame height=HEIGHT padding={Padding::horizontal(PADDING_HORIZONTAL)}>
+                    {field}
+                </Frame>
             }}
             field={|handle: DateTimeBoxHandle| view! {
                 <FieldBox handle />
@@ -154,11 +156,7 @@ fn SegmentFace(handle: DateSegmentHandle) -> NodeId {
     );
     view! {
         <Frame height={Extent::fraction(1.0)} align={Align2::vertical(Align::Center)}>
-            <Frame
-                fill={fill}
-                radius=SEGMENT_RADIUS
-                padding={Padding::horizontal(SEGMENT_PADDING)}
-            >
+            <Frame fill={fill} radius=SEGMENT_RADIUS padding={Padding::horizontal(SEGMENT_PADDING)}>
                 <Text color={ink} align=TextAlign::Center>{text}</Text>
             </Frame>
         </Frame>
@@ -252,7 +250,9 @@ fn PickerPanel(
         <Frame width={create_memo(move || Size::Custom(panel_width.get()))}>
             <List spacing=PANEL_SPACING>
                 <List direction=Direction::Horizontal spacing=Space::None>
-                    <Frame width={create_memo(move || Size::Custom(field_width.get()))}>{field}</Frame>
+                    <Frame width={create_memo(move || Size::Custom(field_width.get()))}>
+                        {field}
+                    </Frame>
                 </List>
                 <Dynamic value={layout}>|shape: DateTimePanelLayout|
                     <PanelBody

@@ -4,8 +4,8 @@ use beui_core::font::Overflow;
 use beui_core::node::NodeId;
 use beui_macros::{component, view};
 
-use crate::select::Select;
 use crate::list::List;
+use crate::select::Select;
 use crate::tokens::{Padding, Size, Space, Stroke};
 use beui_components_unstyled::{ChoiceOption, ChoiceOptionHandle};
 use beui_view::primitives::{FirstFit, Layers};

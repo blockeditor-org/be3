@@ -456,10 +456,7 @@ pub fn build_bar(state: Stored<State>) -> Bar {
         view! {
             <Frame fill=ColorRole::Surface>
                 <List spacing=Space::None>
-                    <Frame
-                        @sizing=ItemSize::Percent(100.0)
-                        padding=BAR_PADDING
-                    >
+                    <Frame @sizing=ItemSize::Percent(100.0) padding=BAR_PADDING>
                         <List
                             direction=Direction::Horizontal
                             align=Align::Center

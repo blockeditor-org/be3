@@ -1,13 +1,13 @@
 use crate::frame::{Border, ColorRole, Frame, Radius};
 use beui_macros::{component, view};
 
+use crate::list::List;
 use crate::text::{Text, TextColor, TextSize};
+use crate::tokens::{Padding, Size, Space, Stroke};
 use beui_components_unstyled::{CompletionMenu, CompletionRowHandle};
 use beui_core::base::{Align, Direction};
 use beui_core::font::TextAlign;
 use beui_core::node::NodeId;
-use crate::list::List;
-use crate::tokens::{Padding, Size, Space, Stroke};
 use beui_view::reactive::*;
 
 const MENU_WIDTH: Size = Size::Custom(240.0);
@@ -57,11 +57,7 @@ fn EmojiRow(handle: CompletionRowHandle) -> NodeId {
         false => ColorRole::None,
     });
     view! {
-        <Frame
-            fill={fill}
-            radius=Radius::Md
-            padding={Padding::symmetric(Space::Md, Space::Xs2)}
-        >
+        <Frame fill={fill} radius=Radius::Md padding={Padding::symmetric(Space::Md, Space::Xs2)}>
             <List direction=Direction::Horizontal align=Align::Center spacing=Space::Md>
                 <Frame width=EMOJI_COLUMN>
                     <Text size=TextSize::Lg align=TextAlign::Center>{emoji}</Text>

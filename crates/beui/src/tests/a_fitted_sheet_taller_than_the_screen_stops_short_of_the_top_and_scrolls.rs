@@ -1,8 +1,8 @@
 use super::*;
 use crate::primitives::Frame;
+use crate::primitives::List;
 use crate::reactive::*;
 use crate::styled::*;
-use crate::primitives::List;
 
 #[test]
 fn a_fitted_sheet_taller_than_the_screen_stops_short_of_the_top_and_scrolls() {

@@ -397,5 +397,7 @@ pub fn Icon(
 #[component]
 pub fn Gap(width: Space) -> primitives::Gap {
     let width = use_space(width).get_untracked();
-    view! { <primitives::Gap width /> }
+    view! {
+        <primitives::Gap width />
+    }
 }

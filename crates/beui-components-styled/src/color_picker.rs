@@ -4,10 +4,10 @@ use std::rc::Rc;
 use beui_macros::{component, view};
 
 use crate::focus_ring::FocusRing;
+use crate::list::{Grid, List};
 use crate::number_input::NumberInput;
 use crate::text::{Text, TextStyle};
 use crate::text_input::TextInput;
-use crate::list::{Grid, List};
 use crate::tokens::{Size, Space, Stroke};
 use beui_components_unstyled::{
     AlphaSlider, ChoiceOptionHandle, ColorAreaHandle, ColorPickerArea, ColorPickerState, HexText,
@@ -82,7 +82,10 @@ pub fn ColorPicker(
                             <StripFace handle strip=Strip::Hue />
                         </HueSlider>
                         <Show condition=alpha>
-                            <AlphaSlider picker={picker} thumb={SLIDER_HEIGHT.px()}>|handle: SliderHandle|
+                            <AlphaSlider
+                                picker={picker}
+                                thumb={SLIDER_HEIGHT.px()}
+                            >|handle: SliderHandle|
                                 <StripFace handle strip={Strip::Alpha(color)} />
                             </AlphaSlider>
                         </Show>
@@ -337,7 +340,11 @@ fn SwatchFace(handle: SwatchHandle) -> NodeId {
             true => ColorRole::Accent,
             false => ColorRole::Text,
         };
-        (selected.get() || keyboard.get()).then(|| Border::new(color).width(Stroke::Focus).offset(Stroke::Focus))
+        (selected.get() || keyboard.get()).then(|| {
+            Border::new(color)
+                .width(Stroke::Focus)
+                .offset(Stroke::Focus)
+        })
     });
     view! {
         <Frame border={ring} radius=Radius::Md>

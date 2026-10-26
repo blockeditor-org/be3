@@ -1,10 +1,10 @@
 use super::*;
 use crate::ForwardedInput;
 use crate::primitives::Frame;
+use crate::primitives::List;
 use crate::primitives::Text;
 use crate::reactive::*;
 use crate::styled::*;
-use crate::primitives::List;
 
 const WIDE: Vec2 = Vec2::new(1600.0, 1000.0);
 

@@ -1,8 +1,8 @@
 use super::*;
+use crate::primitives::List;
 use crate::primitives::Text;
 use crate::reactive::*;
 use crate::styled::*;
-use crate::primitives::List;
 
 #[test]
 fn double_clicking_selectable_text_selects_a_word_and_dragging_on_grows_it_by_words() {

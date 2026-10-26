@@ -1,7 +1,7 @@
 use super::*;
+use crate::primitives::List;
 use crate::reactive::*;
 use crate::styled::*;
-use crate::primitives::List;
 
 #[test]
 fn an_indeterminate_progress_hidden_by_a_show_stops_asking_for_frames() {

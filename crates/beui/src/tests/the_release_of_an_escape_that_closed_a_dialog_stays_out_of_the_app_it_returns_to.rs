@@ -1,9 +1,9 @@
 use super::*;
 use crate::ForwardedInput;
 use crate::primitives::Frame;
+use crate::primitives::List;
 use crate::reactive::*;
 use crate::styled::*;
-use crate::primitives::List;
 
 #[test]
 fn the_release_of_an_escape_that_closed_a_dialog_stays_out_of_the_app_it_returns_to() {

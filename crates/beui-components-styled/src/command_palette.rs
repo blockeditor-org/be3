@@ -1,11 +1,13 @@
 use crate::frame::{Border, ColorRole, Frame, Radius};
 use beui_macros::{component, view};
 
+use crate::list::List;
 use crate::row::{RowFace, RowSize, RowTrailing};
 use crate::scroll::scrollbar_style;
 use crate::text::{Icon, Text, TextColor};
 use crate::text_input::text_input_style;
 use crate::theme::use_theme;
+use crate::tokens::{Padding, Size, Space, use_space};
 use beui_components_unstyled as unstyled;
 use beui_components_unstyled::{
     CommandPaletteApi, CommandRowHandle, PaletteItem, PaletteItems, PaletteScore, TextInputHandle,
@@ -13,8 +15,6 @@ use beui_components_unstyled::{
 use beui_core::base::TextAlign;
 use beui_core::icons::ICON_SEARCH;
 use beui_core::node::NodeId;
-use crate::list::List;
-use crate::tokens::{Padding, Size, Space, use_space};
 use beui_view::reactive::*;
 
 const WIDTH: f32 = 560.0;

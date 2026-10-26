@@ -6,11 +6,11 @@ use beui_macros::{component, view};
 use beui_view::actions::{Action, MenuNode};
 use beui_view::reactive::*;
 
+use crate::border::Separator;
 use crate::button::{Button, ButtonSize, ButtonVariant};
 use crate::frame::Frame;
-use crate::menu_button::MenuButton;
-use crate::border::Separator;
 use crate::list::List;
+use crate::menu_button::MenuButton;
 use crate::tokens::{Padding, Size, Space};
 
 const SPACING: Space = Space::Xs2;

@@ -322,7 +322,12 @@ impl CornerSet {
     pub const LEFT: CornerSet = CornerSet::new(true, false, false, true);
     pub const RIGHT: CornerSet = CornerSet::new(false, true, true, false);
 
-    pub const fn new(top_left: bool, top_right: bool, bottom_right: bool, bottom_left: bool) -> Self {
+    pub const fn new(
+        top_left: bool,
+        top_right: bool,
+        bottom_right: bool,
+        bottom_left: bool,
+    ) -> Self {
         Self {
             top_left,
             top_right,

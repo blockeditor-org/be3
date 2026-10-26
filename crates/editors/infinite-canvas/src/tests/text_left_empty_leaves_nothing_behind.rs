@@ -20,6 +20,7 @@ fn text_left_empty_leaves_nothing_behind() {
             }
         };
         let write = |editor: &mut BeuiTest<CanvasApp>, at: Pos2| {
+            editor.reveal("infinite-canvas.dock.tool.Text");
             match finger {
                 true => editor.tap("infinite-canvas.dock.tool.Text"),
                 false => editor.click("infinite-canvas.dock.tool.Text"),

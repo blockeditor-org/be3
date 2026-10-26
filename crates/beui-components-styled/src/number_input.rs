@@ -96,8 +96,9 @@ fn NumberFace(handle: NumberFaceHandle, shown: NodeRef, placeholder: Prop<String
         true => TextColor::Muted,
         false => ButtonVariant::Secondary.label(disabled.get()),
     });
-    let fill =
-        create_memo(move || ButtonVariant::Secondary.fill(disabled.get(), hovered.get(), active.get()));
+    let fill = create_memo(move || {
+        ButtonVariant::Secondary.fill(disabled.get(), hovered.get(), active.get())
+    });
     view! {
         <FocusRing focused offset=Stroke::Focus>
             <Frame

@@ -51,11 +51,7 @@ fn SwitchTrack(handle: ToggleHandle) -> NodeId {
     let knob_align =
         create_memo(move || Align2::new(knob_align(checked.get(), mixed.get()), Align::Center));
     let track_color = create_memo(move || {
-        track_fill(
-            disabled.get(),
-            checked.get() && !mixed.get(),
-            hovered.get(),
-        )
+        track_fill(disabled.get(), checked.get() && !mixed.get(), hovered.get())
     });
 
     view! {

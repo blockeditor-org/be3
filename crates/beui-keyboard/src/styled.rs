@@ -13,12 +13,12 @@ use beui_macros::{component, view};
 use beui_view::primitives::Layers;
 use beui_view::reactive::*;
 
+use beui_components_styled::List;
 use beui_components_styled::border::Separator;
 use beui_components_styled::button::{Button, ButtonSize};
 use beui_components_styled::frame::{ColorRole, Frame, Radius};
 use beui_components_styled::scroll::Scroll;
 use beui_components_styled::text::{Icon, Text, TextColor, TextSize};
-use beui_components_styled::List;
 use beui_components_styled::tokens::{Padding, Size, Space, Stroke};
 
 pub const BAR_HEIGHT: f32 = 32.0;
@@ -29,7 +29,10 @@ const EMOJI_SIZE: f32 = 44.0;
 pub fn keys_area(keyboard: Rect) -> Rect {
     let inner = keyboard.shrink(PADDING.px());
     Rect::from_min_max(
-        beui_core::geometry::pos2(inner.left(), inner.top() + Stroke::Hairline.px() + BAR_HEIGHT),
+        beui_core::geometry::pos2(
+            inner.left(),
+            inner.top() + Stroke::Hairline.px() + BAR_HEIGHT,
+        ),
         inner.max,
     )
 }
@@ -45,11 +48,7 @@ pub fn SoftwareKeyboard() -> NodeId {
     view! {
         <List spacing=Space::None>
             <Separator />
-            <Frame
-                @sizing=ItemSize::Percent(100.0)
-                fill=ColorRole::Background
-                padding=PADDING
-            >
+            <Frame @sizing=ItemSize::Percent(100.0) fill=ColorRole::Background padding=PADDING>
                 <List spacing=Space::None>
                     <KeyboardBar @sizing=ItemSize::Fixed(BAR_HEIGHT) />
                     <keyboard::SoftwareKeyboard
@@ -70,7 +69,12 @@ pub fn SoftwareKeyboard() -> NodeId {
 #[component]
 fn KeyboardBar() -> NodeId {
     view! {
-        <List direction=Direction::Horizontal spacing=Space::None justify=Justify::End align=Align::Center>
+        <List
+            direction=Direction::Horizontal
+            spacing=Space::None
+            justify=Justify::End
+            align=Align::Center
+        >
             <Button
                 icon_only=true
                 @test_id="keyboard.close"
@@ -268,7 +272,11 @@ fn EmojiPanel(keyboard: KeyboardHandle) -> NodeId {
                     </ForEach>
                 </List>
             </Scroll>
-            <List direction=Direction::Horizontal spacing=Space::None @sizing=ItemSize::Fixed(EMOJI_SIZE)>
+            <List
+                direction=Direction::Horizontal
+                spacing=Space::None
+                @sizing=ItemSize::Fixed(EMOJI_SIZE)
+            >
                 <PanelKey
                     @sizing=ItemSize::Percent(1.5)
                     keyboard

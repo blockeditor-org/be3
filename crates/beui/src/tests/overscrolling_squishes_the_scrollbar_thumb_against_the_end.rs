@@ -1,8 +1,8 @@
 use super::*;
 use crate::primitives::Frame;
+use crate::primitives::List;
 use crate::reactive::*;
 use crate::styled::Scroll;
-use crate::primitives::List;
 
 #[test]
 fn overscrolling_squishes_the_scrollbar_thumb_against_the_end() {

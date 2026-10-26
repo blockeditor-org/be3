@@ -1,9 +1,9 @@
 use super::*;
+use crate::primitives::List;
 use crate::primitives::Text;
 use crate::reactive::*;
 use crate::styled::*;
 use beui_core::rich::{CaretHandle, handle_center};
-use crate::primitives::List;
 
 #[test]
 fn a_touch_selection_grows_by_its_handle_and_a_tap_outside_clears_it() {

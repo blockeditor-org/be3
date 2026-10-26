@@ -698,11 +698,7 @@ fn FocusedTile() -> NodeId {
                     label="Open the album"
                     on_click={move || opened.set("Opened the album".to_owned())}
                 >|handle: beui::unstyled::ButtonHandle|
-                    <FocusRing
-                        focused={handle.focused}
-                        radius=Radius::Lg
-                        offset=Stroke::Focus
-                    >
+                    <FocusRing focused={handle.focused} radius=Radius::Lg offset=Stroke::Focus>
                         <Card>
                             <Text>{handle.label}</Text>
                         </Card>
@@ -2780,9 +2776,14 @@ fn SelectableServerLog() -> NodeId {
                 "Drag across the lines to select them; dragging past an edge scrolls. Select \
                  All and Copy reach every line, including those the list never built."
             </Text>
-            <Frame border={Border::new(ColorRole::Border).width(Stroke::Hairline)} radius=Radius::Md>
+            <Frame
+                border={Border::new(ColorRole::Border).width(Stroke::Hairline)}
+                radius=Radius::Md
+            >
                 <Scroll max_length=SERVER_LOG_HEIGHT @test_id="rows.server">
-                    <Frame padding={Padding::symmetric(ROW_PADDING_HORIZONTAL, ROW_PADDING_VERTICAL)}>
+                    <Frame
+                        padding={Padding::symmetric(ROW_PADDING_HORIZONTAL, ROW_PADDING_VERTICAL)}
+                    >
                         <SelectableText
                             child_size=ItemSize::Percent(100.0)
                             @test_id="rows.server.selection"
@@ -2856,7 +2857,10 @@ fn FittedScroll() -> NodeId {
                     on_click={move || count.update(|count| *count = count.saturating_sub(1))}
                 />
             </List>
-            <Frame border={Border::new(ColorRole::Border).width(Stroke::Hairline)} radius=Radius::Md>
+            <Frame
+                border={Border::new(ColorRole::Border).width(Stroke::Hairline)}
+                radius=Radius::Md
+            >
                 <Scroll max_length=FITTED_SCROLL_HEIGHT>
                     <ForEach keys={rows}>|index: usize|
                         <Frame
@@ -2911,7 +2915,9 @@ fn FollowingLog() -> NodeId {
                 radius=Radius::Md
             >
                 <Scroll follow_end=true api>
-                    <Frame padding={Padding::symmetric(ROW_PADDING_HORIZONTAL, ROW_PADDING_VERTICAL)}>
+                    <Frame
+                        padding={Padding::symmetric(ROW_PADDING_HORIZONTAL, ROW_PADDING_VERTICAL)}
+                    >
                         <VirtualList
                             keys={lines}
                             item_size=LOG_LINE_ESTIMATE
@@ -3043,12 +3049,10 @@ fn ScrollRowFace(
         true => TextColor::Accent,
         false => TextColor::Muted,
     });
-    let fill_color = create_memo(move || {
-        match (selected.get(), hovered.get()) {
-            (true, _) => ColorRole::AccentSoft,
-            (false, true) => ColorRole::Hover,
-            (false, false) => ColorRole::None,
-        }
+    let fill_color = create_memo(move || match (selected.get(), hovered.get()) {
+        (true, _) => ColorRole::AccentSoft,
+        (false, true) => ColorRole::Hover,
+        (false, false) => ColorRole::None,
     });
     view! {
         <Frame
@@ -3830,7 +3834,12 @@ fn ThemeSample(name: &'static str) -> NodeId {
                     <LabelledSwitch label="A switch" on=true />
                     <Slider value=0.6 label="A slider" />
                     <Progress value={Some(0.6)} />
-                    <List direction=Direction::Horizontal align=Align::Center spacing=Space::Md wrap=true>
+                    <List
+                        direction=Direction::Horizontal
+                        align=Align::Center
+                        spacing=Space::Md
+                        wrap=true
+                    >
                         <Button label="Primary" variant=ButtonVariant::Primary />
                         <Button label="Secondary" variant=ButtonVariant::Secondary />
                     </List>

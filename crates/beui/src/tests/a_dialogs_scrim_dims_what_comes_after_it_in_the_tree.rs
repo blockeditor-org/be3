@@ -2,9 +2,9 @@ use super::*;
 use crate::geometry::Rect;
 use crate::painter::Shape;
 use crate::primitives::Frame;
+use crate::primitives::List;
 use crate::reactive::*;
 use crate::styled::*;
-use crate::primitives::List;
 
 const SIBLING: Color32 = Color32::from_rgb(200, 40, 40);
 

@@ -1,7 +1,7 @@
 use super::*;
+use crate::primitives::List;
 use crate::reactive::*;
 use crate::styled::*;
-use crate::primitives::List;
 
 fn laid_out(harness: &Harness, test_id: &str) -> bool {
     harness
