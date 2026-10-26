@@ -94,7 +94,10 @@ fn each_panel_shows_its_window_s_title_and_dragging_the_title_carries_it() {
 
     let untitled = window(&context, notes, SMALL, "Notes");
     space.compose(
-        &[titled(&context, WindowId::MAIN, PLATFORM, "Workspace"), untitled],
+        &[
+            titled(&context, WindowId::MAIN, PLATFORM, "Workspace"),
+            untitled,
+        ],
         &[],
         &view(now),
     );

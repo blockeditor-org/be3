@@ -9,7 +9,10 @@ fn button_angle(space: &Space, window: WindowId) -> f32 {
     let layout = chrome::layout(vec2(metres.x, metres.y), panel.chrome, false);
     let (_, rect) = layout.buttons[0];
     let at = |x: f32| {
-        let pos = pos2(x / panel.metres_per_point, rect.center().y / panel.metres_per_point);
+        let pos = pos2(
+            x / panel.metres_per_point,
+            rect.center().y / panel.metres_per_point,
+        );
         panel.world(pos) - space.head.position
     };
     at(rect.max.x).angle_between(at(rect.min.x))
@@ -45,10 +48,7 @@ fn the_chrome_keeps_its_size_to_the_eye_at_any_distance() {
     .0;
     send(&mut space, now, []);
 
-    let (near_size, far_size) = (
-        button_angle(&space, near),
-        button_angle(&space, far),
-    );
+    let (near_size, far_size) = (button_angle(&space, near), button_angle(&space, far));
     let main_size = button_angle(&space, WindowId::MAIN);
     let similar = |a: f32, b: f32| (a / b).max(b / a) < chrome::KEPT * 1.1;
     assert!(

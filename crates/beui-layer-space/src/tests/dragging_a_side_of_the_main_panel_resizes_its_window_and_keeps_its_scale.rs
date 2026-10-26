@@ -78,7 +78,11 @@ fn dragging_a_side_of_the_main_panel_resizes_its_window_and_keeps_its_scale() {
     let bottom = panel.world(pos2(panel.size.x * 0.2, panel.size.y + out));
     let lower = panel.world(pos2(panel.size.x * 0.2, panel.size.y + out + 300.0));
     let hand = right_hand();
-    drive(&mut space, now, [hand_pose(hand, bottom), trigger(Hand::Right, 1.0)]);
+    drive(
+        &mut space,
+        now,
+        [hand_pose(hand, bottom), trigger(Hand::Right, 1.0)],
+    );
     let moved = drive(&mut space, now, [hand_pose(hand, lower)]);
     assert_eq!(
         resized(&moved),

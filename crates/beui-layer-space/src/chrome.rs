@@ -137,7 +137,11 @@ impl Default for Fit {
 
 pub fn fitted(panel: &Panel, eye: Vec3) -> f32 {
     let held = panel.chrome.scale;
-    let wanted = (panel.world(pos2(panel.size.x / 2.0, panel.size.y / 2.0)).distance(eye) / REFERENCE).max(NEAREST);
+    let wanted = (panel
+        .world(pos2(panel.size.x / 2.0, panel.size.y / 2.0))
+        .distance(eye)
+        / REFERENCE)
+        .max(NEAREST);
     match (wanted / held).max(held / wanted) > KEPT {
         true => wanted,
         false => held,
@@ -278,7 +282,10 @@ pub fn layout(metres: Vec2, fit: Fit, slider: bool) -> Layout {
     let buttons = kinds.map(|part| {
         let at = kinds.iter().position(|each| *each == part).unwrap_or(0);
         let x = first + step * at as f32;
-        (part, Rect::from_center_size(pos2(x, middle), vec2(button, button)))
+        (
+            part,
+            Rect::from_center_size(pos2(x, middle), vec2(button, button)),
+        )
     });
     let last = buttons.len() - 1;
     let closed = Rect::from_min_max(
@@ -301,7 +308,10 @@ pub fn layout(metres: Vec2, fit: Fit, slider: bool) -> Layout {
             (true, false) => closed.max.x + slop,
             _ => split(*rect),
         };
-        parts.push((*part, Rect::from_min_max(pos2(left, metres.y), pos2(right, below))));
+        parts.push((
+            *part,
+            Rect::from_min_max(pos2(left, metres.y), pos2(right, below)),
+        ));
     }
     let sliding = Rect::from_min_max(
         pos2(split(buttons[last].1), metres.y),
@@ -399,12 +409,7 @@ pub fn layout(metres: Vec2, fit: Fit, slider: bool) -> Layout {
 }
 
 fn elided(context: &Context, title: &str, font: FontId, room: f32) -> String {
-    let width = |text: &str| {
-        context
-            .layout(text, font, TextLayout::DEFAULT)
-            .size()
-            .x
-    };
+    let width = |text: &str| context.layout(text, font, TextLayout::DEFAULT).size().x;
     if width(title) <= room {
         return title.to_owned();
     }
