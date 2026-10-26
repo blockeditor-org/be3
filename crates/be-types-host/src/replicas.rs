@@ -1341,7 +1341,10 @@ impl<H: Host> Replicas<H> {
     ) -> Result<(Uuid, Vec<u8>), String> {
         let mut claimed = None;
         for (module, claim) in self.modules.claim_requests(name, &bytes, false) {
-            if let Ok(Some(content_type)) = self.ask(ctx, module, |connection| claim.call(connection)).await {
+            if let Ok(Some(content_type)) = self
+                .ask(ctx, module, |connection| claim.call(connection))
+                .await
+            {
                 claimed = Some(content_type);
                 break;
             }

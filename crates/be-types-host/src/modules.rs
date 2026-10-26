@@ -808,7 +808,9 @@ impl Modules {
 
     pub async fn claims(&mut self, name: &str, first: &[u8], directory: bool) -> Option<Uuid> {
         for (module, claim) in self.claim_requests(name, first, directory) {
-            if let Ok(Some(content_type)) = self.ask(module, |connection| claim.call(connection)).await {
+            if let Ok(Some(content_type)) =
+                self.ask(module, |connection| claim.call(connection)).await
+            {
                 return Some(content_type);
             }
         }
